@@ -1,0 +1,24 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --bg: #FAFAFA;
+  --fg: #0A0A0A;
+}
+.dark {
+  --bg: #0A0A0A;
+  --fg: #FAFAFA;
+}
+html, body { height: 100%; }
+body {
+  background-color: var(--bg);
+  color: var(--fg);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+.card { @apply rounded-2xl border border-gray-200 bg-white shadow-sm transition hover:shadow; }
+.badge { @apply rounded-full bg-gray-100 text-gray-700 px-3 py-1 text-[11px] tracking-wider uppercase; }
+.link { @apply underline decoration-transparent hover:decoration-current transition; }
+
+

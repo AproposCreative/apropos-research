@@ -1,0 +1,49 @@
+name: ingest-rage-cron
+
+on:
+  schedule:
+    - cron: '0 */4 * * *'
+  workflow_dispatch:
+
+jobs:
+  build-and-run:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Install dependencies
+        run: npm ci || npm i --no-fund --no-audit
+      - run: npm run build
+      - name: Run feed ingest
+        id: run1
+        env:
+          RAGE_BASE_URL: ${{ secrets.RAGE_BASE_URL }}
+          RAGE_FEED_PATH: ${{ secrets.RAGE_FEED_PATH }}
+          RAGE_SITEMAP_INDEX: ${{ secrets.RAGE_SITEMAP_INDEX }}
+          RAGE_RATE_LIMIT_RPS: ${{ secrets.RAGE_RATE_LIMIT_RPS }}
+          RAGE_STORAGE_DIR: ${{ secrets.RAGE_STORAGE_DIR }}
+          RAGE_USER_AGENT: ${{ secrets.RAGE_USER_AGENT }}
+        run: node dist/ingest-rage.js --since=48 --limit=60 --feedOnly
+        continue-on-error: true
+      - name: Fallback sitemap ingest
+        if: steps.run1.outcome != 'success'
+        env:
+          RAGE_BASE_URL: ${{ secrets.RAGE_BASE_URL }}
+          RAGE_FEED_PATH: ${{ secrets.RAGE_FEED_PATH }}
+          RAGE_SITEMAP_INDEX: ${{ secrets.RAGE_SITEMAP_INDEX }}
+          RAGE_RATE_LIMIT_RPS: ${{ secrets.RAGE_RATE_LIMIT_RPS }}
+          RAGE_STORAGE_DIR: ${{ secrets.RAGE_STORAGE_DIR }}
+          RAGE_USER_AGENT: ${{ secrets.RAGE_USER_AGENT }}
+        run: node dist/ingest-rage.js --sitemapOnly --limit=60
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: rage-data
+          path: |
+            data/rage_articles.jsonl
+            prompts/rage_prompts.jsonl
+            data/index.json
+
+
