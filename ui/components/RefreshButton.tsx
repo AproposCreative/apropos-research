@@ -1,25 +1,26 @@
 'use client';
-import { useState } from 'react';
+import { useRefreshing } from './RefreshCtx';
 
 export default function RefreshButton() {
-  const [busy, setBusy] = useState(false);
+  const { refreshing, setRefreshing } = useRefreshing();
+  
   return (
     <button
       type="button"
       onClick={async () => {
-        if (busy) return;
-        setBusy(true);
+        if (refreshing) return;
+        setRefreshing(true);
         const res = await fetch('/api/refresh', { method: 'POST' });
-        setBusy(false);
+        setRefreshing(false);
         // simple reload to pick up new JSONL content
         if (res.ok) location.reload();
         else alert('Kunne ikke opdatere – tjek terminalen for ingest-output.');
       }}
-      className="rounded-full border border-line px-3 py-1 text-xs text-gray-800 bg-white hover:bg-gray-50 transition disabled:opacity-60"
-      disabled={busy}
+      className="rounded-xl border border-slate-300/50 dark:border-slate-600/50 px-4 py-2 text-sm text-slate-700 dark:text-slate-300 bg-white/70 dark:bg-slate-800/70 hover:bg-slate-100/70 dark:hover:bg-slate-700/70 transition-all duration-300 backdrop-blur-sm shadow-lg ring-1 ring-white/20 dark:ring-slate-700/50 disabled:opacity-60"
+      disabled={refreshing}
       title="Hent nye artikler"
     >
-      {busy ? 'Henter…' : 'Opdatér'}
+      {refreshing ? 'Henter…' : 'Opdatér'}
     </button>
   );
 }

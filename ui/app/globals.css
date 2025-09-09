@@ -2,6 +2,38 @@
 @tailwind components;
 @tailwind utilities;
 
+@layer utilities {
+  .line-clamp-2 {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  
+  .card-base { 
+    @apply rounded-2xl border transition-shadow duration-300 overflow-hidden h-full flex flex-col;
+    border-color: rgba(0,0,0,0.1);
+  }
+  .card-light { 
+    @apply bg-white shadow-sm hover:shadow-md;
+    border-color: rgba(0,0,0,0.1);
+  }
+  .card-glass {
+    @apply bg-white/5 dark:bg-black/20 backdrop-blur-2xl border-white/10 dark:border-white/5;
+    box-shadow:
+      inset 0 1px 0 rgba(255,255,255,.1),
+      0 8px 32px -8px rgba(0,0,0,.3),
+      0 0 0 1px rgba(255,255,255,.05);
+  }
+  .card-glass:hover { 
+    @apply bg-white/10 dark:bg-black/30;
+    box-shadow:
+      inset 0 1px 0 rgba(255,255,255,.15),
+      0 12px 40px -8px rgba(0,0,0,.4),
+      0 0 0 1px rgba(255,255,255,.1);
+  }
+}
+
 :root {
   --bg: #FAFAFA;
   --fg: #0A0A0A;

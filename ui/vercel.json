@@ -1,0 +1,15 @@
+{
+  "buildCommand": "npm run build:hosted",
+  "outputDirectory": ".next",
+  "framework": "nextjs",
+  "installCommand": "npm install",
+  "devCommand": "npm run dev",
+  "env": {
+    "NODE_ENV": "production"
+  },
+  "functions": {
+    "ui/app/api/**/*.ts": {
+      "maxDuration": 30
+    }
+  }
+}

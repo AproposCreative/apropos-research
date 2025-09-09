@@ -19,12 +19,14 @@ function parseArgs() {
   const noRobots = argv.includes("--noRobots");
   const sinceArg = argv.find((a) => a.startsWith("--since="));
   const limitArg = argv.find((a) => a.startsWith("--limit="));
+  const sourceArg = argv.find((a) => a.startsWith("--source="));
   const sinceHrs = sinceArg ? Number(sinceArg.split("=")[1]) : undefined;
   const limit = limitArg ? Number(limitArg.split("=")[1]) : undefined;
-  return { isDry, feedOnly, sitemapOnly, noRobots, sinceHrs, limit };
+  const source = sourceArg ? sourceArg.split("=")[1] : undefined;
+  return { isDry, feedOnly, sitemapOnly, noRobots, sinceHrs, limit, source };
 }
 
-async function ingestOnce(opts: { feedOnly?: boolean; sitemapOnly?: boolean; noRobots?: boolean; sinceHrs?: number; limit?: number }) {
+async function ingestOnce(opts: { feedOnly?: boolean; sitemapOnly?: boolean; noRobots?: boolean; sinceHrs?: number; limit?: number; source?: string }) {
   const metrics = {
     discovered: 0,
     fetched_ok: 0,
@@ -37,13 +39,22 @@ async function ingestOnce(opts: { feedOnly?: boolean; sitemapOnly?: boolean; noR
     bulletsAdded: 0,
   };
 
-  let candidates: { url: string; published_at?: string }[] = [];
+  let candidates: { url: string; published_at?: string; source?: string }[] = [];
   if (!opts.sitemapOnly) {
     candidates = await discoverFromFeed();
   }
   if ((opts.sitemapOnly || candidates.length === 0) && !opts.feedOnly) {
     const urls = await discoverFromSitemaps();
-    candidates = candidates.concat(urls.map((url) => ({ url })));
+    candidates = candidates.concat(urls.map((url) => {
+      // Determine source from URL
+      let source = 'unknown';
+      if (url.includes('soundvenue.com')) source = 'soundvenue';
+      else if (url.includes('gaffa.dk')) source = 'gaffa';
+      else if (url.includes('euroman.dk')) source = 'euroman';
+      else if (url.includes('berlingske.dk')) source = 'berlingske';
+      else if (url.includes('bt.dk')) source = 'bt';
+      return { url, source };
+    }));
   }
 
   // since filter
@@ -57,22 +68,27 @@ async function ingestOnce(opts: { feedOnly?: boolean; sitemapOnly?: boolean; noR
     return true; // unknown dates are included, but limited later
   });
 
+  // source filter
+  if (opts.source) {
+    filtered = filtered.filter((c) => c.source === opts.source);
+  }
+
   // unique and apply limit
   const seen = new Set<string>();
-  const uniqueUrls: string[] = [];
+  const uniqueCandidates: { url: string; source?: string }[] = [];
   for (const c of filtered) {
     if (!seen.has(c.url)) {
       seen.add(c.url);
-      uniqueUrls.push(c.url);
+      uniqueCandidates.push({ url: c.url, source: c.source });
     }
-    if (opts.limit && uniqueUrls.length >= opts.limit) break;
+    if (opts.limit && uniqueCandidates.length >= opts.limit) break;
   }
-  metrics.discovered = uniqueUrls.length;
+  metrics.discovered = uniqueCandidates.length;
 
   const articleRecords = [] as any[];
   const promptRecords = [] as any[];
 
-  for (const url of uniqueUrls) {
+  for (const { url, source } of uniqueCandidates) {
     try {
       const { text, contentType, status } = await fetchText(url, { noRobots: opts.noRobots });
       if (status === 304) {
@@ -96,6 +112,7 @@ async function ingestOnce(opts: { feedOnly?: boolean; sitemapOnly?: boolean; noR
         published_at: parsed.date,
         body_text: parsed.body_text,
         image: parsed.image,
+        source: source || 'unknown',
       });
       const { summary, bullets, chunks } = (await import("../prompt/builder")).buildPrompts({
         title: parsed.title,
@@ -112,6 +129,7 @@ async function ingestOnce(opts: { feedOnly?: boolean; sitemapOnly?: boolean; noR
           chunk_index: i,
           chunk_text: chunk,
           image: parsed.image,
+          source: source || 'unknown',
         });
       });
     } catch (err: any) {
@@ -131,7 +149,7 @@ async function ingestOnce(opts: { feedOnly?: boolean; sitemapOnly?: boolean; noR
 }
 
 async function main() {
-  const { isDry, feedOnly, sitemapOnly, noRobots, sinceHrs, limit } = parseArgs();
+  const { isDry, feedOnly, sitemapOnly, noRobots, sinceHrs, limit, source } = parseArgs();
   if (isDry) {
     console.log(
       JSON.stringify(
@@ -142,7 +160,7 @@ async function main() {
           storageDir: env.RAGE_STORAGE_DIR,
           rateLimitRps: env.RAGE_RATE_LIMIT_RPS,
           userAgent: env.RAGE_USER_AGENT,
-          flags: { feedOnly, sitemapOnly, noRobots, sinceHrs, limit },
+          flags: { feedOnly, sitemapOnly, noRobots, sinceHrs, limit, source },
         },
         null,
         2
@@ -151,7 +169,7 @@ async function main() {
     return;
   }
 
-  const res = await ingestOnce({ feedOnly, sitemapOnly, noRobots, sinceHrs, limit });
+  const res = await ingestOnce({ feedOnly, sitemapOnly, noRobots, sinceHrs, limit, source });
   logger.info(
     {
       articles: { added: res.newArticles, skipped: res.skippedArticles },

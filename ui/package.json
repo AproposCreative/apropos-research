@@ -6,13 +6,16 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "start": "next start"
+    "start": "next start",
+    "data:export": "node scripts/export-data.mjs",
+    "build:hosted": "npm run data:export && next build"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "type": "commonjs",
   "dependencies": {
+    "@tailwindcss/postcss": "^4.1.13",
     "@types/node": "24.3.1",
     "jsonlines": "0.1.1",
     "lucide-react": "0.542.0",

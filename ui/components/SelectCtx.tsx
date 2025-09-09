@@ -7,6 +7,7 @@ export type SelItem = {
   url: string;
   summary?: string;
   bullets?: string[];
+  source?: string;
 };
 
 type Ctx = {

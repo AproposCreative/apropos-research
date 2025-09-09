@@ -5,6 +5,8 @@ type PromptItem = {
   category?: string;
   bullets: string[];
   summary: string;
+  source?: string;
+  fetched_at?: string;
 };
 
 export function filterPrompts(
@@ -31,6 +33,42 @@ export function filterPrompts(
     return tb - ta;
   });
   return out;
+}
+
+export function sortList(list: PromptItem[], sort: string): PromptItem[] {
+  const sorted = [...list];
+  
+  switch (sort) {
+    case 'newest':
+      sorted.sort((a, b) => {
+        const ta = a.date ? Date.parse(a.date) : (a.fetched_at ? Date.parse(a.fetched_at) : 0);
+        const tb = b.date ? Date.parse(b.date) : (b.fetched_at ? Date.parse(b.fetched_at) : 0);
+        return tb - ta;
+      });
+      break;
+    case 'oldest':
+      sorted.sort((a, b) => {
+        const ta = a.date ? Date.parse(a.date) : (a.fetched_at ? Date.parse(a.fetched_at) : 0);
+        const tb = b.date ? Date.parse(b.date) : (b.fetched_at ? Date.parse(b.fetched_at) : 0);
+        return ta - tb;
+      });
+      break;
+    case 'title':
+      sorted.sort((a, b) => (a.title || '').localeCompare(b.title || ''));
+      break;
+    case 'source':
+      sorted.sort((a, b) => (a.source || '').localeCompare(b.source || ''));
+      break;
+    default:
+      // Default to newest
+      sorted.sort((a, b) => {
+        const ta = a.date ? Date.parse(a.date) : (a.fetched_at ? Date.parse(a.fetched_at) : 0);
+        const tb = b.date ? Date.parse(b.date) : (b.fetched_at ? Date.parse(b.fetched_at) : 0);
+        return tb - ta;
+      });
+  }
+  
+  return sorted;
 }
 
 

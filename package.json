@@ -4,10 +4,13 @@
   "description": "",
   "main": "index.js",
   "scripts": {
+    "dev": "npm --prefix ui run dev",
+    "dev:ui": "npm --prefix ui run dev",
+    "dev:ingest": "tsx src/cli/ingest-rage.ts",
+    "ingest": "tsx src/cli/ingest-rage.ts",
+    "build": "npm --prefix ui run build",
+    "start": "npm --prefix ui run start",
     "test": "vitest",
-    "dev": "tsx src/cli/ingest-rage.ts",
-    "ingest:rage": "tsx src/cli/ingest-rage.ts",
-    "build": "tsup src/cli/ingest-rage.ts --format esm --dts --out-dir dist",
     "lint:scan": "(grep -R -i 'Soundvenue' src test README.md .github || true) && echo 'scan-ok'",
     "dev:all": "./dev.sh"
   },
