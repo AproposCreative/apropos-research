@@ -3,9 +3,11 @@ import type { Metadata } from 'next';
 import RefreshButton from '../components/RefreshButton';
 import { SelectProvider } from '../components/SelectCtx';
 import { RefreshProvider } from '../components/RefreshCtx';
+import { AuthProvider } from '../lib/auth-context';
 import DarkModeToggle from '../components/DarkModeToggle';
 import Drawer from '../components/Drawer';
 import DynamicHeader from '../components/DynamicHeader';
+import AuthHeader from '../components/AuthHeader';
 import MediaNav from '../components/MediaNav';
 import HomeNav from '../components/HomeNav';
 import Logo from '../components/Logo';
@@ -52,8 +54,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         />
       </head>
       <body className="bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-950 dark:to-black text-slate-900 dark:text-slate-100 min-h-dvh transition-colors duration-300">
-        <SelectProvider>
-          <RefreshProvider>
+        <AuthProvider>
+          <SelectProvider>
+            <RefreshProvider>
             <div className="flex h-screen bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-950 dark:to-black">
               {/* Sidebar */}
               <aside className="w-64 bg-white/70 dark:bg-slate-900/70 backdrop-blur-2xl border-r border-slate-200/50 dark:border-slate-700/50 flex-shrink-0 overflow-y-auto shadow-2xl">
@@ -135,6 +138,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                              <DynamicHeader />
                            </div>
                            <div className="flex items-center gap-3">
+                             <AuthHeader />
                              <DarkModeToggle />
                              <RefreshButton />
                            </div>
@@ -148,8 +152,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           </div>
         </div>
             <Drawer />
-          </RefreshProvider>
-        </SelectProvider>
+            </RefreshProvider>
+          </SelectProvider>
+        </AuthProvider>
       </body>
     </html>
   );
