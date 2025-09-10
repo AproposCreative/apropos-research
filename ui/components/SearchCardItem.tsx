@@ -85,9 +85,9 @@ const SearchCardItem = memo(function SearchCardItem({
                   {article.source}
                 </span>
               )}
-              {showRelevanceScore && article.relevanceScore && (
+              {showRelevanceScore && (article as any).relevanceScore && (
                 <span className="px-2 py-1 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 rounded-full text-xs">
-                  {Math.round(article.relevanceScore)}% match
+                  {Math.round((article as any).relevanceScore)}% match
                 </span>
               )}
             </div>
@@ -135,9 +135,9 @@ const SearchCardItem = memo(function SearchCardItem({
         )}
         
         {/* Relevance Score Badge */}
-        {showRelevanceScore && article.relevanceScore && (
+        {showRelevanceScore && (article as any).relevanceScore && (
           <div className="absolute top-3 right-3 px-2 py-1 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 rounded-full text-xs font-medium backdrop-blur-sm">
-            {Math.round(article.relevanceScore)}% match
+            {Math.round((article as any).relevanceScore)}% match
           </div>
         )}
       </div>
@@ -161,9 +161,9 @@ const SearchCardItem = memo(function SearchCardItem({
           {article.title}
         </h3>
 
-        {article.content && (
+        {article.summary && (
           <p className="text-sm text-slate-600 dark:text-slate-400 line-clamp-3 mb-4">
-            {article.content}
+            {article.summary}
           </p>
         )}
 

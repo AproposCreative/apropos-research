@@ -19,23 +19,23 @@ jobs:
       - name: Run feed ingest
         id: run1
         env:
-          RAGE_BASE_URL: ${{ secrets.RAGE_BASE_URL }}
-          RAGE_FEED_PATH: ${{ secrets.RAGE_FEED_PATH }}
-          RAGE_SITEMAP_INDEX: ${{ secrets.RAGE_SITEMAP_INDEX }}
-          RAGE_RATE_LIMIT_RPS: ${{ secrets.RAGE_RATE_LIMIT_RPS }}
-          RAGE_STORAGE_DIR: ${{ secrets.RAGE_STORAGE_DIR }}
-          RAGE_USER_AGENT: ${{ secrets.RAGE_USER_AGENT }}
+          RAGE_BASE_URL: ${{ secrets.RAGE_BASE_URL || 'https://gaffa.dk' }}
+          RAGE_FEED_PATH: ${{ secrets.RAGE_FEED_PATH || '/feed' }}
+          RAGE_SITEMAP_INDEX: ${{ secrets.RAGE_SITEMAP_INDEX || '/sitemap_index.xml' }}
+          RAGE_RATE_LIMIT_RPS: ${{ secrets.RAGE_RATE_LIMIT_RPS || '2' }}
+          RAGE_STORAGE_DIR: ${{ secrets.RAGE_STORAGE_DIR || './data' }}
+          RAGE_USER_AGENT: ${{ secrets.RAGE_USER_AGENT || 'AproposResearchBot/1.0' }}
         run: node dist/ingest-rage.js --since=48 --limit=60 --feedOnly
         continue-on-error: true
       - name: Fallback sitemap ingest
         if: steps.run1.outcome != 'success'
         env:
-          RAGE_BASE_URL: ${{ secrets.RAGE_BASE_URL }}
-          RAGE_FEED_PATH: ${{ secrets.RAGE_FEED_PATH }}
-          RAGE_SITEMAP_INDEX: ${{ secrets.RAGE_SITEMAP_INDEX }}
-          RAGE_RATE_LIMIT_RPS: ${{ secrets.RAGE_RATE_LIMIT_RPS }}
-          RAGE_STORAGE_DIR: ${{ secrets.RAGE_STORAGE_DIR }}
-          RAGE_USER_AGENT: ${{ secrets.RAGE_USER_AGENT }}
+          RAGE_BASE_URL: ${{ secrets.RAGE_BASE_URL || 'https://gaffa.dk' }}
+          RAGE_FEED_PATH: ${{ secrets.RAGE_FEED_PATH || '/feed' }}
+          RAGE_SITEMAP_INDEX: ${{ secrets.RAGE_SITEMAP_INDEX || '/sitemap_index.xml' }}
+          RAGE_RATE_LIMIT_RPS: ${{ secrets.RAGE_RATE_LIMIT_RPS || '2' }}
+          RAGE_STORAGE_DIR: ${{ secrets.RAGE_STORAGE_DIR || './data' }}
+          RAGE_USER_AGENT: ${{ secrets.RAGE_USER_AGENT || 'AproposResearchBot/1.0' }}
         run: node dist/ingest-rage.js --sitemapOnly --limit=60
       - name: Upload artifacts
         uses: actions/upload-artifact@v4

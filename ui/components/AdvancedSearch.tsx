@@ -61,7 +61,7 @@ export default function AdvancedSearch({ articles, onSearchResults, onRelatedArt
     return articles.map(article => {
       let score = 0;
       const title = article.title?.toLowerCase() || '';
-      const content = article.content?.toLowerCase() || '';
+      const content = article.summary?.toLowerCase() || '';
       const source = article.source?.toLowerCase() || '';
       const category = article.category?.toLowerCase() || '';
 
@@ -141,7 +141,7 @@ export default function AdvancedSearch({ articles, onSearchResults, onRelatedArt
 
       // Length filter
       if (filters.length !== 'all') {
-        const wordCount = article.content?.split(/\s+/).length || 0;
+        const wordCount = article.summary?.split(/\s+/).length || 0;
         switch (filters.length) {
           case 'short':
             if (wordCount > 300) return false;
@@ -157,7 +157,7 @@ export default function AdvancedSearch({ articles, onSearchResults, onRelatedArt
 
       // Word count range
       if (filters.minWords || filters.maxWords) {
-        const wordCount = article.content?.split(/\s+/).length || 0;
+        const wordCount = article.summary?.split(/\s+/).length || 0;
         if (filters.minWords && wordCount < filters.minWords) return false;
         if (filters.maxWords && wordCount > filters.maxWords) return false;
       }
@@ -175,7 +175,7 @@ export default function AdvancedSearch({ articles, onSearchResults, onRelatedArt
 
     let results = isSemanticSearch ? semanticSearch(query, articles) : articles.filter(article => 
       article.title?.toLowerCase().includes(query.toLowerCase()) ||
-      article.content?.toLowerCase().includes(query.toLowerCase())
+      article.summary?.toLowerCase().includes(query.toLowerCase())
     );
 
     results = applyFilters(results);
@@ -195,12 +195,12 @@ export default function AdvancedSearch({ articles, onSearchResults, onRelatedArt
 
   // Find related articles based on the first result
   const findRelatedArticles = (baseArticle: RageItem, allArticles: RageItem[]): RageItem[] => {
-    const baseWords = new Set((baseArticle.title + ' ' + baseArticle.content).toLowerCase().split(/\s+/));
+    const baseWords = new Set((baseArticle.title + ' ' + baseArticle.summary).toLowerCase().split(/\s+/));
     
     return allArticles
       .filter(article => article.url !== baseArticle.url)
       .map(article => {
-        const articleWords = new Set((article.title + ' ' + article.content).toLowerCase().split(/\s+/));
+        const articleWords = new Set((article.title + ' ' + article.summary).toLowerCase().split(/\s+/));
         const intersection = new Set([...baseWords].filter(word => articleWords.has(word)));
         const similarity = intersection.size / Math.max(baseWords.size, articleWords.size);
         

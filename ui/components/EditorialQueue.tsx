@@ -1,9 +1,9 @@
 'use client';
-import { PromptItem } from '@/lib/readPrompts';
+import { RageItem } from '@/lib/readPrompts';
 import { useState, useEffect } from 'react';
 
 interface EditorialQueueProps {
-  allArticles: PromptItem[];
+  allArticles: RageItem[];
 }
 
 interface EditorialItem {

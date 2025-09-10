@@ -7,12 +7,9 @@ const nextConfig = {
   // Improve Fast Refresh performance
   experimental: {
     optimizePackageImports: ['@/components', '@/lib'],
-    // Disable problematic features that cause Fast Refresh issues
-    esmExternals: false,
-    serverComponentsExternalPackages: [],
-    // Disable Fast Refresh entirely to prevent issues
-    fastRefresh: false,
   },
+  // Move deprecated options to their new locations
+  serverExternalPackages: [],
   // Disable features that can cause Fast Refresh issues
   typescript: {
     ignoreBuildErrors: false,

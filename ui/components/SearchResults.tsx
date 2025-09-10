@@ -20,7 +20,7 @@ export default function SearchResults({ articles }: SearchResultsProps) {
   const sortedResults = [...searchResults].sort((a, b) => {
     switch (sortBy) {
       case 'relevance':
-        return (b.relevanceScore || 0) - (a.relevanceScore || 0);
+        return ((b as any).relevanceScore || 0) - ((a as any).relevanceScore || 0);
       case 'date':
         return new Date(b.fetched_at).getTime() - new Date(a.fetched_at).getTime();
       case 'title':
