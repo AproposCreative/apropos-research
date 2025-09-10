@@ -8,8 +8,12 @@ const outDir    = resolve(__dirname, '../public/data');
 const outFile   = resolve(outDir, 'rage_prompts.json');
 
 if (!existsSync(jsonlPath)) {
-  console.error('❌ Fandt ikke', jsonlPath, '(kør ingest først)');
-  process.exit(1);
+  console.warn('⚠️ Fandt ikke', jsonlPath, '- bruger tom data');
+  // Create empty data file for deployment
+  mkdirSync(outDir, { recursive: true });
+  writeFileSync(outFile, JSON.stringify([], null, 2));
+  console.log('✅ Skrev', outFile, '(0 poster)');
+  process.exit(0);
 }
 
 // Read and parse JSONL data
