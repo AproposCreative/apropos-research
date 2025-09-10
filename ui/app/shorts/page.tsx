@@ -1,5 +1,5 @@
-import { readPrompts } from '@/lib/readPrompts';
-import SelectedArticles from '@/components/SelectedArticles';
+import { readPrompts } from '../../lib/readPrompts';
+import SelectedArticles from '../../components/SelectedArticles';
 
 export default async function ShortsPage() {
   const allArticles = await readPrompts();
