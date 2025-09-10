@@ -1,5 +1,5 @@
 'use client';
-import { useMemo } from 'react';
+import { useMemo, memo } from 'react';
 import Image from 'next/image';
 import { useSelect } from './SelectCtx';
 
@@ -37,7 +37,7 @@ type Props = {
   };
 };
 
-export default function CardItem({ item }: Props) {
+const CardItem = memo(function CardItem({ item }: Props) {
   const { selected, toggle } = useSelect();
   const isSel = Boolean(selected[item.id]);
 
@@ -64,16 +64,17 @@ export default function CardItem({ item }: Props) {
       {/* image */}
       <div className={`relative aspect-[16/9] flex-shrink-0 ${bg}`}>
         {item.image ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img 
+          <Image
             src={`/api/image-proxy?url=${encodeURIComponent(item.image)}`}
-            alt="" 
-            className="w-full h-full object-cover" 
+            alt=""
+            fill
+            className="object-cover"
+            sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+            placeholder="blur"
+            blurDataURL="data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/2wBDAQcHBwoIChMKChMoGhYaKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCj/wAARCAABAAEDASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAv/xAAUEAEAAAAAAAAAAAAAAAAAAAAA/8QAFQEBAQAAAAAAAAAAAAAAAAAAAAX/xAAUEQEAAAAAAAAAAAAAAAAAAAAA/9oADAMBAAIRAxEAPwCdABmX/9k="
             onError={(e) => {
-              console.log('Image failed to load:', item.image);
               e.currentTarget.style.display = 'none';
             }}
-            onLoad={() => console.log('Image loaded successfully:', item.image)}
           />
         ) : (
           <div className="h-full w-full flex items-center justify-center">
@@ -141,4 +142,6 @@ export default function CardItem({ item }: Props) {
       </div>
     </article>
   );
-}
+});
+
+export default CardItem;

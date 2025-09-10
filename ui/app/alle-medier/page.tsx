@@ -1,11 +1,16 @@
 import { Suspense } from 'react';
+import dynamicImport from 'next/dynamic';
 import { readPrompts } from '@/lib/readPrompts';
 import { sortList } from '@/lib/search';
-import YouTubeGrid from '@/components/YouTubeGrid';
 import SorterPager from '@/components/SorterPager';
 import BulkBar from '@/components/BulkBar';
 import SearchInput from '@/components/SearchInput';
 import { ShimmerGrid } from '@/components/Shimmer';
+
+// Dynamic imports for better performance
+const YouTubeGrid = dynamicImport(() => import('@/components/YouTubeGrid'), {
+  loading: () => <ShimmerGrid />
+});
 
 // Disable static generation for this page
 export const dynamic = 'force-dynamic';
@@ -56,7 +61,10 @@ export default async function AlleMedierPage({ searchParams }: { searchParams: P
     })() : true;
 
     const okSource = source ? (() => {
-      return (p.source || '').toLowerCase() === source.toLowerCase();
+      const articleSource = (p.source || '').toLowerCase();
+      const filterSource = source.toLowerCase();
+      // Match if the article source contains the filter source (e.g., "berlingske" matches "berlingske.dk")
+      return articleSource.includes(filterSource);
     })() : true;
 
     const okSince = sinceHours ? (() => {

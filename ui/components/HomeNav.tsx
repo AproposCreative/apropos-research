@@ -15,7 +15,13 @@ export default function HomeNav() {
   return (
     <nav className="space-y-2">
       <a href="/" className={getLinkClasses('/', pathname === '/')}>
-        <span className="font-medium">Home</span>
+        <span className="font-medium">Dashboard</span>
+      </a>
+      <a href="/search" className={getLinkClasses('/search', pathname === '/search')}>
+        <span className="font-medium">Advanced Search</span>
+      </a>
+      <a href="/research" className={getLinkClasses('/research', pathname === '/research')}>
+        <span className="font-medium">Research & Prompts</span>
       </a>
       <a href="/editorial-queue" className={getLinkClasses('/editorial-queue', pathname === '/editorial-queue')}>
         <span className="font-medium">Editorial Queue</span>

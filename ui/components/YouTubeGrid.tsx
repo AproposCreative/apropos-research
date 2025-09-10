@@ -5,7 +5,7 @@ export default function YouTubeGrid({ slice }: { slice: any[] }) {
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
       {slice.map((p: any, i: number) => {
-        const itemId = p.url || String(i);
+        const itemId = `${p.url || 'no-url'}-${i}-${p.hash || p.title || i}`;
         
         return (
           <div key={itemId} className="h-full">
