@@ -8,7 +8,7 @@
     "NODE_ENV": "production"
   },
   "functions": {
-    "ui/app/api/**/*.ts": {
+    "app/api/**/*.ts": {
       "maxDuration": 30
     }
   }
