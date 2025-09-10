@@ -1,14 +1,14 @@
 import './globals.css';
 import type { Metadata } from 'next';
-import RefreshButton from '@/components/RefreshButton';
-import { SelectProvider } from '@/components/SelectCtx';
-import { RefreshProvider } from '@/components/RefreshCtx';
-import DarkModeToggle from '@/components/DarkModeToggle';
-import Drawer from '@/components/Drawer';
-import DynamicHeader from '@/components/DynamicHeader';
-import MediaNav from '@/components/MediaNav';
-import HomeNav from '@/components/HomeNav';
-import Logo from '@/components/Logo';
+import RefreshButton from '../components/RefreshButton';
+import { SelectProvider } from '../components/SelectCtx';
+import { RefreshProvider } from '../components/RefreshCtx';
+import DarkModeToggle from '../components/DarkModeToggle';
+import Drawer from '../components/Drawer';
+import DynamicHeader from '../components/DynamicHeader';
+import MediaNav from '../components/MediaNav';
+import HomeNav from '../components/HomeNav';
+import Logo from '../components/Logo';
 
 export const metadata: Metadata = {
   title: 'Apropos Research',
