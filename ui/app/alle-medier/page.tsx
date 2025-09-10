@@ -1,14 +1,14 @@
 import { Suspense } from 'react';
 import dynamicImport from 'next/dynamic';
-import { readPrompts } from '@/lib/readPrompts';
-import { sortList } from '@/lib/search';
-import SorterPager from '@/components/SorterPager';
-import BulkBar from '@/components/BulkBar';
-import SearchInput from '@/components/SearchInput';
-import { ShimmerGrid } from '@/components/Shimmer';
+import { readPrompts } from '../../lib/readPrompts';
+import { sortList } from '../../lib/search';
+import SorterPager from '../../components/SorterPager';
+import BulkBar from '../../components/BulkBar';
+import SearchInput from '../../components/SearchInput';
+import { ShimmerGrid } from '../../components/Shimmer';
 
 // Dynamic imports for better performance
-const YouTubeGrid = dynamicImport(() => import('@/components/YouTubeGrid'), {
+const YouTubeGrid = dynamicImport(() => import('../../components/YouTubeGrid'), {
   loading: () => <ShimmerGrid />
 });
 

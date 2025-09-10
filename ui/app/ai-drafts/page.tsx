@@ -1,4 +1,4 @@
-import AIDrafts from '@/components/AIDrafts';
+import AIDrafts from '../../components/AIDrafts';
 
 export default async function AIDraftsPage() {
   return <AIDrafts />;
