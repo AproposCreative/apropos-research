@@ -1,5 +1,5 @@
-import { readPrompts } from '@/lib/readPrompts';
-import SearchResults from '@/components/SearchResults';
+import { readPrompts } from '../../lib/readPrompts';
+import SearchResults from '../../components/SearchResults';
 
 export default async function SearchPage() {
   const articles = await readPrompts();

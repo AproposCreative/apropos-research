@@ -1,6 +1,6 @@
-import { readPrompts } from '@/lib/readPrompts';
-import { filterPrompts } from '@/lib/search';
-import { CopyButton } from '@/components/CopyButton';
+import { readPrompts } from '../../lib/readPrompts';
+import { filterPrompts } from '../../lib/search';
+import { CopyButton } from '../../components/CopyButton';
 
 type PageProps = { searchParams?: Promise<{ q?: string; cat?: string; since?: string }> };
 
