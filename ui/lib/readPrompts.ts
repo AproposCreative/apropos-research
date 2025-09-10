@@ -66,7 +66,47 @@ export async function readPrompts(): Promise<RageItem[]> {
     ? path.resolve(process.env.RAGE_PROMPTS_PATH)
     : fallback;
 
-  if (!fs.existsSync(file)) return [];
+  if (!fs.existsSync(file)) {
+    // Return mock data for deployment when file doesn't exist
+    return [
+      {
+        title: "Velkommen til Apropos Research Platform",
+        url: "https://apropos-research.vercel.app",
+        date: new Date().toISOString(),
+        fetched_at: new Date().toISOString(),
+        category: "nyheder",
+        source: "apropos-research",
+        image: undefined,
+        bullets: ["Platform er klar til brug", "Avanceret søgning tilgængelig", "Alle funktioner er aktive"],
+        summary: "Velkommen til Apropos Research Platform - din avancerede søge- og opdagelsesplatform for danske medier.",
+        chunks: []
+      },
+      {
+        title: "Avanceret Søgning og Opdagelse",
+        url: "https://apropos-research.vercel.app/search",
+        date: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
+        fetched_at: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
+        category: "teknologi",
+        source: "apropos-research",
+        image: undefined,
+        bullets: ["Semantisk søgning", "Relaterede artikler", "Gemte søgninger"],
+        summary: "Udforsk vores avancerede søgefunktioner med semantisk søgning, relaterede artikler og gemte søgninger.",
+        chunks: []
+      },
+      {
+        title: "Dashboard og Oversigt",
+        url: "https://apropos-research.vercel.app",
+        date: new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString(),
+        fetched_at: new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString(),
+        category: "nyheder",
+        source: "apropos-research",
+        image: undefined,
+        bullets: ["Oversigt over artikler", "Statistikker", "Hurtige handlinger"],
+        summary: "Få et overblik over alle artikler og statistikker på vores intuitive dashboard.",
+        chunks: []
+      }
+    ];
+  }
   
   const raw = fs.readFileSync(file, "utf8");
   const lines = raw.split(/\r?\n/).filter(Boolean);
