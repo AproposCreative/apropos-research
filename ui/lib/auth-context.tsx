@@ -34,22 +34,31 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   const login = async (email: string, password: string) => {
+    if (!auth) throw new Error('Firebase not configured');
     await signInWithEmailAndPassword(auth, email, password);
   };
 
   const signup = async (email: string, password: string) => {
+    if (!auth) throw new Error('Firebase not configured');
     await createUserWithEmailAndPassword(auth, email, password);
   };
 
   const logout = async () => {
+    if (!auth) throw new Error('Firebase not configured');
     await signOut(auth);
   };
 
   const resetPassword = async (email: string) => {
+    if (!auth) throw new Error('Firebase not configured');
     await sendPasswordResetEmail(auth, email);
   };
 
   useEffect(() => {
+    if (!auth) {
+      setLoading(false);
+      return;
+    }
+
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       setCurrentUser(user);
       setLoading(false);

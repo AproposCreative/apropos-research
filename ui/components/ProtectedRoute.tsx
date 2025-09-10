@@ -12,7 +12,8 @@ export default function ProtectedRoute({ children }: ProtectedRouteProps) {
   const router = useRouter();
 
   useEffect(() => {
-    if (!loading && !currentUser) {
+    // If Firebase is not configured, allow access (for development)
+    if (!loading && !currentUser && process.env.NEXT_PUBLIC_FIREBASE_API_KEY) {
       router.push('/login');
     }
   }, [currentUser, loading, router]);
@@ -28,7 +29,8 @@ export default function ProtectedRoute({ children }: ProtectedRouteProps) {
     );
   }
 
-  if (!currentUser) {
+  // If Firebase is not configured, allow access (for development)
+  if (!currentUser && process.env.NEXT_PUBLIC_FIREBASE_API_KEY) {
     return null;
   }
 
