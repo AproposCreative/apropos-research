@@ -46,7 +46,7 @@ export async function discoverFromFeed(): Promise<FeedItem[]> {
         continue;
       }
       
-      if (!contentType || !contentType.includes("xml")) {
+      if (!contentType || !(contentType.includes("xml") || contentType.includes("rss"))) {
         continue;
       }
 

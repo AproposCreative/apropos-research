@@ -3,7 +3,7 @@
     "id": "soundvenue",
     "name": "Soundvenue",
     "baseUrl": "https://soundvenue.com",
-    "sitemapIndex": "/sitemap.xml",
+    "sitemapIndex": "/feed",
     "enabled": true,
     "addedAt": "2025-10-06T11:08:19.377Z"
   },

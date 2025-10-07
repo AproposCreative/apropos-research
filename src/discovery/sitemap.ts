@@ -31,8 +31,8 @@ export async function discoverFromSitemaps(): Promise<string[]> {
         const indexUrl = new URL(sitemapPath, baseUrl).toString();
         const { text, contentType } = await fetchText(indexUrl);
         
-        if (!contentType || !contentType.includes("xml")) {
-          console.log(`Skipping ${baseUrl}${sitemapPath}: not XML content`);
+        if (!contentType || !(contentType.includes("xml") || contentType.includes("rss"))) {
+          console.log(`Skipping ${baseUrl}${sitemapPath}: not XML/RSS content (got: ${contentType})`);
           continue;
         }
         

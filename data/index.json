@@ -1,9 +1,10 @@
 {
   "heads": {
     "https://soundvenue.com/feed": {
-      "etag": "\"82dbb7e2a61fbbe4e3e8924cbcf6e037\"",
-      "lastSeenAt": "2025-10-06T11:53:56.627Z",
-      "lastStatus": 304
+      "etag": "\"f598cafbd5f57144a3e0ddcb10ec318d\"",
+      "lastSeenAt": "2025-10-07T19:16:57.421Z",
+      "lastStatus": 200,
+      "lastModified": "Tue, 07 Oct 2025 15:45:35 GMT"
     },
     "https://soundvenue.com/film/2025/09/julia-roberts-og-ayo-edebiri-saetter-journalist-paa-plads-i-viralt-interviewklip-640163": {
       "lastSeenAt": "2025-09-09T07:38:41.022Z",
@@ -46,27 +47,27 @@
       "lastStatus": 200
     },
     "https://soundvenue.com/wp-sitemap.xml": {
-      "lastSeenAt": "2025-09-09T08:42:58.669Z",
+      "lastSeenAt": "2025-10-07T19:13:42.604Z",
       "lastStatus": 404
     },
     "https://gaffa.dk/sitemap": {
-      "lastSeenAt": "2025-10-07T19:08:26.413Z",
+      "lastSeenAt": "2025-10-07T19:17:00.009Z",
       "lastStatus": 200
     },
     "https://gaffa.dk/sitemap/?page=1": {
-      "lastSeenAt": "2025-10-07T19:08:30.800Z",
+      "lastSeenAt": "2025-10-07T19:17:05.260Z",
       "lastStatus": 200
     },
     "https://gaffa.dk/sitemap/?page=2": {
-      "lastSeenAt": "2025-10-07T19:08:34.828Z",
+      "lastSeenAt": "2025-10-07T19:17:11.532Z",
       "lastStatus": 200
     },
     "https://gaffa.dk/sitemap/?page=3": {
-      "lastSeenAt": "2025-10-07T19:08:39.257Z",
+      "lastSeenAt": "2025-10-07T19:17:16.485Z",
       "lastStatus": 200
     },
     "https://gaffa.dk/sitemap/?page=4": {
-      "lastSeenAt": "2025-10-07T19:08:41.518Z",
+      "lastSeenAt": "2025-10-07T19:17:18.615Z",
       "lastStatus": 200
     },
     "https://www.euroman.dk/sitemap.xml": {
@@ -74,299 +75,299 @@
       "lastStatus": 200
     },
     "https://gaffa.dk/anmeldelser/2018/september/events/firserhelt-pa-slap-line/": {
-      "lastSeenAt": "2025-10-07T18:44:26.462Z",
+      "lastSeenAt": "2025-10-07T19:18:32.723Z",
       "lastStatus": 200
     },
     "https://gaffa.dk/anmeldelser/2018/september/releases/anmeldelse-charme-og-dybde-hos-den-elektroniske-duo/": {
-      "lastSeenAt": "2025-10-07T18:44:27.769Z",
+      "lastSeenAt": "2025-10-07T19:18:33.844Z",
       "lastStatus": 200
     },
     "https://gaffa.dk/anmeldelser/2018/september/releases/anmeldelse-velspillet-triphop-debut-uden-de-store-overraskelser/": {
-      "lastSeenAt": "2025-10-07T18:44:28.993Z",
+      "lastSeenAt": "2025-10-07T19:18:34.990Z",
       "lastStatus": 200
     },
     "https://gaffa.dk/anmeldelser/2018/september/events/indie-og-grunge-a-la-gammelby/": {
-      "lastSeenAt": "2025-10-07T18:44:30.470Z",
+      "lastSeenAt": "2025-10-07T19:18:36.295Z",
       "lastStatus": 200
     },
     "https://gaffa.dk/anmeldelser/2018/september/releases/anmeldelse-trygheden-i-melankoliens-morke/": {
-      "lastSeenAt": "2025-10-07T18:44:32.330Z",
+      "lastSeenAt": "2025-10-07T19:18:37.418Z",
       "lastStatus": 200
     },
     "https://gaffa.dk/anmeldelser/2018/september/events/anmeldelse-fransk-pop-uden-de-store-udsving/": {
-      "lastSeenAt": "2025-10-07T18:44:33.847Z",
+      "lastSeenAt": "2025-10-07T19:18:38.928Z",
       "lastStatus": 200
     },
     "https://gaffa.dk/anmeldelser/2018/september/events/wolfmother-sanger-udgiver-sit-andet-soloalbum/": {
-      "lastSeenAt": "2025-10-07T18:44:35.321Z",
+      "lastSeenAt": "2025-10-07T19:18:40.250Z",
       "lastStatus": 200
     },
     "https://gaffa.dk/anmeldelser/2018/september/releases/anmeldelse-ambient-virvar-af-skiftevis-godter-og-ren-kaos/": {
-      "lastSeenAt": "2025-10-07T18:44:36.496Z",
+      "lastSeenAt": "2025-10-07T19:18:41.484Z",
       "lastStatus": 200
     },
     "https://gaffa.dk/anmeldelser/2018/september/releases/anmeldelse-fire-fine-folk-perler-holder-bundniveauet-hojt/": {
-      "lastSeenAt": "2025-10-07T18:44:37.811Z",
+      "lastSeenAt": "2025-10-07T19:18:42.968Z",
       "lastStatus": 200
     },
     "https://gaffa.dk/anmeldelser/2018/september/releases/anmeldelse-saliggorende-syretrip-i-maritim-scenografi/": {
-      "lastSeenAt": "2025-10-07T18:44:39.497Z",
+      "lastSeenAt": "2025-10-07T19:18:44.616Z",
       "lastStatus": 200
     },
     "https://gaffa.dk/anmeldelser/2018/september/releases/ringen-er-ikke-sluttet/": {
-      "lastSeenAt": "2025-10-07T18:44:40.897Z",
+      "lastSeenAt": "2025-10-07T19:18:46.032Z",
       "lastStatus": 200
     },
     "https://gaffa.dk/anmeldelser/2018/september/releases/anmeldelse-sange-fra-et-simpelt-liv/": {
-      "lastSeenAt": "2025-10-07T18:44:42.323Z",
+      "lastSeenAt": "2025-10-07T19:18:47.353Z",
       "lastStatus": 200
     },
     "https://gaffa.dk/anmeldelser/2018/oktober/releases/anmeldelse-polakkerne-saetter-ild-til-hele-lortet/": {
-      "lastSeenAt": "2025-10-07T18:44:43.638Z",
+      "lastSeenAt": "2025-10-07T19:18:48.773Z",
       "lastStatus": 200
     },
     "https://gaffa.dk/anmeldelser/2018/oktober/events/duoen-der-aldrig-ville-vaere-popstjerner-vinker-farvel/": {
-      "lastSeenAt": "2025-10-07T18:44:45.297Z",
+      "lastSeenAt": "2025-10-07T19:18:50.236Z",
       "lastStatus": 200
     },
     "https://gaffa.dk/anmeldelser/2018/oktober/events/kunsten-at-turde-forsvinde-i-morket-foran-et-publikum/": {
-      "lastSeenAt": "2025-10-07T18:44:46.918Z",
+      "lastSeenAt": "2025-10-07T19:18:51.581Z",
       "lastStatus": 200
     },
     "https://gaffa.dk/anmeldelser/2018/oktober/events/maskinhoved-med-stilsikker-knogleknusende-brutalitet/": {
-      "lastSeenAt": "2025-10-07T18:44:48.307Z",
+      "lastSeenAt": "2025-10-07T19:18:52.951Z",
       "lastStatus": 200
     },
     "https://gaffa.dk/anmeldelser/2018/oktober/releases/anmeldelse-bliv-sonderknust-i-sneglefart/": {
-      "lastSeenAt": "2025-10-07T18:44:49.539Z",
+      "lastSeenAt": "2025-10-07T19:18:54.118Z",
       "lastStatus": 200
     },
     "https://gaffa.dk/anmeldelser/2018/oktober/releases/anmeldelse-vedkommende-tracey-thorn-har-stadig-masser-pa-hjerte/": {
-      "lastSeenAt": "2025-10-07T18:44:51.040Z",
+      "lastSeenAt": "2025-10-07T19:18:55.888Z",
       "lastStatus": 200
     },
     "https://gaffa.dk/anmeldelser/2018/oktober/releases/anmeldelse-no-more-no-god-tak/": {
-      "lastSeenAt": "2025-10-07T18:44:52.885Z",
+      "lastSeenAt": "2025-10-07T19:18:57.253Z",
       "lastStatus": 200
     },
     "https://gaffa.dk/anmeldelser/2018/oktober/releases/anmeldelse-minimalist-trio-spraenger-sig-selv-til-atomer/": {
-      "lastSeenAt": "2025-10-07T18:44:54.418Z",
+      "lastSeenAt": "2025-10-07T19:18:58.723Z",
       "lastStatus": 200
     },
     "https://gaffa.dk/anmeldelser/2018/oktober/releases/anmeldelse-moderne-r-b-toner-sprudler-pa-vellykket-debut-ep/": {
-      "lastSeenAt": "2025-10-07T18:44:55.648Z",
+      "lastSeenAt": "2025-10-07T19:18:59.864Z",
       "lastStatus": 200
     },
     "https://gaffa.dk/anmeldelser/2018/oktober/releases/anmeldelse-blandede-blues-bolcher/": {
-      "lastSeenAt": "2025-10-07T18:44:57.070Z",
+      "lastSeenAt": "2025-10-07T19:19:01.354Z",
       "lastStatus": 200
     },
     "https://gaffa.dk/anmeldelser/2018/oktober/releases/balancen-mellem-odelaeggelsen-og-euforien/": {
-      "lastSeenAt": "2025-10-07T18:44:58.530Z",
+      "lastSeenAt": "2025-10-07T19:19:02.729Z",
       "lastStatus": 200
     },
     "https://gaffa.dk/anmeldelser/2018/oktober/events/rorende-savel-som-oprorende-aften-i-poesiens-tegn/": {
-      "lastSeenAt": "2025-10-07T18:44:59.911Z",
+      "lastSeenAt": "2025-10-07T19:19:04.167Z",
       "lastStatus": 200
     },
     "https://gaffa.dk/anmeldelser/2018/oktober/releases/anmeldelse-flere-elegante-toner-fra-irske-villagers/": {
-      "lastSeenAt": "2025-10-07T18:45:01.413Z",
+      "lastSeenAt": "2025-10-07T19:19:05.621Z",
       "lastStatus": 200
     },
     "https://gaffa.dk/anmeldelser/2018/oktober/releases/anmeldelse-roxy-jules-rocker-ikke-helt-nok/": {
-      "lastSeenAt": "2025-10-07T18:45:02.939Z",
+      "lastSeenAt": "2025-10-07T19:19:07.041Z",
       "lastStatus": 200
     },
     "https://gaffa.dk/anmeldelser/2018/oktober/events/halestorm-stod-til-dansk-publikumspris/": {
-      "lastSeenAt": "2025-10-07T18:45:04.978Z",
+      "lastSeenAt": "2025-10-07T19:19:08.375Z",
       "lastStatus": 200
     },
     "https://gaffa.dk/anmeldelser/2018/oktober/events/stojrocker-i-selvsving/": {
-      "lastSeenAt": "2025-10-07T18:45:06.356Z",
+      "lastSeenAt": "2025-10-07T19:19:09.684Z",
       "lastStatus": 200
     },
     "https://gaffa.dk/anmeldelser/2018/oktober/releases/anmeldelse-menings-og-formalslost-genbrug/": {
-      "lastSeenAt": "2025-10-07T18:45:07.761Z",
+      "lastSeenAt": "2025-10-07T19:19:11.148Z",
       "lastStatus": 200
     },
     "https://gaffa.dk/anmeldelser/2018/oktober/releases/anmeldelse-den-norske-naturkraft-graver-et-spadestik-dybere/": {
-      "lastSeenAt": "2025-10-07T18:45:09.181Z",
+      "lastSeenAt": "2025-10-07T19:19:12.575Z",
       "lastStatus": 200
     },
     "https://gaffa.dk/anmeldelser/2018/oktober/events/beach-house-som-soniske-plastre-pa-sar-der-aldrig-heles/": {
-      "lastSeenAt": "2025-10-07T18:45:11.277Z",
+      "lastSeenAt": "2025-10-07T19:19:13.863Z",
       "lastStatus": 200
     },
     "https://gaffa.dk/anmeldelser/2018/oktober/releases/anmeldelse-den-musikalske-nysgerrighed-intakt-i-jazzede-gendigtninger/": {
-      "lastSeenAt": "2025-10-07T18:45:12.696Z",
+      "lastSeenAt": "2025-10-07T19:19:15.139Z",
       "lastStatus": 200
     },
     "https://gaffa.dk/anmeldelser/2018/oktober/releases/anmeldelse-meningsfulde-tekster-nar-ikke-deres-fulde-potentiale/": {
-      "lastSeenAt": "2025-10-07T18:45:14.510Z",
+      "lastSeenAt": "2025-10-07T19:19:16.447Z",
       "lastStatus": 200
     },
     "https://gaffa.dk/anmeldelser/2018/oktober/releases/anmeldelse-norsk-akkuratesse-og-henforelse/": {
-      "lastSeenAt": "2025-10-07T18:45:16.047Z",
+      "lastSeenAt": "2025-10-07T19:19:18.245Z",
       "lastStatus": 200
     },
     "https://gaffa.dk/anmeldelser/2018/oktober/releases/klassikeren-led-zeppelin-fra-a-load-of-bollocks-til-relevant-minde/": {
-      "lastSeenAt": "2025-10-07T18:45:17.772Z",
+      "lastSeenAt": "2025-10-07T19:19:19.762Z",
       "lastStatus": 200
     },
     "https://gaffa.dk/anmeldelser/2018/oktober/releases/anmeldelse-kaptajnen-saetter-kurs-mod-det-sikre-og-moderate-hav/": {
-      "lastSeenAt": "2025-10-07T18:45:19.198Z",
+      "lastSeenAt": "2025-10-07T19:19:21.413Z",
       "lastStatus": 200
     },
     "https://gaffa.dk/anmeldelser/2018/oktober/events/effektivt-popmaskineri-om-dagligdags-fortraedeligheder/": {
-      "lastSeenAt": "2025-10-07T18:45:21.045Z",
+      "lastSeenAt": "2025-10-07T19:19:22.754Z",
       "lastStatus": 200
     },
     "https://gaffa.dk/anmeldelser/2018/oktober/releases/anmeldelse-hozier-er-kommet-for-at-blaese-dig-omkuld/": {
-      "lastSeenAt": "2025-10-07T18:45:22.625Z",
+      "lastSeenAt": "2025-10-07T19:19:24.401Z",
       "lastStatus": 200
     },
     "https://gaffa.dk/anmeldelser/2018/oktober/releases/lidt-for-paen-staedighed/": {
-      "lastSeenAt": "2025-10-07T18:45:24.053Z",
+      "lastSeenAt": "2025-10-07T19:19:25.713Z",
       "lastStatus": 200
     },
     "https://gaffa.dk/anmeldelser/2018/oktober/releases/arets-overraskelse-cypress-hill-har-begaet-et-psykedelisk-mestervaerk/": {
-      "lastSeenAt": "2025-10-07T18:45:25.529Z",
+      "lastSeenAt": "2025-10-07T19:19:27.194Z",
       "lastStatus": 200
     },
     "https://gaffa.dk/anmeldelser/2018/oktober/releases/anmeldelse-forrygende-indierock-knaldperle/": {
-      "lastSeenAt": "2025-10-07T18:45:26.893Z",
+      "lastSeenAt": "2025-10-07T19:19:28.495Z",
       "lastStatus": 200
     },
     "https://gaffa.dk/anmeldelser/2018/oktober/events/drommeskabende-tilbagelaenet-guitarrock-med-potentiale-til-mere/": {
-      "lastSeenAt": "2025-10-07T18:45:28.590Z",
+      "lastSeenAt": "2025-10-07T19:19:29.797Z",
       "lastStatus": 200
     },
     "https://gaffa.dk/anmeldelser/2018/oktober/releases/anmeldelse-en-lige-hojre-i-tindingen/": {
-      "lastSeenAt": "2025-10-07T18:45:30.030Z",
+      "lastSeenAt": "2025-10-07T19:16:06.245Z",
       "lastStatus": 200
     },
     "https://gaffa.dk/anmeldelser/2018/oktober/releases/anmeldelse-psykedelisk-og-kaelent-univers/": {
-      "lastSeenAt": "2025-10-07T18:45:31.548Z",
+      "lastSeenAt": "2025-10-07T19:16:07.540Z",
       "lastStatus": 200
     },
     "https://gaffa.dk/anmeldelser/2018/oktober/events/altoverskyggende-brett-anderson-forvandler-koncerthuset-til-en-sveddryppende-klubscene/": {
-      "lastSeenAt": "2025-10-07T18:45:33.412Z",
+      "lastSeenAt": "2025-10-07T19:16:09.699Z",
       "lastStatus": 200
     },
     "https://gaffa.dk/anmeldelser/2018/oktober/events/til-popfest-i-den-gamle-snapsefabrik/": {
-      "lastSeenAt": "2025-10-07T18:45:35.337Z",
+      "lastSeenAt": "2025-10-07T19:16:11.024Z",
       "lastStatus": 200
     },
     "https://gaffa.dk/anmeldelser/2018/oktober/releases/dognfluen-flyver-lavt/": {
-      "lastSeenAt": "2025-10-07T18:45:36.647Z",
+      "lastSeenAt": "2025-10-07T19:16:12.152Z",
       "lastStatus": 200
     },
     "https://gaffa.dk/anmeldelser/2018/oktober/releases/anmeldelse-finurlige-danske-indierockere-tilbage-hvor-de-slap/": {
-      "lastSeenAt": "2025-10-07T18:45:38.267Z",
+      "lastSeenAt": "2025-10-07T19:16:13.662Z",
       "lastStatus": 200
     },
     "https://gaffa.dk/anmeldelser/2018/oktober/events/hopkins-spillede-op-til-dans-i-den-gra-hal/": {
-      "lastSeenAt": "2025-10-07T18:45:40.005Z",
+      "lastSeenAt": "2025-10-07T19:16:14.980Z",
       "lastStatus": 200
     },
     "https://gaffa.dk/anmeldelser/2018/oktober/releases/anmeldelse-dansksproget-plade-gor-op-med-tidens-idealer/": {
-      "lastSeenAt": "2025-10-07T18:45:41.217Z",
+      "lastSeenAt": "2025-10-07T19:16:16.299Z",
       "lastStatus": 200
     },
     "https://gaffa.dk/anmeldelser/2018/oktober/releases/uroskabende-og-dragende-soundtrack-fra-radiohead-frontmanden/": {
-      "lastSeenAt": "2025-10-07T18:45:42.684Z",
+      "lastSeenAt": "2025-10-07T19:16:17.696Z",
       "lastStatus": 200
     },
     "https://gaffa.dk/anmeldelser/2018/oktober/releases/anmeldelse-fjernt-fra-fortiden/": {
-      "lastSeenAt": "2025-10-07T18:45:44.175Z",
+      "lastSeenAt": "2025-10-07T19:16:19.346Z",
       "lastStatus": 200
     },
     "https://gaffa.dk/anmeldelser/2018/oktober/events/nikolaj-norlund-tryllebandt-tordenskjolds-soldater/": {
-      "lastSeenAt": "2025-10-07T18:45:45.543Z",
+      "lastSeenAt": "2025-10-07T19:11:04.234Z",
       "lastStatus": 200
     },
     "https://gaffa.dk/anmeldelser/2018/oktober/events/de-danske-verdensmaend-gar-ned-i-tempo-pa-bundsolid-treer/": {
-      "lastSeenAt": "2025-10-07T18:45:46.986Z",
+      "lastSeenAt": "2025-10-07T19:11:05.608Z",
       "lastStatus": 200
     },
     "https://gaffa.dk/anmeldelser/2018/oktober/releases/mere-stromlinet-men-mo-har-den-stadig/": {
-      "lastSeenAt": "2025-10-07T18:45:48.355Z",
+      "lastSeenAt": "2025-10-07T19:11:07.079Z",
       "lastStatus": 200
     },
     "https://gaffa.dk/anmeldelser/2018/oktober/events/alt-country-bandet-skabte-varme-i-vindblaeste-esbjerg/": {
-      "lastSeenAt": "2025-10-07T18:45:49.634Z",
+      "lastSeenAt": "2025-10-07T19:11:08.249Z",
       "lastStatus": 200
     },
     "https://gaffa.dk/anmeldelser/2018/oktober/releases/anmeldelse-folkeklubben-vender-blikket-indad-pa-fin-firer/": {
-      "lastSeenAt": "2025-10-07T18:45:51.039Z",
+      "lastSeenAt": "2025-10-07T19:11:09.926Z",
       "lastStatus": 200
     },
     "https://gaffa.dk/anmeldelser/2018/oktober/releases/anmeldelse-meget-mere-end-dit-feel-good-pop-fix/": {
-      "lastSeenAt": "2025-10-07T18:45:52.319Z",
+      "lastSeenAt": "2025-10-07T19:11:11.166Z",
       "lastStatus": 200
     },
     "https://gaffa.dk/anmeldelser/2018/oktober/events/anmeldelse-godkendt-indsats-fra-prog-tech-veteranerne/": {
-      "lastSeenAt": "2025-10-07T18:45:54.203Z",
+      "lastSeenAt": "2025-10-07T19:11:12.295Z",
       "lastStatus": 200
     },
     "https://gaffa.dk/anmeldelser/2018/oktober/releases/anmeldelse-intoksikeret-ignorance-mangler-synergieffekten/": {
-      "lastSeenAt": "2025-10-07T18:45:55.663Z",
+      "lastSeenAt": "2025-10-07T19:11:13.680Z",
       "lastStatus": 200
     },
     "https://gaffa.dk/anmeldelser/2018/oktober/releases/ungt-r-b-og-soulfaenomen-optradte-med-autoritet-efterhanden/": {
-      "lastSeenAt": "2025-10-07T18:45:58.128Z",
+      "lastSeenAt": "2025-10-07T19:11:15.443Z",
       "lastStatus": 200
     },
     "https://gaffa.dk/anmeldelser/2018/oktober/releases/som-et-lossluppent-landskabsmaleri/": {
-      "lastSeenAt": "2025-10-07T18:46:00.141Z",
+      "lastSeenAt": "2025-10-07T19:11:16.732Z",
       "lastStatus": 200
     },
     "https://gaffa.dk/anmeldelser/2018/oktober/events/gribende-gospel-i-operaen-med-the-savage-rose/": {
-      "lastSeenAt": "2025-10-07T18:46:03.643Z",
+      "lastSeenAt": "2025-10-07T19:11:18.101Z",
       "lastStatus": 200
     },
     "https://gaffa.dk/anmeldelser/2018/oktober/events/bon-iver-hiver-knebent-sejren-i-hus/": {
-      "lastSeenAt": "2025-10-07T18:46:05.231Z",
+      "lastSeenAt": "2025-10-07T19:11:19.855Z",
       "lastStatus": 200
     },
     "https://gaffa.dk/anmeldelser/2018/november/releases/anmeldelse-ung-engelsk-sangskriver-drukner-igen-i-overproduktion/": {
-      "lastSeenAt": "2025-10-07T18:46:06.750Z",
+      "lastSeenAt": "2025-10-07T19:11:21.278Z",
       "lastStatus": 200
     },
     "https://gaffa.dk/anmeldelser/2018/november/releases/anmeldelse-vedkommende-tracey-thorn-har-stadig-masser-pa-hjerte/": {
-      "lastSeenAt": "2025-10-07T18:46:08.212Z",
+      "lastSeenAt": "2025-10-07T19:11:22.871Z",
       "lastStatus": 200
     },
     "https://gaffa.dk/anmeldelser/2018/november/events/fra-futurepop-til-fadbamse/": {
-      "lastSeenAt": "2025-10-07T18:46:09.624Z",
+      "lastSeenAt": "2025-10-07T19:11:24.495Z",
       "lastStatus": 200
     },
     "https://gaffa.dk/anmeldelser/2018/november/releases/den-nye-stil-er-still-going-strong/": {
-      "lastSeenAt": "2025-10-07T18:46:11.174Z",
+      "lastSeenAt": "2025-10-07T19:11:25.896Z",
       "lastStatus": 200
     },
     "https://gaffa.dk/anmeldelser/2018/november/releases/hvordan-ka-de-gor-det-sadan-elegant/": {
-      "lastSeenAt": "2025-10-07T18:46:12.570Z",
+      "lastSeenAt": "2025-10-07T19:11:27.198Z",
       "lastStatus": 200
     },
     "https://gaffa.dk/anmeldelser/2018/november/releases/anmeldelse-no-more-no-god-tak/": {
-      "lastSeenAt": "2025-10-07T18:46:14.135Z",
+      "lastSeenAt": "2025-10-07T19:11:28.749Z",
       "lastStatus": 200
     },
     "https://gaffa.dk/anmeldelser/2018/november/releases/her-behover-man-ikke-klappe-pa-to-og-fire/": {
-      "lastSeenAt": "2025-10-07T18:46:15.381Z",
+      "lastSeenAt": "2025-10-07T19:11:30.012Z",
       "lastStatus": 200
     },
     "https://gaffa.dk/anmeldelser/2018/november/releases/anmeldelse-kompromislost-og-fejende-flot/": {
-      "lastSeenAt": "2025-10-07T18:46:17.671Z",
+      "lastSeenAt": "2025-10-07T19:11:31.487Z",
       "lastStatus": 200
     },
     "https://gaffa.dk/anmeldelser/2018/november/releases/black-roots-hylder-rastafari-pa-nyt-staerkt-reggaealbum/": {
-      "lastSeenAt": "2025-10-07T18:46:18.895Z",
+      "lastSeenAt": "2025-10-07T19:11:32.863Z",
       "lastStatus": 200
     },
     "https://gaffa.dk/anmeldelser/2018/november/releases/anmeldelse-pa-graesk-gotisk-eventyr/": {
-      "lastSeenAt": "2025-10-07T18:46:20.616Z",
+      "lastSeenAt": "2025-10-07T19:11:34.156Z",
       "lastStatus": 200
     },
     "https://gaffa.dk/anmeldelser/2018/november/events/anmeldelse-dyster-og-dybfolt-forestilling-for-ojnene-orerne-og-hjertet/": {
@@ -374,275 +375,275 @@
       "lastStatus": 200
     },
     "https://gaffa.dk/anmeldelser/2018/november/releases/simpel-bluesrock-lidt-for-simpel/": {
-      "lastSeenAt": "2025-10-07T18:46:24.018Z",
+      "lastSeenAt": "2025-10-07T19:11:36.845Z",
       "lastStatus": 200
     },
     "https://gaffa.dk/anmeldelser/2018/november/events/anmeldelse-nydelig-nuller-nostalgi/": {
-      "lastSeenAt": "2025-10-07T18:46:26.507Z",
+      "lastSeenAt": "2025-10-07T19:11:39.629Z",
       "lastStatus": 200
     },
     "https://gaffa.dk/anmeldelser/2018/november/releases/anmeldelse-endnu-en-perle-leveres-for-paent/": {
-      "lastSeenAt": "2025-10-07T18:46:27.898Z",
+      "lastSeenAt": "2025-10-07T19:11:41.247Z",
       "lastStatus": 200
     },
     "https://gaffa.dk/anmeldelser/2018/november/releases/stort-potentiale-skaemmet-af-skaeve-toner/": {
-      "lastSeenAt": "2025-10-07T18:46:29.184Z",
+      "lastSeenAt": "2025-10-07T19:11:42.398Z",
       "lastStatus": 200
     },
     "https://gaffa.dk/anmeldelser/2018/november/events/katarsis-pa-posten/": {
-      "lastSeenAt": "2025-10-07T18:46:30.641Z",
+      "lastSeenAt": "2025-10-07T19:11:43.579Z",
       "lastStatus": 200
     },
     "https://gaffa.dk/anmeldelser/2018/november/releases/magelost-mr-tillman/": {
-      "lastSeenAt": "2025-10-07T18:46:32.146Z",
+      "lastSeenAt": "2025-10-07T19:11:45.576Z",
       "lastStatus": 200
     },
     "https://gaffa.dk/anmeldelser/2018/november/releases/muse-fanget-i-80-er-sci-fi-og-selvsving/": {
-      "lastSeenAt": "2025-10-07T18:46:33.824Z",
+      "lastSeenAt": "2025-10-07T19:11:47.145Z",
       "lastStatus": 200
     },
     "https://gaffa.dk/anmeldelser/2018/november/releases/gedigent-soundtrack-til-en-genindspilning-af-en-genindspilning/": {
-      "lastSeenAt": "2025-10-07T18:46:35.280Z",
+      "lastSeenAt": "2025-10-07T19:11:48.640Z",
       "lastStatus": 200
     },
     "https://gaffa.dk/anmeldelser/2018/november/events/lettere-skuffende-kaerlighedspunk/": {
-      "lastSeenAt": "2025-10-07T18:46:36.746Z",
+      "lastSeenAt": "2025-10-07T19:11:50.136Z",
       "lastStatus": 200
     },
     "https://gaffa.dk/anmeldelser/2018/november/releases/anmeldelse-store-sange-i-sma-forklaedninger-stiller-sporgsmal-til-kaerligheden/": {
-      "lastSeenAt": "2025-10-07T18:46:37.983Z",
+      "lastSeenAt": "2025-10-07T19:11:51.285Z",
       "lastStatus": 200
     },
     "https://gaffa.dk/anmeldelser/2018/november/releases/anmeldelse-rimfrost-pa-ungdommen/": {
-      "lastSeenAt": "2025-10-07T18:46:39.282Z",
+      "lastSeenAt": "2025-10-07T19:11:52.584Z",
       "lastStatus": 200
     },
     "https://gaffa.dk/anmeldelser/2018/november/events/charmerende-klaverbaret-pop-cementerer-sin-berettigelse/": {
-      "lastSeenAt": "2025-10-07T18:46:40.961Z",
+      "lastSeenAt": "2025-10-07T19:11:54.397Z",
       "lastStatus": 200
     },
     "https://gaffa.dk/anmeldelser/2018/november/releases/10-ar-senere-og-alt-er-som-dengang/": {
-      "lastSeenAt": "2025-10-07T18:46:42.377Z",
+      "lastSeenAt": "2025-10-07T19:11:56.055Z",
       "lastStatus": 200
     },
     "https://gaffa.dk/anmeldelser/2018/november/events/nar-det-samme-bare-er-anderledes/": {
-      "lastSeenAt": "2025-10-07T18:46:44.212Z",
+      "lastSeenAt": "2025-10-07T19:11:57.748Z",
       "lastStatus": 200
     },
     "https://gaffa.dk/anmeldelser/2018/november/releases/stjerner-pa-himlen-solkongerne-lagde-randers-ned/": {
-      "lastSeenAt": "2025-10-07T18:46:45.549Z",
+      "lastSeenAt": "2025-10-07T19:11:59.194Z",
       "lastStatus": 200
     },
     "https://gaffa.dk/anmeldelser/2018/november/releases/anmeldelse-lysende-vokalharmonier-i-folsomme-radioballader/": {
-      "lastSeenAt": "2025-10-07T18:46:46.953Z",
+      "lastSeenAt": "2025-10-07T19:12:00.516Z",
       "lastStatus": 200
     },
     "https://gaffa.dk/anmeldelser/2018/november/releases/ujaevnt-udspil/": {
-      "lastSeenAt": "2025-10-07T18:46:49.218Z",
+      "lastSeenAt": "2025-10-07T19:12:01.961Z",
       "lastStatus": 200
     },
     "https://gaffa.dk/anmeldelser/2018/november/releases/smuk-fredag-aften-med-skonneste-coco-o/": {
-      "lastSeenAt": "2025-10-07T18:46:50.783Z",
+      "lastSeenAt": "2025-10-07T19:12:03.402Z",
       "lastStatus": 200
     },
     "https://gaffa.dk/anmeldelser/2018/november/releases/monumental-dokumentation-af-dylans-mestervaerk/": {
-      "lastSeenAt": "2025-10-07T18:46:52.350Z",
+      "lastSeenAt": "2025-10-07T19:12:04.698Z",
       "lastStatus": 200
     },
     "https://gaffa.dk/anmeldelser/2018/november/releases/det-enkle-som-stortalentet-mestrer/": {
-      "lastSeenAt": "2025-10-07T18:46:53.730Z",
+      "lastSeenAt": "2025-10-07T19:12:06.144Z",
       "lastStatus": 200
     },
     "https://gaffa.dk/anmeldelser/2018/november/releases/ind-til-benet-pa-kaerkomment-graeskar-comeback/": {
-      "lastSeenAt": "2025-10-07T18:46:55.234Z",
+      "lastSeenAt": "2025-10-07T19:12:07.714Z",
       "lastStatus": 200
     },
     "https://gaffa.dk/anmeldelser/2018/november/events/ren-opvisning-i-valby-hallen/": {
-      "lastSeenAt": "2025-10-07T18:46:57.216Z",
+      "lastSeenAt": "2025-10-07T19:12:09.715Z",
       "lastStatus": 200
     },
     "https://gaffa.dk/anmeldelser/2018/november/events/anmeldelse-autentisk-forforende-tyrkisk-klarinet/": {
-      "lastSeenAt": "2025-10-07T18:46:58.441Z",
+      "lastSeenAt": "2025-10-07T19:12:10.926Z",
       "lastStatus": 200
     },
     "https://gaffa.dk/anmeldelser/2018/november/releases/anmeldelse-mere-knopfler-pa-linedans-med-sma-finjusteringer/": {
-      "lastSeenAt": "2025-10-07T18:46:59.833Z",
+      "lastSeenAt": "2025-10-07T19:12:13.016Z",
       "lastStatus": 200
     },
     "https://gaffa.dk/anmeldelser/2018/november/releases/tilbage-til-rodderne-bare-lidt-kedeligere/": {
-      "lastSeenAt": "2025-10-07T18:47:01.254Z",
+      "lastSeenAt": "2025-10-07T19:12:14.646Z",
       "lastStatus": 200
     },
     "https://gaffa.dk/anmeldelser/2018/november/releases/anmeldelse-der-er-stadig-et-paent-stykke-vej-at-klatre-for-kobenhavnsk-trio/": {
-      "lastSeenAt": "2025-10-07T18:47:02.488Z",
+      "lastSeenAt": "2025-10-07T19:12:15.855Z",
       "lastStatus": 200
     },
     "https://gaffa.dk/anmeldelser/2018/november/releases/steffen-brandt-og-co-virker-uinspirerede-pa-deres-19-studiealbum/": {
-      "lastSeenAt": "2025-10-07T18:47:03.882Z",
+      "lastSeenAt": "2025-10-07T19:12:17.161Z",
       "lastStatus": 200
     },
     "https://gaffa.dk/anmeldelser/2018/november/releases/arets-album-er-spansk-flamenco/": {
-      "lastSeenAt": "2025-10-07T18:47:05.323Z",
+      "lastSeenAt": "2025-10-07T19:12:18.570Z",
       "lastStatus": 200
     },
     "https://gaffa.dk/anmeldelser/2018/november/events/skarp-guitar-skarpt-lys-ulden-vokal/": {
-      "lastSeenAt": "2025-10-07T18:47:08.184Z",
+      "lastSeenAt": "2025-10-07T19:12:19.879Z",
       "lastStatus": 200
     },
     "https://gaffa.dk/anmeldelser/2018/november/events/anmeldelse-de-store-folelser-savnede-en-retning/": {
-      "lastSeenAt": "2025-10-07T18:47:10.422Z",
+      "lastSeenAt": "2025-10-07T19:12:21.981Z",
       "lastStatus": 200
     },
     "https://gaffa.dk/anmeldelser/2018/november/events/fremtiden-er-lewis-capaldis/": {
-      "lastSeenAt": "2025-10-07T18:47:12.529Z",
+      "lastSeenAt": "2025-10-07T19:12:23.674Z",
       "lastStatus": 200
     },
     "https://gaffa.dk/anmeldelser/2018/november/releases/anmeldelse-ellas-sode-sennepsovs/": {
-      "lastSeenAt": "2025-10-07T18:47:13.917Z",
+      "lastSeenAt": "2025-10-07T19:12:24.881Z",
       "lastStatus": 200
     },
     "https://gaffa.dk/anmeldelser/2018/november/releases/anmeldelse-earl-imponerer-med-loops-og-langsom-lyrik/": {
-      "lastSeenAt": "2025-10-07T18:47:15.287Z",
+      "lastSeenAt": "2025-10-07T19:12:26.661Z",
       "lastStatus": 200
     },
     "https://gaffa.dk/anmeldelser/2018/november/events/alan-walker-satte-sig-imellem-to-stole/": {
-      "lastSeenAt": "2025-10-07T18:47:17.317Z",
+      "lastSeenAt": "2025-10-07T19:12:28.478Z",
       "lastStatus": 200
     },
     "https://gaffa.dk/anmeldelser/2018/november/releases/anmeldelse-dragende-deliros-disco-rock/": {
-      "lastSeenAt": "2025-10-07T18:47:18.928Z",
+      "lastSeenAt": "2025-10-07T19:12:29.726Z",
       "lastStatus": 200
     },
     "https://gaffa.dk/anmeldelser/2018/november/events/kraftfuld-kirsebaervin-fra-den-irske-jesus/": {
-      "lastSeenAt": "2025-10-07T18:47:20.614Z",
+      "lastSeenAt": "2025-10-07T19:12:31.085Z",
       "lastStatus": 200
     },
     "https://gaffa.dk/anmeldelser/2018/november/releases/fint-svensk-singer-songwriter-album/": {
-      "lastSeenAt": "2025-10-07T18:47:21.911Z",
+      "lastSeenAt": "2025-10-07T19:12:32.217Z",
       "lastStatus": 200
     },
     "https://gaffa.dk/anmeldelser/2018/december/releases/anmeldelse-mork-metalmagi/": {
-      "lastSeenAt": "2025-10-07T18:47:23.157Z",
+      "lastSeenAt": "2025-10-07T19:12:33.433Z",
       "lastStatus": 200
     },
     "https://gaffa.dk/anmeldelser/2018/december/releases/anmeldelse-pejsemusik-for-lurendrejere/": {
-      "lastSeenAt": "2025-10-07T18:47:24.579Z",
+      "lastSeenAt": "2025-10-07T19:12:34.716Z",
       "lastStatus": 200
     },
     "https://gaffa.dk/anmeldelser/2018/december/releases/anmeldelse-no-more-no-god-tak/": {
-      "lastSeenAt": "2025-10-07T18:47:25.951Z",
+      "lastSeenAt": "2025-10-07T19:12:36.288Z",
       "lastStatus": 200
     },
     "https://gaffa.dk/anmeldelser/2018/december/releases/anmeldelse-nordjysk-be-og-eftertaenksomhed/": {
-      "lastSeenAt": "2025-10-07T18:47:27.246Z",
+      "lastSeenAt": "2025-10-07T19:12:37.460Z",
       "lastStatus": 200
     },
     "https://gaffa.dk/anmeldelser/2018/december/releases/poppens-fonixfugl-ender-som-en-glat-lyserod-al/": {
-      "lastSeenAt": "2025-10-07T18:47:28.745Z",
+      "lastSeenAt": "2025-10-07T19:12:38.848Z",
       "lastStatus": 200
     },
     "https://gaffa.dk/anmeldelser/2018/december/releases/anmeldelse-jaevndognets-rumnord/": {
-      "lastSeenAt": "2025-10-07T18:47:30.467Z",
+      "lastSeenAt": "2025-10-07T19:12:40.168Z",
       "lastStatus": 200
     },
     "https://gaffa.dk/anmeldelser/2018/december/releases/totalt-for-meget-og-lidt-fantastisk/": {
-      "lastSeenAt": "2025-10-07T18:47:31.823Z",
+      "lastSeenAt": "2025-10-07T19:12:41.820Z",
       "lastStatus": 200
     },
     "https://gaffa.dk/anmeldelser/2018/december/releases/anmeldelse-poppens-gudinde-tilsmiler-det-rendyrkede/": {
-      "lastSeenAt": "2025-10-07T18:47:33.253Z",
+      "lastSeenAt": "2025-10-07T19:12:43.234Z",
       "lastStatus": 200
     },
     "https://gaffa.dk/anmeldelser/2018/december/releases/anmeldelse-ambitiose-clutch-rammer-ikke-hojderne/": {
-      "lastSeenAt": "2025-10-07T18:47:34.864Z",
+      "lastSeenAt": "2025-10-07T19:12:45.064Z",
       "lastStatus": 200
     },
     "https://gaffa.dk/anmeldelser/2018/december/releases/anmeldelse-fremragende-erindringsbog-om-de-unge-ar/": {
-      "lastSeenAt": "2025-10-07T18:47:36.353Z",
+      "lastSeenAt": "2025-10-07T19:12:46.447Z",
       "lastStatus": 200
     },
     "https://gaffa.dk/anmeldelser/2018/december/releases/anmeldelse-let-dosige-sange-fra-den-amerikanske-midterrabat/": {
-      "lastSeenAt": "2025-10-07T18:47:38.223Z",
+      "lastSeenAt": "2025-10-07T19:12:48.053Z",
       "lastStatus": 200
     },
     "https://gaffa.dk/anmeldelser/2018/december/releases/anmeldelse-vedkommende-tracey-thorn-har-stadig-masser-pa-hjerte/": {
-      "lastSeenAt": "2025-10-07T18:47:39.816Z",
+      "lastSeenAt": "2025-10-07T19:12:49.415Z",
       "lastStatus": 200
     },
     "https://gaffa.dk/anmeldelser/2018/december/events/anmeldelse-yg-skabte-en-forsinket-fest-lordag-aften/": {
-      "lastSeenAt": "2025-10-07T18:47:41.952Z",
+      "lastSeenAt": "2025-10-07T19:12:50.683Z",
       "lastStatus": 200
     },
     "https://gaffa.dk/anmeldelser/2018/december/events/loyal-men-lovlig-larmende-lauryn-hill/": {
-      "lastSeenAt": "2025-10-07T18:47:43.786Z",
+      "lastSeenAt": "2025-10-07T19:12:52.012Z",
       "lastStatus": 200
     },
     "https://gaffa.dk/anmeldelser/2018/december/events/peter-pan-er-en-pige-og-hun-far-royal-arena-til-at-flyve/": {
-      "lastSeenAt": "2025-10-07T18:47:45.581Z",
+      "lastSeenAt": "2025-10-07T19:12:54.306Z",
       "lastStatus": 200
     },
     "https://gaffa.dk/anmeldelser/2018/december/events/anmeldelse-nydelig-nuller-nostalgi/": {
-      "lastSeenAt": "2025-10-07T18:47:47.678Z",
+      "lastSeenAt": "2025-10-07T19:12:56.214Z",
       "lastStatus": 200
     },
     "https://gaffa.dk/anmeldelser/2018/december/events/underbevidst-destruktion/": {
-      "lastSeenAt": "2025-10-07T18:47:49.440Z",
+      "lastSeenAt": "2025-10-07T19:12:58.752Z",
       "lastStatus": 200
     },
     "https://gaffa.dk/anmeldelser/2018/december/events/anmeldelse-pa-klub-med-ebm-pionerer/": {
-      "lastSeenAt": "2025-10-07T18:47:50.784Z",
+      "lastSeenAt": "2025-10-07T19:13:00.100Z",
       "lastStatus": 200
     },
     "https://gaffa.dk/anmeldelser/2018/december/releases/mesterligt-73-arige-van-morrison-er-tilbage-pa-toppen/": {
-      "lastSeenAt": "2025-10-07T18:47:52.287Z",
+      "lastSeenAt": "2025-10-07T19:13:01.514Z",
       "lastStatus": 200
     },
     "https://gaffa.dk/anmeldelser/2018/december/releases/harmlose-lejrbalssange-fra-slackerrockens-enspaender/": {
-      "lastSeenAt": "2025-10-07T18:47:53.701Z",
+      "lastSeenAt": "2025-10-07T19:13:02.993Z",
       "lastStatus": 200
     },
     "https://gaffa.dk/anmeldelser/2018/december/releases/anmeldelse-dansk-filmisk-electronica/": {
-      "lastSeenAt": "2025-10-07T18:47:54.928Z",
+      "lastSeenAt": "2025-10-07T19:13:04.125Z",
       "lastStatus": 200
     },
     "https://gaffa.dk/anmeldelser/2018/december/events/anmeldelse-grime-kongen-nedlagde-kobenhavn/": {
-      "lastSeenAt": "2025-10-07T18:47:57.516Z",
+      "lastSeenAt": "2025-10-07T19:13:05.846Z",
       "lastStatus": 200
     },
     "https://gaffa.dk/anmeldelser/2018/december/releases/springsteen-film-et-overbevisende-one-man-show/": {
-      "lastSeenAt": "2025-10-06T13:59:23.582Z",
+      "lastSeenAt": "2025-10-07T19:13:07.993Z",
       "lastStatus": 200
     },
     "https://gaffa.dk/anmeldelser/2018/december/events/det-perfekte-anglo-franske-elektrostod/": {
-      "lastSeenAt": "2025-10-06T13:59:26.298Z",
+      "lastSeenAt": "2025-10-07T19:13:10.386Z",
       "lastStatus": 200
     },
     "https://gaffa.dk/anmeldelser/2018/december/releases/anmeldelse-glimt-af-en-steppebrand/": {
-      "lastSeenAt": "2025-10-06T13:59:27.488Z",
+      "lastSeenAt": "2025-10-07T19:13:11.597Z",
       "lastStatus": 200
     },
     "https://gaffa.dk/anmeldelser/2018/december/events/solid-sangskrivning-i-smuk-samklang/": {
-      "lastSeenAt": "2025-10-06T13:59:28.900Z",
+      "lastSeenAt": "2025-10-07T19:13:13.110Z",
       "lastStatus": 200
     },
     "https://gaffa.dk/anmeldelser/2018/december/releases/simpel-bluesrock-lidt-for-simpel/": {
-      "lastSeenAt": "2025-10-06T13:59:30.222Z",
+      "lastSeenAt": "2025-10-07T19:13:14.539Z",
       "lastStatus": 200
     },
     "https://gaffa.dk/anmeldelser/2018/december/events/anmeldelse-lil-pump-store-moshpits/": {
-      "lastSeenAt": "2025-10-06T13:59:31.409Z",
+      "lastSeenAt": "2025-10-07T19:13:15.745Z",
       "lastStatus": 200
     },
     "https://gaffa.dk/anmeldelser/2018/december/events/en-syntetisk-triumf-i-et-psykedelisk-suk/": {
-      "lastSeenAt": "2025-10-06T13:59:33.267Z",
+      "lastSeenAt": "2025-10-07T19:13:17.767Z",
       "lastStatus": 200
     },
     "https://gaffa.dk/anmeldelser/2018/december/events/anmeldelse-veloplagt-med-tekniske-udfordringer/": {
-      "lastSeenAt": "2025-10-06T13:59:34.588Z",
+      "lastSeenAt": "2025-10-07T19:13:19.894Z",
       "lastStatus": 200
     },
     "https://gaffa.dk/anmeldelser/2018/december/releases/anmeldelse-stilsikker-legeplads-med-beklagelige-mangler/": {
-      "lastSeenAt": "2025-10-06T13:59:36.009Z",
+      "lastSeenAt": "2025-10-07T19:13:21.330Z",
       "lastStatus": 200
     },
     "https://gaffa.dk/anmeldelser/2017/januar/releases/esbjorn-svensson-udsat-for-strygeorkester-blandt-andet/": {
@@ -4150,13 +4151,13 @@
       "lastStatus": 200
     },
     "https://soundvenue.com/sitemap.xml": {
-      "lastSeenAt": "2025-10-07T19:08:23.718Z",
+      "lastSeenAt": "2025-10-07T19:11:08.149Z",
       "lastStatus": 404
     },
     "https://nordic.ign.com/feed.xml": {
       "lastModified": "Tue, 07 Oct 2025 18:35:17 GMT",
-      "lastSeenAt": "2025-10-07T19:08:52.015Z",
-      "lastStatus": 200
+      "lastSeenAt": "2025-10-07T19:17:29.519Z",
+      "lastStatus": 304
     },
     "https://nordic.ign.com/call-of-duty-black-ops-7/99587/news/97-of-call-of-duty-black-ops-7-beta-cheaters-were-caught-within-30-minutes-of-signing-in-activision": {
       "lastModified": "Mon, 06 Oct 2025 12:51:09 GMT",
@@ -4214,13 +4215,13 @@
       "lastStatus": 304
     },
     "https://nordic.ign.com/nvidia-rtx-5070-ti/99374/deal/walmart-has-rtx-5070-ti-gaming-pcs-with-your-choice-of-intel-or-amd-cpu-for-just-1499": {
-      "lastModified": "Tue, 07 Oct 2025 18:44:09 GMT",
-      "lastSeenAt": "2025-10-07T18:44:11.637Z",
+      "lastModified": "Tue, 07 Oct 2025 19:12:19 GMT",
+      "lastSeenAt": "2025-10-07T19:18:18.639Z",
       "lastStatus": 200
     },
     "https://nordic.ign.com/sonos-arc/99375/deal/sonos-is-taking-an-extra-25-off-its-refurbished-speakers-soundbars-headphones-and-subwoofers": {
-      "lastModified": "Tue, 07 Oct 2025 17:56:31 GMT",
-      "lastSeenAt": "2025-10-07T18:44:09.500Z",
+      "lastModified": "Tue, 07 Oct 2025 19:12:16 GMT",
+      "lastSeenAt": "2025-10-07T19:18:16.608Z",
       "lastStatus": 200
     },
     "https://nordic.ign.com/my-hero-academia/92726/lists/how-to-watch-my-hero-academia-in-order": {
@@ -4484,19 +4485,19 @@
       "lastStatus": 304
     },
     "https://www.ekkofilm.dk/artikler/ulaa-salim-laver-slik-drama-med-besir-zeciri/": {
-      "lastSeenAt": "2025-10-07T18:44:21.478Z",
+      "lastSeenAt": "2025-10-07T19:18:28.165Z",
       "lastStatus": 200
     },
     "https://www.ekkofilm.dk/artikler/instruktor-reagerer-pa-ballade-med-dar-salim/": {
-      "lastSeenAt": "2025-10-07T18:44:22.571Z",
+      "lastSeenAt": "2025-10-07T19:18:29.244Z",
       "lastStatus": 200
     },
     "https://www.ekkofilm.dk/artikler/voldsom-strid-om-dar-salim-film/": {
-      "lastSeenAt": "2025-10-07T18:44:23.665Z",
+      "lastSeenAt": "2025-10-07T19:18:30.339Z",
       "lastStatus": 200
     },
     "https://www.ekkofilm.dk/artikler/dr-fyrer-sandy-french/": {
-      "lastSeenAt": "2025-10-07T18:44:24.769Z",
+      "lastSeenAt": "2025-10-07T19:18:31.430Z",
       "lastStatus": 200
     },
     "https://www.ekkofilm.dk/artikler/den-perfekte-kunstner/": {
@@ -4535,17 +4536,17 @@
     },
     "https://www.ekkofilm.dk/feeds/artikler/": {
       "lastModified": "Tue, 07 Oct 2025 13:30:00 GMT",
-      "lastSeenAt": "2025-10-07T19:08:54.184Z",
+      "lastSeenAt": "2025-10-07T19:17:31.715Z",
       "lastStatus": 304
     },
     "https://www.berlingske.dk/news-sitemap.xml": {
-      "etag": "\"mm4fr5b9s74uyj\"",
-      "lastSeenAt": "2025-10-07T19:08:45.583Z",
+      "etag": "\"8xtp9rsfe74udb\"",
+      "lastSeenAt": "2025-10-07T19:17:22.779Z",
       "lastStatus": 200
     },
     "https://www.bt.dk/news-sitemap.xml": {
       "etag": "\"15x3904u16x5trn\"",
-      "lastSeenAt": "2025-10-07T19:08:49.822Z",
+      "lastSeenAt": "2025-10-07T19:17:27.426Z",
       "lastStatus": 200
     },
     "https://nordic.ign.com/world-of-warcraft-midnight/99595/feature/world-of-warcraft-is-getting-two-major-changes-in-midnight-that-are-already-dividing-the-community": {
@@ -4664,209 +4665,249 @@
       "lastStatus": 200
     },
     "https://nordic.ign.com/megalopolis/99649/preview/megalopolis-an-original-graphic-novel-adapts-2024s-most-divisive-film": {
-      "lastModified": "Tue, 07 Oct 2025 18:38:19 GMT",
-      "lastSeenAt": "2025-10-07T19:08:55.291Z",
-      "lastStatus": 304
+      "lastModified": "Tue, 07 Oct 2025 19:10:16 GMT",
+      "lastSeenAt": "2025-10-07T19:17:42.907Z",
+      "lastStatus": 200
     },
     "https://nordic.ign.com/apple-ipad/99632/deal/the-latest-apple-ipads-are-as-much-as-50-off-at-the-amazon-resale-store-prime-day": {
-      "lastModified": "Tue, 07 Oct 2025 18:43:33 GMT",
-      "lastSeenAt": "2025-10-07T19:08:56.373Z",
-      "lastStatus": 304
+      "lastModified": "Tue, 07 Oct 2025 19:08:46 GMT",
+      "lastSeenAt": "2025-10-07T19:17:43.932Z",
+      "lastStatus": 200
     },
     "https://nordic.ign.com/call-of-duty-warzone-2/99648/video/call-of-duty-warzone-black-ops-6-official-the-haunting-trailer": {
       "lastModified": "Tue, 07 Oct 2025 18:43:34 GMT",
-      "lastSeenAt": "2025-10-07T19:08:57.444Z",
+      "lastSeenAt": "2025-10-07T19:17:44.971Z",
       "lastStatus": 304
     },
     "https://nordic.ign.com/harry-potter-and-the-sorcerers-stone/99647/news/harry-potter-and-the-sorcerers-stone-headed-back-to-theaters-for-25th-anniversary": {
       "lastModified": "Tue, 07 Oct 2025 18:37:42 GMT",
-      "lastSeenAt": "2025-10-07T19:08:58.689Z",
-      "lastStatus": 200
+      "lastSeenAt": "2025-10-07T19:17:46.003Z",
+      "lastStatus": 304
     },
     "https://nordic.ign.com/call-of-duty-2024/99646/news/the-predator-is-coming-to-call-of-duty-black-ops-6-and-warzone-but-fans-wish-they-could-carry-him-fo": {
       "lastModified": "Tue, 07 Oct 2025 18:27:25 GMT",
-      "lastSeenAt": "2025-10-07T19:08:59.704Z",
-      "lastStatus": 200
+      "lastSeenAt": "2025-10-07T19:17:47.012Z",
+      "lastStatus": 304
     },
     "https://nordic.ign.com/the-witcher-5/99645/news/netflix-releases-action-packed-the-witcher-season-4-trailer-and-brand-new-photos": {
       "lastModified": "Tue, 07 Oct 2025 18:21:01 GMT",
-      "lastSeenAt": "2025-10-07T19:09:00.714Z",
-      "lastStatus": 200
+      "lastSeenAt": "2025-10-07T19:17:48.021Z",
+      "lastStatus": 304
     },
     "https://nordic.ign.com/alien-1/99644/news/were-drowning-in-mediocrity-alien-director-ridley-scott-says-modern-movies-are-so-bad-hes-gone-back": {
       "lastModified": "Tue, 07 Oct 2025 18:06:13 GMT",
-      "lastSeenAt": "2025-10-07T19:09:01.737Z",
-      "lastStatus": 200
+      "lastSeenAt": "2025-10-07T19:17:49.040Z",
+      "lastStatus": 304
     },
     "https://nordic.ign.com/cult-of-blood/99643/video/cult-of-blood-official-announcement-trailer": {
       "lastModified": "Tue, 07 Oct 2025 18:43:39 GMT",
-      "lastSeenAt": "2025-10-07T19:09:02.763Z",
+      "lastSeenAt": "2025-10-07T19:17:50.051Z",
       "lastStatus": 304
     },
     "https://nordic.ign.com/gallery/99642/cult-of-blood-first-screenshots": {
       "lastModified": "Tue, 07 Oct 2025 18:43:40 GMT",
-      "lastSeenAt": "2025-10-07T19:09:03.816Z",
+      "lastSeenAt": "2025-10-07T19:17:51.062Z",
       "lastStatus": 304
     },
     "https://nordic.ign.com/news/99641/cult-of-blood-a-retro-inspired-survival-horror-game-officially-announced-for-pc-xbox-and-ps5": {
-      "lastModified": "Tue, 07 Oct 2025 18:06:13 GMT",
-      "lastSeenAt": "2025-10-07T19:09:04.841Z",
-      "lastStatus": 304
+      "lastModified": "Tue, 07 Oct 2025 18:52:34 GMT",
+      "lastSeenAt": "2025-10-07T19:17:52.100Z",
+      "lastStatus": 200
     },
     "https://nordic.ign.com/news/99640/elon-musk-promises-his-xai-studio-will-release-a-great-ai-generated-video-game-and-grok-will-make-a": {
-      "lastModified": "Tue, 07 Oct 2025 18:38:01 GMT",
-      "lastSeenAt": "2025-10-07T19:09:05.949Z",
+      "lastModified": "Tue, 07 Oct 2025 19:11:51 GMT",
+      "lastSeenAt": "2025-10-07T19:17:53.120Z",
       "lastStatus": 200
     },
     "https://nordic.ign.com/pikmin-4/99639/news/nintendos-new-animated-short-has-fans-baffled-whether-its-a-super-mario-galaxy-movie-teaser-or-a-hin": {
       "lastModified": "Tue, 07 Oct 2025 18:43:44 GMT",
-      "lastSeenAt": "2025-10-07T19:09:06.965Z",
-      "lastStatus": 200
+      "lastSeenAt": "2025-10-07T19:17:54.136Z",
+      "lastStatus": 304
     },
     "https://nordic.ign.com/steven-universe/99638/news/steven-universe-creator-rebecca-sugar-will-helm-upcoming-moomin-adaptation": {
       "lastModified": "Tue, 07 Oct 2025 18:39:56 GMT",
-      "lastSeenAt": "2025-10-07T19:09:08.018Z",
+      "lastSeenAt": "2025-10-07T19:17:55.145Z",
       "lastStatus": 304
     },
     "https://nordic.ign.com/nintendo-switch-2-unofficial-name/99637/video/nintendo-official-close-to-you-short-film": {
       "lastModified": "Tue, 07 Oct 2025 18:43:46 GMT",
-      "lastSeenAt": "2025-10-07T19:09:09.083Z",
-      "lastStatus": 200
+      "lastSeenAt": "2025-10-07T19:17:56.162Z",
+      "lastStatus": 304
     },
     "https://nordic.ign.com/silent-hill-2-remake/99635/news/playstation-plus-extra-reportedly-gets-silent-hill-2-remake-later-this-month": {
-      "lastModified": "Tue, 07 Oct 2025 18:07:46 GMT",
-      "lastSeenAt": "2025-10-07T19:09:10.108Z",
-      "lastStatus": 304
+      "lastModified": "Tue, 07 Oct 2025 19:07:56 GMT",
+      "lastSeenAt": "2025-10-07T19:17:57.178Z",
+      "lastStatus": 200
     },
     "https://nordic.ign.com/nintendo-switch-2/99634/news/nintendo-lawsuit-demands-45-million-settlement-from-reddit-mod-who-sold-switch-roms-insists-figure-i": {
-      "lastModified": "Tue, 07 Oct 2025 18:43:48 GMT",
-      "lastSeenAt": "2025-10-07T19:09:11.252Z",
-      "lastStatus": 304
+      "lastModified": "Tue, 07 Oct 2025 19:11:56 GMT",
+      "lastSeenAt": "2025-10-07T19:17:58.195Z",
+      "lastStatus": 200
     },
     "https://nordic.ign.com/star-wars-episode-ii-attack-of-the-clones-theater/99633/news/that-sort-of-film-would-bore-the-arse-off-me-ray-winstone-insists-he-doesnt-regret-turning-up-drunk": {
-      "lastModified": "Tue, 07 Oct 2025 18:37:54 GMT",
-      "lastSeenAt": "2025-10-07T19:09:12.312Z",
-      "lastStatus": 304
+      "lastModified": "Tue, 07 Oct 2025 19:01:23 GMT",
+      "lastSeenAt": "2025-10-07T19:17:59.211Z",
+      "lastStatus": 200
     },
     "https://nordic.ign.com/valorant/99630/feature/feature-valorant-champions-2025-proves-just-how-big-esports-has-become": {
-      "lastModified": "Tue, 07 Oct 2025 18:26:23 GMT",
-      "lastSeenAt": "2025-10-07T19:09:13.378Z",
-      "lastStatus": 304
+      "lastModified": "Tue, 07 Oct 2025 19:11:59 GMT",
+      "lastSeenAt": "2025-10-07T19:18:00.272Z",
+      "lastStatus": 200
     },
     "https://nordic.ign.com/marathon/99631/news/bungies-ready-to-invite-players-to-try-another-slice-of-sci-fi-shooter-marathon-via-a-new-closed-tec": {
       "lastModified": "Tue, 07 Oct 2025 18:30:34 GMT",
-      "lastSeenAt": "2025-10-07T19:09:14.447Z",
+      "lastSeenAt": "2025-10-07T19:18:01.294Z",
       "lastStatus": 304
     },
     "https://nordic.ign.com/predator-badlands/99629/news/predator-badlands-is-confirmed-pg-13-rather-than-r-rated-and-fans-of-the-famously-violent-franchise": {
       "lastModified": "Tue, 07 Oct 2025 18:52:24 GMT",
-      "lastSeenAt": "2025-10-07T19:09:15.482Z",
-      "lastStatus": 200
+      "lastSeenAt": "2025-10-07T19:18:02.300Z",
+      "lastStatus": 304
     },
     "https://nordic.ign.com/untitled-battlefield-game/99628/news/call-of-duty-black-ops-7-beta-extended-by-24-hours-ends-just-a-day-before-the-battlefield-6-release": {
-      "lastModified": "Tue, 07 Oct 2025 18:03:25 GMT",
-      "lastSeenAt": "2025-10-07T19:09:16.574Z",
-      "lastStatus": 304
+      "lastModified": "Tue, 07 Oct 2025 18:52:36 GMT",
+      "lastSeenAt": "2025-10-07T19:18:03.320Z",
+      "lastStatus": 200
     },
     "https://nordic.ign.com/the-smashing-machine/99627/news/you-cant-control-box-office-results-dwayne-the-rock-johnson-responds-to-the-smashing-machines-disapp": {
       "lastModified": "Tue, 07 Oct 2025 18:43:54 GMT",
-      "lastSeenAt": "2025-10-07T19:09:17.585Z",
-      "lastStatus": 200
-    },
-    "https://nordic.ign.com/untitled-battlefield-game/99626/news/battlefield-6-leaks-seem-unstoppable-as-players-report-receiving-copies-days-before-launch": {
-      "lastModified": "Tue, 07 Oct 2025 18:28:06 GMT",
-      "lastSeenAt": "2025-10-07T19:09:18.669Z",
+      "lastSeenAt": "2025-10-07T19:18:04.340Z",
       "lastStatus": 304
     },
+    "https://nordic.ign.com/untitled-battlefield-game/99626/news/battlefield-6-leaks-seem-unstoppable-as-players-report-receiving-copies-days-before-launch": {
+      "lastModified": "Tue, 07 Oct 2025 19:14:38 GMT",
+      "lastSeenAt": "2025-10-07T19:18:05.356Z",
+      "lastStatus": 200
+    },
     "https://nordic.ign.com/lisa-frankenstein/99613/news/robin-williams-daughter-takes-stand-against-ai-slop-exploiting-her-fathers-image": {
-      "lastModified": "Tue, 07 Oct 2025 18:43:56 GMT",
-      "lastSeenAt": "2025-10-07T19:09:19.756Z",
+      "lastModified": "Tue, 07 Oct 2025 19:12:05 GMT",
+      "lastSeenAt": "2025-10-07T19:18:06.370Z",
       "lastStatus": 200
     },
     "https://nordic.ign.com/megabonk/99617/review/megabonk-quick-review": {
       "lastModified": "Tue, 07 Oct 2025 18:08:02 GMT",
-      "lastSeenAt": "2025-10-07T19:09:20.779Z",
+      "lastSeenAt": "2025-10-07T19:18:07.422Z",
       "lastStatus": 304
     },
     "https://nordic.ign.com/megabonk/99618/video/megabonk-quick-review-video": {
-      "lastModified": "Tue, 07 Oct 2025 18:32:18 GMT",
-      "lastSeenAt": "2025-10-07T19:09:21.956Z",
-      "lastStatus": 304
+      "lastModified": "Tue, 07 Oct 2025 19:12:07 GMT",
+      "lastSeenAt": "2025-10-07T19:18:08.467Z",
+      "lastStatus": 200
     },
     "https://nordic.ign.com/ghost-of-ikishima/99623/video/ghost-of-yotei-how-to-unlock-takezos-dual-slash": {
       "lastModified": "Tue, 07 Oct 2025 18:32:19 GMT",
-      "lastSeenAt": "2025-10-07T18:44:01.863Z",
-      "lastStatus": 200
+      "lastSeenAt": "2025-10-07T19:18:09.499Z",
+      "lastStatus": 304
     },
     "https://nordic.ign.com/world-of-warcraft-midnight/99610/news/world-of-warcraft-leads-say-the-worldsoul-saga-will-eventually-address-the-sword-of-sargeras-metzen": {
-      "lastModified": "Tue, 07 Oct 2025 18:43:44 GMT",
-      "lastSeenAt": "2025-10-07T18:44:02.916Z",
+      "lastModified": "Tue, 07 Oct 2025 19:08:33 GMT",
+      "lastSeenAt": "2025-10-07T19:18:10.523Z",
       "lastStatus": 200
     },
     "https://nordic.ign.com/ghost-of-ikishima/99624/video/ghost-of-yotei-the-5-best-charms-to-get-early": {
       "lastModified": "Tue, 07 Oct 2025 18:32:21 GMT",
-      "lastSeenAt": "2025-10-07T18:44:03.995Z",
-      "lastStatus": 200
+      "lastSeenAt": "2025-10-07T19:18:11.534Z",
+      "lastStatus": 304
     },
     "https://nordic.ign.com/untitled-battlefield-game/99608/news/battlefield-6-day-one-patch-includes-changes-to-movement-weapon-recoil-rush-and-more": {
-      "lastModified": "Tue, 07 Oct 2025 18:19:26 GMT",
-      "lastSeenAt": "2025-10-07T18:44:05.053Z",
+      "lastModified": "Tue, 07 Oct 2025 19:04:20 GMT",
+      "lastSeenAt": "2025-10-07T19:18:12.547Z",
       "lastStatus": 200
     },
     "https://nordic.ign.com/phantom-blade-zero/99609/video/phantom-blade-zero-is-a-delightfully-punishing-action-rpg": {
-      "lastModified": "Tue, 07 Oct 2025 18:44:04 GMT",
-      "lastSeenAt": "2025-10-07T18:44:06.156Z",
+      "lastModified": "Tue, 07 Oct 2025 19:12:13 GMT",
+      "lastSeenAt": "2025-10-07T19:18:13.565Z",
       "lastStatus": 200
     },
     "https://nordic.ign.com/assassins-creed-mirage/99606/gallery/assassins-creed-mirage-valley-of-memories-screenshots-and-concept-art": {
       "lastModified": "Tue, 07 Oct 2025 18:44:05 GMT",
-      "lastSeenAt": "2025-10-07T18:44:07.427Z",
-      "lastStatus": 200
+      "lastSeenAt": "2025-10-07T19:18:14.573Z",
+      "lastStatus": 304
     },
     "https://nordic.ign.com/assassins-creed-mirage/99605/news/assassins-creed-mirages-saudi-backed-valley-of-memory-expansion-looks-a-generous-free-side-quest-tho": {
-      "lastModified": "Tue, 07 Oct 2025 18:38:53 GMT",
-      "lastSeenAt": "2025-10-07T18:44:08.483Z",
+      "lastModified": "Tue, 07 Oct 2025 19:12:15 GMT",
+      "lastSeenAt": "2025-10-07T19:18:15.589Z",
       "lastStatus": 200
     },
     "https://nordic.ign.com/predator-badlands/99625/video/predator-badlands-official-final-trailer": {
-      "lastModified": "Tue, 07 Oct 2025 18:30:57 GMT",
-      "lastSeenAt": "2025-10-07T18:44:10.512Z",
+      "lastModified": "Tue, 07 Oct 2025 19:01:07 GMT",
+      "lastSeenAt": "2025-10-07T19:18:17.628Z",
       "lastStatus": 200
     },
     "https://nordic.ign.com/predator-badlands/99602/feature/12-things-we-learned-visiting-the-set-of-predator-badlands": {
-      "lastModified": "Tue, 07 Oct 2025 18:25:39 GMT",
-      "lastSeenAt": "2025-10-07T18:44:12.689Z",
+      "lastModified": "Tue, 07 Oct 2025 19:02:22 GMT",
+      "lastSeenAt": "2025-10-07T19:18:19.650Z",
       "lastStatus": 200
     },
     "https://nordic.ign.com/crimson-desert/99601/video/crimson-desert-11-minutes-of-brand-new-gameplay-ign-first": {
       "lastModified": "Tue, 07 Oct 2025 18:44:11 GMT",
-      "lastSeenAt": "2025-10-07T18:44:13.805Z",
-      "lastStatus": 200
+      "lastSeenAt": "2025-10-07T19:18:20.668Z",
+      "lastStatus": 304
     },
     "https://nordic.ign.com/crimson-desert/99600/preview/crimson-desert-is-this-months-ign-first-check-out-11-minutes-of-new-quest-gameplay": {
-      "lastModified": "Tue, 07 Oct 2025 18:29:11 GMT",
-      "lastSeenAt": "2025-10-07T18:44:14.855Z",
+      "lastModified": "Tue, 07 Oct 2025 19:12:22 GMT",
+      "lastSeenAt": "2025-10-07T19:18:21.697Z",
       "lastStatus": 200
     },
     "https://nordic.ign.com/fast-x/99599/news/the-fast-x-sequel-is-still-coming-if-they-can-trim-the-budget-by-a-massive-amount": {
       "lastModified": "Tue, 07 Oct 2025 18:44:13 GMT",
-      "lastSeenAt": "2025-10-07T18:44:15.982Z",
-      "lastStatus": 200
+      "lastSeenAt": "2025-10-07T19:18:22.705Z",
+      "lastStatus": 304
     },
     "https://www.ekkofilm.dk/artikler/film-skal-ikke-bare-koste/": {
-      "lastSeenAt": "2025-10-07T18:44:17.153Z",
+      "lastSeenAt": "2025-10-07T19:18:23.858Z",
       "lastStatus": 200
     },
     "https://www.ekkofilm.dk/artikler/isabella-eklof-laver-forste-dogme25-film/": {
-      "lastSeenAt": "2025-10-07T18:44:18.250Z",
+      "lastSeenAt": "2025-10-07T19:18:24.954Z",
       "lastStatus": 200
     },
     "https://www.ekkofilm.dk/artikler/har-producent-efterladt-instruktor-pa-perronen/": {
-      "lastSeenAt": "2025-10-07T18:44:19.338Z",
+      "lastSeenAt": "2025-10-07T19:18:25.991Z",
       "lastStatus": 200
     },
     "https://www.ekkofilm.dk/artikler/dr-fyrer-ung-debattor/": {
-      "lastSeenAt": "2025-10-07T18:44:20.378Z",
+      "lastSeenAt": "2025-10-07T19:18:27.082Z",
+      "lastStatus": 200
+    },
+    "https://soundvenue.com/film/2025/10/den-foerste-nye-haandskrevne-dogmefilm-er-paabegyndt-645160": {
+      "lastSeenAt": "2025-10-07T19:17:32.750Z",
+      "lastStatus": 200
+    },
+    "https://soundvenue.com/kultur/2025/10/p3-vaert-helin-erdem-debuterer-paa-scenen-i-grwm-og-udleverer-mediebranchen-og-sig-selv-644942": {
+      "lastSeenAt": "2025-10-07T19:17:33.762Z",
+      "lastStatus": 200
+    },
+    "https://soundvenue.com/musik/2025/10/lola-young-laegger-sag-an-mod-produceren-bag-massivt-gennembrudshit-hit-645106": {
+      "lastSeenAt": "2025-10-07T19:17:34.779Z",
+      "lastStatus": 200
+    },
+    "https://soundvenue.com/musik/2025/10/lorde-paramore-og-mange-flere-tilslutter-sig-boykottet-af-israelske-lyttere-645102": {
+      "lastSeenAt": "2025-10-07T19:17:35.794Z",
+      "lastStatus": 200
+    },
+    "https://soundvenue.com/film/2025/10/robin-williams-datter-langer-ud-efter-ai-videoer-af-hendes-afdoede-far-i-laver-poelser-ud-af-mennesker-645109": {
+      "lastSeenAt": "2025-10-07T19:17:36.803Z",
+      "lastStatus": 200
+    },
+    "https://soundvenue.com/film/2025/10/ridley-scott-synes-at-de-fleste-film-i-dag-er-lort-645103": {
+      "lastSeenAt": "2025-10-07T19:17:37.814Z",
+      "lastStatus": 200
+    },
+    "https://soundvenue.com/musik/2025/10/taylor-swift-kan-ikke-relatere-til-sit-2024-album-jeg-har-det-ikke-elendigt-laengere-645088": {
+      "lastSeenAt": "2025-10-07T19:17:38.831Z",
+      "lastStatus": 200
+    },
+    "https://soundvenue.com/film/2025/10/monster-the-ed-gein-story-er-ny-netflix-saeson-serioest-en-hyldest-til-en-seriemorder-645089": {
+      "lastSeenAt": "2025-10-07T19:17:39.846Z",
+      "lastStatus": 200
+    },
+    "https://soundvenue.com/film/2025/10/dwayne-johnson-reagerer-paa-karrierens-vaerste-aabningsweekend-denne-film-har-aendret-mit-liv-645085": {
+      "lastSeenAt": "2025-10-07T19:17:40.857Z",
+      "lastStatus": 200
+    },
+    "https://soundvenue.com/musik/2025/10/det-vaerste-ved-taylor-swifts-disstrack-er-at-det-ikke-engang-er-underholdende-644992": {
+      "lastSeenAt": "2025-10-07T19:17:41.868Z",
       "lastStatus": 200
     }
   }
