@@ -23,16 +23,6 @@ export default function AlleMedierClient({ initialData, searchParams }: AlleMedi
 
   // Filter data based on enabled media sources
   useEffect(() => {
-    console.log('AlleMedierClient - Initial check:',{
-      totalArticles: initialData.length,
-      sampleArticle: initialData[0],
-      firstFiveArticles: initialData.slice(0, 5).map(a => ({
-        title: a.title?.substring(0, 40),
-        source: a.source,
-        url: a.url?.substring(0, 50)
-      }))
-    });
-    
     // Fix articles without source by extracting from URL
     const articlesWithSource = initialData.map(article => {
       if (article.source) return article;
@@ -65,14 +55,7 @@ export default function AlleMedierClient({ initialData, searchParams }: AlleMedi
       return article;
     });
     
-    console.log('AlleMedierClient - After source fix:', {
-      articlesWithSource: articlesWithSource.slice(0, 3).map(a => ({
-        title: a.title?.substring(0, 40),
-        source: a.source
-      }))
-    });
-    
-    // Show all articles (filtering disabled temporarily)
+    // Show all articles
     setFilteredData(articlesWithSource);
   }, [initialData]);
 
@@ -100,7 +83,7 @@ export default function AlleMedierClient({ initialData, searchParams }: AlleMedi
   const sort = String(searchParams.sort || 'newest');
   const page = Math.max(1, Number(searchParams.page) || 1);
   const source = String(searchParams.source || '').trim();
-  const timeFilter = String(searchParams.time || 'today').trim();
+  const timeFilter = String(searchParams.time || 'all').trim();
 
   const sinceHours = ['24','48','72'].includes(sinceStr) ? Number(sinceStr) : undefined;
 
@@ -238,11 +221,11 @@ export default function AlleMedierClient({ initialData, searchParams }: AlleMedi
             </div>
             <div className="flex-shrink-0">
               <div className="flex items-center gap-2 bg-white/20 dark:bg-black/30 backdrop-blur-3xl rounded-3xl py-2 px-2 border border-white/20 dark:border-white/10 shadow-2xl">
-                <a href={`/alle-medier?${new URLSearchParams({...Object.fromEntries(params), time: 'today'}).toString()}`} className={`px-4 py-2 rounded-2xl text-sm font-medium transition-all duration-300 whitespace-nowrap ${timeFilter === 'today' ? 'bg-white/40 dark:bg-black/60 text-slate-800 dark:text-white shadow-lg' : 'text-slate-600 dark:text-slate-300 hover:bg-white/20 dark:hover:bg-black/40'}`}>
-                  Idag
-                </a>
                 <a href={`/alle-medier?${new URLSearchParams({...Object.fromEntries(params), time: 'all'}).toString()}`} className={`px-4 py-2 rounded-2xl text-sm font-medium transition-all duration-300 whitespace-nowrap ${timeFilter === 'all' ? 'bg-white/40 dark:bg-black/60 text-slate-800 dark:text-white shadow-lg' : 'text-slate-600 dark:text-slate-300 hover:bg-white/20 dark:hover:bg-black/40'}`}>
                   Alle
+                </a>
+                <a href={`/alle-medier?${new URLSearchParams({...Object.fromEntries(params), time: 'today'}).toString()}`} className={`px-4 py-2 rounded-2xl text-sm font-medium transition-all duration-300 whitespace-nowrap ${timeFilter === 'today' ? 'bg-white/40 dark:bg-black/60 text-slate-800 dark:text-white shadow-lg' : 'text-slate-600 dark:text-slate-300 hover:bg-white/20 dark:hover:bg-black/40'}`}>
+                  Idag
                 </a>
               </div>
             </div>
