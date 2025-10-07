@@ -2,7 +2,7 @@
   "heads": {
     "https://soundvenue.com/feed": {
       "etag": "\"f598cafbd5f57144a3e0ddcb10ec318d\"",
-      "lastSeenAt": "2025-10-07T19:32:54.177Z",
+      "lastSeenAt": "2025-10-07T19:35:36.137Z",
       "lastStatus": 304
     },
     "https://soundvenue.com/film/2025/09/julia-roberts-og-ayo-edebiri-saetter-journalist-paa-plads-i-viralt-interviewklip-640163": {
@@ -4155,8 +4155,8 @@
     },
     "https://nordic.ign.com/feed.xml": {
       "lastModified": "Tue, 07 Oct 2025 19:31:01 GMT",
-      "lastSeenAt": "2025-10-07T19:33:07.332Z",
-      "lastStatus": 200
+      "lastSeenAt": "2025-10-07T19:35:49.222Z",
+      "lastStatus": 304
     },
     "https://nordic.ign.com/call-of-duty-black-ops-7/99587/news/97-of-call-of-duty-black-ops-7-beta-cheaters-were-caught-within-30-minutes-of-signing-in-activision": {
       "lastModified": "Mon, 06 Oct 2025 12:51:09 GMT",
@@ -4535,17 +4535,17 @@
     },
     "https://www.ekkofilm.dk/feeds/artikler/": {
       "lastModified": "Tue, 07 Oct 2025 13:30:00 GMT",
-      "lastSeenAt": "2025-10-07T19:33:09.465Z",
+      "lastSeenAt": "2025-10-07T19:35:51.415Z",
       "lastStatus": 304
     },
     "https://www.berlingske.dk/news-sitemap.xml": {
       "etag": "\"5v1yu05kdv4t86\"",
-      "lastSeenAt": "2025-10-07T19:33:01.008Z",
+      "lastSeenAt": "2025-10-07T19:35:42.880Z",
       "lastStatus": 200
     },
     "https://www.bt.dk/news-sitemap.xml": {
-      "etag": "\"vmifj96tyw5tte\"",
-      "lastSeenAt": "2025-10-07T19:33:05.280Z",
+      "etag": "\"1zh8h9sip5t92\"",
+      "lastSeenAt": "2025-10-07T19:35:47.145Z",
       "lastStatus": 200
     },
     "https://nordic.ign.com/world-of-warcraft-midnight/99595/feature/world-of-warcraft-is-getting-two-major-changes-in-midnight-that-are-already-dividing-the-community": {
@@ -4910,7 +4910,7 @@
       "lastStatus": 200
     },
     "https://gaffa.dk/rss": {
-      "lastSeenAt": "2025-10-07T19:32:56.915Z",
+      "lastSeenAt": "2025-10-07T19:35:38.905Z",
       "lastStatus": 200
     },
     " https://gaffa.dk/anmeldelser/2025/oktober/koncerter/cian-ducrot-store-vega-060925/ ": {
@@ -5223,7 +5223,7 @@
     },
     "https://www.berlingske.dk/oekonomi/brancheformand-i-haardt-angreb-ministers-opgoer-med-bureaukratiet-er-rent-spin": {
       "etag": "\"2qdabzv9vmf3l1\"",
-      "lastSeenAt": "2025-10-07T19:33:10.509Z",
+      "lastSeenAt": "2025-10-07T19:35:52.496Z",
       "lastStatus": 200
     },
     " https://gaffa.dk/nyheder-fra-gaffa/2025/oktober/diddy-beskriver-hvordan-han-for-vild-i-nyt-brev-til-dommer-affag/ ": {
@@ -5232,7 +5232,7 @@
     },
     "https://www.berlingske.dk/sport/storholdene-odense-og-esbjerg-cruiser-videre-i-pokalen": {
       "etag": "\"mj6l4460k2dx4d\"",
-      "lastSeenAt": "2025-10-07T19:33:11.706Z",
+      "lastSeenAt": "2025-10-07T19:35:53.622Z",
       "lastStatus": 200
     },
     " https://gaffa.dk/nyheder-fra-gaffa/2025/oktober/volbeat-indtager-copenhell-i-2026/ ": {
@@ -5241,7 +5241,7 @@
     },
     "https://www.berlingske.dk/indland/fem-er-anholdt-i-sag-om-hvidvask-af-70-millioner-kroner": {
       "etag": "\"hadf4uahupe0ac\"",
-      "lastSeenAt": "2025-10-07T19:33:12.729Z",
+      "lastSeenAt": "2025-10-07T19:35:54.649Z",
       "lastStatus": 200
     },
     " https://gaffa.dk/anmeldelser/2025/oktober/album/hans-philip-honey/ ": {
@@ -5250,7 +5250,7 @@
     },
     "https://www.berlingske.dk/politik/troels-lund-om-droner-vi-var-ikke-godt-nok-forberedte": {
       "etag": "\"xec4z97mt6dwew\"",
-      "lastSeenAt": "2025-10-07T19:33:13.751Z",
+      "lastSeenAt": "2025-10-07T19:35:55.724Z",
       "lastStatus": 200
     },
     " https://gaffa.dk/nyheder-fra-gaffa/2025/oktober/kedde-genfortolker-sin-debutsingle-og-tager-en-ven-med/ ": {
@@ -5259,12 +5259,12 @@
     },
     "https://www.berlingske.dk/politik/mette-frederiksen-vil-taemme-monsteret-og-indfoere-alderskrav-paa-sociale-medier-dansk-folkeparti-advarer-om-boevl-og-bureaukrati": {
       "etag": "\"7o2wx4ndo7ev3l\"",
-      "lastSeenAt": "2025-10-07T19:33:14.834Z",
+      "lastSeenAt": "2025-10-07T19:35:56.751Z",
       "lastStatus": 200
     },
     "https://www.berlingske.dk/politik/troels-lund-poulsen-jeg-tror-ikke-jeg-er-statsministerkandidat": {
       "etag": "\"14craa87ie0dzie\"",
-      "lastSeenAt": "2025-10-07T19:33:15.862Z",
+      "lastSeenAt": "2025-10-07T19:35:57.813Z",
       "lastStatus": 200
     },
     " https://gaffa.dk/nyheder-fra-gaffa/2025/oktober/uro-udsender-habefuld-single/ ": {
@@ -5273,7 +5273,7 @@
     },
     "https://www.berlingske.dk/internationalt/trump-det-forjaettede-land-og-droemmen-om-obamas-pris": {
       "etag": "\"fwngvjxkxpfk1m\"",
-      "lastSeenAt": "2025-10-07T19:33:16.969Z",
+      "lastSeenAt": "2025-10-07T19:35:58.847Z",
       "lastStatus": 200
     },
     " https://gaffa.dk/artikler/2025/oktober/10-taylor-swift-sange-du-skal-lytte-til-hvis-du-ikke-kan-lide-taylor-swift/ ": {
@@ -5282,7 +5282,7 @@
     },
     "https://www.berlingske.dk/skaerm/han-var-alle-pigers-droem-indtil-metoo-gjorde-ham-giftig-teenagefaenomenet-fylder-rundt--og-rummer-stadig-en-ubekvem-sandhed-om-teenagepiger": {
       "etag": "\"t9py2h24m7er3q\"",
-      "lastSeenAt": "2025-10-07T19:33:18.050Z",
+      "lastSeenAt": "2025-10-07T19:35:59.893Z",
       "lastStatus": 200
     },
     " https://gaffa.dk/artikler/2025/september/5-skarpe-til-gerda-haastrup-jorgensen-mange-tiltag-kan-forega-uden-kommunal-stotte/ ": {
@@ -5291,7 +5291,7 @@
     },
     "https://www.berlingske.dk/sport/dansk-stortalent-tager-andenplads-efter-usaarlig-pogacar": {
       "etag": "\"xclsa6yarbdzlh\"",
-      "lastSeenAt": "2025-10-07T19:33:19.128Z",
+      "lastSeenAt": "2025-10-07T19:36:00.961Z",
       "lastStatus": 200
     },
     " https://gaffa.dk/nyheder-fra-gaffa/2025/oktober/stjernegaest-traeder-ind-i-guldimunds-musikalske-univers/ ": {
@@ -5300,12 +5300,12 @@
     },
     "https://www.berlingske.dk/politik/mette-frederiksen-afsloerede-sin-slappe-politik-i-aabningstalen-mener-messerschmidt-og-stoejberg-nu-kraever-de-et-opgoer": {
       "etag": "\"fcsqf77zegf20z\"",
-      "lastSeenAt": "2025-10-07T19:33:20.152Z",
+      "lastSeenAt": "2025-10-07T19:36:02.036Z",
       "lastStatus": 200
     },
     "https://www.berlingske.dk/internationalt/trump-ser-diskussioner-med-canada-som-blandt-de-svaereste-i-toldkrigen": {
       "etag": "\"132r34lp5yge1o3\"",
-      "lastSeenAt": "2025-10-07T19:33:21.180Z",
+      "lastSeenAt": "2025-10-07T19:36:03.106Z",
       "lastStatus": 200
     },
     " https://gaffa.dk/nyheder-fra-gaffa/2025/oktober/dansk-duo-giver-taylor-swift-sang-et-kaerligt-twist/ ": {
@@ -5314,7 +5314,7 @@
     },
     "https://www.berlingske.dk/kommentatorer/christian-egander-skov-derfor-har-messerschmidt-kunnet-genrejse-df": {
       "etag": "\"625cqz4ekves1c\"",
-      "lastSeenAt": "2025-10-07T19:33:22.203Z",
+      "lastSeenAt": "2025-10-07T19:36:04.139Z",
       "lastStatus": 200
     },
     " https://gaffa.dk/artikler/2025/oktober/her-er-vinderen-af-gaffa-photo-awards-2024-i-portraet-kategorien-konkurrencen-korer-igen/ ": {
@@ -5323,7 +5323,7 @@
     },
     "https://www.berlingske.dk/kronikker/kulturministeren-de-voksnes-had-har-sneget-sig-ind-paa-boernefodboldens-baner": {
       "etag": "\"etpeb31rcoerfe\"",
-      "lastSeenAt": "2025-10-07T19:33:23.226Z",
+      "lastSeenAt": "2025-10-07T19:36:05.184Z",
       "lastStatus": 200
     },
     " https://gaffa.dk/artikler/2025/oktober/laust-sonne-det-nytter-ikke-noget-at-lade-som-om-man-er-supermand/ ": {
@@ -5332,12 +5332,12 @@
     },
     "https://www.berlingske.dk/sport/holger-rune-moeder-favoritdraeber-fra-monaco-i-shanghai": {
       "etag": "\"10q0vioiifhdysu\"",
-      "lastSeenAt": "2025-10-07T19:33:24.248Z",
+      "lastSeenAt": "2025-10-07T19:36:06.220Z",
       "lastStatus": 200
     },
     "https://www.berlingske.dk/metropol/de-gamle-paa-frederiksberg-svinger-kosten-over-politikerne-paa-raadhuset-vores-hjemmehjaelp-er-for-daarlig": {
       "etag": "\"k6vshtnow2eqdq\"",
-      "lastSeenAt": "2025-10-07T19:33:25.296Z",
+      "lastSeenAt": "2025-10-07T19:36:07.242Z",
       "lastStatus": 200
     },
     " https://gaffa.dk/anmeldelser/2025/oktober/album/mas-jorden-kalder/ ": {
@@ -5346,7 +5346,7 @@
     },
     "https://www.berlingske.dk/danmark/koebenhavns-lufthavn-data-dokumenterer-droner-over-lufthavnen": {
       "etag": "\"yrxdwt2t2ye2qs\"",
-      "lastSeenAt": "2025-10-07T19:33:26.317Z",
+      "lastSeenAt": "2025-10-07T19:36:08.276Z",
       "lastStatus": 200
     },
     " https://gaffa.dk/anmeldelser/2025/oktober/album/laust-sonne-lost-son/ ": {
@@ -5355,7 +5355,7 @@
     },
     "https://www.berlingske.dk/oekonomi/pensionskampen-blusser-op-skal-unge-arbejde-i-60-aar": {
       "etag": "\"132kedl6ytdetdc\"",
-      "lastSeenAt": "2025-10-07T19:33:27.342Z",
+      "lastSeenAt": "2025-10-07T19:36:09.297Z",
       "lastStatus": 200
     },
     " https://gaffa.dk/nyheder-fra-gaffa/2025/oktober/ai-band-inspireret-af-rockgruppe-far-flere-lyttere/ ": {
@@ -5364,12 +5364,12 @@
     },
     "https://www.berlingske.dk/internationalt/fire-bygningsarbejdere-er-savnet-efter-bygningskollaps-i-madrid": {
       "etag": "\"nqy0594p6rdyj7\"",
-      "lastSeenAt": "2025-10-07T19:33:28.439Z",
+      "lastSeenAt": "2025-10-07T19:36:10.397Z",
       "lastStatus": 200
     },
     "https://www.berlingske.dk/politik/efter-aabningstalen-maaske-skulle-man-vaere-blevet-under-dynen": {
       "etag": "\"gteour9rz8eoq0\"",
-      "lastSeenAt": "2025-10-07T19:33:29.461Z",
+      "lastSeenAt": "2025-10-07T19:36:11.497Z",
       "lastStatus": 200
     },
     " https://gaffa.dk/nyheder-fra-gaffa/2025/oktober/immigrationsmyndighed-skal-overvage-super-bowl/ ": {
@@ -5378,7 +5378,7 @@
     },
     "https://www.berlingske.dk/litteratur/tre-forbryderfamilier-huserede-i-1840erne-naer-vejle-de-var-maaske-anloebne-men-ikke-dumme": {
       "etag": "\"w9b55w3xjte6ib\"",
-      "lastSeenAt": "2025-10-07T19:33:30.485Z",
+      "lastSeenAt": "2025-10-07T19:36:12.611Z",
       "lastStatus": 200
     },
     " https://gaffa.dk/nyheder-fra-gaffa/2025/oktober/nirvana-babys-overgrebsmateriale-sag-er-blevet-afvist-igen/ ": {
@@ -5387,7 +5387,7 @@
     },
     "https://www.berlingske.dk/internationalt/anklagere-vil-hive-irsk-rapper-tilbage-i-retten-i-sag-om-terrorstoette": {
       "etag": "\"13hb9bwvfq9e2dp\"",
-      "lastSeenAt": "2025-10-07T19:33:31.507Z",
+      "lastSeenAt": "2025-10-07T19:36:13.640Z",
       "lastStatus": 200
     },
     " https://gaffa.dk/artikler/2025/oktober/slagger-lund-alt-eskalerede-bare-i-omklaedningsrummet-den-dag/ ": {
@@ -5396,7 +5396,7 @@
     },
     "https://www.berlingske.dk/danmark/svindlere-lokker-unge-maend-med-falske-fodboldtips-om-superligaen": {
       "etag": "\"kn9qrf85mse2gz\"",
-      "lastSeenAt": "2025-10-07T19:33:32.555Z",
+      "lastSeenAt": "2025-10-07T19:36:14.735Z",
       "lastStatus": 200
     },
     " https://gaffa.dk/nyheder-fra-gaffa/2025/oktober/dobbelt-grammy-vinder-laegger-vejen-forbi-dansk-spillested/ ": {
@@ -5405,12 +5405,12 @@
     },
     "https://www.berlingske.dk/internationalt/eu-kommissionen-vil-beskytte-europas-staalsektor-med-told": {
       "etag": "\"103lfnxuqcsdwzm\"",
-      "lastSeenAt": "2025-10-07T19:33:33.606Z",
+      "lastSeenAt": "2025-10-07T19:36:15.795Z",
       "lastStatus": 200
     },
     "https://www.berlingske.dk/virksomheder/international-bande-optraevlet-stjal-telefoner-paa-gaden-og-solgte-dem-i-kina": {
-      "etag": "\"akafresm15eo8v\"",
-      "lastSeenAt": "2025-10-07T19:33:34.632Z",
+      "etag": "\"3e2mwl424peo6t\"",
+      "lastSeenAt": "2025-10-07T19:36:16.817Z",
       "lastStatus": 200
     },
     " https://gaffa.dk/nyheder-fra-gaffa/2025/oktober/lisa-ekdahl-vender-tilbage-til-velkendt-dansk-scene/ ": {
@@ -5419,7 +5419,7 @@
     },
     "https://www.berlingske.dk/synspunkter/stigende-tesla-salg-afliver-myten-om-at-boykot-virker": {
       "etag": "\"9x0t0m8g25eiix\"",
-      "lastSeenAt": "2025-10-07T19:33:35.653Z",
+      "lastSeenAt": "2025-10-07T19:36:17.849Z",
       "lastStatus": 200
     },
     " https://gaffa.dk/nyheder-fra-gaffa/2025/oktober/iron-maiden-bassist-afslorer-svaert-valg-ville-vi-forsaette-eller-ej/ ": {
@@ -5428,7 +5428,7 @@
     },
     "https://www.berlingske.dk/politik/bent-winter-talen-bar-praeg-af-at-toppen-af-socialdemokratiet-ikke-tror-paa-at-man-vinder-valget-paa-store-reformer": {
       "etag": "\"e7wcx5dyxddnbh\"",
-      "lastSeenAt": "2025-10-07T19:33:36.705Z",
+      "lastSeenAt": "2025-10-07T19:36:19.072Z",
       "lastStatus": 200
     },
     " https://gaffa.dk/artikler/2025/september/overblik-her-har-du-hele-sagen-om-d4vd/ ": {
@@ -5437,7 +5437,7 @@
     },
     "https://www.berlingske.dk/indland/32-aarig-mand-blev-skudt-af-bekendt-naer-sin-mors-bopael": {
       "etag": "\"5lt9l2pee0e216\"",
-      "lastSeenAt": "2025-10-07T19:33:37.726Z",
+      "lastSeenAt": "2025-10-07T19:36:20.125Z",
       "lastStatus": 200
     },
     " https://gaffa.dk/nyheder-fra-gaffa/2025/oktober/diddys-ekskaereste-i-brev-til-dommer-hans-straf-bor-afspejle-realiteten/ ": {
@@ -5446,12 +5446,12 @@
     },
     "https://www.berlingske.dk/politik/mette-f-afviser-at-kommentere-ukrainske-anholdelser-i-nord-stream-sabotage": {
       "etag": "\"f5ezbwdazte30f\"",
-      "lastSeenAt": "2025-10-07T19:33:38.917Z",
+      "lastSeenAt": "2025-10-07T19:36:21.188Z",
       "lastStatus": 200
     },
     "https://www.berlingske.dk/internationalt/nye-kunstige-videoer-rykker-graenserne-og-chokerer-eksperter--nu-skaber-de-interne-diskussioner-hos-firmaet-bag": {
       "etag": "\"4h34t20dzie948\"",
-      "lastSeenAt": "2025-10-07T19:33:39.942Z",
+      "lastSeenAt": "2025-10-07T19:36:22.212Z",
       "lastStatus": 200
     },
     " https://gaffa.dk/artikler/2025/oktober/derfor-kan-folk-ikke-lide-taylor-swift/ ": {
@@ -5459,8 +5459,8 @@
       "lastStatus": 200
     },
     "https://www.berlingske.dk/politik/hun-blev-spurgt-fem-gange-men-mette-frederiksen-naegtede-at-kommentere-nye-afsloeringer-i-minksagen": {
-      "etag": "\"c9t35bdikcejn2\"",
-      "lastSeenAt": "2025-10-07T19:33:40.975Z",
+      "etag": "\"7a0970584aejhp\"",
+      "lastSeenAt": "2025-10-07T19:36:23.254Z",
       "lastStatus": 200
     },
     " https://gaffa.dk/nyheder-fra-gaffa/2025/oktober/d4vds-manager-afviser-rygter-om-kendskab-til-14-arige-piges-forsvinden/ ": {
@@ -5469,12 +5469,12 @@
     },
     "https://www.berlingske.dk/virksomheder/business-update-lego-familien-klar-til-at-saelge-privathospitals-ejendomme": {
       "etag": "\"riq832vr6vekak\"",
-      "lastSeenAt": "2025-10-07T19:33:41.997Z",
+      "lastSeenAt": "2025-10-07T19:36:24.275Z",
       "lastStatus": 200
     },
     "https://www.berlingske.dk/ledere/berlingske-mener-regeringens-liv-ebber-ud--aabningstalen-er-den-tyndeste-kop-te": {
       "etag": "\"55thypekq8ej8i\"",
-      "lastSeenAt": "2025-10-07T19:33:43.083Z",
+      "lastSeenAt": "2025-10-07T19:36:25.304Z",
       "lastStatus": 200
     },
     " https://gaffa.dk/nyheder-fra-gaffa/2025/oktober/cmat-saetter-turne-pa-pause-fa-dage-for-startskuddet/ ": {
@@ -5770,7 +5770,7 @@
     },
     "https://www.berlingske.dk/indland/bagmand-doemt-i-kaempe-hash-sag-efter-udlevering-fra-dubai": {
       "etag": "\"mk2z30hajqe0vs\"",
-      "lastSeenAt": "2025-10-07T19:26:38.333Z",
+      "lastSeenAt": "2025-10-07T19:34:22.020Z",
       "lastStatus": 200
     },
     " https://gaffa.dk/artikler/2025/oktober/10-septemberudgivelser-du-maske-har-misset-men-ikke-ma-misse/ ": {
@@ -5778,8 +5778,8 @@
       "lastStatus": 200
     },
     "https://www.berlingske.dk/synspunkter/ukraine-er-ikke-klar-til-eu-medlemskab-kan-skade-danmark": {
-      "etag": "\"iyrpliq30uejk2\"",
-      "lastSeenAt": "2025-10-07T19:26:39.356Z",
+      "etag": "\"16iqvsyml3nejep\"",
+      "lastSeenAt": "2025-10-07T19:34:23.052Z",
       "lastStatus": 200
     },
     " https://gaffa.dk/artikler/2025/oktober/5-skarpe-til-esben-hedeager-hansen-et-levende-musikliv-kraever-bade-ovefaciliteter-scener-og-okonomi/ ": {
@@ -5788,7 +5788,7 @@
     },
     "https://www.berlingske.dk/politik/gade-genvaelges-som-folketingsformand-med-mindre-opbakning-end-foer": {
       "etag": "\"4z6sy3azbe1m7\"",
-      "lastSeenAt": "2025-10-07T19:26:40.411Z",
+      "lastSeenAt": "2025-10-07T19:34:24.085Z",
       "lastStatus": 200
     },
     " https://gaffa.dk/artikler/2025/oktober/5-skarpe-til-anders-vildso-andreasen-et-af-svendborgs-staerkeste-kort-er-et-meget-levende-givende-og-inddragende-kulturliv/ ": {
@@ -5797,7 +5797,7 @@
     },
     "https://www.berlingske.dk/sport/stilsikker-rune-nedlaegger-fransk-serveraket-i-tre-saet": {
       "etag": "\"ojaf9koo96e0t5\"",
-      "lastSeenAt": "2025-10-07T19:26:41.449Z",
+      "lastSeenAt": "2025-10-07T19:34:25.173Z",
       "lastStatus": 200
     },
     " https://gaffa.dk/nyheder-fra-gaffa/2025/oktober/aphaca-melder-udsolgt-i-parken/ ": {
@@ -5805,13 +5805,13 @@
       "lastStatus": 200
     },
     "https://www.berlingske.dk/laesere/vi-skylder-boernene-reel-handling--ikke-kun-medfoelelse": {
-      "etag": "\"a2h1h55n11ex7y\"",
-      "lastSeenAt": "2025-10-07T19:26:42.469Z",
+      "etag": "\"wwkg9ai6ltex4n\"",
+      "lastSeenAt": "2025-10-07T19:34:26.200Z",
       "lastStatus": 200
     },
     "https://www.berlingske.dk/internationalt/hun-oplevede-det-vaerste-man-kan-taenke-sig-de-havde-det-sjovt-mens-de-slog-ihjel": {
-      "etag": "\"63a10h7rsfdlu0\"",
-      "lastSeenAt": "2025-10-07T19:26:43.498Z",
+      "etag": "\"w1gdispkqtdlxb\"",
+      "lastSeenAt": "2025-10-07T19:34:27.265Z",
       "lastStatus": 200
     },
     " https://gaffa.dk/nyheder-fra-gaffa/2025/oktober/millionrekord-til-taylor-swift-for-albumudgivelse/ ": {
@@ -5820,7 +5820,7 @@
     },
     "https://www.berlingske.dk/internationalt/udenrigsministeriet-dansk-statsborger-loesladt-og-sendt-ud-af-israel": {
       "etag": "\"81eguhiuk8e21y\"",
-      "lastSeenAt": "2025-10-07T19:26:44.573Z",
+      "lastSeenAt": "2025-10-07T19:34:28.308Z",
       "lastStatus": 200
     },
     " https://gaffa.dk/nyheder-fra-gaffa/2025/oktober/drew-sycamore-blev-skide-sur-over-at-benjamin-hav-blev-valgt-som-dommer-for-hende/ ": {
@@ -5829,7 +5829,7 @@
     },
     "https://www.berlingske.dk/indland/anklager-vil-spaerre-boernevaerelseskraenker-inde-paa-ubestemt-tid": {
       "etag": "\"syf7ndamkidwxo\"",
-      "lastSeenAt": "2025-10-07T19:26:45.630Z",
+      "lastSeenAt": "2025-10-07T19:34:29.337Z",
       "lastStatus": 200
     },
     " https://gaffa.dk/nyheder-fra-gaffa/2025/oktober/ny-bbc-dokumentar-dykker-ned-i-bowies-ar-i-berlin/ ": {
@@ -5838,7 +5838,7 @@
     },
     "https://www.berlingske.dk/virksomheder/historisk-vendepunkt-sol-og-vindenergi-har-overhalet-kul-som-verdens-stoerste-elkilde": {
       "etag": "\"aqq22wc5cwelpz\"",
-      "lastSeenAt": "2025-10-07T19:26:46.692Z",
+      "lastSeenAt": "2025-10-07T19:34:30.358Z",
       "lastStatus": 200
     },
     " https://gaffa.dk/nyheder-fra-gaffa/2025/oktober/bjork-deltager-i-omfattende-kulturelt-boykot-af-israel/ ": {
@@ -5846,8 +5846,8 @@
       "lastStatus": 200
     },
     "https://www.berlingske.dk/vores-liv/thomas-schwarz-ville-ikke-belemre-laegen-med-noget-banalt-det-kostede-dyrt-for-baade-helbred-og-familie": {
-      "etag": "\"f7kkc2w0vgf6ih\"",
-      "lastSeenAt": "2025-10-07T19:26:47.716Z",
+      "etag": "\"pqm0j4qj6f6nu\"",
+      "lastSeenAt": "2025-10-07T19:34:31.422Z",
       "lastStatus": 200
     },
     " https://gaffa.dk/nyheder-fra-gaffa/2025/oktober/nystartet-festival-takker-af/ ": {
@@ -5856,12 +5856,12 @@
     },
     "https://www.berlingske.dk/internationalt/to-aar-efter-hamas-terrorangreb-mod-israel-saadan-ser-gaza-ud-i-dag": {
       "etag": "\"sx6uqmfotadp3n\"",
-      "lastSeenAt": "2025-10-07T19:26:48.747Z",
+      "lastSeenAt": "2025-10-07T19:34:32.810Z",
       "lastStatus": 200
     },
     "https://www.berlingske.dk/kommentatorer/katja-kvaale-danske-joeders-tryghed-er-et-nationalt-kriterium": {
       "etag": "\"wa4oi7sz04eq4w\"",
-      "lastSeenAt": "2025-10-07T19:26:49.789Z",
+      "lastSeenAt": "2025-10-07T19:34:33.838Z",
       "lastStatus": 200
     },
     " https://gaffa.dk/artikler/2025/oktober/her-er-soundtracket-til-din-weekend-uge-40/ ": {
@@ -5870,7 +5870,7 @@
     },
     "https://www.berlingske.dk/indland/kristina-stoltz-jeg-skammede-mig-over-at-vaere-smuk": {
       "etag": "\"15d2fmj3m2mdknh\"",
-      "lastSeenAt": "2025-10-07T19:26:50.843Z",
+      "lastSeenAt": "2025-10-07T19:34:34.863Z",
       "lastStatus": 200
     },
     " https://gaffa.dk/nyheder-fra-gaffa/2025/oktober/her-er-de-nominerede-til-p3-guld/ ": {
@@ -5879,7 +5879,7 @@
     },
     "https://www.berlingske.dk/sport/intens-duel-praeger-uno-x-jagt-paa-world-tour-status": {
       "etag": "\"5j290ms226e2eg\"",
-      "lastSeenAt": "2025-10-07T19:26:51.885Z",
+      "lastSeenAt": "2025-10-07T19:34:35.933Z",
       "lastStatus": 200
     },
     " https://gaffa.dk/nyheder-fra-gaffa/2025/oktober/ifpi-danmark-nar-historisk-milepael-pa-ligestillingsfronten/ ": {
@@ -5888,12 +5888,12 @@
     },
     "https://www.berlingske.dk/business/deloitte-havnet-i-pinlig-sag-om-brug-af-ai-skal-tilbagebetale-australsk-regering-millionbeloeb": {
       "etag": "\"lbj6uo3euhejyt\"",
-      "lastSeenAt": "2025-10-07T19:26:52.909Z",
+      "lastSeenAt": "2025-10-07T19:34:36.956Z",
       "lastStatus": 200
     },
     "https://www.berlingske.dk/internationalt/op-til-markeringen-af-7-oktober-foeler-trump-sig-sikker-paa-en-fredaftale-vi-har-meget-snart-en-fredsaftale": {
       "etag": "\"m2krd1dom0dnm5\"",
-      "lastSeenAt": "2025-10-07T19:26:53.966Z",
+      "lastSeenAt": "2025-10-07T19:34:38.019Z",
       "lastStatus": 200
     },
     " https://gaffa.dk/artikler/2025/oktober/5-onsker-fra-kulturcenter-skive-kom-ud-og-oplev-musikken-live-og-ikke-kun-gennem-spotify/ ": {
@@ -5901,8 +5901,8 @@
       "lastStatus": 200
     },
     "https://www.berlingske.dk/politik/forsinket-tog-troels-lund-poulsen-gaar-glip-af-folketingets-aabning": {
-      "etag": "\"fpppdnqknoe02v\"",
-      "lastSeenAt": "2025-10-07T19:26:55.006Z",
+      "etag": "\"lplhm742aydzx3\"",
+      "lastSeenAt": "2025-10-07T19:34:39.066Z",
       "lastStatus": 200
     },
     " https://gaffa.dk/artikler/2025/oktober/10-vigtige-album-der-udkommer-i-oktober/ ": {
@@ -5911,7 +5911,7 @@
     },
     "https://www.berlingske.dk/virksomheder/markedet-har-vente-laenge-tesla-fremviser-billigere-model-y": {
       "etag": "\"g94tthdk8vemiw\"",
-      "lastSeenAt": "2025-10-07T19:26:56.031Z",
+      "lastSeenAt": "2025-10-07T19:34:40.087Z",
       "lastStatus": 200
     },
     " https://gaffa.dk/nyheder-fra-gaffa/2025/oktober/lola-young-aflyser-alle-koncerter-efter-scene-kollaps/ ": {
@@ -5920,12 +5920,12 @@
     },
     "https://www.berlingske.dk/indland/politi-til-stede-mand-dukkede-op-paa-hospital-med-knivstik": {
       "etag": "\"12xghmosug7dr0e\"",
-      "lastSeenAt": "2025-10-07T19:26:57.084Z",
+      "lastSeenAt": "2025-10-07T19:34:41.142Z",
       "lastStatus": 200
     },
     "https://www.berlingske.dk/sport/sulten-isaksen-har-faaet-musklerne-igen-efter-kyssesyge": {
       "etag": "\"10sxrka2y6de2p5\"",
-      "lastSeenAt": "2025-10-07T19:26:58.123Z",
+      "lastSeenAt": "2025-10-07T19:34:42.196Z",
       "lastStatus": 200
     },
     " https://gaffa.dk/nyheder-fra-gaffa/2025/oktober/dr-melder-ud-vil-ikke-stemme-israel-ud-af-eurovision/ ": {
@@ -5934,7 +5934,7 @@
     },
     "https://www.berlingske.dk/virksomheder/fredag-kom-historien-om-en-kaempe-fyringsrunde-mandag-svarede-oersted-topchef-udenom-da-spoergsmaalet-kom-om-de-ansattes-psykologiske-tryghed": {
       "etag": "\"949y7umir8ev3i\"",
-      "lastSeenAt": "2025-10-07T19:26:59.162Z",
+      "lastSeenAt": "2025-10-07T19:34:43.389Z",
       "lastStatus": 200
     },
     " https://gaffa.dk/artikler/2025/september/5-skarpe-til-victoria-olsen-jeg-mener-at-roskilde-skal-vaere-et-sted-hvor-unge-kan-udfolde-deres-talent/ ": {
@@ -5943,12 +5943,12 @@
     },
     "https://www.berlingske.dk/politik/fakta-saadan-foregaar-folketingets-aabning-10": {
       "etag": "\"162rinz3xtydv9z\"",
-      "lastSeenAt": "2025-10-07T19:27:00.202Z",
+      "lastSeenAt": "2025-10-07T19:34:44.422Z",
       "lastStatus": 200
     },
     "https://www.berlingske.dk/kronikker/for-det-joediske-samfund-blev-7-oktober-et-vendepunkt-det-er-voldsomt-at-opleve-folk-glaedes-ved-mordet-paa-vores-trosfaeller": {
-      "etag": "\"ipr7dk3nieexmo\"",
-      "lastSeenAt": "2025-10-07T19:27:01.220Z",
+      "etag": "\"bppn9a3u0pexs1\"",
+      "lastSeenAt": "2025-10-07T19:34:45.456Z",
       "lastStatus": 200
     },
     " https://gaffa.dk/nyheder-fra-gaffa/2025/september/big-thief-overrasker-nyt-album-er-allerede-faerdigt/ ": {
@@ -5957,7 +5957,7 @@
     },
     "https://www.berlingske.dk/business/spar-nord-faar-boede-paa-halvanden-million-kroner": {
       "etag": "\"tutxptnd1kdz54\"",
-      "lastSeenAt": "2025-10-07T19:27:02.264Z",
+      "lastSeenAt": "2025-10-07T19:34:46.483Z",
       "lastStatus": 200
     },
     " https://gaffa.dk/artikler/2025/oktober/bag-om-musikken-en-konstant-kamp-mellem-at-vaere-helt-true-mod-sig-selv-og-samtidig-lave-noget-der-kan-lyttes-pa/ ": {
@@ -5966,7 +5966,7 @@
     },
     "https://www.berlingske.dk/politik/mette-f-afviser-at-forholde-sig-til-sms-sag-har-vi-udtalt-os-om": {
       "etag": "\"achk0zki98e07k\"",
-      "lastSeenAt": "2025-10-07T19:27:03.312Z",
+      "lastSeenAt": "2025-10-07T19:34:47.526Z",
       "lastStatus": 200
     },
     " https://gaffa.dk/artikler/2025/oktober/fem-navne-alle-musikelskere-bor-mode-i-oktober/ ": {
@@ -5975,7 +5975,7 @@
     },
     "https://www.berlingske.dk/ledere/berlingske-mener-dette-skal-blive-den-sidste-7-oktober-med-israelske-gidsler-i-gaza": {
       "etag": "\"65m3zn6dewenkd\"",
-      "lastSeenAt": "2025-10-07T19:27:04.345Z",
+      "lastSeenAt": "2025-10-07T19:34:48.547Z",
       "lastStatus": 200
     },
     " https://gaffa.dk/artikler/2025/oktober/her-er-oktober-maneds-mest-spaendende-koncerter-som-der-stadig-er-billetter-til/ ": {
@@ -5984,37 +5984,37 @@
     },
     "https://www.berlingske.dk/politisk-morgenpost/troels-lund-fik-et-staaende-bifald-for-sin-tale-men-et-billede-afsloerer-ord-der-kun-var-tiltaenkt-ham-smil-bliv-staaende-lign-en-vinder": {
       "etag": "\"113rzj18opoeylu\"",
-      "lastSeenAt": "2025-10-07T19:27:05.383Z",
+      "lastSeenAt": "2025-10-07T19:34:49.577Z",
       "lastStatus": 200
     },
     "https://www.berlingske.dk/business/fyret-novo-direktoer-skal-hjaelpe-dansk-medicinaleksport-paa-vej": {
       "etag": "\"jhs4555faodre8\"",
-      "lastSeenAt": "2025-10-07T19:27:06.410Z",
+      "lastSeenAt": "2025-10-07T19:34:50.623Z",
       "lastStatus": 200
     },
     "https://www.berlingske.dk/indland/snuppet-med-500000-kroner-i-haandbagagen-paa-vej-ud-af-landet": {
       "etag": "\"xroeen13h3dvhh\"",
-      "lastSeenAt": "2025-10-07T19:27:07.448Z",
+      "lastSeenAt": "2025-10-07T19:34:51.689Z",
       "lastStatus": 200
     },
     "https://www.berlingske.dk/politik/folketinget-aabner--foelg-med-direkte": {
-      "etag": "\"ug4jmslanvduxr\"",
-      "lastSeenAt": "2025-10-07T19:27:08.474Z",
+      "etag": "\"2s714mon5zdux3\"",
+      "lastSeenAt": "2025-10-07T19:34:52.795Z",
       "lastStatus": 200
     },
     "https://www.berlingske.dk/business/oersted-topchef-varsler-fyringsrunde-inden-nytaar": {
       "etag": "\"ywznxg2s76dzsg\"",
-      "lastSeenAt": "2025-10-07T19:27:09.519Z",
+      "lastSeenAt": "2025-10-07T19:34:53.826Z",
       "lastStatus": 200
     },
     "https://www.berlingske.dk/internationalt/praesidenten-vil-sende-tropper-men-amerikanerne-er-skeptiske-her-afsloerer-trump-maaske-hvorfor-han-alligevel-goer-det": {
-      "etag": "\"1656o2l20aetru\"",
-      "lastSeenAt": "2025-10-07T19:27:11.565Z",
+      "etag": "\"yoizl6d1auetuw\"",
+      "lastSeenAt": "2025-10-07T19:34:55.877Z",
       "lastStatus": 200
     },
     "https://www.berlingske.dk/politik/dansk-eu-forslag-moeder-heftig-kritik-fra-tyskland-saadan-noget-hoerer-ikke-hjemme-i-en-retsstat": {
       "etag": "\"g2s0mw0gwmemi9\"",
-      "lastSeenAt": "2025-10-07T19:27:10.541Z",
+      "lastSeenAt": "2025-10-07T19:34:54.851Z",
       "lastStatus": 200
     }
   }

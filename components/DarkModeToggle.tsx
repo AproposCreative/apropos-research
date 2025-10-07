@@ -8,9 +8,10 @@ export default function DarkModeToggle() {
   useEffect(() => {
     // Get theme from localStorage (script in layout.tsx already applied it)
     const savedTheme = localStorage.getItem('theme');
-    const shouldBeDark = savedTheme === 'dark';
+    // Check both localStorage and actual DOM state for accuracy
+    const isDarkMode = savedTheme === 'dark' || document.documentElement.classList.contains('dark');
     
-    setDark(shouldBeDark);
+    setDark(isDarkMode);
     setMounted(true);
   }, []);
 
