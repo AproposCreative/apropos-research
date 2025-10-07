@@ -148,9 +148,8 @@ export default function AlleMedierClient({ initialData, searchParams }: AlleMedi
     const okTimeFilter = timeFilter === 'today' ? (() => {
       const ts = Date.parse(p.date ?? p.fetched_at ?? '');
       if (isNaN(ts)) return false;
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      return ts >= today.getTime();
+      const last24Hours = Date.now() - 24 * 60 * 60 * 1000;
+      return ts >= last24Hours;
     })() : true;
 
     return okQ && okCat && okSource && okSince && okFresh && okTimeFilter;
