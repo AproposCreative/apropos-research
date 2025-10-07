@@ -10,7 +10,11 @@ export default function RefreshButton() {
       onClick={async () => {
         if (refreshing) return;
         setRefreshing(true);
-        const res = await fetch('/api/refresh', { method: 'POST' });
+        const res = await fetch('/api/refresh', { 
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ sinceMinutes: 10, limit: 100 })
+        });
         setRefreshing(false);
         // simple reload to pick up new JSONL content
         if (res.ok) location.reload();
