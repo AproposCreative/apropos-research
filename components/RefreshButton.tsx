@@ -1,14 +1,23 @@
 'use client';
 import { useRefreshing } from './RefreshCtx';
+import { useRef } from 'react';
 
 export default function RefreshButton() {
   const { refreshing, setRefreshing } = useRefreshing();
+  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
   
   return (
     <button
       type="button"
       onClick={async () => {
         if (refreshing) return;
+        
+        // Clear any existing timeout
+        if (timeoutRef.current) {
+          clearTimeout(timeoutRef.current);
+          timeoutRef.current = null;
+        }
+        
         setRefreshing(true);
         const res = await fetch('/api/refresh', { 
           method: 'POST',
@@ -17,8 +26,9 @@ export default function RefreshButton() {
         });
         
         if (res.ok || res.status === 202) {
-          // Wait 30 seconds for ingest to complete, then reload
-          setTimeout(() => {
+          // Wait 30 seconds for ingest to complete, then reload once
+          timeoutRef.current = setTimeout(() => {
+            timeoutRef.current = null;
             location.reload();
           }, 30000); // 30 seconds
         } else {

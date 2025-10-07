@@ -59,22 +59,22 @@ export default function AlleMedierClient({ initialData, searchParams }: AlleMedi
     setFilteredData(articlesWithSource);
   }, [initialData]);
 
-  // Auto-refresh articles every 10 minutes
-  useEffect(() => {
-    const refreshArticles = async () => {
-      try {
-        await fetch('/api/refresh', { method: 'POST' });
-        // Refresh the page to get new articles
-        window.location.reload();
-      } catch (error) {
-        console.error('Auto-refresh failed:', error);
-      }
-    };
+  // Auto-refresh articles every 10 minutes (disabled - use manual refresh instead)
+  // useEffect(() => {
+  //   const refreshArticles = async () => {
+  //     try {
+  //       await fetch('/api/refresh', { method: 'POST' });
+  //       // Refresh the page to get new articles
+  //       window.location.reload();
+  //     } catch (error) {
+  //       console.error('Auto-refresh failed:', error);
+  //     }
+  //   };
 
-    const interval = setInterval(refreshArticles, 10 * 60 * 1000); // 10 minutes
+  //   const interval = setInterval(refreshArticles, 10 * 60 * 1000); // 10 minutes
     
-    return () => clearInterval(interval);
-  }, []);
+  //   return () => clearInterval(interval);
+  // }, []);
 
   const q = String(searchParams.q || '').trim();
   const cat = String(searchParams.cat || '').trim();
