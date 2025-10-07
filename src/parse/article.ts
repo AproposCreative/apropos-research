@@ -23,7 +23,7 @@ const ParsedSchema = z.object({
   image: z.string().optional(),
 });
 
-function getJsonLdDate($: cheerio.CheerioAPI): string | undefined {
+function getJsonLdDate($: any): string | undefined {
   try {
     const scripts = $("script[type='application/ld+json']");
     for (const el of scripts.toArray()) {

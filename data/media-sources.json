@@ -1,0 +1,50 @@
+[
+  {
+    "id": "soundvenue",
+    "name": "Soundvenue",
+    "baseUrl": "https://soundvenue.com",
+    "sitemapIndex": "/sitemap.xml",
+    "enabled": true,
+    "addedAt": "2025-10-06T11:08:19.377Z"
+  },
+  {
+    "id": "gaffa",
+    "name": "GAFFA",
+    "baseUrl": "https://gaffa.dk",
+    "sitemapIndex": "/sitemap",
+    "enabled": true,
+    "addedAt": "2025-10-06T11:08:19.377Z"
+  },
+  {
+    "id": "berlingske",
+    "name": "BERLINGSKE",
+    "baseUrl": "https://www.berlingske.dk",
+    "sitemapIndex": "/news-sitemap.xml,/sitemap.xml/news",
+    "enabled": true,
+    "addedAt": "2025-10-06T11:08:19.377Z"
+  },
+  {
+    "id": "bt",
+    "name": "BT",
+    "baseUrl": "https://www.bt.dk",
+    "sitemapIndex": "/news-sitemap.xml,/sitemap.xml/news",
+    "enabled": true,
+    "addedAt": "2025-10-06T11:08:19.377Z"
+  },
+  {
+    "id": "ign-nordic",
+    "name": "IGN Nordic",
+    "baseUrl": "https://nordic.ign.com",
+    "sitemapIndex": "/feed.xml",
+    "enabled": true,
+    "addedAt": "2025-10-06T11:51:13.149Z"
+  },
+  {
+    "id": "ekkofilm",
+    "name": "Ekkofilm",
+    "baseUrl": "https://www.ekkofilm.dk",
+    "sitemapIndex": "/feeds/artikler/",
+    "enabled": true,
+    "addedAt": "2025-10-06T13:05:38.202Z"
+  }
+]

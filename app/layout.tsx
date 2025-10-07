@@ -3,7 +3,15 @@ import type { Metadata } from 'next';
 import { AuthProvider } from '../lib/auth-context';
 import { SelectProvider } from '../components/SelectCtx';
 import { RefreshProvider } from '../components/RefreshCtx';
+import { MediaProvider } from '../lib/media-context';
 import ConditionalLayout from '../components/ConditionalLayout';
+import { Poppins } from 'next/font/google';
+
+const poppins = Poppins({
+  subsets: ['latin'],
+  weight: ['300', '400', '500', '600', '700'],
+  variable: '--font-poppins',
+});
 
 export const metadata: Metadata = {
   title: 'Apropos Research',
@@ -12,49 +20,20 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="da">
+    <html lang="da" className="dark">
       <head>
-        <script
-          dangerouslySetInnerHTML={{
-            __html: `
-              (function() {
-                try {
-                  // Get theme from localStorage or system preference
-                  let theme = localStorage.getItem('theme');
-                  if (!theme) {
-                    if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
-                      theme = 'dark';
-                    } else {
-                      theme = 'light';
-                    }
-                    localStorage.setItem('theme', theme);
-                  }
-                  
-                  // Apply theme immediately to prevent flash
-                  if (theme === 'dark') {
-                    document.documentElement.classList.add('dark');
-                  } else {
-                    document.documentElement.classList.remove('dark');
-                  }
-                } catch (e) {
-                  // Fallback: set dark theme
-                  document.documentElement.classList.add('dark');
-                  localStorage.setItem('theme', 'dark');
-                }
-              })();
-            `,
-          }}
-        />
       </head>
-      <body className="bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-950 dark:to-black text-slate-900 dark:text-slate-100 min-h-dvh transition-colors duration-300">
+      <body className={`${poppins.variable} bg-gradient-to-br from-slate-950 to-black text-slate-100 min-h-dvh transition-colors duration-300`} suppressHydrationWarning>
         <AuthProvider>
-          <SelectProvider>
-            <RefreshProvider>
-              <ConditionalLayout>
-                {children}
-              </ConditionalLayout>
-            </RefreshProvider>
-          </SelectProvider>
+          <MediaProvider>
+            <SelectProvider>
+              <RefreshProvider>
+                <ConditionalLayout>
+                  {children}
+                </ConditionalLayout>
+              </RefreshProvider>
+            </SelectProvider>
+          </MediaProvider>
         </AuthProvider>
       </body>
     </html>

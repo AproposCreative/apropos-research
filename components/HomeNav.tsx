@@ -18,14 +18,14 @@ export default function HomeNav() {
       <Link href="/" className={getLinkClasses('/', pathname === '/')}>
         <span className="font-medium">Dashboard</span>
       </Link>
-      <Link href="/search" className={getLinkClasses('/search', pathname === '/search')}>
-        <span className="font-medium">Advanced Search</span>
-      </Link>
       <Link href="/editorial-queue" className={getLinkClasses('/editorial-queue', pathname === '/editorial-queue')}>
         <span className="font-medium">Editorial Queue</span>
       </Link>
       <Link href="/ai-drafts" className={getLinkClasses('/ai-drafts', pathname === '/ai-drafts')}>
         <span className="font-medium">AI Drafts</span>
+      </Link>
+      <Link href="/ai" className={getLinkClasses('/ai', pathname === '/ai')}>
+        <span className="font-medium">AI Writer</span>
       </Link>
       <Link href="/profile" className={getLinkClasses('/profile', pathname === '/profile')}>
         <span className="font-medium">Profile</span>

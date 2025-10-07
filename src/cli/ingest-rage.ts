@@ -43,7 +43,7 @@ async function ingestOnce(opts: { feedOnly?: boolean; sitemapOnly?: boolean; noR
   if (!opts.sitemapOnly) {
     candidates = await discoverFromFeed();
   }
-  if ((opts.sitemapOnly || candidates.length === 0) && !opts.feedOnly) {
+  if (!opts.feedOnly) {
     const urls = await discoverFromSitemaps();
     candidates = candidates.concat(urls.map((url) => {
       // Determine source from URL
@@ -53,6 +53,9 @@ async function ingestOnce(opts: { feedOnly?: boolean; sitemapOnly?: boolean; noR
       else if (url.includes('euroman.dk')) source = 'euroman';
       else if (url.includes('berlingske.dk')) source = 'berlingske';
       else if (url.includes('bt.dk')) source = 'bt';
+      else if (url.includes('nordic.ign.com')) source = 'ign-nordic';
+      else if (url.includes('politiken.dk')) source = 'politiken';
+      else if (url.includes('ekkofilm.dk')) source = 'ekkofilm';
       return { url, source };
     }));
   }
@@ -65,6 +68,7 @@ async function ingestOnce(opts: { feedOnly?: boolean; sitemapOnly?: boolean; noR
       const t = Date.parse(c.published_at);
       if (!Number.isNaN(t)) return t >= sinceCutoff;
     }
+    // Include sitemap URLs even without published_at (they'll be fetched and dated)
     return true; // unknown dates are included, but limited later
   });
 

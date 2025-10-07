@@ -77,7 +77,7 @@ function SearchInputInner() {
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder="Søg i artikler..."
-          className="w-full pl-12 pr-20 py-2 bg-white/80 dark:bg-pure-black/80 backdrop-blur-2xl border border-white/20 dark:border-black-800/50 rounded-2xl text-slate-800 dark:text-black-100 placeholder-slate-500 dark:placeholder-black-400 focus:ring-2 focus:ring-primary-500 dark:focus:ring-primary-400 focus:border-transparent focus:shadow-glow transition-all duration-300 shadow-lg ring-1 ring-white/10 dark:ring-black-800/20 h-10 hover:shadow-xl hover:scale-[1.01]"
+          className="w-full pl-12 pr-20 py-3 bg-white/20 dark:bg-black/30 backdrop-blur-3xl border border-white/20 dark:border-white/10 rounded-3xl text-slate-800 dark:text-black-100 placeholder-slate-500 dark:placeholder-black-400 focus:ring-2 focus:ring-primary-500 dark:focus:ring-primary-400 focus:border-transparent focus:shadow-glow transition-all duration-300 shadow-2xl hover:shadow-xl hover:scale-[1.01]"
         />
         
         {/* Keyboard shortcut indicator */}
@@ -115,7 +115,7 @@ function SearchInputInner() {
 export default function SearchInput() {
   return (
              <Suspense fallback={
-               <div className="w-full pl-12 pr-20 py-2 bg-white/80 dark:bg-pure-black/80 backdrop-blur-2xl border border-white/20 dark:border-black-800/50 rounded-2xl shadow-2xl ring-1 ring-white/10 dark:ring-black-800/20 h-10 animate-pulse">
+               <div className="w-full pl-12 pr-20 py-3 bg-white/20 dark:bg-black/30 backdrop-blur-3xl border border-white/20 dark:border-white/10 rounded-3xl shadow-2xl animate-pulse">
                  <div className="h-5 bg-slate-200 dark:bg-pure-black rounded"></div>
                </div>
              }>

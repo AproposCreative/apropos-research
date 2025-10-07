@@ -73,13 +73,19 @@ const CardItem = memo(function CardItem({ item }: Props) {
             placeholder="blur"
             blurDataURL="data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/2wBDAQcHBwoIChMKChMoGhYaKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCj/wAARCAABAAEDASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAv/xAAUEAEAAAAAAAAAAAAAAAAAAAAA/8QAFQEBAQAAAAAAAAAAAAAAAAAAAAX/xAAUEQEAAAAAAAAAAAAAAAAAAAAA/9oADAMBAAIRAxEAPwCdABmX/9k="
             onError={(e) => {
-              e.currentTarget.style.display = 'none';
+              // Replace with fallback pattern on error
+              e.currentTarget.src = '/fallback-pattern.svg';
+              e.currentTarget.className = 'object-cover opacity-60';
             }}
           />
         ) : (
-          <div className="h-full w-full flex items-center justify-center">
-            <div className="text-gray-400 text-4xl">📄</div>
-          </div>
+          <Image
+            src="/fallback-pattern.svg"
+            alt=""
+            fill
+            className="object-cover opacity-60"
+            sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+          />
         )}
         <button
           onClick={(e) => {

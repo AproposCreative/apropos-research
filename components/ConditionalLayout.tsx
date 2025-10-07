@@ -10,14 +10,13 @@ import DynamicHeader from './DynamicHeader';
 import AuthHeader from './AuthHeader';
 import RefreshButton from './RefreshButton';
 import BulkBar from './BulkBar';
-import InspirationHub from './InspirationHub';
 import { MediaProvider } from '../lib/media-context';
 
 export default function ConditionalLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   
   // Routes that should show the full dashboard layout
-  const dashboardRoutes = ['/', '/alle-medier', '/editorial-queue', '/ai-drafts', '/search', '/shorts', '/profile'];
+  const dashboardRoutes = ['/', '/alle-medier', '/editorial-queue', '/ai-drafts', '/search', '/shorts', '/profile', '/media-admin'];
   
   // Routes that should show minimal layout (login, etc.)
   const isMinimalLayout = !dashboardRoutes.includes(pathname);
@@ -41,25 +40,6 @@ export default function ConditionalLayout({ children }: { children: React.ReactN
           <MediaNav />
         </div>
 
-          <div className="mt-8">
-            <h3 className="text-xs font-semibold text-slate-500 dark:text-black-400 mb-4 tracking-wider uppercase">Explore</h3>
-            <nav className="space-y-2">
-              <Link href="/" className="flex items-center px-4 py-3 rounded-xl hover:bg-slate-100/50 dark:hover:bg-black-800/50 text-slate-600 dark:text-black-300 border border-transparent hover:border-slate-300/50 dark:hover:border-black-700/50 transition-all duration-300 backdrop-blur-sm">
-                <span className="font-medium">Music</span>
-              </Link>
-              <Link href="/" className="flex items-center px-4 py-3 rounded-xl hover:bg-slate-100/50 dark:hover:bg-black-800/50 text-slate-600 dark:text-black-300 border border-transparent hover:border-slate-300/50 dark:hover:border-black-700/50 transition-all duration-300 backdrop-blur-sm">
-                <span className="font-medium">Gaming</span>
-              </Link>
-              <Link href="/" className="flex items-center px-4 py-3 rounded-xl hover:bg-slate-100/50 dark:hover:bg-black-800/50 text-slate-600 dark:text-black-300 border border-transparent hover:border-slate-300/50 dark:hover:border-black-700/50 transition-all duration-300 backdrop-blur-sm">
-                <span className="font-medium">Sports</span>
-              </Link>
-            </nav>
-          </div>
-
-          <div className="mt-8">
-            <h3 className="text-xs font-semibold text-slate-500 dark:text-black-400 mb-4 tracking-wider uppercase">Inspiration</h3>
-            <InspirationHub />
-          </div>
         </div>
       </aside>
 

@@ -7,7 +7,7 @@ export default function SorterPager({ total, page, perPage, sort, params }:{
     for (const [k,v] of Object.entries(next)) { if (!v) q.delete(k); else q.set(k, v); }
     return `?${q.toString()}`;
   }
-  const pages = Math.max(1, Math.ceil(total / perPage));
+  const pages = Math.max(1, Math.ceil(total / perPage) || 1);
   const prev = Math.max(1, page-1);
   const nextPage = Math.min(pages, page+1);
   

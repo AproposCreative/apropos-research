@@ -1,10 +1,11 @@
 import { NextResponse } from 'next/server';
 import { exec } from 'node:child_process';
 import path from 'node:path';
+import { invalidatePromptsCache } from '../../../lib/readPrompts';
 
 export async function POST() {
-  const root = path.resolve(process.cwd(), '..'); // project root (one up from /ui)
-  const cmd = 'npm run ingest:rage -- --since=48 --limit=60';
+  const root = process.cwd(); // We're already in the project root
+  const cmd = 'npm run ingest:rage -- --since=168 --limit=200'; // 1 week, 200 articles
   const startedAt = Date.now();
 
   const out = await new Promise<{ code: number; stdout: string; stderr: string }>((resolve) => {
@@ -12,6 +13,11 @@ export async function POST() {
       resolve({ code: err ? (err as any).code ?? 1 : 0, stdout, stderr });
     });
   });
+
+  // Invalidate cache after successful refresh
+  if (out.code === 0) {
+    invalidatePromptsCache();
+  }
 
   return NextResponse.json({
     ok: out.code === 0,

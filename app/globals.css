@@ -2,6 +2,48 @@
 @tailwind components;
 @tailwind utilities;
 
+@layer base {
+  :root {
+    --font-poppins: 'Poppins', sans-serif;
+  }
+  
+  .font-poppins {
+    font-family: var(--font-poppins);
+  }
+  
+  textarea::placeholder {
+    color: rgb(102,102,102) !important;
+  }
+  
+  .border-thin {
+    border-width: 0.5px;
+  }
+  
+  @keyframes gradient-shift {
+    0% {
+      background-position: 200% 0;
+    }
+    100% {
+      background-position: -200% 0;
+    }
+  }
+  
+  @keyframes message-glow {
+    0% {
+      opacity: 0.6;
+      transform: scale(0.98);
+    }
+    50% {
+      opacity: 1;
+      transform: scale(1.02);
+    }
+    100% {
+      opacity: 1;
+      transform: scale(1);
+    }
+  }
+}
+
 @layer utilities {
   .line-clamp-2 {
     display: -webkit-box;

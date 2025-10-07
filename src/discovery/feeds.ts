@@ -1,20 +1,46 @@
 import { XMLParser } from "fast-xml-parser";
 import { env } from "../utils/env";
 import { fetchText } from "../fetch/fetch";
+import { getMediaSources } from "../../lib/getMediaSources";
 
 export type FeedItem = { url: string; published_at?: string; source: string };
 
 export async function discoverFromFeed(): Promise<FeedItem[]> {
-  const sources = [
-    { baseUrl: env.RAGE_BASE_URL, feedPath: '/feed', source: 'soundvenue' }
-  ];
+  // Get dynamic media sources
+  let sources = getMediaSources();
+  
+  // Filter for sources that have RSS/feed paths
+  sources = sources.filter(source => {
+    const sitemapPath = source.sitemapIndex.toLowerCase();
+    return sitemapPath.includes('feed') || sitemapPath.includes('rss');
+  });
+
+  // Convert to feed sources format
+  const feedSources = sources.map(source => ({
+    baseUrl: source.baseUrl,
+    feedPath: source.sitemapIndex,
+    source: source.id
+  }));
+
+  // Fallback to default Soundvenue feed if no dynamic sources found
+  if (feedSources.length === 0) {
+    feedSources.push({ baseUrl: env.RAGE_BASE_URL, feedPath: '/feed', source: 'soundvenue' });
+  }
 
   const allItems: FeedItem[] = [];
 
-  for (const { baseUrl, feedPath, source } of sources) {
+  for (const { baseUrl, feedPath, source } of feedSources) {
     try {
       const url = new URL(feedPath, baseUrl).toString();
-      const { text, contentType, status } = await fetchText(url);
+      
+      // Force refresh for feed discovery (no conditional requests)
+      const response = await fetch(url, {
+        headers: { 'User-Agent': 'Apropos Research Bot 1.0' },
+        redirect: 'follow'
+      });
+      const text = await response.text();
+      const contentType = response.headers.get('content-type');
+      const status = response.status;
       
       if (status === 304) {
         continue;
