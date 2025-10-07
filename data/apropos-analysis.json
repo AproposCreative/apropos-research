@@ -1,0 +1,148 @@
+{
+  "totalArticles": 98,
+  "totalAuthors": 17,
+  "categories": {
+    "Serier & Film": 28,
+    "Musik": 56,
+    "Kultur": 14
+  },
+  "authors": [
+    {
+      "name": "Unknown Author",
+      "articleCount": 69,
+      "averageLength": 2615,
+      "commonThemes": [
+        "Anmeldelser",
+        "Frederik Emil",
+        "Peter Milo",
+        "Casper Fiil",
+        "Kultur & Mening"
+      ],
+      "toneOfVoice": "Personlig, Inkluderende, Engageret, Nysgerrig, Reflekterende, Ærlig"
+    },
+    {
+      "name": "Refshaleøen",
+      "articleCount": 7,
+      "averageLength": 3157,
+      "commonThemes": [
+        "Anmeldelser",
+        "Frederik Emil",
+        "Kultur & Mening",
+        "Peter Milo",
+        "Koncerter"
+      ],
+      "toneOfVoice": "Personlig, Inkluderende, Nysgerrig, Reflekterende, Ærlig"
+    },
+    {
+      "name": "Vega",
+      "articleCount": 1,
+      "averageLength": 0,
+      "commonThemes": [],
+      "toneOfVoice": ""
+    },
+    {
+      "name": "Darupvej, 4000 Roskilde",
+      "articleCount": 5,
+      "averageLength": 3012,
+      "commonThemes": [
+        "Frederik Emil",
+        "Anmeldelser",
+        "Kultur & Mening",
+        "Koncerter",
+        "Peter Milo"
+      ],
+      "toneOfVoice": "Personlig, Inkluderende, Engageret, Nysgerrig, Reflekterende, Ærlig"
+    },
+    {
+      "name": "Roskilde Festival",
+      "articleCount": 1,
+      "averageLength": 0,
+      "commonThemes": [],
+      "toneOfVoice": ""
+    },
+    {
+      "name": "Vue København",
+      "articleCount": 1,
+      "averageLength": 0,
+      "commonThemes": [],
+      "toneOfVoice": ""
+    },
+    {
+      "name": "Coco Hotel",
+      "articleCount": 1,
+      "averageLength": 0,
+      "commonThemes": [],
+      "toneOfVoice": ""
+    },
+    {
+      "name": "Odense",
+      "articleCount": 2,
+      "averageLength": 0,
+      "commonThemes": [],
+      "toneOfVoice": ""
+    },
+    {
+      "name": "Royal Arena",
+      "articleCount": 2,
+      "averageLength": 0,
+      "commonThemes": [],
+      "toneOfVoice": ""
+    },
+    {
+      "name": "SØNDER HOVED, REFSHALEØEN 1432 KØBENHAVN K",
+      "articleCount": 1,
+      "averageLength": 0,
+      "commonThemes": [],
+      "toneOfVoice": ""
+    },
+    {
+      "name": "Aarhus",
+      "articleCount": 1,
+      "averageLength": 0,
+      "commonThemes": [],
+      "toneOfVoice": ""
+    },
+    {
+      "name": "Bella Center",
+      "articleCount": 1,
+      "averageLength": 0,
+      "commonThemes": [],
+      "toneOfVoice": ""
+    },
+    {
+      "name": "Amager Bio",
+      "articleCount": 1,
+      "averageLength": 0,
+      "commonThemes": [],
+      "toneOfVoice": ""
+    },
+    {
+      "name": "Tusindårsskoven, Falen, Odense V",
+      "articleCount": 1,
+      "averageLength": 0,
+      "commonThemes": [],
+      "toneOfVoice": ""
+    },
+    {
+      "name": "Rødovre",
+      "articleCount": 1,
+      "averageLength": 0,
+      "commonThemes": [],
+      "toneOfVoice": ""
+    },
+    {
+      "name": "Paris",
+      "articleCount": 1,
+      "averageLength": 0,
+      "commonThemes": [],
+      "toneOfVoice": ""
+    },
+    {
+      "name": "Bornholm",
+      "articleCount": 2,
+      "averageLength": 0,
+      "commonThemes": [],
+      "toneOfVoice": ""
+    }
+  ]
+}

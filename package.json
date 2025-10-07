@@ -12,7 +12,10 @@
     "analyze": "ANALYZE=true npm run build",
     "lighthouse": "lighthouse http://localhost:3000 --output=html --output-path=./lighthouse-report.html",
     "perf": "npm run build && npm run lighthouse",
-    "ingest:rage": "npx tsx src/cli/ingest-rage.ts"
+    "ingest:rage": "npx tsx src/cli/ingest-rage.ts",
+    "scrape:apropos": "npx tsx scripts/scrape-apropos-articles.ts",
+    "optimize:templates": "npx tsx scripts/optimize-templates.ts",
+    "train:tov": "npx tsx scripts/train-apropos-tov.ts"
   },
   "keywords": [],
   "author": "",
@@ -22,6 +25,7 @@
     "@tailwindcss/postcss": "^4.1.13",
     "@types/cheerio": "^0.22.35",
     "@types/node": "24.3.1",
+    "axios": "^1.12.2",
     "cheerio": "^1.1.2",
     "dotenv": "^17.2.3",
     "fast-xml-parser": "^5.3.0",
@@ -33,6 +37,7 @@
     "pino": "^10.0.0",
     "react": "19.1.1",
     "react-dom": "19.1.1",
+    "webflow-api": "^3.2.0",
     "zod": "^4.1.11"
   },
   "devDependencies": {

@@ -1,0 +1,191 @@
+[
+  {
+    "id": "gaming-review",
+    "name": "Gaming Anmeldelse",
+    "description": "Struktur til gaming anmeldelser baseret på Apropos stil",
+    "content": "**Gaming Template**\n\n**Kategori:** Gaming\n**Tags:** Gaming, Anmeldelse, Spil\n**Rating:** 1-5 stjerner (vises kun for anmeldelser)\n\n**Struktur baseret på Apropos artikler:**\n1. Overgange: men, dog, endelig\n\n**Eksempler fra Apropos:**\n- 28 Years Later: Zombie-trilogiens ambitiøse, filosofiske finale\n- Ripley: En mesterlig blanding af kriminalitet og psykologisk spænding\n- Adolescence\n\n**Tone:** Personlig, ærlig, humoristisk - Martin Kongstad x Casper Christensen stil\n\n**Apropos stil-elementer:**\n- Personlige refleksioner og anekdoter\n- Kulturelle referencer og kontekst\n- Ærlig og direkte tilgang\n- Humor og ironi hvor det passer\n- Fokus på oplevelse frem for teknik",
+    "category": "Gaming",
+    "tags": [
+      "Gaming",
+      "Anmeldelse",
+      "Spil"
+    ],
+    "needsRating": true,
+    "structure": [
+      "Overgange: men, dog, endelig"
+    ],
+    "examples": [
+      "28 Years Later: Zombie-trilogiens ambitiøse, filosofiske finale",
+      "Ripley: En mesterlig blanding af kriminalitet og psykologisk spænding",
+      "Adolescence"
+    ]
+  },
+  {
+    "id": "culture-review",
+    "name": "Kultur Anmeldelse",
+    "description": "Template til film, musik og kultur anmeldelser",
+    "content": "**Kultur Template**\n\n**Kategori:** Kultur\n**Tags:** Kultur, Anmeldelse, Film, Musik\n**Rating:** 1-5 stjerner (vises kun for anmeldelser)\n\n**Struktur baseret på Apropos artikler:**\n1. Overgange: men, dog, til sidst\n\n**Eksempler fra Apropos:**\n- 28 Years Later: Zombie-trilogiens ambitiøse, filosofiske finale\n- Ripley: En mesterlig blanding af kriminalitet og psykologisk spænding\n- Adolescence\n\n**Tone:** Reflekterende, personlig, kulturelt bevist\n\n**Apropos stil-elementer:**\n- Personlige refleksioner og anekdoter\n- Kulturelle referencer og kontekst\n- Ærlig og direkte tilgang\n- Humor og ironi hvor det passer\n- Fokus på oplevelse frem for teknik",
+    "category": "Kultur",
+    "tags": [
+      "Kultur",
+      "Anmeldelse",
+      "Film",
+      "Musik"
+    ],
+    "needsRating": true,
+    "structure": [
+      "Overgange: men, dog, til sidst"
+    ],
+    "examples": [
+      "28 Years Later: Zombie-trilogiens ambitiøse, filosofiske finale",
+      "Ripley: En mesterlig blanding af kriminalitet og psykologisk spænding",
+      "Adolescence"
+    ]
+  },
+  {
+    "id": "opinion-piece",
+    "name": "Kronik",
+    "description": "Struktur til meningsdannende artikler",
+    "content": "**Opinion Template**\n\n**Kategori:** Opinion\n**Tags:** Opinion, Samfund, Debatter\n\n**Struktur baseret på Apropos artikler:**\n\n\n**Eksempler fra Apropos:**\n- Eksempel opinion artikel\n\n**Tone:** Engageret, velargumenteret, provokerende\n\n**Apropos stil-elementer:**\n- Personlige refleksioner og anekdoter\n- Kulturelle referencer og kontekst\n- Ærlig og direkte tilgang\n- Humor og ironi hvor det passer\n- Fokus på oplevelse frem for teknik",
+    "category": "Opinion",
+    "tags": [
+      "Opinion",
+      "Samfund",
+      "Debatter"
+    ],
+    "needsRating": false,
+    "structure": [],
+    "examples": [
+      "Eksempel opinion artikel"
+    ]
+  },
+  {
+    "id": "interview",
+    "name": "Interview",
+    "description": "Struktur til interviews med kunstnere og skabere",
+    "content": "**Interview Template**\n\n**Kategori:** Interview\n**Tags:** Interview, Kunstner, Skaber\n\n**Struktur baseret på Apropos artikler:**\n1. Intro med hækling\n2. Hovedafsnit med uddybning\n3. Personlig refleksion\n4. Konklusion med call-to-action\n\n**Eksempler fra Apropos:**\n- Black Bag: Fassbender og Blanchett i perfekt parløb – næsten\n\n**Tone:** Nysgerrig, respektfuld, åben\n\n**Apropos stil-elementer:**\n- Personlige refleksioner og anekdoter\n- Kulturelle referencer og kontekst\n- Ærlig og direkte tilgang\n- Humor og ironi hvor det passer\n- Fokus på oplevelse frem for teknik",
+    "category": "Interview",
+    "tags": [
+      "Interview",
+      "Kunstner",
+      "Skaber"
+    ],
+    "needsRating": false,
+    "structure": [
+      "Intro med hækling",
+      "Hovedafsnit med uddybning",
+      "Personlig refleksion",
+      "Konklusion med call-to-action"
+    ],
+    "examples": [
+      "Black Bag: Fassbender og Blanchett i perfekt parløb – næsten"
+    ]
+  },
+  {
+    "id": "news-analysis",
+    "name": "Nyhedsanalyse",
+    "description": "Dybtgående analyse af aktuelle begivenheder",
+    "content": "**Nyheder Template**\n\n**Kategori:** Nyheder\n**Tags:** Nyheder, Analyse, Samfund\n\n**Struktur baseret på Apropos artikler:**\n\n\n**Eksempler fra Apropos:**\n- Eksempel nyheder artikel\n\n**Tone:** Balanceret, analytisk, informativ\n\n**Apropos stil-elementer:**\n- Personlige refleksioner og anekdoter\n- Kulturelle referencer og kontekst\n- Ærlig og direkte tilgang\n- Humor og ironi hvor det passer\n- Fokus på oplevelse frem for teknik",
+    "category": "Nyheder",
+    "tags": [
+      "Nyheder",
+      "Analyse",
+      "Samfund"
+    ],
+    "needsRating": false,
+    "structure": [],
+    "examples": [
+      "Eksempel nyheder artikel"
+    ]
+  },
+  {
+    "id": "tech-review",
+    "name": "Tech Anmeldelse",
+    "description": "Anmeldelse af gadgets, apps og teknologi",
+    "content": "**Tech Template**\n\n**Kategori:** Tech\n**Tags:** Tech, Gadgets, Apps\n**Rating:** 1-5 stjerner (vises kun for anmeldelser)\n\n**Struktur baseret på Apropos artikler:**\n\n\n**Eksempler fra Apropos:**\n- Eksempel tech artikel\n\n**Tone:** Teknisk, men tilgængelig, ærlig\n\n**Apropos stil-elementer:**\n- Personlige refleksioner og anekdoter\n- Kulturelle referencer og kontekst\n- Ærlig og direkte tilgang\n- Humor og ironi hvor det passer\n- Fokus på oplevelse frem for teknik",
+    "category": "Tech",
+    "tags": [
+      "Tech",
+      "Gadgets",
+      "Apps",
+      "Innovation"
+    ],
+    "needsRating": true,
+    "structure": [],
+    "examples": [
+      "Eksempel tech artikel"
+    ]
+  },
+  {
+    "id": "lifestyle-feature",
+    "name": "Lifestyle Feature",
+    "description": "Længere feature om livsstil, rejser og oplevelser",
+    "content": "**Lifestyle Template**\n\n**Kategori:** Lifestyle\n**Tags:** Lifestyle, Rejser, Oplevelser\n\n**Struktur baseret på Apropos artikler:**\n\n\n**Eksempler fra Apropos:**\n- Eksempel lifestyle artikel\n\n**Tone:** Personlig, inspirerende, rejsende\n\n**Apropos stil-elementer:**\n- Personlige refleksioner og anekdoter\n- Kulturelle referencer og kontekst\n- Ærlig og direkte tilgang\n- Humor og ironi hvor det passer\n- Fokus på oplevelse frem for teknik",
+    "category": "Lifestyle",
+    "tags": [
+      "Lifestyle",
+      "Rejser",
+      "Oplevelser",
+      "Inspiration"
+    ],
+    "needsRating": false,
+    "structure": [],
+    "examples": [
+      "Eksempel lifestyle artikel"
+    ]
+  },
+  {
+    "id": "profile-piece",
+    "name": "Profil",
+    "description": "Dybtgående portræt af en person",
+    "content": "**Profil Template**\n\n**Kategori:** Profil\n**Tags:** Profil, Person, Karriere\n\n**Struktur baseret på Apropos artikler:**\n\n\n**Eksempler fra Apropos:**\n- Eksempel profil artikel\n\n**Tone:** Respektfuld, nysgerrig, menneskelig\n\n**Apropos stil-elementer:**\n- Personlige refleksioner og anekdoter\n- Kulturelle referencer og kontekst\n- Ærlig og direkte tilgang\n- Humor og ironi hvor det passer\n- Fokus på oplevelse frem for teknik",
+    "category": "Profil",
+    "tags": [
+      "Profil",
+      "Person",
+      "Karriere",
+      "Inspiration"
+    ],
+    "needsRating": false,
+    "structure": [],
+    "examples": [
+      "Eksempel profil artikel"
+    ]
+  },
+  {
+    "id": "social-commentary",
+    "name": "Samfundskommentar",
+    "description": "Refleksion over sociale tendenser og fænomener",
+    "content": "**Samfund Template**\n\n**Kategori:** Samfund\n**Tags:** Samfund, Tendenser, Kommentar\n\n**Struktur baseret på Apropos artikler:**\n\n\n**Eksempler fra Apropos:**\n- Eksempel samfund artikel\n\n**Tone:** Reflekterende, analytisk, samfundsbevidst\n\n**Apropos stil-elementer:**\n- Personlige refleksioner og anekdoter\n- Kulturelle referencer og kontekst\n- Ærlig og direkte tilgang\n- Humor og ironi hvor det passer\n- Fokus på oplevelse frem for teknik",
+    "category": "Samfund",
+    "tags": [
+      "Samfund",
+      "Tendenser",
+      "Kommentar",
+      "Analyse"
+    ],
+    "needsRating": false,
+    "structure": [],
+    "examples": [
+      "Eksempel samfund artikel"
+    ]
+  },
+  {
+    "id": "creative-writing",
+    "name": "Kreativ Skrivning",
+    "description": "Fri kreativ skrivning og essays",
+    "content": "**Kreativ Template**\n\n**Kategori:** Kreativ\n**Tags:** Kreativ, Essay, Fri Skrivning\n\n**Struktur baseret på Apropos artikler:**\n\n\n**Eksempler fra Apropos:**\n- Eksempel kreativ artikel\n\n**Tone:** Kreativ, personlig, eksperimenterende\n\n**Apropos stil-elementer:**\n- Personlige refleksioner og anekdoter\n- Kulturelle referencer og kontekst\n- Ærlig og direkte tilgang\n- Humor og ironi hvor det passer\n- Fokus på oplevelse frem for teknik",
+    "category": "Kreativ",
+    "tags": [
+      "Kreativ",
+      "Essay",
+      "Fri Skrivning",
+      "Kunst"
+    ],
+    "needsRating": false,
+    "structure": [],
+    "examples": [
+      "Eksempel kreativ artikel"
+    ]
+  }
+]

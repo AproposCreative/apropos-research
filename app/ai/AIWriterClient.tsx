@@ -6,7 +6,6 @@ import PreviewPanel from './PreviewPanel';
 import AuthModal from '@/components/AuthModal';
 import DraftsPanel from '@/components/DraftsPanel';
 import ChatSearchModal from '@/components/ChatSearchModal';
-import ArticleGenerator from '@/components/ArticleGenerator';
 import { useAuth } from '@/lib/auth-context';
 import { saveDraft, getDraft, type ArticleDraft } from '@/lib/firebase-service';
 
@@ -25,9 +24,6 @@ export default function AIWriterClient() {
   const { user } = useAuth();
   const [currentDraftId, setCurrentDraftId] = useState<string | null>(null);
   const [showDraftsPanel, setShowDraftsPanel] = useState(false);
-  const [showArticleGenerator, setShowArticleGenerator] = useState(false);
-  const [generatedArticle, setGeneratedArticle] = useState<string>('');
-  const [webflowFields, setWebflowFields] = useState<any>(null);
   const [showSearchModal, setShowSearchModal] = useState(false);
   const [articleData, setArticleData] = useState<ArticleData>({
     title: '',
@@ -77,7 +73,9 @@ export default function AIWriterClient() {
           message,
           articleData,
           notes,
-          chatHistory: chatMessages
+          chatHistory: chatMessages,
+          authorTOV: articleData.authorTOV || '',
+          authorName: articleData.author || 'Frederik Kragh' // Pass author name for TOV loading
         }),
       });
 
@@ -90,6 +88,15 @@ export default function AIWriterClient() {
           setArticleData(prev => ({
             ...prev,
             ...data.articleUpdate
+          }));
+        }
+        
+        // Handle AI suggestions (like rating)
+        if (data.suggestion) {
+          // Store suggestion for UI to display
+          setArticleData(prev => ({
+            ...prev,
+            aiSuggestion: data.suggestion
           }));
         }
       } else {
@@ -125,6 +132,7 @@ export default function AIWriterClient() {
             subtitle: articleData.subtitle || '',
             category: articleData.category || '',
             author: articleData.author || 'Frederik Kragh',
+            authorTOV: articleData.authorTOV || '',
             content: articleData.content || '',
             rating: articleData.rating || 0,
             tags: articleData.tags || [],
@@ -174,31 +182,6 @@ export default function AIWriterClient() {
     }, 100);
   };
 
-  const handleArticleGenerated = (article: string) => {
-    setGeneratedArticle(article);
-    // Update article data with generated content
-    const lines = article.split('\n');
-    const title = lines.find(line => line.startsWith('# '))?.replace('# ', '') || '';
-    const content = article;
-    
-    setArticleData(prev => ({
-      ...prev,
-      title: title || prev.title,
-      content: content
-    }));
-  };
-
-  const handleWebflowFieldsGenerated = (fields: any) => {
-    setWebflowFields(fields);
-    // Update article data with Webflow fields
-    setArticleData(prev => ({
-      ...prev,
-      title: fields.title || prev.title,
-      subtitle: fields.excerpt || prev.subtitle,
-      category: fields.category || prev.category,
-      tags: fields.tags || prev.tags
-    }));
-  };
 
   const handleNewArticle = () => {
     // Reset everything for a new article
@@ -321,19 +304,6 @@ export default function AIWriterClient() {
                   </div>
                 </button>
                 <button
-                  onClick={() => setShowArticleGenerator(!showArticleGenerator)}
-                  className="w-8 h-8 flex items-center justify-center hover:bg-white/10 rounded-xl transition-colors"
-                  title="Generer artikel"
-                >
-                  {/* AI magic icon */}
-                  <div className="relative w-3 h-3">
-                    <div className="absolute top-0 left-1/2 w-1 h-1 bg-white transform -translate-x-1/2 rounded-full"></div>
-                    <div className="absolute top-1 left-0 w-1 h-1 bg-white rounded-full"></div>
-                    <div className="absolute top-1 right-0 w-1 h-1 bg-white rounded-full"></div>
-                    <div className="absolute bottom-0 left-1/2 w-1 h-1 bg-white transform -translate-x-1/2 rounded-full"></div>
-                  </div>
-                </button>
-                <button
                   onClick={handleNewArticle}
                   className="w-8 h-8 flex items-center justify-center hover:bg-white/10 rounded-xl transition-colors"
                   title="Ny artikel"
@@ -347,19 +317,6 @@ export default function AIWriterClient() {
               </div>
             </div>
             
-            {/* Article Generator Panel */}
-            {showArticleGenerator && (
-              <div className="absolute top-20 right-4 w-80 z-20">
-                <ArticleGenerator
-                  template={articleData.category || 'Generel'}
-                  context={notes || 'Generer en artikel baseret på noterne'}
-                  category={articleData.category || 'Generel'}
-                  tags={articleData.tags || []}
-                  onArticleGenerated={handleArticleGenerated}
-                  onWebflowFieldsGenerated={handleWebflowFieldsGenerated}
-                />
-              </div>
-            )}
           </>
         )}
       </div>

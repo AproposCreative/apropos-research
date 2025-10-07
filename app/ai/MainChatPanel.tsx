@@ -4,6 +4,13 @@ import { useState, useRef, useEffect } from 'react';
 import FileDropZone from '@/components/FileDropZone';
 import AISuggestions from '@/components/AISuggestions';
 import ArticleTemplates from '@/components/ArticleTemplates';
+import AuthorSelection from '@/components/AuthorSelection';
+import ArticleSuggestions from '@/components/ArticleSuggestions';
+import ArticlePicker from '@/components/ArticlePicker';
+import CategorySelection from '@/components/CategorySelection';
+import { WebflowAuthor } from '@/lib/webflow-service';
+import { WebflowPublishPanel } from '@/components/WebflowPublishPanel';
+import { WebflowArticleFields } from '@/lib/webflow-service';
 import { type UploadedFile } from '@/lib/file-upload-service';
 
 interface ChatMessage {
@@ -43,7 +50,14 @@ export default function MainChatPanel({
   const [showFileDrop, setShowFileDrop] = useState(false);
   const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]);
   const [showAISuggestions, setShowAISuggestions] = useState(false);
+  const [showPublishPanel, setShowPublishPanel] = useState(false);
   const [selectedText, setSelectedText] = useState('');
+  const [selectionStep, setSelectionStep] = useState<'category' | 'template' | 'author' | 'chat'>('category');
+  const [selectedCategory, setSelectedCategory] = useState<any>(null);
+  const [selectedTemplate, setSelectedTemplate] = useState<any>(null);
+  const [selectedAuthor, setSelectedAuthor] = useState<WebflowAuthor | null>(null);
+  const [showArticlePicker, setShowArticlePicker] = useState(false);
+  const [trendingTemplate, setTrendingTemplate] = useState<any>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const autoSaveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -67,6 +81,18 @@ export default function MainChatPanel({
       }
     }
   }, [messages, chatTitle]);
+
+  // Reset selection step when messages are cleared (new article)
+  useEffect(() => {
+    if (messages.length === 0) {
+      setSelectionStep('category');
+      setSelectedCategory(null);
+      setSelectedTemplate(null);
+      setSelectedAuthor(null);
+      setShowArticlePicker(false);
+      setTrendingTemplate(null);
+    }
+  }, [messages.length]);
 
   // Auto-save functionality
   const saveToLocalStorage = () => {
@@ -276,27 +302,138 @@ Besked: "${message}"`
     setSelectedText('');
   };
 
-  const handleTemplateSelect = (template: any) => {
-    // Update article data with template info
+  const handlePublishToWebflow = async (articleData: WebflowArticleFields) => {
+    try {
+      const response = await fetch('/api/webflow/publish', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(articleData),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to publish article');
+      }
+
+      const result = await response.json();
+      
+      // Show success message
+      const tempElement = document.createElement('div');
+      tempElement.textContent = `Artikel udgivet til Webflow! ID: ${result.articleId}`;
+      tempElement.className = 'fixed top-4 right-4 bg-green-600 text-white px-4 py-2 rounded-lg text-sm z-50';
+      document.body.appendChild(tempElement);
+      setTimeout(() => {
+        document.body.removeChild(tempElement);
+      }, 5000);
+
+      setShowPublishPanel(false);
+    } catch (error) {
+      console.error('Publish error:', error);
+      alert('Fejl ved udgivelse af artikel');
+    }
+  };
+
+  const handleCategorySelect = (category: any) => {
+    setSelectedCategory(category);
+    setSelectionStep('template');
+    
+    // Update article data with category info
     updateArticleData({
       title: '',
       subtitle: '',
-      category: template.category,
+      category: category.name,
       content: '',
-      tags: template.tags,
+      tags: [category.name],
       platform: ''
     });
+  };
 
-    // Send template selection message first
-    const selectionMessage = `${template.name} template valgt!`;
+  const handleTrendingCategorySelect = (category: any, articles: any[]) => {
+    setSelectedCategory(category);
+    setShowArticlePicker(true);
+    setTrendingTemplate({
+      id: `trending-${category.name.toLowerCase()}`,
+      name: `Trending ${category.name}`,
+      category: category.name,
+      articles: articles,
+      content: `Skriv en ${category.name.toLowerCase()}-artikel baseret på de aktuelle trends.\n\nFokus på:\n- Hvad der trending inden for ${category.name.toLowerCase()}\n- Din unikke vinkel på emnet\n- Apropos' karakteristiske tone\n\nInspiration fra ${articles.length} artikler fra andre medier.`,
+      tags: [category.name, 'Trending', 'Aktuel'],
+      trending: true,
+      articleCount: articles.length
+    });
+  };
+
+  const handleTemplateSelect = (template: any) => {
+    // Check if this is a trending template with articles
+    if (template.trending && template.articles && template.articles.length > 0) {
+      setTrendingTemplate(template);
+      setShowArticlePicker(true);
+    } else {
+      // Regular template - proceed directly to author selection
+      setSelectedTemplate(template);
+      setSelectionStep('author');
+      
+      // Update article data with template info
+      updateArticleData({
+        title: '',
+        subtitle: '',
+        category: selectedCategory?.name || template.category,
+        content: '',
+        tags: template.tags,
+        platform: ''
+      });
+    }
+  };
+
+  const handleArticleSelect = (article: any) => {
+    if (trendingTemplate) {
+      // Create template with selected article as inspiration
+      const templateWithArticle = {
+        ...trendingTemplate,
+        content: `${trendingTemplate.content}\n\n**Inspiration fra valgt artikel:**\n"${article.title}" fra ${article.source}\n\n${article.content.substring(0, 300)}...`
+      };
+      
+      setSelectedTemplate(templateWithArticle);
+      setSelectionStep('author');
+      
+      // Update article data with template info
+      updateArticleData({
+        title: '',
+        subtitle: '',
+        category: trendingTemplate.category,
+        content: '',
+        tags: trendingTemplate.tags,
+        platform: ''
+      });
+    }
+    
+    setShowArticlePicker(false);
+    setTrendingTemplate(null);
+  };
+
+  const handleAuthorSelect = (author: WebflowAuthor) => {
+    setSelectedAuthor(author);
+    setSelectionStep('chat');
+    
+    // Update article data with author info and TOV
+    updateArticleData({
+      author: author.name,
+      authorTOV: author.tov || ''
+    });
+
+    // Send initial message with selections
+    const selectionMessage = `${selectedTemplate?.name} template valgt!\nForfatter: ${author.name}`;
     onSendMessage(selectionMessage);
     
-    // Then send the full template content
+    // Then send the full template content with TOV info
     setTimeout(() => {
-      const templateMessage = `${template.content}\n\nEr du klar til at skrive? Skriv "go" når du er klar!`;
+      const tovInfo = author?.tov || 'Apropos stil';
+      const templateMessage = `${selectedTemplate?.content}\n\n**Forfatter TOV:** ${tovInfo}\n\nLad os starte! Hvad vil du gerne skrive om?`;
       onSendMessage(templateMessage);
     }, 500);
   };
+
 
   return (
     <>
@@ -304,7 +441,21 @@ Besked: "${message}"`
         {/* Top Bar */}
         <div className="flex items-center justify-between p-4 border-b border-zinc-800">
           <div className="flex items-center gap-3">
-            <h1 className="text-white text-lg font-medium">{chatTitle}</h1>
+            <h1 className="text-white text-base font-medium">
+              {chatTitle === 'Ny artikkel' ? (
+                <span 
+                  className="bg-gradient-to-r from-white/20 via-white/70 to-white/20 bg-clip-text text-transparent"
+                  style={{ 
+                    backgroundSize: '200% 100%', 
+                    animation: 'gradient-shift 4s ease-in-out infinite' 
+                  }}
+                >
+                  Ny Apropos Magazine artikkel
+                </span>
+              ) : (
+                chatTitle
+              )}
+            </h1>
             {isAutoSaving && (
               <span className="text-xs text-green-400 animate-pulse">Gemmer...</span>
             )}
@@ -420,15 +571,141 @@ Besked: "${message}"`
           </div>
         )}
 
-        {/* Article Templates */}
-        {messages.length === 0 && (
-          <div className="px-4 pb-2">
-            <ArticleTemplates onSelectTemplate={handleTemplateSelect} />
+        {/* Article Picker - Directly under top bar */}
+        {showArticlePicker && trendingTemplate && (
+          <div className="flex flex-col max-h-[75vh] mx-[10px]">
+            <div className="flex items-center gap-4 px-0 py-2">
+              <button
+                onClick={() => {
+                  setSelectionStep('category');
+                  setShowArticlePicker(false);
+                  setTrendingTemplate(null);
+                  setSelectedCategory(null);
+                }}
+                className="px-3 py-1.5 text-white text-xs font-medium rounded-lg transition-colors duration-200 border border-white/20 flex items-center justify-center"
+                style={{ backgroundColor: 'rgb(0, 0, 0)' }}
+                onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'rgb(20, 20, 20)'}
+                onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'rgb(0, 0, 0)'}
+              >
+                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                </svg>
+              </button>
+              <h3 className="text-white text-lg font-medium">Vælg inspiration til {trendingTemplate?.name}</h3>
+            </div>
+            <div className="px-0 py-2 overflow-y-auto">
+              <ArticlePicker
+                articles={trendingTemplate.articles || []}
+                onSelectArticle={handleArticleSelect}
+                onClose={() => {
+                  setShowArticlePicker(false);
+                  setTrendingTemplate(null);
+                }}
+                templateName={trendingTemplate.name}
+              />
+            </div>
+          </div>
+        )}
+
+        {/* Selection Flow */}
+        {messages.length === 0 && !showArticlePicker && (
+          <div className="pb-2 px-4">
+            {selectionStep === 'category' && (
+              <div>
+                <h3 className="text-white text-lg font-medium mb-4">Vælg kategori</h3>
+                <CategorySelection 
+                  onSelectCategory={handleCategorySelect}
+                  onSelectTrendingCategory={handleTrendingCategorySelect}
+                />
+              </div>
+            )}
+
+            {selectionStep === 'template' && (
+              <div>
+                <div className="flex items-center gap-4 mb-4">
+                  <button
+                    onClick={() => {
+                      setSelectionStep('category');
+                      setSelectedCategory(null);
+                    }}
+                    className="px-3 py-1.5 text-white text-xs font-medium rounded-lg transition-colors duration-200 border border-white/20 flex items-center justify-center"
+                    style={{ backgroundColor: 'rgb(0, 0, 0)' }}
+                    onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'rgb(20, 20, 20)'}
+                    onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'rgb(0, 0, 0)'}
+                  >
+                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                    </svg>
+                  </button>
+                  <h3 className="text-white text-lg font-medium">Vælg template</h3>
+                </div>
+                <ArticleTemplates 
+                  onSelectTemplate={handleTemplateSelect} 
+                  selectedCategory={selectedCategory?.name}
+                />
+              </div>
+            )}
+            
+            {selectionStep === 'author' && (
+              <div className="space-y-4">
+                <h3 className="text-white text-lg font-medium mb-4">Vælg forfatter</h3>
+                <div className="flex gap-2 items-center">
+                  {/* Back button on same line */}
+                  <button
+                    onClick={() => {
+                      setSelectionStep('category');
+                      setSelectedTemplate(null);
+                      setSelectedCategory(null);
+                      setShowArticlePicker(false);
+                      setTrendingTemplate(null);
+                    }}
+                    className="px-3 py-1.5 text-white text-xs font-medium rounded-lg transition-colors duration-200 border border-white/20 flex items-center justify-center"
+                    style={{ backgroundColor: 'rgb(0, 0, 0)' }}
+                    onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'rgb(20, 20, 20)'}
+                    onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'rgb(0, 0, 0)'}
+                  >
+                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                    </svg>
+                  </button>
+                  
+                  {/* Author pills inline */}
+                  <div className="flex flex-wrap gap-2">
+                    <AuthorSelection onAuthorSelected={handleAuthorSelect} />
+                  </div>
+                </div>
+                
+                {/* Show article suggestions after template selection */}
+                {selectedTemplate && (
+                  <ArticleSuggestions 
+                    category={selectedTemplate.category}
+                    tags={selectedTemplate.tags}
+                    onSelectSuggestion={(suggestion) => {
+                      // Copy title to help user
+                      const message = `Jeg vil gerne skrive en ${selectedTemplate.name.toLowerCase()} om "${suggestion.title}" (inspiration fra ${suggestion.source})`;
+                      onSendMessage(message);
+                    }}
+                  />
+                )}
+              </div>
+            )}
+            
           </div>
         )}
 
         {/* Input Area */}
         <div className="p-4 rounded-xl flex flex-col gap-3 bg-[#171717] mx-[10px] mb-[10px]">
+          {/* Publish Button */}
+          {articleData.title && articleData.content && (
+            <div className="flex justify-end">
+              <button
+                onClick={() => setShowPublishPanel(true)}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm"
+              >
+                Udgiv til Webflow
+              </button>
+            </div>
+          )}
           <div className="relative">
             <textarea
               value={inputMessage}
@@ -498,6 +775,52 @@ Besked: "${message}"`
             setShowAISuggestions(false);
             setSelectedText('');
           }}
+        />
+      )}
+
+      {/* Rating Suggestion */}
+      {articleData.aiSuggestion && articleData.aiSuggestion.type === 'rating' && (
+        <div className="mx-[10px] mb-4 p-4 bg-black border border-white/20 rounded-lg">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-white text-sm font-medium">{articleData.aiSuggestion.title}</h3>
+            <button
+              onClick={() => updateArticleData({ aiSuggestion: null })}
+              className="text-white/60 hover:text-white transition-colors"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+          <p className="text-white/80 text-xs mb-3">{articleData.aiSuggestion.description}</p>
+          <div className="flex gap-2">
+            {[1, 2, 3, 4, 5, 6].map((rating) => (
+              <button
+                key={rating}
+                onClick={() => {
+                  updateArticleData({ 
+                    rating,
+                    aiSuggestion: null 
+                  });
+                }}
+                className="px-3 py-1.5 text-white text-xs font-medium rounded-lg transition-colors duration-200 border border-white/20"
+                style={{ backgroundColor: 'rgb(0, 0, 0)' }}
+                onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'rgb(20, 20, 20)'}
+                onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'rgb(0, 0, 0)'}
+              >
+                {rating} ⭐
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Webflow Publish Panel */}
+      {showPublishPanel && (
+        <WebflowPublishPanel
+          articleData={articleData}
+          onPublish={handlePublishToWebflow}
+          onClose={() => setShowPublishPanel(false)}
         />
       )}
     </>

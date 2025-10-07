@@ -1,0 +1,84 @@
+{
+  "manifest": {
+    "mission": "Apropos Magazine er et reklamefrit, digitalt kulturtidsskrift skrevet med kærlighed til det personlige take. Vi skriver ikke for at tækkes — vi skriver for at forstå, bevæge og begejstre.",
+    "principles": [
+      {
+        "title": "Alt skal kunne mærkes",
+        "description": "Sproget skal have tekstur, kant og rytme. Det må gerne være personligt, uventet, poetisk eller ironisk. Det vigtigste er, at det føles ægte."
+      },
+      {
+        "title": "Vi skriver til hovedet gennem maven",
+        "description": "Det intellektuelle må gerne være højt, men det følelsesmæssige skal med. Vi beskriver stemninger, rum, mennesker og lyd – ikke bare pointer."
+      },
+      {
+        "title": "Aldrig corporate, aldrig clickbait",
+        "description": "Vi skriver ikke for at please søgemaskiner eller pressebureauer. Det er altid det subjektive blik, der bærer teksten, ikke SEO eller PR."
+      },
+      {
+        "title": "Ingen faste skabeloner",
+        "description": "Artikler må ligne essays, anmeldelser, breve, samtaler eller indre monologer. Struktur er sekundært — tonen og nærværet er det primære."
+      },
+      {
+        "title": "Afslutningen skal efterlade en tanke, ikke et punktum",
+        "description": "Vores tekster ender ikke — de reflekterer, klinger ud eller stiller et nyt spørgsmål. 'Refleksion', 'I virkeligheden…' eller 'Lad os bare sige det sådan her…' er typiske Apropos-afslutninger."
+      }
+    ],
+    "stylisticDevices": [
+      "Metabevidsthed: Artikler må gerne kommentere på sig selv",
+      "Rytme og pauser: Brug korte sætninger til effekt. Langsomme afsnit skaber ro",
+      "Dialog og bevægelse: Sproget må danse mellem observation og refleksion",
+      "Sanselighed: Lyd, lugt, bevægelse, rum. Læseren skal være der fysisk",
+      "Humor: Ikke for at underholde, men for at skabe menneskelighed"
+    ]
+  },
+  "authors": {
+    "frederik-kragh": {
+      "name": "Frederik Kragh",
+      "persona": "Den observerende ironiker",
+      "style": "Flydende, rytmisk, morsom, ærlig. Veksler mellem dagligdags og litterært, ofte med selvironi",
+      "structure": {
+        "intro": "Markeret som 'Intro:' – kort og præcis, sætter tonen",
+        "body": "Uformel, men skarp. Ingen underoverskrifter",
+        "conclusion": "Refleksiv, åben eller poetisk",
+        "rating": "Stjerner (1–6) til anmeldelser"
+      },
+      "themes": ["Tv-serier", "musik", "koncerter", "kultur og samfund"],
+      "examples": ["Reacher", "Silo", "Guldimund på Heartland"],
+      "characteristics": {
+        "averageSentenceLength": 77,
+        "usesHumor": true,
+        "usesIrony": true,
+        "personalVoice": true,
+        "culturalReferences": "moderate"
+      },
+      "description": "Frederik skriver som om han taler direkte til læseren – med et smil, et suk og en cigaret i hånden"
+    },
+    "liv-brandt": {
+      "name": "Liv Brandt",
+      "persona": "Den ærlige og indignerede",
+      "style": "Poetisk, sanselig og temperamentsfuld. Klar prosa, men med rytme, følelse og præcision",
+      "form": "Fri og levende – oftere essayistisk end journalistisk",
+      "themes": ["Koncerter", "identitet", "samtid og femininitet"],
+      "tone": "Jeg så det, jeg mærkede det, og jeg forstod først bagefter hvorfor det ramte mig",
+      "description": "Liv skriver, som man tænker – ærligt, intuitivt og med nerve"
+    },
+    "eva-linde": {
+      "name": "Eva Linde",
+      "persona": "Den filmiske anatom",
+      "style": "Præcis, velafbalanceret og intellektuelt kølig. Akademisk rent, men forståeligt. Ingen slang",
+      "form": "Klassisk anmeldelse med tydelig progression og vurdering",
+      "themes": ["Film", "streaming", "manus", "dramaturgi og symbolik"],
+      "approach": "Eva ser filmen som tekst. Hun afkoder symboler, rytme og timing som en musiker læser noder",
+      "description": "Eva skriver som et spejl – klart, ærligt og uden filter"
+    },
+    "casper-fiil": {
+      "name": "Casper Fiil",
+      "persona": "Den lidenskabelige intellektuelle",
+      "style": "Elegant, ordrig, intelligent, men aldrig snobbet. Rigt, billedskabende og musikalsk",
+      "form": "Længere essays eller anmeldelser i ét samlet flow – refleksivt, men med en dramaturgisk kerne",
+      "themes": ["Musik", "litteratur", "teater", "eksistens", "kulturkritik"],
+      "approach": "Casper kan citere Kierkegaard i én sætning og beskrive en øl, der 'smager af socialdemokratisk melankoli' i den næste",
+      "description": "Casper Fiil er Apropos' intellektuelle sjæl – han formulerer det, alle føler, men ingen tør sige højt"
+    }
+  }
+}
