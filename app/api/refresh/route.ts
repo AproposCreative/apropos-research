@@ -25,24 +25,23 @@ export async function POST(request: Request) {
   
   const root = process.cwd(); // We're already in the project root
   const cmd = `npm run ingest:rage -- --since=${sinceHours} --limit=${limit}`;
-  const startedAt = Date.now();
 
-  const out = await new Promise<{ code: number; stdout: string; stderr: string }>((resolve) => {
-    exec(cmd, { cwd: root, env: process.env, timeout: 1000 * 60 * 5 }, (err, stdout, stderr) => {
-      resolve({ code: err ? (err as any).code ?? 1 : 0, stdout, stderr });
-    });
+  // Start ingest in background - don't wait for it to complete
+  exec(cmd, { cwd: root, env: process.env, timeout: 1000 * 60 * 5 }, (err, stdout, stderr) => {
+    if (!err) {
+      // Invalidate cache after successful refresh
+      invalidatePromptsCache();
+      console.log('✅ Ingest completed successfully');
+    } else {
+      console.error('❌ Ingest failed:', stderr);
+    }
   });
 
-  // Invalidate cache after successful refresh
-  if (out.code === 0) {
-    invalidatePromptsCache();
-  }
-
+  // Return immediately
   return NextResponse.json({
-    ok: out.code === 0,
-    took_ms: Date.now() - startedAt,
-    code: out.code,
-    stdout: out.stdout.slice(-2000),
-    stderr: out.stderr.slice(-2000),
-  }, { status: out.code === 0 ? 200 : 500 });
+    ok: true,
+    message: 'Ingest started in background',
+    sinceHours,
+    limit
+  }, { status: 202 }); // 202 Accepted
 }
