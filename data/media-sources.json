@@ -11,7 +11,7 @@
     "id": "gaffa",
     "name": "GAFFA",
     "baseUrl": "https://gaffa.dk",
-    "sitemapIndex": "/sitemap",
+    "sitemapIndex": "/rss",
     "enabled": true,
     "addedAt": "2025-10-06T11:08:19.377Z"
   },

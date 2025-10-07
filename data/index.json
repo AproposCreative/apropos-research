@@ -2,9 +2,8 @@
   "heads": {
     "https://soundvenue.com/feed": {
       "etag": "\"f598cafbd5f57144a3e0ddcb10ec318d\"",
-      "lastSeenAt": "2025-10-07T19:16:57.421Z",
-      "lastStatus": 200,
-      "lastModified": "Tue, 07 Oct 2025 15:45:35 GMT"
+      "lastSeenAt": "2025-10-07T19:20:22.928Z",
+      "lastStatus": 304
     },
     "https://soundvenue.com/film/2025/09/julia-roberts-og-ayo-edebiri-saetter-journalist-paa-plads-i-viralt-interviewklip-640163": {
       "lastSeenAt": "2025-09-09T07:38:41.022Z",
@@ -4156,7 +4155,7 @@
     },
     "https://nordic.ign.com/feed.xml": {
       "lastModified": "Tue, 07 Oct 2025 18:35:17 GMT",
-      "lastSeenAt": "2025-10-07T19:17:29.519Z",
+      "lastSeenAt": "2025-10-07T19:20:36.341Z",
       "lastStatus": 304
     },
     "https://nordic.ign.com/call-of-duty-black-ops-7/99587/news/97-of-call-of-duty-black-ops-7-beta-cheaters-were-caught-within-30-minutes-of-signing-in-activision": {
@@ -4536,17 +4535,17 @@
     },
     "https://www.ekkofilm.dk/feeds/artikler/": {
       "lastModified": "Tue, 07 Oct 2025 13:30:00 GMT",
-      "lastSeenAt": "2025-10-07T19:17:31.715Z",
+      "lastSeenAt": "2025-10-07T19:20:38.520Z",
       "lastStatus": 304
     },
     "https://www.berlingske.dk/news-sitemap.xml": {
-      "etag": "\"8xtp9rsfe74udb\"",
-      "lastSeenAt": "2025-10-07T19:17:22.779Z",
+      "etag": "\"12x1sjukt1r4ts9\"",
+      "lastSeenAt": "2025-10-07T19:20:29.910Z",
       "lastStatus": 200
     },
     "https://www.bt.dk/news-sitemap.xml": {
-      "etag": "\"15x3904u16x5trn\"",
-      "lastSeenAt": "2025-10-07T19:17:27.426Z",
+      "etag": "\"11gitiygmm35ts8\"",
+      "lastSeenAt": "2025-10-07T19:20:34.291Z",
       "lastStatus": 200
     },
     "https://nordic.ign.com/world-of-warcraft-midnight/99595/feature/world-of-warcraft-is-getting-two-major-changes-in-midnight-that-are-already-dividing-the-community": {
@@ -4871,43 +4870,127 @@
       "lastStatus": 200
     },
     "https://soundvenue.com/film/2025/10/den-foerste-nye-haandskrevne-dogmefilm-er-paabegyndt-645160": {
-      "lastSeenAt": "2025-10-07T19:17:32.750Z",
+      "lastSeenAt": "2025-10-07T19:20:39.557Z",
       "lastStatus": 200
     },
     "https://soundvenue.com/kultur/2025/10/p3-vaert-helin-erdem-debuterer-paa-scenen-i-grwm-og-udleverer-mediebranchen-og-sig-selv-644942": {
-      "lastSeenAt": "2025-10-07T19:17:33.762Z",
+      "lastSeenAt": "2025-10-07T19:20:40.567Z",
       "lastStatus": 200
     },
     "https://soundvenue.com/musik/2025/10/lola-young-laegger-sag-an-mod-produceren-bag-massivt-gennembrudshit-hit-645106": {
-      "lastSeenAt": "2025-10-07T19:17:34.779Z",
+      "lastSeenAt": "2025-10-07T19:20:41.582Z",
       "lastStatus": 200
     },
     "https://soundvenue.com/musik/2025/10/lorde-paramore-og-mange-flere-tilslutter-sig-boykottet-af-israelske-lyttere-645102": {
-      "lastSeenAt": "2025-10-07T19:17:35.794Z",
+      "lastSeenAt": "2025-10-07T19:20:42.597Z",
       "lastStatus": 200
     },
     "https://soundvenue.com/film/2025/10/robin-williams-datter-langer-ud-efter-ai-videoer-af-hendes-afdoede-far-i-laver-poelser-ud-af-mennesker-645109": {
-      "lastSeenAt": "2025-10-07T19:17:36.803Z",
+      "lastSeenAt": "2025-10-07T19:20:43.608Z",
       "lastStatus": 200
     },
     "https://soundvenue.com/film/2025/10/ridley-scott-synes-at-de-fleste-film-i-dag-er-lort-645103": {
-      "lastSeenAt": "2025-10-07T19:17:37.814Z",
+      "lastSeenAt": "2025-10-07T19:20:44.621Z",
       "lastStatus": 200
     },
     "https://soundvenue.com/musik/2025/10/taylor-swift-kan-ikke-relatere-til-sit-2024-album-jeg-har-det-ikke-elendigt-laengere-645088": {
-      "lastSeenAt": "2025-10-07T19:17:38.831Z",
+      "lastSeenAt": "2025-10-07T19:20:45.630Z",
       "lastStatus": 200
     },
     "https://soundvenue.com/film/2025/10/monster-the-ed-gein-story-er-ny-netflix-saeson-serioest-en-hyldest-til-en-seriemorder-645089": {
-      "lastSeenAt": "2025-10-07T19:17:39.846Z",
+      "lastSeenAt": "2025-10-07T19:20:46.642Z",
       "lastStatus": 200
     },
     "https://soundvenue.com/film/2025/10/dwayne-johnson-reagerer-paa-karrierens-vaerste-aabningsweekend-denne-film-har-aendret-mit-liv-645085": {
-      "lastSeenAt": "2025-10-07T19:17:40.857Z",
+      "lastSeenAt": "2025-10-07T19:20:47.654Z",
       "lastStatus": 200
     },
     "https://soundvenue.com/musik/2025/10/det-vaerste-ved-taylor-swifts-disstrack-er-at-det-ikke-engang-er-underholdende-644992": {
-      "lastSeenAt": "2025-10-07T19:17:41.868Z",
+      "lastSeenAt": "2025-10-07T19:20:48.666Z",
+      "lastStatus": 200
+    },
+    "https://gaffa.dk/rss": {
+      "lastSeenAt": "2025-10-07T19:20:25.728Z",
+      "lastStatus": 200
+    },
+    " https://gaffa.dk/anmeldelser/2025/oktober/koncerter/cian-ducrot-store-vega-060925/ ": {
+      "lastSeenAt": "2025-10-07T19:20:49.975Z",
+      "lastStatus": 200
+    },
+    " https://gaffa.dk/nyheder-fra-gaffa/2025/oktober/bon-iver-gar-pa-pension/ ": {
+      "lastSeenAt": "2025-10-07T19:20:51.337Z",
+      "lastStatus": 200
+    },
+    " https://gaffa.dk/nyheder-fra-gaffa/2025/oktober/ugens-udvalgte-u41-2025/ ": {
+      "lastSeenAt": "2025-10-07T19:20:52.799Z",
+      "lastStatus": 200
+    },
+    " https://gaffa.dk/nyheder-fra-gaffa/2025/oktober/lorde-tilslutter-sig-kampagne-om-et-kulturelt-boykot-af-israel/ ": {
+      "lastSeenAt": "2025-10-07T19:20:54.230Z",
+      "lastStatus": 200
+    },
+    " https://gaffa.dk/artikler/2025/oktober/10-kaempe-hits-der-var-taet-pa-aldrig-at-se-dagens-lys/ ": {
+      "lastSeenAt": "2025-10-07T19:20:55.512Z",
+      "lastStatus": 200
+    },
+    " https://gaffa.dk/nyheder-fra-gaffa/2025/oktober/familien-falch-med-to-versioner-af-helhjertet-i-ny-film/ ": {
+      "lastSeenAt": "2025-10-07T19:20:56.831Z",
+      "lastStatus": 200
+    },
+    " https://gaffa.dk/nyheder-fra-gaffa/2025/oktober/fans-fik-ret-i-spekulationer-zayn-malik-indgar-k-pop-samarbejde/ ": {
+      "lastSeenAt": "2025-10-07T19:20:58.331Z",
+      "lastStatus": 200
+    },
+    " https://gaffa.dk/nyheder-fra-gaffa/2025/oktober/premiere-cevil-med-rat-livecover-af-ikonisk-nirvana-sang/ ": {
+      "lastSeenAt": "2025-10-07T19:20:59.657Z",
+      "lastStatus": 200
+    },
+    " https://gaffa.dk/nyheder-fra-gaffa/2025/oktober/christopher-drommer-om-samarbejder-med-k-popstjerner/ ": {
+      "lastSeenAt": "2025-10-07T19:21:01.082Z",
+      "lastStatus": 200
+    },
+    " https://gaffa.dk/artikler/2025/oktober/5-onsker-fra-michael-fjeldsoe-kultur-er-ikke-noget-der-kan-undvaeres/ ": {
+      "lastSeenAt": "2025-10-07T19:21:02.774Z",
+      "lastStatus": 200
+    },
+    " https://gaffa.dk/nyheder-fra-gaffa/2025/oktober/kulturuddannelser-star-over-for-lukning-endagsfestival-afholdes-i-protest/ ": {
+      "lastSeenAt": "2025-10-07T19:21:04.086Z",
+      "lastStatus": 200
+    },
+    " https://gaffa.dk/nyheder-fra-gaffa/2025/oktober/tysk-popikon-flyver-luftballonen-forbi-danmark/ ": {
+      "lastSeenAt": "2025-10-07T19:21:05.363Z",
+      "lastStatus": 200
+    },
+    " https://gaffa.dk/nyheder-fra-gaffa/2025/oktober/donald-trump-om-diddy-han-har-bedt-mig-om-en-benadning/ ": {
+      "lastSeenAt": "2025-10-07T19:21:06.651Z",
+      "lastStatus": 200
+    },
+    " https://gaffa.dk/nyheder-fra-gaffa/2025/oktober/spotify-og-chatgpt-indgar-samarbejde/ ": {
+      "lastSeenAt": "2025-10-07T19:21:08.042Z",
+      "lastStatus": 200
+    },
+    " https://gaffa.dk/nyheder-fra-gaffa/2025/oktober/foo-fighters-udgiver-ny-live-ep-til-stotte-for-velgorenhed/ ": {
+      "lastSeenAt": "2025-10-07T19:21:09.334Z",
+      "lastStatus": 200
+    },
+    " https://gaffa.dk/artikler/2025/september/5-skarpe-til-per-toni-hansen-musikskolen-skal-have-bedre-vilkar/ ": {
+      "lastSeenAt": "2025-10-07T19:21:10.647Z",
+      "lastStatus": 200
+    },
+    " https://gaffa.dk/nyheder-fra-gaffa/2025/oktober/kulturministeriet-fremsiger-lovforslag-mod-deepfakes/ ": {
+      "lastSeenAt": "2025-10-07T19:21:11.918Z",
+      "lastStatus": 200
+    },
+    " https://gaffa.dk/nyheder-fra-gaffa/2025/oktober/hush-musiker-annoncerer-turne-med-anerkendt-orkester/ ": {
+      "lastSeenAt": "2025-10-07T19:21:13.219Z",
+      "lastStatus": 200
+    },
+    " https://gaffa.dk/nyheder-fra-gaffa/2025/oktober/lars-lokke-svarer-peter-a-g-igen-efter-trusler-om-sogsmal/ ": {
+      "lastSeenAt": "2025-10-07T19:21:14.657Z",
+      "lastStatus": 200
+    },
+    " https://gaffa.dk/artikler/2025/september/5-skarpe-til-henning-hyllested-indsatsen-for-gode-ovelokaler-skal-forbedres/ ": {
+      "lastSeenAt": "2025-10-07T19:21:16.438Z",
       "lastStatus": 200
     }
   }
