@@ -22,6 +22,7 @@
   "license": "ISC",
   "type": "commonjs",
   "dependencies": {
+    "@splinetool/runtime": "^1.10.76",
     "@tailwindcss/postcss": "^4.1.13",
     "@types/cheerio": "^0.22.35",
     "@types/node": "24.3.1",

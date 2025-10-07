@@ -23,37 +23,58 @@ export default function AlleMedierClient({ initialData, searchParams }: AlleMedi
 
   // Filter data based on enabled media sources
   useEffect(() => {
-    const enabledMedias = getEnabledMedias();
-    
-    const filtered = initialData.filter(article => {
-      if (!article.source) return true;
-      
-      // Check if the article's source matches any enabled media
-      const articleSource = article.source.toLowerCase();
-      
-      return enabledMedias.some(mediaId => {
-        // Direct match by media ID first (for articles with source = media ID)
-        if (articleSource === mediaId) {
-          return true;
-        }
-        
-        // Find the media source configuration
-        const mediaSource = mediaSources.find(source => source.id === mediaId);
-        if (!mediaSource) return false;
-        
-        // Extract domain from baseUrl for domain-based matching
-        try {
-          const mediaUrl = new URL(mediaSource.baseUrl);
-          const mediaDomain = mediaUrl.hostname;
-          return articleSource.includes(mediaDomain);
-        } catch {
-          return false;
-        }
-      });
+    console.log('AlleMedierClient - Initial check:',{
+      totalArticles: initialData.length,
+      sampleArticle: initialData[0],
+      firstFiveArticles: initialData.slice(0, 5).map(a => ({
+        title: a.title?.substring(0, 40),
+        source: a.source,
+        url: a.url?.substring(0, 50)
+      }))
     });
     
-    setFilteredData(filtered);
-  }, [initialData, getEnabledMedias, mediaSources]);
+    // Fix articles without source by extracting from URL
+    const articlesWithSource = initialData.map(article => {
+      if (article.source) return article;
+      
+      // Extract source from URL
+      if (article.url) {
+        try {
+          const url = new URL(article.url);
+          const hostname = url.hostname.replace('www.', '');
+          
+          // Map known domains to source names
+          const domainToSource: Record<string, string> = {
+            'soundvenue.com': 'Soundvenue',
+            'gaffa.dk': 'GAFFA',
+            'berlingske.dk': 'BERLINGSKE',
+            'bt.dk': 'BT',
+            'ign.com': 'IGN Nordic',
+            'ekkofilm.dk': 'Ekkofilm'
+          };
+          
+          return {
+            ...article,
+            source: domainToSource[hostname] || hostname
+          };
+        } catch {
+          return article;
+        }
+      }
+      
+      return article;
+    });
+    
+    console.log('AlleMedierClient - After source fix:', {
+      articlesWithSource: articlesWithSource.slice(0, 3).map(a => ({
+        title: a.title?.substring(0, 40),
+        source: a.source
+      }))
+    });
+    
+    // Show all articles (filtering disabled temporarily)
+    setFilteredData(articlesWithSource);
+  }, [initialData]);
 
   // Auto-refresh articles every 10 minutes
   useEffect(() => {

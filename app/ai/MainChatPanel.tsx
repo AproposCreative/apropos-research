@@ -9,7 +9,7 @@ import ArticleSuggestions from '@/components/ArticleSuggestions';
 import ArticlePicker from '@/components/ArticlePicker';
 import CategorySelection from '@/components/CategorySelection';
 import { WebflowAuthor } from '@/lib/webflow-service';
-import { WebflowPublishPanel } from '@/components/WebflowPublishPanel';
+import WebflowPublishPanel from '@/components/WebflowPublishPanel';
 import { WebflowArticleFields } from '@/lib/webflow-service';
 import { type UploadedFile } from '@/lib/file-upload-service';
 

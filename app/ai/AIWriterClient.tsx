@@ -242,7 +242,7 @@ export default function AIWriterClient() {
             </div>
             
             {/* Left Panel - Main Chat with AI */}
-            <div className="w-[500px] h-full">
+            <div className="w-[500px] h-full flex-shrink-0">
                 <MainChatPanel 
                   messages={chatMessages}
                   onSendMessage={handleSendMessage}
@@ -315,6 +315,18 @@ export default function AIWriterClient() {
                   </div>
                 </button>
               </div>
+            </div>
+
+            {/* Right Panel - Spline Robot Animation */}
+            <div className="flex-1 h-full relative overflow-hidden">
+              <iframe 
+                src="https://my.spline.design/nexbotrobotcharacterconcept-jOiWdJXA0mBgb50nmYl1x0EC/" 
+                frameBorder="0" 
+                width="100%" 
+                height="100%"
+                className="w-full h-full"
+                title="AI Robot Character"
+              />
             </div>
             
           </>
