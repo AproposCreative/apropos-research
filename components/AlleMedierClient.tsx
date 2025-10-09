@@ -21,7 +21,28 @@ export default function AlleMedierClient({ initialData, searchParams }: AlleMedi
   const { getEnabledMedias, mediaSources } = useMedia();
   const [filteredData, setFilteredData] = useState(initialData);
 
-  // Filter data based on enabled media sources
+  // Helper to map a human/source/domain to our media id
+  const mapSourceToId = (source: string | undefined, url?: string): string | undefined => {
+    const normalized = (source || '').trim().toLowerCase();
+    if (!normalized && url) {
+      try {
+        const u = new URL(url);
+        const host = u.hostname.replace('www.', '').toLowerCase();
+        if (host.includes('berlingske')) return 'berlingske';
+        if (host.includes('bt.dk')) return 'bt';
+        if (host.includes('gaffa')) return 'gaffa';
+        if (host.includes('soundvenue')) return 'soundvenue';
+      } catch {}
+    }
+    if (!normalized) return undefined;
+    if (normalized.includes('berlingske')) return 'berlingske';
+    if (normalized === 'bt' || normalized.includes('bt.dk')) return 'bt';
+    if (normalized.includes('gaffa')) return 'gaffa';
+    if (normalized.includes('soundvenue')) return 'soundvenue';
+    return undefined;
+  };
+
+  // Normalize sources and cache once (base list); filtering by enabled happens during render
   useEffect(() => {
     // Fix articles without source by extracting from URL
     const articlesWithSource = initialData.map(article => {
@@ -55,7 +76,6 @@ export default function AlleMedierClient({ initialData, searchParams }: AlleMedi
       return article;
     });
     
-    // Show all articles
     setFilteredData(articlesWithSource);
   }, [initialData]);
 
@@ -99,6 +119,7 @@ export default function AlleMedierClient({ initialData, searchParams }: AlleMedi
   const headerTitle = getHeaderTitle();
 
   // Apply all filters to the filtered data
+  const enabledIds = new Set(getEnabledMedias());
   let list = filteredData.filter(p => {
     const okQ = q ? (
       (p.title||'').toLowerCase().includes(q.toLowerCase()) ||
@@ -134,6 +155,10 @@ export default function AlleMedierClient({ initialData, searchParams }: AlleMedi
       return articleSource.includes(filterSource);
     })() : true;
 
+    // Respect enabled media toggles globally
+    const mappedId = mapSourceToId(p.source, p.url);
+    const okEnabled = mappedId ? enabledIds.has(mappedId) : true;
+
     const okSince = sinceHours ? (() => {
       const ts = Date.parse(p.date ?? p.fetched_at ?? '');
       if (isNaN(ts)) return true;
@@ -152,7 +177,7 @@ export default function AlleMedierClient({ initialData, searchParams }: AlleMedi
       return ts >= last24Hours;
     })() : true;
 
-    return okQ && okCat && okSource && okSince && okFresh && okTimeFilter;
+    return okQ && okCat && okSource && okSince && okFresh && okTimeFilter && okEnabled;
   });
 
   // Remove duplicates based on URL (most reliable identifier)

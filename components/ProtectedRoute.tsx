@@ -8,15 +8,14 @@ interface ProtectedRouteProps {
 }
 
 export default function ProtectedRoute({ children }: ProtectedRouteProps) {
-  const { currentUser, loading } = useAuth();
+  const { user, loading } = useAuth();
   const router = useRouter();
 
   useEffect(() => {
-    // If Firebase is not configured, allow access (for development)
-    if (!loading && !currentUser && process.env.NEXT_PUBLIC_FIREBASE_API_KEY) {
-      router.push('/login');
+    if (!loading && !user) {
+      router.replace('/login');
     }
-  }, [currentUser, loading, router]);
+  }, [user, loading, router]);
 
   if (loading) {
     return (
@@ -29,10 +28,7 @@ export default function ProtectedRoute({ children }: ProtectedRouteProps) {
     );
   }
 
-  // If Firebase is not configured, allow access (for development)
-  if (!currentUser && process.env.NEXT_PUBLIC_FIREBASE_API_KEY) {
-    return null;
-  }
+  if (!user) return null;
 
   return <>{children}</>;
 }

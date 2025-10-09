@@ -1,42 +1,26 @@
 import { NextResponse } from 'next/server';
-import { readPrompts } from '../../../lib/readPrompts';
-import { getMediaSources } from '../../../lib/getMediaSources';
+import { getWebflowConfig } from '@/lib/webflow-config';
 
 export async function GET() {
   try {
-    const articles = await readPrompts();
-    const mediaSources = getMediaSources();
-    
-    // Count articles per media source
-    const counts: Record<string, number> = {};
-    
-    mediaSources.forEach(source => {
-      try {
-        const mediaUrl = new URL(source.baseUrl);
-        const mediaDomain = mediaUrl.hostname;
-        
-        const count = articles.filter(article => {
-          const articleSource = (article.source || '').toLowerCase();
-          
-          // Direct match by media ID first
-          if (articleSource === source.id) {
-            return true;
-          }
-          
-          // Domain-based matching
-          return articleSource.includes(mediaDomain);
-        }).length;
-        
-        counts[source.id] = count;
-      } catch (error) {
-        console.error(`Error processing media source ${source.id}:`, error);
-        counts[source.id] = 0;
-      }
-    });
-    
-    return NextResponse.json({ counts });
+    const { apiToken: token, siteId, articlesCollectionId } = getWebflowConfig();
+    if (!token || !siteId || !articlesCollectionId) {
+      return NextResponse.json({ counts: { total: 0, published: 0, inProgress: 0, pending: 0 } });
+    }
+
+    const headers = { 'Authorization': `Bearer ${token}`, 'Accept-Version': '1.0.0' } as any;
+    const res = await fetch(`https://api.webflow.com/v2/sites/${siteId}/collections/${articlesCollectionId}/items?limit=1000`, { headers });
+    if (!res.ok) throw new Error('Webflow items fetch failed');
+    const data: any = await res.json();
+    const items: any[] = data.items || [];
+
+    const total = items.length;
+    const published = items.filter(i => i.fieldData?.status === 'published').length;
+    const inProgress = items.filter(i => i.fieldData?.status === 'in-progress').length;
+    const pending = items.filter(i => i.fieldData?.status === 'pending').length;
+
+    return NextResponse.json({ counts: { total, published, inProgress, pending } });
   } catch (error) {
-    console.error('Error getting article counts:', error);
-    return NextResponse.json({ error: 'Failed to get article counts' }, { status: 500 });
+    return NextResponse.json({ error: 'Failed to load counts' }, { status: 500 });
   }
 }

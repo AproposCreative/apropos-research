@@ -2,6 +2,31 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Animated premium glow for selected chips */
+.chip-glow {
+  position: relative;
+  overflow: hidden;
+  z-index: 0;
+}
+.chip-glow::before {
+  content: '';
+  position: absolute;
+  inset: -2px; /* bleed slightly outside to avoid clipping */
+  border-radius: inherit;
+  background: conic-gradient(from 0deg, rgba(255,255,255,0.0) 0deg, rgba(255,255,255,0.3) 90deg, rgba(255,255,255,0.0) 180deg, rgba(255,255,255,0.0) 360deg);
+  filter: blur(3px);
+  z-index: -1;
+  pointer-events: none;
+  transform-origin: center;
+}
+.chip-glow-active::before {
+  animation: chip-glow-spin 2.2s linear infinite;
+}
+@keyframes chip-glow-spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
 @layer base {
   :root {
     --font-poppins: 'Poppins', sans-serif;

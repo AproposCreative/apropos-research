@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 
 export default function AuthHeader() {
-  const { currentUser, logout } = useAuth();
+  const { user, logout } = useAuth();
   const router = useRouter();
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -13,7 +13,7 @@ export default function AuthHeader() {
   const handleLogout = async () => {
     try {
       await logout();
-      router.push('/login');
+      router.replace('/login');
     } catch (error) {
       console.error('Logout failed:', error);
     }
@@ -31,12 +31,12 @@ export default function AuthHeader() {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  if (!currentUser) {
+  if (!user) {
     return null;
   }
 
-  const userInitial = currentUser.displayName?.charAt(0) || currentUser.email?.charAt(0) || 'U';
-  const userName = currentUser.displayName || currentUser.email?.split('@')[0] || 'User';
+  const userInitial = user.displayName?.charAt(0) || user.email?.charAt(0) || 'U';
+  const userName = user.displayName || user.email?.split('@')[0] || 'User';
 
   return (
     <div className="relative" ref={dropdownRef}>
@@ -77,7 +77,7 @@ export default function AuthHeader() {
               </div>
               <div>
                 <div className="font-medium text-slate-800 dark:text-black-100">{userName}</div>
-                <div className="text-sm text-slate-500 dark:text-black-400">{currentUser.email}</div>
+                <div className="text-sm text-slate-500 dark:text-black-400">{user.email}</div>
               </div>
             </div>
           </div>

@@ -151,6 +151,16 @@ function MediaNavInner() {
       >
         <span className="font-medium">+ Tilføj medie</span>
       </Link>
+
+      {/* Settings section at bottom */}
+      <div className="pt-4 mt-6 border-t border-slate-300/50 dark:border-black-700/50" />
+      <Link href="/settings" className={getLinkClasses('/settings', pathname === '/settings') + ' flex items-center justify-between'}>
+        <span className="font-medium">Indstillinger</span>
+        <svg className="w-4 h-4 opacity-70" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.89 3.31.877 2.421 2.421a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.89 1.543-.877 3.31-2.421 2.421a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.89-3.31-.877-2.421-2.421a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.89-1.543.877-3.31 2.421-2.421.9.519 2.045.168 2.573-1.066z"/>
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+        </svg>
+      </Link>
     </nav>
   );
 }

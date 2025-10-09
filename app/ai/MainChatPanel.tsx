@@ -1,8 +1,7 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, ReactNode } from 'react';
 import FileDropZone from '@/components/FileDropZone';
-import AISuggestions from '@/components/AISuggestions';
 import ArticleTemplates from '@/components/ArticleTemplates';
 import AuthorSelection from '@/components/AuthorSelection';
 import ArticleSuggestions from '@/components/ArticleSuggestions';
@@ -25,6 +24,8 @@ interface MainChatPanelProps {
   messages: ChatMessage[];
   onSendMessage: (message: string, files?: UploadedFile[]) => void;
   articleData: any;
+  isThinking?: boolean;
+  wizardNode?: ReactNode; // optional docket wizard rendered above input
   notes: string;
   setNotes: (notes: string) => void;
   onNewGamingArticle: () => void;
@@ -36,6 +37,8 @@ export default function MainChatPanel({
   messages,
   onSendMessage,
   articleData,
+  isThinking,
+  wizardNode,
   notes,
   setNotes,
   onNewGamingArticle,
@@ -49,7 +52,7 @@ export default function MainChatPanel({
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
   const [showFileDrop, setShowFileDrop] = useState(false);
   const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]);
-  const [showAISuggestions, setShowAISuggestions] = useState(false);
+  // const [showAISuggestions, setShowAISuggestions] = useState(false);
   const [showPublishPanel, setShowPublishPanel] = useState(false);
   const [selectedText, setSelectedText] = useState('');
   const [selectionStep, setSelectionStep] = useState<'category' | 'template' | 'author' | 'chat'>('category');
@@ -285,7 +288,7 @@ Besked: "${message}"`
     const selection = window.getSelection();
     if (selection && selection.toString().trim().length > 10) {
       setSelectedText(selection.toString().trim());
-      setShowAISuggestions(true);
+      // AI suggestions disabled
     }
   };
 
@@ -298,8 +301,101 @@ Besked: "${message}"`
       range.insertNode(document.createTextNode(suggestion));
       selection.removeAllRanges();
     }
-    setShowAISuggestions(false);
+    // AI suggestions disabled
     setSelectedText('');
+  };
+
+  // Parse assistant message for numbered suggestions like "1. **Title**: description"
+  const parseNumberedSuggestions = (text: string) => {
+    const lines = text.split(/\r?\n/);
+    const items: Array<{ title: string; description: string; full: string }>=[];
+    const re = /^\s*\d+\.\s+\*\*(.+?)\*\*\s*:\s*(.*)$/;
+    for (const line of lines) {
+      const m = line.match(re);
+      if (m) {
+        const title = m[1].trim();
+        const description = m[2].trim();
+        items.push({ title, description, full: `${title}: ${description}` });
+      }
+    }
+    return items;
+  };
+
+  // Fancy thinking indicator text rotation
+  const thinkingTexts = [
+    'Finder vinklen …',
+    'Skruer sproget op til 11 …',
+    'Kalibrerer tonen …',
+    'Reflekterer over virkeligheden …',
+    'Render Apropos-magien …'
+  ];
+  const [thinkingText, setThinkingText] = useState<string>(thinkingTexts[0]);
+  const [fadeIn, setFadeIn] = useState<boolean>(true);
+
+  useEffect(() => {
+    if (!isThinking) return;
+    let isMounted = true;
+    // choose initial random
+    const pick = () => thinkingTexts[Math.floor(Math.random() * thinkingTexts.length)];
+    setThinkingText(pick());
+    setFadeIn(true);
+
+    const interval = setInterval(() => {
+      if (!isMounted) return;
+      setFadeIn(false);
+      // after fade out, swap text and fade in
+      const t = setTimeout(() => {
+        if (!isMounted) return;
+        setThinkingText(pick());
+        setFadeIn(true);
+      }, 300);
+      return () => clearTimeout(t);
+    }, 2200);
+
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+    };
+  }, [isThinking]);
+
+  // Generate simple multiple-choice options from a prompt/question
+  const generateChoiceOptions = (text: string): string[] => {
+    const t = text.toLowerCase();
+    const opts: string[] = [];
+    const isQuestion = /\?|hvad|hvordan|hvilke|vil du|lad os/i.test(text);
+    if (!isQuestion) return opts;
+
+    if (/(dc|univers)/i.test(text)) {
+      return [
+        'Stærk forbindelse og tydelige crossovers',
+        'Subtil – primært referencer og tone',
+        'Står selvstændigt uden behov for DC‑kontekst',
+        'Usikker – lad os afklare med eksempler'
+      ];
+    }
+    if (/(æstetik|visuel|musik|soundtrack)/i.test(text)) {
+      return [
+        'Visuel stil dominerer tonen',
+        'Musikken driver stemningen mest',
+        'Balanceret samspil mellem æstetik og musik',
+        'Foreslå konkrete scener at fremhæve'
+      ];
+    }
+    if (/(humor)/i.test(t) && /(action)/i.test(t)) {
+      return [
+        'Humor i fokus – action som krydderi',
+        'Action i fokus – humor som aflastning',
+        'Ligevægt mellem humor og action',
+        'Afhænger af afsnit – nuanceret vinkel'
+      ];
+    }
+    // Default editorial helpers
+    return [
+      'Foreslå tydelig hovedvinkel',
+      'Foreslå tre centrale underpunkter',
+      'Bed om konkrete eksempler/citater',
+      'Andet – jeg beskriver selv'
+    ];
   };
 
   const handlePublishToWebflow = async (articleData: WebflowArticleFields) => {
@@ -312,11 +408,12 @@ Besked: "${message}"`
         body: JSON.stringify(articleData),
       });
 
+      const result = await response.json().catch(() => null);
       if (!response.ok) {
-        throw new Error('Failed to publish article');
+        const message = result?.error || result?.message || 'Failed to publish article';
+        const details = result?.details ? `\n${result.details}` : '';
+        throw new Error(`${message}${details}`);
       }
-
-      const result = await response.json();
       
       // Show success message
       const tempElement = document.createElement('div');
@@ -330,7 +427,8 @@ Besked: "${message}"`
       setShowPublishPanel(false);
     } catch (error) {
       console.error('Publish error:', error);
-      alert('Fejl ved udgivelse af artikel');
+      const msg = error instanceof Error ? error.message : 'Fejl ved udgivelse af artikel';
+      alert(msg);
     }
   };
 
@@ -497,7 +595,80 @@ Besked: "${message}"`
                           : `text-white py-3 rounded-lg hover:bg-white/5`
                     }`}
                   >
-                    <p className="text-sm whitespace-pre-wrap text-left">{message.content}</p>
+                    {message.role === 'assistant' && (parseNumberedSuggestions(message.content).length > 0 || generateChoiceOptions(message.content).length > 0) ? (
+                      <div className="space-y-2">
+                        {/* Numbered suggestion cards */}
+                        {parseNumberedSuggestions(message.content).map((item, idx) => (
+                          <div
+                            key={idx}
+                            className="p-3 bg-white/5 hover:bg-white/10 border border-white/10 hover:border-white/20 rounded-lg transition-all cursor-pointer group"
+                            onClick={() => onSendMessage(item.full)}
+                          >
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="flex-1 min-w-0">
+                                <h4 className="text-white text-sm font-medium mb-1 line-clamp-2 group-hover:text-blue-300 transition-colors">
+                                  {item.title}
+                                </h4>
+                                <p className="text-white/40 text-xs line-clamp-2">
+                                  {item.description}
+                                </p>
+                              </div>
+                              <div className="flex-shrink-0">
+                                <svg 
+                                  className="w-4 h-4 text-white/30 group-hover:text-blue-400 transition-colors" 
+                                  fill="none" 
+                                  stroke="currentColor" 
+                                  viewBox="0 0 24 24"
+                                >
+                                  <path 
+                                    strokeLinecap="round" 
+                                    strokeLinejoin="round" 
+                                    strokeWidth={2} 
+                                    d="M9 5l7 7-7 7" 
+                                  />
+                                </svg>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                        {/* Multiple-choice helper cards for open questions */}
+                        {parseNumberedSuggestions(message.content).length === 0 && generateChoiceOptions(message.content).map((choice, idx) => (
+                          <div
+                            key={`c-${idx}`}
+                            className="p-3 bg-white/5 hover:bg-white/10 border border-white/10 hover:border-white/20 rounded-lg transition-all cursor-pointer group"
+                            onClick={() => onSendMessage(choice)}
+                          >
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="flex-1 min-w-0">
+                                <h4 className="text-white text-sm font-medium mb-1 line-clamp-2 group-hover:text-blue-300 transition-colors">
+                                  {choice}
+                                </h4>
+                                <p className="text-white/40 text-xs line-clamp-2">
+                                  Vælg for at arbejde videre i denne retning
+                                </p>
+                              </div>
+                              <div className="flex-shrink-0">
+                                <svg 
+                                  className="w-4 h-4 text-white/30 group-hover:text-blue-400 transition-colors" 
+                                  fill="none" 
+                                  stroke="currentColor" 
+                                  viewBox="0 0 24 24"
+                                >
+                                  <path 
+                                    strokeLinecap="round" 
+                                    strokeLinejoin="round" 
+                                    strokeWidth={2} 
+                                    d="M9 5l7 7-7 7" 
+                                  />
+                                </svg>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-sm whitespace-pre-wrap text-left">{message.content}</p>
+                    )}
                     
                     {/* Show uploaded files */}
                     {message.files && message.files.length > 0 && (
@@ -525,19 +696,7 @@ Besked: "${message}"`
                     )}
                   </div>
                   
-                  {/* Copy button for AI messages */}
-                  {message.role === 'assistant' && (
-                    <button
-                      onClick={() => copyToClipboard(message.content)}
-                      className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200 w-6 h-6 bg-black/80 hover:bg-black text-white rounded flex items-center justify-center text-xs"
-                      title="Kopier tekst"
-                    >
-                      <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
-                        <path d="M8 3a1 1 0 011-1h2a1 1 0 110 2H9a1 1 0 01-1-1z" />
-                        <path d="M6 3a2 2 0 00-2 2v11a2 2 0 002 2h8a2 2 0 002-2V5a2 2 0 00-2-2 3 3 0 01-3 3H9a3 3 0 01-3-3z" />
-                      </svg>
-                    </button>
-                  )}
+                  {/* Copy button removed temporarily per request */}
                 </div>
                 
                 <div className={`transition-all duration-300 ease-in-out ${
@@ -555,6 +714,19 @@ Besked: "${message}"`
               </div>
             </div>
           ))}
+          {isThinking && (
+            <div className="flex justify-start">
+              <div className="max-w-[80%]" style={{ paddingLeft: '8px', paddingRight: '8px' }}>
+                <div className="text-white py-3 rounded-lg">
+                  <span
+                    className={`text-sm inline-block [text-shadow:0_0_8px_rgba(255,255,255,0.35)] transition-opacity duration-300 ${fadeIn ? 'opacity-100' : 'opacity-0'}`}
+                  >
+                    {thinkingText}
+                  </span>
+                </div>
+              </div>
+            </div>
+          )}
           <div ref={messagesEndRef} />
         </div>
 
@@ -610,15 +782,7 @@ Besked: "${message}"`
         {/* Selection Flow */}
         {messages.length === 0 && !showArticlePicker && (
           <div className="pb-2 px-4">
-            {selectionStep === 'category' && (
-              <div>
-                <h3 className="text-white text-lg font-medium mb-4">Vælg kategori</h3>
-                <CategorySelection 
-                  onSelectCategory={handleCategorySelect}
-                  onSelectTrendingCategory={handleTrendingCategorySelect}
-                />
-              </div>
-            )}
+            {selectionStep === 'category' && null}
 
             {selectionStep === 'template' && (
               <div>
@@ -690,6 +854,15 @@ Besked: "${message}"`
               </div>
             )}
             
+          </div>
+        )}
+
+        {/* Docket wizard (non-overlay) */}
+        {wizardNode && (
+          <div className="mx-[10px] my-[12px]">
+            <div className="rounded-xl bg-black p-2 border border-white/10 max-h-[420px] overflow-y-auto">
+              {wizardNode}
+            </div>
           </div>
         )}
 
@@ -766,17 +939,7 @@ Besked: "${message}"`
         </div>
       </div>
       
-      {showAISuggestions && (
-        <AISuggestions
-          text={selectedText}
-          context={articleData.category || 'Generel artikel'}
-          onSuggestionSelect={handleSuggestionSelect}
-          onClose={() => {
-            setShowAISuggestions(false);
-            setSelectedText('');
-          }}
-        />
-      )}
+      {/* AI suggestions removed per UX request */}
 
       {/* Rating Suggestion */}
       {articleData.aiSuggestion && articleData.aiSuggestion.type === 'rating' && (

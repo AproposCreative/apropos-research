@@ -3,6 +3,9 @@ import { useState } from 'react';
 import { useAuth } from '../../lib/auth-context';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import dynamic from 'next/dynamic';
+
+const SplineAnimation = dynamic(() => import('../../components/SplineAnimation'), { ssr: false });
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
@@ -14,7 +17,7 @@ export default function LoginPage() {
   const [showForgotPassword, setShowForgotPassword] = useState(false);
   const [forgotEmail, setForgotEmail] = useState('');
 
-  const { login, signup, resetPassword, signInWithGoogle } = useAuth();
+  const { signIn, signUp, resetPassword, signInWithGoogle } = useAuth();
   const router = useRouter();
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -25,11 +28,11 @@ export default function LoginPage() {
 
     try {
       if (isSignUp) {
-        await signup(email, password);
+        await signUp(email, password);
         setSuccess('Thank you! Your submission has been received!');
         setIsSignUp(false);
       } else {
-        await login(email, password);
+        await signIn(email, password);
         setSuccess('Thank you! Your submission has been received!');
         setTimeout(() => {
           router.push('/');
@@ -231,7 +234,7 @@ export default function LoginPage() {
                 <button
                   type="button"
                   onClick={() => setShowForgotPassword(true)}
-                  className="text-blue-600 hover:text-blue-700 text-sm font-medium transition-colors"
+                  className="text-black hover:text-black/80 text-sm font-medium transition-colors"
                 >
                   Forgot your password?
                 </button>
@@ -259,7 +262,7 @@ export default function LoginPage() {
                 setError('');
                 setSuccess('');
               }}
-              className="text-blue-600 hover:text-blue-700 text-sm font-medium transition-colors"
+              className="text-black hover:text-black/80 text-sm font-medium transition-colors"
             >
               {isSignUp ? 'Login instead' : 'Create an account'}
             </button>
@@ -269,32 +272,23 @@ export default function LoginPage() {
         </div>
       </div>
 
-      {/* Right Side - Custom Image */}
-      <div className="flex-1 bg-gradient-to-br from-purple-600 via-purple-700 to-pink-600 flex items-center justify-center p-8 relative overflow-hidden">
-        {/* Background Pattern */}
-        <div className="absolute inset-0 opacity-10">
-          <div className="absolute top-20 left-20 w-32 h-32 bg-white rounded-full blur-3xl"></div>
-          <div className="absolute bottom-20 right-20 w-40 h-40 bg-white rounded-full blur-3xl"></div>
-          <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-60 h-60 bg-white rounded-full blur-3xl"></div>
+      {/* Right Side - Spline Embed */}
+      <div className="flex-1 relative overflow-hidden">
+        <div className="absolute inset-0">
+          <iframe
+            src={process.env.NEXT_PUBLIC_SPLINE_LOGIN_EMBED_URL || 'https://my.spline.design/animatedbackgroundgradientforweb-k9vy84HznMWrADyOW44KZ3Ue/'}
+            frameBorder="0"
+            allow="autoplay; fullscreen; vr"
+            className="w-full h-full"
+          />
         </div>
-
-        <div className="relative z-10 text-center max-w-lg">
-          {/* Main Heading */}
-          <h2 className="text-4xl font-bold text-white mb-4 leading-tight">
-            Your ultimate to-do list companion.
-          </h2>
-          <p className="text-xl text-white/90 mb-8">
-            Say goodbye to chaos and hello to productivity!
-          </p>
-
-          {/* Custom Image */}
-          <div className="bg-white/10 backdrop-blur-lg rounded-3xl p-6 border border-white/20 shadow-2xl">
-            <img 
-              src="/images/05AproposMagazine_Random.webp" 
-              alt="Apropos Magazine Dashboard Preview" 
-              className="w-full h-auto rounded-2xl shadow-xl"
-            />
-          </div>
+        {/* Centered white logo overlay */}
+        <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+          <img
+            src="/images/Apropos Research White.png"
+            alt="Apropos Research"
+            className="w-64 h-auto drop-shadow-[0_8px_24px_rgba(0,0,0,0.35)]"
+          />
         </div>
       </div>
     </div>

@@ -39,10 +39,11 @@ export async function POST(request: NextRequest) {
 
   } catch (error) {
     console.error('Error publishing article:', error);
+    const message = error instanceof Error ? error.message : 'Unknown error';
     return NextResponse.json(
       { 
         error: 'Failed to publish article',
-        details: error instanceof Error ? error.message : 'Unknown error'
+        details: message
       },
       { status: 500 }
     );

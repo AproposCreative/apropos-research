@@ -38,15 +38,9 @@ export function MediaProvider({ children }: { children: ReactNode }) {
           const savedStates = localStorage.getItem('mediaStates');
           if (savedStates) {
             try {
-              const parsedStates = JSON.parse(savedStates);
-              // Only keep states for media that actually exist
-              const validStates: MediaState = {};
-              Object.keys(defaultMediaStates).forEach(key => {
-                if (parsedStates[key] !== undefined) {
-                  validStates[key] = parsedStates[key];
-                }
-              });
-              setMediaStates({ ...defaultMediaStates, ...validStates });
+              const parsedStates: MediaState = JSON.parse(savedStates);
+              // Merge saved states with defaults (do not drop unknown keys)
+              setMediaStates(prev => ({ ...defaultMediaStates, ...prev, ...parsedStates }));
             } catch (error) {
               console.error('Error parsing media states from localStorage:', error);
             }
@@ -68,13 +62,17 @@ export function MediaProvider({ children }: { children: ReactNode }) {
       const data = await response.json();
       if (response.ok) {
         setMediaSources(data.sources);
-        
-        // Auto-enable new media sources
-        const newStates: MediaState = {};
-        data.sources.forEach((source: any) => {
-          newStates[source.id] = mediaStates[source.id] ?? true;
+
+        // Auto-enable ONLY new media sources without overriding existing choices
+        setMediaStates(prev => {
+          const merged: MediaState = { ...prev };
+          data.sources.forEach((source: any) => {
+            if (merged[source.id] === undefined) {
+              merged[source.id] = true;
+            }
+          });
+          return merged;
         });
-        setMediaStates(prev => ({ ...prev, ...newStates }));
       }
     } catch (error) {
       console.error('Error loading media sources:', error);

@@ -51,6 +51,44 @@ Din opgave er at:
 
 Svar altid på dansk og hold en venlig, professionel tone. Vær konkret i dine forslag og forklar dine anbefalinger.`;
 
+// Try to extract a structured payload from a raw model string
+function parseModelPayload(raw: string): { response: string; suggestion?: any; articleUpdate?: any } {
+  const stripFences = (s: string) => s.replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/i, '').trim();
+  const tryParse = (s: string) => {
+    try { return JSON.parse(s); } catch { return null; }
+  };
+
+  // 1) Try raw JSON
+  let obj = tryParse(raw);
+  if (obj && typeof obj === 'object' && (obj.response || obj.articleUpdate || obj.suggestion)) {
+    return { response: String(obj.response || ''), suggestion: obj.suggestion, articleUpdate: obj.articleUpdate };
+  }
+
+  // 2) Try fenced code block
+  const fenced = raw.match(/```[\s\S]*?```/);
+  if (fenced) {
+    const inner = stripFences(fenced[0]);
+    obj = tryParse(inner);
+    if (obj && typeof obj === 'object' && (obj.response || obj.articleUpdate || obj.suggestion)) {
+      return { response: String(obj.response || ''), suggestion: obj.suggestion, articleUpdate: obj.articleUpdate };
+    }
+  }
+
+  // 3) Try to regex grab response string from JSON-like text
+  const m = raw.match(/"response"\s*:\s*"([\s\S]*?)"\s*(?:,|\})/);
+  if (m) {
+    // Unescape common sequences
+    const unescaped = m[1]
+      .replace(/\\n/g, '\n')
+      .replace(/\\t/g, '\t')
+      .replace(/\\"/g, '"');
+    return { response: unescaped };
+  }
+
+  // 4) Fallback to plain text
+  return { response: raw };
+}
+
 export async function POST(request: NextRequest) {
   try {
     const { message, articleData, notes, chatHistory, authorTOV, authorName } = await request.json();
@@ -78,7 +116,10 @@ export async function POST(request: NextRequest) {
             if (authorName) {
               try {
                 // First try to get TOV from Webflow API
-                const webflowResponse = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/api/webflow/authors`);
+                const proto = request.headers.get('x-forwarded-proto') || 'http';
+                const host = request.headers.get('host');
+                const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || (host ? `${proto}://${host}` : 'http://localhost:3001');
+                const webflowResponse = await fetch(`${baseUrl}/api/webflow/authors`);
                 if (webflowResponse.ok) {
                   const webflowData = await webflowResponse.json();
                   const author = webflowData.authors?.find((a: any) => a.name === authorName);
@@ -201,19 +242,13 @@ ${context ? `\n\nNuværende artikel kontekst:\n${context}` : ''}`
       throw new Error('No response from OpenAI');
     }
 
-    // Try to parse JSON response with article update
-    let parsedResponse: any;
-    try {
-      parsedResponse = JSON.parse(response);
-    } catch {
-      // If not JSON, treat as plain text response
-      parsedResponse = { response };
-    }
+    // Parse/sanitize model output to avoid exposing JSON/brackets in chat
+    const parsed = parseModelPayload(response);
 
     return NextResponse.json({ 
-      response: parsedResponse.response || response,
-      suggestion: parsedResponse.suggestion || null,
-      articleUpdate: parsedResponse.articleUpdate,
+      response: parsed.response,
+      suggestion: parsed.suggestion || null,
+      articleUpdate: parsed.articleUpdate,
       usage: completion.usage 
     });
 

@@ -20,10 +20,15 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="da" className="dark">
+    <html lang="da">
       <head>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(() => { try { const t = localStorage.getItem('theme'); if (t === 'dark') document.documentElement.classList.add('dark'); else document.documentElement.classList.remove('dark'); } catch {} })();`,
+          }}
+        />
       </head>
-      <body className={`${poppins.variable} bg-gradient-to-br from-slate-950 to-black text-slate-100 min-h-dvh transition-colors duration-300`} suppressHydrationWarning>
+      <body className={`${poppins.variable} min-h-dvh transition-colors duration-300 bg-gradient-to-br from-slate-50 to-slate-100 dark:from-black-950 dark:to-pure-black text-slate-900 dark:text-slate-100`} suppressHydrationWarning>
         <AuthProvider>
           <MediaProvider>
             <SelectProvider>

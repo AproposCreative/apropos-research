@@ -27,9 +27,7 @@ export default function HomeNav() {
       <Link href="/ai" className={getLinkClasses('/ai', pathname === '/ai')}>
         <span className="font-medium">AI Writer</span>
       </Link>
-      <Link href="/profile" className={getLinkClasses('/profile', pathname === '/profile')}>
-        <span className="font-medium">Profile</span>
-      </Link>
+      {/* Profile moved into Settings */}
     </nav>
   );
 }

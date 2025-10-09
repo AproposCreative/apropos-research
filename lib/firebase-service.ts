@@ -47,6 +47,19 @@ export interface ExportedArticle {
   exportedAt: Date;
 }
 
+// Training Samples
+export interface TrainingSample {
+  id: string;
+  userId: string;
+  authorName?: string;
+  authorTOV?: string;
+  articleData: any;
+  messages: ChatMessage[];
+  notes?: string;
+  published?: boolean;
+  createdAt: Date;
+}
+
 // Draft Management Functions
 export const saveDraft = async (userId: string, draftData: Partial<ArticleDraft>) => {
   try {
@@ -272,6 +285,46 @@ export const getUserChatSessions = async (userId: string) => {
   } catch (error) {
     console.error('Error getting chat sessions:', error);
     throw error;
+  }
+};
+
+// Save a training sample (opt-in)
+export const saveTrainingSample = async (userId: string, sample: Partial<TrainingSample>) => {
+  try {
+    const id = sample.id || `sample_${Date.now()}`;
+    const ref = doc(db, 'trainingSamples', id);
+    const clean = JSON.parse(JSON.stringify(sample));
+    const payload: Partial<TrainingSample> = {
+      ...clean,
+      id,
+      userId,
+      createdAt: new Date(),
+    };
+    await setDoc(ref, payload, { merge: true });
+    return id;
+  } catch (error) {
+    console.error('Error saving training sample:', error);
+    throw error;
+  }
+};
+
+export const getTrainingSamples = async (limitCount = 100) => {
+  try {
+    const colRef = collection(db, 'trainingSamples');
+    const snap = await getDocs(colRef);
+    const out: TrainingSample[] = [];
+    snap.forEach(d => {
+      const data = d.data() as any;
+      out.push({
+        ...data,
+        createdAt: data.createdAt?.toDate ? data.createdAt.toDate() : new Date()
+      });
+    });
+    // Limit client-side for simplicity
+    return out.sort((a,b)=>b.createdAt.getTime()-a.createdAt.getTime()).slice(0, limitCount);
+  } catch (e) {
+    console.error('Error reading training samples:', e);
+    return [];
   }
 };
 

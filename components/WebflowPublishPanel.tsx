@@ -10,9 +10,11 @@ interface WebflowPublishPanelProps {
 }
 
 export default function WebflowPublishPanel({ articleData, onPublish, onClose }: WebflowPublishPanelProps) {
-  const [fields, setFields] = useState<string[]>([]);
+  const [fieldMeta, setFieldMeta] = useState<any[]>([]);
+  const [guidance, setGuidance] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [publishing, setPublishing] = useState(false);
+  const [optInTraining, setOptInTraining] = useState(true);
   const [formData, setFormData] = useState<WebflowArticleFields>({
     id: '',
     title: articleData.title || '',
@@ -44,10 +46,13 @@ export default function WebflowPublishPanel({ articleData, onPublish, onClose }:
 
   const fetchFields = async () => {
     try {
-      const response = await fetch('/api/webflow/fields');
+      const response = await fetch('/api/webflow/article-fields');
       const data = await response.json();
-      if (data.fields) {
-        setFields(data.fields);
+      if (data.fields) setFieldMeta(data.fields);
+      const g = await fetch('/api/webflow/analysis');
+      if (g.ok) {
+        const gj = await g.json();
+        setGuidance(gj.guidance || []);
       }
     } catch (error) {
       console.error('Error fetching Webflow fields:', error);
@@ -91,7 +96,49 @@ export default function WebflowPublishPanel({ articleData, onPublish, onClose }:
   const handlePublish = async () => {
     setPublishing(true);
     try {
+      // Minimal required-field validation based on Webflow metadata
+      const required = fieldMeta.filter((f:any)=>f.required).map((f:any)=>f.slug);
+      const missing: string[] = [];
+      const data: any = formData;
+      required.forEach((slug:string)=>{
+        // Map our form keys to webflow slugs when they differ
+        const map: Record<string,string> = {
+          'name': 'title',
+          'post-body': 'content',
+        };
+        const key = map[slug] || slug;
+        if (data[key] === undefined || data[key] === '' || (Array.isArray(data[key]) && data[key].length===0)) {
+          missing.push(slug);
+        }
+      });
+      if (missing.length>0) {
+        alert('Manglende felter: ' + missing.join(', '));
+        setPublishing(false);
+        return;
+      }
       await onPublish(formData);
+      // After successful publish, optionally send training sample
+      if (optInTraining) {
+        try {
+          const me = (await fetch('/api/auth/me').then(r=>r.ok?r.json():null)) || {};
+          const userId = me?.user?.uid || me?.uid || 'anonymous';
+          await fetch('/api/training/optin', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              userId,
+              authorName: articleData.author,
+              authorTOV: articleData.authorTOV,
+              articleData: formData,
+              messages: (articleData._chatMessages || []).map((m:any)=>({ role: m.role, content: m.content, timestamp: m.timestamp })),
+              notes: articleData.notes,
+              published: true
+            })
+          });
+        } catch (e) {
+          console.warn('Training opt-in save failed', e);
+        }
+      }
     } catch (error) {
       console.error('Publish error:', error);
       alert('Fejl ved udgivelse af artikel');
@@ -297,8 +344,29 @@ export default function WebflowPublishPanel({ articleData, onPublish, onClose }:
           </div>
         </div>
 
+        {/* Guidance Panel */}
+        {guidance.length>0 && (
+          <div className="mt-4 p-3 bg-white/5 rounded-lg border border-white/10">
+            <h4 className="text-white font-medium mb-2">Anbefalinger</h4>
+            <ul className="space-y-1 list-disc list-inside text-white/80 text-sm">
+              {guidance.slice(0,6).map((g:any)=> (
+                <li key={g.slug}><span className="font-mono text-white/90">{g.slug}</span>: {g.tip}</li>
+              ))}
+            </ul>
+          </div>
+        )}
+
         {/* Actions */}
         <div className="p-6 border-t border-white/10 flex justify-end gap-3">
+          <label className="mr-auto flex items-center gap-2 text-white/70">
+            <input
+              type="checkbox"
+              checked={optInTraining}
+              onChange={(e)=>setOptInTraining(e.target.checked)}
+              className="w-4 h-4 text-blue-600 bg-black border-white/20 rounded focus:ring-blue-500"
+            />
+            <span className="text-sm">Del til træning (forbedrer Apropos‑modellen)</span>
+          </label>
           <button
             onClick={onClose}
             className="px-4 py-2 text-white/60 hover:text-white transition-colors"
