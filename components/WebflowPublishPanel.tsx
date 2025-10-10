@@ -15,6 +15,11 @@ export default function WebflowPublishPanel({ articleData, onPublish, onClose }:
   const [loading, setLoading] = useState(true);
   const [publishing, setPublishing] = useState(false);
   const [optInTraining, setOptInTraining] = useState(true);
+  const [preflightRunning, setPreflightRunning] = useState(false);
+  const [preflightWarnings, setPreflightWarnings] = useState<string[]>([]);
+  const [moderation, setModeration] = useState<any | null>(null);
+  const [criticTips, setCriticTips] = useState<string>('');
+  const [factResults, setFactResults] = useState<any[] | null>(null);
   const [formData, setFormData] = useState<WebflowArticleFields>({
     id: '',
     title: articleData.title || '',
@@ -116,6 +121,53 @@ export default function WebflowPublishPanel({ articleData, onPublish, onClose }:
         setPublishing(false);
         return;
       }
+      // Preflight checks (plagiat/fakta/TOV)
+      setPreflightRunning(true);
+      const warnings: string[] = [];
+      try {
+        const modRes = await fetch('/api/moderation/check', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ title: formData.title, content: formData.content })
+        }).then(r=>r.ok?r.json():null);
+        if (modRes) {
+          setModeration(modRes);
+          if (modRes.metrics?.plagiarismRisk === 'high') warnings.push('Høj lighed med eksisterende tekst. Omskriv før publicering.');
+          if (modRes.metrics?.plagiarismRisk === 'medium') warnings.push('Middel lighed — anbefalet omskrivning/variation.');
+          if ((modRes.metrics?.wordCount||0) < 600) warnings.push('Artiklen er meget kort. Øg længde eller tilpas format.');
+        }
+      } catch {}
+      try {
+        const tipsRes = await fetch('/api/critic/tov', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text: formData.content, author: articleData.author })
+        }).then(r=>r.ok?r.json():null);
+        if (tipsRes?.tips) setCriticTips(tipsRes.tips);
+      } catch {}
+      try {
+        const claims = extractClaims(formData.content).slice(0, 12);
+        if (claims.length) {
+          const fcRes = await fetch('/api/factcheck', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ claims })
+          }).then(r=>r.ok?r.json():null);
+          if (fcRes?.results) {
+            setFactResults(fcRes.results);
+            const unknown = fcRes.results.filter((x:any)=>x.status!=='true');
+            if (unknown.length>0) warnings.push('Nogle påstande er ikke verificeret. Overvej at tilføje kilder eller omformulere.');
+          }
+        }
+      } catch {}
+      setPreflightWarnings(warnings);
+      setPreflightRunning(false);
+      if (warnings.length>0) {
+        alert('Preflight fandt forhold, der bør håndteres før udgivelse. Se “Preflight resultater” nederst.');
+        setPublishing(false);
+        return;
+      }
+
       await onPublish(formData);
       // After successful publish, optionally send training sample
       if (optInTraining) {
@@ -146,6 +198,19 @@ export default function WebflowPublishPanel({ articleData, onPublish, onClose }:
       setPublishing(false);
     }
   };
+
+  function extractClaims(text: string): string[] {
+    const sentences = (text||'').split(/(?<=[.!?])\s+/).map(s=>s.trim()).filter(Boolean);
+    const claims: string[] = [];
+    for (const s of sentences) {
+      const hasNum = /\d{2,}/.test(s);
+      const hasNameLike = /[A-ZÆØÅ][a-zæøå]+\s+[A-ZÆØÅ][a-zæøå]+/.test(s);
+      const hasQuote = /".+"|\'.+\'|“.+”/.test(s);
+      if (hasNum || hasNameLike || hasQuote) claims.push(s);
+      if (claims.length>=24) break;
+    }
+    return claims;
+  }
 
   if (loading) {
     return (
@@ -384,6 +449,32 @@ export default function WebflowPublishPanel({ articleData, onPublish, onClose }:
             {publishing ? 'Udgiver...' : 'Udgiv til Webflow'}
           </button>
         </div>
+
+        {/* Preflight Results */}
+        {(preflightRunning || preflightWarnings.length>0 || criticTips || (factResults&&factResults.length)) && (
+          <div className="px-6 pb-6">
+            <div className="mt-4 p-3 bg-white/5 rounded-lg border border-white/10">
+              <div className="flex items-center justify-between mb-2">
+                <h4 className="text-white font-medium">Preflight resultater</h4>
+                {preflightRunning && <span className="text-white/70 text-xs">Kører…</span>}
+              </div>
+              {preflightWarnings.length>0 && (
+                <ul className="list-disc list-inside text-amber-300 text-sm mb-2">
+                  {preflightWarnings.map((w,i)=>(<li key={i}>{w}</li>))}
+                </ul>
+              )}
+              {moderation && (
+                <div className="text-white/70 text-xs mb-2">Lighed: {(moderation.metrics?.maxSim||0).toFixed(3)} • Risiko: {moderation.metrics?.plagiarismRisk||'n/a'} • Ord: {moderation.metrics?.wordCount||0}</div>
+              )}
+              {criticTips && (
+                <div className="text-white/80 text-sm whitespace-pre-wrap mb-2">{criticTips}</div>
+              )}
+              {factResults && factResults.length>0 && (
+                <div className="text-white/70 text-xs">Fakta: {factResults.filter((x:any)=>x.status==='true').length} verificeret, {factResults.filter((x:any)=>x.status!=='true').length} ukendte</div>
+              )}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

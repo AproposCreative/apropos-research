@@ -5,7 +5,21 @@ const openai = process.env.OPENAI_API_KEY ? new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 }) : null;
 
-const APROPOS_SYSTEM_PROMPT = `Du er en AI-medskribent for Apropos Magazine. Din rolle er at hjælpe journalister med at skrive artikler i Apropos' karakteristiske stil.
+function loadExternalSystemPrompt(): string | null {
+  try {
+    const fs = require('fs');
+    const path = require('path');
+    const p = path.join(process.cwd(), 'prompts', 'apropos_writer.prompt');
+    if (fs.existsSync(p)) {
+      return fs.readFileSync(p, 'utf8');
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+const APROPOS_SYSTEM_PROMPT = (loadExternalSystemPrompt() || `Du er en AI-medskribent for Apropos Magazine. Din rolle er at hjælpe journalister med at skrive artikler i Apropos' karakteristiske stil.
 
 🧠 APROPOS MAGAZINE - REDAKTIONELT MANIFEST
 
@@ -49,7 +63,7 @@ Din opgave er at:
 4. Give konstruktiv feedback
 5. Være en kreativ sparringspartner
 
-Svar altid på dansk og hold en venlig, professionel tone. Vær konkret i dine forslag og forklar dine anbefalinger.`;
+Svar altid på dansk og hold en venlig, professionel tone. Vær konkret i dine forslag og forklar dine anbefalinger.`);
 
 // Try to extract a structured payload from a raw model string
 function parseModelPayload(raw: string): { response: string; suggestion?: any; articleUpdate?: any } {
@@ -255,7 +269,7 @@ ${context ? `\n\nNuværende artikel kontekst:\n${context}` : ''}`
   } catch (error) {
     console.error('OpenAI API error:', error);
     return NextResponse.json(
-      { error: 'Failed to get AI response' }, 
+  { error: 'Failed to get AI response' }, 
       { status: 500 }
     );
   }
