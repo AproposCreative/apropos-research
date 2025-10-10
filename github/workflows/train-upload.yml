@@ -1,0 +1,22 @@
+name: Train and Upload Embeddings
+on:
+  workflow_dispatch: {}
+  schedule:
+    - cron: '0 3 * * *'
+jobs:
+  train-upload:
+    runs-on: ubuntu-latest
+    env:
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      FIREBASE_ADMIN_PROJECT_ID: ${{ secrets.FIREBASE_ADMIN_PROJECT_ID }}
+      FIREBASE_ADMIN_CLIENT_EMAIL: ${{ secrets.FIREBASE_ADMIN_CLIENT_EMAIL }}
+      FIREBASE_ADMIN_PRIVATE_KEY: ${{ secrets.FIREBASE_ADMIN_PRIVATE_KEY }}
+      FIREBASE_ADMIN_TOKEN_URI: https://oauth2.googleapis.com/token
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '20', cache: 'npm' }
+      - run: npm ci
+      - run: npx tsx scripts/train-style-embeddings.ts
+      - run: npx tsx scripts/upload-to-storage.ts data/articles-embeddings.json apropos-config/embeddings/articles-embeddings.json
+      - run: npx tsx scripts/upload-to-storage.ts prompts/apropos_writer.prompt apropos-config/prompts/apropos_writer.prompt
