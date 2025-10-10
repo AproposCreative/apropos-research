@@ -14,6 +14,7 @@ jobs:
       FIREBASE_ADMIN_CLIENT_EMAIL: ${{ secrets.FIREBASE_ADMIN_CLIENT_EMAIL }}
       FIREBASE_ADMIN_PRIVATE_KEY: ${{ secrets.FIREBASE_ADMIN_PRIVATE_KEY }}
       FIREBASE_ADMIN_TOKEN_URI: https://oauth2.googleapis.com/token
+      FIREBASE_STORAGE_BUCKET: ${{ secrets.FIREBASE_STORAGE_BUCKET }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
