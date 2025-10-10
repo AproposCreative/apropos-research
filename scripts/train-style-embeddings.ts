@@ -14,6 +14,24 @@ type Article = {
 };
 
 async function main() {
+	// Load OPENAI_API_KEY from .env.local if present (no external deps)
+	try {
+		const envPath = path.join(process.cwd(), '.env.local');
+		if (fs.existsSync(envPath)) {
+			const lines = fs.readFileSync(envPath, 'utf8').split(/\r?\n/);
+			for (const line of lines) {
+				const t = line.trim();
+				if (!t || t.startsWith('#')) continue;
+				const eq = t.indexOf('=');
+				if (eq === -1) continue;
+				const key = t.slice(0, eq).trim();
+				let val = t.slice(eq + 1).trim();
+				val = val.replace(/^['"]|['"]$/g, '');
+				if (!process.env[key]) process.env[key] = val;
+			}
+		}
+	} catch {}
+
 	const inputFile = path.join(process.cwd(), 'data', 'apropos-articles.json');
 	if (!fs.existsSync(inputFile)) {
 		console.error('Missing data/apropos-articles.json');

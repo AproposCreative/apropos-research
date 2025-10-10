@@ -1,9 +1,7 @@
 name: ingest-rage-cron
 
 on:
-  schedule:
-    - cron: '0 */4 * * *'
-  workflow_dispatch:
+  workflow_dispatch: # schedule removed to disable automatic runs
 
 jobs:
   build-and-run:
