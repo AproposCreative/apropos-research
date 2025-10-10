@@ -90,13 +90,31 @@ async function main() {
 	} catch {}
 	const proj = process.env.FIREBASE_ADMIN_PROJECT_ID || process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID;
 	if (!proj) throw new Error('Missing FIREBASE_ADMIN_PROJECT_ID');
-	const bucket = `${proj}.appspot.com`;
+
+	// Determine candidate buckets (Firebase can be appspot.com or firebasestorage.app depending on setup)
+	const explicitBucket = process.env.FIREBASE_STORAGE_BUCKET || process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET || process.env.FIREBASE_ADMIN_STORAGE_BUCKET;
+	const candidates = [
+		explicitBucket,
+		`${proj}.appspot.com`,
+		`${proj}.firebasestorage.app`,
+	].filter(Boolean) as string[];
 	const abs = path.isAbsolute(localPath) ? localPath : path.join(process.cwd(), localPath);
 	if (!fs.existsSync(abs)) throw new Error(`File not found: ${abs}`);
 	const buf = fs.readFileSync(abs);
-	const ct = remoteName.endsWith('.json') || remoteName.endsWith('.prompt') ? 'application/json; charset=utf-8' : 'application/octet-stream';
-	const out = await uploadObject(bucket, remoteName, buf, ct);
-	console.log('Uploaded to:', out?.name || remoteName);
+	const ct = remoteName.endsWith('.json') ? 'application/json; charset=utf-8' : 'text/plain; charset=utf-8';
+
+	let lastErr: any = null;
+	for (const b of candidates) {
+		try {
+			const out = await uploadObject(b, remoteName, buf, ct);
+			console.log('Uploaded to bucket:', b, 'object:', out?.name || remoteName);
+			return;
+		} catch (e:any) {
+			lastErr = e;
+			console.warn('Upload attempt failed for bucket', b, String(e?.message || e));
+		}
+	}
+	throw lastErr || new Error('Upload failed to all candidate buckets');
 }
 
 main().catch(err => {
