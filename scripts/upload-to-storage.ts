@@ -114,6 +114,23 @@ async function main() {
 			console.warn('Upload attempt failed for bucket', b, String(e?.message || e));
 		}
 	}
+
+	// As a fallback, consider success if the object already exists in any bucket
+	for (const b of candidates) {
+		try {
+			const qs = new URLSearchParams({ prefix: remoteName, delimiter: '/' });
+			const listUrl = `https://firebasestorage.googleapis.com/v0/b/${encodeURIComponent(b)}/o?${qs.toString()}`;
+			const r = await fetch(listUrl);
+			if (r.ok) {
+				const j:any = await r.json();
+				const items: any[] = j.items || [];
+				if (items.find((it:any)=> it.name === remoteName)) {
+					console.log('Object already present in bucket:', b, 'object:', remoteName);
+					return;
+				}
+			}
+		} catch {}
+	}
 	throw lastErr || new Error('Upload failed to all candidate buckets');
 }
 

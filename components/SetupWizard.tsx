@@ -59,13 +59,14 @@ export default function SetupWizard({ initialData, onComplete, onChange }: Setup
   };
 
   const updateData = (updater: (d:any)=>any, advanceFrom?: Step) => {
-    setData((prev:any)=>{
-      const nd = typeof updater==='function' ? updater(prev) : prev;
-      try { onChange?.(nd); } catch {}
-      return nd;
-    });
+    setData((prev:any)=> (typeof updater==='function' ? updater(prev) : prev));
     if (advanceFrom) nextStep(advanceFrom);
   };
+
+  // Emit changes to parent OUTSIDE render to avoid updating parent during child render
+  useEffect(() => {
+    try { onChange?.(data); } catch {}
+  }, [data, onChange]);
 
   const StepChip = ({active, done, label, onClick}:{active:boolean;done:boolean;label:string;onClick:()=>void}) => (
     <button
