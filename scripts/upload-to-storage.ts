@@ -52,15 +52,22 @@ async function uploadObject(bucket: string, name: string, content: Buffer, conte
 	if (!clientEmail || !privateKey) throw new Error('Missing FIREBASE_ADMIN_CLIENT_EMAIL or FIREBASE_ADMIN_PRIVATE_KEY');
 	const accessToken = await getAccessToken({ client_email: clientEmail, private_key: privateKey, token_uri: tokenUri });
 	const url = `https://storage.googleapis.com/upload/storage/v1/b/${encodeURIComponent(bucket)}/o?uploadType=media&name=${encodeURIComponent(name)}`;
-	const res = await fetch(url, {
+    // Node fetch type expects BodyInit; use Blob for compatibility
+    const arrBuf = content.buffer.slice(content.byteOffset, content.byteOffset + content.byteLength) as ArrayBuffer;
+    const body = new Blob([arrBuf], { type: contentType });
+    const res = await fetch(url, {
 		method: 'POST',
 		headers: {
 			'Authorization': `Bearer ${accessToken}`,
 			'Content-Type': contentType,
 		},
-		body: content,
+        body: body as any,
 	});
-	if (!res.ok) throw new Error(`Upload failed: ${res.status}`);
+	if (!res.ok) {
+		let bodyText = '';
+		try { bodyText = await res.text(); } catch {}
+		throw new Error(`Upload failed: ${res.status} ${bodyText}`);
+	}
 	return await res.json();
 }
 
@@ -98,6 +105,7 @@ async function main() {
 		`${proj}.appspot.com`,
 		`${proj}.firebasestorage.app`,
 	].filter(Boolean) as string[];
+	console.log('Upload candidates:', candidates.join(', '));
 	const abs = path.isAbsolute(localPath) ? localPath : path.join(process.cwd(), localPath);
 	if (!fs.existsSync(abs)) throw new Error(`File not found: ${abs}`);
 	const buf = fs.readFileSync(abs);
@@ -113,23 +121,6 @@ async function main() {
 			lastErr = e;
 			console.warn('Upload attempt failed for bucket', b, String(e?.message || e));
 		}
-	}
-
-	// As a fallback, consider success if the object already exists in any bucket
-	for (const b of candidates) {
-		try {
-			const qs = new URLSearchParams({ prefix: remoteName, delimiter: '/' });
-			const listUrl = `https://firebasestorage.googleapis.com/v0/b/${encodeURIComponent(b)}/o?${qs.toString()}`;
-			const r = await fetch(listUrl);
-			if (r.ok) {
-				const j:any = await r.json();
-				const items: any[] = j.items || [];
-				if (items.find((it:any)=> it.name === remoteName)) {
-					console.log('Object already present in bucket:', b, 'object:', remoteName);
-					return;
-				}
-			}
-		} catch {}
 	}
 	throw lastErr || new Error('Upload failed to all candidate buckets');
 }
