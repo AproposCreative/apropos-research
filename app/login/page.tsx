@@ -172,16 +172,16 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 flex">
+    <div className="min-h-screen flex" style={{ backgroundColor: 'rgb(0,0,0)' }}>
       {/* Left Side - Login Form */}
       <div className="flex-1 flex items-center justify-center p-8">
         <div className="w-full max-w-md">
 
           {/* Main Card */}
-          <div className="bg-white rounded-2xl shadow-lg p-8">
+          <div className="rounded-2xl p-8 border border-white/10 bg-black/60">
             {/* Header */}
           <div className="text-center mb-8">
-            <h1 className="text-3xl font-bold text-gray-900 mb-2">
+            <h1 className="text-3xl font-bold text-white mb-2">
               {isSignUp ? 'Create an account' : 'Login'}
             </h1>
           </div>
@@ -191,7 +191,7 @@ export default function LoginPage() {
             <button
               onClick={handleGoogleLogin}
               disabled={loading}
-              className="w-full flex items-center justify-center px-4 py-3 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full flex items-center justify-center px-4 py-3 border border-white/20 rounded-lg hover:bg-white/10 transition-colors text-white disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <svg className="w-5 h-5 mr-3" viewBox="0 0 24 24">
                 <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
@@ -206,22 +206,22 @@ export default function LoginPage() {
           {/* Divider */}
           <div className="relative mb-6">
             <div className="absolute inset-0 flex items-center">
-              <div className="w-full border-t border-gray-300" />
+              <div className="w-full border-t border-white/20" />
             </div>
             <div className="relative flex justify-center text-sm">
-              <span className="px-2 bg-white text-gray-500">or</span>
+              <span className="px-2 bg-black text-white/60">or</span>
             </div>
           </div>
 
           {/* Success/Error Messages */}
           {success && (
-            <div className="mb-4 p-4 bg-green-50 border border-green-200 rounded-lg text-green-700 text-sm">
+            <div className="mb-4 p-4 bg-green-900/20 border border-green-500/30 rounded-lg text-green-300 text-sm">
               {success}
             </div>
           )}
 
           {error && (
-            <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
+            <div className="mb-4 p-4 bg-red-900/20 border border-red-500/30 rounded-lg text-red-300 text-sm">
               {error}
             </div>
           )}
@@ -236,7 +236,7 @@ export default function LoginPage() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="Email"
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors"
+                className="w-full px-4 py-3 border border-white/20 rounded-lg bg-black text-white placeholder-white/40 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors"
                 required
               />
             </div>
@@ -249,7 +249,7 @@ export default function LoginPage() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="Password"
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors"
+                className="w-full px-4 py-3 border border-white/20 rounded-lg bg-black text-white placeholder-white/40 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors"
                 required
               />
             </div>
@@ -260,7 +260,7 @@ export default function LoginPage() {
                 <button
                   type="button"
                   onClick={() => setShowForgotPassword(true)}
-                  className="text-black hover:text-black/80 text-sm font-medium transition-colors"
+                  className="text-white hover:text-white/80 text-sm font-medium transition-colors"
                 >
                   Forgot your password?
                 </button>
@@ -271,7 +271,7 @@ export default function LoginPage() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-4 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full bg-white text-black hover:bg-white/90 font-semibold py-3 px-4 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {loading ? 'Please wait...' : (isSignUp ? 'Create Account' : 'Login')}
             </button>
@@ -279,7 +279,7 @@ export default function LoginPage() {
 
           {/* Footer */}
           <div className="mt-8 text-center">
-            <p className="text-sm text-gray-600 mb-4">
+            <p className="text-sm text-white/70 mb-4">
               {isSignUp ? 'Already have an account?' : "Don't have an account?"}
             </p>
             <button
@@ -288,7 +288,7 @@ export default function LoginPage() {
                 setError('');
                 setSuccess('');
               }}
-              className="text-black hover:text-black/80 text-sm font-medium transition-colors"
+              className="text-white hover:text-white/80 text-sm font-medium transition-colors"
             >
               {isSignUp ? 'Login instead' : 'Create an account'}
             </button>

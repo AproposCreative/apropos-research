@@ -4,7 +4,7 @@ export default function LoginLayout({
   children: React.ReactNode;
 }) {
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-950 dark:to-black">
+    <div className="min-h-screen" style={{ backgroundColor: 'rgb(0,0,0)' }}>
       {children}
     </div>
   );
