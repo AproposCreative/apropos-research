@@ -40,30 +40,15 @@ export default function AuthHeader() {
 
   return (
     <div className="relative" ref={dropdownRef}>
+      {/* Compact avatar-only button (especially for mobile) */}
       <button
         onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-        className="group flex items-center gap-3 px-4 py-2 bg-white/80 dark:bg-pure-black/80 backdrop-blur-2xl border border-white/20 dark:border-black-800/50 rounded-2xl shadow-lg ring-1 ring-white/10 dark:ring-black-800/20 hover:bg-white/90 dark:hover:bg-black-800/90 hover:shadow-xl hover:scale-[1.02] transition-all duration-300 ease-out"
+        className="group flex items-center gap-2 px-2 py-2 bg-black/60 border border-white/10 rounded-2xl shadow-lg hover:bg-black/70 transition-all duration-300"
+        aria-label="Account menu"
       >
-        {/* Avatar */}
-        <div className="w-8 h-8 bg-gradient-to-br from-primary-500 to-accent-500 rounded-xl flex items-center justify-center text-white text-sm font-bold shadow-md group-hover:shadow-lg group-hover:scale-110 transition-all duration-300 ease-out">
+        <div className="w-8 h-8 rounded-full bg-gradient-to-br from-primary-500 to-accent-500 flex items-center justify-center text-white text-sm font-bold">
           {userInitial.toUpperCase()}
         </div>
-        
-        {/* User Info */}
-        <div className="text-left">
-          <div className="text-sm font-medium text-slate-800 dark:text-black-100">{userName}</div>
-          <div className="text-xs text-slate-500 dark:text-black-400">Online</div>
-        </div>
-
-        {/* Dropdown Arrow */}
-        <svg 
-          className={`w-4 h-4 text-slate-500 dark:text-black-400 transition-all duration-300 ease-out ${isDropdownOpen ? 'rotate-180 text-primary-500' : 'group-hover:text-primary-400'}`}
-          fill="none" 
-          stroke="currentColor" 
-          viewBox="0 0 24 24"
-        >
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-        </svg>
       </button>
 
       {/* Dropdown Menu */}
@@ -72,7 +57,7 @@ export default function AuthHeader() {
           {/* User Info Header */}
           <div className="px-4 py-3 border-b border-white/20 dark:border-black-800/50">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-gradient-to-br from-primary-500 to-accent-500 rounded-xl flex items-center justify-center text-white font-bold shadow-md">
+              <div className="w-10 h-10 bg-gradient-to-br from-primary-500 to-accent-500 rounded-full flex items-center justify-center text-white font-bold shadow-md">
                 {userInitial.toUpperCase()}
               </div>
               <div>
