@@ -289,9 +289,9 @@ export default function AIWriterClient() {
           onSelectMessage={handleSelectMessage}
         />
       )}
-      <div className="h-screen bg-[#171717] p-[1%] flex gap-4 relative overflow-hidden">
+      <div className="h-screen bg-[#171717] p-[1%] flex md:flex-row flex-col gap-4 relative overflow-hidden">
         {/* Background Spline (non-interactive) */}
-        <div className="absolute inset-0 z-0">
+        <div className="absolute inset-0 z-0 hidden md:block">
           <iframe 
             src="https://my.spline.design/nexbotrobotcharacterconcept-jOiWdJXA0mBgb50nmYl1x0EC/" 
             frameBorder="0" 
@@ -312,16 +312,22 @@ export default function AIWriterClient() {
               />
             </div>
             
-            {/* Left Shelf (in-flow, animates width) */}
-            <div className="h-full overflow-hidden flex-shrink-0" style={{ width: shelfOpen ? 'min(300px, 50vw)' : '0px', transition: 'width 320ms cubic-bezier(0.22, 1, 0.36, 1), opacity 220ms ease', opacity: shelfOpen ? 1 : 0 }}>
+            {/* Shelf - desktop in-flow, mobile slide-over */}
+            <div className="h-full overflow-hidden flex-shrink-0 hidden md:block" style={{ width: shelfOpen ? 'min(300px, 50vw)' : '0px', transition: 'width 320ms cubic-bezier(0.22, 1, 0.36, 1), opacity 220ms ease', opacity: shelfOpen ? 1 : 0 }}>
               <div className={`h-full flex flex-col rounded-xl border border-white/20 overflow-hidden transform`} style={{ transition: 'transform 320ms cubic-bezier(0.22, 1, 0.36, 1)', transform: shelfOpen ? 'translateX(0px)' : 'translateX(-8px)' }}>
                 <DraftsShelf isOpen={shelfOpen} onSelect={(draft)=>{ setShelfOpen(false); setShowDraftsPanel(false); setChatMessages(draft.messages); setArticleData(draft.articleData); }} onClose={()=> setShelfOpen(false)} />
+              </div>
+            </div>
+            {/* Mobile shelf */}
+            <div className={`md:hidden absolute inset-0 z-40 transition-transform duration-300 ${shelfOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+              <div className="h-full flex flex-col rounded-none border-t border-white/10 bg-[#171717]">
+                <DraftsShelf isOpen={shelfOpen} onSelect={(draft)=>{ setShelfOpen(false); setChatMessages(draft.messages); setArticleData(draft.articleData); }} onClose={()=> setShelfOpen(false)} />
               </div>
             </div>
 
             {/* Main Chat with AI */}
             <div
-              className="w-[500px] h-full flex-shrink-0 relative z-10"
+              className="md:w-[500px] w-full h-full flex-shrink-0 relative z-10"
             >
               {/* Always keep chat visible underneath */}
               <MainChatPanel 
@@ -377,8 +383,8 @@ export default function AIWriterClient() {
 
             </div>
             
-            {/* Right Sidebar with action buttons */}
-            <div className="border border-white/20 rounded-2xl p-1 flex items-center relative z-20" style={{ backgroundColor: 'rgb(0, 0, 0)', height: '50px' }}>
+            {/* Right Sidebar with action buttons (desktop) */}
+            <div className="hidden md:flex border border-white/20 rounded-2xl p-1 items-center relative z-20" style={{ backgroundColor: 'rgb(0, 0, 0)', height: '50px' }}>
               <div className="flex gap-1">
                 <button
                   onClick={() => setShowSearchModal(true)}
@@ -435,17 +441,40 @@ export default function AIWriterClient() {
             </div>
 
             {/* Right flexible spacer (no overlay) */}
-            <div className="flex-1 h-full" />
+            <div className="flex-1 h-full hidden md:block" />
             
             {/* Floating mini menu removed (we use the original left menu) */}
 
-            {/* Right slide-in review drawer (relative to container padding) */}
-            <div className={`absolute top-0 bottom-[70px] right-0 z-50 w-[min(520px,90vw)] transition-all duration-300 ${reviewOpen ? 'translate-x-0 opacity-100 pointer-events-auto' : 'translate-x-[110%] opacity-0 pointer-events-none'}`}>
+            {/* Slide-in review drawer */}
+            <div className={`absolute top-0 ${reviewOpen ? 'bottom-[70px]' : 'bottom-[70px]'} right-0 z-50 md:w-[min(520px,90vw)] w-full transition-all duration-300 ${reviewOpen ? 'translate-x-0 opacity-100 pointer-events-auto' : 'translate-x-[110%] opacity-0 pointer-events-none'}`}>
               <div className="h-full flex flex-col bg-[#171717] rounded-xl border border-white/20">
                 <div className="overflow-y-auto flex-1 p-[10px]">
                   <ReviewPanel articleData={articleData} frameless />
                 </div>
               </div>
+            </div>
+
+            {/* Mobile bottom bar */}
+            <div className="md:hidden fixed bottom-2 left-1/2 -translate-x-1/2 z-50 rounded-2xl border border-white/20 p-1 flex items-center gap-1 bg-black/80 backdrop-blur-md">
+              <button onClick={() => setShelfOpen(prev=>!prev)} className="w-10 h-10 flex items-center justify-center rounded-xl hover:bg-white/10" title="Mine artikler">
+                <div className="grid grid-cols-3 gap-0.5 w-4 h-4">
+                  <div className="w-1 h-1 bg-white rounded"></div><div className="w-1 h-1 bg-white rounded"></div><div className="w-1 h-1 bg-white rounded"></div>
+                  <div className="w-1 h-1 bg-white rounded"></div><div className="w-1 h-1 bg-white rounded"></div><div className="w-1 h-1 bg-white rounded"></div>
+                  <div className="w-1 h-1 bg-white rounded"></div><div className="w-1 h-1 bg-white rounded"></div><div className="w-1 h-1 bg-white rounded"></div>
+                </div>
+              </button>
+              <button onClick={() => setReviewOpen(prev=>!prev)} className="w-10 h-10 flex items-center justify-center rounded-xl hover:bg-white/10" title="Review">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-white">
+                  <path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/>
+                  <circle cx="12" cy="12" r="3"/>
+                </svg>
+              </button>
+              <button onClick={handleNewArticle} className="w-10 h-10 flex items-center justify-center rounded-xl hover:bg-white/10" title="Ny artikel">
+                <div className="relative w-4 h-4">
+                  <div className="absolute top-1/2 left-1/2 w-3 h-0.5 bg-white transform -translate-x-1/2 -translate-y-1/2"></div>
+                  <div className="absolute top-1/2 left-1/2 w-0.5 h-3 bg-white transform -translate-x-1/2 -translate-y-1/2"></div>
+                </div>
+              </button>
             </div>
 
           </>
