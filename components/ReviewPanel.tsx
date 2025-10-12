@@ -13,7 +13,21 @@ export default function ReviewPanel({ articleData, onClose, frameless }: ReviewP
   const category = articleData?.category || articleData?.section || '—';
   const topic = (articleData?.tags || [])[1] || articleData?.topic || '';
   const rating = articleData?.rating || 0;
-  const content = articleData?.content || 'Her vil artikelindholdet blive vist, når du begynder at skrive i chatten.';
+  // Fallbacks: use content, post-body, or last assistant reply from _chatMessages
+  let content: string = articleData?.content || articleData?.['post-body'] || '';
+  if (!content && Array.isArray(articleData?._chatMessages)) {
+    const assistants = (articleData._chatMessages as any[]).filter(m => m.role === 'assistant');
+    const last = assistants[assistants.length - 1]?.content as string | undefined;
+    if (last) content = last;
+  }
+  if (!content) content = 'Her vil artikelindholdet blive vist, når du begynder at skrive i chatten.';
+
+  const seoTitle = articleData?.seo_title || articleData?.seoTitle || '';
+  const seoDescription = articleData?.meta_description || articleData?.seoDescription || '';
+  const slug = articleData?.slug || '';
+  const platform = articleData?.platform || articleData?.streaming_service || '';
+  const reflection = articleData?.reflection || '';
+  const publishDate = articleData?.publishDate || '';
 
   const Body = (
     <div className="text-white">
@@ -34,7 +48,7 @@ export default function ReviewPanel({ articleData, onClose, frameless }: ReviewP
         {rating>0 && <span className="text-white/80">{rating} ⭐</span>}
       </div>
 
-      {/* Body mock */}
+      {/* Body preview */}
       <div className="space-y-3 text-sm leading-6 text-white/80">
         {content.split('\n').slice(0, 6).map((p: string, i: number) => (
           <p key={i}>{p || ' '}</p>
@@ -46,6 +60,22 @@ export default function ReviewPanel({ articleData, onClose, frameless }: ReviewP
           </>
         )}
       </div>
+
+      {/* CMS fields overview */}
+      <div className="mt-6 grid grid-cols-2 gap-3 text-xs">
+        <Field k="Slug" v={slug} />
+        <Field k="Tags" v={(articleData?.tags || []).join(', ')} />
+        <Field k="Platform/Service" v={platform} />
+        <Field k="Publiceringsdato" v={String(publishDate)} />
+        <Field k="SEO Titel" v={seoTitle} />
+        <Field k="SEO Beskrivelse" v={seoDescription} />
+        {reflection && (
+          <div className="col-span-2">
+            <div className="text-white/60 mb-1">Refleksion</div>
+            <div className="text-white/80 text-sm whitespace-pre-wrap">{reflection}</div>
+          </div>
+        )}
+      </div>
     </div>
   );
 
@@ -54,6 +84,16 @@ export default function ReviewPanel({ articleData, onClose, frameless }: ReviewP
   return (
     <div className="rounded-xl bg-[#171717] text-white p-4 max-h-[420px] overflow-y-auto">
       {Body}
+    </div>
+  );
+}
+
+function Field({ k, v }: { k: string; v?: string }) {
+  if (!v) return null;
+  return (
+    <div className="bg-white/5 border border-white/10 rounded-lg p-2">
+      <div className="text-white/50">{k}</div>
+      <div className="text-white/80 truncate" title={v}>{v}</div>
     </div>
   );
 }
