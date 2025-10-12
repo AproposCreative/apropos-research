@@ -24,7 +24,10 @@ export async function GET(request: NextRequest) {
           for (const line of lines.slice(-100)) { // Last 100 articles
             try {
               const article = JSON.parse(line);
-              if (article.source === source.id || article.url?.includes(source.domain)) {
+              // derive domain from baseUrl (MediaSource has baseUrl, not domain)
+              let domain = '';
+              try { domain = new URL(source.baseUrl).hostname; } catch {}
+              if (article.source === source.id || (domain && article.url?.includes(domain))) {
                 allArticles.push({
                   title: article.title,
                   category: article.category,
