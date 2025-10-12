@@ -20,6 +20,32 @@ export default function LoginPage() {
   const { signIn, signUp, resetPassword, signInWithGoogle } = useAuth();
   const router = useRouter();
 
+  const formatAuthError = (err: any) => {
+    const code = String(err?.code || '').replace('auth/', '');
+    switch (code) {
+      case 'invalid-email':
+        return 'Ugyldig emailadresse';
+      case 'missing-password':
+      case 'weak-password':
+        return 'Ugyldigt eller manglende password';
+      case 'user-not-found':
+        return 'Bruger findes ikke';
+      case 'wrong-password':
+      case 'invalid-credential':
+        return 'Forkert email eller password';
+      case 'popup-closed-by-user':
+        return 'Login‑vinduet blev lukket';
+      case 'popup-blocked':
+        return 'Popup blev blokeret – tillad popups og prøv igen';
+      case 'operation-not-allowed':
+        return 'Login‑metoden er ikke aktiveret i Firebase';
+      case 'network-request-failed':
+        return 'Netværksfejl – prøv igen';
+      default:
+        return err?.message || 'Der opstod en fejl ved login';
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
@@ -35,11 +61,11 @@ export default function LoginPage() {
         await signIn(email, password);
         setSuccess('Thank you! Your submission has been received!');
         setTimeout(() => {
-          router.push('/');
+          router.push('/ai');
         }, 1500);
       }
     } catch (error: any) {
-      setError('Oops! Something went wrong while submitting the form.');
+      setError(formatAuthError(error));
     } finally {
       setLoading(false);
     }
@@ -54,10 +80,10 @@ export default function LoginPage() {
       await signInWithGoogle();
       setSuccess('Thank you! Your submission has been received!');
       setTimeout(() => {
-        router.push('/');
+        router.push('/ai');
       }, 1500);
     } catch (error: any) {
-      setError('Oops! Something went wrong while submitting the form.');
+      setError(formatAuthError(error));
     } finally {
       setLoading(false);
     }
