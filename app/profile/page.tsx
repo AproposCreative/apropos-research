@@ -4,12 +4,12 @@ import { useAuth } from '../../lib/auth-context';
 import CompactHeader from '../../components/CompactHeader';
 
 export default function ProfilePage() {
-  const { currentUser, logout } = useAuth();
+  const { user, logout } = useAuth();
   const [activeTab, setActiveTab] = useState('profile');
   const [isEditing, setIsEditing] = useState(false);
   const [profileData, setProfileData] = useState({
-    displayName: currentUser?.displayName || 'Frederik Emil Kragh',
-    email: currentUser?.email || 'frederik.emil.kragh@gmail.com',
+    displayName: user?.displayName || 'Frederik Emil Kragh',
+    email: user?.email || 'frederik.emil.kragh@gmail.com',
     bio: 'Content creator and journalist',
     location: 'Copenhagen, Denmark',
     website: 'https://aproposmagazine.com',
