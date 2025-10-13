@@ -65,6 +65,20 @@ Din opgave er at:
 
 Svar altid på dansk og hold en venlig, professionel tone. Vær konkret i dine forslag og forklar dine anbefalinger.`);
 
+async function loadSystemPromptFromApi(req: NextRequest): Promise<string | null> {
+  try {
+    const proto = req.headers.get('x-forwarded-proto') || 'http';
+    const host = req.headers.get('host');
+    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || (host ? `${proto}://${host}` : 'http://localhost:3001');
+    const res = await fetch(`${baseUrl}/api/prompts/apropos`, { cache: 'no-store' });
+    if (res.ok) {
+      const text = await res.text();
+      if (text && text.length > 50) return text;
+    }
+  } catch {}
+  return null;
+}
+
 // Try to extract a structured payload from a raw model string
 function parseModelPayload(raw: string): { response: string; suggestion?: any; articleUpdate?: any } {
   const stripFences = (s: string) => s.replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/i, '').trim();
@@ -162,9 +176,11 @@ export async function POST(request: NextRequest) {
     
     // Build chat history for context
     const authorInfo = authorTOV || authorName || 'Frederik Kragh';
-    const systemContent = trainedTOV || `${APROPOS_SYSTEM_PROMPT}
+    const dynamicPrompt = await loadSystemPromptFromApi(request);
+    const basePrompt = dynamicPrompt || APROPOS_SYSTEM_PROMPT;
+    const systemContent = `${basePrompt}
 
-**VIGTIG: Skriv i ${authorInfo}'s tone of voice!**`;
+${trainedTOV ? `FORFATTER TOV (overstyrer generelle regler):\n${trainedTOV}\n` : ''}**VIGTIG: Skriv i ${authorInfo}'s tone of voice!**`;
     
     const messages: any[] = [
       {
@@ -179,13 +195,28 @@ For hver besked, analyser om brugeren:
 2. Beder om hjælp til at skrive en specifik del
 3. Diskuterer vinkel, tone eller indhold
 
-Når det giver mening, opdater automatisk artikel felterne:
+STANDARD-OPFØRSEL (når noter/kontekst foreligger):
+- Skriv hele artiklen i én sammenhængende tekst i korrekt TOV for ${authorInfo}.
+- Brug sektion og rating hvis sat. Vælg selv vinkel, intro og afslut med refleksion.
+- Stil KUN spørgsmål, hvis en nødvendig detalje er uklar. Ellers fortsæt.
+- Hvis titel er tvivlsom: foreslå 2–3 titler som klikbare valg.
+
+TRIGGER FOR FULD ARTIKEL (uden spørgsmål):
+- Hvis \"Noter og prompts\" er længere end 120 tegn, ELLER hvis der er både forfatter + kategori + mindst én af (title, tags, content), så skriv hele artiklen uden at spørge først.
+
+Opdater automatisk CMS-felter:
 - title: Artikel titel
 - subtitle: Undertitel/tagline
-- content: Hovedindhold (kan være lang, detaljeret artikel)
+- content: Færdig artikeltekst
+- reflection: Afsluttende refleksion
 - category: Kategori (Gaming, Kultur, Tech, etc.)
 - tags: Relevante tags
 - author: ${authorInfo}
+- seo_title: ≤60 tegn
+- meta_description: ≤155 tegn
+- streaming_service/platform: hvis relevant
+- stars: 1–6 ved anmeldelser
+- slug: kort URL‑slug (kebab‑case, dansk tegnsætning håndteres)
 
 **RATING FORSLAG:**
 Hvis brugeren beskriver noget der skal anmeldes (film, serie, musik, bog, etc.), foreslå en rating ved at inkludere "suggestion" i dit svar:
@@ -202,6 +233,17 @@ Eksempel:
   "articleUpdate": {...}
 }
 
+Hvis titelvalg er uklart, kan du i stedet bruge:
+{
+  "response": "...",
+  "suggestion": {
+    "type": "title_choice",
+    "title": "Hvilken titel foretrækker du?",
+    "options": ["Titel A", "Titel B", "Titel C"]
+  },
+  "articleUpdate": {...}
+}
+
 Returner ALTID både dit svar OG eventuelle artikel opdateringer i dette format:
 {
   "response": "dit svar til brugeren",
@@ -210,9 +252,15 @@ Returner ALTID både dit svar OG eventuelle artikel opdateringer i dette format:
     "title": "...",
     "subtitle": "...",
     "content": "...",
+    "reflection": "...",
     "category": "...",
     "tags": [...],
-    "author": "${authorInfo}"
+    "author": "${authorInfo}",
+    "seo_title": "...",
+    "meta_description": "...",
+    "streaming_service": "...",
+    "stars": 1-6,
+    "slug": "..."
   }
 }
 

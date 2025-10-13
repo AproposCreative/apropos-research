@@ -21,30 +21,7 @@ export default function AuthModal() {
     }
   };
 
-  if (user) {
-    return (
-      <div className="fixed top-4 right-4 z-50 flex items-center gap-3 bg-black/90 backdrop-blur-sm px-4 py-2 rounded-lg border border-white/10">
-        <div className="flex items-center gap-2">
-          {user.photoURL && (
-            <img 
-              src={user.photoURL} 
-              alt={user.displayName || 'User'} 
-              className="w-8 h-8 rounded-full"
-            />
-          )}
-          <div className="text-white text-sm">
-            <p className="font-medium">{user.displayName || user.email}</p>
-          </div>
-        </div>
-        <button
-          onClick={logout}
-          className="text-xs text-white/60 hover:text-white transition-colors px-2 py-1 rounded hover:bg-white/10"
-        >
-          Log ud
-        </button>
-      </div>
-    );
-  }
+  if (user) return null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm">

@@ -7,7 +7,6 @@ import MediaNav from './MediaNav';
 import DarkModeToggle from './DarkModeToggle';
 import Drawer from './Drawer';
 import DynamicHeader from './DynamicHeader';
-import AuthHeader from './AuthHeader';
 import RefreshButton from './RefreshButton';
 import BulkBar from './BulkBar';
 import { MediaProvider } from '../lib/media-context';

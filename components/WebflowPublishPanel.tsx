@@ -7,9 +7,10 @@ interface WebflowPublishPanelProps {
   articleData: any;
   onPublish: (articleData: WebflowArticleFields) => Promise<void>;
   onClose: () => void;
+  embed?: boolean; // when true, render inline (no overlay/modal shell)
 }
 
-export default function WebflowPublishPanel({ articleData, onPublish, onClose }: WebflowPublishPanelProps) {
+export default function WebflowPublishPanel({ articleData, onPublish, onClose, embed }: WebflowPublishPanelProps) {
   const [fieldMeta, setFieldMeta] = useState<any[]>([]);
   const [guidance, setGuidance] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -213,7 +214,14 @@ export default function WebflowPublishPanel({ articleData, onPublish, onClose }:
   }
 
   if (loading) {
-    return (
+    return embed ? (
+      <div className="p-3">
+        <div className="flex items-center gap-3 text-white/80 text-sm">
+          <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+          <span>Indlæser Webflow felter...</span>
+        </div>
+      </div>
+    ) : (
       <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
         <div className="bg-black border border-white/20 rounded-lg p-6">
           <div className="flex items-center gap-3">
@@ -225,139 +233,37 @@ export default function WebflowPublishPanel({ articleData, onPublish, onClose }:
     );
   }
 
-  return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-black border border-white/20 rounded-lg w-full max-w-4xl max-h-[90vh] overflow-y-auto">
+  const PanelInner = () => (
+    <>
+      {!embed && (
         <div className="p-6 border-b border-white/10">
           <div className="flex items-center justify-between">
             <h2 className="text-white text-xl font-medium">Udgiv artikel til Webflow</h2>
-            <button
-              onClick={onClose}
-              className="text-white/60 hover:text-white transition-colors"
-            >
+            <button onClick={onClose} className="text-white/60 hover:text-white transition-colors">
               <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
               </svg>
             </button>
           </div>
         </div>
+      )}
 
-        <div className="p-6 space-y-6">
-          {/* Basic Fields */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-white text-sm font-medium mb-2">Titel *</label>
-              <input
-                type="text"
-                value={formData.title}
-                onChange={(e) => handleInputChange('title', e.target.value)}
-                className="w-full px-3 py-2 bg-black border border-white/20 rounded-lg text-white placeholder-white/40 focus:outline-none focus:border-white/40"
-                placeholder="Artikel titel"
-              />
-            </div>
-
-            <div>
-              <label className="block text-white text-sm font-medium mb-2">Slug</label>
-              <input
-                type="text"
-                value={formData.slug}
-                onChange={(e) => handleInputChange('slug', e.target.value)}
-                className="w-full px-3 py-2 bg-black border border-white/20 rounded-lg text-white placeholder-white/40 focus:outline-none focus:border-white/40"
-                placeholder="artikel-slug"
-              />
-            </div>
-
-            <div>
-              <label className="block text-white text-sm font-medium mb-2">Undertitel</label>
-              <input
-                type="text"
-                value={formData.subtitle}
-                onChange={(e) => handleInputChange('subtitle', e.target.value)}
-                className="w-full px-3 py-2 bg-black border border-white/20 rounded-lg text-white placeholder-white/40 focus:outline-none focus:border-white/40"
-                placeholder="Artikel undertitel"
-              />
-            </div>
-
-            <div>
-              <label className="block text-white text-sm font-medium mb-2">Kategori</label>
-              <select
-                value={formData.category}
-                onChange={(e) => handleInputChange('category', e.target.value)}
-                className="w-full px-3 py-2 bg-black border border-white/20 rounded-lg text-white focus:outline-none focus:border-white/40"
-              >
-                <option value="">Vælg kategori</option>
-                <option value="Gaming">Gaming</option>
-                <option value="Kultur">Kultur</option>
-                <option value="Tech">Tech</option>
-                <option value="Musik">Musik</option>
-                <option value="Film">Film</option>
-              </select>
-            </div>
-          </div>
-
-          {/* Content */}
-          <div>
-            <label className="block text-white text-sm font-medium mb-2">Indhold *</label>
-            <textarea
-              value={formData.content}
-              onChange={(e) => handleInputChange('content', e.target.value)}
-              rows={8}
-              className="w-full px-3 py-2 bg-black border border-white/20 rounded-lg text-white placeholder-white/40 focus:outline-none focus:border-white/40"
-              placeholder="Artikel indhold..."
-            />
-          </div>
-
-          {/* Excerpt */}
-          <div>
-            <label className="block text-white text-sm font-medium mb-2">Uddrag</label>
-            <textarea
-              value={formData.excerpt}
-              onChange={(e) => handleInputChange('excerpt', e.target.value)}
-              rows={3}
-              className="w-full px-3 py-2 bg-black border border-white/20 rounded-lg text-white placeholder-white/40 focus:outline-none focus:border-white/40"
-              placeholder="Kort beskrivelse af artiklen..."
-            />
-          </div>
-
-          {/* Tags */}
-          <div>
-            <label className="block text-white text-sm font-medium mb-2">Tags (komma-separeret)</label>
-            <input
-              type="text"
-              value={formData.tags.join(', ')}
-              onChange={(e) => handleTagsChange(e.target.value)}
-              className="w-full px-3 py-2 bg-black border border-white/20 rounded-lg text-white placeholder-white/40 focus:outline-none focus:border-white/40"
-              placeholder="tag1, tag2, tag3"
-            />
-          </div>
-
-          {/* SEO Fields */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-white text-sm font-medium mb-2">SEO Titel</label>
-              <input
-                type="text"
-                value={formData.seoTitle}
-                onChange={(e) => handleInputChange('seoTitle', e.target.value)}
-                className="w-full px-3 py-2 bg-black border border-white/20 rounded-lg text-white placeholder-white/40 focus:outline-none focus:border-white/40"
-                placeholder="SEO optimeret titel"
-              />
-            </div>
-
-            <div>
-              <label className="block text-white text-sm font-medium mb-2">SEO Beskrivelse</label>
-              <textarea
-                value={formData.seoDescription}
-                onChange={(e) => handleInputChange('seoDescription', e.target.value)}
-                rows={2}
-                className="w-full px-3 py-2 bg-black border border-white/20 rounded-lg text-white placeholder-white/40 focus:outline-none focus:border-white/40"
-                placeholder="SEO beskrivelse (max 160 tegn)"
-              />
-            </div>
+      <div className={`p-6 space-y-6 ${embed ? 'pt-0' : ''}`}>
+          {/* Compact list-style fields (no boxes) */}
+          <div className="space-y-2 text-white/80 text-sm">
+            <div className="flex items-start gap-2"><span className="text-white/50 w-28">Titel</span><span className="flex-1">{formData.title || '—'}</span></div>
+            <div className="flex items-start gap-2"><span className="text-white/50 w-28">Slug</span><span className="flex-1">{formData.slug || '—'}</span></div>
+            <div className="flex items-start gap-2"><span className="text-white/50 w-28">Undertitel</span><span className="flex-1">{formData.subtitle || '—'}</span></div>
+            <div className="flex items-start gap-2"><span className="text-white/50 w-28">Kategori</span><span className="flex-1">{formData.category || '—'}</span></div>
+            <div className="flex items-start gap-2"><span className="text-white/50 w-28">Indhold</span><span className="flex-1 whitespace-pre-wrap">{formData.content || '—'}</span></div>
+            <div className="flex items-start gap-2"><span className="text-white/50 w-28">Uddrag</span><span className="flex-1 whitespace-pre-wrap">{formData.excerpt || '—'}</span></div>
+            <div className="flex items-start gap-2"><span className="text-white/50 w-28">Tags</span><span className="flex-1">{formData.tags.join(', ') || '—'}</span></div>
+            <div className="flex items-start gap-2"><span className="text-white/50 w-28">SEO Titel</span><span className="flex-1">{formData.seoTitle || '—'}</span></div>
+            <div className="flex items-start gap-2"><span className="text-white/50 w-28">SEO Beskrivelse</span><span className="flex-1 whitespace-pre-wrap">{formData.seoDescription || '—'}</span></div>
           </div>
 
           {/* Stats */}
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-3 gap-4 mt-4">
             <div className="text-center p-3 bg-white/5 rounded-lg">
               <div className="text-white text-2xl font-bold">{formData.wordCount}</div>
               <div className="text-white/60 text-sm">Ord</div>
@@ -371,58 +277,12 @@ export default function WebflowPublishPanel({ articleData, onPublish, onClose }:
               <div className="text-white/60 text-sm">Tags</div>
             </div>
           </div>
-
-          {/* Options */}
-          <div className="flex items-center gap-6">
-            <label className="flex items-center gap-2">
-              <input
-                type="checkbox"
-                checked={formData.featured}
-                onChange={(e) => handleInputChange('featured', e.target.checked)}
-                className="w-4 h-4 text-blue-600 bg-black border-white/20 rounded focus:ring-blue-500"
-              />
-              <span className="text-white">Featured artikel</span>
-            </label>
-
-            <label className="flex items-center gap-2">
-              <input
-                type="checkbox"
-                checked={formData.trending}
-                onChange={(e) => handleInputChange('trending', e.target.checked)}
-                className="w-4 h-4 text-blue-600 bg-black border-white/20 rounded focus:ring-blue-500"
-              />
-              <span className="text-white">Trending</span>
-            </label>
-
-            <div>
-              <label className="block text-white text-sm font-medium mb-1">Status</label>
-              <select
-                value={formData.status}
-                onChange={(e) => handleInputChange('status', e.target.value)}
-                className="px-3 py-1 bg-black border border-white/20 rounded text-white text-sm focus:outline-none focus:border-white/40"
-              >
-                <option value="draft">Draft</option>
-                <option value="published">Published</option>
-                <option value="archived">Archived</option>
-              </select>
-            </div>
-          </div>
         </div>
 
-        {/* Guidance Panel */}
-        {guidance.length>0 && (
-          <div className="mt-4 p-3 bg-white/5 rounded-lg border border-white/10">
-            <h4 className="text-white font-medium mb-2">Anbefalinger</h4>
-            <ul className="space-y-1 list-disc list-inside text-white/80 text-sm">
-              {guidance.slice(0,6).map((g:any)=> (
-                <li key={g.slug}><span className="font-mono text-white/90">{g.slug}</span>: {g.tip}</li>
-              ))}
-            </ul>
-          </div>
-        )}
+        {/* Guidance Panel removed per UX: chat handles missing field prompts */}
 
         {/* Actions */}
-        <div className="p-6 border-t border-white/10 flex justify-end gap-3">
+        <div className={`p-6 border-t border-white/10 flex justify-end gap-3 ${embed ? 'pt-3 pb-0' : ''}`}>
           <label className="mr-auto flex items-center gap-2 text-white/70">
             <input
               type="checkbox"
@@ -452,7 +312,7 @@ export default function WebflowPublishPanel({ articleData, onPublish, onClose }:
 
         {/* Preflight Results */}
         {(preflightRunning || preflightWarnings.length>0 || criticTips || (factResults&&factResults.length)) && (
-          <div className="px-6 pb-6">
+          <div className={`px-6 pb-6 ${embed ? 'pt-0' : ''}`}>
             <div className="mt-4 p-3 bg-white/5 rounded-lg border border-white/10">
               <div className="flex items-center justify-between mb-2">
                 <h4 className="text-white font-medium">Preflight resultater</h4>
@@ -475,6 +335,22 @@ export default function WebflowPublishPanel({ articleData, onPublish, onClose }:
             </div>
           </div>
         )}
+      
+    </>
+  );
+
+  if (embed) {
+    return (
+      <div className="bg-[#171717] border border-white/10 rounded-xl">
+        <PanelInner />
+      </div>
+    );
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+      <div className="bg-black border border-white/20 rounded-lg w-full max-w-4xl max-h-[90vh] overflow-y-auto">
+        <PanelInner />
       </div>
     </div>
   );

@@ -23,10 +23,12 @@ interface ArticleData {
   rating?: number;
   tags: string[];
   platform?: string;
+  aiDraft?: { prompt?: string; suggestions?: string[] } | null;
+  previewTitle?: string; // live title parsed from assistant drafts
 }
 
 export default function AIWriterClient() {
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
   const [currentDraftId, setCurrentDraftId] = useState<string | null>(null);
   const [showDraftsPanel, setShowDraftsPanel] = useState(false);
   const [showSearchModal, setShowSearchModal] = useState(false);
@@ -34,6 +36,7 @@ export default function AIWriterClient() {
   const [showWizard, setShowWizard] = useState(true);
   const [reviewOpen, setReviewOpen] = useState(false);
   const [shelfOpen, setShelfOpen] = useState(false);
+  const [accountOpen, setAccountOpen] = useState(false);
   const [articleData, setArticleData] = useState<ArticleData>({
     title: '',
     subtitle: '',
@@ -42,7 +45,9 @@ export default function AIWriterClient() {
     content: '',
     rating: 0,
     tags: [],
-    platform: ''
+    platform: '',
+    aiDraft: null,
+    previewTitle: ''
   });
 
   const [notes, setNotes] = useState('');
@@ -109,6 +114,11 @@ export default function AIWriterClient() {
       if (response.ok) {
         const data = await response.json();
         addChatMessage('assistant', data.response);
+        // Live preview sync: try to extract a working title from the response
+        try {
+          const m = String(data.response || '').match(/^(?:arbejdstitel|titel)[:\-]\s*(.+)$/im) || String(data.response||'').match(/^#\s+(.+)$/m);
+          if (m && m[1]) setArticleData(prev=>({ ...prev, previewTitle: m[1].trim() }));
+        } catch {}
         
         // Auto-update article data based on AI response
         if (data.articleUpdate) {
@@ -254,7 +264,9 @@ export default function AIWriterClient() {
       content: '',
       rating: 0,
       tags: [],
-      platform: ''
+      platform: '',
+      aiDraft: null,
+      previewTitle: ''
     });
     setNotes('');
     setShowWizard(true);
@@ -271,6 +283,23 @@ export default function AIWriterClient() {
       document.body.removeChild(tempElement);
     }, 2000);
   };
+
+  const userInitials = (() => {
+    const name = (user?.displayName || user?.email || '').trim();
+    if (!name) return 'U';
+    const [first, last] = name.replace(/@.+$/, '').split(/[\s._-]+/);
+    const f = (first || '').charAt(0);
+    const l = (last || '').charAt(0);
+    return (f + (l || '')).toUpperCase();
+  })();
+
+  const avatarBg = (() => {
+    const seed = (user?.uid || userInitials).split('').reduce((a,c)=>a+c.charCodeAt(0),0);
+    const hues = [210, 260, 190, 330, 20, 150];
+    const h = hues[seed % hues.length];
+    return `hsl(${h} 70% 30%)`;
+  })();
+  const userName = (user?.displayName || user?.email?.split('@')[0] || 'Bruger');
 
   return (
     <>
@@ -312,14 +341,14 @@ export default function AIWriterClient() {
               />
             </div>
             
-            {/* Shelf - desktop in-flow, mobile slide-over */}
-            <div className="h-full overflow-hidden flex-shrink-0 hidden md:block" style={{ width: shelfOpen ? 'min(300px, 50vw)' : '0px', transition: 'width 320ms cubic-bezier(0.22, 1, 0.36, 1), opacity 220ms ease', opacity: shelfOpen ? 1 : 0 }}>
-              <div className={`h-full flex flex-col rounded-xl border border-white/20 overflow-hidden transform`} style={{ transition: 'transform 320ms cubic-bezier(0.22, 1, 0.36, 1)', transform: shelfOpen ? 'translateX(0px)' : 'translateX(-8px)' }}>
+            {/* Shelf - desktop: absolute with outer padding to align with chat area */}
+            <div className={`hidden md:block absolute top-[1%] bottom-[1%] left-[1%] z-40`} style={{ width: shelfOpen ? 'min(300px, 50vw)' : '0px', transition: 'width 320ms cubic-bezier(0.22, 1, 0.36, 1), opacity 220ms ease', opacity: shelfOpen ? 1 : 0, pointerEvents: shelfOpen ? 'auto' : 'none' }}>
+              <div className={`h-full flex flex-col rounded-xl border border-white/20 overflow-hidden transform bg-[#171717]`} style={{ transition: 'transform 320ms cubic-bezier(0.22, 1, 0.36, 1)', transform: shelfOpen ? 'translateX(0px)' : 'translateX(-8px)' }}>
                 <DraftsShelf isOpen={shelfOpen} onSelect={(draft)=>{ setShelfOpen(false); setShowDraftsPanel(false); setChatMessages(draft.messages); setArticleData(draft.articleData); }} onClose={()=> setShelfOpen(false)} />
               </div>
             </div>
             {/* Mobile shelf */}
-            <div className={`md:hidden absolute inset-0 z-40 transition-transform duration-300 ${shelfOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+            <div className={`md:hidden ${shelfOpen ? 'absolute inset-0 z-40 translate-x-0' : 'hidden'} transition-transform duration-300`}>
               <div className="h-full flex flex-col rounded-none border-t border-white/10 bg-[#171717]">
                 <DraftsShelf isOpen={shelfOpen} onSelect={(draft)=>{ setShelfOpen(false); setChatMessages(draft.messages); setArticleData(draft.articleData); }} onClose={()=> setShelfOpen(false)} />
               </div>
@@ -327,7 +356,8 @@ export default function AIWriterClient() {
 
             {/* Main Chat with AI */}
             <div
-              className="md:w-[500px] w-full h-full flex-shrink-0 relative z-10"
+              className="md:w-[500px] w-full flex-shrink-0 absolute top-[1%] bottom-[1%] left-[1%] z-10"
+              style={{ transition: 'transform 320ms cubic-bezier(0.22, 1, 0.36, 1)', transform: shelfOpen ? 'translateX(calc(12px + min(300px, 50vw)))' : 'translateX(0)' }}
             >
               {/* Always keep chat visible underneath */}
               <MainChatPanel 
@@ -337,25 +367,47 @@ export default function AIWriterClient() {
                 isThinking={isThinking}
                 wizardNode={(
                   <div>
-                    <div className="flex items-center justify-between p-3">
-                      <h2 className="text-white text-base font-medium">Artikel opsætning</h2>
-                      <div className="flex items-center gap-2 text-xs">
-                        <button onClick={()=>setShowWizard(false)} className="text-white/60 hover:text-white">Skjul</button>
+                    {/* Persistent progress */}
+                    <button type="button" onClick={()=>setShowWizard(true)} className="w-full px-3 py-3 flex gap-1 items-center cursor-pointer">
+                        {(() => {
+                          const sectionLower = String((articleData as any).category || (articleData as any).section || '').toLowerCase();
+                          const topicLower = String((articleData as any).topic || '').toLowerCase();
+                          const requiresPlatform = sectionLower.includes('serie') || sectionLower.includes('film') || topicLower.includes('serie') || topicLower.includes('film');
+                          const hasPlatform = Boolean((articleData as any).platform || (articleData as any).streaming_service);
+                          const isAnmeldelse = ((articleData.tags||[]).includes('Anmeldelser')) || ((articleData as any).topic==='Anmeldelser');
+                          const segs = [
+                            Boolean(articleData.author || (articleData as any).authorId),
+                            Boolean(articleData.category),
+                            Boolean((articleData as any).topic || (articleData.tags||[]).length>0),
+                            requiresPlatform ? hasPlatform : false,
+                            isAnmeldelse ? Boolean(articleData.rating && articleData.rating>0) : false,
+                            Boolean(articleData.title)
+                          ];
+                          return segs.map((ok, i)=> (
+                            <div key={i} className={`h-1.5 flex-1 rounded ${ok ? 'bg-white shadow-[0_0_10px_#fff]' : 'bg-white/10'}`}></div>
+                          ));
+                        })()}
+                    </button>
+                    {/* Animated wizard container */}
+                    <div className={`transition-all duration-300 ease-out overflow-x-hidden ${showWizard ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-2 max-h-0 overflow-hidden pointer-events-none'}`}>
+                      <div className="flex items-center justify-between p-3" style={{display: showWizard ? 'flex' : 'none'}}>
+                        <h2 className="text-white text-base font-medium">Artikel opsætning</h2>
+                        <div className="flex items-center gap-2 text-xs">
+                          <button onClick={()=>setShowWizard(false)} className="text-white/60 hover:text-white">Skjul</button>
+                        </div>
                       </div>
-                    </div>
-                    {showWizard && chatMessages.length===0 && (
                       <SetupWizard
-                      initialData={articleData}
-                      onChange={(d:any)=> setArticleData(d)}
-                      onComplete={(setup:any)=>{
-                        const merged = { ...articleData, ...setup };
-                        setArticleData(merged);
-                        setShowWizard(false);
-                        const summary = `Forfatter: ${setup.author}\nSection: ${setup.category}\nTopic: ${setup.tags?.join(', ')}${setup.rating?`\nRating: ${setup.rating}⭐`:''}${setup.press?`\nPresse: Ja`:''}`;
-                        addChatMessage('assistant', `Super. Jeg har sat artiklen op:\n${summary}\n\nSkal vi starte med en arbejdstitel og en indledning?`);
-                      }}
+                        initialData={articleData}
+                        onChange={(d:any)=> setArticleData(d)}
+                        onComplete={(setup:any)=>{
+                          const merged = { ...articleData, ...setup };
+                          setArticleData(merged);
+                          setShowWizard(false);
+                          const summary = `Forfatter: ${setup.author}\nSection: ${setup.category}\nTopic: ${setup.tags?.join(', ')}${setup.rating?`\nRating: ${setup.rating}⭐`:''}${setup.press?`\nPresse: Ja`:''}`;
+                          addChatMessage('assistant', `Super. Jeg har sat artiklen op:\n${summary}\n\nSkal vi starte med en arbejdstitel og en indledning?`);
+                        }}
                       />
-                    )}
+                    </div>
                   </div>
                 )}
                 notes={notes}
@@ -382,10 +434,14 @@ export default function AIWriterClient() {
               />
 
             </div>
+
+            {/* Layout placeholder for chat width so the mini‑menu keeps its placement */}
+            <div className="hidden md:block md:w-[500px] flex-shrink-0" style={{ height: '1px' }} />
             
             {/* Right Sidebar with action buttons (desktop) */}
-            <div className="hidden md:flex border border-white/20 rounded-2xl p-1 items-center relative z-20" style={{ backgroundColor: 'rgb(0, 0, 0)', height: '50px' }}>
-              <div className="flex gap-1">
+            <div className="hidden md:block absolute top-[1%] left-[1%] z-20">
+            <div ref={el => { (window as any).__miniMenuRef = el; }} className={`md:flex border border-white/20 rounded-2xl items-center overflow-hidden mini-menu-expand ${accountOpen ? 'mini-menu-expand-active' : ''}`} style={{ backgroundColor: 'rgb(0, 0, 0)', height: '50px', padding: '4px', transition: 'transform 320ms cubic-bezier(0.22, 1, 0.36, 1)' , transform: shelfOpen ? 'translateX(calc(12px + min(300px, 50vw) + 500px + 12px))' : 'translateX(calc(500px + 12px))'}}>
+              <div className="flex items-center" style={{ width: accountOpen ? 'auto' : 'auto' }}>
                 <button
                   onClick={() => setShowSearchModal(true)}
                   className="w-8 h-8 flex items-center justify-center hover:bg-white/10 rounded-xl transition-colors"
@@ -437,7 +493,32 @@ export default function AIWriterClient() {
                     <div className="absolute top-1/2 left-1/2 w-0.5 h-2.5 bg-white transform -translate-x-1/2 -translate-y-1/2"></div>
                   </div>
                 </button>
+                {/* Push avatar to the far right */}
+                <div className="relative flex items-center" style={{ marginLeft: 'auto' }}>
+                  <button
+                    onClick={() => setAccountOpen(v=>!v)}
+                    className="w-8 h-8 flex items-center justify-center rounded-xl overflow-hidden border border-white/10 hover:border-white/20 transition-colors p-[2px]"
+                    title={user?.displayName || user?.email || 'Konto'}
+                  >
+                    {user?.photoURL ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={user.photoURL} alt="" className="w-[calc(100%-2px)] h-[calc(100%-2px)] object-cover rounded-lg" />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center text-[11px] font-semibold text-white rounded-lg" style={{ background: avatarBg }}>{userInitials}</div>
+                    )}
+                  </button>
+                  <div className={`overflow-hidden transition-[width] duration-300 ease-out flex items-center`} style={{ width: accountOpen ? (8 + userName.length * 7 + 70) + 'px' : '0px' }}>
+                    <div className="flex items-center gap-3 pl-2 pr-2">
+                      <span className="text-white text-sm whitespace-nowrap">{userName}</span>
+                      <button
+                        onClick={async()=>{ try { await logout(); setAccountOpen(false); } catch(e){ console.error(e); } }}
+                        className="text-white/70 hover:text-white text-sm px-2 py-1 rounded hover:bg-white/10 whitespace-nowrap"
+                      >Log ud</button>
+                    </div>
+                  </div>
+                </div>
               </div>
+            </div>
             </div>
 
             {/* Right flexible spacer (no overlay) */}
@@ -445,10 +526,10 @@ export default function AIWriterClient() {
             
             {/* Floating mini menu removed (we use the original left menu) */}
 
-            {/* Slide-in review drawer */}
-            <div className={`absolute top-0 ${reviewOpen ? 'bottom-[70px]' : 'bottom-[70px]'} right-0 z-50 md:w-[min(520px,90vw)] w-full transition-all duration-300 ${reviewOpen ? 'translate-x-0 opacity-100 pointer-events-auto' : 'translate-x-[110%] opacity-0 pointer-events-none'}`}>
+            {/* Slide-in review drawer (right shelf) with same outer padding as left shelf */}
+            <div className={`absolute md:top-[1%] md:bottom-[1%] md:right-[1%] top-0 right-0 ${reviewOpen ? '' : ''} z-50 md:w-[min(520px,90vw)] w-full transition-all duration-300 ${reviewOpen ? 'translate-x-0 opacity-100 pointer-events-auto' : 'translate-x-[110%] opacity-0 pointer-events-none'}`}>
               <div className="h-full flex flex-col bg-[#171717] rounded-xl border border-white/20">
-                <div className="overflow-y-auto flex-1 p-[10px]">
+                <div className="overflow-y-auto flex-1 p-[10px] no-scrollbar">
                   <ReviewPanel articleData={articleData} frameless />
                 </div>
               </div>

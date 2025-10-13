@@ -25,7 +25,7 @@ export default function CompactHeader({ title, subtitle, actions }: CompactHeade
         {actions}
         <DarkModeToggle />
         <RefreshButton />
-        <AuthHeader />
+        {/* Account now handled in AI mini‑menu; header avatar removed */}
       </div>
     </div>
   );

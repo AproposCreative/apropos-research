@@ -10,7 +10,11 @@ function resolveConfig() {
   const siteId = (file.siteId !== undefined ? file.siteId : process.env.WEBFLOW_SITE_ID) || undefined;
   const authorsCollectionId = (file.authorsCollectionId !== undefined ? file.authorsCollectionId : process.env.WEBFLOW_AUTHORS_COLLECTION_ID) || undefined;
   const articlesCollectionId = (file.articlesCollectionId !== undefined ? file.articlesCollectionId : process.env.WEBFLOW_ARTICLES_COLLECTION_ID) || undefined;
-  return { token, siteId, authorsCollectionId, articlesCollectionId } as const;
+  const sectionsCollectionId = process.env.WEBFLOW_SECTIONS_COLLECTION_ID || undefined;
+  const topicsCollectionId = process.env.WEBFLOW_TOPICS_COLLECTION_ID || undefined;
+  const festivalsCollectionId = process.env.WEBFLOW_FESTIVALS_COLLECTION_ID || undefined;
+  const streamingServicesCollectionId = process.env.WEBFLOW_STREAMING_SERVICES_COLLECTION_ID || undefined;
+  return { token, siteId, authorsCollectionId, articlesCollectionId, sectionsCollectionId, topicsCollectionId, festivalsCollectionId, streamingServicesCollectionId } as const;
 }
 
 {

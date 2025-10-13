@@ -1,5 +1,7 @@
 'use client';
 
+import WebflowPublishPanel from './WebflowPublishPanel';
+
 interface ReviewPanelProps {
   articleData: any;
   onClose?: () => void;
@@ -7,7 +9,7 @@ interface ReviewPanelProps {
 }
 
 export default function ReviewPanel({ articleData, onClose, frameless }: ReviewPanelProps) {
-  const title = articleData?.title || 'Arbejdstitel (ikke sat)';
+  const title = articleData?.title || articleData?.previewTitle || 'Arbejdstitel (ikke sat)';
   const subtitle = articleData?.subtitle || '';
   const author = articleData?.author || '—';
   const category = articleData?.category || articleData?.section || '—';
@@ -28,6 +30,7 @@ export default function ReviewPanel({ articleData, onClose, frameless }: ReviewP
   const platform = articleData?.platform || articleData?.streaming_service || '';
   const reflection = articleData?.reflection || '';
   const publishDate = articleData?.publishDate || '';
+  const aiDraft = articleData?.aiDraft;
 
   const Body = (
     <div className="text-white">
@@ -63,9 +66,12 @@ export default function ReviewPanel({ articleData, onClose, frameless }: ReviewP
 
       {/* CMS fields overview */}
       <div className="mt-6 grid grid-cols-2 gap-3 text-xs">
+        <Field k="Author" v={author} />
+        <Field k="Section" v={category} />
+        <Field k="Topic" v={topic} />
+        <Field k="Platform/Service" v={platform} />
         <Field k="Slug" v={slug} />
         <Field k="Tags" v={(articleData?.tags || []).join(', ')} />
-        <Field k="Platform/Service" v={platform} />
         <Field k="Publiceringsdato" v={String(publishDate)} />
         <Field k="SEO Titel" v={seoTitle} />
         <Field k="SEO Beskrivelse" v={seoDescription} />
@@ -75,6 +81,22 @@ export default function ReviewPanel({ articleData, onClose, frameless }: ReviewP
             <div className="text-white/80 text-sm whitespace-pre-wrap">{reflection}</div>
           </div>
         )}
+        {aiDraft?.prompt && (
+          <div className="col-span-2">
+            <div className="text-white/60 mb-1">AI Prompt</div>
+            <div className="text-white/80 text-sm whitespace-pre-wrap">{aiDraft.prompt}</div>
+          </div>
+        )}
+      </div>
+
+      {/* Inline publish form (replaces overlay) */}
+      <div className="mt-6 border-t border-white/10 pt-4">
+        <WebflowPublishPanel
+          articleData={articleData}
+          onPublish={async ()=>{}}
+          onClose={() => {}}
+          embed
+        />
       </div>
     </div>
   );

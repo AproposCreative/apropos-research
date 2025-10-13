@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useEffect, ReactNode } from 'react';
+import { useState, useRef, useEffect, useLayoutEffect, ReactNode } from 'react';
 import FileDropZone from '@/components/FileDropZone';
 import ArticleTemplates from '@/components/ArticleTemplates';
 import AuthorSelection from '@/components/AuthorSelection';
@@ -179,35 +179,8 @@ export default function MainChatPanel({
   }, []);
 
   const generateSmartTitle = async (message: string) => {
-    try {
-      const response = await fetch('/api/ai-chat', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          messages: [{
-            role: 'user',
-            content: `Generer et kreativt og beskrivende navn for denne artikel-tråd baseret på følgende besked. Navnet skal være kort (2-4 ord), kreativt og fange essensen af artiklen. Svar kun med navnet, intet andet.
-
-Besked: "${message}"`
-          }]
-        }),
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        if (data.message) {
-          setChatTitle(data.message.trim());
-        }
-      } else {
-        // Fallback to simple title generation
-        setChatTitle(generateFallbackTitle(message));
-      }
-    } catch (error) {
-      // Fallback to simple title generation
-      setChatTitle(generateFallbackTitle(message));
-    }
+    // Lightweight local generation to avoid hitting the chat API with an incompatible payload
+    setChatTitle(generateFallbackTitle(message));
   };
 
   const generateFallbackTitle = (message: string) => {
@@ -321,6 +294,31 @@ Besked: "${message}"`
     return items;
   };
 
+  // Detect enumererede spørgsmål (1), 2), 3)) og klassificér dem, så vi kan vise klikbare valg
+  type ParsedQuestion = { kind: 'authorProfile' | 'platform' | 'rating'; label: string };
+  const parseEnumeratedQuestions = (text: string): ParsedQuestion[] => {
+    const lines = text.split(/\r?\n/).map(s => s.trim());
+    const q: ParsedQuestion[] = [];
+    for (const line of lines) {
+      const m = line.match(/^\d+[\).]\s*(.+)$/);
+      if (!m) continue;
+      const body = m[1].toLowerCase();
+      if (/forfatterprofil|tov|ironisk|sanselig|analytisk|profil/.test(body)) {
+        q.push({ kind: 'authorProfile', label: m[1] });
+        continue;
+      }
+      if (/platform|netflix|viaplay|disney|prime|apple|hbo|max|biograf/.test(body)) {
+        q.push({ kind: 'platform', label: m[1] });
+        continue;
+      }
+      if (/stjerner|rating|vurdering/.test(body)) {
+        q.push({ kind: 'rating', label: m[1] });
+        continue;
+      }
+    }
+    return q;
+  };
+
   // Fancy thinking indicator text rotation
   const thinkingTexts = [
     'Finder vinklen …',
@@ -358,45 +356,7 @@ Besked: "${message}"`
     };
   }, [isThinking]);
 
-  // Generate simple multiple-choice options from a prompt/question
-  const generateChoiceOptions = (text: string): string[] => {
-    const t = text.toLowerCase();
-    const opts: string[] = [];
-    const isQuestion = /\?|hvad|hvordan|hvilke|vil du|lad os/i.test(text);
-    if (!isQuestion) return opts;
-
-    if (/(dc|univers)/i.test(text)) {
-      return [
-        'Stærk forbindelse og tydelige crossovers',
-        'Subtil – primært referencer og tone',
-        'Står selvstændigt uden behov for DC‑kontekst',
-        'Usikker – lad os afklare med eksempler'
-      ];
-    }
-    if (/(æstetik|visuel|musik|soundtrack)/i.test(text)) {
-      return [
-        'Visuel stil dominerer tonen',
-        'Musikken driver stemningen mest',
-        'Balanceret samspil mellem æstetik og musik',
-        'Foreslå konkrete scener at fremhæve'
-      ];
-    }
-    if (/(humor)/i.test(t) && /(action)/i.test(t)) {
-      return [
-        'Humor i fokus – action som krydderi',
-        'Action i fokus – humor som aflastning',
-        'Ligevægt mellem humor og action',
-        'Afhænger af afsnit – nuanceret vinkel'
-      ];
-    }
-    // Default editorial helpers
-    return [
-      'Foreslå tydelig hovedvinkel',
-      'Foreslå tre centrale underpunkter',
-      'Bed om konkrete eksempler/citater',
-      'Andet – jeg beskriver selv'
-    ];
-  };
+  // Removed generic multiple-choice heuristics to avoid irrelevant prompts
 
   const handlePublishToWebflow = async (articleData: WebflowArticleFields) => {
     try {
@@ -570,7 +530,7 @@ Besked: "${message}"`
       
       <div className="flex flex-col justify-start gap-4 p-[10px] flex-1 overflow-hidden">
         {/* Dynamic Chat Messages */}
-        <div className="flex-1 overflow-y-auto space-y-4">
+        <div className="flex-1 overflow-y-auto space-y-4 nice-scrollbar">
           {messages.map((message, index) => (
             <div
               key={message.id}
@@ -595,7 +555,7 @@ Besked: "${message}"`
                           : `text-white py-3 rounded-lg hover:bg-white/5`
                     }`}
                   >
-                    {message.role === 'assistant' && (parseNumberedSuggestions(message.content).length > 0 || generateChoiceOptions(message.content).length > 0) ? (
+                    {message.role === 'assistant' && (parseNumberedSuggestions(message.content).length > 0 || parseEnumeratedQuestions(message.content).length > 0) ? (
                       <div className="space-y-2">
                         {/* Numbered suggestion cards */}
                         {parseNumberedSuggestions(message.content).map((item, idx) => (
@@ -631,40 +591,24 @@ Besked: "${message}"`
                             </div>
                           </div>
                         ))}
-                        {/* Multiple-choice helper cards for open questions */}
-                        {parseNumberedSuggestions(message.content).length === 0 && generateChoiceOptions(message.content).map((choice, idx) => (
-                          <div
-                            key={`c-${idx}`}
-                            className="p-3 bg-white/5 hover:bg-white/10 border border-white/10 hover:border-white/20 rounded-lg transition-all cursor-pointer group"
-                            onClick={() => onSendMessage(choice)}
-                          >
-                            <div className="flex items-start justify-between gap-3">
-                              <div className="flex-1 min-w-0">
-                                <h4 className="text-white text-sm font-medium mb-1 line-clamp-2 group-hover:text-blue-300 transition-colors">
-                                  {choice}
-                                </h4>
-                                <p className="text-white/40 text-xs line-clamp-2">
-                                  Vælg for at arbejde videre i denne retning
-                                </p>
+                        {/* Enumerated question helper chips */}
+                        {parseEnumeratedQuestions(message.content).length > 0 && (
+                          <div className="flex flex-wrap gap-2 mt-1">
+                            {parseEnumeratedQuestions(message.content).map((q, idx) => (
+                              <div key={`q-${idx}`} className="flex flex-wrap gap-2">
+                                {q.kind === 'authorProfile' && ['Frederik Emil (ironisk)','Liv Brandt (sanselig)','Eva Linde (analytisk)'].map((o,i)=> (
+                                  <button key={`opt-a-${i}`} onClick={() => onSendMessage(o)} className="px-3 py-1.5 rounded-lg text-xs transition-all border bg-white/5 text-white border-white/10 hover:border-white/20 hover:bg-white/10">{o}</button>
+                                ))}
+                                {q.kind === 'platform' && ['Netflix','Viaplay','Disney+','Prime Video','Apple TV+','HBO Max','Biograf'].map((o,i)=> (
+                                  <button key={`opt-p-${i}`} onClick={() => onSendMessage(o)} className="px-3 py-1.5 rounded-lg text-xs transition-all border bg-white/5 text-white border-white/10 hover:border-white/20 hover:bg-white/10">{o}</button>
+                                ))}
+                                {q.kind === 'rating' && [1,2,3,4,5,6].map((o,i)=> (
+                                  <button key={`opt-r-${i}`} onClick={() => onSendMessage(`${o} stjerner`)} className="px-3 py-1.5 rounded-lg text-xs transition-all border bg-white/5 text-white border-white/10 hover:border-white/20 hover:bg-white/10">{o} ⭐</button>
+                                ))}
                               </div>
-                              <div className="flex-shrink-0">
-                                <svg 
-                                  className="w-4 h-4 text-white/30 group-hover:text-blue-400 transition-colors" 
-                                  fill="none" 
-                                  stroke="currentColor" 
-                                  viewBox="0 0 24 24"
-                                >
-                                  <path 
-                                    strokeLinecap="round" 
-                                    strokeLinejoin="round" 
-                                    strokeWidth={2} 
-                                    d="M9 5l7 7-7 7" 
-                                  />
-                                </svg>
-                              </div>
-                            </div>
+                            ))}
                           </div>
-                        ))}
+                        )}
                       </div>
                     ) : (
                       <p className="text-sm whitespace-pre-wrap text-left">{message.content}</p>
@@ -859,11 +803,9 @@ Besked: "${message}"`
 
         {/* Docket wizard (non-overlay) */}
         {wizardNode && (
-          <div className="mx-[10px] my-[12px]">
-            <div className="rounded-xl bg-black p-2 border border-white/10 max-h-[420px] overflow-y-auto">
-              {wizardNode}
-            </div>
-          </div>
+          <WizardAutoHeight>
+            {wizardNode}
+          </WizardAutoHeight>
         )}
 
         {/* Input Area */}
@@ -978,14 +920,46 @@ Besked: "${message}"`
         </div>
       )}
 
-      {/* Webflow Publish Panel */}
-      {showPublishPanel && (
-        <WebflowPublishPanel
-          articleData={articleData}
-          onPublish={handlePublishToWebflow}
-          onClose={() => setShowPublishPanel(false)}
-        />
-      )}
+      {/* Webflow Publish Panel overlay removed — publishing lives in Review drawer */}
     </>
+  );
+}
+
+function WizardAutoHeight({ children }: { children: ReactNode }) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const contentRef = useRef<HTMLDivElement>(null);
+  const [height, setHeight] = useState<number | undefined>(undefined);
+
+  const recompute = () => {
+    const el = contentRef.current;
+    if (!el) return;
+    const next = el.scrollHeight;
+    setHeight(next);
+  };
+
+  useLayoutEffect(() => {
+    recompute();
+  }, [children]);
+
+  useEffect(() => {
+    const ro = new ResizeObserver(() => recompute());
+    if (contentRef.current) ro.observe(contentRef.current);
+    return () => ro.disconnect();
+  }, []);
+
+  // Clamp to keep things reasonable; allow small height when collapsed (progress only)
+  const clamped = Math.max(48, Math.min(height ?? 0, 800));
+
+  return (
+    <div className="mx-[10px] my-[12px]" ref={containerRef}>
+      <div
+        className="rounded-xl bg-black px-0 py-2 border border-white/10 transition-[height] duration-300 ease-out overflow-hidden"
+        style={{ height: clamped ? `${clamped}px` : undefined }}
+      >
+        <div ref={contentRef}>
+          {children}
+        </div>
+      </div>
+    </div>
   );
 }

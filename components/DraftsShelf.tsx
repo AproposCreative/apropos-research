@@ -50,7 +50,7 @@ export default function DraftsShelf({ onSelect, onClose, isOpen = true }: Drafts
           <button onClick={onClose} className="text-white/60 hover:text-white text-xs">Luk</button>
         )}
       </div>
-      <div className="flex-1 overflow-y-auto overflow-x-hidden p-0 transition-[opacity,transform] duration-500 ease-out" style={{ opacity: isOpen ? 1 : 0, transform: isOpen ? 'translateY(0px)' : 'translateY(4px)' }}>
+      <div className="flex-1 overflow-y-auto overflow-x-hidden p-0 transition-[opacity,transform] duration-500 ease-out no-scrollbar" style={{ opacity: isOpen ? 1 : 0, transform: isOpen ? 'translateY(0px)' : 'translateY(4px)' }}>
         {loading ? (
           <div className="text-white/60 text-sm">Indlæser…</div>
         ) : drafts.length === 0 ? (

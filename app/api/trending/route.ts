@@ -4,11 +4,16 @@ import { getMediaSources } from '@/lib/getMediaSources';
 export async function GET(request: NextRequest) {
   try {
     const mediaSources = await getMediaSources();
+    const { searchParams } = new URL(request.url);
+    const sourceFilter = (searchParams.get('source') || '').toLowerCase();
     
     // Get recent articles from all media sources
     const allArticles = [];
     
     for (const source of mediaSources) {
+      if (sourceFilter && source.id.toLowerCase() !== sourceFilter && source.name.toLowerCase() !== sourceFilter) {
+        continue;
+      }
       try {
         // Read articles from the rage_articles.jsonl file for this source
         const fs = require('fs');
@@ -19,27 +24,32 @@ export async function GET(request: NextRequest) {
         
         if (fs.existsSync(rageArticlesPath)) {
           const fileContent = fs.readFileSync(rageArticlesPath, 'utf8');
-          const lines = fileContent.trim().split('\n').filter(line => line.trim());
-          
-          for (const line of lines.slice(-100)) { // Last 100 articles
+          const lines = fileContent.trim().split('\n').filter((line: string) => line.trim());
+          const domain = (() => { try { return new URL(source.baseUrl).hostname; } catch { return ''; } })();
+          let collected = 0;
+          const limit = 80;
+          for (let i = lines.length - 1; i >= 0 && collected < limit; i--) {
+            const line = lines[i];
             try {
               const article = JSON.parse(line);
-              // derive domain from baseUrl (MediaSource has baseUrl, not domain)
-              let domain = '';
-              try { domain = new URL(source.baseUrl).hostname; } catch {}
-              if (article.source === source.id || (domain && article.url?.includes(domain))) {
-                allArticles.push({
-                  title: article.title,
-                  category: article.category,
-                  tags: article.tags || [],
-                  source: source.name,
-                  date: article.date,
-                  content: article.content?.substring(0, 200) || ''
-                });
-              }
-            } catch (e) {
-              // Skip invalid JSON lines
-            }
+              const matches = article.source === source.id || article.source === source.name || (domain && typeof article.url === 'string' && article.url.includes(domain));
+              if (!matches) continue;
+              const date = article.published_at || article.date || undefined;
+              const category = article.category || inferCategoryFrom((article.url || article.title || '').toString());
+              const fullText = (article.body_text || article.content || '').toString();
+              const content = fullText.slice(0, 200);
+              allArticles.push({
+                title: article.title,
+                category,
+                tags: Array.isArray(article.tags) ? article.tags : [],
+                source: source.name,
+                date,
+                content,
+                url: article.url,
+                keyPoints: extractKeyPoints(fullText, article.title, content)
+              });
+              collected++;
+            } catch {}
           }
         }
       } catch (error) {
@@ -273,4 +283,45 @@ function isStopWord(word: string): boolean {
     'have', 'can', 'will', 'shall', 'may', 'should', 'could', 'would', 'might'
   ];
   return stopWords.includes(word.toLowerCase());
+}
+
+function inferCategoryFrom(input: string): string {
+  const s = input.toLowerCase();
+  if (s.includes('/musik') || s.includes('music') || s.includes('koncert')) return 'Musik';
+  if (s.includes('/film') || s.includes('movie') || s.includes('cinema')) return 'Film';
+  if (s.includes('serie') || s.includes('/tv') || s.includes('netflix') || s.includes('hbo') || s.includes('disney')) return 'Serier & Film';
+  if (s.includes('gaming') || s.includes('playstation') || s.includes('xbox') || s.includes('nintendo')) return 'Gaming';
+  if (s.includes('tech') || s.includes('teknologi') || s.includes('ai')) return 'Tech';
+  if (s.includes('kultur')) return 'Kultur';
+  return '';
+}
+
+function extractKeyPoints(text: string, title?: string, lead?: string): string[] {
+  const t = (text || '').replace(/\s+/g, ' ').trim();
+  if (!t) return [];
+  // Prefer bullet separators, else fall back to sentence split
+  const bullets = t.split(/•|\u2022|\n-\s|\n\*\s/).map(s=>s.trim());
+  const raw = (bullets.filter(Boolean).length > 1 ? bullets : t.split(/(?<=[\.!\?])\s+/)).map(s=>s.trim());
+  // Filter out trivial/short fragments like "7." or "okt."
+  const filtered = raw
+    .filter(Boolean)
+    .filter(s => /[A-Za-zÆØÅæøå]/.test(s))
+    // remove bylines, metadata
+    .filter(s => !/^\d{1,2}\.?\s*(jan|feb|mar|apr|maj|jun|jul|aug|sep|okt|nov|dec)\.?/i.test(s))
+    .filter(s => !/\b(Af\s+\w|FOTO:|Læsetid|@)\b/i.test(s))
+    .filter(s => s.replace(/[^A-Za-zÆØÅæøå0-9]/g,'').length >= 25)
+    .map(s => s.length > 200 ? s.slice(0, 197) + '…' : s);
+  // De-duplicate near-identical starts
+  const unique: string[] = [];
+  for (const s of filtered) {
+    const key = s.slice(0, 50).toLowerCase();
+    const normTitle = (title||'').toLowerCase().trim();
+    const normLead = (lead||'').toLowerCase().trim();
+    const isDupOfTitle = normTitle && (normTitle.startsWith(key) || key.startsWith(normTitle.slice(0,50)) || s.toLowerCase().includes(normTitle.slice(0,60)));
+    const isDupOfLead = normLead && (normLead.startsWith(key) || key.startsWith(normLead.slice(0,50)) || s.toLowerCase().includes(normLead.slice(0,80)));
+    if (isDupOfTitle || isDupOfLead) continue;
+    if (!unique.some(u => u.slice(0, 50).toLowerCase() === key)) unique.push(s);
+    if (unique.length >= 3) break;
+  }
+  return unique;
 }
