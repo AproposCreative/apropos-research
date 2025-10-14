@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect, useLayoutEffect, ReactNode } from 'react';
+import WizardAutoHeight from '@/components/ui/WizardAutoHeight';
 import FileDropZone from '@/components/FileDropZone';
 import ArticleTemplates from '@/components/ArticleTemplates';
 import AuthorSelection from '@/components/AuthorSelection';
@@ -11,6 +12,8 @@ import { WebflowAuthor } from '@/lib/webflow-service';
 import WebflowPublishPanel from '@/components/WebflowPublishPanel';
 import { WebflowArticleFields } from '@/lib/webflow-service';
 import { type UploadedFile } from '@/lib/file-upload-service';
+import type { ArticleData } from '@/types/article';
+type LocalArticleData = ArticleData & { aiSuggestion?: { type: 'rating'; title: string; description: string } | null };
 
 interface ChatMessage {
   id: string;
@@ -23,14 +26,14 @@ interface ChatMessage {
 interface MainChatPanelProps {
   messages: ChatMessage[];
   onSendMessage: (message: string, files?: UploadedFile[]) => void;
-  articleData: any;
+  articleData: LocalArticleData;
   isThinking?: boolean;
   wizardNode?: ReactNode; // optional docket wizard rendered above input
   notes: string;
   setNotes: (notes: string) => void;
   onNewGamingArticle: () => void;
   onNewCultureArticle: () => void;
-  updateArticleData: (data: any) => void;
+  updateArticleData: (data: Partial<LocalArticleData>) => void;
 }
 
 export default function MainChatPanel({
@@ -883,83 +886,11 @@ export default function MainChatPanel({
       
       {/* AI suggestions removed per UX request */}
 
-      {/* Rating Suggestion */}
-      {articleData.aiSuggestion && articleData.aiSuggestion.type === 'rating' && (
-        <div className="mx-[10px] mb-4 p-4 bg-black border border-white/20 rounded-lg">
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="text-white text-sm font-medium">{articleData.aiSuggestion.title}</h3>
-            <button
-              onClick={() => updateArticleData({ aiSuggestion: null })}
-              className="text-white/60 hover:text-white transition-colors"
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
-          </div>
-          <p className="text-white/80 text-xs mb-3">{articleData.aiSuggestion.description}</p>
-          <div className="flex gap-2">
-            {[1, 2, 3, 4, 5, 6].map((rating) => (
-              <button
-                key={rating}
-                onClick={() => {
-                  updateArticleData({ 
-                    rating,
-                    aiSuggestion: null 
-                  });
-                }}
-                className="px-3 py-1.5 text-white text-xs font-medium rounded-lg transition-colors duration-200 border border-white/20"
-                style={{ backgroundColor: 'rgb(0, 0, 0)' }}
-                onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'rgb(20, 20, 20)'}
-                onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'rgb(0, 0, 0)'}
-              >
-                {rating} ⭐
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
+      {/* Rating Suggestion (removed) */}
 
       {/* Webflow Publish Panel overlay removed — publishing lives in Review drawer */}
     </>
   );
 }
 
-function WizardAutoHeight({ children }: { children: ReactNode }) {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const contentRef = useRef<HTMLDivElement>(null);
-  const [height, setHeight] = useState<number | undefined>(undefined);
-
-  const recompute = () => {
-    const el = contentRef.current;
-    if (!el) return;
-    const next = el.scrollHeight;
-    setHeight(next);
-  };
-
-  useLayoutEffect(() => {
-    recompute();
-  }, [children]);
-
-  useEffect(() => {
-    const ro = new ResizeObserver(() => recompute());
-    if (contentRef.current) ro.observe(contentRef.current);
-    return () => ro.disconnect();
-  }, []);
-
-  // Clamp to keep things reasonable; allow small height when collapsed (progress only)
-  const clamped = Math.max(48, Math.min(height ?? 0, 800));
-
-  return (
-    <div className="mx-[10px] my-[12px]" ref={containerRef}>
-      <div
-        className="rounded-xl bg-black px-0 py-2 border border-white/10 transition-[height] duration-300 ease-out overflow-hidden"
-        style={{ height: clamped ? `${clamped}px` : undefined }}
-      >
-        <div ref={contentRef}>
-          {children}
-        </div>
-      </div>
-    </div>
-  );
-}
+// WizardAutoHeight moved to components/ui/WizardAutoHeight

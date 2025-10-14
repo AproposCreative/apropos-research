@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getArticlesCollectionFieldsDetailed } from '@/lib/webflow-service';
 import { getWebflowConfig } from '@/lib/webflow-config';
+import { fetchCollectionItemsWithFallback, normalizeItems, listCollections, norm } from '../_lib';
 
 export async function GET() {
   try {
@@ -12,41 +13,8 @@ export async function GET() {
     if (!token || !siteId) return NextResponse.json({ items: [], debug });
 
     async function fetchItemsByCollectionId(collectionId: string) {
-      const urlA = `https://api.webflow.com/v2/sites/${siteId}/collections/${collectionId}/items?limit=200`;
-      const res = await fetch(urlA, {
-        headers: { 'Authorization': `Bearer ${token}`, 'Accept-Version': '1.0.0' },
-      });
-      let j:any = await res.json().catch(()=>({items:[]}));
-      // Fallback try without /sites/{siteId}
-      if (!res.ok || !(j.items||[]).length) {
-        const urlB = `https://api.webflow.com/v2/collections/${collectionId}/items?limit=200`;
-        const resB = await fetch(urlB, { headers: { 'Authorization': `Bearer ${token}`, 'Accept-Version': '1.0.0' } });
-        j = await resB.json().catch(()=>({items:[], error: 'parse'}));
-        j.__debug = { primaryUrl: urlA, primaryStatus: res.status, secondaryUrl: urlB, secondaryStatus: resB.status };
-        // Fallback to legacy v1
-        if (!(j.items||[]).length) {
-          const urlC = `https://api.webflow.com/collections/${collectionId}/items?limit=200&live=false`;
-          const resC = await fetch(urlC, { headers: { 'Authorization': `Bearer ${token}`, 'accept-version': '1.0.0' } });
-          const jC:any = await resC.json().catch(()=>({items:[]}));
-          if ((jC.items||[]).length) {
-            j = { items: jC.items, __debug: { ...(j.__debug||{}), legacyUrl: urlC, legacyStatus: resC.status } };
-          } else {
-            j.__debug = { ...(j.__debug||{}), legacyUrl: urlC, legacyStatus: resC.status };
-          }
-        }
-      }
-      const mapName = (fd:any) => {
-        const candidates = ['name','title','navn','label'];
-        for (const k of candidates) {
-          if (typeof fd?.[k] === 'string' && fd[k]) return fd[k];
-        }
-        // generic: take first string field
-        for (const k of Object.keys(fd||{})) {
-          if (typeof fd[k] === 'string' && fd[k]) return fd[k];
-        }
-        return '';
-      };
-      const items = (j.items||[]).map((it:any)=>({ id: it.id, name: mapName(it.fieldData||{}), slug: it.fieldData?.slug || '' }));
+      const j = await fetchCollectionItemsWithFallback(collectionId);
+      const items = normalizeItems(j, ['name','title','navn','label']);
       const sampleKeys = Array.isArray(j.items) && j.items[0] ? Object.keys(j.items[0]?.fieldData||{}) : [];
       return { items, debug: { ...(j.__debug||{}), sampleKeys, count: (j.items||[]).length } };
     }
@@ -64,12 +32,7 @@ export async function GET() {
     // Fallback: auto-discover a likely topics/tags collection
     if (!items.length) {
       try {
-        const list = await fetch(`https://api.webflow.com/v2/sites/${siteId}/collections`, {
-          headers: { 'Authorization': `Bearer ${token}`, 'Accept-Version': '1.0.0' },
-        });
-        const data: any = await list.json().catch(()=>({}));
-        const cols: any[] = Array.isArray(data) ? data : (data.collections || data.items || []);
-        const norm = (s?: string) => (s || '').toLowerCase();
+        const cols = await listCollections();
         const cand = cols.find(c => {
           const slug = norm(c.slug);
           const name = norm(c.name);
@@ -101,9 +64,9 @@ export async function GET() {
       } catch {}
     }
 
-    return NextResponse.json({ items, debug });
+    return NextResponse.json({ items, debug }, { headers: { 'Cache-Control': 's-maxage=300, stale-while-revalidate=3600' } });
   } catch (e:any) {
-    return NextResponse.json({ items: [] });
+    return NextResponse.json({ items: [] }, { headers: { 'Cache-Control': 's-maxage=60' } });
   }
 }
 

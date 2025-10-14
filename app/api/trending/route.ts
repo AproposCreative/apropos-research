@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getMediaSources } from '@/lib/getMediaSources';
+import { analyzeTrends, generateTrendingTemplates, extractKeyPoints, inferCategoryFrom, type SimpleArticle } from '@/src/utils/trending';
 
 export async function GET(request: NextRequest) {
   try {
@@ -8,7 +9,7 @@ export async function GET(request: NextRequest) {
     const sourceFilter = (searchParams.get('source') || '').toLowerCase();
     
     // Get recent articles from all media sources
-    const allArticles = [];
+    const allArticles: SimpleArticle[] = [];
     
     for (const source of mediaSources) {
       if (sourceFilter && source.id.toLowerCase() !== sourceFilter && source.name.toLowerCase() !== sourceFilter) {
@@ -68,18 +69,19 @@ export async function GET(request: NextRequest) {
       trends,
       trendingTemplates,
       totalArticles: allArticles.length
-    });
+    }, { headers: { 'Cache-Control': 's-maxage=300, stale-while-revalidate=1800' } });
 
   } catch (error) {
     console.error('Error analyzing trends:', error);
     return NextResponse.json(
       { error: 'Failed to analyze trends' },
-      { status: 500 }
+      { status: 500, headers: { 'Cache-Control': 's-maxage=60' } as any }
     );
   }
 }
 
-function analyzeTrends(articles: any[]) {
+// local helpers removed in favor of shared utils (imported at top)
+/* function analyzeTrends(articles: any[]) {
   // Group by category
   const categoryCounts: { [key: string]: number } = {};
   const tagCounts: { [key: string]: number } = {};
@@ -167,9 +169,9 @@ function analyzeTrends(articles: any[]) {
     topTopics,
     totalArticles: articles.length
   };
-}
+} */
 
-function generateTrendingTemplates(trends: any, articles: any[]) {
+/* function generateTrendingTemplates(trends: any, articles: any[]) {
   const templates = [];
   
   // Generate templates based on top topics
@@ -242,9 +244,9 @@ function generateTrendingTemplates(trends: any, articles: any[]) {
   });
 
   return templates;
-}
+} */
 
-function getArticlesForTopic(articles: any[], topic: string): any[] {
+/* function getArticlesForTopic(articles: any[], topic: string): any[] {
   const topicKeywords = {
     'Gaming': ['game', 'gaming', 'xbox', 'playstation', 'nintendo', 'pc', 'console'],
     'Tech': ['tech', 'ai', 'microsoft', 'apple', 'google', 'smartphone', 'computer'],
@@ -259,23 +261,23 @@ function getArticlesForTopic(articles: any[], topic: string): any[] {
     const title = article.title.toLowerCase();
     return keywords.some(keyword => title.includes(keyword));
   }).slice(0, 8); // Limit to 8 articles
-}
+} */
 
-function getArticlesForCategory(articles: any[], category: string): any[] {
+/* function getArticlesForCategory(articles: any[], category: string): any[] {
   return articles.filter(article => 
     article.category && article.category.toLowerCase() === category.toLowerCase()
   ).slice(0, 8);
-}
+} */
 
-function getArticlesForTags(articles: any[], tags: string[]): any[] {
+/* function getArticlesForTags(articles: any[], tags: string[]): any[] {
   return articles.filter(article => 
     article.tags && article.tags.some((tag: string) => 
       tags.some(searchTag => tag.toLowerCase().includes(searchTag.toLowerCase()))
     )
   ).slice(0, 8);
-}
+} */
 
-function isStopWord(word: string): boolean {
+/* function isStopWord(word: string): boolean {
   const stopWords = [
     'og', 'eller', 'men', 'for', 'med', 'på', 'til', 'af', 'i', 'det', 'den', 'der', 'som', 'at', 'en', 'et',
     'har', 'kan', 'vil', 'skal', 'må', 'bør', 'kunne', 'ville', 'skulle', 'måtte', 'burde',
@@ -283,9 +285,9 @@ function isStopWord(word: string): boolean {
     'have', 'can', 'will', 'shall', 'may', 'should', 'could', 'would', 'might'
   ];
   return stopWords.includes(word.toLowerCase());
-}
+} */
 
-function inferCategoryFrom(input: string): string {
+/* function inferCategoryFrom(input: string): string {
   const s = input.toLowerCase();
   if (s.includes('/musik') || s.includes('music') || s.includes('koncert')) return 'Musik';
   if (s.includes('/film') || s.includes('movie') || s.includes('cinema')) return 'Film';
@@ -294,9 +296,9 @@ function inferCategoryFrom(input: string): string {
   if (s.includes('tech') || s.includes('teknologi') || s.includes('ai')) return 'Tech';
   if (s.includes('kultur')) return 'Kultur';
   return '';
-}
+} */
 
-function extractKeyPoints(text: string, title?: string, lead?: string): string[] {
+/* function extractKeyPoints(text: string, title?: string, lead?: string): string[] {
   const t = (text || '').replace(/\s+/g, ' ').trim();
   if (!t) return [];
   // Prefer bullet separators, else fall back to sentence split
@@ -324,4 +326,4 @@ function extractKeyPoints(text: string, title?: string, lead?: string): string[]
     if (unique.length >= 3) break;
   }
   return unique;
-}
+} */

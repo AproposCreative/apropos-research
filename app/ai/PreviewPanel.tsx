@@ -1,15 +1,5 @@
 'use client';
-
-interface ArticleData {
-  title: string;
-  subtitle: string;
-  category: string;
-  author: string;
-  content: string;
-  rating?: number;
-  tags: string[];
-  platform?: string;
-}
+import type { ArticleData } from '@/types/article';
 
 interface PreviewPanelProps {
   articleData: ArticleData;

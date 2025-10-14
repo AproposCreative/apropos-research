@@ -2,13 +2,15 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { WebflowAuthor } from '@/lib/webflow-service';
+import type { ArticleData } from '@/types/article';
+import StepChip from '@/components/ui/StepChip';
 
 type Step = 'template' | 'source' | 'trending' | 'inspiration' | 'analysis' | 'author' | 'section' | 'topic' | 'platform' | 'rating' | 'press';
 
 interface SetupWizardProps {
-  initialData?: any;
-  onComplete: (articleData: any) => void;
-  onChange?: (data: any) => void;
+  initialData?: Partial<ArticleData>;
+  onComplete: (articleData: Partial<ArticleData>) => void;
+  onChange?: (data: Partial<ArticleData>) => void;
 }
 
 type Option = { id: string; name: string; slug: string };
@@ -26,6 +28,7 @@ export default function SetupWizard({ initialData, onComplete, onChange }: Setup
   const [loadingSources, setLoadingSources] = useState(true);
   const [trendingItems, setTrendingItems] = useState<Array<{ title:string; date?:string; source?:string; url?:string; keyPoints?:string[]; content?:string }>>([]);
   const [loadingTrending, setLoadingTrending] = useState(false);
+  const trendingAbortRef = useRef<AbortController | null>(null);
   const [data, setData] = useState<any>({
     author: initialData?.author || '',
     authorId: initialData?.authorId || '',
@@ -129,14 +132,7 @@ export default function SetupWizard({ initialData, onComplete, onChange }: Setup
     try { onChange?.(data); } catch {}
   }, [data, onChange]);
 
-  const StepChip = ({active, done, label, onClick}:{active:boolean;done:boolean;label:string;onClick:()=>void}) => (
-    <button
-      onClick={onClick}
-      className={`px-3 py-1 rounded-full text-xs font-medium border transition-colors ${active ? 'text-white border-white/60 bg-white/10' : 'text-white/70 border-white/20 hover:border-white/40'} ${done ? 'shadow-[0_0_12px_rgba(255,255,255,0.35)]' : ''}`}
-    >
-      <span className={active ? 'text-sheen-glow' : ''}>{label}</span>
-    </button>
-  );
+  // StepChip now reusable component
 
   const canContinue = () => {
     if (step==='template') return !!data.template;
@@ -264,14 +260,20 @@ export default function SetupWizard({ initialData, onComplete, onChange }: Setup
                     try {
                       setLoadingTrending(true);
                       const id = (mediaSources.find(s=>s.name===name)?.id)||name;
-                      const res = await fetch(`/api/trending?source=${encodeURIComponent(id)}`);
+                      // Abort previous request if any
+                      if (trendingAbortRef.current) {
+                        try { trendingAbortRef.current.abort(); } catch {}
+                      }
+                      const controller = new AbortController();
+                      trendingAbortRef.current = controller;
+                      const res = await fetch(`/api/trending?source=${encodeURIComponent(id)}`, { signal: controller.signal });
                       const j = await res.json();
                       const items = (j.trendingTemplates?.[0]?.articles || j.trendingTemplates?.flatMap((t:any)=>t.articles)||[]) as any[];
                       setTrendingItems(items.slice(0,8).map((a:any)=> ({ title: a.title || a.name || '', date: a.date, source: a.source, url: a.url, keyPoints: a.keyPoints || [], content: a.content })));
                     } catch {}
                     finally { setLoadingTrending(false); }
                   }}
-                  className={`px-3 py-1.5 rounded-lg text-xs transition-all border ${selected ? 'bg-white/10 text-white border-white/40 chip-glow chip-glow-active' : 'bg-white/5 text-white border-white/10 hover:border-white/20 hover:bg-white/10'}`}
+                  className={`px-3 py-1.5 rounded-lg text-xs transition-all border ${selected ? 'bg-white/10 text-white border-white/40' : 'bg-white/5 text-white border-white/10 hover:border-white/20 hover:bg-white/10'}`}
                 >
                   {name}
                 </button>
@@ -298,7 +300,7 @@ export default function SetupWizard({ initialData, onComplete, onChange }: Setup
                     ? updateData((d:any)=> ({ ...d, researchSelected: null }))
                     : updateData((d:any)=> ({ ...d, researchSelected: it }), 'trending', 'inspiration')
                   }
-                  className={`text-left px-3 py-2 rounded-lg transition-all border ${selected ? 'bg-white/5 text-white border-white/40 chip-glow chip-glow-active' : 'bg-white/0 text-white/80 border-white/10 hover:border-white/20 hover:bg-white/5'}`}
+                  className={`text-left px-3 py-2 rounded-lg transition-all border ${selected ? 'bg-white/5 text-white border-white/40' : 'bg-white/0 text-white/80 border-white/10 hover:border-white/20 hover:bg-white/5'}`}
                 >
                   <div className="text-[13px] leading-snug">{it.title || 'Ukendt titel'}</div>
                   <div className="text-white/40 text-xs mt-1">{it.source ? `${it.source} · `:''}{it.date || ''}</div>
@@ -488,7 +490,7 @@ export default function SetupWizard({ initialData, onComplete, onChange }: Setup
                     ? updateData((d:any)=> ({ ...d, platform: '' }))
                     : updateData((d:any)=> ({ ...d, platform: p }), 'platform')
                   }
-                  className={`px-3 py-1.5 rounded-lg text-xs transition-all border ${selected ? 'bg-white/10 text-white border-white/40 chip-glow chip-glow-active' : 'bg-white/5 text-white border-white/10 hover:border-white/20 hover:bg-white/10'}`}
+                  className={`px-3 py-1.5 rounded-lg text-xs transition-all border ${selected ? 'bg-white/10 text-white border-white/40' : 'bg-white/5 text-white border-white/10 hover:border-white/20 hover:bg-white/10'}`}
                 >
                   {p}
                 </button>
@@ -525,7 +527,7 @@ export default function SetupWizard({ initialData, onComplete, onChange }: Setup
               <button
                 key={r}
                 onClick={()=> updateData((d:any)=> ({ ...d, rating: (d.rating===r ? 0 : r) }), 'rating')}
-                className={`px-3 py-1.5 rounded-lg border text-xs ${data.rating===r ? 'bg-white/10 text-white border-white/40 chip-glow chip-glow-active' : 'bg-white/5 text-white border-white/20 hover:border-white/40 hover:bg-white/10'}`}
+                className={`px-3 py-1.5 rounded-lg border text-xs ${data.rating===r ? 'bg-white/10 text-white border-white/40' : 'bg-white/5 text-white border-white/20 hover:border-white/40 hover:bg-white/10'}`}
               >{r} ⭐</button>
             ))}
           </div>

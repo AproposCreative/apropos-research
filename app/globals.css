@@ -2,52 +2,10 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Animated premium glow for selected chips */
-.chip-glow {
-  position: relative;
-  overflow: hidden;
-  z-index: 0;
-}
-.chip-glow::before {
-  content: '';
-  position: absolute;
-  inset: -2px; /* bleed slightly outside to avoid clipping */
-  border-radius: inherit;
-  background: conic-gradient(from 0deg, rgba(255,255,255,0.0) 0deg, rgba(255,255,255,0.3) 90deg, rgba(255,255,255,0.0) 180deg, rgba(255,255,255,0.0) 360deg);
-  filter: blur(3px);
-  z-index: -1;
-  pointer-events: none;
-  transform-origin: center;
-}
-.chip-glow-active::before {
-  animation: chip-glow-spin 2.2s linear infinite;
-}
-@keyframes chip-glow-spin {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
-}
-
-/* Animated glowing stroke that travels around the border */
-.stroke-glow {
-  position: relative;
-  border-radius: 9999px;
-  isolation: isolate;
-}
-.stroke-glow::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  border: 1.5px solid transparent; /* ring thickness */
-  border-image: conic-gradient(from 0deg, transparent 0deg, rgba(255,255,255,0.75) 20deg, transparent 40deg, transparent 360deg) 1;
-  filter: drop-shadow(0 0 6px rgba(255,255,255,0.35));
-  opacity: 0;
-  transition: opacity 200ms ease;
-  animation: stroke-spin 1.8s linear infinite;
-  pointer-events: none;
-}
-.stroke-glow:hover::before, .stroke-glow-active::before { opacity: 1; }
-@keyframes stroke-spin { from { transform: rotate(0deg);} to { transform: rotate(360deg);} }
+/* Legacy glow classes are deprecated (kept as no-ops for safety) */
+.chip-glow {}
+.chip-glow-active {}
+.stroke-glow {}
 
 @layer base {
   :root {

@@ -6,26 +6,16 @@ import MainChatPanel from './MainChatPanel';
 import SetupWizard from '@/components/SetupWizard';
 import ReviewPanel from '@/components/ReviewPanel';
 import DraftsShelf from '@/components/DraftsShelf';
+import MiniMenu from '@/components/MiniMenu';
 import PreviewPanel from './PreviewPanel';
 import AuthModal from '@/components/AuthModal';
 import DraftsPanel from '@/components/DraftsPanel';
 import ChatSearchModal from '@/components/ChatSearchModal';
 import { useAuth } from '@/lib/auth-context';
 import { saveDraft, getDraft, type ArticleDraft } from '@/lib/firebase-service';
+import type { ArticleData } from '@/types/article';
 
-interface ArticleData {
-  title: string;
-  subtitle: string;
-  category: string;
-  author: string;
-  authorTOV?: string;
-  content: string;
-  rating?: number;
-  tags: string[];
-  platform?: string;
-  aiDraft?: { prompt?: string; suggestions?: string[] } | null;
-  previewTitle?: string; // live title parsed from assistant drafts
-}
+// using shared ArticleData type
 
 export default function AIWriterClient() {
   const { user, logout } = useAuth();
@@ -47,7 +37,8 @@ export default function AIWriterClient() {
     tags: [],
     platform: '',
     aiDraft: null,
-    previewTitle: ''
+    previewTitle: '',
+    aiSuggestion: null
   });
 
   const [notes, setNotes] = useState('');
@@ -439,87 +430,13 @@ export default function AIWriterClient() {
             <div className="hidden md:block md:w-[500px] flex-shrink-0" style={{ height: '1px' }} />
             
             {/* Right Sidebar with action buttons (desktop) */}
-            <div className="hidden md:block absolute top-[1%] left-[1%] z-20">
-            <div ref={el => { (window as any).__miniMenuRef = el; }} className={`md:flex border border-white/20 rounded-2xl items-center overflow-hidden mini-menu-expand ${accountOpen ? 'mini-menu-expand-active' : ''}`} style={{ backgroundColor: 'rgb(0, 0, 0)', height: '50px', padding: '4px', transition: 'transform 320ms cubic-bezier(0.22, 1, 0.36, 1)' , transform: shelfOpen ? 'translateX(calc(12px + min(300px, 50vw) + 500px + 12px))' : 'translateX(calc(500px + 12px))'}}>
-              <div className="flex items-center" style={{ width: accountOpen ? 'auto' : 'auto' }}>
-                <button
-                  onClick={() => setShowSearchModal(true)}
-                  className="w-8 h-8 flex items-center justify-center hover:bg-white/10 rounded-xl transition-colors"
-                  title="Søg i beskeder"
-                >
-                  {/* Modern search icon */}
-                  <div className="relative w-3 h-3">
-                    <div className="absolute top-0 left-0 w-2.5 h-2.5 border-2 border-white rounded-full"></div>
-                    <div className="absolute bottom-0 right-0 w-1.5 h-1 bg-white transform rotate-45"></div>
-                  </div>
-                </button>
-                <button
-                  onClick={() => setReviewOpen(prev=>!prev)}
-                  className="w-8 h-8 flex items-center justify-center hover:bg-white/10 rounded-xl transition-colors"
-                  title="Review"
-                >
-                  {/* Eye icon */}
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-white">
-                    <path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/>
-                    <circle cx="12" cy="12" r="3"/>
-                  </svg>
-                </button>
-                <button
-                  onClick={() => setShelfOpen(prev=>!prev)}
-                  className="w-8 h-8 flex items-center justify-center hover:bg-white/10 rounded-xl transition-colors"
-                  title="Mine artikler"
-                >
-                  {/* Grid icon for articles */}
-                  <div className="grid grid-cols-3 gap-0.5 w-3 h-3">
-                    <div className="w-0.5 h-0.5 bg-white rounded-full"></div>
-                    <div className="w-0.5 h-0.5 bg-white rounded-full"></div>
-                    <div className="w-0.5 h-0.5 bg-white rounded-full"></div>
-                    <div className="w-0.5 h-0.5 bg-white rounded-full"></div>
-                    <div className="w-0.5 h-0.5 bg-white rounded-full"></div>
-                    <div className="w-0.5 h-0.5 bg-white rounded-full"></div>
-                    <div className="w-0.5 h-0.5 bg-white rounded-full"></div>
-                    <div className="w-0.5 h-0.5 bg-white rounded-full"></div>
-                    <div className="w-0.5 h-0.5 bg-white rounded-full"></div>
-                  </div>
-                </button>
-                <button
-                  onClick={handleNewArticle}
-                  className="w-8 h-8 flex items-center justify-center hover:bg-white/10 rounded-xl transition-colors"
-                  title="Ny artikel"
-                >
-                  {/* Modern plus icon */}
-                  <div className="relative w-3 h-3">
-                    <div className="absolute top-1/2 left-1/2 w-2.5 h-0.5 bg-white transform -translate-x-1/2 -translate-y-1/2"></div>
-                    <div className="absolute top-1/2 left-1/2 w-0.5 h-2.5 bg-white transform -translate-x-1/2 -translate-y-1/2"></div>
-                  </div>
-                </button>
-                {/* Push avatar to the far right */}
-                <div className="relative flex items-center" style={{ marginLeft: 'auto' }}>
-                  <button
-                    onClick={() => setAccountOpen(v=>!v)}
-                    className="w-8 h-8 flex items-center justify-center rounded-xl overflow-hidden border border-white/10 hover:border-white/20 transition-colors p-[2px]"
-                    title={user?.displayName || user?.email || 'Konto'}
-                  >
-                    {user?.photoURL ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img src={user.photoURL} alt="" className="w-[calc(100%-2px)] h-[calc(100%-2px)] object-cover rounded-lg" />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center text-[11px] font-semibold text-white rounded-lg" style={{ background: avatarBg }}>{userInitials}</div>
-                    )}
-                  </button>
-                  <div className={`overflow-hidden transition-[width] duration-300 ease-out flex items-center`} style={{ width: accountOpen ? (8 + userName.length * 7 + 70) + 'px' : '0px' }}>
-                    <div className="flex items-center gap-3 pl-2 pr-2">
-                      <span className="text-white text-sm whitespace-nowrap">{userName}</span>
-                      <button
-                        onClick={async()=>{ try { await logout(); setAccountOpen(false); } catch(e){ console.error(e); } }}
-                        className="text-white/70 hover:text-white text-sm px-2 py-1 rounded hover:bg-white/10 whitespace-nowrap"
-                      >Log ud</button>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-            </div>
+            <MiniMenu
+              translateX={shelfOpen ? 'translateX(calc(12px + min(300px, 50vw) + 500px + 12px))' : 'translateX(calc(500px + 12px))'}
+              onSearch={() => setShowSearchModal(true)}
+              onToggleReview={() => setReviewOpen(prev=>!prev)}
+              onToggleShelf={() => setShelfOpen(prev=>!prev)}
+              onNewArticle={handleNewArticle}
+            />
 
             {/* Right flexible spacer (no overlay) */}
             <div className="flex-1 h-full hidden md:block" />
