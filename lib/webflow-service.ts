@@ -192,6 +192,24 @@ export async function discoverWebflowCollections(): Promise<{ authorsCollectionI
   return { authorsCollectionId: authorsId, articlesCollectionId: articlesId, collections: cols };
 }
 
+// Strip HTML tags from rich text fields while preserving line breaks
+function stripHtml(html?: string): string {
+  if (!html) return '';
+  return html
+    .replace(/<br\s*\/?>/gi, '\n') // Convert <br> to newline
+    .replace(/<\/p>/gi, '\n') // Convert closing </p> to newline
+    .replace(/<p[^>]*>/gi, '') // Remove opening <p> tags
+    .replace(/<[^>]*>/g, '') // Remove all other HTML tags
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/\n{3,}/g, '\n\n') // Collapse multiple newlines to max 2
+    .trim();
+}
+
 // Get all authors from Webflow
 export async function getWebflowAuthors(): Promise<WebflowAuthor[]> {
   try {
@@ -224,21 +242,24 @@ export async function getWebflowAuthors(): Promise<WebflowAuthor[]> {
       const authorsData = await authorsResponse.json();
       console.log('✓ Fetched real authors from Webflow, count:', authorsData.items?.length);
       
-      return authorsData.items.map((author: any) => ({
-        id: author.id,
-        name: author.fieldData?.name || 'Unknown Author',
-        slug: author.fieldData?.slug || author.id,
-        bio: author.fieldData?.bio,
-        avatar: author.fieldData?.photo?.url,
-        email: author.fieldData?.['e-mail'],
-        social: {
-          twitter: author.fieldData?.twitter,
-          instagram: author.fieldData?.instagram,
-          linkedin: author.fieldData?.linkedin,
-        },
-        tov: author.fieldData?.tov || author.fieldData?.toneOfVoice || generateTOVFromBio(author.fieldData?.bio, author.fieldData?.position),
-        specialties: author.fieldData?.specialties || generateSpecialtiesFromPosition(author.fieldData?.position),
-      }));
+      return authorsData.items.map((author: any) => {
+        const rawTov = author.fieldData?.['author-prompt'] || author.fieldData?.authorPrompt || author.fieldData?.tov || author.fieldData?.toneOfVoice || generateTOVFromBio(author.fieldData?.bio, author.fieldData?.position);
+        return {
+          id: author.id,
+          name: author.fieldData?.name || 'Unknown Author',
+          slug: author.fieldData?.slug || author.id,
+          bio: author.fieldData?.bio,
+          avatar: author.fieldData?.photo?.url,
+          email: author.fieldData?.['e-mail'],
+          social: {
+            twitter: author.fieldData?.twitter,
+            instagram: author.fieldData?.instagram,
+            linkedin: author.fieldData?.linkedin,
+          },
+          tov: stripHtml(rawTov),
+          specialties: author.fieldData?.specialties || generateSpecialtiesFromPosition(author.fieldData?.position),
+        };
+      });
     } else {
       const errorData = await authorsResponse.json();
       console.warn('Could not fetch authors from Webflow:', errorData);
