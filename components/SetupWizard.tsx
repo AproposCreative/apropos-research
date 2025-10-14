@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, useRef } from 'react';
 import { WebflowAuthor } from '@/lib/webflow-service';
 import type { ArticleData } from '@/types/article';
 import StepChip from '@/components/ui/StepChip';

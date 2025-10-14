@@ -80,7 +80,7 @@ async function loadSystemPromptFromApi(req: NextRequest): Promise<string | null>
 }
 
 // Try to extract a structured payload from a raw model string
-function parseModelPayload(raw: string): { response: string; suggestion?: any; articleUpdate?: any } {
+function parseModelPayload(raw: string): { response?: string; suggestion?: any; articleUpdate?: any } {
   const stripFences = (s: string) => s.replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/i, '').trim();
   const tryParse = (s: string) => {
     try { return JSON.parse(s); } catch { return null; }
@@ -113,8 +113,8 @@ function parseModelPayload(raw: string): { response: string; suggestion?: any; a
     return { response: unescaped };
   }
 
-  // 4) Fallback to plain text
-  return { response: raw };
+  // 4) No parse
+  return {};
 }
 
 export async function POST(request: NextRequest) {
@@ -304,14 +304,24 @@ ${context ? `\n\nNuværende artikel kontekst:\n${context}` : ''}`
       throw new Error('No response from OpenAI');
     }
 
-    // Parse/sanitize model output to avoid exposing JSON/brackets in chat
+    // Parse/sanitize model output and enforce JSON contract
     const parsed = parseModelPayload(response);
+    let outResponse = parsed.response;
+    let outSuggestion = parsed.suggestion ?? null;
+    let outArticleUpdate = parsed.articleUpdate;
 
-    return NextResponse.json({ 
-      response: parsed.response,
-      suggestion: parsed.suggestion || null,
-      articleUpdate: parsed.articleUpdate,
-      usage: completion.usage 
+    // Fallback: if model didn't return JSON, wrap raw text into contract
+    if (!outResponse && !outArticleUpdate && !outSuggestion) {
+      outResponse = response.trim();
+      outArticleUpdate = {};
+      outSuggestion = null;
+    }
+
+    return NextResponse.json({
+      response: outResponse || '',
+      suggestion: outSuggestion,
+      articleUpdate: outArticleUpdate,
+      usage: completion.usage
     });
 
   } catch (error) {
