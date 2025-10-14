@@ -172,26 +172,35 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex" style={{ backgroundColor: 'rgb(0,0,0)' }}>
+    <div className="min-h-screen flex flex-col md:flex-row" style={{ backgroundColor: 'rgb(0,0,0)' }}>
       {/* Left Side - Login Form */}
-      <div className="flex-1 flex items-center justify-center p-8">
+      <div className="flex-1 flex items-center justify-center p-4 md:p-8">
         <div className="w-full max-w-md">
+          
+          {/* Mobile Logo (only visible on mobile) */}
+          <div className="md:hidden flex justify-center mb-6">
+            <img
+              src="/images/Apropos Research White.png"
+              alt="Apropos Research"
+              className="w-48 h-auto drop-shadow-[0_4px_12px_rgba(0,0,0,0.5)]"
+            />
+          </div>
 
           {/* Main Card */}
-          <div className="rounded-2xl p-8 border border-white/10 bg-black/60">
+          <div className="rounded-2xl p-6 md:p-8 border border-white/10 bg-black/60">
             {/* Header */}
-          <div className="text-center mb-8">
-            <h1 className="text-3xl font-bold text-white mb-2">
+          <div className="text-center mb-6 md:mb-8">
+            <h1 className="text-2xl md:text-3xl font-bold text-white mb-2">
               {isSignUp ? 'Create an account' : 'Login'}
             </h1>
           </div>
 
           {/* Social Login Button */}
-          <div className="mb-6">
+          <div className="mb-4 md:mb-6">
             <button
               onClick={handleGoogleLogin}
               disabled={loading}
-              className="w-full flex items-center justify-center px-4 py-3 border border-white/20 rounded-lg hover:bg-white/10 transition-colors text-white disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full flex items-center justify-center px-3 md:px-4 py-2.5 md:py-3 border border-white/20 rounded-lg hover:bg-white/10 transition-colors text-white disabled:opacity-50 disabled:cursor-not-allowed text-sm md:text-base"
             >
               <svg className="w-5 h-5 mr-3" viewBox="0 0 24 24">
                 <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
@@ -227,7 +236,7 @@ export default function LoginPage() {
           )}
 
           {/* Form */}
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form onSubmit={handleSubmit} className="space-y-3 md:space-y-4">
             {/* Email Field */}
             <div>
               <input
@@ -236,7 +245,7 @@ export default function LoginPage() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="Email"
-                className="w-full px-4 py-3 border border-white/20 rounded-lg bg-white text-black placeholder-black/50 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors"
+                className="w-full px-3 md:px-4 py-2.5 md:py-3 border border-white/20 rounded-lg bg-white text-black placeholder-black/50 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors"
                 required
               />
             </div>
@@ -249,7 +258,7 @@ export default function LoginPage() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="Password"
-                className="w-full px-4 py-3 border border-white/20 rounded-lg bg-white text-black placeholder-black/50 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors"
+                className="w-full px-3 md:px-4 py-2.5 md:py-3 border border-white/20 rounded-lg bg-white text-black placeholder-black/50 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors"
                 required
               />
             </div>
@@ -271,14 +280,14 @@ export default function LoginPage() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full bg-white text-black hover:bg-white/90 font-semibold py-3 px-4 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full bg-white text-black hover:bg-white/90 font-semibold py-2.5 md:py-3 px-3 md:px-4 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm md:text-base"
             >
               {loading ? 'Please wait...' : (isSignUp ? 'Create Account' : 'Login')}
             </button>
           </form>
 
           {/* Footer */}
-          <div className="mt-8 text-center">
+          <div className="mt-6 md:mt-8 text-center">
             <p className="text-sm text-white/70 mb-4">
               {isSignUp ? 'Already have an account?' : "Don't have an account?"}
             </p>
@@ -298,8 +307,8 @@ export default function LoginPage() {
         </div>
       </div>
 
-      {/* Right Side - Spline Embed */}
-      <div className="flex-1 relative overflow-hidden">
+      {/* Right Side - Spline Embed (hidden on mobile) */}
+      <div className="hidden md:flex md:flex-1 relative overflow-hidden">
         <div className="absolute inset-0">
           <iframe
             src={process.env.NEXT_PUBLIC_SPLINE_LOGIN_EMBED_URL || 'https://my.spline.design/animatedbackgroundgradientforweb-k9vy84HznMWrADyOW44KZ3Ue/'}
