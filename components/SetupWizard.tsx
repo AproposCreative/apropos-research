@@ -188,9 +188,9 @@ export default function SetupWizard({ initialData, onComplete, onChange }: Setup
   };
 
   return (
-    <div className="bg-black rounded-xl p-3">
+    <div className="bg-black rounded-xl p-2 md:p-3">
       {/* Stepper */}
-      <div className="flex items-center gap-[14px] mb-[14px]">
+      <div className="flex items-center gap-2 md:gap-[14px] mb-3 md:mb-[14px] overflow-x-auto pb-2 md:pb-0 scrollbar-hide">
         <StepChip active={step==='template'} done={!!data.template} label="Template" onClick={()=>setStep('template')} />
         {data.template==='research' && (
           <>
@@ -213,9 +213,9 @@ export default function SetupWizard({ initialData, onComplete, onChange }: Setup
       {/* Step content (auto-height, no inner scrollbar) */}
       <div className="overflow-visible pb-[12px]">
       {step==='template' && (
-        <div className="space-y-[14px]">
+        <div className="space-y-3 md:space-y-[14px]">
           <div className="text-white/80 text-sm">Vælg template</div>
-          <div className="flex flex-wrap gap-x-[16px] gap-y-[10px]">
+          <div className="flex flex-wrap gap-x-3 md:gap-x-[16px] gap-y-2 md:gap-y-[10px]">
             {[
               { key: 'notes', label: 'Skriv artikel ud fra egne noter' },
               { key: 'research', label: 'Research' },
@@ -239,9 +239,9 @@ export default function SetupWizard({ initialData, onComplete, onChange }: Setup
       )}
 
       {step==='source' && data.template==='research' && (
-        <div className="space-y-[14px]">
+        <div className="space-y-3 md:space-y-[14px]">
           <div className="text-white/80 text-sm">Vælg medie (kilde)</div>
-          <div className="flex flex-wrap gap-x-[16px] gap-y-[10px]">
+          <div className="flex flex-wrap gap-x-3 md:gap-x-[16px] gap-y-2 md:gap-y-[10px]">
             {(
               loadingSources ? ['Indlæser…'] : (mediaSources.length ? mediaSources.map(s=>s.name) : [])
             ).map((name:string)=> {
@@ -287,9 +287,9 @@ export default function SetupWizard({ initialData, onComplete, onChange }: Setup
       )}
 
       {step==='trending' && data.template==='research' && (
-        <div className="space-y-[14px]">
+        <div className="space-y-3 md:space-y-[14px]">
           <div className="text-white/80 text-sm">Trending fra {data.inspirationSource || 'valgt medie'}</div>
-          <div className="grid gap-[10px]">
+          <div className="grid gap-2 md:gap-[10px]">
             {loadingTrending && (<div className="w-6 h-6 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>)}
             {!loadingTrending && trendingItems.slice(0,8).map((it, idx)=> {
               const selected = data.researchSelected?.title === it.title;
@@ -315,7 +315,7 @@ export default function SetupWizard({ initialData, onComplete, onChange }: Setup
       )}
 
       {step==='inspiration' && data.template==='research' && !!data.researchSelected && (
-        <div className="space-y-[14px]">
+        <div className="space-y-3 md:space-y-[14px]">
           <div className="text-white/80 text-sm">Opsummering</div>
           <div
             className="rounded-lg border border-white/10 bg-white/5 p-3 cursor-pointer hover:bg-white/10 transition-colors"
@@ -347,10 +347,10 @@ export default function SetupWizard({ initialData, onComplete, onChange }: Setup
       )}
 
       {step==='analysis' && data.template==='research' && (
-        <div className="space-y-[14px]">
+        <div className="space-y-3 md:space-y-[14px]">
           <div className="text-white/80 text-sm">AI Draft analyse</div>
           {/* Simple auto‑generated draft based on selection */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-3">
             <div className="bg-white/5 rounded-lg border border-white/10 p-3">
               <div className="text-white/70 text-xs mb-1">AI Prompt</div>
               <textarea

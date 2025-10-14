@@ -812,7 +812,7 @@ export default function MainChatPanel({
         )}
 
         {/* Input Area */}
-        <div className="p-4 rounded-xl flex flex-col gap-3 bg-[#171717] mx-[10px] mb-[10px]">
+        <div className="p-3 md:p-4 rounded-xl flex flex-col gap-2 md:gap-3 bg-[#171717] mx-[10px] mb-[10px]">
           {/* Publish Button */}
           {articleData.title && articleData.content && (
             <div className="flex justify-end">
@@ -830,8 +830,9 @@ export default function MainChatPanel({
               onChange={(e) => setInputMessage(e.target.value)}
               onKeyDown={handleKeyPress}
               placeholder=""
-              className="w-full bg-transparent text-white text-sm resize-none outline-none relative z-10"
-              rows={2}
+              className="w-full bg-transparent text-white text-sm md:text-sm resize-none outline-none relative z-10"
+              rows={3}
+              style={{ minHeight: '60px' }}
             />
             {!inputMessage && (
               <div className="absolute inset-0 pointer-events-none flex items-start pt-1">

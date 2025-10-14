@@ -53,6 +53,8 @@
   /* Hide scrollbars while preserving scrollability */
   .no-scrollbar::-webkit-scrollbar { display: none; }
   .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+  .scrollbar-hide::-webkit-scrollbar { display: none; }
+  .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
   /* Premium minimal scrollbar */
   .nice-scrollbar { scrollbar-width: thin; scrollbar-color: rgba(200,200,200,0.35) transparent; }
   .nice-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }

@@ -359,7 +359,7 @@ export default function AIWriterClient() {
                 wizardNode={(
                   <div>
                     {/* Persistent progress */}
-                    <button type="button" onClick={()=>setShowWizard(true)} className="w-full px-3 py-3 flex gap-1 items-center cursor-pointer">
+                    <button type="button" onClick={()=>setShowWizard(true)} className="w-full px-3 py-2 md:py-3 flex gap-1 items-center cursor-pointer">
                         {(() => {
                           const sectionLower = String((articleData as any).category || (articleData as any).section || '').toLowerCase();
                           const topicLower = String((articleData as any).topic || '').toLowerCase();
@@ -381,7 +381,7 @@ export default function AIWriterClient() {
                     </button>
                     {/* Animated wizard container */}
                     <div className={`transition-all duration-300 ease-out overflow-x-hidden ${showWizard ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-2 max-h-0 overflow-hidden pointer-events-none'}`}>
-                      <div className="flex items-center justify-between p-3" style={{display: showWizard ? 'flex' : 'none'}}>
+                      <div className="flex items-center justify-between px-3 py-2 md:p-3" style={{display: showWizard ? 'flex' : 'none'}}>
                         <h2 className="text-white text-base font-medium">Artikel opsætning</h2>
                         <div className="flex items-center gap-2 text-xs">
                           <button onClick={()=>setShowWizard(false)} className="text-white/60 hover:text-white">Skjul</button>
@@ -444,34 +444,46 @@ export default function AIWriterClient() {
             {/* Floating mini menu removed (we use the original left menu) */}
 
             {/* Slide-in review drawer (right shelf) with same outer padding as left shelf */}
-            <div className={`absolute md:top-[1%] md:bottom-[1%] md:right-[1%] top-0 right-0 ${reviewOpen ? '' : ''} z-50 md:w-[min(520px,90vw)] w-full transition-all duration-300 ${reviewOpen ? 'translate-x-0 opacity-100 pointer-events-auto' : 'translate-x-[110%] opacity-0 pointer-events-none'}`}>
-              <div className="h-full flex flex-col bg-[#171717] rounded-xl border border-white/20">
-                <div className="overflow-y-auto flex-1 p-[10px] no-scrollbar">
+            <div className={`absolute md:top-[1%] md:bottom-[1%] md:right-[1%] top-0 right-0 bottom-0 ${reviewOpen ? '' : ''} z-50 md:w-[min(520px,90vw)] w-full transition-all duration-300 ${reviewOpen ? 'translate-x-0 opacity-100 pointer-events-auto' : 'translate-x-[110%] opacity-0 pointer-events-none'}`}>
+              <div className="h-full flex flex-col bg-[#171717] md:rounded-xl border-l md:border border-white/20">
+                {/* Mobile header with close button */}
+                <div className="md:hidden flex items-center justify-between px-4 py-3 border-b border-white/10">
+                  <h2 className="text-white font-medium">Artikel preview</h2>
+                  <button onClick={() => setReviewOpen(false)} className="text-white/60 hover:text-white">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M18 6L6 18M6 6l12 12"/>
+                    </svg>
+                  </button>
+                </div>
+                <div className="overflow-y-auto flex-1 p-3 md:p-[10px] no-scrollbar">
                   <ReviewPanel articleData={articleData} frameless />
                 </div>
               </div>
             </div>
 
             {/* Mobile bottom bar */}
-            <div className="md:hidden fixed bottom-2 left-1/2 -translate-x-1/2 z-50 rounded-2xl border border-white/20 p-1 flex items-center gap-1 bg-black/80 backdrop-blur-md">
-              <button onClick={() => setShelfOpen(prev=>!prev)} className="w-10 h-10 flex items-center justify-center rounded-xl hover:bg-white/10" title="Mine artikler">
+            <div className="md:hidden fixed bottom-3 left-1/2 -translate-x-1/2 z-50 rounded-2xl border border-white/20 p-1.5 flex items-center gap-1.5 bg-black/90 backdrop-blur-md shadow-lg">
+              <button onClick={() => setShelfOpen(prev=>!prev)} className="flex flex-col items-center gap-1 px-3 py-2 rounded-xl hover:bg-white/10 active:bg-white/15 transition-colors min-w-[64px]" aria-label="Mine artikler">
                 <div className="grid grid-cols-3 gap-0.5 w-4 h-4">
                   <div className="w-1 h-1 bg-white rounded"></div><div className="w-1 h-1 bg-white rounded"></div><div className="w-1 h-1 bg-white rounded"></div>
                   <div className="w-1 h-1 bg-white rounded"></div><div className="w-1 h-1 bg-white rounded"></div><div className="w-1 h-1 bg-white rounded"></div>
                   <div className="w-1 h-1 bg-white rounded"></div><div className="w-1 h-1 bg-white rounded"></div><div className="w-1 h-1 bg-white rounded"></div>
                 </div>
+                <span className="text-[10px] text-white/70">Drafts</span>
               </button>
-              <button onClick={() => setReviewOpen(prev=>!prev)} className="w-10 h-10 flex items-center justify-center rounded-xl hover:bg-white/10" title="Review">
+              <button onClick={() => setReviewOpen(prev=>!prev)} className="flex flex-col items-center gap-1 px-3 py-2 rounded-xl hover:bg-white/10 active:bg-white/15 transition-colors min-w-[64px]" aria-label="Review">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-white">
                   <path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/>
                   <circle cx="12" cy="12" r="3"/>
                 </svg>
+                <span className="text-[10px] text-white/70">Preview</span>
               </button>
-              <button onClick={handleNewArticle} className="w-10 h-10 flex items-center justify-center rounded-xl hover:bg-white/10" title="Ny artikel">
+              <button onClick={handleNewArticle} className="flex flex-col items-center gap-1 px-3 py-2 rounded-xl hover:bg-white/10 active:bg-white/15 transition-colors min-w-[64px]" aria-label="Ny artikel">
                 <div className="relative w-4 h-4">
                   <div className="absolute top-1/2 left-1/2 w-3 h-0.5 bg-white transform -translate-x-1/2 -translate-y-1/2"></div>
                   <div className="absolute top-1/2 left-1/2 w-0.5 h-3 bg-white transform -translate-x-1/2 -translate-y-1/2"></div>
                 </div>
+                <span className="text-[10px] text-white/70">Ny</span>
               </button>
             </div>
 
