@@ -569,7 +569,7 @@ export default function MainChatPanel({
               onMouseEnter={() => setHoveredMessage(message.id)}
               onMouseLeave={() => setHoveredMessage(null)}
             >
-              <div className="max-w-[80%]" style={{ paddingLeft: '8px', paddingRight: '8px' }}>
+              <div className={editingMessage === message.id ? "w-full" : "max-w-[80%]"} style={{ paddingLeft: '8px', paddingRight: '8px' }}>
                 <div className="relative group">
                   <div
                     className={`transition-all duration-300 ${
@@ -644,7 +644,6 @@ export default function MainChatPanel({
                             className="w-full bg-white/10 border border-white/20 rounded px-3 py-2 text-white text-sm focus:outline-none focus:border-white/40 resize-none min-h-[80px]"
                             rows={Math.max(3, editContent.split('\n').length)}
                             autoFocus
-                            style={{ width: '100%', maxWidth: 'none' }}
                           />
                           <div className="flex gap-2">
                             <button
