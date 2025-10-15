@@ -133,6 +133,7 @@ export default function SetupWizard({ initialData, onComplete, onChange }: Setup
   }, [data, onChange]);
 
 
+
   // StepChip now reusable component
 
   const canContinue = () => {
