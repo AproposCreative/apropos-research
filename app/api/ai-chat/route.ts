@@ -70,13 +70,33 @@ async function loadSystemPromptFromApi(req: NextRequest): Promise<string | null>
     const proto = req.headers.get('x-forwarded-proto') || 'http';
     const host = req.headers.get('host');
     const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || (host ? `${proto}://${host}` : 'http://localhost:3001');
-    const res = await fetch(`${baseUrl}/api/prompts/apropos`, { cache: 'no-store' });
-    if (res.ok) {
-      const text = await res.text();
-      if (text && text.length > 50) return text;
+    
+    // Load central prompt
+    const centralRes = await fetch(`${baseUrl}/api/prompts/apropos`, { cache: 'no-store' });
+    if (!centralRes.ok) return null;
+    
+    let centralPrompt = await centralRes.text();
+    if (!centralPrompt || centralPrompt.length < 50) return null;
+    
+    // Load structure file
+    const fs = require('fs');
+    const path = require('path');
+    const structurePath = path.join(process.cwd(), 'prompts', 'structure.apropos.md');
+    
+    if (fs.existsSync(structurePath)) {
+      const structureContent = fs.readFileSync(structurePath, 'utf8');
+      // Replace the placeholder with actual structure content
+      centralPrompt = centralPrompt.replace(
+        'STRUCTURE LAYER (v3)\n[This section will be dynamically loaded from prompts/structure.apropos.md]',
+        `STRUCTURE LAYER (v3)\n${structureContent}`
+      );
     }
-  } catch {}
-  return null;
+    
+    return centralPrompt;
+  } catch (error) {
+    console.error('Error loading system prompt:', error);
+    return null;
+  }
 }
 
 // Try to extract a structured payload from a raw model string
