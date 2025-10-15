@@ -132,7 +132,14 @@ export default function AIWriterClient() {
         const nextData = { ...articleData, ...(data.articleUpdate || {}) } as any;
         // Keep lightweight chat context for training opt-in later
         const compactMessages = [...chatMessages, { id: Date.now().toString(), role: 'assistant', content: data.response, timestamp: new Date() }];
-        setArticleData(prev => ({ ...prev, _chatMessages: compactMessages, notes }));
+        
+        // Update with chat messages and notes, but preserve articleUpdate data
+        setArticleData(prev => ({ 
+          ...prev, 
+          ...(data.articleUpdate || {}), // Ensure articleUpdate is preserved
+          _chatMessages: compactMessages, 
+          notes 
+        }));
         const labelFor = (slug: string) => {
           const s = slug.toLowerCase();
           if (s==='name' || s==='title') return 'Titel';
