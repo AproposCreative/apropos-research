@@ -397,12 +397,20 @@ export default function AIWriterClient() {
                       <SetupWizard
                         initialData={articleData}
                         onChange={(d:any)=> setArticleData(d)}
-                        onComplete={(setup:any)=>{
+                        onComplete={async (setup:any)=>{
                           const merged = { ...articleData, ...setup };
                           setArticleData(merged);
                           setShowWizard(false);
                           const summary = `Forfatter: ${setup.author}\nSection: ${setup.category}\nTopic: ${setup.tags?.join(', ')}${setup.rating?`\nRating: ${setup.rating}⭐`:''}${setup.press?`\nPresse: Ja`:''}`;
-                          addChatMessage('assistant', `Super. Jeg har sat artiklen op:\n${summary}\n\nSkal vi starte med en arbejdstitel og en indledning?`);
+                          
+                          // Auto-generate article if template is 'notes' and we have notes
+                          if (setup.template === 'notes' && notes && notes.length > 120) {
+                            addChatMessage('assistant', `Super. Jeg har sat artiklen op:\n${summary}\n\nJeg genererer nu artiklen baseret på dine noter...`);
+                            // Auto-trigger article generation
+                            await handleSendMessage('Generer artikel baseret på mine noter');
+                          } else {
+                            addChatMessage('assistant', `Super. Jeg har sat artiklen op:\n${summary}\n\nSkal vi starte med en arbejdstitel og en indledning?`);
+                          }
                         }}
                       />
                     </div>
