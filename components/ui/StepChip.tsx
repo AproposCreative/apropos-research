@@ -1,5 +1,6 @@
 'use client';
 export default function StepChip({ active, done, label, onClick }: { active: boolean; done: boolean; label: string; onClick: () => void }) {
+  console.log(`StepChip ${label}:`, { active, done });
   return (
     <button
       onClick={onClick}

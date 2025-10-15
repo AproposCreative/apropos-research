@@ -114,12 +114,18 @@ export default function SetupWizard({ initialData, onComplete, onChange }: Setup
   };
 
   const updateData = (updater: (d:any)=>any, advanceFrom?: Step, advanceTo?: Step) => {
-    setData((prev:any)=> (typeof updater==='function' ? updater(prev) : prev));
+    console.log('updateData called:', { advanceFrom, advanceTo });
+    setData((prev:any)=> {
+      const newData = typeof updater==='function' ? updater(prev) : prev;
+      console.log('Data updated:', { prev, newData });
+      return newData;
+    });
     if (advanceFrom) {
       if (advanceFrom === 'press') {
         // last step answered -> complete automatically
         complete();
       } else if (advanceTo) {
+        console.log('Setting step to:', advanceTo);
         setStep(advanceTo);
       } else {
         nextStep(advanceFrom);
