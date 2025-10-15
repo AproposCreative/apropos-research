@@ -114,18 +114,12 @@ export default function SetupWizard({ initialData, onComplete, onChange }: Setup
   };
 
   const updateData = (updater: (d:any)=>any, advanceFrom?: Step, advanceTo?: Step) => {
-    console.log('updateData called:', { advanceFrom, advanceTo });
-    setData((prev:any)=> {
-      const newData = typeof updater==='function' ? updater(prev) : prev;
-      console.log('Data updated:', { prev, newData });
-      return newData;
-    });
+    setData((prev:any)=> (typeof updater==='function' ? updater(prev) : prev));
     if (advanceFrom) {
       if (advanceFrom === 'press') {
         // last step answered -> complete automatically
         complete();
       } else if (advanceTo) {
-        console.log('Setting step to:', advanceTo);
         setStep(advanceTo);
       } else {
         nextStep(advanceFrom);
@@ -177,12 +171,12 @@ export default function SetupWizard({ initialData, onComplete, onChange }: Setup
 
   const Progress = () => {
     const segments = [
-      (!!data.authorId || !!data.author), // template er ikke et CMS-felt
+      (!!data.template), // template er første step
+      (!!data.authorId || !!data.author),
       (!!data.section),
       (!!data.topic),
       (isPlatformRequired ? !!data.platform : false),
-      (data.topic==='Anmeldelser' ? (data.rating>0) : false),
-      (!!data.title)
+      (data.topic==='Anmeldelser' ? (data.rating>0) : false)
     ];
     return (
       <div className="w-full flex gap-1 mb-3">
