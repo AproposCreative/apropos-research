@@ -226,7 +226,7 @@ export default function SetupWizard({ initialData, onComplete, onChange }: Setup
                   key={opt.key}
                   onClick={()=> selected
                     ? updateData((d:any)=> ({ ...d, template: '' }))
-                    : updateData((d:any)=> ({ ...d, template: opt.key }), 'template', (opt.key==='research' ? 'source' : 'author'))
+                    : updateData((d:any)=> ({ ...d, template: opt.key }), 'template', (opt.key==='research' ? 'source' : 'template'))
                   }
                   className={`px-3 py-1.5 rounded-lg text-xs transition-all border ${selected ? 'bg-white/10 text-white border-white/40' : 'bg-white/5 text-white border-white/10 hover:border-white/20 hover:bg-white/10'}`}
                 >
@@ -235,6 +235,16 @@ export default function SetupWizard({ initialData, onComplete, onChange }: Setup
               );
             })}
           </div>
+          {data.template && (
+            <div className="flex justify-end pt-2">
+              <button
+                onClick={() => nextStep('template')}
+                className="px-4 py-2 bg-white/10 text-white text-sm rounded-lg hover:bg-white/20 transition-colors"
+              >
+                Næste →
+              </button>
+            </div>
+          )}
         </div>
       )}
 
