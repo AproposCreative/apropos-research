@@ -36,7 +36,7 @@ export default function SetupWizard({ initialData, onComplete, onChange }: Setup
     section: initialData?.section || '',
     topic: initialData?.topic || '',
     platform: initialData?.platform || initialData?.streaming_service || '',
-    template: initialData?.template || 'notes',
+    template: initialData?.template || '',
     inspirationSource: initialData?.inspirationSource || '',
     researchSelected: initialData?.researchSelected || null,
     aiDraft: initialData?.aiDraft || null,
