@@ -368,19 +368,38 @@ export default function AIWriterClient() {
                     {/* Persistent progress */}
                     <button type="button" onClick={()=>setShowWizard(true)} className="w-full px-3 py-2 md:py-3 flex gap-1 items-center cursor-pointer">
                         {(() => {
+                          const templateDone = Boolean((articleData as any).template);
                           const sectionLower = String((articleData as any).category || (articleData as any).section || '').toLowerCase();
-                          const topicLower = String((articleData as any).topic || '').toLowerCase();
-                          const requiresPlatform = sectionLower.includes('serie') || sectionLower.includes('film') || topicLower.includes('serie') || topicLower.includes('film');
+                          const rawTopic = (articleData as any).topic;
+                          const topicsSelected = Array.isArray((articleData as any).topicsSelected)
+                            ? (articleData as any).topicsSelected
+                            : [];
+                          const topicList = Array.isArray(rawTopic)
+                            ? rawTopic
+                            : typeof rawTopic === 'string'
+                              ? rawTopic.split(',').map((t)=>t.trim()).filter(Boolean)
+                              : [];
+                          const tagList = Array.isArray(articleData.tags) ? articleData.tags : [];
+                          const combinedTopics = [...topicList, ...tagList, ...topicsSelected].map((t)=>String(t).trim()).filter(Boolean);
+                          const combinedTopicsLower = combinedTopics.map((t)=>t.toLowerCase());
+                          const requiresPlatform = sectionLower.includes('serie') || sectionLower.includes('film') || combinedTopicsLower.some((t)=>t.includes('serie') || t.includes('film'));
                           const hasPlatform = Boolean((articleData as any).platform || (articleData as any).streaming_service);
-                          const isAnmeldelse = ((articleData.tags||[]).includes('Anmeldelser')) || ((articleData as any).topic==='Anmeldelser');
-                          const segs = [
-                            Boolean(articleData.author || (articleData as any).authorId),
-                            Boolean(articleData.category),
-                            Boolean((articleData as any).topic || (articleData.tags||[]).length>0),
-                            requiresPlatform ? hasPlatform : false,
-                            isAnmeldelse ? Boolean(articleData.rating && articleData.rating>0) : false,
-                            Boolean(articleData.title)
+                          const authorDone = Boolean(articleData.author || (articleData as any).authorId);
+                          const sectionDone = Boolean((articleData as any).section || articleData.category);
+                          const topicDone = topicsSelected.length >=2;
+                          const ratingDone = Boolean((articleData as any).rating && Number((articleData as any).rating)>0) || Boolean((articleData as any).ratingSkipped);
+                          const pressDone = typeof (articleData as any).press === 'boolean';
+                          const segs: boolean[] = [
+                            templateDone,
+                            authorDone,
+                            sectionDone,
+                            topicDone
                           ];
+                          if (requiresPlatform) {
+                            segs.push(hasPlatform);
+                          }
+                          segs.push(ratingDone);
+                          segs.push(pressDone);
                           return segs.map((ok, i)=> (
                             <div key={i} className={`h-1.5 flex-1 rounded ${ok ? 'bg-white shadow-[0_0_10px_#fff]' : 'bg-white/10'}`}></div>
                           ));

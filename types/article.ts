@@ -11,6 +11,7 @@ export interface ArticleData {
   authorTOV?: string;
   content: string;
   rating?: number;
+  ratingSkipped?: boolean;
   tags: string[];
   platform?: string; // streaming_service synonym
   press?: boolean | null;
@@ -30,7 +31,6 @@ export interface ArticleData {
   authorId?: string;
   section?: string;
   topic?: string;
+  topicsSelected?: string[];
   streaming_service?: string;
 }
-
-

@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect, useMemo, useState, useRef } from 'react';
+import { useEffect, useMemo, useState, useRef, useCallback } from 'react';
+import type { PointerEvent as ReactPointerEvent, MouseEvent as ReactMouseEvent } from 'react';
 import { WebflowAuthor } from '@/lib/webflow-service';
 import type { ArticleData } from '@/types/article';
 import StepChip from '@/components/ui/StepChip';
@@ -17,6 +18,7 @@ type Option = { id: string; name: string; slug: string };
 
 export default function SetupWizard({ initialData, onComplete, onChange }: SetupWizardProps) {
   const [step, setStep] = useState<Step>('template');
+  const stepperRef = useRef<HTMLDivElement | null>(null);
   const [authors, setAuthors] = useState<WebflowAuthor[]>([]);
   const [loadingAuthors, setLoadingAuthors] = useState(true);
   const [sections, setSections] = useState<Option[]>([]);
@@ -29,18 +31,32 @@ export default function SetupWizard({ initialData, onComplete, onChange }: Setup
   const [trendingItems, setTrendingItems] = useState<Array<{ title:string; date?:string; source?:string; url?:string; keyPoints?:string[]; content?:string }>>([]);
   const [loadingTrending, setLoadingTrending] = useState(false);
   const trendingAbortRef = useRef<AbortController | null>(null);
+  const dragInfoRef = useRef<{ active: boolean; pointerId: number | null; startX: number; scrollLeft: number; moved: boolean }>({ active: false, pointerId: null, startX: 0, scrollLeft: 0, moved: false });
+  const [isDragging, setIsDragging] = useState(false);
+  const [scrollFade, setScrollFade] = useState<{ left: boolean; right: boolean }>({ left: false, right: false });
   const [data, setData] = useState<any>({
     author: initialData?.author || '',
     authorId: initialData?.authorId || '',
     authorTOV: initialData?.authorTOV || '',
     section: initialData?.section || '',
     topic: initialData?.topic || '',
+    topicsSelected: (()=> {
+      const fromTopic = initialData?.topic
+        ? (Array.isArray(initialData.topic) ? initialData.topic : [initialData.topic])
+        : [];
+      const fromTags = Array.isArray(initialData?.tags) ? initialData.tags : [];
+      const sectionLower = initialData?.section ? String(initialData.section).trim().toLowerCase() : '';
+      const merged = Array.from(new Set([...fromTopic, ...fromTags].map((t:any)=>String(t).trim()).filter(Boolean)));
+      const filtered = merged.filter((t)=>t.toLowerCase() !== sectionLower);
+      return filtered.slice(0,2);
+    })(),
     platform: initialData?.platform || initialData?.streaming_service || '',
     template: initialData?.template || '',
     inspirationSource: initialData?.inspirationSource || '',
     researchSelected: initialData?.researchSelected || null,
     aiDraft: initialData?.aiDraft || null,
     rating: initialData?.rating || 0,
+    ratingSkipped: initialData?.ratingSkipped || false,
     press: typeof initialData?.press === 'boolean' ? initialData.press : null,
     title: initialData?.title || '',
     subtitle: initialData?.subtitle || '',
@@ -96,9 +112,82 @@ export default function SetupWizard({ initialData, onComplete, onChange }: Setup
 
   const isPlatformRequired = useMemo(() => {
     const sec = (data.section || '').toLowerCase();
-    const top = (data.topic || '').toLowerCase();
-    return sec.includes('serier') || sec.includes('film') || top.includes('serie') || top.includes('film');
-  }, [data.section, data.topic]);
+    const topicList = Array.isArray(data.topicsSelected)
+      ? data.topicsSelected
+      : data.topic
+        ? [data.topic]
+        : [];
+    const topicsLower = topicList.map((t:string)=>t.toLowerCase());
+    return sec.includes('serier') || sec.includes('film') || topicsLower.some((t)=>t.includes('serie') || t.includes('film'));
+  }, [data.section, data.topic, data.topicsSelected]);
+
+  const updateScrollFade = useCallback(() => {
+    const container = stepperRef.current;
+    if (!container) return;
+    const { scrollLeft, clientWidth, scrollWidth } = container;
+    const nextLeft = scrollLeft > 4;
+    const nextRight = scrollLeft + clientWidth < scrollWidth - 4;
+    setScrollFade(prev => (prev.left === nextLeft && prev.right === nextRight ? prev : { left: nextLeft, right: nextRight }));
+  }, []);
+
+  const topicsSelectedCount = Array.isArray(data.topicsSelected) ? data.topicsSelected.length : (data.topic ? 1 : 0);
+
+  const resetDragInfo = useCallback(() => {
+    dragInfoRef.current = { active: false, pointerId: null, startX: 0, scrollLeft: 0, moved: false };
+    setIsDragging(false);
+  }, []);
+
+  const handlePointerDown = useCallback((e: ReactPointerEvent<HTMLDivElement>) => {
+    if (e.pointerType === 'mouse' && e.button !== 0) return;
+    const container = stepperRef.current;
+    if (!container) return;
+    dragInfoRef.current = {
+      active: true,
+      pointerId: e.pointerId,
+      startX: e.clientX,
+      scrollLeft: container.scrollLeft,
+      moved: false
+    };
+    container.setPointerCapture?.(e.pointerId);
+    setIsDragging(true);
+  }, []);
+
+  const handlePointerMove = useCallback((e: ReactPointerEvent<HTMLDivElement>) => {
+    const info = dragInfoRef.current;
+    if (!info.active) return;
+    const container = stepperRef.current;
+    if (!container) return;
+    e.preventDefault();
+    const delta = e.clientX - info.startX;
+    if (!info.moved && Math.abs(delta) > 3) info.moved = true;
+    container.scrollLeft = info.scrollLeft - delta;
+    updateScrollFade();
+  }, [updateScrollFade]);
+
+  const finishDrag = useCallback(() => {
+    const info = dragInfoRef.current;
+    if (info.pointerId !== null) {
+      stepperRef.current?.releasePointerCapture?.(info.pointerId);
+    }
+    resetDragInfo();
+    updateScrollFade();
+  }, [resetDragInfo, updateScrollFade]);
+
+  const handlePointerUp = useCallback(() => {
+    finishDrag();
+  }, [finishDrag]);
+
+  const handlePointerLeave = useCallback(() => {
+    if (dragInfoRef.current.active) finishDrag();
+  }, [finishDrag]);
+
+  const handleClickCapture = useCallback((e: ReactMouseEvent<HTMLDivElement>) => {
+    if (dragInfoRef.current.moved) {
+      e.preventDefault();
+      e.stopPropagation();
+      resetDragInfo();
+    }
+  }, [resetDragInfo]);
 
   const nextStep = (from: Step) => {
     if (from==='template') return setStep(data.template==='research' ? 'source' : 'author');
@@ -132,6 +221,34 @@ export default function SetupWizard({ initialData, onComplete, onChange }: Setup
     try { onChange?.(data); } catch {}
   }, [data, onChange]);
 
+  // Ensure active step chip stays visible when steps overflow horizontally
+  useEffect(() => {
+    const container = stepperRef.current;
+    if (!container) return;
+    const activeButton = container.querySelector<HTMLButtonElement>(`[data-step="${step}"]`);
+    if (!activeButton) return;
+    const { offsetLeft, offsetWidth } = activeButton;
+    const { scrollLeft, clientWidth } = container;
+    const isFullyVisible = offsetLeft >= scrollLeft && (offsetLeft + offsetWidth) <= (scrollLeft + clientWidth);
+    if (!isFullyVisible) {
+      const target = offsetLeft - clientWidth * 0.25;
+      container.scrollTo({ left: Math.max(target, 0), behavior: 'smooth' });
+    }
+    requestAnimationFrame(() => updateScrollFade());
+  }, [step, data.template, isPlatformRequired, updateScrollFade]);
+
+  useEffect(() => {
+    const container = stepperRef.current;
+    if (!container) return;
+    updateScrollFade();
+    const onScroll = () => updateScrollFade();
+    container.addEventListener('scroll', onScroll, { passive: true });
+    return () => container.removeEventListener('scroll', onScroll);
+  }, [updateScrollFade]);
+
+  useEffect(() => {
+    updateScrollFade();
+  }, [updateScrollFade, data.template, topicsSelectedCount, isPlatformRequired, data.researchSelected, data.platform]);
 
 
   // StepChip now reusable component
@@ -144,14 +261,21 @@ export default function SetupWizard({ initialData, onComplete, onChange }: Setup
     if (step==='analysis') return !!data.aiDraft;
     if (step==='author') return !!data.authorId || !!data.author;
     if (step==='section') return !!data.section;
-    if (step==='topic') return !!data.topic;
+    if (step==='topic') {
+      const topicsCount = Array.isArray(data.topicsSelected) ? data.topicsSelected.length : (data.topic ? 1 : 0);
+      return topicsCount >= 2;
+    }
     if (step==='platform') return isPlatformRequired ? !!data.platform : true;
-    if (step==='rating') return data.rating>0 || (Array.isArray(topics) ? topics.map(t=>t.name).indexOf('Anmeldelser')===-1 : true);
+    if (step==='rating') return data.rating>0 || data.ratingSkipped;
     return true;
   };
 
   const complete = () => {
-    const tags = Array.from(new Set([data.section, data.topic].filter(Boolean)));
+    const selectedTopics = Array.isArray(data.topicsSelected)
+      ? data.topicsSelected
+      : (data.topic ? [data.topic] : []);
+    const primaryTopic = selectedTopics[0] || '';
+    const tags = Array.from(new Set([data.section, ...selectedTopics].filter(Boolean)));
     onComplete({
       author: data.author,
       authorId: data.authorId,
@@ -165,21 +289,29 @@ export default function SetupWizard({ initialData, onComplete, onChange }: Setup
       platform: data.platform,
       streaming_service: data.platform,
       rating: data.rating,
+      ratingSkipped: data.ratingSkipped,
       press: data.press,
       title: data.title,
-      subtitle: data.subtitle
+      subtitle: data.subtitle,
+      topic: primaryTopic,
+      topicsSelected: selectedTopics
     });
   };
 
   const Progress = () => {
-    const segments = [
-      (!!data.template), // template er første step
+    const ratingDone = !!data.rating && data.rating > 0 || !!data.ratingSkipped;
+    const topicCount = Array.isArray(data.topicsSelected) ? data.topicsSelected.length : (data.topic ? 1 : 0);
+    const segments: boolean[] = [
+      (!!data.template),
       (!!data.authorId || !!data.author),
       (!!data.section),
-      (!!data.topic),
-      (isPlatformRequired ? !!data.platform : false),
-      (data.topic==='Anmeldelser' ? (data.rating>0) : false)
+      (topicCount >= 2)
     ];
+    if (isPlatformRequired) {
+      segments.push(!!data.platform);
+    }
+    segments.push(ratingDone);
+    segments.push(typeof data.press === 'boolean');
     return (
       <div className="w-full flex gap-1 mb-3">
         {segments.map((ok, i)=>(
@@ -192,24 +324,24 @@ export default function SetupWizard({ initialData, onComplete, onChange }: Setup
   return (
     <div className="bg-black rounded-xl p-2 md:p-3">
       {/* Stepper */}
-      <div className="flex items-center gap-2 md:gap-[14px] mb-3 md:mb-[14px] overflow-x-auto pb-2 md:pb-0 scrollbar-hide">
-        <StepChip active={step==='template'} done={!!data.template} label="Template" onClick={()=>setStep('template')} />
+      <div ref={stepperRef} className="flex items-center gap-2 md:gap-[14px] mb-3 md:mb-[14px] overflow-x-auto pb-2 md:pb-0 scrollbar-hide">
+        <StepChip stepKey="template" active={step==='template'} done={!!data.template} label="Template" onClick={()=>setStep('template')} />
         {data.template==='research' && (
           <>
-            <StepChip active={step==='source'} done={!!data.inspirationSource} label="Kilde" onClick={()=>setStep('source')} />
-            <StepChip active={step==='trending'} done={!!data.researchSelected} label="Trending" onClick={()=>setStep('trending')} />
-            <StepChip active={step==='inspiration'} done={!!data.researchSelected} label="Opsummering" onClick={()=>setStep('inspiration')} />
-            <StepChip active={step==='analysis'} done={!!data.aiDraft} label="Analyse" onClick={()=>setStep('analysis')} />
+            <StepChip stepKey="source" active={step==='source'} done={!!data.inspirationSource} label="Kilde" onClick={()=>setStep('source')} />
+            <StepChip stepKey="trending" active={step==='trending'} done={!!data.researchSelected} label="Trending" onClick={()=>setStep('trending')} />
+            <StepChip stepKey="inspiration" active={step==='inspiration'} done={!!data.researchSelected} label="Opsummering" onClick={()=>setStep('inspiration')} />
+            <StepChip stepKey="analysis" active={step==='analysis'} done={!!data.aiDraft} label="Analyse" onClick={()=>setStep('analysis')} />
           </>
         )}
-        <StepChip active={step==='author'} done={!!data.authorId || !!data.author} label="Author" onClick={()=>setStep('author')} />
-        <StepChip active={step==='section'} done={!!data.section} label="Section" onClick={()=>setStep('section')} />
-        <StepChip active={step==='topic'} done={!!data.topic} label="Topic" onClick={()=>setStep('topic')} />
+        <StepChip stepKey="author" active={step==='author'} done={!!data.authorId || !!data.author} label="Author" onClick={()=>setStep('author')} />
+        <StepChip stepKey="section" active={step==='section'} done={!!data.section} label="Section" onClick={()=>setStep('section')} />
+        <StepChip stepKey="topic" active={step==='topic'} done={Array.isArray(data.topicsSelected) ? data.topicsSelected.length >= 2 : !!data.topic} label="Topic" onClick={()=>setStep('topic')} />
         {isPlatformRequired && (
-          <StepChip active={step==='platform'} done={!!data.platform} label="Platform" onClick={()=>setStep('platform')} />
+          <StepChip stepKey="platform" active={step==='platform'} done={!!data.platform} label="Platform" onClick={()=>setStep('platform')} />
         )}
-        <StepChip active={step==='rating'} done={data.rating>0} label="Rating" onClick={()=>setStep('rating')} />
-        <StepChip active={step==='press'} done={typeof data.press === 'boolean'} label="Press" onClick={()=>setStep('press')} />
+        <StepChip stepKey="rating" active={step==='rating'} done={data.rating>0 || data.ratingSkipped} label="Rating" onClick={()=>setStep('rating')} />
+        <StepChip stepKey="press" active={step==='press'} done={typeof data.press === 'boolean'} label="Press" onClick={()=>setStep('press')} />
       </div>
 
       {/* Step content (auto-height, no inner scrollbar) */}
@@ -436,8 +568,8 @@ export default function SetupWizard({ initialData, onComplete, onChange }: Setup
                 <button
                   key={s}
                   onClick={()=> selected
-                    ? updateData((d:any)=> ({ ...d, section: '', topic: '' }))
-                    : updateData((d:any)=> ({ ...d, section: s, topic: '' }), 'section')
+                    ? updateData((d:any)=> ({ ...d, section: '', topic: '', topicsSelected: [], tags: [] }))
+                    : updateData((d:any)=> ({ ...d, section: s, topic: '', topicsSelected: [], tags: [] }), 'section')
                   }
                   className={`px-3 py-1.5 rounded-lg text-xs transition-all border ${selected ? 'bg-white/10 text-white border-white/40' : 'bg-white/5 text-white border-white/10 hover:border-white/20 hover:bg-white/10'}`}
                 >
@@ -459,14 +591,47 @@ export default function SetupWizard({ initialData, onComplete, onChange }: Setup
             {(
               loadingTaxonomies ? ['Indlæser…'] : (topics.length ? topics.map(t=>t.name) : [])
             ).map((t:string)=> {
-              const selected = data.topic === t;
+              const currentSelected = Array.isArray(data.topicsSelected)
+                ? data.topicsSelected
+                : (data.topic ? [data.topic] : []);
+              const selected = currentSelected.includes(t);
               return (
                 <button
                   key={t}
-                  onClick={()=> selected
-                    ? updateData((d:any)=> ({ ...d, topic: '' }))
-                    : updateData((d:any)=> ({ ...d, topic: t }), 'topic')
-                  }
+                  onClick={()=> {
+                    const baseSelected = Array.isArray(data.topicsSelected)
+                      ? [...data.topicsSelected]
+                      : (data.topic ? [data.topic] : []);
+                    let nextSelected = baseSelected.includes(t)
+                      ? baseSelected.filter((name)=>name!==t)
+                      : (() => {
+                          const updated = [...baseSelected];
+                          if (!updated.includes(t)) {
+                            if (updated.length >= 2) {
+                              updated.shift();
+                            }
+                            updated.push(t);
+                          }
+                          return updated;
+                        })();
+                    nextSelected = Array.from(new Set(nextSelected));
+                    const shouldAdvance = nextSelected.length >= 2;
+                    const requiresPlatformNext = (() => {
+                      const secLower = String(data.section || '').toLowerCase();
+                      const topicsLower = nextSelected.map((name)=>name.toLowerCase());
+                      return secLower.includes('serier') || secLower.includes('film') || topicsLower.some((name)=>name.includes('serie') || name.includes('film'));
+                    })();
+                    const advanceToStep = shouldAdvance ? (requiresPlatformNext ? 'platform' : 'rating') : undefined;
+                    updateData((d:any)=> {
+                      const tags = Array.from(new Set([d.section, ...nextSelected].filter(Boolean)));
+                      return {
+                        ...d,
+                        topicsSelected: nextSelected,
+                        topic: nextSelected[0] || '',
+                        tags
+                      };
+                    }, shouldAdvance ? 'topic' : undefined, advanceToStep);
+                  }}
                   className={`px-3 py-1.5 rounded-lg text-xs transition-all border ${selected ? 'bg-white/10 text-white border-white/40' : 'bg-white/5 text-white border-white/10 hover:border-white/20 hover:bg-white/10'}`}
                 >
                   <span className={selected ? 'text-sheen-glow' : ''}>{t}</span>
@@ -527,14 +692,21 @@ export default function SetupWizard({ initialData, onComplete, onChange }: Setup
       {step==='rating' && (
         <div className="space-y-[14px]">
           <div className="text-white/80 text-sm">Rating (ved anmeldelser)</div>
-          <div className="flex gap-x-[16px]">
-            {[1,2,3,4,5,6].map(r=> (
+          <div className="flex flex-wrap items-center gap-x-[16px] gap-y-[10px]">
+            {([1,2,3,4,5,6] as const).map(r=> (
               <button
                 key={r}
-                onClick={()=> updateData((d:any)=> ({ ...d, rating: (d.rating===r ? 0 : r) }), 'rating')}
+                onClick={()=> updateData((d:any)=> {
+                  const same = d.rating === r;
+                  return { ...d, rating: same ? 0 : r, ratingSkipped: false };
+                }, 'rating')}
                 className={`px-3 py-1.5 rounded-lg border text-xs ${data.rating===r ? 'bg-white/10 text-white border-white/40' : 'bg-white/5 text-white border-white/20 hover:border-white/40 hover:bg-white/10'}`}
               >{r} ⭐</button>
             ))}
+            <button
+              onClick={()=> updateData((d:any)=> ({ ...d, rating: 0, ratingSkipped: true }), 'rating')}
+              className={`ml-auto px-3 py-1.5 rounded-lg border text-xs ${data.ratingSkipped ? 'bg-white/10 text-white border-white/40' : 'bg-white/5 text-white border-white/20 hover:border-white/40 hover:bg-white/10'}`}
+            >skip</button>
           </div>
         </div>
       )}
@@ -546,5 +718,3 @@ export default function SetupWizard({ initialData, onComplete, onChange }: Setup
     </div>
   );
 }
-
-
