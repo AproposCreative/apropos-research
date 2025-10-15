@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useEffect, useLayoutEffect, ReactNode } from 'react';
+import { useState, useRef, useEffect, useLayoutEffect, ReactNode, useCallback } from 'react';
 import WizardAutoHeight from '@/components/ui/WizardAutoHeight';
 import FileDropZone from '@/components/FileDropZone';
 import ArticleTemplates from '@/components/ArticleTemplates';
@@ -68,6 +68,8 @@ export default function MainChatPanel({
   const [trendingTemplate, setTrendingTemplate] = useState<any>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const autoSaveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const messageListRef = useRef<HTMLDivElement>(null);
+  const [messageScrollFade, setMessageScrollFade] = useState(false);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -101,6 +103,12 @@ export default function MainChatPanel({
       setTrendingTemplate(null);
     }
   }, [messages.length]);
+
+  const updateMessageScrollFade = useCallback(() => {
+    const node = messageListRef.current;
+    if (!node) return;
+    setMessageScrollFade(node.scrollTop > 4);
+  }, []);
 
   // Auto-save functionality
   const saveToLocalStorage = () => {
@@ -182,6 +190,19 @@ export default function MainChatPanel({
       document.removeEventListener('mouseup', handleTextSelection);
     };
   }, []);
+
+  useEffect(() => {
+    const node = messageListRef.current;
+    if (!node) return;
+    updateMessageScrollFade();
+    const onScroll = () => updateMessageScrollFade();
+    node.addEventListener('scroll', onScroll, { passive: true });
+    return () => node.removeEventListener('scroll', onScroll);
+  }, [updateMessageScrollFade]);
+
+  useEffect(() => {
+    updateMessageScrollFade();
+  }, [messages.length, updateMessageScrollFade]);
 
   const generateSmartTitle = async (message: string) => {
     // Lightweight local generation to avoid hitting the chat API with an incompatible payload
@@ -360,8 +381,8 @@ export default function MainChatPanel({
     'Laver en soft-clip på egoet…',
     'Ligger automation på sætningen…',
     'Mixer lidt mere følelse i mix-bussen…',
-    'Loader plug-in\'et "Human Touch v1.3"…',
     'Stemmer teksten i 432 Hz…',
+    'Loader plug-in\'et "Human Touch v1.3"…',
     'Korrigerer for latens i virkeligheden…',
     'Kalibrerer tonen…',
     'Overdubber med selvironi…',
@@ -568,14 +589,29 @@ export default function MainChatPanel({
           </div>
         </div>
       
-      <div className="flex flex-col justify-start gap-4 p-[10px] flex-1 overflow-hidden">
+      <div className="flex flex-col justify-start gap-2 p-[10px] flex-1 overflow-hidden min-h-0">
         {/* Dynamic Chat Messages */}
-        <div className="flex-1 overflow-y-auto space-y-4 nice-scrollbar">
-          {messages.map((message, index) => (
+        <div className="relative flex-1 min-h-0 overflow-hidden">
+          <div
+            ref={messageListRef}
+            className="h-full overflow-y-auto space-y-4 nice-scrollbar"
+          >
+          {messages.map((message, index) => {
+            const isUser = message.role === 'user';
+            const isEditing = editingMessage === message.id;
+            const formattedTime = message.timestamp?.toLocaleTimeString('da-DK', { hour: '2-digit', minute: '2-digit' }) ?? '';
+            const alignment = isUser ? 'justify-end' : 'justify-start';
+            const widthClass = isEditing ? 'w-full max-w-[640px]' : 'max-w-[78%]';
+            const offsetClass = isEditing ? '' : (isUser ? 'md:ml-20' : 'md:mr-20');
+            const bubbleClass = isUser
+              ? 'rounded-2xl px-4 py-3 transition-all duration-300 shadow-[0_18px_44px_-30px_rgba(0,0,0,0.8)] bg-black/90 text-white border border-white/20 hover:border-white/35 hover:bg-white/5'
+              : 'px-1.5 py-2 text-white/85 transition-all duration-300';
+
+            return (
             <div
               key={message.id}
               id={`message-${index}`}
-              className={`flex justify-start transition-all duration-500 ${
+              className={`flex ${alignment} transition-all duration-500 ${
                 index === messages.length - 1 ? 'animate-message-glow' : ''
               }`}
               style={{
@@ -584,17 +620,41 @@ export default function MainChatPanel({
               onMouseEnter={() => setHoveredMessage(message.id)}
               onMouseLeave={() => setHoveredMessage(null)}
             >
-              <div className={editingMessage === message.id ? "w-full" : "max-w-[80%]"} style={{ paddingLeft: '8px', paddingRight: '8px' }}>
+              <div
+                className={`${widthClass} ${offsetClass}`}
+                style={{ paddingLeft: '8px', paddingRight: '8px' }}
+              >
                 <div className="relative group">
-                  <div
-                    className={`transition-all duration-300 ${
-                      message.role === 'user'
-                        ? `bg-black text-white py-2 px-2 rounded-lg border border-white/50 border-thin hover:shadow-lg hover:shadow-white/10 hover:border-white/70`
-                        : message.content.includes('template valgt!')
-                          ? `bg-black text-white p-4 rounded-lg border border-white/20 border-thin`
-                          : `text-white py-3 rounded-lg hover:bg-white/5`
-                    }`}
-                  >
+                  <div className={bubbleClass}>
+                    <div className="flex items-start justify-between">
+                      {formattedTime && (
+                        <span className="text-[11px] text-white/30">
+                          {formattedTime}
+                        </span>
+                      )}
+                      {isUser && !isEditing && (
+                        <div className={`flex items-center gap-2 transition-opacity duration-200 ${hoveredMessage === message.id ? 'opacity-100' : 'opacity-0'}`}>
+                          <button
+                            onClick={() => navigator.clipboard.writeText(message.content)}
+                            className="p-1.5 text-white/40 hover:text-white/80 transition-colors"
+                            title="Kopier besked"
+                          >
+                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                            </svg>
+                          </button>
+                          <button
+                            onClick={() => handleEditMessage(message.id, message.content)}
+                            className="p-1.5 text-white/40 hover:text-white/80 transition-colors"
+                            title="Rediger besked"
+                          >
+                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                            </svg>
+                          </button>
+                        </div>
+                      )}
+                    </div>
                     {message.role === 'assistant' && (parseNumberedSuggestions(message.content).length > 0 || parseEnumeratedQuestions(message.content).length > 0) ? (
                       <div className="space-y-2">
                         {/* Numbered suggestion cards */}
@@ -652,31 +712,32 @@ export default function MainChatPanel({
                       </div>
                     ) : (
                       editingMessage === message.id ? (
-                        <div className="space-y-2 w-full">
+                        <div className="space-y-3">
                           <textarea
                             value={editContent}
                             onChange={(e) => setEditContent(e.target.value)}
-                            className="w-full bg-white/10 border border-white/20 rounded px-3 py-2 text-white text-sm focus:outline-none focus:border-white/40 resize-none min-h-[80px]"
+                            className="w-full bg-transparent focus:outline-none resize-none min-h-[100px] text-white text-sm border-none"
+                            style={{ padding: '4px 0' }}
                             rows={Math.max(3, editContent.split('\n').length)}
                             autoFocus
                           />
                           <div className="flex gap-2">
                             <button
                               onClick={handleSaveEdit}
-                              className="px-3 py-1 bg-green-600 hover:bg-green-700 text-white text-xs rounded transition-colors"
+                              className="px-4 py-1.5 bg-green-600 hover:bg-green-700 text-white text-xs rounded transition-colors"
                             >
                               Gem
                             </button>
                             <button
                               onClick={handleCancelEdit}
-                              className="px-3 py-1 bg-gray-600 hover:bg-gray-700 text-white text-xs rounded transition-colors"
+                              className="px-4 py-1.5 bg-gray-600 hover:bg-gray-700 text-white text-xs rounded transition-colors"
                             >
                               Annuller
                             </button>
                           </div>
                         </div>
                       ) : (
-                        <p className="text-sm whitespace-pre-wrap text-left">{message.content}</p>
+                        <p className="text-sm leading-relaxed whitespace-pre-wrap text-left text-white/90">{message.content}</p>
                       )
                     )}
                     
@@ -706,45 +767,10 @@ export default function MainChatPanel({
                     )}
                   </div>
                 </div>
-                
-                {/* Timestamp and actions - positioned below message */}
-                <div className={`transition-opacity duration-300 ease-in-out ${
-                  hoveredMessage === message.id ? 'opacity-100' : 'opacity-0'
-                }`}>
-                  <div className="flex items-center justify-between mt-2">
-                    <p className="text-xs text-white/50">
-                      {message.timestamp.toLocaleTimeString('da-DK', { 
-                        hour: '2-digit', 
-                        minute: '2-digit' 
-                      })}
-                    </p>
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={() => navigator.clipboard.writeText(message.content)}
-                        className="p-1 text-white/40 hover:text-white/70 transition-colors"
-                        title="Kopier besked"
-                      >
-                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                        </svg>
-                      </button>
-                      {message.role === 'assistant' && (
-                        <button
-                          onClick={() => handleEditMessage(message.id, message.content)}
-                          className="p-1 text-white/40 hover:text-white/70 transition-colors"
-                          title="Rediger besked"
-                        >
-                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                          </svg>
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                </div>
               </div>
             </div>
-          ))}
+          );
+        })}
           {isThinking && (
             <div className="flex justify-start">
               <div className="max-w-[80%]" style={{ paddingLeft: '8px', paddingRight: '8px' }}>
@@ -759,6 +785,8 @@ export default function MainChatPanel({
             </div>
           )}
           <div ref={messagesEndRef} />
+        </div>
+          <div className={`pointer-events-none absolute inset-x-0 top-0 h-10 z-10 bg-[linear-gradient(180deg,_#050505,_rgba(5,5,5,0.7),_rgba(5,5,5,0))] transition-opacity duration-300 ${messageScrollFade ? 'opacity-100' : 'opacity-0'}`} />
         </div>
 
       </div>

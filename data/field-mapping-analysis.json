@@ -1,0 +1,376 @@
+{
+  "fieldCategories": {
+    "core": [
+      "name",
+      "slug",
+      "content",
+      "meta-description",
+      "seo-title"
+    ],
+    "content": [
+      "intro",
+      "subtitle"
+    ],
+    "classification": [
+      "author",
+      "section",
+      "topic"
+    ],
+    "rating": [
+      "stjerne"
+    ],
+    "media": [
+      "thumb",
+      "video-trailer"
+    ],
+    "events": [
+      "festival",
+      "location",
+      "start-dato",
+      "slut-dato",
+      "buy-tickets"
+    ],
+    "streaming": [
+      "watch-now-link",
+      "unique-watch-now-title",
+      "unique-stream-now-cover"
+    ],
+    "references": [
+      "simple-rerfence",
+      "muiltiref",
+      "topic-two"
+    ],
+    "utility": [
+      "minutes-to-read",
+      "featured",
+      "presseakkreditering",
+      "unique-label-for-tickets"
+    ]
+  },
+  "contentPatterns": {
+    "hasIntro": 98,
+    "hasSubtitle": 67,
+    "hasRating": 66,
+    "hasStreamingLink": 30,
+    "hasEventInfo": 48,
+    "hasVideoTrailer": 26
+  },
+  "totalArticles": 100,
+  "fieldUsage": {
+    "video-trailer": {
+      "used": 26,
+      "total": 100,
+      "percentage": 26,
+      "examples": [],
+      "types": {}
+    },
+    "watch-now-link": {
+      "used": 30,
+      "total": 100,
+      "percentage": 30,
+      "examples": [
+        "https://www.netflix.com/title/81498621",
+        "https://www.disneyplus.com/da-dk/browse/entity-23c8484e-a657-440b-8bf9-678f547331ff",
+        "https://www.netflix.com/title/81575641",
+        "https://open.spotify.com/album/0vYywoBHcZgwW08A2rA9fU?si=ME4NsbveT6qZe23RW6zarQ",
+        "https://open.spotify.com/track/41P6Tnd8KIHqON0QIydx6a?si=56dc17d768c14f93"
+      ],
+      "types": {}
+    },
+    "minutes-to-read": {
+      "used": 18,
+      "total": 100,
+      "percentage": 18,
+      "examples": [],
+      "types": {}
+    },
+    "presseakkreditering": {
+      "used": 100,
+      "total": 100,
+      "percentage": 100,
+      "examples": [],
+      "types": {}
+    },
+    "featured": {
+      "used": 100,
+      "total": 100,
+      "percentage": 100,
+      "examples": [],
+      "types": {}
+    },
+    "stjerne": {
+      "used": 66,
+      "total": 100,
+      "percentage": 66,
+      "examples": [],
+      "types": {}
+    },
+    "seo-title": {
+      "used": 100,
+      "total": 100,
+      "percentage": 100,
+      "examples": [
+        "KPop Demon Hunters (Netflix): Et anime-pop mesterværk du ikke troede du ville elske",
+        "Alien: Earth (Disney+): Sci-fi med stilhed og svedige håndflader",
+        "Nordic Race (Refshaleøen): Skammens armbånd og fællesskab",
+        "TechBBQ 2025 (Bella Center): LinkedIn på speed",
+        "Go-Jo i Lille Vega: YouTube-æstetik, gimmicks og oprigtig energi"
+      ],
+      "types": {}
+    },
+    "name": {
+      "used": 100,
+      "total": 100,
+      "percentage": 100,
+      "examples": [
+        "KPop Demon Hunters",
+        "Alien: Earth",
+        "Nordic Race 2025 (Refshaleøen)",
+        "TechBBQ 2025 (Bella Center)",
+        "Go-Jo På Lille Vega"
+      ],
+      "types": {}
+    },
+    "intro": {
+      "used": 99,
+      "total": 100,
+      "percentage": 99,
+      "examples": [
+        "Jeg ved ikke, hvad der er mest absurd: at jeg har set en K-pop-anime-musical to gange på én uge – el",
+        "Jeg ville egentlig have afskrevet hele Alien-franchisen for længst. Det er svært ikke at miste troen",
+        "Jeg havde aldrig hørt om Nordic Race, før vi meldte os til. På papiret lignede det en crossfitters v",
+        "Enten er du der for at pjække. Eller også er du der for at finde arbejde. Jeg ved ikke, hvad jeg sel",
+        "Jeg kan huske dengang, hvor det var tydeligt, når bands blev kendt på Myspace. De havde en særlig en"
+      ],
+      "types": {}
+    },
+    "meta-description": {
+      "used": 100,
+      "total": 100,
+      "percentage": 100,
+      "examples": [
+        "En K-pop anime-musical om dæmoner, glitter og selverkendelse. Det lyder skørt – men KPop Demon Hunte",
+        "Alien: Earth er den bedste Alien-produktion siden 80’erne. En serie, der tør være stille, mørk og kl",
+        "Nordic Race på Refshaleøen: 18 forhindringer, sved, grin og skammens armbånd. En brutal, sjov og ove",
+        "TechBBQ lover inspiration, men føles som en to-dages LinkedIn-feed. Sokker, buzzwords og lunkne øl e",
+        "En koncert mellem kitsch og kærlighed: Go-Jo forvandlede Lille Vega til et viralt popunivers med cha"
+      ],
+      "types": {}
+    },
+    "subtitle": {
+      "used": 67,
+      "total": 100,
+      "percentage": 67,
+      "examples": [
+        "Er den bedste film, jeg har set i 2025, virkelig en K-pop anime-inspireret musical?",
+        "Alien er tilbage. Og du kommer til at holde vejret hele vejen.",
+        "Skammens armbånd og en uventet fest for alle kroppe",
+        "Et sted hvor alle sælger til alle – og ingen køber noget – en kulturartikel om Skandinaviens største",
+        " Fra Meme Til Magi"
+      ],
+      "types": {}
+    },
+    "content": {
+      "used": 100,
+      "total": 100,
+      "percentage": 100,
+      "examples": [
+        "<p id=\"\">Jeg skal starte med en indrømmelse: Jeg er ikke typen, der har kaninører på eller samler på",
+        "<p id=\"\">Alien-universet er en af de få filmfranchises, hvor selv de dårlige kapitler har bid. Ridle",
+        "<p id=\"\">Nordic Race er i virkeligheden en blanding af sports-event, festival og teambuilding. I vor",
+        "<p id=\"\">TechBBQ er blevet noget, man åbenbart skal. Lidt ligesom Folkemødet, bare uden fadøl og ide",
+        "<p id=\"\">Go-Jo, manden bag <em id=\"\">Mrs. Hollywood</em>, tog turen til Danmark for første gang på s"
+      ],
+      "types": {}
+    },
+    "section": {
+      "used": 98,
+      "total": 100,
+      "percentage": 98,
+      "examples": [
+        "67dc6422013a1fa7681e0bb8",
+        "67dc6422013a1fa7681e0bb8",
+        "67dbf17ba540975b5b21c30a",
+        "67dbf17ba540975b5b21c30a",
+        "67dbf17ba540975b5b21c309"
+      ],
+      "types": {}
+    },
+    "author": {
+      "used": 98,
+      "total": 100,
+      "percentage": 98,
+      "examples": [
+        "684976c2eeebbaef2a59eb68",
+        "67fd16047ce997bd0fd8eed6",
+        "684976c2eeebbaef2a59eb68",
+        "684976c2eeebbaef2a59eb68",
+        "684161ef23755aa238e2b872"
+      ],
+      "types": {}
+    },
+    "simple-rerfence": {
+      "used": 20,
+      "total": 100,
+      "percentage": 20,
+      "examples": [
+        "67dc7b38f78d25601d481013",
+        "67dc7b37f78d25601d48100d",
+        "67dc7b38f78d25601d481013",
+        "67dc7b37f78d25601d48100d",
+        "67dc7b37f78d25601d48100f"
+      ],
+      "types": {}
+    },
+    "topic": {
+      "used": 98,
+      "total": 100,
+      "percentage": 98,
+      "examples": [
+        "67e6f8f2e077ea42a9b95b87",
+        "67e6f8f2e077ea42a9b95b87",
+        "67dbf17ba540975b5b21c301",
+        "67dbf17ba540975b5b21c301",
+        "67e6f8f2e077ea42a9b95b87"
+      ],
+      "types": {}
+    },
+    "slug": {
+      "used": 100,
+      "total": 100,
+      "percentage": 100,
+      "examples": [
+        "kpop-demon-hunters-netflix",
+        "anmeldelse-alien-earth",
+        "nordic-race-2025-refshaleoen",
+        "techbbq-2025",
+        "go-jo-youtube-kaos-og-charme-pa-lille-vega"
+      ],
+      "types": {}
+    },
+    "muiltiref": {
+      "used": 21,
+      "total": 100,
+      "percentage": 21,
+      "examples": [],
+      "types": {}
+    },
+    "topic-two": {
+      "used": 49,
+      "total": 100,
+      "percentage": 49,
+      "examples": [
+        "67dbf17ba540975b5b21c303",
+        "67dbf52a4ac2cf0073a9b0ef",
+        "67e6ee5034ae539291e9c6d0",
+        "67dbf17ba540975b5b21c301",
+        "67e6ee5034ae539291e9c6d0"
+      ],
+      "types": {}
+    },
+    "thumb": {
+      "used": 98,
+      "total": 100,
+      "percentage": 98,
+      "examples": [],
+      "types": {}
+    },
+    "location": {
+      "used": 29,
+      "total": 100,
+      "percentage": 29,
+      "examples": [
+        "Refshaleøen",
+        "Bella Center",
+        "Refshaleøen",
+        "Bornholm",
+        "Roskilde Festival"
+      ],
+      "types": {}
+    },
+    "start-dato": {
+      "used": 28,
+      "total": 100,
+      "percentage": 28,
+      "examples": [
+        "2025-08-29T00:00:00.000Z",
+        "2025-07-17T00:00:00.000Z",
+        "2025-07-05T00:00:00.000Z",
+        "2025-07-04T00:00:00.000Z",
+        "2025-07-05T00:00:00.000Z"
+      ],
+      "types": {}
+    },
+    "buy-tickets": {
+      "used": 15,
+      "total": 100,
+      "percentage": 15,
+      "examples": [
+        "https://www.sportstiming.dk/event/14869/app/registration/tickets",
+        "https://www.nfbio.dk/film/28-years-later",
+        "https://odaysfestival.dk/tickets/",
+        "https://tinderbox.dk/en/tickets/",
+        "https://tinderbox.dk/billetter/"
+      ],
+      "types": {}
+    },
+    "unique-label-for-tickets": {
+      "used": 4,
+      "total": 100,
+      "percentage": 4,
+      "examples": [
+        "Billetter",
+        "Køb billet",
+        "Køb billet",
+        "Deltag"
+      ],
+      "types": {}
+    },
+    "festival": {
+      "used": 38,
+      "total": 100,
+      "percentage": 38,
+      "examples": [
+        "680e1450d4a3798fc79dfe4e",
+        "680e1450d4a3798fc79dfe4e",
+        "680e1450d4a3798fc79dfe4e",
+        "6813687ae43216e2f9ddfa8e",
+        "6804c601ebd77b444f57a485"
+      ],
+      "types": {}
+    },
+    "unique-stream-now-cover": {
+      "used": 7,
+      "total": 100,
+      "percentage": 7,
+      "examples": [],
+      "types": {}
+    },
+    "unique-watch-now-title": {
+      "used": 8,
+      "total": 100,
+      "percentage": 8,
+      "examples": [
+        "Lyt til \"KENNY\" af Benny Jamz & Gilli",
+        "Lyt nu",
+        "https://www.youtube.com/watch?v=22w7z_lT6YM",
+        "Lyt til vores interne #WLG2025 Playlist",
+        "O Days 2025 som playliste på Spotify"
+      ],
+      "types": {}
+    },
+    "slut-dato": {
+      "used": 7,
+      "total": 100,
+      "percentage": 7,
+      "examples": [
+        "2025-07-03T00:00:00.000Z",
+        "2025-06-28T00:00:00.000Z",
+        "2025-06-28T00:00:00.000Z",
+        "2025-08-02T00:00:00.000Z",
+        "2025-06-28T00:00:00.000Z"
+      ],
+      "types": {}
+    }
+  }
+}

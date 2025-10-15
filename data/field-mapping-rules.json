@@ -1,0 +1,61 @@
+{
+  "required": [
+    "name",
+    "slug",
+    "content",
+    "meta-description",
+    "seo-title"
+  ],
+  "conditional": {
+    "review": {
+      "condition": "hasRating",
+      "fields": [
+        "stjerne"
+      ]
+    },
+    "streaming": {
+      "condition": "hasStreamingLink",
+      "fields": [
+        "watch-now-link",
+        "unique-watch-now-title"
+      ]
+    },
+    "event": {
+      "condition": "hasEventInfo",
+      "fields": [
+        "festival",
+        "location",
+        "start-dato",
+        "buy-tickets"
+      ]
+    },
+    "video": {
+      "condition": "hasVideoTrailer",
+      "fields": [
+        "video-trailer"
+      ]
+    }
+  },
+  "mapping": {
+    "name": "name",
+    "seoTitle": "seo-title",
+    "seoDescription": "meta-description",
+    "subtitle": "subtitle",
+    "intro": "intro",
+    "content": "content",
+    "rating": "stjerne",
+    "streaming_service": "watch-now-link",
+    "author": "author",
+    "illustration": "thumb",
+    "section": "section",
+    "topic": "topic",
+    "topic_two": "topic-two",
+    "minutes_to_read": "minutes-to-read",
+    "featured": "featured",
+    "presseakkreditering": "presseakkreditering",
+    "festival": "festival",
+    "start_dato": "start-dato",
+    "slut_dato": "slut-dato",
+    "location": "location"
+  }
+}

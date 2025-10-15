@@ -92,6 +92,27 @@ async function loadSystemPromptFromApi(req: NextRequest): Promise<string | null>
       );
     }
     
+    // Load field mapping rules for enhanced field accuracy
+    const rulesPath = path.join(process.cwd(), 'data', 'field-mapping-rules.json');
+    if (fs.existsSync(rulesPath)) {
+      const rules = JSON.parse(fs.readFileSync(rulesPath, 'utf8'));
+      
+      // Add field mapping guidance to the prompt
+      const fieldMappingGuidance = `
+
+FIELD MAPPING GUIDANCE (Learned from 100 real articles):
+- ALWAYS include core fields: ${rules.required.join(', ')}
+- Include intro for most articles (99% have it)
+- Include subtitle for most articles (67% have it)
+- Include rating (stjerne) only for reviews
+- Include streaming links only for streaming content
+- Include event fields only for events/festivals
+- Use exact Webflow field names: ${Object.entries(rules.mapping).map(([k,v]) => `${k} → ${v}`).join(', ')}
+`;
+      
+      centralPrompt += fieldMappingGuidance;
+    }
+    
     return centralPrompt;
   } catch (error) {
     console.error('Error loading system prompt:', error);

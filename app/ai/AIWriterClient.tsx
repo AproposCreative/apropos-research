@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { type UploadedFile } from '@/lib/file-upload-service';
 import MainChatPanel from './MainChatPanel';
 import SetupWizard from '@/components/SetupWizard';
@@ -36,6 +36,7 @@ export default function AIWriterClient() {
     rating: 0,
     tags: [],
     platform: '',
+    topicsSelected: [],
     aiDraft: null,
     previewTitle: '',
     aiSuggestion: null
@@ -174,6 +175,17 @@ export default function AIWriterClient() {
       setIsThinking(false);
     }
   };
+
+  // Automatically reveal review drawer when fresh article content arrives
+  const previousContentRef = useRef(articleData.content || '');
+  useEffect(() => {
+    const prev = previousContentRef.current || '';
+    const next = articleData.content || '';
+    if (!reviewOpen && next && next !== prev) {
+      setReviewOpen(true);
+    }
+    previousContentRef.current = next;
+  }, [articleData.content, reviewOpen]);
 
   // Auto-save to Firebase when data changes
   useEffect(() => {

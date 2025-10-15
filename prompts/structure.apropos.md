@@ -88,18 +88,28 @@ Used together with the central prompt and author TOVs.
 
 ## 🧩 CMS FIELD MAP (for JSON / Webflow)
 
-| CMS Field | Description | Limit |
-|------------|-------------|-------|
-| name | SEO-title | ≤ 60 |
-| seoTitle | SEO-title duplicate | ≤ 60 |
-| seoDescription | Meta description | ≤ 155 |
-| subtitle | Creative subline | – |
-| intro | Intro paragraph | ~300 chars |
-| content | Full body text (intro + main + ending) | – |
-| rating | Star rating (1–6) | optional |
-| streaming_service | Platform or venue | – |
-| author | Name / persona | – |
-| illustration | Hand-drawn .webp (1920×1080) | – |
+| CMS Field | Description | Limit | Webflow Field |
+|------------|-------------|-------|---------------|
+| name | SEO-title | ≤ 60 | `name` |
+| seoTitle | SEO-title duplicate | ≤ 60 | `seo-title` |
+| seoDescription | Meta description | ≤ 155 | `meta-description` |
+| subtitle | Creative subline | – | `subtitle` |
+| intro | Intro paragraph | ~300 chars | `intro` |
+| content | Full body text (intro + main + ending) | – | `content` |
+| rating | Star rating (1–6) | optional | `stjerne` |
+| streaming_service | Platform or venue | – | `watch-now-link` |
+| author | Name / persona | – | `author` |
+| illustration | Hand-drawn .webp (1920×1080) | – | `thumb` |
+| section | Article section | – | `section` |
+| topic | Primary topic | – | `topic` |
+| topic_two | Secondary topic | – | `topic-two` |
+| minutes_to_read | Reading time | – | `minutes-to-read` |
+| featured | Featured article | – | `featured` |
+| presseakkreditering | Press accreditation | – | `presseakkreditering` |
+| festival | Festival reference | – | `festival` |
+| start_dato | Start date | – | `start-dato` |
+| slut_dato | End date | – | `slut-dato` |
+| location | Event location | – | `location` |
 
 ---
 
@@ -123,3 +133,28 @@ Used together with the central prompt and author TOVs.
 This structure file defines form, not voice.  
 Tone, rhythm and personality come from the selected Author TOV.  
 All outputs must respect this structure regardless of writer style.
+
+
+---
+
+## 🎯 LEARNED FIELD PATTERNS (from 100 articles)
+
+### Field Usage Statistics:
+- **Core fields (100% usage):** name, slug, content, meta-description, seo-title
+- **Content fields:** intro (99%), subtitle (67%)
+- **Classification:** author (98%), section (98%), topic (98%)
+- **Conditional:** stjerne (66%), watch-now-link (30%), festival (38%)
+
+### Content Type Detection:
+- **Review:** Has rating (stjerne) field
+- **Streaming:** Has watch-now-link field  
+- **Event:** Has festival or location field
+- **Video:** Has video-trailer field
+
+### Field Mapping Priority:
+1. Always include core fields
+2. Include intro for most articles (99% have it)
+3. Include subtitle for most articles (67% have it)
+4. Include rating only for reviews
+5. Include streaming links only for streaming content
+6. Include event fields only for events/festivals

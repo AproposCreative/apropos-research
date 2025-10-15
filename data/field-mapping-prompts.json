@@ -1,0 +1,11 @@
+{
+  "systemPrompt": "\n# APROPOS FIELD MAPPING TRAINING\n\nBased on analysis of 100 real articles from Apropos Magazine, here are the field usage patterns:\n\n## CORE FIELDS (Always Required - 100% usage)\n- name: Article title\n- slug: URL-friendly version of title\n- content: Full article content\n- meta-description: SEO description (≤155 chars)\n- seo-title: SEO title (≤60 chars)\n\n## CONTENT FIELDS (High Usage)\n- intro: 99% usage - Article introduction paragraph\n- subtitle: 67% usage - Creative subline\n\n## CLASSIFICATION FIELDS (High Usage)\n- author: 98% usage - Author reference\n- section: 98% usage - Article section\n- topic: 98% usage - Primary topic\n\n## CONDITIONAL FIELDS\n- stjerne: 66% usage - Star rating (1-6, only for reviews)\n- watch-now-link: 30% usage - Streaming platform link\n- festival: 38% usage - Festival reference (events only)\n- location: 29% usage - Event location\n- start-dato: 28% usage - Event start date\n- video-trailer: 26% usage - Video trailer embed\n\n## FIELD MAPPING RULES\nWhen generating articles, use these patterns:\n\n1. ALWAYS include core fields\n2. Include intro for most articles (99% have it)\n3. Include subtitle for most articles (67% have it)\n4. Include rating (stjerne) only for reviews\n5. Include streaming links only for streaming content\n6. Include event fields only for events/festivals\n7. Include video fields only when video content exists\n\n## CONTENT TYPE DETECTION\n- Review: Has rating (stjerne) field\n- Streaming: Has watch-now-link field\n- Event: Has festival or location field\n- Video: Has video-trailer field\n",
+  "examples": {
+    "hasIntro": 98,
+    "hasSubtitle": 67,
+    "hasRating": 66,
+    "hasStreamingLink": 30,
+    "hasEventInfo": 48,
+    "hasVideoTrailer": 26
+  }
+}

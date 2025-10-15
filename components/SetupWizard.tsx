@@ -132,22 +132,16 @@ export default function SetupWizard({ initialData, onComplete, onChange }: Setup
 
   const topicsSelectedCount = Array.isArray(data.topicsSelected) ? data.topicsSelected.length : (data.topic ? 1 : 0);
 
-  const resetDragInfo = useCallback(() => {
-    dragInfoRef.current = { active: false, pointerId: null, startX: 0, scrollLeft: 0, moved: false };
-    setIsDragging(false);
-  }, []);
-
   const handlePointerDown = useCallback((e: ReactPointerEvent<HTMLDivElement>) => {
     if (e.pointerType === 'mouse' && e.button !== 0) return;
     const container = stepperRef.current;
     if (!container) return;
-    dragInfoRef.current = {
-      active: true,
-      pointerId: e.pointerId,
-      startX: e.clientX,
-      scrollLeft: container.scrollLeft,
-      moved: false
-    };
+    const info = dragInfoRef.current;
+    info.active = true;
+    info.pointerId = e.pointerId;
+    info.startX = e.clientX;
+    info.scrollLeft = container.scrollLeft;
+    info.moved = false;
     container.setPointerCapture?.(e.pointerId);
     setIsDragging(true);
   }, []);
@@ -169,25 +163,32 @@ export default function SetupWizard({ initialData, onComplete, onChange }: Setup
     if (info.pointerId !== null) {
       stepperRef.current?.releasePointerCapture?.(info.pointerId);
     }
-    resetDragInfo();
+    info.active = false;
+    info.pointerId = null;
+    info.startX = 0;
+    info.scrollLeft = stepperRef.current?.scrollLeft || 0;
+    setIsDragging(false);
     updateScrollFade();
-  }, [resetDragInfo, updateScrollFade]);
+  }, [updateScrollFade]);
 
-  const handlePointerUp = useCallback(() => {
+  const handlePointerUp = useCallback((e: ReactPointerEvent<HTMLDivElement>) => {
+    void e;
     finishDrag();
   }, [finishDrag]);
 
-  const handlePointerLeave = useCallback(() => {
+  const handlePointerLeave = useCallback((e: ReactPointerEvent<HTMLDivElement>) => {
+    void e;
     if (dragInfoRef.current.active) finishDrag();
   }, [finishDrag]);
 
   const handleClickCapture = useCallback((e: ReactMouseEvent<HTMLDivElement>) => {
-    if (dragInfoRef.current.moved) {
+    const info = dragInfoRef.current;
+    if (info.moved) {
       e.preventDefault();
       e.stopPropagation();
-      resetDragInfo();
     }
-  }, [resetDragInfo]);
+    info.moved = false;
+  }, []);
 
   const nextStep = (from: Step) => {
     if (from==='template') return setStep(data.template==='research' ? 'source' : 'author');
@@ -261,10 +262,7 @@ export default function SetupWizard({ initialData, onComplete, onChange }: Setup
     if (step==='analysis') return !!data.aiDraft;
     if (step==='author') return !!data.authorId || !!data.author;
     if (step==='section') return !!data.section;
-    if (step==='topic') {
-      const topicsCount = Array.isArray(data.topicsSelected) ? data.topicsSelected.length : (data.topic ? 1 : 0);
-      return topicsCount >= 2;
-    }
+    if (step==='topic') return topicsSelectedCount >= 2;
     if (step==='platform') return isPlatformRequired ? !!data.platform : true;
     if (step==='rating') return data.rating>0 || data.ratingSkipped;
     return true;
@@ -300,12 +298,11 @@ export default function SetupWizard({ initialData, onComplete, onChange }: Setup
 
   const Progress = () => {
     const ratingDone = !!data.rating && data.rating > 0 || !!data.ratingSkipped;
-    const topicCount = Array.isArray(data.topicsSelected) ? data.topicsSelected.length : (data.topic ? 1 : 0);
     const segments: boolean[] = [
       (!!data.template),
       (!!data.authorId || !!data.author),
       (!!data.section),
-      (topicCount >= 2)
+      (topicsSelectedCount >= 2)
     ];
     if (isPlatformRequired) {
       segments.push(!!data.platform);
@@ -324,24 +321,38 @@ export default function SetupWizard({ initialData, onComplete, onChange }: Setup
   return (
     <div className="bg-black rounded-xl p-2 md:p-3">
       {/* Stepper */}
-      <div ref={stepperRef} className="flex items-center gap-2 md:gap-[14px] mb-3 md:mb-[14px] overflow-x-auto pb-2 md:pb-0 scrollbar-hide">
-        <StepChip stepKey="template" active={step==='template'} done={!!data.template} label="Template" onClick={()=>setStep('template')} />
-        {data.template==='research' && (
-          <>
-            <StepChip stepKey="source" active={step==='source'} done={!!data.inspirationSource} label="Kilde" onClick={()=>setStep('source')} />
-            <StepChip stepKey="trending" active={step==='trending'} done={!!data.researchSelected} label="Trending" onClick={()=>setStep('trending')} />
-            <StepChip stepKey="inspiration" active={step==='inspiration'} done={!!data.researchSelected} label="Opsummering" onClick={()=>setStep('inspiration')} />
-            <StepChip stepKey="analysis" active={step==='analysis'} done={!!data.aiDraft} label="Analyse" onClick={()=>setStep('analysis')} />
-          </>
-        )}
-        <StepChip stepKey="author" active={step==='author'} done={!!data.authorId || !!data.author} label="Author" onClick={()=>setStep('author')} />
-        <StepChip stepKey="section" active={step==='section'} done={!!data.section} label="Section" onClick={()=>setStep('section')} />
-        <StepChip stepKey="topic" active={step==='topic'} done={Array.isArray(data.topicsSelected) ? data.topicsSelected.length >= 2 : !!data.topic} label="Topic" onClick={()=>setStep('topic')} />
-        {isPlatformRequired && (
-          <StepChip stepKey="platform" active={step==='platform'} done={!!data.platform} label="Platform" onClick={()=>setStep('platform')} />
-        )}
-        <StepChip stepKey="rating" active={step==='rating'} done={data.rating>0 || data.ratingSkipped} label="Rating" onClick={()=>setStep('rating')} />
-        <StepChip stepKey="press" active={step==='press'} done={typeof data.press === 'boolean'} label="Press" onClick={()=>setStep('press')} />
+      <div className="relative mb-3 md:mb-[14px]">
+        <div
+          ref={stepperRef}
+          className={`flex items-center gap-2 md:gap-[14px] overflow-x-auto pb-2 md:pb-0 scrollbar-hide select-none ${isDragging ? 'cursor-grabbing' : 'cursor-grab active:cursor-grab'}`}
+          style={{ touchAction: 'pan-y', WebkitOverflowScrolling: 'touch' }}
+          onPointerDown={handlePointerDown}
+          onPointerMove={handlePointerMove}
+          onPointerUp={handlePointerUp}
+          onPointerCancel={handlePointerUp}
+          onPointerLeave={handlePointerLeave}
+          onClickCapture={handleClickCapture}
+        >
+          <StepChip stepKey="template" active={step==='template'} done={!!data.template} label="Template" onClick={()=>setStep('template')} />
+          {data.template==='research' && (
+            <>
+              <StepChip stepKey="source" active={step==='source'} done={!!data.inspirationSource} label="Kilde" onClick={()=>setStep('source')} />
+              <StepChip stepKey="trending" active={step==='trending'} done={!!data.researchSelected} label="Trending" onClick={()=>setStep('trending')} />
+              <StepChip stepKey="inspiration" active={step==='inspiration'} done={!!data.researchSelected} label="Opsummering" onClick={()=>setStep('inspiration')} />
+              <StepChip stepKey="analysis" active={step==='analysis'} done={!!data.aiDraft} label="Analyse" onClick={()=>setStep('analysis')} />
+            </>
+          )}
+          <StepChip stepKey="author" active={step==='author'} done={!!data.authorId || !!data.author} label="Author" onClick={()=>setStep('author')} />
+          <StepChip stepKey="section" active={step==='section'} done={!!data.section} label="Section" onClick={()=>setStep('section')} />
+          <StepChip stepKey="topic" active={step==='topic'} done={topicsSelectedCount >= 2} label="Topic" onClick={()=>setStep('topic')} />
+          {isPlatformRequired && (
+            <StepChip stepKey="platform" active={step==='platform'} done={!!data.platform} label="Platform" onClick={()=>setStep('platform')} />
+          )}
+          <StepChip stepKey="rating" active={step==='rating'} done={data.rating>0 || data.ratingSkipped} label="Rating" onClick={()=>setStep('rating')} />
+          <StepChip stepKey="press" active={step==='press'} done={typeof data.press === 'boolean'} label="Press" onClick={()=>setStep('press')} />
+        </div>
+        <div className={`pointer-events-none absolute inset-y-0 left-0 w-10 bg-[linear-gradient(90deg,_#050505,_rgba(5,5,5,0.7),_rgba(5,5,5,0))] transition-opacity duration-300 ${scrollFade.left ? 'opacity-100' : 'opacity-0'}`} />
+        <div className={`pointer-events-none absolute inset-y-0 right-0 w-10 bg-[linear-gradient(270deg,_#050505,_rgba(5,5,5,0.7),_rgba(5,5,5,0))] transition-opacity duration-300 ${scrollFade.right ? 'opacity-100' : 'opacity-0'}`} />
       </div>
 
       {/* Step content (auto-height, no inner scrollbar) */}
