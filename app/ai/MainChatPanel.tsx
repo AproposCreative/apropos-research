@@ -50,6 +50,8 @@ export default function MainChatPanel({
 }: MainChatPanelProps) {
   const [inputMessage, setInputMessage] = useState('');
   const [hoveredMessage, setHoveredMessage] = useState<string | null>(null);
+  const [editingMessage, setEditingMessage] = useState<string | null>(null);
+  const [editContent, setEditContent] = useState('');
   const [chatTitle, setChatTitle] = useState('Ny artikkel');
   const [isAutoSaving, setIsAutoSaving] = useState(false);
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
@@ -209,6 +211,26 @@ export default function MainChatPanel({
       onSendMessage(inputMessage);
       setInputMessage('');
     }
+  };
+
+  const handleEditMessage = (messageId: string, content: string) => {
+    setEditingMessage(messageId);
+    setEditContent(content);
+  };
+
+  const handleSaveEdit = () => {
+    if (!editingMessage || !editContent.trim()) return;
+    
+    // TODO: Implement message update functionality
+    console.log('Saving edit for message:', editingMessage, 'Content:', editContent);
+    
+    setEditingMessage(null);
+    setEditContent('');
+  };
+
+  const handleCancelEdit = () => {
+    setEditingMessage(null);
+    setEditContent('');
   };
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
@@ -614,7 +636,33 @@ export default function MainChatPanel({
                         )}
                       </div>
                     ) : (
-                      <p className="text-sm whitespace-pre-wrap text-left">{message.content}</p>
+                      editingMessage === message.id ? (
+                        <div className="space-y-2">
+                          <textarea
+                            value={editContent}
+                            onChange={(e) => setEditContent(e.target.value)}
+                            className="w-full bg-white/10 border border-white/20 rounded px-3 py-2 text-white text-sm focus:outline-none focus:border-white/40 resize-none"
+                            rows={Math.max(3, editContent.split('\n').length)}
+                            autoFocus
+                          />
+                          <div className="flex gap-2">
+                            <button
+                              onClick={handleSaveEdit}
+                              className="px-3 py-1 bg-green-600 hover:bg-green-700 text-white text-xs rounded transition-colors"
+                            >
+                              Gem
+                            </button>
+                            <button
+                              onClick={handleCancelEdit}
+                              className="px-3 py-1 bg-gray-600 hover:bg-gray-700 text-white text-xs rounded transition-colors"
+                            >
+                              Annuller
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <p className="text-sm whitespace-pre-wrap text-left">{message.content}</p>
+                      )
                     )}
                     
                     {/* Show uploaded files */}
@@ -642,21 +690,41 @@ export default function MainChatPanel({
                       </div>
                     )}
                   </div>
-                  
-                  {/* Copy button removed temporarily per request */}
                 </div>
                 
-                {/* Timestamp overlay - positioned absolutely to avoid layout shift */}
-                <div className="relative">
-                  <div className={`absolute -top-6 left-0 transition-opacity duration-300 ease-in-out ${
-                    hoveredMessage === message.id ? 'opacity-100' : 'opacity-0'
-                  }`}>
-                    <p className="text-xs text-white/70 bg-black/50 px-2 py-1 rounded backdrop-blur-sm">
+                {/* Timestamp and actions - positioned below message */}
+                <div className={`transition-opacity duration-300 ease-in-out ${
+                  hoveredMessage === message.id ? 'opacity-100' : 'opacity-0'
+                }`}>
+                  <div className="flex items-center justify-between mt-2">
+                    <p className="text-xs text-white/50">
                       {message.timestamp.toLocaleTimeString('da-DK', { 
                         hour: '2-digit', 
                         minute: '2-digit' 
                       })}
                     </p>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => navigator.clipboard.writeText(message.content)}
+                        className="p-1 text-white/40 hover:text-white/70 transition-colors"
+                        title="Kopier besked"
+                      >
+                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                        </svg>
+                      </button>
+                      {message.role === 'assistant' && (
+                        <button
+                          onClick={() => handleEditMessage(message.id, message.content)}
+                          className="p-1 text-white/40 hover:text-white/70 transition-colors"
+                          title="Rediger besked"
+                        >
+                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                          </svg>
+                        </button>
+                      )}
+                    </div>
                   </div>
                 </div>
               </div>
