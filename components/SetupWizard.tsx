@@ -170,6 +170,7 @@ export default function SetupWizard({ initialData, onComplete, onChange }: Setup
   };
 
   const Progress = () => {
+    console.log('Progress render - data.template:', data.template, '!!data.template:', !!data.template);
     const segments = [
       (!!data.template), // template er første step
       (!!data.authorId || !!data.author),
@@ -178,6 +179,7 @@ export default function SetupWizard({ initialData, onComplete, onChange }: Setup
       (isPlatformRequired ? !!data.platform : false),
       (data.topic==='Anmeldelser' ? (data.rating>0) : false)
     ];
+    console.log('Progress segments:', segments);
     return (
       <div className="w-full flex gap-1 mb-3">
         {segments.map((ok, i)=>(
@@ -224,10 +226,12 @@ export default function SetupWizard({ initialData, onComplete, onChange }: Setup
               return (
                 <button
                   key={opt.key}
-                  onClick={()=> selected
-                    ? updateData((d:any)=> ({ ...d, template: '' }))
-                    : updateData((d:any)=> ({ ...d, template: opt.key }), 'template', (opt.key==='research' ? 'source' : 'author'))
-                  }
+                  onClick={()=> {
+                    console.log('Template clicked:', opt.key, 'selected:', selected);
+                    selected
+                      ? updateData((d:any)=> ({ ...d, template: '' }))
+                      : updateData((d:any)=> ({ ...d, template: opt.key }), 'template', (opt.key==='research' ? 'source' : 'author'))
+                  }}
                   className={`px-3 py-1.5 rounded-lg text-xs transition-all border ${selected ? 'bg-white/10 text-white border-white/40' : 'bg-white/5 text-white border-white/10 hover:border-white/20 hover:bg-white/10'}`}
                 >
                   <span className={`${selected ? 'text-sheen-glow' : ''}`}>{opt.label}</span>
