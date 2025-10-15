@@ -171,6 +171,7 @@ export default function SetupWizard({ initialData, onComplete, onChange }: Setup
   };
 
   const Progress = () => {
+    console.log('Progress render - data:', data);
     const segments = [
       (!!data.template), // template er første step
       (!!data.authorId || !!data.author),
@@ -179,6 +180,7 @@ export default function SetupWizard({ initialData, onComplete, onChange }: Setup
       (isPlatformRequired ? !!data.platform : false),
       (data.topic==='Anmeldelser' ? (data.rating>0) : false)
     ];
+    console.log('Progress segments:', segments);
     return (
       <div className="w-full flex gap-1 mb-3">
         {segments.map((ok, i)=>(
