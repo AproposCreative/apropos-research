@@ -646,17 +646,18 @@ export default function MainChatPanel({
                   {/* Copy button removed temporarily per request */}
                 </div>
                 
-                <div className={`transition-all duration-300 ease-in-out ${
-                  hoveredMessage === message.id ? 'opacity-70 translate-y-0' : 'opacity-0 -translate-y-1'
-                }`}>
-                  {hoveredMessage === message.id && (
-                    <p className="text-xs mt-1 text-left text-white">
+                {/* Timestamp overlay - positioned absolutely to avoid layout shift */}
+                <div className="relative">
+                  <div className={`absolute -top-6 left-0 transition-opacity duration-300 ease-in-out ${
+                    hoveredMessage === message.id ? 'opacity-100' : 'opacity-0'
+                  }`}>
+                    <p className="text-xs text-white/70 bg-black/50 px-2 py-1 rounded backdrop-blur-sm">
                       {message.timestamp.toLocaleTimeString('da-DK', { 
                         hour: '2-digit', 
                         minute: '2-digit' 
                       })}
                     </p>
-                  )}
+                  </div>
                 </div>
               </div>
             </div>
