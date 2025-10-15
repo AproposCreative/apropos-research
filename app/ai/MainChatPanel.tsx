@@ -637,13 +637,14 @@ export default function MainChatPanel({
                       </div>
                     ) : (
                       editingMessage === message.id ? (
-                        <div className="space-y-2">
+                        <div className="space-y-2 w-full">
                           <textarea
                             value={editContent}
                             onChange={(e) => setEditContent(e.target.value)}
-                            className="w-full bg-white/10 border border-white/20 rounded px-3 py-2 text-white text-sm focus:outline-none focus:border-white/40 resize-none"
+                            className="w-full bg-white/10 border border-white/20 rounded px-3 py-2 text-white text-sm focus:outline-none focus:border-white/40 resize-none min-h-[80px]"
                             rows={Math.max(3, editContent.split('\n').length)}
                             autoFocus
+                            style={{ width: '100%', maxWidth: 'none' }}
                           />
                           <div className="flex gap-2">
                             <button
