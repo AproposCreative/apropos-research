@@ -626,13 +626,7 @@ export default function MainChatPanel({
               >
                 <div className="relative group">
                   <div className={bubbleClass}>
-                    <div className="flex items-start justify-between">
-                      {formattedTime && (
-                        <span className="text-[11px] text-white/30">
-                          {formattedTime}
-                        </span>
-                      )}
-                      {isUser && !isEditing && (
+                    {isUser && !isEditing && (
                         <div className={`flex items-center gap-2 transition-opacity duration-200 ${hoveredMessage === message.id ? 'opacity-100' : 'opacity-0'}`}>
                           <button
                             onClick={() => navigator.clipboard.writeText(message.content)}
@@ -766,6 +760,11 @@ export default function MainChatPanel({
                       </div>
                     )}
                   </div>
+                  {formattedTime && (
+                    <div className={`mt-1 text-[10px] text-white/35 ${isUser ? 'text-right pr-2' : 'text-left pl-1'}`}>
+                      {formattedTime}
+                    </div>
+                  )}
                 </div>
               </div>
             </div>

@@ -6,6 +6,8 @@ import { RefreshProvider } from '../components/RefreshCtx';
 import { MediaProvider } from '../lib/media-context';
 import ConditionalLayout from '../components/ConditionalLayout';
 import { Poppins } from 'next/font/google';
+import { SpeedInsights } from '@vercel/speed-insights/next';
+import { Analytics } from '@vercel/analytics/react';
 
 const poppins = Poppins({
   subsets: ['latin'],
@@ -40,6 +42,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             </SelectProvider>
           </MediaProvider>
         </AuthProvider>
+        <SpeedInsights />
+        <Analytics />
       </body>
     </html>
   );

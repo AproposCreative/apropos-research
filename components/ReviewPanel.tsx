@@ -32,46 +32,49 @@ export default function ReviewPanel({ articleData, onClose, frameless }: ReviewP
   const publishDate = articleData?.publishDate || '';
   const aiDraft = articleData?.aiDraft;
 
+  const paragraphs = content
+    .split(/\n{2,}/)
+    .map(p => p.trim())
+    .filter(Boolean);
+
   const Body = (
-    <div className="text-white">
-      <div className="flex items-center justify-between mb-3">
-        <div className="text-sm text-white/60">Preview • {category}{topic?` • ${topic}`:''}</div>
+    <div className="text-white space-y-6">
+      <div className="flex items-center justify-between">
+        <div className="text-sm text-white/50">Article preview</div>
         {onClose && (
           <button onClick={onClose} className="text-white/60 hover:text-white text-xs">Luk</button>
         )}
       </div>
 
-      {/* Title */}
-      <h1 className="text-xl font-semibold mb-1">{title}</h1>
-      {subtitle && <p className="text-white/70 mb-3">{subtitle}</p>}
+      <header className="space-y-3">
+        <div className="text-xs uppercase tracking-wide text-white/40">Titel</div>
+        <h1 className="text-2xl font-semibold leading-tight">{title}</h1>
+        {subtitle && <p className="text-white/70 text-base leading-relaxed">{subtitle}</p>}
+        <div className="flex flex-wrap items-center gap-3 text-xs text-white/50">
+          <span>Af {author}</span>
+          {category && (<span className="inline-flex items-center gap-1 text-white/50"><span className="w-1 h-1 rounded-full bg-white/40"></span>{category}</span>)}
+          {topic && (<span className="inline-flex items-center gap-1 text-white/50"><span className="w-1 h-1 rounded-full bg-white/40"></span>{topic}</span>)}
+          {rating>0 && <span className="text-emerald-200">{rating} ⭐</span>}
+          {formattedTags(articleData).map((tag)=> (
+            <span key={tag} className="px-2 py-0.5 bg-white/10 text-white/60 rounded-full">{tag}</span>
+          ))}
+        </div>
+      </header>
 
-      {/* Meta */}
-      <div className="flex items-center gap-3 text-xs text-white/60 mb-4">
-        <span>Af {author}</span>
-        {rating>0 && <span className="text-white/80">{rating} ⭐</span>}
-      </div>
+      <section className="space-y-3 text-sm leading-6 text-white/85">
+        {paragraphs.length
+          ? paragraphs.map((p, i) => (<p key={i}>{p}</p>))
+          : <p className="text-white/50">Din artikeltekst vises her, så snart indholdet er genereret.</p>
+        }
+      </section>
 
-      {/* Body preview */}
-      <div className="space-y-3 text-sm leading-6 text-white/80">
-        {content.split('\n').slice(0, 6).map((p: string, i: number) => (
-          <p key={i}>{p || ' '}</p>
-        ))}
-        {content.length < 30 && (
-          <>
-            <p>—</p>
-            <p className="text-white/50">Tip: Brug chatten til at udfylde titel, indledning og brødtekst. Preview opdateres live.</p>
-          </>
-        )}
-      </div>
-
-      {/* CMS fields overview */}
-      <div className="mt-6 grid grid-cols-2 gap-3 text-xs">
+      <section className="grid grid-cols-2 gap-3 text-xs">
         <Field k="Author" v={author} />
         <Field k="Section" v={category} />
         <Field k="Topic" v={topic} />
         <Field k="Platform/Service" v={platform} />
+        <Field k="Tags" v={formattedTags(articleData).join(', ')} />
         <Field k="Slug" v={slug} />
-        <Field k="Tags" v={(articleData?.tags || []).join(', ')} />
         <Field k="Publiceringsdato" v={String(publishDate)} />
         <Field k="SEO Titel" v={seoTitle} />
         <Field k="SEO Beskrivelse" v={seoDescription} />
@@ -87,17 +90,16 @@ export default function ReviewPanel({ articleData, onClose, frameless }: ReviewP
             <div className="text-white/80 text-sm whitespace-pre-wrap">{aiDraft.prompt}</div>
           </div>
         )}
-      </div>
+      </section>
 
-      {/* Inline publish form (replaces overlay) */}
-      <div className="mt-6 border-t border-white/10 pt-4">
+      <section className="border-t border-white/10 pt-4">
         <WebflowPublishPanel
           articleData={articleData}
           onPublish={async ()=>{}}
           onClose={() => {}}
           embed
         />
-      </div>
+      </section>
     </div>
   );
 
@@ -120,4 +122,9 @@ function Field({ k, v }: { k: string; v?: string }) {
   );
 }
 
-
+function formattedTags(data: any): string[] {
+  const base = Array.isArray(data?.tags) ? data.tags : [];
+  const extras = [data?.category, data?.topic].filter(Boolean);
+  const unique = Array.from(new Set([...base, ...extras].map((tag:any)=> String(tag).trim()).filter(Boolean)));
+  return unique;
+}
