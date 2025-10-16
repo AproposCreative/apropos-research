@@ -203,7 +203,9 @@ const normalizeArticleData = (
   const retainExisting = options.retainExistingOnEmpty ?? true;
   const slugMap = options.slugMap || {};
 
-  const cloneArray = <T>(value: T[] | undefined): T[] => (Array.isArray(value) ? [...value] : []);
+  function cloneArray<T>(value: T[] | undefined): T[] {
+    return Array.isArray(value) ? [...value] : [];
+  }
 
   const result: ArticleData = {
     ...base,
