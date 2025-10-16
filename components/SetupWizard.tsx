@@ -54,6 +54,7 @@ export default function SetupWizard({ initialData, onComplete, onChange }: Setup
     template: initialData?.template || '',
     inspirationSource: initialData?.inspirationSource || '',
     researchSelected: initialData?.researchSelected || null,
+    inspirationAcknowledged: initialData?.inspirationAcknowledged || false,
     aiDraft: initialData?.aiDraft || null,
     rating: initialData?.rating || 0,
     ratingSkipped: initialData?.ratingSkipped || false,
@@ -132,6 +133,20 @@ export default function SetupWizard({ initialData, onComplete, onChange }: Setup
 
   const topicsSelectedCount = Array.isArray(data.topicsSelected) ? data.topicsSelected.length : (data.topic ? 1 : 0);
 
+  const rawTone = typeof data.authorTOV === 'string' ? data.authorTOV.trim() : '';
+  const authorName = (data.author || '').trim();
+  const toneInstruction = (() => {
+    if (rawTone) {
+      const normalized = rawTone.endsWith('.') ? rawTone : `${rawTone}.`;
+      return /^brug/i.test(rawTone) ? normalized : `Brug ${normalized}`;
+    }
+    if (authorName) {
+      const suffix = /s$/i.test(authorName) ? '' : 's';
+      return `Brug ${authorName}${suffix} tone.`;
+    }
+    return `Brug Apropos' tone.`;
+  })();
+
   const handlePointerDown = useCallback((e: ReactPointerEvent<HTMLDivElement>) => {
     if (e.pointerType === 'mouse' && e.button !== 0) return;
     const container = stepperRef.current;
@@ -142,7 +157,6 @@ export default function SetupWizard({ initialData, onComplete, onChange }: Setup
     info.startX = e.clientX;
     info.scrollLeft = container.scrollLeft;
     info.moved = false;
-    container.setPointerCapture?.(e.pointerId);
     setIsDragging(true);
   }, []);
 
@@ -153,20 +167,24 @@ export default function SetupWizard({ initialData, onComplete, onChange }: Setup
     if (!container) return;
     e.preventDefault();
     const delta = e.clientX - info.startX;
-    if (!info.moved && Math.abs(delta) > 3) info.moved = true;
+    if (!info.moved && Math.abs(delta) > 3) {
+      info.moved = true;
+      stepperRef.current?.setPointerCapture?.(e.pointerId);
+    }
     container.scrollLeft = info.scrollLeft - delta;
     updateScrollFade();
   }, [updateScrollFade]);
 
   const finishDrag = useCallback(() => {
     const info = dragInfoRef.current;
-    if (info.pointerId !== null) {
+    if (info.pointerId !== null && info.moved) {
       stepperRef.current?.releasePointerCapture?.(info.pointerId);
     }
     info.active = false;
     info.pointerId = null;
     info.startX = 0;
     info.scrollLeft = stepperRef.current?.scrollLeft || 0;
+    info.moved = false;
     setIsDragging(false);
     updateScrollFade();
   }, [updateScrollFade]);
@@ -259,7 +277,7 @@ export default function SetupWizard({ initialData, onComplete, onChange }: Setup
     if (step==='source') return !!data.inspirationSource;
     if (step==='trending') return !!data.researchSelected || true;
     if (step==='inspiration') return !!data.researchSelected;
-    if (step==='analysis') return !!data.aiDraft;
+    if (step==='analysis') return !!data.aiDraft?.completed;
     if (step==='author') return !!data.authorId || !!data.author;
     if (step==='section') return !!data.section;
     if (step==='topic') return topicsSelectedCount >= 2;
@@ -281,6 +299,7 @@ export default function SetupWizard({ initialData, onComplete, onChange }: Setup
       template: data.template,
       inspirationSource: data.inspirationSource,
       researchSelected: data.researchSelected,
+      inspirationAcknowledged: data.inspirationAcknowledged,
       aiDraft: data.aiDraft,
       category: data.section,
       tags,
@@ -298,17 +317,30 @@ export default function SetupWizard({ initialData, onComplete, onChange }: Setup
 
   const Progress = () => {
     const ratingDone = !!data.rating && data.rating > 0 || !!data.ratingSkipped;
-    const segments: boolean[] = [
-      (!!data.template),
-      (!!data.authorId || !!data.author),
-      (!!data.section),
-      (topicsSelectedCount >= 2)
-    ];
-    if (isPlatformRequired) {
-      segments.push(!!data.platform);
+    const segments: boolean[] = [];
+
+    // Base steps – always present
+    segments.push(!!data.template); // template
+
+    const includeResearchSteps = data.template === 'research';
+    if (includeResearchSteps) {
+      // research specific steps
+      segments.push(!!data.inspirationSource); // source
+      segments.push(!!data.researchSelected); // trending
+      segments.push(!!data.inspirationAcknowledged); // inspiration confirmation
+      segments.push(Boolean(data.aiDraft?.completed)); // analysis
     }
-    segments.push(ratingDone);
-    segments.push(typeof data.press === 'boolean');
+
+    segments.push(!!data.authorId || !!data.author); // author
+    segments.push(!!data.section); // section
+    segments.push(topicsSelectedCount >= 2); // topic
+
+    if (isPlatformRequired) {
+      segments.push(!!data.platform); // platform when required
+    }
+
+    segments.push(ratingDone); // rating
+    segments.push(typeof data.press === 'boolean'); // press
     return (
       <div className="w-full flex gap-1 mb-3">
         {segments.map((ok, i)=>(
@@ -337,9 +369,9 @@ export default function SetupWizard({ initialData, onComplete, onChange }: Setup
           {data.template==='research' && (
             <>
               <StepChip stepKey="source" active={step==='source'} done={!!data.inspirationSource} label="Kilde" onClick={()=>setStep('source')} />
-              <StepChip stepKey="trending" active={step==='trending'} done={!!data.researchSelected} label="Trending" onClick={()=>setStep('trending')} />
-              <StepChip stepKey="inspiration" active={step==='inspiration'} done={!!data.researchSelected} label="Opsummering" onClick={()=>setStep('inspiration')} />
-              <StepChip stepKey="analysis" active={step==='analysis'} done={!!data.aiDraft} label="Analyse" onClick={()=>setStep('analysis')} />
+            <StepChip stepKey="trending" active={step==='trending'} done={!!data.researchSelected} label="Trending" onClick={()=>setStep('trending')} />
+            <StepChip stepKey="inspiration" active={step==='inspiration'} done={!!data.inspirationAcknowledged} label="Opsummering" onClick={()=>setStep('inspiration')} />
+            <StepChip stepKey="analysis" active={step==='analysis'} done={Boolean(data.aiDraft?.completed)} label="Analyse" onClick={()=>setStep('analysis')} />
             </>
           )}
           <StepChip stepKey="author" active={step==='author'} done={!!data.authorId || !!data.author} label="Author" onClick={()=>setStep('author')} />
@@ -371,9 +403,17 @@ export default function SetupWizard({ initialData, onComplete, onChange }: Setup
                   key={opt.key}
                   onClick={()=> {
                     if (selected) {
-                      updateData((d:any)=> ({ ...d, template: '' }));
+                      updateData((d:any)=> ({ ...d, template: '', inspirationSource: '', researchSelected: null, inspirationAcknowledged: false }));
                     } else {
-                      updateData((d:any)=> ({ ...d, template: opt.key }), 'template', (opt.key==='research' ? 'source' : 'author'));
+                      updateData((d:any)=> {
+                        const next = { ...d, template: opt.key };
+                        if (opt.key !== 'research') {
+                          next.inspirationSource = '';
+                          next.researchSelected = null;
+                          next.inspirationAcknowledged = false;
+                        }
+                        return next;
+                      }, 'template', (opt.key==='research' ? 'source' : 'author'));
                     }
                   }}
                   className={`px-3 py-1.5 rounded-lg text-xs transition-all border ${selected ? 'bg-white/10 text-white border-white/40' : 'bg-white/5 text-white border-white/10 hover:border-white/20 hover:bg-white/10'}`}
@@ -399,11 +439,11 @@ export default function SetupWizard({ initialData, onComplete, onChange }: Setup
                   key={name}
                   onClick={async ()=> {
                     if (selected) {
-                      updateData((d:any)=> ({ ...d, inspirationSource: '', researchSelected: null }));
+          updateData((d:any)=> ({ ...d, inspirationSource: '', researchSelected: null, inspirationAcknowledged: false }));
                       setTrendingItems([]);
                       return;
                     }
-                    updateData((d:any)=> ({ ...d, inspirationSource: name, researchSelected: null }), 'source');
+                    updateData((d:any)=> ({ ...d, inspirationSource: name, researchSelected: null, inspirationAcknowledged: false }), 'source');
                     // Preload trending for smoother UX
                     try {
                       setLoadingTrending(true);
@@ -445,8 +485,8 @@ export default function SetupWizard({ initialData, onComplete, onChange }: Setup
                 <button
                   key={idx}
                   onClick={()=> selected
-                    ? updateData((d:any)=> ({ ...d, researchSelected: null }))
-                    : updateData((d:any)=> ({ ...d, researchSelected: it }), 'trending', 'inspiration')
+                    ? updateData((d:any)=> ({ ...d, researchSelected: null, inspirationAcknowledged: false }))
+                    : updateData((d:any)=> ({ ...d, researchSelected: it, inspirationAcknowledged: false }), 'trending', 'inspiration')
                   }
                   className={`text-left px-3 py-2 rounded-lg transition-all border ${selected ? 'bg-white/5 text-white border-white/40' : 'bg-white/0 text-white/80 border-white/10 hover:border-white/20 hover:bg-white/5'}`}
                 >
@@ -469,8 +509,8 @@ export default function SetupWizard({ initialData, onComplete, onChange }: Setup
             className="rounded-lg border border-white/10 bg-white/5 p-3 cursor-pointer hover:bg-white/10 transition-colors"
             role="button"
             tabIndex={0}
-            onClick={()=> { updateData((d:any)=> d, 'inspiration'); }}
-            onKeyDown={(e)=>{ if (e.key==='Enter' || e.key===' ') { e.preventDefault(); updateData((d:any)=> d, 'inspiration'); } }}
+            onClick={()=> { updateData((d:any)=> ({ ...d, inspirationAcknowledged: true }), 'inspiration'); }}
+            onKeyDown={(e)=>{ if (e.key==='Enter' || e.key===' ') { e.preventDefault(); updateData((d:any)=> ({ ...d, inspirationAcknowledged: true }), 'inspiration'); } }}
           >
             <div className="flex items-center justify-between mb-1">
               <div className="text-white font-medium">{data.researchSelected.title}</div>
@@ -497,45 +537,56 @@ export default function SetupWizard({ initialData, onComplete, onChange }: Setup
       {step==='analysis' && data.template==='research' && (
         <div className="space-y-3 md:space-y-[14px]">
           <div className="text-white/80 text-sm">AI Draft analyse</div>
-          {/* Simple auto‑generated draft based on selection */}
-          <div className="grid grid-cols-1 gap-3">
-            <div className="bg-white/5 rounded-lg border border-white/10 p-3">
-              <div className="text-white/70 text-xs mb-1">AI Prompt</div>
-              <textarea
-                className="w-full bg-black/30 text-white text-xs rounded border border-white/10 p-2 min-h-[120px]"
-                value={data.aiDraft?.prompt || (data.researchSelected ? `Skriv en dybdegående artikel baseret på "${data.researchSelected.title}". Inkluder de vigtigste pointer, udvid med kontekst, eksperter og statistikker. Brug Apropos' tone.` : '')}
-                onChange={(e)=> updateData((d:any)=> ({ ...d, aiDraft: { ...(d.aiDraft||{}), prompt: e.target.value } }))}
-              />
-            </div>
-            <div className="bg-white/5 rounded-lg border border-white/10 p-3">
-              <div className="text-white/70 text-xs mb-1">Trend Analyse</div>
-              <div className="text-white/80 text-xs space-y-1">
-                <div>Trend: <span className="px-2 py-0.5 rounded bg-white/10">Stabil</span></div>
-                <div>Vinkel: <span className="opacity-80">Balanceret analyse</span></div>
-                <div>Målgruppe: <span className="opacity-80">Generel læser</span></div>
-              </div>
-            </div>
-          </div>
-          <div className="bg-white/5 rounded-lg border border-white/10 p-3">
-            <div className="text-white/70 text-xs mb-2">AI Forslag</div>
-            <ul className="text-white/80 text-xs list-disc list-inside space-y-1">
-              {(
-                data.aiDraft?.suggestions || [
-                  'Tilføj ekspertcitater for relevante fagfolk',
-                  'Inkluder statistik eller data for at understøtte argumenter',
-                  'Uddyb baggrundshistorien for bedre kontekst',
-                ]
-              ).map((s:string, i:number)=> (
-                <li key={i}>{s}</li>
-              ))}
-            </ul>
-          </div>
-          <div className="flex justify-end">
-            <button
-              onClick={()=> nextStep('analysis')}
-              className="px-3 py-1.5 rounded-lg text-xs border border-white/20 text-white bg-white/10 hover:bg-white/15"
-            >Fortsæt</button>
-          </div>
+          {(() => {
+            const defaultPrompt = data.researchSelected
+              ? `Skriv en dybdegående artikel baseret på "${data.researchSelected.title}". Inkluder de vigtigste pointer, udvid med kontekst, eksperter og statistikker. ${toneInstruction}`
+              : `Skriv en dybdegående artikel. ${toneInstruction}`;
+            const promptValue = data.aiDraft?.prompt ?? defaultPrompt;
+            return (
+              <>
+                <div className="bg-white/5 rounded-lg border border-white/10 p-3">
+                  <div className="text-white/70 text-xs mb-1">AI Prompt</div>
+                  <textarea
+                    className="w-full bg-transparent text-white text-xs rounded resize-none min-h-[120px] outline-none focus:outline-none focus:ring-0"
+                    value={promptValue}
+                    onChange={(e)=> updateData((d:any)=> ({ ...d, aiDraft: { ...(d.aiDraft||{}), prompt: e.target.value } }))}
+                  />
+                </div>
+                <div className="bg-white/5 rounded-lg border border-white/10 p-3">
+                  <div className="text-white/70 text-xs mb-1">Trend Analyse</div>
+                  <div className="text-white/80 text-xs space-y-1">
+                    <div>Trend: <span className="px-2 py-0.5 rounded bg-white/10">Stabil</span></div>
+                    <div>Vinkel: <span className="opacity-80">Balanceret analyse</span></div>
+                    <div>Målgruppe: <span className="opacity-80">Generel læser</span></div>
+                  </div>
+                </div>
+                <div className="bg-white/5 rounded-lg border border-white/10 p-3">
+                  <div className="text-white/70 text-xs mb-2">AI Forslag</div>
+                  <ul className="text-white/80 text-xs list-disc list-inside space-y-1">
+                    {(
+                      data.aiDraft?.suggestions || [
+                        'Tilføj ekspertcitater for relevante fagfolk',
+                        'Inkluder statistik eller data for at understøtte argumenter',
+                        'Uddyb baggrundshistorien for bedre kontekst',
+                      ]
+                    ).map((s:string, i:number)=> (
+                      <li key={i}>{s}</li>
+                    ))}
+                  </ul>
+                </div>
+                <div className="flex justify-end">
+                  <button
+                    onClick={()=> updateData((d:any)=> {
+                      const next = { ...(d.aiDraft||{}) };
+                      if (!next.prompt) next.prompt = defaultPrompt;
+                      return { ...d, aiDraft: { ...next, completed: true } };
+                    }, 'analysis')}
+                    className="px-3 py-1.5 rounded-lg text-xs border border-white/20 text-white bg-white/10 hover:bg-white/15"
+                  >Fortsæt</button>
+                </div>
+              </>
+            );
+          })()}
         </div>
       )}
 

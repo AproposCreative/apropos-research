@@ -2,9 +2,18 @@ import { NextResponse } from 'next/server';
 import { getArticlesCollectionFieldsDetailed } from '@/lib/webflow-service';
 import { getWebflowConfig } from '@/lib/webflow-config';
 import { fetchCollectionItemsWithFallback, normalizeItems, listCollections, norm } from '../_lib';
+import { apiCache, CACHE_TTL } from '@/lib/cache';
 
 export async function GET() {
   try {
+    const cacheKey = 'webflow:sections';
+    
+    // Try to get from cache first
+    const cached = apiCache.get<any>(cacheKey);
+    if (cached) {
+      return NextResponse.json(cached, { headers: { 'Cache-Control': 's-maxage=300, stale-while-revalidate=3600' } });
+    }
+    
     const cfg = getWebflowConfig();
     const token = cfg.apiToken || process.env.WEBFLOW_API_TOKEN;
     const siteId = cfg.siteId || process.env.WEBFLOW_SITE_ID;
@@ -64,7 +73,12 @@ export async function GET() {
       } catch {}
     }
 
-    return NextResponse.json({ items, debug }, { headers: { 'Cache-Control': 's-maxage=300, stale-while-revalidate=3600' } });
+    const result = { items, debug };
+    
+    // Store in cache for 15 minutes
+    apiCache.set(cacheKey, result, CACHE_TTL.LONG);
+    
+    return NextResponse.json(result, { headers: { 'Cache-Control': 's-maxage=300, stale-while-revalidate=3600' } });
   } catch (e:any) {
     return NextResponse.json({ items: [] }, { headers: { 'Cache-Control': 's-maxage=60' } });
   }

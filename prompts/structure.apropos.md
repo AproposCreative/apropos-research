@@ -27,14 +27,14 @@ Used together with the central prompt and author TOVs.
 - Example: Et sted mellem pop, dæmoner og selvindsigt.  
 
 ### 4. INTRO
-- Marked explicitly with "Intro:"  
+- Marked explicitly with “Intro:”  
 - 2–4 lines (≈60–80 words)  
 - Written in first person, must set tone and curiosity  
 - Should read naturally as a standalone teaser  
 
 ### 5. CONTENT (BRØDTEKST)
 - Word count:  
-  - Reviews: 600–800  
+  - Reviews: 1000–1200  
   - Culture & Features: 1000–1400  
 - Continuous narrative, no subheadings  
 - Use a flow that moves from *forventning → oplevelse → indsigt → eftertanke*  
@@ -42,7 +42,7 @@ Used together with the central prompt and author TOVs.
 - Integrate facts naturally; never list them  
 - Allow imperfect sentences if they feel human  
 - Maintain rhythm and variation  
-- Always include one "human truth" — a line that feels deeply true  
+- Always include one “human truth” — a line that feels deeply true  
 
 ### 6. ENDING
 - 2–4 sentences  
@@ -56,7 +56,7 @@ Used together with the central prompt and author TOVs.
 ### 7. STARS (optional)
 - Only for reviews  
 - 1–6 whole stars, formatted as:  
-  "Læs Apropos Magazines anmeldelse her (X/6 stjerner)."
+  “Læs Apropos Magazines anmeldelse her (X/6 stjerner).”
 
 ### 8. VISUAL GUIDELINES
 - Illustration: hand-drawn digital, 1920×1080 (16:9)  
@@ -77,39 +77,13 @@ Used together with the central prompt and author TOVs.
   - 1200 words → 7–8 min  
 
 ### 11. AUTHOR CREDIT
-- Format: "Skrevet af [navn], Apropos Magazine."  
-- Guest writers: "Gæstebidrag af [navn]."  
+- Format: “Skrevet af [navn], Apropos Magazine.”  
+- Guest writers: “Gæstebidrag af [navn].”  
 
 ### 12. TRANSPARENCY (if received access or copy)
 - Italicized note at bottom:  
   *Apropos Magazine har modtaget [billet/spil/plade] som anmeldereksemplar. Som altid deler vi vores helt egne indtryk – uden filter.*
 
----
-
-## 🧩 CMS FIELD MAP (for JSON / Webflow)
-
-| CMS Field | Description | Limit | Webflow Field |
-|------------|-------------|-------|---------------|
-| name | SEO-title | ≤ 60 | `name` |
-| seoTitle | SEO-title duplicate | ≤ 60 | `seo-title` |
-| seoDescription | Meta description | ≤ 155 | `meta-description` |
-| subtitle | Creative subline | – | `subtitle` |
-| intro | Intro paragraph | ~300 chars | `intro` |
-| content | Full body text (intro + main + ending) | – | `content` |
-| rating | Star rating (1–6) | optional | `stjerne` |
-| streaming_service | Platform or venue | – | `watch-now-link` |
-| author | Name / persona | – | `author` |
-| illustration | Hand-drawn .webp (1920×1080) | – | `thumb` |
-| section | Article section | – | `section` |
-| topic | Primary topic | – | `topic` |
-| topic_two | Secondary topic | – | `topic-two` |
-| minutes_to_read | Reading time | – | `minutes-to-read` |
-| featured | Featured article | – | `featured` |
-| presseakkreditering | Press accreditation | – | `presseakkreditering` |
-| festival | Festival reference | – | `festival` |
-| start_dato | Start date | – | `start-dato` |
-| slut_dato | End date | – | `slut-dato` |
-| location | Event location | – | `location` |
 
 ---
 
@@ -117,7 +91,7 @@ Used together with the central prompt and author TOVs.
 - Always return unified text with trimmed whitespace  
 - Avoid repetition of platform names in multiple fields  
 - Ensure consistent Danish diacritics in slug  
-- Maintain sentence rhythm; prefer "flow" over format precision  
+- Maintain sentence rhythm; prefer “flow” over format precision  
 
 ---
 
@@ -134,27 +108,42 @@ This structure file defines form, not voice.
 Tone, rhythm and personality come from the selected Author TOV.  
 All outputs must respect this structure regardless of writer style.
 
-
 ---
 
-## 🎯 LEARNED FIELD PATTERNS (from 100 articles)
+## 📦 CMS MAPPING RULES (derived from training data)
 
-### Field Usage Statistics:
-- **Core fields (100% usage):** name, slug, content, meta-description, seo-title
-- **Content fields:** intro (99%), subtitle (67%)
-- **Classification:** author (98%), section (98%), topic (98%)
-- **Conditional:** stjerne (66%), watch-now-link (30%), festival (38%)
+Required Webflow slugs (must be present):
+- name, slug, content, meta-description, seo-title
 
-### Content Type Detection:
-- **Review:** Has rating (stjerne) field
-- **Streaming:** Has watch-now-link field  
-- **Event:** Has festival or location field
-- **Video:** Has video-trailer field
+Conditional fields:
+- Reviews: stjerne (rating)
+- Streaming content: watch-now-link, unique-watch-now-title
+- Events: festival, location, start-dato, buy-tickets
+- Video: video-trailer
 
-### Field Mapping Priority:
-1. Always include core fields
-2. Include intro for most articles (99% have it)
-3. Include subtitle for most articles (67% have it)
-4. Include rating only for reviews
-5. Include streaming links only for streaming content
-6. Include event fields only for events/festivals
+Canonical mapping (internal → Webflow slug):
+- name → name
+- seoTitle → seo-title
+- seoDescription → meta-description
+- subtitle → subtitle
+- intro → intro
+- content → content
+- rating → stjerne
+- streaming_service → watch-now-link
+- author → author (reference)
+- illustration → thumb
+- section → section
+- topic → topic
+- topic_two → topic-two
+- minutes_to_read → minutes-to-read
+- featured → featured
+- presseakkreditering → presseakkreditering
+- festival → festival
+- start_dato → start-dato
+- slut_dato → slut-dato
+- location → location
+
+Notes:
+- Generate slug when setting title (kebab-case; Danish diacritics preserved then normalized).
+- Keep seo-title ≤ 60 chars; meta-description ≤ 155 chars.
+- Only include rating/stjerne for reviews. Only include streaming/event fields when relevant.

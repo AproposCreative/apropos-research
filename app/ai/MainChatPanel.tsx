@@ -34,6 +34,8 @@ interface MainChatPanelProps {
   onNewGamingArticle: () => void;
   onNewCultureArticle: () => void;
   updateArticleData: (data: Partial<LocalArticleData>) => void;
+  chatTitle: string;
+  onChatTitleChange: (title: string) => void;
 }
 
 export default function MainChatPanel({
@@ -46,13 +48,14 @@ export default function MainChatPanel({
   setNotes,
   onNewGamingArticle,
   onNewCultureArticle,
-  updateArticleData
+  updateArticleData,
+  chatTitle,
+  onChatTitleChange
 }: MainChatPanelProps) {
   const [inputMessage, setInputMessage] = useState('');
   const [hoveredMessage, setHoveredMessage] = useState<string | null>(null);
   const [editingMessage, setEditingMessage] = useState<string | null>(null);
   const [editContent, setEditContent] = useState('');
-  const [chatTitle, setChatTitle] = useState('Ny artikkel');
   const [isAutoSaving, setIsAutoSaving] = useState(false);
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
   const [showFileDrop, setShowFileDrop] = useState(false);
@@ -80,7 +83,7 @@ export default function MainChatPanel({
     
     // Reset title if no messages
     if (messages.length === 0 && chatTitle !== 'Ny artikkel') {
-      setChatTitle('Ny artikkel');
+      onChatTitleChange('Ny artikkel');
     }
     
     // Generate chat title from first user message using AI
@@ -144,7 +147,7 @@ export default function MainChatPanel({
             // Note: This would need to be passed up to parent component
             // For now, we'll just set the chat title
             if (parsed.chatTitle && parsed.chatTitle !== 'Ny artikkel') {
-              setChatTitle(parsed.chatTitle);
+              onChatTitleChange(parsed.chatTitle);
             }
           }
         }
@@ -206,7 +209,7 @@ export default function MainChatPanel({
 
   const generateSmartTitle = async (message: string) => {
     // Lightweight local generation to avoid hitting the chat API with an incompatible payload
-    setChatTitle(generateFallbackTitle(message));
+    onChatTitleChange(generateFallbackTitle(message));
   };
 
   const generateFallbackTitle = (message: string) => {
@@ -464,7 +467,6 @@ export default function MainChatPanel({
       title: '',
       subtitle: '',
       category: category.name,
-      content: '',
       tags: [category.name],
       platform: ''
     });
@@ -500,7 +502,6 @@ export default function MainChatPanel({
         title: '',
         subtitle: '',
         category: selectedCategory?.name || template.category,
-        content: '',
         tags: template.tags,
         platform: ''
       });
@@ -523,7 +524,6 @@ export default function MainChatPanel({
         title: '',
         subtitle: '',
         category: trendingTemplate.category,
-        content: '',
         tags: trendingTemplate.tags,
         platform: ''
       });
@@ -628,28 +628,6 @@ export default function MainChatPanel({
               >
                 <div className="relative group">
                   <div className={bubbleClass}>
-                    {isUser && !isEditing && (
-                        <div className={`flex items-center gap-2 transition-opacity duration-200 ${hoveredMessage === message.id ? 'opacity-100' : 'opacity-0'}`}>
-                          <button
-                            onClick={() => navigator.clipboard.writeText(message.content)}
-                            className="p-1.5 text-white/40 hover:text-white/80 transition-colors"
-                            title="Kopier besked"
-                          >
-                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                            </svg>
-                          </button>
-                          <button
-                            onClick={() => handleEditMessage(message.id, message.content)}
-                            className="p-1.5 text-white/40 hover:text-white/80 transition-colors"
-                            title="Rediger besked"
-                          >
-                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                            </svg>
-                          </button>
-                        </div>
-                      )}
                     {message.role === 'assistant' && (parseNumberedSuggestions(message.content).length > 0 || parseEnumeratedQuestions(message.content).length > 0) ? (
                       <div className="space-y-2">
                         {/* Numbered suggestion cards */}
@@ -761,11 +739,33 @@ export default function MainChatPanel({
                       </div>
                     )}
                   </div>
-                  {formattedTime && (
-                    <div className={`mt-1 text-[10px] text-white/35 ${isUser ? 'text-right pr-2' : 'text-left pl-1'}`}>
-                      {formattedTime}
-                    </div>
-                  )}
+                  <div className={`mt-1 flex items-center justify-between text-[10px] text-white/35 ${isUser ? 'pr-2' : 'pl-1'}`}>
+                    {isUser && !isEditing ? (
+                      <div className={`flex items-center gap-2 transition-opacity duration-200 ${hoveredMessage === message.id ? 'opacity-100' : 'opacity-0'}`}>
+                        <button
+                          onClick={() => navigator.clipboard.writeText(message.content)}
+                          className="p-1.5 text-white/40 hover:text-white/80 transition-colors"
+                          title="Kopier besked"
+                        >
+                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                          </svg>
+                        </button>
+                        <button
+                          onClick={() => handleEditMessage(message.id, message.content)}
+                          className="p-1.5 text-white/40 hover:text-white/80 transition-colors"
+                          title="Rediger besked"
+                        >
+                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                          </svg>
+                        </button>
+                      </div>
+                    ) : <span />}
+                    {formattedTime && (
+                      <div className={`${isUser ? 'text-white/35' : 'text-white/35'}`}>{formattedTime}</div>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>

@@ -120,26 +120,321 @@ FIELD MAPPING GUIDANCE (Learned from 100 real articles):
   }
 }
 
+const ARTICLE_FIELD_ALIASES: Record<string, string> = {
+  name: 'title',
+  title: 'title',
+  'seo-title': 'seoTitle',
+  'seo_title': 'seoTitle',
+  seotitle: 'seoTitle',
+  'meta-description': 'seoDescription',
+  'meta_description': 'seoDescription',
+  metadescription: 'seoDescription',
+  'meta-desc': 'seoDescription',
+  metadesc: 'seoDescription',
+  'post-body': 'content',
+  'post_body': 'content',
+  postbody: 'content',
+  'content-html': 'content',
+  'content_html': 'content',
+  contenthtml: 'content',
+  contentHtml: 'content',
+  body: 'content',
+  section: 'category',
+  category: 'category',
+  categoryname: 'category',
+  topic: 'topic',
+  topics: 'tags',
+  tags: 'tags',
+  'streaming_service': 'platform',
+  'streaming-service': 'platform',
+  streamingservice: 'platform',
+  platform: 'platform',
+  stars: 'rating',
+  rating: 'rating',
+  'rating-value': 'rating',
+  rating_value: 'rating',
+  'rating-skipped': 'ratingSkipped',
+  'rating_skipped': 'ratingSkipped',
+  ratingskipped: 'ratingSkipped',
+  press: 'press',
+  'publish-date': 'publishDate',
+  'publish_date': 'publishDate',
+  publishdate: 'publishDate',
+  'read-time': 'readTime',
+  'read_time': 'readTime',
+  readtime: 'readTime',
+  wordcount: 'wordCount',
+  'word-count': 'wordCount',
+  word_count: 'wordCount',
+  'author-name': 'author',
+  authorname: 'author',
+  writer: 'author',
+  journalist: 'author',
+  'author-tov': 'authorTOV',
+  'author_tov': 'authorTOV',
+  tov: 'authorTOV',
+  'preview-title': 'previewTitle',
+  'preview_title': 'previewTitle',
+  previewtitle: 'previewTitle',
+  'ai-draft': 'aiDraft',
+  ai_draft: 'aiDraft',
+  aidraft: 'aiDraft',
+  'ai-suggestion': 'aiSuggestion',
+  ai_suggestion: 'aiSuggestion',
+  aisuggestion: 'aiSuggestion'
+};
+
+const ARTICLE_CONTAINER_KEYS = new Set([
+  'fields',
+  'data',
+  'attributes',
+  'values',
+  'payload',
+  'article',
+  'articleUpdate',
+  'article_update',
+  'articleData',
+  'article_data',
+  'entry',
+  'item',
+  'record',
+  'cms'
+]);
+
+const flattenArticlePayload = (raw: any): Record<string, any> => {
+  const output: Record<string, any> = {};
+  const queue: any[] = [raw];
+  while (queue.length) {
+    const node = queue.shift();
+    if (!node || typeof node !== 'object') continue;
+
+    if (Array.isArray(node)) {
+      node.forEach(item => queue.push(item));
+      continue;
+    }
+
+    Object.entries(node).forEach(([key, value]) => {
+      if (value === undefined || value === null) return;
+
+      if (Array.isArray(value) && key === 'fields') {
+        value.forEach((field: any) => {
+          if (!field || typeof field !== 'object') return;
+          const slug = field.slug || field.id || field.name || field.key;
+          if (!slug) return;
+          const fieldValue = field.value ?? field.text ?? field.content ?? field.richText;
+          if (fieldValue !== undefined && output[slug] === undefined) {
+            output[slug] = fieldValue;
+          }
+        });
+        return;
+      }
+
+      if (
+        (ARTICLE_CONTAINER_KEYS.has(key) ||
+          key.toLowerCase().endsWith('fields') ||
+          key.toLowerCase().endsWith('data')) &&
+        typeof value === 'object'
+      ) {
+        queue.push(value);
+        return;
+      }
+
+      if (output[key] === undefined) {
+        output[key] = value;
+      }
+    });
+  }
+  return output;
+};
+
+const slugify = (value: string) => value
+  .toLowerCase()
+  .normalize('NFKD')
+  .replace(/[^a-z0-9\s-]/g, '')
+  .replace(/\s+/g, '-')
+  .replace(/-+/g, '-')
+  .trim();
+
+const stripHtmlToText = (html: string) => html
+  .replace(/<br\s*\/?>/gi, '\n')
+  .replace(/<\/p>/gi, '\n\n')
+  .replace(/<[^>]+>/g, '')
+  .replace(/\n{3,}/g, '\n\n')
+  .trim();
+
+const normalizeArticleUpdatePayload = (raw: any) => {
+  if (!raw || typeof raw !== 'object') return raw;
+  const flat = flattenArticlePayload(raw);
+  const result: Record<string, any> = { ...raw };
+
+  for (const [key, value] of Object.entries(flat)) {
+    const alias = ARTICLE_FIELD_ALIASES[key.toLowerCase()] || null;
+    if (alias) {
+      result[alias] = value;
+    }
+  }
+
+  if (result.slug && typeof result.slug === 'object') {
+    const slugObj = result.slug as any;
+    result.slug = [slugObj.current, slugObj.slug, slugObj.permalink, slugObj.value]
+      .find((v: any) => typeof v === 'string' && v.trim()) || '';
+  }
+  if (typeof result.slug === 'string' && result.slug.trim()) {
+    result.slug = slugify(result.slug);
+  }
+
+  const ratingCandidate = result.rating ?? result.stars ?? result.rating_value ?? result.ratingValue;
+  if (typeof ratingCandidate === 'string') {
+    const parsed = parseInt(ratingCandidate, 10);
+    if (!Number.isNaN(parsed)) result.rating = parsed;
+  } else if (typeof ratingCandidate === 'number') {
+    result.rating = ratingCandidate;
+  }
+
+  if (Array.isArray(result.tags)) {
+    result.tags = Array.from(new Set(result.tags
+      .map((tag: any) => (typeof tag === 'string' ? tag.trim() : ''))
+      .filter((tag: string) => tag.length > 0)));
+  } else if (typeof result.tags === 'string') {
+    result.tags = Array.from(new Set(result.tags
+      .split(/[,;|\n]+/)
+      .map(tag => tag.trim())
+      .filter(tag => tag.length > 0)));
+  }
+
+  if ((!Array.isArray(result.tags) || result.tags.length === 0) && typeof result.topic === 'string') {
+    const topic = result.topic.trim();
+    if (topic) result.tags = [topic];
+  }
+
+  if (result.category && typeof result.category === 'object') {
+    const catObj = result.category as any;
+    result.category = [catObj.name, catObj.title, catObj.label]
+      .find((v: any) => typeof v === 'string' && v.trim()) || result.category;
+  }
+  if (typeof result.category === 'string') {
+    result.category = result.category.trim();
+  }
+
+  if (result.author && typeof result.author === 'object') {
+    const authorObj = result.author as any;
+    result.author = [authorObj.name, authorObj.title, authorObj.fullName]
+      .find((v: any) => typeof v === 'string' && v.trim()) || result.author;
+    if (typeof authorObj.tov === 'string') {
+      result.authorTOV = authorObj.tov.trim();
+    }
+  }
+  if (typeof result.author === 'string') {
+    result.author = result.author.trim();
+  }
+  if (typeof result.authorTOV === 'string') {
+    result.authorTOV = result.authorTOV.trim();
+  }
+
+  if (typeof result.press === 'string') {
+    const lower = result.press.trim().toLowerCase();
+    if (lower === 'true') result.press = true;
+    else if (lower === 'false') result.press = false;
+  }
+
+  if (typeof result.ratingSkipped === 'string') {
+    const lower = result.ratingSkipped.trim().toLowerCase();
+    if (lower === 'true') result.ratingSkipped = true;
+    else if (lower === 'false') result.ratingSkipped = false;
+  }
+
+  if (result.aiDraft && typeof result.aiDraft !== 'object') {
+    result.aiDraft = { content: result.aiDraft };
+  }
+
+  if (result.aiSuggestion && typeof result.aiSuggestion !== 'object') {
+    result.aiSuggestion = null;
+  }
+
+  if (typeof result.platform === 'string' && !result.streaming_service) {
+    result.streaming_service = result.platform.trim();
+  }
+  if (typeof result.streaming_service === 'string' && !result.platform) {
+    result.platform = result.streaming_service.trim();
+  }
+  if (typeof result.platform === 'string') result.platform = result.platform.trim();
+  if (typeof result.streaming_service === 'string') result.streaming_service = result.streaming_service.trim();
+
+  if (typeof result.content !== 'string') {
+    const candidates = [flat.content, (flat as any).content_html, (flat as any).contentHtml, (flat as any).body];
+    const first = candidates.find((v: any) => typeof v === 'string' && v.trim());
+    if (first) result.content = first;
+  }
+  if (typeof result.content === 'string' && /<[a-z][\s\S]*>/i.test(result.content)) {
+    result.content = stripHtmlToText(result.content);
+  }
+
+  ['title', 'subtitle', 'seoTitle', 'seoDescription', 'previewTitle'].forEach((field) => {
+    const val = (result as any)[field];
+    if (typeof val === 'string') {
+      (result as any)[field] = val.trim();
+    }
+  });
+
+  if (!result.slug && typeof result.title === 'string' && result.title.trim()) {
+    result.slug = slugify(result.title);
+  }
+
+  if (!Array.isArray(result.tags)) result.tags = result.tags ? [result.tags] : [];
+  if (!Array.isArray(result.topicsSelected)) result.topicsSelected = [];
+
+  if (typeof result.publishDate === 'string') {
+    const trimmed = result.publishDate.trim();
+    const parsed = trimmed ? new Date(trimmed) : null;
+    if (parsed && !Number.isNaN(parsed.getTime())) {
+      result.publishDate = parsed.toISOString();
+    } else {
+      result.publishDate = trimmed;
+    }
+  }
+
+  return result;
+};
+
 // Try to extract a structured payload from a raw model string
 function parseModelPayload(raw: string): { response?: string; suggestion?: any; articleUpdate?: any } {
+  const pickField = (obj: any, candidates: string[]) => {
+    for (const key of candidates) {
+      if (obj && Object.prototype.hasOwnProperty.call(obj, key)) return obj[key];
+    }
+    return undefined;
+  };
+  const normalizeShape = (obj: any) => {
+    if (!obj || typeof obj !== 'object') return obj;
+    const aliased = { ...obj };
+    const altArticleUpdate = pickField(obj, ['articleUpdate', 'article_update', 'article', 'articleData', 'article_data', 'fields']);
+    if (altArticleUpdate && !aliased.articleUpdate) aliased.articleUpdate = altArticleUpdate;
+    const altResponse = pickField(obj, ['response', 'reply', 'answer', 'message']);
+    if (altResponse && !aliased.response) aliased.response = altResponse;
+    const altSuggestion = pickField(obj, ['suggestion', 'suggestions', 'prompt']);
+    if (altSuggestion && !aliased.suggestion) aliased.suggestion = altSuggestion;
+    return aliased;
+  };
   const stripFences = (s: string) => s.replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/i, '').trim();
   const tryParse = (s: string) => {
     try { return JSON.parse(s); } catch { return null; }
   };
 
   // 1) Try raw JSON
-  let obj = tryParse(raw);
+  let obj = normalizeShape(tryParse(raw));
   if (obj && typeof obj === 'object' && (obj.response || obj.articleUpdate || obj.suggestion)) {
-    return { response: String(obj.response || ''), suggestion: obj.suggestion, articleUpdate: obj.articleUpdate };
+    const normalizedUpdate = normalizeArticleUpdatePayload(obj.articleUpdate);
+    return { response: String(obj.response || ''), suggestion: obj.suggestion, articleUpdate: normalizedUpdate };
   }
 
   // 2) Try fenced code block
   const fenced = raw.match(/```[\s\S]*?```/);
   if (fenced) {
     const inner = stripFences(fenced[0]);
-    obj = tryParse(inner);
+    obj = normalizeShape(tryParse(inner));
     if (obj && typeof obj === 'object' && (obj.response || obj.articleUpdate || obj.suggestion)) {
-      return { response: String(obj.response || ''), suggestion: obj.suggestion, articleUpdate: obj.articleUpdate };
+      const normalizedUpdate = normalizeArticleUpdatePayload(obj.articleUpdate);
+      return { response: String(obj.response || ''), suggestion: obj.suggestion, articleUpdate: normalizedUpdate };
     }
   }
 
@@ -160,7 +455,7 @@ function parseModelPayload(raw: string): { response?: string; suggestion?: any; 
 
 export async function POST(request: NextRequest) {
   try {
-    const { message, articleData, notes, chatHistory, authorTOV, authorName } = await request.json();
+    const { message, articleData, notes, chatHistory, authorTOV, authorName, analysisPrompt } = await request.json();
 
     if (!message) {
       return NextResponse.json({ error: 'Message is required' }, { status: 400 });
@@ -178,6 +473,30 @@ export async function POST(request: NextRequest) {
     if (articleData.subtitle) context += `Undertitel: ${articleData.subtitle}\n`;
     if (articleData.category) context += `Kategori: ${articleData.category}\n`;
     if (articleData.content) context += `Nuværende indhold: ${articleData.content.substring(0, 500)}...\n`;
+    if (Array.isArray(articleData.tags) && articleData.tags.length) {
+      context += `Tags: ${articleData.tags.join(', ')}\n`;
+    }
+    if (articleData.rating) context += `Bedømmelse (stjerner): ${articleData.rating}\n`;
+    if ((articleData as any).platform || (articleData as any).streaming_service) {
+      const platform = (articleData as any).platform || (articleData as any).streaming_service;
+      context += `Platform/Service: ${platform}\n`;
+    }
+    const researchSelected = (articleData as any).researchSelected;
+    if (researchSelected) {
+      context += `Research kilde: ${researchSelected.source || 'Ukendt'}\n`;
+      if (researchSelected.title) context += `Research artikel: ${researchSelected.title}\n`;
+      if (researchSelected.content) context += `Research resume: ${researchSelected.content}\n`;
+      if (Array.isArray(researchSelected.keyPoints) && researchSelected.keyPoints.length) {
+        context += `Research nøglepunkter: ${researchSelected.keyPoints.join(' • ')}\n`;
+      }
+    }
+    const aiDraft = (articleData as any).aiDraft;
+    if (aiDraft?.prompt) {
+      context += `AI Draft prompt: ${aiDraft.prompt}\n`;
+    }
+    if (Array.isArray(aiDraft?.suggestions) && aiDraft.suggestions.length) {
+      context += `AI Draft forslag: ${aiDraft.suggestions.join(' | ')}\n`;
+    }
     if (notes) context += `Noter og prompts: ${notes}\n`;
 
             // Load trained TOV for author if available
@@ -194,7 +513,6 @@ export async function POST(request: NextRequest) {
                   const author = webflowData.authors?.find((a: any) => a.name === authorName);
                   if (author?.tov) {
                     trainedTOV = author.tov;
-                    console.log(`✓ Loaded Webflow TOV for ${authorName}`);
                   }
                 }
                 
@@ -207,7 +525,6 @@ export async function POST(request: NextRequest) {
                   
                   if (fs.existsSync(tovFile)) {
                     trainedTOV = fs.readFileSync(tovFile, 'utf8');
-                    console.log(`✓ Loaded file-based TOV for ${authorName}`);
                   }
                 }
               } catch (error) {
@@ -216,17 +533,27 @@ export async function POST(request: NextRequest) {
             }
     
     // Build chat history for context
-    const authorInfo = authorTOV || authorName || 'Frederik Kragh';
+    // Always use the author NAME for the instruction line
+    const authorInfo = authorName || 'Apropos Writer';
     const dynamicPrompt = await loadSystemPromptFromApi(request);
     const basePrompt = dynamicPrompt || APROPOS_SYSTEM_PROMPT;
+    const combinedTOV = [trainedTOV, authorTOV].filter(Boolean).join('\n\n');
+    // Lightweight diagnostics for prompt composition
+    // Determine dynamic target lengths from section/topic
+    const lower = (s: any) => String(s||'').toLowerCase();
+    const sec = lower((articleData||{}).category || (articleData||{}).section);
+    const topic = lower((articleData||{}).topic);
+    const tagsArr: string[] = Array.isArray((articleData||{}).tags) ? (articleData as any).tags.map((t:any)=>lower(t)) : [];
+    const isReview = sec.includes('anmeld') || topic.includes('anmeld') || tagsArr.some(t=>t.includes('anmeld'));
+    const targetMin = isReview ? 700 : 1000;
+    const targetMax = isReview ? 900 : 1400;
     const systemContent = `${basePrompt}
 
-${trainedTOV ? `FORFATTER TOV (overstyrer generelle regler):\n${trainedTOV}\n` : ''}**VIGTIG: Skriv i ${authorInfo}'s tone of voice!**`;
-    
-    const messages: any[] = [
-      {
-        role: "system",
-        content: systemContent + `
+${combinedTOV ? `FORFATTER TOV (overstyrer generelle regler):\n${combinedTOV}\n` : ''}**VIGTIG: Skriv i ${authorInfo}'s tone of voice!**\n\nOverhold længdemål i strukturfilen (anmeldelser 700–900 ord; features 1000–1400). Skriv aldrig under 600 ord, medmindre brugeren specifikt beder om kort svar.`;
+
+    // Add hard guidance: transform notes, not copy
+    const transformationRules = `\n\nTRANSFORMATION KRAV:\n- Brug noter som råmateriale — omskriv alt; ingen sætninger må være identiske med noterne.\n- Integrér noter i en sammenhængende artikelstruktur (Intro → Brødtekst → Afslutning).\n- Mål: ${targetMin}–${targetMax} ord for denne artikel.`;
+    const workflowInstructions = `
 
 **VIGTIG OPGAVE:**
 Din rolle er at hjælpe med at bygge en artikel gennem samtale. Alt hvad brugeren skriver og diskuterer med dig skal bruges til at bygge artiklen.
@@ -312,9 +639,21 @@ Hvis der ikke er nogen artikel opdatering eller forslag, returner:
   "articleUpdate": {}
 }
 
-${context ? `\n\nNuværende artikel kontekst:\n${context}` : ''}`
-      }
-    ];
+VIKTIGT: Når du genererer en artikel, skal du ALTID udfylde alle felter i articleUpdate:
+- title: SEO-titel (max 60 tegn)
+- subtitle: Kreativ undertitel (8-14 ord)
+- content: Fuld artikeltekst
+- slug: URL-venligt slug
+- seo_title: SEO-titel (samme som title)
+- meta_description: Meta beskrivelse (max 155 tegn)
+- streaming_service: Platform hvis relevant
+- stars: Stjerner (1-6) hvis anmeldelse
+
+${context ? `\n\nNuværende artikel kontekst:\n${context}` : ''}`;
+
+    const finalSystemContent = systemContent + transformationRules + workflowInstructions;
+    
+    const messages: any[] = [];
 
     // Add chat history
     if (chatHistory && chatHistory.length > 0) {
@@ -326,42 +665,142 @@ ${context ? `\n\nNuværende artikel kontekst:\n${context}` : ''}`
       });
     }
 
+    const userMessageContent = analysisPrompt && typeof analysisPrompt === 'string' && analysisPrompt.trim().length > 0
+      ? `${message}\n\n[Research Analyse Prompt]\n${analysisPrompt.trim()}`
+      : message;
+
     // Add current message
     messages.push({
       role: "user",
-      content: message
+      content: userMessageContent
     });
 
     const completion = await openai.chat.completions.create({
       model: "gpt-4o",
-      messages,
+      messages: [
+        { role: 'system', content: finalSystemContent },
+        ...messages
+      ],
       temperature: 0.7,
-      max_tokens: 2000,
+      max_tokens: 3000,
+      response_format: { type: 'json_object' },
     });
 
-    const response = completion.choices[0]?.message?.content;
+    const rawMessageContent = completion.choices[0]?.message?.content;
+    const responseText = Array.isArray(rawMessageContent)
+      ? rawMessageContent.map((part: any) => {
+          if (typeof part === 'string') return part;
+          if (part && typeof part === 'object' && typeof part.text === 'string') return part.text;
+          return '';
+        }).join('')
+      : (rawMessageContent || '');
+    const normalizedResponse = typeof responseText === 'string' ? responseText : String(responseText || '');
 
-    if (!response) {
+    if (!normalizedResponse.trim()) {
       throw new Error('No response from OpenAI');
     }
 
     // Parse/sanitize model output and enforce JSON contract
-    const parsed = parseModelPayload(response);
+    let parsed = parseModelPayload(normalizedResponse);
     let outResponse = parsed.response;
     let outSuggestion = parsed.suggestion ?? null;
-    let outArticleUpdate = parsed.articleUpdate;
+    let outArticleUpdate = normalizeArticleUpdatePayload(parsed.articleUpdate);
+    if ((!outResponse || !String(outResponse).trim()) && outArticleUpdate && typeof outArticleUpdate === 'object') {
+      const contentFallback = (outArticleUpdate as any).content || (outArticleUpdate as any).content_html || (outArticleUpdate as any).contentHtml;
+      if (typeof contentFallback === 'string' && contentFallback.trim().length > 0) {
+        outResponse = contentFallback;
+      }
+    }
 
     // Fallback: if model didn't return JSON, wrap raw text into contract
     if (!outResponse && !outArticleUpdate && !outSuggestion) {
-      outResponse = response.trim();
+      outResponse = normalizedResponse.trim();
       outArticleUpdate = {};
       outSuggestion = null;
     }
 
+    // --- Server-side validator & optional auto-revision ---
+    const countWords = (s: string) => (s||'').trim().split(/\s+/).filter(Boolean).length;
+    const hasIntro = (s: string) => /\bintro\s*:/i.test(s);
+    const hasEnding = (s: string) => /(eftertanke|refleksion|i virkeligheden|og hvad så\?|lad os bare sige det sådan her)/i.test(s);
+    const overlapRatio = (() => {
+      try {
+        const a = String(notes||'').replace(/\s+/g,' ').toLowerCase();
+        const b = String(outArticleUpdate?.content||'').replace(/\s+/g,' ').toLowerCase();
+        if (!a || !b) return 0;
+        // crude char overlap using substrings length >= 40
+        let overlap = 0;
+        const parts = a.split(/[\.!?]\s+/).map(x=>x.trim()).filter(x=>x.length>=40);
+        for (const p of parts) { if (b.includes(p)) overlap += p.length; }
+        const base = Math.max(1, a.length);
+        return overlap/base;
+      } catch { return 0; }
+    })();
+    const wc = countWords(outArticleUpdate?.content||'');
+    const needsLength = wc < targetMin;
+    const needsStructure = !(hasIntro(outArticleUpdate?.content||'') && hasEnding(outArticleUpdate?.content||''));
+    const tooSimilar = overlapRatio > 0.25; // 25% or more is suspicious
+
+    if (needsLength || needsStructure || tooSimilar) {
+      // Build a precise revision instruction
+      const issues: string[] = [];
+      if (needsLength) issues.push(`Udvid til mindst ${targetMin} ord (mål: ${targetMin}–${targetMax}).`);
+      if (needsStructure) issues.push('Tilføj tydelig “Intro:” samt en afsluttende sektion med et af de godkendte labels.');
+      if (tooSimilar) issues.push('Omskriv og parafrasér — undgå sætninger identiske med brugerens noter.');
+
+      const revisionMessages = [
+        { role: 'system', content: finalSystemContent },
+        { role: 'user', content: `Revider artiklen ud fra disse krav:\n- ${issues.join('\n- ')}\n\nReturnér KUN ét JSON-objekt i samme kontrakt som før (articleUpdate.content skal være den fulde artikel).\n\nAktuel artikel JSON:\n${JSON.stringify({ response: outResponse, suggestion: outSuggestion, articleUpdate: outArticleUpdate }).slice(0,12000)}` }
+      ];
+
+      const revision = await openai.chat.completions.create({
+        model: 'gpt-4o',
+        messages: revisionMessages as any,
+        temperature: 0.6,
+        max_tokens: 3200,
+        response_format: { type: 'json_object' },
+      });
+      const revisionContentRaw = revision.choices[0]?.message?.content;
+      const revisionText = Array.isArray(revisionContentRaw)
+        ? revisionContentRaw.map((part: any) => {
+            if (typeof part === 'string') return part;
+            if (part && typeof part === 'object' && typeof part.text === 'string') return part.text;
+            return '';
+          }).join('')
+        : (revisionContentRaw || '');
+      const revisionNormalized = typeof revisionText === 'string' ? revisionText : String(revisionText || '');
+      const reParsed = parseModelPayload(revisionNormalized);
+      if (reParsed?.articleUpdate) {
+        outResponse = reParsed.response || outResponse;
+        outSuggestion = reParsed.suggestion ?? outSuggestion;
+        outArticleUpdate = normalizeArticleUpdatePayload({ ...(outArticleUpdate||{}), ...reParsed.articleUpdate });
+      }
+      if ((!outResponse || !String(outResponse).trim()) && reParsed?.articleUpdate) {
+        const revContent = (reParsed.articleUpdate as any).content || (reParsed.articleUpdate as any).content_html || (reParsed.articleUpdate as any).contentHtml;
+        if (typeof revContent === 'string' && revContent.trim()) {
+          outResponse = revContent;
+        }
+      }
+    }
+
+    // Final salvage: if model still didn't supply articleUpdate.content but response is long text, use it
+    const finalContentWords = (() => {
+      if (outArticleUpdate && typeof outArticleUpdate.content === 'string') return outArticleUpdate.content.trim().split(/\s+/).length;
+      return 0;
+    })();
+    if ((!outArticleUpdate || !outArticleUpdate.content) && (outResponse||'').trim().split(/\s+/).length >= 600) {
+      outArticleUpdate = normalizeArticleUpdatePayload({ ...(outArticleUpdate||{}), content: outResponse });
+    }
+
+
+    const finalResponse = typeof outResponse === 'string' ? outResponse.trim() : '';
+
+    const finalArticleUpdate = (outArticleUpdate && typeof outArticleUpdate === 'object') ? outArticleUpdate : {};
+
     return NextResponse.json({
-      response: outResponse || '',
+      response: finalResponse,
       suggestion: outSuggestion,
-      articleUpdate: outArticleUpdate,
+      articleUpdate: finalArticleUpdate,
       usage: completion.usage
     });
 

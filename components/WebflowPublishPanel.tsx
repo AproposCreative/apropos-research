@@ -15,7 +15,7 @@ export default function WebflowPublishPanel({ articleData, onPublish, onClose, e
   const [guidance, setGuidance] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [publishing, setPublishing] = useState(false);
-  const [optInTraining, setOptInTraining] = useState(true);
+  const [optInTraining, setOptInTraining] = useState(true); // Always enabled
   const [preflightRunning, setPreflightRunning] = useState(false);
   const [preflightWarnings, setPreflightWarnings] = useState<string[]>([]);
   const [moderation, setModeration] = useState<any | null>(null);
@@ -43,6 +43,38 @@ export default function WebflowPublishPanel({ articleData, onPublish, onClose, e
     featured: false,
     trending: false,
   });
+
+  // Keep formData in sync when articleData prop changes (so fields don't show "—")
+  useEffect(() => {
+    try {
+      const deriveContent = () => {
+        let c = articleData?.content || articleData?.['post-body'] || '';
+        if (!c && Array.isArray(articleData?._chatMessages)) {
+          const assistants = (articleData._chatMessages as any[]).filter(m => m.role === 'assistant');
+          const last = assistants[assistants.length - 1]?.content as string | undefined;
+          if (last) c = last;
+        }
+        return c || '';
+      };
+      const content = deriveContent();
+      const wc = content ? content.trim().split(/\s+/).filter(Boolean).length : 0;
+      const rt = wc ? Math.ceil(wc / 200) : 0;
+      setFormData(prev => ({
+        ...prev,
+        title: articleData.title || prev.title || '',
+        subtitle: articleData.subtitle || prev.subtitle || '',
+        content,
+        category: articleData.category || articleData.section || prev.category || '',
+        tags: Array.isArray(articleData.tags) ? articleData.tags : (Array.isArray(prev.tags) ? prev.tags : []),
+        author: articleData.author || prev.author || '',
+        rating: typeof articleData.rating === 'number' ? articleData.rating : (prev.rating||0),
+        seoTitle: articleData.seoTitle || prev.seoTitle || articleData.title || prev.title || '',
+        seoDescription: articleData.seoDescription || prev.seoDescription || (content ? content.substring(0, 160) : ''),
+        wordCount: wc,
+        readTime: rt,
+      }));
+    } catch {}
+  }, [articleData]);
 
   useEffect(() => {
     fetchFields();
@@ -236,7 +268,7 @@ export default function WebflowPublishPanel({ articleData, onPublish, onClose, e
   const PanelInner = () => (
     <>
       {!embed && (
-        <div className="p-6 border-b border-white/10">
+        <div className="p-6">
           <div className="flex items-center justify-between">
             <h2 className="text-white text-xl font-medium">Udgiv artikel til Webflow</h2>
             <button onClick={onClose} className="text-white/60 hover:text-white transition-colors">
@@ -248,66 +280,25 @@ export default function WebflowPublishPanel({ articleData, onPublish, onClose, e
         </div>
       )}
 
-      <div className={`p-6 space-y-6 ${embed ? 'pt-0' : ''}`}>
-          {/* Compact list-style fields (no boxes) */}
-          <div className="space-y-2 text-white/80 text-sm">
-            <div className="flex items-start gap-2"><span className="text-white/50 w-28">Titel</span><span className="flex-1">{formData.title || '—'}</span></div>
-            <div className="flex items-start gap-2"><span className="text-white/50 w-28">Slug</span><span className="flex-1">{formData.slug || '—'}</span></div>
-            <div className="flex items-start gap-2"><span className="text-white/50 w-28">Undertitel</span><span className="flex-1">{formData.subtitle || '—'}</span></div>
-            <div className="flex items-start gap-2"><span className="text-white/50 w-28">Kategori</span><span className="flex-1">{formData.category || '—'}</span></div>
-            <div className="flex items-start gap-2"><span className="text-white/50 w-28">Indhold</span><span className="flex-1 whitespace-pre-wrap">{formData.content || '—'}</span></div>
-            <div className="flex items-start gap-2"><span className="text-white/50 w-28">Uddrag</span><span className="flex-1 whitespace-pre-wrap">{formData.excerpt || '—'}</span></div>
-            <div className="flex items-start gap-2"><span className="text-white/50 w-28">Tags</span><span className="flex-1">{formData.tags.join(', ') || '—'}</span></div>
-            <div className="flex items-start gap-2"><span className="text-white/50 w-28">SEO Titel</span><span className="flex-1">{formData.seoTitle || '—'}</span></div>
-            <div className="flex items-start gap-2"><span className="text-white/50 w-28">SEO Beskrivelse</span><span className="flex-1 whitespace-pre-wrap">{formData.seoDescription || '—'}</span></div>
-          </div>
-
-          {/* Stats */}
-          <div className="grid grid-cols-3 gap-4 mt-4">
-            <div className="text-center p-3 bg-white/5 rounded-lg">
-              <div className="text-white text-2xl font-bold">{formData.wordCount}</div>
-              <div className="text-white/60 text-sm">Ord</div>
-            </div>
-            <div className="text-center p-3 bg-white/5 rounded-lg">
-              <div className="text-white text-2xl font-bold">{formData.readTime}</div>
-              <div className="text-white/60 text-sm">Min læsetid</div>
-            </div>
-            <div className="text-center p-3 bg-white/5 rounded-lg">
-              <div className="text-white text-2xl font-bold">{formData.tags.length}</div>
-              <div className="text-white/60 text-sm">Tags</div>
-            </div>
-          </div>
-        </div>
 
         {/* Guidance Panel removed per UX: chat handles missing field prompts */}
 
-        {/* Actions */}
-        <div className={`p-6 border-t border-white/10 flex justify-end gap-3 ${embed ? 'pt-3 pb-0' : ''}`}>
-          <label className="mr-auto flex items-center gap-2 text-white/70">
-            <input
-              type="checkbox"
-              checked={optInTraining}
-              onChange={(e)=>setOptInTraining(e.target.checked)}
-              className="w-4 h-4 text-blue-600 bg-black border-white/20 rounded focus:ring-blue-500"
-            />
-            <span className="text-sm">Del til træning (forbedrer Apropos‑modellen)</span>
-          </label>
-          <button
-            onClick={onClose}
-            className="px-4 py-2 text-white/60 hover:text-white transition-colors"
-          >
-            Annuller
-          </button>
-          <button
-            onClick={handlePublish}
-            disabled={publishing || !formData.title || !formData.content}
-            className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
-          >
-            {publishing && (
-              <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
-            )}
-            {publishing ? 'Udgiver...' : 'Udgiv til Webflow'}
-          </button>
+        {/* Simple Sticky Publish Button */}
+        <div className="fixed bottom-0 left-0 right-0 z-50">
+          <div className="max-w-7xl mx-auto px-6 py-6">
+            <div className="flex justify-end">
+              <button
+                onClick={handlePublish}
+                disabled={publishing || !formData.title || !formData.content}
+                className="px-6 py-2 bg-gradient-to-r from-slate-600 to-slate-700 text-white rounded-lg hover:from-slate-700 hover:to-slate-800 disabled:opacity-40 disabled:cursor-not-allowed transition-all duration-300 shadow-lg flex items-center gap-3 font-medium text-sm"
+              >
+                {publishing && (
+                  <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                )}
+                {publishing ? 'Udgiver...' : 'Publish to Webflow'}
+              </button>
+            </div>
+          </div>
         </div>
 
         {/* Preflight Results */}
@@ -340,11 +331,7 @@ export default function WebflowPublishPanel({ articleData, onPublish, onClose, e
   );
 
   if (embed) {
-    return (
-      <div className="bg-[#171717] border border-white/10 rounded-xl">
-        <PanelInner />
-      </div>
-    );
+    return <PanelInner />;
   }
 
   return (

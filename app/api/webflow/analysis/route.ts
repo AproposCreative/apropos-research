@@ -1,9 +1,18 @@
 import { NextResponse } from 'next/server';
 import { getArticlesCollectionFieldsDetailed } from '@/lib/webflow-service';
 import { readMapping } from '@/lib/webflow-mapping';
+import { apiCache, CACHE_TTL } from '@/lib/cache';
 
 export async function GET() {
   try {
+    const cacheKey = 'webflow:analysis';
+    
+    // Try to get from cache first
+    const cached = apiCache.get<any>(cacheKey);
+    if (cached) {
+      return NextResponse.json(cached);
+    }
+    
     const [fields, mapping] = await Promise.all([
       getArticlesCollectionFieldsDetailed(),
       Promise.resolve(readMapping()),
@@ -18,7 +27,12 @@ export async function GET() {
       tip: tipForField(f.slug, f.type, f.required),
     }));
 
-    return NextResponse.json({ guidance });
+    const result = { guidance };
+    
+    // Store in cache for 15 minutes
+    apiCache.set(cacheKey, result, CACHE_TTL.LONG);
+    
+    return NextResponse.json(result);
   } catch (e: any) {
     return NextResponse.json({ error: e?.message || 'Failed to analyze' }, { status: 500 });
   }

@@ -45,6 +45,19 @@ export default function Drawer({ }: {}) {
 
   if (!open || !item) return null;
 
+  const displayTitle = (() => {
+    const raw =
+      item.title ??
+      item.name ??
+      item.headline ??
+      item.previewTitle ??
+      item.seoTitle ??
+      item.seo_title ??
+      '';
+    const trimmed = typeof raw === 'string' ? raw.trim() : '';
+    return trimmed || 'Uden titel';
+  })();
+
   return (
     <div 
       className="fixed inset-0 z-50 bg-black/60" 
@@ -74,7 +87,7 @@ export default function Drawer({ }: {}) {
         <div className="p-5 space-y-3">
           {item.image ? <img src={item.image} alt="" className="w-full rounded-xl shadow-lg" /> : null}
           <div className="text-xs text-slate-500 dark:text-slate-400">{item.date}</div>
-          <h3 className="text-xl font-semibold text-slate-800 dark:text-slate-100">{item.title}</h3>
+          <h3 className="text-xl font-semibold text-slate-800 dark:text-slate-100">{displayTitle}</h3>
           <p className="text-slate-700 dark:text-slate-300 leading-relaxed">{item.summary}</p>
           {Array.isArray(item.bullets) && item.bullets.length > 0 ? (
             <ul className="list-disc ml-5 text-sm space-y-1 text-slate-600 dark:text-slate-400">{item.bullets.map((b: string, i: number) => <li key={i}>{b}</li>)}</ul>

@@ -9,9 +9,10 @@ interface DraftsShelfProps {
   onSelect: (draft: ArticleDraft) => void;
   onClose?: () => void;
   isOpen?: boolean;
+  onRenameLive?: (draftId: string, newTitle: string) => void; // notify open session
 }
 
-export default function DraftsShelf({ onSelect, onClose, isOpen = true }: DraftsShelfProps) {
+export default function DraftsShelf({ onSelect, onClose, isOpen = true, onRenameLive }: DraftsShelfProps) {
   const { user } = useAuth();
   const [drafts, setDrafts] = useState<ArticleDraft[]>([]);
   const [loading, setLoading] = useState(true);
@@ -85,12 +86,15 @@ export default function DraftsShelf({ onSelect, onClose, isOpen = true }: Drafts
     if (!renamingDraft || !newTitle.trim()) return;
     
     try {
-      await updateDraft(renamingDraft, { chatTitle: newTitle.trim() });
-      setDrafts(drafts.map(d => 
+      const trimmed = newTitle.trim();
+      await updateDraft(renamingDraft, { chatTitle: trimmed, title: trimmed });
+      setDrafts(prev => prev.map(d => 
         d.id === renamingDraft 
-          ? { ...d, chatTitle: newTitle.trim() }
+          ? { ...d, chatTitle: trimmed, title: trimmed, articleData: { ...(d.articleData||{}), title: trimmed, previewTitle: trimmed } }
           : d
       ));
+      // propagate to open session if provided
+      try { onRenameLive?.(renamingDraft, trimmed); } catch {}
       setRenamingDraft(null);
       setNewTitle('');
     } catch (error) {
@@ -179,5 +183,4 @@ export default function DraftsShelf({ onSelect, onClose, isOpen = true }: Drafts
     </div>
   );
 }
-
 
