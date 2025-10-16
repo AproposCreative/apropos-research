@@ -1,6 +1,8 @@
 export type AIDraft = {
   prompt?: string;
   suggestions?: string[];
+  // Mark when the analysis step is completed in the Setup Wizard
+  completed?: boolean;
 };
 
 export interface ArticleData {
@@ -22,6 +24,8 @@ export interface ArticleData {
   template?: 'notes' | 'research' | '';
   inspirationSource?: string;
   researchSelected?: any;
+  // Whether the user acknowledged the inspiration summary in research flow
+  inspirationAcknowledged?: boolean;
   _chatMessages?: any[];
   seoTitle?: string;
   seoDescription?: string;

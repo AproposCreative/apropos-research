@@ -328,7 +328,8 @@ export default function MainChatPanel({
   const parseNumberedSuggestions = (text: string) => {
     const lines = text.split(/\r?\n/);
     const items: Array<{ title: string; description: string; full: string }>=[];
-    const re = /^\s*\d+\.\s+\*\*(.+?)\*\*\s*:\s*(.*)$/;
+    // Use RegExp constructor to avoid parser issues on some environments
+    const re = new RegExp('^\\s*\\d+\\.\\s+\\*\\*(.+?)\\*\\*\\s*:\\s*(.*)$');
     for (const line of lines) {
       const m = line.match(re);
       if (m) {
@@ -346,7 +347,8 @@ export default function MainChatPanel({
     const lines = text.split(/\r?\n/).map(s => s.trim());
     const q: ParsedQuestion[] = [];
     for (const line of lines) {
-      const m = line.match(/^\d+[\).]\s*(.+)$/);
+      // Use RegExp constructor to avoid parser issues on some environments
+      const m = line.match(new RegExp('^\\d+[\\).]\\s*(.+)$'));
       if (!m) continue;
       const body = m[1].toLowerCase();
       if (/forfatterprofil|tov|ironisk|sanselig|analytisk|profil/.test(body)) {
@@ -648,7 +650,6 @@ export default function MainChatPanel({
                           </button>
                         </div>
                       )}
-                    </div>
                     {message.role === 'assistant' && (parseNumberedSuggestions(message.content).length > 0 || parseEnumeratedQuestions(message.content).length > 0) ? (
                       <div className="space-y-2">
                         {/* Numbered suggestion cards */}
