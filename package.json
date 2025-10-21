@@ -12,6 +12,8 @@
     "analyze": "ANALYZE=true npm run build",
     "lighthouse": "lighthouse http://localhost:3000 --output=html --output-path=./lighthouse-report.html",
     "perf": "npm run build && npm run lighthouse",
+    "bundle:analyze": "ANALYZE=true npm run build",
+    "bundle:size": "npm run build && npx bundlesize",
     "ingest:rage": "npx tsx src/cli/ingest-rage.ts",
     "scrape:apropos": "npx tsx scripts/scrape-apropos-articles.ts",
     "optimize:templates": "npx tsx scripts/optimize-templates.ts",
@@ -41,10 +43,12 @@
     "pino": "^10.0.0",
     "react": "19.1.1",
     "react-dom": "19.1.1",
+    "web-vitals": "^5.1.0",
     "webflow-api": "^3.2.0",
     "zod": "^4.1.11"
   },
   "devDependencies": {
+    "@next/bundle-analyzer": "^15.5.6",
     "@tailwindcss/line-clamp": "^0.4.4",
     "@tailwindcss/typography": "^0.5.16",
     "@types/react": "19.1.12",

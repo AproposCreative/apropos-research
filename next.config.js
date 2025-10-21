@@ -1,3 +1,13 @@
+let withBundleAnalyzer;
+try {
+  withBundleAnalyzer = require('@next/bundle-analyzer')({
+    enabled: process.env.ANALYZE === 'true',
+  });
+} catch (error) {
+  console.warn('Bundle analyzer not available:', error.message);
+  withBundleAnalyzer = (config) => config;
+}
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   // Simplified config to fix client-side rendering issues
@@ -68,4 +78,4 @@ const nextConfig = {
   },
 }
 
-module.exports = nextConfig
+module.exports = withBundleAnalyzer(nextConfig)

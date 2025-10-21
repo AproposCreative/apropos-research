@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useEffect, useLayoutEffect, ReactNode, useCallback } from 'react';
+import { useState, useRef, useEffect, ReactNode, useCallback } from 'react';
 import WizardAutoHeight from '@/components/ui/WizardAutoHeight';
 import FileDropZone from '@/components/FileDropZone';
 import ArticleTemplates from '@/components/ArticleTemplates';
@@ -13,6 +13,9 @@ import WebflowPublishPanel from '@/components/WebflowPublishPanel';
 import { WebflowArticleFields } from '@/lib/webflow-service';
 import { type UploadedFile } from '@/lib/file-upload-service';
 import type { ArticleData } from '@/types/article';
+import PreflightRecommendations from '@/components/PreflightRecommendations';
+import PreflightStatus from '@/components/PreflightStatus';
+import { autoSaveService } from '@/lib/auto-save-service';
 type LocalArticleData = ArticleData & { aiSuggestion?: { type: 'rating'; title: string; description: string } | null };
 
 interface ChatMessage {
@@ -207,6 +210,132 @@ export default function MainChatPanel({
     updateMessageScrollFade();
   }, [messages.length, updateMessageScrollFade]);
 
+  const runPreflightChecks = async (title: string, content: string) => {
+    try {
+      console.log('🔍 Running Preflight checks...');
+      setPreflightRunning(true);
+      setPreflightCurrentStep(0);
+      setPreflightStepName('Starter analyse...');
+      
+      const warnings: string[] = [];
+      
+      // Step 1: Moderation check
+      setPreflightCurrentStep(1);
+      setPreflightStepName('Moderation Check');
+      const modRes = await fetch('/api/moderation/check', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title, content })
+      }).then(r => r.ok ? r.json() : null);
+      
+      if (modRes) {
+        setPreflightModeration(modRes);
+        if (modRes.metrics?.plagiarismRisk === 'high') {
+          warnings.push('Høj lighed med eksisterende tekst. Omskriv før publicering.');
+        }
+      }
+      
+      // Step 2: Critic TOV check
+      setPreflightCurrentStep(2);
+      setPreflightStepName('TOV Analysis');
+      const criticRes = await fetch('/api/critic/tov', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content })
+      }).then(r => r.ok ? r.json() : null);
+      
+      if (criticRes && criticRes.tips) {
+        setPreflightCriticTips(criticRes.tips);
+      }
+      
+      // Step 3: Fact check
+      setPreflightCurrentStep(3);
+      setPreflightStepName('Fact Check');
+      const factRes = await fetch('/api/factcheck', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content })
+      }).then(r => r.ok ? r.json() : null);
+      
+      if (factRes && factRes.results) {
+        setPreflightFactResults(factRes.results);
+        const unknown = factRes.results.filter((x: any) => x.status !== 'true');
+        if (unknown.length > 0) {
+          warnings.push('Nogle påstande er ikke verificeret. Overvej at tilføje kilder eller omformulere.');
+        }
+      }
+      
+      setPreflightWarnings(warnings);
+      setPreflightRunning(false);
+      setPreflightStepName('Færdig!');
+      
+      // Auto-apply recommendations if any issues found
+      if (warnings.length > 0 || criticRes?.tips || (factRes?.results && factRes.results.length > 0)) {
+        console.log('🔄 Auto-applying Preflight recommendations...');
+        
+        const improvements: string[] = [];
+        
+        // Add critical fixes
+        if (warnings.length > 0) {
+          improvements.push(`KRITISK: Fix disse problemer:\n${warnings.map(w => `• ${w}`).join('\n')}`);
+        }
+        
+        // Add fact check improvements
+        if (factRes?.results) {
+          const unverified = factRes.results.filter((x: any) => x.status !== 'true');
+          if (unverified.length > 0) {
+            improvements.push(`Fakta forbedringer: Tilføj kilder eller omformulér:\n${unverified.map(f => `• "${f.claim}"`).join('\n')}`);
+          }
+        }
+        
+        // Add TOV improvements
+        if (criticRes?.tips) {
+          improvements.push(`TOV forbedring: ${criticRes.tips}`);
+        }
+        
+        if (improvements.length > 0) {
+          const message = `Anvend disse Preflight anbefalinger automatisk:\n\n${improvements.join('\n\n')}\n\nForbedre artiklen med fokus på disse punkter, men behold den samme struktur og længde.`;
+          onSendMessage(message);
+        }
+      }
+      
+      console.log('✅ Preflight checks completed:', { warnings: warnings.length, hasCriticTips: !!criticRes?.tips, factResults: factRes?.results?.length || 0 });
+    } catch (error) {
+      console.error('Error running preflight checks:', error);
+      setPreflightRunning(false);
+      setPreflightStepName('Fejl opstod');
+    }
+  };
+
+  // Auto-run Preflight checks when article is complete
+  useEffect(() => {
+    const lastMessage = messages[messages.length - 1];
+    
+    // Only trigger if last message is from assistant and contains article content
+    if (!lastMessage || lastMessage.role !== 'assistant') return;
+    if (!articleData.content || articleData.content.length < 500) return;
+    
+    // Check if this looks like a complete article
+    const content = lastMessage.content + (articleData.content || '');
+    const hasIntro = /\bintro\s*:/i.test(content) || content.toLowerCase().includes('intro:');
+    const hasEnding = /(eftertanke|refleksion|i virkeligheden|og hvad så\?|lad os bare sige det sådan her|læs apropos|\/6 stjerner)/i.test(content);
+    const hasStructure = content.includes('\n\n') && content.length > 500;
+    
+    // Check if Preflight has already been run for this content (avoid duplicate runs)
+    const contentHash = `${articleData.title}-${articleData.content.length}`;
+    const lastPreflightHash = localStorage.getItem('lastPreflightHash');
+    
+    if (hasStructure && (hasIntro || hasEnding) && contentHash !== lastPreflightHash) {
+      console.log('🚀 Auto-triggering Preflight checks for complete article');
+      localStorage.setItem('lastPreflightHash', contentHash);
+      
+      // Delay to ensure article is fully processed
+      setTimeout(() => {
+        runPreflightChecks(articleData.title || '', articleData.content);
+      }, 1000);
+    }
+  }, [messages, articleData.content, articleData.title]);
+
   const generateSmartTitle = async (message: string) => {
     // Lightweight local generation to avoid hitting the chat API with an incompatible payload
     onChatTitleChange(generateFallbackTitle(message));
@@ -282,6 +411,109 @@ export default function MainChatPanel({
       console.error('Failed to copy:', error);
     }
   };
+
+  const handlePreflightComplete = (warnings: string[], criticTips: string, factResults: any[], moderation: any) => {
+    // Update state with Preflight results
+    setPreflightWarnings(warnings);
+    setPreflightCriticTips(criticTips);
+    setPreflightFactResults(factResults);
+    setPreflightModeration(moderation);
+    
+    console.log('📋 Preflight results received:', { warnings: warnings.length, hasCriticTips: !!criticTips, factResults: factResults.length });
+  };
+
+  const handleApplyPreflightRecommendations = async () => {
+    try {
+      console.log('🔧 Applying Preflight recommendations...');
+      
+      // Collect all recommendations into a single message
+      const recommendations: string[] = [];
+      
+      if (preflightWarnings.length > 0) {
+        recommendations.push(...preflightWarnings);
+      }
+      
+      if (preflightCriticTips) {
+        recommendations.push(`TOV forbedring: ${preflightCriticTips}`);
+      }
+      
+      if (preflightFactResults && preflightFactResults.length > 0) {
+        const unverified = preflightFactResults.filter((x: any) => x.status !== 'true');
+        if (unverified.length > 0) {
+          recommendations.push(`Fakta verificering: ${unverified.length} påstande skal verificeres`);
+        }
+      }
+      
+      if (recommendations.length > 0) {
+        const message = `Anvend disse Preflight anbefalinger på artiklen:\n\n${recommendations.map(r => `• ${r}`).join('\n')}\n\nOmskriv artiklen med disse forbedringer og behold den samme struktur og længde.`;
+        console.log('📤 Sending message to AI:', message.substring(0, 100) + '...');
+        onSendMessage(message);
+      } else {
+        console.log('⚠️ No recommendations to apply');
+      }
+    } catch (error) {
+      console.error('Error applying preflight recommendations:', error);
+    }
+  };
+
+  const handleApplyCriticalFixes = async () => {
+    try {
+      const criticalIssues: string[] = [];
+      
+      // Only collect critical issues
+      if (preflightWarnings.some(w => w.toLowerCase().includes('høj lighed') || w.toLowerCase().includes('plagiat'))) {
+        criticalIssues.push('Omskriv teksten for at undgå plagiat og sikre originalitet');
+      }
+      
+      if (criticalIssues.length > 0) {
+        const message = `KRITISK: Fix disse problemer i artiklen:\n\n${criticalIssues.map(r => `• ${r}`).join('\n')}\n\nOmskriv de relevante dele af artiklen og behold den samme struktur.`;
+        onSendMessage(message);
+      }
+    } catch (error) {
+      console.error('Error applying critical fixes:', error);
+    }
+  };
+
+  const handleApplyImprovements = async () => {
+    try {
+      const improvements: string[] = [];
+      
+      if (preflightCriticTips) {
+        improvements.push(`TOV forbedring: ${preflightCriticTips}`);
+      }
+      
+      if (improvements.length > 0) {
+        const message = `Anvend disse forbedringer på artiklen:\n\n${improvements.map(r => `• ${r}`).join('\n')}\n\nForbedre artiklen med fokus på tone og stil, men behold den samme struktur og længde.`;
+        onSendMessage(message);
+      }
+    } catch (error) {
+      console.error('Error applying improvements:', error);
+    }
+  };
+
+  // One-click auto-fix functions
+  const handleAutoFixPlagiarism = () => {
+    const message = `KRITISK: Fix plagiat problemer. Omskriv alle dele af teksten der har høj lighed med eksisterende indhold. Brug dine egne ord og perspektiv.`;
+    onSendMessage(message);
+  };
+
+  const handleAutoFixFacts = () => {
+    const unverifiedFacts = preflightFactResults?.filter(x => x.status !== 'true') || [];
+    if (unverifiedFacts.length === 0) return;
+    
+    const factList = unverifiedFacts.map(f => `- "${f.claim}"`).join('\n');
+    const message = `Fix fakta problemer. Tilføj kilder eller omformulér disse påstande:\n${factList}`;
+    onSendMessage(message);
+  };
+
+  const handleAutoFixTOV = () => {
+    if (!preflightCriticTips) return;
+    
+    const message = `Forbedr tone of voice: ${preflightCriticTips}`;
+    onSendMessage(message);
+  };
+
+
 
   const handleFileUploaded = (file: UploadedFile, content?: string) => {
     setUploadedFiles(prev => [...prev, file]);
@@ -395,6 +627,70 @@ export default function MainChatPanel({
   ];
   const [thinkingText, setThinkingText] = useState<string>(thinkingTexts[0]);
   const [fadeIn, setFadeIn] = useState<boolean>(true);
+  
+  // Preflight state
+  const [preflightWarnings, setPreflightWarnings] = useState<string[]>([]);
+  const [preflightModeration, setPreflightModeration] = useState<any | null>(null);
+  const [preflightCriticTips, setPreflightCriticTips] = useState<string>('');
+  const [preflightFactResults, setPreflightFactResults] = useState<any[] | null>(null);
+  
+  // Preflight status tracking
+  const [preflightRunning, setPreflightRunning] = useState(false);
+  const [preflightCurrentStep, setPreflightCurrentStep] = useState(0);
+  const [preflightStepName, setPreflightStepName] = useState('');
+
+  // Auto-save Preflight data
+  useEffect(() => {
+    if (preflightWarnings.length > 0 || preflightCriticTips || (preflightFactResults && preflightFactResults.length > 0)) {
+      autoSaveService.save({
+        preflightWarnings,
+        preflightModeration,
+        preflightCriticTips,
+        preflightFactResults
+      });
+    }
+  }, [preflightWarnings, preflightModeration, preflightCriticTips, preflightFactResults]);
+
+  // Restore Preflight data from localStorage on mount and when it changes
+  useEffect(() => {
+    const restorePreflightData = () => {
+      try {
+        const savedData = autoSaveService.load();
+        
+        if (savedData.preflightWarnings && savedData.preflightWarnings.length > 0) {
+          setPreflightWarnings(savedData.preflightWarnings);
+        }
+        
+        if (savedData.preflightModeration) {
+          setPreflightModeration(savedData.preflightModeration);
+        }
+        
+        if (savedData.preflightCriticTips) {
+          setPreflightCriticTips(savedData.preflightCriticTips);
+        }
+        
+        if (savedData.preflightFactResults && savedData.preflightFactResults.length > 0) {
+          setPreflightFactResults(savedData.preflightFactResults);
+        }
+        
+        console.log('🔄 Restored Preflight data from localStorage:', {
+          warnings: savedData.preflightWarnings?.length || 0,
+          hasModeration: !!savedData.preflightModeration,
+          hasCriticTips: !!savedData.preflightCriticTips,
+          factResults: savedData.preflightFactResults?.length || 0
+        });
+      } catch (error) {
+        console.error('Failed to restore Preflight data from localStorage:', error);
+      }
+    };
+
+    restorePreflightData();
+    
+    // Poll for Preflight data changes (when WebflowPublishPanel saves it)
+    const intervalId = setInterval(restorePreflightData, 1000);
+    
+    return () => clearInterval(intervalId);
+  }, []); // Only run on mount
 
   useEffect(() => {
     if (!isThinking) return;
@@ -742,15 +1038,15 @@ export default function MainChatPanel({
                   <div className={`mt-1 flex items-center justify-between text-[10px] text-white/35 ${isUser ? 'pr-2' : 'pl-1'}`}>
                     {isUser && !isEditing ? (
                       <div className={`flex items-center gap-2 transition-opacity duration-200 ${hoveredMessage === message.id ? 'opacity-100' : 'opacity-0'}`}>
-                        <button
+                    <button
                           onClick={() => navigator.clipboard.writeText(message.content)}
                           className="p-1.5 text-white/40 hover:text-white/80 transition-colors"
                           title="Kopier besked"
                         >
                           <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                          </svg>
-                        </button>
+                      </svg>
+                    </button>
                         <button
                           onClick={() => handleEditMessage(message.id, message.content)}
                           className="p-1.5 text-white/40 hover:text-white/80 transition-colors"
@@ -764,13 +1060,74 @@ export default function MainChatPanel({
                     ) : <span />}
                     {formattedTime && (
                       <div className={`${isUser ? 'text-white/35' : 'text-white/35'}`}>{formattedTime}</div>
-                    )}
-                  </div>
+                  )}
+                </div>
                 </div>
               </div>
             </div>
           );
         })}
+          {/* Manual Preflight Trigger - for testing */}
+          {articleData.content && articleData.content.length > 500 && (
+            <div className="flex justify-start">
+              <div className="max-w-[80%]" style={{ paddingLeft: '8px', paddingRight: '8px' }}>
+                <button
+                  onClick={() => runPreflightChecks(articleData.title || '', articleData.content)}
+                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors text-sm font-medium"
+                >
+                  🔍 Kør Preflight Checks
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Preflight Status */}
+          {preflightRunning && (
+            <div className="flex justify-start">
+              <div className="max-w-[80%]" style={{ paddingLeft: '8px', paddingRight: '8px' }}>
+                <PreflightStatus
+                  isRunning={preflightRunning}
+                  currentStep={preflightCurrentStep}
+                  totalSteps={3}
+                  stepName={preflightStepName}
+                />
+              </div>
+            </div>
+          )}
+
+          {/* Preflight Recommendations */}
+          {(() => {
+            const shouldShow = preflightWarnings.length > 0 || preflightCriticTips || (preflightFactResults && preflightFactResults.length > 0);
+            console.log('🔍 Preflight display check:', {
+              shouldShow,
+              warnings: preflightWarnings.length,
+              criticTips: !!preflightCriticTips,
+              factResults: preflightFactResults?.length || 0,
+              preflightWarnings,
+              preflightCriticTips,
+              preflightFactResults
+            });
+            return shouldShow;
+          })() && (
+            <div className="flex justify-start">
+              <div className="max-w-[80%]" style={{ paddingLeft: '8px', paddingRight: '8px' }}>
+                <PreflightRecommendations
+                  warnings={preflightWarnings}
+                  moderation={preflightModeration}
+                  criticTips={preflightCriticTips}
+                  factResults={preflightFactResults}
+                  onApplyRecommendations={handleApplyPreflightRecommendations}
+                  onApplyCriticalFixes={handleApplyCriticalFixes}
+                  onApplyImprovements={handleApplyImprovements}
+                  onAutoFixPlagiarism={handleAutoFixPlagiarism}
+                  onAutoFixFacts={handleAutoFixFacts}
+                  onAutoFixTOV={handleAutoFixTOV}
+                />
+              </div>
+            </div>
+          )}
+
+          
           {isThinking && (
             <div className="flex justify-start">
               <div className="max-w-[80%]" style={{ paddingLeft: '8px', paddingRight: '8px' }}>
@@ -780,7 +1137,7 @@ export default function MainChatPanel({
                   >
                     {thinkingText}
                   </span>
-                </div>
+            </div>
               </div>
             </div>
           )}
@@ -925,17 +1282,6 @@ export default function MainChatPanel({
 
         {/* Input Area */}
         <div className="p-3 md:p-4 rounded-xl flex flex-col gap-2 md:gap-3 bg-[#171717] mx-[10px] mb-[10px]">
-          {/* Publish Button */}
-          {articleData.title && articleData.content && (
-            <div className="flex justify-end">
-              <button
-                onClick={() => setShowPublishPanel(true)}
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm"
-              >
-                Udgiv til Webflow
-              </button>
-            </div>
-          )}
           <div className="relative">
             <textarea
               value={inputMessage}

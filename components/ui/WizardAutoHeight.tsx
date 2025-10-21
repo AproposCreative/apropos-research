@@ -1,27 +1,36 @@
 'use client';
-import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, useCallback, type ReactNode } from 'react';
 
 export default function WizardAutoHeight({ children }: { children: ReactNode }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
   const [height, setHeight] = useState<number | undefined>(undefined);
+  const lastChildrenRef = useRef<ReactNode>(children);
+  const heightRef = useRef<number | undefined>(undefined);
 
-  const recompute = () => {
+  const recompute = useCallback(() => {
     const el = contentRef.current;
     if (!el) return;
     const next = el.scrollHeight;
-    setHeight(next);
-  };
+    if (heightRef.current !== next) {
+      heightRef.current = next;
+      setHeight(next);
+    }
+  }, []);
 
   useLayoutEffect(() => {
-    recompute();
-  }, [children]);
+    // Only recompute if children actually changed
+    if (lastChildrenRef.current !== children) {
+      lastChildrenRef.current = children;
+      recompute();
+    }
+  });
 
   useEffect(() => {
     const ro = new ResizeObserver(() => recompute());
     if (contentRef.current) ro.observe(contentRef.current);
     return () => ro.disconnect();
-  }, []);
+  }, [recompute]);
 
   const clamped = Math.max(48, Math.min(height ?? 0, 800));
 

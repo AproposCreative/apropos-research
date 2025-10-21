@@ -640,14 +640,24 @@ Hvis der ikke er nogen artikel opdatering eller forslag, returner:
 }
 
 VIKTIGT: Når du genererer en artikel, skal du ALTID udfylde alle felter i articleUpdate:
-- title: SEO-titel (max 60 tegn)
-- subtitle: Kreativ undertitel (8-14 ord)
+- title: SEO-titel (max 60 tegn) - Format: [Værk] (Platform): [Fængende undertitel]
+- subtitle: Kreativ undertitel (8-14 ord) - Skal være reflekterende eller ironisk
 - content: Fuld artikeltekst
 - slug: URL-venligt slug
 - seo_title: SEO-titel (samme som title)
 - meta_description: Meta beskrivelse (max 155 tegn)
 - streaming_service: Platform hvis relevant
 - stars: Stjerner (1-6) hvis anmeldelse
+
+TITEL FORMAT EKSEMPLER:
+- "Paradise (Disflix+): Livets vrangside i glitter og gas"
+- "KPOP Demon Hunters (Netflix): En kulturel kollision af lyd og lys"
+
+UNDERTITEL EKSEMPLER:
+- "Et sted mellem pop, dæmoner og selvindsigt."
+- "En KPOP anime-musical der overrasker og forfører."
+
+KRITISK: Du SKAL returnere et gyldigt JSON objekt med både "response" og "articleUpdate" felter. articleUpdate.content skal indeholde den fulde artikeltekst.
 
 ${context ? `\n\nNuværende artikel kontekst:\n${context}` : ''}`;
 
@@ -797,17 +807,17 @@ ${context ? `\n\nNuværende artikel kontekst:\n${context}` : ''}`;
 
     const finalArticleUpdate = (outArticleUpdate && typeof outArticleUpdate === 'object') ? outArticleUpdate : {};
 
-    return NextResponse.json({
+    return NextResponse.json({ 
       response: finalResponse,
       suggestion: outSuggestion,
       articleUpdate: finalArticleUpdate,
-      usage: completion.usage
+      usage: completion.usage 
     });
 
   } catch (error) {
     console.error('OpenAI API error:', error);
     return NextResponse.json(
-  { error: 'Failed to get AI response' }, 
+      { error: 'Failed to get AI response' }, 
       { status: 500 }
     );
   }

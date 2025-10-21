@@ -49,6 +49,7 @@ export interface WebflowAuthor {
 // Article field interface
 export interface WebflowArticleFields {
   id: string;
+  webflowId?: string; // ID of existing Webflow article for updates
   title: string;
   slug: string;
   subtitle?: string;
@@ -466,9 +467,26 @@ export async function publishArticleToWebflow(articleData: WebflowArticleFields)
         const schema: any = await schemaRes.json();
         const allowed = new Set<string>((schema.fields || []).map((f: any) => f.slug));
         requiredSlugs = (schema.fields || []).filter((f:any)=>!!f.required).map((f:any)=>f.slug);
+        
+        console.log('🔍 Webflow schema check:', {
+          totalFieldsInSchema: (schema.fields || []).length,
+          allowedFields: Array.from(allowed),
+          fieldsBeforeFilter: Object.keys(fieldData),
+          requiredFields: requiredSlugs
+        });
+        
+        const removedFields: string[] = [];
         for (const key of Object.keys(fieldData)) {
-          if (!allowed.has(key)) delete fieldData[key];
+          if (!allowed.has(key)) {
+            removedFields.push(key);
+            delete fieldData[key];
+          }
         }
+        
+        if (removedFields.length > 0) {
+          console.log('❌ Removed fields not in Webflow schema:', removedFields);
+        }
+        
         // Best-effort: if rich text field exists, ensure minimal HTML
         const rich = (schema.fields || []).find((f: any) => f.slug === 'post-body' && /rich/i.test(f.type || ''));
         if (rich && typeof fieldData['post-body'] === 'string' && !fieldData['post-body'].includes('<')) {
@@ -491,9 +509,23 @@ export async function publishArticleToWebflow(articleData: WebflowArticleFields)
       }
     }
 
+    // Determine if this is an update or create
+    const isUpdate = articleData.webflowId && articleData.webflowId !== '';
+    const url = isUpdate 
+      ? `https://api.webflow.com/v2/sites/${siteId}/collections/${articlesCollectionId}/items/${articleData.webflowId}`
+      : `https://api.webflow.com/v2/sites/${siteId}/collections/${articlesCollectionId}/items`;
+    const method = isUpdate ? 'PATCH' : 'POST';
+    
+    console.log(`🔄 ${isUpdate ? 'Updating' : 'Creating'} article in Webflow:`, {
+      url,
+      method,
+      webflowId: articleData.webflowId,
+      fieldDataKeys: Object.keys(fieldData)
+    });
+
     // Publish to Articles collection
-    const publishResponse = await fetch(`https://api.webflow.com/v2/sites/${siteId}/collections/${articlesCollectionId}/items`, {
-      method: 'POST',
+    const publishResponse = await fetch(url, {
+      method,
       headers: {
         'Authorization': `Bearer ${token}`,
         'Accept-Version': '1.0.0',
@@ -506,8 +538,8 @@ export async function publishArticleToWebflow(articleData: WebflowArticleFields)
 
     if (publishResponse.ok) {
       const result = await publishResponse.json();
-      console.log('✅ Article published successfully to Webflow');
-      return result.id;
+      console.log(`✅ Article ${isUpdate ? 'updated' : 'published'} successfully to Webflow`);
+      return result.id || articleData.webflowId;
     } else {
       let errorData: any = null;
       try { errorData = await publishResponse.json(); } catch { errorData = await publishResponse.text(); }
@@ -526,8 +558,21 @@ export async function publishArticleToWebflow(articleData: WebflowArticleFields)
 function buildFieldDataFromMapping(articleData: WebflowArticleFields, mapping: WebflowMapping): Record<string, any> {
   const data: Record<string, any> = {};
   const getVal = (key: string) => (articleData as any)[key];
+  
+  console.log('🔍 Building field data from mapping:', {
+    mappingEntries: mapping.entries.length,
+    articleDataKeys: Object.keys(articleData)
+  });
+  
   for (const entry of mapping.entries) {
-    const val = transformValue(getVal(entry.internal), entry.transform);
+    const rawVal = getVal(entry.internal);
+    const val = transformValue(rawVal, entry.transform);
+    console.log(`🔍 Field mapping: ${entry.internal} -> ${entry.webflowSlug}`, {
+      rawValue: rawVal,
+      transformedValue: val,
+      transform: entry.transform,
+      included: val !== undefined
+    });
     if (val !== undefined) {
       data[entry.webflowSlug] = val;
     }
@@ -537,6 +582,8 @@ function buildFieldDataFromMapping(articleData: WebflowArticleFields, mapping: W
   if (!data['seo-title'] && articleData.title) data['seo-title'] = articleData.title;
   if (!data['seo-description']) data['seo-description'] = articleData.excerpt || '';
   if (data['status'] === undefined) data['status'] = articleData.status || 'draft';
+  
+  console.log('🔍 Final field data:', Object.keys(data));
   return data;
 }
 

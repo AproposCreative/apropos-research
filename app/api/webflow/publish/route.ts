@@ -5,6 +5,25 @@ export async function POST(request: NextRequest) {
   try {
     const articleData: WebflowArticleFields = await request.json();
     
+    // Debug: Log what we receive
+    console.log('📤 Received article data for Webflow publish:', {
+      title: articleData.title,
+      slug: articleData.slug,
+      subtitle: articleData.subtitle,
+      content: articleData.content?.substring(0, 100) + '...',
+      excerpt: articleData.excerpt,
+      category: articleData.category,
+      tags: articleData.tags,
+      author: articleData.author,
+      rating: articleData.rating,
+      seoTitle: articleData.seoTitle,
+      seoDescription: articleData.seoDescription,
+      readTime: articleData.readTime,
+      wordCount: articleData.wordCount,
+      featured: articleData.featured,
+      trending: articleData.trending
+    });
+    
     // Validate required fields
     if (!articleData.title || !articleData.content) {
       return NextResponse.json(
@@ -27,6 +46,11 @@ export async function POST(request: NextRequest) {
     articleData.status = articleData.status || 'draft';
     articleData.wordCount = articleData.content.split(' ').length;
     articleData.readTime = Math.ceil(articleData.wordCount / 200); // ~200 words per minute
+
+    // Check if this is an update to existing article
+    const isUpdate = articleData.webflowId && articleData.webflowId !== '';
+    console.log('🔄 Publish mode:', isUpdate ? 'UPDATE existing article' : 'CREATE new article', 
+                isUpdate ? `ID: ${articleData.webflowId}` : '');
 
     // Publish to Webflow
     const articleId = await publishArticleToWebflow(articleData);

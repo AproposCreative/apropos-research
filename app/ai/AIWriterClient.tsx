@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { type UploadedFile } from '@/lib/file-upload-service';
 import MainChatPanel from './MainChatPanel';
 import SetupWizard from '@/components/SetupWizard';
@@ -13,429 +13,8 @@ import DraftsPanel from '@/components/DraftsPanel';
 import ChatSearchModal from '@/components/ChatSearchModal';
 import { useAuth } from '@/lib/auth-context';
 import { saveDraft, getDraft, type ArticleDraft } from '@/lib/firebase-service';
+import { autoSaveService } from '@/lib/auto-save-service';
 import type { ArticleData } from '@/types/article';
-
-const ARTICLE_FIELD_ALIASES: Record<string, string> = {
-  name: 'title',
-  title: 'title',
-  'seo-title': 'seoTitle',
-  'seo_title': 'seoTitle',
-  seotitle: 'seoTitle',
-  'meta-description': 'seoDescription',
-  'meta_description': 'seoDescription',
-  metadescription: 'seoDescription',
-  'meta-desc': 'seoDescription',
-  metadesc: 'seoDescription',
-  subtitle: 'subtitle',
-  'post-body': 'content',
-  'post_body': 'content',
-  postbody: 'content',
-  body: 'content',
-  'content-html': 'content',
-  'content_html': 'content',
-  contenthtml: 'content',
-  'preview-title': 'previewTitle',
-  'preview_title': 'previewTitle',
-  previewtitle: 'previewTitle',
-  section: 'category',
-  category: 'category',
-  categoryname: 'category',
-  topic: 'topic',
-  topics: 'topicsSelected',
-  tags: 'tags',
-  'streaming_service': 'platform',
-  'streaming-service': 'platform',
-  streamingservice: 'platform',
-  platform: 'platform',
-  stars: 'rating',
-  rating: 'rating',
-  'rating-value': 'rating',
-  rating_value: 'rating',
-  'rating-skipped': 'ratingSkipped',
-  'rating_skipped': 'ratingSkipped',
-  ratingskipped: 'ratingSkipped',
-  press: 'press',
-  'publish-date': 'publishDate',
-  'publish_date': 'publishDate',
-  publishdate: 'publishDate',
-  'read-time': 'readTime',
-  'read_time': 'readTime',
-  readtime: 'readTime',
-  wordcount: 'wordCount',
-  'word-count': 'wordCount',
-  word_count: 'wordCount',
-  'author-name': 'author',
-  authorname: 'author',
-  writer: 'author',
-  journalist: 'author',
-  'author-tov': 'authorTOV',
-  'author_tov': 'authorTOV',
-  tov: 'authorTOV',
-  reflection: 'reflection',
-  template: 'template',
-  'ai-draft': 'aiDraft',
-  ai_draft: 'aiDraft',
-  aidraft: 'aiDraft',
-  'ai-suggestion': 'aiSuggestion',
-  ai_suggestion: 'aiSuggestion',
-  aisuggestion: 'aiSuggestion'
-};
-
-const ARTICLE_CONTAINER_KEYS = new Set([
-  'fields',
-  'data',
-  'attributes',
-  'values',
-  'payload',
-  'article',
-  'articleUpdate',
-  'article_update',
-  'articleData',
-  'article_data',
-  'entry',
-  'item',
-  'record',
-  'cms'
-]);
-
-const slugify = (value: string) =>
-  value
-    .toLowerCase()
-    .normalize('NFKD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/[^a-z0-9\s-]/g, '')
-    .replace(/\s+/g, '-')
-    .replace(/-+/g, '-')
-    .trim();
-
-const stripHtmlToText = (html: string) =>
-  html
-    .replace(/<br\s*\/?>/gi, '\n')
-    .replace(/<\/p>/gi, '\n\n')
-    .replace(/<[^>]+>/g, '')
-    .replace(/\n{3,}/g, '\n\n')
-    .trim();
-
-const flattenArticlePayload = (raw: any): Record<string, any> => {
-  const output: Record<string, any> = {};
-  const queue: any[] = [raw];
-  while (queue.length) {
-    const node = queue.shift();
-    if (!node || typeof node !== 'object') continue;
-
-    if (Array.isArray(node)) {
-      node.forEach(item => queue.push(item));
-      continue;
-    }
-
-    Object.entries(node).forEach(([key, value]) => {
-      if (value === undefined || value === null) return;
-
-      if (Array.isArray(value) && key === 'fields') {
-        value.forEach((field: any) => {
-          if (!field || typeof field !== 'object') return;
-          const slug = field.slug || field.id || field.name || field.key;
-          if (!slug) return;
-          const fieldValue = field.value ?? field.text ?? field.content ?? field.richText;
-          if (fieldValue !== undefined && output[slug] === undefined) {
-            output[slug] = fieldValue;
-          }
-        });
-        return;
-      }
-
-      if (
-        (ARTICLE_CONTAINER_KEYS.has(key) ||
-          key.toLowerCase().endsWith('fields') ||
-          key.toLowerCase().endsWith('data')) &&
-        typeof value === 'object'
-      ) {
-        queue.push(value);
-        return;
-      }
-
-      if (output[key] === undefined) {
-        output[key] = value;
-      }
-    });
-  }
-  return output;
-};
-
-type NormalizeOptions = {
-  retainExistingOnEmpty?: boolean;
-  slugMap?: Record<string, string>;
-};
-
-const createEmptyArticleData = (): ArticleData => ({
-  title: '',
-  subtitle: '',
-  category: '',
-  author: '',
-  authorTOV: '',
-  content: '',
-  rating: 0,
-  ratingSkipped: false,
-  tags: [],
-  platform: '',
-  press: null,
-  aiDraft: null,
-  previewTitle: '',
-  aiSuggestion: null,
-  template: '',
-  inspirationSource: '',
-  researchSelected: undefined,
-  inspirationAcknowledged: false,
-  _chatMessages: [],
-  seoTitle: '',
-  seoDescription: '',
-  publishDate: '',
-  status: 'draft',
-  topicsSelected: [],
-  streaming_service: ''
-});
-
-const normalizeArticleData = (
-  raw: any,
-  base: ArticleData,
-  options: NormalizeOptions = {}
-): ArticleData => {
-  const retainExisting = options.retainExistingOnEmpty ?? true;
-  const slugMap = options.slugMap || {};
-
-  function cloneArray<T>(value: T[] | undefined): T[] {
-    return Array.isArray(value) ? [...value] : [];
-  }
-
-  const result: ArticleData = {
-    ...base,
-    tags: cloneArray(base.tags),
-    topicsSelected: cloneArray(base.topicsSelected),
-    _chatMessages: cloneArray(base._chatMessages),
-    aiDraft: base.aiDraft ? { ...base.aiDraft } : null,
-    aiSuggestion: base.aiSuggestion ? { ...base.aiSuggestion } : null
-  };
-
-  const flat = flattenArticlePayload(raw);
-
-  const assignString = (field: keyof ArticleData, value: any) => {
-    if (typeof value !== 'string') return;
-    const trimmed = value.trim();
-    if (trimmed || !retainExisting || !(result[field] && String(result[field]).trim())) {
-      (result as any)[field] = trimmed;
-    }
-  };
-
-  const assignNumber = (field: keyof ArticleData, value: any) => {
-    if (typeof value === 'number' && !Number.isNaN(value)) {
-      (result as any)[field] = value;
-    } else if (typeof value === 'string') {
-      const parsed = parseInt(value, 10);
-      if (!Number.isNaN(parsed)) (result as any)[field] = parsed;
-    }
-  };
-
-  const assignBoolean = (field: keyof ArticleData, value: any) => {
-    if (typeof value === 'boolean') {
-      (result as any)[field] = value;
-    } else if (typeof value === 'string') {
-      const lower = value.trim().toLowerCase();
-      if (lower === 'true') (result as any)[field] = true;
-      if (lower === 'false') (result as any)[field] = false;
-    }
-  };
-
-  const assignArray = (
-    field: keyof ArticleData,
-    value: any,
-    mapper?: (val: any) => string | null
-  ) => {
-    let arr: any[] | null = null;
-    if (Array.isArray(value)) arr = value;
-    else if (typeof value === 'string') arr = value.split(/[,;|\n]+/);
-    if (!arr) return;
-    const mapped = arr
-      .map(item => {
-        if (mapper) return mapper(item);
-        if (typeof item === 'string') return item.trim();
-        return item;
-      })
-      .filter(item => item !== null && item !== undefined && String(item).trim() !== '');
-    if (mapped.length > 0 || !retainExisting) {
-      const unique = Array.from(new Set(mapped));
-      (result as any)[field] = unique;
-    }
-  };
-
-  const assignContent = (value: any) => {
-    if (typeof value !== 'string') return;
-    const trimmed = value.trim();
-    if (!trimmed && retainExisting) return;
-    const text = /<[a-z][\s\S]*>/i.test(trimmed) ? stripHtmlToText(trimmed) : trimmed;
-    if (text || !retainExisting) {
-      result.content = text;
-    }
-  };
-
-  Object.entries(flat).forEach(([key, value]) => {
-    const lower = key.toLowerCase();
-    const mapped = slugMap[lower] || ARTICLE_FIELD_ALIASES[lower] || lower;
-    switch (mapped) {
-      case 'title':
-        assignString('title', value);
-        break;
-      case 'subtitle':
-        assignString('subtitle', value);
-        break;
-      case 'seoTitle':
-        assignString('seoTitle', value);
-        break;
-      case 'seoDescription':
-        assignString('seoDescription', value);
-        break;
-      case 'content':
-        if (value && typeof value === 'object') {
-          const contentObj = value as any;
-          const derived = contentObj.content || contentObj.text || contentObj.value;
-          assignContent(derived);
-        } else {
-          assignContent(value);
-        }
-        break;
-      case 'category':
-        if (value && typeof value === 'object') {
-          const cat = value as any;
-          const derived = cat.name || cat.title || cat.label;
-          assignString('category', derived ?? '');
-        } else {
-          assignString('category', value);
-        }
-        break;
-      case 'author':
-        if (value && typeof value === 'object') {
-          const author = value as any;
-          const derived = author.name || author.title || author.fullName;
-          assignString('author', derived ?? '');
-          if (author.tov && typeof author.tov === 'string') assignString('authorTOV', author.tov);
-        } else {
-          assignString('author', value);
-        }
-        break;
-      case 'authorTOV':
-        assignString('authorTOV', value);
-        break;
-      case 'platform':
-        assignString('platform', value);
-        if (typeof value === 'string') {
-          (result as any).streaming_service = value.trim();
-        }
-        break;
-      case 'slug':
-        if (value && typeof value === 'object') {
-          const slugObj = value as any;
-          const derived = slugObj.current || slugObj.slug || slugObj.value || '';
-          if (derived || !retainExisting) (result as any).slug = slugify(String(derived));
-        } else if (typeof value === 'string') {
-          const trimmed = value.trim();
-          if (trimmed || !retainExisting) (result as any).slug = slugify(trimmed);
-        }
-        break;
-      case 'tags':
-        assignArray('tags', value, item => (typeof item === 'string' ? item.trim() : null));
-        break;
-      case 'topic':
-        if (typeof value === 'string' && value.trim()) {
-          const arr = new Set(result.tags || []);
-          arr.add(value.trim());
-          result.tags = Array.from(arr);
-        }
-        break;
-      case 'topicsSelected':
-        assignArray(
-          'topicsSelected',
-          value,
-          item => (typeof item === 'string' ? item.trim() : null)
-        );
-        break;
-      case 'rating':
-        assignNumber('rating', value);
-        break;
-      case 'ratingSkipped':
-        assignBoolean('ratingSkipped', value);
-        break;
-      case 'press':
-        assignBoolean('press', value);
-        break;
-      case 'previewTitle':
-        assignString('previewTitle', value);
-        break;
-      case 'reflection':
-        if (typeof value === 'string') (result as any).reflection = value.trim();
-        break;
-      case 'publishDate':
-        if (typeof value === 'string') {
-          const trimmed = value.trim();
-          if (trimmed) {
-            const date = new Date(trimmed);
-            (result as any).publishDate = Number.isNaN(date.getTime()) ? trimmed : date.toISOString();
-          } else if (!retainExisting) {
-            (result as any).publishDate = '';
-          }
-        }
-        break;
-      case 'status':
-        if (typeof value === 'string') {
-          const trimmed = value.trim().toLowerCase();
-          if (['draft', 'published', 'archived'].includes(trimmed)) {
-            (result as any).status = trimmed as ArticleData['status'];
-          }
-        }
-        break;
-      case 'aiDraft':
-        if (value && typeof value === 'object') {
-          result.aiDraft = { ...(result.aiDraft || {}), ...(value as any) };
-        }
-        break;
-      case 'aiSuggestion':
-        if (value && typeof value === 'object') {
-          result.aiSuggestion = value as any;
-        } else if (!value && !retainExisting) {
-          result.aiSuggestion = null;
-        }
-        break;
-      case 'template':
-        if (typeof value === 'string') (result as any).template = value.trim();
-        break;
-      case 'inspirationSource':
-        if (typeof value === 'string') (result as any).inspirationSource = value.trim();
-        break;
-      case 'streaming_service':
-        if (typeof value === 'string') {
-          const trimmed = value.trim();
-          (result as any).streaming_service = trimmed;
-          if (!result.platform || !retainExisting) result.platform = trimmed;
-        }
-        break;
-      case '_chatMessages':
-        if (Array.isArray(value)) {
-          result._chatMessages = value as any[];
-        }
-        break;
-      default:
-        break;
-    }
-  });
-
-  if (!(result as any).slug && result.title) {
-    (result as any).slug = slugify(result.title);
-  }
-
-  if (!Array.isArray(result.tags)) result.tags = [];
-  if (!Array.isArray(result.topicsSelected)) result.topicsSelected = [];
-  if (!Array.isArray(result._chatMessages)) result._chatMessages = [];
-
-  return result;
-};
 
 // using shared ArticleData type
 
@@ -446,14 +25,27 @@ export default function AIWriterClient() {
   const [showSearchModal, setShowSearchModal] = useState(false);
   const [isThinking, setIsThinking] = useState(false);
   const [showWizard, setShowWizard] = useState(true);
-  const [wizardInstanceKey, setWizardInstanceKey] = useState(0);
   const [reviewOpen, setReviewOpen] = useState(false);
   const [shelfOpen, setShelfOpen] = useState(false);
   const [accountOpen, setAccountOpen] = useState(false);
-  const [chatTitle, setChatTitle] = useState('Ny artikkel');
-  const [articleData, setArticleData] = useState<ArticleData>(() => createEmptyArticleData());
+  const [articleData, setArticleData] = useState<ArticleData>({
+    title: '',
+    subtitle: '',
+    category: '',
+    author: '',
+    content: '',
+    rating: 0,
+    tags: [],
+    platform: '',
+    topicsSelected: [],
+    aiDraft: null,
+    previewTitle: '',
+    aiSuggestion: null
+  });
 
   const [notes, setNotes] = useState('');
+  const [chatTitle, setChatTitle] = useState('Ny artikkel');
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [chatMessages, setChatMessages] = useState<Array<{
     id: string;
     role: 'user' | 'assistant';
@@ -462,134 +54,97 @@ export default function AIWriterClient() {
     files?: UploadedFile[];
   }>>([]);
 
+  // Auto-save to localStorage whenever data changes
+  useEffect(() => {
+    if (chatMessages.length > 0 || articleData.title || notes) {
+      autoSaveService.save({
+        messages: chatMessages,
+        chatTitle,
+        articleData,
+        notes,
+        showWizard,
+        currentDraftId
+      });
+    }
+  }, [chatMessages, chatTitle, articleData, notes, showWizard, currentDraftId]);
+
+  // Restore data from localStorage on page load
+  useEffect(() => {
+    const restoreData = () => {
+      try {
+        const savedData = autoSaveService.load();
+        
+        if (savedData.messages.length > 0) {
+          setChatMessages(savedData.messages);
+        }
+        
+        if (savedData.chatTitle && savedData.chatTitle !== 'Ny artikkel') {
+          setChatTitle(savedData.chatTitle);
+        }
+        
+        if (savedData.articleData && Object.keys(savedData.articleData).length > 0) {
+          setArticleData(savedData.articleData);
+        }
+        
+        if (savedData.notes) {
+          setNotes(savedData.notes);
+        }
+        
+        if (savedData.currentDraftId) {
+          setCurrentDraftId(savedData.currentDraftId);
+        }
+        
+        // Restore wizard state based on whether setup is complete
+        const hasAuthor = Boolean(savedData.articleData?.author || savedData.articleData?.authorId);
+        const hasCategory = Boolean(savedData.articleData?.category || savedData.articleData?.section);
+        const hasTemplate = Boolean(savedData.articleData?.template);
+        const setupComplete = hasAuthor && hasCategory && hasTemplate;
+        
+        setShowWizard(!setupComplete);
+        
+        // Restore Preflight data (will be passed to MainChatPanel via props)
+        if (savedData.preflightWarnings || savedData.preflightCriticTips || savedData.preflightFactResults) {
+          // Store in a ref or state that can be passed to MainChatPanel
+          // For now, we'll let MainChatPanel restore its own Preflight data
+        }
+        
+        console.log('🔄 Restored data from localStorage:', {
+          messages: savedData.messages.length,
+          chatTitle: savedData.chatTitle,
+          hasArticleData: Object.keys(savedData.articleData).length > 0,
+          hasNotes: !!savedData.notes,
+          showWizard: !setupComplete
+        });
+      } catch (error) {
+        console.error('Failed to restore data from localStorage:', error);
+      }
+    };
+
+    restoreData();
+  }, []); // Only run on mount
+
   const updateArticleData = (updates: Partial<ArticleData>) => {
-    setArticleData(prev =>
-      normalizeArticleData(updates, prev, { retainExistingOnEmpty: false })
-    );
+    setArticleData(prev => ({ ...prev, ...updates }));
   };
 
-  // Track hydration to avoid wiping storage on first mount in dev/StrictMode
-  const hydratedRef = useRef(false);
-
-  // Persist to localStorage to survive refresh, even before auth/Firebase saves
-  useEffect(() => {
-    if (!hydratedRef.current) return; // wait until after initial restore
-    try {
-      const toSave = {
-        currentDraftId,
-        notes,
-        articleData,
-        // store timestamps as ISO strings for safe JSON
-        messages: chatMessages.map(m => ({ ...m, timestamp: m.timestamp.toISOString() })),
-        lastModified: new Date().toISOString(),
-      };
-      localStorage.setItem('ai-writer-draft', JSON.stringify(toSave));
-    } catch {}
-  }, [chatMessages, articleData, notes, currentDraftId]);
-
-  // Restore from localStorage on mount
-  useEffect(() => {
-    try {
-      const txt = localStorage.getItem('ai-writer-draft');
-      if (!txt) return;
-      const saved = JSON.parse(txt);
-      if (!saved) return;
-      if (Array.isArray(saved.messages) && saved.messages.length) {
-        const restored = saved.messages.map((m: any) => ({
-          ...m,
-          timestamp: new Date(m.timestamp),
-          files: Array.isArray(m.files) ? m.files : [],
-        }));
-        setChatMessages(restored);
-      }
-      if (saved.articleData) {
-        const normalized = normalizeArticleData(
-          saved.articleData,
-          createEmptyArticleData(),
-          { retainExistingOnEmpty: false }
-        );
-        normalized._chatMessages = Array.isArray(saved.messages)
-          ? saved.messages.map((m: any) => ({
-              ...m,
-              timestamp: new Date(m.timestamp),
-              files: Array.isArray(m.files) ? m.files : []
-            }))
-          : [];
-        (normalized as any).notes = typeof saved.notes === 'string' ? saved.notes : '';
-        setArticleData(normalized);
-      }
-      if (typeof saved.notes === 'string') setNotes(saved.notes);
-      if (saved.currentDraftId) setCurrentDraftId(saved.currentDraftId);
-      // Ensure SetupWizard re-initializes with restored initialData
-      setWizardInstanceKey((k)=>k+1);
-      // If there is existing content, open the review and hide wizard for continuity
-      if ((saved.articleData?.content || '') !== '') {
-        setReviewOpen(true);
-        setShowWizard(false);
-      }
-      hydratedRef.current = true; // mark restored
-    } catch {
-      hydratedRef.current = true;
-    }
+  const handleSetupWizardChange = useCallback((d: any) => {
+    setArticleData(prev => ({ ...prev, ...d }));
   }, []);
 
-  const generateMessageId = () => {
-    try {
-      const globalCrypto = typeof globalThis !== 'undefined' ? (globalThis.crypto as any) : undefined;
-      if (globalCrypto && typeof globalCrypto.randomUUID === 'function') {
-        return globalCrypto.randomUUID();
-      }
-    } catch {}
-    return `${Date.now()}-${Math.random().toString(16).slice(2, 8)}`;
-  };
 
   const addChatMessage = (role: 'user' | 'assistant', content: string, files?: UploadedFile[]) => {
     const newMessage = {
-      id: generateMessageId(),
+      id: Date.now().toString(),
       role,
       content,
       timestamp: new Date(),
       files
     };
     setChatMessages(prev => [...prev, newMessage]);
-    return newMessage;
   };
 
-  // AI-generated smart title from current context (like ChatGPT)
-  useEffect(() => {
-    const rename = async () => {
-      if (chatMessages.length === 0) return;
-      const firstUser = chatMessages.find(m=>m.role==='user');
-      const recent = chatMessages.slice(-6).map(m=>m.content).join('\n');
-      const note = notes || '';
-      const base = articleData.title || articleData.previewTitle || '';
-      // Only rename if default title and we have some context
-      const should = (chatTitle === 'Ny artikkel' || !chatTitle || /^ny\s+artik/i.test(chatTitle)) && (recent.length > 30 || note.length > 30 || base.length > 10);
-      if (!should) return;
-      try {
-        const res = await fetch('/api/ai-chat', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            message: 'Foreslå en kort, klikbar samtaletitel (max 48 tegn). Returnér kun selve titlen.',
-            chatHistory: chatMessages,
-            articleData,
-            notes,
-          })
-        });
-        const j = await res.json().catch(()=>null);
-        const candidate = (j?.articleUpdate?.previewTitle || j?.response || '').split('\n')[0].trim();
-        if (candidate && candidate.length <= 80) setChatTitle(candidate);
-      } catch {}
-    };
-    // Debounce a little
-    const t = setTimeout(rename, 600);
-    return () => clearTimeout(t);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [chatMessages.length, notes, articleData.title, articleData.previewTitle]);
-
   const handleSendMessage = async (message: string, files?: UploadedFile[]) => {
-    const userMessage = addChatMessage('user', message, files);
+    addChatMessage('user', message, files);
     
     try {
       setIsThinking(true);
@@ -606,37 +161,6 @@ export default function AIWriterClient() {
       const requiredSlugs: string[] = fieldMeta.filter((f:any)=>f.required).map((f:any)=>f.slug);
       const mappingEntries: Array<{ webflowSlug: string; internal: string }> = Array.isArray(mappingJson.entries) ? mappingJson.entries : [];
       const mapSlugToInternal: Record<string,string> = mappingEntries.reduce((acc:any, e:any)=>{ acc[e.webflowSlug]=e.internal; return acc; }, {});
-      const mapSlugToInternalLower = Object.entries(mapSlugToInternal).reduce((acc, [slug, internal]) => {
-        acc[slug.toLowerCase()] = internal;
-        return acc;
-      }, {} as Record<string, string>);
-      const isEmptyValue = (val: any) => {
-        if (val === undefined || val === null) return true;
-        if (typeof val === 'string') return val.trim() === '';
-        if (Array.isArray(val)) return val.length === 0;
-        if (typeof val === 'object') return Object.keys(val).length === 0;
-        return false;
-      };
-
-      const readValueForSlug = (dataObj: Record<string, any>, slug: string) => {
-        const lower = slug.toLowerCase();
-        const candidates = new Set<string>([
-          slug,
-          lower,
-          slug.replace(/-/g, '_'),
-          slug.replace(/_/g, '-')
-        ]);
-        const internal = mapSlugToInternalLower[lower];
-        if (internal) candidates.add(internal);
-        const aliasInternal = ARTICLE_FIELD_ALIASES[lower];
-        if (aliasInternal) candidates.add(aliasInternal);
-        for (const key of candidates) {
-          if (key in dataObj && !isEmptyValue((dataObj as any)[key])) {
-            return (dataObj as any)[key];
-          }
-        }
-        return undefined;
-      };
 
       const response = await fetch('/api/ai-chat', {
         method: 'POST',
@@ -652,122 +176,77 @@ export default function AIWriterClient() {
           authorName: articleData.author || '' ,
           webflowSchema: fieldMeta,
           webflowMapping: mappingEntries,
-          webflowSamples: (samplesJson.items || []).slice(0,5),
-          analysisPrompt: (articleData.template === 'research' && (articleData as any).aiDraft?.completed && (articleData as any).aiDraft?.prompt)
-            ? String((articleData as any).aiDraft.prompt)
-            : ''
+          webflowSamples: (samplesJson.items || []).slice(0,5)
         }),
       });
 
       if (response.ok) {
         const data = await response.json();
-        const rawArticleUpdate = (data.articleUpdate && typeof data.articleUpdate === 'object') ? data.articleUpdate : {};
-        const extractedFields = (() => {
-          if (rawArticleUpdate.content && Object.keys(rawArticleUpdate).length === 1) {
-            const content = String(rawArticleUpdate.content);
+        addChatMessage('assistant', data.response);
+        // Live preview sync: try to extract a working title from the response
+        try {
+          const m = String(data.response || '').match(/^(?:arbejdstitel|titel)[:\-]\s*(.+)$/im) || String(data.response||'').match(/^#\s+(.+)$/m);
+          if (m && m[1]) setArticleData(prev=>({ ...prev, previewTitle: m[1].trim() }));
+        } catch {}
+        
+        // Keep lightweight chat context for training opt-in later
+        const compactMessages = [...chatMessages, { id: Date.now().toString(), role: 'assistant', content: data.response, timestamp: new Date() }];
+        
+        // Consolidate all article data updates into one call to prevent overwrites
+        setArticleData(prev => {
+          const articleUpdate = data.articleUpdate || {};
+          let extractedFields = {};
+          
+          // Extract fields from content if AI only provides content
+          if (articleUpdate.content && Object.keys(articleUpdate).length === 1) {
+            const content = articleUpdate.content;
+            
             const titleMatch = content.match(/^(?:#\s*)?(.+?)(?:\n|$)/m);
             const extractedTitle = titleMatch ? titleMatch[1].trim() : '';
-            const subtitleMatch =
-              content.match(/(?:^#\s*.+?\n\n)(.+?)(?:\n\n|$)/m) ||
-              content.match(/^.+?\n\n(.+?)(?:\n\n|$)/m);
+            
+            const subtitleMatch = content.match(/(?:^#\s*.+?\n\n)(.+?)(?:\n\n|$)/m) || 
+                                 content.match(/^.+?\n\n(.+?)(?:\n\n|$)/m);
             const extractedSubtitle = subtitleMatch ? subtitleMatch[1].trim() : '';
-            const seoTitle =
-              extractedTitle.length > 60
-                ? `${extractedTitle.substring(0, 57)}...`
-                : extractedTitle;
-            const slug = slugify(extractedTitle);
-            const firstParagraph =
-              content.split('\n\n')[0] || content.split('\n')[0] || '';
-            const metaDescription =
-              firstParagraph.length > 155
-                ? `${firstParagraph.substring(0, 152)}...`
-                : firstParagraph;
-            return {
+            
+            const slug = extractedTitle
+              .toLowerCase()
+              .replace(/[^a-z0-9\s-]/g, '')
+              .replace(/\s+/g, '-')
+              .replace(/-+/g, '-')
+              .trim();
+            
+            const seoTitle = extractedTitle.length > 60 
+              ? extractedTitle.substring(0, 57) + '...' 
+              : extractedTitle;
+            
+            const firstParagraph = content.split('\n\n')[0] || content.split('\n')[0] || '';
+            const metaDescription = firstParagraph.length > 155 
+              ? firstParagraph.substring(0, 152) + '...' 
+              : firstParagraph;
+            
+            extractedFields = {
               title: extractedTitle,
               subtitle: extractedSubtitle,
-              slug,
+              slug: slug,
               seo_title: seoTitle,
-              seoTitle,
+              seoTitle: seoTitle,
               meta_description: metaDescription,
               seoDescription: metaDescription
             };
           }
-          return {};
-        })();
-
-        const mergedArticleUpdate = { ...rawArticleUpdate, ...extractedFields };
-
-        const normalizedForFallback = normalizeArticleData(
-          mergedArticleUpdate,
-          createEmptyArticleData(),
-          { retainExistingOnEmpty: false, slugMap: mapSlugToInternalLower }
-        );
-
-        const pickContentFallback = () => {
-          const candidates = [
-            typeof data.response === 'string' ? data.response : '',
-            normalizedForFallback.content || '',
-            typeof (rawArticleUpdate as any).content === 'string'
-              ? (rawArticleUpdate as any).content
-              : '',
-            typeof (rawArticleUpdate as any).content_html === 'string'
-              ? (rawArticleUpdate as any).content_html
-              : '',
-            typeof (rawArticleUpdate as any).contentHtml === 'string'
-              ? (rawArticleUpdate as any).contentHtml
-              : ''
-          ];
-          for (const candidate of candidates) {
-            if (candidate && candidate.trim().length > 0) {
-              return /<[a-z][\s\S]*>/i.test(candidate)
-                ? stripHtmlToText(candidate)
-                : candidate.trim();
-            }
-          }
-          return '';
-        };
-
-        const assistantReply =
-          typeof data.response === 'string' && data.response.trim().length > 0
-            ? data.response
-            : pickContentFallback() || 'Artiklen er klar – tjek forhåndsvisningen for detaljer.';
-
-        const assistantMessage = addChatMessage('assistant', assistantReply);
-        // Live preview sync: try to extract a working title from the response
-        try {
-          const m = String(data.response || '').match(/^(?:arbejdstitel|titel)[:\-]\s*(.+)$/im) || String(data.response||'').match(/^#\s+(.+)$/m);
-          if (m && m[1]) {
-            const preview = m[1].trim();
-            setArticleData(prev =>
-              normalizeArticleData({ previewTitle: preview }, prev, { retainExistingOnEmpty: false })
-            );
-          }
-        } catch {}
-        
-        // Keep lightweight chat context for training opt-in later
-        const compactMessages = (() => {
-          const base = [...chatMessages];
-          if (!base.some(msg => msg.id === userMessage.id)) base.push(userMessage);
-          if (!base.some(msg => msg.id === assistantMessage.id)) base.push(assistantMessage);
-          return base;
-        })();
-        let nextDataSnapshot: ArticleData | null = null;
-
-        // Single update with all AI response data, chat messages, and notes
-        setArticleData(prev => {
-          const normalized = normalizeArticleData(
-            mergedArticleUpdate,
-            prev,
-            { retainExistingOnEmpty: true, slugMap: mapSlugToInternalLower }
-          );
-          normalized.aiSuggestion = (data.suggestion ?? normalized.aiSuggestion) || null;
-          normalized._chatMessages = compactMessages;
-          (normalized as any).notes = notes;
-          nextDataSnapshot = normalized;
-          return normalized;
+          
+          return { 
+            ...prev, 
+            ...articleUpdate,
+            ...extractedFields,
+            ...(data.suggestion ? { aiSuggestion: data.suggestion } : {}),
+            _chatMessages: compactMessages, 
+            notes 
+          };
         });
 
-        const nextData = nextDataSnapshot || normalizedForFallback || articleData;
+        // After AI response, proactively check for missing required fields and ask
+        const nextData = { ...articleData, ...(data.articleUpdate || {}) } as any;
         const labelFor = (slug: string) => {
           const s = slug.toLowerCase();
           if (s==='name' || s==='title') return 'Titel';
@@ -782,8 +261,10 @@ export default function AIWriterClient() {
         };
         const missing: string[] = [];
         for (const slug of requiredSlugs) {
-          const val = readValueForSlug(nextData, slug);
-          const isEmpty = isEmptyValue(val);
+          const internal = mapSlugToInternal[slug] || slug;
+          const val = nextData[internal];
+          const isEmpty = val===undefined || val===null || val===''
+            || (Array.isArray(val) && val.length===0);
           if (isEmpty) missing.push(slug);
         }
         if (missing.length>0) {
@@ -800,6 +281,21 @@ export default function AIWriterClient() {
       setIsThinking(false);
     }
   };
+
+  const handleSetupWizardComplete = useCallback(async (setup: any) => {
+    setArticleData(prev => ({ ...prev, ...setup }));
+    setShowWizard(false);
+    const summary = `Forfatter: ${setup.author}\nSection: ${setup.category}\nTopic: ${setup.tags?.join(', ')}${setup.rating?`\nRating: ${setup.rating}⭐`:''}${setup.press?`\nPresse: Ja`:''}`;
+    
+    // Auto-generate article if template is 'notes' and we have notes
+    if (setup.template === 'notes' && notes && notes.length > 120) {
+      addChatMessage('assistant', `Super. Jeg har sat artiklen op:\n${summary}\n\nJeg genererer nu artiklen baseret på dine noter...`);
+      // Auto-trigger article generation
+      await handleSendMessage('Generer artikel baseret på mine noter');
+    } else {
+      addChatMessage('assistant', `Super. Jeg har sat artiklen op:\n${summary}\n\nSkal vi starte med en arbejdstitel og en indledning?`);
+    }
+  }, [notes, addChatMessage, handleSendMessage]);
 
   // Automatically reveal review drawer when fresh article content arrives
   const previousContentRef = useRef(articleData.content || '');
@@ -826,8 +322,8 @@ export default function AIWriterClient() {
 
         const draftData = {
           id: currentDraftId || undefined,
-          title: articleData.title || chatTitle || 'Untitled',
-          chatTitle: chatTitle || chatMessages[0]?.content.substring(0, 50) || 'Ny artikel',
+          title: articleData.title || 'Untitled',
+          chatTitle: chatTitle,
           messages: cleanChatMessages,
           articleData: {
             ...articleData,
@@ -853,6 +349,7 @@ export default function AIWriterClient() {
         
         if (!currentDraftId) {
           setCurrentDraftId(draftId);
+          setRefreshTrigger(prev => prev + 1); // Trigger refresh for new drafts
         }
       } catch (error) {
         console.error('Error auto-saving to Firebase:', error);
@@ -863,29 +360,24 @@ export default function AIWriterClient() {
   }, [chatMessages, articleData, notes, user, currentDraftId, chatTitle]);
 
   const handleLoadDraft = (draft: ArticleDraft) => {
+    
     setCurrentDraftId(draft.id);
-    // Ensure messages have Date and files array
-    const restoredMsgs = (draft.messages || []).map(m => ({
-      ...m,
-      timestamp: m.timestamp instanceof Date ? m.timestamp : new Date(m.timestamp),
-      files: Array.isArray((m as any).files) ? (m as any).files : [],
-    }));
-    setChatMessages(restoredMsgs);
-    // Merge saved articleData and ensure wizard resets from restored initialData
-    const normalizedArticle = normalizeArticleData(
-      draft.articleData || {},
-      createEmptyArticleData(),
-      { retainExistingOnEmpty: false }
-    );
-    normalizedArticle._chatMessages = restoredMsgs;
-    (normalizedArticle as any).notes = draft.notes || '';
-    setArticleData(normalizedArticle);
+    setChatMessages(draft.messages);
+    setArticleData(draft.articleData);
     setNotes(draft.notes || '');
-    setWizardInstanceKey(key=>key+1);
-    // If the restored draft already had setup completed, keep wizard collapsed
-    const hasSetup = Boolean((draft.articleData||{}).template) || Boolean((draft.articleData||{}).author || (draft.articleData||{}).authorId);
-    if (hasSetup) setShowWizard(false);
-    setChatTitle(draft.chatTitle || draft.articleData?.title || 'Ny artikkel');
+    setChatTitle(draft.chatTitle || 'Ny artikkel');
+    
+    // Check if setup is already complete and collapse wizard
+    const hasAuthor = Boolean(draft.articleData?.author || draft.articleData?.authorId);
+    const hasCategory = Boolean(draft.articleData?.category || draft.articleData?.section);
+    const hasTemplate = Boolean(draft.articleData?.template);
+    const setupComplete = hasAuthor && hasCategory && hasTemplate;
+    
+    if (setupComplete) {
+      setShowWizard(false);
+    } else {
+      setShowWizard(true);
+    }
   };
 
   const handleSelectMessage = (draft: ArticleDraft, messageIndex: number) => {
@@ -906,17 +398,67 @@ export default function AIWriterClient() {
   };
 
 
-  const handleNewArticle = () => {
+  const handleNewArticle = async () => {
+    // Save current article if there's content before resetting
+    if (user && (chatMessages.length > 0 || articleData.content || notes)) {
+      try {
+        const cleanChatMessages = chatMessages.map(msg => ({
+          ...msg,
+          files: msg.files || []
+        }));
+
+        const draftData = {
+          id: currentDraftId || undefined,
+          title: articleData.title || 'Untitled',
+          chatTitle: chatTitle,
+          messages: cleanChatMessages,
+          articleData: {
+            ...articleData,
+            title: articleData.title || '',
+            subtitle: articleData.subtitle || '',
+            category: articleData.category || '',
+            author: articleData.author || 'Frederik Kragh',
+            authorTOV: articleData.authorTOV || '',
+            content: articleData.content || '',
+            rating: articleData.rating || 0,
+            tags: articleData.tags || [],
+            platform: articleData.platform || ''
+          },
+          notes: notes || '',
+          userId: user.uid,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+          lastModified: new Date()
+        };
+
+        await saveDraft(user.uid, draftData);
+        setRefreshTrigger(prev => prev + 1); // Trigger refresh of drafts list
+      } catch (error) {
+        console.error('Error saving current article:', error);
+      }
+    }
+
+    // Clear auto-save data
+    autoSaveService.clear();
+
     // Reset everything for a new article
     setCurrentDraftId(null);
     setChatMessages([]);
-    const emptyArticle = createEmptyArticleData();
-    (emptyArticle as any).notes = '';
-    setArticleData(emptyArticle);
+    setArticleData({
+      title: '',
+      subtitle: '',
+      category: '',
+      author: '',
+      content: '',
+      rating: 0,
+      tags: [],
+      platform: '',
+      aiDraft: null,
+      previewTitle: ''
+    });
     setNotes('');
-    setShowWizard(true);
-    setWizardInstanceKey(key=>key+1);
     setChatTitle('Ny artikkel');
+    setShowWizard(true);
     
     // Close drafts panel if open
     setShowDraftsPanel(false);
@@ -991,77 +533,45 @@ export default function AIWriterClient() {
             {/* Shelf - desktop: absolute with outer padding to align with chat area */}
             <div className={`hidden md:block absolute top-[1%] bottom-[1%] left-[1%] z-40`} style={{ width: shelfOpen ? 'min(300px, 50vw)' : '0px', transition: 'width 320ms cubic-bezier(0.22, 1, 0.36, 1), opacity 220ms ease', opacity: shelfOpen ? 1 : 0, pointerEvents: shelfOpen ? 'auto' : 'none' }}>
               <div className={`h-full flex flex-col rounded-xl border border-white/20 overflow-hidden transform bg-[#171717]`} style={{ transition: 'transform 320ms cubic-bezier(0.22, 1, 0.36, 1)', transform: shelfOpen ? 'translateX(0px)' : 'translateX(-8px)' }}>
-                <DraftsShelf
-                  isOpen={shelfOpen}
-                  onSelect={(draft)=>{
-                    setShelfOpen(false);
-                    setShowDraftsPanel(false);
-                    const sanitizedMessages = (draft.messages || []).map(m => ({
-                      ...m,
-                      timestamp: m.timestamp instanceof Date ? m.timestamp : new Date(m.timestamp),
-                      files: Array.isArray((m as any).files) ? (m as any).files : [],
-                    }));
-                    setChatMessages(sanitizedMessages);
-                    const normalizedArticle = normalizeArticleData(
-                      draft.articleData || {},
-                      createEmptyArticleData(),
-                      { retainExistingOnEmpty: false }
-                    );
-                    normalizedArticle._chatMessages = sanitizedMessages;
-                    (normalizedArticle as any).notes = draft.notes || '';
-                    setArticleData(normalizedArticle);
-                  }}
+                <DraftsShelf 
+                  isOpen={shelfOpen} 
+                  onSelect={(draft)=>{ 
+                    setShelfOpen(false); 
+                    setShowDraftsPanel(false); 
+                    handleLoadDraft(draft);
+                  }} 
                   onClose={()=> setShelfOpen(false)}
-                  onRenameLive={(id, title)=>{
-                    if (currentDraftId === id) {
-                      setChatTitle(title);
-                      setArticleData(prev =>
-                        normalizeArticleData(
-                          { title, previewTitle: title, slug: title },
-                          prev,
-                          { retainExistingOnEmpty: false }
-                        )
-                      );
-                    }
+                  onRenameLive={(draftId, newTitle) => {
+                    setChatTitle(newTitle);
+                    setArticleData(prev => ({
+                      ...prev,
+                      title: newTitle,
+                      previewTitle: newTitle
+                    }));
                   }}
+                  refreshTrigger={refreshTrigger}
                 />
               </div>
             </div>
             {/* Mobile shelf */}
             <div className={`md:hidden ${shelfOpen ? 'absolute inset-0 z-40 translate-x-0' : 'hidden'} transition-transform duration-300`}>
               <div className="h-full flex flex-col rounded-none border-t border-white/10 bg-[#171717]">
-                <DraftsShelf
-                  isOpen={shelfOpen}
-                  onSelect={(draft)=>{
-                    setShelfOpen(false);
-                    const sanitizedMessages = (draft.messages || []).map(m => ({
-                      ...m,
-                      timestamp: m.timestamp instanceof Date ? m.timestamp : new Date(m.timestamp),
-                      files: Array.isArray((m as any).files) ? (m as any).files : [],
-                    }));
-                    setChatMessages(sanitizedMessages);
-                    const normalizedArticle = normalizeArticleData(
-                      draft.articleData || {},
-                      createEmptyArticleData(),
-                      { retainExistingOnEmpty: false }
-                    );
-                    normalizedArticle._chatMessages = sanitizedMessages;
-                    (normalizedArticle as any).notes = draft.notes || '';
-                    setArticleData(normalizedArticle);
-                  }}
+                <DraftsShelf 
+                  isOpen={shelfOpen} 
+                  onSelect={(draft)=>{ 
+                    setShelfOpen(false); 
+                    handleLoadDraft(draft);
+                  }} 
                   onClose={()=> setShelfOpen(false)}
-                  onRenameLive={(id, title)=>{
-                    if (currentDraftId === id) {
-                      setChatTitle(title);
-                      setArticleData(prev =>
-                        normalizeArticleData(
-                          { title, previewTitle: title, slug: title },
-                          prev,
-                          { retainExistingOnEmpty: false }
-                        )
-                      );
-                    }
+                  onRenameLive={(draftId, newTitle) => {
+                    setChatTitle(newTitle);
+                    setArticleData(prev => ({
+                      ...prev,
+                      title: newTitle,
+                      previewTitle: newTitle
+                    }));
                   }}
+                  refreshTrigger={refreshTrigger}
                 />
               </div>
             </div>
@@ -1085,11 +595,6 @@ export default function AIWriterClient() {
                     <button type="button" onClick={()=>setShowWizard(true)} className="w-full px-3 py-2 md:py-3 flex gap-1 items-center cursor-pointer">
                         {(() => {
                           const templateDone = Boolean((articleData as any).template);
-                          const isResearch = (articleData as any).template === 'research';
-                          const sourceDone = isResearch ? Boolean((articleData as any).inspirationSource) : false;
-                          const trendingDone = isResearch ? Boolean((articleData as any).researchSelected) : false;
-                          const inspirationDone = isResearch ? Boolean((articleData as any).inspirationAcknowledged) : false;
-                          const analysisDone = isResearch ? Boolean((articleData as any).aiDraft && (((articleData as any).aiDraft.prompt)||((articleData as any).aiDraft.suggestions||[]).length>0)) : false;
                           const sectionLower = String((articleData as any).category || (articleData as any).section || '').toLowerCase();
                           const rawTopic = (articleData as any).topic;
                           const topicsSelected = Array.isArray((articleData as any).topicsSelected)
@@ -1110,11 +615,12 @@ export default function AIWriterClient() {
                           const topicDone = topicsSelected.length >=2;
                           const ratingDone = Boolean((articleData as any).rating && Number((articleData as any).rating)>0) || Boolean((articleData as any).ratingSkipped);
                           const pressDone = typeof (articleData as any).press === 'boolean';
-                          const segs: boolean[] = [templateDone];
-                          if (isResearch) {
-                            segs.push(sourceDone, trendingDone, inspirationDone, analysisDone);
-                          }
-                          segs.push(authorDone, sectionDone, topicDone);
+                          const segs: boolean[] = [
+                            templateDone,
+                            authorDone,
+                            sectionDone,
+                            topicDone
+                          ];
                           if (requiresPlatform) {
                             segs.push(hasPlatform);
                           }
@@ -1134,50 +640,9 @@ export default function AIWriterClient() {
                         </div>
                       </div>
                       <SetupWizard
-                        key={wizardInstanceKey}
                         initialData={articleData}
-                        onChange={(d:any)=> setArticleData(d)}
-                        onComplete={async (setup:any)=>{
-                          const merged = { ...articleData, ...setup };
-                          setArticleData(merged);
-                          setShowWizard(false);
-                          const topics = Array.isArray(setup.topicsSelected)
-                            ? setup.topicsSelected
-                            : [setup.topic].filter(Boolean);
-                          const tagList = Array.isArray(setup.tags) ? setup.tags : [];
-                          const combinedTopics = Array.from(new Set([...topics, ...tagList].filter(Boolean))).join(', ');
-                          const summaryLines: string[] = [];
-                          summaryLines.push(`Template: ${setup.template === 'research' ? 'Research' : 'Noter'}`);
-                          summaryLines.push(`Author: ${setup.author || '—'}`);
-                          summaryLines.push(`Section: ${setup.category || setup.section || '—'}`);
-                          summaryLines.push(`Topic(s): ${combinedTopics || '—'}`);
-                          if (setup.template === 'research') {
-                            summaryLines.push(`Kilde: ${setup.inspirationSource || '—'}`);
-                            summaryLines.push(`Research-artikel: ${setup.researchSelected?.title || '—'}`);
-                            if (setup.aiDraft?.prompt || setup.aiDraftPrompt) {
-                              const prompt = setup.aiDraft?.prompt || setup.aiDraftPrompt;
-                              summaryLines.push(`AI Prompt: ${prompt}`);
-                            }
-                          }
-                          if (setup.platform) summaryLines.push(`Platform: ${setup.platform}`);
-                          const ratingText = setup.rating ? `${setup.rating}⭐` : 'Ingen';
-                          summaryLines.push(`Rating: ${ratingText}`);
-                          if (Array.isArray(tagList) && tagList.length > 0) {
-                            summaryLines.push(`Tags: ${tagList.join(', ')}`);
-                          }
-                          const pressText = setup.press === true ? 'Ja' : setup.press === false ? 'Nej' : 'Ikke angivet';
-                          summaryLines.push(`Press: ${pressText}`);
-                          const summary = summaryLines.join('\n');
-                          
-                          // Auto-generate article if template is 'notes' and we have notes
-                          if (setup.template === 'notes' && notes && notes.length > 120) {
-                            addChatMessage('assistant', `Super. Jeg har sat artiklen op:\n${summary}\n\nJeg genererer nu artiklen baseret på dine noter...`);
-                            // Auto-trigger article generation
-                            await handleSendMessage('Generer artikel baseret på mine noter');
-                          } else {
-                            addChatMessage('assistant', `Super. Jeg har sat artiklen op:\n${summary}\n\nSkal vi starte med en arbejdstitel og en indledning?`);
-                          }
-                        }}
+                        onChange={handleSetupWizardChange}
+                        onComplete={handleSetupWizardComplete}
                       />
                     </div>
                   </div>
@@ -1189,6 +654,7 @@ export default function AIWriterClient() {
                     title: '',
                     subtitle: '',
                     category: 'Gaming',
+                    content: '',
                     tags: ['Gaming', 'Anmeldelse']
                   });
                 }}
@@ -1197,6 +663,7 @@ export default function AIWriterClient() {
                     title: '',
                     subtitle: '',
                     category: 'Kultur',
+                    content: '',
                     tags: ['Kultur', 'Anmeldelse']
                   });
                 }}
@@ -1235,7 +702,22 @@ export default function AIWriterClient() {
                   </button>
                 </div>
                 <div className="overflow-y-auto flex-1 p-3 md:p-[10px] no-scrollbar">
-                  <ReviewPanel articleData={articleData} frameless />
+                  <ReviewPanel 
+                    articleData={articleData} 
+                    frameless 
+                    onPreflightComplete={(warnings, criticTips, factResults, moderation) => {
+                      // Store Preflight data in localStorage so MainChatPanel can access it
+                      autoSaveService.save({
+                        preflightWarnings: warnings,
+                        preflightCriticTips: criticTips,
+                        preflightFactResults: factResults,
+                        preflightModeration: moderation
+                      });
+                    }}
+                    onRecommendationsApplied={() => {
+                      console.log('✅ Recommendations applied callback received');
+                    }}
+                  />
                 </div>
               </div>
             </div>

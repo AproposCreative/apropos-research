@@ -10,9 +10,10 @@ interface DraftsShelfProps {
   onClose?: () => void;
   isOpen?: boolean;
   onRenameLive?: (draftId: string, newTitle: string) => void; // notify open session
+  refreshTrigger?: number; // trigger refresh when this changes
 }
 
-export default function DraftsShelf({ onSelect, onClose, isOpen = true, onRenameLive }: DraftsShelfProps) {
+export default function DraftsShelf({ onSelect, onClose, isOpen = true, onRenameLive, refreshTrigger }: DraftsShelfProps) {
   const { user } = useAuth();
   const [drafts, setDrafts] = useState<ArticleDraft[]>([]);
   const [loading, setLoading] = useState(true);
@@ -40,7 +41,7 @@ export default function DraftsShelf({ onSelect, onClose, isOpen = true, onRename
       }
     };
     run();
-  }, [user]);
+  }, [user, refreshTrigger]);
 
   const normalizeDate = (v: any): Date => {
     if (!v) return new Date();

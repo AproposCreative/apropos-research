@@ -8,11 +8,15 @@ interface ReviewPanelProps {
   articleData: any;
   onClose?: () => void;
   frameless?: boolean; // when true, caller provides outer container/style
+  onPreflightComplete?: (warnings: string[], criticTips: string, factResults: any[], moderation: any) => void;
+  onRecommendationsApplied?: () => void;
 }
 
-export default function ReviewPanel({ articleData, onClose, frameless }: ReviewPanelProps) {
+export default function ReviewPanel({ articleData, onClose, frameless, onPreflightComplete, onRecommendationsApplied }: ReviewPanelProps) {
   const [siteMock, setSiteMock] = useState(false);
   const [wfSlugs, setWfSlugs] = useState<string[] | null>(null);
+  
+  
   const title = articleData?.title || articleData?.previewTitle || 'Arbejdstitel (ikke sat)';
   const subtitle = articleData?.subtitle || '';
   const author = articleData?.author || '—';
@@ -163,12 +167,15 @@ export default function ReviewPanel({ articleData, onClose, frameless }: ReviewP
                 alert(msg);
                 return;
               }
-              alert(`Udgivet! ID: ${j?.articleId || 'ukendt'}`);
+              const isUpdate = formData.webflowId && formData.webflowId !== '';
+              alert(`${isUpdate ? 'Opdateret' : 'Udgivet'}! ID: ${j?.articleId || 'ukendt'}`);
             } catch (e: any) {
               alert(String(e?.message || e || 'Uventet fejl'));
             }
           }}
           onClose={() => {}}
+          onPreflightComplete={onPreflightComplete}
+          onRecommendationsApplied={onRecommendationsApplied}
           embed
         />
       </section>

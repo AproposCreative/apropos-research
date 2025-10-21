@@ -8,9 +8,11 @@ interface WebflowPublishPanelProps {
   onPublish: (articleData: WebflowArticleFields) => Promise<void>;
   onClose: () => void;
   embed?: boolean; // when true, render inline (no overlay/modal shell)
+  onPreflightComplete?: (warnings: string[], criticTips: string, factResults: any[], moderation: any) => void;
+  onRecommendationsApplied?: () => void;
 }
 
-export default function WebflowPublishPanel({ articleData, onPublish, onClose, embed }: WebflowPublishPanelProps) {
+export default function WebflowPublishPanel({ articleData, onPublish, onClose, embed, onPreflightComplete, onRecommendationsApplied }: WebflowPublishPanelProps) {
   const [fieldMeta, setFieldMeta] = useState<any[]>([]);
   const [guidance, setGuidance] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -21,28 +23,88 @@ export default function WebflowPublishPanel({ articleData, onPublish, onClose, e
   const [moderation, setModeration] = useState<any | null>(null);
   const [criticTips, setCriticTips] = useState<string>('');
   const [factResults, setFactResults] = useState<any[] | null>(null);
+  const [recommendationsApplied, setRecommendationsApplied] = useState(false);
   const [formData, setFormData] = useState<WebflowArticleFields>({
     id: '',
+    webflowId: articleData.webflowId || '',
     title: articleData.title || '',
-    slug: '',
+    slug: articleData.slug || '',
     subtitle: articleData.subtitle || '',
     content: articleData.content || '',
-    excerpt: '',
+    excerpt: articleData.excerpt || '',
     category: articleData.category || '',
     tags: articleData.tags || [],
     author: articleData.author || '',
     rating: articleData.rating || 0,
-    featuredImage: '',
-    gallery: [],
+    featuredImage: articleData.featuredImage || '',
+    gallery: articleData.gallery || [],
     publishDate: new Date().toISOString(),
     status: 'draft',
-    seoTitle: '',
-    seoDescription: '',
-    readTime: 0,
-    wordCount: 0,
-    featured: false,
-    trending: false,
+    seoTitle: articleData.seoTitle || '',
+    seoDescription: articleData.seoDescription || '',
+    readTime: articleData.readTime || 0,
+    wordCount: articleData.wordCount || 0,
+    featured: articleData.featured || false,
+    trending: articleData.trending || false,
   });
+
+  // Update formData when articleData changes
+  useEffect(() => {
+    setFormData(prev => ({
+      ...prev,
+      webflowId: articleData.webflowId || prev.webflowId,
+      title: articleData.title || prev.title,
+      slug: articleData.slug || prev.slug,
+      subtitle: articleData.subtitle || prev.subtitle,
+      content: articleData.content || prev.content,
+      excerpt: articleData.excerpt || prev.excerpt,
+      category: articleData.category || prev.category,
+      tags: articleData.tags || prev.tags,
+      author: articleData.author || prev.author,
+      rating: articleData.rating || prev.rating,
+      featuredImage: articleData.featuredImage || prev.featuredImage,
+      gallery: articleData.gallery || prev.gallery,
+      seoTitle: articleData.seoTitle || prev.seoTitle,
+      seoDescription: articleData.seoDescription || prev.seoDescription,
+      readTime: articleData.readTime || prev.readTime,
+      wordCount: articleData.wordCount || prev.wordCount,
+      featured: articleData.featured !== undefined ? articleData.featured : prev.featured,
+      trending: articleData.trending !== undefined ? articleData.trending : prev.trending,
+    }));
+  }, [articleData]);
+
+  // Listen for recommendations being applied
+  useEffect(() => {
+    const checkRecommendationsApplied = () => {
+      try {
+        const savedData = localStorage.getItem('ai-writer-autosave');
+        if (savedData) {
+          const parsed = JSON.parse(savedData);
+          // Check if there's a recent message about applying recommendations
+          if (parsed.messages && Array.isArray(parsed.messages)) {
+            const lastMessage = parsed.messages[parsed.messages.length - 1];
+            if (lastMessage && lastMessage.content && 
+                (lastMessage.content.includes('Anvend disse Preflight anbefalinger') ||
+                 lastMessage.content.includes('KRITISK: Fix disse problemer') ||
+                 lastMessage.content.includes('Anvend disse forbedringer'))) {
+              setRecommendationsApplied(true);
+              console.log('✅ Recommendations marked as applied');
+            }
+          }
+        }
+      } catch (error) {
+        console.error('Error checking recommendations applied:', error);
+      }
+    };
+
+    // Check immediately
+    checkRecommendationsApplied();
+    
+    // Poll for changes
+    const intervalId = setInterval(checkRecommendationsApplied, 2000);
+    
+    return () => clearInterval(intervalId);
+  }, []);
 
   // Keep formData in sync when articleData prop changes (so fields don't show "—")
   useEffect(() => {
@@ -195,11 +257,13 @@ export default function WebflowPublishPanel({ articleData, onPublish, onClose, e
       } catch {}
       setPreflightWarnings(warnings);
       setPreflightRunning(false);
-      if (warnings.length>0) {
-        alert('Preflight fandt forhold, der bør håndteres før udgivelse. Se “Preflight resultater” nederst.');
-        setPublishing(false);
-        return;
+      
+      // Send Preflight results to chat
+      if (onPreflightComplete) {
+        onPreflightComplete(warnings, criticTips, factResults || [], moderation);
       }
+      
+      // Preflight recommendations are now auto-applied in chat, so we don't block publishing
 
       await onPublish(formData);
       // After successful publish, optionally send training sample
@@ -301,31 +365,6 @@ export default function WebflowPublishPanel({ articleData, onPublish, onClose, e
           </div>
         </div>
 
-        {/* Preflight Results */}
-        {(preflightRunning || preflightWarnings.length>0 || criticTips || (factResults&&factResults.length)) && (
-          <div className={`px-6 pb-6 ${embed ? 'pt-0' : ''}`}>
-            <div className="mt-4 p-3 bg-white/5 rounded-lg border border-white/10">
-              <div className="flex items-center justify-between mb-2">
-                <h4 className="text-white font-medium">Preflight resultater</h4>
-                {preflightRunning && <span className="text-white/70 text-xs">Kører…</span>}
-              </div>
-              {preflightWarnings.length>0 && (
-                <ul className="list-disc list-inside text-amber-300 text-sm mb-2">
-                  {preflightWarnings.map((w,i)=>(<li key={i}>{w}</li>))}
-                </ul>
-              )}
-              {moderation && (
-                <div className="text-white/70 text-xs mb-2">Lighed: {(moderation.metrics?.maxSim||0).toFixed(3)} • Risiko: {moderation.metrics?.plagiarismRisk||'n/a'} • Ord: {moderation.metrics?.wordCount||0}</div>
-              )}
-              {criticTips && (
-                <div className="text-white/80 text-sm whitespace-pre-wrap mb-2">{criticTips}</div>
-              )}
-              {factResults && factResults.length>0 && (
-                <div className="text-white/70 text-xs">Fakta: {factResults.filter((x:any)=>x.status==='true').length} verificeret, {factResults.filter((x:any)=>x.status!=='true').length} ukendte</div>
-              )}
-            </div>
-          </div>
-        )}
       
     </>
   );

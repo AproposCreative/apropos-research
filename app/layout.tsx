@@ -6,6 +6,7 @@ import { RefreshProvider } from '../components/RefreshCtx';
 import { MediaProvider } from '../lib/media-context';
 import { QueryProvider } from '../lib/query-provider';
 import ConditionalLayout from '../components/ConditionalLayout';
+// import PerformanceMonitor from '../components/PerformanceMonitor';
 import { Poppins } from 'next/font/google';
 import { SpeedInsights } from '@vercel/speed-insights/next';
 import { Analytics } from '@vercel/analytics/react';
@@ -45,6 +46,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             </MediaProvider>
           </AuthProvider>
         </QueryProvider>
+        {/* <PerformanceMonitor /> */}
         <SpeedInsights />
         <Analytics />
       </body>
