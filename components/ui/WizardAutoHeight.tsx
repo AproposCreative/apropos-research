@@ -32,12 +32,12 @@ export default function WizardAutoHeight({ children }: { children: ReactNode }) 
     return () => ro.disconnect();
   }, [recompute]);
 
-  const clamped = Math.max(48, Math.min(height ?? 0, 800));
+  const clamped = Math.max(48, Math.min(height ?? 0, 400));
 
   return (
     <div className="mx-[10px] my-[12px]" ref={containerRef}>
       <div
-        className="rounded-xl bg-black px-0 py-2 border border-white/10 transition-[height] duration-300 ease-out overflow-hidden"
+        className="rounded-xl bg-black px-0 py-2 border border-white/10 transition-[height] duration-300 ease-out overflow-y-auto"
         style={{ height: clamped ? `${clamped}px` : undefined }}
       >
         <div ref={contentRef}>
