@@ -34,6 +34,38 @@ export default function SetupWizard({ initialData, onComplete, onChange }: Setup
   const dragInfoRef = useRef<{ active: boolean; pointerId: number | null; startX: number; scrollLeft: number; moved: boolean }>({ active: false, pointerId: null, startX: 0, scrollLeft: 0, moved: false });
   const [isDragging, setIsDragging] = useState(false);
   const [scrollFade, setScrollFade] = useState<{ left: boolean; right: boolean }>({ left: false, right: false });
+  
+  const formatDate = (dateString?: string) => {
+    if (!dateString) return '';
+    
+    try {
+      const date = new Date(dateString);
+      if (isNaN(date.getTime())) return '';
+      
+      const now = new Date();
+      const diffTime = now.getTime() - date.getTime();
+      const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+      
+      // If same year, don't show year
+      if (date.getFullYear() === now.getFullYear()) {
+        if (diffDays === 0) {
+          return 'i dag';
+        } else if (diffDays === 1) {
+          return 'i går';
+        } else if (diffDays < 7) {
+          return `${diffDays} dage siden`;
+        } else {
+          return date.toLocaleDateString('da-DK', { day: 'numeric', month: 'short' });
+        }
+      } else {
+        // Different year, show year
+        return date.toLocaleDateString('da-DK', { day: 'numeric', month: 'short', year: '2-digit' });
+      }
+    } catch {
+      return '';
+    }
+  };
+  
   const [data, setData] = useState<any>({
     author: initialData?.author || '',
     authorId: initialData?.authorId || '',
@@ -477,7 +509,8 @@ export default function SetupWizard({ initialData, onComplete, onChange }: Setup
       {step==='trending' && data.template==='research' && (
         <div className="space-y-3 md:space-y-[14px]">
           <div className="text-white/80 text-sm">Trending fra {data.inspirationSource || 'valgt medie'}</div>
-          <div className="grid gap-2 md:gap-[10px]">
+          <div className="max-h-64 overflow-y-auto scrollbar-thin scrollbar-thumb-white/20 scrollbar-track-transparent">
+            <div className="grid gap-2 md:gap-[10px]">
             {loadingTrending && (<div className="w-6 h-6 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>)}
             {!loadingTrending && trendingItems.slice(0,8).map((it, idx)=> {
               const selected = data.researchSelected?.title === it.title;
@@ -491,13 +524,14 @@ export default function SetupWizard({ initialData, onComplete, onChange }: Setup
                   className={`text-left px-3 py-2 rounded-lg transition-all border ${selected ? 'bg-white/5 text-white border-white/40' : 'bg-white/0 text-white/80 border-white/10 hover:border-white/20 hover:bg-white/5'}`}
                 >
                   <div className="text-[13px] leading-snug">{it.title || 'Ukendt titel'}</div>
-                  <div className="text-white/40 text-xs mt-1">{it.source ? `${it.source} · `:''}{it.date || ''}</div>
+                  <div className="text-white/40 text-xs mt-1">{it.source ? `${it.source} · `:''}{formatDate(it.date)}</div>
                 </button>
               );
             })}
             {!loadingTrending && trendingItems.length===0 && (
               <div className="text-white/60 text-xs">Ingen artikler fundet</div>
             )}
+            </div>
           </div>
         </div>
       )}

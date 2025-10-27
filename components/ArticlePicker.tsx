@@ -23,11 +23,27 @@ export default function ArticlePicker({ articles, onSelectArticle, onClose, temp
   const formatDate = (dateString: string) => {
     try {
       const date = new Date(dateString);
-      return date.toLocaleDateString('da-DK', {
-        day: 'numeric',
-        month: 'short',
-        year: 'numeric'
-      });
+      if (isNaN(date.getTime())) return 'Ukendt dato';
+      
+      const now = new Date();
+      const diffTime = now.getTime() - date.getTime();
+      const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+      
+      // If same year, don't show year
+      if (date.getFullYear() === now.getFullYear()) {
+        if (diffDays === 0) {
+          return 'i dag';
+        } else if (diffDays === 1) {
+          return 'i går';
+        } else if (diffDays < 7) {
+          return `${diffDays} dage siden`;
+        } else {
+          return date.toLocaleDateString('da-DK', { day: 'numeric', month: 'short' });
+        }
+      } else {
+        // Different year, show year
+        return date.toLocaleDateString('da-DK', { day: 'numeric', month: 'short', year: '2-digit' });
+      }
     } catch {
       return 'Ukendt dato';
     }

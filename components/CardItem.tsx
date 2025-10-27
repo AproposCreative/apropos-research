@@ -6,19 +6,32 @@ import { useSelect } from './SelectCtx';
 function formatDateDa(iso?: string) {
   if (!iso) return 'ukendt dato';
   
-  // Handle DD-MM-YYYY HH:mm:ss format (from old Gaffa articles)
-  if (iso.match(/^\d{2}-\d{2}-\d{4} \d{2}:\d{2}:\d{2}$/)) {
-    const [datePart, timePart] = iso.split(' ');
-    const [day, month, year] = datePart.split('-');
-    const d = new Date(`${year}-${month}-${day}T${timePart}`);
-    if (isNaN(d.getTime())) return 'ukendt dato';
-    return new Intl.DateTimeFormat('da-DK', { day: 'numeric', month: 'short', year: 'numeric' }).format(d);
+  try {
+    const date = new Date(iso);
+    if (isNaN(date.getTime())) return 'ukendt dato';
+    
+    const now = new Date();
+    const diffTime = now.getTime() - date.getTime();
+    const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+    
+    // If same year, don't show year
+    if (date.getFullYear() === now.getFullYear()) {
+      if (diffDays === 0) {
+        return 'i dag';
+      } else if (diffDays === 1) {
+        return 'i går';
+      } else if (diffDays < 7) {
+        return `${diffDays} dage siden`;
+      } else {
+        return date.toLocaleDateString('da-DK', { day: 'numeric', month: 'short' });
+      }
+    } else {
+      // Different year, show year
+      return date.toLocaleDateString('da-DK', { day: 'numeric', month: 'short', year: '2-digit' });
+    }
+  } catch {
+    return 'ukendt dato';
   }
-  
-  // Handle standard ISO format
-  const d = new Date(iso);
-  if (isNaN(d.getTime())) return 'ukendt dato';
-  return new Intl.DateTimeFormat('da-DK', { day: 'numeric', month: 'short', year: 'numeric' }).format(d);
 }
 
 type Props = {
