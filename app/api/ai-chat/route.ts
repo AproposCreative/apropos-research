@@ -713,6 +713,15 @@ AVANCERET RESEARCH INTEGRATION:
 
 KRITISK: Hvis research data er tilgængelig, SKRIV HELE ARTIKLEN NU - ikke spørg om flere detaljer!
 
+FAKTUALITET OG VERIFICERING:
+- ALDRIG opdig fakta, instruktører, skuespillere, eller andre detaljer
+- ALDRIG brug placeholder tekst som "[Skuespillerens Navn]" eller "[Instruktørens Navn]"
+- Hvis du ikke ved noget specifikt, skriv generelt eller bed om mere information
+- Brug kun verificerbare informationer fra research data
+- Undgå at nævne specifikke personer medmindre det er verificeret
+- Hvis du ikke har konkrete fakta, skriv om det generelle tema i stedet
+- Skriv "instruktøren", "hovedskuespilleren", "komponisten" i stedet for at opdigte navne
+
 Opdater automatisk CMS-felter:
 - title: Artikel titel
 - subtitle: Undertitel/tagline
@@ -898,9 +907,9 @@ ${context ? `\n\nNuværende artikel kontekst:\n${context}` : ''}`;
           }
         }
         
-        // Add research results to the user message
+        // Add research results to system content instead of user message
         if (webSearchResults) {
-          messages[messages.length - 1].content += webSearchResults;
+          finalSystemContent += `\n\n**RESEARCH DATA TILGÆNGELIG - BRUG DISSE FAKTA:**\n${webSearchResults}\n\nKRITISK: Du SKAL bruge alle ovenstående research data i din artikel. Undgå at opdigte fakta - brug kun data fra research. Hvis research data ikke indeholder specifikke navne eller detaljer, skriv generelt (f.eks. "instruktøren" i stedet for "[Instruktørens Navn]").`;
         }
       } catch (error) {
         console.error('Research failed:', error);
