@@ -324,27 +324,33 @@ export default function SetupWizard({ initialData, onComplete, onChange }: Setup
       : (data.topic ? [data.topic] : []);
     const primaryTopic = selectedTopics[0] || '';
     const tags = Array.from(new Set([data.section, ...selectedTopics].filter(Boolean)));
-    onComplete({
-      author: data.author,
-      authorId: data.authorId,
-      authorTOV: data.authorTOV,
-      template: data.template,
-      inspirationSource: data.inspirationSource,
-      researchSelected: data.researchSelected,
-      inspirationAcknowledged: data.inspirationAcknowledged,
-      aiDraft: data.aiDraft,
-      category: data.section,
-      tags,
-      platform: data.platform,
-      streaming_service: data.platform,
-      rating: data.rating,
-      ratingSkipped: data.ratingSkipped,
-      press: data.press,
-      title: data.title,
-      subtitle: data.subtitle,
-      topic: primaryTopic,
-      topicsSelected: selectedTopics
-    });
+    
+    // Only include fields that have meaningful values
+    const completionData: Partial<ArticleData> = {};
+    
+    if (data.author) completionData.author = data.author;
+    if (data.authorId) completionData.authorId = data.authorId;
+    if (data.authorTOV) completionData.authorTOV = data.authorTOV;
+    if (data.template) completionData.template = data.template;
+    if (data.inspirationSource) completionData.inspirationSource = data.inspirationSource;
+    if (data.researchSelected) completionData.researchSelected = data.researchSelected;
+    if (data.inspirationAcknowledged) completionData.inspirationAcknowledged = data.inspirationAcknowledged;
+    if (data.aiDraft) completionData.aiDraft = data.aiDraft;
+    if (data.section) completionData.category = data.section;
+    if (tags.length > 0) completionData.tags = tags;
+    if (data.platform) {
+      completionData.platform = data.platform;
+      completionData.streaming_service = data.platform;
+    }
+    if (data.rating > 0) completionData.rating = data.rating;
+    if (data.ratingSkipped) completionData.ratingSkipped = data.ratingSkipped;
+    if (data.press !== null) completionData.press = data.press;
+    if (data.title) completionData.title = data.title;
+    if (data.subtitle) completionData.subtitle = data.subtitle;
+    if (primaryTopic) completionData.topic = primaryTopic;
+    if (selectedTopics.length > 0) completionData.topicsSelected = selectedTopics;
+    
+    onComplete(completionData);
   };
 
   const Progress = () => {

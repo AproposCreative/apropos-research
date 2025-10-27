@@ -476,7 +476,19 @@ export async function POST(request: NextRequest) {
     if (Array.isArray(articleData.tags) && articleData.tags.length) {
       context += `Tags: ${articleData.tags.join(', ')}\n`;
     }
-    if (articleData.rating) context += `Bedømmelse (stjerner): ${articleData.rating}\n`;
+    if (articleData.rating) {
+      context += `Bedømmelse (stjerner): ${articleData.rating}\n`;
+      // Add rating-based tone guidance
+      if (articleData.rating <= 2) {
+        context += `TONE: Kritisk og negativ - artiklen skal være skarp, ærlig og ikke skåne kritikken\n`;
+      } else if (articleData.rating <= 3) {
+        context += `TONE: Blandet og balanceret - artiklen skal være ærlig om både styrker og svagheder\n`;
+      } else if (articleData.rating <= 4) {
+        context += `TONE: Positiv med forbehold - artiklen skal være generelt positiv men nævne mindre problemer\n`;
+      } else if (articleData.rating >= 5) {
+        context += `TONE: Meget positiv og entusiastisk - artiklen skal være begejstret og fremhæve alle styrker\n`;
+      }
+    }
     if ((articleData as any).platform || (articleData as any).streaming_service) {
       const platform = (articleData as any).platform || (articleData as any).streaming_service;
       context += `Platform/Service: ${platform}\n`;
@@ -549,7 +561,15 @@ export async function POST(request: NextRequest) {
     const targetMax = isReview ? 900 : 1400;
     const systemContent = `${basePrompt}
 
-${combinedTOV ? `FORFATTER TOV (overstyrer generelle regler):\n${combinedTOV}\n` : ''}**VIGTIG: Skriv i ${authorInfo}'s tone of voice!**\n\nOverhold længdemål i strukturfilen (anmeldelser 700–900 ord; features 1000–1400). Skriv aldrig under 600 ord, medmindre brugeren specifikt beder om kort svar.`;
+${combinedTOV ? `FORFATTER TOV (overstyrer generelle regler):\n${combinedTOV}\n` : ''}**VIGTIG: Skriv i ${authorInfo}'s tone of voice!**
+
+**SETUPWIZARD DATA - BRUG DISSE VÆRDIER:**
+- Kategori/Sektion: ${sec || 'Ikke valgt'} - skriv artiklen til denne kategori
+- Topics/Tags: ${tagsArr.join(', ') || 'Ikke valgt'} - fokuser på disse emner
+- Platform: ${(articleData as any).platform || (articleData as any).streaming_service || 'Ikke valgt'} - nævn platformen hvis relevant
+- Rating: ${articleData.rating || 'Ikke valgt'} stjerner - tilpas tone til denne bedømmelse
+
+Overhold længdemål i strukturfilen (anmeldelser 700–900 ord; features 1000–1400). Skriv aldrig under 600 ord, medmindre brugeren specifikt beder om kort svar.`;
 
     // Add hard guidance: transform notes, not copy
     const transformationRules = `\n\nTRANSFORMATION KRAV:\n- Brug noter som råmateriale — omskriv alt; ingen sætninger må være identiske med noterne.\n- Integrér noter i en sammenhængende artikelstruktur (Intro → Brødtekst → Afslutning).\n- Mål: ${targetMin}–${targetMax} ord for denne artikel.`;
