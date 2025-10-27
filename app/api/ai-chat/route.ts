@@ -557,6 +557,12 @@ export async function POST(request: NextRequest) {
     if (Array.isArray(articleData.tags) && articleData.tags.length) {
       context += `Tags: ${articleData.tags.join(', ')}\n`;
     }
+    if (articleData.platform) context += `Platform: ${articleData.platform}\n`;
+    if (articleData.streaming_service) context += `Streaming Service: ${articleData.streaming_service}\n`;
+    if (articleData.topic) context += `Topic: ${articleData.topic}\n`;
+    if (Array.isArray(articleData.topicsSelected) && articleData.topicsSelected.length) {
+      context += `Selected Topics: ${articleData.topicsSelected.join(', ')}\n`;
+    }
     if (articleData.rating) {
       context += `Bedømmelse (stjerner): ${articleData.rating}\n`;
       // Add rating-based tone guidance
@@ -713,6 +719,12 @@ AVANCERET RESEARCH INTEGRATION:
 
 KRITISK: Hvis research data er tilgængelig, SKRIV HELE ARTIKLEN NU - ikke spørg om flere detaljer!
 
+EMNE IDENTIFIKATION:
+- Brug ALTID titel, topic og platform fra articleData til at identificere det korrekte emne
+- Hvis articleData indeholder specifikke detaljer (titel, platform, topic), brug disse i stedet for at gætte
+- For filmanmeldelser: brug den korrekte filmtitel og platform fra articleData
+- Undgå at opfinde alternative titler eller platforme - brug kun hvad der er specificeret
+
 FAKTUALITET OG VERIFICERING:
 - ALDRIG opdig fakta, instruktører, skuespillere, eller andre detaljer
 - ALDRIG brug placeholder tekst som "[Skuespillerens Navn]" eller "[Instruktørens Navn]"
@@ -844,14 +856,16 @@ ${context ? `\n\nNuværende artikel kontekst:\n${context}` : ''}`;
       try {
         const searchQuery = extractSearchQuery(message, articleData);
         
-        // 1. Enhanced Research Engine
+        // 1. Enhanced Research Engine - use specific data from articleData
+        const researchTopic = (articleData as any).title || (articleData as any).topic || searchQuery;
         const researchResponse = await fetch(`${request.url.split('/api')[0]}/api/research-engine`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ 
-            topic: searchQuery, 
+            topic: researchTopic, 
             articleType: (articleData as any).category || 'Generel',
-            author: authorName || 'Apropos Writer'
+            author: authorName || 'Apropos Writer',
+            platform: (articleData as any).platform || (articleData as any).streaming_service
           })
         });
         
@@ -909,7 +923,7 @@ ${context ? `\n\nNuværende artikel kontekst:\n${context}` : ''}`;
         
         // Add research results to system content instead of user message
         if (webSearchResults) {
-          finalSystemContent += `\n\n**RESEARCH DATA TILGÆNGELIG - BRUG DISSE FAKTA:**\n${webSearchResults}\n\nKRITISK: Du SKAL bruge alle ovenstående research data i din artikel. Undgå at opdigte fakta - brug kun data fra research. Hvis research data ikke indeholder specifikke navne eller detaljer, skriv generelt (f.eks. "instruktøren" i stedet for "[Instruktørens Navn]").`;
+          finalSystemContent += `\n\n**RESEARCH DATA TILGÆNGELIG - BRUG DISSE FAKTA:**\n${webSearchResults}\n\nKRITISK: Du SKAL bruge alle ovenstående research data i din artikel. Undgå at opdigte fakta - brug kun data fra research. Hvis research data ikke indeholder specifikke navne eller detaljer, skriv generelt (f.eks. "instruktøren" i stedet for "[Instruktørens Navn]").\n\nEMNE SPECIFIKATION: Skriv om "${researchTopic}" - ikke om andre emner eller generiske beskrivelser.`;
         }
       } catch (error) {
         console.error('Research failed:', error);
