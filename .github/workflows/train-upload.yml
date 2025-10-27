@@ -5,7 +5,7 @@ on:
   push:
     branches: [ main ]
   schedule:
-    - cron: '0 3 * * *' # daily at 03:00 UTC
+    - cron: '0 3 * * *' # daily at 03:00 UTC (after article ingestion at 02:00)
 
 jobs:
   train-upload:

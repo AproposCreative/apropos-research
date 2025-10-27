@@ -1,9 +1,10 @@
 {
   "heads": {
     "https://soundvenue.com/feed": {
-      "etag": "\"d70dd76bf01b3183a32dcc6a12e4efb3\"",
-      "lastSeenAt": "2025-10-08T12:31:44.658Z",
-      "lastStatus": 304
+      "etag": "\"19d892b2743ae3451a78d91403b218a9\"",
+      "lastSeenAt": "2025-10-27T10:58:10.135Z",
+      "lastStatus": 200,
+      "lastModified": "Mon, 27 Oct 2025 10:35:15 GMT"
     },
     "https://soundvenue.com/film/2025/09/julia-roberts-og-ayo-edebiri-saetter-journalist-paa-plads-i-viralt-interviewklip-640163": {
       "lastSeenAt": "2025-09-09T07:38:41.022Z",
@@ -4154,9 +4155,9 @@
       "lastStatus": 404
     },
     "https://nordic.ign.com/feed.xml": {
-      "lastModified": "Wed, 08 Oct 2025 12:09:32 GMT",
-      "lastSeenAt": "2025-10-08T12:31:58.045Z",
-      "lastStatus": 304
+      "lastModified": "Mon, 27 Oct 2025 10:03:45 GMT",
+      "lastSeenAt": "2025-10-27T10:58:23.001Z",
+      "lastStatus": 200
     },
     "https://nordic.ign.com/call-of-duty-black-ops-7/99587/news/97-of-call-of-duty-black-ops-7-beta-cheaters-were-caught-within-30-minutes-of-signing-in-activision": {
       "lastModified": "Mon, 06 Oct 2025 12:51:09 GMT",
@@ -4534,18 +4535,18 @@
       "lastStatus": 304
     },
     "https://www.ekkofilm.dk/feeds/artikler/": {
-      "lastModified": "Wed, 08 Oct 2025 12:06:40 GMT",
-      "lastSeenAt": "2025-10-08T12:32:00.212Z",
-      "lastStatus": 304
-    },
-    "https://www.berlingske.dk/news-sitemap.xml": {
-      "etag": "\"88o2t4v0yl4tsa\"",
-      "lastSeenAt": "2025-10-08T12:31:51.657Z",
+      "lastModified": "Mon, 27 Oct 2025 10:43:00 GMT",
+      "lastSeenAt": "2025-10-27T10:58:25.160Z",
       "lastStatus": 200
     },
+    "https://www.berlingske.dk/news-sitemap.xml": {
+      "etag": "\"r4jvyh2us23jo9\"",
+      "lastSeenAt": "2025-10-27T10:58:16.786Z",
+      "lastStatus": 304
+    },
     "https://www.bt.dk/news-sitemap.xml": {
-      "etag": "\"xyajjsuqh45xqh\"",
-      "lastSeenAt": "2025-10-08T12:31:55.983Z",
+      "etag": "\"k53f8oksc34y3x\"",
+      "lastSeenAt": "2025-10-27T10:58:20.960Z",
       "lastStatus": 200
     },
     "https://nordic.ign.com/world-of-warcraft-midnight/99595/feature/world-of-warcraft-is-getting-two-major-changes-in-midnight-that-are-already-dividing-the-community": {
@@ -4910,7 +4911,7 @@
       "lastStatus": 200
     },
     "https://gaffa.dk/rss": {
-      "lastSeenAt": "2025-10-08T12:31:47.437Z",
+      "lastSeenAt": "2025-10-27T10:58:12.941Z",
       "lastStatus": 200
     },
     " https://gaffa.dk/anmeldelser/2025/oktober/koncerter/cian-ducrot-store-vega-060925/ ": {
@@ -6475,6 +6476,202 @@
     "https://www.berlingske.dk/kultur/han-kaldte-det-selv-enpolitisk-fyring-mens-dr-var-tavs-nu-viser-laekket-opsigelsesaftale-at-harald-toksvaerd-er-faerdig-efter-tidligere-udtalelser": {
       "etag": "\"oied9b1z5feydf\"",
       "lastSeenAt": "2025-10-08T12:32:33.806Z",
+      "lastStatus": 200
+    },
+    "https://soundvenue.com/musik/2025/10/tinderbox-foejer-endnu-et-navn-til-plakaten-for-2026-648051": {
+      "lastSeenAt": "2025-10-27T10:58:26.205Z",
+      "lastStatus": 200
+    },
+    "https://soundvenue.com/film/2025/10/legenden-de-to-hovedpersoner-sparker-roev-i-intens-dansk-netflix-serie-648034": {
+      "lastSeenAt": "2025-10-27T10:58:27.214Z",
+      "lastStatus": 200
+    },
+    "https://soundvenue.com/film/2025/10/george-clooney-skal-spille-sig-selv-i-netflix-filmudgave-af-fransk-hitserie-648028": {
+      "lastSeenAt": "2025-10-27T10:58:28.225Z",
+      "lastStatus": 200
+    },
+    "https://soundvenue.com/musik/2025/10/tyrkisk-festival-piller-irsk-stjernemusiker-af-plakaten-efter-transfobiske-udtalelser-648010": {
+      "lastSeenAt": "2025-10-27T10:58:29.233Z",
+      "lastStatus": 200
+    },
+    "https://soundvenue.com/film/2025/10/biografaktuel-instruktoer-har-allerede-flere-bruce-springsteen-film-i-stoebeskeen-648008": {
+      "lastSeenAt": "2025-10-27T10:58:30.250Z",
+      "lastStatus": 200
+    },
+    "https://soundvenue.com/musik/2025/10/radiohead-kommenterer-pro-palaestinensisk-backlash-det-holder-mig-vaagen-om-natten-647999": {
+      "lastSeenAt": "2025-10-27T10:58:31.265Z",
+      "lastStatus": 200
+    },
+    "https://soundvenue.com/film/2025/10/konkurrent-stjaeler-yellowstone-skaber-taylor-sheridan-fra-paramount-i-massiv-aftale-647996": {
+      "lastSeenAt": "2025-10-27T10:58:32.276Z",
+      "lastStatus": 200
+    },
+    "https://soundvenue.com/film/2025/10/vi-rangerer-hayao-miyazakis-12-spillefilm-fra-de-mindst-gode-til-de-allerbedste-647814": {
+      "lastSeenAt": "2025-10-27T10:58:33.290Z",
+      "lastStatus": 200
+    },
+    "https://soundvenue.com/film/2025/10/it-welcome-to-derry-forfejlet-stephen-king-serie-drukner-i-daarlig-smag-647833": {
+      "lastSeenAt": "2025-10-27T10:58:34.301Z",
+      "lastStatus": 200
+    },
+    "https://soundvenue.com/musik/2025/10/roskilde-festival-15-kunstnere-vi-oensker-os-paa-orange-scene-i-2026-647663": {
+      "lastSeenAt": "2025-10-27T10:58:35.316Z",
+      "lastStatus": 200
+    },
+    " https://gaffa.dk/nyheder-fra-gaffa/2025/oktober/thom-yorke-med-nye-toner-vil-absolut-ikke-vende-tilbage-til-israel/ ": {
+      "lastSeenAt": "2025-10-27T10:58:36.700Z",
+      "lastStatus": 200
+    },
+    " https://gaffa.dk/artikler/2025/oktober/nar-musikere-bliver-hybride-scenekunstnere-mod-ostre-gasvaerk-teaters-musikteaterlandshold/ ": {
+      "lastSeenAt": "2025-10-27T10:58:38.126Z",
+      "lastStatus": 200
+    },
+    "https://nordic.ign.com/welcome-to-derry/100352/news/hbo-max-brings-it-welcome-to-derry-episode-2-release-date-forward-to-coincide-with-halloween": {
+      "lastModified": "Mon, 27 Oct 2025 10:04:07 GMT",
+      "lastSeenAt": "2025-10-27T10:58:49.869Z",
+      "lastStatus": 200
+    },
+    "https://nordic.ign.com/halo-campaign-evolved/100350/news/i-made-it-right-and-they-are-breaking-it-for-no-reason-one-of-the-key-members-of-the-original-halo-d": {
+      "lastModified": "Mon, 27 Oct 2025 09:46:35 GMT",
+      "lastSeenAt": "2025-10-27T10:58:50.885Z",
+      "lastStatus": 200
+    },
+    "https://nordic.ign.com/the-outer-worlds-2/100326/video/release-reminder-these-games-are-coming-out-this-week-week-44-of-2025": {
+      "lastModified": "Mon, 27 Oct 2025 10:41:37 GMT",
+      "lastSeenAt": "2025-10-27T10:58:51.967Z",
+      "lastStatus": 200
+    },
+    "https://nordic.ign.com/welcome-to-derry/100348/feature/it-welcome-to-derry-season-premiere-ending-explained-no-one-is-safe-in-this-world": {
+      "lastModified": "Mon, 27 Oct 2025 10:00:48 GMT",
+      "lastSeenAt": "2025-10-27T10:58:53.041Z",
+      "lastStatus": 200
+    },
+    "https://nordic.ign.com/grand-theft-auto-iii/100347/feature/they-complained-then-left-with-the-best-exclusivity-deal-of-all-time-the-story-of-ps2s-blockbuster-g": {
+      "lastModified": "Mon, 27 Oct 2025 10:36:51 GMT",
+      "lastSeenAt": "2025-10-27T10:58:54.152Z",
+      "lastStatus": 200
+    },
+    "https://www.ekkofilm.dk/artikler/christina-rosendahl-far-kongelig-haeder/": {
+      "lastSeenAt": "2025-10-27T10:58:55.319Z",
+      "lastStatus": 200
+    },
+    "https://www.ekkofilm.dk/artikler/veteranerne-er-vigtigere-end-instruktoren/": {
+      "lastSeenAt": "2025-10-27T10:58:56.365Z",
+      "lastStatus": 200
+    },
+    "https://www.bt.dk/int.-kendte/george-clooney-i-chok-over-roeveri-det-er-vildt": {
+      "etag": "\"14w3wrf7jczb6yq\"",
+      "lastSeenAt": "2025-10-27T10:58:57.445Z",
+      "lastStatus": 200
+    },
+    "https://www.bt.dk/erhverv/region-hovedstaden-er-stadig-vaekstlokomotivet-i-dansk-oekonomi": {
+      "etag": "\"e81pdk8ai8aart\"",
+      "lastSeenAt": "2025-10-27T10:58:58.512Z",
+      "lastStatus": 200
+    },
+    "https://www.bt.dk/politik/regeringschef-om-oprustning-vil-ikke-oege-spaendingerne-i-groenland": {
+      "etag": "\"woets38cnla5bv\"",
+      "lastSeenAt": "2025-10-27T10:58:59.547Z",
+      "lastStatus": 200
+    },
+    "https://www.bt.dk/udland/domstol-blaastempler-udlevering-af-ukrainer-i-nord-stream-sag": {
+      "etag": "\"wn6nn3dvwxa518\"",
+      "lastSeenAt": "2025-10-27T10:59:00.622Z",
+      "lastStatus": 200
+    },
+    "https://www.bt.dk/samfund/busser-erstatter-metro-til-koebenhavns-lufthavn-i-to-dage": {
+      "etag": "\"t78zua1hwmaa2p\"",
+      "lastSeenAt": "2025-10-27T10:59:01.688Z",
+      "lastStatus": 200
+    },
+    "https://www.bt.dk/samfund/afdoede-peter-lund-madsen-medvirker-i-nyt-dr-program": {
+      "etag": "\"12vb1mgdby0abhp\"",
+      "lastSeenAt": "2025-10-27T10:59:02.741Z",
+      "lastStatus": 200
+    },
+    "https://www.bt.dk/underholdning/afdoede-peter-lund-madsen-medvirker-i-nyt-dr-program-1": {
+      "etag": "\"swc8wpat9eabbn\"",
+      "lastSeenAt": "2025-10-27T10:59:03.815Z",
+      "lastStatus": 200
+    },
+    "https://www.bt.dk/krimi/knivstik-i-odense-to-unge-er-svaert-tilskadekomne": {
+      "etag": "\"itk378eel4a1z4\"",
+      "lastSeenAt": "2025-10-27T10:59:04.837Z",
+      "lastStatus": 200
+    },
+    "https://www.bt.dk/erhverv/dansk-bankfusion-vil-foere-til-nedlaeggelser-af-stillinger": {
+      "etag": "\"e3rrg2g7ooact0\"",
+      "lastSeenAt": "2025-10-27T10:59:05.880Z",
+      "lastStatus": 200
+    },
+    "https://www.bt.dk/udland/istanbuls-borgmester-anklages-for-spionage-i-nyt-slag-mod-opposition": {
+      "etag": "\"sfqle56f94a2ap\"",
+      "lastSeenAt": "2025-10-27T10:59:06.959Z",
+      "lastStatus": 200
+    },
+    "https://www.bt.dk/krimi/militaerklaedt-mand-med-kniv-skabte-utryghed-i-storcenter": {
+      "etag": "\"10e9fflrz1ka2vy\"",
+      "lastSeenAt": "2025-10-27T10:59:08.044Z",
+      "lastStatus": 200
+    },
+    "https://www.bt.dk/politik/sikandar-om-politianmeldelse-vi-tager-det-til-efterretning": {
+      "etag": "\"uknjbbuo9paedo\"",
+      "lastSeenAt": "2025-10-27T10:59:09.070Z",
+      "lastStatus": 200
+    },
+    "https://www.bt.dk/danske-kendte/aabnede-fredag-populaer-influencer-restaurant-noedt-til-at-lukke-i-dag": {
+      "etag": "\"v0an7jhip3adqy\"",
+      "lastSeenAt": "2025-10-27T10:59:10.140Z",
+      "lastStatus": 200
+    },
+    "https://www.bt.dk/krimi/sas-kraeves-idoemt-millionboede-i-sag-om-corona-aflysninger": {
+      "etag": "\"3vva4agm2wa6gu\"",
+      "lastSeenAt": "2025-10-27T10:59:11.183Z",
+      "lastStatus": 200
+    },
+    "https://www.bt.dk/virksomheder/sas-hammer-det-var-vildledende": {
+      "etag": "\"vq3sn37zofa6rn\"",
+      "lastSeenAt": "2025-10-27T10:59:12.205Z",
+      "lastStatus": 200
+    },
+    "https://www.bt.dk/erhverv/tre-danske-banker-indgaar-aftale-om-at-fusionere": {
+      "etag": "\"fjz1xexvn4adtg\"",
+      "lastSeenAt": "2025-10-27T10:59:13.378Z",
+      "lastStatus": 200
+    },
+    "https://www.bt.dk/udland/drama-i-tyrkiet-anklager-for-politisk-spionage": {
+      "etag": "\"11zmv2xu6c0a1za\"",
+      "lastSeenAt": "2025-10-27T10:59:14.414Z",
+      "lastStatus": 200
+    },
+    "https://www.bt.dk/virksomheder/triste-side-af-historien-dansk-kaempefusion-vil-koste-arbejdspladser": {
+      "etag": "\"74284t8l2pa2b9\"",
+      "lastSeenAt": "2025-10-27T10:59:15.436Z",
+      "lastStatus": 200
+    },
+    "https://www.bt.dk/erhverv/bankaktier-stiger-kort-efter-melding-om-fusionsaftale": {
+      "etag": "\"s4iphoq5xfabm8\"",
+      "lastSeenAt": "2025-10-27T10:59:16.499Z",
+      "lastStatus": 200
+    },
+    "https://www.bt.dk/samfund/arkaeologer-finder-50-skeletter-under-udgravning-i-aarhus": {
+      "etag": "\"1gyle1n8eaac14\"",
+      "lastSeenAt": "2025-10-27T10:59:17.522Z",
+      "lastStatus": 200
+    },
+    "https://www.bt.dk/underholdning/afdoede-peter-lund-madsen-medvirker-i-nyt-dr-program": {
+      "etag": "\"a78iw7nkjmaa6g\"",
+      "lastSeenAt": "2025-10-27T10:59:18.577Z",
+      "lastStatus": 200
+    },
+    "https://www.bt.dk/udland/litauen-vil-skyde-balloner-fra-belarus-ned-efter-lufthavnskaos-1": {
+      "etag": "\"w7tel9jstzaddj\"",
+      "lastSeenAt": "2025-10-27T10:59:19.606Z",
+      "lastStatus": 200
+    },
+    "https://www.bt.dk/politik/sikandar-og-frie-groenne-politianmeldt-for-kontroversiel-valgplakat-den-goer-os-utrygge": {
+      "etag": "\"otfzr7cby4aghh\"",
+      "lastSeenAt": "2025-10-27T10:59:20.627Z",
       "lastStatus": 200
     }
   }
