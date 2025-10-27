@@ -548,9 +548,24 @@ export default function SetupWizard({ initialData, onComplete, onChange }: Setup
           >
             <div className="flex items-center justify-between mb-1">
               <div className="text-white font-medium">{data.researchSelected.title}</div>
-              <div className="text-xs text-white/50">{data.researchSelected.source ? `${data.researchSelected.source} · `:''}{data.researchSelected.date || ''}</div>
+              <div className="text-xs text-white/50">{data.researchSelected.source ? `${data.researchSelected.source} · `:''}{formatDate(data.researchSelected.date)}</div>
             </div>
-            <div className="text-white/70 text-sm mb-2">{(data.researchSelected.content || '').replace(/\s+/g,' ').trim()}</div>
+            <div className="text-white/70 text-sm mb-2">
+              {(() => {
+                const content = (data.researchSelected.content || '').replace(/\s+/g,' ').trim();
+                // Extract author if present (look for "Af [Name]" pattern)
+                const authorMatch = content.match(/Af\s+([^']+?)(?:\s|$)/);
+                if (authorMatch) {
+                  const author = authorMatch[1].trim();
+                  // Get first sentence after author for brief summary
+                  const afterAuthor = content.substring(authorMatch.index + authorMatch[0].length).trim();
+                  const firstSentence = afterAuthor.split('.')[0];
+                  return `Af ${author}${firstSentence ? '. ' + firstSentence + '.' : ''}`;
+                }
+                // If no author found, just show first 100 characters
+                return content.length > 100 ? content.substring(0, 100) + '...' : content;
+              })()}
+            </div>
             {Array.isArray(data.researchSelected.keyPoints) && data.researchSelected.keyPoints.length > 0 && (
               <div className="text-white/80 text-sm mb-2">
                 <div className="font-medium mb-1">Nøglepunkter:</div>
