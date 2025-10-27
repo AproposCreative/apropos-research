@@ -235,9 +235,19 @@ export default function AIWriterClient() {
             };
           }
           
+          // Only update fields that have meaningful values (not empty strings or null)
+          const meaningfulUpdate = Object.fromEntries(
+            Object.entries(articleUpdate).filter(([key, value]) => {
+              if (value === null || value === undefined) return false;
+              if (typeof value === 'string' && value.trim() === '') return false;
+              if (Array.isArray(value) && value.length === 0) return false;
+              return true;
+            })
+          );
+          
           return { 
             ...prev, 
-            ...articleUpdate,
+            ...meaningfulUpdate,
             ...extractedFields,
             ...(data.suggestion ? { aiSuggestion: data.suggestion } : {}),
             _chatMessages: compactMessages, 
@@ -246,7 +256,15 @@ export default function AIWriterClient() {
         });
 
         // After AI response, proactively check for missing required fields and ask
-        const nextData = { ...articleData, ...(data.articleUpdate || {}) } as any;
+        const meaningfulUpdate = Object.fromEntries(
+          Object.entries(data.articleUpdate || {}).filter(([key, value]) => {
+            if (value === null || value === undefined) return false;
+            if (typeof value === 'string' && value.trim() === '') return false;
+            if (Array.isArray(value) && value.length === 0) return false;
+            return true;
+          })
+        );
+        const nextData = { ...articleData, ...meaningfulUpdate } as any;
         const labelFor = (slug: string) => {
           const s = slug.toLowerCase();
           if (s==='name' || s==='title') return 'Titel';
