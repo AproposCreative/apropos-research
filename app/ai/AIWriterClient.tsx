@@ -584,6 +584,7 @@ export default function AIWriterClient() {
               {/* Always keep chat visible underneath */}
               <MainChatPanel 
                 messages={chatMessages}
+                setChatMessages={setChatMessages}
                 onSendMessage={handleSendMessage}
                 articleData={articleData}
                 isThinking={isThinking}

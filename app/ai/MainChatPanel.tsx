@@ -28,6 +28,7 @@ interface ChatMessage {
 
 interface MainChatPanelProps {
   messages: ChatMessage[];
+  setChatMessages: (messages: ChatMessage[]) => void;
   onSendMessage: (message: string, files?: UploadedFile[]) => void;
   articleData: LocalArticleData;
   isThinking?: boolean;
@@ -43,6 +44,7 @@ interface MainChatPanelProps {
 
 export default function MainChatPanel({
   messages,
+  setChatMessages,
   onSendMessage,
   articleData,
   isThinking,
