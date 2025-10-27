@@ -397,6 +397,59 @@ const normalizeArticleUpdatePayload = (raw: any) => {
 };
 
 // Try to extract a structured payload from a raw model string
+// Helper functions for web search
+function shouldPerformWebSearch(message: string, articleData: any): boolean {
+  const lowerMessage = message.toLowerCase();
+  const lowerContent = (articleData?.content || '').toLowerCase();
+  
+  // Check for factual claims that need verification
+  const factualIndicators = [
+    'ifølge', 'ifølge', 'statistik', 'undersøgelse', 'rapport', 'studie',
+    'data viser', 'forskning', 'ekspert', 'professor', 'doktor',
+    'millioner', 'milliarder', 'procent', '%', 'antal', 'antallet',
+    'årstal', 'dato', 'år', 'årgang', 'udgivelse', 'premiere',
+    'budget', 'indtægter', 'omsætning', 'pris', 'kostede',
+    'anmeldelser', 'score', 'rating', 'bedømmelse', 'kritik',
+    'box office', 'streaming', 'platform', 'udgivelse'
+  ];
+  
+  // Check if message contains factual claims
+  const hasFactualClaims = factualIndicators.some(indicator => 
+    lowerMessage.includes(indicator) || lowerContent.includes(indicator)
+  );
+  
+  // Check if it's about a specific work/person/event
+  const hasSpecificSubject = /\b(film|serie|bog|album|kunstner|skuespiller|instruktør|forfatter)\b/i.test(message);
+  
+  // Check if content is too short (might need more research)
+  const contentLength = (articleData?.content || '').split(/\s+/).length;
+  const needsMoreContent = contentLength < 500;
+  
+  return hasFactualClaims || (hasSpecificSubject && needsMoreContent);
+}
+
+function extractSearchQuery(message: string, articleData: any): string {
+  // Extract key terms from message and article data
+  const terms = [];
+  
+  // Add category/topic if available
+  if (articleData?.category) terms.push(articleData.category);
+  if (articleData?.topic) terms.push(articleData.topic);
+  if (articleData?.tags && Array.isArray(articleData.tags)) {
+    terms.push(...articleData.tags.slice(0, 2));
+  }
+  
+  // Extract key terms from message
+  const messageWords = message.split(/\s+/)
+    .filter(word => word.length > 3)
+    .slice(0, 5);
+  
+  terms.push(...messageWords);
+  
+  // Create search query
+  return terms.join(' ');
+}
+
 function parseModelPayload(raw: string): { response?: string; suggestion?: any; articleUpdate?: any } {
   const pickField = (obj: any, candidates: string[]) => {
     for (const key of candidates) {
@@ -602,6 +655,12 @@ LÆNGDEKRITIKER:
 - Altid skriv fulde artikler - ikke korte sammenfatninger
 - Brug sanselige detaljer og personlige observationer
 
+FORSKNING OG FAKTUALITET:
+- Hvis web search resultater er inkluderet, BRUG dem til at underbygge dine påstande
+- Citer konkrete data, statistikker og fakta fra kilderne
+- Undgå at opdigte information - altid baser på faktuelle kilder
+- Hvis du ikke har fakta, bed om mere specifik information i stedet for at gætte
+
 Opdater automatisk CMS-felter:
 - title: Artikel titel
 - subtitle: Undertitel/tagline
@@ -714,6 +773,38 @@ ${context ? `\n\nNuværende artikel kontekst:\n${context}` : ''}`;
       role: "user",
       content: userMessageContent
     });
+
+    // Check if we need to do web search for factual information
+    const needsWebSearch = shouldPerformWebSearch(message, articleData);
+    let webSearchResults = '';
+    
+    if (needsWebSearch) {
+      try {
+        const searchQuery = extractSearchQuery(message, articleData);
+        const searchResponse = await fetch(`${request.url.split('/api')[0]}/api/web-search`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ query: searchQuery, maxResults: 3 })
+        });
+        
+        if (searchResponse.ok) {
+          const searchData = await searchResponse.json();
+          if (searchData.results && searchData.results.length > 0) {
+            webSearchResults = '\n\n**FAKTUEL RESEARCH (fra web search):**\n';
+            searchData.results.forEach((result: any, index: number) => {
+              webSearchResults += `${index + 1}. ${result.title}\n${result.content}\n`;
+              if (result.url) webSearchResults += `Kilde: ${result.url}\n`;
+              webSearchResults += '\n';
+            });
+            
+            // Add search results to the user message
+            messages[messages.length - 1].content += webSearchResults;
+          }
+        }
+      } catch (error) {
+        console.error('Web search failed:', error);
+      }
+    }
 
     const completion = await openai.chat.completions.create({
       model: "gpt-4o",
