@@ -371,14 +371,46 @@ export default function MainChatPanel({
     setEditContent(content);
   };
 
-  const handleSaveEdit = () => {
+  const handleSaveEdit = async () => {
     if (!editingMessage || !editContent.trim()) return;
     
-    // TODO: Implement message update functionality
-    console.log('Saving edit for message:', editingMessage, 'Content:', editContent);
+    // Find the message index
+    const messageIndex = messages.findIndex(msg => msg.id === editingMessage);
+    if (messageIndex === -1) return;
     
-    setEditingMessage(null);
-    setEditContent('');
+    // If this was a user message, we need to re-run AI with updated context
+    if (messages[messageIndex].role === 'user') {
+      // Remove all messages after the edited message (including AI responses)
+      const messagesUpToEdit = messages.slice(0, messageIndex);
+      
+      // Update the edited message content
+      const updatedMessages = [...messagesUpToEdit];
+      updatedMessages[messageIndex] = {
+        ...updatedMessages[messageIndex],
+        content: editContent.trim()
+      };
+      
+      // Update messages state to show only messages up to the edit
+      setChatMessages(messagesUpToEdit);
+      
+      // Clear editing state
+      setEditingMessage(null);
+      setEditContent('');
+      
+      // Re-run AI with the updated message and correct history
+      await onSendMessage(editContent.trim());
+    } else {
+      // For assistant messages, just update the content
+      const updatedMessages = [...messages];
+      updatedMessages[messageIndex] = {
+        ...updatedMessages[messageIndex],
+        content: editContent.trim()
+      };
+      
+      setChatMessages(updatedMessages);
+      setEditingMessage(null);
+      setEditContent('');
+    }
   };
 
   const handleCancelEdit = () => {
