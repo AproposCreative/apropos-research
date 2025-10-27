@@ -419,18 +419,44 @@ function shouldPerformWebSearch(message: string, articleData: any): boolean {
   );
   
   // Check if it's about a specific work/person/event
-  const hasSpecificSubject = /\b(film|serie|bog|album|kunstner|skuespiller|instruktør|forfatter)\b/i.test(message);
+  const hasSpecificSubject = /\b(film|serie|bog|album|kunstner|skuespiller|instruktør|forfatter|anmeld|anmeldelse)\b/i.test(message);
+  
+  // Check if it's a review request
+  const isReviewRequest = /\b(anmeld|anmeldelse|review|bedøm|bedømmelse|kritik|kritiker)\b/i.test(message);
   
   // Check if content is too short (might need more research)
   const contentLength = (articleData?.content || '').split(/\s+/).length;
   const needsMoreContent = contentLength < 500;
   
-  return hasFactualClaims || (hasSpecificSubject && needsMoreContent);
+  // More aggressive search triggers
+  return hasFactualClaims || 
+         hasSpecificSubject || 
+         isReviewRequest || 
+         needsMoreContent ||
+         // Always search for specific titles/names in quotes or proper nouns
+         /"[^"]+"/.test(message) ||
+         /[A-Z][a-z]+ [A-Z][a-z]+/.test(message);
 }
 
 function extractSearchQuery(message: string, articleData: any): string {
   // Extract key terms from message and article data
   const terms = [];
+  
+  // First priority: Extract quoted titles or proper nouns
+  const quotedTitle = message.match(/"[^"]+"/);
+  if (quotedTitle) {
+    terms.push(quotedTitle[0].replace(/"/g, ''));
+  }
+  
+  // Extract proper nouns (capitalized words)
+  const properNouns = message.match(/[A-Z][a-z]+(?: [A-Z][a-z]+)*/g);
+  if (properNouns) {
+    // Take the longest proper noun (likely the title)
+    const longestProperNoun = properNouns.reduce((a, b) => a.length > b.length ? a : b);
+    if (longestProperNoun.length > 5) { // Only if it's substantial
+      terms.push(longestProperNoun);
+    }
+  }
   
   // Add category/topic if available
   if (articleData?.category) terms.push(articleData.category);
@@ -439,12 +465,14 @@ function extractSearchQuery(message: string, articleData: any): string {
     terms.push(...articleData.tags.slice(0, 2));
   }
   
-  // Extract key terms from message
-  const messageWords = message.split(/\s+/)
-    .filter(word => word.length > 3)
-    .slice(0, 5);
-  
-  terms.push(...messageWords);
+  // Extract key terms from message (fallback)
+  if (terms.length === 0) {
+    const messageWords = message.split(/\s+/)
+      .filter(word => word.length > 3)
+      .slice(0, 5);
+    
+    terms.push(...messageWords);
+  }
   
   // Create search query
   return terms.join(' ');
@@ -660,6 +688,13 @@ FORSKNING OG FAKTUALITET:
 - Citer konkrete data, statistikker og fakta fra kilderne
 - Undgå at opdigte information - altid baser på faktuelle kilder
 - Hvis du ikke har fakta, bed om mere specifik information i stedet for at gætte
+
+KRITISK VIGTIGT FOR ANMELDELSER:
+- Hvis du skriver en anmeldelse af et specifikt værk, SKAL du bruge web search resultaterne
+- Inkluder konkrete detaljer: instruktør, skuespillere, udgivelsesdato, genre, budget
+- Nævn faktuelle data: box office tal, streaming tal, kritiker scores
+- Undgå generiske beskrivelser - brug specifikke detaljer fra research
+- Hvis ingen research er tilgængelig, bed om mere specifik information
 
 Opdater automatisk CMS-felter:
 - title: Artikel titel
