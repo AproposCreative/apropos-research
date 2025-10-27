@@ -24,31 +24,10 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Verify required files exist
+      - name: Debug environment
         run: |
-          echo "Checking required files..."
-          echo "Current directory: $(pwd)"
-          echo "Directory contents:"
-          ls -la
-          echo "Scripts directory contents:"
-          ls -la scripts/ || echo "No scripts directory"
-          if [ ! -f "data/apropos-articles.json" ]; then
-            echo "❌ data/apropos-articles.json is missing"
-            exit 1
-          fi
-          if [ ! -f "scripts/train-embeddings-clean.ts" ]; then
-            echo "❌ scripts/train-embeddings-clean.ts is missing"
-            exit 1
-          fi
-          if [ ! -f "scripts/upload-to-storage.ts" ]; then
-            echo "❌ scripts/upload-to-storage.ts is missing"
-            exit 1
-          fi
-          if [ ! -f ".env.local" ]; then
-            echo "❌ .env.local is missing - required for environment variables"
-            exit 1
-          fi
-          echo "✅ All required files exist"
+          chmod +x scripts/debug-env.sh
+          ./scripts/debug-env.sh
 
       - name: Verify environment variables
         run: |

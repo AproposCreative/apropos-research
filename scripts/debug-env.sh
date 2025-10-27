@@ -1,0 +1,22 @@
+#!/bin/bash
+
+echo "🔍 Debugging GitHub Actions environment..."
+echo "Current directory: $(pwd)"
+echo "Directory contents:"
+ls -la
+echo ""
+echo "Scripts directory contents:"
+ls -la scripts/ || echo "No scripts directory"
+echo ""
+echo "Data directory contents:"
+ls -la data/ || echo "No data directory"
+echo ""
+echo "Checking for specific files:"
+echo "data/apropos-articles.json: $([ -f "data/apropos-articles.json" ] && echo "✅ EXISTS" || echo "❌ MISSING")"
+echo "scripts/train-embeddings-clean.ts: $([ -f "scripts/train-embeddings-clean.ts" ] && echo "✅ EXISTS" || echo "❌ MISSING")"
+echo "scripts/upload-to-storage.ts: $([ -f "scripts/upload-to-storage.ts" ] && echo "✅ EXISTS" || echo "❌ MISSING")"
+echo ".env.local: $([ -f ".env.local" ] && echo "✅ EXISTS" || echo "❌ MISSING")"
+echo ""
+echo "Environment variables:"
+echo "OPENAI_API_KEY: $([ -n "$OPENAI_API_KEY" ] && echo "✅ SET" || echo "❌ NOT SET")"
+echo "FIREBASE_ADMIN_PROJECT_ID: $([ -n "$FIREBASE_ADMIN_PROJECT_ID" ] && echo "✅ SET" || echo "❌ NOT SET")"
