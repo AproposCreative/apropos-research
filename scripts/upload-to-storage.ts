@@ -28,8 +28,15 @@ async function getAccessToken(sa: {
 	const toSign = `${base64url(JSON.stringify(header))}.${base64url(JSON.stringify(payload))}`;
 	const signer = createSign('RSA-SHA256');
 	signer.update(toSign);
-    const keyObj = createPrivateKey({ key: sa.private_key, format: 'pem' });
-    const sig = signer.sign(keyObj);
+	
+	// Clean up private key - remove quotes and normalize line breaks
+	let cleanKey = sa.private_key.replace(/^['"]|['"]$/g, '').replace(/\\n/g, '\n');
+	if (!cleanKey.includes('-----BEGIN PRIVATE KEY-----')) {
+		cleanKey = `-----BEGIN PRIVATE KEY-----\n${cleanKey}\n-----END PRIVATE KEY-----`;
+	}
+	
+	const keyObj = createPrivateKey({ key: cleanKey, format: 'pem' });
+	const sig = signer.sign(keyObj);
 	const assertion = `${toSign}.${base64url(sig)}`;
 	const body = new URLSearchParams({
 		grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer',
@@ -78,20 +85,45 @@ async function main() {
 		process.exit(1);
 	}
 
-	// Load .env.local if present (simple parser)
+	// Load .env.local if present (simple parser with multiline support)
 	try {
 		const envPath = path.join(process.cwd(), '.env.local');
 		if (fs.existsSync(envPath)) {
 			const text = fs.readFileSync(envPath, 'utf8');
-			for (const line of text.split(/\r?\n/)) {
-				const t = line.trim();
-				if (!t || t.startsWith('#')) continue;
-				const eq = t.indexOf('=');
-				if (eq === -1) continue;
-				const key = t.slice(0, eq).trim();
-				let val = t.slice(eq + 1).trim();
-				val = val.replace(/^['"]|['"]$/g, '');
+			const lines = text.split(/\r?\n/);
+			let i = 0;
+			while (i < lines.length) {
+				const line = lines[i].trim();
+				if (!line || line.startsWith('#')) {
+					i++;
+					continue;
+				}
+				const eq = line.indexOf('=');
+				if (eq === -1) {
+					i++;
+					continue;
+				}
+				const key = line.slice(0, eq).trim();
+				let val = line.slice(eq + 1).trim();
+				
+				// Handle multiline values (like private keys)
+				if (val.startsWith("'") && !val.endsWith("'")) {
+					// Multiline value starting with single quote
+					val = val.slice(1); // Remove opening quote
+					i++;
+					while (i < lines.length && !lines[i].trim().endsWith("'")) {
+						val += '\n' + lines[i];
+						i++;
+					}
+					if (i < lines.length) {
+						val += '\n' + lines[i].trim().slice(0, -1); // Remove closing quote
+					}
+				} else {
+					val = val.replace(/^['"]|['"]$/g, '');
+				}
+				
 				if (!process.env[key]) process.env[key] = val;
+				i++;
 			}
 		}
 	} catch {}

@@ -8,13 +8,6 @@ on:
 jobs:
   train-upload:
     runs-on: ubuntu-latest
-    env:
-      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-      FIREBASE_ADMIN_PROJECT_ID: ${{ secrets.FIREBASE_ADMIN_PROJECT_ID }}
-      FIREBASE_ADMIN_CLIENT_EMAIL: ${{ secrets.FIREBASE_ADMIN_CLIENT_EMAIL }}
-      FIREBASE_ADMIN_PRIVATE_KEY: ${{ secrets.FIREBASE_ADMIN_PRIVATE_KEY }}
-      FIREBASE_ADMIN_TOKEN_URI: https://oauth2.googleapis.com/token
-      FIREBASE_STORAGE_BUCKET: ${{ secrets.FIREBASE_STORAGE_BUCKET }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -24,17 +17,76 @@ jobs:
         with:
           node-version: '20'
           cache: 'npm'
+          cache-dependency-path: 'package-lock.json'
 
-      - name: Install deps
+      - name: Install dependencies
         run: npm ci
 
+      - name: Verify required files exist
+        run: |
+          echo "Checking required files..."
+          if [ ! -f "data/apropos-articles.json" ]; then
+            echo "❌ data/apropos-articles.json is missing"
+            exit 1
+          fi
+          if [ ! -f "scripts/train-style-embeddings.ts" ]; then
+            echo "❌ scripts/train-style-embeddings.ts is missing"
+            exit 1
+          fi
+          if [ ! -f "scripts/upload-to-storage.ts" ]; then
+            echo "❌ scripts/upload-to-storage.ts is missing"
+            exit 1
+          fi
+          if [ ! -f ".env.local" ]; then
+            echo "❌ .env.local is missing - required for environment variables"
+            exit 1
+          fi
+          echo "✅ All required files exist"
+
+      - name: Verify environment variables
+        run: |
+          echo "Checking environment variables from .env.local..."
+          source .env.local
+          if [ -z "$OPENAI_API_KEY" ]; then
+            echo "❌ OPENAI_API_KEY is missing from .env.local"
+            exit 1
+          fi
+          if [ -z "$FIREBASE_ADMIN_PROJECT_ID" ]; then
+            echo "❌ FIREBASE_ADMIN_PROJECT_ID is missing from .env.local"
+            exit 1
+          fi
+          if [ -z "$FIREBASE_ADMIN_CLIENT_EMAIL" ]; then
+            echo "❌ FIREBASE_ADMIN_CLIENT_EMAIL is missing from .env.local"
+            exit 1
+          fi
+          if [ -z "$FIREBASE_ADMIN_PRIVATE_KEY" ]; then
+            echo "❌ FIREBASE_ADMIN_PRIVATE_KEY is missing from .env.local"
+            exit 1
+          fi
+          echo "✅ All required environment variables are set"
+
       - name: Train embeddings
-        run: npx tsx scripts/train-style-embeddings.ts
+        run: |
+          echo "🔧 Loading environment variables..."
+          source .env.local
+          echo "✅ Environment variables loaded"
+          echo "🚀 Starting embeddings training..."
+          npx tsx scripts/train-style-embeddings.ts
 
       - name: Upload embeddings to Firebase Storage
-        run: npx tsx scripts/upload-to-storage.ts data/articles-embeddings.json apropos-config/embeddings/articles-embeddings.json
+        run: |
+          echo "🔧 Loading environment variables for upload..."
+          source .env.local
+          echo "✅ Environment variables loaded"
+          echo "📤 Uploading embeddings to Firebase Storage..."
+          npx tsx scripts/upload-to-storage.ts data/articles-embeddings.json apropos-config/embeddings/articles-embeddings.json
 
       - name: Upload prompt to Firebase Storage
-        run: npx tsx scripts/upload-to-storage.ts prompts/apropos_writer.prompt apropos-config/prompts/apropos_writer.prompt
+        run: |
+          echo "🔧 Loading environment variables for prompt upload..."
+          source .env.local
+          echo "✅ Environment variables loaded"
+          echo "📤 Uploading prompt to Firebase Storage..."
+          npx tsx scripts/upload-to-storage.ts prompts/apropos_writer.prompt apropos-config/prompts/apropos_writer.prompt
 
 
