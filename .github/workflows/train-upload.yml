@@ -29,8 +29,8 @@ jobs:
             echo "❌ data/apropos-articles.json is missing"
             exit 1
           fi
-          if [ ! -f "scripts/train-style-embeddings.ts" ]; then
-            echo "❌ scripts/train-style-embeddings.ts is missing"
+          if [ ! -f "scripts/train-embeddings-clean.ts" ]; then
+            echo "❌ scripts/train-embeddings-clean.ts is missing"
             exit 1
           fi
           if [ ! -f "scripts/upload-to-storage.ts" ]; then
@@ -71,7 +71,7 @@ jobs:
           source .env.local
           echo "✅ Environment variables loaded"
           echo "🚀 Starting embeddings training..."
-          npx tsx scripts/train-style-embeddings.ts
+          npx tsx scripts/train-embeddings-clean.ts
 
       - name: Upload embeddings to Firebase Storage
         run: |
