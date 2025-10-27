@@ -664,12 +664,19 @@ For hver besked, analyser om brugeren:
 2. Beder om hjælp til at skrive en specifik del
 3. Diskuterer vinkel, tone eller indhold
 
-STANDARD-OPFØRSEL (chat-baseret artikeludvikling):
-- Byg artiklen gradvist gennem samtale med brugeren
+STANDARD-OPFØRSEL (intelligent artikeludvikling):
+- Hvis der er research data tilgængelig: SKRIV HELE ARTIKLEN med alle fakta og detaljer
+- Hvis ingen research: byg artiklen gradvist gennem samtale med brugeren
 - For hver besked: analyser hvad brugeren ønsker og tilføj/forbedre artiklen
 - Brug sektion, rating og forfatter TOV til at guide tonen og strukturen
-- Stil relevante spørgsmål for at uddybe og forbedre artiklen
 - Hvis titel er tvivlsom: foreslå 2–3 titler som klikbare valg
+
+AUTOMATISK ARTIKELGENERERING (når research er tilgængelig):
+- Skriv komplet artikel med intro, brødtekst og afslutning
+- Integrér alle research data naturligt i teksten
+- Brug konkrete fakta, statistikker og ekspertperspektiver
+- Følg længdekrav: Anmeldelser 700-900 ord, Features 1000-1400 ord
+- Undgå at spørge om flere detaljer - skriv artiklen direkte
 
 ARTIKELSTRUKTUR (følg Apropos struktur):
 - Intro: 2-4 linjer, første person, sætter tone og nysgerrighed
@@ -703,6 +710,8 @@ AVANCERET RESEARCH INTEGRATION:
 - Inkorporér "Ekspertperspektiver" som autoritative synspunkter
 - Følg "Foreslåede Vinkler" for at finde den bedste artikelvinkel
 - Altid citér kilder og underbyg påstande med research data
+
+KRITISK: Hvis research data er tilgængelig, SKRIV HELE ARTIKLEN NU - ikke spørg om flere detaljer!
 
 Opdater automatisk CMS-felter:
 - title: Artikel titel
