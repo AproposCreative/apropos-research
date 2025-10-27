@@ -27,6 +27,11 @@ jobs:
       - name: Verify required files exist
         run: |
           echo "Checking required files..."
+          echo "Current directory: $(pwd)"
+          echo "Directory contents:"
+          ls -la
+          echo "Scripts directory contents:"
+          ls -la scripts/ || echo "No scripts directory"
           if [ ! -f "data/apropos-articles.json" ]; then
             echo "❌ data/apropos-articles.json is missing"
             exit 1
