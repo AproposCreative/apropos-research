@@ -72,7 +72,11 @@ Returnér JSON med score (0-100) og specifikke problemer.`
     max_tokens: 500
   });
 
-  return JSON.parse(completion.choices[0]?.message?.content || '{"score": 50, "issues": []}');
+  try {
+    return JSON.parse(completion.choices[0]?.message?.content || '{"score": 50, "issues": []}');
+  } catch {
+    return {"score": 50, "issues": []};
+  }
 }
 
 async function checkBiasAndStereotypes(content: string) {
@@ -99,7 +103,11 @@ Returnér JSON med score (0-100) og specifikke problemer.`
     max_tokens: 500
   });
 
-  return JSON.parse(completion.choices[0]?.message?.content || '{"score": 50, "issues": []}');
+  try {
+    return JSON.parse(completion.choices[0]?.message?.content || '{"score": 50, "issues": []}');
+  } catch {
+    return {"score": 50, "issues": []};
+  }
 }
 
 async function assessReadability(content: string) {
@@ -126,7 +134,11 @@ Returnér JSON med score (0-100) og forbedringsforslag.`
     max_tokens: 500
   });
 
-  return JSON.parse(completion.choices[0]?.message?.content || '{"score": 50, "suggestions": []}');
+  try {
+    return JSON.parse(completion.choices[0]?.message?.content || '{"score": 50, "suggestions": []}');
+  } catch {
+    return {"score": 50, "suggestions": []};
+  }
 }
 
 async function evaluateStructure(content: string, articleType: string) {
@@ -153,7 +165,11 @@ Returnér JSON med score (0-100) og strukturelle problemer.`
     max_tokens: 500
   });
 
-  return JSON.parse(completion.choices[0]?.message?.content || '{"score": 50, "issues": []}');
+  try {
+    return JSON.parse(completion.choices[0]?.message?.content || '{"score": 50, "issues": []}');
+  } catch {
+    return {"score": 50, "issues": []};
+  }
 }
 
 async function verifyTOVConsistency(content: string, author: string) {
@@ -180,7 +196,11 @@ Returnér JSON med score (0-100) og stilproblemer.`
     max_tokens: 500
   });
 
-  return JSON.parse(completion.choices[0]?.message?.content || '{"score": 50, "issues": []}');
+  try {
+    return JSON.parse(completion.choices[0]?.message?.content || '{"score": 50, "issues": []}');
+  } catch {
+    return {"score": 50, "issues": []};
+  }
 }
 
 function calculateOverallScore(checks: any[]): number {

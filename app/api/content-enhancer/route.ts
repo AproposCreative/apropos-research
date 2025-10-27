@@ -66,7 +66,11 @@ Fokusér på ${articleType} artikler. Returnér JSON med forbedringer og nye ele
     max_tokens: 800
   });
 
-  return JSON.parse(completion.choices[0]?.message?.content || '{"summary": "Ingen forbedringer", "additions": []}');
+  try {
+    return JSON.parse(completion.choices[0]?.message?.content || '{"summary": "Ingen forbedringer", "additions": []}');
+  } catch {
+    return {"summary": "Ingen forbedringer", "additions": []};
+  }
 }
 
 async function improveStructure(content: string, articleType: string) {
@@ -93,7 +97,11 @@ Returnér JSON med strukturelle forbedringer.`
     max_tokens: 600
   });
 
-  return JSON.parse(completion.choices[0]?.message?.content || '{"summary": "Ingen strukturelle ændringer", "improvements": []}');
+  try {
+    return JSON.parse(completion.choices[0]?.message?.content || '{"summary": "Ingen strukturelle ændringer", "improvements": []}');
+  } catch {
+    return {"summary": "Ingen strukturelle ændringer", "improvements": []};
+  }
 }
 
 async function strengthenTOV(content: string, author: string) {
@@ -120,7 +128,11 @@ Returnér JSON med TOV-forbedringer.`
     max_tokens: 600
   });
 
-  return JSON.parse(completion.choices[0]?.message?.content || '{"summary": "Ingen TOV-ændringer", "enhancements": []}');
+  try {
+    return JSON.parse(completion.choices[0]?.message?.content || '{"summary": "Ingen TOV-ændringer", "enhancements": []}');
+  } catch {
+    return {"summary": "Ingen TOV-ændringer", "enhancements": []};
+  }
 }
 
 async function addCulturalContext(content: string, articleType: string) {
@@ -147,7 +159,11 @@ Fokusér på ${articleType} artikler. Returnér JSON med kulturelle tilføjelser
     max_tokens: 600
   });
 
-  return JSON.parse(completion.choices[0]?.message?.content || '{"summary": "Ingen kulturelle tilføjelser", "context": []}');
+  try {
+    return JSON.parse(completion.choices[0]?.message?.content || '{"summary": "Ingen kulturelle tilføjelser", "context": []}');
+  } catch {
+    return {"summary": "Ingen kulturelle tilføjelser", "context": []};
+  }
 }
 
 async function optimizeReadability(content: string) {
@@ -174,7 +190,11 @@ Returnér JSON med læsbarhedsforbedringer.`
     max_tokens: 600
   });
 
-  return JSON.parse(completion.choices[0]?.message?.content || '{"summary": "Ingen læsbarhedsændringer", "optimizations": []}');
+  try {
+    return JSON.parse(completion.choices[0]?.message?.content || '{"summary": "Ingen læsbarhedsændringer", "optimizations": []}');
+  } catch {
+    return {"summary": "Ingen læsbarhedsændringer", "optimizations": []};
+  }
 }
 
 function mergeEnhancements(originalContent: string, enhancements: any[]): string {

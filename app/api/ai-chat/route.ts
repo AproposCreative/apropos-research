@@ -696,6 +696,14 @@ KRITISK VIGTIGT FOR ANMELDELSER:
 - Undgå generiske beskrivelser - brug specifikke detaljer fra research
 - Hvis ingen research er tilgængelig, bed om mere specifik information
 
+AVANCERET RESEARCH INTEGRATION:
+- Hvis "AVANCERET RESEARCH" er inkluderet, BRUG alle data systematisk
+- Integrér "Hovedfund" naturligt i artiklen - ikke som liste
+- Brug "Kulturel Kontekst" til at sætte emnet i perspektiv
+- Inkorporér "Ekspertperspektiver" som autoritative synspunkter
+- Følg "Foreslåede Vinkler" for at finde den bedste artikelvinkel
+- Altid citér kilder og underbyg påstande med research data
+
 Opdater automatisk CMS-felter:
 - title: Artikel titel
 - subtitle: Undertitel/tagline
@@ -809,35 +817,84 @@ ${context ? `\n\nNuværende artikel kontekst:\n${context}` : ''}`;
       content: userMessageContent
     });
 
-    // Check if we need to do web search for factual information
+    // Enhanced workflow: Research → Generate → Quality Check → Enhance
     const needsWebSearch = shouldPerformWebSearch(message, articleData);
     let webSearchResults = '';
+    let researchData = null;
     
     if (needsWebSearch) {
       try {
         const searchQuery = extractSearchQuery(message, articleData);
-        const searchResponse = await fetch(`${request.url.split('/api')[0]}/api/web-search`, {
+        
+        // 1. Enhanced Research Engine
+        const researchResponse = await fetch(`${request.url.split('/api')[0]}/api/research-engine`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ query: searchQuery, maxResults: 3 })
+          body: JSON.stringify({ 
+            topic: searchQuery, 
+            articleType: (articleData as any).category || 'Generel',
+            author: authorName || 'Apropos Writer'
+          })
         });
         
-        if (searchResponse.ok) {
-          const searchData = await searchResponse.json();
-          if (searchData.results && searchData.results.length > 0) {
-            webSearchResults = '\n\n**FAKTUEL RESEARCH (fra web search):**\n';
-            searchData.results.forEach((result: any, index: number) => {
-              webSearchResults += `${index + 1}. ${result.title}\n${result.content}\n`;
-              if (result.url) webSearchResults += `Kilde: ${result.url}\n`;
-              webSearchResults += '\n';
-            });
+        if (researchResponse.ok) {
+          researchData = await researchResponse.json();
+          if (researchData.success && researchData.researchSummary) {
+            webSearchResults = `\n\n**AVANCERET RESEARCH:**\n${researchData.researchSummary}\n\n`;
             
-            // Add search results to the user message
-            messages[messages.length - 1].content += webSearchResults;
+            // Add key findings
+            if (researchData.keyFindings?.length > 0) {
+              webSearchResults += `**Hovedfund:**\n`;
+              researchData.keyFindings.slice(0, 3).forEach((finding: any, index: number) => {
+                webSearchResults += `${index + 1}. ${finding}\n`;
+              });
+              webSearchResults += '\n';
+            }
+            
+            // Add cultural context
+            if (researchData.culturalContext?.length > 0) {
+              webSearchResults += `**Kulturel Kontekst:**\n${researchData.culturalContext.slice(0, 2).join('\n')}\n\n`;
+            }
+            
+            // Add expert insights
+            if (researchData.expertInsights?.length > 0) {
+              webSearchResults += `**Ekspertperspektiver:**\n${researchData.expertInsights.slice(0, 2).join('\n')}\n\n`;
+            }
+            
+            // Add suggested angles
+            if (researchData.suggestedAngles?.length > 0) {
+              webSearchResults += `**Foreslåede Vinkler:**\n${researchData.suggestedAngles.join('\n')}\n\n`;
+            }
           }
         }
+        
+        // Fallback to simple web search if research engine fails
+        if (!researchData?.success) {
+          const searchResponse = await fetch(`${request.url.split('/api')[0]}/api/web-search`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ query: searchQuery, maxResults: 3 })
+          });
+          
+          if (searchResponse.ok) {
+            const searchData = await searchResponse.json();
+            if (searchData.results && searchData.results.length > 0) {
+              webSearchResults = '\n\n**FAKTUEL RESEARCH (fra web search):**\n';
+              searchData.results.forEach((result: any, index: number) => {
+                webSearchResults += `${index + 1}. ${result.title}\n${result.content}\n`;
+                if (result.url) webSearchResults += `Kilde: ${result.url}\n`;
+                webSearchResults += '\n';
+              });
+            }
+          }
+        }
+        
+        // Add research results to the user message
+        if (webSearchResults) {
+          messages[messages.length - 1].content += webSearchResults;
+        }
       } catch (error) {
-        console.error('Web search failed:', error);
+        console.error('Research failed:', error);
       }
     }
 
@@ -883,6 +940,63 @@ ${context ? `\n\nNuværende artikel kontekst:\n${context}` : ''}`;
       outResponse = normalizedResponse.trim();
       outArticleUpdate = {};
       outSuggestion = null;
+    }
+
+    // Enhanced Quality Check and Content Enhancement
+    let qualityScore = 0;
+    let qualityRecommendations: string[] = [];
+    let enhancedContent = outResponse;
+    
+    if (outResponse && outResponse.length > 100) {
+      try {
+        // 2. Quality Check
+        const qualityResponse = await fetch(`${request.url.split('/api')[0]}/api/quality-check`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            content: outResponse,
+            articleType: (articleData as any).category || 'Generel',
+            author: authorName || 'Apropos Writer'
+          })
+        });
+        
+        if (qualityResponse.ok) {
+          const qualityData = await qualityResponse.json();
+          qualityScore = qualityData.overallScore || 0;
+          qualityRecommendations = qualityData.recommendations || [];
+          
+          // 3. Content Enhancement if quality is below 80
+          if (qualityScore < 80) {
+            const enhancerResponse = await fetch(`${request.url.split('/api')[0]}/api/content-enhancer`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                content: outResponse,
+                articleType: (articleData as any).category || 'Generel',
+                author: authorName || 'Apropos Writer',
+                targetLength: outResponse.split(/\s+/).length < 800 ? 1000 : outResponse.split(/\s+/).length
+              })
+            });
+            
+            if (enhancerResponse.ok) {
+              const enhancerData = await enhancerResponse.json();
+              if (enhancerData.success && enhancerData.enhancedContent) {
+                enhancedContent = enhancerData.enhancedContent;
+                
+                // Update articleUpdate with enhanced content
+                if (outArticleUpdate && typeof outArticleUpdate === 'object') {
+                  (outArticleUpdate as any).content = enhancedContent;
+                }
+                
+                // Add enhancement info to response
+                outResponse = `${enhancedContent}\n\n---\n*Artikel forbedret med AI-assistance (Kvalitetsscore: ${qualityScore} → ${Math.min(qualityScore + 20, 100)})*`;
+              }
+            }
+          }
+        }
+      } catch (error) {
+        console.error('Quality check/enhancement failed:', error);
+      }
     }
 
     // --- Server-side validator & optional auto-revision ---
@@ -967,7 +1081,16 @@ ${context ? `\n\nNuværende artikel kontekst:\n${context}` : ''}`;
       response: finalResponse,
       suggestion: outSuggestion,
       articleUpdate: finalArticleUpdate,
-      usage: completion.usage 
+      usage: completion.usage,
+      // Enhanced quality metrics
+      qualityMetrics: {
+        score: qualityScore,
+        recommendations: qualityRecommendations,
+        enhanced: qualityScore < 80,
+        researchUsed: !!researchData?.success,
+        wordCount: enhancedContent.split(/\s+/).length,
+        readingTime: Math.ceil(enhancedContent.split(/\s+/).length / 160)
+      }
     });
 
   } catch (error) {

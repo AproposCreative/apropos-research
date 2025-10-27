@@ -71,7 +71,11 @@ Returnér JSON med nyhedsdata og kilder.`
     max_tokens: 800
   });
 
-  return JSON.parse(completion.choices[0]?.message?.content || '{"news": [], "sources": []}');
+  try {
+    return JSON.parse(completion.choices[0]?.message?.content || '{"news": [], "sources": []}');
+  } catch {
+    return {"news": [], "sources": []};
+  }
 }
 
 async function collectCulturalContext(topic: string) {
@@ -98,7 +102,11 @@ Returnér JSON med kulturel kontekst.`
     max_tokens: 700
   });
 
-  return JSON.parse(completion.choices[0]?.message?.content || '{"context": [], "significance": ""}');
+  try {
+    return JSON.parse(completion.choices[0]?.message?.content || '{"context": [], "significance": ""}');
+  } catch {
+    return {"context": [], "significance": ""};
+  }
 }
 
 async function findExpertOpinions(topic: string) {
@@ -125,7 +133,11 @@ Returnér JSON med ekspertperspektiver.`
     max_tokens: 600
   });
 
-  return JSON.parse(completion.choices[0]?.message?.content || '{"experts": [], "opinions": []}');
+  try {
+    return JSON.parse(completion.choices[0]?.message?.content || '{"experts": [], "opinions": []}');
+  } catch {
+    return {"experts": [], "opinions": []};
+  }
 }
 
 async function analyzeTrends(topic: string) {
@@ -152,7 +164,11 @@ Returnér JSON med trendanalyse.`
     max_tokens: 600
   });
 
-  return JSON.parse(completion.choices[0]?.message?.content || '{"trends": [], "predictions": []}');
+  try {
+    return JSON.parse(completion.choices[0]?.message?.content || '{"trends": [], "predictions": []}');
+  } catch {
+    return {"trends": [], "predictions": []};
+  }
 }
 
 async function gatherFactualData(topic: string) {
@@ -179,7 +195,11 @@ Returnér JSON med faktuelle data.`
     max_tokens: 600
   });
 
-  return JSON.parse(completion.choices[0]?.message?.content || '{"facts": [], "statistics": []}');
+  try {
+    return JSON.parse(completion.choices[0]?.message?.content || '{"facts": [], "statistics": []}');
+  } catch {
+    return {"facts": [], "statistics": []};
+  }
 }
 
 function compileResearch(researchData: any[]) {
