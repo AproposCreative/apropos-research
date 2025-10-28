@@ -55,7 +55,7 @@ export default function MiniMenu({ translateX, onSearch, onToggleReview, onToggl
           <div className="relative flex items-center" style={{ marginLeft: 'auto' }}>
             <button onClick={() => setAccountOpen(v=>!v)} className="w-8 h-8 flex items-center justify-center rounded-xl overflow-hidden border border-white/10 hover:border-white/20 transition-colors p-[2px]" title={user?.displayName || user?.email || 'Konto'}>
               {user?.photoURL ? (
-                // eslint-disable-next-line @next/next/no-img-element
+                 
                 <img src={user.photoURL} alt="" className="w-[calc(100%-2px)] h-[calc(100%-2px)] object-cover rounded-lg" />
               ) : (
                 <div className="w-full h-full flex items-center justify-center text-[11px] font-semibold text-white rounded-lg" style={{ background: avatarBg }}>{userInitials}</div>

@@ -16,7 +16,7 @@ export async function POST(request: NextRequest) {
         { role: 'system', content: CRITIC_SYSTEM },
         { role: 'user', content: `Forfatter: ${author || 'Apropos'}\n\nTekst:\n${text}` }
     ];
-		const comp = await client.chat.completions.create({ model: 'gpt-4o-mini', messages, temperature: 0.3, max_tokens: 600 });
+		const comp = await client.chat.completions.create({ model: 'gpt-5-mini', messages, temperature: 1, max_completion_tokens: 600 }); // Updated to GPT-5-mini
 		const tips = comp.choices[0]?.message?.content || '';
 		return NextResponse.json({ ok: true, tips });
 	} catch (e) {

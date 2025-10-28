@@ -1,5 +1,6 @@
 'use client';
 import type { ArticleData } from '@/types/article';
+import { useState } from 'react';
 
 interface PreviewPanelProps {
   articleData: ArticleData;
@@ -7,6 +8,9 @@ interface PreviewPanelProps {
 }
 
 export default function PreviewPanel({ articleData, onUpdateArticle }: PreviewPanelProps) {
+  const [isGeneratingImage, setIsGeneratingImage] = useState(false);
+  const [imageProgress, setImageProgress] = useState(0);
+  
   const renderStars = (rating: number) => {
     return '★'.repeat(rating) + '☆'.repeat(5 - rating);
   };
@@ -56,13 +60,331 @@ export default function PreviewPanel({ articleData, onUpdateArticle }: PreviewPa
            <span className="bg-gray-100 px-2 py-1 rounded text-xs">Billetter</span>
          </div>
 
-        {/* Featured Image Placeholder */}
-        <div className="w-full h-64 bg-gradient-to-br from-gray-200 to-gray-300 rounded-lg mb-8 flex items-center justify-center">
-          <div className="text-center text-gray-500">
-            <div className="text-4xl mb-2">📷</div>
-            <p className="text-sm">Featured image</p>
+        {/* Featured Image */}
+        {articleData.featuredImage ? (
+          <div className="space-y-4">
+            <div className="w-full h-64 rounded-lg overflow-hidden border border-gray-200 relative group">
+              <img 
+                src={articleData.featuredImage} 
+                alt={articleData.title || 'Artikel billede'}
+                className="w-full h-full object-cover"
+              />
+              <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex items-center justify-center">
+                <button
+                  onClick={async () => {
+                    if (isGeneratingImage) return;
+                    setIsGeneratingImage(true);
+                    setImageProgress(0);
+                    
+                    try {
+                      console.log('🎨 Generating new image for article:', articleData.title);
+                      
+                      // Simulate progress steps
+                      const progressSteps = [
+                        { step: 'Forbereder prompt...', progress: 20 },
+                        { step: 'Genererer billede...', progress: 60 },
+                        { step: 'Behandler billede...', progress: 90 },
+                        { step: 'Færdig!', progress: 100 }
+                      ];
+                      
+                      let currentStep = 0;
+                      const progressInterval = setInterval(() => {
+                        if (currentStep < progressSteps.length) {
+                          setImageProgress(progressSteps[currentStep].progress);
+                          currentStep++;
+                        }
+                      }, 800);
+                      
+                      // Extract topic from tags or use category
+                      const topic = (articleData.tags && articleData.tags.length > 0) 
+                        ? articleData.tags[0] 
+                        : articleData.category || 'Generel';
+                      
+                      const requestData = {
+                        title: articleData.title || 'Artikel',
+                        topic: topic,
+                        author: articleData.author || 'Redaktionen',
+                        category: articleData.category || 'Kultur',
+                        content: articleData.content || ''
+                      };
+                      
+                      console.log('🎨 Request data:', requestData);
+                      
+                      const response = await fetch('/api/generate-image', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(requestData)
+                      });
+                      
+                      clearInterval(progressInterval);
+                      setImageProgress(100);
+                      
+                      console.log('🎨 Response status:', response.status);
+                      
+                      if (response.ok) {
+                        const data = await response.json();
+                        console.log('🎨 Response data:', data);
+                        
+                        if (data.success && data.imageUrl) {
+                          console.log('✅ New image generated successfully, updating article data');
+                          onUpdateArticle({ featuredImage: data.imageUrl });
+                        } else {
+                          console.error('❌ Image generation failed:', data.error);
+                          alert('Billedgenerering fejlede: ' + (data.error || 'Ukendt fejl'));
+                        }
+                      } else {
+                        const errorData = await response.json().catch(() => ({}));
+                        console.error('❌ API error:', response.status, errorData);
+                        alert('Billedgenerering fejlede: ' + (errorData.error || 'Server fejl'));
+                      }
+                    } catch (error) {
+                      console.error('❌ Error generating new image:', error);
+                      alert('Billedgenerering fejlede: ' + error.message);
+                    } finally {
+                      setIsGeneratingImage(false);
+                      setTimeout(() => setImageProgress(0), 1000);
+                    }
+                  }}
+                  disabled={isGeneratingImage}
+                  className={`px-4 py-2 rounded-lg font-medium transition-all duration-200 flex items-center gap-2 ${
+                    isGeneratingImage 
+                      ? 'bg-gradient-to-r from-blue-500 to-purple-600 text-white shadow-lg shadow-blue-500/50 animate-pulse' 
+                      : 'bg-white/90 text-black hover:bg-white'
+                  }`}
+                >
+                  {isGeneratingImage && (
+                    <div className="absolute inset-0 bg-gradient-to-r from-blue-500/20 to-purple-600/20 animate-pulse"></div>
+                  )}
+                  <span className="relative z-10">{isGeneratingImage ? '⏳' : '🎨'}</span>
+                  <span className="relative z-10">
+                    {isGeneratingImage ? `Genererer... ${imageProgress}%` : 'Generer nyt billede'}
+                  </span>
+                  {isGeneratingImage && (
+                    <div className="absolute bottom-0 left-0 h-1 bg-white/30 w-full">
+                      <div 
+                        className="h-full bg-gradient-to-r from-blue-400 to-purple-500 transition-all duration-300 ease-out"
+                        style={{ width: `${imageProgress}%` }}
+                      ></div>
+                    </div>
+                  )}
+                </button>
+              </div>
+            </div>
+            
+            {/* Visible Generate New Image Button */}
+            <div className="text-center">
+              <button
+                onClick={async () => {
+                  if (isGeneratingImage) return;
+                  setIsGeneratingImage(true);
+                  setImageProgress(0);
+                  
+                  try {
+                    console.log('🎨 Generating new image for article:', articleData.title);
+                    
+                    // Simulate progress steps
+                    const progressSteps = [
+                      { step: 'Forbereder prompt...', progress: 20 },
+                      { step: 'Genererer billede...', progress: 60 },
+                      { step: 'Behandler billede...', progress: 90 },
+                      { step: 'Færdig!', progress: 100 }
+                    ];
+                    
+                    let currentStep = 0;
+                    const progressInterval = setInterval(() => {
+                      if (currentStep < progressSteps.length) {
+                        setImageProgress(progressSteps[currentStep].progress);
+                        currentStep++;
+                      }
+                    }, 800);
+                    
+                    // Extract topic from tags or use category
+                    const topic = (articleData.tags && articleData.tags.length > 0) 
+                      ? articleData.tags[0] 
+                      : articleData.category || 'Generel';
+                    
+                    const requestData = {
+                      title: articleData.title || 'Artikel',
+                      topic: topic,
+                      author: articleData.author || 'Redaktionen',
+                      category: articleData.category || 'Kultur',
+                      content: articleData.content || ''
+                    };
+                    
+                    console.log('🎨 Request data:', requestData);
+                    
+                    const response = await fetch('/api/generate-image', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify(requestData)
+                    });
+                    
+                    clearInterval(progressInterval);
+                    setImageProgress(100);
+                    
+                    console.log('🎨 Response status:', response.status);
+                    
+                    if (response.ok) {
+                      const data = await response.json();
+                      console.log('🎨 Response data:', data);
+                      
+                      if (data.success && data.imageUrl) {
+                        console.log('✅ New image generated successfully, updating article data');
+                        onUpdateArticle({ featuredImage: data.imageUrl });
+                      } else {
+                        console.error('❌ Image generation failed:', data.error);
+                        alert('Billedgenerering fejlede: ' + (data.error || 'Ukendt fejl'));
+                      }
+                    } else {
+                      const errorData = await response.json().catch(() => ({}));
+                      console.error('❌ API error:', response.status, errorData);
+                      alert('Billedgenerering fejlede: ' + (errorData.error || 'Server fejl'));
+                    }
+                  } catch (error) {
+                    console.error('❌ Error generating new image:', error);
+                    alert('Billedgenerering fejlede: ' + error.message);
+                  } finally {
+                    setIsGeneratingImage(false);
+                    setTimeout(() => setImageProgress(0), 1000);
+                  }
+                }}
+                disabled={isGeneratingImage}
+                className={`px-6 py-3 rounded-lg font-medium transition-all duration-200 flex items-center gap-2 mx-auto relative overflow-hidden ${
+                  isGeneratingImage 
+                    ? 'bg-gradient-to-r from-blue-500 to-purple-600 text-white shadow-lg shadow-blue-500/50 animate-pulse' 
+                    : 'bg-blue-600 text-white hover:bg-blue-700'
+                }`}
+              >
+                {isGeneratingImage && (
+                  <div className="absolute inset-0 bg-gradient-to-r from-blue-500/20 to-purple-600/20 animate-pulse"></div>
+                )}
+                <span className="relative z-10">{isGeneratingImage ? '⏳' : '🎨'}</span>
+                <span className="relative z-10">
+                  {isGeneratingImage ? `Genererer... ${imageProgress}%` : 'Generer nyt billede'}
+                </span>
+                {isGeneratingImage && (
+                  <div className="absolute bottom-0 left-0 h-1 bg-white/30 w-full">
+                    <div 
+                      className="h-full bg-gradient-to-r from-blue-400 to-purple-500 transition-all duration-300 ease-out"
+                      style={{ width: `${imageProgress}%` }}
+                    ></div>
+                  </div>
+                )}
+              </button>
+            </div>
           </div>
-        </div>
+        ) : (
+          <div className="w-full h-64 bg-gradient-to-br from-gray-200 to-gray-300 rounded-lg mb-4 flex items-center justify-center">
+            <div className="text-center text-gray-500">
+              <div className="text-4xl mb-2">📷</div>
+              <p className="text-sm">Featured image</p>
+            </div>
+          </div>
+        )}
+
+        {/* Generate Image Button */}
+        {!articleData.featuredImage && (
+          <div className="mb-8 text-center">
+            <button
+              onClick={async () => {
+                if (isGeneratingImage) return;
+                setIsGeneratingImage(true);
+                setImageProgress(0);
+                
+                try {
+                  console.log('🎨 Generating image for article:', articleData.title);
+                  
+                  // Simulate progress steps
+                  const progressSteps = [
+                    { step: 'Forbereder prompt...', progress: 20 },
+                    { step: 'Genererer billede...', progress: 60 },
+                    { step: 'Behandler billede...', progress: 90 },
+                    { step: 'Færdig!', progress: 100 }
+                  ];
+                  
+                  let currentStep = 0;
+                  const progressInterval = setInterval(() => {
+                    if (currentStep < progressSteps.length) {
+                      setImageProgress(progressSteps[currentStep].progress);
+                      currentStep++;
+                    }
+                  }, 800);
+                  
+                  // Extract topic from tags or use category
+                  const topic = (articleData.tags && articleData.tags.length > 0) 
+                    ? articleData.tags[0] 
+                    : articleData.category || 'Generel';
+                  
+                  const requestData = {
+                    title: articleData.title || 'Artikel',
+                    topic: topic,
+                    author: articleData.author || 'Redaktionen',
+                    category: articleData.category || 'Kultur',
+                    content: articleData.content || ''
+                  };
+                  
+                  console.log('🎨 Request data:', requestData);
+                  
+                  const response = await fetch('/api/generate-image', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(requestData)
+                  });
+                  
+                  clearInterval(progressInterval);
+                  setImageProgress(100);
+                  
+                  console.log('🎨 Response status:', response.status);
+                  
+                  if (response.ok) {
+                    const data = await response.json();
+                    console.log('🎨 Response data:', data);
+                    
+                    if (data.success && data.imageUrl) {
+                      console.log('✅ Image generated successfully, updating article data');
+                      onUpdateArticle({ featuredImage: data.imageUrl });
+                    } else {
+                      console.error('❌ Image generation failed:', data.error);
+                      alert('Billedgenerering fejlede: ' + (data.error || 'Ukendt fejl'));
+                    }
+                  } else {
+                    const errorData = await response.json().catch(() => ({}));
+                    console.error('❌ API error:', response.status, errorData);
+                    alert('Billedgenerering fejlede: ' + (errorData.error || 'Server fejl'));
+                  }
+                } catch (error) {
+                  console.error('❌ Error generating image:', error);
+                  alert('Billedgenerering fejlede: ' + error.message);
+                } finally {
+                  setIsGeneratingImage(false);
+                  setTimeout(() => setImageProgress(0), 1000);
+                }
+              }}
+              disabled={isGeneratingImage}
+              className={`px-6 py-3 rounded-lg font-medium transition-all duration-200 flex items-center gap-2 mx-auto relative overflow-hidden ${
+                isGeneratingImage 
+                  ? 'bg-gradient-to-r from-blue-500 to-purple-600 text-white shadow-lg shadow-blue-500/50 animate-pulse' 
+                  : 'bg-blue-600 text-white hover:bg-blue-700'
+              }`}
+            >
+              {isGeneratingImage && (
+                <div className="absolute inset-0 bg-gradient-to-r from-blue-500/20 to-purple-600/20 animate-pulse"></div>
+              )}
+              <span className="relative z-10">{isGeneratingImage ? '⏳' : '🎨'}</span>
+              <span className="relative z-10">
+                {isGeneratingImage ? `Genererer... ${imageProgress}%` : 'Generer artikel billede'}
+              </span>
+              {isGeneratingImage && (
+                <div className="absolute bottom-0 left-0 h-1 bg-white/30 w-full">
+                  <div 
+                    className="h-full bg-gradient-to-r from-blue-400 to-purple-500 transition-all duration-300 ease-out"
+                    style={{ width: `${imageProgress}%` }}
+                  ></div>
+                </div>
+              )}
+            </button>
+          </div>
+        )}
 
         {/* Article Content */}
         <div className="prose prose-lg max-w-none">

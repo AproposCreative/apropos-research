@@ -53,6 +53,8 @@ export default function AIWriterClient() {
     timestamp: Date;
     files?: UploadedFile[];
   }>>([]);
+  const [editorialWarnings, setEditorialWarnings] = useState<string[]>([]);
+  const [publishToast, setPublishToast] = useState<{ articleId: string; shownAt: number } | null>(null);
 
   // Auto-save to localStorage whenever data changes
   useEffect(() => {
@@ -68,6 +70,11 @@ export default function AIWriterClient() {
     }
   }, [chatMessages, chatTitle, articleData, notes, showWizard, currentDraftId]);
 
+  useEffect(() => {
+    if (!publishToast) return;
+    const timer = setTimeout(() => setPublishToast(null), 4200);
+    return () => clearTimeout(timer);
+  }, [publishToast]);
   // Restore data from localStorage on page load
   useEffect(() => {
     const restoreData = () => {
@@ -134,7 +141,7 @@ export default function AIWriterClient() {
 
   const addChatMessage = (role: 'user' | 'assistant', content: string, files?: UploadedFile[]) => {
     const newMessage = {
-      id: Date.now().toString(),
+      id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
       role,
       content,
       timestamp: new Date(),
@@ -144,7 +151,24 @@ export default function AIWriterClient() {
   };
 
   const handleSendMessage = async (message: string, files?: UploadedFile[]) => {
+    const trimmedMessage = message.trim();
     addChatMessage('user', message, files);
+
+    const isLikelyBrief = (() => {
+      if (trimmedMessage.length < 40) return false;
+      if (/^(ja|nej|okay|ok|tak|super)\b/i.test(trimmedMessage)) return false;
+      if (/\n|•|-|\d+\./.test(trimmedMessage)) return true;
+      if (trimmedMessage.length >= 80) return true;
+      return /(artikel|anmeldelse|noter|skal handle|fokus|vinkel|tone)/i.test(trimmedMessage);
+    })();
+
+    let notesPayload = notes;
+    if (isLikelyBrief) {
+      const combined = [notesPayload, trimmedMessage].filter((segment) => segment && segment.trim().length > 0).join('\n\n');
+      // Prevent the notes payload from growing unbounded — keep last ~2000 chars
+      notesPayload = combined.slice(-2000);
+      setNotes(notesPayload);
+    }
     
     try {
       setIsThinking(true);
@@ -170,7 +194,7 @@ export default function AIWriterClient() {
         body: JSON.stringify({
           message,
           articleData,
-          notes,
+          notes: notesPayload,
           chatHistory: chatMessages,
           authorTOV: articleData.authorTOV || '',
           authorName: articleData.author || '' ,
@@ -183,6 +207,15 @@ export default function AIWriterClient() {
       if (response.ok) {
         const data = await response.json();
         addChatMessage('assistant', data.response);
+        if (Array.isArray(data.warnings) && data.warnings.length > 0) {
+          setEditorialWarnings(data.warnings);
+          addChatMessage(
+            'assistant',
+            `Redaktionelle noter:\n${data.warnings.map((w: string) => `• ${w}`).join('\n')}`
+          );
+        } else {
+          setEditorialWarnings([]);
+        }
         // Live preview sync: try to extract a working title from the response
         try {
           const m = String(data.response || '').match(/^(?:arbejdstitel|titel)[:\-]\s*(.+)$/im) || String(data.response||'').match(/^#\s+(.+)$/m);
@@ -190,7 +223,7 @@ export default function AIWriterClient() {
         } catch {}
         
         // Keep lightweight chat context for training opt-in later
-        const compactMessages = [...chatMessages, { id: Date.now().toString(), role: 'assistant', content: data.response, timestamp: new Date() }];
+        const compactMessages = [...chatMessages, { id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`, role: 'assistant', content: data.response, timestamp: new Date() }];
         
         // Consolidate all article data updates into one call to prevent overwrites
         setArticleData(prev => {
@@ -303,7 +336,20 @@ export default function AIWriterClient() {
   const handleSetupWizardComplete = useCallback(async (setup: any) => {
     setArticleData(prev => ({ ...prev, ...setup }));
     setShowWizard(false);
-    const summary = `Forfatter: ${setup.author}\nSection: ${setup.category}\nTopic: ${setup.tags?.join(', ')}${setup.rating?`\nRating: ${setup.rating}⭐`:''}${setup.press?`\nPresse: Ja`:''}`;
+    const topicsDisplay = Array.isArray(setup.topicsSelected) && setup.topicsSelected.length
+      ? setup.topicsSelected.join(', ')
+      : Array.isArray(setup.tags) && setup.tags.length
+        ? setup.tags.join(', ')
+        : 'Ikke valgt';
+    const pressDisplay = setup.press === true ? 'Ja' : setup.press === false ? 'Nej' : 'Ikke valgt';
+    const summary = [
+      `Forfatter: ${setup.author || 'Ikke valgt'}`,
+      `Section: ${setup.category || 'Ikke valgt'}`,
+      `Topics: ${topicsDisplay}`,
+      setup.template ? `Template: ${setup.template}` : null,
+      setup.rating ? `Rating: ${setup.rating}⭐` : null,
+      `Presse: ${pressDisplay}`
+    ].filter(Boolean).join('\n');
     
     // Auto-generate article if template is 'notes' and we have notes
     if (setup.template === 'notes' && notes && notes.length > 120) {
@@ -415,10 +461,44 @@ export default function AIWriterClient() {
     }, 100);
   };
 
+  const showStudioToast = (title: string, description?: string) => {
+    const tempElement = document.createElement('div');
+    tempElement.className =
+      'fixed top-6 right-6 z-50 pointer-events-none opacity-0 transition-opacity duration-300';
+    tempElement.innerHTML = `
+      <div class="pointer-events-auto flex items-center gap-4 rounded-3xl border border-white/20 bg-gradient-to-br from-white/95 to-white/75 px-6 py-5 shadow-[0_24px_60px_-18px_rgba(15,23,42,0.45)] backdrop-blur-xl text-slate-900 dark:border-white/10 dark:from-white/10 dark:to-white/5 dark:text-white">
+        <div class="flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-900 text-white shadow-inner shadow-black/40 dark:bg-white/10 dark:text-white">
+          <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M5 12l5 5l10 -10"></path>
+          </svg>
+        </div>
+        <div class="space-y-1">
+          <p class="text-[11px] uppercase tracking-[0.32em] text-slate-500/80 dark:text-white/50">Apropos Studio</p>
+          <p class="text-base font-semibold leading-5">${title}</p>
+          ${description ? `<p class="text-sm text-slate-500/80 dark:text-white/60">${description}</p>` : ''}
+        </div>
+      </div>
+    `;
+    document.body.appendChild(tempElement);
+    requestAnimationFrame(() => {
+      tempElement.style.opacity = '1';
+    });
+    setTimeout(() => {
+      tempElement.style.opacity = '0';
+      setTimeout(() => {
+        if (tempElement.parentNode) {
+          tempElement.parentNode.removeChild(tempElement);
+        }
+      }, 320);
+    }, 2600);
+  };
+
 
   const handleNewArticle = async () => {
     // Save current article if there's content before resetting
-    if (user && (chatMessages.length > 0 || articleData.content || notes)) {
+    const shouldPersistCurrent = user && (chatMessages.length > 0 || articleData.content || notes);
+    let savedPreviousDraft = false;
+    if (shouldPersistCurrent) {
       try {
         const cleanChatMessages = chatMessages.map(msg => ({
           ...msg,
@@ -451,6 +531,7 @@ export default function AIWriterClient() {
 
         await saveDraft(user.uid, draftData);
         setRefreshTrigger(prev => prev + 1); // Trigger refresh of drafts list
+        savedPreviousDraft = true;
       } catch (error) {
         console.error('Error saving current article:', error);
       }
@@ -481,14 +562,11 @@ export default function AIWriterClient() {
     // Close drafts panel if open
     setShowDraftsPanel(false);
     
-    // Show success feedback
-    const tempElement = document.createElement('div');
-    tempElement.textContent = 'Ny artikel oprettet!';
-    tempElement.className = 'fixed top-4 right-4 bg-blue-600 text-white px-3 py-2 rounded-lg text-sm z-50';
-    document.body.appendChild(tempElement);
-    setTimeout(() => {
-      document.body.removeChild(tempElement);
-    }, 2000);
+    const toastTitle = savedPreviousDraft ? 'Forrige artikel gemt' : 'Ny artikel klar';
+    const toastDescription = savedPreviousDraft
+      ? 'Den tidligere artikel ligger nu i dine kladder i venstre side.'
+      : 'Start opsætningsguiden for at definere struktur, TOV og Webflow-felter.';
+    showStudioToast(toastTitle, toastDescription);
   };
 
   const userInitials = (() => {
@@ -608,6 +686,9 @@ export default function AIWriterClient() {
                 isThinking={isThinking}
                 chatTitle={chatTitle}
                 onChatTitleChange={setChatTitle}
+                editorialWarnings={editorialWarnings}
+                onClearEditorialWarnings={() => setEditorialWarnings([])}
+                onPublishSuccess={(articleId) => setPublishToast({ articleId, shownAt: Date.now() })}
                 wizardNode={(
                   <div>
                     {/* Persistent progress */}
@@ -724,6 +805,9 @@ export default function AIWriterClient() {
                   <ReviewPanel 
                     articleData={articleData} 
                     frameless 
+                    onUpdateArticle={(updates) => {
+                      setArticleData(prev => ({ ...prev, ...updates }));
+                    }}
                     onPreflightComplete={(warnings, criticTips, factResults, moderation) => {
                       // Store Preflight data in localStorage so MainChatPanel can access it
                       autoSaveService.save({
@@ -770,6 +854,30 @@ export default function AIWriterClient() {
           </>
         )}
       </div>
+      {publishToast && (
+        <div className="pointer-events-none fixed inset-x-0 top-8 z-[100] flex justify-center px-4">
+          <div className="pointer-events-auto w-full max-w-sm rounded-[26px] border border-white/50 bg-white/85 p-5 shadow-[0_25px_70px_rgba(15,23,42,0.3)] backdrop-blur-xl transition duration-500 dark:border-white/15 dark:bg-white/10">
+            <div className="flex flex-col items-center text-center">
+              <span className="text-[11px] uppercase tracking-[0.32em] text-slate-500 dark:text-slate-300">
+                Publiceret
+              </span>
+              <span className="mt-2 text-lg font-semibold text-slate-900 dark:text-white">
+                Artiklen er live
+              </span>
+              <span className="mt-1 text-xs text-slate-500 dark:text-slate-200">
+                ID: {publishToast.articleId}
+              </span>
+              <button
+                type="button"
+                onClick={() => setPublishToast(null)}
+                className="mt-4 rounded-full border border-white/60 px-4 py-1.5 text-sm font-medium text-slate-600 transition hover:border-white hover:text-slate-900 dark:border-white/30 dark:text-white/70 dark:hover:border-white/60 dark:hover:text-white"
+              >
+                OK
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }

@@ -49,7 +49,7 @@ export async function POST(request: NextRequest) {
 
 async function gatherNewsData(topic: string) {
   const completion = await openai.chat.completions.create({
-    model: "gpt-4o",
+    model: "gpt-5", // Updated to GPT-5 (ChatGPT-5)
     messages: [
       {
         role: "system",
@@ -59,6 +59,8 @@ async function gatherNewsData(topic: string) {
 3. Kontroverser eller debatter
 4. Relevante begivenheder eller udgivelser
 5. Danske og internationale perspektiver
+
+VIGTIGT: Brug kun faktuelle informationer. Hvis du ikke kender specifikke detaljer, skriv generelt om emnet.
 
 Returnér JSON med nyhedsdata og kilder. Format:
 {
@@ -72,8 +74,8 @@ Returnér JSON med nyhedsdata og kilder. Format:
         content: `Analyser nyhedsdækningen om: ${topic}`
       }
     ],
-    temperature: 0.2,
-    max_tokens: 800
+    temperature: 1, // GPT-5 only supports default temperature (1)
+    max_completion_tokens: 800
   });
 
   try {
@@ -97,7 +99,7 @@ Returnér JSON med nyhedsdata og kilder. Format:
 
 async function collectCulturalContext(topic: string) {
   const completion = await openai.chat.completions.create({
-    model: "gpt-4o",
+    model: "gpt-5", // Updated to GPT-5 (ChatGPT-5)
     messages: [
       {
         role: "system",
@@ -107,6 +109,8 @@ async function collectCulturalContext(topic: string) {
 3. Samfundsmæssig relevans
 4. Kunstneriske eller kreative aspekter
 5. Danske og internationale perspektiver
+
+VIGTIGT: Brug kun faktuelle informationer. Hvis du ikke kender specifikke detaljer, skriv generelt om emnet.
 
 Returnér JSON med kulturel kontekst. Format:
 {
@@ -120,8 +124,8 @@ Returnér JSON med kulturel kontekst. Format:
         content: `Analyser kulturel kontekst for: ${topic}`
       }
     ],
-    temperature: 0.3,
-    max_tokens: 700
+    temperature: 1, // GPT-5 only supports default temperature (1)
+    max_completion_tokens: 700
   });
 
   try {
@@ -142,7 +146,7 @@ Returnér JSON med kulturel kontekst. Format:
 
 async function findExpertOpinions(topic: string) {
   const completion = await openai.chat.completions.create({
-    model: "gpt-4o",
+    model: "gpt-5", // Updated to GPT-5 (ChatGPT-5)
     messages: [
       {
         role: "system",
@@ -165,8 +169,8 @@ Returnér JSON med ekspertperspektiver. Format:
         content: `Find ekspertperspektiver på: ${topic}`
       }
     ],
-    temperature: 0.2,
-    max_tokens: 600
+    temperature: 1, // GPT-5 only supports default temperature (1)
+    max_completion_tokens: 600
   });
 
   try {
@@ -187,7 +191,7 @@ Returnér JSON med ekspertperspektiver. Format:
 
 async function analyzeTrends(topic: string) {
   const completion = await openai.chat.completions.create({
-    model: "gpt-4o",
+    model: "gpt-5", // Updated to GPT-5 (ChatGPT-5)
     messages: [
       {
         role: "system",
@@ -210,8 +214,8 @@ Returnér JSON med trendanalyse. Format:
         content: `Analyser trends for: ${topic}`
       }
     ],
-    temperature: 0.3,
-    max_tokens: 600
+    temperature: 1, // GPT-5 only supports default temperature (1)
+    max_completion_tokens: 600
   });
 
   try {
@@ -231,7 +235,7 @@ Returnér JSON med trendanalyse. Format:
 
 async function gatherFactualData(topic: string) {
   const completion = await openai.chat.completions.create({
-    model: "gpt-4o",
+    model: "gpt-5", // Updated to GPT-5 (ChatGPT-5)
     messages: [
       {
         role: "system",
@@ -254,8 +258,8 @@ Returnér JSON med faktuelle data. Format:
         content: `Saml faktuelle data om: ${topic}`
       }
     ],
-    temperature: 0.1,
-    max_tokens: 600
+    temperature: 1, // GPT-5 only supports default temperature (1)
+    max_completion_tokens: 600
   });
 
   try {

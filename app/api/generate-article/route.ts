@@ -21,7 +21,7 @@ export async function POST(request: NextRequest) {
     }
 
     const completion = await openai.chat.completions.create({
-      model: "gpt-4o",
+      model: "gpt-5", // Updated to GPT-5 (ChatGPT-5)
       messages: [
         {
           role: "system",
@@ -32,8 +32,8 @@ export async function POST(request: NextRequest) {
           content: prompt
         }
       ],
-      temperature: 0.8,
-      max_tokens: 2000,
+      temperature: 1, // GPT-5 only supports default temperature (1)
+      max_completion_tokens: 2000,
     });
 
     const article = completion.choices[0]?.message?.content;

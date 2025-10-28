@@ -123,8 +123,34 @@ export default function PreflightRecommendations({
   const warningCount = categorizedRecommendations.filter(r => r.severity === 'warning').length;
   const improvementCount = categorizedRecommendations.filter(r => r.severity === 'improvement').length;
 
-  if (categorizedRecommendations.length === 0) {
-    return null;
+  const hasRecommendations = categorizedRecommendations.length > 0;
+
+  if (!hasRecommendations) {
+    return (
+      <div className="mt-4 p-4 bg-gradient-to-br from-slate-900/80 to-slate-800/80 rounded-xl border border-white/10 shadow-2xl backdrop-blur-sm">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="relative">
+              <div className="w-12 h-12 rounded-full border-4 border-green-500 flex items-center justify-center">
+                <span className="text-lg font-bold text-green-400">100</span>
+              </div>
+              <div className="absolute -top-1 -right-1 w-3 h-3 bg-green-500 rounded-full animate-pulse"></div>
+            </div>
+            <div>
+              <h4 className="text-white font-semibold text-lg">Preflight Analyse</h4>
+              <p className="text-white/60 text-sm">Alt ser godt ud! Klar til næste skridt.</p>
+            </div>
+          </div>
+          <span className="px-2 py-1 bg-green-600/20 text-green-300 rounded-full text-xs font-medium">
+            Godkendt
+          </span>
+        </div>
+        <p className="mt-4 text-white/70 text-sm leading-relaxed">
+          Preflight-checks fandt ingen kritiske problemer, faktuelle advarsler eller TOV-mangler.
+          Brug gerne knappen &quot;Kør Preflight Checks&quot; igen hvis du foretager større ændringer.
+        </p>
+      </div>
+    );
   }
 
   return (

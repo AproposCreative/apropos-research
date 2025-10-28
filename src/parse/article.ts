@@ -134,7 +134,7 @@ export function parseArticleHtml(url: string, html: string): ParsedArticle | nul
 
   // Debug-only log
   if (cleaned_html_length) {
-    // eslint-disable-next-line no-console
+     
     console.debug(JSON.stringify({ url, cleaned_html_length }, null, 0));
   }
 

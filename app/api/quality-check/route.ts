@@ -51,7 +51,7 @@ export async function POST(request: NextRequest) {
 
 async function analyzeFactualAccuracy(content: string) {
   const completion = await openai.chat.completions.create({
-    model: "gpt-4o",
+    model: "gpt-5", // Updated to GPT-5 (ChatGPT-5)
     messages: [
       {
         role: "system",
@@ -68,8 +68,8 @@ Returnér JSON med score (0-100) og specifikke problemer.`
         content: content
       }
     ],
-    temperature: 0.1,
-    max_tokens: 500
+    temperature: 1, // GPT-5 only supports default temperature (1)
+    max_completion_tokens: 500
   });
 
   try {
@@ -81,7 +81,7 @@ Returnér JSON med score (0-100) og specifikke problemer.`
 
 async function checkBiasAndStereotypes(content: string) {
   const completion = await openai.chat.completions.create({
-    model: "gpt-4o",
+    model: "gpt-5", // Updated to GPT-5 (ChatGPT-5)
     messages: [
       {
         role: "system",
@@ -99,8 +99,8 @@ Returnér JSON med score (0-100) og specifikke problemer.`
         content: content
       }
     ],
-    temperature: 0.1,
-    max_tokens: 500
+    temperature: 1, // GPT-5 only supports default temperature (1)
+    max_completion_tokens: 500
   });
 
   try {
@@ -112,7 +112,7 @@ Returnér JSON med score (0-100) og specifikke problemer.`
 
 async function assessReadability(content: string) {
   const completion = await openai.chat.completions.create({
-    model: "gpt-4o",
+    model: "gpt-5", // Updated to GPT-5 (ChatGPT-5)
     messages: [
       {
         role: "system",
@@ -130,8 +130,8 @@ Returnér JSON med score (0-100) og forbedringsforslag.`
         content: content
       }
     ],
-    temperature: 0.1,
-    max_tokens: 500
+    temperature: 1, // GPT-5 only supports default temperature (1)
+    max_completion_tokens: 500
   });
 
   try {
@@ -143,7 +143,7 @@ Returnér JSON med score (0-100) og forbedringsforslag.`
 
 async function evaluateStructure(content: string, articleType: string) {
   const completion = await openai.chat.completions.create({
-    model: "gpt-4o",
+    model: "gpt-5", // Updated to GPT-5 (ChatGPT-5)
     messages: [
       {
         role: "system",
@@ -161,8 +161,8 @@ Returnér JSON med score (0-100) og strukturelle problemer.`
         content: content
       }
     ],
-    temperature: 0.1,
-    max_tokens: 500
+    temperature: 1, // GPT-5 only supports default temperature (1)
+    max_completion_tokens: 500
   });
 
   try {
@@ -174,7 +174,7 @@ Returnér JSON med score (0-100) og strukturelle problemer.`
 
 async function verifyTOVConsistency(content: string, author: string) {
   const completion = await openai.chat.completions.create({
-    model: "gpt-4o",
+    model: "gpt-5", // Updated to GPT-5 (ChatGPT-5)
     messages: [
       {
         role: "system",
@@ -192,8 +192,8 @@ Returnér JSON med score (0-100) og stilproblemer.`
         content: content
       }
     ],
-    temperature: 0.1,
-    max_tokens: 500
+    temperature: 1, // GPT-5 only supports default temperature (1)
+    max_completion_tokens: 500
   });
 
   try {

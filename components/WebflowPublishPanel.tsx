@@ -46,6 +46,10 @@ export default function WebflowPublishPanel({ articleData, onPublish, onClose, e
     wordCount: articleData.wordCount || 0,
     featured: articleData.featured || false,
     trending: articleData.trending || false,
+    // Include SetupWizard data
+    topicsSelected: articleData.topicsSelected || [],
+    streaming_service: articleData.streaming_service || articleData.platform || '',
+    platform: articleData.platform || articleData.streaming_service || '',
   });
 
   // Update formData when articleData changes
@@ -68,6 +72,10 @@ export default function WebflowPublishPanel({ articleData, onPublish, onClose, e
       seoDescription: articleData.seoDescription || prev.seoDescription,
       readTime: articleData.readTime || prev.readTime,
       wordCount: articleData.wordCount || prev.wordCount,
+      // Include SetupWizard data
+      topicsSelected: articleData.topicsSelected || prev.topicsSelected,
+      streaming_service: articleData.streaming_service || articleData.platform || prev.streaming_service,
+      platform: articleData.platform || articleData.streaming_service || prev.platform,
       featured: articleData.featured !== undefined ? articleData.featured : prev.featured,
       trending: articleData.trending !== undefined ? articleData.trending : prev.trending,
     }));

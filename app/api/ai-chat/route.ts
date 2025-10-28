@@ -247,6 +247,9 @@ const flattenArticlePayload = (raw: any): Record<string, any> => {
   return output;
 };
 
+const fs = require('fs');
+const path = require('path');
+
 const slugify = (value: string) => value
   .toLowerCase()
   .normalize('NFKD')
@@ -261,6 +264,647 @@ const stripHtmlToText = (html: string) => html
   .replace(/<[^>]+>/g, '')
   .replace(/\n{3,}/g, '\n\n')
   .trim();
+
+const AUTHOR_CACHE_TTL = 15 * 60 * 1000; // 15 minutes
+
+let cachedAuthors: { expires: number; authors: any[] } | null = null;
+
+const getCachedAuthors = async (baseUrl: string) => {
+  if (cachedAuthors && cachedAuthors.expires > Date.now()) {
+    return cachedAuthors.authors;
+  }
+
+  try {
+    const response = await fetch(`${baseUrl}/api/webflow/authors`, { cache: 'no-store' });
+    if (!response.ok) return null;
+    const data = await response.json();
+    if (Array.isArray(data.authors)) {
+      cachedAuthors = {
+        authors: data.authors,
+        expires: Date.now() + AUTHOR_CACHE_TTL
+      };
+      return data.authors;
+    }
+  } catch (error) {
+    console.error('Author cache fetch failed:', error);
+  }
+
+  return null;
+};
+
+const determineWordTargets = (articleData: any) => {
+  const lower = (value: any) => (value ? String(value).toLowerCase() : '');
+  const section = lower(articleData?.category ?? articleData?.section);
+  const topic = lower(articleData?.topic);
+  const tags = Array.isArray(articleData?.tags)
+    ? articleData.tags.map((tag: any) => lower(tag))
+    : [];
+  const combined = [section, topic, ...tags].filter(Boolean);
+  const includesAny = (...needles: string[]) =>
+    needles.some((needle) =>
+      combined.some((value) => value.includes(needle))
+    );
+
+  // Enhanced dynamic behavior with more granular targeting
+  if (includesAny('koncert', 'concert', 'live', 'show')) {
+    return { min: 400, max: 600, label: 'koncertanmeldelse', type: 'review' };
+  }
+
+  if (includesAny('anmeld', 'review', 'kritik', 'critique')) {
+    return { min: 600, max: 800, label: 'anmeldelse', type: 'review' };
+  }
+
+  if (includesAny('essay', 'kommentar', 'commentary', 'opinion')) {
+    return { min: 600, max: 800, label: 'kommentar/essay', type: 'opinion' };
+  }
+
+  if (includesAny('feature', 'kultur', 'portræt', 'portraet', 'magasin', 'interview')) {
+    return { min: 800, max: 1000, label: 'feature', type: 'feature' };
+  }
+
+  if (includesAny('serie', 'film', 'gaming', 'spil', 'tech', 'streaming')) {
+    return { min: 600, max: 800, label: 'feature', type: 'review' };
+  }
+
+  // Default with enhanced targeting
+  return { min: 600, max: 800, label: 'feature', type: 'general' };
+};
+
+const authorPromptCache = new Map<string, boolean>();
+const authorPromptTextCache = new Map<string, string>();
+let cachedArticleDataset: { expires: number; items: any[] } | null = null;
+const authorSampleCache = new Map<string, string>();
+
+const authorNameToSlug = (name: string) =>
+  String(name || '')
+    .trim()
+    .toLowerCase()
+    .normalize('NFKD')
+    .replace(/[^a-z0-9\s-]/g, '')
+    .replace(/\s+/g, '-')
+    .replace(/-+/g, '-')
+    .trim();
+
+const hasAuthorPromptFile = (name: string) => {
+  const slug = authorNameToSlug(name);
+  if (!slug) return false;
+  if (authorPromptCache.has(slug)) {
+    return authorPromptCache.get(slug)!;
+  }
+  const promptPath = path.join(process.cwd(), 'data', 'author-prompts', `${slug}.txt`);
+  let exists = false;
+  try {
+    exists = fs.existsSync(promptPath);
+  } catch {
+    exists = false;
+  }
+  authorPromptCache.set(slug, exists);
+  return exists;
+};
+
+const getAuthorPromptText = (name: string) => {
+  const slug = authorNameToSlug(name);
+  if (!slug) return '';
+  if (authorPromptTextCache.has(slug)) {
+    return authorPromptTextCache.get(slug)!;
+  }
+  const promptPath = path.join(process.cwd(), 'data', 'author-prompts', `${slug}.txt`);
+  try {
+    if (fs.existsSync(promptPath)) {
+      const text = fs.readFileSync(promptPath, 'utf8');
+      authorPromptTextCache.set(slug, text);
+      return text;
+    }
+  } catch {
+    // ignore
+  }
+  authorPromptTextCache.set(slug, '');
+  return '';
+};
+
+const chooseAuthorCandidate = (candidates: string[]) => {
+  const seen = new Set<string>();
+  for (const candidate of candidates) {
+    const name = String(candidate || '').trim();
+    if (!name || seen.has(name.toLowerCase())) continue;
+    seen.add(name.toLowerCase());
+    if (hasAuthorPromptFile(name)) {
+      return name;
+    }
+  }
+  // fallback to first distinct candidate
+  for (const candidate of candidates) {
+    const name = String(candidate || '').trim();
+    if (name) return name;
+  }
+  return '';
+};
+
+const ARTICLE_DATA_CACHE_TTL = 10 * 60 * 1000; // 10 minutes
+let cachedArticleKnowledge: {
+  expires: number;
+  knowledge: {
+    categories: Record<string, {
+      count: number;
+      topTags: string[];
+      topAuthors: string[];
+      keywords: string[];
+    }>;
+    defaultCategory: string;
+    globalTopAuthor?: string;
+  };
+} | null = null;
+
+const loadArticleKnowledge = async () => {
+  if (cachedArticleKnowledge && cachedArticleKnowledge.expires > Date.now()) {
+    return cachedArticleKnowledge.knowledge;
+  }
+
+  try {
+    const fs = require('fs');
+    const path = require('path');
+    const datasetPath = path.join(process.cwd(), 'data', 'apropos-articles.json');
+    if (!fs.existsSync(datasetPath)) {
+      return null;
+    }
+
+    const raw = fs.readFileSync(datasetPath, 'utf8');
+    const articles = JSON.parse(raw);
+    if (!Array.isArray(articles)) return null;
+    cachedArticleDataset = {
+      expires: Date.now() + ARTICLE_DATA_CACHE_TTL,
+      items: articles
+    };
+
+    const categoryStats: Map<string, {
+      count: number;
+      tagCounts: Map<string, number>;
+      authorCounts: Map<string, number>;
+      keywordCounts: Map<string, number>;
+    }> = new Map();
+
+    const addCount = (map: Map<string, number>, key: string, weight = 1) => {
+      const current = map.get(key) || 0;
+      map.set(key, current + weight);
+    };
+
+    const tokenize = (value: string) =>
+      value
+        .toLowerCase()
+        .split(/[^a-z0-9øæåéüöæøå]+/i)
+        .map((token) => token.trim())
+        .filter((token) => token.length >= 3);
+
+    for (const article of articles) {
+      const category = (article.category || 'Ukendt').trim();
+      if (!categoryStats.has(category)) {
+        categoryStats.set(category, {
+          count: 0,
+          tagCounts: new Map(),
+          authorCounts: new Map(),
+          keywordCounts: new Map()
+        });
+      }
+
+      const entry = categoryStats.get(category)!;
+      entry.count += 1;
+
+      if (Array.isArray(article.tags)) {
+        for (const tag of article.tags) {
+          if (!tag || typeof tag !== 'string') continue;
+          const cleanTag = tag.trim();
+          if (!cleanTag) continue;
+          addCount(entry.tagCounts, cleanTag, 1);
+          for (const token of tokenize(cleanTag)) {
+            addCount(entry.keywordCounts, token, 1);
+          }
+        }
+      }
+
+      if (article.title && typeof article.title === 'string') {
+        for (const token of tokenize(article.title)) {
+          addCount(entry.keywordCounts, token, 1);
+        }
+      }
+
+      if (article.content && typeof article.content === 'string') {
+        // Sample a limited number of tokens from content to avoid over-weighting long pieces
+        const tokens = tokenize(article.content).slice(0, 80);
+        for (const token of tokens) {
+          addCount(entry.keywordCounts, token, 0.25);
+        }
+      }
+
+      if (article.author && typeof article.author === 'string') {
+        addCount(entry.authorCounts, article.author.trim(), 1);
+      }
+    }
+
+    const categories: Record<string, { count: number; topTags: string[]; topAuthors: string[]; keywords: string[] }> =
+      {};
+    let defaultCategory = '';
+    let bestCategoryCount = 0;
+    const globalAuthorCounts: Map<string, number> = new Map();
+
+    categoryStats.forEach((entry, category) => {
+      const sortedTags = Array.from(entry.tagCounts.entries())
+        .sort((a, b) => b[1] - a[1])
+        .map(([tag]) => tag);
+      const sortedAuthors = Array.from(entry.authorCounts.entries())
+        .sort((a, b) => b[1] - a[1])
+        .map(([author]) => author);
+      const sortedKeywords = Array.from(entry.keywordCounts.entries())
+        .sort((a, b) => b[1] - a[1])
+        .map(([keyword]) => keyword);
+
+      categories[category] = {
+        count: entry.count,
+        topTags: sortedTags.slice(0, 8),
+        topAuthors: sortedAuthors.slice(0, 5),
+        keywords: sortedKeywords.slice(0, 80)
+      };
+
+      if (entry.count > bestCategoryCount) {
+        bestCategoryCount = entry.count;
+        defaultCategory = category;
+      }
+
+      sortedAuthors.forEach((author, index) => {
+        addCount(globalAuthorCounts, author, sortedAuthors.length - index);
+      });
+    });
+
+    const globalTopAuthor =
+      Array.from(globalAuthorCounts.entries()).sort((a, b) => b[1] - a[1])[0]?.[0] || undefined;
+
+    const knowledge = {
+      categories,
+      defaultCategory,
+      globalTopAuthor
+    };
+
+    cachedArticleKnowledge = {
+      expires: Date.now() + ARTICLE_DATA_CACHE_TTL,
+      knowledge
+    };
+
+    return knowledge;
+  } catch (error) {
+    console.error('Failed to load article knowledge:', error);
+    return null;
+  }
+};
+
+const loadArticleDataset = async (): Promise<any[] | null> => {
+  if (cachedArticleDataset && cachedArticleDataset.expires > Date.now()) {
+    return cachedArticleDataset.items;
+  }
+  try {
+    const datasetPath = path.join(process.cwd(), 'data', 'apropos-articles.json');
+    if (!fs.existsSync(datasetPath)) return null;
+    const raw = fs.readFileSync(datasetPath, 'utf8');
+    const articles = JSON.parse(raw);
+    if (!Array.isArray(articles)) return null;
+    cachedArticleDataset = {
+      expires: Date.now() + ARTICLE_DATA_CACHE_TTL,
+      items: articles
+    };
+    return articles;
+  } catch (error) {
+    console.error('Failed to load article dataset:', error);
+    return null;
+  }
+};
+
+const guessCategoryFromText = (title: string, content: string, knowledge: any) => {
+  if (!knowledge || !knowledge.categories) return '';
+  const haystack = `${title || ''}\n${content || ''}`.toLowerCase();
+  let bestCategory = '';
+  let bestScore = 0;
+
+  for (const [category, stats] of Object.entries<any>(knowledge.categories)) {
+    let score = 0;
+    for (const keyword of stats.keywords || []) {
+      if (!keyword || keyword.length < 3) continue;
+      if (haystack.includes(keyword.toLowerCase())) {
+        score += 1;
+      }
+    }
+    if (score > bestScore) {
+      bestScore = score;
+      bestCategory = category;
+    }
+  }
+
+  if (bestScore === 0) return knowledge.defaultCategory || '';
+  return bestCategory;
+};
+
+const ensureSeoTitle = (title: string, maxLength = 60) => {
+  if (!title) return '';
+  if (title.length <= maxLength) return title.trim();
+  return `${title.trim().slice(0, maxLength - 1)}…`;
+};
+
+const deriveMetaDescription = (content: string, maxLength = 155) => {
+  const text = stripHtmlToText(content || '');
+  if (!text) return '';
+  const sentences = text
+    .split(/(?<=[.!?])\s+/)
+    .map((sentence) => sentence.trim())
+    .filter(Boolean);
+  const candidate = sentences.find((sentence) => sentence.length >= 40) || sentences[0] || text;
+  if (candidate.length <= maxLength) return candidate;
+  return `${candidate.slice(0, maxLength - 1)}…`;
+};
+
+const deriveSubtitle = (content: string) => {
+  if (!content) return '';
+  const lines = content
+    .split(/\n+/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+
+  for (const line of lines) {
+    if (/^intro\s*:/im.test(line)) continue;
+    if (line.length < 30) continue;
+    const words = line.split(/\s+/);
+    const slice = words.slice(0, 14).join(' ');
+    return slice.length > 0 ? slice : '';
+  }
+  return '';
+};
+
+const normalizeTags = (value: any) => {
+  if (!value) return [];
+  if (Array.isArray(value)) {
+    return value
+      .map((tag) => (typeof tag === 'string' ? tag.trim() : ''))
+      .filter((tag) => tag.length > 0);
+  }
+  if (typeof value === 'string') {
+    return value
+      .split(/[,;|\n]+/)
+      .map((tag) => tag.trim())
+      .filter((tag) => tag.length > 0);
+  }
+  return [];
+};
+
+const countWordsStrict = (s: string) => s.trim().split(/\s+/).filter(Boolean).length;
+
+const extractIntroSection = (content: string) => {
+  if (!content) return '';
+  // Improved regex to capture full intro section
+  const match = content.match(/^intro\s*:\s*([\s\S]+?)(?=\n\n|\n[A-ZÆØÅ]|$)/im);
+  if (!match) return '';
+  return match[1].replace(/\n+/g, ' ').trim();
+};
+
+const removeIntroFromContent = (content: string) => {
+  if (!content) return content;
+  // Remove the intro section from content - improved regex
+  return content.replace(/^intro\s*:\s*[\s\S]+?(?=\n\n|\n[A-ZÆØÅ]|$)/im, '').trim();
+};
+
+const buildSeoTitle = (title: string, platform: string | undefined, fallbackSubtitle: string) => {
+  const cleanTitle = (title || '').trim();
+  if (!cleanTitle) return '';
+  const existing = cleanTitle.match(/^(.*?)\s*\((.*?)\)\s*:\s*(.+)$/);
+  if (existing) {
+    const [, focus, existingPlatform, rest] = existing;
+    if (!platform || existingPlatform.toLowerCase() === platform.toLowerCase()) {
+      const formatted = `${focus.trim()}${platform ? ` (${platform.trim()})` : ` (${existingPlatform})`}: ${rest.trim()}`;
+      return formatted.length <= 60 ? formatted : `${formatted.slice(0, 57)}…`;
+    }
+  }
+  const focus = cleanTitle.split(':')[0].trim();
+  const secondary = fallbackSubtitle || cleanTitle.split(':').slice(1).join(':').trim() || 'Apropos perspektiv';
+  const base = platform ? `${focus} (${platform.trim()}): ${secondary}` : `${focus}: ${secondary}`;
+  return base.length <= 60 ? base : `${base.slice(0, 57)}…`;
+};
+
+const buildExcerpt = (content: string, maxWords = 45) => {
+  const text = stripHtmlToText(content || '');
+  if (!text) return '';
+  const words = text.split(/\s+/).filter(Boolean);
+  const slice = words.slice(0, maxWords).join(' ');
+  return words.length > maxWords ? `${slice}…` : slice;
+};
+
+const applyFieldFallbacks = async (articleUpdate: any, articleData: any) => {
+  if (!articleUpdate || typeof articleUpdate !== 'object') return articleUpdate;
+
+  const knowledge = await loadArticleKnowledge();
+  const content = typeof articleUpdate.content === 'string' ? articleUpdate.content : '';
+  const title = articleUpdate.title || articleData?.title || articleData?.previewTitle || '';
+
+  let category =
+    articleUpdate.category ||
+    articleData?.category ||
+    articleData?.section ||
+    (knowledge ? guessCategoryFromText(title, content, knowledge) : '');
+  if (!category && knowledge) {
+    category = knowledge.defaultCategory || '';
+  }
+  if (category) {
+    articleUpdate.category = category;
+    if (!articleUpdate.section) articleUpdate.section = category;
+  }
+
+  let tags = normalizeTags(articleUpdate.tags);
+  const wizardTags = normalizeTags(articleData?.tags);
+  const topicTags = normalizeTags(articleData?.topicsSelected);
+  if (articleData?.topic && typeof articleData.topic === 'string') {
+    topicTags.push(articleData.topic);
+  }
+
+  tags = [...tags, ...wizardTags, ...topicTags];
+
+  if (knowledge && category && knowledge.categories?.[category]) {
+    tags = [...tags, ...knowledge.categories[category].topTags];
+  }
+
+  if (!tags.length && knowledge?.defaultCategory && knowledge.categories?.[knowledge.defaultCategory]) {
+    tags = knowledge.categories[knowledge.defaultCategory].topTags.slice(0, 5);
+  }
+
+  if (category) {
+    tags.unshift(category);
+  }
+  const uniqueTags = Array.from(new Set(tags.map((tag) => tag.trim()).filter(Boolean)));
+  articleUpdate.tags = uniqueTags.slice(0, 12);
+
+  const authorCandidates: string[] = [];
+  if (articleUpdate.author) authorCandidates.push(articleUpdate.author);
+  if (articleData?.author) authorCandidates.push(articleData.author);
+  if (knowledge && category && knowledge.categories?.[category]?.topAuthors?.length) {
+    authorCandidates.push(...knowledge.categories[category].topAuthors);
+  }
+  if (knowledge?.globalTopAuthor) {
+    authorCandidates.push(knowledge.globalTopAuthor);
+  }
+
+  const chosenAuthor = chooseAuthorCandidate(authorCandidates);
+  if (chosenAuthor) {
+    articleUpdate.author = chosenAuthor;
+    if (hasAuthorPromptFile(chosenAuthor)) {
+      const tov = getAuthorPromptText(chosenAuthor);
+      if (tov) {
+        articleUpdate.authorTOV = tov;
+      }
+    }
+  }
+
+  const platform = articleUpdate.streaming_service || articleData?.platform || articleData?.streaming_service;
+  if (!articleUpdate.streaming_service && platform) {
+    articleUpdate.streaming_service = platform;
+  }
+
+  const subtitleExisting = articleUpdate.subtitle || deriveSubtitle(content);
+  if (!articleUpdate.subtitle && subtitleExisting) {
+    articleUpdate.subtitle = subtitleExisting;
+  }
+
+  const seo = buildSeoTitle(articleUpdate.title || title, platform, subtitleExisting || '');
+  if (seo) {
+    articleUpdate.seoTitle = seo;
+    articleUpdate.seo_title = seo;
+  } else if (articleUpdate.title && !articleUpdate.seoTitle) {
+    articleUpdate.seoTitle = ensureSeoTitle(articleUpdate.title);
+    articleUpdate.seo_title = articleUpdate.seoTitle;
+  }
+
+  const existingMeta = articleUpdate.seoDescription || articleUpdate.meta_description;
+  if (!existingMeta && content) {
+    const meta = deriveMetaDescription(content);
+    if (meta) {
+      articleUpdate.seoDescription = meta;
+      articleUpdate.meta_description = meta;
+    }
+  } else if (!articleUpdate.meta_description && articleUpdate.seoDescription) {
+    articleUpdate.meta_description = articleUpdate.seoDescription;
+  }
+
+  if (!articleUpdate.previewTitle && articleUpdate.title) {
+    articleUpdate.previewTitle = articleUpdate.title;
+  }
+
+  const intro = extractIntroSection(content);
+  if (intro && !articleUpdate.intro) {
+    articleUpdate.intro = intro;
+  }
+
+  // Remove intro section from content to avoid duplication
+  if (intro && articleUpdate.content) {
+    articleUpdate.content = removeIntroFromContent(articleUpdate.content);
+  }
+
+  if (!articleUpdate.excerpt) {
+    articleUpdate.excerpt = buildExcerpt(content);
+  }
+
+  const wordCount = countWordsStrict(stripHtmlToText(content));
+  if (!articleUpdate.wordCount) articleUpdate.wordCount = wordCount;
+  if (!articleUpdate.minutes_to_read) {
+    articleUpdate.minutes_to_read = Math.max(1, Math.round(wordCount / 160));
+  }
+
+  if (articleData?.press !== undefined) {
+    articleUpdate.presseakkreditering = !!articleData.press;
+  }
+
+  const topicCandidates = articleUpdate.tags.filter((tag: string) => tag !== category);
+  if (!articleUpdate.topic && topicCandidates.length) {
+    articleUpdate.topic = topicCandidates[0];
+  }
+  if (!articleUpdate.topic_two && topicCandidates.length > 1) {
+    articleUpdate.topic_two = topicCandidates[1];
+  }
+
+  if (articleUpdate.featured === undefined) articleUpdate.featured = false;
+
+  if (!articleUpdate.slug && articleUpdate.title) {
+    articleUpdate.slug = slugify(articleUpdate.title);
+  }
+
+  if (!articleUpdate.status) {
+    articleUpdate.status = 'draft';
+  }
+
+  return articleUpdate;
+};
+
+const computeOverlapRatio = (notes: string, content: string) => {
+  try {
+    const a = String(notes || '').replace(/\s+/g, ' ').toLowerCase();
+    const b = String(content || '').replace(/\s+/g, ' ').toLowerCase();
+    if (!a || !b) return 0;
+    let overlap = 0;
+    const parts = a
+      .split(/[\.!?]\s+/)
+      .map((segment) => segment.trim())
+      .filter((segment) => segment.length >= 40);
+    for (const part of parts) {
+      if (b.includes(part)) overlap += part.length;
+    }
+    const base = Math.max(1, a.length);
+    return overlap / base;
+  } catch {
+    return 0;
+  }
+};
+
+const getAuthorSampleSnippet = async (authorName: string) => {
+  const trimmed = String(authorName || '').trim();
+  if (!trimmed) return '';
+  const key = trimmed.toLowerCase();
+  if (authorSampleCache.has(key)) {
+    return authorSampleCache.get(key)!;
+  }
+
+  const dataset = await loadArticleDataset();
+  if (!dataset) {
+    authorSampleCache.set(key, '');
+    return '';
+  }
+
+  const matches = dataset.filter((article: any) => {
+    const author = String(article?.author || '').trim().toLowerCase();
+    if (author && author === key) return true;
+    if (Array.isArray(article?.tags)) {
+      return article.tags.some((tag: any) => String(tag || '').trim().toLowerCase() === key);
+    }
+    return false;
+  });
+
+  const sampleArticle = matches[0] || dataset.find((article: any) => {
+    const author = String(article?.author || '').trim().toLowerCase();
+    return author && author !== 'unknown author';
+  });
+
+  if (!sampleArticle) {
+    authorSampleCache.set(key, '');
+    return '';
+  }
+
+  const baseText = stripHtmlToText(
+    sampleArticle.content ||
+    sampleArticle.excerpt ||
+    ''
+  );
+
+  if (!baseText) {
+    authorSampleCache.set(key, '');
+    return '';
+  }
+
+  const words = baseText.split(/\s+/).filter(Boolean);
+  const snippetWords = words.slice(0, 120);
+  const snippet = snippetWords.join(' ');
+  authorSampleCache.set(key, snippet);
+  return snippet;
+};
 
 const normalizeArticleUpdatePayload = (raw: any) => {
   if (!raw || typeof raw !== 'object') return raw;
@@ -381,6 +1025,9 @@ const normalizeArticleUpdatePayload = (raw: any) => {
   }
 
   if (!Array.isArray(result.tags)) result.tags = result.tags ? [result.tags] : [];
+  
+  // Preserve SetupWizard topicsSelected - don't let AI override them
+  // Note: This will be handled in the main route where articleData is available
   if (!Array.isArray(result.topicsSelected)) result.topicsSelected = [];
 
   if (typeof result.publishDate === 'string') {
@@ -428,11 +1075,19 @@ function shouldPerformWebSearch(message: string, articleData: any): boolean {
   const contentLength = (articleData?.content || '').split(/\s+/).length;
   const needsMoreContent = contentLength < 500;
   
+  // More aggressive search triggers - ALWAYS search for specific titles/names
+  const hasSpecificTitle = /"[^"]+"/.test(message) || /[A-Z][a-z]+ [A-Z][a-z]+/.test(message);
+  
+  // ALWAYS search if we have articleData with specific details
+  const hasArticleData = articleData && (articleData.title || articleData.topic || articleData.platform);
+  
   // More aggressive search triggers
   return hasFactualClaims || 
          hasSpecificSubject || 
          isReviewRequest || 
          needsMoreContent ||
+         hasSpecificTitle ||
+         hasArticleData ||
          // Always search for specific titles/names in quotes or proper nouns
          /"[^"]+"/.test(message) ||
          /[A-Z][a-z]+ [A-Z][a-z]+/.test(message);
@@ -478,7 +1133,7 @@ function extractSearchQuery(message: string, articleData: any): string {
   return terms.join(' ');
 }
 
-function parseModelPayload(raw: string): { response?: string; suggestion?: any; articleUpdate?: any } {
+function parseModelPayload(raw: string): { response?: string; suggestion?: any; articleUpdate?: any; citations?: string[]; warnings?: string[] } {
   const pickField = (obj: any, candidates: string[]) => {
     for (const key of candidates) {
       if (obj && Object.prototype.hasOwnProperty.call(obj, key)) return obj[key];
@@ -505,7 +1160,13 @@ function parseModelPayload(raw: string): { response?: string; suggestion?: any; 
   let obj = normalizeShape(tryParse(raw));
   if (obj && typeof obj === 'object' && (obj.response || obj.articleUpdate || obj.suggestion)) {
     const normalizedUpdate = normalizeArticleUpdatePayload(obj.articleUpdate);
-    return { response: String(obj.response || ''), suggestion: obj.suggestion, articleUpdate: normalizedUpdate };
+    const citations = Array.isArray(obj.citations)
+      ? (obj.citations as any[]).map((url: any) => String(url)).filter((url: string) => url.trim().length > 0)
+      : undefined;
+    const warnings = Array.isArray(obj.warnings)
+      ? (obj.warnings as any[]).map((warning: any) => String(warning)).filter((warning: string) => warning.trim().length > 0)
+      : undefined;
+    return { response: String(obj.response || ''), suggestion: obj.suggestion, articleUpdate: normalizedUpdate, citations, warnings } as any;
   }
 
   // 2) Try fenced code block
@@ -515,7 +1176,13 @@ function parseModelPayload(raw: string): { response?: string; suggestion?: any; 
     obj = normalizeShape(tryParse(inner));
     if (obj && typeof obj === 'object' && (obj.response || obj.articleUpdate || obj.suggestion)) {
       const normalizedUpdate = normalizeArticleUpdatePayload(obj.articleUpdate);
-      return { response: String(obj.response || ''), suggestion: obj.suggestion, articleUpdate: normalizedUpdate };
+      const citations = Array.isArray(obj.citations)
+        ? (obj.citations as any[]).map((url: any) => String(url)).filter((url: string) => url.trim().length > 0)
+        : undefined;
+      const warnings = Array.isArray(obj.warnings)
+        ? (obj.warnings as any[]).map((warning: any) => String(warning)).filter((warning: string) => warning.trim().length > 0)
+        : undefined;
+      return { response: String(obj.response || ''), suggestion: obj.suggestion, articleUpdate: normalizedUpdate, citations, warnings } as any;
     }
   }
 
@@ -534,9 +1201,15 @@ function parseModelPayload(raw: string): { response?: string; suggestion?: any; 
   return {};
 }
 
+import { performanceMonitor, startStage, endStage, logReport } from '@/lib/performance-monitor';
+
 export async function POST(request: NextRequest) {
   try {
+    startStage('ai-chat-request', { timestamp: new Date().toISOString() });
+    console.log('🚀 AI CHAT API CALLED - Starting request processing');
     const { message, articleData, notes, chatHistory, authorTOV, authorName, analysisPrompt } = await request.json();
+    console.log('🔍 Author name from request:', authorName);
+    console.log('🔍 Author TOV from request length:', authorTOV?.length || 0);
 
     if (!message) {
       return NextResponse.json({ error: 'Message is required' }, { status: 400 });
@@ -548,22 +1221,26 @@ export async function POST(request: NextRequest) {
       });
     }
 
+    const proto = request.headers.get('x-forwarded-proto') || 'http';
+    const host = request.headers.get('host');
+    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || (host ? `${proto}://${host}` : 'http://localhost:3001');
+
     // Build context from article data and notes
     let context = '';
-    if (articleData.title) context += `Titel: ${articleData.title}\n`;
-    if (articleData.subtitle) context += `Undertitel: ${articleData.subtitle}\n`;
-    if (articleData.category) context += `Kategori: ${articleData.category}\n`;
-    if (articleData.content) context += `Nuværende indhold: ${articleData.content.substring(0, 500)}...\n`;
-    if (Array.isArray(articleData.tags) && articleData.tags.length) {
+    if (articleData?.title) context += `Titel: ${articleData.title}\n`;
+    if (articleData?.subtitle) context += `Undertitel: ${articleData.subtitle}\n`;
+    if (articleData?.category) context += `Kategori: ${articleData.category}\n`;
+    if (articleData?.content) context += `Nuværende indhold: ${articleData.content.substring(0, 500)}...\n`;
+    if (Array.isArray(articleData?.tags) && articleData.tags.length) {
       context += `Tags: ${articleData.tags.join(', ')}\n`;
     }
-    if (articleData.platform) context += `Platform: ${articleData.platform}\n`;
-    if (articleData.streaming_service) context += `Streaming Service: ${articleData.streaming_service}\n`;
-    if (articleData.topic) context += `Topic: ${articleData.topic}\n`;
-    if (Array.isArray(articleData.topicsSelected) && articleData.topicsSelected.length) {
+    if (articleData?.platform) context += `Platform: ${articleData.platform}\n`;
+    if (articleData?.streaming_service) context += `Streaming Service: ${articleData.streaming_service}\n`;
+    if (articleData?.topic) context += `Topic: ${articleData.topic}\n`;
+    if (Array.isArray(articleData?.topicsSelected) && articleData.topicsSelected.length) {
       context += `Selected Topics: ${articleData.topicsSelected.join(', ')}\n`;
     }
-    if (articleData.rating) {
+    if (articleData?.rating) {
       context += `Bedømmelse (stjerner): ${articleData.rating}\n`;
       // Add rating-based tone guidance
       if (articleData.rating <= 2) {
@@ -602,29 +1279,31 @@ export async function POST(request: NextRequest) {
             let trainedTOV = '';
             if (authorName) {
               try {
+                console.log('🔍 Loading TOV for author:', authorName);
                 // First try to get TOV from Webflow API
-                const proto = request.headers.get('x-forwarded-proto') || 'http';
-                const host = request.headers.get('host');
-                const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || (host ? `${proto}://${host}` : 'http://localhost:3001');
-                const webflowResponse = await fetch(`${baseUrl}/api/webflow/authors`);
-                if (webflowResponse.ok) {
-                  const webflowData = await webflowResponse.json();
-                  const author = webflowData.authors?.find((a: any) => a.name === authorName);
+                const authors = await getCachedAuthors(baseUrl);
+                console.log('🔍 Authors from cache:', authors?.length || 0);
+                if (Array.isArray(authors)) {
+                  const author = authors.find((a: any) => a.name === authorName);
+                  console.log('🔍 Found author:', author?.name, 'TOV length:', author?.tov?.length || 0);
                   if (author?.tov) {
                     trainedTOV = author.tov;
+                    console.log('✅ Using TOV from Webflow:', trainedTOV.substring(0, 100) + '...');
                   }
                 }
                 
                 // Fallback to file system
                 if (!trainedTOV) {
-                  const fs = require('fs');
-                  const path = require('path');
-                  const authorSlug = authorName.toLowerCase().replace(/\s+/g, '-');
-                  const tovFile = path.join(process.cwd(), 'data', 'author-prompts', `${authorSlug}.txt`);
-                  
-                  if (fs.existsSync(tovFile)) {
-                    trainedTOV = fs.readFileSync(tovFile, 'utf8');
+                  console.log('🔍 Trying file system fallback...');
+                  const promptText = getAuthorPromptText(authorName);
+                  if (promptText) {
+                    trainedTOV = promptText;
+                    console.log('✅ Using TOV from file system:', trainedTOV.substring(0, 100) + '...');
                   }
+                }
+                
+                if (!trainedTOV) {
+                  console.log('❌ No TOV found for author:', authorName);
                 }
               } catch (error) {
                 console.error('Could not load trained TOV:', error);
@@ -637,193 +1316,105 @@ export async function POST(request: NextRequest) {
     const dynamicPrompt = await loadSystemPromptFromApi(request);
     const basePrompt = dynamicPrompt || APROPOS_SYSTEM_PROMPT;
     const combinedTOV = [trainedTOV, authorTOV].filter(Boolean).join('\n\n');
+    console.log('🔍 Combined TOV length:', combinedTOV.length);
+    console.log('🔍 Combined TOV preview:', combinedTOV.substring(0, 200) + '...');
+    const authorSample = await getAuthorSampleSnippet(authorInfo);
     // Lightweight diagnostics for prompt composition
     // Determine dynamic target lengths from section/topic
     const lower = (s: any) => String(s||'').toLowerCase();
     const sec = lower((articleData||{}).category || (articleData||{}).section);
     const topic = lower((articleData||{}).topic);
     const tagsArr: string[] = Array.isArray((articleData||{}).tags) ? (articleData as any).tags.map((t:any)=>lower(t)) : [];
-    const isReview = sec.includes('anmeld') || topic.includes('anmeld') || tagsArr.some(t=>t.includes('anmeld'));
-    const targetMin = isReview ? 700 : 1000;
-    const targetMax = isReview ? 900 : 1400;
-    const systemContent = `${basePrompt}
-
-${combinedTOV ? `FORFATTER TOV (overstyrer generelle regler):\n${combinedTOV}\n` : ''}**VIGTIG: Skriv i ${authorInfo}'s tone of voice!**
-
-**SETUPWIZARD DATA - BRUG DISSE VÆRDIER:**
-- Kategori/Sektion: ${sec || 'Ikke valgt'} - skriv artiklen til denne kategori
-- Topics/Tags: ${tagsArr.join(', ') || 'Ikke valgt'} - fokuser på disse emner
-- Platform: ${(articleData as any).platform || (articleData as any).streaming_service || 'Ikke valgt'} - nævn platformen hvis relevant
-- Rating: ${articleData.rating || 'Ikke valgt'} stjerner - tilpas tone til denne bedømmelse
-
-Overhold længdemål i strukturfilen (anmeldelser 700–900 ord; features 1000–1400). Skriv aldrig under 600 ord, medmindre brugeren specifikt beder om kort svar.`;
+    const { min: targetMin, max: targetMax, label: targetLabel, type: articleType } = determineWordTargets(articleData);
+    
+    // Enhanced dynamic behavior injection
+    const dynamicBehaviors = [];
+    
+    // Rating injection for reviews
+    if (articleType === 'review' && articleData?.rating) {
+      dynamicBehaviors.push(`RATING INJEKTION: Artikel skal have ${articleData.rating}/6 stjerner. Tilføj "Læs Apropos Magazines anmeldelse her (${articleData.rating}/6 stjerner)." i afslutningen.`);
+    }
+    
+    // Streaming service injection
+    if (articleData?.platform || articleData?.streaming_service) {
+      const platform = articleData.platform || articleData.streaming_service;
+      dynamicBehaviors.push(`STREAMING SERVICE: Artikel handler om indhold på ${platform}. Inkluder platform i titel og indhold.`);
+    }
+    
+    // Enhanced length targeting
+    dynamicBehaviors.push(`LÆNGDE-MÅL: ${targetLabel} skal være ${targetMin}-${targetMax} ord. Minimum ${targetMin} ord er KRITISK.`);
+    
+    const systemSections: string[] = [];
+    systemSections.push(basePrompt.trim());
+    
+    if (combinedTOV) {
+      console.log('✅ Adding TOV to system prompt, length:', combinedTOV.length);
+      systemSections.push(`🚨 KRITISK FORFATTERSTEMME - DETTE ER DIN IDENTITET 🚨\n\nDu ER ${authorInfo}. Din personlighed og skrivestil er defineret nedenfor. Følg denne TOV nøjagtigt:\n\n${combinedTOV}\n\n🚨 DU SKAL SKRIVE SOM ${authorInfo} - IKKE GENERISK! 🚨\n- Brug din karakteristiske tone og stil\n- Inkorporér din personlighed i hver sætning\n- Dette er IKKE et forslag - det er din identitet!`);
+    } else {
+      console.log('❌ No TOV to add to system prompt');
+    }
+    
+    systemSections.push(`Skriv ALDRIG uden fuld Apropos-personlighed. Du er ${authorInfo}; rul tonen ind i hver sætning.`);
+    
+    if (authorSample) {
+      systemSections.push(`FORFATTER-EKSEMPEL (${authorInfo}) — brug som rytme og energi, men omskriv alt i ny formulering:\n${authorSample}`);
+    }
+    
+    // Add dynamic behaviors
+    if (dynamicBehaviors.length > 0) {
+      systemSections.push(`DYNAMISKE ADFÆRDS-INJEKTIONER:\n${dynamicBehaviors.join('\n')}`);
+    }
+    systemSections.push(`**KRITISK LÆNGDE-KRAV**\n🚨 ARTIKLEN SKAL VÆRE MINIMUM ${targetMin} ORD - IKKE MINDRE! 🚨\n- Hvis artiklen er under ${targetMin} ord, er det EN FEJL der skal rettes\n- Brødteksten alene skal være ${targetMin}-${targetMax} ord (ekskl. intro og afslutning)\n- Tæl ordene mens du skriver - stop ikke før du når ${targetMin} ord\n- Korte artikler under ${targetMin} ord bliver afvist som utilstrækkelige\n- DU SKAL SKRIVE ${targetMin} ORD ELLER MERE - DET ER IKKE ET FORSLAG!\n- SKRIV EN DETALJERET ARTIKEL PÅ MINDST ${targetMin} ORD OM DETTE EMNE`);
+    systemSections.push(`**REDAKTIONELT ARBEJDSFLOW (internt)**\n1. Skriv et fuldt første udkast (MINIMUM ${targetMin} ord) med KORREKT struktur:\n   - START direkte med "Intro:" (ikke ##Intro: eller andet)\n   - Intro: 2-4 linjer i første person\n   - Brødtekst: ${targetMin}-${targetMax} ord med dybde og detaljer\n   - Afslut med "Eftertanke:", "Refleksion:" eller lignende\n2. TÆL ORDENE: Kontroller at brødteksten er mindst ${targetMin} ord\n3. Lever KUN den forbedrede, færdige artikel i JSON-kontrakten – ingen interne noter eller halvfærdige udkast.\n4. HVIS ARTIKLEN ER UNDER ${targetMin} ORD: SKRIV DEN OM HELT FRA BUNDEN!`);
+    systemSections.push(`**ARTIKELFORMAT & LÆNGDE**\n- Struktur: Intro (2-4 sætninger i jeg-form) → brødtekst (${targetMin}-${targetMax} ord) → afslutning (godkendt label + 2-4 sætninger).\n- Længde: artiklen må ALDRIG være under ${targetMin} ord; sigt efter ${targetMin}-${targetMax} ord.\n- Brødtekst: brug sanselige detaljer, konkrete observationer, research og reflektion (forventning → oplevelse → indsigt → eftertanke).\n- Variér sætningslængder og rytme; undgå synopsis eller punktopstillinger.\n- UDVID hver tanke med konkrete eksempler og dybdegående analyse.\n- HVIS DU SKRIVER UNDER ${targetMin} ORD: STOP OG SKRIV OM ARTIKLEN HELT FRA BUNDEN!`);
+    systemSections.push(`**SETUPWIZARD DATA – BRUG SOM KANON**\n- Kategori/Sektion: ${sec || 'Ikke valgt'}\n- Topics/Tags: ${tagsArr.join(', ') || 'Ikke valgt'}\n- Platform: ${(articleData as any).platform || (articleData as any).streaming_service || 'Ikke valgt'}\n- Rating: ${articleData.rating || 'Ikke valgt'} stjerner (tilpas tone hertil)`);
+    systemSections.push(`**KILDEBRUG & CITATIONS**\n- Integrér research-data aktivt; ingen opfundne fakta.\n- Markér kilder med [1], [2] i teksten og lad dem matche den medsendte kilde-liste.\n- Hvis fakta mangler, skriv generelt ("instruktøren", "hovedskuespilleren") i stedet for at gætte navne.`);
+    
+    // Enhanced JSON contract enforcement
+    systemSections.push(`**JSON-KONTRAKT HÅNDHÆVELSE**\n- Returnér ALTID ét JSON-objekt med nøjagtig struktur:\n  {\n    "response": "menneskelig svartekst til chatten",\n    "articleUpdate": {\n      "title": "artikel titel",\n      "subtitle": "undertitel",\n      "content": "fuld artikel med Intro: og afslutning",\n      "category": "${sec || 'kategori'}",\n      "tags": ["tag1", "tag2"],\n      "author": "${authorInfo}",\n      "rating": ${articleData?.rating || 'null'},\n      "platform": "${articleData?.platform || articleData?.streaming_service || ''}",\n      "slug": "url-venlig-titel",\n      "seoTitle": "SEO titel (max 60 tegn)",\n      "seoDescription": "meta beskrivelse (max 155 tegn)"\n    },\n    "suggestion": null,\n    "citations": ["url1", "url2"]\n  }\n- ALDRIG returnér tekst udenfor JSON-strukturen\n- ALDRIG returnér delvise eller ufuldstændige JSON-objekter`);
+    
+    const systemContent = systemSections.join('\n\n');
 
     // Add hard guidance: transform notes, not copy
     const transformationRules = `\n\nTRANSFORMATION KRAV:\n- Brug noter som råmateriale — omskriv alt; ingen sætninger må være identiske med noterne.\n- Integrér noter i en sammenhængende artikelstruktur (Intro → Brødtekst → Afslutning).\n- Mål: ${targetMin}–${targetMax} ord for denne artikel.`;
     const workflowInstructions = `
 
-**VIGTIG OPGAVE:**
-Din rolle er at hjælpe med at bygge en artikel gennem samtale. Alt hvad brugeren skriver og diskuterer med dig skal bruges til at bygge artiklen.
+**SAMTALEROLLE**
+- Brug hver besked fra brugeren til at bygge artiklen videre — ingen meta-snak, ingen delvise kladder.
+- Bed kun om ekstra oplysninger, hvis artiklen ikke kan skrives uden dem.
+- Returnér altid KUN JSON-objektet (response, articleUpdate, citations, suggestion).
 
-For hver besked, analyser om brugeren:
-1. Giver kontekst eller information til artiklen
-2. Beder om hjælp til at skrive en specifik del
-3. Diskuterer vinkel, tone eller indhold
+**KRITISK LÆNGDE-KONTROL**
+🚨 ARTIKLEN SKAL VÆRE MINIMUM ${targetMin} ORD - IKKE MINDRE! 🚨
+- Tæl ordene mens du skriver - stop ikke før du når ${targetMin} ord
+- Hvis artiklen er under ${targetMin} ord, er det EN FEJL der skal rettes
+- Brødteksten alene skal være ${targetMin}-${targetMax} ord (ekskl. intro og afslutning)
+- UDVID hver tanke med konkrete eksempler og dybdegående analyse
+- DU SKAL SKRIVE ${targetMin} ORD ELLER MERE - DET ER IKKE ET FORSLAG!
+- HVIS DU SKRIVER UNDER ${targetMin} ORD: STOP OG SKRIV OM ARTIKLEN HELT FRA BUNDEN!
+- SKRIV EN DETALJERET ARTIKEL PÅ MINDST ${targetMin} ORD OM DETTE EMNE
 
-STANDARD-OPFØRSEL (intelligent artikeludvikling):
-- Hvis der er research data tilgængelig: SKRIV HELE ARTIKLEN med alle fakta og detaljer
-- Hvis ingen research: byg artiklen gradvist gennem samtale med brugeren
-- For hver besked: analyser hvad brugeren ønsker og tilføj/forbedre artiklen
-- Brug sektion, rating og forfatter TOV til at guide tonen og strukturen
-- Hvis titel er tvivlsom: foreslå 2–3 titler som klikbare valg
+**CHUNKED GENERATION STRATEGI**
+- Skriv artiklen i logiske sektioner: Intro → Hoveddel 1 → Hoveddel 2 → Hoveddel 3 → Afslutning
+- Hver hoveddel skal være minimum ${Math.floor(targetMin/4)} ord
+- Udvid hver sektion med konkrete detaljer, eksempler og reflektioner
+- Fortsæt skrivning indtil du når ${targetMin} ord
 
-AUTOMATISK ARTIKELGENERERING (når research er tilgængelig):
-- Skriv komplet artikel med intro, brødtekst og afslutning
-- Integrér alle research data naturligt i teksten
-- Brug konkrete fakta, statistikker og ekspertperspektiver
-- Følg længdekrav: Anmeldelser 700-900 ord, Features 1000-1400 ord
-- Undgå at spørge om flere detaljer - skriv artiklen direkte
+**EGEN REDAKTION**
+- Kontroller selv længde, Intro:, afslutningslabel, citations og TOV før du svarer.
+- Brug researchdata aktivt og sørg for, at [1], [2] matcher kildelisten.
+- Hvis noget mangler (fx længde eller struktur), ret det inden du sender resultatet.
+- TÆL ORDENE: Kontroller at brødteksten er mindst ${targetMin} ord
 
-ARTIKELSTRUKTUR (følg Apropos struktur):
-- Intro: 2-4 linjer, første person, sætter tone og nysgerrighed
-- Brødtekst: ${targetMin}-${targetMax} ord, sammenhængende fortælling
-- Afslutning: 2-4 sætninger, reflekterende/humoristisk/poetisk
-- Brug "Eftertanke", "Refleksion", "I virkeligheden" som afslutningslabels
+**CMS-FELTER & SUGGESTIONS**
+- Udfyld articleUpdate med title, subtitle, content, category, tags, author, seo_title, meta_description, streaming_service, stars, slug m.m.
+- Foreslå rating via suggestion-objektet når det er relevant (anmeldelser); ellers lad suggestion være null.
+- Hold alle felter trimmede og klar til Webflow.
+- VIGTIGT: Generér ALDRIG topicsSelected - dette kommer fra SetupWizard og må ikke overskrives.
 
-LÆNGDEKRITIKER:
-- Anmeldelser: 700-900 ord (ikke under 600)
-- Features/Kultur: 1000-1400 ord (ikke under 800)
-- Altid skriv fulde artikler - ikke korte sammenfatninger
-- Brug sanselige detaljer og personlige observationer
+${context ? `\n\nAktuel artikel-kontekst:\n${context}` : ''}`;
 
-FORSKNING OG FAKTUALITET:
-- Hvis web search resultater er inkluderet, BRUG dem til at underbygge dine påstande
-- Citer konkrete data, statistikker og fakta fra kilderne
-- Undgå at opdigte information - altid baser på faktuelle kilder
-- Hvis du ikke har fakta, bed om mere specifik information i stedet for at gætte
-
-KRITISK VIGTIGT FOR ANMELDELSER:
-- Hvis du skriver en anmeldelse af et specifikt værk, SKAL du bruge web search resultaterne
-- Inkluder konkrete detaljer: instruktør, skuespillere, udgivelsesdato, genre, budget
-- Nævn faktuelle data: box office tal, streaming tal, kritiker scores
-- Undgå generiske beskrivelser - brug specifikke detaljer fra research
-- Hvis ingen research er tilgængelig, bed om mere specifik information
-
-AVANCERET RESEARCH INTEGRATION:
-- Hvis "AVANCERET RESEARCH" er inkluderet, BRUG alle data systematisk
-- Integrér "Hovedfund" naturligt i artiklen - ikke som liste
-- Brug "Kulturel Kontekst" til at sætte emnet i perspektiv
-- Inkorporér "Ekspertperspektiver" som autoritative synspunkter
-- Følg "Foreslåede Vinkler" for at finde den bedste artikelvinkel
-- Altid citér kilder og underbyg påstande med research data
-
-KRITISK: Hvis research data er tilgængelig, SKRIV HELE ARTIKLEN NU - ikke spørg om flere detaljer!
-
-EMNE IDENTIFIKATION:
-- Brug ALTID titel, topic og platform fra articleData til at identificere det korrekte emne
-- Hvis articleData indeholder specifikke detaljer (titel, platform, topic), brug disse i stedet for at gætte
-- For filmanmeldelser: brug den korrekte filmtitel og platform fra articleData
-- Undgå at opfinde alternative titler eller platforme - brug kun hvad der er specificeret
-
-FAKTUALITET OG VERIFICERING:
-- ALDRIG opdig fakta, instruktører, skuespillere, eller andre detaljer
-- ALDRIG brug placeholder tekst som "[Skuespillerens Navn]" eller "[Instruktørens Navn]"
-- Hvis du ikke ved noget specifikt, skriv generelt eller bed om mere information
-- Brug kun verificerbare informationer fra research data
-- Undgå at nævne specifikke personer medmindre det er verificeret
-- Hvis du ikke har konkrete fakta, skriv om det generelle tema i stedet
-- Skriv "instruktøren", "hovedskuespilleren", "komponisten" i stedet for at opdigte navne
-
-Opdater automatisk CMS-felter:
-- title: Artikel titel
-- subtitle: Undertitel/tagline
-- content: Færdig artikeltekst
-- reflection: Afsluttende refleksion
-- category: Kategori (Gaming, Kultur, Tech, etc.)
-- tags: Relevante tags
-- author: ${authorInfo}
-- seo_title: ≤60 tegn
-- meta_description: ≤155 tegn
-- streaming_service/platform: hvis relevant
-- stars: 1–6 ved anmeldelser
-- slug: kort URL‑slug (kebab‑case, dansk tegnsætning håndteres)
-
-**RATING FORSLAG:**
-Hvis brugeren beskriver noget der skal anmeldes (film, serie, musik, bog, etc.), foreslå en rating ved at inkludere "suggestion" i dit svar:
-
-Eksempel:
-{
-  "response": "dit svar til brugeren",
-  "suggestion": {
-    "type": "rating",
-    "title": "Vil du give en rating?",
-    "description": "Hvor mange stjerner vil du give dette?",
-    "options": [1, 2, 3, 4, 5, 6]
-  },
-  "articleUpdate": {...}
-}
-
-Hvis titelvalg er uklart, kan du i stedet bruge:
-{
-  "response": "...",
-  "suggestion": {
-    "type": "title_choice",
-    "title": "Hvilken titel foretrækker du?",
-    "options": ["Titel A", "Titel B", "Titel C"]
-  },
-  "articleUpdate": {...}
-}
-
-Returner ALTID både dit svar OG eventuelle artikel opdateringer i dette format:
-{
-  "response": "dit svar til brugeren",
-  "suggestion": null (eller suggestion objekt hvis rating er relevant),
-  "articleUpdate": {
-    "title": "...",
-    "subtitle": "...",
-    "content": "...",
-    "reflection": "...",
-    "category": "...",
-    "tags": [...],
-    "author": "${authorInfo}",
-    "seo_title": "...",
-    "meta_description": "...",
-    "streaming_service": "...",
-    "stars": 1-6,
-    "slug": "..."
-  }
-}
-
-Hvis der ikke er nogen artikel opdatering eller forslag, returner:
-{
-  "response": "dit svar til brugeren",
-  "suggestion": null,
-  "articleUpdate": {}
-}
-
-VIKTIGT: Når du genererer en artikel, skal du ALTID udfylde alle felter i articleUpdate:
-- title: SEO-titel (max 60 tegn) - Format: [Værk] (Platform): [Fængende undertitel]
-- subtitle: Kreativ undertitel (8-14 ord) - Skal være reflekterende eller ironisk
-- content: Fuld artikeltekst
-- slug: URL-venligt slug
-- seo_title: SEO-titel (samme som title)
-- meta_description: Meta beskrivelse (max 155 tegn)
-- streaming_service: Platform hvis relevant
-- stars: Stjerner (1-6) hvis anmeldelse
-
-TITEL FORMAT EKSEMPLER:
-- "Paradise (Disflix+): Livets vrangside i glitter og gas"
-- "KPOP Demon Hunters (Netflix): En kulturel kollision af lyd og lys"
-
-UNDERTITEL EKSEMPLER:
-- "Et sted mellem pop, dæmoner og selvindsigt."
-- "En KPOP anime-musical der overrasker og forfører."
-
-KRITISK: Du SKAL returnere et gyldigt JSON objekt med både "response" og "articleUpdate" felter. articleUpdate.content skal indeholde den fulde artikeltekst.
-
-${context ? `\n\nNuværende artikel kontekst:\n${context}` : ''}`;
-
-    const finalSystemContent = systemContent + transformationRules + workflowInstructions;
+    let finalSystemContent = systemContent + transformationRules + workflowInstructions;
     
     const messages: any[] = [];
 
@@ -851,93 +1442,133 @@ ${context ? `\n\nNuværende artikel kontekst:\n${context}` : ''}`;
     const needsWebSearch = shouldPerformWebSearch(message, articleData);
     let webSearchResults = '';
     let researchData = null;
+    const citationSet = new Set<string>();
     
     if (needsWebSearch) {
+      startStage('web-search', { query: extractSearchQuery(message, articleData) });
       try {
+        const baseRequestUrl = request.url.split('/api')[0];
         const searchQuery = extractSearchQuery(message, articleData);
-        
-        // 1. Enhanced Research Engine - use specific data from articleData
-        const researchTopic = (articleData as any).title || (articleData as any).topic || searchQuery;
-        const researchResponse = await fetch(`${request.url.split('/api')[0]}/api/research-engine`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ 
-            topic: researchTopic, 
-            articleType: (articleData as any).category || 'Generel',
-            author: authorName || 'Apropos Writer',
-            platform: (articleData as any).platform || (articleData as any).streaming_service
-          })
-        });
-        
-        if (researchResponse.ok) {
-          researchData = await researchResponse.json();
-          if (researchData.success && researchData.researchSummary) {
-            webSearchResults = `\n\n**AVANCERET RESEARCH:**\n${researchData.researchSummary}\n\n`;
-            
-            // Add key findings
-            if (researchData.keyFindings?.length > 0) {
-              webSearchResults += `**Hovedfund:**\n`;
-              researchData.keyFindings.slice(0, 3).forEach((finding: any, index: number) => {
-                webSearchResults += `${index + 1}. ${finding}\n`;
-              });
-              webSearchResults += '\n';
-            }
-            
-            // Add cultural context
-            if (researchData.culturalContext?.length > 0) {
-              webSearchResults += `**Kulturel Kontekst:**\n${researchData.culturalContext.slice(0, 2).join('\n')}\n\n`;
-            }
-            
-            // Add expert insights
-            if (researchData.expertInsights?.length > 0) {
-              webSearchResults += `**Ekspertperspektiver:**\n${researchData.expertInsights.slice(0, 2).join('\n')}\n\n`;
-            }
-            
-            // Add suggested angles
-            if (researchData.suggestedAngles?.length > 0) {
-              webSearchResults += `**Foreslåede Vinkler:**\n${researchData.suggestedAngles.join('\n')}\n\n`;
-            }
-          }
-        }
-        
-        // Fallback to simple web search if research engine fails
-        if (!researchData?.success) {
-          const searchResponse = await fetch(`${request.url.split('/api')[0]}/api/web-search`, {
+        const searchCitations: string[] = [];
+
+        try {
+          const searchResponse = await fetch(`${baseRequestUrl}/api/web-search`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ query: searchQuery, maxResults: 3 })
+            body: JSON.stringify({ query: searchQuery, maxResults: 5 })
           });
-          
+
           if (searchResponse.ok) {
             const searchData = await searchResponse.json();
-            if (searchData.results && searchData.results.length > 0) {
-              webSearchResults = '\n\n**FAKTUEL RESEARCH (fra web search):**\n';
-              searchData.results.forEach((result: any, index: number) => {
-                webSearchResults += `${index + 1}. ${result.title}\n${result.content}\n`;
-                if (result.url) webSearchResults += `Kilde: ${result.url}\n`;
+            if (Array.isArray(searchData.results) && searchData.results.length > 0) {
+              webSearchResults += '\n\n**FAKTUEL RESEARCH (web):**\n';
+              searchData.results.slice(0, 5).forEach((result: any, index: number) => {
+                const num = index + 1;
+                const title = result.title || 'Ukendt titel';
+                const snippet = typeof result.content === 'string'
+                  ? result.content.replace(/\s+/g, ' ').trim()
+                  : '';
+                const trimmedSnippet = snippet.length > 320 ? `${snippet.slice(0, 317)}…` : snippet;
+                if (result.url) {
+                  citationSet.add(result.url);
+                  searchCitations[num - 1] = result.url;
+                }
+                webSearchResults += `[${num}] ${title}\n`;
+                if (trimmedSnippet) {
+                  webSearchResults += `${trimmedSnippet}\n`;
+                }
+                if (result.url) {
+                  webSearchResults += `Kilde: ${result.url}\n`;
+                }
                 webSearchResults += '\n';
               });
+              // Provide a baseline research object in case the advanced engine fails
+              researchData = {
+                success: true,
+                searchSummary: `Web-søgning på "${searchQuery}" gav ${searchData.results.length} resultater.`,
+                sources: searchCitations.filter(Boolean)
+              };
             }
           }
+        } catch (error) {
+          console.error('Web search failed:', error);
         }
-        
-        // Add research results to system content instead of user message
+
+        const researchTopic = (articleData as any).title || (articleData as any).topic || searchQuery;
+        try {
+          const researchResponse = await fetch(`${baseRequestUrl}/api/research-engine`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              topic: researchTopic,
+              articleType: (articleData as any).category || 'Generel',
+              author: authorName || 'Apropos Writer',
+              platform: (articleData as any).platform || (articleData as any).streaming_service,
+              targetLength: targetMax
+            })
+          });
+
+          if (researchResponse.ok) {
+            const structured = await researchResponse.json();
+            if (structured?.success) {
+              researchData = structured;
+              if (Array.isArray(structured.sources)) {
+                structured.sources.forEach((url: string) => {
+                  if (url) citationSet.add(url);
+                });
+              }
+
+              let advancedSection = '\n\n**AVANCERET RESEARCH:**\n';
+              if (structured.researchSummary) {
+                advancedSection += `${structured.researchSummary}\n\n`;
+              }
+              if (structured.keyFindings?.length) {
+                advancedSection += `**Hovedfund:**\n`;
+                structured.keyFindings.slice(0, 3).forEach((finding: any, index: number) => {
+                  advancedSection += `${index + 1}. ${finding}\n`;
+                });
+                advancedSection += '\n';
+              }
+              if (structured.culturalContext?.length) {
+                advancedSection += `**Kulturel Kontekst:**\n${structured.culturalContext.slice(0, 2).join('\n')}\n\n`;
+              }
+              if (structured.expertInsights?.length) {
+                advancedSection += `**Ekspertperspektiver:**\n${structured.expertInsights.slice(0, 2).join('\n')}\n\n`;
+              }
+              if (structured.suggestedAngles?.length) {
+                advancedSection += `**Foreslåede Vinkler:**\n${structured.suggestedAngles.join('\n')}\n\n`;
+              }
+              webSearchResults += advancedSection;
+            }
+          }
+        } catch (error) {
+          console.error('Research engine failed:', error);
+        }
+
         if (webSearchResults) {
-          finalSystemContent += `\n\n**RESEARCH DATA TILGÆNGELIG - BRUG DISSE FAKTA:**\n${webSearchResults}\n\nKRITISK: Du SKAL bruge alle ovenstående research data i din artikel. Undgå at opdigte fakta - brug kun data fra research. Hvis research data ikke indeholder specifikke navne eller detaljer, skriv generelt (f.eks. "instruktøren" i stedet for "[Instruktørens Navn]").\n\nEMNE SPECIFIKATION: Skriv om "${researchTopic}" - ikke om andre emner eller generiske beskrivelser.`;
+          finalSystemContent += `\n\n**RESEARCH DATA TILGÆNGELIG - BRUG DISSE FAKTA:**\n${webSearchResults}\n\nKRITISK: Brug kilderne ovenfor og henvis i teksten med firkantede parenteser – fx [1], [2] – der matcher listen. Tilføj feltet "citations" med de URLs du anvender. Undgå at opdigte fakta; hvis detaljer mangler, skriv generelt (fx "instruktøren").\n\nEMNE SPECIFIKATION: Skriv om "${researchTopic}" - ikke om andre emner eller generiske beskrivelser.`;
         }
+        endStage(true, undefined, { researchDataAvailable: !!researchData, citationsCount: citationSet.size });
       } catch (error) {
         console.error('Research failed:', error);
+        endStage(false, error.message);
       }
     }
 
+    startStage('ai-generation', { 
+      model: 'gpt-5', // Updated to GPT-5 (ChatGPT-5) 
+      temperature: 1, // GPT-5 only supports default temperature (1) 
+      maxTokens: 6000,
+      hasResearchData: !!researchData 
+    });
     const completion = await openai.chat.completions.create({
-      model: "gpt-4o",
+        model: "gpt-5", // Updated to GPT-5 (ChatGPT-5)
       messages: [
         { role: 'system', content: finalSystemContent },
         ...messages
       ],
-      temperature: 0.7,
-      max_tokens: 3000,
+      temperature: 1, // GPT-5 only supports default temperature (1)
+      max_completion_tokens: 6000, // Drastisk øget for længere artikler
       response_format: { type: 'json_object' },
     });
 
@@ -952,14 +1583,38 @@ ${context ? `\n\nNuværende artikel kontekst:\n${context}` : ''}`;
     const normalizedResponse = typeof responseText === 'string' ? responseText : String(responseText || '');
 
     if (!normalizedResponse.trim()) {
+      endStage(false, 'No response from OpenAI');
       throw new Error('No response from OpenAI');
     }
 
+    endStage(true, undefined, { 
+      responseLength: normalizedResponse.length,
+      usage: completion.usage 
+    });
+
     // Parse/sanitize model output and enforce JSON contract
+    startStage('quality-control', { responseLength: normalizedResponse.length });
     let parsed = parseModelPayload(normalizedResponse);
     let outResponse = parsed.response;
     let outSuggestion = parsed.suggestion ?? null;
     let outArticleUpdate = normalizeArticleUpdatePayload(parsed.articleUpdate);
+    
+    // Preserve SetupWizard topicsSelected - don't let AI override them
+    if (Array.isArray(articleData?.topicsSelected) && articleData.topicsSelected.length > 0) {
+      outArticleUpdate = { ...outArticleUpdate, topicsSelected: articleData.topicsSelected };
+    }
+    
+    let outCitations: string[] = Array.isArray((parsed as any)?.citations)
+      ? Array.from(new Set(((parsed as any).citations as any[]).map((url: any) => String(url)).filter(Boolean)))
+      : [];
+    const modelWarnings = Array.isArray(parsed.warnings) ? parsed.warnings : [];
+    let qualityRecommendations = [...modelWarnings];
+    if (outArticleUpdate && typeof outArticleUpdate === 'object' && Array.isArray((outArticleUpdate as any).citations)) {
+      outCitations = Array.from(new Set([
+        ...outCitations,
+        ...((outArticleUpdate as any).citations as any[]).map((url: any) => String(url)).filter(Boolean)
+      ]));
+    }
     if ((!outResponse || !String(outResponse).trim()) && outArticleUpdate && typeof outArticleUpdate === 'object') {
       const contentFallback = (outArticleUpdate as any).content || (outArticleUpdate as any).content_html || (outArticleUpdate as any).contentHtml;
       if (typeof contentFallback === 'string' && contentFallback.trim().length > 0) {
@@ -974,162 +1629,420 @@ ${context ? `\n\nNuværende artikel kontekst:\n${context}` : ''}`;
       outSuggestion = null;
     }
 
-    // Enhanced Quality Check and Content Enhancement
-    let qualityScore = 0;
-    let qualityRecommendations: string[] = [];
-    let enhancedContent = outResponse;
+    // --- Server-side validator & iterative auto-revision ---
+    const countWords = (s: string) => (s || '').trim().split(/\s+/).filter(Boolean).length;
+    const hasIntro = (s: string) => /^intro\s*:/im.test(s);
+    const hasEnding = (s: string) =>
+      /(eftertanke|refleksion|i virkeligheden|og hvad så\?|lad os bare sige det sådan her)/i.test(s);
+
+    const getContent = () => String((outArticleUpdate as any)?.content || outResponse || '');
+
+    let revisionAttempts = 0;
+    const maxRevisions = 2; // Reduced from 3 to 2 for better performance
+    const qualityControlStartTime = Date.now();
+    const maxQualityControlTime = 30000; // Reduced to 30 seconds for faster response
     
-    if (outResponse && outResponse.length > 100) {
-      try {
-        // 2. Quality Check
-        const qualityResponse = await fetch(`${request.url.split('/api')[0]}/api/quality-check`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            content: outResponse,
-            articleType: (articleData as any).category || 'Generel',
-            author: authorName || 'Apropos Writer'
-          })
-        });
-        
-        if (qualityResponse.ok) {
-          const qualityData = await qualityResponse.json();
-          qualityScore = qualityData.overallScore || 0;
-          qualityRecommendations = qualityData.recommendations || [];
-          
-          // 3. Content Enhancement if quality is below 80
-          if (qualityScore < 80) {
-            const enhancerResponse = await fetch(`${request.url.split('/api')[0]}/api/content-enhancer`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                content: outResponse,
-                articleType: (articleData as any).category || 'Generel',
-                author: authorName || 'Apropos Writer',
-                targetLength: outResponse.split(/\s+/).length < 800 ? 1000 : outResponse.split(/\s+/).length
-              })
-            });
-            
-            if (enhancerResponse.ok) {
-              const enhancerData = await enhancerResponse.json();
-              if (enhancerData.success && enhancerData.enhancedContent) {
-                enhancedContent = enhancerData.enhancedContent;
-                
-                // Update articleUpdate with enhanced content
-                if (outArticleUpdate && typeof outArticleUpdate === 'object') {
-                  (outArticleUpdate as any).content = enhancedContent;
-                }
-                
-                // Add enhancement info to response
-                outResponse = `${enhancedContent}\n\n---\n*Artikel forbedret med AI-assistance (Kvalitetsscore: ${qualityScore} → ${Math.min(qualityScore + 20, 100)})*`;
-              }
-            }
-          }
-        }
-      } catch (error) {
-        console.error('Quality check/enhancement failed:', error);
+    console.log(`🔍 Quality check starting - Target: ${targetMin}-${targetMax} ord`);
+    
+    while (revisionAttempts < maxRevisions) {
+      // Check timeout
+      if (Date.now() - qualityControlStartTime > maxQualityControlTime) {
+        console.log(`⏰ Quality control timeout after ${Date.now() - qualityControlStartTime}ms - stopping revisions`);
+        break;
       }
-    }
+      
+      revisionAttempts += 1; // Increment at start to prevent infinite loops
+      
+      const currentContent = getContent();
+      const currentWordCount = countWords(currentContent);
+      const needsLength = currentWordCount < targetMin;
+      const needsStructure = !(hasIntro(currentContent) && hasEnding(currentContent));
+      const tooSimilar = computeOverlapRatio(String(notes || ''), currentContent) > 0.4; // Increased threshold
 
-    // --- Server-side validator & optional auto-revision ---
-    const countWords = (s: string) => (s||'').trim().split(/\s+/).filter(Boolean).length;
-    const hasIntro = (s: string) => /\bintro\s*:/i.test(s);
-    const hasEnding = (s: string) => /(eftertanke|refleksion|i virkeligheden|og hvad så\?|lad os bare sige det sådan her)/i.test(s);
-    const overlapRatio = (() => {
-      try {
-        const a = String(notes||'').replace(/\s+/g,' ').toLowerCase();
-        const b = String(outArticleUpdate?.content||'').replace(/\s+/g,' ').toLowerCase();
-        if (!a || !b) return 0;
-        // crude char overlap using substrings length >= 40
-        let overlap = 0;
-        const parts = a.split(/[\.!?]\s+/).map(x=>x.trim()).filter(x=>x.length>=40);
-        for (const p of parts) { if (b.includes(p)) overlap += p.length; }
-        const base = Math.max(1, a.length);
-        return overlap/base;
-      } catch { return 0; }
-    })();
-    const wc = countWords(outArticleUpdate?.content||'');
-    const needsLength = wc < targetMin;
-    const needsStructure = !(hasIntro(outArticleUpdate?.content||'') && hasEnding(outArticleUpdate?.content||''));
-    const tooSimilar = overlapRatio > 0.25; // 25% or more is suspicious
+      // Enhanced quality check with detailed analysis
+      const qualityIssues = [];
+      if (needsLength) qualityIssues.push('length');
+      if (needsStructure) qualityIssues.push('structure');
+      if (tooSimilar) qualityIssues.push('similarity');
 
-    if (needsLength || needsStructure || tooSimilar) {
-      // Build a precise revision instruction
+      console.log(`🔍 Quality check attempt ${revisionAttempts + 1}: ${currentWordCount}/${targetMin} ord, issues: ${qualityIssues.join(', ') || 'none'}`);
+
+      if (qualityIssues.length === 0) {
+        console.log(`✅ Quality check passed after ${revisionAttempts} attempts`);
+        break;
+      }
+
+      console.log(`🔄 Quality issues detected (attempt ${revisionAttempts + 1}/${maxRevisions}):`, qualityIssues);
+
       const issues: string[] = [];
-      if (needsLength) issues.push(`Udvid til mindst ${targetMin} ord (mål: ${targetMin}–${targetMax}).`);
-      if (needsStructure) issues.push('Tilføj tydelig “Intro:” samt en afsluttende sektion med et af de godkendte labels.');
-      if (tooSimilar) issues.push('Omskriv og parafrasér — undgå sætninger identiske med brugerens noter.');
+      if (needsLength) {
+        issues.push(
+          `🚨 KRITISK LÆNGDE-FEJL: Artiklen er kun ${currentWordCount} ord, men skal være minimum ${targetMin} ord. Udvid med sanselige detaljer, konkrete observationer og researchpunkter.`
+        );
+      }
+      if (needsStructure) {
+        issues.push('📝 STRUKTUR-FEJL: Mangler "Intro:" (ikke ##Intro:) eller godkendt afslutningslabel (Eftertanke:, Refleksion:, osv.).');
+      }
+      if (tooSimilar) {
+        issues.push('⚠️ SIMILARITY-FEJL: Omskriv og parafrasér — undgå sætninger der matcher brugerens noter for tæt.');
+      }
+
+      // Enhanced revision strategy based on specific issues
+      let revisionStrategy = '';
+      if (needsLength && needsStructure) {
+        revisionStrategy = `🚨 KOMPLET REVISION KRÆVET 🚨\n\nArtiklen mangler både længde (${currentWordCount}/${targetMin} ord) og struktur. Skriv artiklen HELT OM med:\n- Minimum ${targetMin} ord\n- Korrekt "Intro:" struktur\n- Godkendt afslutningslabel\n\n`;
+      } else         if (needsLength) {
+          revisionStrategy = `🚨 LÆNGDE-REVISION KRÆVET 🚨\n\nArtiklen er kun ${currentWordCount} ord, men skal være minimum ${targetMin} ord. Dette er KRITISK!\n\nUDVID HURTIGT med:\n- Konkrete detaljer og observationer\n- Dybdegående analyse\n- Research eksempler\n- Personlige refleksioner\n- Anekdoter og historier\n\n🚨 SKRIV ${targetMin} ORD ELLER MERE - STOP IKKE FØR!\n\n`;
+        } else if (needsStructure) {
+        revisionStrategy = `📝 STRUKTUR-REVISION KRÆVET 📝\n\nArtiklen mangler korrekt struktur. Tilføj:\n- "Intro:" label (ikke ##Intro:)\n- Godkendt afslutningslabel (Eftertanke:, Refleksion:, osv.)\n\n`;
+      } else if (tooSimilar) {
+        revisionStrategy = `⚠️ PARAFRASER-REVISION KRÆVET ⚠️\n\nArtiklen er for tæt på brugerens noter. Omskriv med:\n- Forskellige vendinger og formuleringer\n- Din egen redaktionelle vinkel\n- Parafrasering af alle citater\n\n`;
+      }
 
       const revisionMessages = [
         { role: 'system', content: finalSystemContent },
-        { role: 'user', content: `Revider artiklen ud fra disse krav:\n- ${issues.join('\n- ')}\n\nReturnér KUN ét JSON-objekt i samme kontrakt som før (articleUpdate.content skal være den fulde artikel).\n\nAktuel artikel JSON:\n${JSON.stringify({ response: outResponse, suggestion: outSuggestion, articleUpdate: outArticleUpdate }).slice(0,12000)}` }
+        {
+          role: 'user',
+          content: `${revisionStrategy}${issues.join('\n')}\n\n🚨 KRITISK LÆNGDE-KONTROL: Tæl ordene mens du skriver - stop ikke før du når ${targetMin} ord!\n\n🚨 DU SKAL SKRIVE ${targetMin} ORD ELLER MERE - DET ER IKKE ET FORSLAG!\n🚨 HVIS DU SKRIVER UNDER ${targetMin} ORD: STOP OG SKRIV OM ARTIKLEN HELT FRA BUNDEN!\n🚨 BRUG DIN FORFATTERSTEMME OG SKRIV SOM ${authorInfo}!\n\nReturnér KUN ét JSON-objekt i samme kontrakt som før (articleUpdate.content skal være den fulde artikel).\n\nAktuel artikel JSON:\n${JSON.stringify({
+            response: outResponse,
+            suggestion: outSuggestion,
+            articleUpdate: outArticleUpdate
+          })}`
+        }
       ];
 
-      const revision = await openai.chat.completions.create({
-        model: 'gpt-4o',
-        messages: revisionMessages as any,
-        temperature: 0.6,
-        max_tokens: 3200,
-        response_format: { type: 'json_object' },
-      });
+        const revision = await openai.chat.completions.create({
+          model: 'gpt-5', // Updated to GPT-5 (ChatGPT-5)
+          messages: revisionMessages as any,
+          temperature: 1, // GPT-5 only supports default temperature (1)
+          max_completion_tokens: 4000, // Reduced from 8000 for faster revisions
+          response_format: { type: 'json_object' }
+        });
+
       const revisionContentRaw = revision.choices[0]?.message?.content;
       const revisionText = Array.isArray(revisionContentRaw)
-        ? revisionContentRaw.map((part: any) => {
+        ? revisionContentRaw
+            .map((part: any) => {
             if (typeof part === 'string') return part;
             if (part && typeof part === 'object' && typeof part.text === 'string') return part.text;
             return '';
-          }).join('')
-        : (revisionContentRaw || '');
-      const revisionNormalized = typeof revisionText === 'string' ? revisionText : String(revisionText || '');
+            })
+            .join('')
+        : revisionContentRaw || '';
+      const revisionNormalized =
+        typeof revisionText === 'string' ? revisionText : String(revisionText || '');
       const reParsed = parseModelPayload(revisionNormalized);
+
+      if (Array.isArray((reParsed as any)?.citations)) {
+        outCitations = Array.from(
+          new Set([
+            ...outCitations,
+            ...((reParsed as any).citations as any[]).map((url: any) => String(url)).filter(Boolean)
+          ])
+        );
+      }
+
       if (reParsed?.articleUpdate) {
         outResponse = reParsed.response || outResponse;
         outSuggestion = reParsed.suggestion ?? outSuggestion;
-        outArticleUpdate = normalizeArticleUpdatePayload({ ...(outArticleUpdate||{}), ...reParsed.articleUpdate });
+        outArticleUpdate = normalizeArticleUpdatePayload({
+          ...(outArticleUpdate || {}),
+          ...reParsed.articleUpdate
+        });
+        if (
+          outArticleUpdate &&
+          typeof outArticleUpdate === 'object' &&
+          Array.isArray((outArticleUpdate as any).citations)
+        ) {
+          outCitations = Array.from(
+            new Set([
+              ...outCitations,
+              ...((outArticleUpdate as any).citations as any[]).map((url: any) => String(url)).filter(Boolean)
+            ])
+          );
+        }
       }
+
       if ((!outResponse || !String(outResponse).trim()) && reParsed?.articleUpdate) {
-        const revContent = (reParsed.articleUpdate as any).content || (reParsed.articleUpdate as any).content_html || (reParsed.articleUpdate as any).contentHtml;
+        const revContent =
+          (reParsed.articleUpdate as any).content ||
+          (reParsed.articleUpdate as any).content_html ||
+          (reParsed.articleUpdate as any).contentHtml;
         if (typeof revContent === 'string' && revContent.trim()) {
           outResponse = revContent;
         }
       }
+
+      // Enhanced error handling and recovery
+      if (revisionAttempts >= maxRevisions) {
+        console.warn(`⚠️ Max revision attempts (${maxRevisions}) reached. Final quality status:`);
+        console.warn(`  - Word count: ${countWords(getContent())}/${targetMin} (${needsLength ? 'FAIL' : 'PASS'})`);
+        console.warn(`  - Structure: ${needsStructure ? 'FAIL' : 'PASS'}`);
+        console.warn(`  - Similarity: ${tooSimilar ? 'FAIL' : 'PASS'}`);
+        
+        // Add quality warnings to final output
+        const finalIssues = [];
+        if (needsLength) finalIssues.push(`Længde: ${countWords(getContent())}/${targetMin} ord`);
+        if (needsStructure) finalIssues.push('Mangler korrekt struktur');
+        if (tooSimilar) finalIssues.push('For tæt på kilder');
+        
+        if (finalIssues.length > 0) {
+          qualityRecommendations = qualityRecommendations || [];
+          qualityRecommendations.push(`⚠️ Kvalitetsproblemer efter ${maxRevisions} revisioner: ${finalIssues.join(', ')}`);
+        }
+        
+        break;
+      } else {
+        console.log(`🔄 Revision ${revisionAttempts}/${maxRevisions} completed. Checking quality...`);
+      }
     }
 
+    let finalContent = getContent();
+    let finalWordCount = countWords(finalContent);
+    let finalMissingIntro = !hasIntro(finalContent);
+    let finalMissingEnding = !hasEnding(finalContent);
+    let finalOverlapRatio = computeOverlapRatio(String(notes || ''), finalContent);
+    let finalOverlap = finalOverlapRatio > 0.25;
+
+    // Ensure outArticleUpdate.content matches what we're counting
+    if (outArticleUpdate && typeof outArticleUpdate === 'object') {
+      (outArticleUpdate as any).content = finalContent;
+    }
+
+    if ((finalWordCount < targetMin || finalMissingIntro || finalMissingEnding || finalOverlap) && revisionAttempts >= maxRevisions) {
+      try {
+        const rewritePrompt = `Genskab hele artiklen fra bunden med Apropos' fulde struktur og tone.
+
+- Længde: ${targetMin}–${targetMax} ord (ikke under ${targetMin}; stræb efter ${Math.min(targetMax, targetMin + 200)} ord).
+- START direkte med "Intro:" (ikke ##Intro: eller andet markdown)
+- Intro: 2–4 sætninger i jeg-form, sætter tone og nysgerrighed
+- Brødtekst: forventning → oplevelse → indsigt → eftertanke (ingen overskrifter)
+- Afslut med godkendt label (fx "Eftertanke:") og 2–4 sætninger
+- Brug researchdata og noter, men omskriv og udbyg med egne formuleringer (ingen direkte overlap med noter)
+- Medtag citations i teksten som [1], [2] svarende til kilderne
+
+Returnér ét JSON-objekt med "response", "articleUpdate" og "citations".`;
+
+        const rewrite = await openai.chat.completions.create({
+          model: 'gpt-5', // Updated to GPT-5 (ChatGPT-5)
+          messages: [
+            { role: 'system', content: finalSystemContent },
+            { role: 'user', content: rewritePrompt }
+          ],
+          temperature: 1, // GPT-5 only supports default temperature (1)
+          max_completion_tokens: 6000, // Øget for længere revisioner
+          response_format: { type: 'json_object' }
+        });
+
+        const rewriteRaw = rewrite.choices[0]?.message?.content;
+        const rewriteText = Array.isArray(rewriteRaw)
+          ? rewriteRaw
+              .map((part: any) => {
+                if (typeof part === 'string') return part;
+                if (part && typeof part === 'object' && typeof part.text === 'string') return part.text;
+                return '';
+              })
+              .join('')
+          : rewriteRaw || '';
+        const rewriteNormalized =
+          typeof rewriteText === 'string' ? rewriteText : String(rewriteText || '');
+        const rewriteParsed = parseModelPayload(rewriteNormalized);
+
+        if (rewriteParsed?.articleUpdate) {
+          outResponse = rewriteParsed.response || rewriteParsed.articleUpdate?.content || outResponse;
+          outSuggestion = rewriteParsed.suggestion ?? outSuggestion;
+          outArticleUpdate = normalizeArticleUpdatePayload({
+            ...(outArticleUpdate || {}),
+            ...rewriteParsed.articleUpdate
+          });
+        }
+        if (Array.isArray((rewriteParsed as any)?.citations)) {
+          outCitations = Array.from(
+            new Set([
+              ...outCitations,
+              ...((rewriteParsed as any).citations as any[]).map((url: any) => String(url)).filter(Boolean)
+            ])
+          );
+        }
+      } catch (error) {
+        console.error('Forced rewrite failed:', error);
+      }
+      finalContent = getContent();
+      finalWordCount = countWords(finalContent);
+      finalMissingIntro = !hasIntro(finalContent);
+      finalMissingEnding = !hasEnding(finalContent);
+      finalOverlapRatio = computeOverlapRatio(String(notes || ''), finalContent);
+      finalOverlap = finalOverlapRatio > 0.25;
+    }
+
+    if (finalWordCount < targetMin) {
+      qualityRecommendations.push(
+        `Artiklen er ${finalWordCount} ord. Udvid til mindst ${targetMin} ord (mål ${targetMin}–${targetMax}).`
+      );
+    }
+    if (finalMissingIntro) {
+      qualityRecommendations.push('Artiklen mangler en tydelig sektion, der starter med "Intro:" (ikke ##Intro:).');
+    }
+    if (finalMissingEnding) {
+      qualityRecommendations.push('Tilføj en afsluttende sektion med et godkendt label (fx “Eftertanke”).');
+    }
+    if (finalOverlap) {
+      qualityRecommendations.push('Noget af teksten matcher dine noter for tæt – omskriv relevante afsnit for unik formulering.');
+    }
+
+    if (outArticleUpdate && typeof outArticleUpdate === 'object') {
+      (outArticleUpdate as any).content = finalContent;
+    }
+    outResponse = finalContent;
+    
+    // Debug: Log word count consistency
+    console.log(`🔍 Word count consistency check:`);
+    console.log(`  - finalContent word count: ${countWords(finalContent)}`);
+    console.log(`  - outArticleUpdate.content word count: ${outArticleUpdate?.content ? countWords(outArticleUpdate.content) : 'N/A'}`);
+    console.log(`  - outResponse word count: ${outResponse ? countWords(outResponse) : 'N/A'}`);
+    console.log(`  - finalContent length: ${finalContent.length} chars`);
+    console.log(`  - finalContent preview: ${finalContent.substring(0, 100)}...`);
+
     // Final salvage: if model still didn't supply articleUpdate.content but response is long text, use it
-    const finalContentWords = (() => {
-      if (outArticleUpdate && typeof outArticleUpdate.content === 'string') return outArticleUpdate.content.trim().split(/\s+/).length;
-      return 0;
-    })();
     if ((!outArticleUpdate || !outArticleUpdate.content) && (outResponse||'').trim().split(/\s+/).length >= 600) {
       outArticleUpdate = normalizeArticleUpdatePayload({ ...(outArticleUpdate||{}), content: outResponse });
     }
 
+    if (citationSet.size > 0) {
+      outCitations = Array.from(new Set([...outCitations, ...Array.from(citationSet)]));
+    }
+    if (outArticleUpdate && typeof outArticleUpdate === 'object') {
+      if (outCitations.length > 0) {
+        (outArticleUpdate as any).citations = outCitations;
+      } else if ((outArticleUpdate as any).citations) {
+        delete (outArticleUpdate as any).citations;
+      }
+      outArticleUpdate = await applyFieldFallbacks(outArticleUpdate, articleData);
+      
+      // Preserve SetupWizard topicsSelected - don't let AI override them
+      if (Array.isArray(articleData?.topicsSelected) && articleData.topicsSelected.length > 0) {
+        outArticleUpdate = { ...outArticleUpdate, topicsSelected: articleData.topicsSelected };
+      }
+    }
+
+    qualityRecommendations = Array.from(
+      new Set(
+        (qualityRecommendations || [])
+          .map((entry) => (typeof entry === 'string' ? entry.trim() : ''))
+          .filter((entry) => entry.length > 0)
+      )
+    );
+
+    endStage(true, undefined, { 
+      qualityIssues: qualityRecommendations.length,
+      wordCount: finalWordCount,
+      hasCitations: outCitations.length > 0
+    });
 
     const finalResponse = typeof outResponse === 'string' ? outResponse.trim() : '';
 
     const finalArticleUpdate = (outArticleUpdate && typeof outArticleUpdate === 'object') ? outArticleUpdate : {};
+    
+    // Include featuredImage from articleData if it exists
+    if (articleData?.featuredImage) {
+      finalArticleUpdate.featuredImage = articleData.featuredImage;
+    }
+    const readingTimeMinutes =
+      finalWordCount > 0 ? Math.max(1, Math.ceil(finalWordCount / 160)) : 0;
 
-    return NextResponse.json({ 
+    startStage('response-formatting', { 
+      finalWordCount, 
+      readingTimeMinutes,
+      hasCitations: outCitations.length > 0 
+    });
+
+    const response = NextResponse.json({ 
       response: finalResponse,
       suggestion: outSuggestion,
       articleUpdate: finalArticleUpdate,
+      warnings: qualityRecommendations,
+      citations: outCitations,
       usage: completion.usage,
-      // Enhanced quality metrics
       qualityMetrics: {
-        score: qualityScore,
-        recommendations: qualityRecommendations,
-        enhanced: qualityScore < 80,
-        researchUsed: !!researchData?.success,
-        wordCount: enhancedContent.split(/\s+/).length,
-        readingTime: Math.ceil(enhancedContent.split(/\s+/).length / 160)
+        issues: qualityRecommendations.length,
+        wordCount: finalWordCount,
+        readingTimeMinutes,
+        readingTime: readingTimeMinutes,
+        introPresent: !finalMissingIntro,
+        endingPresent: !finalMissingEnding,
+        overlapRatio: Number(finalOverlapRatio.toFixed(3)),
+        researchUsed: !!researchData?.success
       }
     });
 
+    endStage(true, undefined, { 
+      responseSize: JSON.stringify(response).length,
+      qualityMetrics: qualityRecommendations.length 
+    });
+
+    // Log performance report
+    logReport();
+
+    return response;
+
   } catch (error) {
     console.error('OpenAI API error:', error);
+    
+    // Enhanced error handling with detailed error analysis
+    const errorAnalysis = {
+      type: error.name || 'UnknownError',
+      message: error.message || 'Unknown error occurred',
+      stack: error.stack?.split('\n').slice(0, 3).join('\n') || 'No stack trace',
+      timestamp: new Date().toISOString(),
+      requestId: Math.random().toString(36).substr(2, 9)
+    };
+    
+    console.error('🔍 Error Analysis:', errorAnalysis);
+    
+    // Determine error category and recovery strategy
+    let errorCategory = 'unknown';
+    let recoveryMessage = 'Der opstod en uventet fejl';
+    let statusCode = 500;
+    
+    if (error.message?.includes('API key')) {
+      errorCategory = 'authentication';
+      recoveryMessage = 'OpenAI API nøgle er ikke konfigureret korrekt';
+      statusCode = 401;
+    } else if (error.message?.includes('rate limit')) {
+      errorCategory = 'rate_limit';
+      recoveryMessage = 'For mange anmodninger til OpenAI API. Prøv igen om et øjeblik';
+      statusCode = 429;
+    } else if (error.message?.includes('timeout')) {
+      errorCategory = 'timeout';
+      recoveryMessage = 'Anmodningen tog for lang tid. Prøv igen';
+      statusCode = 408;
+    } else if (error.message?.includes('network')) {
+      errorCategory = 'network';
+      recoveryMessage = 'Netværksfejl. Tjek din internetforbindelse';
+      statusCode = 503;
+    } else if (error.message?.includes('JSON')) {
+      errorCategory = 'parsing';
+      recoveryMessage = 'Fejl i dataformatering. Prøv igen';
+      statusCode = 400;
+    }
+    
+    // Enhanced error logging
+    console.error(`🚨 Error Category: ${errorCategory}`);
+    console.error(`🚨 Recovery Message: ${recoveryMessage}`);
+    console.error(`🚨 Status Code: ${statusCode}`);
+    
+    endStage(false, `${errorCategory}: ${error.message}`, errorAnalysis);
+    logReport();
+    
     return NextResponse.json(
-      { error: 'Failed to get AI response' }, 
-      { status: 500 }
+      { 
+        error: recoveryMessage,
+        errorCategory,
+        requestId: errorAnalysis.requestId,
+        timestamp: errorAnalysis.timestamp,
+        details: process.env.NODE_ENV === 'development' ? errorAnalysis : undefined
+      }, 
+      { status: statusCode }
     );
   }
 }

@@ -1,0 +1,30 @@
+{
+  "collectionId": "67dbf17ba540975b5b21c2a6",
+  "entries": [
+    { "internal": "title", "webflowSlug": "name", "transform": "identity", "required": true },
+    { "internal": "slug", "webflowSlug": "slug", "transform": "identity", "required": true },
+    { "internal": "subtitle", "webflowSlug": "subtitle", "transform": "identity" },
+    { "internal": "excerpt", "webflowSlug": "intro", "transform": "identity" },
+    { "internal": "content", "webflowSlug": "content", "transform": "plainToHtml", "required": true },
+    { "internal": "seoTitle", "webflowSlug": "seo-title", "transform": "identity" },
+    { "internal": "seoDescription", "webflowSlug": "meta-description", "transform": "identity" },
+    { "internal": "readTime", "webflowSlug": "minutes-to-read", "transform": "number" },
+    { "internal": "wordCount", "webflowSlug": "word-count", "transform": "number" },
+    { "internal": "presseakkreditering", "webflowSlug": "presseakkreditering", "transform": "boolean" },
+    { "internal": "category", "webflowSlug": "section", "transform": "referenceId" },
+    { "internal": "section", "webflowSlug": "section", "transform": "referenceId" },
+    { "internal": "primaryTopic", "webflowSlug": "topic", "transform": "referenceId" },
+    { "internal": "secondaryTopic", "webflowSlug": "topics", "transform": "multiReferenceId" },
+    { "internal": "author", "webflowSlug": "author", "transform": "referenceId" },
+    { "internal": "rating", "webflowSlug": "stjerne", "transform": "number" },
+    { "internal": "platform", "webflowSlug": "watch-now-link", "transform": "identity" },
+    { "internal": "streaming_service", "webflowSlug": "watch-now-link", "transform": "identity" },
+    { "internal": "featuredImage", "webflowSlug": "thumb", "transform": "identity" },
+    { "internal": "featured", "webflowSlug": "featured", "transform": "boolean" },
+    { "internal": "festival", "webflowSlug": "festival", "transform": "referenceId" },
+    { "internal": "location", "webflowSlug": "location", "transform": "identity" },
+    { "internal": "start_dato", "webflowSlug": "start-dato", "transform": "dateIso" },
+    { "internal": "slut_dato", "webflowSlug": "slut-dato", "transform": "dateIso" },
+    { "internal": "buy_tickets", "webflowSlug": "buy-tickets", "transform": "identity" }
+  ]
+}

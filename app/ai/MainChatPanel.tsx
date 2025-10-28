@@ -15,7 +15,6 @@ import { type UploadedFile } from '@/lib/file-upload-service';
 import type { ArticleData } from '@/types/article';
 import PreflightRecommendations from '@/components/PreflightRecommendations';
 import PreflightStatus from '@/components/PreflightStatus';
-import { autoSaveService } from '@/lib/auto-save-service';
 type LocalArticleData = ArticleData & { aiSuggestion?: { type: 'rating'; title: string; description: string } | null };
 
 interface ChatMessage {
@@ -40,6 +39,9 @@ interface MainChatPanelProps {
   updateArticleData: (data: Partial<LocalArticleData>) => void;
   chatTitle: string;
   onChatTitleChange: (title: string) => void;
+  editorialWarnings: string[];
+  onClearEditorialWarnings: () => void;
+  onPublishSuccess?: (articleId: string) => void;
 }
 
 export default function MainChatPanel({
@@ -55,7 +57,10 @@ export default function MainChatPanel({
   onNewCultureArticle,
   updateArticleData,
   chatTitle,
-  onChatTitleChange
+  onChatTitleChange,
+  editorialWarnings,
+  onClearEditorialWarnings,
+  onPublishSuccess
 }: MainChatPanelProps) {
   const [inputMessage, setInputMessage] = useState('');
   const [hoveredMessage, setHoveredMessage] = useState<string | null>(null);
@@ -216,6 +221,7 @@ export default function MainChatPanel({
     try {
       console.log('🔍 Running Preflight checks...');
       setPreflightRunning(true);
+      setPreflightCompleted(false);
       setPreflightCurrentStep(0);
       setPreflightStepName('Starter analyse...');
       
@@ -270,6 +276,7 @@ export default function MainChatPanel({
       setPreflightWarnings(warnings);
       setPreflightRunning(false);
       setPreflightStepName('Færdig!');
+      setPreflightCompleted(true);
       
       // Auto-apply recommendations if any issues found
       if (warnings.length > 0 || criticRes?.tips || (factRes?.results && factRes.results.length > 0)) {
@@ -309,34 +316,10 @@ export default function MainChatPanel({
     }
   };
 
-  // Auto-run Preflight checks when article is complete
-  useEffect(() => {
-    const lastMessage = messages[messages.length - 1];
-    
-    // Only trigger if last message is from assistant and contains article content
-    if (!lastMessage || lastMessage.role !== 'assistant') return;
-    if (!articleData.content || articleData.content.length < 500) return;
-    
-    // Check if this looks like a complete article
-    const content = lastMessage.content + (articleData.content || '');
-    const hasIntro = /\bintro\s*:/i.test(content) || content.toLowerCase().includes('intro:');
-    const hasEnding = /(eftertanke|refleksion|i virkeligheden|og hvad så\?|lad os bare sige det sådan her|læs apropos|\/6 stjerner)/i.test(content);
-    const hasStructure = content.includes('\n\n') && content.length > 500;
-    
-    // Check if Preflight has already been run for this content (avoid duplicate runs)
-    const contentHash = `${articleData.title}-${articleData.content.length}`;
-    const lastPreflightHash = localStorage.getItem('lastPreflightHash');
-    
-    if (hasStructure && (hasIntro || hasEnding) && contentHash !== lastPreflightHash) {
-      console.log('🚀 Auto-triggering Preflight checks for complete article');
-      localStorage.setItem('lastPreflightHash', contentHash);
-      
-      // Delay to ensure article is fully processed
-      setTimeout(() => {
-        runPreflightChecks(articleData.title || '', articleData.content);
-      }, 1000);
-    }
-  }, [messages, articleData.content, articleData.title]);
+  const handleRequestExpansion = () => {
+    if (!articleData.content || isThinking) return;
+    onSendMessage('Udvid artiklen med flere detaljer, scener og sanselige observationer – behold titel og struktur, men løft længden og dybden.');
+  };
 
   const generateSmartTitle = async (message: string) => {
     // Lightweight local generation to avoid hitting the chat API with an incompatible payload
@@ -661,70 +644,30 @@ export default function MainChatPanel({
   ];
   const [thinkingText, setThinkingText] = useState<string>(thinkingTexts[0]);
   const [fadeIn, setFadeIn] = useState<boolean>(true);
+  const [thinkingProgress, setThinkingProgress] = useState<number>(0);
+  const progressIntervalRef = useRef<number | null>(null);
+  const progressResetTimeoutRef = useRef<number | null>(null);
+  const progressDisplay = Math.min(100, Math.max(0, Math.round(thinkingProgress)));
   
   // Preflight state
   const [preflightWarnings, setPreflightWarnings] = useState<string[]>([]);
   const [preflightModeration, setPreflightModeration] = useState<any | null>(null);
   const [preflightCriticTips, setPreflightCriticTips] = useState<string>('');
   const [preflightFactResults, setPreflightFactResults] = useState<any[] | null>(null);
+  const [preflightCompleted, setPreflightCompleted] = useState(false);
   
   // Preflight status tracking
   const [preflightRunning, setPreflightRunning] = useState(false);
   const [preflightCurrentStep, setPreflightCurrentStep] = useState(0);
   const [preflightStepName, setPreflightStepName] = useState('');
 
-  // Auto-save Preflight data
   useEffect(() => {
-    if (preflightWarnings.length > 0 || preflightCriticTips || (preflightFactResults && preflightFactResults.length > 0)) {
-      autoSaveService.save({
-        preflightWarnings,
-        preflightModeration,
-        preflightCriticTips,
-        preflightFactResults
-      });
-    }
-  }, [preflightWarnings, preflightModeration, preflightCriticTips, preflightFactResults]);
-
-  // Restore Preflight data from localStorage on mount and when it changes
-  useEffect(() => {
-    const restorePreflightData = () => {
-      try {
-        const savedData = autoSaveService.load();
-        
-        if (savedData.preflightWarnings && savedData.preflightWarnings.length > 0) {
-          setPreflightWarnings(savedData.preflightWarnings);
-        }
-        
-        if (savedData.preflightModeration) {
-          setPreflightModeration(savedData.preflightModeration);
-        }
-        
-        if (savedData.preflightCriticTips) {
-          setPreflightCriticTips(savedData.preflightCriticTips);
-        }
-        
-        if (savedData.preflightFactResults && savedData.preflightFactResults.length > 0) {
-          setPreflightFactResults(savedData.preflightFactResults);
-        }
-        
-        console.log('🔄 Restored Preflight data from localStorage:', {
-          warnings: savedData.preflightWarnings?.length || 0,
-          hasModeration: !!savedData.preflightModeration,
-          hasCriticTips: !!savedData.preflightCriticTips,
-          factResults: savedData.preflightFactResults?.length || 0
-        });
-      } catch (error) {
-        console.error('Failed to restore Preflight data from localStorage:', error);
-      }
-    };
-
-    restorePreflightData();
-    
-    // Poll for Preflight data changes (when WebflowPublishPanel saves it)
-    const intervalId = setInterval(restorePreflightData, 1000);
-    
-    return () => clearInterval(intervalId);
-  }, []); // Only run on mount
+    setPreflightCompleted(false);
+    setPreflightWarnings([]);
+    setPreflightModeration(null);
+    setPreflightCriticTips('');
+    setPreflightFactResults(null);
+  }, [articleData.content]);
 
   useEffect(() => {
     if (!isThinking) return;
@@ -752,6 +695,47 @@ export default function MainChatPanel({
     };
   }, [isThinking]);
 
+  useEffect(() => {
+    if (progressIntervalRef.current) {
+      clearInterval(progressIntervalRef.current);
+      progressIntervalRef.current = null;
+    }
+    if (progressResetTimeoutRef.current) {
+      clearTimeout(progressResetTimeoutRef.current);
+      progressResetTimeoutRef.current = null;
+    }
+
+    if (isThinking) {
+      let progress = 0;
+      setThinkingProgress(progress);
+
+      const advance = () => {
+        progress = Math.min(96, progress + 6 + Math.random() * 9);
+        setThinkingProgress(Math.round(progress));
+      };
+
+      advance();
+      progressIntervalRef.current = window.setInterval(advance, 600);
+    } else {
+      setThinkingProgress((prev) => (prev === 0 ? 0 : 100));
+      progressResetTimeoutRef.current = window.setTimeout(() => {
+        setThinkingProgress(0);
+        progressResetTimeoutRef.current = null;
+      }, 500);
+    }
+
+    return () => {
+      if (progressIntervalRef.current) {
+        clearInterval(progressIntervalRef.current);
+        progressIntervalRef.current = null;
+      }
+      if (progressResetTimeoutRef.current) {
+        clearTimeout(progressResetTimeoutRef.current);
+        progressResetTimeoutRef.current = null;
+      }
+    };
+  }, [isThinking]);
+
   // Removed generic multiple-choice heuristics to avoid irrelevant prompts
 
   const handlePublishToWebflow = async (articleData: WebflowArticleFields) => {
@@ -771,14 +755,7 @@ export default function MainChatPanel({
         throw new Error(`${message}${details}`);
       }
       
-      // Show success message
-      const tempElement = document.createElement('div');
-      tempElement.textContent = `Artikel udgivet til Webflow! ID: ${result.articleId}`;
-      tempElement.className = 'fixed top-4 right-4 bg-green-600 text-white px-4 py-2 rounded-lg text-sm z-50';
-      document.body.appendChild(tempElement);
-      setTimeout(() => {
-        document.body.removeChild(tempElement);
-      }, 5000);
+      onPublishSuccess?.(result.articleId);
 
       setShowPublishPanel(false);
     } catch (error) {
@@ -888,7 +865,7 @@ export default function MainChatPanel({
 
   return (
     <>
-      <div className="w-full h-full rounded-xl outline outline-[1.50px] outline-offset-[-1.50px] outline-zinc-800 flex flex-col justify-between font-poppins" style={{ backgroundColor: 'rgb(0, 0, 0)' }}>
+      <div className="w-full h-full rounded-xl outline outline-[1.50px] outline-offset-[-1.50px] outline-zinc-800 flex flex-col justify-between font-poppins chat-container" style={{ backgroundColor: 'rgb(0, 0, 0)' }}>
         {/* Top Bar */}
         <div className="flex items-center justify-between p-4 border-b border-zinc-800">
           <div className="flex items-center gap-3">
@@ -921,7 +898,7 @@ export default function MainChatPanel({
           </div>
         </div>
       
-      <div className="flex flex-col justify-start gap-2 p-[10px] flex-1 overflow-hidden min-h-0">
+      <div className="flex flex-col justify-start gap-2 p-[10px] flex-1 overflow-hidden min-h-0 chat-container">
         {/* Dynamic Chat Messages */}
         <div className="relative flex-1 min-h-0 overflow-hidden">
           <div
@@ -941,7 +918,7 @@ export default function MainChatPanel({
 
             return (
             <div
-              key={message.id}
+              key={`${message.id}-${index}`}
               id={`message-${index}`}
               className={`flex ${alignment} transition-all duration-500 ${
                 index === messages.length - 1 ? 'animate-message-glow' : ''
@@ -1069,18 +1046,19 @@ export default function MainChatPanel({
                       </div>
                     )}
                   </div>
-                  <div className={`mt-1 flex items-center justify-between text-[10px] text-white/35 ${isUser ? 'pr-2' : 'pl-1'}`}>
+                  {/* Combined timestamp and action buttons - only show on hover */}
+                  <div className={`mt-1 flex items-center text-[10px] text-white/35 transition-opacity duration-200 ${isUser ? 'justify-end' : 'justify-start pl-1'} ${hoveredMessage === message.id ? 'opacity-100' : 'opacity-0'}`}>
                     {isUser && !isEditing ? (
-                      <div className={`flex items-center gap-2 transition-opacity duration-200 ${hoveredMessage === message.id ? 'opacity-100' : 'opacity-0'}`}>
-                    <button
+                      <div className="flex items-center gap-1">
+                        <button
                           onClick={() => navigator.clipboard.writeText(message.content)}
                           className="p-1.5 text-white/40 hover:text-white/80 transition-colors"
                           title="Kopier besked"
                         >
                           <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                      </svg>
-                    </button>
+                          </svg>
+                        </button>
                         <button
                           onClick={() => handleEditMessage(message.id, message.content)}
                           className="p-1.5 text-white/40 hover:text-white/80 transition-colors"
@@ -1090,27 +1068,62 @@ export default function MainChatPanel({
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                           </svg>
                         </button>
+                        <span className="text-xs ml-1">{formattedTime}</span>
                       </div>
-                    ) : <span />}
-                    {formattedTime && (
-                      <div className={`${isUser ? 'text-white/35' : 'text-white/35'}`}>{formattedTime}</div>
-                  )}
-                </div>
+                    ) : (
+                      <span className="text-xs">{formattedTime}</span>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>
           );
         })}
+          {editorialWarnings.length > 0 && (
+            <div className="flex justify-start">
+              <div className="max-w-[80%]" style={{ paddingLeft: '8px', paddingRight: '8px' }}>
+                <div className="p-4 bg-gradient-to-br from-yellow-700/40 to-yellow-600/20 border border-yellow-400/40 rounded-xl text-sm text-white/90 shadow-lg">
+                  <div className="flex items-start justify-between gap-4">
+                    <div>
+                      <h4 className="text-base font-semibold text-white mb-2">Redaktionelle noter</h4>
+                      <ul className="space-y-1 list-disc list-inside text-white/80">
+                        {editorialWarnings.map((warning, idx) => (
+                          <li key={idx}>{warning}</li>
+                        ))}
+                      </ul>
+                    </div>
+                    <button
+                      onClick={onClearEditorialWarnings}
+                      className="text-white/50 hover:text-white"
+                      title="Skjul noter"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
           {/* Manual Preflight Trigger - for testing */}
           {articleData.content && articleData.content.length > 500 && (
             <div className="flex justify-start">
               <div className="max-w-[80%]" style={{ paddingLeft: '8px', paddingRight: '8px' }}>
-                <button
-                  onClick={() => runPreflightChecks(articleData.title || '', articleData.content)}
-                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors text-sm font-medium"
-                >
-                  🔍 Kør Preflight Checks
-                </button>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    onClick={() => handleRequestExpansion()}
+                    disabled={isThinking}
+                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${isThinking ? 'bg-white/10 text-white/40 cursor-not-allowed' : 'bg-purple-600 hover:bg-purple-700 text-white'}`}
+                  >
+                    ✨ Forlæng artiklen
+                  </button>
+                  <button
+                    onClick={() => runPreflightChecks(articleData.title || '', articleData.content)}
+                    disabled={isThinking}
+                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${isThinking ? 'bg-white/10 text-white/40 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700 text-white'}`}
+                  >
+                    🔍 Kør Preflight Checks
+                  </button>
+                </div>
               </div>
             </div>
           )}
@@ -1130,19 +1143,7 @@ export default function MainChatPanel({
           )}
 
           {/* Preflight Recommendations */}
-          {(() => {
-            const shouldShow = preflightWarnings.length > 0 || preflightCriticTips || (preflightFactResults && preflightFactResults.length > 0);
-            console.log('🔍 Preflight display check:', {
-              shouldShow,
-              warnings: preflightWarnings.length,
-              criticTips: !!preflightCriticTips,
-              factResults: preflightFactResults?.length || 0,
-              preflightWarnings,
-              preflightCriticTips,
-              preflightFactResults
-            });
-            return shouldShow;
-          })() && (
+          {preflightCompleted && (
             <div className="flex justify-start">
               <div className="max-w-[80%]" style={{ paddingLeft: '8px', paddingRight: '8px' }}>
                 <PreflightRecommendations
@@ -1167,11 +1168,13 @@ export default function MainChatPanel({
               <div className="max-w-[80%]" style={{ paddingLeft: '8px', paddingRight: '8px' }}>
                 <div className="text-white py-3 rounded-lg">
                   <span
-                    className={`text-sm inline-block [text-shadow:0_0_8px_rgba(255,255,255,0.35)] transition-opacity duration-300 ${fadeIn ? 'opacity-100' : 'opacity-0'}`}
+                    className={`text-sm inline-flex items-center gap-2 [text-shadow:0_0_8px_rgba(255,255,255,0.35)] transition-opacity duration-300 ${fadeIn ? 'opacity-100' : 'opacity-0'}`}
                   >
-                    {thinkingText}
+                    <span className="font-semibold text-white/80">{progressDisplay}%</span>
+                    <span className="text-white/40">•</span>
+                    <span className="text-white/90">{thinkingText}</span>
                   </span>
-            </div>
+                </div>
               </div>
             </div>
           )}

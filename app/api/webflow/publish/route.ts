@@ -21,7 +21,8 @@ export async function POST(request: NextRequest) {
       readTime: articleData.readTime,
       wordCount: articleData.wordCount,
       featured: articleData.featured,
-      trending: articleData.trending
+      trending: articleData.trending,
+      featuredImage: articleData.featuredImage ? 'Present' : 'Missing'
     });
     
     // Validate required fields

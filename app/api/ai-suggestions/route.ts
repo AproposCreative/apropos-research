@@ -67,7 +67,7 @@ Giv kun forslagene, ikke forklaringer.`;
     }
 
     const completion = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
+      model: "gpt-5-mini", // Updated to GPT-5-mini
       messages: [
         {
           role: "system",
@@ -78,8 +78,8 @@ Giv kun forslagene, ikke forklaringer.`;
           content: prompt
         }
       ],
-      max_tokens: 300,
-      temperature: 0.7,
+      max_completion_tokens: 300,
+      temperature: 1, // GPT-5 only supports default temperature (1)
     });
 
     const response = completion.choices[0]?.message?.content || '';

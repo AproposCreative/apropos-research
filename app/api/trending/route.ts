@@ -58,11 +58,11 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // Analyze trends
+    // Analyze trends (now includes relevance filtering)
     const trends = analyzeTrends(allArticles);
     
-    // Generate trending templates
-    const trendingTemplates = generateTrendingTemplates(trends, allArticles);
+    // Generate trending templates using relevant articles
+    const trendingTemplates = generateTrendingTemplates(trends, trends.relevantArticles || allArticles);
 
     return NextResponse.json({
       success: true,

@@ -37,4 +37,5 @@ export interface ArticleData {
   topic?: string;
   topicsSelected?: string[];
   streaming_service?: string;
+  featuredImage?: string;
 }

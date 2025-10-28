@@ -69,6 +69,10 @@ export interface WebflowArticleFields {
   wordCount?: number;
   featured?: boolean;
   trending?: boolean;
+  // SetupWizard data
+  topicsSelected?: string[];
+  streaming_service?: string;
+  platform?: string;
 }
 
 export type WebflowStatus = {
@@ -328,6 +332,96 @@ async function resolveAuthorIdFromName(nameOrSlug: string): Promise<string | und
   }
 }
 
+// Resolve section itemId by matching name or slug (case-insensitive)
+async function resolveSectionIdFromName(nameOrSlug: string): Promise<string | undefined> {
+  const slugify = (s: string) => s
+    .toLowerCase()
+    .normalize('NFD').replace(/\p{Diacritic}+/gu, '')
+    .replace(/[^a-z0-9\s-]/g, '')
+    .trim()
+    .replace(/\s+/g, '-');
+  try {
+    const { token, siteId } = resolveConfig();
+    if (!token || !siteId) return undefined;
+
+    // Use sections collection ID from config
+    const sectionsCollectionId = '67dbf17ba540975b5b21c2ae'; // From Webflow API response
+
+    const res = await fetch(`https://api.webflow.com/v2/sites/${siteId}/collections/${sectionsCollectionId}/items?limit=200`, {
+      headers: { 'Authorization': `Bearer ${token}`, 'Accept-Version': '1.0.0' },
+    });
+    if (!res.ok) return undefined;
+    const data: any = await res.json();
+    const items: any[] = data.items || [];
+
+    const needleRaw = (nameOrSlug || '').trim();
+    const needle = needleRaw.toLowerCase();
+    const needleSlug = slugify(needleRaw);
+
+    const found = items.find((it: any) => {
+      const fd = it.fieldData || {};
+      const nm = String(fd.name || '').toLowerCase().trim();
+      const sl = String(fd.slug || '').toLowerCase().trim();
+      const title = String(fd.title || '').toLowerCase().trim();
+      return nm === needle || sl === needle || sl === needleSlug || title === needle;
+    }) || items.find((it:any) => {
+      // fallback contains match
+      const fd = it.fieldData || {};
+      const nm = String(fd.name || '').toLowerCase();
+      return nm.includes(needle);
+    });
+
+    return found?.id;
+  } catch {
+    return undefined;
+  }
+}
+
+// Resolve topic itemId by matching name or slug (case-insensitive)
+async function resolveTopicIdFromName(nameOrSlug: string): Promise<string | undefined> {
+  const slugify = (s: string) => s
+    .toLowerCase()
+    .normalize('NFD').replace(/\p{Diacritic}+/gu, '')
+    .replace(/[^a-z0-9\s-]/g, '')
+    .trim()
+    .replace(/\s+/g, '-');
+  try {
+    const { token, siteId } = resolveConfig();
+    if (!token || !siteId) return undefined;
+
+    // Use topics collection ID from config
+    const topicsCollectionId = '67dbf17ba540975b5b21c2af'; // From Webflow API response
+
+    const res = await fetch(`https://api.webflow.com/v2/sites/${siteId}/collections/${topicsCollectionId}/items?limit=200`, {
+      headers: { 'Authorization': `Bearer ${token}`, 'Accept-Version': '1.0.0' },
+    });
+    if (!res.ok) return undefined;
+    const data: any = await res.json();
+    const items: any[] = data.items || [];
+
+    const needleRaw = (nameOrSlug || '').trim();
+    const needle = needleRaw.toLowerCase();
+    const needleSlug = slugify(needleRaw);
+
+    const found = items.find((it: any) => {
+      const fd = it.fieldData || {};
+      const nm = String(fd.name || '').toLowerCase().trim();
+      const sl = String(fd.slug || '').toLowerCase().trim();
+      const title = String(fd.title || '').toLowerCase().trim();
+      return nm === needle || sl === needle || sl === needleSlug || title === needle;
+    }) || items.find((it:any) => {
+      // fallback contains match
+      const fd = it.fieldData || {};
+      const nm = String(fd.name || '').toLowerCase();
+      return nm.includes(needle);
+    });
+
+    return found?.id;
+  } catch {
+    return undefined;
+  }
+}
+
 // Get article collection fields
 export async function getArticleFields(): Promise<string[]> {
   try {
@@ -439,6 +533,36 @@ export async function publishArticleToWebflow(articleData: WebflowArticleFields)
       throw new Error('Webflow configuration missing (token/site/collection)');
     }
 
+    // Generate Apropos-style image if not provided
+    if (!articleData.featuredImage && articleData.title) {
+      try {
+        console.log('🎨 Generating Apropos-style image for article:', articleData.title);
+        const imageResponse = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/api/generate-image`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            title: articleData.title,
+            topic: (articleData as any).topicsSelected?.[0],
+            author: articleData.author,
+            category: articleData.category,
+            content: articleData.content
+          })
+        });
+
+        if (imageResponse.ok) {
+          const imageData = await imageResponse.json();
+          if (imageData.success && imageData.imageUrl) {
+            articleData.featuredImage = imageData.imageUrl;
+            console.log('✅ Apropos-style image generated and added to article (WebP format, <400KB)');
+          }
+        } else {
+          console.log('⚠️ Image generation failed, continuing without image');
+        }
+      } catch (error) {
+        console.log('⚠️ Image generation error, continuing without image:', error);
+      }
+    }
+
     // Build fieldData via mapping
     const fieldData = buildFieldDataFromMapping(articleData, readMapping());
 
@@ -453,6 +577,96 @@ export async function publishArticleToWebflow(articleData: WebflowArticleFields)
           if (resolvedId) {
             fieldData['author'] = resolvedId;
           }
+        }
+      }
+    }
+
+    // Resolve section reference automatically if provided as a name/slug
+    if (fieldData['section']) {
+      const sectionVal = fieldData['section'];
+      if (typeof sectionVal === 'string') {
+        const looksLikeNameOrSlug = /\s/.test(sectionVal) || sectionVal.length < 20;
+        if (looksLikeNameOrSlug) {
+          const resolvedId = await resolveSectionIdFromName(sectionVal).catch(() => undefined);
+          if (resolvedId) {
+            fieldData['section'] = resolvedId;
+          }
+        }
+      }
+    }
+
+    // Handle Primary Topic and Secondary Topic from SetupWizard data
+    // Primary Topic: First topic from topicsSelected
+    // Secondary Topic: Second topic from topicsSelected (if exists)
+    const topicsSelected = (articleData as any).topicsSelected;
+    if (Array.isArray(topicsSelected) && topicsSelected.length > 0) {
+      // Primary Topic (single reference)
+      const primaryTopic = topicsSelected[0];
+      if (primaryTopic) {
+        const looksLikeNameOrSlug = /\s/.test(primaryTopic) || primaryTopic.length < 20;
+        if (looksLikeNameOrSlug) {
+          const resolvedId = await resolveTopicIdFromName(primaryTopic).catch(() => undefined);
+          if (resolvedId) {
+            fieldData['topic'] = resolvedId; // Primary Topic
+          }
+        } else {
+          fieldData['topic'] = primaryTopic; // Already an ID
+        }
+      }
+
+      // Secondary Topic (multi-reference, but only one item)
+      if (topicsSelected.length > 1) {
+        const secondaryTopic = topicsSelected[1];
+        if (secondaryTopic) {
+          const looksLikeNameOrSlug = /\s/.test(secondaryTopic) || secondaryTopic.length < 20;
+          if (looksLikeNameOrSlug) {
+            const resolvedId = await resolveTopicIdFromName(secondaryTopic).catch(() => undefined);
+            if (resolvedId) {
+              fieldData['topics'] = [resolvedId]; // Secondary Topic as array
+            }
+          } else {
+            fieldData['topics'] = [secondaryTopic]; // Already an ID
+          }
+        }
+      } else {
+        // Only one topic selected, no secondary topic
+        fieldData['topics'] = [];
+      }
+    } else {
+      // Fallback: Use old logic if no topicsSelected
+      if (fieldData['topic']) {
+        const topicVal = fieldData['topic'];
+        if (typeof topicVal === 'string') {
+          const looksLikeNameOrSlug = /\s/.test(topicVal) || topicVal.length < 20;
+          if (looksLikeNameOrSlug) {
+            const resolvedId = await resolveTopicIdFromName(topicVal).catch(() => undefined);
+            if (resolvedId) {
+              fieldData['topic'] = resolvedId;
+            }
+          }
+        }
+      }
+
+      if (fieldData['topics']) {
+        const topicsVal = fieldData['topics'];
+        if (Array.isArray(topicsVal)) {
+          const resolvedIds = [];
+          for (const topicVal of topicsVal) {
+            if (typeof topicVal === 'string') {
+              const looksLikeNameOrSlug = /\s/.test(topicVal) || topicVal.length < 20;
+              if (looksLikeNameOrSlug) {
+                const resolvedId = await resolveTopicIdFromName(topicVal).catch(() => undefined);
+                if (resolvedId) {
+                  resolvedIds.push(resolvedId);
+                }
+              } else {
+                resolvedIds.push(topicVal); // Already an ID
+              }
+            } else {
+              resolvedIds.push(topicVal); // Not a string, keep as is
+            }
+          }
+          fieldData['topics'] = resolvedIds;
         }
       }
     }
@@ -589,9 +803,18 @@ function buildFieldDataFromMapping(articleData: WebflowArticleFields, mapping: W
 
 function transformValue(value: any, t?: string): any {
   switch (t) {
-    case 'plainToHtml':
+    case 'plainToHtml': {
       if (!value) return value;
-      return `<p>${String(value).replace(/\n+/g,'</p><p>')}</p>`;
+      const str = String(value).trim();
+      if (!str) return str;
+      if (/<\w+/i.test(str)) return str;
+      const paragraphs = str
+        .split(/\n{2,}/)
+        .map((block) => block.trim())
+        .filter(Boolean)
+        .map((block) => `<p>${block.replace(/\n+/g, '<br/>')}</p>`);
+      return paragraphs.length > 0 ? paragraphs.join('') : `<p>${str}</p>`;
+    }
     case 'markdownToHtml':
       // simple fallback; for real md convert, integrate a parser later
       if (!value) return value;
@@ -604,10 +827,26 @@ function transformValue(value: any, t?: string): any {
       return value ? new Date(value).toISOString() : undefined;
     case 'referenceId':
       return value; // expect caller to supply itemId
+    case 'multiReferenceId':
+      if (Array.isArray(value)) return value; // expect caller to supply array of itemIds
+      if (!value) return [];
+      return [value]; // single value as array
     case 'boolean':
       return !!value;
     case 'number':
       return value === undefined || value === null || value === '' ? undefined : Number(value);
+    case 'cleanIntro':
+      if (!value) return value;
+      const introText = String(value).trim();
+      if (!introText) return introText;
+      // Remove "Intro:" label if present and clean up the text
+      const cleanedIntro = introText
+        .replace(/^intro\s*:\s*/im, '') // Remove "Intro:" label
+        .replace(/^jeg\s+satte\s+mig[^.]*\.\s*/im, '') // Remove "Jeg satte mig..." prefix
+        .replace(/\n+/g, ' ') // Replace newlines with spaces
+        .replace(/\s+/g, ' ') // Collapse multiple spaces
+        .trim();
+      return cleanedIntro;
     case 'identity':
     default:
       return value;
