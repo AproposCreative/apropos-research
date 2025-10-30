@@ -118,6 +118,7 @@ export default function MainChatPanel({
   const progressIntervalRef = useRef<number | null>(null);
   const progressResetTimeoutRef = useRef<number | null>(null);
   const progressDisplay = Math.min(100, Math.max(0, Math.round(thinkingProgress)));
+  const [mobileWizardCollapsed, setMobileWizardCollapsed] = useState<boolean>((messages?.length || 0) > 0);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [mobileMenuVisible, setMobileMenuVisible] = useState(false);
   const SPLINE_MOBILE_OPTIONS = [
@@ -253,6 +254,11 @@ const fallbackThinkingSteps: ThinkingStep[] = [
       }
     };
   }, [isThinking]);
+
+  useEffect(() => {
+    // Sync collapsed state with whether there are messages
+    setMobileWizardCollapsed((messages?.length || 0) > 0);
+  }, [messages?.length]);
 
   useEffect(() => {
     if (progressIntervalRef.current !== null) {
@@ -958,22 +964,35 @@ const fallbackThinkingSteps: ThinkingStep[] = [
           <div className="absolute inset-0 bg-black/30" />
         </div>
         {/* Top Bar */}
-        <div className={`flex items-center justify-between p-4 border-b border-zinc-800 relative z-10 ${messages.length === 0 ? 'md:opacity-100' : ''}`}>
+        <div className={`flex items-center justify-between p-4 relative z-20 
+          md:static md:bg-transparent md:backdrop-blur-0 md:border-b md:border-zinc-800 
+          fixed top-0 inset-x-0 md:inset-auto md:top-auto
+          bg-black/40 backdrop-blur-xl border-b border-white/10 
+        ${messages.length === 0 ? 'md:opacity-100' : ''}`}>
           <div className="flex items-center gap-3">
-            <h1 className="text-white text-base font-medium">
+            {/* Mobile: Logo/title cross-fade */}
+            <div className="relative md:hidden h-6">
+              <img
+                src="/images/Apropos Research White.png"
+                alt="Apropos Research"
+                className={`h-6 transition-all duration-300 ${messages.length === 0 ? 'opacity-80 scale-100' : 'opacity-0 scale-95'}`}
+              />
+              <div className={`absolute inset-0 flex items-center transition-all duration-300 ${messages.length === 0 ? 'opacity-0 scale-95' : 'opacity-100 scale-100'}`}>
+                <span className="text-white text-base font-medium">
+                  {chatTitle === 'Ny artikkel' ? 'Ny Apropos Magazine artikkel' : chatTitle}
+                </span>
+              </div>
+            </div>
+            {/* Desktop: always show title */}
+            <h1 className="hidden md:block text-white text-base font-medium">
               {chatTitle === 'Ny artikkel' ? (
                 <span 
                   className="bg-gradient-to-r from-white/20 via-white/70 to-white/20 bg-clip-text text-transparent"
-                  style={{ 
-                    backgroundSize: '200% 100%', 
-                    animation: 'gradient-shift 4s ease-in-out infinite' 
-                  }}
+                  style={{ backgroundSize: '200% 100%', animation: 'gradient-shift 4s ease-in-out infinite' }}
                 >
                   Ny Apropos Magazine artikkel
                 </span>
-              ) : (
-                chatTitle
-              )}
+              ) : chatTitle}
             </h1>
             {isAutoSaving && (
               <span className="text-xs text-green-400 animate-pulse">Gemmer...</span>
@@ -999,7 +1018,7 @@ const fallbackThinkingSteps: ThinkingStep[] = [
           </button>
         </div>
       
-      <div className={`flex flex-col justify-start gap-2 p-[10px] flex-1 overflow-hidden min-h-0 chat-container transition-all duration-500 ${messages.length === 0 ? 'opacity-0 pointer-events-none translate-y-1 md:opacity-100 md:translate-y-0' : 'opacity-100 translate-y-0'}`}>
+      <div className={`flex flex-col justify-start gap-2 p-[10px] md:pt-0 pt-16 pb-32 flex-1 overflow-hidden min-h-0 chat-container transition-all duration-500 ${messages.length === 0 ? 'opacity-0 pointer-events-none translate-y-1 md:opacity-100 md:translate-y-0' : 'opacity-100 translate-y-0'}`}>
         {/* Dynamic Chat Messages */}
         <div className="relative flex-1 min-h-0 overflow-hidden">
           <div
@@ -1547,18 +1566,29 @@ const fallbackThinkingSteps: ThinkingStep[] = [
 
         {/* Docket wizard (non-overlay) */}
         {wizardNode && (
-          <WizardAutoHeight>
-            {wizardNode}
-          </WizardAutoHeight>
+          <div className="hidden md:block">
+            <WizardAutoHeight>
+              {wizardNode}
+            </WizardAutoHeight>
+          </div>
         )}
 
-        {/* Input Area */}
-        <div className={`p-3 md:p-4 rounded-xl flex flex-col gap-2 md:gap-3 mx-[10px] mb-[10px] relative z-10 transition-shadow duration-300 ${
-          messages.length === 0
-            ? 'bg-black/40 backdrop-blur-xl border border-white/15 shadow-[0_18px_80px_-30px_rgba(255,255,255,0.28)]'
-            : 'bg-[#171717]'
-        }`}>
-          <div className="relative">
+        {/* Input Area (sticky wrapper) */}
+        <div className={`md:static fixed inset-x-0 bottom-2 md:bottom-0 md:inset-auto md:bottom-auto 
+          p-3 md:p-0 flex flex-col gap-2 md:gap-0 md:mx-[10px] md:my-0 mx-[10px] mb-0 
+          z-20`} style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 8px)' }}>
+          {/* Mobile: Wizard card above writer card inside same sticky container */}
+          {wizardNode && (
+            <div className="md:hidden mb-2" style={{ overflow: mobileWizardCollapsed ? 'hidden' : 'visible' }} onClick={()=>setMobileWizardCollapsed(c=>!c)}>
+              <WizardAutoHeight collapsed={mobileWizardCollapsed}>
+                {wizardNode}
+              </WizardAutoHeight>
+            </div>
+          )}
+          {/* Writer field card */}
+          <div className={`relative rounded-xl ${messages.length === 0 ? 'bg-black/40 backdrop-blur-xl border border-white/15 shadow-[0_-18px_80px_-30px_rgba(255,255,255,0.28)]' : 'bg-[#171717] border border-white/15'}`}>
+            <div className="p-3 md:p-4">
+              <div className="relative">
             <textarea
               value={inputMessage}
               onChange={(e) => setInputMessage(e.target.value)}
@@ -1581,40 +1611,42 @@ const fallbackThinkingSteps: ThinkingStep[] = [
                 </span>
               </div>
             )}
-          </div>
-          
-          <div className="flex justify-between items-center">
-            <div className="flex gap-3">
-              <button 
-                onClick={() => setShowFileDrop(!showFileDrop)}
-                className={`w-6 h-6 flex items-center justify-center rounded transition-colors ${
-                  showFileDrop ? 'text-blue-400 bg-blue-400/10' : 'text-white hover:bg-gray-700'
-                }`}
-                title="Upload filer"
-              >
-                <span className="text-lg">+</span>
-              </button>
-              <button className="w-6 h-6 flex items-center justify-center text-white hover:bg-gray-700 rounded transition-colors">
-                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M12.586 4.586a2 2 0 112.828 2.828l-3 3a2 2 0 01-2.828 0 1 1 0 00-1.414 1.414 4 4 0 005.656 0l3-3a4 4 0 00-5.656-5.656l-1.5 1.5a1 1 0 101.414 1.414l1.5-1.5zm-5 5a2 2 0 012.828 0 1 1 0 101.414-1.414 4 4 0 00-5.656 0l-3 3a4 4 0 105.656 5.656l1.5-1.5a1 1 0 10-1.414-1.414l-1.5 1.5a2 2 0 11-2.828-2.828l3-3z" clipRule="evenodd" />
-                </svg>
-              </button>
-              <button className="w-6 h-6 flex items-center justify-center text-white hover:bg-gray-700 rounded transition-colors">
-                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z" clipRule="evenodd" />
-                </svg>
-              </button>
+              </div>
+              
+              <div className="flex justify-between items-center">
+                <div className="flex gap-3">
+                  <button 
+                    onClick={() => setShowFileDrop(!showFileDrop)}
+                    className={`w-6 h-6 flex items-center justify-center rounded transition-colors ${
+                      showFileDrop ? 'text-blue-400 bg-blue-400/10' : 'text-white hover:bg-gray-700'
+                    }`}
+                    title="Upload filer"
+                  >
+                    <span className="text-lg">+</span>
+                  </button>
+                  <button className="w-6 h-6 flex items-center justify-center text-white hover:bg-gray-700 rounded transition-colors">
+                    <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M12.586 4.586a2 2 0 112.828 2.828l-3 3a2 2 0 01-2.828 0 1 1 0 00-1.414 1.414 4 4 0 005.656 0l3-3a4 4 0 00-5.656-5.656l-1.5 1.5a1 1 0 101.414 1.414l1.5-1.5zm-5 5a2 2 0 012.828 0 1 1 0 101.414-1.414 4 4 0 00-5.656 0l-3 3a4 4 0 105.656 5.656l1.5-1.5a1 1 0 10-1.414-1.414l-1.5 1.5a2 2 0 11-2.828-2.828l3-3z" clipRule="evenodd" />
+                    </svg>
+                  </button>
+                  <button className="w-6 h-6 flex items-center justify-center text-white hover:bg-gray-700 rounded transition-colors">
+                    <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z" clipRule="evenodd" />
+                    </svg>
+                  </button>
+                </div>
+                
+                <button 
+                  onClick={handleSubmit}
+                  disabled={!inputMessage.trim()}
+                  className="w-8 h-8 bg-white rounded-lg flex items-center justify-center hover:bg-gray-100 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                >
+                  <svg className="w-4 h-4 text-gray-800" fill="currentColor" viewBox="0 0 20 20">
+                    <path d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l5-1.429A1 1 0 009 15.571V11a1 1 0 112 0v4.571a1 1 0 00.725.962l5 1.428a1 1 0 001.17-1.408l-7-14z" />
+                  </svg>
+                </button>
+              </div>
             </div>
-            
-            <button 
-              onClick={handleSubmit}
-              disabled={!inputMessage.trim()}
-              className="w-8 h-8 bg-white rounded-lg flex items-center justify-center hover:bg-gray-100 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-            >
-              <svg className="w-4 h-4 text-gray-800" fill="currentColor" viewBox="0 0 20 20">
-                <path d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l5-1.429A1 1 0 009 15.571V11a1 1 0 112 0v4.571a1 1 0 00.725.962l5 1.428a1 1 0 001.17-1.408l-7-14z" />
-              </svg>
-            </button>
           </div>
         </div>
       </div>

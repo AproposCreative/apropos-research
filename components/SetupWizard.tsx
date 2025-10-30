@@ -391,7 +391,7 @@ export default function SetupWizard({ initialData, onComplete, onChange }: Setup
   return (
     <div className="bg-black rounded-xl p-2 md:p-3">
       {/* Stepper */}
-      <div className="relative mb-3 md:mb-[14px]">
+      <div className="relative mb-3 md:mb-[14px] overflow-visible">
         <div
           ref={stepperRef}
           className={`flex items-center gap-2 md:gap-[14px] overflow-x-auto pb-2 md:pb-0 scrollbar-hide select-none ${isDragging ? 'cursor-grabbing' : 'cursor-grab active:cursor-grab'}`}
@@ -515,7 +515,7 @@ export default function SetupWizard({ initialData, onComplete, onChange }: Setup
       {step==='trending' && data.template==='research' && (
         <div className="space-y-3 md:space-y-[14px]">
           <div className="text-white/80 text-sm">Trending fra {data.inspirationSource || 'valgt medie'}</div>
-          <div className="max-h-64 overflow-y-auto scrollbar-thin scrollbar-thumb-white/20 scrollbar-track-transparent">
+        <div className="overflow-visible">
             <div className="grid gap-2 md:gap-[10px]">
             {loadingTrending && (<div className="w-6 h-6 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>)}
             {!loadingTrending && trendingItems.slice(0,8).map((it, idx)=> {
