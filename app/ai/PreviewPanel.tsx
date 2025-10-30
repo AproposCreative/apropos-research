@@ -10,6 +10,7 @@ interface PreviewPanelProps {
 export default function PreviewPanel({ articleData, onUpdateArticle }: PreviewPanelProps) {
   const [isGeneratingImage, setIsGeneratingImage] = useState(false);
   const [imageProgress, setImageProgress] = useState(0);
+  const introText = (articleData.intro || '').replace(/^intro\s*:\s*/i, '');
   
   const renderStars = (rating: number) => {
     return '★'.repeat(rating) + '☆'.repeat(5 - rating);
@@ -59,6 +60,15 @@ export default function PreviewPanel({ articleData, onUpdateArticle }: PreviewPa
            <span className="bg-blue-600 text-white px-2 py-1 rounded text-xs">Stream nu</span>
            <span className="bg-gray-100 px-2 py-1 rounded text-xs">Billetter</span>
          </div>
+
+        {introText && (
+          <div className="mb-8">
+            <div className="uppercase text-xs tracking-[0.3em] text-gray-400 mb-2">Intro</div>
+            <p className="text-gray-700 leading-relaxed whitespace-pre-wrap">
+              {introText}
+            </p>
+          </div>
+        )}
 
         {/* Featured Image */}
         {articleData.featuredImage ? (

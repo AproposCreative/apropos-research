@@ -55,6 +55,7 @@ export interface WebflowArticleFields {
   subtitle?: string;
   content: string;
   excerpt?: string;
+  intro?: string;
   category: string;
   tags: string[];
   author: string;
@@ -73,6 +74,10 @@ export interface WebflowArticleFields {
   topicsSelected?: string[];
   streaming_service?: string;
   platform?: string;
+  watchUrl?: string;
+  streamingUrl?: string;
+  videoTrailer?: string;
+  video_trailer?: string;
 }
 
 export type WebflowStatus = {
@@ -377,6 +382,70 @@ async function resolveSectionIdFromName(nameOrSlug: string): Promise<string | un
   }
 }
 
+async function resolveStreamingServiceIdFromName(nameOrSlug: string): Promise<string | undefined> {
+  const slugify = (s: string) => s
+    .toLowerCase()
+    .normalize('NFD').replace(/\p{Diacritic}+/gu, '')
+    .replace(/[^a-z0-9\s-]/g, '')
+    .trim()
+    .replace(/\s+/g, '-');
+  try {
+    const { token, siteId } = resolveConfig();
+    if (!token || !siteId) return undefined;
+
+    let collectionId = resolveConfig().streamingServicesCollectionId;
+    if (!collectionId) {
+      try {
+        const listRes = await fetch(`https://api.webflow.com/v2/sites/${siteId}/collections`, {
+          headers: { 'Authorization': `Bearer ${token}`, 'Accept-Version': '1.0.0' },
+        });
+        if (listRes.ok) {
+          const listData: any = await listRes.json().catch(() => ({}));
+          const cols: any[] = Array.isArray(listData) ? listData : (listData.collections || listData.items || []);
+          const norm = (s?: string) => (s || '').toLowerCase();
+          const candidate = cols.find((col: any) => {
+            const slug = norm(col.slug);
+            const name = norm(col.name);
+            return slug.includes('stream') || name.includes('stream');
+          });
+          collectionId = candidate?.id;
+        }
+      } catch (err) {
+        console.warn('Unable to auto-discover streaming services collection:', err);
+      }
+    }
+
+    if (!collectionId) return undefined;
+
+    const res = await fetch(`https://api.webflow.com/v2/sites/${siteId}/collections/${collectionId}/items?limit=200`, {
+      headers: { 'Authorization': `Bearer ${token}`, 'Accept-Version': '1.0.0' },
+    });
+    if (!res.ok) return undefined;
+    const data: any = await res.json();
+    const items: any[] = data.items || [];
+
+    const needleRaw = (nameOrSlug || '').trim();
+    const needle = needleRaw.toLowerCase();
+    const needleSlug = slugify(needleRaw);
+
+    const found = items.find((it: any) => {
+      const fd = it.fieldData || {};
+      const nm = String(fd.name || fd.title || fd.label || '').toLowerCase().trim();
+      const sl = String(fd.slug || '').toLowerCase().trim();
+      return nm === needle || sl === needle || sl === needleSlug;
+    }) || items.find((it:any) => {
+      const fd = it.fieldData || {};
+      const nm = String(fd.name || fd.title || fd.label || '').toLowerCase();
+      return nm.includes(needle);
+    });
+
+    return found?.id;
+  } catch (error) {
+    console.warn('Unable to resolve streaming service ID:', error);
+    return undefined;
+  }
+}
+
 // Resolve topic itemId by matching name or slug (case-insensitive)
 async function resolveTopicIdFromName(nameOrSlug: string): Promise<string | undefined> {
   const slugify = (s: string) => s
@@ -533,6 +602,38 @@ export async function publishArticleToWebflow(articleData: WebflowArticleFields)
       throw new Error('Webflow configuration missing (token/site/collection)');
     }
 
+    const normalizedPlatform = (articleData.platform || '').trim();
+    if (!articleData.streaming_service && normalizedPlatform && !isLikelyUrl(normalizedPlatform)) {
+      articleData.streaming_service = normalizedPlatform;
+    }
+    if (!articleData.watchUrl && articleData.streamingUrl) {
+      articleData.watchUrl = articleData.streamingUrl;
+    }
+    if (!articleData.watchUrl && normalizedPlatform && isLikelyUrl(normalizedPlatform)) {
+      articleData.watchUrl = normalizedPlatform;
+    }
+    if (articleData.watchUrl && !isLikelyUrl(articleData.watchUrl)) {
+      articleData.watchUrl = undefined;
+    }
+    if (!articleData.videoTrailer && articleData.video_trailer) {
+      articleData.videoTrailer = articleData.video_trailer;
+    }
+    if (!articleData.videoTrailer) {
+      const youtubeCandidate = extractFirstYouTubeUrl(
+        `${articleData.videoTrailer || ''}\n${articleData.content || ''}\n${articleData.excerpt || ''}`
+      );
+      if (youtubeCandidate) {
+        articleData.videoTrailer = youtubeCandidate;
+      }
+    }
+    if (articleData.videoTrailer) {
+      const normalizedTrailer = normalizeYouTubeUrl(articleData.videoTrailer);
+      articleData.videoTrailer = normalizedTrailer || undefined;
+      if (articleData.videoTrailer) {
+        articleData.video_trailer = articleData.videoTrailer;
+      }
+    }
+
     // Generate Apropos-style image if not provided
     if (!articleData.featuredImage && articleData.title) {
       try {
@@ -668,6 +769,45 @@ export async function publishArticleToWebflow(articleData: WebflowArticleFields)
           }
           fieldData['topics'] = resolvedIds;
         }
+    }
+  }
+
+    const streamingCandidates: (string | undefined)[] = [
+      typeof fieldData['streaming-service'] === 'string' ? fieldData['streaming-service'] : undefined,
+      articleData.streaming_service,
+      articleData.platform
+    ];
+    const streamingLabel = streamingCandidates.find((value) => {
+      if (!value) return false;
+      const trimmed = value.trim();
+      if (!trimmed) return false;
+      const looksLikeId = /^[a-f0-9]{24}$/i.test(trimmed);
+      if (looksLikeId) {
+        fieldData['streaming-service'] = trimmed;
+        return false;
+      }
+      return !isLikelyUrl(trimmed);
+    });
+    if (streamingLabel) {
+      const resolvedStreamingId = await resolveStreamingServiceIdFromName(streamingLabel);
+      if (resolvedStreamingId) {
+        fieldData['streaming-service'] = resolvedStreamingId;
+      } else {
+        console.warn('⚠️ Streaming service not found in Webflow:', streamingLabel);
+        delete fieldData['streaming-service'];
+      }
+    }
+
+    if (!fieldData['watch-now-link'] && articleData.watchUrl && isLikelyUrl(articleData.watchUrl)) {
+      fieldData['watch-now-link'] = articleData.watchUrl.trim();
+    }
+    if (typeof fieldData['watch-now-link'] === 'string') {
+      const link = fieldData['watch-now-link'].trim();
+      if (!isLikelyUrl(link)) {
+        console.warn('⚠️ Removing non-URL watch-now-link value:', link);
+        delete fieldData['watch-now-link'];
+      } else {
+        fieldData['watch-now-link'] = link;
       }
     }
 
@@ -791,6 +931,22 @@ function buildFieldDataFromMapping(articleData: WebflowArticleFields, mapping: W
       data[entry.webflowSlug] = val;
     }
   }
+  if (typeof data['watch-now-link'] === 'string') {
+    const link = data['watch-now-link'].trim();
+    if (!isLikelyUrl(link)) {
+      delete data['watch-now-link'];
+    } else {
+      data['watch-now-link'] = link;
+    }
+  }
+  if (typeof data['video-trailer'] === 'string') {
+    const normalized = normalizeYouTubeUrl(data['video-trailer']);
+    if (normalized) {
+      data['video-trailer'] = normalized;
+    } else {
+      delete data['video-trailer'];
+    }
+  }
   // Defaults/fallbacks
   if (!data['publish-date']) data['publish-date'] = articleData.publishDate || new Date().toISOString();
   if (!data['seo-title'] && articleData.title) data['seo-title'] = articleData.title;
@@ -850,6 +1006,49 @@ function transformValue(value: any, t?: string): any {
     case 'identity':
     default:
       return value;
+  }
+}
+
+function isLikelyUrl(value: string | undefined | null): boolean {
+  if (!value) return false;
+  const trimmed = String(value).trim();
+  return /^https?:\/\//i.test(trimmed);
+}
+
+function extractFirstYouTubeUrl(text: string): string | undefined {
+  if (!text) return undefined;
+  const regex = /(https?:\/\/[^\s]*?(?:youtube\.com\/[\w?=&-]+|youtu\.be\/[\w-]+))/i;
+  const match = text.match(regex);
+  return match ? match[1] : undefined;
+}
+
+function normalizeYouTubeUrl(url: string): string | undefined {
+  if (!url) return undefined;
+  let candidate = url.trim();
+  if (!/^https?:\/\//i.test(candidate)) {
+    candidate = `https://${candidate}`;
+  }
+  try {
+    const parsed = new URL(candidate);
+    const host = parsed.hostname.toLowerCase();
+    if (!host.includes('youtube.com') && !host.includes('youtu.be')) {
+      return undefined;
+    }
+    let videoId = '';
+    if (host.includes('youtu.be')) {
+      videoId = parsed.pathname.replace(/^\//, '').split('/')[0];
+    } else if (parsed.pathname.startsWith('/watch')) {
+      videoId = parsed.searchParams.get('v') || '';
+    } else if (parsed.pathname.startsWith('/shorts/')) {
+      videoId = parsed.pathname.split('/')[2] || parsed.pathname.split('/')[1] || '';
+    } else if (parsed.pathname.startsWith('/embed/')) {
+      videoId = parsed.pathname.split('/')[2] || '';
+    }
+    videoId = videoId.replace(/[^A-Za-z0-9_-]/g, '');
+    if (!videoId) return undefined;
+    return `https://www.youtube.com/watch?v=${videoId}`;
+  } catch {
+    return undefined;
   }
 }
 

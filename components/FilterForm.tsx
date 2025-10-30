@@ -1,6 +1,7 @@
 'use client';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Suspense } from 'react';
+import Link from 'next/link';
 
 function FilterFormInner({ children }: { children: React.ReactNode }) {
   const router = useRouter();
@@ -73,7 +74,7 @@ function FilterFormInner({ children }: { children: React.ReactNode }) {
           </select>
         </div>
         <div className="flex items-center gap-2">
-          <a href="/" className="rounded-full border border-slate-300/50 dark:border-slate-600/50 bg-white/70 dark:bg-black/70 backdrop-blur-sm px-3 py-2 text-xs text-slate-700 dark:text-slate-300 hover:bg-slate-100/70 dark:hover:bg-slate-700/70 transition-all duration-300 whitespace-nowrap" title="Nulstil filtrene">Nulstil</a>
+          <Link href="/" className="rounded-full border border-slate-300/50 dark:border-slate-600/50 bg-white/70 dark:bg-black/70 backdrop-blur-sm px-3 py-2 text-xs text-slate-700 dark:text-slate-300 hover:bg-slate-100/70 dark:hover:bg-slate-700/70 transition-all duration-300 whitespace-nowrap" title="Nulstil filtrene">Nulstil</Link>
         </div>
       </div>
       <button className="sr-only" type="submit">Filtrér</button>

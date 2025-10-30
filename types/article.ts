@@ -17,6 +17,7 @@ export interface ArticleData {
   tags: string[];
   platform?: string; // streaming_service synonym
   press?: boolean | null;
+  intro?: string;
   aiDraft?: AIDraft | null;
   previewTitle?: string; // live title parsed from assistant drafts
   aiSuggestion?: { type: 'rating'; title: string; description: string } | null;

@@ -32,8 +32,9 @@ const DEFAULT_MAPPING: WebflowMapping = {
     { internal: 'tags', webflowSlug: 'tags', transform: 'stringArray' },
     { internal: 'author', webflowSlug: 'author', transform: 'referenceId' },
     { internal: 'rating', webflowSlug: 'stjerne', transform: 'number' },
-    { internal: 'streaming_service', webflowSlug: 'watch-now-link', transform: 'identity' },
-    { internal: 'platform', webflowSlug: 'streaming-service', transform: 'identity' },
+    { internal: 'streaming_service', webflowSlug: 'streaming-service', transform: 'identity' },
+    { internal: 'platform', webflowSlug: 'watch-now-link', transform: 'identity' },
+    { internal: 'watchUrl', webflowSlug: 'watch-now-link', transform: 'identity' },
     { internal: 'minutes_to_read', webflowSlug: 'minutes-to-read', transform: 'number' },
     { internal: 'readTime', webflowSlug: 'minutes-to-read', transform: 'number' },
     { internal: 'wordCount', webflowSlug: 'word-count', transform: 'number' },
@@ -46,6 +47,8 @@ const DEFAULT_MAPPING: WebflowMapping = {
     { internal: 'slut_dato', webflowSlug: 'slut-dato', transform: 'dateIso' },
     { internal: 'buy_tickets', webflowSlug: 'buy-tickets', transform: 'identity' },
     { internal: 'featuredImage', webflowSlug: 'thumb', transform: 'identity' },
+    { internal: 'videoTrailer', webflowSlug: 'video-trailer', transform: 'identity' },
+    { internal: 'video_trailer', webflowSlug: 'video-trailer', transform: 'identity' },
   ],
 };
 
@@ -67,4 +70,3 @@ export function saveMapping(mapping: WebflowMapping) {
     console.error('Failed to save webflow-mapping.json', e);
   }
 }
-

@@ -14,7 +14,6 @@ interface ReviewPanelProps {
 }
 
 export default function ReviewPanel({ articleData, onClose, frameless, onPreflightComplete, onRecommendationsApplied, onUpdateArticle }: ReviewPanelProps) {
-  const [siteMock, setSiteMock] = useState(false);
   const [wfSlugs, setWfSlugs] = useState<string[] | null>(null);
   const [isGeneratingImage, setIsGeneratingImage] = useState(false);
   const [imageProgress, setImageProgress] = useState(0);
@@ -85,48 +84,15 @@ export default function ReviewPanel({ articleData, onClose, frameless, onPreflig
     <div className="text-white space-y-6">
       <div className="flex items-center justify-between">
         <div className="text-sm text-white/50">Article preview</div>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => setSiteMock(v => !v)}
-            title={siteMock ? 'Skift til standard preview' : 'Vis live‑site mock'}
-            className="text-white/60 hover:text-white transition-colors"
-          >
-            {/* Globe icon */}
-            <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-              <circle cx="12" cy="12" r="10"></circle>
-              <path d="M2 12h20"></path>
-              <path d="M12 2c2.5 3 2.5 15 0 20c-2.5-5-2.5-15 0-20z"></path>
-            </svg>
-          </button>
-          {onClose && (
-            <button onClick={onClose} className="text-white/60 hover:text-white text-xs">Luk</button>
-          )}
-        </div>
+        {onClose && (
+          <button onClick={onClose} className="text-white/60 hover:text-white text-xs">Luk</button>
+        )}
       </div>
 
-      {siteMock ? (
-        <header className="rounded-xl overflow-hidden border border-white/10">
-          <div className="bg-white text-black p-6">
-            <div className="text-xs uppercase tracking-wide text-rose-600 font-semibold">{category || 'Sektion'}</div>
-            <h1 className="mt-2 text-3xl md:text-4xl font-semibold leading-tight">{title}</h1>
-            {subtitle && <p className="mt-3 text-lg text-neutral-700 leading-relaxed">{subtitle}</p>}
-            <div className="mt-4 flex flex-wrap items-center gap-2 text-sm text-neutral-600">
-              <span className="font-medium">{author}</span>
-              {rating>0 && (
-                <span className="px-2 py-0.5 rounded-full bg-neutral-100 border border-neutral-200">{rating}/6 ⭐</span>
-              )}
-              {[category, topic, platform].filter(Boolean).map((t, i) => (
-                <span key={i} className="px-2 py-0.5 rounded-full bg-neutral-100 border border-neutral-200">{String(t)}</span>
-              ))}
-            </div>
-          </div>
-        </header>
-      ) : (
-        <header className="space-y-3">
-          <h1 className="text-2xl font-semibold leading-tight">{title}</h1>
-          <p className="text-white/70 text-base leading-relaxed">{subtitle || 'Undertitel'}</p>
-        </header>
-      )}
+      <header className="space-y-3">
+        <h1 className="text-2xl font-semibold leading-tight">{title}</h1>
+        <p className="text-white/70 text-base leading-relaxed">{subtitle || 'Undertitel'}</p>
+      </header>
 
       <section className="space-y-3 text-sm leading-6 text-white/85">
         {paragraphs.length

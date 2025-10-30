@@ -37,6 +37,7 @@ export default function WebflowPublishPanel({ articleData, onPublish, onClose, e
     author: articleData.author || '',
     rating: articleData.rating || 0,
     featuredImage: articleData.featuredImage || '',
+    intro: articleData.intro || '',
     gallery: articleData.gallery || [],
     publishDate: new Date().toISOString(),
     status: 'draft',
@@ -50,6 +51,9 @@ export default function WebflowPublishPanel({ articleData, onPublish, onClose, e
     topicsSelected: articleData.topicsSelected || [],
     streaming_service: articleData.streaming_service || articleData.platform || '',
     platform: articleData.platform || articleData.streaming_service || '',
+    watchUrl: articleData.watchUrl || articleData.platform || '',
+    streamingUrl: articleData.streamingUrl || '',
+    videoTrailer: articleData.videoTrailer || articleData.video_trailer || '',
   });
 
   // Update formData when articleData changes
@@ -67,6 +71,7 @@ export default function WebflowPublishPanel({ articleData, onPublish, onClose, e
       author: articleData.author || prev.author,
       rating: articleData.rating || prev.rating,
       featuredImage: articleData.featuredImage || prev.featuredImage,
+      intro: articleData.intro || prev.intro,
       gallery: articleData.gallery || prev.gallery,
       seoTitle: articleData.seoTitle || prev.seoTitle,
       seoDescription: articleData.seoDescription || prev.seoDescription,
@@ -76,6 +81,9 @@ export default function WebflowPublishPanel({ articleData, onPublish, onClose, e
       topicsSelected: articleData.topicsSelected || prev.topicsSelected,
       streaming_service: articleData.streaming_service || articleData.platform || prev.streaming_service,
       platform: articleData.platform || articleData.streaming_service || prev.platform,
+      watchUrl: articleData.watchUrl || articleData.platform || prev.watchUrl,
+      streamingUrl: articleData.streamingUrl || prev.streamingUrl,
+      videoTrailer: articleData.videoTrailer || articleData.video_trailer || prev.videoTrailer,
       featured: articleData.featured !== undefined ? articleData.featured : prev.featured,
       trending: articleData.trending !== undefined ? articleData.trending : prev.trending,
     }));
@@ -137,13 +145,15 @@ export default function WebflowPublishPanel({ articleData, onPublish, onClose, e
         category: articleData.category || articleData.section || prev.category || '',
         tags: Array.isArray(articleData.tags) ? articleData.tags : (Array.isArray(prev.tags) ? prev.tags : []),
         author: articleData.author || prev.author || '',
-        rating: typeof articleData.rating === 'number' ? articleData.rating : (prev.rating||0),
+        rating: typeof articleData.rating === 'number' ? articleData.rating : (prev.rating || 0),
         seoTitle: articleData.seoTitle || prev.seoTitle || articleData.title || prev.title || '',
         seoDescription: articleData.seoDescription || prev.seoDescription || (content ? content.substring(0, 160) : ''),
         wordCount: wc,
         readTime: rt,
+        intro: articleData.intro || prev.intro || '',
+        videoTrailer: articleData.videoTrailer || articleData.video_trailer || prev.videoTrailer,
       }));
-    } catch {}
+  } catch {}
   }, [articleData]);
 
   useEffect(() => {
@@ -182,11 +192,13 @@ export default function WebflowPublishPanel({ articleData, onPublish, onClose, e
 
   const calculateStats = () => {
     const wordCount = formData.content ? formData.content.split(' ').length : 0;
+    const intro = articleData.intro || formData.intro || '';
     const readTime = Math.ceil(wordCount / 200);
     setFormData(prev => ({ 
       ...prev, 
       wordCount, 
       readTime,
+      intro,
       seoTitle: prev.seoTitle || prev.title,
       seoDescription: prev.seoDescription || prev.excerpt || prev.content.substring(0, 160)
     }));

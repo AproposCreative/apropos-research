@@ -39,6 +39,15 @@ Baseret på den valgte template, generer en komplet artikel med:
 4. **Hovedindhold** - Struktureret efter template, med TOV gennemgående
 5. **Konklusion** - Refleksiv, eftertænksom, call-to-action
 
+**Længdekrav (brødtekst):**
+- Features / kultur / portræt / interview: 1.200-1.500 ord
+- Essays / kommentarer: 1.100-1.300 ord
+- Film/serie/gaming/tech-anmeldelser: 900-1.100 ord
+- Koncertanmeldelser: 700-900 ord
+- Andre artikler: minimum 1.100 ord
+- Hele artiklen (inkl. intro og afslutning) må aldrig være under 1.100 ord
+- Udbyg hver pointe med konkrete scener, sanser og refleksioner så længden nås naturligt
+
 **Vigtige regler:**
 - Brug "jeg" og "vi" - vi er personlige
 - Vær ærlig om både positive og negative aspekter

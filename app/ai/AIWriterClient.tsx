@@ -15,6 +15,48 @@ import { useAuth } from '@/lib/auth-context';
 import { saveDraft, getDraft, type ArticleDraft } from '@/lib/firebase-service';
 import { autoSaveService } from '@/lib/auto-save-service';
 import type { ArticleData } from '@/types/article';
+import type { ThinkingStep, ThinkingStatus } from '@/types/thinking';
+
+const BASE_THINKING_STEPS: ThinkingStep[] = [
+  { id: 'analysis', label: 'Analyserer brief og noter', status: 'pending', icon: 'dot' },
+  { id: 'analysis-read', label: 'Indlæser template & noter', status: 'pending', icon: 'doc', indent: 1 },
+  { id: 'analysis-verify', label: 'Verificerer længdekrav', status: 'pending', icon: 'dot', indent: 1 },
+  { id: 'research', label: 'Finder referencer & fakta', status: 'pending', icon: 'dot' },
+  { id: 'research-source', label: 'Scanner kulturkilder', status: 'pending', icon: 'doc', indent: 1 },
+  { id: 'draft', label: 'Skriver Apropos-udkast', status: 'pending', icon: 'dot' },
+  { id: 'draft-shape', label: 'Former intro, brødtekst, eftertanke', status: 'pending', icon: 'doc', indent: 1 },
+  { id: 'polish', label: 'Finpudser tone & struktur', status: 'pending', icon: 'dot' }
+];
+
+// Available Spline backgrounds
+const SPLINE_BACKGROUNDS = [
+  {
+    id: 'robot',
+    name: 'Robot Karakter',
+    url: 'https://my.spline.design/nexbotrobotcharacterconcept-jOiWdJXA0mBgb50nmYl1x0EC/',
+    description: 'Moderne AI-assistent robot'
+  },
+  {
+    id: 'gradient',
+    name: 'Gradient Animation',
+    url: 'https://my.spline.design/animatedbackgroundgradientforweb-k9vy84HznMWrADyOW44KZ3Ue/',
+    description: 'Abstrakt gradient flow'
+  },
+  {
+    id: 'retrofuturism',
+    name: 'Retro Futurism',
+    url: 'https://my.spline.design/retrofuturismbganimation-Z5NWhPCGc1tcryNEnaN2FnIJ/',
+    description: 'Retro futuristisk animation'
+  },
+  {
+    id: 'dotwaves',
+    name: 'Dot Waves',
+    url: 'https://my.spline.design/dotwaves-h4iKKFVRORZbPRboUfG4QKRk/',
+    description: 'Pulserende dot waves'
+  }
+];
+
+const STORAGE_KEY_SPLINE_BG = 'apropos-spline-background';
 
 // using shared ArticleData type
 
@@ -28,6 +70,13 @@ export default function AIWriterClient() {
   const [reviewOpen, setReviewOpen] = useState(false);
   const [shelfOpen, setShelfOpen] = useState(false);
   const [accountOpen, setAccountOpen] = useState(false);
+  const [bgSelectorOpen, setBgSelectorOpen] = useState(false);
+  const [selectedSplineBg, setSelectedSplineBg] = useState<string>(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem(STORAGE_KEY_SPLINE_BG) || 'robot';
+    }
+    return 'robot';
+  });
   const [articleData, setArticleData] = useState<ArticleData>({
     title: '',
     subtitle: '',
@@ -55,6 +104,62 @@ export default function AIWriterClient() {
   }>>([]);
   const [editorialWarnings, setEditorialWarnings] = useState<string[]>([]);
   const [publishToast, setPublishToast] = useState<{ articleId: string; shownAt: number } | null>(null);
+  const [thinkingSteps, setThinkingSteps] = useState<ThinkingStep[]>([]);
+  const thinkingTimersRef = useRef<number[]>([]);
+  const stopThinkingTimeline = useCallback(() => {
+    if (thinkingTimersRef.current.length) {
+      thinkingTimersRef.current.forEach((timer) => window.clearTimeout(timer));
+      thinkingTimersRef.current = [];
+    }
+  }, []);
+
+  const startThinkingTimeline = useCallback(() => {
+    stopThinkingTimeline();
+    const initial = BASE_THINKING_STEPS.map((step, index) => ({
+      ...step,
+      status: index === 0 ? 'active' : 'pending'
+    })) as ThinkingStep[];
+    setThinkingSteps(initial);
+
+    const scheduleAdvance = (delay: number, currentId: string, nextId?: string) => {
+      const timer = window.setTimeout(() => {
+        setThinkingSteps((prev) =>
+          prev.map((step) => {
+            if (step.id === currentId) {
+              return { ...step, status: 'completed' };
+            }
+            if (nextId && step.id === nextId && step.status === 'pending') {
+              return { ...step, status: 'active' };
+            }
+            return step;
+          })
+        );
+      }, delay);
+      thinkingTimersRef.current.push(timer);
+    };
+
+    const stepDelay = 700;
+    BASE_THINKING_STEPS.forEach((step, index) => {
+      const nextStep = BASE_THINKING_STEPS[index + 1];
+      scheduleAdvance(stepDelay * (index + 1), step.id, nextStep?.id);
+    });
+  }, [stopThinkingTimeline]);
+
+  const finishThinkingTimeline = useCallback(() => {
+    stopThinkingTimeline();
+    setThinkingSteps((prev) =>
+      prev.length > 0 ? prev.map((step) => ({ ...step, status: 'completed' })) : prev
+    );
+  }, [stopThinkingTimeline]);
+
+  const handleSplineBgChange = useCallback((bgId: string) => {
+    setSelectedSplineBg(bgId);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(STORAGE_KEY_SPLINE_BG, bgId);
+    }
+  }, []);
+
+  const currentSplineBg = SPLINE_BACKGROUNDS.find(bg => bg.id === selectedSplineBg) || SPLINE_BACKGROUNDS[0];
 
   // Auto-save to localStorage whenever data changes
   useEffect(() => {
@@ -70,11 +175,20 @@ export default function AIWriterClient() {
     }
   }, [chatMessages, chatTitle, articleData, notes, showWizard, currentDraftId]);
 
+useEffect(() => {
+  if (!publishToast) return;
+  const timer = setTimeout(() => setPublishToast(null), 4200);
+  return () => clearTimeout(timer);
+}, [publishToast]);
+
   useEffect(() => {
-    if (!publishToast) return;
-    const timer = setTimeout(() => setPublishToast(null), 4200);
-    return () => clearTimeout(timer);
-  }, [publishToast]);
+    if (!isThinking) {
+      stopThinkingTimeline();
+      setThinkingSteps([]);
+    }
+  }, [isThinking, stopThinkingTimeline]);
+
+  useEffect(() => () => stopThinkingTimeline(), [stopThinkingTimeline]);
   // Restore data from localStorage on page load
   useEffect(() => {
     const restoreData = () => {
@@ -130,6 +244,16 @@ export default function AIWriterClient() {
     restoreData();
   }, []); // Only run on mount
 
+  // Listen for mobile menu background change events
+  useEffect(() => {
+    const onBgChange = (e: any) => {
+      const id = e?.detail?.id;
+      if (typeof id === 'string') handleSplineBgChange(id);
+    };
+    window.addEventListener('spline-bg-change', onBgChange as any);
+    return () => window.removeEventListener('spline-bg-change', onBgChange as any);
+  }, [handleSplineBgChange]);
+
   const updateArticleData = (updates: Partial<ArticleData>) => {
     setArticleData(prev => ({ ...prev, ...updates }));
   };
@@ -169,9 +293,10 @@ export default function AIWriterClient() {
       notesPayload = combined.slice(-2000);
       setNotes(notesPayload);
     }
-    
+
     try {
       setIsThinking(true);
+      startThinkingTimeline();
       // Fetch live Webflow schema, mapping and a few sample items to guide the assistant
       const [schemaRes, mappingRes, samplesRes] = await Promise.all([
         fetch('/api/webflow/article-fields'),
@@ -204,8 +329,25 @@ export default function AIWriterClient() {
         }),
       });
 
+      console.log('📡 API Response status:', response.status);
+      
       if (response.ok) {
         const data = await response.json();
+        console.log('✅ API Response received:', {
+          hasResponse: !!data.response,
+          responseLength: data.response?.length || 0,
+          hasArticleUpdate: !!data.articleUpdate,
+          articleUpdateKeys: data.articleUpdate ? Object.keys(data.articleUpdate) : [],
+          warnings: data.warnings?.length || 0
+        });
+        
+        if (!data.response) {
+          console.error('❌ No response field in API data');
+          addChatMessage('assistant', 'Beklager, jeg modtog ikke noget svar. Prøv igen.');
+          setIsThinking(false);
+          return;
+        }
+
         addChatMessage('assistant', data.response);
         if (Array.isArray(data.warnings) && data.warnings.length > 0) {
           setEditorialWarnings(data.warnings);
@@ -323,13 +465,17 @@ export default function AIWriterClient() {
           addChatMessage('assistant', `For at kunne udgive i Webflow mangler vi følgende felter:\n${lines.join('\n')}\n\nSkriv værdierne, så udfylder jeg dem ét for ét.`);
         }
       } else {
-        addChatMessage('assistant', 'Beklager, jeg kunne ikke behandle din forespørgsel lige nu. Prøv igen senere.');
+        const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+        console.error('❌ API Error:', response.status, errorData);
+        addChatMessage('assistant', errorData.error || 'Beklager, jeg kunne ikke behandle din forespørgsel lige nu. Prøv igen senere.');
       }
-    } catch (error) {
-      console.error('Error sending message to AI:', error);
+    } catch (error: any) {
+      console.error('❌ Fetch error:', error);
       addChatMessage('assistant', 'Der opstod en fejl. Prøv igen senere.');
     } finally {
       setIsThinking(false);
+      finishThinkingTimeline();
+      setThinkingSteps([]);
     }
   };
 
@@ -603,18 +749,68 @@ export default function AIWriterClient() {
           onSelectMessage={handleSelectMessage}
         />
       )}
-      <div className="h-screen bg-[#171717] p-[1%] flex md:flex-row flex-col gap-4 relative overflow-hidden">
+      <div className="h-screen bg-[#171717] md:p-[1%] p-0 flex md:flex-row flex-col gap-4 relative overflow-hidden">
         {/* Background Spline (non-interactive) */}
         <div className="absolute inset-0 z-0 hidden md:block">
           <iframe 
-            src="https://my.spline.design/nexbotrobotcharacterconcept-jOiWdJXA0mBgb50nmYl1x0EC/" 
+            src={currentSplineBg.url}
             frameBorder="0" 
             width="100%" 
             height="100%"
             className="w-full h-full"
             title="AI Background"
+            key={selectedSplineBg} // Force re-render on change
           />
         </div>
+        
+        {/* Spline Background Selector */}
+        <div className="absolute top-4 right-4 z-30 hidden md:block">
+          <div className="relative group">
+            <button
+              onClick={() => setBgSelectorOpen(!bgSelectorOpen)}
+              className="px-3 py-2 bg-black/40 hover:bg-black/60 backdrop-blur-sm text-white/70 hover:text-white text-xs rounded-lg border border-white/10 transition-all flex items-center gap-2"
+              title="Skift baggrund"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01" />
+              </svg>
+              <span>Baggrund</span>
+            </button>
+            
+            {bgSelectorOpen && (
+              <>
+                {/* Backdrop to close */}
+                <div 
+                  className="fixed inset-0 z-40" 
+                  onClick={() => setBgSelectorOpen(false)}
+                />
+                <div className="absolute top-12 right-0 w-64 bg-black/95 backdrop-blur-md border border-white/20 rounded-xl shadow-2xl p-3 z-50">
+                  <div className="text-xs text-white/60 mb-2 px-2">Vælg baggrund</div>
+                  <div className="space-y-1">
+                    {SPLINE_BACKGROUNDS.map((bg) => (
+                      <button
+                        key={bg.id}
+                        onClick={() => {
+                          handleSplineBgChange(bg.id);
+                          setBgSelectorOpen(false);
+                        }}
+                        className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-all ${
+                          selectedSplineBg === bg.id
+                            ? 'bg-white/10 text-white'
+                            : 'text-white/70 hover:bg-white/5 hover:text-white'
+                        }`}
+                      >
+                        <div className="font-medium">{bg.name}</div>
+                        <div className="text-xs text-white/50 mt-0.5">{bg.description}</div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+        
         {user && (
           <>
             {/* Apropos Research Logo */}
@@ -674,7 +870,7 @@ export default function AIWriterClient() {
 
             {/* Main Chat with AI */}
             <div
-              className="md:w-[500px] w-full flex-shrink-0 absolute top-[1%] bottom-[1%] left-[1%] z-10"
+              className="md:w-[500px] w-full flex-shrink-0 absolute top-0 bottom-0 left-0 md:top-[1%] md:bottom-[1%] md:left-[1%] z-10"
               style={{ transition: 'transform 320ms cubic-bezier(0.22, 1, 0.36, 1)', transform: shelfOpen ? 'translateX(calc(12px + min(300px, 50vw)))' : 'translateX(0)' }}
             >
               {/* Always keep chat visible underneath */}
@@ -684,6 +880,7 @@ export default function AIWriterClient() {
                 onSendMessage={handleSendMessage}
                 articleData={articleData}
                 isThinking={isThinking}
+                thinkingSteps={thinkingSteps}
                 chatTitle={chatTitle}
                 onChatTitleChange={setChatTitle}
                 editorialWarnings={editorialWarnings}
@@ -825,31 +1022,7 @@ export default function AIWriterClient() {
               </div>
             </div>
 
-            {/* Mobile bottom bar */}
-            <div className="md:hidden fixed bottom-3 left-1/2 -translate-x-1/2 z-50 rounded-2xl border border-white/20 p-1.5 flex items-center gap-1.5 bg-black/90 backdrop-blur-md shadow-lg">
-              <button onClick={() => setShelfOpen(prev=>!prev)} className="flex flex-col items-center gap-1 px-3 py-2 rounded-xl hover:bg-white/10 active:bg-white/15 transition-colors min-w-[64px]" aria-label="Mine artikler">
-                <div className="grid grid-cols-3 gap-0.5 w-4 h-4">
-                  <div className="w-1 h-1 bg-white rounded"></div><div className="w-1 h-1 bg-white rounded"></div><div className="w-1 h-1 bg-white rounded"></div>
-                  <div className="w-1 h-1 bg-white rounded"></div><div className="w-1 h-1 bg-white rounded"></div><div className="w-1 h-1 bg-white rounded"></div>
-                  <div className="w-1 h-1 bg-white rounded"></div><div className="w-1 h-1 bg-white rounded"></div><div className="w-1 h-1 bg-white rounded"></div>
-                </div>
-                <span className="text-[10px] text-white/70">Drafts</span>
-              </button>
-              <button onClick={() => setReviewOpen(prev=>!prev)} className="flex flex-col items-center gap-1 px-3 py-2 rounded-xl hover:bg-white/10 active:bg-white/15 transition-colors min-w-[64px]" aria-label="Review">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-white">
-                  <path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/>
-                  <circle cx="12" cy="12" r="3"/>
-                </svg>
-                <span className="text-[10px] text-white/70">Preview</span>
-              </button>
-              <button onClick={handleNewArticle} className="flex flex-col items-center gap-1 px-3 py-2 rounded-xl hover:bg-white/10 active:bg-white/15 transition-colors min-w-[64px]" aria-label="Ny artikel">
-                <div className="relative w-4 h-4">
-                  <div className="absolute top-1/2 left-1/2 w-3 h-0.5 bg-white transform -translate-x-1/2 -translate-y-1/2"></div>
-                  <div className="absolute top-1/2 left-1/2 w-0.5 h-3 bg-white transform -translate-x-1/2 -translate-y-1/2"></div>
-                </div>
-                <span className="text-[10px] text-white/70">Ny</span>
-              </button>
-            </div>
+            {/* Mobile bottom bar removed in favor of burger menu */}
 
           </>
         )}

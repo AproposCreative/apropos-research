@@ -1,6 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import OpenAI from 'openai';
 
+// Progress tracking stubs (UI handles loading timeline locally)
+const initProgress = (..._args: any[]) => {};
+const updateProgressStep = (..._args: any[]) => {};
+const completeProgress = (..._args: any[]) => {};
+const getProgress = (..._args: any[]) => null;
+
+const OPENAI_MODEL = process.env.OPENAI_MODEL || 'gpt-4o-mini';
+
 const openai = process.env.OPENAI_API_KEY ? new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 }) : null;
@@ -306,28 +314,32 @@ const determineWordTargets = (articleData: any) => {
     );
 
   // Enhanced dynamic behavior with more granular targeting
-  if (includesAny('koncert', 'concert', 'live', 'show')) {
-    return { min: 400, max: 600, label: 'koncertanmeldelse', type: 'review' };
+  if (includesAny('koncert', 'concert', 'live', 'show', 'festival')) {
+    return { min: 700, max: 900, label: 'koncertanmeldelse', type: 'review' };
+  }
+
+  if (includesAny('serie', 'film', 'movie', 'streaming', 'sæson', 'episode')) {
+    return { min: 900, max: 1100, label: 'serie/film anmeldelse', type: 'review' };
+  }
+
+  if (includesAny('gaming', 'spil', 'tech', 'teknologi', 'gadget')) {
+    return { min: 1000, max: 1200, label: 'gaming/tech feature', type: 'feature' };
   }
 
   if (includesAny('anmeld', 'review', 'kritik', 'critique')) {
-    return { min: 600, max: 800, label: 'anmeldelse', type: 'review' };
+    return { min: 1100, max: 1300, label: 'anmeldelse', type: 'review' };
   }
 
-  if (includesAny('essay', 'kommentar', 'commentary', 'opinion')) {
-    return { min: 600, max: 800, label: 'kommentar/essay', type: 'opinion' };
+  if (includesAny('essay', 'kommentar', 'commentary', 'opinion', 'perspektiv')) {
+    return { min: 1100, max: 1300, label: 'kommentar/essay', type: 'opinion' };
   }
 
-  if (includesAny('feature', 'kultur', 'portræt', 'portraet', 'magasin', 'interview')) {
-    return { min: 800, max: 1000, label: 'feature', type: 'feature' };
+  if (includesAny('feature', 'kultur', 'portræt', 'portraet', 'magasin', 'interview', 'longread', 'profil')) {
+    return { min: 1200, max: 1500, label: 'feature', type: 'feature' };
   }
 
-  if (includesAny('serie', 'film', 'gaming', 'spil', 'tech', 'streaming')) {
-    return { min: 600, max: 800, label: 'feature', type: 'review' };
-  }
-
-  // Default with enhanced targeting
-  return { min: 600, max: 800, label: 'feature', type: 'general' };
+  // Default to longform targets so vi undgår korte tekster
+  return { min: 1100, max: 1300, label: 'longform', type: 'general' };
 };
 
 const authorPromptCache = new Map<string, boolean>();
@@ -1048,49 +1060,66 @@ const normalizeArticleUpdatePayload = (raw: any) => {
 function shouldPerformWebSearch(message: string, articleData: any): boolean {
   const lowerMessage = message.toLowerCase();
   const lowerContent = (articleData?.content || '').toLowerCase();
-  
-  // Check for factual claims that need verification
+
   const factualIndicators = [
-    'ifølge', 'ifølge', 'statistik', 'undersøgelse', 'rapport', 'studie',
-    'data viser', 'forskning', 'ekspert', 'professor', 'doktor',
-    'millioner', 'milliarder', 'procent', '%', 'antal', 'antallet',
-    'årstal', 'dato', 'år', 'årgang', 'udgivelse', 'premiere',
-    'budget', 'indtægter', 'omsætning', 'pris', 'kostede',
-    'anmeldelser', 'score', 'rating', 'bedømmelse', 'kritik',
-    'box office', 'streaming', 'platform', 'udgivelse'
+    'ifølge',
+    'statistik',
+    'undersøgelse',
+    'rapport',
+    'studie',
+    'data viser',
+    'forskning',
+    'ekspert',
+    'professor',
+    'millioner',
+    'milliarder',
+    'procent',
+    '%',
+    'antal',
+    'årstal',
+    'dato',
+    'premiere',
+    'budget',
+    'indtægter',
+    'omsætning',
+    'pris',
+    'box office',
+    'kilde',
+    'kilder',
+    'factcheck',
+    'fact-check',
+    'verificer',
+    'bevis',
+    'dokumentation'
   ];
-  
-  // Check if message contains factual claims
-  const hasFactualClaims = factualIndicators.some(indicator => 
-    lowerMessage.includes(indicator) || lowerContent.includes(indicator)
+
+  const hasFactualClaims = factualIndicators.some(
+    (indicator) => lowerMessage.includes(indicator) || lowerContent.includes(indicator)
   );
-  
-  // Check if it's about a specific work/person/event
-  const hasSpecificSubject = /\b(film|serie|bog|album|kunstner|skuespiller|instruktør|forfatter|anmeld|anmeldelse)\b/i.test(message);
-  
-  // Check if it's a review request
+  const explicitResearchIntent = /\b(fakta|kilde|kilder|factcheck|fact-check|research|baggrund|dokumentation|verificer)\b/i.test(
+    message
+  );
   const isReviewRequest = /\b(anmeld|anmeldelse|review|bedøm|bedømmelse|kritik|kritiker)\b/i.test(message);
-  
-  // Check if content is too short (might need more research)
-  const contentLength = (articleData?.content || '').split(/\s+/).length;
-  const needsMoreContent = contentLength < 500;
-  
-  // More aggressive search triggers - ALWAYS search for specific titles/names
-  const hasSpecificTitle = /"[^"]+"/.test(message) || /[A-Z][a-z]+ [A-Z][a-z]+/.test(message);
-  
-  // ALWAYS search if we have articleData with specific details
-  const hasArticleData = articleData && (articleData.title || articleData.topic || articleData.platform);
-  
-  // More aggressive search triggers
-  return hasFactualClaims || 
-         hasSpecificSubject || 
-         isReviewRequest || 
-         needsMoreContent ||
-         hasSpecificTitle ||
-         hasArticleData ||
-         // Always search for specific titles/names in quotes or proper nouns
-         /"[^"]+"/.test(message) ||
-         /[A-Z][a-z]+ [A-Z][a-z]+/.test(message);
+  const hasSpecificSubject = /\b(film|serie|bog|album|kunstner|skuespiller|instruktør|forfatter|spil|koncert)\b/i.test(
+    message
+  );
+  const hasQuotedTitle = /"[^"]+"/.test(message);
+  const hasNamedEntity = /[A-ZÆØÅ][a-zæøå]+(?: [A-ZÆØÅ][a-zæøå]+){1,3}/.test(message);
+  const contentWordCount = (articleData?.content || '').split(/\s+/).filter(Boolean).length;
+  const contentIsSparse = contentWordCount < 250;
+  const newBrief = !articleData?.content || contentIsSparse;
+
+  if (explicitResearchIntent) return true;
+  const strongEvidenceRequest =
+    hasFactualClaims &&
+    (/[0-9]{3,}/.test(lowerMessage) || /%\b/.test(lowerMessage) || lowerMessage.includes('ifølge'));
+  if (strongEvidenceRequest && newBrief) return true;
+
+  return false;
+}
+
+function shouldRunAdvancedResearch(message: string, articleData: any, webSearchTriggered: boolean): boolean {
+  return false;
 }
 
 function extractSearchQuery(message: string, articleData: any): string {
@@ -1204,18 +1233,50 @@ function parseModelPayload(raw: string): { response?: string; suggestion?: any; 
 import { performanceMonitor, startStage, endStage, logReport } from '@/lib/performance-monitor';
 
 export async function POST(request: NextRequest) {
+  let progressId = '';
   try {
     startStage('ai-chat-request', { timestamp: new Date().toISOString() });
     console.log('🚀 AI CHAT API CALLED - Starting request processing');
-    const { message, articleData, notes, chatHistory, authorTOV, authorName, analysisPrompt } = await request.json();
+    const {
+      message,
+      articleData,
+      notes,
+      chatHistory,
+      authorTOV,
+      authorName,
+      analysisPrompt,
+      clientRequestId
+    } = await request.json();
     console.log('🔍 Author name from request:', authorName);
     console.log('🔍 Author TOV from request length:', authorTOV?.length || 0);
 
     if (!message) {
+      if (progressId) {
+        updateProgressStep(progressId, 'prepare', 'failed', { error: 'Message is required' });
+        completeProgress(progressId);
+      }
+      endStage(false, 'Message is required');
       return NextResponse.json({ error: 'Message is required' }, { status: 400 });
     }
 
+    progressId = typeof clientRequestId === 'string' ? clientRequestId.trim() : '';
+    if (progressId) {
+      initProgress(progressId, [
+        { id: 'prepare', label: 'Analyserer prompt og setup' },
+        { id: 'web-search', label: 'Søger efter fakta og kilder' },
+        { id: 'advanced-research', label: 'Indsamler redaktionel research' },
+        { id: 'generation', label: 'Genererer artikeludkast' },
+        { id: 'quality', label: 'Kører kvalitetskontrol' },
+        { id: 'format', label: 'Formatterer svar til UI' }
+      ]);
+      updateProgressStep(progressId, 'prepare', 'active');
+    }
+
     if (!openai) {
+      if (progressId) {
+        updateProgressStep(progressId, 'prepare', 'failed', { error: 'OpenAI API key missing' });
+        completeProgress(progressId);
+      }
       return NextResponse.json({ 
         response: 'OpenAI API key ikke konfigureret. Sæt OPENAI_API_KEY miljøvariablen for at bruge AI funktionalitet.' 
       });
@@ -1275,6 +1336,10 @@ export async function POST(request: NextRequest) {
     }
     if (notes) context += `Noter og prompts: ${notes}\n`;
 
+    if (progressId) {
+      updateProgressStep(progressId, 'prepare', 'completed');
+    }
+
             // Load trained TOV for author if available
             let trainedTOV = '';
             if (authorName) {
@@ -1332,7 +1397,7 @@ export async function POST(request: NextRequest) {
     
     // Rating injection for reviews
     if (articleType === 'review' && articleData?.rating) {
-      dynamicBehaviors.push(`RATING INJEKTION: Artikel skal have ${articleData.rating}/6 stjerner. Tilføj "Læs Apropos Magazines anmeldelse her (${articleData.rating}/6 stjerner)." i afslutningen.`);
+      dynamicBehaviors.push(`RATING INJEKTION: Artikel skal have ${articleData.rating}/6 stjerner. Indarbejd stjernetallet naturligt i teksten uden at bruge formuleringen "Læs Apropos Magazines anmeldelse her (${articleData.rating}/6 stjerner).".`);
     }
     
     // Streaming service injection
@@ -1438,18 +1503,31 @@ ${context ? `\n\nAktuel artikel-kontekst:\n${context}` : ''}`;
       content: userMessageContent
     });
 
+    // End initial setup stage before starting research/generation
+    endStage(true, undefined, { 
+      hasContext: !!context, 
+      hasAuthorTOV: !!authorName || !!trainedTOV,
+      messageLength: userMessageContent.length,
+      systemPromptLength: finalSystemContent.length
+    });
+
     // Enhanced workflow: Research → Generate → Quality Check → Enhance
     const needsWebSearch = shouldPerformWebSearch(message, articleData);
+    const needsAdvancedResearch = shouldRunAdvancedResearch(message, articleData, needsWebSearch);
     let webSearchResults = '';
     let researchData = null;
     const citationSet = new Set<string>();
     
     if (needsWebSearch) {
+      if (progressId) {
+        updateProgressStep(progressId, 'web-search', 'active');
+      }
       startStage('web-search', { query: extractSearchQuery(message, articleData) });
       try {
         const baseRequestUrl = request.url.split('/api')[0];
         const searchQuery = extractSearchQuery(message, articleData);
         const searchCitations: string[] = [];
+        const researchTopic = (articleData as any).title || (articleData as any).topic || searchQuery;
 
         try {
           const searchResponse = await fetch(`${baseRequestUrl}/api/web-search`, {
@@ -1494,83 +1572,126 @@ ${context ? `\n\nAktuel artikel-kontekst:\n${context}` : ''}`;
           console.error('Web search failed:', error);
         }
 
-        const researchTopic = (articleData as any).title || (articleData as any).topic || searchQuery;
-        try {
-          const researchResponse = await fetch(`${baseRequestUrl}/api/research-engine`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              topic: researchTopic,
-              articleType: (articleData as any).category || 'Generel',
-              author: authorName || 'Apropos Writer',
-              platform: (articleData as any).platform || (articleData as any).streaming_service,
-              targetLength: targetMax
-            })
-          });
+        if (needsAdvancedResearch) {
+          if (progressId) {
+            updateProgressStep(progressId, 'advanced-research', 'active');
+          }
+          let advancedSucceeded = false;
+          try {
+            const researchResponse = await fetch(`${baseRequestUrl}/api/research-engine`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                topic: researchTopic,
+                articleType: (articleData as any).category || 'Generel',
+                author: authorName || 'Apropos Writer',
+                platform: (articleData as any).platform || (articleData as any).streaming_service,
+                targetLength: targetMax
+              })
+            });
 
-          if (researchResponse.ok) {
-            const structured = await researchResponse.json();
-            if (structured?.success) {
-              researchData = structured;
-              if (Array.isArray(structured.sources)) {
-                structured.sources.forEach((url: string) => {
-                  if (url) citationSet.add(url);
-                });
-              }
+            if (researchResponse.ok) {
+              const structured = await researchResponse.json();
+              if (structured?.success) {
+                advancedSucceeded = true;
+                researchData = structured;
+                if (Array.isArray(structured.sources)) {
+                  structured.sources.forEach((url: string) => {
+                    if (url) citationSet.add(url);
+                  });
+                }
 
-              let advancedSection = '\n\n**AVANCERET RESEARCH:**\n';
-              if (structured.researchSummary) {
-                advancedSection += `${structured.researchSummary}\n\n`;
+                let advancedSection = '\n\n**AVANCERET RESEARCH:**\n';
+                if (structured.researchSummary) {
+                  advancedSection += `${structured.researchSummary}\n\n`;
+                }
+                if (structured.keyFindings?.length) {
+                  advancedSection += `**Hovedfund:**\n`;
+                  structured.keyFindings.slice(0, 3).forEach((finding: any, index: number) => {
+                    advancedSection += `${index + 1}. ${finding}\n`;
+                  });
+                  advancedSection += '\n';
+                }
+                if (structured.culturalContext?.length) {
+                  advancedSection += `**Kulturel Kontekst:**\n${structured.culturalContext.slice(0, 2).join('\n')}\n\n`;
+                }
+                if (structured.expertInsights?.length) {
+                  advancedSection += `**Ekspertperspektiver:**\n${structured.expertInsights.slice(0, 2).join('\n')}\n\n`;
+                }
+                if (structured.suggestedAngles?.length) {
+                  advancedSection += `**Foreslåede Vinkler:**\n${structured.suggestedAngles.join('\n')}\n\n`;
+                }
+                webSearchResults += advancedSection;
               }
-              if (structured.keyFindings?.length) {
-                advancedSection += `**Hovedfund:**\n`;
-                structured.keyFindings.slice(0, 3).forEach((finding: any, index: number) => {
-                  advancedSection += `${index + 1}. ${finding}\n`;
-                });
-                advancedSection += '\n';
-              }
-              if (structured.culturalContext?.length) {
-                advancedSection += `**Kulturel Kontekst:**\n${structured.culturalContext.slice(0, 2).join('\n')}\n\n`;
-              }
-              if (structured.expertInsights?.length) {
-                advancedSection += `**Ekspertperspektiver:**\n${structured.expertInsights.slice(0, 2).join('\n')}\n\n`;
-              }
-              if (structured.suggestedAngles?.length) {
-                advancedSection += `**Foreslåede Vinkler:**\n${structured.suggestedAngles.join('\n')}\n\n`;
-              }
-              webSearchResults += advancedSection;
+            }
+          } catch (error) {
+            console.error('Research engine failed:', error);
+          } finally {
+            if (progressId) {
+              updateProgressStep(
+                progressId,
+                'advanced-research',
+                advancedSucceeded ? 'completed' : 'failed'
+              );
             }
           }
-        } catch (error) {
-          console.error('Research engine failed:', error);
+        } else if (progressId) {
+          updateProgressStep(progressId, 'advanced-research', 'skipped');
         }
 
         if (webSearchResults) {
           finalSystemContent += `\n\n**RESEARCH DATA TILGÆNGELIG - BRUG DISSE FAKTA:**\n${webSearchResults}\n\nKRITISK: Brug kilderne ovenfor og henvis i teksten med firkantede parenteser – fx [1], [2] – der matcher listen. Tilføj feltet "citations" med de URLs du anvender. Undgå at opdigte fakta; hvis detaljer mangler, skriv generelt (fx "instruktøren").\n\nEMNE SPECIFIKATION: Skriv om "${researchTopic}" - ikke om andre emner eller generiske beskrivelser.`;
         }
         endStage(true, undefined, { researchDataAvailable: !!researchData, citationsCount: citationSet.size });
+        if (progressId) {
+          updateProgressStep(progressId, 'web-search', 'completed');
+        }
       } catch (error) {
         console.error('Research failed:', error);
         endStage(false, error.message);
+        if (progressId) {
+          updateProgressStep(progressId, 'web-search', 'failed', { error: (error as Error)?.message });
+        }
       }
+    } else if (progressId) {
+      updateProgressStep(progressId, 'web-search', 'skipped');
+      updateProgressStep(progressId, 'advanced-research', 'skipped');
     }
 
     startStage('ai-generation', { 
-      model: 'gpt-5', // Updated to GPT-5 (ChatGPT-5) 
+      model: OPENAI_MODEL, 
       temperature: 1, // GPT-5 only supports default temperature (1) 
-      maxTokens: 6000,
+      maxTokens: 4000,
       hasResearchData: !!researchData 
     });
-    const completion = await openai.chat.completions.create({
-        model: "gpt-5", // Updated to GPT-5 (ChatGPT-5)
-      messages: [
-        { role: 'system', content: finalSystemContent },
-        ...messages
-      ],
-      temperature: 1, // GPT-5 only supports default temperature (1)
-      max_completion_tokens: 6000, // Drastisk øget for længere artikler
-      response_format: { type: 'json_object' },
-    });
+    if (progressId) {
+      updateProgressStep(progressId, 'generation', 'active');
+    }
+    
+    let completion;
+    try {
+      console.log(`🤖 Calling OpenAI API with model: ${OPENAI_MODEL}`);
+      completion = await openai.chat.completions.create({
+        model: OPENAI_MODEL,
+        messages: [
+          { role: 'system', content: finalSystemContent },
+          ...messages
+        ],
+        temperature: 1, // GPT-5 only supports default temperature (1)
+        max_completion_tokens: 4000, // Trimmet for hurtigere svartid
+        response_format: { type: 'json_object' },
+      });
+      console.log('✅ OpenAI API call completed successfully');
+      console.log('📊 Response choices:', completion.choices?.length || 0);
+    } catch (apiError: any) {
+      console.error('❌ OpenAI API call failed:', apiError.message);
+      endStage(false, apiError.message || 'OpenAI API call failed');
+      if (progressId) {
+        updateProgressStep(progressId, 'generation', 'failed', { error: apiError.message || 'OpenAI API call failed' });
+        completeProgress(progressId);
+      }
+      throw apiError; // Re-throw to be caught by outer catch block
+    }
 
     const rawMessageContent = completion.choices[0]?.message?.content;
     const responseText = Array.isArray(rawMessageContent)
@@ -1581,8 +1702,12 @@ ${context ? `\n\nAktuel artikel-kontekst:\n${context}` : ''}`;
         }).join('')
       : (rawMessageContent || '');
     const normalizedResponse = typeof responseText === 'string' ? responseText : String(responseText || '');
+    
+    console.log('📝 Normalized response length:', normalizedResponse.length);
+    console.log('📝 Response preview:', normalizedResponse.substring(0, 200) + '...');
 
     if (!normalizedResponse.trim()) {
+      console.error('❌ Empty response from OpenAI');
       endStage(false, 'No response from OpenAI');
       throw new Error('No response from OpenAI');
     }
@@ -1591,13 +1716,26 @@ ${context ? `\n\nAktuel artikel-kontekst:\n${context}` : ''}`;
       responseLength: normalizedResponse.length,
       usage: completion.usage 
     });
+    console.log('✅ Generation stage completed');
+    if (progressId) {
+      updateProgressStep(progressId, 'generation', 'completed');
+    }
 
     // Parse/sanitize model output and enforce JSON contract
     startStage('quality-control', { responseLength: normalizedResponse.length });
+    console.log('🔍 Starting quality control stage');
+    if (progressId) {
+      updateProgressStep(progressId, 'quality', 'active');
+    }
     let parsed = parseModelPayload(normalizedResponse);
+    console.log('📦 Parsed payload keys:', Object.keys(parsed));
     let outResponse = parsed.response;
     let outSuggestion = parsed.suggestion ?? null;
     let outArticleUpdate = normalizeArticleUpdatePayload(parsed.articleUpdate);
+    
+    console.log('📝 Parsed response length:', outResponse?.length || 0);
+    console.log('📝 Has article update:', !!outArticleUpdate);
+    console.log('📝 Article update keys:', outArticleUpdate ? Object.keys(outArticleUpdate) : []);
     
     // Preserve SetupWizard topicsSelected - don't let AI override them
     if (Array.isArray(articleData?.topicsSelected) && articleData.topicsSelected.length > 0) {
@@ -1638,9 +1776,9 @@ ${context ? `\n\nAktuel artikel-kontekst:\n${context}` : ''}`;
     const getContent = () => String((outArticleUpdate as any)?.content || outResponse || '');
 
     let revisionAttempts = 0;
-    const maxRevisions = 2; // Reduced from 3 to 2 for better performance
+    const maxRevisions = 1; // En enkelt revision er nok; reducerer latenstid
     const qualityControlStartTime = Date.now();
-    const maxQualityControlTime = 30000; // Reduced to 30 seconds for faster response
+    const maxQualityControlTime = 20000; // Hurtigere timeout for QC
     
     console.log(`🔍 Quality check starting - Target: ${targetMin}-${targetMax} ord`);
     
@@ -1712,10 +1850,10 @@ ${context ? `\n\nAktuel artikel-kontekst:\n${context}` : ''}`;
       ];
 
         const revision = await openai.chat.completions.create({
-          model: 'gpt-5', // Updated to GPT-5 (ChatGPT-5)
+          model: OPENAI_MODEL,
           messages: revisionMessages as any,
           temperature: 1, // GPT-5 only supports default temperature (1)
-          max_completion_tokens: 4000, // Reduced from 8000 for faster revisions
+          max_completion_tokens: 3000, // Mindre revisioner for hurtigere svartid
           response_format: { type: 'json_object' }
         });
 
@@ -1798,7 +1936,15 @@ ${context ? `\n\nAktuel artikel-kontekst:\n${context}` : ''}`;
     }
 
     let finalContent = getContent();
-    let finalWordCount = countWords(finalContent);
+    const introSection =
+      typeof (outArticleUpdate as any)?.intro === 'string'
+        ? String((outArticleUpdate as any).intro)
+        : '';
+    const combinedArticle = [introSection.trim(), finalContent.trim()]
+      .filter(Boolean)
+      .join('\n\n');
+    let finalWordCount = countWords(combinedArticle);
+    let bodyWordCount = countWords(finalContent);
     let finalMissingIntro = !hasIntro(finalContent);
     let finalMissingEnding = !hasEnding(finalContent);
     let finalOverlapRatio = computeOverlapRatio(String(notes || ''), finalContent);
@@ -1824,7 +1970,7 @@ ${context ? `\n\nAktuel artikel-kontekst:\n${context}` : ''}`;
 Returnér ét JSON-objekt med "response", "articleUpdate" og "citations".`;
 
         const rewrite = await openai.chat.completions.create({
-          model: 'gpt-5', // Updated to GPT-5 (ChatGPT-5)
+          model: OPENAI_MODEL,
           messages: [
             { role: 'system', content: finalSystemContent },
             { role: 'user', content: rewritePrompt }
@@ -1868,7 +2014,11 @@ Returnér ét JSON-objekt med "response", "articleUpdate" og "citations".`;
         console.error('Forced rewrite failed:', error);
       }
       finalContent = getContent();
-      finalWordCount = countWords(finalContent);
+      const recombined = [introSection.trim(), finalContent.trim()]
+        .filter(Boolean)
+        .join('\n\n');
+      finalWordCount = countWords(recombined);
+      bodyWordCount = countWords(finalContent);
       finalMissingIntro = !hasIntro(finalContent);
       finalMissingEnding = !hasEnding(finalContent);
       finalOverlapRatio = computeOverlapRatio(String(notes || ''), finalContent);
@@ -1877,7 +2027,7 @@ Returnér ét JSON-objekt med "response", "articleUpdate" og "citations".`;
 
     if (finalWordCount < targetMin) {
       qualityRecommendations.push(
-        `Artiklen er ${finalWordCount} ord. Udvid til mindst ${targetMin} ord (mål ${targetMin}–${targetMax}).`
+        `Artiklen er ${finalWordCount} ord (inklusiv intro). Udvid til mindst ${targetMin} ord (mål ${targetMin}–${targetMax}).`
       );
     }
     if (finalMissingIntro) {
@@ -1897,7 +2047,8 @@ Returnér ét JSON-objekt med "response", "articleUpdate" og "citations".`;
     
     // Debug: Log word count consistency
     console.log(`🔍 Word count consistency check:`);
-    console.log(`  - finalContent word count: ${countWords(finalContent)}`);
+    console.log(`  - body word count: ${bodyWordCount}`);
+    console.log(`  - combined article word count (intro + body): ${finalWordCount}`);
     console.log(`  - outArticleUpdate.content word count: ${outArticleUpdate?.content ? countWords(outArticleUpdate.content) : 'N/A'}`);
     console.log(`  - outResponse word count: ${outResponse ? countWords(outResponse) : 'N/A'}`);
     console.log(`  - finalContent length: ${finalContent.length} chars`);
@@ -1956,7 +2107,7 @@ Returnér ét JSON-objekt med "response", "articleUpdate" og "citations".`;
       hasCitations: outCitations.length > 0 
     });
 
-    const response = NextResponse.json({ 
+    const responsePayload = { 
       response: finalResponse,
       suggestion: outSuggestion,
       articleUpdate: finalArticleUpdate,
@@ -1966,6 +2117,7 @@ Returnér ét JSON-objekt med "response", "articleUpdate" og "citations".`;
       qualityMetrics: {
         issues: qualityRecommendations.length,
         wordCount: finalWordCount,
+        bodyWordCount,
         readingTimeMinutes,
         readingTime: readingTimeMinutes,
         introPresent: !finalMissingIntro,
@@ -1973,15 +2125,30 @@ Returnér ét JSON-objekt med "response", "articleUpdate" og "citations".`;
         overlapRatio: Number(finalOverlapRatio.toFixed(3)),
         researchUsed: !!researchData?.success
       }
-    });
+    };
+    const response = NextResponse.json(responsePayload);
 
+    if (progressId) {
+      updateProgressStep(progressId, 'quality', 'completed');
+      updateProgressStep(progressId, 'format', 'active');
+    }
     endStage(true, undefined, { 
-      responseSize: JSON.stringify(response).length,
+      responseSize: JSON.stringify(responsePayload).length,
       qualityMetrics: qualityRecommendations.length 
     });
 
     // Log performance report
     logReport();
+    
+    console.log('✅ Quality control completed');
+    console.log('📊 Final response length:', finalResponse.length);
+    console.log('📊 Final article update:', Object.keys(finalArticleUpdate || {}));
+
+    if (progressId) {
+      updateProgressStep(progressId, 'format', 'completed');
+      completeProgress(progressId);
+      console.log('✅ Progress marked as complete');
+    }
 
     return response;
 
@@ -2034,15 +2201,28 @@ Returnér ét JSON-objekt med "response", "articleUpdate" og "citations".`;
     endStage(false, `${errorCategory}: ${error.message}`, errorAnalysis);
     logReport();
     
+    if (progressId) {
+      const snapshot = getProgress(progressId);
+      const failingStep =
+        snapshot?.steps.find((step) => step.status === 'active') ??
+        snapshot?.steps.find((step) => step.status === 'pending');
+      if (failingStep) {
+        updateProgressStep(progressId, failingStep.id, 'failed', { error: error.message });
+      } else {
+        updateProgressStep(progressId, 'format', 'failed', { error: error.message });
+      }
+      completeProgress(progressId);
+    }
+    
     return NextResponse.json(
       { 
+        response: `${recoveryMessage}. Jeg gemte dine noter, så du kan prøve igen uden at miste noget.`,
         error: recoveryMessage,
         errorCategory,
         requestId: errorAnalysis.requestId,
         timestamp: errorAnalysis.timestamp,
         details: process.env.NODE_ENV === 'development' ? errorAnalysis : undefined
-      }, 
-      { status: statusCode }
+      }
     );
   }
 }

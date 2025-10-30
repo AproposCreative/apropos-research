@@ -1,6 +1,7 @@
 'use client';
 import { RageItem } from '@/lib/readPrompts';
 import { useState, useEffect } from 'react';
+import Link from 'next/link';
 
 interface EditorialQueueProps {
   allArticles: RageItem[];
@@ -119,12 +120,12 @@ export default function EditorialQueue({ allArticles }: EditorialQueueProps) {
           <p className="text-slate-600 dark:text-slate-400 mb-4">
             Vælg artikler fra hovedsiden for at tilføje dem til Editorial Queue
           </p>
-          <a 
+          <Link 
             href="/" 
             className="inline-flex items-center px-6 py-3 bg-gradient-to-r from-slate-600 to-slate-700 text-white rounded-xl hover:from-slate-700 hover:to-slate-800 transition-all duration-300 shadow-lg"
           >
             Gå til artikler
-          </a>
+          </Link>
         </div>
       </div>
     );

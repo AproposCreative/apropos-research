@@ -192,7 +192,7 @@ Temaer:`;
       model: 'gpt-5',
       messages: [{ role: 'user', content: analysisPrompt }],
       max_completion_tokens: 100,
-      temperature: 0.7,
+      temperature: 1, // GPT-5 only supports default temperature (1)
     });
 
     const themesText = response.choices[0]?.message?.content?.trim() || '';

@@ -1,7 +1,7 @@
 {
-  "name": "ui",
+  "name": "onkel-ragekniv",
   "version": "1.0.0",
-  "description": "",
+  "description": "AI-powered journalism platform for Apropos Magazine - article ingestion, AI article generation, and Webflow CMS integration",
   "main": "index.js",
   "scripts": {
     "dev": "next dev",
@@ -23,7 +23,7 @@
     "optimize:templates": "npx tsx scripts/optimize-templates.ts",
     "train:tov": "npx tsx scripts/train-apropos-tov.ts"
   },
-  "keywords": [],
+  "keywords": ["journalism", "ai", "webflow", "cms", "content-generation", "article-ingestion"],
   "author": "",
   "license": "ISC",
   "type": "commonjs",
