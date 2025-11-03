@@ -29,6 +29,8 @@ export async function GET(request: NextRequest) {
           const domain = (() => { try { return new URL(source.baseUrl).hostname; } catch { return ''; } })();
           let collected = 0;
           const limit = 80;
+          // Only show articles from the last 7 days
+          const sevenDaysAgo = Date.now() - (7 * 24 * 60 * 60 * 1000);
           for (let i = lines.length - 1; i >= 0 && collected < limit; i--) {
             const line = lines[i];
             try {
@@ -36,6 +38,15 @@ export async function GET(request: NextRequest) {
               const matches = article.source === source.id || article.source === source.name || (domain && typeof article.url === 'string' && article.url.includes(domain));
               if (!matches) continue;
               const date = article.published_at || article.date || undefined;
+              
+              // Filter by date - only include articles from last 7 days
+              if (date) {
+                const articleDate = Date.parse(date);
+                if (!isNaN(articleDate) && articleDate < sevenDaysAgo) {
+                  continue; // Skip articles older than 7 days
+                }
+              }
+              
               const category = article.category || inferCategoryFrom((article.url || article.title || '').toString());
               const fullText = (article.body_text || article.content || '').toString();
               const content = fullText.slice(0, 200);

@@ -495,7 +495,7 @@ export default function SetupWizard({ initialData, onComplete, onChange }: Setup
                       const res = await fetch(`/api/trending?source=${encodeURIComponent(id)}`, { signal: controller.signal });
                       const j = await res.json();
                       const items = (j.trendingTemplates?.[0]?.articles || j.trendingTemplates?.flatMap((t:any)=>t.articles)||[]) as any[];
-                      setTrendingItems(items.slice(0,8).map((a:any)=> ({ title: a.title || a.name || '', date: a.date, source: a.source, url: a.url, keyPoints: a.keyPoints || [], content: a.content })));
+                      setTrendingItems(items.map((a:any)=> ({ title: a.title || a.name || '', date: a.date, source: a.source, url: a.url, keyPoints: a.keyPoints || [], content: a.content })));
                     } catch {}
                     finally { setLoadingTrending(false); }
                   }}
@@ -515,10 +515,10 @@ export default function SetupWizard({ initialData, onComplete, onChange }: Setup
       {step==='trending' && data.template==='research' && (
         <div className="space-y-3 md:space-y-[14px]">
           <div className="text-white/80 text-sm">Trending fra {data.inspirationSource || 'valgt medie'}</div>
-        <div className="overflow-visible">
+        <div className="max-h-[400px] overflow-y-auto nice-scrollbar">
             <div className="grid gap-2 md:gap-[10px]">
             {loadingTrending && (<div className="w-6 h-6 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>)}
-            {!loadingTrending && trendingItems.slice(0,8).map((it, idx)=> {
+            {!loadingTrending && trendingItems.map((it, idx)=> {
               const selected = data.researchSelected?.title === it.title;
               return (
                 <button
