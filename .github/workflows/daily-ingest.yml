@@ -8,6 +8,8 @@ on:
 jobs:
   ingest-articles:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write  # Allow workflow to push changes back to repo
     env:
       RAGE_BASE_URL: ${{ secrets.RAGE_BASE_URL }}
       RAGE_FEED_PATH: ${{ secrets.RAGE_FEED_PATH }}
@@ -61,18 +63,30 @@ jobs:
       - name: Ingest recent articles
         run: |
           echo "🔄 Starting daily article ingestion..."
-          npm run ingest:rage -- --since=24 --limit=100
+          npm run ingest:rage -- --since=24 --limit=100 || {
+            echo "❌ Article ingestion failed with exit code $?"
+            exit 1
+          }
           echo "✅ Article ingestion completed"
 
       - name: Commit and push changes
         run: |
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action"
-          git add data/
+          git add data/ || {
+            echo "⚠️ No data directory found or nothing to stage"
+            exit 0
+          }
           if git diff --staged --quiet; then
-            echo "No new articles to commit"
+            echo "ℹ️ No new articles to commit"
           else
-            git commit -m "📰 Daily article ingestion - $(date +'%Y-%m-%d')"
-            git push
+            git commit -m "📰 Daily article ingestion - $(date +'%Y-%m-%d')" || {
+              echo "⚠️ Commit failed (may have been empty or already committed)"
+              exit 0
+            }
+            git push || {
+              echo "❌ Push failed. Check permissions."
+              exit 1
+            }
             echo "✅ New articles committed and pushed"
           fi
