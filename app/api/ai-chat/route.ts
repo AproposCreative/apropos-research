@@ -1232,6 +1232,10 @@ function parseModelPayload(raw: string): { response?: string; suggestion?: any; 
 
 import { performanceMonitor, startStage, endStage, logReport } from '@/lib/performance-monitor';
 
+// Vercel function configuration - increase timeout for AI chat
+export const maxDuration = 300; // 5 minutes (requires Vercel Pro plan)
+export const runtime = 'nodejs'; // Use Node.js runtime instead of Edge
+
 export async function POST(request: NextRequest) {
   let progressId = '';
   try {

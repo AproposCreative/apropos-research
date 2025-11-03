@@ -2,5 +2,11 @@
   "buildCommand": "npm run build",
   "outputDirectory": ".next",
   "framework": "nextjs",
-  "installCommand": "npm ci"
+  "installCommand": "npm ci",
+  "crons": [
+    {
+      "path": "/api/cron/daily-ingest",
+      "schedule": "0 2 * * *"
+    }
+  ]
 }
