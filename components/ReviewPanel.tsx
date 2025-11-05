@@ -64,19 +64,18 @@ export default function ReviewPanel({ articleData, onClose, frameless, onPreflig
       // Find alternative boundary: single newline followed by capital letter (but not if it's just continuation)
       let singleNewlineCapitalIndex = -1;
       const lines = afterIntroPrefix.split('\n');
-      let currentPosition = 0;
       
+      // Skip first line (intro text) and check subsequent lines
       for (let i = 1; i < lines.length; i++) {
         const line = lines[i];
         // Check if line starts with capital letter and is substantial (not just continuation)
         if (line.trim() && /^[A-ZÆØÅ]/.test(line.trim()) && line.trim().length > 3) {
           // Found boundary - intro ends before this line
-          // Calculate position: sum of all previous lines + newline characters
-          singleNewlineCapitalIndex = currentPosition;
+          // Calculate position: join all lines up to (but not including) this line
+          const linesBefore = lines.slice(0, i);
+          singleNewlineCapitalIndex = linesBefore.join('\n').length;
           break;
         }
-        // Move current position to after this line (including newline)
-        currentPosition += lines[i - 1].length + 1; // +1 for newline
       }
       
       // Determine actual end position
@@ -119,16 +118,15 @@ export default function ReviewPanel({ articleData, onClose, frameless, onPreflig
           } else {
             // Try to find capital letter boundary
             const lines = afterIntroPrefix.split('\n');
-            let currentPosition = 0;
             
             for (let i = 1; i < lines.length; i++) {
               const line = lines[i];
               if (line.trim() && /^[A-ZÆØÅ]/.test(line.trim()) && line.trim().length > 3) {
-                introEndIndex = currentPosition;
+                // Found boundary - intro ends before this line
+                const linesBefore = lines.slice(0, i);
+                introEndIndex = linesBefore.join('\n').length;
                 break;
               }
-              // Move current position to after this line (including newline)
-              currentPosition += lines[i - 1].length + 1; // +1 for newline
             }
           }
           
