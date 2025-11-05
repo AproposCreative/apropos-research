@@ -144,7 +144,7 @@ export async function POST(request: NextRequest) {
         type: researchSources.tmdbVerification?.type,
         title: researchSources.tmdbVerification?.title,
         id: researchSources.tmdbVerification?.id,
-        releaseDate: researchSources.tmdbVerification?.releaseDate || researchSources.tmdbVerification?.firstAirDate
+        releaseDate: researchSources.tmdbVerification?.releaseDate
       },
       issues: [] as string[],
       warnings: [] as string[]

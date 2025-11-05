@@ -115,9 +115,8 @@ export async function GET(request: NextRequest) {
                 tags: Array.isArray(article.tags) ? article.tags : [],
                 source: article.source || source.name, // Use article.source if available, otherwise fallback to source.name
                 date,
-                content,
+                content: fullText, // Use fullText as content for relevance filtering
                 url: article.url,
-                body_text: fullText, // Include full body_text for relevance filtering
                 keyPoints: extractKeyPoints(fullText, article.title, content)
               });
               collected++;
