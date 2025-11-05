@@ -8,8 +8,6 @@ on:
 jobs:
   ingest-articles:
     runs-on: ubuntu-latest
-    permissions:
-      contents: write  # Allow workflow to push changes back to repo
     env:
       # Default values (we now use dynamic media sources from media-sources.json, so these are just fallbacks)
       # Note: Linter warnings about "Context access might be invalid" are false positives - these secrets are optional
@@ -48,30 +46,18 @@ jobs:
       - name: Ingest recent articles
         run: |
           echo "🔄 Starting daily article ingestion..."
-          npm run ingest:rage -- --since=24 --limit=100 || {
-            echo "❌ Article ingestion failed with exit code $?"
-            exit 1
-          }
+          npm run ingest:rage -- --since=24 --limit=100
           echo "✅ Article ingestion completed"
 
       - name: Commit and push changes
         run: |
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action"
-          git add data/ || {
-            echo "⚠️ No data directory found or nothing to stage"
-            exit 0
-          }
+          git add data/
           if git diff --staged --quiet; then
-            echo "ℹ️ No new articles to commit"
+            echo "No new articles to commit"
           else
-            git commit -m "📰 Daily article ingestion - $(date +'%Y-%m-%d')" || {
-              echo "⚠️ Commit failed (may have been empty or already committed)"
-              exit 0
-            }
-            git push || {
-              echo "❌ Push failed. Check permissions."
-              exit 1
-            }
+            git commit -m "📰 Daily article ingestion - $(date +'%Y-%m-%d')"
+            git push
             echo "✅ New articles committed and pushed"
           fi
