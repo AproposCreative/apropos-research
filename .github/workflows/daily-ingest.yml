@@ -12,12 +12,12 @@ jobs:
       # Default values (we now use dynamic media sources from media-sources.json, so these are just fallbacks)
       # Note: Linter warnings about "Context access might be invalid" are false positives - these secrets are optional
       # and we provide fallback values. The workflow will work correctly even if secrets are not set.
-      RAGE_BASE_URL: ${{ secrets.RAGE_BASE_URL != '' && secrets.RAGE_BASE_URL || 'https://soundvenue.com' }}
-      RAGE_FEED_PATH: ${{ secrets.RAGE_FEED_PATH != '' && secrets.RAGE_FEED_PATH || '/feed' }}
-      RAGE_SITEMAP_INDEX: ${{ secrets.RAGE_SITEMAP_INDEX != '' && secrets.RAGE_SITEMAP_INDEX || '/sitemap.xml' }}
-      RAGE_RATE_LIMIT_RPS: ${{ secrets.RAGE_RATE_LIMIT_RPS != '' && secrets.RAGE_RATE_LIMIT_RPS || '1' }}
-      RAGE_STORAGE_DIR: ${{ secrets.RAGE_STORAGE_DIR != '' && secrets.RAGE_STORAGE_DIR || './data' }}
-      RAGE_USER_AGENT: ${{ secrets.RAGE_USER_AGENT != '' && secrets.RAGE_USER_AGENT || 'OnkelRageknivBot/1.0' }}
+      RAGE_BASE_URL: ${{ secrets.RAGE_BASE_URL || 'https://soundvenue.com' }}
+      RAGE_FEED_PATH: ${{ secrets.RAGE_FEED_PATH || '/feed' }}
+      RAGE_SITEMAP_INDEX: ${{ secrets.RAGE_SITEMAP_INDEX || '/sitemap.xml' }}
+      RAGE_RATE_LIMIT_RPS: ${{ secrets.RAGE_RATE_LIMIT_RPS || '1' }}
+      RAGE_STORAGE_DIR: ${{ secrets.RAGE_STORAGE_DIR || './data' }}
+      RAGE_USER_AGENT: ${{ secrets.RAGE_USER_AGENT || 'OnkelRageknivBot/1.0' }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
