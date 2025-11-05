@@ -13,6 +13,11 @@ const nextConfig = {
   // Simplified config to fix client-side rendering issues
   reactStrictMode: false,
   
+  // Disable ESLint during builds (we run it separately)
+  eslint: {
+    ignoreDuringBuilds: true,
+  },
+  
   // Disable experimental features that might cause issues
   experimental: {
     // Remove optimizePackageImports as it can cause hydration issues
