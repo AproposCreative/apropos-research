@@ -51,21 +51,95 @@ export default function ReviewPanel({ articleData, onClose, frameless, onPreflig
     if (!text) return { intro: '', body: '' };
     
     // Check if content starts with "Intro:" (case-insensitive)
-    const introMatch = text.match(/^intro\s*:\s*([\s\S]+?)(?=\n\n|\n[A-ZÆØÅ]|$)/im);
+    // Use a more robust approach: find where intro ends without relying on problematic lookahead
+    const introStartMatch = text.match(/^intro\s*:\s*/i);
     
-    if (introMatch) {
-      const introText = introMatch[1].trim();
-      // Remove intro section from content to get body
-      const bodyText = text.replace(/^intro\s*:\s*[\s\S]+?(?=\n\n|\n[A-ZÆØÅ]|$)/im, '').trim();
+    if (introStartMatch) {
+      // Find where intro ends: look for double newline OR single newline followed by capital letter
+      const afterIntroPrefix = text.substring(introStartMatch[0].length);
+      
+      // Find end of intro: double newline is definitive boundary
+      const doubleNewlineIndex = afterIntroPrefix.indexOf('\n\n');
+      
+      // Find alternative boundary: single newline followed by capital letter (but not if it's just continuation)
+      let singleNewlineCapitalIndex = -1;
+      const lines = afterIntroPrefix.split('\n');
+      let currentPosition = 0;
+      
+      for (let i = 1; i < lines.length; i++) {
+        const line = lines[i];
+        // Check if line starts with capital letter and is substantial (not just continuation)
+        if (line.trim() && /^[A-ZÆØÅ]/.test(line.trim()) && line.trim().length > 3) {
+          // Found boundary - intro ends before this line
+          // Calculate position: sum of all previous lines + newline characters
+          singleNewlineCapitalIndex = currentPosition;
+          break;
+        }
+        // Move current position to after this line (including newline)
+        currentPosition += lines[i - 1].length + 1; // +1 for newline
+      }
+      
+      // Determine actual end position
+      let introEndIndex = afterIntroPrefix.length; // Default: intro is the whole text
+      
+      if (doubleNewlineIndex !== -1) {
+        introEndIndex = doubleNewlineIndex;
+      } else if (singleNewlineCapitalIndex !== -1) {
+        introEndIndex = singleNewlineCapitalIndex;
+      }
+      
+      // Extract intro text (everything after "Intro:" prefix until end marker)
+      const introText = afterIntroPrefix.substring(0, introEndIndex).trim();
+      
+      // Extract body text (everything after intro section)
+      const bodyStartIndex = introStartMatch[0].length + introEndIndex;
+      const bodyText = text.substring(bodyStartIndex).trim();
+      
       return { intro: introText, body: bodyText };
     }
     
     // If articleData.intro exists separately, use it
     if (articleData?.intro && typeof articleData.intro === 'string') {
       const introText = articleData.intro.replace(/^intro\s*:\s*/i, '').trim();
-      // Try to remove intro from content if it's there
-      const bodyText = text.replace(/^intro\s*:\s*[\s\S]+?(?=\n\n|\n[A-ZÆØÅ]|$)/im, '').trim();
-      return { intro: introText, body: bodyText || text };
+      
+      // Check if intro appears in content - if so, remove it; otherwise use full content as body
+      const introInContent = text.toLowerCase().includes(introText.toLowerCase());
+      
+      if (introInContent) {
+        // Try to find and remove intro section from content
+        const introStartMatch = text.match(/^intro\s*:\s*/i);
+        if (introStartMatch) {
+          // Use same logic as above to find where intro ends
+          const afterIntroPrefix = text.substring(introStartMatch[0].length);
+          const doubleNewlineIndex = afterIntroPrefix.indexOf('\n\n');
+          let introEndIndex = afterIntroPrefix.length;
+          
+          if (doubleNewlineIndex !== -1) {
+            introEndIndex = doubleNewlineIndex;
+          } else {
+            // Try to find capital letter boundary
+            const lines = afterIntroPrefix.split('\n');
+            let currentPosition = 0;
+            
+            for (let i = 1; i < lines.length; i++) {
+              const line = lines[i];
+              if (line.trim() && /^[A-ZÆØÅ]/.test(line.trim()) && line.trim().length > 3) {
+                introEndIndex = currentPosition;
+                break;
+              }
+              // Move current position to after this line (including newline)
+              currentPosition += lines[i - 1].length + 1; // +1 for newline
+            }
+          }
+          
+          const bodyStartIndex = introStartMatch[0].length + introEndIndex;
+          const bodyText = text.substring(bodyStartIndex).trim();
+          return { intro: introText, body: bodyText };
+        }
+      }
+      
+      // Intro not found in content format, use original text as body
+      return { intro: introText, body: text };
     }
     
     // No intro found, return content as body
