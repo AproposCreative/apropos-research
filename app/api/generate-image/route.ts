@@ -52,7 +52,7 @@ export async function POST(req: NextRequest) {
       console.log('🎬 Detected media review, searching for existing image (NO AI generation)...');
       try {
         // Import and call search functions directly to avoid HTTP fetch issues
-        const { isMediaReview: checkMediaReview, searchTMDB, searchGoogleImages } = await import('../search-media-image/route');
+        const { isMediaReview: checkMediaReview, searchTMDB, searchGoogleImages } = await import('@/lib/media-search-utils');
         
         // Check media type and get search term
         const mediaCheck = checkMediaReview({
