@@ -9,12 +9,15 @@ jobs:
   ingest-articles:
     runs-on: ubuntu-latest
     env:
-      RAGE_BASE_URL: ${{ secrets.RAGE_BASE_URL }}
-      RAGE_FEED_PATH: ${{ secrets.RAGE_FEED_PATH }}
-      RAGE_SITEMAP_INDEX: ${{ secrets.RAGE_SITEMAP_INDEX }}
-      RAGE_RATE_LIMIT_RPS: ${{ secrets.RAGE_RATE_LIMIT_RPS }}
-      RAGE_STORAGE_DIR: ${{ secrets.RAGE_STORAGE_DIR }}
-      RAGE_USER_AGENT: ${{ secrets.RAGE_USER_AGENT }}
+      # Default values (we now use dynamic media sources from media-sources.json, so these are just fallbacks)
+      # Note: Linter warnings about "Context access might be invalid" are false positives - these secrets are optional
+      # and we provide fallback values. The workflow will work correctly even if secrets are not set.
+      RAGE_BASE_URL: ${{ secrets.RAGE_BASE_URL != '' && secrets.RAGE_BASE_URL || 'https://soundvenue.com' }}
+      RAGE_FEED_PATH: ${{ secrets.RAGE_FEED_PATH != '' && secrets.RAGE_FEED_PATH || '/feed' }}
+      RAGE_SITEMAP_INDEX: ${{ secrets.RAGE_SITEMAP_INDEX != '' && secrets.RAGE_SITEMAP_INDEX || '/sitemap.xml' }}
+      RAGE_RATE_LIMIT_RPS: ${{ secrets.RAGE_RATE_LIMIT_RPS != '' && secrets.RAGE_RATE_LIMIT_RPS || '1' }}
+      RAGE_STORAGE_DIR: ${{ secrets.RAGE_STORAGE_DIR != '' && secrets.RAGE_STORAGE_DIR || './data' }}
+      RAGE_USER_AGENT: ${{ secrets.RAGE_USER_AGENT != '' && secrets.RAGE_USER_AGENT || 'OnkelRageknivBot/1.0' }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -29,34 +32,16 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Verify RAGE environment variables
+      - name: Display RAGE environment variables
         run: |
-          echo "Checking RAGE environment variables..."
-          if [ -z "$RAGE_BASE_URL" ]; then
-            echo "❌ RAGE_BASE_URL is missing"
-            exit 1
-          fi
-          if [ -z "$RAGE_FEED_PATH" ]; then
-            echo "❌ RAGE_FEED_PATH is missing"
-            exit 1
-          fi
-          if [ -z "$RAGE_SITEMAP_INDEX" ]; then
-            echo "❌ RAGE_SITEMAP_INDEX is missing"
-            exit 1
-          fi
-          if [ -z "$RAGE_RATE_LIMIT_RPS" ]; then
-            echo "❌ RAGE_RATE_LIMIT_RPS is missing"
-            exit 1
-          fi
-          if [ -z "$RAGE_STORAGE_DIR" ]; then
-            echo "❌ RAGE_STORAGE_DIR is missing"
-            exit 1
-          fi
-          if [ -z "$RAGE_USER_AGENT" ]; then
-            echo "❌ RAGE_USER_AGENT is missing"
-            exit 1
-          fi
-          echo "✅ All RAGE environment variables are set"
+          echo "📋 RAGE environment variables (using dynamic media sources from media-sources.json):"
+          echo "  RAGE_BASE_URL: $RAGE_BASE_URL"
+          echo "  RAGE_FEED_PATH: $RAGE_FEED_PATH"
+          echo "  RAGE_SITEMAP_INDEX: $RAGE_SITEMAP_INDEX"
+          echo "  RAGE_RATE_LIMIT_RPS: $RAGE_RATE_LIMIT_RPS"
+          echo "  RAGE_STORAGE_DIR: $RAGE_STORAGE_DIR"
+          echo "  RAGE_USER_AGENT: $RAGE_USER_AGENT"
+          echo "✅ Environment variables are set (secrets are optional, defaults used if not set)"
 
       - name: Ingest recent articles
         run: |
