@@ -10,8 +10,12 @@ jobs:
     runs-on: ubuntu-latest
     env:
       # Default values (we now use dynamic media sources from media-sources.json, so these are just fallbacks)
-      # Note: Linter warnings about "Context access might be invalid" are false positives - these secrets are optional
-      # and we provide fallback values. The workflow will work correctly even if secrets are not set.
+      # 
+      # ⚠️ LINTER WARNINGS: "Context access might be invalid" warnings below are FALSE POSITIVES.
+      # These secrets are OPTIONAL - we provide fallback values using the || operator.
+      # The workflow works correctly even if secrets are not set in GitHub.
+      # You can safely ignore these warnings - they do not affect workflow execution.
+      #
       RAGE_BASE_URL: ${{ secrets.RAGE_BASE_URL || 'https://soundvenue.com' }}
       RAGE_FEED_PATH: ${{ secrets.RAGE_FEED_PATH || '/feed' }}
       RAGE_SITEMAP_INDEX: ${{ secrets.RAGE_SITEMAP_INDEX || '/sitemap.xml' }}
