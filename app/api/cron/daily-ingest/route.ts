@@ -25,27 +25,45 @@ export async function GET(request: NextRequest) {
   }
 
   const root = process.cwd();
-  // Daily ingest: last 24 hours, limit 100 articles (same as GitHub Actions workflow)
-  const cmd = `npm run ingest:rage -- --since=24 --limit=100`;
+  // Hourly ingest: last 2 hours, limit 50 articles (more frequent, smaller batches)
+  const sinceHours = 2;
+  const limit = 50;
+  const cmd = `npm run ingest:rage -- --since=${sinceHours} --limit=${limit}`;
 
-  console.log('🔄 Starting daily article ingestion via Vercel cron...');
+  console.log(`🔄 Starting hourly article ingestion via Vercel cron (since=${sinceHours}h, limit=${limit})...`);
 
-  // Start ingest in background
-  exec(cmd, { cwd: root, env: process.env, timeout: 1000 * 60 * 5 }, (err, stdout, stderr) => {
-    if (!err) {
-      invalidatePromptsCache();
-      console.log('✅ Daily ingest completed successfully');
-      if (stdout) console.log(stdout);
-    } else {
-      console.error('❌ Daily ingest failed:', stderr);
-    }
+  // Use promisified exec for better error handling
+  return new Promise<NextResponse>((resolve) => {
+    exec(cmd, { cwd: root, env: process.env, timeout: 1000 * 60 * 5 }, async (err, stdout, stderr) => {
+      if (!err) {
+        invalidatePromptsCache();
+        console.log('✅ Hourly ingest completed successfully');
+        if (stdout) {
+          console.log(stdout);
+          // Extract metrics from output if available
+          try {
+            const metricsMatch = stdout.match(/newArticles[:\s]+(\d+)/i);
+            const newCount = metricsMatch ? parseInt(metricsMatch[1]) : 0;
+            console.log(`📊 New articles ingested: ${newCount}`);
+          } catch {}
+        }
+        resolve(NextResponse.json({
+          ok: true,
+          message: 'Hourly ingest completed successfully',
+          timestamp: new Date().toISOString(),
+          sinceHours,
+          limit
+        }, { status: 200 }));
+      } else {
+        console.error('❌ Hourly ingest failed:', stderr || err);
+        resolve(NextResponse.json({
+          ok: false,
+          error: 'Ingest failed',
+          message: stderr || String(err),
+          timestamp: new Date().toISOString()
+        }, { status: 500 }));
+      }
+    });
   });
-
-  // Return immediately (non-blocking)
-  return NextResponse.json({
-    ok: true,
-    message: 'Daily ingest started in background',
-    timestamp: new Date().toISOString()
-  }, { status: 202 }); // 202 Accepted
 }
 

@@ -22,7 +22,11 @@ export async function POST(request: NextRequest) {
       wordCount: articleData.wordCount,
       featured: articleData.featured,
       trending: articleData.trending,
-      featuredImage: articleData.featuredImage ? 'Present' : 'Missing'
+      featuredImage: articleData.featuredImage ? (articleData.featuredImage.startsWith('data:image/') ? 'Data URL (base64)' : 'HTTP URL') : 'Missing',
+      featuredImagePreview: articleData.featuredImage ? articleData.featuredImage.substring(0, 100) + '...' : 'N/A',
+      streaming_service: articleData.streaming_service,
+      platform: articleData.platform,
+      watchUrl: articleData.watchUrl
     });
     
     // Validate required fields

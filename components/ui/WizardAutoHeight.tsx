@@ -33,7 +33,7 @@ export default function WizardAutoHeight({ children, collapsed }: { children: Re
   }, [recompute]);
 
   const clamped = collapsed ? 40
-   : Math.max(48, Math.min(height ?? 0, 400));
+   : Math.max(48, Math.min(height ?? 0, 1200));
 
   return (
     <div className="m-0 w-full md:mx-0 md:my-0" ref={containerRef}>

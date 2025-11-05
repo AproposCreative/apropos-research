@@ -17,7 +17,7 @@
     { "internal": "secondaryTopic", "webflowSlug": "topics", "transform": "multiReferenceId" },
     { "internal": "author", "webflowSlug": "author", "transform": "referenceId" },
     { "internal": "rating", "webflowSlug": "stjerne", "transform": "number" },
-    { "internal": "streaming_service", "webflowSlug": "streaming-service", "transform": "identity" },
+    { "internal": "streaming_service", "webflowSlug": "simple-rerfence", "transform": "identity" },
     { "internal": "platform", "webflowSlug": "watch-now-link", "transform": "identity" },
     { "internal": "watchUrl", "webflowSlug": "watch-now-link", "transform": "identity" },
     { "internal": "featuredImage", "webflowSlug": "thumb", "transform": "identity" },

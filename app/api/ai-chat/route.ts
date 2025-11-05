@@ -1,5 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import OpenAI from 'openai';
+import { 
+  performComprehensiveResearch, 
+  verifyContent, 
+  formatResearchForPrompt,
+  type ResearchSources,
+  type VerificationResult 
+} from '@/lib/research-verification-service';
 
 // Progress tracking stubs (UI handles loading timeline locally)
 const initProgress = (..._args: any[]) => {};
@@ -807,10 +814,10 @@ const applyFieldFallbacks = async (articleUpdate: any, articleData: any) => {
     articleUpdate.intro = intro;
   }
 
-  // Remove intro section from content to avoid duplication
-  if (intro && articleUpdate.content) {
-    articleUpdate.content = removeIntroFromContent(articleUpdate.content);
-  }
+  // DON'T remove intro from content here - we want it in content for article display
+  // The intro will be handled separately, but content should include it for display
+  // Only remove if content explicitly has intro and we want to avoid duplication in specific contexts
+  // For now, keep intro in content - it will be recombined properly after normalization
 
   if (!articleUpdate.excerpt) {
     articleUpdate.excerpt = buildExcerpt(content);
@@ -1058,8 +1065,23 @@ const normalizeArticleUpdatePayload = (raw: any) => {
 // Try to extract a structured payload from a raw model string
 // Helper functions for web search
 function shouldPerformWebSearch(message: string, articleData: any): boolean {
-  const lowerMessage = message.toLowerCase();
+  const lowerMessage = message.toLowerCase().trim();
   const lowerContent = (articleData?.content || '').toLowerCase();
+
+  // Skip research for very short messages (likely follow-ups or simple requests)
+  if (lowerMessage.length < 30) {
+    return false;
+  }
+
+  // Skip research for simple editing requests
+  const simpleEditPatterns = [
+    /^(ret|ændre|tilføj|fjern|skift|opdater|rediger)/i,
+    /^(mere|mindre|længere|kortere|bedre)/i,
+    /^(kan du|prøv|gør|lav)/i
+  ];
+  if (simpleEditPatterns.some(pattern => pattern.test(lowerMessage))) {
+    return false;
+  }
 
   const factualIndicators = [
     'ifølge',
@@ -1108,6 +1130,13 @@ function shouldPerformWebSearch(message: string, articleData: any): boolean {
   const contentWordCount = (articleData?.content || '').split(/\s+/).filter(Boolean).length;
   const contentIsSparse = contentWordCount < 250;
   const newBrief = !articleData?.content || contentIsSparse;
+  
+  // CRITICAL: For reviews, ALWAYS perform web search to verify facts
+  // This prevents hallucinations and incorrect information
+  if (isReviewRequest || hasSpecificSubject) {
+    console.log(`✅ Review/subject detected - requiring mandatory research`);
+    return true;
+  }
 
   if (explicitResearchIntent) return true;
   const strongEvidenceRequest =
@@ -1119,7 +1148,17 @@ function shouldPerformWebSearch(message: string, articleData: any): boolean {
 }
 
 function shouldRunAdvancedResearch(message: string, articleData: any, webSearchTriggered: boolean): boolean {
-  return false;
+  // CRITICAL: For reviews, ALWAYS run advanced research to verify media type and facts
+  const isReviewRequest = /\b(anmeld|anmeldelse|review|bedøm|bedømmelse|kritik|kritiker)\b/i.test(message);
+  const hasSpecificSubject = /\b(film|serie|bog|album|kunstner|skuespiller|instruktør|forfatter|spil|koncert)\b/i.test(message);
+  
+  if (isReviewRequest || hasSpecificSubject) {
+    console.log(`✅ Review/subject detected - requiring advanced research for verification`);
+    return true;
+  }
+  
+  // For other cases, only run if web search was triggered
+  return webSearchTriggered && (articleData?.title || articleData?.topic);
 }
 
 function extractSearchQuery(message: string, articleData: any): string {
@@ -1407,7 +1446,8 @@ export async function POST(request: NextRequest) {
     // Streaming service injection
     if (articleData?.platform || articleData?.streaming_service) {
       const platform = articleData.platform || articleData.streaming_service;
-      dynamicBehaviors.push(`STREAMING SERVICE: Artikel handler om indhold på ${platform}. Inkluder platform i titel og indhold.`);
+      dynamicBehaviors.push(`STREAMING SERVICE: Artikel handler om indhold på ${platform}.`);
+      dynamicBehaviors.push(`TITEL FORMAT: Titlen SKAL ALTID være formatet "{Titel} (${platform})" - altså titlen efterfulgt af service/platform i parentes. Eksempel: "Highest 2 Lowest (Apple TV)" eller "Paradise (Disney+)".`);
     }
     
     // Enhanced length targeting
@@ -1436,11 +1476,17 @@ export async function POST(request: NextRequest) {
     systemSections.push(`**KRITISK LÆNGDE-KRAV**\n🚨 ARTIKLEN SKAL VÆRE MINIMUM ${targetMin} ORD - IKKE MINDRE! 🚨\n- Hvis artiklen er under ${targetMin} ord, er det EN FEJL der skal rettes\n- Brødteksten alene skal være ${targetMin}-${targetMax} ord (ekskl. intro og afslutning)\n- Tæl ordene mens du skriver - stop ikke før du når ${targetMin} ord\n- Korte artikler under ${targetMin} ord bliver afvist som utilstrækkelige\n- DU SKAL SKRIVE ${targetMin} ORD ELLER MERE - DET ER IKKE ET FORSLAG!\n- SKRIV EN DETALJERET ARTIKEL PÅ MINDST ${targetMin} ORD OM DETTE EMNE`);
     systemSections.push(`**REDAKTIONELT ARBEJDSFLOW (internt)**\n1. Skriv et fuldt første udkast (MINIMUM ${targetMin} ord) med KORREKT struktur:\n   - START direkte med "Intro:" (ikke ##Intro: eller andet)\n   - Intro: 2-4 linjer i første person\n   - Brødtekst: ${targetMin}-${targetMax} ord med dybde og detaljer\n   - Afslut med "Eftertanke:", "Refleksion:" eller lignende\n2. TÆL ORDENE: Kontroller at brødteksten er mindst ${targetMin} ord\n3. Lever KUN den forbedrede, færdige artikel i JSON-kontrakten – ingen interne noter eller halvfærdige udkast.\n4. HVIS ARTIKLEN ER UNDER ${targetMin} ORD: SKRIV DEN OM HELT FRA BUNDEN!`);
     systemSections.push(`**ARTIKELFORMAT & LÆNGDE**\n- Struktur: Intro (2-4 sætninger i jeg-form) → brødtekst (${targetMin}-${targetMax} ord) → afslutning (godkendt label + 2-4 sætninger).\n- Længde: artiklen må ALDRIG være under ${targetMin} ord; sigt efter ${targetMin}-${targetMax} ord.\n- Brødtekst: brug sanselige detaljer, konkrete observationer, research og reflektion (forventning → oplevelse → indsigt → eftertanke).\n- Variér sætningslængder og rytme; undgå synopsis eller punktopstillinger.\n- UDVID hver tanke med konkrete eksempler og dybdegående analyse.\n- HVIS DU SKRIVER UNDER ${targetMin} ORD: STOP OG SKRIV OM ARTIKLEN HELT FRA BUNDEN!`);
-    systemSections.push(`**SETUPWIZARD DATA – BRUG SOM KANON**\n- Kategori/Sektion: ${sec || 'Ikke valgt'}\n- Topics/Tags: ${tagsArr.join(', ') || 'Ikke valgt'}\n- Platform: ${(articleData as any).platform || (articleData as any).streaming_service || 'Ikke valgt'}\n- Rating: ${articleData.rating || 'Ikke valgt'} stjerner (tilpas tone hertil)`);
+    const platform = (articleData as any).platform || (articleData as any).streaming_service || '';
+    systemSections.push(`**SETUPWIZARD DATA – BRUG SOM KANON**\n- Kategori/Sektion: ${sec || 'Ikke valgt'}\n- Topics/Tags: ${tagsArr.join(', ') || 'Ikke valgt'}\n- Platform: ${platform || 'Ikke valgt'}\n- Rating: ${articleData.rating || 'Ikke valgt'} stjerner (tilpas tone hertil)`);
+    if (platform) {
+      systemSections.push(`**TITEL FORMAT KRAV**\n🚨 KRITISK: Titlen SKAL ALTID være formatet "{Titel} (${platform})" hvis platform/service er udfyldt.\n- Eksempel: "Highest 2 Lowest (Apple TV)" eller "Paradise (Disney+)"\n- Dette er IKKE et forslag - det er et KRAV!\n- Titlen skal ALTID slutte med " (${platform})" hvis platform er sat\n- ALDRIG send titlen uden platform i parentes hvis platform er udfyldt`);
+    }
     systemSections.push(`**KILDEBRUG & CITATIONS**\n- Integrér research-data aktivt; ingen opfundne fakta.\n- Markér kilder med [1], [2] i teksten og lad dem matche den medsendte kilde-liste.\n- Hvis fakta mangler, skriv generelt ("instruktøren", "hovedskuespilleren") i stedet for at gætte navne.`);
     
     // Enhanced JSON contract enforcement
-    systemSections.push(`**JSON-KONTRAKT HÅNDHÆVELSE**\n- Returnér ALTID ét JSON-objekt med nøjagtig struktur:\n  {\n    "response": "menneskelig svartekst til chatten",\n    "articleUpdate": {\n      "title": "artikel titel",\n      "subtitle": "undertitel",\n      "content": "fuld artikel med Intro: og afslutning",\n      "category": "${sec || 'kategori'}",\n      "tags": ["tag1", "tag2"],\n      "author": "${authorInfo}",\n      "rating": ${articleData?.rating || 'null'},\n      "platform": "${articleData?.platform || articleData?.streaming_service || ''}",\n      "slug": "url-venlig-titel",\n      "seoTitle": "SEO titel (max 60 tegn)",\n      "seoDescription": "meta beskrivelse (max 155 tegn)"\n    },\n    "suggestion": null,\n    "citations": ["url1", "url2"]\n  }\n- ALDRIG returnér tekst udenfor JSON-strukturen\n- ALDRIG returnér delvise eller ufuldstændige JSON-objekter`);
+      const platformForPrompt = articleData?.platform || articleData?.streaming_service || '';
+      const titleExample = platformForPrompt ? `"artikel titel (${platformForPrompt})"` : '"artikel titel"';
+      systemSections.push(`**JSON-KONTRAKT HÅNDHÆVELSE**\n- Returnér ALTID ét JSON-objekt med nøjagtig struktur:\n  {\n    "response": "menneskelig svartekst til chatten",\n    "articleUpdate": {\n      "title": ${titleExample}${platformForPrompt ? ' (SKAL inkludere platform i parentes!)' : ''},\n      "subtitle": "undertitel",\n      "content": "fuld artikel med Intro: og afslutning",\n      "category": "${sec || 'kategori'}",\n      "tags": ["tag1", "tag2"],\n      "author": "${authorInfo}",\n      "rating": ${articleData?.rating || 'null'},\n      "platform": "${platformForPrompt}",\n      "slug": "url-venlig-titel",\n      "seoTitle": "SEO titel (max 60 tegn)",\n      "seoDescription": "meta beskrivelse (max 155 tegn)"\n    },\n    "suggestion": null,\n    "citations": ["url1", "url2"]\n  }\n- ALDRIG returnér tekst udenfor JSON-strukturen\n- ALDRIG returnér delvise eller ufuldstændige JSON-objekter`);
     
     const systemContent = systemSections.join('\n\n');
 
@@ -1485,11 +1531,19 @@ ${context ? `\n\nAktuel artikel-kontekst:\n${context}` : ''}`;
 
     let finalSystemContent = systemContent + transformationRules + workflowInstructions;
     
+    // Log system prompt size for debugging
+    const systemPromptSize = finalSystemContent.length;
+    const systemPromptTokens = Math.ceil(systemPromptSize / 4); // Rough estimate: 1 token ≈ 4 chars
+    console.log(`📊 System prompt size: ${systemPromptSize} chars (~${systemPromptTokens} tokens)`);
+    if (systemPromptTokens > 8000) {
+      console.warn(`⚠️ System prompt is very large (${systemPromptTokens} tokens) - this may slow down generation`);
+    }
+    
     const messages: any[] = [];
 
-    // Add chat history
+    // Add chat history - limit to last 5 messages for faster responses
     if (chatHistory && chatHistory.length > 0) {
-      chatHistory.slice(-10).forEach((msg: any) => {
+      chatHistory.slice(-5).forEach((msg: any) => {
         messages.push({
           role: msg.role,
           content: msg.content
@@ -1515,166 +1569,109 @@ ${context ? `\n\nAktuel artikel-kontekst:\n${context}` : ''}`;
       systemPromptLength: finalSystemContent.length
     });
 
-    // Enhanced workflow: Research → Generate → Quality Check → Enhance
-    const needsWebSearch = shouldPerformWebSearch(message, articleData);
-    const needsAdvancedResearch = shouldRunAdvancedResearch(message, articleData, needsWebSearch);
-    let webSearchResults = '';
-    let researchData = null;
-    const citationSet = new Set<string>();
+    // PROFESSIONAL RESEARCH & VERIFICATION PIPELINE
+    // CRITICAL: ALL content generation must use research and verification
+    const isNotesTemplate = (articleData as any)?.template === 'notes';
     
-    if (needsWebSearch) {
+    // For notes template, we still do research but skip verification (since notes are user's own)
+    // For all other content, ALWAYS perform comprehensive research
+    const alwaysRequireResearch = !isNotesTemplate; // Always research except for notes template
+    
+    console.log(`🔍 Professional Research Pipeline - Template: ${(articleData as any)?.template}, AlwaysRequireResearch: ${alwaysRequireResearch}`);
+    
+    const researchStartTime = Date.now();
+    let researchSources: ResearchSources | null = null;
+    let verificationResult: VerificationResult | null = null;
+    const baseRequestUrl = request.url.split('/api')[0];
+    const researchTopic = (articleData as any)?.title || (articleData as any)?.topic || message;
+    
+    // PERFORM COMPREHENSIVE RESEARCH (always for non-notes templates)
+    if (alwaysRequireResearch) {
       if (progressId) {
         updateProgressStep(progressId, 'web-search', 'active');
       }
-      startStage('web-search', { query: extractSearchQuery(message, articleData) });
+      startStage('comprehensive-research', { topic: researchTopic });
+      
       try {
-        const baseRequestUrl = request.url.split('/api')[0];
-        const searchQuery = extractSearchQuery(message, articleData);
-        const searchCitations: string[] = [];
-        const researchTopic = (articleData as any).title || (articleData as any).topic || searchQuery;
-
-        try {
-          const searchResponse = await fetch(`${baseRequestUrl}/api/web-search`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ query: searchQuery, maxResults: 5 })
-          });
-
-          if (searchResponse.ok) {
-            const searchData = await searchResponse.json();
-            if (Array.isArray(searchData.results) && searchData.results.length > 0) {
-              webSearchResults += '\n\n**FAKTUEL RESEARCH (web):**\n';
-              searchData.results.slice(0, 5).forEach((result: any, index: number) => {
-                const num = index + 1;
-                const title = result.title || 'Ukendt titel';
-                const snippet = typeof result.content === 'string'
-                  ? result.content.replace(/\s+/g, ' ').trim()
-                  : '';
-                const trimmedSnippet = snippet.length > 320 ? `${snippet.slice(0, 317)}…` : snippet;
-                if (result.url) {
-                  citationSet.add(result.url);
-                  searchCitations[num - 1] = result.url;
-                }
-                webSearchResults += `[${num}] ${title}\n`;
-                if (trimmedSnippet) {
-                  webSearchResults += `${trimmedSnippet}\n`;
-                }
-                if (result.url) {
-                  webSearchResults += `Kilde: ${result.url}\n`;
-                }
-                webSearchResults += '\n';
-              });
-              // Provide a baseline research object in case the advanced engine fails
-              researchData = {
-                success: true,
-                searchSummary: `Web-søgning på "${searchQuery}" gav ${searchData.results.length} resultater.`,
-                sources: searchCitations.filter(Boolean)
-              };
-            }
-          }
-        } catch (error) {
-          console.error('Web search failed:', error);
-        }
-
-        if (needsAdvancedResearch) {
-          if (progressId) {
-            updateProgressStep(progressId, 'advanced-research', 'active');
-          }
-          let advancedSucceeded = false;
-          try {
-            const researchResponse = await fetch(`${baseRequestUrl}/api/research-engine`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                topic: researchTopic,
-                articleType: (articleData as any).category || 'Generel',
-                author: authorName || 'Apropos Writer',
-                platform: (articleData as any).platform || (articleData as any).streaming_service,
-                targetLength: targetMax
-              })
-            });
-
-            if (researchResponse.ok) {
-              const structured = await researchResponse.json();
-              if (structured?.success) {
-                advancedSucceeded = true;
-                researchData = structured;
-                if (Array.isArray(structured.sources)) {
-                  structured.sources.forEach((url: string) => {
-                    if (url) citationSet.add(url);
-                  });
-                }
-
-                let advancedSection = '\n\n**AVANCERET RESEARCH:**\n';
-                if (structured.researchSummary) {
-                  advancedSection += `${structured.researchSummary}\n\n`;
-                }
-                if (structured.keyFindings?.length) {
-                  advancedSection += `**Hovedfund:**\n`;
-                  structured.keyFindings.slice(0, 3).forEach((finding: any, index: number) => {
-                    advancedSection += `${index + 1}. ${finding}\n`;
-                  });
-                  advancedSection += '\n';
-                }
-                if (structured.culturalContext?.length) {
-                  advancedSection += `**Kulturel Kontekst:**\n${structured.culturalContext.slice(0, 2).join('\n')}\n\n`;
-                }
-                if (structured.expertInsights?.length) {
-                  advancedSection += `**Ekspertperspektiver:**\n${structured.expertInsights.slice(0, 2).join('\n')}\n\n`;
-                }
-                if (structured.suggestedAngles?.length) {
-                  advancedSection += `**Foreslåede Vinkler:**\n${structured.suggestedAngles.join('\n')}\n\n`;
-                }
-                webSearchResults += advancedSection;
-              }
-            }
-          } catch (error) {
-            console.error('Research engine failed:', error);
-          } finally {
-            if (progressId) {
-              updateProgressStep(
-                progressId,
-                'advanced-research',
-                advancedSucceeded ? 'completed' : 'failed'
-              );
-            }
-          }
-        } else if (progressId) {
-          updateProgressStep(progressId, 'advanced-research', 'skipped');
-        }
-
-        if (webSearchResults) {
-          finalSystemContent += `\n\n**RESEARCH DATA TILGÆNGELIG - BRUG DISSE FAKTA:**\n${webSearchResults}\n\nKRITISK: Brug kilderne ovenfor og henvis i teksten med firkantede parenteser – fx [1], [2] – der matcher listen. Tilføj feltet "citations" med de URLs du anvender. Undgå at opdigte fakta; hvis detaljer mangler, skriv generelt (fx "instruktøren").\n\nEMNE SPECIFIKATION: Skriv om "${researchTopic}" - ikke om andre emner eller generiske beskrivelser.`;
-        }
-        endStage(true, undefined, { researchDataAvailable: !!researchData, citationsCount: citationSet.size });
+        console.log(`🔬 Starting comprehensive research for: "${researchTopic}"`);
+        researchSources = await performComprehensiveResearch(researchTopic, articleData, baseRequestUrl);
+        console.log(`✅ Research completed:`, {
+          webSearchResults: researchSources.webSearch.length,
+          tmdbVerified: !!researchSources.tmdbVerification?.verified,
+          advancedResearch: !!researchSources.advancedResearch
+        });
+        
+        // Format research for prompt
+        const researchPrompt = formatResearchForPrompt(researchSources);
+        finalSystemContent += researchPrompt;
+        
         if (progressId) {
           updateProgressStep(progressId, 'web-search', 'completed');
+          updateProgressStep(progressId, 'advanced-research', researchSources.advancedResearch ? 'completed' : 'skipped');
         }
+        
+        endStage(true, undefined, { 
+          webSearchResults: researchSources.webSearch.length,
+          tmdbVerified: !!researchSources.tmdbVerification?.verified 
+        });
       } catch (error) {
-        console.error('Research failed:', error);
-        endStage(false, error.message);
+        console.error('Comprehensive research failed:', error);
+        endStage(false, error instanceof Error ? error.message : 'Research failed');
         if (progressId) {
           updateProgressStep(progressId, 'web-search', 'failed', { error: (error as Error)?.message });
         }
       }
-    } else if (progressId) {
-      updateProgressStep(progressId, 'web-search', 'skipped');
-      updateProgressStep(progressId, 'advanced-research', 'skipped');
+      
+      const researchTime = Date.now() - researchStartTime;
+      console.log(`⏱️ Comprehensive research completed in ${researchTime}ms`);
+    } else {
+      // For notes template, skip research but still allow basic web search if needed
+      if (progressId) {
+        updateProgressStep(progressId, 'web-search', 'skipped');
+        updateProgressStep(progressId, 'advanced-research', 'skipped');
+      }
     }
+    
+    // Note: Old research logic removed - using new comprehensive research service above
+    // Legacy variables kept for compatibility but not used
+    let webSearchResults = '';
+    let researchData = researchSources ? {
+      success: true,
+      webSearchResults: researchSources.webSearch.length,
+      tmdbVerified: !!researchSources.tmdbVerification?.verified,
+      advancedResearch: !!researchSources.advancedResearch
+    } : null;
+    const citationSet = new Set<string>();
+    
+    // Extract citations from research sources
+    if (researchSources) {
+      researchSources.webSearch.forEach(result => {
+        if (result.url) citationSet.add(result.url);
+      });
+      if (researchSources.advancedResearch?.sources) {
+        researchSources.advancedResearch.sources.forEach(url => {
+          if (url) citationSet.add(url);
+        });
+      }
+    }
+    
+    // Legacy research code removed - using new comprehensive research service above
 
     startStage('ai-generation', { 
       model: OPENAI_MODEL, 
       temperature: 1, // GPT-5 only supports default temperature (1) 
       maxTokens: 4000,
-      hasResearchData: !!researchData 
+      hasResearchData: !!researchSources 
     });
     if (progressId) {
       updateProgressStep(progressId, 'generation', 'active');
     }
     
     let completion;
+    const generationStartTime = Date.now();
     try {
       console.log(`🤖 Calling OpenAI API with model: ${OPENAI_MODEL}`);
+      console.log(`📊 Generation request - System prompt: ~${Math.ceil(finalSystemContent.length / 4)} tokens, Messages: ${messages.length}`);
       completion = await openai.chat.completions.create({
         model: OPENAI_MODEL,
         messages: [
@@ -1682,11 +1679,12 @@ ${context ? `\n\nAktuel artikel-kontekst:\n${context}` : ''}`;
           ...messages
         ],
         temperature: 1, // GPT-5 only supports default temperature (1)
-        max_completion_tokens: 4000, // Trimmet for hurtigere svartid
+        max_completion_tokens: 3000, // Reduced for faster responses - can be increased if needed
         response_format: { type: 'json_object' },
       });
-      console.log('✅ OpenAI API call completed successfully');
-      console.log('📊 Response choices:', completion.choices?.length || 0);
+      const generationTime = Date.now() - generationStartTime;
+      console.log(`✅ OpenAI API call completed successfully in ${generationTime}ms`);
+      console.log(`📊 Response choices: ${completion.choices?.length || 0}, Usage: ${JSON.stringify(completion.usage || {})}`);
     } catch (apiError: any) {
       console.error('❌ OpenAI API call failed:', apiError.message);
       endStage(false, apiError.message || 'OpenAI API call failed');
@@ -1780,18 +1778,23 @@ ${context ? `\n\nAktuel artikel-kontekst:\n${context}` : ''}`;
     const getContent = () => String((outArticleUpdate as any)?.content || outResponse || '');
 
     let revisionAttempts = 0;
-    const maxRevisions = 1; // En enkelt revision er nok; reducerer latenstid
+    // For notes template: Skip revisions - integrate everything in first attempt
+    // User doesn't want to see quality warnings, so we should get it right the first time
+    const isNotesTemplateForRevisions = (articleData as any)?.template === 'notes';
+    const maxRevisions = isNotesTemplateForRevisions ? 0 : 1; // No revisions for notes template
     const qualityControlStartTime = Date.now();
-    const maxQualityControlTime = 20000; // Hurtigere timeout for QC
+    const maxQualityControlTime = isNotesTemplateForRevisions ? 10000 : 20000; // Faster timeout for notes template
     
-    console.log(`🔍 Quality check starting - Target: ${targetMin}-${targetMax} ord`);
+    console.log(`🔍 Quality check starting - Target: ${targetMin}-${targetMax} ord, Max revisions: ${maxRevisions}, Timeout: ${maxQualityControlTime}ms`);
     
-    while (revisionAttempts < maxRevisions) {
-      // Check timeout
-      if (Date.now() - qualityControlStartTime > maxQualityControlTime) {
-        console.log(`⏰ Quality control timeout after ${Date.now() - qualityControlStartTime}ms - stopping revisions`);
-        break;
-      }
+    // For notes template: Skip quality check loop entirely - trust first generation
+    if (!isNotesTemplateForRevisions) {
+      while (revisionAttempts < maxRevisions) {
+        // Check timeout
+        if (Date.now() - qualityControlStartTime > maxQualityControlTime) {
+          console.log(`⏰ Quality control timeout after ${Date.now() - qualityControlStartTime}ms - stopping revisions`);
+          break;
+        }
       
       revisionAttempts += 1; // Increment at start to prevent infinite loops
       
@@ -1937,30 +1940,121 @@ ${context ? `\n\nAktuel artikel-kontekst:\n${context}` : ''}`;
       } else {
         console.log(`🔄 Revision ${revisionAttempts}/${maxRevisions} completed. Checking quality...`);
       }
+      }
     }
+    
+    const qualityControlTime = Date.now() - qualityControlStartTime;
+    console.log(`⏱️ Quality control completed in ${qualityControlTime}ms (${revisionAttempts} revisions)`);
 
     let finalContent = getContent();
-    const introSection =
-      typeof (outArticleUpdate as any)?.intro === 'string'
-        ? String((outArticleUpdate as any).intro)
-        : '';
+    
+    // PROFESSIONAL VERIFICATION PIPELINE
+    // CRITICAL: Verify ALL generated content against research sources
+    if (researchSources && alwaysRequireResearch && !isNotesTemplate) {
+      if (progressId) {
+        updateProgressStep(progressId, 'quality', 'active');
+      }
+      startStage('content-verification', { contentLength: finalContent.length });
+      
+      try {
+        console.log(`🔍 Starting content verification...`);
+        verificationResult = await verifyContent(finalContent, researchSources, notes);
+        console.log(`✅ Verification completed:`, {
+          passed: verificationResult.passed,
+          plagiarismScore: verificationResult.plagiarismScore,
+          factualityScore: verificationResult.factualityScore,
+          mediaTypeCorrect: verificationResult.mediaTypeCorrect,
+          issues: verificationResult.issues.length,
+          warnings: verificationResult.warnings.length
+        });
+        
+        // If verification failed, add warnings to output
+        if (!verificationResult.passed || verificationResult.issues.length > 0) {
+          console.warn(`⚠️ Verification failed or has issues:`, verificationResult.issues);
+          
+          // Add verification issues to quality recommendations
+          if (!qualityRecommendations) qualityRecommendations = [];
+          verificationResult.issues.forEach(issue => {
+            qualityRecommendations.push(`🚨 VERIFIKATION: ${issue}`);
+          });
+          verificationResult.warnings.forEach(warning => {
+            qualityRecommendations.push(`⚠️ VERIFIKATION: ${warning}`);
+          });
+          
+          // If critical issues, add to articleUpdate warnings
+          if (verificationResult.issues.some(issue => issue.includes('FEJL'))) {
+            if (!outArticleUpdate) outArticleUpdate = {};
+            if (!(outArticleUpdate as any).warnings) (outArticleUpdate as any).warnings = [];
+            (outArticleUpdate as any).warnings.push(...verificationResult.issues.filter(issue => issue.includes('FEJL')));
+          }
+        }
+        
+        // Add citations from verification
+        if (verificationResult.citations.length > 0) {
+          if (!outArticleUpdate) outArticleUpdate = {};
+          if (!(outArticleUpdate as any).citations) (outArticleUpdate as any).citations = [];
+          const existingCitations = Array.isArray((outArticleUpdate as any).citations) 
+            ? (outArticleUpdate as any).citations 
+            : [];
+          (outArticleUpdate as any).citations = Array.from(new Set([...existingCitations, ...verificationResult.citations]));
+        }
+        
+        endStage(verificationResult.passed, undefined, {
+          plagiarismScore: verificationResult.plagiarismScore,
+          factualityScore: verificationResult.factualityScore,
+          mediaTypeCorrect: verificationResult.mediaTypeCorrect
+        });
+      } catch (error) {
+        console.error('Content verification failed:', error);
+        endStage(false, error instanceof Error ? error.message : 'Verification failed');
+        if (!qualityRecommendations) qualityRecommendations = [];
+        qualityRecommendations.push('⚠️ Content verification fejlede - manual review anbefalet');
+      }
+      
+      if (progressId) {
+        updateProgressStep(progressId, 'quality', verificationResult?.passed ? 'completed' : 'failed');
+      }
+    } else if (progressId) {
+      updateProgressStep(progressId, 'quality', 'skipped');
+    }
+    // Extract intro from multiple sources - prioritize outArticleUpdate.intro, then extract from content
+    let introSection = '';
+    if (typeof (outArticleUpdate as any)?.intro === 'string' && (outArticleUpdate as any).intro.trim()) {
+      introSection = String((outArticleUpdate as any).intro);
+    } else {
+      // Try to extract intro from finalContent if not already in intro field
+      const extractedIntro = extractIntroSection(finalContent);
+      if (extractedIntro) {
+        introSection = extractedIntro;
+      }
+    }
     const combinedArticle = [introSection.trim(), finalContent.trim()]
       .filter(Boolean)
       .join('\n\n');
     let finalWordCount = countWords(combinedArticle);
-    let bodyWordCount = countWords(finalContent);
-    let finalMissingIntro = !hasIntro(finalContent);
+    // Remove intro from finalContent for body word count
+    const bodyContent = introSection ? removeIntroFromContent(finalContent) : finalContent;
+    let bodyWordCount = countWords(bodyContent);
+    let finalMissingIntro = !hasIntro(finalContent) && !introSection;
     let finalMissingEnding = !hasEnding(finalContent);
     let finalOverlapRatio = computeOverlapRatio(String(notes || ''), finalContent);
     let finalOverlap = finalOverlapRatio > 0.25;
 
-    // Ensure outArticleUpdate.content matches what we're counting
+    // Ensure outArticleUpdate.content matches what we're counting (without intro for now)
+    // Intro will be added back after normalization
     if (outArticleUpdate && typeof outArticleUpdate === 'object') {
-      (outArticleUpdate as any).content = finalContent;
+      // Store intro separately
+      if (introSection && !(outArticleUpdate as any).intro) {
+        (outArticleUpdate as any).intro = introSection;
+      }
+      // Store content without intro (will be recombined later)
+      (outArticleUpdate as any).content = introSection ? removeIntroFromContent(finalContent) : finalContent;
     }
 
-    if ((finalWordCount < targetMin || finalMissingIntro || finalMissingEnding || finalOverlap) && revisionAttempts >= maxRevisions) {
+    // Skip rewrite fallback for notes template - it should be good on first attempt
+    if ((finalWordCount < targetMin || finalMissingIntro || finalMissingEnding || finalOverlap) && revisionAttempts >= maxRevisions && !isNotesTemplateForRevisions) {
       try {
+        console.log('🔄 Starting rewrite fallback due to quality issues...');
         const rewritePrompt = `Genskab hele artiklen fra bunden med Apropos' fulde struktur og tone.
 
 - Længde: ${targetMin}–${targetMax} ord (ikke under ${targetMin}; stræb efter ${Math.min(targetMax, targetMin + 200)} ord).
@@ -2029,38 +2123,57 @@ Returnér ét JSON-objekt med "response", "articleUpdate" og "citations".`;
       finalOverlap = finalOverlapRatio > 0.25;
     }
 
-    if (finalWordCount < targetMin) {
-      qualityRecommendations.push(
-        `Artiklen er ${finalWordCount} ord (inklusiv intro). Udvid til mindst ${targetMin} ord (mål ${targetMin}–${targetMax}).`
-      );
-    }
-    if (finalMissingIntro) {
-      qualityRecommendations.push('Artiklen mangler en tydelig sektion, der starter med "Intro:" (ikke ##Intro:).');
-    }
-    if (finalMissingEnding) {
-      qualityRecommendations.push('Tilføj en afsluttende sektion med et godkendt label (fx “Eftertanke”).');
-    }
-    if (finalOverlap) {
-      qualityRecommendations.push('Noget af teksten matcher dine noter for tæt – omskriv relevante afsnit for unik formulering.');
+    // Only add quality recommendations if NOT notes template (for notes template, integrate in first attempt)
+    const isNotesTemplateForQuality = (articleData as any)?.template === 'notes';
+    if (!isNotesTemplateForQuality) {
+      if (finalWordCount < targetMin) {
+        qualityRecommendations.push(
+          `Artiklen er ${finalWordCount} ord (inklusiv intro). Udvid til mindst ${targetMin} ord (mål ${targetMin}–${targetMax}).`
+        );
+      }
+      if (finalMissingIntro) {
+        qualityRecommendations.push('Artiklen mangler en tydelig sektion, der starter med "Intro:" (ikke ##Intro:).');
+      }
+      if (finalMissingEnding) {
+        qualityRecommendations.push('Tilføj en afsluttende sektion med et godkendt label (fx "Eftertanke").');
+      }
+      if (finalOverlap) {
+        qualityRecommendations.push('Noget af teksten matcher dine noter for tæt – omskriv relevante afsnit for unik formulering.');
+      }
     }
 
+    // introSection is already set above, ensure it's stored in outArticleUpdate
+    const introForDisplay = introSection.trim() || '';
     if (outArticleUpdate && typeof outArticleUpdate === 'object') {
-      (outArticleUpdate as any).content = finalContent;
+      // Ensure intro is stored
+      if (introForDisplay && !(outArticleUpdate as any).intro) {
+        (outArticleUpdate as any).intro = introForDisplay;
+      }
+      // Content is already set without intro above (or with intro if not extracted)
+      // We'll recombine after normalization
     }
-    outResponse = finalContent;
+    // Response without intro for now (will be recombined later)
+    outResponse = introForDisplay ? removeIntroFromContent(finalContent) : finalContent;
     
     // Debug: Log word count consistency
     console.log(`🔍 Word count consistency check:`);
     console.log(`  - body word count: ${bodyWordCount}`);
     console.log(`  - combined article word count (intro + body): ${finalWordCount}`);
-    console.log(`  - outArticleUpdate.content word count: ${outArticleUpdate?.content ? countWords(outArticleUpdate.content) : 'N/A'}`);
-    console.log(`  - outResponse word count: ${outResponse ? countWords(outResponse) : 'N/A'}`);
     console.log(`  - finalContent length: ${finalContent.length} chars`);
     console.log(`  - finalContent preview: ${finalContent.substring(0, 100)}...`);
 
     // Final salvage: if model still didn't supply articleUpdate.content but response is long text, use it
-    if ((!outArticleUpdate || !outArticleUpdate.content) && (outResponse||'').trim().split(/\s+/).length >= 600) {
-      outArticleUpdate = normalizeArticleUpdatePayload({ ...(outArticleUpdate||{}), content: outResponse });
+    // IMPORTANT: Use finalContent (which still has intro) instead of outResponse (which was stripped of intro)
+    // This ensures the intro is preserved and can be properly recombined later
+    if ((!outArticleUpdate || !outArticleUpdate.content) && (finalContent||'').trim().split(/\s+/).length >= 600) {
+      // Store intro separately if we have one
+      const salvageIntro = introForDisplay || '';
+      const salvageContent = salvageIntro ? removeIntroFromContent(finalContent) : finalContent;
+      outArticleUpdate = normalizeArticleUpdatePayload({ 
+        ...(outArticleUpdate||{}), 
+        content: salvageContent,
+        ...(salvageIntro ? { intro: salvageIntro } : {})
+      });
     }
 
     if (citationSet.size > 0) {
@@ -2072,12 +2185,79 @@ Returnér ét JSON-objekt med "response", "articleUpdate" og "citations".`;
       } else if ((outArticleUpdate as any).citations) {
         delete (outArticleUpdate as any).citations;
       }
+      // Save intro before applyFieldFallbacks (which might modify content)
+      const introBeforeNormalization = (outArticleUpdate as any).intro?.trim() || introForDisplay || '';
+      
       outArticleUpdate = await applyFieldFallbacks(outArticleUpdate, articleData);
+      
+      // Format title to always include platform/service in parentheses if provided
+      const platform = (articleData as any)?.platform || (articleData as any)?.streaming_service || '';
+      if (platform && outArticleUpdate && typeof outArticleUpdate === 'object') {
+        const currentTitle = (outArticleUpdate as any).title || '';
+        if (currentTitle && typeof currentTitle === 'string') {
+          // Check if title already has platform in parentheses
+          const hasPlatformInTitle = currentTitle.includes(`(${platform})`) || currentTitle.includes(`(${platform.trim()})`);
+          if (!hasPlatformInTitle) {
+            // Remove any existing parentheses and add platform
+            const titleWithoutParentheses = currentTitle.replace(/\s*\([^)]*\)\s*$/, '').trim();
+            const formattedTitle = `${titleWithoutParentheses} (${platform})`;
+            (outArticleUpdate as any).title = formattedTitle;
+            console.log(`✅ Formatted title with platform: "${formattedTitle}"`);
+          }
+        }
+      }
       
       // Preserve SetupWizard topicsSelected - don't let AI override them
       if (Array.isArray(articleData?.topicsSelected) && articleData.topicsSelected.length > 0) {
         outArticleUpdate = { ...outArticleUpdate, topicsSelected: articleData.topicsSelected };
       }
+      
+      // NOW recombine intro and content for display - AFTER all normalizations
+      // This ensures intro shows up in article display
+      // Get intro from multiple sources - prioritize outArticleUpdate.intro, then saved intro
+      let finalIntro = (outArticleUpdate as any).intro?.trim() || introBeforeNormalization || '';
+      
+      // If intro is missing, try to extract from current content
+      if (!finalIntro) {
+        const extractedFromContent = extractIntroSection((outArticleUpdate as any).content || '');
+        if (extractedFromContent) {
+          finalIntro = extractedFromContent;
+        }
+      }
+      
+      // Ensure intro has "Intro:" label if it doesn't already
+      if (finalIntro && !/^intro\s*:/i.test(finalIntro)) {
+        finalIntro = `Intro: ${finalIntro}`;
+      }
+      
+      // Get content body - remove intro if it's already there to avoid duplication
+      let finalContentBody = (outArticleUpdate as any).content?.trim() || finalContent.trim() || '';
+      if (finalIntro && finalContentBody.startsWith('Intro:')) {
+        // Intro is already in content, extract body part
+        finalContentBody = removeIntroFromContent(finalContentBody);
+      }
+      
+      // Combine intro and body
+      const contentWithIntro = finalIntro 
+        ? [finalIntro, finalContentBody].filter(Boolean).join('\n\n')
+        : finalContentBody;
+      
+      // Store content WITH intro included for article display
+      (outArticleUpdate as any).content = contentWithIntro;
+      outResponse = contentWithIntro; // Response also includes intro
+      
+      // Ensure intro is also stored separately for preview panel (without "Intro:" label for preview)
+      const introForPreview = finalIntro.replace(/^intro\s*:\s*/i, '').trim();
+      if (introForPreview) {
+        (outArticleUpdate as any).intro = introForPreview;
+      }
+      
+      console.log(`✅ Final content with intro word count: ${countWords(contentWithIntro)}`);
+      console.log(`✅ Intro included in content: ${contentWithIntro.substring(0, 200)}...`);
+      console.log(`✅ Intro text: ${finalIntro.substring(0, 100)}...`);
+      console.log(`✅ Content body preview: ${finalContentBody.substring(0, 100)}...`);
+      console.log(`✅ Final articleUpdate.content length: ${(outArticleUpdate as any).content?.length || 0}`);
+      console.log(`✅ Final articleUpdate.content starts with: ${(outArticleUpdate as any).content?.substring(0, 50) || 'N/A'}...`);
     }
 
     qualityRecommendations = Array.from(
@@ -2087,6 +2267,11 @@ Returnér ét JSON-objekt med "response", "articleUpdate" og "citations".`;
           .filter((entry) => entry.length > 0)
       )
     );
+
+    // For notes template: Don't show quality recommendations in chat - they should be integrated in first attempt
+    // Only keep them for internal quality metrics
+    const isNotesTemplateForWarnings = (articleData as any)?.template === 'notes';
+    const warningsForChat = isNotesTemplateForWarnings ? [] : qualityRecommendations;
 
     endStage(true, undefined, { 
       qualityIssues: qualityRecommendations.length,
@@ -2115,7 +2300,7 @@ Returnér ét JSON-objekt med "response", "articleUpdate" og "citations".`;
       response: finalResponse,
       suggestion: outSuggestion,
       articleUpdate: finalArticleUpdate,
-      warnings: qualityRecommendations,
+      warnings: warningsForChat, // Empty for notes template
       citations: outCitations,
       usage: completion.usage,
       qualityMetrics: {

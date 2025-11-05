@@ -370,6 +370,17 @@ useEffect(() => {
         // Consolidate all article data updates into one call to prevent overwrites
         setArticleData(prev => {
           const articleUpdate = data.articleUpdate || {};
+          
+          // DEBUG: Log what we receive from API
+          console.log('📥 API Response - articleUpdate:', {
+            hasContent: !!articleUpdate.content,
+            contentLength: articleUpdate.content?.length || 0,
+            contentPreview: articleUpdate.content?.substring(0, 200) || 'N/A',
+            hasIntro: !!articleUpdate.intro,
+            introPreview: articleUpdate.intro?.substring(0, 100) || 'N/A',
+            allKeys: Object.keys(articleUpdate)
+          });
+          
           let extractedFields = {};
           
           // Extract fields from content if AI only provides content
@@ -420,7 +431,7 @@ useEffect(() => {
             })
           );
           
-          return { 
+          const updatedData = { 
             ...prev, 
             ...meaningfulUpdate,
             ...extractedFields,
@@ -428,6 +439,17 @@ useEffect(() => {
             _chatMessages: compactMessages, 
             notes 
           };
+          
+          // DEBUG: Log what we're setting as articleData.content
+          console.log('📝 Setting articleData.content:', {
+            hasContent: !!updatedData.content,
+            contentLength: updatedData.content?.length || 0,
+            contentPreview: updatedData.content?.substring(0, 200) || 'N/A',
+            startsWithIntro: updatedData.content?.startsWith('Intro:') || false,
+            first100Chars: updatedData.content?.substring(0, 100) || 'N/A'
+          });
+          
+          return updatedData;
         });
 
         // After AI response, proactively check for missing required fields and ask
@@ -886,6 +908,7 @@ useEffect(() => {
                 editorialWarnings={editorialWarnings}
                 onClearEditorialWarnings={() => setEditorialWarnings([])}
                 onPublishSuccess={(articleId) => setPublishToast({ articleId, shownAt: Date.now() })}
+                onNewArticle={handleNewArticle}
                 wizardNode={(
                   <div>
                     {/* Persistent progress */}

@@ -4,11 +4,13 @@ import { fetchText } from "../fetch/fetch";
 import { getMediaSources } from "../../lib/getMediaSources";
 
 export async function discoverFromSitemaps(): Promise<string[]> {
-  // Load dynamic sources from file system
-  let sources = getMediaSources().map(source => ({
-    baseUrl: source.baseUrl,
-    sitemapIndex: source.sitemapIndex
-  }));
+  // Load dynamic sources from file system - only enabled sources
+  let sources = getMediaSources()
+    .filter(source => source.enabled)
+    .map(source => ({
+      baseUrl: source.baseUrl,
+      sitemapIndex: source.sitemapIndex
+    }));
 
   // Fallback to default sources if no dynamic sources found
   if (sources.length === 0) {

@@ -1,10 +1,9 @@
 {
   "heads": {
     "https://soundvenue.com/feed": {
-      "etag": "\"19d892b2743ae3451a78d91403b218a9\"",
-      "lastSeenAt": "2025-10-27T10:58:10.135Z",
-      "lastStatus": 200,
-      "lastModified": "Mon, 27 Oct 2025 10:35:15 GMT"
+      "etag": "\"868afcab26bf6256cad6b66d0d164cca\"",
+      "lastSeenAt": "2025-11-05T10:29:16.970Z",
+      "lastStatus": 304
     },
     "https://soundvenue.com/film/2025/09/julia-roberts-og-ayo-edebiri-saetter-journalist-paa-plads-i-viralt-interviewklip-640163": {
       "lastSeenAt": "2025-09-09T07:38:41.022Z",
@@ -3671,13 +3670,11 @@
       "lastStatus": 200
     },
     "https://www.berlingske.dk/sitemap.xml/news": {
-      "etag": "\"3qbmjr7irl8t57\"",
-      "lastSeenAt": "2025-10-06T13:38:36.207Z",
+      "lastSeenAt": "2025-11-05T10:29:20.658Z",
       "lastStatus": 404
     },
     "https://www.bt.dk/sitemap.xml/news": {
-      "etag": "\"jk34qvida58lo7\"",
-      "lastSeenAt": "2025-10-06T13:38:38.502Z",
+      "lastSeenAt": "2025-11-05T10:29:22.899Z",
       "lastStatus": 404
     },
     "https://www.berlingske.dk/politik/folketinget-vedtager-vidtgaaende-anlaegslov": {
@@ -4155,9 +4152,9 @@
       "lastStatus": 404
     },
     "https://nordic.ign.com/feed.xml": {
-      "lastModified": "Mon, 27 Oct 2025 10:03:45 GMT",
-      "lastSeenAt": "2025-10-27T10:58:23.001Z",
-      "lastStatus": 200
+      "lastModified": "Wed, 05 Nov 2025 10:15:46 GMT",
+      "lastSeenAt": "2025-11-05T10:29:23.907Z",
+      "lastStatus": 304
     },
     "https://nordic.ign.com/call-of-duty-black-ops-7/99587/news/97-of-call-of-duty-black-ops-7-beta-cheaters-were-caught-within-30-minutes-of-signing-in-activision": {
       "lastModified": "Mon, 06 Oct 2025 12:51:09 GMT",
@@ -4535,19 +4532,19 @@
       "lastStatus": 304
     },
     "https://www.ekkofilm.dk/feeds/artikler/": {
-      "lastModified": "Mon, 27 Oct 2025 10:43:00 GMT",
-      "lastSeenAt": "2025-10-27T10:58:25.160Z",
-      "lastStatus": 200
+      "lastModified": "Sun, 02 Nov 2025 13:42:29 GMT",
+      "lastSeenAt": "2025-11-05T10:29:25.156Z",
+      "lastStatus": 304
     },
     "https://www.berlingske.dk/news-sitemap.xml": {
-      "etag": "\"r4jvyh2us23jo9\"",
-      "lastSeenAt": "2025-10-27T10:58:16.786Z",
+      "etag": "\"qmx5iyy0kx4wnt\"",
+      "lastSeenAt": "2025-11-05T10:29:19.625Z",
       "lastStatus": 304
     },
     "https://www.bt.dk/news-sitemap.xml": {
-      "etag": "\"k53f8oksc34y3x\"",
-      "lastSeenAt": "2025-10-27T10:58:20.960Z",
-      "lastStatus": 200
+      "etag": "\"h8xy084hk26r7p\"",
+      "lastSeenAt": "2025-11-05T10:29:21.722Z",
+      "lastStatus": 304
     },
     "https://nordic.ign.com/world-of-warcraft-midnight/99595/feature/world-of-warcraft-is-getting-two-major-changes-in-midnight-that-are-already-dividing-the-community": {
       "lastModified": "Mon, 06 Oct 2025 13:34:40 GMT",
@@ -4911,7 +4908,7 @@
       "lastStatus": 200
     },
     "https://gaffa.dk/rss": {
-      "lastSeenAt": "2025-10-27T10:58:12.941Z",
+      "lastSeenAt": "2025-11-05T10:29:18.604Z",
       "lastStatus": 200
     },
     " https://gaffa.dk/anmeldelser/2025/oktober/koncerter/cian-ducrot-store-vega-060925/ ": {
@@ -5035,7 +5032,7 @@
       "lastStatus": 200
     },
     " https://gaffa.dk/artikler/2025/august/overblik-her-er-alt-du-skal-vide-om-diddy-sagen/ ": {
-      "lastSeenAt": "2025-10-07T19:23:47.792Z",
+      "lastSeenAt": "2025-11-05T10:28:39.761Z",
       "lastStatus": 200
     },
     " https://gaffa.dk/artikler/2025/oktober/5-onsker-fra-musikhuzet-det-genopdagede-vi-under-corona-men-vi-er-maske-ved-at-glemme-det-igen/ ": {
@@ -6519,11 +6516,11 @@
       "lastStatus": 200
     },
     " https://gaffa.dk/nyheder-fra-gaffa/2025/oktober/thom-yorke-med-nye-toner-vil-absolut-ikke-vende-tilbage-til-israel/ ": {
-      "lastSeenAt": "2025-10-27T10:58:36.700Z",
+      "lastSeenAt": "2025-11-05T10:29:40.037Z",
       "lastStatus": 200
     },
     " https://gaffa.dk/artikler/2025/oktober/nar-musikere-bliver-hybride-scenekunstnere-mod-ostre-gasvaerk-teaters-musikteaterlandshold/ ": {
-      "lastSeenAt": "2025-10-27T10:58:38.126Z",
+      "lastSeenAt": "2025-11-05T10:29:41.629Z",
       "lastStatus": 200
     },
     "https://nordic.ign.com/welcome-to-derry/100352/news/hbo-max-brings-it-welcome-to-derry-episode-2-release-date-forward-to-coincide-with-halloween": {
@@ -6672,6 +6669,1195 @@
     "https://www.bt.dk/politik/sikandar-og-frie-groenne-politianmeldt-for-kontroversiel-valgplakat-den-goer-os-utrygge": {
       "etag": "\"otfzr7cby4aghh\"",
       "lastSeenAt": "2025-10-27T10:59:20.627Z",
+      "lastStatus": 200
+    },
+    "https://soundvenue.com/film/2025/11/bugonia-yorgos-lanthimos-nye-film-er-som-en-syret-eventyrversion-af-et-reddit-forum-638654": {
+      "lastSeenAt": "2025-11-05T10:29:26.197Z",
+      "lastStatus": 200
+    },
+    "https://soundvenue.com/musik/2025/11/northside-aendrer-omstridt-tiltag-vi-har-erkendt-at-vi-har-begaaet-en-stor-fejl-649372": {
+      "lastSeenAt": "2025-11-05T10:29:27.212Z",
+      "lastStatus": 200
+    },
+    "https://soundvenue.com/film/2025/11/legenden-er-den-mest-populaere-serie-paa-netflix-i-hele-verden-649402": {
+      "lastSeenAt": "2025-11-05T10:29:28.225Z",
+      "lastStatus": 200
+    },
+    "https://soundvenue.com/musik/2025/11/her-er-de-foerste-navne-til-naeste-aars-syd-for-solen-the-xx-lorde-og-mange-flere-649322": {
+      "lastSeenAt": "2025-11-05T10:29:29.232Z",
+      "lastStatus": 200
+    },
+    "https://soundvenue.com/musik/2025/11/syd-for-solen-overdrev-ikke-da-de-kaldte-det-for-deres-bedste-musikpakke-til-dato-649331": {
+      "lastSeenAt": "2025-11-05T10:29:30.238Z",
+      "lastStatus": 200
+    },
+    "https://soundvenue.com/film/2025/11/sydney-sweeney-kommenterer-endelig-surrealistisk-reaktion-paa-jeans-reklame-649375": {
+      "lastSeenAt": "2025-11-05T10:29:31.247Z",
+      "lastStatus": 200
+    },
+    "https://soundvenue.com/musik/2025/11/the-1975-fjerner-sang-fra-streamingtjenesterne-fordi-matty-healy-ikke-laengere-kan-lide-den-649369": {
+      "lastSeenAt": "2025-11-05T10:29:32.259Z",
+      "lastStatus": 200
+    },
+    "https://soundvenue.com/film/2025/11/nobody-wants-this-fornyet-med-tredje-saeson-649367": {
+      "lastSeenAt": "2025-11-05T10:29:33.270Z",
+      "lastStatus": 200
+    },
+    "https://soundvenue.com/film/2025/11/i-tidens-bombastiske-filmlandskab-skiller-biografaktuel-dramakomedie-sig-tiltraengt-ud-649074": {
+      "lastSeenAt": "2025-11-05T10:29:34.281Z",
+      "lastStatus": 200
+    },
+    "https://soundvenue.com/film/2025/11/det-skal-du-se-i-biografen-i-november-fra-dansk-nytaarsfilm-til-glen-powell-i-loeb-og-storladen-musical-toer-648318": {
+      "lastSeenAt": "2025-11-05T10:29:35.291Z",
+      "lastStatus": 200
+    },
+    " https://gaffa.dk/nyheder-fra-gaffa/2025/november/andelen-af-kvindelige-artister-pa-de-danske-hitlister-er-femdoblet-pa-10-ar/ ": {
+      "lastSeenAt": "2025-11-05T10:29:36.614Z",
+      "lastStatus": 200
+    },
+    " https://gaffa.dk/nyheder-fra-gaffa/2025/november/clemens-genopliver-danske-klassikere-pa-nyt-album/ ": {
+      "lastSeenAt": "2025-11-05T10:29:24.917Z",
+      "lastStatus": 200
+    },
+    " https://gaffa.dk/artikler/2025/november/5-skarpe-til-mikkel-schannong-kommunen-skal-understotte-ikke-overtage/ ": {
+      "lastSeenAt": "2025-11-05T10:29:39.240Z",
+      "lastStatus": 200
+    },
+    " https://gaffa.dk/artikler/2025/november/5-skarpe-til-lea-fredslund-poulsen-kulturen-har-enormt-stor-vaerdi-for-vores-by-og-borgere/ ": {
+      "lastSeenAt": "2025-11-05T10:29:40.500Z",
+      "lastStatus": 200
+    },
+    " https://gaffa.dk/nyheder-fra-gaffa/2025/november/sf-indkalder-kulturminister-til-samrad-det-er-en-alvorlig-trussel-mod-bade-kunstnerne-og-dansk-musik/ ": {
+      "lastSeenAt": "2025-11-05T10:29:41.785Z",
+      "lastStatus": 200
+    },
+    " https://gaffa.dk/nyheder-fra-gaffa/2025/november/northside-kod-er-tilbage-pa-menuen/ ": {
+      "lastSeenAt": "2025-11-05T10:29:43.175Z",
+      "lastStatus": 200
+    },
+    " https://gaffa.dk/nyheder-fra-gaffa/2025/november/syd-for-solen-afslorer-de-forste-navne-pa-2026-programmet/ ": {
+      "lastSeenAt": "2025-11-05T10:29:44.447Z",
+      "lastStatus": 200
+    },
+    " https://gaffa.dk/artikler/2025/oktober/5-skarpe-til-lasse-sabinus-weng-ludvigsen-det-lokale-vaekstlag-er-fundamentet-for-fremtidens-musikliv/ ": {
+      "lastSeenAt": "2025-11-05T10:29:46.107Z",
+      "lastStatus": 200
+    },
+    " https://gaffa.dk/artikler/2025/november/5-skarpe-til-brian-hornbek-kulturstotte-skal-vaere-investering-i-mennesker-og-ikke-bare-i-arrangementer/ ": {
+      "lastSeenAt": "2025-11-05T10:29:47.349Z",
+      "lastStatus": 200
+    },
+    " https://gaffa.dk/artikler/2025/november/her-er-soundtracket-til-din-weekend-uge-45/ ": {
+      "lastSeenAt": "2025-11-05T10:29:48.753Z",
+      "lastStatus": 200
+    },
+    " https://gaffa.dk/artikler/2025/november/fotoserie-lambchop-gav-stemningsfuld-duokoncert-i-store-vega/ ": {
+      "lastSeenAt": "2025-11-05T10:29:50.013Z",
+      "lastStatus": 200
+    },
+    " https://gaffa.dk/nyheder-fra-gaffa/2025/november/kultur-i-krisetider-kulturministeren-far-opbakning-fra-flere-eu-lande-om-ny-erklaering/ ": {
+      "lastSeenAt": "2025-11-05T10:29:51.275Z",
+      "lastStatus": 200
+    },
+    " https://gaffa.dk/nyheder-fra-gaffa/2025/november/blaest-nephew-og-80-andre-musikere-ai-stjaeler-vores-musik/ ": {
+      "lastSeenAt": "2025-11-05T10:29:52.658Z",
+      "lastStatus": 200
+    },
+    " https://gaffa.dk/artikler/2025/oktober/5-skarpe-til-torben-struck-den-kommunale-musikskole-skal-udbredes/ ": {
+      "lastSeenAt": "2025-11-05T10:29:53.926Z",
+      "lastStatus": 200
+    },
+    " https://gaffa.dk/nyheder-fra-gaffa/2025/november/liss-deler-sjaelden-vinyl-sang-og-mindes-forsanger/ ": {
+      "lastSeenAt": "2025-11-05T10:29:55.264Z",
+      "lastStatus": 200
+    },
+    " https://gaffa.dk/nyheder-fra-gaffa/2025/november/for-forste-gang-ai-kunstner-pa-amerikansk-billboard-hitliste/ ": {
+      "lastSeenAt": "2025-11-05T10:29:56.820Z",
+      "lastStatus": 200
+    },
+    " https://gaffa.dk/nyheder-fra-gaffa/2025/november/smukfest-melder-udsolgt-efter-en-time/ ": {
+      "lastSeenAt": "2025-11-05T10:29:59.467Z",
+      "lastStatus": 200
+    },
+    " https://gaffa.dk/nyheder-fra-gaffa/2025/november/mere-end-100-000-personer-vil-erstatte-bad-bunny-til-super-bowl/ ": {
+      "lastSeenAt": "2025-11-05T10:30:00.768Z",
+      "lastStatus": 200
+    },
+    " https://gaffa.dk/nyheder-fra-gaffa/2025/november/love-shop-gar-en-anden-vej-bandmedlem-stopper/ ": {
+      "lastSeenAt": "2025-11-05T10:30:02.479Z",
+      "lastStatus": 200
+    },
+    " https://gaffa.dk/nyheder-fra-gaffa/2025/november/koda-sagsoger-amerikansk-ai-platform-har-stjalet-fra-danske-kunstnere/ ": {
+      "lastSeenAt": "2025-11-05T10:30:03.861Z",
+      "lastStatus": 200
+    },
+    " https://gaffa.dk/artikler/2025/november/sadan-har-vi-anmeldt-blaue-blumes-koncerter-gennem-tiden/ ": {
+      "lastSeenAt": "2025-11-05T10:30:05.125Z",
+      "lastStatus": 200
+    },
+    " https://gaffa.dk/nyheder-fra-gaffa/2025/november/fra-mozzarella-sticks-til-pop-drama-sadan-fejrede-stjernerne-halloween/ ": {
+      "lastSeenAt": "2025-11-05T10:30:06.426Z",
+      "lastStatus": 200
+    },
+    " https://gaffa.dk/nyheder-fra-gaffa/2025/november/benson-boone-aflyser-show-i-sidste-ojeblik/ ": {
+      "lastSeenAt": "2025-11-05T10:30:07.788Z",
+      "lastStatus": 200
+    },
+    " https://gaffa.dk/nyheder-fra-gaffa/2025/november/a-colossal-weekend-melder-klar-med-flere-navne-til-plakaten/ ": {
+      "lastSeenAt": "2025-11-05T10:30:09.139Z",
+      "lastStatus": 200
+    },
+    " https://gaffa.dk/artikler/2025/oktober/5-skarpe-til-harald-christensen-festivalen-er-det-store-traekplaster-i-kommunen/ ": {
+      "lastSeenAt": "2025-11-05T10:30:10.428Z",
+      "lastStatus": 200
+    },
+    " https://gaffa.dk/nyheder-fra-gaffa/2025/november/musikken-spiller-videre-i-aalborg-universitetet-dropper-planen-om-at-lukke-musikuddannelse/ ": {
+      "lastSeenAt": "2025-11-05T10:30:12.134Z",
+      "lastStatus": 200
+    },
+    " https://gaffa.dk/nyheder-fra-gaffa/2025/november/vesterland-tilfojer-legendarisk-dansk-rockband-til-plakaten/ ": {
+      "lastSeenAt": "2025-11-05T10:30:13.404Z",
+      "lastStatus": 200
+    },
+    " https://gaffa.dk/artikler/2025/oktober/5-skarpe-til-allan-werk-der-skal-satses-pa-kulturlivet-til-de-unges-kulturelle-aktiviteter/ ": {
+      "lastSeenAt": "2025-11-05T10:30:15.453Z",
+      "lastStatus": 200
+    },
+    " https://gaffa.dk/artikler/2025/november/fotoserie-anmelderroste-simone-tang-gav-koncert-pa-gimle/ ": {
+      "lastSeenAt": "2025-11-05T10:30:02.944Z",
+      "lastStatus": 200
+    },
+    " https://gaffa.dk/artikler/2025/november/5-onsker-fra-boe-larsen-mindre-projektpynt-mere-kontinuitet-fra-skole-til-scene/ ": {
+      "lastSeenAt": "2025-11-05T10:30:04.220Z",
+      "lastStatus": 200
+    },
+    " https://gaffa.dk/nyheder-fra-gaffa/2025/november/sia-vinder-i-retten-eksmand-naegtes-fuld-foraeldremyndighed/ ": {
+      "lastSeenAt": "2025-11-05T10:30:05.745Z",
+      "lastStatus": 200
+    },
+    " https://gaffa.dk/nyheder-fra-gaffa/2025/november/britney-spears-sletter-instagram-konto-efter-bekymrende-videoer/ ": {
+      "lastSeenAt": "2025-11-05T10:30:07.073Z",
+      "lastStatus": 200
+    },
+    " https://gaffa.dk/nyheder-fra-gaffa/2025/november/her-er-arets-frederiksberg-kunstner/ ": {
+      "lastSeenAt": "2025-11-05T10:30:08.758Z",
+      "lastStatus": 200
+    },
+    " https://gaffa.dk/artikler/2025/november/niels-skousen-det-har-hele-tiden-handlet-om-frihed/ ": {
+      "lastSeenAt": "2025-11-05T10:30:10.108Z",
+      "lastStatus": 200
+    },
+    " https://gaffa.dk/artikler/2025/november/5-onsker-fra-eva-lysell-musik-er-mere-end-rode-tal-pa-sma-spillesteder/ ": {
+      "lastSeenAt": "2025-11-05T10:30:11.829Z",
+      "lastStatus": 200
+    },
+    " https://gaffa.dk/artikler/2025/oktober/derfor-taler-alle-om-lily-allens-nye-album/ ": {
+      "lastSeenAt": "2025-11-05T10:30:13.169Z",
+      "lastStatus": 200
+    },
+    " https://gaffa.dk/artikler/2025/oktober/5-skarpe-til-michael-faust-horsbol-vi-kan-ikke-have-et-danmark-hvor-kulturen-kun-blomstrer-i-kobenhavn-og-aarhus/ ": {
+      "lastSeenAt": "2025-11-05T10:30:14.935Z",
+      "lastStatus": 200
+    },
+    " https://gaffa.dk/nyheder-fra-gaffa/2025/november/nu-kan-du-opleve-the-cure-pa-det-store-laerred/ ": {
+      "lastSeenAt": "2025-11-05T10:30:12.883Z",
+      "lastStatus": 200
+    },
+    " https://gaffa.dk/nyheder-fra-gaffa/2025/november/popstjerne-og-eks-statsleder-set-hand-i-hand-offentligt/ ": {
+      "lastSeenAt": "2025-11-05T10:30:14.563Z",
+      "lastStatus": 200
+    },
+    " https://gaffa.dk/nyheder-fra-gaffa/2025/november/lily-allen-annoncerer-forste-turne-i-syv-ar/ ": {
+      "lastSeenAt": "2025-11-05T10:30:15.818Z",
+      "lastStatus": 200
+    },
+    " https://gaffa.dk/artikler/2025/oktober/5-skarpe-til-peter-steiness-vaekstlaget-er-fremtidens-kulturliv-og-de-fortjener-optimale-rammer/ ": {
+      "lastSeenAt": "2025-11-05T10:28:36.840Z",
+      "lastStatus": 200
+    },
+    " https://gaffa.dk/nyheder-fra-gaffa/2025/november/dijon-overrasker-med-stjernedrys-pa-scenen-under-koncert-se-momentet-her/ ": {
+      "lastSeenAt": "2025-11-05T10:28:38.064Z",
+      "lastStatus": 200
+    },
+    " https://gaffa.dk/nyheder-fra-gaffa/2025/november/zar-paulo-og-karoline-mousing-er-blandt-navnene-til-dansk-endagsfestival-i-2026/ ": {
+      "lastSeenAt": "2025-11-05T10:28:39.365Z",
+      "lastStatus": 200
+    },
+    " https://gaffa.dk/nyheder-fra-gaffa/2025/november/forste-gang-i-35-ar-ingen-rap-i-top-40-pa-billboard-hot-100/ ": {
+      "lastSeenAt": "2025-11-05T10:28:40.791Z",
+      "lastStatus": 200
+    },
+    " https://gaffa.dk/artikler/2025/oktober/5-skarpe-til-michael-hillebrandt-pengene-skal-sa-bruges-pa-de-mindre-og-mere-folkelige-og-maske-finurlige-indslag/ ": {
+      "lastSeenAt": "2025-11-05T10:28:42.019Z",
+      "lastStatus": 200
+    },
+    " https://gaffa.dk/nyheder-fra-gaffa/2025/november/dansk-metalband-traekker-stikket-pa-ubestemt-tid/ ": {
+      "lastSeenAt": "2025-11-05T10:28:43.249Z",
+      "lastStatus": 200
+    },
+    " https://gaffa.dk/nyheder-fra-gaffa/2025/november/ny-100-procent-kvindedrevet-festival-vil-gore-op-med-en-mandsdomineret-branche/ ": {
+      "lastSeenAt": "2025-11-05T10:28:44.532Z",
+      "lastStatus": 200
+    },
+    " https://gaffa.dk/nyheder-fra-gaffa/2025/november/saveus-udgiver-nyt-album-meget-snart/ ": {
+      "lastSeenAt": "2025-11-05T10:28:45.978Z",
+      "lastStatus": 200
+    },
+    " https://gaffa.dk/nyheder-fra-gaffa/2025/oktober/rock-i-byparken-lofter-sloret-for-de-forste-seks-navne/ ": {
+      "lastSeenAt": "2025-11-05T10:28:47.466Z",
+      "lastStatus": 200
+    },
+    " https://gaffa.dk/nyheder-fra-gaffa/2025/november/australiens-premierminister-i-modvind-far-kritik-for-joy-division-t-shirt/ ": {
+      "lastSeenAt": "2025-11-05T10:28:48.720Z",
+      "lastStatus": 200
+    },
+    " https://gaffa.dk/nyheder-fra-gaffa/2025/november/ugens-udvalgte-u45-2025/ ": {
+      "lastSeenAt": "2025-11-05T10:28:50.027Z",
+      "lastStatus": 200
+    },
+    " https://gaffa.dk/nyheder-fra-gaffa/2025/oktober/domstol-konkluderer-shelby-lynn-ma-ikke-laengere-anklage-till-lindemann-for-overgreb/ ": {
+      "lastSeenAt": "2025-11-05T10:28:51.445Z",
+      "lastStatus": 200
+    },
+    " https://gaffa.dk/artikler/2025/oktober/5-skarpe-til-mette-nielsen-de-elektriske-medier-er-ikke-lig-med-virkeligheden/ ": {
+      "lastSeenAt": "2025-11-05T10:28:52.684Z",
+      "lastStatus": 200
+    },
+    " https://gaffa.dk/artikler/2025/november/fem-udgivelser-vi-glaeder-os-til-i-denne-uge/ ": {
+      "lastSeenAt": "2025-11-05T10:28:54.393Z",
+      "lastStatus": 200
+    },
+    " https://gaffa.dk/artikler/2025/oktober/gaffa-photo-awards-mod-jurymedlem-thor-hakonsen/ ": {
+      "lastSeenAt": "2025-11-05T10:28:55.627Z",
+      "lastStatus": 200
+    },
+    " https://gaffa.dk/nyheder-fra-gaffa/2025/november/spleen-united-udvider-jubilaeum-og-abner-doren-til-deres-univers/ ": {
+      "lastSeenAt": "2025-11-05T10:28:56.967Z",
+      "lastStatus": 200
+    },
+    " https://gaffa.dk/sponsoreret-indhold/2025/januar-december/bilindpakning-far-danskernes-biler-til-at-skille-sig-ud/ ": {
+      "lastSeenAt": "2025-11-05T10:28:58.135Z",
+      "lastStatus": 200
+    },
+    " https://gaffa.dk/artikler/2025/november/ugens-nye-navn-et-lunt-taeppe-af-organisk-lyd/ ": {
+      "lastSeenAt": "2025-11-05T10:28:59.338Z",
+      "lastStatus": 200
+    },
+    " https://gaffa.dk/nyheder-fra-gaffa/2025/november/emma-sehested-hoeg-annoncerer-koncert-i-royal-arena/ ": {
+      "lastSeenAt": "2025-11-05T10:29:00.784Z",
+      "lastStatus": 200
+    },
+    " https://gaffa.dk/artikler/2025/oktober/5-skarpe-til-kim-tygesen-musik-er-med-til-at-skabe-liv-i-byerne-og-i-landsbyerne/ ": {
+      "lastSeenAt": "2025-11-05T10:29:02.039Z",
+      "lastStatus": 200
+    },
+    " https://gaffa.dk/nyheder-fra-gaffa/2025/november/gaffa-ansaetter-ny-ansvarshavende-chefredaktor/ ": {
+      "lastSeenAt": "2025-11-05T10:29:03.503Z",
+      "lastStatus": 200
+    },
+    " https://gaffa.dk/artikler/2025/november/her-er-november-maneds-mest-spaendende-koncerter-som-der-stadig-er-billetter-til/ ": {
+      "lastSeenAt": "2025-11-05T10:29:03.372Z",
+      "lastStatus": 200
+    },
+    " https://gaffa.dk/artikler/2025/november/bag-om-musikken-nar-jeg-ikke-spillede-musik-var-verden-et-meget-kaotisk-sted/ ": {
+      "lastSeenAt": "2025-11-05T10:29:04.625Z",
+      "lastStatus": 200
+    },
+    " https://gaffa.dk/artikler/2025/november/10-oktoberudgivelser-du-maske-har-misset-men-ikke-ma-misse/ ": {
+      "lastSeenAt": "2025-11-05T10:29:05.925Z",
+      "lastStatus": 200
+    },
+    " https://gaffa.dk/anmeldelser/2025/oktober/koncerter/elias-ronnenfelt-voxhall-311025/ ": {
+      "lastSeenAt": "2025-11-05T10:29:07.194Z",
+      "lastStatus": 200
+    },
+    " https://gaffa.dk/artikler/2025/november/fem-navne-alle-musikelskere-bor-mode-i-november/ ": {
+      "lastSeenAt": "2025-11-05T10:29:08.535Z",
+      "lastStatus": 200
+    },
+    " https://gaffa.dk/artikler/2025/november/10-vigtige-album-der-udkommer-i-november/ ": {
+      "lastSeenAt": "2025-11-05T10:29:10.317Z",
+      "lastStatus": 200
+    },
+    " https://gaffa.dk/artikler/2025/november/5-onsker-fra-dion-finne-det-handler-ikke-om-mangel-pa-ressourcer/ ": {
+      "lastSeenAt": "2025-11-05T10:29:11.646Z",
+      "lastStatus": 200
+    },
+    " https://gaffa.dk/nyheder-fra-gaffa/2025/oktober/billie-eilish-langer-ud-efter-milliardaerer-og-donerer-selv-millioner-til-velgorenhed/ ": {
+      "lastSeenAt": "2025-11-05T10:29:13.240Z",
+      "lastStatus": 200
+    },
+    " https://gaffa.dk/nyheder-fra-gaffa/2025/oktober/hvorfra-har-gaffa-faet-inspiration-til-den-nye-forside-anders-matthesen-har-et-bud/ ": {
+      "lastSeenAt": "2025-11-05T10:29:15.693Z",
+      "lastStatus": 200
+    },
+    " https://gaffa.dk/nyheder-fra-gaffa/2025/oktober/the-rumour-said-fire-har-ikke-optradt-i-syv-ar-nu-annoncerer-de-ekstrakoncerter/ ": {
+      "lastSeenAt": "2025-11-05T10:29:17.464Z",
+      "lastStatus": 200
+    },
+    " https://gaffa.dk/sponsoreret-indhold/2025/januar-december/sadan-forbedrer-live-musik-atmosfaeren-og-gaesteoplevelsen-ved-festlige-begivenheder/ ": {
+      "lastSeenAt": "2025-11-05T10:29:18.537Z",
+      "lastStatus": 200
+    },
+    " https://gaffa.dk/nyheder-fra-gaffa/2025/oktober/direktor-afviser-rygter-ingen-ravekoncerter-i-colosseum/ ": {
+      "lastSeenAt": "2025-11-05T10:29:19.785Z",
+      "lastStatus": 200
+    },
+    " https://gaffa.dk/nyheder-fra-gaffa/2025/oktober/ribes-eneste-spillested-vil-udvide/ ": {
+      "lastSeenAt": "2025-11-05T10:29:21.081Z",
+      "lastStatus": 200
+    },
+    " https://gaffa.dk/artikler/2025/oktober/5-onsker-fra-emil-kampp-musik-skal-vaere-for-alle-ikke-kun-dem-der-har-rad/ ": {
+      "lastSeenAt": "2025-11-05T10:29:22.470Z",
+      "lastStatus": 200
+    },
+    " https://gaffa.dk/nyheder-fra-gaffa/2025/oktober/farvel-til-forum-kulturhuset-pa-frederiksberg-bliver-til-sportshal/ ": {
+      "lastSeenAt": "2025-11-05T10:29:24.197Z",
+      "lastStatus": 200
+    },
+    " https://gaffa.dk/artikler/2025/oktober/5-skarpe-til-nino-rizzato-et-rigt-kulturliv-starter-med-de-yngste-generationer/ ": {
+      "lastSeenAt": "2025-11-05T10:29:25.446Z",
+      "lastStatus": 200
+    },
+    " https://gaffa.dk/anmeldelser/2025/oktober/album/wicky-mestrer-balancen-mellem-folsomhed-og-fuckfinger-energi/ ": {
+      "lastSeenAt": "2025-11-05T10:29:26.779Z",
+      "lastStatus": 200
+    },
+    " https://gaffa.dk/artikler/2025/oktober/5-skarpe-til-stine-sogaard-normann-det-lokale-vaekstlag-er-fundamentet-for-et-levende-musikmiljo/ ": {
+      "lastSeenAt": "2025-11-05T10:29:28.051Z",
+      "lastStatus": 200
+    },
+    " https://gaffa.dk/artikler/2025/oktober/5-skarpe-til-mette-bruun-mange-forskellige-former-for-musikalske-udtryk-skal-stottes/ ": {
+      "lastSeenAt": "2025-11-05T10:29:29.304Z",
+      "lastStatus": 200
+    },
+    " https://gaffa.dk/artikler/2025/oktober/5-skarpe-til-gorm-hoff-lauridsen-herning-er-jo-danmarks-eventkommune-nummer-er/ ": {
+      "lastSeenAt": "2025-11-05T10:29:30.529Z",
+      "lastStatus": 200
+    },
+    " https://gaffa.dk/nyheder-fra-gaffa/2025/oktober/dean-lewis-undskylder-overfor-kvindelige-fans-jeg-skammer-mig-dybt/ ": {
+      "lastSeenAt": "2025-11-05T10:29:31.899Z",
+      "lastStatus": 200
+    },
+    " https://gaffa.dk/nyheder-fra-gaffa/2025/oktober/spirende-artist-sender-hekseforbandelse-mod-alle-der-ghoster/ ": {
+      "lastSeenAt": "2025-11-05T10:29:33.190Z",
+      "lastStatus": 200
+    },
+    " https://gaffa.dk/artikler/2025/oktober/5-skarpe-til-rune-kristensen-vi-skal-vaere-i-stand-til-at-tiltraekke-verdensnavne/ ": {
+      "lastSeenAt": "2025-11-05T10:29:34.676Z",
+      "lastStatus": 200
+    },
+    " https://gaffa.dk/artikler/2025/oktober/5-skarpe-til-tommy-ib-sandgaard-de-frivillige-kraefter-i-kommunen-er-med-til-at-lofte/ ": {
+      "lastSeenAt": "2025-11-05T10:29:35.932Z",
+      "lastStatus": 200
+    },
+    " https://gaffa.dk/artikler/2025/oktober/fotoserie-onerepublic-indtog-royal-arena/ ": {
+      "lastSeenAt": "2025-11-05T10:29:37.299Z",
+      "lastStatus": 200
+    },
+    " https://gaffa.dk/nyheder-fra-gaffa/2025/oktober/oskar-witt-forener-kraefter-med-bjorn-pa-ny-single/ ": {
+      "lastSeenAt": "2025-11-05T10:29:38.586Z",
+      "lastStatus": 200
+    },
+    " https://gaffa.dk/nyheder-fra-gaffa/2025/oktober/osten-vil-have-det-hele-pa-ny-single/ ": {
+      "lastSeenAt": "2025-11-05T10:29:39.829Z",
+      "lastStatus": 200
+    },
+    " https://gaffa.dk/nyheder-fra-gaffa/2025/oktober/er-der-et-robert-pattinson-album-pa-vej/ ": {
+      "lastSeenAt": "2025-11-05T10:29:41.068Z",
+      "lastStatus": 200
+    },
+    " https://gaffa.dk/nyheder-fra-gaffa/2025/oktober/interpol-og-bloc-party-annoncerer-kaempe-faellesturne/ ": {
+      "lastSeenAt": "2025-11-05T10:29:42.536Z",
+      "lastStatus": 200
+    },
+    " https://gaffa.dk/anmeldelser/2025/oktober/koncerter/larkin-poe-falkonersalen-301025/ ": {
+      "lastSeenAt": "2025-11-05T10:29:43.863Z",
+      "lastStatus": 200
+    },
+    " https://gaffa.dk/nyheder-fra-gaffa/2025/oktober/rasmus-seebach-og-ankerstjerne-i-ny-musical-er-du-vores-olivia/ ": {
+      "lastSeenAt": "2025-11-05T10:29:45.353Z",
+      "lastStatus": 200
+    },
+    " https://gaffa.dk/nyheder-fra-gaffa/2025/oktober/the-cure-fejrer-jubilaeum-pa-roskilde-festival-2026/ ": {
+      "lastSeenAt": "2025-11-05T10:29:46.641Z",
+      "lastStatus": 200
+    },
+    " https://gaffa.dk/nyheder-fra-gaffa/2025/oktober/musik-i-gentofte-afslorer-de-tre-forste-artister/ ": {
+      "lastSeenAt": "2025-11-05T10:29:47.920Z",
+      "lastStatus": 200
+    },
+    " https://gaffa.dk/nyheder-fra-gaffa/2025/oktober/fra-lewis-capaldi-til-lukas-graham-smukfest-offentliggor-de-forste-navne-til-2026/ ": {
+      "lastSeenAt": "2025-11-05T10:29:49.355Z",
+      "lastStatus": 200
+    },
+    " https://gaffa.dk/nyheder-fra-gaffa/2025/oktober/scarlet-pleasure-annoncerer-karrierens-hidtil-storste-koncert-det-er-noget-vi-kan-maerke-helt-ned-i-maven/ ": {
+      "lastSeenAt": "2025-11-05T10:29:50.686Z",
+      "lastStatus": 200
+    },
+    " https://gaffa.dk/nyheder-fra-gaffa/2025/oktober/thomas-helmig-lofter-sloret-for-sit-storste-headlinershow-i-2026/ ": {
+      "lastSeenAt": "2025-11-05T10:27:17.280Z",
+      "lastStatus": 200
+    },
+    " https://gaffa.dk/nyheder-fra-gaffa/2025/oktober/naestved-metalfest-melder-klar-med-nye-navne/ ": {
+      "lastSeenAt": "2025-11-05T10:29:53.330Z",
+      "lastStatus": 200
+    },
+    " https://gaffa.dk/nyheder-fra-gaffa/2025/oktober/thomas-helmig-spiller-pa-to-store-danske-festivaler-til-sommer/ ": {
+      "lastSeenAt": "2025-11-05T10:29:54.838Z",
+      "lastStatus": 200
+    },
+    " https://gaffa.dk/artikler/2025/oktober/kontrapunkt-er-poptimismen-et-symptom-pa-kapitalismen/ ": {
+      "lastSeenAt": "2025-11-05T10:29:56.218Z",
+      "lastStatus": 200
+    },
+    " https://gaffa.dk/nyheder-fra-gaffa/2025/oktober/dizzy-mizz-lizzy-vender-tilbage-til-dansk-festival-efter-30-ar/ ": {
+      "lastSeenAt": "2025-11-05T10:29:57.483Z",
+      "lastStatus": 200
+    },
+    " https://gaffa.dk/anmeldelser/2025/oktober/koncerter/mac-demarco-store-vega-301025/ ": {
+      "lastSeenAt": "2025-11-05T10:29:58.777Z",
+      "lastStatus": 200
+    },
+    " https://gaffa.dk/anmeldelser/2025/oktober/album/gunge-kh-kh-kh/ ": {
+      "lastSeenAt": "2025-11-05T10:30:00.063Z",
+      "lastStatus": 200
+    },
+    " https://gaffa.dk/anmeldelser/2025/oktober/album/sigrid-there-s-always-more-that-i-could-say/ ": {
+      "lastSeenAt": "2025-11-05T10:30:01.413Z",
+      "lastStatus": 200
+    },
+    " https://gaffa.dk/anmeldelser/2025/oktober/album/orm-guld/ ": {
+      "lastSeenAt": "2025-11-05T10:30:03.041Z",
+      "lastStatus": 200
+    },
+    " https://gaffa.dk/anmeldelser/2025/oktober/album/oyunn-i-know-u-can-do-it/ ": {
+      "lastSeenAt": "2025-11-05T10:30:04.284Z",
+      "lastStatus": 200
+    },
+    " https://gaffa.dk/artikler/2025/oktober/tre-hurtige-til-ugens-nye-navn-jeg-har-aldrig-haft-en-masterplan-men-har-valgt-min-vej-med-hjertet/ ": {
+      "lastSeenAt": "2025-11-05T10:30:05.887Z",
+      "lastStatus": 200
+    },
+    " https://gaffa.dk/nyheder-fra-gaffa/2025/oktober/hojreflojen-offentliggor-folkekaer-artist-til-alternativt-super-bowl-halftime-show/ ": {
+      "lastSeenAt": "2025-11-05T10:30:07.187Z",
+      "lastStatus": 200
+    },
+    " https://gaffa.dk/artikler/2025/oktober/ole-bornedal-om-grufulde-soundtracks-det-er-helt-forfaerdeligt-og-enerverende-og-fuldstaendigt-genialt/ ": {
+      "lastSeenAt": "2025-11-05T10:30:08.610Z",
+      "lastStatus": 200
+    },
+    " https://gaffa.dk/artikler/2025/oktober/spooky-season-de-mest-uhyggelige-musikvideoer-gennem-tiden/ ": {
+      "lastSeenAt": "2025-11-05T10:30:09.901Z",
+      "lastStatus": 200
+    },
+    " https://gaffa.dk/artikler/2025/oktober/her-er-de-5-mest-grufulde-gothrock-klassikere/ ": {
+      "lastSeenAt": "2025-11-05T10:30:11.455Z",
+      "lastStatus": 200
+    },
+    " https://gaffa.dk/artikler/2025/oktober/se-musikhistoriens-mest-uhyggelige-albumcovers/ ": {
+      "lastSeenAt": "2025-11-05T10:30:12.734Z",
+      "lastStatus": 200
+    },
+    " https://gaffa.dk/nyheder-fra-gaffa/2025/oktober/luigi-mangione-har-lyttet-til-taylor-swift-og-charli-xcx-i-faengslet/ ": {
+      "lastSeenAt": "2025-11-05T10:30:14.863Z",
+      "lastStatus": 200
+    },
+    " https://gaffa.dk/nyheder-fra-gaffa/2025/oktober/universal-indgar-aftale-med-ai-musikplatform/ ": {
+      "lastSeenAt": "2025-11-05T10:27:44.590Z",
+      "lastStatus": 200
+    },
+    " https://gaffa.dk/artikler/2025/oktober/5-skarpe-til-allan-skjoth-vi-giver-plads-og-muligheder-for-at-musik-og-kultur-kan-blomstre/ ": {
+      "lastSeenAt": "2025-11-05T10:27:45.848Z",
+      "lastStatus": 200
+    },
+    " https://gaffa.dk/artikler/2025/oktober/stort-bruce-springsteen-interview-usa-er-vaerd-at-kaempe-for/ ": {
+      "lastSeenAt": "2025-11-05T10:27:47.128Z",
+      "lastStatus": 200
+    },
+    " https://gaffa.dk/nyheder-fra-gaffa/2025/oktober/britisk-hitmager-indtager-store-vega/ ": {
+      "lastSeenAt": "2025-11-05T10:27:46.224Z",
+      "lastStatus": 200
+    },
+    " https://gaffa.dk/nyheder-fra-gaffa/2025/oktober/udsolgt-festival-melder-klar-med-de-forste-syv-navne/ ": {
+      "lastSeenAt": "2025-11-05T10:27:49.729Z",
+      "lastStatus": 200
+    },
+    " https://gaffa.dk/artikler/2025/oktober/5-skarpe-til-michael-perch-vi-far-enormt-meget-vaerdi-for-vores-penge-i-kulturlivet/ ": {
+      "lastSeenAt": "2025-11-05T10:27:50.990Z",
+      "lastStatus": 200
+    },
+    " https://gaffa.dk/nyheder-fra-gaffa/2025/oktober/drake-giver-ikke-op-anker-dom-i-not-like-us-sagen/ ": {
+      "lastSeenAt": "2025-11-05T10:27:52.359Z",
+      "lastStatus": 200
+    },
+    " https://gaffa.dk/nyheder-fra-gaffa/2025/oktober/ny-undersogelse-betalte-streamingtjenester-dominerer/ ": {
+      "lastSeenAt": "2025-11-05T10:27:53.830Z",
+      "lastStatus": 200
+    },
+    " https://gaffa.dk/nyheder-fra-gaffa/2025/oktober/copenhell-udvider-programmet-med-13-nye-bands/ ": {
+      "lastSeenAt": "2025-11-05T10:27:55.221Z",
+      "lastStatus": 200
+    },
+    " https://gaffa.dk/artikler/2025/oktober/filmanmeldelse-springsteen-biopic-skaerer-helt-ind-i-hjertet-af-nebraska/ ": {
+      "lastSeenAt": "2025-11-05T10:27:56.755Z",
+      "lastStatus": 200
+    },
+    " https://gaffa.dk/artikler/2025/oktober/roskilde-musikchefen-efter-de-forste-programafsloringer-udvidelse-af-orange-scene-har-vaeret-nodvendig/ ": {
+      "lastSeenAt": "2025-11-05T10:27:58.634Z",
+      "lastStatus": 200
+    },
+    " https://gaffa.dk/nyheder-fra-gaffa/2025/oktober/tinderbox-tilfojer-to-internationale-navne-til-plakaten/ ": {
+      "lastSeenAt": "2025-11-05T10:27:59.968Z",
+      "lastStatus": 200
+    },
+    " https://gaffa.dk/nyheder-fra-gaffa/2025/oktober/her-er-de-forste-navne-til-roskilde-festival-2026/ ": {
+      "lastSeenAt": "2025-11-05T10:28:01.255Z",
+      "lastStatus": 200
+    },
+    " https://gaffa.dk/artikler/2025/oktober/5-skarpe-til-sabrina-vibeke-christiansen-musik-gor-en-glad-og-er-med-til-at-skabe-sammenhold-hos-unge/ ": {
+      "lastSeenAt": "2025-11-05T10:28:02.589Z",
+      "lastStatus": 200
+    },
+    " https://gaffa.dk/artikler/2025/oktober/5-onsker-fra-anna-barbara-bohm-det-kraever-tid-og-ressourcer-at-skabe-kunst/ ": {
+      "lastSeenAt": "2025-11-05T10:28:03.936Z",
+      "lastStatus": 200
+    },
+    " https://gaffa.dk/nyheder-fra-gaffa/2025/oktober/gaffa-november-er-pa-gaden/ ": {
+      "lastSeenAt": "2025-11-05T10:28:05.245Z",
+      "lastStatus": 200
+    },
+    " https://gaffa.dk/artikler/2025/oktober/fra-kobenhavn-til-k-pop/ ": {
+      "lastSeenAt": "2025-11-05T10:28:06.619Z",
+      "lastStatus": 200
+    },
+    " https://gaffa.dk/nyheder-fra-gaffa/2025/oktober/ai-virksomhed-lancerer-hidtil-mest-avancerede-musikmodel/ ": {
+      "lastSeenAt": "2025-11-05T10:28:05.313Z",
+      "lastStatus": 200
+    },
+    " https://gaffa.dk/nyheder-fra-gaffa/2025/oktober/afstemningen-til-gaffa-photo-awards-er-skudt-i-gang-stem-pa-dine-favoritter-nu/ ": {
+      "lastSeenAt": "2025-11-05T10:28:06.576Z",
+      "lastStatus": 200
+    },
+    " https://gaffa.dk/artikler/2025/oktober/danske-album-vi-har-givet-seks-stjerner-i-2025/ ": {
+      "lastSeenAt": "2025-11-05T10:28:07.984Z",
+      "lastStatus": 200
+    },
+    " https://gaffa.dk/artikler/2025/oktober/taet-pa-skribenten-jeg-ser-det-som-en-stor-aere-at-bedomme-andre-menneskers-kunst/ ": {
+      "lastSeenAt": "2025-11-05T10:28:09.235Z",
+      "lastStatus": 200
+    },
+    " https://gaffa.dk/artikler/2025/oktober/5-onsker-fra-anna-kruse-nar-musikken-far-plads-vaelger-vi-den-fremtid-vi-onsker-for-os-alle/ ": {
+      "lastSeenAt": "2025-11-05T10:28:10.526Z",
+      "lastStatus": 200
+    },
+    " https://gaffa.dk/artikler/2025/november/ugens-hitlisteopdatering-dansk-duet-overhaler-taylor-swift/ ": {
+      "lastSeenAt": "2025-11-05T10:28:11.826Z",
+      "lastStatus": 200
+    },
+    " https://gaffa.dk/sponsoreret-indhold/2025/januar-december/find-det-bedste-mobilabonnement-glaed-dig-til-frihed-og-fleksibilitet/ ": {
+      "lastSeenAt": "2025-11-05T10:28:13.298Z",
+      "lastStatus": 200
+    },
+    " https://gaffa.dk/nyheder-fra-gaffa/2025/oktober/sanne-salomonsen-i-ny-dokumentarfilm-ja-fuck-janteloven/ ": {
+      "lastSeenAt": "2025-11-05T10:28:14.767Z",
+      "lastStatus": 200
+    },
+    " https://gaffa.dk/nyheder-fra-gaffa/2025/oktober/dansk-rapkomet-udgiver-nyt-album/ ": {
+      "lastSeenAt": "2025-11-05T10:28:16.137Z",
+      "lastStatus": 200
+    },
+    " https://gaffa.dk/nyheder-fra-gaffa/2025/oktober/roxette-annoncerer-endnu-en-dansk-koncert/ ": {
+      "lastSeenAt": "2025-11-05T10:28:17.648Z",
+      "lastStatus": 200
+    },
+    " https://gaffa.dk/nyheder-fra-gaffa/2025/oktober/eu-kommissionen-genoptager-undersogelse-af-universals-storkob/ ": {
+      "lastSeenAt": "2025-11-05T10:28:18.921Z",
+      "lastStatus": 200
+    },
+    " https://gaffa.dk/artikler/2025/oktober/5-onsker-fra-jais-staerk-poulsen-kulturen-herunder-musikken-er-vigtig-for-vores-samfund/ ": {
+      "lastSeenAt": "2025-11-05T10:28:20.334Z",
+      "lastStatus": 200
+    },
+    " https://gaffa.dk/nyheder-fra-gaffa/2025/oktober/nordic-noise-vender-hjem-og-lofter-sloret-for-seks-nye-navne/ ": {
+      "lastSeenAt": "2025-11-05T10:28:21.632Z",
+      "lastStatus": 200
+    },
+    " https://gaffa.dk/nyheder-fra-gaffa/2025/oktober/festivalen-syd-for-solen-i-stor-forandring/ ": {
+      "lastSeenAt": "2025-11-05T10:28:22.901Z",
+      "lastStatus": 200
+    },
+    " https://gaffa.dk/nyheder-fra-gaffa/2025/oktober/tinderbox-fojer-internationale-rocknavne-til-programmet/ ": {
+      "lastSeenAt": "2025-11-05T10:28:24.195Z",
+      "lastStatus": 200
+    },
+    " https://gaffa.dk/artikler/2025/oktober/5-skarpe-til-jens-kirkeby-musik-i-folkeskolen-ser-jeg-som-en-naturlig-udtryksform/ ": {
+      "lastSeenAt": "2025-11-05T10:28:25.559Z",
+      "lastStatus": 200
+    },
+    " https://gaffa.dk/artikler/2025/oktober/5-skarpe-til-nick-engmann-rehmeier-det-skal-vaere-lettere-at-skabe-koncerter-events-og-projekter-nedefra/ ": {
+      "lastSeenAt": "2025-11-05T10:28:26.834Z",
+      "lastStatus": 200
+    },
+    " https://gaffa.dk/nyheder-fra-gaffa/2025/oktober/tame-impala-er-tilbage-pa-livescenen-sadan-lod-saetlisten-pa-turneens-forste-stop/ ": {
+      "lastSeenAt": "2025-11-05T10:28:28.995Z",
+      "lastStatus": 200
+    },
+    " https://gaffa.dk/nyheder-fra-gaffa/2025/oktober/drake-bliver-anklaget-for-at-promovere-ulovlig-gambling/ ": {
+      "lastSeenAt": "2025-11-05T10:28:30.242Z",
+      "lastStatus": 200
+    },
+    "https://nordic.ign.com/nintendo-switch-2-unofficial-name/100607/news/nintendo-signals-primary-development-focus-shift-to-switch-2-as-switch-1-owners-uniformly-migrating": {
+      "lastModified": "Wed, 05 Nov 2025 10:17:35 GMT",
+      "lastSeenAt": "2025-11-05T10:29:04.512Z",
+      "lastStatus": 304
+    },
+    " https://gaffa.dk/artikler/2025/november/her-er-soundtracket-til-din-weekend-uge-44/ ": {
+      "lastSeenAt": "2025-11-05T10:28:31.787Z",
+      "lastStatus": 200
+    },
+    "https://nordic.ign.com/fallout-4/100606/news/bethesda-issues-fallout-4-mod-warning-ahead-of-anniversary-edition-release-patch-will-make-gameplay": {
+      "lastModified": "Wed, 05 Nov 2025 10:02:42 GMT",
+      "lastSeenAt": "2025-11-05T10:29:05.520Z",
+      "lastStatus": 304
+    },
+    " https://gaffa.dk/nyheder-fra-gaffa/2025/oktober/roskilde-festival-skyder-billetsalget-i-gang/ ": {
+      "lastSeenAt": "2025-11-05T10:28:33.171Z",
+      "lastStatus": 200
+    },
+    "https://nordic.ign.com/destiny-2-renegades/100605/video/destiny-2-renegades-official-new-weapons-and-gear-trailer": {
+      "lastModified": "Wed, 05 Nov 2025 09:01:22 GMT",
+      "lastSeenAt": "2025-11-05T10:29:06.527Z",
+      "lastStatus": 304
+    },
+    " https://gaffa.dk/artikler/2025/oktober/selina-gin-her-er-otte-sange-der-betyder-noget-saerligt-for-mig/ ": {
+      "lastSeenAt": "2025-11-05T10:28:34.447Z",
+      "lastStatus": 200
+    },
+    "https://nordic.ign.com/song-sung-blue/100604/video/song-sung-blue-official-trailer-2": {
+      "lastModified": "Wed, 05 Nov 2025 10:19:47 GMT",
+      "lastSeenAt": "2025-11-05T10:29:07.537Z",
+      "lastStatus": 304
+    },
+    "https://nordic.ign.com/minecraft/100603/video/minecraft-x-dragon-ball-z-official-dlc-launch-trailer": {
+      "lastModified": "Wed, 05 Nov 2025 09:47:05 GMT",
+      "lastSeenAt": "2025-11-05T10:29:08.561Z",
+      "lastStatus": 304
+    },
+    " https://gaffa.dk/anmeldelser/2025/oktober/album/kalaha-guirca/ ": {
+      "lastSeenAt": "2025-11-05T10:28:35.792Z",
+      "lastStatus": 200
+    },
+    "https://nordic.ign.com/palworld/100602/video/switch-2-continues-to-be-biggest-console-launch-ever-with-10-million-units-sold-ign-daily-fix": {
+      "lastModified": "Wed, 05 Nov 2025 10:17:20 GMT",
+      "lastSeenAt": "2025-11-05T10:29:09.568Z",
+      "lastStatus": 304
+    },
+    " https://gaffa.dk/anmeldelser/2025/oktober/album/daniel-caesar-son-of-spergy/ ": {
+      "lastSeenAt": "2025-11-05T10:28:37.059Z",
+      "lastStatus": 200
+    },
+    "https://nordic.ign.com/the-mummy-1999/100600/news/brendan-fraser-and-rachel-weisz-will-return-for-the-mummy-4": {
+      "lastModified": "Wed, 05 Nov 2025 09:47:45 GMT",
+      "lastSeenAt": "2025-11-05T10:29:10.574Z",
+      "lastStatus": 304
+    },
+    "https://nordic.ign.com/neverlanders/100599/news/peter-pan-reimagining-neverlanders-to-be-adapted-as-an-animated-movie": {
+      "lastModified": "Wed, 05 Nov 2025 10:28:20 GMT",
+      "lastSeenAt": "2025-11-05T10:29:11.580Z",
+      "lastStatus": 304
+    },
+    " https://gaffa.dk/anmeldelser/2025/oktober/album/soulfly-chama/ ": {
+      "lastSeenAt": "2025-11-05T10:28:38.468Z",
+      "lastStatus": 200
+    },
+    "https://nordic.ign.com/star-trek-theater/100598/news/paramount-reportedly-wants-a-fresh-star-trek-movie-but-not-with-chris-pine-zachary-quinto-and-the-re": {
+      "lastModified": "Wed, 05 Nov 2025 10:06:45 GMT",
+      "lastSeenAt": "2025-11-05T10:29:12.589Z",
+      "lastStatus": 304
+    },
+    "https://nordic.ign.com/nvidia-rtx-5070-ti/100597/deal/the-skytech-geforce-rtx-5070-ti-gaming-pc-drops-to-1630-for-today-only": {
+      "lastModified": "Wed, 05 Nov 2025 10:17:20 GMT",
+      "lastSeenAt": "2025-11-05T10:29:13.595Z",
+      "lastStatus": 304
+    },
+    " https://gaffa.dk/nyheder-fra-gaffa/2025/oktober/en-knap-sa-god-dag-for-kesi-straffesag-i-byretten/ ": {
+      "lastSeenAt": "2025-11-05T10:28:41.100Z",
+      "lastStatus": 200
+    },
+    "https://nordic.ign.com/ign-misc/100596/video/the-war-between-the-land-and-the-sea-official-trailer": {
+      "lastModified": "Wed, 05 Nov 2025 10:28:23 GMT",
+      "lastSeenAt": "2025-11-05T10:29:14.613Z",
+      "lastStatus": 304
+    },
+    " https://gaffa.dk/nyheder-fra-gaffa/2025/oktober/raye-genforenes-med-sine-stjalne-sangboger/ ": {
+      "lastSeenAt": "2025-11-05T10:28:42.362Z",
+      "lastStatus": 200
+    },
+    "https://nordic.ign.com/doctor-who-1/100595/news/its-racist-to-say-sea-devil-doctor-who-spin-off-introduces-new-homo-aqua-name-for-classic-villain-ra": {
+      "lastModified": "Wed, 05 Nov 2025 10:06:52 GMT",
+      "lastSeenAt": "2025-11-05T10:29:15.622Z",
+      "lastStatus": 304
+    },
+    "https://nordic.ign.com/meta-quest-3/100552/deal/the-best-meta-quest-black-friday-deal-is-already-live-get-a-quest-3-for-just-360": {
+      "lastModified": "Wed, 05 Nov 2025 10:28:25 GMT",
+      "lastSeenAt": "2025-11-05T10:29:16.628Z",
+      "lastStatus": 304
+    },
+    " https://gaffa.dk/artikler/2025/oktober/hold-oje-med-fire-gaffa-favoritter-fra-vaekstlaget/ ": {
+      "lastSeenAt": "2025-11-05T10:28:43.668Z",
+      "lastStatus": 200
+    },
+    "https://nordic.ign.com/routine/100594/video/routine-introducing-the-cat-ultraview-module-ign-first": {
+      "lastModified": "Wed, 05 Nov 2025 10:28:26 GMT",
+      "lastSeenAt": "2025-11-05T10:29:17.635Z",
+      "lastStatus": 304
+    },
+    " https://gaffa.dk/artikler/2025/oktober/vilma-der-er-nogle-ting-jeg-siger-her-som-jeg-aldrig-har-fortalt-min-familie-for/ ": {
+      "lastSeenAt": "2025-11-05T10:28:45.358Z",
+      "lastStatus": 200
+    },
+    "https://nordic.ign.com/routine/100592/preview/routine-introducing-the-cat-ultraview-module-ign-first": {
+      "lastModified": "Wed, 05 Nov 2025 10:20:25 GMT",
+      "lastSeenAt": "2025-11-05T10:29:18.654Z",
+      "lastStatus": 200
+    },
+    "https://nordic.ign.com/metroid-prime-4-beyond/100591/video/nintendo-delivers-a-new-metroid-prime-4-beyond-trailer-what-do-you-think": {
+      "lastModified": "Wed, 05 Nov 2025 10:28:29 GMT",
+      "lastSeenAt": "2025-11-05T10:29:19.663Z",
+      "lastStatus": 304
+    },
+    " https://gaffa.dk/nyheder-fra-gaffa/2025/oktober/cardi-b-med-frustreret-oprab-donald-trump-har-aldrig-staet-pa-de-fattiges-side/ ": {
+      "lastSeenAt": "2025-11-05T10:28:47.420Z",
+      "lastStatus": 200
+    },
+    "https://nordic.ign.com/ball-x-pit/100589/interview/city-of-balls-was-the-original-title-and-somehow-ball-x-pit-got-even-weirder-from-there": {
+      "lastModified": "Wed, 05 Nov 2025 10:28:30 GMT",
+      "lastSeenAt": "2025-11-05T10:29:20.679Z",
+      "lastStatus": 200
+    },
+    " https://gaffa.dk/nyheder-fra-gaffa/2025/oktober/shakira-og-the-weeknd-indgar-samarbejde-med-fifa/ ": {
+      "lastSeenAt": "2025-11-05T10:28:48.699Z",
+      "lastStatus": 200
+    },
+    "https://nordic.ign.com/metroid-prime-4-beyond/100588/news/nintendo-finally-releases-a-good-metroid-prime-4-beyond-trailer-8-years-after-games-announcement": {
+      "lastModified": "Wed, 05 Nov 2025 10:28:31 GMT",
+      "lastSeenAt": "2025-11-05T10:29:21.690Z",
+      "lastStatus": 200
+    },
+    "https://nordic.ign.com/dune-part-three/100587/news/it-was-so-relaxing-like-my-brain-actually-wasnt-operating-the-batman-star-robert-pattinson-casually": {
+      "lastModified": "Wed, 05 Nov 2025 10:12:10 GMT",
+      "lastSeenAt": "2025-11-05T10:29:22.700Z",
+      "lastStatus": 200
+    },
+    " https://gaffa.dk/nyheder-fra-gaffa/2025/oktober/gracie-abrams-abnede-catwalken-til-vogue-world-se-hvordan-det-gik-her/ ": {
+      "lastSeenAt": "2025-11-05T10:28:50.059Z",
+      "lastStatus": 200
+    },
+    "https://nordic.ign.com/fortnite/100585/news/fortnite-now-polling-fans-over-unpopular-pet-restrictions-which-require-you-to-rebuy-sidekicks-just": {
+      "lastModified": "Wed, 05 Nov 2025 10:28:33 GMT",
+      "lastSeenAt": "2025-11-05T10:29:23.707Z",
+      "lastStatus": 304
+    },
+    " https://gaffa.dk/nyheder-fra-gaffa/2025/oktober/lamin-udgav-gammel-sang-efter-viral-livestream-nu-topper-den-hitlisten/ ": {
+      "lastSeenAt": "2025-11-05T10:28:51.388Z",
+      "lastStatus": 200
+    },
+    "https://nordic.ign.com/call-of-duty-black-ops-7/100584/news/microsoft-announces-xbox-game-pass-november-2025-wave-1-lineup": {
+      "lastModified": "Wed, 05 Nov 2025 09:41:08 GMT",
+      "lastSeenAt": "2025-11-05T10:29:24.714Z",
+      "lastStatus": 304
+    },
+    " https://gaffa.dk/nyheder-fra-gaffa/2025/oktober/ny-undersogelse-hver-femte-af-unge-mangler-nogen-at-dyrke-det-lokale-kulturliv-med/ ": {
+      "lastSeenAt": "2025-11-05T10:28:52.726Z",
+      "lastStatus": 200
+    },
+    "https://nordic.ign.com/ign-misc/100583/video/warhammer-survivors-official-reveal-trailer": {
+      "lastModified": "Wed, 05 Nov 2025 10:28:35 GMT",
+      "lastSeenAt": "2025-11-05T10:29:25.720Z",
+      "lastStatus": 304
+    },
+    " https://gaffa.dk/nyheder-fra-gaffa/2025/oktober/faerosk-sangskriver-modtager-haederspris/ ": {
+      "lastSeenAt": "2025-11-05T10:28:54.066Z",
+      "lastStatus": 200
+    },
+    "https://nordic.ign.com/gallery/100582/warhammer-survivors-screenshots": {
+      "lastModified": "Wed, 05 Nov 2025 10:28:36 GMT",
+      "lastSeenAt": "2025-11-05T10:29:26.730Z",
+      "lastStatus": 304
+    },
+    " https://gaffa.dk/artikler/2025/oktober/5-onsker-fra-bente-hartelius-og-rikke-konoy-de-kan-ikke-holde-kvaliteten-hvis-de-ikke-prioriterer-os/ ": {
+      "lastSeenAt": "2025-11-05T10:28:55.490Z",
+      "lastStatus": 200
+    },
+    "https://nordic.ign.com/vampire-survivors/100581/news/warhammer-survivors-is-a-new-twist-on-indie-smash-hit-vampire-survivors-and-its-developed-in-partner": {
+      "lastModified": "Wed, 05 Nov 2025 10:09:42 GMT",
+      "lastSeenAt": "2025-11-05T10:29:27.751Z",
+      "lastStatus": 304
+    },
+    "https://nordic.ign.com/fortnite/100580/news/fortnite-chapter-seven-teases-kill-bill-crossover-points-to-usa-setting": {
+      "lastModified": "Wed, 05 Nov 2025 10:28:39 GMT",
+      "lastSeenAt": "2025-11-05T10:29:28.759Z",
+      "lastStatus": 304
+    },
+    " https://gaffa.dk/artikler/2025/oktober/brasilien-ligger-i-nordvest/ ": {
+      "lastSeenAt": "2025-11-05T10:28:56.900Z",
+      "lastStatus": 200
+    },
+    "https://nordic.ign.com/dragon-quest-12-hd-2d-remake/100579/news/dragon-quest-creator-yuji-horii-becomes-first-video-game-creator-awarded-order-of-the-rising-sun-by": {
+      "lastModified": "Wed, 05 Nov 2025 10:28:40 GMT",
+      "lastSeenAt": "2025-11-05T10:29:29.772Z",
+      "lastStatus": 304
+    },
+    " https://gaffa.dk/anmeldelser/2025/oktober/album/bruce-springsteen-nebraska-82-expanded-edition-4lp-cd-blu-ray-boks/ ": {
+      "lastSeenAt": "2025-11-05T10:28:58.154Z",
+      "lastStatus": 200
+    },
+    "https://nordic.ign.com/grand-theft-auto-online/100567/news/it-never-quite-came-together-and-it-was-never-finished-rockstar-co-founder-dan-houser-discusses-canc": {
+      "lastModified": "Wed, 05 Nov 2025 10:28:41 GMT",
+      "lastSeenAt": "2025-11-05T10:29:30.780Z",
+      "lastStatus": 304
+    },
+    " https://gaffa.dk/nyheder-fra-gaffa/2025/oktober/ariana-grande-afslorer-at-hun-var-taet-pa-at-droppe-musikken-helt/ ": {
+      "lastSeenAt": "2025-11-05T10:28:59.479Z",
+      "lastStatus": 200
+    },
+    "https://nordic.ign.com/news/100566/coca-cola-sparks-backlash-with-new-entirely-ai-generated-holiday-2025-ad-insists-the-genie-is-out-of": {
+      "lastModified": "Wed, 05 Nov 2025 10:10:15 GMT",
+      "lastSeenAt": "2025-11-05T10:29:31.789Z",
+      "lastStatus": 304
+    },
+    "https://nordic.ign.com/palworld/100565/news/us-patent-office-boss-orders-reexamination-of-nintendos-controversial-summon-character-and-let-it-fi": {
+      "lastModified": "Wed, 05 Nov 2025 09:41:26 GMT",
+      "lastSeenAt": "2025-11-05T10:29:32.895Z",
+      "lastStatus": 200
+    },
+    " https://gaffa.dk/artikler/2025/oktober/gaeve-nordjyder-garvede-stemmer-og-genbrugsplaylister-sadan-lod-kongeparrets-priser-2025/ ": {
+      "lastSeenAt": "2025-11-05T10:29:02.400Z",
+      "lastStatus": 200
+    },
+    "https://nordic.ign.com/donkey-kong-bananza/100564/news/nintendo-raises-hardware-forecast-as-switch-2-sales-hit-1036-million-continuing-streak-as-the-bigges": {
+      "lastModified": "Wed, 05 Nov 2025 10:28:45 GMT",
+      "lastSeenAt": "2025-11-05T10:29:33.912Z",
+      "lastStatus": 304
+    },
+    " https://gaffa.dk/sponsoreret-indhold/2025/januar-december/meget-mindre-madspild-med-rema-1000/ ": {
+      "lastSeenAt": "2025-11-05T10:29:03.646Z",
+      "lastStatus": 200
+    },
+    "https://nordic.ign.com/rental-family/100563/video/rental-family-official-building-a-new-family-behind-the-scenes-video": {
+      "lastModified": "Wed, 05 Nov 2025 10:16:21 GMT",
+      "lastSeenAt": "2025-11-05T10:29:34.922Z",
+      "lastStatus": 304
+    },
+    "https://nordic.ign.com/predator-badlands/100562/video/predator-badlands-official-the-warriors-journey-behind-the-scenes-featurette": {
+      "lastModified": "Wed, 05 Nov 2025 10:15:48 GMT",
+      "lastSeenAt": "2025-11-05T10:29:35.841Z",
+      "lastStatus": 304
+    },
+    " https://gaffa.dk/nyheder-fra-gaffa/2025/oktober/diddys-udsigter-til-en-tidlig-losladelse-svinder-ind-nu-er-datoen-for-hans-losladelse-fastlagt/ ": {
+      "lastSeenAt": "2025-11-05T10:29:04.969Z",
+      "lastStatus": 200
+    },
+    "https://nordic.ign.com/a-very-jonas-christmas-movie/100561/video/a-very-jonas-christmas-movie-official-trailer": {
+      "lastModified": "Wed, 05 Nov 2025 10:28:48 GMT",
+      "lastSeenAt": "2025-11-05T10:29:36.942Z",
+      "lastStatus": 304
+    },
+    " https://gaffa.dk/nyheder-fra-gaffa/2025/oktober/tinderbox-udvider-programmet-med-fire-danske-navne/ ": {
+      "lastSeenAt": "2025-11-05T10:28:50.771Z",
+      "lastStatus": 200
+    },
+    "https://nordic.ign.com/go-slimey-go/100559/video/go-slimey-go-official-overview-and-accolades-trailer": {
+      "lastModified": "Wed, 05 Nov 2025 10:28:49 GMT",
+      "lastSeenAt": "2025-11-05T10:29:37.959Z",
+      "lastStatus": 304
+    },
+    " https://gaffa.dk/nyheder-fra-gaffa/2025/oktober/northside-tilfojer-seks-nye-navne-til-programmet-rockikon-og-grime-legende-blandt-hovednavnene/ ": {
+      "lastSeenAt": "2025-11-05T10:29:07.822Z",
+      "lastStatus": 200
+    },
+    "https://nordic.ign.com/call-of-duty-black-ops-7/100560/video/call-of-duty-black-ops-7-official-the-replacer-in-predator-badlands-trailer": {
+      "lastModified": "Wed, 05 Nov 2025 09:46:36 GMT",
+      "lastSeenAt": "2025-11-05T10:29:39.037Z",
+      "lastStatus": 304
+    },
+    " https://gaffa.dk/artikler/2025/oktober/5-skarpe-til-nikolaj-enggard-fogh-musik-er-et-faellesskab-pa-samme-hojde-som-det-man-ser-pa-fodboldbanerne/ ": {
+      "lastSeenAt": "2025-11-05T10:29:09.069Z",
+      "lastStatus": 200
+    },
+    "https://nordic.ign.com/steelseries-arctis-gamebuds/100558/deal/save-30-off-the-steelseries-arctis-gamebuds-earbuds-for-playstation-xbox-and-pc-for-black-friday": {
+      "lastModified": "Wed, 05 Nov 2025 09:45:10 GMT",
+      "lastSeenAt": "2025-11-05T10:29:40.061Z",
+      "lastStatus": 304
+    },
+    " https://gaffa.dk/nyheder-fra-gaffa/2025/oktober/mali-gruppen-tinariwen-vender-tilbage-til-danmark/ ": {
+      "lastSeenAt": "2025-11-05T10:29:10.431Z",
+      "lastStatus": 200
+    },
+    "https://nordic.ign.com/deal/100557/get-a-nintendo-switch-2-pro-controller-for-just-77-at-aliexpress-ahead-of-black-friday": {
+      "lastModified": "Wed, 05 Nov 2025 10:23:33 GMT",
+      "lastSeenAt": "2025-11-05T10:29:41.146Z",
+      "lastStatus": 304
+    },
+    "https://nordic.ign.com/gladiator/100556/news/highlander-will-allow-russell-crowe-to-do-what-ridley-scott-said-no-fuckin-way-to-on-gladiator": {
+      "lastModified": "Wed, 05 Nov 2025 10:02:52 GMT",
+      "lastSeenAt": "2025-11-05T10:29:42.155Z",
+      "lastStatus": 304
+    },
+    " https://gaffa.dk/artikler/2025/oktober/5-skarpe-til-karl-hjalte-maack-raun-alle-burde-opleve-metal-i-gylling-forsamlingshus/ ": {
+      "lastSeenAt": "2025-11-05T10:29:11.689Z",
+      "lastStatus": 200
+    },
+    "https://nordic.ign.com/stalker-2-heart-of-chernobyl/100553/video/heres-why-grand-theft-auto-needs-to-take-place-in-the-usa-ign-daily-fix": {
+      "lastModified": "Wed, 05 Nov 2025 09:38:01 GMT",
+      "lastSeenAt": "2025-11-05T10:29:43.112Z",
+      "lastStatus": 304
+    },
+    " https://gaffa.dk/nyheder-fra-gaffa/2025/oktober/dansk-metal-legende-pa-finansloven-modtager-livslang-haeder-fra-statens-kunstfond/ ": {
+      "lastSeenAt": "2025-11-05T10:29:13.308Z",
+      "lastStatus": 200
+    },
+    "https://nordic.ign.com/disneyland-theme-park/100548/news/we-visited-the-real-life-parr-house-from-incredibles-2-at-disneys-cotino-its-first-storyliving-commu": {
+      "lastModified": "Wed, 05 Nov 2025 10:28:56 GMT",
+      "lastSeenAt": "2025-11-05T10:29:44.173Z",
+      "lastStatus": 304
+    },
+    " https://gaffa.dk/artikler/2025/oktober/5-onsker-fra-sankt-annae-pigekor-vi-risikerer-at-miste-en-hel-generation-af-talenter/ ": {
+      "lastSeenAt": "2025-11-05T10:29:14.575Z",
+      "lastStatus": 200
+    },
+    "https://www.ekkofilm.dk/artikler/danske-oscar-film-og-tematiske-spilleautomater/": {
+      "lastSeenAt": "2025-11-05T10:29:45.329Z",
+      "lastStatus": 200
+    },
+    " https://gaffa.dk/anmeldelser/2025/oktober/album/tortoise-touch/ ": {
+      "lastSeenAt": "2025-11-05T10:29:15.850Z",
+      "lastStatus": 200
+    },
+    "https://www.ekkofilm.dk/artikler/indstil-arets-diversitetskaemper/": {
+      "lastSeenAt": "2025-11-05T10:29:00.327Z",
+      "lastStatus": 200
+    },
+    "https://www.ekkofilm.dk/artikler/30-dages-ubetinget-fangsel-til-sisse-sejr-norgaard/": {
+      "lastSeenAt": "2025-11-05T10:29:01.414Z",
+      "lastStatus": 200
+    },
+    " https://gaffa.dk/anmeldelser/2025/oktober/album/baby-did-a-bad-thing-hope/ ": {
+      "lastSeenAt": "2025-11-05T10:29:17.358Z",
+      "lastStatus": 200
+    },
+    "https://www.ekkofilm.dk/artikler/stor-filmfestival-bandlyser-israel/": {
+      "lastSeenAt": "2025-11-05T10:29:02.512Z",
+      "lastStatus": 200
+    },
+    " https://gaffa.dk/sponsoreret-indhold/2025/januar-december/som-musiker-er-det-vigtigt-at-have-det-okonomiske-overblik/ ": {
+      "lastSeenAt": "2025-11-05T10:29:18.486Z",
+      "lastStatus": 200
+    },
+    "https://www.ekkofilm.dk/artikler/der-fandtes-ogsa-ensomhed-for-sociale-medier/": {
+      "lastSeenAt": "2025-11-05T10:29:03.609Z",
+      "lastStatus": 200
+    },
+    " https://gaffa.dk/sponsoreret-indhold/2025/januar-december/musiklivet-planlaegger-efter-strommen-sadan-kan-studier-ovelokaler-og-venues-spare/ ": {
+      "lastSeenAt": "2025-11-05T10:29:03.707Z",
+      "lastStatus": 200
+    },
+    "https://www.ekkofilm.dk/artikler/jan-grarup-ramt-af-hjerneblodning/": {
+      "lastSeenAt": "2025-11-05T10:29:04.703Z",
+      "lastStatus": 200
+    },
+    " https://gaffa.dk/sponsoreret-indhold/2025/januar-december/nar-musikarv-bliver-hverdag-sadan-sikrer-du-katalog-instrumenter-og-rettigheder-ogsa-nar-livet-rammer/ ": {
+      "lastSeenAt": "2025-11-05T10:29:20.709Z",
+      "lastStatus": 200
+    },
+    "https://www.ekkofilm.dk/artikler/endnu-en-pind-i-journalistikkens-kiste/": {
+      "lastSeenAt": "2025-11-05T10:29:05.793Z",
+      "lastStatus": 200
+    },
+    " https://gaffa.dk/nyheder-fra-gaffa/2025/oktober/radiohead-reagerer-pa-tiktok-succes-jeg-finder-det-saerdeles-bizart/ ": {
+      "lastSeenAt": "2025-11-05T10:29:21.984Z",
+      "lastStatus": 200
+    },
+    " https://gaffa.dk/nyheder-fra-gaffa/2025/oktober/danmarksmesterskabet-i-freestyle-rap-vender-tilbage/ ": {
+      "lastSeenAt": "2025-11-05T10:29:25.075Z",
+      "lastStatus": 200
+    },
+    " https://gaffa.dk/artikler/2025/oktober/5-skarpe-til-jens-damsbo-kjaersgaard-det-bygger-pa-frivillighed-faellesskab-og-lokal-forankring/ ": {
+      "lastSeenAt": "2025-11-05T10:29:26.579Z",
+      "lastStatus": 200
+    },
+    " https://gaffa.dk/nyheder-fra-gaffa/2025/oktober/nelly-furtado-siger-farvel-til-livescenen-1/ ": {
+      "lastSeenAt": "2025-11-05T10:29:27.910Z",
+      "lastStatus": 200
+    },
+    " https://gaffa.dk/artikler/2025/oktober/5-onsker-fra-anya-aaby-hojager-det-skal-spire-videre/ ": {
+      "lastSeenAt": "2025-11-05T10:29:29.157Z",
+      "lastStatus": 200
+    },
+    " https://gaffa.dk/nyheder-fra-gaffa/2025/oktober/bruce-springsteen-overrasker-med-surprise-optraeden-til-velgorenhedskoncert/ ": {
+      "lastSeenAt": "2025-11-05T10:29:15.273Z",
+      "lastStatus": 200
+    },
+    " https://gaffa.dk/nyheder-fra-gaffa/2025/oktober/radiohead-lofter-sloret-for-koncertforberedelser/ ": {
+      "lastSeenAt": "2025-11-05T10:29:32.030Z",
+      "lastStatus": 200
+    },
+    " https://gaffa.dk/nyheder-fra-gaffa/2025/oktober/swan-lee-dokumentarist-modtager-kongeparrets-kulturpris-2025/ ": {
+      "lastSeenAt": "2025-11-05T10:29:33.315Z",
+      "lastStatus": 200
+    },
+    " https://gaffa.dk/nyheder-fra-gaffa/2025/oktober/ice-far-fjernet-opslag-efter-brug-af-sang-uden-tilladelse-igen/ ": {
+      "lastSeenAt": "2025-11-05T10:29:35.962Z",
+      "lastStatus": 200
+    },
+    " https://gaffa.dk/nyheder-fra-gaffa/2025/oktober/brancheorganisation-universal-music-groups-kobsaftale-vil-skade-kulturel-mangfoldighed/ ": {
+      "lastSeenAt": "2025-11-05T10:29:37.270Z",
+      "lastStatus": 200
+    },
+    " https://gaffa.dk/nyheder-fra-gaffa/2025/oktober/ugens-udvalgte-u44-2025/ ": {
+      "lastSeenAt": "2025-11-05T10:29:38.619Z",
+      "lastStatus": 200
+    },
+    " https://gaffa.dk/nyheder-fra-gaffa/2025/oktober/grammy-nomineret-artist-kommer-til-danmark/ ": {
+      "lastSeenAt": "2025-11-05T10:29:23.392Z",
+      "lastStatus": 200
+    },
+    " https://gaffa.dk/nyheder-fra-gaffa/2025/oktober/tuborgfondet-investerer-i-et-mere-mangfoldigt-musikliv/ ": {
+      "lastSeenAt": "2025-11-05T10:29:42.945Z",
+      "lastStatus": 200
+    },
+    " https://gaffa.dk/artikler/2025/oktober/5-onsker-fra-danske-musik-og-kulturskoler-vi-skal-skabe-inkluderende-musikmiljoer/ ": {
+      "lastSeenAt": "2025-11-05T10:29:44.393Z",
+      "lastStatus": 200
+    },
+    " https://gaffa.dk/artikler/2025/oktober/ugens-nye-navn-fransk-elegance-og-flojlsblode-melodier/ ": {
+      "lastSeenAt": "2025-11-05T10:29:45.860Z",
+      "lastStatus": 200
+    },
+    " https://gaffa.dk/nyheder-fra-gaffa/2025/oktober/pitbull-gaester-stor-dansk-festival-til-sommer/ ": {
+      "lastSeenAt": "2025-11-05T10:29:47.169Z",
+      "lastStatus": 200
+    },
+    " https://gaffa.dk/artikler/2025/oktober/fem-udgivelser-vi-glaeder-os-til-i-denne-uge-2/ ": {
+      "lastSeenAt": "2025-11-05T10:29:48.416Z",
+      "lastStatus": 200
+    },
+    " https://gaffa.dk/artikler/2025/oktober/5-skarpe-til-lars-larsen-der-skal-gives-plads-til-at-fejle/ ": {
+      "lastSeenAt": "2025-11-05T10:29:49.659Z",
+      "lastStatus": 200
+    },
+    " https://gaffa.dk/artikler/2025/oktober/kommentar-er-du-for-gammel-til-at-lykkes-eller-bare-for-erfaren-til-at-passe-ind/ ": {
+      "lastSeenAt": "2025-11-05T10:29:51.006Z",
+      "lastStatus": 200
+    },
+    " https://gaffa.dk/artikler/2025/oktober/onerepublic-det-eneste-sande-hemmelige-trick-jeg-kender/ ": {
+      "lastSeenAt": "2025-11-05T10:29:52.297Z",
+      "lastStatus": 200
+    },
+    " https://gaffa.dk/anmeldelser/2025/oktober/koncerter/tessa-royal-arena-251025/ ": {
+      "lastSeenAt": "2025-11-05T10:29:53.597Z",
+      "lastStatus": 200
+    },
+    " https://gaffa.dk/anmeldelser/2025/oktober/koncerter/ethel-cain-store-vega-251025/ ": {
+      "lastSeenAt": "2025-11-05T10:29:55.038Z",
+      "lastStatus": 200
+    },
+    " https://gaffa.dk/anmeldelser/2025/oktober/koncerter/yungblud-kb-hallen-241025/ ": {
+      "lastSeenAt": "2025-11-05T10:29:56.289Z",
+      "lastStatus": 200
+    },
+    " https://gaffa.dk/anmeldelser/2025/oktober/koncerter/queens-of-the-stone-age-dr-koncerthuset/ ": {
+      "lastSeenAt": "2025-11-05T10:29:57.571Z",
+      "lastStatus": 200
+    },
+    " https://gaffa.dk/anmeldelser/2025/oktober/album/sudan-archives-the-bpm/ ": {
+      "lastSeenAt": "2025-11-05T10:29:58.818Z",
+      "lastStatus": 200
+    },
+    " https://gaffa.dk/nyheder-fra-gaffa/2025/oktober/sort-sol-annoncerer-ekstrakoncert/ ": {
+      "lastSeenAt": "2025-11-05T10:30:00.138Z",
+      "lastStatus": 200
+    },
+    " https://gaffa.dk/artikler/2025/oktober/5-onsker-fra-the-miles-musikken-holder-os-forbundet-som-mennesker/ ": {
+      "lastSeenAt": "2025-11-05T10:30:01.469Z",
+      "lastStatus": 200
+    },
+    " https://gaffa.dk/nyheder-fra-gaffa/2025/oktober/the-savage-rose-kommer-danmark-rundt-pa-ny-turne/ ": {
+      "lastSeenAt": "2025-11-05T10:30:03.082Z",
+      "lastStatus": 200
+    },
+    " https://gaffa.dk/nyheder-fra-gaffa/2025/oktober/trump-demonstrant-tilbageholdt-for-at-spille-darth-vader-tema-fra-sin-telefon/ ": {
+      "lastSeenAt": "2025-11-05T10:30:04.506Z",
+      "lastStatus": 200
+    },
+    " https://gaffa.dk/anmeldelser/2025/oktober/album/bbybites-bby-s-corner/ ": {
+      "lastSeenAt": "2025-11-05T10:30:05.956Z",
+      "lastStatus": 200
+    },
+    " https://gaffa.dk/nyheder-fra-gaffa/2025/oktober/ny-sarbar-single-fra-skotsk-hitmager-signalerer-ep-udgivelse/ ": {
+      "lastSeenAt": "2025-11-05T10:30:07.242Z",
+      "lastStatus": 200
+    },
+    " https://gaffa.dk/anmeldelser/2025/oktober/album/john-lennon-yoko-ono-power-to-the-people/ ": {
+      "lastSeenAt": "2025-11-05T10:30:08.981Z",
+      "lastStatus": 200
+    },
+    " https://gaffa.dk/nyheder-fra-gaffa/2025/oktober/miley-cyrus-bidrager-med-ny-sang-til-avatar-film/ ": {
+      "lastSeenAt": "2025-11-05T10:30:10.646Z",
+      "lastStatus": 200
+    },
+    " https://gaffa.dk/artikler/2025/oktober/5-skarpe-til-jesper-kiel-vi-skal-stotte-det-lokale-og-det-nyskabende/ ": {
+      "lastSeenAt": "2025-11-05T10:30:11.999Z",
+      "lastStatus": 200
+    },
+    " https://gaffa.dk/artikler/2025/oktober/5-skarpe-til-nikolaj-moller-jensen-mindre-bureaukrati-flere-oplevelser/ ": {
+      "lastSeenAt": "2025-11-05T10:30:13.317Z",
+      "lastStatus": 200
+    },
+    " https://gaffa.dk/nyheder-fra-gaffa/2025/oktober/musikforening-traekker-trusler-om-strejke-pa-broadway-tilbage/ ": {
+      "lastSeenAt": "2025-11-05T10:30:14.847Z",
+      "lastStatus": 200
+    },
+    " https://gaffa.dk/nyheder-fra-gaffa/2025/oktober/aalborg-vil-lokke-verdensstjerner-til-nordjylland/ ": {
+      "lastSeenAt": "2025-11-05T10:30:16.397Z",
+      "lastStatus": 200
+    },
+    " https://gaffa.dk/artikler/2025/oktober/5-skarpe-til-gitte-esman-det-er-vigtigt-at-vi-har-ovelokaler-som-er-funktionelle-for-brugerne/ ": {
+      "lastSeenAt": "2025-11-05T10:30:04.249Z",
+      "lastStatus": 200
+    },
+    " https://gaffa.dk/nyheder-fra-gaffa/2025/oktober/chappell-roan-lancerer-projekt-for-unge-i-lgbtq-faellesskaber/ ": {
+      "lastSeenAt": "2025-11-05T10:30:05.576Z",
+      "lastStatus": 200
+    },
+    " https://gaffa.dk/nyheder-fra-gaffa/2025/oktober/ny-klimarapport-om-danske-koncertgaengere-for-mange-vaelger-bilen/ ": {
+      "lastSeenAt": "2025-11-05T10:30:06.899Z",
+      "lastStatus": 200
+    },
+    " https://gaffa.dk/nyheder-fra-gaffa/2025/oktober/dr-inviterer-til-topmode-om-ligestilling-i-musiklivet/ ": {
+      "lastSeenAt": "2025-11-05T10:30:08.412Z",
+      "lastStatus": 200
+    },
+    " https://gaffa.dk/artikler/2025/oktober/5-onsker-fra-jim-daus-hjernoe-musik-er-ikke-kun-noget-vi-gor-det-er-ogsa-noget-vi-er/ ": {
+      "lastSeenAt": "2025-11-05T10:30:09.744Z",
+      "lastStatus": 200
+    },
+    " https://gaffa.dk/nyheder-fra-gaffa/2025/oktober/kulturkamp-i-aarhus-nu-svarer-kulturministeren-men-aendrer-ikke-reglerne/ ": {
+      "lastSeenAt": "2025-11-05T10:30:11.705Z",
+      "lastStatus": 200
+    },
+    " https://gaffa.dk/anmeldelser/2025/oktober/album/erik-apollo-erik-apollo/ ": {
+      "lastSeenAt": "2025-11-05T10:30:13.081Z",
+      "lastStatus": 200
+    },
+    " https://gaffa.dk/nyheder-fra-gaffa/2025/oktober/when-saints-go-machine-tager-spritnyt-album-med-pa-turne/ ": {
+      "lastSeenAt": "2025-11-05T10:30:14.617Z",
+      "lastStatus": 200
+    }
+  }
+}" https://gaffa.dk/nyheder-fra-gaffa/2025/oktober/soft-cell-medlemmet-dave-ball-er-dod/ ": {
+      "lastSeenAt": "2025-11-05T10:30:16.397Z",
       "lastStatus": 200
     }
   }

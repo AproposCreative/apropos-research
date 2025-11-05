@@ -27,6 +27,7 @@ export interface ArticleData {
   researchSelected?: any;
   // Whether the user acknowledged the inspiration summary in research flow
   inspirationAcknowledged?: boolean;
+  recommendedSelected?: any;
   _chatMessages?: any[];
   seoTitle?: string;
   seoDescription?: string;

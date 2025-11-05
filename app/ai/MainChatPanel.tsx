@@ -69,6 +69,7 @@ interface MainChatPanelProps {
   editorialWarnings: string[];
   onClearEditorialWarnings: () => void;
   onPublishSuccess?: (articleId: string) => void;
+  onNewArticle?: () => void;
 }
 
 export default function MainChatPanel({
@@ -88,7 +89,8 @@ export default function MainChatPanel({
   onChatTitleChange,
   editorialWarnings,
   onClearEditorialWarnings,
-  onPublishSuccess
+  onPublishSuccess,
+  onNewArticle
 }: MainChatPanelProps) {
   const { logout } = useAuth();
   const [inputMessage, setInputMessage] = useState('');
@@ -1018,7 +1020,7 @@ const fallbackThinkingSteps: ThinkingStep[] = [
           </button>
         </div>
       
-      <div className={`flex flex-col justify-start gap-2 p-[10px] md:pt-0 pt-16 pb-32 flex-1 overflow-hidden min-h-0 chat-container transition-all duration-500 ${messages.length === 0 ? 'opacity-0 pointer-events-none translate-y-1 md:opacity-100 md:translate-y-0' : 'opacity-100 translate-y-0'}`}>
+      <div className={`flex flex-col justify-start gap-2 p-[10px] md:pt-0 pt-16 pb-2 flex-1 overflow-hidden min-h-0 chat-container transition-all duration-500 ${messages.length === 0 ? 'opacity-0 pointer-events-none translate-y-1 md:opacity-100 md:translate-y-0' : 'opacity-100 translate-y-0'}`}>
         {/* Dynamic Chat Messages */}
         <div className="relative flex-1 min-h-0 overflow-hidden">
           <div
@@ -1224,29 +1226,6 @@ const fallbackThinkingSteps: ThinkingStep[] = [
               </div>
             </div>
           )}
-          {/* Manual Preflight Trigger - for testing */}
-          {articleData.content && articleData.content.length > 500 && (
-            <div className="flex justify-start">
-              <div className="max-w-[80%]" style={{ paddingLeft: '8px', paddingRight: '8px' }}>
-                <div className="flex flex-wrap gap-2">
-                  <button
-                    onClick={() => handleRequestExpansion()}
-                    disabled={isThinking}
-                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${isThinking ? 'bg-white/10 text-white/40 cursor-not-allowed' : 'bg-purple-600 hover:bg-purple-700 text-white'}`}
-                  >
-                    ✨ Forlæng artiklen
-                  </button>
-                  <button
-                    onClick={() => runPreflightChecks(articleData.title || '', articleData.content)}
-                    disabled={isThinking}
-                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${isThinking ? 'bg-white/10 text-white/40 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700 text-white'}`}
-                  >
-                    🔍 Kør Preflight Checks
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
 
           {/* Preflight Status */}
           {preflightRunning && (
@@ -1374,8 +1353,13 @@ const fallbackThinkingSteps: ThinkingStep[] = [
                     className="flex flex-col items-center gap-1 py-3 rounded-xl hover:bg-white/5 transition-colors"
                     onClick={() => {
                       setMobileMenuOpen(false);
-                      setChatMessages([]);
-                      onChatTitleChange('Ny artikkel');
+                      if (onNewArticle) {
+                        onNewArticle();
+                      } else {
+                        // Fallback: clear messages and title if handler not available
+                        setChatMessages([]);
+                        onChatTitleChange('Ny artikkel');
+                      }
                     }}
                   >
                     <svg className="w-5 h-5 text-white/90" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1567,9 +1551,9 @@ const fallbackThinkingSteps: ThinkingStep[] = [
         {/* Docket wizard (non-overlay) */}
         {wizardNode && (
           <div className="hidden md:block">
-            <WizardAutoHeight>
-              {wizardNode}
-            </WizardAutoHeight>
+          <WizardAutoHeight>
+            {wizardNode}
+          </WizardAutoHeight>
           </div>
         )}
 
@@ -1588,7 +1572,7 @@ const fallbackThinkingSteps: ThinkingStep[] = [
           {/* Writer field card */}
           <div className={`relative rounded-xl ${messages.length === 0 ? 'bg-black/40 backdrop-blur-xl border border-white/15 shadow-[0_-18px_80px_-30px_rgba(255,255,255,0.28)]' : 'bg-[#171717] border border-white/15'}`}>
             <div className="p-3 md:p-4">
-              <div className="relative">
+          <div className="relative">
             <textarea
               value={inputMessage}
               onChange={(e) => setInputMessage(e.target.value)}
@@ -1611,40 +1595,40 @@ const fallbackThinkingSteps: ThinkingStep[] = [
                 </span>
               </div>
             )}
-              </div>
-              
-              <div className="flex justify-between items-center">
-                <div className="flex gap-3">
-                  <button 
-                    onClick={() => setShowFileDrop(!showFileDrop)}
-                    className={`w-6 h-6 flex items-center justify-center rounded transition-colors ${
-                      showFileDrop ? 'text-blue-400 bg-blue-400/10' : 'text-white hover:bg-gray-700'
-                    }`}
-                    title="Upload filer"
-                  >
-                    <span className="text-lg">+</span>
-                  </button>
-                  <button className="w-6 h-6 flex items-center justify-center text-white hover:bg-gray-700 rounded transition-colors">
-                    <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                      <path fillRule="evenodd" d="M12.586 4.586a2 2 0 112.828 2.828l-3 3a2 2 0 01-2.828 0 1 1 0 00-1.414 1.414 4 4 0 005.656 0l3-3a4 4 0 00-5.656-5.656l-1.5 1.5a1 1 0 101.414 1.414l1.5-1.5zm-5 5a2 2 0 012.828 0 1 1 0 101.414-1.414 4 4 0 00-5.656 0l-3 3a4 4 0 105.656 5.656l1.5-1.5a1 1 0 10-1.414-1.414l-1.5 1.5a2 2 0 11-2.828-2.828l3-3z" clipRule="evenodd" />
-                    </svg>
-                  </button>
-                  <button className="w-6 h-6 flex items-center justify-center text-white hover:bg-gray-700 rounded transition-colors">
-                    <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                      <path fillRule="evenodd" d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z" clipRule="evenodd" />
-                    </svg>
-                  </button>
-                </div>
-                
-                <button 
-                  onClick={handleSubmit}
-                  disabled={!inputMessage.trim()}
-                  className="w-8 h-8 bg-white rounded-lg flex items-center justify-center hover:bg-gray-100 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-                >
-                  <svg className="w-4 h-4 text-gray-800" fill="currentColor" viewBox="0 0 20 20">
-                    <path d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l5-1.429A1 1 0 009 15.571V11a1 1 0 112 0v4.571a1 1 0 00.725.962l5 1.428a1 1 0 001.17-1.408l-7-14z" />
-                  </svg>
-                </button>
+          </div>
+          
+          <div className="flex justify-between items-center">
+            <div className="flex gap-3">
+              <button 
+                onClick={() => setShowFileDrop(!showFileDrop)}
+                className={`w-6 h-6 flex items-center justify-center rounded transition-colors ${
+                  showFileDrop ? 'text-blue-400 bg-blue-400/10' : 'text-white hover:bg-gray-700'
+                }`}
+                title="Upload filer"
+              >
+                <span className="text-lg">+</span>
+              </button>
+              <button className="w-6 h-6 flex items-center justify-center text-white hover:bg-gray-700 rounded transition-colors">
+                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M12.586 4.586a2 2 0 112.828 2.828l-3 3a2 2 0 01-2.828 0 1 1 0 00-1.414 1.414 4 4 0 005.656 0l3-3a4 4 0 00-5.656-5.656l-1.5 1.5a1 1 0 101.414 1.414l1.5-1.5zm-5 5a2 2 0 012.828 0 1 1 0 101.414-1.414 4 4 0 00-5.656 0l-3 3a4 4 0 105.656 5.656l1.5-1.5a1 1 0 10-1.414-1.414l-1.5 1.5a2 2 0 11-2.828-2.828l3-3z" clipRule="evenodd" />
+                </svg>
+              </button>
+              <button className="w-6 h-6 flex items-center justify-center text-white hover:bg-gray-700 rounded transition-colors">
+                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z" clipRule="evenodd" />
+                </svg>
+              </button>
+            </div>
+            
+            <button 
+              onClick={handleSubmit}
+              disabled={!inputMessage.trim()}
+              className="w-8 h-8 bg-white rounded-lg flex items-center justify-center hover:bg-gray-100 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+            >
+              <svg className="w-4 h-4 text-gray-800" fill="currentColor" viewBox="0 0 20 20">
+                <path d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l5-1.429A1 1 0 009 15.571V11a1 1 0 112 0v4.571a1 1 0 00.725.962l5 1.428a1 1 0 001.17-1.408l-7-14z" />
+              </svg>
+            </button>
               </div>
             </div>
           </div>

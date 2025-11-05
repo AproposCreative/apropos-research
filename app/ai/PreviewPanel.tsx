@@ -115,7 +115,11 @@ export default function PreviewPanel({ articleData, onUpdateArticle }: PreviewPa
                         topic: topic,
                         author: articleData.author || 'Redaktionen',
                         category: articleData.category || 'Kultur',
-                        content: articleData.content || ''
+                        section: articleData.section,
+                        platform: articleData.platform || articleData.streaming_service,
+                        streaming_service: articleData.streaming_service,
+                        content: articleData.content || '',
+                        rating: articleData.rating || 0
                       };
                       
                       console.log('🎨 Request data:', requestData);

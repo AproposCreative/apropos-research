@@ -17,6 +17,7 @@ export default function ReviewPanel({ articleData, onClose, frameless, onPreflig
   const [wfSlugs, setWfSlugs] = useState<string[] | null>(null);
   const [isGeneratingImage, setIsGeneratingImage] = useState(false);
   const [imageProgress, setImageProgress] = useState(0);
+  const [imageSkipIndex, setImageSkipIndex] = useState(0); // Track which image index to use
   
   
   const title = articleData?.title || articleData?.previewTitle || 'Arbejdstitel (ikke sat)';
@@ -34,6 +35,44 @@ export default function ReviewPanel({ articleData, onClose, frameless, onPreflig
     if (last) content = last;
   }
   if (!content) content = 'Her vil artikelindholdet blive vist, når du begynder at skrive i chatten.';
+  
+  // DEBUG: Log what ReviewPanel receives
+  console.log('📄 ReviewPanel - articleData.content:', {
+    hasContent: !!content,
+    contentLength: content.length,
+    contentPreview: content.substring(0, 200),
+    startsWithIntro: content.startsWith('Intro:'),
+    first100Chars: content.substring(0, 100)
+  });
+
+  // Extract intro and body from content
+  // Intro is the part that starts with "Intro:" (case-insensitive) followed by text until first double newline or paragraph break
+  const extractIntroAndBody = (text: string) => {
+    if (!text) return { intro: '', body: '' };
+    
+    // Check if content starts with "Intro:" (case-insensitive)
+    const introMatch = text.match(/^intro\s*:\s*([\s\S]+?)(?=\n\n|\n[A-ZÆØÅ]|$)/im);
+    
+    if (introMatch) {
+      const introText = introMatch[1].trim();
+      // Remove intro section from content to get body
+      const bodyText = text.replace(/^intro\s*:\s*[\s\S]+?(?=\n\n|\n[A-ZÆØÅ]|$)/im, '').trim();
+      return { intro: introText, body: bodyText };
+    }
+    
+    // If articleData.intro exists separately, use it
+    if (articleData?.intro && typeof articleData.intro === 'string') {
+      const introText = articleData.intro.replace(/^intro\s*:\s*/i, '').trim();
+      // Try to remove intro from content if it's there
+      const bodyText = text.replace(/^intro\s*:\s*[\s\S]+?(?=\n\n|\n[A-ZÆØÅ]|$)/im, '').trim();
+      return { intro: introText, body: bodyText || text };
+    }
+    
+    // No intro found, return content as body
+    return { intro: '', body: text };
+  };
+
+  const { intro, body } = extractIntroAndBody(content);
 
   const seoTitle = articleData?.seo_title || articleData?.seoTitle || '';
   const seoDescription = articleData?.meta_description || articleData?.seoDescription || '';
@@ -55,15 +94,18 @@ export default function ReviewPanel({ articleData, onClose, frameless, onPreflig
     })();
   }, []);
 
-  const paragraphs = content
+  // Use combined content (intro + body) for paragraphs, but remove "Intro:" label
+  const contentForDisplay = intro && body ? `${intro}\n\n${body}` : (intro || body || content);
+  const paragraphs = contentForDisplay
     .split(/\n{2,}/)
     .map(p => p.trim())
     .filter(Boolean);
   
 
-  // Calculate word count and reading time from content (only if it's real content, not placeholder)
+  // Calculate word count and reading time from combined content (intro + body) (only if it's real content, not placeholder)
   const isPlaceholder = content === 'Her vil artikelindholdet blive vist, når du begynder at skrive i chatten.';
-  const wordCount = (content && !isPlaceholder) ? content.trim().split(/\s+/).filter(Boolean).length : 0;
+  const combinedContent = intro && body ? `${intro} ${body}` : (intro || body || content);
+  const wordCount = (combinedContent && !isPlaceholder) ? combinedContent.trim().split(/\s+/).filter(Boolean).length : 0;
   const readTime = wordCount ? Math.ceil(wordCount / 200) : 0;
   
   // Debug logging
@@ -94,12 +136,22 @@ export default function ReviewPanel({ articleData, onClose, frameless, onPreflig
         <p className="text-white/70 text-base leading-relaxed">{subtitle || 'Undertitel'}</p>
       </header>
 
-      <section className="space-y-3 text-sm leading-6 text-white/85">
-        {paragraphs.length
-          ? paragraphs.map((p, i) => (<p key={i}>{p}</p>))
-          : <p className="text-white/50">Din artikeltekst vises her, så snart indholdet er genereret.</p>
-        }
-      </section>
+      {(intro || body) && (
+        <section className="space-y-3">
+          {intro && (
+            <div className="bg-white/5 border border-white/10 rounded-lg p-2">
+              <div className="text-white/50 mb-1 text-xs">Intro</div>
+              <div className="text-white/80 text-sm whitespace-pre-wrap">{intro}</div>
+            </div>
+          )}
+          {body && (
+            <div className="bg-white/5 border border-white/10 rounded-lg p-2">
+              <div className="text-white/50 mb-1 text-xs">Body</div>
+              <div className="text-white/80 text-sm whitespace-pre-wrap">{body}</div>
+            </div>
+          )}
+        </section>
+      )}
 
       <section className="grid grid-cols-2 gap-3 text-xs">
         <Field k="Name (Titel)" v={title || '—'} />
@@ -107,6 +159,7 @@ export default function ReviewPanel({ articleData, onClose, frameless, onPreflig
         {has('author') && <Field k="Author" v={author} />}
         {has('section','category') && <Field k="Section" v={category} />}
         {has('topic','topics') && <Field k="Topic" v={topic} />}
+        <Field k="Sources" v={articleData?.inspirationSource || '—'} />
         <Field k="Platform/Service" v={platform || '—'} />
         <Field k="Stjerner" v={starBox || '—'} />
         {has('slug') && <Field k="Slug" v={slug || '—'} />}
@@ -171,12 +224,21 @@ export default function ReviewPanel({ articleData, onClose, frameless, onPreflig
                          ? articleData.tags[0] 
                          : category || 'Generel';
                     
+                    // Increment skipIndex to get a different image
+                    const nextSkipIndex = imageSkipIndex + 1;
+                    setImageSkipIndex(nextSkipIndex);
+                    
                     const requestData = {
                       title: title || 'Artikel',
-                         topic: extractedTopic,
+                      topic: extractedTopic,
                       author: author || 'Redaktionen',
                       category: category || 'Kultur',
-                      content: content || ''
+                      section: articleData?.section,
+                      platform: articleData?.platform || articleData?.streaming_service,
+                      streaming_service: articleData?.streaming_service,
+                      content: content || '',
+                      rating: articleData?.rating || 0,
+                      skipIndex: nextSkipIndex // Pass skipIndex to get different images
                     };
                     
                     console.log('🎨 Request data:', requestData);
@@ -219,19 +281,23 @@ export default function ReviewPanel({ articleData, onClose, frameless, onPreflig
                   }
                 }}
                 disabled={isGeneratingImage}
-                className={`px-4 py-2 rounded-lg font-medium transition-all duration-200 flex items-center gap-2 relative overflow-hidden ${
+                className={`px-3 py-3 rounded-lg backdrop-blur-md bg-white/10 border border-white/20 transition-all duration-200 flex items-center justify-center relative overflow-hidden hover:bg-white/20 hover:border-white/30 ${
                   isGeneratingImage 
-                    ? 'bg-gradient-to-r from-blue-500 to-purple-600 text-white shadow-lg shadow-blue-500/50 animate-pulse' 
-                    : 'bg-white/90 text-black hover:bg-white'
+                    ? 'animate-pulse' 
+                    : ''
                 }`}
+                title="Hent et andet billede"
               >
                 {isGeneratingImage && (
                   <div className="absolute inset-0 bg-gradient-to-r from-blue-500/20 to-purple-600/20 animate-pulse"></div>
                 )}
-                <span className="relative z-10">{isGeneratingImage ? '⏳' : '🎨'}</span>
-                <span className="relative z-10">
-                  {isGeneratingImage ? `Genererer... ${imageProgress}%` : 'Generer nyt billede'}
-                </span>
+                {isGeneratingImage ? (
+                  <span className="relative z-10 animate-spin">⏳</span>
+                ) : (
+                  <svg className="w-5 h-5 relative z-10" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                  </svg>
+                )}
                 {isGeneratingImage && (
                   <div className="absolute bottom-0 left-0 h-1 bg-white/30 w-full">
                     <div 
@@ -281,12 +347,21 @@ export default function ReviewPanel({ articleData, onClose, frameless, onPreflig
                          ? articleData.tags[0] 
                          : category || 'Generel';
                     
+                    // Increment skipIndex to get a different image
+                    const nextSkipIndex = imageSkipIndex + 1;
+                    setImageSkipIndex(nextSkipIndex);
+                    
                     const requestData = {
                       title: title || 'Artikel',
-                         topic: extractedTopic,
+                      topic: extractedTopic,
                       author: author || 'Redaktionen',
                       category: category || 'Kultur',
-                      content: content || ''
+                      section: articleData?.section,
+                      platform: articleData?.platform || articleData?.streaming_service,
+                      streaming_service: articleData?.streaming_service,
+                      content: content || '',
+                      rating: articleData?.rating || 0,
+                      skipIndex: nextSkipIndex // Pass skipIndex to get different images
                     };
                     
                     console.log('🎨 Request data:', requestData);
@@ -338,10 +413,13 @@ export default function ReviewPanel({ articleData, onClose, frameless, onPreflig
                 {isGeneratingImage && (
                   <div className="absolute inset-0 bg-gradient-to-r from-blue-500/20 to-purple-600/20 animate-pulse"></div>
                 )}
-                <span className="relative z-10">{isGeneratingImage ? '⏳' : '🎨'}</span>
-                <span className="relative z-10">
-                  {isGeneratingImage ? `Genererer... ${imageProgress}%` : 'Generer artikel billede'}
-                </span>
+                {isGeneratingImage ? (
+                  <span className="relative z-10 animate-spin">⏳</span>
+                ) : (
+                  <svg className="w-5 h-5 relative z-10" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                  </svg>
+                )}
                 {isGeneratingImage && (
                   <div className="absolute bottom-0 left-0 h-1 bg-white/30 w-full">
                     <div 
