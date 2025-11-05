@@ -65,7 +65,7 @@ export default function ReviewPanel({ articleData, onClose, frameless, onPreflig
       let singleNewlineCapitalIndex = -1;
       const lines = afterIntroPrefix.split('\n');
       
-      // Skip first line (intro text) and check subsequent lines
+      // Check subsequent lines (skip first line which is intro text)
       for (let i = 1; i < lines.length; i++) {
         const line = lines[i];
         // Check if line starts with capital letter and is substantial (not just continuation)
@@ -74,6 +74,8 @@ export default function ReviewPanel({ articleData, onClose, frameless, onPreflig
           // Calculate position: join all lines up to (but not including) this line
           const linesBefore = lines.slice(0, i);
           singleNewlineCapitalIndex = linesBefore.join('\n').length;
+          // If we found a boundary, we need to account for the newline before the capital letter line
+          // The boundary is at the end of the previous line, so we're already correct
           break;
         }
       }
@@ -81,6 +83,7 @@ export default function ReviewPanel({ articleData, onClose, frameless, onPreflig
       // Determine actual end position
       let introEndIndex = afterIntroPrefix.length; // Default: intro is the whole text
       
+      // Prefer double newline boundary (more definitive)
       if (doubleNewlineIndex !== -1) {
         introEndIndex = doubleNewlineIndex;
       } else if (singleNewlineCapitalIndex !== -1) {
