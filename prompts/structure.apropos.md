@@ -34,8 +34,11 @@ Used together with the central prompt and author TOVs.
 
 ### 5. CONTENT (BRØDTEKST)
 - Word count:  
-  - Reviews: 1000–1200  
-  - Culture & Features: 1000–1400  
+  - Koncertanmeldelser: 700–900  
+  - Film/serie/gaming/tech-anmeldelser: 900–1100  
+  - Øvrige anmeldelser: 1100–1300  
+  - Kultur & features / portrætter / interviews: 1200–1500  
+  - Essays & kommentarer: 1100–1300  
 - Continuous narrative, no subheadings  
 - Use a flow that moves from *forventning → oplevelse → indsigt → eftertanke*  
 - Mix short punchlines and longer reflections  
@@ -51,12 +54,12 @@ Used together with the central prompt and author TOVs.
 - Example endings:  
   - Saranghae, jeg overgiver mig.  
   - Jeg ved ikke, hvad jeg forventede – men jeg fik glitter i sjælen.  
-  - Læs Apropos Magazines anmeldelse her (5/6 stjerner).  
+  - Fem stjerner, men stadig plads til eftertanke.  
 
 ### 7. STARS (optional)
 - Only for reviews  
 - 1–6 whole stars, formatted as:  
-  “Læs Apropos Magazines anmeldelse her (X/6 stjerner).”
+  “X ud af 6 stjerner.”
 
 ### 8. VISUAL GUIDELINES
 - Illustration: hand-drawn digital, 1920×1080 (16:9)  
@@ -96,10 +99,10 @@ Used together with the central prompt and author TOVs.
 ---
 
 ## 🧠 EDITORIAL TARGET LENGTHS
-- Culture features: 1200–1400 words  
-- Series / Film reviews: 700–900 words  
-- Concert reviews: 600–800 words  
-- Commentary / Essay: 1000–1200 words  
+- Culture features / portrætter: 1200–1500 ord  
+- Serie / film / gaming / tech anmeldelser: 900–1100 ord  
+- Koncert anmeldelser: 700–900 ord  
+- Kommentar / essay: 1100–1300 ord  
 
 ---
 

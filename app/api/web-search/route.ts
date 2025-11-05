@@ -31,9 +31,44 @@ async function performWebSearch(query: string, maxResults: number): Promise<any[
   const results = [];
   
   try {
-    // Try multiple search approaches
+    // Try multiple search approaches in parallel for faster results
     
-    // 1. Try DuckDuckGo Instant Answer API
+    // 1. Wikipedia API (both Danish and English) - highest priority
+    const wikiPromises = [
+      fetch(`https://da.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(query)}`).catch(() => null),
+      fetch(`https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(query)}`).catch(() => null)
+    ];
+    
+    try {
+      const [wikiDaResponse, wikiEnResponse] = await Promise.all(wikiPromises);
+      
+      // Prefer Danish Wikipedia
+      if (wikiDaResponse?.ok) {
+        const wikiDaData = await wikiDaResponse.json();
+        if (wikiDaData.extract) {
+          results.push({
+            title: wikiDaData.title || 'Wikipedia',
+            content: wikiDaData.extract,
+            source: 'Wikipedia (Dansk)',
+            url: wikiDaData.content_urls?.desktop?.page
+          });
+        }
+      } else if (wikiEnResponse?.ok) {
+        const wikiEnData = await wikiEnResponse.json();
+        if (wikiEnData.extract) {
+          results.push({
+            title: wikiEnData.title || 'Wikipedia',
+            content: wikiEnData.extract,
+            source: 'Wikipedia (English)',
+            url: wikiEnData.content_urls?.desktop?.page
+          });
+        }
+      }
+    } catch (error) {
+      console.log('Wikipedia search failed:', error);
+    }
+    
+    // 2. DuckDuckGo Instant Answer API
     try {
       const ddgUrl = `https://api.duckduckgo.com/?q=${encodeURIComponent(query)}&format=json&no_html=1&skip_disambig=1`;
       const ddgResponse = await fetch(ddgUrl);
@@ -63,28 +98,43 @@ async function performWebSearch(query: string, maxResults: number): Promise<any[
       console.log('DuckDuckGo search failed:', error);
     }
     
-    // 2. Try Wikipedia API as fallback
+    // 3. Wikipedia Search API (for finding related articles)
     try {
-      const wikiUrl = `https://da.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(query)}`;
-      const wikiResponse = await fetch(wikiUrl);
+      const wikiSearchUrl = `https://da.wikipedia.org/api/rest_v1/page/search/${encodeURIComponent(query)}?limit=3`;
+      const wikiSearchResponse = await fetch(wikiSearchUrl);
       
-      if (wikiResponse.ok) {
-        const wikiData = await wikiResponse.json();
-        
-        if (wikiData.extract) {
-          results.push({
-            title: wikiData.title || 'Wikipedia',
-            content: wikiData.extract,
-            source: 'Wikipedia',
-            url: wikiData.content_urls?.desktop?.page
-          });
+      if (wikiSearchResponse.ok) {
+        const wikiSearchData = await wikiSearchResponse.json();
+        if (wikiSearchData.pages && Array.isArray(wikiSearchData.pages)) {
+          for (const page of wikiSearchData.pages.slice(0, 2)) {
+            // Skip if we already have this page
+            if (!results.some(r => r.title === page.title)) {
+              try {
+                const pageSummaryUrl = `https://da.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(page.title)}`;
+                const pageSummaryResponse = await fetch(pageSummaryUrl);
+                if (pageSummaryResponse.ok) {
+                  const pageSummary = await pageSummaryResponse.json();
+                  if (pageSummary.extract) {
+                    results.push({
+                      title: pageSummary.title || 'Wikipedia',
+                      content: pageSummary.extract.substring(0, 500),
+                      source: 'Wikipedia (Dansk)',
+                      url: pageSummary.content_urls?.desktop?.page
+                    });
+                  }
+                }
+              } catch (error) {
+                // Skip this page
+              }
+            }
+          }
         }
       }
     } catch (error) {
-      console.log('Wikipedia search failed:', error);
+      console.log('Wikipedia search API failed:', error);
     }
     
-    // 3. If still no results, create contextual guidance
+    // 4. If still no results, create contextual guidance
     if (results.length === 0) {
       results.push({
         title: 'Research Guidance',

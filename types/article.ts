@@ -17,6 +17,7 @@ export interface ArticleData {
   tags: string[];
   platform?: string; // streaming_service synonym
   press?: boolean | null;
+  intro?: string;
   aiDraft?: AIDraft | null;
   previewTitle?: string; // live title parsed from assistant drafts
   aiSuggestion?: { type: 'rating'; title: string; description: string } | null;
@@ -26,6 +27,7 @@ export interface ArticleData {
   researchSelected?: any;
   // Whether the user acknowledged the inspiration summary in research flow
   inspirationAcknowledged?: boolean;
+  recommendedSelected?: any;
   _chatMessages?: any[];
   seoTitle?: string;
   seoDescription?: string;

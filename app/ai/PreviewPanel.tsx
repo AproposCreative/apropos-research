@@ -10,6 +10,7 @@ interface PreviewPanelProps {
 export default function PreviewPanel({ articleData, onUpdateArticle }: PreviewPanelProps) {
   const [isGeneratingImage, setIsGeneratingImage] = useState(false);
   const [imageProgress, setImageProgress] = useState(0);
+  const introText = (articleData.intro || '').replace(/^intro\s*:\s*/i, '');
   
   const renderStars = (rating: number) => {
     return '★'.repeat(rating) + '☆'.repeat(5 - rating);
@@ -60,6 +61,15 @@ export default function PreviewPanel({ articleData, onUpdateArticle }: PreviewPa
            <span className="bg-gray-100 px-2 py-1 rounded text-xs">Billetter</span>
          </div>
 
+        {introText && (
+          <div className="mb-8">
+            <div className="uppercase text-xs tracking-[0.3em] text-gray-400 mb-2">Intro</div>
+            <p className="text-gray-700 leading-relaxed whitespace-pre-wrap">
+              {introText}
+            </p>
+          </div>
+        )}
+
         {/* Featured Image */}
         {articleData.featuredImage ? (
           <div className="space-y-4">
@@ -105,7 +115,11 @@ export default function PreviewPanel({ articleData, onUpdateArticle }: PreviewPa
                         topic: topic,
                         author: articleData.author || 'Redaktionen',
                         category: articleData.category || 'Kultur',
-                        content: articleData.content || ''
+                        section: articleData.section,
+                        platform: articleData.platform || articleData.streaming_service,
+                        streaming_service: articleData.streaming_service,
+                        content: articleData.content || '',
+                        rating: articleData.rating || 0
                       };
                       
                       console.log('🎨 Request data:', requestData);

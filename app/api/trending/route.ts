@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getMediaSources } from '@/lib/getMediaSources';
 import { analyzeTrends, generateTrendingTemplates, extractKeyPoints, inferCategoryFrom, type SimpleArticle } from '@/src/utils/trending';
+import { filterRelevantArticles, calculateRelevanceScore } from '@/src/utils/relevance-filter';
 
 export async function GET(request: NextRequest) {
   try {
@@ -26,27 +27,97 @@ export async function GET(request: NextRequest) {
         if (fs.existsSync(rageArticlesPath)) {
           const fileContent = fs.readFileSync(rageArticlesPath, 'utf8');
           const lines = fileContent.trim().split('\n').filter((line: string) => line.trim());
-          const domain = (() => { try { return new URL(source.baseUrl).hostname; } catch { return ''; } })();
+          const domain = (() => { 
+            try { 
+              const url = new URL(source.baseUrl);
+              return url.hostname.replace('www.', '').toLowerCase();
+            } catch { 
+              return ''; 
+            } 
+          })();
           let collected = 0;
-          const limit = 80;
+          const limit = 100;
+          // Only show articles from the last 14 days (more lenient)
+          const fourteenDaysAgo = Date.now() - (14 * 24 * 60 * 60 * 1000);
           for (let i = lines.length - 1; i >= 0 && collected < limit; i--) {
             const line = lines[i];
             try {
               const article = JSON.parse(line);
-              const matches = article.source === source.id || article.source === source.name || (domain && typeof article.url === 'string' && article.url.includes(domain));
+              
+              // More flexible source matching - try multiple strategies
+              const sourceId = (source.id || '').toLowerCase();
+              const sourceName = (source.name || '').toLowerCase();
+              const articleSource = (article.source || '').toLowerCase();
+              const articleUrl = (article.url || '').toLowerCase();
+              
+              // Strategy 1: Direct source match
+              let matches = 
+                articleSource === sourceId || 
+                articleSource === sourceName;
+              
+              // Strategy 2: Partial source name match
+              if (!matches) {
+                matches = 
+                  sourceName.includes(articleSource) ||
+                  articleSource.includes(sourceName);
+              }
+              
+              // Strategy 3: Domain-based matching
+              if (!matches && domain) {
+                matches = 
+                  articleUrl.includes(domain) ||
+                  articleUrl.includes(domain.replace('.', ''));
+              }
+              
+              // Strategy 4: Try to extract domain from article URL and match
+              if (!matches) {
+                try {
+                  const articleUrlObj = new URL(article.url || '');
+                  const articleDomain = articleUrlObj.hostname.replace('www.', '').toLowerCase();
+                  matches = articleDomain === domain || articleDomain.includes(domain) || domain.includes(articleDomain);
+                } catch {}
+              }
+              
               if (!matches) continue;
-              const date = article.published_at || article.date || undefined;
+              
+              const date = article.published_at || article.date || article.publishDate || undefined;
+              
+              // Filter by date - only include articles from last 7 days (focus on very recent articles)
+              const sevenDaysAgo = Date.now() - (7 * 24 * 60 * 60 * 1000);
+              if (date) {
+                const articleDate = Date.parse(date);
+                if (!isNaN(articleDate)) {
+                  if (articleDate < sevenDaysAgo) {
+                    continue; // Skip articles older than 7 days
+                  }
+                } else {
+                  // Invalid date format - skip it (we want recent, dated articles)
+                  continue;
+                }
+              } else {
+                // Skip articles without dates - we want dated articles only
+                // This prevents old articles without dates from showing up
+                continue;
+              }
+              
               const category = article.category || inferCategoryFrom((article.url || article.title || '').toString());
               const fullText = (article.body_text || article.content || '').toString();
               const content = fullText.slice(0, 200);
+              
+              // Ensure we have required data - skip if missing critical fields
+              if (!article.title || !fullText || fullText.length < 50) {
+                continue; // Skip articles without proper data
+              }
+              
               allArticles.push({
                 title: article.title,
                 category,
                 tags: Array.isArray(article.tags) ? article.tags : [],
-                source: source.name,
+                source: article.source || source.name, // Use article.source if available, otherwise fallback to source.name
                 date,
                 content,
                 url: article.url,
+                body_text: fullText, // Include full body_text for relevance filtering
                 keyPoints: extractKeyPoints(fullText, article.title, content)
               });
               collected++;
@@ -58,18 +129,49 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // Analyze trends (now includes relevance filtering)
-    const trends = analyzeTrends(allArticles);
+    // Filter articles by relevance to Apropos Magazine's focus areas
+    // Lower threshold (10) to ensure we show articles - prioritize but don't filter too strictly
+    // If no highly relevant articles, show less relevant ones to avoid empty results
+    const relevantArticles = filterRelevantArticles(allArticles, 10); // Minimum relevance score of 10
+    
+    // If we have very few relevant articles, include more less-relevant ones
+    // BUT: Only use articles that passed date filtering (allArticles is already date-filtered)
+    if (relevantArticles.length < 10 && allArticles.length > 0) {
+      // Sort by relevance score and take top articles even if score is lower
+      // Note: allArticles is already filtered by date (7 days), so we're safe here
+      const sortedByRelevance = allArticles
+        .map(article => ({ ...article, relevanceScore: calculateRelevanceScore(article) }))
+        .filter(article => article.relevanceScore && article.relevanceScore > 0) // Only include articles with some relevance
+        .sort((a, b) => (b.relevanceScore || 0) - (a.relevanceScore || 0))
+        .slice(0, 50);
+      
+      // Use sorted articles if we have very few highly relevant ones
+      if (sortedByRelevance.length > relevantArticles.length) {
+        return NextResponse.json({
+          success: true,
+          trends: analyzeTrends(sortedByRelevance),
+          trendingTemplates: generateTrendingTemplates(analyzeTrends(sortedByRelevance), sortedByRelevance),
+          articles: sortedByRelevance,
+          allArticles: sortedByRelevance,
+          totalArticles: sortedByRelevance.length
+        }, { headers: { 'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0' } });
+      }
+    }
+    
+    // Analyze trends using only relevant articles
+    const trends = analyzeTrends(relevantArticles);
     
     // Generate trending templates using relevant articles
-    const trendingTemplates = generateTrendingTemplates(trends, trends.relevantArticles || allArticles);
+    const trendingTemplates = generateTrendingTemplates(trends, trends.relevantArticles || relevantArticles);
 
     return NextResponse.json({
       success: true,
       trends,
       trendingTemplates,
-      totalArticles: allArticles.length
-    }, { headers: { 'Cache-Control': 's-maxage=300, stale-while-revalidate=1800' } });
+      articles: relevantArticles, // Return only relevant articles
+      allArticles: relevantArticles, // Alias for compatibility - now filtered by relevance
+      totalArticles: relevantArticles.length
+    }, { headers: { 'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0' } });
 
   } catch (error) {
     console.error('Error analyzing trends:', error);

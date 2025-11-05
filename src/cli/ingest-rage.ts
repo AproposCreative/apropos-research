@@ -26,7 +26,7 @@ function parseArgs() {
   return { isDry, feedOnly, sitemapOnly, noRobots, sinceHrs, limit, source };
 }
 
-async function ingestOnce(opts: { feedOnly?: boolean; sitemapOnly?: boolean; noRobots?: boolean; sinceHrs?: number; limit?: number; source?: string }) {
+export async function ingestOnce(opts: { feedOnly?: boolean; sitemapOnly?: boolean; noRobots?: boolean; sinceHrs?: number; limit?: number; source?: string }) {
   const metrics = {
     discovered: 0,
     fetched_ok: 0,
@@ -39,6 +39,43 @@ async function ingestOnce(opts: { feedOnly?: boolean; sitemapOnly?: boolean; noR
     bulletsAdded: 0,
   };
 
+  // Load media sources for proper source mapping - only enabled sources
+  let mediaSourcesMap: Map<string, { id: string; name: string }> = new Map();
+  try {
+    const { getMediaSources } = await import("../../lib/getMediaSources");
+    const sources = getMediaSources().filter(source => source.enabled);
+    for (const source of sources) {
+      try {
+        const url = new URL(source.baseUrl);
+        const domain = url.hostname.replace('www.', '').toLowerCase();
+        mediaSourcesMap.set(domain, { id: source.id, name: source.name });
+        // Also map by id and name for flexibility
+        mediaSourcesMap.set(source.id.toLowerCase(), { id: source.id, name: source.name });
+        mediaSourcesMap.set(source.name.toLowerCase(), { id: source.id, name: source.name });
+      } catch {}
+    }
+  } catch (err) {
+    logger.warn({ err }, "Could not load media sources, using fallback mapping");
+  }
+
+  // Helper to determine source from URL
+  const getSourceFromUrl = (url: string): { id: string; name: string } | null => {
+    try {
+      const urlObj = new URL(url);
+      const domain = urlObj.hostname.replace('www.', '').toLowerCase();
+      const mapped = mediaSourcesMap.get(domain);
+      if (mapped) return mapped;
+      
+      // Fallback to domain-based matching
+      for (const [key, value] of mediaSourcesMap.entries()) {
+        if (domain.includes(key) || key.includes(domain)) {
+          return value;
+        }
+      }
+    } catch {}
+    return null;
+  };
+
   let candidates: { url: string; published_at?: string; source?: string }[] = [];
   if (!opts.sitemapOnly) {
     candidates = await discoverFromFeed();
@@ -46,16 +83,9 @@ async function ingestOnce(opts: { feedOnly?: boolean; sitemapOnly?: boolean; noR
   if (!opts.feedOnly) {
     const urls = await discoverFromSitemaps();
     candidates = candidates.concat(urls.map((url) => {
-      // Determine source from URL
-      let source = 'unknown';
-      if (url.includes('soundvenue.com')) source = 'soundvenue';
-      else if (url.includes('gaffa.dk')) source = 'gaffa';
-      else if (url.includes('euroman.dk')) source = 'euroman';
-      else if (url.includes('berlingske.dk')) source = 'berlingske';
-      else if (url.includes('bt.dk')) source = 'bt';
-      else if (url.includes('nordic.ign.com')) source = 'ign-nordic';
-      else if (url.includes('politiken.dk')) source = 'politiken';
-      else if (url.includes('ekkofilm.dk')) source = 'ekkofilm';
+      // Determine source from URL using media sources
+      const sourceInfo = getSourceFromUrl(url);
+      const source = sourceInfo ? sourceInfo.id : 'unknown';
       return { url, source };
     }));
   }
@@ -89,9 +119,57 @@ async function ingestOnce(opts: { feedOnly?: boolean; sitemapOnly?: boolean; noR
   }
   metrics.discovered = uniqueCandidates.length;
 
+  // Load existing articles to skip URLs we already have (unless we need to check for updates)
+  // HTTP 304 will handle most cases, but we can optimize by checking URLs first
+  const articlesPath = path.resolve(env.RAGE_STORAGE_DIR, "rage_articles.jsonl");
+  let existingArticles: any[] = [];
+  try {
+    const fs = await import("node:fs/promises");
+    const content = await fs.readFile(articlesPath, "utf8").catch(() => "");
+    if (content.trim()) {
+      existingArticles = content
+        .split(/\r?\n/)
+        .filter((line) => line.trim().length > 0)
+        .map((line) => {
+          try {
+            return JSON.parse(line);
+          } catch {
+            return null;
+          }
+        })
+        .filter((a) => a !== null);
+    }
+  } catch {
+    // File doesn't exist or can't be read, start fresh
+    existingArticles = [];
+  }
+  const existingUrls = new Set(existingArticles.map((a: any) => a.url));
+  
+  logger.info({ 
+    total_candidates: uniqueCandidates.length,
+    existing_urls: existingUrls.size,
+    new_urls: uniqueCandidates.filter((c) => !existingUrls.has(c.url)).length,
+    candidates_before_filter: filtered.length,
+    feed_items: candidates.filter(c => c.source).length,
+    sitemap_items: candidates.length - candidates.filter(c => c.source).length
+  }, "url-classification");
+  
+  // Log if no candidates found
+  if (uniqueCandidates.length === 0) {
+    logger.warn({ 
+      message: "No article candidates found!",
+      feed_discovery: !opts.sitemapOnly,
+      sitemap_discovery: !opts.feedOnly,
+      since_hours: opts.sinceHrs,
+      limit: opts.limit
+    }, "no-candidates");
+  }
+
   const articleRecords = [] as any[];
   const promptRecords = [] as any[];
 
+  // Process all candidates - HTTP 304 will skip unchanged articles automatically
+  // The fetchText function already uses If-None-Match/If-Modified-Since headers
   for (const { url, source } of uniqueCandidates) {
     try {
       const { text, contentType, status } = await fetchText(url, { noRobots: opts.noRobots });
@@ -107,6 +185,14 @@ async function ingestOnce(opts: { feedOnly?: boolean; sitemapOnly?: boolean; noR
       const parsed = parseArticleHtml(url, text);
       if (!parsed) continue;
       const hash = sha256(parsed.body_text);
+      
+      // Ensure source is properly set from URL if not provided
+      let finalSource = source;
+      if (!finalSource || finalSource === 'unknown') {
+        const sourceInfo = getSourceFromUrl(url);
+        finalSource = sourceInfo ? sourceInfo.id : 'unknown';
+      }
+      
       articleRecords.push({
         url,
         hash,
@@ -116,7 +202,7 @@ async function ingestOnce(opts: { feedOnly?: boolean; sitemapOnly?: boolean; noR
         published_at: parsed.date,
         body_text: parsed.body_text,
         image: parsed.image,
-        source: source || 'unknown',
+        source: finalSource,
       });
       const { summary, bullets, chunks } = (await import("../prompt/builder")).buildPrompts({
         title: parsed.title,
@@ -133,7 +219,7 @@ async function ingestOnce(opts: { feedOnly?: boolean; sitemapOnly?: boolean; noR
           chunk_index: i,
           chunk_text: chunk,
           image: parsed.image,
-          source: source || 'unknown',
+          source: finalSource,
         });
       });
     } catch (err: any) {

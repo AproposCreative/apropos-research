@@ -12,16 +12,12 @@ export default [
       'node_modules/**',
       'public/**',
       '*.config.js',
-      'scripts/**',
-      'ui/.next/**',
-      'ui/node_modules/**',
-      'ui/public/**',
-      'ui/*.config.js',
-      'ui/scripts/**'
+      'scripts/**'
     ]
   },
   {
-    files: ['**/*.{ts,tsx}'],
+    files: ['**/*.{ts,tsx,js,jsx}'],
+    ignores: ['test/**'],
     languageOptions: {
       parser: tsparser,
       parserOptions: {
@@ -29,7 +25,8 @@ export default [
         sourceType: 'module',
         ecmaFeatures: {
           jsx: true
-        }
+        },
+        project: './tsconfig.json'
       },
       globals: {
         // Browser globals
@@ -92,6 +89,8 @@ export default [
       '@next/next': nextPlugin
     },
     rules: {
+      ...nextPlugin.configs.recommended.rules,
+      ...nextPlugin.configs['core-web-vitals'].rules,
       'no-unused-vars': 'off',
       '@typescript-eslint/no-unused-vars': 'off',
       'no-console': 'off',
@@ -102,6 +101,32 @@ export default [
       'no-undef': 'off',
       'react-hooks/exhaustive-deps': 'off',
       '@next/next/no-img-element': 'off'
+    }
+  },
+  {
+    files: ['test/**'],
+    languageOptions: {
+      parser: tsparser,
+      parserOptions: {
+        ecmaVersion: 'latest',
+        sourceType: 'module'
+      },
+      globals: {
+        Response: 'readonly',
+        Request: 'readonly',
+        global: 'readonly',
+        __dirname: 'readonly',
+        __filename: 'readonly',
+        process: 'readonly',
+        Buffer: 'readonly',
+        console: 'readonly'
+      }
+    },
+    rules: {
+      'no-unused-vars': 'off',
+      'no-console': 'off',
+      'no-empty': 'off',
+      'no-undef': 'off'
     }
   },
   {

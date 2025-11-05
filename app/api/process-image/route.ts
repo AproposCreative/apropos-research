@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import sharp from 'sharp';
+import { createSign, createPrivateKey } from 'crypto';
 
 interface ProcessImageRequest {
   imageUrl: string;
@@ -13,6 +14,158 @@ interface ProcessImageResponse {
   originalSizeKB?: number;
   processedSizeKB?: number;
   error?: string;
+}
+
+// Firebase Admin upload functions (server-side only)
+function base64url(input: Buffer | string): string {
+  const b = Buffer.isBuffer(input) ? input : Buffer.from(input);
+  return b.toString('base64').replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_');
+}
+
+async function getAccessToken(sa: {
+  client_email: string;
+  private_key: string;
+  token_uri: string;
+}): Promise<string> {
+  const iat = Math.floor(Date.now() / 1000);
+  const exp = iat + 3600;
+  const scope = 'https://www.googleapis.com/auth/devstorage.read_write';
+  const header = { alg: 'RS256', typ: 'JWT' };
+  const payload = {
+    iss: sa.client_email,
+    scope,
+    aud: sa.token_uri,
+    exp,
+    iat,
+  };
+  const toSign = `${base64url(JSON.stringify(header))}.${base64url(JSON.stringify(payload))}`;
+  const signer = createSign('RSA-SHA256');
+  signer.update(toSign);
+  
+  // Clean up private key - remove quotes and normalize line breaks
+  let cleanKey = sa.private_key.replace(/^['"]|['"]$/g, '').replace(/\\n/g, '\n');
+  if (!cleanKey.includes('-----BEGIN PRIVATE KEY-----')) {
+    cleanKey = `-----BEGIN PRIVATE KEY-----\n${cleanKey}\n-----END PRIVATE KEY-----`;
+  }
+  
+  const keyObj = createPrivateKey({ key: cleanKey, format: 'pem' });
+  const sig = signer.sign(keyObj);
+  const assertion = `${toSign}.${base64url(sig)}`;
+  const body = new URLSearchParams({
+    grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer',
+    assertion,
+  });
+  const res = await fetch(sa.token_uri, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: body.toString(),
+  });
+  if (!res.ok) throw new Error(`Token exchange failed: ${res.status}`);
+  const json: any = await res.json();
+  return json.access_token;
+}
+
+async function uploadToFirebaseStorage(bucket: string, name: string, content: Buffer, contentType = 'image/webp'): Promise<string> {
+  const tokenUri = process.env.FIREBASE_ADMIN_TOKEN_URI || 'https://oauth2.googleapis.com/token';
+  const clientEmail = process.env.FIREBASE_ADMIN_CLIENT_EMAIL;
+  const privateKey = process.env.FIREBASE_ADMIN_PRIVATE_KEY;
+  
+  if (!clientEmail || !privateKey) {
+    throw new Error('Missing FIREBASE_ADMIN_CLIENT_EMAIL or FIREBASE_ADMIN_PRIVATE_KEY');
+  }
+  
+  const accessToken = await getAccessToken({ 
+    client_email: clientEmail, 
+    private_key: privateKey, 
+    token_uri: tokenUri 
+  });
+  
+  // Upload with public access enabled
+  // Note: predefinedAcl=publicRead requires Firebase Storage security rules to allow public access
+  // If this fails, check Firebase Console > Storage > Rules to ensure public read is allowed
+  const url = `https://storage.googleapis.com/upload/storage/v1/b/${encodeURIComponent(bucket)}/o?uploadType=media&name=${encodeURIComponent(name)}&predefinedAcl=publicRead`;
+  const arrBuf = content.buffer.slice(content.byteOffset, content.byteOffset + content.byteLength) as ArrayBuffer;
+  const body = new Blob([arrBuf], { type: contentType });
+  
+  console.log(`📤 Uploading to Firebase Storage:`, {
+    bucket,
+    fileName: name,
+    contentType,
+    size: content.length,
+    url: url.substring(0, 150) + '...'
+  });
+  
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${accessToken}`,
+      'Content-Type': contentType,
+    },
+    body: body as any,
+  });
+  
+  if (!res.ok) {
+    let bodyText = '';
+    try { bodyText = await res.text(); } catch {}
+    console.error(`❌ Upload failed:`, {
+      status: res.status,
+      statusText: res.statusText,
+      body: bodyText.substring(0, 500)
+    });
+    throw new Error(`Upload failed: ${res.status} ${bodyText}`);
+  }
+  
+  const result = await res.json();
+  console.log(`✅ Upload successful:`, {
+    name: result.name,
+    bucket: result.bucket,
+    size: result.size,
+    contentType: result.contentType,
+    timeCreated: result.timeCreated
+  });
+  
+  const fileName = result.name || name;
+  
+  // Make file public by setting ACL after upload
+  // This is more reliable than predefinedAcl=publicRead
+  try {
+    const aclUrl = `https://storage.googleapis.com/storage/v1/b/${encodeURIComponent(bucket)}/o/${encodeURIComponent(fileName)}/acl?entity=allUsers&role=READER`;
+    const aclResponse = await fetch(aclUrl, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+    });
+    
+    if (aclResponse.ok) {
+      console.log(`✅ File ACL set to public (allUsers:READER)`);
+    } else {
+      const aclErrorText = await aclResponse.text().catch(() => '');
+      console.warn(`⚠️ Failed to set public ACL: ${aclResponse.status} ${aclErrorText}`);
+      console.warn(`⚠️ File may not be accessible without authentication`);
+    }
+  } catch (aclError) {
+    console.warn(`⚠️ Error setting public ACL:`, aclError);
+    console.warn(`⚠️ File may not be accessible without authentication`);
+  }
+  
+  // Firebase Storage API returns file metadata after upload
+  // Use Firebase Storage API format with alt=media parameter for public access
+  // Format: https://firebasestorage.googleapis.com/v0/b/${bucket}/o/${encodeURIComponent(fileName)}?alt=media
+  // This format works for public files and doesn't require CORS configuration
+  const publicUrl = `https://firebasestorage.googleapis.com/v0/b/${bucket}/o/${encodeURIComponent(fileName)}?alt=media`;
+  
+  console.log(`📤 Uploaded file: ${fileName}`);
+  console.log(`🔗 Public URL (Firebase Storage API format): ${publicUrl}`);
+  console.log(`📋 API response keys:`, Object.keys(result));
+  
+  // If API returned mediaLink, log it for debugging
+  if (result.mediaLink) {
+    console.log(`📋 MediaLink (requires auth): ${result.mediaLink.substring(0, 100)}...`);
+  }
+  
+  return publicUrl;
 }
 
 export async function POST(req: NextRequest) {
@@ -103,18 +256,96 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // Convert buffer to base64 data URL
-    const base64 = processedBuffer.toString('base64');
-    const processedImageUrl = `data:image/webp;base64,${base64}`;
+    // Upload processed image to Firebase Storage to get a public HTTP URL
+    // Webflow Image fields require HTTP/HTTPS URLs, not data URLs
+    console.log('🔄 Uploading processed image to Firebase Storage...');
+    
+    try {
+      // Get Firebase Admin credentials
+      const clientEmail = process.env.FIREBASE_ADMIN_CLIENT_EMAIL;
+      const privateKey = process.env.FIREBASE_ADMIN_PRIVATE_KEY;
+      const projectId = process.env.FIREBASE_ADMIN_PROJECT_ID || process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID;
+      
+      if (!clientEmail || !privateKey || !projectId) {
+        throw new Error('Missing Firebase Admin credentials. Need FIREBASE_ADMIN_CLIENT_EMAIL, FIREBASE_ADMIN_PRIVATE_KEY, and FIREBASE_ADMIN_PROJECT_ID');
+      }
+      
+      // Determine bucket name
+      const explicitBucket = process.env.FIREBASE_STORAGE_BUCKET || 
+                             process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET || 
+                             process.env.FIREBASE_ADMIN_STORAGE_BUCKET;
+      const bucketCandidates = [
+        explicitBucket,
+        `${projectId}.appspot.com`,
+        `${projectId}.firebasestorage.app`,
+      ].filter(Boolean) as string[];
+      
+      console.log(`📤 Upload candidates: ${bucketCandidates.join(', ')}`);
+      
+      // Generate unique filename
+      const timestamp = Date.now();
+      const randomId = Math.random().toString(36).substring(2, 9);
+      const fileName = `processed-images/${timestamp}_${randomId}.webp`;
+      
+      console.log(`📤 Uploading to Firebase Storage: ${fileName} (${processedSizeKB}KB)`);
+      
+      // Try each bucket candidate
+      let lastError: any = null;
+      let publicUrl: string | null = null;
+      
+      for (const bucket of bucketCandidates) {
+        try {
+          publicUrl = await uploadToFirebaseStorage(bucket, fileName, processedBuffer, 'image/webp');
+          console.log(`✅ Uploaded successfully to bucket: ${bucket}`);
+          break;
+        } catch (e: any) {
+          lastError = e;
+          console.warn(`⚠️ Upload attempt failed for bucket ${bucket}:`, e?.message || String(e));
+        }
+      }
+      
+      if (!publicUrl) {
+        throw lastError || new Error('Upload failed to all candidate buckets');
+      }
+      
+      console.log(`✅ Image processed and uploaded successfully: ${originalSizeKB}KB → ${processedSizeKB}KB`);
+      console.log(`✅ Public URL: ${publicUrl.substring(0, 100)}...`);
+      
+      // Firebase Storage API format with alt=media works for public files
+      // No need for image-proxy fallback - this URL format is designed for public access
+      // If bucket is not public, predefinedAcl=publicRead will fail, and we'll get an error
+      // which is better than silently failing with image-proxy
 
-    console.log(`✅ Image processed successfully: ${originalSizeKB}KB → ${processedSizeKB}KB`);
-
-    return NextResponse.json({
-      success: true,
-      processedImageUrl,
-      originalSizeKB,
-      processedSizeKB
-    });
+      return NextResponse.json({
+        success: true,
+        processedImageUrl: publicUrl, // Firebase Storage API format with alt=media
+        originalSizeKB,
+        processedSizeKB
+      });
+    } catch (uploadError) {
+      const errorMessage = uploadError instanceof Error ? uploadError.message : String(uploadError);
+      const errorStack = uploadError instanceof Error ? uploadError.stack : undefined;
+      
+      console.error('❌ Failed to upload processed image to Firebase Storage:');
+      console.error('   Error message:', errorMessage);
+      console.error('   Error stack:', errorStack);
+      console.error('   Full error:', uploadError);
+      
+      // Fallback to data URL if upload fails (for backward compatibility)
+      const base64 = processedBuffer.toString('base64');
+      const processedImageUrl = `data:image/webp;base64,${base64}`;
+      
+      console.warn('⚠️ Falling back to data URL (upload failed)');
+      console.warn('⚠️ This means Webflow "thumb" field will NOT be filled!');
+      
+      return NextResponse.json({
+        success: true,
+        processedImageUrl, // Fallback to data URL
+        originalSizeKB,
+        processedSizeKB,
+        warning: 'Firebase upload failed, using data URL. Webflow may not accept this.'
+      });
+    }
 
   } catch (err) {
     console.error('❌ Image processing error:', err);

@@ -6,6 +6,11 @@ node_modules/
 .next/
 dist/
 build/
+out/
+
+# TypeScript
+*.tsbuildinfo
+tsconfig.tsbuildinfo
 
 # Environment variables
 .env
@@ -18,6 +23,8 @@ build/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
 
 # Runtime data
 pids
@@ -27,6 +34,7 @@ pids
 
 # Coverage directory used by tools like istanbul
 coverage/
+*.lcov
 
 # nyc test coverage
 .nyc_output
@@ -45,15 +53,19 @@ jspm_packages/
 
 # Yarn Integrity file
 .yarn-integrity
-
-# dotenv environment variables file
-.env
+.yarn/cache
+.yarn/unplugged
+.yarn/build-state.yml
+.yarn/install-state.gz
+.pnp.*
 
 # IDE files
 .vscode/
 .idea/
 *.swp
 *.swo
+*.sublime-project
+*.sublime-workspace
 
 # OS generated files
 .DS_Store
@@ -67,4 +79,7 @@ Thumbs.db
 # Temporary files
 *.tmp
 *.temp
+
+# Project specific
 apropos-research/
+*.log

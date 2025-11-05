@@ -22,7 +22,7 @@ interface GenerateImageResponse {
 
 export async function POST(req: NextRequest) {
   try {
-    const { title, topic, author, category, content } = await req.json() as GenerateImageRequest;
+    const { title, topic, author, category, content, section, platform, streaming_service, rating, skipIndex } = await req.json() as GenerateImageRequest & { section?: string; platform?: string; streaming_service?: string; rating?: number; skipIndex?: number };
 
     if (!title) {
       return NextResponse.json({
@@ -31,7 +31,169 @@ export async function POST(req: NextRequest) {
       }, { status: 400 });
     }
 
-    console.log('🎨 Generating Apropos-style image for:', title);
+    // Check if this is a film/TV/game review - if so, search for existing images instead of generating
+    console.log('🔍 Checking if article is media review:', { 
+      title, 
+      category, 
+      section, 
+      topic, 
+      platform, 
+      streaming_service,
+      sectionValue: section,
+      topicValue: topic
+    });
+    
+    // ALWAYS try to search for media images first if section/topic matches
+    // Don't fall back to AI generation for media reviews - only search
+    const shouldSearchForMedia = checkIfMediaReview({ title, category, section, topic, platform, streaming_service, content, rating });
+    console.log('🔍 Should search for media:', shouldSearchForMedia);
+    
+    if (shouldSearchForMedia) {
+      console.log('🎬 Detected media review, searching for existing image (NO AI generation)...');
+      try {
+        // Import and call search functions directly to avoid HTTP fetch issues
+        const { isMediaReview: checkMediaReview, searchTMDB, searchGoogleImages } = await import('../search-media-image/route');
+        
+        // Check media type and get search term
+        const mediaCheck = checkMediaReview({
+          title,
+          category,
+          section,
+          topic,
+          platform,
+          streaming_service,
+          content
+        });
+        
+        console.log('🔍 Media check result:', mediaCheck);
+        
+        if (mediaCheck.type === 'film' || mediaCheck.type === 'tv') {
+          console.log(`🔍 Searching TMDB for ${mediaCheck.type}: "${mediaCheck.searchTerm}"`);
+          
+          // If section is "Serier & Film" and no explicit topic, try both film and TV
+          // This handles cases where platform suggests TV but it's actually a film
+          const sectionLower = (section || '').toLowerCase();
+          const shouldTryBoth = sectionLower.includes('serier & film') || sectionLower.includes('serier og film');
+          
+          let imageUrl: string | null = null;
+          
+          const skipIdx = skipIndex || 0;
+          if (shouldTryBoth && mediaCheck.type === 'tv') {
+            // Try film first (more common for "Serier & Film" section)
+            console.log(`🔍 Trying film first (Serier & Film section): "${mediaCheck.searchTerm}" (skipIndex: ${skipIdx})`);
+            imageUrl = await searchTMDB(mediaCheck.searchTerm, 'film', skipIdx);
+            
+            // If film didn't work, try TV
+            if (!imageUrl) {
+              console.log(`🔍 Film search failed, trying TV: "${mediaCheck.searchTerm}" (skipIndex: ${skipIdx})`);
+              imageUrl = await searchTMDB(mediaCheck.searchTerm, 'tv', skipIdx);
+            }
+          } else {
+            // Normal search - try the detected type
+            imageUrl = await searchTMDB(mediaCheck.searchTerm, mediaCheck.type, skipIdx);
+          }
+          
+          if (imageUrl) {
+            console.log(`✅ Found TMDB image: ${imageUrl}`);
+            // Process image to WebP format and compress
+            let processedImageUrl = imageUrl;
+            try {
+              const processResponse = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/api/process-image`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  imageUrl: imageUrl,
+                  maxSizeKB: 400,
+                  quality: 85
+                })
+              });
+              
+              if (processResponse.ok) {
+                const processData = await processResponse.json();
+                if (processData.success && processData.processedImageUrl) {
+                  processedImageUrl = processData.processedImageUrl;
+                }
+              }
+            } catch (error) {
+              console.log('⚠️ Image processing error, using original:', error);
+            }
+            
+            console.log(`✅ Found existing image from TMDB for: ${title}`);
+            return NextResponse.json({
+              success: true,
+              imageUrl: processedImageUrl,
+              source: 'tmdb',
+              prompt: 'Found from TMDB'
+            });
+          } else {
+            // No image found - return error instead of falling back to AI
+            console.log(`⚠️ No TMDB image found for: "${mediaCheck.searchTerm}" (tried ${shouldTryBoth ? 'both film and TV' : mediaCheck.type})`);
+            return NextResponse.json({
+              success: false,
+              error: `No image found for ${mediaCheck.type}: ${mediaCheck.searchTerm}. Please check TMDB or try a different search term.`
+            }, { status: 404 });
+          }
+        } else if (mediaCheck.type === 'game') {
+          console.log(`🔍 Searching Google Images for game: "${mediaCheck.searchTerm}"`);
+          const imageUrl = await searchGoogleImages(mediaCheck.searchTerm);
+          if (imageUrl) {
+            // Process image to WebP format and compress
+            let processedImageUrl = imageUrl;
+            try {
+              const processResponse = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/api/process-image`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  imageUrl: imageUrl,
+                  maxSizeKB: 400,
+                  quality: 85
+                })
+              });
+              
+              if (processResponse.ok) {
+                const processData = await processResponse.json();
+                if (processData.success && processData.processedImageUrl) {
+                  processedImageUrl = processData.processedImageUrl;
+                }
+              }
+            } catch (error) {
+              console.log('⚠️ Image processing error, using original:', error);
+            }
+            
+            console.log(`✅ Found existing image from Google for: ${title}`);
+            return NextResponse.json({
+              success: true,
+              imageUrl: processedImageUrl,
+              source: 'google',
+              prompt: 'Found from Google'
+            });
+          } else {
+            // No image found - return error instead of falling back to AI
+            console.log(`⚠️ No Google image found for: "${mediaCheck.searchTerm}"`);
+            return NextResponse.json({
+              success: false,
+              error: `No image found for game: ${mediaCheck.searchTerm}. Please check Google Custom Search or try a different search term.`
+            }, { status: 404 });
+          }
+        } else {
+          // No media type detected - this shouldn't happen if checkIfMediaReview returned true
+          console.log(`⚠️ No media type detected for: "${mediaCheck.searchTerm}"`);
+          return NextResponse.json({
+            success: false,
+            error: 'Could not determine media type for image search'
+          }, { status: 400 });
+        }
+      } catch (error) {
+        console.error('❌ Media image search error:', error);
+        return NextResponse.json({
+          success: false,
+          error: `Failed to search for media image: ${error instanceof Error ? error.message : 'Unknown error'}`
+        }, { status: 500 });
+      }
+    }
+    
+    // Only generate AI image if NOT a media review
+    console.log('🎨 Not a media review - generating AI image for:', title);
 
     // Generate contextual prompt based on article content
     const prompt = await generateAproposPrompt({
@@ -107,14 +269,29 @@ async function generateAproposPrompt(data: GenerateImageRequest): Promise<string
   const { title, topic, author, category, content } = data;
 
   // Base Apropos prompt - EXACT STYLE MUST BE MAINTAINED
-  let basePrompt = `Håndtegnet digital illustration i Apropos Magazine-stil. Minimal og redaktionel med blød digital tekstur. KRITISK: Ingen tekst, ingen logoer, ingen skrift, ingen ord, ingen bogstaver, ingen tal - kun visuelle elementer. Format 16:9 (1920x1080).
-Brug dæmpede, æstetiske farver og en stemning, der matcher artiklens tone.
-Fokusér på stemning, følelse og motiv — ikke på plot eller personer.
-Baggrund: ensfarvet off-white med grynet tekstur.
-Stil: håndtegnet, digital, frisk og subtil – som moderne magasinillustrationer.
-VIGTIGT: Dette skal være et rent billede uden nogen form for tekst eller skrift.
-STIL-KRAV: Du SKAL følge denne eksakte stil - afvig ALDRIG fra Apropos Magazine-stilen.
-SIKKERHED: Kun positive, kunstneriske og sikre elementer. Ingen vold, konflikt eller problematisk indhold.`;
+  let basePrompt = `Create a hand-drawn digital illustration in Apropos Magazine style. Minimal and editorial with soft digital texture. 
+
+CRITICAL REQUIREMENTS:
+- NO TEXT: Absolutely no text, logos, letters, numbers, or words of any kind. Pure visual elements only.
+- Format: 16:9 aspect ratio (1920x1080)
+- Background: Solid off-white with subtle grainy texture
+- Style: Hand-drawn, digital, fresh and subtle - like modern magazine illustrations
+- Color palette: Muted, aesthetic colors that match the article's tone
+- Focus: Mood, feeling, and motif - NOT plot or people
+- Composition: Clean, minimal, editorial aesthetic
+- Visual elements: Abstract shapes, patterns, or subtle symbolic elements that represent the article's theme
+
+STYLE GUIDELINES:
+- Hand-drawn digital aesthetic (like contemporary magazine illustrations)
+- Soft, subtle textures
+- Muted color palette (not bright or saturated)
+- Minimal composition with breathing room
+- Editorial and sophisticated feel
+- Avoid literal representations - use abstract, symbolic, or mood-based visuals
+
+SAFETY: Only positive, artistic, and safe elements. No violence, conflict, or problematic content.
+
+Remember: This is a PURE IMAGE with NO TEXT WHATSOEVER.`;
 
   // Add contextual elements based on category and content
   const contextualElements = [];
@@ -169,30 +346,32 @@ async function extractVisualThemes(content: string, title: string, category: str
       apiKey: process.env.OPENAI_API_KEY,
     });
 
-    const analysisPrompt = `Analyser denne artikel og uddrag 3-5 SIKRE visuelle temaer til billedgenerering.
+    const analysisPrompt = `Analyze this article and extract 3-5 SAFE visual themes for image generation.
 
-Artikel titel: "${title}"
-Kategori: "${category}"
-Indhold: "${content.substring(0, 800)}"
+Article title: "${title}"
+Category: "${category}"
+Content: "${content.substring(0, 800)}"
 
-VIGTIGT: Kun positive, sikre og kunstneriske temaer. Ingen vold, konflikt eller problematisk indhold.
+IMPORTANT: Only positive, safe, and artistic themes. No violence, conflict, or problematic content.
 
-Eksempler på sikre temaer:
-- Gaming: "retro gaming konsol, pixel art stil, digitale farver"
-- Musik: "koncert scene, musik instrumenter, live energi"
-- Film: "cinematisk stemning, dramatisk lys, film atmosfære"
-- Festival: "festival atmosfære, farverige lys, musik scene"
-- Kultur: "kunstnerisk komposition, kreativ miljø, kulturel stemning"
+Extract abstract, symbolic, or mood-based visual themes that can be represented in a minimal, editorial illustration style.
 
-Returner KUN sikre temaer på dansk. Ingen forklaringer.
+Examples of safe themes:
+- Gaming: "abstract game controller shapes, digital patterns, technological aesthetics"
+- Music: "musical note silhouettes, sound wave patterns, rhythmic visual elements"
+- Film: "cinematic lighting effects, film strip patterns, dramatic atmosphere"
+- Festival: "celebratory geometric shapes, festive color gradients, energetic patterns"
+- Culture: "artistic composition elements, creative visual motifs, cultural symbols"
 
-Temaer:`;
+Return ONLY safe themes in Danish. No explanations. Focus on abstract, symbolic, or pattern-based visual elements.
+
+Themes:`;
 
     const response = await openai.chat.completions.create({
       model: 'gpt-5',
       messages: [{ role: 'user', content: analysisPrompt }],
       max_completion_tokens: 100,
-      temperature: 0.7,
+      temperature: 1, // GPT-5 only supports default temperature (1)
     });
 
     const themesText = response.choices[0]?.message?.content?.trim() || '';
@@ -239,6 +418,48 @@ Temaer:`;
   }
 
   return filterSafeThemes(themes);
+}
+
+// Check if article is about film, TV series, or game
+// Simplified detection: Check section and topic directly
+function checkIfMediaReview(data: {
+  title?: string;
+  category?: string;
+  section?: string;
+  topic?: string;
+  platform?: string;
+  streaming_service?: string;
+  content?: string;
+  rating?: number;
+}): boolean {
+  const section = (data.section || '').toLowerCase();
+  const topic = (data.topic || '').toLowerCase();
+  
+  console.log('🔍 Checking media review detection (simplified):', { section, topic });
+  
+  // Simple check: If section is "Serier & Film" or "Serier og Film", it's media
+  const isSerierOgFilm = section.includes('serier & film') || 
+                         section.includes('serier og film') ||
+                         section.includes('serier og film');
+  
+  // Simple check: If topic is "Gaming", "Film", or "TV-serier", it's media
+  const isMediaTopic = topic.includes('gaming') || 
+                       topic.includes('film') || 
+                       topic.includes('tv-serier') ||
+                       topic.includes('tv serier') ||
+                       topic.includes('spil');
+  
+  const result = isSerierOgFilm || isMediaTopic;
+  
+  console.log('🔍 Media review detection result (simplified):', { 
+    isSerierOgFilm, 
+    isMediaTopic, 
+    result,
+    sectionValue: data.section,
+    topicValue: data.topic
+  });
+  
+  return result;
 }
 
 function filterSafeThemes(themes: string[]): string[] {

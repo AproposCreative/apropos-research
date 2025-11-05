@@ -28,6 +28,3 @@ RAGE_USER_AGENT=OnkelRageknivBot/0.1 (+kontaktmail)
 - Respects robots.txt (configurable no-robots for testing)
 - Low rate-limit (default 1 rps) and exponential backoff
 - Intended for internal research/prompting; do not re-publish full text
-
-
-# Test push for GitHub Actions workflow

@@ -6,7 +6,7 @@ import { WebflowAuthor } from '@/lib/webflow-service';
 import type { ArticleData } from '@/types/article';
 import StepChip from '@/components/ui/StepChip';
 
-type Step = 'template' | 'source' | 'trending' | 'inspiration' | 'analysis' | 'author' | 'section' | 'topic' | 'platform' | 'rating' | 'press';
+type Step = 'template' | 'source' | 'trending' | 'inspiration' | 'recommended' | 'analysis' | 'author' | 'section' | 'topic' | 'platform' | 'rating' | 'press';
 
 interface SetupWizardProps {
   initialData?: Partial<ArticleData>;
@@ -28,9 +28,12 @@ export default function SetupWizard({ initialData, onComplete, onChange }: Setup
   const [loadingServices, setLoadingServices] = useState(true);
   const [mediaSources, setMediaSources] = useState<Array<{ id:string; name:string }>>([]);
   const [loadingSources, setLoadingSources] = useState(true);
-  const [trendingItems, setTrendingItems] = useState<Array<{ title:string; date?:string; source?:string; url?:string; keyPoints?:string[]; content?:string }>>([]);
+  const [trendingItems, setTrendingItems] = useState<Array<{ title:string; date?:string; published_at?:string; publishDate?:string; source?:string; url?:string; keyPoints?:string[]; content?:string }>>([]);
+  const [recommendedItems, setRecommendedItems] = useState<Array<{ title:string; date?:string; source?:string; url?:string; category?:string; type?:string; excerpt?:string }>>([]);
+  const [loadingRecommended, setLoadingRecommended] = useState(false);
   const [loadingTrending, setLoadingTrending] = useState(false);
   const trendingAbortRef = useRef<AbortController | null>(null);
+  const currentSourceRef = useRef<string>('');
   const dragInfoRef = useRef<{ active: boolean; pointerId: number | null; startX: number; scrollLeft: number; moved: boolean }>({ active: false, pointerId: null, startX: 0, scrollLeft: 0, moved: false });
   const [isDragging, setIsDragging] = useState(false);
   const [scrollFade, setScrollFade] = useState<{ left: boolean; right: boolean }>({ left: false, right: false });
@@ -87,6 +90,7 @@ export default function SetupWizard({ initialData, onComplete, onChange }: Setup
     inspirationSource: initialData?.inspirationSource || '',
     researchSelected: initialData?.researchSelected || null,
     inspirationAcknowledged: initialData?.inspirationAcknowledged || false,
+    recommendedSelected: initialData?.recommendedSelected || null,
     aiDraft: initialData?.aiDraft || null,
     rating: initialData?.rating || 0,
     ratingSkipped: initialData?.ratingSkipped || false,
@@ -142,6 +146,19 @@ export default function SetupWizard({ initialData, onComplete, onChange }: Setup
     };
     run();
   }, []);
+
+  // Auto-refresh articles in background when SetupWizard opens (for research template)
+  useEffect(() => {
+    // Trigger refresh in background to get latest articles
+    // This runs silently in the background - user doesn't need to wait
+    fetch('/api/refresh', { 
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sinceHours: 72, limit: 200 }) // Last 3 days, up to 200 articles
+    }).catch(() => {
+      // Silently fail - this is just a background refresh
+    });
+  }, []); // Run once on mount
 
   const isPlatformRequired = useMemo(() => {
     const sec = (data.section || '').toLowerCase();
@@ -241,8 +258,14 @@ export default function SetupWizard({ initialData, onComplete, onChange }: Setup
   }, []);
 
   const nextStep = (from: Step) => {
-    if (from==='template') return setStep(data.template==='research' ? 'source' : 'author');
+    if (from==='template') {
+      if (data.template==='research') return setStep('source');
+      if (data.template==='notes') return setStep('author'); // Skip recommended for notes template
+      if (data.template) return setStep('recommended');
+      return setStep('author');
+    }
     if (from==='source') return setStep('trending');
+    if (from==='recommended') return setStep('author');
     if (from==='trending') return setStep('inspiration');
     if (from==='inspiration') return setStep('analysis');
     if (from==='analysis') return setStep('author');
@@ -301,6 +324,121 @@ export default function SetupWizard({ initialData, onComplete, onChange }: Setup
     updateScrollFade();
   }, [updateScrollFade, data.template, topicsSelectedCount, isPlatformRequired, data.researchSelected, data.platform]);
 
+  // Helper function to load articles (trending or recommended)
+  const loadArticles = useCallback(async (sourceName: string, forceRefresh = false) => {
+    if (!sourceName || loadingTrending || loadingRecommended) return;
+    
+    // If "Anbefalet" is selected, load recommendations
+    if (sourceName === 'Anbefalet') {
+      try {
+        setLoadingRecommended(true);
+        const res = await fetch('/api/recommended?type=all&_t=' + Date.now(), {
+          cache: 'no-store',
+          headers: { 'Cache-Control': 'no-cache' }
+        });
+        if (!res.ok) {
+          console.error('Recommended API error:', res.status, res.statusText);
+          return;
+        }
+        const j = await res.json();
+        const items = Array.isArray(j.recommendations) ? j.recommendations : [];
+        setRecommendedItems(items);
+        setTrendingItems(items.map((it: any) => ({
+          title: it.title,
+          date: it.date || it.published_at || it.publishDate,
+          published_at: it.published_at || it.date || it.publishDate,
+          source: it.source,
+          url: it.url,
+          keyPoints: [],
+          content: it.excerpt || ''
+        })));
+      } catch (error) {
+        console.error('Error loading recommended articles:', error);
+      } finally {
+        setLoadingRecommended(false);
+      }
+      return;
+    }
+    
+    // Load trending articles for selected source
+    try {
+      setLoadingTrending(true);
+      const id = (mediaSources.find(s => s.name === sourceName)?.id) || sourceName;
+      if (trendingAbortRef.current) {
+        try { trendingAbortRef.current.abort(); } catch {}
+      }
+      const controller = new AbortController();
+      trendingAbortRef.current = controller;
+      const timestamp = Date.now();
+      const res = await fetch(`/api/trending?source=${encodeURIComponent(id)}&_t=${timestamp}`, { 
+        signal: controller.signal,
+        cache: 'no-store',
+        headers: { 'Cache-Control': 'no-cache' }
+      });
+      if (!res.ok) {
+        console.error('Trending API error:', res.status, res.statusText);
+        return;
+      }
+      const j = await res.json();
+      let items: any[] = [];
+      if (Array.isArray(j.trendingTemplates)) {
+        items = j.trendingTemplates.flatMap((t: any) => Array.isArray(t.articles) ? t.articles : []);
+      }
+      if (items.length === 0 && Array.isArray(j.articles)) {
+        items = j.articles;
+      }
+      if (items.length === 0 && Array.isArray(j.trends?.relevantArticles)) {
+        items = j.trends.relevantArticles;
+      }
+      if (items.length === 0 && Array.isArray(j.allArticles)) {
+        items = j.allArticles;
+      }
+      const mappedItems = items.map((a: any) => ({ 
+        title: a.title || a.name || 'Ukendt titel', 
+        date: a.date || a.published_at || a.publishDate,
+        published_at: a.published_at || a.date || a.publishDate,
+        publishDate: a.publishDate || a.date || a.published_at,
+        source: a.source || sourceName,
+        url: a.url || a.link,
+        keyPoints: Array.isArray(a.keyPoints) ? a.keyPoints : (a.keyPoints ? [a.keyPoints] : []),
+        content: a.content || a.body_text || a.body || a.excerpt || ''
+      }));
+      setTrendingItems(mappedItems);
+      currentSourceRef.current = sourceName;
+    } catch (error) {
+      console.error('Error loading trending articles:', error);
+    } finally {
+      setLoadingTrending(false);
+    }
+  }, [loadingTrending, loadingRecommended, mediaSources]);
+
+  // Load trending articles when navigating to trending step if source is selected but articles not loaded
+  useEffect(() => {
+    const shouldLoad = step === 'trending' && 
+                      data.template === 'research' && 
+                      data.inspirationSource && 
+                      (data.inspirationSource !== currentSourceRef.current || trendingItems.length === 0) && 
+                      !loadingTrending &&
+                      mediaSources.length > 0;
+    
+    if (shouldLoad) {
+      currentSourceRef.current = data.inspirationSource;
+      loadArticles(data.inspirationSource);
+    }
+  }, [step, data.template, data.inspirationSource, loadingTrending, mediaSources, trendingItems.length, loadArticles]);
+
+  // Auto-refresh articles in background every 2 minutes when on trending step
+  useEffect(() => {
+    if (step !== 'trending' || !data.inspirationSource || data.template !== 'research') return;
+    
+    const interval = setInterval(() => {
+      loadArticles(data.inspirationSource, true);
+    }, 120000); // 2 minutes
+    
+    return () => clearInterval(interval);
+  }, [step, data.inspirationSource, data.template, loadArticles]);
+
+
 
   // StepChip now reusable component
 
@@ -335,6 +473,7 @@ export default function SetupWizard({ initialData, onComplete, onChange }: Setup
     if (data.inspirationSource) completionData.inspirationSource = data.inspirationSource;
     if (data.researchSelected) completionData.researchSelected = data.researchSelected;
     if (data.inspirationAcknowledged) completionData.inspirationAcknowledged = data.inspirationAcknowledged;
+    if (data.recommendedSelected) completionData.recommendedSelected = data.recommendedSelected;
     if (data.aiDraft) completionData.aiDraft = data.aiDraft;
     if (data.section) completionData.category = data.section;
     if (tags.length > 0) completionData.tags = tags;
@@ -363,10 +502,13 @@ export default function SetupWizard({ initialData, onComplete, onChange }: Setup
     const includeResearchSteps = data.template === 'research';
     if (includeResearchSteps) {
       // research specific steps
-      segments.push(!!data.inspirationSource); // source
+      segments.push(!!data.inspirationSource); // source (includes Anbefalet)
       segments.push(!!data.researchSelected); // trending
       segments.push(!!data.inspirationAcknowledged); // inspiration confirmation
       segments.push(Boolean(data.aiDraft?.completed)); // analysis
+    } else if (data.template && data.template !== 'notes') {
+      // non-research template steps (but not notes template)
+      segments.push(!!data.recommendedSelected); // recommended
     }
 
     segments.push(!!data.authorId || !!data.author); // author
@@ -389,9 +531,9 @@ export default function SetupWizard({ initialData, onComplete, onChange }: Setup
   };
 
   return (
-    <div className="bg-black rounded-xl p-2 md:p-3">
+    <div className="bg-black rounded-xl p-2 md:p-3" style={{ minHeight: 'fit-content' }}>
       {/* Stepper */}
-      <div className="relative mb-3 md:mb-[14px]">
+      <div className="relative mb-3 md:mb-[14px] overflow-visible">
         <div
           ref={stepperRef}
           className={`flex items-center gap-2 md:gap-[14px] overflow-x-auto pb-2 md:pb-0 scrollbar-hide select-none ${isDragging ? 'cursor-grabbing' : 'cursor-grab active:cursor-grab'}`}
@@ -412,6 +554,9 @@ export default function SetupWizard({ initialData, onComplete, onChange }: Setup
             <StepChip stepKey="analysis" active={step==='analysis'} done={Boolean(data.aiDraft?.completed)} label="Analyse" onClick={()=>setStep('analysis')} />
             </>
           )}
+          {data.template && data.template!=='research' && data.template !== 'notes' && (
+            <StepChip stepKey="recommended" active={step==='recommended'} done={!!data.recommendedSelected} label="Anbefalet" onClick={()=>setStep('recommended')} />
+          )}
           <StepChip stepKey="author" active={step==='author'} done={!!data.authorId || !!data.author} label="Author" onClick={()=>setStep('author')} />
           <StepChip stepKey="section" active={step==='section'} done={!!data.section} label="Section" onClick={()=>setStep('section')} />
           <StepChip stepKey="topic" active={step==='topic'} done={topicsSelectedCount >= 2} label="Topic" onClick={()=>setStep('topic')} />
@@ -425,8 +570,8 @@ export default function SetupWizard({ initialData, onComplete, onChange }: Setup
         <div className={`pointer-events-none absolute inset-y-0 right-0 w-10 bg-[linear-gradient(270deg,_#050505,_rgba(5,5,5,0.7),_rgba(5,5,5,0))] transition-opacity duration-300 ${scrollFade.right ? 'opacity-100' : 'opacity-0'}`} />
       </div>
 
-      {/* Step content (auto-height, no inner scrollbar) */}
-      <div className="overflow-visible pb-[12px]">
+      {/* Step content (auto-height, allows scrolling for specific steps) */}
+      <div className="pb-[12px]">
       {step==='template' && (
         <div className="space-y-3 md:space-y-[14px]">
           <div className="text-white/80 text-sm">Vælg template</div>
@@ -469,7 +614,7 @@ export default function SetupWizard({ initialData, onComplete, onChange }: Setup
           <div className="text-white/80 text-sm">Vælg medie (kilde)</div>
           <div className="flex flex-wrap gap-x-3 md:gap-x-[16px] gap-y-2 md:gap-y-[10px]">
             {(
-              loadingSources ? ['Indlæser…'] : (mediaSources.length ? mediaSources.map(s=>s.name) : [])
+              loadingSources ? ['Indlæser…'] : (['Anbefalet', ...mediaSources.map(s=>s.name)])
             ).map((name:string)=> {
               const selected = data.inspirationSource === name;
               return (
@@ -482,22 +627,9 @@ export default function SetupWizard({ initialData, onComplete, onChange }: Setup
                       return;
                     }
                     updateData((d:any)=> ({ ...d, inspirationSource: name, researchSelected: null, inspirationAcknowledged: false }), 'source');
-                    // Preload trending for smoother UX
-                    try {
-                      setLoadingTrending(true);
-                      const id = (mediaSources.find(s=>s.name===name)?.id)||name;
-                      // Abort previous request if any
-                      if (trendingAbortRef.current) {
-                        try { trendingAbortRef.current.abort(); } catch {}
-                      }
-                      const controller = new AbortController();
-                      trendingAbortRef.current = controller;
-                      const res = await fetch(`/api/trending?source=${encodeURIComponent(id)}`, { signal: controller.signal });
-                      const j = await res.json();
-                      const items = (j.trendingTemplates?.[0]?.articles || j.trendingTemplates?.flatMap((t:any)=>t.articles)||[]) as any[];
-                      setTrendingItems(items.slice(0,8).map((a:any)=> ({ title: a.title || a.name || '', date: a.date, source: a.source, url: a.url, keyPoints: a.keyPoints || [], content: a.content })));
-                    } catch {}
-                    finally { setLoadingTrending(false); }
+                    
+                    // Load articles automatically (handled by loadArticles function)
+                    loadArticles(name);
                   }}
                   className={`px-3 py-1.5 rounded-lg text-xs transition-all border ${selected ? 'bg-white/10 text-white border-white/40' : 'bg-white/5 text-white border-white/10 hover:border-white/20 hover:bg-white/10'}`}
                 >
@@ -514,11 +646,14 @@ export default function SetupWizard({ initialData, onComplete, onChange }: Setup
 
       {step==='trending' && data.template==='research' && (
         <div className="space-y-3 md:space-y-[14px]">
-          <div className="text-white/80 text-sm">Trending fra {data.inspirationSource || 'valgt medie'}</div>
-          <div className="max-h-64 overflow-y-auto scrollbar-thin scrollbar-thumb-white/20 scrollbar-track-transparent">
+          <div className="text-white/80 text-sm">
+            {data.inspirationSource === 'Anbefalet' ? 'Anbefalet anmeldelser' : `Trending fra ${data.inspirationSource || 'valgt medie'}`}
+            {loadingTrending && <span className="ml-2 text-white/40 text-xs">(Opdaterer automatisk...)</span>}
+          </div>
+          <div className="overflow-y-auto nice-scrollbar pr-1" style={{ height: '500px', maxHeight: '600px', WebkitOverflowScrolling: 'touch' }}>
             <div className="grid gap-2 md:gap-[10px]">
             {loadingTrending && (<div className="w-6 h-6 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>)}
-            {!loadingTrending && trendingItems.slice(0,8).map((it, idx)=> {
+            {!loadingTrending && trendingItems.map((it, idx)=> {
               const selected = data.researchSelected?.title === it.title;
               return (
                 <button
@@ -530,7 +665,7 @@ export default function SetupWizard({ initialData, onComplete, onChange }: Setup
                   className={`text-left px-3 py-2 rounded-lg transition-all border ${selected ? 'bg-white/5 text-white border-white/40' : 'bg-white/0 text-white/80 border-white/10 hover:border-white/20 hover:bg-white/5'}`}
                 >
                   <div className="text-[13px] leading-snug">{it.title || 'Ukendt titel'}</div>
-                  <div className="text-white/40 text-xs mt-1">{it.source ? `${it.source} · `:''}{formatDate(it.date)}</div>
+                  <div className="text-white/40 text-xs mt-1">{it.source ? `${it.source} · `:''}{formatDate(it.date || (it as any).published_at || (it as any).publishDate)}</div>
                 </button>
               );
             })}
@@ -546,11 +681,12 @@ export default function SetupWizard({ initialData, onComplete, onChange }: Setup
         <div className="space-y-3 md:space-y-[14px]">
           <div className="text-white/80 text-sm">Opsummering</div>
           <div
-            className="rounded-lg border border-white/10 bg-white/5 p-3 cursor-pointer hover:bg-white/10 transition-colors"
+            className="rounded-lg border border-white/10 bg-white/5 p-3 cursor-pointer hover:bg-white/10 transition-colors w-full max-h-[70vh] md:max-h-[80vh] overflow-y-auto nice-scrollbar pr-1"
             role="button"
             tabIndex={0}
             onClick={()=> { updateData((d:any)=> ({ ...d, inspirationAcknowledged: true }), 'inspiration'); }}
             onKeyDown={(e)=>{ if (e.key==='Enter' || e.key===' ') { e.preventDefault(); updateData((d:any)=> ({ ...d, inspirationAcknowledged: true }), 'inspiration'); } }}
+            style={{ WebkitOverflowScrolling: 'touch' }}
           >
             <div className="flex items-center justify-between mb-1">
               <div className="text-white font-medium">{data.researchSelected.title}</div>
@@ -585,6 +721,50 @@ export default function SetupWizard({ initialData, onComplete, onChange }: Setup
             {data.researchSelected.url && (
               <a href={data.researchSelected.url} target="_blank" rel="noopener noreferrer" className="text-white/80 text-sm underline" onClick={(e)=> e.stopPropagation()}>Læs original artikel →</a>
             )}
+          </div>
+        </div>
+      )}
+
+      {step==='recommended' && data.template && data.template !== 'research' && data.template !== 'notes' && (
+        <div className="space-y-3 md:space-y-[14px]">
+          <div className="text-white/80 text-sm">Anbefalet anmeldelser</div>
+          <div className="overflow-y-auto nice-scrollbar pr-1" style={{ height: '500px', maxHeight: '600px', WebkitOverflowScrolling: 'touch' }}>
+            <div className="grid gap-2 md:gap-[10px]">
+            {loadingRecommended && (<div className="w-6 h-6 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>)}
+            {!loadingRecommended && recommendedItems.map((it, idx)=> {
+              const selected = data.recommendedSelected?.title === it.title;
+              const typeLabels: Record<string, string> = {
+                'concert': '🎵 Koncert',
+                'tv-series': '📺 TV-serie',
+                'film': '🎬 Film',
+                'game': '🎮 Spil'
+              };
+              const typeLabel = typeLabels[it.type || 'film'] || '📝 Anmeldelse';
+              return (
+                <button
+                  key={idx}
+                  onClick={()=> selected
+                    ? updateData((d:any)=> ({ ...d, recommendedSelected: null }))
+                    : updateData((d:any)=> ({ ...d, recommendedSelected: it }), 'recommended')
+                  }
+                  className={`text-left px-3 py-2 rounded-lg transition-all border ${selected ? 'bg-white/5 text-white border-white/40' : 'bg-white/0 text-white/80 border-white/10 hover:border-white/20 hover:bg-white/5'}`}
+                >
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="text-xs text-white/50">{typeLabel}</span>
+                    {it.category && <span className="text-xs text-white/40">· {it.category}</span>}
+                  </div>
+                  <div className="text-[13px] leading-snug">{it.title || 'Ukendt titel'}</div>
+                  <div className="text-white/40 text-xs mt-1">{it.source ? `${it.source} · `:''}{it.date ? formatDate(it.date) : ''}</div>
+                  {it.excerpt && (
+                    <div className="text-white/60 text-xs mt-2 line-clamp-2">{it.excerpt}</div>
+                  )}
+                </button>
+              );
+            })}
+            {!loadingRecommended && recommendedItems.length===0 && (
+              <div className="text-white/60 text-xs">Ingen anbefalinger fundet</div>
+            )}
+            </div>
           </div>
         </div>
       )}

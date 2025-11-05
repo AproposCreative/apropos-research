@@ -1,6 +1,7 @@
 'use client';
 import { useSelect } from './SelectCtx';
 import { useState, useMemo } from 'react';
+import Link from 'next/link';
 
 export default function SelectedArticles({ allArticles }: { allArticles: any[] }) {
   const { selected, clear } = useSelect();
@@ -23,12 +24,12 @@ export default function SelectedArticles({ allArticles }: { allArticles: any[] }
         <div className="text-6xl mb-4">📝</div>
         <h2 className="text-2xl font-semibold text-slate-800 dark:text-slate-100 mb-2">Ingen artikler valgt</h2>
         <p className="text-slate-500 dark:text-slate-400 mb-6">Gå tilbage til forsiden og vælg nogle artikler ved at klikke på checkboxen i øverste venstre hjørne af hver artikel.</p>
-        <a 
+        <Link 
           href="/" 
           className="inline-flex items-center px-6 py-3 bg-slate-100/70 dark:bg-black/70 backdrop-blur-sm text-slate-700 dark:text-slate-300 rounded-xl text-sm font-medium hover:bg-slate-200/70 dark:hover:bg-slate-700/70 transition-all duration-300 border border-slate-300/50 dark:border-slate-600/50 shadow-lg ring-1 ring-white/20 dark:ring-slate-700/50"
         >
           Gå til forsiden
-        </a>
+        </Link>
       </div>
     );
   }

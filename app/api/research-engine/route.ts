@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import OpenAI from 'openai';
 
+const RESEARCH_MODEL = process.env.OPENAI_RESEARCH_MODEL || process.env.OPENAI_MODEL || 'gpt-4o-mini';
+
 const openai = process.env.OPENAI_API_KEY ? new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 }) : null;
@@ -49,7 +51,7 @@ export async function POST(request: NextRequest) {
 
 async function gatherNewsData(topic: string) {
   const completion = await openai.chat.completions.create({
-    model: "gpt-5", // Updated to GPT-5 (ChatGPT-5)
+    model: RESEARCH_MODEL,
     messages: [
       {
         role: "system",
@@ -99,7 +101,7 @@ Returnér JSON med nyhedsdata og kilder. Format:
 
 async function collectCulturalContext(topic: string) {
   const completion = await openai.chat.completions.create({
-    model: "gpt-5", // Updated to GPT-5 (ChatGPT-5)
+    model: RESEARCH_MODEL,
     messages: [
       {
         role: "system",
@@ -146,7 +148,7 @@ Returnér JSON med kulturel kontekst. Format:
 
 async function findExpertOpinions(topic: string) {
   const completion = await openai.chat.completions.create({
-    model: "gpt-5", // Updated to GPT-5 (ChatGPT-5)
+    model: RESEARCH_MODEL,
     messages: [
       {
         role: "system",
@@ -191,7 +193,7 @@ Returnér JSON med ekspertperspektiver. Format:
 
 async function analyzeTrends(topic: string) {
   const completion = await openai.chat.completions.create({
-    model: "gpt-5", // Updated to GPT-5 (ChatGPT-5)
+    model: RESEARCH_MODEL,
     messages: [
       {
         role: "system",
@@ -235,7 +237,7 @@ Returnér JSON med trendanalyse. Format:
 
 async function gatherFactualData(topic: string) {
   const completion = await openai.chat.completions.create({
-    model: "gpt-5", // Updated to GPT-5 (ChatGPT-5)
+    model: RESEARCH_MODEL,
     messages: [
       {
         role: "system",

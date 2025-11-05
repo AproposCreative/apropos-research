@@ -55,6 +55,7 @@ export interface WebflowArticleFields {
   subtitle?: string;
   content: string;
   excerpt?: string;
+  intro?: string;
   category: string;
   tags: string[];
   author: string;
@@ -73,6 +74,10 @@ export interface WebflowArticleFields {
   topicsSelected?: string[];
   streaming_service?: string;
   platform?: string;
+  watchUrl?: string;
+  streamingUrl?: string;
+  videoTrailer?: string;
+  video_trailer?: string;
 }
 
 export type WebflowStatus = {
@@ -377,6 +382,70 @@ async function resolveSectionIdFromName(nameOrSlug: string): Promise<string | un
   }
 }
 
+async function resolveStreamingServiceIdFromName(nameOrSlug: string): Promise<string | undefined> {
+  const slugify = (s: string) => s
+    .toLowerCase()
+    .normalize('NFD').replace(/\p{Diacritic}+/gu, '')
+    .replace(/[^a-z0-9\s-]/g, '')
+    .trim()
+    .replace(/\s+/g, '-');
+  try {
+    const { token, siteId } = resolveConfig();
+    if (!token || !siteId) return undefined;
+
+    let collectionId = resolveConfig().streamingServicesCollectionId;
+    if (!collectionId) {
+      try {
+        const listRes = await fetch(`https://api.webflow.com/v2/sites/${siteId}/collections`, {
+          headers: { 'Authorization': `Bearer ${token}`, 'Accept-Version': '1.0.0' },
+        });
+        if (listRes.ok) {
+          const listData: any = await listRes.json().catch(() => ({}));
+          const cols: any[] = Array.isArray(listData) ? listData : (listData.collections || listData.items || []);
+          const norm = (s?: string) => (s || '').toLowerCase();
+          const candidate = cols.find((col: any) => {
+            const slug = norm(col.slug);
+            const name = norm(col.name);
+            return slug.includes('stream') || name.includes('stream');
+          });
+          collectionId = candidate?.id;
+        }
+      } catch (err) {
+        console.warn('Unable to auto-discover streaming services collection:', err);
+      }
+    }
+
+    if (!collectionId) return undefined;
+
+    const res = await fetch(`https://api.webflow.com/v2/sites/${siteId}/collections/${collectionId}/items?limit=200`, {
+      headers: { 'Authorization': `Bearer ${token}`, 'Accept-Version': '1.0.0' },
+    });
+    if (!res.ok) return undefined;
+    const data: any = await res.json();
+    const items: any[] = data.items || [];
+
+    const needleRaw = (nameOrSlug || '').trim();
+    const needle = needleRaw.toLowerCase();
+    const needleSlug = slugify(needleRaw);
+
+    const found = items.find((it: any) => {
+      const fd = it.fieldData || {};
+      const nm = String(fd.name || fd.title || fd.label || '').toLowerCase().trim();
+      const sl = String(fd.slug || '').toLowerCase().trim();
+      return nm === needle || sl === needle || sl === needleSlug;
+    }) || items.find((it:any) => {
+      const fd = it.fieldData || {};
+      const nm = String(fd.name || fd.title || fd.label || '').toLowerCase();
+      return nm.includes(needle);
+    });
+
+    return found?.id;
+  } catch (error) {
+    console.warn('Unable to resolve streaming service ID:', error);
+    return undefined;
+  }
+}
+
 // Resolve topic itemId by matching name or slug (case-insensitive)
 async function resolveTopicIdFromName(nameOrSlug: string): Promise<string | undefined> {
   const slugify = (s: string) => s
@@ -533,6 +602,38 @@ export async function publishArticleToWebflow(articleData: WebflowArticleFields)
       throw new Error('Webflow configuration missing (token/site/collection)');
     }
 
+    const normalizedPlatform = (articleData.platform || '').trim();
+    if (!articleData.streaming_service && normalizedPlatform && !isLikelyUrl(normalizedPlatform)) {
+      articleData.streaming_service = normalizedPlatform;
+    }
+    if (!articleData.watchUrl && articleData.streamingUrl) {
+      articleData.watchUrl = articleData.streamingUrl;
+    }
+    if (!articleData.watchUrl && normalizedPlatform && isLikelyUrl(normalizedPlatform)) {
+      articleData.watchUrl = normalizedPlatform;
+    }
+    if (articleData.watchUrl && !isLikelyUrl(articleData.watchUrl)) {
+      articleData.watchUrl = undefined;
+    }
+    if (!articleData.videoTrailer && articleData.video_trailer) {
+      articleData.videoTrailer = articleData.video_trailer;
+    }
+    if (!articleData.videoTrailer) {
+      const youtubeCandidate = extractFirstYouTubeUrl(
+        `${articleData.videoTrailer || ''}\n${articleData.content || ''}\n${articleData.excerpt || ''}`
+      );
+      if (youtubeCandidate) {
+        articleData.videoTrailer = youtubeCandidate;
+      }
+    }
+    if (articleData.videoTrailer) {
+      const normalizedTrailer = normalizeYouTubeUrl(articleData.videoTrailer);
+      articleData.videoTrailer = normalizedTrailer || undefined;
+      if (articleData.videoTrailer) {
+        articleData.video_trailer = articleData.videoTrailer;
+      }
+    }
+
     // Generate Apropos-style image if not provided
     if (!articleData.featuredImage && articleData.title) {
       try {
@@ -545,6 +646,9 @@ export async function publishArticleToWebflow(articleData: WebflowArticleFields)
             topic: (articleData as any).topicsSelected?.[0],
             author: articleData.author,
             category: articleData.category,
+            section: (articleData as any).section,
+            platform: (articleData as any).platform || (articleData as any).streaming_service,
+            streaming_service: (articleData as any).streaming_service,
             content: articleData.content
           })
         });
@@ -563,8 +667,26 @@ export async function publishArticleToWebflow(articleData: WebflowArticleFields)
       }
     }
 
+    // Remove intro from content if intro is provided separately (to avoid duplication in Webflow)
+    // Import removeIntroFromContent function
+    const removeIntroFromContent = (content: string) => {
+      if (!content) return content;
+      // Remove the intro section from content - improved regex
+      return content.replace(/^intro\s*:\s*[\s\S]+?(?=\n\n|\n[A-ZÆØÅ]|$)/im, '').trim();
+    };
+    
+    // If intro is provided separately, remove it from content to avoid duplication
+    if (articleData.intro && articleData.content) {
+      const contentWithoutIntro = removeIntroFromContent(articleData.content);
+      if (contentWithoutIntro !== articleData.content) {
+        // Intro was removed from content, use the cleaned version
+        articleData = { ...articleData, content: contentWithoutIntro };
+        console.log('✅ Removed intro from content (intro is sent separately to Webflow)');
+      }
+    }
+    
     // Build fieldData via mapping
-    const fieldData = buildFieldDataFromMapping(articleData, readMapping());
+    const fieldData = await buildFieldDataFromMapping(articleData, readMapping());
 
     // Resolve author reference automatically if provided as a name/slug
     if (fieldData['author']) {
@@ -668,6 +790,53 @@ export async function publishArticleToWebflow(articleData: WebflowArticleFields)
           }
           fieldData['topics'] = resolvedIds;
         }
+    }
+  }
+
+    // Resolve streaming service - use the correct field slug from Webflow: "simple-rerfence"
+    // Use default slug first, will be updated after schema check
+    let streamingFieldSlug = 'simple-rerfence';
+    
+    // Try multiple sources for streaming service value
+    const streamingCandidates: (string | undefined)[] = [
+      typeof fieldData['simple-rerfence'] === 'string' ? fieldData['simple-rerfence'] : undefined,
+      typeof fieldData['simple-reference'] === 'string' ? fieldData['simple-reference'] : undefined,
+      typeof fieldData['streaming-service'] === 'string' ? fieldData['streaming-service'] : undefined, // Legacy slug
+      articleData.streaming_service,
+      articleData.platform,
+      (articleData as any).streaming_service,
+      (articleData as any).platform
+    ];
+    
+    console.log('🔍 Streaming service candidates:', streamingCandidates);
+    
+    const streamingLabel = streamingCandidates.find((value) => {
+      if (!value) return false;
+      const trimmed = value.trim();
+      if (!trimmed) return false;
+      const looksLikeId = /^[a-f0-9]{24}$/i.test(trimmed);
+      if (looksLikeId) {
+        // Will set correct field after schema check
+        return false;
+      }
+      return !isLikelyUrl(trimmed);
+    });
+    
+    console.log('🔍 Selected streaming service label:', streamingLabel);
+    
+    // Store streaming service value temporarily - will be set to correct field after schema check
+    const streamingServiceValue = streamingLabel ? streamingLabel.trim() : null;
+
+    if (!fieldData['watch-now-link'] && articleData.watchUrl && isLikelyUrl(articleData.watchUrl)) {
+      fieldData['watch-now-link'] = articleData.watchUrl.trim();
+    }
+    if (typeof fieldData['watch-now-link'] === 'string') {
+      const link = fieldData['watch-now-link'].trim();
+      if (!isLikelyUrl(link)) {
+        console.warn('⚠️ Removing non-URL watch-now-link value:', link);
+        delete fieldData['watch-now-link'];
+      } else {
+        fieldData['watch-now-link'] = link;
       }
     }
 
@@ -682,23 +851,135 @@ export async function publishArticleToWebflow(articleData: WebflowArticleFields)
         const allowed = new Set<string>((schema.fields || []).map((f: any) => f.slug));
         requiredSlugs = (schema.fields || []).filter((f:any)=>!!f.required).map((f:any)=>f.slug);
         
+        // Check field types for streaming-service and thumb
+        // Try multiple possible slug variations for thumb field
+        const thumbField = (schema.fields || []).find((f: any) => 
+          f.slug === 'thumb' || 
+          f.slug === 'thumbnail' ||
+          f.slug === 'Thumb' ||
+          f.displayName?.toLowerCase() === 'thumb'
+        );
+        
+        const streamingServiceField = (schema.fields || []).find((f: any) => 
+          f.slug === 'simple-rerfence' ||
+          f.slug === 'simple-reference' ||
+          f.slug === 'streaming-service' ||
+          f.displayName?.toLowerCase().includes('streaming') ||
+          f.displayName?.toLowerCase().includes('service')
+        );
+        
+        // Log all field slugs in schema for debugging
+        const allFieldSlugs = (schema.fields || []).map((f: any) => f.slug);
+        const allFieldsDetailed = (schema.fields || []).map((f: any) => ({
+          slug: f.slug,
+          displayName: f.displayName,
+          type: f.type,
+          isRequired: f.isRequired
+        }));
+        
+        console.log('🔍 Webflow schema check - COMPLETE FIELD LIST:');
+        console.log('📋 Total fields:', (schema.fields || []).length);
+        console.log('📋 All field slugs:', allFieldSlugs);
+        console.log('📋 All fields detailed:', JSON.stringify(allFieldsDetailed, null, 2));
         console.log('🔍 Webflow schema check:', {
           totalFieldsInSchema: (schema.fields || []).length,
           allowedFields: Array.from(allowed),
           fieldsBeforeFilter: Object.keys(fieldData),
-          requiredFields: requiredSlugs
+          requiredFields: requiredSlugs,
+          streamingServiceFieldType: streamingServiceField?.type,
+          streamingServiceFieldReference: streamingServiceField?.reference,
+          streamingServiceFieldInSchema: !!streamingServiceField,
+          streamingServiceFieldSlug: streamingServiceField?.slug,
+          streamingServiceFieldDisplayName: streamingServiceField?.displayName,
+          thumbFieldType: thumbField?.type,
+          thumbFieldInSchema: !!thumbField,
+          thumbFieldSlug: thumbField?.slug,
+          thumbFieldDisplayName: thumbField?.displayName,
+          allFieldSlugs: allFieldSlugs // Log all field slugs to help identify the correct field name
         });
+        
+        // If streaming service is a reference field, we MUST resolve it to an ID
+        // Use the correct field slug from Webflow
+        streamingFieldSlug = streamingServiceField?.slug || 'simple-rerfence';
+        
+        // Now resolve streaming service value to the correct field
+        if (streamingServiceValue) {
+          const trimmed = streamingServiceValue;
+          const resolvedStreamingId = await resolveStreamingServiceIdFromName(trimmed);
+          if (resolvedStreamingId) {
+            fieldData[streamingFieldSlug] = resolvedStreamingId;
+            console.log('✅ Resolved streaming service to ID:', trimmed, '->', resolvedStreamingId);
+          } else {
+            // If resolution fails, check if it's already an ID
+            if (/^[a-f0-9]{24}$/i.test(trimmed)) {
+              fieldData[streamingFieldSlug] = trimmed;
+              console.log('✅ Using streaming service as ID (looks like ID):', trimmed);
+            } else if (streamingServiceField && streamingServiceField.type === 'Reference') {
+              // It's a reference field - must be an ID, but we can't resolve it
+              console.warn(`⚠️ ${streamingFieldSlug} is a Reference field but value is not an ID and cannot be resolved:`, trimmed);
+              // Try one more time as last resort
+              const lastResortId = await resolveStreamingServiceIdFromName(trimmed).catch(() => null);
+              if (lastResortId) {
+                fieldData[streamingFieldSlug] = lastResortId;
+                console.log('✅ Resolved streaming service ID at last resort:', lastResortId);
+              } else {
+                // Remove it if we can't resolve it - Webflow won't accept a string for a reference field
+                console.warn(`⚠️ Cannot resolve ${streamingFieldSlug} to ID, removing from fieldData (Webflow Reference fields require IDs)`);
+                delete fieldData[streamingFieldSlug];
+              }
+            } else {
+              // It's a plain text field - we can keep the string value
+              fieldData[streamingFieldSlug] = trimmed;
+              console.log('✅ Streaming service value set in fieldData (plain text):', trimmed);
+            }
+          }
+        } else if (!fieldData[streamingFieldSlug] && (articleData.streaming_service || articleData.platform)) {
+          // Final check: Ensure streaming service is in fieldData if it exists in articleData
+          const fallbackValue = (articleData.streaming_service || articleData.platform || '').trim();
+          if (fallbackValue && !isLikelyUrl(fallbackValue)) {
+            const resolvedFallbackId = await resolveStreamingServiceIdFromName(fallbackValue).catch(() => null);
+            if (resolvedFallbackId) {
+              fieldData[streamingFieldSlug] = resolvedFallbackId;
+              console.log('✅ Added streaming service as fallback (resolved to ID):', resolvedFallbackId);
+            } else if (!streamingServiceField || streamingServiceField.type !== 'Reference') {
+              // Only set as string if it's not a reference field
+              fieldData[streamingFieldSlug] = fallbackValue;
+              console.log('✅ Added streaming service as fallback (plain text):', fallbackValue);
+            }
+          }
+        }
+        
+        // Clean up legacy 'streaming-service' field if we're using new slug
+        if (streamingFieldSlug !== 'streaming-service' && fieldData['streaming-service']) {
+          delete fieldData['streaming-service'];
+        }
+        
+        // If thumb field doesn't exist in schema - but user says it exists in Webflow
+        // Keep it anyway - Webflow might accept it even if schema doesn't show it
+        if (!thumbField && fieldData['thumb']) {
+          console.warn('⚠️ thumb field not found in Webflow schema, but keeping it (user confirms it exists in Webflow)');
+          // Don't delete - keep it and let Webflow handle validation
+        }
         
         const removedFields: string[] = [];
         for (const key of Object.keys(fieldData)) {
           if (!allowed.has(key)) {
             removedFields.push(key);
-            delete fieldData[key];
+            // Don't remove streaming service (simple-rerfence) or thumb - user confirms they exist in Webflow
+            // Let Webflow handle validation instead of pre-filtering
+            const streamingFieldSlug = streamingServiceField?.slug || 'simple-rerfence';
+            if (key === streamingFieldSlug || key === 'simple-rerfence' || key === 'simple-reference' || key === 'streaming-service' || key === 'thumb') {
+              console.warn(`⚠️ Field "${key}" not in Webflow schema, but keeping it (user confirms it exists)`);
+              // Don't delete - keep it
+            } else {
+              // Remove other fields that don't exist in schema
+              delete fieldData[key];
+            }
           }
         }
         
         if (removedFields.length > 0) {
-          console.log('❌ Removed fields not in Webflow schema:', removedFields);
+          console.log('❌ Removed fields not in Webflow schema:', removedFields.filter(f => f !== 'streaming-service' && f !== 'thumb'));
         }
         
         // Best-effort: if rich text field exists, ensure minimal HTML
@@ -734,7 +1015,10 @@ export async function publishArticleToWebflow(articleData: WebflowArticleFields)
       url,
       method,
       webflowId: articleData.webflowId,
-      fieldDataKeys: Object.keys(fieldData)
+      fieldDataKeys: Object.keys(fieldData),
+      streamingService: fieldData['streaming-service'],
+      thumb: fieldData['thumb'] ? 'Present' : 'Missing',
+      thumbUrl: fieldData['thumb'] ? (typeof fieldData['thumb'] === 'string' ? fieldData['thumb'].substring(0, 100) + '...' : 'Not a string') : 'N/A'
     });
 
     // Publish to Articles collection
@@ -753,11 +1037,21 @@ export async function publishArticleToWebflow(articleData: WebflowArticleFields)
     if (publishResponse.ok) {
       const result = await publishResponse.json();
       console.log(`✅ Article ${isUpdate ? 'updated' : 'published'} successfully to Webflow`);
+      console.log('📊 Final field data sent to Webflow:', {
+        streamingService: fieldData['streaming-service'] ? 'Sent' : 'Not sent',
+        thumb: fieldData['thumb'] ? 'Sent' : 'Not sent',
+        allFields: Object.keys(fieldData)
+      });
       return result.id || articleData.webflowId;
     } else {
       let errorData: any = null;
       try { errorData = await publishResponse.json(); } catch { errorData = await publishResponse.text(); }
       console.error('Webflow publish error:', errorData);
+      console.error('📊 Field data that failed:', {
+        streamingService: fieldData['streaming-service'],
+        thumb: fieldData['thumb'] ? 'Present' : 'Missing',
+        allFields: Object.keys(fieldData)
+      });
       const msg = typeof errorData === 'string' ? errorData : (errorData?.message || 'Validation Error');
       const more = typeof errorData === 'string' ? '' : (errorData?.details ? ` | ${JSON.stringify(errorData.details)}` : '');
       throw new Error(`Failed to publish to Webflow: ${msg}${more}`);
@@ -769,7 +1063,7 @@ export async function publishArticleToWebflow(articleData: WebflowArticleFields)
   }
 }
 
-function buildFieldDataFromMapping(articleData: WebflowArticleFields, mapping: WebflowMapping): Record<string, any> {
+async function buildFieldDataFromMapping(articleData: WebflowArticleFields, mapping: WebflowMapping): Promise<Record<string, any>> {
   const data: Record<string, any> = {};
   const getVal = (key: string) => (articleData as any)[key];
   
@@ -791,13 +1085,108 @@ function buildFieldDataFromMapping(articleData: WebflowArticleFields, mapping: W
       data[entry.webflowSlug] = val;
     }
   }
+  
+  // Log streaming service specifically for debugging
+  console.log('🔍 Streaming service in articleData:', {
+    streaming_service: articleData.streaming_service,
+    platform: articleData.platform,
+    streaming_service_in_data: data['streaming-service'],
+    all_articleData_keys: Object.keys(articleData)
+  });
+  
+  // Ensure streaming_service is mapped if it exists in articleData but not in data
+  // Use the correct field slug from Webflow: "simple-rerfence"
+  if (!data['simple-rerfence'] && !data['simple-reference'] && (articleData.streaming_service || articleData.platform)) {
+    const streamingValue = articleData.streaming_service || articleData.platform;
+    if (streamingValue && typeof streamingValue === 'string' && streamingValue.trim() && !isLikelyUrl(streamingValue)) {
+      data['simple-rerfence'] = streamingValue.trim();
+      console.log('✅ Added streaming_service to data from articleData (simple-rerfence):', streamingValue);
+    }
+  }
+  if (typeof data['watch-now-link'] === 'string') {
+    const link = data['watch-now-link'].trim();
+    if (!isLikelyUrl(link)) {
+      delete data['watch-now-link'];
+    } else {
+      data['watch-now-link'] = link;
+    }
+  }
+  if (typeof data['video-trailer'] === 'string') {
+    const normalized = normalizeYouTubeUrl(data['video-trailer']);
+    if (normalized) {
+      data['video-trailer'] = normalized;
+    } else {
+      delete data['video-trailer'];
+    }
+  }
+  // Special handling for image field - ensure it's included if available
+  // Webflow Image fields accept URLs directly, but they must be publicly accessible
+  // The image URL should be a publicly accessible URL - Webflow will download it
+  // NOTE: Webflow does NOT accept data URLs (data:image/...) - must be HTTP/HTTPS URLs
+  if (articleData.featuredImage) {
+    let imageUrl = articleData.featuredImage.trim();
+    console.log('🖼️ Featured image check:', {
+      hasImage: !!imageUrl,
+      imageLength: imageUrl?.length || 0,
+      imagePreview: imageUrl?.substring(0, 100) || 'N/A',
+      isDataUrl: imageUrl?.startsWith('data:image/'),
+      isHttpUrl: isLikelyUrl(imageUrl),
+      alreadyInData: !!data['thumb']
+    });
+    
+    if (imageUrl) {
+      // Check if it's a data URL (base64) - Webflow doesn't accept these
+      // NOTE: /api/process-image should be updated to return HTTP URLs instead of data URLs
+      // For now, we skip data URLs - they need to be uploaded to Firebase Storage first
+      // TODO: Fix /api/process-image to upload to Firebase Storage and return HTTP URL
+      if (imageUrl.startsWith('data:image/')) {
+        console.warn('⚠️ Featured image is a data URL (base64) - Webflow Image fields require HTTP/HTTPS URLs');
+        console.warn('⚠️ Skipping data URL image - Webflow cannot accept base64 images');
+        console.warn('⚠️ Fix: Update /api/process-image to return HTTP URLs instead of data URLs');
+        // Don't add to data - Webflow will reject it anyway
+      } else if (isLikelyUrl(imageUrl)) {
+        // Use 'thumb' as the slug (from mapping.json) - this should match Webflow field slug
+        // Always set thumb if we have a valid HTTP URL (even if mapping already set it, use the direct value)
+        data['thumb'] = imageUrl;
+        console.log('🖼️ Added featured image URL to field data (thumb):', imageUrl.substring(0, 100) + '...');
+      } else {
+        console.warn('⚠️ Featured image URL is not a valid HTTP/HTTPS URL:', imageUrl.substring(0, 100));
+      }
+    }
+  } else {
+    console.log('⚠️ No featured image in articleData');
+  }
+  
   // Defaults/fallbacks
   if (!data['publish-date']) data['publish-date'] = articleData.publishDate || new Date().toISOString();
   if (!data['seo-title'] && articleData.title) data['seo-title'] = articleData.title;
   if (!data['seo-description']) data['seo-description'] = articleData.excerpt || '';
   if (data['status'] === undefined) data['status'] = articleData.status || 'draft';
   
-  console.log('🔍 Final field data:', Object.keys(data));
+  // Log final field data for debugging
+  console.log('🔍 Final field data keys:', Object.keys(data));
+  console.log('🔍 Final field data values:', {
+    'streaming-service': data['simple-rerfence'] || data['streaming-service'],
+    'thumb': data['thumb'] ? 'Present' : 'Missing',
+    'thumb-value': data['thumb'] ? (typeof data['thumb'] === 'string' ? data['thumb'].substring(0, 100) + '...' : typeof data['thumb']) : 'N/A',
+    'thumb-length': data['thumb'] ? (typeof data['thumb'] === 'string' ? data['thumb'].length : 0) : 0,
+    'featuredImage-in-articleData': !!articleData.featuredImage,
+    'featuredImage-preview': articleData.featuredImage ? articleData.featuredImage.substring(0, 100) + '...' : 'N/A',
+    'featuredImage-isDataUrl': articleData.featuredImage ? articleData.featuredImage.startsWith('data:image/') : false,
+    'featuredImage-isHttpUrl': articleData.featuredImage ? isLikelyUrl(articleData.featuredImage) : false
+  });
+  
+  // Final check: Ensure thumb is set if featuredImage exists and is an HTTP URL
+  if (!data['thumb'] && articleData.featuredImage) {
+    const imageUrl = articleData.featuredImage.trim();
+    if (isLikelyUrl(imageUrl)) {
+      data['thumb'] = imageUrl;
+      console.log('✅ Added thumb as final fallback (HTTP URL):', imageUrl.substring(0, 100) + '...');
+    } else if (!imageUrl.startsWith('data:image/')) {
+      console.warn('⚠️ featuredImage exists but is neither HTTP URL nor data URL:', imageUrl.substring(0, 100));
+    }
+  }
+  
   return data;
 }
 
@@ -850,6 +1239,49 @@ function transformValue(value: any, t?: string): any {
     case 'identity':
     default:
       return value;
+  }
+}
+
+function isLikelyUrl(value: string | undefined | null): boolean {
+  if (!value) return false;
+  const trimmed = String(value).trim();
+  return /^https?:\/\//i.test(trimmed);
+}
+
+function extractFirstYouTubeUrl(text: string): string | undefined {
+  if (!text) return undefined;
+  const regex = /(https?:\/\/[^\s]*?(?:youtube\.com\/[\w?=&-]+|youtu\.be\/[\w-]+))/i;
+  const match = text.match(regex);
+  return match ? match[1] : undefined;
+}
+
+function normalizeYouTubeUrl(url: string): string | undefined {
+  if (!url) return undefined;
+  let candidate = url.trim();
+  if (!/^https?:\/\//i.test(candidate)) {
+    candidate = `https://${candidate}`;
+  }
+  try {
+    const parsed = new URL(candidate);
+    const host = parsed.hostname.toLowerCase();
+    if (!host.includes('youtube.com') && !host.includes('youtu.be')) {
+      return undefined;
+    }
+    let videoId = '';
+    if (host.includes('youtu.be')) {
+      videoId = parsed.pathname.replace(/^\//, '').split('/')[0];
+    } else if (parsed.pathname.startsWith('/watch')) {
+      videoId = parsed.searchParams.get('v') || '';
+    } else if (parsed.pathname.startsWith('/shorts/')) {
+      videoId = parsed.pathname.split('/')[2] || parsed.pathname.split('/')[1] || '';
+    } else if (parsed.pathname.startsWith('/embed/')) {
+      videoId = parsed.pathname.split('/')[2] || '';
+    }
+    videoId = videoId.replace(/[^A-Za-z0-9_-]/g, '');
+    if (!videoId) return undefined;
+    return `https://www.youtube.com/watch?v=${videoId}`;
+  } catch {
+    return undefined;
   }
 }
 

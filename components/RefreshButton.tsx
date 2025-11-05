@@ -1,9 +1,22 @@
 'use client';
 import { useRefreshing } from './RefreshCtx';
-import { useRef } from 'react';
+import { useRef, useContext } from 'react';
+import { createContext } from 'react';
+
+// Create a safe wrapper that handles missing context
+const RefreshContext = createContext<{ refreshing: boolean; setRefreshing: (refreshing: boolean) => void } | null>(null);
+
+function useRefreshingSafe() {
+  try {
+    return useRefreshing();
+  } catch (error) {
+    // Return default values if context is not available
+    return { refreshing: false, setRefreshing: () => {} };
+  }
+}
 
 export default function RefreshButton() {
-  const { refreshing, setRefreshing } = useRefreshing();
+  const { refreshing, setRefreshing } = useRefreshingSafe();
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
   
   return (

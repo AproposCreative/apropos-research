@@ -11,10 +11,36 @@ import CategorySelection from '@/components/CategorySelection';
 import { WebflowAuthor } from '@/lib/webflow-service';
 import WebflowPublishPanel from '@/components/WebflowPublishPanel';
 import { WebflowArticleFields } from '@/lib/webflow-service';
+import { useAuth } from '@/lib/auth-context';
 import { type UploadedFile } from '@/lib/file-upload-service';
 import type { ArticleData } from '@/types/article';
 import PreflightRecommendations from '@/components/PreflightRecommendations';
 import PreflightStatus from '@/components/PreflightStatus';
+import type { ThinkingStep, ThinkingStatus } from '@/types/thinking';
+
+const THINKING_TEXTS = [
+  'Finder vinklen…',
+  'Aer katten…',
+  'Reflekterer over virkeligheden…',
+  'Tilføjer sidechain…',
+  'Checker tonal balance…',
+  'Lowcutter alt over 80 Hz…',
+  'Lægger et magisk reverb-rum…',
+  'Sampler virkeligheden…',
+  'Ruller d20 for inspiration…',
+  'Checker prisen på en Black Lotus…',
+  'Tapper mana og skriver videre…',
+  'Laver en soft-clip på egoet…',
+  'Ligger automation på sætningen…',
+  'Mixer lidt mere følelse i mix-bussen…',
+  'Stemmer teksten i 432 Hz…',
+  'Loader plug-in\'et "Human Touch v1.3"…',
+  'Korrigerer for latens i virkeligheden…',
+  'Kalibrerer tonen…',
+  'Overdubber med selvironi…',
+  'Bouncer til master…'
+];
+
 type LocalArticleData = ArticleData & { aiSuggestion?: { type: 'rating'; title: string; description: string } | null };
 
 interface ChatMessage {
@@ -31,6 +57,7 @@ interface MainChatPanelProps {
   onSendMessage: (message: string, files?: UploadedFile[]) => void;
   articleData: LocalArticleData;
   isThinking?: boolean;
+  thinkingSteps?: ThinkingStep[];
   wizardNode?: ReactNode; // optional docket wizard rendered above input
   notes: string;
   setNotes: (notes: string) => void;
@@ -42,6 +69,7 @@ interface MainChatPanelProps {
   editorialWarnings: string[];
   onClearEditorialWarnings: () => void;
   onPublishSuccess?: (articleId: string) => void;
+  onNewArticle?: () => void;
 }
 
 export default function MainChatPanel({
@@ -50,6 +78,7 @@ export default function MainChatPanel({
   onSendMessage,
   articleData,
   isThinking,
+  thinkingSteps = [],
   wizardNode,
   notes,
   setNotes,
@@ -60,8 +89,10 @@ export default function MainChatPanel({
   onChatTitleChange,
   editorialWarnings,
   onClearEditorialWarnings,
-  onPublishSuccess
+  onPublishSuccess,
+  onNewArticle
 }: MainChatPanelProps) {
+  const { logout } = useAuth();
   const [inputMessage, setInputMessage] = useState('');
   const [hoveredMessage, setHoveredMessage] = useState<string | null>(null);
   const [editingMessage, setEditingMessage] = useState<string | null>(null);
@@ -83,6 +114,85 @@ export default function MainChatPanel({
   const autoSaveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const messageListRef = useRef<HTMLDivElement>(null);
   const [messageScrollFade, setMessageScrollFade] = useState(false);
+  const [thinkingText, setThinkingText] = useState('Finder vinklen…');
+  const [fadeIn, setFadeIn] = useState(true);
+  const [thinkingProgress, setThinkingProgress] = useState(0);
+  const progressIntervalRef = useRef<number | null>(null);
+  const progressResetTimeoutRef = useRef<number | null>(null);
+  const progressDisplay = Math.min(100, Math.max(0, Math.round(thinkingProgress)));
+  const [mobileWizardCollapsed, setMobileWizardCollapsed] = useState<boolean>((messages?.length || 0) > 0);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [mobileMenuVisible, setMobileMenuVisible] = useState(false);
+  const SPLINE_MOBILE_OPTIONS = [
+    { id: 'robot', name: 'Robot Karakter', url: 'https://my.spline.design/nexbotrobotcharacterconcept-jOiWdJXA0mBgb50nmYl1x0EC/' },
+    { id: 'gradient', name: 'Gradient Animation', url: 'https://my.spline.design/animatedbackgroundgradientforweb-k9vy84HznMWrADyOW44KZ3Ue/' },
+    { id: 'retrofuturism', name: 'Retro Futurism', url: 'https://my.spline.design/retrofuturismbganimation-Z5NWhPCGc1tcryNEnaN2FnIJ/' },
+    { id: 'dotwaves', name: 'Dot Waves', url: 'https://my.spline.design/dotwaves-h4iKKFVRORZbPRboUfG4QKRk/' },
+  ];
+  const [mobileBgUrl, setMobileBgUrl] = useState<string>(SPLINE_MOBILE_OPTIONS[1].url);
+
+  useEffect(() => {
+    try {
+      const id = localStorage.getItem('apropos-spline-background') || 'gradient';
+      const found = SPLINE_MOBILE_OPTIONS.find(o => o.id === id);
+      if (found) setMobileBgUrl(found.url);
+    } catch {}
+    const onBgChange = (e: any) => {
+      const id = e?.detail?.id;
+      const found = SPLINE_MOBILE_OPTIONS.find(o => o.id === id);
+      if (found) setMobileBgUrl(found.url);
+    };
+    window.addEventListener('spline-bg-change', onBgChange as any);
+    return () => window.removeEventListener('spline-bg-change', onBgChange as any);
+  }, []);
+
+  const openMobileMenu = () => {
+    setMobileMenuVisible(true);
+    // allow next paint so transition runs
+    requestAnimationFrame(() => setMobileMenuOpen(true));
+  };
+  const closeMobileMenu = () => {
+    setMobileMenuOpen(false);
+    window.setTimeout(() => setMobileMenuVisible(false), 320);
+  };
+
+const fallbackThinkingSteps: ThinkingStep[] = [
+  { id: 'prepare', label: 'Forbereder prompt…', status: 'active', icon: 'dot' },
+  { id: 'generation', label: 'Afventer modelsvar…', status: 'pending', icon: 'dot' }
+];
+
+  const stepsToRender = isThinking
+    ? (thinkingSteps.length > 0 ? thinkingSteps : fallbackThinkingSteps)
+    : [];
+
+  const getStepIcon = (step: ThinkingStep) => {
+    const baseIcon = step.icon === 'doc' ? '📄' : '•';
+    if (step.status === 'failed') return '⚠️';
+    if (step.status === 'skipped') return '⏭';
+    return baseIcon;
+  };
+
+  const getStepTextClass = (status: ThinkingStatus) => {
+    switch (status) {
+      case 'active':
+        return 'text-white';
+      default:
+        return 'text-white/45';
+    }
+  };
+
+  const getIconClass = (status: ThinkingStatus) => {
+    switch (status) {
+      case 'active':
+        return 'text-white';
+      case 'failed':
+        return 'text-red-300';
+      case 'skipped':
+        return 'text-white/30';
+      default:
+        return 'text-white/35';
+    }
+  };
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -116,6 +226,80 @@ export default function MainChatPanel({
       setTrendingTemplate(null);
     }
   }, [messages.length]);
+
+  useEffect(() => {
+    if (!isThinking) return;
+    let isMounted = true;
+    let timeoutId: number | null = null;
+    const pick = () => THINKING_TEXTS[Math.floor(Math.random() * THINKING_TEXTS.length)];
+    setThinkingText(pick());
+    setFadeIn(true);
+
+    const interval = window.setInterval(() => {
+      if (!isMounted) return;
+      setFadeIn(false);
+      if (timeoutId !== null) {
+        window.clearTimeout(timeoutId);
+      }
+      timeoutId = window.setTimeout(() => {
+        if (!isMounted) return;
+        setThinkingText(pick());
+        setFadeIn(true);
+      }, 260);
+    }, 2200);
+
+    return () => {
+      isMounted = false;
+      window.clearInterval(interval);
+      if (timeoutId !== null) {
+        window.clearTimeout(timeoutId);
+      }
+    };
+  }, [isThinking]);
+
+  useEffect(() => {
+    // Sync collapsed state with whether there are messages
+    setMobileWizardCollapsed((messages?.length || 0) > 0);
+  }, [messages?.length]);
+
+  useEffect(() => {
+    if (progressIntervalRef.current !== null) {
+      window.clearInterval(progressIntervalRef.current);
+      progressIntervalRef.current = null;
+    }
+    if (progressResetTimeoutRef.current !== null) {
+      window.clearTimeout(progressResetTimeoutRef.current);
+      progressResetTimeoutRef.current = null;
+    }
+
+    if (isThinking) {
+      let progress = 0;
+      setThinkingProgress(progress);
+      const advance = () => {
+        progress = Math.min(96, progress + 6 + Math.random() * 9);
+        setThinkingProgress(Math.round(progress));
+      };
+      advance();
+      progressIntervalRef.current = window.setInterval(advance, 600);
+    } else {
+      setThinkingProgress((prev) => (prev === 0 ? 0 : 100));
+      progressResetTimeoutRef.current = window.setTimeout(() => {
+        setThinkingProgress(0);
+        progressResetTimeoutRef.current = null;
+      }, 500);
+    }
+
+    return () => {
+      if (progressIntervalRef.current !== null) {
+        window.clearInterval(progressIntervalRef.current);
+        progressIntervalRef.current = null;
+      }
+      if (progressResetTimeoutRef.current !== null) {
+        window.clearTimeout(progressResetTimeoutRef.current);
+        progressResetTimeoutRef.current = null;
+      }
+    };
+  }, [isThinking]);
 
   const updateMessageScrollFade = useCallback(() => {
     const node = messageListRef.current;
@@ -619,36 +803,6 @@ export default function MainChatPanel({
     return q;
   };
 
-  // Fancy thinking indicator text rotation
-  const thinkingTexts = [
-    'Finder vinklen…',
-    'Aer katten…',
-    'Reflekterer over virkeligheden…',
-    'Tilføjer sidechain…',
-    'Checker tonal balance…',
-    'Lowcutter alt over 80 Hz…',
-    'Lægger et magisk reverb-rum…',
-    'Sampler virkeligheden…',
-    'Ruller d20 for inspiration…',
-    'Checker prisen på en Black Lotus…',
-    'Tapper mana og skriver videre…',
-    'Laver en soft-clip på egoet…',
-    'Ligger automation på sætningen…',
-    'Mixer lidt mere følelse i mix-bussen…',
-    'Stemmer teksten i 432 Hz…',
-    'Loader plug-in\'et "Human Touch v1.3"…',
-    'Korrigerer for latens i virkeligheden…',
-    'Kalibrerer tonen…',
-    'Overdubber med selvironi…',
-    'Bouncer til master…'
-  ];
-  const [thinkingText, setThinkingText] = useState<string>(thinkingTexts[0]);
-  const [fadeIn, setFadeIn] = useState<boolean>(true);
-  const [thinkingProgress, setThinkingProgress] = useState<number>(0);
-  const progressIntervalRef = useRef<number | null>(null);
-  const progressResetTimeoutRef = useRef<number | null>(null);
-  const progressDisplay = Math.min(100, Math.max(0, Math.round(thinkingProgress)));
-  
   // Preflight state
   const [preflightWarnings, setPreflightWarnings] = useState<string[]>([]);
   const [preflightModeration, setPreflightModeration] = useState<any | null>(null);
@@ -668,73 +822,6 @@ export default function MainChatPanel({
     setPreflightCriticTips('');
     setPreflightFactResults(null);
   }, [articleData.content]);
-
-  useEffect(() => {
-    if (!isThinking) return;
-    let isMounted = true;
-    // choose initial random
-    const pick = () => thinkingTexts[Math.floor(Math.random() * thinkingTexts.length)];
-    setThinkingText(pick());
-    setFadeIn(true);
-
-    const interval = setInterval(() => {
-      if (!isMounted) return;
-      setFadeIn(false);
-      // after fade out, swap text and fade in
-      const t = setTimeout(() => {
-        if (!isMounted) return;
-        setThinkingText(pick());
-        setFadeIn(true);
-      }, 300);
-      return () => clearTimeout(t);
-    }, 2200);
-
-    return () => {
-      isMounted = false;
-      clearInterval(interval);
-    };
-  }, [isThinking]);
-
-  useEffect(() => {
-    if (progressIntervalRef.current) {
-      clearInterval(progressIntervalRef.current);
-      progressIntervalRef.current = null;
-    }
-    if (progressResetTimeoutRef.current) {
-      clearTimeout(progressResetTimeoutRef.current);
-      progressResetTimeoutRef.current = null;
-    }
-
-    if (isThinking) {
-      let progress = 0;
-      setThinkingProgress(progress);
-
-      const advance = () => {
-        progress = Math.min(96, progress + 6 + Math.random() * 9);
-        setThinkingProgress(Math.round(progress));
-      };
-
-      advance();
-      progressIntervalRef.current = window.setInterval(advance, 600);
-    } else {
-      setThinkingProgress((prev) => (prev === 0 ? 0 : 100));
-      progressResetTimeoutRef.current = window.setTimeout(() => {
-        setThinkingProgress(0);
-        progressResetTimeoutRef.current = null;
-      }, 500);
-    }
-
-    return () => {
-      if (progressIntervalRef.current) {
-        clearInterval(progressIntervalRef.current);
-        progressIntervalRef.current = null;
-      }
-      if (progressResetTimeoutRef.current) {
-        clearTimeout(progressResetTimeoutRef.current);
-        progressResetTimeoutRef.current = null;
-      }
-    };
-  }, [isThinking]);
 
   // Removed generic multiple-choice heuristics to avoid irrelevant prompts
 
@@ -865,24 +952,49 @@ export default function MainChatPanel({
 
   return (
     <>
-      <div className="w-full h-full rounded-xl outline outline-[1.50px] outline-offset-[-1.50px] outline-zinc-800 flex flex-col justify-between font-poppins chat-container" style={{ backgroundColor: 'rgb(0, 0, 0)' }}>
+      <div className="w-full h-full md:rounded-xl md:outline md:outline-[1.50px] md:outline-offset-[-1.50px] md:outline-zinc-800 flex flex-col justify-between font-poppins chat-container relative overflow-hidden" style={{ backgroundColor: 'rgb(0, 0, 0)' }}>
+        {/* Intro Spline background for empty chat (mobile only) */}
+        <div className={`md:hidden fixed inset-0 z-0 transition-opacity duration-500 ${messages.length === 0 ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
+          <iframe 
+            src={mobileBgUrl}
+            frameBorder="0"
+            width="100%"
+            height="100%"
+            className="w-full h-full"
+            title="AI Intro Background"
+          />
+          <div className="absolute inset-0 bg-black/30" />
+        </div>
         {/* Top Bar */}
-        <div className="flex items-center justify-between p-4 border-b border-zinc-800">
+        <div className={`flex items-center justify-between p-4 relative z-20 
+          md:static md:bg-transparent md:backdrop-blur-0 md:border-b md:border-zinc-800 
+          fixed top-0 inset-x-0 md:inset-auto md:top-auto
+          bg-black/40 backdrop-blur-xl border-b border-white/10 
+        ${messages.length === 0 ? 'md:opacity-100' : ''}`}>
           <div className="flex items-center gap-3">
-            <h1 className="text-white text-base font-medium">
+            {/* Mobile: Logo/title cross-fade */}
+            <div className="relative md:hidden h-6">
+              <img
+                src="/images/Apropos Research White.png"
+                alt="Apropos Research"
+                className={`h-6 transition-all duration-300 ${messages.length === 0 ? 'opacity-80 scale-100' : 'opacity-0 scale-95'}`}
+              />
+              <div className={`absolute inset-0 flex items-center transition-all duration-300 ${messages.length === 0 ? 'opacity-0 scale-95' : 'opacity-100 scale-100'}`}>
+                <span className="text-white text-base font-medium">
+                  {chatTitle === 'Ny artikkel' ? 'Ny Apropos Magazine artikkel' : chatTitle}
+                </span>
+              </div>
+            </div>
+            {/* Desktop: always show title */}
+            <h1 className="hidden md:block text-white text-base font-medium">
               {chatTitle === 'Ny artikkel' ? (
                 <span 
                   className="bg-gradient-to-r from-white/20 via-white/70 to-white/20 bg-clip-text text-transparent"
-                  style={{ 
-                    backgroundSize: '200% 100%', 
-                    animation: 'gradient-shift 4s ease-in-out infinite' 
-                  }}
+                  style={{ backgroundSize: '200% 100%', animation: 'gradient-shift 4s ease-in-out infinite' }}
                 >
                   Ny Apropos Magazine artikkel
                 </span>
-              ) : (
-                chatTitle
-              )}
+              ) : chatTitle}
             </h1>
             {isAutoSaving && (
               <span className="text-xs text-green-400 animate-pulse">Gemmer...</span>
@@ -896,9 +1008,19 @@ export default function MainChatPanel({
               </span>
             )}
           </div>
+          {/* Mobile-only burger */}
+          <button
+            className="md:hidden p-2 rounded-lg border border-white/15 text-white/80 hover:text-white hover:bg-white/5 transition-colors"
+            aria-label="Åbn menu"
+            onClick={openMobileMenu}
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+            </svg>
+          </button>
         </div>
       
-      <div className="flex flex-col justify-start gap-2 p-[10px] flex-1 overflow-hidden min-h-0 chat-container">
+      <div className={`flex flex-col justify-start gap-2 p-[10px] md:pt-0 pt-16 pb-2 flex-1 overflow-hidden min-h-0 chat-container transition-all duration-500 ${messages.length === 0 ? 'opacity-0 pointer-events-none translate-y-1 md:opacity-100 md:translate-y-0' : 'opacity-100 translate-y-0'}`}>
         {/* Dynamic Chat Messages */}
         <div className="relative flex-1 min-h-0 overflow-hidden">
           <div
@@ -1104,29 +1226,6 @@ export default function MainChatPanel({
               </div>
             </div>
           )}
-          {/* Manual Preflight Trigger - for testing */}
-          {articleData.content && articleData.content.length > 500 && (
-            <div className="flex justify-start">
-              <div className="max-w-[80%]" style={{ paddingLeft: '8px', paddingRight: '8px' }}>
-                <div className="flex flex-wrap gap-2">
-                  <button
-                    onClick={() => handleRequestExpansion()}
-                    disabled={isThinking}
-                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${isThinking ? 'bg-white/10 text-white/40 cursor-not-allowed' : 'bg-purple-600 hover:bg-purple-700 text-white'}`}
-                  >
-                    ✨ Forlæng artiklen
-                  </button>
-                  <button
-                    onClick={() => runPreflightChecks(articleData.title || '', articleData.content)}
-                    disabled={isThinking}
-                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${isThinking ? 'bg-white/10 text-white/40 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700 text-white'}`}
-                  >
-                    🔍 Kør Preflight Checks
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
 
           {/* Preflight Status */}
           {preflightRunning && (
@@ -1166,14 +1265,31 @@ export default function MainChatPanel({
           {isThinking && (
             <div className="flex justify-start">
               <div className="max-w-[80%]" style={{ paddingLeft: '8px', paddingRight: '8px' }}>
-                <div className="text-white py-3 rounded-lg">
-                  <span
-                    className={`text-sm inline-flex items-center gap-2 [text-shadow:0_0_8px_rgba(255,255,255,0.35)] transition-opacity duration-300 ${fadeIn ? 'opacity-100' : 'opacity-0'}`}
+                <div className="text-sm text-white/80">
+                  <div
+                    className={`text-sm inline-flex items-center gap-2 [text-shadow:0_0_8px_rgba(255,255,255,0.25)] transition-opacity duration-300 ${fadeIn ? 'opacity-100' : 'opacity-0'}`}
                   >
                     <span className="font-semibold text-white/80">{progressDisplay}%</span>
                     <span className="text-white/40">•</span>
                     <span className="text-white/90">{thinkingText}</span>
-                  </span>
+                  </div>
+                  <div className="uppercase text-xs tracking-wide text-white/40 mb-1">Arbejdsgang</div>
+                  <ul className="space-y-1.5 text-white/70">
+                    {stepsToRender.map((step) => (
+                      <li
+                        key={step.id}
+                        className="flex items-start gap-2"
+                        style={{ paddingLeft: step.indent ? step.indent * 14 : 0 }}
+                      >
+                        <span className={`mt-[1px] text-base leading-none ${getIconClass(step.status)}`}>
+                          {getStepIcon(step)}
+                        </span>
+                        <span className={`leading-tight ${getStepTextClass(step.status)}`}>
+                          {step.label}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
                 </div>
               </div>
             </div>
@@ -1184,6 +1300,128 @@ export default function MainChatPanel({
         </div>
 
       </div>
+
+      {/* Mobile slide-in menu (right) */}
+      {mobileMenuVisible && (
+        <div className="md:hidden fixed inset-0 z-50">
+          <div
+            className={`absolute inset-0 bg-black/50 transition-opacity duration-300 ${mobileMenuOpen ? 'opacity-100' : 'opacity-0'}`}
+            onClick={closeMobileMenu}
+          />
+          <aside
+            className={`absolute right-0 top-0 h-full w-72 max-w-[85vw] bg-[#0b0b0b] border-l border-white/10 shadow-2xl overflow-y-auto transform-gpu transition-transform duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] ${mobileMenuOpen ? 'translate-x-0' : 'translate-x-full'}`}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="p-4 border-b border-white/10 flex items-center justify-between">
+              <div className="text-white text-sm font-medium">Menu</div>
+              <button
+                className="p-2 rounded-lg text-white/70 hover:text-white hover:bg-white/5 transition-colors"
+                aria-label="Luk menu"
+                onClick={closeMobileMenu}
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            <div className="p-4 space-y-4">
+              {/* Action tray (Apple style) */}
+              <div className="rounded-2xl border border-white/10 bg-gradient-to-b from-white/[0.04] to-white/[0.02] p-3">
+                <div className="grid grid-cols-3 gap-2 text-center">
+                  <button
+                    className="flex flex-col items-center gap-1 py-3 rounded-xl hover:bg-white/5 transition-colors"
+                    onClick={() => { setMobileMenuOpen(false); window.location.href = '/ai-drafts'; }}
+                  >
+                    <div className="grid grid-cols-3 gap-0.5 w-5 h-5 text-white/90">
+                      {Array.from({ length: 9 }).map((_, i) => (
+                        <div key={i} className="w-1 h-1 bg-white rounded"></div>
+                      ))}
+                    </div>
+                    <span className="text-[11px] text-white/80">Drafts</span>
+                  </button>
+                  <button
+                    className="flex flex-col items-center gap-1 py-3 rounded-xl hover:bg-white/5 transition-colors"
+                    onClick={() => { setMobileMenuOpen(false); setShowPublishPanel(true); }}
+                  >
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-white/90">
+                      <path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/>
+                      <circle cx="12" cy="12" r="3"/>
+                    </svg>
+                    <span className="text-[11px] text-white/80">Preview</span>
+                  </button>
+                  <button
+                    className="flex flex-col items-center gap-1 py-3 rounded-xl hover:bg-white/5 transition-colors"
+                    onClick={() => {
+                      setMobileMenuOpen(false);
+                      if (onNewArticle) {
+                        onNewArticle();
+                      } else {
+                        // Fallback: clear messages and title if handler not available
+                        setChatMessages([]);
+                        onChatTitleChange('Ny artikkel');
+                      }
+                    }}
+                  >
+                    <svg className="w-5 h-5 text-white/90" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                    </svg>
+                    <span className="text-[11px] text-white/80">Ny</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Settings list (Apple style) */}
+              <div className="overflow-hidden rounded-2xl border border-white/10">
+                {/* Background selector */}
+                <div className="px-4 py-2 text-xs text-white/60 bg-white/[0.02] border-b border-white/10">Baggrund</div>
+                {SPLINE_MOBILE_OPTIONS.map((opt, i) => (
+                  <button
+                    key={opt.id}
+                    className={`w-full px-4 py-3 flex items-center gap-3 text-sm text-white/90 hover:bg-white/10 transition-colors ${i>0 ? 'border-t border-white/10' : ''}`}
+                    onClick={() => {
+                      try {
+                        localStorage.setItem('apropos-spline-background', opt.id);
+                        window.dispatchEvent(new CustomEvent('spline-bg-change', { detail: { id: opt.id } }));
+                      } catch {}
+                      setMobileMenuOpen(false);
+                    }}
+                  >
+                    <div className="w-6 h-6 rounded-md bg-white/10 flex items-center justify-center">
+                      <span className="text-[11px]">🎨</span>
+                    </div>
+                    <span>{opt.name}</span>
+                  </button>
+                ))}
+                <div className="border-t border-white/10" />
+                <button
+                  className="w-full px-4 py-3 flex items-center gap-3 text-sm text-white/90 bg-white/[0.03] hover:bg-white/10 transition-colors"
+                  onClick={() => { setMobileMenuOpen(false); window.location.href = '/settings'; }}
+                >
+                  <div className="w-6 h-6 rounded-md bg-white/10 flex items-center justify-center">
+                    <svg className="w-4 h-4 text-white/90" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.89 3.31.877 2.421 2.421a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.89 1.543-.877 3.31-2.421 2.421a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.89-3.31-.877-2.421-2.421a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.89-1.543.877-3.31 2.421-2.421.9.519 2.045.168 2.573-1.066z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                    </svg>
+                  </div>
+                  <span>Settings</span>
+                </button>
+                <button
+                  className="w-full px-4 py-3 flex items-center gap-3 text-sm text-red-400 hover:bg-white/10 transition-colors"
+                  onClick={async () => { try { await logout(); } catch(e) { console.error(e); } finally { setMobileMenuOpen(false); } }}
+                >
+                  <div className="w-6 h-6 rounded-md bg-red-500/10 flex items-center justify-center">
+                    <svg className="w-4 h-4 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 8v8a2 2 0 002 2h3" />
+                    </svg>
+                  </div>
+                  <span>Log ud</span>
+                </button>
+              </div>
+            </div>
+          </aside>
+        </div>
+      )}
 
         {/* File Drop Zone */}
         {showFileDrop && (
@@ -1312,13 +1550,28 @@ export default function MainChatPanel({
 
         {/* Docket wizard (non-overlay) */}
         {wizardNode && (
+          <div className="hidden md:block">
           <WizardAutoHeight>
             {wizardNode}
           </WizardAutoHeight>
+          </div>
         )}
 
-        {/* Input Area */}
-        <div className="p-3 md:p-4 rounded-xl flex flex-col gap-2 md:gap-3 bg-[#171717] mx-[10px] mb-[10px]">
+        {/* Input Area (sticky wrapper) */}
+        <div className={`md:static fixed inset-x-0 bottom-2 md:bottom-0 md:inset-auto md:bottom-auto 
+          p-3 md:p-0 flex flex-col gap-2 md:gap-0 md:mx-[10px] md:my-0 mx-[10px] mb-0 
+          z-20`} style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 8px)' }}>
+          {/* Mobile: Wizard card above writer card inside same sticky container */}
+          {wizardNode && (
+            <div className="md:hidden mb-2" style={{ overflow: mobileWizardCollapsed ? 'hidden' : 'visible' }} onClick={()=>setMobileWizardCollapsed(c=>!c)}>
+              <WizardAutoHeight collapsed={mobileWizardCollapsed}>
+                {wizardNode}
+              </WizardAutoHeight>
+            </div>
+          )}
+          {/* Writer field card */}
+          <div className={`relative rounded-xl ${messages.length === 0 ? 'bg-black/40 backdrop-blur-xl border border-white/15 shadow-[0_-18px_80px_-30px_rgba(255,255,255,0.28)]' : 'bg-[#171717] border border-white/15'}`}>
+            <div className="p-3 md:p-4">
           <div className="relative">
             <textarea
               value={inputMessage}
@@ -1376,6 +1629,8 @@ export default function MainChatPanel({
                 <path d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l5-1.429A1 1 0 009 15.571V11a1 1 0 112 0v4.571a1 1 0 00.725.962l5 1.428a1 1 0 001.17-1.408l-7-14z" />
               </svg>
             </button>
+              </div>
+            </div>
           </div>
         </div>
       </div>
