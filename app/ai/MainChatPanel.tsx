@@ -1160,11 +1160,11 @@ const fallbackThinkingSteps: ThinkingStep[] = [
               onMouseLeave={() => setHoveredMessage(null)}
             >
               <div
-                className={`${widthClass} ${offsetClass}`}
+                className={`${widthClass} ${offsetClass} ${isUser ? 'min-w-0' : ''}`}
                 style={{ paddingLeft: isUser ? '16px' : '8px', paddingRight: isUser ? '16px' : '8px' }}
               >
-                <div className="relative group">
-                  <div className={bubbleClass}>
+                <div className="relative group w-full">
+                  <div className={`${bubbleClass} w-full`}>
                     {message.role === 'assistant' && (parseNumberedSuggestions(message.content).length > 0 || parseEnumeratedQuestions(message.content).length > 0) ? (
                       <div className="space-y-2">
                         {/* Numbered suggestion cards */}
