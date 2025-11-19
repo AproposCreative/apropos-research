@@ -1,5 +1,5 @@
 'use client';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import ContentScoringExplainer from './ContentScoringExplainer';
 import CompactHeader from './CompactHeader';
 
@@ -234,68 +234,53 @@ export default function Dashboard() {
     };
   });
 
-  // Live updates every 30 seconds
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setStats(prevStats => {
-        // Simulate live updates with small random changes
-        const newStats = { ...prevStats };
-        
-        // Update editorial queue and AI drafts from localStorage
-        if (typeof window !== 'undefined') {
-          try {
-            const editorialQueue = JSON.parse(localStorage.getItem('editorialQueue') || '[]');
-            const aiDrafts = JSON.parse(localStorage.getItem('aiDrafts') || '[]');
-            newStats.editorialQueue = editorialQueue.length;
-            newStats.aiDrafts = aiDrafts.length;
-          } catch (error) {
-            console.error('Error parsing localStorage:', error);
-          }
+  // Live updates every 30 seconds - optimized with useCallback
+  const updateStats = useCallback(() => {
+    setStats(prevStats => {
+      // Simulate live updates with small random changes
+      const newStats = { ...prevStats };
+      
+      // Update editorial queue and AI drafts from localStorage
+      if (typeof window !== 'undefined') {
+        try {
+          const editorialQueue = JSON.parse(localStorage.getItem('editorialQueue') || '[]');
+          const aiDrafts = JSON.parse(localStorage.getItem('aiDrafts') || '[]');
+          newStats.editorialQueue = editorialQueue.length;
+          newStats.aiDrafts = aiDrafts.length;
+        } catch (error) {
+          console.error('Error parsing localStorage:', error);
         }
-        
-        // Simulate small changes in article counts
-        newStats.totalArticles += Math.floor(Math.random() * 3) - 1; // -1, 0, or +1
-        newStats.publishedArticles += Math.floor(Math.random() * 2); // 0 or +1
-        
-        // Update media source health status randomly
-        newStats.mediaSources = newStats.mediaSources.map(source => {
-          const randomChange = Math.random();
-          if (randomChange < 0.1) { // 10% chance of status change
-            const statuses: ('healthy' | 'warning' | 'error')[] = ['healthy', 'warning', 'error'];
-            const currentIndex = statuses.indexOf(source.healthStatus);
-            const newIndex = (currentIndex + Math.floor(Math.random() * 2) + 1) % 3;
-            source.healthStatus = statuses[newIndex];
-            source.lastUpdate = new Date().toISOString();
-          }
-          return source;
-        });
-        
-        newStats.lastUpdated = new Date().toISOString();
-        return newStats;
+      }
+      
+      // Simulate small changes in article counts
+      newStats.totalArticles += Math.floor(Math.random() * 3) - 1; // -1, 0, or +1
+      newStats.publishedArticles += Math.floor(Math.random() * 2); // 0 or +1
+      
+      // Update media source health status randomly
+      newStats.mediaSources = newStats.mediaSources.map(source => {
+        const randomChange = Math.random();
+        if (randomChange < 0.1) { // 10% chance of status change
+          const statuses: ('healthy' | 'warning' | 'error')[] = ['healthy', 'warning', 'error'];
+          const currentIndex = statuses.indexOf(source.healthStatus);
+          const newIndex = (currentIndex + Math.floor(Math.random() * 2) + 1) % 3;
+          source.healthStatus = statuses[newIndex];
+          source.lastUpdate = new Date().toISOString();
+        }
+        return source;
       });
-    }, 30000); // Update every 30 seconds
-
-    return () => clearInterval(interval);
+      
+      newStats.lastUpdated = new Date().toISOString();
+      return newStats;
+    });
   }, []);
 
-  const getSourceColor = (source: string) => {
-    const colors = {
-      'gaffa': 'from-red-500/20 to-red-600/20',
-      'soundvenue': 'from-blue-500/20 to-blue-600/20',
-      'berlingske': 'from-green-500/20 to-green-600/20',
-      'bt': 'from-purple-500/20 to-purple-600/20',
-      'euroman': 'from-orange-500/20 to-orange-600/20',
-      'unknown': 'from-slate-500/20 to-slate-600/20'
-    };
-    return colors[source.toLowerCase() as keyof typeof colors] || colors.unknown;
-  };
+  useEffect(() => {
+    const interval = setInterval(updateStats, 30000); // Update every 30 seconds
+    return () => clearInterval(interval);
+  }, [updateStats]);
 
-  const getRandomStatus = () => {
-    const statuses = ['published', 'in-progress', 'pending', 'queued'] as const;
-    return statuses[Math.floor(Math.random() * statuses.length)];
-  };
-
-  const getStatusColor = (status: string) => {
+  // Memoized helper functions for better performance
+  const getStatusColor = useCallback((status: string) => {
     switch (status) {
       case 'published': return 'text-green-600 dark:text-slate-400 bg-green-100/70 dark:bg-pure-black';
       case 'in-progress': return 'text-blue-600 dark:text-slate-400 bg-blue-100/70 dark:bg-pure-black';
@@ -303,9 +288,9 @@ export default function Dashboard() {
       case 'queued': return 'text-purple-600 dark:text-slate-400 bg-purple-100/70 dark:bg-pure-black';
       default: return 'text-slate-600 dark:text-slate-400 bg-slate-100/70 dark:bg-pure-black';
     }
-  };
+  }, []);
 
-  const getStatusText = (status: string) => {
+  const getStatusText = useCallback((status: string) => {
     switch (status) {
       case 'published': return 'Publiceret';
       case 'in-progress': return 'I behandling';
@@ -313,9 +298,9 @@ export default function Dashboard() {
       case 'queued': return 'I kø';
       default: return 'Ukendt';
     }
-  };
+  }, []);
 
-  const formatTimeAgo = (timestamp: string) => {
+  const formatTimeAgo = useCallback((timestamp: string) => {
     const now = new Date();
     const time = new Date(timestamp);
     const diffInMinutes = Math.floor((now.getTime() - time.getTime()) / (1000 * 60));
@@ -323,99 +308,86 @@ export default function Dashboard() {
     if (diffInMinutes < 60) return `${diffInMinutes}m siden`;
     if (diffInMinutes < 1440) return `${Math.floor(diffInMinutes / 60)}t siden`;
     return `${Math.floor(diffInMinutes / 1440)}d siden`;
-  };
+  }, []);
 
-  const getHealthStatusColor = (status: 'healthy' | 'warning' | 'error') => {
+  const getHealthStatusColor = useCallback((status: 'healthy' | 'warning' | 'error') => {
     switch (status) {
       case 'healthy': return 'text-green-600 dark:text-green-400 bg-green-100/70 dark:bg-green-900/30';
       case 'warning': return 'text-yellow-600 dark:text-yellow-400 bg-yellow-100/70 dark:bg-yellow-900/30';
       case 'error': return 'text-red-600 dark:text-red-400 bg-red-100/70 dark:bg-red-900/30';
       default: return 'text-slate-600 dark:text-slate-400 bg-slate-100/70 dark:bg-slate-900/30';
     }
-  };
-
-  const getHealthStatusText = (status: 'healthy' | 'warning' | 'error') => {
-    switch (status) {
-      case 'healthy': return 'Aktiv';
-      case 'warning': return 'Advarsel';
-      case 'error': return 'Fejl';
-      default: return 'Ukendt';
-    }
-  };
-
-  const getHealthStatusIcon = (status: 'healthy' | 'warning' | 'error') => {
-    switch (status) {
-      case 'healthy': return '🟢';
-      case 'warning': return '🟡';
-      case 'error': return '🔴';
-      default: return '⚪';
-    }
-  };
+  }, []);
 
   // Quick Actions handlers
-  const handleQuickAction = (action: string) => {
+  const handleQuickAction = useCallback((action: string) => {
     switch (action) {
       case 'process-queue':
-        // Navigate to editorial queue
         window.location.href = '/editorial-queue';
         break;
       case 'ai-drafts':
-        // Navigate to AI drafts
         window.location.href = '/ai-drafts';
         break;
       case 'all-media':
-        // Navigate to all media
         window.location.href = '/alle-medier';
         break;
       default:
         console.log(`Quick action: ${action}`);
     }
-  };
+  }, []);
 
   // AI Integration helper functions
-  const getRelevanceScoreColor = (score: number) => {
+  const getRelevanceScoreColor = useCallback((score: number) => {
     if (score >= 90) return 'text-green-600 dark:text-green-400 bg-green-100/70 dark:bg-green-900/30';
     if (score >= 80) return 'text-blue-600 dark:text-blue-400 bg-blue-100/70 dark:bg-blue-900/30';
     if (score >= 70) return 'text-yellow-600 dark:text-yellow-400 bg-yellow-100/70 dark:bg-yellow-900/30';
     return 'text-red-600 dark:text-red-400 bg-red-100/70 dark:bg-red-900/30';
-  };
+  }, []);
 
-  const getConfidenceColor = (confidence: number) => {
+  const getConfidenceColor = useCallback((confidence: number) => {
     if (confidence >= 85) return 'text-green-600 dark:text-green-400';
     if (confidence >= 70) return 'text-blue-600 dark:text-blue-400';
     return 'text-yellow-600 dark:text-yellow-400';
-  };
+  }, []);
 
-  const getSimilarityColor = (similarity: number) => {
+  const getSimilarityColor = useCallback((similarity: number) => {
     if (similarity >= 85) return 'text-red-600 dark:text-red-400 bg-red-100/70 dark:bg-red-900/30';
     if (similarity >= 70) return 'text-yellow-600 dark:text-yellow-400 bg-yellow-100/70 dark:bg-yellow-900/30';
     return 'text-orange-600 dark:text-orange-400 bg-orange-100/70 dark:bg-orange-900/30';
-  };
+  }, []);
 
-  const getQualityScoreColor = (score: number) => {
+  const getQualityScoreColor = useCallback((score: number) => {
     if (score >= 90) return 'text-green-600 dark:text-green-400';
     if (score >= 80) return 'text-blue-600 dark:text-blue-400';
     if (score >= 70) return 'text-yellow-600 dark:text-yellow-400';
     return 'text-red-600 dark:text-red-400';
-  };
+  }, []);
 
+  // Memoized computed values
+  const formattedLastUpdated = useMemo(() => formatTimeAgo(stats.lastUpdated), [stats.lastUpdated, formatTimeAgo]);
+
+  // Memoized handlers
+  const handleShowExplainer = useCallback(() => setShowExplainer(true), []);
+
+  // Memoized actions component
+  const headerActions = useMemo(() => (
+    <button
+      onClick={handleShowExplainer}
+      className="flex items-center gap-2 px-3 py-1.5 bg-white/50 dark:bg-pure-black/50 hover:bg-white/70 dark:hover:bg-pure-black/70 rounded-lg border border-white/60 dark:border-white/30 transition-all duration-200 group"
+    >
+      <svg className="w-4 h-4 text-slate-600 dark:text-slate-400 group-hover:text-primary-600 dark:group-hover:text-primary-400 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+      </svg>
+      <span className="text-sm text-slate-600 dark:text-slate-400 group-hover:text-primary-600 dark:group-hover:text-primary-400 transition-colors">Content Scoring</span>
+    </button>
+  ), [handleShowExplainer]);
 
   return (
     <div className="space-y-6">
         <CompactHeader 
           title="Dashboard"
-          subtitle={`Live opdateringer aktive • Sidst opdateret: ${formatTimeAgo(stats.lastUpdated)}`}
-          actions={
-            <button
-              onClick={() => setShowExplainer(true)}
-              className="flex items-center gap-2 px-3 py-1.5 bg-white/50 dark:bg-pure-black/50 hover:bg-white/70 dark:hover:bg-pure-black/70 rounded-lg border border-white/60 dark:border-white/30 transition-all duration-200 group"
-            >
-              <svg className="w-4 h-4 text-slate-600 dark:text-slate-400 group-hover:text-primary-600 dark:group-hover:text-primary-400 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-              <span className="text-sm text-slate-600 dark:text-slate-400 group-hover:text-primary-600 dark:group-hover:text-primary-400 transition-colors">Content Scoring</span>
-            </button>
-          }
+          subtitle={`Live opdateringer aktive • Sidst opdateret: ${formattedLastUpdated}`}
+          actions={headerActions}
         />
 
         {/* Quick Actions Panel */}

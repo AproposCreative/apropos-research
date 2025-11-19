@@ -1,4 +1,5 @@
 'use client';
+import { memo } from 'react';
 import AuthHeader from './AuthHeader';
 import DarkModeToggle from './DarkModeToggle';
 import RefreshButton from './RefreshButton';
@@ -9,7 +10,7 @@ interface CompactHeaderProps {
   actions?: React.ReactNode;
 }
 
-export default function CompactHeader({ title, subtitle, actions }: CompactHeaderProps) {
+function CompactHeader({ title, subtitle, actions }: CompactHeaderProps) {
   return (
     <div className="flex items-center justify-between mb-6">
       <div className="flex items-center gap-4">
@@ -30,3 +31,5 @@ export default function CompactHeader({ title, subtitle, actions }: CompactHeade
     </div>
   );
 }
+
+export default memo(CompactHeader);

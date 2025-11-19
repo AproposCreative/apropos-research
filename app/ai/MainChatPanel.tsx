@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useEffect, ReactNode, useCallback } from 'react';
+import { useState, useRef, useEffect, ReactNode, useCallback, useMemo } from 'react';
 import WizardAutoHeight from '@/components/ui/WizardAutoHeight';
 import FileDropZone from '@/components/FileDropZone';
 import ArticleTemplates from '@/components/ArticleTemplates';
@@ -118,6 +118,10 @@ export default function MainChatPanel({
   const [fadeIn, setFadeIn] = useState(true);
   const [thinkingProgress, setThinkingProgress] = useState(0);
   const progressIntervalRef = useRef<number | null>(null);
+  const [visibleSteps, setVisibleSteps] = useState<Set<string>>(new Set());
+  const [stepOpacities, setStepOpacities] = useState<Map<string, number>>(new Map());
+  const stepAnimationTimeoutsRef = useRef<Map<string, number>>(new Map());
+  const previousStepsRef = useRef<ThinkingStep[]>([]);
   const progressResetTimeoutRef = useRef<number | null>(null);
   const progressDisplay = Math.min(100, Math.max(0, Math.round(thinkingProgress)));
   const [mobileWizardCollapsed, setMobileWizardCollapsed] = useState<boolean>((messages?.length || 0) > 0);
@@ -161,37 +165,138 @@ const fallbackThinkingSteps: ThinkingStep[] = [
   { id: 'generation', label: 'Afventer modelsvar…', status: 'pending', icon: 'dot' }
 ];
 
-  const stepsToRender = isThinking
-    ? (thinkingSteps.length > 0 ? thinkingSteps : fallbackThinkingSteps)
-    : [];
+  // Memoize stepsToRender to prevent unnecessary re-renders
+  const stepsToRender = useMemo(() => {
+    if (!isThinking) return [];
+    return thinkingSteps.length > 0 ? thinkingSteps : fallbackThinkingSteps;
+  }, [isThinking, thinkingSteps]);
 
-  const getStepIcon = (step: ThinkingStep) => {
-    const baseIcon = step.icon === 'doc' ? '📄' : '•';
-    if (step.status === 'failed') return '⚠️';
-    if (step.status === 'skipped') return '⏭';
-    return baseIcon;
-  };
+  // Track visible steps with animation
+  useEffect(() => {
+    if (!isThinking || stepsToRender.length === 0) {
+      // Only reset if we actually have visible steps
+      setVisibleSteps(prev => {
+        if (prev.size === 0) return prev;
+        return new Set();
+      });
+      setStepOpacities(prev => {
+        if (prev.size === 0) return prev;
+        return new Map();
+      });
+      // Cleanup timeouts
+      stepAnimationTimeoutsRef.current.forEach(timeoutId => clearTimeout(timeoutId));
+      stepAnimationTimeoutsRef.current.clear();
+      previousStepsRef.current = [];
+      return;
+    }
+
+    // Create a stable comparison key from steps
+    const stepsKey = stepsToRender.map(s => `${s.id}:${s.status}`).join('|');
+    const previousKey = previousStepsRef.current.map(s => `${s.id}:${s.status}`).join('|');
+    
+    // Check if steps have actually changed
+    if (stepsKey === previousKey) {
+      return;
+    }
+
+    const previousSteps = previousStepsRef.current;
+    previousStepsRef.current = stepsToRender.map(s => ({ ...s })); // Store a deep copy
+
+    const newVisibleSteps = new Set<string>();
+    const newOpacities = new Map<string, number>();
+
+    // Process steps to determine visibility and opacities
+    stepsToRender.forEach((step) => {
+      // Show step when it becomes active or completed
+      if (step.status === 'active' || step.status === 'completed') {
+        newVisibleSteps.add(step.id);
+        
+        // Check if this is a newly visible step by comparing with previous steps
+        const previousStep = previousSteps.find(s => s.id === step.id);
+        const wasVisible = previousStep && (previousStep.status === 'active' || previousStep.status === 'completed');
+        
+        if (!wasVisible) {
+          // New step - start with 0 opacity
+          newOpacities.set(step.id, 0);
+          // Clear any existing timeout for this step
+          const existingTimeout = stepAnimationTimeoutsRef.current.get(step.id);
+          if (existingTimeout) {
+            clearTimeout(existingTimeout);
+          }
+          // Trigger animation after a brief delay to allow CSS transition
+          const timeoutId = window.setTimeout(() => {
+            setStepOpacities(prev => {
+              const updated = new Map(prev);
+              updated.set(step.id, 1);
+              return updated;
+            });
+            stepAnimationTimeoutsRef.current.delete(step.id);
+          }, 50);
+          stepAnimationTimeoutsRef.current.set(step.id, timeoutId);
+        }
+      }
+    });
+
+    // Only update state if there are actual changes
+    setVisibleSteps(prev => {
+      const prevArray = Array.from(prev).sort();
+      const newArray = Array.from(newVisibleSteps).sort();
+      if (prevArray.length === newArray.length && prevArray.every((id, i) => id === newArray[i])) {
+        return prev; // No change, return previous state
+      }
+      return newVisibleSteps;
+    });
+
+    // Update opacities - preserve existing opacities for steps that are still visible
+    setStepOpacities(prev => {
+      const updated = new Map(prev);
+      let hasChanges = false;
+      
+      newOpacities.forEach((value, key) => {
+        if (prev.get(key) !== value) {
+          updated.set(key, value);
+          hasChanges = true;
+        }
+      });
+      
+      // Keep existing opacities for steps that are still visible but weren't just added
+      stepsToRender.forEach((step) => {
+        if ((step.status === 'active' || step.status === 'completed') && !newOpacities.has(step.id)) {
+          const existingOpacity = prev.get(step.id);
+          if (existingOpacity === undefined) {
+            updated.set(step.id, 1);
+            hasChanges = true;
+          }
+        }
+      });
+      
+      // Only return new map if there are changes
+      if (!hasChanges && updated.size === prev.size) {
+        return prev;
+      }
+      return updated;
+    });
+
+    // Cleanup function
+    return () => {
+      stepAnimationTimeoutsRef.current.forEach(timeoutId => clearTimeout(timeoutId));
+      stepAnimationTimeoutsRef.current.clear();
+    };
+  }, [isThinking, stepsToRender]);
 
   const getStepTextClass = (status: ThinkingStatus) => {
     switch (status) {
       case 'active':
         return 'text-white';
+      case 'completed':
+        return 'text-white/70';
       default:
         return 'text-white/45';
     }
   };
 
-  const getIconClass = (status: ThinkingStatus) => {
-    switch (status) {
-      case 'active':
-        return 'text-white';
-      case 'failed':
-        return 'text-red-300';
-      case 'skipped':
-        return 'text-white/30';
-      default:
-        return 'text-white/35';
-    }
+  const getStepOpacity = (stepId: string) => {
+    return stepOpacities.get(stepId) ?? 0;
   };
 
   const scrollToBottom = () => {
@@ -276,7 +381,10 @@ const fallbackThinkingSteps: ThinkingStep[] = [
       let progress = 0;
       setThinkingProgress(progress);
       const advance = () => {
-        progress = Math.min(96, progress + 6 + Math.random() * 9);
+        // Slow down as we approach 96% to avoid getting stuck
+        const remaining = 96 - progress;
+        const increment = remaining > 10 ? 6 + Math.random() * 9 : 1 + Math.random() * 2;
+        progress = Math.min(96, progress + increment);
         setThinkingProgress(Math.round(progress));
       };
       advance();
@@ -1273,22 +1381,30 @@ const fallbackThinkingSteps: ThinkingStep[] = [
                     <span className="text-white/40">•</span>
                     <span className="text-white/90">{thinkingText}</span>
                   </div>
-                  <div className="uppercase text-xs tracking-wide text-white/40 mb-1">Arbejdsgang</div>
-                  <ul className="space-y-1.5 text-white/70">
-                    {stepsToRender.map((step) => (
-                      <li
-                        key={step.id}
-                        className="flex items-start gap-2"
-                        style={{ paddingLeft: step.indent ? step.indent * 14 : 0 }}
-                      >
-                        <span className={`mt-[1px] text-base leading-none ${getIconClass(step.status)}`}>
-                          {getStepIcon(step)}
-                        </span>
-                        <span className={`leading-tight ${getStepTextClass(step.status)}`}>
-                          {step.label}
-                        </span>
-                      </li>
-                    ))}
+                  <ul className="space-y-3 mt-4">
+                    {stepsToRender.map((step) => {
+                      const isVisible = visibleSteps.has(step.id);
+                      const opacity = getStepOpacity(step.id);
+                      
+                      if (!isVisible && step.status === 'pending') {
+                        return null;
+                      }
+                      
+                      return (
+                        <li
+                          key={step.id}
+                          className="text-xs leading-relaxed transition-all duration-700 ease-out"
+                          style={{ 
+                            opacity: opacity,
+                            transform: `translateY(${opacity === 1 ? 0 : -10}px)`
+                          }}
+                        >
+                          <span className={getStepTextClass(step.status)}>
+                            {step.label}
+                          </span>
+                        </li>
+                      );
+                    })}
                   </ul>
                 </div>
               </div>

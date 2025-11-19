@@ -1,5 +1,5 @@
 'use client';
-import { useState } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 
 interface ContentScoringExplainerProps {
   isOpen: boolean;
@@ -9,7 +9,13 @@ interface ContentScoringExplainerProps {
 export default function ContentScoringExplainer({ isOpen, onClose }: ContentScoringExplainerProps) {
   const [currentStep, setCurrentStep] = useState(0);
 
-  const steps = [
+  // Reset to first step when modal closes
+  const handleClose = useCallback(() => {
+    setCurrentStep(0);
+    onClose();
+  }, [onClose]);
+
+  const steps = useMemo(() => [
     {
       title: "📊 Hvad er Content Scoring?",
       content: "Content Scoring er vores AI-powered system der automatisk vurderer og scorer artikler baseret på deres relevans, kvalitet og værdi for dig.",
@@ -66,21 +72,17 @@ export default function ContentScoringExplainer({ isOpen, onClose }: ContentScor
         ]
       }
     }
-  ];
+  ], []);
 
-  const nextStep = () => {
-    if (currentStep < steps.length - 1) {
-      setCurrentStep(currentStep + 1);
-    }
-  };
+  const nextStep = useCallback(() => {
+    setCurrentStep(prev => prev < steps.length - 1 ? prev + 1 : prev);
+  }, [steps.length]);
 
-  const prevStep = () => {
-    if (currentStep > 0) {
-      setCurrentStep(currentStep - 1);
-    }
-  };
+  const prevStep = useCallback(() => {
+    setCurrentStep(prev => prev > 0 ? prev - 1 : prev);
+  }, []);
 
-  const renderExample = (example: any) => {
+  const renderExample = useCallback((example: any) => {
     if (!example) return null;
 
     switch (example.type) {
@@ -146,7 +148,7 @@ export default function ContentScoringExplainer({ isOpen, onClose }: ContentScor
       default:
         return null;
     }
-  };
+  }, []);
 
   if (!isOpen) return null;
 
@@ -165,7 +167,7 @@ export default function ContentScoringExplainer({ isOpen, onClose }: ContentScor
             </div>
           </div>
           <button
-            onClick={onClose}
+            onClick={handleClose}
             className="p-2 hover:bg-white/50 dark:hover:bg-pure-black/50 rounded-lg transition-colors"
           >
             <svg className="w-5 h-5 text-slate-600 dark:text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -180,15 +182,15 @@ export default function ContentScoringExplainer({ isOpen, onClose }: ContentScor
             {/* Step Title */}
             <div className="text-center">
               <h3 className="text-2xl font-bold text-slate-900 dark:text-white mb-2">
-                {steps[currentStep].title}
+                {steps[currentStep]?.title}
               </h3>
               <p className="text-slate-600 dark:text-slate-400">
-                {steps[currentStep].content}
+                {steps[currentStep]?.content}
               </p>
             </div>
 
             {/* Example Content */}
-            {renderExample(steps[currentStep].example)}
+            {renderExample(steps[currentStep]?.example)}
 
             {/* Progress Indicator */}
             <div className="flex justify-center space-x-2">
@@ -228,7 +230,7 @@ export default function ContentScoringExplainer({ isOpen, onClose }: ContentScor
 
           {currentStep === steps.length - 1 ? (
             <button
-              onClick={onClose}
+              onClick={handleClose}
               className="px-6 py-2 bg-gradient-to-r from-primary-500 to-primary-600 text-white rounded-lg font-medium hover:from-primary-600 hover:to-primary-700 transition-all duration-200 shadow-lg hover:shadow-xl"
             >
               Afslut Guide

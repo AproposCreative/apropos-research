@@ -1292,6 +1292,9 @@ export async function POST(request: NextRequest) {
     } = await request.json();
     console.log('🔍 Author name from request:', authorName);
     console.log('🔍 Author TOV from request length:', authorTOV?.length || 0);
+    const generationMode = (articleData as any)?.generationMode === 'fast' ? 'fast' : 'editorial';
+    const isFastMode = generationMode === 'fast';
+    console.log('🎛️ Generation mode:', generationMode);
 
     if (!message) {
       if (progressId) {
@@ -1426,14 +1429,23 @@ export async function POST(request: NextRequest) {
     const combinedTOV = [trainedTOV, authorTOV].filter(Boolean).join('\n\n');
     console.log('🔍 Combined TOV length:', combinedTOV.length);
     console.log('🔍 Combined TOV preview:', combinedTOV.substring(0, 200) + '...');
-    const authorSample = await getAuthorSampleSnippet(authorInfo);
+    const shouldLoadAuthorSample = !isFastMode;
+    const authorSample = shouldLoadAuthorSample ? await getAuthorSampleSnippet(authorInfo) : '';
     // Lightweight diagnostics for prompt composition
     // Determine dynamic target lengths from section/topic
     const lower = (s: any) => String(s||'').toLowerCase();
     const sec = lower((articleData||{}).category || (articleData||{}).section);
     const topic = lower((articleData||{}).topic);
     const tagsArr: string[] = Array.isArray((articleData||{}).tags) ? (articleData as any).tags.map((t:any)=>lower(t)) : [];
-    const { min: targetMin, max: targetMax, label: targetLabel, type: articleType } = determineWordTargets(articleData);
+    const targetConfig = determineWordTargets(articleData);
+    let targetMin = targetConfig.min;
+    let targetMax = targetConfig.max;
+    const targetLabel = targetConfig.label;
+    const articleType = targetConfig.type;
+    if (isFastMode) {
+      targetMin = Math.max(450, Math.round(targetMin * 0.55));
+      targetMax = Math.max(targetMin + 200, Math.round(targetMax * 0.65));
+    }
     
     // Enhanced dynamic behavior injection
     const dynamicBehaviors = [];
@@ -1450,8 +1462,12 @@ export async function POST(request: NextRequest) {
       dynamicBehaviors.push(`TITEL FORMAT: Titlen SKAL ALTID være formatet "{Titel} (${platform})" - altså titlen efterfulgt af service/platform i parentes. Eksempel: "Highest 2 Lowest (Apple TV)" eller "Paradise (Disney+)".`);
     }
     
-    // Enhanced length targeting
-    dynamicBehaviors.push(`LÆNGDE-MÅL: ${targetLabel} skal være ${targetMin}-${targetMax} ord. Minimum ${targetMin} ord er KRITISK.`);
+    // Mode-specific behavior
+    if (isFastMode) {
+      dynamicBehaviors.push(`FAST MODE: Hurtig sparring med ${targetMin}-${targetMax} ord. Lever konkrete vinkler, strukturforslag og stilgreb; gør tydeligt at fakta skal verificeres før publicering.`);
+    } else {
+      dynamicBehaviors.push(`LÆNGDE-MÅL: ${targetLabel} skal være ${targetMin}-${targetMax} ord. Minimum ${targetMin} ord er KRITISK.`);
+    }
     
     const systemSections: string[] = [];
     systemSections.push(basePrompt.trim());
@@ -1473,15 +1489,25 @@ export async function POST(request: NextRequest) {
     if (dynamicBehaviors.length > 0) {
       systemSections.push(`DYNAMISKE ADFÆRDS-INJEKTIONER:\n${dynamicBehaviors.join('\n')}`);
     }
-    systemSections.push(`**KRITISK LÆNGDE-KRAV**\n🚨 ARTIKLEN SKAL VÆRE MINIMUM ${targetMin} ORD - IKKE MINDRE! 🚨\n- Hvis artiklen er under ${targetMin} ord, er det EN FEJL der skal rettes\n- Brødteksten alene skal være ${targetMin}-${targetMax} ord (ekskl. intro og afslutning)\n- Tæl ordene mens du skriver - stop ikke før du når ${targetMin} ord\n- Korte artikler under ${targetMin} ord bliver afvist som utilstrækkelige\n- DU SKAL SKRIVE ${targetMin} ORD ELLER MERE - DET ER IKKE ET FORSLAG!\n- SKRIV EN DETALJERET ARTIKEL PÅ MINDST ${targetMin} ORD OM DETTE EMNE`);
-    systemSections.push(`**REDAKTIONELT ARBEJDSFLOW (internt)**\n1. Skriv et fuldt første udkast (MINIMUM ${targetMin} ord) med KORREKT struktur:\n   - START direkte med "Intro:" (ikke ##Intro: eller andet)\n   - Intro: 2-4 linjer i første person\n   - Brødtekst: ${targetMin}-${targetMax} ord med dybde og detaljer\n   - Afslut med "Eftertanke:", "Refleksion:" eller lignende\n2. TÆL ORDENE: Kontroller at brødteksten er mindst ${targetMin} ord\n3. Lever KUN den forbedrede, færdige artikel i JSON-kontrakten – ingen interne noter eller halvfærdige udkast.\n4. HVIS ARTIKLEN ER UNDER ${targetMin} ORD: SKRIV DEN OM HELT FRA BUNDEN!`);
-    systemSections.push(`**ARTIKELFORMAT & LÆNGDE**\n- Struktur: Intro (2-4 sætninger i jeg-form) → brødtekst (${targetMin}-${targetMax} ord) → afslutning (godkendt label + 2-4 sætninger).\n- Længde: artiklen må ALDRIG være under ${targetMin} ord; sigt efter ${targetMin}-${targetMax} ord.\n- Brødtekst: brug sanselige detaljer, konkrete observationer, research og reflektion (forventning → oplevelse → indsigt → eftertanke).\n- Variér sætningslængder og rytme; undgå synopsis eller punktopstillinger.\n- UDVID hver tanke med konkrete eksempler og dybdegående analyse.\n- HVIS DU SKRIVER UNDER ${targetMin} ORD: STOP OG SKRIV OM ARTIKLEN HELT FRA BUNDEN!`);
+    if (isFastMode) {
+      systemSections.push(`**FAST MODE (SPARRING)**\n- Fokusér på idéer og retning – ikke færdigpoleret brødtekst.\n- Lever ${targetMin}-${targetMax} ord fordelt på intro, krop og afslutning, men hold tempoet højt.\n- Identificér tydeligt de steder hvor fakta eller kilder mangler, og foreslå næste research-skridt.\n- Skriv i et mere samtalende toneleje (stadig Apropos) og vær ikke bange for at anbefale flere mulige vinkler.`);
+      systemSections.push(`**SPARRING WORKFLOW**\n1. Start med en ultrakort "Intro:" (maks 3 sætninger) der indrammer følelsen/vinklen.\n2. Brug kropsteksten til at skitsere 2-3 hovedmomenter med konkrete ideer, citatforslag eller scenografi.\n3. Gør læseren opmærksom på datapunkter, fakta eller interviews der bør skaffes.\n4. Afslut med en "Eftertanke:" der giver retning for næste redaktionelle skridt.`);
+      systemSections.push(`**SPARRING FORMAT**\n- Struktur: Intro → krop → afslutning, men du må bruge korte afsnit og tydelige TODO-sætninger.\n- Længde: ${targetMin}-${targetMax} ord er nok – kvalitet over kvantitet.\n- Du må markere åbne spørgsmål og foreslå flere mulige tonaliteter, men hold dig fra rå punktopstillinger.`);
+    } else {
+      systemSections.push(`**KRITISK LÆNGDE-KRAV**\n🚨 ARTIKLEN SKAL VÆRE MINIMUM ${targetMin} ORD - IKKE MINDRE! 🚨\n- Hvis artiklen er under ${targetMin} ord, er det EN FEJL der skal rettes\n- Brødteksten alene skal være ${targetMin}-${targetMax} ord (ekskl. intro og afslutning)\n- Tæl ordene mens du skriver - stop ikke før du når ${targetMin} ord\n- Korte artikler under ${targetMin} ord bliver afvist som utilstrækkelige\n- DU SKAL SKRIVE ${targetMin} ORD ELLER MERE - DET ER IKKE ET FORSLAG!\n- SKRIV EN DETALJERET ARTIKEL PÅ MINDST ${targetMin} ORD OM DETTE EMNE`);
+      systemSections.push(`**REDAKTIONELT ARBEJDSFLOW (internt)**\n1. Skriv et fuldt første udkast (MINIMUM ${targetMin} ord) med KORREKT struktur:\n   - START direkte med "Intro:" (ikke ##Intro: eller andet)\n   - Intro: 2-4 linjer i første person\n   - Brødtekst: ${targetMin}-${targetMax} ord med dybde og detaljer\n   - Afslut med "Eftertanke:", "Refleksion:" eller lignende\n2. TÆL ORDENE: Kontroller at brødteksten er mindst ${targetMin} ord\n3. Lever KUN den forbedrede, færdige artikel i JSON-kontrakten – ingen interne noter eller halvfærdige udkast.\n4. HVIS ARTIKLEN ER UNDER ${targetMin} ORD: SKRIV DEN OM HELT FRA BUNDEN!`);
+      systemSections.push(`**ARTIKELFORMAT & LÆNGDE**\n- Struktur: Intro (2-4 sætninger i jeg-form) → brødtekst (${targetMin}-${targetMax} ord) → afslutning (godkendt label + 2-4 sætninger).\n- Længde: artiklen må ALDRIG være under ${targetMin} ord; sigt efter ${targetMin}-${targetMax} ord.\n- Brødtekst: brug sanselige detaljer, konkrete observationer, research og reflektion (forventning → oplevelse → indsigt → eftertanke).\n- Variér sætningslængder og rytme; undgå synopsis eller punktopstillinger.\n- UDVID hver tanke med konkrete eksempler og dybdegående analyse.\n- HVIS DU SKRIVER UNDER ${targetMin} ORD: STOP OG SKRIV OM ARTIKLEN HELT FRA BUNDEN!`);
+    }
     const platform = (articleData as any).platform || (articleData as any).streaming_service || '';
     systemSections.push(`**SETUPWIZARD DATA – BRUG SOM KANON**\n- Kategori/Sektion: ${sec || 'Ikke valgt'}\n- Topics/Tags: ${tagsArr.join(', ') || 'Ikke valgt'}\n- Platform: ${platform || 'Ikke valgt'}\n- Rating: ${articleData.rating || 'Ikke valgt'} stjerner (tilpas tone hertil)`);
     if (platform) {
       systemSections.push(`**TITEL FORMAT KRAV**\n🚨 KRITISK: Titlen SKAL ALTID være formatet "{Titel} (${platform})" hvis platform/service er udfyldt.\n- Eksempel: "Highest 2 Lowest (Apple TV)" eller "Paradise (Disney+)"\n- Dette er IKKE et forslag - det er et KRAV!\n- Titlen skal ALTID slutte med " (${platform})" hvis platform er sat\n- ALDRIG send titlen uden platform i parentes hvis platform er udfyldt`);
     }
-    systemSections.push(`**KILDEBRUG & CITATIONS**\n- Integrér research-data aktivt; ingen opfundne fakta.\n- Markér kilder med [1], [2] i teksten og lad dem matche den medsendte kilde-liste.\n- Hvis fakta mangler, skriv generelt ("instruktøren", "hovedskuespilleren") i stedet for at gætte navne.`);
+    if (isFastMode) {
+      systemSections.push(`**RESEARCH-DISCLAIMER**\n- Ingen citations i fast mode; fokuser på ideer og noter behov for kilder.\n- Skriv eksplicit hvor fakta skal verificeres, og foreslå hvilke typer kilder der kan bruges.\n- Du må gerne skrive sætninger som "Her bør vi finde tal for ..." for at guide journalisten.`);
+    } else {
+      systemSections.push(`**KILDEBRUG & CITATIONS**\n- Integrér research-data aktivt; ingen opfundne fakta.\n- Markér kilder med [1], [2] i teksten og lad dem matche den medsendte kilde-liste.\n- Hvis fakta mangler, skriv generelt ("instruktøren", "hovedskuespilleren") i stedet for at gætte navne.`);
+    }
     
     // Enhanced JSON contract enforcement
       const platformForPrompt = articleData?.platform || articleData?.streaming_service || '';
@@ -1573,11 +1599,19 @@ ${context ? `\n\nAktuel artikel-kontekst:\n${context}` : ''}`;
     // CRITICAL: ALL content generation must use research and verification
     const isNotesTemplate = (articleData as any)?.template === 'notes';
     
-    // For notes template, we still do research but skip verification (since notes are user's own)
-    // For all other content, ALWAYS perform comprehensive research
-    const alwaysRequireResearch = !isNotesTemplate; // Always research except for notes template
+    // Check if this is a simple message that doesn't need research
+    const isSimpleMessage = /^(hej|hi|hello|hey|ja|nej|okay|ok|tak|super|mange tak|thanks|thank you)\b/i.test(message.trim()) && message.trim().length < 30;
     
-    console.log(`🔍 Professional Research Pipeline - Template: ${(articleData as any)?.template}, AlwaysRequireResearch: ${alwaysRequireResearch}`);
+    // Determine whether this request actually needs the heavy research pipeline
+    const heuristicsNeedWebResearch = !isNotesTemplate && !isSimpleMessage && shouldPerformWebSearch(message, articleData);
+    const heuristicsNeedAdvancedResearch =
+      heuristicsNeedWebResearch && shouldRunAdvancedResearch(message, articleData, heuristicsNeedWebResearch);
+    const needsWebResearch = isFastMode ? false : (generationMode === 'editorial' ? true : heuristicsNeedWebResearch);
+    const needsAdvancedResearch = needsWebResearch
+      ? (generationMode === 'editorial' ? true : heuristicsNeedAdvancedResearch)
+      : false;
+    
+    console.log(`🔍 Professional Research Pipeline - Template: ${(articleData as any)?.template}, Mode: ${generationMode}, IsSimpleMessage: ${isSimpleMessage}, HeuristicNeedWeb: ${heuristicsNeedWebResearch}, NeedsWebResearch: ${needsWebResearch}, NeedsAdvancedResearch: ${needsAdvancedResearch}`);
     
     const researchStartTime = Date.now();
     let researchSources: ResearchSources | null = null;
@@ -1585,8 +1619,8 @@ ${context ? `\n\nAktuel artikel-kontekst:\n${context}` : ''}`;
     const baseRequestUrl = request.url.split('/api')[0];
     const researchTopic = (articleData as any)?.title || (articleData as any)?.topic || message;
     
-    // PERFORM COMPREHENSIVE RESEARCH (always for non-notes templates)
-    if (alwaysRequireResearch) {
+    // PERFORM COMPREHENSIVE RESEARCH (mode-aware)
+    if (needsWebResearch) {
       if (progressId) {
         updateProgressStep(progressId, 'web-search', 'active');
       }
@@ -1594,7 +1628,10 @@ ${context ? `\n\nAktuel artikel-kontekst:\n${context}` : ''}`;
       
       try {
         console.log(`🔬 Starting comprehensive research for: "${researchTopic}"`);
-        researchSources = await performComprehensiveResearch(researchTopic, articleData, baseRequestUrl);
+        researchSources = await performComprehensiveResearch(researchTopic, articleData, baseRequestUrl, {
+          enableWebSearch: true,
+          enableAdvancedResearch: needsAdvancedResearch
+        });
         console.log(`✅ Research completed:`, {
           webSearchResults: researchSources.webSearch.length,
           tmdbVerified: !!researchSources.tmdbVerification?.verified,
@@ -1625,7 +1662,7 @@ ${context ? `\n\nAktuel artikel-kontekst:\n${context}` : ''}`;
       const researchTime = Date.now() - researchStartTime;
       console.log(`⏱️ Comprehensive research completed in ${researchTime}ms`);
     } else {
-      // For notes template, skip research but still allow basic web search if needed
+      // Fast mode or simple follow-ups skip heavy research
       if (progressId) {
         updateProgressStep(progressId, 'web-search', 'skipped');
         updateProgressStep(progressId, 'advanced-research', 'skipped');
@@ -1639,7 +1676,7 @@ ${context ? `\n\nAktuel artikel-kontekst:\n${context}` : ''}`;
       success: true,
       webSearchResults: researchSources.webSearch.length,
       tmdbVerified: !!researchSources.tmdbVerification?.verified,
-      advancedResearch: !!researchSources.advancedResearch
+      advancedResearch: needsAdvancedResearch && !!researchSources.advancedResearch
     } : null;
     const citationSet = new Set<string>();
     
@@ -1679,8 +1716,10 @@ ${context ? `\n\nAktuel artikel-kontekst:\n${context}` : ''}`;
           ...messages
         ],
         temperature: 1, // GPT-5 only supports default temperature (1)
-        max_completion_tokens: 3000, // Reduced for faster responses - can be increased if needed
+        max_completion_tokens: isSimpleMessage ? 500 : 3000, // Much shorter for simple messages
         response_format: { type: 'json_object' },
+      }, {
+        timeout: isSimpleMessage ? 10000 : 60000, // 10s timeout for simple messages, 60s for complex
       });
       const generationTime = Date.now() - generationStartTime;
       console.log(`✅ OpenAI API call completed successfully in ${generationTime}ms`);
@@ -1748,7 +1787,7 @@ ${context ? `\n\nAktuel artikel-kontekst:\n${context}` : ''}`;
       ? Array.from(new Set(((parsed as any).citations as any[]).map((url: any) => String(url)).filter(Boolean)))
       : [];
     const modelWarnings = Array.isArray(parsed.warnings) ? parsed.warnings : [];
-    let qualityRecommendations = [...modelWarnings];
+    let qualityRecommendations: string[] = isFastMode ? [] : [...modelWarnings];
     if (outArticleUpdate && typeof outArticleUpdate === 'object' && Array.isArray((outArticleUpdate as any).citations)) {
       outCitations = Array.from(new Set([
         ...outCitations,
@@ -1781,14 +1820,15 @@ ${context ? `\n\nAktuel artikel-kontekst:\n${context}` : ''}`;
     // For notes template: Skip revisions - integrate everything in first attempt
     // User doesn't want to see quality warnings, so we should get it right the first time
     const isNotesTemplateForRevisions = (articleData as any)?.template === 'notes';
-    const maxRevisions = isNotesTemplateForRevisions ? 0 : 1; // No revisions for notes template
+    const skipQualityLoop = isNotesTemplateForRevisions || isFastMode;
+    const maxRevisions = skipQualityLoop ? 0 : 1; // Skip revisions for fast mode + notes template
     const qualityControlStartTime = Date.now();
-    const maxQualityControlTime = isNotesTemplateForRevisions ? 10000 : 20000; // Faster timeout for notes template
+    const maxQualityControlTime = skipQualityLoop ? 0 : (isNotesTemplateForRevisions ? 10000 : 20000); // Faster timeout for notes template
     
-    console.log(`🔍 Quality check starting - Target: ${targetMin}-${targetMax} ord, Max revisions: ${maxRevisions}, Timeout: ${maxQualityControlTime}ms`);
+    console.log(`🔍 Quality check starting - Target: ${targetMin}-${targetMax} ord, Max revisions: ${maxRevisions}, Timeout: ${maxQualityControlTime}ms, Fast mode: ${isFastMode}`);
     
-    // For notes template: Skip quality check loop entirely - trust first generation
-    if (!isNotesTemplateForRevisions) {
+    // For notes template and fast mode: Skip quality check loop entirely - trust first generation
+    if (!skipQualityLoop) {
       while (revisionAttempts < maxRevisions) {
         // Check timeout
         if (Date.now() - qualityControlStartTime > maxQualityControlTime) {
@@ -1944,13 +1984,17 @@ ${context ? `\n\nAktuel artikel-kontekst:\n${context}` : ''}`;
     }
     
     const qualityControlTime = Date.now() - qualityControlStartTime;
-    console.log(`⏱️ Quality control completed in ${qualityControlTime}ms (${revisionAttempts} revisions)`);
+    if (!skipQualityLoop) {
+      console.log(`⏱️ Quality control completed in ${qualityControlTime}ms (${revisionAttempts} revisions)`);
+    } else {
+      console.log('⏭️ Quality control skipped for fast mode/notes template');
+    }
 
     let finalContent = getContent();
     
     // PROFESSIONAL VERIFICATION PIPELINE
     // CRITICAL: Verify ALL generated content against research sources
-    if (researchSources && alwaysRequireResearch && !isNotesTemplate) {
+    if (researchSources && needsWebResearch && !isNotesTemplate && !isFastMode) {
       if (progressId) {
         updateProgressStep(progressId, 'quality', 'active');
       }
@@ -2014,7 +2058,7 @@ ${context ? `\n\nAktuel artikel-kontekst:\n${context}` : ''}`;
       if (progressId) {
         updateProgressStep(progressId, 'quality', verificationResult?.passed ? 'completed' : 'failed');
       }
-    } else if (progressId) {
+    } else if (progressId && !isFastMode) {
       updateProgressStep(progressId, 'quality', 'skipped');
     }
     // Extract intro from multiple sources - prioritize outArticleUpdate.intro, then extract from content
@@ -2125,7 +2169,7 @@ Returnér ét JSON-objekt med "response", "articleUpdate" og "citations".`;
 
     // Only add quality recommendations if NOT notes template (for notes template, integrate in first attempt)
     const isNotesTemplateForQuality = (articleData as any)?.template === 'notes';
-    if (!isNotesTemplateForQuality) {
+    if (!isFastMode && !isNotesTemplateForQuality) {
       if (finalWordCount < targetMin) {
         qualityRecommendations.push(
           `Artiklen er ${finalWordCount} ord (inklusiv intro). Udvid til mindst ${targetMin} ord (mål ${targetMin}–${targetMax}).`
@@ -2271,7 +2315,8 @@ Returnér ét JSON-objekt med "response", "articleUpdate" og "citations".`;
     // For notes template: Don't show quality recommendations in chat - they should be integrated in first attempt
     // Only keep them for internal quality metrics
     const isNotesTemplateForWarnings = (articleData as any)?.template === 'notes';
-    const warningsForChat = isNotesTemplateForWarnings ? [] : qualityRecommendations;
+    const suppressWarnings = isNotesTemplateForWarnings || isFastMode;
+    const warningsForChat = suppressWarnings ? [] : qualityRecommendations;
 
     endStage(true, undefined, { 
       qualityIssues: qualityRecommendations.length,
@@ -2300,9 +2345,10 @@ Returnér ét JSON-objekt med "response", "articleUpdate" og "citations".`;
       response: finalResponse,
       suggestion: outSuggestion,
       articleUpdate: finalArticleUpdate,
-      warnings: warningsForChat, // Empty for notes template
+      warnings: warningsForChat, // Empty for notes/fast templates
       citations: outCitations,
       usage: completion.usage,
+      mode: generationMode,
       qualityMetrics: {
         issues: qualityRecommendations.length,
         wordCount: finalWordCount,
@@ -2318,7 +2364,11 @@ Returnér ét JSON-objekt med "response", "articleUpdate" og "citations".`;
     const response = NextResponse.json(responsePayload);
 
     if (progressId) {
-      updateProgressStep(progressId, 'quality', 'completed');
+      if (isFastMode) {
+        updateProgressStep(progressId, 'quality', 'skipped');
+      } else {
+        updateProgressStep(progressId, 'quality', 'completed');
+      }
       updateProgressStep(progressId, 'format', 'active');
     }
     endStage(true, undefined, { 

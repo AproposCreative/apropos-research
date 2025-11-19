@@ -17,6 +17,52 @@ import { autoSaveService } from '@/lib/auto-save-service';
 import type { ArticleData } from '@/types/article';
 import type { ThinkingStep, ThinkingStatus } from '@/types/thinking';
 
+const buildDefaultArticleData = (): ArticleData => ({
+  title: '',
+  subtitle: '',
+  category: '',
+  author: '',
+  content: '',
+  rating: 0,
+  ratingSkipped: false,
+  tags: [],
+  platform: '',
+  press: null,
+  intro: '',
+  aiDraft: null,
+  previewTitle: '',
+  aiSuggestion: null,
+  template: '',
+  inspirationSource: '',
+  researchSelected: null,
+  inspirationAcknowledged: false,
+  recommendedSelected: null,
+  seoTitle: '',
+  seoDescription: '',
+  publishDate: '',
+  status: 'draft',
+  authorId: '',
+  authorTOV: '',
+  section: '',
+  topic: '',
+  topicsSelected: [],
+  streaming_service: '',
+  featuredImage: '',
+  generationMode: 'editorial'
+});
+
+const normalizeArticleData = (incoming?: Partial<ArticleData>): ArticleData => {
+  const base = buildDefaultArticleData();
+  if (!incoming) return base;
+  return {
+    ...base,
+    ...incoming,
+    tags: Array.isArray(incoming.tags) ? incoming.tags : base.tags,
+    topicsSelected: Array.isArray(incoming.topicsSelected) ? incoming.topicsSelected : base.topicsSelected,
+    generationMode: incoming.generationMode === 'fast' ? 'fast' : 'editorial'
+  };
+};
+
 const BASE_THINKING_STEPS: ThinkingStep[] = [
   { id: 'analysis', label: 'Analyserer brief og noter', status: 'pending', icon: 'dot' },
   { id: 'analysis-read', label: 'Indlæser template & noter', status: 'pending', icon: 'doc', indent: 1 },
@@ -57,6 +103,10 @@ const SPLINE_BACKGROUNDS = [
 ];
 
 const STORAGE_KEY_SPLINE_BG = 'apropos-spline-background';
+const GENERATION_MODE_OPTIONS: Array<{ id: 'fast' | 'editorial'; label: string; description: string }> = [
+  { id: 'fast', label: 'Fast mode', description: 'Hurtig sparring uden tung research' },
+  { id: 'editorial', label: 'Editorial', description: 'Fuld redaktionel pipeline med research' }
+];
 
 // using shared ArticleData type
 
@@ -77,20 +127,7 @@ export default function AIWriterClient() {
     }
     return 'robot';
   });
-  const [articleData, setArticleData] = useState<ArticleData>({
-    title: '',
-    subtitle: '',
-    category: '',
-    author: '',
-    content: '',
-    rating: 0,
-    tags: [],
-    platform: '',
-    topicsSelected: [],
-    aiDraft: null,
-    previewTitle: '',
-    aiSuggestion: null
-  });
+  const [articleData, setArticleData] = useState<ArticleData>(() => normalizeArticleData());
 
   const [notes, setNotes] = useState('');
   const [chatTitle, setChatTitle] = useState('Ny artikkel');
@@ -204,7 +241,7 @@ useEffect(() => {
         }
         
         if (savedData.articleData && Object.keys(savedData.articleData).length > 0) {
-          setArticleData(savedData.articleData);
+          setArticleData(normalizeArticleData(savedData.articleData));
         }
         
         if (savedData.notes) {
@@ -255,7 +292,13 @@ useEffect(() => {
   }, [handleSplineBgChange]);
 
   const updateArticleData = (updates: Partial<ArticleData>) => {
-    setArticleData(prev => ({ ...prev, ...updates }));
+    setArticleData(prev => ({
+      ...prev,
+      ...updates,
+      generationMode: updates.generationMode
+        ? (updates.generationMode === 'fast' ? 'fast' : 'editorial')
+        : (prev.generationMode || 'editorial')
+    }));
   };
 
   const handleSetupWizardChange = useCallback((d: any) => {
@@ -274,17 +317,69 @@ useEffect(() => {
     setChatMessages(prev => [...prev, newMessage]);
   };
 
+  // Cache Webflow schema data to avoid fetching on every message
+  const webflowSchemaCacheRef = useRef<{
+    fieldMeta: any[];
+    requiredSlugs: string[];
+    mappingEntries: Array<{ webflowSlug: string; internal: string }>;
+    mapSlugToInternal: Record<string, string>;
+    samples: any[];
+    lastFetched: number;
+  } | null>(null);
+  const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
+
+  const getWebflowSchema = async (forceRefresh = false) => {
+    const now = Date.now();
+    const cache = webflowSchemaCacheRef.current;
+    
+    // Return cached data if still valid
+    if (!forceRefresh && cache && (now - cache.lastFetched) < CACHE_DURATION) {
+      return cache;
+    }
+
+    // Fetch fresh data
+    const [schemaRes, mappingRes, samplesRes] = await Promise.all([
+      fetch('/api/webflow/article-fields'),
+      fetch('/api/webflow/mapping'),
+      fetch('/api/webflow/sample-articles')
+    ]);
+    
+    const schemaJson = schemaRes.ok ? await schemaRes.json() : { fields: [] };
+    const mappingJson = mappingRes.ok ? await mappingRes.json() : { entries: [] };
+    const samplesJson = samplesRes.ok ? await samplesRes.json() : { items: [] };
+    
+    const fieldMeta: any[] = Array.isArray(schemaJson.fields) ? schemaJson.fields : [];
+    const requiredSlugs: string[] = fieldMeta.filter((f:any)=>f.required).map((f:any)=>f.slug);
+    const mappingEntries: Array<{ webflowSlug: string; internal: string }> = Array.isArray(mappingJson.entries) ? mappingJson.entries : [];
+    const mapSlugToInternal: Record<string,string> = mappingEntries.reduce((acc:any, e:any)=>{ acc[e.webflowSlug]=e.internal; return acc; }, {});
+
+    // Update cache
+    webflowSchemaCacheRef.current = {
+      fieldMeta,
+      requiredSlugs,
+      mappingEntries,
+      mapSlugToInternal,
+      samples: (samplesJson.items || []).slice(0, 5),
+      lastFetched: now
+    };
+
+    return webflowSchemaCacheRef.current;
+  };
+
   const handleSendMessage = async (message: string, files?: UploadedFile[]) => {
     const trimmedMessage = message.trim();
     addChatMessage('user', message, files);
 
     const isLikelyBrief = (() => {
       if (trimmedMessage.length < 40) return false;
-      if (/^(ja|nej|okay|ok|tak|super)\b/i.test(trimmedMessage)) return false;
+      if (/^(ja|nej|okay|ok|tak|super|hej|hi|hello)\b/i.test(trimmedMessage)) return false;
       if (/\n|•|-|\d+\./.test(trimmedMessage)) return true;
       if (trimmedMessage.length >= 80) return true;
       return /(artikel|anmeldelse|noter|skal handle|fokus|vinkel|tone)/i.test(trimmedMessage);
     })();
+
+    // Check if this is a simple greeting/short message that doesn't need Webflow schema
+    const isSimpleMessage = /^(hej|hi|hello|hey|ja|nej|okay|ok|tak|super|tak|mange tak)\b/i.test(trimmedMessage) && trimmedMessage.length < 20;
 
     let notesPayload = notes;
     if (isLikelyBrief) {
@@ -297,25 +392,36 @@ useEffect(() => {
     try {
       setIsThinking(true);
       startThinkingTimeline();
-      // Fetch live Webflow schema, mapping and a few sample items to guide the assistant
-      const [schemaRes, mappingRes, samplesRes] = await Promise.all([
-        fetch('/api/webflow/article-fields'),
-        fetch('/api/webflow/mapping'),
-        fetch('/api/webflow/sample-articles')
-      ]);
-      const schemaJson = schemaRes.ok ? await schemaRes.json() : { fields: [] };
-      const mappingJson = mappingRes.ok ? await mappingRes.json() : { entries: [] };
-      const samplesJson = samplesRes.ok ? await samplesRes.json() : { items: [] };
-      const fieldMeta: any[] = Array.isArray(schemaJson.fields) ? schemaJson.fields : [];
-      const requiredSlugs: string[] = fieldMeta.filter((f:any)=>f.required).map((f:any)=>f.slug);
-      const mappingEntries: Array<{ webflowSlug: string; internal: string }> = Array.isArray(mappingJson.entries) ? mappingJson.entries : [];
-      const mapSlugToInternal: Record<string,string> = mappingEntries.reduce((acc:any, e:any)=>{ acc[e.webflowSlug]=e.internal; return acc; }, {});
+      
+      // Only fetch Webflow schema for non-simple messages or if we need article generation
+      let webflowData;
+      if (!isSimpleMessage) {
+        webflowData = await getWebflowSchema();
+      } else {
+        // Use cached data or minimal defaults for simple messages
+        webflowData = webflowSchemaCacheRef.current || {
+          fieldMeta: [],
+          requiredSlugs: [],
+          mappingEntries: [],
+          mapSlugToInternal: {},
+          samples: []
+        };
+      }
+      
+      const { fieldMeta, requiredSlugs, mappingEntries, mapSlugToInternal, samples } = webflowData;
+
+      // Add timeout for simple messages
+      const controller = new AbortController();
+      const timeoutId = isSimpleMessage 
+        ? setTimeout(() => controller.abort(), 15000) // 15 second timeout for simple messages
+        : setTimeout(() => controller.abort(), 120000); // 2 minute timeout for complex messages
 
       const response = await fetch('/api/ai-chat', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
+        signal: controller.signal,
         body: JSON.stringify({
           message,
           articleData,
@@ -325,9 +431,11 @@ useEffect(() => {
           authorName: articleData.author || '' ,
           webflowSchema: fieldMeta,
           webflowMapping: mappingEntries,
-          webflowSamples: (samplesJson.items || []).slice(0,5)
+          webflowSamples: samples
         }),
       });
+
+      clearTimeout(timeoutId);
 
       console.log('📡 API Response status:', response.status);
       
@@ -493,7 +601,11 @@ useEffect(() => {
       }
     } catch (error: any) {
       console.error('❌ Fetch error:', error);
-      addChatMessage('assistant', 'Der opstod en fejl. Prøv igen senere.');
+      if (error.name === 'AbortError') {
+        addChatMessage('assistant', 'Forespørgslen tog for lang tid. Prøv igen eller send en kortere besked.');
+      } else {
+        addChatMessage('assistant', 'Der opstod en fejl. Prøv igen senere.');
+      }
     } finally {
       setIsThinking(false);
       finishThinkingTimeline();
@@ -595,7 +707,7 @@ useEffect(() => {
     
     setCurrentDraftId(draft.id);
     setChatMessages(draft.messages);
-    setArticleData(draft.articleData);
+    setArticleData(normalizeArticleData(draft.articleData));
     setNotes(draft.notes || '');
     setChatTitle(draft.chatTitle || 'Ny artikkel');
     
@@ -711,18 +823,7 @@ useEffect(() => {
     // Reset everything for a new article
     setCurrentDraftId(null);
     setChatMessages([]);
-    setArticleData({
-      title: '',
-      subtitle: '',
-      category: '',
-      author: '',
-      content: '',
-      rating: 0,
-      tags: [],
-      platform: '',
-      aiDraft: null,
-      previewTitle: ''
-    });
+    setArticleData(normalizeArticleData());
     setNotes('');
     setChatTitle('Ny artikkel');
     setShowWizard(true);
@@ -745,6 +846,7 @@ useEffect(() => {
     const l = (last || '').charAt(0);
     return (f + (l || '')).toUpperCase();
   })();
+  const activeGenerationMode = articleData.generationMode === 'fast' ? 'fast' : 'editorial';
 
   const avatarBg = (() => {
     const seed = (user?.uid || userInitials).split('').reduce((a,c)=>a+c.charCodeAt(0),0);
@@ -953,12 +1055,31 @@ useEffect(() => {
                     </button>
                     {/* Animated wizard container */}
                     <div className={`transition-all duration-300 ease-out overflow-x-hidden ${showWizard ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-2 max-h-0 overflow-hidden pointer-events-none'}`}>
-                      <div className="flex items-center justify-between px-3 py-2 md:p-3" style={{display: showWizard ? 'flex' : 'none'}}>
-                        <h2 className="text-white text-base font-medium">Artikel opsætning</h2>
-                        <div className="flex items-center gap-2 text-xs">
-                          <button onClick={()=>setShowWizard(false)} className="text-white/60 hover:text-white">Skjul</button>
-                        </div>
+                    <div className="flex items-center justify-between px-3 py-2 md:p-3" style={{display: showWizard ? 'flex' : 'none'}}>
+                      <h2 className="text-white text-base font-medium">Artikel opsætning</h2>
+                      <div className="flex items-center gap-3 text-xs">
+                        {GENERATION_MODE_OPTIONS.map(option => {
+                          const active = activeGenerationMode === option.id;
+                          return (
+                            <button
+                              key={option.id}
+                              type="button"
+                              aria-pressed={active}
+                              title={option.description}
+                              onClick={() => {
+                                if (!active) {
+                                  updateArticleData({ generationMode: option.id });
+                                }
+                              }}
+                              className={`uppercase tracking-[0.28em] transition-colors ${active ? 'text-white text-sheen-glow' : 'text-white/60 hover:text-white/90'}`}
+                            >
+                              {option.label}
+                            </button>
+                          );
+                        })}
+                        <button type="button" onClick={()=>setShowWizard(false)} className="text-white/60 hover:text-white">Skjul</button>
                       </div>
+                    </div>
                       <SetupWizard
                         initialData={articleData}
                         onChange={handleSetupWizardChange}
