@@ -1428,7 +1428,7 @@ export async function POST(request: NextRequest) {
     const authorInfo = authorName || 'Apropos Writer';
     const dynamicPrompt = await loadSystemPromptFromApi(request);
     const basePrompt = dynamicPrompt || APROPOS_SYSTEM_PROMPT;
-    const combinedTOV = [trainedTOV, authorTOV].filter(Boolean).join('\n\n');
+    let combinedTOV = [trainedTOV, authorTOV].filter(Boolean).join('\n\n');
     console.log('🔍 Combined TOV length:', combinedTOV.length);
     console.log('🔍 Combined TOV preview:', combinedTOV.substring(0, 200) + '...');
     // Skip author sample loading in fast mode for speed
