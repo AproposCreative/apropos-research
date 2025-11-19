@@ -40,4 +40,5 @@ export interface ArticleData {
   topicsSelected?: string[];
   streaming_service?: string;
   featuredImage?: string;
+  generationMode?: 'fast' | 'editorial';
 }
