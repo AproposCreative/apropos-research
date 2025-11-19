@@ -2326,11 +2326,9 @@ Returnér ét JSON-objekt med "response", "articleUpdate" og "citations".`;
       )
     );
 
-    // For notes template: Don't show quality recommendations in chat - they should be integrated in first attempt
-    // Only keep them for internal quality metrics
-    const isNotesTemplateForWarnings = (articleData as any)?.template === 'notes';
-    const suppressWarnings = isNotesTemplateForWarnings || isFastMode;
-    const warningsForChat = suppressWarnings ? [] : qualityRecommendations;
+    // Don't show quality recommendations in chat - suppress all warnings
+    const suppressWarnings = true; // Always suppress warnings - user doesn't want to see them
+    const warningsForChat = [];
 
     endStage(true, undefined, { 
       qualityIssues: qualityRecommendations.length,
