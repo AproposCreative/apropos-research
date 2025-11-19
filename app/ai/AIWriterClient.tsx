@@ -461,15 +461,8 @@ useEffect(() => {
         }
 
         addChatMessage('assistant', data.response);
-        if (Array.isArray(data.warnings) && data.warnings.length > 0) {
-          setEditorialWarnings(data.warnings);
-          addChatMessage(
-            'assistant',
-            `Redaktionelle noter:\n${data.warnings.map((w: string) => `• ${w}`).join('\n')}`
-          );
-        } else {
-          setEditorialWarnings([]);
-        }
+        // Warnings are now suppressed on server side - don't show them
+        setEditorialWarnings([]);
         // Live preview sync: try to extract a working title from the response
         try {
           const m = String(data.response || '').match(/^(?:arbejdstitel|titel)[:\-]\s*(.+)$/im) || String(data.response||'').match(/^#\s+(.+)$/m);
