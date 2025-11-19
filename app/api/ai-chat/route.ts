@@ -1431,8 +1431,12 @@ export async function POST(request: NextRequest) {
     const combinedTOV = [trainedTOV, authorTOV].filter(Boolean).join('\n\n');
     console.log('🔍 Combined TOV length:', combinedTOV.length);
     console.log('🔍 Combined TOV preview:', combinedTOV.substring(0, 200) + '...');
+    // Skip author sample loading in fast mode for speed
     const shouldLoadAuthorSample = !isFastMode;
     const authorSample = shouldLoadAuthorSample ? await getAuthorSampleSnippet(authorInfo) : '';
+    if (isFastMode) {
+      console.log('⚡ Fast mode: Skipping author sample loading for speed');
+    }
     // Lightweight diagnostics for prompt composition
     // Determine dynamic target lengths from section/topic
     const lower = (s: any) => String(s||'').toLowerCase();
@@ -1721,10 +1725,10 @@ ${context ? `\n\nAktuel artikel-kontekst:\n${context}` : ''}`;
           ...messages
         ],
         temperature: 1, // GPT-5 only supports default temperature (1)
-        max_completion_tokens: isSimpleMessage ? 500 : 3000, // Much shorter for simple messages
+        max_completion_tokens: isSimpleMessage ? 500 : (isFastMode ? 1500 : 3000), // Reduced tokens for fast mode
         response_format: { type: 'json_object' },
       }, {
-        timeout: isSimpleMessage ? 15000 : 90000, // Increased timeouts: 15s for simple, 90s for complex
+        timeout: isSimpleMessage ? 20000 : (isFastMode ? 60000 : 120000), // Increased timeouts: 20s simple, 60s fast mode, 120s editorial
       });
       const generationTime = Date.now() - generationStartTime;
       console.log(`✅ OpenAI API call completed successfully in ${generationTime}ms`);

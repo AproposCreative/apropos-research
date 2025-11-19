@@ -410,11 +410,15 @@ useEffect(() => {
       
       const { fieldMeta, requiredSlugs, mappingEntries, mapSlugToInternal, samples } = webflowData;
 
-      // Add timeout for simple messages
+      // Add timeout - adjust based on message type and generation mode
+      const generationMode = articleData?.generationMode || 'editorial';
+      const isFastMode = generationMode === 'fast';
       const controller = new AbortController();
       const timeoutId = isSimpleMessage 
-        ? setTimeout(() => controller.abort(), 15000) // 15 second timeout for simple messages
-        : setTimeout(() => controller.abort(), 120000); // 2 minute timeout for complex messages
+        ? setTimeout(() => controller.abort(), 20000) // 20 second timeout for simple messages
+        : isFastMode
+        ? setTimeout(() => controller.abort(), 60000) // 60 second timeout for fast mode
+        : setTimeout(() => controller.abort(), 180000); // 3 minute timeout for editorial mode
 
       const response = await fetch('/api/ai-chat', {
         method: 'POST',
