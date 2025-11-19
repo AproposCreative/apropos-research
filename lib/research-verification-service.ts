@@ -69,15 +69,22 @@ export interface VerificationResult {
 export async function performComprehensiveResearch(
   topic: string,
   articleData?: any,
-  baseUrl?: string
+  baseUrl?: string,
+  options?: {
+    enableWebSearch?: boolean;
+    enableAdvancedResearch?: boolean;
+  }
 ): Promise<ResearchSources> {
+  const enableWebSearch = options?.enableWebSearch !== false; // Default to true
+  const enableAdvancedResearch = options?.enableAdvancedResearch === true; // Default to false
   const sources: ResearchSources = {
     webSearch: []
   };
 
-  // 1. Web Search (always performed) - includes Wikipedia, DuckDuckGo, etc.
-  try {
-    if (baseUrl) {
+  // 1. Web Search (if enabled) - includes Wikipedia, DuckDuckGo, etc.
+  if (enableWebSearch) {
+    try {
+      if (baseUrl) {
       const searchQuery = extractSearchQuery(topic, articleData);
       const searchResponse = await fetch(`${baseUrl}/api/web-search`, {
         method: 'POST',
@@ -111,12 +118,14 @@ export async function performComprehensiveResearch(
         }
       }
     }
-  } catch (error) {
-    console.error('Web search failed:', error);
+    } catch (error) {
+      console.error('Web search failed:', error);
+    }
   }
 
-  // 1b. Enhanced Wikipedia Search (both Danish and English)
-  try {
+  // 1b. Enhanced Wikipedia Search (both Danish and English) - only if web search is enabled
+  if (enableWebSearch) {
+    try {
     const searchQuery = extractSearchQuery(topic, articleData);
     
     // Try Danish Wikipedia first
@@ -160,11 +169,12 @@ export async function performComprehensiveResearch(
         console.log('English Wikipedia search failed:', error);
       }
     }
-  } catch (error) {
-    console.error('Wikipedia search failed:', error);
+    } catch (error) {
+      console.error('Wikipedia search failed:', error);
+    }
   }
 
-  // 2. TMDB Verification (for media reviews)
+  // 2. TMDB Verification (for media reviews) - always performed if relevant
   if (articleData?.title && (isMediaReview(articleData) || topic.toLowerCase().includes('film') || topic.toLowerCase().includes('serie'))) {
     try {
       const tmdbResult = await verifyMediaType(articleData.title);
@@ -188,9 +198,10 @@ export async function performComprehensiveResearch(
     }
   }
 
-  // 3. Advanced Research (for complex topics)
-  try {
-    if (baseUrl) {
+  // 3. Advanced Research (for complex topics) - only if enabled
+  if (enableAdvancedResearch) {
+    try {
+      if (baseUrl) {
       const researchResponse = await fetch(`${baseUrl}/api/research-engine`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -215,9 +226,10 @@ export async function performComprehensiveResearch(
           };
         }
       }
+      }
+    } catch (error) {
+      console.error('Advanced research failed:', error);
     }
-  } catch (error) {
-    console.error('Advanced research failed:', error);
   }
 
   return sources;
