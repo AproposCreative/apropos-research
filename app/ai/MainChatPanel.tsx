@@ -1140,10 +1140,10 @@ const fallbackThinkingSteps: ThinkingStep[] = [
             const isEditing = editingMessage === message.id;
             const formattedTime = message.timestamp?.toLocaleTimeString('da-DK', { hour: '2-digit', minute: '2-digit' }) ?? '';
             const alignment = isUser ? 'justify-end' : 'justify-start';
-            const widthClass = isEditing ? 'w-full max-w-[640px]' : 'max-w-[78%]';
+            const widthClass = isEditing ? 'w-full max-w-[640px]' : (isUser ? 'max-w-[78%] min-w-0' : 'max-w-[78%]');
             const offsetClass = isEditing ? '' : (isUser ? 'md:ml-20' : 'md:mr-20');
             const bubbleClass = isUser
-              ? 'rounded-2xl px-4 py-3 transition-all duration-300 shadow-[0_18px_44px_-30px_rgba(0,0,0,0.8)] bg-black/90 text-white border border-white/20 hover:border-white/35 hover:bg-white/5'
+              ? 'rounded-2xl px-4 py-3 transition-all duration-300 shadow-[0_18px_44px_-30px_rgba(0,0,0,0.8)] bg-black/90 text-white border border-white/20 hover:border-white/35 hover:bg-white/5 break-words overflow-wrap-anywhere'
               : 'px-1.5 py-2 text-white/85 transition-all duration-300';
 
             return (
@@ -1247,7 +1247,7 @@ const fallbackThinkingSteps: ThinkingStep[] = [
                           </div>
                         </div>
                       ) : (
-                        <p className="text-sm leading-relaxed whitespace-pre-wrap text-left text-white/90">{message.content}</p>
+                        <p className="text-sm leading-relaxed whitespace-pre-wrap text-left text-white/90 break-words overflow-wrap-anywhere">{message.content}</p>
                       )
                     )}
                     
