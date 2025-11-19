@@ -1,5 +1,5 @@
 import './globals.css';
-import type { Metadata } from 'next';
+import type { Metadata, Viewport } from 'next';
 import { AuthProvider } from '../lib/auth-context';
 import { SelectProvider } from '../components/SelectCtx';
 import { RefreshProvider } from '../components/RefreshCtx';
@@ -20,6 +20,13 @@ const poppins = Poppins({
 export const metadata: Metadata = {
   title: 'Apropos Research',
   description: 'Research & Prompts – Apropos Research Platform',
+};
+
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  maximumScale: 5,
+  userScalable: true,
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
@@ -53,5 +60,4 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     </html>
   );
 }
-
 

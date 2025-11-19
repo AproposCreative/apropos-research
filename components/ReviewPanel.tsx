@@ -36,15 +36,6 @@ export default function ReviewPanel({ articleData, onClose, frameless, onPreflig
   }
   if (!content) content = 'Her vil artikelindholdet blive vist, når du begynder at skrive i chatten.';
   
-  // DEBUG: Log what ReviewPanel receives
-  console.log('📄 ReviewPanel - articleData.content:', {
-    hasContent: !!content,
-    contentLength: content.length,
-    contentPreview: content.substring(0, 200),
-    startsWithIntro: content.startsWith('Intro:'),
-    first100Chars: content.substring(0, 100)
-  });
-
   // Extract intro and body from content
   // Intro is the part that starts with "Intro:" (case-insensitive) followed by text until first double newline or paragraph break
   const extractIntroAndBody = (text: string) => {
@@ -183,14 +174,6 @@ export default function ReviewPanel({ articleData, onClose, frameless, onPreflig
   const wordCount = (combinedContent && !isPlaceholder) ? combinedContent.trim().split(/\s+/).filter(Boolean).length : 0;
   const readTime = wordCount ? Math.ceil(wordCount / 200) : 0;
   
-  // Debug logging
-  console.log('🔍 ReviewPanel word count debug:', {
-    contentLength: content.length,
-    wordCount,
-    isPlaceholder,
-    contentPreview: content.substring(0, 100) + '...'
-  });
-
   const has = (...aliases: string[]) => {
     if (!wfSlugs || wfSlugs.length === 0) return true; // optimistic until loaded
     const set = new Set(wfSlugs.map((s) => String(s).toLowerCase()));

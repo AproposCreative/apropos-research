@@ -16,6 +16,19 @@ interface SetupWizardProps {
 
 type Option = { id: string; name: string; slug: string };
 
+const getDateTimestamp = (value?: string | number | null) => {
+  if (value === null || value === undefined || value === '') return 0;
+  const date = typeof value === 'number' ? new Date(value) : new Date(String(value));
+  const time = date.getTime();
+  return Number.isNaN(time) ? 0 : time;
+};
+
+const sortByNewest = <T,>(items: T[], getDate: (item: T) => string | number | undefined | null) => {
+  return [...items].sort(
+    (a, b) => getDateTimestamp(getDate(b)) - getDateTimestamp(getDate(a))
+  );
+};
+
 export default function SetupWizard({ initialData, onComplete, onChange }: SetupWizardProps) {
   const [step, setStep] = useState<Step>('template');
   const stepperRef = useRef<HTMLDivElement | null>(null);
@@ -342,16 +355,21 @@ export default function SetupWizard({ initialData, onComplete, onChange }: Setup
         }
         const j = await res.json();
         const items = Array.isArray(j.recommendations) ? j.recommendations : [];
-        setRecommendedItems(items);
-        setTrendingItems(items.map((it: any) => ({
-          title: it.title,
-          date: it.date || it.published_at || it.publishDate,
-          published_at: it.published_at || it.date || it.publishDate,
-          source: it.source,
-          url: it.url,
-          keyPoints: [],
-          content: it.excerpt || ''
-        })));
+        const sortedRecommendations = sortByNewest(items, (item: any) => item.date || item.published_at || item.publishDate || item.releaseDate);
+        setRecommendedItems(sortedRecommendations);
+        const normalized = sortByNewest(
+          sortedRecommendations.map((it: any) => ({
+            title: it.title,
+            date: it.date || it.published_at || it.publishDate,
+            published_at: it.published_at || it.date || it.publishDate,
+            source: it.source,
+            url: it.url,
+            keyPoints: [],
+            content: it.excerpt || ''
+          })),
+          (item) => item.date || item.published_at || item.publishDate
+        );
+        setTrendingItems(normalized);
       } catch (error) {
         console.error('Error loading recommended articles:', error);
       } finally {
@@ -393,16 +411,19 @@ export default function SetupWizard({ initialData, onComplete, onChange }: Setup
       if (items.length === 0 && Array.isArray(j.allArticles)) {
         items = j.allArticles;
       }
-      const mappedItems = items.map((a: any) => ({ 
-        title: a.title || a.name || 'Ukendt titel', 
-        date: a.date || a.published_at || a.publishDate,
-        published_at: a.published_at || a.date || a.publishDate,
-        publishDate: a.publishDate || a.date || a.published_at,
-        source: a.source || sourceName,
-        url: a.url || a.link,
-        keyPoints: Array.isArray(a.keyPoints) ? a.keyPoints : (a.keyPoints ? [a.keyPoints] : []),
-        content: a.content || a.body_text || a.body || a.excerpt || ''
-      }));
+      const mappedItems = sortByNewest(
+        items.map((a: any) => ({ 
+          title: a.title || a.name || 'Ukendt titel', 
+          date: a.date || a.published_at || a.publishDate,
+          published_at: a.published_at || a.date || a.publishDate,
+          publishDate: a.publishDate || a.date || a.published_at,
+          source: a.source || sourceName,
+          url: a.url || a.link,
+          keyPoints: Array.isArray(a.keyPoints) ? a.keyPoints : (a.keyPoints ? [a.keyPoints] : []),
+          content: a.content || a.body_text || a.body || a.excerpt || ''
+        })),
+        (item) => item.date || item.published_at || item.publishDate
+      );
       setTrendingItems(mappedItems);
       currentSourceRef.current = sourceName;
     } catch (error) {
@@ -566,8 +587,22 @@ export default function SetupWizard({ initialData, onComplete, onChange }: Setup
           <StepChip stepKey="rating" active={step==='rating'} done={data.rating>0 || data.ratingSkipped} label="Rating" onClick={()=>setStep('rating')} />
           <StepChip stepKey="press" active={step==='press'} done={typeof data.press === 'boolean'} label="Press" onClick={()=>setStep('press')} />
         </div>
-        <div className={`pointer-events-none absolute inset-y-0 left-0 w-10 bg-[linear-gradient(90deg,_#050505,_rgba(5,5,5,0.7),_rgba(5,5,5,0))] transition-opacity duration-300 ${scrollFade.left ? 'opacity-100' : 'opacity-0'}`} />
-        <div className={`pointer-events-none absolute inset-y-0 right-0 w-10 bg-[linear-gradient(270deg,_#050505,_rgba(5,5,5,0.7),_rgba(5,5,5,0))] transition-opacity duration-300 ${scrollFade.right ? 'opacity-100' : 'opacity-0'}`} />
+        <div
+          className={`pointer-events-none absolute inset-y-0 left-0 w-10 transition-opacity duration-300 ${scrollFade.left ? 'opacity-100' : 'opacity-0'}`}
+          style={{
+            backgroundColor: 'inherit',
+            WebkitMaskImage: 'linear-gradient(90deg, rgba(0,0,0,0), rgba(0,0,0,1))',
+            maskImage: 'linear-gradient(90deg, rgba(0,0,0,0), rgba(0,0,0,1))'
+          }}
+        />
+        <div
+          className={`pointer-events-none absolute inset-y-0 right-0 w-10 transition-opacity duration-300 ${scrollFade.right ? 'opacity-100' : 'opacity-0'}`}
+          style={{
+            backgroundColor: 'inherit',
+            WebkitMaskImage: 'linear-gradient(270deg, rgba(0,0,0,0), rgba(0,0,0,1))',
+            maskImage: 'linear-gradient(270deg, rgba(0,0,0,0), rgba(0,0,0,1))'
+          }}
+        />
       </div>
 
       {/* Step content (auto-height, allows scrolling for specific steps) */}

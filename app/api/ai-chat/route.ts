@@ -34,6 +34,10 @@ function loadExternalSystemPrompt(): string | null {
   }
 }
 
+// Cache for system prompt to avoid repeated fetches
+let systemPromptCache: { prompt: string | null; timestamp: number } | null = null;
+const SYSTEM_PROMPT_CACHE_TTL = 5 * 60 * 1000; // 5 minutes cache
+
 const APROPOS_SYSTEM_PROMPT = (loadExternalSystemPrompt() || `Du er en AI-medskribent for Apropos Magazine. Din rolle er at hjælpe journalister med at skrive artikler i Apropos' karakteristiske stil.
 
 🧠 APROPOS MAGAZINE - REDAKTIONELT MANIFEST
@@ -81,17 +85,45 @@ Din opgave er at:
 Svar altid på dansk og hold en venlig, professionel tone. Vær konkret i dine forslag og forklar dine anbefalinger.`);
 
 async function loadSystemPromptFromApi(req: NextRequest): Promise<string | null> {
+  // Check cache first
+  if (systemPromptCache && (Date.now() - systemPromptCache.timestamp) < SYSTEM_PROMPT_CACHE_TTL) {
+    console.log('📦 Using cached system prompt');
+    return systemPromptCache.prompt;
+  }
+
   try {
     const proto = req.headers.get('x-forwarded-proto') || 'http';
     const host = req.headers.get('host');
     const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || (host ? `${proto}://${host}` : 'http://localhost:3001');
     
-    // Load central prompt
-    const centralRes = await fetch(`${baseUrl}/api/prompts/apropos`, { cache: 'no-store' });
-    if (!centralRes.ok) return null;
+    // Add timeout to fetch call to prevent hanging
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout
     
-    let centralPrompt = await centralRes.text();
-    if (!centralPrompt || centralPrompt.length < 50) return null;
+    try {
+      const centralRes = await fetch(`${baseUrl}/api/prompts/apropos`, { 
+        cache: 'no-store',
+        signal: controller.signal
+      });
+      clearTimeout(timeoutId);
+      
+      if (!centralRes.ok) {
+        // Use cached value if available, even if stale
+        if (systemPromptCache?.prompt) {
+          console.log('⚠️ Failed to fetch prompt, using stale cache');
+          return systemPromptCache.prompt;
+        }
+        return null;
+      }
+      
+      let centralPrompt = await centralRes.text();
+      if (!centralPrompt || centralPrompt.length < 50) {
+        if (systemPromptCache?.prompt) {
+          console.log('⚠️ Invalid prompt response, using stale cache');
+          return systemPromptCache.prompt;
+        }
+        return null;
+      }
     
     // Load structure file
     const fs = require('fs');
@@ -128,9 +160,26 @@ FIELD MAPPING GUIDANCE (Learned from 100 real articles):
       centralPrompt += fieldMappingGuidance;
     }
     
+    // Update cache
+    systemPromptCache = { prompt: centralPrompt, timestamp: Date.now() };
     return centralPrompt;
+    } catch (fetchError: any) {
+      clearTimeout(timeoutId);
+      if (fetchError.name === 'AbortError') {
+        console.log('⏱️ System prompt fetch timeout, using cache or default');
+        if (systemPromptCache?.prompt) {
+          return systemPromptCache.prompt;
+        }
+      }
+      throw fetchError;
+    }
   } catch (error) {
     console.error('Error loading system prompt:', error);
+    // Fallback to cache if available
+    if (systemPromptCache?.prompt) {
+      console.log('⚠️ Using cached prompt after error');
+      return systemPromptCache.prompt;
+    }
     return null;
   }
 }
@@ -1161,6 +1210,23 @@ function shouldRunAdvancedResearch(message: string, articleData: any, webSearchT
   return webSearchTriggered && (articleData?.title || articleData?.topic);
 }
 
+function shouldHandleFastModeQuickQuestion(message: string): boolean {
+  if (!message) return false;
+  const trimmed = message.trim();
+  if (!trimmed) return false;
+  if (trimmed.length > 220) return false;
+  const lower = trimmed.toLowerCase();
+  const questionWords = ['hvem', 'hvad', 'hvornår', 'hvordan', 'hvorfor', 'hvor', 'hvilken', 'hvilket', 'hvilke', 'kan', 'skal', 'må', 'er', 'bliver'];
+  const isQuestionWord = questionWords.some((word) => lower.startsWith(`${word} `));
+  const isQuestionMark = trimmed.includes('?');
+  if (!isQuestionMark && !isQuestionWord) return false;
+  const directivePatterns = /\b(skriv|forfat|lav|udkast|artikel|essay|anmeld|pitch|struktur|intro)\b/i;
+  if (directivePatterns.test(lower)) return false;
+  const wordCount = trimmed.split(/\s+/).filter(Boolean).length;
+  if (wordCount > 60) return false;
+  return true;
+}
+
 function extractSearchQuery(message: string, articleData: any): string {
   // Extract key terms from message and article data
   const terms = [];
@@ -1612,15 +1678,147 @@ ${context ? `\n\nAktuel artikel-kontekst:\n${context}` : ''}`;
     const isNotesTemplate = (articleData as any)?.template === 'notes';
     
     // Check if this is a simple message that doesn't need research
-    const isSimpleMessage = /^(hej|hi|hello|hey|ja|nej|okay|ok|tak|super|mange tak|thanks|thank you)\b/i.test(message.trim()) && message.trim().length < 30;
+    const trimmedMessage = message.trim();
+    const isSimpleMessage =
+      /^(hej|hi|hello|hey|ja|nej|okay|ok|tak|super|mange tak|thanks|thank you)\b/i.test(trimmedMessage) &&
+      trimmedMessage.length < 30;
     
+    if (isSimpleMessage) {
+      const friendlyResponses = [
+        'Hej! Jeg er klar – hvad vil du gerne arbejde videre med?',
+        'Hey! Sig til, hvad du vil have hjælp til.',
+        'Hej! Skal vi kigge på artiklen eller brainstorme noget nyt?'
+      ];
+      const quickResponse =
+        friendlyResponses[Math.floor(Math.random() * friendlyResponses.length)];
+      
+      if (progressId) {
+        updateProgressStep(progressId, 'prepare', 'completed');
+        updateProgressStep(progressId, 'web-search', 'skipped');
+        updateProgressStep(progressId, 'advanced-research', 'skipped');
+        updateProgressStep(progressId, 'generation', 'skipped');
+        updateProgressStep(progressId, 'quality', 'skipped');
+        updateProgressStep(progressId, 'format', 'skipped');
+        completeProgress(progressId);
+      }
+      
+      endStage(true, 'Simple greeting handled without generation', { quickResponse: true });
+      logReport();
+      
+      return NextResponse.json({
+        response: quickResponse,
+        suggestion: null,
+        articleUpdate: articleData || {},
+        warnings: [],
+        citations: [],
+        mode: generationMode,
+        usage: undefined,
+        qualityMetrics: {
+          issues: 0,
+          wordCount: 0,
+          bodyWordCount: 0,
+          readingTimeMinutes: 0,
+          readingTime: 0,
+          introPresent: false,
+          endingPresent: false,
+          overlapRatio: 0,
+          researchUsed: false
+        }
+      });
+    }
+    
+    // Fast mode: detect short factual questions that should get a quick response (not full article)
+    const fastModeQuickQuestion = isFastMode && shouldHandleFastModeQuickQuestion(message);
+    if (fastModeQuickQuestion) {
+      try {
+        startStage('fast-mode-qa', { messageLength: trimmedMessage.length });
+        const quickHistory = Array.isArray(chatHistory)
+          ? chatHistory
+              .slice(-2)
+              .map((entry: any) => {
+                if (!entry || typeof entry.content !== 'string') return null;
+                const role: 'assistant' | 'user' = entry.role === 'assistant' ? 'assistant' : 'user';
+                return { role, content: entry.content };
+              })
+              .filter(
+                (entry): entry is { role: 'assistant' | 'user'; content: string } =>
+                  !!entry && typeof entry.content === 'string'
+              )
+          : [];
+        const quickSystemPrompt = `Du er en hurtig kulturredaktør for Apropos Magazine. Svar kort (maks 4 sætninger) og direkte på danske spørgsmål uden at skrive artikler, intro/eftertanke eller JSON. Brug konkrete fakta hvis du kender dem, og nævn hvis noget bør verificeres. Ingen punktopstillinger – bare et klart svar.`;
+        const quickMessages = [
+          { role: 'system', content: quickSystemPrompt },
+          ...quickHistory,
+          { role: 'user', content: trimmedMessage }
+        ];
+        const quickCompletion = await openai.chat.completions.create({
+          model: OPENAI_MODEL,
+          messages: quickMessages,
+          temperature: 0.2,
+          max_completion_tokens: 400
+        }, {
+          timeout: 20000
+        });
+        const quickResponse = quickCompletion.choices?.[0]?.message?.content?.trim() || '';
+        if (!quickResponse) {
+          throw new Error('Tomt svar fra OpenAI i fast mode QA');
+        }
+
+        if (progressId) {
+          updateProgressStep(progressId, 'web-search', 'skipped');
+          updateProgressStep(progressId, 'advanced-research', 'skipped');
+          updateProgressStep(progressId, 'generation', 'completed');
+          updateProgressStep(progressId, 'quality', 'skipped');
+          updateProgressStep(progressId, 'format', 'completed');
+          completeProgress(progressId);
+        }
+
+        endStage(true, undefined, { fastModeQA: true, responseLength: quickResponse.length });
+        logReport();
+
+        return NextResponse.json({
+          response: quickResponse,
+          suggestion: null,
+          articleUpdate: {},
+          warnings: [],
+          citations: [],
+          mode: generationMode,
+          usage: quickCompletion.usage,
+          qualityMetrics: {
+            issues: 0,
+            wordCount: 0,
+            bodyWordCount: 0,
+            readingTimeMinutes: 0,
+            readingTime: 0,
+            introPresent: false,
+            endingPresent: false,
+            overlapRatio: 0,
+            researchUsed: false
+          }
+        });
+      } catch (fastQaError) {
+        console.error('Fast mode direkte QA fejlede, fortsætter med fuldt workflow:', fastQaError);
+        endStage(false, fastQaError instanceof Error ? fastQaError.message : 'Fast mode QA failed');
+        // Continue to full workflow below
+      }
+    }
+
     // Determine whether this request actually needs the heavy research pipeline
     const heuristicsNeedWebResearch = !isNotesTemplate && !isSimpleMessage && shouldPerformWebSearch(message, articleData);
     const heuristicsNeedAdvancedResearch =
       heuristicsNeedWebResearch && shouldRunAdvancedResearch(message, articleData, heuristicsNeedWebResearch);
-    const needsWebResearch = isFastMode ? false : (generationMode === 'editorial' ? true : heuristicsNeedWebResearch);
+    const baseEditorialResearchRequirement = !isSimpleMessage && !isNotesTemplate;
+    const needsWebResearch = isFastMode
+      ? false
+      : generationMode === 'editorial'
+        ? baseEditorialResearchRequirement
+        : heuristicsNeedWebResearch;
     const needsAdvancedResearch = needsWebResearch
-      ? (generationMode === 'editorial' ? true : heuristicsNeedAdvancedResearch)
+      ? (
+        generationMode === 'editorial'
+          ? baseEditorialResearchRequirement
+          : heuristicsNeedAdvancedResearch
+      )
       : false;
     
     console.log(`🔍 Professional Research Pipeline - Template: ${(articleData as any)?.template}, Mode: ${generationMode}, IsSimpleMessage: ${isSimpleMessage}, HeuristicNeedWeb: ${heuristicsNeedWebResearch}, NeedsWebResearch: ${needsWebResearch}, NeedsAdvancedResearch: ${needsAdvancedResearch}`);
@@ -1636,17 +1834,34 @@ ${context ? `\n\nAktuel artikel-kontekst:\n${context}` : ''}`;
     
     // PERFORM COMPREHENSIVE RESEARCH (mode-aware)
     if (needsWebResearch) {
-      if (progressId) {
+      if (progressId && !isSimpleMessage) {
         updateProgressStep(progressId, 'web-search', 'active');
       }
       startStage('comprehensive-research', { topic: researchTopic });
       
       try {
         console.log(`🔬 Starting comprehensive research for: "${researchTopic}"`);
-        researchSources = await performComprehensiveResearch(researchTopic, articleData, baseRequestUrl, {
-          enableWebSearch: true,
-          enableAdvancedResearch: needsAdvancedResearch
+        // Add timeout wrapper for research to prevent hanging
+        const researchTimeoutPromise = new Promise<null>((_, reject) => {
+          setTimeout(() => reject(new Error('Research timeout')), 30000); // 30s timeout
         });
+        
+        try {
+          researchSources = await Promise.race([
+            performComprehensiveResearch(researchTopic, articleData, baseRequestUrl, {
+              enableWebSearch: true,
+              enableAdvancedResearch: needsAdvancedResearch
+            }),
+            researchTimeoutPromise
+          ]) as ResearchSources | null;
+        } catch (researchError: any) {
+          if (researchError.message === 'Research timeout') {
+            console.warn('⏱️ Research timed out after 30s, continuing without research data');
+            researchSources = null; // Continue without research - graceful degradation
+          } else {
+            throw researchError;
+          }
+        }
         console.log(`✅ Research completed:`, {
           webSearchResults: researchSources.webSearch.length,
           tmdbVerified: !!researchSources.tmdbVerification?.verified,
@@ -1657,9 +1872,9 @@ ${context ? `\n\nAktuel artikel-kontekst:\n${context}` : ''}`;
         const researchPrompt = formatResearchForPrompt(researchSources);
         finalSystemContent += researchPrompt;
         
-        if (progressId) {
+        if (progressId && !isSimpleMessage) {
           updateProgressStep(progressId, 'web-search', 'completed');
-          updateProgressStep(progressId, 'advanced-research', researchSources.advancedResearch ? 'completed' : 'skipped');
+          updateProgressStep(progressId, 'advanced-research', researchSources?.advancedResearch ? 'completed' : 'skipped');
         }
         
         endStage(true, undefined, { 

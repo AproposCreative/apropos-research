@@ -9,8 +9,6 @@ import ArticleSuggestions from '@/components/ArticleSuggestions';
 import ArticlePicker from '@/components/ArticlePicker';
 import CategorySelection from '@/components/CategorySelection';
 import { WebflowAuthor } from '@/lib/webflow-service';
-import WebflowPublishPanel from '@/components/WebflowPublishPanel';
-import { WebflowArticleFields } from '@/lib/webflow-service';
 import { useAuth } from '@/lib/auth-context';
 import { type UploadedFile } from '@/lib/file-upload-service';
 import type { ArticleData } from '@/types/article';
@@ -68,8 +66,9 @@ interface MainChatPanelProps {
   onChatTitleChange: (title: string) => void;
   editorialWarnings: string[];
   onClearEditorialWarnings: () => void;
-  onPublishSuccess?: (articleId: string) => void;
   onNewArticle?: () => void;
+  onOpenDraftsPanel?: () => void;
+  onOpenReviewPanel?: () => void;
 }
 
 export default function MainChatPanel({
@@ -89,8 +88,9 @@ export default function MainChatPanel({
   onChatTitleChange,
   editorialWarnings,
   onClearEditorialWarnings,
-  onPublishSuccess,
-  onNewArticle
+  onNewArticle,
+  onOpenDraftsPanel,
+  onOpenReviewPanel
 }: MainChatPanelProps) {
   const { logout } = useAuth();
   const [inputMessage, setInputMessage] = useState('');
@@ -102,7 +102,6 @@ export default function MainChatPanel({
   const [showFileDrop, setShowFileDrop] = useState(false);
   const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]);
   // const [showAISuggestions, setShowAISuggestions] = useState(false);
-  const [showPublishPanel, setShowPublishPanel] = useState(false);
   const [selectedText, setSelectedText] = useState('');
   const [selectionStep, setSelectionStep] = useState<'category' | 'template' | 'author' | 'chat'>('category');
   const [selectedCategory, setSelectedCategory] = useState<any>(null);
@@ -125,6 +124,8 @@ export default function MainChatPanel({
   const progressResetTimeoutRef = useRef<number | null>(null);
   const progressDisplay = Math.min(100, Math.max(0, Math.round(thinkingProgress)));
   const [mobileWizardCollapsed, setMobileWizardCollapsed] = useState<boolean>((messages?.length || 0) > 0);
+  const inputContainerRef = useRef<HTMLDivElement | null>(null);
+  const [inputSpacerHeight, setInputSpacerHeight] = useState(0);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [mobileMenuVisible, setMobileMenuVisible] = useState(false);
   const SPLINE_MOBILE_OPTIONS = [
@@ -160,20 +161,62 @@ export default function MainChatPanel({
     window.setTimeout(() => setMobileMenuVisible(false), 320);
   };
 
+  useEffect(() => {
+    const updateHeight = () => {
+      if (!inputContainerRef.current) {
+        setInputSpacerHeight(0);
+        return;
+      }
+      const isDesktop = typeof window !== 'undefined' && window.innerWidth >= 768;
+      if (isDesktop) {
+        setInputSpacerHeight(0);
+        return;
+      }
+      const rect = inputContainerRef.current.getBoundingClientRect();
+      setInputSpacerHeight(rect.height);
+    };
+
+    updateHeight();
+
+    let resizeObserver: ResizeObserver | null = null;
+    const hasWindow = typeof window !== 'undefined';
+
+    if (hasWindow) {
+      window.addEventListener('resize', updateHeight);
+      if (typeof ResizeObserver !== 'undefined' && inputContainerRef.current) {
+        resizeObserver = new ResizeObserver(() => updateHeight());
+        resizeObserver.observe(inputContainerRef.current);
+      }
+    }
+
+    return () => {
+      if (hasWindow) {
+        window.removeEventListener('resize', updateHeight);
+      }
+      if (resizeObserver) {
+        resizeObserver.disconnect();
+      }
+    };
+  }, [wizardNode, mobileWizardCollapsed, showFileDrop, inputMessage]);
+
 const fallbackThinkingSteps: ThinkingStep[] = [
   { id: 'prepare', label: 'Forbereder prompt…', status: 'active', icon: 'dot' },
   { id: 'generation', label: 'Afventer modelsvar…', status: 'pending', icon: 'dot' }
 ];
 
+  const isFastMode = articleData?.generationMode === 'fast';
+  const showThinkingTimeline = isThinking && !isFastMode;
+  const showSimpleThinkingIndicator = isThinking && isFastMode;
+
   // Memoize stepsToRender to prevent unnecessary re-renders
   const stepsToRender = useMemo(() => {
-    if (!isThinking) return [];
+    if (!showThinkingTimeline) return [];
     return thinkingSteps.length > 0 ? thinkingSteps : fallbackThinkingSteps;
-  }, [isThinking, thinkingSteps]);
+  }, [showThinkingTimeline, thinkingSteps]);
 
   // Track visible steps with animation
   useEffect(() => {
-    if (!isThinking || stepsToRender.length === 0) {
+    if (!showThinkingTimeline || stepsToRender.length === 0) {
       // Only reset if we actually have visible steps
       setVisibleSteps(prev => {
         if (prev.size === 0) return prev;
@@ -282,7 +325,7 @@ const fallbackThinkingSteps: ThinkingStep[] = [
       stepAnimationTimeoutsRef.current.forEach(timeoutId => clearTimeout(timeoutId));
       stepAnimationTimeoutsRef.current.clear();
     };
-  }, [isThinking, stepsToRender]);
+  }, [showThinkingTimeline, stepsToRender]);
 
   const getStepTextClass = (status: ThinkingStatus) => {
     switch (status) {
@@ -300,11 +343,21 @@ const fallbackThinkingSteps: ThinkingStep[] = [
   };
 
   const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    // Use requestAnimationFrame to ensure DOM is ready
+    requestAnimationFrame(() => {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
+      // Also scroll the message list container to ensure visibility
+      if (messageListRef.current) {
+        messageListRef.current.scrollTop = messageListRef.current.scrollHeight;
+      }
+    });
   };
 
   useEffect(() => {
-    scrollToBottom();
+    // Scroll to bottom when messages change or when thinking stops (AI finished responding)
+    const scrollTimeout = setTimeout(() => {
+      scrollToBottom();
+    }, 100); // Small delay to ensure DOM is updated
     
     // Reset title if no messages
     if (messages.length === 0 && chatTitle !== 'Ny artikkel') {
@@ -318,7 +371,9 @@ const fallbackThinkingSteps: ThinkingStep[] = [
         generateSmartTitle(firstUserMessage.content);
       }
     }
-  }, [messages, chatTitle]);
+    
+    return () => clearTimeout(scrollTimeout);
+  }, [messages, chatTitle, isThinking]);
 
   // Reset selection step when messages are cleared (new article)
   useEffect(() => {
@@ -933,33 +988,6 @@ const fallbackThinkingSteps: ThinkingStep[] = [
 
   // Removed generic multiple-choice heuristics to avoid irrelevant prompts
 
-  const handlePublishToWebflow = async (articleData: WebflowArticleFields) => {
-    try {
-      const response = await fetch('/api/webflow/publish', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(articleData),
-      });
-
-      const result = await response.json().catch(() => null);
-      if (!response.ok) {
-        const message = result?.error || result?.message || 'Failed to publish article';
-        const details = result?.details ? `\n${result.details}` : '';
-        throw new Error(`${message}${details}`);
-      }
-      
-      onPublishSuccess?.(result.articleId);
-
-      setShowPublishPanel(false);
-    } catch (error) {
-      console.error('Publish error:', error);
-      const msg = error instanceof Error ? error.message : 'Fejl ved udgivelse af artikel';
-      alert(msg);
-    }
-  };
-
   const handleCategorySelect = (category: any) => {
     setSelectedCategory(category);
     setSelectionStep('template');
@@ -1134,6 +1162,7 @@ const fallbackThinkingSteps: ThinkingStep[] = [
           <div
             ref={messageListRef}
             className="h-full overflow-y-auto space-y-4 nice-scrollbar"
+            style={{ paddingBottom: Math.max(inputSpacerHeight, 0) + 40 }}
           >
           {messages.map((message, index) => {
             const isUser = message.role === 'user';
@@ -1369,8 +1398,17 @@ const fallbackThinkingSteps: ThinkingStep[] = [
             </div>
           )}
 
+          {showSimpleThinkingIndicator && (
+            <div className="flex justify-start">
+              <div className="max-w-[80%]" style={{ paddingLeft: '8px', paddingRight: '8px' }}>
+                <div className="px-4 py-3 rounded-2xl bg-white/5 border border-white/10 text-sm text-white/80 shadow-[0_0_20px_rgba(0,0,0,0.35)]">
+                  Hurtig sparring (fast mode) – jeg svarer lige om lidt…
+                </div>
+              </div>
+            </div>
+          )}
           
-          {isThinking && (
+          {showThinkingTimeline && (
             <div className="flex justify-start">
               <div className="max-w-[80%]" style={{ paddingLeft: '8px', paddingRight: '8px' }}>
                 <div className="text-sm text-white/80">
@@ -1446,7 +1484,14 @@ const fallbackThinkingSteps: ThinkingStep[] = [
                 <div className="grid grid-cols-3 gap-2 text-center">
                   <button
                     className="flex flex-col items-center gap-1 py-3 rounded-xl hover:bg-white/5 transition-colors"
-                    onClick={() => { setMobileMenuOpen(false); window.location.href = '/ai-drafts'; }}
+                    onClick={() => {
+                      closeMobileMenu();
+                      if (onOpenDraftsPanel) {
+                        onOpenDraftsPanel();
+                      } else {
+                        window.location.href = '/ai-drafts';
+                      }
+                    }}
                   >
                     <div className="grid grid-cols-3 gap-0.5 w-5 h-5 text-white/90">
                       {Array.from({ length: 9 }).map((_, i) => (
@@ -1457,7 +1502,10 @@ const fallbackThinkingSteps: ThinkingStep[] = [
                   </button>
                   <button
                     className="flex flex-col items-center gap-1 py-3 rounded-xl hover:bg-white/5 transition-colors"
-                    onClick={() => { setMobileMenuOpen(false); setShowPublishPanel(true); }}
+                    onClick={() => {
+                      closeMobileMenu();
+                      if (onOpenReviewPanel) onOpenReviewPanel();
+                    }}
                   >
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-white/90">
                       <path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/>
@@ -1674,9 +1722,13 @@ const fallbackThinkingSteps: ThinkingStep[] = [
         )}
 
         {/* Input Area (sticky wrapper) */}
-        <div className={`md:static fixed inset-x-0 bottom-2 md:bottom-0 md:inset-auto md:bottom-auto 
-          p-3 md:p-0 flex flex-col gap-2 md:gap-0 md:mx-[10px] md:my-0 mx-[10px] mb-0 
-          z-20`} style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 8px)' }}>
+        <div
+          ref={inputContainerRef}
+          className={`md:static fixed inset-x-0 bottom-2 md:bottom-0 md:inset-auto md:bottom-auto 
+          p-0 flex flex-col gap-2 md:gap-0 md:mx-[10px] md:my-0 mx-[10px] mb-0 
+          z-20`}
+          style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 8px)' }}
+        >
           {/* Mobile: Wizard card above writer card inside same sticky container */}
           {wizardNode && (
             <div className="md:hidden mb-2" style={{ overflow: mobileWizardCollapsed ? 'hidden' : 'visible' }} onClick={()=>setMobileWizardCollapsed(c=>!c)}>

@@ -9,7 +9,6 @@ import DraftsShelf from '@/components/DraftsShelf';
 import MiniMenu from '@/components/MiniMenu';
 import PreviewPanel from './PreviewPanel';
 import AuthModal from '@/components/AuthModal';
-import DraftsPanel from '@/components/DraftsPanel';
 import ChatSearchModal from '@/components/ChatSearchModal';
 import { useAuth } from '@/lib/auth-context';
 import { saveDraft, getDraft, type ArticleDraft } from '@/lib/firebase-service';
@@ -113,7 +112,6 @@ const GENERATION_MODE_OPTIONS: Array<{ id: 'fast' | 'editorial'; label: string; 
 export default function AIWriterClient() {
   const { user, logout } = useAuth();
   const [currentDraftId, setCurrentDraftId] = useState<string | null>(null);
-  const [showDraftsPanel, setShowDraftsPanel] = useState(false);
   const [showSearchModal, setShowSearchModal] = useState(false);
   const [isThinking, setIsThinking] = useState(false);
   const [showWizard, setShowWizard] = useState(true);
@@ -337,33 +335,49 @@ useEffect(() => {
       return cache;
     }
 
-    // Fetch fresh data
-    const [schemaRes, mappingRes, samplesRes] = await Promise.all([
-      fetch('/api/webflow/article-fields'),
-      fetch('/api/webflow/mapping'),
-      fetch('/api/webflow/sample-articles')
-    ]);
-    
-    const schemaJson = schemaRes.ok ? await schemaRes.json() : { fields: [] };
-    const mappingJson = mappingRes.ok ? await mappingRes.json() : { entries: [] };
-    const samplesJson = samplesRes.ok ? await samplesRes.json() : { items: [] };
-    
-    const fieldMeta: any[] = Array.isArray(schemaJson.fields) ? schemaJson.fields : [];
-    const requiredSlugs: string[] = fieldMeta.filter((f:any)=>f.required).map((f:any)=>f.slug);
-    const mappingEntries: Array<{ webflowSlug: string; internal: string }> = Array.isArray(mappingJson.entries) ? mappingJson.entries : [];
-    const mapSlugToInternal: Record<string,string> = mappingEntries.reduce((acc:any, e:any)=>{ acc[e.webflowSlug]=e.internal; return acc; }, {});
+    try {
+      // Fetch fresh data
+      const [schemaRes, mappingRes, samplesRes] = await Promise.all([
+        fetch('/api/webflow/article-fields'),
+        fetch('/api/webflow/mapping'),
+        fetch('/api/webflow/sample-articles')
+      ]);
+      
+      const schemaJson = schemaRes.ok ? await schemaRes.json() : { fields: [] };
+      const mappingJson = mappingRes.ok ? await mappingRes.json() : { entries: [] };
+      const samplesJson = samplesRes.ok ? await samplesRes.json() : { items: [] };
+      
+      const fieldMeta: any[] = Array.isArray(schemaJson.fields) ? schemaJson.fields : [];
+      const requiredSlugs: string[] = fieldMeta.filter((f:any)=>f.required).map((f:any)=>f.slug);
+      const mappingEntries: Array<{ webflowSlug: string; internal: string }> = Array.isArray(mappingJson.entries) ? mappingJson.entries : [];
+      const mapSlugToInternal: Record<string,string> = mappingEntries.reduce((acc:any, e:any)=>{ acc[e.webflowSlug]=e.internal; return acc; }, {});
 
-    // Update cache
-    webflowSchemaCacheRef.current = {
-      fieldMeta,
-      requiredSlugs,
-      mappingEntries,
-      mapSlugToInternal,
-      samples: (samplesJson.items || []).slice(0, 5),
-      lastFetched: now
-    };
+      // Update cache
+      webflowSchemaCacheRef.current = {
+        fieldMeta,
+        requiredSlugs,
+        mappingEntries,
+        mapSlugToInternal,
+        samples: (samplesJson.items || []).slice(0, 5),
+        lastFetched: now
+      };
 
-    return webflowSchemaCacheRef.current;
+      return webflowSchemaCacheRef.current;
+    } catch (schemaError) {
+      console.error('Failed to load Webflow schema, falling back to cache/default:', schemaError);
+      if (webflowSchemaCacheRef.current) {
+        return webflowSchemaCacheRef.current;
+      }
+      // Provide minimal fallback so chat can continue
+      return {
+        fieldMeta: [],
+        requiredSlugs: [],
+        mappingEntries: [],
+        mapSlugToInternal: {},
+        samples: [],
+        lastFetched: now
+      };
+    }
   };
 
   const handleSendMessage = async (message: string, files?: UploadedFile[]) => {
@@ -388,6 +402,12 @@ useEffect(() => {
       notesPayload = combined.slice(-2000);
       setNotes(notesPayload);
     }
+
+    const sendAssistantError = (code: string, message: string, details?: string) => {
+      const normalizedCode = (code || 'UNKNOWN').toUpperCase().replace(/[^A-Z0-9_-]/g, '_');
+      const detailText = details ? `\nDetaljer: ${details}` : '';
+      addChatMessage('assistant', `Fejl (${normalizedCode}): ${message}${detailText}`);
+    };
 
     try {
       setIsThinking(true);
@@ -415,29 +435,39 @@ useEffect(() => {
       const isFastMode = generationMode === 'fast';
       const controller = new AbortController();
       const timeoutId = isSimpleMessage 
-        ? setTimeout(() => controller.abort(), 20000) // 20 second timeout for simple messages
+        ? setTimeout(() => controller.abort(), 30000) // 30 second timeout for simple messages
         : isFastMode
-        ? setTimeout(() => controller.abort(), 60000) // 60 second timeout for fast mode
+        ? setTimeout(() => controller.abort(), 90000) // 90 second timeout for fast mode
         : setTimeout(() => controller.abort(), 180000); // 3 minute timeout for editorial mode
 
-      const response = await fetch('/api/ai-chat', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        signal: controller.signal,
-        body: JSON.stringify({
-          message,
-          articleData,
-          notes: notesPayload,
-          chatHistory: chatMessages,
-          authorTOV: articleData.authorTOV || '',
-          authorName: articleData.author || '' ,
-          webflowSchema: fieldMeta,
-          webflowMapping: mappingEntries,
-          webflowSamples: samples
-        }),
-      });
+      let response: Response;
+      try {
+        response = await fetch('/api/ai-chat', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          signal: controller.signal,
+          body: JSON.stringify({
+            message,
+            articleData,
+            notes: notesPayload,
+            chatHistory: chatMessages,
+            authorTOV: articleData.authorTOV || '',
+            authorName: articleData.author || '' ,
+            webflowSchema: fieldMeta,
+            webflowMapping: mappingEntries,
+            webflowSamples: samples
+          }),
+        });
+      } catch (fetchError: any) {
+        clearTimeout(timeoutId);
+        // Re-throw AbortError to be handled below
+        if (fetchError.name === 'AbortError') {
+          throw fetchError;
+        }
+        throw fetchError;
+      }
 
       clearTimeout(timeoutId);
 
@@ -455,7 +485,7 @@ useEffect(() => {
         
         if (!data.response) {
           console.error('❌ No response field in API data');
-          addChatMessage('assistant', 'Beklager, jeg modtog ikke noget svar. Prøv igen.');
+          sendAssistantError('API_EMPTY_RESPONSE', 'Jeg modtog ikke noget svar fra modellen. Prøv igen.');
           setIsThinking(false);
           return;
         }
@@ -592,16 +622,34 @@ useEffect(() => {
           addChatMessage('assistant', `For at kunne udgive i Webflow mangler vi følgende felter:\n${lines.join('\n')}\n\nSkriv værdierne, så udfylder jeg dem ét for ét.`);
         }
       } else {
-        const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+        const errorData = await response.json().catch(() => ({ error: 'Ukendt fejl' }));
         console.error('❌ API Error:', response.status, errorData);
-        addChatMessage('assistant', errorData.error || 'Beklager, jeg kunne ikke behandle din forespørgsel lige nu. Prøv igen senere.');
+        const errorCategory = typeof errorData.errorCategory === 'string' ? errorData.errorCategory : '';
+        const derivedCode = errorData.errorCode ||
+          (errorCategory ? errorCategory.toUpperCase().replace(/[^A-Z0-9_-]/g, '_') : `HTTP_${response.status}`);
+        const detailParts: string[] = [];
+        if (typeof errorData.error === 'string') detailParts.push(errorData.error);
+        if (typeof errorData.details === 'string') detailParts.push(errorData.details);
+        if (errorData.requestId) detailParts.push(`Request ID: ${errorData.requestId}`);
+        sendAssistantError(
+          derivedCode,
+          'Beklager, jeg kunne ikke behandle din forespørgsel lige nu. Prøv igen senere.',
+          detailParts.length ? detailParts.join(' | ') : undefined
+        );
       }
     } catch (error: any) {
-      console.error('❌ Fetch error:', error);
+      // Handle AbortError silently (expected timeout behavior)
       if (error.name === 'AbortError') {
-        addChatMessage('assistant', 'Forespørgslen tog for lang tid. Prøv igen eller send en kortere besked.');
+        console.log('⏱️ Request timeout - this is expected for long-running requests');
+        sendAssistantError('REQUEST_TIMEOUT', 'Forespørgslen tog for lang tid. Prøv igen eller send en kortere besked.');
       } else {
-        addChatMessage('assistant', 'Der opstod en fejl. Prøv igen senere.');
+        console.error('❌ Fetch error:', error);
+        const detail = typeof error?.message === 'string' ? error.message : '';
+        const codeGuess =
+          typeof navigator !== 'undefined' && navigator.onLine === false
+            ? 'OFFLINE'
+            : 'NETWORK_ERROR';
+        sendAssistantError(codeGuess, 'Der opstod en forbindelsesfejl til AI-tjenesten.', detail || undefined);
       }
     } finally {
       setIsThinking(false);
@@ -825,9 +873,6 @@ useEffect(() => {
     setChatTitle('Ny artikkel');
     setShowWizard(true);
     
-    // Close drafts panel if open
-    setShowDraftsPanel(false);
-    
     const toastTitle = savedPreviousDraft ? 'Forrige artikel gemt' : 'Ny artikel klar';
     const toastDescription = savedPreviousDraft
       ? 'Den tidligere artikel ligger nu i dine kladder i venstre side.'
@@ -857,12 +902,6 @@ useEffect(() => {
     <>
       {!user && <AuthModal />}
       {user && <AuthModal />}
-      {showDraftsPanel && (
-        <DraftsPanel 
-          onLoadDraft={handleLoadDraft}
-          onClose={() => setShowDraftsPanel(false)}
-        />
-      )}
       {showSearchModal && (
         <ChatSearchModal
           isOpen={showSearchModal}
@@ -1006,8 +1045,9 @@ useEffect(() => {
                 onChatTitleChange={setChatTitle}
                 editorialWarnings={editorialWarnings}
                 onClearEditorialWarnings={() => setEditorialWarnings([])}
-                onPublishSuccess={(articleId) => setPublishToast({ articleId, shownAt: Date.now() })}
                 onNewArticle={handleNewArticle}
+                onOpenDraftsPanel={() => setShelfOpen(true)}
+                onOpenReviewPanel={() => setReviewOpen(true)}
                 wizardNode={(
                   <div>
                     {/* Persistent progress */}
@@ -1053,27 +1093,32 @@ useEffect(() => {
                     {/* Animated wizard container */}
                     <div className={`transition-all duration-300 ease-out overflow-x-hidden ${showWizard ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-2 max-h-0 overflow-hidden pointer-events-none'}`}>
                     <div className="flex items-center justify-between px-3 py-2 md:p-3" style={{display: showWizard ? 'flex' : 'none'}}>
-                      <h2 className="text-white text-base font-medium">Artikel opsætning</h2>
-                      <div className="flex items-center gap-3 text-xs">
-                        {GENERATION_MODE_OPTIONS.map(option => {
-                          const active = activeGenerationMode === option.id;
-                          return (
-                            <button
-                              key={option.id}
-                              type="button"
-                              aria-pressed={active}
-                              title={option.description}
-                              onClick={() => {
-                                if (!active) {
-                                  updateArticleData({ generationMode: option.id });
-                                }
-                              }}
-                              className={`uppercase tracking-[0.28em] transition-colors ${active ? 'text-white text-sheen-glow' : 'text-white/60 hover:text-white/90'}`}
-                            >
-                              {option.label}
-                            </button>
-                          );
-                        })}
+                      <h2 className="text-white text-base font-medium">
+                        <span className="hidden md:inline">Artikel opsætning</span>
+                        <span className="md:hidden inline">Setup</span>
+                      </h2>
+                      <div className="flex items-center gap-2 text-[9px] uppercase tracking-[0.18em]">
+                        <div className="flex rounded-full border border-white/20 overflow-hidden bg-white/5">
+                          {GENERATION_MODE_OPTIONS.map(option => {
+                            const active = activeGenerationMode === option.id;
+                            return (
+                              <button
+                                key={option.id}
+                                type="button"
+                                aria-pressed={active}
+                                title={option.description}
+                                onClick={() => {
+                                  if (!active) {
+                                    updateArticleData({ generationMode: option.id });
+                                  }
+                                }}
+                                className={`px-3 py-1 transition-colors duration-200 ${active ? 'bg-white/90 text-black font-semibold' : 'text-white/60 hover:text-white'}`}
+                              >
+                                {option.label}
+                              </button>
+                            );
+                          })}
+                        </div>
                         <button type="button" onClick={()=>setShowWizard(false)} className="text-white/60 hover:text-white">Skjul</button>
                       </div>
                     </div>
