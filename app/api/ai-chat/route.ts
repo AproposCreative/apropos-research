@@ -1388,44 +1388,45 @@ export async function POST(request: NextRequest) {
       updateProgressStep(progressId, 'prepare', 'completed');
     }
 
-            // Load trained TOV for author if available
-            let trainedTOV = '';
-            if (authorName) {
-              try {
-                console.log('🔍 Loading TOV for author:', authorName);
-                // First try to get TOV from Webflow API
-                const authors = await getCachedAuthors(baseUrl);
-                console.log('🔍 Authors from cache:', authors?.length || 0);
-                if (Array.isArray(authors)) {
-                  const author = authors.find((a: any) => a.name === authorName);
-                  console.log('🔍 Found author:', author?.name, 'TOV length:', author?.tov?.length || 0);
-                  if (author?.tov) {
-                    trainedTOV = author.tov;
-                    console.log('✅ Using TOV from Webflow:', trainedTOV.substring(0, 100) + '...');
-                  }
-                }
-                
-                // Fallback to file system
-                if (!trainedTOV) {
-                  console.log('🔍 Trying file system fallback...');
-                  const promptText = getAuthorPromptText(authorName);
-                  if (promptText) {
-                    trainedTOV = promptText;
-                    console.log('✅ Using TOV from file system:', trainedTOV.substring(0, 100) + '...');
-                  }
-                }
-                
-                if (!trainedTOV) {
-                  console.log('❌ No TOV found for author:', authorName);
-                }
-              } catch (error) {
-                console.error('Could not load trained TOV:', error);
-              }
-            }
-    
     // Build chat history for context
     // Always use the author NAME for the instruction line
     const authorInfo = authorName || 'Apropos Writer';
+    
+    // Load trained TOV for author if available
+    let trainedTOV = '';
+    if (authorName && !isFastMode) {
+      try {
+        console.log('🔍 Loading TOV for author:', authorName);
+        // First try to get TOV from Webflow API
+        const authors = await getCachedAuthors(baseUrl);
+        console.log('🔍 Authors from cache:', authors?.length || 0);
+        if (Array.isArray(authors)) {
+          const author = authors.find((a: any) => a.name === authorName);
+          console.log('🔍 Found author:', author?.name, 'TOV length:', author?.tov?.length || 0);
+          if (author?.tov) {
+            trainedTOV = author.tov;
+            console.log('✅ Using TOV from Webflow:', trainedTOV.substring(0, 100) + '...');
+          }
+        }
+        
+        // Fallback to file system
+        if (!trainedTOV) {
+          console.log('🔍 Trying file system fallback...');
+          const promptText = getAuthorPromptText(authorName);
+          if (promptText) {
+            trainedTOV = promptText;
+            console.log('✅ Using TOV from file system:', trainedTOV.substring(0, 100) + '...');
+          }
+        }
+        
+        if (!trainedTOV) {
+          console.log('❌ No TOV found for author:', authorName);
+        }
+      } catch (error) {
+        console.error('Could not load trained TOV:', error);
+      }
+    }
+    
     const dynamicPrompt = await loadSystemPromptFromApi(request);
     const basePrompt = dynamicPrompt || APROPOS_SYSTEM_PROMPT;
     let combinedTOV = [trainedTOV, authorTOV].filter(Boolean).join('\n\n');
