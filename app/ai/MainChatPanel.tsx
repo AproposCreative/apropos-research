@@ -1140,7 +1140,7 @@ const fallbackThinkingSteps: ThinkingStep[] = [
             const isEditing = editingMessage === message.id;
             const formattedTime = message.timestamp?.toLocaleTimeString('da-DK', { hour: '2-digit', minute: '2-digit' }) ?? '';
             const alignment = isUser ? 'justify-end' : 'justify-start';
-            const widthClass = isEditing ? 'w-full max-w-[640px]' : (isUser ? 'max-w-[78%] min-w-0' : 'max-w-[78%]');
+            const widthClass = isEditing ? 'w-full max-w-[640px]' : (isUser ? 'max-w-[78%] min-w-0 flex justify-end' : 'max-w-[78%]');
             const offsetClass = isEditing ? '' : (isUser ? 'md:ml-20' : 'md:mr-20');
             const bubbleClass = isUser
               ? 'rounded-2xl px-4 py-3 transition-all duration-300 shadow-[0_18px_44px_-30px_rgba(0,0,0,0.8)] bg-black/90 text-white border border-white/20 hover:border-white/35 hover:bg-white/5 break-words overflow-wrap-anywhere'
@@ -1163,8 +1163,8 @@ const fallbackThinkingSteps: ThinkingStep[] = [
                 className={`${widthClass} ${offsetClass} ${isUser ? 'min-w-0' : ''}`}
                 style={{ paddingLeft: isUser ? '16px' : '8px', paddingRight: isUser ? '16px' : '8px' }}
               >
-                <div className="relative group w-full">
-                  <div className={`${bubbleClass} w-full`}>
+                <div className="relative group">
+                  <div className={`${bubbleClass} inline-block`}>
                     {message.role === 'assistant' && (parseNumberedSuggestions(message.content).length > 0 || parseEnumeratedQuestions(message.content).length > 0) ? (
                       <div className="space-y-2">
                         {/* Numbered suggestion cards */}
