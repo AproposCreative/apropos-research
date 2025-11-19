@@ -1436,6 +1436,11 @@ export async function POST(request: NextRequest) {
     const authorSample = shouldLoadAuthorSample ? await getAuthorSampleSnippet(authorInfo) : '';
     if (isFastMode) {
       console.log('⚡ Fast mode: Skipping author sample loading for speed');
+      // Also reduce TOV length in fast mode
+      if (combinedTOV.length > 500) {
+        combinedTOV = combinedTOV.substring(0, 500) + '...';
+        console.log('⚡ Fast mode: Truncated TOV to 500 chars for speed');
+      }
     }
     // Lightweight diagnostics for prompt composition
     // Determine dynamic target lengths from section/topic
@@ -1496,9 +1501,9 @@ export async function POST(request: NextRequest) {
       systemSections.push(`DYNAMISKE ADFÆRDS-INJEKTIONER:\n${dynamicBehaviors.join('\n')}`);
     }
     if (isFastMode) {
-      systemSections.push(`**FAST MODE (SPARRING)**\n- Fokusér på idéer og retning – ikke færdigpoleret brødtekst.\n- Lever ${targetMin}-${targetMax} ord fordelt på intro, krop og afslutning, men hold tempoet højt.\n- Identificér tydeligt de steder hvor fakta eller kilder mangler, og foreslå næste research-skridt.\n- Skriv i et mere samtalende toneleje (stadig Apropos) og vær ikke bange for at anbefale flere mulige vinkler.`);
-      systemSections.push(`**SPARRING WORKFLOW**\n1. Start med en ultrakort "Intro:" (maks 3 sætninger) der indrammer følelsen/vinklen.\n2. Brug kropsteksten til at skitsere 2-3 hovedmomenter med konkrete ideer, citatforslag eller scenografi.\n3. Gør læseren opmærksom på datapunkter, fakta eller interviews der bør skaffes.\n4. Afslut med en "Eftertanke:" der giver retning for næste redaktionelle skridt.`);
-      systemSections.push(`**SPARRING FORMAT**\n- Struktur: Intro → krop → afslutning, men du må bruge korte afsnit og tydelige TODO-sætninger.\n- Længde: ${targetMin}-${targetMax} ord er nok – kvalitet over kvantitet.\n- Du må markere åbne spørgsmål og foreslå flere mulige tonaliteter, men hold dig fra rå punktopstillinger.`);
+      // Much shorter instructions for fast mode to reduce prompt size
+      systemSections.push(`**FAST MODE**\n${targetMin}-${targetMax} ord. Idéer og struktur. Noter manglende fakta.`);
+      systemSections.push(`**FORMAT**\nIntro (3 sætninger) → Krop (2-3 punkter) → Eftertanke.`);
     } else {
       systemSections.push(`**KRITISK LÆNGDE-KRAV**\n🚨 ARTIKLEN SKAL VÆRE MINIMUM ${targetMin} ORD - IKKE MINDRE! 🚨\n- Hvis artiklen er under ${targetMin} ord, er det EN FEJL der skal rettes\n- Brødteksten alene skal være ${targetMin}-${targetMax} ord (ekskl. intro og afslutning)\n- Tæl ordene mens du skriver - stop ikke før du når ${targetMin} ord\n- Korte artikler under ${targetMin} ord bliver afvist som utilstrækkelige\n- DU SKAL SKRIVE ${targetMin} ORD ELLER MERE - DET ER IKKE ET FORSLAG!\n- SKRIV EN DETALJERET ARTIKEL PÅ MINDST ${targetMin} ORD OM DETTE EMNE`);
       systemSections.push(`**REDAKTIONELT ARBEJDSFLOW (internt)**\n1. Skriv et fuldt første udkast (MINIMUM ${targetMin} ord) med KORREKT struktur:\n   - START direkte med "Intro:" (ikke ##Intro: eller andet)\n   - Intro: 2-4 linjer i første person\n   - Brødtekst: ${targetMin}-${targetMax} ord med dybde og detaljer\n   - Afslut med "Eftertanke:", "Refleksion:" eller lignende\n2. TÆL ORDENE: Kontroller at brødteksten er mindst ${targetMin} ord\n3. Lever KUN den forbedrede, færdige artikel i JSON-kontrakten – ingen interne noter eller halvfærdige udkast.\n4. HVIS ARTIKLEN ER UNDER ${targetMin} ORD: SKRIV DEN OM HELT FRA BUNDEN!`);
