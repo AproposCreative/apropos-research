@@ -1161,7 +1161,7 @@ const fallbackThinkingSteps: ThinkingStep[] = [
             >
               <div
                 className={`${widthClass} ${offsetClass}`}
-                style={{ paddingLeft: '8px', paddingRight: '8px' }}
+                style={{ paddingLeft: isUser ? '16px' : '8px', paddingRight: isUser ? '16px' : '8px' }}
               >
                 <div className="relative group">
                   <div className={bubbleClass}>
