@@ -1272,7 +1272,9 @@ function parseModelPayload(raw: string): { response?: string; suggestion?: any; 
 import { performanceMonitor, startStage, endStage, logReport } from '@/lib/performance-monitor';
 
 // Vercel function configuration - increase timeout for AI chat
-export const maxDuration = 300; // 5 minutes (requires Vercel Pro plan)
+// Note: maxDuration 300 requires Vercel Pro plan. Hobby plan max is 10 seconds.
+// For Hobby plan, use maxDuration = 10
+export const maxDuration = 300; // 5 minutes (requires Vercel Pro plan) - adjust to 10 if on Hobby plan
 export const runtime = 'nodejs'; // Use Node.js runtime instead of Edge
 
 export async function POST(request: NextRequest) {
@@ -1616,7 +1618,10 @@ ${context ? `\n\nAktuel artikel-kontekst:\n${context}` : ''}`;
     const researchStartTime = Date.now();
     let researchSources: ResearchSources | null = null;
     let verificationResult: VerificationResult | null = null;
-    const baseRequestUrl = request.url.split('/api')[0];
+    
+    // Better baseUrl detection for production - reuse existing baseUrl variable
+    const baseRequestUrl = baseUrl; // Use the baseUrl already calculated above
+    
     const researchTopic = (articleData as any)?.title || (articleData as any)?.topic || message;
     
     // PERFORM COMPREHENSIVE RESEARCH (mode-aware)
@@ -1719,7 +1724,7 @@ ${context ? `\n\nAktuel artikel-kontekst:\n${context}` : ''}`;
         max_completion_tokens: isSimpleMessage ? 500 : 3000, // Much shorter for simple messages
         response_format: { type: 'json_object' },
       }, {
-        timeout: isSimpleMessage ? 10000 : 60000, // 10s timeout for simple messages, 60s for complex
+        timeout: isSimpleMessage ? 15000 : 90000, // Increased timeouts: 15s for simple, 90s for complex
       });
       const generationTime = Date.now() - generationStartTime;
       console.log(`✅ OpenAI API call completed successfully in ${generationTime}ms`);
