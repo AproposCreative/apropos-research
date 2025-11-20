@@ -18,16 +18,16 @@ export async function GET(req: NextRequest) {
 
 		// Fallback to local file
 		if (!promptText) {
-			const fs = require('fs');
-			const path = require('path');
-			const p = path.join(process.cwd(), 'prompts', 'apropos_writer.prompt');
-			if (fs.existsSync(p)) {
+		const fs = require('fs');
+		const path = require('path');
+		const p = path.join(process.cwd(), 'prompts', 'apropos_writer.prompt');
+		if (fs.existsSync(p)) {
 				promptText = fs.readFileSync(p, 'utf8');
 			}
 		}
 		
 		if (!promptText) {
-			return NextResponse.json({ error: 'prompt not found' }, { status: 404 });
+		return NextResponse.json({ error: 'prompt not found' }, { status: 404 });
 		}
 		
 		// Load structure file and replace placeholder

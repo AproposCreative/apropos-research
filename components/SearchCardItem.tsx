@@ -31,7 +31,7 @@ function formatDateDa(iso?: string) {
         return `${diffDays} dage siden`;
       } else {
         return date.toLocaleDateString('da-DK', { day: 'numeric', month: 'short' });
-      }
+  }
     } else {
       // Different year, show year
       return date.toLocaleDateString('da-DK', { day: 'numeric', month: 'short', year: '2-digit' });

@@ -36,7 +36,7 @@ async function getAccessToken(sa: {
 	}
 	
 	const keyObj = createPrivateKey({ key: cleanKey, format: 'pem' });
-	const sig = signer.sign(keyObj);
+    const sig = signer.sign(keyObj);
 	const assertion = `${toSign}.${base64url(sig)}`;
 	const body = new URLSearchParams({
 		grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer',
@@ -119,7 +119,7 @@ async function main() {
 						val += '\n' + lines[i].trim().slice(0, -1); // Remove closing quote
 					}
 				} else {
-					val = val.replace(/^['"]|['"]$/g, '');
+				val = val.replace(/^['"]|['"]$/g, '');
 				}
 				
 				if (!process.env[key]) process.env[key] = val;

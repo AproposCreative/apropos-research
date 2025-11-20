@@ -443,23 +443,23 @@ useEffect(() => {
       let response: Response;
       try {
         response = await fetch('/api/ai-chat', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
           signal: controller.signal,
-          body: JSON.stringify({
-            message,
-            articleData,
+        body: JSON.stringify({
+          message,
+          articleData,
             notes: notesPayload,
-            chatHistory: chatMessages,
-            authorTOV: articleData.authorTOV || '',
-            authorName: articleData.author || '' ,
-            webflowSchema: fieldMeta,
-            webflowMapping: mappingEntries,
+          chatHistory: chatMessages,
+          authorTOV: articleData.authorTOV || '',
+          authorName: articleData.author || '' ,
+          webflowSchema: fieldMeta,
+          webflowMapping: mappingEntries,
             webflowSamples: samples
-          }),
-        });
+        }),
+      });
       } catch (fetchError: any) {
         clearTimeout(timeoutId);
         // Re-throw AbortError to be handled below
@@ -472,7 +472,7 @@ useEffect(() => {
       clearTimeout(timeoutId);
 
       console.log('📡 API Response status:', response.status);
-      
+
       if (response.ok) {
         const data = await response.json();
         console.log('✅ API Response received:', {
@@ -1094,7 +1094,7 @@ useEffect(() => {
                     </button>
                     {/* Animated wizard container */}
                     <div className={`transition-all duration-300 ease-out overflow-x-hidden ${showWizard ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-2 max-h-0 overflow-hidden pointer-events-none'}`}>
-                    <div className="flex items-center justify-between px-3 py-2 md:p-3" style={{display: showWizard ? 'flex' : 'none'}}>
+                      <div className="flex items-center justify-between px-3 py-2 md:p-3" style={{display: showWizard ? 'flex' : 'none'}}>
                       <h2 className="text-white text-base font-medium">
                         <span className="hidden md:inline">Artikel opsætning</span>
                         <span className="md:hidden inline">Setup</span>
@@ -1122,8 +1122,8 @@ useEffect(() => {
                           })}
                         </div>
                         <button type="button" onClick={()=>setShowWizard(false)} className="text-white/60 hover:text-white">Skjul</button>
+                        </div>
                       </div>
-                    </div>
                       <SetupWizard
                         initialData={articleData}
                         onChange={handleSetupWizardChange}
@@ -1215,7 +1215,7 @@ useEffect(() => {
 
           </>
         )}
-      </div>
+                </div>
       {publishToast && (
         <div className="pointer-events-none fixed inset-x-0 top-8 z-[100] flex justify-center px-4">
           <div className="pointer-events-auto w-full max-w-sm rounded-[26px] border border-white/50 bg-white/85 p-5 shadow-[0_25px_70px_rgba(15,23,42,0.3)] backdrop-blur-xl transition duration-500 dark:border-white/15 dark:bg-white/10">
@@ -1236,9 +1236,9 @@ useEffect(() => {
               >
                 OK
               </button>
+                </div>
             </div>
-          </div>
-        </div>
+      </div>
       )}
     </>
   );
