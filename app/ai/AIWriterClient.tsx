@@ -767,6 +767,9 @@ useEffect(() => {
     } else {
       setShowWizard(true);
     }
+    
+    // Open review panel to show the loaded article content
+    setReviewOpen(true);
   };
 
   const handleSelectMessage = (draft: ArticleDraft, messageIndex: number) => {
@@ -989,7 +992,6 @@ useEffect(() => {
                   isOpen={shelfOpen} 
                   onSelect={(draft)=>{ 
                     setShelfOpen(false); 
-                    setShowDraftsPanel(false); 
                     handleLoadDraft(draft);
                   }} 
                   onClose={()=> setShelfOpen(false)}
@@ -1186,6 +1188,7 @@ useEffect(() => {
                 </div>
                 <div className="overflow-y-auto flex-1 p-3 md:p-[10px] no-scrollbar">
                   <ReviewPanel 
+                    key={`${currentDraftId || 'new'}-${articleData?.title || ''}-${articleData?.content?.substring(0, 50) || ''}`}
                     articleData={articleData} 
                     frameless 
                     onUpdateArticle={(updates) => {

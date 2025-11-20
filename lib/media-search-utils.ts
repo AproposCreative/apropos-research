@@ -12,29 +12,39 @@ export interface MediaSearchRequest {
 }
 
 // Detect if article is about film, TV series, or game
-// Simplified detection: Check section and topic directly
+// Enhanced detection: Check section, category, topic, and platform
 export function isMediaReview(data: MediaSearchRequest): { type: 'film' | 'tv' | 'game' | null; searchTerm: string } {
   const title = (data.title || '').toLowerCase();
+  const category = (data.category || '').toLowerCase();
   const section = (data.section || '').toLowerCase();
   const topic = (data.topic || '').toLowerCase();
   const platform = (data.platform || data.streaming_service || '').toLowerCase();
   
-  console.log('🔍 isMediaReview check (simplified):', { title, section, topic, platform });
+  console.log('🔍 isMediaReview check (enhanced):', { title, category, section, topic, platform });
   
-  // Simple check: If section is "Serier & Film" or similar
+  // Check: If section or category is "Serier & Film" or similar
   const isSerierOgFilm = section.includes('serier & film') || 
-                         section.includes('serier og film');
+                         section.includes('serier og film') ||
+                         category.includes('serier & film') ||
+                         category.includes('serier og film');
   
-  // Simple check: If topic is "Gaming", "Film", or "TV-serier"
-  const isGaming = topic.includes('gaming') || topic.includes('spil');
-  const isFilmTopic = topic.includes('film');
-  const isTVTopic = topic.includes('tv-serier') || topic.includes('tv serier') || topic.includes('serie');
+  // Check: If topic or category is "Gaming", "Film", or "TV-serier"
+  const isGaming = topic.includes('gaming') || 
+                   topic.includes('spil') ||
+                   category.includes('gaming') ||
+                   category.includes('spil');
+  const isFilmTopic = topic.includes('film') || category.includes('film');
+  const isTVTopic = topic.includes('tv-serier') || 
+                    topic.includes('tv serier') || 
+                    topic.includes('serie') ||
+                    category.includes('tv-serier') ||
+                    category.includes('serie');
   
-  // Determine type based on section or topic
+  // Determine type based on section, category, or topic
   let type: 'film' | 'tv' | 'game' | null = null;
   
   if (isSerierOgFilm) {
-    // If section is "Serier & Film", we need to determine if it's film or TV
+    // If section/category is "Serier & Film", we need to determine if it's film or TV
     // Check topic first - if topic explicitly says "TV-serier" or "Serie", it's TV
     // Otherwise check if platform suggests TV (but only if topic doesn't explicitly say "Film")
     if (isTVTopic) {

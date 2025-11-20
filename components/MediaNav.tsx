@@ -29,11 +29,22 @@ function MediaNavInner() {
   const enabledMedias = getEnabledMedias();
   const disabledMedias = getDisabledMedias();
 
+  // Calculate total articles from enabled media sources only
+  const totalArticles = enabledMedias.reduce((sum, mediaId) => {
+    const media = mediaData.find(m => m.id === mediaId);
+    return sum + (media?.count || 0);
+  }, 0);
+
   return (
     <nav className="space-y-3">
       {/* Alle medier link */}
       <Link href="/alle-medier" className={getLinkClasses('/alle-medier', pathname === '/alle-medier' && !currentSource)}>
-        <span className="font-medium">Alle medier</span>
+        <div className="flex items-center justify-between w-full">
+          <span className="font-medium">Alle medier</span>
+          <span className="text-xs text-slate-500 dark:text-black-400">
+            {totalArticles} artikel{totalArticles !== 1 ? 'er' : ''}
+          </span>
+        </div>
       </Link>
 
       {/* Enabled Media Toggles */}

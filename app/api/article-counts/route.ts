@@ -1,26 +1,61 @@
 import { NextResponse } from 'next/server';
-import { getWebflowConfig } from '@/lib/webflow-config';
+import { readPrompts } from '@/lib/readPrompts';
+
+// Helper to map source name to media ID
+function mapSourceToId(source: string | undefined, url?: string): string | undefined {
+  const normalized = (source || '').trim().toLowerCase();
+  if (!normalized && url) {
+    try {
+      const u = new URL(url);
+      const host = u.hostname.replace('www.', '').toLowerCase();
+      if (host.includes('berlingske')) return 'berlingske';
+      if (host.includes('bt.dk')) return 'bt';
+      if (host.includes('gaffa')) return 'gaffa';
+      if (host.includes('soundvenue')) return 'soundvenue';
+      if (host.includes('ign.com')) return 'ign-nordic';
+      if (host.includes('ekkofilm')) return 'ekkofilm';
+    } catch {}
+  }
+  if (!normalized) return undefined;
+  if (normalized.includes('berlingske')) return 'berlingske';
+  if (normalized === 'bt' || normalized.includes('bt.dk')) return 'bt';
+  if (normalized.includes('gaffa')) return 'gaffa';
+  if (normalized.includes('soundvenue')) return 'soundvenue';
+  if (normalized.includes('ign')) return 'ign-nordic';
+  if (normalized.includes('ekkofilm')) return 'ekkofilm';
+  return undefined;
+}
 
 export async function GET() {
   try {
-    const { apiToken: token, siteId, articlesCollectionId } = getWebflowConfig();
-    if (!token || !siteId || !articlesCollectionId) {
-      return NextResponse.json({ counts: { total: 0, published: 0, inProgress: 0, pending: 0 } });
-    }
-
-    const headers = { 'Authorization': `Bearer ${token}`, 'Accept-Version': '1.0.0' } as any;
-    const res = await fetch(`https://api.webflow.com/v2/sites/${siteId}/collections/${articlesCollectionId}/items?limit=1000`, { headers });
-    if (!res.ok) throw new Error('Webflow items fetch failed');
-    const data: any = await res.json();
-    const items: any[] = data.items || [];
-
-    const total = items.length;
-    const published = items.filter(i => i.fieldData?.status === 'published').length;
-    const inProgress = items.filter(i => i.fieldData?.status === 'in-progress').length;
-    const pending = items.filter(i => i.fieldData?.status === 'pending').length;
-
-    return NextResponse.json({ counts: { total, published, inProgress, pending } });
+    // Read articles from JSONL file (same source as /alle-medier)
+    const articles = await readPrompts();
+    
+    // Count articles per media source
+    const counts: Record<string, number> = {};
+    let total = 0;
+    
+    articles.forEach(article => {
+      const mediaId = mapSourceToId(article.source, article.url);
+      if (mediaId) {
+        counts[mediaId] = (counts[mediaId] || 0) + 1;
+        total++;
+      }
+    });
+    
+    return NextResponse.json({ 
+      counts: {
+        ...counts,
+        total
+      }
+    });
   } catch (error) {
-    return NextResponse.json({ error: 'Failed to load counts' }, { status: 500 });
+    console.error('Error loading article counts:', error);
+    return NextResponse.json({ 
+      counts: { 
+        total: 0
+      },
+      error: 'Failed to load counts' 
+    }, { status: 500 });
   }
 }

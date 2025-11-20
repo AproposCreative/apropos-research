@@ -19,6 +19,19 @@ export default function ReviewPanel({ articleData, onClose, frameless, onPreflig
   const [imageProgress, setImageProgress] = useState(0);
   const [imageSkipIndex, setImageSkipIndex] = useState(0); // Track which image index to use
   
+  // Debug: Log when featuredImage changes
+  useEffect(() => {
+    if (articleData?.featuredImage) {
+      console.log('📸 FeaturedImage updated:', {
+        hasImage: !!articleData.featuredImage,
+        imageType: articleData.featuredImage.startsWith('data:') ? 'base64' : 'url',
+        imagePreview: articleData.featuredImage.substring(0, 100),
+        fullImage: articleData.featuredImage
+      });
+    } else {
+      console.log('📸 No featuredImage in articleData');
+    }
+  }, [articleData?.featuredImage]);
   
   const title = articleData?.title || articleData?.previewTitle || 'Arbejdstitel (ikke sat)';
   const subtitle = articleData?.subtitle || '';
@@ -250,6 +263,15 @@ export default function ReviewPanel({ articleData, onClose, frameless, onPreflig
                   src={articleData.featuredImage} 
                   alt={title || 'Artikel billede'}
                   className="w-full h-48 object-cover rounded-lg border border-white/10"
+                  onError={(e) => {
+                    console.error('❌ Image failed to load:', articleData.featuredImage);
+                    console.error('❌ Image error details:', e);
+                    // Show error message to user
+                    alert('Billedet kunne ikke indlæses. Prøv at generere et nyt billede.');
+                  }}
+                  onLoad={() => {
+                    console.log('✅ Image loaded successfully:', articleData.featuredImage?.substring(0, 100));
+                  }}
                 />
                 <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity duration-200 rounded-lg flex items-center justify-center">
               <button

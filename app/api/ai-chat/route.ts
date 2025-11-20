@@ -765,7 +765,38 @@ const applyFieldFallbacks = async (articleUpdate: any, articleData: any) => {
 
   const knowledge = await loadArticleKnowledge();
   const content = typeof articleUpdate.content === 'string' ? articleUpdate.content : '';
-  const title = articleUpdate.title || articleData?.title || articleData?.previewTitle || '';
+  let title = articleUpdate.title || articleData?.title || articleData?.previewTitle || '';
+  
+  // Generate title from content if missing or placeholder
+  const isPlaceholderTitle = !title || title.toLowerCase().includes('arbejdstitel') || title.toLowerCase().includes('ikke sat');
+  if (isPlaceholderTitle && content) {
+    // Extract title from first meaningful sentence or generate from content
+    const text = stripHtmlToText(content);
+    const sentences = text.split(/[.!?]+/).map(s => s.trim()).filter(s => s.length > 20 && s.length < 100);
+    if (sentences.length > 0) {
+      // Use first sentence as title, but make it more concise
+      const firstSentence = sentences[0];
+      // Remove common intro words
+      const cleaned = firstSentence.replace(/^(jeg|vi|man|det|den|denne|dette|her|nu|så|men|og|eller|men også|men også|men også)\s+/i, '').trim();
+      if (cleaned.length > 10 && cleaned.length < 80) {
+        title = cleaned.charAt(0).toUpperCase() + cleaned.slice(1);
+        // Remove trailing punctuation if it's not a question mark
+        title = title.replace(/[.,;:]$/, '');
+      } else {
+        // Fallback: use first 60 chars of content
+        title = text.substring(0, 60).trim();
+        if (title.length > 60) title = title.substring(0, 57) + '...';
+      }
+    } else if (text.length > 10) {
+      // Fallback: use first 60 chars of content
+      title = text.substring(0, 60).trim();
+      if (title.length > 60) title = title.substring(0, 57) + '...';
+    }
+    
+    if (title && title !== articleUpdate.title) {
+      articleUpdate.title = title;
+    }
+  }
 
   let category =
     articleUpdate.category ||
@@ -1590,7 +1621,11 @@ export async function POST(request: NextRequest) {
     // Enhanced JSON contract enforcement
       const platformForPrompt = articleData?.platform || articleData?.streaming_service || '';
       const titleExample = platformForPrompt ? `"artikel titel (${platformForPrompt})"` : '"artikel titel"';
-      systemSections.push(`**JSON-KONTRAKT HÅNDHÆVELSE**\n- Returnér ALTID ét JSON-objekt med nøjagtig struktur:\n  {\n    "response": "menneskelig svartekst til chatten",\n    "articleUpdate": {\n      "title": ${titleExample}${platformForPrompt ? ' (SKAL inkludere platform i parentes!)' : ''},\n      "subtitle": "undertitel",\n      "content": "fuld artikel med Intro: og afslutning",\n      "category": "${sec || 'kategori'}",\n      "tags": ["tag1", "tag2"],\n      "author": "${authorInfo}",\n      "rating": ${articleData?.rating || 'null'},\n      "platform": "${platformForPrompt}",\n      "slug": "url-venlig-titel",\n      "seoTitle": "SEO titel (max 60 tegn)",\n      "seoDescription": "meta beskrivelse (max 155 tegn)"\n    },\n    "suggestion": null,\n    "citations": ["url1", "url2"]\n  }\n- ALDRIG returnér tekst udenfor JSON-strukturen\n- ALDRIG returnér delvise eller ufuldstændige JSON-objekter`);
+      const hasTitle = articleData?.title && !articleData.title.toLowerCase().includes('arbejdstitel') && !articleData.title.toLowerCase().includes('ikke sat');
+      const titleInstruction = hasTitle 
+        ? `"title": "${articleData.title}" (brug denne titel)`
+        : `"title": ${titleExample}${platformForPrompt ? ' (SKAL inkludere platform i parentes!)' : ''} (GENERÉR EN KREATIV OG FANGENDE TITEL BASERET PÅ ARTIKLENS INDHOLD!)`;
+      systemSections.push(`**JSON-KONTRAKT HÅNDHÆVELSE**\n- Returnér ALTID ét JSON-objekt med nøjagtig struktur:\n  {\n    "response": "menneskelig svartekst til chatten",\n    "articleUpdate": {\n      ${titleInstruction},\n      "subtitle": "undertitel",\n      "content": "fuld artikel med Intro: og afslutning",\n      "category": "${sec || 'kategori'}",\n      "tags": ["tag1", "tag2"],\n      "author": "${authorInfo}",\n      "rating": ${articleData?.rating || 'null'},\n      "platform": "${platformForPrompt}",\n      "slug": "url-venlig-titel",\n      "seoTitle": "SEO titel (max 60 tegn)",\n      "seoDescription": "meta beskrivelse (max 155 tegn)"\n    },\n    "suggestion": null,\n    "citations": ["url1", "url2"]\n  }\n- ALDRIG returnér tekst udenfor JSON-strukturen\n- ALDRIG returnér delvise eller ufuldstændige JSON-objekter\n- KRITISK: Hvis der ikke er en titel i konteksten, SKAL du generere en kreativ og fangende titel baseret på artiklens indhold!`);
     
     const systemContent = systemSections.join('\n\n');
 
@@ -1627,6 +1662,8 @@ export async function POST(request: NextRequest) {
 
 **CMS-FELTER & SUGGESTIONS**
 - Udfyld articleUpdate med title, subtitle, content, category, tags, author, seo_title, meta_description, streaming_service, stars, slug m.m.
+- KRITISK: Hvis der ikke er en titel i konteksten (eller titlen er "Arbejdstitel (ikke sat)"), SKAL du generere en kreativ og fangende titel baseret på artiklens indhold!
+- Titlen skal være fangende, præcis og reflektere artiklens hovedtema - IKKE generisk eller placeholder!
 - Foreslå rating via suggestion-objektet når det er relevant (anmeldelser); ellers lad suggestion være null.
 - Hold alle felter trimmede og klar til Webflow.
 - VIGTIGT: Generér ALDRIG topicsSelected - dette kommer fra SetupWizard og må ikke overskrives.
@@ -2559,6 +2596,11 @@ Returnér ét JSON-objekt med "response", "articleUpdate" og "citations".`;
     // Include featuredImage from articleData if it exists
     if (articleData?.featuredImage) {
       finalArticleUpdate.featuredImage = articleData.featuredImage;
+    } else if (finalArticleUpdate.title && !finalArticleUpdate.featuredImage) {
+      // Auto-generate image if article has title but no image
+      // This happens asynchronously, so we don't wait for it
+      // The image will be generated when user clicks "Generate image" button or publishes to Webflow
+      console.log('📸 Article has title but no featuredImage - will be generated on demand');
     }
     const readingTimeMinutes =
       finalWordCount > 0 ? Math.max(1, Math.ceil(finalWordCount / 160)) : 0;

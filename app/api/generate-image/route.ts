@@ -22,9 +22,21 @@ interface GenerateImageResponse {
 
 export async function POST(req: NextRequest) {
   try {
-    const { title, topic, author, category, content, section, platform, streaming_service, rating, skipIndex } = await req.json() as GenerateImageRequest & { section?: string; platform?: string; streaming_service?: string; rating?: number; skipIndex?: number };
+    const requestBody = await req.json().catch(() => ({}));
+    const { title, topic, author, category, content, section, platform, streaming_service, rating, skipIndex } = requestBody as GenerateImageRequest & { section?: string; platform?: string; streaming_service?: string; rating?: number; skipIndex?: number };
+
+    console.log('📥 Generate image request received:', {
+      hasTitle: !!title,
+      title: title?.substring(0, 50),
+      category,
+      section,
+      topic,
+      platform,
+      streaming_service
+    });
 
     if (!title) {
+      console.error('❌ Missing title in request');
       return NextResponse.json({
         success: false,
         error: 'Title is required for image generation'
@@ -46,10 +58,18 @@ export async function POST(req: NextRequest) {
     // ALWAYS try to search for media images first if section/topic matches
     // Don't fall back to AI generation for media reviews - only search
     const shouldSearchForMedia = checkIfMediaReview({ title, category, section, topic, platform, streaming_service, content, rating });
-    console.log('🔍 Should search for media:', shouldSearchForMedia);
+    console.log('🔍 Should search for media:', shouldSearchForMedia, {
+      title,
+      category,
+      section,
+      topic,
+      platform,
+      streaming_service
+    });
     
     if (shouldSearchForMedia) {
-      console.log('🎬 Detected media review, searching for existing image (NO AI generation)...');
+      console.log('🎬 Detected media review, searching for existing image first...');
+      let foundMediaImage = false;
       try {
         // Import and call search functions directly to avoid HTTP fetch issues
         const { isMediaReview: checkMediaReview, searchTMDB, searchGoogleImages } = await import('@/lib/media-search-utils');
@@ -67,8 +87,21 @@ export async function POST(req: NextRequest) {
         
         console.log('🔍 Media check result:', mediaCheck);
         
+        if (!mediaCheck.type) {
+          console.log('⚠️ Media check returned no type, but shouldSearchForMedia was true. This might indicate a detection issue.');
+        }
+        
         if (mediaCheck.type === 'film' || mediaCheck.type === 'tv') {
           console.log(`🔍 Searching TMDB for ${mediaCheck.type}: "${mediaCheck.searchTerm}"`);
+          
+          // Check if TMDB_API_KEY is set
+          if (!process.env.TMDB_API_KEY) {
+            console.error('❌ TMDB_API_KEY is not set in environment variables!');
+            return NextResponse.json({
+              success: false,
+              error: 'TMDB API key not configured. Please set TMDB_API_KEY in environment variables.'
+            }, { status: 500 });
+          }
           
           // If section is "Serier & Film" and no explicit topic, try both film and TV
           // This handles cases where platform suggests TV but it's actually a film
@@ -95,105 +128,102 @@ export async function POST(req: NextRequest) {
           
           if (imageUrl) {
             console.log(`✅ Found TMDB image: ${imageUrl}`);
-            // Process image to WebP format and compress
-            let processedImageUrl = imageUrl;
-            try {
-              const processResponse = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/api/process-image`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  imageUrl: imageUrl,
-                  maxSizeKB: 400,
-                  quality: 85
-                })
-              });
-              
-              if (processResponse.ok) {
-                const processData = await processResponse.json();
-                if (processData.success && processData.processedImageUrl) {
-                  processedImageUrl = processData.processedImageUrl;
-                }
-              }
-            } catch (error) {
-              console.log('⚠️ Image processing error, using original:', error);
-            }
-            
-            console.log(`✅ Found existing image from TMDB for: ${title}`);
+            // Return TMDB image directly - TMDB images are already optimized and can be used directly
+            // No need to process them through Firebase Storage, which can fail
+            console.log(`✅ Returning TMDB image directly for: ${title}`);
+            foundMediaImage = true;
             return NextResponse.json({
               success: true,
-              imageUrl: processedImageUrl,
+              imageUrl: imageUrl, // Return TMDB URL directly
               source: 'tmdb',
               prompt: 'Found from TMDB'
             });
           } else {
-            // No image found - return error instead of falling back to AI
+            // No image found - fall back to AI generation if title is not a placeholder
             console.log(`⚠️ No TMDB image found for: "${mediaCheck.searchTerm}" (tried ${shouldTryBoth ? 'both film and TV' : mediaCheck.type})`);
-            return NextResponse.json({
-              success: false,
-              error: `No image found for ${mediaCheck.type}: ${mediaCheck.searchTerm}. Please check TMDB or try a different search term.`
-            }, { status: 404 });
+            console.log(`⚠️ TMDB search details:`, {
+              searchTerm: mediaCheck.searchTerm,
+              type: mediaCheck.type,
+              skipIndex: skipIdx,
+              hasApiKey: !!process.env.TMDB_API_KEY
+            });
+            
+            // If title is a placeholder, don't fall back to AI
+            const isPlaceholderTitle = !title || title.toLowerCase().includes('arbejdstitel') || title.toLowerCase().includes('ikke sat');
+            if (isPlaceholderTitle) {
+              return NextResponse.json({
+                success: false,
+                error: `No image found for ${mediaCheck.type}: ${mediaCheck.searchTerm}. Please set a proper title before generating images.`
+              }, { status: 404 });
+            }
+            
+            // Fall back to AI generation for non-placeholder titles
+            console.log('🎨 Falling back to AI generation for media review...');
+            // Continue to AI generation below
           }
         } else if (mediaCheck.type === 'game') {
           console.log(`🔍 Searching Google Images for game: "${mediaCheck.searchTerm}"`);
           const imageUrl = await searchGoogleImages(mediaCheck.searchTerm);
           if (imageUrl) {
-            // Process image to WebP format and compress
-            let processedImageUrl = imageUrl;
-            try {
-              const processResponse = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/api/process-image`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  imageUrl: imageUrl,
-                  maxSizeKB: 400,
-                  quality: 85
-                })
-              });
-              
-              if (processResponse.ok) {
-                const processData = await processResponse.json();
-                if (processData.success && processData.processedImageUrl) {
-                  processedImageUrl = processData.processedImageUrl;
-                }
-              }
-            } catch (error) {
-              console.log('⚠️ Image processing error, using original:', error);
-            }
-            
-            console.log(`✅ Found existing image from Google for: ${title}`);
+            // Return Google Images URL directly - may need CORS proxy for some sources
+            // But for now, return directly and let browser handle it
+            console.log(`✅ Returning Google Images URL directly for: ${title}`);
+            foundMediaImage = true;
             return NextResponse.json({
               success: true,
-              imageUrl: processedImageUrl,
+              imageUrl: imageUrl, // Return Google Images URL directly
               source: 'google',
               prompt: 'Found from Google'
             });
           } else {
-            // No image found - return error instead of falling back to AI
+            // No image found - fall back to AI generation if title is not a placeholder
             console.log(`⚠️ No Google image found for: "${mediaCheck.searchTerm}"`);
-            return NextResponse.json({
-              success: false,
-              error: `No image found for game: ${mediaCheck.searchTerm}. Please check Google Custom Search or try a different search term.`
-            }, { status: 404 });
+            
+            // If title is a placeholder, don't fall back to AI
+            const isPlaceholderTitle = !title || title.toLowerCase().includes('arbejdstitel') || title.toLowerCase().includes('ikke sat');
+            if (isPlaceholderTitle) {
+              return NextResponse.json({
+                success: false,
+                error: `No image found for game: ${mediaCheck.searchTerm}. Please set a proper title before generating images.`
+              }, { status: 404 });
+            }
+            
+            // Fall back to AI generation for non-placeholder titles
+            console.log('🎨 Falling back to AI generation for game review...');
+            // Continue to AI generation below
           }
         } else {
           // No media type detected - this shouldn't happen if checkIfMediaReview returned true
-          console.log(`⚠️ No media type detected for: "${mediaCheck.searchTerm}"`);
-          return NextResponse.json({
-            success: false,
-            error: 'Could not determine media type for image search'
-          }, { status: 400 });
+          console.error(`❌ No media type detected for: "${mediaCheck.searchTerm}"`, {
+            title,
+            category,
+            section,
+            topic,
+            platform,
+            streaming_service,
+            mediaCheckResult: mediaCheck
+          });
+          // Don't return 400 - fall back to AI generation instead
+          console.log('🎨 Falling back to AI generation (no media type detected)');
+          // Continue to AI generation below
         }
       } catch (error) {
         console.error('❌ Media image search error:', error);
-        return NextResponse.json({
-          success: false,
-          error: `Failed to search for media image: ${error instanceof Error ? error.message : 'Unknown error'}`
-        }, { status: 500 });
+        // Continue to AI generation on error
+        foundMediaImage = false;
       }
+      
+      // If we found a media image, we already returned it above
+      // Otherwise, continue to AI generation
+      if (foundMediaImage) {
+        return; // This should never be reached, but just in case
+      }
+      
+      console.log('🎨 No media image found, falling back to AI generation...');
     }
     
-    // Only generate AI image if NOT a media review
-    console.log('🎨 Not a media review - generating AI image for:', title);
+    // Generate AI image (either not a media review, or fallback from media search)
+    console.log('🎨 Generating AI image for:', title);
 
     // Generate contextual prompt based on article content
     const prompt = await generateAproposPrompt({
@@ -257,7 +287,21 @@ export async function POST(req: NextRequest) {
     });
 
   } catch (err) {
-    console.error('❌ Image generation error:', err);
+    console.error('❌ Image generation API error:', err);
+    console.error('❌ Error details:', {
+      message: err instanceof Error ? err.message : String(err),
+      stack: err instanceof Error ? err.stack : undefined,
+      name: err instanceof Error ? err.name : undefined
+    });
+    
+    // If it's a validation error (like missing title), return 400
+    if (err instanceof Error && err.message.includes('required')) {
+      return NextResponse.json({
+        success: false,
+        error: err.message
+      }, { status: 400 });
+    }
+    
     return NextResponse.json({
       success: false,
       error: err instanceof Error ? err.message : 'Image generation failed'
@@ -421,7 +465,7 @@ Themes:`;
 }
 
 // Check if article is about film, TV series, or game
-// Simplified detection: Check section and topic directly
+// Enhanced detection: Check section, category, topic, platform, and content
 function checkIfMediaReview(data: {
   title?: string;
   category?: string;
@@ -432,30 +476,77 @@ function checkIfMediaReview(data: {
   content?: string;
   rating?: number;
 }): boolean {
+  const title = (data.title || '').toLowerCase();
+  const category = (data.category || '').toLowerCase();
   const section = (data.section || '').toLowerCase();
   const topic = (data.topic || '').toLowerCase();
+  const platform = (data.platform || data.streaming_service || '').toLowerCase();
+  const content = (data.content || '').toLowerCase();
   
-  console.log('🔍 Checking media review detection (simplified):', { section, topic });
+  console.log('🔍 Checking media review detection (enhanced):', { 
+    title: data.title,
+    category: data.category,
+    section: data.section,
+    topic: data.topic,
+    platform: data.platform || data.streaming_service
+  });
   
-  // Simple check: If section is "Serier & Film" or "Serier og Film", it's media
+  // Keywords indicating a media review
+  const reviewKeywords = ['anmeldelse', 'review', 'bedømmelse', 'vurdering'];
+  const filmTvKeywords = ['film', 'serie', 'tv', 'biograf', 'streaming', 'netflix', 'hbo', 'prime', 'disney', 'apple tv', 'serier & film', 'serier og film'];
+  const gameKeywords = ['spil', 'gaming', 'anmeldelse', 'playstation', 'xbox', 'nintendo', 'pc-spil', 'game'];
+  
+  // Check if it's a review
+  const isReview = reviewKeywords.some(keyword => 
+    title.includes(keyword) || 
+    category.includes(keyword) || 
+    topic.includes(keyword)
+  );
+  
+  // Check if it's film/TV related
+  const isFilmTv = filmTvKeywords.some(keyword => 
+    title.includes(keyword) || 
+    category.includes(keyword) || 
+    section.includes(keyword) ||
+    topic.includes(keyword) || 
+    platform.includes(keyword) ||
+    content.includes(keyword)
+  );
+  
+  // Check if it's game related
+  const isGame = gameKeywords.some(keyword => 
+    title.includes(keyword) || 
+    category.includes(keyword) || 
+    section.includes(keyword) ||
+    topic.includes(keyword) || 
+    platform.includes(keyword) ||
+    content.includes(keyword)
+  );
+  
+  // Check if section/category explicitly states "Serier & Film" or "Gaming"
   const isSerierOgFilm = section.includes('serier & film') || 
                          section.includes('serier og film') ||
-                         section.includes('serier og film');
+                         category.includes('serier & film') ||
+                         category.includes('serier og film');
+  const isGamingCategory = category.includes('gaming') || 
+                          section.includes('gaming') || 
+                          topic.includes('gaming');
   
-  // Simple check: If topic is "Gaming", "Film", or "TV-serier", it's media
-  const isMediaTopic = topic.includes('gaming') || 
-                       topic.includes('film') || 
-                       topic.includes('tv-serier') ||
-                       topic.includes('tv serier') ||
-                       topic.includes('spil');
+  const isMediaTopic = isSerierOgFilm || isGamingCategory || isFilmTv || isGame;
   
-  const result = isSerierOgFilm || isMediaTopic;
+  // Result: It's a media review if it's explicitly a review AND media-related, OR if section/topic/category indicates media
+  const result = (isReview && (isFilmTv || isGame)) || isMediaTopic;
   
-  console.log('🔍 Media review detection result (simplified):', { 
-    isSerierOgFilm, 
-    isMediaTopic, 
+  console.log('🔍 Media review detection result (enhanced):', { 
+    isReview,
+    isFilmTv,
+    isGame,
+    isSerierOgFilm,
+    isGamingCategory,
+    isMediaTopic,
     result,
     sectionValue: data.section,
+    categoryValue: data.category,
     topicValue: data.topic
   });
   
