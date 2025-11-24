@@ -1783,7 +1783,7 @@ ${context ? `\n\nAktuel artikel-kontekst:\n${context}` : ''}`;
               )
           : [];
         const quickSystemPrompt = `Du er en hurtig kulturredaktør for Apropos Magazine. Svar kort (maks 4 sætninger) og direkte på danske spørgsmål uden at skrive artikler, intro/eftertanke eller JSON. Brug konkrete fakta hvis du kender dem, og nævn hvis noget bør verificeres. Ingen punktopstillinger – bare et klart svar.`;
-        const quickMessages = [
+        const quickMessages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
           { role: 'system', content: quickSystemPrompt },
           ...quickHistory,
           { role: 'user', content: trimmedMessage }

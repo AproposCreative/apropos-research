@@ -367,7 +367,7 @@ export default function SetupWizard({ initialData, onComplete, onChange }: Setup
             keyPoints: [],
             content: it.excerpt || ''
           })),
-          (item) => item.date || item.published_at || item.publishDate
+          (item) => item.date || item.published_at
         );
         setTrendingItems(normalized);
       } catch (error) {
