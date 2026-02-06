@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import sharp from 'sharp';
 import { createSign, createPrivateKey } from 'crypto';
+import { env, config } from '@/lib/config/env';
+import { logger, createRequestLogger } from '@/lib/logger';
+import { getRequestId } from '@/lib/api/request-utils';
+import { createErrorResponse, createSuccessResponse, ErrorCode } from '@/lib/api/types';
 
 interface ProcessImageRequest {
   imageUrl: string;
@@ -66,6 +70,7 @@ async function getAccessToken(sa: {
 }
 
 async function uploadToFirebaseStorage(bucket: string, name: string, content: Buffer, contentType = 'image/webp'): Promise<string> {
+  // Note: Firebase Admin env vars not in centralized config yet - add if needed
   const tokenUri = process.env.FIREBASE_ADMIN_TOKEN_URI || 'https://oauth2.googleapis.com/token';
   const clientEmail = process.env.FIREBASE_ADMIN_CLIENT_EMAIL;
   const privateKey = process.env.FIREBASE_ADMIN_PRIVATE_KEY;
@@ -87,12 +92,11 @@ async function uploadToFirebaseStorage(bucket: string, name: string, content: Bu
   const arrBuf = content.buffer.slice(content.byteOffset, content.byteOffset + content.byteLength) as ArrayBuffer;
   const body = new Blob([arrBuf], { type: contentType });
   
-  console.log(`📤 Uploading to Firebase Storage:`, {
+  logger.debug('Uploading to Firebase Storage', {
     bucket,
     fileName: name,
     contentType,
     size: content.length,
-    url: url.substring(0, 150) + '...'
   });
   
   const res = await fetch(url, {
@@ -107,16 +111,16 @@ async function uploadToFirebaseStorage(bucket: string, name: string, content: Bu
   if (!res.ok) {
     let bodyText = '';
     try { bodyText = await res.text(); } catch {}
-    console.error(`❌ Upload failed:`, {
+    logger.error('Upload failed', new Error(`Upload failed: ${res.status} ${res.statusText}`), {
       status: res.status,
       statusText: res.statusText,
-      body: bodyText.substring(0, 500)
+      body: bodyText.substring(0, 500),
     });
     throw new Error(`Upload failed: ${res.status} ${bodyText}`);
   }
   
   const result = await res.json();
-  console.log(`✅ Upload successful:`, {
+  logger.debug('Upload successful', {
     name: result.name,
     bucket: result.bucket,
     size: result.size,
@@ -139,7 +143,7 @@ async function uploadToFirebaseStorage(bucket: string, name: string, content: Bu
     });
     
     if (aclResponse.ok) {
-      console.log(`✅ File ACL set to public (allUsers:READER)`);
+      logger.debug('File ACL set to public');
     } else {
       const aclErrorText = await aclResponse.text().catch(() => '');
       console.warn(`⚠️ Failed to set public ACL: ${aclResponse.status} ${aclErrorText}`);
@@ -156,30 +160,40 @@ async function uploadToFirebaseStorage(bucket: string, name: string, content: Bu
   // This format works for public files and doesn't require CORS configuration
   const publicUrl = `https://firebasestorage.googleapis.com/v0/b/${bucket}/o/${encodeURIComponent(fileName)}?alt=media`;
   
-  console.log(`📤 Uploaded file: ${fileName}`);
-  console.log(`🔗 Public URL (Firebase Storage API format): ${publicUrl}`);
-  console.log(`📋 API response keys:`, Object.keys(result));
+  logger.debug('File uploaded successfully', {
+    fileName,
+    publicUrl: publicUrl.substring(0, 100),
+    responseKeys: Object.keys(result),
+  });
   
   // If API returned mediaLink, log it for debugging
   if (result.mediaLink) {
-    console.log(`📋 MediaLink (requires auth): ${result.mediaLink.substring(0, 100)}...`);
+    logger.debug('MediaLink available', { mediaLink: result.mediaLink.substring(0, 100) });
   }
   
   return publicUrl;
 }
 
 export async function POST(req: NextRequest) {
+  const requestId = getRequestId(req);
+  const requestLogger = createRequestLogger(requestId);
+  
   try {
     const { imageUrl, maxSizeKB = 400, quality = 85 } = await req.json() as ProcessImageRequest;
 
     if (!imageUrl) {
-      return NextResponse.json({
-        success: false,
-        error: 'Image URL is required'
-      }, { status: 400 });
+      requestLogger.warn('Missing imageUrl in request');
+      return NextResponse.json(
+        createErrorResponse('Image URL is required', {
+          statusCode: 400,
+          errorCode: ErrorCode.MISSING_REQUIRED_FIELD,
+          requestId,
+        }),
+        { status: 400 }
+      );
     }
 
-    console.log('🖼️ Processing image:', imageUrl);
+    requestLogger.info('Processing image', { imageUrl: imageUrl.substring(0, 100) });
 
     // Fetch the original image
     const imageResponse = await fetch(imageUrl);
@@ -190,7 +204,7 @@ export async function POST(req: NextRequest) {
     const imageBuffer = await imageResponse.arrayBuffer();
     const originalSizeKB = Math.round(imageBuffer.byteLength / 1024);
 
-    console.log(`📊 Original image size: ${originalSizeKB}KB`);
+    requestLogger.debug('Original image size', { originalSizeKB });
 
     // Process image with Sharp
     let processedBuffer = await sharp(Buffer.from(imageBuffer))
@@ -207,7 +221,7 @@ export async function POST(req: NextRequest) {
     let currentQuality = quality;
     while (processedSizeKB > maxSizeKB && currentQuality > 20) {
       currentQuality -= 10;
-      console.log(`🔄 Reducing quality to ${currentQuality}% (current size: ${processedSizeKB}KB)`);
+      requestLogger.debug('Reducing quality', { currentQuality, processedSizeKB });
       
       processedBuffer = await sharp(Buffer.from(imageBuffer))
         .webp({ 
@@ -222,7 +236,7 @@ export async function POST(req: NextRequest) {
 
     // If still too large, reduce dimensions
     if (processedSizeKB > maxSizeKB) {
-      console.log(`📐 Reducing dimensions (current size: ${processedSizeKB}KB)`);
+      requestLogger.debug('Reducing dimensions', { processedSizeKB });
       
       // Get original dimensions
       const metadata = await sharp(Buffer.from(imageBuffer)).metadata();
@@ -258,13 +272,14 @@ export async function POST(req: NextRequest) {
 
     // Upload processed image to Firebase Storage to get a public HTTP URL
     // Webflow Image fields require HTTP/HTTPS URLs, not data URLs
-    console.log('🔄 Uploading processed image to Firebase Storage...');
+    requestLogger.debug('Uploading processed image to Firebase Storage');
     
     try {
       // Get Firebase Admin credentials
+      // Note: Firebase Admin env vars not in centralized config yet
       const clientEmail = process.env.FIREBASE_ADMIN_CLIENT_EMAIL;
       const privateKey = process.env.FIREBASE_ADMIN_PRIVATE_KEY;
-      const projectId = process.env.FIREBASE_ADMIN_PROJECT_ID || process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID;
+      const projectId = process.env.FIREBASE_ADMIN_PROJECT_ID || env.NEXT_PUBLIC_FIREBASE_PROJECT_ID;
       
       if (!clientEmail || !privateKey || !projectId) {
         throw new Error('Missing Firebase Admin credentials. Need FIREBASE_ADMIN_CLIENT_EMAIL, FIREBASE_ADMIN_PRIVATE_KEY, and FIREBASE_ADMIN_PROJECT_ID');
@@ -272,7 +287,7 @@ export async function POST(req: NextRequest) {
       
       // Determine bucket name
       const explicitBucket = process.env.FIREBASE_STORAGE_BUCKET || 
-                             process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET || 
+                             env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET || 
                              process.env.FIREBASE_ADMIN_STORAGE_BUCKET;
       const bucketCandidates = [
         explicitBucket,
@@ -280,14 +295,14 @@ export async function POST(req: NextRequest) {
         `${projectId}.firebasestorage.app`,
       ].filter(Boolean) as string[];
       
-      console.log(`📤 Upload candidates: ${bucketCandidates.join(', ')}`);
+      requestLogger.debug('Upload candidates', { buckets: bucketCandidates });
       
       // Generate unique filename
       const timestamp = Date.now();
       const randomId = Math.random().toString(36).substring(2, 9);
       const fileName = `processed-images/${timestamp}_${randomId}.webp`;
       
-      console.log(`📤 Uploading to Firebase Storage: ${fileName} (${processedSizeKB}KB)`);
+      requestLogger.debug('Uploading to Firebase Storage', { fileName, processedSizeKB });
       
       // Try each bucket candidate
       let lastError: any = null;
@@ -296,7 +311,7 @@ export async function POST(req: NextRequest) {
       for (const bucket of bucketCandidates) {
         try {
           publicUrl = await uploadToFirebaseStorage(bucket, fileName, processedBuffer, 'image/webp');
-          console.log(`✅ Uploaded successfully to bucket: ${bucket}`);
+          requestLogger.info('Uploaded successfully', { bucket });
           break;
         } catch (e: any) {
           lastError = e;
@@ -308,8 +323,11 @@ export async function POST(req: NextRequest) {
         throw lastError || new Error('Upload failed to all candidate buckets');
       }
       
-      console.log(`✅ Image processed and uploaded successfully: ${originalSizeKB}KB → ${processedSizeKB}KB`);
-      console.log(`✅ Public URL: ${publicUrl.substring(0, 100)}...`);
+      requestLogger.info('Image processed and uploaded successfully', {
+        originalSizeKB,
+        processedSizeKB,
+        publicUrl: publicUrl.substring(0, 100),
+      });
       
       // Firebase Storage API format with alt=media works for public files
       // No need for image-proxy fallback - this URL format is designed for public access
@@ -326,10 +344,10 @@ export async function POST(req: NextRequest) {
       const errorMessage = uploadError instanceof Error ? uploadError.message : String(uploadError);
       const errorStack = uploadError instanceof Error ? uploadError.stack : undefined;
       
-      console.error('❌ Failed to upload processed image to Firebase Storage:');
-      console.error('   Error message:', errorMessage);
-      console.error('   Error stack:', errorStack);
-      console.error('   Full error:', uploadError);
+      requestLogger.error('Failed to upload processed image to Firebase Storage', uploadError instanceof Error ? uploadError : new Error(errorMessage), {
+        errorMessage,
+        errorStack,
+      });
       
       // Fallback to data URL if upload fails (for backward compatibility)
       const base64 = processedBuffer.toString('base64');
@@ -348,7 +366,8 @@ export async function POST(req: NextRequest) {
     }
 
   } catch (err) {
-    console.error('❌ Image processing error:', err);
+    const errorObj = err instanceof Error ? err : new Error(String(err));
+    requestLogger.error('Image processing error', errorObj);
     return NextResponse.json({
       success: false,
       error: err instanceof Error ? err.message : 'Image processing failed'

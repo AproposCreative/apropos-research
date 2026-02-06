@@ -1,16 +1,45 @@
 import { NextRequest, NextResponse } from 'next/server';
 import OpenAI from 'openai';
+import { config } from '@/lib/config/env';
+import { logger, createRequestLogger } from '@/lib/logger';
+import { getRequestId } from '@/lib/api/request-utils';
+import { createErrorResponse, createSuccessResponse, ErrorCode } from '@/lib/api/types';
 
-const openai = process.env.OPENAI_API_KEY ? new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
+const openai = config.openai.apiKey ? new OpenAI({
+  apiKey: config.openai.apiKey,
 }) : null;
 
 export async function POST(request: NextRequest) {
+  const requestId = getRequestId(request);
+  const requestLogger = createRequestLogger(requestId);
+  
   try {
     const { content, articleType, author } = await request.json();
 
-    if (!content || !openai) {
-      return NextResponse.json({ error: 'Content is required' }, { status: 400 });
+    if (!content) {
+      requestLogger.warn('Missing content in request');
+      return NextResponse.json(
+        createErrorResponse('Content is required', {
+          statusCode: 400,
+          errorCode: ErrorCode.MISSING_REQUIRED_FIELD,
+          requestId,
+        }),
+        { status: 400 }
+      );
+    }
+
+    if (!openai) {
+      requestLogger.error('OpenAI client not initialized', undefined, {
+        hasApiKey: !!config.openai.apiKey,
+      });
+      return NextResponse.json(
+        createErrorResponse('OpenAI API key not configured', {
+          statusCode: 500,
+          errorCode: ErrorCode.MISSING_API_KEY,
+          requestId,
+        }),
+        { status: 500 }
+      );
     }
 
     // Multi-dimensional quality analysis
@@ -25,25 +54,37 @@ export async function POST(request: NextRequest) {
     const overallScore = calculateOverallScore(qualityChecks);
     const recommendations = generateRecommendations(qualityChecks);
 
-    return NextResponse.json({
-      success: true,
+    requestLogger.info('Quality check completed', {
       overallScore,
-      breakdown: {
-        factualAccuracy: qualityChecks[0],
-        biasCheck: qualityChecks[1],
-        readability: qualityChecks[2],
-        structure: qualityChecks[3],
-        tovConsistency: qualityChecks[4]
-      },
-      recommendations,
       wordCount: content.split(/\s+/).length,
-      readingTime: Math.ceil(content.split(/\s+/).length / 160)
+      recommendationsCount: recommendations.length,
     });
 
-  } catch (error) {
-    console.error('Quality check error:', error);
     return NextResponse.json(
-      { error: 'Failed to perform quality check' },
+      createSuccessResponse({
+        overallScore,
+        breakdown: {
+          factualAccuracy: qualityChecks[0],
+          biasCheck: qualityChecks[1],
+          readability: qualityChecks[2],
+          structure: qualityChecks[3],
+          tovConsistency: qualityChecks[4]
+        },
+        recommendations,
+        wordCount: content.split(/\s+/).length,
+        readingTime: Math.ceil(content.split(/\s+/).length / 160)
+      }, { requestId })
+    );
+
+  } catch (error) {
+    const errorObj = error instanceof Error ? error : new Error(String(error));
+    requestLogger.error('Quality check error', errorObj);
+    return NextResponse.json(
+      createErrorResponse('Failed to perform quality check', {
+        statusCode: 500,
+        errorCode: ErrorCode.INTERNAL_ERROR,
+        requestId,
+      }),
       { status: 500 }
     );
   }
