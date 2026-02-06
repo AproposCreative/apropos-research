@@ -98,6 +98,7 @@ export enum ErrorCode {
   NOT_FOUND = 'NOT_FOUND',
   
   // External APIs
+  EXTERNAL_API = 'EXTERNAL_API',
   OPENAI_ERROR = 'OPENAI_ERROR',
   WEBFLOW_ERROR = 'WEBFLOW_ERROR',
   TMDB_ERROR = 'TMDB_ERROR',
