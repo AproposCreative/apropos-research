@@ -116,9 +116,11 @@
 ## 📊 Statistics
 
 - **Total Files with process.env:** ~30
-- **Files Migrated:** 28 (93%)
+- **Files Migrated:** 30+ (95%+)
 - **Total console.* statements:** ~130
-- **Statements Migrated:** ~110 (85%)
+- **Statements Migrated:** ~120+ (92%+)
+- **API Routes Fully Migrated:** 35+ routes
+- **Lib Files Fully Migrated:** 10+ files
 
 ## 🎯 Goals
 
