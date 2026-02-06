@@ -1,23 +1,45 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { handleApiError } from '../error-handler';
+import { logger, createRequestLogger } from '@/lib/logger';
+import { getRequestId } from '@/lib/api/request-utils';
+import { createErrorResponse, ErrorCode } from '@/lib/api/types';
 
 export async function GET(request: NextRequest) {
+  const requestId = getRequestId(request);
+  const requestLogger = createRequestLogger(requestId);
+  
   const { searchParams } = new URL(request.url);
   const imageUrl = searchParams.get('url');
   
   if (!imageUrl) {
-    return NextResponse.json({ error: 'Missing url parameter' }, { status: 400 });
+    requestLogger.warn('Missing url parameter');
+    return NextResponse.json(
+      createErrorResponse('Missing url parameter', {
+        statusCode: 400,
+        errorCode: ErrorCode.MISSING_REQUIRED_FIELD,
+        requestId,
+      }),
+      { status: 400 }
+    );
   }
 
   // Validate URL format
   try {
     new URL(imageUrl);
   } catch {
-    return NextResponse.json({ error: 'Invalid URL format' }, { status: 400 });
+    requestLogger.warn('Invalid URL format', { imageUrl: imageUrl.substring(0, 100) });
+    return NextResponse.json(
+      createErrorResponse('Invalid URL format', {
+        statusCode: 400,
+        errorCode: ErrorCode.VALIDATION,
+        requestId,
+      }),
+      { status: 400 }
+    );
   }
 
   try {
-    console.log(`🔍 Image Proxy: Fetching image from: ${imageUrl}`);
+    requestLogger.debug('Fetching image', { imageUrl: imageUrl.substring(0, 100) });
     
     // Add timeout to prevent ETIMEDOUT errors
     const controller = new AbortController();
@@ -37,18 +59,33 @@ export async function GET(request: NextRequest) {
 
     clearTimeout(timeoutId);
 
-    console.log(`🔍 Image Proxy: Response status: ${response.status} ${response.statusText}`);
-    console.log(`🔍 Image Proxy: Response headers:`, Object.fromEntries(response.headers.entries()));
+    requestLogger.debug('Image fetch response', {
+      status: response.status,
+      statusText: response.statusText,
+      contentType: response.headers.get('content-type'),
+    });
 
     if (!response.ok) {
       const errorText = await response.text().catch(() => '');
-      console.error(`❌ Image Proxy: Failed to fetch image: ${response.status} ${response.statusText}`);
-      console.error(`❌ Image Proxy: Error body: ${errorText.substring(0, 500)}`);
-      return NextResponse.json({ error: 'Failed to fetch image' }, { status: response.status });
+      requestLogger.error('Failed to fetch image', new Error(`HTTP ${response.status}`), {
+        status: response.status,
+        statusText: response.statusText,
+        errorPreview: errorText.substring(0, 200),
+      });
+      return NextResponse.json(
+        createErrorResponse('Failed to fetch image', {
+          statusCode: response.status,
+          errorCode: ErrorCode.EXTERNAL_API,
+          requestId,
+        }),
+        { status: response.status }
+      );
     }
 
     const imageBuffer = await response.arrayBuffer();
     const contentType = response.headers.get('content-type') || 'image/jpeg';
+
+    requestLogger.info('Image proxied successfully', { contentType, size: imageBuffer.byteLength });
 
     return new NextResponse(imageBuffer, {
       headers: {
@@ -60,6 +97,15 @@ export async function GET(request: NextRequest) {
     });
   } catch (error) {
     const { error: errorMessage, status } = handleApiError(error, 'Image Proxy');
-    return NextResponse.json({ error: errorMessage }, { status });
+    const errorObj = error instanceof Error ? error : new Error(String(error));
+    requestLogger.error('Image proxy error', errorObj);
+    return NextResponse.json(
+      createErrorResponse(errorMessage, {
+        statusCode: status,
+        errorCode: ErrorCode.INTERNAL_ERROR,
+        requestId,
+      }),
+      { status }
+    );
   }
 }

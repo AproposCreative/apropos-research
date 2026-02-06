@@ -1,4 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { logger, createRequestLogger } from '@/lib/logger';
+import { getRequestId } from '@/lib/api/request-utils';
+import { createErrorResponse, createSuccessResponse, ErrorCode } from '@/lib/api/types';
 
 // Function to analyze URLs and detect if they are articles or tag/metadata pages
 function analyzeUrlTypes(urls: string[]): { articleCount: number; tagCount: number; sampleUrls: string[] } {
@@ -32,6 +35,9 @@ function analyzeUrlTypes(urls: string[]): { articleCount: number; tagCount: numb
 }
 
 export async function POST(req: NextRequest) {
+  const requestId = getRequestId(req);
+  const requestLogger = createRequestLogger(requestId);
+  
   try {
     const body = await req.json();
     const { baseUrl, sitemapIndex } = body;
@@ -120,7 +126,7 @@ export async function POST(req: NextRequest) {
       // For sitemap indexes, try to follow and count articles in all sitemaps
       try {
         const sitemapMatches = responseText.match(/<sitemap>[\s\S]*?<\/sitemap>/g);
-        console.log('Found sitemap matches:', sitemapMatches?.length || 0);
+        requestLogger.debug('Found sitemap matches', { count: sitemapMatches?.length || 0 });
         if (sitemapMatches) {
           let totalArticles = 0;
           let collectedUrls: string[] = []; // Collect URLs for analysis
@@ -129,8 +135,8 @@ export async function POST(req: NextRequest) {
               const sitemapMatch = sitemapMatches[i];
               const urlMatch = sitemapMatch.match(/<loc>(.*?)<\/loc>/);
               if (urlMatch) {
-                const sitemapUrl = urlMatch[1];
-                console.log('Fetching sitemap:', sitemapUrl);
+                      const sitemapUrl = urlMatch[1];
+                requestLogger.debug('Fetching sitemap', { sitemapUrl });
                 try {
                   const subResponse = await fetch(sitemapUrl, {
                     headers: { 'User-Agent': 'Apropos Research Bot 1.0' },
@@ -139,12 +145,12 @@ export async function POST(req: NextRequest) {
                   });
                   if (subResponse.ok) {
                     const subContent = await subResponse.text();
-                    console.log('Sub sitemap content length:', subContent.length);
+                    requestLogger.debug('Sub sitemap fetched', { length: subContent.length });
                     // Count articles in this sitemap
                     if (subContent.includes('<item>')) {
                       const count = (subContent.match(/<item>/g) || []).length;
                       totalArticles += count;
-                      console.log('Found RSS items:', count);
+                      requestLogger.debug('Found RSS items', { count });
                       // Extract URLs from RSS items
                       const itemMatches = subContent.match(/<item>[\s\S]*?<\/item>/g);
                       if (itemMatches) {
@@ -158,7 +164,7 @@ export async function POST(req: NextRequest) {
                     } else if (subContent.includes('<url>')) {
                       const count = (subContent.match(/<url>/g) || []).length;
                       totalArticles += count;
-                      console.log('Found URLs:', count);
+                      requestLogger.debug('Found URLs', { count });
                       // Extract URLs from sitemap
                       const urlMatches = subContent.match(/<url>[\s\S]*?<\/url>/g);
                       if (urlMatches) {
@@ -172,7 +178,7 @@ export async function POST(req: NextRequest) {
                     } else if (subContent.includes('<entry>')) {
                       const count = (subContent.match(/<entry>/g) || []).length;
                       totalArticles += count;
-                      console.log('Found entries:', count);
+                      requestLogger.debug('Found entries', { count });
                       // Extract URLs from Atom entries
                       const entryMatches = subContent.match(/<entry>[\s\S]*?<\/entry>/g);
                       if (entryMatches) {
@@ -185,7 +191,7 @@ export async function POST(req: NextRequest) {
                       }
                     } else if (subContent.includes('<sitemap>')) {
                       // This is another sitemap index, follow it too
-                      console.log('Found nested sitemap index');
+                      requestLogger.debug('Found nested sitemap index');
                       const nestedMatches = subContent.match(/<sitemap>[\s\S]*?<\/sitemap>/g);
                       if (nestedMatches) {
                         for (let j = 0; j < Math.min(nestedMatches.length, 3); j++) {
@@ -193,7 +199,7 @@ export async function POST(req: NextRequest) {
                           const nestedUrlMatch = nestedMatch.match(/<loc>(.*?)<\/loc>/);
                           if (nestedUrlMatch) {
                             const nestedUrl = nestedUrlMatch[1];
-                            console.log('Fetching nested sitemap:', nestedUrl);
+                            requestLogger.debug('Fetching nested sitemap', { nestedUrl });
                             try {
                               const nestedResponse = await fetch(nestedUrl, {
                                 headers: { 'User-Agent': 'Apropos Research Bot 1.0' },
@@ -205,10 +211,10 @@ export async function POST(req: NextRequest) {
                                 if (nestedContent.includes('<url>')) {
                                   const nestedCount = (nestedContent.match(/<url>/g) || []).length;
                                   totalArticles += nestedCount;
-                                  console.log('Found nested URLs:', nestedCount);
+                                  requestLogger.debug('Found nested URLs', { nestedCount });
                                 } else if (nestedContent.includes('<sitemap>')) {
                                   // Third level sitemap index - follow it too
-                                  console.log('Found third level sitemap index');
+                                  requestLogger.debug('Found third level sitemap index');
                                   const thirdLevelMatches = nestedContent.match(/<sitemap>[\s\S]*?<\/sitemap>/g);
                                   if (thirdLevelMatches) {
                                     for (let k = 0; k < Math.min(thirdLevelMatches.length, 2); k++) {
@@ -216,7 +222,7 @@ export async function POST(req: NextRequest) {
                                       const thirdLevelUrlMatch = thirdLevelMatch.match(/<loc>(.*?)<\/loc>/);
                                       if (thirdLevelUrlMatch) {
                                         const thirdLevelUrl = thirdLevelUrlMatch[1];
-                                        console.log('Fetching third level sitemap:', thirdLevelUrl);
+                                        requestLogger.debug('Fetching third level sitemap', { thirdLevelUrl });
                                         try {
                                           const thirdLevelResponse = await fetch(thirdLevelUrl, {
                                             headers: { 'User-Agent': 'Apropos Research Bot 1.0' },
@@ -228,7 +234,7 @@ export async function POST(req: NextRequest) {
                                             if (thirdLevelContent.includes('<url>')) {
                                               const thirdLevelCount = (thirdLevelContent.match(/<url>/g) || []).length;
                                               totalArticles += thirdLevelCount;
-                                              console.log('Found third level URLs:', thirdLevelCount);
+                                              requestLogger.debug('Found third level URLs', { thirdLevelCount });
                                               // Extract URLs from third level sitemap
                                               const thirdLevelUrlMatches = thirdLevelContent.match(/<url>[\s\S]*?<\/url>/g);
                                               if (thirdLevelUrlMatches) {
@@ -242,7 +248,7 @@ export async function POST(req: NextRequest) {
                                             }
                                           }
                                         } catch (error) {
-                                          console.warn(`Failed to fetch third level sitemap ${thirdLevelUrl}:`, error);
+                                          requestLogger.warn('Failed to fetch third level sitemap', undefined, { thirdLevelUrl });
                                         }
                                       }
                                     }
@@ -250,7 +256,7 @@ export async function POST(req: NextRequest) {
                                 }
                               }
                             } catch (error) {
-                              console.warn(`Failed to fetch nested sitemap ${nestedUrl}:`, error);
+                              requestLogger.warn('Failed to fetch nested sitemap', undefined, { nestedUrl });
                             }
                           }
                         }
@@ -259,7 +265,7 @@ export async function POST(req: NextRequest) {
                   }
                 } catch (error) {
                   // Continue with other sitemaps if one fails
-                  console.warn(`Failed to fetch sitemap ${sitemapUrl}:`, error);
+                  requestLogger.warn('Failed to fetch sitemap', undefined, { sitemapUrl });
                 }
               }
             }
@@ -269,7 +275,7 @@ export async function POST(req: NextRequest) {
             let urlAnalysis = null;
             if (collectedUrls.length > 0) {
               urlAnalysis = analyzeUrlTypes(collectedUrls);
-              console.log('URL Analysis:', urlAnalysis);
+              requestLogger.debug('URL Analysis', urlAnalysis);
               
               // If more than 80% are tag pages, this sitemap is not suitable
               if (urlAnalysis.tagCount > 0 && urlAnalysis.tagCount / (urlAnalysis.articleCount + urlAnalysis.tagCount) > 0.8) {
@@ -299,27 +305,44 @@ export async function POST(req: NextRequest) {
         }
       }
 
-      return NextResponse.json({
+      requestLogger.info('Media source validated', {
         sitemapAccessible: true,
         hasArticles: hasValidContent,
         articleCount,
-        contentType,
-        contentPreview: responseText.substring(0, 500) + '...'
       });
 
+      return NextResponse.json(
+        createSuccessResponse({
+          sitemapAccessible: true,
+          hasArticles: hasValidContent,
+          articleCount,
+          contentType,
+          contentPreview: responseText.substring(0, 500) + '...'
+        }, { requestId })
+      );
+
     } catch (error) {
-      return NextResponse.json({
-        sitemapAccessible: false,
-        hasArticles: false,
-        articleCount: 0,
-        error: error instanceof Error ? error.message : 'Unknown error'
-      });
+      const errorObj = error instanceof Error ? error : new Error(String(error));
+      requestLogger.error('Sitemap validation error', errorObj);
+      return NextResponse.json(
+        createErrorResponse(errorObj.message || 'Unknown error', {
+          statusCode: 500,
+          errorCode: ErrorCode.EXTERNAL_API,
+          requestId,
+        }),
+        { status: 500 }
+      );
     }
 
   } catch (error) {
-    console.error('Error validating media source:', error);
+    const errorObj = error instanceof Error ? error : new Error(String(error));
+    requestLogger.error('Error validating media source', errorObj);
     return NextResponse.json(
-      { error: 'Internal server error' },
+      createErrorResponse('Internal server error', {
+        statusCode: 500,
+        errorCode: ErrorCode.INTERNAL_ERROR,
+        requestId,
+      }),
       { status: 500 }
     );
   }

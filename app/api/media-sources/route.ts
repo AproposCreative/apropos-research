@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import fs from 'fs';
 import path from 'path';
+import { logger, createRequestLogger } from '@/lib/logger';
+import { getRequestId } from '@/lib/api/request-utils';
+import { createErrorResponse, createSuccessResponse, ErrorCode } from '@/lib/api/types';
 
 interface MediaSource {
   id: string;
@@ -63,7 +66,7 @@ function loadMediaSources(): MediaSource[] {
       return JSON.parse(data);
     }
   } catch (error) {
-    console.error('Error loading media sources:', error);
+    logger.error('Error loading media sources', error instanceof Error ? error : new Error(String(error)));
   }
   return defaultMediaSources;
 }
@@ -73,16 +76,24 @@ function saveMediaSources(sources: MediaSource[]): void {
   try {
     fs.writeFileSync(MEDIA_SOURCES_FILE, JSON.stringify(sources, null, 2));
   } catch (error) {
-    console.error('Error saving media sources:', error);
+    logger.error('Error saving media sources', error instanceof Error ? error : new Error(String(error)));
   }
 }
 
-export async function GET() {
+export async function GET(request: Request) {
+  const requestId = getRequestId(request as any);
+  const requestLogger = createRequestLogger(requestId);
+  
   const sources = loadMediaSources();
-  return NextResponse.json({ sources });
+  requestLogger.info('Media sources loaded', { count: sources.length });
+  
+  return NextResponse.json(createSuccessResponse({ sources }, { requestId }));
 }
 
 export async function POST(req: NextRequest) {
+  const requestId = getRequestId(req);
+  const requestLogger = createRequestLogger(requestId);
+  
   try {
     const body = await req.json();
     const { name, baseUrl, sitemapIndex } = body;
@@ -176,22 +187,33 @@ export async function POST(req: NextRequest) {
     const updatedSources = [...mediaSources, newSource];
     saveMediaSources(updatedSources);
 
-    return NextResponse.json({ 
-      success: true, 
-      source: newSource,
-      message: `${name} er blevet tilføjet som mediekilde`
-    });
+    requestLogger.info('Media source added', { id: newSource.id, name });
+
+    return NextResponse.json(
+      createSuccessResponse({
+        source: newSource,
+        message: `${name} er blevet tilføjet som mediekilde`
+      }, { requestId })
+    );
 
   } catch (error) {
-    console.error('Error adding media source:', error);
+    const errorObj = error instanceof Error ? error : new Error(String(error));
+    requestLogger.error('Error adding media source', errorObj);
     return NextResponse.json(
-      { error: 'Internal server error' },
+      createErrorResponse('Internal server error', {
+        statusCode: 500,
+        errorCode: ErrorCode.INTERNAL_ERROR,
+        requestId,
+      }),
       { status: 500 }
     );
   }
 }
 
 export async function PUT(req: NextRequest) {
+  const requestId = getRequestId(req);
+  const requestLogger = createRequestLogger(requestId);
+  
   try {
     const { searchParams } = new URL(req.url);
     const id = searchParams.get('id');
@@ -291,22 +313,33 @@ export async function PUT(req: NextRequest) {
     updatedSources[sourceIndex] = updatedSource;
     saveMediaSources(updatedSources);
 
-    return NextResponse.json({ 
-      success: true, 
-      source: updatedSource,
-      message: `${name} er blevet opdateret`
-    });
+    requestLogger.info('Media source updated', { id, name });
+
+    return NextResponse.json(
+      createSuccessResponse({
+        source: updatedSource,
+        message: `${name} er blevet opdateret`
+      }, { requestId })
+    );
 
   } catch (error) {
-    console.error('Error updating media source:', error);
+    const errorObj = error instanceof Error ? error : new Error(String(error));
+    requestLogger.error('Error updating media source', errorObj);
     return NextResponse.json(
-      { error: 'Internal server error' },
+      createErrorResponse('Internal server error', {
+        statusCode: 500,
+        errorCode: ErrorCode.INTERNAL_ERROR,
+        requestId,
+      }),
       { status: 500 }
     );
   }
 }
 
 export async function DELETE(req: NextRequest) {
+  const requestId = getRequestId(req);
+  const requestLogger = createRequestLogger(requestId);
+  
   try {
     const { searchParams } = new URL(req.url);
     const id = searchParams.get('id');
@@ -333,16 +366,24 @@ export async function DELETE(req: NextRequest) {
     const updatedSources = mediaSources.filter(source => source.id !== id);
     saveMediaSources(updatedSources);
 
-    return NextResponse.json({ 
-      success: true, 
-      message: `${removedSource.name} er blevet fjernet`,
-      source: removedSource
-    });
+    requestLogger.info('Media source removed', { id, name: removedSource.name });
+
+    return NextResponse.json(
+      createSuccessResponse({
+        message: `${removedSource.name} er blevet fjernet`,
+        source: removedSource
+      }, { requestId })
+    );
 
   } catch (error) {
-    console.error('Error removing media source:', error);
+    const errorObj = error instanceof Error ? error : new Error(String(error));
+    requestLogger.error('Error removing media source', errorObj);
     return NextResponse.json(
-      { error: 'Internal server error' },
+      createErrorResponse('Internal server error', {
+        statusCode: 500,
+        errorCode: ErrorCode.INTERNAL_ERROR,
+        requestId,
+      }),
       { status: 500 }
     );
   }

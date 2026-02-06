@@ -1,14 +1,28 @@
 import { NextResponse } from 'next/server';
 import { getArticleFields } from '@/lib/webflow-service';
+import { logger, createRequestLogger } from '@/lib/logger';
+import { getRequestId } from '@/lib/api/request-utils';
+import { createErrorResponse, createSuccessResponse, ErrorCode } from '@/lib/api/types';
 
-export async function GET() {
+export async function GET(request: Request) {
+  const requestId = getRequestId(request as any);
+  const requestLogger = createRequestLogger(requestId);
+  
   try {
     const fields = await getArticleFields();
-    return NextResponse.json({ fields });
+    
+    requestLogger.info('Webflow article fields fetched', { count: fields?.length || 0 });
+    
+    return NextResponse.json(createSuccessResponse({ fields }, { requestId }));
   } catch (error) {
-    console.error('Error fetching Webflow article fields:', error);
+    const errorObj = error instanceof Error ? error : new Error(String(error));
+    requestLogger.error('Error fetching Webflow article fields', errorObj);
     return NextResponse.json(
-      { error: 'Failed to fetch article fields' },
+      createErrorResponse('Failed to fetch article fields', {
+        statusCode: 500,
+        errorCode: ErrorCode.INTERNAL_ERROR,
+        requestId,
+      }),
       { status: 500 }
     );
   }

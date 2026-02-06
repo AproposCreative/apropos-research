@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import * as fs from 'fs';
 import * as path from 'path';
+import { logger, createRequestLogger } from '@/lib/logger';
+import { getRequestId } from '@/lib/api/request-utils';
+import { createErrorResponse, createSuccessResponse, ErrorCode } from '@/lib/api/types';
 
 interface ArticleSuggestion {
   title: string;
@@ -14,6 +17,9 @@ interface ArticleSuggestion {
 }
 
 export async function POST(request: NextRequest) {
+  const requestId = getRequestId(request);
+  const requestLogger = createRequestLogger(requestId);
+  
   try {
     const { category, tags, limit = 10 } = await request.json();
 
@@ -110,16 +116,29 @@ export async function POST(request: NextRequest) {
       )?.keyword
     }));
 
-    return NextResponse.json({
-      suggestions,
-      trends,
-      count: suggestions.length
+    requestLogger.info('Article suggestions generated', {
+      count: suggestions.length,
+      category,
+      tagsCount: tags?.length || 0,
     });
 
-  } catch (error) {
-    console.error('Error suggesting articles:', error);
     return NextResponse.json(
-      { error: 'Failed to suggest articles' },
+      createSuccessResponse({
+        suggestions,
+        trends,
+        count: suggestions.length
+      }, { requestId })
+    );
+
+  } catch (error) {
+    const errorObj = error instanceof Error ? error : new Error(String(error));
+    requestLogger.error('Error suggesting articles', errorObj);
+    return NextResponse.json(
+      createErrorResponse('Failed to suggest articles', {
+        statusCode: 500,
+        errorCode: ErrorCode.INTERNAL_ERROR,
+        requestId,
+      }),
       { status: 500 }
     );
   }
