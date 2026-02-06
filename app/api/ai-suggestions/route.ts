@@ -1,26 +1,54 @@
 import { NextRequest, NextResponse } from 'next/server';
 import OpenAI from 'openai';
+import { config } from '@/lib/config/env';
+import { logger, createRequestLogger } from '@/lib/logger';
+import { getRequestId } from '@/lib/api/request-utils';
+import { createErrorResponse, createSuccessResponse, ErrorCode } from '@/lib/api/types';
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+const openai = config.openai.apiKey ? new OpenAI({
+  apiKey: config.openai.apiKey,
+}) : null;
 
 export async function POST(request: NextRequest) {
+  const requestId = getRequestId(request);
+  const requestLogger = createRequestLogger(requestId);
+  
   try {
     const { text, context, type } = await request.json();
 
     if (!text || text.trim().length < 10) {
-      return NextResponse.json({ suggestions: [] });
+      requestLogger.debug('Text too short, returning empty suggestions');
+      return NextResponse.json(
+        createSuccessResponse({ suggestions: [] }, { requestId })
+      );
     }
 
-    if (!process.env.OPENAI_API_KEY) {
-      return NextResponse.json({ 
-        suggestions: [
-          "Hvis du vil have flere detaljer, kan du uddybe dette punkt.",
-          "Overvej at tilføje et eksempel for at illustrere din pointe.",
-          "Du kunne også inkludere en citat eller reference her."
-        ]
+    if (!config.openai.apiKey) {
+      requestLogger.warn('OpenAI API key not configured, returning fallback suggestions');
+      return NextResponse.json(
+        createSuccessResponse({ 
+          suggestions: [
+            "Hvis du vil have flere detaljer, kan du uddybe dette punkt.",
+            "Overvej at tilføje et eksempel for at illustrere din pointe.",
+            "Du kunne også inkludere en citat eller reference her."
+          ]
+        }, { requestId })
+      );
+    }
+
+    if (!openai) {
+      requestLogger.error('OpenAI client not initialized', undefined, {
+        hasApiKey: !!config.openai.apiKey,
       });
+      return NextResponse.json(
+        createSuccessResponse({
+          suggestions: [
+            "Hvis du vil have flere detaljer, kan du uddybe dette punkt.",
+            "Overvej at tilføje et eksempel for at illustrere din pointe.",
+            "Du kunne også inkludere en citat eller reference her."
+          ]
+        }, { requestId })
+      );
     }
 
     let prompt = '';
@@ -92,10 +120,18 @@ Giv kun forslagene, ikke forklaringer.`;
       .filter(line => line.length > 10 && line.length < 200) // Filter reasonable length
       .slice(0, 3); // Take max 3 suggestions
 
-    return NextResponse.json({ suggestions });
+    requestLogger.info('AI suggestions generated', { 
+      count: suggestions.length,
+      type,
+    });
+
+    return NextResponse.json(
+      createSuccessResponse({ suggestions }, { requestId })
+    );
 
   } catch (error) {
-    console.error('Error generating AI suggestions:', error);
+    const errorObj = error instanceof Error ? error : new Error(String(error));
+    requestLogger.error('Error generating AI suggestions', errorObj);
     
     // Fallback suggestions
     const fallbackSuggestions = [
@@ -104,6 +140,8 @@ Giv kun forslagene, ikke forklaringer.`;
       "Hvad med at tilføje en overraskende vinkel?"
     ];
     
-    return NextResponse.json({ suggestions: fallbackSuggestions });
+    return NextResponse.json(
+      createSuccessResponse({ suggestions: fallbackSuggestions }, { requestId })
+    );
   }
 }

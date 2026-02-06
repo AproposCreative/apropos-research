@@ -1,9 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import OpenAI from 'openai';
+import { config } from '@/lib/config/env';
+import { logger, createRequestLogger } from '@/lib/logger';
+import { getRequestId } from '@/lib/api/request-utils';
+import { createErrorResponse, createSuccessResponse, ErrorCode } from '@/lib/api/types';
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+const openai = config.openai.apiKey ? new OpenAI({
+  apiKey: config.openai.apiKey,
+}) : null;
 
 interface GenerateThumbnailRequest {
   title: string;
@@ -24,18 +28,40 @@ interface GenerateThumbnailResponse {
 }
 
 export async function POST(request: NextRequest): Promise<NextResponse<GenerateThumbnailResponse>> {
+  const requestId = getRequestId(request);
+  const requestLogger = createRequestLogger(requestId);
+  
   try {
     const body: GenerateThumbnailRequest = await request.json();
     const { title, content, category, topic, rating, platform, streaming_service, author } = body;
 
     if (!title) {
-      return NextResponse.json({
-        success: false,
-        error: 'Title is required for thumbnail generation'
-      }, { status: 400 });
+      requestLogger.warn('Missing title in request');
+      return NextResponse.json(
+        createErrorResponse('Title is required for thumbnail generation', {
+          statusCode: 400,
+          errorCode: ErrorCode.MISSING_REQUIRED_FIELD,
+          requestId,
+        }),
+        { status: 400 }
+      );
     }
 
-    console.log('🎨 Generating thumbnail for:', title);
+    if (!openai) {
+      requestLogger.error('OpenAI client not initialized', undefined, {
+        hasApiKey: !!config.openai.apiKey,
+      });
+      return NextResponse.json(
+        createErrorResponse('OpenAI API key not configured', {
+          statusCode: 500,
+          errorCode: ErrorCode.MISSING_API_KEY,
+          requestId,
+        }),
+        { status: 500 }
+      );
+    }
+
+    requestLogger.info('Generating thumbnail', { title: title.substring(0, 50) });
 
     // Generate intelligent prompt based on article content
     const imagePrompt = await generateImagePrompt({
@@ -49,7 +75,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<GenerateT
       author
     });
 
-    console.log('🎨 Generated image prompt:', imagePrompt);
+    requestLogger.debug('Generated image prompt', { prompt: imagePrompt.substring(0, 100) });
 
     // Generate image using DALL-E 3
     const imageResponse = await openai.images.generate({
@@ -66,21 +92,29 @@ export async function POST(request: NextRequest): Promise<NextResponse<GenerateT
       throw new Error('No image URL returned from DALL-E 3');
     }
 
-    console.log('✅ Thumbnail generated successfully:', imageUrl);
-
-    return NextResponse.json({
-      success: true,
-      imageUrl,
-      prompt: imagePrompt
+    requestLogger.info('Thumbnail generated successfully', { 
+      imageUrl: imageUrl.substring(0, 100),
     });
 
+    return NextResponse.json(
+      createSuccessResponse({
+        imageUrl,
+        prompt: imagePrompt
+      }, { requestId })
+    );
+
   } catch (error) {
-    console.error('❌ Thumbnail generation error:', error);
+    const errorObj = error instanceof Error ? error : new Error(String(error));
+    requestLogger.error('Thumbnail generation error', errorObj);
     
-    return NextResponse.json({
-      success: false,
-      error: error instanceof Error ? error.message : 'Unknown error occurred'
-    }, { status: 500 });
+    return NextResponse.json(
+      createErrorResponse(errorObj.message || 'Unknown error occurred', {
+        statusCode: 500,
+        errorCode: ErrorCode.INTERNAL_ERROR,
+        requestId,
+      }),
+      { status: 500 }
+    );
   }
 }
 

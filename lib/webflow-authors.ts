@@ -1,5 +1,8 @@
 // Webflow Authors Integration for Apropos Magazine
 
+import { env } from '@/lib/config/env';
+import { logger } from '@/lib/logger';
+
 export interface WebflowAuthor {
   id: string;
   name: string;
@@ -14,8 +17,8 @@ export class WebflowAuthors {
   private authorsCollectionId: string;
 
   constructor() {
-    this.apiKey = process.env.WEBFLOW_API_KEY || '';
-    this.authorsCollectionId = process.env.WEBFLOW_AUTHORS_COLLECTION_ID || '';
+    this.apiKey = env.WEBFLOW_API_TOKEN || '';
+    this.authorsCollectionId = env.WEBFLOW_AUTHORS_COLLECTION_ID || '';
   }
 
   async getAuthors(): Promise<{ success: boolean; authors?: WebflowAuthor[]; error?: string }> {
@@ -44,7 +47,7 @@ export class WebflowAuthors {
             }
           }
         } catch (error) {
-          console.error('Could not load scraped authors:', error);
+          logger.error('Could not load scraped authors', error instanceof Error ? error : new Error(String(error)));
         }
         
         // Ultimate fallback

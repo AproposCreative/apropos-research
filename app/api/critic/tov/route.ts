@@ -1,27 +1,83 @@
 import { NextRequest, NextResponse } from 'next/server';
 import OpenAI from 'openai';
 import type { ChatCompletionMessageParam } from 'openai/resources/chat/completions';
+import { config } from '@/lib/config/env';
+import { logger, createRequestLogger } from '@/lib/logger';
+import { getRequestId } from '@/lib/api/request-utils';
+import { createErrorResponse, createSuccessResponse, ErrorCode } from '@/lib/api/types';
 
-const client = process.env.OPENAI_API_KEY ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY }) : null;
+const client = config.openai.apiKey ? new OpenAI({ apiKey: config.openai.apiKey }) : null;
 
 const CRITIC_SYSTEM = `Du er en skarp, men hjælpsom redaktør for Apropos Magazine.
 Evaluer en kladde efter TOV: rytme, sanselighed, personligt nærvær, intro/afslutning, og forfatterprofil.
 Returnér korte, præcise forbedringsforslag i punktform. Dansk.`;
 
 export async function POST(request: NextRequest) {
+	const requestId = getRequestId(request);
+	const requestLogger = createRequestLogger(requestId);
+	
 	try {
 		const { text, author } = await request.json();
-		if (!text || !client) return NextResponse.json({ error: 'missing text or api' }, { status: 400 });
-    const messages: ChatCompletionMessageParam[] = [
-        { role: 'system', content: CRITIC_SYSTEM },
-        { role: 'user', content: `Forfatter: ${author || 'Apropos'}\n\nTekst:\n${text}` }
-    ];
-		const comp = await client.chat.completions.create({ model: 'gpt-5-mini', messages, temperature: 1, max_completion_tokens: 600 }); // Updated to GPT-5-mini
+		
+		if (!text) {
+			requestLogger.warn('Missing text in request');
+			return NextResponse.json(
+				createErrorResponse('Text is required', {
+					statusCode: 400,
+					errorCode: ErrorCode.MISSING_REQUIRED_FIELD,
+					requestId,
+				}),
+				{ status: 400 }
+			);
+		}
+
+		if (!client) {
+			requestLogger.error('OpenAI client not initialized', undefined, {
+				hasApiKey: !!config.openai.apiKey,
+			});
+			return NextResponse.json(
+				createErrorResponse('OpenAI API key not configured', {
+					statusCode: 500,
+					errorCode: ErrorCode.MISSING_API_KEY,
+					requestId,
+				}),
+				{ status: 500 }
+			);
+		}
+
+		const messages: ChatCompletionMessageParam[] = [
+			{ role: 'system', content: CRITIC_SYSTEM },
+			{ role: 'user', content: `Forfatter: ${author || 'Apropos'}\n\nTekst:\n${text}` }
+		];
+		
+		const comp = await client.chat.completions.create({ 
+			model: 'gpt-5-mini', 
+			messages, 
+			temperature: 1, 
+			max_completion_tokens: 600 
+		});
+		
 		const tips = comp.choices[0]?.message?.content || '';
-		return NextResponse.json({ ok: true, tips });
+		
+		requestLogger.info('TOV critic completed', { 
+			author: author || 'Apropos',
+			tipsLength: tips.length,
+		});
+		
+		return NextResponse.json(
+			createSuccessResponse({ ok: true, tips }, { requestId })
+		);
 	} catch (e) {
-		console.error(e);
-		return NextResponse.json({ error: 'critic failed' }, { status: 500 });
+		const errorObj = e instanceof Error ? e : new Error(String(e));
+		requestLogger.error('Critic failed', errorObj);
+		return NextResponse.json(
+			createErrorResponse('Critic failed', {
+				statusCode: 500,
+				errorCode: ErrorCode.INTERNAL_ERROR,
+				requestId,
+			}),
+			{ status: 500 }
+		);
 	}
 }
 
