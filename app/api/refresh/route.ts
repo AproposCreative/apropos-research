@@ -36,9 +36,9 @@ export async function POST(request: Request) {
     // Run ingestion in background (don't await)
     ingestOnce({ sinceHrs: sinceHours, limit }).then(() => {
       invalidatePromptsCache();
-      console.log('✅ Ingest completed successfully');
+      logger.info('Ingest completed successfully', { sinceHours, limit });
     }).catch((err) => {
-      console.error('❌ Ingest failed:', err);
+      logger.error('Ingest failed', err instanceof Error ? err : new Error(String(err)), { sinceHours, limit });
     });
     
     return NextResponse.json({
@@ -49,7 +49,7 @@ export async function POST(request: Request) {
     }, { status: 202 });
   } catch (importErr) {
     // Fall back to exec if direct import fails
-    console.log('Direct import failed, using exec fallback:', importErr);
+    logger.warn('Direct import failed, using exec fallback', undefined, { error: String(importErr) });
     const cmd = `npm run ingest:rage -- --since=${sinceHours} --limit=${limit}`;
 
     // Start ingest in background - don't wait for it to complete
@@ -57,9 +57,9 @@ export async function POST(request: Request) {
       if (!err) {
         // Invalidate cache after successful refresh
         invalidatePromptsCache();
-        console.log('✅ Ingest completed successfully');
+        logger.info('Ingest completed successfully (exec)', { sinceHours, limit });
       } else {
-        console.error('❌ Ingest failed:', stderr);
+        logger.error('Ingest failed (exec)', err instanceof Error ? err : new Error(String(err)), { stderr });
       }
     });
 

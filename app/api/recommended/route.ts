@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import * as fs from 'fs';
 import * as path from 'path';
 import { filterRelevantArticles, detectArticleType, calculateRelevanceScore, type Article } from '@/src/utils/relevance-filter';
+import { logger, createRequestLogger } from '@/lib/logger';
+import { getRequestId } from '@/lib/api/request-utils';
+import { createErrorResponse, createSuccessResponse, ErrorCode } from '@/lib/api/types';
 
 interface RecommendedArticle {
   title: string;
@@ -15,6 +18,9 @@ interface RecommendedArticle {
 }
 
 export async function GET(request: NextRequest) {
+  const requestId = getRequestId(request);
+  const requestLogger = createRequestLogger(requestId);
+  
   try {
     const { searchParams } = new URL(request.url);
     const type = searchParams.get('type') || 'all'; // concert, tv-series, film, game, or all
@@ -137,9 +143,14 @@ export async function GET(request: NextRequest) {
     }, { headers: { 'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0' } });
 
   } catch (error) {
-    console.error('Error fetching recommendations:', error);
+    const errorObj = error instanceof Error ? error : new Error(String(error));
+    requestLogger.error('Error fetching recommendations', errorObj);
     return NextResponse.json(
-      { error: 'Failed to fetch recommendations' },
+      createErrorResponse('Failed to fetch recommendations', {
+        statusCode: 500,
+        errorCode: ErrorCode.INTERNAL_ERROR,
+        requestId,
+      }),
       { status: 500 }
     );
   }

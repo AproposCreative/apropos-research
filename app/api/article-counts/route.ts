@@ -1,5 +1,8 @@
 import { NextResponse } from 'next/server';
 import { readPrompts } from '@/lib/readPrompts';
+import { logger, createRequestLogger } from '@/lib/logger';
+import { getRequestId } from '@/lib/api/request-utils';
+import { createErrorResponse, createSuccessResponse, ErrorCode } from '@/lib/api/types';
 
 // Helper to map source name to media ID
 function mapSourceToId(source: string | undefined, url?: string): string | undefined {
@@ -26,7 +29,10 @@ function mapSourceToId(source: string | undefined, url?: string): string | undef
   return undefined;
 }
 
-export async function GET() {
+export async function GET(request: Request) {
+  const requestId = getRequestId(request as any);
+  const requestLogger = createRequestLogger(requestId);
+  
   try {
     // Read articles from JSONL file (same source as /alle-medier)
     const articles = await readPrompts();
@@ -43,19 +49,26 @@ export async function GET() {
       }
     });
     
-    return NextResponse.json({ 
-      counts: {
-        ...counts,
-        total
-      }
-    });
+    requestLogger.info('Article counts loaded', { total, sources: Object.keys(counts).length });
+    
+    return NextResponse.json(
+      createSuccessResponse({
+        counts: {
+          ...counts,
+          total
+        }
+      }, { requestId })
+    );
   } catch (error) {
-    console.error('Error loading article counts:', error);
-    return NextResponse.json({ 
-      counts: { 
-        total: 0
-      },
-      error: 'Failed to load counts' 
-    }, { status: 500 });
+    const errorObj = error instanceof Error ? error : new Error(String(error));
+    requestLogger.error('Error loading article counts', errorObj);
+    return NextResponse.json(
+      createErrorResponse('Failed to load counts', {
+        statusCode: 500,
+        errorCode: ErrorCode.INTERNAL_ERROR,
+        requestId,
+      }),
+      { status: 500 }
+    );
   }
 }

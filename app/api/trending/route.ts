@@ -2,8 +2,14 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getMediaSources } from '@/lib/getMediaSources';
 import { analyzeTrends, generateTrendingTemplates, extractKeyPoints, inferCategoryFrom, type SimpleArticle } from '@/src/utils/trending';
 import { filterRelevantArticles, calculateRelevanceScore } from '@/src/utils/relevance-filter';
+import { logger, createRequestLogger } from '@/lib/logger';
+import { getRequestId } from '@/lib/api/request-utils';
+import { createErrorResponse, createSuccessResponse, ErrorCode } from '@/lib/api/types';
 
 export async function GET(request: NextRequest) {
+  const requestId = getRequestId(request);
+  const requestLogger = createRequestLogger(requestId);
+  
   try {
     const mediaSources = await getMediaSources();
     const { searchParams } = new URL(request.url);
@@ -124,7 +130,7 @@ export async function GET(request: NextRequest) {
           }
         }
       } catch (error) {
-        console.error(`Error reading articles for ${source.name}:`, error);
+        requestLogger.warn('Error reading articles for source', { source: source.name }, error instanceof Error ? error : undefined);
       }
     }
 
@@ -173,9 +179,14 @@ export async function GET(request: NextRequest) {
     }, { headers: { 'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0' } });
 
   } catch (error) {
-    console.error('Error analyzing trends:', error);
+    const errorObj = error instanceof Error ? error : new Error(String(error));
+    requestLogger.error('Error analyzing trends', errorObj);
     return NextResponse.json(
-      { error: 'Failed to analyze trends' },
+      createErrorResponse('Failed to analyze trends', {
+        statusCode: 500,
+        errorCode: ErrorCode.INTERNAL_ERROR,
+        requestId,
+      }),
       { status: 500, headers: { 'Cache-Control': 's-maxage=60' } as any }
     );
   }
