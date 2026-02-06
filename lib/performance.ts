@@ -1,4 +1,7 @@
 // Performance monitoring utilities
+import { logger } from './logger';
+import { config } from './config/env';
+
 export const performanceMonitor = {
   // Measure component render time
   measureRender: (componentName: string, fn: () => void) => {
@@ -6,7 +9,8 @@ export const performanceMonitor = {
       const start = performance.now();
       fn();
       const end = performance.now();
-      console.log(`${componentName} render time: ${(end - start).toFixed(2)}ms`);
+      const duration = end - start;
+      logger.performance(`${componentName} render`, duration, { componentName });
     } else {
       fn();
     }
@@ -18,7 +22,8 @@ export const performanceMonitor = {
       const start = performance.now();
       const result = await fn();
       const end = performance.now();
-      console.log(`${apiName} API call time: ${(end - start).toFixed(2)}ms`);
+      const duration = end - start;
+      logger.performance(`${apiName} API call`, duration, { apiName });
       return result;
     } else {
       return await fn();
@@ -32,7 +37,8 @@ export const performanceMonitor = {
       const img = new Image();
       img.onload = () => {
         const end = performance.now();
-        console.log(`Image load time for ${imageUrl}: ${(end - start).toFixed(2)}ms`);
+        const duration = end - start;
+        logger.performance('Image load', duration, { imageUrl: imageUrl.substring(0, 100) });
       };
       img.src = imageUrl;
     }
@@ -42,10 +48,13 @@ export const performanceMonitor = {
 // Web Vitals monitoring
 export const reportWebVitals = (metric: any) => {
   if (typeof window !== 'undefined' && 'performance' in window) {
-    console.log('Web Vitals:', metric);
+    logger.performance('Web Vitals', metric.value, {
+      metric: metric.name,
+      id: metric.id,
+    });
     
     // Send to analytics service in production
-    if (process.env.NODE_ENV === 'production') {
+    if (config.isProduction) {
       // Example: send to Google Analytics, Vercel Analytics, etc.
       // gtag('event', metric.name, {
       //   value: Math.round(metric.value),

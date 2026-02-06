@@ -6,14 +6,22 @@ import {
   type ResearchSources,
   type VerificationResult 
 } from '@/lib/research-verification-service';
+import { config } from '@/lib/config/env';
+import { logger, createRequestLogger } from '@/lib/logger';
+import { getRequestId } from '@/lib/api/request-utils';
+import { createErrorResponse, createSuccessResponse, ErrorCode } from '@/lib/api/types';
 
 /**
  * Comprehensive Test Endpoint for Research & Verification System
  * Tests all components: Wikipedia, TMDB, IMDb, Web Search, Verification, Plagiarism
  */
 export async function POST(request: NextRequest) {
+  const requestId = getRequestId(request);
+  const requestLogger = createRequestLogger(requestId);
+  
   const testResults: any = {
     timestamp: new Date().toISOString(),
+    requestId,
     tests: [],
     summary: {
       total: 0,
@@ -38,7 +46,7 @@ export async function POST(request: NextRequest) {
     const baseUrl = request.url.split('/api')[0];
 
     // TEST 1: Comprehensive Research
-    console.log('\n🧪 TEST 1: Comprehensive Research');
+    requestLogger.info('TEST 1: Comprehensive Research');
     testResults.tests.push({
       name: 'Comprehensive Research',
       status: 'running'
@@ -91,7 +99,7 @@ export async function POST(request: NextRequest) {
     if (researchTest.warnings.length > 0) testResults.summary.warnings++;
 
     // TEST 2: Wikipedia Search
-    console.log('\n🧪 TEST 2: Wikipedia Search');
+    requestLogger.info('TEST 2: Wikipedia Search');
     testResults.tests.push({
       name: 'Wikipedia Search',
       status: 'running'
@@ -129,7 +137,7 @@ export async function POST(request: NextRequest) {
     if (wikiTest.warnings.length > 0) testResults.summary.warnings++;
 
     // TEST 3: TMDB Verification
-    console.log('\n🧪 TEST 3: TMDB Verification');
+    requestLogger.info('TEST 3: TMDB Verification');
     testResults.tests.push({
       name: 'TMDB Verification',
       status: 'running'
@@ -161,7 +169,7 @@ export async function POST(request: NextRequest) {
     if (tmdbTest.warnings.length > 0) testResults.summary.warnings++;
 
     // TEST 4: IMDb Search
-    console.log('\n🧪 TEST 4: IMDb Search');
+    requestLogger.info('TEST 4: IMDb Search');
     testResults.tests.push({
       name: 'IMDb Search',
       status: 'running'
@@ -192,7 +200,7 @@ export async function POST(request: NextRequest) {
     if (imdbTest.warnings.length > 0) testResults.summary.warnings++;
 
     // TEST 5: Format Research for Prompt
-    console.log('\n🧪 TEST 5: Format Research for Prompt');
+    requestLogger.info('TEST 5: Format Research for Prompt');
     testResults.tests.push({
       name: 'Format Research for Prompt',
       status: 'running'
@@ -232,7 +240,7 @@ export async function POST(request: NextRequest) {
     if (formatTest.warnings.length > 0) testResults.summary.warnings++;
 
     // TEST 6: Content Verification (with sample content)
-    console.log('\n🧪 TEST 6: Content Verification');
+    requestLogger.info('TEST 6: Content Verification');
     testResults.tests.push({
       name: 'Content Verification',
       status: 'running'
@@ -293,7 +301,7 @@ Jeg kan anbefale at se dette værk.`;
     if (verificationTest.warnings.length > 0) testResults.summary.warnings++;
 
     // TEST 7: Environment Variables Check
-    console.log('\n🧪 TEST 7: Environment Variables');
+    requestLogger.info('TEST 7: Environment Variables');
     testResults.tests.push({
       name: 'Environment Variables',
       status: 'running'
@@ -303,24 +311,24 @@ Jeg kan anbefale at se dette værk.`;
       name: 'Environment Variables',
       status: 'passed',
       details: {
-        hasOpenAIApiKey: !!process.env.OPENAI_API_KEY,
-        hasTMDBApiKey: !!process.env.TMDB_API_KEY,
-        hasOMDBApiKey: !!process.env.OMDB_API_KEY,
-        openAIModel: process.env.OPENAI_MODEL || 'gpt-4o-mini',
-        researchModel: process.env.OPENAI_RESEARCH_MODEL || process.env.OPENAI_MODEL || 'gpt-4o-mini'
+        hasOpenAIApiKey: !!config.openai.apiKey,
+        hasTMDBApiKey: !!config.features.tmdb,
+        hasOMDBApiKey: !!config.features.omdb,
+        openAIModel: config.openai.model,
+        researchModel: config.openai.researchModel
       },
       issues: [] as string[],
       warnings: [] as string[]
     };
 
-    if (!process.env.OPENAI_API_KEY) {
+    if (!config.openai.apiKey) {
       envTest.issues.push('OPENAI_API_KEY missing');
       envTest.status = 'failed';
     }
-    if (!process.env.TMDB_API_KEY) {
+    if (!config.features.tmdb) {
       envTest.warnings.push('TMDB_API_KEY missing - TMDB verification will not work');
     }
-    if (!process.env.OMDB_API_KEY) {
+    if (!config.features.omdb) {
       envTest.warnings.push('OMDB_API_KEY missing - IMDb search will not work');
     }
 
@@ -336,26 +344,37 @@ Jeg kan anbefale at se dette værk.`;
     testResults.overallStatus = testResults.summary.failed === 0 ? 'passed' : 'failed';
     testResults.totalDuration = `${Date.now() - researchStartTime}ms`;
 
-    return NextResponse.json({
-      success: true,
-      testResults,
-      researchSources: {
-        webSearch: researchSources.webSearch.length,
-        wikipedia: !!researchSources.wikipedia,
-        tmdb: !!researchSources.tmdbVerification,
-        imdb: !!researchSources.imdb,
-        advancedResearch: !!researchSources.advancedResearch
-      },
-      formattedPromptPreview: formattedPrompt.substring(0, 500) + '...'
+    requestLogger.info('All tests completed', {
+      passed: testResults.summary.passed,
+      failed: testResults.summary.failed,
+      warnings: testResults.summary.warnings,
     });
 
+    return NextResponse.json(
+      createSuccessResponse({
+        testResults,
+        researchSources: {
+          webSearch: researchSources.webSearch.length,
+          wikipedia: !!researchSources.wikipedia,
+          tmdb: !!researchSources.tmdbVerification,
+          imdb: !!researchSources.imdb,
+          advancedResearch: !!researchSources.advancedResearch
+        },
+        formattedPromptPreview: formattedPrompt.substring(0, 500) + '...'
+      }, { requestId })
+    );
+
   } catch (error) {
-    console.error('Test failed:', error);
-    return NextResponse.json({
-      success: false,
-      error: error instanceof Error ? error.message : 'Unknown error',
-      testResults
-    }, { status: 500 });
+    const errorObj = error instanceof Error ? error : new Error(String(error));
+    requestLogger.error('Test failed', errorObj);
+    return NextResponse.json(
+      createErrorResponse(errorObj.message || 'Unknown error', {
+        statusCode: 500,
+        errorCode: ErrorCode.INTERNAL_ERROR,
+        requestId,
+      }),
+      { status: 500 }
+    );
   }
 }
 

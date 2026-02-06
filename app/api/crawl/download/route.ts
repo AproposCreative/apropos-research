@@ -1,23 +1,39 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { crawlStore } from '@/lib/crawler/store';
 import { normalizeUrl, getOrigin } from '@/lib/crawler/url-utils';
+import { logger, createRequestLogger } from '@/lib/logger';
+import { getRequestId } from '@/lib/api/request-utils';
+import { createErrorResponse, ErrorCode } from '@/lib/api/types';
 
 export async function GET(request: NextRequest) {
+  const requestId = getRequestId(request);
+  const requestLogger = createRequestLogger(requestId);
+  
   try {
     const searchParams = request.nextUrl.searchParams;
     const crawlId = searchParams.get('crawlId');
 
     if (!crawlId) {
+      requestLogger.warn('Missing crawlId');
       return NextResponse.json(
-        { error: 'crawlId is required' },
+        createErrorResponse('crawlId is required', {
+          statusCode: 400,
+          errorCode: ErrorCode.MISSING_REQUIRED_FIELD,
+          requestId,
+        }),
         { status: 400 }
       );
     }
 
     const session = crawlStore.getSession(crawlId);
     if (!session) {
+      requestLogger.warn('Crawl session not found', { crawlId });
       return NextResponse.json(
-        { error: 'Crawl session not found' },
+        createErrorResponse('Crawl session not found', {
+          statusCode: 404,
+          errorCode: ErrorCode.NOT_FOUND,
+          requestId,
+        }),
         { status: 404 }
       );
     }
@@ -26,8 +42,13 @@ export async function GET(request: NextRequest) {
     const completedPages = pages.filter(p => p.status === 'completed');
 
     if (completedPages.length === 0) {
+      requestLogger.warn('No pages crawled yet', { crawlId });
       return NextResponse.json(
-        { error: 'No pages crawled yet' },
+        createErrorResponse('No pages crawled yet', {
+          statusCode: 400,
+          errorCode: ErrorCode.VALIDATION,
+          requestId,
+        }),
         { status: 400 }
       );
     }
@@ -73,6 +94,8 @@ export async function GET(request: NextRequest) {
 
     const content = lines.join('\n');
 
+    requestLogger.info('Generated download file', { filename, pageCount: completedPages.length });
+
     return new NextResponse(content, {
       headers: {
         'Content-Type': 'text/plain; charset=utf-8',
@@ -80,9 +103,14 @@ export async function GET(request: NextRequest) {
       },
     });
   } catch (error: any) {
-    console.error('Download error:', error);
+    const errorObj = error instanceof Error ? error : new Error(String(error));
+    requestLogger.error('Download error', errorObj);
     return NextResponse.json(
-      { error: error.message || 'Failed to generate download' },
+      createErrorResponse(errorObj.message || 'Failed to generate download', {
+        statusCode: 500,
+        errorCode: ErrorCode.INTERNAL_ERROR,
+        requestId,
+      }),
       { status: 500 }
     );
   }

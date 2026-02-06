@@ -1,10 +1,11 @@
 import { NextResponse } from 'next/server';
+import { env } from '@/lib/config/env';
 
 export async function GET() {
   try {
-    const token = process.env.WEBFLOW_API_TOKEN;
-    const siteId = process.env.WEBFLOW_SITE_ID;
-    const col = process.env.WEBFLOW_FESTIVALS_COLLECTION_ID;
+    const token = env.WEBFLOW_API_TOKEN;
+    const siteId = env.WEBFLOW_SITE_ID;
+    const col = env.WEBFLOW_FESTIVALS_COLLECTION_ID;
     if (!token || !siteId || !col) return NextResponse.json({ items: [] });
     const res = await fetch(`https://api.webflow.com/v2/sites/${siteId}/collections/${col}/items?limit=200`, {
       headers: { 'Authorization': `Bearer ${token}`, 'Accept-Version': '1.0.0' },

@@ -5,15 +5,26 @@ import { WebsiteCrawler } from '@/lib/crawler/crawler';
 import { normalizeUrl, getOrigin, normalizeAndValidateUrl } from '@/lib/crawler/url-utils';
 import { CrawlOptions } from '@/lib/crawler/types';
 import { registerCrawler } from '@/lib/crawler/registry';
+import { logger, createRequestLogger } from '@/lib/logger';
+import { getRequestId } from '@/lib/api/request-utils';
+import { createErrorResponse, createSuccessResponse, ErrorCode } from '@/lib/api/types';
 
 export async function POST(request: NextRequest) {
+  const requestId = getRequestId(request);
+  const requestLogger = createRequestLogger(requestId);
+  
   try {
     const body = await request.json();
     const { url, options } = body;
 
     if (!url || typeof url !== 'string') {
+      requestLogger.warn('Missing URL in request');
       return NextResponse.json(
-        { error: 'URL is required' },
+        createErrorResponse('URL is required', {
+          statusCode: 400,
+          errorCode: ErrorCode.MISSING_REQUIRED_FIELD,
+          requestId,
+        }),
         { status: 400 }
       );
     }
@@ -22,8 +33,13 @@ export async function POST(request: NextRequest) {
     const { valid, normalized: normalizedInput } = normalizeAndValidateUrl(url);
     
     if (!valid) {
+      requestLogger.warn('Invalid URL format', { url });
       return NextResponse.json(
-        { error: 'Invalid URL format' },
+        createErrorResponse('Invalid URL format', {
+          statusCode: 400,
+          errorCode: ErrorCode.VALIDATION,
+          requestId,
+        }),
         { status: 400 }
       );
     }
@@ -48,20 +64,35 @@ export async function POST(request: NextRequest) {
 
     // Create session
     const crawlId = uuidv4();
-    console.log('[Start] Creating session with crawlId:', crawlId);
+    requestLogger.info('Creating crawl session', { crawlId, url: normalizedUrl });
     const session = crawlStore.createSession(crawlId, crawlOptions, origin);
-    console.log('[Start] Session created:', session ? 'success' : 'failed');
+    
+    if (!session) {
+      requestLogger.error('Session creation failed', new Error('Failed to create crawl session'));
+      return NextResponse.json(
+        createErrorResponse('Failed to create crawl session', {
+          statusCode: 500,
+          errorCode: ErrorCode.INTERNAL_ERROR,
+          requestId,
+        }),
+        { status: 500 }
+      );
+    }
     
     // Verify session was created
     const verifySession = crawlStore.getSession(crawlId);
     if (!verifySession) {
-      console.error('[Start] Session verification failed - session not found after creation');
+      requestLogger.error('Session verification failed - session not found after creation');
       return NextResponse.json(
-        { error: 'Failed to create crawl session' },
+        createErrorResponse('Failed to create crawl session', {
+          statusCode: 500,
+          errorCode: ErrorCode.INTERNAL_ERROR,
+          requestId,
+        }),
         { status: 500 }
       );
     }
-    console.log('[Start] Session verified, starting crawler');
+    requestLogger.info('Session verified, starting crawler', { crawlId });
 
     // Start crawler in background (don't await)
     const crawler = new WebsiteCrawler(crawlId, crawlOptions);
@@ -69,26 +100,34 @@ export async function POST(request: NextRequest) {
     
     // Start crawler immediately - it will handle session lookup with retry
     crawler.start().catch((error) => {
-      console.error('[Start] Crawler error:', error);
-      console.error('[Start] Error stack:', error.stack);
+      requestLogger.error('Crawler error', error instanceof Error ? error : new Error(String(error)), {
+        crawlId,
+      });
       const errorSession = crawlStore.getSession(crawlId);
       if (errorSession) {
         crawlStore.updateStatus(crawlId, {
           status: 'error',
-          error: error.message || 'Unknown error occurred during crawling',
+          error: error instanceof Error ? error.message : 'Unknown error occurred during crawling',
           endTime: Date.now(),
         });
       } else {
-        console.error('[Start] Cannot update status - session not found');
+        requestLogger.error('Cannot update status - session not found', undefined, { crawlId });
       }
     });
 
-    console.log('[Start] Returning crawlId:', crawlId);
-    return NextResponse.json({ crawlId });
-  } catch (error: any) {
-    console.error('Start crawl error:', error);
+    requestLogger.info('Crawl started successfully', { crawlId });
     return NextResponse.json(
-      { error: error.message || 'Failed to start crawl' },
+      createSuccessResponse({ crawlId }, { requestId })
+    );
+  } catch (error: any) {
+    const errorObj = error instanceof Error ? error : new Error(String(error));
+    requestLogger.error('Start crawl error', errorObj);
+    return NextResponse.json(
+      createErrorResponse(errorObj.message || 'Failed to start crawl', {
+        statusCode: 500,
+        errorCode: ErrorCode.INTERNAL_ERROR,
+        requestId,
+      }),
       { status: 500 }
     );
   }

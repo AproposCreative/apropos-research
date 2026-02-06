@@ -1,4 +1,7 @@
 import { NextResponse } from 'next/server';
+import { logger } from '@/lib/logger';
+import { getRequestId } from '@/lib/api/request-utils';
+import { createErrorResponse, createSuccessResponse, ErrorCode } from '@/lib/api/types';
 
 // AI Processing Functions
 async function generateSmartPrompt(article: any): Promise<string> {
@@ -121,7 +124,7 @@ async function processWithAI(articles: any[]): Promise<any[]> {
         trendData: detectTrends(article)
       });
     } catch (error) {
-      console.error('Error processing article with AI:', error);
+      logger.error('Error processing article with AI', error instanceof Error ? error : new Error(String(error)));
     }
   }
   
@@ -147,32 +150,51 @@ async function simulateAIResponse(article: any, prompt: string): Promise<any> {
 }
 
 export async function POST(req: Request) {
+  const requestId = getRequestId(req as any);
+  const requestLogger = createRequestLogger(requestId);
+  
   try {
     const body = await req.json().catch(() => ({}));
     const articles = body?.items || [];
     
     if (!Array.isArray(articles) || articles.length === 0) {
-      return NextResponse.json({ error: 'No articles provided' }, { status: 400 });
+      requestLogger.warn('No articles provided');
+      return NextResponse.json(
+        createErrorResponse('No articles provided', {
+          statusCode: 400,
+          errorCode: ErrorCode.MISSING_REQUIRED_FIELD,
+          requestId,
+        }),
+        { status: 400 }
+      );
     }
     
     // Process articles with AI
     const processedArticles = await processWithAI(articles);
     
-    // In a real implementation, you would:
-    // 1. Save to database
-    // 2. Send to AI service (OpenAI, Claude, etc.)
-    // 3. Store results
-    // 4. Send notifications
-    
-    return NextResponse.json({ 
-      ok: true, 
+    requestLogger.info('Articles processed with AI', { 
       processed: processedArticles.length,
-      articles: processedArticles,
-      message: `${processedArticles.length} artikler er blevet behandlet af Apropos Editorial AI`
+      total: articles.length,
     });
     
+    return NextResponse.json(
+      createSuccessResponse({
+        processed: processedArticles.length,
+        articles: processedArticles,
+        message: `${processedArticles.length} artikler er blevet behandlet af Apropos Editorial AI`
+      }, { requestId })
+    );
+    
   } catch (error) {
-    console.error('Error in AI processing:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    const errorObj = error instanceof Error ? error : new Error(String(error));
+    requestLogger.error('Error in AI processing', errorObj);
+    return NextResponse.json(
+      createErrorResponse('Internal server error', {
+        statusCode: 500,
+        errorCode: ErrorCode.INTERNAL_ERROR,
+        requestId,
+      }),
+      { status: 500 }
+    );
   }
 }

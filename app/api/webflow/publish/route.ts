@@ -1,12 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { publishArticleToWebflow, WebflowArticleFields } from '@/lib/webflow-service';
+import { logger, createRequestLogger } from '@/lib/logger';
+import { getRequestId } from '@/lib/api/request-utils';
+import { createErrorResponse, createSuccessResponse, ErrorCode } from '@/lib/api/types';
 
 export async function POST(request: NextRequest) {
+  const requestId = getRequestId(request);
+  const requestLogger = createRequestLogger(requestId);
+  
   try {
     const articleData: WebflowArticleFields = await request.json();
     
     // Debug: Log what we receive
-    console.log('📤 Received article data for Webflow publish:', {
+    requestLogger.debug('Received article data for Webflow publish', {
       title: articleData.title,
       slug: articleData.slug,
       subtitle: articleData.subtitle,
@@ -31,8 +37,13 @@ export async function POST(request: NextRequest) {
     
     // Validate required fields
     if (!articleData.title || !articleData.content) {
+      requestLogger.warn('Missing required fields', { hasTitle: !!articleData.title, hasContent: !!articleData.content });
       return NextResponse.json(
-        { error: 'Title and content are required' },
+        createErrorResponse('Title and content are required', {
+          statusCode: 400,
+          errorCode: ErrorCode.MISSING_REQUIRED_FIELD,
+          requestId,
+        }),
         { status: 400 }
       );
     }
@@ -54,26 +65,33 @@ export async function POST(request: NextRequest) {
 
     // Check if this is an update to existing article
     const isUpdate = articleData.webflowId && articleData.webflowId !== '';
-    console.log('🔄 Publish mode:', isUpdate ? 'UPDATE existing article' : 'CREATE new article', 
-                isUpdate ? `ID: ${articleData.webflowId}` : '');
+    requestLogger.info('Publish mode', { 
+      mode: isUpdate ? 'UPDATE' : 'CREATE',
+      webflowId: articleData.webflowId || undefined,
+    });
 
     // Publish to Webflow
     const articleId = await publishArticleToWebflow(articleData);
 
-    return NextResponse.json({
-      success: true,
-      articleId,
-      message: 'Article published successfully to Webflow'
-    });
+    requestLogger.info('Article published successfully to Webflow', { articleId });
+
+    return NextResponse.json(
+      createSuccessResponse({
+        articleId,
+        message: 'Article published successfully to Webflow'
+      }, { requestId })
+    );
 
   } catch (error) {
-    console.error('Error publishing article:', error);
-    const message = error instanceof Error ? error.message : 'Unknown error';
+    const errorObj = error instanceof Error ? error : new Error(String(error));
+    requestLogger.error('Error publishing article', errorObj);
     return NextResponse.json(
-      { 
-        error: 'Failed to publish article',
-        details: message
-      },
+      createErrorResponse('Failed to publish article', {
+        statusCode: 500,
+        errorCode: ErrorCode.INTERNAL_ERROR,
+        requestId,
+        details: errorObj.message,
+      }),
       { status: 500 }
     );
   }

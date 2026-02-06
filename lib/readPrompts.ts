@@ -122,6 +122,7 @@ export async function readPrompts(): Promise<RageItem[]> {
     return promptsCache;
   }
   
+  // Note: RAGE_PROMPTS_PATH not in centralized config yet - add if needed
   const fallback = path.resolve(process.cwd(), "prompts/rage_prompts.jsonl");
   const file = process.env.RAGE_PROMPTS_PATH
     ? path.resolve(process.env.RAGE_PROMPTS_PATH)

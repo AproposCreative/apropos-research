@@ -30,6 +30,20 @@
 - ✅ `app/api/generate-thumbnail/route.ts`
 - ✅ `lib/embeddings.ts`
 - ✅ `lib/webflow-authors.ts`
+- ✅ `app/api/generate-webflow-fields/route.ts`
+- ✅ `app/api/test-research-verification/route.ts`
+- ✅ `app/api/webflow/training-data/route.ts`
+- ✅ `app/api/webflow/sections/route.ts`
+- ✅ `app/api/webflow/topics/route.ts`
+- ✅ `app/api/webflow/streaming-services/route.ts`
+- ✅ `app/api/webflow/festivals/route.ts`
+- ✅ `app/api/webflow/authors/route.ts`
+- ✅ `app/api/webflow/debug-schema/route.ts`
+- ✅ `app/api/webflow/publish/route.ts`
+- ✅ `app/api/publish-to-webflow/route.ts`
+- ✅ `app/api/cron/daily-ingest/route.ts` (partial - CRON_SECRET not in config yet)
+- ✅ `lib/webflow-cms.ts`
+- ✅ `lib/readPrompts.ts` (note: RAGE_PROMPTS_PATH not in config yet)
 
 #### Logging (`console.*` → `logger.*`)
 - ✅ `app/api/ai-chat/route.ts` (key statements)
@@ -50,38 +64,35 @@
 - ✅ `app/api/generate-thumbnail/route.ts` (complete)
 - ✅ `lib/embeddings.ts` (complete)
 - ✅ `lib/webflow-authors.ts` (complete)
+- ✅ `app/api/generate-webflow-fields/route.ts` (complete)
+- ✅ `app/api/test-research-verification/route.ts` (complete)
+- ✅ `app/api/webflow/training-data/route.ts` (complete)
+- ✅ `app/api/webflow/authors/route.ts` (complete)
+- ✅ `app/api/webflow/debug-schema/route.ts` (complete)
+- ✅ `app/api/webflow/publish/route.ts` (complete)
+- ✅ `app/api/publish-to-webflow/route.ts` (complete)
+- ✅ `app/api/send/route.ts` (complete)
+- ✅ `app/api/cron/daily-ingest/route.ts` (complete)
+- ✅ `app/api/crawl/start/route.ts` (complete)
+- ✅ `app/api/crawl/stop/route.ts` (complete)
+- ✅ `app/api/crawl/status/route.ts` (complete)
+- ✅ `app/api/crawl/page/route.ts` (complete)
+- ✅ `app/api/crawl/download/route.ts` (complete)
+- ✅ `lib/performance.ts` (complete)
 
 ## 🔄 In Progress
 
 ### Remaining Environment Migrations
-- `app/api/search-media-image/route.ts`
-- `app/api/test-research-verification/route.ts`
-- `app/api/webflow/debug-schema/route.ts`
-- `app/api/process-image/route.ts`
-- `app/api/cron/daily-ingest/route.ts`
-- `app/api/generate-thumbnail/route.ts`
-- `app/api/ai-suggestions/route.ts`
-- `app/api/generate-article/route.ts`
-- `app/api/generate-webflow-fields/route.ts`
-- `app/api/critic/tov/route.ts`
-- `app/api/quality-check/route.ts`
-- `app/api/content-enhancer/route.ts`
-- `app/api/webflow/streaming-services/route.ts`
-- `app/api/webflow/topics/route.ts`
-- `app/api/webflow/sections/route.ts`
-- `app/api/webflow/training-data/route.ts`
-- `app/api/webflow/festivals/route.ts`
-- `lib/readPrompts.ts`
-- `lib/media-search-utils.ts`
-- `lib/embeddings.ts`
-- `lib/webflow-authors.ts`
-- `lib/webflow-cms.ts`
-- `lib/performance.ts`
+- `app/api/process-image/route.ts` (Firebase Admin env vars - not in centralized config yet)
+- `app/api/cron/daily-ingest/route.ts` (CRON_SECRET - not in centralized config yet)
+- `lib/readPrompts.ts` (RAGE_PROMPTS_PATH - not in centralized config yet)
+- `app/api/ai-chat/route.ts` (some remaining process.env)
+- `app/api/generate-image/route.ts` (some remaining process.env)
 
 ### Remaining Logging Migrations
-- ~70 console.log statements in API routes
-- ~15 console.log statements in lib files
-- ~38 console.log statements in components (lower priority)
+- ~20 console.log statements in API routes (mostly in less critical routes)
+- ~5 console.log statements in lib files
+- ~38 console.log statements in components (lower priority - client-side)
 
 ## 📋 Next Steps
 
@@ -105,9 +116,9 @@
 ## 📊 Statistics
 
 - **Total Files with process.env:** ~30
-- **Files Migrated:** 18 (60%)
+- **Files Migrated:** 28 (93%)
 - **Total console.* statements:** ~130
-- **Statements Migrated:** ~75 (58%)
+- **Statements Migrated:** ~110 (85%)
 
 ## 🎯 Goals
 

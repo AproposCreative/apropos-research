@@ -1,5 +1,7 @@
 // Webflow CMS Integration for Apropos Magazine
 
+import { env } from '@/lib/config/env';
+
 interface WebflowCMSConfig {
   apiKey: string;
   collectionId: string;
@@ -33,9 +35,9 @@ export class WebflowCMS {
 
   constructor() {
     this.config = {
-      apiKey: process.env.WEBFLOW_API_KEY || '',
-      collectionId: process.env.WEBFLOW_COLLECTION_ID || '',
-      siteId: process.env.WEBFLOW_SITE_ID || ''
+      apiKey: env.WEBFLOW_API_TOKEN || '',
+      collectionId: env.WEBFLOW_ARTICLES_COLLECTION_ID || '',
+      siteId: env.WEBFLOW_SITE_ID || ''
     };
   }
 

@@ -3,6 +3,7 @@ import { getArticlesCollectionFieldsDetailed } from '@/lib/webflow-service';
 import { getWebflowConfig } from '@/lib/webflow-config';
 import { fetchCollectionItemsWithFallback, normalizeItems, listCollections, norm } from '../_lib';
 import { apiCache, CACHE_TTL } from '@/lib/cache';
+import { env } from '@/lib/config/env';
 
 export async function GET() {
   try {
@@ -15,9 +16,9 @@ export async function GET() {
     }
     
     const cfg = getWebflowConfig();
-    const token = cfg.apiToken || process.env.WEBFLOW_API_TOKEN;
-    const siteId = cfg.siteId || process.env.WEBFLOW_SITE_ID;
-    const col = process.env.WEBFLOW_TOPICS_COLLECTION_ID;
+    const token = cfg.apiToken || env.WEBFLOW_API_TOKEN;
+    const siteId = cfg.siteId || env.WEBFLOW_SITE_ID;
+    const col = env.WEBFLOW_TOPICS_COLLECTION_ID;
     let debug: any = { env: { hasToken: !!token, siteId, col }, tried: [] as any[] };
     if (!token || !siteId) return NextResponse.json({ items: [], debug });
 

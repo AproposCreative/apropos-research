@@ -1,14 +1,33 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { env } from '@/lib/config/env';
+import { logger, createRequestLogger } from '@/lib/logger';
+import { getRequestId } from '@/lib/api/request-utils';
+import { createErrorResponse, createSuccessResponse, ErrorCode } from '@/lib/api/types';
+import { getWebflowConfig } from '@/lib/webflow-config';
 
 export async function GET(req: NextRequest) {
+  const requestId = getRequestId(req);
+  const requestLogger = createRequestLogger(requestId);
+  
   try {
-    const { token, siteId, articlesCollectionId } = resolveConfig();
+    const cfg = getWebflowConfig();
+    const token = cfg.apiToken || env.WEBFLOW_API_TOKEN;
+    const siteId = cfg.siteId || env.WEBFLOW_SITE_ID;
+    const articlesCollectionId = cfg.articlesCollectionId || env.WEBFLOW_ARTICLES_COLLECTION_ID;
     
     if (!token || !siteId || !articlesCollectionId) {
-      return NextResponse.json({ error: 'Missing Webflow configuration' }, { status: 400 });
+      requestLogger.warn('Missing Webflow configuration');
+      return NextResponse.json(
+        createErrorResponse('Missing Webflow configuration', {
+          statusCode: 400,
+          errorCode: ErrorCode.MISSING_REQUIRED_FIELD,
+          requestId,
+        }),
+        { status: 400 }
+      );
     }
 
-    console.log('🔍 Fetching all articles for training data...');
+    requestLogger.info('Fetching all articles for training data');
     
     // Fetch all articles with all fields
     const articlesResponse = await fetch(
@@ -23,14 +42,21 @@ export async function GET(req: NextRequest) {
 
     if (!articlesResponse.ok) {
       const errorData = await articlesResponse.json();
-      console.error('Failed to fetch articles:', errorData);
-      return NextResponse.json({ error: 'Failed to fetch articles from Webflow' }, { status: 500 });
+      requestLogger.error('Failed to fetch articles', new Error('Failed to fetch articles from Webflow'), { errorData });
+      return NextResponse.json(
+        createErrorResponse('Failed to fetch articles from Webflow', {
+          statusCode: 500,
+          errorCode: ErrorCode.EXTERNAL_API,
+          requestId,
+        }),
+        { status: 500 }
+      );
     }
 
     const articlesData = await articlesResponse.json();
     const articles = articlesData.items || [];
     
-    console.log(`✓ Fetched ${articles.length} articles for training`);
+    requestLogger.info('Fetched articles for training', { count: articles.length });
 
     // Analyze field usage patterns
     const fieldAnalysis = analyzeFieldUsage(articles);
@@ -38,51 +64,34 @@ export async function GET(req: NextRequest) {
     // Create training examples
     const trainingExamples = createTrainingExamples(articles, fieldAnalysis);
 
-    return NextResponse.json({
-      success: true,
-      totalArticles: articles.length,
-      fieldAnalysis,
-      trainingExamples: trainingExamples.slice(0, 10), // Return first 10 as examples
-      allArticles: articles.map(article => ({
-        id: article.id,
-        name: article.fieldData?.name,
-        slug: article.fieldData?.slug,
-        fieldData: article.fieldData,
-        createdOn: article.createdOn,
-        lastUpdated: article.lastUpdated
-      }))
-    });
+    return NextResponse.json(
+      createSuccessResponse({
+        totalArticles: articles.length,
+        fieldAnalysis,
+        trainingExamples: trainingExamples.slice(0, 10), // Return first 10 as examples
+        allArticles: articles.map(article => ({
+          id: article.id,
+          name: article.fieldData?.name,
+          slug: article.fieldData?.slug,
+          fieldData: article.fieldData,
+          createdOn: article.createdOn,
+          lastUpdated: article.lastUpdated
+        }))
+      }, { requestId })
+    );
 
   } catch (error) {
-    console.error('Error fetching training data:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    const errorObj = error instanceof Error ? error : new Error(String(error));
+    requestLogger.error('Error fetching training data', errorObj);
+    return NextResponse.json(
+      createErrorResponse('Internal server error', {
+        statusCode: 500,
+        errorCode: ErrorCode.INTERNAL_ERROR,
+        requestId,
+      }),
+      { status: 500 }
+    );
   }
-}
-
-function resolveConfig() {
-  // Try environment variables first, then fallback to config file
-  let token = process.env.WEBFLOW_TOKEN;
-  let siteId = process.env.WEBFLOW_SITE_ID;
-  let articlesCollectionId = process.env.WEBFLOW_ARTICLES_COLLECTION_ID;
-  
-  // Fallback to config file if env vars not set
-  if (!token || !siteId || !articlesCollectionId) {
-    try {
-      const fs = require('fs');
-      const path = require('path');
-      const configPath = path.join(process.cwd(), 'data', 'webflow-config.json');
-      if (fs.existsSync(configPath)) {
-        const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
-        token = token || config.apiToken;
-        siteId = siteId || config.siteId;
-        articlesCollectionId = articlesCollectionId || config.articlesCollectionId;
-      }
-    } catch (error) {
-      console.error('Error reading webflow config:', error);
-    }
-  }
-  
-  return { token, siteId, articlesCollectionId };
 }
 
 function analyzeFieldUsage(articles: any[]) {
