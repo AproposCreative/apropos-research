@@ -45,10 +45,17 @@ async function readJsonl(filePath: string): Promise<any[]> {
   try {
     const content = await fs.readFile(filePath, "utf8");
     if (!content.trim()) return [];
-    return content
-      .split(/\r?\n/) 
-      .filter((line) => line.trim().length > 0)
-      .map((line) => JSON.parse(line));
+    const lines = content.split(/\r?\n/).filter((line) => line.trim().length > 0);
+    const records: any[] = [];
+    for (let i = 0; i < lines.length; i++) {
+      try {
+        records.push(JSON.parse(lines[i]));
+      } catch (parseErr: any) {
+        console.warn(`⚠️ Skipping invalid JSON line ${i + 1} in ${filePath}: ${parseErr.message}`);
+        // Continue processing other lines
+      }
+    }
+    return records;
   } catch (err: any) {
     if (err && (err.code === "ENOENT" || err.code === "ENOTDIR")) return [];
     throw err;

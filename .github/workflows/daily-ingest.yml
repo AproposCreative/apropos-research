@@ -8,6 +8,9 @@ on:
 jobs:
   ingest-articles:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: read
     env:
       # Default values (we now use dynamic media sources from media-sources.json, so these are just fallbacks)
       # 
@@ -50,7 +53,10 @@ jobs:
       - name: Ingest recent articles
         run: |
           echo "🔄 Starting daily article ingestion..."
-          npm run ingest:rage -- --since=24 --limit=100
+          npm run ingest:rage -- --since=24 --limit=100 || {
+            echo "⚠️ Article ingestion failed or returned non-zero exit code"
+            exit 1
+          }
           echo "✅ Article ingestion completed"
 
       - name: Commit and push changes
