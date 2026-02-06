@@ -7,6 +7,9 @@ import {
   type ResearchSources,
   type VerificationResult 
 } from '@/lib/research-verification-service';
+import { config } from '@/lib/config/env';
+import { logger, createRequestLogger } from '@/lib/logger';
+import { createErrorResponse, createSuccessResponse, ErrorCode } from '@/lib/api/types';
 
 // Progress tracking stubs (UI handles loading timeline locally)
 const initProgress = (..._args: any[]) => {};
@@ -14,10 +17,8 @@ const updateProgressStep = (..._args: any[]) => {};
 const completeProgress = (..._args: any[]) => {};
 const getProgress = (..._args: any[]) => null;
 
-const OPENAI_MODEL = process.env.OPENAI_MODEL || 'gpt-4o-mini';
-
-const openai = process.env.OPENAI_API_KEY ? new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
+const openai = config.openai.apiKey ? new OpenAI({
+  apiKey: config.openai.apiKey,
 }) : null;
 
 function loadExternalSystemPrompt(): string | null {
@@ -1376,9 +1377,13 @@ export const runtime = 'nodejs'; // Use Node.js runtime instead of Edge
 
 export async function POST(request: NextRequest) {
   let progressId = '';
+  const requestId = request.headers.get('x-request-id') || Math.random().toString(36).substring(2, 11);
+  const requestLogger = createRequestLogger(requestId);
+  
   try {
     startStage('ai-chat-request', { timestamp: new Date().toISOString() });
-    console.log('🚀 AI CHAT API CALLED - Starting request processing');
+    requestLogger.info('AI chat API called - starting request processing');
+    
     const {
       message,
       articleData,
@@ -1389,11 +1394,17 @@ export async function POST(request: NextRequest) {
       analysisPrompt,
       clientRequestId
     } = await request.json();
-    console.log('🔍 Author name from request:', authorName);
-    console.log('🔍 Author TOV from request length:', authorTOV?.length || 0);
+    
+    requestLogger.debug('Request payload received', {
+      hasMessage: !!message,
+      hasArticleData: !!articleData,
+      authorName,
+      authorTOVLength: authorTOV?.length || 0,
+    });
+    
     const generationMode = (articleData as any)?.generationMode === 'fast' ? 'fast' : 'editorial';
     const isFastMode = generationMode === 'fast';
-    console.log('🎛️ Generation mode:', generationMode);
+    requestLogger.info('Generation mode determined', { generationMode });
 
     if (!message) {
       if (progressId) {
@@ -1401,7 +1412,14 @@ export async function POST(request: NextRequest) {
         completeProgress(progressId);
       }
       endStage(false, 'Message is required');
-      return NextResponse.json({ error: 'Message is required' }, { status: 400 });
+      return NextResponse.json(
+        createErrorResponse('Message is required', {
+          statusCode: 400,
+          errorCode: ErrorCode.MISSING_REQUIRED_FIELD,
+          requestId,
+        }),
+        { status: 400 }
+      );
     }
 
     progressId = typeof clientRequestId === 'string' ? clientRequestId.trim() : '';
@@ -1418,6 +1436,9 @@ export async function POST(request: NextRequest) {
     }
 
     if (!openai) {
+      requestLogger.error('OpenAI client not initialized', undefined, {
+        hasApiKey: !!config.openai.apiKey,
+      });
       if (progressId) {
         updateProgressStep(progressId, 'prepare', 'failed', { error: 'OpenAI API key missing' });
         completeProgress(progressId);
@@ -2650,65 +2671,59 @@ Returnér ét JSON-objekt med "response", "articleUpdate" og "citations".`;
     // Log performance report
     logReport();
     
-    console.log('✅ Quality control completed');
-    console.log('📊 Final response length:', finalResponse.length);
-    console.log('📊 Final article update:', Object.keys(finalArticleUpdate || {}));
+    requestLogger.info('Quality control completed', {
+      responseLength: finalResponse.length,
+      articleUpdateKeys: Object.keys(finalArticleUpdate || {}),
+      wordCount: finalWordCount,
+    });
 
     if (progressId) {
       updateProgressStep(progressId, 'format', 'completed');
       completeProgress(progressId);
-      console.log('✅ Progress marked as complete');
+      requestLogger.debug('Progress marked as complete', { progressId });
     }
 
     return response;
 
   } catch (error) {
-    console.error('OpenAI API error:', error);
+    const errorObj = error instanceof Error ? error : new Error(String(error));
+    const requestLogger = createRequestLogger(requestId);
     
-    // Enhanced error handling with detailed error analysis
-    const errorAnalysis = {
-      type: error.name || 'UnknownError',
-      message: error.message || 'Unknown error occurred',
-      stack: error.stack?.split('\n').slice(0, 3).join('\n') || 'No stack trace',
-      timestamp: new Date().toISOString(),
-      requestId: Math.random().toString(36).substr(2, 9)
-    };
+    requestLogger.error('AI chat API error', errorObj, {
+      progressId,
+      generationMode: (articleData as any)?.generationMode,
+    });
     
-    console.error('🔍 Error Analysis:', errorAnalysis);
-    
-    // Determine error category and recovery strategy
-    let errorCategory = 'unknown';
+    // Determine error code and category
+    let errorCode: ErrorCode = ErrorCode.INTERNAL_ERROR;
     let recoveryMessage = 'Der opstod en uventet fejl';
     let statusCode = 500;
     
-    if (error.message?.includes('API key')) {
-      errorCategory = 'authentication';
+    if (errorObj.message?.includes('API key')) {
+      errorCode = ErrorCode.MISSING_API_KEY;
       recoveryMessage = 'OpenAI API nøgle er ikke konfigureret korrekt';
       statusCode = 401;
-    } else if (error.message?.includes('rate limit')) {
-      errorCategory = 'rate_limit';
+    } else if (errorObj.message?.includes('rate limit')) {
+      errorCode = ErrorCode.RATE_LIMIT_EXCEEDED;
       recoveryMessage = 'For mange anmodninger til OpenAI API. Prøv igen om et øjeblik';
       statusCode = 429;
-    } else if (error.message?.includes('timeout')) {
-      errorCategory = 'timeout';
+    } else if (errorObj.message?.includes('timeout')) {
+      errorCode = ErrorCode.REQUEST_TIMEOUT;
       recoveryMessage = 'Anmodningen tog for lang tid. Prøv igen';
       statusCode = 408;
-    } else if (error.message?.includes('network')) {
-      errorCategory = 'network';
+    } else if (errorObj.message?.includes('network')) {
       recoveryMessage = 'Netværksfejl. Tjek din internetforbindelse';
       statusCode = 503;
-    } else if (error.message?.includes('JSON')) {
-      errorCategory = 'parsing';
+    } else if (errorObj.message?.includes('JSON')) {
       recoveryMessage = 'Fejl i dataformatering. Prøv igen';
       statusCode = 400;
     }
     
-    // Enhanced error logging
-    console.error(`🚨 Error Category: ${errorCategory}`);
-    console.error(`🚨 Recovery Message: ${recoveryMessage}`);
-    console.error(`🚨 Status Code: ${statusCode}`);
-    
-    endStage(false, `${errorCategory}: ${error.message}`, errorAnalysis);
+    endStage(false, errorObj.message, {
+      errorCode,
+      statusCode,
+      requestId,
+    });
     logReport();
     
     if (progressId) {
@@ -2717,22 +2732,23 @@ Returnér ét JSON-objekt med "response", "articleUpdate" og "citations".`;
         snapshot?.steps.find((step) => step.status === 'active') ??
         snapshot?.steps.find((step) => step.status === 'pending');
       if (failingStep) {
-        updateProgressStep(progressId, failingStep.id, 'failed', { error: error.message });
+        updateProgressStep(progressId, failingStep.id, 'failed', { error: errorObj.message });
       } else {
-        updateProgressStep(progressId, 'format', 'failed', { error: error.message });
+        updateProgressStep(progressId, 'format', 'failed', { error: errorObj.message });
       }
       completeProgress(progressId);
     }
     
-    return NextResponse.json(
-      { 
-        response: `${recoveryMessage}. Jeg gemte dine noter, så du kan prøve igen uden at miste noget.`,
-        error: recoveryMessage,
-        errorCategory,
-        requestId: errorAnalysis.requestId,
-        timestamp: errorAnalysis.timestamp,
-        details: process.env.NODE_ENV === 'development' ? errorAnalysis : undefined
-      }
-    );
+    const errorResponse = createErrorResponse(errorObj, {
+      statusCode,
+      errorCode,
+      requestId,
+      details: recoveryMessage,
+    });
+    
+    return NextResponse.json({
+      ...errorResponse,
+      response: `${recoveryMessage}. Jeg gemte dine noter, så du kan prøve igen uden at miste noget.`,
+    }, { status: statusCode });
   }
 }

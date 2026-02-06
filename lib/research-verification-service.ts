@@ -8,12 +8,14 @@
 import OpenAI from 'openai';
 import fs from 'fs';
 import path from 'path';
+import { config } from '@/lib/config/env';
+import { logger } from '@/lib/logger';
 
-const openai = process.env.OPENAI_API_KEY ? new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
+const openai = config.openai.apiKey ? new OpenAI({
+  apiKey: config.openai.apiKey,
 }) : null;
 
-const RESEARCH_MODEL = process.env.OPENAI_RESEARCH_MODEL || process.env.OPENAI_MODEL || 'gpt-4o-mini';
+const RESEARCH_MODEL = config.openai.researchModel;
 
 export interface ResearchSources {
   webSearch: Array<{
@@ -129,7 +131,10 @@ export async function performComprehensiveResearch(
       }
     }
     } catch (error) {
-      console.error('Web search failed:', error);
+      logger.error('Web search failed', error instanceof Error ? error : new Error(String(error)), {
+        topic,
+        baseUrl,
+      });
     }
   }
 
