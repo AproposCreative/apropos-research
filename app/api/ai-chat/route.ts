@@ -1811,7 +1811,7 @@ ${context ? `\n\nAktuel artikel-kontekst:\n${context}` : ''}`;
           { role: 'user', content: trimmedMessage }
         ];
         const quickCompletion = await openai.chat.completions.create({
-          model: OPENAI_MODEL,
+          model: config.openai.model,
           messages: quickMessages,
           temperature: 0.2,
           max_completion_tokens: 400
@@ -1985,7 +1985,7 @@ ${context ? `\n\nAktuel artikel-kontekst:\n${context}` : ''}`;
     // Legacy research code removed - using new comprehensive research service above
 
     startStage('ai-generation', { 
-      model: OPENAI_MODEL, 
+      model: config.openai.model, 
       temperature: 1, // GPT-5 only supports default temperature (1) 
       maxTokens: 4000,
       hasResearchData: !!researchSources 
@@ -1997,10 +1997,13 @@ ${context ? `\n\nAktuel artikel-kontekst:\n${context}` : ''}`;
     let completion;
     const generationStartTime = Date.now();
     try {
-      console.log(`🤖 Calling OpenAI API with model: ${OPENAI_MODEL}`);
-      console.log(`📊 Generation request - System prompt: ~${Math.ceil(finalSystemContent.length / 4)} tokens, Messages: ${messages.length}`);
+      requestLogger.debug('Calling OpenAI API', {
+        model: config.openai.model,
+        systemPromptTokens: Math.ceil(finalSystemContent.length / 4),
+        messageCount: messages.length,
+      });
       completion = await openai.chat.completions.create({
-        model: OPENAI_MODEL,
+        model: config.openai.model,
         messages: [
           { role: 'system', content: finalSystemContent },
           ...messages
@@ -2187,7 +2190,7 @@ ${context ? `\n\nAktuel artikel-kontekst:\n${context}` : ''}`;
       ];
 
         const revision = await openai.chat.completions.create({
-          model: OPENAI_MODEL,
+          model: config.openai.model,
           messages: revisionMessages as any,
           temperature: 1, // GPT-5 only supports default temperature (1)
           max_completion_tokens: 3000, // Mindre revisioner for hurtigere svartid
@@ -2402,7 +2405,7 @@ ${context ? `\n\nAktuel artikel-kontekst:\n${context}` : ''}`;
 Returnér ét JSON-objekt med "response", "articleUpdate" og "citations".`;
 
         const rewrite = await openai.chat.completions.create({
-          model: OPENAI_MODEL,
+          model: config.openai.model,
           messages: [
             { role: 'system', content: finalSystemContent },
             { role: 'user', content: rewritePrompt }
