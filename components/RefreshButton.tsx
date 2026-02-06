@@ -32,21 +32,34 @@ export default function RefreshButton() {
         }
         
         setRefreshing(true);
-        const res = await fetch('/api/refresh', { 
+        
+        // First invalidate cache, then reload immediately
+        const invalidateRes = await fetch('/api/invalidate-cache', { 
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ sinceMinutes: 10, limit: 100 })
+          headers: { 'Content-Type': 'application/json' }
         });
         
-        if (res.ok || res.status === 202) {
-          // Wait 30 seconds for ingest to complete, then reload once
-          timeoutRef.current = setTimeout(() => {
-            timeoutRef.current = null;
-            location.reload();
-          }, 30000); // 30 seconds
+        if (invalidateRes.ok) {
+          // Reload immediately to get fresh data
+          location.reload();
         } else {
-          setRefreshing(false);
-          alert('Kunne ikke opdatere – tjek terminalen for ingest-output.');
+          // Fallback: Try the full refresh endpoint (starts new ingest)
+          const res = await fetch('/api/refresh', { 
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ sinceMinutes: 10, limit: 100 })
+          });
+          
+          if (res.ok || res.status === 202) {
+            // Wait 30 seconds for ingest to complete, then reload once
+            timeoutRef.current = setTimeout(() => {
+              timeoutRef.current = null;
+              location.reload();
+            }, 30000); // 30 seconds
+          } else {
+            setRefreshing(false);
+            alert('Kunne ikke opdatere – tjek terminalen for ingest-output.');
+          }
         }
       }}
       className="rounded-xl border border-slate-300/50 dark:border-slate-600/50 px-4 py-2 text-sm text-slate-700 dark:text-slate-300 bg-white/70 dark:bg-black/70 hover:bg-slate-100/70 dark:hover:bg-slate-700/70 transition-all duration-300 backdrop-blur-sm shadow-lg ring-1 ring-white/20 dark:ring-slate-700/50 disabled:opacity-60"
