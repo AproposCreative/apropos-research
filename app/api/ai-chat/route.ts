@@ -10,6 +10,7 @@ import {
 import { config } from '@/lib/config/env';
 import { logger, createRequestLogger } from '@/lib/logger';
 import { createErrorResponse, createSuccessResponse, ErrorCode } from '@/lib/api/types';
+import { getRequestId } from '@/lib/api/request-utils';
 
 // Progress tracking stubs (UI handles loading timeline locally)
 const initProgress = (..._args: any[]) => {};
@@ -1377,7 +1378,7 @@ export const runtime = 'nodejs'; // Use Node.js runtime instead of Edge
 
 export async function POST(request: NextRequest) {
   let progressId = '';
-  const requestId = request.headers.get('x-request-id') || Math.random().toString(36).substring(2, 11);
+  const requestId = getRequestId(request);
   const requestLogger = createRequestLogger(requestId);
   
   try {

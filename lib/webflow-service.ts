@@ -1,25 +1,27 @@
 'use server';
 import { getWebflowConfig, saveWebflowConfig } from './webflow-config';
 import { readMapping, type WebflowMapping } from './webflow-mapping';
+import { env } from '@/lib/config/env';
+import { logger } from '@/lib/logger';
 
 // Resolve config dynamically so UI changes work without restart
 function resolveConfig() {
   const file = getWebflowConfig();
   // UI (file) has priority; if UI value er tom streng, treat as unset (override env)
-  const token = (file.apiToken !== undefined ? file.apiToken : process.env.WEBFLOW_API_TOKEN) || undefined;
-  const siteId = (file.siteId !== undefined ? file.siteId : process.env.WEBFLOW_SITE_ID) || undefined;
-  const authorsCollectionId = (file.authorsCollectionId !== undefined ? file.authorsCollectionId : process.env.WEBFLOW_AUTHORS_COLLECTION_ID) || undefined;
-  const articlesCollectionId = (file.articlesCollectionId !== undefined ? file.articlesCollectionId : process.env.WEBFLOW_ARTICLES_COLLECTION_ID) || undefined;
-  const sectionsCollectionId = process.env.WEBFLOW_SECTIONS_COLLECTION_ID || undefined;
-  const topicsCollectionId = process.env.WEBFLOW_TOPICS_COLLECTION_ID || undefined;
-  const festivalsCollectionId = process.env.WEBFLOW_FESTIVALS_COLLECTION_ID || undefined;
-  const streamingServicesCollectionId = process.env.WEBFLOW_STREAMING_SERVICES_COLLECTION_ID || undefined;
+  const token = (file.apiToken !== undefined ? file.apiToken : env.WEBFLOW_API_TOKEN) || undefined;
+  const siteId = (file.siteId !== undefined ? file.siteId : env.WEBFLOW_SITE_ID) || undefined;
+  const authorsCollectionId = (file.authorsCollectionId !== undefined ? file.authorsCollectionId : env.WEBFLOW_AUTHORS_COLLECTION_ID) || undefined;
+  const articlesCollectionId = (file.articlesCollectionId !== undefined ? file.articlesCollectionId : env.WEBFLOW_ARTICLES_COLLECTION_ID) || undefined;
+  const sectionsCollectionId = env.WEBFLOW_SECTIONS_COLLECTION_ID || undefined;
+  const topicsCollectionId = env.WEBFLOW_TOPICS_COLLECTION_ID || undefined;
+  const festivalsCollectionId = env.WEBFLOW_FESTIVALS_COLLECTION_ID || undefined;
+  const streamingServicesCollectionId = env.WEBFLOW_STREAMING_SERVICES_COLLECTION_ID || undefined;
   return { token, siteId, authorsCollectionId, articlesCollectionId, sectionsCollectionId, topicsCollectionId, festivalsCollectionId, streamingServicesCollectionId } as const;
 }
 
 {
   const { token, siteId, authorsCollectionId, articlesCollectionId } = resolveConfig();
-  console.log('🔧 Webflow config check:', {
+  logger.debug('Webflow config check', {
     hasToken: !!token,
     hasSiteId: !!siteId,
     hasAuthorsCollectionId: !!authorsCollectionId,
@@ -224,21 +226,22 @@ function stripHtml(html?: string): string {
 export async function getWebflowAuthors(): Promise<WebflowAuthor[]> {
   try {
     const { token, siteId, authorsCollectionId } = resolveConfig();
-    console.log('🔍 getWebflowAuthors called');
-    console.log('🔍 Token available:', !!token);
-    console.log('🔍 Site ID available:', !!siteId);
-    console.log('🔍 Authors collection ID available:', !!authorsCollectionId);
+    logger.debug('getWebflowAuthors called', {
+      hasToken: !!token,
+      hasSiteId: !!siteId,
+      hasAuthorsCollectionId: !!authorsCollectionId,
+    });
     
     if (!token || !siteId || !authorsCollectionId) {
-      console.warn('❌ WEBFLOW_API_TOKEN not configured, using fallback authors');
+      logger.warn('WEBFLOW_API_TOKEN not configured, using fallback authors');
       return getFallbackAuthors();
     }
 
     // Skip sites check and go directly to authors collection
-    console.log('🌐 Connecting directly to authors collection...');
+    logger.debug('Connecting directly to authors collection');
     
     // Get Authors collection
-    console.log(`Fetching authors from collection: ${siteId}/collections/${authorsCollectionId}/items`);
+    logger.debug('Fetching authors from collection', { siteId, authorsCollectionId });
     const authorsResponse = await fetch(`https://api.webflow.com/v2/sites/${siteId}/collections/${authorsCollectionId}/items`, {
       headers: {
         'Authorization': `Bearer ${token}`,
@@ -246,11 +249,11 @@ export async function getWebflowAuthors(): Promise<WebflowAuthor[]> {
       },
     });
 
-    console.log('Authors response status:', authorsResponse.status);
+    logger.debug('Authors response status', { status: authorsResponse.status });
 
     if (authorsResponse.ok) {
       const authorsData = await authorsResponse.json();
-      console.log('✓ Fetched real authors from Webflow, count:', authorsData.items?.length);
+      logger.info('Fetched real authors from Webflow', { count: authorsData.items?.length });
       
       return authorsData.items.map((author: any) => {
         const rawTov = author.fieldData?.['author-prompt'] || author.fieldData?.authorPrompt || author.fieldData?.tov || author.fieldData?.toneOfVoice || generateTOVFromBio(author.fieldData?.bio, author.fieldData?.position);
@@ -272,13 +275,13 @@ export async function getWebflowAuthors(): Promise<WebflowAuthor[]> {
       });
     } else {
       const errorData = await authorsResponse.json();
-      console.warn('Could not fetch authors from Webflow:', errorData);
+      logger.warn('Could not fetch authors from Webflow', undefined, { errorData });
       return getFallbackAuthors();
     }
     
   } catch (error) {
-    console.error('Error fetching Webflow authors:', error);
-    console.warn('Using fallback authors due to error');
+    logger.error('Error fetching Webflow authors', error instanceof Error ? error : new Error(String(error)));
+    logger.warn('Using fallback authors due to error');
     return getFallbackAuthors();
   }
 }

@@ -1,11 +1,12 @@
 import { getWebflowConfig } from '@/lib/webflow-config';
+import { env } from '@/lib/config/env';
 
 export type WebflowOption = { id: string; name: string; slug: string };
 
 export function getAuthAndSite() {
   const cfg = getWebflowConfig();
-  const token = cfg.apiToken || process.env.WEBFLOW_API_TOKEN;
-  const siteId = cfg.siteId || process.env.WEBFLOW_SITE_ID;
+  const token = cfg.apiToken || env.WEBFLOW_API_TOKEN;
+  const siteId = cfg.siteId || env.WEBFLOW_SITE_ID;
   return { token, siteId } as const;
 }
 
