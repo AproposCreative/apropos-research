@@ -144,20 +144,21 @@ export async function POST(req: NextRequest) {
                 skipIndex: skipIdx,
                 hasApiKey: !!process.env.TMDB_API_KEY
               });
-            
-            // If title is a placeholder, don't fall back to AI
-            const isPlaceholderTitle = !title || title.toLowerCase().includes('arbejdstitel') || title.toLowerCase().includes('ikke sat');
-            if (isPlaceholderTitle) {
-              return NextResponse.json({
-                success: false,
-                error: `No image found for ${mediaCheck.type}: ${mediaCheck.searchTerm}. Please set a proper title before generating images.`
-              }, { status: 404 });
+              
+              // If title is a placeholder, don't fall back to AI
+              const isPlaceholderTitle = !title || title.toLowerCase().includes('arbejdstitel') || title.toLowerCase().includes('ikke sat');
+              if (isPlaceholderTitle) {
+                return NextResponse.json({
+                  success: false,
+                  error: `No image found for ${mediaCheck.type}: ${mediaCheck.searchTerm}. Please set a proper title before generating images.`
+                }, { status: 404 });
+              }
+              
+              // Fall back to AI generation for non-placeholder titles
+              console.log('🎨 Falling back to AI generation for media review...');
+              // Continue to AI generation below
             }
-            
-            // Fall back to AI generation for non-placeholder titles
-            console.log('🎨 Falling back to AI generation for media review...');
-            // Continue to AI generation below
-          }
+          } // End of else block for TMDB_API_KEY check
         } else if (mediaCheck.type === 'game') {
           console.log(`🔍 Searching Google Images for game: "${mediaCheck.searchTerm}"`);
           const imageUrl = await searchGoogleImages(mediaCheck.searchTerm);
