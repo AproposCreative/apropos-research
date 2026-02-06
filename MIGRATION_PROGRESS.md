@@ -25,6 +25,11 @@
 - ✅ `app/api/content-enhancer/route.ts`
 - ✅ `app/api/search-media-image/route.ts`
 - ✅ `app/api/process-image/route.ts` (partial - Firebase Admin env vars not migrated yet)
+- ✅ `app/api/ai-suggestions/route.ts`
+- ✅ `app/api/critic/tov/route.ts`
+- ✅ `app/api/generate-thumbnail/route.ts`
+- ✅ `lib/embeddings.ts`
+- ✅ `lib/webflow-authors.ts`
 
 #### Logging (`console.*` → `logger.*`)
 - ✅ `app/api/ai-chat/route.ts` (key statements)
@@ -40,6 +45,11 @@
 - ✅ `app/api/content-enhancer/route.ts` (complete)
 - ✅ `app/api/search-media-image/route.ts` (complete)
 - ✅ `app/api/process-image/route.ts` (complete - all console.log replaced)
+- ✅ `app/api/ai-suggestions/route.ts` (complete)
+- ✅ `app/api/critic/tov/route.ts` (complete)
+- ✅ `app/api/generate-thumbnail/route.ts` (complete)
+- ✅ `lib/embeddings.ts` (complete)
+- ✅ `lib/webflow-authors.ts` (complete)
 
 ## 🔄 In Progress
 
@@ -95,9 +105,9 @@
 ## 📊 Statistics
 
 - **Total Files with process.env:** ~30
-- **Files Migrated:** 13 (43%)
+- **Files Migrated:** 18 (60%)
 - **Total console.* statements:** ~130
-- **Statements Migrated:** ~60 (46%)
+- **Statements Migrated:** ~75 (58%)
 
 ## 🎯 Goals
 
