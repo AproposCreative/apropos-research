@@ -94,59 +94,56 @@ export async function POST(req: NextRequest) {
         if (mediaCheck.type === 'film' || mediaCheck.type === 'tv') {
           console.log(`🔍 Searching TMDB for ${mediaCheck.type}: "${mediaCheck.searchTerm}"`);
           
-          // Check if TMDB_API_KEY is set
+          // Check if TMDB_API_KEY is set - if not, log warning and continue to AI generation fallback
           if (!process.env.TMDB_API_KEY) {
-            console.error('❌ TMDB_API_KEY is not set in environment variables!');
-            return NextResponse.json({
-              success: false,
-              error: 'TMDB API key not configured. Please set TMDB_API_KEY in environment variables.'
-            }, { status: 500 });
-          }
-          
-          // If section is "Serier & Film" and no explicit topic, try both film and TV
-          // This handles cases where platform suggests TV but it's actually a film
-          const sectionLower = (section || '').toLowerCase();
-          const shouldTryBoth = sectionLower.includes('serier & film') || sectionLower.includes('serier og film');
-          
-          let imageUrl: string | null = null;
-          
-          const skipIdx = skipIndex || 0;
-          if (shouldTryBoth && mediaCheck.type === 'tv') {
-            // Try film first (more common for "Serier & Film" section)
-            console.log(`🔍 Trying film first (Serier & Film section): "${mediaCheck.searchTerm}" (skipIndex: ${skipIdx})`);
-            imageUrl = await searchTMDB(mediaCheck.searchTerm, 'film', skipIdx);
+            console.warn('⚠️ TMDB_API_KEY is not set in environment variables. Skipping TMDB search and falling back to AI generation.');
+            // Don't return error - let it fall through to AI generation instead
+            // This allows the system to still work without TMDB API key
+          } else {
+            // If section is "Serier & Film" and no explicit topic, try both film and TV
+            // This handles cases where platform suggests TV but it's actually a film
+            const sectionLower = (section || '').toLowerCase();
+            const shouldTryBoth = sectionLower.includes('serier & film') || sectionLower.includes('serier og film');
             
-            // If film didn't work, try TV
-            if (!imageUrl) {
-              console.log(`🔍 Film search failed, trying TV: "${mediaCheck.searchTerm}" (skipIndex: ${skipIdx})`);
-              imageUrl = await searchTMDB(mediaCheck.searchTerm, 'tv', skipIdx);
+            let imageUrl: string | null = null;
+            
+            const skipIdx = skipIndex || 0;
+            if (shouldTryBoth && mediaCheck.type === 'tv') {
+              // Try film first (more common for "Serier & Film" section)
+              console.log(`🔍 Trying film first (Serier & Film section): "${mediaCheck.searchTerm}" (skipIndex: ${skipIdx})`);
+              imageUrl = await searchTMDB(mediaCheck.searchTerm, 'film', skipIdx);
+              
+              // If film didn't work, try TV
+              if (!imageUrl) {
+                console.log(`🔍 Film search failed, trying TV: "${mediaCheck.searchTerm}" (skipIndex: ${skipIdx})`);
+                imageUrl = await searchTMDB(mediaCheck.searchTerm, 'tv', skipIdx);
+              }
+            } else {
+              // Normal search - try the detected type
+              imageUrl = await searchTMDB(mediaCheck.searchTerm, mediaCheck.type, skipIdx);
             }
-          } else {
-            // Normal search - try the detected type
-            imageUrl = await searchTMDB(mediaCheck.searchTerm, mediaCheck.type, skipIdx);
-          }
-          
-          if (imageUrl) {
-            console.log(`✅ Found TMDB image: ${imageUrl}`);
-            // Return TMDB image directly - TMDB images are already optimized and can be used directly
-            // No need to process them through Firebase Storage, which can fail
-            console.log(`✅ Returning TMDB image directly for: ${title}`);
-            foundMediaImage = true;
-            return NextResponse.json({
-              success: true,
-              imageUrl: imageUrl, // Return TMDB URL directly
-              source: 'tmdb',
-              prompt: 'Found from TMDB'
-            });
-          } else {
-            // No image found - fall back to AI generation if title is not a placeholder
-            console.log(`⚠️ No TMDB image found for: "${mediaCheck.searchTerm}" (tried ${shouldTryBoth ? 'both film and TV' : mediaCheck.type})`);
-            console.log(`⚠️ TMDB search details:`, {
-              searchTerm: mediaCheck.searchTerm,
-              type: mediaCheck.type,
-              skipIndex: skipIdx,
-              hasApiKey: !!process.env.TMDB_API_KEY
-            });
+            
+            if (imageUrl) {
+              console.log(`✅ Found TMDB image: ${imageUrl}`);
+              // Return TMDB image directly - TMDB images are already optimized and can be used directly
+              // No need to process them through Firebase Storage, which can fail
+              console.log(`✅ Returning TMDB image directly for: ${title}`);
+              foundMediaImage = true;
+              return NextResponse.json({
+                success: true,
+                imageUrl: imageUrl, // Return TMDB URL directly
+                source: 'tmdb',
+                prompt: 'Found from TMDB'
+              });
+            } else {
+              // No image found - fall back to AI generation if title is not a placeholder
+              console.log(`⚠️ No TMDB image found for: "${mediaCheck.searchTerm}" (tried ${shouldTryBoth ? 'both film and TV' : mediaCheck.type})`);
+              console.log(`⚠️ TMDB search details:`, {
+                searchTerm: mediaCheck.searchTerm,
+                type: mediaCheck.type,
+                skipIndex: skipIdx,
+                hasApiKey: !!process.env.TMDB_API_KEY
+              });
             
             // If title is a placeholder, don't fall back to AI
             const isPlaceholderTitle = !title || title.toLowerCase().includes('arbejdstitel') || title.toLowerCase().includes('ikke sat');
