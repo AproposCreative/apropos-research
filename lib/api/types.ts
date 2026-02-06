@@ -91,6 +91,10 @@ export enum ErrorCode {
   // Validation
   INVALID_REQUEST = 'INVALID_REQUEST',
   MISSING_REQUIRED_FIELD = 'MISSING_REQUIRED_FIELD',
+  VALIDATION = 'VALIDATION',
+  
+  // Not Found
+  NOT_FOUND = 'NOT_FOUND',
   
   // External APIs
   OPENAI_ERROR = 'OPENAI_ERROR',
