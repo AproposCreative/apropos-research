@@ -146,12 +146,12 @@ async function uploadToFirebaseStorage(bucket: string, name: string, content: Bu
       logger.debug('File ACL set to public');
     } else {
       const aclErrorText = await aclResponse.text().catch(() => '');
-      console.warn(`⚠️ Failed to set public ACL: ${aclResponse.status} ${aclErrorText}`);
-      console.warn(`⚠️ File may not be accessible without authentication`);
+      logger.warn('Failed to set public ACL', undefined, { status: aclResponse.status, error: aclErrorText });
+      logger.warn('File may not be accessible without authentication');
     }
   } catch (aclError) {
-    console.warn(`⚠️ Error setting public ACL:`, aclError);
-    console.warn(`⚠️ File may not be accessible without authentication`);
+    logger.warn('Error setting public ACL', aclError instanceof Error ? aclError : new Error(String(aclError)));
+    logger.warn('File may not be accessible without authentication');
   }
   
   // Firebase Storage API returns file metadata after upload
@@ -334,12 +334,13 @@ export async function POST(req: NextRequest) {
       // If bucket is not public, predefinedAcl=publicRead will fail, and we'll get an error
       // which is better than silently failing with image-proxy
 
-      return NextResponse.json({
-        success: true,
-        processedImageUrl: publicUrl, // Firebase Storage API format with alt=media
-        originalSizeKB,
-        processedSizeKB
-      });
+      return NextResponse.json(
+        createSuccessResponse({
+          processedImageUrl: publicUrl, // Firebase Storage API format with alt=media
+          originalSizeKB,
+          processedSizeKB
+        }, { requestId })
+      );
     } catch (uploadError) {
       const errorMessage = uploadError instanceof Error ? uploadError.message : String(uploadError);
       const errorStack = uploadError instanceof Error ? uploadError.stack : undefined;
@@ -353,14 +354,13 @@ export async function POST(req: NextRequest) {
       const base64 = processedBuffer.toString('base64');
       const processedImageUrl = `data:image/webp;base64,${base64}`;
       
-      console.warn('⚠️ Falling back to data URL (upload failed)');
-      console.warn('⚠️ This means Webflow "thumb" field will NOT be filled!');
+      requestLogger.warn('Falling back to data URL (upload failed) - Webflow thumb field will NOT be filled');
       
-      return NextResponse.json({
-        success: true,
-        processedImageUrl, // Fallback to data URL
-        originalSizeKB,
-        processedSizeKB,
+      return NextResponse.json(
+        createSuccessResponse({
+          processedImageUrl, // Fallback to data URL
+          originalSizeKB,
+          processedSizeKB,
         warning: 'Firebase upload failed, using data URL. Webflow may not accept this.'
       });
     }

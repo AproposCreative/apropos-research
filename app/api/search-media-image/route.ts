@@ -119,10 +119,15 @@ export async function POST(req: NextRequest) {
     );
     
   } catch (err) {
-    console.error('❌ Media image search error:', err);
-    return NextResponse.json({
-      success: false,
-      error: err instanceof Error ? err.message : 'Media image search failed'
-    }, { status: 500 });
+    const errorObj = err instanceof Error ? err : new Error(String(err));
+    requestLogger.error('Media image search error', errorObj);
+    return NextResponse.json(
+      createErrorResponse('Media image search failed', {
+        statusCode: 500,
+        errorCode: ErrorCode.INTERNAL_ERROR,
+        requestId,
+      }),
+      { status: 500 }
+    );
   }
 }
