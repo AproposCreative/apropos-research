@@ -1,33 +1,58 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { logger, createRequestLogger } from '@/lib/logger';
+import { getRequestId } from '@/lib/api/request-utils';
+import { createErrorResponse, createSuccessResponse, ErrorCode } from '@/lib/api/types';
 
 export async function POST(request: NextRequest) {
+  const requestId = getRequestId(request);
+  const requestLogger = createRequestLogger(requestId);
+  
   try {
     const { query, maxResults = 5 } = await request.json();
 
     if (!query) {
-      return NextResponse.json({ error: 'Query is required' }, { status: 400 });
+      requestLogger.warn('Missing query in request');
+      return NextResponse.json(
+        createErrorResponse('Query is required', {
+          statusCode: 400,
+          errorCode: ErrorCode.MISSING_REQUIRED_FIELD,
+          requestId,
+        }),
+        { status: 400 }
+      );
     }
 
     // Use a more reliable search approach with multiple sources
-    const searchResults = await performWebSearch(query, maxResults);
+    const searchResults = await performWebSearch(query, maxResults, requestLogger);
 
-    return NextResponse.json({
-      success: true,
+    requestLogger.info('Web search completed', {
       query,
-      results: searchResults,
-      totalResults: searchResults.length
+      resultsCount: searchResults.length,
     });
 
-  } catch (error) {
-    console.error('Web search error:', error);
     return NextResponse.json(
-      { error: 'Failed to perform web search' },
+      createSuccessResponse({
+        query,
+        results: searchResults,
+        totalResults: searchResults.length
+      }, { requestId })
+    );
+
+  } catch (error) {
+    const errorObj = error instanceof Error ? error : new Error(String(error));
+    requestLogger.error('Web search error', errorObj, { query });
+    return NextResponse.json(
+      createErrorResponse('Failed to perform web search', {
+        statusCode: 500,
+        errorCode: ErrorCode.INTERNAL_ERROR,
+        requestId,
+      }),
       { status: 500 }
     );
   }
 }
 
-async function performWebSearch(query: string, maxResults: number): Promise<any[]> {
+async function performWebSearch(query: string, maxResults: number, logger: ReturnType<typeof createRequestLogger>): Promise<any[]> {
   const results = [];
   
   try {
@@ -65,7 +90,7 @@ async function performWebSearch(query: string, maxResults: number): Promise<any[
         }
       }
     } catch (error) {
-      console.log('Wikipedia search failed:', error);
+      logger.debug('Wikipedia search failed', { error: String(error) });
     }
     
     // 2. DuckDuckGo Instant Answer API
@@ -95,7 +120,7 @@ async function performWebSearch(query: string, maxResults: number): Promise<any[
         }
       }
     } catch (error) {
-      console.log('DuckDuckGo search failed:', error);
+      logger.debug('DuckDuckGo search failed', { error: String(error) });
     }
     
     // 3. Wikipedia Search API (for finding related articles)
@@ -131,7 +156,7 @@ async function performWebSearch(query: string, maxResults: number): Promise<any[
         }
       }
     } catch (error) {
-      console.log('Wikipedia search API failed:', error);
+      logger.debug('Wikipedia search API failed', { error: String(error) });
     }
     
     // 4. If still no results, create contextual guidance
@@ -145,7 +170,7 @@ async function performWebSearch(query: string, maxResults: number): Promise<any[
     }
     
   } catch (error) {
-    console.error('Search failed:', error);
+    logger.error('Search failed', error instanceof Error ? error : new Error(String(error)));
   }
   
   return results.slice(0, maxResults);

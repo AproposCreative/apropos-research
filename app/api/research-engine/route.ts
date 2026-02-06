@@ -1,18 +1,45 @@
 import { NextRequest, NextResponse } from 'next/server';
 import OpenAI from 'openai';
+import { config } from '@/lib/config/env';
+import { logger, createRequestLogger } from '@/lib/logger';
+import { getRequestId } from '@/lib/api/request-utils';
+import { createErrorResponse, createSuccessResponse, ErrorCode } from '@/lib/api/types';
 
-const RESEARCH_MODEL = process.env.OPENAI_RESEARCH_MODEL || process.env.OPENAI_MODEL || 'gpt-4o-mini';
-
-const openai = process.env.OPENAI_API_KEY ? new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
+const openai = config.openai.apiKey ? new OpenAI({
+  apiKey: config.openai.apiKey,
 }) : null;
 
 export async function POST(request: NextRequest) {
+  const requestId = getRequestId(request);
+  const requestLogger = createRequestLogger(requestId);
+  
   try {
     const { topic, articleType, author, targetLength } = await request.json();
 
-    if (!topic || !openai) {
-      return NextResponse.json({ error: 'Topic is required' }, { status: 400 });
+    if (!topic) {
+      requestLogger.warn('Missing topic in request');
+      return NextResponse.json(
+        createErrorResponse('Topic is required', {
+          statusCode: 400,
+          errorCode: ErrorCode.MISSING_REQUIRED_FIELD,
+          requestId,
+        }),
+        { status: 400 }
+      );
+    }
+
+    if (!openai) {
+      requestLogger.error('OpenAI client not initialized', undefined, {
+        hasApiKey: !!config.openai.apiKey,
+      });
+      return NextResponse.json(
+        createErrorResponse('OpenAI API key not configured', {
+          statusCode: 500,
+          errorCode: ErrorCode.MISSING_API_KEY,
+          requestId,
+        }),
+        { status: 500 }
+      );
     }
 
     // Multi-source research pipeline
@@ -27,31 +54,45 @@ export async function POST(request: NextRequest) {
     const comprehensiveResearch = compileResearch(researchData);
     const researchSummary = generateResearchSummary(comprehensiveResearch);
 
-    return NextResponse.json({
-      success: true,
+    requestLogger.info('Research completed', {
       topic,
-      researchSummary,
-      sources: comprehensiveResearch.sources,
-      keyFindings: comprehensiveResearch.keyFindings,
-      culturalContext: comprehensiveResearch.culturalContext,
-      expertInsights: comprehensiveResearch.expertInsights,
-      factualData: comprehensiveResearch.factualData,
-      trends: comprehensiveResearch.trends,
-      suggestedAngles: generateSuggestedAngles(comprehensiveResearch, articleType, author)
+      sourcesCount: comprehensiveResearch.sources.length,
+      findingsCount: comprehensiveResearch.keyFindings.length,
     });
 
-  } catch (error) {
-    console.error('Research error:', error);
     return NextResponse.json(
-      { error: 'Failed to conduct research' },
+      createSuccessResponse({
+        topic,
+        researchSummary,
+        sources: comprehensiveResearch.sources,
+        keyFindings: comprehensiveResearch.keyFindings,
+        culturalContext: comprehensiveResearch.culturalContext,
+        expertInsights: comprehensiveResearch.expertInsights,
+        factualData: comprehensiveResearch.factualData,
+        trends: comprehensiveResearch.trends,
+        suggestedAngles: generateSuggestedAngles(comprehensiveResearch, articleType, author)
+      }, { requestId })
+    );
+
+  } catch (error) {
+    const errorObj = error instanceof Error ? error : new Error(String(error));
+    requestLogger.error('Research error', errorObj, { topic });
+    return NextResponse.json(
+      createErrorResponse('Failed to conduct research', {
+        statusCode: 500,
+        errorCode: ErrorCode.INTERNAL_ERROR,
+        requestId,
+      }),
       { status: 500 }
     );
   }
 }
 
 async function gatherNewsData(topic: string) {
+  if (!openai) throw new Error('OpenAI client not initialized');
+  
   const completion = await openai.chat.completions.create({
-    model: RESEARCH_MODEL,
+    model: config.openai.researchModel,
     messages: [
       {
         role: "system",
@@ -100,8 +141,10 @@ Returnér JSON med nyhedsdata og kilder. Format:
 }
 
 async function collectCulturalContext(topic: string) {
+  if (!openai) throw new Error('OpenAI client not initialized');
+  
   const completion = await openai.chat.completions.create({
-    model: RESEARCH_MODEL,
+    model: config.openai.researchModel,
     messages: [
       {
         role: "system",
@@ -147,8 +190,10 @@ Returnér JSON med kulturel kontekst. Format:
 }
 
 async function findExpertOpinions(topic: string) {
+  if (!openai) throw new Error('OpenAI client not initialized');
+  
   const completion = await openai.chat.completions.create({
-    model: RESEARCH_MODEL,
+    model: config.openai.researchModel,
     messages: [
       {
         role: "system",
@@ -192,8 +237,10 @@ Returnér JSON med ekspertperspektiver. Format:
 }
 
 async function analyzeTrends(topic: string) {
+  if (!openai) throw new Error('OpenAI client not initialized');
+  
   const completion = await openai.chat.completions.create({
-    model: RESEARCH_MODEL,
+    model: config.openai.researchModel,
     messages: [
       {
         role: "system",
@@ -236,8 +283,10 @@ Returnér JSON med trendanalyse. Format:
 }
 
 async function gatherFactualData(topic: string) {
+  if (!openai) throw new Error('OpenAI client not initialized');
+  
   const completion = await openai.chat.completions.create({
-    model: RESEARCH_MODEL,
+    model: config.openai.researchModel,
     messages: [
       {
         role: "system",

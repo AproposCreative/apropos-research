@@ -1,6 +1,9 @@
 // Shared utilities for media image search (TMDB, Google Images)
 // These functions are used by both /api/search-media-image and /api/generate-image
 
+import { logger } from '@/lib/logger';
+import { config, env } from '@/lib/config/env';
+
 export interface MediaSearchRequest {
   title: string;
   category?: string;
@@ -20,7 +23,7 @@ export function isMediaReview(data: MediaSearchRequest): { type: 'film' | 'tv' |
   const topic = (data.topic || '').toLowerCase();
   const platform = (data.platform || data.streaming_service || '').toLowerCase();
   
-  console.log('🔍 isMediaReview check (enhanced):', { title, category, section, topic, platform });
+  logger.debug('isMediaReview check (enhanced)', { title, category, section, topic, platform });
   
   // Check: If section or category is "Serier & Film" or similar
   const isSerierOgFilm = section.includes('serier & film') || 
@@ -104,16 +107,21 @@ export function isMediaReview(data: MediaSearchRequest): { type: 'film' | 'tv' |
   // Also try "High and Low" as alternative (the original Japanese title)
   // But only if search fails, so we'll handle that in searchTMDB
   
-  console.log(`🔍 Detected type: ${type}, search term: "${searchTerm}"`);
+  logger.debug('Detected media type', { type, searchTerm });
   return { type, searchTerm };
 }
 
 // Search TMDB for film/TV poster
 export async function searchTMDB(searchTerm: string, type: 'film' | 'tv', skipIndex: number = 0): Promise<string | null> {
   try {
-    const apiKey = process.env.TMDB_API_KEY;
+    if (!config.features.tmdb) {
+      logger.debug('TMDB_API_KEY not set, skipping TMDB search');
+      return null;
+    }
+    
+    const apiKey = env.TMDB_API_KEY;
     if (!apiKey) {
-      console.log('⚠️ TMDB_API_KEY not set, skipping TMDB search');
+      logger.debug('TMDB_API_KEY not set, skipping TMDB search');
       return null;
     }
     
@@ -165,7 +173,7 @@ export async function searchTMDB(searchTerm: string, type: 'film' | 'tv', skipIn
     
     for (const variation of uniqueVariations) {
       const url = `${endpoint}?api_key=${apiKey}&query=${encodeURIComponent(variation)}&language=da-DK`;
-      console.log(`🔍 Searching TMDB for ${type}: "${variation}"`);
+      logger.debug(`Searching TMDB for ${type}`, { variation, type });
       
       const response = await fetch(url, {
         headers: {
@@ -175,7 +183,7 @@ export async function searchTMDB(searchTerm: string, type: 'film' | 'tv', skipIn
       
       if (!response.ok) {
         const errorText = await response.text().catch(() => 'Unknown error');
-        console.error(`❌ TMDB API error: ${response.status} - ${errorText}`);
+        logger.warn('TMDB API error', undefined, { status: response.status, errorText, variation });
         continue; // Try next variation
       }
       
@@ -183,7 +191,7 @@ export async function searchTMDB(searchTerm: string, type: 'film' | 'tv', skipIn
       const results = data.results || [];
       
       if (results.length === 0) {
-        console.log(`⚠️ No TMDB results for: ${variation}`);
+        logger.debug('No TMDB results', { variation });
         continue; // Try next variation
       }
       
@@ -193,7 +201,11 @@ export async function searchTMDB(searchTerm: string, type: 'film' | 'tv', skipIn
       const selectedResult = results[resultIndex];
       
       if (resultIndex > 0) {
-        console.log(`🔄 Using result #${resultIndex + 1} (skipped ${skipIndex}): "${selectedResult.title || selectedResult.name}"`);
+        logger.debug('Using alternative result', { 
+          resultIndex: resultIndex + 1, 
+          skipIndex, 
+          title: selectedResult.title || selectedResult.name 
+        });
       }
       
       // Try backdrop first (16:9 format, better for web display)
@@ -208,24 +220,24 @@ export async function searchTMDB(searchTerm: string, type: 'film' | 'tv', skipIn
         // TMDB backdrop sizes: w300, w780, w1280, original
         // original is full resolution (usually 1920x1080 or similar) - perfect for 16:9 display
         imageUrl = `https://image.tmdb.org/t/p/original${backdropPath}`;
-        console.log(`✅ Found TMDB ${type} backdrop (16:9, original resolution) for: ${variation} (${selectedResult.title || selectedResult.name})`);
+        logger.info('Found TMDB backdrop', { type, variation, title: selectedResult.title || selectedResult.name });
       } else if (posterPath) {
         // Fallback to poster if no backdrop available
         // Use original for poster (posters are 2:3 ratio, not 16:9, but we want full quality)
         imageUrl = `https://image.tmdb.org/t/p/original${posterPath}`;
-        console.log(`⚠️ No backdrop found, using poster (2:3, original resolution) for: ${variation} (${selectedResult.title || selectedResult.name})`);
+        logger.debug('No backdrop found, using poster', { variation, title: selectedResult.title || selectedResult.name });
       } else {
-        console.log(`⚠️ No backdrop or poster path for: ${variation}`);
+        logger.debug('No backdrop or poster path', { variation });
         continue; // Try next variation
       }
       
       return imageUrl;
     }
     
-    console.log(`⚠️ No TMDB results found for any variation of: ${searchTerm}`);
+    logger.debug('No TMDB results found for any variation', { searchTerm });
     return null;
   } catch (error) {
-    console.error('❌ TMDB search error:', error);
+    logger.error('TMDB search error', error instanceof Error ? error : new Error(String(error)), { searchTerm, type });
     return null;
   }
 }
@@ -233,11 +245,12 @@ export async function searchTMDB(searchTerm: string, type: 'film' | 'tv', skipIn
 // Search Google Images for game artwork (requires Google Custom Search API)
 export async function searchGoogleImages(searchTerm: string): Promise<string | null> {
   try {
+    // Note: Google Custom Search not in env config yet - add if needed
     const apiKey = process.env.GOOGLE_CUSTOM_SEARCH_API_KEY;
     const searchEngineId = process.env.GOOGLE_CUSTOM_SEARCH_ENGINE_ID;
     
     if (!apiKey || !searchEngineId) {
-      console.log('⚠️ Google Custom Search API not configured, skipping Google search');
+      logger.debug('Google Custom Search API not configured, skipping Google search');
       return null;
     }
     
@@ -248,7 +261,7 @@ export async function searchGoogleImages(searchTerm: string): Promise<string | n
     const response = await fetch(url);
     
     if (!response.ok) {
-      console.error(`❌ Google Custom Search API error: ${response.status}`);
+      logger.warn('Google Custom Search API error', undefined, { status: response.status });
       return null;
     }
     
@@ -256,7 +269,7 @@ export async function searchGoogleImages(searchTerm: string): Promise<string | n
     const items = data.items || [];
     
     if (items.length === 0) {
-      console.log(`⚠️ No Google Images results for: ${searchTerm}`);
+      logger.debug('No Google Images results', { searchTerm });
       return null;
     }
     
@@ -274,10 +287,10 @@ export async function searchGoogleImages(searchTerm: string): Promise<string | n
     }) || items[0];
     
     const imageUrl = bestImage.link;
-    console.log(`✅ Found Google Images result for: ${searchTerm}`);
+    logger.info('Found Google Images result', { searchTerm });
     return imageUrl;
   } catch (error) {
-    console.error('❌ Google Images search error:', error);
+    logger.error('Google Images search error', error instanceof Error ? error : new Error(String(error)), { searchTerm });
     return null;
   }
 }
