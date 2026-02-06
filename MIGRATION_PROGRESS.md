@@ -18,6 +18,9 @@
 - ✅ `lib/webflow-service.ts`
 - ✅ `app/api/webflow/_lib.ts`
 - ✅ `app/api/generate-image/route.ts` (partial)
+- ✅ `app/api/research-engine/route.ts`
+- ✅ `app/api/generate-article/route.ts`
+- ✅ `lib/media-search-utils.ts`
 
 #### Logging (`console.*` → `logger.*`)
 - ✅ `app/api/ai-chat/route.ts` (key statements)
@@ -25,11 +28,14 @@
 - ✅ `lib/webflow-service.ts` (key statements)
 - ✅ `app/api/generate-image/route.ts` (partial)
 - ✅ `app/api/error-handler.ts`
+- ✅ `app/api/research-engine/route.ts` (complete)
+- ✅ `app/api/web-search/route.ts` (complete)
+- ✅ `app/api/generate-article/route.ts` (complete)
+- ✅ `lib/media-search-utils.ts` (complete - all console.log replaced)
 
 ## 🔄 In Progress
 
 ### Remaining Environment Migrations
-- `app/api/research-engine/route.ts`
 - `app/api/search-media-image/route.ts`
 - `app/api/test-research-verification/route.ts`
 - `app/api/webflow/debug-schema/route.ts`
@@ -81,9 +87,9 @@
 ## 📊 Statistics
 
 - **Total Files with process.env:** ~30
-- **Files Migrated:** 6 (20%)
+- **Files Migrated:** 9 (30%)
 - **Total console.* statements:** ~130
-- **Statements Migrated:** ~20 (15%)
+- **Statements Migrated:** ~40 (30%)
 
 ## 🎯 Goals
 
