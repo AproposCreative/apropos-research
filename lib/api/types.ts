@@ -85,6 +85,7 @@ export const STATUS_TO_CATEGORY: Record<number, ErrorCategory> = {
  */
 export enum ErrorCode {
   // Authentication
+  AUTHENTICATION = 'AUTHENTICATION',
   MISSING_API_KEY = 'MISSING_API_KEY',
   INVALID_API_KEY = 'INVALID_API_KEY',
   
