@@ -103,7 +103,8 @@ export default function AlleMedierClient({ initialData, searchParams }: AlleMedi
   const sort = String(searchParams.sort || 'newest');
   const page = Math.max(1, Number(searchParams.page) || 1);
   const source = String(searchParams.source || '').trim();
-  const timeFilter = String(searchParams.time || 'all').trim();
+  // Default to showing last 7 days, but allow 'all' to show everything
+  const timeFilter = String(searchParams.time || '').trim();
 
   const sinceHours = ['24','48','72'].includes(sinceStr) ? Number(sinceStr) : undefined;
 
@@ -170,12 +171,23 @@ export default function AlleMedierClient({ initialData, searchParams }: AlleMedi
       return !isNaN(ts) && ts >= Date.now() - 24*3600*1000;
     })() : true;
 
-    const okTimeFilter = timeFilter === 'today' ? (() => {
+    const okTimeFilter = (() => {
+      if (timeFilter === 'today') {
+        const ts = Date.parse(p.date ?? p.fetched_at ?? '');
+        if (isNaN(ts)) return false;
+        const last24Hours = Date.now() - 24 * 60 * 60 * 1000;
+        return ts >= last24Hours;
+      }
+      // Default: Only show articles from last 7 days (unless explicitly showing all)
+      if (timeFilter === 'all') {
+        return true; // Show all if explicitly requested
+      }
+      // Default behavior (when timeFilter is not set or empty): filter out articles older than 7 days
       const ts = Date.parse(p.date ?? p.fetched_at ?? '');
-      if (isNaN(ts)) return false;
-      const last24Hours = Date.now() - 24 * 60 * 60 * 1000;
-      return ts >= last24Hours;
-    })() : true;
+      if (isNaN(ts) || ts === 0) return false; // Skip articles without valid dates
+      const sevenDaysAgo = Date.now() - (7 * 24 * 60 * 60 * 1000);
+      return ts >= sevenDaysAgo;
+    })();
 
     return okQ && okCat && okSource && okSince && okFresh && okTimeFilter && okEnabled;
   });

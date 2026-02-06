@@ -59,6 +59,14 @@ jobs:
           }
           echo "✅ Article ingestion completed"
 
+      - name: Cleanup old articles (older than 7 days)
+        run: |
+          echo "🧹 Cleaning up articles older than 7 days..."
+          npm run cleanup:articles || {
+            echo "⚠️ Cleanup failed, but continuing..."
+          }
+          echo "✅ Cleanup completed"
+
       - name: Commit and push changes
         run: |
           git config --local user.email "action@github.com"

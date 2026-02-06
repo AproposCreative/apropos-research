@@ -199,16 +199,27 @@ export async function readPrompts(): Promise<RageItem[]> {
     return acc;
   }, []);
   
+  // Filter out articles older than 7 days
+  const sevenDaysAgo = Date.now() - (7 * 24 * 60 * 60 * 1000);
+  const recentItems = uniqueItems.filter((item) => {
+    const itemDate = Date.parse(item.date ?? item.fetched_at ?? "");
+    if (isNaN(itemDate) || itemDate === 0) {
+      // If no date, keep it (might be recent but missing date)
+      return true;
+    }
+    return itemDate >= sevenDaysAgo;
+  });
+  
   // sort newest first by date/fetched_at
-  uniqueItems.sort((a, b) => {
+  recentItems.sort((a, b) => {
     const aa = Date.parse(a.date ?? a.fetched_at ?? "") || 0;
     const bb = Date.parse(b.date ?? b.fetched_at ?? "") || 0;
     return bb - aa;
   });
   
   // Cache the results
-  promptsCache = uniqueItems;
+  promptsCache = recentItems;
   cacheTimestamp = now;
   
-  return uniqueItems;
+  return recentItems;
 }

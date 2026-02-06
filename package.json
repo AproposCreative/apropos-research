@@ -19,6 +19,7 @@
     "bundle:analyze": "ANALYZE=true npm run build",
     "bundle:size": "npm run build && npx bundlesize",
     "ingest:rage": "npx tsx src/cli/ingest-rage.ts",
+    "cleanup:articles": "npx tsx scripts/cleanup-old-articles.ts",
     "scrape:apropos": "npx tsx scripts/scrape-apropos-articles.ts",
     "optimize:templates": "npx tsx scripts/optimize-templates.ts",
     "train:tov": "npx tsx scripts/train-apropos-tov.ts"
