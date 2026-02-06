@@ -361,16 +361,21 @@ export async function POST(req: NextRequest) {
           processedImageUrl, // Fallback to data URL
           originalSizeKB,
           processedSizeKB,
-        warning: 'Firebase upload failed, using data URL. Webflow may not accept this.'
-      });
+          warning: 'Firebase upload failed, using data URL. Webflow may not accept this.'
+        }, { requestId })
+      );
     }
 
   } catch (err) {
     const errorObj = err instanceof Error ? err : new Error(String(err));
     requestLogger.error('Image processing error', errorObj);
-    return NextResponse.json({
-      success: false,
-      error: err instanceof Error ? err.message : 'Image processing failed'
-    }, { status: 500 });
+    return NextResponse.json(
+      createErrorResponse(errorObj.message || 'Image processing failed', {
+        statusCode: 500,
+        errorCode: ErrorCode.INTERNAL_ERROR,
+        requestId: getRequestId(request),
+      }),
+      { status: 500 }
+    );
   }
 }
