@@ -1378,6 +1378,7 @@ export const runtime = 'nodejs'; // Use Node.js runtime instead of Edge
 
 export async function POST(request: NextRequest) {
   let progressId = '';
+  let articleData: any = null;
   const requestId = getRequestId(request);
   const requestLogger = createRequestLogger(requestId);
   
@@ -1385,16 +1386,18 @@ export async function POST(request: NextRequest) {
     startStage('ai-chat-request', { timestamp: new Date().toISOString() });
     requestLogger.info('AI chat API called - starting request processing');
     
+    const requestBody = await request.json();
     const {
       message,
-      articleData,
+      articleData: reqArticleData,
       notes,
       chatHistory,
       authorTOV,
       authorName,
       analysisPrompt,
       clientRequestId
-    } = await request.json();
+    } = requestBody;
+    articleData = reqArticleData;
     
     requestLogger.debug('Request payload received', {
       hasMessage: !!message,
