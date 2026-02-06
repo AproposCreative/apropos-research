@@ -1902,7 +1902,8 @@ ${context ? `\n\nAktuel artikel-kontekst:\n${context}` : ''}`;
         console.log(`✅ Research completed:`, {
           webSearchResults: researchSources.webSearch.length,
           tmdbVerified: !!researchSources.tmdbVerification?.verified,
-          advancedResearch: !!researchSources.advancedResearch
+          advancedResearch: !!researchSources.advancedResearch,
+          similarArticles: researchSources.similarArticles?.length || 0
         });
         
         // Format research for prompt

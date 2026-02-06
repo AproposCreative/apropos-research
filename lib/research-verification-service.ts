@@ -6,6 +6,8 @@
  */
 
 import OpenAI from 'openai';
+import fs from 'fs';
+import path from 'path';
 
 const openai = process.env.OPENAI_API_KEY ? new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -51,6 +53,14 @@ export interface ResearchSources {
     factualData: string[];
     sources: string[];
   };
+  similarArticles?: Array<{
+    title: string;
+    content: string;
+    summary: string;
+    category?: string;
+    source?: string;
+    url?: string;
+  }>;
 }
 
 export interface VerificationResult {
@@ -232,6 +242,17 @@ export async function performComprehensiveResearch(
     }
   }
 
+  // 4. Find similar articles from database for inspiration
+  try {
+    const similarArticles = await findSimilarArticles(topic, articleData);
+    if (similarArticles.length > 0) {
+      sources.similarArticles = similarArticles;
+      console.log(`📚 Found ${similarArticles.length} similar articles for inspiration`);
+    }
+  } catch (error) {
+    console.error('Failed to find similar articles:', error);
+  }
+
   return sources;
 }
 
@@ -366,6 +387,157 @@ async function searchIMDb(title: string): Promise<ResearchSources['imdb'] | null
 /**
  * Extract search query from topic and article data
  */
+/**
+ * Find similar articles from the database for inspiration
+ */
+async function findSimilarArticles(topic: string, articleData?: any): Promise<ResearchSources['similarArticles']> {
+  try {
+    const promptsPath = path.join(process.cwd(), 'prompts', 'rage_prompts.jsonl');
+    
+    if (!fs.existsSync(promptsPath)) {
+      return [];
+    }
+
+    const fileContent = fs.readFileSync(promptsPath, 'utf8');
+    const lines = fileContent.trim().split('\n').filter(line => line.trim());
+    
+    const articles: any[] = [];
+    for (const line of lines) {
+      try {
+        const article = JSON.parse(line);
+        articles.push(article);
+      } catch (e) {
+        // Skip invalid lines
+        continue;
+      }
+    }
+
+    // Filter articles from last 30 days (more recent = better inspiration)
+    // But also include articles without dates if they match search terms
+    const thirtyDaysAgo = Date.now() - (30 * 24 * 60 * 60 * 1000);
+    const recentArticles = articles.filter(article => {
+      const articleDate = article.published_at || article.date || article.fetched_at;
+      if (!articleDate) {
+        // Include articles without dates - they might still be relevant
+        return true;
+      }
+      const date = new Date(articleDate).getTime();
+      // Include if recent OR if date is invalid (fallback to including it)
+      return date >= thirtyDaysAgo || isNaN(date);
+    });
+
+    if (recentArticles.length === 0) {
+      return [];
+    }
+
+    // Extract keywords from topic and articleData
+    const searchTerms: string[] = [];
+    
+    // Add topic words
+    if (topic) {
+      const topicWords = topic.toLowerCase()
+        .split(/\s+/)
+        .filter(word => word.length > 3 && !['om', 'den', 'det', 'der', 'og', 'eller'].includes(word));
+      searchTerms.push(...topicWords);
+    }
+    
+    // Add title words if available
+    if (articleData?.title) {
+      const titleWords = articleData.title.toLowerCase()
+        .split(/\s+/)
+        .filter(word => word.length > 3);
+      searchTerms.push(...titleWords);
+    }
+    
+    // Add category/topic if available
+    if (articleData?.category) {
+      searchTerms.push(articleData.category.toLowerCase());
+    }
+    if (articleData?.topic) {
+      searchTerms.push(articleData.topic.toLowerCase());
+    }
+    
+    // Add tags if available
+    if (Array.isArray(articleData?.tags)) {
+      articleData.tags.forEach((tag: string) => {
+        if (tag && tag.length > 2) {
+          searchTerms.push(tag.toLowerCase());
+        }
+      });
+    }
+
+    // Score articles based on relevance
+    const scoredArticles = recentArticles.map(article => {
+      let score = 0;
+      const articleText = `${article.title || ''} ${article.summary || ''} ${(article.content || '').substring(0, 500)}`.toLowerCase();
+      const articleTags = Array.isArray(article.tags) ? article.tags.map((t: any) => String(t).toLowerCase()) : [];
+      const articleCategory = (article.category || '').toLowerCase();
+      
+      // Title match (high weight)
+      if (article.title) {
+        const titleLower = article.title.toLowerCase();
+        searchTerms.forEach(term => {
+          if (titleLower.includes(term)) {
+            score += 10;
+          }
+        });
+      }
+      
+      // Summary/content match
+      searchTerms.forEach(term => {
+        if (articleText.includes(term)) {
+          score += 5;
+        }
+      });
+      
+      // Category match
+      if (articleCategory && articleData?.category) {
+        if (articleCategory.includes(articleData.category.toLowerCase()) || 
+            articleData.category.toLowerCase().includes(articleCategory)) {
+          score += 8;
+        }
+      }
+      
+      // Tag match
+      searchTerms.forEach(term => {
+        if (articleTags.includes(term)) {
+          score += 6;
+        }
+      });
+      
+      // Recency bonus (more recent = better)
+      const articleDate = article.published_at || article.date || article.fetched_at;
+      if (articleDate) {
+        const daysSince = (Date.now() - new Date(articleDate).getTime()) / (1000 * 60 * 60 * 24);
+        if (daysSince <= 7) score += 5;
+        else if (daysSince <= 14) score += 3;
+        else if (daysSince <= 21) score += 1;
+      }
+      
+      return { article, score };
+    });
+
+    // Sort by score and take top 3-5 most relevant articles
+    const topArticles = scoredArticles
+      .filter(item => item.score > 0) // Only articles with some relevance
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 5)
+      .map(item => ({
+        title: item.article.title || 'Ukendt titel',
+        content: item.article.content || item.article.summary || '',
+        summary: item.article.summary || '',
+        category: item.article.category,
+        source: item.article.source,
+        url: item.article.url
+      }));
+
+    return topArticles;
+  } catch (error) {
+    console.error('Error finding similar articles:', error);
+    return [];
+  }
+}
+
 function extractSearchQuery(topic: string, articleData?: any): string {
   const terms = [];
   
@@ -713,11 +885,54 @@ export function formatResearchForPrompt(sources: ResearchSources): string {
     }
   }
   
+  // Similar Articles for Inspiration (CRITICAL for style and context)
+  if (sources.similarArticles && sources.similarArticles.length > 0) {
+    prompt += '\n**INSPIRATION FRA LIGNENDE ARTIKLER (BRUG DISSE SOM STIL- OG INDHOLDSINSPIRATION):**\n';
+    prompt += '🚨 KRITISK: Disse artikler er fra Apropos Magazine eller lignende kilder. Brug dem til at forstå:\n';
+    prompt += '- Hvordan lignende emner er blevet behandlet\n';
+    prompt += '- Hvilken stil og tone der bruges\n';
+    prompt += '- Hvilke vinkler og perspektiver der fungerer\n';
+    prompt += '- Hvordan strukturen og opbygningen er\n';
+    prompt += '\n🚨 VIGTIGT OM TOV OG STRUKTUR:\n';
+    prompt += '- FORFATTERENS TOV (Tone of Voice) som er defineret tidligere i prompten er DIN PRIMÆRE IDENTITET\n';
+    prompt += '- Struktur-reglerne fra structure.apropos.md skal ALTID følges\n';
+    prompt += '- Disse lignende artikler er KUN inspiration - de må ALDRIG overskrive din TOV eller struktur\n';
+    prompt += '- Brug dem til at se hvordan andre har behandlet lignende emner, men skriv med DIN forfatter-identitet\n';
+    prompt += '- Hvis der er konflikt mellem lignende artikler og din TOV/struktur, følg ALTID din TOV/struktur\n';
+    prompt += '\n**LIGNENDE ARTIKLER:**\n';
+    sources.similarArticles.forEach((article, index) => {
+      prompt += `\n[Inspiration ${index + 1}] ${article.title}`;
+      if (article.category) prompt += ` (${article.category})`;
+      prompt += '\n';
+      if (article.summary) {
+        prompt += `Resume: ${article.summary.substring(0, 200)}${article.summary.length > 200 ? '...' : ''}\n`;
+      }
+      if (article.content) {
+        // Extract first paragraph or first 300 chars as style example
+        const contentPreview = article.content
+          .replace(/<[^>]*>/g, '') // Remove HTML tags
+          .substring(0, 300)
+          .trim();
+        if (contentPreview) {
+          prompt += `Indholdseksempel: ${contentPreview}...\n`;
+        }
+      }
+      if (article.url) {
+        prompt += `Kilde: ${article.url}\n`;
+      }
+    });
+    prompt += '\n🚨 VIGTIGT: Brug disse artikler som INSPIRATION - ikke som kilde til fakta.\n';
+    prompt += 'Lad dig inspirere af deres stil, vinkler og tilgang, men skriv din egen originale artikel.\n';
+    prompt += 'Kopier ALDRIG direkte - brug dem til at forstå hvordan lignende emner kan behandles.\n';
+    prompt += 'HUSK: Din forfatter-TOV og struktur-reglerne er ALTID vigtigere end disse eksempler.\n';
+  }
+  
   prompt += '\n**KRITISK INSTRUKTION:**\n';
   prompt += '- Brug kilderne ovenfor og henvis i teksten med firkantede parenteser – fx [1], [2]\n';
   prompt += '- Undgå at opdigte fakta; hvis detaljer mangler, skriv generelt (fx "instruktøren")\n';
   prompt += '- Parafrasér altid - kopier ALDRIG direkte fra kilder\n';
   prompt += '- Hver faktuel påstand skal kunne verificeres mod kilderne\n';
+  prompt += '- Hvis der er lignende artikler, lad dig inspirere af deres stil og tilgang, men skriv originalt\n';
   
   return prompt;
 }

@@ -32,6 +32,8 @@ export default function AlleMedierClient({ initialData, searchParams }: AlleMedi
         if (host.includes('bt.dk')) return 'bt';
         if (host.includes('gaffa')) return 'gaffa';
         if (host.includes('soundvenue')) return 'soundvenue';
+        if (host.includes('ign.com') || host.includes('nordic.ign')) return 'ign-nordic';
+        if (host.includes('ekkofilm')) return 'ekkofilm';
       } catch {}
     }
     if (!normalized) return undefined;
@@ -39,6 +41,8 @@ export default function AlleMedierClient({ initialData, searchParams }: AlleMedi
     if (normalized === 'bt' || normalized.includes('bt.dk')) return 'bt';
     if (normalized.includes('gaffa')) return 'gaffa';
     if (normalized.includes('soundvenue')) return 'soundvenue';
+    if (normalized.includes('ign')) return 'ign-nordic';
+    if (normalized.includes('ekkofilm')) return 'ekkofilm';
     return undefined;
   };
 
@@ -61,6 +65,7 @@ export default function AlleMedierClient({ initialData, searchParams }: AlleMedi
             'berlingske.dk': 'BERLINGSKE',
             'bt.dk': 'BT',
             'ign.com': 'IGN Nordic',
+            'nordic.ign.com': 'IGN Nordic',
             'ekkofilm.dk': 'Ekkofilm'
           };
           
@@ -152,8 +157,31 @@ export default function AlleMedierClient({ initialData, searchParams }: AlleMedi
     const okSource = source ? (() => {
       const articleSource = (p.source || '').toLowerCase();
       const filterSource = source.toLowerCase();
-      // Match if the article source contains the filter source (e.g., "berlingske" matches "berlingske.dk")
-      return articleSource.includes(filterSource);
+      
+      // Also check URL if source doesn't match
+      let urlMatch = false;
+      if (p.url) {
+        try {
+          const urlObj = new URL(p.url);
+          const hostname = urlObj.hostname.replace('www.', '').toLowerCase();
+          
+          // Map filter source to domain patterns
+          const sourceToDomain: Record<string, string[]> = {
+            'gaffa': ['gaffa.dk'],
+            'berlingske': ['berlingske.dk'],
+            'bt': ['bt.dk'],
+            'soundvenue': ['soundvenue.com'],
+            'ign-nordic': ['ign.com', 'nordic.ign.com'],
+            'ekkofilm': ['ekkofilm.dk']
+          };
+          
+          const domains = sourceToDomain[filterSource] || [];
+          urlMatch = domains.some(domain => hostname.includes(domain));
+        } catch {}
+      }
+      
+      // Match if the article source contains the filter source OR URL matches
+      return articleSource.includes(filterSource) || urlMatch;
     })() : true;
 
     // Respect enabled media toggles globally
@@ -184,7 +212,13 @@ export default function AlleMedierClient({ initialData, searchParams }: AlleMedi
       }
       // Default behavior (when timeFilter is not set or empty): filter out articles older than 7 days
       const ts = Date.parse(p.date ?? p.fetched_at ?? '');
-      if (isNaN(ts) || ts === 0) return false; // Skip articles without valid dates
+      // If no date but article exists, assume it's recent (from ingestion) and include it
+      // This handles articles without dates that were just ingested
+      if (isNaN(ts) || ts === 0) {
+        // If article has no date but exists in database, assume it's recent (within last 7 days)
+        // This is a fallback for articles that were ingested but don't have dates set
+        return true; // Include articles without dates - they're likely recent
+      }
       const sevenDaysAgo = Date.now() - (7 * 24 * 60 * 60 * 1000);
       return ts >= sevenDaysAgo;
     })();

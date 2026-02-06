@@ -193,13 +193,18 @@ export async function ingestOnce(opts: { feedOnly?: boolean; sitemapOnly?: boole
         finalSource = sourceInfo ? sourceInfo.id : 'unknown';
       }
       
+      // Use parsed.date if available, otherwise use current date as fallback
+      const articleDate = parsed.date || new Date().toISOString();
+      
       articleRecords.push({
         url,
         hash,
         title: parsed.title,
         author: parsed.author,
         category: parsed.category,
-        published_at: parsed.date,
+        published_at: articleDate,
+        date: articleDate, // Also set date field for compatibility
+        fetched_at: new Date().toISOString(), // Track when we fetched it
         body_text: parsed.body_text,
         image: parsed.image,
         source: finalSource,
@@ -220,6 +225,9 @@ export async function ingestOnce(opts: { feedOnly?: boolean; sitemapOnly?: boole
           chunk_text: chunk,
           image: parsed.image,
           source: finalSource,
+          published_at: articleDate,
+          date: articleDate,
+          fetched_at: new Date().toISOString(),
         });
       });
     } catch (err: any) {

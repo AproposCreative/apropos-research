@@ -98,6 +98,12 @@ const SPLINE_BACKGROUNDS = [
     name: 'Dot Waves',
     url: 'https://my.spline.design/dotwaves-h4iKKFVRORZbPRboUfG4QKRk/',
     description: 'Pulserende dot waves'
+  },
+  {
+    id: 'black-particles',
+    name: 'Black Particles 🌑',
+    url: 'https://my.spline.design/blackparticles-t7yFXQqAzE4DZVcoSbjisK2f/',
+    description: 'Sort partikel animation'
   }
 ];
 

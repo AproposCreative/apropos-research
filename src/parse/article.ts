@@ -57,12 +57,49 @@ export function parseArticleHtml(url: string, html: string): ParsedArticle | nul
     $(".author, .byline, .post-author").first().text().trim() ||
     undefined;
 
-  // Date fallbacks: meta article:published_time -> time[datetime] -> JSON-LD
-  const date =
+  // Date fallbacks: meta article:published_time -> time[datetime] -> JSON-LD -> URL pattern
+  let date =
     $("meta[property='article:published_time']").attr("content")?.trim() ||
     $("time[datetime]").first().attr("datetime")?.trim() ||
     getJsonLdDate($) ||
     undefined;
+  
+  // Fallback: Extract date from URL if not found in HTML
+  // GAFFA format: /2026/februar/ or /2026/02/
+  // Soundvenue format: /2026/02/
+  if (!date && url) {
+    try {
+      const urlObj = new URL(url);
+      const pathParts = urlObj.pathname.split('/').filter(Boolean);
+      
+      // Look for year/month pattern in URL
+      for (let i = 0; i < pathParts.length - 1; i++) {
+        const year = parseInt(pathParts[i]);
+        if (year >= 2020 && year <= 2030) {
+          const monthStr = pathParts[i + 1]?.toLowerCase();
+          if (monthStr) {
+            // Map Danish month names to numbers
+            const monthMap: Record<string, number> = {
+              'januar': 1, 'februar': 2, 'marts': 3, 'april': 4,
+              'maj': 5, 'juni': 6, 'juli': 7, 'august': 8,
+              'september': 9, 'oktober': 10, 'november': 11, 'december': 12
+            };
+            
+            let month = parseInt(monthStr);
+            if (isNaN(month)) {
+              month = monthMap[monthStr] || 0;
+            }
+            
+            if (month >= 1 && month <= 12) {
+              // Use first day of month as fallback (better than no date)
+              date = `${year}-${String(month).padStart(2, '0')}-01T00:00:00Z`;
+              break;
+            }
+          }
+        }
+      }
+    } catch {}
+  }
 
   const category =
     $(".category a").first().text().trim() ||

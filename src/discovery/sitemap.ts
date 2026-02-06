@@ -59,8 +59,15 @@ export async function discoverFromSitemaps(): Promise<string[]> {
           sitemaps.push(sitemapList.loc);
         }
       } else if (xml?.urlset?.url) {
-        // Direct sitemap
-        sitemaps = [indexUrl];
+        // Direct sitemap - process URLs directly instead of treating as sitemap index
+        const urlset = xml?.urlset?.url ?? [];
+        const urls = Array.isArray(urlset) ? urlset : [urlset];
+        for (const u of urls) {
+          const loc: string | undefined = u?.loc;
+          if (loc) allUrls.push(loc);
+        }
+        // Don't add to sitemaps list - we've already processed the URLs
+        continue;
       }
 
       // Recursive function to handle nested sitemap indexes
@@ -85,7 +92,9 @@ export async function discoverFromSitemaps(): Promise<string[]> {
           } else if (smXml?.urlset?.url) {
             // This is a direct sitemap with URLs
             const urlset = smXml?.urlset?.url ?? [];
-            for (const u of urlset) {
+            // Handle both array and single object cases
+            const urls = Array.isArray(urlset) ? urlset : [urlset];
+            for (const u of urls) {
               const loc: string | undefined = u?.loc;
               if (loc) allUrls.push(loc);
             }
