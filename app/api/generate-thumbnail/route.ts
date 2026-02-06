@@ -3,7 +3,7 @@ import OpenAI from 'openai';
 import { config } from '@/lib/config/env';
 import { logger, createRequestLogger } from '@/lib/logger';
 import { getRequestId } from '@/lib/api/request-utils';
-import { createErrorResponse, createSuccessResponse, ErrorCode } from '@/lib/api/types';
+import { createErrorResponse, createSuccessResponse, ErrorCode, ApiResponse } from '@/lib/api/types';
 
 const openai = config.openai.apiKey ? new OpenAI({
   apiKey: config.openai.apiKey,
@@ -27,7 +27,7 @@ interface GenerateThumbnailResponse {
   error?: string;
 }
 
-export async function POST(request: NextRequest): Promise<NextResponse<GenerateThumbnailResponse>> {
+export async function POST(request: NextRequest): Promise<NextResponse<ApiResponse<GenerateThumbnailResponse>>> {
   const requestId = getRequestId(request);
   const requestLogger = createRequestLogger(requestId);
   
@@ -98,6 +98,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<GenerateT
 
     return NextResponse.json(
       createSuccessResponse({
+        success: true,
         imageUrl,
         prompt: imagePrompt
       }, { requestId })
