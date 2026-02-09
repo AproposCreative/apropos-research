@@ -39,7 +39,8 @@ export function extractTextFromHtml(html: string, url: string): ExtractedText {
   content.find('h1, h2, h3').each((_, el) => {
     const text = $(el).text().trim();
     if (text) {
-      const tag = el.tagName.toLowerCase();
+      const tagName = $(el).prop('tagName') || (el as any).name || 'h1';
+      const tag = tagName.toLowerCase();
       const level = parseInt(tag.substring(1));
       const prefix = '#'.repeat(level) + ' ';
       textParts.push(prefix + text);
