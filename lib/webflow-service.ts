@@ -275,7 +275,7 @@ export async function getWebflowAuthors(): Promise<WebflowAuthor[]> {
       });
     } else {
       const errorData = await authorsResponse.json();
-      logger.warn('Could not fetch authors from Webflow', undefined, { errorData });
+      logger.warn('Could not fetch authors from Webflow', { errorData: JSON.stringify(errorData).substring(0, 200) });
       return getFallbackAuthors();
     }
     
