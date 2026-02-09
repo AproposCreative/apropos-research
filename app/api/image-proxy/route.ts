@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { handleApiError } from '../error-handler';
-import { logger, createRequestLogger } from '@/lib/logger';
+import { createRequestLogger } from '@/lib/logger';
 import { getRequestId } from '@/lib/api/request-utils';
 import { createErrorResponse, ErrorCode } from '@/lib/api/types';
 
@@ -96,16 +96,13 @@ export async function GET(request: NextRequest) {
       },
     });
   } catch (error) {
-    const { error: errorMessage, status } = handleApiError(error, 'Image Proxy');
     const errorObj = error instanceof Error ? error : new Error(String(error));
     requestLogger.error('Image proxy error', errorObj);
-    return NextResponse.json(
-      createErrorResponse(errorMessage, {
-        statusCode: status,
-        errorCode: ErrorCode.INTERNAL_ERROR,
-        requestId,
-      }),
-      { status }
-    );
+    return handleApiError(error, {
+      requestId,
+      operation: 'Image Proxy',
+      statusCode: 500,
+      errorCode: ErrorCode.INTERNAL_ERROR,
+    });
   }
 }
