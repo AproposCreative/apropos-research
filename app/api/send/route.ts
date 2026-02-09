@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { logger } from '@/lib/logger';
+import { logger, createRequestLogger } from '@/lib/logger';
 import { getRequestId } from '@/lib/api/request-utils';
 import { createErrorResponse, createSuccessResponse, ErrorCode } from '@/lib/api/types';
 
