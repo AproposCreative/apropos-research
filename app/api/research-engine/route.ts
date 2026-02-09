@@ -12,9 +12,12 @@ const openai = config.openai.apiKey ? new OpenAI({
 export async function POST(request: NextRequest) {
   const requestId = getRequestId(request);
   const requestLogger = createRequestLogger(requestId);
+  let topic: string | undefined;
   
   try {
-    const { topic, articleType, author, targetLength } = await request.json();
+    const requestBody = await request.json();
+    const { topic: reqTopic, articleType, author, targetLength } = requestBody;
+    topic = reqTopic;
 
     if (!topic) {
       requestLogger.warn('Missing topic in request');
@@ -76,7 +79,7 @@ export async function POST(request: NextRequest) {
 
   } catch (error) {
     const errorObj = error instanceof Error ? error : new Error(String(error));
-    requestLogger.error('Research error', errorObj, { topic });
+    requestLogger.error('Research error', errorObj, { topic: topic || 'unknown' });
     return NextResponse.json(
       createErrorResponse('Failed to conduct research', {
         statusCode: 500,
