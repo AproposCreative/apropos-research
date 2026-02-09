@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { exec } from 'node:child_process';
 import path from 'node:path';
 import { invalidatePromptsCache } from '../../../lib/readPrompts';
+import { logger } from '@/lib/logger';
 
 export async function POST(request: Request) {
   // Parse request body to get custom parameters
