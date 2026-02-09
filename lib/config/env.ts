@@ -51,7 +51,7 @@ const EnvSchema = z.object({
   RAGE_BASE_URL: z.string().url().default('https://soundvenue.com'),
   RAGE_FEED_PATH: z.string().default('/feed'),
   RAGE_SITEMAP_INDEX: z.string().default('/sitemap.xml'),
-  RAGE_RATE_LIMIT_RPS: z.string().transform(Number).pipe(z.number().positive()).default('1'),
+  RAGE_RATE_LIMIT_RPS: z.string().transform(Number).pipe(z.number().positive()).default(1),
   RAGE_STORAGE_DIR: z.string().default('./data'),
   RAGE_USER_AGENT: z.string().default('OnkelRageknivBot/1.0'),
 });
