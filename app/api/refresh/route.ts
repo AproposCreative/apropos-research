@@ -50,7 +50,8 @@ export async function POST(request: Request) {
     }, { status: 202 });
   } catch (importErr) {
     // Fall back to exec if direct import fails
-    logger.warn('Direct import failed, using exec fallback', undefined, { error: String(importErr) });
+    const errorObj = importErr instanceof Error ? importErr : new Error(String(importErr));
+    logger.warn('Direct import failed, using exec fallback', { error: String(importErr) }, errorObj);
     const cmd = `npm run ingest:rage -- --since=${sinceHours} --limit=${limit}`;
 
     // Start ingest in background - don't wait for it to complete
