@@ -6,9 +6,12 @@ import { createErrorResponse, createSuccessResponse, ErrorCode } from '@/lib/api
 export async function POST(request: NextRequest) {
   const requestId = getRequestId(request);
   const requestLogger = createRequestLogger(requestId);
+  let query: string | undefined;
   
   try {
-    const { query, maxResults = 5 } = await request.json();
+    const requestBody = await request.json();
+    const { query: reqQuery, maxResults = 5 } = requestBody;
+    query = reqQuery;
 
     if (!query) {
       requestLogger.warn('Missing query in request');
@@ -40,7 +43,7 @@ export async function POST(request: NextRequest) {
 
   } catch (error) {
     const errorObj = error instanceof Error ? error : new Error(String(error));
-    requestLogger.error('Web search error', errorObj, { query });
+    requestLogger.error('Web search error', errorObj, { query: query || 'unknown' });
     return NextResponse.json(
       createErrorResponse('Failed to perform web search', {
         statusCode: 500,
