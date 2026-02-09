@@ -153,7 +153,8 @@ async function uploadToFirebaseStorage(bucket: string, name: string, content: Bu
       logger.warn('File may not be accessible without authentication');
     }
   } catch (aclError) {
-    logger.warn('Error setting public ACL', aclError instanceof Error ? aclError : new Error(String(aclError)));
+    const errorObj = aclError instanceof Error ? aclError : new Error(String(aclError));
+    logger.warn('Error setting public ACL', undefined, errorObj);
     logger.warn('File may not be accessible without authentication');
   }
   
