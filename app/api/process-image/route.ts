@@ -146,7 +146,10 @@ async function uploadToFirebaseStorage(bucket: string, name: string, content: Bu
       logger.debug('File ACL set to public');
     } else {
       const aclErrorText = await aclResponse.text().catch(() => '');
-      logger.warn('Failed to set public ACL', undefined, { status: aclResponse.status, error: aclErrorText });
+      logger.warn('Failed to set public ACL', {
+        status: aclResponse.status,
+        errorText: aclErrorText.substring(0, 200),
+      });
       logger.warn('File may not be accessible without authentication');
     }
   } catch (aclError) {
