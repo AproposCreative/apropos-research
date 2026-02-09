@@ -377,7 +377,7 @@ export async function POST(req: NextRequest) {
       createErrorResponse(errorObj.message || 'Image processing failed', {
         statusCode: 500,
         errorCode: ErrorCode.INTERNAL_ERROR,
-        requestId: getRequestId(request),
+        requestId,
       }),
       { status: 500 }
     );
