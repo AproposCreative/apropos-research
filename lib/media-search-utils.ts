@@ -183,7 +183,7 @@ export async function searchTMDB(searchTerm: string, type: 'film' | 'tv', skipIn
       
       if (!response.ok) {
         const errorText = await response.text().catch(() => 'Unknown error');
-        logger.warn('TMDB API error', undefined, { status: response.status, errorText, variation });
+        logger.warn('TMDB API error', { status: response.status, errorText, variation });
         continue; // Try next variation
       }
       
