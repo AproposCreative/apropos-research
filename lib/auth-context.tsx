@@ -11,7 +11,7 @@ import {
   signInWithPopup,
   sendPasswordResetEmail
 } from 'firebase/auth';
-import { auth } from './firebase';
+import { getFirebaseAuth } from './firebase';
 
 interface AuthContextType {
   user: User | null;
@@ -40,7 +40,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
+    const firebaseAuth = getFirebaseAuth();
+    if (!firebaseAuth) {
+      setLoading(false);
+      return;
+    }
+
+    const unsubscribe = onAuthStateChanged(firebaseAuth, (user) => {
       setUser(user);
       setLoading(false);
     });
@@ -49,24 +55,34 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const signIn = async (email: string, password: string) => {
-    await signInWithEmailAndPassword(auth, email, password);
+    const firebaseAuth = getFirebaseAuth();
+    if (!firebaseAuth) throw new Error('Firebase not initialized');
+    await signInWithEmailAndPassword(firebaseAuth, email, password);
   };
 
   const signUp = async (email: string, password: string) => {
-    await createUserWithEmailAndPassword(auth, email, password);
+    const firebaseAuth = getFirebaseAuth();
+    if (!firebaseAuth) throw new Error('Firebase not initialized');
+    await createUserWithEmailAndPassword(firebaseAuth, email, password);
   };
 
   const signInWithGoogle = async () => {
+    const firebaseAuth = getFirebaseAuth();
+    if (!firebaseAuth) throw new Error('Firebase not initialized');
     const provider = new GoogleAuthProvider();
-    await signInWithPopup(auth, provider);
+    await signInWithPopup(firebaseAuth, provider);
   };
 
   const resetPassword = async (email: string) => {
-    await sendPasswordResetEmail(auth, email);
+    const firebaseAuth = getFirebaseAuth();
+    if (!firebaseAuth) throw new Error('Firebase not initialized');
+    await sendPasswordResetEmail(firebaseAuth, email);
   };
 
   const logout = async () => {
-    await signOut(auth);
+    const firebaseAuth = getFirebaseAuth();
+    if (!firebaseAuth) throw new Error('Firebase not initialized');
+    await signOut(firebaseAuth);
   };
 
   const value = {

@@ -20,10 +20,35 @@ interface ArticlePickerProps {
 export default function ArticlePicker({ articles, onSelectArticle, onClose, templateName }: ArticlePickerProps) {
   const [selectedArticle, setSelectedArticle] = useState<Article | null>(null);
 
+  // Normalize date string to ISO format (handles DD-MM-YYYY format from GAFFA)
+  const normalizeDate = (dateStr?: string): Date | null => {
+    if (!dateStr) return null;
+    
+    try {
+      // Try parsing as-is first (works for ISO format)
+      let date = new Date(dateStr);
+      if (!isNaN(date.getTime())) return date;
+      
+      // Handle DD-MM-YYYY format (common in GAFFA articles)
+      const ddmmyyyyPattern = /^(\d{1,2})-(\d{1,2})-(\d{4})(?:\s+(\d{1,2}):(\d{1,2}):(\d{1,2}))?$/;
+      const match = dateStr.match(ddmmyyyyPattern);
+      if (match) {
+        const [, day, month, year, hour = '00', minute = '00', second = '00'] = match;
+        const isoStr = `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}T${hour.padStart(2, '0')}:${minute.padStart(2, '0')}:${second.padStart(2, '0')}Z`;
+        date = new Date(isoStr);
+        if (!isNaN(date.getTime())) return date;
+      }
+      
+      return null;
+    } catch {
+      return null;
+    }
+  };
+
   const formatDate = (dateString: string) => {
     try {
-      const date = new Date(dateString);
-      if (isNaN(date.getTime())) return 'Ukendt dato';
+      const date = normalizeDate(dateString);
+      if (!date) return 'Ukendt dato';
       
       const now = new Date();
       const diffTime = now.getTime() - date.getTime();

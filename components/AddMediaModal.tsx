@@ -16,6 +16,7 @@ export default function AddMediaModal({ isOpen, onClose, onSuccess }: AddMediaMo
     sitemapIndex: ''
   });
   const [isLoading, setIsLoading] = useState(false);
+  const [isAutoFilling, setIsAutoFilling] = useState(false); // Track if auto-fill is running
   const [error, setError] = useState('');
   const [validationResults, setValidationResults] = useState<{
     sitemapAccessible: boolean;
@@ -58,15 +59,19 @@ export default function AddMediaModal({ isOpen, onClose, onSuccess }: AddMediaMo
         }),
       });
 
-      const data = await response.json();
+      const result = await response.json();
       
-      console.log('Validation result:', data); // Debug logging
+      console.log('Validation result:', result); // Debug logging
+      
+      // Handle nested response structure
+      const data = result.data || result;
       
       setValidationResults({
-        sitemapAccessible: data.sitemapAccessible,
-        hasArticles: data.hasArticles,
+        sitemapAccessible: data.sitemapAccessible || false,
+        hasArticles: data.hasArticles || false,
         articleCount: data.articleCount || 0,
-        isValidating: false
+        isValidating: false,
+        warning: data.warning
       });
     } catch (error) {
       setValidationResults({
@@ -78,14 +83,17 @@ export default function AddMediaModal({ isOpen, onClose, onSuccess }: AddMediaMo
     }
   };
 
-  // Validate when form data changes
+  // Validate when form data changes (but not while auto-fill is running)
   React.useEffect(() => {
+    // Don't auto-validate while auto-fill is running
+    if (isAutoFilling) return;
+    
     const timeoutId = setTimeout(() => {
       validateMediaSource();
     }, 1000); // Debounce validation
 
     return () => clearTimeout(timeoutId);
-  }, [formData.baseUrl, formData.sitemapIndex]);
+  }, [formData.baseUrl, formData.sitemapIndex, isAutoFilling]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -108,7 +116,9 @@ export default function AddMediaModal({ isOpen, onClose, onSuccess }: AddMediaMo
       }
 
       // Close modal immediately and show success
-      onSuccess(result.source);
+      // API returns: { success: true, data: { source: {...}, message: "..." } }
+      // Pass the entire result object to onSuccess
+      onSuccess(result);
       setFormData({ name: '', baseUrl: '', sitemapIndex: '' });
       onClose();
 
@@ -131,7 +141,7 @@ export default function AddMediaModal({ isOpen, onClose, onSuccess }: AddMediaMo
             font-size: 14px;
             max-width: 300px;
           ">
-            ✅ ${result.source.name} tilføjet!<br>
+            ✅ ${result.data?.source?.name || result.source?.name || 'Mediekilde'} tilføjet!<br>
             <small style="opacity: 0.9;">Henter artikler i baggrunden...</small>
           </div>
         `;
@@ -145,49 +155,72 @@ export default function AddMediaModal({ isOpen, onClose, onSuccess }: AddMediaMo
         }, 4000);
       }
 
-      // Run ingest in background (don't await it)
-      console.log('Starting background ingest for new media source...');
+      // Run ingest in background (don't await it) - only for the new source
+      const newSourceId = result.data?.source?.id || result.source?.id;
+      console.log('Starting background ingest for new media source...', { sourceId: newSourceId });
       fetch('/api/refresh', {
         method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          source: newSourceId,
+          sinceHours: 168, // 1 week of articles for new sources
+          limit: 500 // Higher limit for new sources to get more articles
+        }),
       })
-      .then(ingestResponse => {
-        if (ingestResponse.ok) {
-          console.log('Background ingest completed successfully');
+      .then(async (ingestResponse) => {
+        if (ingestResponse.ok || ingestResponse.status === 202) {
+          console.log('Background ingest started successfully');
+          
+          // Wait a bit for ingest to complete (give it 30 seconds)
+          await new Promise(resolve => setTimeout(resolve, 30000));
+          
           // Refresh article counts in sidebar
           refreshArticleCounts();
           
-          // Show completion notification
-          if (typeof window !== 'undefined') {
-            const notification = document.createElement('div');
-            notification.innerHTML = `
-              <div style="
-                position: fixed;
-                top: 20px;
-                right: 20px;
-                background: #059669;
-                color: white;
-                padding: 12px 20px;
-                border-radius: 8px;
-                box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-                z-index: 1000;
-                font-family: system-ui, -apple-system, sans-serif;
-                font-size: 14px;
-                max-width: 300px;
-              ">
-                🎉 Artikler hentet!<br>
-                <small style="opacity: 0.9;">${result.source.name} er klar til brug</small>
-              </div>
-            `;
-            document.body.appendChild(notification);
-            
-            setTimeout(() => {
-              if (notification.parentNode) {
-                notification.parentNode.removeChild(notification);
-              }
-            }, 3000);
+          // Invalidate cache and reload page to show new articles
+          try {
+            await fetch('/api/invalidate-cache', { method: 'POST' });
+            // Reload page to show new articles
+            window.location.reload();
+          } catch (reloadError) {
+            console.warn('Failed to reload page:', reloadError);
+            // Show completion notification as fallback
+            if (typeof window !== 'undefined') {
+              const notification = document.createElement('div');
+              notification.innerHTML = `
+                <div style="
+                  position: fixed;
+                  top: 20px;
+                  right: 20px;
+                  background: #059669;
+                  color: white;
+                  padding: 12px 20px;
+                  border-radius: 8px;
+                  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+                  z-index: 1000;
+                  font-family: system-ui, -apple-system, sans-serif;
+                  font-size: 14px;
+                  max-width: 300px;
+                ">
+                  🎉 Artikler hentet!<br>
+                  <small style="opacity: 0.9;">Genindlæs siden for at se artiklerne</small>
+                </div>
+              `;
+              document.body.appendChild(notification);
+              
+              setTimeout(() => {
+                if (notification.parentNode) {
+                  notification.parentNode.removeChild(notification);
+                }
+              }, 5000);
+            }
           }
         } else {
           console.warn('Background ingest failed');
+          const errorText = await ingestResponse.text().catch(() => 'Unknown error');
+          console.error('Ingest error:', errorText);
         }
       })
       .catch(ingestError => {
@@ -208,7 +241,11 @@ export default function AddMediaModal({ isOpen, onClose, onSuccess }: AddMediaMo
   const autoFillSitemap = async () => {
     if (!formData.baseUrl) return;
     
+    // Prevent multiple simultaneous auto-fill operations
+    if (isAutoFilling) return;
+    
     setIsLoading(true);
+    setIsAutoFilling(true); // Set flag to prevent useEffect from interfering
     setValidationResults({
       sitemapAccessible: false,
       hasArticles: false,
@@ -216,26 +253,39 @@ export default function AddMediaModal({ isOpen, onClose, onSuccess }: AddMediaMo
       isValidating: true
     });
 
+    // Create AbortController for timeout
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second total timeout
+
     try {
-      // Comprehensive list of sitemap and feed paths to try
+      // Prioritized list of sitemap and feed paths to try (most common first)
       const commonSitemaps = [
-        // Standard sitemaps
+        // Most common sitemaps first
         '/sitemap.xml',
-        '/sitemaps/sitemap.xml',
         '/sitemap_index.xml',
-        '/sitemaps/sitemap_index.xml',
         '/sitemap',
-        '/sitemaps.xml',
-        '/sitemap-index.xml',
-        '/sitemaps/sitemap-index.xml',
-        '/sitemap.txt',
-        '/sitemaps/sitemap.txt',
+        '/sitemaps/sitemap.xml',
+        '/sitemaps/sitemap_index.xml',
         
         // RSS feeds
         '/feed.xml',
         '/rss.xml',
         '/feeds/all.rss',
         '/feeds/all.xml',
+        
+        // WordPress specific
+        '/wp-sitemap.xml',
+        '/feed/',
+        '/rss/',
+        
+        // Other common patterns
+        '/sitemap-index.xml',
+        '/sitemaps/sitemap-index.xml',
+        '/atom.xml',
+        
+        // Less common - only test if nothing found above
+        '/sitemaps.xml',
+        '/sitemap.txt',
         '/feeds/artikler/',
         '/feeds/feed.xml',
         '/feeds/rss.xml',
@@ -245,43 +295,35 @@ export default function AddMediaModal({ isOpen, onClose, onSuccess }: AddMediaMo
         '/feeds/news.xml',
         '/feeds/latest.rss',
         '/feeds/latest.xml',
-        
-        // WordPress specific
-        '/wp-sitemap.xml',
         '/wp-sitemap-posts-post-1.xml',
         '/wp-sitemap-posts-page-1.xml',
         '/wp-sitemap-categories-1.xml',
         '/wp-sitemap-tags-1.xml',
-        '/feed/',
-        '/rss/',
-        
-        // Other common patterns
-        '/sitemap_index.xml',
-        '/sitemaps/sitemap_index.xml',
-        '/sitemap-index.xml',
-        '/sitemaps/sitemap-index.xml',
         '/sitemap_news.xml',
         '/sitemaps/sitemap_news.xml',
         '/news-sitemap.xml',
         '/sitemaps/news-sitemap.xml',
-        
-        // Atom feeds
-        '/atom.xml',
         '/feeds/atom.xml',
         '/feeds/atom/',
-        
-        // Robots.txt (to extract sitemap URLs)
-        '/robots.txt'
       ];
 
       let bestSitemap = null;
       let bestScore = 0;
       let foundAny = false;
+      let testedCount = 0;
+      const maxTests = 20; // Limit to first 20 to avoid long waits
 
-      // Test each potential sitemap using server-side validation
-      for (const sitemapPath of commonSitemaps) {
+      // Test each potential sitemap using server-side validation with timeout
+      for (const sitemapPath of commonSitemaps.slice(0, maxTests)) {
+        // Stop if we found a good sitemap with high score
+        if (bestSitemap && bestScore > 50) {
+          break;
+        }
+
+        testedCount++;
+        
         try {
-          // Use server-side validation to avoid CORS issues
+          // Use server-side validation with timeout
           const response = await fetch('/api/validate-media-source', {
             method: 'POST',
             headers: {
@@ -291,37 +333,41 @@ export default function AddMediaModal({ isOpen, onClose, onSuccess }: AddMediaMo
               baseUrl: formData.baseUrl,
               sitemapIndex: sitemapPath
             }),
+            signal: AbortSignal.timeout(8000), // 8 second timeout per request
           });
 
           if (response.ok) {
             const data = await response.json();
             
-            if (data.sitemapAccessible && data.hasArticles) {
+            // Handle nested response structure
+            const result = data.data || data;
+            
+            if (result.sitemapAccessible && result.hasArticles) {
               foundAny = true;
               let score = 0;
               
               // Base score for accessibility and articles
               score += 20; // Base accessibility bonus
-              if (data.articleCount > 0) score += Math.min(data.articleCount, 50); // More articles = higher score (capped)
+              if (result.articleCount > 0) score += Math.min(result.articleCount / 10, 50); // More articles = higher score (capped)
               
               // Content type bonuses
-              if (data.contentType && data.contentType.includes('xml')) score += 10;
-              if (data.contentType && data.contentType.includes('rss')) score += 8;
-              if (data.contentType && data.contentType.includes('atom')) score += 8;
+              if (result.contentType && result.contentType.includes('xml')) score += 10;
+              if (result.contentType && result.contentType.includes('rss')) score += 8;
+              if (result.contentType && result.contentType.includes('atom')) score += 8;
               
               // RSS feed support
-              if (data.contentPreview && data.contentPreview.includes('<rss')) score += 15;
-              if (data.contentPreview && data.contentPreview.includes('<channel')) score += 10;
-              if (data.contentPreview && data.contentPreview.includes('<item')) score += 8;
+              if (result.contentPreview && result.contentPreview.includes('<rss')) score += 15;
+              if (result.contentPreview && result.contentPreview.includes('<channel')) score += 10;
+              if (result.contentPreview && result.contentPreview.includes('<item')) score += 8;
               
               // Sitemap support
-              if (data.contentPreview && data.contentPreview.includes('<urlset')) score += 10;
-              if (data.contentPreview && data.contentPreview.includes('<sitemapindex')) score += 15; // Sitemap indexes are often better
-              if (data.contentPreview && data.contentPreview.includes('<url>')) score += 5;
+              if (result.contentPreview && result.contentPreview.includes('<urlset')) score += 10;
+              if (result.contentPreview && result.contentPreview.includes('<sitemapindex')) score += 15; // Sitemap indexes are often better
+              if (result.contentPreview && result.contentPreview.includes('<url>')) score += 5;
               
               // Atom feed support
-              if (data.contentPreview && data.contentPreview.includes('<feed')) score += 12;
-              if (data.contentPreview && data.contentPreview.includes('<entry')) score += 8;
+              if (result.contentPreview && result.contentPreview.includes('<feed')) score += 12;
+              if (result.contentPreview && result.contentPreview.includes('<entry')) score += 8;
               
               // Path-specific bonuses (prioritize better organized sources)
               if (sitemapPath === '/sitemaps/sitemap_index.xml') score += 10; // Best organized
@@ -338,12 +384,9 @@ export default function AddMediaModal({ isOpen, onClose, onSuccess }: AddMediaMo
               if (sitemapPath === '/feed/') score += 5;
               if (sitemapPath === '/rss/') score += 4;
               
-              // Penalty for robots.txt (we want actual sitemaps, not just robots.txt)
-              if (sitemapPath === '/robots.txt') score -= 10;
-              
               // Bonus for high article count
-              if (data.articleCount > 100) score += 10;
-              if (data.articleCount > 500) score += 15;
+              if (result.articleCount > 100) score += 10;
+              if (result.articleCount > 500) score += 15;
               
               if (score > bestScore) {
                 bestScore = score;
@@ -352,10 +395,17 @@ export default function AddMediaModal({ isOpen, onClose, onSuccess }: AddMediaMo
             }
           }
         } catch (error) {
-          // Continue to next sitemap
+          // Continue to next sitemap if timeout or error
+          if (error instanceof Error && error.name === 'AbortError') {
+            // Timeout - continue to next
+            continue;
+          }
+          // Other errors - continue to next
           continue;
         }
       }
+
+      clearTimeout(timeoutId);
 
       // Set the best sitemap found
       if (bestSitemap) {
@@ -381,10 +431,11 @@ export default function AddMediaModal({ isOpen, onClose, onSuccess }: AddMediaMo
           hasArticles: false,
           articleCount: 0,
           isValidating: false,
-          warning: 'Ingen fungerende sitemap eller RSS feed fundet. Prøv at tjekke hjemmesidens robots.txt fil eller kontakt webmasteren.'
+          warning: `Ingen fungerende sitemap eller RSS feed fundet efter ${testedCount} forsøg. Prøv at tjekke hjemmesidens robots.txt fil eller kontakt webmasteren.`
         });
       }
     } catch (error) {
+      clearTimeout(timeoutId);
       console.error('Auto-fill error:', error);
       setValidationResults({
         sitemapAccessible: false,
@@ -395,6 +446,7 @@ export default function AddMediaModal({ isOpen, onClose, onSuccess }: AddMediaMo
       });
     } finally {
       setIsLoading(false);
+      setIsAutoFilling(false); // Clear flag to allow normal validation again
     }
   };
 
@@ -484,9 +536,10 @@ export default function AddMediaModal({ isOpen, onClose, onSuccess }: AddMediaMo
               <button
                 type="button"
                 onClick={autoFillSitemap}
-                className="px-4 py-3 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-xl hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors text-sm font-medium"
+                disabled={isAutoFilling || isLoading}
+                className="px-4 py-3 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-xl hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                Auto
+                {isAutoFilling ? 'Søger...' : 'Auto'}
               </button>
             </div>
             <p className="text-xs text-slate-500 dark:text-slate-400 mt-2">
@@ -526,12 +579,17 @@ export default function AddMediaModal({ isOpen, onClose, onSuccess }: AddMediaMo
                 {validationResults.isValidating ? 'Validerer...' : 'Validering Resultat:'}
               </h4>
               {validationResults.isValidating ? (
-                <div className="flex items-center gap-2 text-yellow-700 dark:text-yellow-300">
-                  <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                  </svg>
-                  Tester sitemap tilgængelighed...
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2 text-yellow-700 dark:text-yellow-300">
+                    <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    Tester sitemap tilgængelighed...
+                  </div>
+                  <p className="text-xs text-yellow-600 dark:text-yellow-400">
+                    Dette kan tage op til 30 sekunder. Vi tester de mest almindelige sitemap-stier automatisk.
+                  </p>
                 </div>
               ) : (
                 <ul className={`text-sm space-y-1 ${

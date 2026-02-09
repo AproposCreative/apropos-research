@@ -31,6 +31,9 @@ export function MediaProvider({ children }: { children: ReactNode }) {
   const [mediaStates, setMediaStates] = useState<MediaState>(defaultMediaStates);
   const [mediaSources, setMediaSources] = useState<any[]>([]);
   const [articleCounts, setArticleCounts] = useState<Record<string, number>>({});
+  
+  // Ensure articleCounts is always an object (never undefined)
+  const safeArticleCounts = articleCounts || {};
 
       // Load from localStorage on mount
       useEffect(() => {
@@ -60,22 +63,34 @@ export function MediaProvider({ children }: { children: ReactNode }) {
     try {
       const response = await fetch('/api/media-sources');
       const data = await response.json();
-      if (response.ok) {
-        setMediaSources(data.sources);
+      if (response.ok && data) {
+        // Handle both old format (data.sources) and new format (data.data.sources)
+        const sources = data.data?.sources || data.sources;
+        
+        if (Array.isArray(sources)) {
+          setMediaSources(sources);
 
-        // Auto-enable ONLY new media sources without overriding existing choices
-        setMediaStates(prev => {
-          const merged: MediaState = { ...prev };
-          data.sources.forEach((source: any) => {
-            if (merged[source.id] === undefined) {
-              merged[source.id] = true;
-            }
+          // Auto-enable ONLY new media sources without overriding existing choices
+          setMediaStates(prev => {
+            const merged: MediaState = { ...prev };
+            sources.forEach((source: any) => {
+              if (source && source.id && merged[source.id] === undefined) {
+                merged[source.id] = true;
+              }
+            });
+            return merged;
           });
-          return merged;
-        });
+        } else {
+          console.warn('Invalid media sources format:', data);
+          setMediaSources([]);
+        }
+      } else {
+        console.warn('Invalid media sources response:', data);
+        setMediaSources([]);
       }
     } catch (error) {
       console.error('Error loading media sources:', error);
+      setMediaSources([]);
     }
   };
 
@@ -97,11 +112,24 @@ export function MediaProvider({ children }: { children: ReactNode }) {
     try {
       const response = await fetch('/api/article-counts');
       const data = await response.json();
-      if (response.ok) {
-        setArticleCounts(data.counts);
+      if (response.ok && data) {
+        // Handle both old format (data.counts) and new format (data.data.counts)
+        const counts = data.data?.counts || data.counts;
+        if (counts && typeof counts === 'object') {
+          // Remove 'total' key if present (it's not a media source)
+          const { total, ...mediaCounts } = counts;
+          setArticleCounts(mediaCounts);
+        } else {
+          console.warn('Invalid article counts format:', data);
+          setArticleCounts({});
+        }
+      } else {
+        console.warn('Invalid article counts response:', data);
+        setArticleCounts({});
       }
     } catch (error) {
       console.error('Error loading article counts:', error);
+      setArticleCounts({});
     }
   };
 
@@ -137,7 +165,7 @@ export function MediaProvider({ children }: { children: ReactNode }) {
     <MediaContext.Provider value={{
       mediaStates,
       mediaSources,
-      articleCounts,
+      articleCounts: safeArticleCounts,
       toggleMedia,
       isMediaEnabled,
       getEnabledMedias,

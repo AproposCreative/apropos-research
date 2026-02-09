@@ -25,7 +25,7 @@ export default function MiniMenu({ translateX, onSearch, onToggleReview, onToggl
   return (
     <div className={`hidden md:block absolute top-[1%] left-[1%] z-20`}>
       <div className={`md:flex border border-white/20 rounded-2xl items-center overflow-hidden mini-menu-expand ${accountOpen ? 'mini-menu-expand-active' : ''}`}
-        style={{ backgroundColor: 'rgb(0, 0, 0)', height: '50px', padding: '4px', transition: 'transform 320ms cubic-bezier(0.22, 1, 0.36, 1)' , transform: translateX }}>
+        style={{ backgroundColor: 'rgb(0, 0, 0)', height: '50px', padding: '4px', transition: 'transform 320ms cubic-bezier(0.22, 1, 0.36, 1)', transform: translateX, willChange: 'transform' }}>
         <div className="flex items-center" style={{ width: accountOpen ? 'auto' : 'auto' }}>
           <button onClick={onSearch} className="w-8 h-8 flex items-center justify-center hover:bg-white/10 rounded-xl transition-colors" title="Søg i beskeder">
             <div className="relative w-3 h-3">

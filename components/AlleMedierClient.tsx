@@ -17,6 +17,31 @@ interface AlleMedierClientProps {
   searchParams: Record<string, string | string[] | undefined>;
 }
 
+// Normalize date string to ISO format (handles DD-MM-YYYY format from GAFFA)
+function normalizeDate(dateStr?: string): number | null {
+  if (!dateStr) return null;
+  
+  try {
+    // Try parsing as-is first (works for ISO format)
+    let ts = Date.parse(dateStr);
+    if (!isNaN(ts)) return ts;
+    
+    // Handle DD-MM-YYYY format (common in GAFFA articles)
+    const ddmmyyyyPattern = /^(\d{1,2})-(\d{1,2})-(\d{4})(?:\s+(\d{1,2}):(\d{1,2}):(\d{1,2}))?$/;
+    const match = dateStr.match(ddmmyyyyPattern);
+    if (match) {
+      const [, day, month, year, hour = '00', minute = '00', second = '00'] = match;
+      const isoStr = `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}T${hour.padStart(2, '0')}:${minute.padStart(2, '0')}:${second.padStart(2, '0')}Z`;
+      ts = Date.parse(isoStr);
+      if (!isNaN(ts)) return ts;
+    }
+    
+    return null;
+  } catch {
+    return null;
+  }
+}
+
 export default function AlleMedierClient({ initialData, searchParams }: AlleMedierClientProps) {
   const { getEnabledMedias, mediaSources } = useMedia();
   const [filteredData, setFilteredData] = useState(initialData);
@@ -34,15 +59,19 @@ export default function AlleMedierClient({ initialData, searchParams }: AlleMedi
         if (host.includes('soundvenue')) return 'soundvenue';
         if (host.includes('ign.com') || host.includes('nordic.ign')) return 'ign-nordic';
         if (host.includes('ekkofilm')) return 'ekkofilm';
+        if (host.includes('markedsforing')) return 'https-markedsforing-dk';
       } catch {}
     }
     if (!normalized) return undefined;
+    // Direct match for exact source IDs first
+    if (normalized === 'https-markedsforing-dk' || normalized === 'markedsføring.dk' || normalized === 'markedsforing.dk') return 'https-markedsforing-dk';
     if (normalized.includes('berlingske')) return 'berlingske';
     if (normalized === 'bt' || normalized.includes('bt.dk')) return 'bt';
     if (normalized.includes('gaffa')) return 'gaffa';
     if (normalized.includes('soundvenue')) return 'soundvenue';
     if (normalized.includes('ign')) return 'ign-nordic';
     if (normalized.includes('ekkofilm')) return 'ekkofilm';
+    if (normalized.includes('markedsforing') || normalized.includes('markedsføring')) return 'https-markedsforing-dk';
     return undefined;
   };
 
@@ -66,7 +95,8 @@ export default function AlleMedierClient({ initialData, searchParams }: AlleMedi
             'bt.dk': 'BT',
             'ign.com': 'IGN Nordic',
             'nordic.ign.com': 'IGN Nordic',
-            'ekkofilm.dk': 'Ekkofilm'
+            'ekkofilm.dk': 'Ekkofilm',
+            'markedsforing.dk': 'Markedsføring.dk'
           };
           
           return {
@@ -108,8 +138,8 @@ export default function AlleMedierClient({ initialData, searchParams }: AlleMedi
   const sort = String(searchParams.sort || 'newest');
   const page = Math.max(1, Number(searchParams.page) || 1);
   const source = String(searchParams.source || '').trim();
-  // Default to showing last 7 days, but allow 'all' to show everything
-  const timeFilter = String(searchParams.time || '').trim();
+  // Default to 'today' filter - always show only today's articles unless explicitly set to 'all'
+  const timeFilter = String(searchParams.time || 'today').trim();
 
   const sinceHours = ['24','48','72'].includes(sinceStr) ? Number(sinceStr) : undefined;
 
@@ -126,6 +156,15 @@ export default function AlleMedierClient({ initialData, searchParams }: AlleMedi
 
   // Apply all filters to the filtered data
   const enabledIds = new Set(getEnabledMedias());
+  
+  // Count articles before filtering (for subtitle display)
+  const beforeFilterCount = source 
+    ? filteredData.filter(p => {
+        const mappedId = mapSourceToId(p.source, p.url);
+        return mappedId === source.toLowerCase();
+      }).length
+    : filteredData.length;
+  
   let list = filteredData.filter(p => {
     const okQ = q ? (
       (p.title||'').toLowerCase().includes(q.toLowerCase()) ||
@@ -189,38 +228,26 @@ export default function AlleMedierClient({ initialData, searchParams }: AlleMedi
     const okEnabled = mappedId ? enabledIds.has(mappedId) : true;
 
     const okSince = sinceHours ? (() => {
-      const ts = Date.parse(p.date ?? p.fetched_at ?? '');
-      if (isNaN(ts)) return true;
+      const ts = normalizeDate(p.date ?? p.published_at ?? p.fetched_at ?? '');
+      if (!ts) return true;
       return ts >= Date.now() - sinceHours*3600*1000;
     })() : true;
 
     const okFresh = freshOnly ? (() => {
-      const ts = Date.parse(p.date ?? p.fetched_at ?? '');
-      return !isNaN(ts) && ts >= Date.now() - 24*3600*1000;
+      const ts = normalizeDate(p.date ?? p.published_at ?? p.fetched_at ?? '');
+      return ts !== null && ts >= Date.now() - 24*3600*1000;
     })() : true;
 
     const okTimeFilter = (() => {
-      if (timeFilter === 'today') {
-        const ts = Date.parse(p.date ?? p.fetched_at ?? '');
-        if (isNaN(ts)) return false;
+      // Default to 'today' - only show articles from last 24 hours
+      if (timeFilter !== 'all') {
+        const ts = normalizeDate(p.date ?? p.published_at ?? p.fetched_at ?? '');
+        if (!ts) return false; // Exclude articles without dates when filtering by time
         const last24Hours = Date.now() - 24 * 60 * 60 * 1000;
         return ts >= last24Hours;
       }
-      // Default: Only show articles from last 7 days (unless explicitly showing all)
-      if (timeFilter === 'all') {
-        return true; // Show all if explicitly requested
-      }
-      // Default behavior (when timeFilter is not set or empty): filter out articles older than 7 days
-      const ts = Date.parse(p.date ?? p.fetched_at ?? '');
-      // If no date but article exists, assume it's recent (from ingestion) and include it
-      // This handles articles without dates that were just ingested
-      if (isNaN(ts) || ts === 0) {
-        // If article has no date but exists in database, assume it's recent (within last 7 days)
-        // This is a fallback for articles that were ingested but don't have dates set
-        return true; // Include articles without dates - they're likely recent
-      }
-      const sevenDaysAgo = Date.now() - (7 * 24 * 60 * 60 * 1000);
-      return ts >= sevenDaysAgo;
+      // Show all if explicitly requested
+      return true;
     })();
 
     return okQ && okCat && okSource && okSince && okFresh && okTimeFilter && okEnabled;
@@ -233,10 +260,10 @@ export default function AlleMedierClient({ initialData, searchParams }: AlleMedi
       acc.push(article);
     } else {
       // If we find a duplicate, keep the one with more recent date/fetched_at
-      const existingDate = new Date(existingArticle.date || existingArticle.fetched_at || 0);
-      const currentDate = new Date(article.date || article.fetched_at || 0);
+      const existingTs = normalizeDate(existingArticle.date ?? existingArticle.published_at ?? existingArticle.fetched_at ?? '') || 0;
+      const currentTs = normalizeDate(article.date ?? article.published_at ?? article.fetched_at ?? '') || 0;
       
-      if (currentDate > existingDate) {
+      if (currentTs > existingTs) {
         // Replace with the more recent version
         const index = acc.indexOf(existingArticle);
         acc[index] = article;
@@ -259,7 +286,10 @@ export default function AlleMedierClient({ initialData, searchParams }: AlleMedi
     <div className="relative z-10 max-w-7xl mx-auto px-6 pb-12">
         <CompactHeader 
           title={headerTitle}
-          subtitle={`Viser ${list.length} unikke artikler (${filteredData.length} før deduplication)`}
+          subtitle={source 
+            ? `Viser ${list.length} unikke artikler (${beforeFilterCount} fra ${headerTitle} før filtre)` 
+            : `Viser ${list.length} unikke artikler (${beforeFilterCount} før deduplication)`
+          }
         />
 
         <div className="sticky top-4 z-40 mb-8">
@@ -291,11 +321,11 @@ export default function AlleMedierClient({ initialData, searchParams }: AlleMedi
             </div>
             <div className="flex-shrink-0">
               <div className="flex items-center gap-2 bg-white/20 dark:bg-black/30 backdrop-blur-3xl rounded-3xl py-2 px-2 border border-white/20 dark:border-white/10 shadow-2xl">
+                <a href={`/alle-medier?${new URLSearchParams({...Object.fromEntries(params), time: 'today'}).toString()}`} className={`px-4 py-2 rounded-2xl text-sm font-medium transition-all duration-300 whitespace-nowrap ${timeFilter !== 'all' ? 'bg-white/40 dark:bg-black/60 text-slate-800 dark:text-white shadow-lg' : 'text-slate-600 dark:text-slate-300 hover:bg-white/20 dark:hover:bg-black/40'}`}>
+                  Idag
+                </a>
                 <a href={`/alle-medier?${new URLSearchParams({...Object.fromEntries(params), time: 'all'}).toString()}`} className={`px-4 py-2 rounded-2xl text-sm font-medium transition-all duration-300 whitespace-nowrap ${timeFilter === 'all' ? 'bg-white/40 dark:bg-black/60 text-slate-800 dark:text-white shadow-lg' : 'text-slate-600 dark:text-slate-300 hover:bg-white/20 dark:hover:bg-black/40'}`}>
                   Alle
-                </a>
-                <a href={`/alle-medier?${new URLSearchParams({...Object.fromEntries(params), time: 'today'}).toString()}`} className={`px-4 py-2 rounded-2xl text-sm font-medium transition-all duration-300 whitespace-nowrap ${timeFilter === 'today' ? 'bg-white/40 dark:bg-black/60 text-slate-800 dark:text-white shadow-lg' : 'text-slate-600 dark:text-slate-300 hover:bg-white/20 dark:hover:bg-black/40'}`}>
-                  Idag
                 </a>
               </div>
             </div>

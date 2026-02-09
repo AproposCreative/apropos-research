@@ -26,6 +26,7 @@ export default function EditMediaModal({ isOpen, onClose, onSuccess, source }: E
     sitemapIndex: source.sitemapIndex
   });
   const [isLoading, setIsLoading] = useState(false);
+  const [isAutoFilling, setIsAutoFilling] = useState(false); // Track if auto-fill is running
   const [error, setError] = useState('');
   const [validationResults, setValidationResults] = useState<{
     sitemapAccessible: boolean;
@@ -49,7 +50,11 @@ export default function EditMediaModal({ isOpen, onClose, onSuccess, source }: E
   const autoFillSitemap = async () => {
     if (!formData.baseUrl) return;
     
+    // Prevent multiple simultaneous auto-fill operations
+    if (isAutoFilling) return;
+    
     setIsLoading(true);
+    setIsAutoFilling(true); // Set flag to prevent useEffect from interfering
     setValidationResults({
       sitemapAccessible: false,
       hasArticles: false,
@@ -57,26 +62,39 @@ export default function EditMediaModal({ isOpen, onClose, onSuccess, source }: E
       isValidating: true
     });
 
+    // Create AbortController for timeout
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second total timeout
+
     try {
-      // Comprehensive list of sitemap and feed paths to try
+      // Prioritized list of sitemap and feed paths to try (most common first)
       const commonSitemaps = [
-        // Standard sitemaps
+        // Most common sitemaps first
         '/sitemap.xml',
-        '/sitemaps/sitemap.xml',
         '/sitemap_index.xml',
-        '/sitemaps/sitemap_index.xml',
         '/sitemap',
-        '/sitemaps.xml',
-        '/sitemap-index.xml',
-        '/sitemaps/sitemap-index.xml',
-        '/sitemap.txt',
-        '/sitemaps/sitemap.txt',
+        '/sitemaps/sitemap.xml',
+        '/sitemaps/sitemap_index.xml',
         
         // RSS feeds
         '/feed.xml',
         '/rss.xml',
         '/feeds/all.rss',
         '/feeds/all.xml',
+        
+        // WordPress specific
+        '/wp-sitemap.xml',
+        '/feed/',
+        '/rss/',
+        
+        // Other common patterns
+        '/sitemap-index.xml',
+        '/sitemaps/sitemap-index.xml',
+        '/atom.xml',
+        
+        // Less common - only test if nothing found above
+        '/sitemaps.xml',
+        '/sitemap.txt',
         '/feeds/artikler/',
         '/feeds/feed.xml',
         '/feeds/rss.xml',
@@ -86,43 +104,35 @@ export default function EditMediaModal({ isOpen, onClose, onSuccess, source }: E
         '/feeds/news.xml',
         '/feeds/latest.rss',
         '/feeds/latest.xml',
-        
-        // WordPress specific
-        '/wp-sitemap.xml',
         '/wp-sitemap-posts-post-1.xml',
         '/wp-sitemap-posts-page-1.xml',
         '/wp-sitemap-categories-1.xml',
         '/wp-sitemap-tags-1.xml',
-        '/feed/',
-        '/rss/',
-        
-        // Other common patterns
-        '/sitemap_index.xml',
-        '/sitemaps/sitemap_index.xml',
-        '/sitemap-index.xml',
-        '/sitemaps/sitemap-index.xml',
         '/sitemap_news.xml',
         '/sitemaps/sitemap_news.xml',
         '/news-sitemap.xml',
         '/sitemaps/news-sitemap.xml',
-        
-        // Atom feeds
-        '/atom.xml',
         '/feeds/atom.xml',
         '/feeds/atom/',
-        
-        // Robots.txt (to extract sitemap URLs)
-        '/robots.txt'
       ];
 
       let bestSitemap = null;
       let bestScore = 0;
       let foundAny = false;
+      let testedCount = 0;
+      const maxTests = 20; // Limit to first 20 to avoid long waits
 
-      // Test each potential sitemap using server-side validation
-      for (const sitemapPath of commonSitemaps) {
+      // Test each potential sitemap using server-side validation with timeout
+      for (const sitemapPath of commonSitemaps.slice(0, maxTests)) {
+        // Stop if we found a good sitemap with high score
+        if (bestSitemap && bestScore > 50) {
+          break;
+        }
+
+        testedCount++;
+        
         try {
-          // Use server-side validation to avoid CORS issues
+          // Use server-side validation with timeout
           const response = await fetch('/api/validate-media-source', {
             method: 'POST',
             headers: {
@@ -132,10 +142,14 @@ export default function EditMediaModal({ isOpen, onClose, onSuccess, source }: E
               baseUrl: formData.baseUrl,
               sitemapIndex: sitemapPath
             }),
+            signal: AbortSignal.timeout(8000), // 8 second timeout per request
           });
 
           if (response.ok) {
-            const data = await response.json();
+            const result = await response.json();
+            
+            // Handle nested response structure
+            const data = result.data || result;
             
             if (data.sitemapAccessible && data.hasArticles) {
               foundAny = true;
@@ -143,7 +157,7 @@ export default function EditMediaModal({ isOpen, onClose, onSuccess, source }: E
               
               // Base score for accessibility and articles
               score += 20; // Base accessibility bonus
-              if (data.articleCount > 0) score += Math.min(data.articleCount, 50); // More articles = higher score (capped)
+              if (data.articleCount > 0) score += Math.min(data.articleCount / 10, 50); // More articles = higher score (capped)
               
               // Content type bonuses
               if (data.contentType && data.contentType.includes('xml')) score += 10;
@@ -179,9 +193,6 @@ export default function EditMediaModal({ isOpen, onClose, onSuccess, source }: E
               if (sitemapPath === '/feed/') score += 5;
               if (sitemapPath === '/rss/') score += 4;
               
-              // Penalty for robots.txt (we want actual sitemaps, not just robots.txt)
-              if (sitemapPath === '/robots.txt') score -= 10;
-              
               // Bonus for high article count
               if (data.articleCount > 100) score += 10;
               if (data.articleCount > 500) score += 15;
@@ -193,10 +204,17 @@ export default function EditMediaModal({ isOpen, onClose, onSuccess, source }: E
             }
           }
         } catch (error) {
-          // Continue to next sitemap
+          // Continue to next sitemap if timeout or error
+          if (error instanceof Error && error.name === 'AbortError') {
+            // Timeout - continue to next
+            continue;
+          }
+          // Other errors - continue to next
           continue;
         }
       }
+
+      clearTimeout(timeoutId);
 
       // Set the best sitemap found
       if (bestSitemap) {
@@ -222,10 +240,11 @@ export default function EditMediaModal({ isOpen, onClose, onSuccess, source }: E
           hasArticles: false,
           articleCount: 0,
           isValidating: false,
-          warning: 'Ingen fungerende sitemap eller RSS feed fundet. Prøv at tjekke hjemmesidens robots.txt fil eller kontakt webmasteren.'
+          warning: `Ingen fungerende sitemap eller RSS feed fundet efter ${testedCount} forsøg. Prøv at tjekke hjemmesidens robots.txt fil eller kontakt webmasteren.`
         });
       }
     } catch (error) {
+      clearTimeout(timeoutId);
       console.error('Auto-fill error:', error);
       setValidationResults({
         sitemapAccessible: false,
@@ -236,6 +255,7 @@ export default function EditMediaModal({ isOpen, onClose, onSuccess, source }: E
       });
     } finally {
       setIsLoading(false);
+      setIsAutoFilling(false); // Clear flag to allow normal validation again
     }
   };
 
@@ -266,13 +286,17 @@ export default function EditMediaModal({ isOpen, onClose, onSuccess, source }: E
         }),
       });
 
-      const data = await response.json();
+      const result = await response.json();
+      
+      // Handle nested response structure
+      const data = result.data || result;
       
       setValidationResults({
-        sitemapAccessible: data.sitemapAccessible,
-        hasArticles: data.hasArticles,
+        sitemapAccessible: data.sitemapAccessible || false,
+        hasArticles: data.hasArticles || false,
         articleCount: data.articleCount || 0,
-        isValidating: false
+        isValidating: false,
+        warning: data.warning
       });
     } catch (error) {
       setValidationResults({
@@ -284,14 +308,17 @@ export default function EditMediaModal({ isOpen, onClose, onSuccess, source }: E
     }
   };
 
-  // Validate when form data changes
+  // Validate when form data changes (but not while auto-fill is running)
   React.useEffect(() => {
+    // Don't auto-validate while auto-fill is running
+    if (isAutoFilling) return;
+    
     const timeoutId = setTimeout(() => {
       validateMediaSource();
     }, 1000); // Debounce validation
 
     return () => clearTimeout(timeoutId);
-  }, [formData.baseUrl, formData.sitemapIndex]);
+  }, [formData.baseUrl, formData.sitemapIndex, isAutoFilling]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -480,9 +507,10 @@ export default function EditMediaModal({ isOpen, onClose, onSuccess, source }: E
               <button
                 type="button"
                 onClick={autoFillSitemap}
-                className="px-4 py-3 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-xl hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors text-sm font-medium"
+                disabled={isAutoFilling || isLoading}
+                className="px-4 py-3 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-xl hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                Auto
+                {isAutoFilling ? 'Søger...' : 'Auto'}
               </button>
             </div>
             <p className="text-xs text-slate-500 dark:text-slate-400 mt-2">
@@ -522,12 +550,17 @@ export default function EditMediaModal({ isOpen, onClose, onSuccess, source }: E
                 {validationResults.isValidating ? 'Validerer...' : 'Validering Resultat:'}
               </h4>
               {validationResults.isValidating ? (
-                <div className="flex items-center gap-2 text-yellow-700 dark:text-yellow-300">
-                  <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                  </svg>
-                  Tester sitemap tilgængelighed...
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2 text-yellow-700 dark:text-yellow-300">
+                    <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    Tester sitemap tilgængelighed...
+                  </div>
+                  <p className="text-xs text-yellow-600 dark:text-yellow-400">
+                    Dette kan tage op til 30 sekunder. Vi tester de mest almindelige sitemap-stier automatisk.
+                  </p>
                 </div>
               ) : (
                 <ul className={`text-sm space-y-1 ${

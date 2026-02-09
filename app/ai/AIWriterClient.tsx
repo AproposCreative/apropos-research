@@ -147,12 +147,53 @@ export default function AIWriterClient() {
   const [publishToast, setPublishToast] = useState<{ articleId: string; shownAt: number } | null>(null);
   const [thinkingSteps, setThinkingSteps] = useState<ThinkingStep[]>([]);
   const thinkingTimersRef = useRef<number[]>([]);
+  const [chatWidth, setChatWidth] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('ai-chat-width');
+      return saved ? parseInt(saved, 10) : 500;
+    }
+    return 500;
+  });
+  const [isResizing, setIsResizing] = useState(false);
+  const chatPanelRef = useRef<HTMLDivElement>(null);
   const stopThinkingTimeline = useCallback(() => {
     if (thinkingTimersRef.current.length) {
       thinkingTimersRef.current.forEach((timer) => window.clearTimeout(timer));
       thinkingTimersRef.current = [];
     }
   }, []);
+
+  // Handle chat panel resize
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!isResizing || !chatPanelRef.current) return;
+      e.preventDefault();
+      const newWidth = e.clientX;
+      const minWidth = 400;
+      const maxWidth = window.innerWidth * 0.6;
+      const clampedWidth = Math.max(minWidth, Math.min(maxWidth, newWidth));
+      setChatWidth(clampedWidth);
+      localStorage.setItem('ai-chat-width', clampedWidth.toString());
+    };
+
+    const handleMouseUp = () => {
+      setIsResizing(false);
+    };
+
+    if (isResizing) {
+      document.addEventListener('mousemove', handleMouseMove);
+      document.addEventListener('mouseup', handleMouseUp);
+      document.body.style.cursor = 'col-resize';
+      document.body.style.userSelect = 'none';
+    }
+
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+    };
+  }, [isResizing]);
 
   const startThinkingTimeline = useCallback(() => {
     stopThinkingTimeline();
@@ -678,6 +719,7 @@ useEffect(() => {
       `Section: ${setup.category || 'Ikke valgt'}`,
       `Topics: ${topicsDisplay}`,
       setup.template ? `Template: ${setup.template}` : null,
+      setup.researchSelected && setup.researchSelected.title ? `Research artikel: "${setup.researchSelected.title}"${setup.researchSelected.source ? ` (${setup.researchSelected.source})` : ''}` : null,
       setup.rating ? `Rating: ${setup.rating}⭐` : null,
       `Presse: ${pressDisplay}`
     ].filter(Boolean).join('\n');
@@ -1038,9 +1080,27 @@ useEffect(() => {
 
             {/* Main Chat with AI */}
             <div
-              className="md:w-[500px] w-full flex-shrink-0 absolute top-0 bottom-0 left-0 md:top-[1%] md:bottom-[1%] md:left-[1%] z-10"
-              style={{ transition: 'transform 320ms cubic-bezier(0.22, 1, 0.36, 1)', transform: shelfOpen ? 'translateX(calc(12px + min(300px, 50vw)))' : 'translateX(0)' }}
+              ref={chatPanelRef}
+              className="w-full flex-shrink-0 absolute top-0 bottom-0 left-0 md:top-[1%] md:bottom-[1%] md:left-[1%] z-10"
+              style={{ 
+                width: typeof window !== 'undefined' && window.innerWidth >= 768 ? `${chatWidth}px` : '100%',
+                transition: isResizing ? 'none' : 'transform 320ms cubic-bezier(0.22, 1, 0.36, 1)', 
+                transform: shelfOpen ? 'translateX(calc(12px + min(300px, 50vw)))' : 'translateX(0)' 
+              }}
             >
+              {/* Resize handle */}
+              {typeof window !== 'undefined' && window.innerWidth >= 768 && (
+                <div
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    setIsResizing(true);
+                  }}
+                  className="absolute top-0 bottom-0 right-0 w-1 cursor-col-resize hover:bg-white/20 transition-colors z-30 group"
+                  style={{ touchAction: 'none' }}
+                >
+                  <div className="absolute top-1/2 right-0 -translate-y-1/2 translate-x-1/2 w-1 h-16 bg-white/0 group-hover:bg-white/30 rounded-full transition-colors" />
+                </div>
+              )}
               {/* Always keep chat visible underneath */}
               <MainChatPanel 
                 messages={chatMessages}
@@ -1164,11 +1224,13 @@ useEffect(() => {
             </div>
 
             {/* Layout placeholder for chat width so the mini‑menu keeps its placement */}
-            <div className="hidden md:block md:w-[500px] flex-shrink-0" style={{ height: '1px' }} />
+            <div className="hidden md:block flex-shrink-0" style={{ width: typeof window !== 'undefined' && window.innerWidth >= 768 ? `${chatWidth}px` : '500px', height: '1px' }} />
             
             {/* Right Sidebar with action buttons (desktop) */}
             <MiniMenu
-              translateX={shelfOpen ? 'translateX(calc(12px + min(300px, 50vw) + 500px + 12px))' : 'translateX(calc(500px + 12px))'}
+              translateX={shelfOpen 
+                ? `translateX(calc(12px + min(300px, 50vw) + ${chatWidth}px + 12px))` 
+                : `translateX(calc(${chatWidth}px + 12px))`}
               onSearch={() => setShowSearchModal(true)}
               onToggleReview={() => setReviewOpen(prev=>!prev)}
               onToggleShelf={() => setShelfOpen(prev=>!prev)}

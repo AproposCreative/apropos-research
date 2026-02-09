@@ -3,12 +3,37 @@ import { useMemo, memo } from 'react';
 import Image from 'next/image';
 import { useSelect } from './SelectCtx';
 
+// Normalize date string to ISO format
+function normalizeDate(dateStr?: string): Date | null {
+  if (!dateStr) return null;
+  
+  try {
+    // Try parsing as-is first (works for ISO format)
+    let date = new Date(dateStr);
+    if (!isNaN(date.getTime())) return date;
+    
+    // Handle DD-MM-YYYY format (common in GAFFA articles)
+    const ddmmyyyyPattern = /^(\d{1,2})-(\d{1,2})-(\d{4})(?:\s+(\d{1,2}):(\d{1,2}):(\d{1,2}))?$/;
+    const match = dateStr.match(ddmmyyyyPattern);
+    if (match) {
+      const [, day, month, year, hour = '00', minute = '00', second = '00'] = match;
+      const isoStr = `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}T${hour.padStart(2, '0')}:${minute.padStart(2, '0')}:${second.padStart(2, '0')}Z`;
+      date = new Date(isoStr);
+      if (!isNaN(date.getTime())) return date;
+    }
+    
+    return null;
+  } catch {
+    return null;
+  }
+}
+
 function formatDateDa(iso?: string) {
   if (!iso) return 'ukendt dato';
   
   try {
-    const date = new Date(iso);
-    if (isNaN(date.getTime())) return 'ukendt dato';
+    const date = normalizeDate(iso);
+    if (!date) return 'ukendt dato';
     
     const now = new Date();
     const diffTime = now.getTime() - date.getTime();

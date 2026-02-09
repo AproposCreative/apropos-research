@@ -30,9 +30,18 @@ export default function MediaManagementClient() {
         throw new Error(data.error || 'Fejl ved indlæsning af mediekilder');
       }
       
-      setSources(data.sources);
+      // Handle both old format (data.sources) and new format (data.data.sources)
+      const sources = data.data?.sources || data.sources;
+      
+      if (Array.isArray(sources)) {
+        setSources(sources);
+      } else {
+        console.warn('Invalid media sources format:', data);
+        setSources([]);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'En fejl opstod');
+      setSources([]);
     } finally {
       setLoading(false);
     }
@@ -43,11 +52,23 @@ export default function MediaManagementClient() {
   }, []);
 
   // Handle adding new source
-  const handleAddSuccess = (newSource: MediaSource) => {
-    setSources(prev => [...prev, newSource]);
-    setShowAddModal(false);
-    // Trigger a page refresh to reload data
-    window.location.reload();
+  const handleAddSuccess = (result: any) => {
+    // API returns: { success: true, data: { source: {...}, message: "..." } }
+    const newSource = result.data?.source || result.source;
+    
+    if (newSource && newSource.id) {
+      // Add to local state immediately for instant feedback
+      setSources(prev => [...prev, newSource]);
+      setShowAddModal(false);
+      
+      // Reload sources from API to ensure consistency
+      loadSources();
+    } else {
+      console.error('Invalid source data received:', result);
+      // Reload sources from API anyway
+      loadSources();
+      setShowAddModal(false);
+    }
   };
 
   // Handle editing source

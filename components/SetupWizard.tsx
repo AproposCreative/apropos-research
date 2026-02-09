@@ -23,6 +23,18 @@ const getDateTimestamp = (value?: string | number | null) => {
   return Number.isNaN(time) ? 0 : time;
 };
 
+// Deduplicate articles by URL or title
+const deduplicateArticles = <T extends { url?: string; title?: string }>(items: T[]): T[] => {
+  const seen = new Set<string>();
+  return items.filter(item => {
+    // Use URL as primary key, fallback to title
+    const key = (item.url || item.title || '').toLowerCase().trim();
+    if (!key || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+};
+
 const sortByNewest = <T,>(items: T[], getDate: (item: T) => string | number | undefined | null) => {
   return [...items].sort(
     (a, b) => getDateTimestamp(getDate(b)) - getDateTimestamp(getDate(a))
@@ -45,6 +57,8 @@ export default function SetupWizard({ initialData, onComplete, onChange }: Setup
   const [recommendedItems, setRecommendedItems] = useState<Array<{ title:string; date?:string; source?:string; url?:string; category?:string; type?:string; excerpt?:string }>>([]);
   const [loadingRecommended, setLoadingRecommended] = useState(false);
   const [loadingTrending, setLoadingTrending] = useState(false);
+  const [analysisData, setAnalysisData] = useState<{ trend: string; angle: string; audience: string; suggestions: string[] } | null>(null);
+  const [loadingAnalysis, setLoadingAnalysis] = useState(false);
   const trendingAbortRef = useRef<AbortController | null>(null);
   const currentSourceRef = useRef<string>('');
   const dragInfoRef = useRef<{ active: boolean; pointerId: number | null; startX: number; scrollLeft: number; moved: boolean }>({ active: false, pointerId: null, startX: 0, scrollLeft: 0, moved: false });
@@ -119,17 +133,30 @@ export default function SetupWizard({ initialData, onComplete, onChange }: Setup
       try {
         const res = await fetch('/api/webflow/authors');
         const j = await res.json();
-        setAuthors(j.authors || []);
+        // Handle both old format (j.authors) and new format (j.data.authors)
+        const authors = j.data?.authors || j.authors || [];
+        setAuthors(Array.isArray(authors) ? authors : []);
         // load sections/topics from Webflow collections if env ids are set
         const [secRes, topRes] = await Promise.all([
           fetch('/api/webflow/sections'),
           fetch('/api/webflow/topics')
         ]);
-        const sec = secRes.ok ? (await secRes.json()).items || [] : [];
-        const top = topRes.ok ? (await topRes.json()).items || [] : [];
-        setSections(sec);
-        setTopics(top);
-      } catch {} finally { setLoadingAuthors(false); setLoadingTaxonomies(false); }
+        const secData = secRes.ok ? await secRes.json() : null;
+        const topData = topRes.ok ? await topRes.json() : null;
+        // Handle both old format (items) and new format (data.items)
+        const sec = secData?.data?.items || secData?.items || [];
+        const top = topData?.data?.items || topData?.items || [];
+        setSections(Array.isArray(sec) ? sec : []);
+        setTopics(Array.isArray(top) ? top : []);
+      } catch (error) {
+        console.error('Error loading authors/taxonomies:', error);
+        setAuthors([]);
+        setSections([]);
+        setTopics([]);
+      } finally { 
+        setLoadingAuthors(false); 
+        setLoadingTaxonomies(false); 
+      }
     };
     run();
   }, []);
@@ -140,9 +167,15 @@ export default function SetupWizard({ initialData, onComplete, onChange }: Setup
       try {
         const res = await fetch('/api/webflow/streaming-services');
         const j = await res.json();
-        setServices(j.items || []);
-      } catch {}
-      finally { setLoadingServices(false); }
+        // Handle both old format (j.items) and new format (j.data.items)
+        const items = j.data?.items || j.items || [];
+        setServices(Array.isArray(items) ? items : []);
+      } catch (error) {
+        console.error('Error loading streaming services:', error);
+        setServices([]);
+      } finally { 
+        setLoadingServices(false); 
+      }
     };
     run();
   }, []);
@@ -153,9 +186,15 @@ export default function SetupWizard({ initialData, onComplete, onChange }: Setup
       try {
         const res = await fetch('/api/media-sources');
         const j = await res.json();
-        setMediaSources((j.sources||[]).map((s:any)=>({ id: s.id, name: s.name })));
-      } catch {}
-      finally { setLoadingSources(false); }
+        // Handle both old format (j.sources) and new format (j.data.sources)
+        const sources = j.data?.sources || j.sources || [];
+        setMediaSources(Array.isArray(sources) ? sources.map((s:any)=>({ id: s.id, name: s.name })) : []);
+      } catch (error) {
+        console.error('Error loading media sources:', error);
+        setMediaSources([]);
+      } finally { 
+        setLoadingSources(false); 
+      }
     };
     run();
   }, []);
@@ -357,19 +396,22 @@ export default function SetupWizard({ initialData, onComplete, onChange }: Setup
         const items = Array.isArray(j.recommendations) ? j.recommendations : [];
         const sortedRecommendations = sortByNewest(items, (item: any) => item.date || item.published_at || item.publishDate || item.releaseDate);
         setRecommendedItems(sortedRecommendations);
-        const normalized = sortByNewest(
-          sortedRecommendations.map((it: any) => ({
-            title: it.title,
-            date: it.date || it.published_at || it.publishDate,
-            published_at: it.published_at || it.date || it.publishDate,
-            source: it.source,
-            url: it.url,
-            keyPoints: [],
-            content: it.excerpt || ''
-          })),
+        const normalized = sortedRecommendations.map((it: any) => ({
+          title: it.title,
+          date: it.date || it.published_at || it.publishDate,
+          published_at: it.published_at || it.date || it.publishDate,
+          source: it.source,
+          url: it.url,
+          keyPoints: [],
+          content: it.excerpt || ''
+        }));
+        // Deduplicate before sorting
+        const uniqueNormalized = deduplicateArticles(normalized);
+        const sortedNormalized = sortByNewest(
+          uniqueNormalized,
           (item) => item.date || item.published_at
         );
-        setTrendingItems(normalized);
+        setTrendingItems(sortedNormalized);
       } catch (error) {
         console.error('Error loading recommended articles:', error);
       } finally {
@@ -411,20 +453,24 @@ export default function SetupWizard({ initialData, onComplete, onChange }: Setup
       if (items.length === 0 && Array.isArray(j.allArticles)) {
         items = j.allArticles;
       }
-      const mappedItems = sortByNewest(
-        items.map((a: any) => ({ 
-          title: a.title || a.name || 'Ukendt titel', 
-          date: a.date || a.published_at || a.publishDate,
-          published_at: a.published_at || a.date || a.publishDate,
-          publishDate: a.publishDate || a.date || a.published_at,
-          source: a.source || sourceName,
-          url: a.url || a.link,
-          keyPoints: Array.isArray(a.keyPoints) ? a.keyPoints : (a.keyPoints ? [a.keyPoints] : []),
-          content: a.content || a.body_text || a.body || a.excerpt || ''
-        })),
+      // Map and deduplicate articles
+      const mappedItems = items.map((a: any) => ({ 
+        title: a.title || a.name || 'Ukendt titel', 
+        date: a.date || a.published_at || a.publishDate,
+        published_at: a.published_at || a.date || a.publishDate,
+        publishDate: a.publishDate || a.date || a.published_at,
+        source: a.source || sourceName,
+        url: a.url || a.link,
+        keyPoints: Array.isArray(a.keyPoints) ? a.keyPoints : (a.keyPoints ? [a.keyPoints] : []),
+        content: a.content || a.body_text || a.body || a.excerpt || ''
+      }));
+      // Deduplicate before sorting
+      const uniqueItems = deduplicateArticles(mappedItems);
+      const sortedItems = sortByNewest(
+        uniqueItems,
         (item) => item.date || item.published_at || item.publishDate
       );
-      setTrendingItems(mappedItems);
+      setTrendingItems(sortedItems);
       currentSourceRef.current = sourceName;
     } catch (error) {
       console.error('Error loading trending articles:', error);
@@ -447,6 +493,55 @@ export default function SetupWizard({ initialData, onComplete, onChange }: Setup
       loadArticles(data.inspirationSource);
     }
   }, [step, data.template, data.inspirationSource, loadingTrending, mediaSources, trendingItems.length, loadArticles]);
+
+  // Load dynamic analysis when entering analysis step with a research article
+  useEffect(() => {
+    const shouldAnalyze = step === 'analysis' && 
+                         data.template === 'research' && 
+                         data.researchSelected && 
+                         !loadingAnalysis &&
+                         (!analysisData || analysisData.trend === 'Stabil'); // Only analyze if we don't have dynamic data yet
+    
+    if (shouldAnalyze) {
+      const analyzeResearch = async () => {
+        setLoadingAnalysis(true);
+        try {
+          const res = await fetch('/api/analyze-research', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              title: data.researchSelected.title,
+              content: data.researchSelected.content,
+              keyPoints: data.researchSelected.keyPoints,
+              source: data.researchSelected.source
+            })
+          });
+          
+          if (res.ok) {
+            const result = await res.json();
+            const analysis = result.data || result;
+            if (analysis.trend && analysis.angle && analysis.audience && Array.isArray(analysis.suggestions)) {
+              setAnalysisData(analysis);
+              // Update aiDraft with suggestions
+              updateData((d: any) => ({
+                ...d,
+                aiDraft: {
+                  ...(d.aiDraft || {}),
+                  suggestions: analysis.suggestions
+                }
+              }));
+            }
+          }
+        } catch (error) {
+          console.error('Error analyzing research article:', error);
+        } finally {
+          setLoadingAnalysis(false);
+        }
+      };
+      
+      analyzeResearch();
+    }
+  }, [step, data.template, data.researchSelected, loadingAnalysis, analysisData, updateData]);
 
   // Auto-refresh articles in background every 2 minutes when on trending step
   useEffect(() => {
@@ -689,10 +784,10 @@ export default function SetupWizard({ initialData, onComplete, onChange }: Setup
             <div className="grid gap-2 md:gap-[10px]">
             {loadingTrending && (<div className="w-6 h-6 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>)}
             {!loadingTrending && trendingItems.map((it, idx)=> {
-              const selected = data.researchSelected?.title === it.title;
+              const selected = data.researchSelected?.title === it.title || data.researchSelected?.url === it.url;
               return (
                 <button
-                  key={idx}
+                  key={it.url || it.title || idx}
                   onClick={()=> selected
                     ? updateData((d:any)=> ({ ...d, researchSelected: null, inspirationAcknowledged: false }))
                     : updateData((d:any)=> ({ ...d, researchSelected: it, inspirationAcknowledged: false }), 'trending', 'inspiration')
@@ -808,10 +903,65 @@ export default function SetupWizard({ initialData, onComplete, onChange }: Setup
         <div className="space-y-3 md:space-y-[14px]">
           <div className="text-white/80 text-sm">AI Draft analyse</div>
           {(() => {
-            const defaultPrompt = data.researchSelected
-              ? `Skriv en dybdegående artikel baseret på "${data.researchSelected.title}". Inkluder de vigtigste pointer, udvid med kontekst, eksperter og statistikker. ${toneInstruction}`
-              : `Skriv en dybdegående artikel. ${toneInstruction}`;
-            const promptValue = data.aiDraft?.prompt ?? defaultPrompt;
+            // Build comprehensive prompt with research article context
+            const buildResearchPrompt = () => {
+              if (!data.researchSelected) {
+                return `Skriv en dybdegående artikel. ${toneInstruction}`;
+              }
+              
+              const title = data.researchSelected.title || '';
+              const source = data.researchSelected.source || 'kilden';
+              const keyPoints = Array.isArray(data.researchSelected.keyPoints) && data.researchSelected.keyPoints.length > 0
+                ? data.researchSelected.keyPoints.slice(0, 5).map((kp: string, i: number) => `${i + 1}. ${kp}`).join('\n')
+                : 'Ingen nøglepunkter specificeret';
+              const contentPreview = data.researchSelected.content 
+                ? data.researchSelected.content.substring(0, 300).replace(/\s+/g, ' ').trim() + '...'
+                : '';
+              
+              return `Skriv en dybdegående, original artikel inspireret af emnet fra "${title}" (${source}).
+
+**RESEARCH KILDE (Brug som inspiration - IKKE kopier direkte):**
+- Titel: "${title}"
+- Kilde: ${source}
+${contentPreview ? `- Indholdseksempel: ${contentPreview}\n` : ''}
+- Nøglepunkter fra research:
+${keyPoints}
+
+**KRITISKE INSTRUKTIONER FOR ORIGINALITET:**
+1. Parafrasér ALTID - omskriv alle fakta og pointer i dine egne ord
+2. Tilføj din egen vinkel og analyse - brug ikke samme struktur som originalen
+3. Udvid med nye elementer: ekspertcitater, statistikker, historisk kontekst, kulturelle referencer
+4. Brug forskellige eksempler end originalen - find dine egne cases og sammenligninger
+5. Skriv med din egen forfatterstemme og stil - ikke samme tone som kilden
+6. Strukturer artiklen anderledes - brug din egen logik og flow
+7. Tilføj nye perspektiver og indsigt som ikke er i originalen
+
+**MÅL:**
+- Skriv en artikel der er inspireret af emnet, men helt original i formulering, struktur og indhold
+- Minimum 800-1200 ord med dybdegående analyse
+- Inkluder verificerede fakta, eksperter og statistikker fra eksterne kilder
+- Brug research-artiklen som udgangspunkt, men skriv din egen unikke artikel
+
+${toneInstruction}`;
+            };
+            
+            const defaultPrompt = buildResearchPrompt();
+            // If prompt exists, ensure it uses current tone instruction
+            const existingPrompt = data.aiDraft?.prompt;
+            let promptValue = existingPrompt ?? defaultPrompt;
+            
+            // Always ensure prompt uses current tone instruction (in case author was selected after prompt creation)
+            if (existingPrompt) {
+              // Replace any tone instruction with current one
+              promptValue = existingPrompt.replace(/Brug (Apropos'|[^']+s?) tone\.?/g, toneInstruction);
+              // If no tone instruction found, append it
+              if (!promptValue.includes('tone')) {
+                promptValue = promptValue.trim() + '\n\n' + toneInstruction;
+              }
+            } else {
+              // Use default prompt with current tone instruction
+              promptValue = defaultPrompt;
+            }
             return (
               <>
                 <div className="bg-white/5 rounded-lg border border-white/10 p-3">
@@ -823,26 +973,44 @@ export default function SetupWizard({ initialData, onComplete, onChange }: Setup
                   />
                 </div>
                 <div className="bg-white/5 rounded-lg border border-white/10 p-3">
-                  <div className="text-white/70 text-xs mb-1">Trend Analyse</div>
-                  <div className="text-white/80 text-xs space-y-1">
-                    <div>Trend: <span className="px-2 py-0.5 rounded bg-white/10">Stabil</span></div>
-                    <div>Vinkel: <span className="opacity-80">Balanceret analyse</span></div>
-                    <div>Målgruppe: <span className="opacity-80">Generel læser</span></div>
-                  </div>
+                  <div className="text-white/70 text-xs mb-1">Trend Analyse {loadingAnalysis && <span className="text-white/40">(Analyserer...)</span>}</div>
+                  {loadingAnalysis ? (
+                    <div className="flex items-center gap-2">
+                      <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                      <span className="text-white/60 text-xs">Analyserer research-artikel...</span>
+                    </div>
+                  ) : (
+                    <div className="text-white/80 text-xs space-y-1">
+                      <div>Trend: <span className="px-2 py-0.5 rounded bg-white/10">{analysisData?.trend || 'Stabil'}</span></div>
+                      <div>Vinkel: <span className="opacity-80">{analysisData?.angle || 'Balanceret analyse'}</span></div>
+                      <div>Målgruppe: <span className="opacity-80">{analysisData?.audience || 'Generel læser'}</span></div>
+                    </div>
+                  )}
                 </div>
                 <div className="bg-white/5 rounded-lg border border-white/10 p-3">
-                  <div className="text-white/70 text-xs mb-2">AI Forslag</div>
-                  <ul className="text-white/80 text-xs list-disc list-inside space-y-1">
-                    {(
-                      data.aiDraft?.suggestions || [
-                        'Tilføj ekspertcitater for relevante fagfolk',
-                        'Inkluder statistik eller data for at understøtte argumenter',
-                        'Uddyb baggrundshistorien for bedre kontekst',
-                      ]
-                    ).map((s:string, i:number)=> (
-                      <li key={i}>{s}</li>
-                    ))}
-                  </ul>
+                  <div className="text-white/70 text-xs mb-2">AI Forslag (for at undgå plagiering) {loadingAnalysis && <span className="text-white/40">(Genererer...)</span>}</div>
+                  {loadingAnalysis ? (
+                    <div className="flex items-center gap-2">
+                      <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                      <span className="text-white/60 text-xs">Genererer forslag...</span>
+                    </div>
+                  ) : (
+                    <ul className="text-white/80 text-xs list-disc list-inside space-y-1">
+                      {(
+                        analysisData?.suggestions || data.aiDraft?.suggestions || [
+                          'Tilføj ekspertcitater fra nye kilder - ikke samme eksperter som originalen',
+                          'Inkluder statistikker og data fra alternative kilder for at understøtte argumenter',
+                          'Uddyb baggrundshistorien med nye fakta og perspektiver',
+                          'Find lignende cases eller eksempler fra andre kontekster',
+                          'Tilføj kulturelle referencer og sammenligninger der ikke er i originalen',
+                          'Brug forskellige eksempler og anekdoter end research-artiklen',
+                          'Omskriv alle pointer i dine egne ord med din egen analyse',
+                        ]
+                      ).map((s:string, i:number)=> (
+                        <li key={i}>{s}</li>
+                      ))}
+                    </ul>
+                  )}
                 </div>
                 <div className="flex justify-end">
                   <button
@@ -874,10 +1042,41 @@ export default function SetupWizard({ initialData, onComplete, onChange }: Setup
               return (
                 <button
                   key={a.id}
-                  onClick={()=> selected
-                    ? updateData((d:any)=> ({ ...d, author: '', authorId: '', authorTOV: '' }))
-                    : updateData((d:any)=> ({ ...d, author: a.name, authorId: a.id, authorTOV: a.tov }), 'author')
-                  }
+                  onClick={()=> {
+                    if (selected) {
+                      updateData((d:any)=> ({ 
+                        ...d, 
+                        author: '', 
+                        authorId: '', 
+                        authorTOV: '',
+                        // Update prompt to remove author-specific tone if it exists
+                        aiDraft: d.aiDraft?.prompt ? {
+                          ...d.aiDraft,
+                          prompt: d.aiDraft.prompt.replace(/Brug [^']+s? tone\.?/g, "Brug Apropos' tone.")
+                        } : d.aiDraft
+                      }));
+                    } else {
+                      updateData((d:any)=> {
+                        const updated = { 
+                          ...d, 
+                          author: a.name, 
+                          authorId: a.id, 
+                          authorTOV: a.tov 
+                        };
+                        // Update prompt with new author TOV if prompt exists
+                        if (d.aiDraft?.prompt) {
+                          const newToneInstruction = a.tov 
+                            ? (a.tov.endsWith('.') ? a.tov : `${a.tov}.`)
+                            : `Brug ${a.name}${/s$/i.test(a.name) ? '' : 's'} tone.`;
+                          updated.aiDraft = {
+                            ...d.aiDraft,
+                            prompt: d.aiDraft.prompt.replace(/Brug (Apropos'|[^']+s?) tone\.?/g, newToneInstruction)
+                          };
+                        }
+                        return updated;
+                      }, 'author');
+                    }
+                  }}
                   className={`px-3 py-1.5 rounded-lg text-xs transition-all border ${selected ? 'bg-white/10 text-white border-white/40' : 'bg-white/5 text-white border-white/10 hover:border-white/20 hover:bg-white/10'}`}
                 >
                   <span className={selected ? 'text-sheen-glow' : ''}>{a.name}</span>
@@ -972,6 +1171,34 @@ export default function SetupWizard({ initialData, onComplete, onChange }: Setup
             })}
             {!loadingTaxonomies && topics.length===0 && (
               <div className="text-white/60 text-xs">Ingen topics fundet fra Webflow</div>
+            )}
+            {/* Fortsæt knap - vises hvis mindst 1 topic er valgt */}
+            {!loadingTaxonomies && topicsSelectedCount >= 1 && (
+              <button
+                onClick={() => {
+                  const currentSelected = Array.isArray(data.topicsSelected)
+                    ? data.topicsSelected
+                    : (data.topic ? [data.topic] : []);
+                  const requiresPlatformNext = (() => {
+                    const secLower = String(data.section || '').toLowerCase();
+                    const topicsLower = currentSelected.map((name: string) => name.toLowerCase());
+                    return secLower.includes('serier') || secLower.includes('film') || topicsLower.some((name: string) => name.includes('serie') || name.includes('film'));
+                  })();
+                  const advanceToStep = requiresPlatformNext ? 'platform' : 'rating';
+                  updateData((d: any) => {
+                    const tags = Array.from(new Set([d.section, ...currentSelected].filter(Boolean)));
+                    return {
+                      ...d,
+                      topicsSelected: currentSelected,
+                      topic: currentSelected[0] || '',
+                      tags
+                    };
+                  }, 'topic', advanceToStep);
+                }}
+                className="px-3 py-1.5 rounded-lg text-xs transition-all border bg-white/5 text-white border-white/10 hover:border-white/20 hover:bg-white/10"
+              >
+                <span>Fortsæt</span>
+              </button>
             )}
           </div>
         </div>

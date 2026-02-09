@@ -20,11 +20,12 @@ export default function AuthorSelection({ onAuthorSelected }: AuthorSelectionPro
       const response = await fetch('/api/webflow/authors');
       const data = await response.json();
       
-      if (data.authors) {
-        setAuthors(data.authors);
-      }
+      // Handle both old format (data.authors) and new format (data.data.authors)
+      const authors = data.data?.authors || data.authors || [];
+      setAuthors(Array.isArray(authors) ? authors : []);
     } catch (error) {
       console.error('Error fetching authors:', error);
+      setAuthors([]);
     } finally {
       setIsLoading(false);
     }

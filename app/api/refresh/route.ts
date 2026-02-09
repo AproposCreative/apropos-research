@@ -8,6 +8,7 @@ export async function POST(request: Request) {
   // Parse request body to get custom parameters
   let sinceHours = 168; // Default: 1 week
   let limit = 200; // Default: 200 articles
+  let source: string | undefined = undefined; // Optional: specific media source ID
   
   try {
     const body = await request.json();
@@ -19,6 +20,9 @@ export async function POST(request: Request) {
     }
     if (body.limit) {
       limit = body.limit;
+    }
+    if (body.source) {
+      source = body.source;
     }
   } catch {
     // If no body or parsing fails, use defaults
@@ -35,24 +39,27 @@ export async function POST(request: Request) {
     useDirectImport = true;
     
     // Run ingestion in background (don't await)
-    ingestOnce({ sinceHrs: sinceHours, limit }).then(() => {
+    ingestOnce({ sinceHrs: sinceHours, limit, source }).then(() => {
       invalidatePromptsCache();
-      logger.info('Ingest completed successfully', { sinceHours, limit });
+      logger.info('Ingest completed successfully', { sinceHours, limit, source });
     }).catch((err) => {
-      logger.error('Ingest failed', err instanceof Error ? err : new Error(String(err)), { sinceHours, limit });
+      logger.error('Ingest failed', err instanceof Error ? err : new Error(String(err)), { sinceHours, limit, source });
     });
     
     return NextResponse.json({
       ok: true,
-      message: 'Ingest started in background (direct import)',
+      message: source ? `Ingest started in background for ${source}` : 'Ingest started in background (direct import)',
       sinceHours,
-      limit
+      limit,
+      source
     }, { status: 202 });
   } catch (importErr) {
     // Fall back to exec if direct import fails
     const errorObj = importErr instanceof Error ? importErr : new Error(String(importErr));
     logger.warn('Direct import failed, using exec fallback', { error: String(importErr) }, errorObj);
-    const cmd = `npm run ingest:rage -- --since=${sinceHours} --limit=${limit}`;
+    const cmd = source 
+      ? `npm run ingest:rage -- --since=${sinceHours} --limit=${limit} --source=${source}`
+      : `npm run ingest:rage -- --since=${sinceHours} --limit=${limit}`;
 
     // Start ingest in background - don't wait for it to complete
     exec(cmd, { cwd: root, env: process.env, timeout: 1000 * 60 * 5 }, (err, stdout, stderr) => {
@@ -68,9 +75,10 @@ export async function POST(request: Request) {
     // Return immediately
     return NextResponse.json({
       ok: true,
-      message: 'Ingest started in background (exec fallback)',
+      message: source ? `Ingest started in background for ${source} (exec fallback)` : 'Ingest started in background (exec fallback)',
       sinceHours,
-      limit
+      limit,
+      source
     }, { status: 202 }); // 202 Accepted
   }
 }

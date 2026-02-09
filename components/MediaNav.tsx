@@ -3,13 +3,12 @@ import { useSearchParams, usePathname } from 'next/navigation';
 import { Suspense } from 'react';
 import Link from 'next/link';
 import { useMedia } from '../lib/media-context';
-import MediaToggle from './MediaToggle';
 
 function MediaNavInner() {
   const searchParams = useSearchParams();
   const pathname = usePathname();
   const currentSource = searchParams.get('source');
-  const { toggleMedia, isMediaEnabled, getEnabledMedias, getDisabledMedias, mediaSources, articleCounts } = useMedia();
+  const { getEnabledMedias, getDisabledMedias, mediaSources, articleCounts } = useMedia();
 
   const getLinkClasses = (href: string, isActive: boolean) => {
     return `flex items-center px-4 py-3 rounded-xl transition-all duration-300 backdrop-blur-sm ${
@@ -71,28 +70,6 @@ function MediaNavInner() {
                     </div>
                   </div>
                 </div>
-
-                {/* Toggle Switch */}
-                <button
-                  onClick={(e) => {
-                    e.preventDefault();
-                    toggleMedia(mediaId, !isMediaEnabled(mediaId));
-                  }}
-                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors duration-300 ease-out focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 dark:focus:ring-offset-black-900 ${
-                    isMediaEnabled(mediaId)
-                      ? 'bg-primary-600 dark:bg-primary-500' 
-                      : 'bg-slate-300 dark:bg-pure-black'
-                  }`}
-                  role="switch"
-                  aria-checked={isMediaEnabled(mediaId)}
-                  aria-label={`${isMediaEnabled(mediaId) ? 'Deaktiver' : 'Aktiver'} ${media.name}`}
-                >
-                  <span
-                    className={`inline-block h-4 w-4 transform rounded-full bg-white shadow-lg transition-transform duration-300 ease-out ${
-                      isMediaEnabled(mediaId) ? 'translate-x-6' : 'translate-x-1'
-                    }`}
-                  />
-                </button>
               </div>
             </Link>
           </div>
@@ -125,28 +102,6 @@ function MediaNavInner() {
                         </div>
                       </div>
                     </div>
-
-                    {/* Toggle Switch */}
-                    <button
-                      onClick={(e) => {
-                        e.preventDefault();
-                        toggleMedia(mediaId, !isMediaEnabled(mediaId));
-                      }}
-                      className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors duration-300 ease-out focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 dark:focus:ring-offset-black-900 ${
-                        isMediaEnabled(mediaId)
-                          ? 'bg-primary-600 dark:bg-primary-500' 
-                          : 'bg-slate-300 dark:bg-pure-black'
-                      }`}
-                      role="switch"
-                      aria-checked={isMediaEnabled(mediaId)}
-                      aria-label={`${isMediaEnabled(mediaId) ? 'Deaktiver' : 'Aktiver'} ${media.name}`}
-                    >
-                      <span
-                        className={`inline-block h-3 w-3 transform rounded-full bg-white shadow-lg transition-transform duration-300 ease-out ${
-                          isMediaEnabled(mediaId) ? 'translate-x-5' : 'translate-x-1'
-                        }`}
-                      />
-                    </button>
                   </div>
                 </div>
               );

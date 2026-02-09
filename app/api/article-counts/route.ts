@@ -17,15 +17,19 @@ function mapSourceToId(source: string | undefined, url?: string): string | undef
       if (host.includes('soundvenue')) return 'soundvenue';
       if (host.includes('ign.com')) return 'ign-nordic';
       if (host.includes('ekkofilm')) return 'ekkofilm';
+      if (host.includes('markedsforing')) return 'https-markedsforing-dk';
     } catch {}
   }
   if (!normalized) return undefined;
+  // Direct match for exact source IDs first
+  if (normalized === 'https-markedsforing-dk' || normalized === 'markedsføring.dk' || normalized === 'markedsforing.dk') return 'https-markedsforing-dk';
   if (normalized.includes('berlingske')) return 'berlingske';
   if (normalized === 'bt' || normalized.includes('bt.dk')) return 'bt';
   if (normalized.includes('gaffa')) return 'gaffa';
   if (normalized.includes('soundvenue')) return 'soundvenue';
   if (normalized.includes('ign')) return 'ign-nordic';
   if (normalized.includes('ekkofilm')) return 'ekkofilm';
+  if (normalized.includes('markedsforing') || normalized.includes('markedsføring')) return 'https-markedsforing-dk';
   return undefined;
 }
 

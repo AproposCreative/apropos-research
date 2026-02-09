@@ -344,12 +344,14 @@ const getCachedAuthors = async (baseUrl: string) => {
     const response = await fetch(`${baseUrl}/api/webflow/authors`, { cache: 'no-store' });
     if (!response.ok) return null;
     const data = await response.json();
-    if (Array.isArray(data.authors)) {
+    // Handle both old format (data.authors) and new format (data.data.authors)
+    const authors = data.data?.authors || data.authors || [];
+    if (Array.isArray(authors)) {
       cachedAuthors = {
-        authors: data.authors,
+        authors,
         expires: Date.now() + AUTHOR_CACHE_TTL
       };
-      return data.authors;
+      return authors;
     }
   } catch (error) {
     console.error('Author cache fetch failed:', error);
