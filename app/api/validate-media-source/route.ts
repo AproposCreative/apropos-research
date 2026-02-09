@@ -248,7 +248,8 @@ export async function POST(req: NextRequest) {
                                             }
                                           }
                                         } catch (error) {
-                                          requestLogger.warn('Failed to fetch third level sitemap', undefined, { thirdLevelUrl });
+                                          const errorObj = error instanceof Error ? error : new Error(String(error));
+                                          requestLogger.warn('Failed to fetch third level sitemap', { thirdLevelUrl }, errorObj);
                                         }
                                       }
                                     }
@@ -256,7 +257,8 @@ export async function POST(req: NextRequest) {
                                 }
                               }
                             } catch (error) {
-                              requestLogger.warn('Failed to fetch nested sitemap', undefined, { nestedUrl });
+                              const errorObj = error instanceof Error ? error : new Error(String(error));
+                              requestLogger.warn('Failed to fetch nested sitemap', { nestedUrl }, errorObj);
                             }
                           }
                         }
@@ -265,7 +267,8 @@ export async function POST(req: NextRequest) {
                   }
                 } catch (error) {
                   // Continue with other sitemaps if one fails
-                  requestLogger.warn('Failed to fetch sitemap', undefined, { sitemapUrl });
+                  const errorObj = error instanceof Error ? error : new Error(String(error));
+                  requestLogger.warn('Failed to fetch sitemap', { sitemapUrl }, errorObj);
                 }
               }
             }
