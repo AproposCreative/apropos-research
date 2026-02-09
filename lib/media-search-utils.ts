@@ -261,7 +261,7 @@ export async function searchGoogleImages(searchTerm: string): Promise<string | n
     const response = await fetch(url);
     
     if (!response.ok) {
-      logger.warn('Google Custom Search API error', undefined, { status: response.status });
+      logger.warn('Google Custom Search API error', { status: response.status });
       return null;
     }
     
