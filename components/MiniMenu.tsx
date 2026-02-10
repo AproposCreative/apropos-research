@@ -2,7 +2,7 @@
 import { useState } from 'react';
 import { useAuth } from '@/lib/auth-context';
 
-export default function MiniMenu({ translateX, onSearch, onToggleReview, onToggleShelf, onNewArticle }: { translateX: string; onSearch: ()=>void; onToggleReview: ()=>void; onToggleShelf: ()=>void; onNewArticle: ()=>void; }) {
+export default function MiniMenu({ translateX, onSearch, onToggleReview, onToggleGuide, onToggleWebApps, onToggleShelf, onNewArticle }: { translateX: string; onSearch: ()=>void; onToggleReview: ()=>void; onToggleGuide: ()=>void; onToggleWebApps: ()=>void; onToggleShelf: ()=>void; onNewArticle: ()=>void; }) {
   const { user, logout } = useAuth();
   const [accountOpen, setAccountOpen] = useState(false);
 
@@ -23,7 +23,7 @@ export default function MiniMenu({ translateX, onSearch, onToggleReview, onToggl
   const userName = (user?.displayName || user?.email?.split('@')[0] || 'Bruger');
 
   return (
-    <div className={`hidden md:block absolute top-[1%] left-[1%] z-20`}>
+    <div className={`hidden md:block absolute top-[1%] left-[1%] z-50`}>
       <div className={`md:flex border border-white/20 rounded-2xl items-center overflow-hidden mini-menu-expand ${accountOpen ? 'mini-menu-expand-active' : ''}`}
         style={{ backgroundColor: 'rgb(0, 0, 0)', height: '50px', padding: '4px', transition: 'transform 320ms cubic-bezier(0.22, 1, 0.36, 1)', transform: translateX, willChange: 'transform' }}>
         <div className="flex items-center" style={{ width: accountOpen ? 'auto' : 'auto' }}>
@@ -39,12 +39,22 @@ export default function MiniMenu({ translateX, onSearch, onToggleReview, onToggl
               <circle cx="12" cy="12" r="3"/>
             </svg>
           </button>
-          <button onClick={onToggleShelf} className="w-8 h-8 flex items-center justify-center hover:bg-white/10 rounded-xl transition-colors" title="Mine artikler">
+          <button onClick={onToggleGuide} className="w-8 h-8 flex items-center justify-center hover:bg-white/10 rounded-xl transition-colors" title="Guide – Sådan bruger du løsningen">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-white">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+          </button>
+          <button onClick={onToggleWebApps} className="w-8 h-8 flex items-center justify-center hover:bg-white/10 rounded-xl transition-colors" title="Web-apps">
             <div className="grid grid-cols-3 gap-0.5 w-3 h-3">
               {Array.from({ length: 9 }).map((_, i) => (
                 <div key={i} className="w-0.5 h-0.5 bg-white rounded-full"></div>
               ))}
             </div>
+          </button>
+          <button onClick={onToggleShelf} className="w-8 h-8 flex items-center justify-center hover:bg-white/10 rounded-xl transition-colors" title="Mine artikler">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-white">
+              <path d="M4 6h16M4 12h16M4 18h16" />
+            </svg>
           </button>
           <button onClick={onNewArticle} className="w-8 h-8 flex items-center justify-center hover:bg-white/10 rounded-xl transition-colors" title="Ny artikel">
             <div className="relative w-3 h-3">
@@ -52,6 +62,12 @@ export default function MiniMenu({ translateX, onSearch, onToggleReview, onToggl
               <div className="absolute top-1/2 left-1/2 w-0.5 h-2.5 bg-white transform -translate-x-1/2 -translate-y-1/2"></div>
             </div>
           </button>
+          <a href="http://localhost:3001/" className="w-8 h-8 flex items-center justify-center hover:bg-white/10 rounded-xl transition-colors text-white" title="Dashboard" target="_blank" rel="noopener noreferrer">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-white">
+              <path d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z"/>
+              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+            </svg>
+          </a>
           <div className="relative flex items-center" style={{ marginLeft: 'auto' }}>
             <button onClick={() => setAccountOpen(v=>!v)} className="w-8 h-8 flex items-center justify-center rounded-xl overflow-hidden border border-white/10 hover:border-white/20 transition-colors p-[2px]" title={user?.displayName || user?.email || 'Konto'}>
               {user?.photoURL ? (

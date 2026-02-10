@@ -69,6 +69,9 @@ interface MainChatPanelProps {
   onNewArticle?: () => void;
   onOpenDraftsPanel?: () => void;
   onOpenReviewPanel?: () => void;
+  onClose?: () => void;
+  lastFailedMessage?: string | null;
+  onRetryLast?: () => void;
 }
 
 export default function MainChatPanel({
@@ -90,7 +93,10 @@ export default function MainChatPanel({
   onClearEditorialWarnings,
   onNewArticle,
   onOpenDraftsPanel,
-  onOpenReviewPanel
+  onOpenReviewPanel,
+  onClose,
+  lastFailedMessage = null,
+  onRetryLast,
 }: MainChatPanelProps) {
   const { logout } = useAuth();
   const [inputMessage, setInputMessage] = useState('');
@@ -1144,16 +1150,29 @@ const fallbackThinkingSteps: ThinkingStep[] = [
               </span>
             )}
           </div>
-          {/* Mobile-only burger */}
-          <button
-            className="md:hidden p-2 rounded-lg border border-white/15 text-white/80 hover:text-white hover:bg-white/5 transition-colors"
-            aria-label="Åbn menu"
-            onClick={openMobileMenu}
-          >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-            </svg>
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => onClose?.()}
+              className="p-2 rounded-lg border border-white/15 text-white/70 hover:text-white hover:bg-white/5 transition-colors"
+              aria-label="Luk AI Writer og åbn Design Editor"
+              title="Luk og åbn Design Editor"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+            {/* Mobile-only burger */}
+            <button
+              className="md:hidden p-2 rounded-lg border border-white/15 text-white/80 hover:text-white hover:bg-white/5 transition-colors"
+              aria-label="Åbn menu"
+              onClick={openMobileMenu}
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+              </svg>
+            </button>
+          </div>
         </div>
       
       <div className={`flex flex-col justify-start gap-2 p-[10px] md:pt-0 pt-16 pb-2 flex-1 overflow-hidden min-h-0 chat-container transition-all duration-500 ${messages.length === 0 ? 'opacity-0 pointer-events-none translate-y-1 md:opacity-100 md:translate-y-0' : 'opacity-100 translate-y-0'}`}>
@@ -1246,6 +1265,29 @@ const fallbackThinkingSteps: ThinkingStep[] = [
                                 ))}
                               </div>
                             ))}
+                          </div>
+                        )}
+                        {/* Two-phase: quick title+intro vs full article */}
+                        {message.role === 'assistant' && /arbejdstitel.*indledning|indledning.*arbejdstitel/i.test(message.content) && (
+                          <div className="flex flex-wrap gap-2 mt-2">
+                            <button 
+                              onClick={() => onSendMessage('Generer kun en arbejdstitel og en indledning.')} 
+                              className="px-3 py-1.5 rounded-lg text-xs transition-all border bg-white/10 text-white border-white/40 hover:border-white/60 hover:bg-white/15 font-medium"
+                            >
+                              Kun titel og indledning
+                            </button>
+                            <button 
+                              onClick={() => onSendMessage('Generer en arbejdstitel og en indledning, og skriv derefter hele artiklen med research og fuld kvalitet.')} 
+                              className="px-3 py-1.5 rounded-lg text-xs transition-all border bg-white/10 text-white border-white/40 hover:border-white/60 hover:bg-white/15 font-medium"
+                            >
+                              Skriv hele artiklen
+                            </button>
+                            <button 
+                              onClick={() => onSendMessage('Nej')} 
+                              className="px-3 py-1.5 rounded-lg text-xs transition-all border bg-white/5 text-white border-white/10 hover:border-white/20 hover:bg-white/10"
+                            >
+                              Nej
+                            </button>
                           </div>
                         )}
                       </div>
@@ -1735,6 +1777,19 @@ const fallbackThinkingSteps: ThinkingStep[] = [
               <WizardAutoHeight collapsed={mobileWizardCollapsed}>
                 {wizardNode}
               </WizardAutoHeight>
+            </div>
+          )}
+          {/* Retry bar when last request failed */}
+          {lastFailedMessage && onRetryLast && (
+            <div className="mb-2 flex items-center justify-between gap-2 rounded-lg bg-amber-500/15 border border-amber-500/40 px-3 py-2 text-sm text-amber-200">
+              <span>Sidste forespørgsel fejlede.</span>
+              <button
+                type="button"
+                onClick={onRetryLast}
+                className="shrink-0 rounded-md bg-amber-500/30 px-3 py-1.5 font-medium text-amber-100 hover:bg-amber-500/50 transition-colors"
+              >
+                Forsøg igen
+              </button>
             </div>
           )}
           {/* Writer field card */}

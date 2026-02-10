@@ -18,9 +18,31 @@ type Option = { id: string; name: string; slug: string };
 
 const getDateTimestamp = (value?: string | number | null) => {
   if (value === null || value === undefined || value === '') return 0;
-  const date = typeof value === 'number' ? new Date(value) : new Date(String(value));
-  const time = date.getTime();
-  return Number.isNaN(time) ? 0 : time;
+  
+  // Handle number (timestamp)
+  if (typeof value === 'number') {
+    return value;
+  }
+  
+  const dateStr = String(value);
+  
+  // Try parsing as-is first (works for ISO format)
+  let date = new Date(dateStr);
+  let time = date.getTime();
+  if (!Number.isNaN(time)) return time;
+  
+  // Handle DD-MM-YYYY format (common in GAFFA articles)
+  const ddmmyyyyPattern = /^(\d{1,2})-(\d{1,2})-(\d{4})(?:\s+(\d{1,2}):(\d{1,2}):(\d{1,2}))?$/;
+  const match = dateStr.match(ddmmyyyyPattern);
+  if (match) {
+    const [, day, month, year, hour = '00', minute = '00', second = '00'] = match;
+    const isoStr = `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}T${hour.padStart(2, '0')}:${minute.padStart(2, '0')}:${second.padStart(2, '0')}Z`;
+    date = new Date(isoStr);
+    time = date.getTime();
+    if (!Number.isNaN(time)) return time;
+  }
+  
+  return 0;
 };
 
 // Deduplicate articles by URL or title
@@ -65,12 +87,37 @@ export default function SetupWizard({ initialData, onComplete, onChange }: Setup
   const [isDragging, setIsDragging] = useState(false);
   const [scrollFade, setScrollFade] = useState<{ left: boolean; right: boolean }>({ left: false, right: false });
   
+  // Normalize date string to Date object (handles DD-MM-YYYY format from GAFFA)
+  const normalizeDate = (dateStr?: string): Date | null => {
+    if (!dateStr) return null;
+    
+    try {
+      // Try parsing as-is first (works for ISO format)
+      let date = new Date(dateStr);
+      if (!isNaN(date.getTime())) return date;
+      
+      // Handle DD-MM-YYYY format (common in GAFFA articles)
+      const ddmmyyyyPattern = /^(\d{1,2})-(\d{1,2})-(\d{4})(?:\s+(\d{1,2}):(\d{1,2}):(\d{1,2}))?$/;
+      const match = dateStr.match(ddmmyyyyPattern);
+      if (match) {
+        const [, day, month, year, hour = '00', minute = '00', second = '00'] = match;
+        const isoStr = `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}T${hour.padStart(2, '0')}:${minute.padStart(2, '0')}:${second.padStart(2, '0')}Z`;
+        date = new Date(isoStr);
+        if (!isNaN(date.getTime())) return date;
+      }
+      
+      return null;
+    } catch {
+      return null;
+    }
+  };
+
   const formatDate = (dateString?: string) => {
     if (!dateString) return '';
     
     try {
-      const date = new Date(dateString);
-      if (isNaN(date.getTime())) return '';
+      const date = normalizeDate(dateString);
+      if (!date) return '';
       
       const now = new Date();
       const diffTime = now.getTime() - date.getTime();
@@ -236,10 +283,10 @@ export default function SetupWizard({ initialData, onComplete, onChange }: Setup
 
   const rawTone = typeof data.authorTOV === 'string' ? data.authorTOV.trim() : '';
   const authorName = (data.author || '').trim();
+  // Kort tone i aiDraft.prompt (til UI). Fuld TOV ligger i data.authorTOV og sendes til API → bruges i system-prompt (combinedTOV).
   const toneInstruction = (() => {
-    if (rawTone) {
-      const normalized = rawTone.endsWith('.') ? rawTone : `${rawTone}.`;
-      return /^brug/i.test(rawTone) ? normalized : `Brug ${normalized}`;
+    if (rawTone && rawTone.length < 120 && /^brug\s+/i.test(rawTone)) {
+      return rawTone.endsWith('.') ? rawTone : `${rawTone}.`;
     }
     if (authorName) {
       const suffix = /s$/i.test(authorName) ? '' : 's';
@@ -454,16 +501,20 @@ export default function SetupWizard({ initialData, onComplete, onChange }: Setup
         items = j.allArticles;
       }
       // Map and deduplicate articles
-      const mappedItems = items.map((a: any) => ({ 
-        title: a.title || a.name || 'Ukendt titel', 
-        date: a.date || a.published_at || a.publishDate,
-        published_at: a.published_at || a.date || a.publishDate,
-        publishDate: a.publishDate || a.date || a.published_at,
-        source: a.source || sourceName,
-        url: a.url || a.link,
-        keyPoints: Array.isArray(a.keyPoints) ? a.keyPoints : (a.keyPoints ? [a.keyPoints] : []),
-        content: a.content || a.body_text || a.body || a.excerpt || ''
-      }));
+      const mappedItems = items.map((a: any) => {
+        // Extract date from various possible fields
+        const articleDate = a.date || a.published_at || a.publishDate || undefined;
+        return {
+          title: a.title || a.name || 'Ukendt titel', 
+          date: articleDate,
+          published_at: articleDate,
+          publishDate: articleDate,
+          source: a.source || sourceName,
+          url: a.url || a.link,
+          keyPoints: Array.isArray(a.keyPoints) ? a.keyPoints : (a.keyPoints ? [a.keyPoints] : []),
+          content: a.content || a.body_text || a.body || a.excerpt || ''
+        };
+      });
       // Deduplicate before sorting
       const uniqueItems = deduplicateArticles(mappedItems);
       const sortedItems = sortByNewest(
@@ -1064,14 +1115,18 @@ ${toneInstruction}`;
                           authorTOV: a.tov 
                         };
                         // Update prompt with new author TOV if prompt exists
+                        // aiDraft.prompt = kun kort linje til visning i Review Panel. Fuld TOV sendes via authorTOV til API og bruges i system-prompten.
                         if (d.aiDraft?.prompt) {
-                          const newToneInstruction = a.tov 
-                            ? (a.tov.endsWith('.') ? a.tov : `${a.tov}.`)
-                            : `Brug ${a.name}${/s$/i.test(a.name) ? '' : 's'} tone.`;
+                          const shortToneInstruction = `Brug ${a.name}${/s$/i.test(a.name) ? '' : 's'} tone.`;
                           updated.aiDraft = {
                             ...d.aiDraft,
-                            prompt: d.aiDraft.prompt.replace(/Brug (Apropos'|[^']+s?) tone\.?/g, newToneInstruction)
+                            prompt: d.aiDraft.prompt.replace(/Brug (Apropos'|[^']+s?) tone\.?/g, shortToneInstruction)
                           };
+                          // Remove any full TOV block that might have been pasted (multi-line author persona)
+                          if (updated.aiDraft.prompt.length > 500) {
+                            const withoutLongTov = updated.aiDraft.prompt.replace(/\n\n(?:Du er |LIV BRANDT|FREDERIK EMIL|EVA LINDE)[\s\S]*?(?=\n\n\*\*MÅL:|\n\nSkriv|$)/gi, '\n\n');
+                            if (withoutLongTov.length < updated.aiDraft.prompt.length) updated.aiDraft.prompt = withoutLongTov.trim();
+                          }
                         }
                         return updated;
                       }, 'author');

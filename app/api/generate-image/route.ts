@@ -120,71 +120,49 @@ export async function POST(req: NextRequest) {
         if (mediaCheck.type === 'film' || mediaCheck.type === 'tv') {
           requestLogger.info(`Searching TMDB for ${mediaCheck.type}`, { searchTerm: mediaCheck.searchTerm });
           
-          // Check if TMDB_API_KEY is set - if not, log warning and continue to AI generation fallback
+          // For film/TV we only use TMDB – no DALL-E fallback (officielle poster/backdrops)
           if (!config.features.tmdb) {
-            requestLogger.warn('TMDB_API_KEY is not set in environment variables. Skipping TMDB search and falling back to AI generation.');
-            // Don't return error - let it fall through to AI generation instead
-            // This allows the system to still work without TMDB API key
+            requestLogger.warn('TMDB_API_KEY is not set. Film/TV anmeldelser kræver TMDB.');
+            return NextResponse.json(
+              createErrorResponse(
+                'For film- og serieanmeldelser hentes billeder fra TMDB. Sæt TMDB_API_KEY i miljøvariabler for at bruge denne funktion.',
+                { statusCode: 503, errorCode: ErrorCode.TMDB_ERROR, requestId }
+              ),
+              { status: 503 }
+            );
+          }
+          const sectionLower = (section || '').toLowerCase();
+          const shouldTryBoth = sectionLower.includes('serier & film') || sectionLower.includes('serier og film');
+          let imageUrl: string | null = null;
+          const skipIdx = skipIndex || 0;
+          if (shouldTryBoth && mediaCheck.type === 'tv') {
+            requestLogger.debug('Trying film first (Serier & Film section)', { searchTerm: mediaCheck.searchTerm, skipIndex: skipIdx });
+            imageUrl = await searchTMDB(mediaCheck.searchTerm, 'film', skipIdx);
+            if (!imageUrl) {
+              console.log(`🔍 Film search failed, trying TV: "${mediaCheck.searchTerm}" (skipIndex: ${skipIdx})`);
+              imageUrl = await searchTMDB(mediaCheck.searchTerm, 'tv', skipIdx);
+            }
           } else {
-            // If section is "Serier & Film" and no explicit topic, try both film and TV
-            // This handles cases where platform suggests TV but it's actually a film
-            const sectionLower = (section || '').toLowerCase();
-            const shouldTryBoth = sectionLower.includes('serier & film') || sectionLower.includes('serier og film');
-            
-            let imageUrl: string | null = null;
-            
-            const skipIdx = skipIndex || 0;
-            if (shouldTryBoth && mediaCheck.type === 'tv') {
-              // Try film first (more common for "Serier & Film" section)
-              requestLogger.debug('Trying film first (Serier & Film section)', { searchTerm: mediaCheck.searchTerm, skipIndex: skipIdx });
-              imageUrl = await searchTMDB(mediaCheck.searchTerm, 'film', skipIdx);
-              
-              // If film didn't work, try TV
-              if (!imageUrl) {
-                console.log(`🔍 Film search failed, trying TV: "${mediaCheck.searchTerm}" (skipIndex: ${skipIdx})`);
-                imageUrl = await searchTMDB(mediaCheck.searchTerm, 'tv', skipIdx);
-              }
-            } else {
-              // Normal search - try the detected type
-              imageUrl = await searchTMDB(mediaCheck.searchTerm, mediaCheck.type, skipIdx);
-            }
-            
-            if (imageUrl) {
-              console.log(`✅ Found TMDB image: ${imageUrl}`);
-              // Return TMDB image directly - TMDB images are already optimized and can be used directly
-              // No need to process them through Firebase Storage, which can fail
-              console.log(`✅ Returning TMDB image directly for: ${title}`);
-              foundMediaImage = true;
-              return NextResponse.json({
-                success: true,
-                imageUrl: imageUrl, // Return TMDB URL directly
-                source: 'tmdb',
-                prompt: 'Found from TMDB'
-              });
-            } else {
-              // No image found - fall back to AI generation if title is not a placeholder
-              console.log(`⚠️ No TMDB image found for: "${mediaCheck.searchTerm}" (tried ${shouldTryBoth ? 'both film and TV' : mediaCheck.type})`);
-              console.log(`⚠️ TMDB search details:`, {
-                searchTerm: mediaCheck.searchTerm,
-                type: mediaCheck.type,
-                skipIndex: skipIdx,
-                hasApiKey: !!process.env.TMDB_API_KEY
-              });
-              
-              // If title is a placeholder, don't fall back to AI
-              const isPlaceholderTitle = !title || title.toLowerCase().includes('arbejdstitel') || title.toLowerCase().includes('ikke sat');
-              if (isPlaceholderTitle) {
-                return NextResponse.json({
-                  success: false,
-                  error: `No image found for ${mediaCheck.type}: ${mediaCheck.searchTerm}. Please set a proper title before generating images.`
-                }, { status: 404 });
-              }
-              
-              // Fall back to AI generation for non-placeholder titles
-              console.log('🎨 Falling back to AI generation for media review...');
-              // Continue to AI generation below
-            }
-          } // End of else block for TMDB_API_KEY check
+            imageUrl = await searchTMDB(mediaCheck.searchTerm, mediaCheck.type, skipIdx);
+          }
+          if (imageUrl) {
+            console.log(`✅ Found TMDB image: ${imageUrl}`);
+            foundMediaImage = true;
+            return NextResponse.json({
+              success: true,
+              imageUrl: imageUrl,
+              source: 'tmdb',
+              prompt: 'Found from TMDB'
+            });
+          }
+          const isPlaceholderTitle = !title || title.toLowerCase().includes('arbejdstitel') || title.toLowerCase().includes('ikke sat');
+          const errMsg = isPlaceholderTitle
+            ? `Sæt en konkret titel (fx serienavn) før du henter billede.`
+            : `Ingen poster/backdrop fundet i TMDB for "${mediaCheck.searchTerm}". Prøv at tilpasse titel eller tjek at værket findes.`;
+          return NextResponse.json(
+            createErrorResponse(errMsg, { statusCode: 404, errorCode: ErrorCode.NOT_FOUND, requestId }),
+            { status: 404 }
+          );
         } else if (mediaCheck.type === 'game') {
           console.log(`🔍 Searching Google Images for game: "${mediaCheck.searchTerm}"`);
           const imageUrl = await searchGoogleImages(mediaCheck.searchTerm);
@@ -260,12 +238,12 @@ export async function POST(req: NextRequest) {
 
     console.log('🎨 Generated Apropos prompt:', prompt);
 
-    // Generate image using DALL-E 3
+    // Generate image using DALL-E 3 (backup when no official image found; film/TV use TMDB only)
     const imageResponse = await openai.images.generate({
       model: "dall-e-3",
       prompt: prompt,
       size: "1792x1024", // 16:9 aspect ratio (closest to 1920x1080)
-      quality: "standard",
+      quality: "hd",
       n: 1,
     });
 
@@ -336,8 +314,22 @@ export async function POST(req: NextRequest) {
 async function generateAproposPrompt(data: GenerateImageRequest): Promise<string> {
   const { title, topic, author, category, content } = data;
 
+  // 1) ARTICLE SUBJECT – ud fra titel (og evt. indhold) så billedet matcher artiklen
+  const subjectFromTitle = deriveVisualSubjectFromTitle(title || '');
+  const hasRealContent = content && content.length > 100 && !content.includes('Her vil artikelindholdet blive vist');
+  let articleSubject = subjectFromTitle;
+  if (hasRealContent) {
+    const themes = await extractVisualThemes(content.substring(0, 800), title || '', category || '');
+    if (themes.length > 0) {
+      articleSubject = [subjectFromTitle, themes.join(', ')].filter(Boolean).join('. ');
+    }
+  }
+  const subjectLine = `ARTICLE SUBJECT (the image MUST reflect this theme, not something else): ${articleSubject}.`;
+
   // Base Apropos prompt - EXACT STYLE MUST BE MAINTAINED
   let basePrompt = `Create a hand-drawn digital illustration in Apropos Magazine style. Minimal and editorial with soft digital texture. 
+
+${subjectLine}
 
 CRITICAL REQUIREMENTS:
 - NO TEXT: Absolutely no text, logos, letters, numbers, or words of any kind. Pure visual elements only.
@@ -347,7 +339,7 @@ CRITICAL REQUIREMENTS:
 - Color palette: Muted, aesthetic colors that match the article's tone
 - Focus: Mood, feeling, and motif - NOT plot or people
 - Composition: Clean, minimal, editorial aesthetic
-- Visual elements: Abstract shapes, patterns, or subtle symbolic elements that represent the article's theme
+- Visual elements: Abstract shapes, patterns, or subtle symbolic elements that represent the article's theme (see ARTICLE SUBJECT above)
 
 STYLE GUIDELINES:
 - Hand-drawn digital aesthetic (like contemporary magazine illustrations)
@@ -362,7 +354,7 @@ SAFETY: Only positive, artistic, and safe elements. No violence, conflict, or pr
 Remember: This is a PURE IMAGE with NO TEXT WHATSOEVER.`;
 
   // Add contextual elements based on category and content
-  const contextualElements = [];
+  const contextualElements: string[] = [];
 
   if (category?.toLowerCase().includes('anmeld')) {
     contextualElements.push('kritisk og analytisk stemning');
@@ -370,8 +362,8 @@ Remember: This is a PURE IMAGE with NO TEXT WHATSOEVER.`;
     contextualElements.push('live musik og energi');
   } else if (category?.toLowerCase().includes('gaming')) {
     contextualElements.push('digital verden og spil');
-  } else if (category?.toLowerCase().includes('film')) {
-    contextualElements.push('cinematisk og dramatisk');
+  } else if (category?.toLowerCase().includes('film') || (title && /film|netflix|serie|streaming|biograf|movie/i.test(title))) {
+    contextualElements.push('cinematisk, film og streaming – IKKE koncert eller band');
   } else if (category?.toLowerCase().includes('festival')) {
     contextualElements.push('festival og fejring');
   } else if (category?.toLowerCase().includes('kultur')) {
@@ -386,25 +378,41 @@ Remember: This is a PURE IMAGE with NO TEXT WHATSOEVER.`;
     contextualElements.push(`stemning som ${author}'s skrivestil`);
   }
 
-  // Extract visual themes from content using AI analysis
-  if (content) {
-    const contentPreview = content.substring(0, 800);
-    const themes = await extractVisualThemes(contentPreview, title || '', category || '');
-    if (themes.length > 0) {
-      contextualElements.push(`specifikke visuelle temaer: ${themes.join(', ')}`);
-    }
-    
-    // Add specific content context
-    const contentSummary = contentPreview.substring(0, 200);
+  if (hasRealContent && content) {
+    const contentSummary = content.substring(0, 200).replace(/\s+/g, ' ').trim();
     contextualElements.push(`artikelindhold: ${contentSummary}...`);
   }
 
-  // Add contextual elements to prompt
   if (contextualElements.length > 0) {
-    basePrompt += `\n\nKontekst for "${title}": ${contextualElements.join(', ')}.`;
+    basePrompt += `\n\nKontekst: ${contextualElements.join(', ')}.`;
   }
 
   return basePrompt;
+}
+
+/** Udtrækker et kort, visuelt emne fra titel så prompten matcher artiklen (fx "film på Netflix", "koncert", "spil"). */
+function deriveVisualSubjectFromTitle(title: string): string {
+  const t = title.toLowerCase();
+  if (!title || t.includes('arbejdstitel') || t.includes('ikke sat')) return 'generel redaktionel illustration';
+  const parts: string[] = [];
+  if (/netflix|hbo|disney|prime|viaplay|streaming|apple tv|serie|film|biograf|movie/i.test(t)) {
+    parts.push('film og streaming – cinematisk stemning, ikke koncert eller band');
+  }
+  if (/koncert|live|band|artist|festival|musik/i.test(t)) {
+    parts.push('live musik og koncert – ikke film eller streaming');
+  }
+  if (/spil|gaming|playstation|xbox|nintendo|game/i.test(t)) {
+    parts.push('gaming og spil – digital atmosfære');
+  }
+  if (/anmeld|review|bedømmelse/i.test(t)) {
+    parts.push('anmeldelsesstemning');
+  }
+  if (parts.length === 0) {
+    // Kort version af titel som emne (max ~60 tegn)
+    const clean = title.replace(/\s+/g, ' ').trim();
+    parts.push(clean.length > 60 ? clean.substring(0, 57) + '...' : clean);
+  }
+  return parts.join('. ');
 }
 
 async function extractVisualThemes(content: string, title: string, category: string): Promise<string[]> {

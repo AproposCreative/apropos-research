@@ -6,8 +6,10 @@ import MainChatPanel from './MainChatPanel';
 import SetupWizard from '@/components/SetupWizard';
 import ReviewPanel from '@/components/ReviewPanel';
 import DraftsShelf from '@/components/DraftsShelf';
+import WebAppsPanel from '@/components/WebAppsPanel';
 import MiniMenu from '@/components/MiniMenu';
 import PreviewPanel from './PreviewPanel';
+import DesignEditorView from '@/app/design-editor/DesignEditorView';
 import AuthModal from '@/components/AuthModal';
 import ChatSearchModal from '@/components/ChatSearchModal';
 import { useAuth } from '@/lib/auth-context';
@@ -122,7 +124,12 @@ export default function AIWriterClient() {
   const [isThinking, setIsThinking] = useState(false);
   const [showWizard, setShowWizard] = useState(true);
   const [reviewOpen, setReviewOpen] = useState(false);
+  const [guideOpen, setGuideOpen] = useState(false);
   const [shelfOpen, setShelfOpen] = useState(false);
+  const [webAppsOpen, setWebAppsOpen] = useState(false);
+  const [isClosing, setIsClosing] = useState(false);
+  const [activeView, setActiveView] = useState<'ai' | 'design-editor' | null>('ai');
+  const leftPanelOpen = shelfOpen || webAppsOpen;
   const [accountOpen, setAccountOpen] = useState(false);
   const [bgSelectorOpen, setBgSelectorOpen] = useState(false);
   const [selectedSplineBg, setSelectedSplineBg] = useState<string>(() => {
@@ -136,6 +143,7 @@ export default function AIWriterClient() {
   const [notes, setNotes] = useState('');
   const [chatTitle, setChatTitle] = useState('Ny artikkel');
   const [refreshTrigger, setRefreshTrigger] = useState(0);
+  const [newArticleKey, setNewArticleKey] = useState(0);
   const [chatMessages, setChatMessages] = useState<Array<{
     id: string;
     role: 'user' | 'assistant';
@@ -146,7 +154,9 @@ export default function AIWriterClient() {
   const [editorialWarnings, setEditorialWarnings] = useState<string[]>([]);
   const [publishToast, setPublishToast] = useState<{ articleId: string; shownAt: number } | null>(null);
   const [thinkingSteps, setThinkingSteps] = useState<ThinkingStep[]>([]);
+  const [lastFailedMessage, setLastFailedMessage] = useState<string | null>(null);
   const thinkingTimersRef = useRef<number[]>([]);
+  const progressPollIntervalRef = useRef<number | null>(null);
   const [chatWidth, setChatWidth] = useState(() => {
     if (typeof window !== 'undefined') {
       const saved = localStorage.getItem('ai-chat-width');
@@ -429,6 +439,26 @@ useEffect(() => {
 
   const handleSendMessage = async (message: string, files?: UploadedFile[]) => {
     const trimmedMessage = message.trim();
+    setLastFailedMessage(null); // Clear retry state on new send
+
+    // Check if user is responding "Ja" to "Skal vi starte med en arbejdstitel og en indledning?"
+    const lastAssistantMessage = chatMessages.filter(m => m.role === 'assistant').pop()?.content || '';
+    const isTitleIntroQuestion = /arbejdstitel.*indledning|indledning.*arbejdstitel/i.test(lastAssistantMessage);
+    const isAffirmativeResponse = /^(ja|yes|okay|ok|super|fint|god idé)\b/i.test(trimmedMessage);
+    const isTitleIntroButton = /generer\s+(kun\s+)?(en\s+)?arbejdstitel|skriv\s+hele\s+artiklen/i.test(trimmedMessage);
+
+    if (isTitleIntroQuestion && (isAffirmativeResponse || isTitleIntroButton)) {
+      addChatMessage('user', message, files);
+      if (isAffirmativeResponse) {
+        // "Ja" = kun arbejdstitel og indledning (som knappen "Kun titel og indledning")
+        await handleSendMessageInternal('Generer kun en arbejdstitel og en indledning.');
+      } else {
+        await handleSendMessageInternal(trimmedMessage);
+      }
+      return;
+    }
+    
+    // Normal message flow
     addChatMessage('user', message, files);
 
     const isLikelyBrief = (() => {
@@ -456,13 +486,85 @@ useEffect(() => {
       addChatMessage('assistant', `Fejl (${normalizedCode}): ${message}${detailText}`);
     };
 
+    await handleSendMessageInternal(trimmedMessage, files, isLikelyBrief, isSimpleMessage);
+  };
+
+  const handleSendMessageInternal = async (message: string, files?: UploadedFile[], isLikelyBrief?: boolean, isSimpleMessage?: boolean) => {
+    const trimmedMessage = message.trim();
+    
+    // Determine isLikelyBrief if not provided
+    const determinedIsLikelyBrief = isLikelyBrief ?? (() => {
+      if (trimmedMessage.length < 40) return false;
+      if (/^(ja|nej|okay|ok|tak|super|hej|hi|hello)\b/i.test(trimmedMessage)) return false;
+      if (/\n|•|-|\d+\./.test(trimmedMessage)) return true;
+      if (trimmedMessage.length >= 80) return true;
+      return /(artikel|anmeldelse|noter|skal handle|fokus|vinkel|tone)/i.test(trimmedMessage);
+    })();
+
+    // Determine isSimpleMessage if not provided
+    const determinedIsSimpleMessage = isSimpleMessage ?? (/^(hej|hi|hello|hey|ja|nej|okay|ok|tak|super|tak|mange tak)\b/i.test(trimmedMessage) && trimmedMessage.length < 20);
+
+    let notesPayload = notes;
+    if (determinedIsLikelyBrief) {
+      const combined = [notesPayload, trimmedMessage].filter((segment) => segment && segment.trim().length > 0).join('\n\n');
+      // Prevent the notes payload from growing unbounded — keep last ~2000 chars
+      notesPayload = combined.slice(-2000);
+      setNotes(notesPayload);
+    }
+
+    const sendAssistantError = (code: string, message: string, details?: string) => {
+      const normalizedCode = (code || 'UNKNOWN').toUpperCase().replace(/[^A-Z0-9_-]/g, '_');
+      const detailText = details ? `\nDetaljer: ${details}` : '';
+      addChatMessage('assistant', `Fejl (${normalizedCode}): ${message}${detailText}`);
+    };
+
     try {
       setIsThinking(true);
-      startThinkingTimeline();
-      
+      const clientRequestId = typeof crypto !== 'undefined' && crypto.randomUUID
+        ? crypto.randomUUID()
+        : `req-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
+
+      // For editorial/long requests: show real progress from server via polling
+      const useProgressPolling = !determinedIsSimpleMessage && (articleData?.generationMode !== 'fast');
+      const SERVER_STEP_ORDER = [
+        { id: 'prepare', label: 'Analyserer prompt og setup' },
+        { id: 'web-search', label: 'Søger efter fakta og kilder' },
+        { id: 'advanced-research', label: 'Indsamler redaktionel research' },
+        { id: 'generation', label: 'Genererer artikeludkast' },
+        { id: 'quality', label: 'Kører kvalitetskontrol' },
+        { id: 'format', label: 'Formatterer svar til UI' },
+      ];
+      if (useProgressPolling) {
+        setThinkingSteps(
+          SERVER_STEP_ORDER.map((s, i) => ({
+            id: s.id,
+            label: s.label,
+            status: (i === 0 ? 'active' : 'pending') as ThinkingStep['status'],
+          }))
+        );
+        const pollProgress = async () => {
+          try {
+            const res = await fetch(`/api/ai-chat/progress?id=${encodeURIComponent(clientRequestId)}`);
+            const data = await res.json();
+            if (data.steps && Array.isArray(data.steps) && data.steps.length > 0) {
+              setThinkingSteps(
+                data.steps.map((step: { id: string; label: string; status: string }) => ({
+                  id: step.id,
+                  label: step.label,
+                  status: step.status as ThinkingStep['status'],
+                }))
+              );
+            }
+          } catch (_) {}
+        };
+        progressPollIntervalRef.current = window.setInterval(pollProgress, 1800);
+      } else {
+        startThinkingTimeline();
+      }
+
       // Only fetch Webflow schema for non-simple messages or if we need article generation
       let webflowData;
-      if (!isSimpleMessage) {
+      if (!determinedIsSimpleMessage) {
         webflowData = await getWebflowSchema();
       } else {
         // Use cached data or minimal defaults for simple messages
@@ -477,15 +579,15 @@ useEffect(() => {
       
       const { fieldMeta, requiredSlugs, mappingEntries, mapSlugToInternal, samples } = webflowData;
 
-      // Add timeout - adjust based on message type and generation mode
+      // Add timeout - must be >= server pipeline (research + generation + quality). Server maxDuration = 300s.
       const generationMode = articleData?.generationMode || 'editorial';
       const isFastMode = generationMode === 'fast';
       const controller = new AbortController();
-      const timeoutId = isSimpleMessage 
-        ? setTimeout(() => controller.abort(), 30000) // 30 second timeout for simple messages
+      const timeoutId = determinedIsSimpleMessage 
+        ? setTimeout(() => controller.abort(), 30000) // 30s simple
         : isFastMode
-        ? setTimeout(() => controller.abort(), 90000) // 90 second timeout for fast mode
-        : setTimeout(() => controller.abort(), 180000); // 3 minute timeout for editorial mode
+        ? setTimeout(() => controller.abort(), 90000) // 90s fast
+        : setTimeout(() => controller.abort(), 300000); // 5 min editorial (matches Vercel maxDuration 300)
 
       let response: Response;
       try {
@@ -498,13 +600,14 @@ useEffect(() => {
         body: JSON.stringify({
           message,
           articleData,
-            notes: notesPayload,
+          notes: notesPayload,
           chatHistory: chatMessages,
           authorTOV: articleData.authorTOV || '',
-          authorName: articleData.author || '' ,
+          authorName: articleData.author || '',
           webflowSchema: fieldMeta,
           webflowMapping: mappingEntries,
-            webflowSamples: samples
+          webflowSamples: samples,
+          clientRequestId,
         }),
       });
       } catch (fetchError: any) {
@@ -678,6 +781,7 @@ useEffect(() => {
         if (typeof errorData.error === 'string') detailParts.push(errorData.error);
         if (typeof errorData.details === 'string') detailParts.push(errorData.details);
         if (errorData.requestId) detailParts.push(`Request ID: ${errorData.requestId}`);
+        setLastFailedMessage(trimmedMessage);
         sendAssistantError(
           derivedCode,
           'Beklager, jeg kunne ikke behandle din forespørgsel lige nu. Prøv igen senere.',
@@ -688,6 +792,7 @@ useEffect(() => {
       // Handle AbortError silently (expected timeout behavior)
       if (error.name === 'AbortError') {
         console.log('⏱️ Request timeout - this is expected for long-running requests');
+        setLastFailedMessage(trimmedMessage);
         sendAssistantError('REQUEST_TIMEOUT', 'Forespørgslen tog for lang tid. Prøv igen eller send en kortere besked.');
       } else {
         console.error('❌ Fetch error:', error);
@@ -696,9 +801,14 @@ useEffect(() => {
           typeof navigator !== 'undefined' && navigator.onLine === false
             ? 'OFFLINE'
             : 'NETWORK_ERROR';
+        setLastFailedMessage(trimmedMessage);
         sendAssistantError(codeGuess, 'Der opstod en forbindelsesfejl til AI-tjenesten.', detail || undefined);
       }
     } finally {
+      if (progressPollIntervalRef.current) {
+        clearInterval(progressPollIntervalRef.current);
+        progressPollIntervalRef.current = null;
+      }
       setIsThinking(false);
       finishThinkingTimeline();
       setThinkingSteps([]);
@@ -923,6 +1033,9 @@ useEffect(() => {
     setNotes('');
     setChatTitle('Ny artikkel');
     setShowWizard(true);
+    setReviewOpen(false);
+    setGuideOpen(false);
+    setNewArticleKey((k) => k + 1);
     
     const toastTitle = savedPreviousDraft ? 'Forrige artikel gemt' : 'Ny artikel klar';
     const toastDescription = savedPreviousDraft
@@ -1033,29 +1146,54 @@ useEffect(() => {
               />
             </div>
             
-            {/* Shelf - desktop: absolute with outer padding to align with chat area */}
-            <div className={`hidden md:block absolute top-[1%] bottom-[1%] left-[1%] z-40`} style={{ width: shelfOpen ? 'min(300px, 50vw)' : '0px', transition: 'width 320ms cubic-bezier(0.22, 1, 0.36, 1), opacity 220ms ease', opacity: shelfOpen ? 1 : 0, pointerEvents: shelfOpen ? 'auto' : 'none' }}>
-              <div className={`h-full flex flex-col rounded-xl border border-white/20 overflow-hidden transform bg-[#171717]`} style={{ transition: 'transform 320ms cubic-bezier(0.22, 1, 0.36, 1)', transform: shelfOpen ? 'translateX(0px)' : 'translateX(-8px)' }}>
-                <DraftsShelf 
-                  isOpen={shelfOpen} 
-                  onSelect={(draft)=>{ 
-                    setShelfOpen(false); 
-                    handleLoadDraft(draft);
-                  }} 
-                  onClose={()=> setShelfOpen(false)}
-                  onRenameLive={(draftId, newTitle) => {
-                    setChatTitle(newTitle);
-                    setArticleData(prev => ({
-                      ...prev,
-                      title: newTitle,
-                      previewTitle: newTitle
-                    }));
+            {/* Left panel: Web-apps or Mine artikler (desktop) */}
+            <div className={`hidden md:block absolute top-[1%] bottom-[1%] left-[1%] z-40`} style={{ width: leftPanelOpen ? 'min(300px, 50vw)' : '0px', transition: 'width 320ms cubic-bezier(0.22, 1, 0.36, 1), opacity 220ms ease', opacity: leftPanelOpen ? 1 : 0, pointerEvents: leftPanelOpen ? 'auto' : 'none' }}>
+              <div className={`h-full flex flex-col rounded-xl border border-white/20 overflow-hidden transform bg-[#171717]`} style={{ transition: 'transform 320ms cubic-bezier(0.22, 1, 0.36, 1)', transform: leftPanelOpen ? 'translateX(0px)' : 'translateX(-8px)' }}>
+                {webAppsOpen && (
+                  <WebAppsPanel
+                  isOpen={webAppsOpen}
+                  onClose={() => setWebAppsOpen(false)}
+                  onSelectApp={(id) => {
+                    setWebAppsOpen(false);
+                    setActiveView(id === 'design-editor' ? 'design-editor' : 'ai');
                   }}
-                  refreshTrigger={refreshTrigger}
+                />
+                )}
+                {shelfOpen && (
+                  <DraftsShelf 
+                    isOpen={shelfOpen} 
+                    onSelect={(draft)=>{ 
+                      setShelfOpen(false); 
+                      handleLoadDraft(draft);
+                    }} 
+                    onClose={()=> setShelfOpen(false)}
+                    onRenameLive={(draftId, newTitle) => {
+                      setChatTitle(newTitle);
+                      setArticleData(prev => ({
+                        ...prev,
+                        title: newTitle,
+                        previewTitle: newTitle
+                      }));
+                    }}
+                    refreshTrigger={refreshTrigger}
+                  />
+                )}
+              </div>
+            </div>
+            {/* Mobile: Web-apps panel */}
+            <div className={`md:hidden ${webAppsOpen ? 'absolute inset-0 z-40 translate-x-0' : 'hidden'} transition-transform duration-300`}>
+              <div className="h-full flex flex-col rounded-none border-t border-white/10 bg-[#171717]">
+                <WebAppsPanel
+                  isOpen={webAppsOpen}
+                  onClose={() => setWebAppsOpen(false)}
+                  onSelectApp={(id) => {
+                    setWebAppsOpen(false);
+                    setActiveView(id === 'design-editor' ? 'design-editor' : 'ai');
+                  }}
                 />
               </div>
             </div>
-            {/* Mobile shelf */}
+            {/* Mobile: Mine artikler shelf */}
             <div className={`md:hidden ${shelfOpen ? 'absolute inset-0 z-40 translate-x-0' : 'hidden'} transition-transform duration-300`}>
               <div className="h-full flex flex-col rounded-none border-t border-white/10 bg-[#171717]">
                 <DraftsShelf 
@@ -1078,14 +1216,19 @@ useEffect(() => {
               </div>
             </div>
 
-            {/* Main Chat with AI */}
+            {/* Main content: AI Writer (chat) eller Design Editor – samme slot */}
+            {(activeView === 'ai' || isClosing) && (
             <div
               ref={chatPanelRef}
               className="w-full flex-shrink-0 absolute top-0 bottom-0 left-0 md:top-[1%] md:bottom-[1%] md:left-[1%] z-10"
               style={{ 
                 width: typeof window !== 'undefined' && window.innerWidth >= 768 ? `${chatWidth}px` : '100%',
                 transition: isResizing ? 'none' : 'transform 320ms cubic-bezier(0.22, 1, 0.36, 1)', 
-                transform: shelfOpen ? 'translateX(calc(12px + min(300px, 50vw)))' : 'translateX(0)' 
+                transform: isClosing
+                  ? 'translateX(-100vw)'
+                  : leftPanelOpen
+                    ? 'translateX(calc(12px + min(300px, 50vw)))'
+                    : 'translateX(0)',
               }}
             >
               {/* Resize handle */}
@@ -1116,6 +1259,15 @@ useEffect(() => {
                 onNewArticle={handleNewArticle}
                 onOpenDraftsPanel={() => setShelfOpen(true)}
                 onOpenReviewPanel={() => setReviewOpen(true)}
+                onClose={() => {
+                  setIsClosing(true);
+                  setTimeout(() => {
+                    setActiveView(null);
+                    setIsClosing(false);
+                  }, 320);
+                }}
+                lastFailedMessage={lastFailedMessage}
+                onRetryLast={lastFailedMessage ? () => { handleSendMessage(lastFailedMessage); setLastFailedMessage(null); } : undefined}
                 wizardNode={(
                   <div>
                     {/* Persistent progress */}
@@ -1191,6 +1343,7 @@ useEffect(() => {
                         </div>
                       </div>
                       <SetupWizard
+                        key={`wizard-${newArticleKey}`}
                         initialData={articleData}
                         onChange={handleSetupWizardChange}
                         onComplete={handleSetupWizardComplete}
@@ -1222,18 +1375,36 @@ useEffect(() => {
               />
 
             </div>
+            )}
+
+            {activeView === 'design-editor' && (
+            <div
+              className="w-full flex-shrink-0 absolute top-0 bottom-0 left-0 md:top-[1%] md:bottom-[1%] md:left-[1%] z-10"
+              style={{
+                width: typeof window !== 'undefined' && window.innerWidth >= 768 ? `${chatWidth}px` : '100%',
+                transition: 'transform 320ms cubic-bezier(0.22, 1, 0.36, 1)',
+                transform: leftPanelOpen ? 'translateX(calc(12px + min(300px, 50vw)))' : 'translateX(0)',
+              }}
+            >
+              <DesignEditorView embedMode onBack={() => setActiveView(null)} />
+            </div>
+            )}
 
             {/* Layout placeholder for chat width so the mini‑menu keeps its placement */}
             <div className="hidden md:block flex-shrink-0" style={{ width: typeof window !== 'undefined' && window.innerWidth >= 768 ? `${chatWidth}px` : '500px', height: '1px' }} />
             
             {/* Right Sidebar with action buttons (desktop) */}
-            <MiniMenu
-              translateX={shelfOpen 
-                ? `translateX(calc(12px + min(300px, 50vw) + ${chatWidth}px + 12px))` 
-                : `translateX(calc(${chatWidth}px + 12px))`}
+<MiniMenu
+              translateX={activeView === null
+                ? (leftPanelOpen ? `translateX(calc(12px + min(300px, 50vw) + 12px))` : 'translateX(12px)')
+                : leftPanelOpen
+                  ? `translateX(calc(12px + min(300px, 50vw) + ${chatWidth}px + 12px))` 
+                  : `translateX(calc(${chatWidth}px + 12px))`}
               onSearch={() => setShowSearchModal(true)}
-              onToggleReview={() => setReviewOpen(prev=>!prev)}
-              onToggleShelf={() => setShelfOpen(prev=>!prev)}
+              onToggleReview={() => { setGuideOpen(false); setReviewOpen(prev=>!prev); }}
+              onToggleGuide={() => { setReviewOpen(false); setGuideOpen(prev=>!prev); }}
+              onToggleWebApps={() => { setShelfOpen(false); setWebAppsOpen(prev=>!prev); }}
+              onToggleShelf={() => { setWebAppsOpen(false); setShelfOpen(prev=>!prev); }}
               onNewArticle={handleNewArticle}
             />
 
@@ -1241,6 +1412,45 @@ useEffect(() => {
             <div className="flex-1 h-full hidden md:block" />
             
             {/* Floating mini menu removed (we use the original left menu) */}
+
+            {/* Slide-in guide drawer (same behavior as Article Preview) */}
+            <div className={`absolute md:top-[1%] md:bottom-[1%] md:right-[1%] top-0 right-0 bottom-0 z-50 md:w-[min(520px,90vw)] w-full transition-all duration-300 ${guideOpen ? 'translate-x-0 opacity-100 pointer-events-auto' : 'translate-x-[110%] opacity-0 pointer-events-none'}`}>
+              <div className="h-full flex flex-col bg-[#171717] md:rounded-xl border-l md:border border-white/20">
+                <div className="flex items-center justify-between px-4 py-3 border-b border-white/10">
+                  <h2 className="text-white font-medium">Sådan bruger du løsningen</h2>
+                  <button onClick={() => setGuideOpen(false)} className="p-2 text-white/60 hover:text-white rounded-lg" aria-label="Luk">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M18 6L6 18M6 6l12 12"/>
+                    </svg>
+                  </button>
+                </div>
+                <div className="overflow-y-auto flex-1 p-4 md:p-5 space-y-4 text-sm text-white/85">
+                  <ol className="space-y-3 list-decimal list-inside">
+                    <li>
+                      <span className="font-medium text-white">Start et nyt draft</span> – Vælg kilde (fx trending eller research), vælg artikel og tryk på at starte med AI.
+                    </li>
+                    <li>
+                      <span className="font-medium text-white">Setup Wizard</span> – Udfyld titel/emne, vælg forfatter og tone (TOV), evt. platform og stjerner. Afslut med at gå videre til chatten.
+                    </li>
+                    <li>
+                      <span className="font-medium text-white">Chat med AI</span> – Besvar spørgsmålene i chatten (fx “Ja” for kun titel og indledning, eller bed om hele artiklen). Du kan redigere svar og sende igen.
+                    </li>
+                    <li>
+                      <span className="font-medium text-white">Article preview</span> – Her ser du titel, intro, brødtekst, felter og AI-prompt. Du kan tilføje eller skifte artikelbillede og se valgt TOV.
+                    </li>
+                    <li>
+                      <span className="font-medium text-white">Billede</span> – Brug “Hent et andet billede” for at generere et nyt billede. “Vis brugt prompt” viser den prompt, der blev brugt til billedet.
+                    </li>
+                    <li>
+                      <span className="font-medium text-white">Publicering</span> – Når du er tilfreds, brug publicerings-panelet til at sende til Webflow eller eksportere.
+                    </li>
+                  </ol>
+                  <p className="text-white/60 text-xs pt-2">
+                    Tip: Gem ofte – artiklen gemmes automatisk undervejs, men du kan også bruge gem-knappen i chatten.
+                  </p>
+                </div>
+              </div>
+            </div>
 
             {/* Slide-in review drawer (right shelf) with same outer padding as left shelf */}
             <div className={`absolute md:top-[1%] md:bottom-[1%] md:right-[1%] top-0 right-0 bottom-0 ${reviewOpen ? '' : ''} z-50 md:w-[min(520px,90vw)] w-full transition-all duration-300 ${reviewOpen ? 'translate-x-0 opacity-100 pointer-events-auto' : 'translate-x-[110%] opacity-0 pointer-events-none'}`}>

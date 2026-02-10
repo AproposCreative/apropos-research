@@ -6,6 +6,31 @@ import { logger, createRequestLogger } from '@/lib/logger';
 import { getRequestId } from '@/lib/api/request-utils';
 import { createErrorResponse, createSuccessResponse, ErrorCode } from '@/lib/api/types';
 
+// Normalize date string to timestamp (handles DD-MM-YYYY format from GAFFA)
+function normalizeDateToTimestamp(dateStr?: string): number | null {
+  if (!dateStr) return null;
+  
+  try {
+    // Try parsing as-is first (works for ISO format)
+    let ts = Date.parse(dateStr);
+    if (!isNaN(ts)) return ts;
+    
+    // Handle DD-MM-YYYY format (common in GAFFA articles)
+    const ddmmyyyyPattern = /^(\d{1,2})-(\d{1,2})-(\d{4})(?:\s+(\d{1,2}):(\d{1,2}):(\d{1,2}))?$/;
+    const match = dateStr.match(ddmmyyyyPattern);
+    if (match) {
+      const [, day, month, year, hour = '00', minute = '00', second = '00'] = match;
+      const isoStr = `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}T${hour.padStart(2, '0')}:${minute.padStart(2, '0')}:${second.padStart(2, '0')}Z`;
+      ts = Date.parse(isoStr);
+      if (!isNaN(ts)) return ts;
+    }
+    
+    return null;
+  } catch {
+    return null;
+  }
+}
+
 export async function GET(request: NextRequest) {
   const requestId = getRequestId(request);
   const requestLogger = createRequestLogger(requestId);
@@ -43,8 +68,8 @@ export async function GET(request: NextRequest) {
           })();
           let collected = 0;
           const limit = 100;
-          // Only show articles from the last 14 days (more lenient)
-          const fourteenDaysAgo = Date.now() - (14 * 24 * 60 * 60 * 1000);
+          // Only show articles from the last 7 days (focus on very recent articles)
+          const sevenDaysAgo = Date.now() - (7 * 24 * 60 * 60 * 1000);
           for (let i = lines.length - 1; i >= 0 && collected < limit; i--) {
             const line = lines[i];
             try {
@@ -91,9 +116,9 @@ export async function GET(request: NextRequest) {
               // Filter by date - only include articles from last 7 days (focus on very recent articles)
               const sevenDaysAgo = Date.now() - (7 * 24 * 60 * 60 * 1000);
               if (date) {
-                const articleDate = Date.parse(date);
-                if (!isNaN(articleDate)) {
-                  if (articleDate < sevenDaysAgo) {
+                const articleTimestamp = normalizeDateToTimestamp(date);
+                if (articleTimestamp !== null) {
+                  if (articleTimestamp < sevenDaysAgo) {
                     continue; // Skip articles older than 7 days
                   }
                 } else {
@@ -120,7 +145,7 @@ export async function GET(request: NextRequest) {
                 category,
                 tags: Array.isArray(article.tags) ? article.tags : [],
                 source: article.source || source.name, // Use article.source if available, otherwise fallback to source.name
-                date,
+                date: date || undefined, // Ensure date is included (in original format from article)
                 content: fullText, // Use fullText as content for relevance filtering
                 url: article.url,
                 keyPoints: extractKeyPoints(fullText, article.title, content)

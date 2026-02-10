@@ -18,6 +18,7 @@ export default function ReviewPanel({ articleData, onClose, frameless, onPreflig
   const [isGeneratingImage, setIsGeneratingImage] = useState(false);
   const [imageProgress, setImageProgress] = useState(0);
   const [imageSkipIndex, setImageSkipIndex] = useState(0); // Track which image index to use
+  const [tovExpanded, setTovExpanded] = useState(false);
   
   // Debug: Log when featuredImage changes
   useEffect(() => {
@@ -204,7 +205,12 @@ export default function ReviewPanel({ articleData, onClose, frameless, onPreflig
 
       <header className="space-y-3">
         <h1 className="text-2xl font-semibold leading-tight">{title}</h1>
-        <p className="text-white/70 text-base leading-relaxed">{subtitle || 'Undertitel'}</p>
+        {/* Vis ikke undertitel hvis den er identisk med intro – intro vises kun i Intro-kassen */}
+        {(() => {
+          const sub = (subtitle || '').trim();
+          const isDuplicateIntro = intro && (sub.startsWith('Intro:') || sub.startsWith('Intro :') || sub === intro || sub === `Intro: ${intro}`.trim() || intro.startsWith(sub) || sub.startsWith(intro));
+          return <p className="text-white/70 text-base leading-relaxed">{isDuplicateIntro ? 'Undertitel' : (subtitle || 'Undertitel')}</p>;
+        })()}
       </header>
 
       {(intro || body) && (
@@ -247,7 +253,41 @@ export default function ReviewPanel({ articleData, onClose, frameless, onPreflig
         {aiDraft?.prompt && (
           <div className="col-span-2">
             <div className="text-white/60 mb-1">AI Prompt</div>
-            <div className="text-white/80 text-sm whitespace-pre-wrap">{aiDraft.prompt}</div>
+            <div className="text-white/80 text-sm whitespace-pre-wrap">
+              {(() => {
+                const prompt = aiDraft.prompt;
+                // Safety: remove duplicate TOV block for old drafts (SetupWizard now stores only short tone)
+                const tovMarkers = ['LIV BRANDT — PROMPT', 'FREDERIK EMIL — PROMPT', 'EVA LINDE — PROMPT'];
+                for (const marker of tovMarkers) {
+                  const first = prompt.indexOf(marker);
+                  const second = prompt.indexOf(marker, first + marker.length);
+                  if (first > -1 && second > -1) return prompt.substring(0, second).trim();
+                }
+                return prompt;
+              })()}
+            </div>
+          </div>
+        )}
+        {(articleData?.author || articleData?.authorTOV || aiDraft?.prompt) && (
+          <div className="col-span-2">
+            <button
+              type="button"
+              onClick={() => setTovExpanded((e) => !e)}
+              className="w-full text-left bg-white/5 border border-white/10 rounded-lg p-2 hover:bg-white/10 transition-colors"
+            >
+              <div className="text-white/50">Tone of voice</div>
+              <div className="text-white/80 truncate" title={articleData?.author || '—'}>
+                {articleData?.author || '—'}
+              </div>
+              {tovExpanded && (articleData?.authorTOV || aiDraft?.prompt) && (
+                <div className="mt-2 pt-2 border-t border-white/10 text-white/80 text-sm whitespace-pre-wrap">
+                  {articleData?.authorTOV?.trim() || (typeof aiDraft?.prompt === 'string' ? aiDraft.prompt.trim() : '')}
+                </div>
+              )}
+              <div className="text-white/40 text-xs mt-1">
+                {tovExpanded ? 'Klik for at skjule fuld TOV' : 'Klik for at vise fuld TOV'}
+              </div>
+            </button>
           </div>
         )}
       </section>
@@ -339,9 +379,9 @@ export default function ReviewPanel({ articleData, onClose, frameless, onPreflig
                       console.log('🎨 Response data:', data);
                       
                       if (data.success && data.imageUrl) {
-                        console.log('✅ New image generated successfully, updating article data');
+                        console.log('✅ New image generated successfully, updating article data', { prompt: data.prompt?.substring(0, 100) });
                         if (onUpdateArticle) {
-                          onUpdateArticle({ featuredImage: data.imageUrl });
+                          onUpdateArticle({ featuredImage: data.imageUrl, lastGeneratedImagePrompt: data.prompt });
                         }
                       } else {
                         console.error('❌ Image generation failed:', data.error);
@@ -392,6 +432,14 @@ export default function ReviewPanel({ articleData, onClose, frameless, onPreflig
               <div className="text-white/40 text-xs">
                 Apropos Magazine stil • 16:9 format • Genereret med AI
               </div>
+              {articleData?.lastGeneratedImagePrompt && (
+                <details className="mt-2 text-left">
+                  <summary className="text-white/50 text-xs cursor-pointer hover:text-white/70">Vis brugt prompt</summary>
+                  <pre className="mt-1 p-2 rounded bg-white/5 border border-white/10 text-white/60 text-[10px] whitespace-pre-wrap break-words max-h-32 overflow-y-auto">
+                    {articleData.lastGeneratedImagePrompt}
+                  </pre>
+                </details>
+              )}
             </div>
           ) : (
             <div className="text-center py-8">
@@ -462,9 +510,9 @@ export default function ReviewPanel({ articleData, onClose, frameless, onPreflig
                       console.log('🎨 Response data:', data);
                       
                       if (data.success && data.imageUrl) {
-                        console.log('✅ Image generated successfully, updating article data');
+                        console.log('✅ Image generated successfully, updating article data', { prompt: data.prompt?.substring(0, 100) });
                         if (onUpdateArticle) {
-                          onUpdateArticle({ featuredImage: data.imageUrl });
+                          onUpdateArticle({ featuredImage: data.imageUrl, lastGeneratedImagePrompt: data.prompt });
                         }
                       } else {
                         console.error('❌ Image generation failed:', data.error);
