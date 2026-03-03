@@ -4,6 +4,17 @@ const INSTAGRAM_API_VERSION = 'v24.0';
 const GRAPH_HOST = 'https://graph.facebook.com';
 
 /**
+ * GET /api/instagram/publish
+ * Returnerer om Instagram-publish er konfigureret (til UI / test).
+ */
+export async function GET() {
+  const ok =
+    !!process.env.INSTAGRAM_ACCOUNT_ID?.trim() &&
+    !!process.env.INSTAGRAM_ACCESS_TOKEN?.trim();
+  return NextResponse.json({ configured: ok });
+}
+
+/**
  * POST /api/instagram/publish
  * Body: { imageUrl: string, caption?: string }
  * - imageUrl: Offentlig URL til JPEG-billedet (fx fra Firebase Storage)

@@ -176,7 +176,7 @@ export default function AIWriterClient() {
   // Handle chat panel resize
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
-      if (!isResizing || !chatPanelRef.current) return;
+      if (!isResizing) return;
       e.preventDefault();
       const newWidth = e.clientX;
       const minWidth = 400;
@@ -204,6 +204,18 @@ export default function AIWriterClient() {
       document.body.style.userSelect = '';
     };
   }, [isResizing]);
+
+  // Make design editor open larger by default on desktop.
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if (activeView !== 'design-editor') return;
+    if (window.innerWidth < 768) return;
+    const target = Math.min(Math.round(window.innerWidth * 0.75), 1000);
+    if (chatWidth < target) {
+      setChatWidth(target);
+      localStorage.setItem('ai-chat-width', target.toString());
+    }
+  }, [activeView, chatWidth]);
 
   const startThinkingTimeline = useCallback(() => {
     stopThinkingTimeline();
@@ -1382,10 +1394,22 @@ useEffect(() => {
               className="w-full flex-shrink-0 absolute top-0 bottom-0 left-0 md:top-[1%] md:bottom-[1%] md:left-[1%] z-10"
               style={{
                 width: typeof window !== 'undefined' && window.innerWidth >= 768 ? `${chatWidth}px` : '100%',
-                transition: 'transform 320ms cubic-bezier(0.22, 1, 0.36, 1)',
+                transition: isResizing ? 'none' : 'transform 320ms cubic-bezier(0.22, 1, 0.36, 1)',
                 transform: leftPanelOpen ? 'translateX(calc(12px + min(300px, 50vw)))' : 'translateX(0)',
               }}
             >
+              {typeof window !== 'undefined' && window.innerWidth >= 768 && (
+                <div
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    setIsResizing(true);
+                  }}
+                  className="absolute top-0 bottom-0 right-0 w-1 cursor-col-resize hover:bg-white/20 transition-colors z-30 group"
+                  style={{ touchAction: 'none' }}
+                >
+                  <div className="absolute top-1/2 right-0 -translate-y-1/2 translate-x-1/2 w-1 h-16 bg-white/0 group-hover:bg-white/30 rounded-full transition-colors" />
+                </div>
+              )}
               <DesignEditorView embedMode onBack={() => setActiveView(null)} />
             </div>
             )}

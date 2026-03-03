@@ -1,24 +1,37 @@
 'use client';
 
-export type SocialCardSize = 'og' | 'square';
+export type SocialCardSize = 'story' | 'square';
 
 const DIMENSIONS: Record<SocialCardSize, { width: number; height: number }> = {
-  og: { width: 1200, height: 630 },
+  story: { width: 1080, height: 1920 },
   square: { width: 1080, height: 1080 },
 };
 
-/** Top section ~55% (Figma 1031:796), then CTA button, then image. */
-const TOP_SECTION_RATIO = 0.55;
-const CTA_HEIGHT = 56;
+const CTA_OFFSET = 10;
+const CTA_FONT_SIZE_SQUARE = 32.547;
+const CTA_LINE_HEIGHT_MULTIPLIER = 1.4;
+const CTA_PADDING_Y_SQUARE = 22;
+const CTA_PADDING_X_SQUARE = 66.143;
+const BOX1_BOTTOM_PADDING_SQUARE = 12;
+const BOX1_BOTTOM_PADDING_OG = 8;
+const BOX2_BOTTOM_PADDING_SQUARE = 20;
+const BOX2_BOTTOM_PADDING_OG = 14;
+const HEADLINE_TOP_MARGIN_SQUARE = 14;
+const HEADLINE_TOP_MARGIN_OG = 14;
+const BYLINE_TOP_MARGIN_SQUARE = -10;
+const BYLINE_TOP_MARGIN_OG = -10;
+const EYEBROW_STAR_GAP = 9.33;
+const EYEBROW_BADGE_GAP = 20;
 
 /** Figma 1080×1080: logo 150×60, 60px from top; 32px gap Head/Eyebrow → H1; H1 80px, line-height 120%, padding H 65px */
 const SQUARE_LOGO_TOP = 60;
 const SQUARE_LOGO_W = 150;
 const SQUARE_LOGO_H = 60;
-const SQUARE_GAP_EYEBROW_H1 = 32;
+const SQUARE_LOGO_TO_EYEBROW_GAP = 14.922;
 const SQUARE_H1_FONT_SIZE = 80;
 const SQUARE_H1_LINE_HEIGHT = 1.2;
 const SQUARE_H1_PADDING_H = 65;
+const SQUARE_EYEBROW_PADDING_H = 130;
 const LOGO_SRC = '/images/AproposMagazineLogoInstagram.svg';
 
 export interface SocialCardData {
@@ -45,41 +58,45 @@ interface SocialCardCanvasProps {
 
 export default function SocialCardCanvas({ data, size, className = '', cardRef }: SocialCardCanvasProps) {
   const { width, height } = DIMENSIONS[size];
-  const topH = Math.round(height * TOP_SECTION_RATIO);
-  const ctaY = topH;
-  const imageTop = ctaY;
-  const imageH = height - ctaY;
+  const imageMinH = size === 'square' ? 380 : 220;
+  const ctaScale = size === 'square' ? 1 : 0.58;
+  const ctaFontSize = CTA_FONT_SIZE_SQUARE * ctaScale;
+  const ctaPaddingY = CTA_PADDING_Y_SQUARE * ctaScale;
+  const ctaPaddingX = CTA_PADDING_X_SQUARE * ctaScale;
 
-  const categoryLabel =
+  const eyebrowParts =
     (data.eyebrowLabels && data.eyebrowLabels.length > 0)
-      ? data.eyebrowLabels.join(' | ')
-      : [data.category, data.categorySecondary].filter(Boolean).join(' | ') || '';
+      ? data.eyebrowLabels.filter(Boolean)
+      : [data.category, data.categorySecondary].filter(Boolean) as string[];
 
   return (
     <div
       ref={cardRef as React.RefObject<HTMLDivElement>}
-      className={`relative overflow-visible ${className}`}
+      className={`relative overflow-visible flex flex-col ${className}`}
       style={{
         width: `${width}px`,
         height: `${height}px`,
+        backgroundColor: '#ffffff',
         imageRendering: 'auto',
         fontFamily: 'var(--font-amiri), Amiri, serif',
       }}
     >
-      {/* Top section: hvid kun til CTA (Figma); CTA overlapper billedet */}
+      {/* Box 1: Head & Eyebrow */}
       <div
-        className="relative flex flex-col items-center justify-start pb-6 text-black bg-white"
+        className="relative shrink-0 flex flex-col items-center justify-start text-black"
         style={{
-          height: `${ctaY}px`,
-          minHeight: `${ctaY}px`,
+          minHeight: size === 'square' ? 196 : undefined,
           paddingTop: size === 'square' ? SQUARE_LOGO_TOP : 40,
-          paddingLeft: size === 'square' ? SQUARE_H1_PADDING_H : 40,
-          paddingRight: size === 'square' ? SQUARE_H1_PADDING_H : 40,
+          paddingLeft: size === 'square' ? SQUARE_EYEBROW_PADDING_H : 40,
+          paddingRight: size === 'square' ? SQUARE_EYEBROW_PADDING_H : 40,
+          paddingBottom: size === 'square' ? BOX1_BOTTOM_PADDING_SQUARE : BOX1_BOTTOM_PADDING_OG,
+          rowGap: size === 'square' ? SQUARE_LOGO_TO_EYEBROW_GAP : 0,
+          justifyContent: size === 'square' ? 'flex-end' : 'flex-start',
         }}
       >
         {/* Logo: SVG 150×60 centreret, 60px fra top (square) / ellers tekst-logo */}
         {size === 'square' ? (
-          <div className="absolute left-1/2 -translate-x-1/2" style={{ top: SQUARE_LOGO_TOP }}>
+          <div>
             <img
               src={LOGO_SRC}
               alt="Apropos Magazine"
@@ -98,10 +115,10 @@ export default function SocialCardCanvas({ data, size, className = '', cardRef }
 
         {/* Eyebrow: Amiri 35px, 400, line-height 140%, #000, center */}
         <div
-          className="flex items-center justify-center gap-2 shrink-0"
+          className="flex items-center justify-center shrink-0"
           style={{
-            marginTop: size === 'square' ? SQUARE_LOGO_H + SQUARE_GAP_EYEBROW_H1 : 16,
-            marginBottom: size === 'square' ? SQUARE_GAP_EYEBROW_H1 : 16,
+            marginTop: size === 'square' ? 0 : 16,
+            marginBottom: size === 'square' ? 0 : 16,
             color: '#000',
             textAlign: 'center',
             fontFamily: 'var(--font-amiri), Amiri, serif',
@@ -111,13 +128,32 @@ export default function SocialCardCanvas({ data, size, className = '', cardRef }
             lineHeight: '140%',
           }}
         >
-          {categoryLabel && <span>{categoryLabel}</span>}
+          {eyebrowParts.map((part, idx) => (
+            <span key={`${part}-${idx}`} className="inline-flex items-center">
+              {idx > 0 && (
+                <span
+                  className="opacity-60 inline-flex"
+                  style={{ marginLeft: EYEBROW_BADGE_GAP / 2, marginRight: EYEBROW_BADGE_GAP / 2 }}
+                >
+                  |
+                </span>
+              )}
+              <span>{part}</span>
+            </span>
+          ))}
           {(data.rating ?? 0) > 0 && (
             <>
-              {categoryLabel && <span className="opacity-50">|</span>}
+              {eyebrowParts.length > 0 && (
+                <span
+                  className="opacity-60 inline-flex"
+                  style={{ marginLeft: EYEBROW_BADGE_GAP / 2, marginRight: EYEBROW_BADGE_GAP / 2 }}
+                >
+                  |
+                </span>
+              )}
               <div
                 className="flex items-center self-stretch"
-                style={{ gap: 9.33 }}
+                style={{ gap: EYEBROW_STAR_GAP }}
               >
                 {[1, 2, 3, 4, 5, 6].map((star) => (
                   <img
@@ -133,16 +169,26 @@ export default function SocialCardCanvas({ data, size, className = '', cardRef }
             </>
           )}
         </div>
+      </div>
 
-        {/* H1 – Amiri Regular, 80px, line-height 120%, padding H 65px (square) */}
+      {/* Box 2: Text (headline + byline) */}
+      <div
+        className="shrink-0 text-black"
+        style={{
+          paddingLeft: size === 'square' ? SQUARE_H1_PADDING_H : 40,
+          paddingRight: size === 'square' ? SQUARE_H1_PADDING_H : 40,
+          paddingBottom: size === 'square' ? BOX2_BOTTOM_PADDING_SQUARE : BOX2_BOTTOM_PADDING_OG,
+        }}
+      >
         <h2
-          className="text-center max-w-full leading-tight text-black"
+          className="text-center max-w-full leading-tight text-black line-clamp-3"
           style={{
             fontFamily: 'var(--font-amiri), Amiri, serif',
             fontWeight: 400,
-            fontSize: size === 'square' ? SQUARE_H1_FONT_SIZE : size === 'og' ? 38 : 44,
+            fontSize: size === 'square' ? SQUARE_H1_FONT_SIZE : size === 'story' ? 38 : 44,
             lineHeight: size === 'square' ? SQUARE_H1_LINE_HEIGHT : 1.2,
             maxWidth: size === 'square' ? width - SQUARE_H1_PADDING_H * 2 : undefined,
+            marginTop: size === 'square' ? HEADLINE_TOP_MARGIN_SQUARE : HEADLINE_TOP_MARGIN_OG,
           }}
         >
           {data.title || 'Overskrift'}
@@ -156,11 +202,12 @@ export default function SocialCardCanvas({ data, size, className = '', cardRef }
               color: '#353535',
               textAlign: 'center',
               fontFamily: 'var(--font-amiri), Amiri, serif',
-              fontSize: size === 'square' ? 57 : size === 'og' ? 36 : 40,
+              fontSize: size === 'square' ? 48 : size === 'story' ? 36 : 40,
               fontStyle: 'italic',
               fontWeight: 400,
               lineHeight: '120%',
               maxWidth: size === 'square' ? width - SQUARE_H1_PADDING_H * 2 : '36rem',
+              marginTop: size === 'square' ? BYLINE_TOP_MARGIN_SQUARE : BYLINE_TOP_MARGIN_OG,
             }}
           >
             {data.excerpt}
@@ -168,37 +215,44 @@ export default function SocialCardCanvas({ data, size, className = '', cardRef }
         )}
       </div>
 
-      {/* CTA button – sort bg, hvid tekst, pill-form (Figma) */}
+      {/* Box 3: Image (grows/shrinks naturally when text changes) */}
       <div
-        className="absolute left-1/2 -translate-x-1/2 flex items-center justify-center z-10 rounded-full bg-black text-white font-medium"
-        style={{
-          top: `${ctaY}px`,
-          width: Math.min(width * 0.7, 520),
-          height: CTA_HEIGHT,
-          fontSize: size === 'og' ? 15 : 17,
-          boxShadow: '0 4px 14px rgba(0,0,0,0.2)',
-          fontFamily: 'var(--font-amiri), Amiri, serif',
-        }}
+        className="relative flex-1 min-h-0 bg-neutral-200"
+        style={{ minHeight: imageMinH }}
       >
-        Læs nu på Apropos Magazine
-      </div>
-
-      {/* Bottom: full-bleed image */}
-      <div
-        className="absolute left-0 right-0 overflow-hidden bg-neutral-200"
-        style={{ top: imageTop, height: imageH }}
-      >
+        <div className="absolute inset-0 overflow-hidden">
         {data.imageUrl ? (
           <img
             src={data.imageUrl}
             alt=""
-            className="w-full h-full object-cover"
+            className="w-full h-full object-cover object-center"
+            style={{ objectFit: 'cover' }}
             crossOrigin="anonymous"
             draggable={false}
           />
         ) : (
           <div className="w-full h-full bg-gradient-to-br from-neutral-300 to-neutral-400" />
         )}
+        </div>
+
+        {/* CTA button follows image, offset over top edge */}
+        <div
+          className="absolute left-1/2 -translate-x-1/2 -translate-y-1/2 flex items-center justify-center z-20 rounded-full bg-black text-white font-medium"
+          style={{
+            top: `${CTA_OFFSET}px`,
+            maxWidth: `${Math.min(width - 64, width * 0.82)}px`,
+            padding: `${ctaPaddingY}px ${ctaPaddingX}px`,
+            fontSize: ctaFontSize,
+            fontWeight: 500,
+            lineHeight: `${CTA_LINE_HEIGHT_MULTIPLIER}`,
+            backgroundColor: '#000000',
+            opacity: 1,
+            boxShadow: '0 4px 14px rgba(0,0,0,0.2)',
+            fontFamily: 'Inter, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif',
+          }}
+        >
+          <span className="whitespace-nowrap">Læs nu på Apropos Magazine</span>
+        </div>
       </div>
     </div>
   );

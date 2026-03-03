@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { Amiri } from 'next/font/google';
 import SocialCardCanvas, { type SocialCardData, type SocialCardSize, DIMENSIONS } from './SocialCardCanvas';
 import { exportCardToPng, exportCardToJpeg } from './exportCardToPng';
@@ -9,7 +9,10 @@ import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 
 const amiri = Amiri({ weight: ['400', '700'], subsets: ['latin'], variable: '--font-amiri' });
 
-const PANEL_WIDTH = 'min(300px, 50vw)';
+const DEFAULT_PANEL_WIDTH = 300;
+const MIN_PANEL_WIDTH = 240;
+const MAX_PANEL_WIDTH = 520;
+const PANEL_GAP = 12;
 
 const CAPTION_FOOTER_TEXT = 'Læs gratis med – uden reklamer, pop-ups eller anden støj: www.aproposmagazine.com';
 
@@ -17,11 +20,18 @@ function normalizeArticle(item: { id: string; fieldData?: Record<string, unknown
   const fd = item.fieldData || {};
   const title = (fd.name as string) || (fd['article-title'] as string) || (fd.title as string) || '';
   const slug = (fd.slug as string) || (fd['article-slug'] as string) || item.id;
+  // Byline under headline should primarily come from Webflow subtitle.
   const excerpt =
+    (fd.subtitle as string) ||
+    (fd['article-subtitle'] as string) ||
     (fd.excerpt as string) ||
     (fd['article-excerpt'] as string) ||
     (fd.intro as string) ||
     (fd.metaDescription as string) ||
+    '';
+  const intro =
+    (fd.intro as string) ||
+    (fd['article-intro'] as string) ||
     '';
   const thumb = (fd.thumb as { url?: string })?.url ?? (fd.thumb as string);
   const featuredImage =
@@ -45,6 +55,7 @@ function normalizeArticle(item: { id: string; fieldData?: Record<string, unknown
     title: String(title).trim() || 'Uden titel',
     slug,
     excerpt: String(excerpt).trim(),
+    intro: String(intro).trim() || undefined,
     imageUrl: featuredImage || undefined,
     category: String(category).trim() || undefined,
     rating: rating ?? undefined,
@@ -65,16 +76,22 @@ interface DesignEditorViewProps {
 }
 
 export default function DesignEditorView({ onBack, embedMode }: DesignEditorViewProps) {
+  const rootRef = useRef<HTMLDivElement>(null);
   const [articles, setArticles] = useState<NormalizedArticle[]>([]);
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<NormalizedArticle | null>(null);
-  const [size, setSize] = useState<SocialCardSize>('square');
+  const [size, setSize] = useState<SocialCardSize>('story');
   const [exporting, setExporting] = useState(false);
   const [articlesOpen, setArticlesOpen] = useState(true);
+  const [articleSearch, setArticleSearch] = useState('');
   const [showPreview, setShowPreview] = useState(false);
+  const [articlesPanelWidth, setArticlesPanelWidth] = useState(DEFAULT_PANEL_WIDTH);
+  const [isResizingArticles, setIsResizingArticles] = useState(false);
   const [caption, setCaption] = useState('');
   const [postingToInstagram, setPostingToInstagram] = useState(false);
   const [instagramError, setInstagramError] = useState<string | null>(null);
+  const [instagramConfigured, setInstagramConfigured] = useState<boolean | null>(null);
+  const [renderedCardDataUrl, setRenderedCardDataUrl] = useState<string | null>(null);
   const [authors, setAuthors] = useState<{ id: string; name: string }[]>([]);
   const [sections, setSections] = useState<{ id: string; name: string }[]>([]);
   const [topics, setTopics] = useState<{ id: string; name: string }[]>([]);
@@ -106,8 +123,8 @@ export default function DesignEditorView({ onBack, embedMode }: DesignEditorView
       const sec = jSections.items || jSections.data?.items || [];
       const top = jTopics.items || jTopics.data?.items || [];
       setAuthors(Array.isArray(auth) ? auth.map((a: { id: string; name?: string }) => ({ id: a.id, name: a.name ?? 'Ukendt' })) : []);
-      setSections(Array.isArray(sec) ? sec.map((s: { id: string; name?: string }) => ({ id: s.id, name: s.name ?? s.slug ?? '' })).filter((s: { name: string }) => s.name) : []);
-      setTopics(Array.isArray(top) ? top.map((t: { id: string; name?: string }) => ({ id: t.id, name: t.name ?? t.slug ?? '' })).filter((t: { name: string }) => t.name) : []);
+      setSections(Array.isArray(sec) ? sec.map((s: { id: string; name?: string; slug?: string }) => ({ id: s.id, name: s.name ?? s.slug ?? '' })).filter((s: { name: string }) => s.name) : []);
+      setTopics(Array.isArray(top) ? top.map((t: { id: string; name?: string; slug?: string }) => ({ id: t.id, name: t.name ?? t.slug ?? '' })).filter((t: { name: string }) => t.name) : []);
     }).catch(() => {
       if (!cancelled) { setAuthors([]); setSections([]); setTopics([]); }
     });
@@ -151,15 +168,49 @@ export default function DesignEditorView({ onBack, embedMode }: DesignEditorView
   // Når preview åbnes eller artikel skiftes: foreslå caption fra titel + excerpt (uden Foto); altid afslutte med footer
   useEffect(() => {
     if (!showPreview || !selected) return;
-    const parts = [selected.title, selected.excerpt].filter(Boolean);
+    const parts = [selected.title, selected.excerpt].filter(Boolean) as string[];
+    if (selected.intro && selected.intro !== selected.excerpt) {
+      parts.push(selected.intro);
+    }
     setCaption(parts.join('\n\n') + '\n\n' + CAPTION_FOOTER_TEXT);
-  }, [showPreview, selected?.id, selected?.title, selected?.excerpt]);
+  }, [showPreview, selected?.id, selected?.title, selected?.excerpt, selected?.intro]);
+
+  // Tjek om Instagram-publish er konfigureret (til test / brugertilbagemelding)
+  useEffect(() => {
+    if (!showPreview) return;
+    fetch('/api/instagram/publish')
+      .then((r) => r.json())
+      .then((data: { configured?: boolean }) => setInstagramConfigured(!!data.configured))
+      .catch(() => setInstagramConfigured(false));
+  }, [showPreview]);
 
   const ensureCaptionFooter = useCallback((text: string) => {
     const t = text.trim();
     if (!t) return '\n\n' + CAPTION_FOOTER_TEXT;
     return t.endsWith(CAPTION_FOOTER_TEXT) ? t : t + '\n\n' + CAPTION_FOOTER_TEXT;
   }, []);
+
+  useEffect(() => {
+    if (!isResizingArticles) return;
+    const handleMouseMove = (e: MouseEvent) => {
+      const bounds = rootRef.current?.getBoundingClientRect();
+      if (!bounds) return;
+      const dynamicMax = Math.min(MAX_PANEL_WIDTH, Math.floor(bounds.width * 0.6));
+      const next = Math.round(e.clientX - bounds.left);
+      setArticlesPanelWidth(Math.max(MIN_PANEL_WIDTH, Math.min(dynamicMax, next)));
+    };
+    const handleMouseUp = () => setIsResizingArticles(false);
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+    };
+  }, [isResizingArticles]);
 
   useEffect(() => {
     const el = previewRef.current;
@@ -213,7 +264,7 @@ export default function DesignEditorView({ onBack, embedMode }: DesignEditorView
     [eyebrowChips, selected, sections, resolveName]
   );
 
-  const cardData: SocialCardData = {
+  const cardData: SocialCardData = useMemo(() => ({
     title: selected?.title ?? '',
     excerpt: selected?.excerpt ?? undefined,
     imageUrl: selected?.imageUrl ?? undefined,
@@ -221,7 +272,38 @@ export default function DesignEditorView({ onBack, embedMode }: DesignEditorView
     categorySecondary: undefined,
     eyebrowLabels: eyebrowChips.length > 0 ? eyebrowChips.map((c) => c.label) : undefined,
     rating: selected?.rating ?? undefined,
-  };
+  }), [selected?.title, selected?.excerpt, selected?.imageUrl, selected?.category, selected?.rating, eyebrowChips]);
+
+  const filteredArticles = useMemo(() => {
+    const q = articleSearch.trim().toLowerCase();
+    if (!q) return articles;
+    return articles.filter((art) => {
+      const haystack = [
+        art.title,
+        art.excerpt,
+        art.category,
+        art.section,
+        art.primaryTopic,
+        ...(art.topics ?? []),
+      ]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase();
+      return haystack.includes(q);
+    });
+  }, [articles, articleSearch]);
+
+  const previewAspectRatio = size === 'story' ? '9 / 16' : '1 / 1';
+  const previewMaxHeight = size === 'story' ? 996 : 468;
+
+  // Preview must use the exact same rendering pipeline as export (WYSIWYG)
+  useEffect(() => {
+    let cancelled = false;
+    exportCardToPng(cardData, size)
+      .then((url) => { if (!cancelled) setRenderedCardDataUrl(url); })
+      .catch(() => { if (!cancelled) setRenderedCardDataUrl(null); });
+    return () => { cancelled = true; };
+  }, [size, cardData]);
 
   useEffect(() => {
     let cancelled = false;
@@ -237,6 +319,13 @@ export default function DesignEditorView({ onBack, embedMode }: DesignEditorView
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
   }, []);
+
+  // Safety net: ensure first article is selected if selected is missing.
+  useEffect(() => {
+    if (!selected && articles.length > 0) {
+      setSelected(articles[0]);
+    }
+  }, [selected, articles]);
 
   const handleExportPng = useCallback(async () => {
     setExporting(true);
@@ -292,14 +381,15 @@ export default function DesignEditorView({ onBack, embedMode }: DesignEditorView
   const rootClass = embedMode ? `h-full flex flex-col relative overflow-hidden ${amiri.variable}` : `h-screen bg-[#171717] md:p-[1%] p-0 flex flex-col md:flex-row relative overflow-hidden ${amiri.variable}`;
 
   return (
-    <div className={rootClass}>
+    <div ref={rootRef} className={rootClass}>
       {/* Venstre panel: Artikler */}
       <div
         className="hidden md:block absolute top-0 bottom-0 left-0 z-40 transition-all duration-300 ease-out overflow-hidden"
         style={{
-          width: articlesOpen ? `calc(${PANEL_WIDTH})` : '0px',
+          width: articlesOpen ? `${articlesPanelWidth}px` : '0px',
           opacity: articlesOpen ? 1 : 0,
           pointerEvents: articlesOpen ? 'auto' : 'none',
+          transition: isResizingArticles ? 'none' : undefined,
         }}
       >
         <div
@@ -315,14 +405,28 @@ export default function DesignEditorView({ onBack, embedMode }: DesignEditorView
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 6L6 18M6 6l12 12" /></svg>
             </button>
           </div>
+          <div className="px-3 pt-3 pb-2 border-b border-white/10">
+            <div className="relative">
+              <svg className="absolute left-3 top-1/2 -translate-y-1/2 text-white/50" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <circle cx="11" cy="11" r="8" />
+                <path d="M21 21l-4.3-4.3" />
+              </svg>
+              <input
+                value={articleSearch}
+                onChange={(e) => setArticleSearch(e.target.value)}
+                placeholder="Søg i artikler..."
+                className="w-full bg-white/5 border border-white/15 rounded-lg pl-9 pr-3 py-2 text-sm text-white placeholder:text-white/45 focus:outline-none focus:ring-2 focus:ring-white/20 focus:border-white/30"
+              />
+            </div>
+          </div>
           <div className="flex-1 overflow-y-auto overflow-x-hidden p-2 no-scrollbar">
             {loading ? (
               <p className="text-white/50 text-sm py-4">Henter artikler fra Webflow…</p>
-            ) : articles.length === 0 ? (
+            ) : filteredArticles.length === 0 ? (
               <p className="text-white/50 text-sm py-4">Ingen artikler. Tjek Webflow.</p>
             ) : (
               <ul className="space-y-1">
-                {articles.map((art) => (
+                {filteredArticles.map((art) => (
                   <li key={art.id}>
                     <button
                       type="button"
@@ -339,6 +443,19 @@ export default function DesignEditorView({ onBack, embedMode }: DesignEditorView
             )}
           </div>
         </div>
+        {articlesOpen && (
+          <div
+            onMouseDown={(e) => {
+              e.preventDefault();
+              setIsResizingArticles(true);
+            }}
+            className="absolute top-0 bottom-0 right-0 w-1 cursor-col-resize hover:bg-white/20 transition-colors z-50 group"
+            style={{ touchAction: 'none' }}
+            aria-hidden="true"
+          >
+            <div className="absolute top-1/2 right-0 -translate-y-1/2 translate-x-1/2 w-1 h-16 bg-white/0 group-hover:bg-white/30 rounded-full transition-colors" />
+            </div>
+        )}
       </div>
 
       {/* Mobil: fuldskærms artikel-liste */}
@@ -350,10 +467,24 @@ export default function DesignEditorView({ onBack, embedMode }: DesignEditorView
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 6L6 18M6 6l12 12" /></svg>
             </button>
           </div>
+          <div className="px-3 pt-3 pb-2 border-b border-white/10">
+            <div className="relative">
+              <svg className="absolute left-3 top-1/2 -translate-y-1/2 text-white/50" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <circle cx="11" cy="11" r="8" />
+                <path d="M21 21l-4.3-4.3" />
+              </svg>
+              <input
+                value={articleSearch}
+                onChange={(e) => setArticleSearch(e.target.value)}
+                placeholder="Søg i artikler..."
+                className="w-full bg-white/5 border border-white/15 rounded-lg pl-9 pr-3 py-2 text-sm text-white placeholder:text-white/45 focus:outline-none focus:ring-2 focus:ring-white/20 focus:border-white/30"
+              />
+            </div>
+          </div>
           <div className="flex-1 overflow-y-auto p-3">
             {loading ? <p className="text-white/50 text-sm">Henter artikler…</p> : (
               <ul className="space-y-2">
-                {articles.map((art) => (
+                {filteredArticles.map((art) => (
                   <li key={art.id}>
                     <button type="button" onClick={() => setSelected(art)} className={`w-full text-left px-3 py-3 rounded-xl text-sm ${selected?.id === art.id ? 'bg-white/15 text-white' : 'text-white/80 hover:bg-white/10'}`}>
                       <span className="line-clamp-2">{art.title}</span>
@@ -370,8 +501,9 @@ export default function DesignEditorView({ onBack, embedMode }: DesignEditorView
       <div
         className="flex-1 min-w-0 flex flex-col md:absolute md:top-0 md:bottom-0 z-10 transition-[left] duration-300"
         style={{
-          left: articlesOpen ? `calc(12px + ${PANEL_WIDTH})` : '0',
+          left: articlesOpen ? `${articlesPanelWidth + PANEL_GAP}px` : '0',
           right: embedMode ? 0 : 'calc(60px)',
+          transition: isResizingArticles ? 'none' : undefined,
         }}
       >
         <div className="h-full flex flex-col rounded-xl border border-white/20 overflow-hidden bg-[#171717]">
@@ -396,7 +528,7 @@ export default function DesignEditorView({ onBack, embedMode }: DesignEditorView
                 onChange={(e) => setSize(e.target.value as SocialCardSize)}
                 className="p-2 rounded-lg border border-white/15 bg-transparent text-white/70 hover:text-white hover:bg-white/5 focus:outline-none focus:ring-2 focus:ring-white/20 focus:border-white/20 transition-colors text-sm"
               >
-                <option value="og">1200 × 630</option>
+                <option value="story">1080 × 1920 (Story)</option>
                 <option value="square">1080 × 1080</option>
               </select>
               <button
@@ -452,7 +584,7 @@ export default function DesignEditorView({ onBack, embedMode }: DesignEditorView
           {showPreview ? (
             <div className="flex-1 min-h-0 flex flex-col items-center overflow-y-auto bg-[#0a0a0a] p-4">
               {/* Instagram-style post preview */}
-              <div className="w-full max-w-[468px] flex flex-col rounded-lg overflow-hidden border border-white/10 bg-[#0a0a0a]">
+              <div className="w-full flex flex-col rounded-lg overflow-hidden border border-white/10 bg-[#0a0a0a]" style={{ maxWidth: size === 'story' ? 620 : 468 }}>
                 {/* Profil-række */}
                 <div className="flex items-center gap-3 px-3 py-2.5 border-b border-white/10">
                   <img
@@ -467,50 +599,18 @@ export default function DesignEditorView({ onBack, embedMode }: DesignEditorView
                   <span className="text-white/50 text-xs ml-auto">• nu</span>
                 </div>
                 {/* Opslagsbillede = kortet */}
-                <div className="flex items-center justify-center bg-black/30 w-full" style={{ aspectRatio: '1/1', maxHeight: 468 }}>
-                  <div
-                    style={{
-                      width: DIMENSIONS[size].width,
-                      height: DIMENSIONS[size].height,
-                      transform: `scale(${Math.min(468 / DIMENSIONS[size].width, 468 / DIMENSIONS[size].height)})`,
-                      transformOrigin: 'center center',
-                    }}
-                  >
-                    <SocialCardCanvas data={cardData} size={size} />
-                  </div>
+                <div className="flex items-center justify-center bg-black/30 w-full" style={{ aspectRatio: previewAspectRatio, maxHeight: previewMaxHeight }}>
+                  {renderedCardDataUrl ? (
+                    <img
+                      src={renderedCardDataUrl}
+                      alt=""
+                      className="w-full h-full object-cover"
+                      draggable={false}
+                    />
+                  ) : (
+                    <SocialCardCanvas data={cardData} size={size} className="w-full h-full" />
+                  )}
                 </div>
-                {/* Engagement (placeholder) */}
-                <div className="flex items-center gap-4 px-3 py-2 border-b border-white/10">
-                  <span className="flex items-center gap-1.5 text-white/80 text-sm">
-                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-white/90"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
-                    <span>0</span>
-                  </span>
-                  <span className="flex items-center gap-1.5 text-white/80 text-sm">
-                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-white/90"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-                    <span>0</span>
-                  </span>
-                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-white/90"><path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"/></svg>
-                  <span className="ml-auto"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-white/90"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg></span>
-                </div>
-                {/* Head & Eyebrow: 2 felter – klik for at skifte, hover = glow */}
-                {eyebrowChips.length > 0 && (
-                  <div className="px-3 py-2 border-b border-white/10">
-                    <p className="text-white/50 text-xs mb-2">Head & Eyebrow — klik for næste</p>
-                    <div className="flex flex-wrap gap-2">
-                      {eyebrowChips.map((chip, index) => (
-                        <button
-                          key={`${chip.type}-${index}-${chip.value}`}
-                          type="button"
-                          onClick={() => cycleEyebrowChip(index)}
-                          className="px-3 py-1.5 rounded-lg text-white text-sm font-medium bg-white/15 border border-white/25 transition-all duration-200 hover:bg-white/25 hover:border-white/50 hover:shadow-[0_0_20px_rgba(255,255,255,0.4)] focus:outline-none focus:ring-2 focus:ring-white/50"
-                          title="Klik for at vælge næste"
-                        >
-                          {chip.label}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                )}
                 {/* Caption: brugernavn + redigerbar tekst under opslaget */}
                 <div className="px-3 py-2">
                   <p className="text-white text-sm mb-1.5">
@@ -535,7 +635,7 @@ export default function DesignEditorView({ onBack, embedMode }: DesignEditorView
                     <button
                       type="button"
                       onClick={handlePostToInstagram}
-                      disabled={postingToInstagram}
+                      disabled={postingToInstagram || instagramConfigured === false}
                       className="w-full py-2.5 px-4 rounded-lg bg-[#E1306C] hover:bg-[#C13584] disabled:opacity-50 disabled:pointer-events-none text-white font-medium text-sm transition-colors flex items-center justify-center gap-2"
                     >
                       {postingToInstagram ? (
@@ -547,6 +647,9 @@ export default function DesignEditorView({ onBack, embedMode }: DesignEditorView
                         </>
                       )}
                     </button>
+                    {instagramConfigured === false && (
+                      <p className="text-amber-400/90 text-xs">Instagram-publish er ikke konfigureret. Sæt INSTAGRAM_ACCOUNT_ID og INSTAGRAM_ACCESS_TOKEN (se docs/INSTAGRAM_PUBLISH.md).</p>
+                    )}
                     {instagramError && (
                       <p className="text-red-400 text-sm">{instagramError}</p>
                     )}
@@ -555,34 +658,53 @@ export default function DesignEditorView({ onBack, embedMode }: DesignEditorView
               </div>
             </div>
           ) : (
-            <div ref={previewRef} className="flex-1 min-h-0 flex flex-col items-center justify-center bg-black/20 gap-4 p-4">
-              {/* Head & Eyebrow – altid synlige over kortet, klik for at skifte (2 felter + stjerner) */}
-              {eyebrowChips.length > 0 && (
-                <div className="flex flex-col items-center gap-2 w-full max-w-lg">
-                  <p className="text-white/60 text-xs uppercase tracking-wider">Head & Eyebrow — klik for næste</p>
-                  <div className="flex flex-wrap items-center justify-center gap-2">
+            <div ref={previewRef} className="flex-1 min-h-0 flex flex-col items-center justify-center bg-black/20 p-4">
+              <div className="w-full flex flex-col items-center gap-2">
+                {/* Figma-lignende kontrolbar placeret lige over kortet */}
+                {eyebrowChips.length > 0 && (
+                  <div className="inline-flex items-center gap-2 rounded-2xl border border-white/15 bg-black/65 p-2 backdrop-blur-md shadow-[0_8px_24px_rgba(0,0,0,0.35)]">
                     {eyebrowChips.map((chip, index) => (
                       <button
                         key={`${chip.type}-${index}-${chip.value}`}
                         type="button"
                         onClick={() => cycleEyebrowChip(index)}
-                        className="px-4 py-2 rounded-lg text-white text-sm font-medium bg-white/15 border border-white/25 transition-all duration-200 hover:bg-white/25 hover:border-white/50 hover:shadow-[0_0_20px_rgba(255,255,255,0.4)] focus:outline-none focus:ring-2 focus:ring-white/50"
+                        className="px-5 py-2 rounded-xl text-white text-[15px] font-medium bg-white/15 border border-white/25 transition-all duration-200 hover:bg-white/25 hover:border-white/50 focus:outline-none focus:ring-2 focus:ring-white/40"
                         title="Klik for at vælge næste"
                       >
                         {chip.label}
                       </button>
                     ))}
                     {(selected?.rating ?? 0) > 0 && (
-                      <span className="text-white/70 text-sm ml-1">
+                      <span className="text-white/75 text-[18px] px-1">
                         | ★ {selected?.rating}/6
                       </span>
                     )}
                   </div>
+                )}
+
+                <div
+                  className="relative"
+                  style={{
+                    transform: `scale(${scale})`,
+                    transformOrigin: 'center center',
+                    width: DIMENSIONS[size].width,
+                    height: DIMENSIONS[size].height,
+                  }}
+                >
+                <div className="w-full h-full">
+                  {renderedCardDataUrl ? (
+                    <img
+                      src={renderedCardDataUrl}
+                      alt=""
+                      className="w-full h-full object-contain"
+                      draggable={false}
+                    />
+                  ) : (
+                    <SocialCardCanvas data={cardData} size={size} />
+                  )}
                 </div>
-              )}
-              <div style={{ transform: `scale(${scale})`, transformOrigin: 'center center', width: DIMENSIONS[size].width, height: DIMENSIONS[size].height }}>
-                <SocialCardCanvas data={cardData} size={size} />
               </div>
+            </div>
             </div>
           )}
         </div>

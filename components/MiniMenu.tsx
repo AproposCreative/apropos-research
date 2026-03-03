@@ -5,8 +5,8 @@ import { useAuth } from '@/lib/auth-context';
 export default function MiniMenu({ translateX, onSearch, onToggleReview, onToggleGuide, onToggleWebApps, onToggleShelf, onNewArticle }: { translateX: string; onSearch: ()=>void; onToggleReview: ()=>void; onToggleGuide: ()=>void; onToggleWebApps: ()=>void; onToggleShelf: ()=>void; onNewArticle: ()=>void; }) {
   const { user, logout } = useAuth();
   const [accountOpen, setAccountOpen] = useState(false);
-  const [photoLoadFailed, setPhotoLoadFailed] = useState(false);
-  useEffect(() => setPhotoLoadFailed(false), [user?.photoURL]);
+  const [photoLoaded, setPhotoLoaded] = useState(false);
+  useEffect(() => setPhotoLoaded(false), [user?.photoURL]);
 
   const userInitials = (() => {
     const name = (user?.displayName || user?.email || '').trim();
@@ -72,15 +72,23 @@ export default function MiniMenu({ translateX, onSearch, onToggleReview, onToggl
           </a>
           <div className="relative flex items-center" style={{ marginLeft: 'auto' }}>
             <button onClick={() => setAccountOpen(v=>!v)} className="w-8 h-8 flex items-center justify-center rounded-xl overflow-hidden border border-white/10 hover:border-white/20 transition-colors p-[2px]" title={user?.displayName || user?.email || 'Konto'}>
-              {user?.photoURL && !photoLoadFailed ? (
+              {user?.photoURL && photoLoaded ? (
                 <img
                   src={user.photoURL}
                   alt=""
                   className="w-[calc(100%-2px)] h-[calc(100%-2px)] object-cover rounded-lg"
-                  onError={() => setPhotoLoadFailed(true)}
                 />
               ) : (
                 <div className="w-full h-full flex items-center justify-center text-[11px] font-semibold text-white rounded-lg" style={{ background: avatarBg }}>{userInitials}</div>
+              )}
+              {user?.photoURL && !photoLoaded && (
+                <img
+                  src={user.photoURL}
+                  alt=""
+                  className="absolute opacity-0 w-px h-px pointer-events-none"
+                  onLoad={() => setPhotoLoaded(true)}
+                  onError={() => setPhotoLoaded(false)}
+                />
               )}
             </button>
             <div className={`overflow-hidden transition-[width] duration-300 ease-out flex items-center`} style={{ width: accountOpen ? (8 + userName.length * 7 + 70) + 'px' : '0px' }}>

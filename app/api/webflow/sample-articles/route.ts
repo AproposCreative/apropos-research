@@ -11,13 +11,26 @@ export async function GET() {
     }
 
     const headers = { 'Authorization': `Bearer ${token}`, 'Accept-Version': '1.0.0' } as any;
-    const res = await fetch(`https://api.webflow.com/v2/sites/${siteId}/collections/${articlesCollectionId}/items?limit=50`, { headers });
-    if (!res.ok) {
-      const j = await res.json().catch(() => ({}));
-      return NextResponse.json({ error: j?.message || 'Failed to fetch items' }, { status: 502 });
+    const pageSize = 100;
+    const maxItems = 1000;
+    let offset = 0;
+    const items: any[] = [];
+
+    // Webflow paginates collection items; fetch all pages for designer list.
+    while (offset < maxItems) {
+      const url = `https://api.webflow.com/v2/sites/${siteId}/collections/${articlesCollectionId}/items?limit=${pageSize}&offset=${offset}`;
+      const res = await fetch(url, { headers });
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({}));
+        return NextResponse.json({ error: j?.message || 'Failed to fetch items' }, { status: 502 });
+      }
+      const data: any = await res.json();
+      const pageItems: any[] = data.items || [];
+      items.push(...pageItems);
+
+      if (pageItems.length < pageSize) break;
+      offset += pageSize;
     }
-    const data: any = await res.json();
-    const items: any[] = data.items || [];
 
     // Return trimmed fieldData only
     const trimmed = items.map((it) => ({ id: it.id, fieldData: it.fieldData }));
