@@ -1120,7 +1120,7 @@ const fallbackThinkingSteps: ThinkingStep[] = [
         <div className={`flex items-center justify-between p-4 app-safe-top relative z-20 
           md:static md:bg-transparent md:backdrop-blur-0 md:border-b md:border-zinc-800 
           fixed top-0 inset-x-0 md:inset-auto md:top-auto
-          bg-black/40 backdrop-blur-xl border-b border-white/10 
+          bg-black/40 backdrop-blur-xl border-b border-white/10
         ${messages.length === 0 ? 'md:opacity-100' : ''}`}>
           <div className="flex items-center gap-3">
             {/* Mobile: Logo/title cross-fade */}
@@ -1532,7 +1532,7 @@ const fallbackThinkingSteps: ThinkingStep[] = [
             <div className="p-4 space-y-4">
               {/* Action tray (Apple style) */}
               <div className="rounded-2xl border border-white/10 bg-gradient-to-b from-white/[0.04] to-white/[0.02] p-3">
-                <div className="grid grid-cols-3 gap-2 text-center">
+                <div className="grid grid-cols-4 gap-2 text-center">
                   <button
                     className="touch-target flex flex-col items-center justify-center gap-1 py-3 rounded-xl hover:bg-white/5 transition-colors"
                     onClick={() => {
@@ -1550,6 +1550,18 @@ const fallbackThinkingSteps: ThinkingStep[] = [
                       ))}
                     </div>
                     <span className="text-[11px] text-white/80">Drafts</span>
+                  </button>
+                  <button
+                    className="touch-target flex flex-col items-center justify-center gap-1 py-3 rounded-xl hover:bg-white/5 transition-colors"
+                    onClick={() => {
+                      closeMobileMenu();
+                      window.location.href = '/design-editor';
+                    }}
+                  >
+                    <svg className="w-5 h-5 text-white/90" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 7h16M4 12h16M4 17h16" />
+                    </svg>
+                    <span className="text-[11px] text-white/80">Designer</span>
                   </button>
                   <button
                     className="touch-target flex flex-col items-center justify-center gap-1 py-3 rounded-xl hover:bg-white/5 transition-colors"
@@ -1781,18 +1793,9 @@ const fallbackThinkingSteps: ThinkingStep[] = [
           style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 8px)' }}
         >
           {/* Mobile: Wizard card above writer card inside same sticky container */}
-          {wizardNode && (
-            <div className="md:hidden mb-2" style={{ overflow: mobileWizardCollapsed ? 'hidden' : 'visible' }}>
-              <div className="mb-1 flex justify-end">
-                <button
-                  type="button"
-                  onClick={() => setMobileWizardCollapsed((c) => !c)}
-                  className="touch-target px-3 py-1.5 rounded-lg border border-white/15 text-white/80 text-xs bg-black/30 hover:bg-white/5 transition-colors"
-                >
-                  {mobileWizardCollapsed ? 'Vis guide' : 'Skjul guide'}
-                </button>
-              </div>
-              <WizardAutoHeight collapsed={mobileWizardCollapsed}>
+          {wizardNode && messages.length === 0 && (
+            <div className="md:hidden mb-2">
+              <WizardAutoHeight collapsed={false}>
                 {wizardNode}
               </WizardAutoHeight>
             </div>

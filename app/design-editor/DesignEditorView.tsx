@@ -508,12 +508,12 @@ export default function DesignEditorView({ onBack, embedMode }: DesignEditorView
       >
         <div className="h-full flex flex-col rounded-xl border border-white/20 overflow-hidden bg-[#171717]">
           {/* Top bar – samme design som AI Writer */}
-          <div className="flex-shrink-0 flex items-center justify-between p-4 app-safe-top border-b border-white/10 md:border-b md:border-zinc-800 bg-black/40 backdrop-blur-xl md:bg-transparent md:backdrop-blur-0">
-            <div className="flex items-center gap-3">
+          <div className="flex-shrink-0 flex flex-col md:flex-row md:items-center md:justify-between gap-3 p-3 md:p-4 app-safe-top border-b border-white/10 md:border-b md:border-zinc-800 bg-black/40 backdrop-blur-xl md:bg-transparent md:backdrop-blur-0">
+            <div className="flex items-center gap-3 min-w-0">
               <button onClick={() => setArticlesOpen(true)} className="touch-target w-11 h-11 flex items-center justify-center hover:bg-white/10 rounded-xl transition-colors md:hidden" aria-label="Artikler">
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M4 6h16M4 12h16M4 18h16" /></svg>
               </button>
-              <h1 className="text-white text-base font-medium md:block">
+              <h1 className="text-white text-sm md:text-base font-medium md:block leading-tight">
                 <span
                   className="bg-gradient-to-r from-white/20 via-white/70 to-white/20 bg-clip-text text-transparent"
                   style={{ backgroundSize: '200% 100%', animation: 'gradient-shift 4s ease-in-out infinite' }}
@@ -522,11 +522,11 @@ export default function DesignEditorView({ onBack, embedMode }: DesignEditorView
                 </span>
               </h1>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="w-full md:w-auto flex items-center gap-2 overflow-x-auto no-scrollbar">
               <select
                 value={size}
                 onChange={(e) => setSize(e.target.value as SocialCardSize)}
-                className="touch-target p-2 rounded-lg border border-white/15 bg-transparent text-white/70 hover:text-white hover:bg-white/5 focus:outline-none focus:ring-2 focus:ring-white/20 focus:border-white/20 transition-colors text-sm"
+                className="touch-target shrink-0 p-2 rounded-lg border border-white/15 bg-transparent text-white/70 hover:text-white hover:bg-white/5 focus:outline-none focus:ring-2 focus:ring-white/20 focus:border-white/20 transition-colors text-sm"
               >
                 <option value="story">1080 × 1920 (Story)</option>
                 <option value="square">1080 × 1080</option>
@@ -534,7 +534,7 @@ export default function DesignEditorView({ onBack, embedMode }: DesignEditorView
               <button
                 type="button"
                 onClick={() => setArticlesOpen((v) => !v)}
-                className={`touch-target p-2 rounded-lg border flex items-center justify-center transition-colors ${articlesOpen ? 'bg-white/10 text-white border-white/25' : 'border-white/15 text-white/70 hover:text-white hover:bg-white/5'}`}
+                className={`touch-target shrink-0 p-2 rounded-lg border flex items-center justify-center transition-colors ${articlesOpen ? 'bg-white/10 text-white border-white/25' : 'border-white/15 text-white/70 hover:text-white hover:bg-white/5'}`}
                 title="Mine artikler"
                 aria-label="Mine artikler – vælg artikel fra Webflow"
               >
@@ -543,7 +543,7 @@ export default function DesignEditorView({ onBack, embedMode }: DesignEditorView
               <button
                 type="button"
                 onClick={() => setShowPreview((v) => !v)}
-                className={`touch-target p-2 rounded-lg border border-white/15 flex items-center justify-center transition-colors ${showPreview ? 'bg-white/10 text-white border-white/25' : 'text-white/70 hover:text-white hover:bg-white/5'}`}
+                className={`touch-target shrink-0 p-2 rounded-lg border border-white/15 flex items-center justify-center transition-colors ${showPreview ? 'bg-white/10 text-white border-white/25' : 'text-white/70 hover:text-white hover:bg-white/5'}`}
                 title={showPreview ? 'Luk forhåndsvisning' : 'Forhåndsvis opslag'}
                 aria-label={showPreview ? 'Luk forhåndsvisning' : 'Forhåndsvis opslag'}
               >
@@ -553,7 +553,7 @@ export default function DesignEditorView({ onBack, embedMode }: DesignEditorView
                 type="button"
                 onClick={handleExportPng}
                 disabled={exporting}
-                className="touch-target p-2 rounded-lg border border-white/15 text-white/70 hover:text-white hover:bg-white/5 disabled:opacity-50 disabled:pointer-events-none transition-colors"
+                className="touch-target shrink-0 p-2 rounded-lg border border-white/15 text-white/70 hover:text-white hover:bg-white/5 disabled:opacity-50 disabled:pointer-events-none transition-colors"
                 title="Eksporter PNG"
                 aria-label={exporting ? 'Eksporterer…' : 'Eksporter PNG'}
               >
@@ -563,7 +563,7 @@ export default function DesignEditorView({ onBack, embedMode }: DesignEditorView
                 <button
                   type="button"
                   onClick={onBack}
-                  className="touch-target p-2 rounded-lg border border-white/15 text-white/70 hover:text-white hover:bg-white/5 transition-colors"
+                  className="touch-target shrink-0 p-2 rounded-lg border border-white/15 text-white/70 hover:text-white hover:bg-white/5 transition-colors"
                   aria-label="Luk Designer"
                   title="Luk"
                 >
@@ -572,7 +572,7 @@ export default function DesignEditorView({ onBack, embedMode }: DesignEditorView
               ) : (
                 <a
                   href="/ai"
-                  className="touch-target p-2 rounded-lg border border-white/15 text-white/70 hover:text-white hover:bg-white/5 transition-colors inline-flex items-center justify-center"
+                  className="touch-target shrink-0 p-2 rounded-lg border border-white/15 text-white/70 hover:text-white hover:bg-white/5 transition-colors inline-flex items-center justify-center"
                   aria-label="Tilbage til AI Writer"
                   title="Tilbage til AI Writer"
                 >
@@ -658,17 +658,17 @@ export default function DesignEditorView({ onBack, embedMode }: DesignEditorView
               </div>
             </div>
           ) : (
-            <div ref={previewRef} className="flex-1 min-h-0 flex flex-col items-center justify-center bg-black/20 p-4">
-              <div className="w-full flex flex-col items-center gap-2">
+            <div ref={previewRef} className="flex-1 min-h-0 flex flex-col items-center md:justify-center justify-start bg-black/20 p-3 md:p-4">
+              <div className="w-full flex flex-col items-center gap-3 md:gap-2">
                 {/* Figma-lignende kontrolbar placeret lige over kortet */}
                 {eyebrowChips.length > 0 && (
-                  <div className="inline-flex items-center gap-2 rounded-2xl border border-white/15 bg-black/65 p-2 backdrop-blur-md shadow-[0_8px_24px_rgba(0,0,0,0.35)]">
+                  <div className="inline-flex max-w-full overflow-x-auto no-scrollbar items-center gap-2 rounded-2xl border border-white/15 bg-black/65 p-2 backdrop-blur-md shadow-[0_8px_24px_rgba(0,0,0,0.35)]">
                     {eyebrowChips.map((chip, index) => (
                       <button
                         key={`${chip.type}-${index}-${chip.value}`}
                         type="button"
                         onClick={() => cycleEyebrowChip(index)}
-                        className="px-5 py-2 rounded-xl text-white text-[15px] font-medium bg-white/15 border border-white/25 transition-all duration-200 hover:bg-white/25 hover:border-white/50 focus:outline-none focus:ring-2 focus:ring-white/40"
+                        className="shrink-0 px-4 md:px-5 py-2 rounded-xl text-white text-sm md:text-[15px] font-medium bg-white/15 border border-white/25 transition-all duration-200 hover:bg-white/25 hover:border-white/50 focus:outline-none focus:ring-2 focus:ring-white/40"
                         title="Klik for at vælge næste"
                       >
                         {chip.label}

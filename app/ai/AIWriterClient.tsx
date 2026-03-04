@@ -678,44 +678,44 @@ useEffect(() => {
             allKeys: Object.keys(articleUpdate)
           });
           
-          let extractedFields = {};
-          
-          // Extract fields from content if AI only provides content
+          let extractedFields: Record<string, string> = {};
+
+          // Conservative fallback: only parse explicit "Arbejdstitel:" / "Undertitel:" labels.
+          // Avoid inferring title/subtitle from first paragraphs, which can corrupt CMS fields.
           if (articleUpdate.content && Object.keys(articleUpdate).length === 1) {
             const content = articleUpdate.content;
-            
-            const titleMatch = content.match(/^(?:#\s*)?(.+?)(?:\n|$)/m);
-            const extractedTitle = titleMatch ? titleMatch[1].trim() : '';
-            
-            const subtitleMatch = content.match(/(?:^#\s*.+?\n\n)(.+?)(?:\n\n|$)/m) || 
-                                 content.match(/^.+?\n\n(.+?)(?:\n\n|$)/m);
-            const extractedSubtitle = subtitleMatch ? subtitleMatch[1].trim() : '';
-            
-            const slug = extractedTitle
-              .toLowerCase()
-              .replace(/[^a-z0-9\s-]/g, '')
-              .replace(/\s+/g, '-')
-              .replace(/-+/g, '-')
-              .trim();
-            
-            const seoTitle = extractedTitle.length > 60 
-              ? extractedTitle.substring(0, 57) + '...' 
-              : extractedTitle;
-            
-            const firstParagraph = content.split('\n\n')[0] || content.split('\n')[0] || '';
-            const metaDescription = firstParagraph.length > 155 
-              ? firstParagraph.substring(0, 152) + '...' 
-              : firstParagraph;
-            
-            extractedFields = {
-              title: extractedTitle,
-              subtitle: extractedSubtitle,
-              slug: slug,
-              seo_title: seoTitle,
-              seoTitle: seoTitle,
-              meta_description: metaDescription,
-              seoDescription: metaDescription
-            };
+            const titleMatch = content.match(/^\s*Arbejdstitel\s*:\s*(.+)$/im);
+            const subtitleMatch = content.match(/^\s*Undertitel\s*:\s*(.+)$/im);
+
+            const extractedTitle = titleMatch?.[1]?.trim() || '';
+            const extractedSubtitle = subtitleMatch?.[1]?.trim() || '';
+
+            if (extractedTitle) {
+              const slug = extractedTitle
+                .toLowerCase()
+                .replace(/[^a-z0-9\s-]/g, '')
+                .replace(/\s+/g, '-')
+                .replace(/-+/g, '-')
+                .trim();
+
+              const seoTitle = extractedTitle.length > 60
+                ? `${extractedTitle.substring(0, 57)}...`
+                : extractedTitle;
+
+              extractedFields = {
+                title: extractedTitle,
+                slug,
+                seo_title: seoTitle,
+                seoTitle,
+              };
+            }
+
+            if (extractedSubtitle) {
+              extractedFields = {
+                ...extractedFields,
+                subtitle: extractedSubtitle,
+              };
+            }
           }
           
           // Only update fields that have meaningful values (not empty strings or null)
@@ -727,11 +727,18 @@ useEffect(() => {
               return true;
             })
           );
+
+          // Extra failsafe: derive title/subtitle from assistant response if missing in articleUpdate.
+          const responseText = typeof data.response === 'string' ? data.response : '';
+          const parsedTitle = responseText.match(/^\s*(?:\*\*)?\s*(?:Arbejdstitel|Titel)\s*(?:\*\*)?\s*[:\-–—]\s*(.+)$/im)?.[1]?.trim() || '';
+          const parsedSubtitle = responseText.match(/^\s*(?:\*\*)?\s*(?:Undertitel|Subtitle)\s*(?:\*\*)?\s*[:\-–—]\s*(.+)$/im)?.[1]?.trim() || '';
           
           const updatedData = { 
             ...prev, 
             ...meaningfulUpdate,
             ...extractedFields,
+            ...(!meaningfulUpdate.title && !extractedFields.title && parsedTitle ? { title: parsedTitle } : {}),
+            ...(!meaningfulUpdate.subtitle && !extractedFields.subtitle && parsedSubtitle ? { subtitle: parsedSubtitle } : {}),
             ...(data.suggestion ? { aiSuggestion: data.suggestion } : {}),
             _chatMessages: compactMessages, 
             notes 

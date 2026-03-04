@@ -70,28 +70,48 @@ function buildSystemPrompt(authorTOV: string, authorName: string, articleContext
   return parts.join('\n');
 }
 
-/** Extract title text from first line "Arbejdstitel: X" or "**Arbejdstitel: X**". Returns [titleText, contentWithoutThatLine]. */
-function extractTitleAndStripLine(text: string): { title: string | null; content: string } {
+/** Parse title/subtitle labels from the top of response with tolerant markdown and separators. */
+function extractTopLabeledLine(
+  text: string,
+  kind: 'title' | 'subtitle'
+): { value: string | null; content: string } {
   const t = text.trim();
-  const boldMatch = t.match(/^\*\*Arbejdstitel\s*:\s*([^\n]*?)\*\*\s*\n?/i);
-  if (boldMatch) {
-    return { title: boldMatch[1].trim() || null, content: t.slice(boldMatch[0].length).trim() };
-  }
-  const plainMatch = t.match(/^Arbejdstitel\s*:\s*([^\n]+)\n?/im);
-  if (plainMatch) {
-    return { title: plainMatch[1].trim() || null, content: t.slice(plainMatch[0].length).trim() };
-  }
-  return { title: null, content: t };
-}
+  if (!t) return { value: null, content: t };
 
-/** Strip "Undertitel: X" from start of text and return [subtitleText, rest]. */
-function extractSubtitleAndStripLine(text: string): { subtitle: string | null; content: string } {
-  const t = text.trim();
-  const match = t.match(/^Undertitel\s*:\s*([^\n]+)\n?/im);
-  if (match) {
-    return { subtitle: match[1].trim() || null, content: t.slice(match[0].length).trim() };
+  const lines = t.split('\n');
+  const maxScan = Math.min(lines.length, 8);
+  const labelPattern = kind === 'title'
+    ? '(?:arbejdstitel|titel)'
+    : '(?:undertitel|subtitle)';
+
+  for (let i = 0; i < maxScan; i += 1) {
+    const line = lines[i] ?? '';
+    const trimmed = line.trim();
+    if (!trimmed) continue;
+
+    // Accept common wrappers from model formatting: markdown list, blockquote and emphasis.
+    const normalized = trimmed
+      .replace(/^[-*]\s+/, '')
+      .replace(/^>\s*/, '')
+      .replace(/^\s*#+\s*/, '') // markdown headings
+      .replace(/\*\*/g, '')
+      .replace(/__/g, '')
+      .replace(/`/g, '')
+      .trim();
+
+    // Accept separators ":" "-" "–" "—"
+    const m = normalized.match(new RegExp(`^${labelPattern}\\s*[:\\-–—]\\s*(.+)$`, 'i'));
+    if (!m) continue;
+
+    const value = (m[1] || '').trim();
+    if (!value) return { value: null, content: t };
+
+    const remainingLines = [...lines.slice(0, i), ...lines.slice(i + 1)];
+    const content = remainingLines.join('\n').trim();
+    return { value, content };
   }
-  return { subtitle: null, content: t };
+
+  return { value: null, content: t };
 }
 
 /** Force user-chosen rating (1-6) into content: replace any "Stjerner: ⭐..." line with the correct one. */
@@ -140,11 +160,33 @@ function cleanDuplicateIntroAndMetaFromBody(content: string, extractedTitle: str
   return `${introPrefix[0]}${introText}\n\n${body}`.trim();
 }
 
+function deriveFallbackTitleSubtitle(text: string): { title: string | null; subtitle: string | null } {
+  const lines = (text || '')
+    .split('\n')
+    .map((l) => l.trim())
+    .filter(Boolean)
+    .filter((l) => !/^(intro|undertitel|subtitle|arbejdstitel|titel|stjerner)\s*[:\-–—]/i.test(l));
+
+  if (lines.length === 0) return { title: null, subtitle: null };
+
+  // Prefer markdown heading if present.
+  const heading = lines.find((l) => /^#\s+/.test(l));
+  const headingText = heading ? heading.replace(/^#\s+/, '').trim() : null;
+
+  const pickTitle = (headingText || lines[0] || '').replace(/^["'“”]|["'“”]$/g, '').trim();
+  const title = pickTitle.length >= 6 && pickTitle.length <= 120 ? pickTitle : null;
+
+  const subtitleCandidate = lines.find((l, idx) => idx > 0 && l !== pickTitle && l.length >= 12 && l.length <= 180);
+  const subtitle = subtitleCandidate ? subtitleCandidate.replace(/^["'“”]|["'“”]$/g, '').trim() : null;
+
+  return { title, subtitle };
+}
+
 function extractArticleUpdate(responseText: string, userRating?: number): Record<string, string> | null {
   const t = responseText.trim();
   if (!t) return null;
-  const { title: extractedTitle, content: contentWithoutTitleLine } = extractTitleAndStripLine(t);
-  const { subtitle: extractedSubtitle, content: contentWithoutSubtitle } = extractSubtitleAndStripLine(contentWithoutTitleLine);
+  const { value: extractedTitle, content: contentWithoutTitleLine } = extractTopLabeledLine(t, 'title');
+  const { value: extractedSubtitle, content: contentWithoutSubtitle } = extractTopLabeledLine(contentWithoutTitleLine, 'subtitle');
   const introMatch = contentWithoutSubtitle.match(/^intro\s*:\s*/i);
   const looksLikeArticle = introMatch || /intro\s*:/i.test(contentWithoutSubtitle) || contentWithoutSubtitle.length > 200 || /\n\n/.test(contentWithoutSubtitle);
   if (!looksLikeArticle) return null;
@@ -153,10 +195,13 @@ function extractArticleUpdate(responseText: string, userRating?: number): Record
     finalContent = applyRatingToContent(finalContent, userRating);
   }
   finalContent = stripWordCountLine(finalContent);
-  finalContent = cleanDuplicateIntroAndMetaFromBody(finalContent, extractedTitle || null);
+  const fallback = deriveFallbackTitleSubtitle(finalContent);
+  const resolvedTitle = extractedTitle || fallback.title;
+  const resolvedSubtitle = extractedSubtitle || fallback.subtitle;
+  finalContent = cleanDuplicateIntroAndMetaFromBody(finalContent, resolvedTitle || null);
   const update: Record<string, string> = { content: finalContent };
-  if (extractedTitle) update.title = extractedTitle;
-  if (extractedSubtitle) update.subtitle = extractedSubtitle;
+  if (resolvedTitle) update.title = resolvedTitle;
+  if (resolvedSubtitle) update.subtitle = resolvedSubtitle;
   return update;
 }
 
