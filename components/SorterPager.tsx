@@ -12,12 +12,12 @@ export default function SorterPager({ total, page, perPage, sort, params }:{
   const nextPage = Math.min(pages, page+1);
   
   return (
-    <div className="flex items-center justify-between gap-8 p-6 rounded-3xl bg-white/5 dark:bg-black/20 backdrop-blur-2xl border border-white/10 dark:border-white/5 shadow-2xl">
+    <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 md:gap-8 p-4 md:p-6 rounded-3xl bg-white/5 dark:bg-black/20 backdrop-blur-2xl border border-white/10 dark:border-white/5 shadow-2xl">
       {/* Sort Controls */}
-      <div className="flex items-center gap-4">
+      <div className="flex items-center gap-3 w-full md:w-auto">
         <label className="text-sm font-medium text-slate-600 dark:text-slate-300 tracking-wide">Sortér</label>
         <select
-          className="appearance-none rounded-2xl border-0 bg-white/10 dark:bg-white/5 backdrop-blur-xl text-slate-700 dark:text-slate-200 px-6 py-3 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:bg-white/20 dark:focus:bg-white/10 transition-all duration-300 shadow-lg cursor-pointer"
+          className="touch-target appearance-none rounded-2xl border-0 bg-white/10 dark:bg-white/5 backdrop-blur-xl text-slate-700 dark:text-slate-200 px-4 py-3 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:bg-white/20 dark:focus:bg-white/10 transition-all duration-300 shadow-lg cursor-pointer w-full md:w-auto"
           defaultValue={sort}
           onChange={(e)=>{ location.href = link({ sort: e.target.value, page: '1' }); }}
         >
@@ -29,9 +29,9 @@ export default function SorterPager({ total, page, perPage, sort, params }:{
       </div>
       
       {/* Pagination Controls */}
-      <div className="flex items-center gap-4">
+      <div className="flex items-center justify-between md:justify-start gap-2 md:gap-4 w-full md:w-auto">
         <a 
-          className={`group relative overflow-hidden rounded-2xl px-6 py-3 text-sm font-medium transition-all duration-300 ${
+          className={`touch-target group relative overflow-hidden rounded-2xl px-4 md:px-6 py-3 text-sm font-medium transition-all duration-300 ${
             page <= 1 
               ? 'bg-white/5 dark:bg-white/5 text-slate-400 dark:text-slate-500 cursor-not-allowed' 
               : 'bg-white/10 dark:bg-white/5 text-slate-700 dark:text-slate-200 hover:bg-white/20 dark:hover:bg-white/10 hover:scale-105 shadow-lg hover:shadow-xl'
@@ -44,7 +44,7 @@ export default function SorterPager({ total, page, perPage, sort, params }:{
           )}
         </a>
         
-        <div className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white/5 dark:bg-white/5 backdrop-blur-sm">
+        <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-white/5 dark:bg-white/5 backdrop-blur-sm">
           <span className="text-sm font-medium text-slate-600 dark:text-slate-300">Side</span>
           <span className="text-sm font-bold text-slate-800 dark:text-slate-100">{page}</span>
           <span className="text-sm text-slate-500 dark:text-slate-400">af</span>
@@ -52,7 +52,7 @@ export default function SorterPager({ total, page, perPage, sort, params }:{
         </div>
         
         <a 
-          className={`group relative overflow-hidden rounded-2xl px-6 py-3 text-sm font-medium transition-all duration-300 ${
+          className={`touch-target group relative overflow-hidden rounded-2xl px-4 md:px-6 py-3 text-sm font-medium transition-all duration-300 ${
             page >= pages 
               ? 'bg-white/5 dark:bg-white/5 text-slate-400 dark:text-slate-500 cursor-not-allowed' 
               : 'bg-white/10 dark:bg-white/5 text-slate-700 dark:text-slate-200 hover:bg-white/20 dark:hover:bg-white/10 hover:scale-105 shadow-lg hover:shadow-xl'

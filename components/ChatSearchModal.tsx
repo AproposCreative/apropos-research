@@ -36,6 +36,20 @@ export default function ChatSearchModal({ isOpen, onClose, onSelectMessage }: Ch
     }
   }, [isOpen, user]);
 
+  useEffect(() => {
+    if (!isOpen) return;
+    const originalOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    const onEsc = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') onClose();
+    };
+    document.addEventListener('keydown', onEsc);
+    return () => {
+      document.body.style.overflow = originalOverflow;
+      document.removeEventListener('keydown', onEsc);
+    };
+  }, [isOpen, onClose]);
+
   const loadDrafts = async () => {
     if (!user) return;
     
@@ -100,17 +114,12 @@ export default function ChatSearchModal({ isOpen, onClose, onSelectMessage }: Ch
     setIsSearching(false);
   };
 
-  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const query = e.target.value;
-    setSearchQuery(query);
-    
-    // Debounce search
-    const timeoutId = setTimeout(() => {
-      searchMessages(query);
-    }, 300);
-
-    return () => clearTimeout(timeoutId);
-  };
+  useEffect(() => {
+    const timeoutId = window.setTimeout(() => {
+      searchMessages(searchQuery);
+    }, 250);
+    return () => window.clearTimeout(timeoutId);
+  }, [searchQuery, allDrafts]);
 
   const handleResultClick = (result: SearchResult) => {
     onSelectMessage(result.draft, result.messageIndex);
@@ -145,14 +154,14 @@ export default function ChatSearchModal({ isOpen, onClose, onSelectMessage }: Ch
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm">
-      <div className="bg-black border border-white/10 rounded-2xl w-full max-w-4xl max-h-[80vh] mx-4 flex flex-col">
+    <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center bg-black/80 backdrop-blur-sm" role="dialog" aria-modal="true">
+      <div className="bg-black border border-white/10 rounded-t-2xl md:rounded-2xl w-full max-w-4xl h-[92dvh] md:h-auto md:max-h-[80dvh] mx-0 md:mx-4 flex flex-col app-safe-bottom">
         {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b border-white/10">
-          <h2 className="text-2xl font-bold text-white font-poppins">Søg i beskeder</h2>
+        <div className="flex items-center justify-between p-4 md:p-6 border-b border-white/10">
+          <h2 className="text-lg md:text-2xl font-bold text-white font-poppins">Søg i beskeder</h2>
           <button
             onClick={onClose}
-            className="w-8 h-8 flex items-center justify-center text-white/60 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
+            className="touch-target w-11 h-11 flex items-center justify-center text-white/60 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
           >
             <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
               <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
@@ -161,12 +170,12 @@ export default function ChatSearchModal({ isOpen, onClose, onSelectMessage }: Ch
         </div>
 
         {/* Search Input */}
-        <div className="p-6 border-b border-white/10">
+        <div className="p-4 md:p-6 border-b border-white/10 sticky top-0 bg-black/95 z-10">
           <div className="relative">
             <input
               type="text"
               value={searchQuery}
-              onChange={handleSearchChange}
+              onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Søg i dine beskeder..."
               className="w-full bg-white/5 border border-white/20 rounded-lg px-4 py-3 text-white placeholder-white/40 focus:outline-none focus:border-blue-400 transition-colors"
             />
@@ -177,7 +186,7 @@ export default function ChatSearchModal({ isOpen, onClose, onSelectMessage }: Ch
         </div>
 
         {/* Results */}
-        <div className="flex-1 overflow-y-auto p-6">
+        <div className="flex-1 overflow-y-auto p-4 md:p-6">
           {isSearching ? (
             <div className="flex items-center justify-center py-12">
               <div className="w-6 h-6 border-2 border-white/30 border-t-white rounded-full animate-spin mr-3"></div>

@@ -292,13 +292,13 @@ export default function AlleMedierClient({ initialData, searchParams }: AlleMedi
           }
         />
 
-        <div className="sticky top-4 z-40 mb-8">
+        <div className="sticky top-[calc(env(safe-area-inset-top)+8px)] md:top-4 z-40 mb-6">
           <div className="flex flex-col xl:flex-row gap-4 items-start xl:items-center">
             <div className="flex-1 xl:max-w-md">
               <SearchInput />
             </div>
             <div className="flex-1 xl:flex-2">
-              <div className="flex items-center gap-2 bg-white/20 dark:bg-black/30 backdrop-blur-3xl rounded-3xl py-2 px-2 border border-white/20 dark:border-white/10 shadow-2xl overflow-x-auto">
+              <div className="flex items-center gap-2 bg-white/20 dark:bg-black/30 backdrop-blur-3xl rounded-3xl py-2 px-2 border border-white/20 dark:border-white/10 shadow-2xl overflow-x-auto no-scrollbar w-full">
                 <a href={`/alle-medier?${params.toString().replace(/cat=[^&]*&?/g, '')}`} className={`px-4 py-2 rounded-2xl text-sm font-medium transition-all duration-300 whitespace-nowrap ${!cat ? 'bg-white/40 dark:bg-black/60 text-slate-800 dark:text-white shadow-lg' : 'text-slate-600 dark:text-slate-300 hover:bg-white/20 dark:hover:bg-black/40'}`}>
                   Alle
                 </a>

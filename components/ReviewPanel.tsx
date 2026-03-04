@@ -230,7 +230,7 @@ export default function ReviewPanel({ articleData, onClose, frameless, onPreflig
         </section>
       )}
 
-      <section className="grid grid-cols-2 gap-3 text-xs">
+      <section className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
         <Field k="Name (Titel)" v={title || '—'} />
         {has('subtitle','sub-title') && <Field k="Undertitel" v={subtitle || '—'} />}
         {has('author') && <Field k="Author" v={author} />}

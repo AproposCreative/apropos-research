@@ -192,21 +192,21 @@ export default function DesignEditorView({ onBack, embedMode }: DesignEditorView
 
   useEffect(() => {
     if (!isResizingArticles) return;
-    const handleMouseMove = (e: MouseEvent) => {
+    const handlePointerMove = (e: PointerEvent) => {
       const bounds = rootRef.current?.getBoundingClientRect();
       if (!bounds) return;
       const dynamicMax = Math.min(MAX_PANEL_WIDTH, Math.floor(bounds.width * 0.6));
       const next = Math.round(e.clientX - bounds.left);
       setArticlesPanelWidth(Math.max(MIN_PANEL_WIDTH, Math.min(dynamicMax, next)));
     };
-    const handleMouseUp = () => setIsResizingArticles(false);
-    document.addEventListener('mousemove', handleMouseMove);
-    document.addEventListener('mouseup', handleMouseUp);
+    const handlePointerUp = () => setIsResizingArticles(false);
+    document.addEventListener('pointermove', handlePointerMove);
+    document.addEventListener('pointerup', handlePointerUp);
     document.body.style.cursor = 'col-resize';
     document.body.style.userSelect = 'none';
     return () => {
-      document.removeEventListener('mousemove', handleMouseMove);
-      document.removeEventListener('mouseup', handleMouseUp);
+      document.removeEventListener('pointermove', handlePointerMove);
+      document.removeEventListener('pointerup', handlePointerUp);
       document.body.style.cursor = '';
       document.body.style.userSelect = '';
     };
@@ -378,7 +378,7 @@ export default function DesignEditorView({ onBack, embedMode }: DesignEditorView
     }
   }, [size, cardData, caption, ensureCaptionFooter]);
 
-  const rootClass = embedMode ? `h-full flex flex-col relative overflow-hidden ${amiri.variable}` : `h-screen bg-[#171717] md:p-[1%] p-0 flex flex-col md:flex-row relative overflow-hidden ${amiri.variable}`;
+  const rootClass = embedMode ? `h-full flex flex-col relative overflow-hidden ${amiri.variable}` : `min-h-[100dvh] h-[100dvh] bg-[#171717] md:p-[1%] p-0 flex flex-col md:flex-row relative overflow-hidden ${amiri.variable}`;
 
   return (
     <div ref={rootRef} className={rootClass}>
@@ -445,21 +445,21 @@ export default function DesignEditorView({ onBack, embedMode }: DesignEditorView
         </div>
         {articlesOpen && (
           <div
-            onMouseDown={(e) => {
+            onPointerDown={(e) => {
               e.preventDefault();
               setIsResizingArticles(true);
             }}
-            className="absolute top-0 bottom-0 right-0 w-1 cursor-col-resize hover:bg-white/20 transition-colors z-50 group"
+            className="absolute top-0 bottom-0 right-0 w-4 cursor-col-resize hover:bg-white/20 transition-colors z-50 group"
             style={{ touchAction: 'none' }}
             aria-hidden="true"
           >
-            <div className="absolute top-1/2 right-0 -translate-y-1/2 translate-x-1/2 w-1 h-16 bg-white/0 group-hover:bg-white/30 rounded-full transition-colors" />
+            <div className="absolute top-1/2 right-0 -translate-y-1/2 translate-x-1/2 w-1 h-16 bg-white/10 group-hover:bg-white/40 rounded-full transition-colors" />
             </div>
         )}
       </div>
 
       {/* Mobil: fuldskærms artikel-liste */}
-      <div className={`md:hidden fixed inset-0 z-40 bg-[#171717] ${articlesOpen ? 'translate-x-0' : '-translate-x-full'} transition-transform duration-300`}>
+      <div className={`md:hidden fixed inset-0 z-40 bg-[#171717] app-safe-top app-safe-bottom ${articlesOpen ? 'translate-x-0' : '-translate-x-full'} transition-transform duration-300`}>
         <div className="h-full flex flex-col">
           <div className="px-4 py-3 border-b border-white/10 flex items-center justify-between">
             <h3 className="text-white text-base font-medium">Mine artikler</h3>
@@ -486,7 +486,7 @@ export default function DesignEditorView({ onBack, embedMode }: DesignEditorView
               <ul className="space-y-2">
                 {filteredArticles.map((art) => (
                   <li key={art.id}>
-                    <button type="button" onClick={() => setSelected(art)} className={`w-full text-left px-3 py-3 rounded-xl text-sm ${selected?.id === art.id ? 'bg-white/15 text-white' : 'text-white/80 hover:bg-white/10'}`}>
+                    <button type="button" onClick={() => { setSelected(art); setArticlesOpen(false); }} className={`w-full text-left px-3 py-3 rounded-xl text-sm ${selected?.id === art.id ? 'bg-white/15 text-white' : 'text-white/80 hover:bg-white/10'}`}>
                       <span className="line-clamp-2">{art.title}</span>
                     </button>
                   </li>
@@ -508,9 +508,9 @@ export default function DesignEditorView({ onBack, embedMode }: DesignEditorView
       >
         <div className="h-full flex flex-col rounded-xl border border-white/20 overflow-hidden bg-[#171717]">
           {/* Top bar – samme design som AI Writer */}
-          <div className="flex-shrink-0 flex items-center justify-between p-4 border-b border-white/10 md:border-b md:border-zinc-800 bg-black/40 backdrop-blur-xl md:bg-transparent md:backdrop-blur-0">
+          <div className="flex-shrink-0 flex items-center justify-between p-4 app-safe-top border-b border-white/10 md:border-b md:border-zinc-800 bg-black/40 backdrop-blur-xl md:bg-transparent md:backdrop-blur-0">
             <div className="flex items-center gap-3">
-              <button onClick={() => setArticlesOpen(true)} className="w-9 h-9 flex items-center justify-center hover:bg-white/10 rounded-xl transition-colors md:hidden" aria-label="Artikler">
+              <button onClick={() => setArticlesOpen(true)} className="touch-target w-11 h-11 flex items-center justify-center hover:bg-white/10 rounded-xl transition-colors md:hidden" aria-label="Artikler">
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M4 6h16M4 12h16M4 18h16" /></svg>
               </button>
               <h1 className="text-white text-base font-medium md:block">
@@ -526,7 +526,7 @@ export default function DesignEditorView({ onBack, embedMode }: DesignEditorView
               <select
                 value={size}
                 onChange={(e) => setSize(e.target.value as SocialCardSize)}
-                className="p-2 rounded-lg border border-white/15 bg-transparent text-white/70 hover:text-white hover:bg-white/5 focus:outline-none focus:ring-2 focus:ring-white/20 focus:border-white/20 transition-colors text-sm"
+                className="touch-target p-2 rounded-lg border border-white/15 bg-transparent text-white/70 hover:text-white hover:bg-white/5 focus:outline-none focus:ring-2 focus:ring-white/20 focus:border-white/20 transition-colors text-sm"
               >
                 <option value="story">1080 × 1920 (Story)</option>
                 <option value="square">1080 × 1080</option>
@@ -534,7 +534,7 @@ export default function DesignEditorView({ onBack, embedMode }: DesignEditorView
               <button
                 type="button"
                 onClick={() => setArticlesOpen((v) => !v)}
-                className={`p-2 rounded-lg border flex items-center justify-center transition-colors ${articlesOpen ? 'bg-white/10 text-white border-white/25' : 'border-white/15 text-white/70 hover:text-white hover:bg-white/5'}`}
+                className={`touch-target p-2 rounded-lg border flex items-center justify-center transition-colors ${articlesOpen ? 'bg-white/10 text-white border-white/25' : 'border-white/15 text-white/70 hover:text-white hover:bg-white/5'}`}
                 title="Mine artikler"
                 aria-label="Mine artikler – vælg artikel fra Webflow"
               >
@@ -543,17 +543,17 @@ export default function DesignEditorView({ onBack, embedMode }: DesignEditorView
               <button
                 type="button"
                 onClick={() => setShowPreview((v) => !v)}
-                className={`p-2 rounded-lg border border-white/15 flex items-center justify-center transition-colors ${showPreview ? 'bg-white/10 text-white border-white/25' : 'text-white/70 hover:text-white hover:bg-white/5'}`}
+                className={`touch-target p-2 rounded-lg border border-white/15 flex items-center justify-center transition-colors ${showPreview ? 'bg-white/10 text-white border-white/25' : 'text-white/70 hover:text-white hover:bg-white/5'}`}
                 title={showPreview ? 'Luk forhåndsvisning' : 'Forhåndsvis opslag'}
                 aria-label={showPreview ? 'Luk forhåndsvisning' : 'Forhåndsvis opslag'}
               >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
               </button>
               <button
                 type="button"
                 onClick={handleExportPng}
                 disabled={exporting}
-                className="p-2 rounded-lg border border-white/15 text-white/70 hover:text-white hover:bg-white/5 disabled:opacity-50 disabled:pointer-events-none transition-colors"
+                className="touch-target p-2 rounded-lg border border-white/15 text-white/70 hover:text-white hover:bg-white/5 disabled:opacity-50 disabled:pointer-events-none transition-colors"
                 title="Eksporter PNG"
                 aria-label={exporting ? 'Eksporterer…' : 'Eksporter PNG'}
               >
@@ -563,7 +563,7 @@ export default function DesignEditorView({ onBack, embedMode }: DesignEditorView
                 <button
                   type="button"
                   onClick={onBack}
-                  className="p-2 rounded-lg border border-white/15 text-white/70 hover:text-white hover:bg-white/5 transition-colors"
+                  className="touch-target p-2 rounded-lg border border-white/15 text-white/70 hover:text-white hover:bg-white/5 transition-colors"
                   aria-label="Luk Designer"
                   title="Luk"
                 >
@@ -572,7 +572,7 @@ export default function DesignEditorView({ onBack, embedMode }: DesignEditorView
               ) : (
                 <a
                   href="/ai"
-                  className="p-2 rounded-lg border border-white/15 text-white/70 hover:text-white hover:bg-white/5 transition-colors inline-flex items-center justify-center"
+                  className="touch-target p-2 rounded-lg border border-white/15 text-white/70 hover:text-white hover:bg-white/5 transition-colors inline-flex items-center justify-center"
                   aria-label="Tilbage til AI Writer"
                   title="Tilbage til AI Writer"
                 >

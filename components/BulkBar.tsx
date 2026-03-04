@@ -129,7 +129,7 @@ export default function BulkBar() {
 
   return (
     <>
-      <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 animate-fade-in-up">
+      <div className="fixed left-1/2 -translate-x-1/2 z-50 animate-fade-in-up bottom-[calc(1rem+env(safe-area-inset-bottom)+72px)] md:bottom-6">
         <div className="group bg-white/80 dark:bg-pure-black/80 backdrop-blur-2xl border border-white/20 dark:border-black-800/50 rounded-2xl shadow-lg ring-1 ring-white/10 dark:ring-black-800/20 px-4 py-2.5 flex items-center gap-3 hover:shadow-xl hover:scale-[1.02] transition-all duration-300 ease-out">
           <div className="text-sm font-medium text-slate-700 dark:text-black-200">
             <span className="font-semibold">{count}</span> valgt
@@ -138,7 +138,7 @@ export default function BulkBar() {
           {/* Quick Actions */}
           <div className="flex items-center gap-1.5">
             <button
-              className="group/btn px-2.5 py-1 bg-white/50 dark:bg-pure-black/50 backdrop-blur-sm text-slate-700 dark:text-black-300 rounded-lg text-xs font-medium hover:bg-white/70 dark:hover:bg-black-700/70 hover:text-primary-600 dark:hover:text-primary-400 hover:shadow-md hover:scale-105 transition-all duration-200 ease-out border border-white/30 dark:border-black-700/30 shadow-sm"
+              className="touch-target group/btn px-2.5 py-1 bg-white/50 dark:bg-pure-black/50 backdrop-blur-sm text-slate-700 dark:text-black-300 rounded-lg text-xs font-medium hover:bg-white/70 dark:hover:bg-black-700/70 hover:text-primary-600 dark:hover:text-primary-400 hover:shadow-md hover:scale-105 transition-all duration-200 ease-out border border-white/30 dark:border-black-700/30 shadow-sm"
               onClick={async () => {
                 await navigator.clipboard.writeText(copyText);
               }}
@@ -149,7 +149,7 @@ export default function BulkBar() {
             </button>
             
             <button
-              className="group/btn px-2.5 py-1 bg-primary-600/90 dark:bg-primary-500/90 backdrop-blur-sm text-white rounded-lg text-xs font-medium hover:bg-primary-700/90 dark:hover:bg-primary-400/90 hover:shadow-md hover:scale-105 transition-all duration-200 ease-out disabled:opacity-60 disabled:hover:scale-100 shadow-sm"
+              className="touch-target group/btn px-2.5 py-1 bg-primary-600/90 dark:bg-primary-500/90 backdrop-blur-sm text-white rounded-lg text-xs font-medium hover:bg-primary-700/90 dark:hover:bg-primary-400/90 hover:shadow-md hover:scale-105 transition-all duration-200 ease-out disabled:opacity-60 disabled:hover:scale-100 shadow-sm"
               disabled={busy}
               onClick={() => handleBulkAction('editorial')}
               title="Send til Editorial Queue"
@@ -163,7 +163,7 @@ export default function BulkBar() {
             {/* More Actions Dropdown */}
             <div className="relative" ref={dropdownRef}>
               <button
-                className="group/btn px-2.5 py-1 bg-white/50 dark:bg-pure-black/50 backdrop-blur-sm text-slate-700 dark:text-black-300 rounded-lg text-xs font-medium hover:bg-white/70 dark:hover:bg-black-700/70 hover:text-slate-900 dark:hover:text-white hover:shadow-md hover:scale-105 transition-all duration-200 ease-out border border-white/30 dark:border-black-700/30 shadow-sm"
+                className="touch-target group/btn px-2.5 py-1 bg-white/50 dark:bg-pure-black/50 backdrop-blur-sm text-slate-700 dark:text-black-300 rounded-lg text-xs font-medium hover:bg-white/70 dark:hover:bg-black-700/70 hover:text-slate-900 dark:hover:text-white hover:shadow-md hover:scale-105 transition-all duration-200 ease-out border border-white/30 dark:border-black-700/30 shadow-sm"
                 onClick={() => setShowActions(!showActions)}
                 title="Flere handlinger"
               >
@@ -229,7 +229,7 @@ export default function BulkBar() {
             </div>
             
             <button
-              className="group/btn px-2.5 py-1 bg-white/50 dark:bg-pure-black/50 backdrop-blur-sm text-slate-700 dark:text-black-300 rounded-lg text-xs font-medium hover:bg-white/70 dark:hover:bg-black-700/70 hover:text-error-600 dark:hover:text-error-400 hover:shadow-md hover:scale-105 transition-all duration-200 ease-out border border-white/30 dark:border-black-700/30 shadow-sm"
+              className="touch-target group/btn px-2.5 py-1 bg-white/50 dark:bg-pure-black/50 backdrop-blur-sm text-slate-700 dark:text-black-300 rounded-lg text-xs font-medium hover:bg-white/70 dark:hover:bg-black-700/70 hover:text-error-600 dark:hover:text-error-400 hover:shadow-md hover:scale-105 transition-all duration-200 ease-out border border-white/30 dark:border-black-700/30 shadow-sm"
               onClick={clear}
             >
               <span className="group-hover/btn:scale-110 transition-transform duration-200">🗑️</span>

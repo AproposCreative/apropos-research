@@ -1,5 +1,5 @@
 'use client';
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useMedia } from '../lib/media-context';
 
 interface AddMediaModalProps {
@@ -9,6 +9,20 @@ interface AddMediaModalProps {
 }
 
 export default function AddMediaModal({ isOpen, onClose, onSuccess }: AddMediaModalProps) {
+  useEffect(() => {
+    if (!isOpen) return;
+    const prevOverflow = document.body.style.overflow;
+    const onEsc = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') onClose();
+    };
+    document.body.style.overflow = 'hidden';
+    document.addEventListener('keydown', onEsc);
+    return () => {
+      document.body.style.overflow = prevOverflow;
+      document.removeEventListener('keydown', onEsc);
+    };
+  }, [isOpen, onClose]);
+
   const { refreshArticleCounts } = useMedia();
   const [formData, setFormData] = useState({
     name: '',
@@ -453,7 +467,7 @@ export default function AddMediaModal({ isOpen, onClose, onSuccess }: AddMediaMo
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
+    <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center" role="dialog" aria-modal="true">
       {/* Backdrop */}
       <div 
         className="absolute inset-0 bg-black/50 backdrop-blur-sm"
@@ -461,15 +475,15 @@ export default function AddMediaModal({ isOpen, onClose, onSuccess }: AddMediaMo
       />
       
       {/* Modal */}
-      <div className="relative bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-700 max-w-md w-full mx-4 max-h-[90vh] overflow-y-auto">
+      <div className="relative bg-white dark:bg-slate-900 rounded-t-2xl md:rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-700 max-w-md w-full mx-0 md:mx-4 h-[92dvh] md:h-auto md:max-h-[90dvh] flex flex-col app-safe-bottom">
         {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b border-slate-200 dark:border-slate-700">
+        <div className="flex items-center justify-between p-4 md:p-6 border-b border-slate-200 dark:border-slate-700">
           <h2 className="text-xl font-semibold text-slate-900 dark:text-white">
             Tilføj ny mediekilde
           </h2>
           <button
             onClick={onClose}
-            className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors"
+            className="touch-target text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors"
           >
             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -478,7 +492,7 @@ export default function AddMediaModal({ isOpen, onClose, onSuccess }: AddMediaMo
         </div>
 
         {/* Form */}
-        <form onSubmit={handleSubmit} className="p-6 space-y-6">
+        <form onSubmit={handleSubmit} className="p-4 md:p-6 space-y-6 overflow-y-auto flex-1">
           {/* Error Message */}
           {error && (
             <div className="p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl">
@@ -670,7 +684,7 @@ export default function AddMediaModal({ isOpen, onClose, onSuccess }: AddMediaMo
           )}
 
           {/* Actions */}
-          <div className="flex gap-3 pt-4">
+          <div className="sticky bottom-0 bg-white dark:bg-slate-900 py-3 flex gap-3">
             <button
               type="button"
               onClick={onClose}

@@ -168,6 +168,15 @@ export default function MainChatPanel({
   };
 
   useEffect(() => {
+    if (!mobileMenuVisible) return;
+    const originalOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = originalOverflow;
+    };
+  }, [mobileMenuVisible]);
+
+  useEffect(() => {
     const updateHeight = () => {
       if (!inputContainerRef.current) {
         setInputSpacerHeight(0);
@@ -1108,7 +1117,7 @@ const fallbackThinkingSteps: ThinkingStep[] = [
           <div className="absolute inset-0 bg-black/30" />
         </div>
         {/* Top Bar */}
-        <div className={`flex items-center justify-between p-4 relative z-20 
+        <div className={`flex items-center justify-between p-4 app-safe-top relative z-20 
           md:static md:bg-transparent md:backdrop-blur-0 md:border-b md:border-zinc-800 
           fixed top-0 inset-x-0 md:inset-auto md:top-auto
           bg-black/40 backdrop-blur-xl border-b border-white/10 
@@ -1154,7 +1163,7 @@ const fallbackThinkingSteps: ThinkingStep[] = [
             <button
               type="button"
               onClick={() => onClose?.()}
-              className="p-2 rounded-lg border border-white/15 text-white/70 hover:text-white hover:bg-white/5 transition-colors"
+              className="hidden md:flex touch-target items-center justify-center p-2 rounded-lg border border-white/15 text-white/70 hover:text-white hover:bg-white/5 transition-colors"
               aria-label="Luk AI Writer og åbn Design Editor"
               title="Luk og åbn Design Editor"
             >
@@ -1164,7 +1173,7 @@ const fallbackThinkingSteps: ThinkingStep[] = [
             </button>
             {/* Mobile-only burger */}
             <button
-              className="md:hidden p-2 rounded-lg border border-white/15 text-white/80 hover:text-white hover:bg-white/5 transition-colors"
+              className="md:hidden touch-target p-2 rounded-lg border border-white/15 text-white/80 hover:text-white hover:bg-white/5 transition-colors"
               aria-label="Åbn menu"
               onClick={openMobileMenu}
             >
@@ -1348,7 +1357,7 @@ const fallbackThinkingSteps: ThinkingStep[] = [
                     )}
                   </div>
                   {/* Combined timestamp and action buttons - only show on hover */}
-                  <div className={`mt-1 flex items-center text-[10px] text-white/35 transition-opacity duration-200 ${isUser ? 'justify-end' : 'justify-start pl-1'} ${hoveredMessage === message.id ? 'opacity-100' : 'opacity-0'}`}>
+                  <div className={`mt-1 flex items-center text-[10px] text-white/35 transition-opacity duration-200 opacity-100 ${isUser ? 'justify-end' : 'justify-start pl-1'} ${hoveredMessage === message.id ? 'md:opacity-100' : 'md:opacity-0'}`}>
                     {isUser && !isEditing ? (
                       <div className="flex items-center gap-1">
                         <button
@@ -1499,19 +1508,19 @@ const fallbackThinkingSteps: ThinkingStep[] = [
 
       {/* Mobile slide-in menu (right) */}
       {mobileMenuVisible && (
-        <div className="md:hidden fixed inset-0 z-50">
+        <div className="md:hidden fixed inset-0 z-50" role="dialog" aria-modal="true">
           <div
             className={`absolute inset-0 bg-black/50 transition-opacity duration-300 ${mobileMenuOpen ? 'opacity-100' : 'opacity-0'}`}
             onClick={closeMobileMenu}
           />
           <aside
-            className={`absolute right-0 top-0 h-full w-72 max-w-[85vw] bg-[#0b0b0b] border-l border-white/10 shadow-2xl overflow-y-auto transform-gpu transition-transform duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] ${mobileMenuOpen ? 'translate-x-0' : 'translate-x-full'}`}
+            className={`absolute right-0 top-0 h-[100dvh] w-72 max-w-[85vw] bg-[#0b0b0b] border-l border-white/10 shadow-2xl overflow-y-auto transform-gpu transition-transform duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] app-safe-top app-safe-bottom ${mobileMenuOpen ? 'translate-x-0' : 'translate-x-full'}`}
             onClick={(e) => e.stopPropagation()}
           >
             <div className="p-4 border-b border-white/10 flex items-center justify-between">
               <div className="text-white text-sm font-medium">Menu</div>
               <button
-                className="p-2 rounded-lg text-white/70 hover:text-white hover:bg-white/5 transition-colors"
+                className="touch-target p-2 rounded-lg text-white/70 hover:text-white hover:bg-white/5 transition-colors"
                 aria-label="Luk menu"
                 onClick={closeMobileMenu}
               >
@@ -1525,7 +1534,7 @@ const fallbackThinkingSteps: ThinkingStep[] = [
               <div className="rounded-2xl border border-white/10 bg-gradient-to-b from-white/[0.04] to-white/[0.02] p-3">
                 <div className="grid grid-cols-3 gap-2 text-center">
                   <button
-                    className="flex flex-col items-center gap-1 py-3 rounded-xl hover:bg-white/5 transition-colors"
+                    className="touch-target flex flex-col items-center justify-center gap-1 py-3 rounded-xl hover:bg-white/5 transition-colors"
                     onClick={() => {
                       closeMobileMenu();
                       if (onOpenDraftsPanel) {
@@ -1543,7 +1552,7 @@ const fallbackThinkingSteps: ThinkingStep[] = [
                     <span className="text-[11px] text-white/80">Drafts</span>
                   </button>
                   <button
-                    className="flex flex-col items-center gap-1 py-3 rounded-xl hover:bg-white/5 transition-colors"
+                    className="touch-target flex flex-col items-center justify-center gap-1 py-3 rounded-xl hover:bg-white/5 transition-colors"
                     onClick={() => {
                       closeMobileMenu();
                       if (onOpenReviewPanel) onOpenReviewPanel();
@@ -1556,9 +1565,9 @@ const fallbackThinkingSteps: ThinkingStep[] = [
                     <span className="text-[11px] text-white/80">Preview</span>
                   </button>
                   <button
-                    className="flex flex-col items-center gap-1 py-3 rounded-xl hover:bg-white/5 transition-colors"
+                    className="touch-target flex flex-col items-center justify-center gap-1 py-3 rounded-xl hover:bg-white/5 transition-colors"
                     onClick={() => {
-                      setMobileMenuOpen(false);
+                      closeMobileMenu();
                       if (onNewArticle) {
                         onNewArticle();
                       } else {
@@ -1589,7 +1598,7 @@ const fallbackThinkingSteps: ThinkingStep[] = [
                         localStorage.setItem('apropos-spline-background', opt.id);
                         window.dispatchEvent(new CustomEvent('spline-bg-change', { detail: { id: opt.id } }));
                       } catch {}
-                      setMobileMenuOpen(false);
+                      closeMobileMenu();
                     }}
                   >
                     <div className="w-6 h-6 rounded-md bg-white/10 flex items-center justify-center">
@@ -1601,7 +1610,7 @@ const fallbackThinkingSteps: ThinkingStep[] = [
                 <div className="border-t border-white/10" />
                 <button
                   className="w-full px-4 py-3 flex items-center gap-3 text-sm text-white/90 bg-white/[0.03] hover:bg-white/10 transition-colors"
-                  onClick={() => { setMobileMenuOpen(false); window.location.href = '/settings'; }}
+                  onClick={() => { closeMobileMenu(); window.location.href = '/settings'; }}
                 >
                   <div className="w-6 h-6 rounded-md bg-white/10 flex items-center justify-center">
                     <svg className="w-4 h-4 text-white/90" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1613,7 +1622,7 @@ const fallbackThinkingSteps: ThinkingStep[] = [
                 </button>
                 <button
                   className="w-full px-4 py-3 flex items-center gap-3 text-sm text-red-400 hover:bg-white/10 transition-colors"
-                  onClick={async () => { try { await logout(); } catch(e) { console.error(e); } finally { setMobileMenuOpen(false); } }}
+                  onClick={async () => { try { await logout(); } catch(e) { console.error(e); } finally { closeMobileMenu(); } }}
                 >
                   <div className="w-6 h-6 rounded-md bg-red-500/10 flex items-center justify-center">
                     <svg className="w-4 h-4 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1773,7 +1782,16 @@ const fallbackThinkingSteps: ThinkingStep[] = [
         >
           {/* Mobile: Wizard card above writer card inside same sticky container */}
           {wizardNode && (
-            <div className="md:hidden mb-2" style={{ overflow: mobileWizardCollapsed ? 'hidden' : 'visible' }} onClick={()=>setMobileWizardCollapsed(c=>!c)}>
+            <div className="md:hidden mb-2" style={{ overflow: mobileWizardCollapsed ? 'hidden' : 'visible' }}>
+              <div className="mb-1 flex justify-end">
+                <button
+                  type="button"
+                  onClick={() => setMobileWizardCollapsed((c) => !c)}
+                  className="touch-target px-3 py-1.5 rounded-lg border border-white/15 text-white/80 text-xs bg-black/30 hover:bg-white/5 transition-colors"
+                >
+                  {mobileWizardCollapsed ? 'Vis guide' : 'Skjul guide'}
+                </button>
+              </div>
               <WizardAutoHeight collapsed={mobileWizardCollapsed}>
                 {wizardNode}
               </WizardAutoHeight>
@@ -1824,19 +1842,19 @@ const fallbackThinkingSteps: ThinkingStep[] = [
             <div className="flex gap-3">
               <button 
                 onClick={() => setShowFileDrop(!showFileDrop)}
-                className={`w-6 h-6 flex items-center justify-center rounded transition-colors ${
+                className={`touch-target w-11 h-11 flex items-center justify-center rounded transition-colors ${
                   showFileDrop ? 'text-blue-400 bg-blue-400/10' : 'text-white hover:bg-gray-700'
                 }`}
                 title="Upload filer"
               >
                 <span className="text-lg">+</span>
               </button>
-              <button className="w-6 h-6 flex items-center justify-center text-white hover:bg-gray-700 rounded transition-colors">
+              <button className="touch-target w-11 h-11 flex items-center justify-center text-white hover:bg-gray-700 rounded transition-colors">
                 <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
                   <path fillRule="evenodd" d="M12.586 4.586a2 2 0 112.828 2.828l-3 3a2 2 0 01-2.828 0 1 1 0 00-1.414 1.414 4 4 0 005.656 0l3-3a4 4 0 00-5.656-5.656l-1.5 1.5a1 1 0 101.414 1.414l1.5-1.5zm-5 5a2 2 0 012.828 0 1 1 0 101.414-1.414 4 4 0 00-5.656 0l-3 3a4 4 0 105.656 5.656l1.5-1.5a1 1 0 10-1.414-1.414l-1.5 1.5a2 2 0 11-2.828-2.828l3-3z" clipRule="evenodd" />
                 </svg>
               </button>
-              <button className="w-6 h-6 flex items-center justify-center text-white hover:bg-gray-700 rounded transition-colors">
+              <button className="touch-target w-11 h-11 flex items-center justify-center text-white hover:bg-gray-700 rounded transition-colors">
                 <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
                   <path fillRule="evenodd" d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z" clipRule="evenodd" />
                 </svg>
@@ -1846,7 +1864,7 @@ const fallbackThinkingSteps: ThinkingStep[] = [
             <button 
               onClick={handleSubmit}
               disabled={!inputMessage.trim()}
-              className="w-8 h-8 bg-white rounded-lg flex items-center justify-center hover:bg-gray-100 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+              className="touch-target w-11 h-11 bg-white rounded-lg flex items-center justify-center hover:bg-gray-100 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
             >
               <svg className="w-4 h-4 text-gray-800" fill="currentColor" viewBox="0 0 20 20">
                 <path d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l5-1.429A1 1 0 009 15.571V11a1 1 0 112 0v4.571a1 1 0 00.725.962l5 1.428a1 1 0 001.17-1.408l-7-14z" />

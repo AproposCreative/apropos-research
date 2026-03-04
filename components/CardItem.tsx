@@ -137,7 +137,7 @@ const CardItem = memo(function CardItem({ item }: Props) {
               source: item.source,
             });
           }}
-          className={`absolute top-3 left-3 z-10 rounded-full border transition-all duration-300 px-3 py-1 text-xs backdrop-blur-xl font-medium ${
+          className={`absolute top-3 left-3 z-10 touch-target rounded-full border transition-all duration-300 px-3 py-2 text-xs backdrop-blur-xl font-medium ${
             isSel 
               ? 'bg-blue-500/90 dark:bg-blue-400/90 border-blue-400/50 dark:border-blue-300/50 text-white shadow-lg shadow-blue-500/25 dark:shadow-blue-400/25' 
               : 'bg-white/80 dark:bg-black/60 border-white/40 dark:border-white/20 text-slate-800 dark:text-slate-100 hover:bg-white/90 dark:hover:bg-black/70 shadow-lg'
@@ -170,7 +170,7 @@ const CardItem = memo(function CardItem({ item }: Props) {
         <div className="mt-4 flex items-center gap-2 flex-shrink-0">
           {item.url ? (
             <a
-              className="rounded-full border border-slate-300/50 dark:border-slate-600/50 bg-white/70 dark:bg-black/70 backdrop-blur-sm px-3 py-1 text-xs text-slate-700 dark:text-slate-300 hover:bg-slate-100/70 dark:hover:bg-slate-700/70 transition-all duration-300"
+              className="touch-target rounded-full border border-slate-300/50 dark:border-slate-600/50 bg-white/70 dark:bg-black/70 backdrop-blur-sm px-3 py-2 text-xs text-slate-700 dark:text-slate-300 hover:bg-slate-100/70 dark:hover:bg-slate-700/70 transition-all duration-300 inline-flex items-center"
               href={item.url}
               target="_blank"
               rel="noreferrer"

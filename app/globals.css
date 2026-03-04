@@ -10,6 +10,10 @@
 @layer base {
   :root {
     --font-poppins: 'Poppins', sans-serif;
+    --app-topbar-h: 56px;
+    --app-bottom-nav-h: 72px;
+    --safe-top: env(safe-area-inset-top, 0px);
+    --safe-bottom: env(safe-area-inset-bottom, 0px);
   }
   
   .font-poppins {
@@ -50,6 +54,27 @@
 }
 
 @layer utilities {
+  .app-safe-top {
+    padding-top: var(--safe-top);
+  }
+
+  .app-safe-bottom {
+    padding-bottom: var(--safe-bottom);
+  }
+
+  .app-shell-mobile {
+    min-height: 100dvh;
+  }
+
+  .app-main-mobile-offset {
+    padding-bottom: calc(var(--app-bottom-nav-h) + var(--safe-bottom));
+  }
+
+  .touch-target {
+    min-width: 44px;
+    min-height: 44px;
+  }
+
   /* Hide scrollbars while preserving scrollability */
   .no-scrollbar::-webkit-scrollbar { display: none; }
   .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }

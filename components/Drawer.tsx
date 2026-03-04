@@ -1,9 +1,10 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 export default function Drawer({ }: {}) {
   const [open, setOpen] = useState(false);
   const [item, setItem] = useState<any | null>(null);
+  const closeBtnRef = useRef<HTMLButtonElement | null>(null);
 
   useEffect(() => {
     function onMsg(e: MessageEvent) {
@@ -34,6 +35,16 @@ export default function Drawer({ }: {}) {
     }
   }, [open]);
 
+  useEffect(() => {
+    if (!open) return;
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    closeBtnRef.current?.focus();
+    return () => {
+      document.body.style.overflow = prevOverflow;
+    };
+  }, [open]);
+
   // Debug: Log drawer state
   useEffect(() => {
     if (open) {
@@ -61,6 +72,8 @@ export default function Drawer({ }: {}) {
   return (
     <div 
       className="fixed inset-0 z-50 bg-black/60" 
+      role="dialog"
+      aria-modal="true"
       onClick={() => {
         console.log('Drawer overlay clicked - closing');
         setOpen(false);
@@ -68,13 +81,14 @@ export default function Drawer({ }: {}) {
       }}
     >
       <aside
-        className="absolute right-0 top-0 h-full w-full sm:w-[480px] bg-white/80 dark:bg-slate-900/80 backdrop-blur-2xl border-l border-slate-200/50 dark:border-slate-700/50 shadow-2xl overflow-y-auto"
+        className="absolute right-0 top-0 h-[100dvh] w-full sm:w-[480px] bg-white/80 dark:bg-slate-900/80 backdrop-blur-2xl border-l border-slate-200/50 dark:border-slate-700/50 shadow-2xl overflow-y-auto app-safe-top app-safe-bottom"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="p-4 border-b border-slate-200/50 dark:border-slate-700/50 flex items-center justify-between">
           <div className="font-semibold text-slate-800 dark:text-slate-100">Detaljer</div>
           <button 
-            className="text-sm text-slate-600 dark:text-slate-300 hover:text-slate-800 dark:hover:text-slate-100 transition-colors" 
+            ref={closeBtnRef}
+            className="touch-target text-sm text-slate-600 dark:text-slate-300 hover:text-slate-800 dark:hover:text-slate-100 transition-colors" 
             onClick={() => {
               console.log('Drawer close button clicked');
               setOpen(false);

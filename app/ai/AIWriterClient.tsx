@@ -1085,7 +1085,7 @@ useEffect(() => {
           onSelectMessage={handleSelectMessage}
         />
       )}
-      <div className="h-screen bg-[#171717] md:p-[1%] p-0 flex md:flex-row flex-col gap-4 relative overflow-hidden">
+      <div className="h-[100dvh] min-h-[100dvh] bg-[#171717] md:p-[1%] p-0 flex md:flex-row flex-col gap-4 relative overflow-hidden">
         {/* Background Spline (non-interactive) */}
         <div className="absolute inset-0 z-0 hidden md:block">
           <iframe 

@@ -1,5 +1,5 @@
 'use client';
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useMedia } from '../lib/media-context';
 
 interface MediaSource {
@@ -19,6 +19,20 @@ interface EditMediaModalProps {
 }
 
 export default function EditMediaModal({ isOpen, onClose, onSuccess, source }: EditMediaModalProps) {
+  useEffect(() => {
+    if (!isOpen) return;
+    const prevOverflow = document.body.style.overflow;
+    const onEsc = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') onClose();
+    };
+    document.body.style.overflow = 'hidden';
+    document.addEventListener('keydown', onEsc);
+    return () => {
+      document.body.style.overflow = prevOverflow;
+      document.removeEventListener('keydown', onEsc);
+    };
+  }, [isOpen, onClose]);
+
   const { refreshArticleCounts } = useMedia();
   const [formData, setFormData] = useState({
     name: source.name,
@@ -440,15 +454,15 @@ export default function EditMediaModal({ isOpen, onClose, onSuccess, source }: E
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50">
-      <div className="bg-white dark:bg-slate-800 p-6 rounded-xl shadow-xl w-full max-w-md max-h-[90vh] overflow-y-auto">
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-end md:items-center z-50" role="dialog" aria-modal="true">
+      <div className="bg-white dark:bg-slate-800 p-4 md:p-6 rounded-t-2xl md:rounded-xl shadow-xl w-full max-w-md h-[92dvh] md:h-auto md:max-h-[90dvh] overflow-y-auto app-safe-bottom">
         <div className="flex justify-between items-center mb-6">
           <h2 className="text-2xl font-bold text-slate-900 dark:text-white">
             Rediger mediekilde
           </h2>
           <button
             onClick={onClose}
-            className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors"
+            className="touch-target text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors"
           >
             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -648,7 +662,7 @@ export default function EditMediaModal({ isOpen, onClose, onSuccess, source }: E
           )}
 
           {/* Actions */}
-          <div className="flex gap-3 pt-4">
+          <div className="sticky bottom-0 bg-white dark:bg-slate-800 py-3 flex gap-3">
             <button
               type="button"
               onClick={onClose}
