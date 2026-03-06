@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import WebflowPublishPanel from './WebflowPublishPanel';
 import type { WebflowArticleFields } from '@/lib/webflow-service';
 
@@ -13,12 +13,110 @@ interface ReviewPanelProps {
   onUpdateArticle?: (updates: any) => void;
 }
 
+type TaxonomyItem = { id: string; name: string };
+type AuthorCandidate = { id: string; name: string; specialties?: string[] };
+
+const TERM_GROUPS: Record<string, string[]> = {
+  musik: ['musik', 'koncert', 'album', 'sang', 'artist', 'band', 'festival'],
+  film: ['film', 'biograf', 'instruktor', 'skuespiller', 'premiere'],
+  serie: ['serie', 'sæson', 'episode', 'streaming', 'netflix', 'hbo', 'prime', 'disney'],
+  gaming: ['gaming', 'game', 'spil', 'playstation', 'xbox', 'nintendo', 'steam'],
+  tech: ['tech', 'teknologi', 'ai', 'kunstlig intelligens', 'software', 'hardware', 'app'],
+  litteratur: ['bog', 'roman', 'forfatter', 'litteratur', 'novelle'],
+};
+
+function normalizeText(input: unknown): string {
+  return String(input ?? '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/\p{Diacritic}+/gu, '');
+}
+
+function inferRatingFromText(text: string): number | undefined {
+  const normalized = normalizeText(text);
+  const slash = normalized.match(/\b([0-6])\s*\/\s*6\b/);
+  if (slash) return Number(slash[1]);
+  const udAf = normalized.match(/\b([0-6])\s*(?:ud af)\s*6\b/);
+  if (udAf) return Number(udAf[1]);
+  const stars = (normalized.match(/★/g) || []).length;
+  if (stars >= 1 && stars <= 6) return stars;
+  return undefined;
+}
+
+function scoreByTermGroups(text: string): Map<string, number> {
+  const scores = new Map<string, number>();
+  for (const [key, terms] of Object.entries(TERM_GROUPS)) {
+    let score = 0;
+    for (const t of terms) {
+      if (text.includes(normalizeText(t))) score += 1;
+    }
+    if (score > 0) scores.set(key, score);
+  }
+  return scores;
+}
+
+function inferBestTaxonomyMatch(items: TaxonomyItem[], corpus: string): string | undefined {
+  if (!items.length) return undefined;
+  const normalizedCorpus = normalizeText(corpus);
+  const groupScores = scoreByTermGroups(normalizedCorpus);
+  let best: { item: TaxonomyItem; score: number } | null = null;
+
+  for (const item of items) {
+    const name = normalizeText(item.name);
+    let score = 0;
+    if (name && normalizedCorpus.includes(name)) score += 5;
+
+    for (const [group, groupScore] of groupScores.entries()) {
+      if (name.includes(group)) score += groupScore * 2;
+    }
+
+    const parts = name.split(/\s+/).filter((p) => p.length > 3);
+    for (const p of parts) {
+      if (normalizedCorpus.includes(p)) score += 1;
+    }
+
+    if (!best || score > best.score) best = { item, score };
+  }
+
+  return best && best.score >= 2 ? best.item.name : undefined;
+}
+
+function inferBestAuthor(authors: AuthorCandidate[], corpus: string): string | undefined {
+  if (!authors.length) return undefined;
+  const normalizedCorpus = normalizeText(corpus);
+  const groupedScores = scoreByTermGroups(normalizedCorpus);
+  let best: { name: string; score: number } | null = null;
+
+  for (const author of authors) {
+    let score = 0;
+    const authorName = normalizeText(author.name);
+    if (authorName && normalizedCorpus.includes(authorName)) score += 8;
+
+    const specialties = Array.isArray(author.specialties) ? author.specialties : [];
+    for (const sp of specialties) {
+      const normalizedSpecialty = normalizeText(sp);
+      if (!normalizedSpecialty) continue;
+      if (normalizedCorpus.includes(normalizedSpecialty)) score += 4;
+      for (const [group, groupScore] of groupedScores.entries()) {
+        if (normalizedSpecialty.includes(group)) score += groupScore * 2;
+      }
+    }
+
+    if (!best || score > best.score) best = { name: author.name, score };
+  }
+
+  return best && best.score >= 3 ? best.name : undefined;
+}
+
 export default function ReviewPanel({ articleData, onClose, frameless, onPreflightComplete, onRecommendationsApplied, onUpdateArticle }: ReviewPanelProps) {
   const [wfSlugs, setWfSlugs] = useState<string[] | null>(null);
   const [isGeneratingImage, setIsGeneratingImage] = useState(false);
   const [imageProgress, setImageProgress] = useState(0);
   const [imageSkipIndex, setImageSkipIndex] = useState(0); // Track which image index to use
   const [tovExpanded, setTovExpanded] = useState(false);
+  const [authorsList, setAuthorsList] = useState<AuthorCandidate[]>([]);
+  const [sectionsList, setSectionsList] = useState<TaxonomyItem[]>([]);
+  const [topicsList, setTopicsList] = useState<TaxonomyItem[]>([]);
   
   // Debug: Log when featuredImage changes
   useEffect(() => {
@@ -34,17 +132,80 @@ export default function ReviewPanel({ articleData, onClose, frameless, onPreflig
     }
   }, [articleData?.featuredImage]);
   
-  const title = articleData?.title || articleData?.previewTitle || 'Arbejdstitel (ikke sat)';
-  const subtitle = articleData?.subtitle || '';
-  const author = articleData?.author || '—';
-  const category = articleData?.category || articleData?.section || '—';
-  const topic = (articleData?.tags || [])[1] || articleData?.topic || '';
-  const rating = articleData?.rating || 0;
+  useEffect(() => {
+    let cancelled = false;
+    Promise.all([
+      fetch('/api/webflow/authors').then((r) => r.ok ? r.json() : null).catch(() => null),
+      fetch('/api/webflow/sections').then((r) => r.ok ? r.json() : null).catch(() => null),
+      fetch('/api/webflow/topics').then((r) => r.ok ? r.json() : null).catch(() => null),
+    ]).then(([authorsRes, sectionsRes, topicsRes]) => {
+      if (cancelled) return;
+      const a = (authorsRes?.data?.authors || authorsRes?.authors || []) as AuthorCandidate[];
+      const s = (sectionsRes?.items || []) as TaxonomyItem[];
+      const t = (topicsRes?.items || []) as TaxonomyItem[];
+      setAuthorsList(Array.isArray(a) ? a : []);
+      setSectionsList(Array.isArray(s) ? s : []);
+      setTopicsList(Array.isArray(t) ? t : []);
+    });
+    return () => { cancelled = true; };
+  }, []);
+
+  const autoFilledData = useMemo(() => {
+    const updates: Partial<typeof articleData> = {};
+    const corpus = [
+      articleData?.title,
+      articleData?.previewTitle,
+      articleData?.subtitle,
+      articleData?.excerpt,
+      articleData?.intro,
+      articleData?.content,
+      articleData?.['post-body'],
+      ...(Array.isArray(articleData?.tags) ? articleData.tags : []),
+    ]
+      .filter(Boolean)
+      .join('\n');
+
+    if (!String(articleData?.author || '').trim()) {
+      const inferredAuthor = inferBestAuthor(authorsList, corpus);
+      if (inferredAuthor) updates.author = inferredAuthor;
+    }
+    if (!String(articleData?.category || articleData?.section || '').trim()) {
+      const inferredSection = inferBestTaxonomyMatch(sectionsList, corpus);
+      if (inferredSection) {
+        updates.category = inferredSection;
+        updates.section = inferredSection;
+      }
+    }
+    if (!String(articleData?.topic || '').trim()) {
+      const inferredTopic = inferBestTaxonomyMatch(topicsList, corpus);
+      if (inferredTopic) updates.topic = inferredTopic;
+    }
+    if (!(Number(articleData?.rating) > 0)) {
+      const inferredRating = inferRatingFromText(corpus);
+      if (typeof inferredRating === 'number') updates.rating = inferredRating;
+    }
+    return updates;
+  }, [articleData, authorsList, sectionsList, topicsList]);
+
+  useEffect(() => {
+    if (!onUpdateArticle) return;
+    if (!autoFilledData || Object.keys(autoFilledData).length === 0) return;
+    onUpdateArticle(autoFilledData);
+  }, [autoFilledData, onUpdateArticle]);
+
+  const mergedArticleData = useMemo(() => ({ ...articleData, ...autoFilledData }), [articleData, autoFilledData]);
+
+  const title = mergedArticleData?.title || mergedArticleData?.previewTitle || 'Arbejdstitel (ikke sat)';
+  const subtitle = mergedArticleData?.subtitle || '';
+  const author = mergedArticleData?.author || '—';
+  const category = mergedArticleData?.category || mergedArticleData?.section || '—';
+  const topic = (mergedArticleData?.tags || [])[1] || mergedArticleData?.topic || '';
+  const rating = mergedArticleData?.rating || 0;
   const starBox = rating > 0 ? `${'★'.repeat(Math.min(6, rating))}${'☆'.repeat(Math.max(0, 6 - Math.min(6, rating)))} (${rating}/6)` : '';
   // Fallbacks: use content, post-body, or last assistant reply from _chatMessages
-  let content: string = articleData?.content || articleData?.['post-body'] || '';
-  if (!content && Array.isArray(articleData?._chatMessages)) {
-    const assistants = (articleData._chatMessages as any[]).filter(m => m.role === 'assistant');
+  let content: string = mergedArticleData?.content || mergedArticleData?.['post-body'] || '';
+  if (!content && Array.isArray(mergedArticleData?._chatMessages)) {
+    const assistants = (mergedArticleData._chatMessages as any[]).filter(m => m.role === 'assistant');
     const last = assistants[assistants.length - 1]?.content as string | undefined;
     if (last) content = last;
   }
@@ -106,8 +267,8 @@ export default function ReviewPanel({ articleData, onClose, frameless, onPreflig
     }
     
     // If articleData.intro exists separately, use it
-    if (articleData?.intro && typeof articleData.intro === 'string') {
-      const introText = articleData.intro.replace(/^intro\s*:\s*/i, '').trim();
+    if (mergedArticleData?.intro && typeof mergedArticleData.intro === 'string') {
+      const introText = mergedArticleData.intro.replace(/^intro\s*:\s*/i, '').trim();
       
       // Check if intro appears in content - if so, remove it; otherwise use full content as body
       const introInContent = text.toLowerCase().includes(introText.toLowerCase());
@@ -154,12 +315,12 @@ export default function ReviewPanel({ articleData, onClose, frameless, onPreflig
 
   const { intro, body } = extractIntroAndBody(content);
 
-  const seoTitle = articleData?.seo_title || articleData?.seoTitle || '';
-  const seoDescription = articleData?.meta_description || articleData?.seoDescription || '';
-  const slug = articleData?.slug || '';
-  const platform = articleData?.platform || articleData?.streaming_service || '';
-  const reflection = articleData?.reflection || '';
-  const aiDraft = articleData?.aiDraft;
+  const seoTitle = mergedArticleData?.seo_title || mergedArticleData?.seoTitle || '';
+  const seoDescription = mergedArticleData?.meta_description || mergedArticleData?.seoDescription || '';
+  const slug = mergedArticleData?.slug || '';
+  const platform = mergedArticleData?.platform || mergedArticleData?.streaming_service || '';
+  const reflection = mergedArticleData?.reflection || '';
+  const aiDraft = mergedArticleData?.aiDraft;
 
   useEffect(() => {
     (async () => {
@@ -236,7 +397,7 @@ export default function ReviewPanel({ articleData, onClose, frameless, onPreflig
         {has('author') && <Field k="Author" v={author} />}
         {has('section','category') && <Field k="Section" v={category} />}
         {has('topic','topics') && <Field k="Topic" v={topic} />}
-        <Field k="Sources" v={articleData?.inspirationSource || '—'} />
+        <Field k="Sources" v={mergedArticleData?.inspirationSource || '—'} />
         <Field k="Platform/Service" v={platform || '—'} />
         <Field k="Stjerner" v={starBox || '—'} />
         {has('slug') && <Field k="Slug" v={slug || '—'} />}
@@ -268,7 +429,7 @@ export default function ReviewPanel({ articleData, onClose, frameless, onPreflig
             </div>
           </div>
         )}
-        {(articleData?.author || articleData?.authorTOV || aiDraft?.prompt) && (
+        {(mergedArticleData?.author || mergedArticleData?.authorTOV || aiDraft?.prompt) && (
           <div className="col-span-2">
             <button
               type="button"
@@ -276,12 +437,12 @@ export default function ReviewPanel({ articleData, onClose, frameless, onPreflig
               className="w-full text-left bg-white/5 border border-white/10 rounded-lg p-2 hover:bg-white/10 transition-colors"
             >
               <div className="text-white/50">Tone of voice</div>
-              <div className="text-white/80 truncate" title={articleData?.author || '—'}>
-                {articleData?.author || '—'}
+              <div className="text-white/80 truncate" title={mergedArticleData?.author || '—'}>
+                {mergedArticleData?.author || '—'}
               </div>
-              {tovExpanded && (articleData?.authorTOV || aiDraft?.prompt) && (
+              {tovExpanded && (mergedArticleData?.authorTOV || aiDraft?.prompt) && (
                 <div className="mt-2 pt-2 border-t border-white/10 text-white/80 text-sm whitespace-pre-wrap">
-                  {articleData?.authorTOV?.trim() || (typeof aiDraft?.prompt === 'string' ? aiDraft.prompt.trim() : '')}
+                  {mergedArticleData?.authorTOV?.trim() || (typeof aiDraft?.prompt === 'string' ? aiDraft.prompt.trim() : '')}
                 </div>
               )}
               <div className="text-white/40 text-xs mt-1">
@@ -296,21 +457,21 @@ export default function ReviewPanel({ articleData, onClose, frameless, onPreflig
       <section className="space-y-4">
         <div className="text-white/60 text-sm font-medium">Artikel Billede</div>
         <div className="bg-white/5 rounded-xl border border-white/10 p-4">
-          {articleData?.featuredImage ? (
+          {mergedArticleData?.featuredImage ? (
             <div className="space-y-4">
               <div className="relative group">
                 <img 
-                  src={articleData.featuredImage} 
+                  src={mergedArticleData.featuredImage} 
                   alt={title || 'Artikel billede'}
                   className="w-full h-48 object-cover rounded-lg border border-white/10"
                   onError={(e) => {
-                    console.error('❌ Image failed to load:', articleData.featuredImage);
+                    console.error('❌ Image failed to load:', mergedArticleData.featuredImage);
                     console.error('❌ Image error details:', e);
                     // Show error message to user
                     alert('Billedet kunne ikke indlæses. Prøv at generere et nyt billede.');
                   }}
                   onLoad={() => {
-                    console.log('✅ Image loaded successfully:', articleData.featuredImage?.substring(0, 100));
+                    console.log('✅ Image loaded successfully:', mergedArticleData.featuredImage?.substring(0, 100));
                   }}
                 />
                 <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity duration-200 rounded-lg flex items-center justify-center">
@@ -340,8 +501,8 @@ export default function ReviewPanel({ articleData, onClose, frameless, onPreflig
                     }, 800);
                     
                        // Extract topic from tags or use category
-                       const extractedTopic = (articleData?.tags && articleData.tags.length > 0) 
-                         ? articleData.tags[0] 
+                       const extractedTopic = (mergedArticleData?.tags && mergedArticleData.tags.length > 0) 
+                         ? mergedArticleData.tags[0] 
                          : category || 'Generel';
                     
                     // Increment skipIndex to get a different image
@@ -353,11 +514,11 @@ export default function ReviewPanel({ articleData, onClose, frameless, onPreflig
                       topic: extractedTopic,
                       author: author || 'Redaktionen',
                       category: category || 'Kultur',
-                      section: articleData?.section,
-                      platform: articleData?.platform || articleData?.streaming_service,
-                      streaming_service: articleData?.streaming_service,
+                      section: mergedArticleData?.section,
+                      platform: mergedArticleData?.platform || mergedArticleData?.streaming_service,
+                      streaming_service: mergedArticleData?.streaming_service,
                       content: content || '',
-                      rating: articleData?.rating || 0,
+                      rating: mergedArticleData?.rating || 0,
                       skipIndex: nextSkipIndex // Pass skipIndex to get different images
                     };
                     
@@ -432,11 +593,11 @@ export default function ReviewPanel({ articleData, onClose, frameless, onPreflig
               <div className="text-white/40 text-xs">
                 Apropos Magazine stil • 16:9 format • Genereret med AI
               </div>
-              {articleData?.lastGeneratedImagePrompt && (
+              {mergedArticleData?.lastGeneratedImagePrompt && (
                 <details className="mt-2 text-left">
                   <summary className="text-white/50 text-xs cursor-pointer hover:text-white/70">Vis brugt prompt</summary>
                   <pre className="mt-1 p-2 rounded bg-white/5 border border-white/10 text-white/60 text-[10px] whitespace-pre-wrap break-words max-h-32 overflow-y-auto">
-                    {articleData.lastGeneratedImagePrompt}
+                    {mergedArticleData.lastGeneratedImagePrompt}
                   </pre>
                 </details>
               )}
@@ -471,8 +632,8 @@ export default function ReviewPanel({ articleData, onClose, frameless, onPreflig
                     }, 800);
                     
                        // Extract topic from tags or use category
-                       const extractedTopic = (articleData?.tags && articleData.tags.length > 0) 
-                         ? articleData.tags[0] 
+                       const extractedTopic = (mergedArticleData?.tags && mergedArticleData.tags.length > 0) 
+                         ? mergedArticleData.tags[0] 
                          : category || 'Generel';
                     
                     // Increment skipIndex to get a different image
@@ -484,11 +645,11 @@ export default function ReviewPanel({ articleData, onClose, frameless, onPreflig
                       topic: extractedTopic,
                       author: author || 'Redaktionen',
                       category: category || 'Kultur',
-                      section: articleData?.section,
-                      platform: articleData?.platform || articleData?.streaming_service,
-                      streaming_service: articleData?.streaming_service,
+                      section: mergedArticleData?.section,
+                      platform: mergedArticleData?.platform || mergedArticleData?.streaming_service,
+                      streaming_service: mergedArticleData?.streaming_service,
                       content: content || '',
-                      rating: articleData?.rating || 0,
+                      rating: mergedArticleData?.rating || 0,
                       skipIndex: nextSkipIndex // Pass skipIndex to get different images
                     };
                     
@@ -564,7 +725,7 @@ export default function ReviewPanel({ articleData, onClose, frameless, onPreflig
 
       <section>
         <WebflowPublishPanel
-          articleData={articleData}
+          articleData={mergedArticleData}
           onPublish={async (formData: WebflowArticleFields) => {
             try {
               const res = await fetch('/api/webflow/publish', {

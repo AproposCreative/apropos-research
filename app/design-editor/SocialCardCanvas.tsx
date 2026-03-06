@@ -10,8 +10,8 @@ const DIMENSIONS: Record<SocialCardSize, { width: number; height: number }> = {
 const CTA_OFFSET = 10;
 const CTA_FONT_SIZE_SQUARE = 32.547;
 const CTA_LINE_HEIGHT_MULTIPLIER = 1.4;
-const CTA_PADDING_Y_SQUARE = 22;
-const CTA_PADDING_X_SQUARE = 66.143;
+const CTA_PADDING_Y_SQUARE = 24;
+const CTA_PADDING_X_SQUARE = 78;
 const BOX1_BOTTOM_PADDING_SQUARE = 12;
 const BOX1_BOTTOM_PADDING_OG = 8;
 const BOX2_BOTTOM_PADDING_SQUARE = 20;
@@ -20,6 +20,9 @@ const HEADLINE_TOP_MARGIN_SQUARE = 14;
 const HEADLINE_TOP_MARGIN_OG = 14;
 const BYLINE_TOP_MARGIN_SQUARE = -10;
 const BYLINE_TOP_MARGIN_OG = -10;
+const BYLINE_FONT_SIZE_SQUARE = 48;
+const BYLINE_LINE_HEIGHT = 1.2;
+const BYLINE_COLOR = '#353535';
 const EYEBROW_STAR_GAP = 9.33;
 const EYEBROW_BADGE_GAP = 20;
 
@@ -30,7 +33,7 @@ const SQUARE_LOGO_H = 60;
 const SQUARE_LOGO_TO_EYEBROW_GAP = 14.922;
 const SQUARE_H1_FONT_SIZE = 80;
 const SQUARE_H1_LINE_HEIGHT = 1.2;
-const SQUARE_H1_PADDING_H = 65;
+const SQUARE_H1_PADDING_H = 100;
 const SQUARE_EYEBROW_PADDING_H = 130;
 const LOGO_SRC = '/images/AproposMagazineLogoInstagram.svg';
 
@@ -56,6 +59,10 @@ interface SocialCardCanvasProps {
   cardRef?: React.RefObject<HTMLDivElement | null>;
 }
 
+function isWebflowReferenceId(value: string): boolean {
+  return /^[a-f0-9]{24}$/i.test(value.trim());
+}
+
 export default function SocialCardCanvas({ data, size, className = '', cardRef }: SocialCardCanvasProps) {
   const { width, height } = DIMENSIONS[size];
   const imageMinH = size === 'square' ? 380 : 220;
@@ -66,8 +73,9 @@ export default function SocialCardCanvas({ data, size, className = '', cardRef }
 
   const eyebrowParts =
     (data.eyebrowLabels && data.eyebrowLabels.length > 0)
-      ? data.eyebrowLabels.filter(Boolean)
-      : [data.category, data.categorySecondary].filter(Boolean) as string[];
+      ? data.eyebrowLabels.filter((label) => !!label && !isWebflowReferenceId(label))
+      : [data.category, data.categorySecondary]
+          .filter((label): label is string => !!label && !isWebflowReferenceId(label));
 
   return (
     <div
@@ -79,6 +87,7 @@ export default function SocialCardCanvas({ data, size, className = '', cardRef }
         backgroundColor: '#ffffff',
         imageRendering: 'auto',
         fontFamily: 'var(--font-amiri), Amiri, serif',
+        fontSynthesis: 'none',
       }}
     >
       {/* Box 1: Head & Eyebrow */}
@@ -181,7 +190,7 @@ export default function SocialCardCanvas({ data, size, className = '', cardRef }
         }}
       >
         <h2
-          className="text-center max-w-full leading-tight text-black line-clamp-3"
+          className="text-center max-w-full leading-tight text-black line-clamp-2"
           style={{
             fontFamily: 'var(--font-amiri), Amiri, serif',
             fontWeight: 400,
@@ -199,13 +208,13 @@ export default function SocialCardCanvas({ data, size, className = '', cardRef }
           <p
             className="text-center italic mt-2 line-clamp-2"
             style={{
-              color: '#353535',
+              color: BYLINE_COLOR,
               textAlign: 'center',
               fontFamily: 'var(--font-amiri), Amiri, serif',
-              fontSize: size === 'square' ? 48 : size === 'story' ? 36 : 40,
+              fontSize: size === 'square' ? BYLINE_FONT_SIZE_SQUARE : size === 'story' ? 36 : 40,
               fontStyle: 'italic',
               fontWeight: 400,
-              lineHeight: '120%',
+              lineHeight: `${BYLINE_LINE_HEIGHT * 100}%`,
               maxWidth: size === 'square' ? width - SQUARE_H1_PADDING_H * 2 : '36rem',
               marginTop: size === 'square' ? BYLINE_TOP_MARGIN_SQUARE : BYLINE_TOP_MARGIN_OG,
             }}

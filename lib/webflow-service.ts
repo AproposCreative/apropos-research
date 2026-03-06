@@ -583,10 +583,10 @@ export async function getArticlesCollectionFieldsDetailed(): Promise<WebflowFiel
       name: f.name,
       slug: f.slug,
       type: f.type,
-      required: !!f.required,
+      required: !!(f.required || f.isRequired),
       unique: !!f.unique,
       editable: f.editable !== false,
-      isSystem: !!f.system,
+      isSystem: !!(f.system || f.isSystem),
       validations: f.validations,
       reference: f.reference ? { collectionId: f.reference?.collectionId || f.collectionId, isMulti: !!f.multiple } : undefined,
       options: Array.isArray(f.options) ? f.options : undefined,
@@ -852,7 +852,22 @@ export async function publishArticleToWebflow(articleData: WebflowArticleFields)
       if (schemaRes.ok) {
         const schema: any = await schemaRes.json();
         const allowed = new Set<string>((schema.fields || []).map((f: any) => f.slug));
-        requiredSlugs = (schema.fields || []).filter((f:any)=>!!f.required).map((f:any)=>f.slug);
+        requiredSlugs = (schema.fields || [])
+          .filter((f:any)=>!!(f.required || f.isRequired))
+          .map((f:any)=>f.slug);
+        
+        // Canonicalize common slug aliases to avoid CMS field drops when schema uses alternate names.
+        const aliasPairs: Array<[string, string]> = [
+          ['content', 'post-body'],
+          ['post-body', 'content'],
+          ['meta-description', 'seo-description'],
+          ['seo-description', 'meta-description'],
+        ];
+        for (const [from, to] of aliasPairs) {
+          if (allowed.has(to) && !fieldData[to] && fieldData[from]) {
+            fieldData[to] = fieldData[from];
+          }
+        }
         
         // Check field types for streaming-service and thumb
         // Try multiple possible slug variations for thumb field
@@ -1163,7 +1178,8 @@ async function buildFieldDataFromMapping(articleData: WebflowArticleFields, mapp
   // Defaults/fallbacks
   if (!data['publish-date']) data['publish-date'] = articleData.publishDate || new Date().toISOString();
   if (!data['seo-title'] && articleData.title) data['seo-title'] = articleData.title;
-  if (!data['seo-description']) data['seo-description'] = articleData.excerpt || '';
+  if (!data['meta-description']) data['meta-description'] = articleData.seoDescription || articleData.excerpt || '';
+  if (!data['seo-description']) data['seo-description'] = data['meta-description'] || articleData.seoDescription || articleData.excerpt || '';
   if (data['status'] === undefined) data['status'] = articleData.status || 'draft';
   
   // Log final field data for debugging

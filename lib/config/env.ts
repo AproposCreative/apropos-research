@@ -15,7 +15,7 @@ const EnvSchema = z.object({
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
   
   // OpenAI Configuration
-  OPENAI_API_KEY: z.string().min(1, 'OpenAI API key is required'),
+  OPENAI_API_KEY: z.string().optional(),
   OPENAI_MODEL: z.string().default('gpt-4o-mini'),
   OPENAI_RESEARCH_MODEL: z.string().optional(),
   

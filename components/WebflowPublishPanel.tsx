@@ -13,6 +13,25 @@ interface WebflowPublishPanelProps {
 }
 
 export default function WebflowPublishPanel({ articleData, onPublish, onClose, embed, onPreflightComplete, onRecommendationsApplied }: WebflowPublishPanelProps) {
+  const deriveIntroFromContent = (text: string): string => {
+    const t = (text || '').trim();
+    if (!t) return '';
+    const m = t.match(/^\s*(?:\*\*|__)?\s*(?:intro|indledning)\s*(?:\*\*|__)?\s*(?:[:\-–—]\s*|\s+)([\s\S]+?)(?:\n{2,}|$)/i);
+    if (!m) return '';
+    return (m[1] || '')
+      .replace(/^(?:\*\*|__)?\s*(?:intro|indledning)\s*(?:\*\*|__)?\s*/i, '')
+      .replace(/\s+/g, ' ')
+      .trim();
+  };
+
+  const getBestIntro = (data: any, fallbackContent?: string): string => {
+    if (typeof data?.intro === 'string' && data.intro.trim()) return data.intro.trim();
+    const fromContent = deriveIntroFromContent(
+      typeof fallbackContent === 'string' ? fallbackContent : (data?.content || data?.['post-body'] || '')
+    );
+    return fromContent;
+  };
+
   const [fieldMeta, setFieldMeta] = useState<any[]>([]);
   const [guidance, setGuidance] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -37,7 +56,7 @@ export default function WebflowPublishPanel({ articleData, onPublish, onClose, e
     author: articleData.author || '',
     rating: articleData.rating || 0,
     featuredImage: articleData.featuredImage || '',
-    intro: articleData.intro || '',
+    intro: getBestIntro(articleData),
     gallery: articleData.gallery || [],
     publishDate: new Date().toISOString(),
     status: 'draft',
@@ -71,7 +90,7 @@ export default function WebflowPublishPanel({ articleData, onPublish, onClose, e
       author: articleData.author || prev.author,
       rating: articleData.rating || prev.rating,
       featuredImage: articleData.featuredImage || prev.featuredImage,
-      intro: articleData.intro || prev.intro,
+      intro: getBestIntro(articleData, articleData.content || prev.content) || prev.intro,
       gallery: articleData.gallery || prev.gallery,
       seoTitle: articleData.seoTitle || prev.seoTitle,
       seoDescription: articleData.seoDescription || prev.seoDescription,
@@ -150,7 +169,7 @@ export default function WebflowPublishPanel({ articleData, onPublish, onClose, e
         seoDescription: articleData.seoDescription || prev.seoDescription || (content ? content.substring(0, 160) : ''),
         wordCount: wc,
         readTime: rt,
-        intro: articleData.intro || prev.intro || '',
+        intro: getBestIntro(articleData, content) || prev.intro || '',
         videoTrailer: articleData.videoTrailer || articleData.video_trailer || prev.videoTrailer,
       }));
   } catch {}
@@ -192,7 +211,7 @@ export default function WebflowPublishPanel({ articleData, onPublish, onClose, e
 
   const calculateStats = () => {
     const wordCount = formData.content ? formData.content.split(' ').length : 0;
-    const intro = articleData.intro || formData.intro || '';
+    const intro = getBestIntro(articleData, formData.content) || formData.intro || '';
     const readTime = Math.ceil(wordCount / 200);
     setFormData(prev => ({ 
       ...prev, 
@@ -217,17 +236,28 @@ export default function WebflowPublishPanel({ articleData, onPublish, onClose, e
     setPublishing(true);
     try {
       // Minimal required-field validation based on Webflow metadata
-      const required = fieldMeta.filter((f:any)=>f.required).map((f:any)=>f.slug);
+      const required = fieldMeta.filter((f:any)=>f.required || f.isRequired).map((f:any)=>f.slug);
       const missing: string[] = [];
       const data: any = formData;
       required.forEach((slug:string)=>{
-        // Map our form keys to webflow slugs when they differ
-        const map: Record<string,string> = {
-          'name': 'title',
-          'post-body': 'content',
+        const candidatesBySlug: Record<string, string[]> = {
+          'name': ['title'],
+          'title': ['title'],
+          'post-body': ['content'],
+          'content': ['content', 'post-body'],
+          'subtitle': ['subtitle'],
+          'intro': ['intro'],
+          'meta-description': ['seoDescription', 'meta-description'],
+          'seo-description': ['seoDescription', 'meta-description'],
+          'seo-title': ['seoTitle'],
+          'slug': ['slug'],
         };
-        const key = map[slug] || slug;
-        if (data[key] === undefined || data[key] === '' || (Array.isArray(data[key]) && data[key].length===0)) {
+        const candidates = candidatesBySlug[slug] || [slug];
+        const hasAny = candidates.some((key) => {
+          const value = data[key];
+          return !(value === undefined || value === '' || (Array.isArray(value) && value.length === 0));
+        });
+        if (!hasAny) {
           missing.push(slug);
         }
       });

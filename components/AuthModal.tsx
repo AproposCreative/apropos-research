@@ -2,9 +2,11 @@
 
 import { useState } from 'react';
 import { useAuth } from '@/lib/auth-context';
+import { useRouter } from 'next/navigation';
 
 export default function AuthModal() {
   const { user, signInWithGoogle, logout } = useAuth();
+  const router = useRouter();
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -13,6 +15,7 @@ export default function AuthModal() {
     setError('');
     try {
       await signInWithGoogle();
+      router.replace('/ai');
     } catch (error: any) {
       setError(error.message || 'Der opstod en fejl ved login');
       console.error('Error signing in with Google:', error);

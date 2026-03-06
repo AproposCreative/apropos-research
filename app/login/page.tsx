@@ -1,5 +1,5 @@
 'use client';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useAuth } from '../../lib/auth-context';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
@@ -17,8 +17,14 @@ export default function LoginPage() {
   const [showForgotPassword, setShowForgotPassword] = useState(false);
   const [forgotEmail, setForgotEmail] = useState('');
 
-  const { signIn, signUp, resetPassword, signInWithGoogle } = useAuth();
+  const { user, signIn, signUp, resetPassword, signInWithGoogle } = useAuth();
   const router = useRouter();
+
+  useEffect(() => {
+    if (user) {
+      router.replace('/ai');
+    }
+  }, [user, router]);
 
   const formatAuthError = (err: any) => {
     const code = String(err?.code || '').replace('auth/', '');
@@ -60,9 +66,7 @@ export default function LoginPage() {
       } else {
         await signIn(email, password);
         setSuccess('Thank you! Your submission has been received!');
-        setTimeout(() => {
-          router.push('/ai');
-        }, 1500);
+        router.replace('/ai');
       }
     } catch (error: any) {
       setError(formatAuthError(error));
@@ -79,9 +83,7 @@ export default function LoginPage() {
     try {
       await signInWithGoogle();
       setSuccess('Thank you! Your submission has been received!');
-      setTimeout(() => {
-        router.push('/ai');
-      }, 1500);
+      router.replace('/ai');
     } catch (error: any) {
       setError(formatAuthError(error));
     } finally {

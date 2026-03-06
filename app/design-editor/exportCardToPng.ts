@@ -4,8 +4,8 @@ import { DIMENSIONS } from './SocialCardCanvas';
 const CTA_OFFSET = 10;
 const CTA_FONT_SIZE_SQUARE = 32.547;
 const CTA_LINE_HEIGHT_MULTIPLIER = 1.4;
-const CTA_PADDING_Y_SQUARE = 22;
-const CTA_PADDING_X_SQUARE = 66.143;
+const CTA_PADDING_Y_SQUARE = 24;
+const CTA_PADDING_X_SQUARE = 78;
 
 const SQUARE_LOGO_TOP = 60;
 const SQUARE_LOGO_W = 150;
@@ -13,13 +13,17 @@ const SQUARE_LOGO_H = 60;
 const SQUARE_LOGO_TO_EYEBROW_GAP = 14.922;
 const SQUARE_H1_FONT_SIZE = 80;
 const SQUARE_H1_LINE_HEIGHT = 1.2;
-const SQUARE_H1_PADDING_H = 65;
+const SQUARE_H1_PADDING_H = 100;
 const LOGO_SRC = '/images/AproposMagazineLogoInstagram.svg';
 const STAR_FILLED_SRC = '/images/star-filled.svg';
 const STAR_OUTLINE_SRC = '/images/star-outline.svg';
 const STAR_SIZE = 23;
 const STAR_GAP = 9.33;
 const EYEBROW_BADGE_GAP = 20;
+const BYLINE_FONT_SIZE_SQUARE = 48;
+const BYLINE_LINE_HEIGHT = 1.2;
+const BYLINE_COLOR = '#353535';
+const DEFAULT_AMIRI_FONT_FAMILY = '"Amiri", Georgia, serif';
 
 /** 2x export for skarp billedkvalitet (mindre pixelering) */
 const EXPORT_SCALE = 2;
@@ -32,6 +36,10 @@ function loadImage(url: string): Promise<HTMLImageElement> {
     img.onerror = () => reject(new Error('Image load failed'));
     img.src = url;
   });
+}
+
+function isWebflowReferenceId(value: string): boolean {
+  return /^[a-f0-9]{24}$/i.test(value.trim());
 }
 
 function wrapText(
@@ -80,33 +88,36 @@ function loadStarImages(): Promise<{ filled: HTMLImageElement; outline: HTMLImag
   ]).then(([filled, outline]) => ({ filled, outline }));
 }
 
-async function ensureDesignFontsLoaded() {
+async function ensureDesignFontsLoaded(amiriFontFamily: string) {
   if (typeof document === 'undefined' || !('fonts' in document)) return;
   await Promise.allSettled([
-    document.fonts.load('400 80px Amiri'),
-    document.fonts.load('italic 400 48px Amiri'),
+    document.fonts.load(`400 80px ${amiriFontFamily}`),
+    document.fonts.load(`italic 400 48px ${amiriFontFamily}`),
     document.fonts.load('500 32px Inter'),
+    document.fonts.ready,
   ]);
 }
 
 export async function exportCardToPng(
   data: SocialCardData,
-  size: SocialCardSize
+  size: SocialCardSize,
+  opts?: { amiriFontFamily?: string }
 ): Promise<string> {
   const { width, height } = DIMENSIONS[size];
+  const amiriFontFamily = opts?.amiriFontFamily?.trim() || DEFAULT_AMIRI_FONT_FAMILY;
   const canvas = document.createElement('canvas');
   canvas.width = width * EXPORT_SCALE;
   canvas.height = height * EXPORT_SCALE;
   const ctx = canvas.getContext('2d');
   if (!ctx) throw new Error('Canvas 2d not available');
   ctx.scale(EXPORT_SCALE, EXPORT_SCALE);
-  await ensureDesignFontsLoaded();
+  await ensureDesignFontsLoaded(amiriFontFamily);
 
   const isSquare = size === 'square';
   const padding = isSquare ? SQUARE_H1_PADDING_H : size === 'story' ? 48 : 56;
   const titleSize = isSquare ? SQUARE_H1_FONT_SIZE : size === 'story' ? 38 : 44;
   const titleLineHeight = isSquare ? SQUARE_H1_LINE_HEIGHT : 1.2;
-  const excerptSize = isSquare ? 48 : size === 'story' ? 36 : 40;
+  const excerptSize = isSquare ? BYLINE_FONT_SIZE_SQUARE : size === 'story' ? 36 : 40;
   const categorySize = isSquare ? 35 : size === 'story' ? 28 : 28;
   const logoMainSize = size === 'story' ? 22 : 26;
   const logoSubSize = size === 'story' ? 14 : 16;
@@ -137,7 +148,7 @@ export async function exportCardToPng(
       ctx.font = 'bold 26px system-ui, sans-serif';
       ctx.textAlign = 'center';
       ctx.fillText('APROPOS', width / 2, SQUARE_LOGO_TOP + 20);
-      ctx.font = 'italic 16px Amiri, Georgia, serif';
+      ctx.font = `italic 16px ${amiriFontFamily}`;
       ctx.fillText('Magazine', width / 2, SQUARE_LOGO_TOP + 44);
     }
     // Eyebrow y is canvas baseline, not top. Baseline = top + fontSize.
@@ -148,7 +159,7 @@ export async function exportCardToPng(
     ctx.textAlign = 'center';
     const logoY = padding + logoMainSize + 4;
     ctx.fillText('APROPOS', width / 2, logoY);
-    ctx.font = `italic ${logoSubSize}px Amiri, Georgia, serif`;
+    ctx.font = `italic ${logoSubSize}px ${amiriFontFamily}`;
     ctx.fillText('Magazine', width / 2, logoY + logoSubSize + 4);
     y = logoY + logoSubSize + 24;
   }
@@ -156,10 +167,11 @@ export async function exportCardToPng(
   // Øjenbryn: kun udfyldte felter + stjerner (ingen fallback-tekst)
   const eyebrowParts =
     (data.eyebrowLabels && data.eyebrowLabels.length > 0)
-      ? data.eyebrowLabels.filter(Boolean)
-      : [data.category, data.categorySecondary].filter(Boolean) as string[];
+      ? data.eyebrowLabels.filter((label) => !!label && !isWebflowReferenceId(label))
+      : [data.category, data.categorySecondary]
+          .filter((label): label is string => !!label && !isWebflowReferenceId(label));
   const rating = data.rating ?? 0;
-  ctx.font = `400 ${categorySize}px Amiri, Georgia, serif`;
+  ctx.font = `400 ${categorySize}px ${amiriFontFamily}`;
   ctx.textAlign = 'center';
   ctx.fillStyle = '#000000';
   const separatorWidth = ctx.measureText('|').width;
@@ -216,9 +228,9 @@ export async function exportCardToPng(
   y += Math.round(titleSize * 0.75);
 
   // Headline – Amiri Regular (400), 80px, line-height 120% (square)
-  ctx.font = `${isSquare ? '400' : '600'} ${titleSize}px Amiri, Georgia, serif`;
+  ctx.font = `${isSquare ? '400' : '600'} ${titleSize}px ${amiriFontFamily}`;
   ctx.fillStyle = '#000000';
-  const titleLines = wrapText(ctx, data.title || 'Overskrift', maxTextWidth, 3);
+  const titleLines = wrapText(ctx, data.title || 'Overskrift', maxTextWidth, 2);
   const lineHeightPx = titleSize * (typeof titleLineHeight === 'number' ? titleLineHeight : 1.2);
   for (const line of titleLines) {
     ctx.fillText(line, width / 2, y);
@@ -228,11 +240,11 @@ export async function exportCardToPng(
   // Byline (under H1): #353535, Amiri italic 57px, 400, line-height 120%
   if (data.excerpt) {
     y += isSquare ? -10 : -10;
-    ctx.font = `400 italic ${excerptSize}px Amiri, Georgia, serif`;
-    ctx.fillStyle = '#353535';
+    ctx.font = `italic 400 ${excerptSize}px ${amiriFontFamily}`;
+    ctx.fillStyle = BYLINE_COLOR;
     ctx.textAlign = 'center';
     const excerptLines = wrapText(ctx, data.excerpt, maxTextWidth, 2);
-    const bylineLineHeight = excerptSize * 1.2;
+    const bylineLineHeight = excerptSize * BYLINE_LINE_HEIGHT;
     for (const line of excerptLines) {
       ctx.fillText(line, width / 2, y);
       y += bylineLineHeight;
@@ -285,9 +297,10 @@ export async function exportCardToPng(
 export async function exportCardToJpeg(
   data: SocialCardData,
   size: SocialCardSize,
-  quality = 0.96
+  quality = 0.96,
+  opts?: { amiriFontFamily?: string }
 ): Promise<string> {
-  const pngDataUrl = await exportCardToPng(data, size);
+  const pngDataUrl = await exportCardToPng(data, size, opts);
   const canvas = document.createElement('canvas');
   const img = new Image();
   await new Promise<void>((resolve, reject) => {

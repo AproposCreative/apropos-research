@@ -1117,12 +1117,12 @@ const fallbackThinkingSteps: ThinkingStep[] = [
           <div className="absolute inset-0 bg-black/30" />
         </div>
         {/* Top Bar */}
-        <div className={`flex items-center justify-between p-4 app-safe-top relative z-20 
+        <div className={`flex items-center justify-between min-h-[64px] md:min-h-[56px] p-4 app-safe-top relative z-20 
           md:static md:bg-transparent md:backdrop-blur-0 md:border-b md:border-zinc-800 
           fixed top-0 inset-x-0 md:inset-auto md:top-auto
           bg-black/40 backdrop-blur-xl border-b border-white/10
         ${messages.length === 0 ? 'md:opacity-100' : ''}`}>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 min-w-0 flex-1 pr-14">
             {/* Mobile: Logo/title cross-fade */}
             <div className="relative md:hidden h-6">
               <img
@@ -1137,7 +1137,7 @@ const fallbackThinkingSteps: ThinkingStep[] = [
               </div>
             </div>
             {/* Desktop: always show title */}
-            <h1 className="hidden md:block text-white text-base font-medium">
+            <h1 className="hidden md:block text-white text-base font-medium truncate">
               {chatTitle === 'Ny artikkel' ? (
                 <span 
                   className="bg-gradient-to-r from-white/20 via-white/70 to-white/20 bg-clip-text text-transparent"
@@ -1159,25 +1159,25 @@ const fallbackThinkingSteps: ThinkingStep[] = [
               </span>
             )}
           </div>
-          <div className="flex items-center gap-2">
+          <div className="absolute right-4 top-1/2 -translate-y-1/2 flex items-center gap-2 shrink-0">
             <button
               type="button"
               onClick={() => onClose?.()}
-              className="hidden md:flex touch-target items-center justify-center p-2 rounded-lg border border-white/15 text-white/70 hover:text-white hover:bg-white/5 transition-colors"
+              className="hidden md:flex touch-target items-center justify-center rounded-lg border border-white/15 text-white/70 hover:text-white hover:bg-white/5 transition-colors"
               aria-label="Luk AI Writer og åbn Design Editor"
               title="Luk og åbn Design Editor"
             >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+              <svg className="w-5 h-5 block" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
               </svg>
             </button>
             {/* Mobile-only burger */}
             <button
-              className="md:hidden touch-target p-2 rounded-lg border border-white/15 text-white/80 hover:text-white hover:bg-white/5 transition-colors"
+              className="md:hidden touch-target rounded-lg border border-white/15 text-white/80 hover:text-white hover:bg-white/5 transition-colors"
               aria-label="Åbn menu"
               onClick={openMobileMenu}
             >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg className="w-5 h-5 block" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
               </svg>
             </button>

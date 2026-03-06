@@ -7,14 +7,67 @@ import { exportCardToPng, exportCardToJpeg } from './exportCardToPng';
 import { storage } from '@/lib/firebase';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 
-const amiri = Amiri({ weight: ['400', '700'], subsets: ['latin'], variable: '--font-amiri' });
+const amiri = Amiri({
+  weight: ['400', '700'],
+  style: ['normal', 'italic'],
+  subsets: ['latin'],
+  variable: '--font-amiri',
+});
 
 const DEFAULT_PANEL_WIDTH = 300;
 const MIN_PANEL_WIDTH = 240;
 const MAX_PANEL_WIDTH = 520;
 const PANEL_GAP = 12;
+const SQUARE_H1_PADDING_H = 100;
+const SQUARE_H1_FONT_SIZE = 80;
+const BYLINE_FONT_SIZE_SQUARE = 48;
 
 const CAPTION_FOOTER_TEXT = 'Læs gratis med – uden reklamer, pop-ups eller anden støj: www.aproposmagazine.com';
+
+function wrapTextForWidth(
+  ctx: CanvasRenderingContext2D,
+  text: string,
+  maxWidth: number,
+  maxLines: number
+): string[] {
+  const words = text.trim().split(/\s+/).filter(Boolean);
+  const lines: string[] = [];
+  let current = '';
+  for (const word of words) {
+    const next = current ? `${current} ${word}` : word;
+    if (ctx.measureText(next).width > maxWidth && current) {
+      lines.push(current);
+      if (lines.length >= maxLines) return lines;
+      current = word;
+    } else {
+      current = next;
+    }
+  }
+  if (current) lines.push(current);
+  return lines;
+}
+
+function truncateToFit(
+  ctx: CanvasRenderingContext2D,
+  text: string,
+  maxWidth: number,
+  maxLines: number
+): string {
+  const normalized = text.replace(/\s+/g, ' ').trim();
+  if (!normalized) return '';
+  const lines = wrapTextForWidth(ctx, normalized, maxWidth, maxLines);
+  if (lines.length <= maxLines) return normalized;
+
+  const words = normalized.split(' ');
+  while (words.length > 1) {
+    words.pop();
+    const candidate = `${words.join(' ').replace(/[.,;:!?-]+$/g, '').trim()}…`;
+    if (!candidate || candidate === '…') continue;
+    const candidateLines = wrapTextForWidth(ctx, candidate, maxWidth, maxLines);
+    if (candidateLines.length <= maxLines) return candidate;
+  }
+  return `${normalized.slice(0, 18).trim()}…`;
+}
 
 function normalizeArticle(item: { id: string; fieldData?: Record<string, unknown> }) {
   const fd = item.fieldData || {};
@@ -80,7 +133,7 @@ export default function DesignEditorView({ onBack, embedMode }: DesignEditorView
   const [articles, setArticles] = useState<NormalizedArticle[]>([]);
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<NormalizedArticle | null>(null);
-  const [size, setSize] = useState<SocialCardSize>('story');
+  const [size, setSize] = useState<SocialCardSize>('square');
   const [exporting, setExporting] = useState(false);
   const [articlesOpen, setArticlesOpen] = useState(true);
   const [articleSearch, setArticleSearch] = useState('');
@@ -92,6 +145,9 @@ export default function DesignEditorView({ onBack, embedMode }: DesignEditorView
   const [instagramError, setInstagramError] = useState<string | null>(null);
   const [instagramConfigured, setInstagramConfigured] = useState<boolean | null>(null);
   const [renderedCardDataUrl, setRenderedCardDataUrl] = useState<string | null>(null);
+  const [clickbaitLoading, setClickbaitLoading] = useState(false);
+  const [clickbaitError, setClickbaitError] = useState<string | null>(null);
+  const [clickbaitOriginalById, setClickbaitOriginalById] = useState<Record<string, { title: string; excerpt: string }>>({});
   const [authors, setAuthors] = useState<{ id: string; name: string }[]>([]);
   const [sections, setSections] = useState<{ id: string; name: string }[]>([]);
   const [topics, setTopics] = useState<{ id: string; name: string }[]>([]);
@@ -99,15 +155,19 @@ export default function DesignEditorView({ onBack, embedMode }: DesignEditorView
   const previewRef = useRef<HTMLDivElement>(null);
   const [scale, setScale] = useState(0.5);
 
+  const isWebflowId = useCallback((value: string) => /^[a-f0-9]{24}$/i.test(value.trim()), []);
+
   const resolveName = useCallback(
     (idOrName: string, list: { id: string; name: string }[]): string => {
       const byId = list.find((x) => x.id === idOrName);
       if (byId) return byId.name;
       const byName = list.find((x) => x.name === idOrName);
       if (byName) return byName.name;
+      // Never show raw CMS IDs in UI chips.
+      if (isWebflowId(idOrName)) return '';
       return idOrName;
     },
-    []
+    [isWebflowId]
   );
 
   // Load authors, sections, topics from Webflow (Head & Eyebrow + caption)
@@ -141,14 +201,15 @@ export default function DesignEditorView({ onBack, embedMode }: DesignEditorView
     if (selected.section || selected.category) {
       const val = selected.section || selected.category || '';
       const label = selected.section && sections.length ? resolveName(selected.section, sections) : (selected.category || val);
-      if (label) chips.push({ type: 'section', value: val, label });
+      const cleanLabel = isWebflowId(label) ? '' : label;
+      if (cleanLabel) chips.push({ type: 'section', value: val, label: cleanLabel });
     }
     const topicVals = [selected.primaryTopic, ...(selected.topics ?? [])].filter(Boolean) as string[];
     const seenTopic = new Set<string>();
     const topicOpts = topicVals
       .filter((v) => !seenTopic.has(v) && (seenTopic.add(v), true))
       .map((v) => ({ id: v, name: topics.length ? resolveName(v, topics) : v }))
-      .filter((x) => x.name);
+      .filter((x) => x.name && !isWebflowId(x.name));
     const authorOpt = selected.authorId
       ? { id: selected.authorId, name: authors.length ? resolveName(selected.authorId, authors) : selected.authorId }
       : null;
@@ -299,7 +360,7 @@ export default function DesignEditorView({ onBack, embedMode }: DesignEditorView
   // Preview must use the exact same rendering pipeline as export (WYSIWYG)
   useEffect(() => {
     let cancelled = false;
-    exportCardToPng(cardData, size)
+    exportCardToPng(cardData, size, { amiriFontFamily: amiri.style.fontFamily })
       .then((url) => { if (!cancelled) setRenderedCardDataUrl(url); })
       .catch(() => { if (!cancelled) setRenderedCardDataUrl(null); });
     return () => { cancelled = true; };
@@ -330,7 +391,7 @@ export default function DesignEditorView({ onBack, embedMode }: DesignEditorView
   const handleExportPng = useCallback(async () => {
     setExporting(true);
     try {
-      const dataUrl = await exportCardToPng(cardData, size);
+      const dataUrl = await exportCardToPng(cardData, size, { amiriFontFamily: amiri.style.fontFamily });
       const a = document.createElement('a');
       a.href = dataUrl;
       a.download = `apropos-social-${size}-${Date.now()}.png`;
@@ -351,7 +412,7 @@ export default function DesignEditorView({ onBack, embedMode }: DesignEditorView
         setInstagramError('Firebase Storage er ikke tilgængelig.');
         return;
       }
-      const jpegDataUrl = await exportCardToJpeg(cardData, size);
+      const jpegDataUrl = await exportCardToJpeg(cardData, size, 0.96, { amiriFontFamily: amiri.style.fontFamily });
       const res = await fetch(jpegDataUrl);
       const blob = await res.blob();
       const path = `instagram-publish/${Date.now()}.jpg`;
@@ -377,6 +438,113 @@ export default function DesignEditorView({ onBack, embedMode }: DesignEditorView
       setPostingToInstagram(false);
     }
   }, [size, cardData, caption, ensureCaptionFooter]);
+
+  const handleMoreClickbait = useCallback(async () => {
+    if (!selected) return;
+    setClickbaitLoading(true);
+    setClickbaitError(null);
+    try {
+      const res = await fetch('/api/design-editor/more-clickbait', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: selected.title || '',
+          excerpt: selected.excerpt || '',
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setClickbaitError(data?.error || 'Kunne ikke lave clickbait-forslag.');
+        return;
+      }
+      const nextTitle = String(data?.title || selected.title || '').trim();
+      const nextExcerpt = String(data?.excerpt || selected.excerpt || '').trim();
+      if (!nextTitle) {
+        setClickbaitError('Intet forslag modtaget.');
+        return;
+      }
+
+      await Promise.allSettled([
+        document.fonts.load(`400 ${size === 'square' ? SQUARE_H1_FONT_SIZE : size === 'story' ? 38 : 44}px ${amiri.style.fontFamily}`),
+        document.fonts.load(`italic 400 ${size === 'square' ? BYLINE_FONT_SIZE_SQUARE : size === 'story' ? 36 : 40}px ${amiri.style.fontFamily}`),
+        document.fonts.ready,
+      ]);
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      if (!ctx) {
+        setClickbaitError('Kunne ikke måle tekstlayout.');
+        return;
+      }
+      const padding = size === 'square' ? SQUARE_H1_PADDING_H : size === 'story' ? 48 : 56;
+      const maxTextWidth = DIMENSIONS[size].width - padding * 2;
+      const titleSize = size === 'square' ? SQUARE_H1_FONT_SIZE : size === 'story' ? 38 : 44;
+      const excerptSize = size === 'square' ? BYLINE_FONT_SIZE_SQUARE : size === 'story' ? 36 : 40;
+
+      ctx.font = `400 ${titleSize}px ${amiri.style.fontFamily}`;
+      const fittedTitle = truncateToFit(ctx, nextTitle, maxTextWidth, 2);
+      ctx.font = `italic 400 ${excerptSize}px ${amiri.style.fontFamily}`;
+      const fittedExcerpt = truncateToFit(ctx, nextExcerpt, maxTextWidth, 2);
+
+      setClickbaitOriginalById((prev) => (
+        prev[selected.id]
+          ? prev
+          : {
+              ...prev,
+              [selected.id]: {
+                title: selected.title || '',
+                excerpt: selected.excerpt || '',
+              },
+            }
+      ));
+
+      setSelected((prev) => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          title: fittedTitle,
+          excerpt: fittedExcerpt,
+        };
+      });
+      setArticles((prev) =>
+        prev.map((item) =>
+          item.id === selected.id
+            ? { ...item, title: fittedTitle, excerpt: fittedExcerpt }
+            : item
+        )
+      );
+    } catch {
+      setClickbaitError('Der opstod en fejl. Prøv igen.');
+    } finally {
+      setClickbaitLoading(false);
+    }
+  }, [selected, size]);
+
+  const handleUndoClickbait = useCallback(() => {
+    if (!selected) return;
+    const original = clickbaitOriginalById[selected.id];
+    if (!original) return;
+    setSelected((prev) => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        title: original.title,
+        excerpt: original.excerpt,
+      };
+    });
+    setArticles((prev) =>
+      prev.map((item) =>
+        item.id === selected.id
+          ? { ...item, title: original.title, excerpt: original.excerpt }
+          : item
+      )
+    );
+    setClickbaitOriginalById((prev) => {
+      const next = { ...prev };
+      delete next[selected.id];
+      return next;
+    });
+    setClickbaitError(null);
+  }, [selected, clickbaitOriginalById]);
 
   const rootClass = embedMode ? `h-full flex flex-col relative overflow-hidden ${amiri.variable}` : `min-h-[100dvh] h-[100dvh] bg-[#171717] md:p-[1%] p-0 flex flex-col md:flex-row relative overflow-hidden ${amiri.variable}`;
 
@@ -528,8 +696,8 @@ export default function DesignEditorView({ onBack, embedMode }: DesignEditorView
                 onChange={(e) => setSize(e.target.value as SocialCardSize)}
                 className="touch-target shrink-0 p-2 rounded-lg border border-white/15 bg-transparent text-white/70 hover:text-white hover:bg-white/5 focus:outline-none focus:ring-2 focus:ring-white/20 focus:border-white/20 transition-colors text-sm"
               >
-                <option value="story">1080 × 1920 (Story)</option>
                 <option value="square">1080 × 1080</option>
+                <option value="story">1080 × 1920 (Story)</option>
               </select>
               <button
                 type="button"
@@ -658,11 +826,11 @@ export default function DesignEditorView({ onBack, embedMode }: DesignEditorView
               </div>
             </div>
           ) : (
-            <div ref={previewRef} className="flex-1 min-h-0 flex flex-col items-center md:justify-center justify-start bg-black/20 p-3 md:p-4">
-              <div className="w-full flex flex-col items-center gap-3 md:gap-2">
+            <div ref={previewRef} className="flex-1 min-h-0 flex flex-col items-center md:justify-start justify-start bg-black/20 p-3 md:p-4">
+              <div className="w-full flex flex-col items-center gap-5 pt-10">
                 {/* Figma-lignende kontrolbar placeret lige over kortet */}
                 {eyebrowChips.length > 0 && (
-                  <div className="inline-flex max-w-full overflow-x-auto no-scrollbar items-center gap-2 rounded-2xl border border-white/15 bg-black/65 p-2 backdrop-blur-md shadow-[0_8px_24px_rgba(0,0,0,0.35)]">
+                  <div className="inline-flex max-w-full overflow-x-auto no-scrollbar justify-start items-center gap-2 rounded-2xl border border-white/15 bg-black/65 p-2 mb-5 backdrop-blur-md shadow-[0_8px_24px_rgba(0,0,0,0.35)]">
                     {eyebrowChips.map((chip, index) => (
                       <button
                         key={`${chip.type}-${index}-${chip.value}`}
@@ -679,14 +847,38 @@ export default function DesignEditorView({ onBack, embedMode }: DesignEditorView
                         | ★ {selected?.rating}/6
                       </span>
                     )}
+                    <button
+                      type="button"
+                      onClick={handleMoreClickbait}
+                      disabled={!selected || clickbaitLoading}
+                      className="shrink-0 px-4 md:px-5 py-2 rounded-xl text-sm md:text-[15px] font-semibold bg-white/10 text-white border border-white/40 shadow-[0_0_18px_rgba(255,255,255,0.14)] transition-all duration-200 hover:bg-white/15 hover:border-white/55 hover:shadow-[0_0_26px_rgba(255,255,255,0.2)] focus:outline-none focus:ring-2 focus:ring-white/40 disabled:opacity-60 disabled:pointer-events-none"
+                      title="Gør overskrift og byline mere clickbait"
+                    >
+                      <span className={clickbaitLoading ? '' : 'text-sheen-glow'}>
+                        {clickbaitLoading ? 'Tweaker…' : 'More Clickbait'}
+                      </span>
+                    </button>
+                    {selected && clickbaitOriginalById[selected.id] && (
+                      <button
+                        type="button"
+                        onClick={handleUndoClickbait}
+                        className="shrink-0 w-9 h-9 rounded-xl text-white text-sm font-semibold bg-white/8 border border-white/30 shadow-[0_0_14px_rgba(255,255,255,0.12)] transition-all duration-200 hover:bg-white/14 hover:border-white/50 focus:outline-none focus:ring-2 focus:ring-white/35"
+                        title="Slå clickbait fra og gendan original"
+                      >
+                        X
+                      </button>
+                    )}
                   </div>
+                )}
+                {clickbaitError && (
+                  <p className="text-fuchsia-300 text-xs -mt-2 mb-3">{clickbaitError}</p>
                 )}
 
                 <div
                   className="relative"
                   style={{
                     transform: `scale(${scale})`,
-                    transformOrigin: 'center center',
+                    transformOrigin: 'top center',
                     width: DIMENSIONS[size].width,
                     height: DIMENSIONS[size].height,
                   }}

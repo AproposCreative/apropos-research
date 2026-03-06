@@ -728,17 +728,33 @@ useEffect(() => {
             })
           );
 
-          // Extra failsafe: derive title/subtitle from assistant response if missing in articleUpdate.
+          // Extra failsafe: derive title/subtitle/intro from assistant response if missing in articleUpdate.
           const responseText = typeof data.response === 'string' ? data.response : '';
           const parsedTitle = responseText.match(/^\s*(?:\*\*)?\s*(?:Arbejdstitel|Titel)\s*(?:\*\*)?\s*[:\-–—]\s*(.+)$/im)?.[1]?.trim() || '';
           const parsedSubtitle = responseText.match(/^\s*(?:\*\*)?\s*(?:Undertitel|Subtitle)\s*(?:\*\*)?\s*[:\-–—]\s*(.+)$/im)?.[1]?.trim() || '';
+          const parsedIntro = responseText
+            .match(/^\s*(?:\*\*|__)?\s*(?:Intro|Indledning)\s*(?:\*\*|__)?\s*(?:[:\-–—]\s*|\s+)([\s\S]+?)(?:\n{2,}|$)/im)?.[1]
+            ?.replace(/^(?:\*\*|__)?\s*(?:Intro|Indledning)\s*(?:\*\*|__)?\s*/i, '')
+            ?.replace(/\s+/g, ' ')
+            .trim() || '';
+
+          // If labels are missing, infer first two meaningful lines as title/subtitle.
+          const candidateLines = responseText
+            .split('\n')
+            .map((line: string) => line.trim())
+            .filter(Boolean)
+            .map((line: string) => line.replace(/^#+\s*/, '').replace(/^\*\*(.+)\*\*$/, '$1').trim())
+            .filter((line: string) => !/^(arbejdstitel|titel|undertitel|subtitle|intro|indledning)\s*[:\-–—]/i.test(line));
+          const inferredTitle = !parsedTitle && candidateLines[0] && candidateLines[0].length >= 6 && candidateLines[0].length <= 120 ? candidateLines[0] : '';
+          const inferredSubtitle = !parsedSubtitle && candidateLines[1] && candidateLines[1].length >= 10 && candidateLines[1].length <= 180 ? candidateLines[1] : '';
           
           const updatedData = { 
             ...prev, 
             ...meaningfulUpdate,
             ...extractedFields,
-            ...(!meaningfulUpdate.title && !extractedFields.title && parsedTitle ? { title: parsedTitle } : {}),
-            ...(!meaningfulUpdate.subtitle && !extractedFields.subtitle && parsedSubtitle ? { subtitle: parsedSubtitle } : {}),
+            ...(!meaningfulUpdate.title && !extractedFields.title && (parsedTitle || inferredTitle) ? { title: parsedTitle || inferredTitle } : {}),
+            ...(!meaningfulUpdate.subtitle && !extractedFields.subtitle && (parsedSubtitle || inferredSubtitle) ? { subtitle: parsedSubtitle || inferredSubtitle } : {}),
+            ...(!meaningfulUpdate.intro && !extractedFields.intro && parsedIntro ? { intro: parsedIntro } : {}),
             ...(data.suggestion ? { aiSuggestion: data.suggestion } : {}),
             _chatMessages: compactMessages, 
             notes 
