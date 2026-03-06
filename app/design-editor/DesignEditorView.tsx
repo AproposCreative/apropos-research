@@ -24,6 +24,22 @@ const BYLINE_FONT_SIZE_SQUARE = 48;
 
 const CAPTION_FOOTER_TEXT = 'Læs gratis med – uden reklamer, pop-ups eller anden støj: www.aproposmagazine.com';
 
+function stripHtmlForPrompt(input: string): string {
+  return input
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<\/p>/gi, '\n')
+    .replace(/<p[^>]*>/gi, '')
+    .replace(/<[^>]*>/g, ' ')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
 function wrapTextForWidth(
   ctx: CanvasRenderingContext2D,
   text: string,
@@ -69,6 +85,17 @@ function truncateToFit(
   return `${normalized.slice(0, 18).trim()}…`;
 }
 
+function trimDanglingHeadlineEnding(text: string): string {
+  const trailing = new Set(['med', 'et', 'en', 'at', 'på', 'for', 'og', 'i', 'til', 'som', 'der', 'når', 'hvor']);
+  const words = text.replace(/\s+/g, ' ').trim().split(' ').filter(Boolean);
+  while (words.length > 2) {
+    const last = words[words.length - 1].replace(/[.,;:!?…]+$/g, '').toLowerCase();
+    if (!trailing.has(last)) break;
+    words.pop();
+  }
+  return words.join(' ').trim();
+}
+
 function normalizeArticle(item: { id: string; fieldData?: Record<string, unknown> }) {
   const fd = item.fieldData || {};
   const title = (fd.name as string) || (fd['article-title'] as string) || (fd.title as string) || '';
@@ -86,6 +113,12 @@ function normalizeArticle(item: { id: string; fieldData?: Record<string, unknown
     (fd.intro as string) ||
     (fd['article-intro'] as string) ||
     '';
+  const rawContent =
+    (fd['post-body'] as string) ||
+    (fd.content as string) ||
+    (fd['article-body'] as string) ||
+    '';
+  const content = stripHtmlForPrompt(rawContent);
   const thumb = (fd.thumb as { url?: string })?.url ?? (fd.thumb as string);
   const featuredImage =
     (fd['article-featured-image'] as string) ||
@@ -109,6 +142,7 @@ function normalizeArticle(item: { id: string; fieldData?: Record<string, unknown
     slug,
     excerpt: String(excerpt).trim(),
     intro: String(intro).trim() || undefined,
+    content: content || undefined,
     imageUrl: featuredImage || undefined,
     category: String(category).trim() || undefined,
     rating: rating ?? undefined,
@@ -450,6 +484,11 @@ export default function DesignEditorView({ onBack, embedMode }: DesignEditorView
         body: JSON.stringify({
           title: selected.title || '',
           excerpt: selected.excerpt || '',
+          intro: selected.intro || '',
+          content: selected.content || '',
+          section: selected.section || selected.category || '',
+          topic: selected.primaryTopic || selected.topics?.[0] || '',
+          rating: selected.rating || 0,
         }),
       });
       const data = await res.json().catch(() => ({}));
@@ -481,7 +520,9 @@ export default function DesignEditorView({ onBack, embedMode }: DesignEditorView
       const excerptSize = size === 'square' ? BYLINE_FONT_SIZE_SQUARE : size === 'story' ? 36 : 40;
 
       ctx.font = `400 ${titleSize}px ${amiri.style.fontFamily}`;
-      const fittedTitle = truncateToFit(ctx, nextTitle, maxTextWidth, 2);
+      const roughFittedTitle = truncateToFit(ctx, nextTitle, maxTextWidth, 2);
+      const polishedTitle = trimDanglingHeadlineEnding(roughFittedTitle) || roughFittedTitle;
+      const fittedTitle = truncateToFit(ctx, polishedTitle, maxTextWidth, 2);
       ctx.font = `italic 400 ${excerptSize}px ${amiri.style.fontFamily}`;
       const fittedExcerpt = truncateToFit(ctx, nextExcerpt, maxTextWidth, 2);
 
@@ -842,20 +883,15 @@ export default function DesignEditorView({ onBack, embedMode }: DesignEditorView
                         {chip.label}
                       </button>
                     ))}
-                    {(selected?.rating ?? 0) > 0 && (
-                      <span className="text-white/75 text-[18px] px-1">
-                        | ★ {selected?.rating}/6
-                      </span>
-                    )}
                     <button
                       type="button"
                       onClick={handleMoreClickbait}
                       disabled={!selected || clickbaitLoading}
                       className="shrink-0 px-4 md:px-5 py-2 rounded-xl text-sm md:text-[15px] font-semibold bg-white/10 text-white border border-white/40 shadow-[0_0_18px_rgba(255,255,255,0.14)] transition-all duration-200 hover:bg-white/15 hover:border-white/55 hover:shadow-[0_0_26px_rgba(255,255,255,0.2)] focus:outline-none focus:ring-2 focus:ring-white/40 disabled:opacity-60 disabled:pointer-events-none"
-                      title="Gør overskrift og byline mere clickbait"
+                      title="Skriv stærkere titel og byline"
                     >
                       <span className={clickbaitLoading ? '' : 'text-sheen-glow'}>
-                        {clickbaitLoading ? 'Tweaker…' : 'More Clickbait'}
+                        {clickbaitLoading ? 'Skriver…' : 'Bedre Copy'}
                       </span>
                     </button>
                     {selected && clickbaitOriginalById[selected.id] && (
@@ -863,7 +899,7 @@ export default function DesignEditorView({ onBack, embedMode }: DesignEditorView
                         type="button"
                         onClick={handleUndoClickbait}
                         className="shrink-0 w-9 h-9 rounded-xl text-white text-sm font-semibold bg-white/8 border border-white/30 shadow-[0_0_14px_rgba(255,255,255,0.12)] transition-all duration-200 hover:bg-white/14 hover:border-white/50 focus:outline-none focus:ring-2 focus:ring-white/35"
-                        title="Slå clickbait fra og gendan original"
+                        title="Gendan original copy"
                       >
                         X
                       </button>
