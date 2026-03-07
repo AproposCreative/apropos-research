@@ -3,6 +3,12 @@ import { NextRequest, NextResponse } from 'next/server';
 const INSTAGRAM_API_VERSION = 'v24.0';
 const GRAPH_HOST = 'https://graph.facebook.com';
 
+function tokenRefreshHint(): string {
+  return process.env.NODE_ENV === 'production'
+    ? 'Instagram-tokenet er udløbet. Opdater INSTAGRAM_ACCESS_TOKEN i Vercel (Production env) med et nyt Page access token fra Meta, og redeploy (se docs/INSTAGRAM_PUBLISH.md).'
+    : 'Instagram-tokenet er udløbet. Opdater INSTAGRAM_ACCESS_TOKEN i .env.local med et nyt Page access token fra Meta (se docs/INSTAGRAM_PUBLISH.md).';
+}
+
 /**
  * GET /api/instagram/publish
  * Returnerer om Instagram-publish er konfigureret (til UI / test).
@@ -71,7 +77,7 @@ export async function POST(request: NextRequest) {
         createData.error?.code === 190 ||
         /session has expired|error validating access token|token.*expired/i.test(String(msg));
       const userMessage = isTokenExpired
-        ? 'Instagram-tokenet er udløbet. Opdater INSTAGRAM_ACCESS_TOKEN i .env.local med et nyt Page access token fra Meta (se docs/INSTAGRAM_PUBLISH.md).'
+        ? tokenRefreshHint()
         : (msg || 'Instagram kunne ikke oprette opslag.');
       return NextResponse.json(
         { error: userMessage },
@@ -108,7 +114,7 @@ export async function POST(request: NextRequest) {
         publishData.error?.code === 190 ||
         /session has expired|error validating access token|token.*expired/i.test(String(msg));
       const userMessage = isTokenExpired
-        ? 'Instagram-tokenet er udløbet. Opdater INSTAGRAM_ACCESS_TOKEN i .env.local med et nyt Page access token fra Meta (se docs/INSTAGRAM_PUBLISH.md).'
+        ? tokenRefreshHint()
         : (msg || 'Instagram kunne ikke publicere.');
       return NextResponse.json(
         { error: userMessage },
