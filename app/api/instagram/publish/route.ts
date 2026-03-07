@@ -2,11 +2,51 @@ import { NextRequest, NextResponse } from 'next/server';
 
 const INSTAGRAM_API_VERSION = 'v24.0';
 const GRAPH_HOST = 'https://graph.facebook.com';
+const PROCESSING_POLL_MS = 2000;
+const PROCESSING_MAX_POLLS = 12;
 
 function tokenRefreshHint(): string {
   return process.env.NODE_ENV === 'production'
     ? 'Instagram-tokenet er udløbet. Opdater INSTAGRAM_ACCESS_TOKEN i Vercel (Production env) med et nyt Page access token fra Meta, og redeploy (se docs/INSTAGRAM_PUBLISH.md).'
     : 'Instagram-tokenet er udløbet. Opdater INSTAGRAM_ACCESS_TOKEN i .env.local med et nyt Page access token fra Meta (se docs/INSTAGRAM_PUBLISH.md).';
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function getContainerStatus(containerId: string, accessToken: string) {
+  const statusRes = await fetch(
+    `${GRAPH_HOST}/${INSTAGRAM_API_VERSION}/${containerId}?fields=status_code,status,error_message`,
+    {
+      method: 'GET',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+    }
+  );
+  const statusData = await statusRes.json().catch(() => ({}));
+  return { ok: statusRes.ok, data: statusData };
+}
+
+async function waitForContainerReady(containerId: string, accessToken: string) {
+  for (let i = 0; i < PROCESSING_MAX_POLLS; i += 1) {
+    const { ok, data } = await getContainerStatus(containerId, accessToken);
+    if (ok) {
+      const statusCode = String(data.status_code || '').toUpperCase();
+      if (statusCode === 'FINISHED' || statusCode === 'PUBLISHED') {
+        return { ready: true as const, error: null as string | null };
+      }
+      if (statusCode === 'ERROR' || statusCode === 'EXPIRED') {
+        return {
+          ready: false as const,
+          error: String(data.error_message || data.status || 'Instagram kunne ikke behandle billedet.'),
+        };
+      }
+    }
+    await sleep(PROCESSING_POLL_MS);
+  }
+  return { ready: false as const, error: 'Instagram er stadig ved at behandle billedet. Prøv igen om få sekunder.' };
 }
 
 /**
@@ -93,21 +133,44 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 2) Publicer containeren
-    const publishRes = await fetch(
-      `${GRAPH_HOST}/${INSTAGRAM_API_VERSION}/${igId}/media_publish`,
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${accessToken}`,
-        },
-        body: JSON.stringify({ creation_id: containerId }),
-      }
-    );
+    // 2) Vent til containeren er færdigbehandlet (Meta kan ellers svare "Media ID is not available")
+    const readiness = await waitForContainerReady(containerId, accessToken);
+    if (!readiness.ready) {
+      return NextResponse.json(
+        { error: readiness.error || 'Instagram er ikke klar til publicering endnu.' },
+        { status: 502 }
+      );
+    }
 
-    const publishData = await publishRes.json().catch(() => ({}));
-    if (!publishRes.ok) {
+    // 3) Publicer containeren (med kort retry på race conditions)
+    let publishRes: Response | null = null;
+    let publishData: any = {};
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      publishRes = await fetch(
+        `${GRAPH_HOST}/${INSTAGRAM_API_VERSION}/${igId}/media_publish`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${accessToken}`,
+          },
+          body: JSON.stringify({ creation_id: containerId }),
+        }
+      );
+
+      publishData = await publishRes.json().catch(() => ({}));
+      if (publishRes.ok) break;
+
+      const msg = String(publishData?.error?.message || '');
+      const mediaIdNotReady = /media id is not available|not available|still processing/i.test(msg);
+      if (mediaIdNotReady && attempt < 2) {
+        await sleep(1200);
+        continue;
+      }
+      break;
+    }
+
+    if (!publishRes || !publishRes.ok) {
       console.error('Instagram media_publish error:', publishRes.status, publishData);
       const msg = publishData.error?.message ?? '';
       const isTokenExpired =
@@ -115,6 +178,8 @@ export async function POST(request: NextRequest) {
         /session has expired|error validating access token|token.*expired/i.test(String(msg));
       const userMessage = isTokenExpired
         ? tokenRefreshHint()
+        : /media id is not available|not available|still processing/i.test(String(msg))
+          ? 'Instagram er stadig ved at behandle billedet. Vent 5-10 sekunder og prøv igen.'
         : (msg || 'Instagram kunne ikke publicere.');
       return NextResponse.json(
         { error: userMessage },

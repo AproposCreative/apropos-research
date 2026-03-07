@@ -478,7 +478,7 @@ export default function DesignEditorView({ onBack, embedMode }: DesignEditorView
     setClickbaitLoading(true);
     setClickbaitError(null);
     try {
-      const res = await fetch('/api/design-editor/more-clickbait', {
+      const res = await fetch('/api/design-editor/better-copy', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
