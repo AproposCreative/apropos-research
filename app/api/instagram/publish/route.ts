@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 const INSTAGRAM_API_VERSION = 'v24.0';
 const GRAPH_HOST = 'https://graph.facebook.com';
 const PROCESSING_POLL_MS = 2000;
-const PROCESSING_MAX_POLLS = 12;
+const PROCESSING_MAX_POLLS = 45; // ~90s max wait
 
 function tokenRefreshHint(): string {
   return process.env.NODE_ENV === 'production'
@@ -30,23 +30,32 @@ async function getContainerStatus(containerId: string, accessToken: string) {
 }
 
 async function waitForContainerReady(containerId: string, accessToken: string) {
+  let lastStatusCode = '';
   for (let i = 0; i < PROCESSING_MAX_POLLS; i += 1) {
     const { ok, data } = await getContainerStatus(containerId, accessToken);
     if (ok) {
       const statusCode = String(data.status_code || '').toUpperCase();
+      lastStatusCode = statusCode;
       if (statusCode === 'FINISHED' || statusCode === 'PUBLISHED') {
-        return { ready: true as const, error: null as string | null };
+        return { ready: true as const, timedOut: false as const, statusCode, error: null as string | null };
       }
       if (statusCode === 'ERROR' || statusCode === 'EXPIRED') {
         return {
           ready: false as const,
+          timedOut: false as const,
+          statusCode,
           error: String(data.error_message || data.status || 'Instagram kunne ikke behandle billedet.'),
         };
       }
     }
     await sleep(PROCESSING_POLL_MS);
   }
-  return { ready: false as const, error: 'Instagram er stadig ved at behandle billedet. Prøv igen om få sekunder.' };
+  return {
+    ready: false as const,
+    timedOut: true as const,
+    statusCode: lastStatusCode || 'IN_PROGRESS',
+    error: 'Instagram er stadig ved at behandle billedet. Forsøger publicering alligevel...',
+  };
 }
 
 /**
@@ -135,7 +144,7 @@ export async function POST(request: NextRequest) {
 
     // 2) Vent til containeren er færdigbehandlet (Meta kan ellers svare "Media ID is not available")
     const readiness = await waitForContainerReady(containerId, accessToken);
-    if (!readiness.ready) {
+    if (!readiness.ready && !readiness.timedOut) {
       return NextResponse.json(
         { error: readiness.error || 'Instagram er ikke klar til publicering endnu.' },
         { status: 502 }
@@ -145,7 +154,7 @@ export async function POST(request: NextRequest) {
     // 3) Publicer containeren (med kort retry på race conditions)
     let publishRes: Response | null = null;
     let publishData: any = {};
-    for (let attempt = 0; attempt < 3; attempt += 1) {
+    for (let attempt = 0; attempt < 6; attempt += 1) {
       publishRes = await fetch(
         `${GRAPH_HOST}/${INSTAGRAM_API_VERSION}/${igId}/media_publish`,
         {
@@ -163,8 +172,8 @@ export async function POST(request: NextRequest) {
 
       const msg = String(publishData?.error?.message || '');
       const mediaIdNotReady = /media id is not available|not available|still processing/i.test(msg);
-      if (mediaIdNotReady && attempt < 2) {
-        await sleep(1200);
+      if (mediaIdNotReady && attempt < 5) {
+        await sleep(2000);
         continue;
       }
       break;
