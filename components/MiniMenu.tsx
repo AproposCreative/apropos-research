@@ -24,6 +24,19 @@ export default function MiniMenu({ translateX, onSearch, onToggleReview, onToggl
   })();
   const userName = (user?.displayName || user?.email?.split('@')[0] || 'Bruger');
 
+  const openDashboard = () => {
+    if (typeof window === 'undefined') return;
+    try {
+      const popup = window.open('http://localhost:3001/', '_blank', 'noopener,noreferrer');
+      // Fallback for environments where popup/new-tab handling is unstable.
+      if (!popup) {
+        window.location.assign('http://localhost:3001/');
+      }
+    } catch (error) {
+      console.error('Could not open dashboard:', error);
+    }
+  };
+
   return (
     <div className={`hidden md:block absolute top-[1%] left-[1%] z-50`}>
       <div className={`md:flex border border-white/20 rounded-2xl items-center overflow-hidden mini-menu-expand ${accountOpen ? 'mini-menu-expand-active' : ''}`}
@@ -64,12 +77,18 @@ export default function MiniMenu({ translateX, onSearch, onToggleReview, onToggl
               <div className="absolute top-1/2 left-1/2 w-0.5 h-2.5 bg-white transform -translate-x-1/2 -translate-y-1/2"></div>
             </div>
           </button>
-          <a href="http://localhost:3001/" className="w-8 h-8 flex items-center justify-center hover:bg-white/10 rounded-xl transition-colors text-white" title="Dashboard" target="_blank" rel="noopener noreferrer">
+          <button
+            type="button"
+            onClick={openDashboard}
+            className="w-8 h-8 flex items-center justify-center hover:bg-white/10 rounded-xl transition-colors text-white"
+            title="Dashboard"
+            aria-label="Åbn dashboard"
+          >
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-white">
               <path d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z"/>
               <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
             </svg>
-          </a>
+          </button>
           <div className="relative flex items-center" style={{ marginLeft: 'auto' }}>
             <button onClick={() => setAccountOpen(v=>!v)} className="w-8 h-8 flex items-center justify-center rounded-xl overflow-hidden border border-white/10 hover:border-white/20 transition-colors p-[2px]" title={user?.displayName || user?.email || 'Konto'}>
               {user?.photoURL && photoLoaded ? (

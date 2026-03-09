@@ -71,9 +71,10 @@ export async function GET() {
 
 /**
  * POST /api/instagram/publish
- * Body: { imageUrl: string, caption?: string }
+ * Body: { imageUrl: string, caption?: string, isStory?: boolean }
  * - imageUrl: Offentlig URL til JPEG-billedet (fx fra Firebase Storage)
- * - caption: Tekst til opslaget (valgfri)
+ * - caption: Tekst til feed-opslag (valgfri)
+ * - isStory: true => publicer som Instagram Story
  *
  * Kræver env: INSTAGRAM_ACCOUNT_ID (IG Business Account ID), INSTAGRAM_ACCESS_TOKEN (PAGE access token).
  * Bruger graph.facebook.com + Page token som i Meta Instagram API med Facebook Login.
@@ -89,7 +90,7 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  let body: { imageUrl?: string; caption?: string };
+  let body: { imageUrl?: string; caption?: string; isStory?: boolean };
   try {
     body = await request.json();
   } catch {
@@ -97,12 +98,23 @@ export async function POST(request: NextRequest) {
   }
 
   const imageUrl = typeof body.imageUrl === 'string' ? body.imageUrl.trim() : '';
+  const isStory = body.isStory === true;
   if (!imageUrl || !imageUrl.startsWith('http')) {
     return NextResponse.json({ error: 'Manglende eller ugyldig imageUrl.' }, { status: 400 });
   }
 
   try {
     // 1) Opret container (Instagram henter billedet fra imageUrl)
+    const createPayload = isStory
+      ? {
+          image_url: imageUrl,
+          media_type: 'STORIES',
+        }
+      : {
+          image_url: imageUrl,
+          caption: (body.caption ?? '').trim() || undefined,
+        };
+
     const createRes = await fetch(
       `${GRAPH_HOST}/${INSTAGRAM_API_VERSION}/${igId}/media`,
       {
@@ -111,10 +123,7 @@ export async function POST(request: NextRequest) {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${accessToken}`,
         },
-        body: JSON.stringify({
-          image_url: imageUrl,
-          caption: (body.caption ?? '').trim() || undefined,
-        }),
+        body: JSON.stringify(createPayload),
       }
     );
 

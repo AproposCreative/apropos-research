@@ -9,6 +9,7 @@
     "start": "next start",
     "lint": "eslint . --ext .js,.jsx,.ts,.tsx",
     "lint:fix": "eslint . --ext .js,.jsx,.ts,.tsx --fix",
+    "doctor": "node scripts/doctor-env.mjs",
     "type-check": "tsc --noEmit",
     "test": "echo 'No tests configured' && exit 0",
     "data:export": "node scripts/export-data.mjs",

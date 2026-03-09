@@ -21,6 +21,11 @@ const PANEL_GAP = 12;
 const SQUARE_H1_PADDING_H = 100;
 const SQUARE_H1_FONT_SIZE = 80;
 const BYLINE_FONT_SIZE_SQUARE = 48;
+const STORY_H1_PADDING_H = 40;
+const STORY_H1_FONT_SIZE = 100;
+const BYLINE_FONT_SIZE_STORY = 60;
+const STORY_TITLE_MAX_WIDTH = 992;
+const STORY_BYLINE_MAX_WIDTH = 1000;
 
 const CAPTION_FOOTER_TEXT = 'Læs gratis med – uden reklamer, pop-ups eller anden støj: www.aproposmagazine.com';
 
@@ -94,6 +99,20 @@ function trimDanglingHeadlineEnding(text: string): string {
     words.pop();
   }
   return words.join(' ').trim();
+}
+
+function normalizeLabelForCompare(value: string): string {
+  return value
+    .toLowerCase()
+    .replace(/[|,.;:!?]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function rotateLabels(labels: string[], seed: number): string[] {
+  if (labels.length <= 1) return labels;
+  const offset = ((seed % labels.length) + labels.length) % labels.length;
+  return [...labels.slice(offset), ...labels.slice(0, offset)];
 }
 
 function normalizeArticle(item: { id: string; fieldData?: Record<string, unknown> }) {
@@ -179,15 +198,13 @@ export default function DesignEditorView({ onBack, embedMode }: DesignEditorView
   const [instagramError, setInstagramError] = useState<string | null>(null);
   const [instagramConfigured, setInstagramConfigured] = useState<boolean | null>(null);
   const [renderedCardDataUrl, setRenderedCardDataUrl] = useState<string | null>(null);
-  const [clickbaitLoading, setClickbaitLoading] = useState(false);
-  const [clickbaitError, setClickbaitError] = useState<string | null>(null);
-  const [clickbaitOriginalById, setClickbaitOriginalById] = useState<Record<string, { title: string; excerpt: string }>>({});
   const [authors, setAuthors] = useState<{ id: string; name: string }[]>([]);
   const [sections, setSections] = useState<{ id: string; name: string }[]>([]);
   const [topics, setTopics] = useState<{ id: string; name: string }[]>([]);
   const [eyebrowChips, setEyebrowChips] = useState<{ type: 'section' | 'primaryTopic' | 'topic' | 'author' | 'topicOrAuthor'; value: string; label: string; options?: { id: string; name: string }[] }[]>([]);
   const previewRef = useRef<HTMLDivElement>(null);
   const [scale, setScale] = useState(0.5);
+  const [storyMetaShuffleSeed, setStoryMetaShuffleSeed] = useState(0);
 
   const isWebflowId = useCallback((value: string) => /^[a-f0-9]{24}$/i.test(value.trim()), []);
 
@@ -359,15 +376,108 @@ export default function DesignEditorView({ onBack, embedMode }: DesignEditorView
     [eyebrowChips, selected, sections, resolveName]
   );
 
-  const cardData: SocialCardData = useMemo(() => ({
-    title: selected?.title ?? '',
-    excerpt: selected?.excerpt ?? undefined,
-    imageUrl: selected?.imageUrl ?? undefined,
-    category: selected?.category ?? undefined,
-    categorySecondary: undefined,
-    eyebrowLabels: eyebrowChips.length > 0 ? eyebrowChips.map((c) => c.label) : undefined,
-    rating: selected?.rating ?? undefined,
-  }), [selected?.title, selected?.excerpt, selected?.imageUrl, selected?.category, selected?.rating, eyebrowChips]);
+  const cardData: SocialCardData = useMemo(() => {
+    const isStory = size === 'story';
+    const authorName = selected?.authorId
+      ? (authors.length ? resolveName(selected.authorId, authors) : selected.authorId)
+      : '';
+    const categoryName = selected?.category
+      ? (sections.length ? resolveName(selected.category, sections) : selected.category)
+      : '';
+    const sectionName = selected?.section
+      ? (sections.length ? resolveName(selected.section, sections) : selected.section)
+      : '';
+    const primaryTopicName = selected?.primaryTopic
+      ? (topics.length ? resolveName(selected.primaryTopic, topics) : selected.primaryTopic)
+      : '';
+    const topicNames = (selected?.topics ?? [])
+      .map((topic) => (topics.length ? resolveName(topic, topics) : topic))
+      .filter(Boolean);
+    const topicOrAuthorChip = eyebrowChips.find((chip) => chip.type === 'topicOrAuthor');
+    const sectionChip = eyebrowChips.find((chip) => chip.type === 'section');
+    const topStoryLabels = [sectionChip?.label, topicOrAuthorChip?.label]
+      .map((v) => String(v || '').trim())
+      .filter(Boolean);
+    const topStoryLabelsNormalized = new Set(topStoryLabels.map((label) => normalizeLabelForCompare(label)));
+
+    const storyPrimaryCandidates = [
+      categoryName,
+      primaryTopicName,
+      sectionName,
+      ...topicNames,
+      topicOrAuthorChip?.label || '',
+      sectionChip?.label || '',
+    ]
+      .map((v) => String(v || '').trim())
+      .filter(Boolean);
+
+    const storyPrimaryMeta = storyPrimaryCandidates.find((candidate) => {
+      const normalized = normalizeLabelForCompare(candidate);
+      if (!normalized) return false;
+      if (topStoryLabelsNormalized.has(normalized)) return false;
+      if (authorName && normalized === normalizeLabelForCompare(authorName)) return false;
+      return true;
+    }) || '';
+
+    const storyBottomMetaLabels = [storyPrimaryMeta, authorName]
+      .map((v) => String(v || '').trim())
+      .filter(Boolean);
+    const dedupedStoryBottomMetaLabels = storyBottomMetaLabels.filter((label, index, arr) => {
+      const normalized = normalizeLabelForCompare(label);
+      if (!normalized) return false;
+      return index === arr.findIndex((candidate) => normalizeLabelForCompare(candidate) === normalized);
+    });
+
+    const storyCandidates = [
+      ...topStoryLabels,
+      categoryName,
+      sectionName,
+      primaryTopicName,
+      ...topicNames,
+      authorName,
+      ...dedupedStoryBottomMetaLabels,
+    ]
+      .map((v) => String(v || '').trim())
+      .filter(Boolean)
+      .filter((label, index, arr) => {
+        const normalized = normalizeLabelForCompare(label);
+        return !!normalized && index === arr.findIndex((candidate) => normalizeLabelForCompare(candidate) === normalized);
+      });
+
+    const orderedStoryCandidates = rotateLabels(storyCandidates, storyMetaShuffleSeed);
+    const storyTopMetaLabels = orderedStoryCandidates.slice(0, 2);
+    const remainingForBottom = orderedStoryCandidates.filter(
+      (label) => !storyTopMetaLabels.some((topLabel) => normalizeLabelForCompare(topLabel) === normalizeLabelForCompare(label))
+    );
+    let finalStoryBottom = remainingForBottom.slice(0, 2);
+    if (finalStoryBottom.length < 2 && authorName) {
+      const authorNormalized = normalizeLabelForCompare(authorName);
+      if (!finalStoryBottom.some((label) => normalizeLabelForCompare(label) === authorNormalized)) {
+        finalStoryBottom = [...finalStoryBottom, authorName];
+      }
+    }
+    if (finalStoryBottom.length < 2) {
+      const fallback = orderedStoryCandidates.find(
+        (label) => !finalStoryBottom.some((b) => normalizeLabelForCompare(b) === normalizeLabelForCompare(label))
+      );
+      if (fallback) finalStoryBottom = [...finalStoryBottom, fallback];
+    }
+
+    return {
+      title: selected?.title ?? '',
+      excerpt: selected?.excerpt ?? undefined,
+      imageUrl: selected?.imageUrl ?? undefined,
+      category: selected?.category ?? undefined,
+      categorySecondary: undefined,
+      eyebrowLabels: isStory
+        ? (storyTopMetaLabels.length > 0 ? storyTopMetaLabels : undefined)
+        : (eyebrowChips.length > 0 ? eyebrowChips.map((c) => c.label) : undefined),
+      storyBottomMetaLabels: isStory
+        ? (finalStoryBottom.filter(Boolean).slice(0, 2).length > 0 ? finalStoryBottom.filter(Boolean).slice(0, 2) : undefined)
+        : (dedupedStoryBottomMetaLabels.length > 0 ? dedupedStoryBottomMetaLabels : undefined),
+      rating: selected?.rating ?? undefined,
+    };
+  }, [selected?.title, selected?.excerpt, selected?.imageUrl, selected?.category, selected?.section, selected?.primaryTopic, selected?.topics, selected?.rating, selected?.authorId, eyebrowChips, authors, sections, topics, resolveName, size, storyMetaShuffleSeed]);
 
   const filteredArticles = useMemo(() => {
     const q = articleSearch.trim().toLowerCase();
@@ -453,10 +563,15 @@ export default function DesignEditorView({ onBack, embedMode }: DesignEditorView
       const storageRef = ref(storage, path);
       await uploadBytes(storageRef, blob, { contentType: 'image/jpeg' });
       const imageUrl = await getDownloadURL(storageRef);
+      const isStory = size === 'story';
       const apiRes = await fetch('/api/instagram/publish', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ imageUrl, caption: ensureCaptionFooter(caption.trim()) || undefined }),
+        body: JSON.stringify({
+          imageUrl,
+          isStory,
+          caption: isStory ? undefined : (ensureCaptionFooter(caption.trim()) || undefined),
+        }),
       });
       const data = await apiRes.json().catch(() => ({}));
       if (!apiRes.ok) {
@@ -473,79 +588,49 @@ export default function DesignEditorView({ onBack, embedMode }: DesignEditorView
     }
   }, [size, cardData, caption, ensureCaptionFooter]);
 
-  const handleMoreClickbait = useCallback(async () => {
-    if (!selected) return;
-    setClickbaitLoading(true);
-    setClickbaitError(null);
-    try {
-      const res = await fetch('/api/design-editor/better-copy', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          title: selected.title || '',
-          excerpt: selected.excerpt || '',
-          intro: selected.intro || '',
-          content: selected.content || '',
-          section: selected.section || selected.category || '',
-          topic: selected.primaryTopic || selected.topics?.[0] || '',
-          rating: selected.rating || 0,
-        }),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        setClickbaitError(data?.error || 'Kunne ikke lave clickbait-forslag.');
-        return;
-      }
-      const nextTitle = String(data?.title || selected.title || '').trim();
-      const nextExcerpt = String(data?.excerpt || selected.excerpt || '').trim();
-      if (!nextTitle) {
-        setClickbaitError('Intet forslag modtaget.');
-        return;
-      }
-
+  useEffect(() => {
+    let cancelled = false;
+    const fitCurrentText = async () => {
+      if (!selected) return;
       await Promise.allSettled([
-        document.fonts.load(`400 ${size === 'square' ? SQUARE_H1_FONT_SIZE : size === 'story' ? 38 : 44}px ${amiri.style.fontFamily}`),
-        document.fonts.load(`italic 400 ${size === 'square' ? BYLINE_FONT_SIZE_SQUARE : size === 'story' ? 36 : 40}px ${amiri.style.fontFamily}`),
+        document.fonts.load(`400 ${size === 'square' ? SQUARE_H1_FONT_SIZE : size === 'story' ? STORY_H1_FONT_SIZE : 44}px ${amiri.style.fontFamily}`),
+        document.fonts.load(`italic 400 ${size === 'square' ? BYLINE_FONT_SIZE_SQUARE : size === 'story' ? BYLINE_FONT_SIZE_STORY : 40}px ${amiri.style.fontFamily}`),
         document.fonts.ready,
       ]);
+      if (cancelled) return;
       const canvas = document.createElement('canvas');
       const ctx = canvas.getContext('2d');
-      if (!ctx) {
-        setClickbaitError('Kunne ikke måle tekstlayout.');
-        return;
-      }
-      const padding = size === 'square' ? SQUARE_H1_PADDING_H : size === 'story' ? 48 : 56;
-      const maxTextWidth = DIMENSIONS[size].width - padding * 2;
-      const titleSize = size === 'square' ? SQUARE_H1_FONT_SIZE : size === 'story' ? 38 : 44;
-      const excerptSize = size === 'square' ? BYLINE_FONT_SIZE_SQUARE : size === 'story' ? 36 : 40;
+      if (!ctx) return;
+
+      const padding = size === 'square' ? SQUARE_H1_PADDING_H : size === 'story' ? STORY_H1_PADDING_H : 56;
+      const maxTextWidth = size === 'story' ? STORY_TITLE_MAX_WIDTH : DIMENSIONS[size].width - padding * 2;
+      const maxBylineWidth = size === 'story' ? STORY_BYLINE_MAX_WIDTH : DIMENSIONS[size].width - padding * 2;
+      const titleSize = size === 'square' ? SQUARE_H1_FONT_SIZE : size === 'story' ? STORY_H1_FONT_SIZE : 44;
+      const excerptSize = size === 'square' ? BYLINE_FONT_SIZE_SQUARE : size === 'story' ? BYLINE_FONT_SIZE_STORY : 40;
+      const excerptMaxLines = size === 'story' ? 3 : 2;
+
+      const currentTitle = String(selected.title || '').trim();
+      const currentExcerpt = String(selected.excerpt || '').trim();
 
       ctx.font = `400 ${titleSize}px ${amiri.style.fontFamily}`;
-      const roughFittedTitle = truncateToFit(ctx, nextTitle, maxTextWidth, 2);
+      const roughFittedTitle = truncateToFit(ctx, currentTitle, maxTextWidth, 2);
       const polishedTitle = trimDanglingHeadlineEnding(roughFittedTitle) || roughFittedTitle;
       const fittedTitle = truncateToFit(ctx, polishedTitle, maxTextWidth, 2);
-      ctx.font = `italic 400 ${excerptSize}px ${amiri.style.fontFamily}`;
-      const fittedExcerpt = truncateToFit(ctx, nextExcerpt, maxTextWidth, 2);
 
-      setClickbaitOriginalById((prev) => (
-        prev[selected.id]
-          ? prev
-          : {
-              ...prev,
-              [selected.id]: {
-                title: selected.title || '',
-                excerpt: selected.excerpt || '',
-              },
-            }
-      ));
+      ctx.font = `italic 400 ${excerptSize}px ${amiri.style.fontFamily}`;
+      const fittedExcerpt = truncateToFit(ctx, currentExcerpt, maxBylineWidth, excerptMaxLines);
+
+      if (fittedTitle === currentTitle && fittedExcerpt === currentExcerpt) return;
 
       setSelected((prev) => {
-        if (!prev) return prev;
+        if (!prev || prev.id !== selected.id) return prev;
         return {
           ...prev,
           title: fittedTitle,
           excerpt: fittedExcerpt,
         };
       });
+
       setArticles((prev) =>
         prev.map((item) =>
           item.id === selected.id
@@ -553,39 +638,13 @@ export default function DesignEditorView({ onBack, embedMode }: DesignEditorView
             : item
         )
       );
-    } catch {
-      setClickbaitError('Der opstod en fejl. Prøv igen.');
-    } finally {
-      setClickbaitLoading(false);
-    }
-  }, [selected, size]);
+    };
 
-  const handleUndoClickbait = useCallback(() => {
-    if (!selected) return;
-    const original = clickbaitOriginalById[selected.id];
-    if (!original) return;
-    setSelected((prev) => {
-      if (!prev) return prev;
-      return {
-        ...prev,
-        title: original.title,
-        excerpt: original.excerpt,
-      };
-    });
-    setArticles((prev) =>
-      prev.map((item) =>
-        item.id === selected.id
-          ? { ...item, title: original.title, excerpt: original.excerpt }
-          : item
-      )
-    );
-    setClickbaitOriginalById((prev) => {
-      const next = { ...prev };
-      delete next[selected.id];
-      return next;
-    });
-    setClickbaitError(null);
-  }, [selected, clickbaitOriginalById]);
+    fitCurrentText();
+    return () => {
+      cancelled = true;
+    };
+  }, [selected?.id, selected?.title, selected?.excerpt, size]);
 
   const rootClass = embedMode ? `h-full flex flex-col relative overflow-hidden ${amiri.variable}` : `min-h-[100dvh] h-[100dvh] bg-[#171717] md:p-[1%] p-0 flex flex-col md:flex-row relative overflow-hidden ${amiri.variable}`;
 
@@ -852,7 +911,7 @@ export default function DesignEditorView({ onBack, embedMode }: DesignEditorView
                       ) : (
                         <>
                           <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" className="shrink-0"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-1.657 0-3-1.343-3-3 0-1.657 1.343-3 3-3s3 1.343 3 3c0 1.657-1.343 3-3 3zm6.205-11.947c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z"/></svg>
-                          Post til Instagram
+                          {size === 'story' ? 'Post til Instagram Story' : 'Post til Instagram'}
                         </>
                       )}
                     </button>
@@ -870,7 +929,7 @@ export default function DesignEditorView({ onBack, embedMode }: DesignEditorView
             <div ref={previewRef} className="flex-1 min-h-0 flex flex-col items-center md:justify-start justify-start bg-black/20 p-3 md:p-4">
               <div className="w-full flex flex-col items-center gap-5 pt-10">
                 {/* Figma-lignende kontrolbar placeret lige over kortet */}
-                {eyebrowChips.length > 0 && (
+                {eyebrowChips.length > 0 && size !== 'story' && (
                   <div className="inline-flex max-w-full overflow-x-auto no-scrollbar justify-start items-center gap-2 rounded-2xl border border-white/15 bg-black/65 p-2 mb-5 backdrop-blur-md shadow-[0_8px_24px_rgba(0,0,0,0.35)]">
                     {eyebrowChips.map((chip, index) => (
                       <button
@@ -883,31 +942,47 @@ export default function DesignEditorView({ onBack, embedMode }: DesignEditorView
                         {chip.label}
                       </button>
                     ))}
-                    <button
-                      type="button"
-                      onClick={handleMoreClickbait}
-                      disabled={!selected || clickbaitLoading}
-                      className="shrink-0 px-4 md:px-5 py-2 rounded-xl text-sm md:text-[15px] font-semibold bg-white/10 text-white border border-white/40 shadow-[0_0_18px_rgba(255,255,255,0.14)] transition-all duration-200 hover:bg-white/15 hover:border-white/55 hover:shadow-[0_0_26px_rgba(255,255,255,0.2)] focus:outline-none focus:ring-2 focus:ring-white/40 disabled:opacity-60 disabled:pointer-events-none"
-                      title="Skriv stærkere titel og byline"
-                    >
-                      <span className={clickbaitLoading ? '' : 'text-sheen-glow'}>
-                        {clickbaitLoading ? 'Skriver…' : 'Bedre Copy'}
-                      </span>
-                    </button>
-                    {selected && clickbaitOriginalById[selected.id] && (
-                      <button
-                        type="button"
-                        onClick={handleUndoClickbait}
-                        className="shrink-0 w-9 h-9 rounded-xl text-white text-sm font-semibold bg-white/8 border border-white/30 shadow-[0_0_14px_rgba(255,255,255,0.12)] transition-all duration-200 hover:bg-white/14 hover:border-white/50 focus:outline-none focus:ring-2 focus:ring-white/35"
-                        title="Gendan original copy"
-                      >
-                        X
-                      </button>
-                    )}
                   </div>
                 )}
-                {clickbaitError && (
-                  <p className="text-fuchsia-300 text-xs -mt-2 mb-3">{clickbaitError}</p>
+                {size === 'story' && (
+                  <div className="inline-flex max-w-full justify-start items-center gap-2 rounded-2xl border border-white/15 bg-black/65 p-2 mb-5 backdrop-blur-md shadow-[0_8px_24px_rgba(0,0,0,0.35)]">
+                    <button
+                      type="button"
+                      onClick={() => setStoryMetaShuffleSeed((prev) => prev + 1)}
+                      className="shrink-0 px-4 md:px-5 py-2 rounded-xl text-white text-sm md:text-[15px] font-medium bg-white/15 border border-white/25 transition-all duration-200 hover:bg-white/25 hover:border-white/50 focus:outline-none focus:ring-2 focus:ring-white/40"
+                      title="Byt rundt på story-felter"
+                    >
+                      Byt felter
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setStoryMetaShuffleSeed(0)}
+                      disabled={storyMetaShuffleSeed === 0}
+                      className="shrink-0 w-9 h-9 rounded-xl text-white text-sm font-semibold bg-white/8 border border-white/30 shadow-[0_0_14px_rgba(255,255,255,0.12)] transition-all duration-200 hover:bg-white/14 hover:border-white/50 focus:outline-none focus:ring-2 focus:ring-white/35 disabled:opacity-45 disabled:pointer-events-none"
+                      title="Nulstil til første step"
+                    >
+                      X
+                    </button>
+                  </div>
+                )}
+                {size === 'story' && (
+                  <div className="w-full max-w-[480px] -mt-2 mb-2">
+                    <button
+                      type="button"
+                      onClick={handlePostToInstagram}
+                      disabled={postingToInstagram || instagramConfigured === false}
+                      className="w-full py-2.5 px-4 rounded-lg bg-[#E1306C] hover:bg-[#C13584] disabled:opacity-50 disabled:pointer-events-none text-white font-medium text-sm transition-colors flex items-center justify-center gap-2"
+                      title="Post det viste story-design direkte til Instagram Story"
+                    >
+                      {postingToInstagram ? 'Publicerer Story…' : 'Post til Instagram Story'}
+                    </button>
+                    {instagramConfigured === false && (
+                      <p className="text-amber-400/90 text-xs mt-2">Instagram-publish er ikke konfigureret. Sæt INSTAGRAM_ACCOUNT_ID og INSTAGRAM_ACCESS_TOKEN (se docs/INSTAGRAM_PUBLISH.md).</p>
+                    )}
+                    {instagramError && (
+                      <p className="text-red-400 text-sm mt-2">{instagramError}</p>
+                    )}
+                  </div>
                 )}
 
                 <div

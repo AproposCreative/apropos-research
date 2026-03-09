@@ -110,6 +110,9 @@ const SPLINE_BACKGROUNDS = [
 ];
 
 const STORAGE_KEY_SPLINE_BG = 'apropos-spline-background';
+const APP_VERSION = process.env.NEXT_PUBLIC_APP_VERSION || '0.0.0';
+const BUILD_ID = process.env.NEXT_PUBLIC_BUILD_ID || 'local';
+const BUILD_LABEL = process.env.NEXT_PUBLIC_BUILD_LABEL || `${APP_VERSION}.${BUILD_ID}`;
 const GENERATION_MODE_OPTIONS: Array<{ id: 'fast' | 'editorial'; label: string; description: string }> = [
   { id: 'fast', label: 'Fast mode', description: 'Hurtig sparring uden tung research' },
   { id: 'editorial', label: 'Editorial', description: 'Fuld redaktionel pipeline med research' }
@@ -165,7 +168,13 @@ export default function AIWriterClient() {
     return 500;
   });
   const [isResizing, setIsResizing] = useState(false);
+  const [viewportWidth, setViewportWidth] = useState(() =>
+    typeof window !== 'undefined' ? window.innerWidth : 1440
+  );
   const chatPanelRef = useRef<HTMLDivElement>(null);
+  const isDesktop = viewportWidth >= 768;
+  const isNarrowDesktop = viewportWidth < 1280;
+  const showMiniMenu = viewportWidth >= 1150;
   const stopThinkingTimeline = useCallback(() => {
     if (thinkingTimersRef.current.length) {
       thinkingTimersRef.current.forEach((timer) => window.clearTimeout(timer));
@@ -205,17 +214,48 @@ export default function AIWriterClient() {
     };
   }, [isResizing]);
 
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const handleResize = () => {
+      setViewportWidth(window.innerWidth);
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  // Keep width in a sane range, so panels do not overlap on smaller screens.
+  useEffect(() => {
+    if (!isDesktop) return;
+    const minWidth = viewportWidth < 1100 ? 340 : 400;
+    const maxRatio = viewportWidth < 1280 ? 0.72 : 0.6;
+    const maxWidth = Math.max(minWidth + 40, Math.round(viewportWidth * maxRatio));
+    const next = Math.max(minWidth, Math.min(maxWidth, chatWidth));
+    if (next !== chatWidth) {
+      setChatWidth(next);
+      localStorage.setItem('ai-chat-width', String(next));
+    }
+  }, [chatWidth, isDesktop, viewportWidth]);
+
+  // On narrow desktop, avoid having left shelf and right drawer open simultaneously.
+  useEffect(() => {
+    if (!isDesktop || !isNarrowDesktop) return;
+    if ((guideOpen || reviewOpen) && (shelfOpen || webAppsOpen)) {
+      setShelfOpen(false);
+      setWebAppsOpen(false);
+    }
+  }, [guideOpen, reviewOpen, shelfOpen, webAppsOpen, isDesktop, isNarrowDesktop]);
+
   // Make design editor open larger by default on desktop.
   useEffect(() => {
     if (typeof window === 'undefined') return;
     if (activeView !== 'design-editor') return;
-    if (window.innerWidth < 768) return;
-    const target = Math.min(Math.round(window.innerWidth * 0.75), 1000);
+    if (!isDesktop) return;
+    const target = Math.min(Math.round(viewportWidth * 0.75), 1000);
     if (chatWidth < target) {
       setChatWidth(target);
       localStorage.setItem('ai-chat-width', target.toString());
     }
-  }, [activeView, chatWidth]);
+  }, [activeView, chatWidth, isDesktop, viewportWidth]);
 
   const startThinkingTimeline = useCallback(() => {
     stopThinkingTimeline();
@@ -1172,11 +1212,14 @@ useEffect(() => {
         
         {user && (
           <>
-            {/* Apropos Research Logo */}
-            <div className="absolute bottom-4 right-4 z-10">
-              <img 
-                src="/images/Apropos Research White.png" 
-                alt="Apropos Research" 
+            {/* Apropos Research Logo + build label */}
+            <div className="absolute bottom-4 right-4 z-10 flex items-center gap-2">
+              <div className="hidden md:block text-[11px] leading-none text-white/45 tracking-wide">
+                <span className="uppercase">build</span> {BUILD_LABEL} · <span className="uppercase">version</span> {APP_VERSION}
+              </div>
+              <img
+                src="/images/Apropos Research White.png"
+                alt="Apropos Research"
                 className="h-6 opacity-40 hover:opacity-60 transition-opacity"
               />
             </div>
@@ -1257,7 +1300,7 @@ useEffect(() => {
               ref={chatPanelRef}
               className="w-full flex-shrink-0 absolute top-0 bottom-0 left-0 md:top-[1%] md:bottom-[1%] md:left-[1%] z-10"
               style={{ 
-                width: typeof window !== 'undefined' && window.innerWidth >= 768 ? `${chatWidth}px` : '100%',
+                width: isDesktop ? `${chatWidth}px` : '100%',
                 transition: isResizing ? 'none' : 'transform 320ms cubic-bezier(0.22, 1, 0.36, 1)', 
                 transform: isClosing
                   ? 'translateX(-100vw)'
@@ -1267,7 +1310,7 @@ useEffect(() => {
               }}
             >
               {/* Resize handle */}
-              {typeof window !== 'undefined' && window.innerWidth >= 768 && (
+              {isDesktop && (
                 <div
                   onMouseDown={(e) => {
                     e.preventDefault();
@@ -1416,12 +1459,12 @@ useEffect(() => {
             <div
               className="w-full flex-shrink-0 absolute top-0 bottom-0 left-0 md:top-[1%] md:bottom-[1%] md:left-[1%] z-10"
               style={{
-                width: typeof window !== 'undefined' && window.innerWidth >= 768 ? `${chatWidth}px` : '100%',
+                width: isDesktop ? `${chatWidth}px` : '100%',
                 transition: isResizing ? 'none' : 'transform 320ms cubic-bezier(0.22, 1, 0.36, 1)',
                 transform: leftPanelOpen ? 'translateX(calc(12px + min(300px, 50vw)))' : 'translateX(0)',
               }}
             >
-              {typeof window !== 'undefined' && window.innerWidth >= 768 && (
+              {isDesktop && (
                 <div
                   onMouseDown={(e) => {
                     e.preventDefault();
@@ -1438,22 +1481,22 @@ useEffect(() => {
             )}
 
             {/* Layout placeholder for chat width so the mini‑menu keeps its placement */}
-            <div className="hidden md:block flex-shrink-0" style={{ width: typeof window !== 'undefined' && window.innerWidth >= 768 ? `${chatWidth}px` : '500px', height: '1px' }} />
+            <div className="hidden md:block flex-shrink-0" style={{ width: isDesktop ? `${chatWidth}px` : '500px', height: '1px' }} />
             
             {/* Right Sidebar with action buttons (desktop) */}
-<MiniMenu
+            {showMiniMenu && <MiniMenu
               translateX={activeView === null
                 ? (leftPanelOpen ? `translateX(calc(12px + min(300px, 50vw) + 12px))` : 'translateX(12px)')
                 : leftPanelOpen
                   ? `translateX(calc(12px + min(300px, 50vw) + ${chatWidth}px + 12px))` 
                   : `translateX(calc(${chatWidth}px + 12px))`}
               onSearch={() => setShowSearchModal(true)}
-              onToggleReview={() => { setGuideOpen(false); setReviewOpen(prev=>!prev); }}
-              onToggleGuide={() => { setReviewOpen(false); setGuideOpen(prev=>!prev); }}
-              onToggleWebApps={() => { setShelfOpen(false); setWebAppsOpen(prev=>!prev); }}
-              onToggleShelf={() => { setWebAppsOpen(false); setShelfOpen(prev=>!prev); }}
+              onToggleReview={() => { setGuideOpen(false); if (isNarrowDesktop) { setShelfOpen(false); setWebAppsOpen(false); } setReviewOpen(prev=>!prev); }}
+              onToggleGuide={() => { setReviewOpen(false); if (isNarrowDesktop) { setShelfOpen(false); setWebAppsOpen(false); } setGuideOpen(prev=>!prev); }}
+              onToggleWebApps={() => { setShelfOpen(false); setReviewOpen(false); setGuideOpen(false); setWebAppsOpen(prev=>!prev); }}
+              onToggleShelf={() => { setWebAppsOpen(false); setReviewOpen(false); setGuideOpen(false); setShelfOpen(prev=>!prev); }}
               onNewArticle={handleNewArticle}
-            />
+            />}
 
             {/* Right flexible spacer (no overlay) */}
             <div className="flex-1 h-full hidden md:block" />

@@ -1,3 +1,6 @@
+const { version } = require('./package.json');
+const { execSync } = require('node:child_process');
+
 let withBundleAnalyzer;
 try {
   withBundleAnalyzer = require('@next/bundle-analyzer')({
@@ -9,7 +12,40 @@ try {
 }
 
 /** @type {import('next').NextConfig} */
+function readGitShortSha() {
+  try {
+    return execSync('git rev-parse --short HEAD', { stdio: ['ignore', 'pipe', 'ignore'] })
+      .toString()
+      .trim();
+  } catch {
+    return null;
+  }
+}
+
+function readGitDirtyFlag() {
+  try {
+    const output = execSync('git status --porcelain', { stdio: ['ignore', 'pipe', 'ignore'] })
+      .toString()
+      .trim();
+    return output.length > 0 ? 'dirty' : '';
+  } catch {
+    return '';
+  }
+}
+
+const vercelSha = process.env.VERCEL_GIT_COMMIT_SHA?.slice(0, 7) || '';
+const localSha = readGitShortSha() || '';
+const buildId = process.env.NEXT_PUBLIC_BUILD_ID || vercelSha || localSha || 'local';
+const dirtySuffix = !vercelSha && localSha && readGitDirtyFlag() ? '.dirty' : '';
+const autoBuildLabel = `${version}.${buildId}${dirtySuffix}`;
+const buildLabel = process.env.NEXT_PUBLIC_BUILD_LABEL || autoBuildLabel;
+
 const nextConfig = {
+  env: {
+    NEXT_PUBLIC_APP_VERSION: version,
+    NEXT_PUBLIC_BUILD_ID: buildId,
+    NEXT_PUBLIC_BUILD_LABEL: buildLabel,
+  },
   // Simplified config to fix client-side rendering issues
   reactStrictMode: false,
   
