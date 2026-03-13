@@ -8,6 +8,7 @@ Design editoren kan poste kort direkte til Instagram. Her er kravene og hvordan 
 2. Klik på **Post til Instagram**.
 3. Appen eksporterer kortet som JPEG (2× opløsning), uploader til Firebase Storage, henter download-URL og kalder `/api/instagram/publish` med `imageUrl` + `caption`.
 4. API’et opretter Instagram-media fra `image_url` og caption og publicerer til den konfigurerede IG-konto.
+5. Hvis `FACEBOOK_PAGE_ID` er sat (og opslaget ikke er story), forsøger API’et bagefter automatisk at poste samme billede + caption på Facebook-siden.
 
 ## Miljøvariabler
 
@@ -17,6 +18,7 @@ I `.env.local` (og i Vercel under Production/Preview):
 |----------|--------------|
 | `INSTAGRAM_ACCOUNT_ID` | Instagram Business/Creator Account ID (tal). Findes i Meta Business Suite eller via Graph API. |
 | `INSTAGRAM_ACCESS_TOKEN` | **Page** access token med `instagram_content_publish` (eller tilsvarende) for den Facebook-side der er koblet til IG-kontoen. |
+| `FACEBOOK_PAGE_ID` | (Valgfri) Facebook-side ID. Hvis sat, publiceres feed-opslag automatisk til siden efter vellykket Instagram-publicering. |
 
 Firebase (til upload af billedet):
 
