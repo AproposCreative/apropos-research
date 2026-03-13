@@ -58,6 +58,28 @@ async function waitForContainerReady(containerId: string, accessToken: string) {
   };
 }
 
+async function publishToFacebookPagePhoto(args: {
+  pageId: string;
+  accessToken: string;
+  imageUrl: string;
+  message?: string;
+}) {
+  const { pageId, accessToken, imageUrl, message } = args;
+  const fbRes = await fetch(`${GRAPH_HOST}/${INSTAGRAM_API_VERSION}/${pageId}/photos`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${accessToken}`,
+    },
+    body: JSON.stringify({
+      url: imageUrl,
+      caption: message || undefined,
+    }),
+  });
+  const fbData = await fbRes.json().catch(() => ({}));
+  return { ok: fbRes.ok, data: fbData, status: fbRes.status };
+}
+
 /**
  * GET /api/instagram/publish
  * Returnerer om Instagram-publish er konfigureret (til UI / test).
@@ -82,6 +104,7 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   const igId = process.env.INSTAGRAM_ACCOUNT_ID;
   const accessToken = process.env.INSTAGRAM_ACCESS_TOKEN;
+  const facebookPageId = process.env.FACEBOOK_PAGE_ID?.trim();
 
   if (!igId || !accessToken) {
     return NextResponse.json(
@@ -205,9 +228,40 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    let facebookPublished: boolean | null = null;
+    let facebookPostId: string | null = null;
+    let facebookError: string | null = null;
+
+    // Optional: also publish the same content to Facebook Page when configured.
+    if (!isStory && facebookPageId) {
+      try {
+        const fbPublish = await publishToFacebookPagePhoto({
+          pageId: facebookPageId,
+          accessToken,
+          imageUrl,
+          message: (body.caption ?? '').trim() || undefined,
+        });
+        if (fbPublish.ok) {
+          facebookPublished = true;
+          facebookPostId = String(fbPublish.data?.post_id || fbPublish.data?.id || '');
+        } else {
+          facebookPublished = false;
+          facebookError = String(fbPublish.data?.error?.message || 'Kunne ikke poste automatisk til Facebook.');
+          console.error('Facebook page publish error:', fbPublish.status, fbPublish.data);
+        }
+      } catch (fbErr) {
+        facebookPublished = false;
+        facebookError = 'Kunne ikke poste automatisk til Facebook.';
+        console.error('Facebook page publish failed:', fbErr);
+      }
+    }
+
     return NextResponse.json({
       success: true,
       mediaId: publishData.id,
+      facebookPublished,
+      facebookPostId,
+      facebookError,
     });
   } catch (e) {
     console.error('Instagram publish error:', e);

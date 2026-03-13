@@ -71,6 +71,7 @@ const recommendedFirebase = [
 const recommendedInstagram = [
   'INSTAGRAM_ACCOUNT_ID',
   'INSTAGRAM_ACCESS_TOKEN',
+  'FACEBOOK_PAGE_ID',
 ];
 
 const recommendedBuild = [

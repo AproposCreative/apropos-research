@@ -19,6 +19,14 @@ type WebflowStatus = {
   error?: string;
 };
 
+type FacebookPublishStatus = {
+  configured: boolean;
+  reachable: boolean;
+  pageId: string | null;
+  pageName: string | null;
+  error: string | null;
+};
+
 export default function SettingsPage() {
   const { user } = useAuth();
   const [status, setStatus] = useState<WebflowStatus | null>(null);
@@ -32,6 +40,8 @@ export default function SettingsPage() {
   const [saving, setSaving] = useState(false);
   const [lastCheckedAt, setLastCheckedAt] = useState<string | null>(null);
   const [testing, setTesting] = useState(false);
+  const [fbTesting, setFbTesting] = useState(false);
+  const [fbStatus, setFbStatus] = useState<FacebookPublishStatus | null>(null);
   const [activeTab, setActiveTab] = useState<'webflow'|'profile'|'notifications'|'security'>('webflow');
   const [wfFields, setWfFields] = useState<any[]>([]);
   const [mapping, setMapping] = useState<{ entries: Array<{ internal: string; webflowSlug: string; transform?: string; required?: boolean }>}>({ entries: [] });
@@ -163,6 +173,25 @@ export default function SettingsPage() {
     }
   };
 
+  const testFacebookPublish = async () => {
+    setFbTesting(true);
+    try {
+      const res = await fetch('/api/facebook/publish-status');
+      const data = await res.json();
+      setFbStatus(data);
+    } catch {
+      setFbStatus({
+        configured: false,
+        reachable: false,
+        pageId: null,
+        pageName: null,
+        error: 'Kunne ikke teste Facebook-forbindelse.',
+      });
+    } finally {
+      setFbTesting(false);
+    }
+  };
+
   return (
     <div className="relative z-10 max-w-7xl mx-auto px-6 pb-12">
       <CompactHeader 
@@ -252,8 +281,26 @@ export default function SettingsPage() {
             >
               {testing ? 'Tester…' : 'Test forbindelse'}
             </button>
+            <button
+              onClick={testFacebookPublish}
+              disabled={fbTesting}
+              className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg disabled:opacity-60"
+            >
+              {fbTesting ? 'Tester Facebook…' : 'Test Facebook'}
+            </button>
             <span className="text-sm text-slate-500 dark:text-white/70">Collections findes automatisk ud fra token + site ID</span>
           </div>
+          {fbStatus && (
+            <div className={`mt-3 text-sm rounded-lg border px-3 py-2 ${
+              fbStatus.reachable
+                ? 'bg-emerald-600/15 text-emerald-700 dark:text-emerald-300 border-emerald-600/30'
+                : 'bg-amber-600/15 text-amber-700 dark:text-amber-300 border-amber-600/30'
+            }`}>
+              {fbStatus.reachable
+                ? `Facebook OK: ${fbStatus.pageName || 'Ukendt side'} (${fbStatus.pageId})`
+                : `Facebook ikke klar: ${fbStatus.error || 'ukendt fejl'}`}
+            </div>
+          )}
 
           {/* Webflow Field Mapping */}
           <div className="mt-8">

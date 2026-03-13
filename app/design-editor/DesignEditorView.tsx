@@ -579,7 +579,15 @@ export default function DesignEditorView({ onBack, embedMode }: DesignEditorView
         return;
       }
       setInstagramError(null);
-      alert('Opslaget er publiceret på Instagram.');
+      if (size === 'story') {
+        alert('Story er publiceret på Instagram.');
+      } else if (data.facebookPublished === true) {
+        alert('Opslaget er publiceret på Instagram og Facebook.');
+      } else if (data.facebookPublished === false) {
+        alert(`Opslaget er publiceret på Instagram. Facebook fejlede: ${data.facebookError || 'ukendt fejl'}`);
+      } else {
+        alert('Opslaget er publiceret på Instagram.');
+      }
     } catch (e) {
       console.error('Instagram publish failed', e);
       setInstagramError('Der opstod en fejl. Prøv igen.');
