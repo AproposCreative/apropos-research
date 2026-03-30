@@ -1,14 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
-import OpenAI from 'openai';
+import { getOpenAIClient, models } from '@/lib/openai';
 import { APROPOS_TOV, APROPOS_PROMPTS } from '@/lib/apropos-ai';
-import { config } from '@/lib/config/env';
 import { logger, createRequestLogger } from '@/lib/logger';
 import { getRequestId } from '@/lib/api/request-utils';
 import { createErrorResponse, createSuccessResponse, ErrorCode } from '@/lib/api/types';
 
-const openai = config.openai.apiKey ? new OpenAI({
-  apiKey: config.openai.apiKey,
-}) : null;
+const openai = getOpenAIClient();
 
 export async function POST(request: NextRequest) {
   const requestId = getRequestId(request);
@@ -30,9 +27,7 @@ export async function POST(request: NextRequest) {
     }
 
     if (!openai) {
-      requestLogger.error('OpenAI client not initialized', undefined, {
-        hasApiKey: !!config.openai.apiKey,
-      });
+      requestLogger.error('OpenAI client not initialized');
       return NextResponse.json(
         createErrorResponse('OpenAI API key ikke konfigureret. Sæt OPENAI_API_KEY miljøvariablen for at bruge AI funktionalitet.', {
           statusCode: 500,
@@ -44,7 +39,7 @@ export async function POST(request: NextRequest) {
     }
 
     const completion = await openai.chat.completions.create({
-      model: "gpt-5", // Updated to GPT-5 (ChatGPT-5)
+      model: models.default,
       messages: [
         {
           role: "system",

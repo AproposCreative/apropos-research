@@ -1,13 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
-import OpenAI from 'openai';
-import { config } from '@/lib/config/env';
+import { getOpenAIClient, models } from '@/lib/openai';
 import { logger, createRequestLogger } from '@/lib/logger';
 import { getRequestId } from '@/lib/api/request-utils';
 import { createErrorResponse, createSuccessResponse, ErrorCode } from '@/lib/api/types';
 
-const openai = config.openai.apiKey ? new OpenAI({
-  apiKey: config.openai.apiKey,
-}) : null;
+const openai = getOpenAIClient();
 
 export async function POST(request: NextRequest) {
   const requestId = getRequestId(request);
@@ -29,9 +26,7 @@ export async function POST(request: NextRequest) {
     }
 
     if (!openai) {
-      requestLogger.error('OpenAI client not initialized', undefined, {
-        hasApiKey: !!config.openai.apiKey,
-      });
+      requestLogger.error('OpenAI client not initialized');
       return NextResponse.json(
         createErrorResponse('OpenAI API key not configured', {
           statusCode: 500,
@@ -92,7 +87,7 @@ export async function POST(request: NextRequest) {
 
 async function analyzeFactualAccuracy(content: string) {
   const completion = await openai.chat.completions.create({
-    model: "gpt-5", // Updated to GPT-5 (ChatGPT-5)
+    model: models.default,
     messages: [
       {
         role: "system",
@@ -122,7 +117,7 @@ Returnér JSON med score (0-100) og specifikke problemer.`
 
 async function checkBiasAndStereotypes(content: string) {
   const completion = await openai.chat.completions.create({
-    model: "gpt-5", // Updated to GPT-5 (ChatGPT-5)
+    model: models.default,
     messages: [
       {
         role: "system",
@@ -153,7 +148,7 @@ Returnér JSON med score (0-100) og specifikke problemer.`
 
 async function assessReadability(content: string) {
   const completion = await openai.chat.completions.create({
-    model: "gpt-5", // Updated to GPT-5 (ChatGPT-5)
+    model: models.default,
     messages: [
       {
         role: "system",
@@ -184,7 +179,7 @@ Returnér JSON med score (0-100) og forbedringsforslag.`
 
 async function evaluateStructure(content: string, articleType: string) {
   const completion = await openai.chat.completions.create({
-    model: "gpt-5", // Updated to GPT-5 (ChatGPT-5)
+    model: models.default,
     messages: [
       {
         role: "system",
@@ -215,7 +210,7 @@ Returnér JSON med score (0-100) og strukturelle problemer.`
 
 async function verifyTOVConsistency(content: string, author: string) {
   const completion = await openai.chat.completions.create({
-    model: "gpt-5", // Updated to GPT-5 (ChatGPT-5)
+    model: models.default,
     messages: [
       {
         role: "system",

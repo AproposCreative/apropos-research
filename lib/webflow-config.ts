@@ -1,3 +1,16 @@
+/**
+ * WARNING: The file-based config (`data/webflow-config.json`) uses `fs` and
+ * `process.cwd()`, which only works reliably in local development. On Vercel
+ * serverless/edge deployments the filesystem is read-only and `process.cwd()`
+ * does not point to a writable project root, so `saveWebflowConfig` will fail
+ * silently or throw.
+ *
+ * For production, prefer environment variables (`WEBFLOW_API_TOKEN`,
+ * `WEBFLOW_SITE_ID`, `WEBFLOW_ARTICLES_COLLECTION_ID`, etc.) configured via
+ * the Vercel dashboard or `vercel env`. The file-based fallback is intended
+ * only as a convenience during local development.
+ */
+
 import fs from 'fs';
 import path from 'path';
 

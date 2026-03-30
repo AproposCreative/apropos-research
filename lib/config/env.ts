@@ -41,12 +41,29 @@ const EnvSchema = z.object({
   WEBFLOW_FESTIVALS_COLLECTION_ID: z.string().optional(),
   WEBFLOW_STREAMING_SERVICES_COLLECTION_ID: z.string().optional(),
   
+  // Instagram / Facebook Publishing
+  INSTAGRAM_ACCOUNT_ID: z.string().optional(),
+  INSTAGRAM_ACCESS_TOKEN: z.string().optional(),
+  FACEBOOK_PAGE_ID: z.string().optional(),
+
+  // Firebase Admin (server-side)
+  FIREBASE_ADMIN_PROJECT_ID: z.string().optional(),
+  FIREBASE_ADMIN_CLIENT_EMAIL: z.string().optional(),
+  FIREBASE_ADMIN_PRIVATE_KEY: z.string().optional(),
+
   // TMDB Configuration
   TMDB_API_KEY: z.string().optional(),
   
   // OMDB Configuration
   OMDB_API_KEY: z.string().optional(),
-  
+
+  // Google Custom Search (image search)
+  GOOGLE_CUSTOM_SEARCH_API_KEY: z.string().optional(),
+  GOOGLE_CUSTOM_SEARCH_ENGINE_ID: z.string().optional(),
+
+  // Cron / Security
+  CRON_SECRET: z.string().optional(),
+
   // RAGE Ingestion Configuration (CLI)
   RAGE_BASE_URL: z.string().url().default('https://soundvenue.com'),
   RAGE_FEED_PATH: z.string().default('/feed'),
@@ -102,8 +119,17 @@ function parseEnv() {
     WEBFLOW_TOPICS_COLLECTION_ID: process.env.WEBFLOW_TOPICS_COLLECTION_ID,
     WEBFLOW_FESTIVALS_COLLECTION_ID: process.env.WEBFLOW_FESTIVALS_COLLECTION_ID,
     WEBFLOW_STREAMING_SERVICES_COLLECTION_ID: process.env.WEBFLOW_STREAMING_SERVICES_COLLECTION_ID,
+    INSTAGRAM_ACCOUNT_ID: process.env.INSTAGRAM_ACCOUNT_ID,
+    INSTAGRAM_ACCESS_TOKEN: process.env.INSTAGRAM_ACCESS_TOKEN,
+    FACEBOOK_PAGE_ID: process.env.FACEBOOK_PAGE_ID,
+    FIREBASE_ADMIN_PROJECT_ID: process.env.FIREBASE_ADMIN_PROJECT_ID,
+    FIREBASE_ADMIN_CLIENT_EMAIL: process.env.FIREBASE_ADMIN_CLIENT_EMAIL,
+    FIREBASE_ADMIN_PRIVATE_KEY: process.env.FIREBASE_ADMIN_PRIVATE_KEY,
     TMDB_API_KEY: process.env.TMDB_API_KEY,
     OMDB_API_KEY: process.env.OMDB_API_KEY,
+    GOOGLE_CUSTOM_SEARCH_API_KEY: process.env.GOOGLE_CUSTOM_SEARCH_API_KEY,
+    GOOGLE_CUSTOM_SEARCH_ENGINE_ID: process.env.GOOGLE_CUSTOM_SEARCH_ENGINE_ID,
+    CRON_SECRET: process.env.CRON_SECRET,
     RAGE_BASE_URL: process.env.RAGE_BASE_URL || 'https://soundvenue.com',
     RAGE_FEED_PATH: process.env.RAGE_FEED_PATH || '/feed',
     RAGE_SITEMAP_INDEX: process.env.RAGE_SITEMAP_INDEX || '/sitemap.xml',
@@ -165,5 +191,8 @@ export const config = {
     tmdb: !!env.TMDB_API_KEY,
     omdb: !!env.OMDB_API_KEY,
     webflow: !!(env.WEBFLOW_API_TOKEN && env.WEBFLOW_SITE_ID),
+    instagram: !!(env.INSTAGRAM_ACCOUNT_ID && env.INSTAGRAM_ACCESS_TOKEN),
+    facebook: !!env.FACEBOOK_PAGE_ID,
+    googleSearch: !!(env.GOOGLE_CUSTOM_SEARCH_API_KEY && env.GOOGLE_CUSTOM_SEARCH_ENGINE_ID),
   },
 } as const;

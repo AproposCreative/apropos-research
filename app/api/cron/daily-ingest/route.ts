@@ -37,19 +37,19 @@ export async function GET(request: NextRequest) {
   }
 
   const root = process.cwd();
-  // Hourly ingest: last 2 hours, limit 50 articles (more frequent, smaller batches)
-  const sinceHours = 2;
-  const limit = 50;
+  // Daily ingest: last 26 hours (overlap buffer), limit 100 articles
+  const sinceHours = 26;
+  const limit = 100;
   const cmd = `npm run ingest:rage -- --since=${sinceHours} --limit=${limit}`;
 
-  requestLogger.info('Starting hourly article ingestion via Vercel cron', { sinceHours, limit });
+  requestLogger.info('Starting daily article ingestion via Vercel cron', { sinceHours, limit });
 
   // Use promisified exec for better error handling
   return new Promise<NextResponse>((resolve) => {
     exec(cmd, { cwd: root, env: process.env, timeout: 1000 * 60 * 5 }, async (err, stdout, stderr) => {
       if (!err) {
         invalidatePromptsCache();
-        requestLogger.info('Hourly ingest completed successfully');
+        requestLogger.info('Daily ingest completed successfully');
         
         let newCount = 0;
         if (stdout) {
@@ -66,7 +66,7 @@ export async function GET(request: NextRequest) {
         
         resolve(NextResponse.json(
           createSuccessResponse({
-            message: 'Hourly ingest completed successfully',
+            message: 'Daily ingest completed successfully',
             timestamp: new Date().toISOString(),
             sinceHours,
             limit,
@@ -76,7 +76,7 @@ export async function GET(request: NextRequest) {
         ));
       } else {
         const errorObj = err instanceof Error ? err : new Error(String(err));
-        requestLogger.error('Hourly ingest failed', errorObj, { stderr });
+        requestLogger.error('Daily ingest failed', errorObj, { stderr });
         resolve(NextResponse.json(
           createErrorResponse('Ingest failed', {
             statusCode: 500,

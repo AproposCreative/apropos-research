@@ -40,6 +40,31 @@ function getJsonLdDate($: any): string | undefined {
   return undefined;
 }
 
+const PAYWALL_PATTERNS = [
+  /VIL DU LÆ?SE VIDERE\??.*/i,
+  /Fortsæt med at læse.*/i,
+  /Opret en? (gratis )?konto.*/i,
+  /Log ind for at læse.*/i,
+  /Bliv abonnent.*/i,
+  /Få adgang til.*/i,
+  /Prøv \d+ dage gratis.*/i,
+  /Allerede abonnent\?.*/i,
+  /Du skal være logget ind.*/i,
+  /Subscribe to continue.*/i,
+  /Sign up to read.*/i,
+];
+
+function stripPaywallBoilerplate(text: string): string {
+  let cleaned = text;
+  for (const pattern of PAYWALL_PATTERNS) {
+    const idx = cleaned.search(pattern);
+    if (idx > 0 && idx > cleaned.length * 0.4) {
+      cleaned = cleaned.slice(0, idx).trim();
+    }
+  }
+  return cleaned;
+}
+
 export function parseArticleHtml(url: string, html: string): ParsedArticle | null {
   const $ = loadHtml(html);
 
@@ -153,8 +178,10 @@ export function parseArticleHtml(url: string, html: string): ParsedArticle | nul
   const cleanedHtml = contentRoot.clone().html() || "";
   const cleaned_html_length = cleanedHtml.replace(/\s+/g, " ").trim().length;
 
-  const body_text = contentRoot.text().replace(/\s+/g, " ").trim();
+  let body_text = contentRoot.text().replace(/\s+/g, " ").trim();
   if (!body_text) return null;
+
+  body_text = stripPaywallBoilerplate(body_text);
 
   // Excerpt: first 25–40 words
   const words = body_text.split(/\s+/);

@@ -1,68 +1,92 @@
-# Publish til Instagram – opsætning og test
+# Publish til Instagram & Facebook – opsætning og test
 
-Design editoren kan poste kort direkte til Instagram. Her er kravene og hvordan du tester.
+Design editoren kan poste kort direkte til Instagram (feed og stories) og optionelt til Facebook.
 
 ## Flow
 
 1. Bruger vælger artikel i design editoren og åbner **Preview** (Instagram-visning).
-2. Klik på **Post til Instagram**.
-3. Appen eksporterer kortet som JPEG (2× opløsning), uploader til Firebase Storage, henter download-URL og kalder `/api/instagram/publish` med `imageUrl` + `caption`.
-4. API’et opretter Instagram-media fra `image_url` og caption og publicerer til den konfigurerede IG-konto.
-5. Hvis `FACEBOOK_PAGE_ID` er sat (og opslaget ikke er story), forsøger API’et bagefter automatisk at poste samme billede + caption på Facebook-siden.
+2. Klik på **Post til Instagram** (feed) eller **Post til Instagram Story** (story).
+3. Appen eksporterer kortet som JPEG (2x opløsning), uploader til Firebase Storage, henter download-URL og kalder `/api/instagram/publish` med `imageUrl` + `caption`.
+4. API'et opretter Instagram-media fra `image_url` og caption og publicerer til den konfigurerede IG-konto.
+5. Hvis `FACEBOOK_PAGE_ID` er sat (og opslaget er feed, ikke story), forsøger API'et bagefter automatisk at poste samme billede + caption på Facebook-siden.
 
 ## Miljøvariabler
 
 I `.env.local` (og i Vercel under Production/Preview):
 
-| Variabel | Beskrivelse |
-|----------|--------------|
-| `INSTAGRAM_ACCOUNT_ID` | Instagram Business/Creator Account ID (tal). Findes i Meta Business Suite eller via Graph API. |
-| `INSTAGRAM_ACCESS_TOKEN` | **Page** access token med `instagram_content_publish` (eller tilsvarende) for den Facebook-side der er koblet til IG-kontoen. |
-| `FACEBOOK_PAGE_ID` | (Valgfri) Facebook-side ID. Hvis sat, publiceres feed-opslag automatisk til siden efter vellykket Instagram-publicering. |
+| Variabel | Påkrævet | Beskrivelse |
+|----------|----------|-------------|
+| `INSTAGRAM_ACCOUNT_ID` | Ja | Instagram Business/Creator Account ID (tal). |
+| `INSTAGRAM_ACCESS_TOKEN` | Ja | Page access token med nødvendige permissions (se nedenfor). |
+| `FACEBOOK_PAGE_ID` | Nej | Facebook-side ID for auto-posting. Find det via Graph API Explorer: `me?fields=id,name` med din Page valgt. |
 
 Firebase (til upload af billedet):
+- `NEXT_PUBLIC_FIREBASE_*` (apiKey, projectId, storageBucket, osv.) skal være sat.
 
-- `NEXT_PUBLIC_FIREBASE_*` (apiKey, projectId, storageBucket, osv.) skal være sat, så Storage er tilgængelig i browseren.
+## Token Permissions (Scopes)
 
-## Sådan finder du værdierne
+Tokenet **skal** være et **Page Access Token** (ikke User Token) med følgende permissions:
 
-### INSTAGRAM_ACCOUNT_ID
+| Permission | Formål |
+|------------|--------|
+| `instagram_basic` | Basis-adgang til IG-konto |
+| `instagram_content_publish` | Publicere feed-opslag og stories |
+| `pages_show_list` | Se tilknyttede sider |
+| `pages_read_engagement` | Læse side-engagement |
+| `pages_manage_posts` | Auto-publicere til Facebook-siden (kun nødvendig med `FACEBOOK_PAGE_ID`) |
 
-1. Gå til [Meta for Developers](https://developers.facebook.com/) → din app → **Instagram Graph API**.
-2. Under **User Token** eller via [Graph API Explorer](https://developers.facebook.com/tools/explorer/): kald `me/accounts` (Facebook Pages) og find den side der er knyttet til din IG-konto; eller brug dokumentationen til at hente IG Business Account ID for den bruger/side.
+### Token-livstid
 
-Alternativt: brug endpointet `me?fields=instagram_business_account` med en bruger-token der har adgang til IG-forretningskontoen – feltet `instagram_business_account.id` er din `INSTAGRAM_ACCOUNT_ID`.
+- **Short-lived tokens** (fra Graph API Explorer): Udløber efter **1 time**.
+- **Long-lived tokens** (via token-exchange): Udløber efter **60 dage**.
+- For at forlænge: Brug Meta's token-exchange endpoint eller generer et nyt i Graph API Explorer.
+- Ved udløb viser appen: "Instagram-tokenet er udløbet" — generer et nyt og opdater env.
 
-### INSTAGRAM_ACCESS_TOKEN
+### Sådan genererer du et token
 
-- Skal være en **Page** access token (ikke User access token), med rettighed til at publicere på den tilknyttede Instagram-konto.
-- I Meta App Dashboard: **Instagram** → **Basic Display** eller **Instagram Graph API** → generer token med scope `instagram_content_publish` (og evt. `pages_show_list`, `pages_read_engagement`).
-- Page tokens kan udløbe; ved 503/502 med “token udløbet” skal du generere et nyt og opdatere `INSTAGRAM_ACCESS_TOKEN`.
+1. Gå til [Graph API Explorer](https://developers.facebook.com/tools/explorer/)
+2. Vælg din app (fx "Apropos Publisher v2")
+3. Under "User or Page": vælg din **Facebook Page** (fx "Apropos Magazine")
+4. Tilføj permissions: `instagram_basic`, `instagram_content_publish`, `pages_show_list`, `pages_read_engagement`, `pages_manage_posts`
+5. Klik **Generate Access Token** og godkend
+6. Kopiér tokenet til `INSTAGRAM_ACCESS_TOKEN`
+
+### Forlæng til long-lived token
+
+```bash
+curl -s "https://graph.facebook.com/v24.0/oauth/access_token?\
+grant_type=fb_exchange_token&\
+client_id=DIN_APP_ID&\
+client_secret=DIN_APP_SECRET&\
+fb_exchange_token=DIT_SHORT_LIVED_TOKEN"
+```
 
 ## Tjek at det er sat op
 
-- **GET** `/api/instagram/publish` returnerer `{ "configured": true }` når både `INSTAGRAM_ACCOUNT_ID` og `INSTAGRAM_ACCESS_TOKEN` er sat (ellers `configured: false`).
-- I browseren: åbn `http://localhost:3000/api/instagram/publish` og tjek payload.
+- **GET** `/api/instagram/publish` returnerer `{ "configured": true }` når konfigureret.
+- **Settings** → "Test Facebook" knappen verificerer Facebook Page-forbindelse.
 
 ## Test end-to-end
 
-1. **Firebase**: Tjek at du er logget ind og at Storage-upload virker (fx ved at uploade et billede et andet sted i appen, eller at der ikke kommer “Firebase Storage er ikke tilgængelig” i design editoren).
-2. **Instagram API**: Sørg for at `INSTAGRAM_ACCOUNT_ID` og `INSTAGRAM_ACCESS_TOKEN` er sat og at GET `/api/instagram/publish` giver `configured: true`.
-3. **Design editor**: Gå til `/design-editor`, vælg en artikel, åbn **Preview**, og klik **Post til Instagram**.
+1. **Firebase**: Tjek at Storage-upload virker.
+2. **Instagram API**: Verificer med GET `/api/instagram/publish`.
+3. **Design editor**: Gå til `/design-editor`, vælg en artikel, og klik **Post til Instagram**.
 4. Forventet:
-   - Success: “Opslaget er publiceret på Instagram” – tjek den tilknyttede IG-konto.
-   - Fejl: Beskeden vises under knappen (fx “Instagram-tokenet er udløbet” eller “Firebase Storage er ikke tilgængelig”). Tjek server-logs for `/api/instagram/publish` ved 502/500.
+   - Feed: "Opslaget er publiceret på Instagram og Facebook."
+   - Story: "Story er publiceret på Instagram."
+   - Fejl: Beskeden vises under knappen.
 
 ## Almindelige fejl
 
-- **“Instagram-publish er ikke konfigureret”**  
-  INSTAGRAM_ACCOUNT_ID eller INSTAGRAM_ACCESS_TOKEN mangler eller er tomme. Sæt dem i `.env.local` og genstart dev-server.
+- **"Instagram-publish er ikke konfigureret"** — Manglende env vars.
+- **"Firebase Storage er ikke tilgængelig"** — Manglende `NEXT_PUBLIC_FIREBASE_*`.
+- **"Instagram-tokenet er udløbet"** — Generer nyt Page access token.
+- **"Media ID is not available"** — Instagram behandler stadig billedet. Appen prøver automatisk op til 6 gange.
+- **"pages_manage_posts are not available"** — Tilføj "Manage everything on your Page" use case i Meta App Dashboard under Brugssituationer.
+- **"Manglende eller ugyldig imageUrl"** — Tjek Firebase Storage-regler for `instagram-publish/*`.
 
-- **“Firebase Storage er ikke tilgængelig”**  
-  Firebase er ikke initialiseret i browseren (manglende eller forkerte `NEXT_PUBLIC_FIREBASE_*`).
+## Serverless Timeout
 
-- **“Instagram-tokenet er udløbet”**  
-  Udskift `INSTAGRAM_ACCESS_TOKEN` med et nyt Page access token fra Meta.
-
-- **“Manglende eller ugyldig imageUrl”**  
-  Upload til Storage eller `getDownloadURL` fejlede; tjek at Storage-regler tillader upload til den brugte path (`instagram-publish/*`) og at download-URL’en er tilgængelig (Instagram’s servere skal kunne hente billedet via den URL).
+Instagram's billedbehandling kan tage op til 90 sekunder. Vercel's default function timeout er 10 sekunder (Free) / 60 sekunder (Pro). Denne route har `maxDuration` sat, men ved timeout-problemer:
+1. Opgradér til Vercel Pro for længere function duration
+2. Prøv igen efter et par sekunder (klienten har retry-logik)
