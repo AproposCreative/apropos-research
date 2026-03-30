@@ -1,13 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
-import OpenAI from 'openai';
+import { getOpenAIClient, models } from '@/lib/openai';
 import { config } from '@/lib/config/env';
 import { logger, createRequestLogger } from '@/lib/logger';
 import { getRequestId } from '@/lib/api/request-utils';
 import { createErrorResponse, createSuccessResponse, ErrorCode } from '@/lib/api/types';
 
-const openai = config.openai.apiKey ? new OpenAI({
-  apiKey: config.openai.apiKey,
-}) : null;
+const openai = getOpenAIClient();
 
 interface GenerateImageRequest {
   title: string;
@@ -30,9 +28,7 @@ export async function POST(req: NextRequest) {
   
   try {
     if (!openai) {
-      requestLogger.error('OpenAI client not initialized', undefined, {
-        hasApiKey: !!config.openai.apiKey,
-      });
+      requestLogger.error('OpenAI client not initialized');
       return NextResponse.json(
         createErrorResponse('OpenAI API key not configured', {
           statusCode: 500,
@@ -418,9 +414,8 @@ function deriveVisualSubjectFromTitle(title: string): string {
 async function extractVisualThemes(content: string, title: string, category: string): Promise<string[]> {
   try {
     // Use AI to analyze content and extract visual themes
-    const openai = new OpenAI({
-      apiKey: process.env.OPENAI_API_KEY,
-    });
+    const aiClient = getOpenAIClient();
+    if (!aiClient) return [];
 
     const analysisPrompt = `Analyze this article and extract 3-5 SAFE visual themes for image generation.
 
@@ -443,8 +438,8 @@ Return ONLY safe themes in Danish. No explanations. Focus on abstract, symbolic,
 
 Themes:`;
 
-    const response = await openai.chat.completions.create({
-      model: 'gpt-5',
+    const response = await aiClient.chat.completions.create({
+      model: models.default,
       messages: [{ role: 'user', content: analysisPrompt }],
       max_completion_tokens: 100,
       temperature: 1, // GPT-5 only supports default temperature (1)

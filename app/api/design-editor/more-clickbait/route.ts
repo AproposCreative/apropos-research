@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import OpenAI from 'openai';
+import type OpenAI from 'openai';
+import { getOpenAIClient, models } from '@/lib/openai';
 import { promises as fs } from 'fs';
 import path from 'path';
-import { config } from '@/lib/config/env';
 
 const PROMPT_FILE = path.join(process.cwd(), 'prompts', 'design_editor_more_clickbait.md');
 
@@ -256,7 +256,7 @@ async function generatePair(
   extraInstruction?: string
 ): Promise<{ title: string; excerpt: string } | null> {
   const completion = await client.chat.completions.create({
-    model: 'gpt-5',
+    model: models.default,
     temperature: 1,
     max_completion_tokens: 450,
     messages: [
@@ -297,7 +297,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'title is required' }, { status: 400 });
     }
 
-    if (!config.openai.apiKey) {
+    const client = getOpenAIClient();
+    if (!client) {
       const fallback = createFallbackClickbait({
         title: currentTitle,
         excerpt: currentExcerpt,
@@ -309,7 +310,6 @@ export async function POST(req: NextRequest) {
     }
 
     const prompt = await loadPrompt();
-    const client = new OpenAI({ apiKey: config.openai.apiKey });
 
     const payload = {
       title: currentTitle,

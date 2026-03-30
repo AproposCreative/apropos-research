@@ -4,72 +4,97 @@ En AI-drevet skriveoplevelse til Apropos Magazine's redaktionelle platform.
 
 ## Funktioner
 
-### 🖋️ **Venstre Panel - Noter og Prompts**
-- Skriv kontekst, noter og artikel-idéer
-- Quick action knapper:
-  - Auto Generate Article
-  - New Gaming Article  
-  - New Culture Article
+### Venstre Panel - Noter og Prompts
+- Skriv kontekst, noter og artikel-ideer
+- Quick action knapper til artikeltemplates
 - Direkte input til AI-agenten
+- Drafts-hylde med Firebase-gemte kladder
+- WebApps panel med eksterne vaerktoejer
 
-### 💬 **Midterste Panel - Chat med AI**
+### Midterste Panel - Chat med AI
 - Chatbaseret interaktion med AI-medskribent
-- AI foreslår vinkler, forbedringer og stilgreb
+- AI foreslaar vinkler, forbedringer og stilgreb
 - Tone of voice: Martin Kongstad x Casper Christensen
-- Kontekstuel hjælp baseret på nuværende artikel
+- Kontekstuel hjaelp baseret paa nuvaerende artikel
+- Research-integration med artikelforslag
+- Preflight-tjek (moderation, TOV-kritik, factcheck)
 
-### 👁️ **Højre Panel - Artikelpreview**
+### Hoejre Panel - Artikelpreview og Design
 - Live mockup af artiklen i Apropos stil
 - Dynamisk opdatering af felter
-- Quick edit panel for hurtige ændringer
+- Quick edit panel for hurtige aendringer
 - Rating og tag system
+- Design Editor til social media cards (Instagram/Facebook)
+- Webflow CMS publish panel
+
+## Teknisk Stack
+
+- **Frontend:** React 19 / Next.js 15 med TypeScript
+- **AI:** OpenAI (konfigureret via OPENAI_MODEL env var)
+- **Styling:** Tailwind CSS
+- **State Management:** React useState/useEffect
+- **API:** Next.js API Routes (App Router)
+- **Persistens:** Firebase Firestore (drafts, training data)
+- **Upload:** Firebase Storage (billeder til Instagram)
+- **CMS:** Webflow Data API v2
+- **Social:** Instagram Graph API + Facebook Pages API
 
 ## Setup
 
-1. **Installer dependencies:**
+1. Installer dependencies:
    ```bash
-   npm install openai
+   npm install
    ```
 
-2. **Sæt miljøvariabel:**
+2. Kopiér environment-variabler:
    ```bash
-   OPENAI_API_KEY=your_openai_api_key_here
+   cp .env.example .env.local
    ```
 
-3. **Start udviklingsserveren:**
+3. Koer env-doctor:
+   ```bash
+   npm run doctor
+   ```
+
+4. Start udviklingsserveren:
    ```bash
    npm run dev
    ```
 
-4. **Gå til AI Writer:**
+5. Gaa til AI Writer:
    ```
    http://localhost:3000/ai
    ```
 
-## Teknisk Stack
+## Arkitektur
 
-- **Frontend:** React/Next.js med TypeScript
-- **AI:** OpenAI GPT-4o
-- **Styling:** Tailwind CSS
-- **State Management:** React useState/useEffect
-- **API:** Next.js API Routes
+```
+app/ai/
+  AIWriterClient.tsx   - Hoved-shell: auth, state, layout
+  MainChatPanel.tsx    - Chat UI: templates, noter, beskeder
+  PreviewPanel.tsx     - Live artikelpreview
+  SetupWizard/         - Artikelopsaetning og research
+  
+app/api/ai-chat/       - Hoved-completion + artikeludtraek
+app/api/generate-article/ - Alternativ artikelgenerering
+app/api/web-search/    - Wikipedia + DuckDuckGo research
+app/api/research-engine/ - Multi-source research
+app/api/quality-check/ - Kvalitetsvurdering
+app/api/factcheck/     - Faktakontrol
+app/api/critic/tov/    - Tone-of-voice kritik
 
-## AI System Prompt
+lib/openai.ts          - Centraliseret OpenAI-klient
+lib/config/env.ts      - Valideret miljoe-konfiguration
+lib/apropos-ai.ts      - TOV og prompt-konstanter
+```
 
-AI'en er trænet til at hjælpe med:
-- Udvikling af artikelidéer og vinkler
-- Forbedring af tekster og retorik
-- Foreslå stilgreb og strukturer
-- Give konstruktiv feedback
-- Være kreativ sparringspartner
+## AI Generation Flow
 
-Tone: Personlig, skarp, ærlig og humoristisk - uden at være teknisk eller tør.
-
-## Roadmap
-
-- [ ] Firebase backend integration
-- [ ] Webflow integration
-- [ ] Artikel export funktionalitet
-- [ ] Collaboration features
-- [ ] Template system
-- [ ] Advanced AI features
+1. Bruger opsaetter artikel via SetupWizard (section, forfatter, research, TOV)
+2. Chat-besked sendes til `/api/ai-chat`
+3. System-prompt bygges med TOV, research, noter, strukturregler
+4. OpenAI completion genererer artikeludkast
+5. Post-processing udtraekker titel, undertitel, intro, SEO-felter
+6. Eventuel ekspansion hvis ordantal er under minimum
+7. Resultat vises i PreviewPanel og kan redigeres
+8. Publicering via WebflowPublishPanel eller export til social media

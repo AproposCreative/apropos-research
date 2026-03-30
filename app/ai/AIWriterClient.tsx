@@ -656,9 +656,6 @@ useEffect(() => {
           chatHistory: chatMessages,
           authorTOV: articleData.authorTOV || '',
           authorName: articleData.author || '',
-          webflowSchema: fieldMeta,
-          webflowMapping: mappingEntries,
-          webflowSamples: samples,
           clientRequestId,
         }),
       });

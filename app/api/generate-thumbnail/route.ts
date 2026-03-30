@@ -1,13 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
-import OpenAI from 'openai';
-import { config } from '@/lib/config/env';
+import { getOpenAIClient } from '@/lib/openai';
 import { logger, createRequestLogger } from '@/lib/logger';
 import { getRequestId } from '@/lib/api/request-utils';
 import { createErrorResponse, createSuccessResponse, ErrorCode, ApiResponse } from '@/lib/api/types';
 
-const openai = config.openai.apiKey ? new OpenAI({
-  apiKey: config.openai.apiKey,
-}) : null;
+const openai = getOpenAIClient();
 
 interface GenerateThumbnailRequest {
   title: string;
@@ -48,9 +45,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<ApiRespon
     }
 
     if (!openai) {
-      requestLogger.error('OpenAI client not initialized', undefined, {
-        hasApiKey: !!config.openai.apiKey,
-      });
+      requestLogger.error('OpenAI client not initialized');
       return NextResponse.json(
         createErrorResponse('OpenAI API key not configured', {
           statusCode: 500,

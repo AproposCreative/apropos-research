@@ -1,12 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
-import OpenAI from 'openai';
 import type { ChatCompletionMessageParam } from 'openai/resources/chat/completions';
-import { config } from '@/lib/config/env';
+import { getOpenAIClient, models } from '@/lib/openai';
 import { logger, createRequestLogger } from '@/lib/logger';
 import { getRequestId } from '@/lib/api/request-utils';
 import { createErrorResponse, createSuccessResponse, ErrorCode } from '@/lib/api/types';
 
-const client = config.openai.apiKey ? new OpenAI({ apiKey: config.openai.apiKey }) : null;
+const client = getOpenAIClient();
 
 const CRITIC_SYSTEM = `Du er en skarp, men hjælpsom redaktør for Apropos Magazine.
 Evaluer en kladde efter TOV: rytme, sanselighed, personligt nærvær, intro/afslutning, og forfatterprofil.
@@ -32,9 +31,7 @@ export async function POST(request: NextRequest) {
 		}
 
 		if (!client) {
-			requestLogger.error('OpenAI client not initialized', undefined, {
-				hasApiKey: !!config.openai.apiKey,
-			});
+		requestLogger.error('OpenAI client not initialized');
 			return NextResponse.json(
 				createErrorResponse('OpenAI API key not configured', {
 					statusCode: 500,
@@ -51,7 +48,7 @@ export async function POST(request: NextRequest) {
 		];
 		
 		const comp = await client.chat.completions.create({ 
-			model: 'gpt-5-mini', 
+			model: models.default, 
 			messages, 
 			temperature: 1, 
 			max_completion_tokens: 600 

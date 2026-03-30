@@ -74,16 +74,36 @@ const recommendedInstagram = [
   'FACEBOOK_PAGE_ID',
 ];
 
+const recommendedFirebaseAdmin = [
+  'FIREBASE_ADMIN_PROJECT_ID',
+  'FIREBASE_ADMIN_CLIENT_EMAIL',
+  'FIREBASE_ADMIN_PRIVATE_KEY',
+];
+
+const recommendedMediaSearch = [
+  'TMDB_API_KEY',
+  'OMDB_API_KEY',
+  'GOOGLE_CUSTOM_SEARCH_API_KEY',
+  'GOOGLE_CUSTOM_SEARCH_ENGINE_ID',
+];
+
 const recommendedBuild = [
   'NEXT_PUBLIC_BASE_URL',
   'NEXT_PUBLIC_BUILD_LABEL',
 ];
 
+const optionalSecurity = [
+  'CRON_SECRET',
+];
+
 let failures = 0;
 failures += printGroup('Required (core app)', requiredCore, mergedEnv, true);
-printGroup('Recommended (Firebase storage/upload)', recommendedFirebase, mergedEnv, false);
-printGroup('Recommended (Instagram publish)', recommendedInstagram, mergedEnv, false);
+printGroup('Recommended (Firebase client)', recommendedFirebase, mergedEnv, false);
+printGroup('Recommended (Firebase Admin / server)', recommendedFirebaseAdmin, mergedEnv, false);
+printGroup('Recommended (Instagram / Facebook publish)', recommendedInstagram, mergedEnv, false);
+printGroup('Recommended (Media search: TMDB, OMDB, Google)', recommendedMediaSearch, mergedEnv, false);
 printGroup('Recommended (Build metadata)', recommendedBuild, mergedEnv, false);
+printGroup('Optional (Security)', optionalSecurity, mergedEnv, false);
 
 if (failures > 0) {
   console.error('\nEnv doctor failed: missing required variables.');

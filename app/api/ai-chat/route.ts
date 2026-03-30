@@ -1,26 +1,89 @@
 import { NextRequest, NextResponse } from 'next/server';
-import OpenAI from 'openai';
-import { config } from '@/lib/config/env';
+import type OpenAI from 'openai';
+import { getOpenAIClient, models } from '@/lib/openai';
 import { initProgress, updateProgressStep, completeProgress } from '@/lib/ai-chat-progress-store';
 import { createErrorResponse, ErrorCode } from '@/lib/api/types';
+import fs from 'node:fs';
+import path from 'node:path';
 
-const openai = config.openai.apiKey
-  ? new OpenAI({ apiKey: config.openai.apiKey })
-  : null;
+const openai = getOpenAIClient();
 
-const PROGRESS_STEPS = [
-  { id: 'prepare', label: 'Analyserer prompt og setup' },
-  { id: 'web-search', label: 'Søger efter fakta og kilder' },
-  { id: 'advanced-research', label: 'Indsamler redaktionel research' },
-  { id: 'generation', label: 'Genererer artikeludkast' },
-  { id: 'quality', label: 'Kører kvalitetskontrol' },
-  { id: 'format', label: 'Formatterer svar til UI' },
-];
+let _structureCache: string | null = null;
+function loadStructurePrompt(): string {
+  if (_structureCache) return _structureCache;
+  try {
+    const filePath = path.join(process.cwd(), 'prompts', 'structure.apropos.md');
+    _structureCache = fs.readFileSync(filePath, 'utf8');
+  } catch {
+    _structureCache = '';
+  }
+  return _structureCache;
+}
+
+function buildProgressSteps(hasResearch: boolean) {
+  const steps = [
+    { id: 'prepare', label: 'Analyserer prompt og setup' },
+  ];
+  if (hasResearch) {
+    steps.push({ id: 'web-search', label: 'Søger efter fakta og kilder' });
+  }
+  steps.push({ id: 'generation', label: 'Genererer artikeludkast' });
+  steps.push({ id: 'quality', label: 'Kører kvalitetskontrol' });
+  steps.push({ id: 'format', label: 'Formatterer svar til UI' });
+  return steps;
+}
+
+async function fetchWebSearchContext(query: string): Promise<string> {
+  try {
+    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000';
+    const res = await fetch(`${baseUrl}/api/web-search`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ query, maxResults: 3 }),
+    });
+    if (!res.ok) return '';
+    const data = await res.json();
+    const results = data?.data?.results || data?.results || [];
+    if (!Array.isArray(results) || results.length === 0) return '';
+    return results
+      .slice(0, 3)
+      .map((r: any) => `- ${r.title || ''}: ${(r.extract || r.snippet || '').slice(0, 200)}`)
+      .join('\n');
+  } catch {
+    return '';
+  }
+}
+
+async function runQuickQualityCheck(openaiClient: ReturnType<typeof getOpenAIClient>, articleText: string): Promise<string[]> {
+  if (!openaiClient || !articleText || articleText.length < 200) return [];
+  try {
+    const response = await openaiClient.chat.completions.create({
+      model: models.default,
+      temperature: 0.2,
+      max_tokens: 512,
+      messages: [
+        {
+          role: 'system',
+          content: 'Du er kvalitetskontrollør. Gennemgå artiklen for: 1) Faktuelle udsagn der bør tjekkes, 2) Gentagelser, 3) Tone-problemer. Returnér KUN en JSON-array af korte advarsler på dansk (maks 5). Returnér [] hvis artiklen er god.',
+        },
+        { role: 'user', content: articleText.slice(0, 3000) },
+      ],
+    });
+    const raw = response.choices[0]?.message?.content?.trim() || '[]';
+    const match = raw.match(/\[[\s\S]*\]/);
+    return match ? JSON.parse(match[0]) : [];
+  } catch {
+    return [];
+  }
+}
 
 function buildSystemPrompt(authorTOV: string, authorName: string, articleContext: Record<string, unknown>, notes?: string): string {
   const parts = [
-    `Du er Apropos Magazines AI-assistent. Du hjælper med at skrive og udvikle artikler.`,
-    `Svar på dansk. Vær konkret og følg brugerens ønsker.`,
+    `Du er "Apropos Writer AI" — redaktionel assistent og medskribent for Apropos Magazine.`,
+    `Apropos Magazine skriver kulturjournalistik med personlighed, præcision og perspektiv.`,
+    `Alt skal føles menneskeligt, reflekteret og sanseligt — aldrig maskinelt.`,
+    `Svar på dansk i en rytmisk, levende og menneskelig tone. Vær konkret og følg brugerens ønsker.`,
+    `\n**GLOBAL TOV-REGLER:** Personlig, selvironisk, reflekteret, humoristisk. Brug sanselige detaljer, rytme og variation i sætningslængder. Ingen floskler som "Filmen handler om …" — vis det i stedet. Parafrasér altid kilder; ingen copy/paste.`,
   ];
   if (authorTOV?.trim()) {
     parts.push(`\n**Valgt tone (TOV) for denne artikel:**\n${authorTOV.trim()}`);
@@ -65,14 +128,18 @@ function buildSystemPrompt(authorTOV: string, authorName: string, articleContext
   if (notes && notes.trim().length > 0) {
     parts.push(`\n**Redaktionelle noter fra bruger (skal prioriteres):**\n${notes.trim()}`);
   }
+  const structureRules = loadStructurePrompt();
+  if (structureRules) {
+    parts.push(`\n**APROPOS STRUCTURE (fra structure.apropos.md) — Følg PRÆCIS:**\n${structureRules}`);
+  }
   parts.push(
-    `\n**Artikelformat (Apropos struktur – structure.apropos.md). Følg PRÆCIS:**
+    `\n**OUTPUT-FORMAT:**
 - Linje 1: Arbejdstitel: [kun titeltekst]
 - Linje 2: Undertitel: [8–14 ord]
 - Linje 3: Intro: [én indledende paragraf, 2–4 linjer, ca. 60–80 ord]
 - Tom linje
-- Brødtekst: Start brødteksten med NYT indhold. Gentag ALDRIG titel, Undertitel eller intro-paragraffen i brødteksten. Brødteksten er løbende fortælling uden underoverskrifter, flow: forventning → oplevelse → indsigt → eftertanke. Afslut med 2–4 reflekterende sætninger (fx Eftertanke, Refleksion).
-- Skriv ALDRIG titel/undertitel/intro igen i brødteksten. Skriv ALDRIG "Længde: X ord". Ordantal: film/serie 900–1100, koncert 700–900, kultur 1200–1500.`
+- Brødtekst: Start med NYT indhold. Gentag ALDRIG titel, undertitel eller intro i brødteksten.
+- Skriv ALDRIG "Længde: X ord".`
   );
   return parts.join('\n');
 }
@@ -291,11 +358,14 @@ function normalizeContentWithIntro(content: string, intro: string | null): strin
 
 function getTargetMinWords(articleContext: Record<string, unknown>): number {
   const section = String(articleContext?.section || articleContext?.category || '').toLowerCase();
+  const template = String(articleContext?.template || '').toLowerCase();
   const topics = Array.isArray(articleContext?.topicsSelected) ? articleContext.topicsSelected.map((x) => String(x).toLowerCase()) : [];
   const tags = Array.isArray(articleContext?.tags) ? articleContext.tags.map((x) => String(x).toLowerCase()) : [];
-  const hay = [section, ...topics, ...tags].join(' ');
-  if (/film|serie/.test(hay)) return 900;
-  if (/koncert|musik/.test(hay)) return 700;
+  const hay = [section, template, ...topics, ...tags].join(' ');
+  if (/nyhed|news|kort/.test(hay)) return 600;
+  if (/koncert|musik|live/.test(hay)) return 700;
+  if (/film|serie|tv|streaming/.test(hay)) return 900;
+  if (/kultur|feature|essay|interview|portræt|portr.t/.test(hay)) return 1200;
   return 900;
 }
 
@@ -387,12 +457,40 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const hasResearch = !!(articleData?.researchSelected?.title || articleData?.title);
+    const progressSteps = buildProgressSteps(hasResearch);
+
     if (clientRequestId && typeof clientRequestId === 'string') {
-      initProgress(clientRequestId, PROGRESS_STEPS);
+      initProgress(clientRequestId, progressSteps);
       updateProgressStep(clientRequestId, 'prepare', 'active');
     }
 
-    const systemPrompt = buildSystemPrompt(authorTOV, authorName, articleData, notes);
+    let systemPrompt = buildSystemPrompt(authorTOV, authorName, articleData, notes);
+
+    // --- Step: Web Search (when research context is available) ---
+    let webSearchContext = '';
+    if (hasResearch) {
+      if (clientRequestId) {
+        updateProgressStep(clientRequestId, 'prepare', 'completed');
+        updateProgressStep(clientRequestId, 'web-search', 'active');
+      }
+      const searchQuery = articleData?.researchSelected?.title || articleData?.title || message;
+      webSearchContext = await fetchWebSearchContext(String(searchQuery));
+      if (webSearchContext) {
+        systemPrompt += `\n\n**FAKTA FRA WEB-SØGNING (brug til at verificere og berige artiklen):**\n${webSearchContext}`;
+      }
+      if (clientRequestId) {
+        updateProgressStep(clientRequestId, 'web-search', 'completed');
+      }
+    } else if (clientRequestId) {
+      updateProgressStep(clientRequestId, 'prepare', 'completed');
+    }
+
+    // --- Step: Generation ---
+    if (clientRequestId) {
+      updateProgressStep(clientRequestId, 'generation', 'active');
+    }
+
     const messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
       { role: 'system', content: systemPrompt },
     ];
@@ -403,15 +501,8 @@ export async function POST(request: NextRequest) {
     }
     messages.push({ role: 'user', content: message.trim() });
 
-    if (clientRequestId) {
-      updateProgressStep(clientRequestId, 'prepare', 'completed');
-      updateProgressStep(clientRequestId, 'web-search', 'skipped');
-      updateProgressStep(clientRequestId, 'advanced-research', 'skipped');
-      updateProgressStep(clientRequestId, 'generation', 'active');
-    }
-
     const completion = await openai.chat.completions.create({
-      model: config.openai.model || 'gpt-4o-mini',
+      model: models.default,
       messages,
       temperature: 0.7,
       max_tokens: 4096,
@@ -431,23 +522,20 @@ export async function POST(request: NextRequest) {
 
     if (clientRequestId) {
       updateProgressStep(clientRequestId, 'generation', 'completed');
-      updateProgressStep(clientRequestId, 'quality', 'skipped');
-      updateProgressStep(clientRequestId, 'format', 'completed');
-      completeProgress(clientRequestId);
     }
 
     const userRating = typeof articleData?.rating === 'number' ? articleData.rating : undefined;
     let finalResponseText = responseText;
     let articleUpdate = extractArticleUpdate(finalResponseText, userRating) ?? undefined;
 
-    // One expansion pass to enforce practical minimum article length.
+    // Expansion pass to enforce practical minimum article length.
     if (articleUpdate?.content) {
       const minWords = getTargetMinWords(articleData || {});
       const wc = countWords(articleUpdate.content);
       if (wc > 0 && wc < minWords) {
         try {
           const expansion = await openai.chat.completions.create({
-            model: config.openai.model || 'gpt-4o-mini',
+            model: models.default,
             temperature: 0.5,
             max_tokens: 4096,
             messages: [
@@ -476,9 +564,25 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // --- Step: Quality Check ---
+    let warnings: string[] = [];
+    if (articleUpdate?.content && clientRequestId) {
+      updateProgressStep(clientRequestId, 'quality', 'active');
+      warnings = await runQuickQualityCheck(openai, articleUpdate.content);
+      updateProgressStep(clientRequestId, 'quality', 'completed');
+    } else if (clientRequestId) {
+      updateProgressStep(clientRequestId, 'quality', 'completed');
+    }
+
+    if (clientRequestId) {
+      updateProgressStep(clientRequestId, 'format', 'completed');
+      completeProgress(clientRequestId);
+    }
+
     return NextResponse.json({
       response: finalResponseText,
       ...(articleUpdate && Object.keys(articleUpdate).length > 0 ? { articleUpdate } : {}),
+      ...(warnings.length > 0 ? { warnings } : {}),
     });
   } catch (err) {
     const error = err instanceof Error ? err : new Error(String(err));

@@ -1,13 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
-import OpenAI from 'openai';
-import { config } from '@/lib/config/env';
+import { getOpenAIClient, models } from '@/lib/openai';
 import { logger, createRequestLogger } from '@/lib/logger';
 import { getRequestId } from '@/lib/api/request-utils';
 import { createErrorResponse, createSuccessResponse, ErrorCode } from '@/lib/api/types';
 
-const openai = config.openai.apiKey ? new OpenAI({
-  apiKey: config.openai.apiKey,
-}) : null;
+const openai = getOpenAIClient();
 
 export async function POST(request: NextRequest) {
   const requestId = getRequestId(request);
@@ -29,9 +26,7 @@ export async function POST(request: NextRequest) {
     }
 
     if (!openai) {
-      requestLogger.error('OpenAI client not initialized', undefined, {
-        hasApiKey: !!config.openai.apiKey,
-      });
+      requestLogger.error('OpenAI client not initialized');
       return NextResponse.json(
         createErrorResponse('OpenAI API key not configured', {
           statusCode: 500,
@@ -118,7 +113,7 @@ async function enhanceResearch(content: string, articleType: string, targetLengt
       )} ord.`
     : '';
   const completion = await openai.chat.completions.create({
-    model: "gpt-5", // Updated to GPT-5 (ChatGPT-5)
+    model: models.default,
     messages: [
       {
         role: "system",
@@ -170,7 +165,7 @@ async function improveStructure(content: string, articleType: string, targetLeng
       )} ord).`
     : '';
   const completion = await openai.chat.completions.create({
-    model: "gpt-5", // Updated to GPT-5 (ChatGPT-5)
+    model: models.default,
     messages: [
       {
         role: "system",
@@ -217,7 +212,7 @@ async function strengthenTOV(content: string, author: string, targetLength?: num
       )} ord).`
     : '';
   const completion = await openai.chat.completions.create({
-    model: "gpt-5", // Updated to GPT-5 (ChatGPT-5)
+    model: models.default,
     messages: [
       {
         role: "system",
@@ -263,7 +258,7 @@ async function addCulturalContext(content: string, articleType: string, targetLe
       )} ord).`
     : '';
   const completion = await openai.chat.completions.create({
-    model: "gpt-5", // Updated to GPT-5 (ChatGPT-5)
+    model: models.default,
     messages: [
       {
         role: "system",
@@ -309,7 +304,7 @@ async function optimizeReadability(content: string, targetLength?: number) {
       )} ord) mens flowet forbedres.`
     : '';
   const completion = await openai.chat.completions.create({
-    model: "gpt-5", // Updated to GPT-5 (ChatGPT-5)
+    model: models.default,
     messages: [
       {
         role: "system",

@@ -1,4 +1,13 @@
-// Webflow CMS Integration for Apropos Magazine
+/**
+ * @deprecated This module is deprecated and only used by the deprecated
+ * `/api/publish-to-webflow` route. Use `lib/webflow-service.ts` and its
+ * `publishArticleToWebflow` function instead.
+ *
+ * The canonical publish flow is:
+ *   UI -> POST /api/webflow/publish -> publishArticleToWebflow (lib/webflow-service.ts)
+ *
+ * This file will be removed in a future cleanup pass.
+ */
 
 import { env } from '@/lib/config/env';
 
