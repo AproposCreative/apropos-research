@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { Amiri } from 'next/font/google';
 import SocialCardCanvas, { type SocialCardData, type SocialCardSize, DIMENSIONS } from './SocialCardCanvas';
-import { exportCardToPng, exportCardToJpeg } from './exportCardToPng';
+import { exportCardToPng, exportCardToJpegBlob } from './exportCardToPng';
 import { storage } from '@/lib/firebase';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 
@@ -195,6 +195,7 @@ export default function DesignEditorView({ onBack, embedMode }: DesignEditorView
   const [isResizingArticles, setIsResizingArticles] = useState(false);
   const [caption, setCaption] = useState('');
   const [postingToInstagram, setPostingToInstagram] = useState(false);
+  const [publishStep, setPublishStep] = useState('');
   const [instagramError, setInstagramError] = useState<string | null>(null);
   const [instagramConfigured, setInstagramConfigured] = useState<boolean | null>(null);
   const [renderedCardDataUrl, setRenderedCardDataUrl] = useState<string | null>(null);
@@ -551,18 +552,19 @@ export default function DesignEditorView({ onBack, embedMode }: DesignEditorView
   const handlePostToInstagram = useCallback(async () => {
     setPostingToInstagram(true);
     setInstagramError(null);
+    setPublishStep('Eksporterer billede…');
     try {
       if (!storage) {
         setInstagramError('Firebase Storage er ikke tilgængelig.');
         return;
       }
-      const jpegDataUrl = await exportCardToJpeg(cardData, size, 0.96, { amiriFontFamily: amiri.style.fontFamily });
-      const res = await fetch(jpegDataUrl);
-      const blob = await res.blob();
+      const blob = await exportCardToJpegBlob(cardData, size, 0.92, { amiriFontFamily: amiri.style.fontFamily });
+      setPublishStep('Uploader billede…');
       const path = `instagram-publish/${Date.now()}.jpg`;
       const storageRef = ref(storage, path);
       await uploadBytes(storageRef, blob, { contentType: 'image/jpeg' });
       const imageUrl = await getDownloadURL(storageRef);
+      setPublishStep('Publicerer til Instagram…');
       const isStory = size === 'story';
       const apiRes = await fetch('/api/instagram/publish', {
         method: 'POST',
@@ -593,6 +595,7 @@ export default function DesignEditorView({ onBack, embedMode }: DesignEditorView
       setInstagramError('Der opstod en fejl. Prøv igen.');
     } finally {
       setPostingToInstagram(false);
+      setPublishStep('');
     }
   }, [size, cardData, caption, ensureCaptionFooter]);
 
@@ -915,7 +918,7 @@ export default function DesignEditorView({ onBack, embedMode }: DesignEditorView
                       className="w-full py-2.5 px-4 rounded-lg bg-[#E1306C] hover:bg-[#C13584] disabled:opacity-50 disabled:pointer-events-none text-white font-medium text-sm transition-colors flex items-center justify-center gap-2"
                     >
                       {postingToInstagram ? (
-                        <>Publicerer…</>
+                        <span className="animate-pulse">{publishStep || 'Publicerer…'}</span>
                       ) : (
                         <>
                           <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" className="shrink-0"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-1.657 0-3-1.343-3-3 0-1.657 1.343-3 3-3s3 1.343 3 3c0 1.657-1.343 3-3 3zm6.205-11.947c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z"/></svg>
@@ -982,7 +985,7 @@ export default function DesignEditorView({ onBack, embedMode }: DesignEditorView
                       className="w-full py-2.5 px-4 rounded-lg bg-[#E1306C] hover:bg-[#C13584] disabled:opacity-50 disabled:pointer-events-none text-white font-medium text-sm transition-colors flex items-center justify-center gap-2"
                       title="Post det viste story-design direkte til Instagram Story"
                     >
-                      {postingToInstagram ? 'Publicerer Story…' : 'Post til Instagram Story'}
+                      {postingToInstagram ? <span className="animate-pulse">{publishStep || 'Publicerer Story…'}</span> : 'Post til Instagram Story'}
                     </button>
                     {instagramConfigured === false && (
                       <p className="text-amber-400/90 text-xs mt-2">Instagram-publish er ikke konfigureret. Sæt INSTAGRAM_ACCOUNT_ID og INSTAGRAM_ACCESS_TOKEN (se docs/INSTAGRAM_PUBLISH.md).</p>

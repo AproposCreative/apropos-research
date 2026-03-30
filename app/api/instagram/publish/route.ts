@@ -5,8 +5,9 @@ export const runtime = 'nodejs';
 
 const INSTAGRAM_API_VERSION = 'v24.0';
 const GRAPH_HOST = 'https://graph.facebook.com';
-const PROCESSING_POLL_MS = 2000;
-const PROCESSING_MAX_POLLS = 45; // ~90s max wait
+const PROCESSING_INITIAL_POLL_MS = 800;
+const PROCESSING_MAX_POLL_MS = 3000;
+const PROCESSING_MAX_WAIT_MS = 60_000; // 60s max wait
 
 function tokenRefreshHint(): string {
   return process.env.NODE_ENV === 'production'
@@ -34,7 +35,10 @@ async function getContainerStatus(containerId: string, accessToken: string) {
 
 async function waitForContainerReady(containerId: string, accessToken: string) {
   let lastStatusCode = '';
-  for (let i = 0; i < PROCESSING_MAX_POLLS; i += 1) {
+  let elapsed = 0;
+  let delay = PROCESSING_INITIAL_POLL_MS;
+
+  while (elapsed < PROCESSING_MAX_WAIT_MS) {
     const { ok, data } = await getContainerStatus(containerId, accessToken);
     if (ok) {
       const statusCode = String(data.status_code || '').toUpperCase();
@@ -51,7 +55,9 @@ async function waitForContainerReady(containerId: string, accessToken: string) {
         };
       }
     }
-    await sleep(PROCESSING_POLL_MS);
+    await sleep(delay);
+    elapsed += delay;
+    delay = Math.min(delay * 1.5, PROCESSING_MAX_POLL_MS);
   }
   return {
     ready: false as const,
@@ -61,6 +67,18 @@ async function waitForContainerReady(containerId: string, accessToken: string) {
   };
 }
 
+async function getPageAccessToken(pageId: string, userToken: string): Promise<string | null> {
+  try {
+    const res = await fetch(
+      `${GRAPH_HOST}/${INSTAGRAM_API_VERSION}/${pageId}?fields=access_token&access_token=${encodeURIComponent(userToken)}`,
+    );
+    const data = await res.json().catch(() => ({}));
+    return data.access_token || null;
+  } catch {
+    return null;
+  }
+}
+
 async function publishToFacebookPagePhoto(args: {
   pageId: string;
   accessToken: string;
@@ -68,18 +86,39 @@ async function publishToFacebookPagePhoto(args: {
   message?: string;
 }) {
   const { pageId, accessToken, imageUrl, message } = args;
+
+  const pageToken = await getPageAccessToken(pageId, accessToken) || accessToken;
+
+  const params = new URLSearchParams();
+  params.set('url', imageUrl);
+  if (message) params.set('message', message);
+  params.set('access_token', pageToken);
+
   const fbRes = await fetch(`${GRAPH_HOST}/${INSTAGRAM_API_VERSION}/${pageId}/photos`, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${accessToken}`,
-    },
-    body: JSON.stringify({
-      url: imageUrl,
-      caption: message || undefined,
-    }),
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: params.toString(),
   });
   const fbData = await fbRes.json().catch(() => ({}));
+
+  if (!fbRes.ok) {
+    const errMsg = String(fbData?.error?.message || '');
+    if (/publish_actions|permission.*not available/i.test(errMsg)) {
+      return {
+        ok: false,
+        data: {
+          error: {
+            message:
+              'Facebook kræver "pages_manage_posts"-tilladelsen. ' +
+              'Generer et nyt Page token i Graph API Explorer med pages_manage_posts, ' +
+              'og opdater INSTAGRAM_ACCESS_TOKEN.',
+          },
+        },
+        status: fbRes.status,
+      };
+    }
+  }
+
   return { ok: fbRes.ok, data: fbData, status: fbRes.status };
 }
 

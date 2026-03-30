@@ -46,8 +46,11 @@ const STORY_BYLINE_LINE_HEIGHT = 1.3;
 const STORY_BYLINE_COLOR = '#000000';
 const DEFAULT_AMIRI_FONT_FAMILY = '"Amiri", Georgia, serif';
 
-/** 2x export for skarp billedkvalitet (mindre pixelering) */
-const EXPORT_SCALE = 2;
+/**
+ * Instagram native max is 1080px wide – no benefit to sending larger.
+ * Scale 1 keeps file size ~3-4x smaller → much faster Firebase upload.
+ */
+const EXPORT_SCALE = 1;
 
 function loadImage(url: string): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
@@ -165,7 +168,18 @@ export async function exportCardToPng(
   if (!ctx) throw new Error('Canvas 2d not available');
   ctx.scale(EXPORT_SCALE, EXPORT_SCALE);
   await ensureDesignFontsLoaded(amiriFontFamily);
+  await renderCardToContext(ctx, data, size, width, height, amiriFontFamily);
+  return canvas.toDataURL('image/png');
+}
 
+async function renderCardToContext(
+  ctx: CanvasRenderingContext2D,
+  data: SocialCardData,
+  size: SocialCardSize,
+  width: number,
+  height: number,
+  amiriFontFamily: string,
+): Promise<void> {
   const isSquare = size === 'square';
   const isStory = size === 'story';
   const padding = isSquare ? SQUARE_H1_PADDING_H : isStory ? STORY_H1_PADDING_H : 56;
@@ -410,33 +424,48 @@ export async function exportCardToPng(
   ctx.textBaseline = 'middle';
   ctx.fillText(ctaText, width / 2, ctaY + ctaH / 2);
   ctx.textBaseline = 'alphabetic';
-
-  return canvas.toDataURL('image/png');
 }
 
-/** Eksporter kort som JPEG (fx til Instagram, som kun accepterer JPEG). */
+/**
+ * Export card as JPEG Blob – uses canvas.toBlob() for zero-copy output.
+ * Skips the old PNG→dataURL→Image→JPEG pipeline entirely.
+ */
+export async function exportCardToJpegBlob(
+  data: SocialCardData,
+  size: SocialCardSize,
+  quality = 0.92,
+  opts?: { amiriFontFamily?: string }
+): Promise<Blob> {
+  const { width, height } = DIMENSIONS[size];
+  const amiriFontFamily = opts?.amiriFontFamily?.trim() || DEFAULT_AMIRI_FONT_FAMILY;
+  const canvas = document.createElement('canvas');
+  canvas.width = width * EXPORT_SCALE;
+  canvas.height = height * EXPORT_SCALE;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) throw new Error('Canvas 2d not available');
+  ctx.scale(EXPORT_SCALE, EXPORT_SCALE);
+  await ensureDesignFontsLoaded(amiriFontFamily);
+
+  await renderCardToContext(ctx, data, size, width, height, amiriFontFamily);
+
+  return new Promise<Blob>((resolve, reject) => {
+    canvas.toBlob(
+      (blob) => (blob ? resolve(blob) : reject(new Error('toBlob failed'))),
+      'image/jpeg',
+      quality,
+    );
+  });
+}
+
+/** Legacy wrapper kept for PNG export / download button. */
 export async function exportCardToJpeg(
   data: SocialCardData,
   size: SocialCardSize,
-  quality = 0.96,
+  quality = 0.92,
   opts?: { amiriFontFamily?: string }
 ): Promise<string> {
-  const pngDataUrl = await exportCardToPng(data, size, opts);
-  const canvas = document.createElement('canvas');
-  const img = new Image();
-  await new Promise<void>((resolve, reject) => {
-    img.onload = () => {
-      canvas.width = img.width;
-      canvas.height = img.height;
-      const ctx = canvas.getContext('2d');
-      if (!ctx) return reject(new Error('Canvas 2d not available'));
-      ctx.drawImage(img, 0, 0);
-      resolve();
-    };
-    img.onerror = () => reject(new Error('Image load failed'));
-    img.src = pngDataUrl;
-  });
-  return canvas.toDataURL('image/jpeg', quality);
+  const blob = await exportCardToJpegBlob(data, size, quality, opts);
+  return URL.createObjectURL(blob);
 }
 
 function roundRect(
