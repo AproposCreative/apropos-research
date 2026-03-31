@@ -2,7 +2,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/lib/auth-context';
 
-export default function MiniMenu({ translateX, onSearch, onToggleReview, onToggleGuide, onToggleWebApps, onToggleShelf, onNewArticle }: { translateX: string; onSearch: ()=>void; onToggleReview: ()=>void; onToggleGuide: ()=>void; onToggleWebApps: ()=>void; onToggleShelf: ()=>void; onNewArticle: ()=>void; }) {
+export default function MiniMenu({ translateX, onSearch, onToggleReview, onToggleWebApps, onToggleShelf, onNewArticle, onToggleSources, onToggleSettings }: { translateX: string; onSearch: ()=>void; onToggleReview: ()=>void; onToggleWebApps: ()=>void; onToggleShelf: ()=>void; onNewArticle: ()=>void; onToggleSources: ()=>void; onToggleSettings: ()=>void; }) {
   const { user, logout } = useAuth();
   const [accountOpen, setAccountOpen] = useState(false);
   const [photoLoaded, setPhotoLoaded] = useState(false);
@@ -24,18 +24,6 @@ export default function MiniMenu({ translateX, onSearch, onToggleReview, onToggl
   })();
   const userName = (user?.displayName || user?.email?.split('@')[0] || 'Bruger');
 
-  const openDashboard = () => {
-    if (typeof window === 'undefined') return;
-    try {
-      const popup = window.open('http://localhost:3001/', '_blank', 'noopener,noreferrer');
-      // Fallback for environments where popup/new-tab handling is unstable.
-      if (!popup) {
-        window.location.assign('http://localhost:3001/');
-      }
-    } catch (error) {
-      console.error('Could not open dashboard:', error);
-    }
-  };
 
   return (
     <div className={`hidden md:block absolute top-[1%] left-[1%] z-50`}>
@@ -52,11 +40,6 @@ export default function MiniMenu({ translateX, onSearch, onToggleReview, onToggl
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-white">
               <path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/>
               <circle cx="12" cy="12" r="3"/>
-            </svg>
-          </button>
-          <button onClick={onToggleGuide} className="w-8 h-8 flex items-center justify-center hover:bg-white/10 rounded-xl transition-colors" title="Guide – Sådan bruger du løsningen">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-white">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
           </button>
           <button onClick={onToggleWebApps} className="w-8 h-8 flex items-center justify-center hover:bg-white/10 rounded-xl transition-colors" title="Web-apps">
@@ -79,10 +62,23 @@ export default function MiniMenu({ translateX, onSearch, onToggleReview, onToggl
           </button>
           <button
             type="button"
-            onClick={openDashboard}
+            onClick={onToggleSources}
             className="w-8 h-8 flex items-center justify-center hover:bg-white/10 rounded-xl transition-colors text-white"
-            title="Dashboard"
-            aria-label="Åbn dashboard"
+            title="Mediekilder"
+            aria-label="Åbn mediekilder"
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-white">
+              <circle cx="12" cy="12" r="10"/>
+              <line x1="2" y1="12" x2="22" y2="12"/>
+              <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
+            </svg>
+          </button>
+          <button
+            type="button"
+            onClick={onToggleSettings}
+            className="w-8 h-8 flex items-center justify-center hover:bg-white/10 rounded-xl transition-colors text-white"
+            title="Indstillinger"
+            aria-label="Indstillinger"
           >
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-white">
               <path d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z"/>

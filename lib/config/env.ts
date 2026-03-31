@@ -16,7 +16,7 @@ const EnvSchema = z.object({
   
   // OpenAI Configuration
   OPENAI_API_KEY: z.string().optional(),
-  OPENAI_MODEL: z.string().default('gpt-4o-mini'),
+  OPENAI_MODEL: z.string().default('gpt-5.4-mini'),
   OPENAI_RESEARCH_MODEL: z.string().optional(),
   
   // Base URL Configuration
@@ -64,6 +64,14 @@ const EnvSchema = z.object({
   // Cron / Security
   CRON_SECRET: z.string().optional(),
 
+  // Research Provider Configuration
+  RESEARCH_PROVIDER: z.enum(['openai_responses', 'legacy_web_search']).default('openai_responses'),
+  RESEARCH_FALLBACK_PROVIDER: z.enum(['legacy_web_search', 'none']).default('legacy_web_search'),
+  RESEARCH_MIN_SOURCES: z.string().default('2').transform(Number).pipe(z.number().int().min(0)),
+  RESEARCH_MIN_CONTEXT_CHARS: z.string().default('240').transform(Number).pipe(z.number().int().min(0)),
+  RESEARCH_TIMEOUT_MS: z.string().default('15000').transform(Number).pipe(z.number().int().min(1000)),
+  RESEARCH_DEBUG_LOG: z.enum(['true', 'false']).default('false'),
+
   // RAGE Ingestion Configuration (CLI)
   RAGE_BASE_URL: z.string().url().default('https://soundvenue.com'),
   RAGE_FEED_PATH: z.string().default('/feed'),
@@ -101,7 +109,7 @@ function parseEnv() {
     // Provide safe defaults for development
     NODE_ENV: (process.env.NODE_ENV as any) || 'development',
     OPENAI_API_KEY: process.env.OPENAI_API_KEY || '',
-    OPENAI_MODEL: process.env.OPENAI_MODEL || 'gpt-4o-mini',
+    OPENAI_MODEL: process.env.OPENAI_MODEL || 'gpt-5.4-mini',
     OPENAI_RESEARCH_MODEL: process.env.OPENAI_RESEARCH_MODEL,
     NEXT_PUBLIC_BASE_URL: process.env.NEXT_PUBLIC_BASE_URL,
     NEXT_PUBLIC_FIREBASE_API_KEY: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
@@ -130,6 +138,12 @@ function parseEnv() {
     GOOGLE_CUSTOM_SEARCH_API_KEY: process.env.GOOGLE_CUSTOM_SEARCH_API_KEY,
     GOOGLE_CUSTOM_SEARCH_ENGINE_ID: process.env.GOOGLE_CUSTOM_SEARCH_ENGINE_ID,
     CRON_SECRET: process.env.CRON_SECRET,
+    RESEARCH_PROVIDER: (process.env.RESEARCH_PROVIDER as any) || 'openai_responses',
+    RESEARCH_FALLBACK_PROVIDER: (process.env.RESEARCH_FALLBACK_PROVIDER as any) || 'legacy_web_search',
+    RESEARCH_MIN_SOURCES: Number(process.env.RESEARCH_MIN_SOURCES || '2'),
+    RESEARCH_MIN_CONTEXT_CHARS: Number(process.env.RESEARCH_MIN_CONTEXT_CHARS || '240'),
+    RESEARCH_TIMEOUT_MS: Number(process.env.RESEARCH_TIMEOUT_MS || '15000'),
+    RESEARCH_DEBUG_LOG: (process.env.RESEARCH_DEBUG_LOG as any) || 'false',
     RAGE_BASE_URL: process.env.RAGE_BASE_URL || 'https://soundvenue.com',
     RAGE_FEED_PATH: process.env.RAGE_FEED_PATH || '/feed',
     RAGE_SITEMAP_INDEX: process.env.RAGE_SITEMAP_INDEX || '/sitemap.xml',

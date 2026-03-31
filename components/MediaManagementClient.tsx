@@ -1,5 +1,6 @@
 'use client';
 import { useState, useEffect } from 'react';
+import { useAuth } from '@/lib/auth-context';
 import AddMediaModal from './AddMediaModal';
 import EditMediaModal from './EditMediaModal';
 
@@ -9,10 +10,12 @@ interface MediaSource {
   baseUrl: string;
   sitemapIndex: string;
   enabled: boolean;
-  addedAt: string;
+  addedAt?: string;
+  createdAt?: string;
 }
 
 export default function MediaManagementClient() {
+  const { user } = useAuth();
   const [sources, setSources] = useState<MediaSource[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAddModal, setShowAddModal] = useState(false);
@@ -20,10 +23,12 @@ export default function MediaManagementClient() {
   const [editingSource, setEditingSource] = useState<MediaSource | null>(null);
   const [error, setError] = useState('');
 
-  // Load media sources
   const loadSources = async () => {
+    if (!user) { setLoading(false); return; }
     try {
-      const response = await fetch('/api/media-sources');
+      const response = await fetch('/api/media-sources', {
+        headers: { 'x-user-id': user.uid },
+      });
       const data = await response.json();
       
       if (!response.ok) {
@@ -49,7 +54,7 @@ export default function MediaManagementClient() {
 
   useEffect(() => {
     loadSources();
-  }, []);
+  }, [user]);
 
   // Handle adding new source
   const handleAddSuccess = (result: any) => {
@@ -88,15 +93,14 @@ export default function MediaManagementClient() {
     window.location.reload();
   };
 
-  // Handle deleting source
   const handleDelete = async (id: string, name: string) => {
-    if (!confirm(`Er du sikker på at du vil fjerne "${name}"?`)) {
-      return;
-    }
+    if (!confirm(`Er du sikker på at du vil fjerne "${name}"?`)) return;
+    if (!user) return;
 
     try {
       const response = await fetch(`/api/media-sources?id=${id}`, {
         method: 'DELETE',
+        headers: { 'x-user-id': user.uid },
       });
 
       const data = await response.json();
@@ -175,7 +179,7 @@ export default function MediaManagementClient() {
                   {source.name}
                 </h3>
                 <p className="text-sm text-slate-500 dark:text-slate-400">
-                  Tilføjet {new Date(source.addedAt).toLocaleDateString('da-DK')}
+                  Tilføjet {new Date(source.createdAt || source.addedAt || Date.now()).toLocaleDateString('da-DK')}
                 </p>
               </div>
               <div className="flex items-center gap-2">

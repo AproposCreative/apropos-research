@@ -1,390 +1,214 @@
 import { NextRequest, NextResponse } from 'next/server';
-import fs from 'fs';
-import path from 'path';
+import { getAdminDb } from '@/lib/firebase-admin';
 import { logger, createRequestLogger } from '@/lib/logger';
 import { getRequestId } from '@/lib/api/request-utils';
 import { createErrorResponse, createSuccessResponse, ErrorCode } from '@/lib/api/types';
 
-interface MediaSource {
+interface MediaSourceDoc {
   id: string;
+  userId: string;
   name: string;
   baseUrl: string;
   sitemapIndex: string;
   enabled: boolean;
-  addedAt: string;
+  createdAt: string;
 }
 
-const MEDIA_SOURCES_FILE = path.join(process.cwd(), 'data', 'media-sources.json');
-
-// Ensure data directory exists
-const dataDir = path.dirname(MEDIA_SOURCES_FILE);
-if (!fs.existsSync(dataDir)) {
-  fs.mkdirSync(dataDir, { recursive: true });
-}
-
-// Default media sources
-const defaultMediaSources: MediaSource[] = [
-  {
-    id: 'soundvenue',
-    name: 'Soundvenue',
-    baseUrl: 'https://soundvenue.com',
-    sitemapIndex: '/sitemap.xml',
-    enabled: true,
-    addedAt: new Date().toISOString()
-  },
-  {
-    id: 'gaffa',
-    name: 'GAFFA',
-    baseUrl: 'https://gaffa.dk',
-    sitemapIndex: '/sitemap',
-    enabled: true,
-    addedAt: new Date().toISOString()
-  },
-  {
-    id: 'berlingske',
-    name: 'BERLINGSKE',
-    baseUrl: 'https://www.berlingske.dk',
-    sitemapIndex: '/sitemap.xml/news',
-    enabled: true,
-    addedAt: new Date().toISOString()
-  },
-  {
-    id: 'bt',
-    name: 'BT',
-    baseUrl: 'https://www.bt.dk',
-    sitemapIndex: '/sitemap.xml/news',
-    enabled: true,
-    addedAt: new Date().toISOString()
-  }
+const DEFAULT_SOURCES: Omit<MediaSourceDoc, 'id' | 'userId' | 'createdAt'>[] = [
+  { name: 'Soundvenue', baseUrl: 'https://soundvenue.com', sitemapIndex: '/sitemap.xml', enabled: true },
+  { name: 'GAFFA', baseUrl: 'https://gaffa.dk', sitemapIndex: '/sitemap', enabled: true },
+  { name: 'BERLINGSKE', baseUrl: 'https://www.berlingske.dk', sitemapIndex: '/sitemap.xml/news', enabled: true },
+  { name: 'BT', baseUrl: 'https://www.bt.dk', sitemapIndex: '/sitemap.xml/news', enabled: true },
 ];
 
-// Load media sources from file
-function loadMediaSources(): MediaSource[] {
-  try {
-    if (fs.existsSync(MEDIA_SOURCES_FILE)) {
-      const data = fs.readFileSync(MEDIA_SOURCES_FILE, 'utf8');
-      return JSON.parse(data);
-    }
-  } catch (error) {
-    logger.error('Error loading media sources', error instanceof Error ? error : new Error(String(error)));
-  }
-  return defaultMediaSources;
+function getUserIdFromRequest(req: NextRequest): string | null {
+  return req.headers.get('x-user-id') || new URL(req.url).searchParams.get('userId') || null;
 }
 
-// Save media sources to file
-function saveMediaSources(sources: MediaSource[]): void {
-  try {
-    fs.writeFileSync(MEDIA_SOURCES_FILE, JSON.stringify(sources, null, 2));
-  } catch (error) {
-    logger.error('Error saving media sources', error instanceof Error ? error : new Error(String(error)));
-  }
-}
-
-export async function GET(request: Request) {
-  const requestId = getRequestId(request as any);
+export async function GET(request: NextRequest) {
+  const requestId = getRequestId(request);
   const requestLogger = createRequestLogger(requestId);
-  
-  const sources = loadMediaSources();
-  requestLogger.info('Media sources loaded', { count: sources.length });
-  
-  return NextResponse.json(createSuccessResponse({ sources }, { requestId }));
+  const userId = getUserIdFromRequest(request);
+
+  const db = getAdminDb();
+  if (!db || !userId) {
+    requestLogger.info('Media sources: returning defaults (no db or userId)');
+    return NextResponse.json(createSuccessResponse({
+      sources: DEFAULT_SOURCES.map((s, i) => ({ ...s, id: s.name.toLowerCase().replace(/[^a-z0-9]/g, '-'), addedAt: new Date().toISOString() })),
+    }, { requestId }));
+  }
+
+  try {
+    const snap = await db.collection('mediaSources').where('userId', '==', userId).get();
+
+    if (snap.empty) {
+      const batch = db.batch();
+      const seeded: MediaSourceDoc[] = [];
+      for (const s of DEFAULT_SOURCES) {
+        const id = `${userId}_${s.name.toLowerCase().replace(/[^a-z0-9]/g, '-')}`;
+        const doc: MediaSourceDoc = { ...s, id, userId, createdAt: new Date().toISOString() };
+        batch.set(db.collection('mediaSources').doc(id), doc);
+        seeded.push(doc);
+      }
+      await batch.commit();
+      requestLogger.info('Seeded default media sources for user', { userId, count: seeded.length });
+      return NextResponse.json(createSuccessResponse({ sources: seeded }, { requestId }));
+    }
+
+    const sources = snap.docs.map(d => d.data() as MediaSourceDoc);
+    sources.sort((a, b) => a.name.localeCompare(b.name));
+    requestLogger.info('Media sources loaded', { userId, count: sources.length });
+    return NextResponse.json(createSuccessResponse({ sources }, { requestId }));
+  } catch (error) {
+    requestLogger.error('Error loading media sources', error instanceof Error ? error : new Error(String(error)));
+    return NextResponse.json(createSuccessResponse({
+      sources: DEFAULT_SOURCES.map((s) => ({ ...s, id: s.name.toLowerCase().replace(/[^a-z0-9]/g, '-'), addedAt: new Date().toISOString() })),
+    }, { requestId }));
+  }
 }
 
 export async function POST(req: NextRequest) {
   const requestId = getRequestId(req);
   const requestLogger = createRequestLogger(requestId);
-  
+  const userId = getUserIdFromRequest(req);
+
+  if (!userId) {
+    return NextResponse.json(createErrorResponse('userId er påkrævet', { statusCode: 401, errorCode: ErrorCode.AUTHENTICATION, requestId }), { status: 401 });
+  }
+
+  const db = getAdminDb();
+  if (!db) {
+    return NextResponse.json(createErrorResponse('Database ikke tilgængelig', { statusCode: 503, errorCode: ErrorCode.INTERNAL_ERROR, requestId }), { status: 503 });
+  }
+
   try {
     const body = await req.json();
     const { name, baseUrl, sitemapIndex } = body;
 
-    // Validate input
     if (!name || !baseUrl || !sitemapIndex) {
-      return NextResponse.json(
-        { error: 'Name, baseUrl, and sitemapIndex are required' },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: 'Name, baseUrl, and sitemapIndex are required' }, { status: 400 });
     }
 
-    // Validate URL format
-    try {
-      new URL(baseUrl);
-      new URL(sitemapIndex, baseUrl);
-    } catch (error) {
-      return NextResponse.json(
-        { error: 'Invalid URL format' },
-        { status: 400 }
-      );
+    try { new URL(baseUrl); new URL(sitemapIndex, baseUrl); } catch {
+      return NextResponse.json({ error: 'Invalid URL format' }, { status: 400 });
     }
 
-    // Load current sources
-    const mediaSources = loadMediaSources();
+    const id = `${userId}_${name.toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-')}`;
 
-    // Generate unique ID
-    const id = name.toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-');
-    
-    // Check if already exists
-    if (mediaSources.find(source => source.id === id)) {
-      return NextResponse.json(
-        { error: 'Media source with this name already exists' },
-        { status: 409 }
-      );
+    const existing = await db.collection('mediaSources').doc(id).get();
+    if (existing.exists) {
+      return NextResponse.json({ error: 'Media source with this name already exists' }, { status: 409 });
     }
 
-    // Test sitemap accessibility with more flexible approach
     try {
       const sitemapUrl = new URL(sitemapIndex, baseUrl).toString();
-      
-      // Try HEAD first
-      let response = await fetch(sitemapUrl, { 
-        method: 'HEAD',
-        headers: {
-          'User-Agent': 'Apropos Research Bot 1.0'
-        }
-      });
-      
-      // If HEAD fails, try GET
+      let response = await fetch(sitemapUrl, { method: 'HEAD', headers: { 'User-Agent': 'Apropos Research Bot 1.0' } });
       if (!response.ok && response.status !== 302 && response.status !== 301) {
-        response = await fetch(sitemapUrl, {
-          headers: {
-            'User-Agent': 'Apropos Research Bot 1.0'
-          },
-          redirect: 'follow'
-        });
+        response = await fetch(sitemapUrl, { headers: { 'User-Agent': 'Apropos Research Bot 1.0' }, redirect: 'follow' });
       }
-      
       if (!response.ok) {
-        return NextResponse.json(
-          { error: 'Sitemap not accessible or invalid' },
-          { status: 400 }
-        );
+        return NextResponse.json({ error: 'Sitemap not accessible or invalid' }, { status: 400 });
       }
-
-          // More flexible content type checking - accept XML and RSS feeds
-          const contentType = response.headers.get('content-type');
-          if (contentType && !contentType.includes('xml') && !contentType.includes('text') && !contentType.includes('rss')) {
-            // If we have a specific non-XML content type, it might be invalid
-            // But we'll be more lenient for now
-          }
-    } catch (error) {
-      return NextResponse.json(
-        { error: 'Cannot access sitemap URL' },
-        { status: 400 }
-      );
+    } catch {
+      return NextResponse.json({ error: 'Cannot access sitemap URL' }, { status: 400 });
     }
 
-    // Create new media source
-    const newSource: MediaSource = {
-      id,
-      name,
-      baseUrl,
-      sitemapIndex,
-      enabled: true,
-      addedAt: new Date().toISOString()
-    };
+    const newSource: MediaSourceDoc = { id, userId, name, baseUrl, sitemapIndex, enabled: true, createdAt: new Date().toISOString() };
+    await db.collection('mediaSources').doc(id).set(newSource);
 
-    // Add to sources and save
-    const updatedSources = [...mediaSources, newSource];
-    saveMediaSources(updatedSources);
-
-    requestLogger.info('Media source added', { id: newSource.id, name });
-
-    return NextResponse.json(
-      createSuccessResponse({
-        source: newSource,
-        message: `${name} er blevet tilføjet som mediekilde`
-      }, { requestId })
-    );
-
+    requestLogger.info('Media source added', { id, name, userId });
+    return NextResponse.json(createSuccessResponse({ source: newSource, message: `${name} er blevet tilføjet som mediekilde` }, { requestId }));
   } catch (error) {
-    const errorObj = error instanceof Error ? error : new Error(String(error));
-    requestLogger.error('Error adding media source', errorObj);
-    return NextResponse.json(
-      createErrorResponse('Internal server error', {
-        statusCode: 500,
-        errorCode: ErrorCode.INTERNAL_ERROR,
-        requestId,
-      }),
-      { status: 500 }
-    );
+    requestLogger.error('Error adding media source', error instanceof Error ? error : new Error(String(error)));
+    return NextResponse.json(createErrorResponse('Internal server error', { statusCode: 500, errorCode: ErrorCode.INTERNAL_ERROR, requestId }), { status: 500 });
   }
 }
 
 export async function PUT(req: NextRequest) {
   const requestId = getRequestId(req);
   const requestLogger = createRequestLogger(requestId);
-  
-  try {
-    const { searchParams } = new URL(req.url);
-    const id = searchParams.get('id');
+  const userId = getUserIdFromRequest(req);
 
-    if (!id) {
-      return NextResponse.json(
-        { error: 'Media source ID is required' },
-        { status: 400 }
-      );
-    }
+  if (!userId) {
+    return NextResponse.json(createErrorResponse('userId er påkrævet', { statusCode: 401, errorCode: ErrorCode.AUTHENTICATION, requestId }), { status: 401 });
+  }
+
+  const db = getAdminDb();
+  if (!db) {
+    return NextResponse.json(createErrorResponse('Database ikke tilgængelig', { statusCode: 503, errorCode: ErrorCode.INTERNAL_ERROR, requestId }), { status: 503 });
+  }
+
+  try {
+    const id = new URL(req.url).searchParams.get('id');
+    if (!id) return NextResponse.json({ error: 'Media source ID is required' }, { status: 400 });
 
     const body = await req.json();
     const { name, baseUrl, sitemapIndex } = body;
+    if (!name || !baseUrl || !sitemapIndex) return NextResponse.json({ error: 'Name, baseUrl, and sitemapIndex are required' }, { status: 400 });
 
-    // Validate input
-    if (!name || !baseUrl || !sitemapIndex) {
-      return NextResponse.json(
-        { error: 'Name, baseUrl, and sitemapIndex are required' },
-        { status: 400 }
-      );
+    try { new URL(baseUrl); new URL(sitemapIndex, baseUrl); } catch {
+      return NextResponse.json({ error: 'Invalid URL format' }, { status: 400 });
     }
 
-    // Validate URL format
-    try {
-      new URL(baseUrl);
-      new URL(sitemapIndex, baseUrl);
-    } catch (error) {
-      return NextResponse.json(
-        { error: 'Invalid URL format' },
-        { status: 400 }
-      );
-    }
+    const docRef = db.collection('mediaSources').doc(id);
+    const docSnap = await docRef.get();
+    if (!docSnap.exists) return NextResponse.json({ error: 'Media source not found' }, { status: 404 });
 
-    // Load current sources
-    const mediaSources = loadMediaSources();
-    const sourceIndex = mediaSources.findIndex(source => source.id === id);
-    
-    if (sourceIndex === -1) {
-      return NextResponse.json(
-        { error: 'Media source not found' },
-        { status: 404 }
-      );
-    }
+    const existing = docSnap.data() as MediaSourceDoc;
+    if (existing.userId !== userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
 
-    // Test sitemap accessibility with more flexible approach
     try {
       const sitemapUrl = new URL(sitemapIndex, baseUrl).toString();
-      
-      // Try HEAD first
-      let response = await fetch(sitemapUrl, { 
-        method: 'HEAD',
-        headers: {
-          'User-Agent': 'Apropos Research Bot 1.0'
-        }
-      });
-      
-      // If HEAD fails, try GET
+      let response = await fetch(sitemapUrl, { method: 'HEAD', headers: { 'User-Agent': 'Apropos Research Bot 1.0' } });
       if (!response.ok && response.status !== 302 && response.status !== 301) {
-        response = await fetch(sitemapUrl, {
-          headers: {
-            'User-Agent': 'Apropos Research Bot 1.0'
-          },
-          redirect: 'follow'
-        });
+        response = await fetch(sitemapUrl, { headers: { 'User-Agent': 'Apropos Research Bot 1.0' }, redirect: 'follow' });
       }
-      
-      if (!response.ok) {
-        return NextResponse.json(
-          { error: 'Sitemap not accessible or invalid' },
-          { status: 400 }
-        );
-      }
-
-          // More flexible content type checking - accept XML and RSS feeds
-          const contentType = response.headers.get('content-type');
-          if (contentType && !contentType.includes('xml') && !contentType.includes('text') && !contentType.includes('rss')) {
-            // If we have a specific non-XML content type, it might be invalid
-            // But we'll be more lenient for now
-          }
-    } catch (error) {
-      return NextResponse.json(
-        { error: 'Cannot access sitemap URL' },
-        { status: 400 }
-      );
+      if (!response.ok) return NextResponse.json({ error: 'Sitemap not accessible or invalid' }, { status: 400 });
+    } catch {
+      return NextResponse.json({ error: 'Cannot access sitemap URL' }, { status: 400 });
     }
 
-    // Update the media source
-    const updatedSource: MediaSource = {
-      ...mediaSources[sourceIndex],
-      name,
-      baseUrl,
-      sitemapIndex,
-    };
+    await docRef.update({ name, baseUrl, sitemapIndex });
 
-    // Save updated sources
-    const updatedSources = [...mediaSources];
-    updatedSources[sourceIndex] = updatedSource;
-    saveMediaSources(updatedSources);
-
-    requestLogger.info('Media source updated', { id, name });
-
-    return NextResponse.json(
-      createSuccessResponse({
-        source: updatedSource,
-        message: `${name} er blevet opdateret`
-      }, { requestId })
-    );
-
+    const updatedSource = { ...existing, name, baseUrl, sitemapIndex };
+    requestLogger.info('Media source updated', { id, name, userId });
+    return NextResponse.json(createSuccessResponse({ source: updatedSource, message: `${name} er blevet opdateret` }, { requestId }));
   } catch (error) {
-    const errorObj = error instanceof Error ? error : new Error(String(error));
-    requestLogger.error('Error updating media source', errorObj);
-    return NextResponse.json(
-      createErrorResponse('Internal server error', {
-        statusCode: 500,
-        errorCode: ErrorCode.INTERNAL_ERROR,
-        requestId,
-      }),
-      { status: 500 }
-    );
+    requestLogger.error('Error updating media source', error instanceof Error ? error : new Error(String(error)));
+    return NextResponse.json(createErrorResponse('Internal server error', { statusCode: 500, errorCode: ErrorCode.INTERNAL_ERROR, requestId }), { status: 500 });
   }
 }
 
 export async function DELETE(req: NextRequest) {
   const requestId = getRequestId(req);
   const requestLogger = createRequestLogger(requestId);
-  
+  const userId = getUserIdFromRequest(req);
+
+  if (!userId) {
+    return NextResponse.json(createErrorResponse('userId er påkrævet', { statusCode: 401, errorCode: ErrorCode.AUTHENTICATION, requestId }), { status: 401 });
+  }
+
+  const db = getAdminDb();
+  if (!db) {
+    return NextResponse.json(createErrorResponse('Database ikke tilgængelig', { statusCode: 503, errorCode: ErrorCode.INTERNAL_ERROR, requestId }), { status: 503 });
+  }
+
   try {
-    const { searchParams } = new URL(req.url);
-    const id = searchParams.get('id');
+    const id = new URL(req.url).searchParams.get('id');
+    if (!id) return NextResponse.json({ error: 'Media source ID is required' }, { status: 400 });
 
-    if (!id) {
-      return NextResponse.json(
-        { error: 'Media source ID is required' },
-        { status: 400 }
-      );
-    }
+    const docRef = db.collection('mediaSources').doc(id);
+    const docSnap = await docRef.get();
+    if (!docSnap.exists) return NextResponse.json({ error: 'Media source not found' }, { status: 404 });
 
-    // Load current sources
-    const mediaSources = loadMediaSources();
-    const sourceIndex = mediaSources.findIndex(source => source.id === id);
-    
-    if (sourceIndex === -1) {
-      return NextResponse.json(
-        { error: 'Media source not found' },
-        { status: 404 }
-      );
-    }
+    const existing = docSnap.data() as MediaSourceDoc;
+    if (existing.userId !== userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
 
-    const removedSource = mediaSources[sourceIndex];
-    const updatedSources = mediaSources.filter(source => source.id !== id);
-    saveMediaSources(updatedSources);
-
-    requestLogger.info('Media source removed', { id, name: removedSource.name });
-
-    return NextResponse.json(
-      createSuccessResponse({
-        message: `${removedSource.name} er blevet fjernet`,
-        source: removedSource
-      }, { requestId })
-    );
-
+    await docRef.delete();
+    requestLogger.info('Media source removed', { id, name: existing.name, userId });
+    return NextResponse.json(createSuccessResponse({ message: `${existing.name} er blevet fjernet`, source: existing }, { requestId }));
   } catch (error) {
-    const errorObj = error instanceof Error ? error : new Error(String(error));
-    requestLogger.error('Error removing media source', errorObj);
-    return NextResponse.json(
-      createErrorResponse('Internal server error', {
-        statusCode: 500,
-        errorCode: ErrorCode.INTERNAL_ERROR,
-        requestId,
-      }),
-      { status: 500 }
-    );
+    requestLogger.error('Error removing media source', error instanceof Error ? error : new Error(String(error)));
+    return NextResponse.json(createErrorResponse('Internal server error', { statusCode: 500, errorCode: ErrorCode.INTERNAL_ERROR, requestId }), { status: 500 });
   }
 }

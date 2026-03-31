@@ -70,6 +70,8 @@ interface MainChatPanelProps {
   onOpenDraftsPanel?: () => void;
   onOpenReviewPanel?: () => void;
   onClose?: () => void;
+  onOpenSourcesPanel?: () => void;
+  onOpenSettingsPanel?: () => void;
   lastFailedMessage?: string | null;
   onRetryLast?: () => void;
 }
@@ -95,6 +97,8 @@ export default function MainChatPanel({
   onOpenDraftsPanel,
   onOpenReviewPanel,
   onClose,
+  onOpenSourcesPanel,
+  onOpenSettingsPanel,
   lastFailedMessage = null,
   onRetryLast,
 }: MainChatPanelProps) {
@@ -1622,16 +1626,30 @@ const fallbackThinkingSteps: ThinkingStep[] = [
                 <div className="border-t border-white/10" />
                 <button
                   className="w-full px-4 py-3 flex items-center gap-3 text-sm text-white/90 bg-white/[0.03] hover:bg-white/10 transition-colors"
-                  onClick={() => { closeMobileMenu(); window.location.href = '/settings'; }}
+                  onClick={() => { closeMobileMenu(); if (onOpenSourcesPanel) onOpenSourcesPanel(); }}
                 >
                   <div className="w-6 h-6 rounded-md bg-white/10 flex items-center justify-center">
                     <svg className="w-4 h-4 text-white/90" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.89 3.31.877 2.421 2.421a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.89 1.543-.877 3.31-2.421 2.421a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.89-3.31-.877-2.421-2.421a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.89-1.543.877-3.31 2.421-2.421.9.519 2.045.168 2.573-1.066z" />
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                      <circle cx="12" cy="12" r="10" strokeWidth="2"/>
+                      <line x1="2" y1="12" x2="22" y2="12" strokeWidth="2"/>
+                      <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" strokeWidth="2"/>
                     </svg>
                   </div>
-                  <span>Settings</span>
+                  <span>Mediekilder</span>
                 </button>
+                <button
+                  className="w-full px-4 py-3 flex items-center gap-3 text-sm text-white/90 bg-white/[0.03] hover:bg-white/10 transition-colors"
+                  onClick={() => { closeMobileMenu(); if (onOpenSettingsPanel) onOpenSettingsPanel(); }}
+                >
+                  <div className="w-6 h-6 rounded-md bg-white/10 flex items-center justify-center">
+                    <svg className="w-4 h-4 text-white/90" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z"/>
+                      <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+                    </svg>
+                  </div>
+                  <span>Indstillinger</span>
+                </button>
+                <div className="border-t border-white/10" />
                 <button
                   className="w-full px-4 py-3 flex items-center gap-3 text-sm text-red-400 hover:bg-white/10 transition-colors"
                   onClick={async () => { try { await logout(); } catch(e) { console.error(e); } finally { closeMobileMenu(); } }}

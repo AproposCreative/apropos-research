@@ -3,6 +3,13 @@ import { logger, createRequestLogger } from '@/lib/logger';
 import { getRequestId } from '@/lib/api/request-utils';
 import { createErrorResponse, createSuccessResponse, ErrorCode } from '@/lib/api/types';
 
+interface SearchResult {
+  title: string;
+  content: string;
+  source: string;
+  url: string | null;
+}
+
 export async function POST(request: NextRequest) {
   const requestId = getRequestId(request);
   const requestLogger = createRequestLogger(requestId);
@@ -25,7 +32,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Use a more reliable search approach with multiple sources
     const searchResults = await performWebSearch(query, maxResults, requestLogger);
 
     requestLogger.info('Web search completed', {
@@ -55,126 +61,121 @@ export async function POST(request: NextRequest) {
   }
 }
 
-async function performWebSearch(query: string, maxResults: number, logger: ReturnType<typeof createRequestLogger>): Promise<any[]> {
-  const results = [];
-  
+async function searchGoogle(query: string, logger: ReturnType<typeof createRequestLogger>): Promise<SearchResult[]> {
+  const apiKey = process.env.GOOGLE_CUSTOM_SEARCH_API_KEY;
+  const cx = process.env.GOOGLE_CUSTOM_SEARCH_ENGINE_ID;
+  if (!apiKey || !cx) return [];
+
   try {
-    // Try multiple search approaches in parallel for faster results
-    
-    // 1. Wikipedia API (both Danish and English) - highest priority
-    const wikiPromises = [
-      fetch(`https://da.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(query)}`).catch(() => null),
-      fetch(`https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(query)}`).catch(() => null)
-    ];
-    
-    try {
-      const [wikiDaResponse, wikiEnResponse] = await Promise.all(wikiPromises);
-      
-      // Prefer Danish Wikipedia
-      if (wikiDaResponse?.ok) {
-        const wikiDaData = await wikiDaResponse.json();
-        if (wikiDaData.extract) {
-          results.push({
-            title: wikiDaData.title || 'Wikipedia',
-            content: wikiDaData.extract,
-            source: 'Wikipedia (Dansk)',
-            url: wikiDaData.content_urls?.desktop?.page
-          });
-        }
-      } else if (wikiEnResponse?.ok) {
-        const wikiEnData = await wikiEnResponse.json();
-        if (wikiEnData.extract) {
-          results.push({
-            title: wikiEnData.title || 'Wikipedia',
-            content: wikiEnData.extract,
-            source: 'Wikipedia (English)',
-            url: wikiEnData.content_urls?.desktop?.page
-          });
-        }
-      }
-    } catch (error) {
-      logger.debug('Wikipedia search failed', { error: String(error) });
+    const url = `https://www.googleapis.com/customsearch/v1?key=${apiKey}&cx=${cx}&q=${encodeURIComponent(query)}&num=5&lr=lang_da|lang_en`;
+    const res = await fetch(url);
+    if (!res.ok) {
+      logger.debug('Google Custom Search failed', { status: res.status });
+      return [];
     }
-    
-    // 2. DuckDuckGo Instant Answer API
-    try {
-      const ddgUrl = `https://api.duckduckgo.com/?q=${encodeURIComponent(query)}&format=json&no_html=1&skip_disambig=1`;
-      const ddgResponse = await fetch(ddgUrl);
-      
-      if (ddgResponse.ok) {
-        const ddgData = await ddgResponse.json();
-        
-        if (ddgData.Abstract) {
-          results.push({
-            title: ddgData.Heading || 'Abstract',
-            content: ddgData.Abstract,
-            source: 'DuckDuckGo',
-            url: ddgData.AbstractURL
-          });
-        }
-        
-        if (ddgData.Definition) {
-          results.push({
-            title: 'Definition',
-            content: ddgData.Definition,
-            source: 'DuckDuckGo',
-            url: ddgData.DefinitionURL
-          });
-        }
-      }
-    } catch (error) {
-      logger.debug('DuckDuckGo search failed', { error: String(error) });
-    }
-    
-    // 3. Wikipedia Search API (for finding related articles)
-    try {
-      const wikiSearchUrl = `https://da.wikipedia.org/api/rest_v1/page/search/${encodeURIComponent(query)}?limit=3`;
-      const wikiSearchResponse = await fetch(wikiSearchUrl);
-      
-      if (wikiSearchResponse.ok) {
-        const wikiSearchData = await wikiSearchResponse.json();
-        if (wikiSearchData.pages && Array.isArray(wikiSearchData.pages)) {
-          for (const page of wikiSearchData.pages.slice(0, 2)) {
-            // Skip if we already have this page
-            if (!results.some(r => r.title === page.title)) {
-              try {
-                const pageSummaryUrl = `https://da.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(page.title)}`;
-                const pageSummaryResponse = await fetch(pageSummaryUrl);
-                if (pageSummaryResponse.ok) {
-                  const pageSummary = await pageSummaryResponse.json();
-                  if (pageSummary.extract) {
-                    results.push({
-                      title: pageSummary.title || 'Wikipedia',
-                      content: pageSummary.extract.substring(0, 500),
-                      source: 'Wikipedia (Dansk)',
-                      url: pageSummary.content_urls?.desktop?.page
-                    });
-                  }
-                }
-              } catch (error) {
-                // Skip this page
-              }
-            }
-          }
-        }
-      }
-    } catch (error) {
-      logger.debug('Wikipedia search API failed', { error: String(error) });
-    }
-    
-    // 4. If still no results, create contextual guidance
-    if (results.length === 0) {
-      results.push({
-        title: 'Research Guidance',
-        content: `For at skrive en dybdegående artikel om "${query}", anbefaler jeg at du:\n\n1. Specificerer hvilke aspekter du vil fokusere på\n2. Nævner konkrete data eller statistikker du kender\n3. Beskriver din vinkel eller tilgang til emnet\n\nDette hjælper mig med at skrive en mere præcis og faktuel artikel.`,
-        source: 'AI Guidance',
-        url: null
-      });
-    }
-    
+    const data = await res.json();
+    const items: any[] = data.items || [];
+    return items.map((item: any) => ({
+      title: item.title || '',
+      content: item.snippet || '',
+      source: 'Google',
+      url: item.link || null,
+    }));
   } catch (error) {
-    logger.error('Search failed', error instanceof Error ? error : new Error(String(error)));
+    logger.debug('Google Custom Search error', { error: String(error) });
+    return [];
   }
-  
-  return results.slice(0, maxResults);
+}
+
+async function searchWikipedia(query: string, logger: ReturnType<typeof createRequestLogger>): Promise<SearchResult[]> {
+  const results: SearchResult[] = [];
+
+  const [wikiDaResponse, wikiEnResponse] = await Promise.all([
+    fetch(`https://da.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(query)}`).catch(() => null),
+    fetch(`https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(query)}`).catch(() => null),
+  ]);
+
+  try {
+    if (wikiDaResponse?.ok) {
+      const d = await wikiDaResponse.json();
+      if (d.extract) results.push({ title: d.title || 'Wikipedia', content: d.extract, source: 'Wikipedia (Dansk)', url: d.content_urls?.desktop?.page || null });
+    }
+    if (wikiEnResponse?.ok) {
+      const d = await wikiEnResponse.json();
+      if (d.extract && !results.some(r => r.title === d.title)) {
+        results.push({ title: d.title || 'Wikipedia', content: d.extract, source: 'Wikipedia (English)', url: d.content_urls?.desktop?.page || null });
+      }
+    }
+  } catch (error) {
+    logger.debug('Wikipedia search failed', { error: String(error) });
+  }
+
+  try {
+    const searchRes = await fetch(`https://da.wikipedia.org/api/rest_v1/page/search/${encodeURIComponent(query)}?limit=3`);
+    if (searchRes.ok) {
+      const searchData = await searchRes.json();
+      for (const page of (searchData.pages || []).slice(0, 2)) {
+        if (results.some(r => r.title === page.title)) continue;
+        try {
+          const summaryRes = await fetch(`https://da.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(page.title)}`);
+          if (summaryRes.ok) {
+            const s = await summaryRes.json();
+            if (s.extract) results.push({ title: s.title || 'Wikipedia', content: s.extract.substring(0, 500), source: 'Wikipedia (Dansk)', url: s.content_urls?.desktop?.page || null });
+          }
+        } catch { /* skip */ }
+      }
+    }
+  } catch (error) {
+    logger.debug('Wikipedia search API failed', { error: String(error) });
+  }
+
+  return results;
+}
+
+async function searchDuckDuckGo(query: string, logger: ReturnType<typeof createRequestLogger>): Promise<SearchResult[]> {
+  const results: SearchResult[] = [];
+  try {
+    const ddgUrl = `https://api.duckduckgo.com/?q=${encodeURIComponent(query)}&format=json&no_html=1&skip_disambig=1`;
+    const res = await fetch(ddgUrl);
+    if (res.ok) {
+      const d = await res.json();
+      if (d.Abstract) results.push({ title: d.Heading || 'Abstract', content: d.Abstract, source: 'DuckDuckGo', url: d.AbstractURL || null });
+      if (d.Definition) results.push({ title: 'Definition', content: d.Definition, source: 'DuckDuckGo', url: d.DefinitionURL || null });
+    }
+  } catch (error) {
+    logger.debug('DuckDuckGo search failed', { error: String(error) });
+  }
+  return results;
+}
+
+async function performWebSearch(query: string, maxResults: number, logger: ReturnType<typeof createRequestLogger>): Promise<SearchResult[]> {
+  const seen = new Set<string>();
+  const dedup = (items: SearchResult[]): SearchResult[] =>
+    items.filter(r => {
+      const key = (r.title + r.url).toLowerCase();
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+
+  // Run all sources in parallel
+  const [googleResults, wikiResults, ddgResults] = await Promise.all([
+    searchGoogle(query, logger),
+    searchWikipedia(query, logger),
+    searchDuckDuckGo(query, logger),
+  ]);
+
+  // Google first (richest snippets), then Wikipedia (authoritative), then DuckDuckGo
+  const combined = dedup([...googleResults, ...wikiResults, ...ddgResults]);
+
+  if (combined.length === 0) {
+    combined.push({
+      title: 'Research Guidance',
+      content: `Ingen søgeresultater for "${query}". Specificér aspekter, konkrete data eller din vinkel for en mere præcis artikel.`,
+      source: 'AI Guidance',
+      url: null,
+    });
+  }
+
+  return combined.slice(0, maxResults);
 }

@@ -47,6 +47,99 @@ export interface ExportedArticle {
   exportedAt: Date;
 }
 
+// Media Sources (per-user)
+export interface MediaSource {
+  id: string;
+  userId: string;
+  name: string;
+  baseUrl: string;
+  sitemapIndex: string;
+  enabled: boolean;
+  createdAt: Date;
+}
+
+export const saveMediaSource = async (userId: string, source: Omit<MediaSource, 'id' | 'userId' | 'createdAt'> & { id?: string }) => {
+  try {
+    const id = source.id || `source_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    const ref = doc(db, 'mediaSources', id);
+    const payload = {
+      ...source,
+      id,
+      userId,
+      createdAt: new Date(),
+    };
+    await setDoc(ref, payload, { merge: true });
+    return id;
+  } catch (error) {
+    console.error('Error saving media source:', error);
+    throw error;
+  }
+};
+
+export const getUserMediaSources = async (userId: string): Promise<MediaSource[]> => {
+  try {
+    const colRef = collection(db, 'mediaSources');
+    const q = query(colRef, where('userId', '==', userId));
+    const snap = await getDocs(q);
+    const sources: MediaSource[] = [];
+    snap.forEach((d) => {
+      const data = d.data() as any;
+      sources.push({
+        ...data,
+        createdAt: data.createdAt?.toDate ? data.createdAt.toDate() : new Date(data.createdAt || Date.now()),
+      });
+    });
+    return sources.sort((a, b) => a.name.localeCompare(b.name));
+  } catch (error) {
+    console.error('Error getting user media sources:', error);
+    return [];
+  }
+};
+
+export const updateMediaSource = async (sourceId: string, updates: Partial<MediaSource>) => {
+  try {
+    const ref = doc(db, 'mediaSources', sourceId);
+    const clean = { ...updates };
+    delete (clean as any).id;
+    delete (clean as any).userId;
+    delete (clean as any).createdAt;
+    await updateDoc(ref, clean);
+  } catch (error) {
+    console.error('Error updating media source:', error);
+    throw error;
+  }
+};
+
+export const deleteMediaSource = async (sourceId: string) => {
+  try {
+    const ref = doc(db, 'mediaSources', sourceId);
+    await deleteDoc(ref);
+  } catch (error) {
+    console.error('Error deleting media source:', error);
+    throw error;
+  }
+};
+
+export const getAllMediaSources = async (): Promise<MediaSource[]> => {
+  try {
+    const colRef = collection(db, 'mediaSources');
+    const q = query(colRef, where('enabled', '==', true));
+    const snap = await getDocs(q);
+    const sources: MediaSource[] = [];
+    snap.forEach((d) => {
+      const data = d.data() as any;
+      sources.push({
+        ...data,
+        createdAt: data.createdAt?.toDate ? data.createdAt.toDate() : new Date(data.createdAt || Date.now()),
+      });
+    });
+    return sources;
+  } catch (error) {
+    console.error('Error getting all media sources:', error);
+    return [];
+  }
+};
+
 // Training Samples
 export interface TrainingSample {
   id: string;

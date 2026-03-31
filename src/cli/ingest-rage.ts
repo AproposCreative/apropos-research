@@ -39,17 +39,20 @@ export async function ingestOnce(opts: { feedOnly?: boolean; sitemapOnly?: boole
     bulletsAdded: 0,
   };
 
-  // Load media sources for proper source mapping - only enabled sources
   let mediaSourcesMap: Map<string, { id: string; name: string }> = new Map();
   try {
-    const { getMediaSources } = await import("../../lib/getMediaSources");
-    const sources = getMediaSources().filter(source => source.enabled);
+    const { getAllEnabledMediaSources, getDefaultMediaSources } = await import("../../lib/getMediaSources");
+    let sources: any[];
+    try {
+      sources = await getAllEnabledMediaSources();
+    } catch {
+      sources = getDefaultMediaSources();
+    }
     for (const source of sources) {
       try {
         const url = new URL(source.baseUrl);
         const domain = url.hostname.replace('www.', '').toLowerCase();
         mediaSourcesMap.set(domain, { id: source.id, name: source.name });
-        // Also map by id and name for flexibility
         mediaSourcesMap.set(source.id.toLowerCase(), { id: source.id, name: source.name });
         mediaSourcesMap.set(source.name.toLowerCase(), { id: source.id, name: source.name });
       } catch {}

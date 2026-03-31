@@ -12,6 +12,8 @@ import PreviewPanel from './PreviewPanel';
 import DesignEditorView from '@/app/design-editor/DesignEditorView';
 import AuthModal from '@/components/AuthModal';
 import ChatSearchModal from '@/components/ChatSearchModal';
+import SourcesPanel from '@/components/SourcesPanel';
+import SettingsPanel from '@/components/SettingsPanel';
 import { useAuth } from '@/lib/auth-context';
 import { saveDraft, getDraft, type ArticleDraft } from '@/lib/firebase-service';
 import { autoSaveService } from '@/lib/auto-save-service';
@@ -127,11 +129,12 @@ export default function AIWriterClient() {
   const [isThinking, setIsThinking] = useState(false);
   const [showWizard, setShowWizard] = useState(true);
   const [reviewOpen, setReviewOpen] = useState(false);
-  const [guideOpen, setGuideOpen] = useState(false);
   const [shelfOpen, setShelfOpen] = useState(false);
   const [webAppsOpen, setWebAppsOpen] = useState(false);
+  const [sourcesOpen, setSourcesOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const [isClosing, setIsClosing] = useState(false);
-  const [activeView, setActiveView] = useState<'ai' | 'design-editor' | null>('ai');
+  const [activeView, setActiveView] = useState<'ai' | 'design-editor' | null>(null);
   const leftPanelOpen = shelfOpen || webAppsOpen;
   const [accountOpen, setAccountOpen] = useState(false);
   const [bgSelectorOpen, setBgSelectorOpen] = useState(false);
@@ -155,7 +158,6 @@ export default function AIWriterClient() {
     files?: UploadedFile[];
   }>>([]);
   const [editorialWarnings, setEditorialWarnings] = useState<string[]>([]);
-  const [publishToast, setPublishToast] = useState<{ articleId: string; shownAt: number } | null>(null);
   const [thinkingSteps, setThinkingSteps] = useState<ThinkingStep[]>([]);
   const [lastFailedMessage, setLastFailedMessage] = useState<string | null>(null);
   const thinkingTimersRef = useRef<number[]>([]);
@@ -184,8 +186,9 @@ export default function AIWriterClient() {
 
   // Handle chat panel resize
   useEffect(() => {
+    if (!isResizing) return;
+
     const handleMouseMove = (e: MouseEvent) => {
-      if (!isResizing) return;
       e.preventDefault();
       const newWidth = e.clientX;
       const minWidth = 400;
@@ -195,20 +198,20 @@ export default function AIWriterClient() {
       localStorage.setItem('ai-chat-width', clampedWidth.toString());
     };
 
-    const handleMouseUp = () => {
-      setIsResizing(false);
-    };
+    const stopResizing = () => setIsResizing(false);
 
-    if (isResizing) {
-      document.addEventListener('mousemove', handleMouseMove);
-      document.addEventListener('mouseup', handleMouseUp);
-      document.body.style.cursor = 'col-resize';
-      document.body.style.userSelect = 'none';
-    }
+    window.addEventListener('mousemove', handleMouseMove, { capture: true });
+    window.addEventListener('mouseup', stopResizing, { capture: true });
+    window.addEventListener('mouseleave', stopResizing);
+    window.addEventListener('blur', stopResizing);
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
 
     return () => {
-      document.removeEventListener('mousemove', handleMouseMove);
-      document.removeEventListener('mouseup', handleMouseUp);
+      window.removeEventListener('mousemove', handleMouseMove, { capture: true });
+      window.removeEventListener('mouseup', stopResizing, { capture: true });
+      window.removeEventListener('mouseleave', stopResizing);
+      window.removeEventListener('blur', stopResizing);
       document.body.style.cursor = '';
       document.body.style.userSelect = '';
     };
@@ -239,11 +242,11 @@ export default function AIWriterClient() {
   // On narrow desktop, avoid having left shelf and right drawer open simultaneously.
   useEffect(() => {
     if (!isDesktop || !isNarrowDesktop) return;
-    if ((guideOpen || reviewOpen) && (shelfOpen || webAppsOpen)) {
+    if (reviewOpen && (shelfOpen || webAppsOpen)) {
       setShelfOpen(false);
       setWebAppsOpen(false);
     }
-  }, [guideOpen, reviewOpen, shelfOpen, webAppsOpen, isDesktop, isNarrowDesktop]);
+  }, [reviewOpen, shelfOpen, webAppsOpen, isDesktop, isNarrowDesktop]);
 
   // Make design editor open larger by default on desktop.
   useEffect(() => {
@@ -251,11 +254,13 @@ export default function AIWriterClient() {
     if (activeView !== 'design-editor') return;
     if (!isDesktop) return;
     const target = Math.min(Math.round(viewportWidth * 0.75), 1000);
-    if (chatWidth < target) {
-      setChatWidth(target);
+    setChatWidth(prev => {
+      if (prev >= target) return prev;
       localStorage.setItem('ai-chat-width', target.toString());
-    }
-  }, [activeView, chatWidth, isDesktop, viewportWidth]);
+      return target;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeView, isDesktop, viewportWidth]);
 
   const startThinkingTimeline = useCallback(() => {
     stopThinkingTimeline();
@@ -319,11 +324,6 @@ export default function AIWriterClient() {
     }
   }, [chatMessages, chatTitle, articleData, notes, showWizard, currentDraftId]);
 
-useEffect(() => {
-  if (!publishToast) return;
-  const timer = setTimeout(() => setPublishToast(null), 4200);
-  return () => clearTimeout(timer);
-}, [publishToast]);
 
   useEffect(() => {
     if (!isThinking) {
@@ -998,7 +998,7 @@ useEffect(() => {
       setShowWizard(true);
     }
     
-    // Open review panel to show the loaded article content
+    setActiveView('ai');
     setReviewOpen(true);
   };
 
@@ -1018,39 +1018,6 @@ useEffect(() => {
       }
     }, 100);
   };
-
-  const showStudioToast = (title: string, description?: string) => {
-    const tempElement = document.createElement('div');
-    tempElement.className =
-      'fixed top-6 right-6 z-50 pointer-events-none opacity-0 transition-opacity duration-300';
-    tempElement.innerHTML = `
-      <div class="pointer-events-auto flex items-center gap-4 rounded-3xl border border-white/20 bg-gradient-to-br from-white/95 to-white/75 px-6 py-5 shadow-[0_24px_60px_-18px_rgba(15,23,42,0.45)] backdrop-blur-xl text-slate-900 dark:border-white/10 dark:from-white/10 dark:to-white/5 dark:text-white">
-        <div class="flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-900 text-white shadow-inner shadow-black/40 dark:bg-white/10 dark:text-white">
-          <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M5 12l5 5l10 -10"></path>
-          </svg>
-        </div>
-        <div class="space-y-1">
-          <p class="text-[11px] uppercase tracking-[0.32em] text-slate-500/80 dark:text-white/50">Apropos Studio</p>
-          <p class="text-base font-semibold leading-5">${title}</p>
-          ${description ? `<p class="text-sm text-slate-500/80 dark:text-white/60">${description}</p>` : ''}
-        </div>
-      </div>
-    `;
-    document.body.appendChild(tempElement);
-    requestAnimationFrame(() => {
-      tempElement.style.opacity = '1';
-    });
-    setTimeout(() => {
-      tempElement.style.opacity = '0';
-      setTimeout(() => {
-        if (tempElement.parentNode) {
-          tempElement.parentNode.removeChild(tempElement);
-        }
-      }, 320);
-    }, 2600);
-  };
-
 
   const handleNewArticle = async () => {
     // Save current article if there's content before resetting
@@ -1106,14 +1073,11 @@ useEffect(() => {
     setChatTitle('Ny artikkel');
     setShowWizard(true);
     setReviewOpen(false);
-    setGuideOpen(false);
+    setSettingsOpen(false);
+    setSourcesOpen(false);
+    setActiveView('ai');
     setNewArticleKey((k) => k + 1);
     
-    const toastTitle = savedPreviousDraft ? 'Forrige artikel gemt' : 'Ny artikel klar';
-    const toastDescription = savedPreviousDraft
-      ? 'Den tidligere artikel ligger nu i dine kladder i venstre side.'
-      : 'Start opsætningsguiden for at definere struktur, TOV og Webflow-felter.';
-    showStudioToast(toastTitle, toastDescription);
   };
 
   const userInitials = (() => {
@@ -1146,8 +1110,8 @@ useEffect(() => {
         />
       )}
       <div className="h-[100dvh] min-h-[100dvh] bg-[#171717] md:p-[1%] p-0 flex md:flex-row flex-col gap-4 relative overflow-hidden">
-        {/* Background Spline (non-interactive) */}
-        <div className="absolute inset-0 z-0 hidden md:block">
+        {/* Background Spline */}
+        <div className="absolute inset-0 z-0">
           <iframe 
             src={currentSplineBg.url}
             frameBorder="0" 
@@ -1155,9 +1119,12 @@ useEffect(() => {
             height="100%"
             className="w-full h-full"
             title="AI Background"
-            key={selectedSplineBg} // Force re-render on change
+            key={selectedSplineBg}
+            loading="lazy"
           />
         </div>
+        {/* Transparent overlay during resize to prevent iframe from stealing mouse events */}
+        {isResizing && <div className="absolute inset-0 z-[5]" />}
         
         {/* Spline Background Selector */}
         <div className="absolute top-4 right-4 z-30 hidden md:block">
@@ -1341,6 +1308,8 @@ useEffect(() => {
                     setIsClosing(false);
                   }, 320);
                 }}
+                onOpenSourcesPanel={() => { setReviewOpen(false); setSettingsOpen(false); setSourcesOpen(true); }}
+                onOpenSettingsPanel={() => { setReviewOpen(false); setSourcesOpen(false); setSettingsOpen(true); }}
                 lastFailedMessage={lastFailedMessage}
                 onRetryLast={lastFailedMessage ? () => { handleSendMessage(lastFailedMessage); setLastFailedMessage(null); } : undefined}
                 wizardNode={(
@@ -1477,8 +1446,8 @@ useEffect(() => {
             </div>
             )}
 
-            {/* Layout placeholder for chat width so the mini‑menu keeps its placement */}
-            <div className="hidden md:block flex-shrink-0" style={{ width: isDesktop ? `${chatWidth}px` : '500px', height: '1px' }} />
+            {/* Layout placeholder for chat width so the mini-menu keeps its placement */}
+            {activeView && <div className="hidden md:block flex-shrink-0" style={{ width: isDesktop ? `${chatWidth}px` : '500px', height: '1px' }} />}
             
             {/* Right Sidebar with action buttons (desktop) */}
             {showMiniMenu && <MiniMenu
@@ -1488,56 +1457,18 @@ useEffect(() => {
                   ? `translateX(calc(12px + min(300px, 50vw) + ${chatWidth}px + 12px))` 
                   : `translateX(calc(${chatWidth}px + 12px))`}
               onSearch={() => setShowSearchModal(true)}
-              onToggleReview={() => { setGuideOpen(false); if (isNarrowDesktop) { setShelfOpen(false); setWebAppsOpen(false); } setReviewOpen(prev=>!prev); }}
-              onToggleGuide={() => { setReviewOpen(false); if (isNarrowDesktop) { setShelfOpen(false); setWebAppsOpen(false); } setGuideOpen(prev=>!prev); }}
-              onToggleWebApps={() => { setShelfOpen(false); setReviewOpen(false); setGuideOpen(false); setWebAppsOpen(prev=>!prev); }}
-              onToggleShelf={() => { setWebAppsOpen(false); setReviewOpen(false); setGuideOpen(false); setShelfOpen(prev=>!prev); }}
+              onToggleReview={() => { setSourcesOpen(false); setSettingsOpen(false); if (isNarrowDesktop) { setShelfOpen(false); setWebAppsOpen(false); } setReviewOpen(prev=>!prev); }}
+              onToggleWebApps={() => { setShelfOpen(false); setReviewOpen(false); setSourcesOpen(false); setSettingsOpen(false); setWebAppsOpen(prev=>!prev); }}
+              onToggleShelf={() => { setWebAppsOpen(false); setReviewOpen(false); setSourcesOpen(false); setSettingsOpen(false); setShelfOpen(prev=>!prev); }}
               onNewArticle={handleNewArticle}
+              onToggleSources={() => { setReviewOpen(false); setSettingsOpen(false); setSourcesOpen(prev=>!prev); }}
+              onToggleSettings={() => { setReviewOpen(false); setSourcesOpen(false); setSettingsOpen(prev=>!prev); }}
             />}
 
             {/* Right flexible spacer (no overlay) */}
             <div className="flex-1 h-full hidden md:block" />
             
             {/* Floating mini menu removed (we use the original left menu) */}
-
-            {/* Slide-in guide drawer (same behavior as Article Preview) */}
-            <div className={`absolute md:top-[1%] md:bottom-[1%] md:right-[1%] top-0 right-0 bottom-0 z-50 md:w-[min(520px,90vw)] w-full transition-all duration-300 ${guideOpen ? 'translate-x-0 opacity-100 pointer-events-auto' : 'translate-x-[110%] opacity-0 pointer-events-none'}`}>
-              <div className="h-full flex flex-col bg-[#171717] md:rounded-xl border-l md:border border-white/20">
-                <div className="flex items-center justify-between px-4 py-3 border-b border-white/10">
-                  <h2 className="text-white font-medium">Sådan bruger du løsningen</h2>
-                  <button onClick={() => setGuideOpen(false)} className="p-2 text-white/60 hover:text-white rounded-lg" aria-label="Luk">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                      <path d="M18 6L6 18M6 6l12 12"/>
-                    </svg>
-                  </button>
-                </div>
-                <div className="overflow-y-auto flex-1 p-4 md:p-5 space-y-4 text-sm text-white/85">
-                  <ol className="space-y-3 list-decimal list-inside">
-                    <li>
-                      <span className="font-medium text-white">Start et nyt draft</span> – Vælg kilde (fx trending eller research), vælg artikel og tryk på at starte med AI.
-                    </li>
-                    <li>
-                      <span className="font-medium text-white">Setup Wizard</span> – Udfyld titel/emne, vælg forfatter og tone (TOV), evt. platform og stjerner. Afslut med at gå videre til chatten.
-                    </li>
-                    <li>
-                      <span className="font-medium text-white">Chat med AI</span> – Besvar spørgsmålene i chatten (fx “Ja” for kun titel og indledning, eller bed om hele artiklen). Du kan redigere svar og sende igen.
-                    </li>
-                    <li>
-                      <span className="font-medium text-white">Article preview</span> – Her ser du titel, intro, brødtekst, felter og AI-prompt. Du kan tilføje eller skifte artikelbillede og se valgt TOV.
-                    </li>
-                    <li>
-                      <span className="font-medium text-white">Billede</span> – Brug “Hent et andet billede” for at generere et nyt billede. “Vis brugt prompt” viser den prompt, der blev brugt til billedet.
-                    </li>
-                    <li>
-                      <span className="font-medium text-white">Publicering</span> – Når du er tilfreds, brug publicerings-panelet til at sende til Webflow eller eksportere.
-                    </li>
-                  </ol>
-                  <p className="text-white/60 text-xs pt-2">
-                    Tip: Gem ofte – artiklen gemmes automatisk undervejs, men du kan også bruge gem-knappen i chatten.
-                  </p>
-                </div>
-              </div>
-            </div>
 
             {/* Slide-in review drawer (right shelf) with same outer padding as left shelf */}
             <div className={`absolute md:top-[1%] md:bottom-[1%] md:right-[1%] top-0 right-0 bottom-0 ${reviewOpen ? '' : ''} z-50 md:w-[min(520px,90vw)] w-full transition-all duration-300 ${reviewOpen ? 'translate-x-0 opacity-100 pointer-events-auto' : 'translate-x-[110%] opacity-0 pointer-events-none'}`}>
@@ -1576,35 +1507,19 @@ useEffect(() => {
               </div>
             </div>
 
-            {/* Mobile bottom bar removed in favor of burger menu */}
+            {/* Slide-in sources drawer (right shelf) */}
+            <div className={`absolute md:top-[1%] md:bottom-[1%] md:right-[1%] top-0 right-0 bottom-0 z-50 md:w-[min(380px,90vw)] w-full transition-all duration-300 ${sourcesOpen ? 'translate-x-0 opacity-100 pointer-events-auto' : 'translate-x-[110%] opacity-0 pointer-events-none'}`}>
+              <SourcesPanel isOpen={sourcesOpen} onClose={() => setSourcesOpen(false)} />
+            </div>
+
+            {/* Slide-in settings drawer (right shelf) */}
+            <div className={`absolute md:top-[1%] md:bottom-[1%] md:right-[1%] top-0 right-0 bottom-0 z-50 md:w-[min(380px,90vw)] w-full transition-all duration-300 ${settingsOpen ? 'translate-x-0 opacity-100 pointer-events-auto' : 'translate-x-[110%] opacity-0 pointer-events-none'}`}>
+              <SettingsPanel isOpen={settingsOpen} onClose={() => setSettingsOpen(false)} />
+            </div>
 
           </>
         )}
                 </div>
-      {publishToast && (
-        <div className="pointer-events-none fixed inset-x-0 top-8 z-[100] flex justify-center px-4">
-          <div className="pointer-events-auto w-full max-w-sm rounded-[26px] border border-white/50 bg-white/85 p-5 shadow-[0_25px_70px_rgba(15,23,42,0.3)] backdrop-blur-xl transition duration-500 dark:border-white/15 dark:bg-white/10">
-            <div className="flex flex-col items-center text-center">
-              <span className="text-[11px] uppercase tracking-[0.32em] text-slate-500 dark:text-slate-300">
-                Publiceret
-              </span>
-              <span className="mt-2 text-lg font-semibold text-slate-900 dark:text-white">
-                Artiklen er live
-              </span>
-              <span className="mt-1 text-xs text-slate-500 dark:text-slate-200">
-                ID: {publishToast.articleId}
-              </span>
-              <button
-                type="button"
-                onClick={() => setPublishToast(null)}
-                className="mt-4 rounded-full border border-white/60 px-4 py-1.5 text-sm font-medium text-slate-600 transition hover:border-white hover:text-slate-900 dark:border-white/30 dark:text-white/70 dark:hover:border-white/60 dark:hover:text-white"
-              >
-                OK
-              </button>
-                </div>
-            </div>
-      </div>
-      )}
     </>
   );
 }

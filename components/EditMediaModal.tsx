@@ -1,6 +1,7 @@
 'use client';
 import React, { useEffect, useState } from 'react';
 import { useMedia } from '../lib/media-context';
+import { useAuth } from '@/lib/auth-context';
 
 interface MediaSource {
   id: string;
@@ -8,7 +9,8 @@ interface MediaSource {
   baseUrl: string;
   sitemapIndex: string;
   enabled: boolean;
-  addedAt: string;
+  addedAt?: string;
+  createdAt?: string;
 }
 
 interface EditMediaModalProps {
@@ -33,6 +35,7 @@ export default function EditMediaModal({ isOpen, onClose, onSuccess, source }: E
     };
   }, [isOpen, onClose]);
 
+  const { user } = useAuth();
   const { refreshArticleCounts } = useMedia();
   const [formData, setFormData] = useState({
     name: source.name,
@@ -344,6 +347,7 @@ export default function EditMediaModal({ isOpen, onClose, onSuccess, source }: E
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
+          ...(user ? { 'x-user-id': user.uid } : {}),
         },
         body: JSON.stringify(formData),
       });

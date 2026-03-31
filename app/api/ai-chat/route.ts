@@ -3,6 +3,8 @@ import type OpenAI from 'openai';
 import { getOpenAIClient, models } from '@/lib/openai';
 import { initProgress, updateProgressStep, completeProgress } from '@/lib/ai-chat-progress-store';
 import { createErrorResponse, ErrorCode } from '@/lib/api/types';
+import { buildStyleReferenceBlock } from '@/lib/loadAproposStyleSamples';
+import { getResearch } from '@/lib/research/service';
 import fs from 'node:fs';
 import path from 'node:path';
 
@@ -33,26 +35,6 @@ function buildProgressSteps(hasResearch: boolean) {
   return steps;
 }
 
-async function fetchWebSearchContext(query: string): Promise<string> {
-  try {
-    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000';
-    const res = await fetch(`${baseUrl}/api/web-search`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ query, maxResults: 3 }),
-    });
-    if (!res.ok) return '';
-    const data = await res.json();
-    const results = data?.data?.results || data?.results || [];
-    if (!Array.isArray(results) || results.length === 0) return '';
-    return results
-      .slice(0, 3)
-      .map((r: any) => `- ${r.title || ''}: ${(r.extract || r.snippet || '').slice(0, 200)}`)
-      .join('\n');
-  } catch {
-    return '';
-  }
-}
 
 async function runQuickQualityCheck(openaiClient: ReturnType<typeof getOpenAIClient>, articleText: string): Promise<string[]> {
   if (!openaiClient || !articleText || articleText.length < 200) return [];
@@ -60,7 +42,7 @@ async function runQuickQualityCheck(openaiClient: ReturnType<typeof getOpenAICli
     const response = await openaiClient.chat.completions.create({
       model: models.default,
       temperature: 0.2,
-      max_tokens: 512,
+      max_completion_tokens: 512,
       messages: [
         {
           role: 'system',
@@ -77,13 +59,43 @@ async function runQuickQualityCheck(openaiClient: ReturnType<typeof getOpenAICli
   }
 }
 
+const OPENING_STRATEGIES = [
+  'Start med en konkret scene eller sanselig detalje — beskriv et øjeblik, en lyd, en stemning du oplever.',
+  'Start med et spørgsmål eller en provokerende påstand der fanger læseren.',
+  'Start med en personlig betragtning eller en overraskende kontrast mellem forventning og virkelighed.',
+  'Start med et kulturelt eller historisk perspektiv — sæt værket i en større kontekst.',
+  'Start med en kort anekdote eller et øjebliksbillede fra din oplevelse med værket.',
+];
+
+const ANTI_PATTERNS = [
+  'Der er noget magisk ved',
+  'Lad os bare sige det sådan her',
+  'Og hold nu fast',
+  'Fra de første billeder',
+  'Fra den første scene',
+  'det er som om',
+  'Det er en rejse',
+  'en blanding af',
+  'en oplevelse der',
+  'rammer dybt',
+  'efterlader et indtryk',
+  'der vil sætte sig fast',
+  'danser i mørket',
+  'en hvisken i mørket',
+  'pulserer af liv',
+];
+
 function buildSystemPrompt(authorTOV: string, authorName: string, articleContext: Record<string, unknown>, notes?: string): string {
+  const openingStrategy = OPENING_STRATEGIES[Math.floor(Math.random() * OPENING_STRATEGIES.length)];
+
   const parts = [
     `Du er "Apropos Writer AI" — redaktionel assistent og medskribent for Apropos Magazine.`,
     `Apropos Magazine skriver kulturjournalistik med personlighed, præcision og perspektiv.`,
     `Alt skal føles menneskeligt, reflekteret og sanseligt — aldrig maskinelt.`,
     `Svar på dansk i en rytmisk, levende og menneskelig tone. Vær konkret og følg brugerens ønsker.`,
     `\n**GLOBAL TOV-REGLER:** Personlig, selvironisk, reflekteret, humoristisk. Brug sanselige detaljer, rytme og variation i sætningslængder. Ingen floskler som "Filmen handler om …" — vis det i stedet. Parafrasér altid kilder; ingen copy/paste.`,
+    `\n**ÅBNINGSSTRATEGI FOR DENNE ARTIKEL:** ${openingStrategy}`,
+    `\n**ANTI-GENTAGELSES-REGLER:** Undgå følgende AI-klichéer og floskler fuldstændigt: "${ANTI_PATTERNS.slice(0, 8).join('", "')}".\nSkriv i stedet med specifikke, konkrete detaljer fra det værk du anmelder. Nævn navne, steder, scener, dialoger. Vær præcis.`,
   ];
   if (authorTOV?.trim()) {
     parts.push(`\n**Valgt tone (TOV) for denne artikel:**\n${authorTOV.trim()}`);
@@ -98,11 +110,24 @@ function buildSystemPrompt(authorTOV: string, authorName: string, articleContext
   const title = (articleContext?.title || articleContext?.previewTitle) as string | undefined;
   const category = (articleContext?.category || articleContext?.section) as string | undefined;
   const rating = typeof articleContext?.rating === 'number' && articleContext.rating >= 1 && articleContext.rating <= 6 ? articleContext.rating : undefined;
+  const platform = (articleContext?.platform || articleContext?.streaming_service) as string | undefined;
   if (title?.trim()) parts.push(`\n**Arbejdstitel/emne:** ${title.trim()}`);
   if (category?.trim()) parts.push(`**Section/kategori:** ${category.trim()}`);
+  if (platform?.trim()) parts.push(`**Platform/streamingtjeneste:** ${platform.trim()}`);
+
+  // Format-aware: detect whether this is a TV series vs film
+  const catLower = (category || '').toLowerCase();
+  const titleLower = (title || '').toLowerCase();
+  const isSeries = /serie/i.test(catLower) || /serie|sæson|season|episode/i.test(titleLower);
+  if (isSeries) {
+    parts.push(`\n**VIGTIGT — FORMAT:** Dette er en TV-SERIE, IKKE en film. Brug korrekte termer: "serien", "episoder", "sæson" — ALDRIG "filmen". Omtal det som en serie konsekvent igennem hele artiklen.`);
+  }
+
   if (rating != null) {
     parts.push(`\n**Brugeren har valgt stjernebedømmelse: ${rating} ud af 6.** Bevar denne vurdering i tone og konklusion, men skriv IKKE en "Stjerner:"-linje i selve artikelteksten. Rating håndteres i CMS-metadata.`);
   }
+
+  parts.push(`\n**RESEARCH-KRAV:** Når du skriver om et specifikt værk (film, serie, album, spil osv.), SKAL du inkludere konkrete fakta: navne på instruktører/skabere, skuespillere, udgivelsesår, antal episoder/sæsoner, platform. Hvis du ikke kender fakta, så skriv KUN om det du ved — opfind ALDRIG fakta, navne eller detaljer.`);
   const research = articleContext?.researchSelected as { title?: string; source?: string; keyPoints?: string[]; content?: string } | undefined;
   if (research?.title) {
     parts.push(`\n**RESEARCH KILDE (brug KUN som inspiration – parafrasér altid, kopiér ALDRIG):**`);
@@ -132,13 +157,18 @@ function buildSystemPrompt(authorTOV: string, authorName: string, articleContext
   if (structureRules) {
     parts.push(`\n**APROPOS STRUCTURE (fra structure.apropos.md) — Følg PRÆCIS:**\n${structureRules}`);
   }
+  const styleRef = buildStyleReferenceBlock(category as string | undefined);
+  if (styleRef) {
+    parts.push(styleRef);
+  }
   parts.push(
     `\n**OUTPUT-FORMAT:**
 - Linje 1: Arbejdstitel: [kun titeltekst]
 - Linje 2: Undertitel: [8–14 ord]
 - Linje 3: Intro: [én indledende paragraf, 2–4 linjer, ca. 60–80 ord]
 - Tom linje
-- Brødtekst: Start med NYT indhold. Gentag ALDRIG titel, undertitel eller intro i brødteksten.
+- Brødtekst: Start ALTID brødteksten med en HELT NY sætning/tanke. Den første sætning i brødteksten SKAL være fundamentalt anderledes end intro-teksten — brug et nyt perspektiv, en ny scene, et nyt faktum.
+- ALDRIG gentag titel, undertitel eller intro ordret eller parafraseret i brødteksten.
 - Skriv ALDRIG "Længde: X ord".`
   );
   return parts.join('\n');
@@ -239,12 +269,14 @@ function cleanDuplicateIntroAndMetaFromBody(content: string, extractedTitle: str
     kept.push(line);
   }
   body = kept.join('\n').replace(/\n{3,}/g, '\n\n').trim();
-  if (introText.length > 30 && body.slice(0, introText.length + 50).replace(/\s+/g, ' ').includes(introText.slice(0, 80).replace(/\s+/g, ' '))) {
+  if (introText.length > 30) {
     const bodyFirstParagraphEnd = body.indexOf('\n\n');
     const firstParagraph = bodyFirstParagraphEnd >= 0 ? body.slice(0, bodyFirstParagraphEnd) : body;
-    const introNorm = introText.slice(0, 120).replace(/\s+/g, ' ').trim();
-    const firstNorm = firstParagraph.slice(0, 120).replace(/\s+/g, ' ').trim();
-    if (introNorm.length > 40 && (firstNorm.includes(introNorm.slice(0, 60)) || introNorm.includes(firstNorm.slice(0, 60)))) {
+    const introNorm = introText.replace(/\s+/g, ' ').trim();
+    const firstNorm = firstParagraph.replace(/\s+/g, ' ').trim();
+    const isSubstring = introNorm.length > 40 && (firstNorm.includes(introNorm.slice(0, 60)) || introNorm.includes(firstNorm.slice(0, 60)));
+    const isFuzzyDuplicate = wordOverlapRatio(introNorm, firstNorm) > 0.55;
+    if (isSubstring || isFuzzyDuplicate) {
       body = (bodyFirstParagraphEnd >= 0 ? body.slice(bodyFirstParagraphEnd + 2) : '').trim();
     }
   }
@@ -340,6 +372,15 @@ function deriveIntroFromFirstParagraph(text: string): string | null {
   return cleaned;
 }
 
+function wordOverlapRatio(a: string, b: string): number {
+  const wordsA = new Set(a.toLowerCase().split(/\s+/).filter(w => w.length > 3));
+  const wordsB = new Set(b.toLowerCase().split(/\s+/).filter(w => w.length > 3));
+  if (wordsA.size === 0 || wordsB.size === 0) return 0;
+  let overlap = 0;
+  for (const w of wordsA) if (wordsB.has(w)) overlap++;
+  return overlap / Math.min(wordsA.size, wordsB.size);
+}
+
 function normalizeContentWithIntro(content: string, intro: string | null): string {
   if (!content) return content;
   if (!intro) return content;
@@ -351,7 +392,8 @@ function normalizeContentWithIntro(content: string, intro: string | null): strin
 
   const first = cleanForSeo(parts[0] || '');
   const introNorm = cleanForSeo(intro);
-  const remainder = first === introNorm ? parts.slice(1).join('\n\n').trim() : parts.join('\n\n').trim();
+  const isDuplicate = first === introNorm || wordOverlapRatio(first, introNorm) > 0.55;
+  const remainder = isDuplicate ? parts.slice(1).join('\n\n').trim() : parts.join('\n\n').trim();
 
   return remainder ? `Intro: ${intro}\n\n${remainder}` : `Intro: ${intro}`;
 }
@@ -468,16 +510,22 @@ export async function POST(request: NextRequest) {
     let systemPrompt = buildSystemPrompt(authorTOV, authorName, articleData, notes);
 
     // --- Step: Web Search (when research context is available) ---
-    let webSearchContext = '';
+    let researchResult: Awaited<ReturnType<typeof getResearch>> | undefined;
     if (hasResearch) {
       if (clientRequestId) {
         updateProgressStep(clientRequestId, 'prepare', 'completed');
         updateProgressStep(clientRequestId, 'web-search', 'active');
       }
-      const searchQuery = articleData?.researchSelected?.title || articleData?.title || message;
-      webSearchContext = await fetchWebSearchContext(String(searchQuery));
-      if (webSearchContext) {
-        systemPrompt += `\n\n**FAKTA FRA WEB-SØGNING (brug til at verificere og berige artiklen):**\n${webSearchContext}`;
+      const baseQuery = articleData?.researchSelected?.title || articleData?.title || message;
+      const queryParts = [String(baseQuery)];
+      const searchPlatform = articleData?.platform || articleData?.streaming_service;
+      const searchCategory = articleData?.category || articleData?.section;
+      if (searchPlatform) queryParts.push(String(searchPlatform));
+      if (searchCategory && typeof searchCategory === 'string' && !/generel/i.test(searchCategory)) queryParts.push(searchCategory);
+      const searchQuery = queryParts.join(' ');
+      researchResult = await getResearch(searchQuery, { maxResults: 3 });
+      if (researchResult.contextText) {
+        systemPrompt += `\n\n**FAKTA FRA WEB-SØGNING (brug aktivt — væv konkrete fakta, navne og detaljer ind i artiklen):**\n${researchResult.contextText}\nBrug disse fakta til at gøre artiklen specifik og faktuel. Nævn instruktører, skuespillere, antal episoder, udgivelsesdato osv. direkte i teksten.`;
       }
       if (clientRequestId) {
         updateProgressStep(clientRequestId, 'web-search', 'completed');
@@ -505,7 +553,7 @@ export async function POST(request: NextRequest) {
       model: models.default,
       messages,
       temperature: 0.7,
-      max_tokens: 4096,
+      max_completion_tokens: 4096,
     });
 
     const responseText = completion.choices[0]?.message?.content?.trim() ?? '';
@@ -537,7 +585,7 @@ export async function POST(request: NextRequest) {
           const expansion = await openai.chat.completions.create({
             model: models.default,
             temperature: 0.5,
-            max_tokens: 4096,
+            max_completion_tokens: 4096,
             messages: [
               {
                 role: 'system',
@@ -583,6 +631,8 @@ export async function POST(request: NextRequest) {
       response: finalResponseText,
       ...(articleUpdate && Object.keys(articleUpdate).length > 0 ? { articleUpdate } : {}),
       ...(warnings.length > 0 ? { warnings } : {}),
+      ...(researchResult?.sources?.length ? { researchSources: researchResult.sources } : {}),
+      ...(researchResult?.debug ? { researchDebug: researchResult.debug } : {}),
     });
   } catch (err) {
     const error = err instanceof Error ? err : new Error(String(err));

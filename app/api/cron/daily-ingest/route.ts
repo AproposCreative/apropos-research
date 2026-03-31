@@ -37,56 +37,63 @@ export async function GET(request: NextRequest) {
   }
 
   const root = process.cwd();
-  // Daily ingest: last 26 hours (overlap buffer), limit 100 articles
   const sinceHours = 26;
   const limit = 100;
-  const cmd = `npm run ingest:rage -- --since=${sinceHours} --limit=${limit}`;
+  const rageCmd = `npm run ingest:rage -- --since=${sinceHours} --limit=${limit}`;
+  const aproposCmd = `npm run ingest:apropos`;
 
   requestLogger.info('Starting daily article ingestion via Vercel cron', { sinceHours, limit });
 
-  // Use promisified exec for better error handling
   return new Promise<NextResponse>((resolve) => {
-    exec(cmd, { cwd: root, env: process.env, timeout: 1000 * 60 * 5 }, async (err, stdout, stderr) => {
+    exec(rageCmd, { cwd: root, env: process.env, timeout: 1000 * 60 * 4 }, async (err, stdout, stderr) => {
+      let rageNewCount = 0;
       if (!err) {
         invalidatePromptsCache();
-        requestLogger.info('Daily ingest completed successfully');
-        
-        let newCount = 0;
+        requestLogger.info('RAGE ingest completed successfully');
         if (stdout) {
-          requestLogger.debug('Ingest stdout', { stdout: stdout.substring(0, 500) });
-          // Extract metrics from output if available
           try {
             const metricsMatch = stdout.match(/newArticles[:\s]+(\d+)/i);
-            newCount = metricsMatch ? parseInt(metricsMatch[1]) : 0;
-            if (newCount > 0) {
-              requestLogger.info('New articles ingested', { count: newCount });
-            }
+            rageNewCount = metricsMatch ? parseInt(metricsMatch[1]) : 0;
           } catch {}
         }
-        
-        resolve(NextResponse.json(
-          createSuccessResponse({
-            message: 'Daily ingest completed successfully',
-            timestamp: new Date().toISOString(),
-            sinceHours,
-            limit,
-            newArticles: newCount,
-          }, { requestId }),
-          { status: 200 }
-        ));
       } else {
-        const errorObj = err instanceof Error ? err : new Error(String(err));
-        requestLogger.error('Daily ingest failed', errorObj, { stderr });
-        resolve(NextResponse.json(
-          createErrorResponse('Ingest failed', {
-            statusCode: 500,
-            errorCode: ErrorCode.INTERNAL_ERROR,
-            requestId,
-            details: stderr || String(err),
-          }),
-          { status: 500 }
-        ));
+        requestLogger.error('RAGE ingest failed', err instanceof Error ? err : new Error(String(err)), { stderr });
       }
+
+      exec(aproposCmd, { cwd: root, env: process.env, timeout: 1000 * 60 * 2 }, (aproposErr, aproposOut, aproposStderr) => {
+        let aproposAdded = 0;
+        if (!aproposErr) {
+          requestLogger.info('Apropos style ingest completed successfully');
+          if (aproposOut) {
+            try {
+              const m = aproposOut.match(/(\d+)\s*new style samples/i);
+              aproposAdded = m ? parseInt(m[1]) : 0;
+            } catch {}
+          }
+        } else {
+          requestLogger.warn('Apropos style ingest failed (non-critical)', { error: String(aproposErr) });
+        }
+
+        const overallSuccess = !err;
+        resolve(NextResponse.json(
+          overallSuccess
+            ? createSuccessResponse({
+                message: 'Daily ingest completed successfully',
+                timestamp: new Date().toISOString(),
+                sinceHours,
+                limit,
+                newArticles: rageNewCount,
+                aproposStyleSamples: aproposAdded,
+              }, { requestId })
+            : createErrorResponse('RAGE ingest failed', {
+                statusCode: 500,
+                errorCode: ErrorCode.INTERNAL_ERROR,
+                requestId,
+                details: stderr || String(err),
+              }),
+          { status: overallSuccess ? 200 : 500 }
+        ));
+      });
     });
   });
 }
