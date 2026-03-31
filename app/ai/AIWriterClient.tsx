@@ -333,8 +333,15 @@ export default function AIWriterClient() {
   }, [isThinking, stopThinkingTimeline]);
 
   useEffect(() => () => stopThinkingTimeline(), [stopThinkingTimeline]);
-  // Restore data from localStorage on page load
+  // Restore data from localStorage on page load.
+  // Disabled by default so users always land in a clean lobby state on login.
+  // Toggle with localStorage key "ai-writer-restore-autosave" = "true" for manual testing.
   useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const shouldRestore = localStorage.getItem('ai-writer-restore-autosave') === 'true';
+      if (!shouldRestore) return;
+    }
+
     const restoreData = () => {
       try {
         const savedData = autoSaveService.load();
