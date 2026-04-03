@@ -113,6 +113,7 @@ export default function MainChatPanel({
   const [showUrlInput, setShowUrlInput] = useState(false);
   const [urlInputValue, setUrlInputValue] = useState('');
   const urlInputRef = useRef<HTMLInputElement>(null);
+  const [attachedUrls, setAttachedUrls] = useState<string[]>([]);
   const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]);
   // const [showAISuggestions, setShowAISuggestions] = useState(false);
   const [selectedText, setSelectedText] = useState('');
@@ -489,11 +490,24 @@ const fallbackThinkingSteps: ThinkingStep[] = [
     const url = urlInputValue.trim();
     if (!url) return;
     const withPrefix = url.match(/^https?:\/\//) ? url : `https://${url}`;
-    setInputMessage(prev => {
-      const separator = prev.trim() ? '\n' : '';
-      return `${prev}${separator}${withPrefix}`;
-    });
+    setAttachedUrls(prev => prev.includes(withPrefix) ? prev : [...prev, withPrefix]);
+    setUrlInputValue('');
     setShowUrlInput(false);
+  };
+
+  const removeAttachedUrl = (url: string) => {
+    setAttachedUrls(prev => prev.filter(u => u !== url));
+  };
+
+  const getDisplayUrl = (url: string) => {
+    try {
+      const parsed = new URL(url);
+      const host = parsed.hostname.replace(/^www\./, '');
+      const path = parsed.pathname === '/' ? '' : parsed.pathname.slice(0, 30);
+      return host + (path ? path + (parsed.pathname.length > 30 ? '…' : '') : '');
+    } catch {
+      return url.slice(0, 40);
+    }
   };
 
   // Auto-save functionality
@@ -716,12 +730,15 @@ const fallbackThinkingSteps: ThinkingStep[] = [
       .join(' ');
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (inputMessage.trim()) {
-      onSendMessage(inputMessage);
-      setInputMessage('');
-    }
+  const handleSubmit = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    const hasText = inputMessage.trim();
+    const hasUrls = attachedUrls.length > 0;
+    if (!hasText && !hasUrls) return;
+    const urlSuffix = hasUrls ? (hasText ? '\n\n' : '') + attachedUrls.join('\n') : '';
+    onSendMessage(inputMessage.trim() + urlSuffix);
+    setInputMessage('');
+    setAttachedUrls([]);
   };
 
   const handleEditMessage = (messageId: string, content: string) => {
@@ -779,9 +796,8 @@ const fallbackThinkingSteps: ThinkingStep[] = [
   const handleKeyPress = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
-      if (inputMessage.trim()) {
-        onSendMessage(inputMessage);
-        setInputMessage('');
+      if (inputMessage.trim() || attachedUrls.length > 0) {
+        handleSubmit();
       }
     }
   };
@@ -1821,31 +1837,29 @@ const fallbackThinkingSteps: ThinkingStep[] = [
               </button>
             </div>
           )}
-          {/* URL Input */}
+          {/* URL Input (inline above writer card) */}
           {showUrlInput && (
             <div className="mb-2">
-              <div className="flex gap-2 p-3 bg-[#171717] border border-white/15 rounded-xl">
+              <div className="flex gap-2 p-2.5 bg-[#171717] border border-white/15 rounded-xl">
+                <svg className="w-4 h-4 text-white/30 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101" />
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M10.172 13.828a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.102 1.101" />
+                </svg>
                 <input
                   ref={urlInputRef}
                   type="url"
                   value={urlInputValue}
                   onChange={e => setUrlInputValue(e.target.value)}
                   onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleUrlSubmit(); } if (e.key === 'Escape') setShowUrlInput(false); }}
-                  placeholder="https://..."
-                  className="flex-1 bg-transparent text-white text-sm placeholder-white/30 outline-none"
+                  placeholder="Indsæt URL..."
+                  className="flex-1 bg-transparent text-white text-sm placeholder-white/30 outline-none min-w-0"
                 />
                 <button
                   onClick={handleUrlSubmit}
                   disabled={!urlInputValue.trim()}
-                  className="px-3 py-1.5 bg-white/10 hover:bg-white/20 text-white text-xs rounded-lg transition-colors disabled:opacity-30"
+                  className="px-2.5 py-1 bg-white/10 hover:bg-white/20 text-white text-xs rounded-lg transition-colors disabled:opacity-30 flex-shrink-0"
                 >
                   Tilføj
-                </button>
-                <button
-                  onClick={() => setShowUrlInput(false)}
-                  className="p-1.5 text-white/40 hover:text-white transition-colors"
-                >
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
                 </button>
               </div>
             </div>
@@ -1875,7 +1889,7 @@ const fallbackThinkingSteps: ThinkingStep[] = [
               rows={3}
               style={{ minHeight: '60px' }}
             />
-            {!inputMessage && (
+            {!inputMessage && attachedUrls.length === 0 && (
               <div className="absolute inset-0 pointer-events-none flex items-start pt-1">
                 <span 
                   className="text-sm bg-gradient-to-r from-white/20 via-white/70 to-white/20 bg-clip-text text-transparent"
@@ -1889,6 +1903,31 @@ const fallbackThinkingSteps: ThinkingStep[] = [
               </div>
             )}
           </div>
+
+          {/* Attached URL pills */}
+          {attachedUrls.length > 0 && (
+            <div className="flex flex-wrap gap-1.5 mb-2">
+              {attachedUrls.map(url => (
+                <div
+                  key={url}
+                  className="inline-flex items-center gap-1.5 pl-2.5 pr-1 py-1 rounded-full bg-white/10 border border-white/15 text-xs text-white/80 max-w-[280px] group hover:border-white/25 transition-colors"
+                >
+                  <svg className="w-3 h-3 text-white/40 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101" />
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M10.172 13.828a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.102 1.101" />
+                  </svg>
+                  <span className="truncate">{getDisplayUrl(url)}</span>
+                  <button
+                    type="button"
+                    onClick={() => removeAttachedUrl(url)}
+                    className="flex-shrink-0 p-0.5 rounded-full text-white/30 hover:text-white hover:bg-white/10 transition-colors"
+                  >
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M18 6L6 18M6 6l12 12"/></svg>
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
           
           <div className="flex justify-between items-center">
             <div className="flex gap-3">
@@ -1915,8 +1954,8 @@ const fallbackThinkingSteps: ThinkingStep[] = [
             </div>
             
             <button 
-              onClick={handleSubmit}
-              disabled={!inputMessage.trim()}
+              onClick={() => handleSubmit()}
+              disabled={!inputMessage.trim() && attachedUrls.length === 0}
               className="touch-target w-11 h-11 bg-white rounded-lg flex items-center justify-center hover:bg-gray-100 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
             >
               <svg className="w-4 h-4 text-gray-800" fill="currentColor" viewBox="0 0 20 20">
