@@ -1196,15 +1196,6 @@ const fallbackThinkingSteps: ThinkingStep[] = [
             className="h-full overflow-y-auto space-y-4 nice-scrollbar"
             style={{ paddingBottom: Math.max(inputSpacerHeight, 0) + 40 }}
           >
-          {/* Mobile welcome state when no messages */}
-          {messages.length === 0 && (
-            <div className="md:hidden flex flex-col items-center justify-center h-full px-6 py-12">
-              <div className="text-center space-y-3">
-                <h2 className="text-xl font-semibold text-white/90">Apropos AI Writer</h2>
-                <p className="text-sm text-white/50 max-w-[260px]">Start en ny artikel — brug wizarden nedenfor, eller skriv direkte i feltet.</p>
-              </div>
-            </div>
-          )}
           {messages.map((message, index) => {
             const isUser = message.role === 'user';
             const isEditing = editingMessage === message.id;
