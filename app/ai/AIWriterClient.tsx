@@ -134,7 +134,7 @@ export default function AIWriterClient() {
   const [sourcesOpen, setSourcesOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [isClosing, setIsClosing] = useState(false);
-  const [activeView, setActiveView] = useState<'ai' | 'design-editor' | null>(null);
+  const [activeView, setActiveView] = useState<'ai' | 'design-editor' | null>('ai');
   const leftPanelOpen = shelfOpen || webAppsOpen;
   const [accountOpen, setAccountOpen] = useState(false);
   const [bgSelectorOpen, setBgSelectorOpen] = useState(false);
@@ -1117,8 +1117,8 @@ export default function AIWriterClient() {
         />
       )}
       <div className="h-[100dvh] min-h-[100dvh] bg-[#171717] md:p-[1%] p-0 flex md:flex-row flex-col gap-4 relative overflow-hidden">
-        {/* Background Spline */}
-        <div className="absolute inset-0 z-0">
+        {/* Background Spline (desktop only — mobile WebGL causes white/blank screens) */}
+        <div className="absolute inset-0 z-0 hidden md:block">
           <iframe 
             src={currentSplineBg.url}
             frameBorder="0" 

@@ -144,22 +144,7 @@ export default function MainChatPanel({
     { id: 'retrofuturism', name: 'Retro Futurism', url: 'https://my.spline.design/retrofuturismbganimation-Z5NWhPCGc1tcryNEnaN2FnIJ/' },
     { id: 'dotwaves', name: 'Dot Waves', url: 'https://my.spline.design/dotwaves-h4iKKFVRORZbPRboUfG4QKRk/' },
   ];
-  const [mobileBgUrl, setMobileBgUrl] = useState<string>(SPLINE_MOBILE_OPTIONS[1].url);
-
-  useEffect(() => {
-    try {
-      const id = localStorage.getItem('apropos-spline-background') || 'gradient';
-      const found = SPLINE_MOBILE_OPTIONS.find(o => o.id === id);
-      if (found) setMobileBgUrl(found.url);
-    } catch {}
-    const onBgChange = (e: any) => {
-      const id = e?.detail?.id;
-      const found = SPLINE_MOBILE_OPTIONS.find(o => o.id === id);
-      if (found) setMobileBgUrl(found.url);
-    };
-    window.addEventListener('spline-bg-change', onBgChange as any);
-    return () => window.removeEventListener('spline-bg-change', onBgChange as any);
-  }, []);
+  // mobileBgUrl removed — Spline iframes disabled on mobile to prevent WebGL white screens
 
   const openMobileMenu = () => {
     setMobileMenuVisible(true);
@@ -1108,17 +1093,10 @@ const fallbackThinkingSteps: ThinkingStep[] = [
   return (
     <>
       <div className="w-full h-full md:rounded-xl md:outline md:outline-[1.50px] md:outline-offset-[-1.50px] md:outline-zinc-800 flex flex-col justify-between font-poppins chat-container relative overflow-hidden" style={{ backgroundColor: 'rgb(0, 0, 0)' }}>
-        {/* Intro Spline background for empty chat (mobile only) */}
+        {/* Mobile empty-state gradient background (replaces Spline which causes white/blank on mobile WebGL) */}
         <div className={`md:hidden fixed inset-0 z-0 transition-opacity duration-500 ${messages.length === 0 ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
-          <iframe 
-            src={mobileBgUrl}
-            frameBorder="0"
-            width="100%"
-            height="100%"
-            className="w-full h-full"
-            title="AI Intro Background"
-          />
-          <div className="absolute inset-0 bg-black/30" />
+          <div className="absolute inset-0 bg-gradient-to-br from-[#0a0a0a] via-[#111] to-[#0d0d1a]" />
+          <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_rgba(255,255,255,0.03)_0%,_transparent_60%)]" />
         </div>
         {/* Top Bar */}
         <div className={`flex items-center justify-between min-h-[64px] md:min-h-[56px] p-4 app-safe-top relative z-20 
@@ -1177,7 +1155,7 @@ const fallbackThinkingSteps: ThinkingStep[] = [
             </button>
             {/* Mobile-only burger */}
             <button
-              className="md:hidden touch-target rounded-lg border border-white/15 text-white/80 hover:text-white hover:bg-white/5 transition-colors"
+              className="md:hidden touch-target p-2 rounded-lg border border-white/15 text-white/80 hover:text-white hover:bg-white/5 transition-colors"
               aria-label="Åbn menu"
               onClick={openMobileMenu}
             >
@@ -1188,7 +1166,7 @@ const fallbackThinkingSteps: ThinkingStep[] = [
           </div>
         </div>
       
-      <div className={`flex flex-col justify-start gap-2 p-[10px] md:pt-0 pt-16 pb-2 flex-1 overflow-hidden min-h-0 chat-container transition-all duration-500 ${messages.length === 0 ? 'opacity-0 pointer-events-none translate-y-1 md:opacity-100 md:translate-y-0' : 'opacity-100 translate-y-0'}`}>
+      <div className={`flex flex-col justify-start gap-2 p-[10px] md:pt-0 pt-16 pb-2 flex-1 overflow-hidden min-h-0 chat-container transition-all duration-500 ${messages.length === 0 ? 'opacity-100 translate-y-0' : 'opacity-100 translate-y-0'}`}>
         {/* Dynamic Chat Messages */}
         <div className="relative flex-1 min-h-0 overflow-hidden">
           <div
@@ -1196,6 +1174,15 @@ const fallbackThinkingSteps: ThinkingStep[] = [
             className="h-full overflow-y-auto space-y-4 nice-scrollbar"
             style={{ paddingBottom: Math.max(inputSpacerHeight, 0) + 40 }}
           >
+          {/* Mobile welcome state when no messages */}
+          {messages.length === 0 && (
+            <div className="md:hidden flex flex-col items-center justify-center h-full px-6 py-12">
+              <div className="text-center space-y-3">
+                <h2 className="text-xl font-semibold text-white/90">Apropos AI Writer</h2>
+                <p className="text-sm text-white/50 max-w-[260px]">Start en ny artikel — brug wizarden nedenfor, eller skriv direkte i feltet.</p>
+              </div>
+            </div>
+          )}
           {messages.map((message, index) => {
             const isUser = message.role === 'user';
             const isEditing = editingMessage === message.id;
