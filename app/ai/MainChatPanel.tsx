@@ -1668,46 +1668,6 @@ const fallbackThinkingSteps: ThinkingStep[] = [
         </div>
       )}
 
-        {/* URL Input */}
-        {showUrlInput && (
-          <div className="mx-[10px] mb-2">
-            <div className="flex gap-2 p-3 bg-white/5 border border-white/10 rounded-xl">
-              <input
-                ref={urlInputRef}
-                type="url"
-                value={urlInputValue}
-                onChange={e => setUrlInputValue(e.target.value)}
-                onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleUrlSubmit(); } if (e.key === 'Escape') setShowUrlInput(false); }}
-                placeholder="https://..."
-                className="flex-1 bg-transparent text-white text-sm placeholder-white/30 outline-none"
-              />
-              <button
-                onClick={handleUrlSubmit}
-                disabled={!urlInputValue.trim()}
-                className="px-3 py-1.5 bg-white/10 hover:bg-white/20 text-white text-xs rounded-lg transition-colors disabled:opacity-30"
-              >
-                Tilføj
-              </button>
-              <button
-                onClick={() => setShowUrlInput(false)}
-                className="p-1.5 text-white/40 hover:text-white transition-colors"
-              >
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* File Drop Zone */}
-        {showFileDrop && (
-          <div className="mx-[10px] mb-2">
-            <FileDropZone
-              onFileUploaded={handleFileUploaded}
-              onError={handleFileError}
-              className="min-h-[120px]"
-            />
-          </div>
-        )}
 
         {/* Article Picker - Directly under top bar */}
         {showArticlePicker && trendingTemplate && (
@@ -1861,6 +1821,47 @@ const fallbackThinkingSteps: ThinkingStep[] = [
               </button>
             </div>
           )}
+          {/* URL Input */}
+          {showUrlInput && (
+            <div className="mb-2">
+              <div className="flex gap-2 p-3 bg-[#171717] border border-white/15 rounded-xl">
+                <input
+                  ref={urlInputRef}
+                  type="url"
+                  value={urlInputValue}
+                  onChange={e => setUrlInputValue(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleUrlSubmit(); } if (e.key === 'Escape') setShowUrlInput(false); }}
+                  placeholder="https://..."
+                  className="flex-1 bg-transparent text-white text-sm placeholder-white/30 outline-none"
+                />
+                <button
+                  onClick={handleUrlSubmit}
+                  disabled={!urlInputValue.trim()}
+                  className="px-3 py-1.5 bg-white/10 hover:bg-white/20 text-white text-xs rounded-lg transition-colors disabled:opacity-30"
+                >
+                  Tilføj
+                </button>
+                <button
+                  onClick={() => setShowUrlInput(false)}
+                  className="p-1.5 text-white/40 hover:text-white transition-colors"
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* File Drop Zone */}
+          {showFileDrop && (
+            <div className="mb-2">
+              <FileDropZone
+                onFileUploaded={handleFileUploaded}
+                onError={handleFileError}
+                className="min-h-[120px]"
+              />
+            </div>
+          )}
+
           {/* Writer field card */}
           <div className={`relative rounded-xl ${messages.length === 0 ? 'bg-black/40 backdrop-blur-xl border border-white/15 shadow-[0_-18px_80px_-30px_rgba(255,255,255,0.28)]' : 'bg-[#171717] border border-white/15'}`}>
             <div className="p-3 md:p-4">
