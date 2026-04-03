@@ -110,6 +110,9 @@ export default function MainChatPanel({
   const [isAutoSaving, setIsAutoSaving] = useState(false);
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
   const [showFileDrop, setShowFileDrop] = useState(false);
+  const [showUrlInput, setShowUrlInput] = useState(false);
+  const [urlInputValue, setUrlInputValue] = useState('');
+  const urlInputRef = useRef<HTMLInputElement>(null);
   const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]);
   // const [showAISuggestions, setShowAISuggestions] = useState(false);
   const [selectedText, setSelectedText] = useState('');
@@ -473,6 +476,25 @@ const fallbackThinkingSteps: ThinkingStep[] = [
     if (!node) return;
     setMessageScrollFade(node.scrollTop > 4);
   }, []);
+
+  useEffect(() => {
+    if (showUrlInput) {
+      setTimeout(() => urlInputRef.current?.focus(), 100);
+    } else {
+      setUrlInputValue('');
+    }
+  }, [showUrlInput]);
+
+  const handleUrlSubmit = () => {
+    const url = urlInputValue.trim();
+    if (!url) return;
+    const withPrefix = url.match(/^https?:\/\//) ? url : `https://${url}`;
+    setInputMessage(prev => {
+      const separator = prev.trim() ? '\n' : '';
+      return `${prev}${separator}${withPrefix}`;
+    });
+    setShowUrlInput(false);
+  };
 
   // Auto-save functionality
   const saveToLocalStorage = () => {
@@ -1655,6 +1677,36 @@ const fallbackThinkingSteps: ThinkingStep[] = [
         </div>
       )}
 
+        {/* URL Input */}
+        {showUrlInput && (
+          <div className="mx-[10px] mb-2">
+            <div className="flex gap-2 p-3 bg-white/5 border border-white/10 rounded-xl">
+              <input
+                ref={urlInputRef}
+                type="url"
+                value={urlInputValue}
+                onChange={e => setUrlInputValue(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleUrlSubmit(); } if (e.key === 'Escape') setShowUrlInput(false); }}
+                placeholder="https://..."
+                className="flex-1 bg-transparent text-white text-sm placeholder-white/30 outline-none"
+              />
+              <button
+                onClick={handleUrlSubmit}
+                disabled={!urlInputValue.trim()}
+                className="px-3 py-1.5 bg-white/10 hover:bg-white/20 text-white text-xs rounded-lg transition-colors disabled:opacity-30"
+              >
+                Tilføj
+              </button>
+              <button
+                onClick={() => setShowUrlInput(false)}
+                className="p-1.5 text-white/40 hover:text-white transition-colors"
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* File Drop Zone */}
         {showFileDrop && (
           <div className="mx-[10px] mb-2">
@@ -1849,7 +1901,7 @@ const fallbackThinkingSteps: ThinkingStep[] = [
           <div className="flex justify-between items-center">
             <div className="flex gap-3">
               <button 
-                onClick={() => setShowFileDrop(!showFileDrop)}
+                onClick={() => { setShowFileDrop(!showFileDrop); setShowUrlInput(false); }}
                 className={`touch-target w-11 h-11 flex items-center justify-center rounded transition-colors ${
                   showFileDrop ? 'text-blue-400 bg-blue-400/10' : 'text-white hover:bg-gray-700'
                 }`}
@@ -1857,14 +1909,15 @@ const fallbackThinkingSteps: ThinkingStep[] = [
               >
                 <span className="text-lg">+</span>
               </button>
-              <button className="touch-target w-11 h-11 flex items-center justify-center text-white hover:bg-gray-700 rounded transition-colors">
+              <button
+                onClick={() => { setShowUrlInput(!showUrlInput); setShowFileDrop(false); }}
+                className={`touch-target w-11 h-11 flex items-center justify-center rounded transition-colors ${
+                  showUrlInput ? 'text-blue-400 bg-blue-400/10' : 'text-white hover:bg-gray-700'
+                }`}
+                title="Tilføj URL link"
+              >
                 <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
                   <path fillRule="evenodd" d="M12.586 4.586a2 2 0 112.828 2.828l-3 3a2 2 0 01-2.828 0 1 1 0 00-1.414 1.414 4 4 0 005.656 0l3-3a4 4 0 00-5.656-5.656l-1.5 1.5a1 1 0 101.414 1.414l1.5-1.5zm-5 5a2 2 0 012.828 0 1 1 0 101.414-1.414 4 4 0 00-5.656 0l-3 3a4 4 0 105.656 5.656l1.5-1.5a1 1 0 10-1.414-1.414l-1.5 1.5a2 2 0 11-2.828-2.828l3-3z" clipRule="evenodd" />
-                </svg>
-              </button>
-              <button className="touch-target w-11 h-11 flex items-center justify-center text-white hover:bg-gray-700 rounded transition-colors">
-                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z" clipRule="evenodd" />
                 </svg>
               </button>
             </div>
