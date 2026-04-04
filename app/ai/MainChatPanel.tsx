@@ -113,7 +113,9 @@ export default function MainChatPanel({
   const [showUrlInput, setShowUrlInput] = useState(false);
   const [urlInputValue, setUrlInputValue] = useState('');
   const urlInputRef = useRef<HTMLInputElement>(null);
-  const [attachedUrls, setAttachedUrls] = useState<string[]>([]);
+  const [urlLoading, setUrlLoading] = useState(false);
+  const [urlError, setUrlError] = useState('');
+  const [attachedSources, setAttachedSources] = useState<Array<{ url: string; title: string; text: string }>>([]);
   const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]);
   // const [showAISuggestions, setShowAISuggestions] = useState(false);
   const [selectedText, setSelectedText] = useState('');
@@ -142,14 +144,6 @@ export default function MainChatPanel({
   const [inputSpacerHeight, setInputSpacerHeight] = useState(0);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [mobileMenuVisible, setMobileMenuVisible] = useState(false);
-  const SPLINE_MOBILE_OPTIONS = [
-    { id: 'robot', name: 'Robot Karakter', url: 'https://my.spline.design/nexbotrobotcharacterconcept-jOiWdJXA0mBgb50nmYl1x0EC/' },
-    { id: 'gradient', name: 'Gradient Animation', url: 'https://my.spline.design/animatedbackgroundgradientforweb-k9vy84HznMWrADyOW44KZ3Ue/' },
-    { id: 'retrofuturism', name: 'Retro Futurism', url: 'https://my.spline.design/retrofuturismbganimation-Z5NWhPCGc1tcryNEnaN2FnIJ/' },
-    { id: 'dotwaves', name: 'Dot Waves', url: 'https://my.spline.design/dotwaves-h4iKKFVRORZbPRboUfG4QKRk/' },
-  ];
-  // mobileBgUrl removed — Spline iframes disabled on mobile to prevent WebGL white screens
-
   const openMobileMenu = () => {
     setMobileMenuVisible(true);
     // allow next paint so transition runs
@@ -486,30 +480,6 @@ const fallbackThinkingSteps: ThinkingStep[] = [
     }
   }, [showUrlInput]);
 
-  const handleUrlSubmit = () => {
-    const url = urlInputValue.trim();
-    if (!url) return;
-    const withPrefix = url.match(/^https?:\/\//) ? url : `https://${url}`;
-    setAttachedUrls(prev => prev.includes(withPrefix) ? prev : [...prev, withPrefix]);
-    setUrlInputValue('');
-    setShowUrlInput(false);
-  };
-
-  const removeAttachedUrl = (url: string) => {
-    setAttachedUrls(prev => prev.filter(u => u !== url));
-  };
-
-  const getDisplayUrl = (url: string) => {
-    try {
-      const parsed = new URL(url);
-      const host = parsed.hostname.replace(/^www\./, '');
-      const path = parsed.pathname === '/' ? '' : parsed.pathname.slice(0, 30);
-      return host + (path ? path + (parsed.pathname.length > 30 ? '…' : '') : '');
-    } catch {
-      return url.slice(0, 40);
-    }
-  };
-
   // Auto-save functionality
   const saveToLocalStorage = () => {
     try {
@@ -732,13 +702,20 @@ const fallbackThinkingSteps: ThinkingStep[] = [
 
   const handleSubmit = (e?: React.FormEvent) => {
     if (e) e.preventDefault();
-    const hasText = inputMessage.trim();
-    const hasUrls = attachedUrls.length > 0;
-    if (!hasText && !hasUrls) return;
-    const urlSuffix = hasUrls ? (hasText ? '\n\n' : '') + attachedUrls.join('\n') : '';
-    onSendMessage(inputMessage.trim() + urlSuffix);
+    const text = inputMessage.trim();
+    if (!text && attachedSources.length === 0) return;
+    let fullMessage = text;
+    if (attachedSources.length > 0) {
+      const sourcesBlock = attachedSources.map(s =>
+        `Kilde: ${s.title} (${s.url})\n---\n${s.text}\n---`
+      ).join('\n\n');
+      fullMessage = text
+        ? `Brug disse kilder KUN som inspiration — aldrig kopiér direkte:\n\n${sourcesBlock}\n\nParafrasér altid. Brugerens instruktion:\n${text}`
+        : `Brug disse kilder KUN som inspiration — aldrig kopiér direkte:\n\n${sourcesBlock}\n\nParafrasér altid.`;
+      setAttachedSources([]);
+    }
+    onSendMessage(fullMessage);
     setInputMessage('');
-    setAttachedUrls([]);
   };
 
   const handleEditMessage = (messageId: string, content: string) => {
@@ -796,7 +773,7 @@ const fallbackThinkingSteps: ThinkingStep[] = [
   const handleKeyPress = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
-      if (inputMessage.trim() || attachedUrls.length > 0) {
+      if (inputMessage.trim() || attachedSources.length > 0) {
         handleSubmit();
       }
     }
@@ -931,6 +908,34 @@ const fallbackThinkingSteps: ThinkingStep[] = [
     
     onSendMessage(fileMessage, [file]);
     setShowFileDrop(false);
+  };
+
+  const handleUrlFetch = async () => {
+    const url = urlInputValue.trim();
+    if (!url) return;
+    try { new URL(url); } catch { setUrlError('Ugyldig URL'); return; }
+
+    setUrlLoading(true);
+    setUrlError('');
+    try {
+      const res = await fetch('/api/extract-url', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setUrlError(data.error || 'Kunne ikke hente URL');
+        return;
+      }
+      setAttachedSources(prev => [...prev, { url: data.url, title: data.title, text: data.text }]);
+      setShowUrlInput(false);
+      setUrlInputValue('');
+    } catch {
+      setUrlError('Netværksfejl — prøv igen');
+    } finally {
+      setUrlLoading(false);
+    }
   };
 
   const handleFileError = (error: string) => {
@@ -1619,27 +1624,6 @@ const fallbackThinkingSteps: ThinkingStep[] = [
 
               {/* Settings list (Apple style) */}
               <div className="overflow-hidden rounded-2xl border border-white/10">
-                {/* Background selector */}
-                <div className="px-4 py-2 text-xs text-white/60 bg-white/[0.02] border-b border-white/10">Baggrund</div>
-                {SPLINE_MOBILE_OPTIONS.map((opt, i) => (
-                  <button
-                    key={opt.id}
-                    className={`w-full px-4 py-3 flex items-center gap-3 text-sm text-white/90 hover:bg-white/10 transition-colors ${i>0 ? 'border-t border-white/10' : ''}`}
-                    onClick={() => {
-                      try {
-                        localStorage.setItem('apropos-spline-background', opt.id);
-                        window.dispatchEvent(new CustomEvent('spline-bg-change', { detail: { id: opt.id } }));
-                      } catch {}
-                      closeMobileMenu();
-                    }}
-                  >
-                    <div className="w-6 h-6 rounded-md bg-white/10 flex items-center justify-center">
-                      <span className="text-[11px]">🎨</span>
-                    </div>
-                    <span>{opt.name}</span>
-                  </button>
-                ))}
-                <div className="border-t border-white/10" />
                 <button
                   className="w-full px-4 py-3 flex items-center gap-3 text-sm text-white/90 bg-white/[0.03] hover:bg-white/10 transition-colors"
                   onClick={() => { closeMobileMenu(); if (onOpenSourcesPanel) onOpenSourcesPanel(); }}
@@ -1837,35 +1821,46 @@ const fallbackThinkingSteps: ThinkingStep[] = [
               </button>
             </div>
           )}
-          {/* URL Input (inline above writer card) */}
+          {/* URL kilde (hent tekst — vises som pille i feltet) */}
           {showUrlInput && (
             <div className="mb-2">
-              <div className="flex gap-2 p-2.5 bg-[#171717] border border-white/15 rounded-xl">
-                <svg className="w-4 h-4 text-white/30 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101" />
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M10.172 13.828a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.102 1.101" />
-                </svg>
-                <input
-                  ref={urlInputRef}
-                  type="url"
-                  value={urlInputValue}
-                  onChange={e => setUrlInputValue(e.target.value)}
-                  onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleUrlSubmit(); } if (e.key === 'Escape') setShowUrlInput(false); }}
-                  placeholder="Indsæt URL..."
-                  className="flex-1 bg-transparent text-white text-sm placeholder-white/30 outline-none min-w-0"
-                />
-                <button
-                  onClick={handleUrlSubmit}
-                  disabled={!urlInputValue.trim()}
-                  className="px-2.5 py-1 bg-white/10 hover:bg-white/20 text-white text-xs rounded-lg transition-colors disabled:opacity-30 flex-shrink-0"
-                >
-                  Tilføj
-                </button>
+              <div className="flex flex-col gap-1.5 p-2.5 bg-[#171717] border border-white/15 rounded-xl">
+                <div className="flex gap-2 items-center">
+                  <svg className="w-4 h-4 text-white/30 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101" />
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M10.172 13.828a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.102 1.101" />
+                  </svg>
+                  <input
+                    ref={urlInputRef}
+                    type="url"
+                    value={urlInputValue}
+                    onChange={(e) => { setUrlInputValue(e.target.value); setUrlError(''); }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') { e.preventDefault(); handleUrlFetch(); }
+                      if (e.key === 'Escape') setShowUrlInput(false);
+                    }}
+                    placeholder="https://..."
+                    disabled={urlLoading}
+                    className="flex-1 bg-transparent text-white text-sm placeholder-white/30 outline-none min-w-0"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => handleUrlFetch()}
+                    disabled={urlLoading || !urlInputValue.trim()}
+                    className="px-2.5 py-1.5 bg-white/10 hover:bg-white/20 text-white text-xs rounded-lg transition-colors disabled:opacity-30 flex-shrink-0 flex items-center gap-1.5"
+                  >
+                    {urlLoading ? (
+                      <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin inline-block" />
+                    ) : null}
+                    Hent
+                  </button>
+                </div>
+                {urlError ? <p className="text-xs text-red-400 pl-6">{urlError}</p> : null}
+                <p className="text-[10px] text-white/35 pl-6">Kun inspiration — aldrig kopieret direkte</p>
               </div>
             </div>
           )}
 
-          {/* File Drop Zone */}
           {showFileDrop && (
             <div className="mb-2">
               <FileDropZone
@@ -1875,7 +1870,6 @@ const fallbackThinkingSteps: ThinkingStep[] = [
               />
             </div>
           )}
-
           {/* Writer field card */}
           <div className={`relative rounded-xl ${messages.length === 0 ? 'bg-black/40 backdrop-blur-xl border border-white/15 shadow-[0_-18px_80px_-30px_rgba(255,255,255,0.28)]' : 'bg-[#171717] border border-white/15'}`}>
             <div className="p-3 md:p-4">
@@ -1889,7 +1883,7 @@ const fallbackThinkingSteps: ThinkingStep[] = [
               rows={3}
               style={{ minHeight: '60px' }}
             />
-            {!inputMessage && attachedUrls.length === 0 && (
+            {!inputMessage && attachedSources.length === 0 && (
               <div className="absolute inset-0 pointer-events-none flex items-start pt-1">
                 <span 
                   className="text-sm bg-gradient-to-r from-white/20 via-white/70 to-white/20 bg-clip-text text-transparent"
@@ -1904,22 +1898,21 @@ const fallbackThinkingSteps: ThinkingStep[] = [
             )}
           </div>
 
-          {/* Attached URL pills */}
-          {attachedUrls.length > 0 && (
-            <div className="flex flex-wrap gap-1.5 mb-2">
-              {attachedUrls.map(url => (
+          {attachedSources.length > 0 && (
+            <div className="flex flex-wrap gap-1.5 mb-2 pt-1">
+              {attachedSources.map((src, i) => (
                 <div
-                  key={url}
-                  className="inline-flex items-center gap-1.5 pl-2.5 pr-1 py-1 rounded-full bg-white/10 border border-white/15 text-xs text-white/80 max-w-[280px] group hover:border-white/25 transition-colors"
+                  key={`${src.url}-${i}`}
+                  className="inline-flex items-center gap-1.5 pl-2.5 pr-1 py-1 rounded-full bg-white/10 border border-white/15 text-xs text-white/80 max-w-[280px] hover:border-white/25 transition-colors"
                 >
                   <svg className="w-3 h-3 text-white/40 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2">
                     <path strokeLinecap="round" strokeLinejoin="round" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101" />
                     <path strokeLinecap="round" strokeLinejoin="round" d="M10.172 13.828a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.102 1.101" />
                   </svg>
-                  <span className="truncate">{getDisplayUrl(url)}</span>
+                  <span className="truncate">{src.title || (src.url.match(/^https?:\/\/([^/?#]+)/i)?.[1]?.replace(/^www\./, '') ?? src.url.slice(0, 40))}</span>
                   <button
                     type="button"
-                    onClick={() => removeAttachedUrl(url)}
+                    onClick={() => setAttachedSources(prev => prev.filter((_, j) => j !== i))}
                     className="flex-shrink-0 p-0.5 rounded-full text-white/30 hover:text-white hover:bg-white/10 transition-colors"
                   >
                     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M18 6L6 18M6 6l12 12"/></svg>
@@ -1932,7 +1925,7 @@ const fallbackThinkingSteps: ThinkingStep[] = [
           <div className="flex justify-between items-center">
             <div className="flex gap-3">
               <button 
-                onClick={() => { setShowFileDrop(!showFileDrop); setShowUrlInput(false); }}
+                onClick={() => { setShowFileDrop(!showFileDrop); if (showUrlInput) setShowUrlInput(false); }}
                 className={`touch-target w-11 h-11 flex items-center justify-center rounded transition-colors ${
                   showFileDrop ? 'text-blue-400 bg-blue-400/10' : 'text-white hover:bg-gray-700'
                 }`}
@@ -1941,11 +1934,11 @@ const fallbackThinkingSteps: ThinkingStep[] = [
                 <span className="text-lg">+</span>
               </button>
               <button
-                onClick={() => { setShowUrlInput(!showUrlInput); setShowFileDrop(false); }}
+                onClick={() => { setShowUrlInput(!showUrlInput); if (showFileDrop) setShowFileDrop(false); }}
                 className={`touch-target w-11 h-11 flex items-center justify-center rounded transition-colors ${
                   showUrlInput ? 'text-blue-400 bg-blue-400/10' : 'text-white hover:bg-gray-700'
                 }`}
-                title="Tilføj URL link"
+                title="Indsæt URL som kilde"
               >
                 <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
                   <path fillRule="evenodd" d="M12.586 4.586a2 2 0 112.828 2.828l-3 3a2 2 0 01-2.828 0 1 1 0 00-1.414 1.414 4 4 0 005.656 0l3-3a4 4 0 00-5.656-5.656l-1.5 1.5a1 1 0 101.414 1.414l1.5-1.5zm-5 5a2 2 0 012.828 0 1 1 0 101.414-1.414 4 4 0 00-5.656 0l-3 3a4 4 0 105.656 5.656l1.5-1.5a1 1 0 10-1.414-1.414l-1.5 1.5a2 2 0 11-2.828-2.828l3-3z" clipRule="evenodd" />
@@ -1955,7 +1948,7 @@ const fallbackThinkingSteps: ThinkingStep[] = [
             
             <button 
               onClick={() => handleSubmit()}
-              disabled={!inputMessage.trim() && attachedUrls.length === 0}
+              disabled={!inputMessage.trim() && attachedSources.length === 0}
               className="touch-target w-11 h-11 bg-white rounded-lg flex items-center justify-center hover:bg-gray-100 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
             >
               <svg className="w-4 h-4 text-gray-800" fill="currentColor" viewBox="0 0 20 20">

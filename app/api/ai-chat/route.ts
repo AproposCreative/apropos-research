@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import type OpenAI from 'openai';
+import { APIError } from 'openai';
 import { getOpenAIClient, models } from '@/lib/openai';
 import { initProgress, updateProgressStep, completeProgress } from '@/lib/ai-chat-progress-store';
 import { createErrorResponse, ErrorCode } from '@/lib/api/types';
@@ -9,6 +10,36 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 const openai = getOpenAIClient();
+
+/** User-visible message; maps OpenAI HTTP statuses to actionable Danish text. */
+function formatAiChatError(err: unknown): string {
+  if (err instanceof APIError) {
+    const nested =
+      err.error &&
+      typeof err.error === 'object' &&
+      err.error !== null &&
+      'message' in err.error &&
+      typeof (err.error as { message?: unknown }).message === 'string'
+        ? (err.error as { message: string }).message
+        : '';
+    const partA = String(err.message || '').trim();
+    const partB = String(nested || '').trim();
+    const unique = partA && partB && partA === partB ? [partA] : [partA, partB].filter(Boolean);
+    const msg = unique.join(' — ') || 'OpenAI API fejl';
+    if (err.status === 429) {
+      return `OpenAI rate limit eller manglende kvote (429). ${msg} Tjek billing på platform.openai.com.`;
+    }
+    if (err.status === 401) {
+      return `OpenAI autentificering fejlede (401). Tjek OPENAI_API_KEY. ${msg}`;
+    }
+    if (err.status === 400) {
+      return `OpenAI afviste forespørgslen (400): ${msg}`;
+    }
+    return msg;
+  }
+  if (err instanceof Error && err.message.trim()) return err.message.trim();
+  return String(err);
+}
 
 let _structureCache: string | null = null;
 function loadStructurePrompt(): string {
@@ -20,6 +51,18 @@ function loadStructurePrompt(): string {
     _structureCache = '';
   }
   return _structureCache;
+}
+
+let _antiPlagCache: string | null = null;
+function loadAntiPlagiarismPrompt(): string {
+  if (_antiPlagCache) return _antiPlagCache;
+  try {
+    const filePath = path.join(process.cwd(), 'prompts', 'anti-plagiarism.md');
+    _antiPlagCache = fs.readFileSync(filePath, 'utf8');
+  } catch {
+    _antiPlagCache = '';
+  }
+  return _antiPlagCache;
 }
 
 function buildProgressSteps(hasResearch: boolean) {
@@ -157,17 +200,22 @@ function buildSystemPrompt(authorTOV: string, authorName: string, articleContext
   if (structureRules) {
     parts.push(`\n**APROPOS STRUCTURE (fra structure.apropos.md) — Følg PRÆCIS:**\n${structureRules}`);
   }
+  const antiPlagRules = loadAntiPlagiarismPrompt();
+  if (antiPlagRules) {
+    parts.push(`\n${antiPlagRules}`);
+  }
   const styleRef = buildStyleReferenceBlock(category as string | undefined);
   if (styleRef) {
     parts.push(styleRef);
   }
   parts.push(
-    `\n**OUTPUT-FORMAT:**
+    `\n**OUTPUT-FORMAT (felter til CMS — følg præcist):**
 - Linje 1: Arbejdstitel: [kun titeltekst]
 - Linje 2: Undertitel: [8–14 ord]
-- Linje 3: Intro: [én indledende paragraf, 2–4 linjer, ca. 60–80 ord]
+- Derefter en linje der starter med **Intro:** (eller Indledning:) og hele intro-teksten på samme linje eller fortsat i samme afsnit indtil tom linje.
 - Tom linje
-- Brødtekst: Start ALTID brødteksten med en HELT NY sætning/tanke. Den første sætning i brødteksten SKAL være fundamentalt anderledes end intro-teksten — brug et nyt perspektiv, en ny scene, et nyt faktum.
+- Derefter en linje der starter med **Brødtekst:** (eller Body:) og HELE brødteksten efter denne etiket. Alt efter "Brødtekst:" er kun brødtekst — må ikke gentage intro-teksten.
+- Første sætning efter Brødtekst: skal være en HELT NY tanke ift. introen (ny vinkel, scene eller faktum).
 - ALDRIG gentag titel, undertitel eller intro ordret eller parafraseret i brødteksten.
 - Skriv ALDRIG "Længde: X ord".`
   );
@@ -216,6 +264,29 @@ function extractTopLabeledLine(
   }
 
   return { value: null, content: t };
+}
+
+/**
+ * When the model follows OUTPUT-FORMAT with an explicit **Brødtekst:** (or Body:) line,
+ * split so CMS `intro` = intro block and `content` = only the brødtekst (no duplicate intro).
+ */
+function splitByBroedtekstMarker(text: string): { beforeMarker: string; body: string } | null {
+  const t = (text || '').trim();
+  if (!t) return null;
+  const re = /(?:^|[\r\n]+)\s*(?:\*\*|__)?\s*(?:brødtekst|body)\s*(?:\*\*|__)?\s*[:\-–—]\s*/im;
+  const m = re.exec(t);
+  if (!m) return null;
+  const body = t.slice(m.index + m[0].length).trim();
+  const beforeMarker = t.slice(0, m.index).trim();
+  if (!body) return null;
+  return { beforeMarker, body };
+}
+
+/** Strip leading Intro:/Indledning: from the block before Brødtekst (first label only). */
+function peelIntroLabelFromBlock(block: string): string {
+  return (block || '')
+    .replace(/^\s*(?:\*\*|__)?\s*(?:intro|indledning)\s*(?:\*\*|__)?\s*[:\-–—]\s*/i, '')
+    .trim();
 }
 
 /** Force user-chosen rating (1-6) into content: replace any "Stjerner: ⭐..." line with the correct one. */
@@ -416,31 +487,63 @@ function extractArticleUpdate(responseText: string, userRating?: number): Record
   if (!t) return null;
   const { value: extractedTitle, content: contentWithoutTitleLine } = extractTopLabeledLine(t, 'title');
   const { value: extractedSubtitle, content: contentWithoutSubtitle } = extractTopLabeledLine(contentWithoutTitleLine, 'subtitle');
+  const brodSplit = splitByBroedtekstMarker(contentWithoutSubtitle);
   const introMatch = contentWithoutSubtitle.match(/^(?:intro|indledning)\s*[:\-–—]\s*/i);
   const looksLikeArticle =
     !!introMatch ||
+    !!brodSplit ||
     /(?:intro|indledning)\s*[:\-–—]/i.test(contentWithoutSubtitle) ||
     !!extractedTitle ||
     !!extractedSubtitle ||
     contentWithoutSubtitle.length > 200 ||
     /\n\n/.test(contentWithoutSubtitle);
   if (!looksLikeArticle) return null;
-  let finalContent = contentWithoutSubtitle;
-  if (typeof userRating === 'number' && userRating >= 1 && userRating <= 6) {
-    finalContent = applyRatingToContent(finalContent, userRating);
+
+  let finalContent: string;
+  let resolvedIntro: string | null;
+
+  if (brodSplit) {
+    const peeled = peelIntroLabelFromBlock(brodSplit.beforeMarker);
+    resolvedIntro =
+      peeled ||
+      extractIntroFromContent(brodSplit.beforeMarker) ||
+      deriveIntroFromFirstParagraph(brodSplit.beforeMarker) ||
+      null;
+    finalContent = brodSplit.body;
+    if (typeof userRating === 'number' && userRating >= 1 && userRating <= 6) {
+      finalContent = applyRatingToContent(finalContent, userRating);
+    }
+    finalContent = stripWordCountLine(finalContent);
+    finalContent = stripEditorialMarkers(finalContent);
+  } else {
+    finalContent = contentWithoutSubtitle;
+    if (typeof userRating === 'number' && userRating >= 1 && userRating <= 6) {
+      finalContent = applyRatingToContent(finalContent, userRating);
+    }
+    finalContent = stripWordCountLine(finalContent);
+    finalContent = stripEditorialMarkers(finalContent);
+    const fallbackPre = deriveFallbackTitleSubtitle(finalContent);
+    const resolvedTitlePre = extractedTitle || fallbackPre.title;
+    resolvedIntro = extractIntroFromContent(finalContent) || deriveIntroFromFirstParagraph(finalContent);
+    finalContent = normalizeContentWithIntro(finalContent, resolvedIntro);
+    finalContent = cleanDuplicateIntroAndMetaFromBody(finalContent, resolvedTitlePre || null);
+    finalContent = stripEditorialMarkers(finalContent);
   }
-  finalContent = stripWordCountLine(finalContent);
-  finalContent = stripEditorialMarkers(finalContent);
+
   const fallback = deriveFallbackTitleSubtitle(finalContent);
   const resolvedTitle = extractedTitle || fallback.title;
   const resolvedSubtitle = extractedSubtitle || fallback.subtitle;
-  const resolvedIntro = extractIntroFromContent(finalContent) || deriveIntroFromFirstParagraph(finalContent);
-  finalContent = normalizeContentWithIntro(finalContent, resolvedIntro);
-  finalContent = cleanDuplicateIntroAndMetaFromBody(finalContent, resolvedTitle || null);
-  finalContent = stripEditorialMarkers(finalContent);
-  const wc = countWords(finalContent);
+  if (brodSplit && !resolvedIntro) {
+    resolvedIntro = deriveIntroFromFirstParagraph(brodSplit.beforeMarker);
+  }
+
+  const wc =
+    countWords([resolvedIntro, finalContent].filter(Boolean).join('\n\n')) ||
+    countWords(finalContent);
   const rt = wc ? Math.ceil(wc / 200) : 0;
-  const excerpt = cleanForSeo((resolvedIntro || finalContent.split(/\n{2,}/).map((x) => x.trim()).find(Boolean) || '').slice(0, 220).trim());
+  const excerpt = cleanForSeo(
+    (resolvedIntro || finalContent.split(/\n{2,}/).map((x) => x.trim()).find(Boolean) || '').slice(0, 220).trim(),
+  );
   const seo = buildSeoFields({
     title: resolvedTitle,
     subtitle: resolvedSubtitle,
@@ -635,15 +738,19 @@ export async function POST(request: NextRequest) {
       ...(researchResult?.debug ? { researchDebug: researchResult.debug } : {}),
     });
   } catch (err) {
-    const error = err instanceof Error ? err : new Error(String(err));
-    console.error('[ai-chat]', error);
+    const message = formatAiChatError(err);
+    console.error('[ai-chat]', err);
+    const status =
+      err instanceof APIError && typeof err.status === 'number' && err.status >= 400 && err.status < 600
+        ? err.status
+        : 500;
     return NextResponse.json(
-      createErrorResponse(error.message, {
-        statusCode: 500,
+      createErrorResponse(message || 'Ukendt serverfejl', {
+        statusCode: status,
         errorCode: ErrorCode.OPENAI_ERROR,
-        details: 'Ukendt fejl',
+        details: err instanceof APIError ? `OpenAI HTTP ${err.status ?? '?'}` : 'Ukendt fejl',
       }),
-      { status: 500 }
+      { status }
     );
   }
 }

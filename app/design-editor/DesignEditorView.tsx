@@ -206,6 +206,14 @@ export default function DesignEditorView({ onBack, embedMode }: DesignEditorView
   const previewRef = useRef<HTMLDivElement>(null);
   const [scale, setScale] = useState(0.5);
   const [storyMetaShuffleSeed, setStoryMetaShuffleSeed] = useState(0);
+  const [isDesktop, setIsDesktop] = useState(false);
+
+  useEffect(() => {
+    const check = () => setIsDesktop(window.innerWidth >= 768);
+    check();
+    window.addEventListener('resize', check);
+    return () => window.removeEventListener('resize', check);
+  }, []);
 
   const isWebflowId = useCallback((value: string) => /^[a-f0-9]{24}$/i.test(value.trim()), []);
 
@@ -657,7 +665,7 @@ export default function DesignEditorView({ onBack, embedMode }: DesignEditorView
     };
   }, [selected?.id, selected?.title, selected?.excerpt, size]);
 
-  const rootClass = embedMode ? `h-full flex flex-col relative overflow-hidden ${amiri.variable}` : `min-h-[100dvh] h-[100dvh] bg-[#171717] md:p-[1%] p-0 flex flex-col md:flex-row relative overflow-hidden ${amiri.variable}`;
+  const rootClass = embedMode ? `h-full flex flex-col relative overflow-hidden ${amiri.variable}` : `min-h-[100dvh] h-[100dvh] bg-black md:bg-[#171717] md:p-[1%] p-0 flex flex-col md:flex-row relative overflow-hidden ${amiri.variable}`;
 
   return (
     <div ref={rootRef} className={rootClass}>
@@ -780,19 +788,19 @@ export default function DesignEditorView({ onBack, embedMode }: DesignEditorView
       <div
         className="flex-1 min-w-0 flex flex-col md:absolute md:top-0 md:bottom-0 z-10 transition-[left] duration-300"
         style={{
-          left: articlesOpen ? `${articlesPanelWidth + PANEL_GAP}px` : '0',
-          right: embedMode ? 0 : 'calc(60px)',
+          left: isDesktop && articlesOpen ? `${articlesPanelWidth + PANEL_GAP}px` : '0',
+          right: 0,
           transition: isResizingArticles ? 'none' : undefined,
         }}
       >
         <div className="h-full flex flex-col rounded-xl border border-white/20 overflow-hidden bg-[#171717]">
-          {/* Top bar – samme design som AI Writer */}
-          <div className="flex-shrink-0 flex flex-col md:flex-row md:items-center md:justify-between gap-3 p-3 md:p-4 app-safe-top border-b border-white/10 md:border-b md:border-zinc-800 bg-black/40 backdrop-blur-xl md:bg-transparent md:backdrop-blur-0">
-            <div className="flex items-center gap-3 min-w-0">
-              <button onClick={() => setArticlesOpen(true)} className="touch-target w-11 h-11 flex items-center justify-center hover:bg-white/10 rounded-xl transition-colors md:hidden" aria-label="Artikler">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M4 6h16M4 12h16M4 18h16" /></svg>
+          {/* Top bar */}
+          <div className="flex-shrink-0 flex items-center justify-between gap-2 px-3 py-2 md:p-4 app-safe-top border-b border-white/10 md:border-zinc-800 bg-black/40 backdrop-blur-xl md:bg-transparent md:backdrop-blur-0">
+            <div className="flex items-center gap-2 min-w-0 shrink-0">
+              <button onClick={() => setArticlesOpen(true)} className="touch-target w-10 h-10 flex items-center justify-center hover:bg-white/10 rounded-xl transition-colors md:hidden" aria-label="Artikler">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-white"><path d="M4 6h16M4 12h16M4 18h16" /></svg>
               </button>
-              <h1 className="text-white text-sm md:text-base font-medium md:block leading-tight">
+              <h1 className="hidden md:block text-white text-base font-medium leading-tight">
                 <span
                   className="bg-gradient-to-r from-white/20 via-white/70 to-white/20 bg-clip-text text-transparent"
                   style={{ backgroundSize: '200% 100%', animation: 'gradient-shift 4s ease-in-out infinite' }}
@@ -801,67 +809,67 @@ export default function DesignEditorView({ onBack, embedMode }: DesignEditorView
                 </span>
               </h1>
             </div>
-            <div className="w-full md:w-auto flex items-center gap-2 overflow-x-auto no-scrollbar">
+            <div className="flex items-center gap-1.5 md:gap-2 overflow-x-auto no-scrollbar">
               <select
                 value={size}
                 onChange={(e) => setSize(e.target.value as SocialCardSize)}
-                className="touch-target shrink-0 p-2 rounded-lg border border-white/15 bg-transparent text-white/70 hover:text-white hover:bg-white/5 focus:outline-none focus:ring-2 focus:ring-white/20 focus:border-white/20 transition-colors text-sm"
+                className="touch-target shrink-0 p-1.5 md:p-2 rounded-lg border border-white/15 bg-transparent text-white/70 hover:text-white hover:bg-white/5 focus:outline-none focus:ring-2 focus:ring-white/20 focus:border-white/20 transition-colors text-xs md:text-sm"
               >
-                <option value="square">1080 × 1080</option>
-                <option value="story">1080 × 1920 (Story)</option>
+                <option value="square">1080×1080</option>
+                <option value="story">1080×1920</option>
               </select>
               <button
                 type="button"
                 onClick={() => setArticlesOpen((v) => !v)}
-                className={`touch-target shrink-0 p-2 rounded-lg border flex items-center justify-center transition-colors ${articlesOpen ? 'bg-white/10 text-white border-white/25' : 'border-white/15 text-white/70 hover:text-white hover:bg-white/5'}`}
+                className={`touch-target shrink-0 p-1.5 md:p-2 rounded-lg border flex items-center justify-center transition-colors ${articlesOpen ? 'bg-white/10 text-white border-white/25' : 'border-white/15 text-white/70 hover:text-white hover:bg-white/5'}`}
                 title="Mine artikler"
-                aria-label="Mine artikler – vælg artikel fra Webflow"
+                aria-label="Mine artikler"
               >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16" /></svg>
+                <svg className="w-4 h-4 md:w-5 md:h-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16" /></svg>
               </button>
               <button
                 type="button"
                 onClick={() => setShowPreview((v) => !v)}
-                className={`touch-target shrink-0 p-2 rounded-lg border border-white/15 flex items-center justify-center transition-colors ${showPreview ? 'bg-white/10 text-white border-white/25' : 'text-white/70 hover:text-white hover:bg-white/5'}`}
+                className={`touch-target shrink-0 p-1.5 md:p-2 rounded-lg border border-white/15 flex items-center justify-center transition-colors ${showPreview ? 'bg-white/10 text-white border-white/25' : 'text-white/70 hover:text-white hover:bg-white/5'}`}
                 title={showPreview ? 'Luk forhåndsvisning' : 'Forhåndsvis opslag'}
                 aria-label={showPreview ? 'Luk forhåndsvisning' : 'Forhåndsvis opslag'}
               >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+                <svg className="w-4 h-4 md:w-5 md:h-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
               </button>
               <button
                 type="button"
                 onClick={handleExportPng}
                 disabled={exporting}
-                className="touch-target shrink-0 p-2 rounded-lg border border-white/15 text-white/70 hover:text-white hover:bg-white/5 disabled:opacity-50 disabled:pointer-events-none transition-colors"
+                className="touch-target shrink-0 p-1.5 md:p-2 rounded-lg border border-white/15 text-white/70 hover:text-white hover:bg-white/5 disabled:opacity-50 disabled:pointer-events-none transition-colors"
                 title="Eksporter PNG"
                 aria-label={exporting ? 'Eksporterer…' : 'Eksporter PNG'}
               >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                <svg className="w-4 h-4 md:w-5 md:h-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
               </button>
               {onBack ? (
                 <button
                   type="button"
                   onClick={onBack}
-                  className="touch-target shrink-0 p-2 rounded-lg border border-white/15 text-white/70 hover:text-white hover:bg-white/5 transition-colors"
+                  className="touch-target shrink-0 p-1.5 md:p-2 rounded-lg border border-white/15 text-white/70 hover:text-white hover:bg-white/5 transition-colors"
                   aria-label="Luk Designer"
                   title="Luk"
                 >
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+                  <svg className="w-4 h-4 md:w-5 md:h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
                 </button>
               ) : (
                 <a
                   href="/ai"
-                  className="touch-target shrink-0 p-2 rounded-lg border border-white/15 text-white/70 hover:text-white hover:bg-white/5 transition-colors inline-flex items-center justify-center"
+                  className="touch-target shrink-0 p-1.5 md:p-2 rounded-lg border border-white/15 text-white/70 hover:text-white hover:bg-white/5 transition-colors inline-flex items-center justify-center"
                   aria-label="Tilbage til AI Writer"
                   title="Tilbage til AI Writer"
                 >
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+                  <svg className="w-4 h-4 md:w-5 md:h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
                 </a>
               )}
             </div>
           </div>
           {showPreview ? (
-            <div className="flex-1 min-h-0 flex flex-col items-center overflow-y-auto bg-[#0a0a0a] p-4">
+            <div className="flex-1 min-h-0 flex flex-col items-center overflow-y-auto bg-[#0a0a0a] p-2 md:p-4">
               {/* Instagram-style post preview */}
               <div className="w-full flex flex-col rounded-lg overflow-hidden border border-white/10 bg-[#0a0a0a]" style={{ maxWidth: size === 'story' ? 620 : 468 }}>
                 {/* Profil-række */}
@@ -937,17 +945,17 @@ export default function DesignEditorView({ onBack, embedMode }: DesignEditorView
               </div>
             </div>
           ) : (
-            <div ref={previewRef} className="flex-1 min-h-0 flex flex-col items-center md:justify-start justify-start bg-black/20 p-3 md:p-4">
-              <div className="w-full flex flex-col items-center gap-5 pt-10">
+            <div ref={previewRef} className="flex-1 min-h-0 flex flex-col items-center md:justify-start justify-start bg-black/20 p-2 md:p-4">
+              <div className="w-full flex flex-col items-center gap-3 md:gap-5 pt-3 md:pt-10">
                 {/* Figma-lignende kontrolbar placeret lige over kortet */}
                 {eyebrowChips.length > 0 && size !== 'story' && (
-                  <div className="inline-flex max-w-full overflow-x-auto no-scrollbar justify-start items-center gap-2 rounded-2xl border border-white/15 bg-black/65 p-2 mb-5 backdrop-blur-md shadow-[0_8px_24px_rgba(0,0,0,0.35)]">
+                  <div className="inline-flex max-w-full overflow-x-auto no-scrollbar justify-start items-center gap-1.5 md:gap-2 rounded-2xl border border-white/15 bg-black/65 p-1.5 md:p-2 mb-2 md:mb-5 backdrop-blur-md shadow-[0_8px_24px_rgba(0,0,0,0.35)]">
                     {eyebrowChips.map((chip, index) => (
                       <button
                         key={`${chip.type}-${index}-${chip.value}`}
                         type="button"
                         onClick={() => cycleEyebrowChip(index)}
-                        className="shrink-0 px-4 md:px-5 py-2 rounded-xl text-white text-sm md:text-[15px] font-medium bg-white/15 border border-white/25 transition-all duration-200 hover:bg-white/25 hover:border-white/50 focus:outline-none focus:ring-2 focus:ring-white/40"
+                        className="shrink-0 px-3 md:px-5 py-1.5 md:py-2 rounded-xl text-white text-xs md:text-[15px] font-medium bg-white/15 border border-white/25 transition-all duration-200 hover:bg-white/25 hover:border-white/50 focus:outline-none focus:ring-2 focus:ring-white/40"
                         title="Klik for at vælge næste"
                       >
                         {chip.label}
@@ -956,7 +964,7 @@ export default function DesignEditorView({ onBack, embedMode }: DesignEditorView
                   </div>
                 )}
                 {size === 'story' && (
-                  <div className="inline-flex max-w-full justify-start items-center gap-2 rounded-2xl border border-white/15 bg-black/65 p-2 mb-5 backdrop-blur-md shadow-[0_8px_24px_rgba(0,0,0,0.35)]">
+                  <div className="inline-flex max-w-full justify-start items-center gap-1.5 md:gap-2 rounded-2xl border border-white/15 bg-black/65 p-1.5 md:p-2 mb-2 md:mb-5 backdrop-blur-md shadow-[0_8px_24px_rgba(0,0,0,0.35)]">
                     <button
                       type="button"
                       onClick={() => setStoryMetaShuffleSeed((prev) => prev + 1)}
@@ -977,7 +985,7 @@ export default function DesignEditorView({ onBack, embedMode }: DesignEditorView
                   </div>
                 )}
                 {size === 'story' && (
-                  <div className="w-full max-w-[480px] -mt-2 mb-2">
+                  <div className="w-full max-w-[480px] -mt-1 md:-mt-2 mb-1 md:mb-2 px-2 md:px-0">
                     <button
                       type="button"
                       onClick={handlePostToInstagram}

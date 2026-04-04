@@ -14,24 +14,26 @@ function generateRequestId(): string {
 }
 
 export function middleware(request: NextRequest) {
-  // Generate or extract request ID
+  if (request.nextUrl.pathname === '/') {
+    const url = request.nextUrl.clone();
+    url.pathname = '/ai';
+    return NextResponse.redirect(url, 308);
+  }
+
   const requestId = 
     request.headers.get('x-request-id') || 
     request.headers.get('x-vercel-request-id') || 
     generateRequestId();
 
-  // Clone request headers and add request ID
   const requestHeaders = new Headers(request.headers);
   requestHeaders.set('x-request-id', requestId);
 
-  // Create response with request ID in headers
   const response = NextResponse.next({
     request: {
       headers: requestHeaders,
     },
   });
 
-  // Add request ID to response headers for client-side access
   response.headers.set('x-request-id', requestId);
 
   return response;

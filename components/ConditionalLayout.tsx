@@ -121,7 +121,7 @@ export default function ConditionalLayout({ children }: { children: React.ReactN
   const pathname = usePathname();
   
   // Routes that should show the full dashboard layout
-  const dashboardRoutes = ['/', '/alle-medier', '/editorial-queue', '/ai-drafts', '/search', '/shorts', '/profile', '/media-admin', '/settings'];
+  const dashboardRoutes = ['/alle-medier', '/editorial-queue', '/ai-drafts', '/search', '/shorts', '/profile', '/media-admin', '/settings'];
   
   // Routes that should show minimal layout (login, etc.)
   const isMinimalLayout = !dashboardRoutes.includes(pathname);

@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import WebflowPublishPanel from './WebflowPublishPanel';
 import type { WebflowArticleFields } from '@/lib/webflow-service';
+import { stripIntroDuplicateFromBody } from '@/lib/article-intro-strip';
 
 interface ReviewPanelProps {
   articleData: any;
@@ -313,7 +314,12 @@ export default function ReviewPanel({ articleData, onClose, frameless, onPreflig
     return { intro: '', body: text };
   };
 
-  const { intro, body } = extractIntroAndBody(content);
+  const extractedPreview = extractIntroAndBody(content);
+  const intro = extractedPreview.intro;
+  const body =
+    extractedPreview.intro && extractedPreview.intro.trim().length > 0
+      ? stripIntroDuplicateFromBody(extractedPreview.intro, extractedPreview.body)
+      : extractedPreview.body;
 
   const seoTitle = mergedArticleData?.seo_title || mergedArticleData?.seoTitle || '';
   const seoDescription = mergedArticleData?.meta_description || mergedArticleData?.seoDescription || '';

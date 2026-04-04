@@ -539,12 +539,6 @@ export default function AIWriterClient() {
       setNotes(notesPayload);
     }
 
-    const sendAssistantError = (code: string, message: string, details?: string) => {
-      const normalizedCode = (code || 'UNKNOWN').toUpperCase().replace(/[^A-Z0-9_-]/g, '_');
-      const detailText = details ? `\nDetaljer: ${details}` : '';
-      addChatMessage('assistant', `Fejl (${normalizedCode}): ${message}${detailText}`);
-    };
-
     await handleSendMessageInternal(trimmedMessage, files, isLikelyBrief, isSimpleMessage);
   };
 
@@ -571,10 +565,8 @@ export default function AIWriterClient() {
       setNotes(notesPayload);
     }
 
-    const sendAssistantError = (code: string, message: string, details?: string) => {
-      const normalizedCode = (code || 'UNKNOWN').toUpperCase().replace(/[^A-Z0-9_-]/g, '_');
-      const detailText = details ? `\nDetaljer: ${details}` : '';
-      addChatMessage('assistant', `Fejl (${normalizedCode}): ${message}${detailText}`);
+    const sendAssistantError = (message: string, tip?: string) => {
+      addChatMessage('assistant', tip ? `${message}\n\n${tip}` : message);
     };
 
     try {
@@ -691,7 +683,7 @@ export default function AIWriterClient() {
         
         if (!data.response) {
           console.error('❌ No response field in API data');
-          sendAssistantError('API_EMPTY_RESPONSE', 'Jeg modtog ikke noget svar fra modellen. Prøv igen.');
+          sendAssistantError('Jeg fik ikke noget svar tilbage — prøv bare at sende igen.');
           setIsThinking(false);
           return;
         }
@@ -851,37 +843,64 @@ export default function AIWriterClient() {
           addChatMessage('assistant', `For at kunne udgive i Webflow mangler vi følgende felter:\n${lines.join('\n')}\n\nSkriv værdierne, så udfylder jeg dem ét for ét.`);
         }
       } else {
-        const errorData = await response.json().catch(() => ({ error: 'Ukendt fejl' }));
-        console.error('❌ API Error:', response.status, errorData);
-        const errorCategory = typeof errorData.errorCategory === 'string' ? errorData.errorCategory : '';
-        const derivedCode = errorData.errorCode ||
-          (errorCategory ? errorCategory.toUpperCase().replace(/[^A-Z0-9_-]/g, '_') : `HTTP_${response.status}`);
-        const detailParts: string[] = [];
-        if (typeof errorData.error === 'string') detailParts.push(errorData.error);
-        if (typeof errorData.details === 'string') detailParts.push(errorData.details);
-        if (errorData.requestId) detailParts.push(`Request ID: ${errorData.requestId}`);
+        const raw = await response.text();
+        let errorData: Record<string, unknown> = {};
+        try {
+          if (raw.trim()) errorData = JSON.parse(raw) as Record<string, unknown>;
+        } catch {
+          errorData = { error: raw.trim().slice(0, 800) || 'Ukendt fejl (ikke JSON fra server)' };
+        }
+        const errMsg =
+          typeof errorData.error === 'string' && errorData.error.trim()
+            ? errorData.error.trim()
+            : raw.trim().slice(0, 500) || `Tomt serversvar (HTTP ${response.status})`;
+        if (typeof errorData.error !== 'string' || !errorData.error.trim()) {
+          errorData = { ...errorData, error: errMsg };
+        }
+        // Stringify so DevTools does not show a collapsed "{}" for objects with a key named "error"
+        console.error(`❌ API Error: ${response.status}`, JSON.stringify(errorData));
         setLastFailedMessage(trimmedMessage);
-        sendAssistantError(
-          derivedCode,
-          'Beklager, jeg kunne ikke behandle din forespørgsel lige nu. Prøv igen senere.',
-          detailParts.length ? detailParts.join(' | ') : undefined
-        );
+
+        let userLine: string;
+        let tip: string | undefined;
+        if (response.status === 429) {
+          userLine =
+            'Jeg kan ikke skrive lige nu — det ligner, at AI-kontoen er løbet tør (lidt som når mobilen har brugt datapakken).';
+          tip = 'Gå ind på openai.com, tjek betaling og forbrugsgrænser, og prøv igen bagefter.';
+        } else if (response.status === 401) {
+          userLine = 'Jeg kan ikke få adgang til AI-tjenesten — nøglen passer ikke eller er udløbet.';
+          tip = 'Den der har sat appen op skal tjekke API-nøglen (fx i Vercel eller .env).';
+        } else if (response.status === 400) {
+          userLine = 'Noget i beskeden blev ikke accepteret.';
+          tip = 'Prøv at sende igen, eller skriv det lidt anderledes.';
+        } else if (response.status >= 500) {
+          userLine = 'Noget gik galt i baggrunden hos os.';
+          tip = 'Prøv igen om lidt — hvis det bliver ved, er det nok ikke din fejl.';
+        } else {
+          userLine = 'Det gik ikke lige denne gang.';
+          tip = 'Prøv igen om et øjeblik.';
+        }
+        sendAssistantError(userLine, tip);
       }
     } catch (error: any) {
       // Handle AbortError silently (expected timeout behavior)
       if (error.name === 'AbortError') {
         console.log('⏱️ Request timeout - this is expected for long-running requests');
         setLastFailedMessage(trimmedMessage);
-        sendAssistantError('REQUEST_TIMEOUT', 'Forespørgslen tog for lang tid. Prøv igen eller send en kortere besked.');
+        sendAssistantError(
+          'Det tog for lang tid — jeg nåede ikke færdig.',
+          'Prøv igen, eventuelt med en kortere besked.',
+        );
       } else {
         console.error('❌ Fetch error:', error);
-        const detail = typeof error?.message === 'string' ? error.message : '';
-        const codeGuess =
-          typeof navigator !== 'undefined' && navigator.onLine === false
-            ? 'OFFLINE'
-            : 'NETWORK_ERROR';
         setLastFailedMessage(trimmedMessage);
-        sendAssistantError(codeGuess, 'Der opstod en forbindelsesfejl til AI-tjenesten.', detail || undefined);
+        const offline = typeof navigator !== 'undefined' && navigator.onLine === false;
+        sendAssistantError(
+          offline
+            ? 'Du ser ud til at være offline.'
+            : 'Nettet driller, eller også svarer serveren ikke lige nu.',
+          'Tjek forbindelsen og prøv igen om lidt.',
+        );
       }
     } finally {
       if (progressPollIntervalRef.current) {
@@ -1116,7 +1135,7 @@ export default function AIWriterClient() {
           onSelectMessage={handleSelectMessage}
         />
       )}
-      <div className="h-[100dvh] min-h-[100dvh] bg-[#171717] md:p-[1%] p-0 flex md:flex-row flex-col gap-4 relative overflow-hidden">
+      <div className="h-[100dvh] min-h-[100dvh] bg-black md:bg-[#171717] md:p-[1%] p-0 flex md:flex-row flex-col gap-4 relative overflow-hidden">
         {/* Background Spline (desktop only — mobile WebGL causes white/blank screens) */}
         <div className="absolute inset-0 z-0 hidden md:block">
           <iframe 

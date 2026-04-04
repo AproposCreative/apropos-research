@@ -1,5 +1,6 @@
 'use client';
 import type { ArticleData } from '@/types/article';
+import { stripIntroDuplicateFromBody } from '@/lib/article-intro-strip';
 import { useState } from 'react';
 
 interface PreviewPanelProps {
@@ -11,7 +12,12 @@ export default function PreviewPanel({ articleData, onUpdateArticle }: PreviewPa
   const [isGeneratingImage, setIsGeneratingImage] = useState(false);
   const [imageProgress, setImageProgress] = useState(0);
   const introText = (articleData.intro || '').replace(/^intro\s*:\s*/i, '');
-  
+  const rawArticleContent = articleData.content || '';
+  const bodyPreview =
+    introText.trim().length > 0
+      ? stripIntroDuplicateFromBody(introText, rawArticleContent)
+      : rawArticleContent;
+
   const renderStars = (rating: number) => {
     return '★'.repeat(rating) + '☆'.repeat(5 - rating);
   };
@@ -406,9 +412,9 @@ export default function PreviewPanel({ articleData, onUpdateArticle }: PreviewPa
             Læser nu: {articleData.title || 'Alien: Earth'}
           </div>
           
-           {articleData.content ? (
+           {bodyPreview.trim() ? (
              <div className="whitespace-pre-wrap text-gray-900 leading-relaxed">
-               {articleData.content}
+               {bodyPreview}
              </div>
            ) : (
              <div className="text-gray-900 leading-relaxed">
