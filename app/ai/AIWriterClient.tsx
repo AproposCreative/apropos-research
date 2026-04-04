@@ -1534,12 +1534,12 @@ export default function AIWriterClient() {
             </div>
 
             {/* Slide-in sources drawer (right shelf) */}
-            <div className={`absolute md:top-[1%] md:bottom-[1%] md:right-[1%] top-0 right-0 bottom-0 z-50 md:w-[min(380px,90vw)] w-full transition-all duration-300 ${sourcesOpen ? 'translate-x-0 opacity-100 pointer-events-auto' : 'translate-x-[110%] opacity-0 pointer-events-none'}`}>
+            <div className={`fixed md:absolute inset-0 md:inset-auto md:top-[1%] md:bottom-[1%] md:right-[1%] z-50 md:w-[min(380px,90vw)] transition-all duration-300 ${sourcesOpen ? 'translate-x-0 opacity-100 pointer-events-auto' : 'translate-x-[110%] opacity-0 pointer-events-none'}`}>
               <SourcesPanel isOpen={sourcesOpen} onClose={() => setSourcesOpen(false)} />
             </div>
 
             {/* Slide-in settings drawer (right shelf) */}
-            <div className={`absolute md:top-[1%] md:bottom-[1%] md:right-[1%] top-0 right-0 bottom-0 z-50 md:w-[min(380px,90vw)] w-full transition-all duration-300 ${settingsOpen ? 'translate-x-0 opacity-100 pointer-events-auto' : 'translate-x-[110%] opacity-0 pointer-events-none'}`}>
+            <div className={`fixed md:absolute inset-0 md:inset-auto md:top-[1%] md:bottom-[1%] md:right-[1%] z-50 md:w-[min(380px,90vw)] transition-all duration-300 ${settingsOpen ? 'translate-x-0 opacity-100 pointer-events-auto' : 'translate-x-[110%] opacity-0 pointer-events-none'}`}>
               <SettingsPanel isOpen={settingsOpen} onClose={() => setSettingsOpen(false)} />
             </div>
 

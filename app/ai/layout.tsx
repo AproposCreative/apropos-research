@@ -4,7 +4,7 @@ export default function AILayout({ children }: { children: React.ReactNode }) {
       className="min-h-[100dvh]"
       style={{ backgroundColor: '#000', color: '#fff' }}
     >
-      <style>{`html, body { background-color: #000 !important; }`}</style>
+      <style>{`html, body { background: #000 !important; background-image: none !important; }`}</style>
       {children}
     </div>
   );

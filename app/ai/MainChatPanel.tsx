@@ -1142,26 +1142,25 @@ const fallbackThinkingSteps: ThinkingStep[] = [
           <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_rgba(255,255,255,0.03)_0%,_transparent_60%)]" />
         </div>
         {/* Top Bar */}
-        <div className={`flex items-center justify-between min-h-[64px] md:min-h-[56px] p-4 app-safe-top relative z-20 
+        <div className={`flex items-center min-h-[56px] px-4 app-safe-top relative z-20 
           md:static md:bg-transparent md:backdrop-blur-0 md:border-b md:border-zinc-800 
           fixed top-0 inset-x-0 md:inset-auto md:top-auto
-          bg-black/40 backdrop-blur-xl border-b border-white/10
+          bg-black/80 backdrop-blur-xl border-b border-white/[0.06]
         ${messages.length === 0 ? 'md:opacity-100' : ''}`}>
-          <div className="flex items-center gap-3 min-w-0 flex-1 pr-14">
-            {/* Mobile: Logo/title cross-fade */}
-            <div className="relative md:hidden h-6">
+          {/* Left: logo/title */}
+          <div className="flex items-center gap-3 min-w-0 flex-1">
+            <div className="relative md:hidden h-5">
               <img
                 src="/images/Apropos Research White.png"
                 alt="Apropos Research"
-                className={`h-6 transition-all duration-300 ${messages.length === 0 ? 'opacity-80 scale-100' : 'opacity-0 scale-95'}`}
+                className={`h-5 transition-all duration-300 ${messages.length === 0 ? 'opacity-70 scale-100' : 'opacity-0 scale-95'}`}
               />
               <div className={`absolute inset-0 flex items-center transition-all duration-300 ${messages.length === 0 ? 'opacity-0 scale-95' : 'opacity-100 scale-100'}`}>
-                <span className="text-white text-base font-medium">
-                  {chatTitle === 'Ny artikkel' ? 'Ny Apropos Magazine artikkel' : chatTitle}
+                <span className="text-white text-[15px] font-medium truncate">
+                  {chatTitle === 'Ny artikkel' ? 'Ny artikel' : chatTitle}
                 </span>
               </div>
             </div>
-            {/* Desktop: always show title */}
             <h1 className="hidden md:block text-white text-base font-medium truncate">
               {chatTitle === 'Ny artikkel' ? (
                 <span 
@@ -1173,18 +1172,16 @@ const fallbackThinkingSteps: ThinkingStep[] = [
               ) : chatTitle}
             </h1>
             {isAutoSaving && (
-              <span className="text-xs text-green-400 animate-pulse">Gemmer...</span>
+              <span className="text-[11px] text-green-400/80 animate-pulse ml-auto md:ml-0">Gemmer…</span>
             )}
             {lastSaved && !isAutoSaving && (
-              <span className="text-xs text-green-400">
-                Gemt {lastSaved.toLocaleTimeString('da-DK', { 
-                  hour: '2-digit', 
-                  minute: '2-digit' 
-                })}
+              <span className="text-[11px] text-white/30 ml-auto md:ml-0">
+                {lastSaved.toLocaleTimeString('da-DK', { hour: '2-digit', minute: '2-digit' })}
               </span>
             )}
           </div>
-          <div className="absolute right-4 top-1/2 -translate-y-1/2 flex items-center gap-2 shrink-0">
+          {/* Right: actions */}
+          <div className="flex items-center gap-1 shrink-0 ml-3">
             <button
               type="button"
               onClick={() => onClose?.()}
@@ -1196,14 +1193,13 @@ const fallbackThinkingSteps: ThinkingStep[] = [
                 <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
               </svg>
             </button>
-            {/* Mobile-only burger */}
             <button
-              className="md:hidden touch-target p-2 rounded-lg border border-white/15 text-white/80 hover:text-white hover:bg-white/5 transition-colors"
+              className="md:hidden touch-target p-2 -mr-2 text-white/60 active:text-white transition-colors"
               aria-label="Åbn menu"
               onClick={openMobileMenu}
             >
               <svg className="w-5 h-5 block" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M4 6h16M4 12h16M4 18h16" />
               </svg>
             </button>
           </div>
@@ -1539,13 +1535,14 @@ const fallbackThinkingSteps: ThinkingStep[] = [
             onClick={closeMobileMenu}
           />
           <aside
-            className={`absolute right-0 top-0 h-[100dvh] w-72 max-w-[85vw] bg-[#0b0b0b] border-l border-white/10 shadow-2xl overflow-y-auto transform-gpu transition-transform duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] app-safe-top app-safe-bottom ${mobileMenuOpen ? 'translate-x-0' : 'translate-x-full'}`}
+            className={`absolute right-0 top-0 h-[100dvh] w-72 max-w-[85vw] bg-[#0a0a0a] border-l border-white/[0.06] shadow-2xl overflow-y-auto flex flex-col transform-gpu transition-transform duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] app-safe-top app-safe-bottom ${mobileMenuOpen ? 'translate-x-0' : 'translate-x-full'}`}
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="p-4 border-b border-white/10 flex items-center justify-between">
-              <div className="text-white text-sm font-medium">Menu</div>
+            {/* Header */}
+            <div className="px-5 pt-4 pb-2 flex items-center justify-between">
+              <span className="text-[13px] font-semibold text-white/40 uppercase tracking-wider">Menu</span>
               <button
-                className="touch-target p-2 rounded-lg text-white/70 hover:text-white hover:bg-white/5 transition-colors"
+                className="touch-target -mr-2 p-2 text-white/50 active:text-white transition-colors"
                 aria-label="Luk menu"
                 onClick={closeMobileMenu}
               >
@@ -1554,115 +1551,63 @@ const fallbackThinkingSteps: ThinkingStep[] = [
                 </svg>
               </button>
             </div>
-            <div className="p-4 space-y-4">
-              {/* Action tray (Apple style) */}
-              <div className="rounded-2xl border border-white/10 bg-gradient-to-b from-white/[0.04] to-white/[0.02] p-3">
-                <div className="grid grid-cols-4 gap-2 text-center">
-                  <button
-                    className="touch-target flex flex-col items-center justify-center gap-1 py-3 rounded-xl hover:bg-white/5 transition-colors"
-                    onClick={() => {
-                      closeMobileMenu();
-                      if (onOpenDraftsPanel) {
-                        onOpenDraftsPanel();
-                      } else {
-                        window.location.href = '/ai-drafts';
-                      }
-                    }}
-                  >
-                    <div className="grid grid-cols-3 gap-0.5 w-5 h-5 text-white/90">
-                      {Array.from({ length: 9 }).map((_, i) => (
-                        <div key={i} className="w-1 h-1 bg-white rounded"></div>
-                      ))}
-                    </div>
-                    <span className="text-[11px] text-white/80">Drafts</span>
-                  </button>
-                  <button
-                    className="touch-target flex flex-col items-center justify-center gap-1 py-3 rounded-xl hover:bg-white/5 transition-colors"
-                    onClick={() => {
-                      closeMobileMenu();
-                      window.location.href = '/design-editor';
-                    }}
-                  >
-                    <svg className="w-5 h-5 text-white/90" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 7h16M4 12h16M4 17h16" />
-                    </svg>
-                    <span className="text-[11px] text-white/80">Designer</span>
-                  </button>
-                  <button
-                    className="touch-target flex flex-col items-center justify-center gap-1 py-3 rounded-xl hover:bg-white/5 transition-colors"
-                    onClick={() => {
-                      closeMobileMenu();
-                      if (onOpenReviewPanel) onOpenReviewPanel();
-                    }}
-                  >
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-white/90">
-                      <path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/>
-                      <circle cx="12" cy="12" r="3"/>
-                    </svg>
-                    <span className="text-[11px] text-white/80">Preview</span>
-                  </button>
-                  <button
-                    className="touch-target flex flex-col items-center justify-center gap-1 py-3 rounded-xl hover:bg-white/5 transition-colors"
-                    onClick={() => {
-                      closeMobileMenu();
-                      if (onNewArticle) {
-                        onNewArticle();
-                      } else {
-                        // Fallback: clear messages and title if handler not available
-                        setChatMessages([]);
-                        onChatTitleChange('Ny artikkel');
-                      }
-                    }}
-                  >
-                    <svg className="w-5 h-5 text-white/90" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                    </svg>
-                    <span className="text-[11px] text-white/80">Ny</span>
-                  </button>
-                </div>
-              </div>
 
-              {/* Settings list (Apple style) */}
-              <div className="overflow-hidden rounded-2xl border border-white/10">
+            {/* Quick actions */}
+            <div className="grid grid-cols-4 border-b border-white/[0.06]">
+              {([
+                { label: 'Drafts', icon: (<div className="grid grid-cols-3 gap-[3px] w-[18px] h-[18px]">{Array.from({ length: 9 }).map((_, i) => (<div key={i} className="w-[4px] h-[4px] bg-current rounded-full" />))}</div>), action: () => { closeMobileMenu(); onOpenDraftsPanel ? onOpenDraftsPanel() : (window.location.href = '/ai-drafts'); } },
+                { label: 'Designer', icon: (<svg className="w-[18px] h-[18px]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M4 7h16M4 12h16M4 17h16" /></svg>), action: () => { closeMobileMenu(); window.location.href = '/design-editor'; } },
+                { label: 'Preview', icon: (<svg className="w-[18px] h-[18px]" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.8}><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3"/></svg>), action: () => { closeMobileMenu(); if (onOpenReviewPanel) onOpenReviewPanel(); } },
+                { label: 'Ny', icon: (<svg className="w-[18px] h-[18px]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M12 4v16m8-8H4" /></svg>), action: () => { closeMobileMenu(); onNewArticle ? onNewArticle() : (setChatMessages([]), onChatTitleChange('Ny artikkel')); } },
+              ] as const).map((item) => (
                 <button
-                  className="w-full px-4 py-3 flex items-center gap-3 text-sm text-white/90 bg-white/[0.03] hover:bg-white/10 transition-colors"
-                  onClick={() => { closeMobileMenu(); if (onOpenSourcesPanel) onOpenSourcesPanel(); }}
+                  key={item.label}
+                  className="touch-target flex flex-col items-center justify-center gap-1.5 py-4 text-white/70 active:bg-white/[0.04] transition-colors"
+                  onClick={item.action}
                 >
-                  <div className="w-6 h-6 rounded-md bg-white/10 flex items-center justify-center">
-                    <svg className="w-4 h-4 text-white/90" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <circle cx="12" cy="12" r="10" strokeWidth="2"/>
-                      <line x1="2" y1="12" x2="22" y2="12" strokeWidth="2"/>
-                      <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" strokeWidth="2"/>
-                    </svg>
-                  </div>
-                  <span>Mediekilder</span>
+                  {item.icon}
+                  <span className="text-[11px] font-medium">{item.label}</span>
                 </button>
-                <button
-                  className="w-full px-4 py-3 flex items-center gap-3 text-sm text-white/90 bg-white/[0.03] hover:bg-white/10 transition-colors"
-                  onClick={() => { closeMobileMenu(); if (onOpenSettingsPanel) onOpenSettingsPanel(); }}
-                >
-                  <div className="w-6 h-6 rounded-md bg-white/10 flex items-center justify-center">
-                    <svg className="w-4 h-4 text-white/90" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z"/>
-                      <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
-                    </svg>
-                  </div>
-                  <span>Indstillinger</span>
-                </button>
-                <div className="border-t border-white/10" />
-                <button
-                  className="w-full px-4 py-3 flex items-center gap-3 text-sm text-red-400 hover:bg-white/10 transition-colors"
-                  onClick={async () => { try { await logout(); } catch(e) { console.error(e); } finally { closeMobileMenu(); } }}
-                >
-                  <div className="w-6 h-6 rounded-md bg-red-500/10 flex items-center justify-center">
-                    <svg className="w-4 h-4 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7" />
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 8v8a2 2 0 002 2h3" />
-                    </svg>
-                  </div>
-                  <span>Log ud</span>
-                </button>
-              </div>
+              ))}
+            </div>
+
+            {/* List items */}
+            <nav className="flex-1">
+              <button
+                className="w-full flex items-center gap-3.5 px-5 py-[14px] text-[15px] text-white/90 active:bg-white/[0.04] transition-colors"
+                onClick={() => { closeMobileMenu(); if (onOpenSourcesPanel) onOpenSourcesPanel(); }}
+              >
+                <svg className="w-[20px] h-[20px] text-white/45 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.6}>
+                  <circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
+                </svg>
+                <span className="flex-1 text-left">Mediekilder</span>
+                <svg className="w-4 h-4 text-white/20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
+              </button>
+              <div className="mx-5 border-t border-white/[0.06]" />
+              <button
+                className="w-full flex items-center gap-3.5 px-5 py-[14px] text-[15px] text-white/90 active:bg-white/[0.04] transition-colors"
+                onClick={() => { closeMobileMenu(); if (onOpenSettingsPanel) onOpenSettingsPanel(); }}
+              >
+                <svg className="w-[20px] h-[20px] text-white/45 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+                </svg>
+                <span className="flex-1 text-left">Indstillinger</span>
+                <svg className="w-4 h-4 text-white/20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
+              </button>
+            </nav>
+
+            {/* Footer — log out */}
+            <div className="border-t border-white/[0.06] mt-auto">
+              <button
+                className="w-full flex items-center gap-3.5 px-5 py-[14px] text-[15px] text-red-400 active:bg-white/[0.04] transition-colors"
+                onClick={async () => { try { await logout(); } catch(e) { console.error(e); } finally { closeMobileMenu(); } }}
+              >
+                <svg className="w-[20px] h-[20px] flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.6}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7" />
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M7 8v8a2 2 0 002 2h3" />
+                </svg>
+                <span className="flex-1 text-left">Log ud</span>
+              </button>
             </div>
           </aside>
         </div>
