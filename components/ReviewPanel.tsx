@@ -202,7 +202,6 @@ export default function ReviewPanel({ articleData, onClose, frameless, onPreflig
   const category = mergedArticleData?.category || mergedArticleData?.section || '—';
   const topic = (mergedArticleData?.tags || [])[1] || mergedArticleData?.topic || '';
   const rating = mergedArticleData?.rating || 0;
-  const starBox = rating > 0 ? `${'★'.repeat(Math.min(6, rating))}${'☆'.repeat(Math.max(0, 6 - Math.min(6, rating)))} (${rating}/6)` : '';
   // Fallbacks: use content, post-body, or last assistant reply from _chatMessages
   let content: string = mergedArticleData?.content || mergedArticleData?.['post-body'] || '';
   if (!content && Array.isArray(mergedArticleData?._chatMessages)) {
@@ -397,33 +396,39 @@ export default function ReviewPanel({ articleData, onClose, frameless, onPreflig
         </section>
       )}
 
-      <section className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
-        <Field k="Name (Titel)" v={title || '—'} />
-        {has('subtitle','sub-title') && <Field k="Undertitel" v={subtitle || '—'} />}
-        {has('author') && <Field k="Author" v={author} />}
-        {has('section','category') && <Field k="Section" v={category} />}
-        {has('topic','topics') && <Field k="Topic" v={topic} />}
-        <Field k="Sources" v={mergedArticleData?.inspirationSource || '—'} />
-        <Field k="Platform/Service" v={platform || '—'} />
-        <Field k="Stjerner" v={starBox || '—'} />
-        {has('slug') && <Field k="Slug" v={slug || '—'} />}
-        <Field k="Antal ord" v={wordCount > 0 ? wordCount.toString() : '—'} />
-        <Field k="Min læsetid" v={readTime > 0 ? readTime.toString() : '—'} />
-        <Field k="SEO Titel" v={seoTitle || '—'} />
-        <Field k="Meta Beskrivelse" v={seoDescription || '—'} />
+      {/* Enkelt kolonne + bokse: fuld bredde så tekst wrappes (ingen 2-kolonne-grid) */}
+      <section className="space-y-3 min-w-0 border-t border-white/[0.08] pt-4">
+        <MetaRow label="Name (Titel)" value={title || '—'} />
+        {has('subtitle', 'sub-title') && <MetaRow label="Undertitel" value={subtitle || '—'} />}
+        <div className="grid grid-cols-2 gap-3 min-w-0 [&>*]:min-w-0">
+          {has('author') && <MetaRow label="Author" value={author} />}
+          {has('section', 'category') && <MetaRow label="Section" value={category} />}
+          {has('topic', 'topics') && <MetaRow label="Topic" value={topic || '—'} />}
+          <MetaRow label="Sources" value={mergedArticleData?.inspirationSource || '—'} />
+        </div>
+        <div className="grid grid-cols-2 gap-3 min-w-0 [&>*]:min-w-0">
+          <MetaStars label="Stjerner" rating={rating} />
+          <MetaRow label="Platform / service" value={platform || '—'} />
+        </div>
+        {has('slug') && <MetaRow label="Slug" value={slug || '—'} />}
+        <div className="grid grid-cols-2 gap-3 min-w-0">
+          <MetaInline label="Antal ord" value={wordCount > 0 ? wordCount.toString() : '—'} />
+          <MetaInline label="Min. læsetid" value={readTime > 0 ? `${readTime} min` : '—'} />
+        </div>
+        <MetaRow label="SEO titel" value={seoTitle || '—'} />
+        <MetaRow label="Meta beskrivelse" value={seoDescription || '—'} />
         {reflection && (
-          <div className="col-span-2">
-            <div className="text-white/60 mb-1">Refleksion</div>
-            <div className="text-white/80 text-sm whitespace-pre-wrap">{reflection}</div>
+          <div className="bg-white/5 border border-white/10 rounded-lg p-2.5 min-w-0">
+            <div className="text-white/50 text-xs mb-1">Refleksion</div>
+            <div className="text-white/80 text-sm whitespace-pre-wrap break-words leading-relaxed">{reflection}</div>
           </div>
         )}
         {aiDraft?.prompt && (
-          <div className="col-span-2">
-            <div className="text-white/60 mb-1">AI Prompt</div>
-            <div className="text-white/80 text-sm whitespace-pre-wrap">
+          <div className="bg-white/5 border border-white/10 rounded-lg p-2.5 min-w-0">
+            <div className="text-white/50 text-xs mb-1">AI prompt</div>
+            <div className="text-white/80 text-sm whitespace-pre-wrap break-words leading-relaxed">
               {(() => {
                 const prompt = aiDraft.prompt;
-                // Safety: remove duplicate TOV block for old drafts (SetupWizard now stores only short tone)
                 const tovMarkers = ['LIV BRANDT — PROMPT', 'FREDERIK EMIL — PROMPT', 'EVA LINDE — PROMPT'];
                 for (const marker of tovMarkers) {
                   const first = prompt.indexOf(marker);
@@ -436,26 +441,22 @@ export default function ReviewPanel({ articleData, onClose, frameless, onPreflig
           </div>
         )}
         {(mergedArticleData?.author || mergedArticleData?.authorTOV || aiDraft?.prompt) && (
-          <div className="col-span-2">
-            <button
-              type="button"
-              onClick={() => setTovExpanded((e) => !e)}
-              className="w-full text-left bg-white/5 border border-white/10 rounded-lg p-2 hover:bg-white/10 transition-colors"
-            >
-              <div className="text-white/50">Tone of voice</div>
-              <div className="text-white/80 truncate" title={mergedArticleData?.author || '—'}>
-                {mergedArticleData?.author || '—'}
+          <button
+            type="button"
+            onClick={() => setTovExpanded((e) => !e)}
+            className="w-full text-left bg-white/5 border border-white/10 rounded-lg p-2.5 min-w-0 hover:bg-white/10 transition-colors"
+          >
+            <div className="text-white/50 text-xs mb-1">Tone of voice</div>
+            <div className="text-white/80 text-sm break-words">{mergedArticleData?.author || '—'}</div>
+            {tovExpanded && (mergedArticleData?.authorTOV || aiDraft?.prompt) && (
+              <div className="mt-2 pt-2 border-t border-white/10 text-white/80 text-sm whitespace-pre-wrap break-words leading-relaxed">
+                {mergedArticleData?.authorTOV?.trim() || (typeof aiDraft?.prompt === 'string' ? aiDraft.prompt.trim() : '')}
               </div>
-              {tovExpanded && (mergedArticleData?.authorTOV || aiDraft?.prompt) && (
-                <div className="mt-2 pt-2 border-t border-white/10 text-white/80 text-sm whitespace-pre-wrap">
-                  {mergedArticleData?.authorTOV?.trim() || (typeof aiDraft?.prompt === 'string' ? aiDraft.prompt.trim() : '')}
-                </div>
-              )}
-              <div className="text-white/40 text-xs mt-1">
-                {tovExpanded ? 'Klik for at skjule fuld TOV' : 'Klik for at vise fuld TOV'}
-              </div>
-            </button>
-          </div>
+            )}
+            <div className="text-white/40 text-xs mt-1">
+              {tovExpanded ? 'Klik for at skjule fuld TOV' : 'Klik for at vise fuld TOV'}
+            </div>
+          </button>
         )}
       </section>
 
@@ -854,12 +855,44 @@ export default function ReviewPanel({ articleData, onClose, frameless, onPreflig
   );
 }
 
-function Field({ k, v }: { k: string; v?: string }) {
-  if (!v) return null;
+const metaBox = 'bg-white/5 border border-white/10 rounded-lg p-2.5 min-w-0';
+
+function MetaRow({ label, value }: { label: string; value: string }) {
+  const show = value !== undefined && value !== '';
+  if (!show) return null;
   return (
-    <div className="bg-white/5 border border-white/10 rounded-lg p-2">
-      <div className="text-white/50">{k}</div>
-      <div className="text-white/80 truncate" title={v}>{v}</div>
+    <div className={metaBox}>
+      <div className="text-white/50 text-xs mb-1">{label}</div>
+      <div className="text-white/80 text-sm break-words whitespace-pre-wrap leading-relaxed">{value}</div>
+    </div>
+  );
+}
+
+function MetaInline({ label, value }: { label: string; value: string }) {
+  return (
+    <div className={metaBox}>
+      <div className="text-white/50 text-xs mb-1">{label}</div>
+      <div className="text-white/80 text-sm tabular-nums">{value}</div>
+    </div>
+  );
+}
+
+function MetaStars({ label, rating }: { label: string; rating: number }) {
+  return (
+    <div className={metaBox}>
+      <div className="text-white/50 text-xs mb-2">{label}</div>
+      {rating > 0 ? (
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="flex items-center gap-0.5 text-amber-400/95 text-base leading-none" aria-hidden>
+            {Array.from({ length: 6 }).map((_, i) => (
+              <span key={i}>{i < Math.min(6, rating) ? '★' : '☆'}</span>
+            ))}
+          </div>
+          <span className="text-white/70 text-sm tabular-nums">({rating}/6)</span>
+        </div>
+      ) : (
+        <div className="text-white/50 text-sm">—</div>
+      )}
     </div>
   );
 }
