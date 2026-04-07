@@ -4,10 +4,13 @@ import { APIError } from 'openai';
 import { getOpenAIClient, models } from '@/lib/openai';
 import { initProgress, updateProgressStep, completeProgress } from '@/lib/ai-chat-progress-store';
 import { createErrorResponse, ErrorCode } from '@/lib/api/types';
-import { buildStyleReferenceBlock } from '@/lib/loadAproposStyleSamples';
 import { getResearch } from '@/lib/research/service';
-import fs from 'node:fs';
-import path from 'node:path';
+import {
+  buildPromptSegments,
+  composeSystemPrompt,
+  buildWebSearchSegment,
+  hasResearchContext,
+} from '@/lib/ai-chat/build-system-prompt';
 
 const openai = getOpenAIClient();
 
@@ -39,30 +42,6 @@ function formatAiChatError(err: unknown): string {
   }
   if (err instanceof Error && err.message.trim()) return err.message.trim();
   return String(err);
-}
-
-let _structureCache: string | null = null;
-function loadStructurePrompt(): string {
-  if (_structureCache) return _structureCache;
-  try {
-    const filePath = path.join(process.cwd(), 'prompts', 'structure.apropos.md');
-    _structureCache = fs.readFileSync(filePath, 'utf8');
-  } catch {
-    _structureCache = '';
-  }
-  return _structureCache;
-}
-
-let _antiPlagCache: string | null = null;
-function loadAntiPlagiarismPrompt(): string {
-  if (_antiPlagCache) return _antiPlagCache;
-  try {
-    const filePath = path.join(process.cwd(), 'prompts', 'anti-plagiarism.md');
-    _antiPlagCache = fs.readFileSync(filePath, 'utf8');
-  } catch {
-    _antiPlagCache = '';
-  }
-  return _antiPlagCache;
 }
 
 function buildProgressSteps(hasResearch: boolean) {
@@ -100,126 +79,6 @@ async function runQuickQualityCheck(openaiClient: ReturnType<typeof getOpenAICli
   } catch {
     return [];
   }
-}
-
-const OPENING_STRATEGIES = [
-  'Start med en konkret scene eller sanselig detalje — beskriv et øjeblik, en lyd, en stemning du oplever.',
-  'Start med et spørgsmål eller en provokerende påstand der fanger læseren.',
-  'Start med en personlig betragtning eller en overraskende kontrast mellem forventning og virkelighed.',
-  'Start med et kulturelt eller historisk perspektiv — sæt værket i en større kontekst.',
-  'Start med en kort anekdote eller et øjebliksbillede fra din oplevelse med værket.',
-];
-
-const ANTI_PATTERNS = [
-  'Der er noget magisk ved',
-  'Lad os bare sige det sådan her',
-  'Og hold nu fast',
-  'Fra de første billeder',
-  'Fra den første scene',
-  'det er som om',
-  'Det er en rejse',
-  'en blanding af',
-  'en oplevelse der',
-  'rammer dybt',
-  'efterlader et indtryk',
-  'der vil sætte sig fast',
-  'danser i mørket',
-  'en hvisken i mørket',
-  'pulserer af liv',
-];
-
-function buildSystemPrompt(authorTOV: string, authorName: string, articleContext: Record<string, unknown>, notes?: string): string {
-  const openingStrategy = OPENING_STRATEGIES[Math.floor(Math.random() * OPENING_STRATEGIES.length)];
-
-  const parts = [
-    `Du er "Apropos Writer AI" — redaktionel assistent og medskribent for Apropos Magazine.`,
-    `Apropos Magazine skriver kulturjournalistik med personlighed, præcision og perspektiv.`,
-    `Alt skal føles menneskeligt, reflekteret og sanseligt — aldrig maskinelt.`,
-    `Svar på dansk i en rytmisk, levende og menneskelig tone. Vær konkret og følg brugerens ønsker.`,
-    `\n**GLOBAL TOV-REGLER:** Personlig, selvironisk, reflekteret, humoristisk. Brug sanselige detaljer, rytme og variation i sætningslængder. Ingen floskler som "Filmen handler om …" — vis det i stedet. Parafrasér altid kilder; ingen copy/paste.`,
-    `\n**ÅBNINGSSTRATEGI FOR DENNE ARTIKEL:** ${openingStrategy}`,
-    `\n**ANTI-GENTAGELSES-REGLER:** Undgå følgende AI-klichéer og floskler fuldstændigt: "${ANTI_PATTERNS.slice(0, 8).join('", "')}".\nSkriv i stedet med specifikke, konkrete detaljer fra det værk du anmelder. Nævn navne, steder, scener, dialoger. Vær præcis.`,
-  ];
-  if (authorTOV?.trim()) {
-    parts.push(`\n**Valgt tone (TOV) for denne artikel:**\n${authorTOV.trim()}`);
-  }
-  if (authorName?.trim()) {
-    parts.push(`\n**Forfatter:** ${authorName.trim()}`);
-  }
-  const template = (articleContext?.template as string | undefined)?.trim();
-  if (template) {
-    parts.push(`\n**Valgt template:** ${template}`);
-  }
-  const title = (articleContext?.title || articleContext?.previewTitle) as string | undefined;
-  const category = (articleContext?.category || articleContext?.section) as string | undefined;
-  const rating = typeof articleContext?.rating === 'number' && articleContext.rating >= 1 && articleContext.rating <= 6 ? articleContext.rating : undefined;
-  const platform = (articleContext?.platform || articleContext?.streaming_service) as string | undefined;
-  if (title?.trim()) parts.push(`\n**Arbejdstitel/emne:** ${title.trim()}`);
-  if (category?.trim()) parts.push(`**Section/kategori:** ${category.trim()}`);
-  if (platform?.trim()) parts.push(`**Platform/streamingtjeneste:** ${platform.trim()}`);
-
-  // Format-aware: detect whether this is a TV series vs film
-  const catLower = (category || '').toLowerCase();
-  const titleLower = (title || '').toLowerCase();
-  const isSeries = /serie/i.test(catLower) || /serie|sæson|season|episode/i.test(titleLower);
-  if (isSeries) {
-    parts.push(`\n**VIGTIGT — FORMAT:** Dette er en TV-SERIE, IKKE en film. Brug korrekte termer: "serien", "episoder", "sæson" — ALDRIG "filmen". Omtal det som en serie konsekvent igennem hele artiklen.`);
-  }
-
-  if (rating != null) {
-    parts.push(`\n**Brugeren har valgt stjernebedømmelse: ${rating} ud af 6.** Bevar denne vurdering i tone og konklusion, men skriv IKKE en "Stjerner:"-linje i selve artikelteksten. Rating håndteres i CMS-metadata.`);
-  }
-
-  parts.push(`\n**RESEARCH-KRAV:** Når du skriver om et specifikt værk (film, serie, album, spil osv.), SKAL du inkludere konkrete fakta: navne på instruktører/skabere, skuespillere, udgivelsesår, antal episoder/sæsoner, platform. Hvis du ikke kender fakta, så skriv KUN om det du ved — opfind ALDRIG fakta, navne eller detaljer.`);
-  const research = articleContext?.researchSelected as { title?: string; source?: string; keyPoints?: string[]; content?: string } | undefined;
-  if (research?.title) {
-    parts.push(`\n**RESEARCH KILDE (brug KUN som inspiration – parafrasér altid, kopiér ALDRIG):**`);
-    parts.push(`Titel: "${research.title}"${research.source ? ` | Kilde: ${research.source}` : ''}`);
-    const keyPoints = Array.isArray(research.keyPoints) ? research.keyPoints.slice(0, 6) : [];
-    if (keyPoints.length > 0) {
-      parts.push(`Nøglepunkter fra research:\n${keyPoints.map((kp, i) => `${i + 1}. ${kp}`).join('\n')}`);
-    }
-    if (research.content && research.content.length > 50) {
-      const preview = research.content.substring(0, 350).replace(/\s+/g, ' ').trim() + (research.content.length > 350 ? '...' : '');
-      parts.push(`Indholdseksempel (kun som kontekst): ${preview}`);
-    }
-    parts.push(`Skriv en helt original artikel – egen struktur, egne formuleringer, tilføj nye vinkler og kilder.`);
-  }
-  const suggestions = (articleContext?.aiDraft as { suggestions?: string[] } | undefined)?.suggestions;
-  if (Array.isArray(suggestions) && suggestions.length > 0) {
-    parts.push(`\n**AI FORSLAG (inkluder disse vinkler i artiklen):**\n${suggestions.map((s, i) => `${i + 1}. ${s}`).join('\n')}`);
-  }
-  const draftPrompt = (articleContext?.aiDraft as { prompt?: string } | undefined)?.prompt;
-  if (draftPrompt && draftPrompt.length > 20) {
-    parts.push(`\n**Instruktioner fra artikelopsætning:**\n${draftPrompt.trim()}`);
-  }
-  if (notes && notes.trim().length > 0) {
-    parts.push(`\n**Redaktionelle noter fra bruger (skal prioriteres):**\n${notes.trim()}`);
-  }
-  const structureRules = loadStructurePrompt();
-  if (structureRules) {
-    parts.push(`\n**APROPOS STRUCTURE (fra structure.apropos.md) — Følg PRÆCIS:**\n${structureRules}`);
-  }
-  const antiPlagRules = loadAntiPlagiarismPrompt();
-  if (antiPlagRules) {
-    parts.push(`\n${antiPlagRules}`);
-  }
-  const styleRef = buildStyleReferenceBlock(category as string | undefined);
-  if (styleRef) {
-    parts.push(styleRef);
-  }
-  parts.push(
-    `\n**OUTPUT-FORMAT (felter til CMS — følg præcist):**
-- Linje 1: Arbejdstitel: [kun titeltekst]
-- Linje 2: Undertitel: [8–14 ord]
-- Derefter en linje der starter med **Intro:** (eller Indledning:) og hele intro-teksten på samme linje eller fortsat i samme afsnit indtil tom linje.
-- Tom linje
-- Derefter en linje der starter med **Brødtekst:** (eller Body:) og HELE brødteksten efter denne etiket. Alt efter "Brødtekst:" er kun brødtekst — må ikke gentage intro-teksten.
-- Første sætning efter Brødtekst: skal være en HELT NY tanke ift. introen (ny vinkel, scene eller faktum).
-- ALDRIG gentag titel, undertitel eller intro ordret eller parafraseret i brødteksten.
-- Skriv ALDRIG "Længde: X ord".`
-  );
-  return parts.join('\n');
 }
 
 /** Parse title/subtitle labels from the top of response with tolerant markdown and separators. */
@@ -580,7 +439,13 @@ export async function POST(request: NextRequest) {
       authorTOV = '',
       authorName = '',
       clientRequestId,
+      promptModuleToggles,
     } = body;
+
+    const toggles =
+      promptModuleToggles && typeof promptModuleToggles === 'object' && !Array.isArray(promptModuleToggles)
+        ? (promptModuleToggles as Record<string, boolean>)
+        : undefined;
 
     if (!message || typeof message !== 'string') {
       return NextResponse.json(
@@ -602,7 +467,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const hasResearch = !!(articleData?.researchSelected?.title || articleData?.title);
+    const hasResearch = hasResearchContext(articleData as Record<string, unknown>);
     const progressSteps = buildProgressSteps(hasResearch);
 
     if (clientRequestId && typeof clientRequestId === 'string') {
@@ -610,10 +475,11 @@ export async function POST(request: NextRequest) {
       updateProgressStep(clientRequestId, 'prepare', 'active');
     }
 
-    let systemPrompt = buildSystemPrompt(authorTOV, authorName, articleData, notes);
+    const promptSegments = buildPromptSegments(authorTOV, authorName, articleData as Record<string, unknown>, notes);
 
     // --- Step: Web Search (when research context is available) ---
     let researchResult: Awaited<ReturnType<typeof getResearch>> | undefined;
+    let webSegment = null as ReturnType<typeof buildWebSearchSegment>;
     if (hasResearch) {
       if (clientRequestId) {
         updateProgressStep(clientRequestId, 'prepare', 'completed');
@@ -627,15 +493,15 @@ export async function POST(request: NextRequest) {
       if (searchCategory && typeof searchCategory === 'string' && !/generel/i.test(searchCategory)) queryParts.push(searchCategory);
       const searchQuery = queryParts.join(' ');
       researchResult = await getResearch(searchQuery, { maxResults: 3 });
-      if (researchResult.contextText) {
-        systemPrompt += `\n\n**FAKTA FRA WEB-SØGNING (brug aktivt — væv konkrete fakta, navne og detaljer ind i artiklen):**\n${researchResult.contextText}\nBrug disse fakta til at gøre artiklen specifik og faktuel. Nævn instruktører, skuespillere, antal episoder, udgivelsesdato osv. direkte i teksten.`;
-      }
+      webSegment = buildWebSearchSegment(researchResult.contextText);
       if (clientRequestId) {
         updateProgressStep(clientRequestId, 'web-search', 'completed');
       }
     } else if (clientRequestId) {
       updateProgressStep(clientRequestId, 'prepare', 'completed');
     }
+
+    let systemPrompt = composeSystemPrompt(promptSegments, toggles, webSegment);
 
     // --- Step: Generation ---
     if (clientRequestId) {

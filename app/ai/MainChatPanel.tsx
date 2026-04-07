@@ -72,6 +72,7 @@ interface MainChatPanelProps {
   onClose?: () => void;
   onOpenSourcesPanel?: () => void;
   onOpenSettingsPanel?: () => void;
+  onOpenPromptArchitect?: () => void;
   lastFailedMessage?: string | null;
   onRetryLast?: () => void;
 }
@@ -99,6 +100,7 @@ export default function MainChatPanel({
   onClose,
   onOpenSourcesPanel,
   onOpenSettingsPanel,
+  onOpenPromptArchitect,
   lastFailedMessage = null,
   onRetryLast,
 }: MainChatPanelProps) {
@@ -1581,6 +1583,23 @@ const fallbackThinkingSteps: ThinkingStep[] = [
                   <circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
                 </svg>
                 <span className="flex-1 text-left">Mediekilder</span>
+                <svg className="w-4 h-4 text-white/20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
+              </button>
+              <div className="mx-5 border-t border-white/[0.06]" />
+              <button
+                className="w-full flex items-center gap-3.5 px-5 py-[14px] text-[15px] text-white/90 active:bg-white/[0.04] transition-colors"
+                onClick={() => {
+                  closeMobileMenu();
+                  if (onOpenPromptArchitect) onOpenPromptArchitect();
+                }}
+              >
+                <svg className="w-[20px] h-[20px] text-white/45 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="6" cy="6" r="2.5" />
+                  <circle cx="18" cy="10" r="2.5" />
+                  <circle cx="10" cy="18" r="2.5" />
+                  <path d="M8.2 7.4 15.3 9.2M12.2 11.2 10.8 16.2" />
+                </svg>
+                <span className="flex-1 text-left">Prompt Architect</span>
                 <svg className="w-4 h-4 text-white/20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
               </button>
               <div className="mx-5 border-t border-white/[0.06]" />

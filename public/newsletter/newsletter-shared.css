@@ -1,0 +1,382 @@
+/**
+ * Apropos nyhedsbrev — fælles designkilde.
+ * Indlejres i mail-HTML via renderNewsletterEmailHtml (inliner i <style>).
+ * Klassen .mail-sim kan bruges til lokal browser-preview af samme markup.
+ */
+
+:root {
+  --nl-outer: #ebebeb;
+  --nl-card: #ffffff;
+  --nl-text: #2e2e2e;
+  --nl-muted: #737373;
+  --nl-border-light: #d8d8d8;
+  --nl-border-medium: #bbbbbb;
+  --nl-thumb-bg: #eeeeee;
+  --nl-btn-bg: #2e2e2e;
+  --nl-btn-text: #ffffff;
+}
+
+/* Mockup: mørk side + lysegrå “mail-kanvas” */
+.mail-sim {
+  background: var(--nl-outer);
+  padding: 16px 12px 28px;
+}
+@media (max-width: 620px) {
+  .mail-sim {
+    padding-left: 0;
+    padding-right: 0;
+    padding-top: 0;
+    padding-bottom: 12px;
+  }
+}
+.mail-sim table.nl-card {
+  max-width: 600px;
+  margin: 0 auto;
+  background: var(--nl-card);
+  color: var(--nl-text);
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.08);
+}
+@media (max-width: 620px) {
+  .mail-sim table.nl-card {
+    max-width: 100%;
+    width: 100%;
+  }
+}
+
+/* Mobil: brev uden side-gab (Sonos-lignende fuld bredde) */
+@media (max-width: 620px) {
+  table.nl-container > tbody > tr > td.nl-outer-cell {
+    padding-left: 0 !important;
+    padding-right: 0 !important;
+    padding-top: 0 !important;
+    padding-bottom: 4px !important;
+  }
+  table.nl-card {
+    max-width: 100% !important;
+    width: 100% !important;
+  }
+  table.nl-card td.nl-cell-logo.nl-pad {
+    padding: 14px 28px 16px !important;
+  }
+  table.nl-card td.nl-head-block {
+    padding-top: 22px !important;
+    padding-bottom: 20px !important;
+  }
+}
+
+/* Logo — centreret; mørk tilstand: filter på <a> (mere pålideligt i preview/iframes end kun på img) */
+table.nl-card td.nl-cell-logo {
+  text-align: center;
+  vertical-align: top;
+  padding: 18px 34px 16px;
+}
+table.nl-card td.nl-cell-logo a {
+  display: inline-block;
+  line-height: 0;
+  vertical-align: bottom;
+}
+table.nl-card img.nl-logo-img {
+  display: block;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+/* Hero */
+table.nl-card img.nl-hero-img {
+  display: block;
+  width: 100%;
+  max-width: 600px;
+  height: 450px;
+  object-fit: cover;
+  border: 0;
+}
+@media (max-width: 620px) {
+  table.nl-card img.nl-hero-img {
+    height: auto;
+    aspect-ratio: 1 / 1;
+  }
+}
+
+/* Head block */
+table.nl-card td.nl-head-block {
+  padding: 26px 30px 22px;
+  text-align: left;
+}
+table.nl-card h1.nl-h1 {
+  margin: 0;
+  font-family: Helvetica, Arial, sans-serif;
+  font-size: 42px;
+  line-height: 1.2;
+  font-weight: 700;
+  color: var(--nl-text);
+  text-align: left;
+}
+
+/* Intro */
+table.nl-card div.nl-intro p.nl-intro-p {
+  margin: 0 0 14px;
+  font-family: Helvetica, Arial, sans-serif;
+  font-size: 15px;
+  line-height: 1.65;
+  color: var(--nl-text);
+}
+table.nl-card div.nl-intro p.nl-intro-p:last-child {
+  margin-bottom: 0;
+}
+
+/* Sektions-label — ingen ekstra side-padding (forælder-td har nl-pad) */
+table.nl-card p.nl-section-label {
+  margin: 0;
+  padding: 0;
+  font-family: Helvetica, Arial, sans-serif;
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--nl-muted);
+}
+
+/* Artikler (tabel-rækker) */
+table.nl-card img.nl-thumb-img {
+  width: 120px;
+  height: 80px;
+  border-radius: 4px;
+  object-fit: cover;
+  background: var(--nl-thumb-bg);
+  display: block;
+  border: 0;
+}
+table.nl-card td.nl-art-body h2.nl-art-title {
+  margin: 0;
+  font-family: Helvetica, Arial, sans-serif;
+  font-size: 17px;
+  font-weight: 500;
+  line-height: 1.3;
+}
+table.nl-card td.nl-art-body h2.nl-art-title a {
+  color: var(--nl-text);
+  text-decoration: none;
+}
+table.nl-card p.nl-art-excerpt {
+  margin: 8px 0 0;
+  font-family: Helvetica, Arial, sans-serif;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--nl-muted);
+}
+table.nl-card p.nl-art-read {
+  margin: 10px 0 0;
+  font-family: Helvetica, Arial, sans-serif;
+  font-size: 13px;
+}
+table.nl-card p.nl-art-read a {
+  color: var(--nl-text);
+  text-decoration: underline;
+}
+
+table.nl-card td.nl-art-outer {
+  padding: 20px 0;
+  border-bottom: 1px solid var(--nl-border-light);
+  vertical-align: top;
+}
+table.nl-card tr.nl-art:last-child td.nl-art-outer {
+  border-bottom: none;
+}
+table.nl-card td.nl-thumb-cell {
+  padding-right: 14px;
+  vertical-align: top;
+  width: 132px;
+}
+
+/* Mørk footer (Sonos-lignende): venstrejusteret, store link-rækker */
+table.nl-card table.nl-footer-dark {
+  width: 100%;
+  background-color: #0d0d0d;
+}
+table.nl-card table.nl-footer-dark a.nl-footer-link-row {
+  -webkit-tap-highlight-color: transparent;
+}
+table.nl-card td.nl-footer-explore p.nl-footer-explore-tagline {
+  text-align: left;
+}
+table.nl-card td.nl-footer-explore a.nl-footer-nav-link {
+  text-align: left;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+table.nl-card td.nl-footer-social table.nl-footer-social-icons {
+  margin: 0;
+}
+table.nl-card td.nl-footer-social img.nl-social-icon {
+  opacity: 0.92;
+}
+
+/* Smal skærm: stak layout */
+@media (max-width: 520px) {
+  table.nl-card tr.nl-art table tr {
+    display: block;
+    width: 100% !important;
+  }
+  table.nl-card tr.nl-art table td.nl-thumb-cell {
+    display: block !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    padding-right: 0 !important;
+    padding-bottom: 14px !important;
+  }
+  table.nl-card tr.nl-art table td.nl-art-body {
+    display: block !important;
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+  table.nl-card tr.nl-art img.nl-thumb-img {
+    width: 100% !important;
+    max-width: 100% !important;
+    height: 140px !important;
+  }
+}
+
+/*
+ * Mørk tilstand i mail (Apple Mail m.fl.): lys tekst + hvidt logo.
+ * Preview i app: sæt <html data-nl-preview="dark"> eller data-nl-preview="light"> fra NewsletterClient.
+ */
+@media (prefers-color-scheme: dark) {
+  table.nl-card td.nl-cell-logo > a {
+    filter: brightness(0) invert(1) !important;
+    -webkit-filter: brightness(0) invert(1) !important;
+  }
+  body {
+    background-color: #1a1a1a !important;
+  }
+  table.nl-container {
+    background-color: #1a1a1a !important;
+  }
+  table.nl-card {
+    background-color: #2d2d2d !important;
+    color: #ececec !important;
+  }
+  table.nl-card h1.nl-h1 {
+    color: #f5f5f5 !important;
+  }
+  table.nl-card p.nl-section-label {
+    color: #b0b0b0 !important;
+  }
+  table.nl-card div.nl-intro p.nl-intro-p {
+    color: #e4e4e4 !important;
+  }
+  table.nl-card td.nl-art-body h2.nl-art-title a {
+    color: #f0f0f0 !important;
+  }
+  table.nl-card p.nl-art-excerpt {
+    color: #b3b3b3 !important;
+  }
+  table.nl-card p.nl-art-read a {
+    color: #9ecbff !important;
+  }
+  table.nl-card td.nl-art-outer {
+    border-bottom-color: #404040 !important;
+  }
+  table.nl-card img.nl-thumb-img {
+    background: #3a3a3a !important;
+  }
+  table.nl-card a.nl-primary-cta {
+    background-color: #000000 !important;
+    color: #ffffff !important;
+  }
+  table.nl-card table.nl-footer-dark {
+    background-color: #0a0a0a !important;
+  }
+}
+
+html[data-nl-preview="dark"] table.nl-card td.nl-cell-logo > a {
+  filter: brightness(0) invert(1) !important;
+  -webkit-filter: brightness(0) invert(1) !important;
+}
+html[data-nl-preview="dark"] body {
+  background-color: #1a1a1a !important;
+}
+html[data-nl-preview="dark"] table.nl-container {
+  background-color: #1a1a1a !important;
+}
+html[data-nl-preview="dark"] table.nl-card {
+  background-color: #2d2d2d !important;
+  color: #ececec !important;
+}
+html[data-nl-preview="dark"] table.nl-card h1.nl-h1 {
+  color: #f5f5f5 !important;
+}
+html[data-nl-preview="dark"] table.nl-card p.nl-section-label {
+  color: #b0b0b0 !important;
+}
+html[data-nl-preview="dark"] table.nl-card div.nl-intro p.nl-intro-p {
+  color: #e4e4e4 !important;
+}
+html[data-nl-preview="dark"] table.nl-card td.nl-art-body h2.nl-art-title a {
+  color: #f0f0f0 !important;
+}
+html[data-nl-preview="dark"] table.nl-card p.nl-art-excerpt {
+  color: #b3b3b3 !important;
+}
+html[data-nl-preview="dark"] table.nl-card p.nl-art-read a {
+  color: #9ecbff !important;
+}
+html[data-nl-preview="dark"] table.nl-card td.nl-art-outer {
+  border-bottom-color: #404040 !important;
+}
+html[data-nl-preview="dark"] table.nl-card img.nl-thumb-img {
+  background: #3a3a3a !important;
+}
+html[data-nl-preview="dark"] table.nl-card a.nl-primary-cta {
+  background-color: #000000 !important;
+  color: #ffffff !important;
+}
+html[data-nl-preview="dark"] table.nl-card table.nl-footer-dark {
+  background-color: #0a0a0a !important;
+}
+
+/* Preview «Lys» på OS i mørk tilstand: tving lyst nyhedsbrev */
+html[data-nl-preview="light"] table.nl-card td.nl-cell-logo > a {
+  filter: none !important;
+  -webkit-filter: none !important;
+}
+html[data-nl-preview="light"] body {
+  background-color: #ebebeb !important;
+}
+html[data-nl-preview="light"] table.nl-container {
+  background-color: #ebebeb !important;
+}
+html[data-nl-preview="light"] table.nl-card {
+  background-color: #ffffff !important;
+  color: #2e2e2e !important;
+}
+html[data-nl-preview="light"] table.nl-card h1.nl-h1 {
+  color: #2e2e2e !important;
+}
+html[data-nl-preview="light"] table.nl-card p.nl-section-label {
+  color: #737373 !important;
+}
+html[data-nl-preview="light"] table.nl-card div.nl-intro p.nl-intro-p {
+  color: #2e2e2e !important;
+}
+html[data-nl-preview="light"] table.nl-card td.nl-art-body h2.nl-art-title a {
+  color: #2e2e2e !important;
+}
+html[data-nl-preview="light"] table.nl-card p.nl-art-excerpt {
+  color: #737373 !important;
+}
+html[data-nl-preview="light"] table.nl-card p.nl-art-read a {
+  color: #2e2e2e !important;
+}
+html[data-nl-preview="light"] table.nl-card td.nl-art-outer {
+  border-bottom-color: #d8d8d8 !important;
+}
+html[data-nl-preview="light"] table.nl-card img.nl-thumb-img {
+  background: #eeeeee !important;
+}
+html[data-nl-preview="light"] table.nl-card a.nl-primary-cta {
+  background-color: var(--nl-btn-bg) !important;
+  color: var(--nl-btn-text) !important;
+}
+/* Lys mail-kort: footer forbliver mørk som på Sonos-referencen */
+html[data-nl-preview="light"] table.nl-card table.nl-footer-dark {
+  background-color: #0d0d0d !important;
+}

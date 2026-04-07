@@ -37,21 +37,36 @@ Tokenet **skal** være et **Page Access Token** (ikke User Token) med følgende 
 
 ### Token-livstid
 
-- **Short-lived tokens** (fra Graph API Explorer): Udløber efter **1 time**.
-- **Long-lived tokens** (via token-exchange): Udløber efter **60 dage**.
-- For at forlænge: Brug Meta's token-exchange endpoint eller generer et nyt i Graph API Explorer.
-- Ved udløb viser appen: "Instagram-tokenet er udløbet" — generer et nyt og opdater env.
+| Token-type | Levetid |
+|------------|---------|
+| Short-lived User Token (fra Graph API Explorer) | ~1 time |
+| Long-lived User Token (via exchange) | ~60 dage |
+| **Page Access Token fra long-lived user token** | **Aldrig** (permanent) |
 
-### Sådan genererer du et token
+**Vigtigt:** Brug altid et **permanent Page Access Token**. Det fås ved at konvertere et kort-livet token i to trin (se nedenfor). Sæt aldrig et short-lived token direkte i env — det udløber efter 1 time.
+
+### Sådan genererer du et permanent token (anbefalet)
+
+#### Via appen (nemmest)
+
+1. Gå til **Settings → Social** i appen
+2. Følg trinnene og indsæt et kort-livet token fra Graph API Explorer
+3. Klik **Konvertér til permanent token**
+4. Kopiér det permanente Page Access Token
+5. Sæt det som `INSTAGRAM_ACCESS_TOKEN` i Vercel → Environment Variables → Production
+6. Redeploy
+
+#### Manuelt (fallback)
+
+**Trin 1: Hent kort-livet token**
 
 1. Gå til [Graph API Explorer](https://developers.facebook.com/tools/explorer/)
 2. Vælg din app (fx "Apropos Publisher v2")
 3. Under "User or Page": vælg din **Facebook Page** (fx "Apropos Magazine")
 4. Tilføj permissions: `instagram_basic`, `instagram_content_publish`, `pages_show_list`, `pages_read_engagement`, `pages_manage_posts`
 5. Klik **Generate Access Token** og godkend
-6. Kopiér tokenet til `INSTAGRAM_ACCESS_TOKEN`
 
-### Forlæng til long-lived token
+**Trin 2: Konvertér til long-lived user token**
 
 ```bash
 curl -s "https://graph.facebook.com/v24.0/oauth/access_token?\
@@ -60,6 +75,23 @@ client_id=DIN_APP_ID&\
 client_secret=DIN_APP_SECRET&\
 fb_exchange_token=DIT_SHORT_LIVED_TOKEN"
 ```
+
+**Trin 3: Hent permanent Page Access Token**
+
+```bash
+curl -s "https://graph.facebook.com/v24.0/DIN_PAGE_ID?\
+fields=access_token&\
+access_token=DIT_LONG_LIVED_USER_TOKEN"
+```
+
+Det returnerede `access_token` er permanent og udløber aldrig. Sæt det som `INSTAGRAM_ACCESS_TOKEN`.
+
+### Krævet env til token-konvertering
+
+| Variabel | Beskrivelse |
+|----------|-------------|
+| `META_APP_ID` | App ID fra Meta App Dashboard → Settings → Basic |
+| `META_APP_SECRET` | App Secret fra Meta App Dashboard → Settings → Basic |
 
 ## Tjek at det er sat op
 
