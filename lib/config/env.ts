@@ -84,6 +84,8 @@ const EnvSchema = z.object({
   NEWSLETTER_LOGO_URL: z.preprocess(emptyToUndefined, z.string().url().optional()),
   /** HMAC-hemmelighed til signeret frameldingslink i nyhedsbrev (brug en lang tilfældig streng) */
   NEWSLETTER_UNSUBSCRIBE_SECRET: z.string().optional(),
+  /** Server-only: absolut origin hvor /api/newsletter/unsubscribe findes (fx https://subscribe.aproposmagazine.com). Prioriteres over NEXT_PUBLIC_BASE_URL til afmeld-links. */
+  NEWSLETTER_UNSUBSCRIBE_BASE_URL: z.preprocess(emptyToUndefined, z.string().url().optional()),
   /** Webflow Forms API: form-id eller del af form-navn (auto-detect hvis tom) */
   WEBFLOW_NEWSLETTER_FORM_ID: z.string().optional(),
   /** Hemmelighed til velkomst-webhook (?secret= eller header x-newsletter-webhook-secret) */
@@ -186,6 +188,7 @@ function parseEnv() {
     NEWSLETTER_ARTICLE_BASE_URL: process.env.NEWSLETTER_ARTICLE_BASE_URL,
     NEWSLETTER_LOGO_URL: process.env.NEWSLETTER_LOGO_URL,
     NEWSLETTER_UNSUBSCRIBE_SECRET: process.env.NEWSLETTER_UNSUBSCRIBE_SECRET,
+    NEWSLETTER_UNSUBSCRIBE_BASE_URL: process.env.NEWSLETTER_UNSUBSCRIBE_BASE_URL,
     WEBFLOW_NEWSLETTER_FORM_ID: process.env.WEBFLOW_NEWSLETTER_FORM_ID,
     NEWSLETTER_WEBHOOK_SECRET: process.env.NEWSLETTER_WEBHOOK_SECRET,
     NEWSLETTER_WELCOME_SUBJECT: process.env.NEWSLETTER_WELCOME_SUBJECT,

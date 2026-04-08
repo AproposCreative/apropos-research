@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/lib/auth-context';
+import { stripUnsubscribePlaceholderForPreview } from '@/lib/newsletter/inject-unsubscribe';
 
 type PendingSchedule = { id: string; scheduledFor: string; subject: string; createdAt: string | null };
 
@@ -136,7 +137,7 @@ export default function NewsletterClient({ embedded = false, onClose }: Newslett
         warnings: data.warnings || [],
         signupError: data.signupError || null,
       });
-      setStatus('Preview klar — emne, overskrift og intro er genereret automatisk.');
+      setStatus('Preview klar — emnefeltet er samme som overskriften i mailen; intro genereret automatisk.');
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Fejl');
     } finally {
@@ -262,14 +263,14 @@ export default function NewsletterClient({ embedded = false, onClose }: Newslett
   }, [authHeader, refreshPendingSchedules]);
 
   const previewHtml = useMemo(() => {
-    if (!html || typeof window === 'undefined') return html;
+    if (!html) return html;
+    let h = stripUnsubscribePlaceholderForPreview(html);
+    if (typeof window === 'undefined') return h;
     const origin = window.location.origin.replace(/\/$/, '');
     const schemeMeta =
       previewTheme === 'dark'
         ? '<meta name="color-scheme" content="dark" />'
         : '<meta name="color-scheme" content="light only" />';
-
-    let h = html;
     if (!/<base\s/i.test(h)) {
       h = h.replace(/<head([^>]*)>/i, `<head$1><base href="${origin}/" />${schemeMeta}`);
     } else if (/name=["']color-scheme["']/i.test(h)) {

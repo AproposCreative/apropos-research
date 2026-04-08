@@ -3,8 +3,6 @@ import { authorizeNewsletterRequest } from '@/lib/newsletter/auth-request';
 import { buildWeeklyNewsletterDraft } from '@/lib/newsletter/build-draft';
 import { getPreviousIsoWeekRange, type WeekRange } from '@/lib/newsletter/week-range';
 import { getNewsletterRecipients } from '@/lib/newsletter/get-recipients';
-import { stripUnsubscribePlaceholderForPreview } from '@/lib/newsletter/inject-unsubscribe';
-
 export async function POST(req: NextRequest) {
   if (!(await authorizeNewsletterRequest(req))) {
     return NextResponse.json({ error: 'Ikke autoriseret' }, { status: 401 });
@@ -31,7 +29,8 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({
       subject: draft.subject,
-      html: stripUnsubscribePlaceholderForPreview(draft.html),
+      /** Med %%UNSUBSCRIBE_URL%% — klienten stripper kun til iframe-preview; send/plan bruger samme HTML. */
+      html: draft.html,
       intro: draft.intro,
       headline: draft.headline,
       week: {

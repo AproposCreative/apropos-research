@@ -9,6 +9,9 @@ function escHref(url: string): string {
 }
 
 function resolveUnsubscribeBaseUrl(): string | undefined {
+  const fromDedicated = env.NEWSLETTER_UNSUBSCRIBE_BASE_URL?.trim();
+  if (fromDedicated) return fromDedicated.replace(/\/$/, '');
+
   const fromPublicBase = env.NEXT_PUBLIC_BASE_URL?.trim();
   if (fromPublicBase) return fromPublicBase.replace(/\/$/, '');
 
@@ -30,9 +33,29 @@ function resolveUnsubscribeBaseUrl(): string | undefined {
 
 /** Indsæt personligt, signeret frameldingslink (kalds pr. modtager ved send). */
 export function injectRecipientUnsubscribeUrl(html: string, recipientEmail: string): string {
+  if (!html.includes(NEWSLETTER_UNSUBSCRIBE_PLACEHOLDER)) {
+    if (process.env.NODE_ENV === 'production') {
+      console.warn(
+        '[newsletter] HTML mangler %%UNSUBSCRIBE_URL%% — personligt afmeld-link indsættes ikke (tjek at preview ikke gemmes som send-HTML).'
+      );
+    }
+  }
+
   const secret = env.NEWSLETTER_UNSUBSCRIBE_SECRET?.trim();
   const base = resolveUnsubscribeBaseUrl();
   if (!secret || !base) {
+    if (process.env.NODE_ENV === 'production') {
+      const parts: string[] = [];
+      if (!secret) parts.push('NEWSLETTER_UNSUBSCRIBE_SECRET');
+      if (!base) {
+        parts.push(
+          'unsubscribe base (NEWSLETTER_UNSUBSCRIBE_BASE_URL, NEXT_PUBLIC_BASE_URL, VERCEL_PROJECT_PRODUCTION_URL, VERCEL_URL eller NEWSLETTER_ARTICLE_BASE_URL)'
+        );
+      }
+      console.warn(
+        `[newsletter] Afmeld-link kan ikke bygges — mangler: ${parts.join('; ')}. Placeholder erstattes med #.`
+      );
+    }
     return html.split(NEWSLETTER_UNSUBSCRIBE_PLACEHOLDER).join('#');
   }
   const token = createUnsubscribeToken(recipientEmail, secret);
@@ -40,7 +63,7 @@ export function injectRecipientUnsubscribeUrl(html: string, recipientEmail: stri
   return html.split(NEWSLETTER_UNSUBSCRIBE_PLACEHOLDER).join(escHref(url));
 }
 
-/** Forhåndsvisning i værktøj: knap peger ikke på rigtigt link. */
+/** Kun til iframe-preview i browser — må ikke erstatte kildens HTML før send. */
 export function stripUnsubscribePlaceholderForPreview(html: string): string {
   return html.split(NEWSLETTER_UNSUBSCRIBE_PLACEHOLDER).join('#');
 }

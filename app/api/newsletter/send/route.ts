@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 export const maxDuration = 300;
 
 import { authorizeNewsletterRequest } from '@/lib/newsletter/auth-request';
-import { buildWeeklyNewsletterDraft, newsletterSubject } from '@/lib/newsletter/build-draft';
+import { buildWeeklyNewsletterDraft, HEADLINE_FALLBACK_DA } from '@/lib/newsletter/build-draft';
 import { newsletterUtmCampaignFromWeek } from '@/lib/newsletter/newsletter-utm';
 import { getPreviousIsoWeekRange, type WeekRange } from '@/lib/newsletter/week-range';
 import { getNewsletterRecipients } from '@/lib/newsletter/get-recipients';
@@ -33,7 +33,7 @@ export async function POST(req: NextRequest) {
     let html: string;
     if (providedHtml) {
       html = rewriteNewsletterLogoSrcForOutgoingEmail(providedHtml);
-      if (!subject) subject = newsletterSubject(week);
+      if (!subject) subject = HEADLINE_FALLBACK_DA;
     } else {
       const draft = await buildWeeklyNewsletterDraft({
         week,

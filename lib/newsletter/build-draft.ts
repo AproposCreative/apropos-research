@@ -9,11 +9,8 @@ import { env } from '@/lib/config/env';
 const INTRO_FALLBACK_DA =
   'Vi har samlet udvalgte artikler nedenfor — fra de store titler til de små kulturstunder. God læselyst.';
 
-const HEADLINE_FALLBACK_DA = 'Seneste fra Apropos';
-
-export function newsletterSubject(week: WeekRange): string {
-  return `Apropos Magazine · ${week.labelDa}`;
-}
+/** Bruges når AI ikke giver overskrift; samme tekst som emnefelt (kun overskrift, ingen dato-linje). */
+export const HEADLINE_FALLBACK_DA = 'Seneste fra Apropos';
 
 export type BuildDraftResult = {
   week: WeekRange;
@@ -80,7 +77,7 @@ export async function buildWeeklyNewsletterDraft(params: {
 
   return {
     week,
-    subject: newsletterSubject(week),
+    subject: headline,
     html,
     headline,
     intro,
