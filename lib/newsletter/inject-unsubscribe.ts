@@ -1,7 +1,8 @@
 import { env } from '@/lib/config/env';
 import { createUnsubscribeToken } from '@/lib/newsletter/unsubscribe-token';
+import { NEWSLETTER_UNSUBSCRIBE_PLACEHOLDER } from '@/lib/newsletter/unsubscribe-placeholder';
 
-export const NEWSLETTER_UNSUBSCRIBE_PLACEHOLDER = '%%UNSUBSCRIBE_URL%%';
+export { NEWSLETTER_UNSUBSCRIBE_PLACEHOLDER, stripUnsubscribePlaceholderForPreview } from '@/lib/newsletter/unsubscribe-placeholder';
 
 /** Escapes & for brug i HTML href. */
 function escHref(url: string): string {
@@ -61,9 +62,4 @@ export function injectRecipientUnsubscribeUrl(html: string, recipientEmail: stri
   const token = createUnsubscribeToken(recipientEmail, secret);
   const url = `${base}/api/newsletter/unsubscribe?t=${encodeURIComponent(token)}`;
   return html.split(NEWSLETTER_UNSUBSCRIBE_PLACEHOLDER).join(escHref(url));
-}
-
-/** Kun til iframe-preview i browser — må ikke erstatte kildens HTML før send. */
-export function stripUnsubscribePlaceholderForPreview(html: string): string {
-  return html.split(NEWSLETTER_UNSUBSCRIBE_PLACEHOLDER).join('#');
 }

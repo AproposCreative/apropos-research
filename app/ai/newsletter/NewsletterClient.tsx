@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/lib/auth-context';
-import { stripUnsubscribePlaceholderForPreview } from '@/lib/newsletter/inject-unsubscribe';
+import { stripUnsubscribePlaceholderForPreview } from '@/lib/newsletter/unsubscribe-placeholder';
 
 type PendingSchedule = { id: string; scheduledFor: string; subject: string; createdAt: string | null };
 
