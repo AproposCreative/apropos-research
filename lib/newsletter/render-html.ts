@@ -12,6 +12,7 @@ import {
   getNewsletterSocialIconDataUri,
   type NewsletterSocialIconName,
 } from '@/lib/newsletter/social-icons-data-uri';
+import { appendNewsletterUtmToUrl } from '@/lib/newsletter/newsletter-utm';
 
 function esc(s: string): string {
   return s
@@ -29,9 +30,13 @@ export function renderNewsletterEmailHtml(params: {
   /** Bruges kun til logo-src (fx `req.nextUrl.origin` i draft-preview). Links bruger stadig `siteUrl`. */
   logoAssetBaseUrl?: string;
   preheader?: string;
+  /** Sættes fx til `newsletterUtmCampaignFromWeek(week)` for GA4-kampagnesporing. */
+  utmCampaign?: string;
 }): string {
-  const { headline, introHtml, articles, siteUrl, logoAssetBaseUrl, preheader } = params;
+  const { headline, introHtml, articles, siteUrl, logoAssetBaseUrl, preheader, utmCampaign } = params;
   const site = siteUrl.replace(/\/$/, '');
+  const track = (href: string) =>
+    esc(utmCampaign ? appendNewsletterUtmToUrl(href, site, utmCampaign) : href);
   const pre = preheader || 'Seneste fra Apropos Magazine';
   const logoUrl = getNewsletterLogoUrl(site, logoAssetBaseUrl ? { assetBaseUrl: logoAssetBaseUrl } : undefined);
 
@@ -40,7 +45,7 @@ export function renderNewsletterEmailHtml(params: {
     leadArticle?.thumbUrl
       ? `<tr>
             <td align="center" style="padding:0;line-height:0;font-size:0;">
-              <a href="${esc(leadArticle.url)}" target="_blank" style="outline:none;display:block;line-height:0;">
+              <a href="${track(leadArticle.url)}" target="_blank" style="outline:none;display:block;line-height:0;">
                 <img class="nl-hero-img" src="${esc(leadArticle.thumbUrl)}" alt="${esc(leadArticle.title)}" width="600" height="450" style="display:block;width:100%;max-width:600px;height:450px;border:0;object-fit:cover;" />
               </a>
             </td>
@@ -59,10 +64,10 @@ export function renderNewsletterEmailHtml(params: {
       <tr>
         <td class="nl-thumb-cell" width="132" valign="top" style="padding-right:14px;">${thumb}</td>
         <td class="nl-art-body" valign="top">
-          <h2 class="nl-art-title" style="margin:0;"><a href="${esc(a.url)}">${esc(a.title)}</a></h2>
+          <h2 class="nl-art-title" style="margin:0;"><a href="${track(a.url)}">${esc(a.title)}</a></h2>
           ${a.excerpt ? `<p class="nl-art-excerpt" style="margin:8px 0 0;">${esc(a.excerpt)}${a.excerpt.length >= 220 ? '…' : ''}</p>` : ''}
           <p class="nl-art-read" style="margin:10px 0 0;">
-            <a href="${esc(a.url)}">Læs på aproposmagazine.com</a>
+            <a href="${track(a.url)}">Læs på aproposmagazine.com</a>
           </p>
         </td>
       </tr>
@@ -77,14 +82,14 @@ export function renderNewsletterEmailHtml(params: {
       ? `<tr><td style="padding:24px 0;font-family:${FONT_SANS};font-size:14px;color:${EMAIL_COLORS.textMuted};">Ingen nye publicerede artikler i den valgte periode (filtreres på Webflow lastPublished).</td></tr>`
       : '';
 
-  const primaryCtaHref = esc(site);
+  const primaryCtaHref = track(site);
   const primaryCtaLabel = 'Besøg Apropos Magazine';
   const h1Text = esc(headline.trim() || 'Seneste fra Apropos');
-  const footerSectionMusikHref = esc(`${site}/sections/musik`);
-  const footerSectionKulturHref = esc(`${site}/sections/kultur`);
-  const footerSectionSerierHref = esc(`${site}/sections/serierogfilm`);
-  const footerAnmeldelserHref = esc(`${site}/topics/anmeldelser`);
-  const footerLegalHref = esc(`${site}/other/legal`);
+  const footerSectionMusikHref = track(`${site}/sections/musik`);
+  const footerSectionKulturHref = track(`${site}/sections/kultur`);
+  const footerSectionSerierHref = track(`${site}/sections/serierogfilm`);
+  const footerAnmeldelserHref = track(`${site}/topics/anmeldelser`);
+  const footerLegalHref = track(`${site}/other/legal`);
   const footerSocialIgHref = esc('https://www.instagram.com/aproposmagazineofficial/');
   const footerSocialFbHref = esc('https://www.facebook.com/aproposmagazineofficial/');
   const footerSocialLiHref = esc('https://www.linkedin.com/company/aproposmagazine');

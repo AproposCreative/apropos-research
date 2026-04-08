@@ -23,6 +23,10 @@ export async function executeClaimedScheduledNewsletterJob(
       recipients: recipients.emails,
       subject: job.subject,
       html,
+      tags: [
+        { name: 'channel', value: 'newsletter' },
+        { name: 'send_type', value: 'scheduled' },
+      ],
     });
     if (result.failed === 0) {
       await markScheduledSendFinished(job.id, {

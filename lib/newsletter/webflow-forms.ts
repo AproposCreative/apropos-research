@@ -276,35 +276,150 @@ function filterSubmissionsForNewsletter(
  * Udtræk unikke e-mails fra form submissions.
  * Understøtter både `formData` (per-form endpoint) og `formResponse` (site-wide list).
  */
+const EMAIL_IN_SUBMISSION_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/i;
+
+/** Én formular-række → normaliseret e-mail eller null (samme logik som extractEmailsFromSubmissions). */
+export function getSubmissionEmailFromRow(sub: Record<string, unknown>): string | null {
+  const fd = (sub.formData ?? sub.formResponse ?? sub) as Record<string, unknown>;
+  const candidates = [fd.email, fd.Email, fd['e-mail'], fd['E-mail'], fd.EMAIL];
+  for (const c of candidates) {
+    if (typeof c !== 'string') continue;
+    const e = c.trim().toLowerCase();
+    if (EMAIL_IN_SUBMISSION_RE.test(e)) return e;
+  }
+  if (fd && typeof fd === 'object') {
+    for (const v of Object.values(fd)) {
+      if (typeof v !== 'string') continue;
+      const e = v.trim().toLowerCase();
+      if (EMAIL_IN_SUBMISSION_RE.test(e)) return e;
+    }
+  }
+  return null;
+}
+
+function submissionRowId(sub: Record<string, unknown>): string | null {
+  const id = sub.id ?? sub._id;
+  return typeof id === 'string' && id.length > 0 ? id : null;
+}
+
+function collectSubmissionIdsForEmail(
+  submissions: Array<Record<string, unknown>>,
+  normalizedEmail: string,
+  into: Set<string>
+): void {
+  const target = normalizedEmail.trim().toLowerCase();
+  for (const sub of submissions) {
+    if (getSubmissionEmailFromRow(sub) !== target) continue;
+    const sid = submissionRowId(sub);
+    if (sid) into.add(sid);
+  }
+}
+
+/**
+ * Sletter alle Webflow form submissions for nyhedsbrevsformularer der matcher e-mailen.
+ * Kræver `forms:write` på API-token. Bruges ved framelding.
+ */
+export async function deleteNewsletterFormSubmissionsByEmail(
+  normalizedEmail: string,
+  formIdOrName?: string
+): Promise<{ deleted: number; error?: string }> {
+  const token = resolveToken();
+  const siteId = resolveSiteId();
+  if (!token || !siteId) {
+    return { deleted: 0, error: 'Webflow token eller site ID mangler' };
+  }
+
+  const search = (formIdOrName || '').trim();
+  const looksLikeFormObjectId = /^[a-f0-9]{24}$/i.test(search);
+  const ids = new Set<string>();
+
+  if (looksLikeFormObjectId) {
+    const direct = await fetchFormSubmissions(search, {});
+    collectSubmissionIdsForEmail(direct.submissions, normalizedEmail, ids);
+  }
+
+  const siteWide = await fetchAllSiteFormSubmissions(token, siteId);
+  const filtered = filterSubmissionsForNewsletter(siteWide.submissions, formIdOrName);
+  collectSubmissionIdsForEmail(filtered, normalizedEmail, ids);
+
+  if (ids.size === 0) {
+    const viaList = await fetchNewsletterSubmissionsViaListForms(formIdOrName);
+    collectSubmissionIdsForEmail(viaList.submissions, normalizedEmail, ids);
+  }
+
+  if (ids.size === 0) {
+    return { deleted: 0 };
+  }
+
+  let deleted = 0;
+  let lastErr: string | undefined;
+  for (const submissionId of ids) {
+    const url = `https://api.webflow.com/v2/sites/${siteId}/form_submissions/${submissionId}`;
+    let res = await fetch(url, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${token}`, 'Accept-Version': '1.0.0' },
+    });
+    if (!res.ok && res.status !== 204) {
+      res = await fetch(url, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+    }
+    if (res.ok || res.status === 204) {
+      deleted++;
+    } else {
+      const j = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+      lastErr = formatWebflowError(j, res.status);
+    }
+  }
+
+  if (deleted === 0 && lastErr) {
+    return { deleted: 0, error: lastErr };
+  }
+  return { deleted, error: deleted < ids.size ? lastErr : undefined };
+}
+
+async function fetchNewsletterSubmissionsViaListForms(
+  formIdOrName?: string
+): Promise<{ submissions: Array<Record<string, unknown>>; error?: string }> {
+  const { forms, error: listErr } = await listForms();
+  if (listErr) return { submissions: [], error: listErr };
+  if (forms.length === 0) return { submissions: [], error: 'Ingen forms fundet på Webflow-sitet' };
+
+  let form: WebflowForm | undefined;
+  const search = (formIdOrName || '').trim().toLowerCase();
+
+  if (search) {
+    form = forms.find((f) => f.id === formIdOrName);
+    if (!form) {
+      form = forms.find((f) => f.displayName.toLowerCase().includes(search));
+    }
+  }
+  if (!form) {
+    form = forms.find((f) => newsletterFormNameRegex().test(f.displayName));
+  }
+  if (!form) {
+    return { submissions: [], error: 'Kunne ikke finde subscribe-form til sletning af svar' };
+  }
+
+  const { submissions, error: subErr } = await fetchFormSubmissions(form.id, {
+    formElementId: form.formElementId,
+    formDisplayName: form.displayName,
+  });
+  if (subErr && submissions.length === 0) {
+    return { submissions: [], error: subErr };
+  }
+  return { submissions };
+}
+
 export function extractEmailsFromSubmissions(
   submissions: Array<Record<string, unknown>>
 ): string[] {
   const seen = new Set<string>();
   const emails: string[] = [];
-  const re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/i;
 
   for (const sub of submissions) {
-    const fd = (sub.formData ?? sub.formResponse ?? sub) as Record<string, unknown>;
-    const candidates = [fd.email, fd.Email, fd['e-mail'], fd['E-mail'], fd.EMAIL];
-    let found: string | undefined;
-    for (const c of candidates) {
-      if (typeof c !== 'string') continue;
-      const e = c.trim().toLowerCase();
-      if (re.test(e)) {
-        found = e;
-        break;
-      }
-    }
-    if (!found && fd && typeof fd === 'object') {
-      for (const v of Object.values(fd)) {
-        if (typeof v !== 'string') continue;
-        const e = v.trim().toLowerCase();
-        if (re.test(e)) {
-          found = e;
-          break;
-        }
-      }
-    }
+    const found = getSubmissionEmailFromRow(sub);
     if (found && !seen.has(found)) {
       seen.add(found);
       emails.push(found);

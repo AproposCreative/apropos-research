@@ -2,6 +2,7 @@ import { getPreviousIsoWeekRange, type WeekRange } from '@/lib/newsletter/week-r
 import { fetchArticlesForWeek, MIN_NEWSLETTER_ARTICLES } from '@/lib/newsletter/webflow-sources';
 import { generateNewsletterIntro } from '@/lib/newsletter/intro-ai';
 import { introTextToHtml, renderNewsletterEmailHtml } from '@/lib/newsletter/render-html';
+import { newsletterUtmCampaignFromWeek } from '@/lib/newsletter/newsletter-utm';
 import { env } from '@/lib/config/env';
 
 /** Når AI mangler eller fejler — så preview ikke er et tomt afsnit. */
@@ -74,6 +75,7 @@ export async function buildWeeklyNewsletterDraft(params: {
     articles,
     siteUrl: baseUrl,
     logoAssetBaseUrl: params.logoAssetBaseUrl,
+    utmCampaign: newsletterUtmCampaignFromWeek(week),
   });
 
   return {

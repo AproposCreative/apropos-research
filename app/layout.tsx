@@ -12,6 +12,8 @@ import ConditionalLayout from '../components/ConditionalLayout';
 import AiBootPaint from '../components/AiBootPaint';
 // import PerformanceMonitor from '../components/PerformanceMonitor';
 import { Poppins } from 'next/font/google';
+import Script from 'next/script';
+import { env } from '@/lib/config/env';
 import VercelAnalytics from '../components/VercelAnalytics';
 
 // THEME SETUP - Google Fonts configuration
@@ -71,6 +73,17 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         </QueryProvider>
         {/* <PerformanceMonitor /> */}
         <VercelAnalytics />
+        {env.NEXT_PUBLIC_GA_MEASUREMENT_ID ? (
+          <>
+            <Script
+              src={`https://www.googletagmanager.com/gtag/js?id=${env.NEXT_PUBLIC_GA_MEASUREMENT_ID}`}
+              strategy="afterInteractive"
+            />
+            <Script id="ga4-config" strategy="afterInteractive">
+              {`window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config','${env.NEXT_PUBLIC_GA_MEASUREMENT_ID}');`}
+            </Script>
+          </>
+        ) : null}
       </body>
     </html>
   );

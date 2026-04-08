@@ -13,10 +13,14 @@ function resendCredentials(): { apiKey: string; from: string } {
   return { apiKey, from };
 }
 
+export type ResendEmailTag = { name: string; value: string };
+
 export async function sendNewsletterEmail(params: {
   to: string;
   subject: string;
   html: string;
+  /** Vises i Resend-webhooks og kan sendes videre til GA4. */
+  tags?: ResendEmailTag[];
 }): Promise<{ ok: boolean; error?: string }> {
   const { apiKey, from } = resendCredentials();
   if (!apiKey) {
@@ -29,6 +33,7 @@ export async function sendNewsletterEmail(params: {
     to: params.to,
     subject: params.subject,
     html: htmlPersonalized,
+    ...(params.tags && params.tags.length > 0 ? { tags: params.tags } : {}),
   });
   if (error) return { ok: false, error: error.message };
   if (!data?.id) return { ok: false, error: 'Resend returnerede intet id' };
@@ -39,6 +44,7 @@ export async function sendNewsletterToMany(params: {
   recipients: string[];
   subject: string;
   html: string;
+  tags?: ResendEmailTag[];
   onProgress?: (sent: number, total: number) => void;
 }): Promise<{ sent: number; failed: number; errors: string[] }> {
   const errors: string[] = [];
@@ -47,7 +53,12 @@ export async function sendNewsletterToMany(params: {
   const total = params.recipients.length;
   for (let i = 0; i < params.recipients.length; i++) {
     const to = params.recipients[i]!;
-    const r = await sendNewsletterEmail({ to, subject: params.subject, html: params.html });
+    const r = await sendNewsletterEmail({
+      to,
+      subject: params.subject,
+      html: params.html,
+      tags: params.tags,
+    });
     if (r.ok) {
       sent++;
     } else {
@@ -64,5 +75,10 @@ export async function sendWelcomeSignupEmail(to: string): Promise<{ ok: boolean;
   const subject =
     env.NEWSLETTER_WELCOME_SUBJECT?.trim() || 'Velkommen til Apropos Magazine';
   const html = buildWelcomeSignupHtml();
-  return sendNewsletterEmail({ to, subject, html });
+  return sendNewsletterEmail({
+    to,
+    subject,
+    html,
+    tags: [{ name: 'category', value: 'welcome_signup' }],
+  });
 }

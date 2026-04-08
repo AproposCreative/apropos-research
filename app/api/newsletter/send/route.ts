@@ -4,6 +4,7 @@ export const maxDuration = 300;
 
 import { authorizeNewsletterRequest } from '@/lib/newsletter/auth-request';
 import { buildWeeklyNewsletterDraft, newsletterSubject } from '@/lib/newsletter/build-draft';
+import { newsletterUtmCampaignFromWeek } from '@/lib/newsletter/newsletter-utm';
 import { getPreviousIsoWeekRange, type WeekRange } from '@/lib/newsletter/week-range';
 import { getNewsletterRecipients } from '@/lib/newsletter/get-recipients';
 import { sendNewsletterEmail, sendNewsletterToMany } from '@/lib/newsletter/send-resend';
@@ -47,7 +48,15 @@ export async function POST(req: NextRequest) {
       if (!testEmail) {
         return NextResponse.json({ error: 'testEmail kræves ved testOnly' }, { status: 400 });
       }
-      const r = await sendNewsletterEmail({ to: testEmail, subject, html });
+      const r = await sendNewsletterEmail({
+        to: testEmail,
+        subject,
+        html,
+        tags: [
+          { name: 'channel', value: 'newsletter' },
+          { name: 'campaign', value: newsletterUtmCampaignFromWeek(week).slice(0, 128) },
+        ],
+      });
       if (!r.ok) {
         return NextResponse.json({ error: r.error || 'Send fejlede' }, { status: 502 });
       }
@@ -62,10 +71,15 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    const campaign = newsletterUtmCampaignFromWeek(week);
     const result = await sendNewsletterToMany({
       recipients: recipients.emails,
       subject,
       html,
+      tags: [
+        { name: 'channel', value: 'newsletter' },
+        { name: 'campaign', value: campaign.slice(0, 128) },
+      ],
     });
 
     return NextResponse.json({

@@ -93,6 +93,14 @@ const EnvSchema = z.object({
   /** Slå velkomst-webhook til med true; default false = pause */
   NEWSLETTER_WELCOME_WEBHOOK_ENABLED: z.enum(['true', 'false']).default('false'),
 
+  /** GA4 (browser) — valgfri; UTM i mail virker først hvor gtag er installeret (fx Webflow). */
+  NEXT_PUBLIC_GA_MEASUREMENT_ID: z.preprocess(emptyToUndefined, z.string().optional()),
+  /** GA4 Measurement Protocol (server) — til Resend-webhooks (åbning/klik). */
+  GA4_MEASUREMENT_ID: z.preprocess(emptyToUndefined, z.string().optional()),
+  GA4_MEASUREMENT_PROTOCOL_SECRET: z.preprocess(emptyToUndefined, z.string().optional()),
+  /** Svix signing secret fra Resend Webhooks (whsec_…). */
+  RESEND_WEBHOOK_SECRET: z.preprocess(emptyToUndefined, z.string().optional()),
+
   // Research Provider Configuration
   RESEARCH_PROVIDER: z.enum(['openai_responses', 'legacy_web_search']).default('openai_responses'),
   RESEARCH_FALLBACK_PROVIDER: z.enum(['legacy_web_search', 'none']).default('legacy_web_search'),
@@ -183,6 +191,10 @@ function parseEnv() {
     NEWSLETTER_WELCOME_SUBJECT: process.env.NEWSLETTER_WELCOME_SUBJECT,
     NEWSLETTER_WELCOME_WEBHOOK_ENABLED:
       process.env.NEWSLETTER_WELCOME_WEBHOOK_ENABLED === 'true' ? 'true' : 'false',
+    NEXT_PUBLIC_GA_MEASUREMENT_ID: process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID,
+    GA4_MEASUREMENT_ID: process.env.GA4_MEASUREMENT_ID,
+    GA4_MEASUREMENT_PROTOCOL_SECRET: process.env.GA4_MEASUREMENT_PROTOCOL_SECRET,
+    RESEND_WEBHOOK_SECRET: process.env.RESEND_WEBHOOK_SECRET,
     RESEARCH_PROVIDER: (process.env.RESEARCH_PROVIDER as any) || 'openai_responses',
     RESEARCH_FALLBACK_PROVIDER: (process.env.RESEARCH_FALLBACK_PROVIDER as any) || 'legacy_web_search',
     RESEARCH_MIN_SOURCES: Number(process.env.RESEARCH_MIN_SOURCES || '2'),

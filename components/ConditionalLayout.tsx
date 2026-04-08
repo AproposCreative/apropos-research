@@ -126,10 +126,11 @@ export default function ConditionalLayout({ children }: { children: React.ReactN
   // Routes that should show minimal layout (login, etc.)
   const isMinimalLayout = !dashboardRoutes.includes(pathname);
   const isLogin = pathname === '/login';
-  
+  const isPublicNewsletterUnsub = pathname === '/newsletter/frameld';
+
   if (isMinimalLayout) {
     // Allow access to the public login page without auth guard
-    if (isLogin) return <>{children}</>;
+    if (isLogin || isPublicNewsletterUnsub) return <>{children}</>;
     return <ProtectedRoute>{children}</ProtectedRoute>;
   }
   
