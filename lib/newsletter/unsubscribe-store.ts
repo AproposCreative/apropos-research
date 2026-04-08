@@ -3,19 +3,27 @@ import { getAdminDb } from '@/lib/firebase-admin';
 const COLLECTION = 'newsletter_unsubscribes';
 
 /** Tilføj e-mail til frameldings-listen (idempotent). */
-export async function addUnsubscribe(email: string): Promise<{ ok: boolean; error?: string }> {
+export async function addUnsubscribe(email: string): Promise<{
+  ok: boolean;
+  error?: string;
+  /** true første gang denne e-mail frameldes (til én bekræftelsesmail). */
+  firstUnsubscribe?: boolean;
+}> {
   const db = getAdminDb();
   if (!db) return { ok: false, error: 'Firebase Admin ikke konfigureret' };
   const normalized = email.trim().toLowerCase();
   try {
-    await db.collection(COLLECTION).doc(normalized).set(
+    const ref = db.collection(COLLECTION).doc(normalized);
+    const before = await ref.get();
+    const alreadyListed = before.exists;
+    await ref.set(
       {
         email: normalized,
         unsubscribedAt: new Date().toISOString(),
       },
       { merge: true }
     );
-    return { ok: true };
+    return { ok: true, firstUnsubscribe: !alreadyListed };
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : 'Firestore-fejl' };
   }

@@ -1,6 +1,7 @@
 import { Resend } from 'resend';
 import { env } from '@/lib/config/env';
 import { injectRecipientUnsubscribeUrl } from '@/lib/newsletter/inject-unsubscribe';
+import { buildUnsubscribeConfirmationHtml } from '@/lib/newsletter/unsubscribe-confirmation-template';
 import { buildWelcomeSignupHtml } from '@/lib/newsletter/welcome-template';
 
 /** Verificeret domæne i Resend (news.aproposmagazine.com). Override med RESEND_FROM_EMAIL hvis nødvendigt. */
@@ -14,6 +15,30 @@ function resendCredentials(): { apiKey: string; from: string } {
 }
 
 export type ResendEmailTag = { name: string; value: string };
+
+/** Resend uden afmeld-placeholder (transactional). */
+async function sendResendTransactional(params: {
+  to: string;
+  subject: string;
+  html: string;
+  tags?: ResendEmailTag[];
+}): Promise<{ ok: boolean; error?: string }> {
+  const { apiKey, from } = resendCredentials();
+  if (!apiKey) {
+    return { ok: false, error: 'RESEND_API_KEY mangler' };
+  }
+  const resend = new Resend(apiKey);
+  const { data, error } = await resend.emails.send({
+    from,
+    to: params.to,
+    subject: params.subject,
+    html: params.html,
+    ...(params.tags && params.tags.length > 0 ? { tags: params.tags } : {}),
+  });
+  if (error) return { ok: false, error: error.message };
+  if (!data?.id) return { ok: false, error: 'Resend returnerede intet id' };
+  return { ok: true };
+}
 
 export async function sendNewsletterEmail(params: {
   to: string;
@@ -80,5 +105,15 @@ export async function sendWelcomeSignupEmail(to: string): Promise<{ ok: boolean;
     subject,
     html,
     tags: [{ name: 'category', value: 'welcome_signup' }],
+  });
+}
+
+/** Én gang efter vellykket klik på afmeld i nyhedsbrev (kun ved første registrering i Firestore). */
+export async function sendUnsubscribeConfirmationEmail(to: string): Promise<{ ok: boolean; error?: string }> {
+  return sendResendTransactional({
+    to,
+    subject: 'Du er frameldt nyhedsbrevet',
+    html: buildUnsubscribeConfirmationHtml(),
+    tags: [{ name: 'category', value: 'newsletter_unsubscribed' }],
   });
 }

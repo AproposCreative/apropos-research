@@ -5,6 +5,7 @@ import { addUnsubscribe } from '@/lib/newsletter/unsubscribe-store';
 import { deleteNewsletterSignupByEmail } from '@/lib/newsletter/webflow-sources';
 import { deleteNewsletterFormSubmissionsByEmail } from '@/lib/newsletter/webflow-forms';
 import { getPublicAppOriginFromRequest } from '@/lib/newsletter/public-app-url';
+import { sendUnsubscribeConfirmationEmail } from '@/lib/newsletter/send-resend';
 
 function redirectFrameld(req: NextRequest, query: Record<string, string>) {
   const origin = getPublicAppOriginFromRequest(req);
@@ -46,6 +47,12 @@ export async function GET(req: NextRequest) {
 
   if (!result.ok) {
     return redirectFrameld(req, { status: 'error', reason: 'server' });
+  }
+
+  if (result.firstUnsubscribe) {
+    void sendUnsubscribeConfirmationEmail(emailNorm).then((r) => {
+      if (!r.ok) console.warn('[newsletter/unsubscribe] Bekræftelsesmail:', r.error);
+    });
   }
 
   const colId = env.WEBFLOW_NEWSLETTER_SIGNUPS_COLLECTION_ID?.trim();
