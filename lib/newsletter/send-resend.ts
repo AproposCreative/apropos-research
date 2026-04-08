@@ -6,11 +6,23 @@ import { buildWelcomeSignupHtml } from '@/lib/newsletter/welcome-template';
 
 /** Verificeret domæne i Resend (news.aproposmagazine.com). Override med RESEND_FROM_EMAIL hvis nødvendigt. */
 const DEFAULT_RESEND_FROM = 'Apropos Magazine <noreply@news.aproposmagazine.com>';
+const RESEND_DISPLAY_NAME = 'Apropos Magazine';
+
+/** Ren e-mail i env → pæn afsender; «Navn <mail>» sendes uændret. */
+function normalizeResendFrom(fromRaw: string): string {
+  const t = fromRaw.trim();
+  if (!t) return DEFAULT_RESEND_FROM;
+  if (t.includes('<') && t.includes('>')) return t;
+  if (/^[^\s<>]+@[^\s<>]+$/.test(t)) {
+    return `${RESEND_DISPLAY_NAME} <${t}>`;
+  }
+  return t;
+}
 
 function resendCredentials(): { apiKey: string; from: string } {
   const apiKey = (env.RESEND_API_KEY || process.env.RESEND_API_KEY || '').trim();
   const fromRaw = (env.RESEND_FROM_EMAIL || process.env.RESEND_FROM_EMAIL || '').trim();
-  const from = fromRaw || DEFAULT_RESEND_FROM;
+  const from = normalizeResendFrom(fromRaw);
   return { apiKey, from };
 }
 
