@@ -9,6 +9,7 @@ import { RefreshProvider } from '../components/RefreshCtx';
 import { MediaProvider } from '../lib/media-context';
 import { QueryProvider } from '../lib/query-provider';
 import ConditionalLayout from '../components/ConditionalLayout';
+import AiBootPaint from '../components/AiBootPaint';
 // import PerformanceMonitor from '../components/PerformanceMonitor';
 import { Poppins } from 'next/font/google';
 import VercelAnalytics from '../components/VercelAnalytics';
@@ -45,10 +46,17 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             __html: `(() => { try { const t = localStorage.getItem('theme'); if (t === 'dark') document.documentElement.classList.add('dark'); else document.documentElement.classList.remove('dark'); } catch {} })();`,
           }}
         />
+        {/* Apropos AI: sort canvas + preload af logo før React (undgår hvid flash) */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(()=>{try{var p=location.pathname||'';if(!/^\\/ai(\\/|$)/.test(p))return;var r=document.documentElement;r.setAttribute('data-ai-boot','');r.style.setProperty('background-color','#000','important');r.style.setProperty('background-image','none','important');var pre=document.createElement('link');pre.rel='preload';pre.as='image';pre.href='/images/apropos-research-white-loader.svg';document.head.appendChild(pre);var b=function(){var x=document.body;if(!x)return;x.style.setProperty('background-color','#000','important');x.style.setProperty('background-image','none','important');};b();if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',b);}catch(e){}})();`,
+          }}
+        />
       </head>
       <body className={`${poppins.variable} min-h-dvh transition-colors duration-300 bg-gradient-to-br from-slate-50 to-slate-100 dark:from-black-950 dark:to-pure-black text-slate-900 dark:text-slate-100`} suppressHydrationWarning>
         {/* PROVIDER STACK - Context providers in dependency order */}
         <QueryProvider>
+          <AiBootPaint />
           <AuthProvider>
             <MediaProvider>
               <SelectProvider>

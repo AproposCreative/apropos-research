@@ -7,6 +7,27 @@
 .chip-glow-active {}
 .stroke-glow {}
 
+/* Apropos AI: sort baggrund under boot (matcher inline-script i layout) */
+html[data-ai-boot] body {
+  background-color: #000 !important;
+  background-image: none !important;
+}
+
+/* Apropos AI: auth boot + route loading (logo pulser ind/ud) */
+@keyframes apropos-ai-logo-pulse {
+  0%,
+  100% {
+    opacity: 0.25;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+.apropos-ai-loading-logo {
+  animation: apropos-ai-logo-pulse 0.85s ease-in-out infinite;
+  will-change: opacity;
+}
+
 @layer base {
   :root {
     --font-poppins: 'Poppins', sans-serif;

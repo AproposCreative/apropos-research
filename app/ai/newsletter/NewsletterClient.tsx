@@ -425,6 +425,31 @@ export default function NewsletterClient({ embedded = false, onClose }: Newslett
               Desktop
             </button>
           </div>
+          {onClose ? (
+            <div
+              className="flex rounded-lg border border-white/12 p-0.5 gap-0.5 bg-black/30 backdrop-blur-sm shrink-0"
+              role="group"
+              aria-label="Luk nyhedsbrev"
+            >
+              <button
+                type="button"
+                onClick={onClose}
+                className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-white/12 text-white transition-all duration-200 hover:bg-white/[0.16] active:scale-[0.97]"
+                aria-label="Luk nyhedsbrev"
+              >
+                <svg
+                  className="size-3.5 shrink-0"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  strokeWidth={2}
+                  aria-hidden
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+          ) : null}
           {!embedded && (
             <Link
               href="/ai"
