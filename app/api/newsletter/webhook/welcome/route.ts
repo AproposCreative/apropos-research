@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { env } from '@/lib/config/env';
 import { extractEmailFromWebflowFormData } from '@/lib/newsletter/webhook-form-email';
+import { removeUnsubscribeRecordsForEmails } from '@/lib/newsletter/unsubscribe-store';
 import { sendWelcomeSignupEmail } from '@/lib/newsletter/send-resend';
 
 type WebflowFormSubmissionBody = {
@@ -87,6 +88,8 @@ export async function POST(req: NextRequest) {
       { status: 422 }
     );
   }
+
+  await removeUnsubscribeRecordsForEmails([email]);
 
   const send = await sendWelcomeSignupEmail(email);
   if (!send.ok) {

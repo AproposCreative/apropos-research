@@ -46,6 +46,29 @@ export async function getUnsubscribedEmails(): Promise<Set<string>> {
   }
 }
 
+/**
+ * Slet frameldings-markering for de angivne adresser (batch).
+ * Bruges når e-mail igen findes som aktiv tilmelding i Webflow — gen-tilmelding.
+ */
+export async function removeUnsubscribeRecordsForEmails(emails: string[]): Promise<void> {
+  const db = getAdminDb();
+  if (!db || emails.length === 0) return;
+  const unique = [...new Set(emails.map((e) => e.trim().toLowerCase()).filter(Boolean))];
+  const BATCH = 400;
+  try {
+    for (let i = 0; i < unique.length; i += BATCH) {
+      const chunk = unique.slice(i, i + BATCH);
+      const batch = db.batch();
+      for (const email of chunk) {
+        batch.delete(db.collection(COLLECTION).doc(email));
+      }
+      await batch.commit();
+    }
+  } catch (e) {
+    console.warn('[newsletter] removeUnsubscribeRecordsForEmails:', e);
+  }
+}
+
 /** Er en given e-mail frameldt? */
 export async function isUnsubscribed(email: string): Promise<boolean> {
   const db = getAdminDb();

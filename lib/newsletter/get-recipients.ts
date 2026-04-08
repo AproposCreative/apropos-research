@@ -1,7 +1,10 @@
 import { env } from '@/lib/config/env';
 import { fetchNewsletterEmails } from '@/lib/newsletter/webflow-forms';
 import { fetchNewsletterSignupEmails } from '@/lib/newsletter/webflow-sources';
-import { getUnsubscribedEmails } from '@/lib/newsletter/unsubscribe-store';
+import {
+  getUnsubscribedEmails,
+  removeUnsubscribeRecordsForEmails,
+} from '@/lib/newsletter/unsubscribe-store';
 
 export type RecipientResult = {
   emails: string[];
@@ -54,7 +57,8 @@ function clarifyFetchError(
  * Standard i Webflow er **formular-svar** (Forms API, kræver `forms:read` på site-token).
  * Hvis `WEBFLOW_NEWSLETTER_SIGNUPS_COLLECTION_ID` er sat, prøves CMS først (kun relevant hvis I
  * selv har en collection til e-mails). Ellers / ved 0 fra CMS: Forms API (`WEBFLOW_NEWSLETTER_FORM_ID`
- * eller auto-find «Subscribe»/«nyhedsbrev»). Frameldte filtreres via Firestore.
+ * eller auto-find «Subscribe»/«nyhedsbrev»). Frameldte filtreres via Firestore; gen-tilmelding i Webflow
+ * rydder automatisk frameldings-dokumentet for den e-mail.
  */
 export async function getNewsletterRecipients(): Promise<RecipientResult> {
   const formId = env.WEBFLOW_NEWSLETTER_FORM_ID?.trim() || undefined;
@@ -100,18 +104,25 @@ export async function getNewsletterRecipients(): Promise<RecipientResult> {
   fetchErr = clarifyFetchError(fetchErr, { hadSignupCollectionId });
 
   if (rawEmails.length === 0) {
+    const unsubOnly = await getUnsubscribedEmails();
     return {
       emails: [],
       total: 0,
-      unsubscribedCount: 0,
+      unsubscribedCount: unsubOnly.size,
       source,
       formName,
       error: fetchErr || (source === 'none' ? 'Ingen tilmeldinger fundet' : undefined),
     };
   }
 
-  const unsub = await getUnsubscribedEmails();
-  const filtered = rawEmails.filter((e) => !unsub.has(e));
+  const norm = (e: string) => e.trim().toLowerCase();
+  let unsub = await getUnsubscribedEmails();
+  const resubscribed = [...new Set(rawEmails.map(norm))].filter((e) => unsub.has(e));
+  if (resubscribed.length > 0) {
+    await removeUnsubscribeRecordsForEmails(resubscribed);
+    for (const e of resubscribed) unsub.delete(e);
+  }
+  const filtered = rawEmails.filter((e) => !unsub.has(norm(e)));
 
   return {
     emails: filtered,
