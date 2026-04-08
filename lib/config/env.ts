@@ -7,6 +7,10 @@
 
 import { z } from 'zod';
 
+/** Tom streng i .env → undefined, så optional URL/string ikke knækker hele Zod-parse. */
+const emptyToUndefined = (v: unknown) =>
+  typeof v === 'string' && v.trim() === '' ? undefined : v;
+
 /**
  * Environment variable schema with validation
  */
@@ -20,7 +24,7 @@ const EnvSchema = z.object({
   OPENAI_RESEARCH_MODEL: z.string().optional(),
   
   // Base URL Configuration
-  NEXT_PUBLIC_BASE_URL: z.string().url().optional(),
+  NEXT_PUBLIC_BASE_URL: z.preprocess(emptyToUndefined, z.string().url().optional()),
   
   // Firebase Configuration (Public)
   NEXT_PUBLIC_FIREBASE_API_KEY: z.string().optional(),
@@ -45,6 +49,8 @@ const EnvSchema = z.object({
   INSTAGRAM_ACCOUNT_ID: z.string().optional(),
   INSTAGRAM_ACCESS_TOKEN: z.string().optional(),
   FACEBOOK_PAGE_ID: z.string().optional(),
+  META_APP_ID: z.string().optional(),
+  META_APP_SECRET: z.string().optional(),
 
   // Firebase Admin (server-side)
   FIREBASE_ADMIN_PROJECT_ID: z.string().optional(),
@@ -63,6 +69,29 @@ const EnvSchema = z.object({
 
   // Cron / Security
   CRON_SECRET: z.string().optional(),
+  /** Vercel: deployment hostname uden protokol (fx `proj-xxx.vercel.app`). Bruges bl.a. til nyhedsbrevslogo når NEXT_PUBLIC_BASE_URL ikke er sat. */
+  VERCEL_URL: z.preprocess(emptyToUndefined, z.string().optional()),
+  /** Vercel: produktions-hostname (fx `dit-domæne.dk` eller `proj.vercel.app`) — prioriteres over VERCEL_URL til statiske assets i mail. */
+  VERCEL_PROJECT_PRODUCTION_URL: z.preprocess(emptyToUndefined, z.string().optional()),
+
+  // Resend (nyhedsbrev)
+  RESEND_API_KEY: z.preprocess(emptyToUndefined, z.string().optional()),
+  RESEND_FROM_EMAIL: z.preprocess(emptyToUndefined, z.string().optional()),
+  WEBFLOW_NEWSLETTER_SIGNUPS_COLLECTION_ID: z.string().optional(),
+  WEBFLOW_SIGNUP_EMAIL_FIELD_SLUG: z.string().optional(),
+  NEWSLETTER_ARTICLE_BASE_URL: z.preprocess(emptyToUndefined, z.string().url().optional()),
+  /** Valgfri absolut URL til logo-PNG i nyhedsbrev (ellers /images/apropos-newsletter-logo.png på siteUrl) */
+  NEWSLETTER_LOGO_URL: z.preprocess(emptyToUndefined, z.string().url().optional()),
+  /** HMAC-hemmelighed til signeret frameldingslink i nyhedsbrev (brug en lang tilfældig streng) */
+  NEWSLETTER_UNSUBSCRIBE_SECRET: z.string().optional(),
+  /** Webflow Forms API: form-id eller del af form-navn (auto-detect hvis tom) */
+  WEBFLOW_NEWSLETTER_FORM_ID: z.string().optional(),
+  /** Hemmelighed til velkomst-webhook (?secret= eller header x-newsletter-webhook-secret) */
+  NEWSLETTER_WEBHOOK_SECRET: z.string().optional(),
+  /** Emnefelt for automatisk velkomstmail (webhook) */
+  NEWSLETTER_WELCOME_SUBJECT: z.string().optional(),
+  /** Slå velkomst-webhook til med true; default false = pause */
+  NEWSLETTER_WELCOME_WEBHOOK_ENABLED: z.enum(['true', 'false']).default('false'),
 
   // Research Provider Configuration
   RESEARCH_PROVIDER: z.enum(['openai_responses', 'legacy_web_search']).default('openai_responses'),
@@ -130,6 +159,8 @@ function parseEnv() {
     INSTAGRAM_ACCOUNT_ID: process.env.INSTAGRAM_ACCOUNT_ID,
     INSTAGRAM_ACCESS_TOKEN: process.env.INSTAGRAM_ACCESS_TOKEN,
     FACEBOOK_PAGE_ID: process.env.FACEBOOK_PAGE_ID,
+    META_APP_ID: process.env.META_APP_ID,
+    META_APP_SECRET: process.env.META_APP_SECRET,
     FIREBASE_ADMIN_PROJECT_ID: process.env.FIREBASE_ADMIN_PROJECT_ID,
     FIREBASE_ADMIN_CLIENT_EMAIL: process.env.FIREBASE_ADMIN_CLIENT_EMAIL,
     FIREBASE_ADMIN_PRIVATE_KEY: process.env.FIREBASE_ADMIN_PRIVATE_KEY,
@@ -138,6 +169,20 @@ function parseEnv() {
     GOOGLE_CUSTOM_SEARCH_API_KEY: process.env.GOOGLE_CUSTOM_SEARCH_API_KEY,
     GOOGLE_CUSTOM_SEARCH_ENGINE_ID: process.env.GOOGLE_CUSTOM_SEARCH_ENGINE_ID,
     CRON_SECRET: process.env.CRON_SECRET,
+    VERCEL_URL: process.env.VERCEL_URL,
+    VERCEL_PROJECT_PRODUCTION_URL: process.env.VERCEL_PROJECT_PRODUCTION_URL,
+    RESEND_API_KEY: process.env.RESEND_API_KEY,
+    RESEND_FROM_EMAIL: process.env.RESEND_FROM_EMAIL,
+    WEBFLOW_NEWSLETTER_SIGNUPS_COLLECTION_ID: process.env.WEBFLOW_NEWSLETTER_SIGNUPS_COLLECTION_ID,
+    WEBFLOW_SIGNUP_EMAIL_FIELD_SLUG: process.env.WEBFLOW_SIGNUP_EMAIL_FIELD_SLUG,
+    NEWSLETTER_ARTICLE_BASE_URL: process.env.NEWSLETTER_ARTICLE_BASE_URL,
+    NEWSLETTER_LOGO_URL: process.env.NEWSLETTER_LOGO_URL,
+    NEWSLETTER_UNSUBSCRIBE_SECRET: process.env.NEWSLETTER_UNSUBSCRIBE_SECRET,
+    WEBFLOW_NEWSLETTER_FORM_ID: process.env.WEBFLOW_NEWSLETTER_FORM_ID,
+    NEWSLETTER_WEBHOOK_SECRET: process.env.NEWSLETTER_WEBHOOK_SECRET,
+    NEWSLETTER_WELCOME_SUBJECT: process.env.NEWSLETTER_WELCOME_SUBJECT,
+    NEWSLETTER_WELCOME_WEBHOOK_ENABLED:
+      process.env.NEWSLETTER_WELCOME_WEBHOOK_ENABLED === 'true' ? 'true' : 'false',
     RESEARCH_PROVIDER: (process.env.RESEARCH_PROVIDER as any) || 'openai_responses',
     RESEARCH_FALLBACK_PROVIDER: (process.env.RESEARCH_FALLBACK_PROVIDER as any) || 'legacy_web_search',
     RESEARCH_MIN_SOURCES: Number(process.env.RESEARCH_MIN_SOURCES || '2'),

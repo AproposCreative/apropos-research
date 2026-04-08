@@ -96,6 +96,20 @@ const optionalSecurity = [
   'CRON_SECRET',
 ];
 
+const optionalNewsletter = [
+  'RESEND_API_KEY',
+  'RESEND_FROM_EMAIL',
+  'WEBFLOW_NEWSLETTER_FORM_ID',
+  'NEWSLETTER_ARTICLE_BASE_URL',
+  'NEWSLETTER_LOGO_URL',
+  'NEWSLETTER_UNSUBSCRIBE_SECRET',
+  'WEBFLOW_NEWSLETTER_SIGNUPS_COLLECTION_ID',
+  'WEBFLOW_SIGNUP_EMAIL_FIELD_SLUG',
+  'NEWSLETTER_WEBHOOK_SECRET',
+  'NEWSLETTER_WELCOME_SUBJECT',
+  'NEWSLETTER_WELCOME_WEBHOOK_ENABLED',
+];
+
 let failures = 0;
 failures += printGroup('Required (core app)', requiredCore, mergedEnv, true);
 printGroup('Recommended (Firebase client)', recommendedFirebase, mergedEnv, false);
@@ -104,6 +118,7 @@ printGroup('Recommended (Instagram / Facebook publish)', recommendedInstagram, m
 printGroup('Recommended (Media search: TMDB, OMDB, Google)', recommendedMediaSearch, mergedEnv, false);
 printGroup('Recommended (Build metadata)', recommendedBuild, mergedEnv, false);
 printGroup('Optional (Security)', optionalSecurity, mergedEnv, false);
+printGroup('Optional (Nyhedsbrev / Resend)', optionalNewsletter, mergedEnv, false);
 
 if (failures > 0) {
   console.error('\nEnv doctor failed: missing required variables.');

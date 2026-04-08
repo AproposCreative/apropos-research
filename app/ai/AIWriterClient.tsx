@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { useRouter, useSearchParams, usePathname } from 'next/navigation';
 import { type UploadedFile } from '@/lib/file-upload-service';
 import MainChatPanel from './MainChatPanel';
 import SetupWizard from '@/components/SetupWizard';
@@ -14,11 +15,15 @@ import AuthModal from '@/components/AuthModal';
 import ChatSearchModal from '@/components/ChatSearchModal';
 import SourcesPanel from '@/components/SourcesPanel';
 import SettingsPanel from '@/components/SettingsPanel';
+import NewsletterClient from '@/app/ai/newsletter/NewsletterClient';
 import { useAuth } from '@/lib/auth-context';
 import { saveDraft, getDraft, type ArticleDraft } from '@/lib/firebase-service';
 import { autoSaveService } from '@/lib/auto-save-service';
 import type { ArticleData } from '@/types/article';
 import type { ThinkingStep, ThinkingStatus } from '@/types/thinking';
+import { PROMPT_ARCHITECT_CONTEXT_KEY } from '@/lib/prompt-architect-constants';
+import { loadPromptModuleToggles } from '@/lib/prompt-architect-storage';
+import { SPLINE_BACKGROUNDS, STORAGE_KEY_SPLINE_BG } from '@/lib/spline-backgrounds';
 
 const buildDefaultArticleData = (): ArticleData => ({
   title: '',
@@ -77,41 +82,6 @@ const BASE_THINKING_STEPS: ThinkingStep[] = [
   { id: 'polish', label: 'Finpudser tone & struktur', status: 'pending', icon: 'dot' }
 ];
 
-// Available Spline backgrounds
-const SPLINE_BACKGROUNDS = [
-  {
-    id: 'robot',
-    name: 'Robot Karakter',
-    url: 'https://my.spline.design/nexbotrobotcharacterconcept-jOiWdJXA0mBgb50nmYl1x0EC/',
-    description: 'Moderne AI-assistent robot'
-  },
-  {
-    id: 'gradient',
-    name: 'Gradient Animation',
-    url: 'https://my.spline.design/animatedbackgroundgradientforweb-k9vy84HznMWrADyOW44KZ3Ue/',
-    description: 'Abstrakt gradient flow'
-  },
-  {
-    id: 'retrofuturism',
-    name: 'Retro Futurism',
-    url: 'https://my.spline.design/retrofuturismbganimation-Z5NWhPCGc1tcryNEnaN2FnIJ/',
-    description: 'Retro futuristisk animation'
-  },
-  {
-    id: 'dotwaves',
-    name: 'Dot Waves',
-    url: 'https://my.spline.design/dotwaves-h4iKKFVRORZbPRboUfG4QKRk/',
-    description: 'Pulserende dot waves'
-  },
-  {
-    id: 'black-particles',
-    name: 'Black Particles 🌑',
-    url: 'https://my.spline.design/blackparticles-t7yFXQqAzE4DZVcoSbjisK2f/',
-    description: 'Sort partikel animation'
-  }
-];
-
-const STORAGE_KEY_SPLINE_BG = 'apropos-spline-background';
 const APP_VERSION = process.env.NEXT_PUBLIC_APP_VERSION || '0.0.0';
 const BUILD_ID = process.env.NEXT_PUBLIC_BUILD_ID || 'local';
 const BUILD_LABEL = process.env.NEXT_PUBLIC_BUILD_LABEL || `${APP_VERSION}.${BUILD_ID}`;
@@ -120,9 +90,23 @@ const GENERATION_MODE_OPTIONS: Array<{ id: 'fast' | 'editorial'; label: string; 
   { id: 'editorial', label: 'Editorial', description: 'Fuld redaktionel pipeline med research' }
 ];
 
+function resolveViewFromSearchParams(sp: { get: (key: string) => string | null }): 'ai' | 'design-editor' | 'newsletter' {
+  const view = sp.get('view');
+  if (view === 'newsletter') return 'newsletter';
+  if (view === 'design-editor') return 'design-editor';
+  if (view === 'ai') return 'ai';
+  const n = sp.get('newsletter');
+  const w = sp.get('webapp');
+  if (n === '1' || n === 'true' || w === 'newsletter') return 'newsletter';
+  return 'ai';
+}
+
 // using shared ArticleData type
 
 export default function AIWriterClient() {
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const { user, logout } = useAuth();
   const [currentDraftId, setCurrentDraftId] = useState<string | null>(null);
   const [showSearchModal, setShowSearchModal] = useState(false);
@@ -134,10 +118,28 @@ export default function AIWriterClient() {
   const [sourcesOpen, setSourcesOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [isClosing, setIsClosing] = useState(false);
-  const [activeView, setActiveView] = useState<'ai' | 'design-editor' | null>('ai');
+  const [activeView, setActiveView] = useState<'ai' | 'design-editor' | 'newsletter' | null>('ai');
   const leftPanelOpen = shelfOpen || webAppsOpen;
-  const [accountOpen, setAccountOpen] = useState(false);
-  const [bgSelectorOpen, setBgSelectorOpen] = useState(false);
+
+  /** Opdater aktiv visning og URL, så refresh og deling bevarer fx nyhedsbrev (`?view=newsletter`). */
+  const applyActiveView = useCallback(
+    (view: 'ai' | 'design-editor' | 'newsletter' | null) => {
+      setActiveView(view);
+      const params = new URLSearchParams(searchParams.toString());
+      params.delete('newsletter');
+      params.delete('webapp');
+      if (view === 'newsletter') {
+        params.set('view', 'newsletter');
+      } else if (view === 'design-editor') {
+        params.set('view', 'design-editor');
+      } else {
+        params.delete('view');
+      }
+      const q = params.toString();
+      router.replace(q ? `${pathname}?${q}` : pathname, { scroll: false });
+    },
+    [router, pathname, searchParams]
+  );
   const [selectedSplineBg, setSelectedSplineBg] = useState<string>(() => {
     if (typeof window !== 'undefined') {
       return localStorage.getItem(STORAGE_KEY_SPLINE_BG) || 'robot';
@@ -147,6 +149,23 @@ export default function AIWriterClient() {
   const [articleData, setArticleData] = useState<ArticleData>(() => normalizeArticleData());
 
   const [notes, setNotes] = useState('');
+  const openPromptArchitect = useCallback(() => {
+    try {
+      sessionStorage.setItem(
+        PROMPT_ARCHITECT_CONTEXT_KEY,
+        JSON.stringify({
+          articleData,
+          notes,
+          authorTOV: articleData.authorTOV || '',
+          authorName: articleData.author || '',
+        })
+      );
+    } catch {
+      /* ignore */
+    }
+    router.push('/ai/prompt-architect');
+  }, [articleData, notes, router]);
+
   const [chatTitle, setChatTitle] = useState('Ny artikkel');
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [newArticleKey, setNewArticleKey] = useState(0);
@@ -225,6 +244,30 @@ export default function AIWriterClient() {
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
+
+  useEffect(() => {
+    const next = resolveViewFromSearchParams(searchParams);
+    setActiveView((prev) => (prev === next ? prev : next));
+    if (next === 'newsletter') {
+      setReviewOpen(false);
+      setSourcesOpen(false);
+      setSettingsOpen(false);
+      setWebAppsOpen(false);
+      setShelfOpen(false);
+    }
+  }, [searchParams]);
+
+  const handleSelectWebApp = useCallback(
+    (id: string) => {
+      setWebAppsOpen(false);
+      if (id === 'newsletter') {
+        applyActiveView('newsletter');
+        return;
+      }
+      applyActiveView(id === 'design-editor' ? 'design-editor' : 'ai');
+    },
+    [applyActiveView]
+  );
 
   // Keep width in a sane range, so panels do not overlap on smaller screens.
   useEffect(() => {
@@ -640,6 +683,8 @@ export default function AIWriterClient() {
         ? setTimeout(() => controller.abort(), 90000) // 90s fast
         : setTimeout(() => controller.abort(), 300000); // 5 min editorial (matches Vercel maxDuration 300)
 
+      const promptModuleToggles = loadPromptModuleToggles();
+
       let response: Response;
       try {
         response = await fetch('/api/ai-chat', {
@@ -656,6 +701,7 @@ export default function AIWriterClient() {
           authorTOV: articleData.authorTOV || '',
           authorName: articleData.author || '',
           clientRequestId,
+          promptModuleToggles,
         }),
       });
       } catch (fetchError: any) {
@@ -1024,7 +1070,7 @@ export default function AIWriterClient() {
       setShowWizard(true);
     }
     
-    setActiveView('ai');
+    applyActiveView('ai');
     setReviewOpen(true);
   };
 
@@ -1101,7 +1147,7 @@ export default function AIWriterClient() {
     setReviewOpen(false);
     setSettingsOpen(false);
     setSourcesOpen(false);
-    setActiveView('ai');
+    applyActiveView('ai');
     setNewArticleKey((k) => k + 1);
     
   };
@@ -1152,54 +1198,6 @@ export default function AIWriterClient() {
         {/* Transparent overlay during resize to prevent iframe from stealing mouse events */}
         {isResizing && <div className="absolute inset-0 z-[5]" />}
         
-        {/* Spline Background Selector */}
-        <div className="absolute top-4 right-4 z-30 hidden md:block">
-          <div className="relative group">
-            <button
-              onClick={() => setBgSelectorOpen(!bgSelectorOpen)}
-              className="px-3 py-2 bg-black/40 hover:bg-black/60 backdrop-blur-sm text-white/70 hover:text-white text-xs rounded-lg border border-white/10 transition-all flex items-center gap-2"
-              title="Skift baggrund"
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01" />
-              </svg>
-              <span>Baggrund</span>
-            </button>
-            
-            {bgSelectorOpen && (
-              <>
-                {/* Backdrop to close */}
-                <div 
-                  className="fixed inset-0 z-40" 
-                  onClick={() => setBgSelectorOpen(false)}
-                />
-                <div className="absolute top-12 right-0 w-64 bg-black/95 backdrop-blur-md border border-white/20 rounded-xl shadow-2xl p-3 z-50">
-                  <div className="text-xs text-white/60 mb-2 px-2">Vælg baggrund</div>
-                  <div className="space-y-1">
-                    {SPLINE_BACKGROUNDS.map((bg) => (
-                      <button
-                        key={bg.id}
-                        onClick={() => {
-                          handleSplineBgChange(bg.id);
-                          setBgSelectorOpen(false);
-                        }}
-                        className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-all ${
-                          selectedSplineBg === bg.id
-                            ? 'bg-white/10 text-white'
-                            : 'text-white/70 hover:bg-white/5 hover:text-white'
-                        }`}
-                      >
-                        <div className="font-medium">{bg.name}</div>
-                        <div className="text-xs text-white/50 mt-0.5">{bg.description}</div>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              </>
-            )}
-          </div>
-        </div>
-        
         {user && (
           <>
             {/* Apropos Research Logo + build label */}
@@ -1221,10 +1219,7 @@ export default function AIWriterClient() {
                   <WebAppsPanel
                   isOpen={webAppsOpen}
                   onClose={() => setWebAppsOpen(false)}
-                  onSelectApp={(id) => {
-                    setWebAppsOpen(false);
-                    setActiveView(id === 'design-editor' ? 'design-editor' : 'ai');
-                  }}
+                  onSelectApp={handleSelectWebApp}
                 />
                 )}
                 {shelfOpen && (
@@ -1254,10 +1249,7 @@ export default function AIWriterClient() {
                 <WebAppsPanel
                   isOpen={webAppsOpen}
                   onClose={() => setWebAppsOpen(false)}
-                  onSelectApp={(id) => {
-                    setWebAppsOpen(false);
-                    setActiveView(id === 'design-editor' ? 'design-editor' : 'ai');
-                  }}
+                  onSelectApp={handleSelectWebApp}
                 />
               </div>
             </div>
@@ -1336,6 +1328,7 @@ export default function AIWriterClient() {
                 }}
                 onOpenSourcesPanel={() => { setReviewOpen(false); setSettingsOpen(false); setSourcesOpen(true); }}
                 onOpenSettingsPanel={() => { setReviewOpen(false); setSourcesOpen(false); setSettingsOpen(true); }}
+                onOpenPromptArchitect={openPromptArchitect}
                 lastFailedMessage={lastFailedMessage}
                 onRetryLast={lastFailedMessage ? () => { handleSendMessage(lastFailedMessage); setLastFailedMessage(null); } : undefined}
                 wizardNode={(
@@ -1468,7 +1461,34 @@ export default function AIWriterClient() {
                   <div className="absolute top-1/2 right-0 -translate-y-1/2 translate-x-1/2 w-1 h-16 bg-white/0 group-hover:bg-white/30 rounded-full transition-colors" />
                 </div>
               )}
-              <DesignEditorView embedMode onBack={() => setActiveView(null)} />
+              <DesignEditorView embedMode onBack={() => applyActiveView('ai')} />
+            </div>
+            )}
+
+            {activeView === 'newsletter' && (
+            <div
+              className="w-full flex-shrink-0 absolute top-0 bottom-0 left-0 md:top-[1%] md:bottom-[1%] md:left-[1%] z-10"
+              style={{
+                width: isDesktop ? `${chatWidth}px` : '100%',
+                transition: isResizing ? 'none' : 'transform 320ms cubic-bezier(0.22, 1, 0.36, 1)',
+                transform: leftPanelOpen ? 'translateX(calc(12px + min(300px, 50vw)))' : 'translateX(0)',
+              }}
+            >
+              {isDesktop && (
+                <div
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    setIsResizing(true);
+                  }}
+                  className="absolute top-0 bottom-0 right-0 w-1 cursor-col-resize hover:bg-white/20 transition-colors z-30 group"
+                  style={{ touchAction: 'none' }}
+                >
+                  <div className="absolute top-1/2 right-0 -translate-y-1/2 translate-x-1/2 w-1 h-16 bg-white/0 group-hover:bg-white/30 rounded-full transition-colors" />
+                </div>
+              )}
+              <div className="h-full w-full flex flex-col font-poppins rounded-xl bg-black/40 md:bg-black backdrop-blur-xl md:backdrop-blur-0 border border-white/15 overflow-hidden md:outline md:outline-[1.5px] md:outline-offset-[-1.5px] md:outline-zinc-800">
+                <NewsletterClient embedded onClose={() => applyActiveView('ai')} />
+              </div>
             </div>
             )}
 
@@ -1489,6 +1509,7 @@ export default function AIWriterClient() {
               onNewArticle={handleNewArticle}
               onToggleSources={() => { setReviewOpen(false); setSettingsOpen(false); setSourcesOpen(prev=>!prev); }}
               onToggleSettings={() => { setReviewOpen(false); setSourcesOpen(false); setSettingsOpen(prev=>!prev); }}
+              onOpenPromptArchitect={openPromptArchitect}
             />}
 
             {/* Right flexible spacer (no overlay) */}
@@ -1540,7 +1561,12 @@ export default function AIWriterClient() {
 
             {/* Slide-in settings drawer (right shelf) */}
             <div className={`fixed md:absolute inset-0 md:inset-auto md:top-[1%] md:bottom-[1%] md:right-[1%] z-50 md:w-[min(380px,90vw)] transition-all duration-300 ${settingsOpen ? 'translate-x-0 opacity-100 pointer-events-auto' : 'translate-x-[110%] opacity-0 pointer-events-none'}`}>
-              <SettingsPanel isOpen={settingsOpen} onClose={() => setSettingsOpen(false)} />
+              <SettingsPanel
+                isOpen={settingsOpen}
+                onClose={() => setSettingsOpen(false)}
+                splineSelectedId={selectedSplineBg}
+                onSplineBgChange={handleSplineBgChange}
+              />
             </div>
 
           </>

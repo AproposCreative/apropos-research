@@ -1,6 +1,7 @@
 'use client';
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/lib/auth-context';
+import { SPLINE_BACKGROUNDS } from '@/lib/spline-backgrounds';
 
 type WebflowStatus = {
   connected: boolean;
@@ -19,16 +20,26 @@ type FacebookStatus = {
   error: string | null;
 };
 
-type Tab = 'integrations' | 'account';
+type Tab = 'appearance' | 'integrations' | 'account';
 
-export default function SettingsPanel({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
+export default function SettingsPanel({
+  isOpen,
+  onClose,
+  splineSelectedId,
+  onSplineBgChange,
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  splineSelectedId: string;
+  onSplineBgChange: (id: string) => void;
+}) {
   const { user, logout } = useAuth();
   const [tab, setTab] = useState<Tab>('integrations');
 
   if (!isOpen) return null;
 
   return (
-    <div className="h-full flex flex-col bg-[#171717] md:rounded-xl border-l md:border border-white/20 overflow-hidden">
+    <div className="h-full min-h-0 flex flex-col bg-[#171717] md:rounded-xl border-l md:border border-white/20 overflow-hidden">
       <div className="flex items-center justify-between px-4 py-3 border-b border-white/10 flex-shrink-0">
         <h2 className="text-white font-medium text-sm">Indstillinger</h2>
         <button onClick={onClose} className="p-1.5 text-white/40 hover:text-white rounded-lg transition-colors" aria-label="Luk">
@@ -36,15 +47,17 @@ export default function SettingsPanel({ isOpen, onClose }: { isOpen: boolean; on
         </button>
       </div>
 
-      <div className="flex gap-1 px-3 pt-3 pb-1 flex-shrink-0">
+      <div className="flex gap-1 px-3 pt-3 pb-1 flex-shrink-0 border-b border-white/[0.06]">
         {([
+          { id: 'appearance' as Tab, label: 'Udseende' },
           { id: 'integrations' as Tab, label: 'Integrationer' },
           { id: 'account' as Tab, label: 'Konto' },
-        ]).map(t => (
+        ]).map((t) => (
           <button
             key={t.id}
+            type="button"
             onClick={() => setTab(t.id)}
-            className={`px-3 py-1.5 rounded-lg text-xs transition-all border ${
+            className={`flex-1 min-w-0 px-2 py-1.5 rounded-lg text-xs font-medium transition-all border ${
               tab === t.id
                 ? 'bg-white/10 text-white border-white/40'
                 : 'bg-white/5 text-white/60 border-white/10 hover:border-white/20 hover:bg-white/10'
@@ -55,20 +68,90 @@ export default function SettingsPanel({ isOpen, onClose }: { isOpen: boolean; on
         ))}
       </div>
 
-      <div className="flex-1 overflow-y-auto no-scrollbar p-3 space-y-3">
-        {tab === 'integrations' && <IntegrationsTab />}
-        {tab === 'account' && <AccountTab user={user} logout={logout} />}
+      <div className="flex-1 min-h-0 overflow-y-auto no-scrollbar">
+        <div className="p-3 space-y-3">
+          {tab === 'appearance' && (
+            <AppearanceTab selectedId={splineSelectedId} onChange={onSplineBgChange} />
+          )}
+          {tab === 'integrations' && <IntegrationsTab />}
+          {tab === 'account' && <AccountTab user={user} logout={logout} />}
+        </div>
       </div>
     </div>
   );
 }
 
+function AppearanceTab({ selectedId, onChange }: { selectedId: string; onChange: (id: string) => void }) {
+  return (
+    <div className="space-y-3">
+      <div className="rounded-xl border border-white/10 bg-black/80 p-3 space-y-1">
+        <p className="text-white/90 text-sm font-medium">Baggrund (desktop)</p>
+        <p className="text-white/45 text-xs leading-relaxed">
+          3D-baggrund bag skrivepanelet — kun på større skærme. På mobil bruges en statisk gradient.
+        </p>
+      </div>
+      <div className="space-y-1.5">
+        {SPLINE_BACKGROUNDS.map((bg) => {
+          const active = selectedId === bg.id;
+          return (
+            <button
+              key={bg.id}
+              type="button"
+              onClick={() => onChange(bg.id)}
+              className={`w-full text-left rounded-xl border px-3 py-3 transition-all ${
+                active
+                  ? 'border-white/30 bg-white/[0.08] text-white'
+                  : 'border-white/10 bg-black/50 text-white/75 hover:border-white/18 hover:bg-white/[0.05]'
+              }`}
+            >
+              <div className="font-medium text-sm">{bg.name}</div>
+              <div className="text-xs text-white/45 mt-0.5 leading-snug">{bg.description}</div>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+type NewsletterIntegrationStatus = {
+  connected: boolean;
+  recipientCount: number;
+  totalSignups: number;
+  unsubscribedCount: number;
+  source: string;
+  formName: string | null;
+  error: string | null;
+};
+
 function IntegrationsTab() {
+  const { user } = useAuth();
   const [wfStatus, setWfStatus] = useState<WebflowStatus | null>(null);
   const [fbStatus, setFbStatus] = useState<FacebookStatus | null>(null);
+  const [nlStatus, setNlStatus] = useState<NewsletterIntegrationStatus | null>(null);
   const [loading, setLoading] = useState(true);
   const [testingWf, setTestingWf] = useState(false);
   const [testingFb, setTestingFb] = useState(false);
+  const [testingNl, setTestingNl] = useState(false);
+
+  const loadNewsletterIntegration = useCallback(async () => {
+    if (!user) {
+      setNlStatus(null);
+      return;
+    }
+    setTestingNl(true);
+    try {
+      const token = await user.getIdToken();
+      const res = await fetch('/api/newsletter/integration-status', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) setNlStatus(await res.json());
+      else setNlStatus(null);
+    } catch {
+      setNlStatus(null);
+    }
+    setTestingNl(false);
+  }, [user]);
 
   const loadStatus = useCallback(async () => {
     setLoading(true);
@@ -79,7 +162,13 @@ function IntegrationsTab() {
     setLoading(false);
   }, []);
 
-  useEffect(() => { loadStatus(); }, [loadStatus]);
+  useEffect(() => {
+    loadStatus();
+  }, [loadStatus]);
+
+  useEffect(() => {
+    if (user) void loadNewsletterIntegration();
+  }, [user, loadNewsletterIntegration]);
 
   const testWebflow = async () => {
     setTestingWf(true);
@@ -134,6 +223,69 @@ function IntegrationsTab() {
         )}
         {!loading && !wfStatus?.connected && (
           <p className="text-white/30 text-xs">Konfigureres via miljøvariabler (WEBFLOW_API_TOKEN, WEBFLOW_SITE_ID)</p>
+        )}
+      </div>
+
+      {/* Nyhedsbrev / Webflow-subscribers */}
+      <div className="bg-black rounded-xl p-3 space-y-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2 min-w-0">
+            <span className="text-white/80 text-sm font-medium truncate">Nyhedsbrev (Webflow)</span>
+            {!user ? (
+              <span className="text-white/35 text-[10px]">Log ind</span>
+            ) : testingNl && !nlStatus ? (
+              <div className="w-3 h-3 border-2 border-white/20 border-t-white/60 rounded-full animate-spin flex-shrink-0" />
+            ) : nlStatus ? (
+              <StatusDot ok={nlStatus.connected} />
+            ) : null}
+          </div>
+          <button
+            type="button"
+            onClick={() => void loadNewsletterIntegration()}
+            disabled={testingNl || !user}
+            className={`px-3 py-1.5 rounded-lg text-xs transition-all border flex-shrink-0 ${
+              testingNl || !user
+                ? 'bg-white/10 text-white/40 border-white/20'
+                : 'bg-white/5 text-white/60 border-white/10 hover:border-white/20 hover:bg-white/10'
+            }`}
+          >
+            {testingNl ? 'Tester...' : 'Test'}
+          </button>
+        </div>
+        {user && nlStatus && (
+          <div className="space-y-1.5 text-xs">
+            <p className={nlStatus.connected ? 'text-emerald-400/80' : 'text-amber-400/80'}>
+              {nlStatus.connected
+                ? 'Forbundet til nyhedsbrevs-tilmeldinger på sitet'
+                : 'Kunne ikke bekræfte forbindelsen — tjek Webflow-token og formular'}
+            </p>
+            <div className="text-white/50 space-y-0.5">
+              <p>
+                <span className="text-white/40">Aktive modtagere</span> · {nlStatus.recipientCount}
+              </p>
+              {nlStatus.totalSignups > 0 && (
+                <p>
+                  <span className="text-white/40">Tilmeldt (før framelding)</span> · {nlStatus.totalSignups}
+                  {nlStatus.unsubscribedCount > 0 && (
+                    <span className="text-white/35"> · {nlStatus.unsubscribedCount} frameldt</span>
+                  )}
+                </p>
+              )}
+              {nlStatus.formName && (
+                <p>
+                  <span className="text-white/40">Kilde</span> ·{' '}
+                  {nlStatus.source === 'forms-api' ? 'Formular' : nlStatus.source === 'cms-collection' ? 'CMS' : nlStatus.source}{' '}
+                  · {nlStatus.formName}
+                </p>
+              )}
+            </div>
+            {nlStatus.error && (
+              <p className="text-red-400/75 text-[11px] leading-snug whitespace-pre-wrap">{nlStatus.error}</p>
+            )}
+          </div>
+        )}
+        {user && !nlStatus && !testingNl && (
+          <p className="text-white/30 text-xs">Tryk &quot;Test&quot; for at hente antal subscribers fra Webflow</p>
         )}
       </div>
 

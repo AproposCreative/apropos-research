@@ -16,9 +16,11 @@
 
 import { initializeApp, getApps, cert, applicationDefault, type App } from 'firebase-admin/app';
 import { getFirestore, type Firestore } from 'firebase-admin/firestore';
+import { getAuth as getFirebaseAdminAuth, type Auth } from 'firebase-admin/auth';
 
 let _adminApp: App | null = null;
 let _adminDb: Firestore | null = null;
+let _adminAuth: Auth | null = null;
 
 function resolveProjectId(): string | undefined {
   return (
@@ -68,4 +70,13 @@ export function getAdminDb(): Firestore | null {
   if (!app) return null;
   _adminDb = getFirestore(app);
   return _adminDb;
+}
+
+/** Auth instance for verifying Firebase ID tokens in API routes (e.g. internal tools). */
+export function getAdminAuth(): Auth | null {
+  if (_adminAuth) return _adminAuth;
+  const app = initAdmin();
+  if (!app) return null;
+  _adminAuth = getFirebaseAdminAuth(app);
+  return _adminAuth;
 }

@@ -42,7 +42,22 @@ export default function SettingsPage() {
   const [testing, setTesting] = useState(false);
   const [fbTesting, setFbTesting] = useState(false);
   const [fbStatus, setFbStatus] = useState<FacebookPublishStatus | null>(null);
-  const [activeTab, setActiveTab] = useState<'webflow'|'profile'|'notifications'|'security'>('webflow');
+  const [activeTab, setActiveTab] = useState<'webflow'|'social'|'profile'|'notifications'|'security'>('webflow');
+
+  // Token exchange state
+  const [shortLivedToken, setShortLivedToken] = useState('');
+  const [exchangeLoading, setExchangeLoading] = useState(false);
+  const [exchangeResult, setExchangeResult] = useState<{
+    success?: boolean;
+    pageAccessToken?: string;
+    pageName?: string;
+    neverExpires?: boolean;
+    expiresAt?: string | null;
+    error?: string;
+    hint?: string;
+    pages?: Array<{ id: string; name: string; pageAccessToken: string }>;
+    message?: string;
+  } | null>(null);
   const [wfFields, setWfFields] = useState<any[]>([]);
   const [mapping, setMapping] = useState<{ entries: Array<{ internal: string; webflowSlug: string; transform?: string; required?: boolean }>}>({ entries: [] });
   const [savingMapping, setSavingMapping] = useState(false);
@@ -205,6 +220,7 @@ export default function SettingsPage() {
           <div className="flex space-x-1 bg-white/80 dark:bg-slate-900/80 backdrop-blur-2xl rounded-2xl p-1 border border-white/20 dark:border-slate-700/50 shadow-2xl ring-1 ring-white/10 dark:ring-slate-700/20">
             {[
               { id: 'webflow', label: 'Webflow', icon: '🌐' },
+              { id: 'social', label: 'Social', icon: '📸' },
               { id: 'profile', label: 'Profile', icon: '👤' },
               { id: 'notifications', label: 'Notifications', icon: '🔔' },
               { id: 'security', label: 'Security', icon: '🔒' },
@@ -387,6 +403,176 @@ export default function SettingsPage() {
               <button onClick={saveMapping} disabled={savingMapping} className="px-4 py-2 bg-slate-900 text-white rounded disabled:opacity-60">{savingMapping?'Gemmer…':'Gem mapping'}</button>
               <button onClick={()=>setMapping(m=>({ entries:[...m.entries,{ internal:'', webflowSlug: wfFields[0]?.slug||'', transform:'identity'}]}))} className="px-4 py-2 bg-slate-200 dark:bg-slate-700 dark:text-white rounded">+ Tilføj række</button>
             </div>
+          </div>
+        </div>
+        )}
+
+        {activeTab === 'social' && (
+        <div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-2xl rounded-2xl border border-white/20 dark:border-slate-700/50 shadow-2xl ring-1 ring-white/10 dark:ring-slate-700/20 p-8">
+          <h2 className="text-xl font-semibold text-slate-800 dark:text-slate-100 mb-2">Instagram & Facebook Token</h2>
+          <p className="text-sm text-slate-600 dark:text-slate-400 mb-6">
+            Konvertér et kort-livet token fra Graph API Explorer til et <strong>permanent Page Access Token</strong> der aldrig udløber.
+          </p>
+
+          <div className="space-y-4">
+            <div className="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-4 border border-slate-200 dark:border-slate-700">
+              <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-200 mb-3">Trin 1: Hent kort-livet token</h3>
+              <ol className="text-sm text-slate-600 dark:text-slate-400 space-y-1.5 list-decimal list-inside">
+                <li>
+                  Gå til{' '}
+                  <a href="https://developers.facebook.com/tools/explorer/" target="_blank" rel="noopener noreferrer" className="text-blue-600 dark:text-blue-400 underline">
+                    Graph API Explorer
+                  </a>
+                </li>
+                <li>Vælg din app (fx &quot;Apropos Publisher v2&quot;)</li>
+                <li>Under &quot;User or Page&quot;: vælg din <strong>Facebook Page</strong></li>
+                <li>
+                  Tilføj permissions: <code className="text-xs bg-slate-200 dark:bg-slate-700 px-1 py-0.5 rounded">instagram_basic</code>,{' '}
+                  <code className="text-xs bg-slate-200 dark:bg-slate-700 px-1 py-0.5 rounded">instagram_content_publish</code>,{' '}
+                  <code className="text-xs bg-slate-200 dark:bg-slate-700 px-1 py-0.5 rounded">pages_show_list</code>,{' '}
+                  <code className="text-xs bg-slate-200 dark:bg-slate-700 px-1 py-0.5 rounded">pages_read_engagement</code>,{' '}
+                  <code className="text-xs bg-slate-200 dark:bg-slate-700 px-1 py-0.5 rounded">pages_manage_posts</code>
+                </li>
+                <li>Klik <strong>Generate Access Token</strong> og godkend</li>
+              </ol>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">Trin 2: Indsæt kort-livet token</label>
+              <textarea
+                rows={3}
+                value={shortLivedToken}
+                onChange={(e) => setShortLivedToken(e.target.value)}
+                placeholder="Indsæt token fra Graph API Explorer her..."
+                className="w-full px-4 py-3 bg-white/50 dark:bg-pure-black/50 backdrop-blur-sm border border-white/30 dark:border-slate-600/30 rounded-xl text-slate-800 dark:text-slate-100 placeholder-slate-500 dark:placeholder-slate-400 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 font-mono text-sm resize-none"
+              />
+            </div>
+
+            <button
+              onClick={async () => {
+                if (!shortLivedToken.trim()) return;
+                setExchangeLoading(true);
+                setExchangeResult(null);
+                try {
+                  const res = await fetch('/api/instagram/exchange-token', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ shortLivedToken: shortLivedToken.trim() }),
+                  });
+                  const data = await res.json();
+                  setExchangeResult(data);
+                } catch (err) {
+                  setExchangeResult({ error: 'Netværksfejl: ' + String(err) });
+                } finally {
+                  setExchangeLoading(false);
+                }
+              }}
+              disabled={exchangeLoading || !shortLivedToken.trim()}
+              className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium disabled:opacity-60 transition-colors"
+            >
+              {exchangeLoading ? 'Konverterer...' : 'Konvertér til permanent token'}
+            </button>
+
+            {exchangeResult && (
+              <div className={`rounded-xl border p-4 ${
+                exchangeResult.success
+                  ? 'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-700'
+                  : exchangeResult.error
+                    ? 'bg-rose-50 dark:bg-rose-900/20 border-rose-200 dark:border-rose-700'
+                    : 'bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-700'
+              }`}>
+                {exchangeResult.error && (
+                  <p className="text-sm text-rose-700 dark:text-rose-300">{exchangeResult.error}</p>
+                )}
+                {exchangeResult.message && (
+                  <p className="text-sm text-amber-700 dark:text-amber-300 mb-3">{exchangeResult.message}</p>
+                )}
+                {exchangeResult.pages && (
+                  <div className="space-y-2">
+                    {exchangeResult.pages.map((p) => (
+                      <div key={p.id} className="flex items-center justify-between bg-white dark:bg-slate-800 rounded-lg px-3 py-2 border border-slate-200 dark:border-slate-700">
+                        <span className="text-sm font-medium text-slate-800 dark:text-slate-100">{p.name} <span className="text-slate-500">({p.id})</span></span>
+                        <button
+                          onClick={() => {
+                            navigator.clipboard.writeText(p.pageAccessToken);
+                            alert(`Kopieret! Sæt dette som INSTAGRAM_ACCESS_TOKEN i Vercel.\n\nPage: ${p.name}\nID (til FACEBOOK_PAGE_ID): ${p.id}`);
+                          }}
+                          className="px-3 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700"
+                        >
+                          Kopiér token
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {exchangeResult.success && exchangeResult.pageAccessToken && (
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-2">
+                      <span className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
+                      <span className="text-sm font-semibold text-emerald-700 dark:text-emerald-300">
+                        Permanent Page Access Token
+                        {exchangeResult.neverExpires ? ' (udløber aldrig)' : ` (udløber: ${exchangeResult.expiresAt})`}
+                      </span>
+                    </div>
+                    <p className="text-sm text-slate-600 dark:text-slate-400">
+                      Side: <strong>{exchangeResult.pageName}</strong>
+                    </p>
+                    <div className="relative">
+                      <pre className="text-xs bg-slate-100 dark:bg-slate-800 rounded-lg p-3 overflow-x-auto font-mono break-all whitespace-pre-wrap border border-slate-200 dark:border-slate-700">
+                        {exchangeResult.pageAccessToken}
+                      </pre>
+                      <button
+                        onClick={() => {
+                          navigator.clipboard.writeText(exchangeResult.pageAccessToken!);
+                          alert('Token kopieret! Sæt det som INSTAGRAM_ACCESS_TOKEN i Vercel → Environment Variables → Production, og redeploy.');
+                        }}
+                        className="absolute top-2 right-2 px-2 py-1 text-xs bg-slate-700 text-white rounded hover:bg-slate-600"
+                      >
+                        Kopiér
+                      </button>
+                    </div>
+                    <p className="text-sm text-emerald-700 dark:text-emerald-300">{exchangeResult.hint}</p>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
+          <div className="mt-8 border-t border-slate-200 dark:border-slate-700 pt-6">
+            <h3 className="text-base font-semibold text-slate-800 dark:text-slate-100 mb-3">Facebook-forbindelse</h3>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={testFacebookPublish}
+                disabled={fbTesting}
+                className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg disabled:opacity-60 transition-colors"
+              >
+                {fbTesting ? 'Tester...' : 'Test Facebook-forbindelse'}
+              </button>
+            </div>
+            {fbStatus && (
+              <div className={`mt-3 text-sm rounded-lg border px-3 py-2 ${
+                fbStatus.reachable
+                  ? 'bg-emerald-600/15 text-emerald-700 dark:text-emerald-300 border-emerald-600/30'
+                  : 'bg-amber-600/15 text-amber-700 dark:text-amber-300 border-amber-600/30'
+              }`}>
+                {fbStatus.reachable
+                  ? `Facebook OK: ${fbStatus.pageName || 'Ukendt side'} (${fbStatus.pageId})`
+                  : `Facebook ikke klar: ${fbStatus.error || 'ukendt fejl'}`}
+              </div>
+            )}
+          </div>
+
+          <div className="mt-6 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800/40 rounded-xl p-4">
+            <h4 className="text-sm font-semibold text-blue-800 dark:text-blue-200 mb-1">Kræver env-variabler</h4>
+            <p className="text-sm text-blue-700 dark:text-blue-300">
+              Token-konvertering kræver <code className="text-xs bg-blue-200 dark:bg-blue-800 px-1 py-0.5 rounded">META_APP_ID</code> og{' '}
+              <code className="text-xs bg-blue-200 dark:bg-blue-800 px-1 py-0.5 rounded">META_APP_SECRET</code> i Vercel/env.
+              Find dem i{' '}
+              <a href="https://developers.facebook.com/apps/" target="_blank" rel="noopener noreferrer" className="underline">
+                Meta App Dashboard
+              </a>{' '}
+              → Settings → Basic.
+            </p>
           </div>
         </div>
         )}

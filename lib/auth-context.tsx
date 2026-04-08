@@ -1,6 +1,8 @@
 'use client';
 
-import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
+import { createContext, useContext, useEffect, useLayoutEffect, useRef, useState, ReactNode } from 'react';
+import { usePathname } from 'next/navigation';
+import AproposAILoadingScreen from '@/components/AproposAILoadingScreen';
 import { 
   User,
   signInWithEmailAndPassword,
@@ -35,9 +37,53 @@ const AuthContext = createContext<AuthContextType>({
 
 export const useAuth = () => useContext(AuthContext);
 
+/** Mindst så længe vises AI-boot (logo + sort), så SVG og baggrund når at føles færdige. */
+const MIN_AI_BOOT_MS = 2000;
+
 export function AuthProvider({ children }: { children: ReactNode }) {
+  const pathname = usePathname();
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const [aiBootOpen, setAiBootOpen] = useState(false);
+  const aiBootStartRef = useRef<number | null>(null);
+  const wasOnAiRef = useRef(false);
+  const [loaderMounted, setLoaderMounted] = useState(false);
+  const isAiRoute = pathname?.startsWith('/ai') ?? false;
+  const bootActive = loading || aiBootOpen;
+
+  useLayoutEffect(() => {
+    if (!isAiRoute) {
+      setLoaderMounted(false);
+      return;
+    }
+    if (bootActive) setLoaderMounted(true);
+  }, [isAiRoute, bootActive]);
+
+  useEffect(() => {
+    if (!isAiRoute) {
+      wasOnAiRef.current = false;
+      setAiBootOpen(false);
+      aiBootStartRef.current = null;
+      return;
+    }
+    if (!wasOnAiRef.current) {
+      wasOnAiRef.current = true;
+      aiBootStartRef.current = Date.now();
+      setAiBootOpen(true);
+    }
+  }, [isAiRoute]);
+
+  useEffect(() => {
+    if (!isAiRoute || loading) return;
+    const started = aiBootStartRef.current ?? Date.now();
+    const elapsed = Date.now() - started;
+    const remaining = Math.max(0, MIN_AI_BOOT_MS - elapsed);
+    const id = window.setTimeout(() => {
+      setAiBootOpen(false);
+      aiBootStartRef.current = null;
+    }, remaining);
+    return () => clearTimeout(id);
+  }, [isAiRoute, loading]);
 
   useEffect(() => {
     const firebaseAuth = getFirebaseAuth();
@@ -95,9 +141,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     logout,
   };
 
+  const showAiBootLayer = isAiRoute && loaderMounted;
+  const showChildren = !loading && (!isAiRoute || !aiBootOpen);
+
   return (
     <AuthContext.Provider value={value}>
-      {!loading && children}
+      {showAiBootLayer ? (
+        <AproposAILoadingScreen
+          active={bootActive}
+          onExited={() => setLoaderMounted(false)}
+        />
+      ) : null}
+      {showChildren ? children : null}
     </AuthContext.Provider>
   );
 }
