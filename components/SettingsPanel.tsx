@@ -1,5 +1,6 @@
 'use client';
 import { useState, useEffect, useCallback } from 'react';
+import Link from 'next/link';
 import { useAuth } from '@/lib/auth-context';
 import { SPLINE_BACKGROUNDS } from '@/lib/spline-backgrounds';
 
@@ -18,6 +19,17 @@ type FacebookStatus = {
   pageName: string | null;
   pageId: string | null;
   error: string | null;
+  nextStep?: string | null;
+  settingsHref?: string | null;
+};
+
+type IgTokenDiag = {
+  ok?: boolean;
+  error?: string;
+  hints?: string[];
+  recommendation?: string | null;
+  debug?: { isValid?: boolean; type?: string; expiresDescription?: string; missingScopes?: string[] };
+  instagramProfile?: { ok: boolean; username?: string; error?: string } | null;
 };
 
 type Tab = 'appearance' | 'integrations' | 'account';
@@ -133,6 +145,8 @@ function IntegrationsTab() {
   const [testingWf, setTestingWf] = useState(false);
   const [testingFb, setTestingFb] = useState(false);
   const [testingNl, setTestingNl] = useState(false);
+  const [igDiagLoading, setIgDiagLoading] = useState(false);
+  const [igDiag, setIgDiag] = useState<IgTokenDiag | null>(null);
 
   const loadNewsletterIntegration = useCallback(async () => {
     if (!user) {
@@ -181,6 +195,7 @@ function IntegrationsTab() {
 
   const testFacebook = async () => {
     setTestingFb(true);
+    setIgDiag(null);
     try {
       const res = await fetch('/api/facebook/publish-status');
       if (res.ok) setFbStatus(await res.json());
@@ -189,6 +204,18 @@ function IntegrationsTab() {
       setFbStatus({ configured: false, reachable: false, pageName: null, pageId: null, error: 'Netværksfejl' });
     }
     setTestingFb(false);
+  };
+
+  const runIgDiagnose = async () => {
+    setIgDiagLoading(true);
+    setIgDiag(null);
+    try {
+      const res = await fetch('/api/instagram/token-status');
+      setIgDiag(await res.json());
+    } catch {
+      setIgDiag({ ok: false, error: 'Kunne ikke køre diagnose.' });
+    }
+    setIgDiagLoading(false);
   };
 
   return (
@@ -291,35 +318,97 @@ function IntegrationsTab() {
 
       {/* Facebook / Instagram */}
       <div className="bg-black rounded-xl p-3 space-y-3">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
+        <div className="flex items-center justify-between gap-2 flex-wrap">
+          <div className="flex items-center gap-2 min-w-0">
             <span className="text-white/80 text-sm font-medium">Facebook & Instagram</span>
             {fbStatus && <StatusDot ok={fbStatus.reachable} />}
           </div>
-          <button
-            onClick={testFacebook}
-            disabled={testingFb}
-            className={`px-3 py-1.5 rounded-lg text-xs transition-all border ${
-              testingFb ? 'bg-white/10 text-white border-white/40' : 'bg-white/5 text-white/60 border-white/10 hover:border-white/20 hover:bg-white/10'
-            }`}
-          >
-            {testingFb ? 'Tester...' : 'Test'}
-          </button>
+          <div className="flex items-center gap-1.5 flex-shrink-0">
+            <button
+              type="button"
+              onClick={() => void runIgDiagnose()}
+              disabled={igDiagLoading}
+              className={`px-3 py-1.5 rounded-lg text-xs transition-all border ${
+                igDiagLoading ? 'bg-white/10 text-white border-white/40' : 'bg-white/5 text-white/50 border-white/10 hover:border-white/20 hover:bg-white/10'
+              }`}
+            >
+              {igDiagLoading ? '…' : 'Diagnose'}
+            </button>
+            <button
+              type="button"
+              onClick={testFacebook}
+              disabled={testingFb}
+              className={`px-3 py-1.5 rounded-lg text-xs transition-all border ${
+                testingFb ? 'bg-white/10 text-white border-white/40' : 'bg-white/5 text-white/60 border-white/10 hover:border-white/20 hover:bg-white/10'
+              }`}
+            >
+              {testingFb ? 'Tester...' : 'Test'}
+            </button>
+          </div>
         </div>
         {fbStatus && (
-          <div className="space-y-1.5">
+          <div className="space-y-2">
             {fbStatus.reachable ? (
               <div className="flex items-center gap-2">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
                 <span className="text-white/60 text-xs">{fbStatus.pageName || 'Side forbundet'}</span>
               </div>
             ) : (
-              <p className="text-amber-400/70 text-xs">{fbStatus.error || 'Ikke forbundet'}</p>
+              <>
+                <p className="text-amber-400/85 text-xs leading-snug">{fbStatus.error || 'Ikke forbundet'}</p>
+                {fbStatus.nextStep ? (
+                  <p className="text-white/45 text-[11px] leading-snug">{fbStatus.nextStep}</p>
+                ) : null}
+                {fbStatus.settingsHref ? (
+                  <Link
+                    href={fbStatus.settingsHref}
+                    className="inline-block text-xs text-sky-400/90 hover:text-sky-300 underline underline-offset-2"
+                  >
+                    Åbn Instagram & Facebook (Indstillinger)
+                  </Link>
+                ) : null}
+              </>
             )}
           </div>
         )}
-        {!fbStatus && (
-          <p className="text-white/30 text-xs">Tryk &quot;Test&quot; for at tjekke forbindelsen</p>
+        {igDiag && (
+          <div
+            className={`rounded-lg border px-2.5 py-2 text-[11px] leading-snug space-y-1 ${
+              igDiag.ok
+                ? 'border-emerald-500/35 bg-emerald-500/10 text-emerald-200/90'
+                : 'border-white/15 bg-white/[0.04] text-white/55'
+            }`}
+          >
+            {igDiag.error && !igDiag.debug && <p>{igDiag.error}</p>}
+            {igDiag.debug && (
+              <>
+                <p>
+                  Token: {igDiag.debug.isValid ? 'gyldig' : 'ugyldig'} · type {igDiag.debug.type ?? '?'} ·{' '}
+                  {igDiag.debug.expiresDescription ?? '—'}
+                </p>
+                {igDiag.debug.missingScopes && igDiag.debug.missingScopes.length > 0 ? (
+                  <p className="text-amber-200/80">Mangler: {igDiag.debug.missingScopes.join(', ')}</p>
+                ) : null}
+              </>
+            )}
+            {igDiag.instagramProfile && !igDiag.instagramProfile.ok && (
+              <p className="text-amber-200/75">Instagram: {igDiag.instagramProfile.error}</p>
+            )}
+            {igDiag.recommendation ? (
+              <p className="text-sky-200/90 border-l-2 border-sky-400/60 pl-2">{igDiag.recommendation}</p>
+            ) : null}
+            {igDiag.hints?.slice(0, 2).map((h, i) => (
+              <p key={i} className="text-white/50">
+                {h}
+              </p>
+            ))}
+            <Link href="/settings?tab=social" className="inline-block text-sky-400/90 underline underline-offset-2">
+              Fuld opsætning →
+            </Link>
+          </div>
+        )}
+        {!fbStatus && !igDiag && (
+          <p className="text-white/30 text-xs">«Test» tjekker Facebook-siden. «Diagnose» tjekker Instagram-token i miljøet.</p>
         )}
       </div>
 

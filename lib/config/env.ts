@@ -67,8 +67,19 @@ const EnvSchema = z.object({
   GOOGLE_CUSTOM_SEARCH_API_KEY: z.string().optional(),
   GOOGLE_CUSTOM_SEARCH_ENGINE_ID: z.string().optional(),
 
-  // Cron / Security
-  CRON_SECRET: z.string().optional(),
+  // Cron / Security — Vercel sender CRON_SECRET i Authorization-header; kun synlig ASCII (tab/space–~).
+  CRON_SECRET: z.preprocess(
+    emptyToUndefined,
+    z.union([
+      z.undefined(),
+      z.string().regex(
+        /^[\t\x20-\x7E]+$/,
+        'CRON_SECRET må kun indeholde synlige ASCII-tegn (ingen æ, ø, å, emojis). Vercel afviser ellers deploy, fordi værdien bruges som HTTP Bearer-token.'
+      ),
+    ])
+  ),
+  /** Kun med NODE_ENV=development: tillad /api/cron/newsletter-weekly uden fredag ≥12 København (ægte claim/send). */
+  NEWSLETTER_WEEKLY_BYPASS_TIME_GATE: z.enum(['true', 'false']).default('false'),
   /** Vercel: deployment hostname uden protokol (fx `proj-xxx.vercel.app`). Bruges bl.a. til nyhedsbrevslogo når NEXT_PUBLIC_BASE_URL ikke er sat. */
   VERCEL_URL: z.preprocess(emptyToUndefined, z.string().optional()),
   /** Vercel: produktions-hostname (fx `dit-domæne.dk` eller `proj.vercel.app`) — prioriteres over VERCEL_URL til statiske assets i mail. */
@@ -179,6 +190,8 @@ function parseEnv() {
     GOOGLE_CUSTOM_SEARCH_API_KEY: process.env.GOOGLE_CUSTOM_SEARCH_API_KEY,
     GOOGLE_CUSTOM_SEARCH_ENGINE_ID: process.env.GOOGLE_CUSTOM_SEARCH_ENGINE_ID,
     CRON_SECRET: process.env.CRON_SECRET,
+    NEWSLETTER_WEEKLY_BYPASS_TIME_GATE:
+      process.env.NEWSLETTER_WEEKLY_BYPASS_TIME_GATE === 'true' ? 'true' : 'false',
     VERCEL_URL: process.env.VERCEL_URL,
     VERCEL_PROJECT_PRODUCTION_URL: process.env.VERCEL_PROJECT_PRODUCTION_URL,
     RESEND_API_KEY: process.env.RESEND_API_KEY,

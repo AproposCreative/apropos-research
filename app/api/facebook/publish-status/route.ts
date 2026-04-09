@@ -3,14 +3,21 @@ import { NextResponse } from 'next/server';
 const INSTAGRAM_API_VERSION = 'v24.0';
 const GRAPH_HOST = 'https://graph.facebook.com';
 
-function tokenRefreshHint(): string {
+/** Dyb link til Social-fanen (læses af klienten). */
+const SETTINGS_SOCIAL = '/settings?tab=social';
+
+function tokenErrorUserMessage(): string {
   return process.env.NODE_ENV === 'production'
-    ? 'Facebook/Instagram-tokenet er muligvis udløbet. Opdater INSTAGRAM_ACCESS_TOKEN i Vercel (Production env).'
-    : 'Facebook/Instagram-tokenet er muligvis udløbet. Opdater INSTAGRAM_ACCESS_TOKEN i .env.local.';
+    ? 'Facebook accepterede ikke forbindelsen. Tokenet er ofte udløbet eller tilbagekaldt — det skal fornyes.'
+    : 'Facebook accepterede ikke forbindelsen. Token i .env.local er ofte udløbet eller forkert — forny det.';
 }
 
-function permissionHint(): string {
-  return 'Tokenet mangler sandsynligvis tilladelser (fx pages_show_list/pages_read_engagement/pages_manage_posts) eller adgang til den valgte Facebook-side.';
+function permissionUserMessage(): string {
+  return 'Tokenet mangler tilladelser eller adgang til den valgte Facebook-side.';
+}
+
+function nextStepSocial(): string {
+  return 'Åbn Indstillinger → fanen Social: klik «Kør diagnose», og følg trinene for nyt Instagram/Facebook-token.';
 }
 
 export async function GET() {
@@ -23,7 +30,9 @@ export async function GET() {
       reachable: false,
       pageId: pageId || null,
       pageName: null,
-      error: 'Mangler FACEBOOK_PAGE_ID eller INSTAGRAM_ACCESS_TOKEN.',
+      error: 'Integrationen er ikke sat op (mangler Facebook-side eller Instagram-token i miljøet).',
+      nextStep: nextStepSocial(),
+      settingsHref: SETTINGS_SOCIAL,
     });
   }
 
@@ -56,11 +65,12 @@ export async function GET() {
 
       let friendlyError = msg;
       if (isTokenExpired) {
-        friendlyError = tokenRefreshHint();
+        friendlyError = tokenErrorUserMessage();
       } else if (isPermissionIssue) {
-        friendlyError = permissionHint();
+        friendlyError = permissionUserMessage();
       } else if (isObjectMissing) {
-        friendlyError = `Facebook-siden kunne ikke findes eller tilgås (FACEBOOK_PAGE_ID=${pageId}). Tjek at page-id er korrekt, og at tokenet har adgang til siden.`;
+        friendlyError =
+          'Facebook-siden kunne ikke findes med det angivne side-ID, eller tokenet har ikke adgang. Tjek side-ID og token under Indstillinger → Social.';
       }
 
       return NextResponse.json({
@@ -69,6 +79,8 @@ export async function GET() {
         pageId,
         pageName: null,
         error: friendlyError,
+        nextStep: nextStepSocial(),
+        settingsHref: SETTINGS_SOCIAL,
         debug: {
           errorCode: errCode || null,
           errorSubcode: errSubcode || null,
@@ -83,6 +95,8 @@ export async function GET() {
       pageId: String(data?.id || pageId),
       pageName: String(data?.name || ''),
       error: null,
+      nextStep: null,
+      settingsHref: null,
     });
   } catch (error) {
     return NextResponse.json({
@@ -90,7 +104,9 @@ export async function GET() {
       reachable: false,
       pageId,
       pageName: null,
-      error: `Facebook test fejlede: ${error instanceof Error ? error.message : String(error)}`,
+      error: `Test fejlede: ${error instanceof Error ? error.message : String(error)}`,
+      nextStep: nextStepSocial(),
+      settingsHref: SETTINGS_SOCIAL,
     });
   }
 }

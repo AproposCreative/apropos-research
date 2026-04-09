@@ -10,7 +10,7 @@
     },
     {
       "path": "/api/cron/newsletter-weekly",
-      "schedule": "0 13 * * 5"
+      "schedule": "*/15 * * * *"
     },
     {
       "path": "/api/cron/newsletter-scheduled",

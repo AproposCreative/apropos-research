@@ -62,9 +62,11 @@ Tokenet **skal** være et **Page Access Token** (ikke User Token) med følgende 
 
 1. Gå til [Graph API Explorer](https://developers.facebook.com/tools/explorer/)
 2. Vælg din app (fx "Apropos Publisher v2")
-3. Under "User or Page": vælg din **Facebook Page** (fx "Apropos Magazine")
+3. Under **User or Page**: vælg **User** / din Facebook-bruger — **ikke** kun Page-token. `fb_exchange_token` kræver et kort-livet **user** access token; Page-token giver fejl eller forkert resultat.
 4. Tilføj permissions: `instagram_basic`, `instagram_content_publish`, `pages_show_list`, `pages_read_engagement`, `pages_manage_posts`
 5. Klik **Generate Access Token** og godkend
+
+**Diagnose:** I appen under **Indstillinger → Social** kan du klikke **Kør diagnose** for at se om `INSTAGRAM_ACCESS_TOKEN` i miljøet er gyldig, har rigtig type (PAGE) og de nødvendige scopes.
 
 **Trin 2: Konvertér til long-lived user token**
 

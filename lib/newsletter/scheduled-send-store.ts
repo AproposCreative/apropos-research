@@ -1,4 +1,4 @@
-import { FieldValue, Timestamp } from 'firebase-admin/firestore';
+import { FieldValue, Timestamp, type QueryDocumentSnapshot } from 'firebase-admin/firestore';
 import { getAdminDb } from '@/lib/firebase-admin';
 
 export const SCHEDULED_SEND_COLLECTION = 'newsletterScheduledSends';
@@ -165,35 +165,66 @@ export type ClaimedScheduledJob = { id: string; subject: string; html: string };
 /**
  * Finder et forfaldent `pending`-job og sætter det til `processing` atomisk.
  *
- * Bruger `scheduledFor <= nu` i Firestore (plus orderBy), så forfaldne jobs ikke
- * forsvinder bag et vilkårligt `limit(40)` af alle pending — det var årsag til at
- * planlagte sends aldrig blev plukket, selvom cron kørte.
+ * Cron: `status == pending` + `scheduledFor <= nu` + orderBy — kræver indeks (status, scheduledFor).
  *
- * Kræver sammensat indeks: (status, scheduledFor). Ved `restrictToUid`: (status, uid, scheduledFor) — samme rækkefølge som i firestore.indexes.json / Firebase-konsollen.
+ * `restrictToUid` (fx «Send nu» i UI): henter kun med `uid == …` (ét felt — intet sammensat indeks),
+ * filtrerer og sorterer forfaldne jobs i hukommelsen, så det virker før `firebase deploy` af indeks.
  */
 export async function claimNextDueScheduledSend(options?: {
   restrictToUid?: string;
 }): Promise<ClaimedScheduledJob | null> {
   const db = getAdminDb();
   if (!db) return null;
-  const now = Timestamp.fromMillis(Date.now());
+  const nowMs = Date.now();
+  const now = Timestamp.fromMillis(nowMs);
   const col = db.collection(SCHEDULED_SEND_COLLECTION);
-  const q = options?.restrictToUid
-    ? col
+
+  let docs: QueryDocumentSnapshot[];
+  if (options?.restrictToUid) {
+    const snap = await col.where('uid', '==', options.restrictToUid).limit(100).get();
+    docs = snap.docs
+      .filter((doc) => {
+        const d = doc.data();
+        if (d.status !== 'pending') return false;
+        const sch = d.scheduledFor as Timestamp | undefined;
+        return Boolean(sch && sch.toMillis() <= nowMs);
+      })
+      .sort((a, b) => {
+        const ta = (a.data().scheduledFor as Timestamp).toMillis();
+        const tb = (b.data().scheduledFor as Timestamp).toMillis();
+        return ta - tb;
+      })
+      .slice(0, 25);
+  } else {
+    try {
+      const snap = await col
         .where('status', '==', 'pending')
-        .where('uid', '==', options.restrictToUid)
         .where('scheduledFor', '<=', now)
         .orderBy('scheduledFor', 'asc')
-        .limit(10)
-    : col
-        .where('status', '==', 'pending')
-        .where('scheduledFor', '<=', now)
-        .orderBy('scheduledFor', 'asc')
-        .limit(25);
+        .limit(25)
+        .get();
+      docs = snap.docs;
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      const indexMissing = /FAILED_PRECONDITION|requires an index|composite/i.test(msg);
+      if (!indexMissing) throw e;
+      // Dev/first-run fallback: undgå hard-fail hvis composite index mangler endnu.
+      const snap = await col.where('status', '==', 'pending').limit(200).get();
+      docs = snap.docs
+        .filter((doc) => {
+          const sch = doc.data().scheduledFor as Timestamp | undefined;
+          return Boolean(sch && sch.toMillis() <= nowMs);
+        })
+        .sort(
+          (a, b) =>
+            ((a.data().scheduledFor as Timestamp | undefined)?.toMillis() ?? Number.MAX_SAFE_INTEGER) -
+            ((b.data().scheduledFor as Timestamp | undefined)?.toMillis() ?? Number.MAX_SAFE_INTEGER)
+        )
+        .slice(0, 25);
+    }
+  }
 
-  const snap = await q.get();
-
-  for (const doc of snap.docs) {
+  for (const doc of docs) {
     let claimed: ClaimedScheduledJob | null = null;
     try {
       await db.runTransaction(async (tx) => {

@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 
 export const maxDuration = 300;
 
-import { authorizeNewsletterRequest } from '@/lib/newsletter/auth-request';
+import { authorizeNewsletterRequest, getNewsletterUserIdFromRequest } from '@/lib/newsletter/auth-request';
+import { recordManualNewsletterLog } from '@/lib/newsletter/manual-send-log';
 import { buildWeeklyNewsletterDraft, HEADLINE_FALLBACK_DA } from '@/lib/newsletter/build-draft';
 import { newsletterUtmCampaignFromWeek } from '@/lib/newsletter/newsletter-utm';
 import { getPreviousIsoWeekRange, type WeekRange } from '@/lib/newsletter/week-range';
@@ -14,6 +15,8 @@ export async function POST(req: NextRequest) {
   if (!(await authorizeNewsletterRequest(req))) {
     return NextResponse.json({ error: 'Ikke autoriseret' }, { status: 401 });
   }
+
+  const uid = await getNewsletterUserIdFromRequest(req);
 
   try {
     const body = await req.json().catch(() => ({}));
@@ -58,17 +61,44 @@ export async function POST(req: NextRequest) {
         ],
       });
       if (!r.ok) {
+        if (uid) {
+          await recordManualNewsletterLog({
+            uid,
+            kind: 'test',
+            status: 'failed',
+            subject: subject || HEADLINE_FALLBACK_DA,
+            detail: `Test til ${testEmail}`,
+            error: r.error || 'Send fejlede',
+          });
+        }
         return NextResponse.json({ error: r.error || 'Send fejlede' }, { status: 502 });
+      }
+      if (uid) {
+        await recordManualNewsletterLog({
+          uid,
+          kind: 'test',
+          status: 'sent',
+          subject,
+          detail: `Test til ${testEmail}`,
+        });
       }
       return NextResponse.json({ ok: true, mode: 'test', to: testEmail });
     }
 
     const recipients = await getNewsletterRecipients();
     if (recipients.emails.length === 0) {
-      return NextResponse.json(
-        { error: recipients.error || 'Ingen aktive modtagere (alle frameldt eller ingen tilmeldinger)' },
-        { status: 400 }
-      );
+      const errMsg = recipients.error || 'Ingen aktive modtagere (alle frameldt eller ingen tilmeldinger)';
+      if (uid) {
+        await recordManualNewsletterLog({
+          uid,
+          kind: 'broadcast',
+          status: 'failed',
+          subject: subject || HEADLINE_FALLBACK_DA,
+          detail: 'Ingen modtagere',
+          error: errMsg,
+        });
+      }
+      return NextResponse.json({ error: errMsg }, { status: 400 });
     }
 
     const campaign = newsletterUtmCampaignFromWeek(week);
@@ -81,6 +111,27 @@ export async function POST(req: NextRequest) {
         { name: 'campaign', value: campaign.slice(0, 128) },
       ],
     });
+
+    if (uid) {
+      if (result.sent === 0 && result.failed > 0) {
+        await recordManualNewsletterLog({
+          uid,
+          kind: 'broadcast',
+          status: 'failed',
+          subject,
+          detail: `${result.failed} fejlede`,
+          error: result.errors.slice(0, 8).join('; ') || 'Alle afsendelser fejlede',
+        });
+      } else if (result.sent > 0) {
+        await recordManualNewsletterLog({
+          uid,
+          kind: 'broadcast',
+          status: 'sent',
+          subject,
+          detail: `${result.sent} sendt${result.failed > 0 ? ` · ${result.failed} fejl` : ''}`,
+        });
+      }
+    }
 
     return NextResponse.json({
       ok: result.failed === 0,

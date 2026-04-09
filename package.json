@@ -5,6 +5,9 @@
   "main": "index.js",
   "scripts": {
     "dev": "next dev",
+    "dev:https": "next dev --experimental-https",
+    "dev:auto": "npm run dev & npm run dev:cron",
+    "dev:cron": "node scripts/newsletter-cron-dev.mjs",
     "build": "next build",
     "start": "next start",
     "lint": "eslint . --ext .js,.jsx,.ts,.tsx",

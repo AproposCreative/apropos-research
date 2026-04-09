@@ -10,7 +10,7 @@ export const EMAIL_COLORS = {
   borderLight: '#d8d8d8',
   borderMedium: '#bbbbbb',
   thumbPlaceholder: '#eeeeee',
-  btnPrimaryBg: '#2e2e2e',
+  btnPrimaryBg: '#0d0d0d',
   btnPrimaryText: '#ffffff',
   btnSecondaryBg: '#ffffff',
   btnSecondaryText: '#2e2e2e',
@@ -135,5 +135,55 @@ export function rewriteNewsletterLogoSrcForOutgoingEmail(html: string): string {
   out = out.replace(/\ssrc="[^"]*nl-social-instagram\.(svg|png)[^"]*"/gi, ` src="${socialSrc('nl-social-instagram.png')}"`);
   out = out.replace(/\ssrc="[^"]*nl-social-facebook\.(svg|png)[^"]*"/gi, ` src="${socialSrc('nl-social-facebook.png')}"`);
   out = out.replace(/\ssrc="[^"]*nl-social-linkedin\.(svg|png)[^"]*"/gi, ` src="${socialSrc('nl-social-linkedin.png')}"`);
+  const FW = 97;
+  const FH = 39;
+  out = out.replace(/<img[^>]*class="[^"]*nl-footer-logo-img[^"]*"[^>]*>/gi, (tag) => {
+    let t = tag.replace(/\swidth="\d+"/i, '').replace(/\sheight="\d+"/i, '');
+    if (/style="/i.test(t)) {
+      t = t.replace(/style="([^"]*)"/i, (_m, styleRaw: string) => {
+        const cleaned = styleRaw
+          .replace(/(?:^|;)\s*width\s*:\s*[^;"]*/gi, '')
+          .replace(/(?:^|;)\s*height\s*:\s*[^;"]*/gi, '')
+          .replace(/(?:^|;)\s*max-width\s*:\s*[^;"]*/gi, '')
+          .replace(/(?:^|;)\s*object-fit\s*:\s*[^;"]*/gi, '')
+          .replace(/;;+/g, ';')
+          .replace(/^;|;$/g, '')
+          .trim();
+        const prefix = `width:${FW}px;max-width:${FW}px;height:${FH}px;object-fit:contain;`;
+        return `style="${prefix}${cleaned ? cleaned : ''}"`;
+      });
+    } else {
+      t = t.replace(/>$/, ` style="width:${FW}px;max-width:${FW}px;height:${FH}px;object-fit:contain;">`);
+    }
+    return t.replace('<img', `<img width="${FW}" height="${FH}"`);
+  });
+  /* Ældre kladder: ens footer-ramme til Outlook. */
+  const td97 =
+    '<td width="97" style="width:97px;max-width:97px;padding:0;line-height:0;font-size:0;">';
+  const tbl97 = 'style="width:97px;max-width:97px;mso-table-lspace:0;mso-table-rspace:0;"';
+  out = out.replace(
+    /<td width="140" style="width:140px;max-width:140px;padding:0;line-height:0;font-size:0;">/gi,
+    td97
+  );
+  out = out.replace(
+    /<td width="120" style="width:120px;max-width:120px;padding:0;line-height:0;font-size:0;">/gi,
+    td97
+  );
+  out = out.replace(
+    /<td width="108" style="width:108px;max-width:108px;padding:0;line-height:0;font-size:0;">/gi,
+    td97
+  );
+  out = out.replace(
+    /style="width:140px;max-width:140px;mso-table-lspace:0;mso-table-rspace:0;"/gi,
+    tbl97
+  );
+  out = out.replace(
+    /style="width:120px;max-width:120px;mso-table-lspace:0;mso-table-rspace:0;"/gi,
+    tbl97
+  );
+  out = out.replace(
+    /style="width:108px;max-width:108px;mso-table-lspace:0;mso-table-rspace:0;"/gi,
+    tbl97
+  );
   return out;
 }

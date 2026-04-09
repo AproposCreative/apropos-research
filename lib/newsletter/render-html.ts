@@ -52,6 +52,7 @@ export function renderNewsletterEmailHtml(params: {
           </tr>`
       : '';
 
+  /* Første artikel er også i listen, så læseren har titel, uddrag og tydelige klik (samme som tidligere). */
   const articleRows = articles
     .map((a) => {
       const thumb = a.thumbUrl
@@ -185,28 +186,40 @@ ${getNewsletterSharedDesignCss()}
           </tr>
           <tr>
             <td style="padding:0;">
-              <table role="presentation" class="nl-footer-dark" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#0d0d0d;mso-table-lspace:0;mso-table-rspace:0;">
+              <table role="presentation" class="nl-footer-dark" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:${EMAIL_COLORS.btnPrimaryBg};mso-table-lspace:0;mso-table-rspace:0;">
                 <tr>
-                  <td class="nl-pad nl-footer-dark-inner" style="padding:0 30px;">
-                    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+                  <td class="nl-pad nl-footer-dark-inner nl-footer-explore" align="left" style="padding:36px 30px 0;font-family:${FONT_SANS};">
+                    <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="width:97px;max-width:97px;mso-table-lspace:0;mso-table-rspace:0;">
                       <tr>
-                        <td style="font-size:1px;line-height:1px;padding-top:4px;border-top:1px solid rgba(255,255,255,0.18);">&nbsp;</td>
+                        <td width="97" style="width:97px;max-width:97px;padding:0;line-height:0;font-size:0;">
+                          <a
+                            class="nl-footer-logo-link"
+                            href="${primaryCtaHref}"
+                            target="_blank"
+                            style="outline:none;display:block;line-height:0;margin:0 0 16px;text-align:left;max-width:97px;"
+                          >
+                            <img
+                              class="nl-footer-logo-img"
+                              src="${esc(logoUrl)}"
+                              alt="Apropos Magazine"
+                              width="97"
+                              height="39"
+                              style="display:block;width:97px;max-width:97px;height:39px;border:0;-ms-interpolation-mode:bicubic;object-fit:contain;filter:brightness(0) invert(1);-webkit-filter:brightness(0) invert(1);"
+                            />
+                          </a>
+                        </td>
                       </tr>
                     </table>
-                  </td>
-                </tr>
-                <tr>
-                  <td class="nl-pad nl-footer-dark-inner nl-footer-explore" align="left" style="padding:16px 30px 0;font-family:${FONT_SANS};">
-                    <p class="nl-footer-explore-tagline" style="margin:0 0 12px;font-size:11px;font-weight:600;line-height:1.4;color:rgba(255,255,255,0.55);text-align:left;letter-spacing:0.12em;">
+                    <p class="nl-footer-explore-tagline" style="margin:0;font-size:11px;font-weight:600;line-height:1.4;color:rgba(255,255,255,0.55);text-align:left;letter-spacing:0.12em;">
                       LÆS VIDERE. ALTID UDEN REKLAMER.
                     </p>
-                    <a class="nl-footer-nav-link" href="${footerSectionMusikHref}" target="_blank" style="display:block;font-size:26px;font-weight:700;line-height:1.15;color:#ffffff;text-decoration:none;padding:0;text-align:left;text-transform:uppercase;letter-spacing:0.02em;">Musik</a>
+                    <a class="nl-footer-nav-link" href="${footerSectionMusikHref}" target="_blank" style="display:block;font-size:26px;font-weight:700;line-height:1.15;color:#ffffff;text-decoration:none;padding:24px 0 0;text-align:left;text-transform:uppercase;letter-spacing:0.02em;">Musik</a>
                     <a class="nl-footer-nav-link" href="${footerSectionKulturHref}" target="_blank" style="display:block;font-size:26px;font-weight:700;line-height:1.15;color:#ffffff;text-decoration:none;padding:14px 0 0;text-align:left;text-transform:uppercase;letter-spacing:0.02em;">Kultur</a>
-                    <a class="nl-footer-nav-link" href="${footerSectionSerierHref}" target="_blank" style="display:block;font-size:26px;font-weight:700;line-height:1.15;color:#ffffff;text-decoration:none;padding:14px 0 0;text-align:left;text-transform:uppercase;letter-spacing:0.02em;">Serier og film</a>
+                    <a class="nl-footer-nav-link" href="${footerSectionSerierHref}" target="_blank" style="display:block;font-size:26px;font-weight:700;line-height:1.15;color:#ffffff;text-decoration:none;padding:14px 0 24px;text-align:left;text-transform:uppercase;letter-spacing:0.02em;">Serier og film</a>
                   </td>
                 </tr>
                 <tr>
-                  <td class="nl-pad nl-footer-dark-inner nl-footer-social" align="left" style="padding:18px 30px 0;font-family:${FONT_SANS};">
+                  <td class="nl-pad nl-footer-dark-inner nl-footer-social" align="left" style="padding:0 30px 0;font-family:${FONT_SANS};">
                     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="mso-table-lspace:0;mso-table-rspace:0;">
                       <tr>
                         <td style="padding:4px 0;font-size:0;line-height:0;">

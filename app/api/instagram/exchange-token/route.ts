@@ -46,6 +46,25 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  // fb_exchange_token accepterer kun kort-livet **bruger**-token — Page-token fejler ofte stille eller med uklar fejl.
+  try {
+    const dbgUrl = `${GRAPH_HOST}/${API_VERSION}/debug_token?input_token=${encodeURIComponent(shortToken)}&access_token=${encodeURIComponent(`${appId}|${appSecret}`)}`;
+    const dbgRes = await fetch(dbgUrl);
+    const dbgJson = await dbgRes.json().catch(() => ({}));
+    const tokenType = dbgJson?.data?.type as string | undefined;
+    if (tokenType === 'PAGE') {
+      return NextResponse.json(
+        {
+          error:
+            'Du har indsat et Page Access Token. Konverteringen kræver et kort-livet **bruger**-token (User access token). I Graph API Explorer: vælg **User** / din Facebook-profil (ikke kun siden under «User or Page»), tilføj tilladelserne nedenfor, og klik «Generate Access Token». Derefter kan du konvertere her.',
+        },
+        { status: 400 },
+      );
+    }
+  } catch {
+    /* fortsæt — debug er kun hjælp */
+  }
+
   // ── Step 1: Exchange short-lived → long-lived user token ──────────
   const exchangeUrl = new URL(`${GRAPH_HOST}/${API_VERSION}/oauth/access_token`);
   exchangeUrl.searchParams.set('grant_type', 'fb_exchange_token');
@@ -142,6 +161,6 @@ export async function POST(request: NextRequest) {
     neverExpires,
     expiresAt: neverExpires ? null : new Date(tokenExpires * 1000).toISOString(),
     hint:
-      'Kopiér pageAccessToken og sæt den som INSTAGRAM_ACCESS_TOKEN i Vercel → Environment Variables → Production. Redeploy bagefter.',
+      'Dette er page-token til miljøet — ikke bruger-tokenet fra Explorer. Kopiér det til Instagram-nøglen (.env.local eller Vercel), og genstart eller redeploy.',
   });
 }

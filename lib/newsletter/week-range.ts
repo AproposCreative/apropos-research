@@ -20,7 +20,7 @@ export function isoWeekNumberUtc(d: Date): number {
 export type WeekRange = {
   start: Date;
   end: Date;
-  /** Human label, e.g. 6.–12. jan. 2026 */
+  /** Human label, e.g. 6. til 12. jan. 2026 */
   labelDa: string;
   isoWeek: number;
 };
@@ -32,7 +32,7 @@ function formatDaRange(start: Date, end: Date): string {
     year: 'numeric',
     timeZone: 'UTC',
   });
-  return `${fmt.format(start).replace(/\.$/, '')} – ${fmt.format(end).replace(/\.$/, '')}`;
+  return `${fmt.format(start).replace(/\.$/, '')} til ${fmt.format(end).replace(/\.$/, '')}`;
 }
 
 /** Calendar week before the one containing `reference` (UTC ISO weeks). */

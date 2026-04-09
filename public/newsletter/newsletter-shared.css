@@ -12,7 +12,7 @@
   --nl-border-light: #d8d8d8;
   --nl-border-medium: #bbbbbb;
   --nl-thumb-bg: #eeeeee;
-  --nl-btn-bg: #2e2e2e;
+  --nl-btn-bg: #0d0d0d;
   --nl-btn-text: #ffffff;
 }
 
@@ -279,7 +279,7 @@ table.nl-card td.nl-footer-social img.nl-social-icon {
     background: #3a3a3a !important;
   }
   table.nl-card a.nl-primary-cta {
-    background-color: #000000 !important;
+    background-color: #0d0d0d !important;
     color: #ffffff !important;
   }
   table.nl-card table.nl-footer-dark {
@@ -326,7 +326,7 @@ html[data-nl-preview="dark"] table.nl-card img.nl-thumb-img {
   background: #3a3a3a !important;
 }
 html[data-nl-preview="dark"] table.nl-card a.nl-primary-cta {
-  background-color: #000000 !important;
+  background-color: #0d0d0d !important;
   color: #ffffff !important;
 }
 html[data-nl-preview="dark"] table.nl-card table.nl-footer-dark {
@@ -379,4 +379,19 @@ html[data-nl-preview="light"] table.nl-card a.nl-primary-cta {
 /* Lys mail-kort: footer forbliver mørk som på Sonos-referencen */
 html[data-nl-preview="light"] table.nl-card table.nl-footer-dark {
   background-color: #0d0d0d !important;
+}
+
+/* Afstand under footer-logo matcher mail (16px margin på link) */
+table.nl-card table.nl-footer-dark a.nl-footer-logo-link {
+  margin-bottom: 16px !important;
+}
+
+/* Lille footer-logo (97×39), mørk PNG → lys på #0d0d0d */
+table.nl-card table.nl-footer-dark a.nl-footer-logo-link img.nl-footer-logo-img {
+  width: 97px !important;
+  max-width: 97px !important;
+  height: 39px !important;
+  object-fit: contain !important;
+  filter: brightness(0) invert(1) !important;
+  -webkit-filter: brightness(0) invert(1) !important;
 }

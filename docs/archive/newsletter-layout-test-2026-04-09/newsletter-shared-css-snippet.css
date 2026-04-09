@@ -1,0 +1,49 @@
+/* Indsæt i public/newsletter/newsletter-shared.css på de rigtige steder (520px-blok + dark + preview). */
+
+@media (max-width: 520px) {
+  /* Layout-test: samme bredde/fill som liste-thumbs, 40px højere end deres 140px */
+  table.nl-card img.nl-exp-thumb-img {
+    width: 100% !important;
+    max-width: 100% !important;
+    height: 180px !important;
+    border-radius: 4px !important;
+  }
+  table.nl-card .nl-exp-thumb-fallback {
+    width: 100% !important;
+    max-width: 100% !important;
+    height: 180px !important;
+    border-radius: 4px !important;
+  }
+}
+
+@media (prefers-color-scheme: dark) {
+  table.nl-card td.nl-exp-art-outer {
+    border-bottom-color: #404040 !important;
+  }
+  table.nl-card img.nl-exp-thumb-img {
+    background: #3a3a3a !important;
+  }
+  table.nl-card .nl-exp-thumb-fallback {
+    background: #3a3a3a !important;
+  }
+}
+
+html[data-nl-preview="dark"] table.nl-card td.nl-exp-art-outer {
+  border-bottom-color: #404040 !important;
+}
+html[data-nl-preview="dark"] table.nl-card img.nl-exp-thumb-img {
+  background: #3a3a3a !important;
+}
+html[data-nl-preview="dark"] table.nl-card .nl-exp-thumb-fallback {
+  background: #3a3a3a !important;
+}
+
+html[data-nl-preview="light"] table.nl-card td.nl-exp-art-outer {
+  border-bottom-color: #d8d8d8 !important;
+}
+html[data-nl-preview="light"] table.nl-card img.nl-exp-thumb-img {
+  background: #eeeeee !important;
+}
+html[data-nl-preview="light"] table.nl-card .nl-exp-thumb-fallback {
+  background: #eeeeee !important;
+}

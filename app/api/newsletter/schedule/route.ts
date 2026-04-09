@@ -6,6 +6,17 @@ import {
   listFinishedScheduledForUser,
   listPendingScheduledForUser,
 } from '@/lib/newsletter/scheduled-send-store';
+import {
+  copenhagenMinutesPastWeeklySlot,
+  getCopenhagenIsoWeekKey,
+} from '@/lib/newsletter/copenhagen-time';
+import { getWeeklyAutoSettings } from '@/lib/newsletter/weekly-auto-settings';
+import {
+  listRecentWeeklyAutoSends,
+  readWeeklyAutoPlanDoc,
+  tryRecordWeeklyCronNoRun,
+} from '@/lib/newsletter/weekly-send-history';
+import { listRecentManualSends } from '@/lib/newsletter/manual-send-log';
 
 const MIN_LEAD_MS = 120_000;
 const MAX_LEAD_MS = 90 * 24 * 60 * 60 * 1000;
@@ -23,7 +34,69 @@ export async function GET(req: NextRequest) {
     } catch {
       /* Fx manglende Firestore-sammensat indeks — pending virker stadig */
     }
-    return NextResponse.json({ pending, history });
+    let weeklyAutoLog: Awaited<ReturnType<typeof listRecentWeeklyAutoSends>> = [];
+    try {
+      weeklyAutoLog = await listRecentWeeklyAutoSends(8);
+    } catch {
+      /* Fx manglende indeks for newsletterWeeklySends */
+    }
+    let manualSendLog: Awaited<ReturnType<typeof listRecentManualSends>> = [];
+    try {
+      manualSendLog = await listRecentManualSends(uid, 15);
+    } catch {
+      /* Fx manglende indeks */
+    }
+
+    let weeklyAutoPlan: {
+      enabled: boolean;
+      weekdayIso: number;
+      hour: number;
+      minute: number;
+      weekKey: string;
+      doc: Awaited<ReturnType<typeof readWeeklyAutoPlanDoc>>;
+    } | null = null;
+    try {
+      const settings = await getWeeklyAutoSettings();
+      const weekKey = getCopenhagenIsoWeekKey(new Date());
+      let doc = await readWeeklyAutoPlanDoc(weekKey);
+
+      /** Efter planlagt tid: max ~15 min til næste cron + lidt sendemargin — ellers ingen Firestore-doc = «hængende» UI */
+      const STALE_MINUTES_AFTER_WEEKLY_SLOT = 30;
+      const now = new Date();
+      if (
+        settings.enabled &&
+        !doc &&
+        copenhagenMinutesPastWeeklySlot(
+          now,
+          settings.weekdayIso,
+          settings.hour,
+          settings.minute
+        ) >= STALE_MINUTES_AFTER_WEEKLY_SLOT
+      ) {
+        const wrote = await tryRecordWeeklyCronNoRun(weekKey);
+        if (wrote) {
+          doc = await readWeeklyAutoPlanDoc(weekKey);
+          try {
+            weeklyAutoLog = await listRecentWeeklyAutoSends(8);
+          } catch {
+            /* som ovenfor */
+          }
+        }
+      }
+
+      weeklyAutoPlan = {
+        enabled: settings.enabled,
+        weekdayIso: settings.weekdayIso,
+        hour: settings.hour,
+        minute: settings.minute,
+        weekKey,
+        doc,
+      };
+    } catch {
+      /* Firestore / indstillinger */
+    }
+
+    return NextResponse.json({ pending, history, weeklyAutoLog, manualSendLog, weeklyAutoPlan });
   } catch (e) {
     return NextResponse.json(
       { error: e instanceof Error ? e.message : 'Ukendt fejl' },

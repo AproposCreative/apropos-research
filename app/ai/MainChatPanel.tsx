@@ -1555,10 +1555,11 @@ const fallbackThinkingSteps: ThinkingStep[] = [
             </div>
 
             {/* Quick actions */}
-            <div className="grid grid-cols-4 border-b border-white/[0.06]">
+            <div className="grid grid-cols-5 border-b border-white/[0.06]">
               {([
                 { label: 'Drafts', icon: (<div className="grid grid-cols-3 gap-[3px] w-[18px] h-[18px]">{Array.from({ length: 9 }).map((_, i) => (<div key={i} className="w-[4px] h-[4px] bg-current rounded-full" />))}</div>), action: () => { closeMobileMenu(); onOpenDraftsPanel ? onOpenDraftsPanel() : (window.location.href = '/ai-drafts'); } },
                 { label: 'Designer', icon: (<svg className="w-[18px] h-[18px]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M4 7h16M4 12h16M4 17h16" /></svg>), action: () => { closeMobileMenu(); window.location.href = '/design-editor'; } },
+                { label: 'Nyhedsbrev', icon: (<svg className="w-[18px] h-[18px]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M3 8l9 6 9-6M5 19h14a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2z" /></svg>), action: () => { closeMobileMenu(); window.location.href = '/ai/newsletter'; } },
                 { label: 'Preview', icon: (<svg className="w-[18px] h-[18px]" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.8}><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3"/></svg>), action: () => { closeMobileMenu(); if (onOpenReviewPanel) onOpenReviewPanel(); } },
                 { label: 'Ny', icon: (<svg className="w-[18px] h-[18px]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M12 4v16m8-8H4" /></svg>), action: () => { closeMobileMenu(); onNewArticle ? onNewArticle() : (setChatMessages([]), onChatTitleChange('Ny artikkel')); } },
               ] as const).map((item) => (

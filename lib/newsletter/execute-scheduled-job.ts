@@ -9,6 +9,7 @@ import { sendNewsletterToMany } from '@/lib/newsletter/send-resend';
 export async function executeClaimedScheduledNewsletterJob(
   job: ClaimedScheduledJob
 ): Promise<{ summary: string }> {
+  const subjectLabel = job.subject.trim().replace(/\s+/g, ' ').slice(0, 120) || 'Uden emne';
   try {
     const html = rewriteNewsletterLogoSrcForOutgoingEmail(job.html);
     const recipients = await getNewsletterRecipients();
@@ -17,7 +18,7 @@ export async function executeClaimedScheduledNewsletterJob(
         ok: false,
         error: recipients.error || 'Ingen aktive modtagere',
       });
-      return { summary: `${job.id}: ingen modtagere` };
+      return { summary: `${subjectLabel}: ingen modtagere` };
     }
     const result = await sendNewsletterToMany({
       recipients: recipients.emails,
@@ -31,18 +32,18 @@ export async function executeClaimedScheduledNewsletterJob(
     if (result.failed === 0) {
       await markScheduledSendFinished(job.id, {
         ok: true,
-        summary: `${result.sent} sendt`,
+        summary: `${subjectLabel} · ${result.sent} sendt`,
       });
-      return { summary: `${job.id}: ${result.sent} sendt` };
+      return { summary: `${subjectLabel}: ${result.sent} sendt` };
     }
     await markScheduledSendFinished(job.id, {
       ok: false,
       error: `${result.failed} fejl — ${result.errors.slice(0, 3).join('; ')}`,
     });
-    return { summary: `${job.id}: delvis fejl (${result.failed})` };
+    return { summary: `${subjectLabel}: delvis fejl (${result.failed})` };
   } catch (e) {
     const err = e instanceof Error ? e.message : 'Ukendt fejl';
     await markScheduledSendFinished(job.id, { ok: false, error: err });
-    return { summary: `${job.id}: exception` };
+    return { summary: `${subjectLabel}: exception` };
   }
 }
