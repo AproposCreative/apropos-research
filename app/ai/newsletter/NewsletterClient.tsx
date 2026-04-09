@@ -547,8 +547,10 @@ export default function NewsletterClient({ embedded = false, onClose }: Newslett
           <div className="space-y-2 pt-1 border-t border-white/[0.06]">
             <p className="text-[10px] uppercase tracking-[0.16em] text-white/35">Planlæg udsendelse</p>
             <p className="text-[11px] text-white/38 leading-snug">
-              Tidspunkt er din browsers lokale tid. Cron kører hvert 15. minut (kun production). Køen kræver sammensatte Firestore-indekser — se{' '}
-              <code className="text-white/50">firestore.indexes.json</code>. Hvis et job er forbi tid uden send, brug «Send planlagt nu» under kortet.
+              Tidspunkt er din browsers lokale tid. Vercel Cron kalder hvert 15. min (kun{' '}
+              <strong className="text-white/55 font-medium">production</strong>) — sæt{' '}
+              <code className="text-white/50">CRON_SECRET</code> i Vercel og redeploy, ellers får cron 503/403. Køen kræver Firestore-indekser (
+              <code className="text-white/50">firebase deploy --only firestore:indexes</code>). Forbi tid uden send: brug «Send planlagt nu».
             </p>
             <input
               type="datetime-local"

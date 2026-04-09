@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { env } from '@/lib/config/env';
+import { requireCronBearer } from '@/lib/cron/cron-auth';
 import { executeClaimedScheduledNewsletterJob } from '@/lib/newsletter/execute-scheduled-job';
 import {
   claimNextDueScheduledSend,
@@ -9,14 +9,16 @@ import {
 export const maxDuration = 300;
 
 /**
- * Behandler planlagte nyhedsbreve. Kræver `Authorization: Bearer CRON_SECRET`.
+ * Behandler planlagte nyhedsbreve (Vercel Cron hvert 15. min, se vercel.json).
+ * Kræver `CRON_SECRET` i Production + at Vercel sender `Authorization: Bearer <CRON_SECRET>`.
+ * Kører kun på **production**-deployments, ikke preview.
+ *
+ * Fejlfinding: ingen send — tjek Vercel → Cron logs; Firestore-indekser (firebase deploy --only firestore:indexes);
+ * job i Firestore `newsletterScheduledSends` med status failed/error; aktive modtagere fra Webflow.
  */
 export async function GET(req: NextRequest) {
-  const authz = req.headers.get('authorization') || '';
-  const bearer = authz.startsWith('Bearer ') ? authz.slice(7).trim() : '';
-  if (!env.CRON_SECRET || bearer !== env.CRON_SECRET) {
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-  }
+  const authFail = requireCronBearer(req);
+  if (authFail) return authFail;
 
   let processed = 0;
   const summaries: string[] = [];
@@ -33,6 +35,12 @@ export async function GET(req: NextRequest) {
       summaries.push(summary);
       processed++;
     }
+
+    console.info('[cron/newsletter-scheduled]', {
+      processed,
+      summaries: summaries.slice(0, 12),
+      vercelCron: req.headers.get('x-vercel-cron') ?? undefined,
+    });
 
     return NextResponse.json({ ok: true, processed, summaries });
   } catch (e) {

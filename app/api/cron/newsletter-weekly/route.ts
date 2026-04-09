@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { env } from '@/lib/config/env';
+import { requireCronBearer } from '@/lib/cron/cron-auth';
 import { buildWeeklyNewsletterDraft } from '@/lib/newsletter/build-draft';
 import { getNewsletterRecipients } from '@/lib/newsletter/get-recipients';
 import { sendNewsletterToMany } from '@/lib/newsletter/send-resend';
@@ -12,11 +12,8 @@ export const maxDuration = 300;
  * Kræver `Authorization: Bearer CRON_SECRET`.
  */
 export async function GET(req: NextRequest) {
-  const authz = req.headers.get('authorization') || '';
-  const bearer = authz.startsWith('Bearer ') ? authz.slice(7).trim() : '';
-  if (!env.CRON_SECRET || bearer !== env.CRON_SECRET) {
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-  }
+  const authFail = requireCronBearer(req);
+  if (authFail) return authFail;
 
   try {
     const draft = await buildWeeklyNewsletterDraft({});
