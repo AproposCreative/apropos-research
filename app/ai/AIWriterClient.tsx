@@ -311,7 +311,6 @@ export default function AIWriterClient() {
       localStorage.setItem('ai-chat-width', target.toString());
       return target;
     });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeView, isDesktop, viewportWidth]);
 
   const startThinkingTimeline = useCallback(() => {
