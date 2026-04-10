@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/lib/auth-context';
 import { stripUnsubscribePlaceholderForPreview } from '@/lib/newsletter/unsubscribe-placeholder';
@@ -134,6 +134,9 @@ export default function NewsletterClient({ embedded = false, onClose }: Newslett
   const [weeklySaveBusy, setWeeklySaveBusy] = useState(false);
   const [weeklyPreviewBusy, setWeeklyPreviewBusy] = useState(false);
   const [weeklyPreviewOffset, setWeeklyPreviewOffset] = useState(-1);
+  const [mobileSheetOpen, setMobileSheetOpen] = useState(false);
+  const [mobileSection, setMobileSection] = useState<string | null>(null);
+  const sheetRef = useRef<HTMLDivElement>(null);
 
   const authHeader = useCallback(async () => {
     const auth = user;
@@ -712,33 +715,14 @@ export default function NewsletterClient({ embedded = false, onClose }: Newslett
     );
   }
 
-  const shell = embedded
-    ? 'flex flex-col h-full min-h-0 text-white bg-transparent font-poppins'
-    : 'min-h-[100dvh] flex flex-col text-white bg-[#0a0a0a] font-poppins';
-
-  const inner = 'flex-1 flex flex-col lg:flex-row min-h-0 overflow-hidden';
-
-  const asideClass = embedded
-    ? 'w-full lg:w-[min(300px,100%)] shrink-0 border-b lg:border-b-0 lg:border-r border-white/10 p-3 md:px-4 md:py-4 space-y-3 overflow-y-auto max-h-[40vh] lg:max-h-none lg:bg-black/10'
-    : 'lg:w-[380px] shrink-0 border-b lg:border-b-0 lg:border-r border-white/10 p-5 space-y-4 overflow-y-auto bg-[#0c0c0c]';
-
-  const mainClass = embedded
-    ? 'flex-1 min-h-0 flex flex-col p-2 md:p-3 bg-transparent'
-    : 'flex-1 min-h-0 flex flex-col p-3 md:p-5 bg-[#080808]';
-
-  const headerClass = embedded
-    ? 'border-b border-white/10 px-3 md:px-4 py-2.5 md:py-3 flex items-center justify-between gap-3 shrink-0 bg-black/25 backdrop-blur-md'
-    : 'border-b border-white/10 px-5 py-4 flex items-center justify-between gap-3 shrink-0 bg-[#0c0c0c]';
-
   const segBtn = (active: boolean) =>
     `rounded-lg px-2.5 py-1 text-[11px] font-medium tracking-wide transition-all duration-200 active:scale-[0.97] ${
       active ? 'bg-white/12 text-white shadow-sm border border-white/10' : 'text-white/45 hover:text-white/75'
     }`;
 
   const primaryBtn =
-    'w-full px-4 py-3 rounded-lg text-[14px] font-medium text-white transition-all duration-200 border border-white/10 bg-white/5 hover:border-white/20 hover:bg-white/10 hover:shadow-[0_0_32px_-8px_rgba(255,255,255,0.18)] disabled:opacity-40 active:scale-[0.99]';
+    'w-full px-4 py-3 rounded-xl text-[14px] font-medium text-white transition-all duration-200 border border-white/10 bg-white/5 hover:border-white/20 hover:bg-white/10 hover:shadow-[0_0_32px_-8px_rgba(255,255,255,0.18)] disabled:opacity-40 active:scale-[0.99]';
 
-  /** Samme højre-padding og ikon-position (right-3) som time-input WebKit-ur */
   const weeklyFieldShell = 'relative w-full';
   const weeklySelectClass =
     'w-full h-10 appearance-none pl-3 pr-10 rounded-lg border border-white/[0.12] bg-[#141414] text-[13px] text-white focus:border-white/25 focus:outline-none focus:ring-1 focus:ring-white/10 [color-scheme:dark]';
@@ -746,686 +730,439 @@ export default function NewsletterClient({ embedded = false, onClose }: Newslett
     'w-full h-10 box-border pl-3 pr-10 rounded-lg border border-white/[0.12] bg-[#141414] text-[13px] text-white focus:border-white/25 focus:outline-none focus:ring-1 focus:ring-white/10 [color-scheme:dark] relative [&::-webkit-calendar-picker-indicator]:absolute [&::-webkit-calendar-picker-indicator]:right-3 [&::-webkit-calendar-picker-indicator]:top-1/2 [&::-webkit-calendar-picker-indicator]:h-[1.125rem] [&::-webkit-calendar-picker-indicator]:w-[1.125rem] [&::-webkit-calendar-picker-indicator]:-translate-y-1/2 [&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-calendar-picker-indicator]:opacity-70';
 
   const secondaryBtn =
-    'w-full py-2.5 rounded-lg border border-white/12 text-[13px] text-white/75 hover:bg-white/[0.05] hover:border-white/18 disabled:opacity-40 transition-all duration-200 active:scale-[0.98]';
+    'w-full py-2.5 rounded-xl border border-white/12 text-[13px] text-white/75 hover:bg-white/[0.05] hover:border-white/18 disabled:opacity-40 transition-all duration-200 active:scale-[0.98]';
 
   const dangerOutlineBtn =
-    'w-full py-2.5 rounded-lg border border-white/25 text-[13px] text-white/90 hover:bg-white/[0.08] disabled:opacity-40 transition-all duration-200 active:scale-[0.98]';
+    'w-full py-2.5 rounded-xl border border-white/25 text-[13px] text-white/90 hover:bg-white/[0.08] disabled:opacity-40 transition-all duration-200 active:scale-[0.98]';
+
+  const anyBusy = busy || scheduleBusy || weeklySaveBusy || weeklyPreviewBusy;
+
+  const toggleMobileSection = (key: string) => {
+    setMobileSection((prev) => (prev === key ? null : key));
+  };
+
+  const sectionRow = (key: string, label: string, icon: React.ReactNode, subtitle?: string) => (
+    <button
+      type="button"
+      onClick={() => toggleMobileSection(key)}
+      className={`flex items-center gap-3 w-full px-4 py-3 rounded-xl border transition-all duration-200 active:scale-[0.98] ${
+        mobileSection === key
+          ? 'border-white/20 bg-white/[0.06]'
+          : 'border-white/[0.08] bg-white/[0.02] hover:bg-white/[0.04]'
+      }`}
+    >
+      <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-white/[0.06] text-white/60">
+        {icon}
+      </div>
+      <div className="flex-1 min-w-0 text-left">
+        <p className="text-[13px] font-medium text-white/85">{label}</p>
+        {subtitle && <p className="text-[11px] text-white/35 truncate">{subtitle}</p>}
+      </div>
+      <svg
+        className={`size-4 shrink-0 text-white/30 transition-transform duration-200 ${mobileSection === key ? 'rotate-180' : ''}`}
+        viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth={1.5}
+      >
+        <path strokeLinecap="round" strokeLinejoin="round" d="M6 8l4 4 4-4" />
+      </svg>
+    </button>
+  );
+
+  const sectionContent = (key: string, children: React.ReactNode) =>
+    mobileSection === key ? (
+      <div className="px-1 pb-1 space-y-3 animate-in fade-in slide-in-from-top-1 duration-200">{children}</div>
+    ) : null;
+
+  const chevron = (open: boolean) => (
+    <svg
+      className={`size-3.5 shrink-0 opacity-60 transition-transform duration-200 ${open ? 'rotate-180' : ''}`}
+      viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth={1.5} aria-hidden
+    >
+      <path strokeLinecap="round" strokeLinejoin="round" d="M6 8l4 4 4-4" />
+    </svg>
+  );
+  const expandCls = 'mt-1.5 space-y-1 border-l border-white/15 pl-2.5 text-[10px] leading-snug';
+
+  const sendLogList = mergedSendLog.length > 0 && (
+    <ul className="space-y-1.5 max-h-[min(420px,50vh)] overflow-y-auto pr-0.5">
+      {mergedSendLog.map((entry) => {
+        if (entry.source === 'scheduled') {
+          const h = entry.row;
+          const rowKey = `s-${h.id}`;
+          const open = expandedSendLogKeys.has(rowKey);
+          const ok = h.status === 'sent';
+          const when = formatSendLogWhen(h.finishedAt);
+          return (
+            <li key={rowKey} className="list-none">
+              <button type="button" onClick={() => toggleSendLogKey(rowKey)} aria-expanded={open}
+                className={`w-full flex items-center justify-between gap-2 rounded-lg border px-2 py-1.5 text-left text-[11px] font-medium transition-colors active:scale-[0.99] ${ok ? 'border-emerald-500/45 bg-emerald-500/[0.12] text-emerald-50/95 hover:bg-emerald-500/[0.16]' : 'border-rose-500/45 bg-rose-500/[0.12] text-rose-50/95 hover:bg-rose-500/[0.16]'}`}>
+                <span className="min-w-0 truncate">Planlagt kø · {when}</span>
+                {chevron(open)}
+              </button>
+              {open ? (<div className={expandCls}><p className={ok ? 'text-emerald-100/80' : 'text-rose-100/80'}>{ok ? 'Sendt' : 'Fejlede'}</p>{h.subject ? <p className="text-white/55 break-words">{h.subject}</p> : null}{ok && h.summary ? <p className="text-emerald-200/75">{h.summary}</p> : null}{!ok && h.error ? <p className="text-rose-200/90 whitespace-pre-wrap break-words">{h.error}</p> : null}</div>) : null}
+            </li>
+          );
+        }
+        if (entry.source === 'manual') {
+          const m = entry.row;
+          const rowKey = `m-${m.id}`;
+          const open = expandedSendLogKeys.has(rowKey);
+          const typeLabel = m.kind === 'broadcast' ? 'Til alle nu' : 'Testmail';
+          const when = formatSendLogWhen(m.finishedAt);
+          const ok = m.status !== 'failed';
+          return (
+            <li key={rowKey} className="list-none">
+              <button type="button" onClick={() => toggleSendLogKey(rowKey)} aria-expanded={open}
+                className={`w-full flex items-center justify-between gap-2 rounded-lg border px-2 py-1.5 text-left text-[11px] font-medium transition-colors active:scale-[0.99] ${ok ? 'border-emerald-500/45 bg-emerald-500/[0.12] text-emerald-50/95 hover:bg-emerald-500/[0.16]' : 'border-rose-500/45 bg-rose-500/[0.12] text-rose-50/95 hover:bg-rose-500/[0.16]'}`}>
+                <span className="min-w-0 truncate">{typeLabel} · {when}</span>
+                {chevron(open)}
+              </button>
+              {open ? (<div className={`${expandCls} ${ok ? 'text-emerald-100/85' : 'text-rose-100/85'}`}><p>{ok ? 'Sendt' : 'Fejlede'}</p>{m.subject ? <p className="text-white/60 break-words">{m.subject}</p> : null}{m.detail ? <p className={ok ? 'text-emerald-200/70' : 'text-rose-200/75'}>{m.detail}</p> : null}{!ok && m.error ? <p className="text-rose-200/90 whitespace-pre-wrap break-words">{m.error}</p> : null}</div>) : null}
+            </li>
+          );
+        }
+        const w = entry.row;
+        const rowKey = `w-${w.id}`;
+        const open = expandedSendLogKeys.has(rowKey);
+        const ok = w.status === 'sent';
+        const failed = w.status === 'failed';
+        const when = formatSendLogWhen(w.finishedAt);
+        const wLabel = w.status === 'sent' ? 'Sendt' : w.status === 'failed' ? 'Fejlede' : 'Sprunget over';
+        return (
+          <li key={rowKey} className="list-none">
+            <button type="button" onClick={() => toggleSendLogKey(rowKey)} aria-expanded={open}
+              className={`w-full flex items-center justify-between gap-2 rounded-lg border px-2 py-1.5 text-left text-[11px] font-medium transition-colors active:scale-[0.99] ${ok ? 'border-emerald-500/45 bg-emerald-500/[0.12] text-emerald-50/95 hover:bg-emerald-500/[0.16]' : failed ? 'border-rose-500/45 bg-rose-500/[0.12] text-rose-50/95 hover:bg-rose-500/[0.16]' : 'border-white/20 bg-white/[0.04] text-white/70 hover:bg-white/[0.07]'}`}>
+              <span className="min-w-0 truncate">Ugentlig auto · {when}</span>
+              {chevron(open)}
+            </button>
+            {open ? (<div className={expandCls}><p className={ok ? 'text-emerald-100/80' : failed ? 'text-rose-100/80' : 'text-white/55'}>{wLabel} · uge {w.weekKey}</p>{w.subject ? <p className="text-white/55 break-words">{w.subject}</p> : null}{ok && typeof w.sent === 'number' ? <p className="text-emerald-200/75">{w.sent} sendt{typeof w.recipientCount === 'number' ? ` · ${w.recipientCount} på listen` : ''}</p> : null}{w.status === 'skipped' && w.skipReason ? <p className="text-white/50 whitespace-pre-wrap break-words">{w.skipReason}</p> : null}{failed && w.error ? <p className="text-rose-200/90 whitespace-pre-wrap break-words">{w.error}</p> : null}</div>) : null}
+          </li>
+        );
+      })}
+    </ul>
+  );
+
+  /* ── Shared aside content blocks (used in both desktop sidebar and mobile sheet) ── */
+
+  const autoSendBlock = (
+    <>
+      <div className="flex items-center justify-between gap-3">
+        <span className="text-[12px] text-white/38">Automatisk hver uge</span>
+        <button type="button" role="switch" aria-checked={weeklyAutoEnabled}
+          disabled={weeklySaveBusy || weeklyPreviewBusy}
+          onClick={() => setWeeklyAutoEnabled((v) => !v)}
+          className={`relative h-7 w-12 shrink-0 rounded-full transition-colors duration-200 ${weeklyAutoEnabled ? 'bg-emerald-600/90' : 'bg-white/15'} disabled:opacity-40`}>
+          <span className={`absolute top-0.5 left-0.5 size-6 rounded-full bg-white shadow-sm transition-transform duration-200 ${weeklyAutoEnabled ? 'translate-x-5' : 'translate-x-0'}`} />
+        </button>
+      </div>
+      <p className="text-[11px] text-white/28 leading-snug -mt-1">
+        {weeklyAutoEnabled ? `${ISO_WEEKDAY_DA[weeklyWeekdayIso] ?? '—'} kl. ${weeklyTimeHHMM} · København` : 'Slået fra'}
+      </p>
+      {weeklyAutoEnabled ? (
+        <div className="grid gap-2">
+          <div className={weeklyFieldShell}>
+            <select value={weeklyWeekdayIso} disabled={weeklySaveBusy || weeklyPreviewBusy}
+              onChange={(e) => setWeeklyWeekdayIso(Number(e.target.value))} className={weeklySelectClass}>
+              {[1,2,3,4,5,6,7].map((d) => <option key={d} value={d}>{ISO_WEEKDAY_DA[d]}</option>)}
+            </select>
+            <span className="pointer-events-none absolute right-3 top-1/2 size-[1.125rem] -translate-y-1/2 text-white/40" aria-hidden>
+              <svg viewBox="0 0 20 20" fill="none" className="size-full" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M6 8l4 4 4-4" /></svg>
+            </span>
+          </div>
+          <input type="time" step={900} title="København-tid" value={weeklyTimeHHMM}
+            disabled={weeklySaveBusy || weeklyPreviewBusy}
+            onChange={(e) => setWeeklyTimeHHMM(e.target.value || '12:00')} className={weeklyTimeClass} />
+        </div>
+      ) : null}
+      <div className="flex gap-2">
+        <button type="button" disabled={anyBusy} onClick={() => void saveWeeklyAuto()}
+          className="flex-1 py-2 rounded-lg border border-white/[0.12] text-[13px] text-white/80 hover:bg-white/[0.05] disabled:opacity-40 transition-all duration-200">
+          {weeklySaveBusy ? 'Gemmer…' : 'Gem'}
+        </button>
+        <button type="button" disabled={anyBusy || weeklyPreviewOffset <= -12}
+          onClick={() => { const n = weeklyPreviewOffset - 1; setWeeklyPreviewOffset(n); void loadWeeklyAutoPreview(n); }}
+          className="py-2 px-3 rounded-lg border border-white/[0.12] text-[13px] text-white/80 hover:bg-white/[0.05] disabled:opacity-40 transition-all duration-200" title="Forrige uge">‹</button>
+        <button type="button" disabled={anyBusy} onClick={() => void loadWeeklyAutoPreview()}
+          className="flex-1 py-2 rounded-lg border border-white/[0.12] text-[13px] text-white/80 hover:bg-white/[0.05] disabled:opacity-40 transition-all duration-200">
+          {weeklyPreviewBusy ? 'Henter…' : 'Vis uge'}
+        </button>
+        <button type="button" disabled={anyBusy || weeklyPreviewOffset >= 0}
+          onClick={() => { const n = weeklyPreviewOffset + 1; setWeeklyPreviewOffset(n); void loadWeeklyAutoPreview(n); }}
+          className="py-2 px-3 rounded-lg border border-white/[0.12] text-[13px] text-white/80 hover:bg-white/[0.05] disabled:opacity-40 transition-all duration-200" title="Næste uge">›</button>
+      </div>
+    </>
+  );
+
+  const metaBlock = meta && (
+    <div className="rounded-xl border border-white/[0.08] bg-white/[0.02] px-3 py-3 space-y-2.5 text-[13px]">
+      {subject ? (<div><p className="text-[12px] text-white/38 mb-0.5">Emne</p><p className="text-white/[0.88] leading-snug break-words">{subject}</p></div>) : null}
+      <div className="grid gap-1 text-white/45 text-[12px]">
+        {meta.headline ? <p><span className="text-white/40">Overskrift</span> <span className="text-white/70">{meta.headline}</span></p> : null}
+        <p><span className="text-white/40">Periode</span> {meta.weekLabel}</p>
+        <p><span className="text-white/40">Artikler</span> {meta.articleCount}</p>
+        <p><span className="text-white/40">Modtagere</span> {meta.recipientCount}{meta.unsubscribedCount > 0 && <span className="text-white/30"> · {meta.unsubscribedCount} frameldt</span>}</p>
+      </div>
+      {meta.formName && <p className="text-white/35 text-[11px] pt-1 border-t border-white/[0.06]">{meta.recipientSource === 'forms-api' ? 'Webflow' : 'CMS'}{meta.formName ? ` · ${meta.formName}` : ''}</p>}
+      {meta.signupError && <p className="text-amber-400/85 break-words whitespace-pre-wrap text-[11px] leading-snug pt-1 border-t border-white/[0.06]">{meta.signupError}</p>}
+      {meta.warnings.map((w, i) => <p key={i} className="text-white/80 text-[11px] leading-snug">{w}</p>)}
+    </div>
+  );
+
+  const testMailBlock = (
+    <>
+      <label className="block text-[12px] text-white/38" htmlFor="newsletter-test-email-input">Testmail</label>
+      <div className="flex min-h-[2.625rem] flex-wrap items-center gap-1 rounded-lg border border-white/[0.12] bg-[#141414] px-2 py-1.5 [color-scheme:dark] focus-within:border-white/25 focus-within:ring-1 focus-within:ring-white/10" role="group">
+        {DEFAULT_TEST_RECIPIENTS.map((email) => {
+          const on = Boolean(presetTestActive[email]);
+          return (
+            <button key={email} type="button" onClick={() => setPresetTestActive((p) => ({ ...p, [email]: !p[email] }))} aria-pressed={on}
+              className={`inline-flex max-w-full min-h-0 items-center gap-0.5 rounded-md border px-1.5 py-0.5 text-left text-[10px] leading-snug transition-colors active:scale-[0.98] ${on ? 'border-emerald-500/45 bg-emerald-500/[0.12] text-emerald-50/95' : 'border-white/[0.08] bg-white/[0.03] text-white/40 hover:border-white/15 hover:bg-white/[0.05] hover:text-white/55'}`}>
+              {on ? <svg className="size-2.5 shrink-0 text-emerald-400" viewBox="0 0 12 12" fill="none" aria-hidden><path d="M10 3L4.5 8.5L2 6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg> : null}
+              <span className="truncate">{email}</span>
+            </button>
+          );
+        })}
+        {extraTestEmails.map((email) => (
+          <span key={email} className="inline-flex max-w-full items-center gap-0.5 rounded-md border border-white/12 bg-white/[0.06] px-1.5 py-0.5 text-[10px] leading-snug text-white/80">
+            <span className="truncate">{email}</span>
+            <button type="button" aria-label={`Fjern ${email}`} onClick={() => removeExtraTestEmail(email)} className="shrink-0 rounded px-0.5 text-white/45 hover:text-rose-300/90">×</button>
+          </span>
+        ))}
+        <input id="newsletter-test-email-input" type="email" value={testEmailInput} onChange={(e) => setTestEmailInput(e.target.value)}
+          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ',') { e.preventDefault(); addTestRecipient(); }}}
+          onBlur={() => { if (testEmailInput.trim()) addTestRecipient(); }}
+          placeholder="Tilføj e-mail" autoComplete="email"
+          className="min-w-[7rem] flex-1 border-0 bg-transparent py-1 pl-0.5 text-[12px] text-white placeholder:text-white/28 focus:outline-none focus:ring-0" />
+      </div>
+      <button type="button" disabled={anyBusy} onClick={sendTest} className={secondaryBtn}>Send testmail</button>
+    </>
+  );
+
+  const scheduleBlock = (
+    <>
+      <ul className="space-y-2">
+        {showWeeklyPlanSlot && weeklyAutoPlan ? (
+          <li className="list-none">
+            <div className={`rounded-lg border px-2.5 py-2 text-[11px] ${!weeklyAutoPlan.enabled ? 'border-white/15 bg-white/[0.04] text-white/45' : weeklyAutoPlan.doc?.status === 'failed' ? 'border-rose-500/35 bg-rose-500/[0.08] text-rose-100/90' : weeklyAutoPlan.doc?.status === 'sent' ? 'border-emerald-500/35 bg-emerald-500/[0.08] text-emerald-100/90' : weeklyAutoPlan.doc?.status === 'skipped' ? 'border-white/20 bg-white/[0.05] text-white/60' : weeklyAutoPlan.doc?.status === 'processing' ? 'border-amber-500/35 bg-amber-500/[0.08] text-amber-100/90' : 'border-white/25 bg-white/[0.06] text-white/70'}`}>
+              <p className="text-[10px] uppercase tracking-wide text-white/35 mb-1">Ugentlig automatisk</p>
+              <p className="text-white/85 font-medium leading-snug">{weeklyAutoPlan.enabled ? `${ISO_WEEKDAY_DA[weeklyAutoPlan.weekdayIso] ?? '—'} kl. ${toTimeInputValue(weeklyAutoPlan.hour, weeklyAutoPlan.minute)} · København · ${weeklyAutoPlan.weekKey}` : 'Slået fra'}</p>
+              {weeklyAutoPlan.enabled ? (
+                <div className="mt-1.5 text-[10px] leading-snug space-y-1">
+                  {!weeklyAutoPlan.doc ? <p className="text-white/50">Afventer send efter planlagt tidspunkt.</p>
+                    : weeklyAutoPlan.doc.status === 'processing' ? <p className="text-amber-200/80">Under behandling…</p>
+                    : weeklyAutoPlan.doc.status === 'sent' ? <><p className="text-emerald-200/80">Sendt</p>{weeklyAutoPlan.doc.subject ? <p className="text-white/55 line-clamp-3">{weeklyAutoPlan.doc.subject}</p> : null}</>
+                    : weeklyAutoPlan.doc.status === 'failed' ? <><p className="text-rose-200/90">Fejlede</p>{weeklyAutoPlan.doc.error ? <p className="text-rose-200/85 whitespace-pre-wrap break-words">{weeklyAutoPlan.doc.error}</p> : null}</>
+                    : <><p className="text-white/55">Sprunget over</p>{weeklyAutoPlan.doc.skipReason ? <p className="text-white/45 whitespace-pre-wrap break-words">{weeklyAutoPlan.doc.skipReason}</p> : null}</>}
+                </div>
+              ) : null}
+            </div>
+          </li>
+        ) : null}
+        {pendingSchedules.length > 0 ? <li className="list-none text-[10px] uppercase tracking-wide text-white/35 pt-1">Engangs · i køen</li> : null}
+        {pendingSchedules.map((p) => {
+          const due = new Date(p.scheduledFor).getTime(); const now = Date.now(); const lagMs = Number.isFinite(due) ? now - due : -1; const isDue = lagMs >= 0; const longOverdue = lagMs >= 20 * 60 * 1000;
+          return (
+            <li key={p.id} className={`flex flex-col gap-1.5 rounded-lg border px-2.5 py-2 text-[11px] text-white/55 ${longOverdue ? 'border-amber-500/45 bg-amber-500/[0.1]' : 'border-white/25 bg-white/[0.06]'}`}>
+              <span className="text-white/75">{new Date(p.scheduledFor).toLocaleString('da-DK', { dateStyle: 'short', timeStyle: 'short' })}</span>
+              {isDue ? <div className="flex flex-col gap-1"><span className="text-[11px] text-white/60 leading-snug">Sendes automatisk.</span>{longOverdue ? <span className="text-[10px] text-amber-200/75 leading-snug">Ser du ikke afsendelse efter længere tid, kontakt den tekniske ansvarlige.</span> : null}</div> : null}
+              <span className="text-white/50 line-clamp-2">{p.subject}</span>
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5">
+                <button type="button" disabled={scheduleBusy} onClick={() => void cancelSchedule(p.id)} className="self-start text-[11px] text-rose-300/80 hover:text-rose-200 transition-colors">Annuller</button>
+                {isDue ? <button type="button" disabled={scheduleBusy} onClick={() => void runDueSchedule()} className="text-[10px] text-white/35 hover:text-white/55 underline underline-offset-2 decoration-white/25 transition-colors disabled:opacity-40">Send manuelt (nødfald)</button> : null}
+              </div>
+            </li>
+          );
+        })}
+      </ul>
+      <p className="text-[11px] text-white/30 pt-1">Ny engangs-afsendelse</p>
+      <input type="datetime-local" value={scheduleAtLocal} onChange={(e) => setScheduleAtLocal(e.target.value)}
+        className="w-full px-3 py-2.5 rounded-lg border border-white/[0.12] bg-[#141414] text-[13px] text-white focus:border-white/25 focus:outline-none focus:ring-1 focus:ring-white/10 [color-scheme:dark]" />
+      <button type="button" disabled={anyBusy} onClick={() => void scheduleSend()} className={secondaryBtn}>Planlæg</button>
+    </>
+  );
+
+  /* ── Preview iframe (shared) ── */
+
+  const previewIframe = html ? (
+    <div className={`flex min-h-0 w-full flex-1 flex-col ${previewViewport === 'mobile' ? 'items-center overflow-auto py-1' : ''}`}>
+      <div className={`flex min-h-0 flex-col ${previewViewport === 'mobile' ? 'w-full max-w-[390px] shrink-0 rounded-[1.35rem] border border-white/12 bg-black/35 p-1.5 shadow-[0_12px_40px_rgba(0,0,0,0.45)]' : 'h-full min-h-0 w-full flex-1'}`}>
+        <iframe title="Preview"
+          className={`w-full flex-1 min-h-0 rounded-xl border border-white/12 shadow-[0_0_0_1px_rgba(255,255,255,0.04)_inset] ${previewTheme === 'dark' ? 'bg-[#1a1a1a]' : 'bg-[#ebebeb]'} ${embedded ? '' : 'min-h-[480px]'} ${previewViewport === 'mobile' ? 'min-h-[520px] rounded-[1rem]' : ''}`}
+          srcDoc={previewHtml ?? ''} />
+      </div>
+    </div>
+  ) : (
+    <div className="h-full min-h-[160px] flex items-center justify-center rounded-xl border border-dashed border-white/[0.08] bg-black/15 text-white/32 text-[13px] px-6 text-center">
+      Hent Preview
+    </div>
+  );
+
+  /* ══════════════════════════ RENDER ══════════════════════════ */
 
   return (
-    <div className={shell}>
-      <header className={headerClass}>
-        <div className="min-w-0">
-          <h1 className={`font-medium tracking-tight text-white ${embedded ? 'text-[15px]' : 'text-[17px]'}`}>
-            Nyhedsbrev
-          </h1>
-        </div>
-        <div className="flex flex-wrap items-center justify-end gap-2 shrink-0">
-          <div
-            className="flex rounded-lg border border-white/12 p-0.5 gap-0.5 bg-black/30 backdrop-blur-sm"
-            role="group"
-            aria-label="Forhåndsvisning lys eller mørk"
-          >
-            <button type="button" onClick={() => setPreviewTheme('light')} className={segBtn(previewTheme === 'light')}>
-              Lys
-            </button>
-            <button type="button" onClick={() => setPreviewTheme('dark')} className={segBtn(previewTheme === 'dark')}>
-              Mørk
-            </button>
-          </div>
-          <div
-            className="flex rounded-lg border border-white/12 p-0.5 gap-0.5 bg-black/30 backdrop-blur-sm"
-            role="group"
-            aria-label="Preview bredde mobil eller desktop"
-          >
-            <button
-              type="button"
-              onClick={() => setPreviewViewport('mobile')}
-              className={segBtn(previewViewport === 'mobile')}
-            >
-              Mobile
-            </button>
-            <button
-              type="button"
-              onClick={() => setPreviewViewport('desktop')}
-              className={segBtn(previewViewport === 'desktop')}
-            >
-              Desktop
-            </button>
+    <div className={embedded
+      ? 'flex flex-col h-full min-h-0 text-white bg-transparent font-poppins'
+      : 'min-h-[100dvh] flex flex-col text-white bg-[#0a0a0a] font-poppins'
+    }>
+      {/* ── Header ── */}
+      <header className={embedded
+        ? 'border-b border-white/10 px-3 lg:px-4 py-2.5 lg:py-3 flex items-center justify-between gap-3 shrink-0 bg-black/25 backdrop-blur-md'
+        : 'border-b border-white/10 px-4 lg:px-5 py-3 lg:py-4 flex items-center justify-between gap-3 shrink-0 bg-[#0c0c0c]'
+      }>
+        <h1 className={`font-medium tracking-tight text-white ${embedded ? 'text-[15px]' : 'text-[17px]'}`}>Nyhedsbrev</h1>
+        <div className="flex items-center gap-2 shrink-0">
+          {/* Theme + viewport toggles: hidden on mobile, shown in sheet instead */}
+          <div className="hidden lg:flex items-center gap-2">
+            <div className="flex rounded-lg border border-white/12 p-0.5 gap-0.5 bg-black/30 backdrop-blur-sm" role="group">
+              <button type="button" onClick={() => setPreviewTheme('light')} className={segBtn(previewTheme === 'light')}>Lys</button>
+              <button type="button" onClick={() => setPreviewTheme('dark')} className={segBtn(previewTheme === 'dark')}>Mørk</button>
+            </div>
+            <div className="flex rounded-lg border border-white/12 p-0.5 gap-0.5 bg-black/30 backdrop-blur-sm" role="group">
+              <button type="button" onClick={() => setPreviewViewport('mobile')} className={segBtn(previewViewport === 'mobile')}>Mobile</button>
+              <button type="button" onClick={() => setPreviewViewport('desktop')} className={segBtn(previewViewport === 'desktop')}>Desktop</button>
+            </div>
           </div>
           {onClose ? (
-            <div
-              className="flex rounded-lg border border-white/12 p-0.5 gap-0.5 bg-black/30 backdrop-blur-sm shrink-0"
-              role="group"
-              aria-label="Luk nyhedsbrev"
-            >
-              <button
-                type="button"
-                onClick={onClose}
-                className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-white/12 text-white transition-all duration-200 hover:bg-white/[0.16] active:scale-[0.97]"
-                aria-label="Luk nyhedsbrev"
-              >
-                <svg
-                  className="size-3.5 shrink-0"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                  strokeWidth={2}
-                  aria-hidden
-                >
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
+            <button type="button" onClick={onClose}
+              className="flex size-8 shrink-0 items-center justify-center rounded-lg border border-white/12 bg-white/[0.06] text-white transition-all duration-200 hover:bg-white/[0.12] active:scale-[0.97]" aria-label="Luk">
+              <svg className="size-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-hidden><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+            </button>
           ) : null}
-          {!embedded && (
-            <Link
-              href="/ai"
-              className="px-3 py-1.5 rounded-lg border border-white/12 text-sm text-white/65 hover:bg-white/[0.06] hover:text-white/90 transition-all duration-200 active:scale-[0.98]"
-            >
-              ← Tilbage
-            </Link>
-          )}
+          {!embedded && <Link href="/ai" className="px-3 py-1.5 rounded-lg border border-white/12 text-sm text-white/65 hover:bg-white/[0.06] hover:text-white/90 transition-all duration-200 active:scale-[0.98]">← Tilbage</Link>}
         </div>
       </header>
 
-      <div className={inner}>
-        <aside className={asideClass}>
-          <button
-            type="button"
-            disabled={busy || scheduleBusy || weeklySaveBusy || weeklyPreviewBusy}
-            onClick={() => loadDraft()}
-            className={primaryBtn}
-          >
-            Hent Preview
-          </button>
-
-          <div className="rounded-xl border border-white/[0.08] bg-white/[0.02] px-3 py-3 space-y-3 mt-2">
-            <div className="flex items-center justify-between gap-3">
-              <span className="text-[12px] text-white/38">Automatisk hver uge</span>
-              <button
-                type="button"
-                role="switch"
-                aria-checked={weeklyAutoEnabled}
-                aria-label={weeklyAutoEnabled ? 'Slå automatisk udsendelse fra' : 'Slå automatisk udsendelse til'}
-                disabled={weeklySaveBusy || weeklyPreviewBusy}
-                onClick={() => setWeeklyAutoEnabled((v) => !v)}
-                className={`relative h-7 w-12 shrink-0 rounded-full transition-colors duration-200 ${
-                  weeklyAutoEnabled ? 'bg-emerald-600/90' : 'bg-white/15'
-                } disabled:opacity-40`}
-              >
-                <span
-                  className={`absolute top-0.5 left-0.5 size-6 rounded-full bg-white shadow-sm transition-transform duration-200 ${
-                    weeklyAutoEnabled ? 'translate-x-5' : 'translate-x-0'
-                  }`}
-                />
-              </button>
-            </div>
-            <p className="text-[11px] text-white/28 leading-snug -mt-1">
-              {weeklyAutoEnabled
-                ? `${ISO_WEEKDAY_DA[weeklyWeekdayIso] ?? '—'} kl. ${weeklyTimeHHMM} · København`
-                : 'Slået fra'}
-            </p>
-            {weeklyAutoEnabled ? (
-              <div className="grid gap-2">
-                <div className={weeklyFieldShell}>
-                  <select
-                    value={weeklyWeekdayIso}
-                    disabled={weeklySaveBusy || weeklyPreviewBusy}
-                    onChange={(e) => setWeeklyWeekdayIso(Number(e.target.value))}
-                    className={weeklySelectClass}
-                  >
-                    {[1, 2, 3, 4, 5, 6, 7].map((d) => (
-                      <option key={d} value={d}>
-                        {ISO_WEEKDAY_DA[d]}
-                      </option>
-                    ))}
-                  </select>
-                  <span
-                    className="pointer-events-none absolute right-3 top-1/2 size-[1.125rem] -translate-y-1/2 text-white/40"
-                    aria-hidden
-                  >
-                    <svg viewBox="0 0 20 20" fill="none" className="size-full" stroke="currentColor" strokeWidth={1.5}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M6 8l4 4 4-4" />
-                    </svg>
-                  </span>
-                </div>
-                <input
-                  type="time"
-                  step={900}
-                  title="København-tid"
-                  value={weeklyTimeHHMM}
-                  disabled={weeklySaveBusy || weeklyPreviewBusy}
-                  onChange={(e) => setWeeklyTimeHHMM(e.target.value || '12:00')}
-                  className={weeklyTimeClass}
-                />
-              </div>
-            ) : null}
-            <div className="flex gap-2">
-              <button
-                type="button"
-                disabled={busy || scheduleBusy || weeklySaveBusy || weeklyPreviewBusy}
-                onClick={() => void saveWeeklyAuto()}
-                className={`flex-1 py-2 rounded-lg border border-white/[0.12] text-[13px] text-white/80 hover:bg-white/[0.05] disabled:opacity-40 transition-all duration-200`}
-              >
-                {weeklySaveBusy ? 'Gemmer…' : 'Gem'}
-              </button>
-              <button
-                type="button"
-                disabled={busy || scheduleBusy || weeklySaveBusy || weeklyPreviewBusy || weeklyPreviewOffset <= -12}
-                onClick={() => {
-                  const next = weeklyPreviewOffset - 1;
-                  setWeeklyPreviewOffset(next);
-                  void loadWeeklyAutoPreview(next);
-                }}
-                className={`py-2 px-3 rounded-lg border border-white/[0.12] text-[13px] text-white/80 hover:bg-white/[0.05] disabled:opacity-40 transition-all duration-200`}
-                title="Forrige uge"
-              >
-                ‹
-              </button>
-              <button
-                type="button"
-                disabled={busy || scheduleBusy || weeklySaveBusy || weeklyPreviewBusy}
-                onClick={() => void loadWeeklyAutoPreview()}
-                className={`flex-1 py-2 rounded-lg border border-white/[0.12] text-[13px] text-white/80 hover:bg-white/[0.05] disabled:opacity-40 transition-all duration-200`}
-              >
-                {weeklyPreviewBusy ? 'Henter…' : 'Vis uge'}
-              </button>
-              <button
-                type="button"
-                disabled={busy || scheduleBusy || weeklySaveBusy || weeklyPreviewBusy || weeklyPreviewOffset >= 0}
-                onClick={() => {
-                  const next = weeklyPreviewOffset + 1;
-                  setWeeklyPreviewOffset(next);
-                  void loadWeeklyAutoPreview(next);
-                }}
-                className={`py-2 px-3 rounded-lg border border-white/[0.12] text-[13px] text-white/80 hover:bg-white/[0.05] disabled:opacity-40 transition-all duration-200`}
-                title="Næste uge"
-              >
-                ›
-              </button>
-            </div>
-          </div>
-
-          {meta && (
-            <div className="rounded-xl border border-white/[0.08] bg-white/[0.02] px-3 py-3 space-y-2.5 text-[13px] transition-all duration-300 ease-out">
-              {subject ? (
-                <div>
-                  <p className="text-[12px] text-white/38 mb-0.5">Emne</p>
-                  <p className="text-white/[0.88] leading-snug break-words">{subject}</p>
-                </div>
-              ) : null}
-              <div className="grid gap-1 text-white/45 text-[12px]">
-                {meta.headline ? (
-                  <p>
-                    <span className="text-white/40">Overskrift</span>{' '}
-                    <span className="text-white/70">{meta.headline}</span>
-                  </p>
-                ) : null}
-                <p>
-                  <span className="text-white/40">Periode</span> {meta.weekLabel}
-                </p>
-                <p>
-                  <span className="text-white/40">Artikler</span> {meta.articleCount}
-                </p>
-                <p>
-                  <span className="text-white/40">Modtagere</span> {meta.recipientCount}
-                  {meta.unsubscribedCount > 0 && (
-                    <span className="text-white/30"> · {meta.unsubscribedCount} frameldt</span>
-                  )}
-                </p>
-              </div>
-              {meta.formName && (
-                <p className="text-white/35 text-[11px] pt-1 border-t border-white/[0.06]">
-                  {meta.recipientSource === 'forms-api' ? 'Webflow' : 'CMS'}
-                  {meta.formName ? ` · ${meta.formName}` : ''}
-                </p>
-              )}
-              {meta.signupError && (
-                <p className="text-amber-400/85 break-words whitespace-pre-wrap text-[11px] leading-snug pt-1 border-t border-white/[0.06]">
-                  {meta.signupError}
-                </p>
-              )}
-              {meta.warnings.map((w, i) => (
-                <p key={i} className="text-white/80 text-[11px] leading-snug">
-                  {w}
-                </p>
-              ))}
-            </div>
-          )}
-
-          <div className="space-y-2 pt-2 border-t border-white/[0.06]">
-            <label className="block text-[12px] text-white/38" htmlFor="newsletter-test-email-input">
-              Testmail
-            </label>
-            <div
-              className="flex min-h-[2.625rem] flex-wrap items-center gap-1 rounded-lg border border-white/[0.12] bg-[#141414] px-2 py-1.5 transition-all duration-200 [color-scheme:dark] focus-within:border-white/25 focus-within:ring-1 focus-within:ring-white/10"
-              role="group"
-              aria-label="Testmodtagere — klik forvalg eller tilføj e-mail"
-            >
-              {DEFAULT_TEST_RECIPIENTS.map((email) => {
-                const on = Boolean(presetTestActive[email]);
-                return (
-                  <button
-                    key={email}
-                    type="button"
-                    onClick={() => setPresetTestActive((p) => ({ ...p, [email]: !p[email] }))}
-                    aria-pressed={on}
-                    title={on ? 'Slå fra' : 'Slå til som testmodtager'}
-                    className={`inline-flex max-w-full min-h-0 items-center gap-0.5 rounded-md border px-1.5 py-0.5 text-left text-[10px] leading-snug transition-colors active:scale-[0.98] ${
-                      on
-                        ? 'border-emerald-500/45 bg-emerald-500/[0.12] text-emerald-50/95'
-                        : 'border-white/[0.08] bg-white/[0.03] text-white/40 hover:border-white/15 hover:bg-white/[0.05] hover:text-white/55'
-                    }`}
-                  >
-                    {on ? (
-                      <svg
-                        className="size-2.5 shrink-0 text-emerald-400"
-                        viewBox="0 0 12 12"
-                        fill="none"
-                        aria-hidden
-                      >
-                        <path
-                          d="M10 3L4.5 8.5L2 6"
-                          stroke="currentColor"
-                          strokeWidth="1.5"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        />
-                      </svg>
-                    ) : null}
-                    <span className="truncate">{email}</span>
-                  </button>
-                );
-              })}
-              {extraTestEmails.map((email) => (
-                <span
-                  key={email}
-                  className="inline-flex max-w-full items-center gap-0.5 rounded-md border border-white/12 bg-white/[0.06] px-1.5 py-0.5 text-[10px] leading-snug text-white/80"
-                >
-                  <span className="truncate">{email}</span>
-                  <button
-                    type="button"
-                    aria-label={`Fjern ${email}`}
-                    onClick={() => removeExtraTestEmail(email)}
-                    className="shrink-0 rounded px-0.5 text-white/45 hover:text-rose-300/90"
-                  >
-                    ×
-                  </button>
-                </span>
-              ))}
-              <input
-                id="newsletter-test-email-input"
-                type="email"
-                value={testEmailInput}
-                onChange={(e) => setTestEmailInput(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' || e.key === ',') {
-                    e.preventDefault();
-                    addTestRecipient();
-                  }
-                }}
-                onBlur={() => {
-                  if (testEmailInput.trim()) addTestRecipient();
-                }}
-                placeholder="Tilføj e-mail"
-                autoComplete="email"
-                className="min-w-[7rem] flex-1 border-0 bg-transparent py-1 pl-0.5 text-[12px] text-white placeholder:text-white/28 focus:outline-none focus:ring-0"
-              />
-            </div>
-          </div>
-
-          <button
-            type="button"
-            disabled={busy || scheduleBusy || weeklySaveBusy || weeklyPreviewBusy}
-            onClick={sendTest}
-            className={secondaryBtn}
-          >
-            Send testmail
-          </button>
-
+      {/* ── Desktop: classic sidebar + preview ── */}
+      <div className="flex-1 hidden lg:flex min-h-0 overflow-hidden">
+        <aside className={embedded
+          ? 'w-[min(300px,100%)] shrink-0 border-r border-white/10 p-3 px-4 py-4 space-y-3 overflow-y-auto bg-black/10'
+          : 'w-[380px] shrink-0 border-r border-white/10 p-5 space-y-4 overflow-y-auto bg-[#0c0c0c]'
+        }>
+          <button type="button" disabled={anyBusy} onClick={() => loadDraft()} className={primaryBtn}>Hent Preview</button>
+          <div className="rounded-xl border border-white/[0.08] bg-white/[0.02] px-3 py-3 space-y-3 mt-2">{autoSendBlock}</div>
+          {metaBlock}
+          <div className="space-y-2 pt-2 border-t border-white/[0.06]">{testMailBlock}</div>
           <div className="space-y-2 pt-2 border-t border-white/[0.06]">
             <label className="block text-[12px] text-white/38">Afsendelse planlagt</label>
-            <ul className="space-y-2">
-              {showWeeklyPlanSlot && weeklyAutoPlan ? (
-                <li className="list-none">
-                  <div
-                    className={`rounded-lg border px-2.5 py-2 text-[11px] ${
-                      !weeklyAutoPlan.enabled
-                        ? 'border-white/15 bg-white/[0.04] text-white/45'
-                        : weeklyAutoPlan.doc?.status === 'failed'
-                          ? 'border-rose-500/35 bg-rose-500/[0.08] text-rose-100/90'
-                          : weeklyAutoPlan.doc?.status === 'sent'
-                            ? 'border-emerald-500/35 bg-emerald-500/[0.08] text-emerald-100/90'
-                            : weeklyAutoPlan.doc?.status === 'skipped'
-                              ? 'border-white/20 bg-white/[0.05] text-white/60'
-                              : weeklyAutoPlan.doc?.status === 'processing'
-                                ? 'border-amber-500/35 bg-amber-500/[0.08] text-amber-100/90'
-                                : 'border-white/25 bg-white/[0.06] text-white/70'
-                    }`}
-                  >
-                    <p className="text-[10px] uppercase tracking-wide text-white/35 mb-1">Ugentlig automatisk</p>
-                    <p className="text-white/85 font-medium leading-snug">
-                      {weeklyAutoPlan.enabled
-                        ? `${ISO_WEEKDAY_DA[weeklyAutoPlan.weekdayIso] ?? '—'} kl. ${toTimeInputValue(weeklyAutoPlan.hour, weeklyAutoPlan.minute)} · København · ${weeklyAutoPlan.weekKey}`
-                        : 'Slået fra'}
-                    </p>
-                    {weeklyAutoPlan.enabled ? (
-                      <div className="mt-1.5 text-[10px] leading-snug space-y-1">
-                        {!weeklyAutoPlan.doc ? (
-                          <p className="text-white/50">Afventer send efter planlagt tidspunkt.</p>
-                        ) : weeklyAutoPlan.doc.status === 'processing' ? (
-                          <p className="text-amber-200/80">Under behandling…</p>
-                        ) : weeklyAutoPlan.doc.status === 'sent' ? (
-                          <>
-                            <p className="text-emerald-200/80">Sendt</p>
-                            {weeklyAutoPlan.doc.subject ? (
-                              <p className="text-white/55 line-clamp-3">{weeklyAutoPlan.doc.subject}</p>
-                            ) : null}
-                          </>
-                        ) : weeklyAutoPlan.doc.status === 'failed' ? (
-                          <>
-                            <p className="text-rose-200/90">Fejlede</p>
-                            {weeklyAutoPlan.doc.error ? (
-                              <p className="text-rose-200/85 whitespace-pre-wrap break-words">{weeklyAutoPlan.doc.error}</p>
-                            ) : null}
-                          </>
-                        ) : (
-                          <>
-                            <p className="text-white/55">Sprunget over</p>
-                            {weeklyAutoPlan.doc.skipReason ? (
-                              <p className="text-white/45 whitespace-pre-wrap break-words">{weeklyAutoPlan.doc.skipReason}</p>
-                            ) : null}
-                          </>
-                        )}
-                      </div>
-                    ) : null}
-                  </div>
-                </li>
-              ) : null}
-              {pendingSchedules.length > 0 ? (
-                <li className="list-none text-[10px] uppercase tracking-wide text-white/35 pt-1">
-                  Engangs · i køen
-                </li>
-              ) : null}
-              {pendingSchedules.map((p) => {
-                  const due = new Date(p.scheduledFor).getTime();
-                  const now = Date.now();
-                  const lagMs = Number.isFinite(due) ? now - due : -1;
-                  const isDue = lagMs >= 0;
-                  const longOverdue = lagMs >= 20 * 60 * 1000;
-                  return (
-                  <li
-                    key={p.id}
-                    className={`flex flex-col gap-1.5 rounded-lg border px-2.5 py-2 text-[11px] text-white/55 ${
-                      longOverdue
-                        ? 'border-amber-500/45 bg-amber-500/[0.1]'
-                        : 'border-white/25 bg-white/[0.06]'
-                    }`}
-                  >
-                    <span className="text-white/75">
-                      {new Date(p.scheduledFor).toLocaleString('da-DK', {
-                        dateStyle: 'short',
-                        timeStyle: 'short',
-                      })}
-                    </span>
-                    {isDue ? (
-                      <div className="flex flex-col gap-1">
-                        <span className="text-[11px] text-white/60 leading-snug">Sendes automatisk.</span>
-                        {longOverdue ? (
-                          <span className="text-[10px] text-amber-200/75 leading-snug">
-                            Ser du ikke afsendelse efter længere tid, kontakt den tekniske ansvarlige.
-                          </span>
-                        ) : null}
-                      </div>
-                    ) : null}
-                    <span className="text-white/50 line-clamp-2">{p.subject}</span>
-                    <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5">
-                      <button
-                        type="button"
-                        disabled={scheduleBusy}
-                        onClick={() => void cancelSchedule(p.id)}
-                        className="self-start text-[11px] text-rose-300/80 hover:text-rose-200 transition-colors"
-                      >
-                        Annuller
-                      </button>
-                      {isDue ? (
-                        <button
-                          type="button"
-                          disabled={scheduleBusy}
-                          onClick={() => void runDueSchedule()}
-                          className="text-[10px] text-white/35 hover:text-white/55 underline underline-offset-2 decoration-white/25 transition-colors disabled:opacity-40"
-                        >
-                          Send manuelt (nødfald)
-                        </button>
-                      ) : null}
-                    </div>
-                  </li>
-                  );
-                })}
-            </ul>
-            <p className="text-[11px] text-white/30 pt-1">Ny engangs-afsendelse</p>
-            <input
-              type="datetime-local"
-              value={scheduleAtLocal}
-              onChange={(e) => setScheduleAtLocal(e.target.value)}
-              className="w-full px-3 py-2.5 rounded-lg border border-white/[0.12] bg-[#141414] text-[13px] text-white focus:border-white/25 focus:outline-none focus:ring-1 focus:ring-white/10 transition-all duration-200 [color-scheme:dark]"
-            />
-            <button
-              type="button"
-              disabled={busy || scheduleBusy || weeklySaveBusy || weeklyPreviewBusy}
-              onClick={() => void scheduleSend()}
-              className={secondaryBtn}
-            >
-              Planlæg
-            </button>
+            {scheduleBlock}
           </div>
-
-          <button
-            type="button"
-            disabled={busy || scheduleBusy || weeklySaveBusy || weeklyPreviewBusy}
-            onClick={sendAll}
-            className={dangerOutlineBtn}
-          >
-            Send til alle nu
-          </button>
-
-          {error && (
-            <p className="text-[13px] text-red-400/95 motion-safe:transition-opacity duration-300">{error}</p>
-          )}
-          {status && (
-            <p className="text-[13px] text-white/90 motion-safe:transition-opacity duration-300">{status}</p>
-          )}
-
+          <button type="button" disabled={anyBusy} onClick={sendAll} className={dangerOutlineBtn}>Send til alle nu</button>
+          {error && <p className="text-[13px] text-red-400/95">{error}</p>}
+          {status && <p className="text-[13px] text-white/90">{status}</p>}
           {mergedSendLog.length > 0 && (
             <div className="pt-3 mt-1 border-t border-white/[0.08] space-y-2">
               <p className="text-[12px] text-white/38">Seneste udsendelser</p>
-              <ul className="space-y-1.5 max-h-[min(420px,50vh)] overflow-y-auto pr-0.5">
-                {mergedSendLog.map((entry) => {
-                  const chevron = (open: boolean) => (
-                    <svg
-                      className={`size-3.5 shrink-0 opacity-60 transition-transform duration-200 ${open ? 'rotate-180' : ''}`}
-                      viewBox="0 0 20 20"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth={1.5}
-                      aria-hidden
-                    >
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M6 8l4 4 4-4" />
-                    </svg>
-                  );
-                  const expandCls = 'mt-1.5 space-y-1 border-l border-white/15 pl-2.5 text-[10px] leading-snug';
-
-                  if (entry.source === 'scheduled') {
-                    const h = entry.row;
-                    const rowKey = `s-${h.id}`;
-                    const open = expandedSendLogKeys.has(rowKey);
-                    const ok = h.status === 'sent';
-                    const when = formatSendLogWhen(h.finishedAt);
-                    return (
-                      <li key={rowKey} className="list-none">
-                        <button
-                          type="button"
-                          onClick={() => toggleSendLogKey(rowKey)}
-                          aria-expanded={open}
-                          className={`w-full flex items-center justify-between gap-2 rounded-lg border px-2 py-1.5 text-left text-[11px] font-medium transition-colors active:scale-[0.99] ${
-                            ok
-                              ? 'border-emerald-500/45 bg-emerald-500/[0.12] text-emerald-50/95 hover:bg-emerald-500/[0.16]'
-                              : 'border-rose-500/45 bg-rose-500/[0.12] text-rose-50/95 hover:bg-rose-500/[0.16]'
-                          }`}
-                        >
-                          <span className="min-w-0 truncate">
-                            Planlagt kø · {when}
-                          </span>
-                          {chevron(open)}
-                        </button>
-                        {open ? (
-                          <div className={expandCls}>
-                            <p className={ok ? 'text-emerald-100/80' : 'text-rose-100/80'}>
-                              {ok ? 'Sendt' : 'Fejlede'}
-                            </p>
-                            {h.subject ? (
-                              <p className="text-white/55 break-words">{h.subject}</p>
-                            ) : null}
-                            {ok && h.summary ? (
-                              <p className="text-emerald-200/75">{h.summary}</p>
-                            ) : null}
-                            {!ok && h.error ? (
-                              <p className="text-rose-200/90 whitespace-pre-wrap break-words">{h.error}</p>
-                            ) : null}
-                          </div>
-                        ) : null}
-                      </li>
-                    );
-                  }
-                  if (entry.source === 'manual') {
-                    const m = entry.row;
-                    const rowKey = `m-${m.id}`;
-                    const open = expandedSendLogKeys.has(rowKey);
-                    const typeLabel = m.kind === 'broadcast' ? 'Til alle nu' : 'Testmail';
-                    const when = formatSendLogWhen(m.finishedAt);
-                    const ok = m.status !== 'failed';
-                    return (
-                      <li key={rowKey} className="list-none">
-                        <button
-                          type="button"
-                          onClick={() => toggleSendLogKey(rowKey)}
-                          aria-expanded={open}
-                          className={`w-full flex items-center justify-between gap-2 rounded-lg border px-2 py-1.5 text-left text-[11px] font-medium transition-colors active:scale-[0.99] ${
-                            ok
-                              ? 'border-emerald-500/45 bg-emerald-500/[0.12] text-emerald-50/95 hover:bg-emerald-500/[0.16]'
-                              : 'border-rose-500/45 bg-rose-500/[0.12] text-rose-50/95 hover:bg-rose-500/[0.16]'
-                          }`}
-                        >
-                          <span className="min-w-0 truncate">
-                            {typeLabel} · {when}
-                          </span>
-                          {chevron(open)}
-                        </button>
-                        {open ? (
-                          <div
-                            className={`${expandCls} ${ok ? 'text-emerald-100/85' : 'text-rose-100/85'}`}
-                          >
-                            <p>{ok ? 'Sendt' : 'Fejlede'}</p>
-                            {m.subject ? <p className="text-white/60 break-words">{m.subject}</p> : null}
-                            {m.detail ? (
-                              <p className={ok ? 'text-emerald-200/70' : 'text-rose-200/75'}>{m.detail}</p>
-                            ) : null}
-                            {!ok && m.error ? (
-                              <p className="text-rose-200/90 whitespace-pre-wrap break-words">{m.error}</p>
-                            ) : null}
-                          </div>
-                        ) : null}
-                      </li>
-                    );
-                  }
-                  const w = entry.row;
-                  const rowKey = `w-${w.id}`;
-                  const open = expandedSendLogKeys.has(rowKey);
-                  const ok = w.status === 'sent';
-                  const failed = w.status === 'failed';
-                  const when = formatSendLogWhen(w.finishedAt);
-                  const wLabel =
-                    w.status === 'sent' ? 'Sendt' : w.status === 'failed' ? 'Fejlede' : 'Sprunget over';
-                  return (
-                    <li key={rowKey} className="list-none">
-                      <button
-                        type="button"
-                        onClick={() => toggleSendLogKey(rowKey)}
-                        aria-expanded={open}
-                        className={`w-full flex items-center justify-between gap-2 rounded-lg border px-2 py-1.5 text-left text-[11px] font-medium transition-colors active:scale-[0.99] ${
-                          ok
-                            ? 'border-emerald-500/45 bg-emerald-500/[0.12] text-emerald-50/95 hover:bg-emerald-500/[0.16]'
-                            : failed
-                              ? 'border-rose-500/45 bg-rose-500/[0.12] text-rose-50/95 hover:bg-rose-500/[0.16]'
-                              : 'border-white/20 bg-white/[0.04] text-white/70 hover:bg-white/[0.07]'
-                        }`}
-                      >
-                        <span className="min-w-0 truncate">
-                          Ugentlig auto · {when}
-                        </span>
-                        {chevron(open)}
-                      </button>
-                      {open ? (
-                        <div className={expandCls}>
-                          <p className={ok ? 'text-emerald-100/80' : failed ? 'text-rose-100/80' : 'text-white/55'}>
-                            {wLabel} · uge {w.weekKey}
-                          </p>
-                          {w.subject ? <p className="text-white/55 break-words">{w.subject}</p> : null}
-                          {ok && typeof w.sent === 'number' ? (
-                            <p className="text-emerald-200/75">
-                              {w.sent} sendt
-                              {typeof w.recipientCount === 'number' ? ` · ${w.recipientCount} på listen` : ''}
-                            </p>
-                          ) : null}
-                          {w.status === 'skipped' && w.skipReason ? (
-                            <p className="text-white/50 whitespace-pre-wrap break-words">{w.skipReason}</p>
-                          ) : null}
-                          {failed && w.error ? (
-                            <p className="text-rose-200/90 whitespace-pre-wrap break-words">{w.error}</p>
-                          ) : null}
-                        </div>
-                      ) : null}
-                    </li>
-                  );
-                })}
-              </ul>
+              {sendLogList}
             </div>
           )}
         </aside>
+        <main className={`flex-1 min-h-0 flex flex-col ${embedded ? 'p-3 bg-transparent' : 'p-5 bg-[#080808]'} ${html && previewViewport === 'mobile' ? 'items-center' : ''}`}>
+          {previewIframe}
+        </main>
+      </div>
 
-        <main
-          className={`${mainClass} ${html && previewViewport === 'mobile' ? 'items-center' : ''}`}
+      {/* ── Mobile: full-screen preview + bottom sheet ── */}
+      <div className="flex-1 flex flex-col lg:hidden min-h-0 relative">
+        {/* Preview fills the space */}
+        <main className={`flex-1 min-h-0 flex flex-col p-2 bg-transparent ${html && previewViewport === 'mobile' ? 'items-center' : ''}`}>
+          {previewIframe}
+        </main>
+
+        {/* Bottom sheet overlay backdrop */}
+        {mobileSheetOpen && (
+          <div className="absolute inset-0 z-40 bg-black/50 backdrop-blur-sm" onClick={() => { setMobileSheetOpen(false); setMobileSection(null); }} />
+        )}
+
+        {/* Bottom sheet */}
+        <div
+          ref={sheetRef}
+          className={`absolute left-0 right-0 bottom-0 z-50 flex flex-col bg-[#111] border-t border-white/12 rounded-t-2xl transition-all duration-300 ease-out ${
+            mobileSheetOpen ? 'max-h-[85vh]' : 'max-h-[72px]'
+          }`}
+          style={{ paddingBottom: 'max(env(safe-area-inset-bottom, 0px), 8px)' }}
         >
-          {html ? (
-            <div
-              className={`flex min-h-0 w-full flex-1 flex-col ${
-                previewViewport === 'mobile' ? 'items-center overflow-auto py-1' : ''
-              }`}
-            >
-              <div
-                className={`flex min-h-0 flex-col ${
-                  previewViewport === 'mobile'
-                    ? 'w-full max-w-[390px] shrink-0 rounded-[1.35rem] border border-white/12 bg-black/35 p-1.5 shadow-[0_12px_40px_rgba(0,0,0,0.45)]'
-                    : 'h-full min-h-0 w-full flex-1'
-                }`}
-              >
-                <iframe
-                  title="Preview"
-                  className={`w-full flex-1 min-h-0 rounded-xl border border-white/12 shadow-[0_0_0_1px_rgba(255,255,255,0.04)_inset] ${
-                    previewTheme === 'dark' ? 'bg-[#1a1a1a]' : 'bg-[#ebebeb]'
-                  } ${embedded ? '' : 'min-h-[480px]'} ${
-                    previewViewport === 'mobile' ? 'min-h-[520px] rounded-[1rem]' : ''
-                  }`}
-                  srcDoc={previewHtml ?? ''}
-                />
+          {/* Sheet handle + collapsed bar */}
+          <button
+            type="button"
+            onClick={() => { setMobileSheetOpen((v) => !v); if (mobileSheetOpen) setMobileSection(null); }}
+            className="flex flex-col items-center w-full pt-2 pb-3 px-4 touch-target"
+          >
+            <div className="w-8 h-1 rounded-full bg-white/20 mb-2.5" />
+            <div className="flex items-center justify-between w-full">
+              <div className="min-w-0 flex-1">
+                {meta ? (
+                  <p className="text-[12px] text-white/60 truncate">
+                    {meta.weekLabel} · {meta.articleCount} artikler · {meta.recipientCount} modtagere
+                  </p>
+                ) : (
+                  <p className="text-[12px] text-white/40">Tryk for indstillinger</p>
+                )}
               </div>
+              {!mobileSheetOpen && (
+                <button type="button" disabled={anyBusy} onClick={(e) => { e.stopPropagation(); void loadDraft(); }}
+                  className="ml-3 px-4 py-1.5 rounded-full bg-white/10 border border-white/15 text-[12px] font-medium text-white/80 active:scale-[0.97] disabled:opacity-40">
+                  Hent Preview
+                </button>
+              )}
             </div>
-          ) : (
-            <div className="h-full min-h-[160px] flex items-center justify-center rounded-xl border border-dashed border-white/[0.08] bg-black/15 text-white/32 text-[13px] px-6 text-center">
-              Hent Preview
+          </button>
+
+          {/* Expanded sheet content */}
+          {mobileSheetOpen && (
+            <div className="flex-1 overflow-y-auto px-4 pb-4 space-y-2 overscroll-contain">
+              {/* Preview toggles */}
+              <div className="flex gap-2 pb-2">
+                <div className="flex flex-1 rounded-xl border border-white/12 p-0.5 gap-0.5 bg-black/30" role="group">
+                  <button type="button" onClick={() => setPreviewTheme('light')} className={`flex-1 ${segBtn(previewTheme === 'light')}`}>Lys</button>
+                  <button type="button" onClick={() => setPreviewTheme('dark')} className={`flex-1 ${segBtn(previewTheme === 'dark')}`}>Mørk</button>
+                </div>
+                <div className="flex flex-1 rounded-xl border border-white/12 p-0.5 gap-0.5 bg-black/30" role="group">
+                  <button type="button" onClick={() => setPreviewViewport('mobile')} className={`flex-1 ${segBtn(previewViewport === 'mobile')}`}>Mobile</button>
+                  <button type="button" onClick={() => setPreviewViewport('desktop')} className={`flex-1 ${segBtn(previewViewport === 'desktop')}`}>Desktop</button>
+                </div>
+              </div>
+
+              {/* Hent Preview */}
+              <button type="button" disabled={anyBusy} onClick={() => loadDraft()} className={primaryBtn}>Hent Preview</button>
+
+              {metaBlock}
+
+              {/* Collapsible sections */}
+              {sectionRow('auto', 'Automatisk udsendelse',
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>,
+                weeklyAutoEnabled ? `${ISO_WEEKDAY_DA[weeklyWeekdayIso] ?? '—'} kl. ${weeklyTimeHHMM}` : 'Slået fra'
+              )}
+              {sectionContent('auto', autoSendBlock)}
+
+              {sectionRow('test', 'Testmail',
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><path d="m22 6-10 7L2 6"/></svg>,
+                `${activeTestRecipients.length} modtager${activeTestRecipients.length !== 1 ? 'e' : ''}`
+              )}
+              {sectionContent('test', testMailBlock)}
+
+              {sectionRow('schedule', 'Planlæg afsendelse',
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>,
+                pendingSchedules.length > 0 ? `${pendingSchedules.length} i kø` : undefined
+              )}
+              {sectionContent('schedule', scheduleBlock)}
+
+              {mergedSendLog.length > 0 && (
+                <>
+                  {sectionRow('log', 'Seneste udsendelser',
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>,
+                    `${mergedSendLog.length} poster`
+                  )}
+                  {sectionContent('log', sendLogList)}
+                </>
+              )}
+
+              {/* Send til alle */}
+              <button type="button" disabled={anyBusy} onClick={sendAll} className={dangerOutlineBtn}>Send til alle nu</button>
+
+              {error && <p className="text-[13px] text-red-400/95">{error}</p>}
+              {status && <p className="text-[13px] text-white/90">{status}</p>}
             </div>
           )}
-        </main>
+        </div>
       </div>
     </div>
   );
