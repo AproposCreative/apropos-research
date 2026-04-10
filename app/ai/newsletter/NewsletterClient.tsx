@@ -136,6 +136,7 @@ export default function NewsletterClient({ embedded = false, onClose }: Newslett
   const [weeklyPreviewOffset, setWeeklyPreviewOffset] = useState(-1);
   const [mobileSheetOpen, setMobileSheetOpen] = useState(false);
   const [mobileSection, setMobileSection] = useState<string | null>(null);
+  const [desktopSection, setDesktopSection] = useState<string | null>(null);
   const sheetRef = useRef<HTMLDivElement>(null);
 
   const authHeader = useCallback(async () => {
@@ -741,6 +742,10 @@ export default function NewsletterClient({ embedded = false, onClose }: Newslett
     setMobileSection((prev) => (prev === key ? null : key));
   };
 
+  const toggleDesktopSection = (key: string) => {
+    setDesktopSection((prev) => (prev === key ? null : key));
+  };
+
   const sectionRow = (key: string, label: string, icon: React.ReactNode, subtitle?: string) => (
     <button
       type="button"
@@ -783,7 +788,7 @@ export default function NewsletterClient({ embedded = false, onClose }: Newslett
   const expandCls = 'mt-1.5 space-y-1 border-l border-white/15 pl-2.5 text-[10px] leading-snug';
 
   const sendLogList = mergedSendLog.length > 0 && (
-    <ul className="space-y-1.5 max-h-[min(420px,50vh)] overflow-y-auto pr-0.5">
+    <ul className="space-y-1.5">
       {mergedSendLog.map((entry) => {
         if (entry.source === 'scheduled') {
           const h = entry.row;
@@ -890,6 +895,46 @@ export default function NewsletterClient({ embedded = false, onClose }: Newslett
           className="py-2 px-3 rounded-lg border border-white/[0.12] text-[13px] text-white/80 hover:bg-white/[0.05] disabled:opacity-40 transition-all duration-200" title="Næste uge">›</button>
       </div>
     </>
+  );
+
+  const nextAutoLabel = weeklyAutoEnabled
+    ? `${ISO_WEEKDAY_DA[weeklyWeekdayIso] ?? '—'} kl. ${weeklyTimeHHMM}`
+    : null;
+
+  const statusDashboard = (
+    <div className="rounded-xl border border-white/[0.10] bg-gradient-to-b from-white/[0.04] to-transparent p-3.5 space-y-3">
+      <p className="text-[10px] uppercase tracking-[0.18em] text-white/30 font-medium">Status</p>
+      <div className="grid grid-cols-3 gap-2">
+        <div className="rounded-lg bg-white/[0.04] px-2.5 py-2 text-center">
+          <p className="text-[18px] font-semibold text-white/90 tabular-nums">{meta?.articleCount ?? '—'}</p>
+          <p className="text-[10px] text-white/35 mt-0.5">Artikler</p>
+        </div>
+        <div className="rounded-lg bg-white/[0.04] px-2.5 py-2 text-center">
+          <p className="text-[18px] font-semibold text-white/90 tabular-nums">{meta?.recipientCount ?? '—'}</p>
+          <p className="text-[10px] text-white/35 mt-0.5">Modtagere</p>
+        </div>
+        <div className="rounded-lg bg-white/[0.04] px-2.5 py-2 text-center">
+          <p className={`text-[18px] font-semibold tabular-nums ${weeklyAutoEnabled ? 'text-emerald-400/90' : 'text-white/30'}`}>
+            {weeklyAutoEnabled ? '✓' : '—'}
+          </p>
+          <p className="text-[10px] text-white/35 mt-0.5">Auto-send</p>
+        </div>
+      </div>
+      {meta && (
+        <div className="space-y-1.5 pt-1">
+          {subject && <p className="text-[13px] text-white/85 font-medium leading-snug break-words">{subject}</p>}
+          <p className="text-[11px] text-white/40">{meta.weekLabel}</p>
+          {nextAutoLabel && (
+            <p className="text-[11px] text-emerald-400/70">Næste auto-send: {nextAutoLabel}</p>
+          )}
+          {meta.signupError && <p className="text-amber-400/85 text-[11px] leading-snug break-words">{meta.signupError}</p>}
+          {meta.warnings.map((w, i) => <p key={i} className="text-white/50 text-[11px] leading-snug">{w}</p>)}
+        </div>
+      )}
+      {!meta && (
+        <p className="text-[11px] text-white/30 text-center py-1">Tryk &laquo;Hent Preview&raquo; for at se status</p>
+      )}
+    </div>
   );
 
   const metaBlock = meta && (
@@ -1037,23 +1082,88 @@ export default function NewsletterClient({ embedded = false, onClose }: Newslett
           ? 'w-[min(300px,100%)] shrink-0 border-r border-white/10 p-3 px-4 py-4 space-y-3 overflow-y-auto bg-black/10'
           : 'w-[380px] shrink-0 border-r border-white/10 p-5 space-y-4 overflow-y-auto bg-[#0c0c0c]'
         }>
-          <button type="button" disabled={anyBusy} onClick={() => loadDraft()} className={primaryBtn}>Hent Preview</button>
-          <div className="rounded-xl border border-white/[0.08] bg-white/[0.02] px-3 py-3 space-y-3 mt-2">{autoSendBlock}</div>
-          {metaBlock}
-          <div className="space-y-2 pt-2 border-t border-white/[0.06]">{testMailBlock}</div>
-          <div className="space-y-2 pt-2 border-t border-white/[0.06]">
-            <label className="block text-[12px] text-white/38">Afsendelse planlagt</label>
-            {scheduleBlock}
+          {/* Status dashboard */}
+          {statusDashboard}
+
+          {/* Primary actions — side by side */}
+          <div className="flex gap-2">
+            <button type="button" disabled={anyBusy} onClick={() => loadDraft()} className={`flex-1 ${primaryBtn}`}>Hent Preview</button>
+            <button type="button" disabled={anyBusy} onClick={sendAll} className={`flex-1 ${dangerOutlineBtn}`}>Send til alle</button>
           </div>
-          <button type="button" disabled={anyBusy} onClick={sendAll} className={dangerOutlineBtn}>Send til alle nu</button>
+
           {error && <p className="text-[13px] text-red-400/95">{error}</p>}
           {status && <p className="text-[13px] text-white/90">{status}</p>}
-          {mergedSendLog.length > 0 && (
-            <div className="pt-3 mt-1 border-t border-white/[0.08] space-y-2">
-              <p className="text-[12px] text-white/38">Seneste udsendelser</p>
-              {sendLogList}
-            </div>
-          )}
+
+          {/* Collapsible sections */}
+          <div className="space-y-1.5 pt-1">
+            {/* Auto-send */}
+            <button type="button" onClick={() => toggleDesktopSection('auto')}
+              className={`flex items-center gap-3 w-full px-3.5 py-2.5 rounded-xl border transition-all duration-200 active:scale-[0.98] ${desktopSection === 'auto' ? 'border-white/15 bg-white/[0.05]' : 'border-white/[0.06] hover:bg-white/[0.03]'}`}>
+              <div className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-white/[0.06] text-white/50">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+              </div>
+              <div className="flex-1 min-w-0 text-left">
+                <p className="text-[12px] font-medium text-white/80">Automatisk udsendelse</p>
+                <p className="text-[10px] text-white/30 truncate">{weeklyAutoEnabled ? `${ISO_WEEKDAY_DA[weeklyWeekdayIso] ?? '—'} kl. ${weeklyTimeHHMM}` : 'Slået fra'}</p>
+              </div>
+              <svg className={`size-3.5 shrink-0 text-white/25 transition-transform duration-200 ${desktopSection === 'auto' ? 'rotate-180' : ''}`} viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M6 8l4 4 4-4" /></svg>
+            </button>
+            {desktopSection === 'auto' && (
+              <div className="rounded-xl border border-white/[0.08] bg-white/[0.02] px-3 py-3 space-y-3 ml-1">{autoSendBlock}</div>
+            )}
+
+            {/* Test */}
+            <button type="button" onClick={() => toggleDesktopSection('test')}
+              className={`flex items-center gap-3 w-full px-3.5 py-2.5 rounded-xl border transition-all duration-200 active:scale-[0.98] ${desktopSection === 'test' ? 'border-white/15 bg-white/[0.05]' : 'border-white/[0.06] hover:bg-white/[0.03]'}`}>
+              <div className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-white/[0.06] text-white/50">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><path d="m22 6-10 7L2 6"/></svg>
+              </div>
+              <div className="flex-1 min-w-0 text-left">
+                <p className="text-[12px] font-medium text-white/80">Testmail</p>
+                <p className="text-[10px] text-white/30">{activeTestRecipients.length} modtager{activeTestRecipients.length !== 1 ? 'e' : ''}</p>
+              </div>
+              <svg className={`size-3.5 shrink-0 text-white/25 transition-transform duration-200 ${desktopSection === 'test' ? 'rotate-180' : ''}`} viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M6 8l4 4 4-4" /></svg>
+            </button>
+            {desktopSection === 'test' && (
+              <div className="space-y-2 px-1 ml-1">{testMailBlock}</div>
+            )}
+
+            {/* Schedule */}
+            <button type="button" onClick={() => toggleDesktopSection('schedule')}
+              className={`flex items-center gap-3 w-full px-3.5 py-2.5 rounded-xl border transition-all duration-200 active:scale-[0.98] ${desktopSection === 'schedule' ? 'border-white/15 bg-white/[0.05]' : 'border-white/[0.06] hover:bg-white/[0.03]'}`}>
+              <div className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-white/[0.06] text-white/50">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+              </div>
+              <div className="flex-1 min-w-0 text-left">
+                <p className="text-[12px] font-medium text-white/80">Planlæg afsendelse</p>
+                {pendingSchedules.length > 0 && <p className="text-[10px] text-white/30">{pendingSchedules.length} i kø</p>}
+              </div>
+              <svg className={`size-3.5 shrink-0 text-white/25 transition-transform duration-200 ${desktopSection === 'schedule' ? 'rotate-180' : ''}`} viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M6 8l4 4 4-4" /></svg>
+            </button>
+            {desktopSection === 'schedule' && (
+              <div className="space-y-2 px-1 ml-1">{scheduleBlock}</div>
+            )}
+
+            {/* History */}
+            {mergedSendLog.length > 0 && (
+              <>
+                <button type="button" onClick={() => toggleDesktopSection('log')}
+                  className={`flex items-center gap-3 w-full px-3.5 py-2.5 rounded-xl border transition-all duration-200 active:scale-[0.98] ${desktopSection === 'log' ? 'border-white/15 bg-white/[0.05]' : 'border-white/[0.06] hover:bg-white/[0.03]'}`}>
+                  <div className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-white/[0.06] text-white/50">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+                  </div>
+                  <div className="flex-1 min-w-0 text-left">
+                    <p className="text-[12px] font-medium text-white/80">Historik</p>
+                    <p className="text-[10px] text-white/30">{mergedSendLog.length} poster</p>
+                  </div>
+                  <svg className={`size-3.5 shrink-0 text-white/25 transition-transform duration-200 ${desktopSection === 'log' ? 'rotate-180' : ''}`} viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M6 8l4 4 4-4" /></svg>
+                </button>
+                {desktopSection === 'log' && (
+                  <div className="px-1 ml-1">{sendLogList}</div>
+                )}
+              </>
+            )}
+          </div>
         </aside>
         <main className={`flex-1 min-h-0 flex flex-col ${embedded ? 'p-3 bg-transparent' : 'p-5 bg-[#080808]'} ${html && previewViewport === 'mobile' ? 'items-center' : ''}`}>
           {previewIframe}
@@ -1109,8 +1219,11 @@ export default function NewsletterClient({ embedded = false, onClose }: Newslett
           {/* Expanded sheet content */}
           {mobileSheetOpen && (
             <div className="flex-1 overflow-y-auto px-4 pb-4 space-y-2 overscroll-contain">
+              {/* Status dashboard */}
+              {statusDashboard}
+
               {/* Preview toggles */}
-              <div className="flex gap-2 pb-2">
+              <div className="flex gap-2">
                 <div className="flex flex-1 rounded-xl border border-white/12 p-0.5 gap-0.5 bg-black/30" role="group">
                   <button type="button" onClick={() => setPreviewTheme('light')} className={`flex-1 ${segBtn(previewTheme === 'light')}`}>Lys</button>
                   <button type="button" onClick={() => setPreviewTheme('dark')} className={`flex-1 ${segBtn(previewTheme === 'dark')}`}>Mørk</button>
@@ -1121,10 +1234,11 @@ export default function NewsletterClient({ embedded = false, onClose }: Newslett
                 </div>
               </div>
 
-              {/* Hent Preview */}
-              <button type="button" disabled={anyBusy} onClick={() => loadDraft()} className={primaryBtn}>Hent Preview</button>
-
-              {metaBlock}
+              {/* Primary actions */}
+              <div className="space-y-2">
+                <button type="button" disabled={anyBusy} onClick={() => loadDraft()} className={primaryBtn}>Hent Preview</button>
+                <button type="button" disabled={anyBusy} onClick={sendAll} className={dangerOutlineBtn}>Send til alle nu</button>
+              </div>
 
               {/* Collapsible sections */}
               {sectionRow('auto', 'Automatisk udsendelse',
@@ -1154,9 +1268,6 @@ export default function NewsletterClient({ embedded = false, onClose }: Newslett
                   {sectionContent('log', sendLogList)}
                 </>
               )}
-
-              {/* Send til alle */}
-              <button type="button" disabled={anyBusy} onClick={sendAll} className={dangerOutlineBtn}>Send til alle nu</button>
 
               {error && <p className="text-[13px] text-red-400/95">{error}</p>}
               {status && <p className="text-[13px] text-white/90">{status}</p>}

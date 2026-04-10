@@ -81,10 +81,21 @@ export type SendManyResult = {
   sent: number;
   failed: number;
   errors: string[];
-  /** Addresses that were successfully delivered (for idempotent retry). */
   sentAddresses: string[];
 };
 
+const BATCH_SIZE = 100;
+const BATCH_DELAY_MS = 1200;
+
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/**
+ * Send newsletter to many recipients using Resend batch API.
+ * Each recipient gets a personalized unsubscribe link.
+ * Batches of up to 100 per API call with rate-limit-safe delay between batches.
+ */
 export async function sendNewsletterToMany(params: {
   recipients: string[];
   subject: string;
@@ -92,28 +103,66 @@ export async function sendNewsletterToMany(params: {
   tags?: ResendEmailTag[];
   onProgress?: (sent: number, total: number) => void;
 }): Promise<SendManyResult> {
+  const { apiKey, from } = resendCredentials();
+  if (!apiKey) {
+    return { sent: 0, failed: params.recipients.length, errors: ['RESEND_API_KEY mangler'], sentAddresses: [] };
+  }
+
   const errors: string[] = [];
   const sentAddresses: string[] = [];
   let sent = 0;
   let failed = 0;
   const total = params.recipients.length;
-  for (let i = 0; i < params.recipients.length; i++) {
-    const to = params.recipients[i]!;
-    const r = await sendNewsletterEmail({
+  const resend = new Resend(apiKey);
+
+  for (let batchStart = 0; batchStart < total; batchStart += BATCH_SIZE) {
+    if (batchStart > 0) await delay(BATCH_DELAY_MS);
+
+    const chunk = params.recipients.slice(batchStart, batchStart + BATCH_SIZE);
+    const messages = chunk.map((to) => ({
+      from,
       to,
       subject: params.subject,
-      html: params.html,
-      tags: params.tags,
-    });
-    if (r.ok) {
-      sent++;
-      sentAddresses.push(to);
-    } else {
-      failed++;
-      if (r.error) errors.push(`${to}: ${r.error}`);
+      html: injectRecipientUnsubscribeUrl(params.html, to),
+      ...(params.tags?.length ? { tags: params.tags } : {}),
+    }));
+
+    try {
+      const { data, error } = await resend.batch.send(messages);
+
+      if (error) {
+        for (const to of chunk) {
+          failed++;
+          errors.push(`${to}: ${error.message}`);
+        }
+      } else if (data?.data) {
+        for (let i = 0; i < chunk.length; i++) {
+          const item = data.data[i];
+          if (item?.id) {
+            sent++;
+            sentAddresses.push(chunk[i]!);
+          } else {
+            failed++;
+            errors.push(`${chunk[i]}: Resend returnerede intet id`);
+          }
+        }
+      } else {
+        for (const to of chunk) {
+          sent++;
+          sentAddresses.push(to);
+        }
+      }
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : 'Batch-fejl';
+      for (const to of chunk) {
+        failed++;
+        errors.push(`${to}: ${msg}`);
+      }
     }
+
     params.onProgress?.(sent + failed, total);
   }
+
   return { sent, failed, errors, sentAddresses };
 }
 
