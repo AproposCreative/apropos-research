@@ -17,7 +17,7 @@ import { buildWeeklyDraftInputHash, saveWeeklyDraftCache } from '@/lib/newslette
 import {
   claimWeeklyAutoSend,
   finishWeeklyAutoSend,
-  getRecentWeeklyAutoArticleIds,
+  getRecentWeeklyAutoExclusionSets,
 } from '@/lib/newsletter/weekly-send-history';
 
 export const maxDuration = 300;
@@ -59,10 +59,7 @@ export async function GET(req: NextRequest) {
   if (dryRun) {
     const fullLb = parseLookback(process.env.NEWSLETTER_WEEKLY_EXCLUDE_SEND_LOOKBACK, DEFAULT_EXCLUDE_SENDS);
     const relaxLb = parseLookback(process.env.NEWSLETTER_WEEKLY_RELAX_SEND_LOOKBACK, DEFAULT_RELAX_SENDS);
-    const [excludeFull, excludeRelax] = await Promise.all([
-      getRecentWeeklyAutoArticleIds(fullLb),
-      getRecentWeeklyAutoArticleIds(Math.min(relaxLb, fullLb)),
-    ]);
+    const { excludeFull, excludeRelax } = await getRecentWeeklyAutoExclusionSets(fullLb, relaxLb);
     const draft = await buildWeeklyNewsletterDraft({
       excludeArticleIds: excludeFull,
       relaxedExcludeArticleIds: excludeRelax,
@@ -174,10 +171,7 @@ export async function GET(req: NextRequest) {
   const relaxLb = parseLookback(process.env.NEWSLETTER_WEEKLY_RELAX_SEND_LOOKBACK, DEFAULT_RELAX_SENDS);
 
   try {
-    const [excludeFull, excludeRelax] = await Promise.all([
-      getRecentWeeklyAutoArticleIds(fullLb),
-      getRecentWeeklyAutoArticleIds(Math.min(relaxLb, fullLb)),
-    ]);
+    const { excludeFull, excludeRelax } = await getRecentWeeklyAutoExclusionSets(fullLb, relaxLb);
 
     const draft = await buildWeeklyNewsletterDraft({
       excludeArticleIds: excludeFull,
@@ -284,8 +278,9 @@ export async function GET(req: NextRequest) {
     });
   } catch (e) {
     const msg = e instanceof Error ? e.message : 'Ukendt fejl';
+    const stack = e instanceof Error ? e.stack : undefined;
     await finishWeeklyAutoSend(weekKey, { status: 'failed', error: msg });
-    console.warn('[cron/newsletter-weekly]', { weekKey, error: msg });
+    console.error('[cron/newsletter-weekly] unhandled error', { weekKey, error: msg, stack });
     return NextResponse.json({ error: msg, weekKey }, { status: 500 });
   }
 }

@@ -77,14 +77,23 @@ export async function sendNewsletterEmail(params: {
   return { ok: true };
 }
 
+export type SendManyResult = {
+  sent: number;
+  failed: number;
+  errors: string[];
+  /** Addresses that were successfully delivered (for idempotent retry). */
+  sentAddresses: string[];
+};
+
 export async function sendNewsletterToMany(params: {
   recipients: string[];
   subject: string;
   html: string;
   tags?: ResendEmailTag[];
   onProgress?: (sent: number, total: number) => void;
-}): Promise<{ sent: number; failed: number; errors: string[] }> {
+}): Promise<SendManyResult> {
   const errors: string[] = [];
+  const sentAddresses: string[] = [];
   let sent = 0;
   let failed = 0;
   const total = params.recipients.length;
@@ -98,13 +107,14 @@ export async function sendNewsletterToMany(params: {
     });
     if (r.ok) {
       sent++;
+      sentAddresses.push(to);
     } else {
       failed++;
       if (r.error) errors.push(`${to}: ${r.error}`);
     }
     params.onProgress?.(sent + failed, total);
   }
-  return { sent, failed, errors };
+  return { sent, failed, errors, sentAddresses };
 }
 
 /** Transactional velkomst efter Webflow signup (webhook). Genbruger Resend + unsubscribe-link. */

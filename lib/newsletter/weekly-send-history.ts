@@ -16,8 +16,26 @@ export type WeeklyAutoClaimResult =
 
 const STALE_PROCESSING_MS = 25 * 60 * 1000;
 
+/** Skip reasons that should NOT block retries within the same ISO week. */
+const RETRYABLE_SKIP_REASONS = new Set([
+  'no_recipients',
+  'Ingen aktive modtagere',
+  'Ingen afsendelse blev registreret',
+]);
+
+function isRetryableSkip(data: Record<string, unknown> | undefined): boolean {
+  if (!data) return false;
+  const reason = data.skipReason;
+  if (typeof reason !== 'string') return false;
+  for (const r of RETRYABLE_SKIP_REASONS) {
+    if (reason.includes(r)) return true;
+  }
+  return false;
+}
+
 /**
  * Atomisk: må kun køre ét auto-send pr. weekKey. Sætter processing hvis ledig.
+ * `sent` er terminal. `failed` og retryable `skipped` (fx no_recipients) tillader retry.
  */
 export async function claimWeeklyAutoSend(weekKey: string): Promise<WeeklyAutoClaimResult> {
   const db = getAdminDb();
@@ -32,12 +50,15 @@ export async function claimWeeklyAutoSend(weekKey: string): Promise<WeeklyAutoCl
       const d = snap.data();
       const status = d?.status as WeeklySendStatus | undefined;
 
-      if (status === 'sent' || status === 'skipped') {
+      if (status === 'sent') {
         result = { ok: false, reason: 'already_done' };
         return;
       }
 
-      /* Tillad retry efter `failed`; manglende doc = første kørsel. */
+      if (status === 'skipped' && !isRetryableSkip(d)) {
+        result = { ok: false, reason: 'already_done' };
+        return;
+      }
 
       if (status === 'processing') {
         const started = (d?.processingStartedAt as Timestamp | undefined)?.toMillis() ?? 0;
@@ -61,7 +82,8 @@ export async function claimWeeklyAutoSend(weekKey: string): Promise<WeeklyAutoCl
       result = { ok: true, weekKey };
     });
     return result;
-  } catch {
+  } catch (e) {
+    console.error('[newsletter/weekly-history] claimWeeklyAutoSend transaction error:', e);
     return { ok: false, reason: 'transaction_failed' };
   }
 }
@@ -161,6 +183,46 @@ export async function getRecentWeeklyAutoArticleIds(maxSends: number): Promise<S
     console.warn('[newsletter/weekly-history] getRecentWeeklyAutoArticleIds:', e);
   }
   return out;
+}
+
+/**
+ * Single-query variant: fetches `fullLimit` recent sent docs and derives both
+ * a full exclusion set and a relaxed (smaller) exclusion set from the same result.
+ */
+export async function getRecentWeeklyAutoExclusionSets(
+  fullLimit: number,
+  relaxLimit: number
+): Promise<{ excludeFull: Set<string>; excludeRelax: Set<string> }> {
+  const excludeFull = new Set<string>();
+  const excludeRelax = new Set<string>();
+  const db = getAdminDb();
+  if (!db || fullLimit <= 0) return { excludeFull, excludeRelax };
+
+  const effectiveRelax = Math.min(relaxLimit, fullLimit);
+
+  try {
+    const snap = await db
+      .collection(WEEKLY_SEND_COLLECTION)
+      .where('kind', '==', 'weekly_auto')
+      .where('status', '==', 'sent')
+      .orderBy('completedAt', 'desc')
+      .limit(Math.min(fullLimit, 52))
+      .get();
+
+    for (let i = 0; i < snap.docs.length; i++) {
+      const ids = snap.docs[i]!.data()?.articleIds;
+      if (!Array.isArray(ids)) continue;
+      for (const id of ids) {
+        if (typeof id !== 'string' || !id.trim()) continue;
+        const trimmed = id.trim();
+        excludeFull.add(trimmed);
+        if (i < effectiveRelax) excludeRelax.add(trimmed);
+      }
+    }
+  } catch (e) {
+    console.warn('[newsletter/weekly-history] getRecentWeeklyAutoExclusionSets:', e);
+  }
+  return { excludeFull, excludeRelax };
 }
 
 /** Første artikel-id fra seneste vellykkede auto-send (forside/hero) — til at undgå samme lead to uger i træk. */

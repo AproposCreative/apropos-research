@@ -160,7 +160,13 @@ export async function cancelScheduledSend(id: string, uid: string): Promise<bool
   return true;
 }
 
-export type ClaimedScheduledJob = { id: string; subject: string; html: string };
+export type ClaimedScheduledJob = {
+  id: string;
+  subject: string;
+  html: string;
+  /** Addresses already sent in a previous partial attempt (for dedup on retry). */
+  sentAddresses?: string[];
+};
 
 /**
  * Finder et forfaldent `pending`-job og sætter det til `processing` atomisk.
@@ -238,9 +244,11 @@ export async function claimNextDueScheduledSend(options?: {
         const html = typeof d.html === 'string' ? d.html : '';
         if (!subject || !html) return;
         tx.update(doc.ref, { status: 'processing', processingStartedAt: FieldValue.serverTimestamp() });
-        claimed = { id: doc.id, subject, html };
+        const prevSent = Array.isArray(d.sentAddresses) ? d.sentAddresses.filter((e: unknown) => typeof e === 'string') as string[] : undefined;
+        claimed = { id: doc.id, subject, html, sentAddresses: prevSent };
       });
-    } catch {
+    } catch (e) {
+      console.warn('[newsletter/scheduled-send-store] claim transaction skipped:', doc.id, e instanceof Error ? e.message : e);
       continue;
     }
     if (claimed) return claimed;
@@ -250,17 +258,23 @@ export async function claimNextDueScheduledSend(options?: {
 
 export async function markScheduledSendFinished(
   id: string,
-  result: { ok: true; summary: string } | { ok: false; error: string }
+  result:
+    | { ok: true; summary: string; sentAddresses?: string[] }
+    | { ok: false; error: string; sentAddresses?: string[] }
 ): Promise<void> {
   const db = getAdminDb();
   if (!db) return;
   const ref = db.collection(SCHEDULED_SEND_COLLECTION).doc(id);
   if (result.ok === false) {
-    await ref.update({
+    const update: Record<string, unknown> = {
       status: 'failed',
       failedAt: FieldValue.serverTimestamp(),
       error: result.error.slice(0, 2000),
-    });
+    };
+    if (result.sentAddresses?.length) {
+      update.sentAddresses = result.sentAddresses.slice(0, 5000);
+    }
+    await ref.update(update);
     return;
   }
   await ref.update({

@@ -2,10 +2,12 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getNewsletterUserIdFromRequest } from '@/lib/newsletter/auth-request';
 import { buildWeeklyNewsletterDraft } from '@/lib/newsletter/build-draft';
 import { getNewsletterRecipients } from '@/lib/newsletter/get-recipients';
-import { getRecentWeeklyAutoArticleIds } from '@/lib/newsletter/weekly-send-history';
+import { getRecentWeeklyAutoExclusionSets } from '@/lib/newsletter/weekly-send-history';
+import { getIsoWeekRangeByOffset } from '@/lib/newsletter/week-range';
 
 const DEFAULT_EXCLUDE_SENDS = 16;
 const DEFAULT_RELAX_SENDS = 4;
+const MAX_WEEK_OFFSET_BACK = -12;
 
 function parseLookback(raw: string | undefined, fallback: number): number {
   const n = Number.parseInt(String(raw ?? '').trim(), 10);
@@ -13,7 +15,10 @@ function parseLookback(raw: string | undefined, fallback: number): number {
   return Math.min(n, 52);
 }
 
-/** Samme kladde som det automatiske ugentlige cron (ekskluderinger + indhold). */
+/**
+ * Preview for any week: `weekOffset` in body (0 = current week, -1 = previous, default -1).
+ * Disable article exclusions for historical weeks so old content is shown faithfully.
+ */
 export async function POST(req: NextRequest) {
   const uid = await getNewsletterUserIdFromRequest(req);
   if (!uid) {
@@ -23,15 +28,20 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json().catch(() => ({}));
     const skipAiIntro = body.skipAiIntro === true;
+    const rawOffset = typeof body.weekOffset === 'number' ? Math.floor(body.weekOffset) : -1;
+    const weekOffset = Math.max(MAX_WEEK_OFFSET_BACK, Math.min(0, rawOffset));
+    const isCurrentWeek = weekOffset === -1;
+
+    const week = getIsoWeekRangeByOffset(weekOffset);
 
     const fullLb = parseLookback(process.env.NEWSLETTER_WEEKLY_EXCLUDE_SEND_LOOKBACK, DEFAULT_EXCLUDE_SENDS);
     const relaxLb = parseLookback(process.env.NEWSLETTER_WEEKLY_RELAX_SEND_LOOKBACK, DEFAULT_RELAX_SENDS);
-    const [excludeFull, excludeRelax] = await Promise.all([
-      getRecentWeeklyAutoArticleIds(fullLb),
-      getRecentWeeklyAutoArticleIds(Math.min(relaxLb, fullLb)),
-    ]);
+    const { excludeFull, excludeRelax } = isCurrentWeek
+      ? await getRecentWeeklyAutoExclusionSets(fullLb, relaxLb)
+      : { excludeFull: new Set<string>(), excludeRelax: new Set<string>() };
 
     const draft = await buildWeeklyNewsletterDraft({
+      week,
       excludeArticleIds: excludeFull,
       relaxedExcludeArticleIds: excludeRelax,
       skipAiIntro,
@@ -42,6 +52,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({
       kind: 'weekly_auto_next',
+      weekOffset,
       subject: draft.subject,
       html: draft.html,
       intro: draft.intro,
@@ -50,6 +61,7 @@ export async function POST(req: NextRequest) {
         labelDa: draft.week.labelDa,
         start: draft.week.start.toISOString(),
         end: draft.week.end.toISOString(),
+        isoWeek: draft.week.isoWeek,
       },
       articles: draft.articles.map((a) => ({
         id: a.id,

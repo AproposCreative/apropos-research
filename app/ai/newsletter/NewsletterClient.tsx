@@ -133,6 +133,7 @@ export default function NewsletterClient({ embedded = false, onClose }: Newslett
   const [weeklyTimeHHMM, setWeeklyTimeHHMM] = useState('12:00');
   const [weeklySaveBusy, setWeeklySaveBusy] = useState(false);
   const [weeklyPreviewBusy, setWeeklyPreviewBusy] = useState(false);
+  const [weeklyPreviewOffset, setWeeklyPreviewOffset] = useState(-1);
 
   const authHeader = useCallback(async () => {
     const auth = user;
@@ -431,7 +432,8 @@ export default function NewsletterClient({ embedded = false, onClose }: Newslett
     }
   }, [authHeader, refreshPendingSchedules, weeklyAutoEnabled, weeklyTimeHHMM, weeklyWeekdayIso]);
 
-  const loadWeeklyAutoPreview = useCallback(async () => {
+  const loadWeeklyAutoPreview = useCallback(async (offset?: number) => {
+    const useOffset = offset ?? weeklyPreviewOffset;
     setError(null);
     setStatus(null);
     setWeeklyPreviewBusy(true);
@@ -440,15 +442,18 @@ export default function NewsletterClient({ embedded = false, onClose }: Newslett
       const res = await fetch('/api/newsletter/weekly-auto/preview', {
         method: 'POST',
         headers: { ...headers, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ skipAiIntro: false }),
+        body: JSON.stringify({ skipAiIntro: false, weekOffset: useOffset }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || res.statusText);
       setHtml(data.html);
       setSubject(data.subject || '');
+      setWeeklyPreviewOffset(typeof data.weekOffset === 'number' ? data.weekOffset : useOffset);
+      const isoWeek = data.week?.isoWeek;
+      const weekLabel = data.week?.labelDa || '';
       setMeta({
         headline: typeof data.headline === 'string' ? data.headline : '',
-        weekLabel: data.week?.labelDa || '',
+        weekLabel: isoWeek ? `Uge ${isoWeek} · ${weekLabel}` : weekLabel,
         articleCount: Array.isArray(data.articles) ? data.articles.length : 0,
         recipientCount: data.recipientCount ?? 0,
         totalSignups: data.totalSignups ?? data.recipientCount ?? 0,
@@ -458,13 +463,13 @@ export default function NewsletterClient({ embedded = false, onClose }: Newslett
         warnings: data.warnings || [],
         signupError: data.signupError || null,
       });
-      setStatus('Næste automatiske udsendelse');
+      setStatus(useOffset === -1 ? 'Næste automatiske udsendelse' : `Uge ${isoWeek ?? ''} preview`);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Fejl');
     } finally {
       setWeeklyPreviewBusy(false);
     }
-  }, [authHeader]);
+  }, [authHeader, weeklyPreviewOffset]);
 
   const sendTest = useCallback(async () => {
     const recipients = activeTestRecipients.filter((e) => e.trim().length > 0);
@@ -906,11 +911,37 @@ export default function NewsletterClient({ embedded = false, onClose }: Newslett
               </button>
               <button
                 type="button"
+                disabled={busy || scheduleBusy || weeklySaveBusy || weeklyPreviewBusy || weeklyPreviewOffset <= -12}
+                onClick={() => {
+                  const next = weeklyPreviewOffset - 1;
+                  setWeeklyPreviewOffset(next);
+                  void loadWeeklyAutoPreview(next);
+                }}
+                className={`py-2 px-3 rounded-lg border border-white/[0.12] text-[13px] text-white/80 hover:bg-white/[0.05] disabled:opacity-40 transition-all duration-200`}
+                title="Forrige uge"
+              >
+                ‹
+              </button>
+              <button
+                type="button"
                 disabled={busy || scheduleBusy || weeklySaveBusy || weeklyPreviewBusy}
                 onClick={() => void loadWeeklyAutoPreview()}
                 className={`flex-1 py-2 rounded-lg border border-white/[0.12] text-[13px] text-white/80 hover:bg-white/[0.05] disabled:opacity-40 transition-all duration-200`}
               >
-                {weeklyPreviewBusy ? 'Henter…' : 'Vis næste'}
+                {weeklyPreviewBusy ? 'Henter…' : 'Vis uge'}
+              </button>
+              <button
+                type="button"
+                disabled={busy || scheduleBusy || weeklySaveBusy || weeklyPreviewBusy || weeklyPreviewOffset >= 0}
+                onClick={() => {
+                  const next = weeklyPreviewOffset + 1;
+                  setWeeklyPreviewOffset(next);
+                  void loadWeeklyAutoPreview(next);
+                }}
+                className={`py-2 px-3 rounded-lg border border-white/[0.12] text-[13px] text-white/80 hover:bg-white/[0.05] disabled:opacity-40 transition-all duration-200`}
+                title="Næste uge"
+              >
+                ›
               </button>
             </div>
           </div>

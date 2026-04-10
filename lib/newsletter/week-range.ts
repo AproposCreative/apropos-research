@@ -37,16 +37,24 @@ function formatDaRange(start: Date, end: Date): string {
 
 /** Calendar week before the one containing `reference` (UTC ISO weeks). */
 export function getPreviousIsoWeekRange(reference = new Date()): WeekRange {
+  return getIsoWeekRangeByOffset(-1, reference);
+}
+
+/**
+ * Get an ISO week range relative to the current week.
+ * offset 0 = current week, -1 = previous, -2 = two weeks ago, etc.
+ */
+export function getIsoWeekRangeByOffset(offset: number, reference = new Date()): WeekRange {
   const thisMonday = startOfIsoWeekMondayUtc(reference);
-  const prevMonday = new Date(thisMonday);
-  prevMonday.setUTCDate(prevMonday.getUTCDate() - 7);
-  const prevSunday = new Date(thisMonday);
-  prevSunday.setUTCDate(prevSunday.getUTCDate() - 1);
-  prevSunday.setUTCHours(23, 59, 59, 999);
+  const targetMonday = new Date(thisMonday);
+  targetMonday.setUTCDate(targetMonday.getUTCDate() + offset * 7);
+  const targetSunday = new Date(targetMonday);
+  targetSunday.setUTCDate(targetSunday.getUTCDate() + 6);
+  targetSunday.setUTCHours(23, 59, 59, 999);
   return {
-    start: prevMonday,
-    end: prevSunday,
-    labelDa: formatDaRange(prevMonday, prevSunday),
-    isoWeek: isoWeekNumberUtc(prevMonday),
+    start: targetMonday,
+    end: targetSunday,
+    labelDa: formatDaRange(targetMonday, targetSunday),
+    isoWeek: isoWeekNumberUtc(targetMonday),
   };
 }

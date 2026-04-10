@@ -90,7 +90,7 @@ const GENERATION_MODE_OPTIONS: Array<{ id: 'fast' | 'editorial'; label: string; 
   { id: 'editorial', label: 'Editorial', description: 'Fuld redaktionel pipeline med research' }
 ];
 
-function resolveViewFromSearchParams(sp: { get: (key: string) => string | null }): 'ai' | 'design-editor' | 'newsletter' {
+function resolveViewFromSearchParams(sp: { get: (key: string) => string | null }): 'ai' | 'design-editor' | 'newsletter' | null {
   const view = sp.get('view');
   if (view === 'newsletter') return 'newsletter';
   if (view === 'design-editor') return 'design-editor';
@@ -98,7 +98,7 @@ function resolveViewFromSearchParams(sp: { get: (key: string) => string | null }
   const n = sp.get('newsletter');
   const w = sp.get('webapp');
   if (n === '1' || n === 'true' || w === 'newsletter') return 'newsletter';
-  return 'ai';
+  return null;
 }
 
 // using shared ArticleData type
@@ -118,13 +118,20 @@ export default function AIWriterClient() {
   const [sourcesOpen, setSourcesOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [isClosing, setIsClosing] = useState(false);
-  const [activeView, setActiveView] = useState<'ai' | 'design-editor' | 'newsletter' | null>('ai');
+  const [activeView, setActiveView] = useState<'ai' | 'design-editor' | 'newsletter' | null>(() =>
+    resolveViewFromSearchParams(searchParams)
+  );
   const leftPanelOpen = shelfOpen || webAppsOpen;
 
   /** Opdater aktiv visning og URL, så refresh og deling bevarer fx nyhedsbrev (`?view=newsletter`). */
   const applyActiveView = useCallback(
     (view: 'ai' | 'design-editor' | 'newsletter' | null) => {
       setActiveView(view);
+      setReviewOpen(false);
+      setSourcesOpen(false);
+      setSettingsOpen(false);
+      setWebAppsOpen(false);
+      setShelfOpen(false);
       const params = new URLSearchParams(searchParams.toString());
       params.delete('newsletter');
       params.delete('webapp');
@@ -132,6 +139,8 @@ export default function AIWriterClient() {
         params.set('view', 'newsletter');
       } else if (view === 'design-editor') {
         params.set('view', 'design-editor');
+      } else if (view === 'ai') {
+        params.set('view', 'ai');
       } else {
         params.delete('view');
       }
@@ -1197,7 +1206,62 @@ export default function AIWriterClient() {
         </div>
         {/* Transparent overlay during resize to prevent iframe from stealing mouse events */}
         {isResizing && <div className="absolute inset-0 z-[5]" />}
-        
+
+        {/* Clean landing: no panels open — show centered launcher on mobile */}
+        {user && activeView === null && !leftPanelOpen && !reviewOpen && !sourcesOpen && !settingsOpen && (
+          <div className="md:hidden absolute inset-0 z-20 flex flex-col items-center justify-center px-6">
+            <img
+              src="/images/Apropos Research White.png"
+              alt="Apropos Research"
+              className="h-8 opacity-50 mb-8"
+            />
+            <div className="grid grid-cols-2 gap-3 w-full max-w-xs">
+              <button
+                type="button"
+                onClick={() => applyActiveView('ai')}
+                className="flex flex-col items-center gap-2 py-5 rounded-2xl border border-white/[0.12] bg-white/[0.04] hover:bg-white/[0.08] transition-colors"
+              >
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-white/70">
+                  <path d="M12 20h9M16.5 3.5a2.121 2.121 0 1 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/>
+                </svg>
+                <span className="text-[13px] text-white/70">AI Writer</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => applyActiveView('newsletter')}
+                className="flex flex-col items-center gap-2 py-5 rounded-2xl border border-white/[0.12] bg-white/[0.04] hover:bg-white/[0.08] transition-colors"
+              >
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-white/70">
+                  <rect x="2" y="4" width="20" height="16" rx="2"/>
+                  <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/>
+                </svg>
+                <span className="text-[13px] text-white/70">Nyhedsbrev</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => applyActiveView('design-editor')}
+                className="flex flex-col items-center gap-2 py-5 rounded-2xl border border-white/[0.12] bg-white/[0.04] hover:bg-white/[0.08] transition-colors"
+              >
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-white/70">
+                  <rect x="3" y="3" width="18" height="18" rx="2"/>
+                  <path d="M3 9h18M9 21V9"/>
+                </svg>
+                <span className="text-[13px] text-white/70">Design Editor</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setShelfOpen(true)}
+                className="flex flex-col items-center gap-2 py-5 rounded-2xl border border-white/[0.12] bg-white/[0.04] hover:bg-white/[0.08] transition-colors"
+              >
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-white/70">
+                  <path d="M4 6h16M4 12h16M4 18h16"/>
+                </svg>
+                <span className="text-[13px] text-white/70">Mine artikler</span>
+              </button>
+            </div>
+          </div>
+        )}
+
         {user && (
           <>
             {/* Apropos Research Logo + build label */}
@@ -1461,7 +1525,7 @@ export default function AIWriterClient() {
                   <div className="absolute top-1/2 right-0 -translate-y-1/2 translate-x-1/2 w-1 h-16 bg-white/0 group-hover:bg-white/30 rounded-full transition-colors" />
                 </div>
               )}
-              <DesignEditorView embedMode onBack={() => applyActiveView('ai')} />
+              <DesignEditorView embedMode onBack={() => applyActiveView(null)} />
             </div>
             )}
 
@@ -1487,7 +1551,7 @@ export default function AIWriterClient() {
                 </div>
               )}
               <div className="h-full w-full flex flex-col font-poppins rounded-xl bg-black/40 md:bg-black backdrop-blur-xl md:backdrop-blur-0 border border-white/15 overflow-hidden md:outline md:outline-[1.5px] md:outline-offset-[-1.5px] md:outline-zinc-800">
-                <NewsletterClient embedded onClose={() => applyActiveView('ai')} />
+                <NewsletterClient embedded onClose={() => applyActiveView(null)} />
               </div>
             </div>
             )}

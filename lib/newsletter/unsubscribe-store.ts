@@ -47,6 +47,34 @@ export async function getUnsubscribedEmails(): Promise<Set<string>> {
 }
 
 /**
+ * Efficient unsubscribe filter: checks only the given emails by doc-ID lookup
+ * instead of loading the entire collection. Scales O(n) with candidate list
+ * rather than O(total_unsubscribes).
+ */
+export async function filterUnsubscribedFromList(emails: string[]): Promise<Set<string>> {
+  const db = getAdminDb();
+  const unsubscribed = new Set<string>();
+  if (!db || emails.length === 0) return unsubscribed;
+
+  const unique = [...new Set(emails.map((e) => e.trim().toLowerCase()))];
+  const BATCH_SIZE = 100;
+
+  try {
+    for (let i = 0; i < unique.length; i += BATCH_SIZE) {
+      const chunk = unique.slice(i, i + BATCH_SIZE);
+      const refs = chunk.map((e) => db.collection(COLLECTION).doc(e));
+      const docs = await db.getAll(...refs);
+      for (const doc of docs) {
+        if (doc.exists) unsubscribed.add(doc.id);
+      }
+    }
+  } catch (e) {
+    console.warn('[newsletter/unsubscribe-store] filterUnsubscribedFromList:', e);
+  }
+  return unsubscribed;
+}
+
+/**
  * Slet frameldings-markering for de angivne adresser (batch).
  * Bruges når e-mail igen findes som aktiv tilmelding i Webflow — gen-tilmelding.
  */

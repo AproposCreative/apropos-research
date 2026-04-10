@@ -2,7 +2,7 @@ import { env } from '@/lib/config/env';
 import { fetchNewsletterEmails } from '@/lib/newsletter/webflow-forms';
 import { fetchNewsletterSignupEmails } from '@/lib/newsletter/webflow-sources';
 import {
-  getUnsubscribedEmails,
+  filterUnsubscribedFromList,
   removeUnsubscribeRecordsForEmails,
 } from '@/lib/newsletter/unsubscribe-store';
 
@@ -104,11 +104,10 @@ export async function getNewsletterRecipients(): Promise<RecipientResult> {
   fetchErr = clarifyFetchError(fetchErr, { hadSignupCollectionId });
 
   if (rawEmails.length === 0) {
-    const unsubOnly = await getUnsubscribedEmails();
     return {
       emails: [],
       total: 0,
-      unsubscribedCount: unsubOnly.size,
+      unsubscribedCount: 0,
       source,
       formName,
       error: fetchErr || (source === 'none' ? 'Ingen tilmeldinger fundet' : undefined),
@@ -116,8 +115,10 @@ export async function getNewsletterRecipients(): Promise<RecipientResult> {
   }
 
   const norm = (e: string) => e.trim().toLowerCase();
-  let unsub = await getUnsubscribedEmails();
-  const resubscribed = [...new Set(rawEmails.map(norm))].filter((e) => unsub.has(e));
+  const uniqueNormed = [...new Set(rawEmails.map(norm))];
+  const unsub = await filterUnsubscribedFromList(uniqueNormed);
+
+  const resubscribed = uniqueNormed.filter((e) => unsub.has(e));
   if (resubscribed.length > 0) {
     await removeUnsubscribeRecordsForEmails(resubscribed);
     for (const e of resubscribed) unsub.delete(e);

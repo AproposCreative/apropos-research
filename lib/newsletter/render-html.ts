@@ -67,8 +67,8 @@ export function renderNewsletterEmailHtml(params: {
         <td class="nl-art-body" valign="top">
           <h2 class="nl-art-title" style="margin:0;"><a href="${track(a.url)}">${esc(a.title)}</a></h2>
           ${a.excerpt ? `<p class="nl-art-excerpt" style="margin:8px 0 0;">${esc(a.excerpt)}${a.excerpt.length >= 220 ? '…' : ''}</p>` : ''}
-          <p class="nl-art-read" style="margin:10px 0 0;">
-            <a href="${track(a.url)}">Læs på aproposmagazine.com</a>
+          <p class="nl-art-read" style="margin:12px 0 0;">
+            <a class="nl-art-read-btn" href="${track(a.url)}" style="display:inline-block;padding:8px 20px;font-family:${FONT_SANS};font-size:13px;font-weight:500;color:${EMAIL_COLORS.btnPrimaryText};background-color:${EMAIL_COLORS.btnPrimaryBg};border-radius:8px;text-decoration:none;line-height:1.3;">Læs historien</a>
           </p>
         </td>
       </tr>
