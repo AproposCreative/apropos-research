@@ -1,4 +1,4 @@
-import type { NewsletterArticle } from '@/lib/newsletter/webflow-sources';
+import { NEWSLETTER_EXCERPT_MAX_DEFAULT, type NewsletterArticle } from '@/lib/newsletter/webflow-sources';
 import { NEWSLETTER_UNSUBSCRIBE_PLACEHOLDER } from '@/lib/newsletter/inject-unsubscribe';
 import {
   EMAIL_COLORS,
@@ -32,59 +32,85 @@ export function renderNewsletterEmailHtml(params: {
   preheader?: string;
   /** Sættes fx til `newsletterUtmCampaignFromWeek(week)` for GA4-kampagnesporing. */
   utmCampaign?: string;
+  /** `custom_single`: én artikel i custom-brev — ingen artikel-liste; «Af …» efter intro; stor CTA linker til artiklen. */
+  articleBlockVariant?: 'default' | 'custom_single';
 }): string {
-  const { headline, introHtml, articles, siteUrl, logoAssetBaseUrl, preheader, utmCampaign } = params;
+  const {
+    headline,
+    introHtml,
+    articles,
+    siteUrl,
+    logoAssetBaseUrl,
+    preheader,
+    utmCampaign,
+    articleBlockVariant = 'default',
+  } = params;
   const site = siteUrl.replace(/\/$/, '');
-  const track = (href: string) =>
-    esc(utmCampaign ? appendNewsletterUtmToUrl(href, site, utmCampaign) : href);
+  /**
+   * Tilføj UTM på link til magasinets domæne. `content` bliver til
+   * `utm_content` (typisk artikel-slug) så GA4 kan vise klik per artikel.
+   */
+  const track = (href: string, content?: string) =>
+    esc(utmCampaign ? appendNewsletterUtmToUrl(href, site, utmCampaign, content) : href);
   const pre = preheader || 'Seneste fra Apropos Magazine';
   const logoUrl = getNewsletterLogoUrl(site, logoAssetBaseUrl ? { assetBaseUrl: logoAssetBaseUrl } : undefined);
 
+  const isCustomSingle = articleBlockVariant === 'custom_single' && articles.length === 1;
   const leadArticle = articles[0];
-  const heroRow =
-    leadArticle?.thumbUrl
+  const heroRow = leadArticle?.thumbUrl
       ? `<tr>
             <td align="center" style="padding:0;line-height:0;font-size:0;">
-              <a href="${track(leadArticle.url)}" target="_blank" style="outline:none;display:block;line-height:0;">
+              <a href="${track(leadArticle.url, leadArticle.slug)}" target="_blank" style="outline:none;display:block;line-height:0;">
                 <img class="nl-hero-img" src="${esc(leadArticle.thumbUrl)}" alt="${esc(leadArticle.title)}" width="600" height="450" style="display:block;width:100%;max-width:600px;height:450px;border:0;object-fit:cover;" />
               </a>
             </td>
           </tr>`
       : '';
 
-  /* Første artikel er også i listen, så læseren har titel, uddrag og tydelige klik (samme som tidligere). */
-  const articleRows = articles
-    .map((a) => {
-      const thumb = a.thumbUrl
-        ? `<img class="nl-thumb-img" src="${esc(a.thumbUrl)}" alt="" width="120" height="80" style="display:block;width:120px;height:80px;object-fit:cover;border-radius:4px;border:0;" />`
-        : `<div style="width:120px;height:80px;background:${EMAIL_COLORS.thumbPlaceholder};border-radius:4px;"></div>`;
-      return `
+  const excerptEllipsis = (excerpt: string, maxBeforeEllipsis: number) =>
+    excerpt.length >= maxBeforeEllipsis ? '…' : '';
+
+  const customSingleAfterIntro =
+    isCustomSingle && leadArticle?.authorName?.trim()
+      ? `<p class="nl-art-author nl-intro-author" style="margin:18px 0 0;font-family:${FONT_SANS};font-size:13px;line-height:1.45;color:${EMAIL_COLORS.textMuted};">Af ${esc(leadArticle.authorName.trim())}</p>`
+      : '';
+
+  /* Under hero: artikelrækker (standard) eller intet ved custom_single — indholdet ligger i intro + forfatter + CTA. */
+  const articleRows = isCustomSingle
+    ? ''
+    : articles
+        .map((a) => {
+          const thumb = a.thumbUrl
+            ? `<img class="nl-thumb-img" src="${esc(a.thumbUrl)}" alt="" width="120" height="80" style="display:block;width:120px;height:80px;object-fit:cover;border-radius:4px;border:0;" />`
+            : `<div style="width:120px;height:80px;background:${EMAIL_COLORS.thumbPlaceholder};border-radius:4px;"></div>`;
+          return `
 <tr class="nl-art">
   <td class="nl-art-outer" style="padding:20px 0;border-bottom:1px solid ${EMAIL_COLORS.borderLight};">
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
       <tr>
         <td class="nl-thumb-cell" width="132" valign="top" style="padding-right:14px;">${thumb}</td>
         <td class="nl-art-body" valign="top">
-          <h2 class="nl-art-title" style="margin:0;"><a href="${track(a.url)}">${esc(a.title)}</a></h2>
-          ${a.excerpt ? `<p class="nl-art-excerpt" style="margin:8px 0 0;">${esc(a.excerpt)}${a.excerpt.length >= 220 ? '…' : ''}</p>` : ''}
+          <h2 class="nl-art-title" style="margin:0;"><a href="${track(a.url, a.slug)}">${esc(a.title)}</a></h2>
+          ${a.excerpt ? `<p class="nl-art-excerpt" style="margin:8px 0 0;">${esc(a.excerpt)}${excerptEllipsis(a.excerpt, NEWSLETTER_EXCERPT_MAX_DEFAULT)}</p>` : ''}
           <p class="nl-art-read" style="margin:12px 0 0;">
-            <a class="nl-art-read-btn" href="${track(a.url)}" style="display:inline-block;padding:8px 20px;font-family:${FONT_SANS};font-size:13px;font-weight:500;color:${EMAIL_COLORS.btnPrimaryText};background-color:${EMAIL_COLORS.btnPrimaryBg};border-radius:8px;text-decoration:none;line-height:1.3;">Læs historien</a>
+            <a class="nl-art-read-btn" href="${track(a.url, a.slug)}" style="display:inline-block;padding:8px 20px;font-family:${FONT_SANS};font-size:13px;font-weight:500;color:${EMAIL_COLORS.btnPrimaryText};background-color:${EMAIL_COLORS.btnPrimaryBg};border-radius:8px;text-decoration:none;line-height:1.3;">Læs historien</a>
           </p>
         </td>
       </tr>
     </table>
   </td>
 </tr>`;
-    })
-    .join('');
+        })
+        .join('');
 
   const emptyState =
     articles.length === 0
       ? `<tr><td style="padding:24px 0;font-family:${FONT_SANS};font-size:14px;color:${EMAIL_COLORS.textMuted};">Ingen nye publicerede artikler i den valgte periode (filtreres på Webflow lastPublished).</td></tr>`
       : '';
 
-  const primaryCtaHref = track(site);
-  const primaryCtaLabel = 'Besøg Apropos Magazine';
+  const siteCtaHref = track(site);
+  const primaryCtaHref = isCustomSingle && leadArticle ? track(leadArticle.url, leadArticle.slug) : siteCtaHref;
+  const primaryCtaLabel = isCustomSingle && leadArticle ? 'Læs artiklen nu' : 'Besøg Apropos Magazine';
   const h1Text = esc(headline.trim() || 'Seneste fra Apropos');
   const footerSectionMusikHref = track(`${site}/sections/musik`);
   const footerSectionKulturHref = track(`${site}/sections/kultur`);
@@ -135,7 +161,7 @@ ${getNewsletterSharedDesignCss()}
         <table role="presentation" class="nl-card" width="600" cellpadding="0" cellspacing="0" border="0" style="width:100%;max-width:600px;background-color:${EMAIL_COLORS.cardBg};mso-table-lspace:0;mso-table-rspace:0;border-collapse:collapse;">
           <tr>
             <td class="nl-pad nl-cell-logo" align="center" style="padding:18px 34px 16px;">
-              <a href="${primaryCtaHref}" target="_blank" style="outline:none;display:inline-block;line-height:0;vertical-align:bottom;">
+              <a href="${siteCtaHref}" target="_blank" style="outline:none;display:inline-block;line-height:0;vertical-align:bottom;">
                 <img class="nl-logo-img" src="${esc(logoUrl)}" width="120" height="48" alt="Apropos Magazine" style="display:block;height:auto;max-width:120px;width:120px;margin:0 auto;border:0;" />
               </a>
             </td>
@@ -147,11 +173,15 @@ ${getNewsletterSharedDesignCss()}
             </td>
           </tr>
           <tr>
-            <td class="nl-pad" style="padding:0 30px 28px;">
+            <td class="nl-pad" style="padding:0 30px ${isCustomSingle ? '32px' : '28px'};">
               <div class="nl-intro" style="font-family:${FONT_SANS};">${introHtml}</div>
+              ${customSingleAfterIntro}
             </td>
           </tr>
-          <tr>
+          ${
+            isCustomSingle
+              ? ''
+              : `<tr>
             <td class="nl-pad" style="padding:0 30px 12px;">
               <p class="nl-section-label" style="margin:0;font-family:${FONT_SANS};font-size:10px;letter-spacing:0.16em;text-transform:uppercase;color:${EMAIL_COLORS.textMuted};">Udvalgte artikler</p>
             </td>
@@ -162,7 +192,8 @@ ${getNewsletterSharedDesignCss()}
                 ${articleRows || emptyState}
               </table>
             </td>
-          </tr>
+          </tr>`
+          }
           <tr>
             <td class="nl-pad" align="center" style="padding:0 30px 36px;">
               <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="mso-table-lspace:0;mso-table-rspace:0;">
@@ -194,7 +225,7 @@ ${getNewsletterSharedDesignCss()}
                         <td width="97" style="width:97px;max-width:97px;padding:0;line-height:0;font-size:0;">
                           <a
                             class="nl-footer-logo-link"
-                            href="${primaryCtaHref}"
+                            href="${siteCtaHref}"
                             target="_blank"
                             style="outline:none;display:block;line-height:0;margin:0 0 16px;text-align:left;max-width:97px;"
                           >

@@ -226,6 +226,9 @@ export async function GET(req: NextRequest) {
         { name: 'channel', value: 'newsletter' },
         { name: 'send_type', value: 'weekly_auto' },
         { name: 'week_key', value: weekKey.slice(0, 32) },
+        // `campaign` matcher utm_campaign på links (`weekly-2026-w15`) så
+        // GA4-rapporter kan korrelere klik-events med modtagerens session.
+        { name: 'campaign', value: `weekly-${weekKey.slice(0, 32)}` },
       ],
     });
 

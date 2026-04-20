@@ -46,6 +46,9 @@ export async function executeClaimedScheduledNewsletterJob(
       tags: [
         { name: 'channel', value: 'newsletter' },
         { name: 'send_type', value: 'scheduled' },
+        // job.id matcher den interne planlagte send — kan korreleres med
+        // historik i Firestore og ses i GA4 som `resend_tag_job_id`.
+        { name: 'job_id', value: String(job.id).slice(0, 32) },
       ],
     });
 
