@@ -15,6 +15,10 @@
     {
       "path": "/api/cron/newsletter-scheduled",
       "schedule": "*/15 * * * *"
+    },
+    {
+      "path": "/api/cron/liv-daily-article",
+      "schedule": "0 8 * * *"
     }
   ]
 }
