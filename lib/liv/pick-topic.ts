@@ -14,6 +14,8 @@ export interface PickedTopic {
   title: string;
   /** Score Liv-tema-tilpasset (højere = bedre). */
   score: number;
+  /** True når emnet er givet af redaktionen uden match i trending. */
+  synthetic?: boolean;
   /** Råt body-text fra kilde — bruges som inspiration i prompten. */
   source?: {
     title: string;
@@ -29,10 +31,19 @@ export interface PickedTopic {
 export interface PickTopicOptions {
   /** Absolut origin (https://...) til at kalde `/api/trending` med. */
   baseUrl: string;
+  /** Valgfrit emnehint fra redaktionen (fx "Sabrina Carpenter"). */
+  topicHint?: string;
+  /**
+   * Hvis true, skal emnet matche en trending-kilde.
+   * Hvis false, kan vi returnere synthetic emne når hint ikke matcher.
+   */
+  mustUseTrending?: boolean;
   /** Maks antal kandidater at returnere. Default 1. */
   limit?: number;
   /** Antal dages historik der bruges til dedupe. Default 14. */
   dedupeDays?: number;
+  /** Titler som redaktionen aktivt har afvist i den nuværende session. */
+  excludedTitles?: string[];
 }
 
 /* Liv's primære temaer — vægtes højest. */
@@ -70,6 +81,26 @@ const LIV_SECONDARY = [
 
 function lower(value: unknown): string {
   return typeof value === 'string' ? value.toLowerCase() : '';
+}
+
+function tokenize(text: string): string[] {
+  return text
+    .toLowerCase()
+    .replace(/[^a-z0-9æøå\s-]/gi, ' ')
+    .split(/\s+/)
+    .map((x) => x.trim())
+    .filter((x) => x.length > 2);
+}
+
+function overlapScore(a: string, b: string): number {
+  const as = new Set(tokenize(a));
+  const bs = new Set(tokenize(b));
+  if (as.size === 0 || bs.size === 0) return 0;
+  let inter = 0;
+  as.forEach((v) => {
+    if (bs.has(v)) inter++;
+  });
+  return inter / Math.max(as.size, bs.size);
 }
 
 function scoreCandidate(article: { title?: unknown; tags?: unknown; category?: unknown; content?: unknown }): number {
@@ -119,7 +150,12 @@ interface TrendingArticle {
  * minimumstærsklen — cron'en springer dagen over og prøver igen i morgen.
  */
 export async function pickLivTopic(options: PickTopicOptions): Promise<PickedTopic | null> {
-  const { baseUrl, limit = 1, dedupeDays = 14 } = options;
+  const { baseUrl, topicHint, mustUseTrending = true, limit = 1, dedupeDays = 14, excludedTitles = [] } = options;
+  const excludedSet = new Set(
+    excludedTitles
+      .map((x) => x?.trim().toLowerCase())
+      .filter((x): x is string => !!x)
+  );
 
   const trendingUrl = new URL('/api/trending', baseUrl).toString();
   let articles: TrendingArticle[] = [];
@@ -138,7 +174,16 @@ export async function pickLivTopic(options: PickTopicOptions): Promise<PickedTop
     return null;
   }
 
-  if (articles.length === 0) return null;
+  if (articles.length === 0) {
+    if (topicHint && !mustUseTrending) {
+      return {
+        title: topicHint.trim(),
+        score: 0,
+        synthetic: true,
+      };
+    }
+    return null;
+  }
 
   const [recentSlugs, recentTopics] = await Promise.all([
     getRecentLivDailySlugs(dedupeDays),
@@ -149,19 +194,47 @@ export async function pickLivTopic(options: PickTopicOptions): Promise<PickedTop
     .map((a) => {
       const title = (a.title || '').trim();
       const score = title ? scoreCandidate(a) : 0;
-      return { article: a, title, score, slug: slugify(title) };
+      const hintScore = topicHint
+        ? Math.max(
+            overlapScore(title, topicHint),
+            overlapScore(`${a.category || ''} ${(a.tags || []).join(' ')}`, topicHint)
+          )
+        : 0;
+      return { article: a, title, score, hintScore, slug: slugify(title) };
     })
     .filter(({ title }) => title.length > 8)
     .filter(({ title, slug }) => {
       if (recentSlugs.has(slug)) return false;
       if (recentTopics.has(title.toLowerCase())) return false;
+      if (excludedSet.has(title.toLowerCase())) return false;
       return true;
     })
-    .sort((a, b) => b.score - a.score);
+    .sort((a, b) => {
+      if (topicHint) {
+        if (b.hintScore !== a.hintScore) return b.hintScore - a.hintScore;
+      }
+      return b.score - a.score;
+    });
 
   // Kræver minimum-score for at sikre tematisk relevans.
-  const top = ranked.find((r) => r.score >= 3) || ranked[0];
-  if (!top || top.score < 1) return null;
+  const top =
+    topicHint && ranked.length > 0
+      ? ranked[0]
+      : ranked.find((r) => r.score >= 3) || ranked[0];
+
+  if (topicHint) {
+    const hintGood = top && top.hintScore >= 0.2;
+    if (!hintGood) {
+      if (mustUseTrending) return null;
+      return {
+        title: topicHint.trim(),
+        score: 0,
+        synthetic: true,
+      };
+    }
+  }
+  if (!top) return null;
+  if (!topicHint && top.score < 1) return null;
 
   void limit; // p.t. returnerer vi top-1 — limit reservedt til fremtiden.
 

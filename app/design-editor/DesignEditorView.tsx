@@ -665,7 +665,9 @@ export default function DesignEditorView({ onBack, embedMode }: DesignEditorView
     };
   }, [selected?.id, selected?.title, selected?.excerpt, size]);
 
-  const rootClass = embedMode ? `h-full flex flex-col relative overflow-hidden ${amiri.variable}` : `min-h-[100dvh] h-[100dvh] bg-black md:bg-[#171717] md:p-[1%] p-0 flex flex-col md:flex-row relative overflow-hidden ${amiri.variable}`;
+  const rootClass = embedMode
+    ? `h-full flex flex-col relative overflow-hidden ${amiri.variable}`
+    : `min-h-[100dvh] h-[100dvh] bg-[#0a0a0a] md:bg-[#0a0a0a] md:p-[1%] p-0 flex flex-col md:flex-row relative overflow-hidden ${amiri.variable}`;
 
   return (
     <div ref={rootRef} className={rootClass}>
@@ -680,7 +682,7 @@ export default function DesignEditorView({ onBack, embedMode }: DesignEditorView
         }}
       >
         <div
-          className="h-full flex flex-col rounded-xl border border-white/20 overflow-hidden bg-[#171717]"
+          className="h-full flex flex-col rounded-xl border border-white/20 overflow-hidden bg-[#070707]/90 backdrop-blur-3xl shadow-[0_20px_70px_rgba(0,0,0,0.55)]"
           style={{
             transition: 'transform 320ms cubic-bezier(0.22, 1, 0.36, 1)',
             transform: articlesOpen ? 'translateX(0)' : 'translateX(-8px)',
@@ -702,7 +704,7 @@ export default function DesignEditorView({ onBack, embedMode }: DesignEditorView
                 value={articleSearch}
                 onChange={(e) => setArticleSearch(e.target.value)}
                 placeholder="Søg i artikler..."
-                className="w-full bg-white/5 border border-white/15 rounded-lg pl-9 pr-3 py-2 text-sm text-white placeholder:text-white/45 focus:outline-none focus:ring-2 focus:ring-white/20 focus:border-white/30"
+                className="apropos-input-dark w-full rounded-lg pl-9 pr-3 py-2 text-sm"
               />
             </div>
           </div>
@@ -746,7 +748,7 @@ export default function DesignEditorView({ onBack, embedMode }: DesignEditorView
       </div>
 
       {/* Mobil: fuldskærms artikel-liste */}
-      <div className={`md:hidden fixed inset-0 z-40 bg-[#171717] app-safe-top app-safe-bottom ${articlesOpen ? 'translate-x-0' : '-translate-x-full'} transition-transform duration-300`}>
+      <div className={`md:hidden fixed inset-0 z-40 bg-black/80 backdrop-blur-2xl app-safe-top app-safe-bottom ${articlesOpen ? 'translate-x-0' : '-translate-x-full'} transition-transform duration-300`}>
         <div className="h-full flex flex-col">
           <div className="px-4 py-3 border-b border-white/10 flex items-center justify-between">
             <h3 className="text-white text-base font-medium">Mine artikler</h3>
@@ -764,7 +766,7 @@ export default function DesignEditorView({ onBack, embedMode }: DesignEditorView
                 value={articleSearch}
                 onChange={(e) => setArticleSearch(e.target.value)}
                 placeholder="Søg i artikler..."
-                className="w-full bg-white/5 border border-white/15 rounded-lg pl-9 pr-3 py-2 text-sm text-white placeholder:text-white/45 focus:outline-none focus:ring-2 focus:ring-white/20 focus:border-white/30"
+                className="apropos-input-dark w-full rounded-lg pl-9 pr-3 py-2 text-sm"
               />
             </div>
           </div>
@@ -793,30 +795,25 @@ export default function DesignEditorView({ onBack, embedMode }: DesignEditorView
           transition: isResizingArticles ? 'none' : undefined,
         }}
       >
-        <div className="h-full flex flex-col rounded-xl border border-white/20 overflow-hidden bg-[#171717]">
+        <div className="h-full flex flex-col rounded-xl border border-white/20 overflow-hidden bg-[#070707]/90 backdrop-blur-3xl shadow-[0_20px_70px_rgba(0,0,0,0.55)]">
           {/* Top bar */}
-          <div className="flex-shrink-0 flex items-center justify-between gap-2 px-3 py-2 md:p-4 app-safe-top border-b border-white/10 md:border-zinc-800 bg-black/40 backdrop-blur-xl md:bg-transparent md:backdrop-blur-0">
+          <div className="sticky top-0 z-20 flex-shrink-0 flex items-center justify-between gap-2 px-3 py-2 md:p-4 app-safe-top border-b border-white/10 bg-[#0a0a0a]/90 backdrop-blur-3xl">
             <div className="flex items-center gap-2 min-w-0 shrink-0">
               <button onClick={() => setArticlesOpen(true)} className="touch-target w-10 h-10 flex items-center justify-center hover:bg-white/10 rounded-xl transition-colors md:hidden" aria-label="Artikler">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-white"><path d="M4 6h16M4 12h16M4 18h16" /></svg>
               </button>
-              <h1 className="hidden md:block text-white text-base font-medium leading-tight">
-                <span
-                  className="bg-gradient-to-r from-white/20 via-white/70 to-white/20 bg-clip-text text-transparent"
-                  style={{ backgroundSize: '200% 100%', animation: 'gradient-shift 4s ease-in-out infinite' }}
-                >
-                  Apropos Magazine Designer
-                </span>
+              <h1 className="hidden md:block text-white/90 text-[15px] font-medium tracking-tight leading-tight">
+                Apropos SoMe Posting
               </h1>
             </div>
-            <div className="flex items-center gap-1.5 md:gap-2 overflow-x-auto no-scrollbar">
+            <div className="flex flex-wrap md:flex-nowrap items-center justify-end gap-1.5 md:gap-2">
               <select
                 value={size}
                 onChange={(e) => setSize(e.target.value as SocialCardSize)}
-                className="touch-target shrink-0 p-1.5 md:p-2 rounded-lg border border-white/15 bg-transparent text-white/70 hover:text-white hover:bg-white/5 focus:outline-none focus:ring-2 focus:ring-white/20 focus:border-white/20 transition-colors text-xs md:text-sm"
+                className="apropos-input-dark touch-target shrink-0 p-1.5 md:p-2 rounded-lg border hover:text-white transition-colors text-xs md:text-sm"
               >
-                <option value="square">1080×1080</option>
-                <option value="story">1080×1920</option>
+                <option value="square" className="bg-[#141414] text-white">1080×1080</option>
+                <option value="story" className="bg-[#141414] text-white">1080×1920</option>
               </select>
               <button
                 type="button"
@@ -851,7 +848,7 @@ export default function DesignEditorView({ onBack, embedMode }: DesignEditorView
                   type="button"
                   onClick={onBack}
                   className="touch-target shrink-0 p-1.5 md:p-2 rounded-lg border border-white/15 text-white/70 hover:text-white hover:bg-white/5 transition-colors"
-                  aria-label="Luk Designer"
+                  aria-label="Luk SoMe Posting"
                   title="Luk"
                 >
                   <svg className="w-4 h-4 md:w-5 md:h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
@@ -869,9 +866,9 @@ export default function DesignEditorView({ onBack, embedMode }: DesignEditorView
             </div>
           </div>
           {showPreview ? (
-            <div className="flex-1 min-h-0 flex flex-col items-center overflow-y-auto bg-[#0a0a0a] p-2 md:p-4">
+            <div className="flex-1 min-h-0 flex flex-col items-center overflow-y-auto bg-black/30 p-2 md:p-4">
               {/* Instagram-style post preview */}
-              <div className="w-full flex flex-col rounded-lg overflow-hidden border border-white/10 bg-[#0a0a0a]" style={{ maxWidth: size === 'story' ? 620 : 468 }}>
+              <div className="w-full flex flex-col rounded-xl overflow-hidden border border-white/12 bg-black/40 backdrop-blur-xl" style={{ maxWidth: size === 'story' ? 620 : 468 }}>
                 {/* Profil-række */}
                 <div className="flex items-center gap-3 px-3 py-2.5 border-b border-white/10">
                   <img
@@ -910,7 +907,7 @@ export default function DesignEditorView({ onBack, embedMode }: DesignEditorView
                     value={caption}
                     onChange={(e) => setCaption(e.target.value)}
                     placeholder="Skriv eller rediger teksten under opslaget…"
-                    className="w-full min-h-[100px] px-0 py-1 bg-transparent border-none text-white text-sm placeholder:text-white/40 focus:outline-none focus:ring-0 resize-y"
+                    className="apropos-input-dark w-full min-h-[112px] px-3 py-2.5 rounded-lg border text-sm resize-y"
                     rows={4}
                   />
                   {selected?.authorId && authors.length > 0 && (
@@ -923,7 +920,7 @@ export default function DesignEditorView({ onBack, embedMode }: DesignEditorView
                       type="button"
                       onClick={handlePostToInstagram}
                       disabled={postingToInstagram || instagramConfigured === false}
-                      className="w-full py-2.5 px-4 rounded-lg bg-[#E1306C] hover:bg-[#C13584] disabled:opacity-50 disabled:pointer-events-none text-white font-medium text-sm transition-colors flex items-center justify-center gap-2"
+                      className="w-full py-2.5 px-4 rounded-xl border border-white/12 bg-white/[0.04] hover:bg-white/[0.08] hover:border-white/20 disabled:opacity-50 disabled:pointer-events-none text-white font-medium text-sm transition-colors flex items-center justify-center gap-2"
                     >
                       {postingToInstagram ? (
                         <span className="animate-pulse">{publishStep || 'Publicerer…'}</span>
@@ -945,7 +942,7 @@ export default function DesignEditorView({ onBack, embedMode }: DesignEditorView
               </div>
             </div>
           ) : (
-            <div ref={previewRef} className="flex-1 min-h-0 flex flex-col items-center md:justify-start justify-start bg-black/20 p-2 md:p-4">
+            <div ref={previewRef} className="flex-1 min-h-0 flex flex-col items-center md:justify-start justify-start bg-black/25 p-2 md:p-4 app-safe-bottom">
               <div className="w-full flex flex-col items-center gap-3 md:gap-5 pt-3 md:pt-10">
                 {/* Figma-lignende kontrolbar placeret lige over kortet */}
                 {eyebrowChips.length > 0 && size !== 'story' && (
@@ -990,7 +987,7 @@ export default function DesignEditorView({ onBack, embedMode }: DesignEditorView
                       type="button"
                       onClick={handlePostToInstagram}
                       disabled={postingToInstagram || instagramConfigured === false}
-                      className="w-full py-2.5 px-4 rounded-lg bg-[#E1306C] hover:bg-[#C13584] disabled:opacity-50 disabled:pointer-events-none text-white font-medium text-sm transition-colors flex items-center justify-center gap-2"
+                      className="w-full py-2.5 px-4 rounded-xl border border-white/12 bg-white/[0.04] hover:bg-white/[0.08] hover:border-white/20 disabled:opacity-50 disabled:pointer-events-none text-white font-medium text-sm transition-colors flex items-center justify-center gap-2"
                       title="Post det viste story-design direkte til Instagram Story"
                     >
                       {postingToInstagram ? <span className="animate-pulse">{publishStep || 'Publicerer Story…'}</span> : 'Post til Instagram Story'}

@@ -120,6 +120,11 @@ function mapItemToNewsletterArticle(
   const name = typeof fd.name === 'string' ? fd.name : '';
   const slug = typeof fd.slug === 'string' ? fd.slug : '';
   if (!name || !slug) return null;
+  // Skip AI-genererede artikler i nyhedsbrevet som standard. Sæt
+  // INCLUDE_AI_IN_NEWSLETTER=1 for at inkludere dem (når kvaliteten er
+  // verificeret over en periode).
+  const includeAi = process.env.INCLUDE_AI_IN_NEWSLETTER === '1' || process.env.INCLUDE_AI_IN_NEWSLETTER?.toLowerCase() === 'true';
+  if (!includeAi && fd['ai-generated'] === true) return null;
   return {
     id: String(it.id),
     title: name,

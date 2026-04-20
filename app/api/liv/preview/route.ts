@@ -15,6 +15,8 @@ import { generateLivArticle } from '@/lib/liv/generate-article';
 import { todayDayKeyUTC } from '@/lib/liv/daily-history-store';
 import { logger } from '@/lib/logger';
 import { env } from '@/lib/config/env';
+import { expandDirective } from '@/lib/liv/expand-directive';
+import { runSafetyGates } from '@/lib/liv/run-safety-gates';
 
 export const maxDuration = 120;
 
@@ -39,30 +41,56 @@ function previewImageFor(topic: PickedTopic | null): string | null {
   }
 }
 
-export async function GET(req: NextRequest) {
-  const uid = await getNewsletterUserIdFromRequest(req);
-  if (!uid) {
-    return NextResponse.json({ error: 'Ikke autoriseret' }, { status: 401 });
-  }
+type PreviewRequestInput = {
+  generate?: boolean;
+  topicHint?: string;
+  directiveHint?: string;
+  mustUseTrending?: boolean;
+  excludedTitles?: string[];
+};
 
-  const sp = req.nextUrl.searchParams;
-  const generate = sp.get('generate') === '1' || sp.get('generate')?.toLowerCase() === 'true';
+async function buildPreview(req: NextRequest, input: PreviewRequestInput, uid: string) {
   const baseUrl = resolveBaseUrl(req);
   const dayKey = todayDayKeyUTC();
+  const generate = !!input.generate;
+  const topicHint = input.topicHint?.trim();
+  const directiveHint = input.directiveHint?.trim();
+  const mustUseTrending = input.mustUseTrending !== false;
+  const excludedTitles = Array.isArray(input.excludedTitles)
+    ? input.excludedTitles.filter((x): x is string => typeof x === 'string' && x.trim().length > 0)
+    : [];
 
   try {
-    const topic = await pickLivTopic({ baseUrl });
+    const topic = await pickLivTopic({
+      baseUrl,
+      topicHint,
+      mustUseTrending,
+      excludedTitles,
+    });
 
     if (!topic) {
       return NextResponse.json({
         ok: true,
         dayKey,
         topic: null,
-        reason: 'Ingen trending-artikler matcher Liv\'s temaer lige nu.',
+        reason: mustUseTrending
+          ? 'Ingen trending-artikler matcher Livs temaer lige nu.'
+          : 'Ingen kandidater fundet.',
       });
     }
 
     const previewImageUrl = previewImageFor(topic);
+    const warnings: string[] = [];
+    if (!topic.source) {
+      warnings.push(
+        'Emnet er ikke matchet mod en konkret trending-kilde. Source-similarity gate kan derfor ikke beskytte på samme niveau.'
+      );
+    }
+
+    const expanded = await expandDirective({
+      topicHint: topicHint || topic.title,
+      directiveHint,
+    });
 
     if (!generate) {
       return NextResponse.json({
@@ -70,16 +98,41 @@ export async function GET(req: NextRequest) {
         dayKey,
         topic,
         previewImageUrl,
+        topicMatchedTrending: !!topic.source,
+        previewExpandedDirective: expanded.expandedDirective || null,
+        warnings,
       });
     }
 
-    const article = await generateLivArticle({ topic });
+    const article = await generateLivArticle({
+      topic,
+      expandedDirective: expanded.expandedDirective,
+      baseUrl,
+    });
+    const gates = await runSafetyGates({
+      baseUrl,
+      title: article.title,
+      content: article.content,
+      intro: article.intro,
+      authorName: 'Liv Brandt',
+      sourceExcerpt: topic.source?.excerpt,
+    });
+    if (!gates.pass) {
+      const failed = gates.failedGate || 'unknown';
+      const detail = gates.results.find((r) => r.name === failed)?.detail || 'gate failed';
+      warnings.push(`Gate-fejl (${failed}): ${detail}`);
+    }
 
     return NextResponse.json({
       ok: true,
       dayKey,
       topic,
       previewImageUrl,
+      topicMatchedTrending: !!topic.source,
+      previewExpandedDirective: expanded.expandedDirective || null,
+      warnings,
+      gatePass: gates.pass,
+      gateResults: gates.results,
       article: {
         title: article.title,
         subtitle: article.subtitle,
@@ -93,15 +146,56 @@ export async function GET(req: NextRequest) {
         seoDescription: article.seoDescription,
         primaryKeyword: article.primaryKeyword,
         wordCount: article.content.split(/\s+/).filter(Boolean).length,
+        imageSuggestions: article.imageSuggestions || [],
+        researchSources: article.researchSources || [],
       },
     });
   } catch (e) {
     const msg = e instanceof Error ? e.message : 'Ukendt fejl';
-    logger.error(
-      '[api/liv/preview] failed',
-      e instanceof Error ? e : new Error(msg),
-      { dayKey, generate }
-    );
+    logger.error('[api/liv/preview] failed', e instanceof Error ? e : new Error(msg), {
+      dayKey,
+      generate,
+      uid,
+      topicHint,
+    });
     return NextResponse.json({ error: msg, dayKey }, { status: 500 });
   }
+}
+
+export async function GET(req: NextRequest) {
+  const uid = await getNewsletterUserIdFromRequest(req);
+  if (!uid) {
+    return NextResponse.json({ error: 'Ikke autoriseret' }, { status: 401 });
+  }
+
+  const sp = req.nextUrl.searchParams;
+  return buildPreview(
+    req,
+    {
+      generate: sp.get('generate') === '1' || sp.get('generate')?.toLowerCase() === 'true',
+      topicHint: sp.get('topicHint') || undefined,
+      directiveHint: sp.get('directiveHint') || undefined,
+      mustUseTrending:
+        sp.get('mustUseTrending') === null
+          ? true
+          : !(sp.get('mustUseTrending') === '0' || sp.get('mustUseTrending') === 'false'),
+      excludedTitles: sp.getAll('excludedTitle'),
+    },
+    uid
+  );
+}
+
+export async function POST(req: NextRequest) {
+  const uid = await getNewsletterUserIdFromRequest(req);
+  if (!uid) {
+    return NextResponse.json({ error: 'Ikke autoriseret' }, { status: 401 });
+  }
+
+  let body: PreviewRequestInput = {};
+  try {
+    body = (await req.json()) as PreviewRequestInput;
+  } catch {
+    // Keep defaults
+  }
+  return buildPreview(req, body, uid);
 }

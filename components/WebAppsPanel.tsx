@@ -18,20 +18,21 @@ export default function WebAppsPanel({ isOpen, onClose, onSelectApp }: WebAppsPa
   const baseClass = 'flex items-center gap-3 px-3 py-3 rounded-xl border transition-colors w-full text-left';
 
   return (
-    <>
-      <div className="flex items-center justify-between px-4 py-3 border-b border-white/10">
-        <h2 className="text-white font-medium">Web-apps</h2>
+    <div className="h-full min-h-0 flex flex-col font-poppins bg-transparent">
+      <header className="flex items-center justify-between px-3 lg:px-4 py-2.5 lg:py-3 border-b border-white/10 bg-black/25 backdrop-blur-md gap-3 shrink-0">
+        <h2 className="text-[15px] font-medium tracking-tight text-white">Web-apps</h2>
         <button
           onClick={onClose}
-          className="p-2 text-white/60 hover:text-white rounded-lg transition-colors"
+          type="button"
+          className="flex size-8 shrink-0 items-center justify-center rounded-lg border border-white/12 bg-white/[0.06] text-white transition-all duration-200 hover:bg-white/[0.12] active:scale-[0.97] touch-target"
           aria-label="Luk"
         >
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <path d="M18 6L6 18M6 6l12 12" />
           </svg>
         </button>
-      </div>
-      <div className="flex-1 overflow-y-auto p-3 space-y-2">
+      </header>
+      <div className="flex-1 min-h-0 overflow-y-auto p-3 space-y-2 nice-scrollbar">
         {apps.map((app) => {
           const isActive = !onSelectApp && pathname === app.path;
           if (onSelectApp) {
@@ -77,6 +78,6 @@ export default function WebAppsPanel({ isOpen, onClose, onSelectApp }: WebAppsPa
           );
         })}
       </div>
-    </>
+    </div>
   );
 }

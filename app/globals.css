@@ -75,6 +75,33 @@ html[data-ai-boot] body {
 }
 
 @layer utilities {
+  .apropos-input-dark {
+    background-color: #141414;
+    color: rgba(255, 255, 255, 0.95);
+    border-color: rgba(255, 255, 255, 0.14);
+    caret-color: #ffffff;
+  }
+
+  .apropos-input-dark::placeholder {
+    color: rgba(255, 255, 255, 0.38);
+  }
+
+  .apropos-input-dark:focus {
+    outline: none;
+    border-color: rgba(255, 255, 255, 0.26);
+    box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.12);
+  }
+
+  /* Prevent white autofill background + white text issues in dark UI. */
+  .apropos-input-dark:-webkit-autofill,
+  .apropos-input-dark:-webkit-autofill:hover,
+  .apropos-input-dark:-webkit-autofill:focus,
+  .apropos-input-dark:-webkit-autofill:active {
+    -webkit-text-fill-color: rgba(255, 255, 255, 0.95);
+    -webkit-box-shadow: 0 0 0 1000px #141414 inset;
+    transition: background-color 9999s ease-in-out 0s;
+  }
+
   .app-safe-top {
     padding-top: var(--safe-top);
   }

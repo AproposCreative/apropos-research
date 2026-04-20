@@ -27,6 +27,17 @@ export interface GeneratedArticle {
   seoTitle?: string;
   seoDescription?: string;
   primaryKeyword?: string;
+  researchSources?: Array<{
+    title: string;
+    source: string;
+    url?: string | null;
+    snippet?: string;
+  }>;
+  imageSuggestions?: Array<{
+    url: string;
+    source: string;
+    title?: string;
+  }>;
   rawResponse: string;
 }
 
@@ -123,6 +134,126 @@ export interface GenerateArticleOptions {
   topic: PickedTopic;
   /** Webflow section/category til at sætte. Default "Kultur". */
   section?: string;
+  /** Ekspanderet redaktionel retning fra panelet (valgfri). */
+  expandedDirective?: string;
+  /** Base URL til interne API-kald (web-search). */
+  baseUrl?: string;
+}
+
+type WebSearchResult = {
+  title?: string;
+  content?: string;
+  source?: string;
+  url?: string | null;
+};
+
+async function fetchWebResearch(query: string, baseUrl?: string): Promise<WebSearchResult[]> {
+  if (!baseUrl || !/^https?:\/\//.test(baseUrl)) return [];
+  try {
+    const url = new URL('/api/web-search', baseUrl).toString();
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ query, maxResults: 6 }),
+      cache: 'no-store',
+    });
+    if (!res.ok) return [];
+    const data = await res.json();
+    const rows = data?.data?.results || data?.results || [];
+    if (!Array.isArray(rows)) return [];
+    return rows
+      .map((r: WebSearchResult) => ({
+        title: typeof r?.title === 'string' ? r.title.trim() : '',
+        content: typeof r?.content === 'string' ? r.content.trim() : '',
+        source: typeof r?.source === 'string' ? r.source.trim() : 'web',
+        url: typeof r?.url === 'string' ? r.url : null,
+      }))
+      .filter((r) => (r.title || r.content) && !(r.title || '').toLowerCase().includes('research guidance'))
+      .slice(0, 6);
+  } catch {
+    return [];
+  }
+}
+
+function looksLikeImageUrl(url: string): boolean {
+  return /\.(png|jpe?g|webp|gif|avif)(\?.*)?$/i.test(url);
+}
+
+function extractMetaContent(html: string, pageUrl: string): string | null {
+  const patterns = [
+    /<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)["'][^>]*>/i,
+    /<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:image["'][^>]*>/i,
+    /<meta[^>]+name=["']twitter:image["'][^>]+content=["']([^"']+)["'][^>]*>/i,
+    /<meta[^>]+content=["']([^"']+)["'][^>]+name=["']twitter:image["'][^>]*>/i,
+  ];
+  for (const p of patterns) {
+    const m = p.exec(html);
+    if (!m?.[1]) continue;
+    const raw = m[1].trim();
+    try {
+      return new URL(raw, pageUrl).toString();
+    } catch {
+      continue;
+    }
+  }
+  return null;
+}
+
+async function fetchPageImage(url: string): Promise<string | null> {
+  try {
+    const u = new URL(url);
+    if (!/^https?:$/.test(u.protocol)) return null;
+  } catch {
+    return null;
+  }
+  if (looksLikeImageUrl(url)) return url;
+  try {
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), 5000);
+    const res = await fetch(url, {
+      cache: 'no-store',
+      signal: ctrl.signal,
+      headers: { 'User-Agent': 'Mozilla/5.0 (compatible; AproposBot/1.0)' },
+    });
+    clearTimeout(t);
+    if (!res.ok) return null;
+    const contentType = res.headers.get('content-type') || '';
+    if (!/text\/html/i.test(contentType)) return null;
+    const html = await res.text();
+    return extractMetaContent(html, url);
+  } catch {
+    return null;
+  }
+}
+
+async function collectImageSuggestions(opts: {
+  topic: PickedTopic;
+  researchResults: WebSearchResult[];
+}): Promise<Array<{ url: string; source: string; title?: string }>> {
+  const candidates: Array<{ url: string; source: string; title?: string }> = [];
+  const seen = new Set<string>();
+  const pages: Array<{ url: string; source: string; title?: string }> = [];
+  if (opts.topic.source?.url) {
+    pages.push({
+      url: opts.topic.source.url,
+      source: opts.topic.source.sourceName || 'topic-source',
+      title: opts.topic.source.title,
+    });
+  }
+  for (const r of opts.researchResults) {
+    if (typeof r.url === 'string' && r.url) {
+      pages.push({ url: r.url, source: r.source || 'web', title: r.title });
+    }
+  }
+  for (const p of pages.slice(0, 6)) {
+    const img = await fetchPageImage(p.url);
+    if (!img) continue;
+    if (seen.has(img)) continue;
+    seen.add(img);
+    candidates.push({ url: img, source: p.source, title: p.title });
+    if (candidates.length >= 4) break;
+  }
+  return candidates;
 }
 
 /**
@@ -178,7 +309,7 @@ async function extractFactsFromSource(opts: {
 }
 
 export async function generateLivArticle(options: GenerateArticleOptions): Promise<GeneratedArticle> {
-  const { topic, section = 'Kultur' } = options;
+  const { topic, section = 'Kultur', expandedDirective, baseUrl } = options;
   const client = getOpenAIClient();
   if (!client) {
     throw new Error('OPENAI_API_KEY mangler — kan ikke generere Liv-artikel.');
@@ -193,6 +324,18 @@ export async function generateLivArticle(options: GenerateArticleOptions): Promi
     sourceExcerpt: topic.source?.excerpt,
     sourceName: topic.source?.sourceName,
   });
+  const webResearch = await fetchWebResearch(topic.title, baseUrl);
+  const webResearchBlock = webResearch.length
+    ? webResearch
+        .map((r) => {
+          const title = (r.title || 'Ukendt resultat').replace(/\s+/g, ' ').trim();
+          const source = (r.source || 'web').replace(/\s+/g, ' ').trim();
+          const snippet = (r.content || '').replace(/\s+/g, ' ').trim().slice(0, 220);
+          const url = r.url ? ` (${r.url})` : '';
+          return `- [${source}] ${title}${url}${snippet ? ` — ${snippet}` : ''}`;
+        })
+        .join('\n')
+    : '(Ingen webresearch fundet.)';
 
   const systemPrompt = [
     livPrompt,
@@ -220,6 +363,9 @@ export async function generateLivArticle(options: GenerateArticleOptions): Promi
     '- Åbn med en personlig observation, en sansning, en metafor eller et spørgsmål — aldrig en faktum-opremsning.',
     '- Bring fakta i en anden RÆKKEFØLGE end en lineær nyhedsfortælling. Spred dem ud i refleksioner.',
     '- Hvis et faktum kan udelades uden at miste essensen, så udelad det.',
+    '',
+    '— RETNING FRA REDAKTIONEN —',
+    expandedDirective?.trim() || '(Ingen ekstra retning sat i panelet. Vælg naturlig Liv-vinkel.)',
   ].join('\n');
 
   const factsBlock = facts.length > 0
@@ -232,8 +378,18 @@ export async function generateLivArticle(options: GenerateArticleOptions): Promi
     'Brug KUN følgende fakta som råmateriale (du må omformulere alt — du må aldrig kopiere ordlyd):',
     factsBlock,
     '',
+    'Supplerende webresearch (bruges til at få konkrete navne, steder og datoer):',
+    webResearchBlock,
+    '',
     'Vinkel: Brug Liv\'s personlige, sanselige stemme. Tag stilling. Reflektér over samtid, identitet eller femininitet hvor relevant.',
     'Begynd ikke artiklen med samme rytme eller åbningsfigur som en typisk nyhedsartikel om emnet ville bruge.',
+    ...(topic.source
+      ? []
+      : [
+          '',
+          'OBS: Ingen ekstern kilde er tilknyttet dette emne.',
+          'Vær ekstra konservativ med fakta. Hvis du er usikker på navne, datoer eller konkrete hændelser, så udelad dem.',
+        ]),
   ].join('\n');
 
   const completion = await client.chat.completions.create({
@@ -271,6 +427,10 @@ export async function generateLivArticle(options: GenerateArticleOptions): Promi
     section,
     keywords: topic.tags,
   });
+  const imageSuggestions = await collectImageSuggestions({
+    topic,
+    researchResults: webResearch,
+  });
 
   return {
     title: parsed.title,
@@ -284,6 +444,13 @@ export async function generateLivArticle(options: GenerateArticleOptions): Promi
     seoTitle: seo.seoTitle,
     seoDescription: seo.seoDescription,
     primaryKeyword: seo.primaryKeyword,
+    researchSources: webResearch.map((r) => ({
+      title: r.title || 'Ukendt resultat',
+      source: r.source || 'web',
+      url: r.url || null,
+      snippet: r.content?.slice(0, 240),
+    })),
+    imageSuggestions,
     rawResponse: raw,
   };
 }

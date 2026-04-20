@@ -38,6 +38,10 @@ const APP_VERSION = process.env.NEXT_PUBLIC_APP_VERSION || '0.0.0';
 const BUILD_ID = process.env.NEXT_PUBLIC_BUILD_ID || 'local';
 const BUILD_LABEL = process.env.NEXT_PUBLIC_BUILD_LABEL || `${APP_VERSION}.${BUILD_ID}`;
 
+/** Samme premium blur-shell som SoMe Posting — chat, nyhedsbrev, AI-posting og venstre panel. */
+const embeddedPanelShell =
+  'rounded-xl bg-[#070707]/90 backdrop-blur-3xl border border-white/20 shadow-[0_20px_70px_rgba(0,0,0,0.55)] overflow-hidden md:outline md:outline-[1.5px] md:outline-offset-[-1.5px] md:outline-zinc-800';
+
 export default function AIWriterClient() {
   const router = useRouter();
   const pathname = usePathname();
@@ -1186,7 +1190,7 @@ export default function AIWriterClient() {
                   <rect x="3" y="3" width="18" height="18" rx="2"/>
                   <path d="M3 9h18M9 21V9"/>
                 </svg>
-                <span className="text-[13px] text-white/70">Design Editor</span>
+                <span className="text-[13px] text-white/70">SoMe Posting</span>
               </button>
               <button
                 type="button"
@@ -1229,7 +1233,7 @@ export default function AIWriterClient() {
             
             {/* Left panel: Web-apps or Mine artikler (desktop) */}
             <div className={`hidden md:block absolute top-[1%] bottom-[1%] left-[1%] z-40`} style={{ width: leftPanelOpen ? 'min(300px, 50vw)' : '0px', transition: 'width 320ms cubic-bezier(0.22, 1, 0.36, 1), opacity 220ms ease', opacity: leftPanelOpen ? 1 : 0, pointerEvents: leftPanelOpen ? 'auto' : 'none' }}>
-              <div className={`h-full flex flex-col rounded-xl border border-white/20 overflow-hidden transform bg-[#171717]`} style={{ transition: 'transform 320ms cubic-bezier(0.22, 1, 0.36, 1)', transform: leftPanelOpen ? 'translateX(0px)' : 'translateX(-8px)' }}>
+              <div className={`h-full flex flex-col transform ${embeddedPanelShell}`} style={{ transition: 'transform 320ms cubic-bezier(0.22, 1, 0.36, 1)', transform: leftPanelOpen ? 'translateX(0px)' : 'translateX(-8px)' }}>
                 {webAppsOpen && (
                   <WebAppsPanel
                   isOpen={webAppsOpen}
@@ -1260,7 +1264,7 @@ export default function AIWriterClient() {
             </div>
             {/* Mobile: Web-apps panel */}
             <div className={`md:hidden ${webAppsOpen ? 'absolute inset-0 z-40 translate-x-0' : 'hidden'} transition-transform duration-300`}>
-              <div className="h-full flex flex-col rounded-none border-t border-white/10 bg-[#171717]">
+              <div className="h-full flex flex-col rounded-none border-t border-white/15 bg-[#070707]/95 backdrop-blur-3xl">
                 <WebAppsPanel
                   isOpen={webAppsOpen}
                   onClose={() => setWebAppsOpen(false)}
@@ -1270,7 +1274,7 @@ export default function AIWriterClient() {
             </div>
             {/* Mobile: Mine artikler shelf */}
             <div className={`md:hidden ${shelfOpen ? 'absolute inset-0 z-40 translate-x-0' : 'hidden'} transition-transform duration-300`}>
-              <div className="h-full flex flex-col rounded-none border-t border-white/10 bg-[#171717]">
+              <div className="h-full flex flex-col rounded-none border-t border-white/15 bg-[#070707]/95 backdrop-blur-3xl">
                 <DraftsShelf 
                   isOpen={shelfOpen} 
                   onSelect={(draft)=>{ 
@@ -1476,7 +1480,9 @@ export default function AIWriterClient() {
                   <div className="absolute top-1/2 right-0 -translate-y-1/2 translate-x-1/2 w-1 h-16 bg-white/0 group-hover:bg-white/30 rounded-full transition-colors" />
                 </div>
               )}
-              <DesignEditorView embedMode onBack={() => applyActiveView(null)} />
+              <div className={`h-full w-full flex flex-col font-poppins ${embeddedPanelShell}`}>
+                <DesignEditorView embedMode onBack={() => applyActiveView(null)} />
+              </div>
             </div>
             )}
 
@@ -1501,7 +1507,7 @@ export default function AIWriterClient() {
                   <div className="absolute top-1/2 right-0 -translate-y-1/2 translate-x-1/2 w-1 h-16 bg-white/0 group-hover:bg-white/30 rounded-full transition-colors" />
                 </div>
               )}
-              <div className="h-full w-full flex flex-col font-poppins rounded-xl bg-black/40 md:bg-black backdrop-blur-xl md:backdrop-blur-0 border border-white/15 overflow-hidden md:outline md:outline-[1.5px] md:outline-offset-[-1.5px] md:outline-zinc-800">
+              <div className={`h-full w-full flex flex-col font-poppins ${embeddedPanelShell}`}>
                 <NewsletterClient embedded onClose={() => applyActiveView(null)} />
               </div>
             </div>
@@ -1528,7 +1534,7 @@ export default function AIWriterClient() {
                   <div className="absolute top-1/2 right-0 -translate-y-1/2 translate-x-1/2 w-1 h-16 bg-white/0 group-hover:bg-white/30 rounded-full transition-colors" />
                 </div>
               )}
-              <div className="h-full w-full flex flex-col font-poppins rounded-xl bg-black/40 md:bg-black backdrop-blur-xl md:backdrop-blur-0 border border-white/15 overflow-hidden md:outline md:outline-[1.5px] md:outline-offset-[-1.5px] md:outline-zinc-800">
+              <div className={`h-full w-full flex flex-col font-poppins ${embeddedPanelShell}`}>
                 <LivPostingClient embedded onClose={() => applyActiveView(null)} />
               </div>
             </div>

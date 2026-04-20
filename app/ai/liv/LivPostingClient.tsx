@@ -44,6 +44,17 @@ interface PreviewArticle {
   seoDescription?: string;
   primaryKeyword?: string;
   wordCount: number;
+  researchSources?: Array<{
+    title: string;
+    source: string;
+    url?: string | null;
+    snippet?: string;
+  }>;
+  imageSuggestions?: Array<{
+    url: string;
+    source: string;
+    title?: string;
+  }>;
 }
 
 interface PreviewResponse {
@@ -51,8 +62,30 @@ interface PreviewResponse {
   dayKey: string;
   topic: PreviewTopic | null;
   previewImageUrl?: string | null;
+  previewExpandedDirective?: string | null;
+  topicMatchedTrending?: boolean;
+  warnings?: string[];
+  gatePass?: boolean;
+  gateResults?: GateResult[];
+  plan?: LivDailyPlan | null;
   reason?: string;
   article?: PreviewArticle;
+  error?: string;
+}
+
+interface LivDailyPlan {
+  dayKey: string;
+  topicHint?: string;
+  directiveHint?: string;
+  expandedDirective?: string;
+  mustUseTrending: boolean;
+  status: 'pending' | 'used' | 'failed';
+}
+
+interface PlanResponse {
+  ok?: boolean;
+  dayKey?: string;
+  plan?: LivDailyPlan | null;
   error?: string;
 }
 
@@ -150,6 +183,25 @@ const closeBtn =
 const pillLink =
   'px-3 py-1.5 rounded-lg border border-white/12 text-sm text-white/65 hover:bg-white/[0.06] hover:text-white/90 transition-all duration-200 active:scale-[0.98]';
 
+const quickPillBtn =
+  'px-2.5 py-1.5 rounded-lg border border-white/12 bg-white/[0.03] text-[11px] text-white/75 hover:bg-white/[0.08] hover:border-white/20 hover:text-white transition-all duration-200 active:scale-[0.98]';
+
+const QUICK_TOPIC_PILLS = [
+  'Sabrina Carpenter',
+  'Roskilde line-up',
+  'Kanye West i Europa',
+  'Queer klubkultur i København',
+  'Kvindelige headlinere 2026',
+];
+
+const QUICK_DIRECTION_PILLS = [
+  'kritisk men empatisk',
+  'gen Z perspektiv',
+  'feministisk kulturkritik',
+  'start i en sansning',
+  'personlig men faktatung',
+];
+
 export default function LivPostingClient({ embedded = false, onClose }: LivPostingClientProps) {
   const { user } = useAuth();
   const [preview, setPreview] = useState<PreviewResponse | null>(null);
@@ -161,6 +213,13 @@ export default function LivPostingClient({ embedded = false, onClose }: LivPosti
   const [historyLoading, setHistoryLoading] = useState(false);
   const [historyError, setHistoryError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'topic' | 'history'>('topic');
+  const [topicHint, setTopicHint] = useState('');
+  const [directiveHint, setDirectiveHint] = useState('');
+  const [mustUseTrending, setMustUseTrending] = useState(true);
+  const [excludedTopics, setExcludedTopics] = useState<string[]>([]);
+  const [plan, setPlan] = useState<LivDailyPlan | null>(null);
+  const [planLoading, setPlanLoading] = useState(false);
+  const [planError, setPlanError] = useState<string | null>(null);
 
   const authHeader = useCallback(async () => {
     if (!user) throw new Error('Log ind for at bruge AI-posting');
@@ -169,20 +228,48 @@ export default function LivPostingClient({ embedded = false, onClose }: LivPosti
   }, [user]);
 
   const loadPreview = useCallback(
-    async (opts: { generate?: boolean } = {}) => {
-      const { generate = false } = opts;
+    async (opts: {
+      generate?: boolean;
+      topicHint?: string;
+      directiveHint?: string;
+      mustUseTrending?: boolean;
+      excludedTitles?: string[];
+    } = {}) => {
+      const {
+        generate = false,
+        topicHint: topicHintOverride,
+        directiveHint: directiveHintOverride,
+        mustUseTrending: mustUseTrendingOverride,
+        excludedTitles: excludedTitlesOverride,
+      } = opts;
       try {
         setError(null);
         if (generate) setGenerateLoading(true);
         else setPreviewLoading(true);
         const headers = await authHeader();
-        const res = await fetch(`/api/liv/preview${generate ? '?generate=1' : ''}`, {
-          headers,
+        const res = await fetch('/api/liv/preview', {
+          method: 'POST',
+          headers: {
+            ...headers,
+            'Content-Type': 'application/json',
+          },
           cache: 'no-store',
+          body: JSON.stringify({
+            generate,
+            topicHint: (topicHintOverride ?? topicHint).trim() || undefined,
+            directiveHint: (directiveHintOverride ?? directiveHint).trim() || undefined,
+            mustUseTrending: mustUseTrendingOverride ?? mustUseTrending,
+            excludedTitles: excludedTitlesOverride ?? excludedTopics,
+          }),
         });
         const data: PreviewResponse = await res.json();
         if (!res.ok) {
           throw new Error(data.error || `HTTP ${res.status}`);
+        }
+        const usedTopicHint = (topicHintOverride ?? topicHint).trim();
+        const usedMustUseTrending = mustUseTrendingOverride ?? mustUseTrending;
+        if (generate && !data.topic && usedTopicHint && usedMustUseTrending) {
+          setError('Ingen trending-match til emnet endnu. Fjern "Brug kun trending-emner" eller vælg et andet emne.');
         }
         setPreview((prev) => {
           if (!generate && prev?.article && prev.topic?.title === data.topic?.title) {
@@ -197,7 +284,7 @@ export default function LivPostingClient({ embedded = false, onClose }: LivPosti
         setGenerateLoading(false);
       }
     },
-    [authHeader]
+    [authHeader, directiveHint, excludedTopics, mustUseTrending, topicHint]
   );
 
   const loadHistory = useCallback(async () => {
@@ -219,11 +306,117 @@ export default function LivPostingClient({ embedded = false, onClose }: LivPosti
     }
   }, [authHeader]);
 
+  const runQuickStart = useCallback(
+    async (nextTopic: string, nextDirection?: string) => {
+      const t = nextTopic.trim();
+      const d = (nextDirection || directiveHint).trim();
+      setExcludedTopics([]);
+      setTopicHint(t);
+      setDirectiveHint(d);
+      await loadPreview({
+        generate: true,
+        topicHint: t,
+        directiveHint: d,
+      });
+    },
+    [directiveHint, loadPreview]
+  );
+
+  const rejectCurrentTopic = useCallback(async () => {
+    const currentTitle = preview?.topic?.title?.trim();
+    if (!currentTitle) return;
+    const nextExcluded = Array.from(new Set([...excludedTopics, currentTitle]));
+    setExcludedTopics(nextExcluded);
+    setError(null);
+    await loadPreview({
+      generate: false,
+      excludedTitles: nextExcluded,
+    });
+  }, [excludedTopics, loadPreview, preview?.topic?.title]);
+
+  const loadNextSuggestion = useCallback(async () => {
+    setError(null);
+    await loadPreview({
+      generate: false,
+      excludedTitles: excludedTopics,
+    });
+  }, [excludedTopics, loadPreview]);
+
+  const loadPlan = useCallback(async () => {
+    try {
+      setPlanError(null);
+      setPlanLoading(true);
+      const headers = await authHeader();
+      const res = await fetch('/api/liv/plan?for=tomorrow', { headers, cache: 'no-store' });
+      const data: PlanResponse = await res.json();
+      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+      setPlan(data.plan || null);
+    } catch (e) {
+      setPlanError(e instanceof Error ? e.message : 'Kunne ikke hente plan');
+    } finally {
+      setPlanLoading(false);
+    }
+  }, [authHeader]);
+
+  const savePlan = useCallback(async () => {
+    try {
+      setPlanError(null);
+      setPlanLoading(true);
+      const headers = await authHeader();
+      const res = await fetch('/api/liv/plan?for=tomorrow', {
+        method: 'POST',
+        headers: {
+          ...headers,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          topicHint: topicHint.trim() || undefined,
+          directiveHint: directiveHint.trim() || undefined,
+          mustUseTrending,
+        }),
+      });
+      const data: PlanResponse = await res.json();
+      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+      setPlan(data.plan || null);
+    } catch (e) {
+      setPlanError(e instanceof Error ? e.message : 'Kunne ikke gemme plan');
+    } finally {
+      setPlanLoading(false);
+    }
+  }, [authHeader, directiveHint, mustUseTrending, topicHint]);
+
+  const clearPlan = useCallback(async () => {
+    try {
+      setPlanError(null);
+      setPlanLoading(true);
+      const headers = await authHeader();
+      const res = await fetch('/api/liv/plan?for=tomorrow', {
+        method: 'DELETE',
+        headers,
+      });
+      const data: PlanResponse = await res.json();
+      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+      setPlan(null);
+    } catch (e) {
+      setPlanError(e instanceof Error ? e.message : 'Kunne ikke slette plan');
+    } finally {
+      setPlanLoading(false);
+    }
+  }, [authHeader]);
+
   useEffect(() => {
     if (!user) return;
     loadPreview();
     loadHistory();
-  }, [user, loadPreview, loadHistory]);
+    loadPlan();
+  }, [user, loadPreview, loadHistory, loadPlan]);
+
+  useEffect(() => {
+    if (!plan) return;
+    if (!topicHint && plan.topicHint) setTopicHint(plan.topicHint);
+    if (!directiveHint && plan.directiveHint) setDirectiveHint(plan.directiveHint);
+    setMustUseTrending(plan.mustUseTrending !== false);
+  }, [plan, topicHint, directiveHint]);
 
   const topic = preview?.topic ?? null;
   const article = preview?.article ?? null;
@@ -306,7 +499,7 @@ export default function LivPostingClient({ embedded = false, onClose }: LivPosti
             <span className="truncate">Liv Brandt · auto-publish dagligt{todayLabel ? ` · ${todayLabel}` : ''}</span>
             <button
               type="button"
-              onClick={() => { loadPreview(); loadHistory(); }}
+              onClick={() => { loadPreview(); loadHistory(); loadPlan(); }}
               disabled={anyBusy || historyLoading}
               className="text-white/45 hover:text-white/75 transition-colors disabled:opacity-40"
             >
@@ -389,7 +582,7 @@ export default function LivPostingClient({ embedded = false, onClose }: LivPosti
 
               {/* Action row */}
               {topic && (
-                <div className="flex gap-2">
+                <div className="flex gap-2 flex-wrap">
                   <button
                     type="button"
                     onClick={() => loadPreview({ generate: true })}
@@ -408,7 +601,204 @@ export default function LivPostingClient({ embedded = false, onClose }: LivPosti
                       Kilde ↗
                     </a>
                   )}
+                  <button
+                    type="button"
+                    onClick={rejectCurrentTopic}
+                    disabled={generateLoading}
+                    className="shrink-0 inline-flex items-center justify-center px-3 py-3 rounded-xl border border-rose-300/20 text-[13px] text-rose-200/90 hover:bg-rose-500/[0.08] hover:border-rose-300/35 transition-all duration-200 active:scale-[0.98]"
+                    title="Afvis dette emne"
+                  >
+                    X Afvis
+                  </button>
+                  <button
+                    type="button"
+                    onClick={loadNextSuggestion}
+                    disabled={generateLoading || previewLoading}
+                    className="shrink-0 inline-flex items-center justify-center px-3 py-3 rounded-xl border border-white/12 text-[13px] text-white/75 hover:bg-white/[0.05] hover:border-white/18 transition-all duration-200 active:scale-[0.98]"
+                  >
+                    Næste forslag
+                  </button>
                 </div>
+              )}
+
+              <section className="rounded-xl border border-white/[0.08] bg-white/[0.02] px-4 py-4 space-y-3">
+                <div className="flex items-center justify-between gap-3">
+                  <p className="text-[12px] font-medium text-white/80">Styr Livs retning</p>
+                  <span className="text-[10px] text-white/40 uppercase tracking-wider">Plan til i morgen</span>
+                </div>
+
+                <label className="block space-y-1.5">
+                  <span className="text-[11px] text-white/55">Emne (valgfrit)</span>
+                  <input
+                    value={topicHint}
+                    onChange={(e) => setTopicHint(e.target.value)}
+                    placeholder="Fx Sabrina Carpenter, Roskilde-lineup, queer klubkultur"
+                    className="apropos-input-dark w-full rounded-lg border px-3 py-2.5 text-[13px]"
+                  />
+                  <div className="flex flex-wrap gap-1.5 pt-1">
+                    {QUICK_TOPIC_PILLS.map((pill) => (
+                      <button
+                        key={pill}
+                        type="button"
+                        onClick={() => runQuickStart(pill)}
+                        disabled={generateLoading || planLoading}
+                        className={quickPillBtn}
+                      >
+                        {pill}
+                      </button>
+                    ))}
+                  </div>
+                </label>
+
+                <label className="block space-y-1.5">
+                  <span className="text-[11px] text-white/55">Vinkel / redaktionel intention (valgfrit)</span>
+                  <textarea
+                    value={directiveHint}
+                    onChange={(e) => setDirectiveHint(e.target.value)}
+                    placeholder="Fx kritisk men empatisk, gen-Z perspektiv, start i en sansning fra koncertsalen"
+                    rows={3}
+                    className="apropos-input-dark w-full rounded-lg border px-3 py-2.5 text-[13px] resize-y"
+                  />
+                  <div className="flex flex-wrap gap-1.5 pt-1">
+                    {QUICK_DIRECTION_PILLS.map((pill) => (
+                      <button
+                        key={pill}
+                        type="button"
+                        onClick={() => setDirectiveHint(pill)}
+                        className={quickPillBtn}
+                      >
+                        {pill}
+                      </button>
+                    ))}
+                  </div>
+                </label>
+
+                <label className="flex items-center gap-2 text-[12px] text-white/65">
+                  <input
+                    type="checkbox"
+                    checked={mustUseTrending}
+                    onChange={(e) => setMustUseTrending(e.target.checked)}
+                    className="size-4 rounded border-white/25 bg-black/40"
+                  />
+                  Brug kun trending-emner
+                </label>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => loadPreview({ generate: true })}
+                    disabled={generateLoading || planLoading}
+                    className={primaryBtn}
+                  >
+                    Preview med retning
+                  </button>
+                  <button
+                    type="button"
+                    onClick={savePlan}
+                    disabled={planLoading}
+                    className={secondaryBtn}
+                  >
+                    {planLoading ? 'Gemmer…' : 'Planlæg til i morgen'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={clearPlan}
+                    disabled={planLoading || !plan}
+                    className={secondaryBtn}
+                  >
+                    Slet plan
+                  </button>
+                </div>
+
+                <div className="flex flex-wrap gap-1.5">
+                  {QUICK_TOPIC_PILLS.map((pill) => (
+                    <button
+                      key={`run-${pill}`}
+                      type="button"
+                      onClick={() => runQuickStart(pill)}
+                      disabled={generateLoading || planLoading}
+                      className={quickPillBtn}
+                    >
+                      Kør: {pill}
+                    </button>
+                  ))}
+                </div>
+
+                {excludedTopics.length > 0 && (
+                  <p className="text-[11px] text-white/45">
+                    Afviste emner i denne session: {excludedTopics.length} ·
+                    <button
+                      type="button"
+                      onClick={() => setExcludedTopics([])}
+                      className="ml-1 text-white/70 hover:text-white underline underline-offset-2"
+                    >
+                      nulstil
+                    </button>
+                  </p>
+                )}
+
+                {planError && <p className="text-[12px] text-red-400/95">{planError}</p>}
+
+                {plan && (
+                  <div className="rounded-lg border border-white/[0.08] bg-black/20 px-3 py-2.5">
+                    <p className="text-[11px] text-white/70">
+                      Aktiv plan: <span className="text-white/90">{plan.dayKey}</span> · {plan.status}
+                    </p>
+                    {plan.topicHint ? <p className="text-[11px] text-white/55 mt-1">Emne: {plan.topicHint}</p> : null}
+                    {plan.directiveHint ? (
+                      <p className="text-[11px] text-white/50 mt-0.5 line-clamp-2">Vinkel: {plan.directiveHint}</p>
+                    ) : null}
+                  </div>
+                )}
+              </section>
+
+              {Array.isArray(preview?.warnings) && preview.warnings.length > 0 && (
+                <section className="rounded-xl border border-amber-400/25 bg-amber-500/[0.06] px-4 py-3">
+                  {preview.warnings.map((w) => (
+                    <p key={w} className="text-[12px] text-amber-200/90 leading-relaxed">
+                      {w}
+                    </p>
+                  ))}
+                </section>
+              )}
+
+              {Array.isArray(preview?.gateResults) && preview.gateResults.length > 0 && (
+                <section className="rounded-xl border border-white/[0.08] bg-white/[0.02] px-4 py-3 space-y-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-[10px] uppercase tracking-wider text-white/45">Safety Gates</p>
+                    <span
+                      className={`text-[10px] uppercase tracking-wider ${
+                        preview.gatePass ? 'text-emerald-300/90' : 'text-amber-300/90'
+                      }`}
+                    >
+                      {preview.gatePass ? 'Pass' : 'Kræver review'}
+                    </span>
+                  </div>
+                  <div className="space-y-1.5">
+                    {preview.gateResults.map((g) => (
+                      <div
+                        key={`${g.name}-${g.detail || ''}`}
+                        className="rounded-lg border border-white/[0.08] bg-black/20 px-2.5 py-2"
+                      >
+                        <p className="text-[11px] text-white/85">
+                          {g.name}: {g.pass ? 'OK' : 'Fejl'}
+                        </p>
+                        {g.detail ? (
+                          <p className="text-[11px] text-white/50 mt-0.5 leading-relaxed">{g.detail}</p>
+                        ) : null}
+                      </div>
+                    ))}
+                  </div>
+                </section>
+              )}
+
+              {preview?.previewExpandedDirective && (
+                <section className="rounded-xl border border-white/[0.08] bg-white/[0.02] px-4 py-3">
+                  <p className="text-[10px] uppercase tracking-wider text-white/45 mb-1.5">AI-udvidet retning</p>
+                  <p className="text-[12px] text-white/75 whitespace-pre-wrap leading-relaxed">
+                    {preview.previewExpandedDirective}
+                  </p>
+                </section>
               )}
 
               {/* Forhåndsvisning */}
@@ -465,6 +855,25 @@ export default function LivPostingClient({ embedded = false, onClose }: LivPosti
                         </p>
                       )}
                     </div>
+
+                    {Array.isArray(article.imageSuggestions) && article.imageSuggestions.length > 0 && (
+                      <div className="rounded-lg border border-white/[0.08] bg-[#141414] px-3 py-3 space-y-2">
+                        <p className="text-[10px] uppercase tracking-wider text-white/45">Billedeforslag</p>
+                        <div className="space-y-1.5">
+                          {article.imageSuggestions.slice(0, 4).map((img) => (
+                            <a
+                              key={img.url}
+                              href={img.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="block text-[11px] text-white/75 hover:text-white underline underline-offset-2 break-all"
+                            >
+                              {img.title || img.source || 'Billede'} ↗
+                            </a>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </section>
               )}

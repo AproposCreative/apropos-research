@@ -27,6 +27,11 @@ import { generateLivArticle } from '@/lib/liv/generate-article';
 import { runSafetyGates } from '@/lib/liv/run-safety-gates';
 import { publishArticleToWebflow, type WebflowArticleFields } from '@/lib/webflow-service';
 import { sendGa4MeasurementEvent } from '@/lib/newsletter/ga4-measurement';
+import {
+  getLivDailyPlan,
+  markPlanFailed,
+  markPlanUsed,
+} from '@/lib/liv/daily-plan-store';
 
 export const maxDuration = 300;
 
@@ -83,12 +88,23 @@ export async function GET(req: NextRequest) {
   }
 
   if (dryRun) {
-    const topic = await pickLivTopic({ baseUrl });
-    logger.info('[cron/liv-daily] dryRun', { dayKey, picked: topic?.title || null, score: topic?.score });
+    const plan = await getLivDailyPlan(dayKey);
+    const topic = await pickLivTopic({
+      baseUrl,
+      topicHint: plan?.topicHint,
+      mustUseTrending: plan?.mustUseTrending ?? true,
+    });
+    logger.info('[cron/liv-daily] dryRun', {
+      dayKey,
+      picked: topic?.title || null,
+      score: topic?.score,
+      usingPlan: !!plan,
+    });
     return NextResponse.json({
       ok: true,
       dryRun: true,
       dayKey,
+      plan,
       pickedTopic: topic,
       hint: 'dryRun springer claim/publish over. Fjern ?dryRun=1 for at køre rigtigt.',
     });
@@ -102,21 +118,33 @@ export async function GET(req: NextRequest) {
 
   let pickedTopicTitle: string | undefined;
   let gateResults: GateResult[] = [];
+  const plan = await getLivDailyPlan(dayKey);
 
   try {
-    const topic = await pickLivTopic({ baseUrl });
+    const topic = await pickLivTopic({
+      baseUrl,
+      topicHint: plan?.topicHint,
+      mustUseTrending: plan?.mustUseTrending ?? true,
+    });
     if (!topic) {
       await finishLivDaily(dayKey, {
         status: 'skipped_no_topic',
         reason: 'Ingen trending-artikler matcher Liv\'s temaer i dag.',
       });
+      if (plan) {
+        await markPlanFailed(dayKey, 'Ingen emner matchede planens hint.');
+      }
       await reportGa4('skipped', { reason: 'no_topic', day_key: dayKey });
       logger.info('[cron/liv-daily] skipped — no_topic', { dayKey });
       return NextResponse.json({ ok: true, skipped: true, reason: 'no_topic', dayKey });
     }
     pickedTopicTitle = topic.title;
 
-    const article = await generateLivArticle({ topic });
+    const article = await generateLivArticle({
+      topic,
+      expandedDirective: plan?.expandedDirective,
+      baseUrl,
+    });
 
     const gates = await runSafetyGates({
       baseUrl,
@@ -146,6 +174,9 @@ export async function GET(req: NextRequest) {
         reason: `${failed}: ${detail}`,
         gateResults,
       });
+      if (plan) {
+        await markPlanFailed(dayKey, `${failed}: ${detail}`);
+      }
       await reportGa4('skipped', {
         reason: `gate_${failed}`,
         day_key: dayKey,
@@ -178,6 +209,12 @@ export async function GET(req: NextRequest) {
       status: 'published',
       publishDate: new Date().toISOString(),
       presseakkreditering: false,
+      // AI-content sporbarhed: ai-generated er primært flag,
+      // ai-source-url og ai-model er metadata til transparens og debug.
+      aiGenerated: true,
+      aiSourceUrl: topic.source?.url || null,
+      aiModel: process.env.LIV_GENERATION_MODEL || 'claude-opus-4.7',
+      featuredImage: article.imageSuggestions?.[0]?.url,
     };
 
     const webflowItemId = await publishArticleToWebflow(payload);
@@ -191,6 +228,9 @@ export async function GET(req: NextRequest) {
       gateResults,
       sourceUrl: topic.source?.url,
     });
+    if (plan) {
+      await markPlanUsed(dayKey);
+    }
 
     await reportGa4('published', {
       day_key: dayKey,
@@ -209,6 +249,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({
       ok: true,
       dayKey,
+      usedPlan: !!plan,
       topic: topic.title,
       title: article.title,
       slug: article.slug,
@@ -225,6 +266,9 @@ export async function GET(req: NextRequest) {
       gateResults,
     });
     await reportGa4('failed', { reason: msg.slice(0, 100), day_key: dayKey });
+    if (plan) {
+      await markPlanFailed(dayKey, msg);
+    }
     logger.error('[cron/liv-daily] unhandled error', e instanceof Error ? e : new Error(msg), { dayKey, stack });
     return NextResponse.json({ error: msg, dayKey }, { status: 500 });
   }

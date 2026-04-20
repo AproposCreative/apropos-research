@@ -17,6 +17,7 @@ the closest existing one.
 - **Font:** `font-poppins` on every panel root.
 - **Backgrounds (dark):** `bg-[#080808]` (canvas), `bg-[#0a0a0a]` (full-page), `bg-[#0c0c0c]` (standalone header), `bg-[#141414]` (form fields), `bg-[#171717]` (input shells / side cards).
 - **Embedded panels:** `bg-black/40 md:bg-black backdrop-blur-xl md:backdrop-blur-0` with `border border-white/15`.
+- **Readable blur window (preferred for editor/panel surfaces):** `bg-black/55 md:bg-black/75 backdrop-blur-2xl md:backdrop-blur-xl` with `border border-white/15`.
 - **Surface tints:** `bg-white/[0.02]`, `bg-white/[0.03]`, `bg-white/[0.05]`, `bg-white/[0.06]`. Hover steps up by ~50%.
 - **Borders:** `border-white/[0.06]` (faint), `border-white/10`, `border-white/12` (default), `border-white/15`, `border-white/20`, `border-white/25`.
 - **Radius:** `rounded-lg` (badges, segments, fields), `rounded-xl` (cards, sections, primary buttons), `rounded-2xl` (large containers, mini-menu).
@@ -84,6 +85,12 @@ const pillLink =
 className="w-full h-10 appearance-none pl-3 pr-3 rounded-lg border border-white/[0.12] bg-[#141414] text-[13px] text-white focus:border-white/25 focus:outline-none focus:ring-1 focus:ring-white/10 [color-scheme:dark]"
 ```
 
+All text inputs/textareas/selects in dark surfaces MUST also include `apropos-input-dark` to guarantee contrast in browser autofill and avoid white-on-white regressions.
+
+```tsx
+className="apropos-input-dark w-full rounded-lg border px-3 py-2.5 text-[13px]"
+```
+
 ## Status badges & indicators
 
 Status pills are **muted by default**. Use a small colored dot for tone, never a fill.
@@ -112,6 +119,27 @@ When mounted inside `AIWriterClient` (`embedded` prop), wrap the content in:
 ```
 
 Outer container is provided by `AIWriterClient` — only render the inner content.
+
+## Mobile-first quality gate
+
+All newly added features must be usable on mobile without hidden/hover-only controls.
+
+- Minimum tap target: `44x44` (`touch-target` class).
+- Critical actions must be visible without hover (desktop hover can be additive only).
+- Avoid horizontal scroll in top bars; use `flex-wrap` on small screens.
+- Add `app-safe-top` / `app-safe-bottom` where fixed bars or overlays are used.
+- Inputs and textareas must keep contrast at all times (`apropos-input-dark`).
+
+## Figma-inspired premium minimal
+
+When designing editor/tooling surfaces (image edit, SoMe posting, prompt tools), follow this visual language:
+
+- Use monochrome dark surfaces first: `bg-black/40` to `bg-black/65` + `backdrop-blur-xl/2xl`.
+- Prefer subtle outlined buttons over saturated fills.
+- Keep visual hierarchy by spacing and border opacity, not bright colors.
+- Toolbars should be compact and rounded (`rounded-xl` / `rounded-2xl`) with one-pixel borders.
+- Labels are concise and calm; avoid flashy gradients in headings.
+- Strong color fills (pink/blue/green backgrounds) are allowed only for tiny status dots, never for primary action buttons.
 
 ## Chat shell (only in `MainChatPanel.tsx` and chat-like surfaces)
 
@@ -215,3 +243,4 @@ For longer pipelines (Liv preview, Preflight) prefer the shared timeline — DO 
 - ❌ No emoji as UI icon.
 - ❌ No new color values — if you need a tint, pick from the surface scale above.
 - ❌ Don't centre everything — left-align text, use `gap-2` / `gap-3` between siblings.
+- ❌ Do not ship dark inputs without `apropos-input-dark` (autofill may turn white and break readability).

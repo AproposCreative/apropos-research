@@ -53,6 +53,16 @@ export interface WebflowArticleFields {
   presseakkreditering?: boolean | null;
   /** Legacy alias used in SetupWizard (kept for backwards compat). */
   press?: boolean | null;
+  /**
+   * Markerer artikler genereret af AI-pipelines (fx Liv's daglige auto-publish).
+   * Sættes til `true` af `app/api/cron/liv-daily-article` og bruges af
+   * frontend/nyhedsbrev til at filtrere eller mærke AI-indhold.
+   */
+  aiGenerated?: boolean | null;
+  /** URL til original kilde — sporbarhed for AI-genererede artikler. */
+  aiSourceUrl?: string | null;
+  /** Hvilken model der genererede artiklen, fx "claude-opus-4.7". */
+  aiModel?: string | null;
   topicsSelected?: string[];
   streaming_service?: string;
   platform?: string;

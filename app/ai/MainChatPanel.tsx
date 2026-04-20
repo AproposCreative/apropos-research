@@ -1105,7 +1105,7 @@ const fallbackThinkingSteps: ThinkingStep[] = [
 
   return (
     <>
-      <div className="w-full h-full md:rounded-xl md:outline md:outline-[1.50px] md:outline-offset-[-1.50px] md:outline-zinc-800 flex flex-col justify-between font-poppins chat-container relative overflow-hidden" style={{ backgroundColor: 'rgb(0, 0, 0)' }}>
+      <div className="w-full h-full md:rounded-xl md:outline md:outline-[1.50px] md:outline-offset-[-1.50px] md:outline-zinc-800 flex flex-col justify-between font-poppins chat-container relative overflow-hidden bg-[#070707]/90 backdrop-blur-3xl border border-white/20 shadow-[0_20px_70px_rgba(0,0,0,0.55)]">
         {/* Mobile empty-state gradient background (replaces Spline which causes white/blank on mobile WebGL) */}
         <div className={`md:hidden fixed inset-0 z-0 transition-opacity duration-500 ${messages.length === 0 ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
           <div className="absolute inset-0 bg-gradient-to-br from-[#0a0a0a] via-[#111] to-[#0d0d1a]" />
@@ -1115,7 +1115,7 @@ const fallbackThinkingSteps: ThinkingStep[] = [
         <div className={`flex items-center min-h-[56px] px-4 app-safe-top relative z-20 
           md:static md:bg-transparent md:backdrop-blur-0 md:border-b md:border-zinc-800 
           fixed top-0 inset-x-0 md:inset-auto md:top-auto
-          bg-black/80 backdrop-blur-xl border-b border-white/[0.06]
+          bg-[#070707]/85 backdrop-blur-xl border-b border-white/10
         ${messages.length === 0 ? 'md:opacity-100' : ''}`}>
           {/* Left: logo/title */}
           <div className="flex items-center gap-3 min-w-0 flex-1">
@@ -1156,8 +1156,8 @@ const fallbackThinkingSteps: ThinkingStep[] = [
               type="button"
               onClick={() => onClose?.()}
               className="hidden md:flex touch-target items-center justify-center rounded-lg border border-white/15 text-white/70 hover:text-white hover:bg-white/5 transition-colors"
-              aria-label="Luk AI Writer og åbn Design Editor"
-              title="Luk og åbn Design Editor"
+              aria-label="Luk AI Writer og åbn SoMe Posting"
+              title="Luk og åbn SoMe Posting"
             >
               <svg className="w-5 h-5 block" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
@@ -1526,7 +1526,7 @@ const fallbackThinkingSteps: ThinkingStep[] = [
             <div className="grid grid-cols-5 border-b border-white/[0.06]">
               {([
                 { label: 'Drafts', icon: (<div className="grid grid-cols-3 gap-[3px] w-[18px] h-[18px]">{Array.from({ length: 9 }).map((_, i) => (<div key={i} className="w-[4px] h-[4px] bg-current rounded-full" />))}</div>), action: () => { closeMobileMenu(); onOpenDraftsPanel ? onOpenDraftsPanel() : (window.location.href = '/ai-drafts'); } },
-                { label: 'Designer', icon: (<svg className="w-[18px] h-[18px]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M4 7h16M4 12h16M4 17h16" /></svg>), action: () => { closeMobileMenu(); window.location.href = '/design-editor'; } },
+                { label: 'SoMe', icon: (<svg className="w-[18px] h-[18px]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M4 7h16M4 12h16M4 17h16" /></svg>), action: () => { closeMobileMenu(); window.location.href = '/design-editor'; } },
                 { label: 'Nyhedsbrev', icon: (<svg className="w-[18px] h-[18px]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M3 8l9 6 9-6M5 19h14a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2z" /></svg>), action: () => { closeMobileMenu(); window.location.href = '/ai/newsletter'; } },
                 { label: 'Preview', icon: (<svg className="w-[18px] h-[18px]" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.8}><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3"/></svg>), action: () => { closeMobileMenu(); if (onOpenReviewPanel) onOpenReviewPanel(); } },
                 { label: 'Ny', icon: (<svg className="w-[18px] h-[18px]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M12 4v16m8-8H4" /></svg>), action: () => { closeMobileMenu(); onNewArticle ? onNewArticle() : (setChatMessages([]), onChatTitleChange('Ny artikkel')); } },

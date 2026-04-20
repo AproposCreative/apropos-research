@@ -224,13 +224,15 @@ export async function getRecentLivDailySlugs(days = 14): Promise<Set<string>> {
   try {
     const snap = await db
       .collection(LIV_DAILY_COLLECTION)
-      .where('status', '==', 'published')
       .orderBy('completedAt', 'desc')
-      .limit(Math.min(days, 60))
+      .limit(Math.min(Math.max(days * 4, days), 120))
       .get();
     for (const doc of snap.docs) {
-      const slug = doc.data()?.slug;
+      const data = doc.data();
+      if (data?.status !== 'published') continue;
+      const slug = data?.slug;
       if (typeof slug === 'string' && slug.trim()) out.add(slug.trim().toLowerCase());
+      if (out.size >= days) break;
     }
   } catch (e) {
     console.warn('[liv/daily] getRecentLivDailySlugs:', e);
@@ -248,11 +250,14 @@ export async function getRecentLivDailyTopics(days = 14): Promise<Set<string>> {
     const snap = await db
       .collection(LIV_DAILY_COLLECTION)
       .orderBy('completedAt', 'desc')
-      .limit(Math.min(days, 60))
+      .limit(Math.min(Math.max(days * 4, days), 120))
       .get();
     for (const doc of snap.docs) {
-      const topic = doc.data()?.topic;
+      const data = doc.data();
+      if (data?.status !== 'published') continue;
+      const topic = data?.topic;
       if (typeof topic === 'string' && topic.trim()) out.add(topic.trim().toLowerCase());
+      if (out.size >= days) break;
     }
   } catch (e) {
     console.warn('[liv/daily] getRecentLivDailyTopics:', e);
