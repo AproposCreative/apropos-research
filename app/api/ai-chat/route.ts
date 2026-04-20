@@ -11,6 +11,8 @@ import {
   buildWebSearchSegment,
   hasResearchContext,
 } from '@/lib/ai-chat/build-system-prompt';
+import { generateSeoMetaSmart } from '@/lib/seo/generate-seo-meta';
+import { SEO_TITLE_MAX } from '@/lib/seo/constants';
 
 const openai = getOpenAIClient();
 
@@ -274,21 +276,16 @@ function cleanForSeo(text: string): string {
 }
 
 function buildSeoFields(args: { title?: string | null; subtitle?: string | null; intro?: string | null; content?: string }): { seoTitle?: string; seoDescription?: string } {
-  const title = cleanForSeo(args.title || '');
-  const subtitle = cleanForSeo(args.subtitle || '');
-  const intro = cleanForSeo(args.intro || '');
-  const content = cleanForSeo(args.content || '');
-
-  let seoTitle = title;
-  if (subtitle && seoTitle.length < 52) seoTitle = `${seoTitle} – ${subtitle}`;
-  if (seoTitle.length > 60) seoTitle = seoTitle.slice(0, 57).trimEnd() + '...';
-
-  const base = intro || subtitle || content;
-  const seoDescription = base ? base.slice(0, 157).trimEnd() + (base.length > 157 ? '...' : '') : '';
-  return {
-    seoTitle: seoTitle || undefined,
-    seoDescription: seoDescription || undefined,
-  };
+  // Delegate to the shared smart heuristic so we get word-boundary truncation
+  // and unified limits across the app. AI-driven SEO is available via
+  // `generateSeoMetaAI` and the /api/seo/generate route for explicit refresh.
+  const out = generateSeoMetaSmart({
+    title: args.title || null,
+    subtitle: args.subtitle || null,
+    intro: args.intro || null,
+    content: args.content || null,
+  });
+  return { seoTitle: out.seoTitle, seoDescription: out.seoDescription };
 }
 
 function deriveIntroFromFirstParagraph(text: string): string | null {
@@ -419,7 +416,7 @@ function extractArticleUpdate(responseText: string, userRating?: number): Record
   if (resolvedIntro) update.intro = resolvedIntro;
   if (resolvedTitle) {
     update.slug = deriveSlug(resolvedTitle);
-    update.seoTitle = seo.seoTitle || cleanForSeo(resolvedTitle).slice(0, 60);
+    update.seoTitle = seo.seoTitle || cleanForSeo(resolvedTitle).slice(0, SEO_TITLE_MAX);
   }
   if (excerpt) update.excerpt = excerpt;
   if (seo.seoDescription) update.seoDescription = seo.seoDescription;

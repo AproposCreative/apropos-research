@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { WebflowArticleFields } from '@/lib/webflow-service';
+import { SEO_DESCRIPTION_MAX } from '@/lib/seo/constants';
 
 interface WebflowPublishPanelProps {
   articleData: any;
@@ -166,7 +167,7 @@ export default function WebflowPublishPanel({ articleData, onPublish, onClose, e
         author: articleData.author || prev.author || '',
         rating: typeof articleData.rating === 'number' ? articleData.rating : (prev.rating || 0),
         seoTitle: articleData.seoTitle || prev.seoTitle || articleData.title || prev.title || '',
-        seoDescription: articleData.seoDescription || prev.seoDescription || (content ? content.substring(0, 160) : ''),
+        seoDescription: articleData.seoDescription || prev.seoDescription || (content ? content.substring(0, SEO_DESCRIPTION_MAX) : ''),
         wordCount: wc,
         readTime: rt,
         intro: getBestIntro(articleData, content) || prev.intro || '',
@@ -219,7 +220,7 @@ export default function WebflowPublishPanel({ articleData, onPublish, onClose, e
       readTime,
       intro,
       seoTitle: prev.seoTitle || prev.title,
-      seoDescription: prev.seoDescription || prev.excerpt || prev.content.substring(0, 160)
+      seoDescription: prev.seoDescription || prev.excerpt || prev.content.substring(0, SEO_DESCRIPTION_MAX)
     }));
   };
 

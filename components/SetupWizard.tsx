@@ -1292,11 +1292,11 @@ ${toneInstruction}`;
           <div className="text-white/80 text-sm">Presseakkreditering?</div>
           <div className="flex gap-x-[16px]">
             <button
-              onClick={()=> updateData((d:any)=> ({ ...d, press: true }), 'press')}
+              onClick={()=> updateData((d:any)=> ({ ...d, press: true, presseakkreditering: true }), 'press')}
               className={`px-3 py-1.5 rounded-lg text-xs transition-all border ${data.press===true ? 'bg-white/10 text-white border-white/40' : 'bg-white/5 text-white border-white/10 hover:border-white/20 hover:bg-white/10'}`}
             >Ja, der er pressekontakt/akkreditering</button>
             <button
-              onClick={()=> updateData((d:any)=> ({ ...d, press: false }), 'press')}
+              onClick={()=> updateData((d:any)=> ({ ...d, press: false, presseakkreditering: false }), 'press')}
               className={`px-3 py-1.5 rounded-lg text-xs transition-all border ${data.press===false ? 'bg-white/10 text-white border-white/40' : 'bg-white/5 text-white border-white/10 hover:border-white/20 hover:bg-white/10'}`}
             >Nej, der er ikke modtaget presse-akkreditering</button>
           </div>
