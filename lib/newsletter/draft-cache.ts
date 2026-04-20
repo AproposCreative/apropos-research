@@ -7,7 +7,7 @@ import { getAdminDb } from '@/lib/firebase-admin';
 
 const DRAFT_CACHE_COLLECTION = 'newsletterDraftCache';
 const CACHE_DOC_PREFIX = 'weekly-';
-const DRAFT_TEMPLATE_VERSION = 18;
+const DRAFT_TEMPLATE_VERSION = 22;
 
 export type DraftCacheHit = {
   hit: true;
@@ -66,6 +66,8 @@ function parseCachedDraftData(
                 ? row.ratingStars
                 : null,
             metaCategoryLine: typeof row.metaCategoryLine === 'string' ? row.metaCategoryLine : null,
+            authorItemId: typeof row.authorItemId === 'string' ? row.authorItemId : null,
+            authorName: typeof row.authorName === 'string' ? row.authorName : null,
           };
         })
     : [];
@@ -174,6 +176,8 @@ export async function saveWeeklyDraftCache(
         subtitle: a.subtitle ?? null,
         ratingStars: a.ratingStars ?? null,
         metaCategoryLine: a.metaCategoryLine ?? null,
+        authorItemId: a.authorItemId ?? null,
+        authorName: a.authorName ?? null,
       })),
       generatedAt: FieldValue.serverTimestamp(),
       updatedAt: FieldValue.serverTimestamp(),
@@ -214,6 +218,8 @@ function draftHitFromStoredFields(d: Record<string, unknown>): DraftCacheHit | D
                 ? row.ratingStars
                 : null,
             metaCategoryLine: typeof row.metaCategoryLine === 'string' ? row.metaCategoryLine : null,
+            authorItemId: typeof row.authorItemId === 'string' ? row.authorItemId : null,
+            authorName: typeof row.authorName === 'string' ? row.authorName : null,
           };
         })
     : [];

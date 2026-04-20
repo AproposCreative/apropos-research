@@ -5,15 +5,13 @@
  * verified, and checked for plagiarism before being returned.
  */
 
-import OpenAI from 'openai';
 import fs from 'fs';
 import path from 'path';
 import { config } from '@/lib/config/env';
 import { logger } from '@/lib/logger';
+import { getOpenAIClient } from '@/lib/openai';
 
-const openai = config.openai.apiKey ? new OpenAI({
-  apiKey: config.openai.apiKey,
-}) : null;
+const openai = getOpenAIClient();
 
 const RESEARCH_MODEL = config.openai.researchModel;
 

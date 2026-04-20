@@ -11,43 +11,11 @@ import CategorySelection from '@/components/CategorySelection';
 import { WebflowAuthor } from '@/lib/webflow-service';
 import { useAuth } from '@/lib/auth-context';
 import { type UploadedFile } from '@/lib/file-upload-service';
-import type { ArticleData } from '@/types/article';
 import PreflightRecommendations from '@/components/PreflightRecommendations';
 import PreflightStatus from '@/components/PreflightStatus';
 import type { ThinkingStep, ThinkingStatus } from '@/types/thinking';
-
-const THINKING_TEXTS = [
-  'Finder vinklen…',
-  'Aer katten…',
-  'Reflekterer over virkeligheden…',
-  'Tilføjer sidechain…',
-  'Checker tonal balance…',
-  'Lowcutter alt over 80 Hz…',
-  'Lægger et magisk reverb-rum…',
-  'Sampler virkeligheden…',
-  'Ruller d20 for inspiration…',
-  'Checker prisen på en Black Lotus…',
-  'Tapper mana og skriver videre…',
-  'Laver en soft-clip på egoet…',
-  'Ligger automation på sætningen…',
-  'Mixer lidt mere følelse i mix-bussen…',
-  'Stemmer teksten i 432 Hz…',
-  'Loader plug-in\'et "Human Touch v1.3"…',
-  'Korrigerer for latens i virkeligheden…',
-  'Kalibrerer tonen…',
-  'Overdubber med selvironi…',
-  'Bouncer til master…'
-];
-
-type LocalArticleData = ArticleData & { aiSuggestion?: { type: 'rating'; title: string; description: string } | null };
-
-interface ChatMessage {
-  id: string;
-  role: 'user' | 'assistant';
-  content: string;
-  timestamp: Date;
-  files?: UploadedFile[];
-}
+import { THINKING_TEXTS } from '@/components/main-chat/constants';
+import type { ChatMessage, LocalArticleData } from '@/components/main-chat/types';
 
 interface MainChatPanelProps {
   messages: ChatMessage[];

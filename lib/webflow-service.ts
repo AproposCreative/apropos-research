@@ -3,6 +3,21 @@ import { getWebflowConfig, saveWebflowConfig } from './webflow-config';
 import { readMapping, type WebflowMapping } from './webflow-mapping';
 import { env } from '@/lib/config/env';
 import { logger } from '@/lib/logger';
+import {
+  extractFirstYouTubeUrl,
+  isLikelyUrl,
+  normalizeYouTubeUrl,
+  stripHtml,
+  transformValue,
+} from '@/lib/webflow/field-mapping';
+import type {
+  WebflowArticleFields,
+  WebflowAuthor,
+  WebflowFieldMeta,
+  WebflowStatus,
+} from '@/lib/webflow/types';
+
+export type { WebflowArticleFields, WebflowAuthor, WebflowFieldMeta, WebflowStatus };
 
 // Resolve config dynamically so UI changes work without restart
 function resolveConfig() {
@@ -31,71 +46,7 @@ function resolveConfig() {
 
 // We call Webflow Data API v2 directly via fetch
 
-// Author interface
-export interface WebflowAuthor {
-  id: string;
-  name: string;
-  slug: string;
-  bio?: string;
-  avatar?: string;
-  email?: string;
-  social?: {
-    twitter?: string;
-    instagram?: string;
-    linkedin?: string;
-  };
-  tov?: string; // Tone of voice description
-  specialties?: string[]; // Writing specialties
-}
-
-// Article field interface
-export interface WebflowArticleFields {
-  id: string;
-  webflowId?: string; // ID of existing Webflow article for updates
-  title: string;
-  slug: string;
-  subtitle?: string;
-  content: string;
-  excerpt?: string;
-  intro?: string;
-  category: string;
-  tags: string[];
-  author: string;
-  rating?: number;
-  featuredImage?: string;
-  gallery?: string[];
-  publishDate?: string;
-  status: 'draft' | 'published' | 'archived';
-  seoTitle?: string;
-  seoDescription?: string;
-  readTime?: number;
-  wordCount?: number;
-  featured?: boolean;
-  trending?: boolean;
-  // SetupWizard data
-  topicsSelected?: string[];
-  streaming_service?: string;
-  platform?: string;
-  watchUrl?: string;
-  streamingUrl?: string;
-  videoTrailer?: string;
-  video_trailer?: string;
-}
-
-export type WebflowStatus = {
-  connected: boolean;
-  hasToken: boolean;
-  hasSiteId: boolean;
-  hasAuthorsCollectionId: boolean;
-  hasArticlesCollectionId: boolean;
-  tokenPreview?: string;
-  siteId?: string;
-  authorsCollectionId?: string;
-  articlesCollectionId?: string;
-  apiReachable?: boolean;
-  collectionsReachable?: boolean;
-  error?: string;
-};
+// Types moved to lib/webflow/types.ts (re-exported above for backwards compat).
 
 export async function getWebflowStatus(): Promise<WebflowStatus> {
   const { token, siteId, authorsCollectionId, articlesCollectionId } = resolveConfig();
@@ -204,23 +155,7 @@ export async function discoverWebflowCollections(): Promise<{ authorsCollectionI
   return { authorsCollectionId: authorsId, articlesCollectionId: articlesId, collections: cols };
 }
 
-// Strip HTML tags from rich text fields while preserving line breaks
-function stripHtml(html?: string): string {
-  if (!html) return '';
-  return html
-    .replace(/<br\s*\/?>/gi, '\n') // Convert <br> to newline
-    .replace(/<\/p>/gi, '\n') // Convert closing </p> to newline
-    .replace(/<p[^>]*>/gi, '') // Remove opening <p> tags
-    .replace(/<[^>]*>/g, '') // Remove all other HTML tags
-    .replace(/&nbsp;/g, ' ')
-    .replace(/&amp;/g, '&')
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'")
-    .replace(/\n{3,}/g, '\n\n') // Collapse multiple newlines to max 2
-    .trim();
-}
+// `stripHtml` lives in `lib/webflow/field-mapping.ts` (imported above).
 
 // Get all authors from Webflow
 export async function getWebflowAuthors(): Promise<WebflowAuthor[]> {
@@ -414,7 +349,7 @@ async function resolveStreamingServiceIdFromName(nameOrSlug: string): Promise<st
           collectionId = candidate?.id;
         }
       } catch (err) {
-        console.warn('Unable to auto-discover streaming services collection:', err);
+        logger.warn('[webflow] auto-discovery of streaming services collection failed', { err: err instanceof Error ? err.message : String(err) });
       }
     }
 
@@ -444,7 +379,7 @@ async function resolveStreamingServiceIdFromName(nameOrSlug: string): Promise<st
 
     return found?.id;
   } catch (error) {
-    console.warn('Unable to resolve streaming service ID:', error);
+    logger.warn('[webflow] unable to resolve streaming service ID', { err: error instanceof Error ? error.message : String(error) });
     return undefined;
   }
 }
@@ -516,7 +451,7 @@ export async function getArticleFields(): Promise<string[]> {
     );
 
     if (!articlesCollection) {
-      console.warn('Articles collection not found in Webflow');
+      logger.warn('[webflow] articles collection not found');
       return getDefaultArticleFields();
     }
 
@@ -530,25 +465,12 @@ export async function getArticleFields(): Promise<string[]> {
     const colData: any = await colRes.json();
     return (colData.fields || []).map((field: any) => field.slug).filter(Boolean);
   } catch (error) {
-    console.error('Error fetching Webflow article fields:', error);
+    logger.error('[webflow] error fetching article fields', error instanceof Error ? error : new Error(String(error)));
     return getDefaultArticleFields();
   }
 }
 
-// Detailed field metadata for the Articles collection (normalized)
-export type WebflowFieldMeta = {
-  id?: string;
-  name?: string;
-  slug: string;
-  type?: string;
-  required?: boolean;
-  unique?: boolean;
-  editable?: boolean;
-  isSystem?: boolean;
-  validations?: any;
-  reference?: { collectionId?: string; isMulti?: boolean };
-  options?: Array<{ id?: string; name?: string; slug?: string; value?: any }>;
-};
+// `WebflowFieldMeta` lever i `lib/webflow/types.ts` (re-exporteret øverst).
 
 export async function getArticlesCollectionFieldsDetailed(): Promise<WebflowFieldMeta[]> {
   try {
@@ -592,7 +514,7 @@ export async function getArticlesCollectionFieldsDetailed(): Promise<WebflowFiel
       options: Array.isArray(f.options) ? f.options : undefined,
     })).filter((m: WebflowFieldMeta) => !!m.slug);
   } catch (e) {
-    console.error('Error fetching detailed Webflow fields:', e);
+    logger.error('[webflow] error fetching detailed fields', e instanceof Error ? e : new Error(String(e)));
     return [];
   }
 }
@@ -836,7 +758,7 @@ export async function publishArticleToWebflow(articleData: WebflowArticleFields)
     if (typeof fieldData['watch-now-link'] === 'string') {
       const link = fieldData['watch-now-link'].trim();
       if (!isLikelyUrl(link)) {
-        console.warn('⚠️ Removing non-URL watch-now-link value:', link);
+        logger.warn('[webflow] removing non-URL watch-now-link value', { link: String(link).slice(0, 200) });
         delete fieldData['watch-now-link'];
       } else {
         fieldData['watch-now-link'] = link;
@@ -934,7 +856,7 @@ export async function publishArticleToWebflow(articleData: WebflowArticleFields)
               console.log('✅ Using streaming service as ID (looks like ID):', trimmed);
             } else if (streamingServiceField && streamingServiceField.type === 'Reference') {
               // It's a reference field - must be an ID, but we can't resolve it
-              console.warn(`⚠️ ${streamingFieldSlug} is a Reference field but value is not an ID and cannot be resolved:`, trimmed);
+              logger.warn('[webflow] streaming field is a Reference but value cannot be resolved', { field: streamingFieldSlug, value: String(trimmed).slice(0, 200) });
               // Try one more time as last resort
               const lastResortId = await resolveStreamingServiceIdFromName(trimmed).catch(() => null);
               if (lastResortId) {
@@ -942,7 +864,7 @@ export async function publishArticleToWebflow(articleData: WebflowArticleFields)
                 console.log('✅ Resolved streaming service ID at last resort:', lastResortId);
               } else {
                 // Remove it if we can't resolve it - Webflow won't accept a string for a reference field
-                console.warn(`⚠️ Cannot resolve ${streamingFieldSlug} to ID, removing from fieldData (Webflow Reference fields require IDs)`);
+                logger.warn('[webflow] cannot resolve Reference field to ID — removing', { field: streamingFieldSlug });
                 delete fieldData[streamingFieldSlug];
               }
             } else {
@@ -975,7 +897,7 @@ export async function publishArticleToWebflow(articleData: WebflowArticleFields)
         // If thumb field doesn't exist in schema - but user says it exists in Webflow
         // Keep it anyway - Webflow might accept it even if schema doesn't show it
         if (!thumbField && fieldData['thumb']) {
-          console.warn('⚠️ thumb field not found in Webflow schema, but keeping it (user confirms it exists in Webflow)');
+          logger.warn('[webflow] "thumb" field not in schema — keeping (user-confirmed)');
           // Don't delete - keep it and let Webflow handle validation
         }
         
@@ -987,7 +909,7 @@ export async function publishArticleToWebflow(articleData: WebflowArticleFields)
             // Let Webflow handle validation instead of pre-filtering
             const streamingFieldSlug = streamingServiceField?.slug || 'simple-rerfence';
             if (key === streamingFieldSlug || key === 'simple-rerfence' || key === 'simple-reference' || key === 'streaming-service' || key === 'thumb') {
-              console.warn(`⚠️ Field "${key}" not in Webflow schema, but keeping it (user confirms it exists)`);
+              logger.warn('[webflow] field not in schema — keeping (user-confirmed)', { field: key });
               // Don't delete - keep it
             } else {
               // Remove other fields that don't exist in schema
@@ -1064,26 +986,43 @@ export async function publishArticleToWebflow(articleData: WebflowArticleFields)
     } else {
       let errorData: any = null;
       try { errorData = await publishResponse.json(); } catch { errorData = await publishResponse.text(); }
-      console.error('Webflow publish error:', errorData);
-      console.error('📊 Field data that failed:', {
-        streamingService: fieldData['streaming-service'],
-        thumb: fieldData['thumb'] ? 'Present' : 'Missing',
-        allFields: Object.keys(fieldData)
-      });
+      logger.error(
+        '[webflow] publish error',
+        new Error(typeof errorData === 'string' ? errorData : (errorData?.message || 'Webflow publish failed')),
+        {
+          errorData,
+          streamingService: fieldData['streaming-service'],
+          thumb: fieldData['thumb'] ? 'Present' : 'Missing',
+          fieldKeys: Object.keys(fieldData),
+        }
+      );
       const msg = typeof errorData === 'string' ? errorData : (errorData?.message || 'Validation Error');
       const more = typeof errorData === 'string' ? '' : (errorData?.details ? ` | ${JSON.stringify(errorData.details)}` : '');
       throw new Error(`Failed to publish to Webflow: ${msg}${more}`);
     }
     
   } catch (error) {
-    console.error('Error publishing article to Webflow:', error);
+    logger.error('[webflow] error publishing article', error instanceof Error ? error : new Error(String(error)));
     throw error;
   }
 }
 
 async function buildFieldDataFromMapping(articleData: WebflowArticleFields, mapping: WebflowMapping): Promise<Record<string, any>> {
   const data: Record<string, any> = {};
-  const getVal = (key: string) => (articleData as any)[key];
+  const getVal = (key: string) => {
+    const value = (articleData as any)[key];
+    // Backwards-compat: SetupWizard historically wrote `press` only.
+    // The canonical Webflow field is `presseakkreditering`; if the canonical
+    // value is missing but the legacy `press` is set, fall back to it.
+    if (
+      key === 'presseakkreditering' &&
+      (value === undefined || value === null) &&
+      ((articleData as any).press === true || (articleData as any).press === false)
+    ) {
+      return (articleData as any).press;
+    }
+    return value;
+  };
   
   console.log('🔍 Building field data from mapping:', {
     mappingEntries: mapping.entries.length,
@@ -1158,9 +1097,7 @@ async function buildFieldDataFromMapping(articleData: WebflowArticleFields, mapp
       // For now, we skip data URLs - they need to be uploaded to Firebase Storage first
       // TODO: Fix /api/process-image to upload to Firebase Storage and return HTTP URL
       if (imageUrl.startsWith('data:image/')) {
-        console.warn('⚠️ Featured image is a data URL (base64) - Webflow Image fields require HTTP/HTTPS URLs');
-        console.warn('⚠️ Skipping data URL image - Webflow cannot accept base64 images');
-        console.warn('⚠️ Fix: Update /api/process-image to return HTTP URLs instead of data URLs');
+        logger.warn('[webflow] featured image is data URL — skipping (Webflow requires HTTP/HTTPS, fix /api/process-image)');
         // Don't add to data - Webflow will reject it anyway
       } else if (isLikelyUrl(imageUrl)) {
         // Use 'thumb' as the slug (from mapping.json) - this should match Webflow field slug
@@ -1168,7 +1105,7 @@ async function buildFieldDataFromMapping(articleData: WebflowArticleFields, mapp
         data['thumb'] = imageUrl;
         console.log('🖼️ Added featured image URL to field data (thumb):', imageUrl.substring(0, 100) + '...');
       } else {
-        console.warn('⚠️ Featured image URL is not a valid HTTP/HTTPS URL:', imageUrl.substring(0, 100));
+        logger.warn('[webflow] featured image URL is not valid HTTP/HTTPS', { imageUrl: imageUrl.substring(0, 100) });
       }
     }
   } else {
@@ -1202,107 +1139,15 @@ async function buildFieldDataFromMapping(articleData: WebflowArticleFields, mapp
       data['thumb'] = imageUrl;
       console.log('✅ Added thumb as final fallback (HTTP URL):', imageUrl.substring(0, 100) + '...');
     } else if (!imageUrl.startsWith('data:image/')) {
-      console.warn('⚠️ featuredImage exists but is neither HTTP URL nor data URL:', imageUrl.substring(0, 100));
+      logger.warn('[webflow] featuredImage exists but is neither HTTP URL nor data URL', { imageUrl: imageUrl.substring(0, 100) });
     }
   }
   
   return data;
 }
 
-function transformValue(value: any, t?: string): any {
-  switch (t) {
-    case 'plainToHtml': {
-      if (!value) return value;
-      const str = String(value).trim();
-      if (!str) return str;
-      if (/<\w+/i.test(str)) return str;
-      const paragraphs = str
-        .split(/\n{2,}/)
-        .map((block) => block.trim())
-        .filter(Boolean)
-        .map((block) => `<p>${block.replace(/\n+/g, '<br/>')}</p>`);
-      return paragraphs.length > 0 ? paragraphs.join('') : `<p>${str}</p>`;
-    }
-    case 'markdownToHtml':
-      // simple fallback; for real md convert, integrate a parser later
-      if (!value) return value;
-      return String(value).replace(/^# (.*)$/gm,'<h2>$1</h2>').replace(/\n\n/g,'<br/><br/>');
-    case 'stringArray':
-      if (Array.isArray(value)) return value;
-      if (!value) return [];
-      return String(value).split(',').map(s=>s.trim()).filter(Boolean);
-    case 'dateIso':
-      return value ? new Date(value).toISOString() : undefined;
-    case 'referenceId':
-      return value; // expect caller to supply itemId
-    case 'multiReferenceId':
-      if (Array.isArray(value)) return value; // expect caller to supply array of itemIds
-      if (!value) return [];
-      return [value]; // single value as array
-    case 'boolean':
-      return !!value;
-    case 'number':
-      return value === undefined || value === null || value === '' ? undefined : Number(value);
-    case 'cleanIntro':
-      if (!value) return value;
-      const introText = String(value).trim();
-      if (!introText) return introText;
-      // Remove "Intro:" label if present and clean up the text
-      const cleanedIntro = introText
-        .replace(/^intro\s*:\s*/im, '') // Remove "Intro:" label
-        .replace(/^jeg\s+satte\s+mig[^.]*\.\s*/im, '') // Remove "Jeg satte mig..." prefix
-        .replace(/\n+/g, ' ') // Replace newlines with spaces
-        .replace(/\s+/g, ' ') // Collapse multiple spaces
-        .trim();
-      return cleanedIntro;
-    case 'identity':
-    default:
-      return value;
-  }
-}
-
-function isLikelyUrl(value: string | undefined | null): boolean {
-  if (!value) return false;
-  const trimmed = String(value).trim();
-  return /^https?:\/\//i.test(trimmed);
-}
-
-function extractFirstYouTubeUrl(text: string): string | undefined {
-  if (!text) return undefined;
-  const regex = /(https?:\/\/[^\s]*?(?:youtube\.com\/[\w?=&-]+|youtu\.be\/[\w-]+))/i;
-  const match = text.match(regex);
-  return match ? match[1] : undefined;
-}
-
-function normalizeYouTubeUrl(url: string): string | undefined {
-  if (!url) return undefined;
-  let candidate = url.trim();
-  if (!/^https?:\/\//i.test(candidate)) {
-    candidate = `https://${candidate}`;
-  }
-  try {
-    const parsed = new URL(candidate);
-    const host = parsed.hostname.toLowerCase();
-    if (!host.includes('youtube.com') && !host.includes('youtu.be')) {
-      return undefined;
-    }
-    let videoId = '';
-    if (host.includes('youtu.be')) {
-      videoId = parsed.pathname.replace(/^\//, '').split('/')[0];
-    } else if (parsed.pathname.startsWith('/watch')) {
-      videoId = parsed.searchParams.get('v') || '';
-    } else if (parsed.pathname.startsWith('/shorts/')) {
-      videoId = parsed.pathname.split('/')[2] || parsed.pathname.split('/')[1] || '';
-    } else if (parsed.pathname.startsWith('/embed/')) {
-      videoId = parsed.pathname.split('/')[2] || '';
-    }
-    videoId = videoId.replace(/[^A-Za-z0-9_-]/g, '');
-    if (!videoId) return undefined;
-    return `https://www.youtube.com/watch?v=${videoId}`;
-  } catch {
-    return undefined;
-  }
-}
+// transformValue / isLikelyUrl / extractFirstYouTubeUrl / normalizeYouTubeUrl
+// flyttet til `lib/webflow/field-mapping.ts` (importeret øverst).
 
 // Helper function to generate TOV from bio and position
 function generateTOVFromBio(bio: string, position: string): string {

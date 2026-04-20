@@ -13,9 +13,11 @@ import PreviewPanel from './PreviewPanel';
 import DesignEditorView from '@/app/design-editor/DesignEditorView';
 import AuthModal from '@/components/AuthModal';
 import ChatSearchModal from '@/components/ChatSearchModal';
+import { SEO_TITLE_MAX } from '@/lib/seo/constants';
 import SourcesPanel from '@/components/SourcesPanel';
 import SettingsPanel from '@/components/SettingsPanel';
 import NewsletterClient from '@/app/ai/newsletter/NewsletterClient';
+import LivPostingClient from '@/app/ai/liv/LivPostingClient';
 import { useAuth } from '@/lib/auth-context';
 import { saveDraft, getDraft, type ArticleDraft } from '@/lib/firebase-service';
 import { autoSaveService } from '@/lib/auto-save-service';
@@ -24,84 +26,17 @@ import type { ThinkingStep, ThinkingStatus } from '@/types/thinking';
 import { PROMPT_ARCHITECT_CONTEXT_KEY } from '@/lib/prompt-architect-constants';
 import { loadPromptModuleToggles } from '@/lib/prompt-architect-storage';
 import { SPLINE_BACKGROUNDS, STORAGE_KEY_SPLINE_BG } from '@/lib/spline-backgrounds';
-
-const buildDefaultArticleData = (): ArticleData => ({
-  title: '',
-  subtitle: '',
-  category: '',
-  author: '',
-  content: '',
-  rating: 0,
-  ratingSkipped: false,
-  tags: [],
-  platform: '',
-  press: null,
-  intro: '',
-  aiDraft: null,
-  previewTitle: '',
-  aiSuggestion: null,
-  template: '',
-  inspirationSource: '',
-  researchSelected: null,
-  inspirationAcknowledged: false,
-  recommendedSelected: null,
-  seoTitle: '',
-  seoDescription: '',
-  publishDate: '',
-  status: 'draft',
-  authorId: '',
-  authorTOV: '',
-  section: '',
-  topic: '',
-  topicsSelected: [],
-  streaming_service: '',
-  featuredImage: '',
-  generationMode: 'editorial'
-});
-
-const normalizeArticleData = (incoming?: Partial<ArticleData>): ArticleData => {
-  const base = buildDefaultArticleData();
-  if (!incoming) return base;
-  return {
-    ...base,
-    ...incoming,
-    tags: Array.isArray(incoming.tags) ? incoming.tags : base.tags,
-    topicsSelected: Array.isArray(incoming.topicsSelected) ? incoming.topicsSelected : base.topicsSelected,
-    generationMode: incoming.generationMode === 'fast' ? 'fast' : 'editorial'
-  };
-};
-
-const BASE_THINKING_STEPS: ThinkingStep[] = [
-  { id: 'analysis', label: 'Analyserer brief og noter', status: 'pending', icon: 'dot' },
-  { id: 'analysis-read', label: 'Indlæser template & noter', status: 'pending', icon: 'doc', indent: 1 },
-  { id: 'analysis-verify', label: 'Verificerer længdekrav', status: 'pending', icon: 'dot', indent: 1 },
-  { id: 'research', label: 'Finder referencer & fakta', status: 'pending', icon: 'dot' },
-  { id: 'research-source', label: 'Scanner kulturkilder', status: 'pending', icon: 'doc', indent: 1 },
-  { id: 'draft', label: 'Skriver Apropos-udkast', status: 'pending', icon: 'dot' },
-  { id: 'draft-shape', label: 'Former intro, brødtekst, eftertanke', status: 'pending', icon: 'doc', indent: 1 },
-  { id: 'polish', label: 'Finpudser tone & struktur', status: 'pending', icon: 'dot' }
-];
+import {
+  BASE_THINKING_STEPS,
+  GENERATION_MODE_OPTIONS,
+  buildDefaultArticleData,
+  normalizeArticleData,
+  resolveViewFromSearchParams,
+} from './ai-writer/article-defaults';
 
 const APP_VERSION = process.env.NEXT_PUBLIC_APP_VERSION || '0.0.0';
 const BUILD_ID = process.env.NEXT_PUBLIC_BUILD_ID || 'local';
 const BUILD_LABEL = process.env.NEXT_PUBLIC_BUILD_LABEL || `${APP_VERSION}.${BUILD_ID}`;
-const GENERATION_MODE_OPTIONS: Array<{ id: 'fast' | 'editorial'; label: string; description: string }> = [
-  { id: 'fast', label: 'Fast mode', description: 'Hurtig sparring uden tung research' },
-  { id: 'editorial', label: 'Editorial', description: 'Fuld redaktionel pipeline med research' }
-];
-
-function resolveViewFromSearchParams(sp: { get: (key: string) => string | null }): 'ai' | 'design-editor' | 'newsletter' | null {
-  const view = sp.get('view');
-  if (view === 'newsletter') return 'newsletter';
-  if (view === 'design-editor') return 'design-editor';
-  if (view === 'ai') return 'ai';
-  const n = sp.get('newsletter');
-  const w = sp.get('webapp');
-  if (n === '1' || n === 'true' || w === 'newsletter') return 'newsletter';
-  return null;
-}
-
-// using shared ArticleData type
 
 export default function AIWriterClient() {
   const router = useRouter();
@@ -118,14 +53,14 @@ export default function AIWriterClient() {
   const [sourcesOpen, setSourcesOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [isClosing, setIsClosing] = useState(false);
-  const [activeView, setActiveView] = useState<'ai' | 'design-editor' | 'newsletter' | null>(() =>
+  const [activeView, setActiveView] = useState<'ai' | 'design-editor' | 'newsletter' | 'liv-posting' | null>(() =>
     resolveViewFromSearchParams(searchParams)
   );
   const leftPanelOpen = shelfOpen || webAppsOpen;
 
   /** Opdater aktiv visning og URL, så refresh og deling bevarer fx nyhedsbrev (`?view=newsletter`). */
   const applyActiveView = useCallback(
-    (view: 'ai' | 'design-editor' | 'newsletter' | null) => {
+    (view: 'ai' | 'design-editor' | 'newsletter' | 'liv-posting' | null) => {
       setActiveView(view);
       setReviewOpen(false);
       setSourcesOpen(false);
@@ -139,6 +74,8 @@ export default function AIWriterClient() {
         params.set('view', 'newsletter');
       } else if (view === 'design-editor') {
         params.set('view', 'design-editor');
+      } else if (view === 'liv-posting') {
+        params.set('view', 'liv-posting');
       } else if (view === 'ai') {
         params.set('view', 'ai');
       } else {
@@ -257,7 +194,7 @@ export default function AIWriterClient() {
   useEffect(() => {
     const next = resolveViewFromSearchParams(searchParams);
     setActiveView((prev) => (prev === next ? prev : next));
-    if (next === 'newsletter') {
+    if (next === 'newsletter' || next === 'liv-posting') {
       setReviewOpen(false);
       setSourcesOpen(false);
       setSettingsOpen(false);
@@ -271,6 +208,10 @@ export default function AIWriterClient() {
       setWebAppsOpen(false);
       if (id === 'newsletter') {
         applyActiveView('newsletter');
+        return;
+      }
+      if (id === 'ai-posting' || id === 'liv-posting') {
+        applyActiveView('liv-posting');
         return;
       }
       applyActiveView(id === 'design-editor' ? 'design-editor' : 'ai');
@@ -788,8 +729,8 @@ export default function AIWriterClient() {
                 .replace(/-+/g, '-')
                 .trim();
 
-              const seoTitle = extractedTitle.length > 60
-                ? `${extractedTitle.substring(0, 57)}...`
+              const seoTitle = extractedTitle.length > SEO_TITLE_MAX
+                ? `${extractedTitle.substring(0, SEO_TITLE_MAX - 3)}...`
                 : extractedTitle;
 
               extractedFields = {
@@ -1249,6 +1190,17 @@ export default function AIWriterClient() {
               </button>
               <button
                 type="button"
+                onClick={() => applyActiveView('liv-posting')}
+                className="flex flex-col items-center gap-2 py-5 rounded-2xl border border-white/[0.12] bg-white/[0.04] hover:bg-white/[0.08] transition-colors"
+              >
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-white/70">
+                  <circle cx="12" cy="8" r="4"/>
+                  <path d="M4 21v-1a7 7 0 0 1 14 0v1"/>
+                </svg>
+                <span className="text-[13px] text-white/70">AI-posting</span>
+              </button>
+              <button
+                type="button"
                 onClick={() => setShelfOpen(true)}
                 className="flex flex-col items-center gap-2 py-5 rounded-2xl border border-white/[0.12] bg-white/[0.04] hover:bg-white/[0.08] transition-colors"
               >
@@ -1551,6 +1503,33 @@ export default function AIWriterClient() {
               )}
               <div className="h-full w-full flex flex-col font-poppins rounded-xl bg-black/40 md:bg-black backdrop-blur-xl md:backdrop-blur-0 border border-white/15 overflow-hidden md:outline md:outline-[1.5px] md:outline-offset-[-1.5px] md:outline-zinc-800">
                 <NewsletterClient embedded onClose={() => applyActiveView(null)} />
+              </div>
+            </div>
+            )}
+
+            {activeView === 'liv-posting' && (
+            <div
+              className="w-full flex-shrink-0 absolute top-0 bottom-0 left-0 md:top-[1%] md:bottom-[1%] md:left-[1%] z-10"
+              style={{
+                width: isDesktop ? `${chatWidth}px` : '100%',
+                transition: isResizing ? 'none' : 'transform 320ms cubic-bezier(0.22, 1, 0.36, 1)',
+                transform: leftPanelOpen ? 'translateX(calc(12px + min(300px, 50vw)))' : 'translateX(0)',
+              }}
+            >
+              {isDesktop && (
+                <div
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    setIsResizing(true);
+                  }}
+                  className="absolute top-0 bottom-0 right-0 w-1 cursor-col-resize hover:bg-white/20 transition-colors z-30 group"
+                  style={{ touchAction: 'none' }}
+                >
+                  <div className="absolute top-1/2 right-0 -translate-y-1/2 translate-x-1/2 w-1 h-16 bg-white/0 group-hover:bg-white/30 rounded-full transition-colors" />
+                </div>
+              )}
+              <div className="h-full w-full flex flex-col font-poppins rounded-xl bg-black/40 md:bg-black backdrop-blur-xl md:backdrop-blur-0 border border-white/15 overflow-hidden md:outline md:outline-[1.5px] md:outline-offset-[-1.5px] md:outline-zinc-800">
+                <LivPostingClient embedded onClose={() => applyActiveView(null)} />
               </div>
             </div>
             )}

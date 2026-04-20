@@ -1,6 +1,7 @@
 import { getWebflowConfig } from '@/lib/webflow-config';
 import { env } from '@/lib/config/env';
 import type { WeekRange } from '@/lib/newsletter/week-range';
+import { getWebflowAuthors } from '@/lib/webflow-service';
 
 export type NewsletterArticle = {
   id: string;
@@ -16,7 +17,16 @@ export type NewsletterArticle = {
   ratingStars?: number | null;
   /** Kategori-linje når section/topic ikke kun er Webflow-id (fx "Kultur | Anmeldelser"). */
   metaCategoryLine?: string | null;
+  /** Webflow reference item-id (authors collection); bruges til at slå navn op. */
+  authorItemId?: string | null;
+  /** Vist navn efter opslag i authors collection. */
+  authorName?: string | null;
 };
+
+/** Standard uddrag i liste-nyhedsbrev. */
+export const NEWSLETTER_EXCERPT_MAX_DEFAULT = 220;
+/** Længere brødtekst når custom-nyhedsbrev kun har én artikel. */
+export const NEWSLETTER_EXCERPT_MAX_SINGLE_CUSTOM = 420;
 
 function resolveThumbUrl(fieldData: Record<string, unknown>): string | null {
   const t = fieldData.thumb ?? fieldData['featured-image'];
@@ -32,12 +42,22 @@ function stripHtml(s: string): string {
   return s.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
 }
 
-function excerptFrom(fd: Record<string, unknown>): string {
+function excerptFrom(fd: Record<string, unknown>, maxLen: number = NEWSLETTER_EXCERPT_MAX_DEFAULT): string {
   const ex = fd.excerpt;
-  if (typeof ex === 'string' && ex.trim()) return stripHtml(ex).slice(0, 220);
+  if (typeof ex === 'string' && ex.trim()) return stripHtml(ex).slice(0, maxLen);
   const intro = fd.intro;
-  if (typeof intro === 'string' && intro.trim()) return stripHtml(intro).slice(0, 220);
+  if (typeof intro === 'string' && intro.trim()) return stripHtml(intro).slice(0, maxLen);
   return '';
+}
+
+function authorItemIdFrom(fd: Record<string, unknown>): string | null {
+  const a = fd.author ?? fd['article-author'];
+  if (typeof a === 'string' && a.trim()) return a.trim();
+  if (a && typeof a === 'object' && a !== null && 'id' in a) {
+    const id = (a as { id?: unknown }).id;
+    if (typeof id === 'string' && id.trim()) return id.trim();
+  }
+  return null;
 }
 
 /** Webflow gemmer ofte references som 24-hex id; så viser vi ikke rå id i mail. */
@@ -88,7 +108,11 @@ function sortArticlesByPublishedDesc(list: NewsletterArticle[]): NewsletterArtic
   return [...list].sort((a, b) => Date.parse(b.lastPublished) - Date.parse(a.lastPublished));
 }
 
-function mapItemToNewsletterArticle(it: any, base: string): NewsletterArticle | null {
+function mapItemToNewsletterArticle(
+  it: any,
+  base: string,
+  excerptMaxLen: number = NEWSLETTER_EXCERPT_MAX_DEFAULT
+): NewsletterArticle | null {
   if (it?.isDraft === true) return null;
   const published = it?.lastPublished || it?.lastUpdated || it?.createdOn;
   if (!published || typeof published !== 'string') return null;
@@ -100,13 +124,14 @@ function mapItemToNewsletterArticle(it: any, base: string): NewsletterArticle | 
     id: String(it.id),
     title: name,
     slug,
-    excerpt: excerptFrom(fd),
+    excerpt: excerptFrom(fd, excerptMaxLen),
     thumbUrl: resolveThumbUrl(fd),
     lastPublished: published,
     url: `${base}/articles/${slug}`,
     subtitle: subtitleFrom(fd),
     ratingStars: ratingStarsFrom(fd),
     metaCategoryLine: metaCategoryLineFrom(fd),
+    authorItemId: authorItemIdFrom(fd),
   };
 }
 
@@ -251,6 +276,164 @@ export async function fetchArticlesForWeek(
   }
 
   return { articles, error, minimumNote };
+}
+
+export type NewsletterArticleListItem = Pick<
+  NewsletterArticle,
+  'id' | 'title' | 'slug' | 'thumbUrl' | 'lastPublished'
+>;
+
+/**
+ * Let liste til UI-picker: nyeste først, valgfri titel-søgning (server-side).
+ */
+export async function listNewsletterArticlesForPicker(params: {
+  articleBaseUrl: string;
+  /** Case-insensitive delstreng i titel */
+  query?: string;
+  limit?: number;
+}): Promise<{ items: NewsletterArticleListItem[]; error?: string }> {
+  const cfg = getWebflowConfig();
+  const collectionId = cfg.articlesCollectionId || env.WEBFLOW_ARTICLES_COLLECTION_ID;
+  if (!collectionId) {
+    return { items: [], error: 'WEBFLOW_ARTICLES_COLLECTION_ID er ikke sat' };
+  }
+
+  const { items, error } = await fetchAllCollectionItems(collectionId);
+  if (error && items.length === 0) {
+    return { items: [], error };
+  }
+
+  const base = params.articleBaseUrl.replace(/\/$/, '');
+  const allMapped: NewsletterArticle[] = [];
+  for (const it of items) {
+    const a = mapItemToNewsletterArticle(it, base);
+    if (a) allMapped.push(a);
+  }
+  allMapped.sort((a, b) => Date.parse(b.lastPublished) - Date.parse(a.lastPublished));
+
+  const q = params.query?.trim().toLowerCase();
+  const filtered = q
+    ? allMapped.filter((a) => a.title.toLowerCase().includes(q))
+    : allMapped;
+
+  const lim = Math.min(Math.max(params.limit ?? 100, 1), 150);
+  const slice = filtered.slice(0, lim);
+
+  return {
+    items: slice.map((a) => ({
+      id: a.id,
+      title: a.title,
+      slug: a.slug,
+      thumbUrl: a.thumbUrl,
+      lastPublished: a.lastPublished,
+    })),
+    error: error && slice.length === 0 ? error : undefined,
+  };
+}
+
+export type ResolveArticlesByIdsResult = {
+  articles: NewsletterArticle[];
+  warnings: string[];
+  error?: string;
+};
+
+/**
+ * Slår forfatternavne op (én Webflow-runde). Bruges til custom enkeltartikel m.m.
+ */
+export async function enrichNewsletterArticlesWithAuthorNames(
+  articles: NewsletterArticle[]
+): Promise<NewsletterArticle[]> {
+  if (articles.length === 0) return articles;
+  const needLookup = articles.some((a) => a.authorItemId && !a.authorName);
+  if (!needLookup) return articles;
+  try {
+    const authors = await getWebflowAuthors();
+    const byId = new Map(authors.map((au) => [au.id, au.name]));
+    return articles.map((a) => {
+      const aid = a.authorItemId;
+      if (!aid) return a;
+      const name = byId.get(aid);
+      return name ? { ...a, authorName: name } : a;
+    });
+  } catch {
+    return articles;
+  }
+}
+
+/**
+ * Slår Webflow-artikler op og bevarer klientens rækkefølge. Mindst én gyldig kræves for send.
+ */
+export async function resolveArticlesByIdsOrdered(
+  orderedIds: string[],
+  articleBaseUrl: string,
+  options?: { applyLongExcerptWhenSingleArticle?: boolean }
+): Promise<ResolveArticlesByIdsResult> {
+  const warnings: string[] = [];
+  const raw = orderedIds.map((id) => String(id).trim()).filter(Boolean);
+  if (raw.length === 0) {
+    return { articles: [], warnings: [], error: 'Ingen artikel-id angivet' };
+  }
+  if (raw.length > MAX_NEWSLETTER_ARTICLES) {
+    return {
+      articles: [],
+      warnings: [],
+      error: `Vælg højst ${MAX_NEWSLETTER_ARTICLES} artikler`,
+    };
+  }
+
+  const cfg = getWebflowConfig();
+  const collectionId = cfg.articlesCollectionId || env.WEBFLOW_ARTICLES_COLLECTION_ID;
+  if (!collectionId) {
+    return { articles: [], warnings: [], error: 'WEBFLOW_ARTICLES_COLLECTION_ID er ikke sat' };
+  }
+
+  const { items, error } = await fetchAllCollectionItems(collectionId);
+  if (error && items.length === 0) {
+    return { articles: [], warnings: [], error };
+  }
+
+  const base = articleBaseUrl.replace(/\/$/, '');
+  const byId = new Map<string, NewsletterArticle>();
+  const rawById = new Map<string, unknown>();
+  for (const it of items) {
+    const a = mapItemToNewsletterArticle(it, base);
+    if (a) {
+      byId.set(a.id, a);
+      rawById.set(String((it as { id?: string }).id ?? a.id), it);
+    }
+  }
+
+  const ordered: NewsletterArticle[] = [];
+  const seen = new Set<string>();
+  for (const id of raw) {
+    const a = byId.get(id);
+    if (a) {
+      if (!seen.has(a.id)) {
+        ordered.push(a);
+        seen.add(a.id);
+      }
+    } else {
+      warnings.push(`Kunne ikke finde artikel: ${id}`);
+    }
+  }
+
+  if (ordered.length === 0) {
+    return { articles: [], warnings, error: 'Ingen gyldige artikler' };
+  }
+
+  if (options?.applyLongExcerptWhenSingleArticle && ordered.length === 1) {
+    const only = ordered[0]!;
+    const raw = rawById.get(only.id);
+    if (raw && typeof raw === 'object' && raw !== null && 'fieldData' in raw) {
+      const fd = ((raw as { fieldData?: Record<string, unknown> }).fieldData || {}) as Record<string, unknown>;
+      ordered[0] = {
+        ...only,
+        excerpt: excerptFrom(fd, NEWSLETTER_EXCERPT_MAX_SINGLE_CUSTOM),
+      };
+    }
+  }
+
+  return { articles: ordered, warnings };
 }
 
 export async function fetchNewsletterSignupEmails(
