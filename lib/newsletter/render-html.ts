@@ -105,7 +105,7 @@ export function renderNewsletterEmailHtml(params: {
 
   const emptyState =
     articles.length === 0
-      ? `<tr><td style="padding:24px 0;font-family:${FONT_SANS};font-size:14px;color:${EMAIL_COLORS.textMuted};">Ingen nye publicerede artikler i den valgte periode (filtreres på Webflow lastPublished).</td></tr>`
+      ? `<tr><td style="padding:24px 0;font-family:${FONT_SANS};font-size:14px;color:${EMAIL_COLORS.textMuted};">Ingen nye artikler i den valgte periode (filtreres primært på Webflow Created On).</td></tr>`
       : '';
 
   const siteCtaHref = track(site);

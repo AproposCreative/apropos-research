@@ -120,6 +120,22 @@ function scoreCandidate(article: { title?: unknown; tags?: unknown; category?: u
   return score;
 }
 
+/** Komma-separeret liste i env (små bogstaver under match): fx `kanye west,donald trump` — springer trending-kandidater over i UI + cron. */
+function parseTitleBlocklistFragments(): string[] {
+  const raw = process.env.LIV_TOPIC_TITLE_BLOCKLIST?.trim();
+  if (!raw) return [];
+  return raw
+    .split(',')
+    .map((s) => s.trim().toLowerCase())
+    .filter((s) => s.length >= 2);
+}
+
+function titleMatchesBlocklist(title: string): boolean {
+  const lower = title.trim().toLowerCase();
+  if (!lower) return false;
+  return parseTitleBlocklistFragments().some((frag) => lower.includes(frag));
+}
+
 function slugify(input: string): string {
   return input
     .toLowerCase()
@@ -203,6 +219,7 @@ export async function pickLivTopic(options: PickTopicOptions): Promise<PickedTop
       return { article: a, title, score, hintScore, slug: slugify(title) };
     })
     .filter(({ title }) => title.length > 8)
+    .filter(({ title }) => !titleMatchesBlocklist(title))
     .filter(({ title, slug }) => {
       if (recentSlugs.has(slug)) return false;
       if (recentTopics.has(title.toLowerCase())) return false;

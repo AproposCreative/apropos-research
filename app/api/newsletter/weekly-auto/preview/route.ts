@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getNewsletterUserIdFromRequest } from '@/lib/newsletter/auth-request';
 import { buildWeeklyNewsletterDraft } from '@/lib/newsletter/build-draft';
 import { getNewsletterRecipients } from '@/lib/newsletter/get-recipients';
-import { getRecentWeeklyAutoExclusionSets } from '@/lib/newsletter/weekly-send-history';
+import { getRecentNewsletterExclusionSets } from '@/lib/newsletter/send-selection-history';
 import { getIsoWeekRangeByOffset } from '@/lib/newsletter/week-range';
 
 const DEFAULT_EXCLUDE_SENDS = 16;
@@ -37,7 +37,7 @@ export async function POST(req: NextRequest) {
     const fullLb = parseLookback(process.env.NEWSLETTER_WEEKLY_EXCLUDE_SEND_LOOKBACK, DEFAULT_EXCLUDE_SENDS);
     const relaxLb = parseLookback(process.env.NEWSLETTER_WEEKLY_RELAX_SEND_LOOKBACK, DEFAULT_RELAX_SENDS);
     const { excludeFull, excludeRelax } = isCurrentWeek
-      ? await getRecentWeeklyAutoExclusionSets(fullLb, relaxLb)
+      ? await getRecentNewsletterExclusionSets(fullLb, relaxLb)
       : { excludeFull: new Set<string>(), excludeRelax: new Set<string>() };
 
     const draft = await buildWeeklyNewsletterDraft({
@@ -81,6 +81,7 @@ export async function POST(req: NextRequest) {
       formName: recipients.formName || null,
       signupError: recipients.error || null,
       warnings: draft.warnings,
+      articlePoolStats: draft.articlePoolStats,
       skipAiIntro,
     });
   } catch (e) {

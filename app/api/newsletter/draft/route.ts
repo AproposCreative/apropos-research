@@ -14,6 +14,16 @@ import {
   readWeeklyDraftCache,
   saveWeeklyDraftCache,
 } from '@/lib/newsletter/draft-cache';
+import { getRecentNewsletterExclusionSets } from '@/lib/newsletter/send-selection-history';
+
+const DEFAULT_EXCLUDE_SENDS = 16;
+const DEFAULT_RELAX_SENDS = 4;
+
+function parseLookback(raw: string | undefined, fallback: number): number {
+  const n = Number.parseInt(String(raw ?? '').trim(), 10);
+  if (!Number.isFinite(n) || n < 1) return fallback;
+  return Math.min(n, 52);
+}
 export async function GET(req: NextRequest) {
   if (!(await authorizeNewsletterRequest(req))) {
     return NextResponse.json({ error: 'Ikke autoriseret' }, { status: 401 });
@@ -84,10 +94,15 @@ export async function POST(req: NextRequest) {
         ? new Date(body.referenceDate)
         : new Date();
     const week: WeekRange = getPreviousIsoWeekRange(ref);
+    const fullLb = parseLookback(process.env.NEWSLETTER_WEEKLY_EXCLUDE_SEND_LOOKBACK, DEFAULT_EXCLUDE_SENDS);
+    const relaxLb = parseLookback(process.env.NEWSLETTER_WEEKLY_RELAX_SEND_LOOKBACK, DEFAULT_RELAX_SENDS);
+    const { excludeFull, excludeRelax } = await getRecentNewsletterExclusionSets(fullLb, relaxLb);
 
     const prepared = await prepareWeeklyArticlesForDraft({
       week,
       referenceDate: ref,
+      excludeArticleIds: excludeFull,
+      relaxedExcludeArticleIds: excludeRelax,
     });
     const { articles, articleError: articleError, minimumNote } = prepared;
     const inputHash = buildWeeklyDraftInputHash({
@@ -115,6 +130,7 @@ export async function POST(req: NextRequest) {
         logoAssetBaseUrl: req.nextUrl.origin,
         articleError,
         minimumNote,
+        articlePoolStats: prepared.articlePoolStats,
       });
     }
 
@@ -155,6 +171,7 @@ export async function POST(req: NextRequest) {
       formName: recipients.formName || null,
       signupError: recipients.error || null,
       warnings: draft.warnings,
+      articlePoolStats: prepared.articlePoolStats,
     });
   } catch (e) {
     return NextResponse.json(

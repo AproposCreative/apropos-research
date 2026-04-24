@@ -6,7 +6,7 @@
  *   2. Vælg trending-emne der matcher Liv's temaer.
  *   3. Generér artikel + AI-SEO via gpt-4o.
  *   4. Kør sikkerhedsporte (moderation → factcheck → TOV).
- *   5. Publish til Webflow (status: published).
+ *   5. Send til Webflow (draft/published via env).
  *   6. Send GA4-status-event + log resultat i Firestore.
  *
  * Schedule: 08:00 UTC daglig (`0 8 * * *`) — registrér i `vercel.json`.
@@ -24,7 +24,9 @@ import {
 } from '@/lib/liv/daily-history-store';
 import { pickLivTopic } from '@/lib/liv/pick-topic';
 import { generateLivArticle } from '@/lib/liv/generate-article';
+import { buildLivCmsPayload } from '@/lib/liv/build-cms-payload';
 import { runSafetyGates } from '@/lib/liv/run-safety-gates';
+import { buildResearchQaSummary } from '@/lib/liv/research-qa';
 import { publishArticleToWebflow, type WebflowArticleFields } from '@/lib/webflow-service';
 import { sendGa4MeasurementEvent } from '@/lib/newsletter/ga4-measurement';
 import {
@@ -32,8 +34,18 @@ import {
   markPlanFailed,
   markPlanUsed,
 } from '@/lib/liv/daily-plan-store';
+import { resolveLivTopicInputsFromPlan } from '@/lib/liv/resolve-liv-topic-hints';
 
 export const maxDuration = 300;
+const MIN_VERIFIED_RESEARCH_SOURCES = 2;
+const MIN_LINEUP_NAMES = 2;
+
+function resolveLivWebflowStatus(): 'draft' | 'published' {
+  const raw = (process.env.LIV_DAILY_WEBFLOW_STATUS || '').trim().toLowerCase();
+  if (raw === 'published') return 'published';
+  // Default to draft so items always land in Webflow CMS first.
+  return 'draft';
+}
 
 function resolveBaseUrl(req: NextRequest): string {
   const fromHeader = req.nextUrl.origin;
@@ -42,10 +54,6 @@ function resolveBaseUrl(req: NextRequest): string {
   if (prodHost) return `https://${prodHost}`;
   if (env.VERCEL_URL) return `https://${env.VERCEL_URL.replace(/^https?:\/\//, '')}`;
   return env.NEXT_PUBLIC_BASE_URL?.trim().replace(/\/$/, '') || 'http://localhost:3000';
-}
-
-function articleIdFromSlug(slug: string): string {
-  return `liv-daily-${slug}-${Date.now().toString(36)}`.slice(0, 80);
 }
 
 async function reportGa4(
@@ -71,6 +79,7 @@ export async function GET(req: NextRequest) {
   const dryRun = sp.get('dryRun') === '1' || sp.get('dryRun')?.toLowerCase() === 'true';
   const dayKey = todayDayKeyUTC();
   const baseUrl = resolveBaseUrl(req);
+  const livWebflowStatus = resolveLivWebflowStatus();
 
   // Kill-switch: sæt LIV_DAILY_PAUSED=1 på Vercel for at stoppe alle
   // auto-publish runs uden deploy. dryRun ignorerer kill-switch så vi
@@ -89,10 +98,11 @@ export async function GET(req: NextRequest) {
 
   if (dryRun) {
     const plan = await getLivDailyPlan(dayKey);
+    const { topicHint, mustUseTrending } = resolveLivTopicInputsFromPlan(plan);
     const topic = await pickLivTopic({
       baseUrl,
-      topicHint: plan?.topicHint,
-      mustUseTrending: plan?.mustUseTrending ?? true,
+      topicHint,
+      mustUseTrending,
     });
     logger.info('[cron/liv-daily] dryRun', {
       dayKey,
@@ -119,12 +129,13 @@ export async function GET(req: NextRequest) {
   let pickedTopicTitle: string | undefined;
   let gateResults: GateResult[] = [];
   const plan = await getLivDailyPlan(dayKey);
+  const { topicHint, mustUseTrending } = resolveLivTopicInputsFromPlan(plan);
 
   try {
     const topic = await pickLivTopic({
       baseUrl,
-      topicHint: plan?.topicHint,
-      mustUseTrending: plan?.mustUseTrending ?? true,
+      topicHint,
+      mustUseTrending,
     });
     if (!topic) {
       await finishLivDaily(dayKey, {
@@ -145,6 +156,54 @@ export async function GET(req: NextRequest) {
       expandedDirective: plan?.expandedDirective,
       baseUrl,
     });
+
+    const verifiedResearchSources = (article.researchSources || []).filter(
+      (r) =>
+        typeof r?.url === 'string' &&
+        /^https?:\/\//i.test(r.url) &&
+        (r.source || '').toLowerCase() !== 'ai guidance'
+    );
+    if (verifiedResearchSources.length < MIN_VERIFIED_RESEARCH_SOURCES) {
+      gateResults = [
+        {
+          name: 'research-sources',
+          pass: false,
+          detail: `Kun ${verifiedResearchSources.length} verificerbare kilder med URL (krav: ${MIN_VERIFIED_RESEARCH_SOURCES}).`,
+        },
+      ];
+      await finishLivDaily(dayKey, {
+        status: 'skipped_factcheck',
+        topic: topic.title,
+        reason: `research_sources_insufficient: ${verifiedResearchSources.length}/${MIN_VERIFIED_RESEARCH_SOURCES}`,
+        gateResults,
+      });
+      if (plan) {
+        await markPlanFailed(
+          dayKey,
+          `research_sources_insufficient: ${verifiedResearchSources.length}/${MIN_VERIFIED_RESEARCH_SOURCES}`
+        );
+      }
+      await reportGa4('skipped', {
+        reason: 'research_sources_insufficient',
+        day_key: dayKey,
+        topic: topic.title.slice(0, 100),
+      });
+      logger.info('[cron/liv-daily] skipped — insufficient research sources', {
+        dayKey,
+        topic: topic.title,
+        verifiedResearchSources: verifiedResearchSources.length,
+        required: MIN_VERIFIED_RESEARCH_SOURCES,
+      });
+      return NextResponse.json({
+        ok: true,
+        skipped: true,
+        reason: 'research_sources_insufficient',
+        dayKey,
+        topic: topic.title,
+        required: MIN_VERIFIED_RESEARCH_SOURCES,
+        got: verifiedResearchSources.length,
+      });
+    }
 
     const gates = await runSafetyGates({
       baseUrl,
@@ -193,34 +252,68 @@ export async function GET(req: NextRequest) {
       });
     }
 
-    const payload: WebflowArticleFields = {
-      id: articleIdFromSlug(article.slug),
-      title: article.title,
-      slug: article.slug,
-      subtitle: article.subtitle,
-      content: article.content,
-      intro: article.intro,
-      excerpt: article.excerpt,
-      category: article.section || 'Kultur',
-      tags: article.tags,
-      author: 'Liv Brandt',
-      seoTitle: article.seoTitle,
-      seoDescription: article.seoDescription,
-      status: 'published',
-      publishDate: new Date().toISOString(),
-      presseakkreditering: false,
-      // AI-content sporbarhed: ai-generated er primært flag,
-      // ai-source-url og ai-model er metadata til transparens og debug.
-      aiGenerated: true,
-      aiSourceUrl: topic.source?.url || null,
+    const qa = buildResearchQaSummary({
+      articleContent: article.content,
+      topic,
+      researchSources: article.researchSources || [],
+      gates: gates.results || [],
+      topicHint: plan?.topicHint,
+      directiveHint: plan?.directiveHint,
+      expandedDirective: plan?.expandedDirective,
+      minVerifiedSources: MIN_VERIFIED_RESEARCH_SOURCES,
+      minLineupNames: MIN_LINEUP_NAMES,
+    });
+    if (!qa.canAutoPublish) {
+      const reason = qa.blockers.join(' | ');
+      gateResults = [
+        ...gateResults,
+        {
+          name: 'research-qa',
+          pass: false,
+          detail: reason,
+        },
+      ];
+      await finishLivDaily(dayKey, {
+        status: 'skipped_factcheck',
+        topic: topic.title,
+        reason,
+        gateResults,
+      });
+      if (plan) {
+        await markPlanFailed(dayKey, reason);
+      }
+      await reportGa4('skipped', {
+        reason: 'research_qa_insufficient',
+        day_key: dayKey,
+        topic: topic.title.slice(0, 100),
+      });
+      logger.info('[cron/liv-daily] skipped — research QA insufficient', {
+        dayKey,
+        topic: topic.title,
+        blockers: qa.blockers,
+      });
+      return NextResponse.json({
+        ok: true,
+        skipped: true,
+        reason: 'research_qa_insufficient',
+        dayKey,
+        topic: topic.title,
+        qa,
+      });
+    }
+
+    const payload: WebflowArticleFields = buildLivCmsPayload({
+      article,
+      topic,
+      sectionFallback: 'Kultur',
+      status: livWebflowStatus,
       aiModel: process.env.LIV_GENERATION_MODEL || 'claude-opus-4.7',
-      featuredImage: article.imageSuggestions?.[0]?.url,
-    };
+    });
 
     const webflowItemId = await publishArticleToWebflow(payload);
 
     await finishLivDaily(dayKey, {
-      status: 'published',
+      status: livWebflowStatus === 'published' ? 'published' : 'draft',
       topic: topic.title,
       title: article.title,
       slug: article.slug,
@@ -243,6 +336,7 @@ export async function GET(req: NextRequest) {
       dayKey,
       slug: article.slug,
       webflowItemId,
+      webflowStatus: livWebflowStatus,
       score: topic.score,
     });
 
@@ -254,7 +348,9 @@ export async function GET(req: NextRequest) {
       title: article.title,
       slug: article.slug,
       webflowItemId,
+      webflowStatus: livWebflowStatus,
       gateResults,
+      qa,
     });
   } catch (e) {
     const msg = e instanceof Error ? e.message : 'Ukendt fejl';

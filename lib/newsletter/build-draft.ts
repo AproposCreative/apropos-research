@@ -6,7 +6,7 @@ import {
   resolveArticlesByIdsOrdered,
   type NewsletterArticle,
 } from '@/lib/newsletter/webflow-sources';
-import { getLastWeeklyAutoLeadArticleId } from '@/lib/newsletter/weekly-send-history';
+import { getLatestNewsletterLeadArticleId } from '@/lib/newsletter/send-selection-history';
 import { generateNewsletterIntro, stripTypographicDashesForNewsletter } from '@/lib/newsletter/intro-ai';
 import { introTextToHtml, renderNewsletterEmailHtml } from '@/lib/newsletter/render-html';
 import { newsletterUtmCampaignCustom, newsletterUtmCampaignFromWeek } from '@/lib/newsletter/newsletter-utm';
@@ -27,6 +27,8 @@ export type BuildDraftResult = {
   intro: string;
   articles: NewsletterArticle[];
   warnings: string[];
+  /** Når sæt, forklarer hvorfor udsnit kan mangle (fx 9. artikel). */
+  articlePoolStats?: { inWindowCount: number; inWindowAfterExclude: number; maxPicked: number };
 };
 
 /** Hvis seneste uges hero stadig er nyeste, flyt den til bunden så næste artikel bliver forside. */
@@ -41,6 +43,7 @@ export type PreparedWeeklyArticles = {
   articles: NewsletterArticle[];
   articleError?: string;
   minimumNote?: string;
+  articlePoolStats?: { inWindowCount: number; inWindowAfterExclude: number; maxPicked: number };
 };
 
 /** Hent, sortér og evt. demover forrige lead — bruges af draft-cache (hash) og `buildWeeklyNewsletterDraft`. */
@@ -55,7 +58,12 @@ export async function prepareWeeklyArticlesForDraft(params: {
   const baseUrl = env.NEWSLETTER_ARTICLE_BASE_URL || 'https://www.aproposmagazine.com';
   const refDate = params.referenceDate ?? new Date();
 
-  let { articles, error: artErr, minimumNote } = await fetchArticlesForWeek(week, baseUrl, {
+  let {
+    articles,
+    error: artErr,
+    minimumNote,
+    stats: weekStats,
+  } = await fetchArticlesForWeek(week, baseUrl, {
     minimumArticles: MIN_NEWSLETTER_ARTICLES,
     excludeIds: params.excludeArticleIds,
     relaxedExcludeIds: params.relaxedExcludeArticleIds,
@@ -63,7 +71,7 @@ export async function prepareWeeklyArticlesForDraft(params: {
   });
 
   if (params.skipDemotePreviousLead !== true) {
-    const prevLead = await getLastWeeklyAutoLeadArticleId();
+    const prevLead = await getLatestNewsletterLeadArticleId();
     const before0 = articles[0]?.id;
     articles = demotePreviousLead(articles, prevLead);
     if (
@@ -82,6 +90,7 @@ export async function prepareWeeklyArticlesForDraft(params: {
     articles,
     articleError: artErr,
     minimumNote,
+    articlePoolStats: weekStats,
   };
 }
 
@@ -93,6 +102,7 @@ type ComposeWeeklyDraftParams = {
   logoAssetBaseUrl?: string;
   articleError?: string;
   minimumNote?: string;
+  articlePoolStats?: BuildDraftResult['articlePoolStats'];
   /** Erstatter AI/fallback-overskrift i mailen når feltet er udfyldt (trim). */
   headlineOverride?: string;
   /** Email-emne; når sat, bruges i stedet for hero-overskrift som `subject`. */
@@ -173,6 +183,7 @@ export async function composeWeeklyNewsletterDraft(
     intro,
     articles: params.articles,
     warnings,
+    articlePoolStats: params.articlePoolStats,
   };
 }
 
@@ -206,6 +217,7 @@ export async function buildWeeklyNewsletterDraft(params: {
     logoAssetBaseUrl: params.logoAssetBaseUrl,
     articleError: prepared.articleError,
     minimumNote: prepared.minimumNote,
+    articlePoolStats: prepared.articlePoolStats,
   });
 }
 

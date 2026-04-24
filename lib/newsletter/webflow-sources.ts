@@ -9,6 +9,12 @@ export type NewsletterArticle = {
   slug: string;
   excerpt: string;
   thumbUrl: string | null;
+  /**
+   * Dato for ugens-udvælgelse + sortering: Webflow systemfelter (`createdOn` →
+   * `lastUpdated` → `lastPublished`) — aldrig CMS `publish-date` (kan være event/SEO, fx festival).
+   */
+  selectionDate: string;
+  /** Vist dato (live/tekst) — bruger systemfelter først, ellers `publish-date` i CMS. */
   lastPublished: string;
   url: string;
   /** Undertitel fra Webflow (som på sitet), til layout-test. */
@@ -104,8 +110,8 @@ export const MIN_NEWSLETTER_ARTICLES = 3;
 /** Maks. antal artikler i mail og AI-intro (nyeste først efter sortering). */
 export const MAX_NEWSLETTER_ARTICLES = 8;
 
-function sortArticlesByPublishedDesc(list: NewsletterArticle[]): NewsletterArticle[] {
-  return [...list].sort((a, b) => Date.parse(b.lastPublished) - Date.parse(a.lastPublished));
+function sortArticlesBySelectionDateDesc(list: NewsletterArticle[]): NewsletterArticle[] {
+  return [...list].sort((a, b) => Date.parse(b.selectionDate) - Date.parse(a.selectionDate));
 }
 
 function mapItemToNewsletterArticle(
@@ -114,23 +120,25 @@ function mapItemToNewsletterArticle(
   excerptMaxLen: number = NEWSLETTER_EXCERPT_MAX_DEFAULT
 ): NewsletterArticle | null {
   if (it?.isDraft === true) return null;
-  const published = it?.lastPublished || it?.lastUpdated || it?.createdOn;
-  if (!published || typeof published !== 'string') return null;
   const fd = (it.fieldData || {}) as Record<string, unknown>;
+  const createdOn = typeof it?.createdOn === 'string' ? it.createdOn : null;
+  const publishDateField = typeof fd['publish-date'] === 'string' ? fd['publish-date'] : null;
+  const lastPublished = typeof it?.lastPublished === 'string' ? it.lastPublished : null;
+  const lastUpdated = typeof it?.lastUpdated === 'string' ? it.lastUpdated : null;
+  /** Nyhedsbreb-vindue/sort: aldrig CMS `publish-date` — kan vise Heartland i august mens CMS-item laves uge 17. */
+  const selectionDate = createdOn || lastUpdated || lastPublished;
+  const published = lastPublished || lastUpdated || createdOn || publishDateField;
+  if (!selectionDate) return null;
   const name = typeof fd.name === 'string' ? fd.name : '';
   const slug = typeof fd.slug === 'string' ? fd.slug : '';
   if (!name || !slug) return null;
-  // Skip AI-genererede artikler i nyhedsbrevet som standard. Sæt
-  // INCLUDE_AI_IN_NEWSLETTER=1 for at inkludere dem (når kvaliteten er
-  // verificeret over en periode).
-  const includeAi = process.env.INCLUDE_AI_IN_NEWSLETTER === '1' || process.env.INCLUDE_AI_IN_NEWSLETTER?.toLowerCase() === 'true';
-  if (!includeAi && fd['ai-generated'] === true) return null;
   return {
     id: String(it.id),
     title: name,
     slug,
     excerpt: excerptFrom(fd, excerptMaxLen),
     thumbUrl: resolveThumbUrl(fd),
+    selectionDate,
     lastPublished: published,
     url: `${base}/articles/${slug}`,
     subtitle: subtitleFrom(fd),
@@ -188,7 +196,13 @@ export async function fetchArticlesForWeek(
     /** Maks. artikler efter sortering (nyeste først). Standard MAX_NEWSLETTER_ARTICLES. */
     maxArticles?: number;
   }
-): Promise<{ articles: NewsletterArticle[]; error?: string; minimumNote?: string }> {
+): Promise<{
+  articles: NewsletterArticle[];
+  error?: string;
+  minimumNote?: string;
+  /** Rå antal i dato-vindue (før ekskludering) — diagnostik. */
+  stats?: { inWindowCount: number; inWindowAfterExclude: number; maxPicked: number };
+}> {
   const cfg = getWebflowConfig();
   const collectionId = cfg.articlesCollectionId || env.WEBFLOW_ARTICLES_COLLECTION_ID;
   if (!collectionId) {
@@ -212,11 +226,11 @@ export async function fetchArticlesForWeek(
     const a = mapItemToNewsletterArticle(it, base);
     if (a) allMapped.push(a);
   }
-  allMapped.sort((a, b) => Date.parse(b.lastPublished) - Date.parse(a.lastPublished));
+  allMapped.sort((a, b) => Date.parse(b.selectionDate) - Date.parse(a.selectionDate));
 
   /** Forrige ISO-uge fra `week` og frem til `referenceDate` (typisk «nu»), så nye artikler i indeværende uge kan med. */
   const inWindowRaw = allMapped.filter((a) => {
-    const t = Date.parse(a.lastPublished);
+    const t = Date.parse(a.selectionDate);
     return !Number.isNaN(t) && t >= windowStartMs && t <= windowEndMs;
   });
 
@@ -227,7 +241,7 @@ export async function fetchArticlesForWeek(
     const inWindow = excl?.size
       ? inWindowRaw.filter((a) => !excl.has(a.id))
       : [...inWindowRaw];
-    let picked = sortArticlesByPublishedDesc(inWindow);
+    let picked = sortArticlesBySelectionDateDesc(inWindow);
     const seen = new Set(picked.map((a) => a.id));
     if (min > 0 && picked.length < min) {
       for (const a of allMapped) {
@@ -238,7 +252,7 @@ export async function fetchArticlesForWeek(
         seen.add(a.id);
       }
     }
-    picked = sortArticlesByPublishedDesc(picked);
+    picked = sortArticlesBySelectionDateDesc(picked);
     if (picked.length > maxPick) {
       picked = picked.slice(0, maxPick);
     }
@@ -267,20 +281,37 @@ export async function fetchArticlesForWeek(
     }
   }
 
-  articles = sortArticlesByPublishedDesc(articles);
+  articles = sortArticlesBySelectionDateDesc(articles);
   if (articles.length > maxPick) {
     articles = articles.slice(0, maxPick);
   }
 
   if (min > 0) {
     if (inWindowRaw.length < min && articles.length >= min && !minimumNote) {
-      minimumNote = `Kun ${inWindowRaw.length} artikel/artikler i vinduet (fra forrige uges start til nu); listen er udfyldt til mindst ${min} med ældre publiceringer om nødvendigt.`;
+      minimumNote = `Kun ${inWindowRaw.length} artikel/artikler i vinduet (oprettet/opdateret i Webflow; fra forrige uges start til nu); listen er udfyldt til mindst ${min} med artikler uden for vinduet om nødvendigt.`;
     } else if (articles.length < min) {
       minimumNote = `Kun ${articles.length} artikel/artikler til rådighed (ønsket minimum ${min}).`;
     }
   }
 
-  return { articles, error, minimumNote };
+  const inWindowAfterExclude = excludeFull?.size
+    ? inWindowRaw.filter((a) => !excludeFull.has(a.id))
+    : [...inWindowRaw];
+  if (inWindowAfterExclude.length > maxPick) {
+    const capNote = `I alt ${inWindowAfterExclude} artikler i dato-vinduet (efter standard-ekskludering), men højst ${maxPick} vises — de nyeste efter dato. En enkelt artikel kan mangle, fordi den er nummer 9+ i køen; vælg den i tilpasset nyhedsbreb.`;
+    minimumNote = minimumNote ? `${minimumNote} ${capNote}` : capNote;
+  }
+
+  return {
+    articles,
+    error,
+    minimumNote,
+    stats: {
+      inWindowCount: inWindowRaw.length,
+      inWindowAfterExclude: inWindowAfterExclude.length,
+      maxPicked: maxPick,
+    },
+  };
 }
 
 export type NewsletterArticleListItem = Pick<
@@ -314,7 +345,7 @@ export async function listNewsletterArticlesForPicker(params: {
     const a = mapItemToNewsletterArticle(it, base);
     if (a) allMapped.push(a);
   }
-  allMapped.sort((a, b) => Date.parse(b.lastPublished) - Date.parse(a.lastPublished));
+  allMapped.sort((a, b) => Date.parse(b.selectionDate) - Date.parse(a.selectionDate));
 
   const q = params.query?.trim().toLowerCase();
   const filtered = q

@@ -29,7 +29,8 @@ export function buildPromptFlowGraph(
   opts?: { excerptLen?: number; rowGap?: number }
 ): { nodes: PromptFlowNode[]; edges: PromptFlowEdge[] } {
   const excerptLen = opts?.excerptLen ?? 420;
-  const rowGap = opts?.rowGap ?? 108;
+  /** Lodret afstand mellem node-centre — skal være > node-højde i UI (~140–200px) ellers overlapper kortene i React Flow. */
+  const rowGap = opts?.rowGap ?? 300;
   const chain: PromptSegment[] = [...segments];
   if (webSegment) chain.push(webSegment);
 

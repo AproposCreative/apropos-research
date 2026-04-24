@@ -47,7 +47,7 @@ export async function POST(request: NextRequest) {
       const extractionResponse = await openai.chat.completions.create({
         model: models.default,
         temperature: 0.3,
-        max_tokens: 1024,
+        max_completion_tokens: 1024,
         messages: [
           {
             role: 'system',
@@ -75,7 +75,7 @@ export async function POST(request: NextRequest) {
     const response = await openai.chat.completions.create({
       model: models.default,
       temperature: 0.2,
-      max_tokens: 2048,
+      max_completion_tokens: 2048,
       messages: [
         { role: 'system', content: SYSTEM_PROMPT },
         { role: 'user', content: userMessage },

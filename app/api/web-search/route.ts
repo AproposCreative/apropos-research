@@ -148,6 +148,62 @@ async function searchDuckDuckGo(query: string, logger: ReturnType<typeof createR
   return results;
 }
 
+function decodeHtmlEntities(input: string): string {
+  return input
+    .replace(/&amp;/g, '&')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>');
+}
+
+function stripHtml(input: string): string {
+  return decodeHtmlEntities(input.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim());
+}
+
+async function searchDuckDuckGoHtml(query: string, logger: ReturnType<typeof createRequestLogger>): Promise<SearchResult[]> {
+  try {
+    const res = await fetch(`https://duckduckgo.com/html/?q=${encodeURIComponent(query)}`, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (compatible; AproposBot/1.0)',
+      },
+    });
+    if (!res.ok) return [];
+    const html = await res.text();
+
+    const out: SearchResult[] = [];
+    const resultRe =
+      /<a[^>]+class="result__a"[^>]*href="([^"]+)"[^>]*>([\s\S]*?)<\/a>[\s\S]*?<a[^>]+class="result__snippet"[^>]*>([\s\S]*?)<\/a>/gi;
+    let m: RegExpExecArray | null = null;
+    while ((m = resultRe.exec(html)) !== null && out.length < 6) {
+      const rawUrl = m[1] || '';
+      const title = stripHtml(m[2] || '');
+      const snippet = stripHtml(m[3] || '');
+      let url = rawUrl;
+      try {
+        if (rawUrl.startsWith('/')) {
+          const u = new URL(`https://duckduckgo.com${rawUrl}`);
+          const uddg = u.searchParams.get('uddg');
+          if (uddg) url = decodeURIComponent(uddg);
+        }
+      } catch {
+        // keep raw url
+      }
+      if (!title && !snippet) continue;
+      out.push({
+        title: title || 'DuckDuckGo result',
+        content: snippet || '',
+        source: 'DuckDuckGo (HTML)',
+        url: url || null,
+      });
+    }
+    return out;
+  } catch (error) {
+    logger.debug('DuckDuckGo HTML search failed', { error: String(error) });
+    return [];
+  }
+}
+
 async function performWebSearch(query: string, maxResults: number, logger: ReturnType<typeof createRequestLogger>): Promise<SearchResult[]> {
   const seen = new Set<string>();
   const dedup = (items: SearchResult[]): SearchResult[] =>
@@ -159,14 +215,15 @@ async function performWebSearch(query: string, maxResults: number, logger: Retur
     });
 
   // Run all sources in parallel
-  const [googleResults, wikiResults, ddgResults] = await Promise.all([
+  const [googleResults, wikiResults, ddgResults, ddgHtmlResults] = await Promise.all([
     searchGoogle(query, logger),
     searchWikipedia(query, logger),
     searchDuckDuckGo(query, logger),
+    searchDuckDuckGoHtml(query, logger),
   ]);
 
   // Google first (richest snippets), then Wikipedia (authoritative), then DuckDuckGo
-  const combined = dedup([...googleResults, ...wikiResults, ...ddgResults]);
+  const combined = dedup([...googleResults, ...wikiResults, ...ddgHtmlResults, ...ddgResults]);
 
   if (combined.length === 0) {
     combined.push({

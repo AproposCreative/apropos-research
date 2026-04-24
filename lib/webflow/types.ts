@@ -61,8 +61,17 @@ export interface WebflowArticleFields {
   aiGenerated?: boolean | null;
   /** URL til original kilde — sporbarhed for AI-genererede artikler. */
   aiSourceUrl?: string | null;
+  /**
+   * Ekstra kilde-URL’er til at resolve officielt hero-billede (og:image / JSON-LD)
+   * før evt. AI-thumb. Bruges kun server-side i `publishArticleToWebflow`.
+   */
+  imageSourceUrls?: string[];
   /** Hvilken model der genererede artiklen, fx "claude-opus-4.7". */
   aiModel?: string | null;
+  /** Tekst til Webflow-feltet foto-credit (thumb fra kilde). */
+  fotoCredit?: string;
+  /** Kort lokationslinje til festival / venue hvor muligt. */
+  location?: string;
   topicsSelected?: string[];
   streaming_service?: string;
   platform?: string;

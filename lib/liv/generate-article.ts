@@ -13,6 +13,7 @@ import path from 'node:path';
 import { getOpenAIClient, models } from '@/lib/openai';
 import { logger } from '@/lib/logger';
 import type { PickedTopic } from '@/lib/liv/pick-topic';
+import { fetchOfficialImagesFromPage } from '@/lib/liv/fetch-official-images';
 import { generateSeoMetaAI } from '@/lib/seo/generate-seo-meta';
 
 export interface GeneratedArticle {
@@ -149,17 +150,7 @@ type WebSearchResult = {
 
 async function fetchWebResearch(query: string, baseUrl?: string): Promise<WebSearchResult[]> {
   if (!baseUrl || !/^https?:\/\//.test(baseUrl)) return [];
-  try {
-    const url = new URL('/api/web-search', baseUrl).toString();
-    const res = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ query, maxResults: 6 }),
-      cache: 'no-store',
-    });
-    if (!res.ok) return [];
-    const data = await res.json();
-    const rows = data?.data?.results || data?.results || [];
+  const normalizeRows = (rows: unknown): WebSearchResult[] => {
     if (!Array.isArray(rows)) return [];
     return rows
       .map((r: WebSearchResult) => ({
@@ -168,61 +159,83 @@ async function fetchWebResearch(query: string, baseUrl?: string): Promise<WebSea
         source: typeof r?.source === 'string' ? r.source.trim() : 'web',
         url: typeof r?.url === 'string' ? r.url : null,
       }))
-      .filter((r) => (r.title || r.content) && !(r.title || '').toLowerCase().includes('research guidance'))
-      .slice(0, 6);
+      .filter((r) => {
+        const t = (r.title || '').toLowerCase();
+        return !!(r.title || r.content) && !t.includes('research guidance');
+      });
+  };
+
+  const runQuery = async (q: string): Promise<WebSearchResult[]> => {
+    const url = new URL('/api/web-search', baseUrl).toString();
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ query: q, maxResults: 6 }),
+      cache: 'no-store',
+    });
+    if (!res.ok) return [];
+    const data = await res.json();
+    return normalizeRows(data?.data?.results || data?.results || []);
+  };
+
+  const queries = Array.from(
+    new Set([
+      query,
+      `${query} festival lineup`,
+      `${query} annonce program`,
+      `${query} kunstnere`,
+      `${query} official`,
+    ])
+  );
+
+  try {
+    const merged: WebSearchResult[] = [];
+    const seen = new Set<string>();
+    for (const q of queries) {
+      const rows = await runQuery(q);
+      for (const row of rows) {
+        const key = `${row.title || ''}::${row.url || ''}`.toLowerCase();
+        if (seen.has(key)) continue;
+        seen.add(key);
+        merged.push(row);
+      }
+      if (merged.length >= 6) break;
+    }
+    return merged.slice(0, 6);
   } catch {
     return [];
   }
 }
 
-function looksLikeImageUrl(url: string): boolean {
-  return /\.(png|jpe?g|webp|gif|avif)(\?.*)?$/i.test(url);
-}
-
-function extractMetaContent(html: string, pageUrl: string): string | null {
-  const patterns = [
-    /<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)["'][^>]*>/i,
-    /<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:image["'][^>]*>/i,
-    /<meta[^>]+name=["']twitter:image["'][^>]+content=["']([^"']+)["'][^>]*>/i,
-    /<meta[^>]+content=["']([^"']+)["'][^>]+name=["']twitter:image["'][^>]*>/i,
-  ];
-  for (const p of patterns) {
-    const m = p.exec(html);
-    if (!m?.[1]) continue;
-    const raw = m[1].trim();
-    try {
-      return new URL(raw, pageUrl).toString();
-    } catch {
-      continue;
-    }
-  }
-  return null;
-}
-
-async function fetchPageImage(url: string): Promise<string | null> {
+async function fetchPageText(url: string): Promise<string> {
   try {
     const u = new URL(url);
-    if (!/^https?:$/.test(u.protocol)) return null;
+    if (!/^https?:$/.test(u.protocol)) return '';
   } catch {
-    return null;
+    return '';
   }
-  if (looksLikeImageUrl(url)) return url;
   try {
     const ctrl = new AbortController();
-    const t = setTimeout(() => ctrl.abort(), 5000);
+    const t = setTimeout(() => ctrl.abort(), 6000);
     const res = await fetch(url, {
       cache: 'no-store',
       signal: ctrl.signal,
       headers: { 'User-Agent': 'Mozilla/5.0 (compatible; AproposBot/1.0)' },
     });
     clearTimeout(t);
-    if (!res.ok) return null;
+    if (!res.ok) return '';
     const contentType = res.headers.get('content-type') || '';
-    if (!/text\/html/i.test(contentType)) return null;
+    if (!/text\/html/i.test(contentType)) return '';
     const html = await res.text();
-    return extractMetaContent(html, url);
+    return html
+      .replace(/<script[\s\S]*?<\/script>/gi, ' ')
+      .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+      .replace(/<[^>]+>/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .slice(0, 2000);
   } catch {
-    return null;
+    return '';
   }
 }
 
@@ -245,15 +258,116 @@ async function collectImageSuggestions(opts: {
       pages.push({ url: r.url, source: r.source || 'web', title: r.title });
     }
   }
-  for (const p of pages.slice(0, 6)) {
-    const img = await fetchPageImage(p.url);
-    if (!img) continue;
-    if (seen.has(img)) continue;
-    seen.add(img);
-    candidates.push({ url: img, source: p.source, title: p.title });
-    if (candidates.length >= 4) break;
+  for (const p of pages.slice(0, 10)) {
+    const imgs = await fetchOfficialImagesFromPage(p.url, { timeoutMs: 8000 });
+    for (const img of imgs) {
+      if (seen.has(img)) continue;
+      seen.add(img);
+      candidates.push({ url: img, source: p.source, title: p.title });
+      if (candidates.length >= 4) return candidates;
+    }
   }
   return candidates;
+}
+
+async function extractConcreteNames(opts: {
+  client: ReturnType<typeof getOpenAIClient>;
+  topicTitle: string;
+  sourceExcerpt?: string;
+  webResearch: WebSearchResult[];
+}): Promise<string[]> {
+  if (!opts.client) return [];
+  const snippets = opts.webResearch
+    .map((r) => [r.title || '', r.content || ''].join(' — ').trim())
+    .filter(Boolean)
+    .slice(0, 6)
+    .join('\n');
+  const source = (opts.sourceExcerpt || '').slice(0, 2000);
+  if (!source && !snippets) return [];
+  try {
+    const res = await opts.client.chat.completions.create({
+      model: 'gpt-4o-mini',
+      temperature: 0.05,
+      max_completion_tokens: 300,
+      messages: [
+        {
+          role: 'system',
+          content: [
+            'Udtræk konkrete egennavne relateret til kultur/musik emnet.',
+            'Returnér KUN en JSON-array af strings.',
+            'Inkludér kun navne der fremgår direkte af input (kunstnere, bands, festival, venue, nøglepersoner).',
+            'Maks 12 navne.',
+          ].join('\n'),
+        },
+        {
+          role: 'user',
+          content: [
+            `Emne: ${opts.topicTitle}`,
+            '',
+            'Kildeuddrag:',
+            source || '(mangler)',
+            '',
+            'Web-snippets:',
+            snippets || '(mangler)',
+          ].join('\n'),
+        },
+      ],
+    });
+    const text = res.choices[0]?.message?.content?.trim() || '[]';
+    const match = text.match(/\[[\s\S]*\]/);
+    const arr = match ? JSON.parse(match[0]) : [];
+    if (!Array.isArray(arr)) return [];
+    return arr
+      .map((x) => (typeof x === 'string' ? x.trim() : ''))
+      .filter(Boolean)
+      .slice(0, 12);
+  } catch {
+    return [];
+  }
+}
+
+function extractLikelyNamesFromText(text: string): string[] {
+  if (!text) return [];
+  const cleaned = text
+    .replace(/\s+/g, ' ')
+    .replace(/[“”"()]/g, ' ')
+    .trim();
+  const candidates = new Set<string>();
+  const re = /\b(?:[A-ZÆØÅ][A-Za-zÆØÅæøå0-9]+|[0-9]+)\s*(?:&\s*)?(?:[A-ZÆØÅ][A-Za-zÆØÅæøå0-9]+|of|the|The|Of|[0-9]+)*(?:\s+(?:[A-ZÆØÅ][A-Za-zÆØÅæøå0-9]+|of|the|The|Of|[0-9]+))*\b/g;
+  let m: RegExpExecArray | null = null;
+  while ((m = re.exec(cleaned)) !== null) {
+    const raw = (m[0] || '').trim();
+    if (!raw) continue;
+    if (raw.length < 2 || raw.length > 60) continue;
+    if (/^(Heartland|Festival|Program|Danmark|Sommer|Nyheder|Transport|Parkering|Billetter|JUNI)$/i.test(raw)) continue;
+    if (/^\d+$/.test(raw)) continue;
+    if (/&#\d+;/.test(raw)) continue;
+    if (!/[A-ZÆØÅ]/.test(raw)) continue;
+    const words = raw.split(/\s+/).filter(Boolean);
+    if (words.length === 1) {
+      const w = words[0];
+      const isShortAllCaps = /^[A-Z0-9&]{2,4}$/.test(w);
+      if (!isShortAllCaps && w.length < 5) continue;
+      if (/^(Vi|De|Med|Til|Køb)$/i.test(w)) continue;
+    }
+    if (words.length >= 5) continue;
+    candidates.add(raw.replace(/\s{2,}/g, ' ').trim());
+    if (candidates.size >= 20) break;
+  }
+  return Array.from(candidates);
+}
+
+function isStrongNameCandidate(name: string): boolean {
+  if (!name) return false;
+  if (/^(Heartland|Festival|Program|Nyheder|Billetter|Transport|Parkering|JUNI)$/i.test(name)) return false;
+  if (/^\d+$/.test(name)) return false;
+  const words = name.split(/\s+/).filter(Boolean);
+  if (words.length === 1) {
+    const w = words[0];
+    if (/^(Vi|De|Med|Til|Køb)$/i.test(w)) return false;
+    return /^[A-Z0-9&]{2,4}$/.test(w) || w.length >= 5;
+  }
+  return words.length <= 4;
 }
 
 /**
@@ -318,13 +432,28 @@ export async function generateLivArticle(options: GenerateArticleOptions): Promi
   const livPrompt = await loadLivPrompt();
 
   // Step 1: Destillér kilden til neutrale fakta. Liv ser ALDRIG selve uddraget.
+  const sourcePageText = topic.source?.url ? await fetchPageText(topic.source.url) : '';
+  const sourceExcerptCombined = [topic.source?.excerpt || '', sourcePageText]
+    .filter(Boolean)
+    .join('\n\n')
+    .slice(0, 2600);
   const facts = await extractFactsFromSource({
     client,
     sourceTitle: topic.source?.title || topic.title,
-    sourceExcerpt: topic.source?.excerpt,
+    sourceExcerpt: sourceExcerptCombined,
     sourceName: topic.source?.sourceName,
   });
   const webResearch = await fetchWebResearch(topic.title, baseUrl);
+  const concreteNames = await extractConcreteNames({
+    client,
+    topicTitle: topic.title,
+    sourceExcerpt: sourceExcerptCombined,
+    webResearch,
+  });
+  const fallbackNames = extractLikelyNamesFromText(sourceExcerptCombined);
+  const mergedConcreteNames = Array.from(new Set([...concreteNames, ...fallbackNames]))
+    .filter(isStrongNameCandidate)
+    .slice(0, 12);
   const webResearchBlock = webResearch.length
     ? webResearch
         .map((r) => {
@@ -354,6 +483,12 @@ export async function generateLivArticle(options: GenerateArticleOptions): Promi
     '- Ingen overskrifter (h1/h2) — kun løbende tekst.',
     '- Ingen markdown-syntax (* _ # `).',
     '- Vær præcis med fakta — opfind ikke navne, datoer eller citater.',
+    '- Brug research aktivt: indarbejd mindst 2 konkrete, verificerbare fakta når der findes kilder.',
+    '- Hvis noget ikke er dokumenteret i researchen, så skriv det som vurdering eller udelad det.',
+    '- Hold afsnit i moderat længde med tydelig fremdrift (Apropos-redaktionel rytme).',
+    mergedConcreteNames.length >= 3
+      ? `- Inkludér mindst 3 af disse konkrete navne i analysen, når de er relevante: ${mergedConcreteNames.join(', ')}.`
+      : '- Hvis research indeholder kunstnernavne eller venues, så brug dem konkret i teksten.',
     '',
     '— ANTI-PLAGIAT —',
     'Disse regler er ABSOLUTTE og overrider alt andet:',
@@ -412,6 +547,17 @@ export async function generateLivArticle(options: GenerateArticleOptions): Promi
     throw new Error('Kunne ikke parse title/brødtekst fra OpenAI-respons.');
   }
 
+  // Guardrail: if we have concrete names from research, ensure at least some make it into the article.
+  if (mergedConcreteNames.length >= 3) {
+    const lowerContent = parsed.content.toLowerCase();
+    const mentioned = mergedConcreteNames.filter((name) => lowerContent.includes(name.toLowerCase()));
+    if (mentioned.length < 2) {
+      const mustMention = mergedConcreteNames.slice(0, 5);
+      const lineupParagraph = `\n\nDet konkrete lineup fortjener at blive nævnt med navn: ${mustMention.join(', ')}. Det er netop i spændet mellem de navne, at festivalens kulturelle ambition skal stå sin prøve.`;
+      parsed.content = `${parsed.content.trim()}${lineupParagraph}`;
+    }
+  }
+
   const slug = slugify(parsed.title);
   const excerpt = (parsed.intro || parsed.content)
     .replace(/\s+/g, ' ')
@@ -432,6 +578,23 @@ export async function generateLivArticle(options: GenerateArticleOptions): Promi
     researchResults: webResearch,
   });
 
+  const sourceResearch = topic.source
+    ? [
+        {
+          title: topic.source.title || topic.title,
+          source: topic.source.sourceName || 'topic-source',
+          url: topic.source.url || null,
+          snippet: topic.source.excerpt?.slice(0, 240),
+        },
+      ]
+    : [];
+  const webResearchSources = webResearch.map((r) => ({
+    title: r.title || 'Ukendt resultat',
+    source: r.source || 'web',
+    url: r.url || null,
+    snippet: r.content?.slice(0, 240),
+  }));
+
   return {
     title: parsed.title,
     subtitle: parsed.subtitle,
@@ -444,12 +607,7 @@ export async function generateLivArticle(options: GenerateArticleOptions): Promi
     seoTitle: seo.seoTitle,
     seoDescription: seo.seoDescription,
     primaryKeyword: seo.primaryKeyword,
-    researchSources: webResearch.map((r) => ({
-      title: r.title || 'Ukendt resultat',
-      source: r.source || 'web',
-      url: r.url || null,
-      snippet: r.content?.slice(0, 240),
-    })),
+    researchSources: [...sourceResearch, ...webResearchSources],
     imageSuggestions,
     rawResponse: raw,
   };

@@ -13,12 +13,16 @@ import { getNewsletterUserIdFromRequest } from '@/lib/newsletter/auth-request';
 import { pickLivTopic, type PickedTopic } from '@/lib/liv/pick-topic';
 import { generateLivArticle } from '@/lib/liv/generate-article';
 import { todayDayKeyUTC } from '@/lib/liv/daily-history-store';
+import { getLivDailyPlan } from '@/lib/liv/daily-plan-store';
+import { resolveLivTopicInputsFromPlan } from '@/lib/liv/resolve-liv-topic-hints';
 import { logger } from '@/lib/logger';
 import { env } from '@/lib/config/env';
 import { expandDirective } from '@/lib/liv/expand-directive';
 import { runSafetyGates } from '@/lib/liv/run-safety-gates';
+import { buildResearchQaSummary } from '@/lib/liv/research-qa';
 
 export const maxDuration = 120;
+const MIN_VERIFIED_RESEARCH_SOURCES = 2;
 
 function resolveBaseUrl(req: NextRequest): string {
   const fromHeader = req.nextUrl.origin;
@@ -53,9 +57,16 @@ async function buildPreview(req: NextRequest, input: PreviewRequestInput, uid: s
   const baseUrl = resolveBaseUrl(req);
   const dayKey = todayDayKeyUTC();
   const generate = !!input.generate;
-  const topicHint = input.topicHint?.trim();
+  const thInput = (input.topicHint || '').trim();
+  const plan = await getLivDailyPlan(dayKey);
+  const resolved = resolveLivTopicInputsFromPlan(plan);
+  const topicHint = thInput
+    ? thInput
+    : resolved.topicHint || undefined;
+  const mustUseTrending = thInput
+    ? input.mustUseTrending !== false
+    : resolved.mustUseTrending;
   const directiveHint = input.directiveHint?.trim();
-  const mustUseTrending = input.mustUseTrending !== false;
   const excludedTitles = Array.isArray(input.excludedTitles)
     ? input.excludedTitles.filter((x): x is string => typeof x === 'string' && x.trim().length > 0)
     : [];
@@ -121,6 +132,28 @@ async function buildPreview(req: NextRequest, input: PreviewRequestInput, uid: s
       const failed = gates.failedGate || 'unknown';
       const detail = gates.results.find((r) => r.name === failed)?.detail || 'gate failed';
       warnings.push(`Gate-fejl (${failed}): ${detail}`);
+    } else if (gates.anyGateSkipped) {
+      warnings.push('Mindst én safety-gate blev sprunget over (infrastruktur eller manglende data) — se listen under.');
+    }
+
+    const qa = buildResearchQaSummary({
+      articleContent: article.content,
+      topic,
+      researchSources: article.researchSources || [],
+      gates: gates.results || [],
+      topicHint,
+      directiveHint,
+      expandedDirective: expanded.expandedDirective,
+      minVerifiedSources: MIN_VERIFIED_RESEARCH_SOURCES,
+      minLineupNames: 2,
+    });
+    if (qa.verifiedResearchSourceCount < MIN_VERIFIED_RESEARCH_SOURCES) {
+      warnings.push(
+        `Kun ${qa.verifiedResearchSourceCount} verificerbare kilder med URL (krav for auto-publish: ${MIN_VERIFIED_RESEARCH_SOURCES}).`
+      );
+    }
+    if (!qa.canAutoPublish) {
+      warnings.push(`Auto-publish blokeres nu: ${qa.blockers.join(' · ')}`);
     }
 
     return NextResponse.json({
@@ -148,6 +181,15 @@ async function buildPreview(req: NextRequest, input: PreviewRequestInput, uid: s
         wordCount: article.content.split(/\s+/).filter(Boolean).length,
         imageSuggestions: article.imageSuggestions || [],
         researchSources: article.researchSources || [],
+        qa: {
+          verifiedResearchSourceCount: qa.verifiedResearchSourceCount,
+          verifiedClaimsCount: qa.verifiedClaimsCount,
+          researchConfidence: qa.researchConfidence,
+          lineupNamesUsed: qa.lineupNamesUsed,
+          requiresLineupNames: qa.requiresLineupNames,
+          canAutoPublish: qa.canAutoPublish,
+          blockers: qa.blockers,
+        },
       },
     });
   } catch (e) {

@@ -38,9 +38,12 @@ const APP_VERSION = process.env.NEXT_PUBLIC_APP_VERSION || '0.0.0';
 const BUILD_ID = process.env.NEXT_PUBLIC_BUILD_ID || 'local';
 const BUILD_LABEL = process.env.NEXT_PUBLIC_BUILD_LABEL || `${APP_VERSION}.${BUILD_ID}`;
 
-/** Samme premium blur-shell som SoMe Posting — chat, nyhedsbrev, AI-posting og venstre panel. */
+/** Efter fuldført opsætning eller «Skjul» vises chat uden wizard som standard. */
+const AI_WRITER_SETUP_COLLAPSED_PREF = 'ai-writer-setup-prefer-collapsed';
+
+/** Embedded views — harmoniseret med design-system (`border-white/15`, blur-læsbarhed). */
 const embeddedPanelShell =
-  'rounded-xl bg-[#070707]/90 backdrop-blur-3xl border border-white/20 shadow-[0_20px_70px_rgba(0,0,0,0.55)] overflow-hidden md:outline md:outline-[1.5px] md:outline-offset-[-1.5px] md:outline-zinc-800';
+  'rounded-xl bg-black/55 md:bg-[#070707]/90 backdrop-blur-2xl md:backdrop-blur-xl border border-white/15 shadow-[0_20px_70px_rgba(0,0,0,0.55)] overflow-hidden md:outline md:outline-[1.5px] md:outline-offset-[-1.5px] md:outline-zinc-800';
 
 export default function AIWriterClient() {
   const router = useRouter();
@@ -50,7 +53,14 @@ export default function AIWriterClient() {
   const [currentDraftId, setCurrentDraftId] = useState<string | null>(null);
   const [showSearchModal, setShowSearchModal] = useState(false);
   const [isThinking, setIsThinking] = useState(false);
-  const [showWizard, setShowWizard] = useState(true);
+  const [showWizard, setShowWizard] = useState(() => {
+    if (typeof window === 'undefined') return true;
+    try {
+      return localStorage.getItem(AI_WRITER_SETUP_COLLAPSED_PREF) !== '1';
+    } catch {
+      return true;
+    }
+  });
   const [reviewOpen, setReviewOpen] = useState(false);
   const [shelfOpen, setShelfOpen] = useState(false);
   const [webAppsOpen, setWebAppsOpen] = useState(false);
@@ -145,7 +155,7 @@ export default function AIWriterClient() {
   const chatPanelRef = useRef<HTMLDivElement>(null);
   const isDesktop = viewportWidth >= 768;
   const isNarrowDesktop = viewportWidth < 1280;
-  const showMiniMenu = viewportWidth >= 1150;
+  const showMiniMenu = isDesktop;
   const stopThinkingTimeline = useCallback(() => {
     if (thinkingTimersRef.current.length) {
       thinkingTimersRef.current.forEach((timer) => window.clearTimeout(timer));
@@ -915,6 +925,11 @@ export default function AIWriterClient() {
   const handleSetupWizardComplete = useCallback(async (setup: any) => {
     setArticleData(prev => ({ ...prev, ...setup }));
     setShowWizard(false);
+    try {
+      localStorage.setItem(AI_WRITER_SETUP_COLLAPSED_PREF, '1');
+    } catch {
+      /* ignore */
+    }
     const topicsDisplay = Array.isArray(setup.topicsSelected) && setup.topicsSelected.length
       ? setup.topicsSelected.join(', ')
       : Array.isArray(setup.tags) && setup.tags.length
@@ -1353,7 +1368,11 @@ export default function AIWriterClient() {
                 wizardNode={(
                   <div>
                     {/* Persistent progress */}
-                    <button type="button" onClick={()=>setShowWizard(true)} className="w-full px-3 py-2 md:py-3 flex gap-1 items-center cursor-pointer">
+                    <button
+                      type="button"
+                      onClick={() => setShowWizard(true)}
+                      className="w-full px-3 py-2 md:py-3 flex flex-col gap-1.5 items-stretch cursor-pointer text-left"
+                    >
                         {(() => {
                           const templateDone = Boolean((articleData as any).template);
                           const sectionLower = String((articleData as any).category || (articleData as any).section || '').toLowerCase();
@@ -1376,28 +1395,56 @@ export default function AIWriterClient() {
                           const topicDone = topicsSelected.length >=2;
                           const ratingDone = Boolean((articleData as any).rating && Number((articleData as any).rating)>0) || Boolean((articleData as any).ratingSkipped);
                           const pressDone = typeof (articleData as any).press === 'boolean';
-                          const segs: boolean[] = [
-                            templateDone,
-                            authorDone,
-                            sectionDone,
-                            topicDone
+                          const segRows: { ok: boolean; label: string }[] = [
+                            { ok: templateDone, label: 'Skabelon' },
+                            { ok: authorDone, label: 'Forfatter' },
+                            { ok: sectionDone, label: 'Sektion' },
+                            { ok: topicDone, label: 'Emner' },
                           ];
                           if (requiresPlatform) {
-                            segs.push(hasPlatform);
+                            segRows.push({ ok: hasPlatform, label: 'Platform' });
                           }
-                          segs.push(ratingDone);
-                          segs.push(pressDone);
-                          return segs.map((ok, i)=> (
-                            <div key={i} className={`h-1.5 flex-1 rounded ${ok ? 'bg-white shadow-[0_0_10px_#fff]' : 'bg-white/10'}`}></div>
-                          ));
+                          segRows.push(
+                            { ok: ratingDone, label: 'Bedømmelse' },
+                            { ok: pressDone, label: 'Presse' },
+                          );
+                          const doneCount = segRows.filter((s) => s.ok).length;
+                          const total = segRows.length;
+                          return (
+                            <>
+                              <div className="flex items-center justify-between gap-2 pr-0.5">
+                                <span className="text-[9px] uppercase tracking-[0.16em] text-white/45">Artikel opsætning</span>
+                                <span className="text-[9px] tabular-nums text-white/50" aria-live="polite">
+                                  {doneCount}/{total} trin
+                                </span>
+                              </div>
+                              <div className="flex gap-1 items-center w-full">
+                                {segRows.map((s, i) => (
+                                  <div
+                                    key={`${s.label}-${i}`}
+                                    title={s.label}
+                                    aria-label={`${s.label}: ${s.ok ? 'udført' : 'mangler'}`}
+                                    className={`h-1.5 flex-1 rounded min-w-0 ${s.ok ? 'bg-white shadow-[0_0_10px_#fff]' : 'bg-white/10'}`}
+                                  />
+                                ))}
+                              </div>
+                            </>
+                          );
                         })()}
                     </button>
                     {/* Animated wizard container */}
                     <div className={`transition-all duration-300 ease-out overflow-x-hidden ${showWizard ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-2 max-h-0 overflow-hidden pointer-events-none'}`}>
                       <div className="flex items-center justify-between px-3 py-2 md:p-3" style={{display: showWizard ? 'flex' : 'none'}}>
-                      <h2 className="text-white text-base font-medium">
-                        <span className="hidden md:inline">Artikel opsætning</span>
-                        <span className="md:hidden inline">Setup</span>
+                      <h2
+                        className="text-white text-base font-medium"
+                        aria-label="Artikel opsætning"
+                      >
+                        <span aria-hidden className="hidden md:inline">
+                          Artikel opsætning
+                        </span>
+                        <span aria-hidden className="md:hidden inline">
+                          Setup
+                        </span>
                       </h2>
                       <div className="flex items-center gap-2 text-[9px] uppercase tracking-[0.18em]">
                         <div className="flex rounded-full border border-white/20 overflow-hidden bg-white/5">
@@ -1421,7 +1468,20 @@ export default function AIWriterClient() {
                             );
                           })}
                         </div>
-                        <button type="button" onClick={()=>setShowWizard(false)} className="text-white/60 hover:text-white">Skjul</button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setShowWizard(false);
+                            try {
+                              localStorage.setItem(AI_WRITER_SETUP_COLLAPSED_PREF, '1');
+                            } catch {
+                              /* ignore */
+                            }
+                          }}
+                          className="text-white/60 hover:text-white"
+                        >
+                          Skjul
+                        </button>
                         </div>
                       </div>
                       <SetupWizard
@@ -1550,6 +1610,8 @@ export default function AIWriterClient() {
                 : leftPanelOpen
                   ? `translateX(calc(12px + min(300px, 50vw) + ${chatWidth}px + 12px))` 
                   : `translateX(calc(${chatWidth}px + 12px))`}
+              writerShortcutsEnabled={activeView === 'ai'}
+              onGoToAiWriter={() => applyActiveView('ai')}
               onSearch={() => setShowSearchModal(true)}
               onToggleReview={() => { setSourcesOpen(false); setSettingsOpen(false); if (isNarrowDesktop) { setShelfOpen(false); setWebAppsOpen(false); } setReviewOpen(prev=>!prev); }}
               onToggleWebApps={() => { setShelfOpen(false); setReviewOpen(false); setSourcesOpen(false); setSettingsOpen(false); setWebAppsOpen(prev=>!prev); }}

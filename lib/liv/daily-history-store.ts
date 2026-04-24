@@ -20,6 +20,7 @@ export function livDailyDocId(dayKey: string): string {
 export type LivDailyStatus =
   | 'processing'
   | 'published'
+  | 'draft'
   | 'skipped_no_topic'
   | 'skipped_factcheck'
   | 'skipped_moderation'
@@ -60,7 +61,7 @@ export async function claimLivDaily(dayKey: string): Promise<LivDailyClaimResult
       const status = d?.status as LivDailyStatus | undefined;
 
       // Terminal states for *today*.
-      if (status === 'published') {
+      if (status === 'published' || status === 'draft') {
         result = { ok: false, reason: 'already_done' };
         return;
       }
@@ -101,11 +102,12 @@ export async function claimLivDaily(dayKey: string): Promise<LivDailyClaimResult
   }
 }
 
-export type GateResult = { name: string; pass: boolean; detail?: string };
+/** skipped: gate blev ikke kørt (infra/mangler input); pass kan stadig være true for ikke at blokere publish. */
+export type GateResult = { name: string; pass: boolean; detail?: string; skipped?: boolean };
 
 export type FinishLivDailyInput =
   | {
-      status: 'published';
+      status: 'published' | 'draft';
       topic: string;
       title: string;
       slug: string;
@@ -114,7 +116,7 @@ export type FinishLivDailyInput =
       sourceUrl?: string;
     }
   | {
-      status: Exclude<LivDailyStatus, 'published' | 'processing'>;
+      status: Exclude<LivDailyStatus, 'published' | 'draft' | 'processing'>;
       topic?: string;
       reason: string;
       gateResults?: GateResult[];
@@ -125,11 +127,11 @@ export async function finishLivDaily(dayKey: string, input: FinishLivDailyInput)
   if (!db) return;
   const ref = db.collection(LIV_DAILY_COLLECTION).doc(livDailyDocId(dayKey));
 
-  if (input.status === 'published') {
+  if (input.status === 'published' || input.status === 'draft') {
     await ref.set(
       {
         dayKey,
-        status: 'published',
+        status: input.status,
         topic: input.topic.slice(0, 500),
         title: input.title.slice(0, 500),
         slug: input.slug.slice(0, 200),
@@ -145,13 +147,14 @@ export async function finishLivDaily(dayKey: string, input: FinishLivDailyInput)
     return;
   }
 
+  const skippedOrFailed = input as Extract<FinishLivDailyInput, { reason: string }>;
   await ref.set(
     {
       dayKey,
-      status: input.status,
-      topic: input.topic?.slice(0, 500) || null,
-      reason: input.reason.slice(0, 1000),
-      gateResults: (input.gateResults || []).slice(0, 20),
+      status: skippedOrFailed.status,
+      topic: skippedOrFailed.topic?.slice(0, 500) || null,
+      reason: skippedOrFailed.reason.slice(0, 1000),
+      gateResults: (skippedOrFailed.gateResults || []).slice(0, 20),
       completedAt: FieldValue.serverTimestamp(),
       processingStartedAt: FieldValue.delete(),
       updatedAt: FieldValue.serverTimestamp(),

@@ -27,6 +27,24 @@ export async function POST(req: NextRequest) {
   const requestLogger = createRequestLogger(requestId);
   
   try {
+    const aiImagesEnabled =
+      process.env.AI_IMAGE_GENERATION_ENABLED === '1' ||
+      process.env.AI_IMAGE_GENERATION_ENABLED?.toLowerCase() === 'true';
+    if (!aiImagesEnabled) {
+      requestLogger.warn('generate-image rejected — AI billedgenerering er globalt slået fra');
+      return NextResponse.json(
+        createErrorResponse(
+          'AI-billedgenerering er slået fra. Brug officielle billeder / upload / tom thumb.',
+          {
+            statusCode: 403,
+            errorCode: ErrorCode.INVALID_REQUEST,
+            requestId,
+          }
+        ),
+        { status: 403 }
+      );
+    }
+
     if (!openai) {
       requestLogger.error('OpenAI client not initialized');
       return NextResponse.json(

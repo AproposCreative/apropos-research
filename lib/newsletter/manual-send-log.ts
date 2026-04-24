@@ -20,6 +20,7 @@ export async function recordManualNewsletterLog(input: {
   subject: string;
   detail: string;
   error?: string;
+  articleIds?: string[];
 }): Promise<void> {
   const db = getAdminDb();
   if (!db) return;
@@ -29,6 +30,9 @@ export async function recordManualNewsletterLog(input: {
     status: input.status,
     subject: input.subject.slice(0, 500),
     detail: input.detail.slice(0, 500),
+    ...(Array.isArray(input.articleIds) && input.articleIds.length > 0
+      ? { articleIds: input.articleIds.map((id) => String(id).trim()).filter(Boolean).slice(0, 20) }
+      : {}),
     ...(input.error ? { error: input.error.slice(0, 1500) } : {}),
     sentAt: FieldValue.serverTimestamp(),
   });
@@ -74,5 +78,57 @@ export async function listRecentManualSends(uid: string, limit = 20): Promise<Ma
       console.warn('[newsletter/manual-send-log] listRecentManualSends fallback:', e2);
       return [];
     }
+  }
+}
+
+export async function getRecentManualBroadcastArticleIds(maxSends: number): Promise<Set<string>> {
+  const db = getAdminDb();
+  const out = new Set<string>();
+  if (!db || maxSends <= 0) return out;
+  try {
+    const snap = await db
+      .collection(COLLECTION)
+      .where('kind', '==', 'broadcast')
+      .where('status', '==', 'sent')
+      .orderBy('sentAt', 'desc')
+      .limit(Math.min(maxSends, 52))
+      .get();
+    for (const doc of snap.docs) {
+      const ids = doc.data()?.articleIds;
+      if (!Array.isArray(ids)) continue;
+      for (const id of ids) {
+        if (typeof id === 'string' && id.trim()) out.add(id.trim());
+      }
+    }
+  } catch (e) {
+    console.warn('[newsletter/manual-send-log] getRecentManualBroadcastArticleIds:', e);
+  }
+  return out;
+}
+
+export async function getLastManualBroadcastLead(): Promise<{ leadId: string | null; finishedAt: string | null }> {
+  const db = getAdminDb();
+  if (!db) return { leadId: null, finishedAt: null };
+  try {
+    const snap = await db
+      .collection(COLLECTION)
+      .where('kind', '==', 'broadcast')
+      .where('status', '==', 'sent')
+      .orderBy('sentAt', 'desc')
+      .limit(1)
+      .get();
+    const doc = snap.docs[0];
+    if (!doc) return { leadId: null, finishedAt: null };
+    const d = doc.data();
+    const ids = d?.articleIds;
+    const ts = d?.sentAt as Timestamp | undefined;
+    const first = Array.isArray(ids) && typeof ids[0] === 'string' ? ids[0].trim() : '';
+    return {
+      leadId: first || null,
+      finishedAt: ts ? ts.toDate().toISOString() : null,
+    };
+  } catch (e) {
+    console.warn('[newsletter/manual-send-log] getLastManualBroadcastLead:', e);
+    return { leadId: null, finishedAt: null };
   }
 }

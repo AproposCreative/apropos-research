@@ -32,6 +32,8 @@ export interface SafetyGatesOutput {
   pass: boolean;
   failedGate?: string;
   results: GateResult[];
+  /** Mindst én gate blev sprunget over (ikke egentlig verificeret). */
+  anyGateSkipped?: boolean;
 }
 
 interface ModerationResponse {
@@ -73,6 +75,7 @@ async function postJson<T>(url: string, body: unknown): Promise<T | null> {
 export async function runSafetyGates(input: SafetyGatesInput): Promise<SafetyGatesOutput> {
   const { baseUrl, title, content, intro, authorName = 'Liv Brandt', sourceExcerpt } = input;
   const results: GateResult[] = [];
+  let anyGateSkipped = false;
   const fullText = [intro, content].filter(Boolean).join('\n\n');
 
   // --- Gate 0: Source similarity (paraphrasing/strukturel kopiering af kilden) ---
@@ -100,16 +103,20 @@ export async function runSafetyGates(input: SafetyGatesInput): Promise<SafetyGat
       logger.warn('[liv/safety-gates] source-similarity check threw — skipping gate', {
         err: e instanceof Error ? e.message : String(e),
       });
+      anyGateSkipped = true;
       results.push({
         name: 'source-similarity',
         pass: true,
+        skipped: true,
         detail: 'Gate sprunget over pga. fejl i similarity-tjek',
       });
     }
   } else {
+    anyGateSkipped = true;
     results.push({
       name: 'source-similarity',
       pass: true,
+      skipped: true,
       detail: 'Ingen sourceExcerpt — gate sprunget over',
     });
   }
@@ -152,14 +159,48 @@ export async function runSafetyGates(input: SafetyGatesInput): Promise<SafetyGat
 
   // --- Gate 2: Factcheck ---
   const fcUrl = new URL('/api/factcheck', baseUrl).toString();
-  const fc = await postJson<FactcheckResponse>(fcUrl, {
-    articleText: fullText.slice(0, 6000),
-  });
+  let fc: FactcheckResponse | null = null;
+  let fcHttpStatus: number | null = null;
+  try {
+    const res = await fetch(fcUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ articleText: fullText.slice(0, 6000) }),
+      cache: 'no-store',
+    });
+    fcHttpStatus = res.status;
+    if (!res.ok) {
+      const bodySnippet = (await res.text()).slice(0, 280);
+      logger.warn('[liv/safety-gates] factcheck HTTP ikke-OK', {
+        status: res.status,
+        fcUrl,
+        bodySnippet,
+      });
+      fc = null;
+    } else {
+      fc = (await res.json()) as FactcheckResponse;
+    }
+  } catch (e) {
+    logger.warn('[liv/safety-gates] factcheck fetch fejlede', {
+      fcUrl,
+      err: e instanceof Error ? e.message : String(e),
+    });
+    fc = null;
+  }
 
-  if (!fc?.ok) {
-    // Hvis factcheck-API ikke er tilgængeligt, accepter — vi vil ikke
-    // blokere publish for infrastruktur-problemer. Log advarsel.
-    results.push({ name: 'factcheck', pass: true, detail: 'API utilgængeligt — gate sprunget over' });
+  const fcUsable = fc != null && (fc.ok === true || (Array.isArray(fc.results) && fc.ok !== false));
+
+  if (!fcUsable) {
+    // Infrastruktur / tomt svar — blokér ikke publish, men marker som sprunget over.
+    anyGateSkipped = true;
+    const statusHint =
+      fcHttpStatus != null ? `HTTP ${fcHttpStatus}` : 'ingen HTTP-svar (netværksfejl eller forkert baseUrl)';
+    results.push({
+      name: 'factcheck',
+      pass: true,
+      skipped: true,
+      detail: `${statusHint}. Factcheck blev ikke kørt — ikke et reelt faktatjek.`,
+    });
   } else {
     const checked = fc.results || [];
     const disputed = checked.filter((r) => r.status === 'disputed');
@@ -178,7 +219,10 @@ export async function runSafetyGates(input: SafetyGatesInput): Promise<SafetyGat
     results.push({
       name: 'factcheck',
       pass: true,
-      detail: `${checked.length} påstande tjekket, 0 disputed`,
+      detail:
+        checked.length === 0
+          ? '0 påstande returneret (tom eller kun unverifiable) — intet disputed'
+          : `${checked.length} påstande tjekket, 0 disputed`,
     });
   }
 
@@ -203,5 +247,5 @@ export async function runSafetyGates(input: SafetyGatesInput): Promise<SafetyGat
     detail: tipsRaw ? `Tips logget (${tipsRaw.length} tegn)` : 'Ingen kritik returneret',
   });
 
-  return { pass: true, results };
+  return { pass: true, results, anyGateSkipped };
 }

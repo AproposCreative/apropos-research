@@ -6,10 +6,12 @@ import {
   ReactFlow,
   Background,
   BackgroundVariant,
-  Controls,
   MiniMap,
+  Panel,
   useNodesState,
   useEdgesState,
+  useStore,
+  useReactFlow,
   Handle,
   Position,
   type Node,
@@ -56,17 +58,18 @@ function PromptModuleNode({ data, id }: NodeProps) {
   const locked = Boolean(data.locked);
   const included = Boolean(data.included);
   const on = Boolean(data.moduleOn);
-  const dim = !included || (!locked && !on);
+  const inactive = !included || (!locked && !on);
   const hovered = Boolean(data._hovered);
+  const charN = typeof data.charCount === 'number' ? data.charCount : 0;
 
   return (
     <div
-      className={`rounded-xl border px-3 py-2.5 min-w-[220px] max-w-[280px] shadow-lg transition-all duration-150 ${
-        dim
-          ? 'opacity-45 border-white/10 bg-[#141414]'
+      className={`rounded-xl border w-[260px] overflow-hidden shadow-[0_8px_28px_rgba(0,0,0,0.35)] transition-[border-color,box-shadow,opacity] duration-150 ${
+        inactive
+          ? 'opacity-[0.72] border-white/[0.06] bg-[#0e0e0e]'
           : hovered
-            ? 'opacity-100 border-white/40 bg-[#222] ring-1 ring-white/15'
-            : 'opacity-100 border-white/20 bg-[#1a1a1a]'
+            ? 'opacity-100 border-white/28 bg-[#141414] shadow-[0_0_0_1px_rgba(255,255,255,0.06)]'
+            : 'opacity-100 border-white/[0.10] bg-[#121212]'
       }`}
       onMouseEnter={() => {
         const fn = (data as { onHover?: (id: string | null) => void }).onHover;
@@ -77,35 +80,100 @@ function PromptModuleNode({ data, id }: NodeProps) {
         fn?.(null);
       }}
     >
-      <Handle type="target" position={Position.Top} className="!bg-white/40 !w-2 !h-2" />
-      <div className="flex items-start justify-between gap-2">
-        <div className="min-w-0 flex-1">
-          <div className="text-[11px] font-medium text-white/45 uppercase tracking-wide truncate">{String(data.labelDa)}</div>
-          <div className="text-[10px] text-white/35 mt-0.5">
-            {included ? `${data.charCount} tegn` : 'Ikke aktiv for denne artikel'}
-            {String(data.kind) === 'web-append' ? ' · web' : ''}
+      <Handle type="target" position={Position.Top} className="!border !border-white/20 !bg-[#1f1f1f] !w-2 !h-2" />
+      {/* Ét samlet kort: titel + meta + toggle — fuld tekst kun i højre panel ved hover */}
+      <div className="px-3 py-2.5">
+        <div className="flex items-start gap-2.5">
+          <div className="flex size-6 shrink-0 items-center justify-center rounded-md bg-white/[0.06] text-[9px] font-medium text-white/45">
+            {String(data.kind) === 'web-append' ? 'W' : 'S'}
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="text-[12px] font-medium text-white/90 leading-snug">{String(data.labelDa)}</p>
+            <p className="text-[10px] text-white/38 mt-1 leading-relaxed">
+              {String(data.kind) === 'web-append' ? 'Web' : 'System'}
+              {included ? ` · ${charN.toLocaleString('da-DK')} tegn` : ' · ikke aktiv for denne artikel'}
+            </p>
           </div>
         </div>
-        <label className="flex items-center gap-1 shrink-0 cursor-pointer">
-          <span className="text-[10px] text-white/40">Til</span>
-          <input
-            type="checkbox"
-            checked={on}
-            disabled={locked || !included}
-            onChange={(e) => {
-              const fn = (data as { onToggle?: (nodeId: string, next: boolean) => void }).onToggle;
-              fn?.(id, e.target.checked);
-            }}
-            className="rounded border-white/30 bg-black/50"
-          />
-        </label>
+        <div className="mt-3 flex items-center justify-between gap-2 pt-2 border-t border-white/[0.06]">
+          <span className="text-[10px] text-white/32">{locked ? 'Altid med i prompt' : 'Medtag modul'}</span>
+          <label className="flex items-center gap-1.5 shrink-0 cursor-pointer">
+            <span className="text-[10px] text-white/38">Til</span>
+            <input
+              type="checkbox"
+              checked={on}
+              disabled={locked || !included}
+              onChange={(e) => {
+                const fn = (data as { onToggle?: (nodeId: string, next: boolean) => void }).onToggle;
+                fn?.(id, e.target.checked);
+              }}
+              className="rounded border-white/28 bg-black/60"
+            />
+          </label>
+        </div>
       </div>
-      <Handle type="source" position={Position.Bottom} className="!bg-white/40 !w-2 !h-2" />
+      <Handle type="source" position={Position.Bottom} className="!border !border-white/20 !bg-[#1f1f1f] !w-2 !h-2" />
     </div>
   );
 }
 
+function ArchitectBottomToolbar() {
+  const zoom = useStore((s) => Math.round(s.transform[2] * 100));
+  const { zoomIn, zoomOut, fitView } = useReactFlow();
+
+  return (
+    <Panel position="bottom-center" className="m-4">
+      <div className="flex items-center gap-1 rounded-xl border border-white/12 bg-[#141414]/95 backdrop-blur-md px-1.5 py-1 shadow-[0_8px_30px_rgba(0,0,0,0.5)]">
+        <button
+          type="button"
+          title="Zoom ind"
+          onClick={() => zoomIn()}
+          className="flex size-8 items-center justify-center rounded-lg text-white/65 hover:bg-white/[0.08] hover:text-white transition-colors"
+        >
+          <svg className="size-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.8}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12 5v14M5 12h14" />
+          </svg>
+        </button>
+        <button
+          type="button"
+          title="Zoom ud"
+          onClick={() => zoomOut()}
+          className="flex size-8 items-center justify-center rounded-lg text-white/65 hover:bg-white/[0.08] hover:text-white transition-colors"
+        >
+          <svg className="size-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.8}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M5 12h14" />
+          </svg>
+        </button>
+        <div className="w-px h-5 bg-white/10 mx-0.5" aria-hidden />
+        <span className="tabular-nums text-[11px] text-white/55 px-2 min-w-[3.25rem] text-center">{zoom}%</span>
+        <div className="w-px h-5 bg-white/10 mx-0.5" aria-hidden />
+        <button
+          type="button"
+          title="Tilpas til skærm"
+          onClick={() => fitView({ padding: 0.2 })}
+          className="px-2.5 py-1.5 rounded-lg text-[11px] text-white/65 hover:bg-white/[0.08] hover:text-white transition-colors"
+        >
+          Tilpas
+        </button>
+      </div>
+    </Panel>
+  );
+}
+
 const nodeTypes = { promptModule: PromptModuleNode };
+
+/** Kalder fitView når data er klar — vigtigt når noder først kommer fra API (ellers zoom på tomt layout). */
+function FitViewWhenReady({ ready, nodeCount }: { ready: boolean; nodeCount: number }) {
+  const { fitView } = useReactFlow();
+  useEffect(() => {
+    if (!ready || nodeCount === 0) return;
+    const id = requestAnimationFrame(() => {
+      fitView({ padding: 0.4, duration: 280, maxZoom: 1.15 });
+    });
+    return () => cancelAnimationFrame(id);
+  }, [ready, nodeCount, fitView]);
+  return null;
+}
 
 export default function PromptArchitectClient() {
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>([]);
@@ -239,7 +307,11 @@ export default function PromptArchitectClient() {
         setEdges(
           data.edges.map((e) => ({
             ...e,
-            style: { stroke: 'rgba(255,255,255,0.25)', strokeWidth: 1.5 },
+            type: 'smoothstep',
+            style: {
+              stroke: 'rgba(255,255,255,0.22)',
+              strokeWidth: 1.25,
+            },
           }))
         );
         recomputeLength(data.segments, data.segmentContents, data.webContent, mergedToggles);
@@ -261,12 +333,14 @@ export default function PromptArchitectClient() {
   const drawerOpen = inspectId !== null && inspectContent !== null;
 
   return (
-    <div className="flex flex-col h-[100dvh] bg-[#050505] text-white">
+    <div className="flex flex-col h-[100dvh] bg-[#080808] text-white font-poppins">
       {/* Top bar — AI Writer style */}
-      <header className="flex items-center justify-between gap-3 px-5 py-3 border-b border-white/[0.06] bg-[#0a0a0a] shrink-0">
+      <header className="flex items-center justify-between gap-3 px-5 py-3 border-b border-white/[0.06] bg-[#0c0c0c] shrink-0">
         <div className="min-w-0">
           <h1 className="text-[15px] font-semibold tracking-tight">Prompt Architect</h1>
-          <p className="text-[11px] text-white/40 mt-0.5">Hover et modul for at inspicere indholdet</p>
+          <p className="text-[11px] text-white/40 mt-0.5">
+            Ét modul pr. kort · hover åbner fuld tekst til højre · «Til» styrer næste besked til AI Chat
+          </p>
         </div>
         <div className="flex items-center gap-3 text-xs shrink-0">
           <span className="text-white/45 tabular-nums hidden sm:inline">
@@ -284,7 +358,7 @@ export default function PromptArchitectClient() {
       {/* Main area: canvas + inspector drawer */}
       <div className="flex-1 min-h-0 flex relative">
         {/* Flow canvas */}
-        <div className="flex-1 min-w-0 relative">
+        <div className="flex-1 min-w-0 relative bg-[#080808]">
           {loading && (
             <div className="absolute inset-0 z-10 flex items-center justify-center bg-black/70">
               <div className="flex flex-col items-center gap-3">
@@ -304,25 +378,35 @@ export default function PromptArchitectClient() {
             onNodesChange={onNodesChange}
             onEdgesChange={onEdgesChange}
             nodeTypes={nodeTypes}
+            nodesDraggable={false}
+            nodesConnectable={false}
+            elementsSelectable={false}
+            panOnScroll
+            zoomOnScroll
             fitView
-            fitViewOptions={{ padding: 0.25 }}
-            minZoom={0.35}
-            maxZoom={1.4}
+            fitViewOptions={{ padding: 0.4, maxZoom: 1.1 }}
+            minZoom={0.25}
+            maxZoom={1.5}
             proOptions={{ hideAttribution: true }}
-            className="bg-[#050505]"
+            defaultEdgeOptions={{ type: 'smoothstep' }}
+            connectionLineStyle={{ stroke: 'rgba(255,255,255,0.2)', strokeWidth: 1.25 }}
+            className="bg-[#080808]"
           >
+            <FitViewWhenReady ready={!loading && !error} nodeCount={nodes.length} />
             <Background
               id="dots"
               variant={BackgroundVariant.Dots}
-              gap={18}
+              gap={24}
               size={1}
-              color="rgba(255,255,255,0.08)"
+              color="rgba(255,255,255,0.055)"
             />
-            <Controls className="!bg-[#171717] !border-white/10 !shadow-none !rounded-lg [&_button]:!fill-white/70" />
+            <ArchitectBottomToolbar />
             <MiniMap
-              className="!bg-[#111] !border-white/10 !rounded-lg"
-              nodeColor={() => '#333'}
-              maskColor="rgba(0,0,0,0.7)"
+              className="hidden xl:block !bg-[#171717] !border-white/10 !rounded-lg !bottom-[4.75rem] !right-4 !w-28 !h-20 opacity-80"
+              nodeColor={() => '#52525b'}
+              maskColor="rgba(0,0,0,0.75)"
+              pannable
+              zoomable
             />
           </ReactFlow>
         </div>

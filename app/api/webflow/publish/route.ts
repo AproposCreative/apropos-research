@@ -62,6 +62,19 @@ export async function POST(request: NextRequest) {
     articleData.status = articleData.status || 'draft';
     articleData.wordCount = articleData.content.split(' ').length;
     articleData.readTime = Math.ceil(articleData.wordCount / 200); // ~200 words per minute
+    // Safety default: mark AI-generated content when payload indicates AI origin.
+    if (
+      articleData.aiGenerated === undefined ||
+      articleData.aiGenerated === null
+    ) {
+      const looksAiAuthored =
+        !!articleData.aiModel ||
+        !!articleData.aiSourceUrl ||
+        String(articleData.author || '').trim().toLowerCase() === 'liv brandt';
+      if (looksAiAuthored) {
+        articleData.aiGenerated = true;
+      }
+    }
 
     // Check if this is an update to existing article
     const isUpdate = articleData.webflowId && articleData.webflowId !== '';

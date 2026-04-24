@@ -17,8 +17,8 @@ import { buildWeeklyDraftInputHash, saveWeeklyDraftCache } from '@/lib/newslette
 import {
   claimWeeklyAutoSend,
   finishWeeklyAutoSend,
-  getRecentWeeklyAutoExclusionSets,
 } from '@/lib/newsletter/weekly-send-history';
+import { getRecentNewsletterExclusionSets } from '@/lib/newsletter/send-selection-history';
 
 export const maxDuration = 300;
 
@@ -59,7 +59,7 @@ export async function GET(req: NextRequest) {
   if (dryRun) {
     const fullLb = parseLookback(process.env.NEWSLETTER_WEEKLY_EXCLUDE_SEND_LOOKBACK, DEFAULT_EXCLUDE_SENDS);
     const relaxLb = parseLookback(process.env.NEWSLETTER_WEEKLY_RELAX_SEND_LOOKBACK, DEFAULT_RELAX_SENDS);
-    const { excludeFull, excludeRelax } = await getRecentWeeklyAutoExclusionSets(fullLb, relaxLb);
+    const { excludeFull, excludeRelax } = await getRecentNewsletterExclusionSets(fullLb, relaxLb);
     const draft = await buildWeeklyNewsletterDraft({
       excludeArticleIds: excludeFull,
       relaxedExcludeArticleIds: excludeRelax,
@@ -171,7 +171,7 @@ export async function GET(req: NextRequest) {
   const relaxLb = parseLookback(process.env.NEWSLETTER_WEEKLY_RELAX_SEND_LOOKBACK, DEFAULT_RELAX_SENDS);
 
   try {
-    const { excludeFull, excludeRelax } = await getRecentWeeklyAutoExclusionSets(fullLb, relaxLb);
+    const { excludeFull, excludeRelax } = await getRecentNewsletterExclusionSets(fullLb, relaxLb);
 
     const draft = await buildWeeklyNewsletterDraft({
       excludeArticleIds: excludeFull,

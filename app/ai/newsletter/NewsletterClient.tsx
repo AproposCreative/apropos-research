@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
+import { EmbeddedAppHeader } from '@/components/embedded-app';
 import { useAuth } from '@/lib/auth-context';
 import { stripUnsubscribePlaceholderForPreview } from '@/lib/newsletter/unsubscribe-placeholder';
 
@@ -91,6 +92,7 @@ type NewsletterClientProps = {
 export default function NewsletterClient({ embedded = false, onClose }: NewsletterClientProps) {
   const { user, loading: authLoading } = useAuth();
   const [html, setHtml] = useState<string | null>(null);
+  const [previewArticleIds, setPreviewArticleIds] = useState<string[]>([]);
   const [subject, setSubject] = useState('');
   const [meta, setMeta] = useState<{
     headline: string;
@@ -104,6 +106,8 @@ export default function NewsletterClient({ embedded = false, onClose }: Newslett
     warnings: string[];
     signupError: string | null;
     previewSource?: 'weekly' | 'custom';
+    /** Fra weekly draft-API: hvor mange i dato-vindue vs. maks. vist. */
+    articlePoolStats?: { inWindowCount: number; inWindowAfterExclude: number; maxPicked: number };
   } | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -355,6 +359,9 @@ export default function NewsletterClient({ embedded = false, onClose }: Newslett
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || res.statusText);
       setHtml(data.html);
+      setPreviewArticleIds(
+        Array.isArray(data.articles) ? data.articles.map((a: { id?: unknown }) => String(a?.id ?? '')).filter(Boolean) : []
+      );
       setSubject(data.subject || '');
       setMeta({
         headline: typeof data.headline === 'string' ? data.headline : '',
@@ -368,6 +375,7 @@ export default function NewsletterClient({ embedded = false, onClose }: Newslett
         warnings: data.warnings || [],
         signupError: data.signupError || null,
         previewSource: 'weekly',
+        articlePoolStats: data.articlePoolStats,
       });
       setStatus(data.cacheHit ? 'Preview uændret (cache)' : 'Preview hentet');
     } catch (e) {
@@ -387,10 +395,14 @@ export default function NewsletterClient({ embedded = false, onClose }: Newslett
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || res.statusText);
       if (!data.found) {
+        setPreviewArticleIds([]);
         setStatus('Ingen gemt kladde — tryk «Hent Preview» for at bygge en.');
         return;
       }
       setHtml(data.html);
+      setPreviewArticleIds(
+        Array.isArray(data.articles) ? data.articles.map((a: { id?: unknown }) => String(a?.id ?? '')).filter(Boolean) : []
+      );
       setSubject(data.subject || '');
       setMeta({
         headline: typeof data.headline === 'string' ? data.headline : '',
@@ -465,6 +477,9 @@ export default function NewsletterClient({ embedded = false, onClose }: Newslett
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || res.statusText);
       setHtml(data.html);
+      setPreviewArticleIds(
+        Array.isArray(data.articles) ? data.articles.map((a: { id?: unknown }) => String(a?.id ?? '')).filter(Boolean) : []
+      );
       setSubject(data.subject || '');
       setWeeklyPreviewOffset(typeof data.weekOffset === 'number' ? data.weekOffset : useOffset);
       const isoWeek = data.week?.isoWeek;
@@ -481,6 +496,7 @@ export default function NewsletterClient({ embedded = false, onClose }: Newslett
         warnings: data.warnings || [],
         signupError: data.signupError || null,
         previewSource: 'weekly',
+        articlePoolStats: data.articlePoolStats,
       });
       setStatus(useOffset === -1 ? 'Næste automatiske udsendelse' : `Uge ${isoWeek ?? ''} preview`);
     } catch (e) {
@@ -542,6 +558,9 @@ export default function NewsletterClient({ embedded = false, onClose }: Newslett
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || res.statusText);
       setHtml(data.html);
+      setPreviewArticleIds(
+        Array.isArray(data.articles) ? data.articles.map((a: { id?: unknown }) => String(a?.id ?? '')).filter(Boolean) : []
+      );
       setSubject(data.subject || '');
       const wl =
         typeof data.weekLabel === 'string' ? data.weekLabel : 'Tilpasset udsendelse';
@@ -760,6 +779,7 @@ export default function NewsletterClient({ embedded = false, onClose }: Newslett
         body: JSON.stringify({
           html: html || undefined,
           subject: subject || undefined,
+          articleIds: previewArticleIds.length > 0 ? previewArticleIds : undefined,
         }),
       });
       const data = await res.json();
@@ -775,7 +795,7 @@ export default function NewsletterClient({ embedded = false, onClose }: Newslett
       await refreshPendingSchedules();
       setBusy(false);
     }
-  }, [authHeader, html, subject, refreshPendingSchedules]);
+  }, [authHeader, html, subject, previewArticleIds, refreshPendingSchedules]);
 
   if (authLoading) {
     return (
@@ -844,9 +864,12 @@ export default function NewsletterClient({ embedded = false, onClose }: Newslett
     setDesktopSection((prev) => (prev === key ? null : key));
   };
 
-  const sectionRow = (key: string, label: string, icon: React.ReactNode, subtitle?: string) => (
+  const sectionRow = (key: string, label: string, icon: React.ReactNode, subtitle?: string) => {
+    const rowName = subtitle ? `${label}, ${subtitle}` : label;
+    return (
     <button
       type="button"
+      aria-label={rowName}
       onClick={() => toggleMobileSection(key)}
       className={`flex items-center gap-3 w-full px-4 py-3 rounded-xl border transition-all duration-200 active:scale-[0.98] ${
         mobileSection === key
@@ -857,9 +880,13 @@ export default function NewsletterClient({ embedded = false, onClose }: Newslett
       <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-white/[0.06] text-white/60">
         {icon}
       </div>
-      <div className="flex-1 min-w-0 text-left">
+      <div className="flex-1 min-w-0 text-left" aria-hidden>
         <p className="text-[13px] font-medium text-white/85">{label}</p>
-        {subtitle && <p className="text-[11px] text-white/35 truncate">{subtitle}</p>}
+        {subtitle && (
+          <p className="text-[11px] text-white/35 truncate whitespace-nowrap" title={subtitle}>
+            {subtitle}
+          </p>
+        )}
       </div>
       <svg
         className={`size-4 shrink-0 text-white/30 transition-transform duration-200 ${mobileSection === key ? 'rotate-180' : ''}`}
@@ -868,7 +895,8 @@ export default function NewsletterClient({ embedded = false, onClose }: Newslett
         <path strokeLinecap="round" strokeLinejoin="round" d="M6 8l4 4 4-4" />
       </svg>
     </button>
-  );
+    );
+  };
 
   const sectionContent = (key: string, children: React.ReactNode) =>
     mobileSection === key ? (
@@ -1018,6 +1046,12 @@ export default function NewsletterClient({ embedded = false, onClose }: Newslett
           <p className="text-[10px] text-white/35 mt-0.5">Auto-send</p>
         </div>
       </div>
+      {meta?.articlePoolStats && meta.previewSource === 'weekly' && (
+        <p className="text-[10px] text-white/40 leading-snug -mt-1">
+          I dato-pulje (Webflow, efter ekskludering): {meta.articlePoolStats.inWindowAfterExclude} artikler · viser
+          højst {meta.articlePoolStats.maxPicked}. Mangler I én, er den ofte overskredet i den kø.
+        </p>
+      )}
       {meta && (
         <div className="space-y-1.5 pt-1">
           {subject && <p className="text-[13px] text-white/85 font-medium leading-snug break-words">{subject}</p>}
@@ -1325,33 +1359,23 @@ export default function NewsletterClient({ embedded = false, onClose }: Newslett
       ? 'flex flex-col h-full min-h-0 text-white bg-transparent font-poppins'
       : 'min-h-[100dvh] flex flex-col text-white bg-[#0a0a0a] font-poppins'
     }>
-      {/* ── Header ── */}
-      <header className={embedded
-        ? 'border-b border-white/10 px-3 lg:px-4 py-2.5 lg:py-3 flex items-center justify-between gap-3 shrink-0 bg-black/25 backdrop-blur-md'
-        : 'border-b border-white/10 px-4 lg:px-5 py-3 lg:py-4 flex items-center justify-between gap-3 shrink-0 bg-[#0c0c0c]'
-      }>
-        <h1 className={`font-medium tracking-tight text-white ${embedded ? 'text-[15px]' : 'text-[17px]'}`}>Nyhedsbrev</h1>
-        <div className="flex items-center gap-2 shrink-0">
-          {/* Theme + viewport toggles: hidden on mobile, shown in sheet instead */}
+      <EmbeddedAppHeader
+        embedded={embedded}
+        title="Nyhedsbrev"
+        onClose={onClose}
+        trailing={
           <div className="hidden lg:flex items-center gap-2">
-            <div className="flex rounded-lg border border-white/12 p-0.5 gap-0.5 bg-black/30 backdrop-blur-sm" role="group">
+            <div className="flex rounded-lg border border-white/12 p-0.5 gap-0.5 bg-black/30 backdrop-blur-sm" role="group" aria-label="Preview-tema">
               <button type="button" onClick={() => setPreviewTheme('light')} className={segBtn(previewTheme === 'light')}>Lys</button>
               <button type="button" onClick={() => setPreviewTheme('dark')} className={segBtn(previewTheme === 'dark')}>Mørk</button>
             </div>
-            <div className="flex rounded-lg border border-white/12 p-0.5 gap-0.5 bg-black/30 backdrop-blur-sm" role="group">
+            <div className="flex rounded-lg border border-white/12 p-0.5 gap-0.5 bg-black/30 backdrop-blur-sm" role="group" aria-label="Preview-bredde">
               <button type="button" onClick={() => setPreviewViewport('mobile')} className={segBtn(previewViewport === 'mobile')}>Mobile</button>
               <button type="button" onClick={() => setPreviewViewport('desktop')} className={segBtn(previewViewport === 'desktop')}>Desktop</button>
             </div>
           </div>
-          {onClose ? (
-            <button type="button" onClick={onClose}
-              className="flex size-8 shrink-0 items-center justify-center rounded-lg border border-white/12 bg-white/[0.06] text-white transition-all duration-200 hover:bg-white/[0.12] active:scale-[0.97]" aria-label="Luk">
-              <svg className="size-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-hidden><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
-            </button>
-          ) : null}
-          {!embedded && <Link href="/ai" className="px-3 py-1.5 rounded-lg border border-white/12 text-sm text-white/65 hover:bg-white/[0.06] hover:text-white/90 transition-all duration-200 active:scale-[0.98]">← Tilbage</Link>}
-        </div>
-      </header>
+        }
+      />
 
       {/* ── Desktop: classic sidebar + preview ── */}
       <div className="flex-1 hidden lg:flex min-h-0 overflow-hidden">
@@ -1375,13 +1399,14 @@ export default function NewsletterClient({ embedded = false, onClose }: Newslett
           <div className="space-y-1.5 pt-1">
             {/* Auto-send */}
             <button type="button" onClick={() => toggleDesktopSection('auto')}
+              aria-label={`Automatisk udsendelse, ${weeklyAutoEnabled ? `${ISO_WEEKDAY_DA[weeklyWeekdayIso] ?? '—'} kl. ${weeklyTimeHHMM}` : 'Slået fra'}`}
               className={`flex items-center gap-3 w-full px-3.5 py-2.5 rounded-xl border transition-all duration-200 active:scale-[0.98] ${desktopSection === 'auto' ? 'border-white/15 bg-white/[0.05]' : 'border-white/[0.06] hover:bg-white/[0.03]'}`}>
               <div className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-white/[0.06] text-white/50">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
               </div>
-              <div className="flex-1 min-w-0 text-left">
+              <div className="flex-1 min-w-0 text-left" aria-hidden>
                 <p className="text-[12px] font-medium text-white/80">Automatisk udsendelse</p>
-                <p className="text-[10px] text-white/30 truncate">{weeklyAutoEnabled ? `${ISO_WEEKDAY_DA[weeklyWeekdayIso] ?? '—'} kl. ${weeklyTimeHHMM}` : 'Slået fra'}</p>
+                <p className="text-[10px] text-white/30 truncate whitespace-nowrap">{weeklyAutoEnabled ? `${ISO_WEEKDAY_DA[weeklyWeekdayIso] ?? '—'} kl. ${weeklyTimeHHMM}` : 'Slået fra'}</p>
               </div>
               <svg className={`size-3.5 shrink-0 text-white/25 transition-transform duration-200 ${desktopSection === 'auto' ? 'rotate-180' : ''}`} viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M6 8l4 4 4-4" /></svg>
             </button>
@@ -1391,13 +1416,14 @@ export default function NewsletterClient({ embedded = false, onClose }: Newslett
 
             {/* Test */}
             <button type="button" onClick={() => toggleDesktopSection('test')}
+              aria-label={`Testmail, ${activeTestRecipients.length} modtager${activeTestRecipients.length !== 1 ? 'e' : ''}`}
               className={`flex items-center gap-3 w-full px-3.5 py-2.5 rounded-xl border transition-all duration-200 active:scale-[0.98] ${desktopSection === 'test' ? 'border-white/15 bg-white/[0.05]' : 'border-white/[0.06] hover:bg-white/[0.03]'}`}>
               <div className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-white/[0.06] text-white/50">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><path d="m22 6-10 7L2 6"/></svg>
               </div>
-              <div className="flex-1 min-w-0 text-left">
+              <div className="flex-1 min-w-0 text-left" aria-hidden>
                 <p className="text-[12px] font-medium text-white/80">Testmail</p>
-                <p className="text-[10px] text-white/30">{activeTestRecipients.length} modtager{activeTestRecipients.length !== 1 ? 'e' : ''}</p>
+                <p className="text-[10px] text-white/30 whitespace-nowrap">{activeTestRecipients.length} modtager{activeTestRecipients.length !== 1 ? 'e' : ''}</p>
               </div>
               <svg className={`size-3.5 shrink-0 text-white/25 transition-transform duration-200 ${desktopSection === 'test' ? 'rotate-180' : ''}`} viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M6 8l4 4 4-4" /></svg>
             </button>
@@ -1409,6 +1435,7 @@ export default function NewsletterClient({ embedded = false, onClose }: Newslett
             <button
               type="button"
               onClick={() => toggleDesktopSection('custom')}
+              aria-label={`Custom nyhedsbrev, ${customSelectedIds.length} ${customSelectedIds.length === 1 ? 'artikel' : 'artikler'} valgt`}
               className={`flex items-center gap-3 w-full px-3.5 py-2.5 rounded-xl border transition-all duration-200 active:scale-[0.98] ${desktopSection === 'custom' ? 'border-white/15 bg-white/[0.05]' : 'border-white/[0.06] hover:bg-white/[0.03]'}`}
             >
               <div className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-white/[0.06] text-white/50">
@@ -1417,10 +1444,10 @@ export default function NewsletterClient({ embedded = false, onClose }: Newslett
                   <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
                 </svg>
               </div>
-              <div className="flex-1 min-w-0 text-left">
+              <div className="flex-1 min-w-0 text-left" aria-hidden>
                 <p className="text-[12px] font-medium text-white/80">Custom nyhedsbrev</p>
-                <p className="text-[10px] text-white/30 truncate">
-                  {customSelectedIds.length} artikel{customSelectedIds.length !== 1 ? 'ler' : ''} valgt
+                <p className="text-[10px] text-white/30 truncate whitespace-nowrap">
+                  {customSelectedIds.length} {customSelectedIds.length === 1 ? 'artikel' : 'artikler'} valgt
                 </p>
               </div>
               <svg
@@ -1441,13 +1468,14 @@ export default function NewsletterClient({ embedded = false, onClose }: Newslett
 
             {/* Schedule */}
             <button type="button" onClick={() => toggleDesktopSection('schedule')}
+              aria-label={pendingSchedules.length > 0 ? `Planlæg afsendelse, ${pendingSchedules.length} i kø` : 'Planlæg afsendelse'}
               className={`flex items-center gap-3 w-full px-3.5 py-2.5 rounded-xl border transition-all duration-200 active:scale-[0.98] ${desktopSection === 'schedule' ? 'border-white/15 bg-white/[0.05]' : 'border-white/[0.06] hover:bg-white/[0.03]'}`}>
               <div className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-white/[0.06] text-white/50">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
               </div>
-              <div className="flex-1 min-w-0 text-left">
+              <div className="flex-1 min-w-0 text-left" aria-hidden>
                 <p className="text-[12px] font-medium text-white/80">Planlæg afsendelse</p>
-                {pendingSchedules.length > 0 && <p className="text-[10px] text-white/30">{pendingSchedules.length} i kø</p>}
+                {pendingSchedules.length > 0 && <p className="text-[10px] text-white/30 whitespace-nowrap">{pendingSchedules.length} i kø</p>}
               </div>
               <svg className={`size-3.5 shrink-0 text-white/25 transition-transform duration-200 ${desktopSection === 'schedule' ? 'rotate-180' : ''}`} viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M6 8l4 4 4-4" /></svg>
             </button>
@@ -1459,13 +1487,14 @@ export default function NewsletterClient({ embedded = false, onClose }: Newslett
             {mergedSendLog.length > 0 && (
               <>
                 <button type="button" onClick={() => toggleDesktopSection('log')}
+                  aria-label={`Historik, ${mergedSendLog.length} poster`}
                   className={`flex items-center gap-3 w-full px-3.5 py-2.5 rounded-xl border transition-all duration-200 active:scale-[0.98] ${desktopSection === 'log' ? 'border-white/15 bg-white/[0.05]' : 'border-white/[0.06] hover:bg-white/[0.03]'}`}>
                   <div className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-white/[0.06] text-white/50">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
                   </div>
-                  <div className="flex-1 min-w-0 text-left">
+                  <div className="flex-1 min-w-0 text-left" aria-hidden>
                     <p className="text-[12px] font-medium text-white/80">Historik</p>
-                    <p className="text-[10px] text-white/30">{mergedSendLog.length} poster</p>
+                    <p className="text-[10px] text-white/30 whitespace-nowrap">{mergedSendLog.length} poster</p>
                   </div>
                   <svg className={`size-3.5 shrink-0 text-white/25 transition-transform duration-200 ${desktopSection === 'log' ? 'rotate-180' : ''}`} viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M6 8l4 4 4-4" /></svg>
                 </button>

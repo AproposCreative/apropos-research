@@ -10,6 +10,8 @@ import {
   stripHtml,
   transformValue,
 } from '@/lib/webflow/field-mapping';
+import { fotoCreditFromFeaturedUrl } from '@/lib/liv/cms-webflow-meta';
+import { resolveBestOfficialFeaturedImage } from '@/lib/liv/fetch-official-images';
 import type {
   WebflowArticleFields,
   WebflowAuthor,
@@ -384,46 +386,72 @@ async function resolveStreamingServiceIdFromName(nameOrSlug: string): Promise<st
   }
 }
 
-// Resolve topic itemId by matching name or slug (case-insensitive)
-async function resolveTopicIdFromName(nameOrSlug: string): Promise<string | undefined> {
-  const slugify = (s: string) => s
+const topicSlugify = (s: string) =>
+  s
     .toLowerCase()
-    .normalize('NFD').replace(/\p{Diacritic}+/gu, '')
+    .normalize('NFD')
+    .replace(/\p{Diacritic}+/gu, '')
     .replace(/[^a-z0-9\s-]/g, '')
     .trim()
     .replace(/\s+/g, '-');
+
+async function fetchTopicCollectionItems(siteId: string, collectionId: string, token: string): Promise<any[]> {
+  const base = `https://api.webflow.com/v2/sites/${siteId}/collections/${collectionId}/items`;
+  const all: any[] = [];
+  let offset = 0;
+  const limit = 100;
+  while (offset < 5000) {
+    const res = await fetch(`${base}?offset=${offset}&limit=${limit}`, {
+      headers: { Authorization: `Bearer ${token}`, 'Accept-Version': '1.0.0' },
+    });
+    if (!res.ok) break;
+    const data: any = await res.json();
+    const batch = data.items || [];
+    all.push(...batch);
+    if (batch.length < limit) break;
+    offset += limit;
+  }
+  return all;
+}
+
+// Resolve topic itemId by matching name or slug (case-insensitive)
+async function resolveTopicIdFromName(nameOrSlug: string): Promise<string | undefined> {
   try {
     const { token, siteId } = resolveConfig();
     if (!token || !siteId) return undefined;
 
-    // Use topics collection ID from config
-    const topicsCollectionId = '67dbf17ba540975b5b21c2af'; // From Webflow API response
+    const collectionId =
+      resolveConfig().topicsCollectionId?.trim() || '67dbf17ba540975b5b21c2af';
 
-    const res = await fetch(`https://api.webflow.com/v2/sites/${siteId}/collections/${topicsCollectionId}/items?limit=200`, {
-      headers: { 'Authorization': `Bearer ${token}`, 'Accept-Version': '1.0.0' },
-    });
-    if (!res.ok) return undefined;
-    const data: any = await res.json();
-    const items: any[] = data.items || [];
+    const items = await fetchTopicCollectionItems(siteId, collectionId, token);
+    if (!items.length) return undefined;
 
     const needleRaw = (nameOrSlug || '').trim();
     const needle = needleRaw.toLowerCase();
-    const needleSlug = slugify(needleRaw);
+    const needleSlug = topicSlugify(needleRaw);
+    const needleFirst = needle.split(/\s*&\s*|,\s*|\/|\s+/)[0]?.trim() || needle;
 
-    const found = items.find((it: any) => {
+    const score = (it: any): number => {
       const fd = it.fieldData || {};
-      const nm = String(fd.name || '').toLowerCase().trim();
-      const sl = String(fd.slug || '').toLowerCase().trim();
-      const title = String(fd.title || '').toLowerCase().trim();
-      return nm === needle || sl === needle || sl === needleSlug || title === needle;
-    }) || items.find((it:any) => {
-      // fallback contains match
-      const fd = it.fieldData || {};
-      const nm = String(fd.name || '').toLowerCase();
-      return nm.includes(needle);
-    });
+      const nm = String(fd.name ?? fd.title ?? '').toLowerCase().trim();
+      const sl = String(fd.slug ?? '').toLowerCase().trim();
+      const title = String(fd.title ?? '').toLowerCase().trim();
+      if (nm === needle || title === needle) return 100;
+      if (sl === needle || sl === needleSlug || topicSlugify(nm) === needleSlug) return 95;
+      if (nm.startsWith(needleFirst) || sl.startsWith(topicSlugify(needleFirst))) return 85;
+      if (nm.includes(needle) || title.includes(needle)) return 70;
+      if (needleFirst.length >= 3 && (nm.includes(needleFirst) || sl.includes(topicSlugify(needleFirst)))) return 60;
+      return 0;
+    };
 
-    return found?.id;
+    let best: { id: string; s: number } | undefined;
+    for (const it of items) {
+      const s = score(it);
+      if (s > 0 && (!best || s > best.s)) {
+        best = { id: it.id, s };
+      }
+    }
+    return best?.id;
   } catch {
     return undefined;
   }
@@ -559,36 +587,36 @@ export async function publishArticleToWebflow(articleData: WebflowArticleFields)
       }
     }
 
-    // Generate Apropos-style image if not provided
-    if (!articleData.featuredImage && articleData.title) {
-      try {
-        console.log('🎨 Generating Apropos-style image for article:', articleData.title);
-        const imageResponse = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/api/generate-image`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            title: articleData.title,
-            topic: (articleData as any).topicsSelected?.[0],
-            author: articleData.author,
-            category: articleData.category,
-            section: (articleData as any).section,
-            platform: (articleData as any).platform || (articleData as any).streaming_service,
-            streaming_service: (articleData as any).streaming_service,
-            content: articleData.content
-          })
-        });
+    const mergeImageSourceUrls = (): string[] => {
+      const raw = [
+        ...(articleData.imageSourceUrls || []),
+        articleData.aiSourceUrl || '',
+      ].filter((u): u is string => typeof u === 'string' && /^https?:\/\//i.test(u.trim()));
+      const out: string[] = [];
+      for (const u of raw) {
+        const t = u.trim();
+        if (out.includes(t)) continue;
+        out.push(t);
+        if (out.length >= 14) break;
+      }
+      return out;
+    };
 
-        if (imageResponse.ok) {
-          const imageData = await imageResponse.json();
-          if (imageData.success && imageData.imageUrl) {
-            articleData.featuredImage = imageData.imageUrl;
-            console.log('✅ Apropos-style image generated and added to article (WebP format, <400KB)');
-          }
-        } else {
-          console.log('⚠️ Image generation failed, continuing without image');
-        }
-      } catch (error) {
-        console.log('⚠️ Image generation error, continuing without image:', error);
+    const imageSourceList = mergeImageSourceUrls();
+    if (imageSourceList.length > 0) {
+      const fromOfficial = await resolveBestOfficialFeaturedImage(imageSourceList);
+      if (fromOfficial) {
+        articleData.featuredImage = fromOfficial;
+        logger.info('[webflow] featuredImage from official page (og / JSON-LD)', {
+          preview: fromOfficial.slice(0, 100),
+        });
+      }
+    }
+
+    if (articleData.featuredImage?.trim()) {
+      const fc = fotoCreditFromFeaturedUrl(articleData.featuredImage.trim());
+      if (fc) {
+        articleData = { ...articleData, fotoCredit: fc };
       }
     }
 
@@ -609,7 +637,15 @@ export async function publishArticleToWebflow(articleData: WebflowArticleFields)
         console.log('✅ Removed intro from content (intro is sent separately to Webflow)');
       }
     }
-    
+
+    {
+      const a = articleData.author;
+      const name = typeof a === 'string' ? a.trim() : '';
+      if (name && /liv\s*brandt/i.test(name)) {
+        articleData = { ...articleData, aiGenerated: true };
+      }
+    }
+
     // Build fieldData via mapping
     const fieldData = await buildFieldDataFromMapping(articleData, readMapping());
 
@@ -642,45 +678,29 @@ export async function publishArticleToWebflow(articleData: WebflowArticleFields)
       }
     }
 
-    // Handle Primary Topic and Secondary Topic from SetupWizard data
-    // Primary Topic: First topic from topicsSelected
-    // Secondary Topic: Second topic from topicsSelected (if exists)
-    const topicsSelected = (articleData as any).topicsSelected;
+    // Primary Topic + Topics (multi): prøv hele topicsSelected i rækkefølge til første match,
+    // derefter alle øvrige der matcher (typisk Musik + Festival + …).
+    const topicsSelected = (articleData as any).topicsSelected as string[] | undefined;
     if (Array.isArray(topicsSelected) && topicsSelected.length > 0) {
-      // Primary Topic (single reference)
-      const primaryTopic = topicsSelected[0];
-      if (primaryTopic) {
-        const looksLikeNameOrSlug = /\s/.test(primaryTopic) || primaryTopic.length < 20;
-        if (looksLikeNameOrSlug) {
-          const resolvedId = await resolveTopicIdFromName(primaryTopic).catch(() => undefined);
-          if (resolvedId) {
-            fieldData['topic'] = resolvedId; // Primary Topic
-          }
-        } else {
-          fieldData['topic'] = primaryTopic; // Already an ID
+      const resolvedIdsOrdered: string[] = [];
+      const seen = new Set<string>();
+      for (const raw of topicsSelected) {
+        const name = String(raw || '').trim();
+        if (!name) continue;
+        const looksLikeId = /^[a-f0-9]{24}$/i.test(name);
+        const id = looksLikeId ? name : await resolveTopicIdFromName(name).catch(() => undefined);
+        if (id && !seen.has(id)) {
+          seen.add(id);
+          resolvedIdsOrdered.push(id);
         }
       }
-
-      // Secondary Topic (multi-reference, but only one item)
-      if (topicsSelected.length > 1) {
-        const secondaryTopic = topicsSelected[1];
-        if (secondaryTopic) {
-          const looksLikeNameOrSlug = /\s/.test(secondaryTopic) || secondaryTopic.length < 20;
-          if (looksLikeNameOrSlug) {
-            const resolvedId = await resolveTopicIdFromName(secondaryTopic).catch(() => undefined);
-            if (resolvedId) {
-              fieldData['topics'] = [resolvedId]; // Secondary Topic as array
-            }
-          } else {
-            fieldData['topics'] = [secondaryTopic]; // Already an ID
-          }
-        }
-      } else {
-        // Only one topic selected, no secondary topic
-        fieldData['topics'] = [];
+      if (resolvedIdsOrdered.length > 0) {
+        fieldData['topic'] = resolvedIdsOrdered[0];
+        // Multi-reference "Topics" skal ikke være tom bare fordi kun ét navn matchede —
+        // Webflow UI viser ellers "Pick Topics..." selv om Primary Topic er sat.
+        fieldData['topics'] = resolvedIdsOrdered;
       }
     } else {
-      // Fallback: Use old logic if no topicsSelected
       if (fieldData['topic']) {
         const topicVal = fieldData['topic'];
         if (typeof topicVal === 'string') {
@@ -707,16 +727,16 @@ export async function publishArticleToWebflow(articleData: WebflowArticleFields)
                   resolvedIds.push(resolvedId);
                 }
               } else {
-                resolvedIds.push(topicVal); // Already an ID
+                resolvedIds.push(topicVal);
               }
             } else {
-              resolvedIds.push(topicVal); // Not a string, keep as is
+              resolvedIds.push(topicVal);
             }
           }
           fieldData['topics'] = resolvedIds;
         }
+      }
     }
-  }
 
     // Resolve streaming service - use the correct field slug from Webflow: "simple-rerfence"
     // Use default slug first, will be updated after schema check
@@ -1142,7 +1162,7 @@ async function buildFieldDataFromMapping(articleData: WebflowArticleFields, mapp
       logger.warn('[webflow] featuredImage exists but is neither HTTP URL nor data URL', { imageUrl: imageUrl.substring(0, 100) });
     }
   }
-  
+
   return data;
 }
 
