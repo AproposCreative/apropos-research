@@ -3,6 +3,7 @@ import { getWebflowConfig, saveWebflowConfig } from './webflow-config';
 import { readMapping, type WebflowMapping } from './webflow-mapping';
 import { env } from '@/lib/config/env';
 import { logger } from '@/lib/logger';
+import { maybeOptimizeMobileImageForFieldData } from '@/lib/webflow/mobile-image-optimizer';
 import {
   extractFirstYouTubeUrl,
   isLikelyUrl,
@@ -648,6 +649,11 @@ export async function publishArticleToWebflow(articleData: WebflowArticleFields)
 
     // Build fieldData via mapping
     const fieldData = await buildFieldDataFromMapping(articleData, readMapping());
+    await maybeOptimizeMobileImageForFieldData({
+      fieldData,
+      articleTitle: articleData.title,
+      articleSlug: articleData.slug,
+    });
 
     // Resolve author reference automatically if provided as a name/slug
     if (fieldData['author']) {

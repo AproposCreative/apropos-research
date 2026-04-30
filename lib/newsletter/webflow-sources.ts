@@ -35,7 +35,7 @@ export const NEWSLETTER_EXCERPT_MAX_DEFAULT = 220;
 export const NEWSLETTER_EXCERPT_MAX_SINGLE_CUSTOM = 420;
 
 function resolveThumbUrl(fieldData: Record<string, unknown>): string | null {
-  const t = fieldData.thumb ?? fieldData['featured-image'];
+  const t = fieldData['mobile-image'] ?? fieldData.mobileImage ?? fieldData.thumb ?? fieldData['featured-image'];
   if (typeof t === 'string' && /^https?:\/\//i.test(t)) return t;
   if (t && typeof t === 'object' && t !== null && 'url' in t) {
     const u = (t as { url?: string }).url;

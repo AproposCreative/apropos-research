@@ -152,8 +152,13 @@ function normalizeArticle(item: { id: string; fieldData?: Record<string, unknown
     (fd['article-body'] as string) ||
     '';
   const content = stripHtmlForPrompt(rawContent);
+  const mobileImage =
+    (fd['mobile-image'] as { url?: string })?.url ??
+    (fd['mobile-image'] as string) ??
+    (fd.mobileImage as string);
   const thumb = (fd.thumb as { url?: string })?.url ?? (fd.thumb as string);
   const featuredImage =
+    (typeof mobileImage === 'string' ? mobileImage : undefined) ||
     (fd['article-featured-image'] as string) ||
     (fd.featuredImage as string) ||
     (typeof thumb === 'string' ? thumb : undefined);
