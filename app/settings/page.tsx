@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useAuth } from '../../lib/auth-context';
 import CompactHeader from '../../components/CompactHeader';
+import ImageOptimizationSection from '../../components/settings/ImageOptimizationSection';
 
 type WebflowStatus = {
   connected: boolean;
@@ -82,17 +83,6 @@ export default function SettingsPage() {
   const [wfFields, setWfFields] = useState<any[]>([]);
   const [mapping, setMapping] = useState<{ entries: Array<{ internal: string; webflowSlug: string; transform?: string; required?: boolean }>}>({ entries: [] });
   const [savingMapping, setSavingMapping] = useState(false);
-  const [mobileImageOptions, setMobileImageOptions] = useState({
-    maxSizeKB: 160,
-    maxLongEdge: 800,
-    limit: 10,
-    force: false,
-  });
-  const [mobileImagePreviewLoading, setMobileImagePreviewLoading] = useState(false);
-  const [mobileImageRunLoading, setMobileImageRunLoading] = useState(false);
-  const [mobileImageResult, setMobileImageResult] = useState<any | null>(null);
-  const [mobileImageError, setMobileImageError] = useState<string | null>(null);
-
   // Profile state (migrated fra profile-siden)
   const [isEditingProfile, setIsEditingProfile] = useState(false);
   const [profileData, setProfileData] = useState({
@@ -258,44 +248,6 @@ export default function SettingsPage() {
       setIgTokenDiag({ ok: false, error: 'Kunne ikke hente diagnose.' });
     } finally {
       setIgTokenDiagLoading(false);
-    }
-  };
-
-  const scanMobileImages = async () => {
-    setMobileImagePreviewLoading(true);
-    setMobileImageError(null);
-    try {
-      const res = await fetch('/api/webflow/mobile-image/preview', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify(mobileImageOptions),
-      });
-      const data = await res.json();
-      if (!res.ok || data.ok === false) throw new Error(data.error || 'Kunne ikke scanne artikler');
-      setMobileImageResult(data);
-    } catch (e) {
-      setMobileImageError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setMobileImagePreviewLoading(false);
-    }
-  };
-
-  const runMobileImageOptimisation = async () => {
-    setMobileImageRunLoading(true);
-    setMobileImageError(null);
-    try {
-      const res = await fetch('/api/webflow/mobile-image/run', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify(mobileImageOptions),
-      });
-      const data = await res.json();
-      if (!res.ok || data.ok === false) throw new Error(data.error || 'Kunne ikke optimere billeder');
-      setMobileImageResult(data);
-    } catch (e) {
-      setMobileImageError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setMobileImageRunLoading(false);
     }
   };
 
@@ -533,143 +485,8 @@ export default function SettingsPage() {
         )}
 
         {activeTab === 'optimise' && (
-          <div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-2xl rounded-2xl border border-white/20 dark:border-slate-700/50 shadow-2xl ring-1 ring-white/10 dark:ring-slate-700/20 p-8">
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-              <div>
-                <h2 className="text-xl font-semibold text-slate-800 dark:text-slate-100">Optimise billeder</h2>
-                <p className="text-sm text-slate-600 dark:text-slate-400 mt-1 max-w-2xl">
-                  Lav mobiloptimerede WebP-varianter fra artikel-feltet <code>thumb</code> og gem dem i Webflow-feltet{' '}
-                  <code>Mobile Image</code>. Originale hero-billeder bevares.
-                </p>
-              </div>
-              <span className="inline-flex w-fit items-center rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3 py-1 text-xs font-medium text-emerald-700 dark:text-emerald-300">
-                Automatisk ved nye artikler
-              </span>
-            </div>
-
-            <div className="mt-6 grid grid-cols-1 md:grid-cols-4 gap-4">
-              <label className="space-y-1">
-                <span className="text-sm font-medium text-slate-700 dark:text-slate-200">Maks KB</span>
-                <input
-                  type="number"
-                  min={40}
-                  max={400}
-                  value={mobileImageOptions.maxSizeKB}
-                  onChange={(e) => setMobileImageOptions((p) => ({ ...p, maxSizeKB: Number(e.target.value) || 160 }))}
-                  className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 text-slate-900 dark:text-white"
-                />
-                <span className="block text-xs text-slate-500 dark:text-slate-400">Anbefalet: 160 KB. Hard cap i praksis ca. 220 KB.</span>
-              </label>
-              <label className="space-y-1">
-                <span className="text-sm font-medium text-slate-700 dark:text-slate-200">Max længste led</span>
-                <input
-                  type="number"
-                  min={320}
-                  max={1600}
-                  value={mobileImageOptions.maxLongEdge}
-                  onChange={(e) => setMobileImageOptions((p) => ({ ...p, maxLongEdge: Number(e.target.value) || 800 }))}
-                  className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 text-slate-900 dark:text-white"
-                />
-                <span className="block text-xs text-slate-500 dark:text-slate-400">Anbefalet: 800 px til mobile cards/lister.</span>
-              </label>
-              <label className="space-y-1">
-                <span className="text-sm font-medium text-slate-700 dark:text-slate-200">Batch-størrelse</span>
-                <input
-                  type="number"
-                  min={1}
-                  max={25}
-                  value={mobileImageOptions.limit}
-                  onChange={(e) => setMobileImageOptions((p) => ({ ...p, limit: Number(e.target.value) || 10 }))}
-                  className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 text-slate-900 dark:text-white"
-                />
-                <span className="block text-xs text-slate-500 dark:text-slate-400">Kør 10 ad gangen for at undgå timeouts.</span>
-              </label>
-              <label className="flex items-start gap-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950/50 p-3">
-                <input
-                  type="checkbox"
-                  checked={mobileImageOptions.force}
-                  onChange={(e) => setMobileImageOptions((p) => ({ ...p, force: e.target.checked }))}
-                  className="mt-1"
-                />
-                <span>
-                  <span className="block text-sm font-medium text-slate-700 dark:text-slate-200">Overskriv eksisterende</span>
-                  <span className="block text-xs text-slate-500 dark:text-slate-400 mt-1">
-                    Slå kun til hvis du vil regenerere artikler, der allerede har Mobile Image.
-                  </span>
-                </span>
-              </label>
-            </div>
-
-            <div className="mt-5 flex flex-wrap gap-3">
-              <button
-                onClick={scanMobileImages}
-                disabled={mobileImagePreviewLoading || mobileImageRunLoading}
-                className="px-5 py-2.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 text-slate-800 dark:text-white disabled:opacity-60"
-              >
-                {mobileImagePreviewLoading ? 'Scanner…' : 'Scan artikler'}
-              </button>
-              <button
-                onClick={runMobileImageOptimisation}
-                disabled={mobileImageRunLoading || mobileImagePreviewLoading}
-                className="px-5 py-2.5 rounded-lg bg-slate-900 text-white dark:bg-white dark:text-slate-950 disabled:opacity-60"
-              >
-                {mobileImageRunLoading ? 'Optimerer…' : 'Kør optimering'}
-              </button>
-            </div>
-
-            {mobileImageError ? (
-              <p className="mt-4 rounded-lg border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-sm text-rose-700 dark:text-rose-300">
-                {mobileImageError}
-              </p>
-            ) : null}
-
-            {mobileImageResult ? (
-              <div className="mt-6 space-y-4">
-                <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-                  {[
-                    ['Artikler', mobileImageResult.total ?? '—'],
-                    ['Klar', mobileImageResult.ready ?? mobileImageResult.totalCandidates ?? '—'],
-                    ['Eksisterende', mobileImageResult.existing ?? '—'],
-                    ['Mangler thumb', mobileImageResult.missingThumb ?? '—'],
-                    ['Success', mobileImageResult.succeeded ?? '—'],
-                  ].map(([label, value]) => (
-                    <div key={label} className="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950/50 px-3 py-2">
-                      <p className="text-xs text-slate-500 dark:text-slate-400">{label}</p>
-                      <p className="text-lg font-semibold text-slate-900 dark:text-white">{value}</p>
-                    </div>
-                  ))}
-                </div>
-                <div className="rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden">
-                  <div className="max-h-80 overflow-auto">
-                    <table className="min-w-full text-sm">
-                      <thead className="bg-slate-50 dark:bg-slate-950 sticky top-0">
-                        <tr className="text-left text-slate-600 dark:text-slate-300">
-                          <th className="px-3 py-2">Artikel</th>
-                          <th className="px-3 py-2">Status</th>
-                          <th className="px-3 py-2">Output</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {(mobileImageResult.results || mobileImageResult.candidates || []).slice(0, 80).map((row: any) => (
-                          <tr key={row.id} className="border-t border-slate-200 dark:border-slate-700">
-                            <td className="px-3 py-2">
-                              <p className="font-medium text-slate-800 dark:text-slate-100">{row.title}</p>
-                              <p className="text-xs text-slate-500 dark:text-slate-400">{row.slug}</p>
-                            </td>
-                            <td className="px-3 py-2 text-slate-700 dark:text-slate-200">
-                              {row.ok === true ? 'Opdateret' : row.ok === false ? `Fejl: ${row.error}` : row.status}
-                            </td>
-                            <td className="px-3 py-2 text-slate-700 dark:text-slate-200">
-                              {row.output ? `${row.output.processedSizeKB} KB · ${row.output.width || '?'}×${row.output.height || '?'}` : row.mobileImageUrl ? 'Har Mobile Image' : '—'}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              </div>
-            ) : null}
+          <div className="bg-[#171717] rounded-2xl border border-white/15 p-4 font-poppins">
+            <ImageOptimizationSection variant="page" />
           </div>
         )}
 

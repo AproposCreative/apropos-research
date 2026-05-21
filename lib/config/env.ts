@@ -44,7 +44,13 @@ const EnvSchema = z.object({
   WEBFLOW_TOPICS_COLLECTION_ID: z.string().optional(),
   WEBFLOW_FESTIVALS_COLLECTION_ID: z.string().optional(),
   WEBFLOW_STREAMING_SERVICES_COLLECTION_ID: z.string().optional(),
-  
+  /** Client Secret til Webflow API v2 webhook-signatur (x-webflow-signature). */
+  WEBFLOW_WEBHOOK_CLIENT_SECRET: z.preprocess(emptyToUndefined, z.string().optional()),
+  /** Fallback-hemmelighed (?secret= eller x-webflow-webhook-secret) hvis webhook oprettes i dashboard. */
+  WEBFLOW_WEBHOOK_SECRET: z.preprocess(emptyToUndefined, z.string().optional()),
+  /** Slå CMS-webhook auto-optimering fra med 0/false (publish fra app kan stadig optimerer). */
+  WEBFLOW_ARTICLE_WEBHOOK_OPTIMIZE: z.enum(['true', 'false']).default('true'),
+
   // Instagram / Facebook Publishing
   INSTAGRAM_ACCOUNT_ID: z.string().optional(),
   INSTAGRAM_ACCESS_TOKEN: z.string().optional(),
@@ -113,6 +119,10 @@ const EnvSchema = z.object({
   GA4_MEASUREMENT_PROTOCOL_SECRET: z.preprocess(emptyToUndefined, z.string().optional()),
   /** Svix signing secret fra Resend Webhooks (whsec_…). */
   RESEND_WEBHOOK_SECRET: z.preprocess(emptyToUndefined, z.string().optional()),
+  /** Funding Desk afsender (fx funding@aproposmagazine.com) */
+  FUNDING_FROM_EMAIL: z.preprocess(emptyToUndefined, z.string().optional()),
+  /** Domæne til Reply-To alias funding+{threadId}@domain (Resend inbound) */
+  FUNDING_INBOUND_DOMAIN: z.preprocess(emptyToUndefined, z.string().optional()),
 
   // Research Provider Configuration
   RESEARCH_PROVIDER: z.enum(['openai_responses', 'legacy_web_search']).default('openai_responses'),
@@ -177,6 +187,10 @@ function parseEnv() {
     WEBFLOW_TOPICS_COLLECTION_ID: process.env.WEBFLOW_TOPICS_COLLECTION_ID,
     WEBFLOW_FESTIVALS_COLLECTION_ID: process.env.WEBFLOW_FESTIVALS_COLLECTION_ID,
     WEBFLOW_STREAMING_SERVICES_COLLECTION_ID: process.env.WEBFLOW_STREAMING_SERVICES_COLLECTION_ID,
+    WEBFLOW_WEBHOOK_CLIENT_SECRET: process.env.WEBFLOW_WEBHOOK_CLIENT_SECRET,
+    WEBFLOW_WEBHOOK_SECRET: process.env.WEBFLOW_WEBHOOK_SECRET,
+    WEBFLOW_ARTICLE_WEBHOOK_OPTIMIZE:
+      process.env.WEBFLOW_ARTICLE_WEBHOOK_OPTIMIZE === 'false' ? 'false' : 'true',
     INSTAGRAM_ACCOUNT_ID: process.env.INSTAGRAM_ACCOUNT_ID,
     INSTAGRAM_ACCESS_TOKEN: process.env.INSTAGRAM_ACCESS_TOKEN,
     FACEBOOK_PAGE_ID: process.env.FACEBOOK_PAGE_ID,
@@ -211,6 +225,8 @@ function parseEnv() {
     GA4_MEASUREMENT_ID: process.env.GA4_MEASUREMENT_ID,
     GA4_MEASUREMENT_PROTOCOL_SECRET: process.env.GA4_MEASUREMENT_PROTOCOL_SECRET,
     RESEND_WEBHOOK_SECRET: process.env.RESEND_WEBHOOK_SECRET,
+    FUNDING_FROM_EMAIL: process.env.FUNDING_FROM_EMAIL,
+    FUNDING_INBOUND_DOMAIN: process.env.FUNDING_INBOUND_DOMAIN,
     RESEARCH_PROVIDER: (process.env.RESEARCH_PROVIDER as any) || 'openai_responses',
     RESEARCH_FALLBACK_PROVIDER: (process.env.RESEARCH_FALLBACK_PROVIDER as any) || 'legacy_web_search',
     RESEARCH_MIN_SOURCES: Number(process.env.RESEARCH_MIN_SOURCES || '2'),

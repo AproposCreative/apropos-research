@@ -3,7 +3,7 @@ import { getWebflowConfig, saveWebflowConfig } from './webflow-config';
 import { readMapping, type WebflowMapping } from './webflow-mapping';
 import { env } from '@/lib/config/env';
 import { logger } from '@/lib/logger';
-import { maybeOptimizeMobileImageForFieldData } from '@/lib/webflow/mobile-image-optimizer';
+import { autoOptimizeArticleFieldData } from '@/lib/webflow/article-image-auto-optimize';
 import {
   extractFirstYouTubeUrl,
   isLikelyUrl,
@@ -649,7 +649,7 @@ export async function publishArticleToWebflow(articleData: WebflowArticleFields)
 
     // Build fieldData via mapping
     const fieldData = await buildFieldDataFromMapping(articleData, readMapping());
-    await maybeOptimizeMobileImageForFieldData({
+    await autoOptimizeArticleFieldData({
       fieldData,
       articleTitle: articleData.title,
       articleSlug: articleData.slug,

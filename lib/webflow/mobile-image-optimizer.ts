@@ -23,6 +23,39 @@ export type MobileImageCandidate = {
   status: 'ready' | 'skip-existing' | 'missing-thumb';
 };
 
+const MOBILE_OPTIMIZED_PATH = 'webflow/mobile-images';
+
+function normalizeUrlForCompare(url: string): string {
+  try {
+    const u = new URL(url);
+    return `${u.origin}${u.pathname}`.toLowerCase();
+  } catch {
+    return url.toLowerCase().split('?')[0] ?? url.toLowerCase();
+  }
+}
+
+/** Kun spring over hvis Mobile Image er vores optimerede WebP-upload (Firebase). */
+export function isOptimizedMobileImageUrl(url: string | null | undefined): boolean {
+  if (!url) return false;
+  const lower = url.toLowerCase();
+  return lower.includes(MOBILE_OPTIMIZED_PATH) && /\.webp(\?|$)/i.test(lower);
+}
+
+export function needsMobileImageOptimization(args: {
+  thumbUrl: string | null;
+  mobileImageUrl: string | null;
+  force?: boolean;
+}): boolean {
+  if (args.force) return !!args.thumbUrl;
+  if (!args.thumbUrl) return false;
+  if (!args.mobileImageUrl) return true;
+  if (isOptimizedMobileImageUrl(args.mobileImageUrl)) return false;
+  // Samme URL som thumb = ikke en dedikeret mobil-variant
+  if (normalizeUrlForCompare(args.thumbUrl) === normalizeUrlForCompare(args.mobileImageUrl)) return true;
+  // Felt udfyldt med stort hero-billede fra Webflow — skal stadig optimeres
+  return true;
+}
+
 export type MobileImageRunResult = MobileImageCandidate & {
   ok: boolean;
   error?: string;
@@ -139,7 +172,11 @@ function candidateFromItem(item: any, thumbSlug: string, mobileImageSlug: string
     slug,
     thumbUrl,
     mobileImageUrl,
-    status: !thumbUrl ? 'missing-thumb' : mobileImageUrl && !force ? 'skip-existing' : 'ready',
+    status: !thumbUrl
+      ? 'missing-thumb'
+      : needsMobileImageOptimization({ thumbUrl, mobileImageUrl, force })
+        ? 'ready'
+        : 'skip-existing',
   };
 }
 
@@ -162,7 +199,7 @@ export async function previewMobileImageOptimization(options: MobileImageOptimiz
     total: candidates.length,
     ready: candidates.filter((c) => c.status === 'ready').length,
     missingThumb: candidates.filter((c) => c.status === 'missing-thumb').length,
-    existing: candidates.filter((c) => c.mobileImageUrl).length,
+    existing: candidates.filter((c) => c.status === 'skip-existing').length,
     candidates,
   };
 }
@@ -225,21 +262,24 @@ async function logOptimization(result: MobileImageRunResult, mobileImageSlug: st
 export async function runMobileImageOptimization(options: MobileImageOptimizeOptions = {}): Promise<{
   thumbSlug: string;
   mobileImageSlug: string;
+  total: number;
+  ready: number;
   totalCandidates: number;
   processed: number;
   succeeded: number;
   failed: number;
   skipped: number;
+  allAlreadyOptimized: boolean;
+  skippedReason: string | null;
   results: MobileImageRunResult[];
 }> {
   const { thumbSlug, mobileImageSlug } = await getMobileImageFieldSlugs();
   const force = !!options.force;
   const limit = Math.min(Math.max(Math.round(options.limit ?? 10), 1), 25);
   const items = await fetchAllArticleItems();
-  const candidates = items
-    .map((item) => candidateFromItem(item, thumbSlug, mobileImageSlug, force))
-    .filter((c) => c.status === 'ready')
-    .slice(0, limit);
+  const allCandidates = items.map((item) => candidateFromItem(item, thumbSlug, mobileImageSlug, force));
+  const readyCount = allCandidates.filter((c) => c.status === 'ready').length;
+  const candidates = allCandidates.filter((c) => c.status === 'ready').slice(0, limit);
 
   const results: MobileImageRunResult[] = [];
 
@@ -252,10 +292,10 @@ export async function runMobileImageOptimization(options: MobileImageOptimizeOpt
     try {
       const output = await optimizeAndUploadImage({
         imageUrl: candidate.thumbUrl,
-        maxSizeKB: options.maxSizeKB ?? 160,
-        maxLongEdge: options.maxLongEdge ?? 800,
-        qualityStart: options.qualityStart ?? 82,
-        qualityMin: options.qualityMin ?? 55,
+        maxSizeKB: options.maxSizeKB ?? 260,
+        maxLongEdge: options.maxLongEdge ?? 1200,
+        qualityStart: options.qualityStart ?? 85,
+        qualityMin: options.qualityMin ?? 65,
         folder: 'webflow/mobile-images',
         baseName: candidate.slug || candidate.title,
         role: 'mobile',
@@ -284,14 +324,35 @@ export async function runMobileImageOptimization(options: MobileImageOptimizeOpt
     }
   }
 
+  const processed = results.length;
+  const succeeded = results.filter((r) => r.ok).length;
+  const failed = results.filter((r) => !r.ok).length;
+  const allAlreadyOptimized = readyCount === 0 && !force;
+
+  let skippedReason: string | null = null;
+  if (processed === 0) {
+    if (allAlreadyOptimized) {
+      skippedReason =
+        'Alle artikler har allerede en optimeret Mobile Image (WebP fra batch).';
+    } else if (readyCount === 0) {
+      skippedReason = 'Ingen artikler er klar — tjek at thumb-feltet er udfyldt.';
+    } else {
+      skippedReason = 'Ingen artikler blev behandlet i denne batch.';
+    }
+  }
+
   return {
     thumbSlug,
     mobileImageSlug,
+    total: allCandidates.length,
+    ready: readyCount,
     totalCandidates: candidates.length,
-    processed: results.length,
-    succeeded: results.filter((r) => r.ok).length,
-    failed: results.filter((r) => !r.ok).length,
-    skipped: items.length - candidates.length,
+    processed,
+    succeeded,
+    failed,
+    skipped: items.length - readyCount,
+    allAlreadyOptimized,
+    skippedReason,
     results,
   };
 }
@@ -307,15 +368,16 @@ export async function maybeOptimizeMobileImageForFieldData(args: {
   try {
     const { fieldData } = args;
     const { thumbSlug, mobileImageSlug } = await getMobileImageFieldSlugs();
-    if (fieldData[mobileImageSlug]) return;
     const thumbUrl = resolveImageUrl(fieldData[thumbSlug] ?? fieldData.thumb);
+    const mobileImageUrl = resolveImageUrl(fieldData[mobileImageSlug]);
+    if (!needsMobileImageOptimization({ thumbUrl, mobileImageUrl, force: false })) return;
     if (!thumbUrl) return;
     const output = await optimizeAndUploadImage({
       imageUrl: thumbUrl,
-      maxSizeKB: Number(process.env.WEBFLOW_MOBILE_IMAGE_MAX_KB || 160),
-      maxLongEdge: Number(process.env.WEBFLOW_MOBILE_IMAGE_MAX_EDGE || 800),
-      qualityStart: 82,
-      qualityMin: 55,
+      maxSizeKB: Number(process.env.WEBFLOW_MOBILE_IMAGE_MAX_KB || 260),
+      maxLongEdge: Number(process.env.WEBFLOW_MOBILE_IMAGE_MAX_EDGE || 1200),
+      qualityStart: 85,
+      qualityMin: 65,
       folder: 'webflow/mobile-images',
       baseName: args.articleSlug || args.articleTitle || 'apropos-article',
       role: 'mobile',

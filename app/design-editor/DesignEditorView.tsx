@@ -29,6 +29,7 @@ const STORY_TITLE_MAX_WIDTH = 992;
 const STORY_BYLINE_MAX_WIDTH = 1000;
 
 const CAPTION_FOOTER_TEXT = 'Læs gratis med – uden reklamer, pop-ups eller anden støj: www.aproposmagazine.com';
+const ARTICLE_BASE_URL = 'https://www.aproposmagazine.com/articles';
 
 /** Samme segment-knapper som Liv / Nyhedsbrev (apropos-design-system). */
 const segBtn = (active: boolean) =>
@@ -37,11 +38,38 @@ const segBtn = (active: boolean) =>
   }`;
 
 const embedHeaderIconBtn = (active?: boolean) =>
-  `flex size-8 shrink-0 items-center justify-center rounded-lg border transition-all duration-200 active:scale-[0.97] ${
+  `touch-target flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border transition-all duration-200 active:scale-[0.97] ${
     active
       ? 'border-white/25 bg-white/10 text-white'
       : 'border-white/12 bg-white/[0.06] text-white/75 hover:bg-white/[0.12] hover:border-white/18 hover:text-white'
   } disabled:opacity-40 disabled:pointer-events-none`;
+
+const embedHeaderPostBtn =
+  'touch-target flex h-10 shrink-0 items-center justify-center rounded-lg border border-white/12 bg-white/[0.06] px-3.5 text-[12px] font-medium text-white/85 transition-all duration-200 hover:bg-white/[0.12] hover:border-white/18 hover:text-white active:scale-[0.97] disabled:opacity-40 disabled:pointer-events-none';
+
+function PublishFeedback({
+  success,
+  warning,
+  error,
+}: {
+  success: string | null;
+  warning: string | null;
+  error: string | null;
+}) {
+  if (!success && !warning && !error) return null;
+  return (
+    <div className="space-y-1.5">
+      {success ? (
+        <p className="inline-flex items-center gap-1.5 text-sm text-white/85">
+          <span className="size-1.5 rounded-full bg-emerald-400 shrink-0" />
+          {success}
+        </p>
+      ) : null}
+      {warning ? <p className="text-xs text-amber-300/90 leading-snug pl-3">{warning}</p> : null}
+      {error ? <p className="text-sm text-red-400/95">{error}</p> : null}
+    </div>
+  );
+}
 
 function stripHtmlForPrompt(input: string): string {
   return input
@@ -193,6 +221,15 @@ function normalizeArticle(item: { id: string; fieldData?: Record<string, unknown
 
 type NormalizedArticle = ReturnType<typeof normalizeArticle>;
 
+function buildDefaultCaption(article: NormalizedArticle | null): string {
+  if (!article) return CAPTION_FOOTER_TEXT;
+  const parts = [article.title, article.excerpt].filter(Boolean) as string[];
+  if (article.intro && article.intro !== article.excerpt) {
+    parts.push(article.intro);
+  }
+  return parts.length ? `${parts.join('\n\n')}\n\n${CAPTION_FOOTER_TEXT}` : CAPTION_FOOTER_TEXT;
+}
+
 interface DesignEditorViewProps {
   /** I hub: tilbage-knap kalder dette i stedet for at navigere */
   onBack?: () => void;
@@ -210,14 +247,17 @@ export default function DesignEditorView({ onBack, embedMode }: DesignEditorView
   /** I AI Writer (embed) start med kanvas: undgå overlap med header. Desktop viser artikelpanel. */
   const [articlesOpen, setArticlesOpen] = useState(!embedMode);
   const [articleSearch, setArticleSearch] = useState('');
-  const [showPreview, setShowPreview] = useState(false);
+  const showPreview = false;
   const [articlesPanelWidth, setArticlesPanelWidth] = useState(DEFAULT_PANEL_WIDTH);
   const [isResizingArticles, setIsResizingArticles] = useState(false);
   const [caption, setCaption] = useState('');
   const [postingToInstagram, setPostingToInstagram] = useState(false);
   const [publishStep, setPublishStep] = useState('');
   const [instagramError, setInstagramError] = useState<string | null>(null);
+  const [publishSuccess, setPublishSuccess] = useState<string | null>(null);
+  const [publishWarning, setPublishWarning] = useState<string | null>(null);
   const [instagramConfigured, setInstagramConfigured] = useState<boolean | null>(null);
+  const [confirmInstagramPostOpen, setConfirmInstagramPostOpen] = useState(false);
   const [renderedCardDataUrl, setRenderedCardDataUrl] = useState<string | null>(null);
   const [authors, setAuthors] = useState<{ id: string; name: string }[]>([]);
   const [sections, setSections] = useState<{ id: string; name: string }[]>([]);
@@ -306,30 +346,48 @@ export default function DesignEditorView({ onBack, embedMode }: DesignEditorView
     setEyebrowChips(chips);
   }, [selected?.id, selected?.section, selected?.primaryTopic, selected?.topics, selected?.category, selected?.authorId, sections, topics, authors, resolveName]);
 
-  // Når preview åbnes eller artikel skiftes: foreslå caption fra titel + excerpt (uden Foto); altid afslutte med footer
+  // Når artikel skiftes: foreslå caption fra titel + excerpt (uden Foto); altid afslutte med footer
   useEffect(() => {
-    if (!showPreview || !selected) return;
-    const parts = [selected.title, selected.excerpt].filter(Boolean) as string[];
-    if (selected.intro && selected.intro !== selected.excerpt) {
-      parts.push(selected.intro);
-    }
-    setCaption(parts.join('\n\n') + '\n\n' + CAPTION_FOOTER_TEXT);
-  }, [showPreview, selected?.id, selected?.title, selected?.excerpt, selected?.intro]);
+    if (!selected) return;
+    setCaption(buildDefaultCaption(selected));
+  }, [selected?.id, selected?.title, selected?.excerpt, selected?.intro]);
 
   // Tjek om Instagram-publish er konfigureret (til test / brugertilbagemelding)
   useEffect(() => {
-    if (!showPreview) return;
+    let cancelled = false;
     fetch('/api/instagram/publish')
       .then((r) => r.json())
-      .then((data: { configured?: boolean }) => setInstagramConfigured(!!data.configured))
-      .catch(() => setInstagramConfigured(false));
-  }, [showPreview]);
+      .then((data: { configured?: boolean }) => {
+        if (!cancelled) setInstagramConfigured(!!data.configured);
+      })
+      .catch(() => {
+        if (!cancelled) setInstagramConfigured(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const ensureCaptionFooter = useCallback((text: string) => {
     const t = text.trim();
     if (!t) return '\n\n' + CAPTION_FOOTER_TEXT;
     return t.endsWith(CAPTION_FOOTER_TEXT) ? t : t + '\n\n' + CAPTION_FOOTER_TEXT;
   }, []);
+
+  const captionForPublish = useMemo(() => {
+    const trimmed = caption.trim();
+    const footerOnly = trimmed === CAPTION_FOOTER_TEXT;
+    const genericReadMoreOnly = /^læs\s+(hele|nu|gratis)?[\s\S]{0,80}apropos/i.test(trimmed);
+    const source = !trimmed || footerOnly || genericReadMoreOnly
+      ? buildDefaultCaption(selected)
+      : trimmed;
+    return ensureCaptionFooter(source);
+  }, [caption, ensureCaptionFooter, selected]);
+
+  const selectedArticleUrl = useMemo(() => {
+    const slug = selected?.slug?.trim();
+    return slug ? `${ARTICLE_BASE_URL}/${slug}` : undefined;
+  }, [selected?.slug]);
 
   useEffect(() => {
     if (!isResizingArticles) return;
@@ -529,6 +587,8 @@ export default function DesignEditorView({ onBack, embedMode }: DesignEditorView
 
   const previewAspectRatio = size === 'story' ? '9 / 16' : '1 / 1';
   const previewMaxHeight = size === 'story' ? 996 : 468;
+  const renderedCanvasWidth = Math.max(220, Math.round(DIMENSIONS[size].width * scale));
+  const renderedCanvasHeight = Math.max(220, Math.round(DIMENSIONS[size].height * scale));
 
   // Preview must use the exact same rendering pipeline as export (WYSIWYG)
   useEffect(() => {
@@ -577,10 +637,18 @@ export default function DesignEditorView({ onBack, embedMode }: DesignEditorView
     }
   }, [size, cardData]);
 
-  const handlePostToInstagram = useCallback(async () => {
-    setPostingToInstagram(true);
+  const clearPublishFeedback = useCallback(() => {
     setInstagramError(null);
+    setPublishSuccess(null);
+    setPublishWarning(null);
+  }, []);
+
+  const handlePostToInstagram = useCallback(async () => {
+    setConfirmInstagramPostOpen(false);
+    setPostingToInstagram(true);
+    clearPublishFeedback();
     setPublishStep('Eksporterer billede…');
+    let instagramPublishStarted = false;
     try {
       if (!storage) {
         setInstagramError('Firebase Storage er ikke tilgængelig.');
@@ -594,13 +662,15 @@ export default function DesignEditorView({ onBack, embedMode }: DesignEditorView
       const imageUrl = await getDownloadURL(storageRef);
       setPublishStep('Publicerer til Instagram…');
       const isStory = size === 'story';
+      instagramPublishStarted = true;
       const apiRes = await fetch('/api/instagram/publish', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           imageUrl,
           isStory,
-          caption: isStory ? undefined : (ensureCaptionFooter(caption.trim()) || undefined),
+          caption: isStory ? undefined : captionForPublish,
+          articleUrl: isStory ? undefined : selectedArticleUrl,
         }),
       });
       const data = await apiRes.json().catch(() => ({}));
@@ -610,22 +680,41 @@ export default function DesignEditorView({ onBack, embedMode }: DesignEditorView
       }
       setInstagramError(null);
       if (size === 'story') {
-        alert('Story er publiceret på Instagram.');
+        setPublishSuccess('Story er publiceret på Instagram.');
       } else if (data.facebookPublished === true) {
-        alert('Opslaget er publiceret på Instagram og Facebook.');
+        setPublishSuccess('Publiceret på Instagram og Facebook.');
+        if (data.facebookCommentPublished !== true && selectedArticleUrl) {
+          setPublishWarning(
+            'Artikellinket blev ikke lagt som første kommentar på Facebook — tilføj linket manuelt i opslaget.'
+          );
+        }
       } else if (data.facebookPublished === false) {
-        alert(`Opslaget er publiceret på Instagram. Facebook fejlede: ${data.facebookError || 'ukendt fejl'}`);
+        setPublishSuccess('Publiceret på Instagram.');
+        setPublishWarning(
+          typeof data.facebookError === 'string' && data.facebookError.trim()
+            ? `Facebook: ${data.facebookError.trim()}`
+            : 'Facebook-opslaget blev ikke oprettet.'
+        );
       } else {
-        alert('Opslaget er publiceret på Instagram.');
+        setPublishSuccess('Publiceret på Instagram.');
       }
     } catch (e) {
       console.error('Instagram publish failed', e);
+      if (size === 'story' && instagramPublishStarted) {
+        setPublishSuccess('Story-kaldet er sendt — tjek Instagram om et øjeblik.');
+        return;
+      }
       setInstagramError('Der opstod en fejl. Prøv igen.');
     } finally {
       setPostingToInstagram(false);
       setPublishStep('');
     }
-  }, [size, cardData, caption, ensureCaptionFooter]);
+  }, [size, cardData, captionForPublish, selectedArticleUrl, clearPublishFeedback]);
+
+  const requestPostToInstagram = useCallback(() => {
+    clearPublishFeedback();
+    setConfirmInstagramPostOpen(true);
+  }, [clearPublishFeedback]);
 
   useEffect(() => {
     let cancelled = false;
@@ -741,7 +830,7 @@ export default function DesignEditorView({ onBack, embedMode }: DesignEditorView
               <div className="mt-3 flex flex-col gap-2">
                 <button
                   type="button"
-                  onClick={handlePostToInstagram}
+                  onClick={requestPostToInstagram}
                   disabled={postingToInstagram || instagramConfigured === false}
                   className="w-full py-2.5 px-4 rounded-xl border border-white/12 bg-white/[0.04] hover:bg-white/[0.08] hover:border-white/20 disabled:opacity-50 disabled:pointer-events-none text-white font-medium text-sm transition-colors flex items-center justify-center gap-2"
                 >
@@ -757,9 +846,7 @@ export default function DesignEditorView({ onBack, embedMode }: DesignEditorView
                 {instagramConfigured === false && (
                   <p className="text-amber-400/90 text-xs">Instagram-publish er ikke konfigureret. Sæt INSTAGRAM_ACCOUNT_ID og INSTAGRAM_ACCESS_TOKEN (se docs/INSTAGRAM_PUBLISH.md).</p>
                 )}
-                {instagramError && (
-                  <p className="text-red-400 text-sm">{instagramError}</p>
-                )}
+                <PublishFeedback success={publishSuccess} warning={publishWarning} error={instagramError} />
               </div>
             </div>
           </div>
@@ -810,7 +897,7 @@ export default function DesignEditorView({ onBack, embedMode }: DesignEditorView
               <div className="w-full max-w-[480px] -mt-1 md:-mt-2 mb-1 md:mb-2 px-2 md:px-0">
                 <button
                   type="button"
-                  onClick={handlePostToInstagram}
+                  onClick={requestPostToInstagram}
                   disabled={postingToInstagram || instagramConfigured === false}
                   className="w-full py-2.5 px-4 rounded-xl border border-white/12 bg-white/[0.04] hover:bg-white/[0.08] hover:border-white/20 disabled:opacity-50 disabled:pointer-events-none text-white font-medium text-sm transition-colors flex items-center justify-center gap-2"
                   title="Post det viste story-design direkte til Instagram Story"
@@ -820,22 +907,28 @@ export default function DesignEditorView({ onBack, embedMode }: DesignEditorView
                 {instagramConfigured === false && (
                   <p className="text-amber-400/90 text-xs mt-2">Instagram-publish er ikke konfigureret. Sæt INSTAGRAM_ACCOUNT_ID og INSTAGRAM_ACCESS_TOKEN (se docs/INSTAGRAM_PUBLISH.md).</p>
                 )}
-                {instagramError && (
-                  <p className="text-red-400 text-sm mt-2">{instagramError}</p>
-                )}
+                <div className="mt-2">
+                  <PublishFeedback success={publishSuccess} warning={publishWarning} error={instagramError} />
+                </div>
               </div>
             )}
 
             <div
-              className="relative"
+              className="relative overflow-hidden"
               style={{
-                transform: `scale(${scale})`,
-                transformOrigin: 'top center',
-                width: DIMENSIONS[size].width,
-                height: DIMENSIONS[size].height,
+                width: renderedCanvasWidth,
+                height: renderedCanvasHeight,
               }}
             >
-              <div className="w-full h-full">
+              <div
+                className="w-full h-full"
+                style={{
+                  width: DIMENSIONS[size].width,
+                  height: DIMENSIONS[size].height,
+                  transform: `scale(${scale})`,
+                  transformOrigin: 'top left',
+                }}
+              >
                 {renderedCardDataUrl ? (
                   <img
                     src={renderedCardDataUrl}
@@ -848,6 +941,26 @@ export default function DesignEditorView({ onBack, embedMode }: DesignEditorView
                 )}
               </div>
             </div>
+            {size === 'square' && (
+              <div className="px-2 pb-2" style={{ width: renderedCanvasWidth }}>
+                <div className="rounded-xl border border-white/12 bg-black/55 p-3">
+                  <div className="mb-2 flex items-center justify-between gap-3">
+                    <p className="text-[12px] font-medium text-white/80">Tekst under opslaget</p>
+                    <span className="text-[10px] uppercase tracking-wider text-white/35">1:1 post</span>
+                  </div>
+                  <textarea
+                    value={caption}
+                    onChange={(e) => setCaption(e.target.value)}
+                    placeholder="Skriv eller rediger teksten under opslaget…"
+                    className="apropos-input-dark w-full min-h-[184px] rounded-lg border px-3 py-2.5 text-[13px] resize-y"
+                    rows={7}
+                  />
+                  <div className="mt-2">
+                    <PublishFeedback success={publishSuccess} warning={publishWarning} error={instagramError} />
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -862,7 +975,7 @@ export default function DesignEditorView({ onBack, embedMode }: DesignEditorView
   const embedToolbarControlsInner = (
     <>
       <div
-        className="flex rounded-lg border border-white/12 p-0.5 gap-0.5 bg-black/30 backdrop-blur-sm shrink-0"
+        className="flex h-10 shrink-0 items-center rounded-lg border border-white/12 bg-black/30 p-0.5 gap-0.5 backdrop-blur-sm"
         role="group"
         aria-label="Kortformat"
       >
@@ -885,12 +998,13 @@ export default function DesignEditorView({ onBack, embedMode }: DesignEditorView
       </div>
       <button
         type="button"
-        onClick={() => setShowPreview((v) => !v)}
-        className={embedHeaderIconBtn(showPreview)}
-        title={showPreview ? 'Luk forhåndsvisning' : 'Forhåndsvis opslag'}
-        aria-label={showPreview ? 'Luk forhåndsvisning' : 'Forhåndsvis opslag'}
+        onClick={requestPostToInstagram}
+        disabled={postingToInstagram || instagramConfigured === false}
+        className={embedHeaderPostBtn}
+        title={size === 'story' ? 'Post det viste story-design direkte til Instagram Story' : 'Post det viste opslag direkte til Instagram'}
+        aria-label={size === 'story' ? 'Post til Instagram Story' : 'Post til Instagram'}
       >
-        <svg className="size-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+        {postingToInstagram ? 'Poster…' : 'Post'}
       </button>
       <button
         type="button"
@@ -1187,12 +1301,13 @@ export default function DesignEditorView({ onBack, embedMode }: DesignEditorView
               </button>
               <button
                 type="button"
-                onClick={() => setShowPreview((v) => !v)}
-                className={embedHeaderIconBtn(showPreview)}
-                title={showPreview ? 'Luk forhåndsvisning' : 'Forhåndsvis opslag'}
-                aria-label={showPreview ? 'Luk forhåndsvisning' : 'Forhåndsvis opslag'}
+                onClick={requestPostToInstagram}
+                disabled={postingToInstagram || instagramConfigured === false}
+                className={embedHeaderPostBtn}
+                title={size === 'story' ? 'Post det viste story-design direkte til Instagram Story' : 'Post det viste opslag direkte til Instagram'}
+                aria-label={size === 'story' ? 'Post til Instagram Story' : 'Post til Instagram'}
               >
-                <svg className="size-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+                {postingToInstagram ? 'Poster…' : 'Post'}
               </button>
               <button
                 type="button"
@@ -1242,6 +1357,44 @@ export default function DesignEditorView({ onBack, embedMode }: DesignEditorView
         </div>
       )}
       </>
+      )}
+      {confirmInstagramPostOpen && (
+        <div className="fixed inset-0 z-[160] flex items-center justify-center bg-black/75 px-4 backdrop-blur-xl app-safe-top app-safe-bottom">
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="instagram-confirm-title"
+            className="w-full max-w-sm rounded-2xl border border-white/15 bg-[#0c0c0c] p-4 shadow-[0_0_32px_-8px_rgba(255,255,255,0.18)]"
+          >
+            <p className="mb-1 text-[10px] uppercase tracking-wider text-white/40">
+              {size === 'story' ? 'Instagram Story' : 'Instagram feed'}
+            </p>
+            <h2 id="instagram-confirm-title" className="text-[17px] font-medium tracking-tight text-white">
+              Er du sikker på, at du vil poste?
+            </h2>
+            <p className="mt-2 text-[13px] leading-relaxed text-white/65">
+              Det valgte {size === 'story' ? '9:16 story-design' : '1:1 opslag'} bliver publiceret direkte på Instagram-kontoen.
+            </p>
+            <div className="mt-4 flex gap-2">
+              <button
+                type="button"
+                onClick={() => setConfirmInstagramPostOpen(false)}
+                disabled={postingToInstagram}
+                className="w-full py-2.5 rounded-xl border border-white/12 text-[13px] text-white/75 hover:bg-white/[0.05] hover:border-white/20 disabled:opacity-40 transition-all duration-200 active:scale-[0.98]"
+              >
+                Annuller
+              </button>
+              <button
+                type="button"
+                onClick={handlePostToInstagram}
+                disabled={postingToInstagram}
+                className="w-full px-4 py-2.5 rounded-xl text-[13px] font-medium text-white transition-all duration-200 border border-white/10 bg-white/5 hover:border-white/20 hover:bg-white/10 hover:shadow-[0_0_32px_-8px_rgba(255,255,255,0.18)] disabled:opacity-40 active:scale-[0.99]"
+              >
+                {postingToInstagram ? 'Poster…' : 'Post nu'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
