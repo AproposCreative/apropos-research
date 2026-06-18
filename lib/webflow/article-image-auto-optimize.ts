@@ -7,6 +7,7 @@ import {
   fetchArticleItemById,
   maybeOptimizeContentImagesForFieldData,
   patchArticleFieldData,
+  publishArticleItem,
 } from '@/lib/webflow/content-image-optimizer';
 import { maybeOptimizeMobileImageForFieldData } from '@/lib/webflow/mobile-image-optimizer';
 import { resolveSeoTitleFromFieldData } from '@/lib/images/seo-image-name';
@@ -120,7 +121,7 @@ export async function autoOptimizeArticleFieldData(args: {
  */
 export async function autoOptimizeArticleByItemId(
   itemId: string,
-  options: { force?: boolean; source?: string } = {}
+  options: { force?: boolean; source?: string; publishToLive?: boolean } = {}
 ): Promise<ArticleImageAutoOptimizeResult> {
   if (!isArticleImageAutoOptimizeEnabled()) {
     return {
@@ -155,6 +156,19 @@ export async function autoOptimizeArticleByItemId(
 
   if (changed) {
     await patchArticleFieldData(itemId, fieldData);
+    // Publicér til live så de optimerede billeder faktisk vises. Kun når noget
+    // ændrede sig → andet pass finder alt allerede optimeret (changed=false) og
+    // publicerer ikke igen, så webhook-loopet stopper efter én runde.
+    if (options.publishToLive) {
+      try {
+        await publishArticleItem(itemId);
+      } catch (e) {
+        logger.warn('[webflow/article-auto] publish-to-live skipped', {
+          itemId,
+          message: e instanceof Error ? e.message : String(e),
+        });
+      }
+    }
   }
 
   const logResult: ArticleImageAutoOptimizeResult = {

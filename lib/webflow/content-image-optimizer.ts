@@ -109,7 +109,20 @@ export function extractImageSrcsFromHtml(html: string): ContentImageEntry[] {
 
 export function shouldOptimizeSrc(src: string, force?: boolean): boolean {
   if (!src || !/^https?:\/\//i.test(src)) return false;
-  const lower = src.toLowerCase();
+  // Webflow re-hoster vores optimerede WebP og dobbelt-URL-encoder stien
+  // (fx "webflow%252Fcontent-images"). Dekod (op til to gange) så vi genkender
+  // allerede optimerede billeder og undgår at re-optimere dem hver gang.
+  let decoded = src;
+  for (let i = 0; i < 2; i += 1) {
+    try {
+      const next = decodeURIComponent(decoded);
+      if (next === decoded) break;
+      decoded = next;
+    } catch {
+      break;
+    }
+  }
+  const lower = decoded.toLowerCase();
   if (/\.(gif|svg)(\?|$)/i.test(lower)) return false;
   if (!force && lower.includes(OPTIMIZED_PATH_MARKER)) return false;
   if (!force && lower.includes('webflow/mobile-images')) return false;
@@ -421,6 +434,31 @@ export async function patchArticleFieldData(
   if (!res.ok) {
     const j = await res.json().catch(() => ({}));
     throw new Error(j?.message || `Webflow update error ${res.status}`);
+  }
+}
+
+/**
+ * Publicér et item til live, så staged ændringer (optimerede billeder) faktisk
+ * vises på sitet. Kald KUN når fieldData rent faktisk blev ændret — ellers
+ * risikerer man en publish-loop via collection_item_published-webhooken.
+ */
+export async function publishArticleItem(itemId: string): Promise<void> {
+  const { token, collectionId } = await resolveRuntime();
+  const res = await fetch(
+    `https://api.webflow.com/v2/collections/${collectionId}/items/publish`,
+    {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Accept-Version': '1.0.0',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ itemIds: [itemId] }),
+    }
+  );
+  if (!res.ok) {
+    const j = await res.json().catch(() => ({}));
+    throw new Error(j?.message || `Webflow publish error ${res.status}`);
   }
 }
 
