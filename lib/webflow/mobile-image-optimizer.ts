@@ -2,6 +2,7 @@ import { FieldValue } from 'firebase-admin/firestore';
 import { env } from '@/lib/config/env';
 import { getAdminDb } from '@/lib/firebase-admin';
 import { optimizeAndUploadImage, type OptimizeAndUploadImageResult } from '@/lib/images/optimize-and-upload';
+import { resolveArticleSeoImageBaseName } from '@/lib/images/seo-image-name';
 import { logger } from '@/lib/logger';
 import { getWebflowConfig } from '@/lib/webflow-config';
 
@@ -37,8 +38,17 @@ function normalizeUrlForCompare(url: string): string {
 /** Kun spring over hvis Mobile Image er vores optimerede WebP-upload (Firebase). */
 export function isOptimizedMobileImageUrl(url: string | null | undefined): boolean {
   if (!url) return false;
-  const lower = url.toLowerCase();
-  return lower.includes(MOBILE_OPTIMIZED_PATH) && /\.webp(\?|$)/i.test(lower);
+  let decoded = url;
+  try {
+    decoded = decodeURIComponent(url);
+  } catch {
+    /* keep raw */
+  }
+  const lower = decoded.toLowerCase();
+  return (
+    (lower.includes(MOBILE_OPTIMIZED_PATH) || lower.includes('webflow%2fmobile-images')) &&
+    /\.webp(\?|$|&)/i.test(lower)
+  );
 }
 
 export function needsMobileImageOptimization(args: {
@@ -297,7 +307,10 @@ export async function runMobileImageOptimization(options: MobileImageOptimizeOpt
         qualityStart: options.qualityStart ?? 85,
         qualityMin: options.qualityMin ?? 65,
         folder: 'webflow/mobile-images',
-        baseName: candidate.slug || candidate.title,
+        baseName: resolveArticleSeoImageBaseName({
+          slug: candidate.slug,
+          title: candidate.title,
+        }),
         role: 'mobile',
       });
       await updateMobileImageField(candidate.id, mobileImageSlug, output.url);
@@ -357,12 +370,59 @@ export async function runMobileImageOptimization(options: MobileImageOptimizeOpt
   };
 }
 
+export async function patchMobileImageFromThumb(args: {
+  itemId: string;
+  thumbUrl: string;
+  mobileImageUrl?: string | null;
+  articleTitle?: string;
+  articleSlug?: string;
+  articleSeoTitle?: string;
+  force?: boolean;
+}): Promise<{ patched: boolean; output?: OptimizeAndUploadImageResult }> {
+  const enabled =
+    process.env.WEBFLOW_MOBILE_IMAGE_OPTIMIZE !== '0' &&
+    process.env.WEBFLOW_MOBILE_IMAGE_OPTIMIZE !== 'false';
+  if (!enabled) return { patched: false };
+
+  const { mobileImageSlug } = await getMobileImageFieldSlugs();
+  if (
+    !needsMobileImageOptimization({
+      thumbUrl: args.thumbUrl,
+      mobileImageUrl: args.mobileImageUrl ?? null,
+      force: args.force,
+    })
+  ) {
+    return { patched: false };
+  }
+
+  const output = await optimizeAndUploadImage({
+    imageUrl: args.thumbUrl,
+    maxSizeKB: Number(process.env.WEBFLOW_MOBILE_IMAGE_MAX_KB || 260),
+    maxLongEdge: Number(process.env.WEBFLOW_MOBILE_IMAGE_MAX_EDGE || 1200),
+    qualityStart: 85,
+    qualityMin: 65,
+    folder: 'webflow/mobile-images',
+    baseName: resolveArticleSeoImageBaseName({
+      slug: args.articleSlug,
+      seoTitle: args.articleSeoTitle,
+      title: args.articleTitle,
+    }),
+    role: 'mobile',
+  });
+  await updateMobileImageField(args.itemId, mobileImageSlug, output.url);
+  return { patched: true, output };
+}
+
 export async function maybeOptimizeMobileImageForFieldData(args: {
   fieldData: Record<string, any>;
   articleTitle?: string;
   articleSlug?: string;
+  articleSeoTitle?: string;
+  force?: boolean;
 }): Promise<void> {
-  const enabled = process.env.WEBFLOW_MOBILE_IMAGE_OPTIMIZE !== '0' && process.env.WEBFLOW_MOBILE_IMAGE_OPTIMIZE !== 'false';
+  const enabled =
+    process.env.WEBFLOW_MOBILE_IMAGE_OPTIMIZE !== '0' &&
+    process.env.WEBFLOW_MOBILE_IMAGE_OPTIMIZE !== 'false';
   if (!enabled) return;
 
   try {
@@ -370,8 +430,10 @@ export async function maybeOptimizeMobileImageForFieldData(args: {
     const { thumbSlug, mobileImageSlug } = await getMobileImageFieldSlugs();
     const thumbUrl = resolveImageUrl(fieldData[thumbSlug] ?? fieldData.thumb);
     const mobileImageUrl = resolveImageUrl(fieldData[mobileImageSlug]);
-    if (!needsMobileImageOptimization({ thumbUrl, mobileImageUrl, force: false })) return;
     if (!thumbUrl) return;
+    if (!needsMobileImageOptimization({ thumbUrl, mobileImageUrl, force: args.force ?? false })) {
+      return;
+    }
     const output = await optimizeAndUploadImage({
       imageUrl: thumbUrl,
       maxSizeKB: Number(process.env.WEBFLOW_MOBILE_IMAGE_MAX_KB || 260),
@@ -379,7 +441,11 @@ export async function maybeOptimizeMobileImageForFieldData(args: {
       qualityStart: 85,
       qualityMin: 65,
       folder: 'webflow/mobile-images',
-      baseName: args.articleSlug || args.articleTitle || 'apropos-article',
+      baseName: resolveArticleSeoImageBaseName({
+        slug: args.articleSlug,
+        seoTitle: args.articleSeoTitle,
+        title: args.articleTitle,
+      }),
       role: 'mobile',
     });
     fieldData[mobileImageSlug] = output.url;

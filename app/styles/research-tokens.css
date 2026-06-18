@@ -1,0 +1,184 @@
+/**
+ * Apropos Research — Linear / Refero marketing tokens.
+ * Used only on app/landing/* — not studio UI.
+ */
+:root {
+  --research-canvas: #08090a;
+  --research-nav: #0f1011;
+  --research-card: #161718;
+  --research-card-elevated: #1c1d1f;
+  --research-graphite: #23252a;
+  --research-steel: #383b3f;
+  --research-slate: #62666d;
+  --research-fog: #8a8f98;
+  --research-mist: #d0d6e0;
+  --research-snow: #f7f8f8;
+  --research-indigo: #5e6ad2;
+  --research-border: rgba(255, 255, 255, 0.08);
+  --research-border-strong: rgba(255, 255, 255, 0.12);
+  --research-text: #f7f8f8;
+  --research-text-muted: #8a8f98;
+  --research-text-subtle: #62666d;
+  --research-lime: #e4f222;
+  --research-lime-hover: #d4e21a;
+  --research-lime-text: #08090a;
+  --research-max-width: 1200px;
+  --research-radius-btn: 6px;
+  --research-radius-card: 12px;
+  --research-nav-height: 56px;
+  --research-shadow-card: 0 0 0 1px rgba(255, 255, 255, 0.06), 0 24px 48px -24px rgba(0, 0, 0, 0.65);
+}
+
+.research-root {
+  background-color: var(--research-canvas);
+  color: var(--research-text);
+  font-family: var(--font-inter), system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  font-feature-settings: 'cv01', 'cv02', 'ss01';
+}
+
+.research-mono {
+  font-family: var(--font-jetbrains-mono), ui-monospace, monospace;
+}
+
+.research-container {
+  width: 100%;
+  max-width: var(--research-max-width);
+  margin-left: auto;
+  margin-right: auto;
+  padding-left: 1.25rem;
+  padding-right: 1.25rem;
+}
+
+@media (min-width: 768px) {
+  .research-container {
+    padding-left: 2rem;
+    padding-right: 2rem;
+  }
+}
+
+.research-display {
+  font-size: clamp(2.5rem, 6vw, 4rem);
+  font-weight: 510;
+  letter-spacing: -0.035em;
+  line-height: 1.05;
+  color: var(--research-snow);
+}
+
+.research-heading {
+  font-size: clamp(1.5rem, 3vw, 2rem);
+  font-weight: 510;
+  letter-spacing: -0.025em;
+  line-height: 1.15;
+}
+
+.research-subheading {
+  font-size: 1.25rem;
+  font-weight: 590;
+  letter-spacing: -0.02em;
+  line-height: 1.35;
+}
+
+.research-body-lg {
+  font-size: 1.0625rem;
+  line-height: 1.6;
+  color: var(--research-fog);
+}
+
+.research-lime-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.625rem 1.125rem;
+  border-radius: var(--research-radius-btn);
+  background-color: var(--research-lime);
+  color: var(--research-lime-text);
+  font-size: 0.875rem;
+  font-weight: 590;
+  border: none;
+  cursor: pointer;
+  transition: background-color 0.15s ease, transform 0.1s ease;
+  text-decoration: none;
+}
+
+.research-lime-btn:hover {
+  background-color: var(--research-lime-hover);
+}
+
+.research-lime-btn:active {
+  transform: scale(0.98);
+}
+
+.research-lime-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.research-outline-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.625rem 1.125rem;
+  border-radius: var(--research-radius-btn);
+  background: transparent;
+  color: var(--research-mist);
+  font-size: 0.875rem;
+  font-weight: 500;
+  border: 1px solid var(--research-graphite);
+  cursor: pointer;
+  transition: border-color 0.15s ease, color 0.15s ease, background 0.15s ease;
+  text-decoration: none;
+}
+
+.research-outline-btn:hover {
+  border-color: var(--research-steel);
+  color: var(--research-snow);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.research-ghost-link {
+  color: var(--research-fog);
+  font-size: 0.875rem;
+  text-decoration: none;
+  transition: color 0.15s ease;
+}
+
+.research-ghost-link:hover {
+  color: var(--research-snow);
+}
+
+.research-card {
+  background-color: var(--research-card);
+  border: 1px solid var(--research-border);
+  border-radius: var(--research-radius-card);
+  box-shadow: var(--research-shadow-card);
+}
+
+.research-section-title {
+  font-size: clamp(1.75rem, 4vw, 2.5rem);
+  font-weight: 510;
+  letter-spacing: -0.03em;
+  line-height: 1.15;
+}
+
+.research-section-sub {
+  font-size: 1.0625rem;
+  color: var(--research-fog);
+  line-height: 1.6;
+  max-width: 36rem;
+}
+
+.research-gradient-fade {
+  pointer-events: none;
+  background: linear-gradient(180deg, transparent 0%, var(--research-canvas) 100%);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .research-root * {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

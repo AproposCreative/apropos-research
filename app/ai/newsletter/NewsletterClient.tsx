@@ -396,7 +396,8 @@ export default function NewsletterClient({ embedded = false, onClose }: Newslett
       if (!res.ok) throw new Error(data.error || res.statusText);
       if (!data.found) {
         setPreviewArticleIds([]);
-        setStatus('Ingen gemt kladde — tryk «Hent Preview» for at bygge en.');
+        setStatus('Henter preview…');
+        await loadDraft();
         return;
       }
       setHtml(data.html);
@@ -423,7 +424,7 @@ export default function NewsletterClient({ embedded = false, onClose }: Newslett
     } finally {
       setBusy(false);
     }
-  }, [authHeader, html, user]);
+  }, [authHeader, html, loadDraft, user]);
 
   useEffect(() => {
     if (user && !html) void loadDraftFromCacheOnOpen();
@@ -1348,7 +1349,7 @@ export default function NewsletterClient({ embedded = false, onClose }: Newslett
     </div>
   ) : (
     <div className="h-full min-h-[160px] flex items-center justify-center rounded-xl border border-dashed border-white/[0.08] bg-black/15 text-white/32 text-[13px] px-6 text-center">
-      Hent Preview
+      {busy ? 'Henter preview…' : 'Hent Preview'}
     </div>
   );
 

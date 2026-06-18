@@ -11,6 +11,10 @@ import DynamicHeader from './DynamicHeader';
 import BulkBar from './BulkBar';
 import ProtectedRoute from './ProtectedRoute';
 
+function isSalesRoute(pathname: string): boolean {
+  return pathname === '/landing' || pathname.startsWith('/landing/');
+}
+
 function MobileMenuButton() {
   const [isOpen, setIsOpen] = useState(false);
   const closeMenu = () => setIsOpen(false);
@@ -128,6 +132,10 @@ export default function ConditionalLayout({ children }: { children: React.ReactN
   const isMinimalLayout = !dashboardRoutes.includes(pathname);
   const isLogin = pathname === '/login';
   const isPublicNewsletterUnsub = pathname === '/newsletter/frameld';
+
+  if (isSalesRoute(pathname)) {
+    return <>{children}</>;
+  }
 
   if (isMinimalLayout) {
     // Allow access to the public login page without auth guard

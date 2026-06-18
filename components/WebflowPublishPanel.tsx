@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { WebflowArticleFields } from '@/lib/webflow-service';
+import type { WebflowArticleFields } from '@/lib/webflow/types';
 import { SEO_DESCRIPTION_MAX } from '@/lib/seo/constants';
 
 interface WebflowPublishPanelProps {

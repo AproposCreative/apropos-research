@@ -649,99 +649,105 @@ export async function publishArticleToWebflow(articleData: WebflowArticleFields)
 
     // Build fieldData via mapping
     const fieldData = await buildFieldDataFromMapping(articleData, readMapping());
-    await autoOptimizeArticleFieldData({
+    const imageOptimize = await autoOptimizeArticleFieldData({
       fieldData,
       articleTitle: articleData.title,
       articleSlug: articleData.slug,
+      articleSeoTitle: articleData.seoTitle,
     });
-
-    // Resolve author reference automatically if provided as a name/slug
-    if (fieldData['author']) {
-      const authorVal = fieldData['author'];
-      if (typeof authorVal === 'string') {
-        // Heuristic: if it looks like a name or slug (has spaces or short/non-id), try resolving to itemId
-        const looksLikeNameOrSlug = /\s/.test(authorVal) || authorVal.length < 20;
-        if (looksLikeNameOrSlug) {
-          const resolvedId = await resolveAuthorIdFromName(authorVal).catch(() => undefined);
-          if (resolvedId) {
-            fieldData['author'] = resolvedId;
-          }
-        }
-      }
+    if (
+      imageOptimize.thumbOptimized ||
+      imageOptimize.mobileOptimized ||
+      imageOptimize.contentImagesOptimized > 0
+    ) {
+      logger.info('[webflow] auto image optimize before publish', imageOptimize);
     }
 
-    // Resolve section reference automatically if provided as a name/slug
-    if (fieldData['section']) {
-      const sectionVal = fieldData['section'];
-      if (typeof sectionVal === 'string') {
-        const looksLikeNameOrSlug = /\s/.test(sectionVal) || sectionVal.length < 20;
-        if (looksLikeNameOrSlug) {
-          const resolvedId = await resolveSectionIdFromName(sectionVal).catch(() => undefined);
-          if (resolvedId) {
-            fieldData['section'] = resolvedId;
-          }
-        }
-      }
-    }
+    const looksLikeNameOrSlug = (val: string) => /\s/.test(val) || val.length < 20;
 
-    // Primary Topic + Topics (multi): prøv hele topicsSelected i rækkefølge til første match,
-    // derefter alle øvrige der matcher (typisk Musik + Festival + …).
+    const authorVal =
+      typeof fieldData['author'] === 'string' ? fieldData['author'] : undefined;
+    const sectionVal =
+      typeof fieldData['section'] === 'string' ? fieldData['section'] : undefined;
     const topicsSelected = (articleData as any).topicsSelected as string[] | undefined;
-    if (Array.isArray(topicsSelected) && topicsSelected.length > 0) {
-      const resolvedIdsOrdered: string[] = [];
-      const seen = new Set<string>();
-      for (const raw of topicsSelected) {
-        const name = String(raw || '').trim();
-        if (!name) continue;
-        const looksLikeId = /^[a-f0-9]{24}$/i.test(name);
-        const id = looksLikeId ? name : await resolveTopicIdFromName(name).catch(() => undefined);
-        if (id && !seen.has(id)) {
-          seen.add(id);
-          resolvedIdsOrdered.push(id);
-        }
+
+    const schemaPromise = fetch(
+      `https://api.webflow.com/v2/collections/${articlesCollectionId}`,
+      {
+        headers: { Authorization: `Bearer ${token}`, 'Accept-Version': '1.0.0' },
       }
-      if (resolvedIdsOrdered.length > 0) {
-        fieldData['topic'] = resolvedIdsOrdered[0];
-        // Multi-reference "Topics" skal ikke være tom bare fordi kun ét navn matchede —
-        // Webflow UI viser ellers "Pick Topics..." selv om Primary Topic er sat.
-        fieldData['topics'] = resolvedIdsOrdered;
-      }
-    } else {
-      if (fieldData['topic']) {
-        const topicVal = fieldData['topic'];
-        if (typeof topicVal === 'string') {
-          const looksLikeNameOrSlug = /\s/.test(topicVal) || topicVal.length < 20;
-          if (looksLikeNameOrSlug) {
-            const resolvedId = await resolveTopicIdFromName(topicVal).catch(() => undefined);
-            if (resolvedId) {
-              fieldData['topic'] = resolvedId;
-            }
+    );
+
+    const authorPromise =
+      authorVal && looksLikeNameOrSlug(authorVal)
+        ? resolveAuthorIdFromName(authorVal).catch(() => undefined)
+        : Promise.resolve(undefined);
+
+    const sectionPromise =
+      sectionVal && looksLikeNameOrSlug(sectionVal)
+        ? resolveSectionIdFromName(sectionVal).catch(() => undefined)
+        : Promise.resolve(undefined);
+
+    const topicsPromise = (async (): Promise<{
+      primary?: string;
+      multi?: string[];
+    }> => {
+      if (Array.isArray(topicsSelected) && topicsSelected.length > 0) {
+        const resolved = await Promise.all(
+          topicsSelected.map(async (raw) => {
+            const name = String(raw || '').trim();
+            if (!name) return undefined;
+            if (/^[a-f0-9]{24}$/i.test(name)) return name;
+            return resolveTopicIdFromName(name).catch(() => undefined);
+          })
+        );
+        const resolvedIdsOrdered: string[] = [];
+        const seen = new Set<string>();
+        for (const id of resolved) {
+          if (id && !seen.has(id)) {
+            seen.add(id);
+            resolvedIdsOrdered.push(id);
           }
         }
+        if (resolvedIdsOrdered.length === 0) return {};
+        return { primary: resolvedIdsOrdered[0], multi: resolvedIdsOrdered };
       }
 
-      if (fieldData['topics']) {
-        const topicsVal = fieldData['topics'];
-        if (Array.isArray(topicsVal)) {
-          const resolvedIds = [];
-          for (const topicVal of topicsVal) {
-            if (typeof topicVal === 'string') {
-              const looksLikeNameOrSlug = /\s/.test(topicVal) || topicVal.length < 20;
-              if (looksLikeNameOrSlug) {
-                const resolvedId = await resolveTopicIdFromName(topicVal).catch(() => undefined);
-                if (resolvedId) {
-                  resolvedIds.push(resolvedId);
-                }
-              } else {
-                resolvedIds.push(topicVal);
-              }
-            } else {
-              resolvedIds.push(topicVal);
-            }
-          }
-          fieldData['topics'] = resolvedIds;
-        }
-      }
+      const topicVal =
+        typeof fieldData['topic'] === 'string' ? fieldData['topic'] : undefined;
+      const primaryPromise =
+        topicVal && looksLikeNameOrSlug(topicVal)
+          ? resolveTopicIdFromName(topicVal).catch(() => undefined)
+          : Promise.resolve(undefined);
+
+      const topicsVal = fieldData['topics'];
+      const multiPromise = Array.isArray(topicsVal)
+        ? Promise.all(
+            topicsVal.map(async (topicItem) => {
+              if (typeof topicItem !== 'string') return topicItem;
+              if (!looksLikeNameOrSlug(topicItem)) return topicItem;
+              const resolved = await resolveTopicIdFromName(topicItem).catch(() => undefined);
+              return resolved ?? null;
+            })
+          ).then((ids) => ids.filter((id): id is string => typeof id === 'string' && id.length > 0))
+        : Promise.resolve(undefined);
+
+      const [primary, multi] = await Promise.all([primaryPromise, multiPromise]);
+      return { primary, multi: multi as string[] | undefined };
+    })();
+
+    const [schemaRes, resolvedAuthor, resolvedSection, resolvedTopics] = await Promise.all([
+      schemaPromise,
+      authorPromise,
+      sectionPromise,
+      topicsPromise,
+    ]);
+
+    if (resolvedAuthor) fieldData['author'] = resolvedAuthor;
+    if (resolvedSection) fieldData['section'] = resolvedSection;
+    if (resolvedTopics.primary) fieldData['topic'] = resolvedTopics.primary;
+    if (resolvedTopics.multi && resolvedTopics.multi.length > 0) {
+      fieldData['topics'] = resolvedTopics.multi;
     }
 
     // Resolve streaming service - use the correct field slug from Webflow: "simple-rerfence"
@@ -791,12 +797,9 @@ export async function publishArticleToWebflow(articleData: WebflowArticleFields)
       }
     }
 
-    // Filter fieldData to only include slugs that exist in the collection schema
+    // Filter fieldData to only include slugs that exist in the collection schema (fetched in parallel above)
     let requiredSlugs: string[] = [];
     try {
-      const schemaRes = await fetch(`https://api.webflow.com/v2/collections/${articlesCollectionId}`, {
-        headers: { 'Authorization': `Bearer ${token}`, 'Accept-Version': '1.0.0' },
-      });
       if (schemaRes.ok) {
         const schema: any = await schemaRes.json();
         const allowed = new Set<string>((schema.fields || []).map((f: any) => f.slug));

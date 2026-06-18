@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { resolveInstagramAccessToken } from '@/lib/instagram-config';
 
 export const maxDuration = 120;
 export const runtime = 'nodejs';
@@ -9,7 +10,15 @@ const PROCESSING_INITIAL_POLL_MS = 800;
 const PROCESSING_MAX_POLL_MS = 3000;
 const PROCESSING_MAX_WAIT_MS = 60_000; // 60s max wait
 
-function tokenRefreshHint(): string {
+function tokenRefreshHint(graphMessage?: string): string {
+  const sessionInvalidated = /password|session has been invalidated|security reasons/i.test(
+    String(graphMessage || ''),
+  );
+  if (sessionInvalidated) {
+    return process.env.NODE_ENV === 'production'
+      ? 'Facebook-sessionen er invalideret (ofte efter adgangskodeskift). Gå til Indstillinger → Social: nyt bruger-token fra Graph API Explorer, konvertér, opdater INSTAGRAM_ACCESS_TOKEN i Vercel, og redeploy.'
+      : 'Facebook-sessionen er invalideret (ofte efter adgangskodeskift). Indstillinger → Social: nyt token, konvertér, opdater INSTAGRAM_ACCESS_TOKEN i .env.local, og genstart dev-server.';
+  }
   return process.env.NODE_ENV === 'production'
     ? 'Instagram-tokenet er udløbet. Opdater INSTAGRAM_ACCESS_TOKEN i Vercel (Production env) med et nyt Page access token fra Meta, og redeploy (se docs/INSTAGRAM_PUBLISH.md).'
     : 'Instagram-tokenet er udløbet. Opdater INSTAGRAM_ACCESS_TOKEN i .env.local med et nyt Page access token fra Meta (se docs/INSTAGRAM_PUBLISH.md).';
@@ -148,9 +157,8 @@ async function commentOnFacebookPost(args: {
  * Returnerer om Instagram-publish er konfigureret (til UI / test).
  */
 export async function GET() {
-  const ok =
-    !!process.env.INSTAGRAM_ACCOUNT_ID?.trim() &&
-    !!process.env.INSTAGRAM_ACCESS_TOKEN?.trim();
+  const { token } = await resolveInstagramAccessToken();
+  const ok = !!process.env.INSTAGRAM_ACCOUNT_ID?.trim() && !!token;
   return NextResponse.json({ configured: ok });
 }
 
@@ -166,7 +174,7 @@ export async function GET() {
  */
 export async function POST(request: NextRequest) {
   const igId = process.env.INSTAGRAM_ACCOUNT_ID;
-  const accessToken = process.env.INSTAGRAM_ACCESS_TOKEN;
+  const { token: accessToken } = await resolveInstagramAccessToken();
   const facebookPageId = process.env.FACEBOOK_PAGE_ID?.trim();
 
   if (!igId || !accessToken) {
@@ -222,9 +230,11 @@ export async function POST(request: NextRequest) {
       const msg = createData.error?.message ?? '';
       const isTokenExpired =
         createData.error?.code === 190 ||
-        /session has expired|error validating access token|token.*expired/i.test(String(msg));
+        /session has expired|error validating access token|token.*expired|password|session has been invalidated/i.test(
+          String(msg),
+        );
       const userMessage = isTokenExpired
-        ? tokenRefreshHint()
+        ? tokenRefreshHint(msg)
         : (msg || 'Instagram kunne ikke oprette opslag.');
       return NextResponse.json(
         { error: userMessage },
@@ -282,9 +292,11 @@ export async function POST(request: NextRequest) {
       const msg = publishData.error?.message ?? '';
       const isTokenExpired =
         publishData.error?.code === 190 ||
-        /session has expired|error validating access token|token.*expired/i.test(String(msg));
+        /session has expired|error validating access token|token.*expired|password|session has been invalidated/i.test(
+          String(msg),
+        );
       const userMessage = isTokenExpired
-        ? tokenRefreshHint()
+        ? tokenRefreshHint(msg)
         : /media id is not available|not available|still processing/i.test(String(msg))
           ? 'Instagram er stadig ved at behandle billedet. Vent 5-10 sekunder og prøv igen.'
         : (msg || 'Instagram kunne ikke publicere.');

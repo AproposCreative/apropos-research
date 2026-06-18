@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { Application } from '@splinetool/runtime';
+import { hideSplineWatermarks } from '@/lib/spline-hide-watermark';
 
 interface SplineAnimationProps {
   sceneUrl: string;
@@ -47,6 +48,7 @@ export default function SplineAnimation({
             // Try to load with this URL
             await app.load(url);
             console.log(`✅ Spline scene loaded successfully with URL: ${url}`);
+            hideSplineWatermarks();
             setIsLoading(false);
             return; // Success, exit the loop
             

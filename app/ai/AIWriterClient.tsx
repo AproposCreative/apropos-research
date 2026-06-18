@@ -9,6 +9,7 @@ import ReviewPanel from '@/components/ReviewPanel';
 import DraftsShelf from '@/components/DraftsShelf';
 import WebAppsPanel from '@/components/WebAppsPanel';
 import MiniMenu from '@/components/MiniMenu';
+import MobileAppLauncher from '@/components/MobileAppLauncher';
 import PreviewPanel from './PreviewPanel';
 import DesignEditorView from '@/app/design-editor/DesignEditorView';
 import AuthModal from '@/components/AuthModal';
@@ -17,7 +18,10 @@ import { SEO_TITLE_MAX } from '@/lib/seo/constants';
 import SourcesPanel from '@/components/SourcesPanel';
 import SettingsPanel from '@/components/SettingsPanel';
 import NewsletterClient from '@/app/ai/newsletter/NewsletterClient';
-import LivPostingClient from '@/app/ai/liv/LivPostingClient';
+import DashboardClient from '@/app/dashboard/DashboardClient';
+import PodcastClient from '@/app/ai/podcast/PodcastClient';
+import PushDeskClient from '@/app/push/PushDeskClient';
+import FundingDeskView from '@/app/funding/FundingDeskView';
 import { useAuth } from '@/lib/auth-context';
 import { saveDraft, getDraft, type ArticleDraft } from '@/lib/firebase-service';
 import { autoSaveService } from '@/lib/auto-save-service';
@@ -26,13 +30,16 @@ import type { ThinkingStep, ThinkingStatus } from '@/types/thinking';
 import { PROMPT_ARCHITECT_CONTEXT_KEY } from '@/lib/prompt-architect-constants';
 import { loadPromptModuleToggles } from '@/lib/prompt-architect-storage';
 import { SPLINE_BACKGROUNDS, STORAGE_KEY_SPLINE_BG } from '@/lib/spline-backgrounds';
+import { EDITORIAL_SIGNAL_PUBLISHED_EVENT } from '@/lib/editorial/signal-store';
 import {
   BASE_THINKING_STEPS,
   GENERATION_MODE_OPTIONS,
+  type AIWriterView,
   buildDefaultArticleData,
   normalizeArticleData,
   resolveViewFromSearchParams,
 } from './ai-writer/article-defaults';
+import { clearFundingBriefHandoff, readFundingBriefHandoff } from '@/lib/funding/handoff';
 
 const APP_VERSION = process.env.NEXT_PUBLIC_APP_VERSION || '0.0.0';
 const BUILD_ID = process.env.NEXT_PUBLIC_BUILD_ID || 'local';
@@ -67,14 +74,14 @@ export default function AIWriterClient() {
   const [sourcesOpen, setSourcesOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [isClosing, setIsClosing] = useState(false);
-  const [activeView, setActiveView] = useState<'ai' | 'design-editor' | 'newsletter' | 'liv-posting' | null>(() =>
+  const [activeView, setActiveView] = useState<AIWriterView>(() =>
     resolveViewFromSearchParams(searchParams)
   );
   const leftPanelOpen = shelfOpen || webAppsOpen;
 
   /** Opdater aktiv visning og URL, så refresh og deling bevarer fx nyhedsbrev (`?view=newsletter`). */
   const applyActiveView = useCallback(
-    (view: 'ai' | 'design-editor' | 'newsletter' | 'liv-posting' | null) => {
+    (view: AIWriterView) => {
       setActiveView(view);
       setReviewOpen(false);
       setSourcesOpen(false);
@@ -88,8 +95,14 @@ export default function AIWriterClient() {
         params.set('view', 'newsletter');
       } else if (view === 'design-editor') {
         params.set('view', 'design-editor');
-      } else if (view === 'liv-posting') {
-        params.set('view', 'liv-posting');
+      } else if (view === 'dashboard') {
+        params.set('view', 'dashboard');
+      } else if (view === 'podcast') {
+        params.set('view', 'podcast');
+      } else if (view === 'push') {
+        params.set('view', 'push');
+      } else if (view === 'funding') {
+        params.set('view', 'funding');
       } else if (view === 'ai') {
         params.set('view', 'ai');
       } else {
@@ -208,7 +221,7 @@ export default function AIWriterClient() {
   useEffect(() => {
     const next = resolveViewFromSearchParams(searchParams);
     setActiveView((prev) => (prev === next ? prev : next));
-    if (next === 'newsletter' || next === 'liv-posting') {
+    if (next === 'newsletter' || next === 'dashboard' || next === 'podcast' || next === 'push' || next === 'funding') {
       setReviewOpen(false);
       setSourcesOpen(false);
       setSettingsOpen(false);
@@ -224,8 +237,20 @@ export default function AIWriterClient() {
         applyActiveView('newsletter');
         return;
       }
-      if (id === 'ai-posting' || id === 'liv-posting') {
-        applyActiveView('liv-posting');
+      if (id === 'push-desk') {
+        applyActiveView('push');
+        return;
+      }
+      if (id === 'funding-desk') {
+        applyActiveView('funding');
+        return;
+      }
+      if (id === 'dashboard') {
+        applyActiveView('dashboard');
+        return;
+      }
+      if (id === 'podcast') {
+        applyActiveView('podcast');
         return;
       }
       applyActiveView(id === 'design-editor' ? 'design-editor' : 'ai');
@@ -255,10 +280,18 @@ export default function AIWriterClient() {
     }
   }, [reviewOpen, shelfOpen, webAppsOpen, isDesktop, isNarrowDesktop]);
 
-  // Make design editor open larger by default on desktop.
+  // Make tool/editor panels open larger by default on desktop.
   useEffect(() => {
     if (typeof window === 'undefined') return;
-    if (activeView !== 'design-editor') return;
+    if (
+      activeView !== 'design-editor' &&
+      activeView !== 'dashboard' &&
+      activeView !== 'podcast' &&
+      activeView !== 'push' &&
+      activeView !== 'funding'
+    ) {
+      return;
+    }
     if (!isDesktop) return;
     const target = Math.min(Math.round(viewportWidth * 0.75), 1000);
     setChatWidth(prev => {
@@ -956,6 +989,26 @@ export default function AIWriterClient() {
     }
   }, [notes, addChatMessage, handleSendMessage]);
 
+  const fundingHandoffRanRef = useRef(false);
+  useEffect(() => {
+    if (fundingHandoffRanRef.current) return;
+    if (searchParams.get('from') !== 'funding') return;
+    const handoff = readFundingBriefHandoff();
+    if (!handoff) return;
+    fundingHandoffRanRef.current = true;
+    clearFundingBriefHandoff();
+    setArticleData((prev) => ({
+      ...prev,
+      fundingOpportunityId: handoff.opportunityId,
+      fundingResearch: handoff.fundingResearch ?? null,
+      applicationSection: handoff.applicationSection,
+      topic: handoff.opportunityTitle,
+      title: handoff.opportunityTitle,
+    }));
+    setActiveView('ai');
+    void handleSendMessage(handoff.briefText);
+  }, [searchParams, handleSendMessage]);
+
   // Automatically reveal review drawer when fresh article content arrives
   const previousContentRef = useRef(articleData.content || '');
   useEffect(() => {
@@ -967,9 +1020,9 @@ export default function AIWriterClient() {
     previousContentRef.current = next;
   }, [articleData.content, reviewOpen]);
 
-  // Auto-save to Firebase when data changes
+  // Auto-save to Firebase when data changes (kun i AI Writer — undgår Firestore-fejl i andre views)
   useEffect(() => {
-    if (!user || chatMessages.length === 0) return;
+    if (!user || chatMessages.length === 0 || activeView !== 'ai') return;
 
     const autoSaveTimeout = setTimeout(async () => {
       try {
@@ -1016,7 +1069,7 @@ export default function AIWriterClient() {
     }, 2000); // Auto-save after 2 seconds of inactivity
 
     return () => clearTimeout(autoSaveTimeout);
-  }, [chatMessages, articleData, notes, user, currentDraftId, chatTitle]);
+  }, [chatMessages, articleData, notes, user, currentDraftId, chatTitle, activeView]);
 
   const handleLoadDraft = (draft: ArticleDraft) => {
     
@@ -1162,74 +1215,21 @@ export default function AIWriterClient() {
             key={selectedSplineBg}
             loading="lazy"
           />
+          {/* Dæk Spline free-tier "Made with Spline"-mærket i nederste højre hjørne */}
+          <div
+            aria-hidden
+            className="pointer-events-none absolute bottom-0 right-0 h-11 w-40 bg-black/95 backdrop-blur-md rounded-tl-xl"
+          />
         </div>
         {/* Transparent overlay during resize to prevent iframe from stealing mouse events */}
         {isResizing && <div className="absolute inset-0 z-[5]" />}
 
-        {/* Clean landing: no panels open — show centered launcher on mobile */}
+        {/* Clean landing: full web-app grid on mobile (drives from web-apps-config) */}
         {user && activeView === null && !leftPanelOpen && !reviewOpen && !sourcesOpen && !settingsOpen && (
-          <div className="md:hidden absolute inset-0 z-20 flex flex-col items-center justify-center px-6">
-            <img
-              src="/images/Apropos Research White.png"
-              alt="Apropos Research"
-              className="h-8 opacity-50 mb-8"
-            />
-            <div className="grid grid-cols-2 gap-3 w-full max-w-xs">
-              <button
-                type="button"
-                onClick={() => applyActiveView('ai')}
-                className="flex flex-col items-center gap-2 py-5 rounded-2xl border border-white/[0.12] bg-white/[0.04] hover:bg-white/[0.08] transition-colors"
-              >
-                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-white/70">
-                  <path d="M12 20h9M16.5 3.5a2.121 2.121 0 1 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/>
-                </svg>
-                <span className="text-[13px] text-white/70">AI Writer</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => applyActiveView('newsletter')}
-                className="flex flex-col items-center gap-2 py-5 rounded-2xl border border-white/[0.12] bg-white/[0.04] hover:bg-white/[0.08] transition-colors"
-              >
-                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-white/70">
-                  <rect x="2" y="4" width="20" height="16" rx="2"/>
-                  <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/>
-                </svg>
-                <span className="text-[13px] text-white/70">Nyhedsbrev</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => applyActiveView('design-editor')}
-                className="flex flex-col items-center gap-2 py-5 rounded-2xl border border-white/[0.12] bg-white/[0.04] hover:bg-white/[0.08] transition-colors"
-              >
-                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-white/70">
-                  <rect x="3" y="3" width="18" height="18" rx="2"/>
-                  <path d="M3 9h18M9 21V9"/>
-                </svg>
-                <span className="text-[13px] text-white/70">SoMe Posting</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => applyActiveView('liv-posting')}
-                className="flex flex-col items-center gap-2 py-5 rounded-2xl border border-white/[0.12] bg-white/[0.04] hover:bg-white/[0.08] transition-colors"
-              >
-                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-white/70">
-                  <circle cx="12" cy="8" r="4"/>
-                  <path d="M4 21v-1a7 7 0 0 1 14 0v1"/>
-                </svg>
-                <span className="text-[13px] text-white/70">AI-posting</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setShelfOpen(true)}
-                className="flex flex-col items-center gap-2 py-5 rounded-2xl border border-white/[0.12] bg-white/[0.04] hover:bg-white/[0.08] transition-colors"
-              >
-                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-white/70">
-                  <path d="M4 6h16M4 12h16M4 18h16"/>
-                </svg>
-                <span className="text-[13px] text-white/70">Mine artikler</span>
-              </button>
-            </div>
-          </div>
+          <MobileAppLauncher
+            onSelectApp={handleSelectWebApp}
+            onOpenShelf={() => setShelfOpen(true)}
+          />
         )}
 
         {user && (
@@ -1418,7 +1418,7 @@ export default function AIWriterClient() {
                                   {doneCount}/{total} trin
                                 </span>
                               </div>
-                              <div className="flex gap-1 items-center w-full">
+                              <div className="flex gap-1 items-center w-full py-2.5">
                                 {segRows.map((s, i) => (
                                   <div
                                     key={`${s.label}-${i}`}
@@ -1573,7 +1573,7 @@ export default function AIWriterClient() {
             </div>
             )}
 
-            {activeView === 'liv-posting' && (
+            {activeView === 'dashboard' && (
             <div
               className="w-full flex-shrink-0 absolute top-0 bottom-0 left-0 md:top-[1%] md:bottom-[1%] md:left-[1%] z-10"
               style={{
@@ -1595,7 +1595,88 @@ export default function AIWriterClient() {
                 </div>
               )}
               <div className={`h-full w-full flex flex-col font-poppins ${embeddedPanelShell}`}>
-                <LivPostingClient embedded onClose={() => applyActiveView(null)} />
+                <DashboardClient embedded onClose={() => applyActiveView(null)} />
+              </div>
+            </div>
+            )}
+
+            {activeView === 'podcast' && (
+            <div
+              className="w-full flex-shrink-0 absolute top-0 bottom-0 left-0 md:top-[1%] md:bottom-[1%] md:left-[1%] z-10"
+              style={{
+                width: isDesktop ? `${chatWidth}px` : '100%',
+                transition: isResizing ? 'none' : 'transform 320ms cubic-bezier(0.22, 1, 0.36, 1)',
+                transform: leftPanelOpen ? 'translateX(calc(12px + min(300px, 50vw)))' : 'translateX(0)',
+              }}
+            >
+              {isDesktop && (
+                <div
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    setIsResizing(true);
+                  }}
+                  className="absolute top-0 bottom-0 right-0 w-1 cursor-col-resize hover:bg-white/20 transition-colors z-30 group"
+                  style={{ touchAction: 'none' }}
+                >
+                  <div className="absolute top-1/2 right-0 -translate-y-1/2 translate-x-1/2 w-1 h-16 bg-white/0 group-hover:bg-white/30 rounded-full transition-colors" />
+                </div>
+              )}
+              <div className={`h-full w-full flex flex-col font-poppins ${embeddedPanelShell}`}>
+                <PodcastClient embedded onClose={() => applyActiveView(null)} />
+              </div>
+            </div>
+            )}
+
+            {activeView === 'push' && (
+            <div
+              className="w-full flex-shrink-0 absolute top-0 bottom-0 left-0 md:top-[1%] md:bottom-[1%] md:left-[1%] z-10"
+              style={{
+                width: isDesktop ? `${chatWidth}px` : '100%',
+                transition: isResizing ? 'none' : 'transform 320ms cubic-bezier(0.22, 1, 0.36, 1)',
+                transform: leftPanelOpen ? 'translateX(calc(12px + min(300px, 50vw)))' : 'translateX(0)',
+              }}
+            >
+              {isDesktop && (
+                <div
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    setIsResizing(true);
+                  }}
+                  className="absolute top-0 bottom-0 right-0 w-1 cursor-col-resize hover:bg-white/20 transition-colors z-30 group"
+                  style={{ touchAction: 'none' }}
+                >
+                  <div className="absolute top-1/2 right-0 -translate-y-1/2 translate-x-1/2 w-1 h-16 bg-white/0 group-hover:bg-white/30 rounded-full transition-colors" />
+                </div>
+              )}
+              <div className={`h-full w-full flex flex-col font-poppins ${embeddedPanelShell}`}>
+                <PushDeskClient embedded onClose={() => applyActiveView(null)} />
+              </div>
+            </div>
+            )}
+
+            {activeView === 'funding' && (
+            <div
+              className="w-full flex-shrink-0 absolute top-0 bottom-0 left-0 md:top-[1%] md:bottom-[1%] md:left-[1%] z-10"
+              style={{
+                width: isDesktop ? `${chatWidth}px` : '100%',
+                transition: isResizing ? 'none' : 'transform 320ms cubic-bezier(0.22, 1, 0.36, 1)',
+                transform: leftPanelOpen ? 'translateX(calc(12px + min(300px, 50vw)))' : 'translateX(0)',
+              }}
+            >
+              {isDesktop && (
+                <div
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    setIsResizing(true);
+                  }}
+                  className="absolute top-0 bottom-0 right-0 w-1 cursor-col-resize hover:bg-white/20 transition-colors z-30 group"
+                  style={{ touchAction: 'none' }}
+                >
+                  <div className="absolute top-1/2 right-0 -translate-y-1/2 translate-x-1/2 w-1 h-16 bg-white/0 group-hover:bg-white/30 rounded-full transition-colors" />
+                </div>
+              )}
+              <div className={`h-full w-full flex flex-col font-poppins ${embeddedPanelShell}`}>
+                <FundingDeskView embedded onClose={() => applyActiveView(null)} />
               </div>
             </div>
             )}
@@ -1658,6 +1739,14 @@ export default function AIWriterClient() {
                     }}
                     onRecommendationsApplied={() => {
                       console.log('✅ Recommendations applied callback received');
+                    }}
+                    onEditorialSignalPublished={(detail) => {
+                      if (!detail?.signalId) return;
+                      window.dispatchEvent(
+                        new CustomEvent(EDITORIAL_SIGNAL_PUBLISHED_EVENT, {
+                          detail,
+                        })
+                      );
                     }}
                   />
                 </div>

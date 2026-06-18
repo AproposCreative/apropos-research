@@ -11,6 +11,7 @@
  */
 
 import type { GateResult } from '@/lib/liv/daily-history-store';
+import { internalApiHeaders } from '@/lib/api/internal-auth';
 import { logger } from '@/lib/logger';
 import { checkSourceSimilarity } from '@/lib/liv/source-similarity';
 
@@ -60,7 +61,7 @@ async function postJson<T>(url: string, body: unknown): Promise<T | null> {
   try {
     const res = await fetch(url, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: internalApiHeaders(),
       body: JSON.stringify(body),
       cache: 'no-store',
     });

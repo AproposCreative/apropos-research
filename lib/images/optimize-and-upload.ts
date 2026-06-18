@@ -2,7 +2,10 @@ import { randomUUID } from 'crypto';
 import sharp from 'sharp';
 import { env } from '@/lib/config/env';
 import { getAdminStorageBucket } from '@/lib/firebase-admin';
+import { buildSeoImageFileName } from '@/lib/images/seo-image-name';
 import { logger } from '@/lib/logger';
+
+export { buildSeoImageFileName } from '@/lib/images/seo-image-name';
 
 export type OptimizeAndUploadImageOptions = {
   imageUrl: string;
@@ -13,6 +16,10 @@ export type OptimizeAndUploadImageOptions = {
   folder?: string;
   baseName?: string;
   role?: string;
+  /** Bevar original opløsning — kun format/komprimering (desktop thumb). */
+  preserveDimensions?: boolean;
+  /** Spring over hvis original er mindre (undtagen PNG). */
+  minOriginalKB?: number;
 };
 
 export type OptimizeAndUploadImageResult = {
@@ -24,42 +31,6 @@ export type OptimizeAndUploadImageResult = {
   height: number | null;
   quality: number;
 };
-
-function slugifyForFile(input: string): string {
-  const normalized = input
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/\p{Diacritic}+/gu, '')
-    .replace(/æ/g, 'ae')
-    .replace(/ø/g, 'oe')
-    .replace(/å/g, 'aa')
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '')
-    .replace(/-{2,}/g, '-');
-  return normalized.slice(0, 90) || 'apropos-image';
-}
-
-function shortHash(input: string): string {
-  let h = 2166136261;
-  for (let i = 0; i < input.length; i += 1) {
-    h ^= input.charCodeAt(i);
-    h = Math.imul(h, 16777619);
-  }
-  return (h >>> 0).toString(36).slice(0, 6);
-}
-
-export function buildSeoImageFileName(options: {
-  baseName?: string;
-  role?: string;
-  maxLongEdge?: number;
-  imageUrl?: string;
-}): string {
-  const base = slugifyForFile(options.baseName || 'apropos-image');
-  const role = slugifyForFile(options.role || 'mobile');
-  const width = options.maxLongEdge || 800;
-  const hash = shortHash(`${base}|${role}|${options.imageUrl || ''}`);
-  return `${base}-${role}-${width}w-${hash}.webp`;
-}
 
 async function uploadToFirebaseStorage(
   bucket: string,
@@ -127,24 +98,27 @@ export async function optimizeAndUploadImage(
   const imageBuffer = Buffer.from(await imageResponse.arrayBuffer());
   const originalSizeKB = Math.round(imageBuffer.byteLength / 1024);
   const originalMeta = await sharp(imageBuffer).metadata();
+  const isPng = (originalMeta.format || '').toLowerCase() === 'png';
+  const minOriginalKB = Math.max(0, Math.round(options.minOriginalKB ?? 0));
+  if (
+    minOriginalKB > 0 &&
+    !isPng &&
+    originalSizeKB < minOriginalKB &&
+    !options.preserveDimensions
+  ) {
+    throw new Error(`Billede er allerede lille nok (${originalSizeKB} KB)`);
+  }
 
   let currentQuality = qualityStart;
   let currentLongEdge = maxLongEdge;
   let processedBuffer: Buffer | null = null;
-  let metaWidth: number | null = null;
-  let metaHeight: number | null = null;
+  let metaWidth: number | null = originalMeta.width ?? null;
+  let metaHeight: number | null = originalMeta.height ?? null;
 
-  while (currentLongEdge >= 280) {
-    currentQuality = qualityStart;
+  if (options.preserveDimensions) {
     while (currentQuality >= qualityMin) {
       processedBuffer = await sharp(imageBuffer)
         .rotate()
-        .resize({
-          width: currentLongEdge,
-          height: currentLongEdge,
-          fit: 'inside',
-          withoutEnlargement: true,
-        })
         .webp({
           quality: currentQuality,
           effort: 6,
@@ -153,19 +127,45 @@ export async function optimizeAndUploadImage(
         .toBuffer();
 
       const processedSizeKB = Math.round(processedBuffer.byteLength / 1024);
-      const meta = await sharp(processedBuffer).metadata();
-      metaWidth = meta.width ?? null;
-      metaHeight = meta.height ?? null;
-      if (processedSizeKB <= maxSizeKB) {
+      if (processedSizeKB <= maxSizeKB || currentQuality <= qualityMin) {
         break;
       }
-      currentQuality -= 7;
+      currentQuality -= 5;
     }
+  } else {
+    while (currentLongEdge >= 280) {
+      currentQuality = qualityStart;
+      while (currentQuality >= qualityMin) {
+        processedBuffer = await sharp(imageBuffer)
+          .rotate()
+          .resize({
+            width: currentLongEdge,
+            height: currentLongEdge,
+            fit: 'inside',
+            withoutEnlargement: true,
+          })
+          .webp({
+            quality: currentQuality,
+            effort: 6,
+            lossless: false,
+          })
+          .toBuffer();
 
-    if (!processedBuffer || Math.round(processedBuffer.byteLength / 1024) <= maxSizeKB) {
-      break;
+        const processedSizeKB = Math.round(processedBuffer.byteLength / 1024);
+        const meta = await sharp(processedBuffer).metadata();
+        metaWidth = meta.width ?? null;
+        metaHeight = meta.height ?? null;
+        if (processedSizeKB <= maxSizeKB) {
+          break;
+        }
+        currentQuality -= 7;
+      }
+
+      if (!processedBuffer || Math.round(processedBuffer.byteLength / 1024) <= maxSizeKB) {
+        break;
+      }
+      currentLongEdge = Math.round(currentLongEdge * 0.88);
     }
-    currentLongEdge = Math.round(currentLongEdge * 0.88);
   }
 
   if (!processedBuffer) {

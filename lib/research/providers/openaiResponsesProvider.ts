@@ -88,7 +88,10 @@ export function createOpenAIResponsesProvider(): ResearchProviderClient {
       const response = await (client as any).responses.create({
         model: models.research,
         tools: [{ type: 'web_search' as any }],
-        input: `Find factual information about: ${request.query}. Include names, dates, creators, cast, episode counts, platforms, and other concrete details.`,
+        input: `Find current, citable web sources for a Danish culture journalism research brief about: ${request.query}.
+Prioritize factual information with citations: names, dates, organizations, reports, numbers, cases, quotes, cultural context, Danish relevance and counterpoints.
+Only include film/TV details such as cast, episode counts and platforms if the topic is clearly about a film or TV series.
+Do not include a section about what you did not find. Return useful research context with citations.`,
       });
 
       const output: any[] = response.output || [];

@@ -9,9 +9,12 @@ import {
   patchArticleFieldData,
 } from '@/lib/webflow/content-image-optimizer';
 import { maybeOptimizeMobileImageForFieldData } from '@/lib/webflow/mobile-image-optimizer';
+import { resolveSeoTitleFromFieldData } from '@/lib/images/seo-image-name';
+import { maybeOptimizeThumbImageForFieldData } from '@/lib/webflow/thumb-image-optimizer';
 
 export type ArticleImageAutoOptimizeResult = {
   itemId: string;
+  thumbOptimized: boolean;
   mobileOptimized: boolean;
   contentImagesOptimized: number;
   contentImagesFailed: number;
@@ -58,17 +61,41 @@ export async function autoOptimizeArticleFieldData(args: {
   fieldData: Record<string, unknown>;
   articleTitle?: string;
   articleSlug?: string;
+  articleSeoTitle?: string;
   force?: boolean;
-}): Promise<Pick<ArticleImageAutoOptimizeResult, 'mobileOptimized' | 'contentImagesOptimized' | 'contentImagesFailed'>> {
+}): Promise<
+  Pick<
+    ArticleImageAutoOptimizeResult,
+    'thumbOptimized' | 'mobileOptimized' | 'contentImagesOptimized' | 'contentImagesFailed'
+  >
+> {
   if (!isArticleImageAutoOptimizeEnabled()) {
-    return { mobileOptimized: false, contentImagesOptimized: 0, contentImagesFailed: 0 };
+    return {
+      thumbOptimized: false,
+      mobileOptimized: false,
+      contentImagesOptimized: 0,
+      contentImagesFailed: 0,
+    };
   }
+
+  const seoTitle =
+    args.articleSeoTitle?.trim() || resolveSeoTitleFromFieldData(args.fieldData);
+
+  const thumbOptimized = await maybeOptimizeThumbImageForFieldData({
+    fieldData: args.fieldData,
+    articleTitle: args.articleTitle,
+    articleSlug: args.articleSlug,
+    articleSeoTitle: seoTitle,
+    force: args.force,
+  });
 
   const mobileBefore = JSON.stringify(args.fieldData);
   await maybeOptimizeMobileImageForFieldData({
     fieldData: args.fieldData,
     articleTitle: args.articleTitle,
     articleSlug: args.articleSlug,
+    articleSeoTitle: seoTitle,
+    force: args.force,
   });
   const mobileOptimized = JSON.stringify(args.fieldData) !== mobileBefore;
 
@@ -76,10 +103,12 @@ export async function autoOptimizeArticleFieldData(args: {
     fieldData: args.fieldData,
     articleTitle: args.articleTitle,
     articleSlug: args.articleSlug,
+    articleSeoTitle: seoTitle,
     force: args.force,
   });
 
   return {
+    thumbOptimized,
     mobileOptimized,
     contentImagesOptimized: content.imagesOptimized,
     contentImagesFailed: content.imagesFailed,
@@ -96,6 +125,7 @@ export async function autoOptimizeArticleByItemId(
   if (!isArticleImageAutoOptimizeEnabled()) {
     return {
       itemId,
+      thumbOptimized: false,
       mobileOptimized: false,
       contentImagesOptimized: 0,
       contentImagesFailed: 0,
@@ -110,12 +140,14 @@ export async function autoOptimizeArticleByItemId(
     typeof fieldData.name === 'string' && fieldData.name.trim() ? fieldData.name.trim() : undefined;
   const slug =
     typeof fieldData.slug === 'string' && fieldData.slug.trim() ? fieldData.slug.trim() : title;
+  const seoTitle = resolveSeoTitleFromFieldData(fieldData);
 
   const before = JSON.stringify(fieldData);
   const result = await autoOptimizeArticleFieldData({
     fieldData,
     articleTitle: title,
     articleSlug: slug,
+    articleSeoTitle: seoTitle,
     force: options.force,
   });
   const after = JSON.stringify(fieldData);
@@ -129,7 +161,11 @@ export async function autoOptimizeArticleByItemId(
     itemId,
     ...result,
     patched: changed,
-    skipped: !changed && result.contentImagesOptimized === 0 && !result.mobileOptimized,
+    skipped:
+      !changed &&
+      result.contentImagesOptimized === 0 &&
+      !result.mobileOptimized &&
+      !result.thumbOptimized,
     reason: !changed ? 'Ingen felter ændret (allerede optimeret eller intet at gøre)' : undefined,
   };
 
@@ -138,6 +174,7 @@ export async function autoOptimizeArticleByItemId(
     await db.collection('webflowArticleImageAutoOptimize').add({
       itemId,
       source: options.source || 'unknown',
+      thumbOptimized: result.thumbOptimized,
       mobileOptimized: result.mobileOptimized,
       contentImagesOptimized: result.contentImagesOptimized,
       contentImagesFailed: result.contentImagesFailed,
@@ -154,6 +191,7 @@ export async function autoOptimizeArticleByItemId(
     itemId,
     source: options.source,
     patched: changed,
+    thumb: result.thumbOptimized,
     mobile: result.mobileOptimized,
     contentImages: result.contentImagesOptimized,
   });

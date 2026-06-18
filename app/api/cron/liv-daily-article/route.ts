@@ -27,7 +27,8 @@ import { generateLivArticle } from '@/lib/liv/generate-article';
 import { buildLivCmsPayload } from '@/lib/liv/build-cms-payload';
 import { runSafetyGates } from '@/lib/liv/run-safety-gates';
 import { buildResearchQaSummary } from '@/lib/liv/research-qa';
-import { publishArticleToWebflow, type WebflowArticleFields } from '@/lib/webflow-service';
+import { publishCanonicalArticleToWebflow } from '@/lib/articles/publish';
+import type { WebflowArticleFields } from '@/lib/webflow/types';
 import { sendGa4MeasurementEvent } from '@/lib/newsletter/ga4-measurement';
 import {
   getLivDailyPlan,
@@ -310,7 +311,12 @@ export async function GET(req: NextRequest) {
       aiModel: process.env.LIV_GENERATION_MODEL || 'claude-opus-4.7',
     });
 
-    const webflowItemId = await publishArticleToWebflow(payload);
+    const { articleId: webflowItemId } = await publishCanonicalArticleToWebflow(payload, {
+      source: 'liv',
+      defaultStatus: livWebflowStatus,
+      defaultAuthor: 'Liv Brandt',
+      defaultCategory: 'Kultur',
+    });
 
     await finishLivDaily(dayKey, {
       status: livWebflowStatus === 'published' ? 'published' : 'draft',

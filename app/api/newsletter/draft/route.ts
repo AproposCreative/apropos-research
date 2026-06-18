@@ -9,7 +9,6 @@ import { getPreviousIsoWeekRange, type WeekRange } from '@/lib/newsletter/week-r
 import { getNewsletterRecipients } from '@/lib/newsletter/get-recipients';
 import {
   buildWeeklyDraftInputHash,
-  readLatestWeeklyDraftCache,
   readWeeklyDraftCacheByWeek,
   readWeeklyDraftCache,
   saveWeeklyDraftCache,
@@ -31,10 +30,7 @@ export async function GET(req: NextRequest) {
 
   try {
     const thisWeek = getPreviousIsoWeekRange(new Date());
-    let cached = await readWeeklyDraftCacheByWeek(thisWeek);
-    if (!cached.hit) {
-      cached = await readLatestWeeklyDraftCache();
-    }
+    const cached = await readWeeklyDraftCacheByWeek(thisWeek);
     if (!cached.hit) {
       return NextResponse.json({ found: false });
     }
@@ -89,14 +85,21 @@ export async function POST(req: NextRequest) {
     const body = await req.json().catch(() => ({}));
     const introOverride = typeof body.intro === 'string' ? body.intro : undefined;
     const skipAiIntro = body.skipAiIntro === true;
+    const useExclusions = body.useExclusions === true;
     const ref =
       typeof body.referenceDate === 'string' && !Number.isNaN(Date.parse(body.referenceDate))
         ? new Date(body.referenceDate)
         : new Date();
     const week: WeekRange = getPreviousIsoWeekRange(ref);
-    const fullLb = parseLookback(process.env.NEWSLETTER_WEEKLY_EXCLUDE_SEND_LOOKBACK, DEFAULT_EXCLUDE_SENDS);
-    const relaxLb = parseLookback(process.env.NEWSLETTER_WEEKLY_RELAX_SEND_LOOKBACK, DEFAULT_RELAX_SENDS);
-    const { excludeFull, excludeRelax } = await getRecentNewsletterExclusionSets(fullLb, relaxLb);
+    let excludeFull: Set<string> | undefined;
+    let excludeRelax: Set<string> | undefined;
+    if (useExclusions) {
+      const fullLb = parseLookback(process.env.NEWSLETTER_WEEKLY_EXCLUDE_SEND_LOOKBACK, DEFAULT_EXCLUDE_SENDS);
+      const relaxLb = parseLookback(process.env.NEWSLETTER_WEEKLY_RELAX_SEND_LOOKBACK, DEFAULT_RELAX_SENDS);
+      const sets = await getRecentNewsletterExclusionSets(fullLb, relaxLb);
+      excludeFull = sets.excludeFull;
+      excludeRelax = sets.excludeRelax;
+    }
 
     const prepared = await prepareWeeklyArticlesForDraft({
       week,

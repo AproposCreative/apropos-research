@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { internalApiHeaders } from '@/lib/api/internal-auth';
 import { isMediaReview, searchTMDB, searchGoogleImages, type MediaSearchRequest } from '@/lib/media-search-utils';
 import { config } from '@/lib/config/env';
 import { logger, createRequestLogger } from '@/lib/logger';
@@ -85,7 +86,7 @@ export async function POST(req: NextRequest) {
       requestLogger.debug('Processing image to WebP format');
       const processResponse = await fetch(`${config.baseUrl}/api/process-image`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: internalApiHeaders(),
         body: JSON.stringify({
           imageUrl: imageUrl,
           maxSizeKB: 400,

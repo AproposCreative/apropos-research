@@ -1,0 +1,34 @@
+---
+description: Marketing UI tokens for Apropos Research landing and pricing (Linear-inspired). Do not use on /ai or studio panels.
+globs: app/landing/**/*,components/marketing/**/*
+alwaysApply: false
+---
+
+# Research Marketing Design System
+
+Used **only** on `app/landing/*` and `components/marketing/*`.
+
+Studio/chat UI under `/ai` keeps `apropos-design-system.mdc` (Poppins, glass panels).
+
+## Tokens
+
+Source: `app/styles/research-tokens.css`
+
+- Canvas `#08090a`, nav `#0f1011`, cards `#161718`
+- **One** acid-lime CTA per screen: `#e4f222` (class `research-lime-btn`)
+- Inter (`--font-inter`) + JetBrains Mono (`--font-jetbrains-mono`)
+- Max width 1200px (`research-container`), 6px buttons, 12px cards
+
+## Components
+
+Reuse from `components/marketing/`:
+
+- `MarketingNav`, `MarketingFooter`
+- `PrimaryLimeButton`, `HeroSection`, `FeatureSplit`, `ProductScreenshotCard`, `PricingTable`
+
+## Don'ts
+
+- No Poppins on marketing pages
+- No `apropos-input-dark` / chat bubble patterns
+- No multi-stop gradient fills (except placeholder shimmer is N/A here)
+- Do not import `AIWriterClient` or studio panels into marketing

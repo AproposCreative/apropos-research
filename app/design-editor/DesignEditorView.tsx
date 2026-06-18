@@ -31,6 +31,40 @@ const STORY_BYLINE_MAX_WIDTH = 1000;
 const CAPTION_FOOTER_TEXT = 'Læs gratis med – uden reklamer, pop-ups eller anden støj: www.aproposmagazine.com';
 const ARTICLE_BASE_URL = 'https://www.aproposmagazine.com/articles';
 
+/** Oversæt klient-fejl (eksport / Storage-upload / netværk) til forståelig dansk besked. */
+function describePublishError(error: unknown, stage: 'export' | 'upload' | 'publish'): string {
+  const code =
+    error && typeof error === 'object' && 'code' in error
+      ? String((error as { code?: unknown }).code || '')
+      : '';
+  const message = error instanceof Error ? error.message : String(error ?? '');
+
+  if (stage === 'export') {
+    return `Kunne ikke generere billedet (${message || 'ukendt fejl'}). Vælg en anden artikel eller genindlæs siden.`;
+  }
+
+  if (stage === 'upload') {
+    if (code === 'storage/unauthorized' || /unauthorized|permission/i.test(message)) {
+      return 'Du har ikke adgang til at uploade billedet (Firebase Storage afviste det). Log ud og ind igen — eller bed en admin om at deploye storage-reglerne (npm run deploy:storage).';
+    }
+    if (code === 'storage/unauthenticated' || /unauthenticated/i.test(message)) {
+      return 'Din session er udløbet. Log ud og ind igen, og prøv så at poste på ny.';
+    }
+    if (code === 'storage/retry-limit-exceeded' || code === 'storage/canceled') {
+      return 'Upload af billedet blev afbrudt (netværk). Tjek forbindelsen og prøv igen.';
+    }
+    if (/cors|network|failed to fetch/i.test(message)) {
+      return 'Billedet kunne ikke uploades (netværk eller CORS på Firebase Storage). Prøv igen — kontakt admin hvis det fortsætter.';
+    }
+    return `Billedet kunne ikke uploades (${code || message || 'ukendt fejl'}). Prøv igen.`;
+  }
+
+  if (/failed to fetch|networkerror|load failed/i.test(message)) {
+    return 'Kunne ikke nå Instagram-tjenesten (netværk). Tjek forbindelsen og prøv igen.';
+  }
+  return `Der opstod en fejl (${message || 'ukendt'}). Prøv igen.`;
+}
+
 /** Samme segment-knapper som Liv / Nyhedsbrev (apropos-design-system). */
 const segBtn = (active: boolean) =>
   `rounded-lg px-2.5 py-1.5 text-[11px] font-medium tracking-wide transition-all duration-200 active:scale-[0.97] ${
@@ -649,6 +683,7 @@ export default function DesignEditorView({ onBack, embedMode }: DesignEditorView
     clearPublishFeedback();
     setPublishStep('Eksporterer billede…');
     let instagramPublishStarted = false;
+    let stage: 'export' | 'upload' | 'publish' = 'export';
     try {
       if (!storage) {
         setInstagramError('Firebase Storage er ikke tilgængelig.');
@@ -656,11 +691,13 @@ export default function DesignEditorView({ onBack, embedMode }: DesignEditorView
       }
       const blob = await exportCardToJpegBlob(cardData, size, 0.92, { amiriFontFamily: amiri.style.fontFamily });
       setPublishStep('Uploader billede…');
+      stage = 'upload';
       const path = `instagram-publish/${Date.now()}.jpg`;
       const storageRef = ref(storage, path);
       await uploadBytes(storageRef, blob, { contentType: 'image/jpeg' });
       const imageUrl = await getDownloadURL(storageRef);
       setPublishStep('Publicerer til Instagram…');
+      stage = 'publish';
       const isStory = size === 'story';
       instagramPublishStarted = true;
       const apiRes = await fetch('/api/instagram/publish', {
@@ -700,11 +737,12 @@ export default function DesignEditorView({ onBack, embedMode }: DesignEditorView
       }
     } catch (e) {
       console.error('Instagram publish failed', e);
+      // Story-kaldet kan være nået frem selvom forbindelsen faldt — vis blødt svar.
       if (size === 'story' && instagramPublishStarted) {
         setPublishSuccess('Story-kaldet er sendt — tjek Instagram om et øjeblik.');
         return;
       }
-      setInstagramError('Der opstod en fejl. Prøv igen.');
+      setInstagramError(describePublishError(e, stage));
     } finally {
       setPostingToInstagram(false);
       setPublishStep('');
@@ -1053,8 +1091,6 @@ export default function DesignEditorView({ onBack, embedMode }: DesignEditorView
           <div className="flex-1 flex min-h-0 overflow-hidden flex-col lg:flex-row">
             <aside className="hidden lg:flex w-[min(300px,100%)] shrink-0 flex-col border-r border-white/10 bg-black/10 overflow-hidden">
               <div className="px-4 py-3 border-b border-white/10 shrink-0">
-                <p className="text-[10px] uppercase tracking-wider text-white/40 mb-1">Artikler</p>
-                <p className="text-[10px] text-white/32 leading-relaxed">Vælg her · format, forhåndsvisning og eksporter øverst.</p>
                 <div className="relative">
                   <svg className="absolute left-3 top-1/2 -translate-y-1/2 text-white/50" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                     <circle cx="11" cy="11" r="8" />

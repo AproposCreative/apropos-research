@@ -7,7 +7,7 @@ import { getAdminDb } from '@/lib/firebase-admin';
 
 const DRAFT_CACHE_COLLECTION = 'newsletterDraftCache';
 const CACHE_DOC_PREFIX = 'weekly-';
-const DRAFT_TEMPLATE_VERSION = 24;
+const DRAFT_TEMPLATE_VERSION = 27;
 
 export type DraftCacheHit = {
   hit: true;

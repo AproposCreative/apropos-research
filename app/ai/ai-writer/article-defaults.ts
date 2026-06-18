@@ -77,20 +77,34 @@ export const GENERATION_MODE_OPTIONS: Array<{
   { id: 'editorial', label: 'Editorial', description: 'Fuld redaktionel pipeline med research' },
 ];
 
-export type AIWriterView = 'ai' | 'design-editor' | 'newsletter' | 'liv-posting' | null;
+export type AIWriterView =
+  | 'ai'
+  | 'design-editor'
+  | 'newsletter'
+  | 'dashboard'
+  | 'podcast'
+  | 'push'
+  | 'funding'
+  | null;
 
-/** Resolve hvilken view (`ai`, `design-editor`, `newsletter`, `liv-posting`) URL'en peger på. */
+/** Resolve hvilken view URL'en peger på. */
 export function resolveViewFromSearchParams(sp: {
   get: (key: string) => string | null;
 }): AIWriterView {
   const view = sp.get('view');
   if (view === 'newsletter') return 'newsletter';
   if (view === 'design-editor') return 'design-editor';
-  if (view === 'liv-posting' || view === 'ai-posting') return 'liv-posting';
+  if (view === 'dashboard') return 'dashboard';
+  if (view === 'podcast') return 'podcast';
+  if (view === 'push') return 'push';
+  if (view === 'funding') return 'funding';
   if (view === 'ai') return 'ai';
   const n = sp.get('newsletter');
   const w = sp.get('webapp');
   if (n === '1' || n === 'true' || w === 'newsletter') return 'newsletter';
-  if (w === 'ai-posting' || w === 'liv-posting') return 'liv-posting';
+  if (w === 'dashboard') return 'dashboard';
+  if (w === 'podcast') return 'podcast';
+  if (w === 'push-desk') return 'push';
+  if (w === 'funding-desk') return 'funding';
   return null;
 }

@@ -2,8 +2,9 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import WebflowPublishPanel from './WebflowPublishPanel';
-import type { WebflowArticleFields } from '@/lib/webflow-service';
+import type { WebflowArticleFields } from '@/lib/webflow/types';
 import { stripIntroDuplicateFromBody } from '@/lib/article-intro-strip';
+import { addCoveredEditorialTopic, addPublishedEditorialSignalId } from '@/lib/editorial/signal-store';
 
 interface ReviewPanelProps {
   articleData: any;
@@ -12,6 +13,7 @@ interface ReviewPanelProps {
   onPreflightComplete?: (warnings: string[], criticTips: string, factResults: any[], moderation: any) => void;
   onRecommendationsApplied?: () => void;
   onUpdateArticle?: (updates: any) => void;
+  onEditorialSignalPublished?: (detail: { signalId: string; signalTitle?: string; title?: string; slug?: string; topic?: string }) => void;
 }
 
 type TaxonomyItem = { id: string; name: string };
@@ -109,7 +111,7 @@ function inferBestAuthor(authors: AuthorCandidate[], corpus: string): string | u
   return best && best.score >= 3 ? best.name : undefined;
 }
 
-export default function ReviewPanel({ articleData, onClose, frameless, onPreflightComplete, onRecommendationsApplied, onUpdateArticle }: ReviewPanelProps) {
+export default function ReviewPanel({ articleData, onClose, frameless, onPreflightComplete, onRecommendationsApplied, onUpdateArticle, onEditorialSignalPublished }: ReviewPanelProps) {
   const [wfSlugs, setWfSlugs] = useState<string[] | null>(null);
   const [isGeneratingImage, setIsGeneratingImage] = useState(false);
   const [imageProgress, setImageProgress] = useState(0);
@@ -776,6 +778,23 @@ export default function ReviewPanel({ articleData, onClose, frameless, onPreflig
               const isUpdate = formData.webflowId && formData.webflowId !== '';
               const articleTitle = formData.title || 'Artiklen';
               const webflowId = j?.articleId || 'ukendt';
+              const editorialSignalId = String(articleData?.editorialSignalId || '').trim();
+              if (editorialSignalId) {
+                const publishedDetail = {
+                  signalId: editorialSignalId,
+                  signalTitle: String(articleData?.editorialSignalTitle || '').trim() || undefined,
+                  title: String(articleTitle || articleData?.title || '').trim() || undefined,
+                  slug: String((formData as any)?.slug || articleData?.slug || '').trim() || undefined,
+                  topic: String(articleData?.topic || articleData?.category || articleData?.section || '').trim() || undefined,
+                };
+                try {
+                  addPublishedEditorialSignalId(editorialSignalId);
+                  addCoveredEditorialTopic(publishedDetail);
+                  onEditorialSignalPublished?.(publishedDetail);
+                } catch {
+                  onEditorialSignalPublished?.(publishedDetail);
+                }
+              }
               
               // Create a temporary success modal
               const modal = document.createElement('div');

@@ -1,0 +1,51 @@
+---
+description: Nye web-apps skal åbnes som embedded overlay i AI Writer — ikke standalone sider. Mobile-first.
+alwaysApply: true
+---
+
+# Web-app overlay (mini-menu)
+
+Når du opretter eller ændrer en **web-app** (mini-menu / `WEB_APPS`), skal den følge samme overlay-layout som Nyhedsbrev — ikke en separat fuldskærms-side.
+
+## Obligatorisk arkitektur
+
+1. **`lib/web-apps-config.ts`** — tilføj entry med `id`, `name`, `path: '/ai?view=<id>'`, `order`.
+2. **`app/ai/ai-writer/article-defaults.ts`** — udvid `AIWriterView` + `resolveViewFromSearchParams`.
+3. **`app/ai/AIWriterClient.tsx`**:
+   - `applyActiveView` sætter `?view=<id>`
+   - `handleSelectWebApp` kalder `applyActiveView` — **ikke** `router.push('/ny-app')`
+   - Render-blok med resizable panel + `embeddedPanelShell` wrapper (kopier newsletter/dashboard/podcast-mønsteret)
+4. **`app/<navn>/<Navn>Client.tsx`** — hovedkomponent med `embedded?: boolean` og `onClose?: () => void`.
+
+**Undgå** standalone `app/<navn>/page.tsx` som primær indgang. Legacy-ruter redirecter til `/ai?view=<id>`.
+
+## Komponent-kontrakt
+
+```tsx
+type Props = { embedded?: boolean; onClose?: () => void };
+
+// Root når embedded=true (fylder overlay-panelet):
+'flex flex-col h-full min-h-0 text-white bg-transparent font-poppins'
+
+// Header — altid EmbeddedAppHeader med embedded={embedded}, title, onClose
+// Scrollbart indhold:
+'flex-1 min-h-0 overflow-y-auto nice-scrollbar'
+```
+
+Design-tokens og knapper: følg `.cursor/rules/apropos-design-system.mdc`.
+
+## Mobile-first (ikke valgfrit)
+
+- Overlay er **100% bredde på mobil**; resizable panel kun på desktop.
+- Kritiske handlinger synlige uden hover; `touch-target` (min. 44×44).
+- Header: `flex-wrap` — ingen horisontal scroll i topbar.
+- `lg:` breakpoints til sidebar + preview (se `NewsletterClient`: mobil stack, desktop sidebar).
+- Inputs: `apropos-input-dark` på alle dark-felter.
+- Test layout på smal viewport før du leverer.
+
+## Reference-implementeringer
+
+- `app/ai/newsletter/NewsletterClient.tsx` — overlay + sidebar/preview + mobile/desktop toggles
+- `app/ai/podcast/PodcastClient.tsx` — simpel embedded app
+- `app/dashboard/DashboardClient.tsx` — embedded panel
+- `components/embedded-app/EmbeddedAppHeader.tsx` — fælles header med luk-knap

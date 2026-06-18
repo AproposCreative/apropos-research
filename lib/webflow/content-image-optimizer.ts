@@ -1,6 +1,11 @@
 import { FieldValue } from 'firebase-admin/firestore';
 import { getAdminDb } from '@/lib/firebase-admin';
 import { optimizeAndUploadImage, type OptimizeAndUploadImageResult } from '@/lib/images/optimize-and-upload';
+import {
+  buildContentImageRole,
+  buildImageAltText,
+  resolveArticleSeoImageBaseName,
+} from '@/lib/images/seo-image-name';
 import { logger } from '@/lib/logger';
 import { readMapping } from '@/lib/webflow-mapping';
 
@@ -108,6 +113,7 @@ export function shouldOptimizeSrc(src: string, force?: boolean): boolean {
   if (/\.(gif|svg)(\?|$)/i.test(lower)) return false;
   if (!force && lower.includes(OPTIMIZED_PATH_MARKER)) return false;
   if (!force && lower.includes('webflow/mobile-images')) return false;
+  if (!force && lower.includes('webflow/thumb-images')) return false;
   return true;
 }
 
@@ -234,8 +240,27 @@ async function logContentOptimization(result: ContentImageRunResult): Promise<vo
   });
 }
 
-function replaceImageSrc(html: string, oldSrc: string, newSrc: string): string {
-  return html.split(oldSrc).join(newSrc);
+function escapeHtmlAttr(value: string): string {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/"/g, '&quot;')
+    .replace(/</g, '&lt;');
+}
+
+function replaceImageSrc(html: string, oldSrc: string, newSrc: string, alt?: string): string {
+  let next = html.split(oldSrc).join(newSrc);
+  if (!alt?.trim()) return next;
+
+  const escapedSrc = newSrc.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const imgRe = new RegExp(`(<img\\b[^>]*\\bsrc\\s*=\\s*["']${escapedSrc}["'])([^>]*>)`, 'gi');
+  next = next.replace(imgRe, (match, prefix: string, suffix: string) => {
+    const safeAlt = escapeHtmlAttr(alt.trim());
+    if (/\balt\s*=\s*["'][^"']+["']/i.test(match)) {
+      return `${prefix}${suffix.replace(/\balt\s*=\s*["'][^"']*["']/i, `alt="${safeAlt}"`)}`;
+    }
+    return `${prefix} alt="${safeAlt}"${suffix}`;
+  });
+  return next;
 }
 
 export type ContentImageInlineOptimizeResult = {
@@ -251,6 +276,7 @@ export async function optimizeContentHtmlInline(
   options: {
     articleSlug?: string;
     articleTitle?: string;
+    articleSeoTitle?: string;
     maxSizeKB?: number;
     maxLongEdge?: number;
     minOriginalKB?: number;
@@ -284,9 +310,14 @@ export async function optimizeContentHtmlInline(
   let nextHtml = html;
   let imagesOptimized = 0;
   let imagesFailed = 0;
-  const baseName = options.articleSlug || options.articleTitle || 'apropos-article';
+  const baseName = resolveArticleSeoImageBaseName({
+    slug: options.articleSlug,
+    seoTitle: options.articleSeoTitle,
+    title: options.articleTitle,
+  });
 
   for (const img of sorted) {
+    const role = buildContentImageRole(img.index);
     try {
       const output = await optimizeAndUploadImage({
         imageUrl: img.src,
@@ -296,9 +327,14 @@ export async function optimizeContentHtmlInline(
         qualityMin: 55,
         folder: 'webflow/content-images',
         baseName,
-        role: 'inline',
+        role,
       });
-      nextHtml = replaceImageSrc(nextHtml, img.src, output.url);
+      const alt = buildImageAltText({
+        seoTitle: options.articleSeoTitle,
+        articleTitle: options.articleTitle,
+        role,
+      });
+      nextHtml = replaceImageSrc(nextHtml, img.src, output.url, alt);
       imagesOptimized += 1;
     } catch (e) {
       imagesFailed += 1;
@@ -321,6 +357,7 @@ export async function maybeOptimizeContentImagesForFieldData(args: {
   fieldData: Record<string, unknown>;
   articleTitle?: string;
   articleSlug?: string;
+  articleSeoTitle?: string;
   force?: boolean;
 }): Promise<{ imagesOptimized: number; imagesFailed: number }> {
   const enabled =
@@ -337,6 +374,7 @@ export async function maybeOptimizeContentImagesForFieldData(args: {
     const result = await optimizeContentHtmlInline(html, {
       articleTitle: args.articleTitle,
       articleSlug: args.articleSlug,
+      articleSeoTitle: args.articleSeoTitle,
       force: args.force,
     });
     if (result.changed) {
@@ -441,11 +479,19 @@ export async function runContentImageOptimization(options: ContentImageOptimizeO
 
     const sorted = [...sized].sort((a, b) => (b.sizeKB ?? 9999) - (a.sizeKB ?? 9999));
 
+    const seoTitle = typeof fd['seo-title'] === 'string' ? fd['seo-title'] : undefined;
+    const baseName = resolveArticleSeoImageBaseName({
+      slug: candidate.slug,
+      seoTitle,
+      title: candidate.title,
+    });
+
     for (const img of sorted) {
       if (minOriginalKB > 0 && img.sizeKB !== null && img.sizeKB < minOriginalKB) {
         continue;
       }
 
+      const role = buildContentImageRole(img.index);
       try {
         const output = await optimizeAndUploadImage({
           imageUrl: img.src,
@@ -454,10 +500,15 @@ export async function runContentImageOptimization(options: ContentImageOptimizeO
           qualityStart: options.qualityStart ?? 82,
           qualityMin: options.qualityMin ?? 55,
           folder: 'webflow/content-images',
-          baseName: candidate.slug || candidate.title,
-          role: 'inline',
+          baseName,
+          role,
         });
-        html = replaceImageSrc(html, img.src, output.url);
+        const alt = buildImageAltText({
+          seoTitle,
+          articleTitle: candidate.title,
+          role,
+        });
+        html = replaceImageSrc(html, img.src, output.url, alt);
         outputs.push(output);
         articleImagesOk += 1;
         imagesOptimized += 1;

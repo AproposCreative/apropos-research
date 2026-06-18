@@ -1,0 +1,18 @@
+---
+description: Start Next.js dev server proactively when working on the app
+alwaysApply: true
+---
+
+# Dev server
+
+When working in this repo (especially UI, routing, or API changes the user may want to verify in browser):
+
+1. **At session start** — check if port 3000 is listening (`lsof -nP -iTCP:3000 -sTCP:LISTEN` or terminals folder).
+2. **If nothing is on 3000** — start the dev server in the background:
+   ```bash
+   cd "<workspace root>" && npm run dev
+   ```
+3. **Do not ask** the user to start the server manually when `ERR_CONNECTION_REFUSED` or similar indicates it is down — start it yourself.
+4. **Default URL:** http://localhost:3000 (Next.js may use 3001 if 3000 is busy — read terminal output).
+
+Do not stop the server unless the user asks or you need the port for another task.

@@ -1,3 +1,7 @@
+import type { EditorialArticleType } from '@/lib/editorial/signal-store';
+import type { EditorialResearchResult } from '@/lib/editorial/types';
+import type { ApplicationSection, FundingResearchResult } from '@/lib/funding/types';
+
 export type AIDraft = {
   prompt?: string;
   suggestions?: string[];
@@ -48,4 +52,13 @@ export interface ArticleData {
   /** Prompt brugt ved seneste AI-billedgenerering (til debugging/visning) */
   lastGeneratedImagePrompt?: string;
   generationMode?: 'fast' | 'editorial';
+  editorialSignalId?: string;
+  editorialSignalTitle?: string;
+  articleType?: EditorialArticleType;
+  targetWordCount?: number;
+  targetLengthLabel?: string;
+  editorialResearch?: EditorialResearchResult | null;
+  fundingOpportunityId?: string;
+  fundingResearch?: FundingResearchResult | null;
+  applicationSection?: ApplicationSection;
 }

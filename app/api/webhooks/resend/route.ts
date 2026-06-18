@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { Webhook } from 'svix';
 import { env } from '@/lib/config/env';
 import { ga4ClientIdFromEmail, sendGa4MeasurementEvent } from '@/lib/newsletter/ga4-measurement';
+import { handleFundingResendEvent, isFundingTaggedEvent } from '@/lib/funding/inbound-handler';
 
 export const runtime = 'nodejs';
 
@@ -76,6 +77,17 @@ export async function POST(req: NextRequest) {
 
   const type = evt.type || '';
   const data = evt.data || {};
+
+  if (type === 'email.received' || isFundingTaggedEvent(data)) {
+    const fundingResult = await handleFundingResendEvent(type, data);
+    if (fundingResult.handled) {
+      return NextResponse.json({ ok: true, received: type, funding: fundingResult.detail });
+    }
+    if (type === 'email.received') {
+      return NextResponse.json({ ok: true, received: type, funding: false });
+    }
+  }
+
   const to = firstToEmail(data);
   const clientId = to ? ga4ClientIdFromEmail(to) : `anon_${svixId.replace(/[^a-z0-9]/gi, '').slice(0, 24)}`;
 

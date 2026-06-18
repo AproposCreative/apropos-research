@@ -41,6 +41,12 @@ const autoBuildLabel = `${version}.${buildId}${dirtySuffix}`;
 const buildLabel = process.env.NEXT_PUBLIC_BUILD_LABEL || autoBuildLabel;
 
 const nextConfig = {
+  // ffmpeg-static: lad binær ligge i node_modules (ikke webpack vendor-chunk)
+  serverExternalPackages: ['ffmpeg-static'],
+  // Inkluder linux ffmpeg-binær i serverless bundle (Vercel file tracing)
+  outputFileTracingIncludes: {
+    '/api/podcast/process': ['./node_modules/ffmpeg-static/**/*'],
+  },
   env: {
     NEXT_PUBLIC_APP_VERSION: version,
     NEXT_PUBLIC_BUILD_ID: buildId,
@@ -92,7 +98,13 @@ const nextConfig = {
       },
       {
         protocol: 'https',
-        hostname: 'berlingske.dk',
+        hostname: 'cdn.prod.website-files.com',
+        port: '',
+        pathname: '/**',
+      },
+      {
+        protocol: 'https',
+        hostname: 'uploads-ssl.webflow.com',
         port: '',
         pathname: '/**',
       },

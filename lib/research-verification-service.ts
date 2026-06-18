@@ -7,6 +7,7 @@
 
 import fs from 'fs';
 import path from 'path';
+import { internalApiHeaders } from '@/lib/api/internal-auth';
 import { config } from '@/lib/config/env';
 import { logger } from '@/lib/logger';
 import { getOpenAIClient } from '@/lib/openai';
@@ -98,7 +99,7 @@ export async function performComprehensiveResearch(
       const searchQuery = extractSearchQuery(topic, articleData);
       const searchResponse = await fetch(`${baseUrl}/api/web-search`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: internalApiHeaders(),
         body: JSON.stringify({ query: searchQuery, maxResults: 10 })
       });
 
@@ -217,7 +218,7 @@ export async function performComprehensiveResearch(
       if (baseUrl) {
       const researchResponse = await fetch(`${baseUrl}/api/research-engine`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: internalApiHeaders(),
         body: JSON.stringify({
           topic: topic,
           articleType: articleData?.category || 'Generel',

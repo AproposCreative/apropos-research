@@ -73,6 +73,18 @@ const EnvSchema = z.object({
   GOOGLE_CUSTOM_SEARCH_API_KEY: z.string().optional(),
   GOOGLE_CUSTOM_SEARCH_ENGINE_ID: z.string().optional(),
 
+  /** Hemmelighed til server-til-server og middleware-gate på /api/* (header x-internal-api-secret). */
+  INTERNAL_API_SECRET: z.preprocess(
+    emptyToUndefined,
+    z.union([
+      z.undefined(),
+      z.string().regex(
+        /^[\t\x20-\x7E]+$/,
+        'INTERNAL_API_SECRET må kun indeholde synlige ASCII-tegn (ingen æ, ø, å, emojis).'
+      ),
+    ])
+  ),
+
   // Cron / Security — Vercel sender CRON_SECRET i Authorization-header; kun synlig ASCII (tab/space–~).
   CRON_SECRET: z.preprocess(
     emptyToUndefined,
@@ -114,6 +126,8 @@ const EnvSchema = z.object({
 
   /** GA4 (browser) — valgfri; UTM i mail virker først hvor gtag er installeret (fx Webflow). */
   NEXT_PUBLIC_GA_MEASUREMENT_ID: z.preprocess(emptyToUndefined, z.string().optional()),
+  /** Numerisk GA4 Property ID til Data API (dashboard) — fx 484743571. */
+  GA4_PROPERTY_ID: z.preprocess(emptyToUndefined, z.string().optional()),
   /** GA4 Measurement Protocol (server) — til Resend-webhooks (åbning/klik). */
   GA4_MEASUREMENT_ID: z.preprocess(emptyToUndefined, z.string().optional()),
   GA4_MEASUREMENT_PROTOCOL_SECRET: z.preprocess(emptyToUndefined, z.string().optional()),
@@ -124,6 +138,15 @@ const EnvSchema = z.object({
   /** Domæne til Reply-To alias funding+{threadId}@domain (Resend inbound) */
   FUNDING_INBOUND_DOMAIN: z.preprocess(emptyToUndefined, z.string().optional()),
 
+  /** Cloud Run podcast-processor base URL (fx https://podcast-processor-xxx.run.app) */
+  PODCAST_PROCESSOR_URL: z.preprocess(emptyToUndefined, z.string().url().optional()),
+  /** Trigger URL for eksisterende iOS sendPodcastNotification (FCM topic new_podcasts) */
+  PODCAST_NOTIFY_URL: z.preprocess(emptyToUndefined, z.string().url().optional()),
+  /** Matcher Firebase secret PODCAST_NOTIFY_SECRET → header X-Apropos-Podcast-Secret */
+  PODCAST_NOTIFY_SECRET: z.preprocess(emptyToUndefined, z.string().optional()),
+  /** Valgfri override af Storage bucket til podcast-filer */
+  PODCAST_STORAGE_BUCKET: z.preprocess(emptyToUndefined, z.string().optional()),
+
   // Research Provider Configuration
   RESEARCH_PROVIDER: z.enum(['openai_responses', 'legacy_web_search']).default('openai_responses'),
   RESEARCH_FALLBACK_PROVIDER: z.enum(['legacy_web_search', 'none']).default('legacy_web_search'),
@@ -131,6 +154,16 @@ const EnvSchema = z.object({
   RESEARCH_MIN_CONTEXT_CHARS: z.string().default('240').transform(Number).pipe(z.number().int().min(0)),
   RESEARCH_TIMEOUT_MS: z.string().default('15000').transform(Number).pipe(z.number().int().min(1000)),
   RESEARCH_DEBUG_LOG: z.enum(['true', 'false']).default('false'),
+
+  // Stripe billing (Apropos Research subscriptions)
+  STRIPE_SECRET_KEY: z.preprocess(emptyToUndefined, z.string().optional()),
+  STRIPE_WEBHOOK_SECRET: z.preprocess(emptyToUndefined, z.string().optional()),
+  NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: z.preprocess(emptyToUndefined, z.string().optional()),
+  STRIPE_PRICE_STARTER: z.preprocess(emptyToUndefined, z.string().optional()),
+  STRIPE_PRICE_PRO: z.preprocess(emptyToUndefined, z.string().optional()),
+  STRIPE_PRICE_STUDIO: z.preprocess(emptyToUndefined, z.string().optional()),
+  BILLING_DISABLED: z.enum(['true', 'false']).default('false'),
+  BILLING_BYPASS_UIDS: z.preprocess(emptyToUndefined, z.string().optional()),
 
   // RAGE Ingestion Configuration (CLI)
   RAGE_BASE_URL: z.string().url().default('https://soundvenue.com'),
@@ -203,6 +236,7 @@ function parseEnv() {
     OMDB_API_KEY: process.env.OMDB_API_KEY,
     GOOGLE_CUSTOM_SEARCH_API_KEY: process.env.GOOGLE_CUSTOM_SEARCH_API_KEY,
     GOOGLE_CUSTOM_SEARCH_ENGINE_ID: process.env.GOOGLE_CUSTOM_SEARCH_ENGINE_ID,
+    INTERNAL_API_SECRET: process.env.INTERNAL_API_SECRET,
     CRON_SECRET: process.env.CRON_SECRET,
     NEWSLETTER_WEEKLY_BYPASS_TIME_GATE:
       process.env.NEWSLETTER_WEEKLY_BYPASS_TIME_GATE === 'true' ? 'true' : 'false',
@@ -222,6 +256,7 @@ function parseEnv() {
     NEWSLETTER_WELCOME_WEBHOOK_ENABLED:
       process.env.NEWSLETTER_WELCOME_WEBHOOK_ENABLED === 'true' ? 'true' : 'false',
     NEXT_PUBLIC_GA_MEASUREMENT_ID: process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID,
+    GA4_PROPERTY_ID: process.env.GA4_PROPERTY_ID,
     GA4_MEASUREMENT_ID: process.env.GA4_MEASUREMENT_ID,
     GA4_MEASUREMENT_PROTOCOL_SECRET: process.env.GA4_MEASUREMENT_PROTOCOL_SECRET,
     RESEND_WEBHOOK_SECRET: process.env.RESEND_WEBHOOK_SECRET,
@@ -233,6 +268,14 @@ function parseEnv() {
     RESEARCH_MIN_CONTEXT_CHARS: Number(process.env.RESEARCH_MIN_CONTEXT_CHARS || '240'),
     RESEARCH_TIMEOUT_MS: Number(process.env.RESEARCH_TIMEOUT_MS || '15000'),
     RESEARCH_DEBUG_LOG: (process.env.RESEARCH_DEBUG_LOG as any) || 'false',
+    STRIPE_SECRET_KEY: process.env.STRIPE_SECRET_KEY,
+    STRIPE_WEBHOOK_SECRET: process.env.STRIPE_WEBHOOK_SECRET,
+    NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY,
+    STRIPE_PRICE_STARTER: process.env.STRIPE_PRICE_STARTER,
+    STRIPE_PRICE_PRO: process.env.STRIPE_PRICE_PRO,
+    STRIPE_PRICE_STUDIO: process.env.STRIPE_PRICE_STUDIO,
+    BILLING_DISABLED: process.env.BILLING_DISABLED === 'true' ? 'true' : 'false',
+    BILLING_BYPASS_UIDS: process.env.BILLING_BYPASS_UIDS,
     RAGE_BASE_URL: process.env.RAGE_BASE_URL || 'https://soundvenue.com',
     RAGE_FEED_PATH: process.env.RAGE_FEED_PATH || '/feed',
     RAGE_SITEMAP_INDEX: process.env.RAGE_SITEMAP_INDEX || '/sitemap.xml',

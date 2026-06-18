@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 const secondaryBtn =
   'px-3 py-1.5 rounded-lg text-xs transition-all border bg-white/5 text-white/60 border-white/10 hover:border-white/20 hover:bg-white/10 disabled:opacity-40 active:scale-[0.98]';
@@ -16,6 +16,13 @@ const CONTENT_PRESET = {
   minOriginalKB: 80,
   articleLimit: 5,
   imagesPerArticle: 5,
+  force: false,
+};
+const THUMB_PRESET = {
+  maxSizeKB: 600,
+  minOriginalKB: 120,
+  limit: 10,
+  preserveDimensions: true,
   force: false,
 };
 
@@ -101,6 +108,38 @@ function ResultsTable({ rows }: { rows: Array<Record<string, unknown>> }) {
   );
 }
 
+function AutoOptimizeStatusToggle({ enabled, loading }: { enabled: boolean; loading: boolean }) {
+  return (
+    <div className="flex items-center justify-between gap-3 rounded-xl border border-white/[0.06] bg-white/[0.02] px-3.5 py-2.5">
+      <div className="min-w-0 text-left">
+        <p className="text-[12px] font-medium text-white/80">Auto-optimering</p>
+        <p className="text-[10px] text-white/30 truncate">
+          {loading ? 'Tjekker…' : enabled ? 'Slået til' : 'Slået fra'}
+        </p>
+      </div>
+      <div
+        role="status"
+        aria-label={
+          loading
+            ? 'Auto-optimering status indlæses'
+            : enabled
+              ? 'Auto-optimering er slået til'
+              : 'Auto-optimering er slået fra'
+        }
+        className={`relative w-9 h-5 shrink-0 rounded-full transition-colors duration-200 ${
+          enabled ? 'bg-white/20' : 'bg-white/10'
+        } ${loading ? 'opacity-50' : ''}`}
+      >
+        <span
+          className={`absolute top-0.5 left-0.5 size-4 rounded-full bg-white shadow-sm transition-transform duration-200 ${
+            enabled ? 'translate-x-4' : 'translate-x-0'
+          }`}
+        />
+      </div>
+    </div>
+  );
+}
+
 function OptimizeCard({
   title,
   previewLoading,
@@ -171,6 +210,8 @@ function OptimizeCard({
 
 export default function ImageOptimizationSection({ variant = 'panel' }: { variant?: 'panel' | 'page' }) {
   const resultsRef = useRef<HTMLDivElement>(null);
+  const [autoOptimizeEnabled, setAutoOptimizeEnabled] = useState(true);
+  const [autoOptimizeLoading, setAutoOptimizeLoading] = useState(true);
 
   const [mobilePreviewLoading, setMobilePreviewLoading] = useState(false);
   const [mobileRunLoading, setMobileRunLoading] = useState(false);
@@ -184,10 +225,36 @@ export default function ImageOptimizationSection({ variant = 'panel' }: { varian
   const [contentError, setContentError] = useState<string | null>(null);
   const [contentMode, setContentMode] = useState<'preview' | 'run' | null>(null);
 
+  const [thumbPreviewLoading, setThumbPreviewLoading] = useState(false);
+  const [thumbRunLoading, setThumbRunLoading] = useState(false);
+  const [thumbResult, setThumbResult] = useState<ApiResult | null>(null);
+  const [thumbError, setThumbError] = useState<string | null>(null);
+  const [thumbMode, setThumbMode] = useState<'preview' | 'run' | null>(null);
+
   const scrollToResults = useCallback(() => {
     requestAnimationFrame(() => {
       resultsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     });
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch('/api/webflow/image-optimize/status', { cache: 'no-store' });
+        const data = await res.json();
+        if (!cancelled && res.ok && data.ok) {
+          setAutoOptimizeEnabled(!!data.enabled);
+        }
+      } catch {
+        if (!cancelled) setAutoOptimizeEnabled(true);
+      } finally {
+        if (!cancelled) setAutoOptimizeLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const callApi = async (url: string, body: object) => {
@@ -257,12 +324,58 @@ export default function ImageOptimizationSection({ variant = 'panel' }: { varian
     }
   };
 
+  const scanThumb = async () => {
+    setThumbPreviewLoading(true);
+    setThumbError(null);
+    setThumbMode('preview');
+    try {
+      setThumbResult(await callApi('/api/webflow/thumb-image/preview', THUMB_PRESET));
+      scrollToResults();
+    } catch (e) {
+      setThumbError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setThumbPreviewLoading(false);
+    }
+  };
+
+  const runThumb = async () => {
+    setThumbRunLoading(true);
+    setThumbError(null);
+    setThumbMode('run');
+    try {
+      setThumbResult(await callApi('/api/webflow/thumb-image/run', THUMB_PRESET));
+      scrollToResults();
+    } catch (e) {
+      setThumbError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setThumbRunLoading(false);
+    }
+  };
+
   const mobileRows = (mobileResult?.results || mobileResult?.candidates || []) as Array<Record<string, unknown>>;
   const contentRows = (contentResult?.results || contentResult?.candidates || []) as Array<Record<string, unknown>>;
+  const thumbRows = (thumbResult?.results || thumbResult?.candidates || []) as Array<Record<string, unknown>>;
 
   return (
     <div className={variant === 'page' ? 'space-y-4' : 'space-y-3'} ref={resultsRef}>
       <p className="text-[10px] uppercase tracking-[0.2em] text-white/30 font-medium px-0.5">Optimering</p>
+      <AutoOptimizeStatusToggle enabled={autoOptimizeEnabled} loading={autoOptimizeLoading} />
+      <OptimizeCard
+        title="Desktop-billede (thumb)"
+        previewLoading={thumbPreviewLoading}
+        runLoading={thumbRunLoading}
+        result={thumbResult}
+        mode={thumbMode}
+        error={thumbError}
+        onScan={() => void scanThumb()}
+        onRun={() => void runThumb()}
+        stats={[
+          ['Artikler', String(thumbResult?.total ?? '—')],
+          ['Klar', String(thumbResult?.ready ?? thumbResult?.totalCandidates ?? '—')],
+          ['OK', String(thumbResult?.succeeded ?? '—')],
+        ]}
+        rows={thumbRows}
+      />
       <OptimizeCard
         title="Mobil-billede"
         previewLoading={mobilePreviewLoading}

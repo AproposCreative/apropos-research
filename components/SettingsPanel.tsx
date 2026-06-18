@@ -25,6 +25,7 @@ type FacebookStatus = {
 
 type IgTokenDiag = {
   ok?: boolean;
+  issue?: string;
   error?: string;
   hints?: string[];
   recommendation?: string | null;
@@ -340,6 +341,11 @@ function IntegrationsTab() {
             }`}
           >
             {igDiag.error && !igDiag.debug && <p>{igDiag.error}</p>}
+            {!igDiag.ok && igDiag.issue === 'session_invalidated' && (
+              <p className="text-amber-200/90 font-medium">
+                Session invalideret (fx adgangskodeskift). Lav nyt token under Indstillinger → Social.
+              </p>
+            )}
             {igDiag.debug && (
               <>
                 <p>

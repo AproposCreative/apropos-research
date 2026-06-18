@@ -272,3 +272,15 @@ body {
 .mini-menu-expand-active {
   box-shadow: inset 0 0 0 1px rgba(255,255,255,0.06), 0 0 18px 2px rgba(255,255,255,0.04);
 }
+
+/* Spline free-tier branding — hidden on all Apropos surfaces */
+a.spline-watermark,
+.spline-watermark {
+  display: none !important;
+  visibility: hidden !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+  width: 0 !important;
+  height: 0 !important;
+  overflow: hidden !important;
+}

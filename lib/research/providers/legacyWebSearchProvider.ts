@@ -1,3 +1,4 @@
+import { internalApiHeaders } from '@/lib/api/internal-auth';
 import type {
   ResearchProviderClient,
   ResearchRequest,
@@ -20,7 +21,7 @@ export function createLegacyWebSearchProvider(): ResearchProviderClient {
       const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000';
       const res = await fetch(`${baseUrl}/api/web-search`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: internalApiHeaders(),
         body: JSON.stringify({ query: request.query, maxResults: request.maxResults }),
       });
 

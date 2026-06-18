@@ -1,11 +1,11 @@
 import type { GeneratedArticle } from '@/lib/liv/generate-article';
+import type { ArticlePayload } from '@/lib/articles/article-payload';
 import {
   buildTopicsSelectedForCms,
   fotoCreditFromFeaturedUrl,
   suggestLocationLine,
 } from '@/lib/liv/cms-webflow-meta';
 import type { PickedTopic } from '@/lib/liv/pick-topic';
-import type { WebflowArticleFields } from '@/lib/webflow/types';
 
 function articleIdFromSlug(slug: string): string {
   return `liv-daily-${slug}-${Date.now().toString(36)}`.slice(0, 80);
@@ -21,7 +21,7 @@ export function buildLivCmsPayload(input: {
   sectionFallback?: string;
   status?: string;
   aiModel?: string;
-}): WebflowArticleFields {
+}): ArticlePayload {
   const { article, topic } = input;
   const section = article.section || input.sectionFallback || 'Kultur';
   const status = normalizeStatus(input.status);
@@ -71,5 +71,7 @@ export function buildLivCmsPayload(input: {
     ...(locationLine ? { location: locationLine } : {}),
     imageSourceUrls: imageSourceUrlsFinal.length > 0 ? imageSourceUrlsFinal : undefined,
     topicsSelected: buildTopicsSelectedForCms(topic, article),
+    source: 'liv',
+    workflowState: status === 'published' ? 'published' : 'webflow_draft',
   };
 }

@@ -100,6 +100,50 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return unsubscribe;
   }, []);
 
+  // Attach Firebase ID token to all same-origin /api/* fetches (middleware auth gate).
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const originalFetch = window.fetch.bind(window);
+
+    window.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url =
+        typeof input === 'string'
+          ? input
+          : input instanceof URL
+            ? input.href
+            : input.url;
+
+      const isLocalApi =
+        url.startsWith('/api/') ||
+        (url.startsWith(window.location.origin) && url.includes('/api/'));
+
+      if (!isLocalApi) {
+        return originalFetch(input, init);
+      }
+
+      const auth = getFirebaseAuth();
+      const currentUser = auth?.currentUser;
+      if (!currentUser) {
+        return originalFetch(input, init);
+      }
+
+      try {
+        const token = await currentUser.getIdToken();
+        const headers = new Headers(init?.headers);
+        if (!headers.has('Authorization')) {
+          headers.set('Authorization', `Bearer ${token}`);
+        }
+        return originalFetch(input, { ...init, headers });
+      } catch {
+        return originalFetch(input, init);
+      }
+    };
+
+    return () => {
+      window.fetch = originalFetch;
+    };
+  }, []);
+
   const signIn = async (email: string, password: string) => {
     const firebaseAuth = getFirebaseAuth();
     if (!firebaseAuth) throw new Error('Firebase not initialized');

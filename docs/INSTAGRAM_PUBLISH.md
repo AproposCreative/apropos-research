@@ -45,6 +45,14 @@ Tokenet **skal** være et **Page Access Token** (ikke User Token) med følgende 
 
 **Vigtigt:** Brug altid et **permanent Page Access Token**. Det fås ved at konvertere et kort-livet token i to trin (se nedenfor). Sæt aldrig et short-lived token direkte i env — det udløber efter 1 time.
 
+### Session invalideret (adgangskodeskift)
+
+Hvis diagnose viser **Type: PAGE**, **ingen udløbsdato**, men **Gyldig: nej** og fejl som *«session has been invalidated because the user changed their password»*:
+
+- Det er **ikke** daglig token-udløb — Meta har tilbagekaldt alle tokens knyttet til den Facebook-bruger.
+- Løsning: log ind på Facebook, generér **nyt** bruger-token i Graph API Explorer, konvertér på **Indstillinger → Social**, opdater `INSTAGRAM_ACCESS_TOKEN` i Vercel, og **redeploy**.
+- Efter opdatering skal **Kør diagnose** vise **Gyldig: ja** og Instagram API OK.
+
 ### Sådan genererer du et permanent token (anbefalet)
 
 #### Via appen (nemmest)
@@ -52,9 +60,9 @@ Tokenet **skal** være et **Page Access Token** (ikke User Token) med følgende 
 1. Gå til **Settings → Social** i appen
 2. Følg trinnene og indsæt et kort-livet token fra Graph API Explorer
 3. Klik **Konvertér til permanent token**
-4. Kopiér det permanente Page Access Token
-5. Sæt det som `INSTAGRAM_ACCESS_TOKEN` i Vercel → Environment Variables → Production
-6. Redeploy
+4. Klik **Gem dette token som Instagram Access Token** (eller indsæt i feltet «Instagram Access Token» og **Gem**)
+5. Token gemmes i Firestore (prod) / `data/instagram-config.json` (lokal) og bruges automatisk — Vercel env er kun fallback
+6. **Kør diagnose** — Gyldig skal være **ja**
 
 #### Manuelt (fallback)
 

@@ -5,8 +5,9 @@ import type { PointerEvent as ReactPointerEvent, MouseEvent as ReactMouseEvent }
 import { WebflowAuthor } from '@/lib/webflow-service';
 import type { ArticleData } from '@/types/article';
 import StepChip from '@/components/ui/StepChip';
+import { EDITORIAL_ARTICLE_TYPE_OPTIONS, getEditorialArticleTypeOption } from '@/lib/editorial/signal-store';
 
-type Step = 'template' | 'source' | 'trending' | 'inspiration' | 'recommended' | 'analysis' | 'author' | 'section' | 'topic' | 'platform' | 'rating' | 'press';
+type Step = 'template' | 'articleType' | 'source' | 'trending' | 'inspiration' | 'recommended' | 'analysis' | 'author' | 'section' | 'topic' | 'platform' | 'rating' | 'press';
 
 interface SetupWizardProps {
   initialData?: Partial<ArticleData>;
@@ -166,6 +167,9 @@ export default function SetupWizard({ initialData, onComplete, onChange }: Setup
     inspirationAcknowledged: initialData?.inspirationAcknowledged || false,
     recommendedSelected: initialData?.recommendedSelected || null,
     aiDraft: initialData?.aiDraft || null,
+    articleType: getEditorialArticleTypeOption(initialData?.articleType).id,
+    targetWordCount: initialData?.targetWordCount || getEditorialArticleTypeOption(initialData?.articleType).targetWordCount,
+    targetLengthLabel: initialData?.targetLengthLabel || getEditorialArticleTypeOption(initialData?.articleType).targetLengthLabel,
     rating: initialData?.rating || 0,
     ratingSkipped: initialData?.ratingSkipped || false,
     press: typeof initialData?.press === 'boolean' ? initialData.press : null,
@@ -358,6 +362,10 @@ export default function SetupWizard({ initialData, onComplete, onChange }: Setup
 
   const nextStep = (from: Step) => {
     if (from==='template') {
+      if (data.template) return setStep('articleType');
+      return setStep('author');
+    }
+    if (from==='articleType') {
       if (data.template==='research') return setStep('source');
       if (data.template==='notes') return setStep('author'); // Skip recommended for notes template
       if (data.template) return setStep('recommended');
@@ -468,13 +476,13 @@ export default function SetupWizard({ initialData, onComplete, onChange }: Setup
     }
     
     // Load trending articles for selected source
+    const controller = new AbortController();
     try {
       setLoadingTrending(true);
       const id = (mediaSources.find(s => s.name === sourceName)?.id) || sourceName;
       if (trendingAbortRef.current) {
         try { trendingAbortRef.current.abort(); } catch {}
       }
-      const controller = new AbortController();
       trendingAbortRef.current = controller;
       const timestamp = Date.now();
       const res = await fetch(`/api/trending?source=${encodeURIComponent(id)}&_t=${timestamp}`, { 
@@ -524,9 +532,12 @@ export default function SetupWizard({ initialData, onComplete, onChange }: Setup
       setTrendingItems(sortedItems);
       currentSourceRef.current = sourceName;
     } catch (error) {
+      if (controller.signal.aborted) return;
       console.error('Error loading trending articles:', error);
     } finally {
-      setLoadingTrending(false);
+      if (trendingAbortRef.current === controller) {
+        setLoadingTrending(false);
+      }
     }
   }, [loadingTrending, loadingRecommended, mediaSources]);
 
@@ -611,6 +622,7 @@ export default function SetupWizard({ initialData, onComplete, onChange }: Setup
 
   const canContinue = () => {
     if (step==='template') return !!data.template;
+    if (step==='articleType') return !!data.articleType;
     if (step==='source') return !!data.inspirationSource;
     if (step==='trending') return !!data.researchSelected || true;
     if (step==='inspiration') return !!data.researchSelected;
@@ -642,6 +654,12 @@ export default function SetupWizard({ initialData, onComplete, onChange }: Setup
     if (data.inspirationAcknowledged) completionData.inspirationAcknowledged = data.inspirationAcknowledged;
     if (data.recommendedSelected) completionData.recommendedSelected = data.recommendedSelected;
     if (data.aiDraft) completionData.aiDraft = data.aiDraft;
+    if (data.articleType) {
+      const typeOption = getEditorialArticleTypeOption(data.articleType);
+      completionData.articleType = typeOption.id;
+      completionData.targetWordCount = data.targetWordCount || typeOption.targetWordCount;
+      completionData.targetLengthLabel = data.targetLengthLabel || typeOption.targetLengthLabel;
+    }
     if (data.section) completionData.category = data.section;
     if (tags.length > 0) completionData.tags = tags;
     if (data.platform) {
@@ -665,6 +683,7 @@ export default function SetupWizard({ initialData, onComplete, onChange }: Setup
 
     // Base steps – always present
     segments.push(!!data.template); // template
+    segments.push(!!data.articleType); // article type
 
     const includeResearchSteps = data.template === 'research';
     if (includeResearchSteps) {
@@ -713,6 +732,9 @@ export default function SetupWizard({ initialData, onComplete, onChange }: Setup
           onClickCapture={handleClickCapture}
         >
           <StepChip stepKey="template" active={step==='template'} done={!!data.template} label="Template" onClick={()=>setStep('template')} />
+          {data.template && (
+            <StepChip stepKey="articleType" active={step==='articleType'} done={!!data.articleType} label="Type" onClick={()=>setStep('articleType')} />
+          )}
           {data.template==='research' && (
             <>
               <StepChip stepKey="source" active={step==='source'} done={!!data.inspirationSource} label="Kilde" onClick={()=>setStep('source')} />
@@ -777,12 +799,45 @@ export default function SetupWizard({ initialData, onComplete, onChange }: Setup
                           next.inspirationAcknowledged = false;
                         }
                         return next;
-                      }, 'template', (opt.key==='research' ? 'source' : 'author'));
+                      }, 'template', 'articleType');
                     }
                   }}
                   className={`px-3 py-1.5 rounded-lg text-xs transition-all border ${selected ? 'bg-white/10 text-white border-white/40' : 'bg-white/5 text-white border-white/10 hover:border-white/20 hover:bg-white/10'}`}
                 >
                   <span className={`${selected ? 'text-sheen-glow' : ''}`}>{opt.label}</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {step==='articleType' && (
+        <div className="space-y-3 md:space-y-[14px]">
+          <div className="text-white/80 text-sm">Vælg artikeltype og længde</div>
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+            {EDITORIAL_ARTICLE_TYPE_OPTIONS.map((option) => {
+              const selected = data.articleType === option.id;
+              return (
+                <button
+                  key={option.id}
+                  onClick={() => {
+                    updateData(
+                      (d:any) => ({
+                        ...d,
+                        articleType: option.id,
+                        targetWordCount: option.targetWordCount,
+                        targetLengthLabel: option.targetLengthLabel,
+                      }),
+                      'articleType'
+                    );
+                  }}
+                  className={`min-h-11 rounded-lg border px-3 py-2 text-left text-xs transition-all active:scale-[0.98] ${
+                    selected ? 'bg-white/10 text-white border-white/40' : 'bg-white/5 text-white/75 border-white/10 hover:border-white/20 hover:bg-white/10'
+                  }`}
+                >
+                  <span className="block font-medium">{option.label}</span>
+                  <span className="mt-0.5 block text-[10px] text-white/40">{option.description} · {option.targetLengthLabel}</span>
                 </button>
               );
             })}
@@ -801,16 +856,13 @@ export default function SetupWizard({ initialData, onComplete, onChange }: Setup
               return (
                 <button
                   key={name}
-                  onClick={async ()=> {
+                  onClick={()=> {
                     if (selected) {
           updateData((d:any)=> ({ ...d, inspirationSource: '', researchSelected: null, inspirationAcknowledged: false }));
                       setTrendingItems([]);
                       return;
                     }
                     updateData((d:any)=> ({ ...d, inspirationSource: name, researchSelected: null, inspirationAcknowledged: false }), 'source');
-                    
-                    // Load articles automatically (handled by loadArticles function)
-                    loadArticles(name);
                   }}
                   className={`px-3 py-1.5 rounded-lg text-xs transition-all border ${selected ? 'bg-white/10 text-white border-white/40' : 'bg-white/5 text-white border-white/10 hover:border-white/20 hover:bg-white/10'}`}
                 >

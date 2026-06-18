@@ -318,6 +318,11 @@ export default function LoginPage() {
             allow="autoplay; fullscreen; vr"
             className="w-full h-full"
           />
+          {/* Dæk Spline free-tier "Made with Spline"-mærket i nederste højre hjørne */}
+          <div
+            aria-hidden
+            className="pointer-events-none absolute bottom-0 right-0 h-11 w-40 bg-black/40 backdrop-blur-xl rounded-tl-xl"
+          />
         </div>
         {/* Centered white logo overlay */}
         <div className="pointer-events-none absolute inset-0 flex items-center justify-center">

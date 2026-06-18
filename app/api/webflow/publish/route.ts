@@ -1,15 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { publishArticleToWebflow, WebflowArticleFields } from '@/lib/webflow-service';
-import { logger, createRequestLogger } from '@/lib/logger';
+import { publishCanonicalArticleToWebflow } from '@/lib/articles/publish';
+import { createRequestLogger } from '@/lib/logger';
 import { getRequestId } from '@/lib/api/request-utils';
 import { createErrorResponse, createSuccessResponse, ErrorCode } from '@/lib/api/types';
+import type { ArticlePayload } from '@/lib/articles/article-payload';
 
 export async function POST(request: NextRequest) {
   const requestId = getRequestId(request);
   const requestLogger = createRequestLogger(requestId);
   
   try {
-    const articleData: WebflowArticleFields = await request.json();
+    const articleData: ArticlePayload = await request.json();
     
     // Debug: Log what we receive
     requestLogger.debug('Received article data for Webflow publish', {
@@ -48,34 +49,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Generate slug if not provided
-    if (!articleData.slug) {
-      articleData.slug = articleData.title
-        .toLowerCase()
-        .replace(/[^a-z0-9\s-]/g, '')
-        .replace(/\s+/g, '-')
-        .trim();
-    }
-
-    // Set default values
-    articleData.publishDate = articleData.publishDate || new Date().toISOString();
-    articleData.status = articleData.status || 'draft';
-    articleData.wordCount = articleData.content.split(' ').length;
-    articleData.readTime = Math.ceil(articleData.wordCount / 200); // ~200 words per minute
-    // Safety default: mark AI-generated content when payload indicates AI origin.
-    if (
-      articleData.aiGenerated === undefined ||
-      articleData.aiGenerated === null
-    ) {
-      const looksAiAuthored =
-        !!articleData.aiModel ||
-        !!articleData.aiSourceUrl ||
-        String(articleData.author || '').trim().toLowerCase() === 'liv brandt';
-      if (looksAiAuthored) {
-        articleData.aiGenerated = true;
-      }
-    }
-
     // Check if this is an update to existing article
     const isUpdate = articleData.webflowId && articleData.webflowId !== '';
     requestLogger.info('Publish mode', { 
@@ -83,8 +56,11 @@ export async function POST(request: NextRequest) {
       webflowId: articleData.webflowId || undefined,
     });
 
-    // Publish to Webflow
-    const articleId = await publishArticleToWebflow(articleData);
+    // Publish to Webflow through the canonical article pipeline.
+    const { articleId } = await publishCanonicalArticleToWebflow(articleData, {
+      source: articleData.source || 'ai-writer',
+      defaultStatus: 'draft',
+    });
 
     requestLogger.info('Article published successfully to Webflow', { articleId });
 

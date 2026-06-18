@@ -10,8 +10,9 @@ export type NewsletterArticle = {
   excerpt: string;
   thumbUrl: string | null;
   /**
-   * Dato for ugens-udvælgelse + sortering: Webflow systemfelter (`createdOn` →
-   * `lastUpdated` → `lastPublished`) — aldrig CMS `publish-date` (kan være event/SEO, fx festival).
+   * Dato for ugens-udvælgelse + sortering: Webflow publicerings-/opdateringsfelter
+   * (`lastPublished` → `lastUpdated` → `createdOn`) — aldrig CMS `publish-date`
+   * (kan være event/SEO, fx festival).
    */
   selectionDate: string;
   /** Vist dato (live/tekst) — bruger systemfelter først, ellers `publish-date` i CMS. */
@@ -125,7 +126,7 @@ function mapItemToNewsletterArticle(
   const publishDateField = typeof fd['publish-date'] === 'string' ? fd['publish-date'] : null;
   const lastPublished = typeof it?.lastPublished === 'string' ? it.lastPublished : null;
   const lastUpdated = typeof it?.lastUpdated === 'string' ? it.lastUpdated : null;
-  /** Nyhedsbreb-vindue/sort: aldrig CMS `publish-date` — kan vise Heartland i august mens CMS-item laves uge 17. */
+  /** Nyhedsbrev-vindue/sort: brug `createdOn` som primær kilde (redaktionel udgivelsesrækkefølge). */
   const selectionDate = createdOn || lastUpdated || lastPublished;
   const published = lastPublished || lastUpdated || createdOn || publishDateField;
   if (!selectionDate) return null;
@@ -298,7 +299,7 @@ export async function fetchArticlesForWeek(
     ? inWindowRaw.filter((a) => !excludeFull.has(a.id))
     : [...inWindowRaw];
   if (inWindowAfterExclude.length > maxPick) {
-    const capNote = `I alt ${inWindowAfterExclude} artikler i dato-vinduet (efter standard-ekskludering), men højst ${maxPick} vises — de nyeste efter dato. En enkelt artikel kan mangle, fordi den er nummer 9+ i køen; vælg den i tilpasset nyhedsbreb.`;
+    const capNote = `I alt ${inWindowAfterExclude.length} artikler i dato-vinduet (efter standard-ekskludering), men højst ${maxPick} vises — de nyeste efter dato. En enkelt artikel kan mangle, fordi den er nummer 9+ i køen; vælg den i tilpasset nyhedsbrev.`;
     minimumNote = minimumNote ? `${minimumNote} ${capNote}` : capNote;
   }
 

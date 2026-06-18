@@ -1,4 +1,6 @@
 import { NextResponse } from 'next/server';
+import { resolveInstagramAccessToken } from '@/lib/instagram-config';
+import { classifyMetaGraphError, issueUserMessage } from '@/lib/meta/token-errors';
 
 const INSTAGRAM_API_VERSION = 'v24.0';
 const GRAPH_HOST = 'https://graph.facebook.com';
@@ -22,7 +24,7 @@ function nextStepSocial(): string {
 
 export async function GET() {
   const pageId = process.env.FACEBOOK_PAGE_ID?.trim();
-  const accessToken = process.env.INSTAGRAM_ACCESS_TOKEN?.trim();
+  const { token: accessToken } = await resolveInstagramAccessToken();
 
   if (!pageId || !accessToken) {
     return NextResponse.json({
@@ -63,8 +65,13 @@ export async function GET() {
         errCode === 100 ||
         /unsupported get request|does not exist|cannot be loaded/i.test(msg);
 
+      const tokenIssue = classifyMetaGraphError(msg, errCode, errSubcode);
+      const issueMsg = issueUserMessage(tokenIssue);
+
       let friendlyError = msg;
-      if (isTokenExpired) {
+      if (tokenIssue === 'session_invalidated' && issueMsg) {
+        friendlyError = issueMsg;
+      } else if (isTokenExpired) {
         friendlyError = tokenErrorUserMessage();
       } else if (isPermissionIssue) {
         friendlyError = permissionUserMessage();
