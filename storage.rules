@@ -12,6 +12,13 @@ service firebase.storage {
       allow read, write: if request.auth != null;
     }
 
+    // Indloggede brugere uploader rå billeder til "Importér artikel".
+    // Optimeres efterfølgende server-side til WebP via vores pipeline.
+    match /article-imports/{userId}/{fileName} {
+      allow read: if true;
+      allow write: if request.auth != null && request.auth.uid == userId;
+    }
+
     // Indloggede brugere må lægge rå podcast-filer i incoming (browser-upload).
     // Størrelse valideres server-side i /api/podcast/upload-url.
     match /podcasts/incoming/{slug}/{fileName} {

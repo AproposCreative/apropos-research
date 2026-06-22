@@ -362,12 +362,13 @@ export default function SetupWizard({ initialData, onComplete, onChange }: Setup
 
   const nextStep = (from: Step) => {
     if (from==='template') {
+      if (data.template==='import') return setStep('author'); // Import udleder type/længde selv
       if (data.template) return setStep('articleType');
       return setStep('author');
     }
     if (from==='articleType') {
       if (data.template==='research') return setStep('source');
-      if (data.template==='notes') return setStep('author'); // Skip recommended for notes template
+      if (data.template==='notes' || data.template==='import') return setStep('author'); // Skip recommended for notes/import
       if (data.template) return setStep('recommended');
       return setStep('author');
     }
@@ -782,6 +783,7 @@ export default function SetupWizard({ initialData, onComplete, onChange }: Setup
             {[
               { key: 'notes', label: 'Skriv artikel ud fra egne noter' },
               { key: 'research', label: 'Research' },
+              { key: 'import', label: 'Importér artikel' },
             ].map(opt => {
               const selected = data.template === opt.key;
               return (
@@ -799,7 +801,7 @@ export default function SetupWizard({ initialData, onComplete, onChange }: Setup
                           next.inspirationAcknowledged = false;
                         }
                         return next;
-                      }, 'template', 'articleType');
+                      }, 'template', opt.key === 'import' ? 'author' : 'articleType');
                     }
                   }}
                   className={`px-3 py-1.5 rounded-lg text-xs transition-all border ${selected ? 'bg-white/10 text-white border-white/40' : 'bg-white/5 text-white border-white/10 hover:border-white/20 hover:bg-white/10'}`}

@@ -200,6 +200,19 @@ html[data-ai-boot] body {
 .orbit-stroke { animation: orbit-stroke 2.2s linear infinite; filter: drop-shadow(0 0 5px rgba(255,255,255,0.55)); }
 @keyframes orbit-stroke { to { stroke-dashoffset: -1000; } }
 
+/* Manglende billeder: blinkende rød outline på dropzone (Importér artikel) */
+@keyframes pulse-red {
+  0%, 100% { border-color: rgba(248, 113, 113, 0.35); box-shadow: 0 0 0 0 rgba(248, 113, 113, 0); }
+  50% { border-color: rgba(248, 113, 113, 0.95); box-shadow: 0 0 0 3px rgba(248, 113, 113, 0.18); }
+}
+.animate-pulse-red { animation: pulse-red 1.1s ease-in-out infinite; }
+/* Kraftigt blink når brugeren forsøger at afsende uden billeder */
+@keyframes pulse-red-strong {
+  0%, 100% { border-color: rgba(248, 113, 113, 0.7); box-shadow: 0 0 0 1px rgba(248, 113, 113, 0.3); }
+  50% { border-color: rgba(248, 113, 113, 1); box-shadow: 0 0 0 4px rgba(248, 113, 113, 0.32); }
+}
+.animate-pulse-red-strong { animation: pulse-red-strong 0.5s ease-in-out 3; }
+
 :root {
   --bg: #FAFAFA;
   --fg: #0A0A0A;

@@ -10,7 +10,7 @@ import ArticlePicker from '@/components/ArticlePicker';
 import CategorySelection from '@/components/CategorySelection';
 import { WebflowAuthor } from '@/lib/webflow-service';
 import { useAuth } from '@/lib/auth-context';
-import { type UploadedFile } from '@/lib/file-upload-service';
+import { type UploadedFile, uploadImportImage, isImageFile } from '@/lib/file-upload-service';
 import PreflightRecommendations from '@/components/PreflightRecommendations';
 import PreflightStatus from '@/components/PreflightStatus';
 import type { ThinkingStep, ThinkingStatus } from '@/types/thinking';
@@ -43,6 +43,13 @@ interface MainChatPanelProps {
   onOpenPromptArchitect?: () => void;
   lastFailedMessage?: string | null;
   onRetryLast?: () => void;
+  /** "Importér artikel"-template aktiv — åbner dropzone + kræver 3 billeder. */
+  importMode?: boolean;
+  /** Ægte Storage-URLs for de uploadede import-billeder (hero, body1, body2). */
+  importImages?: string[];
+  onImportImagesChange?: (urls: string[]) => void;
+  /** Router import-afsendelse til AIWriterClient.handleImportArticle. */
+  onImportSubmit?: (text: string, imageUrls: string[]) => void;
 }
 
 export default function MainChatPanel({
@@ -71,8 +78,12 @@ export default function MainChatPanel({
   onOpenPromptArchitect,
   lastFailedMessage = null,
   onRetryLast,
+  importMode = false,
+  importImages = [],
+  onImportImagesChange,
+  onImportSubmit,
 }: MainChatPanelProps) {
-  const { logout } = useAuth();
+  const { user, logout } = useAuth();
   const [inputMessage, setInputMessage] = useState('');
   const [hoveredMessage, setHoveredMessage] = useState<string | null>(null);
   const [editingMessage, setEditingMessage] = useState<string | null>(null);
@@ -80,6 +91,9 @@ export default function MainChatPanel({
   const [isAutoSaving, setIsAutoSaving] = useState(false);
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
   const [showFileDrop, setShowFileDrop] = useState(false);
+  const [importUploading, setImportUploading] = useState(false);
+  const [importSubmitAttempted, setImportSubmitAttempted] = useState(false);
+  const importAttemptTimeoutRef = useRef<number | null>(null);
   const [showUrlInput, setShowUrlInput] = useState(false);
   const [urlInputValue, setUrlInputValue] = useState('');
   const urlInputRef = useRef<HTMLInputElement>(null);
@@ -673,6 +687,19 @@ const fallbackThinkingSteps: ThinkingStep[] = [
   const handleSubmit = (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     const text = inputMessage.trim();
+
+    // Importér artikel: kræv tekst + præcis 3 billeder før afsendelse.
+    if (importMode) {
+      if (!text || importImages.length !== 3) {
+        flashImportInvalid();
+        setShowFileDrop(true);
+        return;
+      }
+      onImportSubmit?.(text, importImages);
+      setInputMessage('');
+      return;
+    }
+
     if (!text && attachedSources.length === 0) return;
     let fullMessage = text;
     if (attachedSources.length > 0) {
@@ -879,6 +906,63 @@ const fallbackThinkingSteps: ThinkingStep[] = [
     onSendMessage(fileMessage, [file]);
     setShowFileDrop(false);
   };
+
+  // Importér artikel: åbn upload-vinduet automatisk når templaten aktiveres.
+  useEffect(() => {
+    if (importMode) setShowFileDrop(true);
+  }, [importMode]);
+
+  /** Trigger et kraftigt rødt blink på dropzonen (fx blokeret afsendelse). */
+  const flashImportInvalid = useCallback(() => {
+    setImportSubmitAttempted(true);
+    if (importAttemptTimeoutRef.current) window.clearTimeout(importAttemptTimeoutRef.current);
+    importAttemptTimeoutRef.current = window.setTimeout(() => setImportSubmitAttempted(false), 1600);
+  }, []);
+
+  /** Upload rå import-billeder som ægte Storage-URLs (max 3, hero først). */
+  const handleImportRawFiles = useCallback(async (files: File[]) => {
+    if (!user) {
+      handleFileError('Du skal være logget ind for at uploade billeder.');
+      return;
+    }
+    const imageFiles = files.filter(isImageFile);
+    if (imageFiles.length === 0) {
+      handleFileError('Vælg billedfiler (jpg, png, webp).');
+      return;
+    }
+    const remaining = Math.max(0, 3 - importImages.length);
+    if (remaining === 0) {
+      handleFileError('Du har allerede tilføjet 3 billeder. Fjern et før du tilføjer et nyt.');
+      return;
+    }
+    const toUpload = imageFiles.slice(0, remaining);
+    setImportUploading(true);
+    try {
+      const uploaded: string[] = [];
+      for (const file of toUpload) {
+        if (file.size > 15 * 1024 * 1024) {
+          handleFileError(`"${file.name}" er for stor (max 15MB).`);
+          continue;
+        }
+        try {
+          const url = await uploadImportImage(file, user.uid);
+          uploaded.push(url);
+        } catch (err) {
+          console.error('Import image upload failed:', err);
+          handleFileError(`Kunne ikke uploade "${file.name}". Prøv igen.`);
+        }
+      }
+      if (uploaded.length > 0) {
+        onImportImagesChange?.([...importImages, ...uploaded].slice(0, 3));
+      }
+    } finally {
+      setImportUploading(false);
+    }
+  }, [user, importImages, onImportImagesChange]);
+
+  const removeImportImage = useCallback((index: number) => {
+    onImportImagesChange?.(importImages.filter((_, i) => i !== index));
+  }, [importImages, onImportImagesChange]);
 
   const handleUrlFetch = async () => {
     const url = urlInputValue.trim();
@@ -1794,14 +1878,59 @@ const fallbackThinkingSteps: ThinkingStep[] = [
             </div>
           )}
 
-          {showFileDrop && (
-            <div className="mb-2">
+          {importMode ? (
+            <div className="mb-2 space-y-2">
               <FileDropZone
                 onFileUploaded={handleFileUploaded}
                 onError={handleFileError}
-                className="min-h-[120px]"
+                onRawFiles={handleImportRawFiles}
+                multiple
+                invalid={importImages.length < 3}
+                invalidStrong={importSubmitAttempted && importImages.length < 3}
+                helperText={`Upload 3 billeder: 1 hero + 2 til brødteksten (${importImages.length}/3 valgt)`}
+                className="min-h-[110px]"
               />
+              {importUploading && (
+                <div className="flex items-center gap-2 text-white/55 text-xs pl-1">
+                  <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin inline-block" />
+                  Uploader billede…
+                </div>
+              )}
+              {importImages.length > 0 && (
+                <div className="flex flex-wrap gap-2 pt-0.5">
+                  {importImages.map((url, i) => (
+                    <div
+                      key={`${url}-${i}`}
+                      className="relative group rounded-lg overflow-hidden border border-white/15 bg-white/[0.04]"
+                    >
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={url} alt={i === 0 ? 'Hero' : `Brødtekst ${i}`} className="h-16 w-16 object-cover" />
+                      <span className="absolute bottom-0 inset-x-0 bg-black/70 text-[9px] text-white/85 text-center py-0.5 uppercase tracking-wider">
+                        {i === 0 ? 'Hero' : `Body ${i}`}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => removeImportImage(i)}
+                        className="absolute top-0.5 right-0.5 flex size-5 items-center justify-center rounded-full bg-black/70 text-white/80 hover:bg-black hover:text-white transition-colors"
+                        title="Fjern billede"
+                      >
+                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M18 6L6 18M6 6l12 12" /></svg>
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
+          ) : (
+            showFileDrop && (
+              <div className="mb-2">
+                <FileDropZone
+                  onFileUploaded={handleFileUploaded}
+                  onError={handleFileError}
+                  className="min-h-[120px]"
+                />
+              </div>
+            )
           )}
           {/* Writer field card */}
           <div className={`relative rounded-xl ${messages.length === 0 ? 'bg-black/40 backdrop-blur-xl border border-white/15 shadow-[0_-18px_80px_-30px_rgba(255,255,255,0.28)]' : 'bg-[#171717] border border-white/15'}`}>
@@ -1825,7 +1954,7 @@ const fallbackThinkingSteps: ThinkingStep[] = [
                     animation: 'gradient-shift 4s ease-in-out infinite'
                   }}
                 >
-                  Lad os starte med din artikel
+                  {importMode ? 'Indsæt din færdige artikel her' : 'Lad os starte med din artikel'}
                 </span>
               </div>
             )}
@@ -1881,7 +2010,10 @@ const fallbackThinkingSteps: ThinkingStep[] = [
             
             <button 
               onClick={() => handleSubmit()}
-              disabled={!inputMessage.trim() && attachedSources.length === 0}
+              disabled={importMode
+                ? (!inputMessage.trim() || importImages.length !== 3)
+                : (!inputMessage.trim() && attachedSources.length === 0)}
+              title={importMode && importImages.length !== 3 ? 'Upload 3 billeder for at importere' : undefined}
               className="touch-target w-11 h-11 bg-white rounded-lg flex items-center justify-center hover:bg-gray-100 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
             >
               <svg className="w-4 h-4 text-gray-800" fill="currentColor" viewBox="0 0 20 20">

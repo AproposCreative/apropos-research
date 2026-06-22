@@ -69,6 +69,8 @@ export default function AIWriterClient() {
     }
   });
   const [reviewOpen, setReviewOpen] = useState(false);
+  /** Ægte Storage-URLs for de 3 import-billeder (hero, body1, body2). */
+  const [importImages, setImportImages] = useState<string[]>([]);
   const [shelfOpen, setShelfOpen] = useState(false);
   const [webAppsOpen, setWebAppsOpen] = useState(false);
   const [sourcesOpen, setSourcesOpen] = useState(false);
@@ -955,6 +957,106 @@ export default function AIWriterClient() {
     }
   };
 
+  /**
+   * "Importér artikel"-flow: tager den indsatte artikeltekst + 3 uploadede
+   * billeder (ægte Storage-URLs), henter CMS-options og kalder
+   * /api/articles/import, som optimerer billeder + autofylder alle felter.
+   */
+  const handleImportArticle = useCallback(async (text: string, imageUrls: string[]) => {
+    const trimmed = (text || '').trim();
+    const images = (imageUrls || []).filter(Boolean);
+
+    if (!trimmed) {
+      addChatMessage('assistant', 'Indsæt artikelteksten i chatten før import.');
+      return;
+    }
+    if (images.length !== 3) {
+      addChatMessage(
+        'assistant',
+        `Importér artikel kræver 3 billeder (1 hero + 2 til brødteksten). Du har uploadet ${images.length}.`
+      );
+      return;
+    }
+
+    addChatMessage('user', 'Importér færdig artikel (1 hero + 2 brødtekst-billeder).');
+    setIsThinking(true);
+    try {
+      const fetchOptions = async (path: string) => {
+        try {
+          const res = await fetch(path, { cache: 'no-store' });
+          if (!res.ok) return [];
+          const j = await res.json();
+          const items = j.data?.items || j.items || [];
+          return Array.isArray(items) ? items : [];
+        } catch {
+          return [];
+        }
+      };
+
+      const [sections, topics, authors, streamingServices] = await Promise.all([
+        fetchOptions('/api/webflow/sections'),
+        fetchOptions('/api/webflow/topics'),
+        fetchOptions('/api/webflow/authors'),
+        fetchOptions('/api/webflow/streaming-services'),
+      ]);
+
+      const response = await fetch('/api/articles/import', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          articleText: trimmed,
+          images: { hero: images[0], body1: images[1], body2: images[2] },
+          sections,
+          topics,
+          authors,
+          streamingServices,
+        }),
+      });
+
+      if (!response.ok) {
+        let message = `Import fejlede (HTTP ${response.status}).`;
+        try {
+          const errJson = await response.json();
+          if (typeof errJson?.error === 'string' && errJson.error.trim()) message = errJson.error.trim();
+        } catch {}
+        addChatMessage('assistant', message);
+        return;
+      }
+
+      const json = await response.json();
+      const articleUpdate = json?.data?.articleUpdate || json?.articleUpdate;
+      if (!articleUpdate || !articleUpdate.content) {
+        addChatMessage('assistant', 'Importen kom ikke retur med et brugbart resultat. Prøv igen.');
+        return;
+      }
+
+      setArticleData(prev => ({ ...prev, ...articleUpdate }));
+      setImportImages([]);
+
+      const summary = [
+        `Titel: ${articleUpdate.title || '—'}`,
+        articleUpdate.category ? `Section: ${articleUpdate.category}` : null,
+        Array.isArray(articleUpdate.topicsSelected) && articleUpdate.topicsSelected.length
+          ? `Emner: ${articleUpdate.topicsSelected.join(', ')}`
+          : null,
+        articleUpdate.author ? `Forfatter: ${articleUpdate.author}` : null,
+        articleUpdate.rating ? `Bedømmelse: ${articleUpdate.rating}⭐` : null,
+        typeof articleUpdate.readTime === 'number' ? `Læsetid: ${articleUpdate.readTime} min` : null,
+        `SEO-titel: ${articleUpdate.seoTitle || '—'}`,
+      ].filter(Boolean).join('\n');
+
+      addChatMessage(
+        'assistant',
+        `Artiklen er importeret og gjort publiceringsklar:\n${summary}\n\nBilleder er optimeret (hero + 2 i brødteksten). Tjek alle felter i preview-panelet før du udgiver.`
+      );
+    } catch (error) {
+      console.error('Import article error:', error);
+      addChatMessage('assistant', 'Der opstod en fejl under importen. Tjek forbindelsen og prøv igen.');
+    } finally {
+      setIsThinking(false);
+    }
+  }, [addChatMessage]);
+
   const handleSetupWizardComplete = useCallback(async (setup: any) => {
     setArticleData(prev => ({ ...prev, ...setup }));
     setShowWizard(false);
@@ -980,7 +1082,12 @@ export default function AIWriterClient() {
     ].filter(Boolean).join('\n');
     
     // Auto-generate article if template is 'notes' and we have notes
-    if (setup.template === 'notes' && notes && notes.length > 120) {
+    if (setup.template === 'import') {
+      addChatMessage(
+        'assistant',
+        `Super. Jeg er klar til at importere.\n${summary}\n\nIndsæt din færdige artikel i feltet nedenfor og upload 3 billeder (1 til hero/thumbnail + 2 til brødteksten). Tryk send, så optimerer jeg billederne og udfylder alle CMS-felter.`
+      );
+    } else if (setup.template === 'notes' && notes && notes.length > 120) {
       addChatMessage('assistant', `Super. Jeg har sat artiklen op:\n${summary}\n\nJeg genererer nu artiklen baseret på dine noter...`);
       // Auto-trigger article generation
       await handleSendMessage('Generer artikel baseret på mine noter');
@@ -1343,6 +1450,10 @@ export default function AIWriterClient() {
                 messages={chatMessages}
                 setChatMessages={setChatMessages}
                 onSendMessage={handleSendMessage}
+                importMode={(articleData as any).template === 'import'}
+                importImages={importImages}
+                onImportImagesChange={setImportImages}
+                onImportSubmit={handleImportArticle}
                 articleData={articleData}
                 isThinking={isThinking}
                 thinkingSteps={thinkingSteps}
