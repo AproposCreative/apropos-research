@@ -15,14 +15,22 @@ import { deriveSlug } from '@/lib/articles/seo-utils';
 export const runtime = 'nodejs';
 export const maxDuration = 300;
 
+type ImageInput = string | { url?: string; name?: string };
+
 interface ImportRequestBody {
   articleText?: string;
-  images?: { hero?: string; body1?: string; body2?: string };
+  images?: { hero?: ImageInput; body1?: ImageInput; body2?: ImageInput };
   sections?: CmsOption[];
   topics?: CmsOption[];
   authors?: CmsOption[];
   streamingServices?: CmsOption[];
 }
+
+const asImage = (value: ImageInput | undefined): { url: string; name: string | null } => {
+  if (!value) return { url: '', name: null };
+  if (typeof value === 'string') return { url: value.trim(), name: null };
+  return { url: String(value.url || '').trim(), name: value.name ? String(value.name) : null };
+};
 
 const asOptions = (value: unknown): CmsOption[] => {
   if (!Array.isArray(value)) return [];
@@ -51,9 +59,12 @@ export async function POST(req: NextRequest) {
   try {
     const body = (await req.json()) as ImportRequestBody;
     const articleText = String(body.articleText || '').trim();
-    const hero = body.images?.hero?.trim();
-    const body1 = body.images?.body1?.trim();
-    const body2 = body.images?.body2?.trim();
+    const heroImg = asImage(body.images?.hero);
+    const body1Img = asImage(body.images?.body1);
+    const body2Img = asImage(body.images?.body2);
+    const hero = heroImg.url;
+    const body1 = body1Img.url;
+    const body2 = body2Img.url;
 
     if (!articleText) {
       return NextResponse.json(
@@ -149,6 +160,8 @@ export async function POST(req: NextRequest) {
       heroImageUrl: heroDesktop.url,
       mobileImageUrl: heroMobile.url,
       bodyImageUrls: [bodyOne.url, bodyTwo.url],
+      heroImageName: heroImg.name,
+      bodyImageNames: [body1Img.name, body2Img.name],
     });
 
     requestLogger.info('Import: complete', {

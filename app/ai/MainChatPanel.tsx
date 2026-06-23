@@ -45,11 +45,11 @@ interface MainChatPanelProps {
   onRetryLast?: () => void;
   /** "Importér artikel"-template aktiv — åbner dropzone + kræver 3 billeder. */
   importMode?: boolean;
-  /** Ægte Storage-URLs for de uploadede import-billeder (hero, body1, body2). */
-  importImages?: string[];
-  onImportImagesChange?: (urls: string[]) => void;
+  /** Ægte Storage-URLs + filnavne for de uploadede import-billeder (hero, body1, body2). */
+  importImages?: { url: string; name: string }[];
+  onImportImagesChange?: (images: { url: string; name: string }[]) => void;
   /** Router import-afsendelse til AIWriterClient.handleImportArticle. */
-  onImportSubmit?: (text: string, imageUrls: string[]) => void;
+  onImportSubmit?: (text: string, images: { url: string; name: string }[]) => void;
 }
 
 export default function MainChatPanel({
@@ -938,7 +938,7 @@ const fallbackThinkingSteps: ThinkingStep[] = [
     const toUpload = imageFiles.slice(0, remaining);
     setImportUploading(true);
     try {
-      const uploaded: string[] = [];
+      const uploaded: { url: string; name: string }[] = [];
       for (const file of toUpload) {
         if (file.size > 15 * 1024 * 1024) {
           handleFileError(`"${file.name}" er for stor (max 15MB).`);
@@ -946,7 +946,7 @@ const fallbackThinkingSteps: ThinkingStep[] = [
         }
         try {
           const url = await uploadImportImage(file, user.uid);
-          uploaded.push(url);
+          uploaded.push({ url, name: file.name });
         } catch (err) {
           console.error('Import image upload failed:', err);
           handleFileError(`Kunne ikke uploade "${file.name}". Prøv igen.`);
@@ -1898,13 +1898,14 @@ const fallbackThinkingSteps: ThinkingStep[] = [
               )}
               {importImages.length > 0 && (
                 <div className="flex flex-wrap gap-2 pt-0.5">
-                  {importImages.map((url, i) => (
+                  {importImages.map((img, i) => (
                     <div
-                      key={`${url}-${i}`}
+                      key={`${img.url}-${i}`}
                       className="relative group rounded-lg overflow-hidden border border-white/15 bg-white/[0.04]"
+                      title={img.name || undefined}
                     >
                       {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={url} alt={i === 0 ? 'Hero' : `Brødtekst ${i}`} className="h-16 w-16 object-cover" />
+                      <img src={img.url} alt={i === 0 ? 'Hero' : `Brødtekst ${i}`} className="h-16 w-16 object-cover" />
                       <span className="absolute bottom-0 inset-x-0 bg-black/70 text-[9px] text-white/85 text-center py-0.5 uppercase tracking-wider">
                         {i === 0 ? 'Hero' : `Body ${i}`}
                       </span>

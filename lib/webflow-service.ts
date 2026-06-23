@@ -614,7 +614,8 @@ export async function publishArticleToWebflow(articleData: WebflowArticleFields)
       }
     }
 
-    if (articleData.featuredImage?.trim()) {
+    // Udled kun foto-kredit fra URL'en hvis den ikke allerede er sat (fx fra filnavn ved import).
+    if (!articleData.fotoCredit?.trim() && articleData.featuredImage?.trim()) {
       const fc = fotoCreditFromFeaturedUrl(articleData.featuredImage.trim());
       if (fc) {
         articleData = { ...articleData, fotoCredit: fc };

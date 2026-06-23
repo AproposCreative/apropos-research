@@ -69,8 +69,8 @@ export default function AIWriterClient() {
     }
   });
   const [reviewOpen, setReviewOpen] = useState(false);
-  /** Ægte Storage-URLs for de 3 import-billeder (hero, body1, body2). */
-  const [importImages, setImportImages] = useState<string[]>([]);
+  /** Ægte Storage-URLs + original-filnavne for de 3 import-billeder (hero, body1, body2). */
+  const [importImages, setImportImages] = useState<{ url: string; name: string }[]>([]);
   const [shelfOpen, setShelfOpen] = useState(false);
   const [webAppsOpen, setWebAppsOpen] = useState(false);
   const [sourcesOpen, setSourcesOpen] = useState(false);
@@ -962,18 +962,18 @@ export default function AIWriterClient() {
    * billeder (ægte Storage-URLs), henter CMS-options og kalder
    * /api/articles/import, som optimerer billeder + autofylder alle felter.
    */
-  const handleImportArticle = useCallback(async (text: string, imageUrls: string[]) => {
+  const handleImportArticle = useCallback(async (text: string, images: { url: string; name: string }[]) => {
     const trimmed = (text || '').trim();
-    const images = (imageUrls || []).filter(Boolean);
+    const imgs = (images || []).filter((i) => i && i.url);
 
     if (!trimmed) {
       addChatMessage('assistant', 'Indsæt artikelteksten i chatten før import.');
       return;
     }
-    if (images.length !== 3) {
+    if (imgs.length !== 3) {
       addChatMessage(
         'assistant',
-        `Importér artikel kræver 3 billeder (1 hero + 2 til brødteksten). Du har uploadet ${images.length}.`
+        `Importér artikel kræver 3 billeder (1 hero + 2 til brødteksten). Du har uploadet ${imgs.length}.`
       );
       return;
     }
@@ -1005,7 +1005,7 @@ export default function AIWriterClient() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           articleText: trimmed,
-          images: { hero: images[0], body1: images[1], body2: images[2] },
+          images: { hero: imgs[0], body1: imgs[1], body2: imgs[2] },
           sections,
           topics,
           authors,

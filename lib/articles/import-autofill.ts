@@ -209,6 +209,50 @@ function escapeHtml(input: string): string {
 }
 
 /**
+ * Udled foto-kredit ud fra billed-filnavnet, hvis fotografen fremgår.
+ * Konvention: `FotografNavn_Event_År_index` (fx "RenéDyhr_Heartland_2026_42 copy")
+ * → "Copyright © René Dyhr - Heartland 2026".
+ * Returnerer null hvis filnavnet ikke ligner et navn (fx "IMG_1234").
+ */
+export function deriveCreditFromFilename(filename?: string | null): string | null {
+  if (!filename) return null;
+  let base = String(filename).split(/[\\/]/).pop() || '';
+  base = base.replace(/\.[a-z0-9]{2,5}$/i, '');     // filendelse
+  base = base.replace(/\s*\bcopy\b\s*$/i, '');      // efterstillet "copy"
+  base = base.replace(/\s*\(\d+\)\s*$/i, '');       // efterstillet "(1)"
+  base = base.trim();
+  if (!base) return null;
+
+  let parts = base.split(/_+/).map((p) => p.trim()).filter(Boolean);
+  if (parts.length <= 1) parts = base.split(/\s+/).map((p) => p.trim()).filter(Boolean);
+  if (parts.length === 0) return null;
+
+  const splitCamel = (s: string) =>
+    s.replace(/([a-zæøåäöéèüáàíóú])([A-ZÆØÅÄÖ])/g, '$1 $2').replace(/\s+/g, ' ').trim();
+  const isYear = (s: string) => /^(19|20)\d{2}$/.test(s);
+  const isNumeric = (s: string) => /^\d+$/.test(s);
+  const isAlphaCapWord = (s: string) => /^[A-ZÆØÅ][A-Za-zÆØÅæøåéèüáàíóú.-]+$/.test(s);
+
+  let name = splitCamel(parts[0]);
+  let restStart = 1;
+  // Slå et sandsynligt efternavn sammen, hvis fornavn var ét token.
+  if (!name.includes(' ') && parts.length >= 2 && isAlphaCapWord(parts[1]) && !isYear(parts[1])) {
+    name = `${name} ${parts[1]}`.trim();
+    restStart = 2;
+  }
+
+  // Kræv et plausibelt 2-ords navn — ellers spring over (fx IMG_1234).
+  if (!name.includes(' ') || name.length < 4) return null;
+
+  const restTokens = parts.slice(restStart);
+  const year = restTokens.find(isYear) || '';
+  const event = restTokens.filter((t) => !isYear(t) && !isNumeric(t)).join(' ').trim();
+
+  const suffix = [event, year].filter(Boolean).join(' ').trim();
+  return suffix ? `Copyright © ${name} - ${suffix}` : `Copyright © ${name}`;
+}
+
+/**
  * Indsæt 2 brødtekst-billeder naturligt (ca. 1/3 og 2/3 nede) i Webflows
  * præcise rich-text figure-format. Falder tilbage til at appende billederne
  * hvis HTML'en ikke har nok afsnits-grænser.
@@ -216,7 +260,7 @@ function escapeHtml(input: string): string {
 export function insertBodyImagesIntoHtml(
   html: string,
   imageUrls: string[],
-  meta: { altBase?: string | null; credit?: string | null }
+  meta: { altBase?: string | null; credit?: string | null; credits?: (string | null)[] }
 ): string {
   const urls = imageUrls.filter(Boolean);
   if (!urls.length) return html;
@@ -226,7 +270,7 @@ export function insertBodyImagesIntoHtml(
       seoTitle: meta.altBase || null,
       articleTitle: meta.altBase || null,
       role: `inline-0${i + 1}`,
-    }), meta.credit || null)
+    }), meta.credits?.[i] ?? meta.credit ?? null)
   );
 
   // Find <p>…</p> blokke at indsætte imellem.
@@ -276,6 +320,9 @@ export interface BuildArticleUpdateInput {
   heroImageUrl: string;
   mobileImageUrl?: string | null;
   bodyImageUrls: string[];
+  /** Originale upload-filnavne — bruges til at udlede foto-kredit. */
+  heroImageName?: string | null;
+  bodyImageNames?: (string | null)[];
 }
 
 export interface ImportArticleUpdate {
@@ -311,11 +358,18 @@ export interface ImportArticleUpdate {
  * featuredImage og bereg deterministiske felter (slug, read time, SEO).
  */
 export function buildImportArticleUpdate(input: BuildArticleUpdateInput): ImportArticleUpdate {
-  const { analysis, heroImageUrl, mobileImageUrl, bodyImageUrls } = input;
+  const { analysis, heroImageUrl, mobileImageUrl, bodyImageUrls, heroImageName, bodyImageNames } = input;
+
+  // Foto-kredit: udled fra filnavn (fotografens navn), ellers AI-forslag.
+  const heroCredit = deriveCreditFromFilename(heroImageName) || analysis.fotoCredit || null;
+  const bodyCredits = bodyImageUrls.map(
+    (_, i) => deriveCreditFromFilename(bodyImageNames?.[i]) || heroCredit || analysis.fotoCredit || null
+  );
 
   const contentWithImages = insertBodyImagesIntoHtml(analysis.contentHtml, bodyImageUrls, {
     altBase: analysis.seoTitle || analysis.title,
-    credit: analysis.fotoCredit,
+    credit: heroCredit,
+    credits: bodyCredits,
   });
 
   const wordCount = countWords(`${analysis.intro} ${analysis.contentHtml}`);
@@ -362,7 +416,7 @@ export function buildImportArticleUpdate(input: BuildArticleUpdateInput): Import
   if (analysis.author) update.author = analysis.author;
   if (analysis.rating) update.rating = analysis.rating;
   if (mobileImageUrl) update.mobileImage = mobileImageUrl;
-  if (analysis.fotoCredit) update.fotoCredit = analysis.fotoCredit;
+  if (heroCredit) update.fotoCredit = heroCredit;
   if (analysis.streaming_service) {
     update.streaming_service = analysis.streaming_service;
     update.platform = analysis.streaming_service;

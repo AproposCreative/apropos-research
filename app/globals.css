@@ -213,6 +213,30 @@ html[data-ai-boot] body {
 }
 .animate-pulse-red-strong { animation: pulse-red-strong 0.5s ease-in-out 3; }
 
+/* Rich-text preview (ReviewPanel) — vis inline-billeder + figurer pænt */
+.apropos-richtext > * + * { margin-top: 0.75rem; }
+.apropos-richtext p { margin: 0; }
+.apropos-richtext figure { margin: 1rem 0; }
+.apropos-richtext img {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+.apropos-richtext figcaption {
+  margin-top: 0.4rem;
+  font-size: 11px;
+  line-height: 1.4;
+  color: rgba(255, 255, 255, 0.45);
+}
+.apropos-richtext h1, .apropos-richtext h2, .apropos-richtext h3 {
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.92);
+  margin: 1rem 0 0.25rem;
+}
+.apropos-richtext a { color: rgba(147, 197, 253, 0.9); text-decoration: underline; }
+
 :root {
   --bg: #FAFAFA;
   --fg: #0A0A0A;

@@ -57,6 +57,7 @@ export default function WebflowPublishPanel({ articleData, onPublish, onClose, e
     author: articleData.author || '',
     rating: articleData.rating || 0,
     featuredImage: articleData.featuredImage || '',
+    fotoCredit: articleData.fotoCredit || '',
     intro: getBestIntro(articleData),
     gallery: articleData.gallery || [],
     publishDate: new Date().toISOString(),
@@ -91,6 +92,7 @@ export default function WebflowPublishPanel({ articleData, onPublish, onClose, e
       author: articleData.author || prev.author,
       rating: articleData.rating || prev.rating,
       featuredImage: articleData.featuredImage || prev.featuredImage,
+      fotoCredit: articleData.fotoCredit || prev.fotoCredit,
       intro: getBestIntro(articleData, articleData.content || prev.content) || prev.intro,
       gallery: articleData.gallery || prev.gallery,
       seoTitle: articleData.seoTitle || prev.seoTitle,
@@ -171,6 +173,7 @@ export default function WebflowPublishPanel({ articleData, onPublish, onClose, e
         wordCount: wc,
         readTime: rt,
         intro: getBestIntro(articleData, content) || prev.intro || '',
+        fotoCredit: articleData.fotoCredit || prev.fotoCredit || '',
         videoTrailer: articleData.videoTrailer || articleData.video_trailer || prev.videoTrailer,
       }));
   } catch {}

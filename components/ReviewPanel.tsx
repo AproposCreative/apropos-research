@@ -322,6 +322,17 @@ export default function ReviewPanel({ articleData, onClose, frameless, onPreflig
       ? stripIntroDuplicateFromBody(extractedPreview.intro, extractedPreview.body)
       : extractedPreview.body;
 
+  // Brødtekst kan være rich-text HTML (fx ved "Importér artikel" med inline-billeder).
+  // Render den som HTML — ellers vises rå <figure>/<img>-tags som tekst ("roddet ud").
+  const bodyIsHtml = /<(figure|img|p|h[1-6]|ul|ol|blockquote)[\s>]/i.test(body);
+  const sanitizeHtml = (html: string) =>
+    html
+      .replace(/<\/?(script|style)[^>]*>/gi, '')
+      .replace(/\son\w+\s*=\s*"[^"]*"/gi, '')
+      .replace(/\son\w+\s*=\s*'[^']*'/gi, '')
+      .replace(/javascript:/gi, '');
+  const fotoCredit = mergedArticleData?.fotoCredit || mergedArticleData?.['foto-credit'] || '';
+
   const seoTitle = mergedArticleData?.seo_title || mergedArticleData?.seoTitle || '';
   const seoDescription = mergedArticleData?.meta_description || mergedArticleData?.seoDescription || '';
   const slug = mergedArticleData?.slug || '';
@@ -392,7 +403,14 @@ export default function ReviewPanel({ articleData, onClose, frameless, onPreflig
           {body && (
             <div className="bg-white/5 border border-white/10 rounded-lg p-2">
               <div className="text-white/50 mb-1 text-xs">Body</div>
-              <div className="text-white/80 text-sm whitespace-pre-wrap">{body}</div>
+              {bodyIsHtml ? (
+                <div
+                  className="apropos-richtext text-white/80 text-sm leading-relaxed"
+                  dangerouslySetInnerHTML={{ __html: sanitizeHtml(body) }}
+                />
+              ) : (
+                <div className="text-white/80 text-sm whitespace-pre-wrap">{body}</div>
+              )}
             </div>
           )}
         </section>
@@ -417,6 +435,7 @@ export default function ReviewPanel({ articleData, onClose, frameless, onPreflig
           <MetaInline label="Antal ord" value={wordCount > 0 ? wordCount.toString() : '—'} />
           <MetaInline label="Min. læsetid" value={readTime > 0 ? `${readTime} min` : '—'} />
         </div>
+        {has('foto-credit', 'fotocredit') && <MetaRow label="Foto credit" value={fotoCredit || '—'} />}
         <MetaRow label="SEO titel" value={seoTitle || '—'} />
         <MetaRow label="Meta beskrivelse" value={seoDescription || '—'} />
         {reflection && (
