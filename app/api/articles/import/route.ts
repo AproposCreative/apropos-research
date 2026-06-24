@@ -32,6 +32,20 @@ const asImage = (value: ImageInput | undefined): { url: string; name: string | n
   return { url: String(value.url || '').trim(), name: value.name ? String(value.name) : null };
 };
 
+/** Kør async-opgaver med en max-parallelitet (bevarer rækkefølgen i resultatet). */
+async function runWithConcurrency<T>(tasks: Array<() => Promise<T>>, limit: number): Promise<T[]> {
+  const results = new Array<T>(tasks.length);
+  let next = 0;
+  const workers = Array.from({ length: Math.min(Math.max(1, limit), tasks.length) }, async () => {
+    while (next < tasks.length) {
+      const idx = next++;
+      results[idx] = await tasks[idx]();
+    }
+  });
+  await Promise.all(workers);
+  return results;
+}
+
 const asOptions = (value: unknown): CmsOption[] => {
   if (!Array.isArray(value)) return [];
   return value
@@ -100,59 +114,77 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    requestLogger.info('Import: analyzing article', { length: articleText.length });
+    requestLogger.info('Import: analyzing + optimizing (parallel)', { length: articleText.length });
 
-    const analysis = await analyzeArticleForImport(openai, {
-      articleText,
-      sections: asOptions(body.sections),
-      topics: asOptions(body.topics),
-      authors: asOptions(body.authors),
-      streamingServices: asOptions(body.streamingServices),
-    });
-
+    // Provisorisk filnavn-base fra artiklens første linje, så billedoptimering kan
+    // køre PARALLELT med AI-analysen (de er uafhængige). Det halverer ~wall-clock og
+    // er den vigtigste sikring mod 504-timeout.
+    const provisionalTitle =
+      articleText
+        .replace(/<[^>]+>/g, ' ')
+        .split(/\n|\.\s/)
+        .map((s) => s.trim())
+        .find(Boolean) || 'importeret-artikel';
     const baseName = resolveArticleSeoImageBaseName({
-      slug: deriveSlug(analysis.title),
-      seoTitle: analysis.seoTitle,
-      title: analysis.title,
+      slug: deriveSlug(provisionalTitle),
+      title: provisionalTitle,
     });
 
-    requestLogger.info('Import: optimizing images', { baseName });
+    // Hero: desktop (cap 2400px) + mobil-variant. Body: 2 inline content-billeder.
+    // effort 4 + begrænset parallelitet holder store fotos under funktionens tidsgrænse
+    // og undgår memory-spikes (4 fulde dekodninger på én gang -> OOM/504).
+    const imageTasks: Array<() => Promise<{ url: string }>> = [
+      () =>
+        optimizeAndUploadImage({
+          imageUrl: hero,
+          folder: 'webflow/thumb-images',
+          role: 'thumb',
+          baseName,
+          maxLongEdge: 2400,
+          maxSizeKB: 400,
+          effort: 4,
+        }),
+      () =>
+        optimizeAndUploadImage({
+          imageUrl: hero,
+          folder: 'webflow/mobile-images',
+          role: 'mobile',
+          baseName,
+          maxLongEdge: 1200,
+          maxSizeKB: 200,
+          effort: 4,
+        }),
+      () =>
+        optimizeAndUploadImage({
+          imageUrl: body1,
+          folder: 'webflow/content-images',
+          role: 'inline-01',
+          baseName,
+          maxLongEdge: 1200,
+          maxSizeKB: 220,
+          effort: 4,
+        }),
+      () =>
+        optimizeAndUploadImage({
+          imageUrl: body2,
+          folder: 'webflow/content-images',
+          role: 'inline-02',
+          baseName,
+          maxLongEdge: 1200,
+          maxSizeKB: 220,
+          effort: 4,
+        }),
+    ];
 
-    // Hero: desktop (preserve dims) + mobil-variant. Body: 2 inline content-billeder.
-    const [heroDesktop, heroMobile, bodyOne, bodyTwo] = await Promise.all([
-      optimizeAndUploadImage({
-        imageUrl: hero,
-        folder: 'webflow/thumb-images',
-        role: 'thumb',
-        baseName,
-        preserveDimensions: true,
-        maxLongEdge: 2400,
-        maxSizeKB: 400,
+    const [analysis, [heroDesktop, heroMobile, bodyOne, bodyTwo]] = await Promise.all([
+      analyzeArticleForImport(openai, {
+        articleText,
+        sections: asOptions(body.sections),
+        topics: asOptions(body.topics),
+        authors: asOptions(body.authors),
+        streamingServices: asOptions(body.streamingServices),
       }),
-      optimizeAndUploadImage({
-        imageUrl: hero,
-        folder: 'webflow/mobile-images',
-        role: 'mobile',
-        baseName,
-        maxLongEdge: 1200,
-        maxSizeKB: 200,
-      }),
-      optimizeAndUploadImage({
-        imageUrl: body1,
-        folder: 'webflow/content-images',
-        role: 'inline-01',
-        baseName,
-        maxLongEdge: 1200,
-        maxSizeKB: 220,
-      }),
-      optimizeAndUploadImage({
-        imageUrl: body2,
-        folder: 'webflow/content-images',
-        role: 'inline-02',
-        baseName,
-        maxLongEdge: 1200,
-        maxSizeKB: 220,
-      }),
+      runWithConcurrency(imageTasks, 2),
     ]);
 
     const articleUpdate = buildImportArticleUpdate({

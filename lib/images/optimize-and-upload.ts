@@ -20,6 +20,10 @@ export type OptimizeAndUploadImageOptions = {
   preserveDimensions?: boolean;
   /** Spring over hvis original er mindre (undtagen PNG). */
   minOriginalKB?: number;
+  /** WebP encode-effort (1-6). Lavere = hurtigere (vigtigt for store fotos/timeouts). Default 6. */
+  effort?: number;
+  /** Timeout for download af kilde-billedet i ms. Default 30s. */
+  fetchTimeoutMs?: number;
 };
 
 export type OptimizeAndUploadImageResult = {
@@ -89,8 +93,12 @@ export async function optimizeAndUploadImage(
   const qualityStart = Math.min(95, Math.max(40, Math.round(options.qualityStart ?? 82)));
   const qualityMin = Math.min(qualityStart, Math.max(30, Math.round(options.qualityMin ?? 55)));
   const folder = options.folder || 'webflow/mobile-images';
+  const effort = Math.min(6, Math.max(1, Math.round(options.effort ?? 6)));
+  const fetchTimeoutMs = Math.max(5000, Math.round(options.fetchTimeoutMs ?? 30000));
 
-  const imageResponse = await fetch(options.imageUrl);
+  const imageResponse = await fetch(options.imageUrl, {
+    signal: AbortSignal.timeout(fetchTimeoutMs),
+  });
   if (!imageResponse.ok) {
     throw new Error(`Failed to fetch image: ${imageResponse.status}`);
   }
@@ -116,12 +124,13 @@ export async function optimizeAndUploadImage(
   let metaHeight: number | null = originalMeta.height ?? null;
 
   if (options.preserveDimensions) {
+    // Roter én gang til en arbejds-buffer, så vi ikke gen-dekoder originalen i hver iteration.
+    const rotatedBuffer = await sharp(imageBuffer).rotate().toBuffer();
     while (currentQuality >= qualityMin) {
-      processedBuffer = await sharp(imageBuffer)
-        .rotate()
+      processedBuffer = await sharp(rotatedBuffer)
         .webp({
           quality: currentQuality,
-          effort: 6,
+          effort,
           lossless: false,
         })
         .toBuffer();
@@ -133,20 +142,25 @@ export async function optimizeAndUploadImage(
       currentQuality -= 5;
     }
   } else {
+    // Forrresize én gang til arbejds-buffer; kvalitets-loopet gen-encoder så det lille
+    // billede i stedet for at dekode + resize den fulde original hver gang (stor CPU/memory-gevinst).
+    let workBuffer = await sharp(imageBuffer)
+      .rotate()
+      .resize({
+        width: currentLongEdge,
+        height: currentLongEdge,
+        fit: 'inside',
+        withoutEnlargement: true,
+      })
+      .toBuffer();
+
     while (currentLongEdge >= 280) {
       currentQuality = qualityStart;
       while (currentQuality >= qualityMin) {
-        processedBuffer = await sharp(imageBuffer)
-          .rotate()
-          .resize({
-            width: currentLongEdge,
-            height: currentLongEdge,
-            fit: 'inside',
-            withoutEnlargement: true,
-          })
+        processedBuffer = await sharp(workBuffer)
           .webp({
             quality: currentQuality,
-            effort: 6,
+            effort,
             lossless: false,
           })
           .toBuffer();
@@ -165,6 +179,15 @@ export async function optimizeAndUploadImage(
         break;
       }
       currentLongEdge = Math.round(currentLongEdge * 0.88);
+      workBuffer = await sharp(imageBuffer)
+        .rotate()
+        .resize({
+          width: currentLongEdge,
+          height: currentLongEdge,
+          fit: 'inside',
+          withoutEnlargement: true,
+        })
+        .toBuffer();
     }
   }
 
