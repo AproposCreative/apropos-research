@@ -388,8 +388,11 @@ export default function SetupWizard({ initialData, onComplete, onChange }: Setup
     setData((prev:any)=> (typeof updater==='function' ? updater(prev) : prev));
     if (advanceFrom) {
       if (advanceFrom === 'press') {
-        // last step answered -> complete automatically
-        complete();
+        // last step answered -> complete automatically.
+        // Brug det FRISKE data-snapshot (setData er asynkron) så fx press-valget
+        // ikke tabes ("Presse: Ikke valgt").
+        const next = typeof updater === 'function' ? updater(data) : data;
+        complete(next);
       } else if (advanceTo) {
         setStep(advanceTo);
       } else {
@@ -636,42 +639,46 @@ export default function SetupWizard({ initialData, onComplete, onChange }: Setup
     return true;
   };
 
-  const complete = () => {
-    const selectedTopics = Array.isArray(data.topicsSelected)
-      ? data.topicsSelected
-      : (data.topic ? [data.topic] : []);
+  const complete = (snapshot?: any) => {
+    const src = snapshot ?? data;
+    const selectedTopics = Array.isArray(src.topicsSelected)
+      ? src.topicsSelected
+      : (src.topic ? [src.topic] : []);
     const primaryTopic = selectedTopics[0] || '';
-    const tags = Array.from(new Set([data.section, ...selectedTopics].filter(Boolean)));
+    const tags = Array.from(new Set([src.section, ...selectedTopics].filter(Boolean)));
     
     // Only include fields that have meaningful values
     const completionData: Partial<ArticleData> = {};
     
-    if (data.author) completionData.author = data.author;
-    if (data.authorId) completionData.authorId = data.authorId;
-    if (data.authorTOV) completionData.authorTOV = data.authorTOV;
-    if (data.template) completionData.template = data.template;
-    if (data.inspirationSource) completionData.inspirationSource = data.inspirationSource;
-    if (data.researchSelected) completionData.researchSelected = data.researchSelected;
-    if (data.inspirationAcknowledged) completionData.inspirationAcknowledged = data.inspirationAcknowledged;
-    if (data.recommendedSelected) completionData.recommendedSelected = data.recommendedSelected;
-    if (data.aiDraft) completionData.aiDraft = data.aiDraft;
-    if (data.articleType) {
-      const typeOption = getEditorialArticleTypeOption(data.articleType);
+    if (src.author) completionData.author = src.author;
+    if (src.authorId) completionData.authorId = src.authorId;
+    if (src.authorTOV) completionData.authorTOV = src.authorTOV;
+    if (src.template) completionData.template = src.template;
+    if (src.inspirationSource) completionData.inspirationSource = src.inspirationSource;
+    if (src.researchSelected) completionData.researchSelected = src.researchSelected;
+    if (src.inspirationAcknowledged) completionData.inspirationAcknowledged = src.inspirationAcknowledged;
+    if (src.recommendedSelected) completionData.recommendedSelected = src.recommendedSelected;
+    if (src.aiDraft) completionData.aiDraft = src.aiDraft;
+    if (src.articleType) {
+      const typeOption = getEditorialArticleTypeOption(src.articleType);
       completionData.articleType = typeOption.id;
-      completionData.targetWordCount = data.targetWordCount || typeOption.targetWordCount;
-      completionData.targetLengthLabel = data.targetLengthLabel || typeOption.targetLengthLabel;
+      completionData.targetWordCount = src.targetWordCount || typeOption.targetWordCount;
+      completionData.targetLengthLabel = src.targetLengthLabel || typeOption.targetLengthLabel;
     }
-    if (data.section) completionData.category = data.section;
+    if (src.section) completionData.category = src.section;
     if (tags.length > 0) completionData.tags = tags;
-    if (data.platform) {
-      completionData.platform = data.platform;
-      completionData.streaming_service = data.platform;
+    if (src.platform) {
+      completionData.platform = src.platform;
+      completionData.streaming_service = src.platform;
     }
-    if (data.rating > 0) completionData.rating = data.rating;
-    if (data.ratingSkipped) completionData.ratingSkipped = data.ratingSkipped;
-    if (data.press !== null) completionData.press = data.press;
-    if (data.title) completionData.title = data.title;
-    if (data.subtitle) completionData.subtitle = data.subtitle;
+    if (src.rating > 0) completionData.rating = src.rating;
+    if (src.ratingSkipped) completionData.ratingSkipped = src.ratingSkipped;
+    if (src.press !== null && src.press !== undefined) {
+      completionData.press = src.press;
+      completionData.presseakkreditering = src.press;
+    }
+    if (src.title) completionData.title = src.title;
+    if (src.subtitle) completionData.subtitle = src.subtitle;
     if (primaryTopic) completionData.topic = primaryTopic;
     if (selectedTopics.length > 0) completionData.topicsSelected = selectedTopics;
     
