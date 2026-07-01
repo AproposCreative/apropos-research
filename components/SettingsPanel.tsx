@@ -3,6 +3,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/lib/auth-context';
 import { SPLINE_BACKGROUNDS } from '@/lib/spline-backgrounds';
 import ImageOptimizationSection from '@/components/settings/ImageOptimizationSection';
+import ArticleTranslationSection from '@/components/settings/ArticleTranslationSection';
 
 type WebflowStatus = {
   connected: boolean;
@@ -368,6 +369,7 @@ function IntegrationsTab() {
       </div>
 
       <ImageOptimizationSection variant="panel" />
+      <ArticleTranslationSection variant="panel" />
     </div>
   );
 }

@@ -6,6 +6,11 @@ import {
   isArticleCollectionWebhookEvent,
   isArticleWebhookOptimizeEnabled,
 } from '@/lib/webflow/article-image-auto-optimize';
+import { enqueueArticleTranslation } from '@/lib/webflow/enqueue-article-translation';
+import {
+  isArticleAutoTranslateEnabledAsync,
+  resolveWebflowLocaleIds,
+} from '@/lib/webflow/locale-items';
 import { verifyWebflowWebhookSignature } from '@/lib/webflow/verify-webhook-signature';
 
 export const runtime = 'nodejs';
@@ -16,13 +21,13 @@ const HANDLED_TRIGGERS = new Set(['collection_item_published', 'collection_item_
 type WebflowItem = {
   id?: string;
   collectionId?: string;
+  cmsLocaleId?: string | null;
 };
 
 type WebflowWebhookBody = {
   triggerType?: string;
   payload?: WebflowItem & {
-    // collection_item_published sender items som array; øvrige events sender
-    // item-felterne direkte på payload.
+    cmsLocaleId?: string | null;
     items?: WebflowItem[];
   };
 };
@@ -30,17 +35,37 @@ type WebflowWebhookBody = {
 /** Saml alle item-referencer fra både array- og enkelt-payload-formaterne. */
 function extractItems(body: WebflowWebhookBody): WebflowItem[] {
   const out: WebflowItem[] = [];
+  const rootLocale = body.payload?.cmsLocaleId;
   const arr = body.payload?.items;
   if (Array.isArray(arr)) {
     for (const it of arr) {
-      if (it && typeof it.id === 'string' && it.id.trim()) out.push(it);
+      if (it && typeof it.id === 'string' && it.id.trim()) {
+        out.push({
+          id: it.id,
+          collectionId: it.collectionId ?? body.payload?.collectionId,
+          cmsLocaleId: it.cmsLocaleId ?? rootLocale,
+        });
+      }
     }
   }
   const single = body.payload?.id;
   if (typeof single === 'string' && single.trim() && !out.some((x) => x.id === single)) {
-    out.push({ id: single.trim(), collectionId: body.payload?.collectionId });
+    out.push({
+      id: single.trim(),
+      collectionId: body.payload?.collectionId,
+      cmsLocaleId: rootLocale,
+    });
   }
   return out;
+}
+
+/** Kun primær (DK) locale — spring EN-publish over (loop-sikring). */
+function isPrimaryLocalePublish(cmsLocaleId?: string | null): boolean {
+  const { dk, en } = resolveWebflowLocaleIds();
+  if (!cmsLocaleId) return true;
+  if (cmsLocaleId === en) return false;
+  if (cmsLocaleId === dk) return true;
+  return true;
 }
 
 function verifyRequest(req: NextRequest, rawBody: string): boolean {
@@ -109,13 +134,13 @@ export async function POST(req: NextRequest) {
   }
 
   const results = [];
+  const translationQueued: string[] = [];
+
   for (const it of items) {
     const itemId = it.id as string;
     try {
       const result = await autoOptimizeArticleByItemId(itemId, {
         source: `webhook:${triggerType}`,
-        // Publicér optimerede billeder til live. Loop-sikkert: kun re-publish når
-        // noget ændrede sig, og andet pass finder alt allerede optimeret.
         publishToLive: true,
       });
       results.push(result);
@@ -123,7 +148,22 @@ export async function POST(req: NextRequest) {
       logger.error('[webhooks/webflow] optimize failed', e instanceof Error ? e : new Error(String(e)));
       results.push({ itemId, error: e instanceof Error ? e.message : 'Optimering fejlede' });
     }
+
+    if (
+      triggerType === 'collection_item_published' &&
+      (await isArticleAutoTranslateEnabledAsync()) &&
+      isPrimaryLocalePublish(it.cmsLocaleId)
+    ) {
+      enqueueArticleTranslation(itemId, `webhook:${triggerType}`);
+      translationQueued.push(itemId);
+    }
   }
 
-  return NextResponse.json({ ok: true, triggerType, count: results.length, results });
+  return NextResponse.json({
+    ok: true,
+    triggerType,
+    count: results.length,
+    results,
+    translationQueued,
+  });
 }

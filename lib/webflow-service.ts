@@ -991,7 +991,6 @@ export async function publishArticleToWebflow(articleData: WebflowArticleFields)
       thumbUrl: fieldData['thumb'] ? (typeof fieldData['thumb'] === 'string' ? fieldData['thumb'].substring(0, 100) + '...' : 'Not a string') : 'N/A'
     });
 
-    // Publish to Articles collection
     const publishResponse = await fetch(url, {
       method,
       headers: {
@@ -999,9 +998,14 @@ export async function publishArticleToWebflow(articleData: WebflowArticleFields)
         'Accept-Version': '1.0.0',
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({
-        fieldData
-      }),
+      body: JSON.stringify(
+        isUpdate
+          ? { fieldData }
+          : {
+              cmsLocaleIds: [env.WEBFLOW_CMS_LOCALE_DK, env.WEBFLOW_CMS_LOCALE_EN],
+              fieldData,
+            }
+      ),
     });
 
     if (publishResponse.ok) {

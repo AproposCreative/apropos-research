@@ -50,6 +50,12 @@ const EnvSchema = z.object({
   WEBFLOW_WEBHOOK_SECRET: z.preprocess(emptyToUndefined, z.string().optional()),
   /** Slå CMS-webhook auto-optimering fra med 0/false (publish fra app kan stadig optimerer). */
   WEBFLOW_ARTICLE_WEBHOOK_OPTIMIZE: z.enum(['true', 'false']).default('true'),
+  /** CMS locale ID for dansk (primær). */
+  WEBFLOW_CMS_LOCALE_DK: z.string().default('67dbf17ba540975b5b21c225'),
+  /** CMS locale ID for engelsk (sekundær /en). */
+  WEBFLOW_CMS_LOCALE_EN: z.string().default('690ca0f6b0d13d8788354156'),
+  /** Auto-oversæt DK → EN ved publish (webhook). Slå fra med false. */
+  WEBFLOW_AUTO_TRANSLATE_EN: z.enum(['true', 'false']).default('true'),
 
   // Instagram / Facebook Publishing
   INSTAGRAM_ACCOUNT_ID: z.string().optional(),
@@ -224,6 +230,10 @@ function parseEnv() {
     WEBFLOW_WEBHOOK_SECRET: process.env.WEBFLOW_WEBHOOK_SECRET,
     WEBFLOW_ARTICLE_WEBHOOK_OPTIMIZE:
       process.env.WEBFLOW_ARTICLE_WEBHOOK_OPTIMIZE === 'false' ? 'false' : 'true',
+    WEBFLOW_CMS_LOCALE_DK: process.env.WEBFLOW_CMS_LOCALE_DK || '67dbf17ba540975b5b21c225',
+    WEBFLOW_CMS_LOCALE_EN: process.env.WEBFLOW_CMS_LOCALE_EN || '690ca0f6b0d13d8788354156',
+    WEBFLOW_AUTO_TRANSLATE_EN:
+      process.env.WEBFLOW_AUTO_TRANSLATE_EN === 'false' ? 'false' : 'true',
     INSTAGRAM_ACCOUNT_ID: process.env.INSTAGRAM_ACCOUNT_ID,
     INSTAGRAM_ACCESS_TOKEN: process.env.INSTAGRAM_ACCESS_TOKEN,
     FACEBOOK_PAGE_ID: process.env.FACEBOOK_PAGE_ID,

@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useAuth } from '../../lib/auth-context';
 import CompactHeader from '../../components/CompactHeader';
 import ImageOptimizationSection from '../../components/settings/ImageOptimizationSection';
+import ArticleTranslationSection from '../../components/settings/ArticleTranslationSection';
 import SocialTokenPanel from '../../components/settings/SocialTokenPanel';
 
 type WebflowStatus = {
@@ -423,8 +424,9 @@ export default function SettingsPage() {
         )}
 
         {activeTab === 'optimise' && (
-          <div className="bg-[#171717] rounded-2xl border border-white/15 p-4 font-poppins">
+          <div className="bg-[#171717] rounded-2xl border border-white/15 p-4 font-poppins space-y-6">
             <ImageOptimizationSection variant="page" />
+            <ArticleTranslationSection variant="page" />
           </div>
         )}
 
