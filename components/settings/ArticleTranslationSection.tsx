@@ -26,6 +26,7 @@ function statusLabel(status: string): string {
   if (status === 'ready') return 'Klar';
   if (status === 'skip-unchanged') return 'Opdateret';
   if (status === 'skip-no-en') return 'Mangler EN';
+  if (status === 'skip-dk-unpublished') return 'DK ikke publiceret';
   if (status === 'in-progress') return 'I gang';
   return status;
 }

@@ -50,10 +50,26 @@ export async function articleLocaleExists(itemId: string, cmsLocaleId: string): 
   return res.ok;
 }
 
+export type WebflowLocaleItem = {
+  id: string;
+  cmsLocaleId?: string;
+  fieldData: Record<string, unknown>;
+  lastPublished?: string | null;
+  isDraft?: boolean;
+};
+
+/** Locale er live på sitet (ikke kun kladde). */
+export function isWebflowLocalePublished(
+  item: Pick<WebflowLocaleItem, 'lastPublished' | 'isDraft'>
+): boolean {
+  if (item.isDraft === true) return false;
+  return Boolean(item.lastPublished?.trim());
+}
+
 export async function fetchArticleItemByLocale(
   itemId: string,
   cmsLocaleId: string
-): Promise<{ id: string; cmsLocaleId?: string; fieldData: Record<string, unknown> }> {
+): Promise<WebflowLocaleItem> {
   const { token, collectionId } = await resolveRuntime();
   const qs = new URLSearchParams({ cmsLocaleId });
   const itemUrl = `https://api.webflow.com/v2/collections/${collectionId}/items/${itemId}?${qs}`;
@@ -64,10 +80,18 @@ export async function fetchArticleItemByLocale(
     const j = await res.json().catch(() => ({}));
     throw new Error(j?.message || `Webflow fetch item error ${res.status}`);
   }
-  const item: { id?: string; cmsLocaleId?: string; fieldData?: Record<string, unknown> } = await res.json();
+  const item: {
+    id?: string;
+    cmsLocaleId?: string;
+    lastPublished?: string | null;
+    isDraft?: boolean;
+    fieldData?: Record<string, unknown>;
+  } = await res.json();
   return {
     id: String(item.id || itemId),
     cmsLocaleId: item.cmsLocaleId,
+    lastPublished: item.lastPublished ?? null,
+    isDraft: item.isDraft,
     fieldData: (item.fieldData || {}) as Record<string, unknown>,
   };
 }

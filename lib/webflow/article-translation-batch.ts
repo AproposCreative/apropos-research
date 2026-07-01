@@ -5,12 +5,13 @@
 import { computeTranslationSourceHash } from '@/lib/articles/translation-source-hash';
 import { getAdminDb } from '@/lib/firebase-admin';
 import { runArticleTranslation } from '@/lib/webflow/article-translation';
-import { resolveWebflowLocaleIds } from '@/lib/webflow/locale-items';
+import { isWebflowLocalePublished, resolveWebflowLocaleIds } from '@/lib/webflow/locale-items';
 
 export type TranslationCandidateStatus =
   | 'ready'
   | 'skip-unchanged'
   | 'skip-no-en'
+  | 'skip-dk-unpublished'
   | 'in-progress';
 
 export type TranslationCandidate = {
@@ -67,7 +68,12 @@ async function fetchArticleIdsForLocale(cmsLocaleId: string): Promise<Set<string
 }
 
 async function fetchDkArticleItems(): Promise<
-  Array<{ id: string; fieldData: Record<string, unknown> }>
+  Array<{
+    id: string;
+    fieldData: Record<string, unknown>;
+    lastPublished?: string | null;
+    isDraft?: boolean;
+  }>
 > {
   const { getWebflowConfig } = await import('@/lib/webflow-config');
   const { env } = await import('@/lib/config/env');
@@ -84,7 +90,12 @@ async function fetchDkArticleItems(): Promise<
   const headers = { Authorization: `Bearer ${token}`, 'Accept-Version': '1.0.0' } as const;
   const pageSize = 100;
   let offset = 0;
-  const items: Array<{ id: string; fieldData: Record<string, unknown> }> = [];
+  const items: Array<{
+    id: string;
+    fieldData: Record<string, unknown>;
+    lastPublished?: string | null;
+    isDraft?: boolean;
+  }> = [];
 
   while (offset < 5000) {
     const url = `https://api.webflow.com/v2/collections/${collectionId}/items?cmsLocaleId=${dkLocale}&limit=${pageSize}&offset=${offset}`;
@@ -93,11 +104,23 @@ async function fetchDkArticleItems(): Promise<
       const j = await res.json().catch(() => ({}));
       throw new Error(j?.message || `Webflow items error ${res.status}`);
     }
-    const data: { items?: Array<{ id?: string; fieldData?: Record<string, unknown> }> } = await res.json();
+    const data: {
+      items?: Array<{
+        id?: string;
+        fieldData?: Record<string, unknown>;
+        lastPublished?: string | null;
+        isDraft?: boolean;
+      }>;
+    } = await res.json();
     const page = data.items || [];
     for (const item of page) {
       if (item?.id) {
-        items.push({ id: item.id, fieldData: (item.fieldData || {}) as Record<string, unknown> });
+        items.push({
+          id: item.id,
+          fieldData: (item.fieldData || {}) as Record<string, unknown>,
+          lastPublished: item.lastPublished ?? null,
+          isDraft: item.isDraft,
+        });
       }
     }
     if (page.length < pageSize) break;
@@ -150,6 +173,11 @@ async function buildCandidates(options: { force?: boolean }): Promise<Translatio
       continue;
     }
 
+    if (!isWebflowLocalePublished(item)) {
+      candidates.push({ id: item.id, title, slug, status: 'skip-dk-unpublished' });
+      continue;
+    }
+
     const state = stateMap.get(item.id);
     if (state?.inProgress) {
       candidates.push({ id: item.id, title, slug, status: 'in-progress' });
@@ -175,6 +203,7 @@ export async function previewArticleTranslationBatch(options: {
   total: number;
   ready: number;
   skipNoEn: number;
+  skipDkUnpublished: number;
   skipUnchanged: number;
   totalCandidates: number;
   results: TranslationCandidate[];
@@ -188,6 +217,7 @@ export async function previewArticleTranslationBatch(options: {
     total: all.length,
     ready: readyList.length,
     skipNoEn: all.filter((c) => c.status === 'skip-no-en').length,
+    skipDkUnpublished: all.filter((c) => c.status === 'skip-dk-unpublished').length,
     skipUnchanged: all.filter((c) => c.status === 'skip-unchanged').length,
     totalCandidates: readyList.length,
     results: all.slice(0, limit),

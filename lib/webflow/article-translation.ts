@@ -14,6 +14,7 @@ import {
 import {
   articleLocaleExists,
   fetchArticleItemByLocale,
+  isWebflowLocalePublished,
   patchArticleFieldDataForLocale,
   publishArticleItemForLocale,
   resolveWebflowLocaleIds,
@@ -93,7 +94,16 @@ export async function runArticleTranslation(
       return { itemId, skipped: true, reason };
     }
 
-    const { fieldData: dk } = await fetchArticleItemByLocale(itemId, locales.dk);
+    const dkItem = await fetchArticleItemByLocale(itemId, locales.dk);
+    if (!isWebflowLocalePublished(dkItem)) {
+      const reason = 'Dansk artikel er ikke publiceret — EN oversættes og publiceres ikke.';
+      await setTranslationState(itemId, { inProgress: false, lastSkipReason: reason });
+      await logTranslationJob({ itemId, source, status: 'skipped', reason: 'dk_not_published' });
+      logger.info('[article-translation] skipped — DK not published', { itemId, source });
+      return { itemId, skipped: true, reason };
+    }
+
+    const { fieldData: dk } = dkItem;
     const sourceHash = computeTranslationSourceHash(dk);
 
     if (!options.force && existing?.sourceHash === sourceHash) {
@@ -111,6 +121,16 @@ export async function runArticleTranslation(
     const enFieldData = buildEnglishFieldData(dk, en);
 
     await patchArticleFieldDataForLocale(itemId, enFieldData, locales.en);
+
+    const dkLive = await fetchArticleItemByLocale(itemId, locales.dk);
+    if (!isWebflowLocalePublished(dkLive)) {
+      const reason = 'Dansk artikel blev afpubliceret under oversættelse — EN gemmes som kladde.';
+      await setTranslationState(itemId, { inProgress: false, sourceHash, lastSkipReason: reason });
+      await logTranslationJob({ itemId, source, status: 'skipped', reason: 'dk_unpublished_before_en_publish', sourceHash });
+      logger.warn('[article-translation] EN not published — DK no longer live', { itemId, source });
+      return { itemId, skipped: true, reason, sourceHash };
+    }
+
     await publishArticleItemForLocale(itemId, locales.en);
 
     const durationMs = Date.now() - started;
