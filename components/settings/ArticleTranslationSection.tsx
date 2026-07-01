@@ -8,8 +8,8 @@ const primaryBtn =
   'px-3 py-1.5 rounded-lg text-xs font-medium transition-all border border-white/10 bg-white/5 text-white hover:border-white/20 hover:bg-white/10 hover:shadow-[0_0_32px_-8px_rgba(255,255,255,0.18)] disabled:opacity-40 active:scale-[0.99]';
 
 /** Scan viser alle med EN-locale; Kør oversætter op til 3 ad gangen med force. */
-const SCAN_PRESET = { force: true, limit: 50 };
-const RUN_PRESET = { force: true, articleLimit: 3 };
+const RUN_PRESET = { force: false, articleLimit: 3 };
+const SCAN_PRESET = { force: false, limit: 50 };
 
 type ApiResult = Record<string, unknown> & { ok?: boolean; error?: string; skippedReason?: string | null };
 
