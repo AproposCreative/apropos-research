@@ -385,15 +385,15 @@ export default function SetupWizard({ initialData, onComplete, onChange }: Setup
   };
 
   const updateData = (updater: (d:any)=>any, advanceFrom?: Step, advanceTo?: Step) => {
-    setData((prev:any)=> (typeof updater==='function' ? updater(prev) : prev));
-    if (advanceFrom) {
+    setData((prev: any) => {
+      const next = typeof updater === 'function' ? updater(prev) : prev;
       if (advanceFrom === 'press') {
-        // last step answered -> complete automatically.
-        // Brug det FRISKE data-snapshot (setData er asynkron) så fx press-valget
-        // ikke tabes ("Presse: Ikke valgt").
-        const next = typeof updater === 'function' ? updater(data) : data;
-        complete(next);
-      } else if (advanceTo) {
+        queueMicrotask(() => complete(next));
+      }
+      return next;
+    });
+    if (advanceFrom && advanceFrom !== 'press') {
+      if (advanceTo) {
         setStep(advanceTo);
       } else {
         nextStep(advanceFrom);

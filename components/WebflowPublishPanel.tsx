@@ -4,6 +4,17 @@ import { useState, useEffect } from 'react';
 import type { WebflowArticleFields } from '@/lib/webflow/types';
 import { SEO_DESCRIPTION_MAX } from '@/lib/seo/constants';
 
+function resolvePressFields(src: Record<string, unknown>): {
+  press: boolean | null;
+  presseakkreditering: boolean | null;
+} {
+  const raw = src.presseakkreditering ?? src.press;
+  if (raw === true || raw === false) {
+    return { press: raw, presseakkreditering: raw };
+  }
+  return { press: null, presseakkreditering: null };
+}
+
 interface WebflowPublishPanelProps {
   articleData: any;
   onPublish: (articleData: WebflowArticleFields) => Promise<void>;
@@ -44,7 +55,9 @@ export default function WebflowPublishPanel({ articleData, onPublish, onClose, e
   const [criticTips, setCriticTips] = useState<string>('');
   const [factResults, setFactResults] = useState<any[] | null>(null);
   const [recommendationsApplied, setRecommendationsApplied] = useState(false);
-  const [formData, setFormData] = useState<WebflowArticleFields>({
+  const [formData, setFormData] = useState<WebflowArticleFields>(() => {
+    const pressFields = resolvePressFields(articleData || {});
+    return {
     id: '',
     webflowId: articleData.webflowId || '',
     title: articleData.title || '',
@@ -68,6 +81,8 @@ export default function WebflowPublishPanel({ articleData, onPublish, onClose, e
     wordCount: articleData.wordCount || 0,
     featured: articleData.featured || false,
     trending: articleData.trending || false,
+    press: pressFields.press,
+    presseakkreditering: pressFields.presseakkreditering,
     // Include SetupWizard data
     topicsSelected: articleData.topicsSelected || [],
     streaming_service: articleData.streaming_service || articleData.platform || '',
@@ -75,6 +90,7 @@ export default function WebflowPublishPanel({ articleData, onPublish, onClose, e
     watchUrl: articleData.watchUrl || articleData.platform || '',
     streamingUrl: articleData.streamingUrl || '',
     videoTrailer: articleData.videoTrailer || articleData.video_trailer || '',
+  };
   });
 
   // Update formData when articleData changes
@@ -108,6 +124,7 @@ export default function WebflowPublishPanel({ articleData, onPublish, onClose, e
       videoTrailer: articleData.videoTrailer || articleData.video_trailer || prev.videoTrailer,
       featured: articleData.featured !== undefined ? articleData.featured : prev.featured,
       trending: articleData.trending !== undefined ? articleData.trending : prev.trending,
+      ...resolvePressFields({ ...prev, ...articleData }),
     }));
   }, [articleData]);
 
@@ -175,6 +192,7 @@ export default function WebflowPublishPanel({ articleData, onPublish, onClose, e
         intro: getBestIntro(articleData, content) || prev.intro || '',
         fotoCredit: articleData.fotoCredit || prev.fotoCredit || '',
         videoTrailer: articleData.videoTrailer || articleData.video_trailer || prev.videoTrailer,
+        ...resolvePressFields({ ...prev, ...articleData }),
       }));
   } catch {}
   }, [articleData]);
@@ -319,7 +337,11 @@ export default function WebflowPublishPanel({ articleData, onPublish, onClose, e
       
       // Preflight recommendations are now auto-applied in chat, so we don't block publishing
 
-      await onPublish(formData);
+      const publishPayload: WebflowArticleFields = {
+        ...formData,
+        ...resolvePressFields({ ...articleData, ...formData }),
+      };
+      await onPublish(publishPayload);
       // After successful publish, optionally send training sample
       if (optInTraining) {
         try {
