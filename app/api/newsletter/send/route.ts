@@ -10,6 +10,16 @@ import { getPreviousIsoWeekRange, type WeekRange } from '@/lib/newsletter/week-r
 import { getNewsletterRecipients } from '@/lib/newsletter/get-recipients';
 import { sendNewsletterEmail, sendNewsletterToMany } from '@/lib/newsletter/send-resend';
 import { rewriteNewsletterLogoSrcForOutgoingEmail } from '@/lib/newsletter/email-theme';
+import { getRecentNewsletterExclusionSets } from '@/lib/newsletter/send-selection-history';
+
+const DEFAULT_EXCLUDE_SENDS = 16;
+const DEFAULT_RELAX_SENDS = 4;
+
+function parseLookback(raw: string | undefined, fallback: number): number {
+  const n = Number.parseInt(String(raw ?? '').trim(), 10);
+  if (!Number.isFinite(n) || n < 1) return fallback;
+  return Math.min(n, 52);
+}
 
 export async function POST(req: NextRequest) {
   if (!(await authorizeNewsletterRequest(req))) {
@@ -23,6 +33,9 @@ export async function POST(req: NextRequest) {
     const testOnly = body.testOnly === true;
     const testEmail = typeof body.testEmail === 'string' ? body.testEmail.trim() : '';
     const providedHtml = typeof body.html === 'string' && body.html.length > 0 ? body.html : null;
+    const providedArticleIds = Array.isArray(body.articleIds)
+      ? body.articleIds.map((id: unknown) => String(id).trim()).filter(Boolean).slice(0, 20)
+      : [];
     let subject = typeof body.subject === 'string' ? body.subject.trim() : '';
     const intro = typeof body.intro === 'string' ? body.intro : '';
     const skipAiIntro = body.skipAiIntro === true;
@@ -34,16 +47,23 @@ export async function POST(req: NextRequest) {
     const week: WeekRange = getPreviousIsoWeekRange(ref);
 
     let html: string;
+    let sentArticleIds: string[] = providedArticleIds;
     if (providedHtml) {
       html = rewriteNewsletterLogoSrcForOutgoingEmail(providedHtml);
       if (!subject) subject = HEADLINE_FALLBACK_DA;
     } else {
+      const fullLb = parseLookback(process.env.NEWSLETTER_WEEKLY_EXCLUDE_SEND_LOOKBACK, DEFAULT_EXCLUDE_SENDS);
+      const relaxLb = parseLookback(process.env.NEWSLETTER_WEEKLY_RELAX_SEND_LOOKBACK, DEFAULT_RELAX_SENDS);
+      const { excludeFull, excludeRelax } = await getRecentNewsletterExclusionSets(fullLb, relaxLb);
       const draft = await buildWeeklyNewsletterDraft({
         week,
         introOverride: intro || undefined,
         skipAiIntro,
+        excludeArticleIds: excludeFull,
+        relaxedExcludeArticleIds: excludeRelax,
       });
       html = rewriteNewsletterLogoSrcForOutgoingEmail(draft.html);
+      sentArticleIds = draft.articles.map((a) => a.id);
       if (!subject) subject = draft.subject;
     }
 
@@ -129,6 +149,7 @@ export async function POST(req: NextRequest) {
           status: 'sent',
           subject,
           detail: `${result.sent} sendt${result.failed > 0 ? ` · ${result.failed} fejl` : ''}`,
+          articleIds: sentArticleIds.length > 0 ? sentArticleIds : undefined,
         });
       }
     }

@@ -1,28 +1,35 @@
 /**
  * Next.js Middleware
- * 
- * Adds request ID to all requests for tracing and logging.
+ *
+ * - Redirects / → /ai
+ * - Protects /api/* with INTERNAL_API_SECRET, CRON_SECRET, or Firebase ID token
+ * - Adds request ID for tracing
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { isApiRequestAuthorized } from '@/lib/api/middleware-auth';
 
-/**
- * Generate a unique request ID
- */
 function generateRequestId(): string {
   return `${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
 }
 
-export function middleware(request: NextRequest) {
+export async function middleware(request: NextRequest) {
   if (request.nextUrl.pathname === '/') {
     const url = request.nextUrl.clone();
     url.pathname = '/ai';
     return NextResponse.redirect(url, 308);
   }
 
-  const requestId = 
-    request.headers.get('x-request-id') || 
-    request.headers.get('x-vercel-request-id') || 
+  if (request.nextUrl.pathname.startsWith('/api/')) {
+    const authorized = await isApiRequestAuthorized(request);
+    if (!authorized) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+  }
+
+  const requestId =
+    request.headers.get('x-request-id') ||
+    request.headers.get('x-vercel-request-id') ||
     generateRequestId();
 
   const requestHeaders = new Headers(request.headers);

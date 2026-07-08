@@ -31,7 +31,7 @@ export default function HomeNav() {
         <span className="font-medium">Nyhedsbrev</span>
       </Link>
       <Link href="/design-editor" className={getLinkClasses('/design-editor', pathname === '/design-editor')}>
-        <span className="font-medium">Designer</span>
+        <span className="font-medium">SoMe Posting</span>
       </Link>
       {/* Profile moved into Settings */}
     </nav>

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { resolveInstagramAccessToken } from '@/lib/instagram-config';
 
 export const maxDuration = 120;
 export const runtime = 'nodejs';
@@ -9,7 +10,15 @@ const PROCESSING_INITIAL_POLL_MS = 800;
 const PROCESSING_MAX_POLL_MS = 3000;
 const PROCESSING_MAX_WAIT_MS = 60_000; // 60s max wait
 
-function tokenRefreshHint(): string {
+function tokenRefreshHint(graphMessage?: string): string {
+  const sessionInvalidated = /password|session has been invalidated|security reasons/i.test(
+    String(graphMessage || ''),
+  );
+  if (sessionInvalidated) {
+    return process.env.NODE_ENV === 'production'
+      ? 'Facebook-sessionen er invalideret (ofte efter adgangskodeskift). Gå til Indstillinger → Social: nyt bruger-token fra Graph API Explorer, konvertér, opdater INSTAGRAM_ACCESS_TOKEN i Vercel, og redeploy.'
+      : 'Facebook-sessionen er invalideret (ofte efter adgangskodeskift). Indstillinger → Social: nyt token, konvertér, opdater INSTAGRAM_ACCESS_TOKEN i .env.local, og genstart dev-server.';
+  }
   return process.env.NODE_ENV === 'production'
     ? 'Instagram-tokenet er udløbet. Opdater INSTAGRAM_ACCESS_TOKEN i Vercel (Production env) med et nyt Page access token fra Meta, og redeploy (se docs/INSTAGRAM_PUBLISH.md).'
     : 'Instagram-tokenet er udløbet. Opdater INSTAGRAM_ACCESS_TOKEN i .env.local med et nyt Page access token fra Meta (se docs/INSTAGRAM_PUBLISH.md).';
@@ -122,20 +131,40 @@ async function publishToFacebookPagePhoto(args: {
   return { ok: fbRes.ok, data: fbData, status: fbRes.status };
 }
 
+async function commentOnFacebookPost(args: {
+  postId: string;
+  pageId: string;
+  accessToken: string;
+  message: string;
+}) {
+  const { postId, pageId, accessToken, message } = args;
+  const pageToken = await getPageAccessToken(pageId, accessToken) || accessToken;
+  const params = new URLSearchParams();
+  params.set('message', message);
+  params.set('access_token', pageToken);
+
+  const commentRes = await fetch(`${GRAPH_HOST}/${INSTAGRAM_API_VERSION}/${postId}/comments`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: params.toString(),
+  });
+  const commentData = await commentRes.json().catch(() => ({}));
+  return { ok: commentRes.ok, data: commentData, status: commentRes.status };
+}
+
 /**
  * GET /api/instagram/publish
  * Returnerer om Instagram-publish er konfigureret (til UI / test).
  */
 export async function GET() {
-  const ok =
-    !!process.env.INSTAGRAM_ACCOUNT_ID?.trim() &&
-    !!process.env.INSTAGRAM_ACCESS_TOKEN?.trim();
+  const { token } = await resolveInstagramAccessToken();
+  const ok = !!process.env.INSTAGRAM_ACCOUNT_ID?.trim() && !!token;
   return NextResponse.json({ configured: ok });
 }
 
 /**
  * POST /api/instagram/publish
- * Body: { imageUrl: string, caption?: string, isStory?: boolean }
+ * Body: { imageUrl: string, caption?: string, isStory?: boolean, articleUrl?: string }
  * - imageUrl: Offentlig URL til JPEG-billedet (fx fra Firebase Storage)
  * - caption: Tekst til feed-opslag (valgfri)
  * - isStory: true => publicer som Instagram Story
@@ -145,7 +174,7 @@ export async function GET() {
  */
 export async function POST(request: NextRequest) {
   const igId = process.env.INSTAGRAM_ACCOUNT_ID;
-  const accessToken = process.env.INSTAGRAM_ACCESS_TOKEN;
+  const { token: accessToken } = await resolveInstagramAccessToken();
   const facebookPageId = process.env.FACEBOOK_PAGE_ID?.trim();
 
   if (!igId || !accessToken) {
@@ -155,7 +184,7 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  let body: { imageUrl?: string; caption?: string; isStory?: boolean };
+  let body: { imageUrl?: string; caption?: string; isStory?: boolean; articleUrl?: string };
   try {
     body = await request.json();
   } catch {
@@ -164,6 +193,9 @@ export async function POST(request: NextRequest) {
 
   const imageUrl = typeof body.imageUrl === 'string' ? body.imageUrl.trim() : '';
   const isStory = body.isStory === true;
+  const articleUrl = typeof body.articleUrl === 'string' && /^https?:\/\//i.test(body.articleUrl.trim())
+    ? body.articleUrl.trim()
+    : '';
   if (!imageUrl || !imageUrl.startsWith('http')) {
     return NextResponse.json({ error: 'Manglende eller ugyldig imageUrl.' }, { status: 400 });
   }
@@ -198,9 +230,11 @@ export async function POST(request: NextRequest) {
       const msg = createData.error?.message ?? '';
       const isTokenExpired =
         createData.error?.code === 190 ||
-        /session has expired|error validating access token|token.*expired/i.test(String(msg));
+        /session has expired|error validating access token|token.*expired|password|session has been invalidated/i.test(
+          String(msg),
+        );
       const userMessage = isTokenExpired
-        ? tokenRefreshHint()
+        ? tokenRefreshHint(msg)
         : (msg || 'Instagram kunne ikke oprette opslag.');
       return NextResponse.json(
         { error: userMessage },
@@ -258,9 +292,11 @@ export async function POST(request: NextRequest) {
       const msg = publishData.error?.message ?? '';
       const isTokenExpired =
         publishData.error?.code === 190 ||
-        /session has expired|error validating access token|token.*expired/i.test(String(msg));
+        /session has expired|error validating access token|token.*expired|password|session has been invalidated/i.test(
+          String(msg),
+        );
       const userMessage = isTokenExpired
-        ? tokenRefreshHint()
+        ? tokenRefreshHint(msg)
         : /media id is not available|not available|still processing/i.test(String(msg))
           ? 'Instagram er stadig ved at behandle billedet. Vent 5-10 sekunder og prøv igen.'
         : (msg || 'Instagram kunne ikke publicere.');
@@ -273,6 +309,9 @@ export async function POST(request: NextRequest) {
     let facebookPublished: boolean | null = null;
     let facebookPostId: string | null = null;
     let facebookError: string | null = null;
+    let facebookCommentPublished: boolean | null = null;
+    let facebookCommentId: string | null = null;
+    let facebookCommentError: string | null = null;
 
     // Optional: also publish the same content to Facebook Page when configured.
     if (!isStory && facebookPageId) {
@@ -286,6 +325,31 @@ export async function POST(request: NextRequest) {
         if (fbPublish.ok) {
           facebookPublished = true;
           facebookPostId = String(fbPublish.data?.post_id || fbPublish.data?.id || '');
+          if (facebookPostId && articleUrl) {
+            try {
+              const fbComment = await commentOnFacebookPost({
+                postId: facebookPostId,
+                pageId: facebookPageId,
+                accessToken,
+                message: articleUrl,
+              });
+              if (fbComment.ok) {
+                facebookCommentPublished = true;
+                facebookCommentId = String(fbComment.data?.id || '');
+              } else {
+                facebookCommentPublished = false;
+                const rawCommentErr = String(fbComment.data?.error?.message || '');
+                facebookCommentError = /insufficient permissions|#200/i.test(rawCommentErr)
+                  ? 'Mangler tilladelse til kommentarer (pages_manage_engagement). Opslaget er live — tilføj artikellink manuelt.'
+                  : rawCommentErr || 'Kunne ikke kommentere med artikellink på Facebook.';
+                console.error('Facebook first comment error:', fbComment.status, fbComment.data);
+              }
+            } catch (commentErr) {
+              facebookCommentPublished = false;
+              facebookCommentError = 'Kunne ikke kommentere med artikellink på Facebook.';
+              console.error('Facebook first comment failed:', commentErr);
+            }
+          }
         } else {
           facebookPublished = false;
           facebookError = String(fbPublish.data?.error?.message || 'Kunne ikke poste automatisk til Facebook.');
@@ -298,12 +362,25 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    const warnings: string[] = [];
+    if (facebookPublished === true && facebookCommentPublished === false && articleUrl) {
+      warnings.push('facebook_comment');
+    }
+    if (facebookPublished === false && facebookPageId) {
+      warnings.push('facebook_publish');
+    }
+
     return NextResponse.json({
       success: true,
+      partialSuccess: warnings.length > 0,
+      warnings,
       mediaId: publishData.id,
       facebookPublished,
       facebookPostId,
       facebookError,
+      facebookCommentPublished,
+      facebookCommentId,
+      facebookCommentError,
     });
   } catch (e) {
     console.error('Instagram publish error:', e);

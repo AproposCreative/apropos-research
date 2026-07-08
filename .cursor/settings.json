@@ -1,0 +1,10 @@
+{
+  "plugins": {
+    "resend": {
+      "enabled": true
+    },
+    "webflow": {
+      "enabled": true
+    }
+  }
+}

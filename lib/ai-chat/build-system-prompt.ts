@@ -5,6 +5,10 @@ import {
   type PromptSegmentKind,
 } from '@/lib/ai-chat/prompt-segment-types';
 import { composeSystemPrompt as composeSystemPromptFromLib } from '@/lib/ai-chat/compose-prompt';
+import { getEditorialArticleTypeOption } from '@/lib/editorial/signal-store';
+import type { EditorialResearchResult } from '@/lib/editorial/types';
+import type { ApplicationSection, FundingResearchResult } from '@/lib/funding/types';
+import { getApplicationSectionOption } from '@/lib/funding/application-sections';
 import fs from 'node:fs';
 import path from 'path';
 
@@ -62,6 +66,16 @@ const ANTI_PATTERNS = [
   'pulserer af liv',
 ];
 
+function cleanEditorialDossierText(input: string): string {
+  return input
+    .replace(/\[([^\]]+)\]\(https?:\/\/[^)]+\)/g, '$1')
+    .replace(/\(\[([^\]]+)\]\(?/g, '$1')
+    .replace(/https?:\/\/\S+/g, '')
+    .replace(/##\s*Hvad jeg ikke fandt[\s\S]*$/i, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
 export type BuildPromptSegmentsOptions = {
   /** Fixed opening line for deterministic preview (otherwise random) */
   openingStrategyOverride?: string;
@@ -115,6 +129,68 @@ export function buildPromptSegments(
     );
   }
   const articleMetaContent = metaParts.join('\n');
+  const articleTypeOption = getEditorialArticleTypeOption(articleContext?.articleType as string | undefined);
+  const targetLengthLabel =
+    (articleContext?.targetLengthLabel as string | undefined) || articleTypeOption.targetLengthLabel;
+  const targetWordCount =
+    typeof articleContext?.targetWordCount === 'number'
+      ? articleContext.targetWordCount
+      : articleTypeOption.targetWordCount;
+  const articleTypeLengthContent = `\n**ARTIKELTYPE OG LÆNGDE — OVERSTYRER GENERELLE LÆNGDEMÅL:**\nArtikeltype: ${articleTypeOption.label}\nMållængde: ${targetLengthLabel} (ca. ${targetWordCount} ord)\nSkriv til denne længde, også hvis structure.apropos.md nævner bredere standardintervaller.`;
+
+  const editorialResearch = articleContext?.editorialResearch as EditorialResearchResult | null | undefined;
+  const editorialDossierContent = editorialResearch?.dossier
+    ? [
+        '\n**AI-REDAKTIONSCHEF DOSSIER — SKAL BRUGES SOM ARTIKELGRUNDLAG:**',
+        `Signal: ${editorialResearch.dossier.signal.title}`,
+        `Quality gate: ${editorialResearch.qualityGate.ready ? 'Klar' : 'Kræver opmærksomhed'} (${editorialResearch.qualityGate.score}/100)`,
+        `Dansk vinkel: ${editorialResearch.dossier.danishAngle}`,
+        `Modvinkel: ${editorialResearch.dossier.counterpoint}`,
+        'Key facts:',
+        editorialResearch.dossier.keyFacts.slice(0, 8).map((fact, index) => `${index + 1}. ${fact}`).join('\n'),
+        'Kilder:',
+        editorialResearch.dossier.sources.slice(0, 8).map((source, index) => {
+          const sourceName = cleanEditorialDossierText(source.source.replace(/^ChatGPT websearch:\s*/i, '')) || source.domain || 'web';
+          const titleText = cleanEditorialDossierText(source.title);
+          const contentText = cleanEditorialDossierText(source.content);
+          return `${index + 1}. ${titleText}\n   Kilde: ${sourceName}\n   Relevans: ${contentText}`;
+        }).join('\n'),
+        'Åbne spørgsmål:',
+        editorialResearch.dossier.unansweredQuestions.map((question, index) => `${index + 1}. ${question}`).join('\n'),
+        'Brug dossieret som researchgrundlag. Opfind ikke fakta, og marker usikkerhed i teksten hvis en pointe ikke er stærkt underbygget.',
+      ].filter(Boolean).join('\n')
+    : '';
+
+  const fundingResearch = articleContext?.fundingResearch as FundingResearchResult | null | undefined;
+  const fundingSection = getApplicationSectionOption(articleContext?.applicationSection as ApplicationSection | undefined);
+  const fundingDossierContent = fundingResearch?.dossier
+    ? [
+        '\n**FUNDING DESK DOSSIER — SKRIV ANSØGNINGSTEKST (IKKE ARTIKEL):**',
+        `Mulighed: ${fundingResearch.dossier.opportunity.title}`,
+        `Funder: ${fundingResearch.dossier.opportunity.funder}`,
+        `Ansøgningssektion: ${fundingSection.label}`,
+        `Quality gate: ${fundingResearch.qualityGate.ready ? 'Klar' : 'Kræver opmærksomhed'} (${fundingResearch.qualityGate.score}/100)`,
+        `Eligibility: ${fundingResearch.dossier.eligibilityMatch}`,
+        fundingResearch.dossier.eligibilityGaps.length
+          ? `Gaps:\n${fundingResearch.dossier.eligibilityGaps.map((g, i) => `${i + 1}. ${g}`).join('\n')}`
+          : '',
+        `Narrativ vinkel: ${fundingResearch.dossier.narrativeAngle}`,
+        'Krævede dokumenter:',
+        fundingResearch.dossier.requiredDocuments.map((d, i) => `${i + 1}. ${d}`).join('\n'),
+        'Key facts:',
+        fundingResearch.dossier.keyFacts.slice(0, 8).map((fact, index) => `${index + 1}. ${fact}`).join('\n'),
+        'Kilder:',
+        fundingResearch.dossier.sources.slice(0, 8).map((source, index) => {
+          const sourceName = cleanEditorialDossierText(source.source.replace(/^ChatGPT websearch:\s*/i, '')) || source.domain || 'web';
+          const titleText = cleanEditorialDossierText(source.title);
+          const contentText = cleanEditorialDossierText(source.content);
+          return `${index + 1}. ${titleText}\n   Kilde: ${sourceName}\n   Relevans: ${contentText}`;
+        }).join('\n'),
+        'Ubesvarede spørgsmål:',
+        fundingResearch.dossier.unansweredQuestions.map((q, index) => `${index + 1}. ${q}`).join('\n'),
+        'Opfind ikke beløb, deadlines eller krav der ikke fremgår af kilderne. Skriv professionel ansøgningstekst til Apropos Magazine.',
+      ].filter(Boolean).join('\n')
+    : '';
 
   const research = articleContext?.researchSelected as
     | { title?: string; source?: string; keyPoints?: string[]; content?: string }
@@ -210,6 +286,30 @@ export function buildPromptSegments(
       kind: 'system',
       content: articleMetaContent,
       included: articleMetaContent.length > 0,
+    },
+    {
+      id: PROMPT_SEGMENT_IDS.articleTypeLength,
+      labelDa: 'Artikeltype og længde',
+      kind: 'system',
+      content: articleTypeLengthContent,
+      included: true,
+      locked: true,
+    },
+    {
+      id: PROMPT_SEGMENT_IDS.editorialDossier,
+      labelDa: 'AI-redaktionschef dossier',
+      kind: 'system',
+      content: editorialDossierContent,
+      included: editorialDossierContent.length > 0,
+      locked: true,
+    },
+    {
+      id: PROMPT_SEGMENT_IDS.fundingDossier,
+      labelDa: 'Funding Desk dossier',
+      kind: 'system',
+      content: fundingDossierContent,
+      included: fundingDossierContent.length > 0,
+      locked: true,
     },
     {
       id: PROMPT_SEGMENT_IDS.wizardResearch,

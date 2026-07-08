@@ -1,3 +1,7 @@
+import type { EditorialArticleType } from '@/lib/editorial/signal-store';
+import type { EditorialResearchResult } from '@/lib/editorial/types';
+import type { ApplicationSection, FundingResearchResult } from '@/lib/funding/types';
+
 export type AIDraft = {
   prompt?: string;
   suggestions?: string[];
@@ -17,6 +21,11 @@ export interface ArticleData {
   tags: string[];
   platform?: string; // streaming_service synonym
   press?: boolean | null;
+  /**
+   * Canonical Webflow CMS field for press accreditation. Mirrors `press` and
+   * is the field actually written to Webflow via webflow-mapping.ts.
+   */
+  presseakkreditering?: boolean | null;
   intro?: string;
   aiDraft?: AIDraft | null;
   previewTitle?: string; // live title parsed from assistant drafts
@@ -43,4 +52,13 @@ export interface ArticleData {
   /** Prompt brugt ved seneste AI-billedgenerering (til debugging/visning) */
   lastGeneratedImagePrompt?: string;
   generationMode?: 'fast' | 'editorial';
+  editorialSignalId?: string;
+  editorialSignalTitle?: string;
+  articleType?: EditorialArticleType;
+  targetWordCount?: number;
+  targetLengthLabel?: string;
+  editorialResearch?: EditorialResearchResult | null;
+  fundingOpportunityId?: string;
+  fundingResearch?: FundingResearchResult | null;
+  applicationSection?: ApplicationSection;
 }

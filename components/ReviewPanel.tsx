@@ -2,8 +2,9 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import WebflowPublishPanel from './WebflowPublishPanel';
-import type { WebflowArticleFields } from '@/lib/webflow-service';
+import type { WebflowArticleFields } from '@/lib/webflow/types';
 import { stripIntroDuplicateFromBody } from '@/lib/article-intro-strip';
+import { addCoveredEditorialTopic, addPublishedEditorialSignalId } from '@/lib/editorial/signal-store';
 
 interface ReviewPanelProps {
   articleData: any;
@@ -12,6 +13,7 @@ interface ReviewPanelProps {
   onPreflightComplete?: (warnings: string[], criticTips: string, factResults: any[], moderation: any) => void;
   onRecommendationsApplied?: () => void;
   onUpdateArticle?: (updates: any) => void;
+  onEditorialSignalPublished?: (detail: { signalId: string; signalTitle?: string; title?: string; slug?: string; topic?: string }) => void;
 }
 
 type TaxonomyItem = { id: string; name: string };
@@ -109,7 +111,7 @@ function inferBestAuthor(authors: AuthorCandidate[], corpus: string): string | u
   return best && best.score >= 3 ? best.name : undefined;
 }
 
-export default function ReviewPanel({ articleData, onClose, frameless, onPreflightComplete, onRecommendationsApplied, onUpdateArticle }: ReviewPanelProps) {
+export default function ReviewPanel({ articleData, onClose, frameless, onPreflightComplete, onRecommendationsApplied, onUpdateArticle, onEditorialSignalPublished }: ReviewPanelProps) {
   const [wfSlugs, setWfSlugs] = useState<string[] | null>(null);
   const [isGeneratingImage, setIsGeneratingImage] = useState(false);
   const [imageProgress, setImageProgress] = useState(0);
@@ -320,6 +322,17 @@ export default function ReviewPanel({ articleData, onClose, frameless, onPreflig
       ? stripIntroDuplicateFromBody(extractedPreview.intro, extractedPreview.body)
       : extractedPreview.body;
 
+  // Brødtekst kan være rich-text HTML (fx ved "Importér artikel" med inline-billeder).
+  // Render den som HTML — ellers vises rå <figure>/<img>-tags som tekst ("roddet ud").
+  const bodyIsHtml = /<(figure|img|p|h[1-6]|ul|ol|blockquote)[\s>]/i.test(body);
+  const sanitizeHtml = (html: string) =>
+    html
+      .replace(/<\/?(script|style)[^>]*>/gi, '')
+      .replace(/\son\w+\s*=\s*"[^"]*"/gi, '')
+      .replace(/\son\w+\s*=\s*'[^']*'/gi, '')
+      .replace(/javascript:/gi, '');
+  const fotoCredit = mergedArticleData?.fotoCredit || mergedArticleData?.['foto-credit'] || '';
+
   const seoTitle = mergedArticleData?.seo_title || mergedArticleData?.seoTitle || '';
   const seoDescription = mergedArticleData?.meta_description || mergedArticleData?.seoDescription || '';
   const slug = mergedArticleData?.slug || '';
@@ -390,7 +403,14 @@ export default function ReviewPanel({ articleData, onClose, frameless, onPreflig
           {body && (
             <div className="bg-white/5 border border-white/10 rounded-lg p-2">
               <div className="text-white/50 mb-1 text-xs">Body</div>
-              <div className="text-white/80 text-sm whitespace-pre-wrap">{body}</div>
+              {bodyIsHtml ? (
+                <div
+                  className="apropos-richtext text-white/80 text-sm leading-relaxed"
+                  dangerouslySetInnerHTML={{ __html: sanitizeHtml(body) }}
+                />
+              ) : (
+                <div className="text-white/80 text-sm whitespace-pre-wrap">{body}</div>
+              )}
             </div>
           )}
         </section>
@@ -415,6 +435,7 @@ export default function ReviewPanel({ articleData, onClose, frameless, onPreflig
           <MetaInline label="Antal ord" value={wordCount > 0 ? wordCount.toString() : '—'} />
           <MetaInline label="Min. læsetid" value={readTime > 0 ? `${readTime} min` : '—'} />
         </div>
+        {has('foto-credit', 'fotocredit') && <MetaRow label="Foto credit" value={fotoCredit || '—'} />}
         <MetaRow label="SEO titel" value={seoTitle || '—'} />
         <MetaRow label="Meta beskrivelse" value={seoDescription || '—'} />
         {reflection && (
@@ -776,6 +797,23 @@ export default function ReviewPanel({ articleData, onClose, frameless, onPreflig
               const isUpdate = formData.webflowId && formData.webflowId !== '';
               const articleTitle = formData.title || 'Artiklen';
               const webflowId = j?.articleId || 'ukendt';
+              const editorialSignalId = String(articleData?.editorialSignalId || '').trim();
+              if (editorialSignalId) {
+                const publishedDetail = {
+                  signalId: editorialSignalId,
+                  signalTitle: String(articleData?.editorialSignalTitle || '').trim() || undefined,
+                  title: String(articleTitle || articleData?.title || '').trim() || undefined,
+                  slug: String((formData as any)?.slug || articleData?.slug || '').trim() || undefined,
+                  topic: String(articleData?.topic || articleData?.category || articleData?.section || '').trim() || undefined,
+                };
+                try {
+                  addPublishedEditorialSignalId(editorialSignalId);
+                  addCoveredEditorialTopic(publishedDetail);
+                  onEditorialSignalPublished?.(publishedDetail);
+                } catch {
+                  onEditorialSignalPublished?.(publishedDetail);
+                }
+              }
               
               // Create a temporary success modal
               const modal = document.createElement('div');

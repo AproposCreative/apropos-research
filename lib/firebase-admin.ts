@@ -17,6 +17,7 @@
 import { initializeApp, getApps, cert, applicationDefault, type App } from 'firebase-admin/app';
 import { getFirestore, type Firestore } from 'firebase-admin/firestore';
 import { getAuth as getFirebaseAdminAuth, type Auth } from 'firebase-admin/auth';
+import { getStorage } from 'firebase-admin/storage';
 
 let _adminApp: App | null = null;
 let _adminDb: Firestore | null = null;
@@ -79,4 +80,10 @@ export function getAdminAuth(): Auth | null {
   if (!app) return null;
   _adminAuth = getFirebaseAdminAuth(app);
   return _adminAuth;
+}
+
+export function getAdminStorageBucket(bucketName?: string): any | null {
+  const app = initAdmin();
+  if (!app) return null;
+  return bucketName ? getStorage(app).bucket(bucketName) : getStorage(app).bucket();
 }

@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { Amiri } from 'next/font/google';
+import { EmbeddedAppHeader } from '@/components/embedded-app';
 import SocialCardCanvas, { type SocialCardData, type SocialCardSize, DIMENSIONS } from './SocialCardCanvas';
 import { exportCardToPng, exportCardToJpegBlob } from './exportCardToPng';
 import { storage } from '@/lib/firebase';
@@ -28,6 +29,81 @@ const STORY_TITLE_MAX_WIDTH = 992;
 const STORY_BYLINE_MAX_WIDTH = 1000;
 
 const CAPTION_FOOTER_TEXT = 'Læs gratis med – uden reklamer, pop-ups eller anden støj: www.aproposmagazine.com';
+const ARTICLE_BASE_URL = 'https://www.aproposmagazine.com/articles';
+
+/** Oversæt klient-fejl (eksport / Storage-upload / netværk) til forståelig dansk besked. */
+function describePublishError(error: unknown, stage: 'export' | 'upload' | 'publish'): string {
+  const code =
+    error && typeof error === 'object' && 'code' in error
+      ? String((error as { code?: unknown }).code || '')
+      : '';
+  const message = error instanceof Error ? error.message : String(error ?? '');
+
+  if (stage === 'export') {
+    return `Kunne ikke generere billedet (${message || 'ukendt fejl'}). Vælg en anden artikel eller genindlæs siden.`;
+  }
+
+  if (stage === 'upload') {
+    if (code === 'storage/unauthorized' || /unauthorized|permission/i.test(message)) {
+      return 'Du har ikke adgang til at uploade billedet (Firebase Storage afviste det). Log ud og ind igen — eller bed en admin om at deploye storage-reglerne (npm run deploy:storage).';
+    }
+    if (code === 'storage/unauthenticated' || /unauthenticated/i.test(message)) {
+      return 'Din session er udløbet. Log ud og ind igen, og prøv så at poste på ny.';
+    }
+    if (code === 'storage/retry-limit-exceeded' || code === 'storage/canceled') {
+      return 'Upload af billedet blev afbrudt (netværk). Tjek forbindelsen og prøv igen.';
+    }
+    if (/cors|network|failed to fetch/i.test(message)) {
+      return 'Billedet kunne ikke uploades (netværk eller CORS på Firebase Storage). Prøv igen — kontakt admin hvis det fortsætter.';
+    }
+    return `Billedet kunne ikke uploades (${code || message || 'ukendt fejl'}). Prøv igen.`;
+  }
+
+  if (/failed to fetch|networkerror|load failed/i.test(message)) {
+    return 'Kunne ikke nå Instagram-tjenesten (netværk). Tjek forbindelsen og prøv igen.';
+  }
+  return `Der opstod en fejl (${message || 'ukendt'}). Prøv igen.`;
+}
+
+/** Samme segment-knapper som Liv / Nyhedsbrev (apropos-design-system). */
+const segBtn = (active: boolean) =>
+  `rounded-lg px-2.5 py-1.5 text-[11px] font-medium tracking-wide transition-all duration-200 active:scale-[0.97] ${
+    active ? 'bg-white/12 text-white shadow-sm border border-white/10' : 'text-white/45 hover:text-white/75 border border-transparent'
+  }`;
+
+const embedHeaderIconBtn = (active?: boolean) =>
+  `touch-target flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border transition-all duration-200 active:scale-[0.97] ${
+    active
+      ? 'border-white/25 bg-white/10 text-white'
+      : 'border-white/12 bg-white/[0.06] text-white/75 hover:bg-white/[0.12] hover:border-white/18 hover:text-white'
+  } disabled:opacity-40 disabled:pointer-events-none`;
+
+const embedHeaderPostBtn =
+  'touch-target flex h-10 shrink-0 items-center justify-center rounded-lg border border-white/12 bg-white/[0.06] px-3.5 text-[12px] font-medium text-white/85 transition-all duration-200 hover:bg-white/[0.12] hover:border-white/18 hover:text-white active:scale-[0.97] disabled:opacity-40 disabled:pointer-events-none';
+
+function PublishFeedback({
+  success,
+  warning,
+  error,
+}: {
+  success: string | null;
+  warning: string | null;
+  error: string | null;
+}) {
+  if (!success && !warning && !error) return null;
+  return (
+    <div className="space-y-1.5">
+      {success ? (
+        <p className="inline-flex items-center gap-1.5 text-sm text-white/85">
+          <span className="size-1.5 rounded-full bg-emerald-400 shrink-0" />
+          {success}
+        </p>
+      ) : null}
+      {warning ? <p className="text-xs text-amber-300/90 leading-snug pl-3">{warning}</p> : null}
+      {error ? <p className="text-sm text-red-400/95">{error}</p> : null}
+    </div>
+  );
+}
 
 function stripHtmlForPrompt(input: string): string {
   return input
@@ -138,8 +214,13 @@ function normalizeArticle(item: { id: string; fieldData?: Record<string, unknown
     (fd['article-body'] as string) ||
     '';
   const content = stripHtmlForPrompt(rawContent);
+  const mobileImage =
+    (fd['mobile-image'] as { url?: string })?.url ??
+    (fd['mobile-image'] as string) ??
+    (fd.mobileImage as string);
   const thumb = (fd.thumb as { url?: string })?.url ?? (fd.thumb as string);
   const featuredImage =
+    (typeof mobileImage === 'string' ? mobileImage : undefined) ||
     (fd['article-featured-image'] as string) ||
     (fd.featuredImage as string) ||
     (typeof thumb === 'string' ? thumb : undefined);
@@ -174,6 +255,15 @@ function normalizeArticle(item: { id: string; fieldData?: Record<string, unknown
 
 type NormalizedArticle = ReturnType<typeof normalizeArticle>;
 
+function buildDefaultCaption(article: NormalizedArticle | null): string {
+  if (!article) return CAPTION_FOOTER_TEXT;
+  const parts = [article.title, article.excerpt].filter(Boolean) as string[];
+  if (article.intro && article.intro !== article.excerpt) {
+    parts.push(article.intro);
+  }
+  return parts.length ? `${parts.join('\n\n')}\n\n${CAPTION_FOOTER_TEXT}` : CAPTION_FOOTER_TEXT;
+}
+
 interface DesignEditorViewProps {
   /** I hub: tilbage-knap kalder dette i stedet for at navigere */
   onBack?: () => void;
@@ -188,16 +278,20 @@ export default function DesignEditorView({ onBack, embedMode }: DesignEditorView
   const [selected, setSelected] = useState<NormalizedArticle | null>(null);
   const [size, setSize] = useState<SocialCardSize>('square');
   const [exporting, setExporting] = useState(false);
-  const [articlesOpen, setArticlesOpen] = useState(true);
+  /** I AI Writer (embed) start med kanvas: undgå overlap med header. Desktop viser artikelpanel. */
+  const [articlesOpen, setArticlesOpen] = useState(!embedMode);
   const [articleSearch, setArticleSearch] = useState('');
-  const [showPreview, setShowPreview] = useState(false);
+  const showPreview = false;
   const [articlesPanelWidth, setArticlesPanelWidth] = useState(DEFAULT_PANEL_WIDTH);
   const [isResizingArticles, setIsResizingArticles] = useState(false);
   const [caption, setCaption] = useState('');
   const [postingToInstagram, setPostingToInstagram] = useState(false);
   const [publishStep, setPublishStep] = useState('');
   const [instagramError, setInstagramError] = useState<string | null>(null);
+  const [publishSuccess, setPublishSuccess] = useState<string | null>(null);
+  const [publishWarning, setPublishWarning] = useState<string | null>(null);
   const [instagramConfigured, setInstagramConfigured] = useState<boolean | null>(null);
+  const [confirmInstagramPostOpen, setConfirmInstagramPostOpen] = useState(false);
   const [renderedCardDataUrl, setRenderedCardDataUrl] = useState<string | null>(null);
   const [authors, setAuthors] = useState<{ id: string; name: string }[]>([]);
   const [sections, setSections] = useState<{ id: string; name: string }[]>([]);
@@ -286,30 +380,48 @@ export default function DesignEditorView({ onBack, embedMode }: DesignEditorView
     setEyebrowChips(chips);
   }, [selected?.id, selected?.section, selected?.primaryTopic, selected?.topics, selected?.category, selected?.authorId, sections, topics, authors, resolveName]);
 
-  // Når preview åbnes eller artikel skiftes: foreslå caption fra titel + excerpt (uden Foto); altid afslutte med footer
+  // Når artikel skiftes: foreslå caption fra titel + excerpt (uden Foto); altid afslutte med footer
   useEffect(() => {
-    if (!showPreview || !selected) return;
-    const parts = [selected.title, selected.excerpt].filter(Boolean) as string[];
-    if (selected.intro && selected.intro !== selected.excerpt) {
-      parts.push(selected.intro);
-    }
-    setCaption(parts.join('\n\n') + '\n\n' + CAPTION_FOOTER_TEXT);
-  }, [showPreview, selected?.id, selected?.title, selected?.excerpt, selected?.intro]);
+    if (!selected) return;
+    setCaption(buildDefaultCaption(selected));
+  }, [selected?.id, selected?.title, selected?.excerpt, selected?.intro]);
 
   // Tjek om Instagram-publish er konfigureret (til test / brugertilbagemelding)
   useEffect(() => {
-    if (!showPreview) return;
+    let cancelled = false;
     fetch('/api/instagram/publish')
       .then((r) => r.json())
-      .then((data: { configured?: boolean }) => setInstagramConfigured(!!data.configured))
-      .catch(() => setInstagramConfigured(false));
-  }, [showPreview]);
+      .then((data: { configured?: boolean }) => {
+        if (!cancelled) setInstagramConfigured(!!data.configured);
+      })
+      .catch(() => {
+        if (!cancelled) setInstagramConfigured(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const ensureCaptionFooter = useCallback((text: string) => {
     const t = text.trim();
     if (!t) return '\n\n' + CAPTION_FOOTER_TEXT;
     return t.endsWith(CAPTION_FOOTER_TEXT) ? t : t + '\n\n' + CAPTION_FOOTER_TEXT;
   }, []);
+
+  const captionForPublish = useMemo(() => {
+    const trimmed = caption.trim();
+    const footerOnly = trimmed === CAPTION_FOOTER_TEXT;
+    const genericReadMoreOnly = /^læs\s+(hele|nu|gratis)?[\s\S]{0,80}apropos/i.test(trimmed);
+    const source = !trimmed || footerOnly || genericReadMoreOnly
+      ? buildDefaultCaption(selected)
+      : trimmed;
+    return ensureCaptionFooter(source);
+  }, [caption, ensureCaptionFooter, selected]);
+
+  const selectedArticleUrl = useMemo(() => {
+    const slug = selected?.slug?.trim();
+    return slug ? `${ARTICLE_BASE_URL}/${slug}` : undefined;
+  }, [selected?.slug]);
 
   useEffect(() => {
     if (!isResizingArticles) return;
@@ -509,6 +621,8 @@ export default function DesignEditorView({ onBack, embedMode }: DesignEditorView
 
   const previewAspectRatio = size === 'story' ? '9 / 16' : '1 / 1';
   const previewMaxHeight = size === 'story' ? 996 : 468;
+  const renderedCanvasWidth = Math.max(220, Math.round(DIMENSIONS[size].width * scale));
+  const renderedCanvasHeight = Math.max(220, Math.round(DIMENSIONS[size].height * scale));
 
   // Preview must use the exact same rendering pipeline as export (WYSIWYG)
   useEffect(() => {
@@ -557,10 +671,19 @@ export default function DesignEditorView({ onBack, embedMode }: DesignEditorView
     }
   }, [size, cardData]);
 
-  const handlePostToInstagram = useCallback(async () => {
-    setPostingToInstagram(true);
+  const clearPublishFeedback = useCallback(() => {
     setInstagramError(null);
+    setPublishSuccess(null);
+    setPublishWarning(null);
+  }, []);
+
+  const handlePostToInstagram = useCallback(async () => {
+    setConfirmInstagramPostOpen(false);
+    setPostingToInstagram(true);
+    clearPublishFeedback();
     setPublishStep('Eksporterer billede…');
+    let instagramPublishStarted = false;
+    let stage: 'export' | 'upload' | 'publish' = 'export';
     try {
       if (!storage) {
         setInstagramError('Firebase Storage er ikke tilgængelig.');
@@ -568,19 +691,23 @@ export default function DesignEditorView({ onBack, embedMode }: DesignEditorView
       }
       const blob = await exportCardToJpegBlob(cardData, size, 0.92, { amiriFontFamily: amiri.style.fontFamily });
       setPublishStep('Uploader billede…');
+      stage = 'upload';
       const path = `instagram-publish/${Date.now()}.jpg`;
       const storageRef = ref(storage, path);
       await uploadBytes(storageRef, blob, { contentType: 'image/jpeg' });
       const imageUrl = await getDownloadURL(storageRef);
       setPublishStep('Publicerer til Instagram…');
+      stage = 'publish';
       const isStory = size === 'story';
+      instagramPublishStarted = true;
       const apiRes = await fetch('/api/instagram/publish', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           imageUrl,
           isStory,
-          caption: isStory ? undefined : (ensureCaptionFooter(caption.trim()) || undefined),
+          caption: isStory ? undefined : captionForPublish,
+          articleUrl: isStory ? undefined : selectedArticleUrl,
         }),
       });
       const data = await apiRes.json().catch(() => ({}));
@@ -590,22 +717,42 @@ export default function DesignEditorView({ onBack, embedMode }: DesignEditorView
       }
       setInstagramError(null);
       if (size === 'story') {
-        alert('Story er publiceret på Instagram.');
+        setPublishSuccess('Story er publiceret på Instagram.');
       } else if (data.facebookPublished === true) {
-        alert('Opslaget er publiceret på Instagram og Facebook.');
+        setPublishSuccess('Publiceret på Instagram og Facebook.');
+        if (data.facebookCommentPublished !== true && selectedArticleUrl) {
+          setPublishWarning(
+            'Artikellinket blev ikke lagt som første kommentar på Facebook — tilføj linket manuelt i opslaget.'
+          );
+        }
       } else if (data.facebookPublished === false) {
-        alert(`Opslaget er publiceret på Instagram. Facebook fejlede: ${data.facebookError || 'ukendt fejl'}`);
+        setPublishSuccess('Publiceret på Instagram.');
+        setPublishWarning(
+          typeof data.facebookError === 'string' && data.facebookError.trim()
+            ? `Facebook: ${data.facebookError.trim()}`
+            : 'Facebook-opslaget blev ikke oprettet.'
+        );
       } else {
-        alert('Opslaget er publiceret på Instagram.');
+        setPublishSuccess('Publiceret på Instagram.');
       }
     } catch (e) {
       console.error('Instagram publish failed', e);
-      setInstagramError('Der opstod en fejl. Prøv igen.');
+      // Story-kaldet kan være nået frem selvom forbindelsen faldt — vis blødt svar.
+      if (size === 'story' && instagramPublishStarted) {
+        setPublishSuccess('Story-kaldet er sendt — tjek Instagram om et øjeblik.');
+        return;
+      }
+      setInstagramError(describePublishError(e, stage));
     } finally {
       setPostingToInstagram(false);
       setPublishStep('');
     }
-  }, [size, cardData, caption, ensureCaptionFooter]);
+  }, [size, cardData, captionForPublish, selectedArticleUrl, clearPublishFeedback]);
+
+  const requestPostToInstagram = useCallback(() => {
+    clearPublishFeedback();
+    setConfirmInstagramPostOpen(true);
+  }, [clearPublishFeedback]);
 
   useEffect(() => {
     let cancelled = false;
@@ -665,10 +812,372 @@ export default function DesignEditorView({ onBack, embedMode }: DesignEditorView
     };
   }, [selected?.id, selected?.title, selected?.excerpt, size]);
 
-  const rootClass = embedMode ? `h-full flex flex-col relative overflow-hidden ${amiri.variable}` : `min-h-[100dvh] h-[100dvh] bg-black md:bg-[#171717] md:p-[1%] p-0 flex flex-col md:flex-row relative overflow-hidden ${amiri.variable}`;
+  /** Brødtekst for editor (preview vs canvas) — delt mellem standalone og AI Writer embed. */
+  const editorCanvas = (
+    <>
+      {showPreview ? (
+        <div className="flex-1 min-h-0 flex flex-col items-center overflow-y-auto bg-black/30 p-2 md:p-4">
+          {/* Instagram-style post preview */}
+          <div className="w-full flex flex-col rounded-xl overflow-hidden border border-white/12 bg-black/40 backdrop-blur-xl" style={{ maxWidth: size === 'story' ? 620 : 468 }}>
+            {/* Profil-række */}
+            <div className="flex items-center gap-3 px-3 py-2.5 border-b border-white/10">
+              <img
+                src="/images/05AproposMagazine_Random.webp"
+                alt=""
+                className="w-8 h-8 rounded-full object-cover flex-shrink-0 bg-white/10"
+              />
+              <span className="font-semibold text-white text-sm">aproposmagazineofficial</span>
+              <span className="flex-shrink-0 w-4 h-4 rounded-full bg-[#1877F2] flex items-center justify-center" title="Meta verified">
+                <svg width="10" height="10" viewBox="0 0 12 12" fill="none" className="text-white"><path d="M2.5 6L5 8.5L9.5 4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
+              </span>
+              <span className="text-white/50 text-xs ml-auto">• nu</span>
+            </div>
+            {/* Opslagsbillede = kortet */}
+            <div className="flex items-center justify-center bg-black/30 w-full" style={{ aspectRatio: previewAspectRatio, maxHeight: previewMaxHeight }}>
+              {renderedCardDataUrl ? (
+                <img
+                  src={renderedCardDataUrl}
+                  alt=""
+                  className="w-full h-full object-cover"
+                  draggable={false}
+                />
+              ) : (
+                <SocialCardCanvas data={cardData} size={size} className="w-full h-full" />
+              )}
+            </div>
+            {/* Caption: brugernavn + redigerbar tekst under opslaget */}
+            <div className="px-3 py-2">
+              <p className="text-white text-sm mb-1.5">
+                <span className="font-semibold">aproposmagazineofficial</span>
+                <span className="inline-flex w-4 h-4 rounded-full bg-[#1877F2] align-middle ml-1 mr-1.5" title="Meta verified">
+                  <svg width="10" height="10" viewBox="0 0 12 12" fill="none" className="text-white m-auto block"><path d="M2.5 6L5 8.5L9.5 4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                </span>
+              </p>
+              <textarea
+                value={caption}
+                onChange={(e) => setCaption(e.target.value)}
+                placeholder="Skriv eller rediger teksten under opslaget…"
+                className="apropos-input-dark w-full min-h-[112px] px-3 py-2.5 rounded-lg border text-sm resize-y"
+                rows={4}
+              />
+              {selected?.authorId && authors.length > 0 && (
+                <p className="text-white/50 text-xs mt-1">
+                  Forfatter til opslag: {authors.find((a) => a.id === selected.authorId)?.name ?? '—'}
+                </p>
+              )}
+              <div className="mt-3 flex flex-col gap-2">
+                <button
+                  type="button"
+                  onClick={requestPostToInstagram}
+                  disabled={postingToInstagram || instagramConfigured === false}
+                  className="w-full py-2.5 px-4 rounded-xl border border-white/12 bg-white/[0.04] hover:bg-white/[0.08] hover:border-white/20 disabled:opacity-50 disabled:pointer-events-none text-white font-medium text-sm transition-colors flex items-center justify-center gap-2"
+                >
+                  {postingToInstagram ? (
+                    <span className="animate-pulse">{publishStep || 'Publicerer…'}</span>
+                  ) : (
+                    <>
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" className="shrink-0"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-1.657 0-3-1.343-3-3 0-1.657 1.343-3 3-3s3 1.343 3 3c0 1.657-1.343 3-3 3zm6.205-11.947c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z"/></svg>
+                      {size === 'story' ? 'Post til Instagram Story' : 'Post til Instagram'}
+                    </>
+                  )}
+                </button>
+                {instagramConfigured === false && (
+                  <p className="text-amber-400/90 text-xs">Instagram-publish er ikke konfigureret. Sæt INSTAGRAM_ACCOUNT_ID og INSTAGRAM_ACCESS_TOKEN (se docs/INSTAGRAM_PUBLISH.md).</p>
+                )}
+                <PublishFeedback success={publishSuccess} warning={publishWarning} error={instagramError} />
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : (
+        <div
+          ref={previewRef}
+          className="flex-1 min-h-0 w-full flex flex-col items-center overflow-y-auto overflow-x-hidden touch-pan-y [overscroll-behavior:contain] md:justify-start justify-start bg-black/25 p-2 md:p-4 app-safe-bottom"
+        >
+          <div className="w-full flex min-h-min flex-col items-center gap-3 md:gap-5 pt-3 md:pt-10 pb-8">
+            {eyebrowChips.length > 0 && size !== 'story' && (
+              <div className="inline-flex max-w-full overflow-x-auto no-scrollbar justify-start items-center gap-1.5 md:gap-2 rounded-2xl border border-white/15 bg-black/65 p-1.5 md:p-2 mb-2 md:mb-5 backdrop-blur-md shadow-[0_8px_24px_rgba(0,0,0,0.35)]">
+                {eyebrowChips.map((chip, index) => (
+                  <button
+                    key={`${chip.type}-${index}-${chip.value}`}
+                    type="button"
+                    onClick={() => cycleEyebrowChip(index)}
+                    className="shrink-0 px-3 md:px-5 py-1.5 md:py-2 rounded-xl text-white text-xs md:text-[15px] font-medium bg-white/15 border border-white/25 transition-all duration-200 hover:bg-white/25 hover:border-white/50 focus:outline-none focus:ring-2 focus:ring-white/40"
+                    title="Klik for at vælge næste"
+                  >
+                    {chip.label}
+                  </button>
+                ))}
+              </div>
+            )}
+            {size === 'story' && (
+              <div className="inline-flex max-w-full justify-start items-center gap-1.5 md:gap-2 rounded-2xl border border-white/15 bg-black/65 p-1.5 md:p-2 mb-2 md:mb-5 backdrop-blur-md shadow-[0_8px_24px_rgba(0,0,0,0.35)]">
+                <button
+                  type="button"
+                  onClick={() => setStoryMetaShuffleSeed((prev) => prev + 1)}
+                  className="shrink-0 px-4 md:px-5 py-2 rounded-xl text-white text-sm md:text-[15px] font-medium bg-white/15 border border-white/25 transition-all duration-200 hover:bg-white/25 hover:border-white/50 focus:outline-none focus:ring-2 focus:ring-white/40"
+                  title="Byt rundt på story-felter"
+                >
+                  Byt felter
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setStoryMetaShuffleSeed(0)}
+                  disabled={storyMetaShuffleSeed === 0}
+                  className="shrink-0 w-9 h-9 rounded-xl text-white text-sm font-semibold bg-white/8 border border-white/30 shadow-[0_0_14px_rgba(255,255,255,0.12)] transition-all duration-200 hover:bg-white/14 hover:border-white/50 focus:outline-none focus:ring-2 focus:ring-white/35 disabled:opacity-45 disabled:pointer-events-none"
+                  title="Nulstil til første step"
+                >
+                  X
+                </button>
+              </div>
+            )}
+            {size === 'story' && (
+              <div className="w-full max-w-[480px] -mt-1 md:-mt-2 mb-1 md:mb-2 px-2 md:px-0">
+                <button
+                  type="button"
+                  onClick={requestPostToInstagram}
+                  disabled={postingToInstagram || instagramConfigured === false}
+                  className="w-full py-2.5 px-4 rounded-xl border border-white/12 bg-white/[0.04] hover:bg-white/[0.08] hover:border-white/20 disabled:opacity-50 disabled:pointer-events-none text-white font-medium text-sm transition-colors flex items-center justify-center gap-2"
+                  title="Post det viste story-design direkte til Instagram Story"
+                >
+                  {postingToInstagram ? <span className="animate-pulse">{publishStep || 'Publicerer Story…'}</span> : 'Post til Instagram Story'}
+                </button>
+                {instagramConfigured === false && (
+                  <p className="text-amber-400/90 text-xs mt-2">Instagram-publish er ikke konfigureret. Sæt INSTAGRAM_ACCOUNT_ID og INSTAGRAM_ACCESS_TOKEN (se docs/INSTAGRAM_PUBLISH.md).</p>
+                )}
+                <div className="mt-2">
+                  <PublishFeedback success={publishSuccess} warning={publishWarning} error={instagramError} />
+                </div>
+              </div>
+            )}
+
+            <div
+              className="relative overflow-hidden"
+              style={{
+                width: renderedCanvasWidth,
+                height: renderedCanvasHeight,
+              }}
+            >
+              <div
+                className="w-full h-full"
+                style={{
+                  width: DIMENSIONS[size].width,
+                  height: DIMENSIONS[size].height,
+                  transform: `scale(${scale})`,
+                  transformOrigin: 'top left',
+                }}
+              >
+                {renderedCardDataUrl ? (
+                  <img
+                    src={renderedCardDataUrl}
+                    alt=""
+                    className="w-full h-full object-contain"
+                    draggable={false}
+                  />
+                ) : (
+                  <SocialCardCanvas data={cardData} size={size} />
+                )}
+              </div>
+            </div>
+            {size === 'square' && (
+              <div className="px-2 pb-2" style={{ width: renderedCanvasWidth }}>
+                <div className="rounded-xl border border-white/12 bg-black/55 p-3">
+                  <div className="mb-2 flex items-center justify-between gap-3">
+                    <p className="text-[12px] font-medium text-white/80">Tekst under opslaget</p>
+                    <span className="text-[10px] uppercase tracking-wider text-white/35">1:1 post</span>
+                  </div>
+                  <textarea
+                    value={caption}
+                    onChange={(e) => setCaption(e.target.value)}
+                    placeholder="Skriv eller rediger teksten under opslaget…"
+                    className="apropos-input-dark w-full min-h-[184px] rounded-lg border px-3 py-2.5 text-[13px] resize-y"
+                    rows={7}
+                  />
+                  <div className="mt-2">
+                    <PublishFeedback success={publishSuccess} warning={publishWarning} error={instagramError} />
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </>
+  );
+
+  const rootClass = embedMode
+    ? `flex flex-col h-full min-h-0 text-white bg-[#0a0a0a] lg:bg-transparent font-poppins overflow-hidden ${amiri.variable}`
+    : `min-h-[100dvh] h-[100dvh] bg-[#0a0a0a] md:bg-[#0a0a0a] md:p-[1%] p-0 flex flex-col md:flex-row relative overflow-hidden ${amiri.variable}`;
+
+  /** 1:1 + 9:16 + forhåndsvisning + eksport — i header på desktop; egen række under header på mobil (nyhedsbreb-mønster). */
+  const embedToolbarControlsInner = (
+    <>
+      <div
+        className="flex h-10 shrink-0 items-center rounded-lg border border-white/12 bg-black/30 p-0.5 gap-0.5 backdrop-blur-sm"
+        role="group"
+        aria-label="Kortformat"
+      >
+        <button
+          type="button"
+          onClick={() => setSize('square')}
+          className={segBtn(size === 'square')}
+          title="1080×1080 (kvadrat)"
+        >
+          1:1
+        </button>
+        <button
+          type="button"
+          onClick={() => setSize('story')}
+          className={segBtn(size === 'story')}
+          title="1080×1920 (story)"
+        >
+          9:16
+        </button>
+      </div>
+      <button
+        type="button"
+        onClick={requestPostToInstagram}
+        disabled={postingToInstagram || instagramConfigured === false}
+        className={embedHeaderPostBtn}
+        title={size === 'story' ? 'Post det viste story-design direkte til Instagram Story' : 'Post det viste opslag direkte til Instagram'}
+        aria-label={size === 'story' ? 'Post til Instagram Story' : 'Post til Instagram'}
+      >
+        {postingToInstagram ? 'Poster…' : 'Post'}
+      </button>
+      <button
+        type="button"
+        onClick={handleExportPng}
+        disabled={exporting}
+        className={embedHeaderIconBtn()}
+        title="Eksporter PNG"
+        aria-label={exporting ? 'Eksporterer…' : 'Eksporter PNG'}
+      >
+        <svg className="size-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+      </button>
+    </>
+  );
+  const embedToolbarForDesktopHeader = <div className="flex flex-wrap items-center justify-end gap-2">{embedToolbarControlsInner}</div>;
 
   return (
     <div ref={rootRef} className={rootClass}>
+      {embedMode ? (
+        <>
+          <EmbeddedAppHeader
+            embedded
+            title="SoMe Posting"
+            onClose={onBack}
+            leading={
+              <button
+                type="button"
+                onClick={() => setArticlesOpen((o) => !o)}
+                className="lg:hidden touch-target w-9 h-9 shrink-0 flex items-center justify-center rounded-lg border border-white/12 bg-white/[0.06] text-white hover:bg-white/[0.1] transition-colors"
+                title={articlesOpen ? 'Luk artikelliste' : 'Mine artikler'}
+                aria-label={articlesOpen ? 'Luk artikelliste' : 'Mine artikler'}
+                aria-pressed={articlesOpen}
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M4 6h16M4 12h16M4 18h16" /></svg>
+              </button>
+            }
+            trailing={<div className="hidden lg:block">{embedToolbarForDesktopHeader}</div>}
+          />
+          <div
+            className="shrink-0 z-20 flex lg:hidden flex-nowrap items-center justify-end gap-2 border-b border-white/8 bg-black/45 px-3 py-2 overflow-x-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
+            role="toolbar"
+            aria-label="Format, forhåndsvisning og eksport"
+          >
+            {embedToolbarControlsInner}
+          </div>
+
+          <div className="flex-1 flex min-h-0 overflow-hidden flex-col lg:flex-row">
+            <aside className="hidden lg:flex w-[min(300px,100%)] shrink-0 flex-col border-r border-white/10 bg-black/10 overflow-hidden">
+              <div className="px-4 py-3 border-b border-white/10 shrink-0">
+                <div className="relative">
+                  <svg className="absolute left-3 top-1/2 -translate-y-1/2 text-white/50" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <circle cx="11" cy="11" r="8" />
+                    <path d="M21 21l-4.3-4.3" />
+                  </svg>
+                  <input
+                    value={articleSearch}
+                    onChange={(e) => setArticleSearch(e.target.value)}
+                    placeholder="Søg i artikler…"
+                    className="apropos-input-dark w-full rounded-lg pl-9 pr-3 py-2 text-sm"
+                  />
+                </div>
+              </div>
+              <div className="flex-1 overflow-y-auto overflow-x-hidden p-2 no-scrollbar">
+                {loading ? (
+                  <p className="text-white/50 text-sm py-4">Henter artikler fra Webflow…</p>
+                ) : filteredArticles.length === 0 ? (
+                  <p className="text-white/50 text-sm py-4">Ingen artikler. Tjek Webflow.</p>
+                ) : (
+                  <ul className="space-y-1">
+                    {filteredArticles.map((art) => (
+                      <li key={art.id}>
+                        <button
+                          type="button"
+                          onClick={() => setSelected(art)}
+                          className={`w-full text-left px-3 py-2.5 rounded-lg text-sm transition-colors ${
+                            selected?.id === art.id ? 'bg-white/15 text-white border border-white/20' : 'text-white/80 hover:bg-white/10 hover:text-white border border-transparent'
+                          }`}
+                        >
+                          <span className="line-clamp-2">{art.title}</span>
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            </aside>
+
+            {/* Samme mønster som NewsletterClient embedded: ingen ekstra “kort” indeni — kun ydre embeddedPanelShell */}
+            <main className="flex-1 min-w-0 min-h-0 flex flex-col overflow-hidden bg-[#0a0a0a] lg:bg-transparent p-3">
+              {editorCanvas}
+            </main>
+          </div>
+
+          {/* Mobil: fuldskærms artikel-liste (over header/toolbar) */}
+          <div
+            className={`lg:hidden fixed inset-0 z-[100] bg-[#0a0a0a] backdrop-blur-2xl app-safe-top app-safe-bottom ${articlesOpen ? 'translate-x-0' : '-translate-x-full'} transition-transform duration-300`}
+          >
+            <div className="h-full flex flex-col">
+              <div className="px-4 py-3 border-b border-white/10 flex items-center justify-between">
+                <h3 className="text-white text-base font-medium">Mine artikler</h3>
+                <button onClick={() => setArticlesOpen(false)} className="p-2 text-white/60 hover:text-white" aria-label="Luk">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 6L6 18M6 6l12 12" /></svg>
+                </button>
+              </div>
+              <div className="px-3 pt-3 pb-2 border-b border-white/10">
+                <div className="relative">
+                  <svg className="absolute left-3 top-1/2 -translate-y-1/2 text-white/50" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <circle cx="11" cy="11" r="8" />
+                    <path d="M21 21l-4.3-4.3" />
+                  </svg>
+                  <input
+                    value={articleSearch}
+                    onChange={(e) => setArticleSearch(e.target.value)}
+                    placeholder="Søg i artikler..."
+                    className="apropos-input-dark w-full rounded-lg pl-9 pr-3 py-2 text-sm"
+                  />
+                </div>
+              </div>
+              <div className="flex-1 overflow-y-auto p-3">
+                {loading ? <p className="text-white/50 text-sm">Henter artikler…</p> : (
+                  <ul className="space-y-2">
+                    {filteredArticles.map((art) => (
+                      <li key={art.id}>
+                        <button type="button" onClick={() => { setSelected(art); setArticlesOpen(false); }} className={`w-full text-left px-3 py-3 rounded-xl text-sm ${selected?.id === art.id ? 'bg-white/15 text-white' : 'text-white/80 hover:bg-white/10'}`}>
+                          <span className="line-clamp-2">{art.title}</span>
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            </div>
+          </div>
+        </>
+      ) : (
+      <>
       {/* Venstre panel: Artikler */}
       <div
         className="hidden md:block absolute top-0 bottom-0 left-0 z-40 transition-all duration-300 ease-out overflow-hidden"
@@ -680,7 +1189,7 @@ export default function DesignEditorView({ onBack, embedMode }: DesignEditorView
         }}
       >
         <div
-          className="h-full flex flex-col rounded-xl border border-white/20 overflow-hidden bg-[#171717]"
+          className="h-full flex flex-col rounded-xl border border-white/20 overflow-hidden bg-[#070707]/90 backdrop-blur-3xl shadow-[0_20px_70px_rgba(0,0,0,0.55)]"
           style={{
             transition: 'transform 320ms cubic-bezier(0.22, 1, 0.36, 1)',
             transform: articlesOpen ? 'translateX(0)' : 'translateX(-8px)',
@@ -702,7 +1211,7 @@ export default function DesignEditorView({ onBack, embedMode }: DesignEditorView
                 value={articleSearch}
                 onChange={(e) => setArticleSearch(e.target.value)}
                 placeholder="Søg i artikler..."
-                className="w-full bg-white/5 border border-white/15 rounded-lg pl-9 pr-3 py-2 text-sm text-white placeholder:text-white/45 focus:outline-none focus:ring-2 focus:ring-white/20 focus:border-white/30"
+                className="apropos-input-dark w-full rounded-lg pl-9 pr-3 py-2 text-sm"
               />
             </div>
           </div>
@@ -746,7 +1255,7 @@ export default function DesignEditorView({ onBack, embedMode }: DesignEditorView
       </div>
 
       {/* Mobil: fuldskærms artikel-liste */}
-      <div className={`md:hidden fixed inset-0 z-40 bg-[#171717] app-safe-top app-safe-bottom ${articlesOpen ? 'translate-x-0' : '-translate-x-full'} transition-transform duration-300`}>
+      <div className={`md:hidden fixed inset-0 z-[100] bg-black/80 backdrop-blur-2xl app-safe-top app-safe-bottom ${articlesOpen ? 'translate-x-0' : '-translate-x-full'} transition-transform duration-300`}>
         <div className="h-full flex flex-col">
           <div className="px-4 py-3 border-b border-white/10 flex items-center justify-between">
             <h3 className="text-white text-base font-medium">Mine artikler</h3>
@@ -764,7 +1273,7 @@ export default function DesignEditorView({ onBack, embedMode }: DesignEditorView
                 value={articleSearch}
                 onChange={(e) => setArticleSearch(e.target.value)}
                 placeholder="Søg i artikler..."
-                className="w-full bg-white/5 border border-white/15 rounded-lg pl-9 pr-3 py-2 text-sm text-white placeholder:text-white/45 focus:outline-none focus:ring-2 focus:ring-white/20 focus:border-white/30"
+                className="apropos-input-dark w-full rounded-lg pl-9 pr-3 py-2 text-sm"
               />
             </div>
           </div>
@@ -793,242 +1302,82 @@ export default function DesignEditorView({ onBack, embedMode }: DesignEditorView
           transition: isResizingArticles ? 'none' : undefined,
         }}
       >
-        <div className="h-full flex flex-col rounded-xl border border-white/20 overflow-hidden bg-[#171717]">
+        <div className="h-full flex flex-col rounded-xl border border-white/15 overflow-hidden bg-black/55 md:bg-[#070707]/90 backdrop-blur-2xl md:backdrop-blur-xl shadow-[0_20px_70px_rgba(0,0,0,0.55)]">
           {/* Top bar */}
-          <div className="flex-shrink-0 flex items-center justify-between gap-2 px-3 py-2 md:p-4 app-safe-top border-b border-white/10 md:border-zinc-800 bg-black/40 backdrop-blur-xl md:bg-transparent md:backdrop-blur-0">
+          <div className="sticky top-0 z-20 flex-shrink-0 flex items-center justify-between gap-2 px-3 py-2 md:p-4 app-safe-top border-b border-white/10 bg-[#0a0a0a]/90 backdrop-blur-3xl">
             <div className="flex items-center gap-2 min-w-0 shrink-0">
               <button onClick={() => setArticlesOpen(true)} className="touch-target w-10 h-10 flex items-center justify-center hover:bg-white/10 rounded-xl transition-colors md:hidden" aria-label="Artikler">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-white"><path d="M4 6h16M4 12h16M4 18h16" /></svg>
               </button>
-              <h1 className="hidden md:block text-white text-base font-medium leading-tight">
-                <span
-                  className="bg-gradient-to-r from-white/20 via-white/70 to-white/20 bg-clip-text text-transparent"
-                  style={{ backgroundSize: '200% 100%', animation: 'gradient-shift 4s ease-in-out infinite' }}
-                >
-                  Apropos Magazine Designer
-                </span>
+              <h1 className="hidden md:block text-white/90 text-[15px] font-medium tracking-tight leading-tight">
+                Apropos SoMe Posting
               </h1>
             </div>
-            <div className="flex items-center gap-1.5 md:gap-2 overflow-x-auto no-scrollbar">
-              <select
-                value={size}
-                onChange={(e) => setSize(e.target.value as SocialCardSize)}
-                className="touch-target shrink-0 p-1.5 md:p-2 rounded-lg border border-white/15 bg-transparent text-white/70 hover:text-white hover:bg-white/5 focus:outline-none focus:ring-2 focus:ring-white/20 focus:border-white/20 transition-colors text-xs md:text-sm"
+            <div className="flex flex-wrap md:flex-nowrap items-center justify-end gap-2">
+              <div
+                className="flex rounded-lg border border-white/12 p-0.5 gap-0.5 bg-black/30 backdrop-blur-sm"
+                role="group"
+                aria-label="Kortformat"
               >
-                <option value="square">1080×1080</option>
-                <option value="story">1080×1920</option>
-              </select>
+                <button type="button" onClick={() => setSize('square')} className={segBtn(size === 'square')} title="1080×1080 (kvadrat)">
+                  1:1
+                </button>
+                <button type="button" onClick={() => setSize('story')} className={segBtn(size === 'story')} title="1080×1920 (story)">
+                  9:16
+                </button>
+              </div>
               <button
                 type="button"
                 onClick={() => setArticlesOpen((v) => !v)}
-                className={`touch-target shrink-0 p-1.5 md:p-2 rounded-lg border flex items-center justify-center transition-colors ${articlesOpen ? 'bg-white/10 text-white border-white/25' : 'border-white/15 text-white/70 hover:text-white hover:bg-white/5'}`}
+                className={embedHeaderIconBtn(articlesOpen)}
                 title="Mine artikler"
                 aria-label="Mine artikler"
               >
-                <svg className="w-4 h-4 md:w-5 md:h-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16" /></svg>
+                <svg className="size-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16" /></svg>
               </button>
               <button
                 type="button"
-                onClick={() => setShowPreview((v) => !v)}
-                className={`touch-target shrink-0 p-1.5 md:p-2 rounded-lg border border-white/15 flex items-center justify-center transition-colors ${showPreview ? 'bg-white/10 text-white border-white/25' : 'text-white/70 hover:text-white hover:bg-white/5'}`}
-                title={showPreview ? 'Luk forhåndsvisning' : 'Forhåndsvis opslag'}
-                aria-label={showPreview ? 'Luk forhåndsvisning' : 'Forhåndsvis opslag'}
+                onClick={requestPostToInstagram}
+                disabled={postingToInstagram || instagramConfigured === false}
+                className={embedHeaderPostBtn}
+                title={size === 'story' ? 'Post det viste story-design direkte til Instagram Story' : 'Post det viste opslag direkte til Instagram'}
+                aria-label={size === 'story' ? 'Post til Instagram Story' : 'Post til Instagram'}
               >
-                <svg className="w-4 h-4 md:w-5 md:h-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+                {postingToInstagram ? 'Poster…' : 'Post'}
               </button>
               <button
                 type="button"
                 onClick={handleExportPng}
                 disabled={exporting}
-                className="touch-target shrink-0 p-1.5 md:p-2 rounded-lg border border-white/15 text-white/70 hover:text-white hover:bg-white/5 disabled:opacity-50 disabled:pointer-events-none transition-colors"
+                className={embedHeaderIconBtn()}
                 title="Eksporter PNG"
                 aria-label={exporting ? 'Eksporterer…' : 'Eksporter PNG'}
               >
-                <svg className="w-4 h-4 md:w-5 md:h-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                <svg className="size-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
               </button>
               {onBack ? (
                 <button
                   type="button"
                   onClick={onBack}
-                  className="touch-target shrink-0 p-1.5 md:p-2 rounded-lg border border-white/15 text-white/70 hover:text-white hover:bg-white/5 transition-colors"
-                  aria-label="Luk Designer"
+                  className="flex size-8 shrink-0 items-center justify-center rounded-lg border border-white/12 bg-white/[0.06] text-white transition-all duration-200 hover:bg-white/[0.12] active:scale-[0.97]"
+                  aria-label="Luk SoMe Posting"
                   title="Luk"
                 >
-                  <svg className="w-4 h-4 md:w-5 md:h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+                  <svg className="size-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
                 </button>
               ) : (
                 <a
                   href="/ai"
-                  className="touch-target shrink-0 p-1.5 md:p-2 rounded-lg border border-white/15 text-white/70 hover:text-white hover:bg-white/5 transition-colors inline-flex items-center justify-center"
+                  className="flex size-8 shrink-0 items-center justify-center rounded-lg border border-white/12 bg-white/[0.06] text-white transition-all duration-200 hover:bg-white/[0.12] active:scale-[0.97]"
                   aria-label="Tilbage til AI Writer"
                   title="Tilbage til AI Writer"
                 >
-                  <svg className="w-4 h-4 md:w-5 md:h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+                  <svg className="size-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
                 </a>
               )}
             </div>
           </div>
-          {showPreview ? (
-            <div className="flex-1 min-h-0 flex flex-col items-center overflow-y-auto bg-[#0a0a0a] p-2 md:p-4">
-              {/* Instagram-style post preview */}
-              <div className="w-full flex flex-col rounded-lg overflow-hidden border border-white/10 bg-[#0a0a0a]" style={{ maxWidth: size === 'story' ? 620 : 468 }}>
-                {/* Profil-række */}
-                <div className="flex items-center gap-3 px-3 py-2.5 border-b border-white/10">
-                  <img
-                    src="/images/05AproposMagazine_Random.webp"
-                    alt=""
-                    className="w-8 h-8 rounded-full object-cover flex-shrink-0 bg-white/10"
-                  />
-                  <span className="font-semibold text-white text-sm">aproposmagazineofficial</span>
-                  <span className="flex-shrink-0 w-4 h-4 rounded-full bg-[#1877F2] flex items-center justify-center" title="Meta verified">
-                    <svg width="10" height="10" viewBox="0 0 12 12" fill="none" className="text-white"><path d="M2.5 6L5 8.5L9.5 4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
-                  </span>
-                  <span className="text-white/50 text-xs ml-auto">• nu</span>
-                </div>
-                {/* Opslagsbillede = kortet */}
-                <div className="flex items-center justify-center bg-black/30 w-full" style={{ aspectRatio: previewAspectRatio, maxHeight: previewMaxHeight }}>
-                  {renderedCardDataUrl ? (
-                    <img
-                      src={renderedCardDataUrl}
-                      alt=""
-                      className="w-full h-full object-cover"
-                      draggable={false}
-                    />
-                  ) : (
-                    <SocialCardCanvas data={cardData} size={size} className="w-full h-full" />
-                  )}
-                </div>
-                {/* Caption: brugernavn + redigerbar tekst under opslaget */}
-                <div className="px-3 py-2">
-                  <p className="text-white text-sm mb-1.5">
-                    <span className="font-semibold">aproposmagazineofficial</span>
-                    <span className="inline-flex w-4 h-4 rounded-full bg-[#1877F2] align-middle ml-1 mr-1.5" title="Meta verified">
-                      <svg width="10" height="10" viewBox="0 0 12 12" fill="none" className="text-white m-auto block"><path d="M2.5 6L5 8.5L9.5 4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
-                    </span>
-                  </p>
-                  <textarea
-                    value={caption}
-                    onChange={(e) => setCaption(e.target.value)}
-                    placeholder="Skriv eller rediger teksten under opslaget…"
-                    className="w-full min-h-[100px] px-0 py-1 bg-transparent border-none text-white text-sm placeholder:text-white/40 focus:outline-none focus:ring-0 resize-y"
-                    rows={4}
-                  />
-                  {selected?.authorId && authors.length > 0 && (
-                    <p className="text-white/50 text-xs mt-1">
-                      Forfatter til opslag: {authors.find((a) => a.id === selected.authorId)?.name ?? '—'}
-                    </p>
-                  )}
-                  <div className="mt-3 flex flex-col gap-2">
-                    <button
-                      type="button"
-                      onClick={handlePostToInstagram}
-                      disabled={postingToInstagram || instagramConfigured === false}
-                      className="w-full py-2.5 px-4 rounded-lg bg-[#E1306C] hover:bg-[#C13584] disabled:opacity-50 disabled:pointer-events-none text-white font-medium text-sm transition-colors flex items-center justify-center gap-2"
-                    >
-                      {postingToInstagram ? (
-                        <span className="animate-pulse">{publishStep || 'Publicerer…'}</span>
-                      ) : (
-                        <>
-                          <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" className="shrink-0"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-1.657 0-3-1.343-3-3 0-1.657 1.343-3 3-3s3 1.343 3 3c0 1.657-1.343 3-3 3zm6.205-11.947c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z"/></svg>
-                          {size === 'story' ? 'Post til Instagram Story' : 'Post til Instagram'}
-                        </>
-                      )}
-                    </button>
-                    {instagramConfigured === false && (
-                      <p className="text-amber-400/90 text-xs">Instagram-publish er ikke konfigureret. Sæt INSTAGRAM_ACCOUNT_ID og INSTAGRAM_ACCESS_TOKEN (se docs/INSTAGRAM_PUBLISH.md).</p>
-                    )}
-                    {instagramError && (
-                      <p className="text-red-400 text-sm">{instagramError}</p>
-                    )}
-                  </div>
-                </div>
-              </div>
-            </div>
-          ) : (
-            <div ref={previewRef} className="flex-1 min-h-0 flex flex-col items-center md:justify-start justify-start bg-black/20 p-2 md:p-4">
-              <div className="w-full flex flex-col items-center gap-3 md:gap-5 pt-3 md:pt-10">
-                {/* Figma-lignende kontrolbar placeret lige over kortet */}
-                {eyebrowChips.length > 0 && size !== 'story' && (
-                  <div className="inline-flex max-w-full overflow-x-auto no-scrollbar justify-start items-center gap-1.5 md:gap-2 rounded-2xl border border-white/15 bg-black/65 p-1.5 md:p-2 mb-2 md:mb-5 backdrop-blur-md shadow-[0_8px_24px_rgba(0,0,0,0.35)]">
-                    {eyebrowChips.map((chip, index) => (
-                      <button
-                        key={`${chip.type}-${index}-${chip.value}`}
-                        type="button"
-                        onClick={() => cycleEyebrowChip(index)}
-                        className="shrink-0 px-3 md:px-5 py-1.5 md:py-2 rounded-xl text-white text-xs md:text-[15px] font-medium bg-white/15 border border-white/25 transition-all duration-200 hover:bg-white/25 hover:border-white/50 focus:outline-none focus:ring-2 focus:ring-white/40"
-                        title="Klik for at vælge næste"
-                      >
-                        {chip.label}
-                      </button>
-                    ))}
-                  </div>
-                )}
-                {size === 'story' && (
-                  <div className="inline-flex max-w-full justify-start items-center gap-1.5 md:gap-2 rounded-2xl border border-white/15 bg-black/65 p-1.5 md:p-2 mb-2 md:mb-5 backdrop-blur-md shadow-[0_8px_24px_rgba(0,0,0,0.35)]">
-                    <button
-                      type="button"
-                      onClick={() => setStoryMetaShuffleSeed((prev) => prev + 1)}
-                      className="shrink-0 px-4 md:px-5 py-2 rounded-xl text-white text-sm md:text-[15px] font-medium bg-white/15 border border-white/25 transition-all duration-200 hover:bg-white/25 hover:border-white/50 focus:outline-none focus:ring-2 focus:ring-white/40"
-                      title="Byt rundt på story-felter"
-                    >
-                      Byt felter
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setStoryMetaShuffleSeed(0)}
-                      disabled={storyMetaShuffleSeed === 0}
-                      className="shrink-0 w-9 h-9 rounded-xl text-white text-sm font-semibold bg-white/8 border border-white/30 shadow-[0_0_14px_rgba(255,255,255,0.12)] transition-all duration-200 hover:bg-white/14 hover:border-white/50 focus:outline-none focus:ring-2 focus:ring-white/35 disabled:opacity-45 disabled:pointer-events-none"
-                      title="Nulstil til første step"
-                    >
-                      X
-                    </button>
-                  </div>
-                )}
-                {size === 'story' && (
-                  <div className="w-full max-w-[480px] -mt-1 md:-mt-2 mb-1 md:mb-2 px-2 md:px-0">
-                    <button
-                      type="button"
-                      onClick={handlePostToInstagram}
-                      disabled={postingToInstagram || instagramConfigured === false}
-                      className="w-full py-2.5 px-4 rounded-lg bg-[#E1306C] hover:bg-[#C13584] disabled:opacity-50 disabled:pointer-events-none text-white font-medium text-sm transition-colors flex items-center justify-center gap-2"
-                      title="Post det viste story-design direkte til Instagram Story"
-                    >
-                      {postingToInstagram ? <span className="animate-pulse">{publishStep || 'Publicerer Story…'}</span> : 'Post til Instagram Story'}
-                    </button>
-                    {instagramConfigured === false && (
-                      <p className="text-amber-400/90 text-xs mt-2">Instagram-publish er ikke konfigureret. Sæt INSTAGRAM_ACCOUNT_ID og INSTAGRAM_ACCESS_TOKEN (se docs/INSTAGRAM_PUBLISH.md).</p>
-                    )}
-                    {instagramError && (
-                      <p className="text-red-400 text-sm mt-2">{instagramError}</p>
-                    )}
-                  </div>
-                )}
-
-                <div
-                  className="relative"
-                  style={{
-                    transform: `scale(${scale})`,
-                    transformOrigin: 'top center',
-                    width: DIMENSIONS[size].width,
-                    height: DIMENSIONS[size].height,
-                  }}
-                >
-                <div className="w-full h-full">
-                  {renderedCardDataUrl ? (
-                    <img
-                      src={renderedCardDataUrl}
-                      alt=""
-                      className="w-full h-full object-contain"
-                      draggable={false}
-                    />
-                  ) : (
-                    <SocialCardCanvas data={cardData} size={size} />
-                  )}
-                </div>
-              </div>
-            </div>
-            </div>
-          )}
+          {editorCanvas}
         </div>
       </div>
 
@@ -1041,6 +1390,46 @@ export default function DesignEditorView({ onBack, embedMode }: DesignEditorView
           <a href="/ai" className="w-10 h-full flex items-center justify-center hover:bg-white/10 rounded-xl transition-colors text-white/80 hover:text-white" title="AI Writer">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" /></svg>
           </a>
+        </div>
+      )}
+      </>
+      )}
+      {confirmInstagramPostOpen && (
+        <div className="fixed inset-0 z-[160] flex items-center justify-center bg-black/75 px-4 backdrop-blur-xl app-safe-top app-safe-bottom">
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="instagram-confirm-title"
+            className="w-full max-w-sm rounded-2xl border border-white/15 bg-[#0c0c0c] p-4 shadow-[0_0_32px_-8px_rgba(255,255,255,0.18)]"
+          >
+            <p className="mb-1 text-[10px] uppercase tracking-wider text-white/40">
+              {size === 'story' ? 'Instagram Story' : 'Instagram feed'}
+            </p>
+            <h2 id="instagram-confirm-title" className="text-[17px] font-medium tracking-tight text-white">
+              Er du sikker på, at du vil poste?
+            </h2>
+            <p className="mt-2 text-[13px] leading-relaxed text-white/65">
+              Det valgte {size === 'story' ? '9:16 story-design' : '1:1 opslag'} bliver publiceret direkte på Instagram-kontoen.
+            </p>
+            <div className="mt-4 flex gap-2">
+              <button
+                type="button"
+                onClick={() => setConfirmInstagramPostOpen(false)}
+                disabled={postingToInstagram}
+                className="w-full py-2.5 rounded-xl border border-white/12 text-[13px] text-white/75 hover:bg-white/[0.05] hover:border-white/20 disabled:opacity-40 transition-all duration-200 active:scale-[0.98]"
+              >
+                Annuller
+              </button>
+              <button
+                type="button"
+                onClick={handlePostToInstagram}
+                disabled={postingToInstagram}
+                className="w-full px-4 py-2.5 rounded-xl text-[13px] font-medium text-white transition-all duration-200 border border-white/10 bg-white/5 hover:border-white/20 hover:bg-white/10 hover:shadow-[0_0_32px_-8px_rgba(255,255,255,0.18)] disabled:opacity-40 active:scale-[0.99]"
+              >
+                {postingToInstagram ? 'Poster…' : 'Post nu'}
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

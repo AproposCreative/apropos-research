@@ -125,4 +125,39 @@ if (failures > 0) {
   process.exit(1);
 }
 
+async function checkGoogleCustomSearch(mergedEnv) {
+  const key = mergedEnv.GOOGLE_CUSTOM_SEARCH_API_KEY;
+  const cx = mergedEnv.GOOGLE_CUSTOM_SEARCH_ENGINE_ID;
+  console.log('\nGoogle Custom Search (live probe)');
+  if (!key || !cx) {
+    console.log('  ⚠️  keys not set — web search uses Wikipedia, Google News RSS, DuckDuckGo');
+    return;
+  }
+  try {
+    const url = `https://www.googleapis.com/customsearch/v1?key=${encodeURIComponent(key)}&cx=${encodeURIComponent(cx)}&q=test&num=1`;
+    const res = await fetch(url);
+    if (res.ok) {
+      console.log('  ✅ Custom Search JSON API responds OK');
+      return;
+    }
+    let msg = '';
+    try {
+      const body = await res.json();
+      msg = body?.error?.message || '';
+    } catch {
+      /* ignore */
+    }
+    if (res.status === 403 && /Custom Search JSON API/i.test(msg)) {
+      console.log('  ⚠️  403 — enable "Custom Search API" in Google Cloud Console (APIs & Services → Library)');
+      console.log('     Fallbacks (Google News RSS, Wikipedia, DuckDuckGo) still work.');
+    } else {
+      console.log(`  ⚠️  HTTP ${res.status}${msg ? `: ${msg}` : ''}`);
+    }
+  } catch (err) {
+    console.log(`  ⚠️  probe failed: ${err instanceof Error ? err.message : String(err)}`);
+  }
+}
+
+await checkGoogleCustomSearch(mergedEnv);
+
 console.log('\nEnv doctor passed.');

@@ -249,6 +249,33 @@ export async function getLastWeeklyAutoLeadArticleId(): Promise<string | null> {
   }
 }
 
+export async function getLastWeeklyAutoLead(): Promise<{ leadId: string | null; finishedAt: string | null }> {
+  const db = getAdminDb();
+  if (!db) return { leadId: null, finishedAt: null };
+  try {
+    const snap = await db
+      .collection(WEEKLY_SEND_COLLECTION)
+      .where('kind', '==', 'weekly_auto')
+      .where('status', '==', 'sent')
+      .orderBy('completedAt', 'desc')
+      .limit(1)
+      .get();
+    const doc = snap.docs[0];
+    if (!doc) return { leadId: null, finishedAt: null };
+    const d = doc.data();
+    const ids = d?.articleIds;
+    const ts = d?.completedAt as Timestamp | undefined;
+    const first = Array.isArray(ids) && typeof ids[0] === 'string' ? ids[0].trim() : '';
+    return {
+      leadId: first || null,
+      finishedAt: ts ? ts.toDate().toISOString() : null,
+    };
+  } catch (e) {
+    console.warn('[newsletter/weekly-history] getLastWeeklyAutoLead:', e);
+    return { leadId: null, finishedAt: null };
+  }
+}
+
 export type WeeklyAutoLogEntry = {
   id: string;
   weekKey: string;

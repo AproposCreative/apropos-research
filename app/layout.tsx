@@ -15,6 +15,7 @@ import { Poppins } from 'next/font/google';
 import Script from 'next/script';
 import { env } from '@/lib/config/env';
 import VercelAnalytics from '../components/VercelAnalytics';
+import SplineWatermarkGuard from '../components/SplineWatermarkGuard';
 
 // THEME SETUP - Google Fonts configuration
 const poppins = Poppins({
@@ -59,6 +60,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         {/* PROVIDER STACK - Context providers in dependency order */}
         <QueryProvider>
           <AiBootPaint />
+          <SplineWatermarkGuard />
           <AuthProvider>
             <MediaProvider>
               <SelectProvider>

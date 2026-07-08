@@ -58,6 +58,25 @@ export const uploadFile = async (
   }
 };
 
+/**
+ * Upload et import-billede DIREKTE til Firebase Storage og returnér en ægte
+ * hosted download-URL. I modsætning til `uploadFile` bruger denne ALDRIG
+ * base64 data-URLs (selv for små filer), fordi Webflow/serveren skal kunne
+ * fetch'e billedet via HTTP under optimering.
+ */
+export const uploadImportImage = async (
+  file: File,
+  userId: string
+): Promise<string> => {
+  const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_').slice(-60) || 'image';
+  const fileName = `article-imports/${userId}/${Date.now()}_${Math.random()
+    .toString(36)
+    .slice(2, 8)}_${safeName}`;
+  const storageRef = ref(storage, fileName);
+  const snapshot = await uploadBytes(storageRef, file, { contentType: file.type || 'image/jpeg' });
+  return getDownloadURL(snapshot.ref);
+};
+
 export const deleteFile = async (fileName: string): Promise<void> => {
   try {
     const fileRef = ref(storage, fileName);

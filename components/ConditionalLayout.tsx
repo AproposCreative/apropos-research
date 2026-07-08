@@ -11,6 +11,10 @@ import DynamicHeader from './DynamicHeader';
 import BulkBar from './BulkBar';
 import ProtectedRoute from './ProtectedRoute';
 
+function isSalesRoute(pathname: string): boolean {
+  return pathname === '/landing' || pathname.startsWith('/landing/');
+}
+
 function MobileMenuButton() {
   const [isOpen, setIsOpen] = useState(false);
   const closeMenu = () => setIsOpen(false);
@@ -90,7 +94,7 @@ function MobileBottomNav() {
     { href: '/alle-medier', label: 'Feed', icon: (<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h10" />) },
     { href: '/ai', label: 'AI', icon: (<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />) },
     { href: '/ai/newsletter', label: 'Nyhedsbrev', icon: (<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l9 6 9-6M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />) },
-    { href: '/design-editor', label: 'Designer', icon: (<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16v12H4zM9 10h6M9 14h4" />) },
+    { href: '/design-editor', label: 'SoMe', icon: (<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16v12H4zM9 10h6M9 14h4" />) },
     { href: '/media-admin', label: 'Kilder', icon: (<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 12h14M12 5l7 7-7 7" />) },
     { href: '/settings', label: 'Settings', icon: (<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317a1.724 1.724 0 013.35 0 1.724 1.724 0 002.573 1.066 1.724 1.724 0 012.421 2.421 1.724 1.724 0 001.066 2.573 1.724 1.724 0 010 3.35 1.724 1.724 0 00-1.066 2.573 1.724 1.724 0 01-2.421 2.421 1.724 1.724 0 00-2.573 1.066 1.724 1.724 0 01-3.35 0 1.724 1.724 0 00-2.573-1.066 1.724 1.724 0 01-2.421-2.421 1.724 1.724 0 00-1.066-2.573 1.724 1.724 0 010-3.35 1.724 1.724 0 001.066-2.573 1.724 1.724 0 012.421-2.421 1.724 1.724 0 002.573-1.066zM12 15a3 3 0 100-6 3 3 0 000 6z" />) },
   ];
@@ -128,6 +132,10 @@ export default function ConditionalLayout({ children }: { children: React.ReactN
   const isMinimalLayout = !dashboardRoutes.includes(pathname);
   const isLogin = pathname === '/login';
   const isPublicNewsletterUnsub = pathname === '/newsletter/frameld';
+
+  if (isSalesRoute(pathname)) {
+    return <>{children}</>;
+  }
 
   if (isMinimalLayout) {
     // Allow access to the public login page without auth guard

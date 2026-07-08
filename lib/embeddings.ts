@@ -1,18 +1,13 @@
-import OpenAI from 'openai';
 import { getDownloadURL, ref } from 'firebase/storage';
 import { storage } from './firebase';
-import { config } from '@/lib/config/env';
 import { logger } from '@/lib/logger';
+import { getOpenAIClient } from '@/lib/openai';
 
-let client: OpenAI | null = null;
-
-function getClient(): OpenAI {
+function getClient() {
+	const client = getOpenAIClient();
 	if (!client) {
-		if (!config.openai.apiKey) {
-			logger.error('OPENAI_API_KEY is not set', new Error('OPENAI_API_KEY is not set'));
-			throw new Error('OPENAI_API_KEY is not set');
-		}
-		client = new OpenAI({ apiKey: config.openai.apiKey });
+		logger.error('OPENAI_API_KEY is not set', new Error('OPENAI_API_KEY is not set'));
+		throw new Error('OPENAI_API_KEY is not set');
 	}
 	return client;
 }

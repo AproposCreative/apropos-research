@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { internalApiHeaders } from '@/lib/api/internal-auth';
 import { getOpenAIClient, models } from '@/lib/openai';
 import { config } from '@/lib/config/env';
 import { logger, createRequestLogger } from '@/lib/logger';
@@ -27,6 +28,24 @@ export async function POST(req: NextRequest) {
   const requestLogger = createRequestLogger(requestId);
   
   try {
+    const aiImagesEnabled =
+      process.env.AI_IMAGE_GENERATION_ENABLED === '1' ||
+      process.env.AI_IMAGE_GENERATION_ENABLED?.toLowerCase() === 'true';
+    if (!aiImagesEnabled) {
+      requestLogger.warn('generate-image rejected — AI billedgenerering er globalt slået fra');
+      return NextResponse.json(
+        createErrorResponse(
+          'AI-billedgenerering er slået fra. Brug officielle billeder / upload / tom thumb.',
+          {
+            statusCode: 403,
+            errorCode: ErrorCode.INVALID_REQUEST,
+            requestId,
+          }
+        ),
+        { status: 403 }
+      );
+    }
+
     if (!openai) {
       requestLogger.error('OpenAI client not initialized');
       return NextResponse.json(
@@ -257,7 +276,7 @@ export async function POST(req: NextRequest) {
       console.log('🖼️ Processing image to WebP format...');
       const processResponse = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/api/process-image`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: internalApiHeaders(),
         body: JSON.stringify({
           imageUrl: imageUrl,
           maxSizeKB: 400,

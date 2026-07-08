@@ -33,8 +33,11 @@ export async function POST(request: NextRequest) {
 				nearest = item;
 			}
 		}
-		// Heuristic thresholds (to be tuned)
-		const plagiarismRisk = maxSim >= 0.93 ? 'high' : maxSim >= 0.88 ? 'medium' : 'low';
+		// Heuristic thresholds — målt mod Apropos-corpus (egne artikler).
+		// Sænket fra 0.93/0.88 → 0.85/0.78 efter Liv-paraphrasing-incident
+		// (apr 2026): den eksisterende generator producerede tekst der lå
+		// for tæt på inspirationskilden, men under den gamle 0.93-tærskel.
+		const plagiarismRisk = maxSim >= 0.85 ? 'high' : maxSim >= 0.78 ? 'medium' : 'low';
 		const wordCount = (content.trim().split(/\s+/).filter(Boolean)).length;
 		const tooShort = wordCount < 300;
 		

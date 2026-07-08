@@ -1,0 +1,246 @@
+---
+description: Apropos Magazine UI design system — colors, buttons, panels, headers. Always follow when building UI in app/, components/.
+globs: app/**/*.tsx,components/**/*.tsx
+alwaysApply: true
+---
+
+# Apropos Design System
+
+All UI in `app/` and `components/` MUST reuse the patterns below. Source of truth:
+`app/ai/newsletter/NewsletterClient.tsx`, `app/ai/MainChatPanel.tsx`, `components/MiniMenu.tsx`.
+
+DO NOT invent new color palettes, gradients, or token values. If a pattern is missing, copy
+the closest existing one.
+
+## Tokens
+
+- **Font:** `font-poppins` on every panel root.
+- **Backgrounds (dark):** `bg-[#080808]` (canvas), `bg-[#0a0a0a]` (full-page), `bg-[#0c0c0c]` (standalone header), `bg-[#141414]` (form fields), `bg-[#171717]` (input shells / side cards).
+- **Embedded panels:** `bg-black/40 md:bg-black backdrop-blur-xl md:backdrop-blur-0` with `border border-white/15`.
+- **Readable blur window (preferred for editor/panel surfaces):** `bg-black/55 md:bg-black/75 backdrop-blur-2xl md:backdrop-blur-xl` with `border border-white/15`.
+- **Surface tints:** `bg-white/[0.02]`, `bg-white/[0.03]`, `bg-white/[0.05]`, `bg-white/[0.06]`. Hover steps up by ~50%.
+- **Borders:** `border-white/[0.06]` (faint), `border-white/10`, `border-white/12` (default), `border-white/15`, `border-white/20`, `border-white/25`.
+- **Radius:** `rounded-lg` (badges, segments, fields), `rounded-xl` (cards, sections, primary buttons), `rounded-2xl` (large containers, mini-menu).
+- **Text:** `text-white` (primary), `text-white/85`, `/75`, `/70` (body), `/55`, `/45`, `/30` (subtle). Errors: `text-red-400/95`. Use `text-emerald-300` / `text-amber-300` / `text-rose-300` ONLY as small dot/badge accents, never as fills.
+- **NEVER** use multi-stop gradients (`from-fuchsia-500 to-violet-500` etc.), neon colors, drop shadows beyond `shadow-[0_0_32px_-8px_rgba(255,255,255,0.18)]`, or emoji icons.
+
+## Buttons (canonical strings)
+
+```tsx
+const primaryBtn =
+  'w-full px-4 py-3 rounded-xl text-[14px] font-medium text-white transition-all duration-200 border border-white/10 bg-white/5 hover:border-white/20 hover:bg-white/10 hover:shadow-[0_0_32px_-8px_rgba(255,255,255,0.18)] disabled:opacity-40 active:scale-[0.99]';
+
+const secondaryBtn =
+  'w-full py-2.5 rounded-xl border border-white/12 text-[13px] text-white/75 hover:bg-white/[0.05] hover:border-white/18 disabled:opacity-40 transition-all duration-200 active:scale-[0.98]';
+
+const dangerOutlineBtn =
+  'w-full py-2.5 rounded-xl border border-white/25 text-[13px] text-white/90 hover:bg-white/[0.08] disabled:opacity-40 transition-all duration-200 active:scale-[0.98]';
+
+const segBtn = (active: boolean) =>
+  `rounded-lg px-2.5 py-1 text-[11px] font-medium tracking-wide transition-all duration-200 active:scale-[0.97] ${
+    active ? 'bg-white/12 text-white shadow-sm border border-white/10' : 'text-white/45 hover:text-white/75'
+  }`;
+
+// Header close button (size-8)
+const closeBtn =
+  'flex size-8 shrink-0 items-center justify-center rounded-lg border border-white/12 bg-white/[0.06] text-white transition-all duration-200 hover:bg-white/[0.12] active:scale-[0.97]';
+
+// Compact pill link (e.g. "← Tilbage")
+const pillLink =
+  'px-3 py-1.5 rounded-lg border border-white/12 text-sm text-white/65 hover:bg-white/[0.06] hover:text-white/90 transition-all duration-200 active:scale-[0.98]';
+```
+
+## Panel header (embedded vs standalone)
+
+```tsx
+<header className={embedded
+  ? 'border-b border-white/10 px-3 lg:px-4 py-2.5 lg:py-3 flex items-center justify-between gap-3 shrink-0 bg-black/25 backdrop-blur-md'
+  : 'border-b border-white/10 px-4 lg:px-5 py-3 lg:py-4 flex items-center justify-between gap-3 shrink-0 bg-[#0c0c0c]'}>
+  <h1 className={`font-medium tracking-tight text-white ${embedded ? 'text-[15px]' : 'text-[17px]'}`}>Title</h1>
+  {/* close + segmented controls live here */}
+</header>
+```
+
+## Collapsible / clickable section row
+
+```tsx
+<button type="button" onClick={...}
+  className={`flex items-center gap-3 w-full px-3.5 py-2.5 rounded-xl border transition-all duration-200 active:scale-[0.98] ${
+    open ? 'border-white/15 bg-white/[0.05]' : 'border-white/[0.06] hover:bg-white/[0.03]'
+  }`}>
+  <div className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-white/[0.06] text-white/50">
+    {/* 14px stroke-1.5 svg icon */}
+  </div>
+  <div className="flex-1 min-w-0 text-left">
+    <p className="text-[12px] font-medium text-white/80">Label</p>
+    <p className="text-[10px] text-white/30 truncate">Subtitle</p>
+  </div>
+  <svg className="size-3.5 shrink-0 text-white/25 transition-transform" /* chevron */ />
+</button>
+```
+
+## Form fields
+
+```tsx
+className="w-full h-10 appearance-none pl-3 pr-3 rounded-lg border border-white/[0.12] bg-[#141414] text-[13px] text-white focus:border-white/25 focus:outline-none focus:ring-1 focus:ring-white/10 [color-scheme:dark]"
+```
+
+All text inputs/textareas/selects in dark surfaces MUST also include `apropos-input-dark` to guarantee contrast in browser autofill and avoid white-on-white regressions.
+
+```tsx
+className="apropos-input-dark w-full rounded-lg border px-3 py-2.5 text-[13px]"
+```
+
+## Status badges & indicators
+
+Status pills are **muted by default**. Use a small colored dot for tone, never a fill.
+
+```tsx
+<span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md border border-white/15 bg-white/[0.06] text-[10px] uppercase tracking-wider text-white/70">
+  <span className="size-1.5 rounded-full bg-emerald-400" /> Publiceret
+</span>
+```
+
+Tone-to-dot mapping: `bg-emerald-400` (ok), `bg-amber-400` (warn), `bg-rose-400` (err), `bg-white/40` (idle).
+
+## Icons
+
+- Inline SVG only. `viewBox="0 0 24 24"`, `stroke="currentColor"`, `strokeWidth={1.5}` for section icons / `2` for compact icons.
+- Sizes: `size-3.5` (chevrons, header close inner), `width="14" height="14"` (in size-7 tile), `width="18" height="18"` (mini-menu), `width="22" height="22"` (mobile launcher tiles).
+
+## Shell wrapper for embedded views
+
+When mounted inside `AIWriterClient` (`embedded` prop), wrap the content in:
+
+```tsx
+<div className="h-full w-full flex flex-col font-poppins rounded-xl bg-black/40 md:bg-black backdrop-blur-xl md:backdrop-blur-0 border border-white/15 overflow-hidden md:outline md:outline-[1.5px] md:outline-offset-[-1.5px] md:outline-zinc-800">
+  {/* header + scrollable content */}
+</div>
+```
+
+Outer container is provided by `AIWriterClient` — only render the inner content.
+
+## Mobile-first quality gate
+
+All newly added features must be usable on mobile without hidden/hover-only controls.
+
+- Minimum tap target: `44x44` (`touch-target` class).
+- Critical actions must be visible without hover (desktop hover can be additive only).
+- Avoid horizontal scroll in top bars; use `flex-wrap` on small screens.
+- Add `app-safe-top` / `app-safe-bottom` where fixed bars or overlays are used.
+- Inputs and textareas must keep contrast at all times (`apropos-input-dark`).
+
+## Figma-inspired premium minimal
+
+When designing editor/tooling surfaces (image edit, SoMe posting, prompt tools), follow this visual language:
+
+- Use monochrome dark surfaces first: `bg-black/40` to `bg-black/65` + `backdrop-blur-xl/2xl`.
+- Prefer subtle outlined buttons over saturated fills.
+- Keep visual hierarchy by spacing and border opacity, not bright colors.
+- Toolbars should be compact and rounded (`rounded-xl` / `rounded-2xl`) with one-pixel borders.
+- Labels are concise and calm; avoid flashy gradients in headings.
+- Strong color fills (pink/blue/green backgrounds) are allowed only for tiny status dots, never for primary action buttons.
+
+## Chat shell (only in `MainChatPanel.tsx` and chat-like surfaces)
+
+These patterns are NOT for general panels (use the canonical buttons + headers above).
+They apply ONLY to conversational surfaces with a message list + composer.
+
+### Message list container
+
+```tsx
+<div className="relative flex-1 min-h-0 overflow-hidden">
+  <div ref={messageListRef}
+    className="h-full overflow-y-auto space-y-4 nice-scrollbar"
+    style={{ paddingBottom: inputSpacerHeight + 40 }}>
+    {/* messages */}
+  </div>
+</div>
+```
+
+### Message bubbles
+
+User bubble (right-aligned, dark fill, max 78%):
+
+```tsx
+'rounded-2xl px-4 py-3 transition-all duration-300 shadow-[0_18px_44px_-30px_rgba(0,0,0,0.8)] bg-black/90 text-white border border-white/20 hover:border-white/35 hover:bg-white/5 break-words overflow-wrap-anywhere'
+```
+
+Assistant bubble (left-aligned, no fill, soft text):
+
+```tsx
+'px-1.5 py-2 text-white/85 transition-all duration-300'
+```
+
+Layout: `flex justify-end|justify-start`, wrapper `max-w-[78%]`, user offset `md:ml-20`, assistant offset `md:mr-20`. Last message gets `animate-message-glow` for 1.5s.
+
+### Inline option chips (suggestion pills inside an assistant bubble)
+
+```tsx
+'px-3 py-1.5 rounded-lg text-xs transition-all border bg-white/5 text-white border-white/10 hover:border-white/20 hover:bg-white/10'
+```
+
+Suggestion CARDS (numbered list inside an assistant bubble):
+
+```tsx
+'p-3 bg-white/5 hover:bg-white/10 border border-white/10 hover:border-white/20 rounded-lg transition-all cursor-pointer group'
+```
+Title: `text-white text-sm font-medium ... group-hover:text-blue-300`. Subtitle: `text-white/40 text-xs line-clamp-2`. Right chevron: `w-4 h-4 text-white/30 group-hover:text-blue-400`.
+
+### Composer (input shell)
+
+Outer card — first message vs follow-up:
+
+```tsx
+// First message (empty chat): floating glow card
+'relative rounded-xl bg-black/40 backdrop-blur-xl border border-white/15 shadow-[0_-18px_80px_-30px_rgba(255,255,255,0.28)]'
+// After first message: solid dark card
+'relative rounded-xl bg-[#171717] border border-white/15'
+```
+
+Inner padding: `p-3 md:p-4`.
+
+Textarea: `w-full bg-transparent text-white text-sm resize-none outline-none`, `rows={3}`, `minHeight: 60px`.
+
+Animated placeholder (only when empty, absolute-positioned overlay):
+
+```tsx
+<span className="text-sm bg-gradient-to-r from-white/20 via-white/70 to-white/20 bg-clip-text text-transparent"
+  style={{ backgroundSize: '200% 100%', animation: 'gradient-shift 4s ease-in-out infinite' }}>
+  Lad os starte med din artikel
+</span>
+```
+
+Note: `gradient-shift` is the ONLY allowed multi-stop gradient and ONLY for placeholder shimmer.
+
+Composer action button (icon, 44px touch target):
+
+```tsx
+'touch-target w-11 h-11 flex items-center justify-center rounded transition-colors text-white hover:bg-gray-700'
+// active state: 'text-blue-400 bg-blue-400/10'
+```
+
+### Attached source pill (file/URL chip above composer)
+
+```tsx
+'inline-flex items-center gap-1.5 pl-2.5 pr-1 py-1 rounded-full bg-white/10 border border-white/15 text-xs text-white/80 max-w-[280px] hover:border-white/25 transition-colors'
+```
+Remove button inside: `flex-shrink-0 p-0.5 rounded-full text-white/30 hover:text-white hover:bg-white/10`.
+
+### Thinking / loading indicators
+
+Spinner (small, inline): `w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin inline-block`.
+
+Step status text classes: `text-white` (active), `text-white/55` (pending), `text-white/30` (done).
+
+For longer pipelines (Liv preview, Preflight) prefer the shared timeline — DO NOT invent a new spinner style.
+
+## Don'ts
+
+- ❌ No `bg-gradient-to-br from-fuchsia-500/20 ...` style backgrounds.
+- ❌ No `text-[20px]` font sizes outside h1/h2 of standalone pages.
+- ❌ No `rounded-3xl`, `rounded-full` (except dots/avatars).
+- ❌ No emoji as UI icon.
+- ❌ No new color values — if you need a tint, pick from the surface scale above.
+- ❌ Don't centre everything — left-align text, use `gap-2` / `gap-3` between siblings.
+- ❌ Do not ship dark inputs without `apropos-input-dark` (autofill may turn white and break readability).

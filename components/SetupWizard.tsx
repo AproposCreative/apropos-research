@@ -5,8 +5,9 @@ import type { PointerEvent as ReactPointerEvent, MouseEvent as ReactMouseEvent }
 import { WebflowAuthor } from '@/lib/webflow-service';
 import type { ArticleData } from '@/types/article';
 import StepChip from '@/components/ui/StepChip';
+import { EDITORIAL_ARTICLE_TYPE_OPTIONS, getEditorialArticleTypeOption } from '@/lib/editorial/signal-store';
 
-type Step = 'template' | 'source' | 'trending' | 'inspiration' | 'recommended' | 'analysis' | 'author' | 'section' | 'topic' | 'platform' | 'rating' | 'press';
+type Step = 'template' | 'articleType' | 'source' | 'trending' | 'inspiration' | 'recommended' | 'analysis' | 'author' | 'section' | 'topic' | 'platform' | 'rating' | 'press';
 
 interface SetupWizardProps {
   initialData?: Partial<ArticleData>;
@@ -166,6 +167,9 @@ export default function SetupWizard({ initialData, onComplete, onChange }: Setup
     inspirationAcknowledged: initialData?.inspirationAcknowledged || false,
     recommendedSelected: initialData?.recommendedSelected || null,
     aiDraft: initialData?.aiDraft || null,
+    articleType: getEditorialArticleTypeOption(initialData?.articleType).id,
+    targetWordCount: initialData?.targetWordCount || getEditorialArticleTypeOption(initialData?.articleType).targetWordCount,
+    targetLengthLabel: initialData?.targetLengthLabel || getEditorialArticleTypeOption(initialData?.articleType).targetLengthLabel,
     rating: initialData?.rating || 0,
     ratingSkipped: initialData?.ratingSkipped || false,
     press: typeof initialData?.press === 'boolean' ? initialData.press : null,
@@ -358,8 +362,13 @@ export default function SetupWizard({ initialData, onComplete, onChange }: Setup
 
   const nextStep = (from: Step) => {
     if (from==='template') {
+      if (data.template==='import') return setStep('author'); // Import udleder type/længde selv
+      if (data.template) return setStep('articleType');
+      return setStep('author');
+    }
+    if (from==='articleType') {
       if (data.template==='research') return setStep('source');
-      if (data.template==='notes') return setStep('author'); // Skip recommended for notes template
+      if (data.template==='notes' || data.template==='import') return setStep('author'); // Skip recommended for notes/import
       if (data.template) return setStep('recommended');
       return setStep('author');
     }
@@ -376,12 +385,15 @@ export default function SetupWizard({ initialData, onComplete, onChange }: Setup
   };
 
   const updateData = (updater: (d:any)=>any, advanceFrom?: Step, advanceTo?: Step) => {
-    setData((prev:any)=> (typeof updater==='function' ? updater(prev) : prev));
-    if (advanceFrom) {
+    setData((prev: any) => {
+      const next = typeof updater === 'function' ? updater(prev) : prev;
       if (advanceFrom === 'press') {
-        // last step answered -> complete automatically
-        complete();
-      } else if (advanceTo) {
+        queueMicrotask(() => complete(next));
+      }
+      return next;
+    });
+    if (advanceFrom && advanceFrom !== 'press') {
+      if (advanceTo) {
         setStep(advanceTo);
       } else {
         nextStep(advanceFrom);
@@ -468,13 +480,13 @@ export default function SetupWizard({ initialData, onComplete, onChange }: Setup
     }
     
     // Load trending articles for selected source
+    const controller = new AbortController();
     try {
       setLoadingTrending(true);
       const id = (mediaSources.find(s => s.name === sourceName)?.id) || sourceName;
       if (trendingAbortRef.current) {
         try { trendingAbortRef.current.abort(); } catch {}
       }
-      const controller = new AbortController();
       trendingAbortRef.current = controller;
       const timestamp = Date.now();
       const res = await fetch(`/api/trending?source=${encodeURIComponent(id)}&_t=${timestamp}`, { 
@@ -524,9 +536,12 @@ export default function SetupWizard({ initialData, onComplete, onChange }: Setup
       setTrendingItems(sortedItems);
       currentSourceRef.current = sourceName;
     } catch (error) {
+      if (controller.signal.aborted) return;
       console.error('Error loading trending articles:', error);
     } finally {
-      setLoadingTrending(false);
+      if (trendingAbortRef.current === controller) {
+        setLoadingTrending(false);
+      }
     }
   }, [loadingTrending, loadingRecommended, mediaSources]);
 
@@ -611,6 +626,7 @@ export default function SetupWizard({ initialData, onComplete, onChange }: Setup
 
   const canContinue = () => {
     if (step==='template') return !!data.template;
+    if (step==='articleType') return !!data.articleType;
     if (step==='source') return !!data.inspirationSource;
     if (step==='trending') return !!data.researchSelected || true;
     if (step==='inspiration') return !!data.researchSelected;
@@ -623,36 +639,46 @@ export default function SetupWizard({ initialData, onComplete, onChange }: Setup
     return true;
   };
 
-  const complete = () => {
-    const selectedTopics = Array.isArray(data.topicsSelected)
-      ? data.topicsSelected
-      : (data.topic ? [data.topic] : []);
+  const complete = (snapshot?: any) => {
+    const src = snapshot ?? data;
+    const selectedTopics = Array.isArray(src.topicsSelected)
+      ? src.topicsSelected
+      : (src.topic ? [src.topic] : []);
     const primaryTopic = selectedTopics[0] || '';
-    const tags = Array.from(new Set([data.section, ...selectedTopics].filter(Boolean)));
+    const tags = Array.from(new Set([src.section, ...selectedTopics].filter(Boolean)));
     
     // Only include fields that have meaningful values
     const completionData: Partial<ArticleData> = {};
     
-    if (data.author) completionData.author = data.author;
-    if (data.authorId) completionData.authorId = data.authorId;
-    if (data.authorTOV) completionData.authorTOV = data.authorTOV;
-    if (data.template) completionData.template = data.template;
-    if (data.inspirationSource) completionData.inspirationSource = data.inspirationSource;
-    if (data.researchSelected) completionData.researchSelected = data.researchSelected;
-    if (data.inspirationAcknowledged) completionData.inspirationAcknowledged = data.inspirationAcknowledged;
-    if (data.recommendedSelected) completionData.recommendedSelected = data.recommendedSelected;
-    if (data.aiDraft) completionData.aiDraft = data.aiDraft;
-    if (data.section) completionData.category = data.section;
-    if (tags.length > 0) completionData.tags = tags;
-    if (data.platform) {
-      completionData.platform = data.platform;
-      completionData.streaming_service = data.platform;
+    if (src.author) completionData.author = src.author;
+    if (src.authorId) completionData.authorId = src.authorId;
+    if (src.authorTOV) completionData.authorTOV = src.authorTOV;
+    if (src.template) completionData.template = src.template;
+    if (src.inspirationSource) completionData.inspirationSource = src.inspirationSource;
+    if (src.researchSelected) completionData.researchSelected = src.researchSelected;
+    if (src.inspirationAcknowledged) completionData.inspirationAcknowledged = src.inspirationAcknowledged;
+    if (src.recommendedSelected) completionData.recommendedSelected = src.recommendedSelected;
+    if (src.aiDraft) completionData.aiDraft = src.aiDraft;
+    if (src.articleType) {
+      const typeOption = getEditorialArticleTypeOption(src.articleType);
+      completionData.articleType = typeOption.id;
+      completionData.targetWordCount = src.targetWordCount || typeOption.targetWordCount;
+      completionData.targetLengthLabel = src.targetLengthLabel || typeOption.targetLengthLabel;
     }
-    if (data.rating > 0) completionData.rating = data.rating;
-    if (data.ratingSkipped) completionData.ratingSkipped = data.ratingSkipped;
-    if (data.press !== null) completionData.press = data.press;
-    if (data.title) completionData.title = data.title;
-    if (data.subtitle) completionData.subtitle = data.subtitle;
+    if (src.section) completionData.category = src.section;
+    if (tags.length > 0) completionData.tags = tags;
+    if (src.platform) {
+      completionData.platform = src.platform;
+      completionData.streaming_service = src.platform;
+    }
+    if (src.rating > 0) completionData.rating = src.rating;
+    if (src.ratingSkipped) completionData.ratingSkipped = src.ratingSkipped;
+    if (src.press !== null && src.press !== undefined) {
+      completionData.press = src.press;
+      completionData.presseakkreditering = src.press;
+    }
+    if (src.title) completionData.title = src.title;
+    if (src.subtitle) completionData.subtitle = src.subtitle;
     if (primaryTopic) completionData.topic = primaryTopic;
     if (selectedTopics.length > 0) completionData.topicsSelected = selectedTopics;
     
@@ -665,6 +691,7 @@ export default function SetupWizard({ initialData, onComplete, onChange }: Setup
 
     // Base steps – always present
     segments.push(!!data.template); // template
+    segments.push(!!data.articleType); // article type
 
     const includeResearchSteps = data.template === 'research';
     if (includeResearchSteps) {
@@ -713,6 +740,9 @@ export default function SetupWizard({ initialData, onComplete, onChange }: Setup
           onClickCapture={handleClickCapture}
         >
           <StepChip stepKey="template" active={step==='template'} done={!!data.template} label="Template" onClick={()=>setStep('template')} />
+          {data.template && (
+            <StepChip stepKey="articleType" active={step==='articleType'} done={!!data.articleType} label="Type" onClick={()=>setStep('articleType')} />
+          )}
           {data.template==='research' && (
             <>
               <StepChip stepKey="source" active={step==='source'} done={!!data.inspirationSource} label="Kilde" onClick={()=>setStep('source')} />
@@ -760,6 +790,7 @@ export default function SetupWizard({ initialData, onComplete, onChange }: Setup
             {[
               { key: 'notes', label: 'Skriv artikel ud fra egne noter' },
               { key: 'research', label: 'Research' },
+              { key: 'import', label: 'Importér artikel' },
             ].map(opt => {
               const selected = data.template === opt.key;
               return (
@@ -777,12 +808,45 @@ export default function SetupWizard({ initialData, onComplete, onChange }: Setup
                           next.inspirationAcknowledged = false;
                         }
                         return next;
-                      }, 'template', (opt.key==='research' ? 'source' : 'author'));
+                      }, 'template', opt.key === 'import' ? 'author' : 'articleType');
                     }
                   }}
                   className={`px-3 py-1.5 rounded-lg text-xs transition-all border ${selected ? 'bg-white/10 text-white border-white/40' : 'bg-white/5 text-white border-white/10 hover:border-white/20 hover:bg-white/10'}`}
                 >
                   <span className={`${selected ? 'text-sheen-glow' : ''}`}>{opt.label}</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {step==='articleType' && (
+        <div className="space-y-3 md:space-y-[14px]">
+          <div className="text-white/80 text-sm">Vælg artikeltype og længde</div>
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+            {EDITORIAL_ARTICLE_TYPE_OPTIONS.map((option) => {
+              const selected = data.articleType === option.id;
+              return (
+                <button
+                  key={option.id}
+                  onClick={() => {
+                    updateData(
+                      (d:any) => ({
+                        ...d,
+                        articleType: option.id,
+                        targetWordCount: option.targetWordCount,
+                        targetLengthLabel: option.targetLengthLabel,
+                      }),
+                      'articleType'
+                    );
+                  }}
+                  className={`min-h-11 rounded-lg border px-3 py-2 text-left text-xs transition-all active:scale-[0.98] ${
+                    selected ? 'bg-white/10 text-white border-white/40' : 'bg-white/5 text-white/75 border-white/10 hover:border-white/20 hover:bg-white/10'
+                  }`}
+                >
+                  <span className="block font-medium">{option.label}</span>
+                  <span className="mt-0.5 block text-[10px] text-white/40">{option.description} · {option.targetLengthLabel}</span>
                 </button>
               );
             })}
@@ -801,16 +865,13 @@ export default function SetupWizard({ initialData, onComplete, onChange }: Setup
               return (
                 <button
                   key={name}
-                  onClick={async ()=> {
+                  onClick={()=> {
                     if (selected) {
           updateData((d:any)=> ({ ...d, inspirationSource: '', researchSelected: null, inspirationAcknowledged: false }));
                       setTrendingItems([]);
                       return;
                     }
                     updateData((d:any)=> ({ ...d, inspirationSource: name, researchSelected: null, inspirationAcknowledged: false }), 'source');
-                    
-                    // Load articles automatically (handled by loadArticles function)
-                    loadArticles(name);
                   }}
                   className={`px-3 py-1.5 rounded-lg text-xs transition-all border ${selected ? 'bg-white/10 text-white border-white/40' : 'bg-white/5 text-white border-white/10 hover:border-white/20 hover:bg-white/10'}`}
                 >
@@ -1292,11 +1353,11 @@ ${toneInstruction}`;
           <div className="text-white/80 text-sm">Presseakkreditering?</div>
           <div className="flex gap-x-[16px]">
             <button
-              onClick={()=> updateData((d:any)=> ({ ...d, press: true }), 'press')}
+              onClick={()=> updateData((d:any)=> ({ ...d, press: true, presseakkreditering: true }), 'press')}
               className={`px-3 py-1.5 rounded-lg text-xs transition-all border ${data.press===true ? 'bg-white/10 text-white border-white/40' : 'bg-white/5 text-white border-white/10 hover:border-white/20 hover:bg-white/10'}`}
             >Ja, der er pressekontakt/akkreditering</button>
             <button
-              onClick={()=> updateData((d:any)=> ({ ...d, press: false }), 'press')}
+              onClick={()=> updateData((d:any)=> ({ ...d, press: false, presseakkreditering: false }), 'press')}
               className={`px-3 py-1.5 rounded-lg text-xs transition-all border ${data.press===false ? 'bg-white/10 text-white border-white/40' : 'bg-white/5 text-white border-white/10 hover:border-white/20 hover:bg-white/10'}`}
             >Nej, der er ikke modtaget presse-akkreditering</button>
           </div>

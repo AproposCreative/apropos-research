@@ -4,6 +4,9 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useAuth } from '../../lib/auth-context';
 import CompactHeader from '../../components/CompactHeader';
+import ImageOptimizationSection from '../../components/settings/ImageOptimizationSection';
+import ArticleTranslationSection from '../../components/settings/ArticleTranslationSection';
+import SocialTokenPanel from '../../components/settings/SocialTokenPanel';
 
 type WebflowStatus = {
   connected: boolean;
@@ -45,44 +48,11 @@ export default function SettingsPage() {
   const [testing, setTesting] = useState(false);
   const [fbTesting, setFbTesting] = useState(false);
   const [fbStatus, setFbStatus] = useState<FacebookPublishStatus | null>(null);
-  const [activeTab, setActiveTab] = useState<'webflow'|'social'|'profile'|'notifications'|'security'>('webflow');
+  const [activeTab, setActiveTab] = useState<'webflow'|'optimise'|'social'|'profile'|'notifications'|'security'>('webflow');
 
-  // Token exchange state
-  const [shortLivedToken, setShortLivedToken] = useState('');
-  const [exchangeLoading, setExchangeLoading] = useState(false);
-  const [exchangeResult, setExchangeResult] = useState<{
-    success?: boolean;
-    pageAccessToken?: string;
-    pageName?: string;
-    neverExpires?: boolean;
-    expiresAt?: string | null;
-    error?: string;
-    hint?: string;
-    pages?: Array<{ id: string; name: string; pageAccessToken: string }>;
-    message?: string;
-  } | null>(null);
-  const [metaExchangeReady, setMetaExchangeReady] = useState<boolean | null>(null);
-
-  const [igTokenDiagLoading, setIgTokenDiagLoading] = useState(false);
-  const [igTokenDiag, setIgTokenDiag] = useState<{
-    ok?: boolean;
-    error?: string;
-    debug?: {
-      isValid?: boolean;
-      type?: string;
-      expiresDescription?: string;
-      scopes?: string[];
-      missingScopes?: string[];
-      dataAccessExpiresAt?: string | null;
-    };
-    instagramProfile?: { ok: boolean; username?: string; error?: string } | null;
-    hints?: string[];
-    recommendation?: string | null;
-  } | null>(null);
   const [wfFields, setWfFields] = useState<any[]>([]);
   const [mapping, setMapping] = useState<{ entries: Array<{ internal: string; webflowSlug: string; transform?: string; required?: boolean }>}>({ entries: [] });
   const [savingMapping, setSavingMapping] = useState(false);
-
   // Profile state (migrated fra profile-siden)
   const [isEditingProfile, setIsEditingProfile] = useState(false);
   const [profileData, setProfileData] = useState({
@@ -94,7 +64,7 @@ export default function SettingsPage() {
   useEffect(() => {
     if (typeof window === 'undefined') return;
     const tab = new URLSearchParams(window.location.search).get('tab');
-    const valid = ['webflow', 'social', 'profile', 'notifications', 'security'] as const;
+    const valid = ['webflow', 'optimise', 'social', 'profile', 'notifications', 'security'] as const;
     if (tab && (valid as readonly string[]).includes(tab)) {
       setActiveTab(tab as (typeof valid)[number]);
     }
@@ -237,37 +207,6 @@ export default function SettingsPage() {
     }
   };
 
-  const diagnoseInstagramToken = async () => {
-    setIgTokenDiagLoading(true);
-    setIgTokenDiag(null);
-    try {
-      const res = await fetch('/api/instagram/token-status');
-      const data = await res.json();
-      setIgTokenDiag(data);
-    } catch {
-      setIgTokenDiag({ ok: false, error: 'Kunne ikke hente diagnose.' });
-    } finally {
-      setIgTokenDiagLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    if (activeTab !== 'social') return;
-    let cancelled = false;
-    setMetaExchangeReady(null);
-    void fetch('/api/instagram/meta-config')
-      .then((r) => r.json())
-      .then((d: { exchangeReady?: boolean }) => {
-        if (!cancelled) setMetaExchangeReady(d.exchangeReady === true);
-      })
-      .catch(() => {
-        if (!cancelled) setMetaExchangeReady(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [activeTab]);
-
   return (
     <div className="relative z-10 max-w-7xl mx-auto px-6 pb-12">
       <CompactHeader 
@@ -281,6 +220,7 @@ export default function SettingsPage() {
           <div className="flex space-x-1 bg-white/80 dark:bg-slate-900/80 backdrop-blur-2xl rounded-2xl p-1 border border-white/20 dark:border-slate-700/50 shadow-2xl ring-1 ring-white/10 dark:ring-slate-700/20">
             {[
               { id: 'webflow', label: 'Webflow', icon: '🌐' },
+              { id: 'optimise', label: 'Optimise', icon: '⚡' },
               { id: 'social', label: 'Social', icon: '📸' },
               { id: 'profile', label: 'Profile', icon: '👤' },
               { id: 'notifications', label: 'Notifications', icon: '🔔' },
@@ -483,280 +423,16 @@ export default function SettingsPage() {
         </div>
         )}
 
+        {activeTab === 'optimise' && (
+          <div className="bg-[#171717] rounded-2xl border border-white/15 p-4 font-poppins space-y-6">
+            <ImageOptimizationSection variant="page" />
+            <ArticleTranslationSection variant="page" />
+          </div>
+        )}
+
         {activeTab === 'social' && (
         <div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-2xl rounded-2xl border border-white/20 dark:border-slate-700/50 shadow-2xl ring-1 ring-white/10 dark:ring-slate-700/20 p-8">
-          <h2 className="text-xl font-semibold text-slate-800 dark:text-slate-100 mb-2">Instagram & Facebook</h2>
-          <p className="text-sm text-slate-600 dark:text-slate-400 mb-5">
-            Når Instagram eller Facebook fejler, kan du her lave et nyt langvarigt <strong>page</strong>-token. Det sker i to trin: først et kort <strong>bruger</strong>-token fra Graph API Explorer (kun til feltet her på siden), derefter «Konvertér» — det lange token i den grønne boks er det, der skal i miljøet som Instagram-nøgle.
-          </p>
-
-          {metaExchangeReady === false && (
-            <div className="mb-5 rounded-xl border border-rose-200 dark:border-rose-800/60 bg-rose-50 dark:bg-rose-950/40 p-4">
-              <p className="text-sm text-rose-900 dark:text-rose-100">
-                Sæt <code className="text-xs bg-rose-100 dark:bg-rose-900/70 px-1 rounded">META_APP_ID</code> og{' '}
-                <code className="text-xs bg-rose-100 dark:bg-rose-900/70 px-1 rounded">META_APP_SECRET</code> i{' '}
-                <code className="text-xs">.env.local</code> (fra{' '}
-                <a
-                  href="https://developers.facebook.com/apps/"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="underline font-medium"
-                >
-                  Meta → jeres app → App settings → Basic
-                </a>
-                ), gem og genstart dev-serveren.
-              </p>
-              <details className="mt-3 text-sm text-rose-800/95 dark:text-rose-200/85">
-                <summary className="cursor-pointer font-medium text-rose-900 dark:text-rose-100">Trin-for-trin</summary>
-                <ol className="mt-2 list-decimal list-inside space-y-1.5 pl-0.5">
-                  <li>Samme app som i Graph API Explorer.</li>
-                  <li>App ID → <code className="text-xs">META_APP_ID</code></li>
-                  <li>App secret (Show) → <code className="text-xs">META_APP_SECRET</code> — del aldrig secret offentligt.</li>
-                  <li>
-                    <code className="text-xs">npm run dev</code> igen efter gem.
-                  </li>
-                </ol>
-              </details>
-            </div>
-          )}
-
-          <div className="space-y-4">
-            <details className="group rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/80 dark:bg-slate-800/40 px-4 py-3">
-              <summary className="cursor-pointer text-sm font-medium text-slate-700 dark:text-slate-200 list-none flex items-center justify-between gap-2 [&::-webkit-details-marker]:hidden">
-                <span>Trin 1: Kort bruger-token fra Graph API Explorer</span>
-                <span className="text-slate-400 text-xs shrink-0 group-open:hidden">Vis</span>
-                <span className="text-slate-400 text-xs shrink-0 hidden group-open:inline">Skjul</span>
-              </summary>
-              <ol className="mt-3 text-sm text-slate-600 dark:text-slate-400 space-y-1.5 list-decimal list-inside border-t border-slate-200/80 dark:border-slate-600/50 pt-3">
-                <li>
-                  <a href="https://developers.facebook.com/tools/explorer/" target="_blank" rel="noopener noreferrer" className="text-blue-600 dark:text-blue-400 underline">
-                    Graph API Explorer
-                  </a>
-                  {' — '}vælg jeres app.
-                </li>
-                <li>
-                  Vælg <strong>User</strong>-token (din profil) i Explorer — det er kun input til konvertering herunder. Det endelige token til <code className="text-xs">.env</code> / Vercel får du efter «Konvertér» (page-token i grøn boks).
-                </li>
-                <li>
-                  Tilladelser: instagram_basic, instagram_content_publish, pages_show_list, pages_read_engagement, pages_manage_posts — derefter Generate Access Token.
-                </li>
-              </ol>
-            </details>
-
-            <p className="text-xs text-slate-500 dark:text-slate-400 -mt-1">
-              Feltet herunder gemmes ikke — bruges kun én gang til at kalde Meta og hente page-token.
-            </p>
-
-            <div>
-              <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-                1. Kort bruger-token fra Explorer (ikke i miljøet)
-              </label>
-              <textarea
-                rows={3}
-                value={shortLivedToken}
-                onChange={(e) => setShortLivedToken(e.target.value)}
-                placeholder="Kun det korte bruger-token fra Explorer — ikke page-token og ikke det lange efter konvertering"
-                className="w-full px-4 py-3 bg-white/50 dark:bg-pure-black/50 backdrop-blur-sm border border-white/30 dark:border-slate-600/30 rounded-xl text-slate-800 dark:text-slate-100 placeholder-slate-500 dark:placeholder-slate-400 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 font-mono text-sm resize-none"
-              />
-            </div>
-
-            <button
-              onClick={async () => {
-                if (!shortLivedToken.trim()) return;
-                setExchangeLoading(true);
-                setExchangeResult(null);
-                try {
-                  const res = await fetch('/api/instagram/exchange-token', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ shortLivedToken: shortLivedToken.trim() }),
-                  });
-                  const data = await res.json();
-                  setExchangeResult(data);
-                } catch (err) {
-                  setExchangeResult({ error: 'Netværksfejl: ' + String(err) });
-                } finally {
-                  setExchangeLoading(false);
-                }
-              }}
-              disabled={exchangeLoading || !shortLivedToken.trim() || metaExchangeReady === false}
-              className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium disabled:opacity-60 transition-colors"
-            >
-              {exchangeLoading ? 'Konverterer...' : 'Konvertér til langvarigt token'}
-            </button>
-
-            {exchangeResult && (
-              <div className={`rounded-xl border p-4 ${
-                exchangeResult.success
-                  ? 'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-700'
-                  : exchangeResult.error
-                    ? 'bg-rose-50 dark:bg-rose-900/20 border-rose-200 dark:border-rose-700'
-                    : 'bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-700'
-              }`}>
-                {exchangeResult.error && (
-                  <p className="text-sm text-rose-700 dark:text-rose-300">{exchangeResult.error}</p>
-                )}
-                {exchangeResult.message && (
-                  <p className="text-sm text-amber-700 dark:text-amber-300 mb-3">{exchangeResult.message}</p>
-                )}
-                {exchangeResult.pages && (
-                  <div className="space-y-2">
-                    {exchangeResult.pages.map((p) => (
-                      <div key={p.id} className="flex items-center justify-between bg-white dark:bg-slate-800 rounded-lg px-3 py-2 border border-slate-200 dark:border-slate-700">
-                        <span className="text-sm font-medium text-slate-800 dark:text-slate-100">{p.name} <span className="text-slate-500">({p.id})</span></span>
-                        <button
-                          onClick={() => {
-                            navigator.clipboard.writeText(p.pageAccessToken);
-                            alert(`Kopieret. Opdater Instagram-nøglen i miljøet.\nSide: ${p.name}\nSide-ID (til Facebook): ${p.id}`);
-                          }}
-                          className="px-3 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700"
-                        >
-                          Kopiér token
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                )}
-                {exchangeResult.success && exchangeResult.pageAccessToken && (
-                  <div className="space-y-3">
-                    <div className="flex items-center gap-2">
-                      <span className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
-                      <span className="text-sm font-semibold text-emerald-700 dark:text-emerald-300">
-                        Trin 2: Nyt page-token klar
-                        {exchangeResult.neverExpires ? ' · uden udløb' : exchangeResult.expiresAt ? ` · udløber ${exchangeResult.expiresAt}` : ''}
-                      </span>
-                    </div>
-                    <p className="text-sm font-medium text-emerald-900 dark:text-emerald-100 border-l-4 border-emerald-500 pl-3 py-1">
-                      Kopier <strong>den lange streng</strong> herunder til Instagram-nøglen i miljøet (<code className="text-xs">INSTAGRAM_ACCESS_TOKEN</code> / Vercel). Det er <strong>ikke</strong> det samme som bruger-tokenet fra Explorer.
-                    </p>
-                    <p className="text-sm text-slate-600 dark:text-slate-400">
-                      Side: <strong>{exchangeResult.pageName}</strong>
-                    </p>
-                    <div className="relative">
-                      <pre className="text-xs bg-slate-100 dark:bg-slate-800 rounded-lg p-3 overflow-x-auto font-mono break-all whitespace-pre-wrap border border-slate-200 dark:border-slate-700">
-                        {exchangeResult.pageAccessToken}
-                      </pre>
-                      <button
-                        onClick={() => {
-                          navigator.clipboard.writeText(exchangeResult.pageAccessToken!);
-                          alert('Kopieret. Indsæt som Instagram-token i miljøet og genstart eller redeploy.');
-                        }}
-                        className="absolute top-2 right-2 px-2 py-1 text-xs bg-slate-700 text-white rounded hover:bg-slate-600"
-                      >
-                        Kopiér
-                      </button>
-                    </div>
-                    {exchangeResult.hint ? (
-                      <p className="text-sm text-emerald-800/90 dark:text-emerald-200/90">{exchangeResult.hint}</p>
-                    ) : null}
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-
-          <div className="mt-8 border-t border-slate-200 dark:border-slate-700 pt-6">
-            <h3 className="text-base font-semibold text-slate-800 dark:text-slate-100 mb-2">Tjek aktivt Instagram-token</h3>
-            <p className="text-sm text-slate-600 dark:text-slate-400 mb-3">
-              Ser om miljøets token er gyldigt. <strong>Langvarigt page-token</strong> (diagnose: Type PAGE) får du ved at konvertere på fanen her og lægge den <strong>lange</strong> streng i miljøet — ikke det korte fra Explorer. Når Type stadig er USER men alt virker, viser diagnose en konkret anbefaling.
-            </p>
-            <div className="flex flex-wrap items-center gap-3">
-              <button
-                type="button"
-                onClick={() => void diagnoseInstagramToken()}
-                disabled={igTokenDiagLoading}
-                className="px-5 py-2.5 bg-slate-700 hover:bg-slate-800 dark:bg-slate-600 dark:hover:bg-slate-500 text-white rounded-lg disabled:opacity-60 transition-colors"
-              >
-                {igTokenDiagLoading ? 'Kører…' : 'Kør diagnose'}
-              </button>
-            </div>
-            {igTokenDiag && (
-              <div
-                className={`mt-3 text-sm rounded-lg border px-3 py-3 space-y-2 ${
-                  igTokenDiag.ok
-                    ? 'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-700 text-emerald-900 dark:text-emerald-100'
-                    : 'bg-rose-50 dark:bg-rose-900/20 border-rose-200 dark:border-rose-700 text-rose-900 dark:text-rose-100'
-                }`}
-              >
-                {igTokenDiag.error && !igTokenDiag.debug && <p>{igTokenDiag.error}</p>}
-                {igTokenDiag.debug && (
-                  <ul className="list-disc list-inside space-y-1 text-slate-700 dark:text-slate-200">
-                    <li>Gyldig: {igTokenDiag.debug.isValid ? 'ja' : 'nej'}</li>
-                    <li>Type: {igTokenDiag.debug.type ?? '—'}</li>
-                    <li>Udløb: {igTokenDiag.debug.expiresDescription ?? '—'}</li>
-                    {igTokenDiag.debug.dataAccessExpiresAt && (
-                      <li>Data-adgang udløber: {igTokenDiag.debug.dataAccessExpiresAt}</li>
-                    )}
-                    {igTokenDiag.debug.scopes && igTokenDiag.debug.scopes.length > 0 && (
-                      <li>Scopes: {igTokenDiag.debug.scopes.join(', ')}</li>
-                    )}
-                    {igTokenDiag.debug.missingScopes && igTokenDiag.debug.missingScopes.length > 0 && (
-                      <li className="text-amber-800 dark:text-amber-200">Mangler: {igTokenDiag.debug.missingScopes.join(', ')}</li>
-                    )}
-                  </ul>
-                )}
-                {igTokenDiag.instagramProfile && (
-                  <p className="text-slate-700 dark:text-slate-200">
-                    Instagram API:{' '}
-                    {igTokenDiag.instagramProfile.ok
-                      ? `@${igTokenDiag.instagramProfile.username ?? '?'} (OK)`
-                      : igTokenDiag.instagramProfile.error}
-                  </p>
-                )}
-                {igTokenDiag.recommendation ? (
-                  <p className="text-sm text-sky-800 dark:text-sky-200 border-l-4 border-sky-500 pl-3 py-1 rounded-r bg-sky-50/80 dark:bg-sky-950/40">
-                    {igTokenDiag.recommendation}
-                  </p>
-                ) : null}
-                {igTokenDiag.hints && igTokenDiag.hints.length > 0 && (
-                  <ul className="list-disc list-inside space-y-1 border-t border-current/20 pt-2 mt-2 opacity-95">
-                    {igTokenDiag.hints.map((h, i) => (
-                      <li key={i}>{h}</li>
-                    ))}
-                  </ul>
-                )}
-              </div>
-            )}
-          </div>
-
-          <div className="mt-8 border-t border-slate-200 dark:border-slate-700 pt-6">
-            <h3 className="text-base font-semibold text-slate-800 dark:text-slate-100 mb-3">Facebook-forbindelse</h3>
-            <div className="flex items-center gap-3">
-              <button
-                onClick={testFacebookPublish}
-                disabled={fbTesting}
-                className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg disabled:opacity-60 transition-colors"
-              >
-                {fbTesting ? 'Tester...' : 'Test Facebook-forbindelse'}
-              </button>
-            </div>
-            {fbStatus && (
-              <div className={`mt-3 text-sm rounded-lg border px-3 py-2 ${
-                fbStatus.reachable
-                  ? 'bg-emerald-600/15 text-emerald-700 dark:text-emerald-300 border-emerald-600/30'
-                  : 'bg-amber-600/15 text-amber-700 dark:text-amber-300 border-amber-600/30'
-              }`}>
-                {fbStatus.reachable ? (
-                  <p>
-                    Facebook OK: {fbStatus.pageName || 'Ukendt side'} ({fbStatus.pageId})
-                  </p>
-                ) : (
-                  <div className="space-y-2">
-                    <p>Facebook ikke klar: {fbStatus.error || 'ukendt fejl'}</p>
-                    {fbStatus.nextStep ? <p className="text-xs leading-snug opacity-95">{fbStatus.nextStep}</p> : null}
-                    {fbStatus.settingsHref ? (
-                      <Link
-                        href={fbStatus.settingsHref}
-                        className="inline-block text-xs font-medium text-blue-700 dark:text-blue-300 underline underline-offset-2"
-                      >
-                        Åbn fanen Social (Instagram / token)
-                      </Link>
-                    ) : null}
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
+          <SocialTokenPanel />
         </div>
         )}
 

@@ -81,6 +81,7 @@ Thumbs.db
 *.temp
 
 # Project specific
+data/instagram-config.json
 apropos-research/
 *.log
 .vercel

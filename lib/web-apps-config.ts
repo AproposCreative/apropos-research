@@ -13,8 +13,12 @@ export interface WebAppEntry {
 
 export const WEB_APPS: WebAppEntry[] = [
   { id: 'ai-writer', name: 'AI Writer', path: '/ai', order: 1 },
-  { id: 'design-editor', name: 'Design Editor', path: '/design-editor', order: 2 },
+  { id: 'design-editor', name: 'SoMe Posting', path: '/design-editor', order: 2 },
   { id: 'newsletter', name: 'Nyhedsbrev', path: '/ai?view=newsletter', order: 3 },
+  { id: 'push-desk', name: 'Push', path: '/ai?view=push', order: 4 },
+  { id: 'funding-desk', name: 'Funding Desk', path: '/ai?view=funding', order: 5 },
+  { id: 'dashboard', name: 'Dashboard', path: '/ai?view=dashboard', order: 6 },
+  { id: 'podcast', name: 'Podcast Upload', path: '/ai?view=podcast', order: 7 },
 ];
 
 export function getWebApps(): WebAppEntry[] {

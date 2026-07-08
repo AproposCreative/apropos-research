@@ -1,8 +1,9 @@
 'use client';
 import { useState, useEffect, useCallback } from 'react';
-import Link from 'next/link';
 import { useAuth } from '@/lib/auth-context';
 import { SPLINE_BACKGROUNDS } from '@/lib/spline-backgrounds';
+import ImageOptimizationSection from '@/components/settings/ImageOptimizationSection';
+import ArticleTranslationSection from '@/components/settings/ArticleTranslationSection';
 
 type WebflowStatus = {
   connected: boolean;
@@ -25,6 +26,7 @@ type FacebookStatus = {
 
 type IgTokenDiag = {
   ok?: boolean;
+  issue?: string;
   error?: string;
   hints?: string[];
   recommendation?: string | null;
@@ -248,9 +250,6 @@ function IntegrationsTab() {
             {wfStatus.error && <p className="text-red-400/70 text-xs">{wfStatus.error}</p>}
           </div>
         )}
-        {!loading && !wfStatus?.connected && (
-          <p className="text-white/30 text-xs">Konfigureres via miljøvariabler (WEBFLOW_API_TOKEN, WEBFLOW_SITE_ID)</p>
-        )}
       </div>
 
       {/* Nyhedsbrev / Webflow-subscribers */}
@@ -280,39 +279,15 @@ function IntegrationsTab() {
           </button>
         </div>
         {user && nlStatus && (
-          <div className="space-y-1.5 text-xs">
-            <p className={nlStatus.connected ? 'text-emerald-400/80' : 'text-amber-400/80'}>
-              {nlStatus.connected
-                ? 'Forbundet til nyhedsbrevs-tilmeldinger på sitet'
-                : 'Kunne ikke bekræfte forbindelsen — tjek Webflow-token og formular'}
-            </p>
-            <div className="text-white/50 space-y-0.5">
-              <p>
-                <span className="text-white/40">Aktive modtagere</span> · {nlStatus.recipientCount}
-              </p>
-              {nlStatus.totalSignups > 0 && (
-                <p>
-                  <span className="text-white/40">Tilmeldt (før framelding)</span> · {nlStatus.totalSignups}
-                  {nlStatus.unsubscribedCount > 0 && (
-                    <span className="text-white/35"> · {nlStatus.unsubscribedCount} frameldt</span>
-                  )}
-                </p>
-              )}
-              {nlStatus.formName && (
-                <p>
-                  <span className="text-white/40">Kilde</span> ·{' '}
-                  {nlStatus.source === 'forms-api' ? 'Formular' : nlStatus.source === 'cms-collection' ? 'CMS' : nlStatus.source}{' '}
-                  · {nlStatus.formName}
-                </p>
-              )}
+          <div className="space-y-1">
+            <div className="flex items-center justify-between text-xs">
+              <span className="text-white/50">Modtagere</span>
+              <span className={nlStatus.connected ? 'text-white/70' : 'text-amber-400/80'}>
+                {nlStatus.connected ? nlStatus.recipientCount : '—'}
+              </span>
             </div>
-            {nlStatus.error && (
-              <p className="text-red-400/75 text-[11px] leading-snug whitespace-pre-wrap">{nlStatus.error}</p>
-            )}
+            {nlStatus.error ? <p className="text-red-400/75 text-[11px]">{nlStatus.error}</p> : null}
           </div>
-        )}
-        {user && !nlStatus && !testingNl && (
-          <p className="text-white/30 text-xs">Tryk &quot;Test&quot; for at hente antal subscribers fra Webflow</p>
         )}
       </div>
 
@@ -354,20 +329,7 @@ function IntegrationsTab() {
                 <span className="text-white/60 text-xs">{fbStatus.pageName || 'Side forbundet'}</span>
               </div>
             ) : (
-              <>
-                <p className="text-amber-400/85 text-xs leading-snug">{fbStatus.error || 'Ikke forbundet'}</p>
-                {fbStatus.nextStep ? (
-                  <p className="text-white/45 text-[11px] leading-snug">{fbStatus.nextStep}</p>
-                ) : null}
-                {fbStatus.settingsHref ? (
-                  <Link
-                    href={fbStatus.settingsHref}
-                    className="inline-block text-xs text-sky-400/90 hover:text-sky-300 underline underline-offset-2"
-                  >
-                    Åbn Instagram & Facebook (Indstillinger)
-                  </Link>
-                ) : null}
-              </>
+              <p className="text-amber-400/85 text-xs">{fbStatus.error || 'Ikke forbundet'}</p>
             )}
           </div>
         )}
@@ -380,6 +342,11 @@ function IntegrationsTab() {
             }`}
           >
             {igDiag.error && !igDiag.debug && <p>{igDiag.error}</p>}
+            {!igDiag.ok && igDiag.issue === 'session_invalidated' && (
+              <p className="text-amber-200/90 font-medium">
+                Session invalideret (fx adgangskodeskift). Lav nyt token under Indstillinger → Social.
+              </p>
+            )}
             {igDiag.debug && (
               <>
                 <p>
@@ -395,31 +362,14 @@ function IntegrationsTab() {
               <p className="text-amber-200/75">Instagram: {igDiag.instagramProfile.error}</p>
             )}
             {igDiag.recommendation ? (
-              <p className="text-sky-200/90 border-l-2 border-sky-400/60 pl-2">{igDiag.recommendation}</p>
+              <p className="text-white/55">{igDiag.recommendation}</p>
             ) : null}
-            {igDiag.hints?.slice(0, 2).map((h, i) => (
-              <p key={i} className="text-white/50">
-                {h}
-              </p>
-            ))}
-            <Link href="/settings?tab=social" className="inline-block text-sky-400/90 underline underline-offset-2">
-              Fuld opsætning →
-            </Link>
           </div>
-        )}
-        {!fbStatus && !igDiag && (
-          <p className="text-white/30 text-xs">«Test» tjekker Facebook-siden. «Diagnose» tjekker Instagram-token i miljøet.</p>
         )}
       </div>
 
-      {/* Token info */}
-      <div className="bg-black rounded-xl p-3">
-        <p className="text-[10px] uppercase tracking-[0.2em] text-white/30 font-medium mb-2">Tokens & API-nøgler</p>
-        <p className="text-white/40 text-xs leading-relaxed">
-          Tokens og API-nøgler konfigureres via Vercel Environment Variables eller .env.local. 
-          Kontakt admin for at ændre integrationsindstillinger.
-        </p>
-      </div>
+      <ImageOptimizationSection variant="panel" />
+      <ArticleTranslationSection variant="panel" />
     </div>
   );
 }

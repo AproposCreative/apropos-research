@@ -9,13 +9,19 @@ import ReviewPanel from '@/components/ReviewPanel';
 import DraftsShelf from '@/components/DraftsShelf';
 import WebAppsPanel from '@/components/WebAppsPanel';
 import MiniMenu from '@/components/MiniMenu';
+import MobileAppLauncher from '@/components/MobileAppLauncher';
 import PreviewPanel from './PreviewPanel';
 import DesignEditorView from '@/app/design-editor/DesignEditorView';
 import AuthModal from '@/components/AuthModal';
 import ChatSearchModal from '@/components/ChatSearchModal';
+import { SEO_TITLE_MAX } from '@/lib/seo/constants';
 import SourcesPanel from '@/components/SourcesPanel';
 import SettingsPanel from '@/components/SettingsPanel';
 import NewsletterClient from '@/app/ai/newsletter/NewsletterClient';
+import DashboardClient from '@/app/dashboard/DashboardClient';
+import PodcastClient from '@/app/ai/podcast/PodcastClient';
+import PushDeskClient from '@/app/push/PushDeskClient';
+import FundingDeskView from '@/app/funding/FundingDeskView';
 import { useAuth } from '@/lib/auth-context';
 import { saveDraft, getDraft, type ArticleDraft } from '@/lib/firebase-service';
 import { autoSaveService } from '@/lib/auto-save-service';
@@ -24,84 +30,27 @@ import type { ThinkingStep, ThinkingStatus } from '@/types/thinking';
 import { PROMPT_ARCHITECT_CONTEXT_KEY } from '@/lib/prompt-architect-constants';
 import { loadPromptModuleToggles } from '@/lib/prompt-architect-storage';
 import { SPLINE_BACKGROUNDS, STORAGE_KEY_SPLINE_BG } from '@/lib/spline-backgrounds';
-
-const buildDefaultArticleData = (): ArticleData => ({
-  title: '',
-  subtitle: '',
-  category: '',
-  author: '',
-  content: '',
-  rating: 0,
-  ratingSkipped: false,
-  tags: [],
-  platform: '',
-  press: null,
-  intro: '',
-  aiDraft: null,
-  previewTitle: '',
-  aiSuggestion: null,
-  template: '',
-  inspirationSource: '',
-  researchSelected: null,
-  inspirationAcknowledged: false,
-  recommendedSelected: null,
-  seoTitle: '',
-  seoDescription: '',
-  publishDate: '',
-  status: 'draft',
-  authorId: '',
-  authorTOV: '',
-  section: '',
-  topic: '',
-  topicsSelected: [],
-  streaming_service: '',
-  featuredImage: '',
-  generationMode: 'editorial'
-});
-
-const normalizeArticleData = (incoming?: Partial<ArticleData>): ArticleData => {
-  const base = buildDefaultArticleData();
-  if (!incoming) return base;
-  return {
-    ...base,
-    ...incoming,
-    tags: Array.isArray(incoming.tags) ? incoming.tags : base.tags,
-    topicsSelected: Array.isArray(incoming.topicsSelected) ? incoming.topicsSelected : base.topicsSelected,
-    generationMode: incoming.generationMode === 'fast' ? 'fast' : 'editorial'
-  };
-};
-
-const BASE_THINKING_STEPS: ThinkingStep[] = [
-  { id: 'analysis', label: 'Analyserer brief og noter', status: 'pending', icon: 'dot' },
-  { id: 'analysis-read', label: 'Indlæser template & noter', status: 'pending', icon: 'doc', indent: 1 },
-  { id: 'analysis-verify', label: 'Verificerer længdekrav', status: 'pending', icon: 'dot', indent: 1 },
-  { id: 'research', label: 'Finder referencer & fakta', status: 'pending', icon: 'dot' },
-  { id: 'research-source', label: 'Scanner kulturkilder', status: 'pending', icon: 'doc', indent: 1 },
-  { id: 'draft', label: 'Skriver Apropos-udkast', status: 'pending', icon: 'dot' },
-  { id: 'draft-shape', label: 'Former intro, brødtekst, eftertanke', status: 'pending', icon: 'doc', indent: 1 },
-  { id: 'polish', label: 'Finpudser tone & struktur', status: 'pending', icon: 'dot' }
-];
+import { EDITORIAL_SIGNAL_PUBLISHED_EVENT } from '@/lib/editorial/signal-store';
+import {
+  BASE_THINKING_STEPS,
+  GENERATION_MODE_OPTIONS,
+  type AIWriterView,
+  buildDefaultArticleData,
+  normalizeArticleData,
+  resolveViewFromSearchParams,
+} from './ai-writer/article-defaults';
+import { clearFundingBriefHandoff, readFundingBriefHandoff } from '@/lib/funding/handoff';
 
 const APP_VERSION = process.env.NEXT_PUBLIC_APP_VERSION || '0.0.0';
 const BUILD_ID = process.env.NEXT_PUBLIC_BUILD_ID || 'local';
 const BUILD_LABEL = process.env.NEXT_PUBLIC_BUILD_LABEL || `${APP_VERSION}.${BUILD_ID}`;
-const GENERATION_MODE_OPTIONS: Array<{ id: 'fast' | 'editorial'; label: string; description: string }> = [
-  { id: 'fast', label: 'Fast mode', description: 'Hurtig sparring uden tung research' },
-  { id: 'editorial', label: 'Editorial', description: 'Fuld redaktionel pipeline med research' }
-];
 
-function resolveViewFromSearchParams(sp: { get: (key: string) => string | null }): 'ai' | 'design-editor' | 'newsletter' | null {
-  const view = sp.get('view');
-  if (view === 'newsletter') return 'newsletter';
-  if (view === 'design-editor') return 'design-editor';
-  if (view === 'ai') return 'ai';
-  const n = sp.get('newsletter');
-  const w = sp.get('webapp');
-  if (n === '1' || n === 'true' || w === 'newsletter') return 'newsletter';
-  return null;
-}
+/** Efter fuldført opsætning eller «Skjul» vises chat uden wizard som standard. */
+const AI_WRITER_SETUP_COLLAPSED_PREF = 'ai-writer-setup-prefer-collapsed';
 
-// using shared ArticleData type
+/** Embedded views — harmoniseret med design-system (`border-white/15`, blur-læsbarhed). */
+const embeddedPanelShell =
+  'rounded-xl bg-black/55 md:bg-[#070707]/90 backdrop-blur-2xl md:backdrop-blur-xl border border-white/15 shadow-[0_20px_70px_rgba(0,0,0,0.55)] overflow-hidden md:outline md:outline-[1.5px] md:outline-offset-[-1.5px] md:outline-zinc-800';
 
 export default function AIWriterClient() {
   const router = useRouter();
@@ -111,21 +60,30 @@ export default function AIWriterClient() {
   const [currentDraftId, setCurrentDraftId] = useState<string | null>(null);
   const [showSearchModal, setShowSearchModal] = useState(false);
   const [isThinking, setIsThinking] = useState(false);
-  const [showWizard, setShowWizard] = useState(true);
+  const [showWizard, setShowWizard] = useState(() => {
+    if (typeof window === 'undefined') return true;
+    try {
+      return localStorage.getItem(AI_WRITER_SETUP_COLLAPSED_PREF) !== '1';
+    } catch {
+      return true;
+    }
+  });
   const [reviewOpen, setReviewOpen] = useState(false);
+  /** Ægte Storage-URLs + original-filnavne for de 3 import-billeder (hero, body1, body2). */
+  const [importImages, setImportImages] = useState<{ url: string; name: string }[]>([]);
   const [shelfOpen, setShelfOpen] = useState(false);
   const [webAppsOpen, setWebAppsOpen] = useState(false);
   const [sourcesOpen, setSourcesOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [isClosing, setIsClosing] = useState(false);
-  const [activeView, setActiveView] = useState<'ai' | 'design-editor' | 'newsletter' | null>(() =>
+  const [activeView, setActiveView] = useState<AIWriterView>(() =>
     resolveViewFromSearchParams(searchParams)
   );
   const leftPanelOpen = shelfOpen || webAppsOpen;
 
   /** Opdater aktiv visning og URL, så refresh og deling bevarer fx nyhedsbrev (`?view=newsletter`). */
   const applyActiveView = useCallback(
-    (view: 'ai' | 'design-editor' | 'newsletter' | null) => {
+    (view: AIWriterView) => {
       setActiveView(view);
       setReviewOpen(false);
       setSourcesOpen(false);
@@ -139,6 +97,14 @@ export default function AIWriterClient() {
         params.set('view', 'newsletter');
       } else if (view === 'design-editor') {
         params.set('view', 'design-editor');
+      } else if (view === 'dashboard') {
+        params.set('view', 'dashboard');
+      } else if (view === 'podcast') {
+        params.set('view', 'podcast');
+      } else if (view === 'push') {
+        params.set('view', 'push');
+      } else if (view === 'funding') {
+        params.set('view', 'funding');
       } else if (view === 'ai') {
         params.set('view', 'ai');
       } else {
@@ -204,7 +170,7 @@ export default function AIWriterClient() {
   const chatPanelRef = useRef<HTMLDivElement>(null);
   const isDesktop = viewportWidth >= 768;
   const isNarrowDesktop = viewportWidth < 1280;
-  const showMiniMenu = viewportWidth >= 1150;
+  const showMiniMenu = isDesktop;
   const stopThinkingTimeline = useCallback(() => {
     if (thinkingTimersRef.current.length) {
       thinkingTimersRef.current.forEach((timer) => window.clearTimeout(timer));
@@ -257,7 +223,7 @@ export default function AIWriterClient() {
   useEffect(() => {
     const next = resolveViewFromSearchParams(searchParams);
     setActiveView((prev) => (prev === next ? prev : next));
-    if (next === 'newsletter') {
+    if (next === 'newsletter' || next === 'dashboard' || next === 'podcast' || next === 'push' || next === 'funding') {
       setReviewOpen(false);
       setSourcesOpen(false);
       setSettingsOpen(false);
@@ -271,6 +237,22 @@ export default function AIWriterClient() {
       setWebAppsOpen(false);
       if (id === 'newsletter') {
         applyActiveView('newsletter');
+        return;
+      }
+      if (id === 'push-desk') {
+        applyActiveView('push');
+        return;
+      }
+      if (id === 'funding-desk') {
+        applyActiveView('funding');
+        return;
+      }
+      if (id === 'dashboard') {
+        applyActiveView('dashboard');
+        return;
+      }
+      if (id === 'podcast') {
+        applyActiveView('podcast');
         return;
       }
       applyActiveView(id === 'design-editor' ? 'design-editor' : 'ai');
@@ -300,10 +282,18 @@ export default function AIWriterClient() {
     }
   }, [reviewOpen, shelfOpen, webAppsOpen, isDesktop, isNarrowDesktop]);
 
-  // Make design editor open larger by default on desktop.
+  // Make tool/editor panels open larger by default on desktop.
   useEffect(() => {
     if (typeof window === 'undefined') return;
-    if (activeView !== 'design-editor') return;
+    if (
+      activeView !== 'design-editor' &&
+      activeView !== 'dashboard' &&
+      activeView !== 'podcast' &&
+      activeView !== 'push' &&
+      activeView !== 'funding'
+    ) {
+      return;
+    }
     if (!isDesktop) return;
     const target = Math.min(Math.round(viewportWidth * 0.75), 1000);
     setChatWidth(prev => {
@@ -788,8 +778,8 @@ export default function AIWriterClient() {
                 .replace(/-+/g, '-')
                 .trim();
 
-              const seoTitle = extractedTitle.length > 60
-                ? `${extractedTitle.substring(0, 57)}...`
+              const seoTitle = extractedTitle.length > SEO_TITLE_MAX
+                ? `${extractedTitle.substring(0, SEO_TITLE_MAX - 3)}...`
                 : extractedTitle;
 
               extractedFields = {
@@ -967,9 +957,114 @@ export default function AIWriterClient() {
     }
   };
 
+  /**
+   * "Importér artikel"-flow: tager den indsatte artikeltekst + 3 uploadede
+   * billeder (ægte Storage-URLs), henter CMS-options og kalder
+   * /api/articles/import, som optimerer billeder + autofylder alle felter.
+   */
+  const handleImportArticle = useCallback(async (text: string, images: { url: string; name: string }[]) => {
+    const trimmed = (text || '').trim();
+    const imgs = (images || []).filter((i) => i && i.url);
+
+    if (!trimmed) {
+      addChatMessage('assistant', 'Indsæt artikelteksten i chatten før import.');
+      return;
+    }
+    if (imgs.length !== 3) {
+      addChatMessage(
+        'assistant',
+        `Importér artikel kræver 3 billeder (1 hero + 2 til brødteksten). Du har uploadet ${imgs.length}.`
+      );
+      return;
+    }
+
+    addChatMessage('user', 'Importér færdig artikel (1 hero + 2 brødtekst-billeder).');
+    setIsThinking(true);
+    try {
+      const fetchOptions = async (path: string) => {
+        try {
+          const res = await fetch(path, { cache: 'no-store' });
+          if (!res.ok) return [];
+          const j = await res.json();
+          const items = j.data?.items || j.items || [];
+          return Array.isArray(items) ? items : [];
+        } catch {
+          return [];
+        }
+      };
+
+      const [sections, topics, authors, streamingServices] = await Promise.all([
+        fetchOptions('/api/webflow/sections'),
+        fetchOptions('/api/webflow/topics'),
+        fetchOptions('/api/webflow/authors'),
+        fetchOptions('/api/webflow/streaming-services'),
+      ]);
+
+      const response = await fetch('/api/articles/import', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          articleText: trimmed,
+          images: { hero: imgs[0], body1: imgs[1], body2: imgs[2] },
+          sections,
+          topics,
+          authors,
+          streamingServices,
+        }),
+      });
+
+      if (!response.ok) {
+        let message = `Import fejlede (HTTP ${response.status}).`;
+        try {
+          const errJson = await response.json();
+          if (typeof errJson?.error === 'string' && errJson.error.trim()) message = errJson.error.trim();
+        } catch {}
+        addChatMessage('assistant', message);
+        return;
+      }
+
+      const json = await response.json();
+      const articleUpdate = json?.data?.articleUpdate || json?.articleUpdate;
+      if (!articleUpdate || !articleUpdate.content) {
+        addChatMessage('assistant', 'Importen kom ikke retur med et brugbart resultat. Prøv igen.');
+        return;
+      }
+
+      setArticleData(prev => ({ ...prev, ...articleUpdate }));
+      setImportImages([]);
+
+      const summary = [
+        `Titel: ${articleUpdate.title || '—'}`,
+        articleUpdate.category ? `Section: ${articleUpdate.category}` : null,
+        Array.isArray(articleUpdate.topicsSelected) && articleUpdate.topicsSelected.length
+          ? `Emner: ${articleUpdate.topicsSelected.join(', ')}`
+          : null,
+        articleUpdate.author ? `Forfatter: ${articleUpdate.author}` : null,
+        articleUpdate.rating ? `Bedømmelse: ${articleUpdate.rating}⭐` : null,
+        typeof articleUpdate.readTime === 'number' ? `Læsetid: ${articleUpdate.readTime} min` : null,
+        `SEO-titel: ${articleUpdate.seoTitle || '—'}`,
+      ].filter(Boolean).join('\n');
+
+      addChatMessage(
+        'assistant',
+        `Artiklen er importeret og gjort publiceringsklar:\n${summary}\n\nBilleder er optimeret (hero + 2 i brødteksten). Tjek alle felter i preview-panelet før du udgiver.`
+      );
+    } catch (error) {
+      console.error('Import article error:', error);
+      addChatMessage('assistant', 'Der opstod en fejl under importen. Tjek forbindelsen og prøv igen.');
+    } finally {
+      setIsThinking(false);
+    }
+  }, [addChatMessage]);
+
   const handleSetupWizardComplete = useCallback(async (setup: any) => {
     setArticleData(prev => ({ ...prev, ...setup }));
     setShowWizard(false);
+    try {
+      localStorage.setItem(AI_WRITER_SETUP_COLLAPSED_PREF, '1');
+    } catch {
+      /* ignore */
+    }
     const topicsDisplay = Array.isArray(setup.topicsSelected) && setup.topicsSelected.length
       ? setup.topicsSelected.join(', ')
       : Array.isArray(setup.tags) && setup.tags.length
@@ -987,7 +1082,12 @@ export default function AIWriterClient() {
     ].filter(Boolean).join('\n');
     
     // Auto-generate article if template is 'notes' and we have notes
-    if (setup.template === 'notes' && notes && notes.length > 120) {
+    if (setup.template === 'import') {
+      addChatMessage(
+        'assistant',
+        `Super. Jeg er klar til at importere.\n${summary}\n\nIndsæt din færdige artikel i feltet nedenfor og upload 3 billeder (1 til hero/thumbnail + 2 til brødteksten). Tryk send, så optimerer jeg billederne og udfylder alle CMS-felter.`
+      );
+    } else if (setup.template === 'notes' && notes && notes.length > 120) {
       addChatMessage('assistant', `Super. Jeg har sat artiklen op:\n${summary}\n\nJeg genererer nu artiklen baseret på dine noter...`);
       // Auto-trigger article generation
       await handleSendMessage('Generer artikel baseret på mine noter');
@@ -995,6 +1095,26 @@ export default function AIWriterClient() {
       addChatMessage('assistant', `Super. Jeg har sat artiklen op:\n${summary}\n\nSkal vi starte med en arbejdstitel og en indledning?`);
     }
   }, [notes, addChatMessage, handleSendMessage]);
+
+  const fundingHandoffRanRef = useRef(false);
+  useEffect(() => {
+    if (fundingHandoffRanRef.current) return;
+    if (searchParams.get('from') !== 'funding') return;
+    const handoff = readFundingBriefHandoff();
+    if (!handoff) return;
+    fundingHandoffRanRef.current = true;
+    clearFundingBriefHandoff();
+    setArticleData((prev) => ({
+      ...prev,
+      fundingOpportunityId: handoff.opportunityId,
+      fundingResearch: handoff.fundingResearch ?? null,
+      applicationSection: handoff.applicationSection,
+      topic: handoff.opportunityTitle,
+      title: handoff.opportunityTitle,
+    }));
+    setActiveView('ai');
+    void handleSendMessage(handoff.briefText);
+  }, [searchParams, handleSendMessage]);
 
   // Automatically reveal review drawer when fresh article content arrives
   const previousContentRef = useRef(articleData.content || '');
@@ -1007,9 +1127,9 @@ export default function AIWriterClient() {
     previousContentRef.current = next;
   }, [articleData.content, reviewOpen]);
 
-  // Auto-save to Firebase when data changes
+  // Auto-save to Firebase when data changes (kun i AI Writer — undgår Firestore-fejl i andre views)
   useEffect(() => {
-    if (!user || chatMessages.length === 0) return;
+    if (!user || chatMessages.length === 0 || activeView !== 'ai') return;
 
     const autoSaveTimeout = setTimeout(async () => {
       try {
@@ -1056,7 +1176,7 @@ export default function AIWriterClient() {
     }, 2000); // Auto-save after 2 seconds of inactivity
 
     return () => clearTimeout(autoSaveTimeout);
-  }, [chatMessages, articleData, notes, user, currentDraftId, chatTitle]);
+  }, [chatMessages, articleData, notes, user, currentDraftId, chatTitle, activeView]);
 
   const handleLoadDraft = (draft: ArticleDraft) => {
     
@@ -1202,63 +1322,21 @@ export default function AIWriterClient() {
             key={selectedSplineBg}
             loading="lazy"
           />
+          {/* Dæk Spline free-tier "Made with Spline"-mærket i nederste højre hjørne */}
+          <div
+            aria-hidden
+            className="pointer-events-none absolute bottom-0 right-0 h-11 w-40 bg-black/95 backdrop-blur-md rounded-tl-xl"
+          />
         </div>
         {/* Transparent overlay during resize to prevent iframe from stealing mouse events */}
         {isResizing && <div className="absolute inset-0 z-[5]" />}
 
-        {/* Clean landing: no panels open — show centered launcher on mobile */}
+        {/* Clean landing: full web-app grid on mobile (drives from web-apps-config) */}
         {user && activeView === null && !leftPanelOpen && !reviewOpen && !sourcesOpen && !settingsOpen && (
-          <div className="md:hidden absolute inset-0 z-20 flex flex-col items-center justify-center px-6">
-            <img
-              src="/images/Apropos Research White.png"
-              alt="Apropos Research"
-              className="h-8 opacity-50 mb-8"
-            />
-            <div className="grid grid-cols-2 gap-3 w-full max-w-xs">
-              <button
-                type="button"
-                onClick={() => applyActiveView('ai')}
-                className="flex flex-col items-center gap-2 py-5 rounded-2xl border border-white/[0.12] bg-white/[0.04] hover:bg-white/[0.08] transition-colors"
-              >
-                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-white/70">
-                  <path d="M12 20h9M16.5 3.5a2.121 2.121 0 1 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/>
-                </svg>
-                <span className="text-[13px] text-white/70">AI Writer</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => applyActiveView('newsletter')}
-                className="flex flex-col items-center gap-2 py-5 rounded-2xl border border-white/[0.12] bg-white/[0.04] hover:bg-white/[0.08] transition-colors"
-              >
-                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-white/70">
-                  <rect x="2" y="4" width="20" height="16" rx="2"/>
-                  <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/>
-                </svg>
-                <span className="text-[13px] text-white/70">Nyhedsbrev</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => applyActiveView('design-editor')}
-                className="flex flex-col items-center gap-2 py-5 rounded-2xl border border-white/[0.12] bg-white/[0.04] hover:bg-white/[0.08] transition-colors"
-              >
-                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-white/70">
-                  <rect x="3" y="3" width="18" height="18" rx="2"/>
-                  <path d="M3 9h18M9 21V9"/>
-                </svg>
-                <span className="text-[13px] text-white/70">Design Editor</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setShelfOpen(true)}
-                className="flex flex-col items-center gap-2 py-5 rounded-2xl border border-white/[0.12] bg-white/[0.04] hover:bg-white/[0.08] transition-colors"
-              >
-                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-white/70">
-                  <path d="M4 6h16M4 12h16M4 18h16"/>
-                </svg>
-                <span className="text-[13px] text-white/70">Mine artikler</span>
-              </button>
-            </div>
-          </div>
+          <MobileAppLauncher
+            onSelectApp={handleSelectWebApp}
+            onOpenShelf={() => setShelfOpen(true)}
+          />
         )}
 
         {user && (
@@ -1277,7 +1355,7 @@ export default function AIWriterClient() {
             
             {/* Left panel: Web-apps or Mine artikler (desktop) */}
             <div className={`hidden md:block absolute top-[1%] bottom-[1%] left-[1%] z-40`} style={{ width: leftPanelOpen ? 'min(300px, 50vw)' : '0px', transition: 'width 320ms cubic-bezier(0.22, 1, 0.36, 1), opacity 220ms ease', opacity: leftPanelOpen ? 1 : 0, pointerEvents: leftPanelOpen ? 'auto' : 'none' }}>
-              <div className={`h-full flex flex-col rounded-xl border border-white/20 overflow-hidden transform bg-[#171717]`} style={{ transition: 'transform 320ms cubic-bezier(0.22, 1, 0.36, 1)', transform: leftPanelOpen ? 'translateX(0px)' : 'translateX(-8px)' }}>
+              <div className={`h-full flex flex-col transform ${embeddedPanelShell}`} style={{ transition: 'transform 320ms cubic-bezier(0.22, 1, 0.36, 1)', transform: leftPanelOpen ? 'translateX(0px)' : 'translateX(-8px)' }}>
                 {webAppsOpen && (
                   <WebAppsPanel
                   isOpen={webAppsOpen}
@@ -1308,7 +1386,7 @@ export default function AIWriterClient() {
             </div>
             {/* Mobile: Web-apps panel */}
             <div className={`md:hidden ${webAppsOpen ? 'absolute inset-0 z-40 translate-x-0' : 'hidden'} transition-transform duration-300`}>
-              <div className="h-full flex flex-col rounded-none border-t border-white/10 bg-[#171717]">
+              <div className="h-full flex flex-col rounded-none border-t border-white/15 bg-[#070707]/95 backdrop-blur-3xl">
                 <WebAppsPanel
                   isOpen={webAppsOpen}
                   onClose={() => setWebAppsOpen(false)}
@@ -1318,7 +1396,7 @@ export default function AIWriterClient() {
             </div>
             {/* Mobile: Mine artikler shelf */}
             <div className={`md:hidden ${shelfOpen ? 'absolute inset-0 z-40 translate-x-0' : 'hidden'} transition-transform duration-300`}>
-              <div className="h-full flex flex-col rounded-none border-t border-white/10 bg-[#171717]">
+              <div className="h-full flex flex-col rounded-none border-t border-white/15 bg-[#070707]/95 backdrop-blur-3xl">
                 <DraftsShelf 
                   isOpen={shelfOpen} 
                   onSelect={(draft)=>{ 
@@ -1372,6 +1450,10 @@ export default function AIWriterClient() {
                 messages={chatMessages}
                 setChatMessages={setChatMessages}
                 onSendMessage={handleSendMessage}
+                importMode={(articleData as any).template === 'import'}
+                importImages={importImages}
+                onImportImagesChange={setImportImages}
+                onImportSubmit={handleImportArticle}
                 articleData={articleData}
                 isThinking={isThinking}
                 thinkingSteps={thinkingSteps}
@@ -1397,7 +1479,11 @@ export default function AIWriterClient() {
                 wizardNode={(
                   <div>
                     {/* Persistent progress */}
-                    <button type="button" onClick={()=>setShowWizard(true)} className="w-full px-3 py-2 md:py-3 flex gap-1 items-center cursor-pointer">
+                    <button
+                      type="button"
+                      onClick={() => setShowWizard(true)}
+                      className="w-full px-3 py-2 md:py-3 flex flex-col gap-1.5 items-stretch cursor-pointer text-left"
+                    >
                         {(() => {
                           const templateDone = Boolean((articleData as any).template);
                           const sectionLower = String((articleData as any).category || (articleData as any).section || '').toLowerCase();
@@ -1420,28 +1506,56 @@ export default function AIWriterClient() {
                           const topicDone = topicsSelected.length >=2;
                           const ratingDone = Boolean((articleData as any).rating && Number((articleData as any).rating)>0) || Boolean((articleData as any).ratingSkipped);
                           const pressDone = typeof (articleData as any).press === 'boolean';
-                          const segs: boolean[] = [
-                            templateDone,
-                            authorDone,
-                            sectionDone,
-                            topicDone
+                          const segRows: { ok: boolean; label: string }[] = [
+                            { ok: templateDone, label: 'Skabelon' },
+                            { ok: authorDone, label: 'Forfatter' },
+                            { ok: sectionDone, label: 'Sektion' },
+                            { ok: topicDone, label: 'Emner' },
                           ];
                           if (requiresPlatform) {
-                            segs.push(hasPlatform);
+                            segRows.push({ ok: hasPlatform, label: 'Platform' });
                           }
-                          segs.push(ratingDone);
-                          segs.push(pressDone);
-                          return segs.map((ok, i)=> (
-                            <div key={i} className={`h-1.5 flex-1 rounded ${ok ? 'bg-white shadow-[0_0_10px_#fff]' : 'bg-white/10'}`}></div>
-                          ));
+                          segRows.push(
+                            { ok: ratingDone, label: 'Bedømmelse' },
+                            { ok: pressDone, label: 'Presse' },
+                          );
+                          const doneCount = segRows.filter((s) => s.ok).length;
+                          const total = segRows.length;
+                          return (
+                            <>
+                              <div className="flex items-center justify-between gap-2 pr-0.5">
+                                <span className="text-[9px] uppercase tracking-[0.16em] text-white/45">Artikel opsætning</span>
+                                <span className="text-[9px] tabular-nums text-white/50" aria-live="polite">
+                                  {doneCount}/{total} trin
+                                </span>
+                              </div>
+                              <div className="flex gap-1 items-center w-full py-2.5">
+                                {segRows.map((s, i) => (
+                                  <div
+                                    key={`${s.label}-${i}`}
+                                    title={s.label}
+                                    aria-label={`${s.label}: ${s.ok ? 'udført' : 'mangler'}`}
+                                    className={`h-1.5 flex-1 rounded min-w-0 ${s.ok ? 'bg-white shadow-[0_0_10px_#fff]' : 'bg-white/10'}`}
+                                  />
+                                ))}
+                              </div>
+                            </>
+                          );
                         })()}
                     </button>
                     {/* Animated wizard container */}
                     <div className={`transition-all duration-300 ease-out overflow-x-hidden ${showWizard ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-2 max-h-0 overflow-hidden pointer-events-none'}`}>
                       <div className="flex items-center justify-between px-3 py-2 md:p-3" style={{display: showWizard ? 'flex' : 'none'}}>
-                      <h2 className="text-white text-base font-medium">
-                        <span className="hidden md:inline">Artikel opsætning</span>
-                        <span className="md:hidden inline">Setup</span>
+                      <h2
+                        className="text-white text-base font-medium"
+                        aria-label="Artikel opsætning"
+                      >
+                        <span aria-hidden className="hidden md:inline">
+                          Artikel opsætning
+                        </span>
+                        <span aria-hidden className="md:hidden inline">
+                          Setup
+                        </span>
                       </h2>
                       <div className="flex items-center gap-2 text-[9px] uppercase tracking-[0.18em]">
                         <div className="flex rounded-full border border-white/20 overflow-hidden bg-white/5">
@@ -1465,7 +1579,20 @@ export default function AIWriterClient() {
                             );
                           })}
                         </div>
-                        <button type="button" onClick={()=>setShowWizard(false)} className="text-white/60 hover:text-white">Skjul</button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setShowWizard(false);
+                            try {
+                              localStorage.setItem(AI_WRITER_SETUP_COLLAPSED_PREF, '1');
+                            } catch {
+                              /* ignore */
+                            }
+                          }}
+                          className="text-white/60 hover:text-white"
+                        >
+                          Skjul
+                        </button>
                         </div>
                       </div>
                       <SetupWizard
@@ -1524,7 +1651,9 @@ export default function AIWriterClient() {
                   <div className="absolute top-1/2 right-0 -translate-y-1/2 translate-x-1/2 w-1 h-16 bg-white/0 group-hover:bg-white/30 rounded-full transition-colors" />
                 </div>
               )}
-              <DesignEditorView embedMode onBack={() => applyActiveView(null)} />
+              <div className={`h-full w-full flex flex-col font-poppins ${embeddedPanelShell}`}>
+                <DesignEditorView embedMode onBack={() => applyActiveView(null)} />
+              </div>
             </div>
             )}
 
@@ -1549,8 +1678,116 @@ export default function AIWriterClient() {
                   <div className="absolute top-1/2 right-0 -translate-y-1/2 translate-x-1/2 w-1 h-16 bg-white/0 group-hover:bg-white/30 rounded-full transition-colors" />
                 </div>
               )}
-              <div className="h-full w-full flex flex-col font-poppins rounded-xl bg-black/40 md:bg-black backdrop-blur-xl md:backdrop-blur-0 border border-white/15 overflow-hidden md:outline md:outline-[1.5px] md:outline-offset-[-1.5px] md:outline-zinc-800">
+              <div className={`h-full w-full flex flex-col font-poppins ${embeddedPanelShell}`}>
                 <NewsletterClient embedded onClose={() => applyActiveView(null)} />
+              </div>
+            </div>
+            )}
+
+            {activeView === 'dashboard' && (
+            <div
+              className="w-full flex-shrink-0 absolute top-0 bottom-0 left-0 md:top-[1%] md:bottom-[1%] md:left-[1%] z-10"
+              style={{
+                width: isDesktop ? `${chatWidth}px` : '100%',
+                transition: isResizing ? 'none' : 'transform 320ms cubic-bezier(0.22, 1, 0.36, 1)',
+                transform: leftPanelOpen ? 'translateX(calc(12px + min(300px, 50vw)))' : 'translateX(0)',
+              }}
+            >
+              {isDesktop && (
+                <div
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    setIsResizing(true);
+                  }}
+                  className="absolute top-0 bottom-0 right-0 w-1 cursor-col-resize hover:bg-white/20 transition-colors z-30 group"
+                  style={{ touchAction: 'none' }}
+                >
+                  <div className="absolute top-1/2 right-0 -translate-y-1/2 translate-x-1/2 w-1 h-16 bg-white/0 group-hover:bg-white/30 rounded-full transition-colors" />
+                </div>
+              )}
+              <div className={`h-full w-full flex flex-col font-poppins ${embeddedPanelShell}`}>
+                <DashboardClient embedded onClose={() => applyActiveView(null)} />
+              </div>
+            </div>
+            )}
+
+            {activeView === 'podcast' && (
+            <div
+              className="w-full flex-shrink-0 absolute top-0 bottom-0 left-0 md:top-[1%] md:bottom-[1%] md:left-[1%] z-10"
+              style={{
+                width: isDesktop ? `${chatWidth}px` : '100%',
+                transition: isResizing ? 'none' : 'transform 320ms cubic-bezier(0.22, 1, 0.36, 1)',
+                transform: leftPanelOpen ? 'translateX(calc(12px + min(300px, 50vw)))' : 'translateX(0)',
+              }}
+            >
+              {isDesktop && (
+                <div
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    setIsResizing(true);
+                  }}
+                  className="absolute top-0 bottom-0 right-0 w-1 cursor-col-resize hover:bg-white/20 transition-colors z-30 group"
+                  style={{ touchAction: 'none' }}
+                >
+                  <div className="absolute top-1/2 right-0 -translate-y-1/2 translate-x-1/2 w-1 h-16 bg-white/0 group-hover:bg-white/30 rounded-full transition-colors" />
+                </div>
+              )}
+              <div className={`h-full w-full flex flex-col font-poppins ${embeddedPanelShell}`}>
+                <PodcastClient embedded onClose={() => applyActiveView(null)} />
+              </div>
+            </div>
+            )}
+
+            {activeView === 'push' && (
+            <div
+              className="w-full flex-shrink-0 absolute top-0 bottom-0 left-0 md:top-[1%] md:bottom-[1%] md:left-[1%] z-10"
+              style={{
+                width: isDesktop ? `${chatWidth}px` : '100%',
+                transition: isResizing ? 'none' : 'transform 320ms cubic-bezier(0.22, 1, 0.36, 1)',
+                transform: leftPanelOpen ? 'translateX(calc(12px + min(300px, 50vw)))' : 'translateX(0)',
+              }}
+            >
+              {isDesktop && (
+                <div
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    setIsResizing(true);
+                  }}
+                  className="absolute top-0 bottom-0 right-0 w-1 cursor-col-resize hover:bg-white/20 transition-colors z-30 group"
+                  style={{ touchAction: 'none' }}
+                >
+                  <div className="absolute top-1/2 right-0 -translate-y-1/2 translate-x-1/2 w-1 h-16 bg-white/0 group-hover:bg-white/30 rounded-full transition-colors" />
+                </div>
+              )}
+              <div className={`h-full w-full flex flex-col font-poppins ${embeddedPanelShell}`}>
+                <PushDeskClient embedded onClose={() => applyActiveView(null)} />
+              </div>
+            </div>
+            )}
+
+            {activeView === 'funding' && (
+            <div
+              className="w-full flex-shrink-0 absolute top-0 bottom-0 left-0 md:top-[1%] md:bottom-[1%] md:left-[1%] z-10"
+              style={{
+                width: isDesktop ? `${chatWidth}px` : '100%',
+                transition: isResizing ? 'none' : 'transform 320ms cubic-bezier(0.22, 1, 0.36, 1)',
+                transform: leftPanelOpen ? 'translateX(calc(12px + min(300px, 50vw)))' : 'translateX(0)',
+              }}
+            >
+              {isDesktop && (
+                <div
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    setIsResizing(true);
+                  }}
+                  className="absolute top-0 bottom-0 right-0 w-1 cursor-col-resize hover:bg-white/20 transition-colors z-30 group"
+                  style={{ touchAction: 'none' }}
+                >
+                  <div className="absolute top-1/2 right-0 -translate-y-1/2 translate-x-1/2 w-1 h-16 bg-white/0 group-hover:bg-white/30 rounded-full transition-colors" />
+                </div>
+              )}
+              <div className={`h-full w-full flex flex-col font-poppins ${embeddedPanelShell}`}>
+                <FundingDeskView embedded onClose={() => applyActiveView(null)} />
               </div>
             </div>
             )}
@@ -1565,6 +1802,8 @@ export default function AIWriterClient() {
                 : leftPanelOpen
                   ? `translateX(calc(12px + min(300px, 50vw) + ${chatWidth}px + 12px))` 
                   : `translateX(calc(${chatWidth}px + 12px))`}
+              writerShortcutsEnabled={activeView === 'ai'}
+              onGoToAiWriter={() => applyActiveView('ai')}
               onSearch={() => setShowSearchModal(true)}
               onToggleReview={() => { setSourcesOpen(false); setSettingsOpen(false); if (isNarrowDesktop) { setShelfOpen(false); setWebAppsOpen(false); } setReviewOpen(prev=>!prev); }}
               onToggleWebApps={() => { setShelfOpen(false); setReviewOpen(false); setSourcesOpen(false); setSettingsOpen(false); setWebAppsOpen(prev=>!prev); }}
@@ -1611,6 +1850,14 @@ export default function AIWriterClient() {
                     }}
                     onRecommendationsApplied={() => {
                       console.log('✅ Recommendations applied callback received');
+                    }}
+                    onEditorialSignalPublished={(detail) => {
+                      if (!detail?.signalId) return;
+                      window.dispatchEvent(
+                        new CustomEvent(EDITORIAL_SIGNAL_PUBLISHED_EVENT, {
+                          detail,
+                        })
+                      );
                     }}
                   />
                 </div>

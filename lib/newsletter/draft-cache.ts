@@ -7,7 +7,7 @@ import { getAdminDb } from '@/lib/firebase-admin';
 
 const DRAFT_CACHE_COLLECTION = 'newsletterDraftCache';
 const CACHE_DOC_PREFIX = 'weekly-';
-const DRAFT_TEMPLATE_VERSION = 18;
+const DRAFT_TEMPLATE_VERSION = 27;
 
 export type DraftCacheHit = {
   hit: true;
@@ -58,6 +58,7 @@ function parseCachedDraftData(
             slug: String(row.slug ?? ''),
             excerpt: String(row.excerpt ?? ''),
             thumbUrl: typeof row.thumbUrl === 'string' ? row.thumbUrl : null,
+            selectionDate: String(row.selectionDate ?? row.lastPublished ?? ''),
             lastPublished: String(row.lastPublished ?? ''),
             url: String(row.url ?? ''),
             subtitle: typeof row.subtitle === 'string' ? row.subtitle : null,
@@ -66,6 +67,8 @@ function parseCachedDraftData(
                 ? row.ratingStars
                 : null,
             metaCategoryLine: typeof row.metaCategoryLine === 'string' ? row.metaCategoryLine : null,
+            authorItemId: typeof row.authorItemId === 'string' ? row.authorItemId : null,
+            authorName: typeof row.authorName === 'string' ? row.authorName : null,
           };
         })
     : [];
@@ -113,6 +116,7 @@ export function buildWeeklyDraftInputHash(params: {
       title: a.title,
       excerpt: a.excerpt,
       thumbUrl: a.thumbUrl || '',
+      selectionDate: a.selectionDate,
       lastPublished: a.lastPublished,
       url: a.url,
       subtitle: a.subtitle ?? null,
@@ -169,11 +173,14 @@ export async function saveWeeklyDraftCache(
         slug: a.slug,
         excerpt: a.excerpt,
         thumbUrl: a.thumbUrl || null,
+        selectionDate: a.selectionDate,
         lastPublished: a.lastPublished,
         url: a.url,
         subtitle: a.subtitle ?? null,
         ratingStars: a.ratingStars ?? null,
         metaCategoryLine: a.metaCategoryLine ?? null,
+        authorItemId: a.authorItemId ?? null,
+        authorName: a.authorName ?? null,
       })),
       generatedAt: FieldValue.serverTimestamp(),
       updatedAt: FieldValue.serverTimestamp(),
@@ -206,6 +213,7 @@ function draftHitFromStoredFields(d: Record<string, unknown>): DraftCacheHit | D
             slug: String(row.slug ?? ''),
             excerpt: String(row.excerpt ?? ''),
             thumbUrl: typeof row.thumbUrl === 'string' ? row.thumbUrl : null,
+            selectionDate: String(row.selectionDate ?? row.lastPublished ?? ''),
             lastPublished: String(row.lastPublished ?? ''),
             url: String(row.url ?? ''),
             subtitle: typeof row.subtitle === 'string' ? row.subtitle : null,
@@ -214,6 +222,8 @@ function draftHitFromStoredFields(d: Record<string, unknown>): DraftCacheHit | D
                 ? row.ratingStars
                 : null,
             metaCategoryLine: typeof row.metaCategoryLine === 'string' ? row.metaCategoryLine : null,
+            authorItemId: typeof row.authorItemId === 'string' ? row.authorItemId : null,
+            authorName: typeof row.authorName === 'string' ? row.authorName : null,
           };
         })
     : [];

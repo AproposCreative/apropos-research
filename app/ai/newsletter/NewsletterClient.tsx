@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
+import { EmbeddedAppHeader } from '@/components/embedded-app';
 import { useAuth } from '@/lib/auth-context';
 import { stripUnsubscribePlaceholderForPreview } from '@/lib/newsletter/unsubscribe-placeholder';
 
@@ -91,6 +92,7 @@ type NewsletterClientProps = {
 export default function NewsletterClient({ embedded = false, onClose }: NewsletterClientProps) {
   const { user, loading: authLoading } = useAuth();
   const [html, setHtml] = useState<string | null>(null);
+  const [previewArticleIds, setPreviewArticleIds] = useState<string[]>([]);
   const [subject, setSubject] = useState('');
   const [meta, setMeta] = useState<{
     headline: string;
@@ -103,6 +105,9 @@ export default function NewsletterClient({ embedded = false, onClose }: Newslett
     formName: string | null;
     warnings: string[];
     signupError: string | null;
+    previewSource?: 'weekly' | 'custom';
+    /** Fra weekly draft-API: hvor mange i dato-vindue vs. maks. vist. */
+    articlePoolStats?: { inWindowCount: number; inWindowAfterExclude: number; maxPicked: number };
   } | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -134,6 +139,17 @@ export default function NewsletterClient({ embedded = false, onClose }: Newslett
   const [weeklySaveBusy, setWeeklySaveBusy] = useState(false);
   const [weeklyPreviewBusy, setWeeklyPreviewBusy] = useState(false);
   const [weeklyPreviewOffset, setWeeklyPreviewOffset] = useState(-1);
+  const [customHeadline, setCustomHeadline] = useState('');
+  const [customEmailSubject, setCustomEmailSubject] = useState('');
+  const [customIntro, setCustomIntro] = useState('');
+  const [customAiIntro, setCustomAiIntro] = useState(false);
+  const [customSelectedIds, setCustomSelectedIds] = useState<string[]>([]);
+  const [articlePicker, setArticlePicker] = useState<
+    { id: string; title: string; thumbUrl: string | null; lastPublished: string; slug: string }[]
+  >([]);
+  const [articlePickerLoading, setArticlePickerLoading] = useState(false);
+  const [articleSearch, setArticleSearch] = useState('');
+  const [customDraftBusy, setCustomDraftBusy] = useState(false);
   const [mobileSheetOpen, setMobileSheetOpen] = useState(false);
   const [mobileSection, setMobileSection] = useState<string | null>(null);
   const [desktopSection, setDesktopSection] = useState<string | null>(null);
@@ -343,6 +359,9 @@ export default function NewsletterClient({ embedded = false, onClose }: Newslett
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || res.statusText);
       setHtml(data.html);
+      setPreviewArticleIds(
+        Array.isArray(data.articles) ? data.articles.map((a: { id?: unknown }) => String(a?.id ?? '')).filter(Boolean) : []
+      );
       setSubject(data.subject || '');
       setMeta({
         headline: typeof data.headline === 'string' ? data.headline : '',
@@ -355,6 +374,8 @@ export default function NewsletterClient({ embedded = false, onClose }: Newslett
         formName: data.formName || null,
         warnings: data.warnings || [],
         signupError: data.signupError || null,
+        previewSource: 'weekly',
+        articlePoolStats: data.articlePoolStats,
       });
       setStatus(data.cacheHit ? 'Preview uændret (cache)' : 'Preview hentet');
     } catch (e) {
@@ -374,10 +395,15 @@ export default function NewsletterClient({ embedded = false, onClose }: Newslett
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || res.statusText);
       if (!data.found) {
-        setStatus('Ingen gemt kladde — tryk «Hent Preview» for at bygge en.');
+        setPreviewArticleIds([]);
+        setStatus('Henter preview…');
+        await loadDraft();
         return;
       }
       setHtml(data.html);
+      setPreviewArticleIds(
+        Array.isArray(data.articles) ? data.articles.map((a: { id?: unknown }) => String(a?.id ?? '')).filter(Boolean) : []
+      );
       setSubject(data.subject || '');
       setMeta({
         headline: typeof data.headline === 'string' ? data.headline : '',
@@ -390,6 +416,7 @@ export default function NewsletterClient({ embedded = false, onClose }: Newslett
         formName: data.formName || null,
         warnings: data.warnings || [],
         signupError: data.signupError || null,
+        previewSource: 'weekly',
       });
       setStatus('Viser seneste kladde');
     } catch {
@@ -397,7 +424,7 @@ export default function NewsletterClient({ embedded = false, onClose }: Newslett
     } finally {
       setBusy(false);
     }
-  }, [authHeader, html, user]);
+  }, [authHeader, html, loadDraft, user]);
 
   useEffect(() => {
     if (user && !html) void loadDraftFromCacheOnOpen();
@@ -451,6 +478,9 @@ export default function NewsletterClient({ embedded = false, onClose }: Newslett
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || res.statusText);
       setHtml(data.html);
+      setPreviewArticleIds(
+        Array.isArray(data.articles) ? data.articles.map((a: { id?: unknown }) => String(a?.id ?? '')).filter(Boolean) : []
+      );
       setSubject(data.subject || '');
       setWeeklyPreviewOffset(typeof data.weekOffset === 'number' ? data.weekOffset : useOffset);
       const isoWeek = data.week?.isoWeek;
@@ -466,6 +496,8 @@ export default function NewsletterClient({ embedded = false, onClose }: Newslett
         formName: data.formName || null,
         warnings: data.warnings || [],
         signupError: data.signupError || null,
+        previewSource: 'weekly',
+        articlePoolStats: data.articlePoolStats,
       });
       setStatus(useOffset === -1 ? 'Næste automatiske udsendelse' : `Uge ${isoWeek ?? ''} preview`);
     } catch (e) {
@@ -474,6 +506,92 @@ export default function NewsletterClient({ embedded = false, onClose }: Newslett
       setWeeklyPreviewBusy(false);
     }
   }, [authHeader, weeklyPreviewOffset]);
+
+  const refreshArticlePicker = useCallback(async () => {
+    if (!user) return;
+    setArticlePickerLoading(true);
+    try {
+      const headers = await authHeader();
+      const q = articleSearch.trim();
+      const url = `/api/newsletter/articles?limit=100${q ? `&q=${encodeURIComponent(q)}` : ''}`;
+      const res = await fetch(url, { headers });
+      const data = await res.json();
+      if (res.ok && Array.isArray(data.items)) {
+        setArticlePicker(data.items);
+      }
+    } catch {
+      /* stille */
+    } finally {
+      setArticlePickerLoading(false);
+    }
+  }, [authHeader, articleSearch, user]);
+
+  useEffect(() => {
+    if (desktopSection !== 'custom' && mobileSection !== 'custom') return;
+    const delay = articleSearch.trim() ? 350 : 0;
+    const t = window.setTimeout(() => {
+      void refreshArticlePicker();
+    }, delay);
+    return () => window.clearTimeout(t);
+  }, [articleSearch, desktopSection, mobileSection, refreshArticlePicker]);
+
+  const loadCustomPreview = useCallback(async () => {
+    if (customSelectedIds.length === 0) {
+      setError('Vælg mindst én artikel');
+      return;
+    }
+    setError(null);
+    setStatus(null);
+    setCustomDraftBusy(true);
+    try {
+      const headers = await authHeader();
+      const res = await fetch('/api/newsletter/custom-draft', {
+        method: 'POST',
+        headers: { ...headers, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          articleIds: customSelectedIds,
+          intro: customAiIntro ? '' : customIntro,
+          skipAiIntro: !customAiIntro,
+          headline: customHeadline.trim() || undefined,
+          subject: customEmailSubject.trim() || undefined,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || res.statusText);
+      setHtml(data.html);
+      setPreviewArticleIds(
+        Array.isArray(data.articles) ? data.articles.map((a: { id?: unknown }) => String(a?.id ?? '')).filter(Boolean) : []
+      );
+      setSubject(data.subject || '');
+      const wl =
+        typeof data.weekLabel === 'string' ? data.weekLabel : 'Tilpasset udsendelse';
+      setMeta({
+        headline: typeof data.headline === 'string' ? data.headline : '',
+        weekLabel: wl,
+        articleCount: Array.isArray(data.articles) ? data.articles.length : 0,
+        recipientCount: data.recipientCount ?? 0,
+        totalSignups: data.totalSignups ?? data.recipientCount ?? 0,
+        unsubscribedCount: data.unsubscribedCount ?? 0,
+        recipientSource: data.recipientSource || 'unknown',
+        formName: data.formName || null,
+        warnings: data.warnings || [],
+        signupError: data.signupError || null,
+        previewSource: 'custom',
+      });
+      setStatus('Tilpasset preview opdateret');
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Fejl');
+    } finally {
+      setCustomDraftBusy(false);
+    }
+  }, [
+    authHeader,
+    customAiIntro,
+    customEmailSubject,
+    customHeadline,
+    customIntro,
+    customSelectedIds,
+  ]);
 
   const sendTest = useCallback(async () => {
     const recipients = activeTestRecipients.filter((e) => e.trim().length > 0);
@@ -662,6 +780,7 @@ export default function NewsletterClient({ embedded = false, onClose }: Newslett
         body: JSON.stringify({
           html: html || undefined,
           subject: subject || undefined,
+          articleIds: previewArticleIds.length > 0 ? previewArticleIds : undefined,
         }),
       });
       const data = await res.json();
@@ -677,7 +796,7 @@ export default function NewsletterClient({ embedded = false, onClose }: Newslett
       await refreshPendingSchedules();
       setBusy(false);
     }
-  }, [authHeader, html, subject, refreshPendingSchedules]);
+  }, [authHeader, html, subject, previewArticleIds, refreshPendingSchedules]);
 
   if (authLoading) {
     return (
@@ -736,7 +855,7 @@ export default function NewsletterClient({ embedded = false, onClose }: Newslett
   const dangerOutlineBtn =
     'w-full py-2.5 rounded-xl border border-white/25 text-[13px] text-white/90 hover:bg-white/[0.08] disabled:opacity-40 transition-all duration-200 active:scale-[0.98]';
 
-  const anyBusy = busy || scheduleBusy || weeklySaveBusy || weeklyPreviewBusy;
+  const anyBusy = busy || scheduleBusy || weeklySaveBusy || weeklyPreviewBusy || customDraftBusy;
 
   const toggleMobileSection = (key: string) => {
     setMobileSection((prev) => (prev === key ? null : key));
@@ -746,9 +865,12 @@ export default function NewsletterClient({ embedded = false, onClose }: Newslett
     setDesktopSection((prev) => (prev === key ? null : key));
   };
 
-  const sectionRow = (key: string, label: string, icon: React.ReactNode, subtitle?: string) => (
+  const sectionRow = (key: string, label: string, icon: React.ReactNode, subtitle?: string) => {
+    const rowName = subtitle ? `${label}, ${subtitle}` : label;
+    return (
     <button
       type="button"
+      aria-label={rowName}
       onClick={() => toggleMobileSection(key)}
       className={`flex items-center gap-3 w-full px-4 py-3 rounded-xl border transition-all duration-200 active:scale-[0.98] ${
         mobileSection === key
@@ -759,9 +881,13 @@ export default function NewsletterClient({ embedded = false, onClose }: Newslett
       <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-white/[0.06] text-white/60">
         {icon}
       </div>
-      <div className="flex-1 min-w-0 text-left">
+      <div className="flex-1 min-w-0 text-left" aria-hidden>
         <p className="text-[13px] font-medium text-white/85">{label}</p>
-        {subtitle && <p className="text-[11px] text-white/35 truncate">{subtitle}</p>}
+        {subtitle && (
+          <p className="text-[11px] text-white/35 truncate whitespace-nowrap" title={subtitle}>
+            {subtitle}
+          </p>
+        )}
       </div>
       <svg
         className={`size-4 shrink-0 text-white/30 transition-transform duration-200 ${mobileSection === key ? 'rotate-180' : ''}`}
@@ -770,7 +896,8 @@ export default function NewsletterClient({ embedded = false, onClose }: Newslett
         <path strokeLinecap="round" strokeLinejoin="round" d="M6 8l4 4 4-4" />
       </svg>
     </button>
-  );
+    );
+  };
 
   const sectionContent = (key: string, children: React.ReactNode) =>
     mobileSection === key ? (
@@ -920,10 +1047,19 @@ export default function NewsletterClient({ embedded = false, onClose }: Newslett
           <p className="text-[10px] text-white/35 mt-0.5">Auto-send</p>
         </div>
       </div>
+      {meta?.articlePoolStats && meta.previewSource === 'weekly' && (
+        <p className="text-[10px] text-white/40 leading-snug -mt-1">
+          I dato-pulje (Webflow, efter ekskludering): {meta.articlePoolStats.inWindowAfterExclude} artikler · viser
+          højst {meta.articlePoolStats.maxPicked}. Mangler I én, er den ofte overskredet i den kø.
+        </p>
+      )}
       {meta && (
         <div className="space-y-1.5 pt-1">
           {subject && <p className="text-[13px] text-white/85 font-medium leading-snug break-words">{subject}</p>}
           <p className="text-[11px] text-white/40">{meta.weekLabel}</p>
+          {meta.previewSource === 'custom' && (
+            <p className="text-[11px] text-sky-400/80">Sidste preview: tilpasset nyhedsbrev</p>
+          )}
           {nextAutoLabel && (
             <p className="text-[11px] text-emerald-400/70">Næste auto-send: {nextAutoLabel}</p>
           )}
@@ -950,6 +1086,182 @@ export default function NewsletterClient({ embedded = false, onClose }: Newslett
       {meta.signupError && <p className="text-amber-400/85 break-words whitespace-pre-wrap text-[11px] leading-snug pt-1 border-t border-white/[0.06]">{meta.signupError}</p>}
       {meta.warnings.map((w, i) => <p key={i} className="text-white/80 text-[11px] leading-snug">{w}</p>)}
     </div>
+  );
+
+  const toggleCustomArticle = (id: string) => {
+    setCustomSelectedIds((prev) => {
+      if (prev.includes(id)) return prev.filter((x) => x !== id);
+      if (prev.length >= 8) return prev;
+      return [...prev, id];
+    });
+  };
+
+  const moveCustomArticle = (index: number, dir: -1 | 1) => {
+    setCustomSelectedIds((prev) => {
+      const j = index + dir;
+      if (j < 0 || j >= prev.length) return prev;
+      const next = [...prev];
+      const a = next[index];
+      const b = next[j];
+      if (a === undefined || b === undefined) return prev;
+      next[index] = b;
+      next[j] = a;
+      return next;
+    });
+  };
+
+  const customArticleTitle = (id: string) =>
+    articlePicker.find((a) => a.id === id)?.title || `Artikel ${id.slice(0, 8)}…`;
+
+  const customNewsletterBlock = (
+    <>
+      <label className="block text-[12px] text-white/38" htmlFor="nl-custom-headline">
+        Overskrift i nyhedsbrev
+      </label>
+      <input
+        id="nl-custom-headline"
+        type="text"
+        value={customHeadline}
+        onChange={(e) => setCustomHeadline(e.target.value)}
+        placeholder="Vises øverst i mailen"
+        className="w-full px-3 py-2 rounded-lg border border-white/[0.12] bg-[#141414] text-[13px] text-white placeholder:text-white/28 focus:border-white/25 focus:outline-none focus:ring-1 focus:ring-white/10 [color-scheme:dark]"
+      />
+      <label className="block text-[12px] text-white/38 mt-2" htmlFor="nl-custom-subject">
+        Emne (indbakke)
+      </label>
+      <input
+        id="nl-custom-subject"
+        type="text"
+        value={customEmailSubject}
+        onChange={(e) => setCustomEmailSubject(e.target.value)}
+        placeholder="Tom = samme som overskrift"
+        className="w-full px-3 py-2 rounded-lg border border-white/[0.12] bg-[#141414] text-[13px] text-white placeholder:text-white/28 focus:border-white/25 focus:outline-none focus:ring-1 focus:ring-white/10 [color-scheme:dark]"
+      />
+      <p className="text-[10px] text-white/28 leading-snug">Tomt emne bruger overskriften som emnefelt.</p>
+
+      <p className="text-[12px] text-white/38 mt-2">Intro</p>
+      <div className="flex rounded-lg border border-white/12 p-0.5 gap-0.5 bg-black/30" role="group">
+        <button
+          type="button"
+          onClick={() => setCustomAiIntro(false)}
+          className={segBtn(!customAiIntro)}
+        >
+          Min tekst
+        </button>
+        <button
+          type="button"
+          onClick={() => setCustomAiIntro(true)}
+          className={segBtn(customAiIntro)}
+        >
+          Generér med AI
+        </button>
+      </div>
+      {!customAiIntro ? (
+        <textarea
+          value={customIntro}
+          onChange={(e) => setCustomIntro(e.target.value)}
+          rows={5}
+          placeholder="Skriv eller indsæt intro…"
+          className="mt-2 w-full px-3 py-2 rounded-lg border border-white/[0.12] bg-[#141414] text-[13px] text-white placeholder:text-white/28 focus:border-white/25 focus:outline-none focus:ring-1 focus:ring-white/10 resize-y min-h-[100px] [color-scheme:dark]"
+        />
+      ) : (
+        <p className="text-[11px] text-white/35 mt-2 leading-snug">
+          AI skriver intro ud fra de valgte artikler. Udfyld overskrift ovenfor for at låse hero-teksten.
+        </p>
+      )}
+
+      <p className="text-[12px] text-white/38 mt-3">Valgte artikler ({customSelectedIds.length}/8)</p>
+      {customSelectedIds.length > 0 ? (
+        <ul className="space-y-1.5 rounded-lg border border-white/[0.10] bg-white/[0.03] p-2">
+          {customSelectedIds.map((id, i) => (
+            <li
+              key={id}
+              className="flex items-center gap-2 text-[12px] text-white/80 py-1 border-b border-white/[0.06] last:border-0"
+            >
+              <span className="flex-1 min-w-0 truncate">{customArticleTitle(id)}</span>
+              <div className="flex shrink-0 gap-0.5">
+                <button
+                  type="button"
+                  aria-label="Flyt op"
+                  disabled={i === 0}
+                  onClick={() => moveCustomArticle(i, -1)}
+                  className="px-1.5 py-0.5 rounded border border-white/12 text-white/50 hover:text-white/80 disabled:opacity-30"
+                >
+                  ↑
+                </button>
+                <button
+                  type="button"
+                  aria-label="Flyt ned"
+                  disabled={i === customSelectedIds.length - 1}
+                  onClick={() => moveCustomArticle(i, 1)}
+                  className="px-1.5 py-0.5 rounded border border-white/12 text-white/50 hover:text-white/80 disabled:opacity-30"
+                >
+                  ↓
+                </button>
+                <button
+                  type="button"
+                  aria-label="Fjern"
+                  onClick={() => toggleCustomArticle(id)}
+                  className="px-1.5 py-0.5 rounded border border-white/12 text-rose-300/70 hover:text-rose-200"
+                >
+                  ×
+                </button>
+              </div>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="text-[11px] text-white/30 py-2">Ingen valgt endnu — vælg nedenfor.</p>
+      )}
+
+      <label className="block text-[12px] text-white/38 mt-3" htmlFor="nl-article-search">
+        Søg artikler
+      </label>
+      <input
+        id="nl-article-search"
+        type="search"
+        value={articleSearch}
+        onChange={(e) => setArticleSearch(e.target.value)}
+        placeholder="Titel…"
+        className="w-full px-3 py-2 rounded-lg border border-white/[0.12] bg-[#141414] text-[13px] text-white placeholder:text-white/28 focus:border-white/25 focus:outline-none focus:ring-1 focus:ring-white/10 [color-scheme:dark]"
+      />
+      <div className="max-h-52 overflow-y-auto rounded-lg border border-white/[0.10] bg-black/20 mt-1 divide-y divide-white/[0.06]">
+        {articlePickerLoading ? (
+          <p className="text-[12px] text-white/40 p-3">Henter…</p>
+        ) : articlePicker.length === 0 ? (
+          <p className="text-[12px] text-white/35 p-3">Ingen artikler</p>
+        ) : (
+          articlePicker.map((a) => {
+            const on = customSelectedIds.includes(a.id);
+            return (
+              <button
+                key={a.id}
+                type="button"
+                onClick={() => toggleCustomArticle(a.id)}
+                className={`flex w-full items-center gap-2 px-2 py-2 text-left transition-colors ${on ? 'bg-emerald-500/10' : 'hover:bg-white/[0.04]'}`}
+              >
+                {a.thumbUrl ? (
+                  <img src={a.thumbUrl} alt="" className="size-10 shrink-0 rounded object-cover bg-white/10" />
+                ) : (
+                  <div className="size-10 shrink-0 rounded bg-white/10" />
+                )}
+                <span className="flex-1 min-w-0 text-[12px] text-white/80 line-clamp-2">{a.title}</span>
+                <span className="shrink-0 text-[11px] text-white/35">{on ? '✓' : '+'}</span>
+              </button>
+            );
+          })
+        )}
+      </div>
+
+      <button
+        type="button"
+        disabled={anyBusy}
+        onClick={() => void loadCustomPreview()}
+        className={`mt-3 ${primaryBtn}`}
+      >
+        {customDraftBusy ? 'Bygger preview…' : 'Opdater tilpasset preview'}
+      </button>
+    </>
   );
 
   const testMailBlock = (
@@ -1037,7 +1349,7 @@ export default function NewsletterClient({ embedded = false, onClose }: Newslett
     </div>
   ) : (
     <div className="h-full min-h-[160px] flex items-center justify-center rounded-xl border border-dashed border-white/[0.08] bg-black/15 text-white/32 text-[13px] px-6 text-center">
-      Hent Preview
+      {busy ? 'Henter preview…' : 'Hent Preview'}
     </div>
   );
 
@@ -1048,33 +1360,23 @@ export default function NewsletterClient({ embedded = false, onClose }: Newslett
       ? 'flex flex-col h-full min-h-0 text-white bg-transparent font-poppins'
       : 'min-h-[100dvh] flex flex-col text-white bg-[#0a0a0a] font-poppins'
     }>
-      {/* ── Header ── */}
-      <header className={embedded
-        ? 'border-b border-white/10 px-3 lg:px-4 py-2.5 lg:py-3 flex items-center justify-between gap-3 shrink-0 bg-black/25 backdrop-blur-md'
-        : 'border-b border-white/10 px-4 lg:px-5 py-3 lg:py-4 flex items-center justify-between gap-3 shrink-0 bg-[#0c0c0c]'
-      }>
-        <h1 className={`font-medium tracking-tight text-white ${embedded ? 'text-[15px]' : 'text-[17px]'}`}>Nyhedsbrev</h1>
-        <div className="flex items-center gap-2 shrink-0">
-          {/* Theme + viewport toggles: hidden on mobile, shown in sheet instead */}
+      <EmbeddedAppHeader
+        embedded={embedded}
+        title="Nyhedsbrev"
+        onClose={onClose}
+        trailing={
           <div className="hidden lg:flex items-center gap-2">
-            <div className="flex rounded-lg border border-white/12 p-0.5 gap-0.5 bg-black/30 backdrop-blur-sm" role="group">
+            <div className="flex rounded-lg border border-white/12 p-0.5 gap-0.5 bg-black/30 backdrop-blur-sm" role="group" aria-label="Preview-tema">
               <button type="button" onClick={() => setPreviewTheme('light')} className={segBtn(previewTheme === 'light')}>Lys</button>
               <button type="button" onClick={() => setPreviewTheme('dark')} className={segBtn(previewTheme === 'dark')}>Mørk</button>
             </div>
-            <div className="flex rounded-lg border border-white/12 p-0.5 gap-0.5 bg-black/30 backdrop-blur-sm" role="group">
+            <div className="flex rounded-lg border border-white/12 p-0.5 gap-0.5 bg-black/30 backdrop-blur-sm" role="group" aria-label="Preview-bredde">
               <button type="button" onClick={() => setPreviewViewport('mobile')} className={segBtn(previewViewport === 'mobile')}>Mobile</button>
               <button type="button" onClick={() => setPreviewViewport('desktop')} className={segBtn(previewViewport === 'desktop')}>Desktop</button>
             </div>
           </div>
-          {onClose ? (
-            <button type="button" onClick={onClose}
-              className="flex size-8 shrink-0 items-center justify-center rounded-lg border border-white/12 bg-white/[0.06] text-white transition-all duration-200 hover:bg-white/[0.12] active:scale-[0.97]" aria-label="Luk">
-              <svg className="size-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-hidden><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
-            </button>
-          ) : null}
-          {!embedded && <Link href="/ai" className="px-3 py-1.5 rounded-lg border border-white/12 text-sm text-white/65 hover:bg-white/[0.06] hover:text-white/90 transition-all duration-200 active:scale-[0.98]">← Tilbage</Link>}
-        </div>
-      </header>
+        }
+      />
 
       {/* ── Desktop: classic sidebar + preview ── */}
       <div className="flex-1 hidden lg:flex min-h-0 overflow-hidden">
@@ -1098,13 +1400,14 @@ export default function NewsletterClient({ embedded = false, onClose }: Newslett
           <div className="space-y-1.5 pt-1">
             {/* Auto-send */}
             <button type="button" onClick={() => toggleDesktopSection('auto')}
+              aria-label={`Automatisk udsendelse, ${weeklyAutoEnabled ? `${ISO_WEEKDAY_DA[weeklyWeekdayIso] ?? '—'} kl. ${weeklyTimeHHMM}` : 'Slået fra'}`}
               className={`flex items-center gap-3 w-full px-3.5 py-2.5 rounded-xl border transition-all duration-200 active:scale-[0.98] ${desktopSection === 'auto' ? 'border-white/15 bg-white/[0.05]' : 'border-white/[0.06] hover:bg-white/[0.03]'}`}>
               <div className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-white/[0.06] text-white/50">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
               </div>
-              <div className="flex-1 min-w-0 text-left">
+              <div className="flex-1 min-w-0 text-left" aria-hidden>
                 <p className="text-[12px] font-medium text-white/80">Automatisk udsendelse</p>
-                <p className="text-[10px] text-white/30 truncate">{weeklyAutoEnabled ? `${ISO_WEEKDAY_DA[weeklyWeekdayIso] ?? '—'} kl. ${weeklyTimeHHMM}` : 'Slået fra'}</p>
+                <p className="text-[10px] text-white/30 truncate whitespace-nowrap">{weeklyAutoEnabled ? `${ISO_WEEKDAY_DA[weeklyWeekdayIso] ?? '—'} kl. ${weeklyTimeHHMM}` : 'Slået fra'}</p>
               </div>
               <svg className={`size-3.5 shrink-0 text-white/25 transition-transform duration-200 ${desktopSection === 'auto' ? 'rotate-180' : ''}`} viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M6 8l4 4 4-4" /></svg>
             </button>
@@ -1114,13 +1417,14 @@ export default function NewsletterClient({ embedded = false, onClose }: Newslett
 
             {/* Test */}
             <button type="button" onClick={() => toggleDesktopSection('test')}
+              aria-label={`Testmail, ${activeTestRecipients.length} modtager${activeTestRecipients.length !== 1 ? 'e' : ''}`}
               className={`flex items-center gap-3 w-full px-3.5 py-2.5 rounded-xl border transition-all duration-200 active:scale-[0.98] ${desktopSection === 'test' ? 'border-white/15 bg-white/[0.05]' : 'border-white/[0.06] hover:bg-white/[0.03]'}`}>
               <div className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-white/[0.06] text-white/50">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><path d="m22 6-10 7L2 6"/></svg>
               </div>
-              <div className="flex-1 min-w-0 text-left">
+              <div className="flex-1 min-w-0 text-left" aria-hidden>
                 <p className="text-[12px] font-medium text-white/80">Testmail</p>
-                <p className="text-[10px] text-white/30">{activeTestRecipients.length} modtager{activeTestRecipients.length !== 1 ? 'e' : ''}</p>
+                <p className="text-[10px] text-white/30 whitespace-nowrap">{activeTestRecipients.length} modtager{activeTestRecipients.length !== 1 ? 'e' : ''}</p>
               </div>
               <svg className={`size-3.5 shrink-0 text-white/25 transition-transform duration-200 ${desktopSection === 'test' ? 'rotate-180' : ''}`} viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M6 8l4 4 4-4" /></svg>
             </button>
@@ -1128,15 +1432,51 @@ export default function NewsletterClient({ embedded = false, onClose }: Newslett
               <div className="space-y-2 px-1 ml-1">{testMailBlock}</div>
             )}
 
+            {/* Custom newsletter */}
+            <button
+              type="button"
+              onClick={() => toggleDesktopSection('custom')}
+              aria-label={`Custom nyhedsbrev, ${customSelectedIds.length} ${customSelectedIds.length === 1 ? 'artikel' : 'artikler'} valgt`}
+              className={`flex items-center gap-3 w-full px-3.5 py-2.5 rounded-xl border transition-all duration-200 active:scale-[0.98] ${desktopSection === 'custom' ? 'border-white/15 bg-white/[0.05]' : 'border-white/[0.06] hover:bg-white/[0.03]'}`}
+            >
+              <div className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-white/[0.06] text-white/50">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                  <path d="M12 20h9" />
+                  <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
+                </svg>
+              </div>
+              <div className="flex-1 min-w-0 text-left" aria-hidden>
+                <p className="text-[12px] font-medium text-white/80">Custom nyhedsbrev</p>
+                <p className="text-[10px] text-white/30 truncate whitespace-nowrap">
+                  {customSelectedIds.length} {customSelectedIds.length === 1 ? 'artikel' : 'artikler'} valgt
+                </p>
+              </div>
+              <svg
+                className={`size-3.5 shrink-0 text-white/25 transition-transform duration-200 ${desktopSection === 'custom' ? 'rotate-180' : ''}`}
+                viewBox="0 0 20 20"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth={1.5}
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 8l4 4 4-4" />
+              </svg>
+            </button>
+            {desktopSection === 'custom' && (
+              <div className="rounded-xl border border-white/[0.08] bg-white/[0.02] px-3 py-3 space-y-2 ml-1">
+                {customNewsletterBlock}
+              </div>
+            )}
+
             {/* Schedule */}
             <button type="button" onClick={() => toggleDesktopSection('schedule')}
+              aria-label={pendingSchedules.length > 0 ? `Planlæg afsendelse, ${pendingSchedules.length} i kø` : 'Planlæg afsendelse'}
               className={`flex items-center gap-3 w-full px-3.5 py-2.5 rounded-xl border transition-all duration-200 active:scale-[0.98] ${desktopSection === 'schedule' ? 'border-white/15 bg-white/[0.05]' : 'border-white/[0.06] hover:bg-white/[0.03]'}`}>
               <div className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-white/[0.06] text-white/50">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
               </div>
-              <div className="flex-1 min-w-0 text-left">
+              <div className="flex-1 min-w-0 text-left" aria-hidden>
                 <p className="text-[12px] font-medium text-white/80">Planlæg afsendelse</p>
-                {pendingSchedules.length > 0 && <p className="text-[10px] text-white/30">{pendingSchedules.length} i kø</p>}
+                {pendingSchedules.length > 0 && <p className="text-[10px] text-white/30 whitespace-nowrap">{pendingSchedules.length} i kø</p>}
               </div>
               <svg className={`size-3.5 shrink-0 text-white/25 transition-transform duration-200 ${desktopSection === 'schedule' ? 'rotate-180' : ''}`} viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M6 8l4 4 4-4" /></svg>
             </button>
@@ -1148,13 +1488,14 @@ export default function NewsletterClient({ embedded = false, onClose }: Newslett
             {mergedSendLog.length > 0 && (
               <>
                 <button type="button" onClick={() => toggleDesktopSection('log')}
+                  aria-label={`Historik, ${mergedSendLog.length} poster`}
                   className={`flex items-center gap-3 w-full px-3.5 py-2.5 rounded-xl border transition-all duration-200 active:scale-[0.98] ${desktopSection === 'log' ? 'border-white/15 bg-white/[0.05]' : 'border-white/[0.06] hover:bg-white/[0.03]'}`}>
                   <div className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-white/[0.06] text-white/50">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
                   </div>
-                  <div className="flex-1 min-w-0 text-left">
+                  <div className="flex-1 min-w-0 text-left" aria-hidden>
                     <p className="text-[12px] font-medium text-white/80">Historik</p>
-                    <p className="text-[10px] text-white/30">{mergedSendLog.length} poster</p>
+                    <p className="text-[10px] text-white/30 whitespace-nowrap">{mergedSendLog.length} poster</p>
                   </div>
                   <svg className={`size-3.5 shrink-0 text-white/25 transition-transform duration-200 ${desktopSection === 'log' ? 'rotate-180' : ''}`} viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M6 8l4 4 4-4" /></svg>
                 </button>
@@ -1190,15 +1531,22 @@ export default function NewsletterClient({ embedded = false, onClose }: Newslett
           }`}
           style={{ paddingBottom: 'max(env(safe-area-inset-bottom, 0px), 8px)' }}
         >
-          {/* Sheet handle + collapsed bar */}
-          <button
-            type="button"
-            onClick={() => { setMobileSheetOpen((v) => !v); if (mobileSheetOpen) setMobileSection(null); }}
-            className="flex flex-col items-center w-full pt-2 pb-3 px-4 touch-target"
-          >
-            <div className="w-8 h-1 rounded-full bg-white/20 mb-2.5" />
-            <div className="flex items-center justify-between w-full">
-              <div className="min-w-0 flex-1">
+          {/* Sheet handle + collapsed bar (outer wrapper must not be <button> — «Hent Preview» is its own control) */}
+          <div className="flex flex-col items-center w-full pt-2 pb-3 px-4 touch-target">
+            <button
+              type="button"
+              aria-label={mobileSheetOpen ? 'Skjul indstillinger' : 'Åbn indstillinger'}
+              onClick={() => { setMobileSheetOpen((v) => !v); if (mobileSheetOpen) setMobileSection(null); }}
+              className="flex flex-col items-center w-full"
+            >
+              <div className="w-8 h-1 rounded-full bg-white/20 mb-2.5" />
+            </button>
+            <div className="flex items-center justify-between w-full gap-2">
+              <button
+                type="button"
+                onClick={() => { setMobileSheetOpen((v) => !v); if (mobileSheetOpen) setMobileSection(null); }}
+                className="min-w-0 flex-1 text-left rounded-lg py-1 -my-1 -mx-1 px-1 active:bg-white/5"
+              >
                 {meta ? (
                   <p className="text-[12px] text-white/60 truncate">
                     {meta.weekLabel} · {meta.articleCount} artikler · {meta.recipientCount} modtagere
@@ -1206,15 +1554,19 @@ export default function NewsletterClient({ embedded = false, onClose }: Newslett
                 ) : (
                   <p className="text-[12px] text-white/40">Tryk for indstillinger</p>
                 )}
-              </div>
+              </button>
               {!mobileSheetOpen && (
-                <button type="button" disabled={anyBusy} onClick={(e) => { e.stopPropagation(); void loadDraft(); }}
-                  className="ml-3 px-4 py-1.5 rounded-full bg-white/10 border border-white/15 text-[12px] font-medium text-white/80 active:scale-[0.97] disabled:opacity-40">
+                <button
+                  type="button"
+                  disabled={anyBusy}
+                  onClick={() => { void loadDraft(); }}
+                  className="shrink-0 ml-1 px-4 py-1.5 rounded-full bg-white/10 border border-white/15 text-[12px] font-medium text-white/80 active:scale-[0.97] disabled:opacity-40"
+                >
                   Hent Preview
                 </button>
               )}
             </div>
-          </button>
+          </div>
 
           {/* Expanded sheet content */}
           {mobileSheetOpen && (
@@ -1252,6 +1604,17 @@ export default function NewsletterClient({ embedded = false, onClose }: Newslett
                 `${activeTestRecipients.length} modtager${activeTestRecipients.length !== 1 ? 'e' : ''}`
               )}
               {sectionContent('test', testMailBlock)}
+
+              {sectionRow(
+                'custom',
+                'Custom nyhedsbrev',
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                  <path d="M12 20h9" />
+                  <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
+                </svg>,
+                `${customSelectedIds.length} valgt`
+              )}
+              {sectionContent('custom', customNewsletterBlock)}
 
               {sectionRow('schedule', 'Planlæg afsendelse',
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>,

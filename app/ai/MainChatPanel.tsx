@@ -10,44 +10,12 @@ import ArticlePicker from '@/components/ArticlePicker';
 import CategorySelection from '@/components/CategorySelection';
 import { WebflowAuthor } from '@/lib/webflow-service';
 import { useAuth } from '@/lib/auth-context';
-import { type UploadedFile } from '@/lib/file-upload-service';
-import type { ArticleData } from '@/types/article';
+import { type UploadedFile, uploadImportImage, isImageFile } from '@/lib/file-upload-service';
 import PreflightRecommendations from '@/components/PreflightRecommendations';
 import PreflightStatus from '@/components/PreflightStatus';
 import type { ThinkingStep, ThinkingStatus } from '@/types/thinking';
-
-const THINKING_TEXTS = [
-  'Finder vinklen…',
-  'Aer katten…',
-  'Reflekterer over virkeligheden…',
-  'Tilføjer sidechain…',
-  'Checker tonal balance…',
-  'Lowcutter alt over 80 Hz…',
-  'Lægger et magisk reverb-rum…',
-  'Sampler virkeligheden…',
-  'Ruller d20 for inspiration…',
-  'Checker prisen på en Black Lotus…',
-  'Tapper mana og skriver videre…',
-  'Laver en soft-clip på egoet…',
-  'Ligger automation på sætningen…',
-  'Mixer lidt mere følelse i mix-bussen…',
-  'Stemmer teksten i 432 Hz…',
-  'Loader plug-in\'et "Human Touch v1.3"…',
-  'Korrigerer for latens i virkeligheden…',
-  'Kalibrerer tonen…',
-  'Overdubber med selvironi…',
-  'Bouncer til master…'
-];
-
-type LocalArticleData = ArticleData & { aiSuggestion?: { type: 'rating'; title: string; description: string } | null };
-
-interface ChatMessage {
-  id: string;
-  role: 'user' | 'assistant';
-  content: string;
-  timestamp: Date;
-  files?: UploadedFile[];
-}
+import { THINKING_TEXTS } from '@/components/main-chat/constants';
+import type { ChatMessage, LocalArticleData } from '@/components/main-chat/types';
 
 interface MainChatPanelProps {
   messages: ChatMessage[];
@@ -75,6 +43,13 @@ interface MainChatPanelProps {
   onOpenPromptArchitect?: () => void;
   lastFailedMessage?: string | null;
   onRetryLast?: () => void;
+  /** "Importér artikel"-template aktiv — åbner dropzone + kræver 3 billeder. */
+  importMode?: boolean;
+  /** Ægte Storage-URLs + filnavne for de uploadede import-billeder (hero, body1, body2). */
+  importImages?: { url: string; name: string }[];
+  onImportImagesChange?: (images: { url: string; name: string }[]) => void;
+  /** Router import-afsendelse til AIWriterClient.handleImportArticle. */
+  onImportSubmit?: (text: string, images: { url: string; name: string }[]) => void;
 }
 
 export default function MainChatPanel({
@@ -103,8 +78,12 @@ export default function MainChatPanel({
   onOpenPromptArchitect,
   lastFailedMessage = null,
   onRetryLast,
+  importMode = false,
+  importImages = [],
+  onImportImagesChange,
+  onImportSubmit,
 }: MainChatPanelProps) {
-  const { logout } = useAuth();
+  const { user, logout } = useAuth();
   const [inputMessage, setInputMessage] = useState('');
   const [hoveredMessage, setHoveredMessage] = useState<string | null>(null);
   const [editingMessage, setEditingMessage] = useState<string | null>(null);
@@ -112,6 +91,9 @@ export default function MainChatPanel({
   const [isAutoSaving, setIsAutoSaving] = useState(false);
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
   const [showFileDrop, setShowFileDrop] = useState(false);
+  const [importUploading, setImportUploading] = useState(false);
+  const [importSubmitAttempted, setImportSubmitAttempted] = useState(false);
+  const importAttemptTimeoutRef = useRef<number | null>(null);
   const [showUrlInput, setShowUrlInput] = useState(false);
   const [urlInputValue, setUrlInputValue] = useState('');
   const urlInputRef = useRef<HTMLInputElement>(null);
@@ -705,6 +687,19 @@ const fallbackThinkingSteps: ThinkingStep[] = [
   const handleSubmit = (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     const text = inputMessage.trim();
+
+    // Importér artikel: kræv tekst + præcis 3 billeder før afsendelse.
+    if (importMode) {
+      if (!text || importImages.length !== 3) {
+        flashImportInvalid();
+        setShowFileDrop(true);
+        return;
+      }
+      onImportSubmit?.(text, importImages);
+      setInputMessage('');
+      return;
+    }
+
     if (!text && attachedSources.length === 0) return;
     let fullMessage = text;
     if (attachedSources.length > 0) {
@@ -911,6 +906,63 @@ const fallbackThinkingSteps: ThinkingStep[] = [
     onSendMessage(fileMessage, [file]);
     setShowFileDrop(false);
   };
+
+  // Importér artikel: åbn upload-vinduet automatisk når templaten aktiveres.
+  useEffect(() => {
+    if (importMode) setShowFileDrop(true);
+  }, [importMode]);
+
+  /** Trigger et kraftigt rødt blink på dropzonen (fx blokeret afsendelse). */
+  const flashImportInvalid = useCallback(() => {
+    setImportSubmitAttempted(true);
+    if (importAttemptTimeoutRef.current) window.clearTimeout(importAttemptTimeoutRef.current);
+    importAttemptTimeoutRef.current = window.setTimeout(() => setImportSubmitAttempted(false), 1600);
+  }, []);
+
+  /** Upload rå import-billeder som ægte Storage-URLs (max 3, hero først). */
+  const handleImportRawFiles = useCallback(async (files: File[]) => {
+    if (!user) {
+      handleFileError('Du skal være logget ind for at uploade billeder.');
+      return;
+    }
+    const imageFiles = files.filter(isImageFile);
+    if (imageFiles.length === 0) {
+      handleFileError('Vælg billedfiler (jpg, png, webp).');
+      return;
+    }
+    const remaining = Math.max(0, 3 - importImages.length);
+    if (remaining === 0) {
+      handleFileError('Du har allerede tilføjet 3 billeder. Fjern et før du tilføjer et nyt.');
+      return;
+    }
+    const toUpload = imageFiles.slice(0, remaining);
+    setImportUploading(true);
+    try {
+      const uploaded: { url: string; name: string }[] = [];
+      for (const file of toUpload) {
+        if (file.size > 15 * 1024 * 1024) {
+          handleFileError(`"${file.name}" er for stor (max 15MB).`);
+          continue;
+        }
+        try {
+          const url = await uploadImportImage(file, user.uid);
+          uploaded.push({ url, name: file.name });
+        } catch (err) {
+          console.error('Import image upload failed:', err);
+          handleFileError(`Kunne ikke uploade "${file.name}". Prøv igen.`);
+        }
+      }
+      if (uploaded.length > 0) {
+        onImportImagesChange?.([...importImages, ...uploaded].slice(0, 3));
+      }
+    } finally {
+      setImportUploading(false);
+    }
+  }, [user, importImages, onImportImagesChange]);
+
+  const removeImportImage = useCallback((index: number) => {
+    onImportImagesChange?.(importImages.filter((_, i) => i !== index));
+  }, [importImages, onImportImagesChange]);
 
   const handleUrlFetch = async () => {
     const url = urlInputValue.trim();
@@ -1137,7 +1189,7 @@ const fallbackThinkingSteps: ThinkingStep[] = [
 
   return (
     <>
-      <div className="w-full h-full md:rounded-xl md:outline md:outline-[1.50px] md:outline-offset-[-1.50px] md:outline-zinc-800 flex flex-col justify-between font-poppins chat-container relative overflow-hidden" style={{ backgroundColor: 'rgb(0, 0, 0)' }}>
+      <div className="w-full h-full md:rounded-xl md:outline md:outline-[1.50px] md:outline-offset-[-1.50px] md:outline-zinc-800 flex flex-col justify-between font-poppins chat-container relative overflow-hidden bg-[#070707]/90 backdrop-blur-3xl border border-white/20 shadow-[0_20px_70px_rgba(0,0,0,0.55)]">
         {/* Mobile empty-state gradient background (replaces Spline which causes white/blank on mobile WebGL) */}
         <div className={`md:hidden fixed inset-0 z-0 transition-opacity duration-500 ${messages.length === 0 ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
           <div className="absolute inset-0 bg-gradient-to-br from-[#0a0a0a] via-[#111] to-[#0d0d1a]" />
@@ -1147,7 +1199,7 @@ const fallbackThinkingSteps: ThinkingStep[] = [
         <div className={`flex items-center min-h-[56px] px-4 app-safe-top relative z-20 
           md:static md:bg-transparent md:backdrop-blur-0 md:border-b md:border-zinc-800 
           fixed top-0 inset-x-0 md:inset-auto md:top-auto
-          bg-black/80 backdrop-blur-xl border-b border-white/[0.06]
+          bg-[#070707]/85 backdrop-blur-xl border-b border-white/10
         ${messages.length === 0 ? 'md:opacity-100' : ''}`}>
           {/* Left: logo/title */}
           <div className="flex items-center gap-3 min-w-0 flex-1">
@@ -1188,8 +1240,8 @@ const fallbackThinkingSteps: ThinkingStep[] = [
               type="button"
               onClick={() => onClose?.()}
               className="hidden md:flex touch-target items-center justify-center rounded-lg border border-white/15 text-white/70 hover:text-white hover:bg-white/5 transition-colors"
-              aria-label="Luk AI Writer og åbn Design Editor"
-              title="Luk og åbn Design Editor"
+              aria-label="Luk AI Writer og åbn SoMe Posting"
+              title="Luk og åbn SoMe Posting"
             >
               <svg className="w-5 h-5 block" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
@@ -1558,7 +1610,7 @@ const fallbackThinkingSteps: ThinkingStep[] = [
             <div className="grid grid-cols-5 border-b border-white/[0.06]">
               {([
                 { label: 'Drafts', icon: (<div className="grid grid-cols-3 gap-[3px] w-[18px] h-[18px]">{Array.from({ length: 9 }).map((_, i) => (<div key={i} className="w-[4px] h-[4px] bg-current rounded-full" />))}</div>), action: () => { closeMobileMenu(); onOpenDraftsPanel ? onOpenDraftsPanel() : (window.location.href = '/ai-drafts'); } },
-                { label: 'Designer', icon: (<svg className="w-[18px] h-[18px]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M4 7h16M4 12h16M4 17h16" /></svg>), action: () => { closeMobileMenu(); window.location.href = '/design-editor'; } },
+                { label: 'SoMe', icon: (<svg className="w-[18px] h-[18px]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M4 7h16M4 12h16M4 17h16" /></svg>), action: () => { closeMobileMenu(); window.location.href = '/design-editor'; } },
                 { label: 'Nyhedsbrev', icon: (<svg className="w-[18px] h-[18px]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M3 8l9 6 9-6M5 19h14a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2z" /></svg>), action: () => { closeMobileMenu(); window.location.href = '/ai/newsletter'; } },
                 { label: 'Preview', icon: (<svg className="w-[18px] h-[18px]" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.8}><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3"/></svg>), action: () => { closeMobileMenu(); if (onOpenReviewPanel) onOpenReviewPanel(); } },
                 { label: 'Ny', icon: (<svg className="w-[18px] h-[18px]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M12 4v16m8-8H4" /></svg>), action: () => { closeMobileMenu(); onNewArticle ? onNewArticle() : (setChatMessages([]), onChatTitleChange('Ny artikkel')); } },
@@ -1826,14 +1878,60 @@ const fallbackThinkingSteps: ThinkingStep[] = [
             </div>
           )}
 
-          {showFileDrop && (
-            <div className="mb-2">
+          {importMode ? (
+            <div className="mb-2 space-y-2">
               <FileDropZone
                 onFileUploaded={handleFileUploaded}
                 onError={handleFileError}
-                className="min-h-[120px]"
+                onRawFiles={handleImportRawFiles}
+                multiple
+                invalid={importImages.length < 3}
+                invalidStrong={importSubmitAttempted && importImages.length < 3}
+                helperText={`Upload 3 billeder: 1 hero + 2 til brødteksten (${importImages.length}/3 valgt)`}
+                className="min-h-[110px]"
               />
+              {importUploading && (
+                <div className="flex items-center gap-2 text-white/55 text-xs pl-1">
+                  <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin inline-block" />
+                  Uploader billede…
+                </div>
+              )}
+              {importImages.length > 0 && (
+                <div className="flex flex-wrap gap-2 pt-0.5">
+                  {importImages.map((img, i) => (
+                    <div
+                      key={`${img.url}-${i}`}
+                      className="relative group rounded-lg overflow-hidden border border-white/15 bg-white/[0.04]"
+                      title={img.name || undefined}
+                    >
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={img.url} alt={i === 0 ? 'Hero' : `Brødtekst ${i}`} className="h-16 w-16 object-cover" />
+                      <span className="absolute bottom-0 inset-x-0 bg-black/70 text-[9px] text-white/85 text-center py-0.5 uppercase tracking-wider">
+                        {i === 0 ? 'Hero' : `Body ${i}`}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => removeImportImage(i)}
+                        className="absolute top-0.5 right-0.5 flex size-5 items-center justify-center rounded-full bg-black/70 text-white/80 hover:bg-black hover:text-white transition-colors"
+                        title="Fjern billede"
+                      >
+                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M18 6L6 18M6 6l12 12" /></svg>
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
+          ) : (
+            showFileDrop && (
+              <div className="mb-2">
+                <FileDropZone
+                  onFileUploaded={handleFileUploaded}
+                  onError={handleFileError}
+                  className="min-h-[120px]"
+                />
+              </div>
+            )
           )}
           {/* Writer field card */}
           <div className={`relative rounded-xl ${messages.length === 0 ? 'bg-black/40 backdrop-blur-xl border border-white/15 shadow-[0_-18px_80px_-30px_rgba(255,255,255,0.28)]' : 'bg-[#171717] border border-white/15'}`}>
@@ -1857,7 +1955,7 @@ const fallbackThinkingSteps: ThinkingStep[] = [
                     animation: 'gradient-shift 4s ease-in-out infinite'
                   }}
                 >
-                  Lad os starte med din artikel
+                  {importMode ? 'Indsæt din færdige artikel her' : 'Lad os starte med din artikel'}
                 </span>
               </div>
             )}
@@ -1913,7 +2011,10 @@ const fallbackThinkingSteps: ThinkingStep[] = [
             
             <button 
               onClick={() => handleSubmit()}
-              disabled={!inputMessage.trim() && attachedSources.length === 0}
+              disabled={importMode
+                ? (!inputMessage.trim() || importImages.length !== 3)
+                : (!inputMessage.trim() && attachedSources.length === 0)}
+              title={importMode && importImages.length !== 3 ? 'Upload 3 billeder for at importere' : undefined}
               className="touch-target w-11 h-11 bg-white rounded-lg flex items-center justify-center hover:bg-gray-100 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
             >
               <svg className="w-4 h-4 text-gray-800" fill="currentColor" viewBox="0 0 20 20">

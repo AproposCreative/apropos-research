@@ -1,5 +1,5 @@
-import OpenAI from 'openai';
 import { env } from '@/lib/config/env';
+import { getOpenAIClient } from '@/lib/openai';
 import type { NewsletterArticle } from '@/lib/newsletter/webflow-sources';
 import type { WeekRange } from '@/lib/newsletter/week-range';
 
@@ -37,11 +37,10 @@ export async function generateNewsletterIntro(
   week: WeekRange,
   articles: NewsletterArticle[]
 ): Promise<{ headline: string; intro: string; error?: string }> {
-  if (!env.OPENAI_API_KEY) {
+  const client = getOpenAIClient();
+  if (!client) {
     return { headline: '', intro: '', error: 'OPENAI_API_KEY mangler' };
   }
-
-  const client = new OpenAI({ apiKey: env.OPENAI_API_KEY });
   const slice = articles.slice(0, MAX_ARTICLES_IN_PROMPT);
   const articleLines = slice.map((a) => {
     const ex = excerptSnippet(a.excerpt);

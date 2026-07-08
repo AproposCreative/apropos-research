@@ -9,13 +9,32 @@ interface FileDropZoneProps {
   onError: (error: string) => void;
   disabled?: boolean;
   className?: string;
+  /** Blink rød outline når påkrævede filer mangler (fx Importér artikel). */
+  invalid?: boolean;
+  /** Kraftigt rødt blink (fx ved blokeret afsendelse). */
+  invalidStrong?: boolean;
+  /** Tillad flere filer ad gangen. */
+  multiple?: boolean;
+  /**
+   * Når sat, springes den indbyggede upload (base64/Storage) over, og de rå
+   * File-objekter sendes op til kalderen. Bruges af import-flowet, der skal
+   * uploade ægte Storage-URLs selv.
+   */
+  onRawFiles?: (files: File[]) => void;
+  /** Tilpas hjælpetekst (fx import-specifik instruktion). */
+  helperText?: string;
 }
 
 export default function FileDropZone({ 
   onFileUploaded, 
   onError, 
   disabled = false,
-  className = ''
+  className = '',
+  invalid = false,
+  invalidStrong = false,
+  multiple = false,
+  onRawFiles,
+  helperText,
 }: FileDropZoneProps) {
   const { user } = useAuth();
   const [isDragOver, setIsDragOver] = useState(false);
@@ -85,17 +104,26 @@ export default function FileDropZone({
     if (disabled) return;
 
     const files = Array.from(e.dataTransfer.files);
-    if (files.length > 0) {
-      handleFile(files[0]); // Handle first file only
+    if (files.length === 0) return;
+    if (onRawFiles) {
+      onRawFiles(files);
+      return;
     }
-  }, [disabled, handleFile]);
+    handleFile(files[0]); // Handle first file only
+  }, [disabled, handleFile, onRawFiles]);
 
   const handleFileSelect = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (files && files.length > 0) {
-      handleFile(files[0]);
+      if (onRawFiles) {
+        onRawFiles(Array.from(files));
+      } else {
+        handleFile(files[0]);
+      }
     }
-  }, [handleFile]);
+    // Tillad valg af samme fil igen (fx efter fjernelse)
+    if (e.target) e.target.value = '';
+  }, [handleFile, onRawFiles]);
 
   const handleClick = useCallback(() => {
     if (!disabled && fileInputRef.current) {
@@ -110,7 +138,11 @@ export default function FileDropZone({
           relative border-2 border-dashed rounded-lg p-6 transition-all duration-200
           ${isDragOver 
             ? 'border-blue-400 bg-blue-400/10' 
-            : 'border-white/20 hover:border-white/40'
+            : invalidStrong
+              ? 'animate-pulse-red-strong'
+              : invalid
+                ? 'animate-pulse-red'
+                : 'border-white/20 hover:border-white/40'
           }
           ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}
           ${uploading ? 'pointer-events-none' : ''}
@@ -126,7 +158,8 @@ export default function FileDropZone({
           type="file"
           onChange={handleFileSelect}
           className="hidden"
-          accept=".txt,.md,.json,.xml,.pdf,image/*"
+          accept={onRawFiles ? 'image/*' : '.txt,.md,.json,.xml,.pdf,image/*'}
+          multiple={multiple}
           disabled={disabled}
         />
 
@@ -154,7 +187,7 @@ export default function FileDropZone({
                   {isDragOver ? 'Slip filen her' : 'Træk filer her eller klik for at vælge'}
                 </p>
                 <p className="text-white/40 text-xs mt-1">
-                  Understøtter: billeder, tekstfiler, PDF (max 10MB)
+                  {helperText || 'Understøtter: billeder, tekstfiler, PDF (max 10MB)'}
                 </p>
               </div>
             </div>
