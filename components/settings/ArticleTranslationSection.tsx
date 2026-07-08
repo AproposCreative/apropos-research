@@ -84,23 +84,25 @@ function AutoTranslateToggle({
           {loading ? 'Tjekker…' : saving ? 'Gemmer…' : enabled ? 'Slået til ved DK-publish' : 'Slået fra'}
         </p>
       </div>
-      <button
-        type="button"
-        role="switch"
-        aria-checked={enabled}
-        aria-label={enabled ? 'Slå auto-oversættelse fra' : 'Slå auto-oversættelse til'}
-        disabled={busy}
-        onClick={onToggle}
-        className={`relative w-9 h-5 shrink-0 rounded-full transition-colors duration-200 touch-target ${
-          enabled ? 'bg-white/20' : 'bg-white/10'
-        } ${busy ? 'opacity-50' : 'hover:bg-white/25'}`}
-      >
-        <span
-          className={`absolute top-0.5 left-0.5 size-4 rounded-full bg-white shadow-sm transition-transform duration-200 ${
-            enabled ? 'translate-x-4' : 'translate-x-0'
-          }`}
-        />
-      </button>
+      <div className="touch-target flex shrink-0 items-center justify-center">
+        <button
+          type="button"
+          role="switch"
+          aria-checked={enabled}
+          aria-label={enabled ? 'Slå auto-oversættelse fra' : 'Slå auto-oversættelse til'}
+          disabled={busy}
+          onClick={onToggle}
+          className={`relative inline-flex h-5 w-9 shrink-0 rounded-full transition-colors duration-200 ${
+            enabled ? 'bg-white/20' : 'bg-white/10'
+          } ${busy ? 'opacity-50' : 'hover:bg-white/25'}`}
+        >
+          <span
+            className={`pointer-events-none absolute top-0.5 left-0.5 size-4 rounded-full bg-white shadow-sm transition-transform duration-200 ${
+              enabled ? 'translate-x-4' : 'translate-x-0'
+            }`}
+          />
+        </button>
+      </div>
     </div>
   );
 }
