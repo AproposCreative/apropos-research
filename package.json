@@ -16,6 +16,7 @@
     "doctor": "node scripts/doctor-env.mjs",
     "deploy:storage": "node scripts/deploy-storage-rules.mjs",
     "type-check": "tsc --noEmit",
+    "type-check:seo-engine": "tsc -p tsconfig.seo-engine.json",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:ui": "vitest --ui",

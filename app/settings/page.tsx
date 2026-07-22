@@ -6,6 +6,7 @@ import { useAuth } from '../../lib/auth-context';
 import CompactHeader from '../../components/CompactHeader';
 import ImageOptimizationSection from '../../components/settings/ImageOptimizationSection';
 import ArticleTranslationSection from '../../components/settings/ArticleTranslationSection';
+import SeoEngineSection from '../../components/settings/SeoEngineSection';
 import SocialTokenPanel from '../../components/settings/SocialTokenPanel';
 
 type WebflowStatus = {
@@ -427,6 +428,7 @@ export default function SettingsPage() {
           <div className="bg-[#171717] rounded-2xl border border-white/15 p-4 font-poppins space-y-6">
             <ImageOptimizationSection variant="page" />
             <ArticleTranslationSection variant="page" />
+            <SeoEngineSection variant="page" />
           </div>
         )}
 

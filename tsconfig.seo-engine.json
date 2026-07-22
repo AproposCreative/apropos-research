@@ -1,0 +1,27 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "strict": true,
+    "noEmit": true,
+    "skipLibCheck": true,
+    "incremental": false,
+    "types": ["node"]
+  },
+  "include": [
+    "next-env.d.ts",
+    "lib/seo-engine/**/*.ts",
+    "app/api/seo-engine/**/*.ts",
+    "app/api/internal/seo-engine-article/**/*.ts",
+    "app/api/cron/seo-engine-recovery/**/*.ts",
+    "app/ai/seo/**/*.tsx",
+    "components/settings/SeoEngineSection.tsx",
+    "test/seo-engine*.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    ".next",
+    "tmp",
+    "scripts",
+    "data"
+  ]
+}

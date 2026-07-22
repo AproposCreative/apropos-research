@@ -1,6 +1,14 @@
 /**
  * SEO/Meta generator.
  *
+ * @deprecated Soft-deprecated in favor of the Apropos SEO Engine
+ * (`lib/seo-engine/*`, overlay `/ai?view=seo`). That pipeline is the
+ * server-authoritative, two-phase (analyze → strategize) SEO entry point
+ * with evidence, confidence bands, validation, and durable auto-SEO jobs.
+ * This module remains as the lightweight single-shot generator used by
+ * `Liv`/AI-chat drafting flows and is NOT removed — new SEO features
+ * (auto-fill on publish, history, JSON-LD, etc.) belong in the SEO Engine.
+ *
  * Two modes:
  *  - `smart` (default, sync): a heuristic that builds compelling SEO copy
  *    from existing fields with word-boundary truncation (no mid-word cuts,

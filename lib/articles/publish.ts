@@ -20,6 +20,13 @@ export async function publishCanonicalArticleToWebflow(
 ): Promise<PublishCanonicalArticleResult> {
   const payload = normalizeArticlePayload(input, options);
   const articleId = await publishArticleToWebflow(toWebflowArticleFields(payload));
+  // Best-effort auto-SEO enqueue (same empty-only / durable rules as webhook). Never blocks publish.
+  try {
+    const { maybeEnqueueSeoEngineAfterPublish } = await import('@/lib/seo-engine/after-publish');
+    await maybeEnqueueSeoEngineAfterPublish({ itemId: articleId, source: 'publish_app' });
+  } catch {
+    /* ignore */
+  }
   return { articleId, payload };
 }
 

@@ -4,10 +4,21 @@ import { logger } from '@/lib/logger';
 import {
   autoOptimizeArticleByItemId,
   isArticleCollectionWebhookEvent,
+  isArticleImageAutoOptimizeEnabled,
   isArticleWebhookOptimizeEnabled,
 } from '@/lib/webflow/article-image-auto-optimize';
 import { enqueueArticleTranslation } from '@/lib/webflow/enqueue-article-translation';
+import { enqueueSeoEngineJob } from '@/lib/seo-engine/enqueue';
+import { resolveAutoSeoEngineEnabled } from '@/lib/seo-engine/settings';
+import { cmsSeoEmptiness } from '@/lib/seo-engine/cms-contract';
 import {
+  resolveWebhookSeoHttpStatus,
+  shouldAttemptSeoEnqueue,
+  shouldEnqueueTranslation,
+  shouldRunImageOptimize,
+} from '@/lib/seo-engine/webhook-decisions';
+import {
+  fetchArticleItemByLocale,
   isArticleAutoTranslateEnabledAsync,
   resolveWebflowLocaleIds,
 } from '@/lib/webflow/locale-items';
@@ -32,7 +43,6 @@ type WebflowWebhookBody = {
   };
 };
 
-/** Saml alle item-referencer fra både array- og enkelt-payload-formaterne. */
 function extractItems(body: WebflowWebhookBody): WebflowItem[] {
   const out: WebflowItem[] = [];
   const rootLocale = body.payload?.cmsLocaleId;
@@ -59,7 +69,6 @@ function extractItems(body: WebflowWebhookBody): WebflowItem[] {
   return out;
 }
 
-/** Kun primær (DK) locale — spring EN-publish over (loop-sikring). */
 function isPrimaryLocalePublish(cmsLocaleId?: string | null): boolean {
   const { dk, en } = resolveWebflowLocaleIds();
   if (!cmsLocaleId) return true;
@@ -90,21 +99,10 @@ function verifyRequest(req: NextRequest, rawBody: string): boolean {
 }
 
 /**
- * Webflow CMS → auto-optimering af thumb/Mobile Image + brødtekst-billeder.
- *
- * Opret webhook i Webflow (API anbefales for signatur):
- *   POST https://api.webflow.com/v2/sites/{siteId}/webhooks
- *   triggerType: collection_item_published (evt. collection_item_created)
- *   url: https://{host}/api/webhooks/webflow?secret=...
- *
- * Env: WEBFLOW_WEBHOOK_CLIENT_SECRET (signeret) eller WEBFLOW_WEBHOOK_SECRET (query/header).
- * WEBFLOW_ARTICLE_WEBHOOK_OPTIMIZE=0 slår webhook-flow fra (publish fra app virker stadig hvis auto er på).
+ * Webflow CMS webhook — image-opt, EN-translate enqueue, and auto-SEO are independent flags.
+ * WEBFLOW_ARTICLE_WEBHOOK_OPTIMIZE only gates image optimization, not SEO/translation.
  */
 export async function POST(req: NextRequest) {
-  if (!isArticleWebhookOptimizeEnabled()) {
-    return NextResponse.json({ ok: true, skipped: true, reason: 'Webhook-optimering er slået fra' });
-  }
-
   const rawBody = await req.text();
   if (!verifyRequest(req, rawBody)) {
     return NextResponse.json({ ok: false, error: 'Ugyldig webhook-autentificering' }, { status: 401 });
@@ -133,37 +131,85 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: false, error: 'Webflow ikke konfigureret' }, { status: 503 });
   }
 
+  const imageOptOn =
+    isArticleWebhookOptimizeEnabled() && isArticleImageAutoOptimizeEnabled();
+  const autoSeoOn = await resolveAutoSeoEngineEnabled();
+  const autoTranslateOn = await isArticleAutoTranslateEnabledAsync();
+
   const results = [];
   const translationQueued: string[] = [];
+  const seoEngineQueued: string[] = [];
+  const seoEngineErrors: Array<{ itemId: string; error: string }> = [];
 
   for (const it of items) {
     const itemId = it.id as string;
-    try {
-      const result = await autoOptimizeArticleByItemId(itemId, {
-        source: `webhook:${triggerType}`,
-        publishToLive: true,
-      });
-      results.push(result);
-    } catch (e) {
-      logger.error('[webhooks/webflow] optimize failed', e instanceof Error ? e : new Error(String(e)));
-      results.push({ itemId, error: e instanceof Error ? e.message : 'Optimering fejlede' });
+    const flags = {
+      imageOptOn,
+      autoSeoOn,
+      autoTranslateOn,
+      isPrimaryLocale: isPrimaryLocalePublish(it.cmsLocaleId),
+      triggerType,
+    };
+
+    if (shouldRunImageOptimize(flags)) {
+      try {
+        const result = await autoOptimizeArticleByItemId(itemId, {
+          source: `webhook:${triggerType}`,
+          publishToLive: true,
+        });
+        results.push(result);
+      } catch (e) {
+        logger.error('[webhooks/webflow] optimize failed', e instanceof Error ? e : new Error(String(e)));
+        results.push({ itemId, error: e instanceof Error ? e.message : 'Optimering fejlede' });
+      }
+    } else {
+      results.push({ itemId, skipped: true, reason: 'image_opt_off' });
     }
 
-    if (
-      triggerType === 'collection_item_published' &&
-      (await isArticleAutoTranslateEnabledAsync()) &&
-      isPrimaryLocalePublish(it.cmsLocaleId)
-    ) {
+    if (shouldEnqueueTranslation(flags)) {
       enqueueArticleTranslation(itemId, `webhook:${triggerType}`);
       translationQueued.push(itemId);
     }
+
+    // Auto-SEO: await durable job write — never OpenAI inline. DK-only. Independent of image-opt.
+    if (shouldAttemptSeoEnqueue(flags)) {
+      try {
+        const { dk } = resolveWebflowLocaleIds();
+        const item = await fetchArticleItemByLocale(itemId, dk);
+        const empty = cmsSeoEmptiness(item.fieldData);
+        if (empty.anyEmpty) {
+          const cmsLastUpdated = item.lastUpdated || item.lastPublished || 'unknown';
+          const enq = await enqueueSeoEngineJob({
+            itemId,
+            cmsLastUpdated,
+            source: 'webhook',
+          });
+          seoEngineQueued.push(enq.jobId);
+        }
+      } catch (e) {
+        const message = e instanceof Error ? e.message : String(e);
+        logger.warn('[webhooks/webflow] seo-engine enqueue failed', { itemId, message });
+        seoEngineErrors.push({ itemId, error: message });
+      }
+    }
   }
 
-  return NextResponse.json({
-    ok: true,
-    triggerType,
-    count: results.length,
-    results,
-    translationQueued,
+  const http = resolveWebhookSeoHttpStatus({
+    autoSeoOn,
+    seoEngineErrors,
+    seoEngineQueued,
   });
+  return NextResponse.json(
+    {
+      ok: http.ok,
+      triggerType,
+      count: results.length,
+      results,
+      translationQueued,
+      seoEngineQueued,
+      seoEngineErrors: seoEngineErrors.length ? seoEngineErrors : undefined,
+      needsRetry: http.needsRetry || undefined,
+    },
+    { status: http.status }
+  );
 }

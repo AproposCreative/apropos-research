@@ -20,6 +20,7 @@ import SettingsPanel from '@/components/SettingsPanel';
 import NewsletterClient from '@/app/ai/newsletter/NewsletterClient';
 import DashboardClient from '@/app/dashboard/DashboardClient';
 import PodcastClient from '@/app/ai/podcast/PodcastClient';
+import SeoEngineClient from '@/app/ai/seo/SeoEngineClient';
 import PushDeskClient from '@/app/push/PushDeskClient';
 import FundingDeskView from '@/app/funding/FundingDeskView';
 import { useAuth } from '@/lib/auth-context';
@@ -105,6 +106,8 @@ export default function AIWriterClient() {
         params.set('view', 'push');
       } else if (view === 'funding') {
         params.set('view', 'funding');
+      } else if (view === 'seo') {
+        params.set('view', 'seo');
       } else if (view === 'ai') {
         params.set('view', 'ai');
       } else {
@@ -255,6 +258,10 @@ export default function AIWriterClient() {
         applyActiveView('podcast');
         return;
       }
+      if (id === 'seo-engine') {
+        applyActiveView('seo');
+        return;
+      }
       applyActiveView(id === 'design-editor' ? 'design-editor' : 'ai');
     },
     [applyActiveView]
@@ -290,7 +297,8 @@ export default function AIWriterClient() {
       activeView !== 'dashboard' &&
       activeView !== 'podcast' &&
       activeView !== 'push' &&
-      activeView !== 'funding'
+      activeView !== 'funding' &&
+      activeView !== 'seo'
     ) {
       return;
     }
@@ -1792,6 +1800,59 @@ export default function AIWriterClient() {
             </div>
             )}
 
+            {activeView === 'seo' && (
+            <div
+              className="w-full flex-shrink-0 absolute top-0 bottom-0 left-0 md:top-[1%] md:bottom-[1%] md:left-[1%] z-10"
+              style={{
+                width: isDesktop ? `${chatWidth}px` : '100%',
+                transition: isResizing ? 'none' : 'transform 320ms cubic-bezier(0.22, 1, 0.36, 1)',
+                transform: leftPanelOpen ? 'translateX(calc(12px + min(300px, 50vw)))' : 'translateX(0)',
+              }}
+            >
+              {isDesktop && (
+                <div
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    setIsResizing(true);
+                  }}
+                  className="absolute top-0 bottom-0 right-0 w-1 cursor-col-resize hover:bg-white/20 transition-colors z-30 group"
+                  style={{ touchAction: 'none' }}
+                >
+                  <div className="absolute top-1/2 right-0 -translate-y-1/2 translate-x-1/2 w-1 h-16 bg-white/0 group-hover:bg-white/30 rounded-full transition-colors" />
+                </div>
+              )}
+              <div className={`h-full w-full flex flex-col font-poppins ${embeddedPanelShell}`}>
+                <SeoEngineClient
+                  embedded
+                  onClose={() => applyActiveView(null)}
+                  initialTitle={articleData.title || ''}
+                  initialBody={articleData.content || articleData.intro || ''}
+                  seed={{
+                    title: articleData.title || '',
+                    body: articleData.content || '',
+                    subtitle: articleData.subtitle || '',
+                    intro: articleData.intro || '',
+                    author: articleData.author || '',
+                    section: articleData.section || articleData.category || '',
+                    articleType: articleData.template || '',
+                    rating: articleData.rating || undefined,
+                    platform: articleData.platform || articleData.streaming_service || '',
+                    publishDate: articleData.publishDate || '',
+                    imageUrl: articleData.featuredImage || '',
+                    notesForAi: notes || '',
+                    language: 'da',
+                    webflowItemId: (articleData as { webflowId?: string }).webflowId || undefined,
+                    articleKey: (articleData as { webflowId?: string }).webflowId
+                      ? `wf:${(articleData as { webflowId?: string }).webflowId}`
+                      : undefined,
+                    existingSeoTitle: articleData.seoTitle || null,
+                    existingMetaDescription: articleData.seoDescription || null,
+                  }}
+                />
+              </div>
+            </div>
+            )}
+
             {/* Layout placeholder for chat width so the mini-menu keeps its placement */}
             {activeView && <div className="hidden md:block flex-shrink-0" style={{ width: isDesktop ? `${chatWidth}px` : '500px', height: '1px' }} />}
             
@@ -1836,6 +1897,10 @@ export default function AIWriterClient() {
                     key={`${currentDraftId || 'new'}-${articleData?.title || ''}-${articleData?.content?.substring(0, 50) || ''}`}
                     articleData={articleData} 
                     frameless 
+                    onOpenSeoEngine={() => {
+                      setReviewOpen(false);
+                      applyActiveView('seo');
+                    }}
                     onUpdateArticle={(updates) => {
                       setArticleData(prev => ({ ...prev, ...updates }));
                     }}

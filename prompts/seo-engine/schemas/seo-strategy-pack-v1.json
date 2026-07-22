@@ -1,0 +1,118 @@
+{
+  "$id": "SeoStrategyPackV1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "recommendedStrategyId", "recommended", "alternatives", "cmsPublishability"],
+  "properties": {
+    "schemaVersion": { "type": "string" },
+    "recommendedStrategyId": { "type": "string" },
+    "recommended": { "$ref": "#/$defs/direction" },
+    "alternatives": {
+      "type": "array",
+      "minItems": 2,
+      "maxItems": 2,
+      "items": { "$ref": "#/$defs/direction" }
+    },
+    "cmsPublishability": {
+      "type": "object",
+      "required": ["seoTitle", "metaDescription", "ogTitle", "ogDescription", "jsonLd"],
+      "properties": {
+        "seoTitle": { "const": "cms_writable" },
+        "metaDescription": { "const": "cms_writable" },
+        "ogTitle": { "const": "generated_not_published" },
+        "ogDescription": { "const": "generated_not_published" },
+        "jsonLd": { "const": "generated_not_published" }
+      }
+    }
+  },
+  "$defs": {
+    "seoFieldString": {
+      "type": "object",
+      "required": ["value", "rationale", "confidence", "sources", "warnings", "locked"],
+      "properties": {
+        "value": { "type": "string" },
+        "rationale": { "type": "string" },
+        "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
+        "sources": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string",
+            "enum": ["article", "editor_metadata", "verified_fact", "inference"]
+          }
+        },
+        "characterCount": { "type": "integer", "minimum": 0 },
+        "warnings": { "type": "array", "items": { "type": "string" } },
+        "locked": { "type": "boolean" }
+      }
+    },
+    "direction": {
+      "type": "object",
+      "required": [
+        "id",
+        "family",
+        "intentPriority",
+        "whyFits",
+        "primaryEntityEmphasis",
+        "freshnessStance",
+        "editorialGuardrail",
+        "riskAvoided",
+        "fields"
+      ],
+      "properties": {
+        "id": { "type": "string" },
+        "family": {
+          "type": "string",
+          "enum": ["entity_first", "angle_first", "evergreen_first", "timely_first"]
+        },
+        "intentPriority": { "type": "string" },
+        "whyFits": { "type": "string" },
+        "primaryEntityEmphasis": { "type": "string" },
+        "freshnessStance": { "type": "string" },
+        "editorialGuardrail": { "type": "string" },
+        "riskAvoided": { "type": "string" },
+        "fields": {
+          "type": "object",
+          "required": [
+            "seoTitle",
+            "metaDescription",
+            "slug",
+            "canonical",
+            "ogTitle",
+            "ogDescription",
+            "primaryPhrase",
+            "supportingTopics",
+            "tags",
+            "section",
+            "imageAlt",
+            "imageCaption",
+            "internalLinks",
+            "externalLinks",
+            "jsonLd",
+            "checklist",
+            "risks"
+          ],
+          "properties": {
+            "seoTitle": { "$ref": "#/$defs/seoFieldString" },
+            "metaDescription": { "$ref": "#/$defs/seoFieldString" },
+            "slug": { "$ref": "#/$defs/seoFieldString" },
+            "canonical": { "$ref": "#/$defs/seoFieldString" },
+            "ogTitle": { "$ref": "#/$defs/seoFieldString" },
+            "ogDescription": { "$ref": "#/$defs/seoFieldString" },
+            "primaryPhrase": { "$ref": "#/$defs/seoFieldString" },
+            "supportingTopics": { "type": "object" },
+            "tags": { "type": "object" },
+            "section": { "$ref": "#/$defs/seoFieldString" },
+            "imageAlt": { "$ref": "#/$defs/seoFieldString" },
+            "imageCaption": { "type": "object" },
+            "internalLinks": { "type": "object" },
+            "externalLinks": { "type": "object" },
+            "jsonLd": { "type": "object" },
+            "checklist": { "type": "object" },
+            "risks": { "type": "object" }
+          }
+        }
+      }
+    }
+  }
+}

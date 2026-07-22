@@ -8,6 +8,11 @@ export const maxDuration = 30;
 /**
  * POST /api/seo/generate
  *
+ * @deprecated Soft-deprecated in favor of the Apropos SEO Engine
+ * (`/api/seo-engine/*`, overlay `/ai?view=seo`). Kept for existing
+ * single-shot draft flows (Liv/AI-chat) — do not build new SEO features
+ * (auto-fill, history, JSON-LD, confidence bands) on top of this route.
+ *
  * Body: { title?, subtitle?, intro?, content?, section?, keywords?, mode? }
  *  - mode: 'ai' (default) | 'smart'
  *

@@ -4,6 +4,7 @@ import { useAuth } from '@/lib/auth-context';
 import { SPLINE_BACKGROUNDS } from '@/lib/spline-backgrounds';
 import ImageOptimizationSection from '@/components/settings/ImageOptimizationSection';
 import ArticleTranslationSection from '@/components/settings/ArticleTranslationSection';
+import SeoEngineSection from '@/components/settings/SeoEngineSection';
 
 type WebflowStatus = {
   connected: boolean;
@@ -370,6 +371,7 @@ function IntegrationsTab() {
 
       <ImageOptimizationSection variant="panel" />
       <ArticleTranslationSection variant="panel" />
+      <SeoEngineSection variant="panel" />
     </div>
   );
 }

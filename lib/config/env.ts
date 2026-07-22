@@ -56,6 +56,8 @@ const EnvSchema = z.object({
   WEBFLOW_CMS_LOCALE_EN: z.string().default('690ca0f6b0d13d8788354156'),
   /** Auto-oversæt DK → EN ved publish (webhook). Slå fra med false. */
   WEBFLOW_AUTO_TRANSLATE_EN: z.enum(['true', 'false']).default('true'),
+  /** Auto-udfyld tomme SEO-felter via SEO Engine (webhook). Default off indtil klar. */
+  WEBFLOW_AUTO_SEO_ENGINE: z.enum(['true', 'false']).default('false'),
 
   // Instagram / Facebook Publishing
   INSTAGRAM_ACCOUNT_ID: z.string().optional(),
@@ -234,6 +236,8 @@ function parseEnv() {
     WEBFLOW_CMS_LOCALE_EN: process.env.WEBFLOW_CMS_LOCALE_EN || '690ca0f6b0d13d8788354156',
     WEBFLOW_AUTO_TRANSLATE_EN:
       process.env.WEBFLOW_AUTO_TRANSLATE_EN === 'false' ? 'false' : 'true',
+    WEBFLOW_AUTO_SEO_ENGINE:
+      process.env.WEBFLOW_AUTO_SEO_ENGINE === 'true' ? 'true' : 'false',
     INSTAGRAM_ACCOUNT_ID: process.env.INSTAGRAM_ACCOUNT_ID,
     INSTAGRAM_ACCESS_TOKEN: process.env.INSTAGRAM_ACCESS_TOKEN,
     FACEBOOK_PAGE_ID: process.env.FACEBOOK_PAGE_ID,

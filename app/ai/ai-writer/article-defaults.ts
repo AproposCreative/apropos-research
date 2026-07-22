@@ -85,6 +85,7 @@ export type AIWriterView =
   | 'podcast'
   | 'push'
   | 'funding'
+  | 'seo'
   | null;
 
 /** Resolve hvilken view URL'en peger på. */
@@ -98,6 +99,7 @@ export function resolveViewFromSearchParams(sp: {
   if (view === 'podcast') return 'podcast';
   if (view === 'push') return 'push';
   if (view === 'funding') return 'funding';
+  if (view === 'seo') return 'seo';
   if (view === 'ai') return 'ai';
   const n = sp.get('newsletter');
   const w = sp.get('webapp');

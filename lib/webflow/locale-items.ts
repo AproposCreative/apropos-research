@@ -55,6 +55,7 @@ export type WebflowLocaleItem = {
   cmsLocaleId?: string;
   fieldData: Record<string, unknown>;
   lastPublished?: string | null;
+  lastUpdated?: string | null;
   isDraft?: boolean;
 };
 
@@ -84,6 +85,7 @@ export async function fetchArticleItemByLocale(
     id?: string;
     cmsLocaleId?: string;
     lastPublished?: string | null;
+    lastUpdated?: string | null;
     isDraft?: boolean;
     fieldData?: Record<string, unknown>;
   } = await res.json();
@@ -91,6 +93,7 @@ export async function fetchArticleItemByLocale(
     id: String(item.id || itemId),
     cmsLocaleId: item.cmsLocaleId,
     lastPublished: item.lastPublished ?? null,
+    lastUpdated: item.lastUpdated ?? null,
     isDraft: item.isDraft,
     fieldData: (item.fieldData || {}) as Record<string, unknown>,
   };
