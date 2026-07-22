@@ -255,6 +255,63 @@ describe('GSC query AI safety gate', () => {
     expect(prompt.signals).toEqual([]);
   });
 
+  it('DA/EN stopwords alone do not create lexical relevance', () => {
+    const stopwordHeavySeed = 'Lucky for med til på af the and with of';
+    const ranked = rankGscQueryRows(
+      [
+        {
+          query: 'tips for beginners with the best of',
+          clicks: 80,
+          impressions: 900,
+          ctr: 0.09,
+          averagePosition: 3,
+        },
+        {
+          query: 'streaming guide med tips til dig',
+          clicks: 40,
+          impressions: 700,
+          ctr: 0.05,
+          averagePosition: 5,
+        },
+        {
+          query: 'lucky anmeldelse',
+          clicks: 3,
+          impressions: 220,
+          ctr: 0.014,
+          averagePosition: 9,
+        },
+      ],
+      [stopwordHeavySeed],
+      'da',
+      { articleType: 'Serieanmeldelse', requireRelevance: true }
+    );
+    expect(ranked.map((r) => r.query)).toEqual(['lucky anmeldelse']);
+
+    const prompt = toAnalyzePromptSearchSignals(
+      {
+        signals: [
+          {
+            query: 'guide for med til på af the and',
+            kind: 'gsc_query_opportunity',
+            note: 'stopword bait',
+          },
+          {
+            query: 'lucky anmeldelse',
+            kind: 'gsc_query_opportunity',
+            note: 'entity',
+          },
+        ],
+        provenance,
+      },
+      {
+        seeds: [stopwordHeavySeed],
+        language: 'da',
+        articleType: 'Serieanmeldelse',
+      }
+    );
+    expect(prompt.signals.map((s) => s.query)).toEqual(['lucky anmeldelse']);
+  });
+
   it('passes relevant entity + review query for review article types', () => {
     const prompt = toAnalyzePromptSearchSignals(
       {

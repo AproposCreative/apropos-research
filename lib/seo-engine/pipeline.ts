@@ -41,6 +41,7 @@ import {
 } from '@/lib/seo-engine/prompts';
 import {
   getSearchSignalsProvider,
+  buildSearchSignalsPromptContext,
   toAnalyzePromptSearchSignals,
   type SearchSignalsProvenance,
 } from '@/lib/seo-engine/search-signals';
@@ -259,22 +260,15 @@ export async function analyzeArticle(
     // Optional live GA4/GSC signals — never override entity/stance; fail soft.
     let searchSignalsForPrompt: ReturnType<typeof toAnalyzePromptSearchSignals> | null = null;
     try {
-      const signalSeeds = [input.editorialTitle, input.subtitle || '', input.articleType || ''].filter(
-        Boolean
-      ) as string[];
+      // Same context object for provider ranking + prompt gate (never omit seeds/articleType).
+      const signalContext = buildSearchSignalsPromptContext(input);
       const bundle = await getSearchSignalsProvider().getSignals({
-        seeds: signalSeeds,
-        language: input.language,
-        articleType: input.articleType,
+        ...signalContext,
         limit: 12,
         days: 28,
       });
       searchSignalsProvenance = bundle.provenance;
-      searchSignalsForPrompt = toAnalyzePromptSearchSignals(bundle, {
-        seeds: signalSeeds,
-        language: input.language,
-        articleType: input.articleType,
-      });
+      searchSignalsForPrompt = toAnalyzePromptSearchSignals(bundle, signalContext);
     } catch {
       searchSignalsProvenance = {
         provider: 'null',
