@@ -67,6 +67,16 @@ export function isWebflowLocalePublished(
   return Boolean(item.lastPublished?.trim());
 }
 
+/** Typed Webflow locale fetch failure — callers can distinguish 404 vs auth/5xx. */
+export class WebflowLocaleFetchError extends Error {
+  readonly status: number;
+  constructor(message: string, status: number) {
+    super(message);
+    this.name = 'WebflowLocaleFetchError';
+    this.status = status;
+  }
+}
+
 export async function fetchArticleItemByLocale(
   itemId: string,
   cmsLocaleId: string
@@ -74,12 +84,21 @@ export async function fetchArticleItemByLocale(
   const { token, collectionId } = await resolveRuntime();
   const qs = new URLSearchParams({ cmsLocaleId });
   const itemUrl = `https://api.webflow.com/v2/collections/${collectionId}/items/${itemId}?${qs}`;
-  const res = await fetch(itemUrl, {
-    headers: { Authorization: `Bearer ${token}`, 'Accept-Version': '1.0.0' },
-  });
+  let res: Response;
+  try {
+    res = await fetch(itemUrl, {
+      headers: { Authorization: `Bearer ${token}`, 'Accept-Version': '1.0.0' },
+    });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    throw new WebflowLocaleFetchError(`Webflow network error: ${msg}`, 0);
+  }
   if (!res.ok) {
-    const j = await res.json().catch(() => ({}));
-    throw new Error(j?.message || `Webflow fetch item error ${res.status}`);
+    const j = (await res.json().catch(() => ({}))) as { message?: string };
+    throw new WebflowLocaleFetchError(
+      j?.message || `Webflow fetch item error ${res.status}`,
+      res.status
+    );
   }
   const item: {
     id?: string;

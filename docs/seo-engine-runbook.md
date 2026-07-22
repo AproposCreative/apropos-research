@@ -79,19 +79,23 @@ Re-fetch before PATCH; only still-empty `seo-title` / `meta-description` on **DK
 Separate from the auto worker (does **not** change DK-only / fill-empty rules).
 
 ```bash
-# Default: dry-run (zero Webflow writes) — newest 10 published, locales da,en
+# 1) Dry-run (zero Webflow writes) — real AI; writes frozen manifest
 npm run seo-engine:backfill-overwrite -- --limit=10 --locales=da,en
 
-# Live CMS overwrite (all four required):
-npm run seo-engine:backfill-overwrite -- --apply --overwrite --limit=10 --locales=da,en
+# 2) Live CMS overwrite — requires the reviewed dry-run report:
+npm run seo-engine:backfill-overwrite -- \
+  --apply --overwrite --limit=10 --locales=da,en \
+  --from-report=tmp/seo-engine-backfill/report-….json
 ```
 
 - Selects the **N newest published** DK items by Webflow `lastPublished`.
-- Processes **DA + EN** when published EN exists; **skips missing EN** (no invent/translate).
+- Processes **DA + EN** when published EN exists; **skips only definitive 404 missing EN** (no invent/translate). Auth/5xx/network **block**.
+- Unpublished locales (incl. DA) are skipped/stopped — never written.
 - Uses locale-separated `articleKey`: `wf:{itemId}:da` / `wf:{itemId}:en`.
 - Overwrite mode clears `existingSeoTitle` / `existingMetaDescription` so AI is not locked to CMS values.
+- Apply uses **frozen manifest** from `--from-report` (no silent re-select / re-generate). Verifies `lastUpdated` + content/input hashes before each PATCH.
 - Before writes: timestamped backup under `tmp/seo-engine-backfill/` (gitignored).
-- Apply: low concurrency (sequential), **stop on first error**, exact readback compare. **No automatic rollback** — restore from backup JSON (`oldSeoTitle` / `oldMetaDescription`) and re-publish only locales with `wasPublished=true`.
+- Apply: sequential, **stop on first error**, exact readback. **No automatic rollback** — restore from backup JSON.
 - Help / rollback: `npm run seo-engine:backfill-overwrite -- --help`
 
 ## Rollout

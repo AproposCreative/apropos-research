@@ -2,17 +2,15 @@
 /**
  * One-off SEO overwrite backfill for newest published Webflow articles (DA + EN).
  *
- * Dry-run is the default (zero CMS writes).
- * Live writes require ALL of: --apply --overwrite --limit=10 --locales=da,en
- *
- * See docs/seo-engine-runbook.md → "One-off overwrite backfill"
- * and --help for rollback instructions.
+ * Dry-run is the default (zero CMS writes). Real AI only.
+ * Live writes require ALL of:
+ *   --apply --overwrite --limit=10 --locales=da,en --from-report=<dry-run-report.json>
  *
  * IMPORTANT: dotenv must load BEFORE any `@/lib/*` import (env is snapshotted
  * at module load). Keep backfill imports dynamic after config().
  */
 import { config } from 'dotenv';
-import { dirname, join } from 'path';
+import { dirname, join, resolve } from 'path';
 import { fileURLToPath } from 'url';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -53,23 +51,37 @@ async function main() {
   const apply = cli.apply && !cli.dryRun;
   if (apply) {
     console.error(
-      'APPLY MODE: will overwrite CMS seo-title/meta-description. Backup will be written first.'
+      'APPLY MODE: will overwrite CMS seo-title/meta-description from frozen --from-report. Backup first.'
     );
   } else {
     console.log(
-      'DRY-RUN: zero Webflow writes. Pass --apply --overwrite --limit=10 --locales=da,en for live.'
+      'DRY-RUN: zero Webflow writes (real AI). Apply later with --apply --overwrite --limit=10 --locales=da,en --from-report=<this-report>.'
     );
   }
+
+  // Quick sanity: OpenAI must be visible after dotenv (before lib import it was empty)
+  const { getOpenAIClient } = await import('../lib/openai');
+  if (!getOpenAIClient()) {
+    console.error(
+      'OpenAI client unavailable after dotenv load. Check env NAME: OPENAI_API_KEY (value not printed).'
+    );
+    process.exit(1);
+  }
+  console.log('OpenAI client: ready (real AI mode)');
+
+  const fromReportPath = cli.fromReport ? resolve(cli.fromReport) : null;
 
   const result = await runOverwriteBackfill({
     limit: resolveEffectiveLimit(cli),
     locales: resolveEffectiveLocales(cli),
     apply,
+    fromReportPath,
   });
 
   console.log('\n--- summary ---');
   console.log('mode:', result.mode);
   console.log('selected:', result.selected.length);
+  console.log('frozenManifest:', result.frozenManifest.length);
   console.log('backup:', result.backupPath);
   console.log('report:', result.reportPath);
   if (result.stoppedOnError) {
@@ -81,9 +93,9 @@ async function main() {
     r.locales.filter((l) => l.status === 'proposed' || l.status === 'written')
   ).length;
   const skipped = result.results.flatMap((r) =>
-    r.locales.filter((l) => l.status.startsWith('skipped'))
+    r.locales.filter((l) => l.status.startsWith('skipped') || l.status === 'blocked_fetch')
   ).length;
-  console.log('proposals/written:', proposed, 'skipped:', skipped);
+  console.log('proposals/written:', proposed, 'skipped/blocked:', skipped);
 }
 
 main().catch((err) => {

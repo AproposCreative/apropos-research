@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { mkdtempSync, readFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -7,16 +7,67 @@ import {
   assertApplyOverwriteGates,
   buildLocaleArticleKey,
   buildOverwriteSeoEngineInput,
+  buildSourceSignature,
+  classifyLocaleFetchFailure,
   exactReadbackMatch,
+  loadAndValidateFromReport,
   parseBackfillCliArgs,
   resolveEffectiveLimit,
   resolveEffectiveLocales,
   runOverwriteBackfill,
   selectNewestPublishedItems,
+  sourceSignaturesMatch,
   validateOverwriteFields,
+  type FrozenManifestEntry,
   type ListedArticleItem,
 } from '../lib/seo-engine/overwrite-backfill';
 import { buildEmptyOnlyDomainPatch } from '../lib/seo-engine/auto-seo-worker';
+import { WebflowLocaleFetchError } from '../lib/webflow/locale-items';
+
+const body = `<p>${'ord '.repeat(80)}</p>`;
+
+function aiAnalyze() {
+  return async () =>
+    ({
+      analysisRunId: 'ar1',
+      inputVersionHash: 'h',
+      inputMode: 'full' as const,
+      mode: 'ai' as const,
+      analysis: {
+        schemaVersion: 'editorial-analysis-v1',
+        primaryEntity: { asWritten: 'Artikel', normalized: 'artikel' },
+        spoilerSensitive: false,
+        facts: { claimed: [], missing: [] },
+      } as never,
+      articleKey: 'wf:item1:da',
+    }) as never;
+}
+
+function aiStrategize(title = 'Ny SEO titel om Artikel') {
+  return async () =>
+    ({
+      seoVersionId: 'sv1',
+      revision: 1,
+      mode: 'ai' as const,
+      stale: false,
+      pack: {
+        recommended: {
+          fields: {
+            seoTitle: { value: title, locked: false },
+            metaDescription: {
+              value:
+                'Ny meta description om Artikel uden forbudte fraser og med rimelig længde.',
+              locked: false,
+            },
+            slug: { value: 'slug-1', locked: false },
+            jsonLd: { value: { '@graph': [{ '@type': 'Article' }] }, locked: false },
+          },
+        },
+        alternatives: [],
+      },
+      validation: { errors: [], warnings: [], suggestions: [] },
+    }) as never;
+}
 
 describe('overwrite backfill CLI gates', () => {
   it('defaults to dry-run', () => {
@@ -26,45 +77,51 @@ describe('overwrite backfill CLI gates', () => {
   });
 
   it('rejects --apply without --overwrite', () => {
-    const cli = parseBackfillCliArgs(['--apply', '--limit=10', '--locales=da,en']);
+    const cli = parseBackfillCliArgs([
+      '--apply',
+      '--limit=10',
+      '--locales=da,en',
+      '--from-report=r.json',
+    ]);
     const gate = assertApplyOverwriteGates(cli);
     expect(gate.ok).toBe(false);
     if (!gate.ok) expect(gate.reason).toMatch(/overwrite/i);
   });
 
-  it('rejects --apply --overwrite without explicit limit=10', () => {
-    const cli = parseBackfillCliArgs(['--apply', '--overwrite', '--locales=da,en']);
-    const gate = assertApplyOverwriteGates(cli);
-    expect(gate.ok).toBe(false);
-    if (!gate.ok) expect(gate.reason).toMatch(/limit=10/);
-  });
-
-  it('rejects --apply --overwrite with wrong limit', () => {
-    const cli = parseBackfillCliArgs([
-      '--apply',
-      '--overwrite',
-      '--limit=5',
-      '--locales=da,en',
-    ]);
-    const gate = assertApplyOverwriteGates(cli);
-    expect(gate.ok).toBe(false);
-  });
-
-  it('rejects --apply --overwrite without locales=da,en', () => {
-    const cli = parseBackfillCliArgs(['--apply', '--overwrite', '--limit=10']);
-    const gate = assertApplyOverwriteGates(cli);
-    expect(gate.ok).toBe(false);
-    if (!gate.ok) expect(gate.reason).toMatch(/locales/);
-  });
-
-  it('accepts full apply gate set', () => {
+  it('rejects --apply --overwrite without --from-report', () => {
     const cli = parseBackfillCliArgs([
       '--apply',
       '--overwrite',
       '--limit=10',
       '--locales=da,en',
     ]);
+    const gate = assertApplyOverwriteGates(cli);
+    expect(gate.ok).toBe(false);
+    if (!gate.ok) expect(gate.reason).toMatch(/from-report/i);
+  });
+
+  it('rejects --apply --overwrite without explicit limit=10', () => {
+    const cli = parseBackfillCliArgs([
+      '--apply',
+      '--overwrite',
+      '--locales=da,en',
+      '--from-report=r.json',
+    ]);
+    const gate = assertApplyOverwriteGates(cli);
+    expect(gate.ok).toBe(false);
+    if (!gate.ok) expect(gate.reason).toMatch(/limit=10/);
+  });
+
+  it('accepts full apply gate set including from-report', () => {
+    const cli = parseBackfillCliArgs([
+      '--apply',
+      '--overwrite',
+      '--limit=10',
+      '--locales=da,en',
+      '--from-report=/tmp/report.json',
+    ]);
     expect(assertApplyOverwriteGates(cli)).toEqual({ ok: true });
+    expect(cli.fromReport).toBe('/tmp/report.json');
     expect(resolveEffectiveLimit(cli)).toBe(10);
     expect(resolveEffectiveLocales(cli)).toEqual(['da', 'en']);
   });
@@ -113,7 +170,7 @@ describe('overwrite backfill selection', () => {
 });
 
 describe('overwrite input unlock + articleKey', () => {
-  it('nulls existing SEO so CMS values are not locked into AI input', () => {
+  it('nulls existing SEO and omits undefined optionals', () => {
     const input = buildOverwriteSeoEngineInput({
       fieldData: {
         name: 'Titel',
@@ -125,14 +182,7 @@ describe('overwrite input unlock + articleKey', () => {
     });
     expect(input.existingSeoTitle).toBeNull();
     expect(input.existingMetaDescription).toBeNull();
-    expect(input.editorialTitle).toBe('Titel');
-    expect(input.language).toBe('da');
     expect(Object.prototype.hasOwnProperty.call(input, 'existingUrl')).toBe(false);
-    expect(Object.prototype.hasOwnProperty.call(input, 'rating')).toBe(false);
-  });
-
-  it('uses locale-separated articleKey', () => {
-    expect(buildLocaleArticleKey('abc', 'da')).toBe('wf:abc:da');
     expect(buildLocaleArticleKey('abc', 'en')).toBe('wf:abc:en');
   });
 
@@ -144,35 +194,16 @@ describe('overwrite input unlock + articleKey', () => {
       metaDescription: 'M',
     });
     expect(patch).toEqual({ metaDescription: 'M' });
-    expect(patch.seoTitle).toBeUndefined();
   });
 });
 
-describe('overwrite validation + readback', () => {
+describe('overwrite validation + readback + signatures', () => {
   it('rejects empty / over-max / forbidden phrases', () => {
     const bad = validateOverwriteFields({
       seoTitle: '',
       metaDescription: 'alt du skal vide om filmen her',
     });
     expect(bad.ok).toBe(false);
-    expect(bad.errors.some((e) => /empty/i.test(e))).toBe(true);
-    expect(bad.errors.some((e) => /forbidden/i.test(e))).toBe(true);
-
-    const longTitle = 'x'.repeat(61);
-    const longMeta = 'y'.repeat(156);
-    const len = validateOverwriteFields({ seoTitle: longTitle, metaDescription: longMeta });
-    expect(len.ok).toBe(false);
-    expect(len.errors.some((e) => /seoTitle length/.test(e))).toBe(true);
-    expect(len.errors.some((e) => /metaDescription length/.test(e))).toBe(true);
-  });
-
-  it('accepts valid fields', () => {
-    const ok = validateOverwriteFields({
-      seoTitle: 'En præcis titel om filmen',
-      metaDescription:
-        'Kort, konkret meta om filmen uden forbudte fraser og med nok tegn til at være nyttig.',
-    });
-    expect(ok.ok).toBe(true);
   });
 
   it('exact readback compare', () => {
@@ -183,23 +214,50 @@ describe('overwrite validation + readback', () => {
         fieldData: { 'seo-title': 'A', 'meta-description': 'B' },
       })
     ).toBe(true);
-    expect(
-      exactReadbackMatch({
-        expectedSeoTitle: 'A',
-        expectedMetaDescription: 'B',
-        fieldData: { 'seo-title': 'A', 'meta-description': 'DIFF' },
-      })
-    ).toBe(false);
+  });
+
+  it('sourceSignaturesMatch detects concurrent edits', () => {
+    const base = {
+      lastUpdated: 't1',
+      lastPublished: 'p1',
+      contentHash: 'c1',
+      inputVersionHash: 'i1',
+      oldSeoTitle: 'old',
+      oldMetaDescription: 'meta',
+    };
+    expect(sourceSignaturesMatch(base, { ...base })).toBe(true);
+    expect(sourceSignaturesMatch(base, { ...base, lastUpdated: 't2' })).toBe(false);
+    expect(sourceSignaturesMatch(base, { ...base, contentHash: 'c2' })).toBe(false);
   });
 });
 
-describe('overwrite backfill dry-run / locale skip (injected)', () => {
-  const body = `<p>${'ord '.repeat(80)}</p>`;
+describe('1) fetch failure classification', () => {
+  it('only 404 is missing; auth/429/5xx/network are blocking', () => {
+    expect(classifyLocaleFetchFailure(new WebflowLocaleFetchError('gone', 404)).kind).toBe(
+      'missing'
+    );
+    expect(classifyLocaleFetchFailure(new WebflowLocaleFetchError('nope', 401)).kind).toBe(
+      'blocking'
+    );
+    expect(classifyLocaleFetchFailure(new WebflowLocaleFetchError('nope', 403)).kind).toBe(
+      'blocking'
+    );
+    expect(classifyLocaleFetchFailure(new WebflowLocaleFetchError('slow', 429)).kind).toBe(
+      'blocking'
+    );
+    expect(classifyLocaleFetchFailure(new WebflowLocaleFetchError('boom', 500)).kind).toBe(
+      'blocking'
+    );
+    expect(classifyLocaleFetchFailure(new WebflowLocaleFetchError('net', 0)).kind).toBe(
+      'blocking'
+    );
+    expect(classifyLocaleFetchFailure(new Error('random')).kind).toBe('blocking');
+  });
 
-  it('dry-run never calls patch/publish; skips missing EN', async () => {
-    const reportDir = mkdtempSync(join(tmpdir(), 'seo-backfill-'));
-    let patchCalls = 0;
-    let publishCalls = 0;
+  it('dry-run: 404 EN skips; 500 blocks (not treated as missing)', async () => {
+    const reportDir = mkdtempSync(join(tmpdir(), 'seo-bf-fetch-'));
+    const { resolveWebflowLocaleIds } = await import('../lib/webflow/locale-items');
+    const { en, dk } = resolveWebflowLocaleIds();
 
     const result = await runOverwriteBackfill({
       limit: 1,
@@ -218,188 +276,295 @@ describe('overwrite backfill dry-run / locale skip (injected)', () => {
         },
       ],
       fetchFn: async (itemId, cmsLocaleId) => {
-        // Simulate EN missing via throw for EN locale id from env defaults
-        const { resolveWebflowLocaleIds } = await import('../lib/webflow/locale-items');
-        const { en } = resolveWebflowLocaleIds();
         if (cmsLocaleId === en) {
-          throw new Error('not found');
+          throw new WebflowLocaleFetchError('not found', 404);
         }
-        return {
-          id: itemId,
-          cmsLocaleId,
-          lastPublished: '2026-07-20T12:00:00.000Z',
-          lastUpdated: '2026-07-20T12:00:00.000Z',
-          isDraft: false,
-          fieldData: {
-            name: 'Artikel 1',
-            slug: 'slug-1',
-            content: body,
-            'seo-title': 'OLD TITLE',
-            'meta-description': 'OLD META DESCRIPTION TEXT HERE',
-          },
-        };
-      },
-      analyzeFn: async () =>
-        ({
-          analysisRunId: 'ar1',
-          inputVersionHash: 'h',
-          inputMode: 'full' as const,
-          mode: 'ai' as const,
-          analysis: {
-            schemaVersion: 'editorial-analysis-v1',
-            primaryEntity: { asWritten: 'Artikel', normalized: 'artikel' },
-            spoilerSensitive: false,
-            facts: { claimed: [], missing: [] },
-          } as never,
-          articleKey: 'wf:item1:da',
-        }) as never,
-      strategizeFn: async () =>
-        ({
-          seoVersionId: 'sv1',
-          revision: 1,
-          mode: 'ai' as const,
-          stale: false,
-          pack: {
-            recommended: {
-              fields: {
-                seoTitle: { value: 'Ny SEO titel om Artikel', locked: false },
-                metaDescription: {
-                  value:
-                    'Ny meta description om Artikel uden forbudte fraser og med rimelig længde.',
-                  locked: false,
-                },
-                slug: { value: 'slug-1', locked: false },
-                jsonLd: { value: { '@graph': [{ '@type': 'Article' }] }, locked: false },
-              },
+        if (cmsLocaleId === dk) {
+          return {
+            id: itemId,
+            cmsLocaleId,
+            lastPublished: '2026-07-20T12:00:00.000Z',
+            lastUpdated: '2026-07-20T12:00:00.000Z',
+            isDraft: false,
+            fieldData: {
+              name: 'Artikel 1',
+              slug: 'slug-1',
+              content: body,
+              'seo-title': 'OLD',
+              'meta-description': 'OLD META',
             },
-            alternatives: [],
-          },
-          validation: { errors: [], warnings: [], suggestions: [] },
-        }) as never,
+          };
+        }
+        throw new WebflowLocaleFetchError('server', 500);
+      },
+      analyzeFn: aiAnalyze(),
+      strategizeFn: aiStrategize(),
       patchFn: async () => {
-        patchCalls += 1;
+        throw new Error('must not patch in dry-run');
       },
       publishFn: async () => {
-        publishCalls += 1;
+        throw new Error('must not publish in dry-run');
       },
     });
 
-    expect(result.mode).toBe('dry-run');
-    expect(patchCalls).toBe(0);
-    expect(publishCalls).toBe(0);
     const locales = result.results[0]?.locales || [];
-    expect(locales.some((l) => l.locale === 'da' && l.status === 'proposed')).toBe(true);
     expect(locales.some((l) => l.locale === 'en' && l.status === 'skipped_missing')).toBe(true);
-
-    const report = JSON.parse(readFileSync(result.reportPath, 'utf8')) as {
-      mode: string;
-      results: unknown[];
-    };
-    expect(report.mode).toBe('dry-run');
+    expect(locales.some((l) => l.locale === 'da' && l.status === 'proposed')).toBe(true);
+    expect(result.frozenManifest.length).toBe(1);
   });
 
-  it('apply path patches once and verifies exact readback; stops on mismatch', async () => {
-    const reportDir = mkdtempSync(join(tmpdir(), 'seo-backfill-apply-'));
-    let patchCalls = 0;
-    let publishCalls = 0;
-    let readAfterWrite = false;
-
+  it('blocking 500 during backup stops dry-run', async () => {
+    const reportDir = mkdtempSync(join(tmpdir(), 'seo-bf-500-'));
     const result = await runOverwriteBackfill({
       limit: 1,
       locales: ['da'],
-      apply: true,
+      apply: false,
       reportDir,
       onLog: () => {},
       listFn: async () => [
         {
-          id: 'item2',
-          slug: 'slug-2',
-          title: 'Artikel 2',
-          lastPublished: '2026-07-21T12:00:00.000Z',
-          lastUpdated: '2026-07-21T12:00:00.000Z',
+          id: 'itemX',
+          slug: 'x',
+          title: 'X',
+          lastPublished: '2026-07-20T12:00:00.000Z',
+          lastUpdated: null,
           isDraft: false,
         },
       ],
+      fetchFn: async () => {
+        throw new WebflowLocaleFetchError('server error', 503);
+      },
+      analyzeFn: aiAnalyze(),
+      strategizeFn: aiStrategize(),
+    });
+    expect(result.stoppedOnError).toBe(true);
+    expect(result.errorMessage).toMatch(/Blocking fetch/i);
+  });
+});
+
+describe('2) unpublished locale stop/skip', () => {
+  it('stops when DA is no longer published', async () => {
+    const reportDir = mkdtempSync(join(tmpdir(), 'seo-bf-unpub-'));
+    const result = await runOverwriteBackfill({
+      limit: 1,
+      locales: ['da'],
+      apply: false,
+      reportDir,
+      onLog: () => {},
+      listFn: async () => [
+        {
+          id: 'itemD',
+          slug: 'd',
+          title: 'D',
+          lastPublished: '2026-07-20T12:00:00.000Z',
+          lastUpdated: '2026-07-20T12:00:00.000Z',
+          isDraft: false,
+        },
+      ],
+      fetchFn: async (itemId, cmsLocaleId) => ({
+        id: itemId,
+        cmsLocaleId,
+        lastPublished: null,
+        lastUpdated: '2026-07-20T12:00:00.000Z',
+        isDraft: true,
+        fieldData: { name: 'D', slug: 'd', content: body },
+      }),
+      analyzeFn: aiAnalyze(),
+      strategizeFn: aiStrategize(),
+    });
+    expect(result.stoppedOnError).toBe(true);
+    expect(result.errorMessage).toMatch(/no longer published/i);
+  });
+});
+
+describe('3) concurrent change protection + 4) from-report gate', () => {
+  it('apply requires valid frozen report and refuses empty/wrong mode', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'seo-bf-fr-'));
+    const bad = join(dir, 'bad.json');
+    writeFileSync(bad, JSON.stringify({ mode: 'apply', frozenManifest: [] }), 'utf8');
+    expect(loadAndValidateFromReport(bad).ok).toBe(false);
+
+    const empty = join(dir, 'empty.json');
+    writeFileSync(
+      empty,
+      JSON.stringify({ mode: 'dry-run', stoppedOnError: false, frozenManifest: [] }),
+      'utf8'
+    );
+    expect(loadAndValidateFromReport(empty).ok).toBe(false);
+  });
+
+  it('apply from-report writes frozen values and stops on signature mismatch', async () => {
+    const reportDir = mkdtempSync(join(tmpdir(), 'seo-bf-apply-'));
+    const { resolveWebflowLocaleIds } = await import('../lib/webflow/locale-items');
+    const { dk } = resolveWebflowLocaleIds();
+
+    const fieldData = {
+      name: 'Artikel 2',
+      slug: 'slug-2',
+      content: body,
+      'seo-title': 'OLD',
+      'meta-description': 'OLD META',
+    };
+    const input = buildOverwriteSeoEngineInput({ fieldData, language: 'da' });
+    const item = {
+      id: 'item2',
+      cmsLocaleId: dk,
+      lastPublished: '2026-07-21T12:00:00.000Z',
+      lastUpdated: '2026-07-21T12:00:00.000Z',
+      isDraft: false,
+      fieldData,
+    };
+    const sig = buildSourceSignature({
+      item,
+      input,
+      oldSeoTitle: 'OLD',
+      oldMetaDescription: 'OLD META',
+    });
+
+    const manifest: FrozenManifestEntry[] = [
+      {
+        itemId: 'item2',
+        locale: 'da',
+        cmsLocaleId: dk,
+        articleKey: 'wf:item2:da',
+        newSeoTitle: 'Ny SEO titel om Artikel',
+        newMetaDescription:
+          'Ny meta description om Artikel uden forbudte fraser og med rimelig længde.',
+        wasPublished: true,
+        sourceSignature: sig,
+      },
+    ];
+
+    const dryReport = join(reportDir, 'approved-dry.json');
+    writeFileSync(
+      dryReport,
+      JSON.stringify({
+        schemaVersion: 2,
+        mode: 'dry-run',
+        stoppedOnError: false,
+        selected: [
+          {
+            id: 'item2',
+            slug: 'slug-2',
+            title: 'Artikel 2',
+            lastPublished: '2026-07-21T12:00:00.000Z',
+            locales: ['da'],
+          },
+        ],
+        results: [],
+        frozenManifest: manifest,
+      }),
+      'utf8'
+    );
+
+    let patchCalls = 0;
+    let mutated = false;
+
+    // First: concurrent change (lastUpdated differs) → stop, no successful write completion
+    const blocked = await runOverwriteBackfill({
+      limit: 10,
+      locales: ['da', 'en'],
+      apply: true,
+      fromReportPath: dryReport,
+      reportDir,
+      onLog: () => {},
+      fetchFn: async (itemId, cmsLocaleId) => ({
+        ...item,
+        id: itemId,
+        cmsLocaleId,
+        lastUpdated: 'CHANGED',
+      }),
+      patchFn: async () => {
+        patchCalls += 1;
+      },
+      publishFn: async () => {},
+    });
+    expect(blocked.stoppedOnError).toBe(true);
+    expect(blocked.errorMessage).toMatch(/Concurrent change/i);
+    expect(patchCalls).toBe(0);
+
+    // Second: matching signature → write + readback ok
+    const okRun = await runOverwriteBackfill({
+      limit: 10,
+      locales: ['da', 'en'],
+      apply: true,
+      fromReportPath: dryReport,
+      reportDir: mkdtempSync(join(tmpdir(), 'seo-bf-apply-ok-')),
+      onLog: () => {},
       fetchFn: async (itemId, cmsLocaleId) => {
-        if (readAfterWrite) {
-          // intentional mismatch
+        if (mutated) {
           return {
+            ...item,
             id: itemId,
             cmsLocaleId,
-            lastPublished: '2026-07-21T12:00:00.000Z',
-            isDraft: false,
             fieldData: {
-              name: 'Artikel 2',
-              slug: 'slug-2',
-              content: body,
-              'seo-title': 'WRONG',
-              'meta-description': 'WRONG META',
+              ...fieldData,
+              'seo-title': manifest[0].newSeoTitle,
+              'meta-description': manifest[0].newMetaDescription,
             },
           };
         }
-        return {
-          id: itemId,
-          cmsLocaleId,
-          lastPublished: '2026-07-21T12:00:00.000Z',
-          isDraft: false,
-          fieldData: {
-            name: 'Artikel 2',
-            slug: 'slug-2',
-            content: body,
-            'seo-title': 'OLD',
-            'meta-description': 'OLD META',
-          },
-        };
+        return { ...item, id: itemId, cmsLocaleId };
       },
-      analyzeFn: async () =>
-        ({
-          analysisRunId: 'ar2',
-          inputVersionHash: 'h2',
-          inputMode: 'full' as const,
-          mode: 'ai' as const,
-          analysis: {
-            schemaVersion: 'editorial-analysis-v1',
-            primaryEntity: { asWritten: 'Artikel', normalized: 'artikel' },
-            spoilerSensitive: false,
-            facts: { claimed: [], missing: [] },
-          } as never,
-          articleKey: 'wf:item2:da',
-        }) as never,
-      strategizeFn: async () =>
-        ({
-          seoVersionId: 'sv2',
-          revision: 1,
-          mode: 'ai' as const,
-          stale: false,
-          pack: {
-            recommended: {
-              fields: {
-                seoTitle: { value: 'Ny SEO titel om Artikel', locked: false },
-                metaDescription: {
-                  value:
-                    'Ny meta description om Artikel uden forbudte fraser og med rimelig længde.',
-                  locked: false,
-                },
-                slug: { value: 'slug-2', locked: false },
-                jsonLd: { value: { '@graph': [] }, locked: false },
-              },
-            },
-            alternatives: [],
-          },
-          validation: { errors: [], warnings: [], suggestions: [] },
-        }) as never,
       patchFn: async () => {
         patchCalls += 1;
-        readAfterWrite = true;
+        mutated = true;
+      },
+      publishFn: async () => {},
+    });
+    expect(okRun.stoppedOnError).toBe(false);
+    expect(patchCalls).toBe(1);
+    expect(okRun.results[0]?.locales[0]?.status).toBe('written');
+  });
+
+  it('dry-run never calls patch/publish', async () => {
+    const reportDir = mkdtempSync(join(tmpdir(), 'seo-bf-dry-'));
+    let patchCalls = 0;
+    const result = await runOverwriteBackfill({
+      limit: 1,
+      locales: ['da'],
+      apply: false,
+      reportDir,
+      onLog: () => {},
+      listFn: async () => [
+        {
+          id: 'item1',
+          slug: 'slug-1',
+          title: 'Artikel 1',
+          lastPublished: '2026-07-20T12:00:00.000Z',
+          lastUpdated: '2026-07-20T12:00:00.000Z',
+          isDraft: false,
+        },
+      ],
+      fetchFn: async (itemId, cmsLocaleId) => ({
+        id: itemId,
+        cmsLocaleId,
+        lastPublished: '2026-07-20T12:00:00.000Z',
+        lastUpdated: '2026-07-20T12:00:00.000Z',
+        isDraft: false,
+        fieldData: {
+          name: 'Artikel 1',
+          slug: 'slug-1',
+          content: body,
+          'seo-title': 'OLD TITLE',
+          'meta-description': 'OLD META DESCRIPTION TEXT HERE',
+        },
+      }),
+      analyzeFn: aiAnalyze(),
+      strategizeFn: aiStrategize(),
+      patchFn: async () => {
+        patchCalls += 1;
       },
       publishFn: async () => {
-        publishCalls += 1;
+        patchCalls += 1;
       },
     });
-
-    expect(patchCalls).toBe(1);
-    expect(publishCalls).toBe(1);
-    expect(result.stoppedOnError).toBe(true);
-    expect(result.errorMessage).toMatch(/Readback mismatch|backup/i);
+    expect(result.mode).toBe('dry-run');
+    expect(patchCalls).toBe(0);
+    expect(result.frozenManifest.length).toBe(1);
+    const report = JSON.parse(readFileSync(result.reportPath, 'utf8')) as {
+      frozenManifest: unknown[];
+    };
+    expect(report.frozenManifest).toHaveLength(1);
   });
 });

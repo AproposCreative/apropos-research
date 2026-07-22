@@ -36,8 +36,12 @@ export {
   selectNewestPublishedItems,
   validateOverwriteFields,
   exactReadbackMatch,
+  classifyLocaleFetchFailure,
+  sourceSignaturesMatch,
+  loadAndValidateFromReport,
   runOverwriteBackfill,
 } from '@/lib/seo-engine/overwrite-backfill';
+export { WebflowLocaleFetchError } from '@/lib/webflow/locale-items';
 export * from '@/lib/seo-engine/prompts';
 export * from '@/lib/seo-engine/evidence';
 export * from '@/lib/seo-engine/access';
