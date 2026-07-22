@@ -7,9 +7,12 @@ import {
   assertApplyOverwriteGates,
   buildLocaleArticleKey,
   buildOverwriteSeoEngineInput,
+  buildResumePlan,
   buildSourceSignature,
   classifyLocaleFetchFailure,
+  computeTransientBackoffMs,
   exactReadbackMatch,
+  isTransientFetchFailure,
   loadAndValidateFromReport,
   assertDryRunReportCleanForApply,
   mergeDryRunReports,
@@ -20,11 +23,14 @@ import {
   selectNewestPublishedItems,
   sourceSignaturesMatch,
   validateOverwriteFields,
+  withTransientFetchRetry,
+  type ApplyReportDocument,
+  type DryRunReportDocument,
   type FrozenManifestEntry,
   type ListedArticleItem,
 } from '../lib/seo-engine/overwrite-backfill';
 import { buildEmptyOnlyDomainPatch } from '../lib/seo-engine/auto-seo-worker';
-import { WebflowLocaleFetchError } from '../lib/webflow/locale-items';
+import { parseRetryAfterMs, WebflowLocaleFetchError } from '../lib/webflow/locale-items';
 
 const body = `<p>${'ord '.repeat(80)}</p>`;
 
@@ -914,5 +920,579 @@ describe('dry-run report apply gate + compose', () => {
     const merged = mergeDryRunReports({ base, retry });
     expect(merged.ok).toBe(false);
     if (!merged.ok) expect(merged.reason).toMatch(/Conflict/i);
+  });
+});
+
+describe('transient fetch retry + Retry-After', () => {
+  it('parseRetryAfterMs supports seconds and HTTP-date', () => {
+    expect(parseRetryAfterMs('2')).toBe(2000);
+    expect(parseRetryAfterMs(null)).toBeNull();
+    const future = new Date(Date.now() + 1500).toUTCString();
+    const ms = parseRetryAfterMs(future);
+    expect(ms).not.toBeNull();
+    expect(ms!).toBeGreaterThan(500);
+    expect(ms!).toBeLessThan(5000);
+  });
+
+  it('isTransientFetchFailure retries 429/5xx/network but not auth/404', () => {
+    expect(isTransientFetchFailure(new WebflowLocaleFetchError('slow', 429, 1000))).toBe(true);
+    expect(isTransientFetchFailure(new WebflowLocaleFetchError('boom', 503))).toBe(true);
+    expect(isTransientFetchFailure(new WebflowLocaleFetchError('net', 0))).toBe(true);
+    expect(isTransientFetchFailure(new WebflowLocaleFetchError('auth', 401))).toBe(false);
+    expect(isTransientFetchFailure(new WebflowLocaleFetchError('auth', 403))).toBe(false);
+    expect(isTransientFetchFailure(new WebflowLocaleFetchError('gone', 404))).toBe(false);
+    expect(classifyLocaleFetchFailure(new WebflowLocaleFetchError('slow', 429, 1500)).retryAfterMs).toBe(
+      1500
+    );
+  });
+
+  it('computeTransientBackoffMs honors Retry-After within max', () => {
+    expect(
+      computeTransientBackoffMs({
+        attempt: 0,
+        baseDelayMs: 400,
+        maxDelayMs: 8000,
+        retryAfterMs: 2500,
+      })
+    ).toBe(2500);
+    expect(
+      computeTransientBackoffMs({
+        attempt: 0,
+        baseDelayMs: 400,
+        maxDelayMs: 1000,
+        retryAfterMs: 5000,
+      })
+    ).toBe(1000);
+    expect(
+      computeTransientBackoffMs({ attempt: 2, baseDelayMs: 400, maxDelayMs: 8000 })
+    ).toBe(1600);
+  });
+
+  it('withTransientFetchRetry retries 429 then succeeds; auth never retries', async () => {
+    const sleeps: number[] = [];
+    let calls = 0;
+    const wrapped = withTransientFetchRetry(
+      async () => {
+        calls += 1;
+        if (calls < 3) throw new WebflowLocaleFetchError('rate', 429, 50);
+        return {
+          id: 'x',
+          cmsLocaleId: 'en',
+          fieldData: {},
+          lastPublished: 't',
+          lastUpdated: 't',
+          isDraft: false,
+        };
+      },
+      {
+        maxAttempts: 5,
+        baseDelayMs: 10,
+        maxDelayMs: 100,
+        sleep: async (ms) => {
+          sleeps.push(ms);
+        },
+      }
+    );
+    const ok = await wrapped('x', 'en');
+    expect(ok.id).toBe('x');
+    expect(calls).toBe(3);
+    expect(sleeps).toEqual([50, 50]);
+
+    let authCalls = 0;
+    const authWrapped = withTransientFetchRetry(
+      async () => {
+        authCalls += 1;
+        throw new WebflowLocaleFetchError('nope', 401);
+      },
+      { maxAttempts: 5, sleep: async () => {} }
+    );
+    await expect(authWrapped('x', 'en')).rejects.toMatchObject({ status: 401 });
+    expect(authCalls).toBe(1);
+  });
+
+  it('apply readback survives transient 429 via retry wrapper', async () => {
+    const reportDir = mkdtempSync(join(tmpdir(), 'seo-bf-retry-rb-'));
+    const { resolveWebflowLocaleIds } = await import('../lib/webflow/locale-items');
+    const { dk } = resolveWebflowLocaleIds();
+    const sig = {
+      lastUpdated: '2026-07-20T12:00:00.000Z',
+      lastPublished: '2026-07-20T12:00:00.000Z',
+      contentHash: 'c1',
+      inputVersionHash: 'i1',
+      oldSeoTitle: 'OLD',
+      oldMetaDescription: 'OLD META',
+    };
+    // contentHash must match hashCmsContent of fieldData — use buildSourceSignature in a real apply test pattern
+    const fieldData = {
+      name: 'Artikel 2',
+      slug: 'slug-2',
+      content: body,
+      'seo-title': 'OLD',
+      'meta-description': 'OLD META',
+    };
+    const item = {
+      id: 'item2',
+      cmsLocaleId: dk,
+      lastPublished: '2026-07-20T12:00:00.000Z',
+      lastUpdated: '2026-07-20T12:00:00.000Z',
+      isDraft: false,
+      fieldData,
+    };
+    const liveSig = buildSourceSignature({
+      item,
+      input: buildOverwriteSeoEngineInput({ fieldData, language: 'da' }),
+      oldSeoTitle: 'OLD',
+      oldMetaDescription: 'OLD META',
+    });
+    const manifest: FrozenManifestEntry[] = [
+      {
+        itemId: 'item2',
+        locale: 'da',
+        cmsLocaleId: dk,
+        articleKey: 'wf:item2:da',
+        newSeoTitle: 'Ny SEO titel om Artikel',
+        newMetaDescription: 'En meta description der er lang nok til validation check.',
+        wasPublished: true,
+        sourceSignature: liveSig,
+      },
+    ];
+    const dryReport = join(reportDir, 'dry.json');
+    writeFileSync(
+      dryReport,
+      JSON.stringify({
+        schemaVersion: 2,
+        createdAt: new Date().toISOString(),
+        mode: 'dry-run',
+        limit: 10,
+        locales: ['da', 'en'],
+        backupPath: null,
+        stoppedOnError: false,
+        errorMessage: null,
+        selected: [
+          {
+            id: 'item2',
+            slug: 'slug-2',
+            title: 'Artikel 2',
+            lastPublished: '2026-07-21T12:00:00.000Z',
+            locales: ['da'],
+          },
+        ],
+        results: [
+          {
+            itemId: 'item2',
+            slug: 'slug-2',
+            title: 'Artikel 2',
+            locales: [
+              {
+                locale: 'da',
+                status: 'proposed',
+                proposal: {
+                  locale: 'da',
+                  cmsLocaleId: dk,
+                  articleKey: 'wf:item2:da',
+                  title: 'Artikel 2',
+                  slug: 'slug-2',
+                  wasPublished: true,
+                  oldSeoTitle: 'OLD',
+                  oldMetaDescription: 'OLD META',
+                  newSeoTitle: manifest[0].newSeoTitle,
+                  newMetaDescription: manifest[0].newMetaDescription,
+                  analysisRunId: 'ar',
+                  seoVersionId: 'sv',
+                  mode: 'ai',
+                  validationErrors: [],
+                  validationWarnings: [],
+                  sourceSignature: liveSig,
+                },
+              },
+            ],
+          },
+        ],
+        frozenManifest: manifest,
+      }),
+      'utf8'
+    );
+
+    let fetchCalls = 0;
+    let mutated = false;
+    const result = await runOverwriteBackfill({
+      limit: 10,
+      locales: ['da', 'en'],
+      apply: true,
+      fromReportPath: dryReport,
+      reportDir: mkdtempSync(join(tmpdir(), 'seo-bf-retry-apply-')),
+      onLog: () => {},
+      fetchRetry: { maxAttempts: 4, baseDelayMs: 1, maxDelayMs: 5, sleep: async () => {} },
+      fetchFn: async (itemId, cmsLocaleId) => {
+        fetchCalls += 1;
+        // After patch, first readback fails with 429, then succeeds
+        if (mutated) {
+          if (fetchCalls === 3) {
+            throw new WebflowLocaleFetchError('rate', 429, 1);
+          }
+          return {
+            ...item,
+            id: itemId,
+            cmsLocaleId,
+            fieldData: {
+              ...fieldData,
+              'seo-title': manifest[0].newSeoTitle,
+              'meta-description': manifest[0].newMetaDescription,
+            },
+          };
+        }
+        return { ...item, id: itemId, cmsLocaleId };
+      },
+      patchFn: async () => {
+        mutated = true;
+      },
+      publishFn: async () => {},
+    });
+    expect(result.stoppedOnError).toBe(false);
+    expect(result.results[0]?.locales[0]?.status).toBe('written');
+    expect(fetchCalls).toBeGreaterThanOrEqual(3);
+  });
+});
+
+describe('resume plan from partial apply', () => {
+  function makeComposite(entries: FrozenManifestEntry[]): DryRunReportDocument {
+    return {
+      schemaVersion: 2,
+      createdAt: 't',
+      mode: 'dry-run',
+      limit: 10,
+      locales: ['da', 'en'],
+      backupPath: null,
+      stoppedOnError: false,
+      errorMessage: null,
+      selected: [],
+      results: entries.map((e) => ({
+        itemId: e.itemId,
+        slug: 's',
+        title: 't',
+        locales: [
+          {
+            locale: e.locale,
+            status: 'proposed' as const,
+            proposal: {
+              locale: e.locale,
+              cmsLocaleId: e.cmsLocaleId,
+              articleKey: e.articleKey,
+              title: 't',
+              slug: 's',
+              wasPublished: true,
+              oldSeoTitle: 'o',
+              oldMetaDescription: 'm',
+              newSeoTitle: e.newSeoTitle,
+              newMetaDescription: e.newMetaDescription,
+              analysisRunId: 'a',
+              seoVersionId: 'v',
+              mode: 'ai' as const,
+              validationErrors: [],
+              validationWarnings: [],
+              sourceSignature: e.sourceSignature,
+            },
+          },
+        ],
+      })),
+      frozenManifest: entries,
+    };
+  }
+
+  const sig = {
+    lastUpdated: 't',
+    lastPublished: 'p',
+    contentHash: 'c',
+    inputVersionHash: 'i',
+    oldSeoTitle: 'o',
+    oldMetaDescription: 'm',
+  };
+
+  it('identifies verified + recover + unattempted (Napalm-style)', () => {
+    const entries: FrozenManifestEntry[] = [
+      {
+        itemId: 'a',
+        locale: 'da',
+        cmsLocaleId: 'dk',
+        articleKey: 'wf:a:da',
+        newSeoTitle: 'Title A DA long enough',
+        newMetaDescription: 'Meta A DA that is long enough for validation purposes here.',
+        wasPublished: true,
+        sourceSignature: sig,
+      },
+      {
+        itemId: 'b',
+        locale: 'en',
+        cmsLocaleId: 'en',
+        articleKey: 'wf:b:en',
+        newSeoTitle: 'Title B EN long enough',
+        newMetaDescription: 'Meta B EN that is long enough for validation purposes here.',
+        wasPublished: true,
+        sourceSignature: sig,
+      },
+      {
+        itemId: 'c',
+        locale: 'da',
+        cmsLocaleId: 'dk',
+        articleKey: 'wf:c:da',
+        newSeoTitle: 'Title C DA long enough',
+        newMetaDescription: 'Meta C DA that is long enough for validation purposes here.',
+        wasPublished: true,
+        sourceSignature: sig,
+      },
+      {
+        itemId: 'c',
+        locale: 'en',
+        cmsLocaleId: 'en',
+        articleKey: 'wf:c:en',
+        newSeoTitle: 'Title C EN long enough',
+        newMetaDescription: 'Meta C EN that is long enough for validation purposes here.',
+        wasPublished: true,
+        sourceSignature: sig,
+      },
+    ];
+    const composite = makeComposite(entries);
+    const partial: ApplyReportDocument = {
+      createdAt: 't',
+      mode: 'apply',
+      backupPath: '/tmp/b.json',
+      stoppedOnError: true,
+      errorMessage: 'Readback fetch failed',
+      results: [
+        {
+          itemId: 'a',
+          slug: 's',
+          title: 't',
+          locales: [{ locale: 'da', status: 'written', readbackOk: true, published: true }],
+        },
+        {
+          itemId: 'b',
+          slug: 's',
+          title: 't',
+          locales: [{ locale: 'en', status: 'error', published: true, reason: 'Readback fetch failed' }],
+        },
+      ],
+    };
+    const planned = buildResumePlan({ composite, partialApply: partial });
+    expect(planned.ok).toBe(true);
+    if (!planned.ok) return;
+    expect(planned.plan.verifiedKeysFromPartial).toEqual(['a:da']);
+    expect(planned.plan.recoverKeys).toEqual(['b:en']);
+    expect(planned.plan.unattemptedKeys).toEqual(['c:da', 'c:en']);
+    expect(planned.plan.toWrite.map((e) => `${e.itemId}:${e.locale}`)).toEqual(['c:da', 'c:en']);
+  });
+
+  it('resume CLI gates require partial-apply-report', () => {
+    const gate = assertApplyOverwriteGates(
+      parseBackfillCliArgs([
+        '--resume',
+        '--overwrite',
+        '--limit=10',
+        '--locales=da,en',
+        '--from-report=x.json',
+      ])
+    );
+    expect(gate.ok).toBe(false);
+    if (!gate.ok) expect(gate.reason).toMatch(/partial-apply-report/i);
+  });
+
+  it('resume writes only unattempted and never re-patches verified', async () => {
+    const reportDir = mkdtempSync(join(tmpdir(), 'seo-bf-resume-'));
+    const { resolveWebflowLocaleIds } = await import('../lib/webflow/locale-items');
+    const { dk, en } = resolveWebflowLocaleIds();
+
+    const makeEntry = (
+      id: string,
+      locale: 'da' | 'en',
+      cmsLocaleId: string,
+      title: string,
+      meta: string,
+      fieldData: Record<string, unknown>
+    ): { entry: FrozenManifestEntry; fieldData: Record<string, unknown> } => {
+      const item = {
+        id,
+        cmsLocaleId,
+        lastPublished: '2026-07-20T12:00:00.000Z',
+        lastUpdated: '2026-07-20T12:00:00.000Z',
+        isDraft: false,
+        fieldData,
+      };
+      const liveSig = buildSourceSignature({
+        item,
+        input: buildOverwriteSeoEngineInput({ fieldData, language: locale }),
+        oldSeoTitle: String(fieldData['seo-title']),
+        oldMetaDescription: String(fieldData['meta-description']),
+      });
+      return {
+        fieldData,
+        entry: {
+          itemId: id,
+          locale,
+          cmsLocaleId,
+          articleKey: `wf:${id}:${locale}`,
+          newSeoTitle: title,
+          newMetaDescription: meta,
+          wasPublished: true,
+          sourceSignature: liveSig,
+        },
+      };
+    };
+
+    const a = makeEntry(
+      'itemA',
+      'da',
+      dk,
+      'Verified title for A item here',
+      'Verified meta for A that is long enough for validation check.',
+      {
+        name: 'A',
+        slug: 'a',
+        content: body,
+        'seo-title': 'OLD A',
+        'meta-description': 'OLD META A',
+      }
+    );
+    // Already written live state for A
+    const aLive = {
+      ...a.fieldData,
+      'seo-title': a.entry.newSeoTitle,
+      'meta-description': a.entry.newMetaDescription,
+    };
+    const b = makeEntry(
+      'itemB',
+      'en',
+      en,
+      'Recover title for B item here',
+      'Recover meta for B that is long enough for validation check.',
+      {
+        name: 'B',
+        slug: 'b',
+        content: body,
+        'seo-title': 'OLD B',
+        'meta-description': 'OLD META B',
+      }
+    );
+    const bLive = {
+      ...b.fieldData,
+      'seo-title': b.entry.newSeoTitle,
+      'meta-description': b.entry.newMetaDescription,
+    };
+    const c = makeEntry(
+      'itemC',
+      'da',
+      dk,
+      'Write title for C item here now',
+      'Write meta for C that is long enough for validation check.',
+      {
+        name: 'C',
+        slug: 'c',
+        content: body,
+        'seo-title': 'OLD C',
+        'meta-description': 'OLD META C',
+      }
+    );
+
+    const entries = [a.entry, b.entry, c.entry];
+    const composite = makeComposite(entries);
+    // Fix composite selected/results for clean apply validation — buildResumePlan only needs frozenManifest + results proposed
+    const compositePath = join(reportDir, 'composite.json');
+    writeFileSync(compositePath, JSON.stringify(composite), 'utf8');
+
+    const partialPath = join(reportDir, 'partial.json');
+    writeFileSync(
+      partialPath,
+      JSON.stringify({
+        createdAt: 't',
+        mode: 'apply',
+        backupPath: '/tmp/b.json',
+        stoppedOnError: true,
+        errorMessage: 'Readback fetch failed',
+        results: [
+          {
+            itemId: 'itemA',
+            slug: 'a',
+            title: 'A',
+            locales: [{ locale: 'da', status: 'written', readbackOk: true, published: true }],
+          },
+          {
+            itemId: 'itemB',
+            slug: 'b',
+            title: 'B',
+            locales: [{ locale: 'en', status: 'error', published: true }],
+          },
+        ],
+      }),
+      'utf8'
+    );
+
+    const patched: string[] = [];
+    let cMutated = false;
+    const result = await runOverwriteBackfill({
+      limit: 10,
+      locales: ['da', 'en'],
+      apply: false,
+      resume: true,
+      fromReportPath: compositePath,
+      partialApplyReportPath: partialPath,
+      reportDir,
+      onLog: () => {},
+      fetchRetry: { maxAttempts: 2, sleep: async () => {} },
+      writePaceMs: 0,
+      fetchFn: async (itemId, cmsLocaleId) => {
+        if (itemId === 'itemA') {
+          return {
+            id: itemId,
+            cmsLocaleId,
+            lastPublished: '2026-07-20T12:00:00.000Z',
+            lastUpdated: '2026-07-20T12:00:00.000Z',
+            isDraft: false,
+            fieldData: aLive,
+          };
+        }
+        if (itemId === 'itemB') {
+          return {
+            id: itemId,
+            cmsLocaleId,
+            lastPublished: '2026-07-20T12:00:00.000Z',
+            lastUpdated: '2026-07-20T12:00:00.000Z',
+            isDraft: false,
+            fieldData: bLive,
+          };
+        }
+        // itemC
+        if (cMutated) {
+          return {
+            id: itemId,
+            cmsLocaleId,
+            lastPublished: '2026-07-20T12:00:00.000Z',
+            lastUpdated: '2026-07-20T12:00:00.000Z',
+            isDraft: false,
+            fieldData: {
+              ...c.fieldData,
+              'seo-title': c.entry.newSeoTitle,
+              'meta-description': c.entry.newMetaDescription,
+            },
+          };
+        }
+        return {
+          id: itemId,
+          cmsLocaleId,
+          lastPublished: '2026-07-20T12:00:00.000Z',
+          lastUpdated: '2026-07-20T12:00:00.000Z',
+          isDraft: false,
+          fieldData: c.fieldData,
+        };
+      },
+      patchFn: async (itemId) => {
+        patched.push(itemId);
+        if (itemId === 'itemC') cMutated = true;
+      },
+      publishFn: async () => {},
+    });
+
+    expect(result.stoppedOnError).toBe(false);
+    expect(patched).toEqual(['itemC']);
+    expect(result.verifiedCount).toBe(3);
+    expect(result.mode).toBe('resume');
   });
 });

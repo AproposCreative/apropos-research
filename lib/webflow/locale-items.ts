@@ -70,11 +70,29 @@ export function isWebflowLocalePublished(
 /** Typed Webflow locale fetch failure — callers can distinguish 404 vs auth/5xx. */
 export class WebflowLocaleFetchError extends Error {
   readonly status: number;
-  constructor(message: string, status: number) {
+  /** Parsed Retry-After delay in ms when the API provided one (e.g. 429). */
+  readonly retryAfterMs: number | null;
+  constructor(message: string, status: number, retryAfterMs: number | null = null) {
     super(message);
     this.name = 'WebflowLocaleFetchError';
     this.status = status;
+    this.retryAfterMs = retryAfterMs;
   }
+}
+
+/** Parse Retry-After header (seconds or HTTP-date) into milliseconds. */
+export function parseRetryAfterMs(headerValue: string | null): number | null {
+  if (!headerValue?.trim()) return null;
+  const raw = headerValue.trim();
+  const asSeconds = Number(raw);
+  if (Number.isFinite(asSeconds) && asSeconds >= 0) {
+    return Math.round(asSeconds * 1000);
+  }
+  const asDate = Date.parse(raw);
+  if (Number.isFinite(asDate)) {
+    return Math.max(0, asDate - Date.now());
+  }
+  return null;
 }
 
 export async function fetchArticleItemByLocale(
@@ -94,10 +112,12 @@ export async function fetchArticleItemByLocale(
     throw new WebflowLocaleFetchError(`Webflow network error: ${msg}`, 0);
   }
   if (!res.ok) {
+    const retryAfterMs = parseRetryAfterMs(res.headers.get('retry-after'));
     const j = (await res.json().catch(() => ({}))) as { message?: string };
     throw new WebflowLocaleFetchError(
       j?.message || `Webflow fetch item error ${res.status}`,
-      res.status
+      res.status,
+      retryAfterMs
     );
   }
   const item: {

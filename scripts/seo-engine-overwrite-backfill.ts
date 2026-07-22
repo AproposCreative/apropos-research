@@ -6,6 +6,10 @@
  * Live writes require ALL of:
  *   --apply --overwrite --limit=10 --locales=da,en --from-report=<dry-run-report.json>
  *
+ * Resume a partial apply (verify prior; write ONLY unattempted):
+ *   --resume --overwrite --limit=10 --locales=da,en \
+ *     --from-report=<composite.json> --partial-apply-report=<partial-apply.json>
+ *
  * Compose a clean report after retries:
  *   --compose --base-report=… --retry-report=… --out=…
  *
@@ -91,9 +95,14 @@ async function main() {
   }
 
   const apply = cli.apply && !cli.dryRun;
+  const resume = cli.resume && !cli.dryRun;
   if (apply) {
     console.error(
       'APPLY MODE: will overwrite CMS seo-title/meta-description from frozen --from-report. Backup first.'
+    );
+  } else if (resume) {
+    console.error(
+      'RESUME MODE: verify prior writes; write ONLY unattempted frozen entries. Backup before new writes.'
     );
   } else {
     console.log(
@@ -101,22 +110,32 @@ async function main() {
     );
   }
 
-  const { getOpenAIClient } = await import('../lib/openai');
-  if (!getOpenAIClient()) {
-    console.error(
-      'OpenAI client unavailable after dotenv load. Check env NAME: OPENAI_API_KEY (value not printed).'
-    );
-    process.exit(1);
+  // Frozen apply/resume does not call OpenAI — skip client gate.
+  if (!apply && !resume) {
+    const { getOpenAIClient } = await import('../lib/openai');
+    if (!getOpenAIClient()) {
+      console.error(
+        'OpenAI client unavailable after dotenv load. Check env NAME: OPENAI_API_KEY (value not printed).'
+      );
+      process.exit(1);
+    }
+    console.log('OpenAI client: ready (real AI mode)');
+  } else {
+    console.log('Frozen proposals only — OpenAI not required');
   }
-  console.log('OpenAI client: ready (real AI mode)');
 
   const fromReportPath = cli.fromReport ? resolve(cli.fromReport) : null;
+  const partialApplyReportPath = cli.partialApplyReport
+    ? resolve(cli.partialApplyReport)
+    : null;
 
   const result = await runOverwriteBackfill({
     limit: resolveEffectiveLimit(cli),
     locales: resolveEffectiveLocales(cli),
     apply,
+    resume,
     fromReportPath,
+    partialApplyReportPath,
     itemIds: cli.itemIds.length > 0 ? cli.itemIds : undefined,
   });
 
@@ -126,6 +145,10 @@ async function main() {
   console.log('frozenManifest:', result.frozenManifest.length);
   console.log('backup:', result.backupPath);
   console.log('report:', result.reportPath);
+  if (result.resumePlanPath) console.log('resumePlan:', result.resumePlanPath);
+  if (typeof result.verifiedCount === 'number') {
+    console.log(`verified: ${result.verifiedCount}/${result.frozenManifest.length}`);
+  }
   if (result.stoppedOnError) {
     console.error('STOPPED ON ERROR:', result.errorMessage);
     process.exit(2);

@@ -51,6 +51,8 @@ export type ParsedBackfillCli = {
   baseReport: string | null;
   retryReport: string | null;
   outReport: string | null;
+  resume: boolean;
+  partialApplyReport: string | null;
   help: boolean;
 };
 
@@ -166,6 +168,8 @@ Flags:
   --base-report=PATH        Base dry-run report for --compose.
   --retry-report=PATH       Retry dry-run report (proposed locales) for --compose.
   --out=PATH                Output path for composite dry-run report.
+  --resume                  Resume a partial apply: verify already-written locales, write ONLY unattempted.
+  --partial-apply-report=P  Partial apply report (required with --resume).
   --item-id=ID              Optional dry-run target (repeatable / comma-separated). Skips newest-N selection.
   --limit=N                 Select N newest published DK items (apply requires N=10).
   --locales=da,en           Locales to process (apply requires exactly da,en).
@@ -174,9 +178,12 @@ Flags:
 Safety:
   - Apply without --overwrite or --from-report is rejected.
   - Only definitive 404/missing locale is skipped; auth/5xx/network block apply.
+  - Transient readback/fetch failures (429/5xx/network) retry with backoff + Retry-After.
+  - Auth (401/403) and expected-locale 404 still block immediately (no silent skip).
   - Unpublished locales (incl. DA) are skipped/stopped — never written.
   - Apply verifies lastUpdated + contentHash + inputVersionHash before each PATCH.
   - Backup of all target locales is written before the first CMS write.
+  - Resume never re-patches already-correct locales; no AI re-generation.
   - Stops on first write/readback/concurrency error (no automatic rollback).
 
 Rollback:
@@ -195,12 +202,14 @@ export function parseBackfillCliArgs(argv: string[]): ParsedBackfillCli {
   const overwrite = flags.includes('--overwrite');
   const help = flags.includes('--help') || flags.includes('-h');
   const compose = flags.includes('--compose');
+  const resume = flags.includes('--resume');
   const limitFlag = flags.find((a) => a.startsWith('--limit='));
   const localesFlag = flags.find((a) => a.startsWith('--locales='));
   const fromReportFlag = flags.find((a) => a.startsWith('--from-report='));
   const baseReportFlag = flags.find((a) => a.startsWith('--base-report='));
   const retryReportFlag = flags.find((a) => a.startsWith('--retry-report='));
   const outReportFlag = flags.find((a) => a.startsWith('--out='));
+  const partialApplyFlag = flags.find((a) => a.startsWith('--partial-apply-report='));
   const itemIdFlags = flags.filter((a) => a.startsWith('--item-id='));
   const limitExplicit = Boolean(limitFlag);
   const localesExplicit = Boolean(localesFlag);
@@ -241,6 +250,9 @@ export function parseBackfillCliArgs(argv: string[]): ParsedBackfillCli {
     ? retryReportFlag.slice('--retry-report='.length).trim() || null
     : null;
   const outReport = outReportFlag ? outReportFlag.slice('--out='.length).trim() || null : null;
+  const partialApplyReport = partialApplyFlag
+    ? partialApplyFlag.slice('--partial-apply-report='.length).trim() || null
+    : null;
 
   const itemIds: string[] = [];
   for (const f of itemIdFlags) {
@@ -252,7 +264,8 @@ export function parseBackfillCliArgs(argv: string[]): ParsedBackfillCli {
   }
 
   const dryRunFlag = flags.includes('--dry-run');
-  const dryRun = dryRunFlag || !apply;
+  // Resume is a live-write path (subset apply); treat like apply for dryRun default.
+  const dryRun = dryRunFlag || (!apply && !resume);
 
   return {
     apply,
@@ -269,36 +282,47 @@ export function parseBackfillCliArgs(argv: string[]): ParsedBackfillCli {
     baseReport,
     retryReport,
     outReport,
+    resume,
+    partialApplyReport,
     help,
   };
 }
 
-/** Gate live writes: --apply + --overwrite + limit=10 + locales=da,en + --from-report. */
+/** Gate live writes: --apply/--resume + --overwrite + limit=10 + locales=da,en + --from-report. */
 export function assertApplyOverwriteGates(cli: ParsedBackfillCli): ApplyGateResult {
-  if (!cli.apply) return { ok: true };
+  if (!cli.apply && !cli.resume) return { ok: true };
+  const mode = cli.resume ? '--resume' : '--apply';
+  if (cli.resume && cli.apply) {
+    return { ok: false, reason: 'Reject: use either --apply or --resume, not both.' };
+  }
   if (!cli.overwrite) {
     return {
       ok: false,
-      reason: 'Reject: --apply requires --overwrite (existing SEO would be overwritten).',
+      reason: `Reject: ${mode} requires --overwrite (existing SEO would be overwritten).`,
     };
   }
   if (!cli.fromReport) {
     return {
       ok: false,
-      reason:
-        'Reject: --apply requires --from-report=<dry-run-report.json> (frozen reviewed proposals).',
+      reason: `Reject: ${mode} requires --from-report=<dry-run-report.json> (frozen reviewed proposals).`,
+    };
+  }
+  if (cli.resume && !cli.partialApplyReport) {
+    return {
+      ok: false,
+      reason: 'Reject: --resume requires --partial-apply-report=<partial-apply.json>.',
     };
   }
   if (!cli.limitExplicit || cli.limit !== APPLY_REQUIRED_LIMIT) {
     return {
       ok: false,
-      reason: `Reject: --apply requires explicit --limit=${APPLY_REQUIRED_LIMIT}.`,
+      reason: `Reject: ${mode} requires explicit --limit=${APPLY_REQUIRED_LIMIT}.`,
     };
   }
   if (!cli.localesExplicit || !cli.locales) {
     return {
       ok: false,
-      reason: 'Reject: --apply requires explicit --locales=da,en.',
+      reason: `Reject: ${mode} requires explicit --locales=da,en.`,
     };
   }
   const sorted = [...cli.locales].sort().join(',');
@@ -306,7 +330,7 @@ export function assertApplyOverwriteGates(cli: ParsedBackfillCli): ApplyGateResu
   if (sorted !== required) {
     return {
       ok: false,
-      reason: 'Reject: --apply requires --locales=da,en (both, no other set).',
+      reason: `Reject: ${mode} requires --locales=da,en (both, no other set).`,
     };
   }
   return { ok: true };
@@ -412,24 +436,110 @@ export function classifyLocaleFetchFailure(err: unknown): {
   kind: FetchFailureKind;
   status: number | null;
   message: string;
+  retryAfterMs: number | null;
 } {
   if (err instanceof WebflowLocaleFetchError) {
     const status = err.status;
     if (status === 404) {
-      return { kind: 'missing', status, message: err.message };
+      return { kind: 'missing', status, message: err.message, retryAfterMs: null };
     }
     return {
       kind: 'blocking',
       status,
       message: err.message || `Webflow fetch failed HTTP ${status}`,
+      retryAfterMs: err.retryAfterMs ?? null,
     };
   }
   const msg = err instanceof Error ? err.message : String(err);
   // Legacy string errors: only treat explicit 404 as missing
   if (/\b404\b/.test(msg) && /not found|fetch item error 404/i.test(msg)) {
-    return { kind: 'missing', status: 404, message: msg };
+    return { kind: 'missing', status: 404, message: msg, retryAfterMs: null };
   }
-  return { kind: 'blocking', status: null, message: msg };
+  return { kind: 'blocking', status: null, message: msg, retryAfterMs: null };
+}
+
+/** HTTP statuses (and 0=network) that are safe to retry for Webflow reads. */
+export const TRANSIENT_FETCH_STATUSES = new Set([0, 408, 425, 429, 500, 502, 503, 504]);
+
+export function isTransientFetchFailure(err: unknown): boolean {
+  const classified = classifyLocaleFetchFailure(err);
+  if (classified.kind === 'missing') return false;
+  if (classified.status === 401 || classified.status === 403) return false;
+  if (classified.status == null) return true; // unknown/network-ish
+  return TRANSIENT_FETCH_STATUSES.has(classified.status);
+}
+
+export type TransientRetryOptions = {
+  maxAttempts?: number;
+  baseDelayMs?: number;
+  maxDelayMs?: number;
+  sleep?: (ms: number) => Promise<void>;
+  onRetry?: (info: {
+    attempt: number;
+    maxAttempts: number;
+    delayMs: number;
+    status: number | null;
+    message: string;
+  }) => void;
+};
+
+export function computeTransientBackoffMs(args: {
+  attempt: number;
+  baseDelayMs: number;
+  maxDelayMs: number;
+  retryAfterMs?: number | null;
+}): number {
+  if (args.retryAfterMs != null && Number.isFinite(args.retryAfterMs) && args.retryAfterMs > 0) {
+    return Math.min(args.maxDelayMs, Math.round(args.retryAfterMs));
+  }
+  const exp = args.baseDelayMs * 2 ** Math.max(0, args.attempt);
+  return Math.min(args.maxDelayMs, Math.round(exp));
+}
+
+const defaultSleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
+
+/**
+ * Wrap a locale fetch with bounded transient retries (429/5xx/network).
+ * Auth (401/403) and definitive 404 are never retried.
+ */
+export function withTransientFetchRetry(
+  fetchFn: typeof fetchArticleItemByLocale,
+  opts: TransientRetryOptions = {}
+): typeof fetchArticleItemByLocale {
+  const maxAttempts = Math.max(1, opts.maxAttempts ?? 5);
+  const baseDelayMs = opts.baseDelayMs ?? 400;
+  const maxDelayMs = opts.maxDelayMs ?? 8_000;
+  const sleep = opts.sleep ?? defaultSleep;
+
+  return async (itemId, cmsLocaleId) => {
+    let lastErr: unknown;
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+      try {
+        return await fetchFn(itemId, cmsLocaleId);
+      } catch (err) {
+        lastErr = err;
+        if (!isTransientFetchFailure(err) || attempt >= maxAttempts - 1) {
+          throw err;
+        }
+        const classified = classifyLocaleFetchFailure(err);
+        const delayMs = computeTransientBackoffMs({
+          attempt,
+          baseDelayMs,
+          maxDelayMs,
+          retryAfterMs: classified.retryAfterMs,
+        });
+        opts.onRetry?.({
+          attempt: attempt + 1,
+          maxAttempts,
+          delayMs,
+          status: classified.status,
+          message: classified.message,
+        });
+        await sleep(delayMs);
+      }
+    }
+    throw lastErr;
+  };
 }
 
 export function readCmsSeoPair(fieldData: Record<string, unknown>): {
@@ -700,6 +810,173 @@ export function loadAndValidateFromReport(path: string): {
   return { ok: true, report: doc as DryRunReportDocument };
 }
 
+export type ApplyReportDocument = {
+  createdAt: string;
+  mode: 'apply' | 'resume';
+  backupPath: string;
+  stoppedOnError: boolean;
+  errorMessage: string | null;
+  frozenManifest?: FrozenManifestEntry[];
+  results: ItemBackfillResult[];
+};
+
+export type ResumeVerifyEntry = {
+  key: string;
+  entry: FrozenManifestEntry;
+  priorStatus: 'written' | 'error';
+  /** written+readbackOk from partial apply, or patched with failed readback. */
+  kind: 'already_verified' | 'recover_readback';
+};
+
+export type ResumePlan = {
+  verify: ResumeVerifyEntry[];
+  toWrite: FrozenManifestEntry[];
+  attemptedKeys: string[];
+  unattemptedKeys: string[];
+  verifiedKeysFromPartial: string[];
+  recoverKeys: string[];
+};
+
+/**
+ * Build a safe resume plan from original composite + partial apply report.
+ * Writes ONLY unattempted manifest entries; never re-patches verified ones.
+ */
+export function buildResumePlan(args: {
+  composite: DryRunReportDocument;
+  partialApply: ApplyReportDocument;
+}): { ok: true; plan: ResumePlan } | { ok: false; reason: string } {
+  if (args.composite.mode !== 'dry-run') {
+    return { ok: false, reason: 'Composite must be mode=dry-run.' };
+  }
+  if (args.partialApply.mode !== 'apply' && args.partialApply.mode !== 'resume') {
+    return { ok: false, reason: 'Partial report must be mode=apply (or resume).' };
+  }
+  const manifest = args.composite.frozenManifest || [];
+  if (manifest.length === 0) {
+    return { ok: false, reason: 'Composite frozenManifest is empty.' };
+  }
+
+  const byKey = new Map<string, FrozenManifestEntry>();
+  for (const entry of manifest) {
+    byKey.set(localeKey(entry.itemId, entry.locale), entry);
+  }
+
+  const attemptedKeys: string[] = [];
+  const verifiedKeysFromPartial: string[] = [];
+  const recoverKeys: string[] = [];
+  const verify: ResumeVerifyEntry[] = [];
+
+  for (const item of args.partialApply.results || []) {
+    for (const loc of item.locales || []) {
+      const key = localeKey(item.itemId, loc.locale);
+      attemptedKeys.push(key);
+      const entry = byKey.get(key);
+      if (!entry) {
+        return {
+          ok: false,
+          reason: `Partial apply result ${key} not found in composite frozenManifest.`,
+        };
+      }
+      if (loc.status === 'written' && loc.readbackOk === true) {
+        verifiedKeysFromPartial.push(key);
+        verify.push({
+          key,
+          entry,
+          priorStatus: 'written',
+          kind: 'already_verified',
+        });
+        continue;
+      }
+      // Patched+published but readback fetch failed — recover via live exact compare only.
+      if (loc.status === 'error' && loc.published === true) {
+        recoverKeys.push(key);
+        verify.push({
+          key,
+          entry,
+          priorStatus: 'error',
+          kind: 'recover_readback',
+        });
+        continue;
+      }
+      return {
+        ok: false,
+        reason: `Cannot resume: ${key} has unresolved status "${loc.status}" (not written/recoverable).`,
+      };
+    }
+  }
+
+  const attemptedSet = new Set(attemptedKeys);
+  const unattemptedKeys: string[] = [];
+  const toWrite: FrozenManifestEntry[] = [];
+  for (const entry of manifest) {
+    const key = localeKey(entry.itemId, entry.locale);
+    if (!attemptedSet.has(key)) {
+      unattemptedKeys.push(key);
+      toWrite.push(entry);
+    }
+  }
+
+  return {
+    ok: true,
+    plan: {
+      verify,
+      toWrite,
+      attemptedKeys,
+      unattemptedKeys,
+      verifiedKeysFromPartial,
+      recoverKeys,
+    },
+  };
+}
+
+export function loadPartialApplyReport(path: string): {
+  ok: true;
+  report: ApplyReportDocument;
+} | { ok: false; reason: string } {
+  let raw: unknown;
+  try {
+    raw = JSON.parse(readFileSync(path, 'utf8'));
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    return { ok: false, reason: `Cannot read --partial-apply-report: ${msg}` };
+  }
+  const doc = raw as Partial<ApplyReportDocument>;
+  if (doc.mode !== 'apply' && doc.mode !== 'resume') {
+    return { ok: false, reason: '--partial-apply-report must be mode=apply.' };
+  }
+  if (!Array.isArray(doc.results)) {
+    return { ok: false, reason: '--partial-apply-report missing results[].' };
+  }
+  return { ok: true, report: doc as ApplyReportDocument };
+}
+
+export function writeResumePlanArtifact(path: string, plan: ResumePlan): void {
+  writeFileSync(
+    path,
+    JSON.stringify(
+      {
+        createdAt: new Date().toISOString(),
+        kind: 'resume-plan',
+        verifiedKeysFromPartial: plan.verifiedKeysFromPartial,
+        recoverKeys: plan.recoverKeys,
+        unattemptedKeys: plan.unattemptedKeys,
+        toWrite: plan.toWrite.map((e) => ({
+          itemId: e.itemId,
+          locale: e.locale,
+          articleKey: e.articleKey,
+          newSeoTitle: e.newSeoTitle,
+          newMetaDescription: e.newMetaDescription,
+        })),
+        verifyCount: plan.verify.length,
+        writeCount: plan.toWrite.length,
+      },
+      null,
+      2
+    ),
+    'utf8'
+  );
+}
+
 function proposalToManifestEntry(
   itemId: string,
   proposal: LocaleProposal
@@ -922,8 +1199,12 @@ export type RunBackfillOptions = {
   limit: number;
   locales: BackfillLocaleCode[];
   apply: boolean;
-  /** Required when apply=true — path to reviewed dry-run report. */
+  /** Resume a partial apply (verify prior writes; write only unattempted). */
+  resume?: boolean;
+  /** Required when apply/resume — path to reviewed dry-run report. */
   fromReportPath?: string | null;
+  /** Required when resume=true — path to partial apply report. */
+  partialApplyReportPath?: string | null;
   /** Optional dry-run override: exact Webflow item ids (skips newest-N selection). */
   itemIds?: string[];
   listFn?: () => Promise<ListedArticleItem[]>;
@@ -934,10 +1215,14 @@ export type RunBackfillOptions = {
   strategizeFn?: typeof strategizeFromRun;
   reportDir?: string;
   onLog?: (line: string) => void;
+  /** Override transient fetch retry (tests). */
+  fetchRetry?: TransientRetryOptions;
+  /** Optional pace delay between apply writes (ms). */
+  writePaceMs?: number;
 };
 
 export type RunBackfillResult = {
-  mode: 'dry-run' | 'apply';
+  mode: 'dry-run' | 'apply' | 'resume';
   selected: ListedArticleItem[];
   results: ItemBackfillResult[];
   backupPath: string | null;
@@ -945,6 +1230,8 @@ export type RunBackfillResult = {
   frozenManifest: FrozenManifestEntry[];
   stoppedOnError: boolean;
   errorMessage?: string;
+  resumePlanPath?: string | null;
+  verifiedCount?: number;
 };
 
 function stampNow(): string {
@@ -1240,6 +1527,8 @@ async function runApplyFromManifest(opts: {
   reportDir: string;
   stamp: string;
   log: (line: string) => void;
+  writePaceMs?: number;
+  reportMode?: 'apply' | 'resume';
 }): Promise<{
   results: ItemBackfillResult[];
   backupPath: string;
@@ -1452,6 +1741,9 @@ async function runApplyFromManifest(opts: {
         published,
       });
       opts.log(`WROTE ${entry.itemId}:${entry.locale} published=${published}`);
+      if (opts.writePaceMs && opts.writePaceMs > 0) {
+        await defaultSleep(opts.writePaceMs);
+      }
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       stoppedOnError = true;
@@ -1461,13 +1753,13 @@ async function runApplyFromManifest(opts: {
     }
   }
 
-  const reportPath = join(opts.reportDir, `report-apply-${opts.stamp}.json`);
+  const reportPath = join(opts.reportDir, `report-${opts.reportMode || 'apply'}-${opts.stamp}.json`);
   writeFileSync(
     reportPath,
     JSON.stringify(
       {
         createdAt: new Date().toISOString(),
-        mode: 'apply',
+        mode: opts.reportMode || 'apply',
         backupPath,
         stoppedOnError,
         errorMessage: errorMessage || null,
@@ -1484,11 +1776,51 @@ async function runApplyFromManifest(opts: {
   return { results, backupPath, reportPath, stoppedOnError, errorMessage };
 }
 
+async function verifyFrozenEntryLive(args: {
+  entry: FrozenManifestEntry;
+  fetchFn: typeof fetchArticleItemByLocale;
+}): Promise<{ ok: true } | { ok: false; reason: string }> {
+  const outcome = await safeFetchLocale(args.fetchFn, args.entry.itemId, args.entry.cmsLocaleId);
+  if (outcome.kind !== 'ok') {
+    return {
+      ok: false,
+      reason: `Verify fetch failed for ${args.entry.itemId}:${args.entry.locale}: ${outcome.message}`,
+    };
+  }
+  const match = exactReadbackMatch({
+    expectedSeoTitle: args.entry.newSeoTitle,
+    expectedMetaDescription: args.entry.newMetaDescription,
+    fieldData: outcome.item.fieldData,
+  });
+  if (!match) {
+    return {
+      ok: false,
+      reason: `Verify mismatch for ${args.entry.itemId}:${args.entry.locale} — live SEO does not exact-match frozen expected. STOP (no new writes).`,
+    };
+  }
+  return { ok: true };
+}
+
 export async function runOverwriteBackfill(
   opts: RunBackfillOptions
 ): Promise<RunBackfillResult> {
   const log = opts.onLog || ((line: string) => console.log(line));
-  const fetchFn = opts.fetchFn || fetchArticleItemByLocale;
+  const baseFetchFn = opts.fetchFn || fetchArticleItemByLocale;
+  // Transient retry is for live apply/resume readback+fetches (429/5xx/network).
+  // Dry-run keeps fail-fast classification so 5xx still stops immediately in tests/CI.
+  const fetchFn =
+    opts.apply || opts.resume
+      ? withTransientFetchRetry(baseFetchFn, {
+          ...(opts.fetchRetry || {}),
+          onRetry:
+            opts.fetchRetry?.onRetry ||
+            ((info) => {
+              log(
+                `Transient fetch retry ${info.attempt}/${info.maxAttempts} status=${info.status ?? 'n/a'} waitMs=${info.delayMs}`
+              );
+            }),
+        })
+      : baseFetchFn;
   const patchFn = opts.patchFn || patchArticleFieldDataForLocale;
   const publishFn = opts.publishFn || publishArticleItemForLocale;
   const analyzeFn = opts.analyzeFn || analyzeArticle;
@@ -1500,6 +1832,159 @@ export async function runOverwriteBackfill(
   const reportDir = opts.reportDir || join(root, 'tmp', 'seo-engine-backfill');
   ensureReportDir(reportDir);
   const stamp = stampNow();
+
+  if (opts.resume) {
+    if (!opts.fromReportPath) throw new Error('--from-report is required for resume');
+    if (!opts.partialApplyReportPath) {
+      throw new Error('--partial-apply-report is required for resume');
+    }
+    const loaded = loadAndValidateFromReport(opts.fromReportPath);
+    if (loaded.ok === false) throw new Error(loaded.reason);
+    const partial = loadPartialApplyReport(opts.partialApplyReportPath);
+    if (partial.ok === false) throw new Error(partial.reason);
+
+    const planned = buildResumePlan({
+      composite: loaded.report,
+      partialApply: partial.report,
+    });
+    if (planned.ok === false) throw new Error(planned.reason);
+    const plan = planned.plan;
+    const resumePlanPath = join(reportDir, `resume-plan-${stamp}.json`);
+    writeResumePlanArtifact(resumePlanPath, plan);
+    log(
+      `RESUME plan: verify=${plan.verify.length} (recover=${plan.recoverKeys.length}) write=${plan.toWrite.length} — no re-generation`
+    );
+    log(`Resume plan artifact: ${resumePlanPath}`);
+
+    const results: ItemBackfillResult[] = [];
+    const byItem = new Map<string, ItemBackfillResult>();
+    let stoppedOnError = false;
+    let errorMessage: string | undefined;
+    let verifiedCount = 0;
+
+    for (const v of plan.verify) {
+      if (stoppedOnError) break;
+      let itemResult = byItem.get(v.entry.itemId);
+      if (!itemResult) {
+        itemResult = { itemId: v.entry.itemId, slug: '', title: '', locales: [] };
+        byItem.set(v.entry.itemId, itemResult);
+        results.push(itemResult);
+      }
+      const checked = await verifyFrozenEntryLive({ entry: v.entry, fetchFn });
+      if (!checked.ok) {
+        stoppedOnError = true;
+        errorMessage = checked.reason;
+        itemResult.locales.push({
+          locale: v.entry.locale,
+          status: 'error',
+          reason: checked.reason,
+          readbackOk: false,
+        });
+        break;
+      }
+      itemResult.locales.push({
+        locale: v.entry.locale,
+        status: 'written',
+        readbackOk: true,
+        published: v.entry.wasPublished,
+        reason:
+          v.kind === 'recover_readback'
+            ? 'Recovered: prior readback fetch failed; live exact match now verified (no re-patch).'
+            : 'Prior apply verified; live exact match re-confirmed (no re-patch).',
+      });
+      verifiedCount += 1;
+      log(`VERIFIED ${v.key} kind=${v.kind}`);
+    }
+
+    let backupPath: string | null = null;
+    let writeReportPath: string | null = null;
+
+    if (!stoppedOnError && plan.toWrite.length > 0) {
+      log(`Writing ONLY unattempted entries (${plan.toWrite.length}) after source-signature check`);
+      const applied = await runApplyFromManifest({
+        manifest: plan.toWrite,
+        fetchFn,
+        patchFn,
+        publishFn,
+        reportDir,
+        stamp: `${stamp}-writes`,
+        log,
+        writePaceMs: opts.writePaceMs ?? 250,
+        reportMode: 'resume',
+      });
+      backupPath = applied.backupPath;
+      writeReportPath = applied.reportPath;
+      if (applied.stoppedOnError) {
+        stoppedOnError = true;
+        errorMessage = applied.errorMessage;
+      }
+      for (const item of applied.results) {
+        let itemResult = byItem.get(item.itemId);
+        if (!itemResult) {
+          itemResult = { itemId: item.itemId, slug: item.slug, title: item.title, locales: [] };
+          byItem.set(item.itemId, itemResult);
+          results.push(itemResult);
+        } else {
+          if (item.slug) itemResult.slug = item.slug;
+          if (item.title) itemResult.title = item.title;
+        }
+        for (const loc of item.locales) {
+          itemResult.locales.push(loc);
+          if (loc.status === 'written' && loc.readbackOk === true) verifiedCount += 1;
+        }
+      }
+    } else if (!stoppedOnError) {
+      log('No unattempted entries to write');
+    }
+
+    const reportPath = join(reportDir, `report-resume-${stamp}.json`);
+    writeFileSync(
+      reportPath,
+      JSON.stringify(
+        {
+          createdAt: new Date().toISOString(),
+          mode: 'resume',
+          backupPath,
+          writeReportPath,
+          resumePlanPath,
+          partialApplyReportPath: opts.partialApplyReportPath,
+          fromReportPath: opts.fromReportPath,
+          stoppedOnError,
+          errorMessage: errorMessage || null,
+          verifiedCount,
+          expectedTotal: loaded.report.frozenManifest.length,
+          allVerified: !stoppedOnError && verifiedCount === loaded.report.frozenManifest.length,
+          frozenManifest: loaded.report.frozenManifest,
+          results,
+        },
+        null,
+        2
+      ),
+      'utf8'
+    );
+    log(`Resume report written: ${reportPath}`);
+    log(`verified ${verifiedCount}/${loaded.report.frozenManifest.length}`);
+
+    return {
+      mode: 'resume',
+      selected: loaded.report.selected.map((s) => ({
+        id: s.id,
+        slug: s.slug,
+        title: s.title,
+        lastPublished: s.lastPublished,
+        lastUpdated: null,
+        isDraft: false,
+      })),
+      results,
+      backupPath,
+      reportPath,
+      frozenManifest: loaded.report.frozenManifest,
+      stoppedOnError,
+      errorMessage,
+      resumePlanPath,
+      verifiedCount,
+    };
+  }
 
   if (opts.apply) {
     if (!opts.fromReportPath) {
@@ -1519,7 +2004,13 @@ export async function runOverwriteBackfill(
       reportDir,
       stamp,
       log,
+      writePaceMs: opts.writePaceMs ?? 250,
+      reportMode: 'apply',
     });
+
+    const verifiedCount = applied.results
+      .flatMap((r) => r.locales)
+      .filter((l) => l.status === 'written' && l.readbackOk === true).length;
 
     return {
       mode: 'apply',
@@ -1537,14 +2028,15 @@ export async function runOverwriteBackfill(
       frozenManifest: loaded.report.frozenManifest,
       stoppedOnError: applied.stoppedOnError,
       errorMessage: applied.errorMessage,
+      verifiedCount,
     };
   }
 
   // DRY-RUN path (real AI)
   const listFn = opts.listFn || listDkArticleItems;
-  const all = await listFn();
   let selected: ListedArticleItem[];
   if (opts.itemIds && opts.itemIds.length > 0) {
+    const all = await listFn();
     const byId = new Map(all.map((it) => [it.id, it]));
     selected = [];
     for (const id of opts.itemIds) {
@@ -1556,6 +2048,7 @@ export async function runOverwriteBackfill(
     }
     log(`Using explicit --item-id selection (${selected.length}):`);
   } else {
+    const all = await listFn();
     selected = selectNewestPublishedItems(all, opts.limit);
     log(`Selected ${selected.length} newest published DK items (limit=${opts.limit}):`);
   }
@@ -1590,9 +2083,7 @@ export async function runOverwriteBackfill(
     ),
     'utf8'
   );
-  log(`Backup written: ${backupPath}`);
 
-  const reportPath = join(reportDir, `report-${stamp}.json`);
   const report: DryRunReportDocument = {
     schemaVersion: BACKFILL_REPORT_SCHEMA_VERSION,
     createdAt: new Date().toISOString(),
@@ -1612,9 +2103,9 @@ export async function runOverwriteBackfill(
     results: proposed.results,
     frozenManifest: proposed.frozenManifest,
   };
-  writeFileSync(reportPath, JSON.stringify(report, null, 2), 'utf8');
-  log(`Report written: ${reportPath}`);
-  log(`Frozen manifest entries: ${proposed.frozenManifest.length}`);
+  const reportPath = join(reportDir, `report-${stamp}.json`);
+  writeDryRunReport(reportPath, report);
+  log(`Dry-run report written: ${reportPath}`);
 
   return {
     mode: 'dry-run',
