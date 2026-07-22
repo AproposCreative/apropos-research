@@ -17,6 +17,7 @@
     "deploy:storage": "node scripts/deploy-storage-rules.mjs",
     "type-check": "tsc --noEmit",
     "type-check:seo-engine": "tsc -p tsconfig.seo-engine.json",
+    "seo-engine:backfill-overwrite": "npx tsx scripts/seo-engine-overwrite-backfill.ts",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:ui": "vitest --ui",

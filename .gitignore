@@ -78,6 +78,9 @@ Thumbs.db
 
 # Temporary files
 *.tmp
+tmp/
+tmp/seo-engine-backfill/
+reports/seo-backfill/
 *.temp
 
 # Project specific

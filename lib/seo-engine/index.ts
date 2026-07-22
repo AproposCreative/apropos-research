@@ -28,6 +28,16 @@ export {
   assertWorkerMayPublishStrategy,
   buildEmptyOnlyDomainPatch,
 } from '@/lib/seo-engine/auto-seo-worker';
+export {
+  parseBackfillCliArgs,
+  assertApplyOverwriteGates,
+  buildOverwriteSeoEngineInput,
+  buildLocaleArticleKey,
+  selectNewestPublishedItems,
+  validateOverwriteFields,
+  exactReadbackMatch,
+  runOverwriteBackfill,
+} from '@/lib/seo-engine/overwrite-backfill';
 export * from '@/lib/seo-engine/prompts';
 export * from '@/lib/seo-engine/evidence';
 export * from '@/lib/seo-engine/access';

@@ -74,6 +74,26 @@ Deploy `firestore.indexes.json` **before** relying on:
 
 Re-fetch before PATCH; only still-empty `seo-title` / `meta-description` on **DK locale** helpers. Never EN.
 
+## One-off overwrite backfill
+
+Separate from the auto worker (does **not** change DK-only / fill-empty rules).
+
+```bash
+# Default: dry-run (zero Webflow writes) — newest 10 published, locales da,en
+npm run seo-engine:backfill-overwrite -- --limit=10 --locales=da,en
+
+# Live CMS overwrite (all four required):
+npm run seo-engine:backfill-overwrite -- --apply --overwrite --limit=10 --locales=da,en
+```
+
+- Selects the **N newest published** DK items by Webflow `lastPublished`.
+- Processes **DA + EN** when published EN exists; **skips missing EN** (no invent/translate).
+- Uses locale-separated `articleKey`: `wf:{itemId}:da` / `wf:{itemId}:en`.
+- Overwrite mode clears `existingSeoTitle` / `existingMetaDescription` so AI is not locked to CMS values.
+- Before writes: timestamped backup under `tmp/seo-engine-backfill/` (gitignored).
+- Apply: low concurrency (sequential), **stop on first error**, exact readback compare. **No automatic rollback** — restore from backup JSON (`oldSeoTitle` / `oldMetaDescription`) and re-publish only locales with `wasPublished=true`.
+- Help / rollback: `npm run seo-engine:backfill-overwrite -- --help`
+
 ## Rollout
 
 1. Keep auto **OFF** (`WEBFLOW_AUTO_SEO_ENGINE=false`, Settings toggle off).
