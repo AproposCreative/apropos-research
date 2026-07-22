@@ -1,0 +1,12 @@
+---
+description: Webflow CMS localization — always create DK+EN via bulk; EN missing cannot be fixed via API
+globs: lib/webflow*/**/*.{ts,tsx},lib/articles/translate*.ts,app/api/webflow/**/*,app/api/webhooks/webflow/**/*,components/settings/ArticleTranslationSection.tsx
+alwaysApply: false
+---
+
+# Webflow CMS locales (Apropos)
+
+- **Create** articles with `POST /collections/{id}/items/bulk` and `cmsLocaleIds: [DK, EN]`. Never rely on single-item `POST .../items` for localized content.
+- **EN missing** on an existing item → skip translation; tell user to Add English in Designer. API cannot attach a secondary locale later.
+- **Translate** via `lib/webflow/article-translation.ts`; publish EN only when DK is live.
+- Full skill: `.cursor/skills/webflow-cms-localization/SKILL.md`
