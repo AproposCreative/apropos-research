@@ -235,7 +235,7 @@ export async function analyzeArticle(
         client.chat.completions.create({
           model,
           temperature: 0.2,
-          max_tokens: openaiMaxTokens(),
+          max_completion_tokens: openaiMaxTokens(),
           response_format: {
             type: 'json_schema',
             json_schema: {
@@ -414,7 +414,7 @@ export async function strategizeFromRun(
         client.chat.completions.create({
           model: models.default,
           temperature: 0.3,
-          max_tokens: openaiMaxTokens(),
+          max_completion_tokens: openaiMaxTokens(),
           response_format: {
             type: 'json_schema',
             json_schema: {
@@ -714,7 +714,7 @@ export async function regenerateField(args: {
       client.chat.completions.create({
         model: models.default,
         temperature: 0.4,
-        max_tokens: Math.min(1500, openaiMaxTokens()),
+        max_completion_tokens: Math.min(1500, openaiMaxTokens()),
         response_format: { type: 'json_object' },
         messages: [
           { role: 'system', content: buildRegenerateSystemPrompt() },
