@@ -237,12 +237,26 @@ export async function runArticleTranslationBatch(options: {
   skipped: number;
   skippedReason: string | null;
   results: TranslationBatchRunResult[];
+  skipNoEn: number;
+  skipDkUnpublished: number;
 }> {
   const articleLimit = Math.min(Math.max(Math.round(options.articleLimit ?? 3), 1), 10);
   const preview = await previewArticleTranslationBatch({ force: options.force, limit: 500 });
   const queue = preview.candidates.slice(0, articleLimit);
 
   if (queue.length === 0) {
+    let skippedReason: string | null = null;
+    if (preview.ready === 0) {
+      if (preview.skipNoEn > 0) {
+        skippedReason =
+          `${preview.skipNoEn} artikler mangler engelsk locale i Webflow. ` +
+          `API'et kan ikke tilføje EN på eksisterende items — åbn artiklen i Designer → Localization → Add English, publicér DK, og kør igen.`;
+      } else if (preview.skipDkUnpublished > 0) {
+        skippedReason = `${preview.skipDkUnpublished} artikler er ikke publiceret på dansk (kun kladde).`;
+      } else {
+        skippedReason = 'Ingen artikler mangler oversættelse lige nu.';
+      }
+    }
     return {
       total: preview.total,
       ready: preview.ready,
@@ -250,11 +264,10 @@ export async function runArticleTranslationBatch(options: {
       succeeded: 0,
       failed: 0,
       skipped: 0,
-      skippedReason:
-        preview.ready === 0
-          ? 'Ingen artikler mangler oversættelse lige nu.'
-          : null,
+      skippedReason,
       results: [],
+      skipNoEn: preview.skipNoEn,
+      skipDkUnpublished: preview.skipDkUnpublished,
     };
   }
 
@@ -304,5 +317,7 @@ export async function runArticleTranslationBatch(options: {
     skipped,
     skippedReason: null,
     results,
+    skipNoEn: preview.skipNoEn,
+    skipDkUnpublished: preview.skipDkUnpublished,
   };
 }

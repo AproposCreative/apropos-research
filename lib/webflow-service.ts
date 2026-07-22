@@ -976,15 +976,19 @@ export async function publishArticleToWebflow(articleData: WebflowArticleFields)
 
     // Determine if this is an update or create
     const isUpdate = articleData.webflowId && articleData.webflowId !== '';
-    const url = isUpdate 
-      ? `https://api.webflow.com/v2/sites/${siteId}/collections/${articlesCollectionId}/items/${articleData.webflowId}`
-      : `https://api.webflow.com/v2/sites/${siteId}/collections/${articlesCollectionId}/items`;
+    // Create MUST use /items/bulk with cmsLocaleIds — single-item POST creates only primary (DK)
+    // and then auto-translate / UI skip with "Mangler EN". Existing items cannot gain EN via API.
+    const url = isUpdate
+      ? `https://api.webflow.com/v2/collections/${articlesCollectionId}/items/${articleData.webflowId}`
+      : `https://api.webflow.com/v2/collections/${articlesCollectionId}/items/bulk`;
     const method = isUpdate ? 'PATCH' : 'POST';
+    const localeIds = [env.WEBFLOW_CMS_LOCALE_DK, env.WEBFLOW_CMS_LOCALE_EN].filter(Boolean);
     
     console.log(`🔄 ${isUpdate ? 'Updating' : 'Creating'} article in Webflow:`, {
       url,
       method,
       webflowId: articleData.webflowId,
+      cmsLocaleIds: isUpdate ? undefined : localeIds,
       fieldDataKeys: Object.keys(fieldData),
       streamingService: fieldData['streaming-service'],
       thumb: fieldData['thumb'] ? 'Present' : 'Missing',
@@ -1000,9 +1004,10 @@ export async function publishArticleToWebflow(articleData: WebflowArticleFields)
       },
       body: JSON.stringify(
         isUpdate
-          ? { fieldData }
+          ? { fieldData, cmsLocaleId: env.WEBFLOW_CMS_LOCALE_DK }
           : {
-              cmsLocaleIds: [env.WEBFLOW_CMS_LOCALE_DK, env.WEBFLOW_CMS_LOCALE_EN],
+              cmsLocaleIds: localeIds,
+              isDraft: true,
               fieldData,
             }
       ),
@@ -1016,7 +1021,12 @@ export async function publishArticleToWebflow(articleData: WebflowArticleFields)
         thumb: fieldData['thumb'] ? 'Sent' : 'Not sent',
         allFields: Object.keys(fieldData)
       });
-      return result.id || articleData.webflowId;
+      // bulk create returns { items: [{ id, ... }, ...] } — same id for all locales
+      const bulkId =
+        Array.isArray(result?.items) && result.items[0]?.id
+          ? String(result.items[0].id)
+          : undefined;
+      return bulkId || result.id || articleData.webflowId;
     } else {
       let errorData: any = null;
       try { errorData = await publishResponse.json(); } catch { errorData = await publishResponse.text(); }
