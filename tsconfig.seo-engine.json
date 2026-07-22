@@ -15,6 +15,7 @@
     "app/api/cron/seo-engine-recovery/**/*.ts",
     "app/ai/seo/**/*.tsx",
     "components/settings/SeoEngineSection.tsx",
+    "components/seo/ArchiveAuditPanel.tsx",
     "test/seo-engine*.ts"
   ],
   "exclude": [

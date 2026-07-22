@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { EmbeddedAppHeader } from '@/components/embedded-app';
 import { useAuth } from '@/lib/auth-context';
+import ArchiveAuditPanel from '@/components/seo/ArchiveAuditPanel';
 import {
   ARTICLE_TYPE_OPTIONS,
   EDITOR_FIELD_ORDER,
@@ -709,6 +710,8 @@ export default function SeoEngineClient({
             </p>
           </div>
         )}
+
+        <ArchiveAuditPanel />
 
         <section className="space-y-2">
           <label className="text-[11px] text-white/45">Titel</label>

@@ -17,6 +17,15 @@
 | `NEXT_PUBLIC_SEO_ENGINE_DEMO` | unset | Client demo banner + ephemeral header — **never in prod** |
 | `WEBFLOW_ARTICLE_WEBHOOK_OPTIMIZE` | `true` | Image-opt only — **does not** gate SEO/translation |
 
+## Arkiv-audit (Phase 3 — read-only)
+
+- UI: SEO Engine → **Arkiv-audit** (`ArchiveAuditPanel`)
+- API: `POST /api/seo-engine/archive-audit` (admin UID required)
+- Scans published DA/EN variants; flags missing SEO, review-keyword gaps, duplicates, short meta
+- Optional GSC page join via existing SearchSignalsProvider (**sampled/top rows**, not complete)
+- **No CMS writes.** Batch overwrite of the full archive is not authorized.
+- Frozen export via UI “Eksportér rapport”
+
 ## Auth / allowlists
 
 - **Production:** caller must be in `SEO_ENGINE_ALLOWED_UIDS` **or** `SEO_ENGINE_ADMIN_UIDS`. If **both** lists are empty → **fail closed** (no UI API access).

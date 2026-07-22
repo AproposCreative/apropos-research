@@ -1,4 +1,5 @@
 export * from '@/lib/seo-engine/review-title-rule';
+export * from '@/lib/seo-engine/archive-audit';
 export * from '@/lib/seo-engine/versions';
 export * from '@/lib/seo-engine/schema';
 export * from '@/lib/seo-engine/hash';
