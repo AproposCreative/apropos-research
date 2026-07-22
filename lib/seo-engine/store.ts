@@ -110,10 +110,34 @@ export async function upsertInputSnapshot(
   const ref = db.collection(COL.snapshots).doc(snapshot.inputVersionHash);
   const existing = await ref.get();
   if (existing.exists) return;
-  await ref.set({
-    ...snapshot,
+  const payload: Record<string, unknown> = {
+    inputVersionHash: snapshot.inputVersionHash,
+    contract: stripUndefinedDeep(snapshot.contract as unknown as Record<string, unknown>),
+    normalizedText: snapshot.normalizedText,
+    inputMode: snapshot.inputMode,
+    byteSize: snapshot.byteSize,
     createdAt: FieldValue.serverTimestamp(),
-  });
+  };
+  if (snapshot.extractManifest != null) {
+    payload.extractManifest = stripUndefinedDeep(snapshot.extractManifest);
+  }
+  await ref.set(payload);
+}
+
+/** Firestore rejects `undefined` anywhere in document trees. */
+function stripUndefinedDeep(value: unknown): unknown {
+  if (value === undefined) return undefined;
+  if (value === null || typeof value !== 'object') return value;
+  if (Array.isArray(value)) {
+    return value.map((v) => stripUndefinedDeep(v)).filter((v) => v !== undefined);
+  }
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+    if (v === undefined) continue;
+    const next = stripUndefinedDeep(v);
+    if (next !== undefined) out[k] = next;
+  }
+  return out;
 }
 
 export async function getInputSnapshot(
@@ -130,9 +154,9 @@ export async function saveAnalysisRun(
 ): Promise<string> {
   const db = requireDb();
   const ref = db.collection(COL.analysisRuns).doc(doc.id);
+  const cleaned = stripUndefinedDeep({ ...doc, ...versionStamps() }) as Record<string, unknown>;
   await ref.set({
-    ...doc,
-    ...versionStamps(),
+    ...cleaned,
     startedAt: FieldValue.serverTimestamp(),
     endedAt: FieldValue.serverTimestamp(),
   });
@@ -189,11 +213,14 @@ export async function saveSeoVersion(
 ): Promise<string> {
   const db = requireDb();
   const ref = db.collection(COL.versions).doc(doc.id);
-  await ref.set({
+  const cleaned = stripUndefinedDeep({
     ...doc,
     ...versionStamps(),
     revision: doc.revision ?? 1,
     stale: doc.stale ?? false,
+  }) as Record<string, unknown>;
+  await ref.set({
+    ...cleaned,
     createdAt: FieldValue.serverTimestamp(),
   });
   await db
