@@ -82,7 +82,16 @@ Separate from the auto worker (does **not** change DK-only / fill-empty rules).
 # 1) Dry-run (zero Webflow writes) — real AI; writes frozen manifest
 npm run seo-engine:backfill-overwrite -- --limit=10 --locales=da,en
 
-# 2) Live CMS overwrite — requires the reviewed dry-run report:
+# 1b) If a locale failed, retry only that item/locale, then compose a clean report
+#     (keeps original reports unchanged; rejects conflicts / unresolved statuses):
+npm run seo-engine:backfill-overwrite -- --item-id=<id> --locales=da
+npm run seo-engine:backfill-overwrite -- \
+  --compose \
+  --base-report=tmp/seo-engine-backfill/report-<base>.json \
+  --retry-report=tmp/seo-engine-backfill/report-<retry>.json \
+  --out=tmp/seo-engine-backfill/report-composite.json
+
+# 2) Live CMS overwrite — requires a clean reviewed dry-run / composite report:
 npm run seo-engine:backfill-overwrite -- \
   --apply --overwrite --limit=10 --locales=da,en \
   --from-report=tmp/seo-engine-backfill/report-….json
@@ -94,6 +103,7 @@ npm run seo-engine:backfill-overwrite -- \
 - Uses locale-separated `articleKey`: `wf:{itemId}:da` / `wf:{itemId}:en`.
 - Overwrite mode clears `existingSeoTitle` / `existingMetaDescription` so AI is not locked to CMS values.
 - Apply uses **frozen manifest** from `--from-report` (no silent re-select / re-generate). Verifies `lastUpdated` + content/input hashes before each PATCH.
+- `--from-report` must be clean: only `proposed` + legitimate EN `skipped_missing` / `skipped_unpublished`. Rejects `error`, `blocked_fetch`, `skipped_validation`, and any unresolved status even when `stoppedOnError=false`. Manifest entries must match proposed results 1:1.
 - Before writes: timestamped backup under `tmp/seo-engine-backfill/` (gitignored).
 - Apply: sequential, **stop on first error**, exact readback. **No automatic rollback** — restore from backup JSON.
 - Help / rollback: `npm run seo-engine:backfill-overwrite -- --help`

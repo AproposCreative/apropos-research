@@ -39,6 +39,9 @@ export {
   classifyLocaleFetchFailure,
   sourceSignaturesMatch,
   loadAndValidateFromReport,
+  assertDryRunReportCleanForApply,
+  mergeDryRunReports,
+  writeDryRunReport,
   runOverwriteBackfill,
 } from '@/lib/seo-engine/overwrite-backfill';
 export { coerceStrategyPackAiOutput, StrategyCoerceError } from '@/lib/seo-engine/coerce-strategy';

@@ -47,6 +47,10 @@ export type ParsedBackfillCli = {
   localesExplicit: boolean;
   fromReport: string | null;
   itemIds: string[];
+  compose: boolean;
+  baseReport: string | null;
+  retryReport: string | null;
+  outReport: string | null;
   help: boolean;
 };
 
@@ -158,6 +162,10 @@ Flags:
                             + --from-report=<dry-run-report.json>).
   --overwrite               Explicit confirmation that existing SEO may be overwritten.
   --from-report=PATH        Frozen dry-run report; apply writes ONLY those proposals.
+  --compose                 Merge --base-report + --retry-report into --out (no CMS writes).
+  --base-report=PATH        Base dry-run report for --compose.
+  --retry-report=PATH       Retry dry-run report (proposed locales) for --compose.
+  --out=PATH                Output path for composite dry-run report.
   --item-id=ID              Optional dry-run target (repeatable / comma-separated). Skips newest-N selection.
   --limit=N                 Select N newest published DK items (apply requires N=10).
   --locales=da,en           Locales to process (apply requires exactly da,en).
@@ -186,9 +194,13 @@ export function parseBackfillCliArgs(argv: string[]): ParsedBackfillCli {
   const apply = flags.includes('--apply');
   const overwrite = flags.includes('--overwrite');
   const help = flags.includes('--help') || flags.includes('-h');
+  const compose = flags.includes('--compose');
   const limitFlag = flags.find((a) => a.startsWith('--limit='));
   const localesFlag = flags.find((a) => a.startsWith('--locales='));
   const fromReportFlag = flags.find((a) => a.startsWith('--from-report='));
+  const baseReportFlag = flags.find((a) => a.startsWith('--base-report='));
+  const retryReportFlag = flags.find((a) => a.startsWith('--retry-report='));
+  const outReportFlag = flags.find((a) => a.startsWith('--out='));
   const itemIdFlags = flags.filter((a) => a.startsWith('--item-id='));
   const limitExplicit = Boolean(limitFlag);
   const localesExplicit = Boolean(localesFlag);
@@ -222,6 +234,13 @@ export function parseBackfillCliArgs(argv: string[]): ParsedBackfillCli {
   const fromReport = fromReportFlag
     ? fromReportFlag.slice('--from-report='.length).trim() || null
     : null;
+  const baseReport = baseReportFlag
+    ? baseReportFlag.slice('--base-report='.length).trim() || null
+    : null;
+  const retryReport = retryReportFlag
+    ? retryReportFlag.slice('--retry-report='.length).trim() || null
+    : null;
+  const outReport = outReportFlag ? outReportFlag.slice('--out='.length).trim() || null : null;
 
   const itemIds: string[] = [];
   for (const f of itemIdFlags) {
@@ -246,6 +265,10 @@ export function parseBackfillCliArgs(argv: string[]): ParsedBackfillCli {
     localesExplicit,
     fromReport,
     itemIds: [...new Set(itemIds)],
+    compose,
+    baseReport,
+    retryReport,
+    outReport,
     help,
   };
 }
@@ -520,6 +543,145 @@ export type DryRunReportDocument = {
   frozenManifest: FrozenManifestEntry[];
 };
 
+/** Statuses allowed on a dry-run report used for --from-report apply. */
+export const APPLY_ALLOWED_LOCALE_STATUSES = new Set([
+  'proposed',
+  'skipped_missing',
+  'skipped_unpublished',
+]);
+
+/** Unresolved statuses that must never reach apply. */
+export const APPLY_BLOCKING_LOCALE_STATUSES = new Set([
+  'error',
+  'blocked_fetch',
+  'skipped_validation',
+  'written', // apply report only — not a dry-run approval status
+]);
+
+function localeKey(itemId: string, locale: BackfillLocaleCode): string {
+  return `${itemId}:${locale}`;
+}
+
+/**
+ * Fail closed: reject dry-run reports with unresolved locale statuses.
+ * Allowed: proposed; EN-only skipped_missing / skipped_unpublished.
+ * Every frozenManifest entry must match a proposed result.
+ */
+export function assertDryRunReportCleanForApply(
+  doc: Partial<DryRunReportDocument>
+): ApplyGateResult {
+  if (doc.mode !== 'dry-run') {
+    return { ok: false, reason: '--from-report must be a dry-run report (mode=dry-run).' };
+  }
+  if (doc.stoppedOnError) {
+    return { ok: false, reason: '--from-report dry-run stopped on error — refuse apply.' };
+  }
+  if (!Array.isArray(doc.results)) {
+    return { ok: false, reason: '--from-report missing results[].' };
+  }
+
+  const proposedKeys = new Set<string>();
+  for (const item of doc.results) {
+    if (!item?.itemId || !Array.isArray(item.locales)) {
+      return { ok: false, reason: '--from-report has malformed results entry.' };
+    }
+    for (const loc of item.locales) {
+      const status = loc?.status;
+      if (!status || APPLY_BLOCKING_LOCALE_STATUSES.has(status)) {
+        return {
+          ok: false,
+          reason: `Reject: unresolved status "${status || 'undefined'}" for ${item.itemId}:${loc?.locale || '?'} — refuse apply.`,
+        };
+      }
+      if (!APPLY_ALLOWED_LOCALE_STATUSES.has(status)) {
+        return {
+          ok: false,
+          reason: `Reject: unsupported status "${status}" for ${item.itemId}:${loc?.locale || '?'}.`,
+        };
+      }
+      if (
+        (status === 'skipped_missing' || status === 'skipped_unpublished') &&
+        loc.locale !== 'en'
+      ) {
+        return {
+          ok: false,
+          reason: `Reject: ${status} is only allowed for EN (got ${item.itemId}:${loc.locale}).`,
+        };
+      }
+      if (status === 'proposed') {
+        if (!loc.proposal?.newSeoTitle?.trim() || !loc.proposal?.newMetaDescription?.trim()) {
+          return {
+            ok: false,
+            reason: `Reject: proposed locale ${item.itemId}:${loc.locale} missing proposal text.`,
+          };
+        }
+        if ((loc.proposal.validationErrors || []).length > 0) {
+          return {
+            ok: false,
+            reason: `Reject: proposed locale ${item.itemId}:${loc.locale} has validationErrors.`,
+          };
+        }
+        if (loc.proposal.mode === 'demo') {
+          return {
+            ok: false,
+            reason: `Reject: proposed locale ${item.itemId}:${loc.locale} is demo mode.`,
+          };
+        }
+        proposedKeys.add(localeKey(item.itemId, loc.locale));
+      }
+    }
+  }
+
+  if (!Array.isArray(doc.frozenManifest) || doc.frozenManifest.length === 0) {
+    return {
+      ok: false,
+      reason: '--from-report has empty frozenManifest (no approved proposals to write).',
+    };
+  }
+
+  const manifestKeys = new Set<string>();
+  for (const entry of doc.frozenManifest) {
+    if (!entry?.itemId || !entry.locale || !entry.newSeoTitle?.trim() || !entry.newMetaDescription?.trim()) {
+      return { ok: false, reason: 'frozenManifest entry missing required fields.' };
+    }
+    if (!entry.sourceSignature?.contentHash || !entry.sourceSignature?.inputVersionHash) {
+      return { ok: false, reason: 'frozenManifest entry missing sourceSignature hashes.' };
+    }
+    const fieldCheck = validateOverwriteFields({
+      seoTitle: entry.newSeoTitle,
+      metaDescription: entry.newMetaDescription,
+    });
+    if (!fieldCheck.ok) {
+      return {
+        ok: false,
+        reason: `Reject: frozenManifest ${entry.itemId}:${entry.locale} failed field validation: ${fieldCheck.errors.join('; ')}`,
+      };
+    }
+    const key = localeKey(entry.itemId, entry.locale);
+    if (manifestKeys.has(key)) {
+      return { ok: false, reason: `Reject: duplicate frozenManifest entry ${key}.` };
+    }
+    manifestKeys.add(key);
+    if (!proposedKeys.has(key)) {
+      return {
+        ok: false,
+        reason: `Reject: frozenManifest ${key} has no matching proposed result.`,
+      };
+    }
+  }
+
+  for (const key of proposedKeys) {
+    if (!manifestKeys.has(key)) {
+      return {
+        ok: false,
+        reason: `Reject: proposed result ${key} missing from frozenManifest.`,
+      };
+    }
+  }
+
+  return { ok: true };
+}
+
 /** Validate a dry-run report is usable as --from-report. */
 export function loadAndValidateFromReport(path: string): {
   ok: true;
@@ -533,28 +695,167 @@ export function loadAndValidateFromReport(path: string): {
     return { ok: false, reason: `Cannot read --from-report: ${msg}` };
   }
   const doc = raw as Partial<DryRunReportDocument>;
-  if (doc.mode !== 'dry-run') {
-    return { ok: false, reason: '--from-report must be a dry-run report (mode=dry-run).' };
-  }
-  if (!Array.isArray(doc.frozenManifest) || doc.frozenManifest.length === 0) {
-    return {
-      ok: false,
-      reason: '--from-report has empty frozenManifest (no approved proposals to write).',
-    };
-  }
-  if (doc.stoppedOnError) {
-    return { ok: false, reason: '--from-report dry-run stopped on error — refuse apply.' };
-  }
-  for (const entry of doc.frozenManifest) {
-    if (!entry?.itemId || !entry.locale || !entry.newSeoTitle || !entry.newMetaDescription) {
-      return { ok: false, reason: 'frozenManifest entry missing required fields.' };
-    }
-    if (!entry.sourceSignature?.contentHash || !entry.sourceSignature?.inputVersionHash) {
-      return { ok: false, reason: 'frozenManifest entry missing sourceSignature hashes.' };
-    }
-  }
+  const clean = assertDryRunReportCleanForApply(doc);
+  if (clean.ok === false) return clean;
   return { ok: true, report: doc as DryRunReportDocument };
 }
+
+function proposalToManifestEntry(
+  itemId: string,
+  proposal: LocaleProposal
+): FrozenManifestEntry {
+  return {
+    itemId,
+    locale: proposal.locale,
+    cmsLocaleId: proposal.cmsLocaleId,
+    articleKey: proposal.articleKey,
+    newSeoTitle: proposal.newSeoTitle,
+    newMetaDescription: proposal.newMetaDescription,
+    wasPublished: proposal.wasPublished,
+    sourceSignature: proposal.sourceSignature,
+  };
+}
+
+/**
+ * Merge a base dry-run report with a retry dry-run that replaces failed locales.
+ * Keeps base selected set; rebuilds frozenManifest from proposed results.
+ * Does not modify files on disk — caller writes the composite.
+ */
+export function mergeDryRunReports(args: {
+  base: DryRunReportDocument;
+  retry: DryRunReportDocument;
+}): { ok: true; report: DryRunReportDocument } | { ok: false; reason: string } {
+  if (args.base.mode !== 'dry-run' || args.retry.mode !== 'dry-run') {
+    return { ok: false, reason: 'Both base and retry must be mode=dry-run.' };
+  }
+  if (args.retry.stoppedOnError) {
+    return { ok: false, reason: 'Retry report stoppedOnError — refuse merge.' };
+  }
+
+  const baseSelectedIds = (args.base.selected || []).map((s) => s.id);
+  if (baseSelectedIds.length === 0) {
+    return { ok: false, reason: 'Base report has empty selected[].' };
+  }
+  const baseSelectedSet = new Set(baseSelectedIds);
+  for (const s of args.retry.selected || []) {
+    if (!baseSelectedSet.has(s.id)) {
+      return {
+        ok: false,
+        reason: `Retry selected item ${s.id} is not in base selected set.`,
+      };
+    }
+  }
+
+  // Clone base results
+  const mergedResults: ItemBackfillResult[] = args.base.results.map((item) => ({
+    itemId: item.itemId,
+    slug: item.slug,
+    title: item.title,
+    locales: item.locales.map((l) => ({ ...l, proposal: l.proposal ? { ...l.proposal } : undefined })),
+  }));
+  const byItem = new Map(mergedResults.map((r) => [r.itemId, r]));
+
+  let replacements = 0;
+  for (const retryItem of args.retry.results || []) {
+    const baseItem = byItem.get(retryItem.itemId);
+    if (!baseItem) {
+      return {
+        ok: false,
+        reason: `Retry item ${retryItem.itemId} not found in base results.`,
+      };
+    }
+    for (const retryLoc of retryItem.locales || []) {
+      if (retryLoc.status !== 'proposed') {
+        return {
+          ok: false,
+          reason: `Retry ${retryItem.itemId}:${retryLoc.locale} must be proposed (got ${retryLoc.status}).`,
+        };
+      }
+      if (!retryLoc.proposal) {
+        return {
+          ok: false,
+          reason: `Retry ${retryItem.itemId}:${retryLoc.locale} missing proposal.`,
+        };
+      }
+      const idx = baseItem.locales.findIndex((l) => l.locale === retryLoc.locale);
+      const prev = idx >= 0 ? baseItem.locales[idx] : null;
+      if (prev && prev.status === 'proposed') {
+        return {
+          ok: false,
+          reason: `Conflict: ${retryItem.itemId}:${retryLoc.locale} already proposed in base — refuse silent overwrite.`,
+        };
+      }
+      if (
+        prev &&
+        prev.status !== 'error' &&
+        prev.status !== 'skipped_validation' &&
+        prev.status !== 'blocked_fetch'
+      ) {
+        return {
+          ok: false,
+          reason: `Conflict: ${retryItem.itemId}:${retryLoc.locale} base status "${prev.status}" is not replaceable.`,
+        };
+      }
+      const next = {
+        locale: retryLoc.locale,
+        status: 'proposed' as const,
+        proposal: { ...retryLoc.proposal },
+      };
+      if (idx >= 0) baseItem.locales[idx] = next;
+      else baseItem.locales.push(next);
+      if (retryItem.slug) baseItem.slug = retryItem.slug;
+      if (retryItem.title) baseItem.title = retryItem.title;
+      replacements += 1;
+    }
+  }
+
+  if (replacements === 0) {
+    return { ok: false, reason: 'Retry report provided no proposed locales to merge.' };
+  }
+
+  // Rebuild frozenManifest from all proposed (deterministic order: base selected, then da,en)
+  const localeOrder: BackfillLocaleCode[] = ['da', 'en'];
+  const frozenManifest: FrozenManifestEntry[] = [];
+  for (const sel of args.base.selected) {
+    const item = byItem.get(sel.id);
+    if (!item) {
+      return { ok: false, reason: `Missing results for selected item ${sel.id}.` };
+    }
+    for (const locale of localeOrder) {
+      const loc = item.locales.find((l) => l.locale === locale);
+      if (!loc) continue;
+      if (loc.status === 'proposed' && loc.proposal) {
+        frozenManifest.push(proposalToManifestEntry(item.itemId, loc.proposal));
+      }
+    }
+  }
+
+  const composite: DryRunReportDocument = {
+    schemaVersion: args.base.schemaVersion || BACKFILL_REPORT_SCHEMA_VERSION,
+    createdAt: new Date().toISOString(),
+    mode: 'dry-run',
+    limit: args.base.limit,
+    locales: args.base.locales,
+    backupPath: args.base.backupPath,
+    stoppedOnError: false,
+    errorMessage: null,
+    selected: args.base.selected.map((s) => ({ ...s })),
+    results: mergedResults,
+    frozenManifest,
+  };
+
+  const clean = assertDryRunReportCleanForApply(composite);
+  if (clean.ok === false) {
+    return { ok: false, reason: `Merged report still unclean: ${clean.reason}` };
+  }
+
+  return { ok: true, report: composite };
+}
+
+export function writeDryRunReport(path: string, report: DryRunReportDocument): void {
+  writeFileSync(path, JSON.stringify(report, null, 2), 'utf8');
+}
+
 
 async function resolveWebflowRuntime(): Promise<{ token: string; collectionId: string }> {
   const file = getWebflowConfig();

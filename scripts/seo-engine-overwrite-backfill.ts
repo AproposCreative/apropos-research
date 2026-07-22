@@ -2,9 +2,12 @@
 /**
  * One-off SEO overwrite backfill for newest published Webflow articles (DA + EN).
  *
- * Dry-run is the default (zero CMS writes). Real AI only.
+ * Dry-run is the default (zero Webflow writes). Real AI only.
  * Live writes require ALL of:
  *   --apply --overwrite --limit=10 --locales=da,en --from-report=<dry-run-report.json>
+ *
+ * Compose a clean report after retries:
+ *   --compose --base-report=… --retry-report=… --out=…
  *
  * IMPORTANT: dotenv must load BEFORE any `@/lib/*` import (env is snapshotted
  * at module load). Keep backfill imports dynamic after config().
@@ -12,6 +15,7 @@
 import { config } from 'dotenv';
 import { dirname, join, resolve } from 'path';
 import { fileURLToPath } from 'url';
+import { readFileSync } from 'fs';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 config({ path: join(root, '.env.local') });
@@ -25,11 +29,49 @@ async function main() {
     resolveEffectiveLimit,
     resolveEffectiveLocales,
     runOverwriteBackfill,
+    mergeDryRunReports,
+    writeDryRunReport,
+    assertDryRunReportCleanForApply,
   } = await import('../lib/seo-engine/overwrite-backfill');
+  type DryRunReportDocument = import('../lib/seo-engine/overwrite-backfill').DryRunReportDocument;
 
   const cli = parseBackfillCliArgs(process.argv.slice(2));
   if (cli.help) {
     console.log(getBackfillHelpText());
+    process.exit(0);
+  }
+
+  if (cli.compose) {
+    if (!cli.baseReport || !cli.retryReport || !cli.outReport) {
+      console.error('Compose requires --base-report= --retry-report= --out=');
+      process.exit(1);
+    }
+    const basePath = resolve(cli.baseReport);
+    const retryPath = resolve(cli.retryReport);
+    const outPath = resolve(cli.outReport);
+    const base = JSON.parse(readFileSync(basePath, 'utf8')) as DryRunReportDocument;
+    const retry = JSON.parse(readFileSync(retryPath, 'utf8')) as DryRunReportDocument;
+    const merged = mergeDryRunReports({ base, retry });
+    if (merged.ok === false) {
+      console.error(merged.reason);
+      process.exit(1);
+    }
+    writeDryRunReport(outPath, merged.report);
+    const clean = assertDryRunReportCleanForApply(merged.report);
+    if (clean.ok === false) {
+      console.error('Composite written but unclean:', clean.reason);
+      process.exit(2);
+    }
+    console.log('Composite written:', outPath);
+    console.log('selected:', merged.report.selected.length);
+    console.log('frozenManifest:', merged.report.frozenManifest.length);
+    const proposed = merged.report.results.flatMap((r) =>
+      r.locales.filter((l) => l.status === 'proposed')
+    ).length;
+    const skipped = merged.report.results.flatMap((r) =>
+      r.locales.filter((l) => l.status.startsWith('skipped'))
+    ).length;
+    console.log('proposed:', proposed, 'skipped:', skipped);
     process.exit(0);
   }
 
@@ -59,7 +101,6 @@ async function main() {
     );
   }
 
-  // Quick sanity: OpenAI must be visible after dotenv (before lib import it was empty)
   const { getOpenAIClient } = await import('../lib/openai');
   if (!getOpenAIClient()) {
     console.error(

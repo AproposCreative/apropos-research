@@ -11,6 +11,8 @@ import {
   classifyLocaleFetchFailure,
   exactReadbackMatch,
   loadAndValidateFromReport,
+  assertDryRunReportCleanForApply,
+  mergeDryRunReports,
   parseBackfillCliArgs,
   resolveEffectiveLimit,
   resolveEffectiveLocales,
@@ -451,7 +453,37 @@ describe('3) concurrent change protection + 4) from-report gate', () => {
             locales: ['da'],
           },
         ],
-        results: [],
+        results: [
+          {
+            itemId: 'item2',
+            slug: 'slug-2',
+            title: 'Artikel 2',
+            locales: [
+              {
+                locale: 'da',
+                status: 'proposed',
+                proposal: {
+                  locale: 'da',
+                  cmsLocaleId: dk,
+                  articleKey: 'wf:item2:da',
+                  title: 'Artikel 2',
+                  slug: 'slug-2',
+                  wasPublished: true,
+                  oldSeoTitle: 'OLD',
+                  oldMetaDescription: 'OLD META',
+                  newSeoTitle: manifest[0].newSeoTitle,
+                  newMetaDescription: manifest[0].newMetaDescription,
+                  analysisRunId: 'ar',
+                  seoVersionId: 'sv',
+                  mode: 'ai',
+                  validationErrors: [],
+                  validationWarnings: [],
+                  sourceSignature: sig,
+                },
+              },
+            ],
+          },
+        ],
         frozenManifest: manifest,
       }),
       'utf8'
@@ -706,5 +738,181 @@ describe('strategy pack AI coercion', () => {
     expect(coerced.recommended.fields.seoTitle.value).toBe('Keep Title');
     expect(coerced.recommended.fields.imageCaption.value).toBeNull();
     expect(SeoStrategyPackV1Schema.safeParse(coerced).success).toBe(true);
+  });
+});
+
+
+describe('dry-run report apply gate + compose', () => {
+  const sig = {
+    lastUpdated: 't1',
+    lastPublished: 'p1',
+    contentHash: 'c1',
+    inputVersionHash: 'i1',
+    oldSeoTitle: 'old',
+    oldMetaDescription: 'old meta',
+  };
+
+  function proposal(locale: 'da' | 'en', title: string, meta: string) {
+    return {
+      locale,
+      cmsLocaleId: locale === 'da' ? 'dk' : 'en',
+      articleKey: `wf:item1:${locale}`,
+      title: 'T',
+      slug: 's',
+      wasPublished: true,
+      oldSeoTitle: 'old',
+      oldMetaDescription: 'old meta',
+      newSeoTitle: title,
+      newMetaDescription: meta,
+      analysisRunId: 'a',
+      seoVersionId: 'v',
+      mode: 'ai' as const,
+      validationErrors: [] as string[],
+      validationWarnings: [] as string[],
+      sourceSignature: { ...sig },
+    };
+  }
+
+  function cleanReport() {
+    const da = proposal(
+      'da',
+      'En præcis titel om filmen',
+      'Kort, konkret meta om filmen uden forbudte fraser og med nok tegn til at være nyttig.'
+    );
+    return {
+      schemaVersion: 2,
+      createdAt: '2026-01-01T00:00:00.000Z',
+      mode: 'dry-run' as const,
+      limit: 10,
+      locales: ['da', 'en'] as Array<'da' | 'en'>,
+      backupPath: null,
+      stoppedOnError: false,
+      errorMessage: null,
+      selected: [
+        {
+          id: 'item1',
+          slug: 's',
+          title: 'T',
+          lastPublished: '2026-01-01T00:00:00.000Z',
+          locales: ['da', 'en'] as Array<'da' | 'en'>,
+        },
+      ],
+      results: [
+        {
+          itemId: 'item1',
+          slug: 's',
+          title: 'T',
+          locales: [
+            { locale: 'da' as const, status: 'proposed' as const, proposal: da },
+            {
+              locale: 'en' as const,
+              status: 'skipped_missing' as const,
+              reason: 'missing',
+            },
+          ],
+        },
+      ],
+      frozenManifest: [
+        {
+          itemId: 'item1',
+          locale: 'da' as const,
+          cmsLocaleId: 'dk',
+          articleKey: 'wf:item1:da',
+          newSeoTitle: da.newSeoTitle,
+          newMetaDescription: da.newMetaDescription,
+          wasPublished: true,
+          sourceSignature: { ...sig },
+        },
+      ],
+    };
+  }
+
+  it('rejects reports with error even when stoppedOnError=false', () => {
+    const dirty = cleanReport();
+    // Intentionally unclean fixture for gate tests
+    (dirty.results[0].locales as unknown as Array<{ locale: string; status: string; reason?: string }>)[0] = {
+      locale: 'da',
+      status: 'error',
+      reason: 'AI-analyse fejlede Zod-validering',
+    };
+    // Keep a stale manifest so emptiness is not the first failure
+    const gate = assertDryRunReportCleanForApply(dirty);
+    expect(gate.ok).toBe(false);
+    if (!gate.ok) expect(gate.reason).toMatch(/unresolved status "error"/i);
+  });
+
+  it('rejects skipped_validation / blocked_fetch', () => {
+    for (const status of ['skipped_validation', 'blocked_fetch'] as const) {
+      const dirty = cleanReport();
+      (dirty.results[0].locales as unknown as Array<{ locale: string; status: string; reason?: string }>)[0] = {
+        locale: 'da',
+        status,
+        reason: 'x',
+      };
+      const gate = assertDryRunReportCleanForApply(dirty);
+      expect(gate.ok).toBe(false);
+      if (!gate.ok) expect(gate.reason).toMatch(new RegExp(status));
+    }
+  });
+
+  it('accepts clean proposed + EN skipped_missing with matching manifest', () => {
+    expect(assertDryRunReportCleanForApply(cleanReport())).toEqual({ ok: true });
+  });
+
+  it('merges retry proposed locale over base error and rebuilds manifest', () => {
+    const base = cleanReport();
+    base.results[0].locales = [
+      { locale: 'da', status: 'error', reason: 'zod' },
+      { locale: 'en', status: 'skipped_missing', reason: 'missing' },
+    ] as unknown as (typeof base.results)[0]['locales'];
+    base.frozenManifest = [];
+
+    const retryProp = proposal(
+      'da',
+      'Ny SEO titel om Artikel',
+      'Ny meta description om Artikel uden forbudte fraser og med rimelig længde.'
+    );
+    const retry = {
+      ...cleanReport(),
+      selected: base.selected,
+      results: [
+        {
+          itemId: 'item1',
+          slug: 's',
+          title: 'T',
+          locales: [{ locale: 'da' as const, status: 'proposed' as const, proposal: retryProp }],
+        },
+      ],
+      frozenManifest: [
+        {
+          itemId: 'item1',
+          locale: 'da' as const,
+          cmsLocaleId: 'dk',
+          articleKey: 'wf:item1:da',
+          newSeoTitle: retryProp.newSeoTitle,
+          newMetaDescription: retryProp.newMetaDescription,
+          wasPublished: true,
+          sourceSignature: { ...sig },
+        },
+      ],
+    };
+
+    const merged = mergeDryRunReports({ base, retry });
+    expect(merged.ok).toBe(true);
+    if (!merged.ok) return;
+    expect(merged.report.selected).toEqual(base.selected);
+    expect(merged.report.frozenManifest).toHaveLength(1);
+    expect(merged.report.results[0].locales.find((l) => l.locale === 'da')?.status).toBe(
+      'proposed'
+    );
+    expect(assertDryRunReportCleanForApply(merged.report)).toEqual({ ok: true });
+  });
+
+  it('refuses merge conflict when base locale already proposed', () => {
+    const base = cleanReport();
+    const retry = cleanReport();
+    const merged = mergeDryRunReports({ base, retry });
+    expect(merged.ok).toBe(false);
+    if (!merged.ok) expect(merged.reason).toMatch(/Conflict/i);
   });
 });
