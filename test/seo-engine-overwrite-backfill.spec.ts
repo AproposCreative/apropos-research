@@ -127,6 +127,8 @@ describe('overwrite input unlock + articleKey', () => {
     expect(input.existingMetaDescription).toBeNull();
     expect(input.editorialTitle).toBe('Titel');
     expect(input.language).toBe('da');
+    expect(Object.prototype.hasOwnProperty.call(input, 'existingUrl')).toBe(false);
+    expect(Object.prototype.hasOwnProperty.call(input, 'rating')).toBe(false);
   });
 
   it('uses locale-separated articleKey', () => {

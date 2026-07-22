@@ -250,6 +250,7 @@ export function buildLocaleArticleKey(itemId: string, locale: BackfillLocaleCode
 
 /**
  * Build engine input for overwrite mode: strip existing CMS SEO so AI is not locked.
+ * Also omit undefined optional keys (Firestore rejects undefined on persist).
  */
 export function buildOverwriteSeoEngineInput(args: {
   fieldData: Record<string, unknown>;
@@ -259,11 +260,24 @@ export function buildOverwriteSeoEngineInput(args: {
     fieldData: args.fieldData,
     language: args.language,
   });
-  return {
+  const unlocked: SeoEngineInputContract = {
     ...base,
     existingSeoTitle: null,
     existingMetaDescription: null,
   };
+  if (unlocked.primaryImage && !unlocked.primaryImage.url?.trim()) {
+    delete (unlocked as { primaryImage?: unknown }).primaryImage;
+  }
+  return omitUndefinedFields(unlocked);
+}
+
+/** Drop undefined values so Firestore snapshot writes do not fail. */
+export function omitUndefinedFields<T extends Record<string, unknown>>(obj: T): T {
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(obj)) {
+    if (v !== undefined) out[k] = v;
+  }
+  return out as T;
 }
 
 export function selectNewestPublishedItems(
