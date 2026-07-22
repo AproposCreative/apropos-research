@@ -136,6 +136,12 @@ const EnvSchema = z.object({
   NEXT_PUBLIC_GA_MEASUREMENT_ID: z.preprocess(emptyToUndefined, z.string().optional()),
   /** Numerisk GA4 Property ID til Data API (dashboard) — fx 484743571. */
   GA4_PROPERTY_ID: z.preprocess(emptyToUndefined, z.string().optional()),
+  /**
+   * Google Search Console property for Search Analytics (query/page).
+   * Fx `sc-domain:aproposmagazine.com` eller URL-prefix property.
+   * GA4↔GSC product link giver IKKE automatisk denne adgang.
+   */
+  GSC_SITE_URL: z.preprocess(emptyToUndefined, z.string().optional()),
   /** GA4 Measurement Protocol (server) — til Resend-webhooks (åbning/klik). */
   GA4_MEASUREMENT_ID: z.preprocess(emptyToUndefined, z.string().optional()),
   GA4_MEASUREMENT_PROTOCOL_SECRET: z.preprocess(emptyToUndefined, z.string().optional()),
@@ -271,6 +277,7 @@ function parseEnv() {
       process.env.NEWSLETTER_WELCOME_WEBHOOK_ENABLED === 'true' ? 'true' : 'false',
     NEXT_PUBLIC_GA_MEASUREMENT_ID: process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID,
     GA4_PROPERTY_ID: process.env.GA4_PROPERTY_ID,
+    GSC_SITE_URL: process.env.GSC_SITE_URL,
     GA4_MEASUREMENT_ID: process.env.GA4_MEASUREMENT_ID,
     GA4_MEASUREMENT_PROTOCOL_SECRET: process.env.GA4_MEASUREMENT_PROTOCOL_SECRET,
     RESEND_WEBHOOK_SECRET: process.env.RESEND_WEBHOOK_SECRET,

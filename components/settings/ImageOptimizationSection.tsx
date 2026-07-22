@@ -208,7 +208,13 @@ function OptimizeCard({
   );
 }
 
-export default function ImageOptimizationSection({ variant = 'panel' }: { variant?: 'panel' | 'page' }) {
+export default function ImageOptimizationSection({
+  variant = 'panel',
+  showHeading = true,
+}: {
+  variant?: 'panel' | 'page';
+  showHeading?: boolean;
+}) {
   const resultsRef = useRef<HTMLDivElement>(null);
   const [autoOptimizeEnabled, setAutoOptimizeEnabled] = useState(true);
   const [autoOptimizeLoading, setAutoOptimizeLoading] = useState(true);
@@ -358,7 +364,11 @@ export default function ImageOptimizationSection({ variant = 'panel' }: { varian
 
   return (
     <div className={variant === 'page' ? 'space-y-4' : 'space-y-3'} ref={resultsRef}>
-      <p className="text-[10px] uppercase tracking-[0.2em] text-white/30 font-medium px-0.5">Optimering</p>
+      {showHeading ? (
+        <p className="text-[10px] uppercase tracking-[0.2em] text-white/30 font-medium px-0.5">
+          Optimering
+        </p>
+      ) : null}
       <AutoOptimizeStatusToggle enabled={autoOptimizeEnabled} loading={autoOptimizeLoading} />
       <OptimizeCard
         title="Desktop-billede (thumb)"

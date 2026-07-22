@@ -1,4 +1,8 @@
 import { findForbiddenPhrases } from '@/lib/seo-engine/forbidden-phrases';
+import {
+  resolveEffectiveArticleType,
+  reviewSeoTitleValidationError,
+} from '@/lib/seo-engine/review-title-rule';
 import type { EditorialAnalysisV1, SeoStrategyPackV1 } from '@/lib/seo-engine/schema';
 import { SEO_DESCRIPTION_MAX, SEO_TITLE_MAX } from '@/lib/seo/constants';
 
@@ -12,6 +16,11 @@ export type ValidationResult = {
   errors: ValidationIssue[];
   warnings: ValidationIssue[];
   suggestions: ValidationIssue[];
+};
+
+export type ValidateSeoPackOptions = {
+  /** Input language (da/en). Required for review-title keyword gate. */
+  language?: string | null;
 };
 
 function checkTextField(
@@ -65,7 +74,8 @@ function checkTextField(
 
 export function validateSeoPack(
   pack: SeoStrategyPackV1,
-  analysis: EditorialAnalysisV1
+  analysis: EditorialAnalysisV1,
+  opts: ValidateSeoPackOptions = {}
 ): ValidationResult {
   const errors: ValidationIssue[] = [];
   const warnings: ValidationIssue[] = [];
@@ -83,6 +93,13 @@ export function validateSeoPack(
     errors.push(...r.errors);
     warnings.push(...r.warnings);
   }
+
+  const reviewErr = reviewSeoTitleValidationError({
+    seoTitle: fields.seoTitle.value,
+    language: opts.language,
+    articleType: resolveEffectiveArticleType(analysis),
+  });
+  if (reviewErr) errors.push(reviewErr);
 
   if (!entity.trim()) {
     errors.push({ code: 'no_primary_entity', message: 'Primær entitet mangler' });

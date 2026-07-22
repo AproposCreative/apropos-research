@@ -11,6 +11,11 @@ import { buildJsonLd } from '@/lib/seo-engine/jsonld';
 import { getCmsPublishability } from '@/lib/seo-engine/webflow-adapter';
 import { SEO_ENGINE_SCHEMA_VERSION } from '@/lib/seo-engine/versions';
 import { SEO_DESCRIPTION_MAX, SEO_TITLE_MAX } from '@/lib/seo/constants';
+import {
+  buildReviewAwareDemoSeoTitle,
+  isReviewSeoArticleType,
+  resolveEffectiveArticleType,
+} from '@/lib/seo-engine/review-title-rule';
 
 function fieldStr(
   value: string,
@@ -184,11 +189,22 @@ function buildFieldsFromAnalysis(
 ): PublishFields {
   const entity = analysis.primaryEntity.asWritten;
   const type = analysis.articleType.suggested;
-  let seoTitle = `${entity} — ${type}`.trim();
+  const effectiveType = resolveEffectiveArticleType(analysis, input.articleType);
+  let seoTitle = isReviewSeoArticleType(effectiveType)
+    ? buildReviewAwareDemoSeoTitle({
+        entity,
+        language: input.language,
+        articleType: effectiveType,
+        maxLen: SEO_TITLE_MAX,
+      })
+    : `${entity} — ${type}`.trim();
   if (input.existingSeoTitle?.trim()) {
     seoTitle = input.existingSeoTitle.trim();
+  } else if (!isReviewSeoArticleType(effectiveType)) {
+    seoTitle = truncate(seoTitle, SEO_TITLE_MAX);
   }
-  seoTitle = truncate(seoTitle, SEO_TITLE_MAX);
+  // Review titles: never blind-truncate — buildReviewAwareDemoSeoTitle already length-safe.
+  // If locked existing title is over max, keep as-is and let validator warn.
 
   let metaDescription =
     input.intro?.trim() ||
@@ -345,10 +361,18 @@ export function buildDemoStrategyPack(args: {
 
   const angleFields = buildFieldsFromAnalysis(args.input, args.analysis);
   if (!angleFields.seoTitle.locked) {
-    const angleTitle = truncate(
-      args.analysis.angleOrThesis.value || `${entity} — vinkel`,
-      SEO_TITLE_MAX
-    );
+    const effectiveType = resolveEffectiveArticleType(args.analysis, args.input.articleType);
+    const angleTitle = isReviewSeoArticleType(effectiveType)
+      ? buildReviewAwareDemoSeoTitle({
+          entity,
+          language: args.input.language,
+          articleType: effectiveType,
+          maxLen: SEO_TITLE_MAX,
+        })
+      : truncate(
+          args.analysis.angleOrThesis.value || `${entity} — vinkel`,
+          SEO_TITLE_MAX
+        );
     angleFields.seoTitle = fieldStr(angleTitle, 'Angle-first title', 0.4, false);
     angleFields.ogTitle = fieldStr(angleTitle, 'Spejler angle title', 0.35);
     angleFields.jsonLd = {
@@ -364,10 +388,18 @@ export function buildDemoStrategyPack(args: {
 
   const evergreenFields = buildFieldsFromAnalysis(args.input, args.analysis);
   if (!evergreenFields.seoTitle.locked) {
-    const evergreenTitle = truncate(
-      `${entity}: ${args.analysis.topic.value || 'evergreen guide'}`,
-      SEO_TITLE_MAX
-    );
+    const effectiveType = resolveEffectiveArticleType(args.analysis, args.input.articleType);
+    const evergreenTitle = isReviewSeoArticleType(effectiveType)
+      ? buildReviewAwareDemoSeoTitle({
+          entity,
+          language: args.input.language,
+          articleType: effectiveType,
+          maxLen: SEO_TITLE_MAX,
+        })
+      : truncate(
+          `${entity}: ${args.analysis.topic.value || 'evergreen guide'}`,
+          SEO_TITLE_MAX
+        );
     evergreenFields.seoTitle = fieldStr(evergreenTitle, 'Evergreen-first title', 0.4, false);
     evergreenFields.ogTitle = fieldStr(evergreenTitle, 'Spejler evergreen title', 0.35);
     evergreenFields.primaryPhrase = fieldStr(

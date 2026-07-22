@@ -369,9 +369,12 @@ function IntegrationsTab() {
         )}
       </div>
 
-      <ImageOptimizationSection variant="panel" />
-      <ArticleTranslationSection variant="panel" />
+      <p className="text-[10px] uppercase tracking-[0.2em] text-white/30 font-medium px-0.5">
+        Optimering
+      </p>
       <SeoEngineSection variant="panel" />
+      <ImageOptimizationSection variant="panel" showHeading={false} />
+      <ArticleTranslationSection variant="panel" />
     </div>
   );
 }

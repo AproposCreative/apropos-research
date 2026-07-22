@@ -274,12 +274,17 @@ export async function runSeoEngineJob(jobId: string): Promise<{
     ] as const) {
       if (domainKey in patchDomain) {
         const val = verified.fieldData[cmsSlug];
-        if (isCmsSeoFieldEmpty(val)) {
-          throw new Error(`Post-write verify failed for ${cmsSlug}`);
+        const expected = String(patchDomain[domainKey] || '').trim();
+        const live = isCmsSeoFieldEmpty(val) ? '' : String(val).trim();
+        if (!live || live !== expected) {
+          throw new Error(
+            `Post-write exact readback failed for ${cmsSlug}: expected exact strategy value`
+          );
         }
       }
     }
 
+    // Publish only if the item was already published (never publish drafts via auto)
     if (fresh.lastPublished) {
       await publishArticleItemForLocale(claimed.itemId, dk);
     }

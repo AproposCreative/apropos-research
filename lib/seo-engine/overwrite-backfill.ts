@@ -15,6 +15,7 @@ import { webflowItemToSeoEngineInput } from '@/lib/seo-engine/cms-contract';
 import { findForbiddenPhrases } from '@/lib/seo-engine/forbidden-phrases';
 import { computeInputVersionHash } from '@/lib/seo-engine/hash';
 import { analyzeArticle, strategizeFromRun } from '@/lib/seo-engine/pipeline';
+import { reviewSeoTitleValidationError, resolveEffectiveArticleType } from '@/lib/seo-engine/review-title-rule';
 import type { SeoEngineInputContract } from '@/lib/seo-engine/schema';
 import type { ValidationResult } from '@/lib/seo-engine/validator';
 import {
@@ -110,6 +111,12 @@ export type LocaleProposal = {
   validationErrors: string[];
   validationWarnings: string[];
   sourceSignature: SourceSignature;
+  /** Editor-chosen or suggested type used for review-title gate. */
+  effectiveArticleType?: string;
+  /** True when seoTitle was regenerated to satisfy the review-keyword rule. */
+  reviewTitleCorrected?: boolean;
+  /** Prior frozen seoTitle before review correction (audit). */
+  priorFrozenSeoTitle?: string;
 };
 
 export type FrozenManifestEntry = {
@@ -564,6 +571,8 @@ export function validateOverwriteFields(args: {
   seoTitle: string;
   metaDescription: string;
   packValidation?: ValidationResult;
+  language?: string | null;
+  articleType?: string | null;
 }): OverwriteFieldValidation {
   const errors: string[] = [];
   const title = args.seoTitle?.trim() || '';
@@ -582,6 +591,14 @@ export function validateOverwriteFields(args: {
   }
   for (const p of findForbiddenPhrases(meta)) {
     errors.push(`forbidden phrase in metaDescription: ${p}`);
+  }
+  const reviewErr = reviewSeoTitleValidationError({
+    seoTitle: title,
+    language: args.language,
+    articleType: args.articleType,
+  });
+  if (reviewErr) {
+    errors.push(`${reviewErr.code}${reviewErr.fieldPath ? `:${reviewErr.fieldPath}` : ''}: ${reviewErr.message}`);
   }
   for (const e of args.packValidation?.errors || []) {
     errors.push(`${e.code}${e.fieldPath ? `:${e.fieldPath}` : ''}: ${e.message}`);
@@ -691,6 +708,7 @@ export function assertDryRunReportCleanForApply(
   }
 
   const proposedKeys = new Set<string>();
+  const proposedByKey = new Map<string, LocaleProposal>();
   for (const item of doc.results) {
     if (!item?.itemId || !Array.isArray(item.locales)) {
       return { ok: false, reason: '--from-report has malformed results entry.' };
@@ -737,7 +755,9 @@ export function assertDryRunReportCleanForApply(
             reason: `Reject: proposed locale ${item.itemId}:${loc.locale} is demo mode.`,
           };
         }
-        proposedKeys.add(localeKey(item.itemId, loc.locale));
+        const key = localeKey(item.itemId, loc.locale);
+        proposedKeys.add(key);
+        proposedByKey.set(key, loc.proposal);
       }
     }
   }
@@ -757,9 +777,13 @@ export function assertDryRunReportCleanForApply(
     if (!entry.sourceSignature?.contentHash || !entry.sourceSignature?.inputVersionHash) {
       return { ok: false, reason: 'frozenManifest entry missing sourceSignature hashes.' };
     }
+    const key = localeKey(entry.itemId, entry.locale);
+    const matchedProposal = proposedByKey.get(key);
     const fieldCheck = validateOverwriteFields({
       seoTitle: entry.newSeoTitle,
       metaDescription: entry.newMetaDescription,
+      language: entry.locale,
+      articleType: matchedProposal?.effectiveArticleType,
     });
     if (!fieldCheck.ok) {
       return {
@@ -767,7 +791,6 @@ export function assertDryRunReportCleanForApply(
         reason: `Reject: frozenManifest ${entry.itemId}:${entry.locale} failed field validation: ${fieldCheck.errors.join('; ')}`,
       };
     }
-    const key = localeKey(entry.itemId, entry.locale);
     if (manifestKeys.has(key)) {
       return { ok: false, reason: `Reject: duplicate frozenManifest entry ${key}.` };
     }
@@ -1448,11 +1471,14 @@ async function runDryRunPropose(opts: {
         const metaDescription = String(
           strategy.pack.recommended.fields.metaDescription.value || ''
         ).trim();
+        const effectiveArticleType = resolveEffectiveArticleType(analysis.analysis);
 
         const fieldCheck = validateOverwriteFields({
           seoTitle,
           metaDescription,
           packValidation: strategy.validation,
+          language: locale,
+          articleType: effectiveArticleType,
         });
 
         const sourceSignature = buildSourceSignature({
@@ -1481,6 +1507,7 @@ async function runDryRunPropose(opts: {
             (w) => `${w.code}: ${w.message}`
           ),
           sourceSignature,
+          effectiveArticleType,
         };
 
         opts.log(formatProposalChangeReport(item.id, proposal));

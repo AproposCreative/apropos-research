@@ -76,7 +76,7 @@ export function runEphemeralDemoPipeline(rawInput: unknown): EphemeralDemoResult
 
   let pack = buildDemoStrategyPack({ input, analysis });
   pack = applyDeterministicJsonLdToPack(pack, input, analysis);
-  const validation = validateSeoPack(pack, analysis);
+  const validation = validateSeoPack(pack, analysis, { language: input.language });
 
   const band = toConfidenceBand({
     raw: analysis.primaryEntity.confidence,

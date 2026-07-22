@@ -40,6 +40,12 @@ import {
   loadSeoStrategyPackJsonSchema,
 } from '@/lib/seo-engine/prompts';
 import {
+  getSearchSignalsProvider,
+  toAnalyzePromptSearchSignals,
+  type SearchSignalsProvenance,
+} from '@/lib/seo-engine/search-signals';
+import { resolveEffectiveArticleType } from '@/lib/seo-engine/review-title-rule';
+import {
   applyEvidenceConfidencePenalty,
   verifyEvidenceAgainstSnapshot,
 } from '@/lib/seo-engine/evidence';
@@ -172,7 +178,7 @@ function finalizeStrategyPack(
     next.alternatives = next.alternatives.slice(0, 2) as SeoStrategyPackV1['alternatives'];
     next = applyDeterministicJsonLdToPack(next, input, analysis);
   }
-  const validation = validateSeoPack(next, analysis);
+  const validation = validateSeoPack(next, analysis, { language: input.language });
   return { pack: next, validation };
 }
 
@@ -184,6 +190,7 @@ export type AnalyzeResult = {
   analysis: EditorialAnalysisV1;
   articleKey: string;
   evidenceIssues?: number;
+  searchSignalsProvenance?: SearchSignalsProvenance;
 };
 
 export async function analyzeArticle(
@@ -246,8 +253,37 @@ export async function analyzeArticle(
   let provider: string | undefined;
   let model: string | undefined;
   let evidenceIssues = 0;
+  let searchSignalsProvenance: SearchSignalsProvenance | undefined;
 
   try {
+    // Optional live GA4/GSC signals — never override entity/stance; fail soft.
+    let searchSignalsForPrompt: ReturnType<typeof toAnalyzePromptSearchSignals> | null = null;
+    try {
+      const bundle = await getSearchSignalsProvider().getSignals({
+        seeds: [input.editorialTitle, input.subtitle || '', input.articleType || ''].filter(
+          Boolean
+        ) as string[],
+        language: input.language,
+        articleType: input.articleType,
+        limit: 12,
+        days: 28,
+      });
+      searchSignalsProvenance = bundle.provenance;
+      searchSignalsForPrompt = toAnalyzePromptSearchSignals(bundle);
+    } catch {
+      searchSignalsProvenance = {
+        provider: 'null',
+        period: { startDate: '28daysAgo', endDate: 'today' },
+        retrievedAt: new Date().toISOString(),
+        signalsAvailable: false,
+        searchConsoleLinked: false,
+        queryRowsAvailable: false,
+        aggregateOnly: true,
+        uiNote: 'ingen søgedata',
+        errorCode: 'provider_exception',
+      };
+    }
+
     if (useDemo || openaiMissing) {
       analysis = buildDemoAnalysis({
         input,
@@ -287,6 +323,14 @@ export async function analyzeArticle(
                 contract: {
                   ...input,
                   body: normalizedText,
+                },
+                searchSignals: searchSignalsForPrompt,
+                searchSignalsRules: {
+                  optional: true,
+                  doNotInventVolumes: true,
+                  doNotOverrideEntityOrStance: true,
+                  reviewTitleRuleStillApplies: true,
+                  ifUnavailableUseHeuristicOnly: true,
                 },
               }),
             },
@@ -330,6 +374,9 @@ export async function analyzeArticle(
       analysis = applyEvidenceConfidencePenalty(verified.analysis, verified.invalidEvidenceCount);
     }
 
+    // Ensure review-type awareness is retained in analysis metadata path
+    void resolveEffectiveArticleType(analysis, input.articleType);
+
     await saveAnalysisRun({
       id: analysisRunId,
       articleKey,
@@ -342,7 +389,25 @@ export async function analyzeArticle(
       provider,
       model,
       createdBy: opts.userId,
-      debug: evidenceIssues ? { evidenceIssues } : undefined,
+      debug: {
+        ...(evidenceIssues ? { evidenceIssues } : {}),
+        ...(searchSignalsProvenance
+          ? {
+              searchSignals: {
+                provider: searchSignalsProvenance.provider,
+                period: searchSignalsProvenance.period,
+                retrievedAt: searchSignalsProvenance.retrievedAt,
+                signalsAvailable: searchSignalsProvenance.signalsAvailable,
+                searchConsoleLinked: searchSignalsProvenance.searchConsoleLinked,
+                queryRowsAvailable: searchSignalsProvenance.queryRowsAvailable,
+                aggregateOnly: searchSignalsProvenance.aggregateOnly,
+                uiNote: searchSignalsProvenance.uiNote,
+                setupStatus: searchSignalsProvenance.setupStatus,
+                errorCode: searchSignalsProvenance.errorCode,
+              },
+            }
+          : {}),
+      },
       ...versionStamps(),
     });
 
@@ -354,6 +419,7 @@ export async function analyzeArticle(
       analysis,
       articleKey,
       evidenceIssues,
+      searchSignalsProvenance,
     };
   } catch (e) {
     const debug = safeAiDebug(e);
@@ -621,7 +687,7 @@ export async function saveFields(args: {
 
   const run = await getAnalysisRun(version.analysisRunId);
   const validation = run?.analysis
-    ? validateSeoPack(pack, run.analysis)
+    ? validateSeoPack(pack, run.analysis, { language: current.language })
     : version.validation;
 
   try {
@@ -835,7 +901,7 @@ export async function regenerateField(args: {
     });
   }
 
-  const validation = validateSeoPack(pack, run.analysis);
+  const validation = validateSeoPack(pack, run.analysis, { language: current.language });
   try {
     const revision = await applyFieldPatchesInTransaction({
       seoVersionId: args.seoVersionId,
