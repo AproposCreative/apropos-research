@@ -7,25 +7,28 @@
  *
  * See docs/seo-engine-runbook.md → "One-off overwrite backfill"
  * and --help for rollback instructions.
+ *
+ * IMPORTANT: dotenv must load BEFORE any `@/lib/*` import (env is snapshotted
+ * at module load). Keep backfill imports dynamic after config().
  */
 import { config } from 'dotenv';
 import { dirname, join } from 'path';
 import { fileURLToPath } from 'url';
-
-import {
-  assertApplyOverwriteGates,
-  getBackfillHelpText,
-  parseBackfillCliArgs,
-  resolveEffectiveLimit,
-  resolveEffectiveLocales,
-  runOverwriteBackfill,
-} from '../lib/seo-engine/overwrite-backfill';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 config({ path: join(root, '.env.local') });
 config({ path: join(root, '.env') });
 
 async function main() {
+  const {
+    assertApplyOverwriteGates,
+    getBackfillHelpText,
+    parseBackfillCliArgs,
+    resolveEffectiveLimit,
+    resolveEffectiveLocales,
+    runOverwriteBackfill,
+  } = await import('../lib/seo-engine/overwrite-backfill');
+
   const cli = parseBackfillCliArgs(process.argv.slice(2));
   if (cli.help) {
     console.log(getBackfillHelpText());
@@ -53,7 +56,9 @@ async function main() {
       'APPLY MODE: will overwrite CMS seo-title/meta-description. Backup will be written first.'
     );
   } else {
-    console.log('DRY-RUN: zero Webflow writes. Pass --apply --overwrite --limit=10 --locales=da,en for live.');
+    console.log(
+      'DRY-RUN: zero Webflow writes. Pass --apply --overwrite --limit=10 --locales=da,en for live.'
+    );
   }
 
   const result = await runOverwriteBackfill({
