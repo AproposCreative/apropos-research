@@ -35,6 +35,9 @@
   ],
   "exclude": [
     "node_modules",
-    "test/**"
+    "test/**",
+    "tmp/**",
+    "data/seo-engine-backfill/**",
+    "scripts/**"
   ]
 }

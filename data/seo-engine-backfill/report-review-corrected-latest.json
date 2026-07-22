@@ -1,0 +1,1085 @@
+{
+  "schemaVersion": 2,
+  "createdAt": "2026-07-22T21:58:09.006Z",
+  "mode": "dry-run",
+  "limit": 10,
+  "locales": [
+    "da",
+    "en"
+  ],
+  "backupPath": "/Users/frederikkragh/Library/CloudStorage/Dropbox/AproposMagazine.com/13. Onkel Ragekniv/tmp/seo-engine-backfill/backup-2026-07-22T21-05-31-945Z.json",
+  "stoppedOnError": false,
+  "errorMessage": null,
+  "selected": [
+    {
+      "id": "6a610d22f7ef1fadc65aba8c",
+      "slug": "007-first-light-review-restore-tmp",
+      "title": "007: First Light - Bond med puls og pæn panik",
+      "lastPublished": "2026-07-22T18:37:11.678Z",
+      "locales": [
+        "da",
+        "en"
+      ]
+    },
+    {
+      "id": "6a58ae98c6e7b94dca58b167",
+      "slug": "derfor-siger-jeg-altid-at-jeg-er-hollaender-pa-ferie",
+      "title": "Derfor siger jeg altid, at jeg er hollænder på ferie",
+      "lastPublished": "2026-07-22T18:23:32.032Z",
+      "locales": [
+        "da",
+        "en"
+      ]
+    },
+    {
+      "id": "6a5764f91f21a8a5fba78831",
+      "slug": "lucky-apple-tv-anmeldelse",
+      "title": "Lucky (Apple TV)",
+      "lastPublished": "2026-07-22T18:22:05.063Z",
+      "locales": [
+        "da",
+        "en"
+      ]
+    },
+    {
+      "id": "6a5682609af972f4ea432796",
+      "slug": "the-odyssey-anmeldelse",
+      "title": "The Odyssey",
+      "lastPublished": "2026-07-18T16:43:24.063Z",
+      "locales": [
+        "da",
+        "en"
+      ]
+    },
+    {
+      "id": "6a44e2ff01523516e9823e1a",
+      "slug": "copenhell-onsdag-nonner-i-corpse-paint-og-tom-morello-i-hopla",
+      "title": "Copenhell 2026 - Onsdag",
+      "lastPublished": "2026-07-17T10:12:24.839Z",
+      "locales": [
+        "da",
+        "en"
+      ]
+    },
+    {
+      "id": "6a4fa08e9dba739c8227989a",
+      "slug": "kunst-pa-roskilde-festival-2026",
+      "title": "Kunst på Roskilde Festival 2026",
+      "lastPublished": "2026-07-10T07:28:02.272Z",
+      "locales": [
+        "da",
+        "en"
+      ]
+    },
+    {
+      "id": "6a4f5c836c05693f03dd4384",
+      "slug": "little-simz-pa-roskilde-festival-2026",
+      "title": "Little Simz på Roskilde Festival 2026",
+      "lastPublished": "2026-07-09T13:16:56.763Z",
+      "locales": [
+        "da",
+        "en"
+      ]
+    },
+    {
+      "id": "6a4f654ed5acf32358137e08",
+      "slug": "mille-pa-roskilde-festival-2026",
+      "title": "Mille på Roskilde Festival 2026",
+      "lastPublished": "2026-07-09T13:16:56.763Z",
+      "locales": [
+        "da",
+        "en"
+      ]
+    },
+    {
+      "id": "6a4f9c018e650be4b59cd658",
+      "slug": "young-miko-pa-roskilde-festival-2026",
+      "title": "Young Miko på Roskilde Festival 2026",
+      "lastPublished": "2026-07-09T13:16:56.763Z",
+      "locales": [
+        "da",
+        "en"
+      ]
+    },
+    {
+      "id": "6a4bb8a7099fcfef599f2114",
+      "slug": "napalm-death-pa-roskilde-festival-2026",
+      "title": "Napalm Death på Roskilde Festival 2026",
+      "lastPublished": "2026-07-09T09:11:03.394Z",
+      "locales": [
+        "da",
+        "en"
+      ]
+    }
+  ],
+  "results": [
+    {
+      "itemId": "6a610d22f7ef1fadc65aba8c",
+      "slug": "007-first-light-review-restore-tmp",
+      "title": "007: First Light - Bond med puls og pæn panik",
+      "locales": [
+        {
+          "locale": "da",
+          "status": "proposed",
+          "proposal": {
+            "locale": "da",
+            "cmsLocaleId": "67dbf17ba540975b5b21c225",
+            "articleKey": "wf:6a610d22f7ef1fadc65aba8c:da",
+            "title": "007: First Light - Bond med puls og pæn panik",
+            "slug": "007-first-light-review-restore-tmp",
+            "wasPublished": true,
+            "oldSeoTitle": "007 First Light anmeldelse: Bond med puls",
+            "oldMetaDescription": "IO Interactive giver James Bond en ny begyndelse i 007 First Light. Her er anmeldelsen af et sjovt, elegant og velkomponeret spil.",
+            "newSeoTitle": "007 First Light anmeldelse: Bond med puls",
+            "newMetaDescription": "IO Interactive giver James Bond en ny begyndelse i 007 First Light. Her er anmeldelsen af et sjovt, elegant og velkomponeret spil.",
+            "analysisRunId": "52da0b23-d410-4738-b63a-50032fb04f70",
+            "seoVersionId": "1ee7faff-97a6-4ba5-a9c5-a41ba7e8f2a6",
+            "mode": "ai",
+            "validationErrors": [],
+            "validationWarnings": [],
+            "sourceSignature": {
+              "lastUpdated": "2026-07-22T21:35:43.110Z",
+              "lastPublished": "2026-07-22T21:35:43.110Z",
+              "contentHash": "e00c78b19754545bccfdd72e26ef1a3e8651949c8227f9e3b065bf9f3f7c1848",
+              "inputVersionHash": "9d80dc8123e945da8c0db546e16d7232441f04a4b93bbf7b6f4bc9983aba3933",
+              "oldSeoTitle": "007 First Light anmeldelse: Bond med puls",
+              "oldMetaDescription": "IO Interactive giver James Bond en ny begyndelse i 007 First Light. Her er anmeldelsen af et sjovt, elegant og velkomponeret spil."
+            },
+            "effectiveArticleType": "Spilanmeldelse",
+            "reviewTitleCorrected": false
+          }
+        },
+        {
+          "locale": "en",
+          "status": "proposed",
+          "proposal": {
+            "locale": "en",
+            "cmsLocaleId": "690ca0f6b0d13d8788354156",
+            "articleKey": "wf:6a610d22f7ef1fadc65aba8c:en",
+            "title": "007: First Light - Bond with pulse and polished panic",
+            "slug": "007-first-light-review-restore-tmp",
+            "wasPublished": true,
+            "oldSeoTitle": "007 First Light Review: Bond with Pulse",
+            "oldMetaDescription": "IO Interactive gives James Bond a fresh start in 007 First Light. Here’s our review of a fun, elegant and well-composed game.",
+            "newSeoTitle": "007 First Light review: Bond with pulse and polish",
+            "newMetaDescription": "IO Interactive’s 007 First Light reimagines Bond with humor, freedom and style, while still leaving room for a few rough edges.",
+            "analysisRunId": "2395aea8-c934-4f81-a0d4-e1689948e517",
+            "seoVersionId": "caa3515c-ca51-41eb-b2bd-3b41944fa9ef",
+            "mode": "ai",
+            "validationErrors": [],
+            "validationWarnings": [],
+            "sourceSignature": {
+              "lastUpdated": "2026-07-22T21:36:00.513Z",
+              "lastPublished": "2026-07-22T21:36:00.513Z",
+              "contentHash": "4fbcc0dc5d16a3a9ebadc87548314cb12676844ad6e05d7a4c5b8a0d556917b9",
+              "inputVersionHash": "ce1b0805f6df0851dec55b91efd5ab8b927c674815edcddf67b8700adf711ae5",
+              "oldSeoTitle": "007 First Light Review: Bond with Pulse",
+              "oldMetaDescription": "IO Interactive gives James Bond a fresh start in 007 First Light. Here’s our review of a fun, elegant and well-composed game."
+            },
+            "effectiveArticleType": "Spilanmeldelse",
+            "reviewTitleCorrected": false
+          }
+        }
+      ]
+    },
+    {
+      "itemId": "6a58ae98c6e7b94dca58b167",
+      "slug": "derfor-siger-jeg-altid-at-jeg-er-hollaender-pa-ferie",
+      "title": "Derfor siger jeg altid, at jeg er hollænder på ferie",
+      "locales": [
+        {
+          "locale": "da",
+          "status": "proposed",
+          "proposal": {
+            "locale": "da",
+            "cmsLocaleId": "67dbf17ba540975b5b21c225",
+            "articleKey": "wf:6a58ae98c6e7b94dca58b167:da",
+            "title": "Derfor siger jeg altid, at jeg er hollænder på ferie",
+            "slug": "derfor-siger-jeg-altid-at-jeg-er-hollaender-pa-ferie",
+            "wasPublished": true,
+            "oldSeoTitle": "Derfor siger jeg altid, at jeg er hollænder på ferie",
+            "oldMetaDescription": "Et humoristisk essay om hollandske og danske turister, ferieadfærd og den selvsikre måde at fylde på i Sydeuropa.",
+            "newSeoTitle": "Derfor siger jeg altid, at jeg er hollænder på ferie",
+            "newMetaDescription": "Et humoristisk essay om hollandske og danske turister, ferieadfærd og den selvsikre måde at fylde på i Sydeuropa.",
+            "analysisRunId": "eabdc996-dad9-4ee2-9007-5da96c9b973a",
+            "seoVersionId": "8e14038e-fa85-4e5a-9ce8-024ecbf245c9",
+            "mode": "ai",
+            "validationErrors": [],
+            "validationWarnings": [
+              "missing_primary_entity: Primær entitet \"hollænder\" fremgår ikke tydeligt"
+            ],
+            "sourceSignature": {
+              "lastUpdated": "2026-07-22T21:35:47.144Z",
+              "lastPublished": "2026-07-22T21:35:47.144Z",
+              "contentHash": "d60cc20e11395a205e809ecf8a44e47b8db3f5021635a6d196992625f5bf0133",
+              "inputVersionHash": "01a44e7e108ebac18f8898ea9e4cb6abb5711150740ce7f3328811679fbfa4e6",
+              "oldSeoTitle": "Derfor siger jeg altid, at jeg er hollænder på ferie",
+              "oldMetaDescription": "Et humoristisk essay om hollandske og danske turister, ferieadfærd og den selvsikre måde at fylde på i Sydeuropa."
+            },
+            "effectiveArticleType": "Essay",
+            "reviewTitleCorrected": false
+          }
+        },
+        {
+          "locale": "en",
+          "status": "skipped_missing",
+          "reason": "Locale en missing (404) — skip (no invent/translate)"
+        }
+      ]
+    },
+    {
+      "itemId": "6a5764f91f21a8a5fba78831",
+      "slug": "lucky-apple-tv-anmeldelse",
+      "title": "Lucky (Apple TV)",
+      "locales": [
+        {
+          "locale": "da",
+          "status": "proposed",
+          "proposal": {
+            "locale": "da",
+            "cmsLocaleId": "67dbf17ba540975b5b21c225",
+            "articleKey": "wf:6a5764f91f21a8a5fba78831:da",
+            "title": "Lucky (Apple TV)",
+            "slug": "lucky-apple-tv-anmeldelse",
+            "wasPublished": true,
+            "oldSeoTitle": "Lucky anmeldelse: Anya Taylor-Joy bærer serien",
+            "oldMetaDescription": "Anmeldelse af Lucky på Apple TV+: Serien er vellavet og underholdende, men også for glat og genkendelig til for alvor at sætte sig fast.",
+            "newSeoTitle": "Lucky anmeldelse: Anya Taylor-Joy bærer serien",
+            "newMetaDescription": "Anmeldelse af Lucky på Apple TV+: Serien er vellavet og underholdende, men også for glat og genkendelig til for alvor at sætte sig fast.",
+            "analysisRunId": "f4ba7440-ab79-4e80-a3d1-3e85bdb29076",
+            "seoVersionId": "c53db0c1-1c68-406b-a19b-e9ba51398f02",
+            "mode": "ai",
+            "validationErrors": [],
+            "validationWarnings": [],
+            "sourceSignature": {
+              "lastUpdated": "2026-07-22T21:35:49.431Z",
+              "lastPublished": "2026-07-22T21:35:49.431Z",
+              "contentHash": "3b22bccb20632d560b804b366ed8431ebaf813afdfd06a3abab51e8cf598f484",
+              "inputVersionHash": "a94892098ce4c204222e48525066375c8022775c9e3d08f7c708b4c70eb77e08",
+              "oldSeoTitle": "Lucky anmeldelse: Anya Taylor-Joy bærer serien",
+              "oldMetaDescription": "Anmeldelse af Lucky på Apple TV+: Serien er vellavet og underholdende, men også for glat og genkendelig til for alvor at sætte sig fast."
+            },
+            "effectiveArticleType": "Serieanmeldelse",
+            "reviewTitleCorrected": false
+          }
+        },
+        {
+          "locale": "en",
+          "status": "skipped_missing",
+          "reason": "Locale en missing (404) — skip (no invent/translate)"
+        }
+      ]
+    },
+    {
+      "itemId": "6a5682609af972f4ea432796",
+      "slug": "the-odyssey-anmeldelse",
+      "title": "The Odyssey",
+      "locales": [
+        {
+          "locale": "da",
+          "status": "proposed",
+          "proposal": {
+            "locale": "da",
+            "cmsLocaleId": "67dbf17ba540975b5b21c225",
+            "articleKey": "wf:6a5682609af972f4ea432796:da",
+            "title": "The Odyssey",
+            "slug": "the-odyssey-anmeldelse",
+            "wasPublished": true,
+            "oldSeoTitle": "The Odyssey anmeldelse: Nolans mytiske epos",
+            "oldMetaDescription": "Christopher Nolans The Odyssey er storladen, krævende og fysisk tung. Læs vores anmeldelse af filmen og dens mytiske ambition.",
+            "newSeoTitle": "The Odyssey anmeldelse: Nolans mytiske epos",
+            "newMetaDescription": "Christopher Nolans The Odyssey er storladen, krævende og fysisk tung. Læs vores anmeldelse af filmen og dens mytiske ambition.",
+            "analysisRunId": "75e70266-39ef-4ce5-b546-0b0e0c81ad66",
+            "seoVersionId": "215e9bed-0808-41ba-97b6-5cf697cc4cbf",
+            "mode": "ai",
+            "validationErrors": [],
+            "validationWarnings": [],
+            "sourceSignature": {
+              "lastUpdated": "2026-07-22T21:35:51.021Z",
+              "lastPublished": "2026-07-22T21:35:51.021Z",
+              "contentHash": "890b3d748b7ed2391ccb1c93c99fda49a3adde967d9578543457914209bc1b12",
+              "inputVersionHash": "bd6326f287cce756042ccb93447f6d8475df798a489fd804d888583708982b1f",
+              "oldSeoTitle": "The Odyssey anmeldelse: Nolans mytiske epos",
+              "oldMetaDescription": "Christopher Nolans The Odyssey er storladen, krævende og fysisk tung. Læs vores anmeldelse af filmen og dens mytiske ambition."
+            },
+            "effectiveArticleType": "Filmanmeldelse",
+            "reviewTitleCorrected": false
+          }
+        },
+        {
+          "locale": "en",
+          "status": "skipped_missing",
+          "reason": "Locale en missing (404) — skip (no invent/translate)"
+        }
+      ]
+    },
+    {
+      "itemId": "6a44e2ff01523516e9823e1a",
+      "slug": "copenhell-onsdag-nonner-i-corpse-paint-og-tom-morello-i-hopla",
+      "title": "Copenhell 2026 - Onsdag",
+      "locales": [
+        {
+          "locale": "da",
+          "status": "proposed",
+          "proposal": {
+            "locale": "da",
+            "cmsLocaleId": "67dbf17ba540975b5b21c225",
+            "articleKey": "wf:6a44e2ff01523516e9823e1a:da",
+            "title": "Copenhell 2026 - Onsdag",
+            "slug": "copenhell-onsdag-nonner-i-corpse-paint-og-tom-morello-i-hopla",
+            "wasPublished": true,
+            "oldSeoTitle": "Copenhell 2026: Onsdagens højdepunkter og anmeldelser",
+            "oldMetaDescription": "Læs anmeldelsen af Copenhells onsdag med Dogma, Tom Morello, Six Feet Under og dagens øvrige højdepunkter.",
+            "newSeoTitle": "Copenhell 2026: Onsdagens højdepunkter og anmeldelser",
+            "newMetaDescription": "Læs anmeldelsen af Copenhells onsdag med Dogma, Tom Morello, Six Feet Under og dagens øvrige højdepunkter.",
+            "analysisRunId": "2abce9e4-0993-4f24-b4f9-04563f5a7691",
+            "seoVersionId": "edfe1f9f-baec-4c6d-939b-a77d83761abd",
+            "mode": "ai",
+            "validationErrors": [],
+            "validationWarnings": [
+              "missing_primary_entity: Primær entitet \"Copenhell 2026 - Onsdag\" fremgår ikke tydeligt",
+              "missing_primary_entity: Primær entitet \"Copenhell 2026 - Onsdag\" fremgår ikke tydeligt"
+            ],
+            "sourceSignature": {
+              "lastUpdated": "2026-07-22T21:35:54.045Z",
+              "lastPublished": "2026-07-22T21:35:54.045Z",
+              "contentHash": "a9d3b6333db51f7aa1f02c695797dfad24bb9f1e1335c3fe6d7a549c5a52a535",
+              "inputVersionHash": "261c26282c21424ae7623af6b2131d3784b8c473bc513957742f14eb5a5ca6e3",
+              "oldSeoTitle": "Copenhell 2026: Onsdagens højdepunkter og anmeldelser",
+              "oldMetaDescription": "Læs anmeldelsen af Copenhells onsdag med Dogma, Tom Morello, Six Feet Under og dagens øvrige højdepunkter."
+            },
+            "effectiveArticleType": "Festivalanmeldelse",
+            "reviewTitleCorrected": false
+          }
+        },
+        {
+          "locale": "en",
+          "status": "proposed",
+          "proposal": {
+            "locale": "en",
+            "cmsLocaleId": "690ca0f6b0d13d8788354156",
+            "articleKey": "wf:6a44e2ff01523516e9823e1a:en",
+            "title": "Copenhell 2026 - Wednesday",
+            "slug": "copenhell-2026-wednesday",
+            "wasPublished": true,
+            "oldSeoTitle": "Copenhell 2026: Wednesday’s highlights and reviews",
+            "oldMetaDescription": "Read the review of Copenhell’s Wednesday with Dogma, Tom Morello, Six Feet Under and the day’s other highlights.",
+            "newSeoTitle": "Copenhell 2026 Wednesday review",
+            "newMetaDescription": "A positive review of Copenhell’s Wednesday opening day, with highlights from Dogma, Tom Morello and Six Feet Under.",
+            "analysisRunId": "b4d43061-5add-4875-a6a5-3372d5256d48",
+            "seoVersionId": "0b2a5f92-e087-4da0-a0e7-031f04a5999c",
+            "mode": "ai",
+            "validationErrors": [],
+            "validationWarnings": [
+              "missing_primary_entity: Primær entitet \"Copenhell 2026\" fremgår ikke tydeligt"
+            ],
+            "sourceSignature": {
+              "lastUpdated": "2026-07-22T21:36:06.247Z",
+              "lastPublished": "2026-07-22T21:36:06.247Z",
+              "contentHash": "a7801938cc7dbdc2eec0c3be3cd94c221e09e6d823304e6a6fae21a519b2bad4",
+              "inputVersionHash": "f55b7a557a5ed61e664be3f9e582d0f9f3c4b36c82f06cf25899800d14d55195",
+              "oldSeoTitle": "Copenhell 2026: Wednesday’s highlights and reviews",
+              "oldMetaDescription": "Read the review of Copenhell’s Wednesday with Dogma, Tom Morello, Six Feet Under and the day’s other highlights."
+            },
+            "effectiveArticleType": "Festivalanmeldelse",
+            "reviewTitleCorrected": false
+          }
+        }
+      ]
+    },
+    {
+      "itemId": "6a4fa08e9dba739c8227989a",
+      "slug": "kunst-pa-roskilde-festival-2026",
+      "title": "Kunst på Roskilde Festival 2026",
+      "locales": [
+        {
+          "locale": "da",
+          "status": "proposed",
+          "proposal": {
+            "locale": "da",
+            "cmsLocaleId": "67dbf17ba540975b5b21c225",
+            "articleKey": "wf:6a4fa08e9dba739c8227989a:da",
+            "title": "Kunst på Roskilde Festival 2026",
+            "slug": "kunst-pa-roskilde-festival-2026",
+            "wasPublished": true,
+            "oldSeoTitle": "Kunst og graffiti på Roskilde Festival 2026",
+            "oldMetaDescription": "Læs om kunst og graffiti på Roskilde Festival 2026 og om, hvorfor Art & Activism er en vigtig del af festivalens udtryk.",
+            "newSeoTitle": "Kunst og graffiti på Roskilde Festival 2026",
+            "newMetaDescription": "Læs om kunst og graffiti på Roskilde Festival 2026 og om, hvorfor Art & Activism er en vigtig del af festivalens udtryk.",
+            "analysisRunId": "fc0f85d8-d3d5-4b14-8694-a3c0ea3fae84",
+            "seoVersionId": "97adb006-1008-4a19-9b52-eb1bcd777c0a",
+            "mode": "ai",
+            "validationErrors": [],
+            "validationWarnings": [],
+            "sourceSignature": {
+              "lastUpdated": "2026-07-22T21:35:58.146Z",
+              "lastPublished": "2026-07-22T21:35:58.146Z",
+              "contentHash": "05140b38b58ee3d037f8553b30aafb99c5afe456d53747545d41578d69a565a4",
+              "inputVersionHash": "2118a07dfebd4efff6ad28d76c1369293401217e578ec795305f29f945bee5db",
+              "oldSeoTitle": "Kunst og graffiti på Roskilde Festival 2026",
+              "oldMetaDescription": "Læs om kunst og graffiti på Roskilde Festival 2026 og om, hvorfor Art & Activism er en vigtig del af festivalens udtryk."
+            },
+            "effectiveArticleType": "Feature",
+            "reviewTitleCorrected": false
+          }
+        },
+        {
+          "locale": "en",
+          "status": "proposed",
+          "proposal": {
+            "locale": "en",
+            "cmsLocaleId": "690ca0f6b0d13d8788354156",
+            "articleKey": "wf:6a4fa08e9dba739c8227989a:en",
+            "title": "Art at Roskilde Festival 2026",
+            "slug": "art-at-roskilde-festival-2026",
+            "wasPublished": true,
+            "oldSeoTitle": "Art and graffiti at Roskilde Festival 2026",
+            "oldMetaDescription": "Read about art and graffiti at Roskilde Festival 2026 and why Art & Activism is a key part of the festival’s identity.",
+            "newSeoTitle": "Art at Roskilde Festival 2026",
+            "newMetaDescription": "An essay on how art and graffiti shape the spirit of Roskilde Festival 2026 beyond the stages.",
+            "analysisRunId": "318f1c0a-1937-4060-b7b0-957eddc58a93",
+            "seoVersionId": "7df9d1c0-c5e4-4728-9f5e-b49b49a9786f",
+            "mode": "ai",
+            "validationErrors": [],
+            "validationWarnings": [],
+            "sourceSignature": {
+              "lastUpdated": "2026-07-22T21:36:09.567Z",
+              "lastPublished": "2026-07-22T21:36:09.567Z",
+              "contentHash": "afe615dc25da6ea17188903748a6523a6053feffc663cfc8e6f8f1a9f368e7cb",
+              "inputVersionHash": "1fc170daf72621ffa963cc90745a2661a44d1e65c5780517a76984b847df5ea0",
+              "oldSeoTitle": "Art and graffiti at Roskilde Festival 2026",
+              "oldMetaDescription": "Read about art and graffiti at Roskilde Festival 2026 and why Art & Activism is a key part of the festival’s identity."
+            },
+            "effectiveArticleType": "Feature",
+            "reviewTitleCorrected": false
+          }
+        }
+      ]
+    },
+    {
+      "itemId": "6a4f5c836c05693f03dd4384",
+      "slug": "little-simz-pa-roskilde-festival-2026",
+      "title": "Little Simz på Roskilde Festival 2026",
+      "locales": [
+        {
+          "locale": "da",
+          "status": "proposed",
+          "proposal": {
+            "locale": "da",
+            "cmsLocaleId": "67dbf17ba540975b5b21c225",
+            "articleKey": "wf:6a4f5c836c05693f03dd4384:da",
+            "title": "Little Simz på Roskilde Festival 2026",
+            "slug": "little-simz-pa-roskilde-festival-2026",
+            "wasPublished": true,
+            "oldSeoTitle": "Little Simz på Roskilde Festival 2026",
+            "oldMetaDescription": "Anmeldelse af Little Simz’ koncert på Roskilde Festival 2026, hvor Orange Scene og publikums energi løfter en regnfuld festivaldag.",
+            "newSeoTitle": "Little Simz anmeldelse på Roskilde Festival 2026",
+            "newMetaDescription": "Anmeldelse af Little Simz’ koncert på Roskilde Festival 2026, hvor Orange Scene og publikums energi løfter en regnfuld festivaldag.",
+            "analysisRunId": "8e88069a-cb70-49f4-81cf-a508bb989708",
+            "seoVersionId": "f9212db3-8968-4eb4-a50d-6c6dbce1e699",
+            "mode": "ai",
+            "validationErrors": [],
+            "validationWarnings": [],
+            "sourceSignature": {
+              "lastUpdated": "2026-07-22T21:36:03.465Z",
+              "lastPublished": "2026-07-22T21:36:03.465Z",
+              "contentHash": "f392f69133504e77d1a0f56bfaebc77ab76c59d3f2d49d3d947d838499ccd7b2",
+              "inputVersionHash": "0f7baf668f6f6c919099d672576b3c1898fbe0e3b006174d90cd187c0b920e34",
+              "oldSeoTitle": "Little Simz på Roskilde Festival 2026",
+              "oldMetaDescription": "Anmeldelse af Little Simz’ koncert på Roskilde Festival 2026, hvor Orange Scene og publikums energi løfter en regnfuld festivaldag."
+            },
+            "effectiveArticleType": "Koncertanmeldelse",
+            "reviewTitleCorrected": true,
+            "priorFrozenSeoTitle": "Little Simz på Roskilde Festival 2026"
+          }
+        },
+        {
+          "locale": "en",
+          "status": "proposed",
+          "proposal": {
+            "locale": "en",
+            "cmsLocaleId": "690ca0f6b0d13d8788354156",
+            "articleKey": "wf:6a4f5c836c05693f03dd4384:en",
+            "title": "Little Simz at Roskilde Festival 2026",
+            "slug": "little-simz-at-roskilde-festival-2026",
+            "wasPublished": true,
+            "oldSeoTitle": "Review: Little Simz at Roskilde Festival 2026",
+            "oldMetaDescription": "Review of Little Simz’s Roskilde Festival 2026 set, where Orange Stage and the crowd’s energy lift a rainy day.",
+            "newSeoTitle": "Little Simz at Roskilde Festival 2026 review",
+            "newMetaDescription": "A positive concert review of Little Simz on Orange Scene at Roskilde Festival 2026, where rain gave way to a stronger festival mood.",
+            "analysisRunId": "e1e0a542-49ee-412c-bd6c-abbab1bb27d5",
+            "seoVersionId": "6ce7c374-cca8-46a1-933f-3accf7f3e6bf",
+            "mode": "ai",
+            "validationErrors": [],
+            "validationWarnings": [],
+            "sourceSignature": {
+              "lastUpdated": "2026-07-22T21:36:12.927Z",
+              "lastPublished": "2026-07-22T21:36:05.438Z",
+              "contentHash": "00ad035aebeff573d55253b2f8e81300dd0e2e34e71c2c839a03c0dd96018469",
+              "inputVersionHash": "2d9751e0be926426d755166cde65a021aba47437d26ed870c1be830ba5d2832e",
+              "oldSeoTitle": "Review: Little Simz at Roskilde Festival 2026",
+              "oldMetaDescription": "Review of Little Simz’s Roskilde Festival 2026 set, where Orange Stage and the crowd’s energy lift a rainy day."
+            },
+            "effectiveArticleType": "Koncertanmeldelse",
+            "reviewTitleCorrected": true,
+            "priorFrozenSeoTitle": "Little Simz at Roskilde Festival 2026"
+          }
+        }
+      ]
+    },
+    {
+      "itemId": "6a4f654ed5acf32358137e08",
+      "slug": "mille-pa-roskilde-festival-2026",
+      "title": "Mille på Roskilde Festival 2026",
+      "locales": [
+        {
+          "locale": "da",
+          "status": "proposed",
+          "proposal": {
+            "locale": "da",
+            "cmsLocaleId": "67dbf17ba540975b5b21c225",
+            "articleKey": "wf:6a4f654ed5acf32358137e08:da",
+            "title": "Mille på Roskilde Festival 2026",
+            "slug": "mille-pa-roskilde-festival-2026",
+            "wasPublished": true,
+            "oldSeoTitle": "Mille på Roskilde Festival 2026",
+            "oldMetaDescription": "Mille leverer en selvsikker koncert på Arena, hvor Annika og URO løfter en overvejende positiv anmeldelse fra Roskilde Festival 2026.",
+            "newSeoTitle": "Mille på Roskilde Festival 2026: anmeldelse",
+            "newMetaDescription": "Mille leverer en selvsikker koncert på Arena, hvor Annika og URO løfter en overvejende positiv anmeldelse fra Roskilde Festival 2026.",
+            "analysisRunId": "c8ddf576-b1ec-4051-af98-9529957957de",
+            "seoVersionId": "562a3091-7abd-41bd-a2a3-1e6b4f80497f",
+            "mode": "ai",
+            "validationErrors": [],
+            "validationWarnings": [],
+            "sourceSignature": {
+              "lastUpdated": "2026-07-22T21:36:07.621Z",
+              "lastPublished": "2026-07-22T21:36:07.621Z",
+              "contentHash": "a1240c484c5d084e1ad4a309d08d9aee9629fd2fe4c7b99ff9e97ee69c53364f",
+              "inputVersionHash": "f3bf2aee92c8de029a3be3228f2def1ae06fd5bb759aba57532731d860788466",
+              "oldSeoTitle": "Mille på Roskilde Festival 2026",
+              "oldMetaDescription": "Mille leverer en selvsikker koncert på Arena, hvor Annika og URO løfter en overvejende positiv anmeldelse fra Roskilde Festival 2026."
+            },
+            "effectiveArticleType": "Koncertanmeldelse",
+            "reviewTitleCorrected": true,
+            "priorFrozenSeoTitle": "Mille på Roskilde Festival 2026"
+          }
+        },
+        {
+          "locale": "en",
+          "status": "proposed",
+          "proposal": {
+            "locale": "en",
+            "cmsLocaleId": "690ca0f6b0d13d8788354156",
+            "articleKey": "wf:6a4f654ed5acf32358137e08:en",
+            "title": "Mille at Roskilde Festival 2026",
+            "slug": "mille-at-roskilde-festival-2026",
+            "wasPublished": true,
+            "oldSeoTitle": "Mille at Roskilde Festival 2026 Review",
+            "oldMetaDescription": "A review of Mille’s Roskilde Festival set, where strong vocals and stage presence helped the concert grow after a slow start.",
+            "newSeoTitle": "Mille at Roskilde Festival 2026 Review",
+            "newMetaDescription": "A review of Mille’s Roskilde Festival set, where strong vocals and stage presence helped the concert grow after a slow start.",
+            "analysisRunId": "b55b3bed-1ded-4a17-92ef-031da1e4ada8",
+            "seoVersionId": "f9c9665d-4295-4255-9893-92001ae1a911",
+            "mode": "ai",
+            "validationErrors": [],
+            "validationWarnings": [],
+            "sourceSignature": {
+              "lastUpdated": "2026-07-22T21:36:09.034Z",
+              "lastPublished": "2026-07-22T21:36:09.034Z",
+              "contentHash": "052653c6bbc800cf19c7072e60a9ece030e259d0e4cbb569831156f717baadf5",
+              "inputVersionHash": "9148bd060da5b572673914ecd7cbf3e130b27aec59541cd8c5dcee3723413165",
+              "oldSeoTitle": "Mille at Roskilde Festival 2026 Review",
+              "oldMetaDescription": "A review of Mille’s Roskilde Festival set, where strong vocals and stage presence helped the concert grow after a slow start."
+            },
+            "effectiveArticleType": "Koncertanmeldelse",
+            "reviewTitleCorrected": false
+          }
+        }
+      ]
+    },
+    {
+      "itemId": "6a4f9c018e650be4b59cd658",
+      "slug": "young-miko-pa-roskilde-festival-2026",
+      "title": "Young Miko på Roskilde Festival 2026",
+      "locales": [
+        {
+          "locale": "da",
+          "status": "proposed",
+          "proposal": {
+            "locale": "da",
+            "cmsLocaleId": "67dbf17ba540975b5b21c225",
+            "articleKey": "wf:6a4f9c018e650be4b59cd658:da",
+            "title": "Young Miko på Roskilde Festival 2026",
+            "slug": "young-miko-pa-roskilde-festival-2026",
+            "wasPublished": true,
+            "oldSeoTitle": "Young Miko på Roskilde Festival 2026",
+            "oldMetaDescription": "Young Miko leverer en energisk koncert på Roskilde Festival 2026, hvor rytme, bass og sceneudstråling bærer oplevelsen.",
+            "newSeoTitle": "Young Miko anmeldelse: Roskilde Festival 2026",
+            "newMetaDescription": "Young Miko leverer en energisk koncert på Roskilde Festival 2026, hvor rytme, bass og sceneudstråling bærer oplevelsen.",
+            "analysisRunId": "044f9c8c-33e5-4ab5-a2d9-f7a1ce7d4b78",
+            "seoVersionId": "52889979-389a-4c06-ba3d-7841e97da6b4",
+            "mode": "ai",
+            "validationErrors": [],
+            "validationWarnings": [],
+            "sourceSignature": {
+              "lastUpdated": "2026-07-22T21:36:10.428Z",
+              "lastPublished": "2026-07-22T21:36:10.428Z",
+              "contentHash": "c70a6112e1bcdc2b2b9c9db0bcfc0f9989996b02491ced3c3288f978e837c67a",
+              "inputVersionHash": "940947112948f5748f8b5ce31496f912e51d1c2d9c8cfc1a9eab2f9838d68c05",
+              "oldSeoTitle": "Young Miko på Roskilde Festival 2026",
+              "oldMetaDescription": "Young Miko leverer en energisk koncert på Roskilde Festival 2026, hvor rytme, bass og sceneudstråling bærer oplevelsen."
+            },
+            "effectiveArticleType": "Koncertanmeldelse",
+            "reviewTitleCorrected": true,
+            "priorFrozenSeoTitle": "Young Miko på Roskilde Festival 2026"
+          }
+        },
+        {
+          "locale": "en",
+          "status": "proposed",
+          "proposal": {
+            "locale": "en",
+            "cmsLocaleId": "690ca0f6b0d13d8788354156",
+            "articleKey": "wf:6a4f9c018e650be4b59cd658:en",
+            "title": "Young Miko at Roskilde Festival 2026",
+            "slug": "young-miko-at-roskilde-festival-2026",
+            "wasPublished": true,
+            "oldSeoTitle": "Young Miko at Roskilde Festival 2026 review",
+            "oldMetaDescription": "Young Miko’s Roskilde Festival set worked through rhythm, confidence and crowd energy, even when the lyrics were not understood.",
+            "newSeoTitle": "Young Miko at Roskilde Festival 2026 review",
+            "newMetaDescription": "Young Miko’s Roskilde Festival set worked through rhythm, confidence and crowd energy, even when the lyrics were not understood.",
+            "analysisRunId": "dd4c24af-9d9b-4a91-aeb2-1e3313b91667",
+            "seoVersionId": "dc3ee2e9-c283-4230-b111-4f9baa8315e9",
+            "mode": "ai",
+            "validationErrors": [],
+            "validationWarnings": [],
+            "sourceSignature": {
+              "lastUpdated": "2026-07-22T21:36:12.242Z",
+              "lastPublished": "2026-07-22T21:36:12.242Z",
+              "contentHash": "f3325d2cb2a1f67800158491657754873a99cd80b78635c6f0b0489c2d257bb5",
+              "inputVersionHash": "9ed15f78ccb8d13020d58764432bfeb7bf643c3378e283b16911006ec52576e7",
+              "oldSeoTitle": "Young Miko at Roskilde Festival 2026 review",
+              "oldMetaDescription": "Young Miko’s Roskilde Festival set worked through rhythm, confidence and crowd energy, even when the lyrics were not understood."
+            },
+            "effectiveArticleType": "Koncertanmeldelse",
+            "reviewTitleCorrected": false
+          }
+        }
+      ]
+    },
+    {
+      "itemId": "6a4bb8a7099fcfef599f2114",
+      "slug": "napalm-death-pa-roskilde-festival-2026",
+      "title": "Napalm Death på Roskilde Festival 2026",
+      "locales": [
+        {
+          "locale": "da",
+          "status": "proposed",
+          "proposal": {
+            "locale": "da",
+            "cmsLocaleId": "67dbf17ba540975b5b21c225",
+            "articleKey": "wf:6a4bb8a7099fcfef599f2114:da",
+            "title": "Napalm Death på Roskilde Festival 2026",
+            "slug": "napalm-death-pa-roskilde-festival-2026",
+            "wasPublished": true,
+            "oldSeoTitle": "Napalm Death – Anmeldelse | Roskilde Festival 2026",
+            "oldMetaDescription": "Napalm Death leverede en intens, men overraskende hyggelig grindcore-koncert på Eos under Roskilde Festival 2026.",
+            "newSeoTitle": "Napalm Death på Roskilde Festival 2026 anmeldelse",
+            "newMetaDescription": "Læs anmeldelsen af Napalm Death på Roskilde Festival 2026 og oplevelsen på Eos-scenen, hvor brutalitet og varme mødes.",
+            "analysisRunId": "9f8137fc-0b94-40d2-baf8-7d3b22524fb8",
+            "seoVersionId": "2e92a6bf-4b84-4cc1-af76-de69bfba9b30",
+            "mode": "ai",
+            "validationErrors": [],
+            "validationWarnings": [],
+            "sourceSignature": {
+              "lastUpdated": "2026-07-09T08:40:56.504Z",
+              "lastPublished": "2026-07-09T09:11:03.394Z",
+              "contentHash": "279f28d98d1f7acdde9df2c40b574f5ae2a4f6ccee6ec3ba2a8a37c4f9569aaa",
+              "inputVersionHash": "5c5682f798adbfdd09336f1fd5c1f1b6567353daadc74f1458c5c28625643bf7",
+              "oldSeoTitle": "Napalm Death – Anmeldelse | Roskilde Festival 2026",
+              "oldMetaDescription": "Napalm Death leverede en intens, men overraskende hyggelig grindcore-koncert på Eos under Roskilde Festival 2026."
+            },
+            "effectiveArticleType": "Koncertanmeldelse",
+            "reviewTitleCorrected": true,
+            "priorFrozenSeoTitle": "Napalm Death på Roskilde Festival 2026"
+          }
+        },
+        {
+          "locale": "en",
+          "status": "proposed",
+          "proposal": {
+            "locale": "en",
+            "cmsLocaleId": "690ca0f6b0d13d8788354156",
+            "articleKey": "wf:6a4bb8a7099fcfef599f2114:en",
+            "title": "Napalm Death at Roskilde Festival 2026",
+            "slug": "napalm-death-at-roskilde-festival-2026",
+            "wasPublished": true,
+            "oldSeoTitle": "Napalm Death – Review | Roskilde Festival 2026",
+            "oldMetaDescription": "Napalm Death delivered an intense, but surprisingly cosy grindcore concert at Eos during Roskilde Festival 2026.",
+            "newSeoTitle": "Napalm Death at Roskilde Festival 2026 review",
+            "newMetaDescription": "A positive concert review of Napalm Death at Roskilde Festival 2026, where brutal grindcore meets warmth, politics and an intimate crowd.",
+            "analysisRunId": "32ce1093-81a3-4116-8f9b-c1c6d9d88428",
+            "seoVersionId": "e5000cdc-ce3d-493c-94e2-8e2121228a6a",
+            "mode": "ai",
+            "validationErrors": [],
+            "validationWarnings": [],
+            "sourceSignature": {
+              "lastUpdated": "2026-07-09T08:40:56.524Z",
+              "lastPublished": "2026-07-09T09:11:03.394Z",
+              "contentHash": "3cb6a4f71dffbd87b280f2f01c3e325393415ea510c31166ab9953ca20baebf5",
+              "inputVersionHash": "746e3fb75f0f74317c8a954aedbb6e2d86faa5d11fc7151dba0adec46be34663",
+              "oldSeoTitle": "Napalm Death – Review | Roskilde Festival 2026",
+              "oldMetaDescription": "Napalm Death delivered an intense, but surprisingly cosy grindcore concert at Eos during Roskilde Festival 2026."
+            },
+            "effectiveArticleType": "Koncertanmeldelse",
+            "reviewTitleCorrected": true,
+            "priorFrozenSeoTitle": "Napalm Death at Roskilde Festival 2026"
+          }
+        }
+      ]
+    }
+  ],
+  "frozenManifest": [
+    {
+      "itemId": "6a610d22f7ef1fadc65aba8c",
+      "locale": "da",
+      "cmsLocaleId": "67dbf17ba540975b5b21c225",
+      "articleKey": "wf:6a610d22f7ef1fadc65aba8c:da",
+      "newSeoTitle": "007 First Light anmeldelse: Bond med puls",
+      "newMetaDescription": "IO Interactive giver James Bond en ny begyndelse i 007 First Light. Her er anmeldelsen af et sjovt, elegant og velkomponeret spil.",
+      "wasPublished": true,
+      "sourceSignature": {
+        "lastUpdated": "2026-07-22T21:35:43.110Z",
+        "lastPublished": "2026-07-22T21:35:43.110Z",
+        "contentHash": "e00c78b19754545bccfdd72e26ef1a3e8651949c8227f9e3b065bf9f3f7c1848",
+        "inputVersionHash": "9d80dc8123e945da8c0db546e16d7232441f04a4b93bbf7b6f4bc9983aba3933",
+        "oldSeoTitle": "007 First Light anmeldelse: Bond med puls",
+        "oldMetaDescription": "IO Interactive giver James Bond en ny begyndelse i 007 First Light. Her er anmeldelsen af et sjovt, elegant og velkomponeret spil."
+      }
+    },
+    {
+      "itemId": "6a610d22f7ef1fadc65aba8c",
+      "locale": "en",
+      "cmsLocaleId": "690ca0f6b0d13d8788354156",
+      "articleKey": "wf:6a610d22f7ef1fadc65aba8c:en",
+      "newSeoTitle": "007 First Light review: Bond with pulse and polish",
+      "newMetaDescription": "IO Interactive’s 007 First Light reimagines Bond with humor, freedom and style, while still leaving room for a few rough edges.",
+      "wasPublished": true,
+      "sourceSignature": {
+        "lastUpdated": "2026-07-22T21:36:00.513Z",
+        "lastPublished": "2026-07-22T21:36:00.513Z",
+        "contentHash": "4fbcc0dc5d16a3a9ebadc87548314cb12676844ad6e05d7a4c5b8a0d556917b9",
+        "inputVersionHash": "ce1b0805f6df0851dec55b91efd5ab8b927c674815edcddf67b8700adf711ae5",
+        "oldSeoTitle": "007 First Light Review: Bond with Pulse",
+        "oldMetaDescription": "IO Interactive gives James Bond a fresh start in 007 First Light. Here’s our review of a fun, elegant and well-composed game."
+      }
+    },
+    {
+      "itemId": "6a58ae98c6e7b94dca58b167",
+      "locale": "da",
+      "cmsLocaleId": "67dbf17ba540975b5b21c225",
+      "articleKey": "wf:6a58ae98c6e7b94dca58b167:da",
+      "newSeoTitle": "Derfor siger jeg altid, at jeg er hollænder på ferie",
+      "newMetaDescription": "Et humoristisk essay om hollandske og danske turister, ferieadfærd og den selvsikre måde at fylde på i Sydeuropa.",
+      "wasPublished": true,
+      "sourceSignature": {
+        "lastUpdated": "2026-07-22T21:35:47.144Z",
+        "lastPublished": "2026-07-22T21:35:47.144Z",
+        "contentHash": "d60cc20e11395a205e809ecf8a44e47b8db3f5021635a6d196992625f5bf0133",
+        "inputVersionHash": "01a44e7e108ebac18f8898ea9e4cb6abb5711150740ce7f3328811679fbfa4e6",
+        "oldSeoTitle": "Derfor siger jeg altid, at jeg er hollænder på ferie",
+        "oldMetaDescription": "Et humoristisk essay om hollandske og danske turister, ferieadfærd og den selvsikre måde at fylde på i Sydeuropa."
+      }
+    },
+    {
+      "itemId": "6a5764f91f21a8a5fba78831",
+      "locale": "da",
+      "cmsLocaleId": "67dbf17ba540975b5b21c225",
+      "articleKey": "wf:6a5764f91f21a8a5fba78831:da",
+      "newSeoTitle": "Lucky anmeldelse: Anya Taylor-Joy bærer serien",
+      "newMetaDescription": "Anmeldelse af Lucky på Apple TV+: Serien er vellavet og underholdende, men også for glat og genkendelig til for alvor at sætte sig fast.",
+      "wasPublished": true,
+      "sourceSignature": {
+        "lastUpdated": "2026-07-22T21:35:49.431Z",
+        "lastPublished": "2026-07-22T21:35:49.431Z",
+        "contentHash": "3b22bccb20632d560b804b366ed8431ebaf813afdfd06a3abab51e8cf598f484",
+        "inputVersionHash": "a94892098ce4c204222e48525066375c8022775c9e3d08f7c708b4c70eb77e08",
+        "oldSeoTitle": "Lucky anmeldelse: Anya Taylor-Joy bærer serien",
+        "oldMetaDescription": "Anmeldelse af Lucky på Apple TV+: Serien er vellavet og underholdende, men også for glat og genkendelig til for alvor at sætte sig fast."
+      }
+    },
+    {
+      "itemId": "6a5682609af972f4ea432796",
+      "locale": "da",
+      "cmsLocaleId": "67dbf17ba540975b5b21c225",
+      "articleKey": "wf:6a5682609af972f4ea432796:da",
+      "newSeoTitle": "The Odyssey anmeldelse: Nolans mytiske epos",
+      "newMetaDescription": "Christopher Nolans The Odyssey er storladen, krævende og fysisk tung. Læs vores anmeldelse af filmen og dens mytiske ambition.",
+      "wasPublished": true,
+      "sourceSignature": {
+        "lastUpdated": "2026-07-22T21:35:51.021Z",
+        "lastPublished": "2026-07-22T21:35:51.021Z",
+        "contentHash": "890b3d748b7ed2391ccb1c93c99fda49a3adde967d9578543457914209bc1b12",
+        "inputVersionHash": "bd6326f287cce756042ccb93447f6d8475df798a489fd804d888583708982b1f",
+        "oldSeoTitle": "The Odyssey anmeldelse: Nolans mytiske epos",
+        "oldMetaDescription": "Christopher Nolans The Odyssey er storladen, krævende og fysisk tung. Læs vores anmeldelse af filmen og dens mytiske ambition."
+      }
+    },
+    {
+      "itemId": "6a44e2ff01523516e9823e1a",
+      "locale": "da",
+      "cmsLocaleId": "67dbf17ba540975b5b21c225",
+      "articleKey": "wf:6a44e2ff01523516e9823e1a:da",
+      "newSeoTitle": "Copenhell 2026: Onsdagens højdepunkter og anmeldelser",
+      "newMetaDescription": "Læs anmeldelsen af Copenhells onsdag med Dogma, Tom Morello, Six Feet Under og dagens øvrige højdepunkter.",
+      "wasPublished": true,
+      "sourceSignature": {
+        "lastUpdated": "2026-07-22T21:35:54.045Z",
+        "lastPublished": "2026-07-22T21:35:54.045Z",
+        "contentHash": "a9d3b6333db51f7aa1f02c695797dfad24bb9f1e1335c3fe6d7a549c5a52a535",
+        "inputVersionHash": "261c26282c21424ae7623af6b2131d3784b8c473bc513957742f14eb5a5ca6e3",
+        "oldSeoTitle": "Copenhell 2026: Onsdagens højdepunkter og anmeldelser",
+        "oldMetaDescription": "Læs anmeldelsen af Copenhells onsdag med Dogma, Tom Morello, Six Feet Under og dagens øvrige højdepunkter."
+      }
+    },
+    {
+      "itemId": "6a44e2ff01523516e9823e1a",
+      "locale": "en",
+      "cmsLocaleId": "690ca0f6b0d13d8788354156",
+      "articleKey": "wf:6a44e2ff01523516e9823e1a:en",
+      "newSeoTitle": "Copenhell 2026 Wednesday review",
+      "newMetaDescription": "A positive review of Copenhell’s Wednesday opening day, with highlights from Dogma, Tom Morello and Six Feet Under.",
+      "wasPublished": true,
+      "sourceSignature": {
+        "lastUpdated": "2026-07-22T21:36:06.247Z",
+        "lastPublished": "2026-07-22T21:36:06.247Z",
+        "contentHash": "a7801938cc7dbdc2eec0c3be3cd94c221e09e6d823304e6a6fae21a519b2bad4",
+        "inputVersionHash": "f55b7a557a5ed61e664be3f9e582d0f9f3c4b36c82f06cf25899800d14d55195",
+        "oldSeoTitle": "Copenhell 2026: Wednesday’s highlights and reviews",
+        "oldMetaDescription": "Read the review of Copenhell’s Wednesday with Dogma, Tom Morello, Six Feet Under and the day’s other highlights."
+      }
+    },
+    {
+      "itemId": "6a4fa08e9dba739c8227989a",
+      "locale": "da",
+      "cmsLocaleId": "67dbf17ba540975b5b21c225",
+      "articleKey": "wf:6a4fa08e9dba739c8227989a:da",
+      "newSeoTitle": "Kunst og graffiti på Roskilde Festival 2026",
+      "newMetaDescription": "Læs om kunst og graffiti på Roskilde Festival 2026 og om, hvorfor Art & Activism er en vigtig del af festivalens udtryk.",
+      "wasPublished": true,
+      "sourceSignature": {
+        "lastUpdated": "2026-07-22T21:35:58.146Z",
+        "lastPublished": "2026-07-22T21:35:58.146Z",
+        "contentHash": "05140b38b58ee3d037f8553b30aafb99c5afe456d53747545d41578d69a565a4",
+        "inputVersionHash": "2118a07dfebd4efff6ad28d76c1369293401217e578ec795305f29f945bee5db",
+        "oldSeoTitle": "Kunst og graffiti på Roskilde Festival 2026",
+        "oldMetaDescription": "Læs om kunst og graffiti på Roskilde Festival 2026 og om, hvorfor Art & Activism er en vigtig del af festivalens udtryk."
+      }
+    },
+    {
+      "itemId": "6a4fa08e9dba739c8227989a",
+      "locale": "en",
+      "cmsLocaleId": "690ca0f6b0d13d8788354156",
+      "articleKey": "wf:6a4fa08e9dba739c8227989a:en",
+      "newSeoTitle": "Art at Roskilde Festival 2026",
+      "newMetaDescription": "An essay on how art and graffiti shape the spirit of Roskilde Festival 2026 beyond the stages.",
+      "wasPublished": true,
+      "sourceSignature": {
+        "lastUpdated": "2026-07-22T21:36:09.567Z",
+        "lastPublished": "2026-07-22T21:36:09.567Z",
+        "contentHash": "afe615dc25da6ea17188903748a6523a6053feffc663cfc8e6f8f1a9f368e7cb",
+        "inputVersionHash": "1fc170daf72621ffa963cc90745a2661a44d1e65c5780517a76984b847df5ea0",
+        "oldSeoTitle": "Art and graffiti at Roskilde Festival 2026",
+        "oldMetaDescription": "Read about art and graffiti at Roskilde Festival 2026 and why Art & Activism is a key part of the festival’s identity."
+      }
+    },
+    {
+      "itemId": "6a4f5c836c05693f03dd4384",
+      "locale": "da",
+      "cmsLocaleId": "67dbf17ba540975b5b21c225",
+      "articleKey": "wf:6a4f5c836c05693f03dd4384:da",
+      "newSeoTitle": "Little Simz anmeldelse på Roskilde Festival 2026",
+      "newMetaDescription": "Anmeldelse af Little Simz’ koncert på Roskilde Festival 2026, hvor Orange Scene og publikums energi løfter en regnfuld festivaldag.",
+      "wasPublished": true,
+      "sourceSignature": {
+        "lastUpdated": "2026-07-22T21:36:03.465Z",
+        "lastPublished": "2026-07-22T21:36:03.465Z",
+        "contentHash": "f392f69133504e77d1a0f56bfaebc77ab76c59d3f2d49d3d947d838499ccd7b2",
+        "inputVersionHash": "0f7baf668f6f6c919099d672576b3c1898fbe0e3b006174d90cd187c0b920e34",
+        "oldSeoTitle": "Little Simz på Roskilde Festival 2026",
+        "oldMetaDescription": "Anmeldelse af Little Simz’ koncert på Roskilde Festival 2026, hvor Orange Scene og publikums energi løfter en regnfuld festivaldag."
+      }
+    },
+    {
+      "itemId": "6a4f5c836c05693f03dd4384",
+      "locale": "en",
+      "cmsLocaleId": "690ca0f6b0d13d8788354156",
+      "articleKey": "wf:6a4f5c836c05693f03dd4384:en",
+      "newSeoTitle": "Little Simz at Roskilde Festival 2026 review",
+      "newMetaDescription": "A positive concert review of Little Simz on Orange Scene at Roskilde Festival 2026, where rain gave way to a stronger festival mood.",
+      "wasPublished": true,
+      "sourceSignature": {
+        "lastUpdated": "2026-07-22T21:36:12.927Z",
+        "lastPublished": "2026-07-22T21:36:05.438Z",
+        "contentHash": "00ad035aebeff573d55253b2f8e81300dd0e2e34e71c2c839a03c0dd96018469",
+        "inputVersionHash": "2d9751e0be926426d755166cde65a021aba47437d26ed870c1be830ba5d2832e",
+        "oldSeoTitle": "Review: Little Simz at Roskilde Festival 2026",
+        "oldMetaDescription": "Review of Little Simz’s Roskilde Festival 2026 set, where Orange Stage and the crowd’s energy lift a rainy day."
+      }
+    },
+    {
+      "itemId": "6a4f654ed5acf32358137e08",
+      "locale": "da",
+      "cmsLocaleId": "67dbf17ba540975b5b21c225",
+      "articleKey": "wf:6a4f654ed5acf32358137e08:da",
+      "newSeoTitle": "Mille på Roskilde Festival 2026: anmeldelse",
+      "newMetaDescription": "Mille leverer en selvsikker koncert på Arena, hvor Annika og URO løfter en overvejende positiv anmeldelse fra Roskilde Festival 2026.",
+      "wasPublished": true,
+      "sourceSignature": {
+        "lastUpdated": "2026-07-22T21:36:07.621Z",
+        "lastPublished": "2026-07-22T21:36:07.621Z",
+        "contentHash": "a1240c484c5d084e1ad4a309d08d9aee9629fd2fe4c7b99ff9e97ee69c53364f",
+        "inputVersionHash": "f3bf2aee92c8de029a3be3228f2def1ae06fd5bb759aba57532731d860788466",
+        "oldSeoTitle": "Mille på Roskilde Festival 2026",
+        "oldMetaDescription": "Mille leverer en selvsikker koncert på Arena, hvor Annika og URO løfter en overvejende positiv anmeldelse fra Roskilde Festival 2026."
+      }
+    },
+    {
+      "itemId": "6a4f654ed5acf32358137e08",
+      "locale": "en",
+      "cmsLocaleId": "690ca0f6b0d13d8788354156",
+      "articleKey": "wf:6a4f654ed5acf32358137e08:en",
+      "newSeoTitle": "Mille at Roskilde Festival 2026 Review",
+      "newMetaDescription": "A review of Mille’s Roskilde Festival set, where strong vocals and stage presence helped the concert grow after a slow start.",
+      "wasPublished": true,
+      "sourceSignature": {
+        "lastUpdated": "2026-07-22T21:36:09.034Z",
+        "lastPublished": "2026-07-22T21:36:09.034Z",
+        "contentHash": "052653c6bbc800cf19c7072e60a9ece030e259d0e4cbb569831156f717baadf5",
+        "inputVersionHash": "9148bd060da5b572673914ecd7cbf3e130b27aec59541cd8c5dcee3723413165",
+        "oldSeoTitle": "Mille at Roskilde Festival 2026 Review",
+        "oldMetaDescription": "A review of Mille’s Roskilde Festival set, where strong vocals and stage presence helped the concert grow after a slow start."
+      }
+    },
+    {
+      "itemId": "6a4f9c018e650be4b59cd658",
+      "locale": "da",
+      "cmsLocaleId": "67dbf17ba540975b5b21c225",
+      "articleKey": "wf:6a4f9c018e650be4b59cd658:da",
+      "newSeoTitle": "Young Miko anmeldelse: Roskilde Festival 2026",
+      "newMetaDescription": "Young Miko leverer en energisk koncert på Roskilde Festival 2026, hvor rytme, bass og sceneudstråling bærer oplevelsen.",
+      "wasPublished": true,
+      "sourceSignature": {
+        "lastUpdated": "2026-07-22T21:36:10.428Z",
+        "lastPublished": "2026-07-22T21:36:10.428Z",
+        "contentHash": "c70a6112e1bcdc2b2b9c9db0bcfc0f9989996b02491ced3c3288f978e837c67a",
+        "inputVersionHash": "940947112948f5748f8b5ce31496f912e51d1c2d9c8cfc1a9eab2f9838d68c05",
+        "oldSeoTitle": "Young Miko på Roskilde Festival 2026",
+        "oldMetaDescription": "Young Miko leverer en energisk koncert på Roskilde Festival 2026, hvor rytme, bass og sceneudstråling bærer oplevelsen."
+      }
+    },
+    {
+      "itemId": "6a4f9c018e650be4b59cd658",
+      "locale": "en",
+      "cmsLocaleId": "690ca0f6b0d13d8788354156",
+      "articleKey": "wf:6a4f9c018e650be4b59cd658:en",
+      "newSeoTitle": "Young Miko at Roskilde Festival 2026 review",
+      "newMetaDescription": "Young Miko’s Roskilde Festival set worked through rhythm, confidence and crowd energy, even when the lyrics were not understood.",
+      "wasPublished": true,
+      "sourceSignature": {
+        "lastUpdated": "2026-07-22T21:36:12.242Z",
+        "lastPublished": "2026-07-22T21:36:12.242Z",
+        "contentHash": "f3325d2cb2a1f67800158491657754873a99cd80b78635c6f0b0489c2d257bb5",
+        "inputVersionHash": "9ed15f78ccb8d13020d58764432bfeb7bf643c3378e283b16911006ec52576e7",
+        "oldSeoTitle": "Young Miko at Roskilde Festival 2026 review",
+        "oldMetaDescription": "Young Miko’s Roskilde Festival set worked through rhythm, confidence and crowd energy, even when the lyrics were not understood."
+      }
+    },
+    {
+      "itemId": "6a4bb8a7099fcfef599f2114",
+      "locale": "da",
+      "cmsLocaleId": "67dbf17ba540975b5b21c225",
+      "articleKey": "wf:6a4bb8a7099fcfef599f2114:da",
+      "newSeoTitle": "Napalm Death på Roskilde Festival 2026 anmeldelse",
+      "newMetaDescription": "Læs anmeldelsen af Napalm Death på Roskilde Festival 2026 og oplevelsen på Eos-scenen, hvor brutalitet og varme mødes.",
+      "wasPublished": true,
+      "sourceSignature": {
+        "lastUpdated": "2026-07-09T08:40:56.504Z",
+        "lastPublished": "2026-07-09T09:11:03.394Z",
+        "contentHash": "279f28d98d1f7acdde9df2c40b574f5ae2a4f6ccee6ec3ba2a8a37c4f9569aaa",
+        "inputVersionHash": "5c5682f798adbfdd09336f1fd5c1f1b6567353daadc74f1458c5c28625643bf7",
+        "oldSeoTitle": "Napalm Death – Anmeldelse | Roskilde Festival 2026",
+        "oldMetaDescription": "Napalm Death leverede en intens, men overraskende hyggelig grindcore-koncert på Eos under Roskilde Festival 2026."
+      }
+    },
+    {
+      "itemId": "6a4bb8a7099fcfef599f2114",
+      "locale": "en",
+      "cmsLocaleId": "690ca0f6b0d13d8788354156",
+      "articleKey": "wf:6a4bb8a7099fcfef599f2114:en",
+      "newSeoTitle": "Napalm Death at Roskilde Festival 2026 review",
+      "newMetaDescription": "A positive concert review of Napalm Death at Roskilde Festival 2026, where brutal grindcore meets warmth, politics and an intimate crowd.",
+      "wasPublished": true,
+      "sourceSignature": {
+        "lastUpdated": "2026-07-09T08:40:56.524Z",
+        "lastPublished": "2026-07-09T09:11:03.394Z",
+        "contentHash": "3cb6a4f71dffbd87b280f2f01c3e325393415ea510c31166ab9953ca20baebf5",
+        "inputVersionHash": "746e3fb75f0f74317c8a954aedbb6e2d86faa5d11fc7151dba0adec46be34663",
+        "oldSeoTitle": "Napalm Death – Review | Roskilde Festival 2026",
+        "oldMetaDescription": "Napalm Death delivered an intense, but surprisingly cosy grindcore concert at Eos during Roskilde Festival 2026."
+      }
+    }
+  ],
+  "kind": "review-corrected",
+  "basedOnReport": "/Users/frederikkragh/Library/CloudStorage/Dropbox/AproposMagazine.com/13. Onkel Ragekniv/tmp/seo-engine-backfill/report-composite-2026-07-22T21-28-46.json",
+  "reviewCorrections": [
+    {
+      "itemId": "6a4f5c836c05693f03dd4384",
+      "slug": "little-simz-pa-roskilde-festival-2026",
+      "locale": "da",
+      "articleType": "Koncertanmeldelse",
+      "from": "Little Simz på Roskilde Festival 2026",
+      "to": "Little Simz anmeldelse på Roskilde Festival 2026"
+    },
+    {
+      "itemId": "6a4f5c836c05693f03dd4384",
+      "slug": "little-simz-pa-roskilde-festival-2026",
+      "locale": "en",
+      "articleType": "Koncertanmeldelse",
+      "from": "Little Simz at Roskilde Festival 2026",
+      "to": "Little Simz at Roskilde Festival 2026 review"
+    },
+    {
+      "itemId": "6a4f654ed5acf32358137e08",
+      "slug": "mille-pa-roskilde-festival-2026",
+      "locale": "da",
+      "articleType": "Koncertanmeldelse",
+      "from": "Mille på Roskilde Festival 2026",
+      "to": "Mille på Roskilde Festival 2026: anmeldelse"
+    },
+    {
+      "itemId": "6a4f9c018e650be4b59cd658",
+      "slug": "young-miko-pa-roskilde-festival-2026",
+      "locale": "da",
+      "articleType": "Koncertanmeldelse",
+      "from": "Young Miko på Roskilde Festival 2026",
+      "to": "Young Miko anmeldelse: Roskilde Festival 2026"
+    },
+    {
+      "itemId": "6a4bb8a7099fcfef599f2114",
+      "slug": "napalm-death-pa-roskilde-festival-2026",
+      "locale": "da",
+      "articleType": "Koncertanmeldelse",
+      "from": "Napalm Death på Roskilde Festival 2026",
+      "to": "Napalm Death på Roskilde Festival 2026 anmeldelse"
+    },
+    {
+      "itemId": "6a4bb8a7099fcfef599f2114",
+      "slug": "napalm-death-pa-roskilde-festival-2026",
+      "locale": "en",
+      "articleType": "Koncertanmeldelse",
+      "from": "Napalm Death at Roskilde Festival 2026",
+      "to": "Napalm Death at Roskilde Festival 2026 review"
+    }
+  ]
+}

@@ -14,6 +14,7 @@ interface ReviewPanelProps {
   onRecommendationsApplied?: () => void;
   onUpdateArticle?: (updates: any) => void;
   onEditorialSignalPublished?: (detail: { signalId: string; signalTitle?: string; title?: string; slug?: string; topic?: string }) => void;
+  onOpenSeoEngine?: () => void;
 }
 
 type TaxonomyItem = { id: string; name: string };
@@ -111,7 +112,7 @@ function inferBestAuthor(authors: AuthorCandidate[], corpus: string): string | u
   return best && best.score >= 3 ? best.name : undefined;
 }
 
-export default function ReviewPanel({ articleData, onClose, frameless, onPreflightComplete, onRecommendationsApplied, onUpdateArticle, onEditorialSignalPublished }: ReviewPanelProps) {
+export default function ReviewPanel({ articleData, onClose, frameless, onPreflightComplete, onRecommendationsApplied, onUpdateArticle, onEditorialSignalPublished, onOpenSeoEngine }: ReviewPanelProps) {
   const [wfSlugs, setWfSlugs] = useState<string[] | null>(null);
   const [isGeneratingImage, setIsGeneratingImage] = useState(false);
   const [imageProgress, setImageProgress] = useState(0);
@@ -438,6 +439,15 @@ export default function ReviewPanel({ articleData, onClose, frameless, onPreflig
         {has('foto-credit', 'fotocredit') && <MetaRow label="Foto credit" value={fotoCredit || '—'} />}
         <MetaRow label="SEO titel" value={seoTitle || '—'} />
         <MetaRow label="Meta beskrivelse" value={seoDescription || '—'} />
+        {onOpenSeoEngine && (
+          <button
+            type="button"
+            onClick={onOpenSeoEngine}
+            className="w-full py-2.5 rounded-xl border border-white/12 text-[13px] text-white/75 hover:bg-white/[0.05] hover:border-white/18 transition-all duration-200 active:scale-[0.98]"
+          >
+            Generér SEO
+          </button>
+        )}
         {reflection && (
           <div className="bg-white/5 border border-white/10 rounded-lg p-2.5 min-w-0">
             <div className="text-white/50 text-xs mb-1">Refleksion</div>

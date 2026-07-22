@@ -183,10 +183,10 @@ export async function fetchGoogleDiscovery(period: DashboardPeriod) {
     clicks: gscTotals.linked ? gscTotals.clicks : null,
     impressions: gscTotals.linked ? gscTotals.impressions : null,
     ctr: gscTotals.linked ? gscTotals.ctr : null,
-    searchQueriesAvailable: gscTotals.linked,
+    searchQueriesAvailable: false,
     searchQueriesNote: gscTotals.linked
-      ? 'Søgeord fra Search Console (via GA4).'
-      : 'Knyt Search Console til property 484743571 i GA4 Admin → Product links for søgeord, klik og impressions.',
+      ? 'Search Console linked via GA4 — dashboard viser aggregater (klik/impressions/CTR). Query-søgeord kræver kompatibel GA4-dimension eller direkte GSC API.'
+      : 'Knyt Search Console til property i GA4 Admin → Product links for klik og impressions.',
     sources: sources.map((r) => ({
       source: r.dimensions[0] || '',
       medium: r.dimensions[1] || '',

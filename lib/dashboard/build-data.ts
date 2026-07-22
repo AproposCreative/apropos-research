@@ -61,6 +61,19 @@ export async function buildDashboardData(period: DashboardPeriod): Promise<Dashb
   const viewsBySlug = await fetchArticleViewsBySlug(period);
   const authorLeaderboard = await buildAuthorLeaderboard(viewsBySlug);
 
+  const recommendations = [
+    ...(google.searchConsoleLinked
+      ? []
+      : [
+          'Knyt Google Search Console til GA4 — så får I søgeord, klik og impressions i dashboardet.',
+        ]),
+    'Nyhedsbrev: åbnings- og klikrate (Resend → GA4) per udsendelse.',
+    'Publiceringstempo: artikler pr. forfatter pr. måned.',
+    'Læsetid / scroll-dybde på top-artikler (GA4 event).',
+    'Signup-rate: artikelvisning → nyhedsbrev-tilmelding.',
+    'App downloads: aktiveres når iOS-appen er i App Store.',
+  ];
+
   return {
     period,
     generatedAt: new Date().toISOString(),
@@ -78,13 +91,6 @@ export async function buildDashboardData(period: DashboardPeriod): Promise<Dashb
     trafficSources,
     google,
     authorLeaderboard,
-    recommendations: [
-      'Knyt Google Search Console til GA4 — så får I søgeord, klik og impressions i dashboardet.',
-      'Nyhedsbrev: åbnings- og klikrate (Resend → GA4) per udsendelse.',
-      'Publiceringstempo: artikler pr. forfatter pr. måned.',
-      'Læsetid / scroll-dybde på top-artikler (GA4 event).',
-      'Signup-rate: artikelvisning → nyhedsbrev-tilmelding.',
-      'App downloads: aktiveres når iOS-appen er i App Store.',
-    ],
+    recommendations,
   };
 }

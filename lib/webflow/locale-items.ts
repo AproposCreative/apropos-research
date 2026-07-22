@@ -55,6 +55,7 @@ export type WebflowLocaleItem = {
   cmsLocaleId?: string;
   fieldData: Record<string, unknown>;
   lastPublished?: string | null;
+  lastUpdated?: string | null;
   isDraft?: boolean;
 };
 
@@ -66,6 +67,34 @@ export function isWebflowLocalePublished(
   return Boolean(item.lastPublished?.trim());
 }
 
+/** Typed Webflow locale fetch failure — callers can distinguish 404 vs auth/5xx. */
+export class WebflowLocaleFetchError extends Error {
+  readonly status: number;
+  /** Parsed Retry-After delay in ms when the API provided one (e.g. 429). */
+  readonly retryAfterMs: number | null;
+  constructor(message: string, status: number, retryAfterMs: number | null = null) {
+    super(message);
+    this.name = 'WebflowLocaleFetchError';
+    this.status = status;
+    this.retryAfterMs = retryAfterMs;
+  }
+}
+
+/** Parse Retry-After header (seconds or HTTP-date) into milliseconds. */
+export function parseRetryAfterMs(headerValue: string | null): number | null {
+  if (!headerValue?.trim()) return null;
+  const raw = headerValue.trim();
+  const asSeconds = Number(raw);
+  if (Number.isFinite(asSeconds) && asSeconds >= 0) {
+    return Math.round(asSeconds * 1000);
+  }
+  const asDate = Date.parse(raw);
+  if (Number.isFinite(asDate)) {
+    return Math.max(0, asDate - Date.now());
+  }
+  return null;
+}
+
 export async function fetchArticleItemByLocale(
   itemId: string,
   cmsLocaleId: string
@@ -73,17 +102,29 @@ export async function fetchArticleItemByLocale(
   const { token, collectionId } = await resolveRuntime();
   const qs = new URLSearchParams({ cmsLocaleId });
   const itemUrl = `https://api.webflow.com/v2/collections/${collectionId}/items/${itemId}?${qs}`;
-  const res = await fetch(itemUrl, {
-    headers: { Authorization: `Bearer ${token}`, 'Accept-Version': '1.0.0' },
-  });
+  let res: Response;
+  try {
+    res = await fetch(itemUrl, {
+      headers: { Authorization: `Bearer ${token}`, 'Accept-Version': '1.0.0' },
+    });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    throw new WebflowLocaleFetchError(`Webflow network error: ${msg}`, 0);
+  }
   if (!res.ok) {
-    const j = await res.json().catch(() => ({}));
-    throw new Error(j?.message || `Webflow fetch item error ${res.status}`);
+    const retryAfterMs = parseRetryAfterMs(res.headers.get('retry-after'));
+    const j = (await res.json().catch(() => ({}))) as { message?: string };
+    throw new WebflowLocaleFetchError(
+      j?.message || `Webflow fetch item error ${res.status}`,
+      res.status,
+      retryAfterMs
+    );
   }
   const item: {
     id?: string;
     cmsLocaleId?: string;
     lastPublished?: string | null;
+    lastUpdated?: string | null;
     isDraft?: boolean;
     fieldData?: Record<string, unknown>;
   } = await res.json();
@@ -91,6 +132,7 @@ export async function fetchArticleItemByLocale(
     id: String(item.id || itemId),
     cmsLocaleId: item.cmsLocaleId,
     lastPublished: item.lastPublished ?? null,
+    lastUpdated: item.lastUpdated ?? null,
     isDraft: item.isDraft,
     fieldData: (item.fieldData || {}) as Record<string, unknown>,
   };
