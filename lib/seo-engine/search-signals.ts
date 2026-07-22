@@ -694,7 +694,7 @@ export class DirectGscSearchAnalyticsProvider implements SearchSignalsProvider {
       },
     });
 
-    if (!result.ok) {
+    if (result.ok === false) {
       const permission = result.status === 403 || result.status === 401;
       return {
         signals: [],

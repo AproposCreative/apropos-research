@@ -1898,7 +1898,7 @@ export async function runOverwriteBackfill(
         results.push(itemResult);
       }
       const checked = await verifyFrozenEntryLive({ entry: v.entry, fetchFn });
-      if (!checked.ok) {
+      if (checked.ok === false) {
         stoppedOnError = true;
         errorMessage = checked.reason;
         itemResult.locales.push({

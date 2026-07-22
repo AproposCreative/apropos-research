@@ -514,7 +514,7 @@ export async function runAutoSeoBatch(
         liveSeoTitleEmpty: empty.seoTitleEmpty,
         liveMetaEmpty: empty.metaDescriptionEmpty,
       });
-      if (!gate.ok) {
+      if (gate.ok === false) {
         skipped += 1;
         results.push({
           id: scanned.id,
