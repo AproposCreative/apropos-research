@@ -299,7 +299,7 @@ async function main() {
         outPath,
         alias,
         clean: clean.ok,
-        cleanReason: clean.ok ? null : clean.reason,
+        cleanReason: clean.ok === false ? clean.reason : null,
         corrections,
         proposed: frozenManifest.length,
       },
