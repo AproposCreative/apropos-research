@@ -120,6 +120,12 @@ const SEED_STOPWORDS = new Set([
   'ikke',
   'også',
   'ogsaa',
+  'dig',
+  'mig',
+  'jeg',
+  'du',
+  'vi',
+  'os',
   // English
   'the',
   'and',
@@ -150,6 +156,9 @@ const SEED_STOPWORDS = new Set([
   'who',
   'not',
   'also',
+  'you',
+  'your',
+  'our',
 ]);
 
 function isSeedStopword(token: string): boolean {
@@ -296,8 +305,8 @@ export const SEARCH_SIGNALS_UNTRUSTED_BANNER =
 
 /**
  * Shared provider + prompt context from editorial input.
- * Seeds come from title/subtitle (and articleType label) so ranking and the
- * analyze-prompt gate always see the same relevance inputs.
+ * Seeds = editorialTitle + subtitle only; articleType is separate (review-hint gate).
+ * Pass the SAME object to getSignals() and toAnalyzePromptSearchSignals().
  */
 export function buildSearchSignalsPromptContext(input: {
   editorialTitle?: string | null;
@@ -305,13 +314,13 @@ export function buildSearchSignalsPromptContext(input: {
   language?: string | null;
   articleType?: string | null;
 }): Pick<SearchSignalsContext, 'seeds' | 'language' | 'articleType'> {
-  const seeds = [input.editorialTitle, input.subtitle || '', input.articleType || ''].filter(
-    (s): s is string => Boolean(s && String(s).trim())
-  );
+  const seeds = [input.editorialTitle, input.subtitle || '']
+    .map((s) => String(s || '').trim())
+    .filter(Boolean);
   return {
     seeds,
-    language: input.language,
-    articleType: input.articleType,
+    language: input.language ?? null,
+    articleType: input.articleType ?? null,
   };
 }
 
