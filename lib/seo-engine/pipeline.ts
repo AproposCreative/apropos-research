@@ -51,6 +51,7 @@ import {
 } from '@/lib/seo-engine/access';
 import { applyDeterministicJsonLdToPack } from '@/lib/seo-engine/jsonld-apply';
 import { assertSnapshotWithinBudget } from '@/lib/seo-engine/snapshot-budget';
+import { coerceStrategyPackAiOutput } from '@/lib/seo-engine/coerce-strategy';
 
 function demoEnabled(): boolean {
   return process.env.SEO_ENGINE_DEMO === 'true';
@@ -456,7 +457,7 @@ export async function strategizeFromRun(
           code: 'ai_parse_error',
         });
       }
-      const z = SeoStrategyPackV1Schema.safeParse(json);
+      const z = SeoStrategyPackV1Schema.safeParse(coerceStrategyPackAiOutput(json));
       if (!z.success) {
         throw Object.assign(new Error('Strategy AI fejlede Zod-validering'), {
           code: 'ai_schema_error',

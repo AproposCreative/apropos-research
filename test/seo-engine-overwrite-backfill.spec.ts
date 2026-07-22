@@ -568,3 +568,44 @@ describe('3) concurrent change protection + 4) from-report gate', () => {
     expect(report.frozenManifest).toHaveLength(1);
   });
 });
+
+describe('strategy pack AI coercion', () => {
+  it('fills missing secondary SeoField wrappers so Zod accepts pack', async () => {
+    const { coerceStrategyPackAiOutput } = await import('../lib/seo-engine/coerce-strategy');
+    const { SeoStrategyPackV1Schema } = await import('../lib/seo-engine/schema');
+    const partial = {
+      schemaVersion: 'seo-strategy-pack-v1',
+      recommendedStrategyId: 'a',
+      recommended: {
+        id: 'a',
+        family: 'entity_first',
+        intentPriority: 'x',
+        whyFits: 'y',
+        primaryEntityEmphasis: 'z',
+        freshnessStance: 'f',
+        editorialGuardrail: 'g',
+        riskAvoided: 'r',
+        fields: {
+          seoTitle: { value: 'Title', rationale: 'r', confidence: 0.8, sources: ['article'], warnings: [], locked: false },
+          metaDescription: { value: 'Meta text that is long enough for usefulness here.', rationale: 'r', confidence: 0.8, sources: ['article'], warnings: [], locked: false },
+          // supportingTopics / tags intentionally missing
+        },
+      },
+      alternatives: [{}, {}],
+      cmsPublishability: {
+        seoTitle: 'cms_writable',
+        metaDescription: 'cms_writable',
+        ogTitle: 'generated_not_published',
+        ogDescription: 'generated_not_published',
+        jsonLd: 'generated_not_published',
+      },
+    };
+    const coerced = coerceStrategyPackAiOutput(partial);
+    const z = SeoStrategyPackV1Schema.safeParse(coerced);
+    expect(z.success).toBe(true);
+    if (z.success) {
+      expect(z.data.recommended.fields.seoTitle.value).toBe('Title');
+      expect(Array.isArray(z.data.recommended.fields.supportingTopics.value)).toBe(true);
+    }
+  });
+});
