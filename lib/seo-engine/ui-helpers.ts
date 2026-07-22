@@ -1,4 +1,31 @@
 import type { AllowlistedFieldPath, PublishFields, SeoField } from '@/lib/seo-engine/schema';
+import type { SearchSignalsUiStatus } from '@/lib/seo-engine/search-signals';
+
+/** Honest Search Console status labels shown in SEO Engine UI after analyze. */
+export const SEARCH_SIGNALS_UI_STATUSES: readonly SearchSignalsUiStatus[] = [
+  'Search Console søgefraser aktive',
+  'Search Console kun samlet via GA4',
+  'ingen søgedata',
+] as const;
+
+export function searchSignalsStatusDotClass(uiNote: string | undefined | null): string {
+  if (uiNote === 'Search Console søgefraser aktive') return 'bg-emerald-400';
+  if (uiNote === 'Search Console kun samlet via GA4') return 'bg-amber-400';
+  return 'bg-white/40';
+}
+
+export function normalizeSearchSignalsUiNote(
+  uiNote: string | undefined | null
+): SearchSignalsUiStatus {
+  if (
+    uiNote === 'Search Console søgefraser aktive' ||
+    uiNote === 'Search Console kun samlet via GA4' ||
+    uiNote === 'ingen søgedata'
+  ) {
+    return uiNote;
+  }
+  return 'ingen søgedata';
+}
 
 export const EDITOR_FIELD_ORDER: AllowlistedFieldPath[] = [
   'seoTitle',

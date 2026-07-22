@@ -8,9 +8,11 @@ import {
   EDITOR_FIELD_ORDER,
   buildCopyBundleFromEditable,
   fieldValueAsEditableString,
+  normalizeSearchSignalsUiNote,
   parseEditableString,
   parseRelatedAproposText,
   relatedAproposToText,
+  searchSignalsStatusDotClass,
   selectDiffPair,
 } from '@/lib/seo-engine/ui-helpers';
 import type { AllowlistedFieldPath } from '@/lib/seo-engine/schema';
@@ -668,6 +670,13 @@ export default function SeoEngineClient({
 
   const publishability = strategy?.pack?.cmsPublishability || {};
   const analysisDoc = analyze?.analysis;
+  const searchSignalsUiNote = analyze
+    ? normalizeSearchSignalsUiNote(analyze.searchSignalsProvenance?.uiNote)
+    : null;
+  const searchSignalsSetupStatus =
+    typeof analyze?.searchSignalsProvenance?.setupStatus === 'string'
+      ? analyze.searchSignalsProvenance.setupStatus
+      : null;
   const validation = (strategy?.validation || analyze?.validation) as
     | { errors?: ValidationIssue[]; warnings?: ValidationIssue[]; suggestions?: ValidationIssue[] }
     | undefined;
@@ -805,6 +814,17 @@ export default function SeoEngineClient({
                     ? 'Demo-heuristik'
                     : 'AI Fase A'}
               </span>
+              {searchSignalsUiNote && (
+                <span
+                  className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md border border-white/15 bg-white/[0.06] text-[10px] uppercase tracking-wider text-white/70"
+                  title={searchSignalsSetupStatus || 'Search Console-status for denne analyse'}
+                >
+                  <span
+                    className={`size-1.5 rounded-full ${searchSignalsStatusDotClass(searchSignalsUiNote)}`}
+                  />
+                  {searchSignalsUiNote}
+                </span>
+              )}
             </div>
             <p className="text-[13px] text-white/85">{analysisDoc?.topic?.value}</p>
             <p className="text-[11px] text-white/40">{analysisDoc?.angleOrThesis?.value}</p>
