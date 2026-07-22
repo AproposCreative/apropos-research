@@ -46,6 +46,7 @@ export type ParsedBackfillCli = {
   limitExplicit: boolean;
   localesExplicit: boolean;
   fromReport: string | null;
+  itemIds: string[];
   help: boolean;
 };
 
@@ -157,6 +158,7 @@ Flags:
                             + --from-report=<dry-run-report.json>).
   --overwrite               Explicit confirmation that existing SEO may be overwritten.
   --from-report=PATH        Frozen dry-run report; apply writes ONLY those proposals.
+  --item-id=ID              Optional dry-run target (repeatable / comma-separated). Skips newest-N selection.
   --limit=N                 Select N newest published DK items (apply requires N=10).
   --locales=da,en           Locales to process (apply requires exactly da,en).
   --help                    Show this help.
@@ -187,6 +189,7 @@ export function parseBackfillCliArgs(argv: string[]): ParsedBackfillCli {
   const limitFlag = flags.find((a) => a.startsWith('--limit='));
   const localesFlag = flags.find((a) => a.startsWith('--locales='));
   const fromReportFlag = flags.find((a) => a.startsWith('--from-report='));
+  const itemIdFlags = flags.filter((a) => a.startsWith('--item-id='));
   const limitExplicit = Boolean(limitFlag);
   const localesExplicit = Boolean(localesFlag);
 
@@ -220,6 +223,15 @@ export function parseBackfillCliArgs(argv: string[]): ParsedBackfillCli {
     ? fromReportFlag.slice('--from-report='.length).trim() || null
     : null;
 
+  const itemIds: string[] = [];
+  for (const f of itemIdFlags) {
+    const raw = f.slice('--item-id='.length).trim();
+    for (const part of raw.split(',')) {
+      const id = part.trim();
+      if (id) itemIds.push(id);
+    }
+  }
+
   const dryRunFlag = flags.includes('--dry-run');
   const dryRun = dryRunFlag || !apply;
 
@@ -233,6 +245,7 @@ export function parseBackfillCliArgs(argv: string[]): ParsedBackfillCli {
     limitExplicit,
     localesExplicit,
     fromReport,
+    itemIds: [...new Set(itemIds)],
     help,
   };
 }
@@ -610,6 +623,8 @@ export type RunBackfillOptions = {
   apply: boolean;
   /** Required when apply=true — path to reviewed dry-run report. */
   fromReportPath?: string | null;
+  /** Optional dry-run override: exact Webflow item ids (skips newest-N selection). */
+  itemIds?: string[];
   listFn?: () => Promise<ListedArticleItem[]>;
   patchFn?: typeof patchArticleFieldDataForLocale;
   publishFn?: typeof publishArticleItemForLocale;
@@ -1227,8 +1242,22 @@ export async function runOverwriteBackfill(
   // DRY-RUN path (real AI)
   const listFn = opts.listFn || listDkArticleItems;
   const all = await listFn();
-  const selected = selectNewestPublishedItems(all, opts.limit);
-  log(`Selected ${selected.length} newest published DK items (limit=${opts.limit}):`);
+  let selected: ListedArticleItem[];
+  if (opts.itemIds && opts.itemIds.length > 0) {
+    const byId = new Map(all.map((it) => [it.id, it]));
+    selected = [];
+    for (const id of opts.itemIds) {
+      const hit = byId.get(id);
+      if (!hit) {
+        throw new Error(`--item-id=${id} not found in DK articles list`);
+      }
+      selected.push(hit);
+    }
+    log(`Using explicit --item-id selection (${selected.length}):`);
+  } else {
+    selected = selectNewestPublishedItems(all, opts.limit);
+    log(`Selected ${selected.length} newest published DK items (limit=${opts.limit}):`);
+  }
   for (const it of selected) {
     log(
       `  - ${it.id}  slug=${it.slug || '(none)'}  title=${it.title || '(none)'}  published=${it.lastPublished}  locales=${opts.locales.join(',')}`

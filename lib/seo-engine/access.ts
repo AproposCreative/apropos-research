@@ -99,6 +99,6 @@ export function openaiTimeoutMs(): number {
 }
 
 export function openaiMaxTokens(): number {
-  const n = Number(process.env.SEO_ENGINE_OPENAI_MAX_TOKENS || 4_000);
-  return Number.isFinite(n) && n > 200 ? Math.min(n, 8_000) : 4_000;
+  const n = Number(process.env.SEO_ENGINE_OPENAI_MAX_TOKENS || 8_000);
+  return Number.isFinite(n) && n > 200 ? Math.min(n, 16_000) : 8_000;
 }

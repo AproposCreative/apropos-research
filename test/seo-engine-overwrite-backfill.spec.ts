@@ -570,28 +570,52 @@ describe('3) concurrent change protection + 4) from-report gate', () => {
 });
 
 describe('strategy pack AI coercion', () => {
-  it('fills missing secondary SeoField wrappers so Zod accepts pack', async () => {
+  function validDirection(id: string, title: string, meta: string) {
+    return {
+      id,
+      family: 'entity_first',
+      intentPriority: 'x',
+      whyFits: 'y',
+      primaryEntityEmphasis: 'z',
+      freshnessStance: 'f',
+      editorialGuardrail: 'g',
+      riskAvoided: 'r',
+      fields: {
+        seoTitle: {
+          value: title,
+          rationale: 'r',
+          confidence: 0.8,
+          sources: ['article'],
+          warnings: [],
+          locked: false,
+        },
+        metaDescription: {
+          value: meta,
+          rationale: 'r',
+          confidence: 0.8,
+          sources: ['article'],
+          warnings: [],
+          locked: false,
+        },
+      },
+    };
+  }
+
+  it('fills missing secondary wrappers but never invents core SEO text', async () => {
     const { coerceStrategyPackAiOutput } = await import('../lib/seo-engine/coerce-strategy');
     const { SeoStrategyPackV1Schema } = await import('../lib/seo-engine/schema');
     const partial = {
       schemaVersion: 'seo-strategy-pack-v1',
       recommendedStrategyId: 'a',
-      recommended: {
-        id: 'a',
-        family: 'entity_first',
-        intentPriority: 'x',
-        whyFits: 'y',
-        primaryEntityEmphasis: 'z',
-        freshnessStance: 'f',
-        editorialGuardrail: 'g',
-        riskAvoided: 'r',
-        fields: {
-          seoTitle: { value: 'Title', rationale: 'r', confidence: 0.8, sources: ['article'], warnings: [], locked: false },
-          metaDescription: { value: 'Meta text that is long enough for usefulness here.', rationale: 'r', confidence: 0.8, sources: ['article'], warnings: [], locked: false },
-          // supportingTopics / tags intentionally missing
-        },
-      },
-      alternatives: [{}, {}],
+      recommended: validDirection(
+        'a',
+        'Title',
+        'Meta text that is long enough for usefulness here.'
+      ),
+      alternatives: [
+        validDirection('b', 'Alt title B', 'Alt meta B that is long enough for usefulness here.'),
+        validDirection('c', 'Alt title C', 'Alt meta C that is long enough for usefulness here.'),
+      ],
       cmsPublishability: {
         seoTitle: 'cms_writable',
         metaDescription: 'cms_writable',
@@ -607,5 +631,80 @@ describe('strategy pack AI coercion', () => {
       expect(z.data.recommended.fields.seoTitle.value).toBe('Title');
       expect(Array.isArray(z.data.recommended.fields.supportingTopics.value)).toBe(true);
     }
+  });
+
+  it('fail closed: does not invent seoTitle/metaDescription when missing', async () => {
+    const { coerceStrategyPackAiOutput, StrategyCoerceError } = await import(
+      '../lib/seo-engine/coerce-strategy'
+    );
+    const bad = {
+      recommended: {
+        id: 'a',
+        family: 'entity_first',
+        fields: {
+          // seoTitle missing
+          metaDescription: { value: 'Meta only', rationale: 'r', confidence: 0.5, sources: ['article'], warnings: [], locked: false },
+        },
+      },
+      alternatives: [
+        validDirection('b', 'Alt B', 'Alt meta B long enough.'),
+        validDirection('c', 'Alt C', 'Alt meta C long enough.'),
+      ],
+    };
+    expect(() => coerceStrategyPackAiOutput(bad)).toThrow(StrategyCoerceError);
+    expect(() => coerceStrategyPackAiOutput(bad)).toThrow(/seoTitle/i);
+  });
+
+  it('fail closed: empty alternatives do not mask invalid recommendation', async () => {
+    const { coerceStrategyPackAiOutput, StrategyCoerceError } = await import(
+      '../lib/seo-engine/coerce-strategy'
+    );
+    const badRec = {
+      recommended: {
+        id: 'a',
+        family: 'entity_first',
+        fields: {}, // invalid recommended
+      },
+      alternatives: [{}, {}], // incomplete alts must not paper over
+    };
+    expect(() => coerceStrategyPackAiOutput(badRec)).toThrow(StrategyCoerceError);
+
+    const goodRecBadAlts = {
+      recommended: validDirection('a', 'Title', 'Meta text that is long enough for usefulness here.'),
+      alternatives: [{}, {}],
+    };
+    expect(() => coerceStrategyPackAiOutput(goodRecBadAlts)).toThrow(/alternatives/i);
+  });
+
+  it('coerces mistyped imageCaption objects to null without inventing seoTitle', async () => {
+    const { coerceStrategyPackAiOutput } = await import('../lib/seo-engine/coerce-strategy');
+    const { SeoStrategyPackV1Schema } = await import('../lib/seo-engine/schema');
+    const base = validDirection('a', 'Keep Title', 'Keep meta text that is long enough here.');
+    const pack = {
+      recommended: {
+        ...base,
+        fields: {
+          ...base.fields,
+          imageCaption: {
+            value: { weird: true },
+            rationale: 'x',
+            confidence: 0.4,
+            sources: ['inference'],
+            warnings: [],
+            locked: false,
+          },
+        },
+      },
+      alternatives: [
+        validDirection('b', 'Alt B', 'Alt meta B that is long enough for usefulness here.'),
+        validDirection('c', 'Alt C', 'Alt meta C that is long enough for usefulness here.'),
+      ],
+    };
+    const coerced = coerceStrategyPackAiOutput(pack) as {
+      recommended: { fields: { seoTitle: { value: string }; imageCaption: { value: unknown } } };
+    };
+    expect(coerced.recommended.fields.seoTitle.value).toBe('Keep Title');
+    expect(coerced.recommended.fields.imageCaption.value).toBeNull();
+    expect(SeoStrategyPackV1Schema.safeParse(coerced).success).toBe(true);
   });
 });

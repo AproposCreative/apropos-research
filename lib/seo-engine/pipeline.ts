@@ -51,10 +51,39 @@ import {
 } from '@/lib/seo-engine/access';
 import { applyDeterministicJsonLdToPack } from '@/lib/seo-engine/jsonld-apply';
 import { assertSnapshotWithinBudget } from '@/lib/seo-engine/snapshot-budget';
-import { coerceStrategyPackAiOutput } from '@/lib/seo-engine/coerce-strategy';
+import { coerceStrategyPackAiOutput, StrategyCoerceError } from '@/lib/seo-engine/coerce-strategy';
 
 function demoEnabled(): boolean {
   return process.env.SEO_ENGINE_DEMO === 'true';
+}
+
+/** Parse model JSON; strip optional markdown fences. */
+export function parseAiJsonContent(raw: string): unknown {
+  const trimmed = String(raw || '').trim();
+  if (!trimmed) {
+    throw Object.assign(new Error('Strategy AI returnerede tomt svar'), {
+      code: 'ai_parse_error',
+    });
+  }
+  const fence = trimmed.match(/^```(?:json)?\s*([\s\S]*?)\s*```$/i);
+  const body = fence ? fence[1].trim() : trimmed;
+  try {
+    return JSON.parse(body);
+  } catch {
+    // Attempt to salvage leading/trailing junk around a JSON object
+    const start = body.indexOf('{');
+    const end = body.lastIndexOf('}');
+    if (start >= 0 && end > start) {
+      try {
+        return JSON.parse(body.slice(start, end + 1));
+      } catch {
+        /* fall through */
+      }
+    }
+    throw Object.assign(new Error('Strategy AI returnerede ugyldig JSON'), {
+      code: 'ai_parse_error',
+    });
+  }
 }
 
 async function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
@@ -433,13 +462,11 @@ export async function strategizeFromRun(
                 inputVersionHash: run.inputVersionHash,
                 lockedAnalysis: run.analysis,
                 contract: {
-                  ...current,
-                  body: undefined,
                   editorialTitle: current.editorialTitle,
-                  existingSeoTitle: current.existingSeoTitle,
-                  existingMetaDescription: current.existingMetaDescription,
+                  language: current.language,
+                  existingSeoTitle: current.existingSeoTitle ?? null,
+                  existingMetaDescription: current.existingMetaDescription ?? null,
                 },
-                outputSchema: schema,
                 requireAlternatives: 2,
               }),
             },
@@ -448,16 +475,20 @@ export async function strategizeFromRun(
         openaiTimeoutMs(),
         'strategize'
       );
-      const raw = completion.choices[0]?.message?.content || '{}';
-      let json: unknown;
+      const raw = completion.choices[0]?.message?.content || '';
+      const json = parseAiJsonContent(raw);
+      let coerced: unknown;
       try {
-        json = JSON.parse(raw);
-      } catch {
-        throw Object.assign(new Error('Strategy AI returnerede ugyldig JSON'), {
-          code: 'ai_parse_error',
-        });
+        coerced = coerceStrategyPackAiOutput(json);
+      } catch (coerceErr) {
+        if (coerceErr instanceof StrategyCoerceError) {
+          throw Object.assign(new Error(coerceErr.message), {
+            code: coerceErr.code,
+          });
+        }
+        throw coerceErr;
       }
-      const z = SeoStrategyPackV1Schema.safeParse(coerceStrategyPackAiOutput(json));
+      const z = SeoStrategyPackV1Schema.safeParse(coerced);
       if (!z.success) {
         throw Object.assign(new Error('Strategy AI fejlede Zod-validering'), {
           code: 'ai_schema_error',

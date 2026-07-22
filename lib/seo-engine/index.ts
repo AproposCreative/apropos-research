@@ -41,6 +41,7 @@ export {
   loadAndValidateFromReport,
   runOverwriteBackfill,
 } from '@/lib/seo-engine/overwrite-backfill';
+export { coerceStrategyPackAiOutput, StrategyCoerceError } from '@/lib/seo-engine/coerce-strategy';
 export { WebflowLocaleFetchError } from '@/lib/webflow/locale-items';
 export * from '@/lib/seo-engine/prompts';
 export * from '@/lib/seo-engine/evidence';

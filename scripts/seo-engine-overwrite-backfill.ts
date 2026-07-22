@@ -76,6 +76,7 @@ async function main() {
     locales: resolveEffectiveLocales(cli),
     apply,
     fromReportPath,
+    itemIds: cli.itemIds.length > 0 ? cli.itemIds : undefined,
   });
 
   console.log('\n--- summary ---');
