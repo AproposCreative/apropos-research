@@ -50,6 +50,8 @@ export {
 export * from '@/lib/seo-engine/archive-audit-apply';
 export * from '@/lib/seo-engine/archive-content-fixes';
 export * from '@/lib/seo-engine/archive-content-apply';
+export * from '@/lib/seo-engine/archive-jobs';
+export * from '@/lib/seo-engine/archive-seo-meta-agent';
 export * from '@/lib/seo-engine/backfill-paths';
 export { coerceStrategyPackAiOutput, StrategyCoerceError } from '@/lib/seo-engine/coerce-strategy';
 export { WebflowLocaleFetchError } from '@/lib/webflow/locale-items';

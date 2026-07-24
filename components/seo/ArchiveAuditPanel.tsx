@@ -1,19 +1,15 @@
 'use client';
 
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { useAuth } from '@/lib/auth-context';
 import {
-  ARCHIVE_APPLY_MAX_BATCH,
-  ARCHIVE_APPLY_WEBFLOW_BUSY_DA,
-  ARCHIVE_CONTENT_MAX_BATCH,
-  ARCHIVE_FIX_KIND_OPTIONS,
-  isArchiveRowEligibleForApply,
-  type ArchiveFixKindUi,
-} from '@/lib/seo-engine/archive-audit-apply-constants';
-import {
-  patchRowsAfterContentApply,
-  patchRowsAfterSeoMetaApply,
-} from '@/lib/seo-engine/archive-audit-row-patch';
+  ARCHIVE_JOB_TASK_LABELS,
+  deriveJobStatus,
+  jobStatusBadge,
+  type ArchiveJob,
+  type ArchiveJobTab,
+  type ArchiveJobTaskKind,
+} from '@/lib/seo-engine/archive-jobs';
 
 const secondaryBtn =
   'px-3 py-2.5 rounded-xl border border-white/12 text-[13px] text-white/75 hover:bg-white/[0.05] hover:border-white/18 disabled:opacity-40 transition-all duration-200 active:scale-[0.98] touch-target';
@@ -28,582 +24,208 @@ const segBtn = (active: boolean) =>
       : 'text-white/45 hover:text-white/75'
   }`;
 
-/** Compact checkbox (≈14–16px visual) inside a 44px hit target. */
-function RowCheckbox(props: {
-  checked: boolean;
-  onChange: () => void;
-  label: string;
-  disabled?: boolean;
-}) {
-  return (
-    <label
-      className={`relative inline-flex size-11 shrink-0 cursor-pointer items-center justify-center rounded-lg transition-colors hover:bg-white/[0.04] ${
-        props.disabled ? 'pointer-events-none opacity-40' : ''
-      }`}
-    >
-      <input
-        type="checkbox"
-        className="peer sr-only"
-        checked={props.checked}
-        onChange={props.onChange}
-        disabled={props.disabled}
-        aria-label={props.label}
-      />
-      <span
-        className="flex size-3.5 items-center justify-center rounded-[3px] border border-white/25 bg-white/[0.03] transition-all duration-150 peer-checked:border-white/50 peer-checked:bg-white/90 peer-checked:[&_svg]:opacity-100 peer-focus-visible:ring-1 peer-focus-visible:ring-white/30"
-        aria-hidden
-      >
-        <svg
-          className="size-2.5 text-[#0a0a0a] opacity-0 transition-opacity duration-100"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth={3}
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        >
-          <path d="M5 12.5l4.5 4.5L19 7" />
-        </svg>
-      </span>
-    </label>
-  );
-}
-
-function previewErrorMessage(raw: string | null | undefined): string {
-  const msg = (raw || '').trim();
-  if (!msg) return ARCHIVE_APPLY_WEBFLOW_BUSY_DA;
-  if (/too many requests|rate.?limit|429\b|overbelastet/i.test(msg)) {
-    return ARCHIVE_APPLY_WEBFLOW_BUSY_DA;
-  }
-  if (/blocking fetch/i.test(msg) && /too many|429/i.test(msg)) {
-    return ARCHIVE_APPLY_WEBFLOW_BUSY_DA;
-  }
-  return msg;
-}
-
-type ReportRow = {
-  itemId: string;
-  locale: string;
-  slug: string;
-  title: string;
-  priority: string;
-  winClass?: string;
-  seoTitle: string;
-  articleTypeHint?: string;
-  ageBucket?: string;
-  freshness?: string;
-  findings: Array<{
-    code: string;
-    message: string;
-    priority: string;
-    evidence?: string;
-    geoAeo?: boolean;
-  }>;
-  gscPageMatched?: boolean;
-  gscTopQuery?: string | null;
-  gscClicks?: number | null;
-  ga4PageMatched?: boolean;
-  ga4PageViews?: number | null;
-  siblingLocalePresent?: boolean | null;
-  headingCount?: number | null;
-  internalLinkCount?: number | null;
-};
-
-function rowKey(r: { itemId: string; locale: string }) {
-  return `${r.itemId}:${r.locale}`;
-}
-
-type Report = {
-  schemaVersion?: number;
-  createdAt?: string;
-  scanned?: number;
-  measurementWindowDays?: number;
-  summary?: {
-    p0?: number;
-    p1?: number;
-    p2?: number;
-    ok?: number;
-    gscJoinHits?: number;
-    ga4JoinHits?: number;
-    quickWins?: number;
-    strategic?: number;
-  };
-  patterns?: Array<{ id: string; observation: string; caveat: string; sampleSize: number }>;
-  gscProvenance?: { uiNote?: string; setupStatus?: string } | null;
-  ga4Provenance?: { available?: boolean; setupStatus?: string; rowCount?: number } | null;
-  note?: string;
-  rows?: ReportRow[];
-};
-
-type Filter = 'all' | 'da' | 'en' | 'P0' | 'P1' | 'quick_win' | 'stale';
-
-type PreviewProposal = {
-  itemId: string;
-  locale: string;
-  title: string;
-  slug: string;
-  oldSeoTitle?: string | null;
-  oldMetaDescription?: string | null;
-  newSeoTitle?: string;
-  newMetaDescription?: string;
-  kinds?: string[];
-  contentChanged?: boolean;
-  canonicalChanged?: boolean;
-  thumbAltChanged?: boolean;
-  oldCanonical?: string | null;
-  newCanonical?: string | null;
-  oldThumbAlt?: string | null;
-  newThumbAlt?: string | null;
-  links?: Array<{ url: string; title: string; anchorText: string }>;
-  headings?: Array<{ text: string; level: number }>;
-  oldContentExcerpt?: string;
-  newContentExcerpt?: string;
-};
-
 type PreviewState = {
-  mode: 'seo_meta' | 'content';
-  previewId: string;
+  jobId: string;
+  kinds: ArchiveJobTaskKind[];
+  summary: string;
   confirmToken: string;
-  expiresAt: string;
-  proposals: PreviewProposal[];
-  rejected: Array<{ itemId: string; locale: string; status?: string; reason?: string }>;
-  stoppedOnError: boolean;
-  errorMessage: string | null;
-  kinds: ArchiveFixKindUi[];
+  seoMeta?: {
+    oldSeoTitle: string | null;
+    oldMetaDescription: string | null;
+    newSeoTitle: string;
+    newMetaDescription: string;
+  };
+  content?: {
+    links: number;
+    headings: number;
+    canonicalChanged: boolean;
+    thumbAltChanged: boolean;
+  };
 };
 
-type ApplyPhase = 'idle' | 'previewing' | 'confirm' | 'applying' | 'done';
-
-function priorityDot(p: string) {
-  if (p === 'P0') return 'bg-rose-400';
-  if (p === 'P1') return 'bg-amber-400';
-  if (p === 'P2') return 'bg-white/40';
-  return 'bg-emerald-400';
-}
-
-function findingSummary(r: ReportRow): string {
-  if (!r.findings.length) return 'Ingen fund';
-  const top = r.findings[0];
-  const extra = r.findings.length > 1 ? ` · +${r.findings.length - 1}` : '';
-  return `${top.message}${extra}`;
-}
-
-function dataStatusLine(report: Report): { label: string; ok: boolean; detail: string } {
-  const gscOk =
-    report.gscProvenance?.setupStatus === 'ok' ||
-    (report.summary?.gscJoinHits || 0) > 0 ||
-    Boolean(report.gscProvenance?.uiNote && !/mangler|fail|error/i.test(report.gscProvenance.uiNote));
-  const ga4Ok = report.ga4Provenance?.available === true || (report.summary?.ga4JoinHits || 0) > 0;
-  const ok = gscOk || ga4Ok;
-  const parts = [
-    `Search Console: ${gscOk ? 'OK' : 'mangler data'}`,
-    `GA4: ${ga4Ok ? 'OK' : 'mangler data'}`,
-  ];
-  if (report.gscProvenance?.uiNote) parts.push(report.gscProvenance.uiNote);
-  if (report.ga4Provenance?.setupStatus) parts.push(`GA4 ${report.ga4Provenance.setupStatus}`);
-  return {
-    label: ok ? 'Datakilder OK' : 'Mangler data',
-    ok,
-    detail: parts.join(' · '),
-  };
+function badgeDot(tone: string) {
+  if (tone === 'ok') return 'bg-emerald-400';
+  if (tone === 'warn') return 'bg-amber-400';
+  if (tone === 'err') return 'bg-rose-400';
+  if (tone === 'run') return 'bg-white/40';
+  return 'bg-white/40';
 }
 
 export default function ArchiveAuditPanel() {
   const { user } = useAuth();
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [report, setReport] = useState<Report | null>(null);
-  const [filter, setFilter] = useState<Filter>('all');
-  const [typeFilter, setTypeFilter] = useState<string>('all');
-  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [tab, setTab] = useState<ArchiveJobTab>('open');
   const [limit, setLimit] = useState(80);
-  const [expanded, setExpanded] = useState<Set<string>>(new Set());
-  const [dataOpen, setDataOpen] = useState(false);
-  const [phase, setPhase] = useState<ApplyPhase>('idle');
+  const [jobs, setJobs] = useState<ArchiveJob[]>([]);
+  const [counts, setCounts] = useState({ open: 0, running: 0, done: 0 });
+  const [loading, setLoading] = useState(false);
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const [preview, setPreview] = useState<PreviewState | null>(null);
-  const [fixKinds, setFixKinds] = useState<Set<ArchiveFixKindUi>>(
-    () => new Set<ArchiveFixKindUi>(['seo_meta'])
-  );
-  const [recentlyApplied, setRecentlyApplied] = useState<Set<string>>(new Set());
-  const resultPanelRef = useRef<HTMLDivElement | null>(null);
-  const [applyResult, setApplyResult] = useState<{
-    writtenCount: number;
-    stoppedOnError: boolean;
-    errorMessage: string | null;
-    mode?: 'seo_meta' | 'content';
-    results?: Array<{
-      itemId: string;
-      title: string;
-      locales: Array<{ locale: string; status: string; reason?: string }>;
-    }>;
-  } | null>(null);
+  const [note, setNote] = useState<string | null>(null);
 
   const authHeaders = useCallback(async () => {
-    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-    if (user) headers.Authorization = `Bearer ${await user.getIdToken()}`;
-    return headers;
+    const token = await user?.getIdToken?.();
+    return {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    };
   }, [user]);
 
-  const runScan = useCallback(async () => {
+  const refreshList = useCallback(async () => {
+    const headers = await authHeaders();
+    const res = await fetch(`/api/seo-engine/archive-jobs/scan?tab=${tab}&limit=120`, {
+      headers,
+    });
+    const j = await res.json();
+    if (!res.ok) throw new Error(j.error || 'Kunne ikke hente kø');
+    setJobs(j.jobs || []);
+    if (j.counts) setCounts(j.counts);
+  }, [authHeaders, tab]);
+
+  const runScan = async () => {
     setLoading(true);
     setError(null);
-    setSelected(new Set());
     setPreview(null);
-    setApplyResult(null);
-    setRecentlyApplied(new Set());
-    setPhase('idle');
+    setNote(null);
     try {
       const headers = await authHeaders();
-      const res = await fetch('/api/seo-engine/archive-audit', {
+      const res = await fetch('/api/seo-engine/archive-jobs/scan', {
         method: 'POST',
         headers,
-        body: JSON.stringify({
-          limit,
-          locales: ['da', 'en'],
-          measurementWindowDays: 28,
-        }),
+        body: JSON.stringify({ limit }),
       });
       const j = await res.json();
-      if (!res.ok || !j.ok) throw new Error(j.error || 'Scan fejlede');
-      setReport(j.report as Report);
+      if (!res.ok) throw new Error(j.error || 'Scan fejlede');
+      setJobs(j.jobs || []);
+      setNote(
+        `Scan færdig · ${j.jobCount} jobs · ${j.skippedNoise || 0} støj skjult (EN 404 m.m.)`
+      );
+      setTab('open');
+      try {
+        await refreshList();
+      } catch {
+        /* jobs already in response */
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
       setLoading(false);
     }
-  }, [authHeaders, limit]);
+  };
 
-  const typeOptions = useMemo(() => {
-    const set = new Set<string>();
-    for (const r of report?.rows || []) {
-      if (r.articleTypeHint) set.add(r.articleTypeHint);
-    }
-    return ['all', ...[...set].sort()];
-  }, [report]);
-
-  const rows = (report?.rows || []).filter((r) => {
-    if (filter === 'da' || filter === 'en') {
-      if (r.locale !== filter) return false;
-    } else if (filter === 'P0' || filter === 'P1') {
-      if (r.priority !== filter) return false;
-    } else if (filter === 'quick_win') {
-      if (r.winClass !== 'quick_win') return false;
-    } else if (filter === 'stale') {
-      if (r.freshness !== 'stale') return false;
-    }
-    if (typeFilter !== 'all' && r.articleTypeHint !== typeFilter) return false;
-    return true;
-  });
-
-  const toggle = (key: string) => {
-    setSelected((prev) => {
-      const next = new Set(prev);
-      if (next.has(key)) next.delete(key);
-      else next.add(key);
-      return next;
-    });
+  const switchTab = async (next: ArchiveJobTab) => {
+    setTab(next);
     setPreview(null);
-    setPhase('idle');
-  };
-
-  const toggleExpand = (key: string) => {
-    setExpanded((prev) => {
-      const next = new Set(prev);
-      if (next.has(key)) next.delete(key);
-      else next.add(key);
-      return next;
-    });
-  };
-
-  const selectVisibleP0 = () => {
-    const next = new Set(selected);
-    for (const r of rows) {
-      if (r.priority !== 'P0') continue;
-      if (!isArchiveRowEligibleForApply(r)) continue;
-      next.add(rowKey(r));
-    }
-    setSelected(next);
-    setPreview(null);
-    setPhase('idle');
-  };
-
-  const toggleFixKind = (id: ArchiveFixKindUi) => {
-    setFixKinds((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-    setPreview(null);
-    setPhase('idle');
-  };
-
-  const selectionPayload = useMemo(() => {
-    return [...selected]
-      .map((key) => {
-        const [itemId, locale] = key.split(':');
-        if (!itemId || (locale !== 'da' && locale !== 'en')) return null;
-        const row = (report?.rows || []).find((r) => r.itemId === itemId && r.locale === locale);
-        if (row && !isArchiveRowEligibleForApply(row)) return null;
-        return { itemId, locale: locale as 'da' | 'en' };
-      })
-      .filter(Boolean) as Array<{ itemId: string; locale: 'da' | 'en' }>;
-  }, [selected, report]);
-
-  const contentKindsSelected = useMemo(
-    () => ARCHIVE_FIX_KIND_OPTIONS.filter((o) => o.id !== 'seo_meta' && fixKinds.has(o.id)).map((o) => o.id),
-    [fixKinds]
-  );
-  const seoMetaSelected = fixKinds.has('seo_meta');
-  const maxBatch = contentKindsSelected.length > 0 ? ARCHIVE_CONTENT_MAX_BATCH : ARCHIVE_APPLY_MAX_BATCH;
-
-  const runPreview = async () => {
-    setError(null);
-    setApplyResult(null);
-    if (fixKinds.size === 0) {
-      setError('Vælg mindst én fix-type');
-      return;
-    }
-    if (selectionPayload.length === 0) {
-      setError('Vælg mindst én gyldig række (fetch-fejl / manglende EN er filtreret fra)');
-      return;
-    }
-    if (selectionPayload.length > maxBatch) {
-      setError(`Max ${maxBatch} valgte pr. gang for valgte fix-typer`);
-      return;
-    }
-    setPhase('previewing');
-    try {
-      const headers = await authHeaders();
-
-      // Content fixes (body/canonical/alt) — separate frozen preview
-      if (contentKindsSelected.length > 0) {
-        const res = await fetch('/api/seo-engine/archive-audit/content-preview', {
-          method: 'POST',
-          headers,
-          body: JSON.stringify({ selection: selectionPayload, kinds: contentKindsSelected }),
-        });
-        const j = await res.json();
-        if (!res.ok || !j.ok) {
-          throw new Error(previewErrorMessage(j.error || j.errorMessage) || 'Preview fejlede');
-        }
-        if (j.stoppedOnError) {
-          setPreview(null);
-          setError(previewErrorMessage(j.errorMessage));
-          setPhase('idle');
-          return;
-        }
-        const proposals = j.proposals || [];
-        if (!proposals.length) {
-          setError('Ingen gyldige indholds-forslag — tjek skip-årsager');
-          setPreview({
-            mode: 'content',
-            previewId: j.previewId,
-            confirmToken: j.confirmToken,
-            expiresAt: j.expiresAt,
-            proposals: [],
-            rejected: j.rejected || [],
-            stoppedOnError: false,
-            errorMessage: null,
-            kinds: contentKindsSelected,
-          });
-          setPhase('confirm');
-          return;
-        }
-        setPreview({
-          mode: 'content',
-          previewId: j.previewId,
-          confirmToken: j.confirmToken,
-          expiresAt: j.expiresAt,
-          proposals,
-          rejected: j.rejected || [],
-          stoppedOnError: false,
-          errorMessage: null,
-          kinds: contentKindsSelected,
-        });
-        if (seoMetaSelected) {
-          setError('Tip: SEO-title+meta køres i et separat trin — fjern indholds-chips for SEO-only');
-        }
-        setPhase('confirm');
-        return;
-      }
-
-      // SEO title + meta only
-      const res = await fetch('/api/seo-engine/archive-audit/preview', {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({ selection: selectionPayload }),
-      });
-      const j = await res.json();
-      if (!res.ok || !j.ok) {
-        throw new Error(previewErrorMessage(j.error || j.errorMessage) || 'Preview fejlede');
-      }
-      if (j.stoppedOnError) {
-        setPreview(null);
-        setError(previewErrorMessage(j.errorMessage));
-        setPhase('idle');
-        return;
-      }
-      const proposals = j.proposals || [];
-      if (proposals.length === 0) {
-        setPreview({
-          mode: 'seo_meta',
-          previewId: j.previewId,
-          confirmToken: j.confirmToken,
-          expiresAt: j.expiresAt,
-          proposals: [],
-          rejected: j.rejected || [],
-          stoppedOnError: false,
-          errorMessage: null,
-          kinds: ['seo_meta'],
-        });
-        setError('Ingen gyldige forslag — tjek skip-årsager nedenfor');
-        setPhase('confirm');
-        return;
-      }
-      setPreview({
-        mode: 'seo_meta',
-        previewId: j.previewId,
-        confirmToken: j.confirmToken,
-        expiresAt: j.expiresAt,
-        proposals,
-        rejected: j.rejected || [],
-        stoppedOnError: false,
-        errorMessage: null,
-        kinds: ['seo_meta'],
-      });
-      setPhase('confirm');
-    } catch (e) {
-      setPreview(null);
-      setError(previewErrorMessage(e instanceof Error ? e.message : String(e)));
-      setPhase('idle');
-    }
-  };
-
-  const confirmApply = async () => {
-    if (!preview) return;
-    const n = preview.proposals.length;
-    if (n === 0) {
-      setError('Ingen gyldige forslag at anvende');
-      return;
-    }
-    const confirmMsg =
-      preview.mode === 'content'
-        ? `Indsæt/ret indhold for ${n} artikel(ler)?\n\nFix: ${preview.kinds.join(', ')}\nBackup tages først. Publiceret status bevares.`
-        : `Overskriv SEO-title og meta for ${n} valgte?\n\nKun SEO-title + meta. Publiceret status bevares. Der tages backup før skrivning.`;
-    const ok = window.confirm(confirmMsg);
-    if (!ok) return;
-
-    setPhase('applying');
     setError(null);
     try {
       const headers = await authHeaders();
-      const endpoint =
-        preview.mode === 'content'
-          ? '/api/seo-engine/archive-audit/content-apply'
-          : '/api/seo-engine/archive-audit/apply';
-      const res = await fetch(endpoint, {
-        method: 'POST',
+      const res = await fetch(`/api/seo-engine/archive-jobs/scan?tab=${next}&limit=120`, {
         headers,
-        body: JSON.stringify({
-          previewId: preview.previewId,
-          confirmOverwrite: true,
-          confirmToken: preview.confirmToken,
-        }),
       });
       const j = await res.json();
-      if (!res.ok && !j.writtenCount && !j.results) throw new Error(j.error || 'Anvendelse fejlede');
-      const written = j.writtenCount ?? 0;
-      const results: Array<{
-        itemId: string;
-        title: string;
-        locales: Array<{ locale: string; status: string; reason?: string }>;
-      }> = (j.results || []).map(
-        (item: {
-          itemId?: string;
-          title?: string;
-          locales?: Array<{ locale: string; status: string; reason?: string }>;
-        }) => ({
-          itemId: String(item.itemId || ''),
-          title: String(item.title || ''),
-          locales: Array.isArray(item.locales) ? item.locales : [],
-        })
-      );
-      setApplyResult({
-        writtenCount: written,
-        stoppedOnError: Boolean(j.stoppedOnError),
-        errorMessage: j.errorMessage || j.error || null,
-        mode: preview.mode,
-        results,
-      });
-
-      // Patch local table so user sees new SEO/title and cleared findings immediately
-      if (written > 0 && report?.rows?.length) {
-        const writtenKeys = new Set<string>();
-        for (const item of results) {
-          for (const loc of item.locales || []) {
-            if (loc.status === 'written' || loc.status === 'ok') {
-              writtenKeys.add(`${item.itemId}:${loc.locale}`);
-            }
-          }
-        }
-        const appliedProposals =
-          writtenKeys.size > 0
-            ? preview.proposals.filter((p) => writtenKeys.has(`${p.itemId}:${p.locale}`))
-            : preview.proposals;
-        const nextRows =
-          preview.mode === 'seo_meta'
-            ? patchRowsAfterSeoMetaApply(report.rows, appliedProposals)
-            : patchRowsAfterContentApply(report.rows, appliedProposals);
-        const p0 = nextRows.filter((r) => r.priority === 'P0').length;
-        const p1 = nextRows.filter((r) => r.priority === 'P1').length;
-        const p2 = nextRows.filter((r) => r.priority === 'P2').length;
-        const okCount = nextRows.filter((r) => r.priority === 'ok').length;
-        setReport({
-          ...report,
-          rows: nextRows,
-          summary: {
-            ...(report.summary || {}),
-            p0,
-            p1,
-            p2,
-            ok: okCount,
-          },
-        });
-        setRecentlyApplied(
-          new Set(appliedProposals.map((p) => `${p.itemId}:${p.locale}`))
-        );
-      }
-
-      setPhase('done');
-      if (j.stoppedOnError) {
-        setError(j.errorMessage || j.error || 'Stoppet ved fejl');
-      }
-      requestAnimationFrame(() => {
-        resultPanelRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-      });
+      if (!res.ok) throw new Error(j.error || 'Kunne ikke hente kø');
+      setJobs(j.jobs || []);
+      if (j.counts) setCounts(j.counts);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
-      setPhase('confirm');
     }
   };
 
-  const dataStatus = report ? dataStatusLine(report) : null;
-  const canApply =
-    selected.size > 0 &&
-    selectionPayload.length > 0 &&
-    selectionPayload.length <= maxBatch &&
-    fixKinds.size > 0 &&
-    phase !== 'previewing' &&
-    phase !== 'applying';
+  const runLos = async (job: ArchiveJob) => {
+    setBusyId(job.jobId);
+    setError(null);
+    setPreview(null);
+    try {
+      const headers = await authHeaders();
+      const res = await fetch(
+        `/api/seo-engine/archive-jobs/${encodeURIComponent(job.jobId)}`,
+        {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({ action: 'preview', job }),
+        }
+      );
+      const j = await res.json();
+      if (!res.ok || !j.ok) throw new Error(j.error || 'Preview fejlede');
+      setPreview(j.preview as PreviewState);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const confirmLos = async () => {
+    if (!preview) return;
+    const ok = window.confirm(
+      `${preview.summary}\n\nSkriver til Webflow. Backup tages først. Publiceret status bevares.`
+    );
+    if (!ok) return;
+    setBusyId(preview.jobId);
+    setError(null);
+    try {
+      const headers = await authHeaders();
+      const job = jobs.find((j) => j.jobId === preview.jobId);
+      const res = await fetch(
+        `/api/seo-engine/archive-jobs/${encodeURIComponent(preview.jobId)}`,
+        {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({
+            action: 'apply',
+            confirmOverwrite: true,
+            confirmToken: preview.confirmToken,
+            job,
+          }),
+        }
+      );
+      const j = await res.json();
+      if (!res.ok && !j.job) throw new Error(j.error || 'Anvendelse fejlede');
+      if (j.job) {
+        setJobs((prev) => prev.map((x) => (x.jobId === j.job.jobId ? j.job : x)));
+        const badge = jobStatusBadge(j.job);
+        setNote(
+          j.written
+            ? `Skrevet · ${badge.label}. Succes = planlagte tasks — ikke hele artiklen P0-fri.`
+            : j.error || 'Ikke skrevet'
+        );
+      }
+      if (j.error) setError(j.error);
+      setPreview(null);
+      await refreshList().catch(() => undefined);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const dismiss = async (job: ArchiveJob) => {
+    setBusyId(job.jobId);
+    try {
+      const headers = await authHeaders();
+      await fetch(`/api/seo-engine/archive-jobs/${encodeURIComponent(job.jobId)}`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ action: 'dismiss' }),
+      });
+      setJobs((prev) => prev.filter((j) => j.jobId !== job.jobId));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const visible = useMemo(() => jobs, [jobs]);
 
   return (
-    <section className="rounded-xl border border-white/12 bg-white/[0.03] p-3 lg:p-4 space-y-3">
+    <section className="rounded-xl border border-white/12 bg-white/[0.03] p-3 lg:p-4 space-y-3 font-poppins">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
           <p className="text-[15px] font-medium text-white tracking-tight">Arkiv</p>
           <p className="text-[12px] text-white/45 mt-0.5 leading-snug">
-            Scan, vælg fix-typer, preview, og anvend — SEO, links, overskrifter, canonical eller billede-alt.
+            Impact-kø med smalle fix-jobs — ikke mega-strategize. Scan → Løs → verificér.
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -613,420 +235,146 @@ export default function ArchiveAuditPanel() {
               className="apropos-input-dark h-10 rounded-lg border border-white/12 bg-[#141414] px-2 text-[12px] text-white"
               value={limit}
               onChange={(e) => setLimit(Number(e.target.value))}
-              disabled={loading || phase === 'previewing' || phase === 'applying'}
+              disabled={loading}
             >
-              {[40, 80, 150, 300, 500].map((n) => (
+              {[40, 80, 150, 300].map((n) => (
                 <option key={n} value={n}>
                   {n}
                 </option>
               ))}
             </select>
           </label>
-          <button
-            type="button"
-            className={primaryBtn}
-            disabled={loading || phase === 'previewing' || phase === 'applying'}
-            onClick={() => void runScan()}
-          >
-            {loading ? 'Scanner…' : 'Scan arkiv'}
+          <button type="button" className={primaryBtn} disabled={loading} onClick={() => void runScan()}>
+            {loading ? 'Scanner…' : 'Scan → kø'}
           </button>
         </div>
       </div>
 
+      <div className="flex flex-wrap gap-1.5 items-center">
+        {(
+          [
+            ['open', 'Åbne', counts.open],
+            ['running', 'Kører', counts.running],
+            ['done', 'Løst', counts.done],
+          ] as const
+        ).map(([id, label, n]) => (
+          <button key={id} type="button" className={segBtn(tab === id)} onClick={() => void switchTab(id)}>
+            {label}
+            <span className="ml-1 text-white/35">{n}</span>
+          </button>
+        ))}
+      </div>
+
       {error && <p className="text-[12px] text-red-400/95">{error}</p>}
+      {note && <p className="text-[12px] text-white/55">{note}</p>}
 
-      {report && (
-        <>
-          <div className="flex flex-wrap gap-2">
-            {[
-              ['Kritiske', report.summary?.p0 ?? 0, 'bg-rose-400'],
-              ['Vigtige', report.summary?.p1 ?? 0, 'bg-amber-400'],
-              ['OK', report.summary?.ok ?? 0, 'bg-emerald-400'],
-              ['Hurtige gevinster', report.summary?.quickWins ?? 0, 'bg-white/40'],
-            ].map(([label, value, dot]) => (
-              <div
-                key={String(label)}
-                className="inline-flex items-center gap-2 rounded-lg border border-white/10 bg-white/[0.03] px-2.5 py-1.5"
-              >
-                <span className={`size-1.5 rounded-full ${dot}`} />
-                <span className="text-[11px] text-white/45">{label}</span>
-                <span className="text-[13px] font-medium text-white/90">{value}</span>
-              </div>
-            ))}
-          </div>
-
-          {dataStatus && (
-            <div className="rounded-xl border border-white/[0.06] overflow-hidden">
-              <button
-                type="button"
-                className="flex items-center gap-3 w-full px-3.5 py-2.5 text-left hover:bg-white/[0.03] transition-all"
-                onClick={() => setDataOpen((v) => !v)}
-              >
-                <span
-                  className={`size-1.5 rounded-full ${dataStatus.ok ? 'bg-emerald-400' : 'bg-amber-400'}`}
-                />
-                <span className="text-[12px] text-white/70 flex-1">{dataStatus.label}</span>
-                <span className="text-[10px] text-white/30">{dataOpen ? 'Skjul' : 'Detaljer'}</span>
-              </button>
-              {dataOpen && (
-                <p className="px-3.5 pb-2.5 text-[11px] text-white/40 leading-snug">{dataStatus.detail}</p>
-              )}
-            </div>
-          )}
-
-          {!!report.patterns?.length && (
-            <div className="rounded-xl border border-white/10 bg-white/[0.02] p-3 space-y-1.5">
-              <p className="text-[12px] font-medium text-white/80">Mønstre</p>
-              {report.patterns.slice(0, 3).map((p) => (
-                <p key={p.id} className="text-[11px] text-white/55 leading-snug">
-                  {p.observation}
-                </p>
-              ))}
-            </div>
-          )}
-
-          <div className="flex flex-wrap gap-1.5 items-center">
-            {(
-              [
-                ['all', 'Alle'],
-                ['da', 'DA'],
-                ['en', 'EN'],
-                ['P0', 'Kritiske'],
-                ['P1', 'Vigtige'],
-                ['quick_win', 'Hurtige'],
-                ['stale', 'Forældede'],
-              ] as const
-            ).map(([f, label]) => (
-              <button key={f} type="button" onClick={() => setFilter(f)} className={segBtn(filter === f)}>
-                {label}
-              </button>
-            ))}
-            <select
-              className="apropos-input-dark h-9 rounded-lg border border-white/12 bg-[#141414] px-2 text-[11px] text-white"
-              value={typeFilter}
-              onChange={(e) => setTypeFilter(e.target.value)}
-            >
-              {typeOptions.map((t) => (
-                <option key={t} value={t}>
-                  {t === 'all' ? 'Alle typer' : t}
-                </option>
-              ))}
-            </select>
-            <button type="button" className={secondaryBtn} onClick={selectVisibleP0}>
-              Markér kritiske
-            </button>
-            <button
-              type="button"
-              className={secondaryBtn}
-              onClick={() => {
-                setSelected(new Set());
-                setPreview(null);
-                setPhase('idle');
-              }}
-              disabled={selected.size === 0}
-            >
-              Ryd
-            </button>
-          </div>
-
-          <div className="rounded-xl border border-white/12 bg-white/[0.04] px-3 py-2.5 space-y-2.5">
-            <div className="flex flex-wrap gap-1.5 items-center">
-              <span className="text-[11px] text-white/45 mr-1">Fix:</span>
-              {ARCHIVE_FIX_KIND_OPTIONS.map((opt) => (
-                <button
-                  key={opt.id}
-                  type="button"
-                  onClick={() => toggleFixKind(opt.id)}
-                  className={segBtn(fixKinds.has(opt.id))}
-                  disabled={phase === 'previewing' || phase === 'applying'}
-                >
-                  {opt.label}
-                </button>
-              ))}
-            </div>
-            <div className="flex flex-wrap items-center gap-2">
-              <p className="text-[12px] text-white/60 flex-1 min-w-[140px]">
-                {selected.size === 0
-                  ? 'Vælg rækker (fetch-fejl / manglende EN springes over)'
-                  : `${selectionPayload.length} klar · ${selected.size} markeret${
-                      selectionPayload.length > maxBatch ? ` (max ${maxBatch})` : ''
-                    }`}
+      {preview && (
+        <div className="rounded-xl border border-white/25 bg-black/40 p-3 space-y-2 shadow-[0_0_32px_-8px_rgba(255,255,255,0.18)]">
+          <p className="text-[13px] font-medium text-white/90">Løs — preview</p>
+          <p className="text-[12px] text-white/70">{preview.summary}</p>
+          {preview.seoMeta && (
+            <div className="text-[11px] text-white/45 space-y-1">
+              <p>
+                Title: <span className="text-white/30 line-through">{preview.seoMeta.oldSeoTitle || '∅'}</span>
+                {' → '}
+                <span className="text-white/80">{preview.seoMeta.newSeoTitle}</span>
               </p>
-              <button
-                type="button"
-                className={primaryBtn}
-                disabled={!canApply}
-                onClick={() => void runPreview()}
-              >
-                {phase === 'previewing' ? 'Forbereder…' : 'Anvend valgte'}
-              </button>
+              <p className="line-clamp-2">
+                Meta: {preview.seoMeta.newMetaDescription}
+              </p>
             </div>
+          )}
+          <div className="flex flex-wrap gap-2 pt-1">
+            <button type="button" className={secondaryBtn} onClick={() => setPreview(null)}>
+              Annullér
+            </button>
+            <button type="button" className={dangerOutlineBtn} onClick={() => void confirmLos()}>
+              Bekræft skrivning
+            </button>
           </div>
+        </div>
+      )}
 
-          {(phase === 'confirm' || phase === 'applying' || phase === 'done') && preview && (
-            <div
-              ref={resultPanelRef}
-              className={`rounded-xl border bg-black/40 p-3 space-y-3 transition-all duration-300 ${
-                phase === 'done' && (applyResult?.writtenCount || 0) > 0
-                  ? 'border-white/25 shadow-[0_0_32px_-8px_rgba(255,255,255,0.18)]'
-                  : 'border-white/15'
-              }`}
+      <div className="space-y-2">
+        {visible.length === 0 && !loading ? (
+          <p className="text-[12px] text-white/40 px-1 py-6 text-center">
+            Ingen jobs i «{tab === 'open' ? 'Åbne' : tab === 'running' ? 'Kører' : 'Løst'}». Kør Scan → kø.
+          </p>
+        ) : null}
+
+        {visible.map((job) => {
+          const badge = jobStatusBadge(job);
+          const status = deriveJobStatus(job.tasks);
+          const busy = busyId === job.jobId;
+          const openKinds = job.tasks
+            .filter((t) => t.status === 'open' || t.status === 'failed')
+            .map((t) => t.kind);
+          return (
+            <article
+              key={job.jobId}
+              className="rounded-xl border border-white/10 bg-white/[0.02] px-3.5 py-3 space-y-2"
             >
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <p className="text-[13px] font-medium text-white/90">
-                  {phase === 'done' ? 'Resultat' : 'Preview — gammel → ny'}
-                </p>
-                {phase === 'confirm' && (
-                  <div className="flex flex-wrap gap-2">
+              <div className="flex flex-wrap items-start justify-between gap-2">
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md border border-white/15 bg-white/[0.06] text-[10px] uppercase tracking-wider text-white/70">
+                      <span className={`size-1.5 rounded-full ${badgeDot(badge.tone)}`} />
+                      {badge.label}
+                    </span>
+                    <span className="text-[10px] text-white/30 uppercase">{job.locale}</span>
+                  </div>
+                  <p className="text-[13px] font-medium text-white/90 mt-1.5 truncate">
+                    {job.title}
+                  </p>
+                  <p className="text-[11px] text-white/40 mt-0.5">{job.whyInQueue}</p>
+                  {job.seoTitle ? (
+                    <p className="text-[10px] text-white/30 mt-1 truncate">SEO: {job.seoTitle}</p>
+                  ) : null}
+                </div>
+                <div className="flex flex-wrap gap-2 shrink-0">
+                  {tab !== 'done' && openKinds.length > 0 ? (
+                    <button
+                      type="button"
+                      className={primaryBtn}
+                      disabled={busy || status === 'fixing'}
+                      onClick={() => void runLos(job)}
+                    >
+                      {busy ? '…' : 'Løs'}
+                    </button>
+                  ) : null}
+                  {tab === 'open' ? (
                     <button
                       type="button"
                       className={secondaryBtn}
-                      onClick={() => {
-                        setPreview(null);
-                        setError(null);
-                        setPhase('idle');
-                      }}
+                      disabled={busy}
+                      onClick={() => void dismiss(job)}
                     >
-                      Annullér
+                      Afvis
                     </button>
-                    {preview.proposals.length > 0 && !preview.stoppedOnError ? (
-                      <button
-                        type="button"
-                        className={dangerOutlineBtn}
-                        onClick={() => void confirmApply()}
-                      >
-                        {preview.mode === 'content'
-                          ? `Indsæt/ret for ${preview.proposals.length} artikel(ler)`
-                          : `Overskriv SEO-title og meta for ${preview.proposals.length} valgte`}
-                      </button>
-                    ) : null}
-                  </div>
-                )}
-                {phase === 'applying' && (
-                  <p className="text-[12px] text-white/50">Skriver… backup først</p>
-                )}
-              </div>
-
-              {preview.stoppedOnError && (
-                <p className="text-[12px] text-red-400/95">
-                  {previewErrorMessage(preview.errorMessage)}
-                </p>
-              )}
-
-              <div className="space-y-2 max-h-72 overflow-y-auto nice-scrollbar">
-                {preview.proposals.map((p) => (
-                  <div
-                    key={`${p.itemId}:${p.locale}`}
-                    className="rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2 space-y-1"
-                  >
-                    <p className="text-[12px] text-white/80">
-                      {p.title || p.slug} · {p.locale.toUpperCase()}
-                    </p>
-                    {preview.mode === 'seo_meta' ? (
-                      <>
-                        <p className="text-[11px] text-white/40">
-                          Title: <span className="text-white/30">{p.oldSeoTitle || '(tom)'}</span>
-                          {' → '}
-                          <span className="text-white/75">{p.newSeoTitle}</span>
-                        </p>
-                        <p className="text-[11px] text-white/40">
-                          Meta: <span className="text-white/30">{p.oldMetaDescription || '(tom)'}</span>
-                          {' → '}
-                          <span className="text-white/75">{p.newMetaDescription}</span>
-                        </p>
-                      </>
-                    ) : (
-                      <>
-                        {p.canonicalChanged ? (
-                          <p className="text-[11px] text-white/40">
-                            Canonical:{' '}
-                            <span className="text-white/30">{p.oldCanonical || '(tom)'}</span>
-                            {' → '}
-                            <span className="text-white/75">{p.newCanonical}</span>
-                          </p>
-                        ) : null}
-                        {p.thumbAltChanged ? (
-                          <p className="text-[11px] text-white/40">
-                            Thumb alt:{' '}
-                            <span className="text-white/30">{p.oldThumbAlt || '(tom)'}</span>
-                            {' → '}
-                            <span className="text-white/75">{p.newThumbAlt}</span>
-                          </p>
-                        ) : null}
-                        {(p.links || []).slice(0, 3).map((l) => (
-                          <p key={l.url} className="text-[11px] text-white/45">
-                            Link «{l.anchorText}» → {l.title}
-                          </p>
-                        ))}
-                        {(p.headings || []).map((h, i) => (
-                          <p key={`${h.text}-${i}`} className="text-[11px] text-white/45">
-                            H{h.level}: {h.text}
-                          </p>
-                        ))}
-                        {p.contentChanged ? (
-                          <p className="text-[10px] text-white/30 line-clamp-2">
-                            Brødtekst opdateres ({(p.newContentExcerpt || '').length}+ tegn preview)
-                          </p>
-                        ) : null}
-                      </>
-                    )}
-                  </div>
-                ))}
-                {preview.rejected.map((r) => (
-                  <p key={`${r.itemId}:${r.locale}:rej`} className="text-[11px] text-amber-300/80">
-                    Skip {r.itemId.slice(0, 8)}…:{r.locale} — {r.reason || r.status}
-                  </p>
-                ))}
-              </div>
-
-              {applyResult && (
-                <div className="border-t border-white/10 pt-2 space-y-1.5">
-                  <p className="text-[12px] text-white/70">
-                    Skrevet: {applyResult.writtenCount}
-                    {applyResult.stoppedOnError ? ' · stoppet ved fejl' : ' · færdig'}
-                  </p>
-                  {applyResult.mode === 'seo_meta' && applyResult.writtenCount > 0 ? (
-                    <p className="text-[11px] text-white/45 leading-snug">
-                      SEO-title/meta skrevet. Øvrige fund (links/headings/canonical) kræver næste
-                      fix-typer — vælg chips ovenfor og kør Anvend igen.
-                    </p>
                   ) : null}
-                  {applyResult.mode === 'content' && applyResult.writtenCount > 0 ? (
-                    <p className="text-[11px] text-white/45 leading-snug">
-                      Brødtekst/canonical/alt opdateret. Tabellen er opdateret lokalt — kør Scan arkiv
-                      for frisk CMS-status.
-                    </p>
-                  ) : null}
-                  {(applyResult.results || []).map((item) => (
-                    <p key={item.itemId} className="text-[11px] text-white/45">
-                      {item.title || item.itemId}:{' '}
-                      {item.locales.map((l) => `${l.locale}=${l.status}`).join(', ')}
-                    </p>
-                  ))}
                 </div>
-              )}
-            </div>
-          )}
-
-          <div className="rounded-xl border border-white/10 overflow-hidden max-h-[28rem] overflow-y-auto nice-scrollbar">
-            <table className="min-w-full text-[12px]">
-              <thead className="bg-white/[0.04] sticky top-0">
-                <tr className="text-left text-white/45">
-                  <th className="w-11 px-0 py-2 font-medium" />
-                  <th className="w-16 px-2 py-2 font-medium">Status</th>
-                  <th className="px-2.5 py-2 font-medium">Artikel</th>
-                  <th className="px-2.5 py-2 font-medium">Fund</th>
-                </tr>
-              </thead>
-              <tbody>
-                {rows.slice(0, 120).map((r) => {
-                  const key = rowKey(r);
-                  const open = expanded.has(key);
-                  const busy = phase === 'previewing' || phase === 'applying';
-                  const justApplied = recentlyApplied.has(key);
-                  return (
-                    <tr
-                      key={key}
-                      className={`border-t border-white/[0.06] align-middle ${
-                        justApplied ? 'bg-white/[0.04]' : ''
-                      }`}
-                    >
-                      <td className="w-11 px-0 py-0.5">
-                        <RowCheckbox
-                          checked={selected.has(key)}
-                          onChange={() => toggle(key)}
-                          label={`Vælg ${r.title || r.slug}`}
-                          disabled={busy}
-                        />
-                      </td>
-                      <td className="px-2 py-2">
-                        <div className="flex flex-col gap-1 items-start">
-                          <span className="inline-flex items-center gap-1.5 text-[11px] text-white/65">
-                            <span className={`size-1.5 shrink-0 rounded-full ${priorityDot(r.priority)}`} />
-                            {r.priority === 'P0'
-                              ? 'Kritisk'
-                              : r.priority === 'P1'
-                                ? 'Vigtig'
-                                : r.priority === 'ok'
-                                  ? 'OK'
-                                  : r.priority}
-                          </span>
-                          {justApplied ? (
-                            <span className="inline-flex items-center gap-1.5 px-1.5 py-0.5 rounded-md border border-white/15 bg-white/[0.06] text-[10px] uppercase tracking-wider text-white/70">
-                              <span className="size-1.5 rounded-full bg-emerald-400" />
-                              Opdateret nu
-                            </span>
-                          ) : null}
-                        </div>
-                      </td>
-                      <td className="px-2.5 py-2 text-white/80 align-top">
-                        <button
-                          type="button"
-                          className="text-left hover:text-white transition-colors"
-                          onClick={() => toggleExpand(key)}
-                        >
-                          <span className="font-medium">{r.title || r.slug}</span>
-                          <span className="text-white/35"> · {r.locale.toUpperCase()}</span>
-                        </button>
-                        {justApplied || open ? (
-                          <p className="mt-1 text-[10px] text-white/35 truncate max-w-[280px]">
-                            SEO: {r.seoTitle || '(tom)'}
-                          </p>
-                        ) : null}
-                        {open && (
-                          <div className="mt-1.5 space-y-0.5 text-[11px] text-white/40">
-                            <p>
-                              {[r.articleTypeHint, r.ageBucket, r.freshness].filter(Boolean).join(' · ') ||
-                                '—'}
-                            </p>
-                            <p>
-                              {r.ga4PageMatched ? `GA4 ${r.ga4PageViews ?? 0} visninger` : 'GA4 —'}
-                              {' · '}
-                              {r.gscPageMatched
-                                ? `SC ${r.gscClicks ?? 0} klik${r.gscTopQuery ? ` · ${r.gscTopQuery}` : ''}`
-                                : 'SC —'}
-                            </p>
-                          </div>
-                        )}
-                      </td>
-                      <td className="px-2.5 py-2 text-white/50 align-top">
-                        <button
-                          type="button"
-                          className="text-left w-full hover:text-white/70"
-                          onClick={() => toggleExpand(key)}
-                        >
-                          {r.findings.length === 0
-                            ? justApplied
-                              ? 'Ingen åbne SEO-fund for denne fix'
-                              : 'Ingen fund'
-                            : findingSummary(r)}
-                        </button>
-                        {open && r.findings.length > 0 && (
-                          <ul className="mt-1.5 space-y-1">
-                            {r.findings.map((f, i) => (
-                              <li key={`${f.code}-${i}`} className="text-[11px] text-white/40">
-                                {f.message}
-                                {f.evidence ? (
-                                  <span className="text-white/25"> · {f.evidence}</span>
-                                ) : null}
-                              </li>
-                            ))}
-                          </ul>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-
-          <p className="text-[10px] text-white/30">
-            Scannet {report.scanned} · {report.measurementWindowDays}d vindue · max {ARCHIVE_APPLY_MAX_BATCH}{' '}
-            pr. anvendelse
-          </p>
-        </>
-      )}
+              </div>
+              <ul className="flex flex-wrap gap-1.5">
+                {job.tasks.map((t) => (
+                  <li
+                    key={t.kind}
+                    className={`rounded-lg border px-2 py-1 text-[10px] ${
+                      t.status === 'verified'
+                        ? 'border-white/15 text-white/70 bg-white/[0.06]'
+                        : t.status === 'failed'
+                          ? 'border-white/20 text-white/55'
+                          : 'border-white/[0.06] text-white/40'
+                    }`}
+                  >
+                    {ARCHIVE_JOB_TASK_LABELS[t.kind]}
+                    {t.status === 'verified' ? ' · ok' : t.status === 'failed' ? ' · fejl' : ''}
+                  </li>
+                ))}
+              </ul>
+            </article>
+          );
+        })}
+      </div>
     </section>
   );
 }

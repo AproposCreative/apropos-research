@@ -295,7 +295,7 @@ describe('archive-apply preview + apply flow', () => {
       store,
       fetchFn: async () => publishedItem() as never,
       analyzeFn: aiAnalyze(),
-      strategizeFn: aiStrategize(),
+      proposeSeoMetaFn: async () => ({ seoTitle: 'Ny SEO titel om Artikel', metaDescription: 'En meta-beskrivelse der er lang nok til at bestå validering for Arkiv apply.', articleTypeHint: null, mode: 'ai' as const }),
       previewPaceMs: 0,
     });
 
@@ -324,7 +324,7 @@ describe('archive-apply preview + apply flow', () => {
         return publishedItem() as never;
       },
       analyzeFn: aiAnalyze(),
-      strategizeFn: aiStrategize(),
+      proposeSeoMetaFn: async () => ({ seoTitle: 'Ny SEO titel om Artikel', metaDescription: 'En meta-beskrivelse der er lang nok til at bestå validering for Arkiv apply.', articleTypeHint: null, mode: 'ai' as const }),
       previewPaceMs: 0,
       sleep: async () => undefined,
       transientRetry: {
@@ -353,7 +353,7 @@ describe('archive-apply preview + apply flow', () => {
         throw new WebflowLocaleFetchError('Too Many Requests', 429, 10);
       },
       analyzeFn: aiAnalyze(),
-      strategizeFn: aiStrategize(),
+      proposeSeoMetaFn: async () => ({ seoTitle: 'Ny SEO titel om Artikel', metaDescription: 'En meta-beskrivelse der er lang nok til at bestå validering for Arkiv apply.', articleTypeHint: null, mode: 'ai' as const }),
       previewPaceMs: 0,
       sleep: async () => undefined,
       transientRetry: {
@@ -410,7 +410,7 @@ describe('archive-apply preview + apply flow', () => {
       store,
       fetchFn: async () => publishedItem() as never,
       analyzeFn: aiAnalyze(),
-      strategizeFn: aiStrategize(),
+      proposeSeoMetaFn: async () => ({ seoTitle: 'Ny SEO titel om Artikel', metaDescription: 'En meta-beskrivelse der er lang nok til at bestå validering for Arkiv apply.', articleTypeHint: null, mode: 'ai' as const }),
       previewPaceMs: 0,
     });
 
@@ -449,7 +449,7 @@ describe('archive-apply preview + apply flow', () => {
       store,
       fetchFn: async () => live as never,
       analyzeFn: aiAnalyze(),
-      strategizeFn: aiStrategize(),
+      proposeSeoMetaFn: async () => ({ seoTitle: 'Ny SEO titel om Artikel', metaDescription: 'En meta-beskrivelse der er lang nok til at bestå validering for Arkiv apply.', articleTypeHint: null, mode: 'ai' as const }),
       previewPaceMs: 0,
     });
 

@@ -20,7 +20,8 @@ import {
   ARCHIVE_APPLY_WEBFLOW_BUSY_DA,
 } from '@/lib/seo-engine/archive-audit-apply-constants';
 import { ensureSeoEngineBackfillDir } from '@/lib/seo-engine/backfill-paths';
-import { analyzeArticle, strategizeFromRun } from '@/lib/seo-engine/pipeline';
+import { analyzeArticle } from '@/lib/seo-engine/pipeline';
+import { proposeArchiveSeoMeta } from '@/lib/seo-engine/archive-seo-meta-agent';
 import { resolveEffectiveArticleType } from '@/lib/seo-engine/review-title-rule';
 import {
   applyFrozenSeoManifest,
@@ -404,7 +405,9 @@ export async function generateArchiveApplyPreview(opts: {
   store?: ArchiveApplyPreviewStore;
   fetchFn?: typeof fetchArticleItemByLocale;
   analyzeFn?: typeof analyzeArticle;
-  strategizeFn?: typeof strategizeFromRun;
+  /** @deprecated Prefer proposeSeoMetaFn — strategize 2-alts path removed for Arkiv */
+  strategizeFn?: unknown;
+  proposeSeoMetaFn?: typeof proposeArchiveSeoMeta;
   onLog?: (line: string) => void;
   /** Override preview fetch pacing (tests: 0). Default ARCHIVE_APPLY_PREVIEW_PACE_MS. */
   previewPaceMs?: number;
@@ -437,7 +440,7 @@ export async function generateArchiveApplyPreview(opts: {
   });
   const fetchFn = createCachedLocaleFetch(retryFetch);
   const analyzeFn = opts.analyzeFn || analyzeArticle;
-  const strategizeFn = opts.strategizeFn || strategizeFromRun;
+  const proposeSeoMetaFn = opts.proposeSeoMetaFn || proposeArchiveSeoMeta;
   const store = opts.store || createFirestoreArchiveApplyPreviewStore();
 
   const results: ItemBackfillResult[] = [];
@@ -545,33 +548,42 @@ export async function generateArchiveApplyPreview(opts: {
       }
 
       const articleKey = buildLocaleArticleKey(sel.itemId, sel.locale);
-      const analysis = await analyzeFn(input, {
-        userId: ARCHIVE_APPLY_SYSTEM_USER,
-        webflowItemId: sel.itemId,
-        articleKey,
-      });
-      const strategy = await strategizeFn(analysis.analysisRunId, {
-        userId: ARCHIVE_APPLY_SYSTEM_USER,
-        currentInput: input,
-      });
+      let effectiveArticleType: string | null = null;
+      let analysisRunId = 'archive-seo-meta-agent';
+      let seoVersionId = 'archive-seo-meta-agent';
 
-      if (strategy.mode === 'demo') {
-        stoppedOnError = true;
-        errorMessage = `Demo-mode afvist for ${sel.itemId}:${sel.locale} — rigtig AI kræves`;
-        pushRejected(sel.itemId, sel.locale, 'error', errorMessage);
-        break;
+      try {
+        const analysis = await analyzeFn(input, {
+          userId: ARCHIVE_APPLY_SYSTEM_USER,
+          webflowItemId: sel.itemId,
+          articleKey,
+        });
+        analysisRunId = analysis.analysisRunId;
+        effectiveArticleType = resolveEffectiveArticleType(analysis.analysis);
+      } catch {
+        // Analysis is optional for Arkiv seo_meta — agent still produces one title+meta
+        effectiveArticleType =
+          typeof (live.fieldData as Record<string, unknown>)['article-type'] === 'string'
+            ? String((live.fieldData as Record<string, unknown>)['article-type'])
+            : null;
       }
 
-      const seoTitle = String(strategy.pack.recommended.fields.seoTitle.value || '').trim();
-      const metaDescription = String(
-        strategy.pack.recommended.fields.metaDescription.value || ''
-      ).trim();
-      const effectiveArticleType = resolveEffectiveArticleType(analysis.analysis);
+      const metaProposal = await proposeSeoMetaFn({
+        title: itemResult.title,
+        slug: itemResult.slug,
+        bodyHtml: input.body || '',
+        language: sel.locale,
+        articleType: effectiveArticleType,
+        oldSeoTitle: oldPair.seoTitle,
+        oldMetaDescription: oldPair.metaDescription,
+      });
+
+      const seoTitle = metaProposal.seoTitle;
+      const metaDescription = metaProposal.metaDescription;
 
       const fieldCheck = validateOverwriteFields({
         seoTitle,
         metaDescription,
-        packValidation: strategy.validation,
         language: sel.locale,
         articleType: effectiveArticleType,
       });
@@ -594,15 +606,13 @@ export async function generateArchiveApplyPreview(opts: {
         oldMetaDescription: oldPair.metaDescription,
         newSeoTitle: seoTitle,
         newMetaDescription: metaDescription,
-        analysisRunId: analysis.analysisRunId,
-        seoVersionId: strategy.seoVersionId,
-        mode: strategy.mode,
+        analysisRunId,
+        seoVersionId,
+        mode: 'ai',
         validationErrors: fieldCheck.errors,
-        validationWarnings: (strategy.validation.warnings || []).map(
-          (w) => `${w.code}: ${w.message}`
-        ),
+        validationWarnings: [],
         sourceSignature,
-        effectiveArticleType,
+        effectiveArticleType: effectiveArticleType || undefined,
       };
 
       log(formatProposalChangeReport(sel.itemId, proposal));
@@ -632,8 +642,8 @@ export async function generateArchiveApplyPreview(opts: {
         oldMetaDescription: oldPair.metaDescription,
         newSeoTitle: seoTitle,
         newMetaDescription: metaDescription,
-        analysisRunId: analysis.analysisRunId,
-        seoVersionId: strategy.seoVersionId,
+        analysisRunId,
+        seoVersionId,
       });
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);

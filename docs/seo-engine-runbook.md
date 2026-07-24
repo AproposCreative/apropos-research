@@ -17,15 +17,26 @@
 | `NEXT_PUBLIC_SEO_ENGINE_DEMO` | unset | Client demo banner + ephemeral header — **never in prod** |
 | `WEBFLOW_ARTICLE_WEBHOOK_OPTIMIZE` | `true` | Image-opt only — **does not** gate SEO/translation |
 
-## Arkiv-audit + UI apply
+## Arkiv impact-kø (primary UX)
 
-- UI: SEO Engine → **Arkiv** tab (`ArchiveAuditPanel`)
+- UI: SEO Engine → **Arkiv** — tabs **Åbne · Kører · Løst**
+- Scan → jobs: `POST /api/seo-engine/archive-jobs/scan` (upserts `seoEngineArchiveJobs`; skips EN 404 noise)
+- List: `GET /api/seo-engine/archive-jobs/scan?tab=open|running|done`
+- Løs: `POST /api/seo-engine/archive-jobs/[jobId]` `{ action: "preview" }` then `{ action: "apply", confirmOverwrite: true, confirmToken }`
+- Tasks: `seo_meta` | `canonical` | `image_alt` | `headings` | `internal_links`
+- Lifecycle: `open → fixing → verified | partial | failed | dismissed`
+- Success = **planned** findings resolved (CMS re-fetch), not whole-article P0-free
+- After seo_meta only with remaining content: badge **Meta OK · N åbne content** (partial)
+- `seo_meta` agent: one title+meta — **no** strategy-pack 2-alternatives fail-closed
+- Backup: `os.tmpdir` on Vercel + Firestore `seoEngineArchiveApplyBackups`
+
+## Arkiv-audit legacy apply (still available)
+
 - Scan: `POST /api/seo-engine/archive-audit` (admin, read-only)
-- Preview: `POST /api/seo-engine/archive-audit/preview` — `{ selection: [{ itemId, locale }] }` → frozen `previewId` + `confirmToken` (no CMS writes)
-- Apply: `POST /api/seo-engine/archive-audit/apply` — `{ previewId, confirmOverwrite: true, confirmToken }` → backup → SEO title + meta only → exact readback; stop-on-error; DA before EN; pauses auto-translate when possible
-- Max **20** selected rows per confirm; empty selection blocked; apply without confirm token / preview refused
-- CLI scan still: `npx tsx scripts/seo-engine-archive-audit.ts --limit=80`
-- Joins GA4/GSC when configured; compact OK/mangler status in UI
+- Preview/apply SEO: `/api/seo-engine/archive-audit/preview` + `/apply` (now uses dedicated seo_meta agent)
+- Content: `/content-preview` + `/content-apply`
+- CLI scan: `npx tsx scripts/seo-engine-archive-audit.ts --limit=80`
+- Joins GA4/GSC when configured
 
 ## Auth / allowlists
 
