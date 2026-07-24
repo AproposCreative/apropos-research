@@ -33,6 +33,15 @@ const fieldClass =
 /** Client flag: pair with server SEO_ENGINE_DEMO to use ephemeral analyze/strategize. */
 const CLIENT_EPHEMERAL_DEMO = process.env.NEXT_PUBLIC_SEO_ENGINE_DEMO === 'true';
 
+type MainTab = 'arkiv' | 'artikel';
+
+const segBtn = (active: boolean) =>
+  `rounded-lg px-3 py-1.5 text-[12px] font-medium tracking-wide transition-all duration-200 active:scale-[0.97] touch-target ${
+    active
+      ? 'bg-white/12 text-white shadow-sm border border-white/10'
+      : 'text-white/45 hover:text-white/75'
+  }`;
+
 type Seed = {
   title?: string;
   body?: string;
@@ -261,6 +270,9 @@ export default function SeoEngineClient({
   );
   const [copyNotice, setCopyNotice] = useState<string | null>(null);
   const [ephemeralMode, setEphemeralMode] = useState(false);
+  const [mainTab, setMainTab] = useState<MainTab>(
+    seed.title || seed.body ? 'artikel' : 'arkiv'
+  );
 
   const viewingAlt = activeAlt !== null;
   const altReadOnly = viewingAlt;
@@ -698,6 +710,19 @@ export default function SeoEngineClient({
     <div className="flex flex-col h-full min-h-0 text-white bg-transparent font-poppins">
       <EmbeddedAppHeader embedded={embedded} title="SEO Engine" onClose={onClose} />
       <div className="flex-1 min-h-0 overflow-y-auto nice-scrollbar p-3 lg:p-4 space-y-4">
+        <div className="flex flex-wrap items-center gap-1.5">
+          <button type="button" className={segBtn(mainTab === 'arkiv')} onClick={() => setMainTab('arkiv')}>
+            Arkiv
+          </button>
+          <button
+            type="button"
+            className={segBtn(mainTab === 'artikel')}
+            onClick={() => setMainTab('artikel')}
+          >
+            Artikel
+          </button>
+        </div>
+
         {(CLIENT_EPHEMERAL_DEMO || ephemeralMode) && (
           <div className="rounded-xl border border-amber-400/30 bg-white/[0.04] px-3 py-2.5 space-y-1">
             <p className="text-[12px] text-white/85 flex items-center gap-1.5">
@@ -711,9 +736,15 @@ export default function SeoEngineClient({
           </div>
         )}
 
-        <ArchiveAuditPanel />
+        {mainTab === 'arkiv' && <ArchiveAuditPanel />}
 
+        {mainTab === 'artikel' && (
+          <>
         <section className="space-y-2">
+          <p className="text-[13px] font-medium text-white/85">Én artikel</p>
+          <p className="text-[11px] text-white/40 -mt-1">
+            Skriv eller indsæt titel og brødtekst for at analysere SEO manuelt.
+          </p>
           <label className="text-[11px] text-white/45">Titel</label>
           <input className={fieldClass} value={title} onChange={(e) => setTitle(e.target.value)} />
           <label className="text-[11px] text-white/45">Brødtekst</label>
@@ -1181,6 +1212,8 @@ export default function SeoEngineClient({
             </ul>
           )}
         </section>
+          </>
+        )}
       </div>
     </div>
   );
