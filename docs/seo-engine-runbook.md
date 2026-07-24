@@ -20,11 +20,14 @@
 ## Arkiv-audit (Phase 3 — read-only)
 
 - UI: SEO Engine → **Arkiv-audit** (`ArchiveAuditPanel`)
-- API: `POST /api/seo-engine/archive-audit` (admin UID required)
-- Scans published DA/EN variants; flags missing SEO, review-keyword gaps, duplicates, short meta
-- Optional GSC page join via existing SearchSignalsProvider (**sampled/top rows**, not complete)
-- **No CMS writes.** Batch overwrite of the full archive is not authorized.
-- Frozen export via UI “Eksportér rapport”
+- API: `POST /api/seo-engine/archive-audit` (admin UID required, `maxDuration` 300)
+- CLI: `npx tsx scripts/seo-engine-archive-audit.ts --limit=80` → `tmp/seo-engine-backfill/report-archive-audit-*.json`
+- Scans published DA/EN variants; SEO fields, review-keyword, content/GEO-AEO heuristics, segments (type×locale×age×freshness)
+- Joins **GA4 pagePath metrics** when `GA4_PROPERTY_ID` is set; **GSC query+page** when `GSC_SITE_URL` + SA access (sampled/top — not complete). Honest empty provenance if missing.
+- Filters, evidence, priority, quick-win vs strategic, batch checkbox selection → export only (no auto apply)
+- **No CMS writes.** Archive-wide overwrite is not authorized. Overwrite auth remains limited to the frozen 10/17 corrective set.
+- Frozen export via UI “Eksportér frozen rapport” / batch export
+- External (does not block Webflow+metrics scan): Firestore `seoEngine*` indexes need `firebase login --reauth` then deploy
 
 ## Auth / allowlists
 

@@ -1,9 +1,11 @@
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
-import { runArchiveAudit } from '@/lib/seo-engine/archive-audit';
+import { runArchiveAudit, type ArchiveAuditLocale } from '@/lib/seo-engine/archive-audit';
 import { jsonError, mapPipelineError } from '@/lib/seo-engine/http';
 import { getAdminDb } from '@/lib/firebase-admin';
 import { requireSeoEngineUser, requireSeoEngineAdmin } from '@/lib/seo-engine/require-auth';
+
+export const maxDuration = 300;
 
 /**
  * POST /api/seo-engine/archive-audit
@@ -24,8 +26,10 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json().catch(() => ({}));
-    const limit = typeof body?.limit === 'number' ? body.limit : 40;
-    const locales = Array.isArray(body?.locales) ? body.locales : undefined;
+    const limit = typeof body?.limit === 'number' ? Math.max(1, Math.min(1000, body.limit)) : 80;
+    const locales = Array.isArray(body?.locales)
+      ? (body.locales.filter((l: unknown) => l === 'da' || l === 'en') as ArchiveAuditLocale[])
+      : undefined;
     const measurementWindowDays =
       typeof body?.measurementWindowDays === 'number' ? body.measurementWindowDays : 28;
 
