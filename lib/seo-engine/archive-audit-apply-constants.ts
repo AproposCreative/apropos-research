@@ -4,6 +4,8 @@ export const ARCHIVE_APPLY_MAX_BATCH = 20;
 export const ARCHIVE_APPLY_PREVIEW_SCHEMA = 1;
 export const ARCHIVE_APPLY_PREVIEW_TTL_MS = 2 * 60 * 60 * 1000; // 2h
 export const ARCHIVE_APPLY_COL = 'seoEngineArchiveApplyPreviews';
+/** Durable apply backups (body of JSON backup) — survives ephemeral /tmp on Vercel. */
+export const ARCHIVE_APPLY_BACKUP_COL = 'seoEngineArchiveApplyBackups';
 export const ARCHIVE_APPLY_SYSTEM_USER = 'system:seo-archive-apply';
 
 /** Default pause between Webflow locale fetches during preview (rate-limit pacing). */

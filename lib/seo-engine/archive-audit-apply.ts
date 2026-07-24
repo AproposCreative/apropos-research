@@ -4,12 +4,13 @@
  */
 
 import { createHash, randomBytes } from 'node:crypto';
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 import { FieldValue, type Firestore } from 'firebase-admin/firestore';
 import { getAdminDb } from '@/lib/firebase-admin';
 import {
+  ARCHIVE_APPLY_BACKUP_COL,
   ARCHIVE_APPLY_COL,
   ARCHIVE_APPLY_MAX_BATCH,
   ARCHIVE_APPLY_PREVIEW_PACE_MS,
@@ -18,6 +19,7 @@ import {
   ARCHIVE_APPLY_SYSTEM_USER,
   ARCHIVE_APPLY_WEBFLOW_BUSY_DA,
 } from '@/lib/seo-engine/archive-audit-apply-constants';
+import { ensureSeoEngineBackfillDir } from '@/lib/seo-engine/backfill-paths';
 import { analyzeArticle, strategizeFromRun } from '@/lib/seo-engine/pipeline';
 import { resolveEffectiveArticleType } from '@/lib/seo-engine/review-title-rule';
 import {
@@ -54,6 +56,7 @@ import {
 } from '@/lib/webflow/article-translation-settings';
 
 export {
+  ARCHIVE_APPLY_BACKUP_COL,
   ARCHIVE_APPLY_COL,
   ARCHIVE_APPLY_MAX_BATCH,
   ARCHIVE_APPLY_PREVIEW_PACE_MS,
@@ -719,6 +722,8 @@ export async function generateArchiveApplyPreview(opts: {
 export type ArchiveApplyResult = {
   previewId: string;
   backupPath: string;
+  /** Firestore doc id when backup was also persisted (serverless durability). */
+  backupDocId: string | null;
   reportPath: string;
   stoppedOnError: boolean;
   errorMessage?: string;
@@ -783,9 +788,8 @@ export async function applyArchiveApplyPreview(opts: {
   const patchFn = opts.patchFn || patchArticleFieldDataForLocale;
   const publishFn = opts.publishFn || publishArticleItemForLocale;
 
-  const root = process.cwd();
-  const reportDir = opts.reportDir || join(root, 'tmp', 'seo-engine-backfill');
-  mkdirSync(reportDir, { recursive: true });
+  // Vercel/Lambda: only os.tmpdir() is writable — never repo-relative tmp/
+  const reportDir = ensureSeoEngineBackfillDir({ reportDir: opts.reportDir });
   const stamp = stampNow();
 
   const shouldPause = opts.pauseAutoTranslate !== false;
@@ -825,6 +829,38 @@ export async function applyArchiveApplyPreview(opts: {
       reportMode: 'apply',
     });
 
+    let backupDocId: string | null = null;
+    try {
+      const backupRaw = readFileSync(applied.backupPath, 'utf8');
+      const backupPayload = JSON.parse(backupRaw) as Record<string, unknown>;
+      const db = getAdminDb();
+      if (db) {
+        const docId = preview.previewId;
+        await db.collection(ARCHIVE_APPLY_BACKUP_COL).doc(docId).set(
+          stripUndefinedDeep({
+            previewId: preview.previewId,
+            createdAt: new Date().toISOString(),
+            createdBy: preview.createdBy,
+            selection: preview.selection,
+            backupPath: applied.backupPath,
+            reportPath: applied.reportPath,
+            stoppedOnError: applied.stoppedOnError,
+            errorMessage: applied.errorMessage || null,
+            backup: backupPayload,
+            note: 'SEO title + meta only. Rollback via backup JSON / this Firestore doc. No secrets.',
+          }) as Record<string, unknown>
+        );
+        backupDocId = docId;
+        log(`Apply backup also stored in Firestore ${ARCHIVE_APPLY_BACKUP_COL}/${docId}`);
+      }
+    } catch (err) {
+      log(
+        `ADVARSEL: kunne ikke persistere backup til Firestore: ${
+          err instanceof Error ? err.message : String(err)
+        }`
+      );
+    }
+
     const uiBackupMeta = join(reportDir, `archive-apply-meta-${stamp}.json`);
     writeFileSync(
       uiBackupMeta,
@@ -834,8 +870,9 @@ export async function applyArchiveApplyPreview(opts: {
           createdAt: new Date().toISOString(),
           selection: preview.selection,
           backupPath: applied.backupPath,
+          backupDocId,
           reportPath: applied.reportPath,
-          note: 'SEO title + meta only. Rollback via backup JSON. No secrets.',
+          note: 'SEO title + meta only. Rollback via backup JSON / Firestore. No secrets.',
         },
         null,
         2
@@ -855,6 +892,7 @@ export async function applyArchiveApplyPreview(opts: {
     result = {
       previewId: preview.previewId,
       backupPath: applied.backupPath,
+      backupDocId,
       reportPath: applied.reportPath,
       stoppedOnError: applied.stoppedOnError,
       errorMessage: applied.errorMessage,

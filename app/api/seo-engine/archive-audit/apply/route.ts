@@ -58,11 +58,12 @@ export async function POST(req: NextRequest) {
       stoppedOnError: result.stoppedOnError,
       errorMessage: result.errorMessage || null,
       backupPath: result.backupPath,
+      backupDocId: result.backupDocId,
       reportPath: result.reportPath,
       results: result.results,
       autoTranslatePaused: result.autoTranslatePaused,
       autoTranslateRestored: result.autoTranslateRestored,
-      note: 'Kun SEO-title + meta. Publiceret status bevaret. Stop-on-error.',
+      note: 'Kun SEO-title + meta. Publiceret status bevaret. Stop-on-error. Backup i Firestore + tmp.',
     });
   } catch (e) {
     return mapPipelineError(e);

@@ -11,6 +11,7 @@ import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 import { env } from '@/lib/config/env';
+import { ensureSeoEngineBackfillDir } from '@/lib/seo-engine/backfill-paths';
 import { webflowItemToSeoEngineInput } from '@/lib/seo-engine/cms-contract';
 import { findForbiddenPhrases } from '@/lib/seo-engine/forbidden-phrases';
 import { computeInputVersionHash } from '@/lib/seo-engine/hash';
@@ -1859,9 +1860,7 @@ export async function runOverwriteBackfill(
   const localeIds = resolveWebflowLocaleIds();
   const cmsLocaleFor = (code: BackfillLocaleCode) => (code === 'da' ? localeIds.dk : localeIds.en);
 
-  const root = process.cwd();
-  const reportDir = opts.reportDir || join(root, 'tmp', 'seo-engine-backfill');
-  ensureReportDir(reportDir);
+  const reportDir = ensureSeoEngineBackfillDir({ reportDir: opts.reportDir });
   const stamp = stampNow();
 
   if (opts.resume) {
