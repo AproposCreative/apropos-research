@@ -166,7 +166,7 @@ export async function proposeArchiveSeoMeta(args: {
       language: args.language,
       articleType: args.articleType,
     });
-    if (!v.ok) {
+    if (v.ok === false) {
       throw Object.assign(new Error(v.errors.join('; ')), { code: 'invalid_input' });
     }
     return h;
@@ -234,7 +234,7 @@ export async function proposeArchiveSeoMeta(args: {
         language: args.language,
         articleType: args.articleType,
       });
-      if (!hv.ok) {
+      if (hv.ok === false) {
         throw Object.assign(new Error(hv.errors.join('; ')), { code: 'invalid_input' });
       }
       return h;
@@ -260,7 +260,7 @@ export async function proposeArchiveSeoMeta(args: {
       language: args.language,
       articleType: args.articleType,
     });
-    if (!hv.ok) {
+    if (hv.ok === false) {
       throw Object.assign(new Error(hv.errors.join('; ')), {
         code: 'invalid_input',
         cause: err,
