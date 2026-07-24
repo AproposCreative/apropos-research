@@ -45,7 +45,9 @@ export {
   mergeDryRunReports,
   writeDryRunReport,
   runOverwriteBackfill,
+  applyFrozenSeoManifest,
 } from '@/lib/seo-engine/overwrite-backfill';
+export * from '@/lib/seo-engine/archive-audit-apply';
 export { coerceStrategyPackAiOutput, StrategyCoerceError } from '@/lib/seo-engine/coerce-strategy';
 export { WebflowLocaleFetchError } from '@/lib/webflow/locale-items';
 export * from '@/lib/seo-engine/prompts';

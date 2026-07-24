@@ -1546,7 +1546,11 @@ async function runDryRunPropose(opts: {
   return { results, frozenManifest, stoppedOnError, errorMessage, backups };
 }
 
-async function runApplyFromManifest(opts: {
+/**
+ * Live CMS writes from a frozen SEO-title/meta manifest.
+ * Backup of all locales is written before the first PATCH; stop-on-error; exact readback.
+ */
+export async function applyFrozenSeoManifest(opts: {
   manifest: FrozenManifestEntry[];
   fetchFn: typeof fetchArticleItemByLocale;
   patchFn: typeof patchArticleFieldDataForLocale;
@@ -1928,7 +1932,7 @@ export async function runOverwriteBackfill(
 
     if (!stoppedOnError && plan.toWrite.length > 0) {
       log(`Writing ONLY unattempted entries (${plan.toWrite.length}) after source-signature check`);
-      const applied = await runApplyFromManifest({
+      const applied = await applyFrozenSeoManifest({
         manifest: plan.toWrite,
         fetchFn,
         patchFn,
@@ -2023,7 +2027,7 @@ export async function runOverwriteBackfill(
     log(
       `APPLY from frozen manifest (${loaded.report.frozenManifest.length} locale writes) — no AI regenerate`
     );
-    const applied = await runApplyFromManifest({
+    const applied = await applyFrozenSeoManifest({
       manifest: loaded.report.frozenManifest,
       fetchFn,
       patchFn,

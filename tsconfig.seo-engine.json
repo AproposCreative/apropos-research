@@ -16,6 +16,7 @@
     "app/ai/seo/**/*.tsx",
     "components/settings/SeoEngineSection.tsx",
     "components/seo/ArchiveAuditPanel.tsx",
+    "lib/seo-engine/archive-audit-apply-constants.ts",
     "test/seo-engine*.ts"
   ],
   "exclude": [

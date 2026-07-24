@@ -2,13 +2,16 @@
 
 import { useCallback, useMemo, useState } from 'react';
 import { useAuth } from '@/lib/auth-context';
+import { ARCHIVE_APPLY_MAX_BATCH } from '@/lib/seo-engine/archive-audit-apply-constants';
 
 const secondaryBtn =
-  'px-3 py-2 rounded-xl border border-white/12 text-[13px] text-white/75 hover:bg-white/[0.05] hover:border-white/18 disabled:opacity-40 transition-all duration-200 active:scale-[0.98]';
+  'px-3 py-2.5 rounded-xl border border-white/12 text-[13px] text-white/75 hover:bg-white/[0.05] hover:border-white/18 disabled:opacity-40 transition-all duration-200 active:scale-[0.98] touch-target';
 const primaryBtn =
-  'px-3 py-2 rounded-xl border border-white/10 bg-white/5 text-[13px] text-white hover:border-white/20 hover:bg-white/10 disabled:opacity-40 transition-all duration-200 active:scale-[0.99]';
+  'px-4 py-2.5 rounded-xl border border-white/10 bg-white/5 text-[13px] font-medium text-white hover:border-white/20 hover:bg-white/10 hover:shadow-[0_0_32px_-8px_rgba(255,255,255,0.18)] disabled:opacity-40 transition-all duration-200 active:scale-[0.99] touch-target';
+const dangerOutlineBtn =
+  'px-4 py-2.5 rounded-xl border border-white/25 text-[13px] text-white/90 hover:bg-white/[0.08] disabled:opacity-40 transition-all duration-200 active:scale-[0.98] touch-target';
 const segBtn = (active: boolean) =>
-  `rounded-lg px-2.5 py-1 text-[11px] font-medium tracking-wide transition-all duration-200 active:scale-[0.97] ${
+  `rounded-lg px-2.5 py-1.5 text-[11px] font-medium tracking-wide transition-all duration-200 active:scale-[0.97] touch-target ${
     active
       ? 'bg-white/12 text-white shadow-sm border border-white/10'
       : 'text-white/45 hover:text-white/75'
@@ -48,15 +51,6 @@ type Report = {
     quickWins?: number;
     strategic?: number;
   };
-  segments?: Array<{
-    key: string;
-    articleType: string;
-    locale: string;
-    ageBucket: string;
-    freshness: string;
-    count: number;
-    p0: number;
-  }>;
   patterns?: Array<{ id: string; observation: string; caveat: string; sampleSize: number }>;
   gscProvenance?: { uiNote?: string; setupStatus?: string } | null;
   ga4Provenance?: { available?: boolean; setupStatus?: string; rowCount?: number } | null;
@@ -64,15 +58,30 @@ type Report = {
   rows?: ReportRow[];
 };
 
-type Filter =
-  | 'all'
-  | 'da'
-  | 'en'
-  | 'P0'
-  | 'P1'
-  | 'quick_win'
-  | 'strategic'
-  | 'stale';
+type Filter = 'all' | 'da' | 'en' | 'P0' | 'P1' | 'quick_win' | 'stale';
+
+type PreviewProposal = {
+  itemId: string;
+  locale: string;
+  title: string;
+  slug: string;
+  oldSeoTitle: string | null;
+  oldMetaDescription: string | null;
+  newSeoTitle: string;
+  newMetaDescription: string;
+};
+
+type PreviewState = {
+  previewId: string;
+  confirmToken: string;
+  expiresAt: string;
+  proposals: PreviewProposal[];
+  rejected: Array<{ itemId: string; locale: string; status: string; reason?: string }>;
+  stoppedOnError: boolean;
+  errorMessage: string | null;
+};
+
+type ApplyPhase = 'idle' | 'previewing' | 'confirm' | 'applying' | 'done';
 
 function priorityDot(p: string) {
   if (p === 'P0') return 'bg-rose-400';
@@ -85,6 +94,33 @@ function rowKey(r: ReportRow) {
   return `${r.itemId}:${r.locale}`;
 }
 
+function findingSummary(r: ReportRow): string {
+  if (!r.findings.length) return 'Ingen fund';
+  const top = r.findings[0];
+  const extra = r.findings.length > 1 ? ` · +${r.findings.length - 1}` : '';
+  return `${top.message}${extra}`;
+}
+
+function dataStatusLine(report: Report): { label: string; ok: boolean; detail: string } {
+  const gscOk =
+    report.gscProvenance?.setupStatus === 'ok' ||
+    (report.summary?.gscJoinHits || 0) > 0 ||
+    Boolean(report.gscProvenance?.uiNote && !/mangler|fail|error/i.test(report.gscProvenance.uiNote));
+  const ga4Ok = report.ga4Provenance?.available === true || (report.summary?.ga4JoinHits || 0) > 0;
+  const ok = gscOk || ga4Ok;
+  const parts = [
+    `Search Console: ${gscOk ? 'OK' : 'mangler data'}`,
+    `GA4: ${ga4Ok ? 'OK' : 'mangler data'}`,
+  ];
+  if (report.gscProvenance?.uiNote) parts.push(report.gscProvenance.uiNote);
+  if (report.ga4Provenance?.setupStatus) parts.push(`GA4 ${report.ga4Provenance.setupStatus}`);
+  return {
+    label: ok ? 'Datakilder OK' : 'Mangler data',
+    ok,
+    detail: parts.join(' · '),
+  };
+}
+
 export default function ArchiveAuditPanel() {
   const { user } = useAuth();
   const [loading, setLoading] = useState(false);
@@ -94,14 +130,36 @@ export default function ArchiveAuditPanel() {
   const [typeFilter, setTypeFilter] = useState<string>('all');
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [limit, setLimit] = useState(80);
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const [dataOpen, setDataOpen] = useState(false);
+  const [phase, setPhase] = useState<ApplyPhase>('idle');
+  const [preview, setPreview] = useState<PreviewState | null>(null);
+  const [applyResult, setApplyResult] = useState<{
+    writtenCount: number;
+    stoppedOnError: boolean;
+    errorMessage: string | null;
+    results: Array<{
+      itemId: string;
+      title: string;
+      locales: Array<{ locale: string; status: string; reason?: string }>;
+    }>;
+  } | null>(null);
+
+  const authHeaders = useCallback(async () => {
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    if (user) headers.Authorization = `Bearer ${await user.getIdToken()}`;
+    return headers;
+  }, [user]);
 
   const runScan = useCallback(async () => {
     setLoading(true);
     setError(null);
     setSelected(new Set());
+    setPreview(null);
+    setApplyResult(null);
+    setPhase('idle');
     try {
-      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-      if (user) headers.Authorization = `Bearer ${await user.getIdToken()}`;
+      const headers = await authHeaders();
       const res = await fetch('/api/seo-engine/archive-audit', {
         method: 'POST',
         headers,
@@ -112,37 +170,14 @@ export default function ArchiveAuditPanel() {
         }),
       });
       const j = await res.json();
-      if (!res.ok || !j.ok) throw new Error(j.error || 'Arkiv-audit fejlede');
+      if (!res.ok || !j.ok) throw new Error(j.error || 'Scan fejlede');
       setReport(j.report as Report);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
       setLoading(false);
     }
-  }, [user, limit]);
-
-  const exportJson = (onlySelected: boolean) => {
-    if (!report) return;
-    const payload = onlySelected
-      ? {
-          ...report,
-          kind: 'archive-audit-batch-selection',
-          mode: 'read-only',
-          selectedKeys: [...selected],
-          rows: (report.rows || []).filter((r) => selected.has(rowKey(r))),
-          note: `${report.note || ''} Batch selection only — no CMS writes; apply requires separate explicit preview/backup.`,
-        }
-      : report;
-    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = onlySelected
-      ? `archive-audit-batch-${report.createdAt || 'export'}.json`
-      : `archive-audit-${report.createdAt || 'export'}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
-  };
+  }, [authHeaders, limit]);
 
   const typeOptions = useMemo(() => {
     const set = new Set<string>();
@@ -159,8 +194,6 @@ export default function ArchiveAuditPanel() {
       if (r.priority !== filter) return false;
     } else if (filter === 'quick_win') {
       if (r.winClass !== 'quick_win') return false;
-    } else if (filter === 'strategic') {
-      if (r.winClass !== 'strategic') return false;
     } else if (filter === 'stale') {
       if (r.freshness !== 'stale') return false;
     }
@@ -175,6 +208,17 @@ export default function ArchiveAuditPanel() {
       else next.add(key);
       return next;
     });
+    setPreview(null);
+    setPhase('idle');
+  };
+
+  const toggleExpand = (key: string) => {
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
   };
 
   const selectVisibleP0 = () => {
@@ -183,26 +227,124 @@ export default function ArchiveAuditPanel() {
       if (r.priority === 'P0') next.add(rowKey(r));
     }
     setSelected(next);
+    setPreview(null);
+    setPhase('idle');
   };
 
+  const selectionPayload = useMemo(() => {
+    return [...selected]
+      .map((key) => {
+        const [itemId, locale] = key.split(':');
+        if (!itemId || (locale !== 'da' && locale !== 'en')) return null;
+        return { itemId, locale: locale as 'da' | 'en' };
+      })
+      .filter(Boolean) as Array<{ itemId: string; locale: 'da' | 'en' }>;
+  }, [selected]);
+
+  const runPreview = async () => {
+    setError(null);
+    setApplyResult(null);
+    if (selectionPayload.length === 0) {
+      setError('Vælg mindst én række');
+      return;
+    }
+    if (selectionPayload.length > ARCHIVE_APPLY_MAX_BATCH) {
+      setError(`Max ${ARCHIVE_APPLY_MAX_BATCH} valgte pr. gang`);
+      return;
+    }
+    setPhase('previewing');
+    try {
+      const headers = await authHeaders();
+      const res = await fetch('/api/seo-engine/archive-audit/preview', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ selection: selectionPayload }),
+      });
+      const j = await res.json();
+      if (!res.ok || !j.ok) throw new Error(j.error || 'Preview fejlede');
+      setPreview({
+        previewId: j.previewId,
+        confirmToken: j.confirmToken,
+        expiresAt: j.expiresAt,
+        proposals: j.proposals || [],
+        rejected: j.rejected || [],
+        stoppedOnError: Boolean(j.stoppedOnError),
+        errorMessage: j.errorMessage || null,
+      });
+      setPhase('confirm');
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+      setPhase('idle');
+    }
+  };
+
+  const confirmApply = async () => {
+    if (!preview) return;
+    const n = preview.proposals.length;
+    if (n === 0) {
+      setError('Ingen gyldige forslag at anvende');
+      return;
+    }
+    const ok = window.confirm(
+      `Overskriv SEO-title og meta for ${n} valgte?\n\nKun SEO-title + meta. Publiceret status bevares. Der tages backup før skrivning.`
+    );
+    if (!ok) return;
+
+    setPhase('applying');
+    setError(null);
+    try {
+      const headers = await authHeaders();
+      const res = await fetch('/api/seo-engine/archive-audit/apply', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          previewId: preview.previewId,
+          confirmOverwrite: true,
+          confirmToken: preview.confirmToken,
+        }),
+      });
+      const j = await res.json();
+      if (!res.ok && !j.results) throw new Error(j.error || 'Anvendelse fejlede');
+      setApplyResult({
+        writtenCount: j.writtenCount ?? 0,
+        stoppedOnError: Boolean(j.stoppedOnError),
+        errorMessage: j.errorMessage || j.error || null,
+        results: j.results || [],
+      });
+      setPhase('done');
+      if (j.stoppedOnError) {
+        setError(j.errorMessage || j.error || 'Stoppet ved fejl');
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+      setPhase('confirm');
+    }
+  };
+
+  const dataStatus = report ? dataStatusLine(report) : null;
+  const canApply =
+    selected.size > 0 &&
+    selected.size <= ARCHIVE_APPLY_MAX_BATCH &&
+    phase !== 'previewing' &&
+    phase !== 'applying';
+
   return (
-    <section className="rounded-xl border border-white/12 bg-white/[0.03] p-3 space-y-3">
-      <div className="flex flex-wrap items-start justify-between gap-2">
-        <div className="min-w-0">
-          <p className="text-[13px] font-medium text-white/90">Arkiv-audit</p>
-          <p className="text-[11px] text-white/40 mt-0.5 leading-snug">
-            Read-only SEO+GEO/AEO scan. Joiner Webflow med GA4 page metrics + GSC page/query når
-            tilgængeligt. Ingen CMS-skrivning. Batch-valg er kun til eksport/review.
+    <section className="rounded-xl border border-white/12 bg-white/[0.03] p-3 lg:p-4 space-y-3">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0 flex-1">
+          <p className="text-[15px] font-medium text-white tracking-tight">Arkiv</p>
+          <p className="text-[12px] text-white/45 mt-0.5 leading-snug">
+            Scan publicerede artikler, vælg dem der skal opdateres, og anvend ny SEO-title + meta.
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <label className="text-[11px] text-white/45 flex items-center gap-1.5">
-            Limit
+            Antal
             <select
-              className="apropos-input-dark h-9 rounded-lg border border-white/12 bg-[#141414] px-2 text-[12px] text-white"
+              className="apropos-input-dark h-10 rounded-lg border border-white/12 bg-[#141414] px-2 text-[12px] text-white"
               value={limit}
               onChange={(e) => setLimit(Number(e.target.value))}
-              disabled={loading}
+              disabled={loading || phase === 'previewing' || phase === 'applying'}
             >
               {[40, 80, 150, 300, 500].map((n) => (
                 <option key={n} value={n}>
@@ -211,19 +353,13 @@ export default function ArchiveAuditPanel() {
               ))}
             </select>
           </label>
-          <button type="button" className={`${primaryBtn} touch-target`} disabled={loading} onClick={() => void runScan()}>
-            {loading ? 'Scanner…' : 'Scan alle (read-only)'}
-          </button>
-          <button type="button" className={secondaryBtn} disabled={!report} onClick={() => exportJson(false)}>
-            Eksportér frozen rapport
-          </button>
           <button
             type="button"
-            className={secondaryBtn}
-            disabled={!report || selected.size === 0}
-            onClick={() => exportJson(true)}
+            className={primaryBtn}
+            disabled={loading || phase === 'previewing' || phase === 'applying'}
+            onClick={() => void runScan()}
           >
-            Eksportér batch ({selected.size})
+            {loading ? 'Scanner…' : 'Scan arkiv'}
           </button>
         </div>
       </div>
@@ -232,47 +368,50 @@ export default function ArchiveAuditPanel() {
 
       {report && (
         <>
-          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-2">
+          <div className="flex flex-wrap gap-2">
             {[
-              ['P0', report.summary?.p0 ?? 0],
-              ['P1', report.summary?.p1 ?? 0],
-              ['P2', report.summary?.p2 ?? 0],
-              ['OK', report.summary?.ok ?? 0],
-              ['Quick wins', report.summary?.quickWins ?? 0],
-              ['Strategisk', report.summary?.strategic ?? 0],
-              ['GSC join', report.summary?.gscJoinHits ?? 0],
-              ['GA4 join', report.summary?.ga4JoinHits ?? 0],
-            ].map(([label, value]) => (
-              <div key={String(label)} className="rounded-lg border border-white/10 bg-white/[0.03] px-2.5 py-2">
-                <p className="text-[10px] text-white/40">{label}</p>
-                <p className="text-[15px] font-medium text-white/90">{value}</p>
+              ['Kritiske', report.summary?.p0 ?? 0, 'bg-rose-400'],
+              ['Vigtige', report.summary?.p1 ?? 0, 'bg-amber-400'],
+              ['OK', report.summary?.ok ?? 0, 'bg-emerald-400'],
+              ['Hurtige gevinster', report.summary?.quickWins ?? 0, 'bg-white/40'],
+            ].map(([label, value, dot]) => (
+              <div
+                key={String(label)}
+                className="inline-flex items-center gap-2 rounded-lg border border-white/10 bg-white/[0.03] px-2.5 py-1.5"
+              >
+                <span className={`size-1.5 rounded-full ${dot}`} />
+                <span className="text-[11px] text-white/45">{label}</span>
+                <span className="text-[13px] font-medium text-white/90">{value}</span>
               </div>
             ))}
           </div>
 
-          <div className="space-y-1">
-            {report.gscProvenance?.uiNote && (
-              <p className="text-[11px] text-white/45">
-                Search Console: {report.gscProvenance.uiNote}
-                {report.gscProvenance.setupStatus ? ` · ${report.gscProvenance.setupStatus}` : ''}
-              </p>
-            )}
-            {report.ga4Provenance && (
-              <p className="text-[11px] text-white/45">
-                GA4: {report.ga4Provenance.available ? 'page metrics join OK' : 'ikke tilgængelig'}
-                {report.ga4Provenance.setupStatus ? ` · ${report.ga4Provenance.setupStatus}` : ''}
-              </p>
-            )}
-          </div>
+          {dataStatus && (
+            <div className="rounded-xl border border-white/[0.06] overflow-hidden">
+              <button
+                type="button"
+                className="flex items-center gap-3 w-full px-3.5 py-2.5 text-left hover:bg-white/[0.03] transition-all"
+                onClick={() => setDataOpen((v) => !v)}
+              >
+                <span
+                  className={`size-1.5 rounded-full ${dataStatus.ok ? 'bg-emerald-400' : 'bg-amber-400'}`}
+                />
+                <span className="text-[12px] text-white/70 flex-1">{dataStatus.label}</span>
+                <span className="text-[10px] text-white/30">{dataOpen ? 'Skjul' : 'Detaljer'}</span>
+              </button>
+              {dataOpen && (
+                <p className="px-3.5 pb-2.5 text-[11px] text-white/40 leading-snug">{dataStatus.detail}</p>
+              )}
+            </div>
+          )}
 
           {!!report.patterns?.length && (
-            <div className="rounded-xl border border-white/10 bg-white/[0.02] p-3 space-y-2">
-              <p className="text-[12px] font-medium text-white/80">Observerede mønstre</p>
-              {report.patterns.slice(0, 4).map((p) => (
-                <div key={p.id} className="space-y-0.5">
-                  <p className="text-[11px] text-white/70">{p.observation}</p>
-                  <p className="text-[10px] text-white/35">{p.caveat}</p>
-                </div>
+            <div className="rounded-xl border border-white/10 bg-white/[0.02] p-3 space-y-1.5">
+              <p className="text-[12px] font-medium text-white/80">Mønstre</p>
+              {report.patterns.slice(0, 3).map((p) => (
+                <p key={p.id} className="text-[11px] text-white/55 leading-snug">
+                  {p.observation}
+                </p>
               ))}
             </div>
           )}
@@ -283,11 +422,10 @@ export default function ArchiveAuditPanel() {
                 ['all', 'Alle'],
                 ['da', 'DA'],
                 ['en', 'EN'],
-                ['P0', 'P0'],
-                ['P1', 'P1'],
-                ['quick_win', 'Quick wins'],
-                ['strategic', 'Strategisk'],
-                ['stale', 'Stale'],
+                ['P0', 'Kritiske'],
+                ['P1', 'Vigtige'],
+                ['quick_win', 'Hurtige'],
+                ['stale', 'Forældede'],
               ] as const
             ).map(([f, label]) => (
               <button key={f} type="button" onClick={() => setFilter(f)} className={segBtn(filter === f)}>
@@ -295,7 +433,7 @@ export default function ArchiveAuditPanel() {
               </button>
             ))}
             <select
-              className="apropos-input-dark h-8 rounded-lg border border-white/12 bg-[#141414] px-2 text-[11px] text-white ml-1"
+              className="apropos-input-dark h-9 rounded-lg border border-white/12 bg-[#141414] px-2 text-[11px] text-white"
               value={typeFilter}
               onChange={(e) => setTypeFilter(e.target.value)}
             >
@@ -305,76 +443,200 @@ export default function ArchiveAuditPanel() {
                 </option>
               ))}
             </select>
-            <button type="button" className={`${secondaryBtn} !py-1.5 text-[11px]`} onClick={selectVisibleP0}>
-              Markér synlige P0
+            <button type="button" className={secondaryBtn} onClick={selectVisibleP0}>
+              Markér kritiske
             </button>
             <button
               type="button"
-              className={`${secondaryBtn} !py-1.5 text-[11px]`}
-              onClick={() => setSelected(new Set())}
+              className={secondaryBtn}
+              onClick={() => {
+                setSelected(new Set());
+                setPreview(null);
+                setPhase('idle');
+              }}
               disabled={selected.size === 0}
             >
-              Ryd valg
+              Ryd
             </button>
           </div>
 
-          <div className="rounded-xl border border-white/10 overflow-hidden max-h-96 overflow-y-auto nice-scrollbar">
-            <table className="min-w-full text-[11px]">
+          <div className="flex flex-wrap items-center gap-2 rounded-xl border border-white/12 bg-white/[0.04] px-3 py-2.5">
+            <p className="text-[12px] text-white/60 flex-1 min-w-[140px]">
+              {selected.size === 0
+                ? 'Vælg rækker for at anvende SEO+meta'
+                : `${selected.size} valgt${selected.size > ARCHIVE_APPLY_MAX_BATCH ? ` (max ${ARCHIVE_APPLY_MAX_BATCH})` : ''}`}
+            </p>
+            <button
+              type="button"
+              className={primaryBtn}
+              disabled={!canApply}
+              onClick={() => void runPreview()}
+            >
+              {phase === 'previewing' ? 'Forbereder…' : 'Anvend valgte (SEO+meta)'}
+            </button>
+          </div>
+
+          {(phase === 'confirm' || phase === 'applying' || phase === 'done') && preview && (
+            <div className="rounded-xl border border-white/15 bg-black/40 p-3 space-y-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <p className="text-[13px] font-medium text-white/90">
+                  {phase === 'done' ? 'Resultat' : 'Preview — gammel → ny'}
+                </p>
+                {phase === 'confirm' && (
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      className={secondaryBtn}
+                      onClick={() => {
+                        setPreview(null);
+                        setPhase('idle');
+                      }}
+                    >
+                      Annullér
+                    </button>
+                    <button
+                      type="button"
+                      className={dangerOutlineBtn}
+                      disabled={preview.proposals.length === 0 || preview.stoppedOnError}
+                      onClick={() => void confirmApply()}
+                    >
+                      Overskriv SEO-title og meta for {preview.proposals.length} valgte
+                    </button>
+                  </div>
+                )}
+                {phase === 'applying' && (
+                  <p className="text-[12px] text-white/50">Skriver… backup først</p>
+                )}
+              </div>
+
+              {preview.stoppedOnError && (
+                <p className="text-[12px] text-red-400/95">
+                  Preview stoppet: {preview.errorMessage || 'Ukendt fejl'}
+                </p>
+              )}
+
+              <div className="space-y-2 max-h-72 overflow-y-auto nice-scrollbar">
+                {preview.proposals.map((p) => (
+                  <div
+                    key={`${p.itemId}:${p.locale}`}
+                    className="rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2 space-y-1"
+                  >
+                    <p className="text-[12px] text-white/80">
+                      {p.title || p.slug} · {p.locale.toUpperCase()}
+                    </p>
+                    <p className="text-[11px] text-white/40">
+                      Title: <span className="text-white/30">{p.oldSeoTitle || '(tom)'}</span>
+                      {' → '}
+                      <span className="text-white/75">{p.newSeoTitle}</span>
+                    </p>
+                    <p className="text-[11px] text-white/40">
+                      Meta: <span className="text-white/30">{p.oldMetaDescription || '(tom)'}</span>
+                      {' → '}
+                      <span className="text-white/75">{p.newMetaDescription}</span>
+                    </p>
+                  </div>
+                ))}
+                {preview.rejected.map((r) => (
+                  <p key={`${r.itemId}:${r.locale}:rej`} className="text-[11px] text-amber-300/80">
+                    Skip {r.itemId.slice(0, 8)}…:{r.locale} — {r.reason || r.status}
+                  </p>
+                ))}
+              </div>
+
+              {applyResult && (
+                <div className="border-t border-white/10 pt-2 space-y-1">
+                  <p className="text-[12px] text-white/70">
+                    Skrevet: {applyResult.writtenCount}
+                    {applyResult.stoppedOnError ? ' · stoppet ved fejl' : ' · færdig'}
+                  </p>
+                  {applyResult.results.map((item) => (
+                    <p key={item.itemId} className="text-[11px] text-white/45">
+                      {item.title || item.itemId}:{' '}
+                      {item.locales.map((l) => `${l.locale}=${l.status}`).join(', ')}
+                    </p>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          <div className="rounded-xl border border-white/10 overflow-hidden max-h-[28rem] overflow-y-auto nice-scrollbar">
+            <table className="min-w-full text-[12px]">
               <thead className="bg-white/[0.04] sticky top-0">
                 <tr className="text-left text-white/45">
-                  <th className="px-2 py-1.5 font-medium w-8" />
-                  <th className="px-2.5 py-1.5 font-medium">Prioritet</th>
-                  <th className="px-2.5 py-1.5 font-medium">Artikel</th>
-                  <th className="px-2.5 py-1.5 font-medium hidden md:table-cell">Segment</th>
-                  <th className="px-2.5 py-1.5 font-medium">Evidence / fund</th>
-                  <th className="px-2.5 py-1.5 font-medium hidden lg:table-cell">Metrics</th>
+                  <th className="px-2 py-2 font-medium w-10" />
+                  <th className="px-2.5 py-2 font-medium w-16">Status</th>
+                  <th className="px-2.5 py-2 font-medium">Artikel</th>
+                  <th className="px-2.5 py-2 font-medium">Fund</th>
                 </tr>
               </thead>
               <tbody>
                 {rows.slice(0, 120).map((r) => {
                   const key = rowKey(r);
+                  const open = expanded.has(key);
                   return (
                     <tr key={key} className="border-t border-white/[0.06] align-top">
-                      <td className="px-2 py-1.5">
+                      <td className="px-2 py-2">
                         <input
                           type="checkbox"
-                          className="size-4 accent-white/80"
+                          className="size-4 accent-white/80 touch-target"
                           checked={selected.has(key)}
                           onChange={() => toggle(key)}
                           aria-label={`Vælg ${r.title || r.slug}`}
                         />
                       </td>
-                      <td className="px-2.5 py-1.5">
+                      <td className="px-2.5 py-2">
                         <span className="inline-flex items-center gap-1.5 text-white/70">
                           <span className={`size-1.5 rounded-full ${priorityDot(r.priority)}`} />
-                          {r.priority}
-                          {r.winClass && r.winClass !== 'ok' ? (
-                            <span className="text-white/30">· {r.winClass}</span>
-                          ) : null}
+                          {r.priority === 'P0' ? 'Kritisk' : r.priority === 'P1' ? 'Vigtig' : r.priority}
                         </span>
                       </td>
-                      <td className="px-2.5 py-1.5 text-white/80">
-                        <span className="font-medium">{r.title || r.slug}</span>
-                        <span className="text-white/35"> · {r.locale}</span>
+                      <td className="px-2.5 py-2 text-white/80">
+                        <button
+                          type="button"
+                          className="text-left hover:text-white transition-colors"
+                          onClick={() => toggleExpand(key)}
+                        >
+                          <span className="font-medium">{r.title || r.slug}</span>
+                          <span className="text-white/35"> · {r.locale.toUpperCase()}</span>
+                        </button>
+                        {open && (
+                          <div className="mt-1.5 space-y-0.5 text-[11px] text-white/40">
+                            <p>
+                              {[r.articleTypeHint, r.ageBucket, r.freshness].filter(Boolean).join(' · ') ||
+                                '—'}
+                            </p>
+                            <p>
+                              {r.ga4PageMatched ? `GA4 ${r.ga4PageViews ?? 0} visninger` : 'GA4 —'}
+                              {' · '}
+                              {r.gscPageMatched
+                                ? `SC ${r.gscClicks ?? 0} klik${r.gscTopQuery ? ` · ${r.gscTopQuery}` : ''}`
+                                : 'SC —'}
+                            </p>
+                            <p className="text-white/30 truncate max-w-[280px]">SEO: {r.seoTitle || '(tom)'}</p>
+                          </div>
+                        )}
                       </td>
-                      <td className="px-2.5 py-1.5 text-white/45 hidden md:table-cell">
-                        {[r.articleTypeHint, r.ageBucket, r.freshness].filter(Boolean).join(' · ')}
-                      </td>
-                      <td className="px-2.5 py-1.5 text-white/50">
-                        {r.findings.length
-                          ? r.findings
-                              .map((f) =>
-                                f.evidence ? `${f.message} (${f.evidence})` : f.message
-                              )
-                              .join(' · ')
-                          : 'Ingen findings'}
-                      </td>
-                      <td className="px-2.5 py-1.5 text-white/40 hidden lg:table-cell">
-                        {r.ga4PageMatched ? `GA4 ${r.ga4PageViews ?? 0} views` : 'GA4 —'}
-                        {' · '}
-                        {r.gscPageMatched
-                          ? `GSC ${r.gscClicks ?? 0} klik${r.gscTopQuery ? ` · ${r.gscTopQuery}` : ''}`
-                          : 'GSC —'}
+                      <td className="px-2.5 py-2 text-white/50">
+                        <button
+                          type="button"
+                          className="text-left w-full hover:text-white/70"
+                          onClick={() => toggleExpand(key)}
+                        >
+                          {findingSummary(r)}
+                        </button>
+                        {open && r.findings.length > 0 && (
+                          <ul className="mt-1.5 space-y-1">
+                            {r.findings.map((f, i) => (
+                              <li key={`${f.code}-${i}`} className="text-[11px] text-white/40">
+                                {f.message}
+                                {f.evidence ? (
+                                  <span className="text-white/25"> · {f.evidence}</span>
+                                ) : null}
+                              </li>
+                            ))}
+                          </ul>
+                        )}
                       </td>
                     </tr>
                   );
@@ -383,13 +645,10 @@ export default function ArchiveAuditPanel() {
             </table>
           </div>
 
-          {!!report.segments?.length && (
-            <p className="text-[10px] text-white/30">
-              {report.segments.length} segmenter (type×sprog×alder×freshness). Scannet {report.scanned}{' '}
-              · vindue {report.measurementWindowDays}d. Valgte batches anvendes ikke automatisk.
-            </p>
-          )}
-          {report.note && <p className="text-[10px] text-white/30">{report.note}</p>}
+          <p className="text-[10px] text-white/30">
+            Scannet {report.scanned} · {report.measurementWindowDays}d vindue · max {ARCHIVE_APPLY_MAX_BATCH}{' '}
+            pr. anvendelse
+          </p>
         </>
       )}
     </section>
