@@ -734,7 +734,7 @@ export async function loadGa4PageIndex(days: number): Promise<{
     limit: 5000,
   });
 
-  if (!result.ok) {
+  if (result.ok === false) {
     // Retry without engagedSessions if metric unsupported
     const retry = await defaultGa4Fetch({
       dateRanges: [{ startDate: startRel, endDate: 'today' }],
@@ -743,7 +743,7 @@ export async function loadGa4PageIndex(days: number): Promise<{
       orderBys: [{ desc: true, metric: { metricName: 'screenPageViews' } }],
       limit: 5000,
     });
-    if (!retry.ok) {
+    if (retry.ok === false) {
       return {
         byPath: new Map(),
         provenance: {
