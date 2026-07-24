@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import { useAuth } from '@/lib/auth-context';
 import {
   ARCHIVE_APPLY_MAX_BATCH,
@@ -10,6 +10,10 @@ import {
   isArchiveRowEligibleForApply,
   type ArchiveFixKindUi,
 } from '@/lib/seo-engine/archive-audit-apply-constants';
+import {
+  patchRowsAfterContentApply,
+  patchRowsAfterSeoMetaApply,
+} from '@/lib/seo-engine/archive-audit-row-patch';
 
 const secondaryBtn =
   'px-3 py-2.5 rounded-xl border border-white/12 text-[13px] text-white/75 hover:bg-white/[0.05] hover:border-white/18 disabled:opacity-40 transition-all duration-200 active:scale-[0.98] touch-target';
@@ -88,14 +92,26 @@ type ReportRow = {
   articleTypeHint?: string;
   ageBucket?: string;
   freshness?: string;
-  findings: Array<{ code: string; message: string; priority: string; evidence?: string; geoAeo?: boolean }>;
+  findings: Array<{
+    code: string;
+    message: string;
+    priority: string;
+    evidence?: string;
+    geoAeo?: boolean;
+  }>;
   gscPageMatched?: boolean;
   gscTopQuery?: string | null;
   gscClicks?: number | null;
   ga4PageMatched?: boolean;
   ga4PageViews?: number | null;
   siblingLocalePresent?: boolean | null;
+  headingCount?: number | null;
+  internalLinkCount?: number | null;
 };
+
+function rowKey(r: { itemId: string; locale: string }) {
+  return `${r.itemId}:${r.locale}`;
+}
 
 type Report = {
   schemaVersion?: number;
@@ -165,10 +181,6 @@ function priorityDot(p: string) {
   return 'bg-emerald-400';
 }
 
-function rowKey(r: ReportRow) {
-  return `${r.itemId}:${r.locale}`;
-}
-
 function findingSummary(r: ReportRow): string {
   if (!r.findings.length) return 'Ingen fund';
   const top = r.findings[0];
@@ -212,10 +224,13 @@ export default function ArchiveAuditPanel() {
   const [fixKinds, setFixKinds] = useState<Set<ArchiveFixKindUi>>(
     () => new Set<ArchiveFixKindUi>(['seo_meta'])
   );
+  const [recentlyApplied, setRecentlyApplied] = useState<Set<string>>(new Set());
+  const resultPanelRef = useRef<HTMLDivElement | null>(null);
   const [applyResult, setApplyResult] = useState<{
     writtenCount: number;
     stoppedOnError: boolean;
     errorMessage: string | null;
+    mode?: 'seo_meta' | 'content';
     results?: Array<{
       itemId: string;
       title: string;
@@ -235,6 +250,7 @@ export default function ArchiveAuditPanel() {
     setSelected(new Set());
     setPreview(null);
     setApplyResult(null);
+    setRecentlyApplied(new Set());
     setPhase('idle');
     try {
       const headers = await authHeaders();
@@ -497,16 +513,75 @@ export default function ArchiveAuditPanel() {
       });
       const j = await res.json();
       if (!res.ok && !j.writtenCount && !j.results) throw new Error(j.error || 'Anvendelse fejlede');
+      const written = j.writtenCount ?? 0;
+      const results: Array<{
+        itemId: string;
+        title: string;
+        locales: Array<{ locale: string; status: string; reason?: string }>;
+      }> = (j.results || []).map(
+        (item: {
+          itemId?: string;
+          title?: string;
+          locales?: Array<{ locale: string; status: string; reason?: string }>;
+        }) => ({
+          itemId: String(item.itemId || ''),
+          title: String(item.title || ''),
+          locales: Array.isArray(item.locales) ? item.locales : [],
+        })
+      );
       setApplyResult({
-        writtenCount: j.writtenCount ?? 0,
+        writtenCount: written,
         stoppedOnError: Boolean(j.stoppedOnError),
         errorMessage: j.errorMessage || j.error || null,
-        results: j.results || [],
+        mode: preview.mode,
+        results,
       });
+
+      // Patch local table so user sees new SEO/title and cleared findings immediately
+      if (written > 0 && report?.rows?.length) {
+        const writtenKeys = new Set<string>();
+        for (const item of results) {
+          for (const loc of item.locales || []) {
+            if (loc.status === 'written' || loc.status === 'ok') {
+              writtenKeys.add(`${item.itemId}:${loc.locale}`);
+            }
+          }
+        }
+        const appliedProposals =
+          writtenKeys.size > 0
+            ? preview.proposals.filter((p) => writtenKeys.has(`${p.itemId}:${p.locale}`))
+            : preview.proposals;
+        const nextRows =
+          preview.mode === 'seo_meta'
+            ? patchRowsAfterSeoMetaApply(report.rows, appliedProposals)
+            : patchRowsAfterContentApply(report.rows, appliedProposals);
+        const p0 = nextRows.filter((r) => r.priority === 'P0').length;
+        const p1 = nextRows.filter((r) => r.priority === 'P1').length;
+        const p2 = nextRows.filter((r) => r.priority === 'P2').length;
+        const okCount = nextRows.filter((r) => r.priority === 'ok').length;
+        setReport({
+          ...report,
+          rows: nextRows,
+          summary: {
+            ...(report.summary || {}),
+            p0,
+            p1,
+            p2,
+            ok: okCount,
+          },
+        });
+        setRecentlyApplied(
+          new Set(appliedProposals.map((p) => `${p.itemId}:${p.locale}`))
+        );
+      }
+
       setPhase('done');
       if (j.stoppedOnError) {
         setError(j.errorMessage || j.error || 'Stoppet ved fejl');
       }
+      requestAnimationFrame(() => {
+        resultPanelRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      });
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
       setPhase('confirm');
@@ -689,7 +764,14 @@ export default function ArchiveAuditPanel() {
           </div>
 
           {(phase === 'confirm' || phase === 'applying' || phase === 'done') && preview && (
-            <div className="rounded-xl border border-white/15 bg-black/40 p-3 space-y-3">
+            <div
+              ref={resultPanelRef}
+              className={`rounded-xl border bg-black/40 p-3 space-y-3 transition-all duration-300 ${
+                phase === 'done' && (applyResult?.writtenCount || 0) > 0
+                  ? 'border-white/25 shadow-[0_0_32px_-8px_rgba(255,255,255,0.18)]'
+                  : 'border-white/15'
+              }`}
+            >
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <p className="text-[13px] font-medium text-white/90">
                   {phase === 'done' ? 'Resultat' : 'Preview — gammel → ny'}
@@ -798,11 +880,23 @@ export default function ArchiveAuditPanel() {
               </div>
 
               {applyResult && (
-                <div className="border-t border-white/10 pt-2 space-y-1">
+                <div className="border-t border-white/10 pt-2 space-y-1.5">
                   <p className="text-[12px] text-white/70">
                     Skrevet: {applyResult.writtenCount}
                     {applyResult.stoppedOnError ? ' · stoppet ved fejl' : ' · færdig'}
                   </p>
+                  {applyResult.mode === 'seo_meta' && applyResult.writtenCount > 0 ? (
+                    <p className="text-[11px] text-white/45 leading-snug">
+                      SEO-title/meta skrevet. Øvrige fund (links/headings/canonical) kræver næste
+                      fix-typer — vælg chips ovenfor og kør Anvend igen.
+                    </p>
+                  ) : null}
+                  {applyResult.mode === 'content' && applyResult.writtenCount > 0 ? (
+                    <p className="text-[11px] text-white/45 leading-snug">
+                      Brødtekst/canonical/alt opdateret. Tabellen er opdateret lokalt — kør Scan arkiv
+                      for frisk CMS-status.
+                    </p>
+                  ) : null}
                   {(applyResult.results || []).map((item) => (
                     <p key={item.itemId} className="text-[11px] text-white/45">
                       {item.title || item.itemId}:{' '}
@@ -829,8 +923,14 @@ export default function ArchiveAuditPanel() {
                   const key = rowKey(r);
                   const open = expanded.has(key);
                   const busy = phase === 'previewing' || phase === 'applying';
+                  const justApplied = recentlyApplied.has(key);
                   return (
-                    <tr key={key} className="border-t border-white/[0.06] align-middle">
+                    <tr
+                      key={key}
+                      className={`border-t border-white/[0.06] align-middle ${
+                        justApplied ? 'bg-white/[0.04]' : ''
+                      }`}
+                    >
                       <td className="w-11 px-0 py-0.5">
                         <RowCheckbox
                           checked={selected.has(key)}
@@ -840,10 +940,24 @@ export default function ArchiveAuditPanel() {
                         />
                       </td>
                       <td className="px-2 py-2">
-                        <span className="inline-flex items-center gap-1.5 text-[11px] text-white/65">
-                          <span className={`size-1.5 shrink-0 rounded-full ${priorityDot(r.priority)}`} />
-                          {r.priority === 'P0' ? 'Kritisk' : r.priority === 'P1' ? 'Vigtig' : r.priority}
-                        </span>
+                        <div className="flex flex-col gap-1 items-start">
+                          <span className="inline-flex items-center gap-1.5 text-[11px] text-white/65">
+                            <span className={`size-1.5 shrink-0 rounded-full ${priorityDot(r.priority)}`} />
+                            {r.priority === 'P0'
+                              ? 'Kritisk'
+                              : r.priority === 'P1'
+                                ? 'Vigtig'
+                                : r.priority === 'ok'
+                                  ? 'OK'
+                                  : r.priority}
+                          </span>
+                          {justApplied ? (
+                            <span className="inline-flex items-center gap-1.5 px-1.5 py-0.5 rounded-md border border-white/15 bg-white/[0.06] text-[10px] uppercase tracking-wider text-white/70">
+                              <span className="size-1.5 rounded-full bg-emerald-400" />
+                              Opdateret nu
+                            </span>
+                          ) : null}
+                        </div>
                       </td>
                       <td className="px-2.5 py-2 text-white/80 align-top">
                         <button
@@ -854,6 +968,11 @@ export default function ArchiveAuditPanel() {
                           <span className="font-medium">{r.title || r.slug}</span>
                           <span className="text-white/35"> · {r.locale.toUpperCase()}</span>
                         </button>
+                        {justApplied || open ? (
+                          <p className="mt-1 text-[10px] text-white/35 truncate max-w-[280px]">
+                            SEO: {r.seoTitle || '(tom)'}
+                          </p>
+                        ) : null}
                         {open && (
                           <div className="mt-1.5 space-y-0.5 text-[11px] text-white/40">
                             <p>
@@ -867,7 +986,6 @@ export default function ArchiveAuditPanel() {
                                 ? `SC ${r.gscClicks ?? 0} klik${r.gscTopQuery ? ` · ${r.gscTopQuery}` : ''}`
                                 : 'SC —'}
                             </p>
-                            <p className="text-white/30 truncate max-w-[280px]">SEO: {r.seoTitle || '(tom)'}</p>
                           </div>
                         )}
                       </td>
@@ -877,7 +995,11 @@ export default function ArchiveAuditPanel() {
                           className="text-left w-full hover:text-white/70"
                           onClick={() => toggleExpand(key)}
                         >
-                          {findingSummary(r)}
+                          {r.findings.length === 0
+                            ? justApplied
+                              ? 'Ingen åbne SEO-fund for denne fix'
+                              : 'Ingen fund'
+                            : findingSummary(r)}
                         </button>
                         {open && r.findings.length > 0 && (
                           <ul className="mt-1.5 space-y-1">
