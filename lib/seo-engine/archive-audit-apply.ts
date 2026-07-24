@@ -12,9 +12,11 @@ import { getAdminDb } from '@/lib/firebase-admin';
 import {
   ARCHIVE_APPLY_COL,
   ARCHIVE_APPLY_MAX_BATCH,
+  ARCHIVE_APPLY_PREVIEW_PACE_MS,
   ARCHIVE_APPLY_PREVIEW_SCHEMA,
   ARCHIVE_APPLY_PREVIEW_TTL_MS,
   ARCHIVE_APPLY_SYSTEM_USER,
+  ARCHIVE_APPLY_WEBFLOW_BUSY_DA,
 } from '@/lib/seo-engine/archive-audit-apply-constants';
 import { analyzeArticle, strategizeFromRun } from '@/lib/seo-engine/pipeline';
 import { resolveEffectiveArticleType } from '@/lib/seo-engine/review-title-rule';
@@ -54,10 +56,50 @@ import {
 export {
   ARCHIVE_APPLY_COL,
   ARCHIVE_APPLY_MAX_BATCH,
+  ARCHIVE_APPLY_PREVIEW_PACE_MS,
   ARCHIVE_APPLY_PREVIEW_SCHEMA,
   ARCHIVE_APPLY_PREVIEW_TTL_MS,
   ARCHIVE_APPLY_SYSTEM_USER,
+  ARCHIVE_APPLY_WEBFLOW_BUSY_DA,
 } from '@/lib/seo-engine/archive-audit-apply-constants';
+
+const previewSleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
+
+/** Map blocking Webflow fetch failures to a calm Danish UI message when rate-limited. */
+export function formatArchiveApplyFetchError(args: {
+  itemId: string;
+  locale: string;
+  message: string;
+  status?: number | null;
+}): string {
+  const msg = args.message || '';
+  const status = args.status ?? null;
+  const rateLimited =
+    status === 429 || /too many requests|rate.?limit|429\b/i.test(msg);
+  if (rateLimited) return ARCHIVE_APPLY_WEBFLOW_BUSY_DA;
+  return `Blocking fetch ${args.itemId}:${args.locale}: ${msg}`;
+}
+
+/**
+ * Cache successful locale fetches by itemId+cmsLocaleId for one preview run.
+ * Failed promises are not retained so callers can retry with backoff.
+ */
+export function createCachedLocaleFetch(
+  fetchFn: typeof fetchArticleItemByLocale
+): typeof fetchArticleItemByLocale {
+  const cache = new Map<string, Promise<WebflowLocaleItem>>();
+  return (itemId, cmsLocaleId) => {
+    const key = `${itemId}:${cmsLocaleId}`;
+    const hit = cache.get(key);
+    if (hit) return hit;
+    const pending = fetchFn(itemId, cmsLocaleId).catch((err) => {
+      cache.delete(key);
+      throw err;
+    });
+    cache.set(key, pending);
+    return pending;
+  };
+}
 
 export type ArchiveApplySelection = {
   itemId: string;
@@ -351,6 +393,7 @@ function cmsLocaleFor(code: BackfillLocaleCode): string {
 /**
  * Generate overwrite proposals for selected archive rows (no CMS writes).
  * Uses real analyze + strategize (overwrite input unlocks existing SEO).
+ * Webflow reads use transient retry (429/5xx) + per-id cache + pacing.
  */
 export async function generateArchiveApplyPreview(opts: {
   selection: ArchiveApplySelection[];
@@ -360,6 +403,11 @@ export async function generateArchiveApplyPreview(opts: {
   analyzeFn?: typeof analyzeArticle;
   strategizeFn?: typeof strategizeFromRun;
   onLog?: (line: string) => void;
+  /** Override preview fetch pacing (tests: 0). Default ARCHIVE_APPLY_PREVIEW_PACE_MS. */
+  previewPaceMs?: number;
+  /** Override transient retry (tests). */
+  transientRetry?: Parameters<typeof withTransientFetchRetry>[1];
+  sleep?: (ms: number) => Promise<void>;
 }): Promise<ArchiveApplyPreviewDocument> {
   const gate = assertArchiveApplySelectionGates(opts.selection);
   if (gate.ok === false) {
@@ -368,7 +416,23 @@ export async function generateArchiveApplyPreview(opts: {
 
   const selection = sortSelectionDaFirst(opts.selection);
   const log = opts.onLog || (() => undefined);
-  const fetchFn = opts.fetchFn || fetchArticleItemByLocale;
+  const sleep = opts.sleep || previewSleep;
+  const paceMs =
+    opts.previewPaceMs != null ? Math.max(0, opts.previewPaceMs) : ARCHIVE_APPLY_PREVIEW_PACE_MS;
+  const baseFetch = opts.fetchFn || fetchArticleItemByLocale;
+  const retryFetch = withTransientFetchRetry(baseFetch, {
+    maxAttempts: opts.transientRetry?.maxAttempts ?? 5,
+    baseDelayMs: opts.transientRetry?.baseDelayMs ?? 400,
+    maxDelayMs: opts.transientRetry?.maxDelayMs ?? 8_000,
+    sleep: opts.transientRetry?.sleep ?? sleep,
+    onRetry: (info) => {
+      opts.transientRetry?.onRetry?.(info);
+      log(
+        `Transient fetch retry ${info.attempt}/${info.maxAttempts} status=${info.status ?? 'n/a'} waitMs=${info.delayMs}`
+      );
+    },
+  });
+  const fetchFn = createCachedLocaleFetch(retryFetch);
   const analyzeFn = opts.analyzeFn || analyzeArticle;
   const strategizeFn = opts.strategizeFn || strategizeFromRun;
   const store = opts.store || createFirestoreArchiveApplyPreviewStore();
@@ -390,8 +454,10 @@ export async function generateArchiveApplyPreview(opts: {
     rejected.push({ itemId, locale, status, reason });
   };
 
-  for (const sel of selection) {
+  for (let i = 0; i < selection.length; i++) {
+    const sel = selection[i]!;
     if (stoppedOnError) break;
+    if (i > 0 && paceMs > 0) await sleep(paceMs);
 
     let itemResult = byItem.get(sel.itemId);
     if (!itemResult) {
@@ -424,7 +490,12 @@ export async function generateArchiveApplyPreview(opts: {
       }
       if (outcome.kind === 'blocking') {
         stoppedOnError = true;
-        errorMessage = `Blocking fetch ${sel.itemId}:${sel.locale}: ${outcome.message}`;
+        errorMessage = formatArchiveApplyFetchError({
+          itemId: sel.itemId,
+          locale: sel.locale,
+          message: outcome.message,
+          status: outcome.status,
+        });
         pushRejected(sel.itemId, sel.locale, 'blocked_fetch', errorMessage);
         itemResult.locales.push({
           locale: sel.locale,

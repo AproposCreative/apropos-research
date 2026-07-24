@@ -5,16 +5,20 @@ import { join } from 'node:path';
 
 import {
   ARCHIVE_APPLY_MAX_BATCH,
+  ARCHIVE_APPLY_WEBFLOW_BUSY_DA,
   assertArchiveApplyConfirmGates,
   assertArchiveApplySelectionGates,
   applyArchiveApplyPreview,
+  createCachedLocaleFetch,
   createMemoryArchiveApplyPreviewStore,
+  formatArchiveApplyFetchError,
   generateArchiveApplyPreview,
   normalizeArchiveApplySelection,
   sortSelectionDaFirst,
   type ArchiveApplyPreviewDocument,
 } from '../lib/seo-engine/archive-audit-apply';
 import type { FrozenManifestEntry, SourceSignature } from '../lib/seo-engine/overwrite-backfill';
+import { WebflowLocaleFetchError } from '../lib/webflow/locale-items';
 
 const body = `<p>${'ord '.repeat(80)}</p>`;
 
@@ -292,6 +296,7 @@ describe('archive-apply preview + apply flow', () => {
       fetchFn: async () => publishedItem() as never,
       analyzeFn: aiAnalyze(),
       strategizeFn: aiStrategize(),
+      previewPaceMs: 0,
     });
 
     expect(preview.confirmToken.length).toBeGreaterThan(10);
@@ -305,6 +310,98 @@ describe('archive-apply preview + apply flow', () => {
     expect(loaded?.confirmToken).toBe(preview.confirmToken);
   });
 
+  it('preview retries 429 then succeeds for single item', async () => {
+    const store = createMemoryArchiveApplyPreviewStore();
+    let calls = 0;
+    const retries: number[] = [];
+    const preview = await generateArchiveApplyPreview({
+      selection: [{ itemId: 'item1', locale: 'da' }],
+      createdBy: 'admin-1',
+      store,
+      fetchFn: async () => {
+        calls += 1;
+        if (calls < 3) throw new WebflowLocaleFetchError('Too Many Requests', 429, 20);
+        return publishedItem() as never;
+      },
+      analyzeFn: aiAnalyze(),
+      strategizeFn: aiStrategize(),
+      previewPaceMs: 0,
+      sleep: async () => undefined,
+      transientRetry: {
+        maxAttempts: 5,
+        baseDelayMs: 1,
+        maxDelayMs: 50,
+        sleep: async () => undefined,
+        onRetry: (info) => retries.push(info.attempt),
+      },
+    });
+
+    expect(calls).toBe(3);
+    expect(retries).toEqual([1, 2]);
+    expect(preview.stoppedOnError).toBe(false);
+    expect(preview.proposals).toHaveLength(1);
+    expect(preview.errorMessage).toBeNull();
+  });
+
+  it('preview maps exhausted 429 to Danish busy message and clears proposals', async () => {
+    const store = createMemoryArchiveApplyPreviewStore();
+    const preview = await generateArchiveApplyPreview({
+      selection: [{ itemId: 'item1', locale: 'da' }],
+      createdBy: 'admin-1',
+      store,
+      fetchFn: async () => {
+        throw new WebflowLocaleFetchError('Too Many Requests', 429, 10);
+      },
+      analyzeFn: aiAnalyze(),
+      strategizeFn: aiStrategize(),
+      previewPaceMs: 0,
+      sleep: async () => undefined,
+      transientRetry: {
+        maxAttempts: 2,
+        baseDelayMs: 1,
+        maxDelayMs: 20,
+        sleep: async () => undefined,
+      },
+    });
+
+    expect(preview.stoppedOnError).toBe(true);
+    expect(preview.proposals).toHaveLength(0);
+    expect(preview.frozenManifest).toHaveLength(0);
+    expect(preview.errorMessage).toBe(ARCHIVE_APPLY_WEBFLOW_BUSY_DA);
+    expect(preview.selection).toHaveLength(1);
+  });
+
+  it('createCachedLocaleFetch reuses successful fetch per id+locale', async () => {
+    let calls = 0;
+    const cached = createCachedLocaleFetch(async () => {
+      calls += 1;
+      return publishedItem() as never;
+    });
+    await cached('item1', 'dk-locale');
+    await cached('item1', 'dk-locale');
+    await cached('item1', 'en-locale');
+    expect(calls).toBe(2);
+  });
+
+  it('formatArchiveApplyFetchError uses Danish busy copy for 429', () => {
+    expect(
+      formatArchiveApplyFetchError({
+        itemId: 'x',
+        locale: 'da',
+        message: 'Too Many Requests',
+        status: 429,
+      })
+    ).toBe(ARCHIVE_APPLY_WEBFLOW_BUSY_DA);
+    expect(
+      formatArchiveApplyFetchError({
+        itemId: 'x',
+        locale: 'da',
+        message: 'auth failed',
+        status: 401,
+      })
+    ).toMatch(/Blocking fetch/);
+  });
+
   it('apply refuses without matching confirm token even if overwrite true', async () => {
     const store = createMemoryArchiveApplyPreviewStore();
     const preview = await generateArchiveApplyPreview({
@@ -314,6 +411,7 @@ describe('archive-apply preview + apply flow', () => {
       fetchFn: async () => publishedItem() as never,
       analyzeFn: aiAnalyze(),
       strategizeFn: aiStrategize(),
+      previewPaceMs: 0,
     });
 
     await expect(
@@ -352,6 +450,7 @@ describe('archive-apply preview + apply flow', () => {
       fetchFn: async () => live as never,
       analyzeFn: aiAnalyze(),
       strategizeFn: aiStrategize(),
+      previewPaceMs: 0,
     });
 
     // Freeze live signature to match preview (patch changes lastUpdated)

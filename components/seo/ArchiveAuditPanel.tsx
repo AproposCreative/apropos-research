@@ -2,7 +2,10 @@
 
 import { useCallback, useMemo, useState } from 'react';
 import { useAuth } from '@/lib/auth-context';
-import { ARCHIVE_APPLY_MAX_BATCH } from '@/lib/seo-engine/archive-audit-apply-constants';
+import {
+  ARCHIVE_APPLY_MAX_BATCH,
+  ARCHIVE_APPLY_WEBFLOW_BUSY_DA,
+} from '@/lib/seo-engine/archive-audit-apply-constants';
 
 const secondaryBtn =
   'px-3 py-2.5 rounded-xl border border-white/12 text-[13px] text-white/75 hover:bg-white/[0.05] hover:border-white/18 disabled:opacity-40 transition-all duration-200 active:scale-[0.98] touch-target';
@@ -16,6 +19,59 @@ const segBtn = (active: boolean) =>
       ? 'bg-white/12 text-white shadow-sm border border-white/10'
       : 'text-white/45 hover:text-white/75'
   }`;
+
+/** Compact checkbox (≈14–16px visual) inside a 44px hit target. */
+function RowCheckbox(props: {
+  checked: boolean;
+  onChange: () => void;
+  label: string;
+  disabled?: boolean;
+}) {
+  return (
+    <label
+      className={`relative inline-flex size-11 shrink-0 cursor-pointer items-center justify-center rounded-lg transition-colors hover:bg-white/[0.04] ${
+        props.disabled ? 'pointer-events-none opacity-40' : ''
+      }`}
+    >
+      <input
+        type="checkbox"
+        className="peer sr-only"
+        checked={props.checked}
+        onChange={props.onChange}
+        disabled={props.disabled}
+        aria-label={props.label}
+      />
+      <span
+        className="flex size-3.5 items-center justify-center rounded-[3px] border border-white/25 bg-white/[0.03] transition-all duration-150 peer-checked:border-white/50 peer-checked:bg-white/90 peer-checked:[&_svg]:opacity-100 peer-focus-visible:ring-1 peer-focus-visible:ring-white/30"
+        aria-hidden
+      >
+        <svg
+          className="size-2.5 text-[#0a0a0a] opacity-0 transition-opacity duration-100"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth={3}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <path d="M5 12.5l4.5 4.5L19 7" />
+        </svg>
+      </span>
+    </label>
+  );
+}
+
+function previewErrorMessage(raw: string | null | undefined): string {
+  const msg = (raw || '').trim();
+  if (!msg) return ARCHIVE_APPLY_WEBFLOW_BUSY_DA;
+  if (/too many requests|rate.?limit|429\b|overbelastet/i.test(msg)) {
+    return ARCHIVE_APPLY_WEBFLOW_BUSY_DA;
+  }
+  if (/blocking fetch/i.test(msg) && /too many|429/i.test(msg)) {
+    return ARCHIVE_APPLY_WEBFLOW_BUSY_DA;
+  }
+  return msg;
+}
 
 type ReportRow = {
   itemId: string;
@@ -261,19 +317,44 @@ export default function ArchiveAuditPanel() {
         body: JSON.stringify({ selection: selectionPayload }),
       });
       const j = await res.json();
-      if (!res.ok || !j.ok) throw new Error(j.error || 'Preview fejlede');
+      if (!res.ok || !j.ok) {
+        throw new Error(previewErrorMessage(j.error || j.errorMessage) || 'Preview fejlede');
+      }
+      // Hard stop (e.g. Webflow 429): keep selection, clear confirm, show Danish error.
+      if (j.stoppedOnError) {
+        setPreview(null);
+        setError(previewErrorMessage(j.errorMessage));
+        setPhase('idle');
+        return;
+      }
+      const proposals = j.proposals || [];
+      if (proposals.length === 0) {
+        setPreview({
+          previewId: j.previewId,
+          confirmToken: j.confirmToken,
+          expiresAt: j.expiresAt,
+          proposals: [],
+          rejected: j.rejected || [],
+          stoppedOnError: false,
+          errorMessage: null,
+        });
+        setError('Ingen gyldige forslag — tjek skip-årsager nedenfor');
+        setPhase('confirm');
+        return;
+      }
       setPreview({
         previewId: j.previewId,
         confirmToken: j.confirmToken,
         expiresAt: j.expiresAt,
-        proposals: j.proposals || [],
+        proposals,
         rejected: j.rejected || [],
-        stoppedOnError: Boolean(j.stoppedOnError),
-        errorMessage: j.errorMessage || null,
+        stoppedOnError: false,
+        errorMessage: null,
       });
       setPhase('confirm');
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      setPreview(null);
+      setError(previewErrorMessage(e instanceof Error ? e.message : String(e)));
       setPhase('idle');
     }
   };
@@ -489,19 +570,21 @@ export default function ArchiveAuditPanel() {
                       className={secondaryBtn}
                       onClick={() => {
                         setPreview(null);
+                        setError(null);
                         setPhase('idle');
                       }}
                     >
                       Annullér
                     </button>
-                    <button
-                      type="button"
-                      className={dangerOutlineBtn}
-                      disabled={preview.proposals.length === 0 || preview.stoppedOnError}
-                      onClick={() => void confirmApply()}
-                    >
-                      Overskriv SEO-title og meta for {preview.proposals.length} valgte
-                    </button>
+                    {preview.proposals.length > 0 && !preview.stoppedOnError ? (
+                      <button
+                        type="button"
+                        className={dangerOutlineBtn}
+                        onClick={() => void confirmApply()}
+                      >
+                        Overskriv SEO-title og meta for {preview.proposals.length} valgte
+                      </button>
+                    ) : null}
                   </div>
                 )}
                 {phase === 'applying' && (
@@ -511,7 +594,7 @@ export default function ArchiveAuditPanel() {
 
               {preview.stoppedOnError && (
                 <p className="text-[12px] text-red-400/95">
-                  Preview stoppet: {preview.errorMessage || 'Ukendt fejl'}
+                  {previewErrorMessage(preview.errorMessage)}
                 </p>
               )}
 
@@ -564,8 +647,8 @@ export default function ArchiveAuditPanel() {
             <table className="min-w-full text-[12px]">
               <thead className="bg-white/[0.04] sticky top-0">
                 <tr className="text-left text-white/45">
-                  <th className="px-2 py-2 font-medium w-10" />
-                  <th className="px-2.5 py-2 font-medium w-16">Status</th>
+                  <th className="w-11 px-0 py-2 font-medium" />
+                  <th className="w-16 px-2 py-2 font-medium">Status</th>
                   <th className="px-2.5 py-2 font-medium">Artikel</th>
                   <th className="px-2.5 py-2 font-medium">Fund</th>
                 </tr>
@@ -574,24 +657,24 @@ export default function ArchiveAuditPanel() {
                 {rows.slice(0, 120).map((r) => {
                   const key = rowKey(r);
                   const open = expanded.has(key);
+                  const busy = phase === 'previewing' || phase === 'applying';
                   return (
-                    <tr key={key} className="border-t border-white/[0.06] align-top">
-                      <td className="px-2 py-2">
-                        <input
-                          type="checkbox"
-                          className="size-4 accent-white/80 touch-target"
+                    <tr key={key} className="border-t border-white/[0.06] align-middle">
+                      <td className="w-11 px-0 py-0.5">
+                        <RowCheckbox
                           checked={selected.has(key)}
                           onChange={() => toggle(key)}
-                          aria-label={`Vælg ${r.title || r.slug}`}
+                          label={`Vælg ${r.title || r.slug}`}
+                          disabled={busy}
                         />
                       </td>
-                      <td className="px-2.5 py-2">
-                        <span className="inline-flex items-center gap-1.5 text-white/70">
-                          <span className={`size-1.5 rounded-full ${priorityDot(r.priority)}`} />
+                      <td className="px-2 py-2">
+                        <span className="inline-flex items-center gap-1.5 text-[11px] text-white/65">
+                          <span className={`size-1.5 shrink-0 rounded-full ${priorityDot(r.priority)}`} />
                           {r.priority === 'P0' ? 'Kritisk' : r.priority === 'P1' ? 'Vigtig' : r.priority}
                         </span>
                       </td>
-                      <td className="px-2.5 py-2 text-white/80">
+                      <td className="px-2.5 py-2 text-white/80 align-top">
                         <button
                           type="button"
                           className="text-left hover:text-white transition-colors"
@@ -617,7 +700,7 @@ export default function ArchiveAuditPanel() {
                           </div>
                         )}
                       </td>
-                      <td className="px-2.5 py-2 text-white/50">
+                      <td className="px-2.5 py-2 text-white/50 align-top">
                         <button
                           type="button"
                           className="text-left w-full hover:text-white/70"
