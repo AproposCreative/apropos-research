@@ -5,6 +5,10 @@ import { useAuth } from '@/lib/auth-context';
 import {
   ARCHIVE_APPLY_MAX_BATCH,
   ARCHIVE_APPLY_WEBFLOW_BUSY_DA,
+  ARCHIVE_CONTENT_MAX_BATCH,
+  ARCHIVE_FIX_KIND_OPTIONS,
+  isArchiveRowEligibleForApply,
+  type ArchiveFixKindUi,
 } from '@/lib/seo-engine/archive-audit-apply-constants';
 
 const secondaryBtn =
@@ -90,6 +94,7 @@ type ReportRow = {
   gscClicks?: number | null;
   ga4PageMatched?: boolean;
   ga4PageViews?: number | null;
+  siblingLocalePresent?: boolean | null;
 };
 
 type Report = {
@@ -121,20 +126,34 @@ type PreviewProposal = {
   locale: string;
   title: string;
   slug: string;
-  oldSeoTitle: string | null;
-  oldMetaDescription: string | null;
-  newSeoTitle: string;
-  newMetaDescription: string;
+  oldSeoTitle?: string | null;
+  oldMetaDescription?: string | null;
+  newSeoTitle?: string;
+  newMetaDescription?: string;
+  kinds?: string[];
+  contentChanged?: boolean;
+  canonicalChanged?: boolean;
+  thumbAltChanged?: boolean;
+  oldCanonical?: string | null;
+  newCanonical?: string | null;
+  oldThumbAlt?: string | null;
+  newThumbAlt?: string | null;
+  links?: Array<{ url: string; title: string; anchorText: string }>;
+  headings?: Array<{ text: string; level: number }>;
+  oldContentExcerpt?: string;
+  newContentExcerpt?: string;
 };
 
 type PreviewState = {
+  mode: 'seo_meta' | 'content';
   previewId: string;
   confirmToken: string;
   expiresAt: string;
   proposals: PreviewProposal[];
-  rejected: Array<{ itemId: string; locale: string; status: string; reason?: string }>;
+  rejected: Array<{ itemId: string; locale: string; status?: string; reason?: string }>;
   stoppedOnError: boolean;
   errorMessage: string | null;
+  kinds: ArchiveFixKindUi[];
 };
 
 type ApplyPhase = 'idle' | 'previewing' | 'confirm' | 'applying' | 'done';
@@ -190,11 +209,14 @@ export default function ArchiveAuditPanel() {
   const [dataOpen, setDataOpen] = useState(false);
   const [phase, setPhase] = useState<ApplyPhase>('idle');
   const [preview, setPreview] = useState<PreviewState | null>(null);
+  const [fixKinds, setFixKinds] = useState<Set<ArchiveFixKindUi>>(
+    () => new Set<ArchiveFixKindUi>(['seo_meta'])
+  );
   const [applyResult, setApplyResult] = useState<{
     writtenCount: number;
     stoppedOnError: boolean;
     errorMessage: string | null;
-    results: Array<{
+    results?: Array<{
       itemId: string;
       title: string;
       locales: Array<{ locale: string; status: string; reason?: string }>;
@@ -280,9 +302,22 @@ export default function ArchiveAuditPanel() {
   const selectVisibleP0 = () => {
     const next = new Set(selected);
     for (const r of rows) {
-      if (r.priority === 'P0') next.add(rowKey(r));
+      if (r.priority !== 'P0') continue;
+      if (!isArchiveRowEligibleForApply(r)) continue;
+      next.add(rowKey(r));
     }
     setSelected(next);
+    setPreview(null);
+    setPhase('idle');
+  };
+
+  const toggleFixKind = (id: ArchiveFixKindUi) => {
+    setFixKinds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
     setPreview(null);
     setPhase('idle');
   };
@@ -292,25 +327,92 @@ export default function ArchiveAuditPanel() {
       .map((key) => {
         const [itemId, locale] = key.split(':');
         if (!itemId || (locale !== 'da' && locale !== 'en')) return null;
+        const row = (report?.rows || []).find((r) => r.itemId === itemId && r.locale === locale);
+        if (row && !isArchiveRowEligibleForApply(row)) return null;
         return { itemId, locale: locale as 'da' | 'en' };
       })
       .filter(Boolean) as Array<{ itemId: string; locale: 'da' | 'en' }>;
-  }, [selected]);
+  }, [selected, report]);
+
+  const contentKindsSelected = useMemo(
+    () => ARCHIVE_FIX_KIND_OPTIONS.filter((o) => o.id !== 'seo_meta' && fixKinds.has(o.id)).map((o) => o.id),
+    [fixKinds]
+  );
+  const seoMetaSelected = fixKinds.has('seo_meta');
+  const maxBatch = contentKindsSelected.length > 0 ? ARCHIVE_CONTENT_MAX_BATCH : ARCHIVE_APPLY_MAX_BATCH;
 
   const runPreview = async () => {
     setError(null);
     setApplyResult(null);
-    if (selectionPayload.length === 0) {
-      setError('Vælg mindst én række');
+    if (fixKinds.size === 0) {
+      setError('Vælg mindst én fix-type');
       return;
     }
-    if (selectionPayload.length > ARCHIVE_APPLY_MAX_BATCH) {
-      setError(`Max ${ARCHIVE_APPLY_MAX_BATCH} valgte pr. gang`);
+    if (selectionPayload.length === 0) {
+      setError('Vælg mindst én gyldig række (fetch-fejl / manglende EN er filtreret fra)');
+      return;
+    }
+    if (selectionPayload.length > maxBatch) {
+      setError(`Max ${maxBatch} valgte pr. gang for valgte fix-typer`);
       return;
     }
     setPhase('previewing');
     try {
       const headers = await authHeaders();
+
+      // Content fixes (body/canonical/alt) — separate frozen preview
+      if (contentKindsSelected.length > 0) {
+        const res = await fetch('/api/seo-engine/archive-audit/content-preview', {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({ selection: selectionPayload, kinds: contentKindsSelected }),
+        });
+        const j = await res.json();
+        if (!res.ok || !j.ok) {
+          throw new Error(previewErrorMessage(j.error || j.errorMessage) || 'Preview fejlede');
+        }
+        if (j.stoppedOnError) {
+          setPreview(null);
+          setError(previewErrorMessage(j.errorMessage));
+          setPhase('idle');
+          return;
+        }
+        const proposals = j.proposals || [];
+        if (!proposals.length) {
+          setError('Ingen gyldige indholds-forslag — tjek skip-årsager');
+          setPreview({
+            mode: 'content',
+            previewId: j.previewId,
+            confirmToken: j.confirmToken,
+            expiresAt: j.expiresAt,
+            proposals: [],
+            rejected: j.rejected || [],
+            stoppedOnError: false,
+            errorMessage: null,
+            kinds: contentKindsSelected,
+          });
+          setPhase('confirm');
+          return;
+        }
+        setPreview({
+          mode: 'content',
+          previewId: j.previewId,
+          confirmToken: j.confirmToken,
+          expiresAt: j.expiresAt,
+          proposals,
+          rejected: j.rejected || [],
+          stoppedOnError: false,
+          errorMessage: null,
+          kinds: contentKindsSelected,
+        });
+        if (seoMetaSelected) {
+          setError('Tip: SEO-title+meta køres i et separat trin — fjern indholds-chips for SEO-only');
+        }
+        setPhase('confirm');
+        return;
+      }
+
+      // SEO title + meta only
       const res = await fetch('/api/seo-engine/archive-audit/preview', {
         method: 'POST',
         headers,
@@ -320,7 +422,6 @@ export default function ArchiveAuditPanel() {
       if (!res.ok || !j.ok) {
         throw new Error(previewErrorMessage(j.error || j.errorMessage) || 'Preview fejlede');
       }
-      // Hard stop (e.g. Webflow 429): keep selection, clear confirm, show Danish error.
       if (j.stoppedOnError) {
         setPreview(null);
         setError(previewErrorMessage(j.errorMessage));
@@ -330,6 +431,7 @@ export default function ArchiveAuditPanel() {
       const proposals = j.proposals || [];
       if (proposals.length === 0) {
         setPreview({
+          mode: 'seo_meta',
           previewId: j.previewId,
           confirmToken: j.confirmToken,
           expiresAt: j.expiresAt,
@@ -337,12 +439,14 @@ export default function ArchiveAuditPanel() {
           rejected: j.rejected || [],
           stoppedOnError: false,
           errorMessage: null,
+          kinds: ['seo_meta'],
         });
         setError('Ingen gyldige forslag — tjek skip-årsager nedenfor');
         setPhase('confirm');
         return;
       }
       setPreview({
+        mode: 'seo_meta',
         previewId: j.previewId,
         confirmToken: j.confirmToken,
         expiresAt: j.expiresAt,
@@ -350,6 +454,7 @@ export default function ArchiveAuditPanel() {
         rejected: j.rejected || [],
         stoppedOnError: false,
         errorMessage: null,
+        kinds: ['seo_meta'],
       });
       setPhase('confirm');
     } catch (e) {
@@ -366,16 +471,22 @@ export default function ArchiveAuditPanel() {
       setError('Ingen gyldige forslag at anvende');
       return;
     }
-    const ok = window.confirm(
-      `Overskriv SEO-title og meta for ${n} valgte?\n\nKun SEO-title + meta. Publiceret status bevares. Der tages backup før skrivning.`
-    );
+    const confirmMsg =
+      preview.mode === 'content'
+        ? `Indsæt/ret indhold for ${n} artikel(ler)?\n\nFix: ${preview.kinds.join(', ')}\nBackup tages først. Publiceret status bevares.`
+        : `Overskriv SEO-title og meta for ${n} valgte?\n\nKun SEO-title + meta. Publiceret status bevares. Der tages backup før skrivning.`;
+    const ok = window.confirm(confirmMsg);
     if (!ok) return;
 
     setPhase('applying');
     setError(null);
     try {
       const headers = await authHeaders();
-      const res = await fetch('/api/seo-engine/archive-audit/apply', {
+      const endpoint =
+        preview.mode === 'content'
+          ? '/api/seo-engine/archive-audit/content-apply'
+          : '/api/seo-engine/archive-audit/apply';
+      const res = await fetch(endpoint, {
         method: 'POST',
         headers,
         body: JSON.stringify({
@@ -385,7 +496,7 @@ export default function ArchiveAuditPanel() {
         }),
       });
       const j = await res.json();
-      if (!res.ok && !j.results) throw new Error(j.error || 'Anvendelse fejlede');
+      if (!res.ok && !j.writtenCount && !j.results) throw new Error(j.error || 'Anvendelse fejlede');
       setApplyResult({
         writtenCount: j.writtenCount ?? 0,
         stoppedOnError: Boolean(j.stoppedOnError),
@@ -405,7 +516,9 @@ export default function ArchiveAuditPanel() {
   const dataStatus = report ? dataStatusLine(report) : null;
   const canApply =
     selected.size > 0 &&
-    selected.size <= ARCHIVE_APPLY_MAX_BATCH &&
+    selectionPayload.length > 0 &&
+    selectionPayload.length <= maxBatch &&
+    fixKinds.size > 0 &&
     phase !== 'previewing' &&
     phase !== 'applying';
 
@@ -415,7 +528,7 @@ export default function ArchiveAuditPanel() {
         <div className="min-w-0 flex-1">
           <p className="text-[15px] font-medium text-white tracking-tight">Arkiv</p>
           <p className="text-[12px] text-white/45 mt-0.5 leading-snug">
-            Scan publicerede artikler, vælg dem der skal opdateres, og anvend ny SEO-title + meta.
+            Scan, vælg fix-typer, preview, og anvend — SEO, links, overskrifter, canonical eller billede-alt.
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -541,20 +654,38 @@ export default function ArchiveAuditPanel() {
             </button>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2 rounded-xl border border-white/12 bg-white/[0.04] px-3 py-2.5">
-            <p className="text-[12px] text-white/60 flex-1 min-w-[140px]">
-              {selected.size === 0
-                ? 'Vælg rækker for at anvende SEO+meta'
-                : `${selected.size} valgt${selected.size > ARCHIVE_APPLY_MAX_BATCH ? ` (max ${ARCHIVE_APPLY_MAX_BATCH})` : ''}`}
-            </p>
-            <button
-              type="button"
-              className={primaryBtn}
-              disabled={!canApply}
-              onClick={() => void runPreview()}
-            >
-              {phase === 'previewing' ? 'Forbereder…' : 'Anvend valgte (SEO+meta)'}
-            </button>
+          <div className="rounded-xl border border-white/12 bg-white/[0.04] px-3 py-2.5 space-y-2.5">
+            <div className="flex flex-wrap gap-1.5 items-center">
+              <span className="text-[11px] text-white/45 mr-1">Fix:</span>
+              {ARCHIVE_FIX_KIND_OPTIONS.map((opt) => (
+                <button
+                  key={opt.id}
+                  type="button"
+                  onClick={() => toggleFixKind(opt.id)}
+                  className={segBtn(fixKinds.has(opt.id))}
+                  disabled={phase === 'previewing' || phase === 'applying'}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <p className="text-[12px] text-white/60 flex-1 min-w-[140px]">
+                {selected.size === 0
+                  ? 'Vælg rækker (fetch-fejl / manglende EN springes over)'
+                  : `${selectionPayload.length} klar · ${selected.size} markeret${
+                      selectionPayload.length > maxBatch ? ` (max ${maxBatch})` : ''
+                    }`}
+              </p>
+              <button
+                type="button"
+                className={primaryBtn}
+                disabled={!canApply}
+                onClick={() => void runPreview()}
+              >
+                {phase === 'previewing' ? 'Forbereder…' : 'Anvend valgte'}
+              </button>
+            </div>
           </div>
 
           {(phase === 'confirm' || phase === 'applying' || phase === 'done') && preview && (
@@ -582,7 +713,9 @@ export default function ArchiveAuditPanel() {
                         className={dangerOutlineBtn}
                         onClick={() => void confirmApply()}
                       >
-                        Overskriv SEO-title og meta for {preview.proposals.length} valgte
+                        {preview.mode === 'content'
+                          ? `Indsæt/ret for ${preview.proposals.length} artikel(ler)`
+                          : `Overskriv SEO-title og meta for ${preview.proposals.length} valgte`}
                       </button>
                     ) : null}
                   </div>
@@ -607,16 +740,54 @@ export default function ArchiveAuditPanel() {
                     <p className="text-[12px] text-white/80">
                       {p.title || p.slug} · {p.locale.toUpperCase()}
                     </p>
-                    <p className="text-[11px] text-white/40">
-                      Title: <span className="text-white/30">{p.oldSeoTitle || '(tom)'}</span>
-                      {' → '}
-                      <span className="text-white/75">{p.newSeoTitle}</span>
-                    </p>
-                    <p className="text-[11px] text-white/40">
-                      Meta: <span className="text-white/30">{p.oldMetaDescription || '(tom)'}</span>
-                      {' → '}
-                      <span className="text-white/75">{p.newMetaDescription}</span>
-                    </p>
+                    {preview.mode === 'seo_meta' ? (
+                      <>
+                        <p className="text-[11px] text-white/40">
+                          Title: <span className="text-white/30">{p.oldSeoTitle || '(tom)'}</span>
+                          {' → '}
+                          <span className="text-white/75">{p.newSeoTitle}</span>
+                        </p>
+                        <p className="text-[11px] text-white/40">
+                          Meta: <span className="text-white/30">{p.oldMetaDescription || '(tom)'}</span>
+                          {' → '}
+                          <span className="text-white/75">{p.newMetaDescription}</span>
+                        </p>
+                      </>
+                    ) : (
+                      <>
+                        {p.canonicalChanged ? (
+                          <p className="text-[11px] text-white/40">
+                            Canonical:{' '}
+                            <span className="text-white/30">{p.oldCanonical || '(tom)'}</span>
+                            {' → '}
+                            <span className="text-white/75">{p.newCanonical}</span>
+                          </p>
+                        ) : null}
+                        {p.thumbAltChanged ? (
+                          <p className="text-[11px] text-white/40">
+                            Thumb alt:{' '}
+                            <span className="text-white/30">{p.oldThumbAlt || '(tom)'}</span>
+                            {' → '}
+                            <span className="text-white/75">{p.newThumbAlt}</span>
+                          </p>
+                        ) : null}
+                        {(p.links || []).slice(0, 3).map((l) => (
+                          <p key={l.url} className="text-[11px] text-white/45">
+                            Link «{l.anchorText}» → {l.title}
+                          </p>
+                        ))}
+                        {(p.headings || []).map((h, i) => (
+                          <p key={`${h.text}-${i}`} className="text-[11px] text-white/45">
+                            H{h.level}: {h.text}
+                          </p>
+                        ))}
+                        {p.contentChanged ? (
+                          <p className="text-[10px] text-white/30 line-clamp-2">
+                            Brødtekst opdateres ({(p.newContentExcerpt || '').length}+ tegn preview)
+                          </p>
+                        ) : null}
+                      </>
+                    )}
                   </div>
                 ))}
                 {preview.rejected.map((r) => (
@@ -632,7 +803,7 @@ export default function ArchiveAuditPanel() {
                     Skrevet: {applyResult.writtenCount}
                     {applyResult.stoppedOnError ? ' · stoppet ved fejl' : ' · færdig'}
                   </p>
-                  {applyResult.results.map((item) => (
+                  {(applyResult.results || []).map((item) => (
                     <p key={item.itemId} className="text-[11px] text-white/45">
                       {item.title || item.itemId}:{' '}
                       {item.locales.map((l) => `${l.locale}=${l.status}`).join(', ')}
