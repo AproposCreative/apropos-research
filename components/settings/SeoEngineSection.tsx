@@ -306,14 +306,16 @@ export default function SeoEngineSection({
 
         <div className="flex items-start justify-between gap-3 border-t border-white/[0.06] pt-3">
           <div className="min-w-0 text-left">
-            <p className="text-[12px] font-medium text-white/80">Auto-optimering (GSC/GA4)</p>
+            <p className="text-[12px] font-medium text-white/80">Automatisk SEO (GSC/GA4)</p>
             <p className="text-[10px] text-white/35 mt-0.5 leading-snug">
-              Standard er recommendation/approval. Kun når slået til må sikre metadatafelter
-              (seo-title/meta) opdateres automatisk — med versionshistorik og rollback. Aldrig
-              redaktionel titel, brødtekst eller holdning.
+              Production-default er automatisk drift (publish + cron). Kun seo-title/meta (+
+              server-schema snapshot). Nød-stop her stopper writes. Aldrig redaktionel
+              titel/brødtekst/holdning/rating/slug.
             </p>
             <p className="text-[10px] text-white/30 mt-1">
-              {autoOptEnabled ? 'Auto-optimering: Slået til' : 'Auto-optimering: Slået fra'}
+              {autoOptEnabled
+                ? 'Automatisk drift: Aktiv (slå fra = nød-stop)'
+                : 'Nød-stop: Aktiv — ingen automatiske SEO-writes'}
             </p>
           </div>
           <div className="touch-target flex shrink-0 items-center justify-center">

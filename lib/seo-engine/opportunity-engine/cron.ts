@@ -6,8 +6,9 @@ import { claimOpportunityCronSlot } from '@/lib/seo-engine/opportunity-engine/st
 import { logger } from '@/lib/logger';
 
 /**
- * Idempotent daily/weekly opportunity scan handler.
- * Requires Authorization: Bearer CRON_SECRET.
+ * Idempotent daily collect / weekly optimize.
+ * Daily: gather GSC/GA4 opportunities (no writes).
+ * Weekly: optimize — auto-apply up to 10 with guardrails.
  */
 export async function handleOpportunityCron(
   req: NextRequest,
@@ -34,25 +35,38 @@ export async function handleOpportunityCron(
     });
   }
 
+  const mode = cadence === 'weekly' ? 'optimize' : 'collect';
+
   try {
     const report = await runOpportunityScan({
       actor: `system:cron-opportunities:${cadence}`,
       persist: true,
-      limit: cadence === 'weekly' ? 60 : 40,
+      mode,
+      limit: cadence === 'weekly' ? 10 : 40,
     });
-    const autoApply = await maybeAutoApplyOpportunities({
-      opportunities: report.opportunities,
-      actor: `system:cron-opportunities:${cadence}`,
-    });
+
+    let autoApply: { applied: string[]; skipped: Array<{ id: string; reason: string }> } | null =
+      null;
+    if (cadence === 'weekly' && report.status !== 'auto_disabled' && report.status !== 'missing_gsc') {
+      autoApply = await maybeAutoApplyOpportunities({
+        opportunities: report.opportunities,
+        actor: `system:cron-opportunities:${cadence}`,
+      });
+    }
+
     return NextResponse.json({
       ok: true,
       slotKey,
+      mode,
       status: report.status,
       statusMessage: report.statusMessage,
       opportunityCount: report.opportunityCount,
+      appliedCount: autoApply?.applied.length ?? 0,
+      skippedCount: autoApply?.skipped.length ?? 0,
       autoApply,
     });
   } catch (e) {
+    // Fail closed for the cron itself — never affects article publish path.
     logger.error(
       '[cron/seo-engine-opportunities] failed',
       e instanceof Error ? e : new Error(String(e))

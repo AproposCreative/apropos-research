@@ -13,6 +13,8 @@ export const OPP_COL = {
   versions: 'seoEngineOpportunityVersions',
   audit: 'seoEngineOpportunityAudit',
   scans: 'seoEngineOpportunityScans',
+  urlCooldown: 'seoEngineOpportunityUrlCooldown',
+  idempotency: 'seoEngineOpportunityIdempotency',
 } as const;
 
 function requireDb(): Firestore {
@@ -68,6 +70,11 @@ export async function upsertOpportunity(
   }
   if (prev.status === 'applied' || prev.status === 'rolled_back') {
     merged.status = prev.status;
+  }
+  // Skipped items may reopen on a later scan with fresh evidence
+  if (prev.status === 'skipped') {
+    merged.status = 'open';
+    merged.skipReason = null;
   }
   await ref.set(stripUndefined(merged as unknown as Record<string, unknown>), { merge: true });
   return merged;
@@ -137,7 +144,9 @@ export async function updateOpportunityStatus(args: {
             ? 'apply'
             : args.status === 'rolled_back'
               ? 'rollback'
-              : 'dismiss',
+              : args.status === 'skipped'
+                ? 'skip'
+                : 'dismiss',
     opportunityId: args.id,
     detail: `status=${args.status}`,
   });
@@ -241,6 +250,81 @@ export async function claimOpportunityCronSlot(args: {
   } catch {
     return false;
   }
+}
+
+/** Last successful apply timestamp for a URL (cooldown). */
+export async function getUrlLastAppliedAt(url: string | null | undefined): Promise<string | null> {
+  if (!url) return null;
+  const db = getAdminDb();
+  if (!db) return null;
+  const id = createHash('sha256').update(url.toLowerCase()).digest('hex').slice(0, 32);
+  const snap = await db.collection(OPP_COL.urlCooldown).doc(id).get();
+  if (!snap.exists) return null;
+  const at = snap.data()?.lastAppliedAt;
+  return typeof at === 'string' ? at : null;
+}
+
+export async function setUrlLastAppliedAt(args: {
+  url: string;
+  appliedAt: string;
+  opportunityId: string;
+}): Promise<void> {
+  const db = getAdminDb();
+  if (!db) return;
+  const id = createHash('sha256').update(args.url.toLowerCase()).digest('hex').slice(0, 32);
+  await db.collection(OPP_COL.urlCooldown).doc(id).set(
+    {
+      url: args.url,
+      lastAppliedAt: args.appliedAt,
+      opportunityId: args.opportunityId,
+      updatedAt: FieldValue.serverTimestamp(),
+    },
+    { merge: true }
+  );
+}
+
+/**
+ * Claim an idempotency key for a write. Returns false if already applied.
+ */
+export async function claimIdempotencyKey(args: {
+  key: string;
+  opportunityId: string;
+}): Promise<boolean> {
+  const db = getAdminDb();
+  if (!db) return true;
+  const ref = db.collection(OPP_COL.idempotency).doc(args.key);
+  try {
+    return await db.runTransaction(async (tx) => {
+      const snap = await tx.get(ref);
+      if (snap.exists && snap.data()?.status === 'applied') return false;
+      tx.set(ref, {
+        key: args.key,
+        opportunityId: args.opportunityId,
+        status: 'claimed',
+        claimedAt: new Date().toISOString(),
+        createdAt: FieldValue.serverTimestamp(),
+      });
+      return true;
+    });
+  } catch {
+    return false;
+  }
+}
+
+export async function completeIdempotencyKey(args: {
+  key: string;
+  status: 'applied' | 'failed';
+}): Promise<void> {
+  const db = getAdminDb();
+  if (!db) return;
+  await db.collection(OPP_COL.idempotency).doc(args.key).set(
+    {
+      status: args.status,
+      completedAt: new Date().toISOString(),
+      updatedAt: FieldValue.serverTimestamp(),
+    },
+    { merge: true }
+  );
 }
 
 function stripUndefined(obj: Record<string, unknown>): Record<string, unknown> {

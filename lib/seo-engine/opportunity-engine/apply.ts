@@ -1,7 +1,8 @@
 /**
  * Apply / rollback for opportunity proposals.
- * Default is recommendation/approval — never auto-overwrites editorial title/body/stance.
- * Only seoTitle + metaDescription when Auto-optimering is explicitly enabled (or after approve).
+ *
+ * Automatic production path writes ONLY seo-title + meta-description (+ stores
+ * server JSON-LD snapshot). Never editorial title/body/stance/rating/slug/dates.
  */
 
 import {
@@ -10,8 +11,18 @@ import {
   saveMetaVersion,
   updateOpportunityStatus,
   appendAudit,
+  getUrlLastAppliedAt,
+  setUrlLastAppliedAt,
+  claimIdempotencyKey,
+  completeIdempotencyKey,
 } from '@/lib/seo-engine/opportunity-engine/store';
-import { resolveAutoOpportunityOptimizationEnabled } from '@/lib/seo-engine/opportunity-engine/settings';
+import { resolveAutomaticOpportunityRuntime } from '@/lib/seo-engine/opportunity-engine/settings';
+import {
+  assertCmsPatchIsSafe,
+  buildIdempotencyKey,
+  evaluateAutoApplyGuardrails,
+  OPPORTUNITY_MAX_APPLY_PER_RUN,
+} from '@/lib/seo-engine/opportunity-engine/guardrails';
 import type {
   OpportunityProposal,
   OpportunitySafeField,
@@ -38,7 +49,7 @@ export function assertProposalsAreSafe(proposals: OpportunityProposal[]): void {
 }
 
 /**
- * Apply approved (or auto-approved) metadata proposals to Webflow DK locale.
+ * Apply metadata proposals to Webflow DK locale (safe fields only).
  */
 export async function applyOpportunityProposals(args: {
   opportunityId: string;
@@ -50,11 +61,15 @@ export async function applyOpportunityProposals(args: {
   if (!opp) throw Object.assign(new Error('Opportunity ikke fundet'), { code: 'not_found' });
 
   if (args.mode === 'auto') {
-    const enabled = await resolveAutoOpportunityOptimizationEnabled();
-    if (!enabled) {
+    const runtime = await resolveAutomaticOpportunityRuntime();
+    if (!runtime.shouldAutoOptimize) {
       throw Object.assign(
-        new Error('Auto-optimering er slået fra — kun recommendation/approval mode'),
-        { code: 'auto_disabled' }
+        new Error(
+          runtime.killSwitchEnabled
+            ? `Forbindelser usunde — ${runtime.connectionSummary}`
+            : 'Auto-optimering er nød-stoppet'
+        ),
+        { code: runtime.killSwitchEnabled ? 'connections_unhealthy' : 'auto_disabled' }
       );
     }
   } else if (opp.status !== 'approved') {
@@ -76,8 +91,29 @@ export async function applyOpportunityProposals(args: {
     });
   }
 
+  const idempotencyKey =
+    opp.idempotencyKey ||
+    buildIdempotencyKey({
+      itemId: opp.itemId,
+      url: opp.url,
+      fingerprint: opp.fingerprint,
+      proposedTitle: opp.proposals.find((p) => p.field === 'seoTitle')?.proposedValue,
+      proposedMeta: opp.proposals.find((p) => p.field === 'metaDescription')?.proposedValue,
+    });
+
+  const claimed = await claimIdempotencyKey({
+    key: idempotencyKey,
+    opportunityId: opp.id,
+  });
+  if (!claimed) {
+    throw Object.assign(new Error('Idempotency-key allerede anvendt'), {
+      code: 'idempotency_duplicate',
+    });
+  }
+
   const { dk } = resolveWebflowLocaleIds();
-  const live = await fetchArticleItemByLocale(opp.itemId, dk);
+  await fetchArticleItemByLocale(opp.itemId, dk);
+
   const patchFields: { seoTitle?: string; metaDescription?: string } = {};
   const versionIds: string[] = [...(opp.versionIds || [])];
 
@@ -89,27 +125,58 @@ export async function applyOpportunityProposals(args: {
   }
 
   const cmsPatch = toWebflowSeoPatch(patchFields);
+  assertCmsPatchIsSafe(cmsPatch);
   if (Object.keys(cmsPatch).length === 0) {
+    await completeIdempotencyKey({ key: idempotencyKey, status: 'failed' });
     throw Object.assign(new Error('Tom CMS-patch'), { code: 'empty_patch' });
   }
 
-  // Version history before write
   const appliedAt = new Date().toISOString();
-  for (const proposal of opp.proposals) {
-    const ver = await saveMetaVersion({
-      opportunityId: opp.id,
-      itemId: opp.itemId,
-      locale: opp.locale,
-      field: proposal.field,
-      before: proposal.currentValue,
-      after: proposal.proposedValue,
-      appliedAt,
-      appliedBy: args.actor,
-    });
-    versionIds.push(ver.id);
-  }
+  try {
+    for (const proposal of opp.proposals) {
+      const ver = await saveMetaVersion({
+        opportunityId: opp.id,
+        itemId: opp.itemId,
+        locale: opp.locale,
+        field: proposal.field,
+        before: proposal.currentValue,
+        after: proposal.proposedValue,
+        appliedAt,
+        appliedBy: args.actor,
+        idempotencyKey,
+      });
+      versionIds.push(ver.id);
+    }
 
-  await patchArticleFieldDataForLocale(opp.itemId, cmsPatch, dk);
+    // Persist server-side schema snapshot in version history (never editorial CMS fields).
+    if (opp.serverJsonLdHtml) {
+      const schemaVer = await saveMetaVersion({
+        opportunityId: opp.id,
+        itemId: opp.itemId,
+        locale: opp.locale,
+        field: 'serverJsonLd',
+        before: null,
+        after: opp.serverJsonLdHtml,
+        appliedAt,
+        appliedBy: args.actor,
+        idempotencyKey,
+      });
+      versionIds.push(schemaVer.id);
+    }
+
+    await patchArticleFieldDataForLocale(opp.itemId, cmsPatch, dk);
+    await completeIdempotencyKey({ key: idempotencyKey, status: 'applied' });
+    if (opp.url) {
+      await setUrlLastAppliedAt({
+        url: opp.url,
+        appliedAt,
+        opportunityId: opp.id,
+      });
+    }
+  } catch (e) {
+    await completeIdempotencyKey({ key: idempotencyKey, status: 'failed' });
+    throw e;
+  }
 
   const updated = await updateOpportunityStatus({
     id: opp.id,
@@ -119,6 +186,7 @@ export async function applyOpportunityProposals(args: {
       appliedAt,
       appliedBy: args.actor,
       versionIds,
+      idempotencyKey,
     },
   });
 
@@ -126,11 +194,8 @@ export async function applyOpportunityProposals(args: {
     actor: args.actor,
     action: args.mode === 'auto' ? 'auto_apply' : 'apply',
     opportunityId: opp.id,
-    detail: `fields=${opp.proposals.map((p) => p.field).join(',')} item=${opp.itemId}`,
+    detail: `fields=${opp.proposals.map((p) => p.field).join(',')} item=${opp.itemId} key=${idempotencyKey}`,
   });
-
-  // Touch live for typecheck unused warning avoidance — we verified fetch succeeded
-  void live;
 
   return { opportunity: updated, versionIds };
 }
@@ -196,6 +261,14 @@ export async function rollbackOpportunity(args: {
   for (const vid of versionIds) {
     const ver = await getMetaVersion(vid);
     if (!ver || ver.rolledBackAt) continue;
+    if (ver.field === 'serverJsonLd') {
+      await saveMetaVersion({
+        ...ver,
+        rolledBackAt: new Date().toISOString(),
+        rolledBackBy: args.actor,
+      });
+      continue;
+    }
     if (ver.field === 'seoTitle') {
       patchFields.seoTitle = ver.before || '';
     }
@@ -213,7 +286,6 @@ export async function rollbackOpportunity(args: {
     seoTitle: patchFields.seoTitle,
     metaDescription: patchFields.metaDescription,
   });
-  // Allow empty string restore via direct slug patch when needed
   const slugs = (await import('@/lib/seo-engine/webflow-adapter')).getCmsSeoSlugs();
   const fieldData: Record<string, string> = { ...cmsPatch };
   if (patchFields.seoTitle === '' && !(slugs.seoTitle in fieldData)) {
@@ -223,6 +295,7 @@ export async function rollbackOpportunity(args: {
     fieldData[slugs.metaDescription] = '';
   }
   if (Object.keys(fieldData).length > 0) {
+    assertCmsPatchIsSafe(fieldData);
     await patchArticleFieldDataForLocale(opp.itemId, fieldData, dk);
   }
 
@@ -234,50 +307,101 @@ export async function rollbackOpportunity(args: {
 }
 
 /**
- * After a scan, optionally auto-apply high-confidence safe proposals when flag is on.
- * Never touches editorial title/body/stance.
+ * Automatic apply path after collect/optimize scan.
+ * Enforces batch limit, cooldown, confidence, evidence, validation.
  */
 export async function maybeAutoApplyOpportunities(args: {
   opportunities: SeoOpportunity[];
   actor: string;
-  minScore?: number;
-}): Promise<{ applied: string[]; skipped: string[] }> {
-  const enabled = await resolveAutoOpportunityOptimizationEnabled();
+  now?: Date;
+  /** Injected for tests. */
+  runtime?: Awaited<ReturnType<typeof resolveAutomaticOpportunityRuntime>>;
+  applyFn?: typeof applyOpportunityProposals;
+  getUrlLastAppliedAtFn?: typeof getUrlLastAppliedAt;
+  updateStatusFn?: typeof updateOpportunityStatus;
+}): Promise<{ applied: string[]; skipped: Array<{ id: string; reason: string }> }> {
+  const runtime = args.runtime || (await resolveAutomaticOpportunityRuntime());
   const applied: string[] = [];
-  const skipped: string[] = [];
-  if (!enabled) {
-    return { applied, skipped: args.opportunities.map((o) => o.id) };
+  const skipped: Array<{ id: string; reason: string }> = [];
+
+  if (!runtime.killSwitchEnabled) {
+    return {
+      applied,
+      skipped: args.opportunities.map((o) => ({ id: o.id, reason: 'kill_switch_off' })),
+    };
   }
-  const minScore = args.minScore ?? 50;
-  for (const opp of args.opportunities) {
-    if (opp.score < minScore || opp.proposals.length === 0) {
-      skipped.push(opp.id);
+  if (!runtime.shouldAutoOptimize) {
+    return {
+      applied,
+      skipped: args.opportunities.map((o) => ({
+        id: o.id,
+        reason: 'connections_unhealthy',
+      })),
+    };
+  }
+
+  const applyFn = args.applyFn || applyOpportunityProposals;
+  const cooldownFn = args.getUrlLastAppliedAtFn || getUrlLastAppliedAt;
+  const statusFn = args.updateStatusFn || updateOpportunityStatus;
+  let appliedCount = 0;
+
+  // Highest score first
+  const ordered = [...args.opportunities].sort((a, b) => b.score - a.score);
+
+  for (const opp of ordered) {
+    if (appliedCount >= OPPORTUNITY_MAX_APPLY_PER_RUN) {
+      skipped.push({ id: opp.id, reason: 'batch_limit' });
       continue;
     }
-    // Only auto-apply weak/missing meta — not cannibalization-only rows
-    const safeAuto =
-      opp.signals.includes('weak_or_missing_meta') ||
-      opp.signals.includes('high_impressions_low_ctr');
-    if (!safeAuto) {
-      skipped.push(opp.id);
+    if (opp.status === 'applied' || opp.status === 'rejected' || opp.status === 'dismissed') {
+      skipped.push({ id: opp.id, reason: `status_${opp.status}` });
       continue;
     }
+
+    const lastApplied = await cooldownFn(opp.url);
+    const gate = evaluateAutoApplyGuardrails({
+      opportunity: opp,
+      lastAppliedAtForUrl: lastApplied,
+      appliedCountInRun: appliedCount,
+      now: args.now,
+    });
+    if (!gate.allow) {
+      skipped.push({ id: opp.id, reason: gate.reason || 'skipped' });
+      try {
+        await statusFn({
+          id: opp.id,
+          status: 'skipped',
+          actor: args.actor,
+          extra: { skipReason: gate.reason || 'skipped' },
+        });
+      } catch {
+        /* ignore status write failures in auto path */
+      }
+      continue;
+    }
+
     try {
-      await updateOpportunityStatus({
+      // Mark approved then auto-apply
+      await statusFn({
         id: opp.id,
         status: 'approved',
         actor: args.actor,
       });
-      await applyOpportunityProposals({
+      await applyFn({
         opportunityId: opp.id,
         actor: args.actor,
         mode: 'auto',
         confirmOverwrite: true,
       });
       applied.push(opp.id);
-    } catch {
-      skipped.push(opp.id);
+      appliedCount += 1;
+    } catch (e) {
+      skipped.push({
+        id: opp.id,
+        reason: e instanceof Error ? e.message.slice(0, 120) : 'apply_failed',
+      });
     }
   }
+
   return { applied, skipped };
 }

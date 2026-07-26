@@ -17,13 +17,14 @@
 | `NEXT_PUBLIC_SEO_ENGINE_DEMO` | unset | Client demo banner + ephemeral header — **never in prod** |
 | `WEBFLOW_ARTICLE_WEBHOOK_OPTIMIZE` | `true` | Image-opt only — **does not** gate SEO/translation |
 
-## Opportunity engine (GSC/GA4)
+## Opportunity engine (GSC/GA4) — automatic
 
 - Module: `lib/seo-engine/opportunity-engine/` (swappable)
-- UI: SEO Engine → **Optimering** tab + Settings Auto-optimering toggle
-- Manual scan: `POST /api/seo-engine/opportunities/scan`
-- Cron: `/api/cron/seo-engine-opportunities/daily|weekly` (`CRON_SECRET`)
-- Default = recommendation/approval; Auto-optimering only updates seo-title/meta with versions + rollback
+- **Production default ON** (nød-stop via Settings / `SEO_ENGINE_AUTO_OPPORTUNITY_OPT=false`)
+- Publish: empty SEO fill enqueue (fail closed — never blocks publish)
+- Cron daily = collect; weekly = optimize (max 10, 14d cooldown, confidence gates)
+- Safe writes only: seo-title / meta-description (+ server JSON-LD snapshot)
+- UI: SEO Engine → **Optimering** (status + nød-stop + rollback) — no ongoing Scan needed
 - Docs: `docs/seo-engine-opportunity-engine.md`
 - Review JSON-LD (server HTML): `docs/seo-engine-review-jsonld.md`
 

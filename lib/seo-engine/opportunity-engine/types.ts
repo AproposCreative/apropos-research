@@ -1,6 +1,6 @@
 /**
  * GSC/GA4-driven SEO opportunity engine — types.
- * Recommendation/approval mode by default; auto only for safe metadata when enabled.
+ * Production default = automatic drift when connections are healthy (kill-switch opt-out).
  */
 
 export type OpportunitySignalKind =
@@ -17,8 +17,10 @@ export type OpportunityStatus =
   | 'rejected'
   | 'applied'
   | 'rolled_back'
-  | 'dismissed';
+  | 'dismissed'
+  | 'skipped';
 
+/** Only these CMS/domain fields may be auto-written. */
 export type OpportunitySafeField = 'seoTitle' | 'metaDescription';
 
 export type OpportunityEvidence = {
@@ -28,7 +30,6 @@ export type OpportunityEvidence = {
   impressions?: number | null;
   ctr?: number | null;
   position?: number | null;
-  /** Previous 28-day window for trend signals. */
   prevClicks?: number | null;
   prevImpressions?: number | null;
   prevCtr?: number | null;
@@ -45,6 +46,7 @@ export type OpportunityProposal = {
   currentValue: string | null;
   proposedValue: string;
   rationale: string;
+  confidence?: number;
 };
 
 export type SeoOpportunity = {
@@ -57,19 +59,27 @@ export type SeoOpportunity = {
   url: string | null;
   status: OpportunityStatus;
   score: number;
+  /** 0–1 composite confidence for auto-apply gate. */
+  confidence: number;
   signals: OpportunitySignalKind[];
   why: string;
   evidence: OpportunityEvidence;
   proposals: OpportunityProposal[];
-  /** Scan fingerprint for idempotent upserts. */
   fingerprint: string;
+  /** Stable key for write idempotency. */
+  idempotencyKey: string;
   scanId: string;
+  articleType?: string | null;
+  workName?: string | null;
+  language?: 'da' | 'en';
+  /** Server-side JSON-LD HTML snapshot (safe schema update; not CMS body). */
+  serverJsonLdHtml?: string | null;
   createdAt?: string;
   updatedAt?: string;
   appliedAt?: string | null;
   appliedBy?: string | null;
-  /** Version history entry ids for rollback. */
   versionIds?: string[];
+  skipReason?: string | null;
 };
 
 export type OpportunityScanStatus =
@@ -77,20 +87,28 @@ export type OpportunityScanStatus =
   | 'missing_gsc'
   | 'missing_ga4'
   | 'partial'
-  | 'error';
+  | 'error'
+  | 'auto_disabled'
+  | 'connections_unhealthy';
+
+export type OpportunityScanMode = 'collect' | 'optimize';
 
 export type OpportunityScanReport = {
-  schemaVersion: 1;
+  schemaVersion: 2;
   kind: 'seo-opportunity-scan';
   scanId: string;
   createdAt: string;
   windowDays: number;
+  mode: OpportunityScanMode;
   status: OpportunityScanStatus;
   statusMessage: string;
   gscConfigured: boolean;
   ga4Configured: boolean;
+  autoEnabled: boolean;
   scannedPages: number;
   opportunityCount: number;
+  appliedCount?: number;
+  skippedCount?: number;
   opportunities: SeoOpportunity[];
 };
 
@@ -99,11 +117,12 @@ export type OpportunityMetaVersion = {
   opportunityId: string;
   itemId: string;
   locale: 'da' | 'en';
-  field: OpportunitySafeField;
+  field: OpportunitySafeField | 'serverJsonLd';
   before: string | null;
   after: string;
   appliedAt: string;
   appliedBy: string;
+  idempotencyKey?: string;
   rolledBackAt?: string | null;
   rolledBackBy?: string | null;
 };
@@ -114,12 +133,16 @@ export type OpportunityAuditEntry = {
   actor: string;
   action:
     | 'scan'
+    | 'collect'
+    | 'optimize'
     | 'approve'
     | 'reject'
     | 'apply'
     | 'auto_apply'
     | 'rollback'
-    | 'dismiss';
+    | 'dismiss'
+    | 'skip'
+    | 'emergency_stop';
   opportunityId?: string;
   detail?: string;
 };

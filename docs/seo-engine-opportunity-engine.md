@@ -1,73 +1,70 @@
-# GSC/GA4 opportunity engine
+# GSC/GA4 opportunity engine (automatic)
 
-## What it is
+## Operating model
 
-A **swappable server-side module** (`lib/seo-engine/opportunity-engine/`) that scores SEO opportunities from existing Google Search Console + GA4 connections (same service-account auth as Dashboard / SEO Engine). It does **not** create a new OAuth integration and never invents mock metrics.
+**Production default = automatic drift** when GSC + Webflow are healthy (GA4 preferred).
 
-## Signals scored
+The editorial team does **not** need to open the tool, Scan, or approve for the normal process.
 
-| Signal | Evidence |
-|--------|----------|
-| High impressions / low CTR | GSC page aggregates |
-| Position 4–20 | GSC average position |
-| Rising queries | Last 28 days vs previous 28 |
-| Declining articles | Same windows on page impressions |
-| Query cannibalization | Same query → multiple pages |
-| Weak/missing title/meta | CMS seo-title / meta-description |
-
-Each open item includes concrete proposals (safe metadata only), evidence (query, clicks, impressions, CTR, position, GA4 engagement), and a Danish `why` explanation.
-
-## Modes
-
-| Mode | Behavior |
+| Path | Behavior |
 |------|----------|
-| **Recommendation / approval (default)** | Queue only. Humans approve/reject. No automatic CMS overwrite of editorial fields. |
-| **Auto-optimering (explicit)** | When `appSettings/seoEngine.autoOpportunityOptEnabled` or env `SEO_ENGINE_AUTO_OPPORTUNITY_OPT=true`, cron/scan may update **only** `seo-title` + `meta-description`, with versions + audit log + rollback. |
+| **Publish (new articles)** | Empty `seo-title` / `meta-description` enqueued automatically (fail closed — never blocks publish) |
+| **Daily cron** | Collect GSC/GA4 opportunities (no CMS writes) |
+| **Weekly cron** | Optimize — auto-apply up to **10** existing articles with guardrails |
 
-Never auto-overwrites: redaktionel titel, brødtekst, holdning/rating.
+UI shows status + **nød-stop** + manuel rollback. Manual “kørsel” is optional.
 
-## UI
+## Safe automatic fields only
 
-- SEO Engine overlay → tab **Optimering** (`OpportunityQueuePanel`)
-- Settings → Optimering → toggle **Auto-optimering (GSC/GA4)** (admin only)
-- Manual **Scan / Kør**: `POST /api/seo-engine/opportunities/scan`
+May write:
+- `seo-title`
+- `meta-description`
+- server-side JSON-LD snapshot (version history; not editorial CMS body)
 
-## Cron (idempotent)
+**Never** auto-change: redaktionel titel/H1, subtitle, intro, brødtekst, citater, holdning, rating, forfatter, original publiceringsdato, slug/URL, eventfakta.
 
-Registered in `vercel.json`:
+## Guardrails
 
-- Daily: `GET /api/cron/seo-engine-opportunities/daily` @ 06:15 UTC
-- Weekly: `GET /api/cron/seo-engine-opportunities/weekly` @ 06:30 UTC Mondays
+| Rule | Value |
+|------|-------|
+| Max existing articles / optimize run | 10 |
+| Cooldown per URL | 14 days |
+| Min confidence | 0.65 |
+| Min score | 45 |
+| Overwrite strong SEO fields | Only with high impressions + documented SERP opportunity |
+| Skip when | missing credentials/data, unhealthy connections, validation fail, low confidence, cooldown, batch limit, idempotency hit |
 
-Auth: `Authorization: Bearer CRON_SECRET` (same as seo-engine-recovery). Slot claim prevents double-runs.
+Reviews get natural `[værk] anmeldelse` / `[work] review` titles (no keyword stuffing).
 
-## Manual team setup
+## Kill-switch (nød-stop)
 
-1. **Reuse existing credentials** (no new OAuth app):
-   - `FIREBASE_ADMIN_CLIENT_EMAIL` + `FIREBASE_ADMIN_PRIVATE_KEY`
-   - `GSC_SITE_URL` (e.g. `sc-domain:aproposmagazine.com` or property URL)
-   - `GA4_PROPERTY_ID`
-2. Add the service account as a **user on the GSC property** (GA4↔GSC product link alone is not enough for Search Analytics).
-3. Enable Search Console API + Analytics Data API on the GCP project.
-4. Set `CRON_SECRET` for cron routes.
-5. Keep Auto-optimering **OFF** until the queue has been reviewed.
-6. Optional: set `SEO_ENGINE_AUTO_OPPORTUNITY_OPT=true` only after explicit editorial approval of the workflow.
+- Settings → Automatisk SEO toggle **off**, or
+- Env `SEO_ENGINE_AUTO_OPPORTUNITY_OPT=false`
 
-When credentials/data are missing, the UI/API show a clear status (`missing_gsc` / `missing_ga4` / `partial`) — **no mock rows**.
+Default when unset: **ON**.
 
-## Firestore collections
+## Cron
+
+- `GET /api/cron/seo-engine-opportunities/daily` — collect
+- `GET /api/cron/seo-engine-opportunities/weekly` — optimize (max 10)
+
+Auth: `Authorization: Bearer CRON_SECRET`. Idempotent slot claims.
+
+## Manual team setup (one-time)
+
+1. Ensure existing GSC/GA4/Webflow credentials (same SA as Dashboard) — no new OAuth.
+2. SA must be a **user on the GSC property**.
+3. Set `CRON_SECRET`.
+4. Deploy Firestore indexes (`seoEngineOpportunities`).
+5. Leave automatic drift ON unless you need nød-stop.
+
+When credentials are missing, status is explicit — **no mock data**.
+
+## Firestore
 
 - `seoEngineOpportunities`
 - `seoEngineOpportunityVersions` (rollback)
 - `seoEngineOpportunityAudit`
-- `seoEngineOpportunityScans` (+ cron slot claims)
-
-## APIs
-
-| Method | Path | Purpose |
-|--------|------|---------|
-| GET | `/api/seo-engine/opportunities` | List queue + connection status |
-| POST | `/api/seo-engine/opportunities/scan` | Manual scan |
-| POST | `/api/seo-engine/opportunities/[id]` | `approve` / `reject` / `apply` / `rollback` |
-| GET | `/api/cron/seo-engine-opportunities/daily` | Daily scheduled scan |
-| GET | `/api/cron/seo-engine-opportunities/weekly` | Weekly scheduled scan |
+- `seoEngineOpportunityScans`
+- `seoEngineOpportunityUrlCooldown`
+- `seoEngineOpportunityIdempotency`

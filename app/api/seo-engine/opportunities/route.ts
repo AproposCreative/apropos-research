@@ -5,19 +5,19 @@ import { listOpportunities } from '@/lib/seo-engine/opportunity-engine/store';
 import {
   resolveAutoOpportunityOptimizationEnabled,
   isAutoOpportunityOptimizationEnabledFromEnv,
+  resolveAutomaticOpportunityRuntime,
 } from '@/lib/seo-engine/opportunity-engine/settings';
-import { getConfiguredGscSiteUrl } from '@/lib/gsc/google-auth';
-import { getGa4PropertyResourceName } from '@/lib/ga4/property';
+import { assessOpportunityConnections } from '@/lib/seo-engine/opportunity-engine/connections';
 import type { OpportunityStatus } from '@/lib/seo-engine/opportunity-engine/types';
 
 export const dynamic = 'force-dynamic';
 
-/** List opportunity queue + connection status (no mock data). */
+/** List opportunity queue + automatic-drift status (no mock data). */
 export async function GET(req: NextRequest) {
   const auth = await requireSeoEngineUser(req);
   if (!auth.ok) return auth.response;
   try {
-    const statusParam = req.nextUrl.searchParams.get('status') || 'open';
+    const statusParam = req.nextUrl.searchParams.get('status') || 'all';
     const limit = Number(req.nextUrl.searchParams.get('limit') || 50);
     const allowed = [
       'open',
@@ -26,43 +26,48 @@ export async function GET(req: NextRequest) {
       'rejected',
       'rolled_back',
       'dismissed',
+      'skipped',
       'all',
     ];
     const status = (
-      allowed.includes(statusParam) ? statusParam : 'open'
+      allowed.includes(statusParam) ? statusParam : 'all'
     ) as OpportunityStatus | 'all';
 
-    const opportunities = await listOpportunities({ status, limit });
-    const autoOpt = await resolveAutoOpportunityOptimizationEnabled();
-    const gscConfigured = Boolean(getConfiguredGscSiteUrl());
-    const ga4Configured = Boolean(getGa4PropertyResourceName());
-
-    let connectionStatus: 'ready' | 'missing_gsc' | 'missing_ga4' | 'missing_both' = 'ready';
-    let connectionMessage = 'GSC + GA4 konfigureret — klar til scan';
-    if (!gscConfigured && !ga4Configured) {
-      connectionStatus = 'missing_both';
-      connectionMessage =
-        'GSC_SITE_URL og GA4_PROPERTY_ID mangler — opportunity engine kører ikke med mock-data';
-    } else if (!gscConfigured) {
-      connectionStatus = 'missing_gsc';
-      connectionMessage =
-        'GSC_SITE_URL mangler — query-muligheder kræver direkte Search Console (se docs)';
-    } else if (!ga4Configured) {
-      connectionStatus = 'missing_ga4';
-      connectionMessage = 'GA4_PROPERTY_ID mangler — engagement-evidens springes over';
-    }
+    const [opportunities, autoOpt, runtime, health] = await Promise.all([
+      listOpportunities({ status, limit }),
+      resolveAutoOpportunityOptimizationEnabled(),
+      resolveAutomaticOpportunityRuntime(),
+      assessOpportunityConnections(),
+    ]);
 
     return NextResponse.json({
       ok: true,
       opportunities,
-      connectionStatus,
-      connectionMessage,
-      gscConfigured,
-      ga4Configured,
+      connectionStatus: health.healthy
+        ? 'ready'
+        : !health.gsc.ok && !health.webflow.ok
+          ? 'missing_both'
+          : !health.gsc.ok
+            ? 'missing_gsc'
+            : !health.ga4.ok
+              ? 'missing_ga4'
+              : 'partial',
+      connectionMessage: health.summary,
+      gscConfigured: health.gsc.ok,
+      ga4Configured: health.ga4.ok,
+      webflowConfigured: health.webflow.ok,
       autoOpportunityOptEnabled: autoOpt,
       autoOpportunityOptEnvDefault: isAutoOpportunityOptimizationEnabledFromEnv(),
       canToggleAutoOpt: auth.isAdmin,
-      mode: autoOpt ? 'auto_optimization' : 'recommendation_approval',
+      /** Production default = automatic; UI is status + emergency stop. */
+      mode: runtime.shouldAutoOptimize
+        ? 'automatic'
+        : autoOpt
+          ? 'waiting_for_connections'
+          : 'emergency_stopped',
+      runtime,
+      teamNote:
+        'Automatisk drift — teamet behøver ikke løbende Scan/godkendelse. Brug nød-stop ved behov; manuel rollback er tilgængelig.',
     });
   } catch (e) {
     return mapPipelineError(e);

@@ -1,6 +1,6 @@
 /**
  * Server-side GSC/GA4 opportunity engine (swappable module).
- * Reuses existing GSC + GA4 auth/clients — no separate OAuth integration.
+ * Production default: automatic collect (daily) + optimize (weekly) when healthy.
  */
 
 import { createHash } from 'node:crypto';
@@ -33,10 +33,18 @@ import {
   saveScanSummary,
   upsertOpportunity,
 } from '@/lib/seo-engine/opportunity-engine/store';
+import {
+  buildIdempotencyKey,
+  computeOpportunityConfidence,
+} from '@/lib/seo-engine/opportunity-engine/guardrails';
+import { OPPORTUNITY_MAX_APPLY_PER_RUN } from '@/lib/seo-engine/opportunity-engine/constants';
+import { resolveAutomaticOpportunityRuntime } from '@/lib/seo-engine/opportunity-engine/settings';
 import type {
+  OpportunityScanMode,
   OpportunityScanReport,
   SeoOpportunity,
 } from '@/lib/seo-engine/opportunity-engine/types';
+import { inferArticleTypeHint } from '@/lib/seo-engine/archive-audit';
 
 const SITE_ORIGIN = 'https://www.aproposmagazine.com';
 
@@ -56,6 +64,8 @@ export type OpportunityEngineDeps = {
   now?: () => Date;
   actor?: string;
   limit?: number;
+  mode?: OpportunityScanMode;
+  runtime?: Awaited<ReturnType<typeof resolveAutomaticOpportunityRuntime>>;
 };
 
 function isoDaysAgo(days: number, now: Date): string {
@@ -108,14 +118,16 @@ async function defaultGscRows(args: {
 }
 
 /**
- * Run opportunity scan. Never invents mock GSC/GA4 data — returns clear status instead.
+ * Run opportunity scan (collect or optimize prep).
+ * Never invents mock GSC/GA4 data.
  */
 export async function runOpportunityScan(
   deps: OpportunityEngineDeps = {}
 ): Promise<OpportunityScanReport> {
   const now = deps.now?.() || new Date();
+  const mode: OpportunityScanMode = deps.mode || 'collect';
   const scanId = createHash('sha256')
-    .update(`opp-scan:${now.toISOString()}:${deps.actor || 'system'}`)
+    .update(`opp-scan:${mode}:${now.toISOString()}:${deps.actor || 'system'}`)
     .digest('hex')
     .slice(0, 20);
   const windowDays = 28;
@@ -123,9 +135,14 @@ export async function runOpportunityScan(
   const currentEnd = isoToday(now);
   const prevStart = isoDaysAgo(windowDays * 2, now);
   const prevEnd = isoDaysAgo(windowDays + 1, now);
-  const limit = Math.min(80, Math.max(5, deps.limit || 40));
+  const defaultLimit = mode === 'optimize' ? OPPORTUNITY_MAX_APPLY_PER_RUN : 40;
+  const limit = Math.min(
+    mode === 'optimize' ? OPPORTUNITY_MAX_APPLY_PER_RUN : 80,
+    Math.max(1, deps.limit || defaultLimit)
+  );
   const persist = deps.persist !== false;
   const actor = deps.actor || 'system:opportunity-engine';
+  const runtime = deps.runtime || (await resolveAutomaticOpportunityRuntime());
 
   const gscConfigured = Boolean(getConfiguredGscSiteUrl());
   let ga4Configured = Boolean(getGa4PropertyResourceName());
@@ -135,27 +152,29 @@ export async function runOpportunityScan(
     ga4Configured = false;
   }
 
-  const gscFetch = deps.gscFetchRows || defaultGscRows;
-  const [currentRes, prevRes] = await Promise.all([
-    gscFetch({ startDate: currentStart, endDate: currentEnd }),
-    gscFetch({ startDate: prevStart, endDate: prevEnd }),
-  ]);
+  const baseReport = (partial: Partial<OpportunityScanReport>): OpportunityScanReport => ({
+    schemaVersion: 2,
+    kind: 'seo-opportunity-scan',
+    scanId,
+    createdAt: now.toISOString(),
+    windowDays,
+    mode,
+    status: 'error',
+    statusMessage: '',
+    gscConfigured,
+    ga4Configured,
+    autoEnabled: runtime.killSwitchEnabled,
+    scannedPages: 0,
+    opportunityCount: 0,
+    opportunities: [],
+    ...partial,
+  });
 
-  if (!currentRes.ok) {
-    const report: OpportunityScanReport = {
-      schemaVersion: 1,
-      kind: 'seo-opportunity-scan',
-      scanId,
-      createdAt: now.toISOString(),
-      windowDays,
-      status: gscConfigured ? 'error' : 'missing_gsc',
-      statusMessage: currentRes.message,
-      gscConfigured,
-      ga4Configured,
-      scannedPages: 0,
-      opportunityCount: 0,
-      opportunities: [],
-    };
+  if (!runtime.killSwitchEnabled) {
+    const report = baseReport({
+      status: 'auto_disabled',
+      statusMessage: 'Nød-stop aktiv — automatisk optimering er deaktiveret',
+    });
     if (persist) {
       await saveScanSummary({
         scanId,
@@ -166,11 +185,46 @@ export async function runOpportunityScan(
       });
       await appendAudit({
         actor,
-        action: 'scan',
+        action: 'emergency_stop',
+        detail: report.statusMessage,
+      });
+    }
+    return report;
+  }
+
+  const gscFetch = deps.gscFetchRows || defaultGscRows;
+  const [currentRes, prevRes] = await Promise.all([
+    gscFetch({ startDate: currentStart, endDate: currentEnd }),
+    gscFetch({ startDate: prevStart, endDate: prevEnd }),
+  ]);
+
+  if (!currentRes.ok) {
+    const report = baseReport({
+      status: gscConfigured ? 'error' : 'missing_gsc',
+      statusMessage: currentRes.message,
+    });
+    if (persist) {
+      await saveScanSummary({
+        scanId,
+        status: report.status,
+        statusMessage: report.statusMessage,
+        opportunityCount: 0,
+        source: actor,
+      });
+      await appendAudit({
+        actor,
+        action: mode === 'optimize' ? 'optimize' : 'collect',
         detail: `status=${report.status} ${report.statusMessage}`,
       });
     }
     return report;
+  }
+
+  if (mode === 'optimize' && !runtime.shouldAutoOptimize) {
+    return baseReport({
+      status: 'connections_unhealthy',
+      statusMessage: runtime.connectionSummary,
+    });
   }
 
   const currentRows = currentRes.rows.filter((r) => r.page);
@@ -195,7 +249,6 @@ export async function runOpportunityScan(
     }
   }
 
-  // Join CMS meta for pages we care about
   const listFn = deps.listFn || listDkArticleItems;
   const fetchFn = deps.fetchFn || fetchArticleItemByLocale;
   const listed = await listFn();
@@ -226,6 +279,7 @@ export async function runOpportunityScan(
     let seoTitle: string | null = null;
     let metaDescription: string | null = null;
     let title = String(item.title || slug);
+    let articleType: string | null = null;
     try {
       const live = await fetchFn(item.id, dk);
       const fd = (live.fieldData || {}) as Record<string, unknown>;
@@ -236,8 +290,11 @@ export async function runOpportunityScan(
       metaDescription = isCmsSeoFieldEmpty(fd[slugs.metaDescription])
         ? null
         : String(fd[slugs.metaDescription]).trim();
+      articleType =
+        (typeof fd['article-type'] === 'string' && fd['article-type'].trim()) ||
+        inferArticleTypeHint(slug, title, seoTitle || '');
     } catch {
-      /* keep nulls — still score from GSC */
+      articleType = inferArticleTypeHint(slug, title, '');
     }
 
     const ga4 =
@@ -257,15 +314,18 @@ export async function runOpportunityScan(
     });
     if (!scored) continue;
 
+    const workName = scored.query
+      ? scored.query.replace(/\b(anmeldelse|anmeldelser|review|reviews)\b/gi, '').trim()
+      : title;
+
     const proposals = buildSafeMetadataProposals({
       title,
       signals: scored.signals,
       evidence: scored.evidence,
       language: 'da',
+      articleType,
+      workName,
     });
-    if (proposals.length === 0 && !scored.signals.includes('query_cannibalization')) {
-      // Still surface cannibalization / declining without meta rewrite
-    }
 
     const fingerprint = opportunityFingerprint({
       page: scored.page,
@@ -274,6 +334,19 @@ export async function runOpportunityScan(
     });
 
     const url = page.startsWith('http') ? page : `${SITE_ORIGIN}${path}`;
+    const confidence = computeOpportunityConfidence({
+      score: scored.score,
+      signals: scored.signals,
+      evidence: scored.evidence,
+    });
+    const idempotencyKey = buildIdempotencyKey({
+      itemId: item.id,
+      url,
+      fingerprint,
+      proposedTitle: proposals.find((p) => p.field === 'seoTitle')?.proposedValue,
+      proposedMeta: proposals.find((p) => p.field === 'metaDescription')?.proposedValue,
+    });
+
     drafts.push({
       id: '',
       articleKey: `wf:${item.id}`,
@@ -284,16 +357,22 @@ export async function runOpportunityScan(
       url,
       status: 'open',
       score: scored.score,
+      confidence,
       signals: scored.signals,
       why: scored.why,
       evidence: scored.evidence,
       proposals,
       fingerprint,
+      idempotencyKey,
       scanId,
+      articleType,
+      workName,
+      language: 'da',
+      serverJsonLdHtml: null,
     });
   }
 
-  drafts.sort((a, b) => b.score - a.score);
+  drafts.sort((a, b) => b.score - a.score || b.confidence - a.confidence);
   const top = drafts.slice(0, limit);
 
   const opportunities: SeoOpportunity[] = [];
@@ -311,22 +390,17 @@ export async function runOpportunityScan(
   }
 
   let status: OpportunityScanReport['status'] = 'ok';
-  let statusMessage = `Scan OK — ${opportunities.length} muligheder fra GSC (${currentRows.length} query/page-rækker)`;
+  let statusMessage = `${mode === 'optimize' ? 'Optimize' : 'Collect'} OK — ${opportunities.length} muligheder (GSC ${currentRows.length} rækker)`;
   if (!ga4Configured) {
     status = 'partial';
     statusMessage += `. GA4 utilgængelig: ${ga4Status}`;
   }
   if (currentRows.length === 0) {
     status = 'partial';
-    statusMessage = 'GSC returnerede 0 rækker for vinduet — ingen mock-data genereret';
+    statusMessage = 'GSC returnerede 0 rækker — ingen mock-data genereret';
   }
 
-  const report: OpportunityScanReport = {
-    schemaVersion: 1,
-    kind: 'seo-opportunity-scan',
-    scanId,
-    createdAt: now.toISOString(),
-    windowDays,
+  const report = baseReport({
     status,
     statusMessage,
     gscConfigured: true,
@@ -334,7 +408,7 @@ export async function runOpportunityScan(
     scannedPages: pages.length,
     opportunityCount: opportunities.length,
     opportunities,
-  };
+  });
 
   if (persist) {
     await saveScanSummary({
@@ -346,7 +420,7 @@ export async function runOpportunityScan(
     });
     await appendAudit({
       actor,
-      action: 'scan',
+      action: mode === 'optimize' ? 'optimize' : 'collect',
       detail: `scanId=${scanId} count=${report.opportunityCount} status=${report.status}`,
     });
   }

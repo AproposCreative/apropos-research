@@ -15,9 +15,11 @@ type OpportunityRow = {
   title: string;
   slug: string;
   score: number;
+  confidence?: number;
   status: string;
   signals: string[];
   why: string;
+  skipReason?: string | null;
   evidence?: {
     query?: string | null;
     clicks?: number | null;
@@ -47,8 +49,12 @@ export default function OpportunityQueuePanel() {
   const [note, setNote] = useState<string | null>(null);
   const [connectionMessage, setConnectionMessage] = useState<string | null>(null);
   const [connectionStatus, setConnectionStatus] = useState<string>('ready');
-  const [mode, setMode] = useState<string>('recommendation_approval');
+  const [mode, setMode] = useState<string>('automatic');
+  const [autoEnabled, setAutoEnabled] = useState(true);
+  const [canToggle, setCanToggle] = useState(false);
+  const [toggling, setToggling] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [teamNote, setTeamNote] = useState<string | null>(null);
 
   const authHeaders = useCallback(async () => {
     const token = await user?.getIdToken?.();
@@ -63,16 +69,19 @@ export default function OpportunityQueuePanel() {
     setError(null);
     try {
       const headers = await authHeaders();
-      const res = await fetch('/api/seo-engine/opportunities?status=open&limit=60', {
+      const res = await fetch('/api/seo-engine/opportunities?status=all&limit=60', {
         headers,
         cache: 'no-store',
       });
       const j = await res.json();
-      if (!res.ok) throw new Error(j.error || 'Kunne ikke hente kø');
+      if (!res.ok) throw new Error(j.error || 'Kunne ikke hente status');
       setRows(j.opportunities || []);
       setConnectionMessage(j.connectionMessage || null);
       setConnectionStatus(j.connectionStatus || 'ready');
-      setMode(j.mode || 'recommendation_approval');
+      setMode(j.mode || 'automatic');
+      setAutoEnabled(Boolean(j.autoOpportunityOptEnabled));
+      setCanToggle(Boolean(j.canToggleAutoOpt));
+      setTeamNote(j.teamNote || null);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -84,7 +93,34 @@ export default function OpportunityQueuePanel() {
     void refresh();
   }, [refresh]);
 
-  const runScan = async () => {
+  const toggleEmergencyStop = async () => {
+    if (!canToggle) return;
+    setToggling(true);
+    setError(null);
+    try {
+      const headers = await authHeaders();
+      const res = await fetch('/api/seo-engine/status', {
+        method: 'PATCH',
+        headers,
+        body: JSON.stringify({ autoOpportunityOptEnabled: !autoEnabled }),
+      });
+      const j = await res.json();
+      if (!res.ok || !j.ok) throw new Error(j.error || 'Kunne ikke ændre nød-stop');
+      setAutoEnabled(Boolean(j.autoOpportunityOptEnabled));
+      setNote(
+        j.autoOpportunityOptEnabled
+          ? 'Automatisk drift genaktiveret'
+          : 'Nød-stop aktiveret — automatisk optimering er stoppet'
+      );
+      await refresh();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setToggling(false);
+    }
+  };
+
+  const runManualOptimize = async () => {
     setScanning(true);
     setError(null);
     setNote(null);
@@ -93,13 +129,15 @@ export default function OpportunityQueuePanel() {
       const res = await fetch('/api/seo-engine/opportunities/scan', {
         method: 'POST',
         headers,
-        body: JSON.stringify({ limit: 40 }),
+        body: JSON.stringify({ limit: 10, mode: 'optimize' }),
       });
       const j = await res.json();
-      if (!res.ok) throw new Error(j.error || 'Scan fejlede');
+      if (!res.ok) throw new Error(j.error || 'Manuel kørsel fejlede');
       const report = j.report || {};
-      setNote(report.statusMessage || 'Scan færdig');
-      setConnectionStatus(report.status || connectionStatus);
+      const applied = j.autoApply?.applied?.length ?? 0;
+      setNote(
+        `${report.statusMessage || 'Kørsel færdig'}${applied ? ` · auto-anvendt ${applied}` : ''}`
+      );
       await refresh();
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -129,49 +167,78 @@ export default function OpportunityQueuePanel() {
   };
 
   const statusDot =
-    connectionStatus === 'ready' || connectionStatus === 'ok' || connectionStatus === 'partial'
-      ? connectionStatus === 'partial'
+    mode === 'automatic'
+      ? 'bg-emerald-400'
+      : mode === 'waiting_for_connections'
         ? 'bg-amber-400'
-        : 'bg-emerald-400'
-      : 'bg-rose-400';
+        : 'bg-rose-400';
 
   return (
     <div className="flex flex-col h-full min-h-0 gap-3">
       <div className="flex flex-wrap items-center justify-between gap-2 shrink-0">
         <div className="min-w-0 text-left">
-          <p className="text-[13px] font-medium text-white/90">Optimeringskø (GSC/GA4)</p>
+          <p className="text-[13px] font-medium text-white/90">Automatisk SEO-optimering</p>
           <p className="text-[11px] text-white/40 mt-0.5">
-            Recommendation/approval mode
-            {mode === 'auto_optimization' ? ' · Auto-optimering slået til' : ''}. Overskriver aldrig
-            redaktionel titel/brødtekst/holdning.
+            Kører selv (publish + daglig collect / ugentlig optimize). Ingen løbende Scan eller
+            godkendelse. Kun seo-title/meta (+ server-schema snapshot).
           </p>
         </div>
-        <div className="flex items-center gap-2">
-          <button type="button" className={secondaryBtn} disabled={loading || scanning} onClick={() => void refresh()}>
-            Opdatér
+        <div className="flex items-center gap-2 flex-wrap">
+          <button
+            type="button"
+            className={dangerOutlineBtn}
+            disabled={!canToggle || toggling}
+            onClick={() => void toggleEmergencyStop()}
+          >
+            {autoEnabled ? 'Nød-stop' : 'Genaktivér'}
           </button>
-          <button type="button" className={primaryBtn} disabled={scanning} onClick={() => void runScan()}>
-            {scanning ? 'Scanner…' : 'Scan / Kør'}
+          <button
+            type="button"
+            className={secondaryBtn}
+            disabled={loading || scanning}
+            onClick={() => void refresh()}
+          >
+            Opdatér status
+          </button>
+          <button
+            type="button"
+            className={primaryBtn}
+            disabled={scanning}
+            onClick={() => void runManualOptimize()}
+          >
+            {scanning ? 'Kører…' : 'Manuel kørsel'}
           </button>
         </div>
       </div>
 
-      {connectionMessage && (
-        <div className="rounded-xl border border-white/12 bg-white/[0.03] px-3 py-2.5 flex items-start gap-2">
-          <span className={`mt-1 size-1.5 rounded-full shrink-0 ${statusDot}`} />
-          <p className="text-[12px] text-white/70 leading-snug">{connectionMessage}</p>
+      <div className="rounded-xl border border-white/12 bg-white/[0.03] px-3 py-2.5 flex items-start gap-2">
+        <span className={`mt-1 size-1.5 rounded-full shrink-0 ${statusDot}`} />
+        <div className="min-w-0 text-left space-y-1">
+          <p className="text-[12px] text-white/75 leading-snug">
+            {mode === 'automatic'
+              ? 'Automatisk drift aktiv'
+              : mode === 'emergency_stopped'
+                ? 'Nød-stop — ingen automatiske writes'
+                : 'Venter på sunde GSC/Webflow-forbindelser'}
+            {autoEnabled ? '' : ' · deaktiveret'}
+          </p>
+          {connectionMessage && (
+            <p className="text-[11px] text-white/45 leading-snug">{connectionMessage}</p>
+          )}
+          {teamNote && <p className="text-[11px] text-white/35 leading-snug">{teamNote}</p>}
         </div>
-      )}
+      </div>
+
       {note && <p className="text-[12px] text-white/55">{note}</p>}
       {error && <p className="text-[12px] text-red-400/95">{error}</p>}
 
       <div className="flex-1 min-h-0 overflow-y-auto nice-scrollbar space-y-2">
         {loading && rows.length === 0 && (
-          <p className="text-[12px] text-white/40">Henter kø…</p>
+          <p className="text-[12px] text-white/40">Henter status…</p>
         )}
         {!loading && rows.length === 0 && (
           <p className="text-[12px] text-white/40">
-            Ingen åbne muligheder. Kør Scan når GSC er konfigureret.
+            Ingen registrerede muligheder endnu. Cron samler data dagligt.
           </p>
         )}
         {rows.map((row) => (
@@ -182,11 +249,23 @@ export default function OpportunityQueuePanel() {
             <div className="flex items-start justify-between gap-2">
               <div className="min-w-0 text-left">
                 <p className="text-[13px] font-medium text-white/85 truncate">{row.title}</p>
-                <p className="text-[10px] text-white/30 truncate">{row.slug}</p>
+                <p className="text-[10px] text-white/30 truncate">
+                  {row.slug} · {row.status}
+                  {row.skipReason ? ` · ${row.skipReason}` : ''}
+                </p>
               </div>
               <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md border border-white/15 bg-white/[0.06] text-[10px] uppercase tracking-wider text-white/70 shrink-0">
-                <span className="size-1.5 rounded-full bg-amber-400" />
+                <span
+                  className={`size-1.5 rounded-full ${
+                    row.status === 'applied'
+                      ? 'bg-emerald-400'
+                      : row.status === 'skipped'
+                        ? 'bg-white/40'
+                        : 'bg-amber-400'
+                  }`}
+                />
                 {Math.round(row.score)}
+                {row.confidence != null ? ` · ${Math.round(row.confidence * 100)}%` : ''}
               </span>
             </div>
             <p className="text-[12px] text-white/65 leading-snug">{row.why}</p>
@@ -216,43 +295,24 @@ export default function OpportunityQueuePanel() {
                 {row.proposals!.map((p, i) => (
                   <p key={`${p.field}-${i}`} className="text-[11px] text-white/55">
                     <span className="text-white/75">{p.field}</span>: {p.proposedValue}
-                    <span className="text-white/30"> — {p.rationale}</span>
                   </p>
                 ))}
               </div>
             )}
-            <div className="flex flex-wrap gap-2">
-              <button
-                type="button"
-                className={primaryBtn}
-                disabled={busyId === row.id}
-                onClick={() => void act(row.id, 'approve')}
-              >
-                Godkend
-              </button>
-              <button
-                type="button"
-                className={secondaryBtn}
-                disabled={busyId === row.id}
-                onClick={() => {
-                  const ok = window.confirm(
-                    'Anvend sikre metadata-forslag til Webflow? (kræver først godkendelse — kører approve+apply)'
-                  );
-                  if (!ok) return;
-                  void act(row.id, 'approve', { applyNow: true, confirmOverwrite: true });
-                }}
-              >
-                Godkend + anvend
-              </button>
+            {row.status === 'applied' && (
               <button
                 type="button"
                 className={dangerOutlineBtn}
                 disabled={busyId === row.id}
-                onClick={() => void act(row.id, 'reject')}
+                onClick={() => {
+                  const ok = window.confirm('Rul metadata tilbage til før auto-apply?');
+                  if (!ok) return;
+                  void act(row.id, 'rollback');
+                }}
               >
-                Afvis
+                Rollback
               </button>
-            </div>
+            )}
           </div>
         ))}
       </div>
