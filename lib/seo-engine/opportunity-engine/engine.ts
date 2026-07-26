@@ -198,10 +198,11 @@ export async function runOpportunityScan(
     gscFetch({ startDate: prevStart, endDate: prevEnd }),
   ]);
 
-  if (!currentRes.ok) {
+  if (currentRes.ok === false) {
+    const gscMessage = currentRes.message;
     const report = baseReport({
       status: gscConfigured ? 'error' : 'missing_gsc',
-      statusMessage: currentRes.message,
+      statusMessage: gscMessage,
     });
     if (persist) {
       await saveScanSummary({
