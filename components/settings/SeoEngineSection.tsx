@@ -85,9 +85,11 @@ export default function SeoEngineSection({
   const { user } = useAuth();
   const resultsRef = useRef<HTMLDivElement>(null);
   const [enabled, setEnabled] = useState(false);
+  const [autoOptEnabled, setAutoOptEnabled] = useState(false);
   const [canToggle, setCanToggle] = useState(false);
   const [statusLoading, setStatusLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [savingAutoOpt, setSavingAutoOpt] = useState(false);
   const [previewLoading, setPreviewLoading] = useState(false);
   const [runLoading, setRunLoading] = useState(false);
   const [result, setResult] = useState<ApiResult | null>(null);
@@ -111,6 +113,7 @@ export default function SeoEngineSection({
       const j = await res.json();
       if (!res.ok || !j.ok) throw new Error(j.error || 'Kunne ikke hente status');
       setEnabled(Boolean(j.enabled));
+      setAutoOptEnabled(Boolean(j.autoOpportunityOptEnabled));
       setCanToggle(Boolean(j.canToggle));
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -147,6 +150,27 @@ export default function SeoEngineSection({
       setError(e instanceof Error ? e.message : String(e));
     } finally {
       setSaving(false);
+    }
+  };
+
+  const toggleAutoOpt = async () => {
+    if (!canToggle) return;
+    setSavingAutoOpt(true);
+    setError(null);
+    try {
+      const headers = await authHeaders();
+      const res = await fetch('/api/seo-engine/status', {
+        method: 'PATCH',
+        headers,
+        body: JSON.stringify({ autoOpportunityOptEnabled: !autoOptEnabled }),
+      });
+      const j = await res.json();
+      if (!res.ok || !j.ok) throw new Error(j.error || 'Kunne ikke gemme Auto-optimering');
+      setAutoOptEnabled(Boolean(j.autoOpportunityOptEnabled));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setSavingAutoOpt(false);
     }
   };
 
@@ -274,6 +298,41 @@ export default function SeoEngineSection({
               <span
                 className={`pointer-events-none absolute top-0.5 left-0.5 size-4 rounded-full bg-white shadow-sm transition-transform duration-200 ${
                   enabled ? 'translate-x-4' : 'translate-x-0'
+                }`}
+              />
+            </button>
+          </div>
+        </div>
+
+        <div className="flex items-start justify-between gap-3 border-t border-white/[0.06] pt-3">
+          <div className="min-w-0 text-left">
+            <p className="text-[12px] font-medium text-white/80">Auto-optimering (GSC/GA4)</p>
+            <p className="text-[10px] text-white/35 mt-0.5 leading-snug">
+              Standard er recommendation/approval. Kun når slået til må sikre metadatafelter
+              (seo-title/meta) opdateres automatisk — med versionshistorik og rollback. Aldrig
+              redaktionel titel, brødtekst eller holdning.
+            </p>
+            <p className="text-[10px] text-white/30 mt-1">
+              {autoOptEnabled ? 'Auto-optimering: Slået til' : 'Auto-optimering: Slået fra'}
+            </p>
+          </div>
+          <div className="touch-target flex shrink-0 items-center justify-center">
+            <button
+              type="button"
+              role="switch"
+              aria-checked={autoOptEnabled}
+              aria-label={
+                autoOptEnabled ? 'Slå Auto-optimering fra' : 'Slå Auto-optimering til'
+              }
+              disabled={statusLoading || savingAutoOpt || !canToggle}
+              onClick={() => void toggleAutoOpt()}
+              className={`relative inline-flex h-5 w-9 shrink-0 rounded-full transition-colors duration-200 ${
+                autoOptEnabled ? 'bg-white/20' : 'bg-white/10'
+              } ${!canToggle || statusLoading || savingAutoOpt ? 'opacity-50' : 'hover:bg-white/25'}`}
+            >
+              <span
+                className={`pointer-events-none absolute top-0.5 left-0.5 size-4 rounded-full bg-white shadow-sm transition-transform duration-200 ${
+                  autoOptEnabled ? 'translate-x-4' : 'translate-x-0'
                 }`}
               />
             </button>

@@ -23,6 +23,14 @@
     {
       "path": "/api/cron/seo-engine-recovery",
       "schedule": "*/15 * * * *"
+    },
+    {
+      "path": "/api/cron/seo-engine-opportunities/daily",
+      "schedule": "15 6 * * *"
+    },
+    {
+      "path": "/api/cron/seo-engine-opportunities/weekly",
+      "schedule": "30 6 * * 1"
     }
   ]
 }

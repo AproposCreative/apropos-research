@@ -152,7 +152,11 @@ export async function runSeoEngineJob(jobId: string): Promise<{
     }
 
     const analyzedLastUpdated = item.lastUpdated;
-    const input = webflowItemToSeoEngineInput({ fieldData: item.fieldData });
+    const input = webflowItemToSeoEngineInput({
+      fieldData: item.fieldData,
+      publishDate: item.lastPublished || undefined,
+      dateModified: item.lastUpdated || undefined,
+    });
     const inputVersionHash = computeInputVersionHash(input);
     contentHash = inputVersionHash;
     await updateSeoEngineJob(jobId, { inputVersionHash });

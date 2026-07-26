@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { EmbeddedAppHeader } from '@/components/embedded-app';
 import { useAuth } from '@/lib/auth-context';
 import ArchiveAuditPanel from '@/components/seo/ArchiveAuditPanel';
+import OpportunityQueuePanel from '@/components/seo/OpportunityQueuePanel';
 import {
   ARTICLE_TYPE_OPTIONS,
   EDITOR_FIELD_ORDER,
@@ -33,7 +34,7 @@ const fieldClass =
 /** Client flag: pair with server SEO_ENGINE_DEMO to use ephemeral analyze/strategize. */
 const CLIENT_EPHEMERAL_DEMO = process.env.NEXT_PUBLIC_SEO_ENGINE_DEMO === 'true';
 
-type MainTab = 'arkiv' | 'artikel';
+type MainTab = 'arkiv' | 'optimering' | 'artikel';
 
 const segBtn = (active: boolean) =>
   `rounded-lg px-3 py-1.5 text-[12px] font-medium tracking-wide transition-all duration-200 active:scale-[0.97] touch-target ${
@@ -716,6 +717,13 @@ export default function SeoEngineClient({
           </button>
           <button
             type="button"
+            className={segBtn(mainTab === 'optimering')}
+            onClick={() => setMainTab('optimering')}
+          >
+            Optimering
+          </button>
+          <button
+            type="button"
             className={segBtn(mainTab === 'artikel')}
             onClick={() => setMainTab('artikel')}
           >
@@ -737,6 +745,8 @@ export default function SeoEngineClient({
         )}
 
         {mainTab === 'arkiv' && <ArchiveAuditPanel />}
+
+        {mainTab === 'optimering' && <OpportunityQueuePanel />}
 
         {mainTab === 'artikel' && (
           <>
