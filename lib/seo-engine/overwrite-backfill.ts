@@ -1173,15 +1173,22 @@ async function resolveWebflowRuntime(): Promise<{ token: string; collectionId: s
   return { token, collectionId };
 }
 
-export async function listDkArticleItems(): Promise<ListedArticleItem[]> {
+/**
+ * List articles for a specific Webflow CMS locale (localized slugs included).
+ * EN slugs may differ from DK — callers must map by locale, not assume same slug.
+ */
+export async function listArticleItemsForLocale(
+  locale: 'da' | 'en'
+): Promise<ListedArticleItem[]> {
   const { token, collectionId } = await resolveWebflowRuntime();
-  const { dk } = resolveWebflowLocaleIds();
+  const { dk, en } = resolveWebflowLocaleIds();
+  const cmsLocaleId = locale === 'en' ? en : dk;
   const out: ListedArticleItem[] = [];
   let offset = 0;
   const pageSize = 100;
   for (;;) {
     const qs = new URLSearchParams({
-      cmsLocaleId: dk,
+      cmsLocaleId,
       limit: String(pageSize),
       offset: String(offset),
     });
@@ -1190,7 +1197,7 @@ export async function listDkArticleItems(): Promise<ListedArticleItem[]> {
       headers: { Authorization: `Bearer ${token}`, 'Accept-Version': '1.0.0' },
     });
     if (!res.ok) {
-      throw new Error(`Webflow list items failed: HTTP ${res.status}`);
+      throw new Error(`Webflow list items failed (${locale}): HTTP ${res.status}`);
     }
     const data = (await res.json()) as {
       items?: Array<{
@@ -1217,6 +1224,11 @@ export async function listDkArticleItems(): Promise<ListedArticleItem[]> {
     offset += pageSize;
   }
   return out.filter((it) => it.id);
+}
+
+/** @deprecated Prefer listArticleItemsForLocale('da') — kept for archive/batch callers. */
+export async function listDkArticleItems(): Promise<ListedArticleItem[]> {
+  return listArticleItemsForLocale('da');
 }
 
 export type RunBackfillOptions = {

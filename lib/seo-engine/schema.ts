@@ -118,6 +118,8 @@ export const SeoEngineInputContractSchema = z.object({
   venue: z.string().max(200).optional(),
   city: z.string().max(120).optional(),
   publishDate: z.string().max(64).optional(),
+  /** CMS lastUpdated / last modified — never used as datePublished. */
+  dateModified: z.string().max(64).optional(),
   eventDate: z.string().max(64).optional(),
   premiereOrReleaseDate: z.string().max(64).optional(),
   existingUrl: OptionalHttpUrlSchema,

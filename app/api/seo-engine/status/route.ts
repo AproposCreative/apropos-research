@@ -4,6 +4,11 @@ import {
   resolveAutoSeoEngineEnabled,
   setAutoSeoEngineEnabled,
 } from '@/lib/seo-engine/settings';
+import {
+  isAutoOpportunityOptimizationEnabledFromEnv,
+  resolveAutoOpportunityOptimizationEnabled,
+  setAutoOpportunityOptimizationEnabled,
+} from '@/lib/seo-engine/opportunity-engine/settings';
 import { requireSeoEngineAdmin, requireSeoEngineUser } from '@/lib/seo-engine/require-auth';
 import { mapPipelineError } from '@/lib/seo-engine/http';
 
@@ -14,11 +19,14 @@ export async function GET(req: NextRequest) {
   if (!auth.ok) return auth.response;
   try {
     const enabled = await resolveAutoSeoEngineEnabled();
+    const autoOpportunityOptEnabled = await resolveAutoOpportunityOptimizationEnabled();
     return NextResponse.json({
       ok: true,
       enabled,
       envDefault: isAutoSeoEngineEnabledFromEnv(),
       canToggle: auth.isAdmin,
+      autoOpportunityOptEnabled,
+      autoOpportunityOptEnvDefault: isAutoOpportunityOptimizationEnabledFromEnv(),
     });
   } catch (e) {
     return NextResponse.json(
@@ -33,10 +41,20 @@ export async function PATCH(req: NextRequest) {
   if (!auth.ok) return auth.response;
   try {
     requireSeoEngineAdmin(auth.userId);
-    const body = (await req.json().catch(() => ({}))) as { enabled?: boolean };
+    const body = (await req.json().catch(() => ({}))) as {
+      enabled?: boolean;
+      autoOpportunityOptEnabled?: boolean;
+    };
+    if (typeof body.autoOpportunityOptEnabled === 'boolean') {
+      await setAutoOpportunityOptimizationEnabled(body.autoOpportunityOptEnabled);
+      return NextResponse.json({
+        ok: true,
+        autoOpportunityOptEnabled: body.autoOpportunityOptEnabled,
+      });
+    }
     if (typeof body.enabled !== 'boolean') {
       return NextResponse.json(
-        { ok: false, error: 'enabled skal være true eller false' },
+        { ok: false, error: 'enabled eller autoOpportunityOptEnabled skal være boolean' },
         { status: 400 }
       );
     }

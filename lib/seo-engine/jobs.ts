@@ -15,6 +15,8 @@ export type SeoEngineJob = {
   jobId: string;
   itemId: string;
   cmsLastUpdated: string;
+  /** Webflow CMS locale for empty-SEO fill (da default for legacy jobs). */
+  locale?: 'da' | 'en';
   inputVersionHash?: string;
   status: SeoEngineJobStatus;
   attempt: number;
@@ -36,11 +38,16 @@ function requireDb() {
   return db;
 }
 
-export function buildProvisionalJobId(itemId: string, cmsLastUpdated: string): string {
+export function buildProvisionalJobId(
+  itemId: string,
+  cmsLastUpdated: string,
+  locale: 'da' | 'en' = 'da'
+): string {
   const safe = String(cmsLastUpdated || 'unknown')
     .replace(/[^a-zA-Z0-9._-]/g, '_')
     .slice(0, 80);
-  return `${itemId}_${safe}`;
+  // Include locale so da/en empty-fills do not collide; legacy da keeps readable ids.
+  return `${itemId}_${locale}_${safe}`;
 }
 
 /** Durable enqueue — must be awaited by webhook before 200. */
@@ -48,9 +55,11 @@ export async function writeQueuedSeoEngineJob(args: {
   itemId: string;
   cmsLastUpdated: string;
   source: SeoEngineJob['source'];
+  locale?: 'da' | 'en';
 }): Promise<{ jobId: string; created: boolean }> {
   const db = requireDb();
-  const jobId = buildProvisionalJobId(args.itemId, args.cmsLastUpdated);
+  const locale = args.locale || 'da';
+  const jobId = buildProvisionalJobId(args.itemId, args.cmsLastUpdated, locale);
   const ref = db.collection(COL.jobs).doc(jobId);
   const existing = await ref.get();
   if (existing.exists) {
@@ -63,6 +72,7 @@ export async function writeQueuedSeoEngineJob(args: {
     jobId,
     itemId: args.itemId,
     cmsLastUpdated: args.cmsLastUpdated,
+    locale,
     status: 'queued',
     attempt: 0,
     maxAttempts: 3,

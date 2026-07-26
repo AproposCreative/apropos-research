@@ -13,9 +13,12 @@
     "app/api/seo-engine/**/*.ts",
     "app/api/internal/seo-engine-article/**/*.ts",
     "app/api/cron/seo-engine-recovery/**/*.ts",
+    "app/api/cron/seo-engine-opportunities/**/*.ts",
+    "lib/seo-engine/opportunity-engine/**/*.ts",
     "app/ai/seo/**/*.tsx",
     "components/settings/SeoEngineSection.tsx",
     "components/seo/ArchiveAuditPanel.tsx",
+    "components/seo/OpportunityQueuePanel.tsx",
     "lib/seo-engine/archive-audit-apply-constants.ts",
     "test/seo-engine*.ts"
   ],

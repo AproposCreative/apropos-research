@@ -182,21 +182,24 @@ describe('seo-engine forbidden + validator invariants', () => {
 });
 
 describe('seo-engine job id contract', () => {
-  it('builds provisional jobId as {itemId}_{cmsLastUpdated}', () => {
+  it('builds provisional jobId as {itemId}_{locale}_{cmsLastUpdated}', () => {
     expect(buildProvisionalJobId('abc123', '2026-07-22T10:00:00.000Z')).toBe(
-      'abc123_2026-07-22T10_00_00.000Z'
+      'abc123_da_2026-07-22T10_00_00.000Z'
+    );
+    expect(buildProvisionalJobId('abc123', '2026-07-22T10:00:00.000Z', 'en')).toBe(
+      'abc123_en_2026-07-22T10_00_00.000Z'
     );
   });
 
   it('sanitizes unsafe characters and caps length', () => {
     const id = buildProvisionalJobId('item', 'unsafe value/with spaces?');
-    expect(id.startsWith('item_')).toBe(true);
+    expect(id.startsWith('item_da_')).toBe(true);
     expect(id).not.toMatch(/[\s/?]/);
   });
 
   it('is deterministic for the same inputs (idempotent enqueue key)', () => {
-    const a = buildProvisionalJobId('item-1', '2026-01-01T00:00:00.000Z');
-    const b = buildProvisionalJobId('item-1', '2026-01-01T00:00:00.000Z');
+    const a = buildProvisionalJobId('item-1', '2026-01-01T00:00:00.000Z', 'en');
+    const b = buildProvisionalJobId('item-1', '2026-01-01T00:00:00.000Z', 'en');
     expect(a).toBe(b);
   });
 });

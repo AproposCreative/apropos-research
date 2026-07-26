@@ -8,9 +8,10 @@ import {
   isArticleWebhookOptimizeEnabled,
 } from '@/lib/webflow/article-image-auto-optimize';
 import { enqueueArticleTranslation } from '@/lib/webflow/enqueue-article-translation';
-import { enqueueSeoEngineJob } from '@/lib/seo-engine/enqueue';
 import { resolveAutoSeoEngineEnabled } from '@/lib/seo-engine/settings';
-import { cmsSeoEmptiness } from '@/lib/seo-engine/cms-contract';
+import { maybeEnqueueSeoEngineAfterPublish } from '@/lib/seo-engine/after-publish';
+import { resolveAutomaticOpportunityRuntime } from '@/lib/seo-engine/opportunity-engine/settings';
+import { resolveLocaleFromCmsLocaleId } from '@/lib/seo-engine/opportunity-engine/locale';
 import {
   resolveWebhookSeoHttpStatus,
   shouldAttemptSeoEnqueue,
@@ -18,7 +19,6 @@ import {
   shouldRunImageOptimize,
 } from '@/lib/seo-engine/webhook-decisions';
 import {
-  fetchArticleItemByLocale,
   isArticleAutoTranslateEnabledAsync,
   resolveWebflowLocaleIds,
 } from '@/lib/webflow/locale-items';
@@ -133,8 +133,13 @@ export async function POST(req: NextRequest) {
 
   const imageOptOn =
     isArticleWebhookOptimizeEnabled() && isArticleImageAutoOptimizeEnabled();
-  const autoSeoOn = await resolveAutoSeoEngineEnabled();
-  const autoTranslateOn = await isArticleAutoTranslateEnabledAsync();
+  const [legacyAutoSeo, opportunityRuntime, autoTranslateOn] = await Promise.all([
+    resolveAutoSeoEngineEnabled(),
+    resolveAutomaticOpportunityRuntime(),
+    isArticleAutoTranslateEnabledAsync(),
+  ]);
+  // Unified gate with after-publish — single durable job path (no double CMS writes).
+  const autoSeoOn = legacyAutoSeo || opportunityRuntime.shouldAutoFillOnPublish;
 
   const results = [];
   const translationQueued: string[] = [];
@@ -171,19 +176,19 @@ export async function POST(req: NextRequest) {
       translationQueued.push(itemId);
     }
 
-    // Auto-SEO: await durable job write — never OpenAI inline. DK-only. Independent of image-opt.
+    // Auto-SEO: prefer the locale that was just published; after-publish still
+    // refuses draft/unpublished locales (DK publish must not touch EN drafts).
     if (shouldAttemptSeoEnqueue(flags)) {
       try {
-        const { dk } = resolveWebflowLocaleIds();
-        const item = await fetchArticleItemByLocale(itemId, dk);
-        const empty = cmsSeoEmptiness(item.fieldData);
-        if (empty.anyEmpty) {
-          const cmsLastUpdated = item.lastUpdated || item.lastPublished || 'unknown';
-          const enq = await enqueueSeoEngineJob({
-            itemId,
-            cmsLastUpdated,
-            source: 'webhook',
-          });
+        const publishedLocale = resolveLocaleFromCmsLocaleId(it.cmsLocaleId);
+        const enq = await maybeEnqueueSeoEngineAfterPublish({
+          itemId,
+          source: 'webhook',
+          locales: publishedLocale ? [publishedLocale] : ['da', 'en'],
+        });
+        if (enq.enqueued && enq.jobIds?.length) {
+          seoEngineQueued.push(...enq.jobIds);
+        } else if (enq.enqueued && enq.jobId) {
           seoEngineQueued.push(enq.jobId);
         }
       } catch (e) {

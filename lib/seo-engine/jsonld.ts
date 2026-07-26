@@ -1,8 +1,17 @@
 import type { EditorialAnalysisV1, JsonLdGraph, SeoEngineInputContract } from '@/lib/seo-engine/schema';
+import {
+  buildEventSchemaNode,
+  buildReviewSchemaNode,
+  evaluateReviewSchemaEligibility,
+  resolveItemReviewedType,
+} from '@/lib/seo-engine/review-schema';
+import { resolveEffectiveArticleType } from '@/lib/seo-engine/review-title-rule';
 import { SEO_ENGINE_JSONLD_VERSION } from '@/lib/seo-engine/versions';
 
 /**
- * Deterministic JSON-LD builder. Omits unknown fields; never invents Event/Review data.
+ * Deterministic server-side JSON-LD builder.
+ * Omits unknown fields; never invents Review/Event without verified data.
+ * Review is emitted only for real reviews with rating + itemReviewed.
  */
 export function buildJsonLd(args: {
   input: SeoEngineInputContract;
@@ -15,6 +24,9 @@ export function buildJsonLd(args: {
 
   const pageUrl = input.existingUrl?.trim() || undefined;
   const imageUrl = input.primaryImage?.url?.trim() || undefined;
+  const inLanguage = input.language === 'en' ? 'en' : 'da';
+  const datePublished = input.publishDate?.trim() || undefined;
+  const dateModified = input.dateModified?.trim() || undefined;
 
   graph.push({
     '@type': 'WebPage',
@@ -22,23 +34,24 @@ export function buildJsonLd(args: {
     name: seoTitle,
     description: metaDescription,
     url: pageUrl,
-    inLanguage: input.language === 'en' ? 'en' : 'da',
+    inLanguage,
     isPartOf: { '@type': 'WebSite', name: 'Apropos Magazine' },
   });
 
-  const articleType = suggestSchemaArticleType(analysis);
+  const articleType = suggestSchemaArticleType(analysis, input);
+  const aboutType = mapAboutEntityType(analysis, input);
   const article: Record<string, unknown> = {
     '@type': articleType,
     headline: input.editorialTitle,
     description: metaDescription,
-    inLanguage: input.language === 'en' ? 'en' : 'da',
+    inLanguage,
     about: {
-      '@type': mapEntityType(analysis.primaryEntity.entityType),
+      '@type': aboutType,
       name: analysis.primaryEntity.likelyOfficialName || analysis.primaryEntity.asWritten,
     },
   };
-  if (input.author) {
-    article.author = { '@type': 'Person', name: input.author };
+  if (input.author?.trim()) {
+    article.author = { '@type': 'Person', name: input.author.trim() };
   }
   article.publisher = {
     '@type': 'Organization',
@@ -47,7 +60,13 @@ export function buildJsonLd(args: {
   if (imageUrl) {
     article.image = { '@type': 'ImageObject', url: imageUrl };
   }
-  if (pageUrl) article.mainEntityOfPage = pageUrl;
+  if (pageUrl) {
+    article.mainEntityOfPage = pageUrl;
+    article.url = pageUrl;
+  }
+  // Preserve original publish date; never overwrite with dateModified.
+  if (datePublished) article.datePublished = datePublished;
+  if (dateModified) article.dateModified = dateModified;
   graph.push(article);
 
   if (imageUrl) {
@@ -58,23 +77,23 @@ export function buildJsonLd(args: {
     });
   }
 
-  // Review+Rating only when clearly a review with rating + work
-  const isReview = /anmeldelse|review/i.test(analysis.articleType.suggested);
-  if (isReview && typeof input.rating === 'number' && analysis.work) {
-    graph.push({
-      '@type': 'Review',
-      itemReviewed: {
-        '@type': mapEntityType(analysis.primaryEntity.entityType),
-        name: analysis.work,
-      },
-      reviewRating: {
-        '@type': 'Rating',
-        ratingValue: input.rating,
-        bestRating: 6,
-        worstRating: 1,
-      },
-      author: input.author ? { '@type': 'Person', name: input.author } : undefined,
-    });
+  const reviewEligibility = evaluateReviewSchemaEligibility({ input, analysis });
+  const reviewNode = buildReviewSchemaNode({
+    input,
+    analysis,
+    metaDescription,
+    eligibility: reviewEligibility,
+    includeContext: false,
+  });
+  if (reviewNode) {
+    graph.push(reviewNode);
+  }
+
+  // Standalone Event only with verified eventDate + place — never on ordinary articles.
+  const eventNode = buildEventSchemaNode(input);
+  if (eventNode && !reviewNode) {
+    // Avoid duplicate Event when Review already carries event-like itemReviewed.
+    graph.push(eventNode);
   }
 
   return {
@@ -83,21 +102,30 @@ export function buildJsonLd(args: {
   };
 }
 
-function suggestSchemaArticleType(analysis: EditorialAnalysisV1): string {
-  const t = analysis.articleType.suggested.toLowerCase();
+function suggestSchemaArticleType(
+  analysis: EditorialAnalysisV1,
+  input: SeoEngineInputContract
+): string {
+  const t = resolveEffectiveArticleType(analysis, input.articleType).toLowerCase();
   if (t.includes('nyhed')) return 'NewsArticle';
   return 'Article';
 }
 
-function mapEntityType(entityType: string): string {
-  const t = entityType.toLowerCase();
-  if (t.includes('film') || t.includes('movie')) return 'Movie';
-  if (t.includes('serie') || t.includes('tv')) return 'TVSeries';
-  if (t.includes('musik') || t.includes('album')) return 'MusicAlbum';
-  if (t.includes('spil') || t.includes('game')) return 'VideoGame';
-  if (t.includes('person') || t.includes('artist')) return 'Person';
-  if (t.includes('festival')) return 'Festival';
-  return 'Thing';
+function mapAboutEntityType(
+  analysis: EditorialAnalysisV1,
+  input: SeoEngineInputContract
+): string {
+  const articleType = resolveEffectiveArticleType(analysis, input.articleType);
+  const reviewed = resolveItemReviewedType({
+    articleType,
+    entityType: analysis.primaryEntity.entityType,
+    topic: analysis.topic?.value,
+  });
+  // about[] prefers CreativeWork subtypes; Event-like → CreativeWork for Article.about
+  if (reviewed === 'MusicEvent' || reviewed === 'Festival' || reviewed === 'TheaterEvent') {
+    return 'CreativeWork';
+  }
+  return reviewed;
 }
 
 function stripUndefined(obj: Record<string, unknown>): Record<string, unknown> {
@@ -115,4 +143,13 @@ function stripUndefined(obj: Record<string, unknown>): Record<string, unknown> {
 
 export function jsonLdVersionStamp(): string {
   return SEO_ENGINE_JSONLD_VERSION;
+}
+
+/** Extract typed nodes from a graph for tests / HTML inspection. */
+export function findJsonLdNodesByType(
+  graph: JsonLdGraph,
+  type: string
+): Array<Record<string, unknown>> {
+  const nodes = (graph['@graph'] || []) as Array<Record<string, unknown>>;
+  return nodes.filter((n) => n['@type'] === type);
 }
