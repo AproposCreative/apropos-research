@@ -1,6 +1,8 @@
 /**
  * Safe metadata proposals — reuse SEO Engine rules (review intent, forbidden phrases,
  * article type, entity, language). Never editorial fields. No naive query-append stuffing.
+ *
+ * Low-quality / formulaic meta is skipped rather than written.
  */
 
 import type {
@@ -20,6 +22,10 @@ import {
 } from '@/lib/seo-engine/review-title-rule';
 import { findForbiddenPhrases } from '@/lib/seo-engine/forbidden-phrases';
 import { proposeArchiveSeoMetaHeuristic } from '@/lib/seo-engine/archive-seo-meta-agent';
+
+/** Detect generic / formulaic magazine filler we must not auto-write. */
+const FORMULAIC_META =
+  /hos Apropos Magazine|on Apropos Magazine|fra Apropos Magazine|fokus vurdering|focused take on craft|klar kontekst og perspektiv|clear context and perspective|guide og perspektiv|Læs artiklen nu|Read more on Apropos/i;
 
 /**
  * Build concrete, evidence-based metadata suggestions.
@@ -53,7 +59,6 @@ export function buildSafeMetadataProposals(args: {
 
   if (!needsTitle && !needsMeta) return proposals;
 
-  // Reuse archive/SEO Engine heuristic (review keyword, length, tone) — not query-append.
   const crafted = proposeArchiveSeoMetaHeuristic({
     title: args.workName?.trim() || args.title,
     bodyText: args.bodyExcerpt || undefined,
@@ -64,10 +69,7 @@ export function buildSafeMetadataProposals(args: {
   });
 
   let seoTitle = crafted.seoTitle;
-  let metaDescription = crafted.metaDescription;
 
-  // For CTR opportunities with a clear entity query: prefer natural review/entity title
-  // over stuffing the raw query string into an already-strong template.
   if (isReview && query) {
     const entity =
       args.workName?.trim() ||
@@ -78,7 +80,6 @@ export function buildSafeMetadataProposals(args: {
       seoTitle = natural;
     }
   } else if (!isReview && query && isCmsSeoFieldEmpty(currentTitle)) {
-    // Non-review empty title: entity-first, optionally incorporate short query if it matches entity
     const entity = (args.workName || args.title).trim();
     const qLower = query.toLowerCase();
     const entLower = entity.toLowerCase();
@@ -87,69 +88,62 @@ export function buildSafeMetadataProposals(args: {
     }
   }
 
-  // Evidence-aware meta: lead with entity/work + calm magazine tone (no generic clickbait).
+  seoTitle = scrubForbidden(seoTitle);
+
+  if (needsTitle && seoTitle && seoTitle !== String(currentTitle || '').trim()) {
+    const titleOk =
+      !findForbiddenPhrases(seoTitle).length &&
+      seoTitle.length >= 20 &&
+      seoTitle.length <= OPPORTUNITY_SEO_TITLE_MAX &&
+      (() => {
+        const review = checkReviewSeoTitle({
+          seoTitle,
+          language: lang,
+          articleType: args.articleType,
+        });
+        return !review.applies || review.ok;
+      })();
+    if (titleOk) {
+      proposals.push({
+        field: 'seoTitle',
+        currentValue: isCmsSeoFieldEmpty(currentTitle) ? null : String(currentTitle).trim(),
+        proposedValue: seoTitle,
+        rationale: isReview
+          ? `Review-SEO dækker søgeintention (${lang === 'en' ? 'review' : 'anmeldelse'}) uden stuffing`
+          : query
+            ? 'Evidensbaseret SEO-title for query-intention uden keyword stuffing'
+            : 'Styrk SEO-title længde/klarhed ud fra SERP-signaler',
+      });
+    }
+  }
+
   if (needsMeta) {
-    metaDescription = craftEvidenceMeta({
+    const metaDescription = craftEvidenceMeta({
       language: lang,
       isReview,
       workName: args.workName || args.title,
-      query,
-      fallback: metaDescription,
       bodyExcerpt: args.bodyExcerpt,
+      existingMeta: isCmsSeoFieldEmpty(currentMeta) ? null : String(currentMeta).trim(),
+      heuristicMeta: crafted.metaDescription,
     });
-  }
-
-  seoTitle = scrubForbidden(seoTitle);
-  metaDescription = scrubForbidden(metaDescription);
-
-  if (needsTitle && seoTitle && seoTitle !== String(currentTitle || '').trim()) {
-    proposals.push({
-      field: 'seoTitle',
-      currentValue: isCmsSeoFieldEmpty(currentTitle) ? null : String(currentTitle).trim(),
-      proposedValue: seoTitle,
-      rationale: isReview
-        ? `Review-SEO dækker søgeintention (${lang === 'en' ? 'review' : 'anmeldelse'}) uden stuffing`
-        : query
-          ? `Evidensbaseret SEO-title for query-intention uden keyword stuffing`
-          : 'Styrk SEO-title længde/klarhed ud fra SERP-signaler',
-    });
-  }
-
-  if (needsMeta && metaDescription && metaDescription !== String(currentMeta || '').trim()) {
-    proposals.push({
-      field: 'metaDescription',
-      currentValue: isCmsSeoFieldEmpty(currentMeta) ? null : String(currentMeta).trim(),
-      proposedValue: metaDescription,
-      rationale: 'Meta justeret for CTR med SEO Engine-regler (tone, banned phrases, længde)',
-    });
-  }
-
-  return proposals.filter((p) => {
-    if (findForbiddenPhrases(p.proposedValue).length) return false;
-    if (p.field === 'seoTitle') {
-      const review = checkReviewSeoTitle({
-        seoTitle: p.proposedValue,
-        language: lang,
-        articleType: args.articleType,
+    if (
+      metaDescription &&
+      metaDescription !== String(currentMeta || '').trim() &&
+      !findForbiddenPhrases(metaDescription).length &&
+      metaDescription.length >= OPPORTUNITY_META_MIN &&
+      metaDescription.length <= OPPORTUNITY_META_MAX
+    ) {
+      proposals.push({
+        field: 'metaDescription',
+        currentValue: isCmsSeoFieldEmpty(currentMeta) ? null : String(currentMeta).trim(),
+        proposedValue: metaDescription,
+        rationale: 'Meta fra body-excerpt / eksisterende kvalitet — ingen generisk formulartekst',
       });
-      if (review.applies && !review.ok) return false;
-      if (
-        p.proposedValue.length < 20 ||
-        p.proposedValue.length > OPPORTUNITY_SEO_TITLE_MAX
-      ) {
-        return false;
-      }
     }
-    if (p.field === 'metaDescription') {
-      if (
-        p.proposedValue.length < OPPORTUNITY_META_MIN ||
-        p.proposedValue.length > OPPORTUNITY_META_MAX
-      ) {
-        return false;
-      }
-    }
-    return true;
-  });
+    // If quality is too low, skip meta entirely (fail closed on weak copy).
+  }
+
+  return proposals;
 }
 
 function craftReviewTitle(entity: string, language: 'da' | 'en'): string {
@@ -161,43 +155,59 @@ function craftReviewTitle(entity: string, language: 'da' | 'en'): string {
   return `${truncate(clean, budget)} ${keyword}`.trim();
 }
 
-function craftEvidenceMeta(args: {
+/**
+ * Prefer a strong body excerpt. Never invent formulaic "hos Apropos Magazine — …" filler.
+ * Returns null when quality is insufficient (caller skips the meta proposal).
+ */
+export function craftEvidenceMeta(args: {
   language: 'da' | 'en';
   isReview: boolean;
   workName: string;
-  query: string;
-  fallback: string;
   bodyExcerpt?: string | null;
-}): string {
-  const entity = (args.workName || '').trim();
+  existingMeta?: string | null;
+  heuristicMeta?: string | null;
+}): string | null {
   const excerpt = (args.bodyExcerpt || '').replace(/\s+/g, ' ').trim();
-  if (excerpt.length >= OPPORTUNITY_META_MIN && excerpt.length <= OPPORTUNITY_META_MAX) {
-    if (!findForbiddenPhrases(excerpt).length) return excerpt;
+  if (isStrongMetaCandidate(excerpt)) {
+    return truncate(excerpt, OPPORTUNITY_META_MAX);
   }
 
-  const calm =
-    args.language === 'en'
-      ? args.isReview
-        ? `${entity} review on Apropos Magazine — focused take on craft, tone and whether it holds up.`
-        : `${entity} on Apropos Magazine — clear context and perspective for curious readers.`
-      : args.isReview
-        ? `${entity} anmeldelse hos Apropos Magazine — fokus vurdering af håndværk, tone og om det holder.`
-        : `${entity} hos Apropos Magazine — klar kontekst og perspektiv til nysgerrige læsere.`;
+  // Keep a strong existing meta unchanged (no rewrite) — caller compares equality.
+  if (args.existingMeta && isStrongMetaCandidate(args.existingMeta)) {
+    return args.existingMeta;
+  }
 
-  let out = truncate(calm, OPPORTUNITY_META_MAX);
-  if (out.length < OPPORTUNITY_META_MIN) {
-    out = truncate(`${out} ${args.fallback}`.trim(), OPPORTUNITY_META_MAX);
+  // Heuristic from archive agent may use body; accept only if not formulaic.
+  const heuristic = (args.heuristicMeta || '').replace(/\s+/g, ' ').trim();
+  if (isStrongMetaCandidate(heuristic)) {
+    return truncate(heuristic, OPPORTUNITY_META_MAX);
   }
-  if (out.length < OPPORTUNITY_META_MIN) {
-    out = truncate(args.fallback, OPPORTUNITY_META_MAX);
-  }
-  return out;
+
+  // No natural Danish/English filler templates — skip when evidence is weak.
+  return null;
+}
+
+export function isStrongMetaCandidate(text: string): boolean {
+  const t = (text || '').replace(/\s+/g, ' ').trim();
+  if (t.length < OPPORTUNITY_META_MIN || t.length > OPPORTUNITY_META_MAX + 20) return false;
+  if (findForbiddenPhrases(t).length) return false;
+  if (FORMULAIC_META.test(t)) return false;
+  // Reject the previously shipped broken Danish fragment
+  if (/fokus vurdering/i.test(t)) return false;
+  const words = t.split(/\s+/).filter(Boolean);
+  if (words.length < 10) return false;
+  // Need some sentence-like substance (period, em-dash, or comma structure)
+  if (!/[.!?,—,]/.test(t) && words.length < 14) return false;
+  return true;
 }
 
 function scrubForbidden(text: string): string {
   let t = text;
   for (const p of findForbiddenPhrases(t)) {
-    t = t.replace(new RegExp(p.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'ig'), '').replace(/\s+/g, ' ').trim();
+    t = t
+      .replace(new RegExp(p.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'ig'), '')
+      .replace(/\s+/g, ' ')
+      .trim();
   }
   return t;
 }
@@ -224,16 +234,9 @@ function truncate(text: string, max: number): string {
   return sliced.trim();
 }
 
-/** Ensure review titles keep the required keyword after craft (tests / apply). */
 export function proposalHasReviewIntent(
   seoTitle: string,
-  language: 'da' | 'en' | undefined
+  _language: 'da' | 'en' | undefined
 ): boolean {
-  const check = checkReviewSeoTitle({
-    seoTitle,
-    language: language || 'da',
-    articleType: language === 'en' ? 'Review' : 'Anmeldelse',
-  });
-  // For explicit review-type checks callers pass articleType; this helper is best-effort
-  return /\b(anmeldelse|review)\b/i.test(seoTitle) || check.ok;
+  return /\b(anmeldelse|review)\b/i.test(seoTitle);
 }

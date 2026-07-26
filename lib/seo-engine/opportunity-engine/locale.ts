@@ -31,3 +31,14 @@ export function publicArticleUrl(slug: string, locale: 'da' | 'en'): string {
 export function languageForLocale(locale: 'da' | 'en'): 'da' | 'en' {
   return locale;
 }
+
+/** Map a Webflow cmsLocaleId to da/en when it matches configured locale IDs. */
+export function resolveLocaleFromCmsLocaleId(
+  cmsLocaleId: string | null | undefined
+): 'da' | 'en' | null {
+  if (!cmsLocaleId?.trim()) return null;
+  const { dk, en } = resolveWebflowLocaleIds();
+  if (cmsLocaleId === en) return 'en';
+  if (cmsLocaleId === dk) return 'da';
+  return null;
+}

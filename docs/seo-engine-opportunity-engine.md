@@ -15,7 +15,10 @@ The editorial team does **not** need to open the tool, Scan, or approve for the 
 UI shows status + **nød-stop** + manuel rollback. Manual “kørsel” is optional.
 
 ### Locales
-GSC URLs `/articles/…` → DK Webflow locale; `/en/articles/…` → EN. Language-correct metadata; apply/rollback targets the matched locale.
+GSC URLs `/articles/…` → DK Webflow locale; `/en/articles/…` → EN.  
+Slug maps are **locale-specific** (EN slug may differ from DK). Language-correct metadata; apply/rollback targets the matched locale.
+
+Publish enqueue only runs for locales that are **published** (`!isDraft` + `lastPublished`). A DK publish never writes an EN draft’s empty SEO.
 
 ### Stale-write
 Before any CMS write the live item is re-read. If SEO/meta or `cmsLastUpdated` changed since scan → **SKIP** (never overwrite editor edits).

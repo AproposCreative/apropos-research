@@ -11,6 +11,10 @@ vi.mock('@/lib/seo-engine/opportunity-engine/settings', () => ({
 vi.mock('@/lib/webflow/locale-items', () => ({
   resolveWebflowLocaleIds: () => ({ dk: 'dk-locale', en: 'en-locale' }),
   fetchArticleItemByLocale: vi.fn(),
+  isWebflowLocalePublished: (item: { isDraft?: boolean; lastPublished?: string | null }) => {
+    if (item.isDraft === true) return false;
+    return Boolean(item.lastPublished?.trim());
+  },
 }));
 
 vi.mock('@/lib/seo-engine/enqueue', () => ({
@@ -34,7 +38,7 @@ describe('after-publish automatic empty SEO fill', () => {
     vi.clearAllMocks();
   });
 
-  it('enqueues da+en when automatic drift allows publish fill and SEO empty', async () => {
+  it('enqueues da+en when both locales are published and SEO empty', async () => {
     vi.mocked(resolveAutomaticOpportunityRuntime).mockResolvedValue({
       killSwitchEnabled: true,
       connectionsHealthyForOptimize: true,
@@ -48,6 +52,7 @@ describe('after-publish automatic empty SEO fill', () => {
       fieldData: { name: 'Title', 'seo-title': '', 'meta-description': '' },
       lastUpdated: '2026-07-01T00:00:00.000Z',
       lastPublished: '2026-07-01T00:00:00.000Z',
+      isDraft: false,
     });
 
     const result = await maybeEnqueueSeoEngineAfterPublish({ itemId: 'item1' });

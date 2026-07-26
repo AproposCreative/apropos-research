@@ -11,6 +11,7 @@ import { enqueueArticleTranslation } from '@/lib/webflow/enqueue-article-transla
 import { resolveAutoSeoEngineEnabled } from '@/lib/seo-engine/settings';
 import { maybeEnqueueSeoEngineAfterPublish } from '@/lib/seo-engine/after-publish';
 import { resolveAutomaticOpportunityRuntime } from '@/lib/seo-engine/opportunity-engine/settings';
+import { resolveLocaleFromCmsLocaleId } from '@/lib/seo-engine/opportunity-engine/locale';
 import {
   resolveWebhookSeoHttpStatus,
   shouldAttemptSeoEnqueue,
@@ -175,17 +176,20 @@ export async function POST(req: NextRequest) {
       translationQueued.push(itemId);
     }
 
-    // Auto-SEO via shared after-publish helper (da+en empty fill, job dedupe, fail-closed).
+    // Auto-SEO: prefer the locale that was just published; after-publish still
+    // refuses draft/unpublished locales (DK publish must not touch EN drafts).
     if (shouldAttemptSeoEnqueue(flags)) {
       try {
+        const publishedLocale = resolveLocaleFromCmsLocaleId(it.cmsLocaleId);
         const enq = await maybeEnqueueSeoEngineAfterPublish({
           itemId,
           source: 'webhook',
+          locales: publishedLocale ? [publishedLocale] : ['da', 'en'],
         });
         if (enq.enqueued && enq.jobIds?.length) {
           seoEngineQueued.push(...enq.jobIds);
-        } else if (enq.enqueued && (enq as { jobId?: string }).jobId) {
-          seoEngineQueued.push((enq as { jobId: string }).jobId);
+        } else if (enq.enqueued && enq.jobId) {
+          seoEngineQueued.push(enq.jobId);
         }
       } catch (e) {
         const message = e instanceof Error ? e.message : String(e);

@@ -16,7 +16,10 @@ import {
   type Ga4PageMetric,
 } from '@/lib/seo-engine/archive-audit';
 import { getCmsSeoSlugs, isCmsSeoFieldEmpty } from '@/lib/seo-engine/webflow-adapter';
-import { listDkArticleItems, type ListedArticleItem } from '@/lib/seo-engine/overwrite-backfill';
+import {
+  listArticleItemsForLocale,
+  type ListedArticleItem,
+} from '@/lib/seo-engine/overwrite-backfill';
 import { fetchArticleItemByLocale } from '@/lib/webflow/locale-items';
 import { defaultGscFetch } from '@/lib/seo-engine/search-signals';
 import { buildSafeMetadataProposals } from '@/lib/seo-engine/opportunity-engine/proposals';
@@ -60,6 +63,9 @@ import type {
 import { inferArticleTypeHint } from '@/lib/seo-engine/archive-audit';
 
 export type OpportunityEngineDeps = {
+  /** Locale-specific listing (required for EN slugs that differ from DK). */
+  listByLocaleFn?: (locale: 'da' | 'en') => Promise<ListedArticleItem[]>;
+  /** @deprecated Prefer listByLocaleFn — used as DK-only fallback in older tests. */
   listFn?: () => Promise<ListedArticleItem[]>;
   fetchFn?: typeof fetchArticleItemByLocale;
   gscFetchRows?: (args: {
@@ -80,6 +86,18 @@ export type OpportunityEngineDeps = {
   webflowConcurrency?: number;
   webflowFetchCap?: number;
 };
+
+function buildPublishedSlugMap(items: ListedArticleItem[]): Map<string, ListedArticleItem> {
+  const map = new Map<string, ListedArticleItem>();
+  const published = items
+    .filter((it) => !it.isDraft && it.lastPublished)
+    .sort((a, b) => String(b.lastPublished).localeCompare(String(a.lastPublished)));
+  for (const it of published) {
+    const slug = String(it.slug || '').trim();
+    if (slug) map.set(slug.toLowerCase(), it);
+  }
+  return map;
+}
 
 async function defaultGscRows(args: {
   startDate: string;
@@ -259,25 +277,29 @@ export async function runOpportunityScan(
     }
   }
 
-  const listFn = deps.listFn || listDkArticleItems;
+  const listByLocale =
+    deps.listByLocaleFn ||
+    (deps.listFn
+      ? // Legacy single list — same-slug assumption (tests only). Production uses listByLocaleFn.
+        async (_locale: 'da' | 'en') => deps.listFn!()
+      : listArticleItemsForLocale);
   const fetchFn = deps.fetchFn || fetchArticleItemByLocale;
-  const listed = await listFn();
-  const published = listed
-    .filter((it) => !it.isDraft && it.lastPublished)
-    .sort((a, b) => String(b.lastPublished).localeCompare(String(a.lastPublished)))
-    .slice(0, 200);
 
-  const slugToItem = new Map<string, ListedArticleItem>();
-  for (const it of published) {
-    const slug = String(it.slug || '').trim();
-    if (slug) slugToItem.set(slug.toLowerCase(), it);
-  }
+  // Separate slug maps per locale — EN localized slugs often differ from DK.
+  const [listedDa, listedEn] = await Promise.all([
+    listByLocale('da'),
+    listByLocale('en'),
+  ]);
+  const slugToItemByLocale: Record<'da' | 'en', Map<string, ListedArticleItem>> = {
+    da: buildPublishedSlugMap(listedDa.slice(0, 400)),
+    en: buildPublishedSlugMap(listedEn.slice(0, 400)),
+  };
 
   const pages = [...new Set(currentRows.map((r) => r.page))];
   const queryIndex = buildQueryToPagesIndex(currentRows);
   const slugs = getCmsSeoSlugs();
 
-  // Candidate filter: match locale+slug, rank by impressions, bound Webflow fetches
+  // Candidate filter: match locale-specific slug, rank by impressions, bound Webflow fetches
   type Candidate = {
     page: string;
     path: string;
@@ -293,7 +315,7 @@ export async function runOpportunityScan(
     const path = normalizePathKey(page);
     const slug = slugFromPath(path);
     if (!slug) continue;
-    const item = slugToItem.get(slug.toLowerCase());
+    const item = slugToItemByLocale[locale].get(slug.toLowerCase());
     if (!item) continue;
     const impressions = currentRows
       .filter((r) => r.page === page)

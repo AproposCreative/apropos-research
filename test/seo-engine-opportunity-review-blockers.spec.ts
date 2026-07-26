@@ -44,7 +44,7 @@ describe('review blockers: locales', () => {
     const report = await runOpportunityScan({
       persist: false,
       mode: 'optimize',
-      listFn: async () => [
+      listByLocaleFn: async () => [
         {
           id: 'item1',
           slug: 'demo-game',
@@ -54,17 +54,20 @@ describe('review blockers: locales', () => {
           isDraft: false,
         },
       ],
-      fetchFn: async (_id, cmsLocaleId) => ({
+      fetchFn: async () => ({
         id: 'item1',
         fieldData: {
-          name: cmsLocaleId.includes('en') || String(cmsLocaleId).length > 0 ? 'Demo Game' : 'Demo Game',
+          name: 'Demo Game',
           slug: 'demo-game',
           'seo-title': '',
           'meta-description': '',
           'article-type': 'Spilanmeldelse',
+          content:
+            '<p>Demo Game leverer et stramt gameplay-loop med skarp balance og en tone, der føles ægte hele vejen.</p>',
         },
         lastPublished: '2026-06-01T00:00:00.000Z',
         lastUpdated: '2026-06-02T00:00:00.000Z',
+        isDraft: false,
       }),
       gscFetchRows: async () => ({
         ok: true as const,
@@ -187,6 +190,8 @@ describe('review blockers: metadata quality', () => {
       language: 'da',
       articleType: 'Spilanmeldelse',
       workName: 'Astro Bot',
+      bodyExcerpt:
+        'Astro Bot er et charmerende platforms-eventyr med præcis leveldesign og varm humor, der holder hele vejen.',
     });
     const title = proposals.find((p) => p.field === 'seoTitle')?.proposedValue || '';
     expect(title.toLowerCase()).toContain('anmeldelse');
@@ -194,6 +199,7 @@ describe('review blockers: metadata quality', () => {
     expect(title.toLowerCase()).not.toContain('anmeldelse anmeldelse');
     for (const p of proposals) {
       expect(findForbiddenPhrases(p.proposedValue)).toEqual([]);
+      expect(p.proposedValue.toLowerCase()).not.toContain('fokus vurdering');
     }
   });
 });

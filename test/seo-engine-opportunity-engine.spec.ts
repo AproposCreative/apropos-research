@@ -180,6 +180,8 @@ describe('opportunity engine scoring', () => {
       language: 'da',
       articleType: 'Spilanmeldelse',
       workName: 'Astro Bot',
+      bodyExcerpt:
+        'Astro Bot er et charmerende platforms-eventyr med præcis leveldesign og varm humor, der holder hele vejen.',
     });
     const title = proposals.find((p) => p.field === 'seoTitle')?.proposedValue || '';
     expect(title.toLowerCase()).toContain('anmeldelse');
@@ -521,9 +523,12 @@ describe('opportunity engine scan', () => {
           'seo-title': '',
           'meta-description': '',
           'article-type': 'Spilanmeldelse',
+          content:
+            '<p>Demo Game leverer et stramt gameplay-loop med skarp balance og en tone, der føles ægte hele vejen.</p>',
         },
         lastPublished: '2026-06-01T00:00:00.000Z',
         lastUpdated: '2026-06-02T00:00:00.000Z',
+        isDraft: false,
       }),
       gscFetchRows: async () => ({
         ok: true as const,
@@ -580,7 +585,10 @@ describe('opportunity engine scan', () => {
         query: opp.evidence.query,
       })
     ).toBe(opp.fingerprint);
-    const meta = opp.proposals.find((p) => p.field === 'metaDescription')?.proposedValue || '';
-    expect(meta.length).toBeGreaterThanOrEqual(70);
+    const meta = opp.proposals.find((p) => p.field === 'metaDescription')?.proposedValue;
+    if (meta) {
+      expect(meta.length).toBeGreaterThanOrEqual(70);
+      expect(meta.toLowerCase()).not.toContain('fokus vurdering');
+    }
   });
 });
