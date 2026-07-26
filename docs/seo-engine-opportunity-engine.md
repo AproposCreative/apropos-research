@@ -2,17 +2,23 @@
 
 ## Operating model
 
-**Production default = automatic drift** when GSC + Webflow are healthy (GA4 preferred).
+**Production default = automatic drift** when GSC + Webflow are healthy (GA4 preferred) **and** settings are readable.
 
 The editorial team does **not** need to open the tool, Scan, or approve for the normal process.
 
 | Path | Behavior |
 |------|----------|
-| **Publish (new articles)** | Empty `seo-title` / `meta-description` enqueued automatically (fail closed — never blocks publish) |
+| **Publish (new articles)** | Empty `seo-title` / `meta-description` for **da + en** via existing durable job queue (fail closed — never blocks publish; no double CMS writes; publish date preserved) |
 | **Daily cron** | Collect GSC/GA4 opportunities (no CMS writes) |
 | **Weekly cron** | Optimize — auto-apply up to **10** existing articles with guardrails |
 
 UI shows status + **nød-stop** + manuel rollback. Manual “kørsel” is optional.
+
+### Locales
+GSC URLs `/articles/…` → DK Webflow locale; `/en/articles/…` → EN. Language-correct metadata; apply/rollback targets the matched locale.
+
+### Stale-write
+Before any CMS write the live item is re-read. If SEO/meta or `cmsLastUpdated` changed since scan → **SKIP** (never overwrite editor edits).
 
 ## Safe automatic fields only
 
@@ -41,14 +47,20 @@ Reviews get natural `[værk] anmeldelse` / `[work] review` titles (no keyword st
 - Settings → Automatisk SEO toggle **off**, or
 - Env `SEO_ENGINE_AUTO_OPPORTUNITY_OPT=false`
 
-Default when unset: **ON**.
+Default when unset **and settings read succeeds**: **ON**.
+
+**Fail-closed:** if Firestore/settings cannot be read, auto stays **OFF** (does not fall back to enabled). Explicit env `true` can force on for ops.
+
+## GSC windows
+
+Equal **28-day** full windows with **3-day data lag** (today excluded). Search Console rows are paginated with a hard cap (10k).
 
 ## Cron
 
 - `GET /api/cron/seo-engine-opportunities/daily` — collect
 - `GET /api/cron/seo-engine-opportunities/weekly` — optimize (max 10)
 
-Auth: `Authorization: Bearer CRON_SECRET`. Idempotent slot claims.
+Auth: `Authorization: Bearer CRON_SECRET`. Slot claims: succeeded runs hold TTL; **failed runs release the lease** so the next tick can retry.
 
 ## Manual team setup (one-time)
 

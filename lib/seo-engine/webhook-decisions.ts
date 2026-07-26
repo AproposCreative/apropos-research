@@ -23,11 +23,9 @@ export function shouldEnqueueTranslation(flags: WebhookFeatureFlags): boolean {
 }
 
 export function shouldAttemptSeoEnqueue(flags: WebhookFeatureFlags): boolean {
-  return (
-    flags.triggerType === 'collection_item_published' &&
-    flags.autoSeoOn &&
-    flags.isPrimaryLocale
-  );
+  // Locale-agnostic: after-publish checks da+en and dedupes jobs.
+  // isPrimaryLocale no longer required (EN publishes must also fill empty SEO).
+  return flags.triggerType === 'collection_item_published' && flags.autoSeoOn;
 }
 
 /**

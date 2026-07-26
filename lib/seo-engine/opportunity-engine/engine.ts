@@ -1,6 +1,7 @@
 /**
  * Server-side GSC/GA4 opportunity engine (swappable module).
  * Production default: automatic collect (daily) + optimize (weekly) when healthy.
+ * Supports both /articles (da) and /en/articles (en) with matching Webflow locales.
  */
 
 import { createHash } from 'node:crypto';
@@ -16,10 +17,7 @@ import {
 } from '@/lib/seo-engine/archive-audit';
 import { getCmsSeoSlugs, isCmsSeoFieldEmpty } from '@/lib/seo-engine/webflow-adapter';
 import { listDkArticleItems, type ListedArticleItem } from '@/lib/seo-engine/overwrite-backfill';
-import {
-  fetchArticleItemByLocale,
-  resolveWebflowLocaleIds,
-} from '@/lib/webflow/locale-items';
+import { fetchArticleItemByLocale } from '@/lib/webflow/locale-items';
 import { defaultGscFetch } from '@/lib/seo-engine/search-signals';
 import { buildSafeMetadataProposals } from '@/lib/seo-engine/opportunity-engine/proposals';
 import {
@@ -37,16 +35,29 @@ import {
   buildIdempotencyKey,
   computeOpportunityConfidence,
 } from '@/lib/seo-engine/opportunity-engine/guardrails';
-import { OPPORTUNITY_MAX_APPLY_PER_RUN } from '@/lib/seo-engine/opportunity-engine/constants';
+import {
+  OPPORTUNITY_MAX_APPLY_PER_RUN,
+  OPPORTUNITY_WEBFLOW_CONCURRENCY,
+  OPPORTUNITY_WEBFLOW_FETCH_CAP,
+} from '@/lib/seo-engine/opportunity-engine/constants';
 import { resolveAutomaticOpportunityRuntime } from '@/lib/seo-engine/opportunity-engine/settings';
+import {
+  buildGscCompareWindows,
+  GSC_PAGE_SIZE,
+  GSC_ROW_CAP,
+} from '@/lib/seo-engine/opportunity-engine/gsc-windows';
+import { mapWithConcurrency } from '@/lib/seo-engine/opportunity-engine/concurrency';
+import {
+  cmsLocaleIdFor,
+  languageForLocale,
+  resolveLocaleFromPageUrl,
+} from '@/lib/seo-engine/opportunity-engine/locale';
 import type {
   OpportunityScanMode,
   OpportunityScanReport,
   SeoOpportunity,
 } from '@/lib/seo-engine/opportunity-engine/types';
 import { inferArticleTypeHint } from '@/lib/seo-engine/archive-audit';
-
-const SITE_ORIGIN = 'https://www.aproposmagazine.com';
 
 export type OpportunityEngineDeps = {
   listFn?: () => Promise<ListedArticleItem[]>;
@@ -66,17 +77,9 @@ export type OpportunityEngineDeps = {
   limit?: number;
   mode?: OpportunityScanMode;
   runtime?: Awaited<ReturnType<typeof resolveAutomaticOpportunityRuntime>>;
+  webflowConcurrency?: number;
+  webflowFetchCap?: number;
 };
-
-function isoDaysAgo(days: number, now: Date): string {
-  const dt = new Date(now.getTime());
-  dt.setUTCDate(dt.getUTCDate() - days);
-  return dt.toISOString().slice(0, 10);
-}
-
-function isoToday(now: Date): string {
-  return now.toISOString().slice(0, 10);
-}
 
 async function defaultGscRows(args: {
   startDate: string;
@@ -90,31 +93,39 @@ async function defaultGscRows(args: {
   } catch (e) {
     return { ok: false, message: e instanceof Error ? e.message : 'GSC auth failed' };
   }
-  const result = await defaultGscFetch({
-    siteUrl,
-    token,
-    body: {
-      startDate: args.startDate,
-      endDate: args.endDate,
-      dimensions: ['query', 'page'],
-      rowLimit: 2500,
-      startRow: 0,
-    },
-  });
-  if (result.ok === false) {
-    return { ok: false, message: result.message };
+
+  const all: QueryPageRow[] = [];
+  let startRow = 0;
+  while (all.length < GSC_ROW_CAP) {
+    const result = await defaultGscFetch({
+      siteUrl,
+      token,
+      body: {
+        startDate: args.startDate,
+        endDate: args.endDate,
+        dimensions: ['query', 'page'],
+        rowLimit: GSC_PAGE_SIZE,
+        startRow,
+      },
+    });
+    if (result.ok === false) {
+      return { ok: false, message: result.message };
+    }
+    for (const r of result.rows) {
+      all.push({
+        query: (r.keys[0] || '').trim(),
+        page: normalizePageKey(r.keys[1] || ''),
+        clicks: r.clicks,
+        impressions: r.impressions,
+        ctr: r.ctr,
+        position: r.position,
+      });
+      if (all.length >= GSC_ROW_CAP) break;
+    }
+    if (result.rows.length < GSC_PAGE_SIZE) break;
+    startRow += GSC_PAGE_SIZE;
   }
-  return {
-    ok: true,
-    rows: result.rows.map((r) => ({
-      query: (r.keys[0] || '').trim(),
-      page: normalizePageKey(r.keys[1] || ''),
-      clicks: r.clicks,
-      impressions: r.impressions,
-      ctr: r.ctr,
-      position: r.position,
-    })),
-  };
+  return { ok: true, rows: all.slice(0, GSC_ROW_CAP) };
 }
 
 /**
@@ -130,11 +141,7 @@ export async function runOpportunityScan(
     .update(`opp-scan:${mode}:${now.toISOString()}:${deps.actor || 'system'}`)
     .digest('hex')
     .slice(0, 20);
-  const windowDays = 28;
-  const currentStart = isoDaysAgo(windowDays, now);
-  const currentEnd = isoToday(now);
-  const prevStart = isoDaysAgo(windowDays * 2, now);
-  const prevEnd = isoDaysAgo(windowDays + 1, now);
+  const windows = buildGscCompareWindows({ now });
   const defaultLimit = mode === 'optimize' ? OPPORTUNITY_MAX_APPLY_PER_RUN : 40;
   const limit = Math.min(
     mode === 'optimize' ? OPPORTUNITY_MAX_APPLY_PER_RUN : 80,
@@ -143,6 +150,8 @@ export async function runOpportunityScan(
   const persist = deps.persist !== false;
   const actor = deps.actor || 'system:opportunity-engine';
   const runtime = deps.runtime || (await resolveAutomaticOpportunityRuntime());
+  const fetchCap = deps.webflowFetchCap ?? OPPORTUNITY_WEBFLOW_FETCH_CAP;
+  const concurrency = deps.webflowConcurrency ?? OPPORTUNITY_WEBFLOW_CONCURRENCY;
 
   const gscConfigured = Boolean(getConfiguredGscSiteUrl());
   let ga4Configured = Boolean(getGa4PropertyResourceName());
@@ -157,7 +166,7 @@ export async function runOpportunityScan(
     kind: 'seo-opportunity-scan',
     scanId,
     createdAt: now.toISOString(),
-    windowDays,
+    windowDays: windows.windowDays,
     mode,
     status: 'error',
     statusMessage: '',
@@ -194,8 +203,8 @@ export async function runOpportunityScan(
 
   const gscFetch = deps.gscFetchRows || defaultGscRows;
   const [currentRes, prevRes] = await Promise.all([
-    gscFetch({ startDate: currentStart, endDate: currentEnd }),
-    gscFetch({ startDate: prevStart, endDate: prevEnd }),
+    gscFetch({ startDate: windows.currentStart, endDate: windows.currentEnd }),
+    gscFetch({ startDate: windows.previousStart, endDate: windows.previousEnd }),
   ]);
 
   if (currentRes.ok === false) {
@@ -234,13 +243,13 @@ export async function runOpportunityScan(
   let ga4ByPath = new Map<string, Ga4PageMetric>();
   let ga4Status = ga4Configured ? 'ok' : 'GA4_PROPERTY_ID mangler';
   if (deps.loadGa4Fn) {
-    const g = await deps.loadGa4Fn(windowDays);
+    const g = await deps.loadGa4Fn(windows.windowDays);
     ga4ByPath = g.byPath;
     ga4Status = g.setupStatus;
     ga4Configured = g.available;
   } else if (ga4Configured) {
     try {
-      const g = await loadGa4PageIndex(windowDays);
+      const g = await loadGa4PageIndex(windows.windowDays);
       ga4ByPath = g.byPath;
       ga4Status = g.provenance?.setupStatus || 'ok';
       ga4Configured = Boolean(g.provenance?.available);
@@ -266,66 +275,122 @@ export async function runOpportunityScan(
 
   const pages = [...new Set(currentRows.map((r) => r.page))];
   const queryIndex = buildQueryToPagesIndex(currentRows);
-  const { dk } = resolveWebflowLocaleIds();
   const slugs = getCmsSeoSlugs();
+
+  // Candidate filter: match locale+slug, rank by impressions, bound Webflow fetches
+  type Candidate = {
+    page: string;
+    path: string;
+    slug: string;
+    locale: 'da' | 'en';
+    item: ListedArticleItem;
+    impressions: number;
+  };
+  const candidates: Candidate[] = [];
+  for (const page of pages) {
+    const locale = resolveLocaleFromPageUrl(page);
+    if (!locale) continue;
+    const path = normalizePathKey(page);
+    const slug = slugFromPath(path);
+    if (!slug) continue;
+    const item = slugToItem.get(slug.toLowerCase());
+    if (!item) continue;
+    const impressions = currentRows
+      .filter((r) => r.page === page)
+      .reduce((s, r) => s + (r.impressions || 0), 0);
+    candidates.push({ page, path, slug, locale, item, impressions });
+  }
+  candidates.sort((a, b) => b.impressions - a.impressions);
+  const toFetch = candidates.slice(0, Math.max(limit, fetchCap));
+
+  type Fetched = Candidate & {
+    title: string;
+    seoTitle: string | null;
+    metaDescription: string | null;
+    articleType: string | null;
+    cmsLastUpdated: string | null;
+    bodyExcerpt: string | null;
+  };
+
+  const fetched = await mapWithConcurrency(
+    toFetch,
+    concurrency,
+    async (c): Promise<Fetched | null> => {
+      const cmsLocaleId = cmsLocaleIdFor(c.locale);
+      try {
+        const live = await fetchFn(c.item.id, cmsLocaleId);
+        const fd = (live.fieldData || {}) as Record<string, unknown>;
+        const title = String(fd.name || c.item.title || c.slug);
+        const seoTitle = isCmsSeoFieldEmpty(fd[slugs.seoTitle])
+          ? null
+          : String(fd[slugs.seoTitle]).trim();
+        const metaDescription = isCmsSeoFieldEmpty(fd[slugs.metaDescription])
+          ? null
+          : String(fd[slugs.metaDescription]).trim();
+        const articleType =
+          (typeof fd['article-type'] === 'string' && fd['article-type'].trim()) ||
+          inferArticleTypeHint(c.slug, title, seoTitle || '');
+        const body =
+          typeof fd.content === 'string'
+            ? fd.content.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 400)
+            : null;
+        return {
+          ...c,
+          title,
+          seoTitle,
+          metaDescription,
+          articleType,
+          cmsLastUpdated: live.lastUpdated || live.lastPublished || null,
+          bodyExcerpt: body,
+        };
+      } catch {
+        return {
+          ...c,
+          title: String(c.item.title || c.slug),
+          seoTitle: null,
+          metaDescription: null,
+          articleType: inferArticleTypeHint(c.slug, c.item.title || c.slug, ''),
+          cmsLastUpdated: c.item.lastUpdated || c.item.lastPublished || null,
+          bodyExcerpt: null,
+        };
+      }
+    }
+  );
 
   const drafts: SeoOpportunity[] = [];
 
-  for (const page of pages) {
-    const path = normalizePathKey(page);
-    const slug = slugFromPath(path);
-    const item = slug ? slugToItem.get(slug.toLowerCase()) : undefined;
-    if (!item) continue;
-
-    let seoTitle: string | null = null;
-    let metaDescription: string | null = null;
-    let title = String(item.title || slug);
-    let articleType: string | null = null;
-    try {
-      const live = await fetchFn(item.id, dk);
-      const fd = (live.fieldData || {}) as Record<string, unknown>;
-      title = String(fd.name || title);
-      seoTitle = isCmsSeoFieldEmpty(fd[slugs.seoTitle])
-        ? null
-        : String(fd[slugs.seoTitle]).trim();
-      metaDescription = isCmsSeoFieldEmpty(fd[slugs.metaDescription])
-        ? null
-        : String(fd[slugs.metaDescription]).trim();
-      articleType =
-        (typeof fd['article-type'] === 'string' && fd['article-type'].trim()) ||
-        inferArticleTypeHint(slug, title, seoTitle || '');
-    } catch {
-      articleType = inferArticleTypeHint(slug, title, '');
-    }
-
+  for (const row of fetched) {
+    if (!row) continue;
     const ga4 =
-      ga4ByPath.get(path) ||
-      (slug ? ga4ByPath.get(`slug:${slug}`) : undefined) ||
+      ga4ByPath.get(row.path) ||
+      ga4ByPath.get(`slug:${row.slug}`) ||
       null;
 
     const scored = scorePageOpportunity({
-      page,
+      page: row.page,
       currentRows,
       previousRows,
       queryToPages: queryIndex,
-      seoTitle,
-      metaDescription,
+      seoTitle: row.seoTitle,
+      metaDescription: row.metaDescription,
       ga4PageViews: ga4?.pageViews ?? null,
       ga4EngagedSessions: ga4?.engagedSessions ?? null,
     });
     if (!scored) continue;
 
+    const language = languageForLocale(row.locale);
     const workName = scored.query
       ? scored.query.replace(/\b(anmeldelse|anmeldelser|review|reviews)\b/gi, '').trim()
-      : title;
+      : row.title;
 
     const proposals = buildSafeMetadataProposals({
-      title,
+      title: row.title,
       signals: scored.signals,
       evidence: scored.evidence,
-      language: 'da',
-      articleType,
+      language,
+      articleType: row.articleType,
       workName,
+      bodyExcerpt: row.bodyExcerpt,
     });
 
     const fingerprint = opportunityFingerprint({
@@ -334,27 +399,30 @@ export async function runOpportunityScan(
       query: scored.query,
     });
 
-    const url = page.startsWith('http') ? page : `${SITE_ORIGIN}${path}`;
     const confidence = computeOpportunityConfidence({
       score: scored.score,
       signals: scored.signals,
       evidence: scored.evidence,
     });
     const idempotencyKey = buildIdempotencyKey({
-      itemId: item.id,
-      url,
+      itemId: row.item.id,
+      url: row.page.startsWith('http') ? row.page : `https://www.aproposmagazine.com${row.path}`,
       fingerprint,
       proposedTitle: proposals.find((p) => p.field === 'seoTitle')?.proposedValue,
       proposedMeta: proposals.find((p) => p.field === 'metaDescription')?.proposedValue,
     });
 
+    const url = row.page.startsWith('http')
+      ? row.page
+      : `https://www.aproposmagazine.com${row.path}`;
+
     drafts.push({
       id: '',
-      articleKey: `wf:${item.id}`,
-      itemId: item.id,
-      locale: 'da',
-      slug,
-      title,
+      articleKey: `wf:${row.item.id}:${row.locale}`,
+      itemId: row.item.id,
+      locale: row.locale,
+      slug: row.slug,
+      title: row.title,
       url,
       status: 'open',
       score: scored.score,
@@ -366,10 +434,13 @@ export async function runOpportunityScan(
       fingerprint,
       idempotencyKey,
       scanId,
-      articleType,
+      articleType: row.articleType,
       workName,
-      language: 'da',
+      language,
       serverJsonLdHtml: null,
+      scannedCmsLastUpdated: row.cmsLastUpdated,
+      scannedSeoTitle: row.seoTitle,
+      scannedMetaDescription: row.metaDescription,
     });
   }
 
@@ -385,13 +456,13 @@ export async function runOpportunityScan(
     for (const d of top) {
       opportunities.push({
         ...d,
-        id: createHash('sha256').update(d.fingerprint).digest('hex').slice(0, 32),
+        id: createHash('sha256').update(`${d.fingerprint}:${d.locale}`).digest('hex').slice(0, 32),
       });
     }
   }
 
   let status: OpportunityScanReport['status'] = 'ok';
-  let statusMessage = `${mode === 'optimize' ? 'Optimize' : 'Collect'} OK — ${opportunities.length} muligheder (GSC ${currentRows.length} rækker)`;
+  let statusMessage = `${mode === 'optimize' ? 'Optimize' : 'Collect'} OK — ${opportunities.length} muligheder (GSC ${currentRows.length} rækker, lag ${windows.lagDays}d, ${windows.currentStart}→${windows.currentEnd})`;
   if (!ga4Configured) {
     status = 'partial';
     statusMessage += `. GA4 utilgængelig: ${ga4Status}`;
@@ -406,7 +477,7 @@ export async function runOpportunityScan(
     statusMessage,
     gscConfigured: true,
     ga4Configured,
-    scannedPages: pages.length,
+    scannedPages: toFetch.length,
     opportunityCount: opportunities.length,
     opportunities,
   });

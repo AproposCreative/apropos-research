@@ -21,7 +21,11 @@ import type {
   SeoOpportunity,
 } from '@/lib/seo-engine/opportunity-engine/types';
 import { isCmsSeoFieldEmpty } from '@/lib/seo-engine/webflow-adapter';
-import { isReviewSeoArticleType } from '@/lib/seo-engine/review-title-rule';
+import {
+  checkReviewSeoTitle,
+  isReviewSeoArticleType,
+} from '@/lib/seo-engine/review-title-rule';
+import { findForbiddenPhrases } from '@/lib/seo-engine/forbidden-phrases';
 
 export type GuardrailSkipReason =
   | 'kill_switch_off'
@@ -35,7 +39,9 @@ export type GuardrailSkipReason =
   | 'validation_failed'
   | 'strong_field_without_opportunity'
   | 'idempotency_duplicate'
-  | 'unsafe_field';
+  | 'unsafe_field'
+  | 'stale_write'
+  | 'editor_changed_field';
 
 export type GuardrailDecision = {
   allow: boolean;
@@ -98,6 +104,11 @@ export function validateProposalOutput(args: {
   const v = (args.proposal.proposedValue || '').trim();
   if (!v) return { ok: false, message: 'empty_value' };
 
+  const forbidden = findForbiddenPhrases(v);
+  if (forbidden.length) {
+    return { ok: false, message: `forbidden_phrase:${forbidden[0]}` };
+  }
+
   if (args.proposal.field === 'seoTitle') {
     if (v.length < OPPORTUNITY_SEO_TITLE_MIN || v.length > OPPORTUNITY_SEO_TITLE_MAX) {
       return { ok: false, message: `seoTitle length ${v.length}` };
@@ -106,11 +117,22 @@ export function validateProposalOutput(args: {
     if (/\b(\w{4,})\b(?:\s+\1\b){2,}/i.test(v)) {
       return { ok: false, message: 'keyword_stuffing' };
     }
+    // Naive query-append detection: "title — full query" with query repeating entity
+    if (/\s[—-]\s/.test(v) && (v.match(/\b(\w{4,})\b/gi) || []).length > 8) {
+      const tokens = v.toLowerCase().match(/[a-zæøå]{4,}/g) || [];
+      const counts = new Map<string, number>();
+      for (const t of tokens) counts.set(t, (counts.get(t) || 0) + 1);
+      for (const n of counts.values()) {
+        if (n >= 3) return { ok: false, message: 'keyword_stuffing' };
+      }
+    }
     if (isReviewSeoArticleType(args.articleType)) {
-      const lang = args.language || 'da';
-      const hasReviewWord =
-        lang === 'en' ? /\breviews?\b/i.test(v) : /\banmeldelser?\b/i.test(v);
-      if (!hasReviewWord) {
+      const review = checkReviewSeoTitle({
+        seoTitle: v,
+        language: args.language || 'da',
+        articleType: args.articleType,
+      });
+      if (review.applies && !review.ok) {
         return { ok: false, message: 'review_keyword_missing' };
       }
     }
@@ -123,6 +145,37 @@ export function validateProposalOutput(args: {
   }
 
   return { ok: true };
+}
+
+/**
+ * Stale-write guard: if live SEO/meta differs from the scanned snapshot, editor changed it.
+ */
+export function detectStaleSeoWrite(args: {
+  scannedSeoTitle: string | null | undefined;
+  scannedMetaDescription: string | null | undefined;
+  liveSeoTitle: string | null | undefined;
+  liveMetaDescription: string | null | undefined;
+  scannedCmsLastUpdated?: string | null;
+  liveCmsLastUpdated?: string | null;
+}): { stale: boolean; reason?: GuardrailSkipReason; detail?: string } {
+  const norm = (v: string | null | undefined) =>
+    isCmsSeoFieldEmpty(v) ? '' : String(v).trim();
+
+  if (
+    args.scannedCmsLastUpdated &&
+    args.liveCmsLastUpdated &&
+    args.scannedCmsLastUpdated !== args.liveCmsLastUpdated
+  ) {
+    return { stale: true, reason: 'stale_write', detail: 'cmsLastUpdated' };
+  }
+
+  if (norm(args.scannedSeoTitle) !== norm(args.liveSeoTitle)) {
+    return { stale: true, reason: 'editor_changed_field', detail: 'seoTitle' };
+  }
+  if (norm(args.scannedMetaDescription) !== norm(args.liveMetaDescription)) {
+    return { stale: true, reason: 'editor_changed_field', detail: 'metaDescription' };
+  }
+  return { stale: false };
 }
 
 /** Reject CMS patches that touch editorial / forbidden fields. */

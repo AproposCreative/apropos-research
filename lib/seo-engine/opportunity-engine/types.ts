@@ -74,6 +74,11 @@ export type SeoOpportunity = {
   language?: 'da' | 'en';
   /** Server-side JSON-LD HTML snapshot (safe schema update; not CMS body). */
   serverJsonLdHtml?: string | null;
+  /** CMS lastUpdated at scan time — stale-write guard. */
+  scannedCmsLastUpdated?: string | null;
+  /** SEO fields as seen at scan time (stale-write compare). */
+  scannedSeoTitle?: string | null;
+  scannedMetaDescription?: string | null;
   createdAt?: string;
   updatedAt?: string;
   appliedAt?: string | null;

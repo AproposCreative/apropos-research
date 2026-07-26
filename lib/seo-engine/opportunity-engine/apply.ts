@@ -20,19 +20,20 @@ import { resolveAutomaticOpportunityRuntime } from '@/lib/seo-engine/opportunity
 import {
   assertCmsPatchIsSafe,
   buildIdempotencyKey,
+  detectStaleSeoWrite,
   evaluateAutoApplyGuardrails,
   OPPORTUNITY_MAX_APPLY_PER_RUN,
 } from '@/lib/seo-engine/opportunity-engine/guardrails';
+import { cmsLocaleIdFor } from '@/lib/seo-engine/opportunity-engine/locale';
 import type {
   OpportunityProposal,
   OpportunitySafeField,
   SeoOpportunity,
 } from '@/lib/seo-engine/opportunity-engine/types';
-import { toWebflowSeoPatch } from '@/lib/seo-engine/webflow-adapter';
+import { getCmsSeoSlugs, isCmsSeoFieldEmpty, toWebflowSeoPatch } from '@/lib/seo-engine/webflow-adapter';
 import {
   fetchArticleItemByLocale,
   patchArticleFieldDataForLocale,
-  resolveWebflowLocaleIds,
 } from '@/lib/webflow/locale-items';
 
 const SAFE_FIELDS = new Set<OpportunitySafeField>(['seoTitle', 'metaDescription']);
@@ -49,7 +50,8 @@ export function assertProposalsAreSafe(proposals: OpportunityProposal[]): void {
 }
 
 /**
- * Apply metadata proposals to Webflow DK locale (safe fields only).
+ * Apply metadata proposals to the opportunity's Webflow locale (safe fields only).
+ * Re-reads live CMS before write — skips if editor changed SEO/meta since scan.
  */
 export async function applyOpportunityProposals(args: {
   opportunityId: string;
@@ -111,8 +113,56 @@ export async function applyOpportunityProposals(args: {
     });
   }
 
-  const { dk } = resolveWebflowLocaleIds();
-  await fetchArticleItemByLocale(opp.itemId, dk);
+  const cmsLocaleId = cmsLocaleIdFor(opp.locale || 'da');
+  const slugs = getCmsSeoSlugs();
+  let live;
+  try {
+    live = await fetchArticleItemByLocale(opp.itemId, cmsLocaleId);
+  } catch (e) {
+    await completeIdempotencyKey({ key: idempotencyKey, status: 'failed' });
+    throw e;
+  }
+
+  const fd = (live.fieldData || {}) as Record<string, unknown>;
+  const liveSeo = isCmsSeoFieldEmpty(fd[slugs.seoTitle])
+    ? null
+    : String(fd[slugs.seoTitle]).trim();
+  const liveMeta = isCmsSeoFieldEmpty(fd[slugs.metaDescription])
+    ? null
+    : String(fd[slugs.metaDescription]).trim();
+
+  const scannedTitle =
+    opp.scannedSeoTitle ??
+    opp.proposals.find((p) => p.field === 'seoTitle')?.currentValue ??
+    null;
+  const scannedMeta =
+    opp.scannedMetaDescription ??
+    opp.proposals.find((p) => p.field === 'metaDescription')?.currentValue ??
+    null;
+
+  const stale = detectStaleSeoWrite({
+    scannedSeoTitle: scannedTitle,
+    scannedMetaDescription: scannedMeta,
+    liveSeoTitle: liveSeo,
+    liveMetaDescription: liveMeta,
+    scannedCmsLastUpdated: opp.scannedCmsLastUpdated,
+    liveCmsLastUpdated: live.lastUpdated || null,
+  });
+  if (stale.stale) {
+    await completeIdempotencyKey({ key: idempotencyKey, status: 'failed' });
+    await updateOpportunityStatus({
+      id: opp.id,
+      status: 'skipped',
+      actor: args.actor,
+      extra: { skipReason: stale.reason || 'stale_write' },
+    });
+    throw Object.assign(
+      new Error(
+        `Stale-write skip — redaktør har ændret ${stale.detail || 'SEO-felter'} siden scan`
+      ),
+      { code: stale.reason || 'stale_write' }
+    );
+  }
 
   const patchFields: { seoTitle?: string; metaDescription?: string } = {};
   const versionIds: string[] = [...(opp.versionIds || [])];
@@ -164,7 +214,7 @@ export async function applyOpportunityProposals(args: {
       versionIds.push(schemaVer.id);
     }
 
-    await patchArticleFieldDataForLocale(opp.itemId, cmsPatch, dk);
+    await patchArticleFieldDataForLocale(opp.itemId, cmsPatch, cmsLocaleId);
     await completeIdempotencyKey({ key: idempotencyKey, status: 'applied' });
     if (opp.url) {
       await setUrlLastAppliedAt({
@@ -194,7 +244,7 @@ export async function applyOpportunityProposals(args: {
     actor: args.actor,
     action: args.mode === 'auto' ? 'auto_apply' : 'apply',
     opportunityId: opp.id,
-    detail: `fields=${opp.proposals.map((p) => p.field).join(',')} item=${opp.itemId} key=${idempotencyKey}`,
+    detail: `fields=${opp.proposals.map((p) => p.field).join(',')} item=${opp.itemId} locale=${opp.locale} key=${idempotencyKey}`,
   });
 
   return { opportunity: updated, versionIds };
@@ -255,7 +305,7 @@ export async function rollbackOpportunity(args: {
     });
   }
 
-  const { dk } = resolveWebflowLocaleIds();
+  const cmsLocaleId = cmsLocaleIdFor(opp.locale || 'da');
   const patchFields: { seoTitle?: string; metaDescription?: string } = {};
 
   for (const vid of versionIds) {
@@ -286,7 +336,7 @@ export async function rollbackOpportunity(args: {
     seoTitle: patchFields.seoTitle,
     metaDescription: patchFields.metaDescription,
   });
-  const slugs = (await import('@/lib/seo-engine/webflow-adapter')).getCmsSeoSlugs();
+  const slugs = getCmsSeoSlugs();
   const fieldData: Record<string, string> = { ...cmsPatch };
   if (patchFields.seoTitle === '' && !(slugs.seoTitle in fieldData)) {
     fieldData[slugs.seoTitle] = '';
@@ -296,7 +346,7 @@ export async function rollbackOpportunity(args: {
   }
   if (Object.keys(fieldData).length > 0) {
     assertCmsPatchIsSafe(fieldData);
-    await patchArticleFieldDataForLocale(opp.itemId, fieldData, dk);
+    await patchArticleFieldDataForLocale(opp.itemId, fieldData, cmsLocaleId);
   }
 
   return updateOpportunityStatus({

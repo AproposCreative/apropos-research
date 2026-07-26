@@ -87,10 +87,14 @@ export function resolveItemReviewedType(args: {
   return 'CreativeWork';
 }
 
-/** True when we have enough verified event facts to keep an Event-like itemReviewed. */
+/**
+ * True when we have enough verified event facts for Event / MusicEvent / Festival / TheaterEvent.
+ * Festival name alone is NEVER a location — require real venue and/or city + startDate.
+ */
 export function hasVerifiedEventData(input: SeoEngineInputContract): boolean {
   const hasDate = Boolean(input.eventDate?.trim());
-  const hasPlace = Boolean(input.venue?.trim() || input.city?.trim() || input.festival?.trim());
+  // venue and/or city = place. Festival is branding/name only, not Place.
+  const hasPlace = Boolean(input.venue?.trim() || input.city?.trim());
   return hasDate && hasPlace;
 }
 
@@ -220,14 +224,15 @@ export function buildReviewSchemaNode(args: {
     EVENT_LIKE.has(eligibility.itemReviewedType) &&
     hasVerifiedEventData(input)
   ) {
-    if (input.eventDate?.trim()) itemReviewed.startDate = input.eventDate.trim();
-    if (input.venue?.trim() || input.city?.trim()) {
-      itemReviewed.location = {
-        '@type': 'Place',
-        name: input.venue?.trim() || undefined,
-        address: input.city?.trim() || undefined,
-      };
-    }
+    // Only emit Event-like itemReviewed with full verified facts (date + venue/city).
+    itemReviewed.startDate = input.eventDate!.trim();
+    const venue = input.venue?.trim() || '';
+    const city = input.city?.trim() || '';
+    itemReviewed.location = {
+      '@type': 'Place',
+      name: venue || city,
+      ...(city ? { address: { '@type': 'PostalAddress', addressLocality: city } } : {}),
+    };
   }
 
   const review: Record<string, unknown> = {
@@ -267,7 +272,10 @@ export function buildReviewSchemaNode(args: {
   return review;
 }
 
-/** Standalone Event schema — only with verified required fields. Never invented. */
+/**
+ * Standalone Event schema — only with verified startDate + venue/city.
+ * Festival may name the event but never substitutes for location (avoids GSC Event errors).
+ */
 export function buildEventSchemaNode(input: SeoEngineInputContract): Record<string, unknown> | null {
   if (!hasVerifiedEventData(input)) return null;
   const name =
@@ -276,7 +284,9 @@ export function buildEventSchemaNode(input: SeoEngineInputContract): Record<stri
     null;
   if (!name) return null;
   const startDate = input.eventDate!.trim();
-  const locationName = input.venue?.trim() || input.city?.trim();
+  const venue = input.venue?.trim() || '';
+  const city = input.city?.trim() || '';
+  const locationName = venue || city;
   if (!locationName) return null;
 
   return {
@@ -288,7 +298,9 @@ export function buildEventSchemaNode(input: SeoEngineInputContract): Record<stri
     location: {
       '@type': 'Place',
       name: locationName,
-      address: input.city?.trim() || undefined,
+      ...(city
+        ? { address: { '@type': 'PostalAddress', addressLocality: city } }
+        : {}),
     },
   };
 }

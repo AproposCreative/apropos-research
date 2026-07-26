@@ -6,6 +6,12 @@ export const OPPORTUNITY_MAX_APPLY_PER_RUN = 10;
 /** Cooldown after an auto/manual apply before the same URL may be written again. */
 export const OPPORTUNITY_COOLDOWN_DAYS = 14;
 
+/** Max Webflow item fetches per scan (after GSC candidate filter). */
+export const OPPORTUNITY_WEBFLOW_FETCH_CAP = 24;
+
+/** Bounded concurrency for Webflow locale fetches. */
+export const OPPORTUNITY_WEBFLOW_CONCURRENCY = 4;
+
 /** Minimum composite confidence (0–1) to auto-apply. */
 export const OPPORTUNITY_MIN_AUTO_CONFIDENCE = 0.65;
 

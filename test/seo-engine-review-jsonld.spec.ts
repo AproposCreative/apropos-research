@@ -266,6 +266,42 @@ describe('server-rendered Review JSON-LD (raw HTML)', () => {
       name: 'Roskilde Festival',
       startDate: '2026-06-28',
     });
+    expect((events[0] as { location?: { name?: string } }).location?.name).not.toBe(
+      'Roskilde Festival'
+    );
+  });
+
+  it('never treats festival name alone as Event location', () => {
+    const input = makeInput({
+      editorialTitle: 'Festival uden venue',
+      articleType: 'Feature',
+      festival: 'Copenhell',
+      eventDate: '2026-06-01',
+      // no venue / city
+    });
+    const analysis = makeAnalysis(input, { suggestedType: 'Feature' });
+    const graph = buildJsonLd({
+      input,
+      analysis,
+      seoTitle: 'Copenhell',
+      metaDescription: 'Preview.',
+    });
+    expect(findJsonLdNodesByType(graph, 'Event')).toHaveLength(0);
+
+    const concert = makeInput({
+      editorialTitle: 'Live',
+      articleType: 'Koncertanmeldelse',
+      rating: 4,
+      festival: 'Copenhell',
+      eventDate: '2026-06-01',
+    });
+    const concertAnalysis = makeAnalysis(concert, {
+      suggestedType: 'Koncertanmeldelse',
+      entityType: 'koncert',
+      work: 'Band',
+    });
+    const el = evaluateReviewSchemaEligibility({ input: concert, analysis: concertAnalysis });
+    expect(el.itemReviewedType).toBe('CreativeWork');
   });
 
   it('falls back concert itemReviewed to CreativeWork without verified event data', () => {

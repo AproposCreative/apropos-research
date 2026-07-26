@@ -14,7 +14,10 @@ vi.mock('@/lib/webflow/locale-items', () => ({
 }));
 
 vi.mock('@/lib/seo-engine/enqueue', () => ({
-  enqueueSeoEngineJob: vi.fn(async () => ({ jobId: 'job-1', created: true })),
+  enqueueSeoEngineJob: vi.fn(async ({ locale }: { locale?: string }) => ({
+    jobId: `job-${locale || 'da'}`,
+    created: true,
+  })),
 }));
 
 vi.mock('@/lib/logger', () => ({
@@ -31,7 +34,7 @@ describe('after-publish automatic empty SEO fill', () => {
     vi.clearAllMocks();
   });
 
-  it('enqueues when automatic drift allows publish fill and SEO empty', async () => {
+  it('enqueues da+en when automatic drift allows publish fill and SEO empty', async () => {
     vi.mocked(resolveAutomaticOpportunityRuntime).mockResolvedValue({
       killSwitchEnabled: true,
       connectionsHealthyForOptimize: true,
@@ -49,8 +52,8 @@ describe('after-publish automatic empty SEO fill', () => {
 
     const result = await maybeEnqueueSeoEngineAfterPublish({ itemId: 'item1' });
     expect(result.enqueued).toBe(true);
-    expect(result.jobId).toBe('job-1');
-    expect(enqueueSeoEngineJob).toHaveBeenCalled();
+    expect(result.jobIds).toEqual(['job-da', 'job-en']);
+    expect(enqueueSeoEngineJob).toHaveBeenCalledTimes(2);
   });
 
   it('fail-closed: never throws when enqueue fails', async () => {

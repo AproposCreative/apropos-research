@@ -1,6 +1,6 @@
 /**
- * Safe metadata proposals only — never editorial title, body, stance, rating, slug, dates.
- * Review SEO titles use natural "[work] anmeldelse/review" without keyword stuffing.
+ * Safe metadata proposals — reuse SEO Engine rules (review intent, forbidden phrases,
+ * article type, entity, language). Never editorial fields. No naive query-append stuffing.
  */
 
 import type {
@@ -15,9 +15,11 @@ import {
 } from '@/lib/seo-engine/opportunity-engine/constants';
 import { isCmsSeoFieldEmpty } from '@/lib/seo-engine/webflow-adapter';
 import {
+  checkReviewSeoTitle,
   isReviewSeoArticleType,
-  seoTitleHasReviewKeyword,
 } from '@/lib/seo-engine/review-title-rule';
+import { findForbiddenPhrases } from '@/lib/seo-engine/forbidden-phrases';
+import { proposeArchiveSeoMetaHeuristic } from '@/lib/seo-engine/archive-seo-meta-agent';
 
 /**
  * Build concrete, evidence-based metadata suggestions.
@@ -29,6 +31,7 @@ export function buildSafeMetadataProposals(args: {
   language?: 'da' | 'en';
   articleType?: string | null;
   workName?: string | null;
+  bodyExcerpt?: string | null;
 }): OpportunityProposal[] {
   const proposals: OpportunityProposal[] = [];
   const query = (args.evidence.query || '').trim();
@@ -43,146 +46,160 @@ export function buildSafeMetadataProposals(args: {
     args.signals.includes('position_4_to_20') ||
     args.signals.includes('rising_query');
 
-  if (needsTitle) {
-    const proposedTitle = craftSeoTitle({
-      editorialTitle: args.title,
-      query,
-      current: currentTitle,
-      language: lang,
-      articleType: args.articleType,
-      workName: args.workName,
-    });
-    if (proposedTitle && proposedTitle !== String(currentTitle || '').trim()) {
-      proposals.push({
-        field: 'seoTitle',
-        currentValue: isCmsSeoFieldEmpty(currentTitle) ? null : String(currentTitle).trim(),
-        proposedValue: proposedTitle,
-        rationale: isReview
-          ? `Review-SEO dækker søgeintention (${lang === 'en' ? 'review' : 'anmeldelse'}) uden stuffing`
-          : query
-            ? `Evidensbaseret query "${query}" i SEO-title for bedre CTR`
-            : 'Styrk SEO-title længde/klarhed ud fra SERP-signaler',
-      });
-    }
-  }
-
   const needsMeta =
     args.signals.includes('weak_or_missing_meta') ||
     args.signals.includes('high_impressions_low_ctr') ||
     args.signals.includes('declining_article');
 
-  if (needsMeta) {
-    const proposedMeta = craftMetaDescription({
-      editorialTitle: args.title,
-      query,
-      current: currentMeta,
-      language: lang,
-      workName: args.workName,
-      isReview,
-    });
-    if (proposedMeta && proposedMeta !== String(currentMeta || '').trim()) {
-      proposals.push({
-        field: 'metaDescription',
-        currentValue: isCmsSeoFieldEmpty(currentMeta) ? null : String(currentMeta).trim(),
-        proposedValue: proposedMeta,
-        rationale: 'Meta-description justeret for CTR uden at ændre redaktionel holdning',
-      });
-    }
-  }
+  if (!needsTitle && !needsMeta) return proposals;
 
-  return proposals;
-}
+  // Reuse archive/SEO Engine heuristic (review keyword, length, tone) — not query-append.
+  const crafted = proposeArchiveSeoMetaHeuristic({
+    title: args.workName?.trim() || args.title,
+    bodyText: args.bodyExcerpt || undefined,
+    language: lang,
+    articleType: args.articleType,
+    oldSeoTitle: isCmsSeoFieldEmpty(currentTitle) ? null : String(currentTitle),
+    oldMetaDescription: isCmsSeoFieldEmpty(currentMeta) ? null : String(currentMeta),
+  });
 
-function craftSeoTitle(args: {
-  editorialTitle: string;
-  query: string;
-  current: string | null | undefined;
-  language: 'da' | 'en';
-  articleType?: string | null;
-  workName?: string | null;
-}): string {
-  const lang = args.language;
-  const work = (args.workName || '').trim();
-  const isReview = isReviewSeoArticleType(args.articleType);
+  let seoTitle = crafted.seoTitle;
+  let metaDescription = crafted.metaDescription;
 
-  if (isReview) {
-    const keyword = lang === 'en' ? 'review' : 'anmeldelse';
-    // Prefer work name; fall back to cleaned editorial title / query entity
+  // For CTR opportunities with a clear entity query: prefer natural review/entity title
+  // over stuffing the raw query string into an already-strong template.
+  if (isReview && query) {
     const entity =
-      work ||
-      extractEntityFromQuery(args.query, keyword) ||
-      stripReviewWords(args.editorialTitle, lang) ||
-      args.editorialTitle.trim();
-    const natural = `${entity} ${keyword}`.replace(/\s+/g, ' ').trim();
-    if (natural.length <= OPPORTUNITY_SEO_TITLE_MAX) return natural;
-    const budget = Math.max(8, OPPORTUNITY_SEO_TITLE_MAX - keyword.length - 1);
-    return `${truncate(entity, budget)} ${keyword}`.trim();
-  }
-
-  const base = (
-    args.current && !isCmsSeoFieldEmpty(args.current)
-      ? String(args.current)
-      : args.editorialTitle
-  ).trim();
-
-  if (!args.query) return truncate(base, OPPORTUNITY_SEO_TITLE_MAX);
-  const q = args.query.trim();
-  if (base.toLowerCase().includes(q.toLowerCase())) {
-    return truncate(base, OPPORTUNITY_SEO_TITLE_MAX);
-  }
-  // Prefer query when it is the primary opportunity — avoid stuffing both long title + query
-  if (q.length >= 12 && q.length <= OPPORTUNITY_SEO_TITLE_MAX && base.length > 40) {
-    return truncate(q, OPPORTUNITY_SEO_TITLE_MAX);
-  }
-  const combined = `${base} — ${q}`;
-  if (combined.length <= OPPORTUNITY_SEO_TITLE_MAX) return combined;
-  const budget = Math.max(12, OPPORTUNITY_SEO_TITLE_MAX - q.length - 3);
-  return truncate(`${truncate(base, budget)} — ${q}`, OPPORTUNITY_SEO_TITLE_MAX);
-}
-
-function craftMetaDescription(args: {
-  editorialTitle: string;
-  query: string;
-  current: string | null | undefined;
-  language: 'da' | 'en';
-  workName?: string | null;
-  isReview?: boolean;
-}): string {
-  if (args.current && !isCmsSeoFieldEmpty(args.current)) {
-    const cur = String(args.current).trim();
-    if (cur.length >= 70 && cur.length <= 170) {
-      if (!args.query || cur.toLowerCase().includes(args.query.toLowerCase())) return cur;
+      args.workName?.trim() ||
+      extractEntityFromQuery(query, lang === 'en' ? 'review' : 'anmeldelse') ||
+      args.title;
+    const natural = craftReviewTitle(entity, lang);
+    if (natural && !findForbiddenPhrases(natural).length) {
+      seoTitle = natural;
+    }
+  } else if (!isReview && query && isCmsSeoFieldEmpty(currentTitle)) {
+    // Non-review empty title: entity-first, optionally incorporate short query if it matches entity
+    const entity = (args.workName || args.title).trim();
+    const qLower = query.toLowerCase();
+    const entLower = entity.toLowerCase();
+    if (qLower.includes(entLower) || entLower.includes(qLower.slice(0, Math.min(12, qLower.length)))) {
+      seoTitle = truncate(entity, OPPORTUNITY_SEO_TITLE_MAX);
     }
   }
-  const entity = (args.workName || args.editorialTitle || '').trim();
-  const hook =
+
+  // Evidence-aware meta: lead with entity/work + calm magazine tone (no generic clickbait).
+  if (needsMeta) {
+    metaDescription = craftEvidenceMeta({
+      language: lang,
+      isReview,
+      workName: args.workName || args.title,
+      query,
+      fallback: metaDescription,
+      bodyExcerpt: args.bodyExcerpt,
+    });
+  }
+
+  seoTitle = scrubForbidden(seoTitle);
+  metaDescription = scrubForbidden(metaDescription);
+
+  if (needsTitle && seoTitle && seoTitle !== String(currentTitle || '').trim()) {
+    proposals.push({
+      field: 'seoTitle',
+      currentValue: isCmsSeoFieldEmpty(currentTitle) ? null : String(currentTitle).trim(),
+      proposedValue: seoTitle,
+      rationale: isReview
+        ? `Review-SEO dækker søgeintention (${lang === 'en' ? 'review' : 'anmeldelse'}) uden stuffing`
+        : query
+          ? `Evidensbaseret SEO-title for query-intention uden keyword stuffing`
+          : 'Styrk SEO-title længde/klarhed ud fra SERP-signaler',
+    });
+  }
+
+  if (needsMeta && metaDescription && metaDescription !== String(currentMeta || '').trim()) {
+    proposals.push({
+      field: 'metaDescription',
+      currentValue: isCmsSeoFieldEmpty(currentMeta) ? null : String(currentMeta).trim(),
+      proposedValue: metaDescription,
+      rationale: 'Meta justeret for CTR med SEO Engine-regler (tone, banned phrases, længde)',
+    });
+  }
+
+  return proposals.filter((p) => {
+    if (findForbiddenPhrases(p.proposedValue).length) return false;
+    if (p.field === 'seoTitle') {
+      const review = checkReviewSeoTitle({
+        seoTitle: p.proposedValue,
+        language: lang,
+        articleType: args.articleType,
+      });
+      if (review.applies && !review.ok) return false;
+      if (
+        p.proposedValue.length < 20 ||
+        p.proposedValue.length > OPPORTUNITY_SEO_TITLE_MAX
+      ) {
+        return false;
+      }
+    }
+    if (p.field === 'metaDescription') {
+      if (
+        p.proposedValue.length < OPPORTUNITY_META_MIN ||
+        p.proposedValue.length > OPPORTUNITY_META_MAX
+      ) {
+        return false;
+      }
+    }
+    return true;
+  });
+}
+
+function craftReviewTitle(entity: string, language: 'da' | 'en'): string {
+  const keyword = language === 'en' ? 'review' : 'anmeldelse';
+  const clean = stripReviewWords(entity, language);
+  const natural = `${clean} ${keyword}`.replace(/\s+/g, ' ').trim();
+  if (natural.length <= OPPORTUNITY_SEO_TITLE_MAX) return natural;
+  const budget = Math.max(8, OPPORTUNITY_SEO_TITLE_MAX - keyword.length - 1);
+  return `${truncate(clean, budget)} ${keyword}`.trim();
+}
+
+function craftEvidenceMeta(args: {
+  language: 'da' | 'en';
+  isReview: boolean;
+  workName: string;
+  query: string;
+  fallback: string;
+  bodyExcerpt?: string | null;
+}): string {
+  const entity = (args.workName || '').trim();
+  const excerpt = (args.bodyExcerpt || '').replace(/\s+/g, ' ').trim();
+  if (excerpt.length >= OPPORTUNITY_META_MIN && excerpt.length <= OPPORTUNITY_META_MAX) {
+    if (!findForbiddenPhrases(excerpt).length) return excerpt;
+  }
+
+  const calm =
     args.language === 'en'
       ? args.isReview
-        ? 'Read our honest review covering story, craft and replay value on Apropos Magazine.'
-        : 'Read the full article with context and takeaways on Apropos Magazine.'
+        ? `${entity} review on Apropos Magazine — focused take on craft, tone and whether it holds up.`
+        : `${entity} on Apropos Magazine — clear context and perspective for curious readers.`
       : args.isReview
-        ? 'Læs vores ærlige anmeldelse af gameplay, håndværk og oplevelse på Apropos Magazine.'
-        : 'Læs den fulde artikel med kontekst og pointer på Apropos Magazine.';
-  const intent =
-    args.isReview && args.language === 'da'
-      ? `${entity} anmeldelse. `
-      : args.isReview && args.language === 'en'
-        ? `${entity} review. `
-        : args.query
-          ? `${args.query}. `
-          : entity
-            ? `${entity}. `
-            : '';
-  let out = truncate(`${intent}${hook}`, OPPORTUNITY_META_MAX);
-  // Guardrail: auto-apply requires meta within length bounds
+        ? `${entity} anmeldelse hos Apropos Magazine — fokus vurdering af håndværk, tone og om det holder.`
+        : `${entity} hos Apropos Magazine — klar kontekst og perspektiv til nysgerrige læsere.`;
+
+  let out = truncate(calm, OPPORTUNITY_META_MAX);
   if (out.length < OPPORTUNITY_META_MIN) {
-    const pad =
-      args.language === 'en'
-        ? ' Clear, evidence-based coverage for readers deciding what to play or watch next.'
-        : ' Klar, evidensbaseret dækning til læsere der vælger næste spil, film eller serie.';
-    out = truncate(`${out}${pad}`, OPPORTUNITY_META_MAX);
+    out = truncate(`${out} ${args.fallback}`.trim(), OPPORTUNITY_META_MAX);
+  }
+  if (out.length < OPPORTUNITY_META_MIN) {
+    out = truncate(args.fallback, OPPORTUNITY_META_MAX);
   }
   return out;
+}
+
+function scrubForbidden(text: string): string {
+  let t = text;
+  for (const p of findForbiddenPhrases(t)) {
+    t = t.replace(new RegExp(p.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'ig'), '').replace(/\s+/g, ' ').trim();
+  }
+  return t;
 }
 
 function extractEntityFromQuery(query: string, keyword: string): string {
@@ -212,5 +229,11 @@ export function proposalHasReviewIntent(
   seoTitle: string,
   language: 'da' | 'en' | undefined
 ): boolean {
-  return seoTitleHasReviewKeyword(seoTitle, language);
+  const check = checkReviewSeoTitle({
+    seoTitle,
+    language: language || 'da',
+    articleType: language === 'en' ? 'Review' : 'Anmeldelse',
+  });
+  // For explicit review-type checks callers pass articleType; this helper is best-effort
+  return /\b(anmeldelse|review)\b/i.test(seoTitle) || check.ok;
 }

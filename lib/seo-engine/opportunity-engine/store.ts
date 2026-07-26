@@ -27,6 +27,16 @@ export function opportunityDocId(fingerprint: string): string {
   return createHash('sha256').update(fingerprint).digest('hex').slice(0, 32);
 }
 
+const COOLDOWN_MS = 14 * 86_400_000;
+
+function isAppliedWithinCooldown(appliedAt: string | null | undefined, nowIso: string): boolean {
+  if (!appliedAt) return false;
+  const t = Date.parse(appliedAt);
+  const now = Date.parse(nowIso);
+  if (!Number.isFinite(t) || !Number.isFinite(now)) return false;
+  return now - t < COOLDOWN_MS;
+}
+
 /** Idempotent upsert by fingerprint — refreshes score/evidence, preserves status if not open. */
 export async function upsertOpportunity(
   opp: Omit<SeoOpportunity, 'id' | 'createdAt' | 'updatedAt'> & { id?: string }
@@ -51,28 +61,37 @@ export async function upsertOpportunity(
   }
 
   const prev = existing.data() as SeoOpportunity;
-  const keepStatus =
-    prev.status && prev.status !== 'open' && prev.status !== 'dismissed'
-      ? prev.status
-      : 'open';
   const merged: SeoOpportunity = {
     ...prev,
     ...opp,
     id,
-    status: keepStatus === 'applied' || keepStatus === 'approved' ? keepStatus : 'open',
+    status: 'open',
     createdAt: prev.createdAt || now,
     updatedAt: now,
     versionIds: prev.versionIds || [],
   };
-  // If previously applied/rejected, still refresh evidence but don't reopen automatically
+  // Rejected / dismissed stay closed unless ops reopen manually
   if (prev.status === 'rejected' || prev.status === 'dismissed') {
     merged.status = prev.status;
-  }
-  if (prev.status === 'applied' || prev.status === 'rolled_back') {
-    merged.status = prev.status;
-  }
-  // Skipped items may reopen on a later scan with fresh evidence
-  if (prev.status === 'skipped') {
+  } else if (prev.status === 'approved') {
+    merged.status = 'approved';
+  } else if (prev.status === 'applied' || prev.status === 'rolled_back') {
+    // Reopen after cooldown when fingerprint/evidence materially changed — never lock forever
+    const cooldownExpired = !isAppliedWithinCooldown(prev.appliedAt, now);
+    const evidenceChanged =
+      prev.fingerprint !== opp.fingerprint ||
+      prev.idempotencyKey !== opp.idempotencyKey ||
+      Math.abs((prev.score || 0) - (opp.score || 0)) >= 8;
+    if (cooldownExpired && evidenceChanged) {
+      merged.status = 'open';
+      merged.skipReason = null;
+      merged.appliedAt = prev.appliedAt;
+      merged.versionIds = prev.versionIds || [];
+    } else {
+      merged.status = prev.status;
+    }
+  } else if (prev.status === 'skipped') {
+    // Skipped items reopen on later scan with fresh evidence
     merged.status = 'open';
     merged.skipReason = null;
   }
@@ -220,7 +239,10 @@ export async function saveScanSummary(args: {
   );
 }
 
-/** Idempotency claim for daily/weekly cron — returns false if already claimed. */
+/**
+ * Idempotency claim for daily/weekly cron — returns false if a successful run
+ * still holds the lease. Failed/released slots may be retried immediately.
+ */
 export async function claimOpportunityCronSlot(args: {
   slotKey: string;
   ttlHours?: number;
@@ -232,16 +254,33 @@ export async function claimOpportunityCronSlot(args: {
     const ok = await db.runTransaction(async (tx) => {
       const snap = await tx.get(ref);
       if (snap.exists) {
-        const claimedAt = snap.data()?.claimedAt as string | undefined;
-        if (claimedAt) {
-          const age = Date.now() - Date.parse(claimedAt);
-          const ttl = (args.ttlHours ?? 20) * 3600_000;
-          if (Number.isFinite(age) && age < ttl) return false;
+        const data = snap.data() || {};
+        const status = data.status as string | undefined;
+        // Failed or explicitly released → allow retry
+        if (status === 'failed' || status === 'released') {
+          /* fall through to claim */
+        } else if (status === 'succeeded') {
+          const completedAt = data.completedAt as string | undefined;
+          if (completedAt) {
+            const age = Date.now() - Date.parse(completedAt);
+            const ttl = (args.ttlHours ?? 20) * 3600_000;
+            if (Number.isFinite(age) && age < ttl) return false;
+          }
+        } else {
+          // In-progress claim without completion — allow reclaim after short stale window (45m)
+          const claimedAt = data.claimedAt as string | undefined;
+          if (claimedAt) {
+            const age = Date.now() - Date.parse(claimedAt);
+            const staleMs = 45 * 60_000;
+            if (Number.isFinite(age) && age < staleMs && status === 'running') return false;
+          }
         }
       }
       tx.set(ref, {
         slotKey: args.slotKey,
+        status: 'running',
         claimedAt: new Date().toISOString(),
+        completedAt: null,
         createdAt: FieldValue.serverTimestamp(),
       });
       return true;
@@ -250,6 +289,30 @@ export async function claimOpportunityCronSlot(args: {
   } catch {
     return false;
   }
+}
+
+/** Mark cron slot succeeded so the same day/week is not re-run until TTL. */
+export async function completeOpportunityCronSlot(args: {
+  slotKey: string;
+  status: 'succeeded' | 'failed';
+  detail?: string;
+}): Promise<void> {
+  const db = getAdminDb();
+  if (!db) return;
+  await db.collection(OPP_COL.scans).doc(`cron:${args.slotKey}`).set(
+    {
+      status: args.status,
+      completedAt: new Date().toISOString(),
+      detail: args.detail || null,
+      updatedAt: FieldValue.serverTimestamp(),
+    },
+    { merge: true }
+  );
+}
+
+/** Release lease after failure so the next cron tick can retry. */
+export async function releaseOpportunityCronSlot(slotKey: string): Promise<void> {
+  await completeOpportunityCronSlot({ slotKey, status: 'failed', detail: 'released_for_retry' });
 }
 
 /** Last successful apply timestamp for a URL (cooldown). */

@@ -2,13 +2,18 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireCronSecret } from '@/lib/seo-engine/secret-guards';
 import { runOpportunityScan } from '@/lib/seo-engine/opportunity-engine/engine';
 import { maybeAutoApplyOpportunities } from '@/lib/seo-engine/opportunity-engine/apply';
-import { claimOpportunityCronSlot } from '@/lib/seo-engine/opportunity-engine/store';
+import {
+  claimOpportunityCronSlot,
+  completeOpportunityCronSlot,
+  releaseOpportunityCronSlot,
+} from '@/lib/seo-engine/opportunity-engine/store';
 import { logger } from '@/lib/logger';
 
 /**
  * Idempotent daily collect / weekly optimize.
  * Daily: gather GSC/GA4 opportunities (no writes).
  * Weekly: optimize — auto-apply up to 10 with guardrails.
+ * Failed runs release the lease so the next tick can retry.
  */
 export async function handleOpportunityCron(
   req: NextRequest,
@@ -54,6 +59,12 @@ export async function handleOpportunityCron(
       });
     }
 
+    await completeOpportunityCronSlot({
+      slotKey,
+      status: 'succeeded',
+      detail: `status=${report.status} count=${report.opportunityCount}`,
+    });
+
     return NextResponse.json({
       ok: true,
       slotKey,
@@ -66,13 +77,14 @@ export async function handleOpportunityCron(
       autoApply,
     });
   } catch (e) {
-    // Fail closed for the cron itself — never affects article publish path.
+    // Release lease so the next cron invocation can retry (do not block the rest of the day).
+    await releaseOpportunityCronSlot(slotKey).catch(() => undefined);
     logger.error(
       '[cron/seo-engine-opportunities] failed',
       e instanceof Error ? e : new Error(String(e))
     );
     return NextResponse.json(
-      { ok: false, error: e instanceof Error ? e.message : 'scan failed' },
+      { ok: false, error: e instanceof Error ? e.message : 'scan failed', retryable: true },
       { status: 500 }
     );
   }

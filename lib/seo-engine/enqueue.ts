@@ -19,6 +19,7 @@ export async function enqueueSeoEngineJob(args: {
   itemId: string;
   cmsLastUpdated: string;
   source: 'webhook' | 'publish_app' | 'manual' | 'recovery';
+  locale?: 'da' | 'en';
 }): Promise<{ jobId: string; created: boolean }> {
   const written = await writeQueuedSeoEngineJob(args);
 

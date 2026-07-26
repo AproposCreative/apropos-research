@@ -78,7 +78,10 @@ export function buildEmptyOnlyDomainPatch(args: {
   return patch;
 }
 
-async function fetchCmsItemFull(itemId: string): Promise<CmsItemSnapshot> {
+async function fetchCmsItemFull(
+  itemId: string,
+  locale: 'da' | 'en' = 'da'
+): Promise<CmsItemSnapshot> {
   const { getWebflowConfig } = await import('@/lib/webflow-config');
   const { env } = await import('@/lib/config/env');
   const file = getWebflowConfig();
@@ -87,8 +90,9 @@ async function fetchCmsItemFull(itemId: string): Promise<CmsItemSnapshot> {
     (file.articlesCollectionId !== undefined
       ? file.articlesCollectionId
       : env.WEBFLOW_ARTICLES_COLLECTION_ID) || '';
-  const { dk } = resolveWebflowLocaleIds();
-  const qs = new URLSearchParams({ cmsLocaleId: dk });
+  const { dk, en } = resolveWebflowLocaleIds();
+  const cmsLocaleId = locale === 'en' ? en : dk;
+  const qs = new URLSearchParams({ cmsLocaleId });
   const url = `https://api.webflow.com/v2/collections/${collectionId}/items/${itemId}?${qs}`;
   const res = await fetch(url, {
     headers: { Authorization: `Bearer ${token}`, 'Accept-Version': '1.0.0' },
@@ -112,7 +116,8 @@ async function fetchCmsItemFull(itemId: string): Promise<CmsItemSnapshot> {
 }
 
 /**
- * Process one durable SEO Engine job: analyze → strategize → empty-only PATCH (DK locale).
+ * Process one durable SEO Engine job: analyze → strategize → empty-only PATCH.
+ * Respects job.locale (da|en). Never rewrites original publish date — only empty SEO fields.
  */
 export async function runSeoEngineJob(jobId: string): Promise<{
   ok: boolean;
@@ -125,11 +130,13 @@ export async function runSeoEngineJob(jobId: string): Promise<{
     return { ok: true, skipped: true, reason: 'Job ikke claimet (allerede done/busy)' };
   }
 
+  const locale: 'da' | 'en' = claimed.locale === 'en' ? 'en' : 'da';
+  const claimKey = `${claimed.itemId}:${locale}`;
   let contentHash: string | null = null;
   let contentClaimed = false;
 
   try {
-    const item = await fetchCmsItemFull(claimed.itemId);
+    const item = await fetchCmsItemFull(claimed.itemId, locale);
     if (shouldSkipBothSeoFilled(item.fieldData)) {
       await updateSeoEngineJob(jobId, {
         status: 'skipped',
@@ -152,16 +159,19 @@ export async function runSeoEngineJob(jobId: string): Promise<{
     }
 
     const analyzedLastUpdated = item.lastUpdated;
+    // Preserve original publish date as input only — never written back to CMS.
     const input = webflowItemToSeoEngineInput({
       fieldData: item.fieldData,
       publishDate: item.lastPublished || undefined,
       dateModified: item.lastUpdated || undefined,
+      language: locale,
     });
     const inputVersionHash = computeInputVersionHash(input);
     contentHash = inputVersionHash;
     await updateSeoEngineJob(jobId, { inputVersionHash });
 
-    const claim = await tryClaimContentHash(claimed.itemId, inputVersionHash);
+    // Locale-scoped content claim so da/en do not block each other.
+    const claim = await tryClaimContentHash(claimKey, inputVersionHash);
     if (claim === 'done') {
       await updateSeoEngineJob(jobId, {
         status: 'skipped',
@@ -181,7 +191,7 @@ export async function runSeoEngineJob(jobId: string): Promise<{
       userId: 'system:seo-engine-worker',
       forceDemo: false,
       webflowItemId: claimed.itemId,
-      articleKey: `wf:${claimed.itemId}`,
+      articleKey: `wf:${claimed.itemId}:${locale}`,
     });
     if (analysis.mode === 'demo') {
       throw Object.assign(new Error('Worker modtog demo-analyse — afviser CMS-write'), {
@@ -197,7 +207,7 @@ export async function runSeoEngineJob(jobId: string): Promise<{
     assertWorkerMayPublishStrategy({ mode: strategy.mode });
 
     if (strategy.stale) {
-      await completeContentClaim(claimed.itemId, inputVersionHash, 'stale');
+      await completeContentClaim(claimKey, inputVersionHash, 'stale');
       contentClaimed = false;
       await updateSeoEngineJob(jobId, {
         status: 'stale',
@@ -206,14 +216,14 @@ export async function runSeoEngineJob(jobId: string): Promise<{
       return { ok: false, reason: 'stale_after_strategy' };
     }
 
-    const fresh = await fetchCmsItemFull(claimed.itemId);
+    const fresh = await fetchCmsItemFull(claimed.itemId, locale);
     if (
       isFreshFetchStaleVsAnalyzed({
         analyzedLastUpdated,
         freshLastUpdated: fresh.lastUpdated,
       })
     ) {
-      await completeContentClaim(claimed.itemId, inputVersionHash, 'stale');
+      await completeContentClaim(claimKey, inputVersionHash, 'stale');
       contentClaimed = false;
       await updateSeoEngineJob(jobId, {
         status: 'stale',
@@ -225,7 +235,7 @@ export async function runSeoEngineJob(jobId: string): Promise<{
 
     const freshEmpty = cmsSeoEmptiness(fresh.fieldData);
     if (!freshEmpty.anyEmpty) {
-      await completeContentClaim(claimed.itemId, inputVersionHash, 'skipped');
+      await completeContentClaim(claimKey, inputVersionHash, 'skipped');
       contentClaimed = false;
       await updateSeoEngineJob(jobId, {
         status: 'skipped',
@@ -250,14 +260,14 @@ export async function runSeoEngineJob(jobId: string): Promise<{
 
     const cmsPatch = toWebflowSeoPatch(patchDomain);
     if (Object.keys(cmsPatch).length === 0) {
-      await completeContentClaim(claimed.itemId, inputVersionHash, 'skipped');
+      await completeContentClaim(claimKey, inputVersionHash, 'skipped');
       contentClaimed = false;
       await updateSeoEngineJob(jobId, { status: 'skipped', skipReason: 'empty_patch' });
       return { ok: true, skipped: true, reason: 'Intet at patche' };
     }
 
     if ((strategy.validation.errors || []).length > 0) {
-      await completeContentClaim(claimed.itemId, inputVersionHash, 'failed');
+      await completeContentClaim(claimKey, inputVersionHash, 'failed');
       contentClaimed = false;
       await updateSeoEngineJob(jobId, {
         status: 'failed',
@@ -267,10 +277,11 @@ export async function runSeoEngineJob(jobId: string): Promise<{
       return { ok: false, reason: 'validator_errors', seoVersionId: strategy.seoVersionId };
     }
 
-    const { dk } = resolveWebflowLocaleIds();
-    await patchArticleFieldDataForLocale(claimed.itemId, cmsPatch, dk);
+    const { dk, en } = resolveWebflowLocaleIds();
+    const cmsLocaleId = locale === 'en' ? en : dk;
+    await patchArticleFieldDataForLocale(claimed.itemId, cmsPatch, cmsLocaleId);
 
-    const verified = await fetchCmsItemFull(claimed.itemId);
+    const verified = await fetchCmsItemFull(claimed.itemId, locale);
     const slugs = getCmsSeoSlugs();
     for (const [domainKey, cmsSlug] of [
       ['seoTitle', slugs.seoTitle],
@@ -289,11 +300,12 @@ export async function runSeoEngineJob(jobId: string): Promise<{
     }
 
     // Publish only if the item was already published (never publish drafts via auto)
+    // Does not alter original publish date — Webflow publish keeps created publishDate.
     if (fresh.lastPublished) {
-      await publishArticleItemForLocale(claimed.itemId, dk);
+      await publishArticleItemForLocale(claimed.itemId, cmsLocaleId);
     }
 
-    await completeContentClaim(claimed.itemId, inputVersionHash, 'succeeded');
+    await completeContentClaim(claimKey, inputVersionHash, 'succeeded');
     contentClaimed = false;
     await updateSeoEngineJob(jobId, {
       status: 'succeeded',
@@ -304,6 +316,7 @@ export async function runSeoEngineJob(jobId: string): Promise<{
     logger.info('[seo-engine] auto-seo succeeded', {
       itemId: claimed.itemId,
       jobId,
+      locale,
       patched: Object.keys(cmsPatch),
     });
 
@@ -318,7 +331,7 @@ export async function runSeoEngineJob(jobId: string): Promise<{
 
     if (contentClaimed && contentHash) {
       try {
-        await releaseContentClaim(claimed.itemId, contentHash);
+        await releaseContentClaim(claimKey, contentHash);
       } catch {
         /* ignore */
       }
