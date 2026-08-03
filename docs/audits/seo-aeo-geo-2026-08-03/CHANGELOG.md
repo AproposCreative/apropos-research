@@ -44,3 +44,5 @@
 - JSON-LD-versionen er hævet fra `1.1.0` til `1.2.0`.
 - Canonical-jobbet fejler nu sikkert, hvis collectionen ikke har et canonical-felt, og skriver aldrig længere blindt til `canonical-url`.
 - Typecheck og 22 SEO-testfiler med 263 tests består efter ændringerne.
+- Branch-checkpoint `2594f24` er skubbet til GitHub og åbnet som draft PR #12.
+- GitGuardian og Vercel preview-checks består; ingen merge eller production deployment er udført.
