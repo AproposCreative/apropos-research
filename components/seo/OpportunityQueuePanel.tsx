@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { useAuth } from '@/lib/auth-context';
+import { collapseOpportunityHistory } from '@/lib/seo-engine/opportunity-engine/queue';
 
 const secondaryBtn =
   'px-3 py-2.5 rounded-xl border border-white/12 text-[13px] text-white/75 hover:bg-white/[0.05] hover:border-white/18 disabled:opacity-40 transition-all duration-200 active:scale-[0.98] touch-target';
@@ -14,12 +15,16 @@ type OpportunityRow = {
   id: string;
   title: string;
   slug: string;
+  locale?: string;
+  url?: string | null;
   score: number;
   confidence?: number;
   status: string;
   signals: string[];
   why: string;
   skipReason?: string | null;
+  createdAt?: string | null;
+  updatedAt?: string | null;
   evidence?: {
     query?: string | null;
     clicks?: number | null;
@@ -75,7 +80,7 @@ export default function OpportunityQueuePanel() {
       });
       const j = await res.json();
       if (!res.ok) throw new Error(j.error || 'Kunne ikke hente status');
-      setRows(j.opportunities || []);
+      setRows(collapseOpportunityHistory(j.opportunities || []));
       setConnectionMessage(j.connectionMessage || null);
       setConnectionStatus(j.connectionStatus || 'ready');
       setMode(j.mode || 'automatic');

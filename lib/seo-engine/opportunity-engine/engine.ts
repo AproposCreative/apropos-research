@@ -401,9 +401,11 @@ export async function runOpportunityScan(
     if (!scored) continue;
 
     const language = languageForLocale(row.locale);
-    const workName = scored.query
-      ? scored.query.replace(/\b(anmeldelse|anmeldelser|review|reviews)\b/gi, '').trim()
-      : row.title;
+    // GSC queries are evidence, not editorial source text. They are commonly lowercased,
+    // abbreviated or phrased as questions, so using them as the work name can turn a
+    // properly styled title into e.g. "now you see me 3 anmeldelse". Keep the CMS title
+    // as the authoritative entity and let the query influence only scoring/rationale.
+    const workName = row.title;
 
     const proposals = buildSafeMetadataProposals({
       title: row.title,

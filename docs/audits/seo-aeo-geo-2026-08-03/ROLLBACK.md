@@ -33,7 +33,8 @@ Efter write udføres readback. Hvis readback afviger, stoppes batchen. Rollback 
 - Hele den eksisterende blok gemmes før en erstatning, fordi Webflows setter erstatter hele feltet/blokken.
 - Page-level JSON-LD rulles tilbage med den eksakte tidligere `jsonLdSchema` eller `rawJsonLdSchema`.
 - Site/page freeform code rulles tilbage med den eksakte tidligere head/footer-streng.
-- Full-site publish må først ske efter staging/preview-validering og et eksplicit kontrolpunkt.
+- Full-site publish skete 2026-08-03 efter staging/readback og brugerens eksplicitte godkendelse.
+- Webflow-schema kan rulles tilbage med `backups/webflow-home-schema-before.json`; Article-template metadata kan rulles tilbage med `backups/webflow-article-template-metadata-before.json`, efterfulgt af readback og ny full-site publish.
 
 ## Sitemap/indexering
 
@@ -45,4 +46,3 @@ Efter write udføres readback. Hvis readback afviger, stoppes batchen. Rollback 
 - Slå automatisk SEO fra i Settings eller med `SEO_ENGINE_AUTO_OPPORTUNITY_OPT=false`.
 - `WEBFLOW_AUTO_SEO_ENGINE=false` stopper automatisk empty-fill.
 - In-flight jobs kan afslutte; history/version records bruges til manuel rollback.
-

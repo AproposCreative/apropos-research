@@ -321,13 +321,16 @@ export function buildQueryToPagesIndex(rows: QueryPageRow[]): Map<string, QueryP
   return map;
 }
 
-/** Stable fingerprint for idempotent upsert (page + sorted signals + top query). */
+/** Stable fingerprint for idempotent upsert (page + top query).
+ *
+ * Signals change as metrics move between scans. Including them created a new Firestore
+ * document for the same page/query and filled the queue with historical duplicates.
+ */
 export function opportunityFingerprint(args: {
   page: string;
   signals: OpportunitySignalKind[];
   query?: string | null;
 }): string {
-  const sig = [...args.signals].sort().join(',');
   const q = (args.query || '').toLowerCase().trim();
-  return `${args.page.toLowerCase()}|${sig}|${q}`;
+  return `${args.page.toLowerCase()}|${q}`;
 }

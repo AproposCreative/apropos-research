@@ -26,16 +26,19 @@
 
 ### Produktionsændringer
 
-- Ingen.
+- Den godkendte Webflow SEO-batch blev publiceret til alle fire custom domains og Webflow-subdomænet kl. `2026-08-03T10:11:54Z`.
+- Live DK/EN-forsider er efter publicering verificeret med stabile Organization-identiteter, engelsk EN-schema, canonical og gensidige hreflang-links.
+- En live dansk artikel er verificeret uden det tidligere faste `Apropos Magazine:`-prefix i `<title>`; canonical og DK/EN-hreflang er bevaret.
+- Ingen Webflow CMS-artikler blev redigeret i denne batch.
 
 ### Staged Webflow-ændringer
 
 - Forsidens danske Organization-schema er udvidet til et sammenhængende `Organization`/`WebSite`/`WebPage`-graph med absolutte URL'er og stabile `@id`-referencer.
 - Den generiske Instagram-URL er erstattet af Apropos Magazines konkrete Instagram-, Facebook- og LinkedIn-profiler.
 - EN-forsiden har fået et selvstændigt engelsksproget schema i stedet for at arve dansk schema.
-- Begge locales er genlæst og matcher det dokumenterede efter-snapshot. Intet er publiceret.
+- Begge locales er genlæst og matcher det dokumenterede efter-snapshot; ændringen er efterfølgende publiceret og live-verificeret.
 - Article-templatens faste `Apropos Magazine:`-prefix er fjernet fra DK/EN SEO-title-bindingen; CMS-feltet leverer nu hele titlen uden ekstra boilerplate.
-- Meta description- og Open Graph-bindingerne er genlæst og bevaret. Intet er publiceret.
+- Meta description- og Open Graph-bindingerne er genlæst og bevaret; ændringen er efterfølgende publiceret og live-verificeret.
 
 ### Kodeændringer på audit-branchen
 
@@ -46,3 +49,13 @@
 - Typecheck og 22 SEO-testfiler med 263 tests består efter ændringerne.
 - Branch-checkpoint `2594f24` er skubbet til GitHub og åbnet som draft PR #12.
 - GitGuardian og Vercel preview-checks består; ingen merge eller production deployment er udført.
+
+### SEO Engine (`ai.aproposmagazine.com`)
+
+- Verificeret autentificeret production-UI, build `1.0.0.417c670`, med sunde GSC-, GA4- og Webflow-forbindelser og aktiv automatisk drift.
+- Dokumenteret anvendte lowercasede/generiske titler og et query-intent-problem, hvor rå GSC-query blev brugt som værk/entity.
+- Rettet branchen til altid at bruge CMS-artiklens redaktionelle titel som entity; GSC-query bruges kun som evidens.
+- Gjort fingerprints stabile på side + query og tilføjet UI-sammenlægning af eksisterende legacy-dubletter.
+- Nødstop, manuel kørsel, apply og rollback blev ikke aktiveret under auditten.
+- Målrettede tests 25/25; fuld suite 27 filer/274 tests; typecheck og lint af ændrede filer består.
+- Fuld repository-lint rammer en eksisterende, urørt `module`-navnefejl i `components/marketing/ProductStoryShowcase.tsx`.

@@ -1,6 +1,6 @@
 # SEO, AEO og GEO audit — 2026-08-03
 
-Status: baseline og backupstrategi er oprettet. Ingen produktionsændringer er udført.
+Status: baseline og backupstrategi er oprettet. Første reversible Webflow-batch er publiceret og live-verificeret; kodeændringer ligger fortsat kun i draft PR.
 
 ## Omfang
 
@@ -36,7 +36,7 @@ Status: baseline og backupstrategi er oprettet. Ingen produktionsændringer er u
 ## Beskyttelsesregler
 
 - Ingen ændring af titel/H1, brødtekst, holdning, rating, forfatter, publiceringsdato eller slug gennem automatisk SEO-optimering.
-- Ingen Webflow full-site publish som del af auditfasen.
+- Webflow full-site publish kræver staging/readback, eksakt backup og et eksplicit kontrolpunkt.
 - Ingen secrets kopieres til dokumentation eller commits.
 - Eksisterende EN-locale må ikke antages; 27 danske artikel-items mangler aktuelt EN-variant.
 - Nye artikler skal fortsat oprettes med både DK- og EN-locale i samme bulk-create.
@@ -47,4 +47,4 @@ Status: baseline og backupstrategi er oprettet. Ingen produktionsændringer er u
 - `BASELINE.md`: observeret teknisk og redaktionel status
 - `ROLLBACK.md`: rollback pr. system
 - `CHANGELOG.md`: ændringer udført under arbejdet
-
+- `SEO-ENGINE-AUDIT.md`: live kontrol af GSC/GA4/Webflow-maskinen og dens guardrails
