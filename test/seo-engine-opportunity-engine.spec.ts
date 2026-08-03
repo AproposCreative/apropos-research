@@ -252,6 +252,35 @@ describe('opportunity engine scoring', () => {
     ];
     expect(collapseOpportunityHistory(rows)).toEqual([rows[1]]);
   });
+
+  it('keeps an applied history row available for rollback after a newer skipped scan', () => {
+    const rows = [
+      {
+        id: 'applied-version',
+        slug: 'now-you-see-me-3',
+        locale: 'da',
+        url: 'https://www.aproposmagazine.com/articles/now-you-see-me-3',
+        status: 'applied',
+        score: 87,
+        updatedAt: '2026-08-01T00:00:00.000Z',
+        evidence: { query: 'now you see me 3' },
+      },
+      {
+        id: 'cooldown-scan',
+        slug: 'now-you-see-me-3',
+        locale: 'da',
+        url: 'https://www.aproposmagazine.com/articles/now-you-see-me-3',
+        status: 'skipped',
+        score: 87,
+        updatedAt: '2026-08-03T00:00:00.000Z',
+        evidence: { query: 'now you see me 3' },
+      },
+    ];
+    expect(collapseOpportunityHistory(rows).map((row) => row.id)).toEqual([
+      'applied-version',
+      'cooldown-scan',
+    ]);
+  });
 });
 
 describe('guardrails', () => {
