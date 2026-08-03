@@ -341,8 +341,8 @@ export async function applyArchiveJob(args: {
     const cp = preview.frozen.contentProposal;
     if (cp) {
       if (cp.contentChanged) patch[fieldSlug('content')] = cp.newContent;
-      if (cp.canonicalChanged && cp.newCanonical) {
-        patch[fieldSlug('canonical')] = cp.newCanonical;
+      if (cp.canonicalChanged && cp.newCanonical && cp.canonicalField) {
+        patch[cp.canonicalField] = cp.newCanonical;
       }
       if (cp.thumbAltChanged && cp.newThumb) {
         patch[fieldSlug('thumb')] = cp.newThumb;

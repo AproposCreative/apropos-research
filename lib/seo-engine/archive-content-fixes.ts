@@ -76,6 +76,8 @@ export type ContentFixProposal = {
   contentChanged: boolean;
   oldCanonical: string | null;
   newCanonical: string | null;
+  /** Existing writable CMS field. Null means canonical is template-managed. */
+  canonicalField: typeof CMS_CANONICAL_FIELD | typeof CMS_CANONICAL_FIELD_FALLBACK | null;
   canonicalChanged: boolean;
   oldThumbAlt: string | null;
   newThumbAlt: string | null;
@@ -121,6 +123,18 @@ export function readCmsCanonical(fieldData: Record<string, unknown>): string | n
   if (primary) return primary;
   const fallback = String(fieldData[CMS_CANONICAL_FIELD_FALLBACK] || '').trim();
   return fallback || null;
+}
+
+export function detectCmsCanonicalField(
+  fieldData: Record<string, unknown>
+): typeof CMS_CANONICAL_FIELD | typeof CMS_CANONICAL_FIELD_FALLBACK | null {
+  if (Object.prototype.hasOwnProperty.call(fieldData, CMS_CANONICAL_FIELD)) {
+    return CMS_CANONICAL_FIELD;
+  }
+  if (Object.prototype.hasOwnProperty.call(fieldData, CMS_CANONICAL_FIELD_FALLBACK)) {
+    return CMS_CANONICAL_FIELD_FALLBACK;
+  }
+  return null;
 }
 
 export function readCmsBody(fieldData: Record<string, unknown>): string {
@@ -478,6 +492,7 @@ export function buildContentFixProposal(args: {
   const kinds = [...new Set(args.kinds)];
   const oldContent = readCmsBody(args.fieldData);
   const oldCanonical = readCmsCanonical(args.fieldData);
+  const canonicalField = detectCmsCanonicalField(args.fieldData);
   let newContent = oldContent;
   const links: ProposedInternalLink[] = [];
   const headings: ProposedHeading[] = [];
@@ -499,7 +514,7 @@ export function buildContentFixProposal(args: {
 
   let newCanonical: string | null = oldCanonical;
   let canonicalChanged = false;
-  if (kinds.includes('canonical')) {
+  if (kinds.includes('canonical') && canonicalField) {
     const c = proposeCanonicalFix({ slug: args.slug, existing: oldCanonical });
     if (c.changed && c.newCanonical) {
       newCanonical = c.newCanonical;
@@ -537,6 +552,7 @@ export function buildContentFixProposal(args: {
     contentChanged: newContent !== oldContent,
     oldCanonical,
     newCanonical: canonicalChanged ? newCanonical : oldCanonical,
+    canonicalField,
     canonicalChanged,
     oldThumbAlt,
     newThumbAlt,
@@ -554,8 +570,8 @@ export function buildCmsPatchFromContentProposal(
 ): Record<string, unknown> {
   const patch: Record<string, unknown> = {};
   if (proposal.contentChanged) patch[CMS_BODY_FIELD] = proposal.newContent;
-  if (proposal.canonicalChanged && proposal.newCanonical) {
-    patch[CMS_CANONICAL_FIELD] = proposal.newCanonical;
+  if (proposal.canonicalChanged && proposal.newCanonical && proposal.canonicalField) {
+    patch[proposal.canonicalField] = proposal.newCanonical;
   }
   if (proposal.thumbAltChanged && proposal.newThumb) {
     patch[CMS_THUMB_FIELD] = proposal.newThumb;

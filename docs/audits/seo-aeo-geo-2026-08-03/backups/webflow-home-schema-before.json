@@ -1,0 +1,67 @@
+{
+  "capturedAt": "2026-08-03",
+  "siteId": "67dbf17ba540975b5b21c180",
+  "pageId": "67dbf17ba540975b5b21c201",
+  "sourceLastUpdated": "2026-07-28T13:46:24.575Z",
+  "locales": {
+    "da": {
+      "localeId": "67dbf17ba540975b5b21c224",
+      "isInherited": false,
+      "jsonLdSchema": {
+        "@context": "https://schema.org",
+        "@type": "Organization",
+        "name": "Apropos Magazine",
+        "url": "/",
+        "logo": {
+          "@type": "ImageObject",
+          "url": "https://cdn.prod.website-files.com/67dbf17ba540975b5b21c180/67f7966d9192c68997f60640_aproposlogo.svg"
+        },
+        "description": "Apropos Magazine dækker musik, film, kultur og kaos med kant, karakter og kærlighed til det, der rører sig.",
+        "slogan": "Ingen støj. Ingen reklamer. Kun kultur.",
+        "parentOrganization": {
+          "@type": "Organization",
+          "name": "Apropos Creative ApS",
+          "identifier": "CVR 38175661"
+        },
+        "contactPoint": {
+          "@type": "ContactPoint",
+          "email": "hej@aproposmagazine.com",
+          "contactType": "customer service"
+        },
+        "sameAs": [
+          "https://www.instagram.com/"
+        ]
+      }
+    },
+    "en": {
+      "localeId": "690ca0f6b0d13d8788354153",
+      "isInherited": true,
+      "effectiveLocaleId": "67dbf17ba540975b5b21c224",
+      "jsonLdSchema": {
+        "@context": "https://schema.org",
+        "@type": "Organization",
+        "name": "Apropos Magazine",
+        "url": "/",
+        "logo": {
+          "@type": "ImageObject",
+          "url": "https://cdn.prod.website-files.com/67dbf17ba540975b5b21c180/67f7966d9192c68997f60640_aproposlogo.svg"
+        },
+        "description": "Apropos Magazine dækker musik, film, kultur og kaos med kant, karakter og kærlighed til det, der rører sig.",
+        "slogan": "Ingen støj. Ingen reklamer. Kun kultur.",
+        "parentOrganization": {
+          "@type": "Organization",
+          "name": "Apropos Creative ApS",
+          "identifier": "CVR 38175661"
+        },
+        "contactPoint": {
+          "@type": "ContactPoint",
+          "email": "hej@aproposmagazine.com",
+          "contactType": "customer service"
+        },
+        "sameAs": [
+          "https://www.instagram.com/"
+        ]
+      }
+    }
+  }
+}

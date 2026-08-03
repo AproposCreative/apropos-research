@@ -6,6 +6,14 @@ import {
   resolveItemReviewedType,
 } from '@/lib/seo-engine/review-schema';
 import { resolveEffectiveArticleType } from '@/lib/seo-engine/review-title-rule';
+import {
+  APROPOS_ORGANIZATION_ID,
+  APROPOS_ORGANIZATION_NAME,
+  APROPOS_PUBLIC_ORIGIN,
+  APROPOS_WEBSITE_ID,
+  articleEntityId,
+  pageEntityId,
+} from '@/lib/seo-engine/schema-identity';
 import { SEO_ENGINE_JSONLD_VERSION } from '@/lib/seo-engine/versions';
 
 /**
@@ -29,19 +37,36 @@ export function buildJsonLd(args: {
   const dateModified = input.dateModified?.trim() || undefined;
 
   graph.push({
+    '@type': 'Organization',
+    '@id': APROPOS_ORGANIZATION_ID,
+    name: APROPOS_ORGANIZATION_NAME,
+    url: `${APROPOS_PUBLIC_ORIGIN}/`,
+  });
+
+  graph.push({
+    '@type': 'WebSite',
+    '@id': APROPOS_WEBSITE_ID,
+    name: APROPOS_ORGANIZATION_NAME,
+    url: `${APROPOS_PUBLIC_ORIGIN}/`,
+    inLanguage,
+    publisher: { '@id': APROPOS_ORGANIZATION_ID },
+  });
+
+  graph.push({
     '@type': 'WebPage',
-    '@id': pageUrl ? `${pageUrl}#webpage` : undefined,
+    '@id': pageUrl ? pageEntityId(pageUrl) : undefined,
     name: seoTitle,
     description: metaDescription,
     url: pageUrl,
     inLanguage,
-    isPartOf: { '@type': 'WebSite', name: 'Apropos Magazine' },
+    isPartOf: { '@id': APROPOS_WEBSITE_ID },
   });
 
   const articleType = suggestSchemaArticleType(analysis, input);
   const aboutType = mapAboutEntityType(analysis, input);
   const article: Record<string, unknown> = {
     '@type': articleType,
+    '@id': pageUrl ? articleEntityId(pageUrl) : undefined,
     headline: input.editorialTitle,
     description: metaDescription,
     inLanguage,
@@ -54,14 +79,13 @@ export function buildJsonLd(args: {
     article.author = { '@type': 'Person', name: input.author.trim() };
   }
   article.publisher = {
-    '@type': 'Organization',
-    name: 'Apropos Magazine',
+    '@id': APROPOS_ORGANIZATION_ID,
   };
   if (imageUrl) {
     article.image = { '@type': 'ImageObject', url: imageUrl };
   }
   if (pageUrl) {
-    article.mainEntityOfPage = pageUrl;
+    article.mainEntityOfPage = { '@id': pageEntityId(pageUrl) };
     article.url = pageUrl;
   }
   // Preserve original publish date; never overwrite with dateModified.

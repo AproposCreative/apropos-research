@@ -10,6 +10,10 @@ import {
   resolveEffectiveArticleType,
 } from '@/lib/seo-engine/review-title-rule';
 import type { EditorialAnalysisV1, SeoEngineInputContract } from '@/lib/seo-engine/schema';
+import {
+  APROPOS_ORGANIZATION_ID,
+  pageEntityId,
+} from '@/lib/seo-engine/schema-identity';
 
 /** Schema.org types we emit for itemReviewed. */
 export type ReviewedSchemaType =
@@ -247,10 +251,13 @@ export function buildReviewSchemaNode(args: {
     },
     inLanguage,
     publisher: {
-      '@type': 'Organization',
-      name: 'Apropos Magazine',
+      '@id': APROPOS_ORGANIZATION_ID,
     },
   };
+
+  if (pageUrl) {
+    review.mainEntityOfPage = { '@id': pageEntityId(pageUrl) };
+  }
 
   if (input.author?.trim()) {
     review.author = { '@type': 'Person', name: input.author.trim() };

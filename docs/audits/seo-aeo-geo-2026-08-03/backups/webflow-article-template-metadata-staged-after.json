@@ -1,0 +1,34 @@
+{
+  "capturedAt": "2026-08-03T09:40:37.771Z",
+  "siteId": "67dbf17ba540975b5b21c180",
+  "pageId": "67dbf17ba540975b5b21c208",
+  "published": false,
+  "locales": {
+    "da": {
+      "localeId": "67dbf17ba540975b5b21c224",
+      "seo": {
+        "title": "{{wf {&quot;path&quot;:&quot;seo-title&quot;,&quot;type&quot;:&quot;PlainText&quot;\\} }}",
+        "description": "{{wf {&quot;path&quot;:&quot;meta-description&quot;,&quot;type&quot;:&quot;PlainText&quot;\\} }}"
+      },
+      "openGraph": {
+        "titleCopied": true,
+        "descriptionCopied": true,
+        "imageUrl": "{{wf {&quot;path&quot;:&quot;mobile-image&quot;,&quot;type&quot;:&quot;ImageRef&quot;\\} }}",
+        "imageAssetId": null
+      }
+    },
+    "en": {
+      "localeId": "690ca0f6b0d13d8788354153",
+      "seo": {
+        "title": "{{wf {&quot;path&quot;:&quot;seo-title&quot;,&quot;type&quot;:&quot;PlainText&quot;\\} }}",
+        "description": "{{wf {&quot;path&quot;:&quot;meta-description&quot;,&quot;type&quot;:&quot;PlainText&quot;\\} }}"
+      },
+      "openGraph": {
+        "titleCopied": true,
+        "descriptionCopied": true,
+        "imageUrl": "{{wf {&quot;path&quot;:&quot;mobile-image&quot;,&quot;type&quot;:&quot;ImageRef&quot;\\} }}",
+        "imageAssetId": null
+      }
+    }
+  }
+}

@@ -107,8 +107,10 @@ describe('server-rendered Review JSON-LD (raw HTML)', () => {
     });
     expect(review.author).toMatchObject({ '@type': 'Person', name: 'Casper Fiil' });
     expect(review.publisher).toMatchObject({
-      '@type': 'Organization',
-      name: 'Apropos Magazine',
+      '@id': 'https://www.aproposmagazine.com/#organization',
+    });
+    expect(review.mainEntityOfPage).toEqual({
+      '@id': 'https://www.aproposmagazine.com/articles/the-substance#webpage',
     });
     expect(review.datePublished).toBe('2025-10-01T13:12:22.294Z');
     expect(review.dateModified).toBe('2026-07-24T19:20:46.307Z');
@@ -122,6 +124,30 @@ describe('server-rendered Review JSON-LD (raw HTML)', () => {
     expect(articles[0]!.datePublished).toBe('2025-10-01T13:12:22.294Z');
     expect(articles[0]!.dateModified).toBe('2026-07-24T19:20:46.307Z');
     expect(articles[0]!.inLanguage).toBe('da');
+    expect(articles[0]!['@id']).toBe(
+      'https://www.aproposmagazine.com/articles/the-substance#article'
+    );
+    expect(articles[0]!.mainEntityOfPage).toEqual({
+      '@id': 'https://www.aproposmagazine.com/articles/the-substance#webpage',
+    });
+    expect(articles[0]!.publisher).toEqual({
+      '@id': 'https://www.aproposmagazine.com/#organization',
+    });
+
+    const organizations = findHtmlSchemaNodesByType(html, 'Organization');
+    expect(organizations).toHaveLength(1);
+    expect(organizations[0]).toMatchObject({
+      '@id': 'https://www.aproposmagazine.com/#organization',
+      name: 'Apropos Magazine',
+      url: 'https://www.aproposmagazine.com/',
+    });
+
+    const websites = findHtmlSchemaNodesByType(html, 'WebSite');
+    expect(websites).toHaveLength(1);
+    expect(websites[0]).toMatchObject({
+      '@id': 'https://www.aproposmagazine.com/#website',
+      publisher: { '@id': 'https://www.aproposmagazine.com/#organization' },
+    });
   });
 
   it('emits TVSeries Review for Serieanmeldelse', () => {
