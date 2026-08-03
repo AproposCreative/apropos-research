@@ -6,7 +6,7 @@ export const SEO_ENGINE_VERSION = '1.0.0';
 export const SEO_ENGINE_SCHEMA_VERSION = '1.0.0';
 export const SEO_ENGINE_PROMPT_VERSION = '1.1.0';
 export const SEO_ENGINE_VALIDATOR_VERSION = '1.1.0';
-export const SEO_ENGINE_JSONLD_VERSION = '1.1.0';
+export const SEO_ENGINE_JSONLD_VERSION = '1.2.0';
 
 /** Body longer than this uses the explicit long-article extract path. */
 export const SEO_ENGINE_LONG_ARTICLE_CHARS = 48_000;

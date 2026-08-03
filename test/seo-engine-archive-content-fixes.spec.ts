@@ -130,6 +130,7 @@ describe('archive content fix transforms', () => {
       fieldData: {
         content: `<p>Ripley er fantastisk.</p>${longBody}`,
         slug: 'test-slug',
+        'canonical-url': '',
       },
       lastUpdated: '2026-01-01T00:00:00.000Z',
       kinds: ['internal_links', 'headings', 'canonical'],
@@ -143,7 +144,24 @@ describe('archive content fix transforms', () => {
     });
     expect(p.canonicalChanged).toBe(true);
     expect(p.newCanonical).toContain('/articles/test-slug');
+    expect(p.canonicalField).toBe('canonical-url');
     expect(p.contentChanged || p.links.length > 0 || p.headings.length > 0).toBe(true);
+  });
+
+  it('fails closed when the CMS collection has no canonical field', () => {
+    const p = buildContentFixProposal({
+      itemId: 'id-with-template-canonical',
+      locale: 'da',
+      title: 'Test',
+      slug: 'test-slug',
+      fieldData: { content: '<p>Tekst</p>', slug: 'test-slug' },
+      lastUpdated: '2026-01-01T00:00:00.000Z',
+      kinds: ['canonical'],
+      catalog: [],
+    });
+    expect(p.canonicalField).toBeNull();
+    expect(p.canonicalChanged).toBe(false);
+    expect(p.newCanonical).toBeNull();
   });
 });
 
@@ -168,6 +186,7 @@ describe('archive content apply flow', () => {
             name: 'Artikel',
             slug: 'artikel',
             content: longBody,
+            'canonical-url': '',
           },
         }) as never,
     });
@@ -189,6 +208,7 @@ describe('archive content apply flow', () => {
         name: 'Artikel',
         slug: 'artikel',
         content: longBody,
+        'canonical-url': '',
       } as Record<string, unknown>,
     };
     const patchFn = vi.fn(async (_id: string, fieldData: Record<string, unknown>) => {
@@ -214,7 +234,12 @@ describe('archive content apply flow', () => {
     live = {
       ...live,
       lastUpdated: '2026-01-01T00:00:00.000Z',
-      fieldData: { name: 'Artikel', slug: 'artikel', content: longBody },
+      fieldData: {
+        name: 'Artikel',
+        slug: 'artikel',
+        content: longBody,
+        'canonical-url': '',
+      },
     };
 
     await expect(

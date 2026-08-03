@@ -1,0 +1,124 @@
+{
+  "capturedAt": "2026-08-03T09:34:00.905Z",
+  "siteId": "67dbf17ba540975b5b21c180",
+  "pageId": "67dbf17ba540975b5b21c201",
+  "published": false,
+  "locales": {
+    "da": {
+      "localeId": "67dbf17ba540975b5b21c224",
+      "isInherited": false,
+      "jsonLdSchema": {
+        "@context": "https://schema.org",
+        "@graph": [
+          {
+            "@type": "Organization",
+            "@id": "https://www.aproposmagazine.com/#organization",
+            "name": "Apropos Magazine",
+            "url": "https://www.aproposmagazine.com/",
+            "logo": {
+              "@type": "ImageObject",
+              "@id": "https://www.aproposmagazine.com/#logo",
+              "url": "https://cdn.prod.website-files.com/67dbf17ba540975b5b21c180/67f7966d9192c68997f60640_aproposlogo.svg",
+              "contentUrl": "https://cdn.prod.website-files.com/67dbf17ba540975b5b21c180/67f7966d9192c68997f60640_aproposlogo.svg",
+              "caption": "Apropos Magazine"
+            },
+            "description": "Apropos Magazine dækker musik, film, kultur og kaos med kant, karakter og kærlighed til det, der rører sig.",
+            "slogan": "Ingen støj. Ingen reklamer. Kun kultur.",
+            "parentOrganization": {
+              "@type": "Organization",
+              "name": "Apropos Creative ApS",
+              "identifier": "CVR 38175661"
+            },
+            "contactPoint": {
+              "@type": "ContactPoint",
+              "email": "hej@aproposmagazine.com",
+              "contactType": "customer service",
+              "availableLanguage": ["da", "en"]
+            },
+            "sameAs": [
+              "https://www.instagram.com/aproposmagazineofficial/",
+              "https://www.facebook.com/aproposmagazineofficial/",
+              "https://www.linkedin.com/company/aproposmagazine"
+            ]
+          },
+          {
+            "@type": "WebSite",
+            "@id": "https://www.aproposmagazine.com/#website",
+            "url": "https://www.aproposmagazine.com/",
+            "name": "Apropos Magazine",
+            "inLanguage": "da",
+            "publisher": { "@id": "https://www.aproposmagazine.com/#organization" }
+          },
+          {
+            "@type": "WebPage",
+            "@id": "https://www.aproposmagazine.com/#webpage",
+            "url": "https://www.aproposmagazine.com/",
+            "name": "Apropos Magazine",
+            "description": "Apropos Magazine dækker musik, film, kultur og kaos med kant, karakter og kærlighed til det, der rører sig.",
+            "inLanguage": "da",
+            "isPartOf": { "@id": "https://www.aproposmagazine.com/#website" },
+            "about": { "@id": "https://www.aproposmagazine.com/#organization" }
+          }
+        ]
+      }
+    },
+    "en": {
+      "localeId": "690ca0f6b0d13d8788354153",
+      "isInherited": false,
+      "jsonLdSchema": {
+        "@context": "https://schema.org",
+        "@graph": [
+          {
+            "@type": "Organization",
+            "@id": "https://www.aproposmagazine.com/#organization",
+            "name": "Apropos Magazine",
+            "url": "https://www.aproposmagazine.com/",
+            "logo": {
+              "@type": "ImageObject",
+              "@id": "https://www.aproposmagazine.com/#logo",
+              "url": "https://cdn.prod.website-files.com/67dbf17ba540975b5b21c180/67f7966d9192c68997f60640_aproposlogo.svg",
+              "contentUrl": "https://cdn.prod.website-files.com/67dbf17ba540975b5b21c180/67f7966d9192c68997f60640_aproposlogo.svg",
+              "caption": "Apropos Magazine"
+            },
+            "description": "Apropos Magazine covers music, film, culture and creative chaos with personality, perspective and curiosity.",
+            "slogan": "No noise. No ads. Just culture.",
+            "parentOrganization": {
+              "@type": "Organization",
+              "name": "Apropos Creative ApS",
+              "identifier": "CVR 38175661"
+            },
+            "contactPoint": {
+              "@type": "ContactPoint",
+              "email": "hej@aproposmagazine.com",
+              "contactType": "customer service",
+              "availableLanguage": ["da", "en"]
+            },
+            "sameAs": [
+              "https://www.instagram.com/aproposmagazineofficial/",
+              "https://www.facebook.com/aproposmagazineofficial/",
+              "https://www.linkedin.com/company/aproposmagazine"
+            ]
+          },
+          {
+            "@type": "WebSite",
+            "@id": "https://www.aproposmagazine.com/#website",
+            "url": "https://www.aproposmagazine.com/",
+            "name": "Apropos Magazine",
+            "inLanguage": "en",
+            "publisher": { "@id": "https://www.aproposmagazine.com/#organization" }
+          },
+          {
+            "@type": "WebPage",
+            "@id": "https://www.aproposmagazine.com/en/#webpage",
+            "url": "https://www.aproposmagazine.com/en/",
+            "name": "Apropos Magazine",
+            "description": "Apropos Magazine covers music, film, culture and creative chaos with personality, perspective and curiosity.",
+            "inLanguage": "en",
+            "isPartOf": { "@id": "https://www.aproposmagazine.com/#website" },
+            "about": { "@id": "https://www.aproposmagazine.com/#organization" }
+          }
+        ]
+      }
+    }
+  }
+}

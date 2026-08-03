@@ -71,10 +71,9 @@ export function buildSafeMetadataProposals(args: {
   let seoTitle = crafted.seoTitle;
 
   if (isReview && query) {
-    const entity =
-      args.workName?.trim() ||
-      extractEntityFromQuery(query, lang === 'en' ? 'review' : 'anmeldelse') ||
-      args.title;
+    // Never promote a raw GSC query to the work/entity name. Search queries are useful
+    // evidence, but the editorial CMS title is the authoritative spelling and casing.
+    const entity = args.workName?.trim() || args.title;
     const natural = craftReviewTitle(entity, lang);
     if (natural && !findForbiddenPhrases(natural).length) {
       seoTitle = natural;
@@ -212,17 +211,16 @@ function scrubForbidden(text: string): string {
   return t;
 }
 
-function extractEntityFromQuery(query: string, keyword: string): string {
-  const q = query.trim();
-  if (!q) return '';
-  const re = new RegExp(`\\b${keyword}s?\\b`, 'i');
-  return q.replace(re, '').replace(/\s+/g, ' ').trim();
-}
-
 function stripReviewWords(title: string, language: 'da' | 'en'): string {
   const t = title.trim();
-  if (language === 'en') return t.replace(/\breviews?\b/gi, '').replace(/\s+/g, ' ').trim();
-  return t.replace(/\banmeldelser?\b/gi, '').replace(/\s+/g, ' ').trim();
+  const withoutKeyword =
+    language === 'en'
+      ? t.replace(/\breviews?\b/gi, '')
+      : t.replace(/\banmeldelser?\b/gi, '');
+  return withoutKeyword
+    .replace(/^\s*[:|—–-]+\s*/, '')
+    .replace(/\s+/g, ' ')
+    .trim();
 }
 
 function truncate(text: string, max: number): string {

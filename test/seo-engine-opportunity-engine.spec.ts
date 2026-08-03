@@ -13,6 +13,7 @@ import {
   type QueryPageRow,
 } from '../lib/seo-engine/opportunity-engine/scoring';
 import { buildSafeMetadataProposals } from '../lib/seo-engine/opportunity-engine/proposals';
+import { collapseOpportunityHistory } from '../lib/seo-engine/opportunity-engine/queue';
 import { assertProposalsAreSafe, maybeAutoApplyOpportunities } from '../lib/seo-engine/opportunity-engine/apply';
 import { runOpportunityScan } from '../lib/seo-engine/opportunity-engine/engine';
 import {
@@ -188,6 +189,68 @@ describe('opportunity engine scoring', () => {
     expect(title.toLowerCase()).toContain('astro bot');
     expect((title.match(/anmeldelse/gi) || []).length).toBe(1);
     expect(() => assertProposalsAreSafe(proposals)).not.toThrow();
+  });
+
+  it('keeps editorial casing instead of promoting a lowercased GSC query', () => {
+    const proposals = buildSafeMetadataProposals({
+      title: 'Now You See Me 3: Now You Don\'t',
+      signals: ['high_impressions_low_ctr'],
+      evidence: {
+        query: 'now you see me 3 anmeldelse',
+        currentSeoTitle: null,
+        currentMetaDescription: null,
+        impressions: 500,
+      },
+      language: 'da',
+      articleType: 'Filmanmeldelse',
+      workName: 'Now You See Me 3: Now You Don\'t',
+    });
+    const title = proposals.find((p) => p.field === 'seoTitle')?.proposedValue || '';
+    expect(title).toContain('Now You See Me 3');
+    expect(title).not.toBe('now you see me 3 anmeldelse');
+  });
+
+  it('uses one fingerprint when only the detected signals change', () => {
+    const page = 'https://www.aproposmagazine.com/articles/demo';
+    expect(
+      opportunityFingerprint({
+        page,
+        signals: ['high_impressions_low_ctr'],
+        query: 'demo anmeldelse',
+      })
+    ).toBe(
+      opportunityFingerprint({
+        page,
+        signals: ['position_4_to_20', 'rising_query'],
+        query: 'demo anmeldelse',
+      })
+    );
+  });
+
+  it('collapses legacy queue duplicates to the latest page/query record', () => {
+    const rows = [
+      {
+        id: 'old',
+        slug: 'o-days',
+        locale: 'da',
+        url: 'https://www.aproposmagazine.com/articles/o-days',
+        status: 'open',
+        score: 81,
+        updatedAt: '2026-07-01T00:00:00.000Z',
+        evidence: { query: 'o days program' },
+      },
+      {
+        id: 'latest',
+        slug: 'o-days',
+        locale: 'da',
+        url: 'https://www.aproposmagazine.com/articles/o-days',
+        status: 'skipped',
+        score: 72,
+        updatedAt: '2026-08-01T00:00:00.000Z',
+        evidence: { query: 'O  DAYS   PROGRAM' },
+      },
+    ];
+    expect(collapseOpportunityHistory(rows)).toEqual([rows[1]]);
   });
 });
 

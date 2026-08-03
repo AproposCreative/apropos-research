@@ -408,7 +408,7 @@ export async function applyContentFixPreview(opts: {
     createdAt: new Date().toISOString(),
     previewId: preview.previewId,
     kinds: preview.kinds,
-    note: 'Rollback: restore content + canonical-url via Webflow PATCH. No secrets.',
+    note: 'Rollback: restore content + the snapshotted canonical field via Webflow PATCH. No secrets.',
     items: backups,
   };
   writeFileSync(backupPath, JSON.stringify(backupPayload, null, 2), 'utf8');
