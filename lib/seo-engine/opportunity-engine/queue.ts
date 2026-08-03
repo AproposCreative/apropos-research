@@ -3,7 +3,8 @@
  *
  * Older fingerprints included the signal set, so one changing metric could create
  * several visible rows for the same opportunity. Prefer the most recently updated
- * record; fall back to the strongest lifecycle state when timestamps are absent.
+ * current record, but keep the latest applied record separately so its rollback
+ * action remains available after a later scan is skipped.
  */
 export function collapseOpportunityHistory<T extends {
   slug: string;
@@ -20,7 +21,8 @@ export function collapseOpportunityHistory<T extends {
   for (const row of rows) {
     const page = (row.url || `${row.locale || ''}:${row.slug}`).toLowerCase().trim();
     const query = (row.evidence?.query || '').toLowerCase().replace(/\s+/g, ' ').trim();
-    const key = `${page}|${query}`;
+    const lifecycle = row.status === 'applied' ? 'reversible' : 'current';
+    const key = `${page}|${query}|${lifecycle}`;
     const current = byPageQuery.get(key);
     if (!current || isNewerOrMoreRelevant(row, current)) byPageQuery.set(key, row);
   }
