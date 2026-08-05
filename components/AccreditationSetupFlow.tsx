@@ -10,6 +10,8 @@ type EventPreview = {
   venue?: string;
   eventDate?: string;
   promoter?: string;
+  title?: string;
+  descriptionSnippet?: string;
 };
 
 type ChatMessage = {

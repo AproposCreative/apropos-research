@@ -368,8 +368,8 @@ async function ensureEventDate(extraction: EventPageExtraction): Promise<EventPa
       .join(' ');
     const research = await getResearch(q, { maxResults: 5 });
     const blob = [
-      research.context || '',
-      ...(research.sources || []).map((s) => `${s.title || ''} ${s.url || ''}`),
+      research.contextText || '',
+      ...(research.sources || []).map((s) => `${s.title || ''} ${s.snippet || ''} ${s.url || ''}`),
     ].join('\n');
     const fromWeb = parseEventDateFromText(blob);
     if (fromWeb) {
