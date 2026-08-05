@@ -21,6 +21,14 @@
       "schedule": "0 7 * * 1"
     },
     {
+      "path": "/api/cron/accreditation-followups",
+      "schedule": "0 */6 * * *"
+    },
+    {
+      "path": "/api/cron/accreditation-imap-poll",
+      "schedule": "*/10 * * * *"
+    },
+    {
       "path": "/api/cron/seo-engine-recovery",
       "schedule": "*/15 * * * *"
     },

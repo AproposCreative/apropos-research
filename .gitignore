@@ -83,8 +83,14 @@ tmp/seo-engine-backfill/
 reports/seo-backfill/
 *.temp
 
-# Project specific
-data/instagram-config.json
+# Accreditation attachment binaries (never commit)
+data/accreditation-attachments/
+# All accreditation operational JSON (ephemeral locally; Firestore in production)
+data/accreditation_*.json
+data/accreditation_contact_profiles.json
+data/accreditation_conversation_summaries.json
+data/accreditation_memory_sync_meta.json
+
 apropos-research/
 *.log
 .vercel

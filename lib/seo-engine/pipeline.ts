@@ -122,8 +122,8 @@ function lockDirectionExistingSeo(
   direction: StrategyDirection,
   input: SeoEngineInputContract
 ): StrategyDirection {
-  const fields = { ...direction.fields };
-  if (input.existingSeoTitle?.trim()) {
+  const fields = { ...(direction.fields || {}) } as StrategyDirection['fields'];
+  if (input.existingSeoTitle?.trim() && fields.seoTitle) {
     fields.seoTitle = {
       ...fields.seoTitle,
       value: input.existingSeoTitle.trim(),
@@ -134,7 +134,7 @@ function lockDirectionExistingSeo(
       ],
     };
   }
-  if (input.existingMetaDescription?.trim()) {
+  if (input.existingMetaDescription?.trim() && fields.metaDescription) {
     fields.metaDescription = {
       ...fields.metaDescription,
       value: input.existingMetaDescription.trim(),

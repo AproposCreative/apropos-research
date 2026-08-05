@@ -5,6 +5,7 @@ import { useRouter, useSearchParams, usePathname } from 'next/navigation';
 import { type UploadedFile } from '@/lib/file-upload-service';
 import MainChatPanel from './MainChatPanel';
 import SetupWizard from '@/components/SetupWizard';
+import AccreditationSetupFlow from '@/components/AccreditationSetupFlow';
 import ReviewPanel from '@/components/ReviewPanel';
 import DraftsShelf from '@/components/DraftsShelf';
 import WebAppsPanel from '@/components/WebAppsPanel';
@@ -23,6 +24,7 @@ import PodcastClient from '@/app/ai/podcast/PodcastClient';
 import SeoEngineClient from '@/app/ai/seo/SeoEngineClient';
 import PushDeskClient from '@/app/push/PushDeskClient';
 import FundingDeskView from '@/app/funding/FundingDeskView';
+import AkkrediteringClient from '@/app/ai/akkreditering/AkkrediteringClient';
 import { useAuth } from '@/lib/auth-context';
 import { saveDraft, getDraft, type ArticleDraft } from '@/lib/firebase-service';
 import { autoSaveService } from '@/lib/auto-save-service';
@@ -69,6 +71,8 @@ export default function AIWriterClient() {
       return true;
     }
   });
+  const [setupWorkflow, setSetupWorkflow] = useState<'article' | 'accreditation'>('article');
+  const [accreditationProgress, setAccreditationProgress] = useState({ step: 1, total: 4 });
   const [reviewOpen, setReviewOpen] = useState(false);
   /** Ægte Storage-URLs + original-filnavne for de 3 import-billeder (hero, body1, body2). */
   const [importImages, setImportImages] = useState<{ url: string; name: string }[]>([]);
@@ -84,7 +88,7 @@ export default function AIWriterClient() {
 
   /** Opdater aktiv visning og URL, så refresh og deling bevarer fx nyhedsbrev (`?view=newsletter`). */
   const applyActiveView = useCallback(
-    (view: AIWriterView) => {
+    (view: AIWriterView, options?: { startAccreditation?: boolean }) => {
       setActiveView(view);
       setReviewOpen(false);
       setSourcesOpen(false);
@@ -106,6 +110,10 @@ export default function AIWriterClient() {
         params.set('view', 'push');
       } else if (view === 'funding') {
         params.set('view', 'funding');
+      } else if (view === 'akkreditering') {
+        params.set('view', 'akkreditering');
+        if (options?.startAccreditation) params.set('start', '1');
+        else params.delete('start');
       } else if (view === 'seo') {
         params.set('view', 'seo');
       } else if (view === 'ai') {
@@ -113,6 +121,7 @@ export default function AIWriterClient() {
       } else {
         params.delete('view');
       }
+      if (view !== 'akkreditering') params.delete('start');
       const q = params.toString();
       router.replace(q ? `${pathname}?${q}` : pathname, { scroll: false });
     },
@@ -226,7 +235,7 @@ export default function AIWriterClient() {
   useEffect(() => {
     const next = resolveViewFromSearchParams(searchParams);
     setActiveView((prev) => (prev === next ? prev : next));
-    if (next === 'newsletter' || next === 'dashboard' || next === 'podcast' || next === 'push' || next === 'funding') {
+    if (next === 'newsletter' || next === 'dashboard' || next === 'podcast' || next === 'push' || next === 'funding' || next === 'akkreditering') {
       setReviewOpen(false);
       setSourcesOpen(false);
       setSettingsOpen(false);
@@ -248,6 +257,10 @@ export default function AIWriterClient() {
       }
       if (id === 'funding-desk') {
         applyActiveView('funding');
+        return;
+      }
+      if (id === 'akkreditering') {
+        applyActiveView('akkreditering');
         return;
       }
       if (id === 'dashboard') {
@@ -298,6 +311,7 @@ export default function AIWriterClient() {
       activeView !== 'podcast' &&
       activeView !== 'push' &&
       activeView !== 'funding' &&
+      activeView !== 'akkreditering' &&
       activeView !== 'seo'
     ) {
       return;
@@ -1280,6 +1294,8 @@ export default function AIWriterClient() {
     setNotes('');
     setChatTitle('Ny artikkel');
     setShowWizard(true);
+    setSetupWorkflow('article');
+    setAccreditationProgress({ step: 1, total: 4 });
     setReviewOpen(false);
     setSettingsOpen(false);
     setSourcesOpen(false);
@@ -1493,6 +1509,40 @@ export default function AIWriterClient() {
                       className="w-full px-3 py-2 md:py-3 flex flex-col gap-1.5 items-stretch cursor-pointer text-left"
                     >
                         {(() => {
+                          if (setupWorkflow === 'accreditation') {
+                            const segRows = Array.from(
+                              { length: accreditationProgress.total },
+                              (_, index) => ({
+                                ok: index < accreditationProgress.step,
+                                label: ['Event', 'Dato', 'Adgang', 'Liv'][index] || `Trin ${index + 1}`,
+                              })
+                            );
+                            return (
+                              <>
+                                <div className="flex items-center justify-between gap-2 pr-0.5">
+                                  <span className="text-[9px] uppercase tracking-[0.16em] text-white/45">
+                                    Akkreditering
+                                  </span>
+                                  <span className="text-[9px] tabular-nums text-white/50" aria-live="polite">
+                                    {accreditationProgress.step}/{accreditationProgress.total} trin
+                                  </span>
+                                </div>
+                                <div className="flex gap-1 items-center w-full py-2.5">
+                                  {segRows.map((segment, index) => (
+                                    <div
+                                      key={`${segment.label}-${index}`}
+                                      title={segment.label}
+                                      className={`h-1.5 flex-1 rounded min-w-0 ${
+                                        segment.ok
+                                          ? 'bg-white shadow-[0_0_10px_#fff]'
+                                          : 'bg-white/10'
+                                      }`}
+                                    />
+                                  ))}
+                                </div>
+                              </>
+                            );
+                          }
                           const templateDone = Boolean((articleData as any).template);
                           const sectionLower = String((articleData as any).category || (articleData as any).section || '').toLowerCase();
                           const rawTopic = (articleData as any).topic;
@@ -1556,16 +1606,17 @@ export default function AIWriterClient() {
                       <div className="flex items-center justify-between px-3 py-2 md:p-3" style={{display: showWizard ? 'flex' : 'none'}}>
                       <h2
                         className="text-white text-base font-medium"
-                        aria-label="Artikel opsætning"
+                        aria-label={setupWorkflow === 'accreditation' ? 'Akkreditering' : 'Artikel opsætning'}
                       >
                         <span aria-hidden className="hidden md:inline">
-                          Artikel opsætning
+                          {setupWorkflow === 'accreditation' ? 'Akkreditering' : 'Artikel opsætning'}
                         </span>
                         <span aria-hidden className="md:hidden inline">
-                          Setup
+                          {setupWorkflow === 'accreditation' ? 'Akkreditering' : 'Setup'}
                         </span>
                       </h2>
                       <div className="flex items-center gap-2 text-[9px] uppercase tracking-[0.18em]">
+                        {setupWorkflow === 'article' && (
                         <div className="flex rounded-full border border-white/20 overflow-hidden bg-white/5">
                           {GENERATION_MODE_OPTIONS.map(option => {
                             const active = activeGenerationMode === option.id;
@@ -1587,6 +1638,7 @@ export default function AIWriterClient() {
                             );
                           })}
                         </div>
+                        )}
                         <button
                           type="button"
                           onClick={() => {
@@ -1603,12 +1655,41 @@ export default function AIWriterClient() {
                         </button>
                         </div>
                       </div>
-                      <SetupWizard
-                        key={`wizard-${newArticleKey}`}
-                        initialData={articleData}
-                        onChange={handleSetupWizardChange}
-                        onComplete={handleSetupWizardComplete}
-                      />
+                      {setupWorkflow === 'article' ? (
+                        <SetupWizard
+                          key={`wizard-${newArticleKey}`}
+                          initialData={articleData}
+                          onChange={handleSetupWizardChange}
+                          onComplete={handleSetupWizardComplete}
+                          onOpenAccreditation={() => {
+                            setSetupWorkflow('accreditation');
+                            setAccreditationProgress({ step: 1, total: 4 });
+                            setShowWizard(true);
+                          }}
+                        />
+                      ) : (
+                        <AccreditationSetupFlow
+                          onBack={() => {
+                            setSetupWorkflow('article');
+                            setAccreditationProgress({ step: 1, total: 4 });
+                          }}
+                          onStepChange={(step, total) =>
+                            setAccreditationProgress((current) =>
+                              current.step === step && current.total === total
+                                ? current
+                                : { step, total }
+                            )
+                          }
+                          onCreated={(requestId) => {
+                            addChatMessage(
+                              'assistant',
+                              `Liv har overtaget akkrediteringssagen ${requestId}. Du kan følge den under Akkreditering.`
+                            );
+                            setSetupWorkflow('article');
+                            setShowWizard(false);
+                          }}
+                        />
+                      )}
                     </div>
                   </div>
                 )}
@@ -1796,6 +1877,33 @@ export default function AIWriterClient() {
               )}
               <div className={`h-full w-full flex flex-col font-poppins ${embeddedPanelShell}`}>
                 <FundingDeskView embedded onClose={() => applyActiveView(null)} />
+              </div>
+            </div>
+            )}
+
+            {activeView === 'akkreditering' && (
+            <div
+              className="w-full flex-shrink-0 absolute top-0 bottom-0 left-0 md:top-[1%] md:bottom-[1%] md:left-[1%] z-10"
+              style={{
+                width: isDesktop ? `${chatWidth}px` : '100%',
+                transition: isResizing ? 'none' : 'transform 320ms cubic-bezier(0.22, 1, 0.36, 1)',
+                transform: leftPanelOpen ? 'translateX(calc(12px + min(300px, 50vw)))' : 'translateX(0)',
+              }}
+            >
+              {isDesktop && (
+                <div
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    setIsResizing(true);
+                  }}
+                  className="absolute top-0 bottom-0 right-0 w-1 cursor-col-resize hover:bg-white/20 transition-colors z-30 group"
+                  style={{ touchAction: 'none' }}
+                >
+                  <div className="absolute top-1/2 right-0 -translate-y-1/2 translate-x-1/2 w-1 h-16 bg-white/0 group-hover:bg-white/30 rounded-full transition-colors" />
+                </div>
+              )}
+              <div className={`h-full w-full flex flex-col font-poppins ${embeddedPanelShell}`}>
+                <AkkrediteringClient embedded onClose={() => applyActiveView(null)} />
               </div>
             </div>
             )}

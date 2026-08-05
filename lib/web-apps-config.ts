@@ -17,9 +17,10 @@ export const WEB_APPS: WebAppEntry[] = [
   { id: 'newsletter', name: 'Nyhedsbrev', path: '/ai?view=newsletter', order: 3 },
   { id: 'push-desk', name: 'Push', path: '/ai?view=push', order: 4 },
   { id: 'funding-desk', name: 'Funding Desk', path: '/ai?view=funding', order: 5 },
-  { id: 'dashboard', name: 'Dashboard', path: '/ai?view=dashboard', order: 6 },
-  { id: 'podcast', name: 'Podcast Upload', path: '/ai?view=podcast', order: 7 },
-  { id: 'seo-engine', name: 'SEO Engine', path: '/ai?view=seo', order: 8 },
+  { id: 'akkreditering', name: 'Akkreditering', path: '/ai?view=akkreditering', order: 6 },
+  { id: 'dashboard', name: 'Dashboard', path: '/ai?view=dashboard', order: 7 },
+  { id: 'podcast', name: 'Podcast Upload', path: '/ai?view=podcast', order: 8 },
+  { id: 'seo-engine', name: 'SEO Engine', path: '/ai?view=seo', order: 9 },
 ];
 
 export function getWebApps(): WebAppEntry[] {

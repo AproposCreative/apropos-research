@@ -13,6 +13,7 @@ interface SetupWizardProps {
   initialData?: Partial<ArticleData>;
   onComplete: (articleData: Partial<ArticleData>) => void;
   onChange?: (data: Partial<ArticleData>) => void;
+  onOpenAccreditation?: () => void;
 }
 
 type Option = { id: string; name: string; slug: string };
@@ -64,7 +65,12 @@ const sortByNewest = <T,>(items: T[], getDate: (item: T) => string | number | un
   );
 };
 
-export default function SetupWizard({ initialData, onComplete, onChange }: SetupWizardProps) {
+export default function SetupWizard({
+  initialData,
+  onComplete,
+  onChange,
+  onOpenAccreditation,
+}: SetupWizardProps) {
   const [step, setStep] = useState<Step>('template');
   const stepperRef = useRef<HTMLDivElement | null>(null);
   const [authors, setAuthors] = useState<WebflowAuthor[]>([]);
@@ -817,6 +823,15 @@ export default function SetupWizard({ initialData, onComplete, onChange }: Setup
                 </button>
               );
             })}
+            {onOpenAccreditation && (
+              <button
+                type="button"
+                onClick={onOpenAccreditation}
+                className="px-3 py-1.5 rounded-lg text-xs transition-all border bg-white/5 text-white border-white/10 hover:border-white/30 hover:bg-white/10"
+              >
+                Søg akkreditering
+              </button>
+            )}
           </div>
         </div>
       )}

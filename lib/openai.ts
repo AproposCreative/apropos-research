@@ -26,4 +26,12 @@ export const models = {
   get research() {
     return config.openai.researchModel;
   },
+  /** Accreditation structured/fast tasks */
+  get accreditationFast() {
+    return config.openai.accreditationFastModel;
+  },
+  /** Accreditation dialogue/agent tasks — prefer gpt-5.1 in production */
+  get accreditationAgent() {
+    return config.openai.accreditationAgentModel;
+  },
 } as const;

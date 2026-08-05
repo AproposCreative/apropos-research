@@ -22,6 +22,14 @@ const EnvSchema = z.object({
   OPENAI_API_KEY: z.string().optional(),
   OPENAI_MODEL: z.string().default('gpt-5.4-mini'),
   OPENAI_RESEARCH_MODEL: z.string().optional(),
+  /** Accreditation FAST lane (intake/URL/structured). Defaults to OPENAI_MODEL. */
+  OPENAI_ACCREDITATION_FAST_MODEL: z.string().optional(),
+  /**
+   * Accreditation AGENT lane (dialogue/follow-ups/delivery).
+   * Defaults to OPENAI_RESEARCH_MODEL → OPENAI_MODEL.
+   * Production recommendation: gpt-5.1 (or strongest verified GPT-5 on the account).
+   */
+  OPENAI_ACCREDITATION_AGENT_MODEL: z.string().optional(),
   
   // Base URL Configuration
   NEXT_PUBLIC_BASE_URL: z.preprocess(emptyToUndefined, z.string().url().optional()),
@@ -152,6 +160,54 @@ const EnvSchema = z.object({
   /** Domæne til Reply-To alias funding+{threadId}@domain (Resend inbound) */
   FUNDING_INBOUND_DOMAIN: z.preprocess(emptyToUndefined, z.string().optional()),
 
+  /** Akkreditering Desk — Liv afsender (production: Liv Brandt <liv@aproposmagazine.com>) */
+  ACCREDITATION_FROM_EMAIL: z.preprocess(emptyToUndefined, z.string().optional()),
+  /**
+   * Outbound mail transport for accreditation.
+   * smtp = one.com authenticated SMTP (production primary).
+   * resend = explicit optional only — never a silent SMTP fallback.
+   */
+  ACCREDITATION_MAIL_TRANSPORT: z.preprocess(
+    emptyToUndefined,
+    z.enum(['smtp', 'resend']).optional()
+  ),
+  /** Domæne til Reply-To alias liv+{threadId}@domain (Resend receiving subdomain — ikke root MX) */
+  ACCREDITATION_INBOUND_DOMAIN: z.preprocess(emptyToUndefined, z.string().optional()),
+  /**
+   * Reply-To when ACCREDITATION_INBOUND_DOMAIN is unset.
+   * Defaults at runtime to LIV_IMAP_USER → liv@aproposmagazine.com so one.com receives replies.
+   */
+  ACCREDITATION_REPLY_TO_EMAIL: z.preprocess(emptyToUndefined, z.string().optional()),
+  /** one.com IMAP */
+  ONECOM_IMAP_HOST: z.preprocess(emptyToUndefined, z.string().optional()),
+  ONECOM_IMAP_PORT: z.preprocess(emptyToUndefined, z.string().optional()),
+  /** one.com SMTP (accreditation outbound primary) */
+  ONECOM_SMTP_HOST: z.preprocess(emptyToUndefined, z.string().optional()),
+  ONECOM_SMTP_PORT: z.preprocess(emptyToUndefined, z.string().optional()),
+  /** SMTP auth — falls back to LIV_IMAP_USER / LIV_IMAP_PASSWORD when unset */
+  LIV_SMTP_USER: z.preprocess(emptyToUndefined, z.string().optional()),
+  LIV_SMTP_PASSWORD: z.preprocess(emptyToUndefined, z.string().optional()),
+  LIV_IMAP_USER: z.preprocess(emptyToUndefined, z.string().optional()),
+  LIV_IMAP_PASSWORD: z.preprocess(emptyToUndefined, z.string().optional()),
+  FREDERIK_IMAP_USER: z.preprocess(emptyToUndefined, z.string().optional()),
+  FREDERIK_IMAP_PASSWORD: z.preprocess(emptyToUndefined, z.string().optional()),
+  /** Explicit optional — production uses one.com, not Gmail */
+  GMAIL_IMAP_OPTIONAL: z.preprocess(emptyToUndefined, z.string().optional()),
+
+  /** Google Sheet ID for presseakkreditering-arkiv */
+  ACCREDITATION_SHEET_ID: z.preprocess(emptyToUndefined, z.string().optional()),
+  /** Writable tab — Accreditation workflow */
+  ACCREDITATION_SHEET_TAB: z.preprocess(emptyToUndefined, z.string().optional()),
+  /** Read-only contacts tab — must be exactly "Contacts etc." */
+  ACCREDITATION_CONTACTS_TAB: z.preprocess(emptyToUndefined, z.string().optional()),
+  /**
+   * Hard kill switch for Liv auto outbound/reply.
+   * Must be "true" AND Firestore toggle ON — otherwise automation stays off.
+   */
+  ACCREDITATION_AUTOMATION_ENABLED: z.preprocess(emptyToUndefined, z.string().optional()),
+  /** true = log outbound without calling SMTP/Resend */
+  ACCREDITATION_DRY_RUN: z.preprocess(emptyToUndefined, z.string().optional()),
+
   /** Cloud Run podcast-processor base URL (fx https://podcast-processor-xxx.run.app) */
   PODCAST_PROCESSOR_URL: z.preprocess(emptyToUndefined, z.string().url().optional()),
   /** Trigger URL for eksisterende iOS sendPodcastNotification (FCM topic new_podcasts) */
@@ -218,6 +274,8 @@ function parseEnv() {
     OPENAI_API_KEY: process.env.OPENAI_API_KEY || '',
     OPENAI_MODEL: process.env.OPENAI_MODEL || 'gpt-5.4-mini',
     OPENAI_RESEARCH_MODEL: process.env.OPENAI_RESEARCH_MODEL,
+    OPENAI_ACCREDITATION_FAST_MODEL: process.env.OPENAI_ACCREDITATION_FAST_MODEL,
+    OPENAI_ACCREDITATION_AGENT_MODEL: process.env.OPENAI_ACCREDITATION_AGENT_MODEL,
     NEXT_PUBLIC_BASE_URL: process.env.NEXT_PUBLIC_BASE_URL,
     NEXT_PUBLIC_FIREBASE_API_KEY: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
     NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
@@ -283,6 +341,29 @@ function parseEnv() {
     RESEND_WEBHOOK_SECRET: process.env.RESEND_WEBHOOK_SECRET,
     FUNDING_FROM_EMAIL: process.env.FUNDING_FROM_EMAIL,
     FUNDING_INBOUND_DOMAIN: process.env.FUNDING_INBOUND_DOMAIN,
+    ACCREDITATION_FROM_EMAIL: process.env.ACCREDITATION_FROM_EMAIL,
+    ACCREDITATION_MAIL_TRANSPORT: process.env.ACCREDITATION_MAIL_TRANSPORT as
+      | 'smtp'
+      | 'resend'
+      | undefined,
+    ACCREDITATION_INBOUND_DOMAIN: process.env.ACCREDITATION_INBOUND_DOMAIN,
+    ACCREDITATION_REPLY_TO_EMAIL: process.env.ACCREDITATION_REPLY_TO_EMAIL,
+    ONECOM_IMAP_HOST: process.env.ONECOM_IMAP_HOST,
+    ONECOM_IMAP_PORT: process.env.ONECOM_IMAP_PORT,
+    ONECOM_SMTP_HOST: process.env.ONECOM_SMTP_HOST,
+    ONECOM_SMTP_PORT: process.env.ONECOM_SMTP_PORT,
+    LIV_SMTP_USER: process.env.LIV_SMTP_USER,
+    LIV_SMTP_PASSWORD: process.env.LIV_SMTP_PASSWORD,
+    LIV_IMAP_USER: process.env.LIV_IMAP_USER,
+    LIV_IMAP_PASSWORD: process.env.LIV_IMAP_PASSWORD,
+    FREDERIK_IMAP_USER: process.env.FREDERIK_IMAP_USER,
+    FREDERIK_IMAP_PASSWORD: process.env.FREDERIK_IMAP_PASSWORD,
+    GMAIL_IMAP_OPTIONAL: process.env.GMAIL_IMAP_OPTIONAL,
+    ACCREDITATION_SHEET_ID: process.env.ACCREDITATION_SHEET_ID,
+    ACCREDITATION_SHEET_TAB: process.env.ACCREDITATION_SHEET_TAB,
+    ACCREDITATION_CONTACTS_TAB: process.env.ACCREDITATION_CONTACTS_TAB,
+    ACCREDITATION_AUTOMATION_ENABLED: process.env.ACCREDITATION_AUTOMATION_ENABLED,
+    ACCREDITATION_DRY_RUN: process.env.ACCREDITATION_DRY_RUN,
     RESEARCH_PROVIDER: (process.env.RESEARCH_PROVIDER as any) || 'openai_responses',
     RESEARCH_FALLBACK_PROVIDER: (process.env.RESEARCH_FALLBACK_PROVIDER as any) || 'legacy_web_search',
     RESEARCH_MIN_SOURCES: Number(process.env.RESEARCH_MIN_SOURCES || '2'),
@@ -346,6 +427,12 @@ export const config = {
     apiKey: env.OPENAI_API_KEY,
     model: env.OPENAI_MODEL,
     researchModel: env.OPENAI_RESEARCH_MODEL || env.OPENAI_MODEL,
+    accreditationFastModel:
+      env.OPENAI_ACCREDITATION_FAST_MODEL || env.OPENAI_MODEL,
+    accreditationAgentModel:
+      env.OPENAI_ACCREDITATION_AGENT_MODEL ||
+      env.OPENAI_RESEARCH_MODEL ||
+      env.OPENAI_MODEL,
   },
   
   // Base URL helpers

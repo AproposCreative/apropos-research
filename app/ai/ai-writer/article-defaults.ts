@@ -85,6 +85,7 @@ export type AIWriterView =
   | 'podcast'
   | 'push'
   | 'funding'
+  | 'akkreditering'
   | 'seo'
   | null;
 
@@ -99,6 +100,7 @@ export function resolveViewFromSearchParams(sp: {
   if (view === 'podcast') return 'podcast';
   if (view === 'push') return 'push';
   if (view === 'funding') return 'funding';
+  if (view === 'akkreditering') return 'akkreditering';
   if (view === 'seo') return 'seo';
   if (view === 'ai') return 'ai';
   const n = sp.get('newsletter');
@@ -108,5 +110,6 @@ export function resolveViewFromSearchParams(sp: {
   if (w === 'podcast') return 'podcast';
   if (w === 'push-desk') return 'push';
   if (w === 'funding-desk') return 'funding';
+  if (w === 'akkreditering') return 'akkreditering';
   return null;
 }

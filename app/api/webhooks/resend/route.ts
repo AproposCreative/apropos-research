@@ -2,6 +2,10 @@ import { NextRequest, NextResponse } from 'next/server';
 import { Webhook } from 'svix';
 import { env } from '@/lib/config/env';
 import { ga4ClientIdFromEmail, sendGa4MeasurementEvent } from '@/lib/newsletter/ga4-measurement';
+import {
+  handleAccreditationResendEvent,
+  isAccreditationTaggedEvent,
+} from '@/lib/accreditation/inbound-handler';
 import { handleFundingResendEvent, isFundingTaggedEvent } from '@/lib/funding/inbound-handler';
 
 export const runtime = 'nodejs';
@@ -78,13 +82,25 @@ export async function POST(req: NextRequest) {
   const type = evt.type || '';
   const data = evt.data || {};
 
-  if (type === 'email.received' || isFundingTaggedEvent(data)) {
+  if (
+    type === 'email.received' ||
+    isFundingTaggedEvent(data) ||
+    isAccreditationTaggedEvent(data)
+  ) {
     const fundingResult = await handleFundingResendEvent(type, data);
     if (fundingResult.handled) {
       return NextResponse.json({ ok: true, received: type, funding: fundingResult.detail });
     }
+    const accreditationResult = await handleAccreditationResendEvent(type, data);
+    if (accreditationResult.handled) {
+      return NextResponse.json({
+        ok: true,
+        received: type,
+        accreditation: accreditationResult.detail,
+      });
+    }
     if (type === 'email.received') {
-      return NextResponse.json({ ok: true, received: type, funding: false });
+      return NextResponse.json({ ok: true, received: type, funding: false, accreditation: false });
     }
   }
 

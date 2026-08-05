@@ -12,21 +12,25 @@ function applyJsonLdToDirection(
   input: SeoEngineInputContract,
   analysis: EditorialAnalysisV1
 ): StrategyDirection {
-  const seoTitle = direction.fields.seoTitle.value;
-  const metaDescription = direction.fields.metaDescription.value;
+  const seoTitle = direction.fields?.seoTitle?.value || input.existingSeoTitle || input.editorialTitle;
+  const metaDescription =
+    direction.fields?.metaDescription?.value ||
+    input.existingMetaDescription ||
+    input.intro ||
+    '';
   const jsonLd = buildJsonLd({ input, analysis, seoTitle, metaDescription });
+  const prevJsonLd = direction.fields?.jsonLd;
   return {
     ...direction,
     fields: {
       ...direction.fields,
       jsonLd: {
-        ...direction.fields.jsonLd,
         value: jsonLd,
         rationale: 'Deterministisk server-JSON-LD',
+        confidence: prevJsonLd?.confidence ?? 0.9,
         sources: ['inference', 'article'],
-        warnings: [
-          ...new Set([...(direction.fields.jsonLd.warnings || []), 'server_jsonld']),
-        ],
+        warnings: [...new Set([...(prevJsonLd?.warnings || []), 'server_jsonld'])],
+        locked: prevJsonLd?.locked ?? false,
       },
     },
   };
