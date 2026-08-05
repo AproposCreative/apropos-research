@@ -7,6 +7,7 @@ import {
   stripUndefined,
 } from '@/lib/accreditation/persistence/firestore-kit';
 import { registerAccreditationStoreReset } from '@/lib/accreditation/persistence/reset-registry';
+import { isAccreditationTestRedirectActive } from '@/lib/accreditation/outbound-safety';
 
 const FILENAME = 'accreditation_agent_control.json';
 const DOC_ID = 'default';
@@ -123,10 +124,14 @@ export async function isAgentPaused(): Promise<boolean> {
 }
 
 export async function isDryRun(): Promise<boolean> {
-  return (
-    process.env.ACCREDITATION_DRY_RUN === 'true' ||
-    (await getAgentControl()).dryRun === true
-  );
+  // Explicit env dry-run always wins.
+  if (process.env.ACCREDITATION_DRY_RUN === 'true') return true;
+  // Test redirect sink: allow real SMTP to the sink so Frederik can read Liv's mail.
+  // Still blocked from anyone else by outbound-safety allowlist.
+  if (isAccreditationTestRedirectActive()) {
+    return false;
+  }
+  return (await getAgentControl()).dryRun === true;
 }
 
 registerAccreditationStoreReset({

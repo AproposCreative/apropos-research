@@ -1,4 +1,5 @@
 import { isDryRun, isAutomationEnabled } from '@/lib/accreditation/agent-control';
+import { isAccreditationTestRedirectActive } from '@/lib/accreditation/outbound-safety';
 import { enqueueApproval, setApprovalStatus } from '@/lib/accreditation/approval-store';
 import { appendAudit } from '@/lib/accreditation/audit-store';
 import {
@@ -141,8 +142,11 @@ export async function dispatchOutbound(params: {
   }
   const item = { ...approval, autoEligible };
 
+  const forceManual = Boolean(params.forceManual || isAccreditationTestRedirectActive());
+
   // Global automation OFF: keep draft queued for manual send; do not Resend
-  if (!params.forceManual && !(await isAutomationEnabled())) {
+  // Exception: test redirect sink — send the draft only to the allowlisted test inbox.
+  if (!forceManual && !(await isAutomationEnabled())) {
     await updateRequest(params.request.id, {
       status: 'draft_ready',
       pendingApprovalId: item.id,
@@ -156,7 +160,7 @@ export async function dispatchOutbound(params: {
     return { sent: false, approval: item, queuedOnly: true };
   }
 
-  if (!params.forceManual && !canAutoSend(item)) {
+  if (!forceManual && !canAutoSend(item)) {
     await updateRequest(params.request.id, {
       status: 'escalated',
       pendingApprovalId: item.id,
@@ -170,8 +174,8 @@ export async function dispatchOutbound(params: {
     return { sent: false, approval: item, escalated: true };
   }
 
-  // Manual path: mark approved so send gate passes
-  if (params.forceManual) {
+  // Manual / test-redirect path: mark approved so send gate passes
+  if (forceManual) {
     await setApprovalStatus(item.id, 'approved');
   }
 

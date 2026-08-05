@@ -148,6 +148,11 @@ export default function AkkrediteringClient({ embedded = false, onClose }: Props
   const [tickets, setTickets] = useState<TicketRow[]>([]);
   const [counts, setCounts] = useState<Record<string, number>>({});
   const [control, setControl] = useState<AgentControlState | null>(null);
+  const [outboundSafety, setOutboundSafety] = useState<{
+    testRedirectTo: string | null;
+    allowlist: string[] | null;
+    forceSendOnApprove: boolean;
+  } | null>(null);
   const [approvals, setApprovals] = useState<ApprovalItem[]>([]);
   const [approvalRecipients, setApprovalRecipients] = useState<Record<string, string>>({});
   const [connStatus, setConnStatus] = useState<Record<
@@ -223,6 +228,7 @@ export default function AkkrediteringClient({ embedded = false, onClose }: Props
       setTickets(tJson.tickets || []);
       setCounts(tJson.counts || {});
       setControl(tJson.control || sJson.control || null);
+      setOutboundSafety(sJson.outboundSafety || null);
       setApprovals(aJson.approvals || []);
       setConnStatus(sJson.connections || null);
       if (!selectedId && tJson.tickets?.[0]?.id) setSelectedId(tJson.tickets[0].id);
@@ -400,7 +406,7 @@ export default function AkkrediteringClient({ embedded = false, onClose }: Props
         }
       />
 
-      <div className="shrink-0 border-b border-white/10 px-3 lg:px-4 py-3 bg-black/20">
+      <div className="shrink-0 border-b border-white/10 px-3 lg:px-4 py-3 bg-black/20 space-y-2">
         <AutomationToggle
           enabled={automationOn}
           busy={busy}
@@ -423,6 +429,11 @@ export default function AkkrediteringClient({ embedded = false, onClose }: Props
             })
           }
         />
+        {outboundSafety?.testRedirectTo && (
+          <p className="rounded-lg border border-amber-300/20 bg-amber-300/[0.05] px-3 py-2 text-[11px] text-amber-100/75">
+            Test-mode: alle Liv-mails sendes kun til {outboundSafety.testRedirectTo} — ikke til arrangør/presse.
+          </p>
+        )}
       </div>
 
       <div className="flex-1 min-h-0 overflow-y-auto nice-scrollbar p-3 lg:p-4 space-y-4">
@@ -916,11 +927,16 @@ export default function AkkrediteringClient({ embedded = false, onClose }: Props
                     Send
                   </button>
                 </div>
-                {!automationOn && (
+                {outboundSafety?.testRedirectTo ? (
+                  <p className="rounded-lg border border-amber-300/15 bg-amber-300/[0.04] px-3 py-2 text-[11px] text-amber-100/65">
+                    Test-mode aktiv: første mail går til {outboundSafety.testRedirectTo} (ikke til
+                    presse/arrangør). Svar fra din Gmail tester dialogen med Liv.
+                  </p>
+                ) : !automationOn ? (
                   <p className="rounded-lg border border-amber-300/15 bg-amber-300/[0.04] px-3 py-2 text-[11px] text-amber-100/65">
                     Liv er slået fra. Sagen og mailudkastet bliver oprettet, men intet sendes automatisk.
                   </p>
-                )}
+                ) : null}
                 <button
                   type="button"
                   className={primaryBtn}

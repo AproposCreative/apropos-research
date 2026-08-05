@@ -20,6 +20,7 @@ import {
   getAccreditationMailIdentityPublic,
   getMailTransportPublicStatus,
 } from '@/lib/accreditation/send-email';
+import { getAccreditationOutboundSafetyPublic } from '@/lib/accreditation/outbound-safety';
 import { DEFAULT_CONTACTS_TAB, DEFAULT_MAILBOX_ARCHIVE_TAB } from '@/lib/accreditation/types';
 
 export const runtime = 'nodejs';
@@ -45,6 +46,7 @@ export async function GET(request: NextRequest) {
   const requests = await readRequests();
   const escalations = await listEscalations();
   const control = await getAgentControl();
+  const outboundSafety = getAccreditationOutboundSafetyPublic();
   const livImap = getMailboxPublicConfig('liv');
   const frederikImap = getMailboxPublicConfig('frederik');
   const gmail = getGmailOptionalStatus();
@@ -59,6 +61,7 @@ export async function GET(request: NextRequest) {
       {
         autonomy: 'risk-based',
         control,
+        outboundSafety,
         models: {
           ...accreditationModelPublicConfig(),
           promptVersion: LIV_PROMPT_VERSION,
