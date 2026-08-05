@@ -56,6 +56,24 @@ function unwrap<T>(data: { data?: T } & T): T {
   return (data as { data?: T }).data ?? (data as T);
 }
 
+function apiErrorMessage(payload: unknown, fallback: string): string {
+  if (!payload || typeof payload !== 'object') return fallback;
+  const p = payload as { error?: unknown; details?: unknown; message?: unknown };
+  const err = p.error;
+  if (typeof err === 'string' && err.trim()) {
+    if (/aborted|This operation was aborted/i.test(err)) {
+      return 'Event-siden svarede ikke i tide. Prøv igen om et øjeblik.';
+    }
+    return err;
+  }
+  if (err && typeof err === 'object' && typeof (err as { message?: unknown }).message === 'string') {
+    return String((err as { message: string }).message);
+  }
+  if (typeof p.details === 'string' && p.details.trim()) return p.details;
+  if (typeof p.message === 'string' && p.message.trim()) return p.message;
+  return fallback;
+}
+
 export default function AccreditationSetupFlow({
   onBack,
   onCreated,
@@ -109,12 +127,13 @@ export default function AccreditationSetupFlow({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ eventUrl, previewOnly: true }),
       });
-      const json = unwrap(await res.json()) as {
+      const raw = await res.json();
+      const json = unwrap(raw) as {
         extracted?: EventPreview;
         error?: string;
       };
       if (!res.ok || !json.extracted) {
-        throw new Error(json.error || 'Liv kunne ikke læse eventlinket');
+        throw new Error(apiErrorMessage(raw, 'Liv kunne ikke læse eventlinket'));
       }
       setPreview(json.extracted);
       setArtist(json.extracted.artist || '');
@@ -122,7 +141,12 @@ export default function AccreditationSetupFlow({
       setEventDate(json.extracted.eventDate || '');
       setStep(1);
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : String(caught));
+      const msg = caught instanceof Error ? caught.message : String(caught);
+      setError(
+        /aborted|This operation was aborted/i.test(msg)
+          ? 'Event-siden svarede ikke i tide. Prøv igen om et øjeblik.'
+          : msg
+      );
     } finally {
       setBusy(false);
     }

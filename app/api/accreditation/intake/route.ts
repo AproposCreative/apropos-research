@@ -125,8 +125,13 @@ export async function POST(request: NextRequest) {
       )
     );
   } catch (e) {
+    const raw = e instanceof Error ? e.message : 'Failed';
+    const friendly =
+      /aborted|timeout|timed out|svarede ikke i tide/i.test(raw)
+        ? 'Event-siden svarede ikke i tide. Prøv igen — eller ret artist/venue manuelt efter slug-forslag.'
+        : raw;
     return NextResponse.json(
-      createErrorResponse(e instanceof Error ? e.message : 'Failed', {
+      createErrorResponse(friendly, {
         statusCode: 500,
         errorCode: ErrorCode.INTERNAL_ERROR,
         requestId,

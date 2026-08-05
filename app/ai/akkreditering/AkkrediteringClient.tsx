@@ -651,7 +651,7 @@ export default function AkkrediteringClient({ embedded = false, onClose }: Props
         )}
 
         {tab === 'intake' && (
-          <div className="mx-auto w-full max-w-2xl rounded-xl border border-white/12 bg-black/70 p-3.5 backdrop-blur-2xl md:p-5">
+          <div className="w-full rounded-xl border border-white/12 bg-black/70 p-3.5 backdrop-blur-2xl md:p-5">
             <div className="mb-5">
               <div className="flex items-center justify-between text-[10px] uppercase tracking-[0.16em] text-white/40">
                 <span>Ny akkreditering</span>

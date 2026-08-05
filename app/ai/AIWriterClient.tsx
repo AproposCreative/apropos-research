@@ -33,6 +33,7 @@ import type { ThinkingStep, ThinkingStatus } from '@/types/thinking';
 import { PROMPT_ARCHITECT_CONTEXT_KEY } from '@/lib/prompt-architect-constants';
 import { loadPromptModuleToggles } from '@/lib/prompt-architect-storage';
 import { SPLINE_BACKGROUNDS, STORAGE_KEY_SPLINE_BG } from '@/lib/spline-backgrounds';
+import SplineIframeEmbed from '@/components/SplineIframeEmbed';
 import { EDITORIAL_SIGNAL_PUBLISHED_EVENT } from '@/lib/editorial/signal-store';
 import {
   BASE_THINKING_STEPS,
@@ -1336,20 +1337,11 @@ export default function AIWriterClient() {
       <div className="h-[100dvh] min-h-[100dvh] bg-black md:bg-[#171717] md:p-[1%] p-0 flex md:flex-row flex-col gap-4 relative overflow-hidden">
         {/* Background Spline (desktop only — mobile WebGL causes white/blank screens) */}
         <div className="absolute inset-0 z-0 hidden md:block">
-          <iframe 
+          <SplineIframeEmbed
             src={currentSplineBg.url}
-            frameBorder="0" 
-            width="100%" 
-            height="100%"
-            className="w-full h-full"
             title="AI Background"
-            key={selectedSplineBg}
-            loading="lazy"
-          />
-          {/* Dæk Spline free-tier "Made with Spline"-mærket i nederste højre hjørne */}
-          <div
-            aria-hidden
-            className="pointer-events-none absolute bottom-0 right-0 h-11 w-40 bg-black/95 backdrop-blur-md rounded-tl-xl"
+            iframeKey={selectedSplineBg}
+            maskClassName="bg-[#171717]"
           />
         </div>
         {/* Transparent overlay during resize to prevent iframe from stealing mouse events */}

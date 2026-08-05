@@ -21,7 +21,7 @@ import {
 import { detectUntrustedInstructionInjection, canAutoSend, computeAutoEligible, buildPolicyFlags } from '@/lib/accreditation/policy';
 import { getAgentControl, setAgentControl, isAutomationEnabled } from '@/lib/accreditation/agent-control';
 import { createRequest, updateRequest, getRequestById } from '@/lib/accreditation/request-store';
-import { resolvePageLink } from '@/lib/accreditation/event-url';
+import { resolvePageLink, hintsFromEventUrl } from '@/lib/accreditation/event-url';
 import { resetAllAccreditationStoresForTests } from '@/lib/accreditation/persistence/test-reset';
 import type { AccreditationRequest, ApprovalItem, AgentControlState } from '@/lib/accreditation/types';
 
@@ -33,6 +33,15 @@ beforeEach(async () => {
 });
 
 describe('acceptance: short brief + multi-event email intake', () => {
+  it('parses Billetlugen slug when page fetch is unavailable', () => {
+    const hints = hintsFromEventUrl(
+      'https://www.billetlugen.dk/event/masego-k-b-hallen-21721196/'
+    );
+    expect(hints.artist).toMatch(/Masego/i);
+    expect(hints.venue).toMatch(/K\.B\. Hallen/i);
+    expect(hints.promoter).toBe('Billetlugen');
+  });
+
   it('omits empty nested applicant fields before Firestore persistence', async () => {
     const request = await createRequest({
       artist: 'Masego',

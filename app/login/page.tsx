@@ -3,9 +3,7 @@ import { useEffect, useState } from 'react';
 import { useAuth } from '../../lib/auth-context';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import dynamic from 'next/dynamic';
-
-const SplineAnimation = dynamic(() => import('../../components/SplineAnimation'), { ssr: false });
+import SplineIframeEmbed from '@/components/SplineIframeEmbed';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
@@ -312,16 +310,13 @@ export default function LoginPage() {
       {/* Right Side - Spline Embed (hidden on mobile) */}
       <div className="hidden md:flex md:flex-1 relative overflow-hidden">
         <div className="absolute inset-0">
-          <iframe
-            src={process.env.NEXT_PUBLIC_SPLINE_LOGIN_EMBED_URL || 'https://my.spline.design/animatedbackgroundgradientforweb-k9vy84HznMWrADyOW44KZ3Ue/'}
-            frameBorder="0"
-            allow="autoplay; fullscreen; vr"
-            className="w-full h-full"
-          />
-          {/* Dæk Spline free-tier "Made with Spline"-mærket i nederste højre hjørne */}
-          <div
-            aria-hidden
-            className="pointer-events-none absolute bottom-0 right-0 h-11 w-40 bg-black/40 backdrop-blur-xl rounded-tl-xl"
+          <SplineIframeEmbed
+            src={
+              process.env.NEXT_PUBLIC_SPLINE_LOGIN_EMBED_URL ||
+              'https://my.spline.design/animatedbackgroundgradientforweb-k9vy84HznMWrADyOW44KZ3Ue/'
+            }
+            title="Login background"
+            maskClassName="bg-black"
           />
         </div>
         {/* Centered white logo overlay */}

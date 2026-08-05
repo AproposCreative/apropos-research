@@ -1,4 +1,5 @@
-const WATERMARK_SELECTOR = 'a.spline-watermark, .spline-watermark';
+const WATERMARK_SELECTOR =
+  'a.spline-watermark, .spline-watermark, a[href*="spline.design"].spline-watermark';
 
 export function hideSplineWatermarks(root: ParentNode = document): void {
   if (typeof document === 'undefined') return;
@@ -8,6 +9,10 @@ export function hideSplineWatermarks(root: ParentNode = document): void {
     node.style.setProperty('visibility', 'hidden', 'important');
     node.style.setProperty('opacity', '0', 'important');
     node.style.setProperty('pointer-events', 'none', 'important');
+    node.style.setProperty('width', '0', 'important');
+    node.style.setProperty('height', '0', 'important');
+    node.setAttribute('aria-hidden', 'true');
+    node.remove();
   });
 }
 

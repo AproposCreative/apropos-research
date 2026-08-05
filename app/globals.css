@@ -310,14 +310,21 @@ body {
   box-shadow: inset 0 0 0 1px rgba(255,255,255,0.06), 0 0 18px 2px rgba(255,255,255,0.04);
 }
 
-/* Spline free-tier branding — hidden on all Apropos surfaces */
+/* Spline free-tier branding — same-document runtime embeds only (iframe is cross-origin) */
 a.spline-watermark,
-.spline-watermark {
+.spline-watermark,
+a[class*='spline-watermark'],
+a[href='https://spline.design'].spline-watermark {
   display: none !important;
   visibility: hidden !important;
   opacity: 0 !important;
   pointer-events: none !important;
   width: 0 !important;
   height: 0 !important;
+  max-width: 0 !important;
+  max-height: 0 !important;
   overflow: hidden !important;
+  position: absolute !important;
+  left: -9999px !important;
+  clip: rect(0, 0, 0, 0) !important;
 }
