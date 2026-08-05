@@ -207,6 +207,10 @@ const EnvSchema = z.object({
   ACCREDITATION_AUTOMATION_ENABLED: z.preprocess(emptyToUndefined, z.string().optional()),
   /** true = log outbound without calling SMTP/Resend */
   ACCREDITATION_DRY_RUN: z.preprocess(emptyToUndefined, z.string().optional()),
+  /** Rewrite all Liv outbound to this sink (E2E test). */
+  ACCREDITATION_TEST_REDIRECT_TO: z.preprocess(emptyToUndefined, z.string().optional()),
+  /** Comma-separated allowlist; defaults to redirect sink when redirect is set. */
+  ACCREDITATION_OUTBOUND_ALLOWLIST: z.preprocess(emptyToUndefined, z.string().optional()),
 
   /** Cloud Run podcast-processor base URL (fx https://podcast-processor-xxx.run.app) */
   PODCAST_PROCESSOR_URL: z.preprocess(emptyToUndefined, z.string().url().optional()),
@@ -364,6 +368,8 @@ function parseEnv() {
     ACCREDITATION_CONTACTS_TAB: process.env.ACCREDITATION_CONTACTS_TAB,
     ACCREDITATION_AUTOMATION_ENABLED: process.env.ACCREDITATION_AUTOMATION_ENABLED,
     ACCREDITATION_DRY_RUN: process.env.ACCREDITATION_DRY_RUN,
+    ACCREDITATION_TEST_REDIRECT_TO: process.env.ACCREDITATION_TEST_REDIRECT_TO,
+    ACCREDITATION_OUTBOUND_ALLOWLIST: process.env.ACCREDITATION_OUTBOUND_ALLOWLIST,
     RESEARCH_PROVIDER: (process.env.RESEARCH_PROVIDER as any) || 'openai_responses',
     RESEARCH_FALLBACK_PROVIDER: (process.env.RESEARCH_FALLBACK_PROVIDER as any) || 'legacy_web_search',
     RESEARCH_MIN_SOURCES: Number(process.env.RESEARCH_MIN_SOURCES || '2'),

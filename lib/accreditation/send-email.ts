@@ -19,6 +19,10 @@ import {
   type AccreditationMailTransport,
 } from '@/lib/accreditation/mail-transport';
 import { appendLivSentCopy } from '@/lib/accreditation/imap/sent-copy';
+import {
+  applyTestRedirectToMailContent,
+  resolveAccreditationOutboundRecipient,
+} from '@/lib/accreditation/outbound-safety';
 
 export {
   assertSmtpFromAllowed,
@@ -331,13 +335,29 @@ async function sendViaResend(
 export async function sendAccreditationEmail(
   params: SendAccreditationEmailParams
 ): Promise<SendAccreditationEmailResult> {
+  const resolved = resolveAccreditationOutboundRecipient(params.to);
+  if (resolved.blocked) {
+    return { ok: false, error: resolved.blockReason || 'Outbound blocked by allowlist' };
+  }
+
   const transport = getAccreditationMailTransport();
   const from =
     transport === 'smtp' ? resolveSmtpFrom() : getAccreditationFromEmail();
   const replyTo = getAccreditationReplyTo(params.threadId);
-  const subject = ensureRequestIdInSubject(params.subject, params.requestId);
-  const text = params.text != null ? sanitizeLivOutput(params.text) : undefined;
-  const html = sanitizeLivOutput(params.html);
+  const baseSubject = ensureRequestIdInSubject(params.subject, params.requestId);
+  const baseText = params.text != null ? sanitizeLivOutput(params.text) : undefined;
+  const baseHtml = sanitizeLivOutput(params.html);
+  const redirectedContent = applyTestRedirectToMailContent({
+    subject: baseSubject,
+    text: baseText,
+    html: baseHtml,
+    intendedTo: resolved.intendedTo,
+    redirected: resolved.redirected,
+  });
+  const subject = redirectedContent.subject;
+  const text = redirectedContent.text;
+  const html = redirectedContent.html;
+  const to = resolved.to;
 
   const hash =
     params.draftHash ||
@@ -349,6 +369,7 @@ export async function sendAccreditationEmail(
   if (transport === 'smtp') {
     return sendViaSmtp({
       ...params,
+      to,
       from,
       replyTo,
       subject,
@@ -359,6 +380,7 @@ export async function sendAccreditationEmail(
 
   return sendViaResend({
     ...params,
+    to,
     from,
     replyTo,
     subject,
