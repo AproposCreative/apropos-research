@@ -22,6 +22,7 @@ import { detectUntrustedInstructionInjection, canAutoSend, computeAutoEligible, 
 import { getAgentControl, setAgentControl, isAutomationEnabled } from '@/lib/accreditation/agent-control';
 import { createRequest, updateRequest, getRequestById } from '@/lib/accreditation/request-store';
 import { resolvePageLink, hintsFromEventUrl } from '@/lib/accreditation/event-url';
+import { normalizeEventDate, parseEventDateFromText } from '@/lib/accreditation/event-date';
 import { resetAllAccreditationStoresForTests } from '@/lib/accreditation/persistence/test-reset';
 import type { AccreditationRequest, ApprovalItem, AgentControlState } from '@/lib/accreditation/types';
 
@@ -40,6 +41,13 @@ describe('acceptance: short brief + multi-event email intake', () => {
     expect(hints.artist).toMatch(/Masego/i);
     expect(hints.venue).toMatch(/K\.B\. Hallen/i);
     expect(hints.promoter).toBe('Billetlugen');
+  });
+
+  it('normalizes ISO and Danish concert dates', () => {
+    expect(normalizeEventDate('2026-10-02T20:00:00.000+02:00')).toBe('2026-10-02');
+    expect(parseEventDateFromText('Masego @ K.B. Hallen | FREDERIKSBERG - fre., 02.10.2026')).toBe(
+      '2026-10-02'
+    );
   });
 
   it('omits empty nested applicant fields before Firestore persistence', async () => {

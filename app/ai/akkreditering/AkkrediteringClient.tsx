@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { EmbeddedAppHeader } from '@/components/embedded-app';
 import { STATUS_LABELS_DA } from '@/lib/accreditation/state-machine';
+import { normalizeEventDate, parseEventDateFromText } from '@/lib/accreditation/event-date';
 import type { AccreditationRequest, ApprovalItem, AgentControlState } from '@/lib/accreditation/types';
 
 type DeskTab = 'overview' | 'intake' | 'liv' | 'approvals' | 'contacts' | 'settings';
@@ -281,7 +282,15 @@ export default function AkkrediteringClient({ embedded = false, onClose }: Props
       setEventPreview(json.extracted);
       setArtist(json.extracted.artist || '');
       setVenue(json.extracted.venue || '');
-      setEventDate(json.extracted.eventDate || '');
+      setEventDate(
+        normalizeEventDate(json.extracted.eventDate) ||
+          parseEventDateFromText(
+            [json.extracted.title, json.extracted.descriptionSnippet, json.extracted.eventDate]
+              .filter(Boolean)
+              .join(' ')
+          ) ||
+          ''
+      );
       setIntakeStep(1);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -746,21 +755,16 @@ export default function AkkrediteringClient({ embedded = false, onClose }: Props
 
                 <div className="space-y-2">
                   <p className="text-[11px] uppercase tracking-wider text-white/35">Dato</p>
-                  {eventPreview.eventDate ? (
-                    <button
-                      type="button"
-                      className="rounded-lg border border-white/30 bg-white/10 px-3 py-2 text-[12px] text-white"
-                      onClick={() => setEventDate(eventPreview.eventDate || '')}
-                    >
-                      {eventDate || eventPreview.eventDate}
-                    </button>
-                  ) : (
-                    <input
-                      className={fieldClass}
-                      placeholder="Vælg eller skriv dato"
-                      value={eventDate}
-                      onChange={(e) => setEventDate(e.target.value)}
-                    />
+                  <input
+                    type="date"
+                    className={fieldClass}
+                    value={eventDate}
+                    onChange={(e) => setEventDate(e.target.value)}
+                  />
+                  {!eventDate && (
+                    <p className="text-[11px] text-white/35">
+                      Liv fandt ikke datoen automatisk — udfyld den fra eventlinket.
+                    </p>
                   )}
                 </div>
 

@@ -3,6 +3,8 @@ import { getOpenAIClient } from '@/lib/openai';
 import { appendAiAudit } from '@/lib/accreditation/audit-store';
 import { composeLivSystemPrompt } from '@/lib/accreditation/liv-system-prompt';
 import { resolveAccreditationModelForTask } from '@/lib/accreditation/models';
+import { normalizeEventDate, parseEventDateFromText } from '@/lib/accreditation/event-date';
+import { getResearch } from '@/lib/research/service';
 
 export type EventPageExtraction = {
   url: string;
@@ -178,7 +180,7 @@ function heuristicFromHtml(url: string, html: string): EventPageExtraction {
 
   if (ld) {
     artist = String(ld.name || '').trim();
-    eventDate = ld.startDate ? String(ld.startDate).slice(0, 32) : undefined;
+    eventDate = normalizeEventDate(ld.startDate ? String(ld.startDate) : undefined);
     venue = textFromLocation(ld.location);
     const org = ld.organizer;
     if (typeof org === 'string') promoter = org;
@@ -187,11 +189,22 @@ function heuristicFromHtml(url: string, html: string): EventPageExtraction {
     }
   }
 
+  // JSON-LD name is often "Artist" only; titles carry "Artist @ Venue | CITY - fre., 02.10.2026"
+  if (artist.includes('@')) {
+    const [left, right] = artist.split('@').map((s) => s.trim());
+    if (left) artist = left;
+    if (!venue && right) venue = right.split(/[|–—]/)[0].trim() || venue;
+  }
+
   if (!artist && title) {
     artist = title.split(/[|–—:@]/)[0].trim().slice(0, 80);
   }
 
   const bodyText = $('body').text().replace(/\s+/g, ' ').trim().slice(0, 8000);
+  if (!eventDate) {
+    eventDate = parseEventDateFromText([title, description, bodyText.slice(0, 1500)].join(' \n '));
+  }
+
   const emailMatch = bodyText.match(/[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}/i);
   const pressEmail =
     bodyText.match(
@@ -280,7 +293,7 @@ async function refineWithOpenAi(
       task: 'url_extract',
       includeFacts: false,
       taskInstructions:
-        'Udtræk koncert/event-fakta. Returnér JSON: artist, venue?, eventDate?, promoter?, contactEmail?, contactName?, confidence(0-1), notes. Gæt ikke emails.',
+        'Udtræk koncert/event-fakta. Returnér JSON: artist, venue?, eventDate? (helst YYYY-MM-DD), promoter?, contactEmail?, contactName?, confidence(0-1), notes. Gæt ikke emails. eventDate er vigtig — læs den fra titel/JSON-LD hvis den findes.',
     });
     const model = resolveAccreditationModelForTask('url_extract');
     const completion = await openai.chat.completions.create({
@@ -310,7 +323,10 @@ async function refineWithOpenAi(
       url: finalUrl,
       artist: String(raw.artist || base.artist).trim() || base.artist,
       venue: raw.venue ? String(raw.venue) : base.venue,
-      eventDate: raw.eventDate ? String(raw.eventDate).slice(0, 32) : base.eventDate,
+      eventDate:
+        normalizeEventDate(raw.eventDate ? String(raw.eventDate) : undefined) ||
+        normalizeEventDate(base.eventDate) ||
+        parseEventDateFromText([base.title, base.descriptionSnippet, plain].filter(Boolean).join(' ')),
       promoter: raw.promoter ? String(raw.promoter) : base.promoter,
       contactEmail: raw.contactEmail ? String(raw.contactEmail).toLowerCase() : base.contactEmail,
       contactName: raw.contactName ? String(raw.contactName) : base.contactName,
@@ -320,8 +336,88 @@ async function refineWithOpenAi(
       notes: [base.notes, raw.notes].filter(Boolean).join('; '),
     };
   } catch {
-    return base;
+    return {
+      ...base,
+      eventDate:
+        normalizeEventDate(base.eventDate) ||
+        parseEventDateFromText([base.title, base.descriptionSnippet, plain].filter(Boolean).join(' ')),
+    };
   }
+}
+
+/** When ticket hosts block datacenter IPs, recover the concert date via web research. */
+async function ensureEventDate(extraction: EventPageExtraction): Promise<EventPageExtraction> {
+  const existing =
+    normalizeEventDate(extraction.eventDate) ||
+    parseEventDateFromText(
+      [extraction.title, extraction.descriptionSnippet, extraction.notes].filter(Boolean).join(' ')
+    );
+  if (existing) {
+    return { ...extraction, eventDate: existing };
+  }
+
+  try {
+    const q = [
+      extraction.artist,
+      extraction.venue,
+      'koncert',
+      'dato',
+      extraction.url,
+    ]
+      .filter(Boolean)
+      .join(' ');
+    const research = await getResearch(q, { maxResults: 5 });
+    const blob = [
+      research.context || '',
+      ...(research.sources || []).map((s) => `${s.title || ''} ${s.url || ''}`),
+    ].join('\n');
+    const fromWeb = parseEventDateFromText(blob);
+    if (fromWeb) {
+      return {
+        ...extraction,
+        eventDate: fromWeb,
+        confidence: Math.max(extraction.confidence, 0.62),
+        notes: [extraction.notes, 'dato fra web research'].filter(Boolean).join('; '),
+      };
+    }
+
+    const openai = getOpenAIClient();
+    if (openai && blob.trim().length > 40) {
+      const model = resolveAccreditationModelForTask('url_extract');
+      const completion = await openai.chat.completions.create({
+        model,
+        temperature: 0,
+        messages: [
+          {
+            role: 'system',
+            content:
+              'Find koncertdatoen. Returnér JSON {"eventDate":"YYYY-MM-DD"} eller {"eventDate":null} hvis ukendt. Gæt ikke.',
+          },
+          {
+            role: 'user',
+            content: `Artist: ${extraction.artist}\nVenue: ${extraction.venue || ''}\nURL: ${extraction.url}\n\nKilder:\n${blob.slice(0, 5000)}`,
+          },
+        ],
+        response_format: { type: 'json_object' },
+      });
+      const raw = JSON.parse(completion.choices[0]?.message?.content || '{}') as {
+        eventDate?: string | null;
+      };
+      const date = normalizeEventDate(raw.eventDate || undefined);
+      if (date) {
+        return {
+          ...extraction,
+          eventDate: date,
+          confidence: Math.max(extraction.confidence, 0.6),
+          notes: [extraction.notes, 'dato fra web research + LLM'].filter(Boolean).join('; '),
+        };
+      }
+    }
+  } catch {
+    /* keep extraction without date */
+  }
+
+  return extraction;
 }
 
 export async function extractEventFromUrl(url: string): Promise<EventPageExtraction> {
@@ -335,11 +431,12 @@ export async function extractEventFromUrl(url: string): Promise<EventPageExtract
 
   const urlHints = hintsFromEventUrl(parsed.toString());
 
+  let extracted: EventPageExtraction;
   try {
     const { html, finalUrl } = await fetchEventPageHtml(parsed.toString());
     const base = heuristicFromHtml(finalUrl, html);
     const plain = cheerio.load(html)('body').text().replace(/\s+/g, ' ').trim().slice(0, 6000);
-    return refineWithOpenAi(finalUrl, base, plain);
+    extracted = await refineWithOpenAi(finalUrl, base, plain);
   } catch (fetchErr) {
     // Page blocked/timed out — still advance the wizard from slug + optional LLM on URL alone.
     const base: EventPageExtraction = {
@@ -358,12 +455,14 @@ export async function extractEventFromUrl(url: string): Promise<EventPageExtract
         ? fetchErr
         : new Error('Liv kunne ikke læse eventlinket');
     }
-    return refineWithOpenAi(
+    extracted = await refineWithOpenAi(
       parsed.toString(),
       base,
-      `Kun URL tilgængelig (side hentning fejlede).\nURL: ${parsed.toString()}\nGæt artist/venue fra slug hvis tydeligt.`
+      `Kun URL tilgængelig (side hentning fejlede — typisk Akamai på Billetlugen).\nURL: ${parsed.toString()}\nArtist-hint: ${urlHints.artist}\nVenue-hint: ${urlHints.venue || ''}\nFind eventDate (YYYY-MM-DD) hvis du kan udlede den sikkert; ellers null.`
     );
   }
+
+  return ensureEventDate(extracted);
 }
 
 /** Resolve relative ticket links against page URL (helper for tests/delivery). */

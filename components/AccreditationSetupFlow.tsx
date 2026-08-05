@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import StepChip from '@/components/ui/StepChip';
+import { normalizeEventDate, parseEventDateFromText } from '@/lib/accreditation/event-date';
 
 type EventPreview = {
   url: string;
@@ -138,7 +139,15 @@ export default function AccreditationSetupFlow({
       setPreview(json.extracted);
       setArtist(json.extracted.artist || '');
       setVenue(json.extracted.venue || '');
-      setEventDate(json.extracted.eventDate || '');
+      setEventDate(
+        normalizeEventDate(json.extracted.eventDate) ||
+          parseEventDateFromText(
+            [json.extracted.title, json.extracted.descriptionSnippet, json.extracted.eventDate]
+              .filter(Boolean)
+              .join(' ')
+          ) ||
+          ''
+      );
       setStep(1);
     } catch (caught) {
       const msg = caught instanceof Error ? caught.message : String(caught);
