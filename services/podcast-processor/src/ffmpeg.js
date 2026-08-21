@@ -33,3 +33,34 @@ export async function encodeToAac96k(inputBuffer) {
     await rm(dir, { recursive: true, force: true }).catch(() => {});
   }
 }
+
+/** Probe duration in whole seconds. Returns null if probe fails. */
+export async function probeDurationSeconds(inputBuffer) {
+  const dir = await mkdtemp(join(tmpdir(), 'podcast-probe-'));
+  const inputPath = join(dir, 'input');
+  try {
+    await writeFile(inputPath, inputBuffer);
+    const stderr = await new Promise((resolve, reject) => {
+      const proc = spawn('ffmpeg', ['-i', inputPath, '-f', 'null', '-'], {
+        stdio: ['ignore', 'pipe', 'pipe'],
+      });
+      let err = '';
+      proc.stderr.on('data', (d) => {
+        err += d.toString();
+      });
+      proc.on('close', () => resolve(err));
+      proc.on('error', reject);
+    });
+    const match = stderr.match(/Duration:\s*(\d+):(\d+):(\d+(?:\.\d+)?)/);
+    if (!match) return null;
+    const hours = Number(match[1]);
+    const minutes = Number(match[2]);
+    const seconds = Number(match[3]);
+    if (![hours, minutes, seconds].every((n) => Number.isFinite(n))) return null;
+    return Math.max(0, Math.round(hours * 3600 + minutes * 60 + seconds));
+  } catch {
+    return null;
+  } finally {
+    await rm(dir, { recursive: true, force: true }).catch(() => {});
+  }
+}

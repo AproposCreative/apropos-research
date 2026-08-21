@@ -11,21 +11,68 @@ function titleFrom(data) {
     const v = data[key];
     if (typeof v === 'string' && v.trim()) return v.trim();
   }
+  const fd = data.fieldData;
+  if (fd && typeof fd === 'object' && typeof fd.name === 'string' && fd.name.trim()) {
+    return fd.name.trim();
+  }
   return null;
+}
+
+function plainSnippet(raw, maxLen = 4000) {
+  if (typeof raw !== 'string' || !raw.trim()) return null;
+  const text = raw
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (!text) return null;
+  return text.length > maxLen ? `${text.slice(0, maxLen - 1).trim()}…` : text;
+}
+
+function descriptionFrom(data) {
+  const fd = data.fieldData && typeof data.fieldData === 'object' ? data.fieldData : data;
+  for (const key of ['summary', 'excerpt', 'meta-description', 'intro', 'subtitle', 'content', 'body']) {
+    const snippet = plainSnippet(fd[key]);
+    if (snippet) return snippet;
+  }
+  return null;
+}
+
+function coverFrom(data) {
+  const fd = data.fieldData && typeof data.fieldData === 'object' ? data.fieldData : data;
+  for (const key of ['cover', 'thumbnail', 'main-image', 'image']) {
+    const v = fd[key];
+    if (typeof v === 'string' && /^https?:\/\//i.test(v.trim())) return v.trim();
+    if (v && typeof v === 'object' && typeof v.url === 'string' && /^https?:\/\//i.test(v.url)) {
+      return v.url.trim();
+    }
+  }
+  return null;
+}
+
+function toArticle(slug, data) {
+  const title = titleFrom(data);
+  if (!title) return null;
+  return {
+    slug,
+    title,
+    articleUrl: articleUrlForSlug(slug),
+    description: descriptionFrom(data),
+    coverUrl: coverFrom(data),
+  };
 }
 
 async function fromFirestore(slug) {
   const db = getDb();
   const byId = await db.collection('articles').doc(slug).get();
   if (byId.exists) {
-    const title = titleFrom(byId.data() || {});
-    if (title) return { slug, title, articleUrl: articleUrlForSlug(slug) };
+    const article = toArticle(slug, byId.data() || {});
+    if (article) return article;
   }
 
   const q = await db.collection('articles').where('slug', '==', slug).limit(1).get();
   if (!q.empty) {
-    const title = titleFrom(q.docs[0].data() || {});
-    if (title) return { slug, title, articleUrl: articleUrlForSlug(slug) };
+    const article = toArticle(slug, q.docs[0].data() || {});
+    if (article) return article;
   }
   return null;
 }
@@ -52,11 +99,7 @@ async function fromWebflow(slug) {
       return fd.slug === slug && typeof fd.name === 'string' && fd.name.trim();
     });
     if (match) {
-      return {
-        slug,
-        title: match.fieldData.name.trim(),
-        articleUrl: articleUrlForSlug(slug),
-      };
+      return toArticle(slug, match);
     }
     if (page.length < pageSize) break;
     offset += pageSize;

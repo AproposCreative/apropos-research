@@ -1,5 +1,6 @@
 import { randomUUID } from 'crypto';
 import {
+  FEED_PATH,
   MANIFEST_PATH,
   getPodcastBucket,
   publishedAudioPath,
@@ -9,6 +10,8 @@ import {
   buildManifestEpisode,
   normalizeManifestEpisode,
 } from '@/lib/podcast/manifest-format';
+import { buildPodcastRssXml } from '@/lib/podcast/rss';
+import { podcastRssFeedUrl, podcastShowCoverUrl } from '@/lib/podcast/show-config';
 import type { PodcastManifest, PodcastManifestEpisode } from '@/lib/podcast/types';
 
 const DEFAULT_MANIFEST_TOKEN = '2e7823c1-fc8f-4a77-bfe2-667acbb3ad40';
@@ -94,6 +97,42 @@ async function saveManifest(manifest: PodcastManifest): Promise<void> {
       },
     },
   });
+
+  await writeFeedMirror(manifest).catch((err) => {
+    console.warn('[podcast] feed mirror write failed', err);
+  });
+}
+
+/** Spejl RSS til Firebase Storage (CDN-backup). Dynamisk /api/podcast/rss er source of truth. */
+export async function writeFeedMirror(manifest: PodcastManifest): Promise<void> {
+  const bucket = getPodcastBucket();
+  const file = bucket.file(FEED_PATH);
+  let token = '';
+  try {
+    const [meta] = await file.getMetadata();
+    const raw = meta?.metadata?.firebaseStorageDownloadTokens;
+    if (typeof raw === 'string' && raw.trim()) token = raw.split(',')[0]!.trim();
+  } catch {
+    /* ignore */
+  }
+  if (!token) token = randomUUID();
+
+  const xml = buildPodcastRssXml({
+    manifest,
+    feedUrl: podcastRssFeedUrl(),
+    showCoverUrl: podcastShowCoverUrl(),
+  });
+
+  await file.save(xml, {
+    resumable: false,
+    metadata: {
+      contentType: 'application/rss+xml; charset=utf-8',
+      cacheControl: 'public, max-age=300',
+      metadata: {
+        firebaseStorageDownloadTokens: token,
+      },
+    },
+  });
 }
 
 export async function upsertManifestEpisode(input: {
@@ -103,6 +142,12 @@ export async function upsertManifestEpisode(input: {
   audioUrl: string;
   hosts?: string[];
   publishedAt?: string;
+  durationSeconds?: number;
+  audioBytes?: number;
+  description?: string | null;
+  imageURL?: string | null;
+  kind?: 'ai' | 'human';
+  guid?: string;
 }): Promise<PodcastManifest> {
   const manifest = await readPodcastManifest();
   const entry = buildManifestEpisode({
@@ -111,6 +156,12 @@ export async function upsertManifestEpisode(input: {
     audioURL: input.audioUrl,
     hosts: input.hosts,
     publishedAt: input.publishedAt,
+    durationSeconds: input.durationSeconds,
+    audioBytes: input.audioBytes,
+    description: input.description,
+    imageURL: input.imageURL,
+    kind: input.kind,
+    guid: input.guid,
   });
 
   const next = manifest.episodes.filter((e) => e.articleSlug !== input.slug);

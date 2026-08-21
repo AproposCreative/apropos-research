@@ -7,6 +7,9 @@ const PUBLIC_API_PREFIXES = [
   '/api/webhooks/',
   '/api/newsletter/unsubscribe',
   '/api/newsletter/webhook/',
+  '/api/podcast/public/',
+  '/api/podcast/rss',
+  '/api/podcast/feed.xml',
 ] as const;
 
 function isPublicApiPath(pathname: string): boolean {

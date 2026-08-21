@@ -41,3 +41,5 @@ export function publishedAudioPath(slug: string): string {
 }
 
 export const MANIFEST_PATH = 'podcasts/manifest.json';
+export const FEED_PATH = 'podcasts/feed.xml';
+export const SHOW_COVER_PATH = 'podcasts/artwork/show-cover.jpg';

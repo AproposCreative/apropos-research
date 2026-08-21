@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="da">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Podcast player demo</title>
+    <meta property="og:image" content="https://cdn.prod.website-files.com/67dbf17ba540975b5b21c180/67ed19b047d73997242e9f86_05AproposMagazine_Random.webp" />
+    <style>
+      body { font-family: Georgia, serif; margin: 0; color: #111; background: #f7f5f1; }
+      main { max-width: 42rem; margin: 0 auto; padding: 2rem 1.25rem 8rem; }
+      h1 { font-size: 1.75rem; }
+      .meta { opacity: 0.6; margin-bottom: 1rem; }
+
+      /* Single-line pill bar — matches reference screenshot */
+      .audio-player {
+        position: fixed; left: 0; right: 0; bottom: 0; z-index: 9990;
+        display: flex; justify-content: center; padding: 10px 20px 16px;
+        opacity: 0; visibility: hidden; pointer-events: none;
+        transform: translate3d(0, 36px, 0);
+        transition: opacity .7s ease, transform .7s cubic-bezier(.22,1,.36,1), visibility 0s linear .7s;
+      }
+      .audio-player.is-open {
+        opacity: 1; visibility: visible; pointer-events: auto;
+        transform: translate3d(0, 0, 0);
+        transition: opacity .7s ease, transform .7s cubic-bezier(.22,1,.36,1), visibility 0s linear 0s;
+      }
+      .audio-player__card {
+        width: 100%; max-width: 1120px; min-height: 64px;
+        display: grid;
+        grid-template-columns: auto minmax(0, 1fr) auto;
+        grid-template-rows: auto auto;
+        grid-template-areas:
+          "controls meta cluster"
+          "controls timeline cluster";
+        align-items: center; column-gap: 14px; row-gap: 2px;
+        padding: 10px 16px; border-radius: 32px;
+        background: rgba(255,255,255,.72);
+        -webkit-backdrop-filter: blur(40px) saturate(180%);
+        backdrop-filter: blur(40px) saturate(180%);
+        border: .5px solid rgba(255,255,255,.65);
+        box-shadow: 0 10px 40px rgba(0,0,0,.12), inset 0 1px 0 rgba(255,255,255,.7);
+        color: rgba(0,0,0,.92); font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
+      }
+      .audio-player__controls { grid-area: controls; display: flex; align-items: center; gap: 2px; flex-shrink: 0; align-self: center; }
+      .audio-player__cluster { grid-area: cluster; display: flex; align-items: center; gap: 4px; flex-shrink: 0; align-self: center; }
+      .audio-player__volume-wrap { display: flex; align-items: center; gap: 6px; flex-shrink: 0; padding-left: 4px; }
+      .audio-player__meta { grid-area: meta; display: flex; align-items: center; gap: 10px; min-width: 0; align-self: center; }
+      .audio-player__meta-text { display: flex; flex-direction: column; gap: 4px; flex: 1; min-width: 0; }
+      .audio-player__title-row { display: flex; align-items: center; gap: 8px; min-width: 0; }
+      .audio-player__artwork { width: 44px; height: 44px; border-radius: 8px; object-fit: cover; background: rgba(0,0,0,.06); flex-shrink: 0; }
+      .audio-player__timeline { grid-area: timeline; display: flex; align-items: center; gap: 8px; width: 100%; margin-top: 0; }
+      .audio-player__title-mask {
+        position: relative; flex: 1; min-width: 0; overflow: hidden;
+        -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 18px, #000 calc(100% - 18px), transparent 100%);
+        mask-image: linear-gradient(90deg, transparent 0, #000 18px, #000 calc(100% - 18px), transparent 100%);
+      }
+      .audio-player__title {
+        display: inline-block; margin: 0; font-size: 13px; font-weight: 600; color: rgba(0,0,0,.92);
+        white-space: nowrap; overflow: visible; text-overflow: clip; max-width: none; width: auto; will-change: transform;
+      }
+      .audio-player__title.is-marquee {
+        animation-name: apropos-title-marquee;
+        animation-timing-function: linear;
+        animation-iteration-count: infinite;
+        animation-duration: 24s;
+      }
+      @keyframes apropos-title-marquee {
+        0%, 18% { transform: translate3d(0, 0, 0); }
+        82%, 100% { transform: translate3d(var(--marquee-shift, 0px), 0, 0); }
+      }
+      .audio-player__hosts { margin: 0; font-size: 12px; color: rgba(0,0,0,.45); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+      .audio-player__time {
+        margin: 0; min-width: 32px; flex-shrink: 0; font-size: 11px; line-height: 1;
+        color: rgba(0,0,0,.45); white-space: nowrap; font-variant-numeric: tabular-nums;
+      }
+      .audio-player__time-end { text-align: right; }
+      .audio-player__progress {
+        -webkit-appearance: none; appearance: none; flex: 1; min-width: 0; width: 100%; height: 3px; margin: 0;
+        border-radius: 16px; background: rgba(0,0,0,.12); cursor: pointer; accent-color: #111;
+      }
+      .audio-player__progress::-webkit-slider-thumb {
+        -webkit-appearance: none; width: 9px; height: 9px; margin-top: -3px; border-radius: 50%; background: #111;
+      }
+      .audio-player__progress::-webkit-slider-runnable-track { height: 3px; border-radius: 16px; background: rgba(0,0,0,.12); }
+      .audio-player__volume {
+        -webkit-appearance: none; appearance: none; width: 72px; height: 4px; margin: 0;
+        border-radius: 16px; background: rgba(0,0,0,.12); cursor: pointer; accent-color: #111;
+      }
+      .audio-player__volume::-webkit-slider-thumb {
+        -webkit-appearance: none; width: 12px; height: 12px; border-radius: 50%; background: #111;
+      }
+      .audio-player__volume::-moz-range-thumb { width: 12px; height: 12px; border: 0; border-radius: 50%; background: #111; }
+      .audio-player__speed, .audio-player__icon-btn, .audio-player__play, .audio-player__close {
+        display: flex; align-items: center; justify-content: center; text-decoration: none; color: rgba(0,0,0,.88); cursor: pointer; background: transparent; border: 0;
+      }
+      .audio-player__speed { min-width: 44px; height: 44px; font-size: 15px; font-weight: 600; color: rgba(0,0,0,.88); }
+      .audio-player__icon-btn { width: 44px; height: 44px; border-radius: 10px; }
+      .audio-player__play { width: 48px; height: 48px; border-radius: 12px; }
+      .audio-player__close {
+        width: 36px; height: 36px; opacity: .9; flex-shrink: 0;
+        color: rgba(0,0,0,.7); font-size: 22px; line-height: 1; font-weight: 300; text-decoration: none;
+      }
+      .audio-player__icon { width: 24px; height: 24px; display: block; object-fit: contain; filter: brightness(0); }
+      .audio-player__icon-play { width: 24px; height: 26px; display: block; filter: brightness(0); }
+      .audio-player__icon-pause { width: 22px; height: 24px; display: none; filter: brightness(0); }
+      .audio-player.is-playing .audio-player__icon-play { display: none; }
+      .audio-player.is-playing .audio-player__icon-pause { display: block; }
+      @media (max-width: 767px) {
+        .audio-player { padding: 8px 10px 12px; }
+        .audio-player__card {
+          grid-template-columns: auto minmax(0, 1fr) auto auto;
+          grid-template-rows: auto auto;
+          grid-template-areas:
+            "art text play close"
+            "bar bar bar bar";
+          column-gap: 10px; row-gap: 8px; padding: 12px; border-radius: 22px; min-height: 0;
+        }
+        .audio-player__meta,
+        .audio-player__controls,
+        .audio-player__cluster { display: contents; }
+        .audio-player__artwork { grid-area: art; width: 44px; height: 44px; }
+        .audio-player__meta-text { grid-area: text; min-width: 0; }
+        .audio-player__play { grid-area: play; width: 44px; height: 44px; }
+        .audio-player__close { grid-area: close; }
+        .audio-player__timeline { grid-area: bar; width: 100%; }
+        .audio-player__speed,
+        .audio-player__icon-btn,
+        .audio-player__volume-wrap { display: none; }
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <p class="meta">Lokal demo — én linje (pill-bar) som reference-screenshot</p>
+      <h1>Demo-artikel</h1>
+      <div data-apropos-podcast-listen data-apropos-podcast-slug="musik-i-gentofte-2026-sol-sang-og-et-par-streger-i-regningen" hidden>
+        <button type="button">Lyt til artiklen</button>
+      </div>
+      <p>Tryk “Lyt til artiklen” for at åbne den én-linjede player (fade + slide fra bunden).</p>
+    </main>
+
+    <div class="audio-player" data-apropos-podcast-player hidden aria-hidden="true">
+      <div class="audio-player__card">
+        <div class="audio-player__controls">
+          <a class="audio-player__speed" href="#" data-apropos-podcast-speed aria-label="Skift afspilningshastighed">1x</a>
+          <a class="audio-player__icon-btn" href="#" data-apropos-podcast-skip-back aria-label="Spol 15 sekunder tilbage">
+            <img class="audio-player__icon" src="/podcast-icons/gobackward-15.svg" alt="" />
+          </a>
+          <a class="audio-player__play" href="#" data-apropos-podcast-play aria-label="Afspil">
+            <img class="audio-player__icon-play" src="/podcast-icons/play-fill.svg" alt="" />
+            <img class="audio-player__icon-pause" src="/podcast-icons/pause-fill.svg" alt="" />
+          </a>
+          <a class="audio-player__icon-btn" href="#" data-apropos-podcast-skip-forward aria-label="Spol 30 sekunder frem">
+            <img class="audio-player__icon" src="/podcast-icons/goforward-30.svg" alt="" />
+          </a>
+        </div>
+
+        <div class="audio-player__meta">
+          <img class="audio-player__artwork" data-apropos-podcast-artwork alt="" src="https://cdn.prod.website-files.com/67dbf17ba540975b5b21c180/67ed19b047d73997242e9f86_05AproposMagazine_Random.webp" />
+          <div class="audio-player__meta-text">
+            <div class="audio-player__title-row">
+              <div class="audio-player__title-mask">
+                <p class="audio-player__title" data-apropos-podcast-title>Artikeltitel</p>
+              </div>
+            </div>
+            <p class="audio-player__hosts" data-apropos-podcast-hosts>Apropos Magazine</p>
+          </div>
+        </div>
+
+        <div class="audio-player__cluster">
+          <a class="audio-player__icon-btn" href="#" data-apropos-podcast-mute aria-label="Slå lyd fra">
+            <img class="audio-player__icon" src="/podcast-icons/speaker-wave.svg" alt="" />
+          </a>
+          <div class="audio-player__volume-wrap">
+            <input class="audio-player__volume" type="range" data-apropos-podcast-volume min="0" max="100" value="100" aria-label="Lydstyrke" />
+          </div>
+          <a class="audio-player__close" href="#" data-apropos-podcast-close aria-label="Luk afspiller">×</a>
+        </div>
+
+        <div class="audio-player__timeline">
+          <p class="audio-player__time" data-apropos-podcast-current-time>0:00</p>
+          <input class="audio-player__progress" type="range" data-apropos-podcast-progress min="0" max="1000" value="0" aria-label="Position i lyden" />
+          <p class="audio-player__time audio-player__time-end" data-apropos-podcast-duration>0:00</p>
+        </div>
+      </div>
+    </div>
+
+    <script src="/podcast-player.js" defer data-api-base=""></script>
+  </body>
+</html>

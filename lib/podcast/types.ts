@@ -20,6 +20,13 @@ export type PodcastManifestEpisode = {
   publishedAt: string;
   /** Kun til web-UI — ikke sendt til iOS-decode */
   articleUrl?: string;
+  /** RSS / podcast directories — iOS ignorerer ukendte felter */
+  durationSeconds?: number;
+  audioBytes?: number;
+  description?: string;
+  imageURL?: string;
+  guid?: string;
+  kind?: 'ai' | 'human';
 };
 
 export type PodcastManifest = {
@@ -35,6 +42,8 @@ export type ResolvedArticle = {
   authorName: string | null;
   articleUrl: string;
   source: 'firestore' | 'webflow';
+  description?: string | null;
+  coverUrl?: string | null;
 };
 
 export type PodcastJobDoc = {

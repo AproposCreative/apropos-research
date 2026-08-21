@@ -23,7 +23,23 @@ export async function middleware(request: NextRequest) {
   if (request.nextUrl.pathname.startsWith('/api/')) {
     const authorized = await isApiRequestAuthorized(request);
     if (!authorized) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      // Include CORS on 401 so browser consoles show auth errors instead of opaque CORS failures
+      // for magazine origins hitting public podcast endpoints during misconfig.
+      const origin = request.headers.get('origin');
+      const headers: Record<string, string> = { 'Cache-Control': 'no-store' };
+      if (
+        origin &&
+        (/^https:\/\/([a-z0-9-]+\.)*aproposmagazine\.(com|dk)$/i.test(origin) ||
+          origin.endsWith('.webflow.io') ||
+          origin.startsWith('http://localhost:') ||
+          origin.startsWith('http://127.0.0.1:'))
+      ) {
+        headers['Access-Control-Allow-Origin'] = origin;
+        headers['Access-Control-Allow-Methods'] = 'GET, OPTIONS';
+        headers['Access-Control-Allow-Headers'] = 'Content-Type';
+        headers.Vary = 'Origin';
+      }
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401, headers });
     }
   }
 

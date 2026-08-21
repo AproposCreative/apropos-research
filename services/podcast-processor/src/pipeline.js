@@ -1,6 +1,7 @@
 import { getBucket } from './firebase.js';
-import { encodeToAac96k } from './ffmpeg.js';
+import { encodeToAac96k, probeDurationSeconds } from './ffmpeg.js';
 import { upsertEpisode, uploadPublishedAudio } from './manifest.js';
+import { markWebflowAudioVersion } from './mark-webflow-audio.js';
 import { sendPodcastNotification } from './notify.js';
 import { resolveArticle } from './resolve-article.js';
 import { setJobDone, setJobError, setJobProcessing } from './jobs.js';
@@ -28,6 +29,7 @@ export async function runPipeline({ jobId, slug, articleUrl }) {
     await setJobProcessing(jobId, 'encode');
     const [raw] = await incoming.download();
     const encoded = await encodeToAac96k(raw);
+    const durationSeconds = await probeDurationSeconds(encoded);
 
     const audioUrl = await uploadPublishedAudio(slug, encoded);
 
@@ -38,11 +40,25 @@ export async function runPipeline({ jobId, slug, articleUrl }) {
       title: article.title,
       articleUrl: articleUrl || article.articleUrl,
       audioUrl,
+      durationSeconds: durationSeconds ?? undefined,
+      audioBytes: encoded.byteLength,
+      description: article.description || undefined,
+      imageURL: article.coverUrl || undefined,
+      kind: 'human',
     });
 
     currentStep = 'notification';
     await setJobProcessing(jobId, 'notification');
     await sendPodcastNotification({ articleSlug: slug, title: article.title });
+
+    try {
+      const marked = await markWebflowAudioVersion(slug);
+      if (!marked.ok) {
+        console.warn('[podcast] lydversion ikke sat', slug, marked.skipped);
+      }
+    } catch (err) {
+      console.warn('[podcast] lydversion sync failed', slug, err);
+    }
 
     currentStep = 'cleanup';
     await setJobProcessing(jobId, 'cleanup');

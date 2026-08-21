@@ -31,7 +31,22 @@ service firebase.storage {
       allow write: if false;
     }
 
+    match /podcasts/narration/{slug}/{fileName} {
+      allow read: if true;
+      allow write: if false;
+    }
+
+    match /podcasts/artwork/{fileName} {
+      allow read: if true;
+      allow write: if false;
+    }
+
     match /podcasts/manifest.json {
+      allow read: if true;
+      allow write: if false;
+    }
+
+    match /podcasts/feed.xml {
       allow read: if true;
       allow write: if false;
     }

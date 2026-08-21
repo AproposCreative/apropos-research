@@ -61,18 +61,44 @@ async function saveManifest(manifest) {
   });
 }
 
-export async function upsertEpisode({ slug, title, articleUrl, audioUrl, hosts }) {
+export async function upsertEpisode({
+  slug,
+  title,
+  articleUrl,
+  audioUrl,
+  hosts,
+  durationSeconds,
+  audioBytes,
+  description,
+  imageURL,
+  kind,
+}) {
   const manifest = await readManifest();
   const publishedAt = new Date().toISOString();
+  const id = slugToId(slug);
   const entry = {
-    id: slugToId(slug),
+    id,
     articleSlug: slug,
     title,
     subtitle: 'Lyt til artiklen',
     audioURL: audioUrl,
     hosts: hosts?.length ? hosts : ['Apropos Magazine'],
     publishedAt,
+    guid: id,
+    kind: kind || 'human',
+    imageURL:
+      (typeof imageURL === 'string' && imageURL.trim()) ||
+      'https://ai.aproposmagazine.com/podcast/show-cover.jpg',
   };
+  if (typeof durationSeconds === 'number' && durationSeconds > 0) {
+    entry.durationSeconds = Math.round(durationSeconds);
+  }
+  if (typeof audioBytes === 'number' && audioBytes > 0) {
+    entry.audioBytes = Math.round(audioBytes);
+  }
+  if (typeof description === 'string' && description.trim()) {
+    entry.description = description.trim().slice(0, 4000);
+  }
   const next = manifest.episodes.filter((e) => (e.articleSlug || e.slug) !== slug);
   next.push(entry);
   next.sort((a, b) => Date.parse(b.publishedAt) - Date.parse(a.publishedAt));
