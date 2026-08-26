@@ -48,7 +48,7 @@
   ],
   "author": "",
   "license": "ISC",
-  "type": "commonjs",
+  "type": "module",
   "dependencies": {
     "@splinetool/runtime": "^1.10.76",
     "@tailwindcss/postcss": "^4.1.13",

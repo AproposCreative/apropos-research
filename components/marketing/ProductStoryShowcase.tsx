@@ -30,7 +30,7 @@ function PipelineStrip() {
 export default function ProductStoryShowcase() {
   const containerRef = useRef<HTMLDivElement>(null);
   const [active, setActive] = useState(0);
-  const module = PRODUCT_MODULES[active];
+  const activeModule = PRODUCT_MODULES[active];
 
   const { scrollYProgress } = useScroll({
     target: containerRef,
@@ -49,7 +49,7 @@ export default function ProductStoryShowcase() {
   }, [scrollYProgress]);
 
   const splineUrl =
-    SPLINE_BACKGROUNDS.find((b) => b.id === module?.splineId)?.url ??
+    SPLINE_BACKGROUNDS.find((b) => b.id === activeModule?.splineId)?.url ??
     SPLINE_BACKGROUNDS[2].url;
 
   return (
@@ -127,7 +127,7 @@ export default function ProductStoryShowcase() {
             ))}
           </div>
           <p className="research-mono text-[10px] text-[var(--research-slate)] mt-3 text-center">
-            {module?.title} · Built with Spline
+            {activeModule?.title} · Built with Spline
           </p>
         </div>
       </div>

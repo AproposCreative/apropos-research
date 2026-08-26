@@ -1,5 +1,5 @@
 /**
- * Next.js Middleware
+ * Next.js Proxy
  *
  * - Redirects / → /ai
  * - Protects /api/* with INTERNAL_API_SECRET, CRON_SECRET, or Firebase ID token
@@ -13,7 +13,7 @@ function generateRequestId(): string {
   return `${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
 }
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   if (request.nextUrl.pathname === '/') {
     const url = request.nextUrl.clone();
     url.pathname = '/ai';

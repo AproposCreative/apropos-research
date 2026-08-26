@@ -1,5 +1,8 @@
+import { createRequire } from 'node:module';
+import { execSync } from 'node:child_process';
+
+const require = createRequire(import.meta.url);
 const { version } = require('./package.json');
-const { execSync } = require('node:child_process');
 
 let withBundleAnalyzer;
 try {
@@ -54,11 +57,6 @@ const nextConfig = {
   },
   // Simplified config to fix client-side rendering issues
   reactStrictMode: false,
-  
-  // Disable ESLint during builds (we run it separately)
-  eslint: {
-    ignoreDuringBuilds: true,
-  },
   
   // Disable experimental features that might cause issues
   experimental: {
@@ -131,4 +129,4 @@ const nextConfig = {
   },
 }
 
-module.exports = withBundleAnalyzer(nextConfig)
+export default withBundleAnalyzer(nextConfig)

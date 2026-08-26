@@ -8,10 +8,14 @@ export default defineConfig({
     globals: false,
     pool: 'threads',
     reporters: ['default'],
+    env: {
+      // Keep storage tests away from the tracked production-like dataset.
+      RAGE_STORAGE_DIR: './tmp/vitest-rage',
+    },
   },
   resolve: {
     alias: {
-      '@': path.resolve(__dirname, '.'),
+      '@': path.resolve(import.meta.dirname, '.'),
     },
   },
 });
