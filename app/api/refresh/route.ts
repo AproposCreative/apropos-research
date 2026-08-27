@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { exec } from 'node:child_process';
+import { execFile } from 'node:child_process';
 import path from 'node:path';
 import { invalidatePromptsCache } from '../../../lib/readPrompts';
 import { logger } from '@/lib/logger';
@@ -57,12 +57,17 @@ export async function POST(request: Request) {
     // Fall back to exec if direct import fails
     const errorObj = importErr instanceof Error ? importErr : new Error(String(importErr));
     logger.warn('Direct import failed, using exec fallback', { error: String(importErr) }, errorObj);
-    const cmd = source 
-      ? `npm run ingest:rage -- --since=${sinceHours} --limit=${limit} --source=${source}`
-      : `npm run ingest:rage -- --since=${sinceHours} --limit=${limit}`;
+    const commandArgs = [
+      'run',
+      'ingest:rage',
+      '--',
+      `--since=${sinceHours}`,
+      `--limit=${limit}`,
+      ...(source ? [`--source=${source}`] : []),
+    ];
 
     // Start ingest in background - don't wait for it to complete
-    exec(cmd, { cwd: root, env: process.env, timeout: 1000 * 60 * 5 }, (err, stdout, stderr) => {
+    execFile('npm', commandArgs, { cwd: root, env: process.env, timeout: 1000 * 60 * 5 }, (err, stdout, stderr) => {
       if (!err) {
         // Invalidate cache after successful refresh
         invalidatePromptsCache();
