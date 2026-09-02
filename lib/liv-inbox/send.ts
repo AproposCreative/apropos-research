@@ -59,6 +59,15 @@ export function livInboxAllowedDomains(): string[] {
 }
 
 /**
+ * Full-autonomy opt-in: when true (and no test-redirect is set), Liv may send
+ * REAL mail to any recipient, not just allowed domains. Explicit and reversible
+ * so the fail-closed default is never silently removed.
+ */
+export function livInboxAllowAllRecipients(): boolean {
+  return /^(1|true|on|yes)$/i.test((process.env.LIV_INBOX_ALLOW_ALL_RECIPIENTS || '').trim());
+}
+
+/**
  * Transport for Liv's replies. Default: her one.com SMTP (so mail is sent from
  * her mailbox and archived to her Sent folder for monitoring); falls back to
  * Resend only when SMTP auth is unavailable. Override with LIV_INBOX_MAIL_TRANSPORT.
@@ -89,6 +98,7 @@ export function livInboxSendingStatus(): {
   testRedirectTo: string | null;
   maxPerRun: number;
   allowedDomains: string[];
+  allowAllRecipients: boolean;
   transport: 'smtp' | 'resend';
 } {
   return {
@@ -96,6 +106,7 @@ export function livInboxSendingStatus(): {
     testRedirectTo: livInboxTestRedirectTo(),
     maxPerRun: livInboxMaxAutoSendPerRun(),
     allowedDomains: livInboxAllowedDomains(),
+    allowAllRecipients: livInboxAllowAllRecipients(),
     transport: livInboxMailTransport(),
   };
 }
@@ -123,6 +134,11 @@ export function resolveLivInboxRecipient(intendedTo: string): {
   const redirect = livInboxTestRedirectTo();
   if (redirect) {
     return { to: redirect, intendedTo: intended, redirected: true, blocked: false };
+  }
+  // Explicit, auditable opt-in for full autonomy: real mail to ANY recipient.
+  // Default stays fail-closed; only a deliberate env flag opens this.
+  if (livInboxAllowAllRecipients()) {
+    return { to: intended, intendedTo: intended, redirected: false, blocked: false };
   }
   const allow = (process.env.LIV_INBOX_OUTBOUND_ALLOWLIST || process.env.ACCREDITATION_OUTBOUND_ALLOWLIST || '')
     .split(',')
