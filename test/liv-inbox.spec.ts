@@ -656,6 +656,37 @@ describe('learn from edits (feedback loop)', () => {
   });
 });
 
+describe('full-autonomy recipient opt-in', () => {
+  it('blocks unknown recipients by default (fail-closed)', () => {
+    delete process.env.LIV_INBOX_ALLOW_ALL_RECIPIENTS;
+    delete process.env.LIV_INBOX_TEST_REDIRECT_TO;
+    delete process.env.ACCREDITATION_TEST_REDIRECT_TO;
+    const r = resolveLivInboxRecipient('stranger@example.com');
+    expect(r.blocked).toBe(true);
+  });
+
+  it('allows real sends to any recipient when explicitly opted in', () => {
+    delete process.env.LIV_INBOX_TEST_REDIRECT_TO;
+    delete process.env.ACCREDITATION_TEST_REDIRECT_TO;
+    process.env.LIV_INBOX_ALLOW_ALL_RECIPIENTS = 'true';
+    const r = resolveLivInboxRecipient('stranger@example.com');
+    expect(r.blocked).toBe(false);
+    expect(r.redirected).toBe(false);
+    expect(r.to).toBe('stranger@example.com');
+    delete process.env.LIV_INBOX_ALLOW_ALL_RECIPIENTS;
+  });
+
+  it('a test-redirect still wins over the allow-all opt-in', () => {
+    process.env.LIV_INBOX_TEST_REDIRECT_TO = 'sink@resend.dev';
+    process.env.LIV_INBOX_ALLOW_ALL_RECIPIENTS = 'true';
+    const r = resolveLivInboxRecipient('stranger@example.com');
+    expect(r.redirected).toBe(true);
+    expect(r.to).toBe('sink@resend.dev');
+    delete process.env.LIV_INBOX_TEST_REDIRECT_TO;
+    delete process.env.LIV_INBOX_ALLOW_ALL_RECIPIENTS;
+  });
+});
+
 describe('mail transport selection', () => {
   it('falls back to Resend when SMTP auth is unavailable, and honours the override', () => {
     // No one.com SMTP creds in the test env -> Resend.
