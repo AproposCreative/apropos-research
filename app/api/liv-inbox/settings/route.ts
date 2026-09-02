@@ -31,6 +31,7 @@ export async function POST(request: NextRequest) {
     if (typeof body.guidelines === 'string') patch.guidelines = body.guidelines.slice(0, 8000);
     if (typeof body.signature === 'string') patch.signature = body.signature.slice(0, 600);
     if (body.confidenceThreshold !== undefined) patch.confidenceThreshold = body.confidenceThreshold;
+    if (typeof body.editorNotes === 'string') patch.editorNotes = body.editorNotes.slice(0, 4000);
     if (typeof body.updatedBy === 'string') patch.updatedBy = body.updatedBy.slice(0, 120);
 
     if (Object.keys(patch).length === 0) {

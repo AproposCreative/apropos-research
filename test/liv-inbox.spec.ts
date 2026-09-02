@@ -18,6 +18,7 @@ import {
 } from '@/lib/liv-inbox/settings-store';
 import { createInboxItem, listInboxItems, updateInboxItem } from '@/lib/liv-inbox/inbox-store';
 import { fallbackDecision } from '@/lib/liv-inbox/assistant';
+import { isMeaningfulEdit, mergeNote, learnFromEdit } from '@/lib/liv-inbox/learn';
 import { processInboundEmail, resolveInboxStatus } from '@/lib/liv-inbox/process';
 import { ingestFetchedMessages, type FetchedMessage } from '@/lib/liv-inbox/imap-sync';
 import type { LivInboxSettings } from '@/lib/liv-inbox/types';
@@ -359,6 +360,51 @@ describe('recipient routing (domain allowlist vs test-redirect)', () => {
   it('blocks fail-closed when no redirect and not allowlisted', () => {
     const r = resolveLivInboxRecipient('someone@external.com');
     expect(r.blocked).toBe(true);
+  });
+});
+
+describe('learn from edits (feedback loop)', () => {
+  it('ignores trivial/identical edits', () => {
+    expect(isMeaningfulEdit('Hej Ida\n\nTak.', 'Hej Ida\n\nTak.')).toBe(false);
+    expect(isMeaningfulEdit('Hej Ida   \n\n  Tak.', 'Hej Ida\nTak.')).toBe(false);
+    expect(isMeaningfulEdit('', 'noget')).toBe(false);
+  });
+
+  it('detects a meaningful edit', () => {
+    expect(isMeaningfulEdit('Hej Ida, tak for mailen.', 'Hej Ida, mange tak - vi vender tilbage.')).toBe(true);
+  });
+
+  it('ignores signature-only changes when signature is provided', () => {
+    const sig = 'Bedste hilsner\nLiv';
+    expect(isMeaningfulEdit(`Hej\n\n${sig}`, `Hej\n\n${sig}`, sig)).toBe(false);
+  });
+
+  it('mergeNote appends, de-dupes and caps to newest', () => {
+    const a = mergeNote('', 'vær kortere', 100);
+    expect(a).toBe('- vær kortere');
+    const b = mergeNote(a, 'vær kortere', 100); // duplicate
+    expect(b).toBe(a);
+    const c = mergeNote(a, 'brug fornavn', 100);
+    expect(c).toContain('vær kortere');
+    expect(c).toContain('brug fornavn');
+    const capped = mergeNote('x'.repeat(90), 'en ny regel her', 20);
+    expect(capped.length).toBeLessThanOrEqual(20);
+    expect(capped).toContain('regel');
+  });
+
+  it('learnFromEdit is a no-op without an LLM (and never throws)', async () => {
+    const res = await learnFromEdit({
+      original: 'Hej Ida, tak.',
+      edited: 'Hej Ida, mange tak - vi vender tilbage snarest.',
+      contactEmail: 'ida@x.dk',
+    });
+    expect(res.learned).toBe(false);
+  });
+
+  it('persists editorNotes on settings', async () => {
+    await updateLivInboxSettings({ editorNotes: '- vær kortere' });
+    const s = await getLivInboxSettings();
+    expect(s.editorNotes).toBe('- vær kortere');
   });
 });
 

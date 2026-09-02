@@ -5,6 +5,7 @@ import { getInboxItem, updateInboxItem } from '@/lib/liv-inbox/inbox-store';
 import { rememberSentReply } from '@/lib/liv-inbox/context';
 import { appendLivInboxAudit } from '@/lib/liv-inbox/audit-store';
 import { sendLivInboxReply, type LivSendResult } from '@/lib/liv-inbox/send';
+import { learnFromEdit } from '@/lib/liv-inbox/learn';
 import { sanitizeLivOutput } from '@/lib/accreditation/sanitize';
 
 export const runtime = 'nodejs';
@@ -83,6 +84,15 @@ export async function POST(request: NextRequest, ctx: { params: Promise<{ id: st
           name: item.fromName,
           subject: item.subject,
           replyBlurb: draftReply,
+        });
+      }
+      // Learn from any human edits to Liv's original draft (best-effort).
+      if (existing.originalDraftReply && draftReply) {
+        await learnFromEdit({
+          original: existing.originalDraftReply,
+          edited: draftReply,
+          contactEmail: existing.fromEmail,
+          subject: existing.subject,
         });
       }
       await appendLivInboxAudit({
