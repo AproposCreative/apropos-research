@@ -12,8 +12,15 @@ import type { ParsedInboundMail } from '@/lib/accreditation/imap/correlate';
 import { getMailboxPublicConfig, sanitizeImapError } from '@/lib/accreditation/imap/config';
 import { listInboxItems } from '@/lib/liv-inbox/inbox-store';
 import { processInboundEmail } from '@/lib/liv-inbox/process';
-import { livInboxMaxAutoSendPerRun } from '@/lib/liv-inbox/send';
+import { isLivInboxSendingEnabled, livInboxMaxAutoSendPerRun } from '@/lib/liv-inbox/send';
 import { toAttachmentMeta } from '@/lib/liv-inbox/attachments';
+import { getLivInboxSettings } from '@/lib/liv-inbox/settings-store';
+import {
+  applyEditorGuidanceAndSend,
+  correlateEditorReply,
+  handleEditorTask,
+  isFromEditor,
+} from '@/lib/liv-inbox/editor';
 
 export interface FetchedMessage {
   uid: number;
@@ -56,6 +63,8 @@ export async function ingestFetchedMessages(
 ): Promise<Omit<LivInboxSyncSummary, 'configured'>> {
   const existing = await listInboxItems();
   const seenIds = new Set(existing.map((i) => i.sourceMessageId).filter(Boolean) as string[]);
+  const settings = await getLivInboxSettings();
+  const sendingOn = isLivInboxSendingEnabled();
 
   let scanned = 0;
   let processed = 0;
@@ -76,6 +85,32 @@ export async function ingestFetchedMessages(
       skipped++;
       continue;
     }
+
+    // Editor (Frederik) mail: either a reply to Liv's question, or a task for
+    // her to carry out — never a normal inbound. Only acted on when sending is
+    // enabled and within the per-run budget.
+    if (msg.parsed.fromEmail && isFromEditor(msg.parsed.fromEmail, settings)) {
+      if (!sendingOn || autoSent >= sendBudget) {
+        skipped++;
+        continue;
+      }
+      try {
+        const parent = correlateEditorReply(msg.parsed, existing);
+        if (parent) {
+          const r = await applyEditorGuidanceAndSend(parent, msg.parsed.text || '', settings);
+          if (r.sent) autoSent++;
+        } else {
+          await handleEditorTask(msg.parsed, settings);
+          autoSent++;
+        }
+        if (messageId) seenIds.add(messageId);
+        processed++;
+      } catch (e) {
+        errors.push(e instanceof Error ? e.message : String(e));
+      }
+      continue;
+    }
+
     const bodyText = (msg.parsed.text || '').trim();
     const attachments = toAttachmentMeta(msg.parsed.attachments);
     // Keep attachment-only mails (e.g. a bare invoice PDF) — don't drop them.
