@@ -4,7 +4,7 @@ import { createErrorResponse, createSuccessResponse, ErrorCode } from '@/lib/api
 import { getInboxItem, updateInboxItem } from '@/lib/liv-inbox/inbox-store';
 import { rememberSentReply } from '@/lib/liv-inbox/context';
 import { appendLivInboxAudit } from '@/lib/liv-inbox/audit-store';
-import { sendLivInboxReply } from '@/lib/liv-inbox/send';
+import { sendLivInboxReply, type LivSendResult } from '@/lib/liv-inbox/send';
 import { sanitizeLivOutput } from '@/lib/accreditation/sanitize';
 
 export const runtime = 'nodejs';
@@ -54,7 +54,7 @@ export async function POST(request: NextRequest, ctx: { params: Promise<{ id: st
 
       // Actually send when the kill-switch is on; otherwise record the approval
       // in shadow-mode (no mail leaves the system).
-      const send = draftReply
+      const send: LivSendResult = draftReply
         ? await sendLivInboxReply({
             itemId: id,
             to: existing.fromEmail,
@@ -73,6 +73,8 @@ export async function POST(request: NextRequest, ctx: { params: Promise<{ id: st
         sentAt: send.sent ? new Date().toISOString() : undefined,
         sendId: send.id,
         sendRedirected: send.redirected,
+        sentVia: send.transport,
+        sentCopyArchived: send.sentCopyArchived,
         sendBlockedReason: send.sent ? undefined : send.reason,
       });
       if (item && draftReply) {

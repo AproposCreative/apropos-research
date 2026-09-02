@@ -81,6 +81,10 @@ export interface LivInboxItem {
   sentAt?: string;
   sendId?: string;
   sendRedirected?: boolean;
+  /** Transport used for the send: Liv's one.com SMTP or Resend. */
+  sentVia?: 'smtp' | 'resend';
+  /** True when the reply was archived to Liv's Sent folder (SMTP only). */
+  sentCopyArchived?: boolean;
   /** Why a send was blocked (kill-switch off, allowlist, etc.). */
   sendBlockedReason?: string;
 }
