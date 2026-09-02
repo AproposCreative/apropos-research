@@ -4,6 +4,7 @@ import { createErrorResponse, createSuccessResponse, ErrorCode } from '@/lib/api
 import { getInboxItem, updateInboxItem } from '@/lib/liv-inbox/inbox-store';
 import { rememberSentReply } from '@/lib/liv-inbox/context';
 import { appendLivInboxAudit } from '@/lib/liv-inbox/audit-store';
+import { sendLivInboxReply } from '@/lib/liv-inbox/send';
 import { sanitizeLivOutput } from '@/lib/accreditation/sanitize';
 
 export const runtime = 'nodejs';
@@ -50,11 +51,29 @@ export async function POST(request: NextRequest, ctx: { params: Promise<{ id: st
       const draftReply = body.draftReply
         ? sanitizeLivOutput(String(body.draftReply).trim())
         : existing.draftReply;
+
+      // Actually send when the kill-switch is on; otherwise record the approval
+      // in shadow-mode (no mail leaves the system).
+      const send = draftReply
+        ? await sendLivInboxReply({
+            itemId: id,
+            to: existing.fromEmail,
+            subject: `Re: ${existing.subject}`,
+            text: draftReply,
+          })
+        : { sent: false, reason: 'Ingen kladde at sende' };
+
       const item = await updateInboxItem(id, {
         draftReply,
         status: 'sent',
         needsHuman: false,
         handledAt: new Date().toISOString(),
+        sent: send.sent,
+        sentTo: send.to,
+        sentAt: send.sent ? new Date().toISOString() : undefined,
+        sendId: send.id,
+        sendRedirected: send.redirected,
+        sendBlockedReason: send.sent ? undefined : send.reason,
       });
       if (item && draftReply) {
         await rememberSentReply({
@@ -69,7 +88,10 @@ export async function POST(request: NextRequest, ctx: { params: Promise<{ id: st
         itemId: id,
         contactEmail: existing.fromEmail,
         subject: existing.subject,
-        detail: 'Godkendt og markeret sendt',
+        detail: send.sent
+          ? `Godkendt og sendt${send.redirected ? ` (test-redirect → ${send.to})` : ''}`
+          : `Godkendt (skygge — ikke afsendt: ${send.reason})`,
+        meta: { sent: send.sent, redirected: send.redirected },
       });
       return NextResponse.json(createSuccessResponse({ item }, { requestId }));
     }

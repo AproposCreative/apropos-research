@@ -119,6 +119,9 @@ export default function LivInboxClient({ embedded = false, onClose }: Props) {
 
   const [metrics, setMetrics] = useState<Metrics | null>(null);
   const [activity, setActivity] = useState<AuditEvent[]>([]);
+  const [sending, setSending] = useState<{ enabled: boolean; testRedirectTo: string | null; maxPerRun: number } | null>(
+    null
+  );
 
   // Simulate-inbound form
   const [fromEmail, setFromEmail] = useState('');
@@ -154,6 +157,7 @@ export default function LivInboxClient({ embedded = false, onClose }: Props) {
         fetch('/api/liv-inbox/activity').then((r) => r.json()),
       ]);
       if (sRes?.data?.settings) applySettings(sRes.data.settings, sRes.data.agentModel);
+      if (sRes?.data?.sending) setSending(sRes.data.sending);
       if (iRes?.data?.items) setItems(iRes.data.items);
       if (iRes?.data?.metrics) setMetrics(iRes.data.metrics);
       if (mRes?.data?.mailbox) setMailbox(mRes.data.mailbox);
@@ -335,12 +339,25 @@ export default function LivInboxClient({ embedded = false, onClose }: Props) {
 
         {tab === 'inbox' && (
           <div className="flex flex-col gap-5">
-            {/* Shadow-mode banner */}
-            <div className="rounded-xl border border-amber-400/20 bg-amber-400/[0.05] px-3.5 py-2.5 text-[11px] text-white/70">
-              <span className="font-medium text-amber-200/90">Skygge-tilstand.</span> Liv henter og
-              klargør svar automatisk, men <span className="text-white/85">sender ikke selv endnu</span> -
-              du godkender manuelt. Rigtig automatisk afsendelse aktiveres som næste skridt.
-            </div>
+            {/* Sending-mode banner */}
+            {!sending?.enabled ? (
+              <div className="rounded-xl border border-amber-400/20 bg-amber-400/[0.05] px-3.5 py-2.5 text-[11px] text-white/70">
+                <span className="font-medium text-amber-200/90">Skygge-tilstand.</span> Liv henter og
+                klargør svar, men <span className="text-white/85">sender ingen mails</span> (kill-switch
+                fra). Slå <code className="text-white/60">LIV_INBOX_SENDING_ENABLED=true</code> til for at sende.
+              </div>
+            ) : sending.testRedirectTo ? (
+              <div className="rounded-xl border border-emerald-400/20 bg-emerald-400/[0.05] px-3.5 py-2.5 text-[11px] text-white/70">
+                <span className="font-medium text-emerald-200/90">Test-afsendelse aktiv.</span> Alle svar
+                sendes <span className="text-white/85">kun til {sending.testRedirectTo}</span> (test-redirect),
+                aldrig til rigtige modtagere. Maks {sending.maxPerRun} auto-svar pr. hentning.
+              </div>
+            ) : (
+              <div className="rounded-xl border border-rose-400/25 bg-rose-400/[0.06] px-3.5 py-2.5 text-[11px] text-white/75">
+                <span className="font-medium text-rose-200/90">LIVE afsendelse.</span> Liv sender til rigtige
+                modtagere (maks {sending.maxPerRun} auto-svar pr. hentning). Fjern kun test-redirect når du er sikker.
+              </div>
+            )}
 
             {/* Status strip */}
             <div className="flex flex-wrap items-center gap-2 text-[11px] text-white/55">
@@ -491,6 +508,18 @@ export default function LivInboxClient({ embedded = false, onClose }: Props) {
                       </span>
                     )}
                   </div>
+
+                  {(item.sent || item.sendBlockedReason) && (
+                    <p
+                      className={`mt-1.5 text-[10px] ${
+                        item.sent ? 'text-emerald-300/85' : 'text-white/35'
+                      }`}
+                    >
+                      {item.sent
+                        ? `Sendt${item.sendRedirected ? ' (test-redirect)' : ''} → ${item.sentTo}`
+                        : `Ikke afsendt: ${item.sendBlockedReason}`}
+                    </p>
+                  )}
 
                   {item.reasoning && (
                     <p className="mt-1.5 text-[11px] leading-relaxed text-white/55">

@@ -73,6 +73,16 @@ export interface LivInboxItem {
   priorInteractions?: number;
   /** Short research note for the UI, e.g. "Kendt kontakt · 3 tidligere". */
   contactNote?: string;
+
+  /** Outbound delivery state (only set once a real send is attempted). */
+  sent?: boolean;
+  /** Actual recipient after test-redirect (may be the safe sink). */
+  sentTo?: string;
+  sentAt?: string;
+  sendId?: string;
+  sendRedirected?: boolean;
+  /** Why a send was blocked (kill-switch off, allowlist, etc.). */
+  sendBlockedReason?: string;
 }
 
 export interface LivInboxDecision {
