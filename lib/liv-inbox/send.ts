@@ -43,6 +43,9 @@ export function livInboxMaxAutoSendPerRun(): number {
 export function livInboxTestRedirectTo(): string | null {
   const own = (process.env.LIV_INBOX_TEST_REDIRECT_TO || '').trim().toLowerCase();
   if (own && own.includes('@')) return own;
+  // Full-autonomy opt-in decouples Liv Indbakke from the accreditation test
+  // sink, so turning Liv live never touches the accreditation system's own mode.
+  if (livInboxAllowAllRecipients()) return null;
   return getAccreditationTestRedirectTo();
 }
 
