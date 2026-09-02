@@ -12,6 +12,7 @@ import type { ParsedInboundMail } from '@/lib/accreditation/imap/correlate';
 import { getMailboxPublicConfig, sanitizeImapError } from '@/lib/accreditation/imap/config';
 import { listInboxItems } from '@/lib/liv-inbox/inbox-store';
 import { processInboundEmail } from '@/lib/liv-inbox/process';
+import { livInboxMaxAutoSendPerRun } from '@/lib/liv-inbox/send';
 
 export interface FetchedMessage {
   uid: number;
@@ -58,7 +59,11 @@ export async function ingestFetchedMessages(
   let scanned = 0;
   let processed = 0;
   let skipped = 0;
+  let autoSent = 0;
   const errors: string[] = [];
+
+  // Hard per-run cap so an inbox full of unread mail can never trigger a burst.
+  const sendBudget = livInboxMaxAutoSendPerRun();
 
   // Oldest first so the newest ends up on top of the list.
   const ordered = [...messages].sort((a, b) => a.uid - b.uid);
@@ -76,7 +81,7 @@ export async function ingestFetchedMessages(
       continue;
     }
     try {
-      await processInboundEmail(
+      const item = await processInboundEmail(
         {
           fromEmail: msg.parsed.fromEmail,
           fromName: msg.parsed.fromName,
@@ -88,8 +93,10 @@ export async function ingestFetchedMessages(
           sourceMessageId: messageId,
           sourceUid: msg.uid,
           receivedAt: msg.parsed.date,
+          allowAutoSend: autoSent < sendBudget,
         }
       );
+      if (item.sent) autoSent++;
       if (messageId) seenIds.add(messageId);
       processed++;
     } catch (e) {

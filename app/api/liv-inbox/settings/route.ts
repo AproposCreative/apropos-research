@@ -3,6 +3,7 @@ import { getRequestId } from '@/lib/api/request-utils';
 import { createErrorResponse, createSuccessResponse, ErrorCode } from '@/lib/api/types';
 import { getLivInboxSettings, updateLivInboxSettings } from '@/lib/liv-inbox/settings-store';
 import { getAccreditationAgentModel } from '@/lib/accreditation/models';
+import { livInboxSendingStatus } from '@/lib/liv-inbox/send';
 
 export const runtime = 'nodejs';
 
@@ -10,7 +11,11 @@ export async function GET(request: NextRequest) {
   const requestId = getRequestId(request);
   return NextResponse.json(
     createSuccessResponse(
-      { settings: await getLivInboxSettings(), agentModel: getAccreditationAgentModel() },
+      {
+        settings: await getLivInboxSettings(),
+        agentModel: getAccreditationAgentModel(),
+        sending: livInboxSendingStatus(),
+      },
       { requestId }
     )
   );
@@ -42,7 +47,7 @@ export async function POST(request: NextRequest) {
     const settings = await updateLivInboxSettings(patch);
     return NextResponse.json(
       createSuccessResponse(
-        { settings, agentModel: getAccreditationAgentModel() },
+        { settings, agentModel: getAccreditationAgentModel(), sending: livInboxSendingStatus() },
         { requestId }
       )
     );

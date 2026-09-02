@@ -3,6 +3,8 @@ import { createInboxItem } from '@/lib/liv-inbox/inbox-store';
 import { decideInboxReply, type InboundEmailInput } from '@/lib/liv-inbox/assistant';
 import { gatherSenderIntelligence, rememberInboxInteraction } from '@/lib/liv-inbox/context';
 import { appendLivInboxAudit, type LivInboxAuditType } from '@/lib/liv-inbox/audit-store';
+import { isLivInboxSendingEnabled, sendLivInboxReply } from '@/lib/liv-inbox/send';
+import { updateInboxItem } from '@/lib/liv-inbox/inbox-store';
 import type { LivInboxItem, LivInboxItemStatus, LivInboxSettings } from '@/lib/liv-inbox/types';
 
 const STATUS_AUDIT: Partial<Record<LivInboxItemStatus, LivInboxAuditType>> = {
@@ -27,6 +29,10 @@ export interface ProcessInboundOptions {
   sourceMessageId?: string;
   sourceUid?: number;
   receivedAt?: string;
+  /** Allow an actual auto-send for a confident reply (default true; the batch
+   *  caller sets false once the per-run cap is reached). Sending still requires
+   *  the LIV_INBOX_SENDING_ENABLED kill-switch. */
+  allowAutoSend?: boolean;
 }
 
 /**
@@ -95,6 +101,41 @@ export async function processInboundEmail(
       model: decision.modelUsed,
     },
   });
+
+  // Auto-send only for a confident reply, only when the kill-switch is on, and
+  // only within the caller's per-run budget. Test-redirect keeps it safe.
+  if (
+    status === 'auto_replied' &&
+    options.allowAutoSend !== false &&
+    isLivInboxSendingEnabled() &&
+    decision.reply.trim()
+  ) {
+    const result = await sendLivInboxReply({
+      itemId: item.id,
+      to: email,
+      subject: `Re: ${input.subject.trim()}`,
+      text: decision.reply,
+    });
+    const sentItem = await updateInboxItem(item.id, {
+      sent: result.sent,
+      sentTo: result.to,
+      sentAt: result.sent ? new Date().toISOString() : undefined,
+      sendId: result.id,
+      sendRedirected: result.redirected,
+      sendBlockedReason: result.sent ? undefined : result.reason,
+    });
+    await appendLivInboxAudit({
+      type: 'sent',
+      itemId: item.id,
+      contactEmail: email,
+      subject: item.subject,
+      detail: result.sent
+        ? `Auto-sendt${result.redirected ? ` (test-redirect → ${result.to})` : ''}`
+        : `Ikke sendt: ${result.reason}`,
+      meta: { sent: result.sent, redirected: result.redirected, to: result.to },
+    });
+    return sentItem || item;
+  }
 
   return item;
 }

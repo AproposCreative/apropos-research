@@ -5,6 +5,11 @@ import { createInMemoryMemoryBackend } from '@/lib/accreditation/memory-json-ada
 import { gatherSenderIntelligence, __resetLivInboxContactCache } from '@/lib/liv-inbox/context';
 import { appendLivInboxAudit, listLivInboxAudit } from '@/lib/liv-inbox/audit-store';
 import {
+  isLivInboxSendingEnabled,
+  livInboxMaxAutoSendPerRun,
+  sendLivInboxReply,
+} from '@/lib/liv-inbox/send';
+import {
   DEFAULT_SETTINGS,
   getLivInboxSettings,
   updateLivInboxSettings,
@@ -286,5 +291,38 @@ describe('audit trail', () => {
     });
     const events = await listLivInboxAudit();
     expect(events.some((e) => e.type === 'drafted' || e.type === 'auto_prepared')).toBe(true);
+  });
+});
+
+describe('outbound safety gates (fail-closed)', () => {
+  it('sending is disabled (shadow-mode) by default', () => {
+    expect(isLivInboxSendingEnabled()).toBe(false);
+  });
+
+  it('blocks a send while the kill-switch is off', async () => {
+    const r = await sendLivInboxReply({ itemId: 'i1', to: 'x@y.dk', subject: 'Hej', text: 'hej' });
+    expect(r.sent).toBe(false);
+    expect(r.blocked).toBe(true);
+    expect(r.reason || '').toMatch(/SENDING_ENABLED|skygge/i);
+  });
+
+  it('does not auto-send even with auto-respond ON while the kill-switch is off', async () => {
+    await updateLivInboxSettings({ autoRespond: true, confidenceThreshold: 40 });
+    const item = await processInboundEmail({
+      fromEmail: 'reader@x.dk',
+      subject: 'Ros',
+      body: 'Fantastisk magasin!',
+    });
+    expect(item.status).toBe('auto_replied');
+    expect(item.sent).toBeFalsy(); // shadow: prepared but never sent
+  });
+
+  it('reads the per-run auto-send cap from env', () => {
+    process.env.LIV_INBOX_MAX_AUTOSEND_PER_RUN = '2';
+    try {
+      expect(livInboxMaxAutoSendPerRun()).toBe(2);
+    } finally {
+      delete process.env.LIV_INBOX_MAX_AUTOSEND_PER_RUN;
+    }
   });
 });
