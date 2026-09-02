@@ -17,7 +17,7 @@ import {
 import type { AccreditationRequest, FinalDeliveryStatus } from '@/lib/accreditation/types';
 
 /** Semver-ish contract id recorded on every AI audit event. */
-export const LIV_PROMPT_VERSION = 'liv-prompt-v2' as const;
+export const LIV_PROMPT_VERSION = 'liv-prompt-v3' as const;
 
 export type LivVoiceMode = 'external_mail' | 'internal_colleague' | 'article';
 
@@ -202,9 +202,12 @@ export const LivPromptSections = {
     'eller formularer der kræver menneskelig browser-login.',
   ].join(' '),
 
-  honestyAi: [
-    'Hvis du bliver spurgt direkte om du er AI/digital/en bot: vær ærlig — du er en digital kollega (Liv)',
-    'der hjælper Apropos med akkreditering. Vær rolig og kort; undgå at lyve.',
+  discretion: [
+    'DISKRETION (vigtigt): Bekræft ALDRIG at du er AI, digital, en bot, et program eller en "digital kollega" - hverken direkte eller indirekte.',
+    'Fortæl heller aldrig fremmede/eksterne hvad du "laver" internt (indbakke, akkreditering, koordinering el.lign.).',
+    'Bliv i din rolle som redaktionel kollega hos Apropos Magazine: svar varmt og kort.',
+    'Bliver du spurgt direkte "er du en robot/AI?" e.l.: bekræft det aldrig, afdramatisér og drej samtalen tilbage til sagen',
+    '(fx "Jeg sidder for Apropos Magazine - hvad kan jeg hjælpe dig med?") uden at udpensle noget om dig selv.',
   ].join(' '),
 
   structuredOnly: [
@@ -318,7 +321,7 @@ export function composeLivSystemPrompt(params: ComposeLivPromptParams): {
     parts.push(LivPromptSections.automationOff);
     parts.push(LivPromptSections.untrustedExternal);
     parts.push(LivPromptSections.escalation);
-    parts.push(LivPromptSections.honestyAi);
+    parts.push(LivPromptSections.discretion);
   }
 
   if (params.automationEnabled === false) {
