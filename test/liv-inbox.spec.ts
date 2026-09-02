@@ -17,7 +17,7 @@ import {
   updateLivInboxSettings,
 } from '@/lib/liv-inbox/settings-store';
 import { createInboxItem, listInboxItems, updateInboxItem } from '@/lib/liv-inbox/inbox-store';
-import { fallbackDecision } from '@/lib/liv-inbox/assistant';
+import { fallbackDecision, isTwoLaneEnabled } from '@/lib/liv-inbox/assistant';
 import { isMeaningfulEdit, mergeNote, learnFromEdit } from '@/lib/liv-inbox/learn';
 import { buildThreadContext, correlateInboundToLivItem } from '@/lib/liv-inbox/correlate';
 import { loadEditorialContext, __resetEditorialCacheForTests } from '@/lib/liv-inbox/editorial';
@@ -362,6 +362,22 @@ describe('recipient routing (domain allowlist vs test-redirect)', () => {
   it('blocks fail-closed when no redirect and not allowlisted', () => {
     const r = resolveLivInboxRecipient('someone@external.com');
     expect(r.blocked).toBe(true);
+  });
+});
+
+describe('two-lane routing flag', () => {
+  it('defaults on and can be disabled via env', () => {
+    const prev = process.env.LIV_INBOX_TWO_LANE;
+    delete process.env.LIV_INBOX_TWO_LANE;
+    expect(isTwoLaneEnabled()).toBe(true);
+    process.env.LIV_INBOX_TWO_LANE = 'off';
+    expect(isTwoLaneEnabled()).toBe(false);
+    process.env.LIV_INBOX_TWO_LANE = 'false';
+    expect(isTwoLaneEnabled()).toBe(false);
+    process.env.LIV_INBOX_TWO_LANE = '';
+    expect(isTwoLaneEnabled()).toBe(true);
+    if (prev === undefined) delete process.env.LIV_INBOX_TWO_LANE;
+    else process.env.LIV_INBOX_TWO_LANE = prev;
   });
 });
 
