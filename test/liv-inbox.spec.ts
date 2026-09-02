@@ -17,7 +17,14 @@ import {
   getLivInboxSettings,
   updateLivInboxSettings,
 } from '@/lib/liv-inbox/settings-store';
-import { createInboxItem, listInboxItems, updateInboxItem } from '@/lib/liv-inbox/inbox-store';
+import { createInboxItem, getInboxItem, listInboxItems, updateInboxItem } from '@/lib/liv-inbox/inbox-store';
+import {
+  applyEditorGuidanceAndSend,
+  correlateEditorReply,
+  handleEditorTask,
+  isFromEditor,
+  sendEscalationToEditor,
+} from '@/lib/liv-inbox/editor';
 import { fallbackDecision, isTwoLaneEnabled } from '@/lib/liv-inbox/assistant';
 import { isMeaningfulEdit, mergeNote, learnFromEdit } from '@/lib/liv-inbox/learn';
 import { buildThreadContext, correlateInboundToLivItem } from '@/lib/liv-inbox/correlate';
@@ -364,6 +371,73 @@ describe('recipient routing (domain allowlist vs test-redirect)', () => {
   it('blocks fail-closed when no redirect and not allowlisted', () => {
     const r = resolveLivInboxRecipient('someone@external.com');
     expect(r.blocked).toBe(true);
+  });
+});
+
+describe('editor loop (ask Frederik + tasks)', () => {
+  const settings = { ...DEFAULT_SETTINGS, editorEmail: 'frederik@aproposmagazine.com', askEditorOnDoubt: true };
+
+  it('recognises the editor as sender (case-insensitive)', () => {
+    expect(isFromEditor('Frederik@AproposMagazine.com', settings)).toBe(true);
+    expect(isFromEditor('someone@else.dk', settings)).toBe(false);
+  });
+
+  it('correlates the editor reply to the item Liv asked about', () => {
+    const items = [
+      {
+        id: 'e1',
+        fromEmail: 'promo@x.dk',
+        subject: 'Hej',
+        body: 'b',
+        receivedAt: '2026-01-01',
+        status: 'escalated' as const,
+        escalationMessageId: 'ask-1@one.com',
+        escalationEmailedAt: '2026-01-01T10:00:00Z',
+      },
+    ];
+    const parent = correlateEditorReply({ inReplyTo: '<ASK-1@one.com>' }, items);
+    expect(parent?.id).toBe('e1');
+    expect(correlateEditorReply({ inReplyTo: '<nope@x>' }, items)).toBeUndefined();
+  });
+
+  it('applies the editor guidance and marks the item resolved', async () => {
+    const item = await createInboxItem({
+      fromEmail: 'promo@x.dk',
+      fromName: 'Promo',
+      subject: 'Kan I dække?',
+      body: 'Vil I dække vores event?',
+      receivedAt: new Date().toISOString(),
+      status: 'escalated',
+      escalationMessageId: 'ask-9@one.com',
+      escalationEmailedAt: new Date().toISOString(),
+    });
+    await applyEditorGuidanceAndSend(item, 'Sig ja tak, vi er interesserede, og bed om dato og fotopas.', settings);
+    const updated = await getInboxItem(item.id);
+    expect(updated?.resolvedByEditor).toBe(true);
+    expect(updated?.draftReply || '').toContain('fotopas');
+  });
+
+  it('sendEscalationToEditor records an audit event without throwing', async () => {
+    const item = await createInboxItem({
+      fromEmail: 'x@y.dk',
+      subject: 'Tvivl',
+      body: 'noget',
+      receivedAt: new Date().toISOString(),
+      status: 'escalated',
+    });
+    const res = await sendEscalationToEditor(item, settings);
+    // Sending is disabled in tests → blocked, but it must not throw.
+    expect(res.sent).toBe(false);
+    const audit = await listLivInboxAudit(10);
+    expect(audit.some((a) => a.type === 'asked_editor')).toBe(true);
+  });
+
+  it('handleEditorTask is a no-op without an LLM to parse the task', async () => {
+    const res = await handleEditorTask(
+      { fromEmail: 'frederik@aproposmagazine.com', subject: 'Opgave', text: 'Søg akkreditering til X' },
+      settings
+    );
+    expect(res.handled).toBe(false);
   });
 });
 

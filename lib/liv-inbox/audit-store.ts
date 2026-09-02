@@ -11,7 +11,9 @@ export type LivInboxAuditType =
   | 'escalated' // reached out to a human
   | 'sent' // human approved and sent
   | 'dismissed' // human dismissed
-  | 'edited'; // human edited the draft
+  | 'edited' // human edited the draft
+  | 'asked_editor' // Liv emailed Frederik a question when in doubt
+  | 'editor_guided'; // Frederik replied; Liv sent the answer to the sender
 
 export interface LivInboxAuditEvent {
   id: string;

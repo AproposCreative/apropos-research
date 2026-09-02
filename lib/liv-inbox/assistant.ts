@@ -172,6 +172,33 @@ const REPLY_SCHEMA: JsonSchema = {
   },
 };
 
+const EDITOR_TASK_SCHEMA: JsonSchema = {
+  name: 'liv_editor_task',
+  strict: true,
+  schema: {
+    type: 'object',
+    additionalProperties: false,
+    properties: {
+      action: { type: 'string', enum: ['accreditation', 'tickets', 'outreach', 'reply', 'other'] },
+      recipientEmail: { type: 'string' },
+      recipientName: { type: 'string' },
+      subject: { type: 'string' },
+      details: { type: 'string' },
+      needsClarification: { type: 'boolean' },
+      clarificationQuestion: { type: 'string' },
+    },
+    required: [
+      'action',
+      'recipientEmail',
+      'recipientName',
+      'subject',
+      'details',
+      'needsClarification',
+      'clarificationQuestion',
+    ],
+  },
+};
+
 const DECISION_SCHEMA: JsonSchema = {
   name: 'liv_inbox_decision',
   strict: true,
@@ -270,6 +297,7 @@ export function fallbackDecision(
     modelUsed: 'fallback-deterministic',
     promptVersion: LIV_PROMPT_VERSION,
     usedFallback: true,
+    language: 'da',
   };
 }
 
@@ -338,6 +366,7 @@ export async function decideInboxReply(
         modelUsed,
         promptVersion: clsPrompt.promptVersion,
         usedFallback: false,
+        language,
       };
     }
     // Classification failed → fall through to the single-lane path.
@@ -359,5 +388,172 @@ export async function decideInboxReply(
     modelUsed: agentModel,
     promptVersion: composed.promptVersion,
     usedFallback: false,
+    language: 'da',
+  };
+}
+
+export type EditorTaskAction = 'accreditation' | 'tickets' | 'outreach' | 'reply' | 'other';
+
+export interface EditorTask {
+  action: EditorTaskAction;
+  recipientEmail?: string;
+  recipientName?: string;
+  subject: string;
+  details: string;
+  needsClarification: boolean;
+  clarificationQuestion?: string;
+}
+
+const EMAIL_RX = /[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}/i;
+
+/**
+ * Parse a task the editor emailed to Liv ("søg akkreditering til X", "bed om 2
+ * billetter til Y"). Returns a structured task, or null when no LLM is available.
+ */
+export async function parseEditorTask(input: InboundEmailInput): Promise<EditorTask | null> {
+  const openai = getOpenAIClient();
+  if (!openai) return null;
+  const model = getAccreditationFastModel();
+  const system = [
+    'Du er Liv, redaktionel assistent hos Apropos Magazine. Din chef Frederik har sendt dig en OPGAVE via mail.',
+    'Udtræk opgaven struktureret, så du kan udføre den ved at sende en mail på hans vegne.',
+    'action: "accreditation" (søg akkreditering/pressepas), "tickets" (bed om billetter/adgang), "outreach" (generel henvendelse/forespørgsel), "reply" (svar en konkret person), "other".',
+    'recipientEmail/recipientName: hvem opgaven skal sendes til, hvis det fremgår (ellers tom streng).',
+    'subject: kort emne (fx artist/event). details: hvad der konkret skal bedes om/siges.',
+    'needsClarification=true KUN hvis afgørende info mangler (fx modtageren fremgår slet ikke og kan ikke udledes). clarificationQuestion: dit korte spørgsmål til Frederik (ellers tom streng).',
+    'Returnér KUN JSON.',
+  ].join(' ');
+  const parsed = await runStructured(openai, model, system, buildUserContent(input), EDITOR_TASK_SCHEMA);
+  if (!parsed) return null;
+
+  const rawEmail = String(parsed.recipientEmail || '').trim();
+  const recipientEmail = EMAIL_RX.test(rawEmail)
+    ? (rawEmail.match(EMAIL_RX)?.[0] ?? undefined)
+    : EMAIL_RX.test(input.body)
+      ? (input.body.match(EMAIL_RX)?.[0] ?? undefined)
+      : undefined;
+
+  const action = (['accreditation', 'tickets', 'outreach', 'reply', 'other'] as const).includes(
+    parsed.action as EditorTaskAction
+  )
+    ? (parsed.action as EditorTaskAction)
+    : 'other';
+
+  return {
+    action,
+    recipientEmail,
+    recipientName: sanitizeLivOutput(String(parsed.recipientName || '').trim()).slice(0, 120) || undefined,
+    subject: sanitizeLivOutput(String(parsed.subject || '').trim()).slice(0, 160),
+    details: sanitizeLivOutput(String(parsed.details || '').trim()).slice(0, 1800),
+    needsClarification: parsed.needsClarification === true,
+    clarificationQuestion:
+      sanitizeLivOutput(String(parsed.clarificationQuestion || '').trim()).slice(0, 300) || undefined,
+  };
+}
+
+/** Compose the outbound email that carries out an editor task. */
+export async function composeOutreach(
+  settings: LivInboxSettings,
+  task: EditorTask,
+  options?: { intelligence?: string }
+): Promise<{ subject: string; reply: string; modelUsed: string }> {
+  const subject =
+    task.action === 'accreditation'
+      ? `Presseakkreditering – ${task.subject} (Apropos Magazine)`
+      : task.action === 'tickets'
+        ? `Presseadgang/billetter – ${task.subject} (Apropos Magazine)`
+        : task.subject || 'Henvendelse fra Apropos Magazine';
+
+  const greeting = task.recipientName ? ` ${task.recipientName.split(' ')[0]}` : '';
+  const deterministic = () =>
+    sanitizeLivOutput([`Hej${greeting},`, '', task.details, '', settings.signature.trim()].join('\n'));
+
+  const openai = getOpenAIClient();
+  if (!openai) return { subject, reply: deterministic(), modelUsed: 'fallback-deterministic' };
+
+  const actionHint =
+    task.action === 'accreditation'
+      ? 'Skriv en høflig, konkret anmodning om presseakkreditering/pressepas på vegne af Apropos Magazine (nævn magasinet, antal personer, evt. fotopas, og bed om procedure/frist).'
+      : task.action === 'tickets'
+        ? 'Skriv en høflig, konkret anmodning om presseadgang/billetter på vegne af Apropos Magazine (nævn magasinet, antal, dato/event, og spørg til proceduren).'
+        : 'Skriv en høflig, konkret henvendelse, der løser opgaven professionelt på vegne af Apropos Magazine.';
+
+  const instructions = [
+    'Du SKRIVER en UDGÅENDE mail på vegne af Apropos Magazine (afsendt af Liv).',
+    actionHint,
+    `Emne/kontekst: ${task.subject}.`,
+    `Det skal mailen opnå: ${task.details}`,
+    task.recipientName ? `Modtager: ${task.recipientName}.` : '',
+    '',
+    ...buildContextLines(settings, options?.intelligence),
+    'Signatur der skal afslutte mailen (medtag den):',
+    settings.signature.trim(),
+    '',
+    'Returnér KUN JSON: {"reply":"den fulde mail inkl. signatur"}.',
+  ].join('\n');
+
+  const prompt = composePrompt(settings, instructions);
+  const userContent = [
+    `Opgave: ${task.subject}`,
+    `Handling: ${task.action}`,
+    `Detaljer: ${task.details}`,
+    `Modtager: ${task.recipientName || task.recipientEmail || '(ukendt)'}`,
+  ].join('\n');
+  const agentModel = getAccreditationAgentModel();
+  const drafted = await runStructured(openai, agentModel, prompt.prompt, userContent, REPLY_SCHEMA);
+  const reply = drafted ? sanitizeLivOutput(String(drafted.reply || '').trim()) : '';
+  return { subject, reply: reply || deterministic(), modelUsed: reply ? agentModel : 'fallback-deterministic' };
+}
+
+/**
+ * Compose Liv's final reply to the original sender using the editor's guidance
+ * (Frederik answered Liv's question). Reuses the draft lane with the guidance
+ * injected as an authoritative instruction.
+ */
+export async function composeGuidedReply(
+  settings: LivInboxSettings,
+  input: InboundEmailInput,
+  guidance: string,
+  options?: { intelligence?: string; language?: string }
+): Promise<LivInboxDecision> {
+  const language = normalizeLanguage(options?.language || 'da');
+  const guidanceBlock = [
+    'REDAKTØRENS SVAR (Frederik har svaret på dit spørgsmål om netop denne mail — følg hans anvisning loyalt og skriv det endelige svar til afsenderen):',
+    guidance.trim().slice(0, 2500),
+  ].join('\n');
+  const combinedIntel = [options?.intelligence, guidanceBlock].filter((b) => b && b.trim()).join('\n\n');
+  const greetingName = (input.fromName || input.fromEmail.split('@')[0] || 'der').split(' ')[0];
+  const deterministic = () =>
+    sanitizeLivOutput([`Hej ${greetingName},`, '', guidance.trim(), '', settings.signature.trim()].join('\n'));
+
+  const openai = getOpenAIClient();
+  if (!openai) {
+    return {
+      category: 'redaktør-svar',
+      confidence: 80,
+      needsHuman: false,
+      reasoning: 'Sammensat ud fra Frederiks svar (uden AI-nøgle).',
+      reply: deterministic(),
+      modelUsed: 'fallback-deterministic',
+      promptVersion: LIV_PROMPT_VERSION,
+      usedFallback: true,
+      language,
+    };
+  }
+
+  const agentModel = getAccreditationAgentModel();
+  const draftPrompt = composePrompt(settings, buildDraftInstructions(settings, language, combinedIntel));
+  const drafted = await runStructured(openai, agentModel, draftPrompt.prompt, buildUserContent(input), REPLY_SCHEMA);
+  const reply = drafted ? sanitizeLivOutput(String(drafted.reply || '').trim()) : '';
+  return {
+    category: 'redaktør-svar',
+    confidence: reply ? 85 : 70,
+    needsHuman: false,
+    reasoning: 'Sammensat ud fra Frederiks svar.',
+    reply: reply || deterministic(),
+    modelUsed: reply ? agentModel : 'fallback-deterministic',
+    promptVersion: draftPrompt.promptVersion,
+    usedFallback: !reply,
+    language,
   };
 }

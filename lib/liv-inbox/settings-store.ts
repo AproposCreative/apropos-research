@@ -45,6 +45,8 @@ export const DEFAULT_SETTINGS: LivInboxSettings = {
   confidenceThreshold: 70,
   editorNotes: '',
   editorialFacts: '',
+  askEditorOnDoubt: true,
+  editorEmail: 'frederik@aproposmagazine.com',
   updatedAt: new Date(0).toISOString(),
 };
 
@@ -60,6 +62,11 @@ function migrate(raw: Partial<LivInboxSettings> | null | undefined): LivInboxSet
         ? merged.guidelines
         : DEFAULT_GUIDELINES,
     confidenceThreshold: clampConfidence(merged.confidenceThreshold),
+    askEditorOnDoubt: merged.askEditorOnDoubt !== false,
+    editorEmail:
+      typeof merged.editorEmail === 'string' && merged.editorEmail.includes('@')
+        ? merged.editorEmail.trim()
+        : DEFAULT_SETTINGS.editorEmail,
   };
 }
 
@@ -93,6 +100,8 @@ export async function updateLivInboxSettings(
       | 'confidenceThreshold'
       | 'editorNotes'
       | 'editorialFacts'
+      | 'askEditorOnDoubt'
+      | 'editorEmail'
       | 'updatedBy'
     >
   >

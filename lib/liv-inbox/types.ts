@@ -32,6 +32,13 @@ export interface LivInboxSettings {
    * already planned / deadlines"). Editable in the UI; injected into her prompt.
    */
   editorialFacts?: string;
+  /**
+   * When Liv is in doubt she emails the editor this question instead of just
+   * parking it in the dashboard (dashboard-free human-in-the-loop).
+   */
+  askEditorOnDoubt?: boolean;
+  /** Who Liv asks when in doubt (default frederik@aproposmagazine.com). */
+  editorEmail?: string;
   updatedAt: string;
   updatedBy?: string;
 }
@@ -67,6 +74,8 @@ export interface LivInboxItem {
 
   status: LivInboxItemStatus;
   handledAt?: string;
+  /** Detected language of the sender's mail (ISO code). */
+  language?: string;
   modelUsed?: string;
   promptVersion?: string;
   /** True when the decision came from the deterministic fallback (no LLM). */
@@ -98,6 +107,13 @@ export interface LivInboxItem {
   /** Trust tier from the shared contact memory (established_two_way / one_way / …). */
   relationshipStatus?: string;
 
+  /** When Liv emailed the editor a question about this item. */
+  escalationEmailedAt?: string;
+  /** RFC Message-ID of Liv's question to the editor (to correlate his reply). */
+  escalationMessageId?: string;
+  /** True once the editor's guidance came back and Liv answered the sender. */
+  resolvedByEditor?: boolean;
+
   /** Outbound delivery state (only set once a real send is attempted). */
   sent?: boolean;
   /** Actual recipient after test-redirect (may be the safe sink). */
@@ -122,4 +138,6 @@ export interface LivInboxDecision {
   modelUsed: string;
   promptVersion: string;
   usedFallback: boolean;
+  /** Detected language of the sender's mail (ISO code, e.g. da/en). */
+  language?: string;
 }

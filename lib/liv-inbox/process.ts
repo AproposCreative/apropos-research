@@ -1,8 +1,9 @@
 import { getLivInboxSettings } from '@/lib/liv-inbox/settings-store';
-import { createInboxItem, listInboxItems, updateInboxItem } from '@/lib/liv-inbox/inbox-store';
+import { createInboxItem, getInboxItem, listInboxItems, updateInboxItem } from '@/lib/liv-inbox/inbox-store';
 import { decideInboxReply, type InboundEmailInput } from '@/lib/liv-inbox/assistant';
 import { gatherSenderIntelligence, rememberInboxInteraction } from '@/lib/liv-inbox/context';
 import { buildThreadContext, correlateInboundToLivItem } from '@/lib/liv-inbox/correlate';
+import { sendEscalationToEditor } from '@/lib/liv-inbox/editor';
 import { loadEditorialContext } from '@/lib/liv-inbox/editorial';
 import { appendLivInboxAudit, type LivInboxAuditType } from '@/lib/liv-inbox/audit-store';
 import { isLivInboxSendingEnabled, sendLivInboxReply } from '@/lib/liv-inbox/send';
@@ -91,6 +92,7 @@ export async function processInboundEmail(
     reasoning: decision.reasoning,
     status,
     handledAt: status === 'auto_replied' ? new Date().toISOString() : undefined,
+    language: decision.language,
     modelUsed: decision.modelUsed,
     promptVersion: decision.promptVersion,
     usedFallback: decision.usedFallback,
@@ -175,6 +177,19 @@ export async function processInboundEmail(
       meta: { sent: result.sent, redirected: result.redirected, to: result.to },
     });
     return sentItem || item;
+  }
+
+  // In doubt → email the editor the question (dashboard-free human-in-the-loop),
+  // when autonomous and sending is on. He replies; Liv then answers the sender.
+  if (
+    status === 'escalated' &&
+    settings.autoRespond &&
+    settings.askEditorOnDoubt !== false &&
+    options.allowAutoSend !== false &&
+    isLivInboxSendingEnabled()
+  ) {
+    const asked = await sendEscalationToEditor(item, settings);
+    if (asked.sent) return (await getInboxItem(item.id)) || item;
   }
 
   return item;
