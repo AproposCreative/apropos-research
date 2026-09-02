@@ -13,6 +13,7 @@ import { getMailboxPublicConfig, sanitizeImapError } from '@/lib/accreditation/i
 import { listInboxItems } from '@/lib/liv-inbox/inbox-store';
 import { processInboundEmail } from '@/lib/liv-inbox/process';
 import { livInboxMaxAutoSendPerRun } from '@/lib/liv-inbox/send';
+import { toAttachmentMeta } from '@/lib/liv-inbox/attachments';
 
 export interface FetchedMessage {
   uid: number;
@@ -76,17 +77,21 @@ export async function ingestFetchedMessages(
       continue;
     }
     const bodyText = (msg.parsed.text || '').trim();
-    if (!msg.parsed.fromEmail || !bodyText) {
+    const attachments = toAttachmentMeta(msg.parsed.attachments);
+    // Keep attachment-only mails (e.g. a bare invoice PDF) — don't drop them.
+    if (!msg.parsed.fromEmail || (!bodyText && attachments.length === 0)) {
       skipped++;
       continue;
     }
+    const effectiveBody = bodyText || '(ingen brødtekst - se vedhæftninger)';
     try {
       const item = await processInboundEmail(
         {
           fromEmail: msg.parsed.fromEmail,
           fromName: msg.parsed.fromName,
           subject: msg.parsed.subject || '(uden emne)',
-          body: bodyText,
+          body: effectiveBody,
+          attachments,
         },
         {
           source: 'imap',

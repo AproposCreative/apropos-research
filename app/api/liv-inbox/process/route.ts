@@ -52,12 +52,24 @@ export async function POST(request: NextRequest) {
       options.references = body.references.filter((r: unknown) => typeof r === 'string');
     }
 
+    const attachments = Array.isArray(body.attachments)
+      ? body.attachments
+          .filter((a: unknown) => a && typeof a === 'object')
+          .map((a: { filename?: unknown; contentType?: unknown; size?: unknown }) => ({
+            filename: String(a.filename || '(uden navn)').slice(0, 160),
+            contentType: typeof a.contentType === 'string' ? a.contentType : undefined,
+            size: typeof a.size === 'number' ? a.size : undefined,
+          }))
+          .slice(0, 25)
+      : undefined;
+
     const item = await processInboundEmail(
       {
         fromEmail,
         fromName,
         subject: subject || '(intet emne)',
         body: bodyText,
+        attachments,
       },
       options
     );

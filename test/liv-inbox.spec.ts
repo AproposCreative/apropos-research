@@ -21,6 +21,7 @@ import { fallbackDecision, isTwoLaneEnabled } from '@/lib/liv-inbox/assistant';
 import { isMeaningfulEdit, mergeNote, learnFromEdit } from '@/lib/liv-inbox/learn';
 import { buildThreadContext, correlateInboundToLivItem } from '@/lib/liv-inbox/correlate';
 import { loadEditorialContext, __resetEditorialCacheForTests } from '@/lib/liv-inbox/editorial';
+import { assessLivAttachments, toAttachmentMeta } from '@/lib/liv-inbox/attachments';
 import { processInboundEmail, resolveInboxStatus } from '@/lib/liv-inbox/process';
 import { ingestFetchedMessages, type FetchedMessage } from '@/lib/liv-inbox/imap-sync';
 import type { LivInboxSettings } from '@/lib/liv-inbox/types';
@@ -362,6 +363,63 @@ describe('recipient routing (domain allowlist vs test-redirect)', () => {
   it('blocks fail-closed when no redirect and not allowlisted', () => {
     const r = resolveLivInboxRecipient('someone@external.com');
     expect(r.blocked).toBe(true);
+  });
+});
+
+describe('attachment handling', () => {
+  it('forces escalation for invoice/contract-like attachments', () => {
+    const a = assessLivAttachments([{ filename: 'Faktura-4471.pdf', contentType: 'application/pdf', size: 51200 }]);
+    expect(a.forceEscalate).toBe(true);
+    expect(a.note).toContain('Faktura');
+    expect(a.summaries[0]).toContain('faktura');
+  });
+
+  it('notes press kits and images without escalating', () => {
+    const pk = assessLivAttachments([{ filename: 'presskit_band.pdf' }]);
+    expect(pk.forceEscalate).toBe(false);
+    expect(pk.note).toContain('Pressekit');
+    const img = assessLivAttachments([{ filename: 'photo1.jpg' }, { filename: 'photo2.png' }]);
+    expect(img.forceEscalate).toBe(false);
+    expect(img.note).toContain('Billeder');
+  });
+
+  it('returns neutral assessment when there are no attachments', () => {
+    expect(assessLivAttachments()).toEqual({ summaries: [], forceEscalate: false });
+  });
+
+  it('toAttachmentMeta drops buffers but keeps size', () => {
+    const meta = toAttachmentMeta([
+      { filename: 'a.pdf', contentType: 'application/pdf', content: Buffer.from('hello') },
+      { filename: undefined, contentType: undefined },
+    ]);
+    expect(meta).toHaveLength(1);
+    expect(meta[0]).toMatchObject({ filename: 'a.pdf', size: 5 });
+  });
+
+  it('an invoice attachment escalates via the deterministic fallback', () => {
+    const decision = fallbackDecision(DEFAULT_SETTINGS, {
+      fromEmail: 'x@y.dk',
+      subject: 'Hej',
+      body: 'Se vedhæftning',
+      attachments: [{ filename: 'invoice_88.pdf' }],
+    });
+    expect(decision.needsHuman).toBe(true);
+  });
+
+  it('keeps an attachment-only IMAP message instead of dropping it', async () => {
+    const summary = await ingestFetchedMessages([
+      fakeMessage(701, {
+        messageId: '<att-only@x.dk>',
+        text: '',
+        fromEmail: 'sender@x.dk',
+        attachments: [{ filename: 'faktura.pdf', contentType: 'application/pdf', content: Buffer.from('x') }],
+      }),
+    ]);
+    expect(summary.processed).toBe(1);
+    const items = await listInboxItems();
+    const it = items.find((i) => i.sourceMessageId === '<att-only@x.dk>');
+    expect(it?.attachments?.[0].filename).toBe('faktura.pdf');
+    expect(it?.needsHuman).toBe(true);
   });
 });
 

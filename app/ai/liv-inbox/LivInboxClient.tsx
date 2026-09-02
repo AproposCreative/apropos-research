@@ -513,6 +513,14 @@ export default function LivInboxClient({ embedded = false, onClose }: Props) {
                     {item.category && (
                       <span className="text-[10px] uppercase tracking-wider text-white/35">{item.category}</span>
                     )}
+                    {item.attachments && item.attachments.length > 0 && (
+                      <span className="inline-flex items-center gap-1.5 rounded-md border border-white/15 bg-white/[0.06] px-1.5 py-0.5 text-[10px] text-white/70">
+                        <span className="size-1.5 rounded-full bg-white/40" />
+                        {item.attachments.length === 1
+                          ? item.attachments[0].filename
+                          : `${item.attachments.length} vedhæftninger`}
+                      </span>
+                    )}
                     {item.contactNote && (
                       <span
                         className={`inline-flex items-center gap-1.5 rounded-md border px-1.5 py-0.5 text-[10px] ${
