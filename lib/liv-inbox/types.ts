@@ -95,6 +95,8 @@ export interface LivInboxItem {
   priorInteractions?: number;
   /** Short research note for the UI, e.g. "Kendt kontakt · 3 tidligere". */
   contactNote?: string;
+  /** Trust tier from the shared contact memory (established_two_way / one_way / …). */
+  relationshipStatus?: string;
 
   /** Outbound delivery state (only set once a real send is attempted). */
   sent?: boolean;

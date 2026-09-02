@@ -103,6 +103,7 @@ export async function processInboundEmail(
     contactKnown: intel.known,
     priorInteractions: intel.priorInteractions,
     contactNote: intel.note,
+    relationshipStatus: intel.relationshipStatus,
   });
 
   // Learn who is who: record the inbound (and the reply if auto-sent).
@@ -130,11 +131,18 @@ export async function processInboundEmail(
     },
   });
 
+  // Optional break-in guard: auto-send only to established two-way contacts.
+  const establishedOnly = /^(1|true|on|yes)$/i.test(
+    (process.env.LIV_INBOX_AUTOSEND_ESTABLISHED_ONLY || '').trim()
+  );
+  const trustAllowsAutoSend = !establishedOnly || intel.relationshipStatus === 'established_two_way';
+
   // Auto-send only for a confident reply, only when the kill-switch is on, and
   // only within the caller's per-run budget. Test-redirect keeps it safe.
   if (
     status === 'auto_replied' &&
     options.allowAutoSend !== false &&
+    trustAllowsAutoSend &&
     isLivInboxSendingEnabled() &&
     decision.reply.trim()
   ) {

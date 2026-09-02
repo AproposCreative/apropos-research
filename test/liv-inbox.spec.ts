@@ -2,7 +2,8 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { resetAllAccreditationStoresForTests } from '@/lib/accreditation/persistence/test-reset';
 import { __setMemoryBackendForTests } from '@/lib/accreditation/memory-store';
 import { createInMemoryMemoryBackend } from '@/lib/accreditation/memory-json-adapter';
-import { gatherSenderIntelligence, __resetLivInboxContactCache } from '@/lib/liv-inbox/context';
+import { gatherSenderIntelligence, trustTierLabel, __resetLivInboxContactCache } from '@/lib/liv-inbox/context';
+import { upsertContactProfile } from '@/lib/accreditation/memory-store';
 import { appendLivInboxAudit, listLivInboxAudit } from '@/lib/liv-inbox/audit-store';
 import {
   isLivInboxSendingEnabled,
@@ -249,7 +250,7 @@ describe('sender intelligence (research + memory)', () => {
     });
     expect(second.contactKnown).toBe(true);
     expect(second.priorInteractions).toBeGreaterThan(0);
-    expect(second.contactNote).toContain('Kendt kontakt');
+    expect(second.contactNote).toMatch(/kontakt · \d+ tidligere/);
 
     // The research block for this contact now carries prior context.
     const intel = await gatherSenderIntelligence('anders@label.dk');
@@ -363,6 +364,28 @@ describe('recipient routing (domain allowlist vs test-redirect)', () => {
   it('blocks fail-closed when no redirect and not allowlisted', () => {
     const r = resolveLivInboxRecipient('someone@external.com');
     expect(r.blocked).toBe(true);
+  });
+});
+
+describe('trust tiers (relationship status)', () => {
+  it('maps trust tiers to Danish labels', () => {
+    expect(trustTierLabel('established_two_way')).toContain('etableret');
+    expect(trustTierLabel('one_way')).toContain('én vej');
+    expect(trustTierLabel('unknown')).toContain('ukendt');
+    expect(trustTierLabel(undefined)).toContain('ukendt');
+  });
+
+  it('surfaces relationshipStatus + trust note from the contact profile', async () => {
+    __resetLivInboxContactCache();
+    await upsertContactProfile({
+      email: 'vip@partner.dk',
+      name: 'VIP',
+      relationshipStatus: 'established_two_way',
+    });
+    const intel = await gatherSenderIntelligence('vip@partner.dk', 'VIP');
+    expect(intel.relationshipStatus).toBe('established_two_way');
+    expect(intel.note).toContain('Etableret');
+    expect(intel.block).toContain('TILLIDSNIVEAU');
   });
 });
 
