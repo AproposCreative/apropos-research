@@ -62,6 +62,174 @@ function StatusBadge({ status }: { status: LivInboxItemStatus }) {
   );
 }
 
+function Chevron({ open }: { open: boolean }) {
+  return (
+    <svg
+      className={`size-3.5 shrink-0 text-white/25 transition-transform ${open ? 'rotate-180' : ''}`}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={1.5}
+      aria-hidden
+    >
+      <path strokeLinecap="round" strokeLinejoin="round" d="M6 9l6 6 6-6" />
+    </svg>
+  );
+}
+
+function InboxItemCard({
+  item,
+  busy,
+  editingId,
+  editingText,
+  onStartEdit,
+  onCancelEdit,
+  onChangeEdit,
+  onAction,
+}: {
+  item: LivInboxItem;
+  busy: boolean;
+  editingId: string | null;
+  editingText: string;
+  onStartEdit: (item: LivInboxItem) => void;
+  onCancelEdit: () => void;
+  onChangeEdit: (value: string) => void;
+  onAction: (id: string, action: 'approve_send' | 'dismiss' | 'update_draft', draftReply?: string) => void;
+}) {
+  const editing = editingId === item.id;
+  const isTask = item.category === 'opgave';
+  const canAct = item.status !== 'sent' && item.status !== 'dismissed';
+  const canSend = canAct && !isTask && Boolean(item.draftReply?.trim());
+
+  return (
+    <div className="rounded-xl border border-white/[0.08] bg-white/[0.02] p-3.5">
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <div className="min-w-0">
+          <p className="truncate text-[13px] font-medium text-white/90">{item.subject || '(intet emne)'}</p>
+          <p className="truncate text-[11px] text-white/45">
+            {item.fromName ? `${item.fromName} · ` : ''}
+            {item.fromEmail}
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          {typeof item.confidence === 'number' && (
+            <span className="text-[10px] text-white/40">{item.confidence}%</span>
+          )}
+          <StatusBadge status={item.status} />
+        </div>
+      </div>
+
+      <div className="mt-2 flex flex-wrap items-center gap-2">
+        {item.category && (
+          <span className="text-[10px] uppercase tracking-wider text-white/35">{item.category}</span>
+        )}
+        {item.attachments && item.attachments.length > 0 && (
+          <span className="inline-flex items-center gap-1.5 rounded-md border border-white/15 bg-white/[0.06] px-1.5 py-0.5 text-[10px] text-white/70">
+            <span className="size-1.5 rounded-full bg-white/40" />
+            {item.attachments.length === 1
+              ? item.attachments[0].filename
+              : `${item.attachments.length} vedhæftninger`}
+          </span>
+        )}
+        {item.contactNote && (
+          <span
+            className={`inline-flex items-center gap-1.5 rounded-md border px-1.5 py-0.5 text-[10px] ${
+              item.contactKnown
+                ? 'border-emerald-400/25 bg-emerald-400/[0.06] text-emerald-200/90'
+                : 'border-white/12 bg-white/[0.04] text-white/50'
+            }`}
+          >
+            <span className={`size-1.5 rounded-full ${item.contactKnown ? 'bg-emerald-400' : 'bg-white/40'}`} />
+            {item.contactNote}
+          </span>
+        )}
+      </div>
+
+      {(item.sent || item.sendBlockedReason) && (
+        <p className={`mt-1.5 text-[10px] ${item.sent ? 'text-emerald-300/85' : 'text-white/35'}`}>
+          {item.sent
+            ? `Sendt via ${item.sentVia === 'smtp' ? 'one.com' : 'Resend'}${
+                item.sendRedirected ? ' (test-redirect)' : ''
+              } → ${item.sentTo}${item.sentCopyArchived ? ' · arkiveret i Sendt' : ''}`
+            : `Ikke afsendt: ${item.sendBlockedReason}`}
+        </p>
+      )}
+
+      {item.reasoning && (
+        <p className="mt-1.5 text-[11px] leading-relaxed text-white/55">
+          <span className="text-white/35">Livs vurdering: </span>
+          {item.reasoning}
+        </p>
+      )}
+
+      {item.status === 'dismissed' && item.body && (
+        <p className="mt-1.5 line-clamp-3 text-[11px] leading-relaxed text-white/40">{item.body}</p>
+      )}
+
+      {editing ? (
+        <textarea
+          className={`${inputClass} mt-2.5 min-h-[120px] resize-y`}
+          value={editingText}
+          onChange={(e) => onChangeEdit(e.target.value)}
+        />
+      ) : (
+        item.draftReply &&
+        item.status !== 'dismissed' && (
+          <pre className="mt-2.5 whitespace-pre-wrap rounded-lg border border-white/[0.06] bg-black/30 px-3 py-2.5 font-poppins text-[12px] leading-relaxed text-white/80">
+            {item.draftReply}
+          </pre>
+        )
+      )}
+
+      {canAct && (
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          {editing ? (
+            <>
+              <button
+                type="button"
+                className={primaryBtn}
+                disabled={busy}
+                onClick={() => onAction(item.id, 'update_draft', editingText)}
+              >
+                Gem rettelse
+              </button>
+              <button type="button" className={secondaryBtn} disabled={busy} onClick={onCancelEdit}>
+                Fortryd
+              </button>
+            </>
+          ) : (
+            <>
+              {canSend && (
+                <button
+                  type="button"
+                  className={primaryBtn}
+                  disabled={busy}
+                  onClick={() => onAction(item.id, 'approve_send', item.draftReply)}
+                >
+                  Godkend &amp; send
+                </button>
+              )}
+              {item.draftReply && (
+                <button type="button" className={secondaryBtn} disabled={busy} onClick={() => onStartEdit(item)}>
+                  Rediger
+                </button>
+              )}
+              <button
+                type="button"
+                className={dangerOutlineBtn}
+                disabled={busy}
+                onClick={() => onAction(item.id, 'dismiss')}
+              >
+                Afvis
+              </button>
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function AutoToggle({
   enabled,
   busy,
@@ -145,6 +313,7 @@ export default function LivInboxClient({ embedded = false, onClose }: Props) {
   // Per-item draft editing
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingText, setEditingText] = useState('');
+  const [dismissedOpen, setDismissedOpen] = useState(false);
 
   const applySettings = useCallback((s: LivInboxSettings, model?: string) => {
     setSettings(s);
@@ -328,13 +497,17 @@ export default function LivInboxClient({ embedded = false, onClose }: Props) {
     [loadAll]
   );
 
+  const openItems = useMemo(() => items.filter((i) => i.status !== 'dismissed'), [items]);
+  const dismissedItems = useMemo(() => items.filter((i) => i.status === 'dismissed'), [items]);
+
   const counts = useMemo(() => {
     return {
-      escalated: items.filter((i) => i.status === 'escalated').length,
-      draft: items.filter((i) => i.status === 'draft').length,
-      autoReplied: items.filter((i) => i.status === 'auto_replied').length,
+      escalated: openItems.filter((i) => i.status === 'escalated').length,
+      draft: openItems.filter((i) => i.status === 'draft').length,
+      autoReplied: openItems.filter((i) => i.status === 'auto_replied').length,
+      dismissed: dismissedItems.length,
     };
-  }, [items]);
+  }, [openItems, dismissedItems]);
 
   const tabs: { id: DeskTab; label: string }[] = [
     { id: 'inbox', label: 'Indbakke' },
@@ -418,6 +591,14 @@ export default function LivInboxClient({ embedded = false, onClose }: Props) {
               <span className="inline-flex items-center gap-1.5">
                 <span className="size-1.5 rounded-full bg-emerald-400" /> {counts.autoReplied} auto-svaret
               </span>
+              {counts.dismissed > 0 && (
+                <>
+                  <span className="text-white/20">·</span>
+                  <span className="inline-flex items-center gap-1.5">
+                    <span className="size-1.5 rounded-full bg-white/30" /> {counts.dismissed} afvist
+                  </span>
+                </>
+              )}
               {agentModel && (
                 <>
                   <span className="text-white/20">·</span>
@@ -510,151 +691,74 @@ export default function LivInboxClient({ embedded = false, onClose }: Props) {
 
             {/* Inbox items */}
             <div className="flex flex-col gap-3">
-              {items.length === 0 && (
+              {openItems.length === 0 && (
                 <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] px-4 py-8 text-center text-[12px] text-white/40">
-                  Ingen henvendelser endnu. Test en mail ovenfor for at se Liv arbejde.
+                  {dismissedItems.length
+                    ? 'Ingen åbne henvendelser. Afviste ligger nedenfor.'
+                    : 'Ingen henvendelser endnu. Test en mail ovenfor for at se Liv arbejde.'}
                 </div>
               )}
-              {items.map((item) => (
-                <div key={item.id} className="rounded-xl border border-white/[0.08] bg-white/[0.02] p-3.5">
-                  <div className="flex flex-wrap items-start justify-between gap-2">
-                    <div className="min-w-0">
-                      <p className="truncate text-[13px] font-medium text-white/90">
-                        {item.subject || '(intet emne)'}
-                      </p>
-                      <p className="truncate text-[11px] text-white/45">
-                        {item.fromName ? `${item.fromName} · ` : ''}
-                        {item.fromEmail}
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      {typeof item.confidence === 'number' && (
-                        <span className="text-[10px] text-white/40">{item.confidence}%</span>
-                      )}
-                      <StatusBadge status={item.status} />
-                    </div>
-                  </div>
-
-                  <div className="mt-2 flex flex-wrap items-center gap-2">
-                    {item.category && (
-                      <span className="text-[10px] uppercase tracking-wider text-white/35">{item.category}</span>
-                    )}
-                    {item.attachments && item.attachments.length > 0 && (
-                      <span className="inline-flex items-center gap-1.5 rounded-md border border-white/15 bg-white/[0.06] px-1.5 py-0.5 text-[10px] text-white/70">
-                        <span className="size-1.5 rounded-full bg-white/40" />
-                        {item.attachments.length === 1
-                          ? item.attachments[0].filename
-                          : `${item.attachments.length} vedhæftninger`}
-                      </span>
-                    )}
-                    {item.contactNote && (
-                      <span
-                        className={`inline-flex items-center gap-1.5 rounded-md border px-1.5 py-0.5 text-[10px] ${
-                          item.contactKnown
-                            ? 'border-emerald-400/25 bg-emerald-400/[0.06] text-emerald-200/90'
-                            : 'border-white/12 bg-white/[0.04] text-white/50'
-                        }`}
-                      >
-                        <span
-                          className={`size-1.5 rounded-full ${item.contactKnown ? 'bg-emerald-400' : 'bg-white/40'}`}
-                        />
-                        {item.contactNote}
-                      </span>
-                    )}
-                  </div>
-
-                  {(item.sent || item.sendBlockedReason) && (
-                    <p
-                      className={`mt-1.5 text-[10px] ${
-                        item.sent ? 'text-emerald-300/85' : 'text-white/35'
-                      }`}
-                    >
-                      {item.sent
-                        ? `Sendt via ${item.sentVia === 'smtp' ? 'one.com' : 'Resend'}${
-                            item.sendRedirected ? ' (test-redirect)' : ''
-                          } → ${item.sentTo}${item.sentCopyArchived ? ' · arkiveret i Sendt' : ''}`
-                        : `Ikke afsendt: ${item.sendBlockedReason}`}
-                    </p>
-                  )}
-
-                  {item.reasoning && (
-                    <p className="mt-1.5 text-[11px] leading-relaxed text-white/55">
-                      <span className="text-white/35">Livs vurdering: </span>
-                      {item.reasoning}
-                    </p>
-                  )}
-
-                  {editingId === item.id ? (
-                    <textarea
-                      className={`${inputClass} mt-2.5 min-h-[120px] resize-y`}
-                      value={editingText}
-                      onChange={(e) => setEditingText(e.target.value)}
-                    />
-                  ) : (
-                    item.draftReply && (
-                      <pre className="mt-2.5 whitespace-pre-wrap rounded-lg border border-white/[0.06] bg-black/30 px-3 py-2.5 font-poppins text-[12px] leading-relaxed text-white/80">
-                        {item.draftReply}
-                      </pre>
-                    )
-                  )}
-
-                  {item.status !== 'sent' && item.status !== 'dismissed' && (
-                    <div className="mt-3 flex flex-wrap items-center gap-2">
-                      {editingId === item.id ? (
-                        <>
-                          <button
-                            type="button"
-                            className={primaryBtn}
-                            disabled={busy}
-                            onClick={() => itemAction(item.id, 'update_draft', editingText)}
-                          >
-                            Gem rettelse
-                          </button>
-                          <button
-                            type="button"
-                            className={secondaryBtn}
-                            disabled={busy}
-                            onClick={() => setEditingId(null)}
-                          >
-                            Fortryd
-                          </button>
-                        </>
-                      ) : (
-                        <>
-                          <button
-                            type="button"
-                            className={primaryBtn}
-                            disabled={busy}
-                            onClick={() => itemAction(item.id, 'approve_send', item.draftReply)}
-                          >
-                            Godkend &amp; send
-                          </button>
-                          <button
-                            type="button"
-                            className={secondaryBtn}
-                            disabled={busy}
-                            onClick={() => {
-                              setEditingId(item.id);
-                              setEditingText(item.draftReply || '');
-                            }}
-                          >
-                            Rediger
-                          </button>
-                          <button
-                            type="button"
-                            className={dangerOutlineBtn}
-                            disabled={busy}
-                            onClick={() => itemAction(item.id, 'dismiss')}
-                          >
-                            Afvis
-                          </button>
-                        </>
-                      )}
-                    </div>
-                  )}
-                </div>
+              {openItems.map((item) => (
+                <InboxItemCard
+                  key={item.id}
+                  item={item}
+                  busy={busy}
+                  editingId={editingId}
+                  editingText={editingText}
+                  onStartEdit={(it) => {
+                    setEditingId(it.id);
+                    setEditingText(it.draftReply || '');
+                  }}
+                  onCancelEdit={() => setEditingId(null)}
+                  onChangeEdit={setEditingText}
+                  onAction={itemAction}
+                />
               ))}
             </div>
+
+            {dismissedItems.length > 0 && (
+              <div>
+                <button
+                  type="button"
+                  onClick={() => setDismissedOpen((v) => !v)}
+                  className={`flex items-center gap-3 w-full px-3.5 py-2.5 rounded-xl border transition-all duration-200 active:scale-[0.98] ${
+                    dismissedOpen
+                      ? 'border-white/15 bg-white/[0.05]'
+                      : 'border-white/[0.06] hover:bg-white/[0.03]'
+                  }`}
+                >
+                  <div className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-white/[0.06] text-white/50">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </div>
+                  <div className="flex-1 min-w-0 text-left">
+                    <p className="text-[12px] font-medium text-white/80">Afvist</p>
+                    <p className="text-[10px] text-white/30 truncate">
+                      {dismissedItems.length} mail{dismissedItems.length === 1 ? '' : 's'} — skjult fra overblikket
+                    </p>
+                  </div>
+                  <Chevron open={dismissedOpen} />
+                </button>
+                {dismissedOpen && (
+                  <div className="mt-2 flex flex-col gap-2">
+                    {dismissedItems.map((item) => (
+                      <InboxItemCard
+                        key={item.id}
+                        item={item}
+                        busy={busy}
+                        editingId={null}
+                        editingText=""
+                        onStartEdit={() => undefined}
+                        onCancelEdit={() => undefined}
+                        onChangeEdit={() => undefined}
+                        onAction={itemAction}
+                      />
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         )}
 

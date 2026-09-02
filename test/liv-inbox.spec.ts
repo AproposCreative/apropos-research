@@ -226,14 +226,16 @@ describe('ingestFetchedMessages (one.com IMAP intake)', () => {
     expect(await listInboxItems()).toHaveLength(2);
   });
 
-  it('skips messages with no sender or empty body', async () => {
+  it('records messages with no sender or empty body as dismissed (still visible)', async () => {
     const res = await ingestFetchedMessages([
       fakeMessage(201, { fromEmail: '', text: 'Har ingen afsender' }),
       fakeMessage(202, { fromEmail: 'x@y.dk', text: '   ' }),
     ]);
-    expect(res.processed).toBe(0);
-    expect(res.skipped).toBe(2);
-    expect(await listInboxItems()).toHaveLength(0);
+    expect(res.processed).toBe(2);
+    expect(res.skipped).toBe(0);
+    const items = await listInboxItems();
+    expect(items).toHaveLength(2);
+    expect(items.every((i) => i.status === 'dismissed')).toBe(true);
   });
 
   it('never treats an external sender as a tasker — they go through normal triage', async () => {
@@ -266,7 +268,7 @@ describe('ingestFetchedMessages (one.com IMAP intake)', () => {
     expect(items[0].fromEmail).toBe('frederik@aproposmagazine.com');
   });
 
-  it('routes a real staff mailbox to the task path (not normal inbound)', async () => {
+  it('routes a real staff mailbox to the task path and still shows it in the desk', async () => {
     const prev = process.env.LIV_INBOX_SENDING_ENABLED;
     process.env.LIV_INBOX_SENDING_ENABLED = 'true';
     try {
@@ -278,11 +280,30 @@ describe('ingestFetchedMessages (one.com IMAP intake)', () => {
         }),
       ]);
       expect(res.processed).toBe(1);
-      expect(await listInboxItems()).toHaveLength(0);
+      const items = await listInboxItems();
+      expect(items).toHaveLength(1);
+      expect(items[0].fromEmail).toBe('milo@aproposmagazine.com');
+      expect(items[0].category).toBe('opgave');
     } finally {
       if (prev === undefined) delete process.env.LIV_INBOX_SENDING_ENABLED;
       else process.env.LIV_INBOX_SENDING_ENABLED = prev;
     }
+  });
+
+  it('persists a staff task in the desk even when sending is off', async () => {
+    const res = await ingestFetchedMessages([
+      fakeMessage(805, {
+        fromEmail: 'frederik@aproposmagazine.com',
+        subject: 'Opgave: skriv til X',
+        text: 'Søg akkreditering til Roskilde',
+      }),
+    ]);
+    expect(res.processed).toBe(1);
+    const items = await listInboxItems();
+    expect(items).toHaveLength(1);
+    expect(items[0].category).toBe('opgave');
+    expect(items[0].status).toBe('escalated');
+    expect(items[0].fromEmail).toBe('frederik@aproposmagazine.com');
   });
 });
 

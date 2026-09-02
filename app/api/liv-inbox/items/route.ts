@@ -14,6 +14,7 @@ export async function GET(request: NextRequest) {
     draft: items.filter((i) => i.status === 'draft').length,
     autoReplied: items.filter((i) => i.status === 'auto_replied').length,
     sent: items.filter((i) => i.status === 'sent').length,
+    dismissed: items.filter((i) => i.status === 'dismissed').length,
   };
 
   const withConfidence = items.filter((i) => typeof i.confidence === 'number');
