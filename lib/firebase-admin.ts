@@ -70,6 +70,13 @@ export function getAdminDb(): Firestore | null {
   const app = initAdmin();
   if (!app) return null;
   _adminDb = getFirestore(app);
+  // Drop undefined fields instead of throwing. Must run before the first
+  // Firestore operation; ignore if the instance was already initialised.
+  try {
+    _adminDb.settings({ ignoreUndefinedProperties: true });
+  } catch {
+    /* settings already applied — safe to ignore */
+  }
   return _adminDb;
 }
 

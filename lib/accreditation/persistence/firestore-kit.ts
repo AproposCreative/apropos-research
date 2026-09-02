@@ -52,12 +52,29 @@ export function requireStorageBucket(): NonNullable<ReturnType<typeof getAdminSt
   return bucket;
 }
 
-export function stripUndefined<T extends Record<string, unknown>>(obj: T): T {
-  const out = { ...obj };
-  for (const [k, v] of Object.entries(out)) {
-    if (v === undefined) delete out[k];
+function deepStripUndefined(value: unknown): unknown {
+  if (Array.isArray(value)) {
+    return value.map((item) => deepStripUndefined(item));
   }
-  return out;
+  // Only recurse into plain objects; leave class instances (Date, FieldValue, …) untouched.
+  if (value !== null && typeof value === 'object' && (value as object).constructor === Object) {
+    const out: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+      if (v === undefined) continue;
+      out[k] = deepStripUndefined(v);
+    }
+    return out;
+  }
+  return value;
+}
+
+/**
+ * Recursively removes `undefined` values from an object before writing to
+ * Firestore, which rejects `undefined` (including inside nested objects and
+ * array elements such as `messages[].resendEmailId`).
+ */
+export function stripUndefined<T extends Record<string, unknown>>(obj: T): T {
+  return deepStripUndefined(obj) as T;
 }
 
 export async function getSignedDownloadUrl(
