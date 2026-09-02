@@ -6,6 +6,7 @@ import { gatherSenderIntelligence, __resetLivInboxContactCache } from '@/lib/liv
 import { appendLivInboxAudit, listLivInboxAudit } from '@/lib/liv-inbox/audit-store';
 import {
   isLivInboxSendingEnabled,
+  livInboxMailTransport,
   livInboxMaxAutoSendPerRun,
   resolveLivInboxRecipient,
   sendLivInboxReply,
@@ -358,5 +359,18 @@ describe('recipient routing (domain allowlist vs test-redirect)', () => {
   it('blocks fail-closed when no redirect and not allowlisted', () => {
     const r = resolveLivInboxRecipient('someone@external.com');
     expect(r.blocked).toBe(true);
+  });
+});
+
+describe('mail transport selection', () => {
+  it('falls back to Resend when SMTP auth is unavailable, and honours the override', () => {
+    // No one.com SMTP creds in the test env -> Resend.
+    expect(livInboxMailTransport()).toBe('resend');
+    process.env.LIV_INBOX_MAIL_TRANSPORT = 'smtp';
+    try {
+      expect(livInboxMailTransport()).toBe('smtp');
+    } finally {
+      delete process.env.LIV_INBOX_MAIL_TRANSPORT;
+    }
   });
 });

@@ -122,6 +122,8 @@ export async function processInboundEmail(
       sentAt: result.sent ? new Date().toISOString() : undefined,
       sendId: result.id,
       sendRedirected: result.redirected,
+      sentVia: result.transport,
+      sentCopyArchived: result.sentCopyArchived,
       sendBlockedReason: result.sent ? undefined : result.reason,
     });
     await appendLivInboxAudit({

@@ -13,12 +13,22 @@
  *  5. Idempotency key (per item) so the same reply is never sent twice.
  */
 import { createHash } from 'crypto';
+import nodemailer from 'nodemailer';
+import MailComposer from 'nodemailer/lib/mail-composer';
 import { Resend } from 'resend';
 import { env } from '@/lib/config/env';
 import {
   applyTestRedirectToMailContent,
   getAccreditationTestRedirectTo,
 } from '@/lib/accreditation/outbound-safety';
+import {
+  assertSmtpFromAllowed,
+  getSmtpAuthCredentials,
+  getSmtpPublicConfig,
+  resolveSmtpFrom,
+} from '@/lib/accreditation/mail-transport';
+import { getAccreditationReplyToFallbackEmail } from '@/lib/accreditation/send-email';
+import { appendLivSentCopy } from '@/lib/accreditation/imap/sent-copy';
 
 export function isLivInboxSendingEnabled(): boolean {
   return process.env.LIV_INBOX_SENDING_ENABLED === 'true';
@@ -47,6 +57,18 @@ export function livInboxAllowedDomains(): string[] {
     .filter(Boolean);
 }
 
+/**
+ * Transport for Liv's replies. Default: her one.com SMTP (so mail is sent from
+ * her mailbox and archived to her Sent folder for monitoring); falls back to
+ * Resend only when SMTP auth is unavailable. Override with LIV_INBOX_MAIL_TRANSPORT.
+ */
+export function livInboxMailTransport(): 'smtp' | 'resend' {
+  const explicit = (process.env.LIV_INBOX_MAIL_TRANSPORT || '').trim().toLowerCase();
+  if (explicit === 'resend') return 'resend';
+  if (explicit === 'smtp') return 'smtp';
+  return getSmtpAuthCredentials() ? 'smtp' : 'resend';
+}
+
 function livInboxFromEmail(): string {
   const raw = (
     process.env.LIV_INBOX_FROM_EMAIL ||
@@ -66,12 +88,14 @@ export function livInboxSendingStatus(): {
   testRedirectTo: string | null;
   maxPerRun: number;
   allowedDomains: string[];
+  transport: 'smtp' | 'resend';
 } {
   return {
     enabled: isLivInboxSendingEnabled(),
     testRedirectTo: livInboxTestRedirectTo(),
     maxPerRun: livInboxMaxAutoSendPerRun(),
     allowedDomains: livInboxAllowedDomains(),
+    transport: livInboxMailTransport(),
   };
 }
 
@@ -139,6 +163,119 @@ export interface LivSendResult {
   redirected?: boolean;
   to?: string;
   intendedTo?: string;
+  transport?: 'smtp' | 'resend';
+  /** True when the sent copy was archived to Liv's Sent folder (SMTP only). */
+  sentCopyArchived?: boolean;
+}
+
+function buildHtml(text: string): string {
+  return `<div style="font-family:inherit;white-space:pre-wrap">${escapeHtml(text)}</div>`;
+}
+
+type TransportSendParams = {
+  itemId: string;
+  to: string;
+  subject: string;
+  text?: string;
+  html: string;
+  redirected: boolean;
+  intendedTo: string;
+};
+
+/** Send from Liv's one.com mailbox and archive a copy to her Sent folder. */
+async function sendViaLivInboxSmtp(p: TransportSendParams): Promise<LivSendResult> {
+  const from = resolveSmtpFrom(); // liv@aproposmagazine.com
+  try {
+    assertSmtpFromAllowed(from);
+  } catch (e) {
+    return { sent: false, blocked: true, transport: 'smtp', reason: e instanceof Error ? e.message : String(e), intendedTo: p.intendedTo };
+  }
+  const auth = getSmtpAuthCredentials();
+  if (!auth) {
+    return {
+      sent: false,
+      blocked: true,
+      transport: 'smtp',
+      reason: 'SMTP-auth mangler (LIV_SMTP_PASSWORD eller LIV_IMAP_PASSWORD)',
+      intendedTo: p.intendedTo,
+    };
+  }
+  const smtp = getSmtpPublicConfig();
+  const transporter = nodemailer.createTransport({
+    host: smtp.host,
+    port: smtp.port,
+    secure: true,
+    auth: { user: auth.user, pass: auth.pass },
+  });
+  try {
+    const mailOptions = {
+      from,
+      to: p.to,
+      subject: p.subject,
+      html: p.html,
+      text: p.text,
+      replyTo: getAccreditationReplyToFallbackEmail(),
+      headers: { 'X-Apropos-LivInbox-Item': p.itemId.slice(0, 200) },
+    };
+    const info = await transporter.sendMail(mailOptions);
+    const messageId = typeof info.messageId === 'string' ? info.messageId : undefined;
+    let sentCopyArchived = false;
+    try {
+      const raw = await new MailComposer({ ...mailOptions, ...(messageId ? { messageId } : {}) })
+        .compile()
+        .build();
+      const archived = await appendLivSentCopy(raw);
+      sentCopyArchived = archived.ok;
+    } catch {
+      /* Sent-folder archiving is best-effort */
+    }
+    return {
+      sent: true,
+      id: messageId,
+      transport: 'smtp',
+      redirected: p.redirected,
+      to: p.to,
+      intendedTo: p.intendedTo,
+      sentCopyArchived,
+    };
+  } catch (e) {
+    return { sent: false, transport: 'smtp', reason: e instanceof Error ? e.message : String(e), intendedTo: p.intendedTo };
+  } finally {
+    transporter.close();
+  }
+}
+
+async function sendViaLivInboxResend(p: TransportSendParams): Promise<LivSendResult> {
+  const apiKey = (env.RESEND_API_KEY || process.env.RESEND_API_KEY || '').trim();
+  if (!apiKey) {
+    return { sent: false, blocked: true, transport: 'resend', reason: 'RESEND_API_KEY mangler', intendedTo: p.intendedTo };
+  }
+  const hash = createHash('sha256').update(`${p.itemId}:${p.subject}`).digest('hex').slice(0, 16);
+  try {
+    const resend = new Resend(apiKey);
+    const { data, error } = await resend.emails.send(
+      {
+        from: livInboxFromEmail(),
+        to: p.to,
+        subject: p.subject,
+        html: p.html,
+        text: p.text,
+        tags: [{ name: 'liv_inbox_item', value: p.itemId.slice(0, 256) }],
+      },
+      { idempotencyKey: `liv-inbox-send/${p.itemId}/${hash}`.slice(0, 256) }
+    );
+    if (error) return { sent: false, transport: 'resend', reason: error.message, intendedTo: p.intendedTo };
+    return {
+      sent: true,
+      id: data?.id,
+      transport: 'resend',
+      redirected: p.redirected,
+      to: p.to,
+      intendedTo: p.intendedTo,
+    };
+  } catch (e) {
+    return { sent: false, transport: 'resend', reason: e instanceof Error ? e.message : String(e), intendedTo: p.intendedTo };
+  }
 }
 
 export async function sendLivInboxReply(params: {
@@ -161,46 +298,25 @@ export async function sendLivInboxReply(params: {
     };
   }
 
-  const apiKey = (env.RESEND_API_KEY || process.env.RESEND_API_KEY || '').trim();
-  if (!apiKey) {
-    return { sent: false, blocked: true, reason: 'RESEND_API_KEY mangler' };
-  }
-
   const content = applyTestRedirectToMailContent({
     subject: params.subject,
     text: params.text,
-    html: `<div style="font-family:inherit;white-space:pre-wrap">${escapeHtml(params.text)}</div>`,
+    html: buildHtml(params.text),
     intendedTo: resolved.intendedTo,
     redirected: resolved.redirected,
   });
 
-  const hash = createHash('sha256')
-    .update(`${params.itemId}:${params.subject}`)
-    .digest('hex')
-    .slice(0, 16);
+  const common: TransportSendParams = {
+    itemId: params.itemId,
+    to: resolved.to,
+    subject: content.subject,
+    text: content.text,
+    html: content.html,
+    redirected: resolved.redirected,
+    intendedTo: resolved.intendedTo,
+  };
 
-  try {
-    const resend = new Resend(apiKey);
-    const { data, error } = await resend.emails.send(
-      {
-        from: livInboxFromEmail(),
-        to: resolved.to,
-        subject: content.subject,
-        html: content.html,
-        text: content.text,
-        tags: [{ name: 'liv_inbox_item', value: params.itemId.slice(0, 256) }],
-      },
-      { idempotencyKey: `liv-inbox-send/${params.itemId}/${hash}`.slice(0, 256) }
-    );
-    if (error) return { sent: false, reason: error.message, intendedTo: resolved.intendedTo };
-    return {
-      sent: true,
-      id: data?.id,
-      redirected: resolved.redirected,
-      to: resolved.to,
-      intendedTo: resolved.intendedTo,
-    };
-  } catch (e) {
-    return { sent: false, reason: e instanceof Error ? e.message : String(e), intendedTo: resolved.intendedTo };
-  }
+  return livInboxMailTransport() === 'smtp'
+    ? sendViaLivInboxSmtp(common)
+    : sendViaLivInboxResend(common);
 }

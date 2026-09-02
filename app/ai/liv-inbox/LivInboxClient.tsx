@@ -124,6 +124,7 @@ export default function LivInboxClient({ embedded = false, onClose }: Props) {
     testRedirectTo: string | null;
     maxPerRun: number;
     allowedDomains: string[];
+    transport: 'smtp' | 'resend';
   } | null>(null);
 
   // Simulate-inbound form
@@ -532,7 +533,9 @@ export default function LivInboxClient({ embedded = false, onClose }: Props) {
                       }`}
                     >
                       {item.sent
-                        ? `Sendt${item.sendRedirected ? ' (test-redirect)' : ''} → ${item.sentTo}`
+                        ? `Sendt via ${item.sentVia === 'smtp' ? 'one.com' : 'Resend'}${
+                            item.sendRedirected ? ' (test-redirect)' : ''
+                          } → ${item.sentTo}${item.sentCopyArchived ? ' · arkiveret i Sendt' : ''}`
                         : `Ikke afsendt: ${item.sendBlockedReason}`}
                     </p>
                   )}
