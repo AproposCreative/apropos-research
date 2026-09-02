@@ -2,7 +2,14 @@ import { getLivInboxSettings } from '@/lib/liv-inbox/settings-store';
 import { createInboxItem } from '@/lib/liv-inbox/inbox-store';
 import { decideInboxReply, type InboundEmailInput } from '@/lib/liv-inbox/assistant';
 import { gatherSenderIntelligence, rememberInboxInteraction } from '@/lib/liv-inbox/context';
+import { appendLivInboxAudit, type LivInboxAuditType } from '@/lib/liv-inbox/audit-store';
 import type { LivInboxItem, LivInboxItemStatus, LivInboxSettings } from '@/lib/liv-inbox/types';
+
+const STATUS_AUDIT: Partial<Record<LivInboxItemStatus, LivInboxAuditType>> = {
+  auto_replied: 'auto_prepared',
+  draft: 'drafted',
+  escalated: 'escalated',
+};
 
 /** Decide the final status from Liv's decision + the current settings. */
 export function resolveInboxStatus(
@@ -71,6 +78,22 @@ export async function processInboundEmail(
     subject: input.subject.trim(),
     inboundBlurb: `Modtog (${decision.category}): "${input.subject.trim()}"`,
     replyBlurb: status === 'auto_replied' ? decision.reply : undefined,
+  });
+
+  // Audit trail (insight into what Liv did and why).
+  await appendLivInboxAudit({
+    type: STATUS_AUDIT[status] || 'drafted',
+    itemId: item.id,
+    contactEmail: email,
+    subject: item.subject,
+    detail: decision.reasoning,
+    meta: {
+      confidence: decision.confidence,
+      category: decision.category,
+      contactKnown: intel.known,
+      source: options.source || 'manual',
+      model: decision.modelUsed,
+    },
   });
 
   return item;

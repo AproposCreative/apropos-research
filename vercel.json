@@ -29,6 +29,10 @@
       "schedule": "*/10 * * * *"
     },
     {
+      "path": "/api/cron/liv-inbox-poll",
+      "schedule": "*/10 * * * *"
+    },
+    {
       "path": "/api/cron/seo-engine-recovery",
       "schedule": "*/15 * * * *"
     },

@@ -5,7 +5,32 @@ import { EmbeddedAppHeader } from '@/components/embedded-app';
 import type { LivInboxItem, LivInboxItemStatus, LivInboxSettings } from '@/lib/liv-inbox/types';
 
 type Props = { embedded?: boolean; onClose?: () => void };
-type DeskTab = 'inbox' | 'guidelines';
+type DeskTab = 'inbox' | 'guidelines' | 'activity';
+
+type Metrics = {
+  handled: number;
+  avgConfidence: number | null;
+  escalationRate: number;
+  knownContacts: number;
+};
+type AuditEvent = {
+  id: string;
+  at: string;
+  type: string;
+  subject?: string;
+  contactEmail?: string;
+  detail?: string;
+};
+
+const AUDIT_LABEL: Record<string, string> = {
+  poll: 'Auto-hentning',
+  auto_prepared: 'Auto-klargjort',
+  drafted: 'Kladde',
+  escalated: 'Eskaleret',
+  sent: 'Sendt',
+  dismissed: 'Afvist',
+  edited: 'Redigeret',
+};
 
 const primaryBtn =
   'px-4 py-2.5 rounded-xl text-[13px] font-medium text-white transition-all duration-200 border border-white/10 bg-white/5 hover:border-white/20 hover:bg-white/10 hover:shadow-[0_0_32px_-8px_rgba(255,255,255,0.18)] disabled:opacity-40 active:scale-[0.99]';
@@ -92,6 +117,9 @@ export default function LivInboxClient({ embedded = false, onClose }: Props) {
   const [syncing, setSyncing] = useState(false);
   const [syncMsg, setSyncMsg] = useState<string | null>(null);
 
+  const [metrics, setMetrics] = useState<Metrics | null>(null);
+  const [activity, setActivity] = useState<AuditEvent[]>([]);
+
   // Simulate-inbound form
   const [fromEmail, setFromEmail] = useState('');
   const [fromName, setFromName] = useState('');
@@ -119,14 +147,17 @@ export default function LivInboxClient({ embedded = false, onClose }: Props) {
   const loadAll = useCallback(async () => {
     setError(null);
     try {
-      const [sRes, iRes, mRes] = await Promise.all([
+      const [sRes, iRes, mRes, aRes] = await Promise.all([
         fetch('/api/liv-inbox/settings').then((r) => r.json()),
         fetch('/api/liv-inbox/items').then((r) => r.json()),
         fetch('/api/liv-inbox/sync').then((r) => r.json()),
+        fetch('/api/liv-inbox/activity').then((r) => r.json()),
       ]);
       if (sRes?.data?.settings) applySettings(sRes.data.settings, sRes.data.agentModel);
       if (iRes?.data?.items) setItems(iRes.data.items);
+      if (iRes?.data?.metrics) setMetrics(iRes.data.metrics);
       if (mRes?.data?.mailbox) setMailbox(mRes.data.mailbox);
+      if (aRes?.data?.events) setActivity(aRes.data.events);
     } catch {
       setError('Kunne ikke hente indbakken.');
     }
@@ -270,6 +301,7 @@ export default function LivInboxClient({ embedded = false, onClose }: Props) {
 
   const tabs: { id: DeskTab; label: string }[] = [
     { id: 'inbox', label: 'Indbakke' },
+    { id: 'activity', label: 'Aktivitet' },
     { id: 'guidelines', label: 'Retningslinjer' },
   ];
 
@@ -303,6 +335,13 @@ export default function LivInboxClient({ embedded = false, onClose }: Props) {
 
         {tab === 'inbox' && (
           <div className="flex flex-col gap-5">
+            {/* Shadow-mode banner */}
+            <div className="rounded-xl border border-amber-400/20 bg-amber-400/[0.05] px-3.5 py-2.5 text-[11px] text-white/70">
+              <span className="font-medium text-amber-200/90">Skygge-tilstand.</span> Liv henter og
+              klargør svar automatisk, men <span className="text-white/85">sender ikke selv endnu</span> -
+              du godkender manuelt. Rigtig automatisk afsendelse aktiveres som næste skridt.
+            </div>
+
             {/* Status strip */}
             <div className="flex flex-wrap items-center gap-2 text-[11px] text-white/55">
               <span className="inline-flex items-center gap-1.5">
@@ -581,6 +620,65 @@ export default function LivInboxClient({ embedded = false, onClose }: Props) {
                 {busy ? 'Gemmer…' : 'Gem retningslinjer'}
               </button>
               {guidelinesSaved && <span className="text-[11px] text-emerald-300">Gemt</span>}
+            </div>
+          </div>
+        )}
+
+        {tab === 'activity' && (
+          <div className="flex flex-col gap-4">
+            {/* Metrics */}
+            <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
+              {[
+                { label: 'Behandlet', value: metrics ? String(metrics.handled) : '-' },
+                {
+                  label: 'Gns. sikkerhed',
+                  value: metrics?.avgConfidence != null ? `${metrics.avgConfidence}%` : '-',
+                },
+                { label: 'Eskaleringsrate', value: metrics ? `${metrics.escalationRate}%` : '-' },
+                { label: 'Kendte kontakter', value: metrics ? String(metrics.knownContacts) : '-' },
+              ].map((m) => (
+                <div key={m.label} className="rounded-xl border border-white/[0.08] bg-white/[0.02] p-3">
+                  <p className="text-[18px] font-medium text-white/90">{m.value}</p>
+                  <p className="mt-0.5 text-[10px] uppercase tracking-wider text-white/40">{m.label}</p>
+                </div>
+              ))}
+            </div>
+
+            {/* Timeline */}
+            <div>
+              <p className="mb-2 text-[12px] font-medium text-white/80">Seneste aktivitet</p>
+              <div className="flex flex-col gap-1.5">
+                {activity.length === 0 && (
+                  <p className="rounded-xl border border-white/[0.06] bg-white/[0.02] px-4 py-6 text-center text-[12px] text-white/40">
+                    Ingen aktivitet endnu.
+                  </p>
+                )}
+                {activity.map((e) => (
+                  <div
+                    key={e.id}
+                    className="flex items-center justify-between gap-3 rounded-lg border border-white/[0.06] bg-white/[0.02] px-3 py-2"
+                  >
+                    <div className="min-w-0">
+                      <span className="text-[11px] font-medium text-white/80">
+                        {AUDIT_LABEL[e.type] || e.type}
+                      </span>
+                      {(e.subject || e.detail) && (
+                        <span className="ml-2 text-[11px] text-white/45">
+                          {e.subject || e.detail}
+                        </span>
+                      )}
+                    </div>
+                    <span className="shrink-0 text-[10px] text-white/30">
+                      {new Date(e.at).toLocaleString('da-DK', {
+                        day: '2-digit',
+                        month: '2-digit',
+                        hour: '2-digit',
+                        minute: '2-digit',
+                      })}
+                    </span>
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
         )}

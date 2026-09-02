@@ -15,5 +15,19 @@ export async function GET(request: NextRequest) {
     autoReplied: items.filter((i) => i.status === 'auto_replied').length,
     sent: items.filter((i) => i.status === 'sent').length,
   };
-  return NextResponse.json(createSuccessResponse({ items, counts }, { requestId }));
+
+  const withConfidence = items.filter((i) => typeof i.confidence === 'number');
+  const active = items.filter((i) => i.status !== 'dismissed');
+  const metrics = {
+    handled: items.length,
+    avgConfidence: withConfidence.length
+      ? Math.round(withConfidence.reduce((a, i) => a + (i.confidence || 0), 0) / withConfidence.length)
+      : null,
+    escalationRate: active.length
+      ? Math.round((active.filter((i) => i.status === 'escalated').length / active.length) * 100)
+      : 0,
+    knownContacts: items.filter((i) => i.contactKnown).length,
+  };
+
+  return NextResponse.json(createSuccessResponse({ items, counts, metrics }, { requestId }));
 }
