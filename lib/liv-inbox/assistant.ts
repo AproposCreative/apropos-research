@@ -108,9 +108,11 @@ export async function decideInboxReply(
   });
 
   try {
+    // GPT-5 reasoning models reject a non-default temperature; omit it for them.
+    const supportsTemperature = !/^gpt-5(?!-chat)/i.test(model);
     const completion = await openai.chat.completions.create({
       model,
-      temperature: 0.3,
+      ...(supportsTemperature ? { temperature: 0.3 } : {}),
       messages: [
         { role: 'system', content: composed.prompt },
         {
