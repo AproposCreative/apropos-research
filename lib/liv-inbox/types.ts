@@ -22,6 +22,11 @@ export interface LivInboxSettings {
    * even when auto-respond is ON.
    */
   confidenceThreshold: number;
+  /**
+   * Machine-learned style/decision notes distilled from the editor's (Frederik's)
+   * corrections of Liv's drafts. Appended over time; injected into her prompt.
+   */
+  editorNotes?: string;
   updatedAt: string;
   updatedBy?: string;
 }
@@ -44,8 +49,10 @@ export interface LivInboxItem {
 
   /** Liv's classification of the inquiry (e.g. "presse", "generel", "faktura"). */
   category?: string;
-  /** Liv's proposed reply. */
+  /** Liv's proposed reply (may be edited by a human before send). */
   draftReply?: string;
+  /** Liv's pristine original draft, never mutated — used to learn from edits. */
+  originalDraftReply?: string;
   /** Liv's self-assessed confidence (0-100). */
   confidence?: number;
   /** True when Liv decided she needs a human. */

@@ -61,6 +61,7 @@ export async function processInboundEmail(
     receivedAt: options.receivedAt || new Date().toISOString(),
     category: decision.category,
     draftReply: decision.reply,
+    originalDraftReply: decision.reply,
     confidence: decision.confidence,
     needsHuman: decision.needsHuman,
     reasoning: decision.reasoning,
