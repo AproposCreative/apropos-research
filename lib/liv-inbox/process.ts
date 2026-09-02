@@ -7,6 +7,7 @@ import { sendEscalationToEditor } from '@/lib/liv-inbox/editor';
 import { loadEditorialContext } from '@/lib/liv-inbox/editorial';
 import { appendLivInboxAudit, type LivInboxAuditType } from '@/lib/liv-inbox/audit-store';
 import { isLivInboxSendingEnabled, sendLivInboxReply } from '@/lib/liv-inbox/send';
+import { isHistoricalLivInbound } from '@/lib/liv-inbox/inbound-age';
 import { newEntityId } from '@/lib/accreditation/ids';
 import type { LivInboxItem, LivInboxItemStatus, LivInboxSettings } from '@/lib/liv-inbox/types';
 
@@ -138,6 +139,7 @@ export async function processInboundEmail(
     (process.env.LIV_INBOX_AUTOSEND_ESTABLISHED_ONLY || '').trim()
   );
   const trustAllowsAutoSend = !establishedOnly || intel.relationshipStatus === 'established_two_way';
+  const notHistorical = !isHistoricalLivInbound({ date: options.receivedAt });
 
   // Auto-send only for a confident reply, only when the kill-switch is on, and
   // only within the caller's per-run budget. Test-redirect keeps it safe.
@@ -145,6 +147,7 @@ export async function processInboundEmail(
     status === 'auto_replied' &&
     options.allowAutoSend !== false &&
     trustAllowsAutoSend &&
+    notHistorical &&
     isLivInboxSendingEnabled() &&
     decision.reply.trim()
   ) {

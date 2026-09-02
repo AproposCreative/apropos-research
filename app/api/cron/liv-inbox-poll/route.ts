@@ -7,8 +7,8 @@ export const runtime = 'nodejs';
 export const maxDuration = 120;
 
 /**
- * Automatic Liv Indbakke ingestion: pull new mail from Liv's one.com inbox and
- * let her triage it (shadow mode — she prepares drafts, nothing is sent).
+ * Automatic Liv Indbakke ingestion: pull mail after the desk UID cursor
+ * (never replay existing inbox history) and let Liv triage it.
  */
 export async function GET(req: NextRequest) {
   const authFail = requireCronBearer(req);

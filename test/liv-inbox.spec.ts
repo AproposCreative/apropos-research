@@ -39,6 +39,7 @@ import { loadEditorialContext, __resetEditorialCacheForTests } from '@/lib/liv-i
 import { assessLivAttachments, toAttachmentMeta } from '@/lib/liv-inbox/attachments';
 import { processInboundEmail, resolveInboxStatus } from '@/lib/liv-inbox/process';
 import { ingestFetchedMessages, type FetchedMessage } from '@/lib/liv-inbox/imap-sync';
+import { isHistoricalLivInbound, resolveLivInboxFetchPlan } from '@/lib/liv-inbox/inbound-age';
 import type { LivInboxSettings } from '@/lib/liv-inbox/types';
 
 function fakeMessage(uid: number, over: Partial<FetchedMessage['parsed']>): FetchedMessage {
@@ -304,6 +305,54 @@ describe('ingestFetchedMessages (one.com IMAP intake)', () => {
     expect(items[0].category).toBe('opgave');
     expect(items[0].status).toBe('escalated');
     expect(items[0].fromEmail).toBe('frederik@aproposmagazine.com');
+  });
+
+  it('persists historical mail as dismissed and never treats it as new work', async () => {
+    const prev = process.env.LIV_INBOX_SENDING_ENABLED;
+    process.env.LIV_INBOX_SENDING_ENABLED = 'true';
+    try {
+      const twoDaysAgo = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString();
+      const res = await ingestFetchedMessages([
+        fakeMessage(901, {
+          fromEmail: 'ida@laeser.dk',
+          subject: 'Gammel ros',
+          text: 'Elsker jeres magasin!',
+          date: twoDaysAgo,
+        }),
+      ]);
+      expect(res.processed).toBe(1);
+      const items = await listInboxItems();
+      expect(items).toHaveLength(1);
+      expect(items[0].status).toBe('dismissed');
+      expect(items[0].sent).toBeFalsy();
+      expect(items[0].reasoning).toMatch(/Historisk mail/);
+    } finally {
+      if (prev === undefined) delete process.env.LIV_INBOX_SENDING_ENABLED;
+      else process.env.LIV_INBOX_SENDING_ENABLED = prev;
+    }
+  });
+});
+
+describe('liv inbox IMAP cursor / new-mail only', () => {
+  it('baselines at the current end of the mailbox and does not replay history', () => {
+    expect(resolveLivInboxFetchPlan(0, 500)).toEqual({ kind: 'baseline', baselineUid: 499 });
+    expect(resolveLivInboxFetchPlan(-1, 1)).toEqual({ kind: 'baseline', baselineUid: 0 });
+  });
+
+  it('fetches only UIDs after the cursor on later polls', () => {
+    expect(resolveLivInboxFetchPlan(120, 125)).toEqual({ kind: 'fetch', fromUid: 121 });
+  });
+
+  it('re-baselines instead of replaying a large UID gap', () => {
+    expect(resolveLivInboxFetchPlan(10, 400)).toEqual({ kind: 'rebaseline', baselineUid: 399 });
+  });
+
+  it('treats MIME dates older than 24h as historical', () => {
+    expect(isHistoricalLivInbound({ date: new Date().toISOString() })).toBe(false);
+    expect(isHistoricalLivInbound({})).toBe(false);
+    expect(
+      isHistoricalLivInbound({ date: new Date(Date.now() - 25 * 60 * 60 * 1000).toISOString() })
+    ).toBe(true);
   });
 });
 
