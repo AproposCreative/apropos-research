@@ -983,7 +983,7 @@ export default function AkkrediteringClient({ embedded = false, onClose }: Props
               <div className="min-w-0">
                 <p className="text-[13px] font-medium text-white">Liv Brandt</p>
                 <p className="text-[10px] text-white/35 truncate">
-                  {livProfile?.bio?.origin || 'København NV'} · {livProfile?.promptVersion || 'liv-prompt-v2'}
+                  {livProfile?.bio?.origin || 'København NV'} · {livProfile?.promptVersion || 'liv-prompt-v3'}
                 </p>
               </div>
               <button

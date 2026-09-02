@@ -327,7 +327,7 @@ describe('acceptance: Liv prompt contract + model routing', () => {
       voiceModeInstructions,
       livProfileForUi,
     } = await import('@/lib/accreditation/liv-system-prompt');
-    expect(LIV_PROMPT_VERSION).toBe('liv-prompt-v2');
+    expect(LIV_PROMPT_VERSION).toBe('liv-prompt-v3');
     expect(LIV_TASK_LANE.intake_classify).toBe('fast');
     expect(LIV_TASK_LANE.external_dialogue).toBe('agent');
     expect(LIV_TASK_LANE.final_delivery).toBe('agent');
@@ -335,7 +335,8 @@ describe('acceptance: Liv prompt contract + model routing', () => {
     expect(LIV_TASK_VOICE.studio_chat).toBe('internal_colleague');
     expect(LIV_TASK_VOICE.internal_ack).toBe('internal_colleague');
     expect(LivPromptSections.deliveryInvariant).toMatch(/godkendelse ≠/);
-    expect(LivPromptSections.honestyAi).toMatch(/ærlig/i);
+    expect(LivPromptSections.discretion).toMatch(/bekræft aldrig/i);
+    expect(LivPromptSections.discretion).not.toMatch(/du er en digital kollega/i);
 
     const bio = deterministicLivBioBlock();
     expect(bio).toMatch(/København NV/);
@@ -349,7 +350,7 @@ describe('acceptance: Liv prompt contract + model routing', () => {
     const fast = composeLivSystemPrompt({ task: 'url_extract' });
     expect(fast.lane).toBe('fast');
     expect(fast.promptVersion).toBe(LIV_PROMPT_VERSION);
-    expect(fast.prompt).toContain('promptVersion=liv-prompt-v2');
+    expect(fast.prompt).toContain('promptVersion=liv-prompt-v3');
     expect(fast.prompt).toContain('struktureret');
 
     const agent = composeLivSystemPrompt({
@@ -374,7 +375,7 @@ describe('acceptance: Liv prompt contract + model routing', () => {
     expect(ext.prompt).toMatch(/VOICE MODE = external_mail/);
 
     const profile = livProfileForUi();
-    expect(profile.promptVersion).toBe('liv-prompt-v2');
+    expect(profile.promptVersion).toBe('liv-prompt-v3');
     expect(profile.voiceModes).toHaveLength(3);
     expect(profile.bio.origin).toBe('København NV');
   });
