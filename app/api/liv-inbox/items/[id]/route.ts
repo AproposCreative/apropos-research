@@ -3,6 +3,7 @@ import { getRequestId } from '@/lib/api/request-utils';
 import { createErrorResponse, createSuccessResponse, ErrorCode } from '@/lib/api/types';
 import { getInboxItem, updateInboxItem } from '@/lib/liv-inbox/inbox-store';
 import { rememberSentReply } from '@/lib/liv-inbox/context';
+import { appendLivInboxAudit } from '@/lib/liv-inbox/audit-store';
 import { sanitizeLivOutput } from '@/lib/accreditation/sanitize';
 
 export const runtime = 'nodejs';
@@ -35,6 +36,13 @@ export async function POST(request: NextRequest, ctx: { params: Promise<{ id: st
     if (action === 'update_draft') {
       const draftReply = sanitizeLivOutput(String(body.draftReply || '').trim());
       const item = await updateInboxItem(id, { draftReply });
+      await appendLivInboxAudit({
+        type: 'edited',
+        itemId: id,
+        contactEmail: existing.fromEmail,
+        subject: existing.subject,
+        detail: 'Kladde redigeret manuelt',
+      });
       return NextResponse.json(createSuccessResponse({ item }, { requestId }));
     }
 
@@ -56,6 +64,13 @@ export async function POST(request: NextRequest, ctx: { params: Promise<{ id: st
           replyBlurb: draftReply,
         });
       }
+      await appendLivInboxAudit({
+        type: 'sent',
+        itemId: id,
+        contactEmail: existing.fromEmail,
+        subject: existing.subject,
+        detail: 'Godkendt og markeret sendt',
+      });
       return NextResponse.json(createSuccessResponse({ item }, { requestId }));
     }
 
@@ -63,6 +78,13 @@ export async function POST(request: NextRequest, ctx: { params: Promise<{ id: st
       const item = await updateInboxItem(id, {
         status: 'dismissed',
         handledAt: new Date().toISOString(),
+      });
+      await appendLivInboxAudit({
+        type: 'dismissed',
+        itemId: id,
+        contactEmail: existing.fromEmail,
+        subject: existing.subject,
+        detail: 'Afvist manuelt',
       });
       return NextResponse.json(createSuccessResponse({ item }, { requestId }));
     }

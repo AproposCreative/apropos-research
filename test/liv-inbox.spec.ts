@@ -3,6 +3,7 @@ import { resetAllAccreditationStoresForTests } from '@/lib/accreditation/persist
 import { __setMemoryBackendForTests } from '@/lib/accreditation/memory-store';
 import { createInMemoryMemoryBackend } from '@/lib/accreditation/memory-json-adapter';
 import { gatherSenderIntelligence, __resetLivInboxContactCache } from '@/lib/liv-inbox/context';
+import { appendLivInboxAudit, listLivInboxAudit } from '@/lib/liv-inbox/audit-store';
 import {
   DEFAULT_SETTINGS,
   getLivInboxSettings,
@@ -252,5 +253,38 @@ describe('sender intelligence (research + memory)', () => {
     });
     const intel = await gatherSenderIntelligence('okonomi@bureau.dk');
     expect(intel.known).toBe(true);
+  });
+});
+
+describe('audit trail', () => {
+  it('records newest-first events', async () => {
+    await appendLivInboxAudit({ type: 'poll', detail: 'first' });
+    await appendLivInboxAudit({ type: 'sent', detail: 'second' });
+    const events = await listLivInboxAudit();
+    expect(events).toHaveLength(2);
+    expect(events[0].detail).toBe('second');
+    expect(events[0].id).toBeTruthy();
+    expect(events[0].at).toBeTruthy();
+  });
+
+  it('logs an escalation audit event when Liv escalates a sensitive mail', async () => {
+    await processInboundEmail({
+      fromEmail: 'jura@firma.dk',
+      subject: 'Kontrakt',
+      body: 'Underskriv venligst vedhæftede NDA og kontrakt.',
+    });
+    const events = await listLivInboxAudit();
+    expect(events.some((e) => e.type === 'escalated')).toBe(true);
+  });
+
+  it('logs a triage audit event for an ordinary mail', async () => {
+    await updateLivInboxSettings({ autoRespond: false, confidenceThreshold: 40 });
+    await processInboundEmail({
+      fromEmail: 'reader@x.dk',
+      subject: 'Ros',
+      body: 'Fantastisk magasin!',
+    });
+    const events = await listLivInboxAudit();
+    expect(events.some((e) => e.type === 'drafted' || e.type === 'auto_prepared')).toBe(true);
   });
 });
