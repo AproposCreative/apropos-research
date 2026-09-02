@@ -275,7 +275,6 @@ export default function LivInboxClient({ embedded = false, onClose }: Props) {
   const [agentModel, setAgentModel] = useState<string>('');
   const [items, setItems] = useState<LivInboxItem[]>([]);
   const [busy, setBusy] = useState(false);
-  const [processing, setProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // one.com inbox (IMAP) status + sync
@@ -287,19 +286,6 @@ export default function LivInboxClient({ embedded = false, onClose }: Props) {
 
   const [metrics, setMetrics] = useState<Metrics | null>(null);
   const [activity, setActivity] = useState<AuditEvent[]>([]);
-  const [sending, setSending] = useState<{
-    enabled: boolean;
-    testRedirectTo: string | null;
-    maxPerRun: number;
-    allowedDomains: string[];
-    transport: 'smtp' | 'resend';
-  } | null>(null);
-
-  // Simulate-inbound form
-  const [fromEmail, setFromEmail] = useState('');
-  const [fromName, setFromName] = useState('');
-  const [subject, setSubject] = useState('');
-  const [body, setBody] = useState('');
 
   // Guidelines editor drafts
   const [guidelinesDraft, setGuidelinesDraft] = useState('');
@@ -334,7 +320,6 @@ export default function LivInboxClient({ embedded = false, onClose }: Props) {
         fetch('/api/liv-inbox/activity').then((r) => r.json()),
       ]);
       if (sRes?.data?.settings) applySettings(sRes.data.settings, sRes.data.agentModel);
-      if (sRes?.data?.sending) setSending(sRes.data.sending);
       if (iRes?.data?.items) setItems(iRes.data.items);
       if (iRes?.data?.metrics) setMetrics(iRes.data.metrics);
       if (mRes?.data?.mailbox) setMailbox(mRes.data.mailbox);
@@ -443,35 +428,6 @@ export default function LivInboxClient({ embedded = false, onClose }: Props) {
     }
   }, [loadAll]);
 
-  const runSimulate = useCallback(async () => {
-    if (!fromEmail.trim() || !body.trim()) {
-      setError('Udfyld mindst afsender-email og mailtekst.');
-      return;
-    }
-    setProcessing(true);
-    setError(null);
-    try {
-      const res = await fetch('/api/liv-inbox/process', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ fromEmail, fromName, subject, body }),
-      }).then((r) => r.json());
-      if (res?.data?.item) {
-        setBody('');
-        setSubject('');
-        setFromName('');
-        setFromEmail('');
-        await loadAll();
-      } else {
-        setError(res?.error || 'Liv kunne ikke behandle mailen.');
-      }
-    } catch {
-      setError('Liv kunne ikke behandle mailen.');
-    } finally {
-      setProcessing(false);
-    }
-  }, [fromEmail, fromName, subject, body, loadAll]);
-
   const itemAction = useCallback(
     async (id: string, action: 'approve_send' | 'dismiss' | 'update_draft', draftReply?: string) => {
       setBusy(true);
@@ -536,78 +492,15 @@ export default function LivInboxClient({ embedded = false, onClose }: Props) {
         }
       />
 
-      <main className="flex-1 min-h-0 overflow-y-auto nice-scrollbar px-3 py-4 lg:px-5">
+      <main className="flex-1 min-h-0 overflow-y-auto nice-scrollbar px-3 py-3 lg:px-4 lg:py-4">
         {error && (
-          <div className="mb-4 rounded-xl border border-red-400/30 bg-red-400/[0.06] px-3.5 py-2.5 text-[12px] text-red-400/95">
+          <div className="mb-3 rounded-xl border border-red-400/30 bg-red-400/[0.06] px-3.5 py-2.5 text-[12px] text-red-400/95">
             {error}
           </div>
         )}
 
         {tab === 'inbox' && (
-          <div className="flex flex-col gap-5">
-            {/* Sending-mode banner */}
-            {!sending?.enabled ? (
-              <div className="rounded-xl border border-amber-400/20 bg-amber-400/[0.05] px-3.5 py-2.5 text-[11px] text-white/70">
-                <span className="font-medium text-amber-200/90">Skygge-tilstand.</span> Liv henter og
-                klargør svar, men <span className="text-white/85">sender ingen mails</span> (kill-switch
-                fra). Slå <code className="text-white/60">LIV_INBOX_SENDING_ENABLED=true</code> til for at sende.
-              </div>
-            ) : sending.testRedirectTo ? (
-              <div className="rounded-xl border border-emerald-400/20 bg-emerald-400/[0.05] px-3.5 py-2.5 text-[11px] text-white/70">
-                <span className="font-medium text-emerald-200/90">Test-afsendelse aktiv.</span>{' '}
-                {sending.allowedDomains?.length ? (
-                  <>
-                    Rigtige svar til{' '}
-                    <span className="text-white/85">
-                      {sending.allowedDomains.map((d) => `@${d}`).join(', ')}
-                    </span>
-                    ; alle andre omdirigeres til {sending.testRedirectTo}.
-                  </>
-                ) : (
-                  <>
-                    Alle svar sendes <span className="text-white/85">kun til {sending.testRedirectTo}</span>{' '}
-                    (test-redirect), aldrig til rigtige modtagere.
-                  </>
-                )}{' '}
-                Maks {sending.maxPerRun} auto-svar pr. hentning.
-              </div>
-            ) : (
-              <div className="rounded-xl border border-rose-400/25 bg-rose-400/[0.06] px-3.5 py-2.5 text-[11px] text-white/75">
-                <span className="font-medium text-rose-200/90">LIVE afsendelse.</span> Liv sender til rigtige
-                modtagere (maks {sending.maxPerRun} auto-svar pr. hentning). Fjern kun test-redirect når du er sikker.
-              </div>
-            )}
-
-            {/* Status strip */}
-            <div className="flex flex-wrap items-center gap-2 text-[11px] text-white/55">
-              <span className="inline-flex items-center gap-1.5">
-                <span className="size-1.5 rounded-full bg-amber-400" /> {counts.escalated} kræver dig
-              </span>
-              <span className="text-white/20">·</span>
-              <span className="inline-flex items-center gap-1.5">
-                <span className="size-1.5 rounded-full bg-white/40" /> {counts.draft} kladder
-              </span>
-              <span className="text-white/20">·</span>
-              <span className="inline-flex items-center gap-1.5">
-                <span className="size-1.5 rounded-full bg-emerald-400" /> {counts.autoReplied} auto-svaret
-              </span>
-              {counts.dismissed > 0 && (
-                <>
-                  <span className="text-white/20">·</span>
-                  <span className="inline-flex items-center gap-1.5">
-                    <span className="size-1.5 rounded-full bg-white/30" /> {counts.dismissed} afvist
-                  </span>
-                </>
-              )}
-              {agentModel && (
-                <>
-                  <span className="text-white/20">·</span>
-                  <span className="text-white/45">Intelligens: {agentModel}</span>
-                </>
-              )}
-            </div>
-
-            {/* one.com inbox connection + sync */}
+          <div className="flex flex-col gap-3">
             <div className="rounded-xl border border-white/[0.08] bg-white/[0.02] p-3.5">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div className="min-w-0">
@@ -630,7 +523,7 @@ export default function LivInboxClient({ embedded = false, onClose }: Props) {
                 </div>
                 <button
                   type="button"
-                  className={secondaryBtn}
+                  className={`${secondaryBtn} touch-target min-h-11 px-4`}
                   disabled={syncing || !mailbox?.configured}
                   onClick={runSync}
                   title={
@@ -642,60 +535,41 @@ export default function LivInboxClient({ embedded = false, onClose }: Props) {
                   {syncing ? 'Henter…' : 'Hent nye mails'}
                 </button>
               </div>
-            </div>
-
-            {/* Simulate inbound */}
-            <div className="rounded-xl border border-white/[0.08] bg-white/[0.02] p-3.5">
-              <p className="text-[12px] font-medium text-white/80">Test en indgående mail</p>
-              <p className="mt-0.5 text-[10px] text-white/40">
-                Indsæt en mail, som var den lige landet i Livs indbakke. Hun læser den, følger jeres retningslinjer og
-                beslutter, om hun svarer selv eller rækker ud til dig.
-              </p>
-              <div className="mt-3 grid grid-cols-1 gap-2 md:grid-cols-2">
-                <input
-                  className={inputClass}
-                  placeholder="Afsender-email (fx presse@venue.dk)"
-                  value={fromEmail}
-                  onChange={(e) => setFromEmail(e.target.value)}
-                />
-                <input
-                  className={inputClass}
-                  placeholder="Afsendernavn (valgfrit)"
-                  value={fromName}
-                  onChange={(e) => setFromName(e.target.value)}
-                />
-              </div>
-              <input
-                className={`${inputClass} mt-2`}
-                placeholder="Emne"
-                value={subject}
-                onChange={(e) => setSubject(e.target.value)}
-              />
-              <textarea
-                className={`${inputClass} mt-2 min-h-[110px] resize-y`}
-                placeholder="Mailens tekst…"
-                value={body}
-                onChange={(e) => setBody(e.target.value)}
-              />
-              <div className="mt-3 flex items-center justify-between gap-3">
-                <span className="text-[10px] text-white/35">
-                  {settings?.autoRespond
-                    ? 'Auto-svar er ON: Liv sender selv, når hun er sikker.'
-                    : 'Auto-svar er OFF: Liv laver kladder til din gennemgang.'}
+              <div className="mt-3 flex flex-wrap items-center gap-2 text-[11px] text-white/55">
+                <span className="inline-flex items-center gap-1.5">
+                  <span className="size-1.5 rounded-full bg-amber-400" /> {counts.escalated} kræver dig
                 </span>
-                <button type="button" className={primaryBtn} disabled={processing} onClick={runSimulate}>
-                  {processing ? 'Liv læser…' : 'Lad Liv svare'}
-                </button>
+                <span className="text-white/20">·</span>
+                <span className="inline-flex items-center gap-1.5">
+                  <span className="size-1.5 rounded-full bg-white/40" /> {counts.draft} kladder
+                </span>
+                <span className="text-white/20">·</span>
+                <span className="inline-flex items-center gap-1.5">
+                  <span className="size-1.5 rounded-full bg-emerald-400" /> {counts.autoReplied} auto-svaret
+                </span>
+                {counts.dismissed > 0 && (
+                  <>
+                    <span className="text-white/20">·</span>
+                    <span className="inline-flex items-center gap-1.5">
+                      <span className="size-1.5 rounded-full bg-white/30" /> {counts.dismissed} afvist
+                    </span>
+                  </>
+                )}
+                {agentModel && (
+                  <>
+                    <span className="text-white/20">·</span>
+                    <span className="text-white/45">Intelligens: {agentModel}</span>
+                  </>
+                )}
               </div>
             </div>
 
-            {/* Inbox items */}
             <div className="flex flex-col gap-3">
               {openItems.length === 0 && (
-                <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] px-4 py-8 text-center text-[12px] text-white/40">
+                <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] px-3.5 py-8 text-center text-[12px] text-white/40">
                   {dismissedItems.length
                     ? 'Ingen åbne henvendelser. Afviste ligger nedenfor.'
-                    : 'Ingen henvendelser endnu. Test en mail ovenfor for at se Liv arbejde.'}
+                    : 'Ingen henvendelser endnu. Tryk Hent nye mails, eller vent på næste auto-hentning.'}
                 </div>
               )}
               {openItems.map((item) => (
