@@ -1,5 +1,8 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { resetAllAccreditationStoresForTests } from '@/lib/accreditation/persistence/test-reset';
+import { __setMemoryBackendForTests } from '@/lib/accreditation/memory-store';
+import { createInMemoryMemoryBackend } from '@/lib/accreditation/memory-json-adapter';
+import { gatherSenderIntelligence, __resetLivInboxContactCache } from '@/lib/liv-inbox/context';
 import {
   DEFAULT_SETTINGS,
   getLivInboxSettings,
@@ -29,6 +32,8 @@ function fakeMessage(uid: number, over: Partial<FetchedMessage['parsed']>): Fetc
 
 beforeEach(async () => {
   await resetAllAccreditationStoresForTests();
+  __setMemoryBackendForTests('memory', createInMemoryMemoryBackend());
+  __resetLivInboxContactCache();
 });
 
 const baseSettings: LivInboxSettings = {
@@ -41,7 +46,7 @@ describe('liv-inbox settings store', () => {
   it('returns fail-closed defaults (auto-respond OFF)', async () => {
     const s = await getLivInboxSettings();
     expect(s.autoRespond).toBe(false);
-    expect(s.guidelines).toContain('Sådan behandler vi normalt');
+    expect(s.guidelines).toContain('APROPOS-INDBAKKEN');
   });
 
   it('persists auto-respond and guideline updates', async () => {
@@ -202,5 +207,50 @@ describe('ingestFetchedMessages (one.com IMAP intake)', () => {
     expect(res.processed).toBe(0);
     expect(res.skipped).toBe(2);
     expect(await listInboxItems()).toHaveLength(0);
+  });
+});
+
+describe('sender intelligence (research + memory)', () => {
+  it('treats an unseen sender as a new contact', async () => {
+    const intel = await gatherSenderIntelligence('unknown@z.dk');
+    expect(intel.known).toBe(false);
+    expect(intel.priorInteractions).toBe(0);
+    expect(intel.note).toBe('Ny kontakt');
+  });
+
+  it('learns a contact and recognises them on the next email', async () => {
+    await updateLivInboxSettings({ autoRespond: true, confidenceThreshold: 40 });
+
+    const first = await processInboundEmail({
+      fromEmail: 'anders@label.dk',
+      fromName: 'Anders',
+      subject: 'Interviewtilbud',
+      body: 'Vi vil gerne tilbyde jer et interview med kunstneren.',
+    });
+    expect(first.contactKnown).toBe(false); // researched before she was recorded
+
+    const second = await processInboundEmail({
+      fromEmail: 'anders@label.dk',
+      fromName: 'Anders',
+      subject: 'Opfølgning',
+      body: 'Har I haft tid til at kigge på det?',
+    });
+    expect(second.contactKnown).toBe(true);
+    expect(second.priorInteractions).toBeGreaterThan(0);
+    expect(second.contactNote).toContain('Kendt kontakt');
+
+    // The research block for this contact now carries prior context.
+    const intel = await gatherSenderIntelligence('anders@label.dk');
+    expect(intel.block).toContain('anders@label.dk');
+  });
+
+  it('remembers a sender even when the mail was escalated', async () => {
+    await processInboundEmail({
+      fromEmail: 'okonomi@bureau.dk',
+      subject: 'Faktura',
+      body: 'Kan I betale den vedhæftede faktura?',
+    });
+    const intel = await gatherSenderIntelligence('okonomi@bureau.dk');
+    expect(intel.known).toBe(true);
   });
 });

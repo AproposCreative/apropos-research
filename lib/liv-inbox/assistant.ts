@@ -28,7 +28,11 @@ function hasHardEscalationSignal(input: InboundEmailInput): boolean {
   return detectEscalationHeuristics(`${input.subject}\n${input.body}`).length > 0;
 }
 
-function buildTaskInstructions(settings: LivInboxSettings, input: InboundEmailInput): string {
+function buildTaskInstructions(
+  settings: LivInboxSettings,
+  _input: InboundEmailInput,
+  intelligence?: string
+): string {
   return [
     'Du læser en indgående mail i Apropos-indbakken og beslutter hvordan der svares.',
     'Følg husets retningslinjer nedenfor nøje. Svar kun selv når du er trygt sikker;',
@@ -37,6 +41,15 @@ function buildTaskInstructions(settings: LivInboxSettings, input: InboundEmailIn
     'HUSETS RETNINGSLINJER (din kontekst og dine regler):',
     settings.guidelines.trim(),
     '',
+    intelligence && intelligence.trim()
+      ? [
+          'RESEARCH OM AFSENDEREN (fra vores kontaktdatabase og regneark - brug den aktivt):',
+          intelligence.trim(),
+          'Skriv som til en du kender, hvis I har historik. GENTAG IKKE den samme standardhilsen',
+          'eller de samme spørgsmål som tidligere - byg på det I allerede ved.',
+          '',
+        ].join('\n')
+      : '',
     'Signatur der skal afslutte dit svar (medtag den i "reply"):',
     settings.signature.trim(),
     '',
@@ -90,7 +103,8 @@ export function fallbackDecision(
  */
 export async function decideInboxReply(
   settings: LivInboxSettings,
-  input: InboundEmailInput
+  input: InboundEmailInput,
+  intelligence?: string
 ): Promise<LivInboxDecision> {
   const openai = getOpenAIClient();
   if (!openai) {
@@ -104,7 +118,7 @@ export async function decideInboxReply(
     automationEnabled: settings.autoRespond,
     includeFacts: true,
     includeBio: true,
-    taskInstructions: buildTaskInstructions(settings, input),
+    taskInstructions: buildTaskInstructions(settings, input, intelligence),
   });
 
   try {

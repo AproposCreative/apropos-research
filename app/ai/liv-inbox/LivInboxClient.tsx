@@ -433,9 +433,25 @@ export default function LivInboxClient({ embedded = false, onClose }: Props) {
                     </div>
                   </div>
 
-                  {item.category && (
-                    <p className="mt-2 text-[10px] uppercase tracking-wider text-white/35">{item.category}</p>
-                  )}
+                  <div className="mt-2 flex flex-wrap items-center gap-2">
+                    {item.category && (
+                      <span className="text-[10px] uppercase tracking-wider text-white/35">{item.category}</span>
+                    )}
+                    {item.contactNote && (
+                      <span
+                        className={`inline-flex items-center gap-1.5 rounded-md border px-1.5 py-0.5 text-[10px] ${
+                          item.contactKnown
+                            ? 'border-emerald-400/25 bg-emerald-400/[0.06] text-emerald-200/90'
+                            : 'border-white/12 bg-white/[0.04] text-white/50'
+                        }`}
+                      >
+                        <span
+                          className={`size-1.5 rounded-full ${item.contactKnown ? 'bg-emerald-400' : 'bg-white/40'}`}
+                        />
+                        {item.contactNote}
+                      </span>
+                    )}
+                  </div>
 
                   {item.reasoning && (
                     <p className="mt-1.5 text-[11px] leading-relaxed text-white/55">
