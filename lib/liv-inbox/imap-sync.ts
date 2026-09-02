@@ -94,6 +94,9 @@ export async function ingestFetchedMessages(
           sourceUid: msg.uid,
           receivedAt: msg.parsed.date,
           allowAutoSend: autoSent < sendBudget,
+          inReplyTo: msg.parsed.inReplyTo,
+          references: msg.parsed.references,
+          headers: msg.parsed.headers,
         }
       );
       if (item.sent) autoSent++;

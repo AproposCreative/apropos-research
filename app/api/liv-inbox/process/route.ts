@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getRequestId } from '@/lib/api/request-utils';
 import { createErrorResponse, createSuccessResponse, ErrorCode } from '@/lib/api/types';
-import { processInboundEmail } from '@/lib/liv-inbox/process';
+import { processInboundEmail, type ProcessInboundOptions } from '@/lib/liv-inbox/process';
 
 export const runtime = 'nodejs';
 
@@ -39,12 +39,28 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const item = await processInboundEmail({
-      fromEmail,
-      fromName,
-      subject: subject || '(intet emne)',
-      body: bodyText,
-    });
+    // Optional threading/source signals (used by the IMAP path and the test feed).
+    const options: ProcessInboundOptions = {};
+    if (body.source === 'imap') options.source = 'imap';
+    if (typeof body.sourceMessageId === 'string' && body.sourceMessageId.trim()) {
+      options.sourceMessageId = body.sourceMessageId.trim();
+    }
+    if (typeof body.inReplyTo === 'string' && body.inReplyTo.trim()) {
+      options.inReplyTo = body.inReplyTo.trim();
+    }
+    if (Array.isArray(body.references)) {
+      options.references = body.references.filter((r: unknown) => typeof r === 'string');
+    }
+
+    const item = await processInboundEmail(
+      {
+        fromEmail,
+        fromName,
+        subject: subject || '(intet emne)',
+        body: bodyText,
+      },
+      options
+    );
     return NextResponse.json(createSuccessResponse({ item }, { requestId }));
   } catch (e) {
     return NextResponse.json(

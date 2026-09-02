@@ -1,10 +1,11 @@
 import { getLivInboxSettings } from '@/lib/liv-inbox/settings-store';
-import { createInboxItem } from '@/lib/liv-inbox/inbox-store';
+import { createInboxItem, listInboxItems, updateInboxItem } from '@/lib/liv-inbox/inbox-store';
 import { decideInboxReply, type InboundEmailInput } from '@/lib/liv-inbox/assistant';
 import { gatherSenderIntelligence, rememberInboxInteraction } from '@/lib/liv-inbox/context';
+import { buildThreadContext, correlateInboundToLivItem } from '@/lib/liv-inbox/correlate';
 import { appendLivInboxAudit, type LivInboxAuditType } from '@/lib/liv-inbox/audit-store';
 import { isLivInboxSendingEnabled, sendLivInboxReply } from '@/lib/liv-inbox/send';
-import { updateInboxItem } from '@/lib/liv-inbox/inbox-store';
+import { newEntityId } from '@/lib/accreditation/ids';
 import type { LivInboxItem, LivInboxItemStatus, LivInboxSettings } from '@/lib/liv-inbox/types';
 
 const STATUS_AUDIT: Partial<Record<LivInboxItemStatus, LivInboxAuditType>> = {
@@ -29,6 +30,10 @@ export interface ProcessInboundOptions {
   sourceMessageId?: string;
   sourceUid?: number;
   receivedAt?: string;
+  /** Threading signals from the inbound MIME (used to correlate to a prior item). */
+  inReplyTo?: string;
+  references?: string[];
+  headers?: Record<string, string>;
   /** Allow an actual auto-send for a confident reply (default true; the batch
    *  caller sets false once the per-run cap is reached). Sending still requires
    *  the LIV_INBOX_SENDING_ENABLED kill-switch. */
@@ -50,7 +55,19 @@ export async function processInboundEmail(
   // Research the sender first (contact database + shared contacts sheet).
   const intel = await gatherSenderIntelligence(email, input.fromName);
 
-  const decision = await decideInboxReply(settings, input, intel.block);
+  // Conversation threading: is this a reply to a prior item? If so, inherit its
+  // thread and feed the earlier turns into the prompt so Liv builds on them.
+  const allItems = await listInboxItems();
+  const parent = correlateInboundToLivItem(
+    { inReplyTo: options.inReplyTo, references: options.references, headers: options.headers },
+    allItems
+  );
+  const threadId = parent?.threadId || newEntityId('thread');
+  const threadItems = parent ? allItems.filter((i) => i.threadId === threadId) : [];
+  const threadBlock = buildThreadContext(threadItems);
+  const combinedIntel = [intel.block, threadBlock].filter((b) => b && b.trim()).join('\n\n');
+
+  const decision = await decideInboxReply(settings, input, combinedIntel);
   const status = resolveInboxStatus(settings, decision);
 
   const item = await createInboxItem({
@@ -73,6 +90,8 @@ export async function processInboundEmail(
     source: options.source || 'manual',
     sourceMessageId: options.sourceMessageId,
     sourceUid: options.sourceUid,
+    threadId,
+    parentItemId: parent?.id,
     contactKnown: intel.known,
     priorInteractions: intel.priorInteractions,
     contactNote: intel.note,
@@ -116,12 +135,14 @@ export async function processInboundEmail(
       to: email,
       subject: `Re: ${input.subject.trim()}`,
       text: decision.reply,
+      inReplyToMessageId: options.sourceMessageId,
     });
     const sentItem = await updateInboxItem(item.id, {
       sent: result.sent,
       sentTo: result.to,
       sentAt: result.sent ? new Date().toISOString() : undefined,
       sendId: result.id,
+      outboundMessageId: result.outboundMessageId,
       sendRedirected: result.redirected,
       sentVia: result.transport,
       sentCopyArchived: result.sentCopyArchived,

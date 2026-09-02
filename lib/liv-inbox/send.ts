@@ -29,6 +29,7 @@ import {
 } from '@/lib/accreditation/mail-transport';
 import { getAccreditationReplyToFallbackEmail } from '@/lib/accreditation/send-email';
 import { appendLivSentCopy } from '@/lib/accreditation/imap/sent-copy';
+import { normalizeMsgId } from '@/lib/liv-inbox/correlate';
 
 export function isLivInboxSendingEnabled(): boolean {
   return process.env.LIV_INBOX_SENDING_ENABLED === 'true';
@@ -166,6 +167,8 @@ export interface LivSendResult {
   transport?: 'smtp' | 'resend';
   /** True when the sent copy was archived to Liv's Sent folder (SMTP only). */
   sentCopyArchived?: boolean;
+  /** RFC Message-ID of the sent reply (for threading future replies). */
+  outboundMessageId?: string;
 }
 
 function buildHtml(text: string): string {
@@ -180,7 +183,16 @@ type TransportSendParams = {
   html: string;
   redirected: boolean;
   intendedTo: string;
+  /** Message-ID of the inbound mail being replied to (sets In-Reply-To/References). */
+  inReplyToMessageId?: string;
 };
+
+function threadHeaders(inReplyToMessageId?: string): Record<string, string> {
+  const mid = (inReplyToMessageId || '').trim();
+  if (!mid) return {};
+  const bracketed = mid.startsWith('<') ? mid : `<${mid}>`;
+  return { 'In-Reply-To': bracketed, References: bracketed };
+}
 
 /** Send from Liv's one.com mailbox and archive a copy to her Sent folder. */
 async function sendViaLivInboxSmtp(p: TransportSendParams): Promise<LivSendResult> {
@@ -215,7 +227,10 @@ async function sendViaLivInboxSmtp(p: TransportSendParams): Promise<LivSendResul
       html: p.html,
       text: p.text,
       replyTo: getAccreditationReplyToFallbackEmail(),
-      headers: { 'X-Apropos-LivInbox-Item': p.itemId.slice(0, 200) },
+      headers: {
+        'X-Apropos-LivInbox-Item': p.itemId.slice(0, 200),
+        ...threadHeaders(p.inReplyToMessageId),
+      },
     };
     const info = await transporter.sendMail(mailOptions);
     const messageId = typeof info.messageId === 'string' ? info.messageId : undefined;
@@ -232,6 +247,7 @@ async function sendViaLivInboxSmtp(p: TransportSendParams): Promise<LivSendResul
     return {
       sent: true,
       id: messageId,
+      outboundMessageId: normalizeMsgId(messageId),
       transport: 'smtp',
       redirected: p.redirected,
       to: p.to,
@@ -260,6 +276,10 @@ async function sendViaLivInboxResend(p: TransportSendParams): Promise<LivSendRes
         subject: p.subject,
         html: p.html,
         text: p.text,
+        headers: {
+          'X-Apropos-LivInbox-Item': p.itemId.slice(0, 200),
+          ...threadHeaders(p.inReplyToMessageId),
+        },
         tags: [{ name: 'liv_inbox_item', value: p.itemId.slice(0, 256) }],
       },
       { idempotencyKey: `liv-inbox-send/${p.itemId}/${hash}`.slice(0, 256) }
@@ -268,6 +288,7 @@ async function sendViaLivInboxResend(p: TransportSendParams): Promise<LivSendRes
     return {
       sent: true,
       id: data?.id,
+      outboundMessageId: normalizeMsgId(data?.id),
       transport: 'resend',
       redirected: p.redirected,
       to: p.to,
@@ -283,6 +304,7 @@ export async function sendLivInboxReply(params: {
   to: string;
   subject: string;
   text: string;
+  inReplyToMessageId?: string;
 }): Promise<LivSendResult> {
   if (!isLivInboxSendingEnabled()) {
     return { sent: false, blocked: true, reason: 'LIV_INBOX_SENDING_ENABLED er ikke slået til (skygge-tilstand)' };
@@ -314,6 +336,7 @@ export async function sendLivInboxReply(params: {
     html: content.html,
     redirected: resolved.redirected,
     intendedTo: resolved.intendedTo,
+    inReplyToMessageId: params.inReplyToMessageId,
   };
 
   return livInboxMailTransport() === 'smtp'

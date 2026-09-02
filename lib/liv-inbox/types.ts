@@ -74,6 +74,13 @@ export interface LivInboxItem {
   /** IMAP UID of the source message. */
   sourceUid?: number;
 
+  /** Conversation this item belongs to (shared across a back-and-forth). */
+  threadId?: string;
+  /** The prior item this one is a reply to (when correlated). */
+  parentItemId?: string;
+  /** RFC Message-ID of Liv's outbound reply (used to correlate future replies). */
+  outboundMessageId?: string;
+
   /** True when Liv already knew this sender from the contact database. */
   contactKnown?: boolean;
   /** Number of prior logged interactions with this sender. */

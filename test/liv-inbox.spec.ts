@@ -19,6 +19,7 @@ import {
 import { createInboxItem, listInboxItems, updateInboxItem } from '@/lib/liv-inbox/inbox-store';
 import { fallbackDecision } from '@/lib/liv-inbox/assistant';
 import { isMeaningfulEdit, mergeNote, learnFromEdit } from '@/lib/liv-inbox/learn';
+import { buildThreadContext, correlateInboundToLivItem } from '@/lib/liv-inbox/correlate';
 import { processInboundEmail, resolveInboxStatus } from '@/lib/liv-inbox/process';
 import { ingestFetchedMessages, type FetchedMessage } from '@/lib/liv-inbox/imap-sync';
 import type { LivInboxSettings } from '@/lib/liv-inbox/types';
@@ -360,6 +361,64 @@ describe('recipient routing (domain allowlist vs test-redirect)', () => {
   it('blocks fail-closed when no redirect and not allowlisted', () => {
     const r = resolveLivInboxRecipient('someone@external.com');
     expect(r.blocked).toBe(true);
+  });
+});
+
+describe('conversation threading (correlate)', () => {
+  const baseItem = (over: Partial<import('@/lib/liv-inbox/types').LivInboxItem>) => ({
+    id: 'x',
+    fromEmail: 'p@promo.dk',
+    subject: 'Hej',
+    body: 'body',
+    receivedAt: new Date().toISOString(),
+    status: 'draft' as const,
+    ...over,
+  });
+
+  it('matches inbound In-Reply-To against a prior outbound Message-ID', () => {
+    const items = [baseItem({ id: 'a', outboundMessageId: 'liv-reply-1@one.com', receivedAt: '2026-01-01' })];
+    const parent = correlateInboundToLivItem({ inReplyTo: '<LIV-REPLY-1@one.com>' }, items);
+    expect(parent?.id).toBe('a');
+  });
+
+  it('matches via References against the original inbound Message-ID', () => {
+    const items = [baseItem({ id: 'b', sourceMessageId: 'orig-9@promo.dk' })];
+    const parent = correlateInboundToLivItem({ references: ['<orig-9@promo.dk>'] }, items);
+    expect(parent?.id).toBe('b');
+  });
+
+  it('matches via the X-Apropos-LivInbox-Item header', () => {
+    const items = [baseItem({ id: 'c' })];
+    const parent = correlateInboundToLivItem({ headers: { 'x-apropos-livinbox-item': 'c' } }, items);
+    expect(parent?.id).toBe('c');
+  });
+
+  it('returns undefined when nothing matches', () => {
+    const items = [baseItem({ id: 'd', outboundMessageId: 'z@one.com' })];
+    expect(correlateInboundToLivItem({ inReplyTo: '<nope@x.dk>' }, items)).toBeUndefined();
+  });
+
+  it('buildThreadContext summarizes prior turns', () => {
+    const block = buildThreadContext([
+      baseItem({ id: 'a', subject: 'Festival', body: 'Vil I dække?', draftReply: 'Vi vender tilbage', receivedAt: '2026-01-01' }),
+    ]);
+    expect(block).toContain('TIDLIGERE I SAMTALEN');
+    expect(block).toContain('Festival');
+    expect(block).toContain('Livs svar');
+  });
+
+  it('inherits threadId/parentItemId when an inbound replies to a prior item', async () => {
+    const a = await processInboundEmail(
+      { fromEmail: 'promo@x.dk', fromName: 'Promo', subject: 'Koncert', body: 'Kommer I?' },
+      { source: 'imap', sourceMessageId: 'orig-a@x.dk' }
+    );
+    expect(a.threadId).toBeTruthy();
+    const b = await processInboundEmail(
+      { fromEmail: 'promo@x.dk', fromName: 'Promo', subject: 'Re: Koncert', body: 'Hej igen?' },
+      { source: 'imap', sourceMessageId: 'orig-b@x.dk', inReplyTo: 'orig-a@x.dk' }
+    );
+    expect(b.parentItemId).toBe(a.id);
+    expect(b.threadId).toBe(a.threadId);
   });
 });
 
