@@ -14,12 +14,22 @@ export function resolveInboxStatus(
   return settings.autoRespond ? 'auto_replied' : 'draft';
 }
 
+export interface ProcessInboundOptions {
+  source?: 'manual' | 'imap';
+  sourceMessageId?: string;
+  sourceUid?: number;
+  receivedAt?: string;
+}
+
 /**
  * Core entry point: process one inbound email through Liv and persist the
- * result. Reusable from the UI (manual/simulated feed) and, later, from an
- * IMAP poll or Resend inbound webhook.
+ * result. Reusable from the UI (manual/simulated feed) and from the one.com
+ * IMAP sync (real inbox) or a Resend inbound webhook.
  */
-export async function processInboundEmail(input: InboundEmailInput): Promise<LivInboxItem> {
+export async function processInboundEmail(
+  input: InboundEmailInput,
+  options: ProcessInboundOptions = {}
+): Promise<LivInboxItem> {
   const settings = await getLivInboxSettings();
   const decision = await decideInboxReply(settings, input);
   const status = resolveInboxStatus(settings, decision);
@@ -29,7 +39,7 @@ export async function processInboundEmail(input: InboundEmailInput): Promise<Liv
     fromName: input.fromName?.trim() || undefined,
     subject: input.subject.trim(),
     body: input.body,
-    receivedAt: new Date().toISOString(),
+    receivedAt: options.receivedAt || new Date().toISOString(),
     category: decision.category,
     draftReply: decision.reply,
     confidence: decision.confidence,
@@ -40,5 +50,8 @@ export async function processInboundEmail(input: InboundEmailInput): Promise<Liv
     modelUsed: decision.modelUsed,
     promptVersion: decision.promptVersion,
     usedFallback: decision.usedFallback,
+    source: options.source || 'manual',
+    sourceMessageId: options.sourceMessageId,
+    sourceUid: options.sourceUid,
   });
 }

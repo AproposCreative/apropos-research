@@ -85,6 +85,13 @@ export default function LivInboxClient({ embedded = false, onClose }: Props) {
   const [processing, setProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // one.com inbox (IMAP) status + sync
+  const [mailbox, setMailbox] = useState<{ user: string; host: string; configured: boolean } | null>(
+    null
+  );
+  const [syncing, setSyncing] = useState(false);
+  const [syncMsg, setSyncMsg] = useState<string | null>(null);
+
   // Simulate-inbound form
   const [fromEmail, setFromEmail] = useState('');
   const [fromName, setFromName] = useState('');
@@ -112,16 +119,38 @@ export default function LivInboxClient({ embedded = false, onClose }: Props) {
   const loadAll = useCallback(async () => {
     setError(null);
     try {
-      const [sRes, iRes] = await Promise.all([
+      const [sRes, iRes, mRes] = await Promise.all([
         fetch('/api/liv-inbox/settings').then((r) => r.json()),
         fetch('/api/liv-inbox/items').then((r) => r.json()),
+        fetch('/api/liv-inbox/sync').then((r) => r.json()),
       ]);
       if (sRes?.data?.settings) applySettings(sRes.data.settings, sRes.data.agentModel);
       if (iRes?.data?.items) setItems(iRes.data.items);
+      if (mRes?.data?.mailbox) setMailbox(mRes.data.mailbox);
     } catch {
       setError('Kunne ikke hente indbakken.');
     }
   }, [applySettings]);
+
+  const runSync = useCallback(async () => {
+    setSyncing(true);
+    setSyncMsg(null);
+    setError(null);
+    try {
+      const res = await fetch('/api/liv-inbox/sync', { method: 'POST' }).then((r) => r.json());
+      if (res?.data?.summary) {
+        const s = res.data.summary;
+        setSyncMsg(`Hentet ${s.processed} ny(e), sprang ${s.skipped} over.`);
+        await loadAll();
+      } else {
+        setError(res?.error || 'Kunne ikke hente mails.');
+      }
+    } catch {
+      setError('Kunne ikke hente mails fra one.com.');
+    } finally {
+      setSyncing(false);
+    }
+  }, [loadAll]);
 
   useEffect(() => {
     void loadAll();
@@ -293,6 +322,43 @@ export default function LivInboxClient({ embedded = false, onClose }: Props) {
                   <span className="text-white/45">Intelligens: {agentModel}</span>
                 </>
               )}
+            </div>
+
+            {/* one.com inbox connection + sync */}
+            <div className="rounded-xl border border-white/[0.08] bg-white/[0.02] p-3.5">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="flex items-center gap-2 text-[12px] font-medium text-white/80">
+                    <span
+                      className={`size-1.5 rounded-full ${
+                        mailbox?.configured ? 'bg-emerald-400' : 'bg-amber-400'
+                      }`}
+                    />
+                    Livs indbakke · one.com
+                  </p>
+                  <p className="mt-0.5 truncate text-[10px] text-white/40">
+                    {mailbox
+                      ? `${mailbox.user} · ${mailbox.host}${
+                          mailbox.configured ? '' : ' · adgangskode mangler (LIV_IMAP_PASSWORD)'
+                        }`
+                      : 'Henter forbindelsesstatus…'}
+                  </p>
+                  {syncMsg && <p className="mt-1 text-[10px] text-emerald-300">{syncMsg}</p>}
+                </div>
+                <button
+                  type="button"
+                  className={secondaryBtn}
+                  disabled={syncing || !mailbox?.configured}
+                  onClick={runSync}
+                  title={
+                    mailbox?.configured
+                      ? 'Hent nye mails fra Livs one.com-indbakke'
+                      : 'Sæt LIV_IMAP_PASSWORD for at forbinde'
+                  }
+                >
+                  {syncing ? 'Henter…' : 'Hent nye mails'}
+                </button>
+              </div>
             </div>
 
             {/* Simulate inbound */}

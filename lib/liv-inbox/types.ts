@@ -59,6 +59,13 @@ export interface LivInboxItem {
   promptVersion?: string;
   /** True when the decision came from the deterministic fallback (no LLM). */
   usedFallback?: boolean;
+
+  /** Source metadata when ingested from Liv's real inbox (one.com IMAP). */
+  source?: 'manual' | 'imap';
+  /** RFC Message-ID used to de-duplicate IMAP ingestion. */
+  sourceMessageId?: string;
+  /** IMAP UID of the source message. */
+  sourceUid?: number;
 }
 
 export interface LivInboxDecision {

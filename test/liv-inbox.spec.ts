@@ -8,7 +8,24 @@ import {
 import { createInboxItem, listInboxItems, updateInboxItem } from '@/lib/liv-inbox/inbox-store';
 import { fallbackDecision } from '@/lib/liv-inbox/assistant';
 import { processInboundEmail, resolveInboxStatus } from '@/lib/liv-inbox/process';
+import { ingestFetchedMessages, type FetchedMessage } from '@/lib/liv-inbox/imap-sync';
 import type { LivInboxSettings } from '@/lib/liv-inbox/types';
+
+function fakeMessage(uid: number, over: Partial<FetchedMessage['parsed']>): FetchedMessage {
+  return {
+    uid,
+    parsed: {
+      messageId: `<msg-${uid}@one.com>`,
+      references: [],
+      fromEmail: 'someone@x.dk',
+      toAddresses: ['liv@aproposmagazine.com'],
+      subject: 'Hej',
+      text: 'Hej Liv',
+      headers: {},
+      ...over,
+    },
+  };
+}
 
 beforeEach(async () => {
   await resetAllAccreditationStoresForTests();
@@ -142,5 +159,48 @@ describe('processInboundEmail end-to-end (memory backend, fallback path)', () =>
       body: 'Tak for et fantastisk magasin, bare ros herfra.',
     });
     expect(item.status).toBe('draft');
+  });
+});
+
+describe('ingestFetchedMessages (one.com IMAP intake)', () => {
+  it('triages fetched mail and de-duplicates by Message-ID', async () => {
+    await updateLivInboxSettings({ autoRespond: false, confidenceThreshold: 40 });
+    const messages: FetchedMessage[] = [
+      fakeMessage(101, {
+        fromEmail: 'ida@laeser.dk',
+        subject: 'Ros',
+        text: 'Elsker jeres magasin!',
+      }),
+      fakeMessage(102, {
+        fromEmail: 'promoter@venue.dk',
+        subject: 'Faktura',
+        text: 'Kan I betale denne faktura og underskrive kontrakten?',
+      }),
+    ];
+
+    const first = await ingestFetchedMessages(messages);
+    expect(first.processed).toBe(2);
+    const items = await listInboxItems();
+    expect(items).toHaveLength(2);
+    expect(items.every((i) => i.source === 'imap')).toBe(true);
+    // Sensitive one escalates; ordinary one becomes a draft.
+    expect(items.find((i) => i.fromEmail === 'promoter@venue.dk')?.status).toBe('escalated');
+    expect(items.find((i) => i.fromEmail === 'ida@laeser.dk')?.status).toBe('draft');
+
+    // Re-syncing the same messages must not create duplicates.
+    const second = await ingestFetchedMessages(messages);
+    expect(second.processed).toBe(0);
+    expect(second.skipped).toBe(2);
+    expect(await listInboxItems()).toHaveLength(2);
+  });
+
+  it('skips messages with no sender or empty body', async () => {
+    const res = await ingestFetchedMessages([
+      fakeMessage(201, { fromEmail: '', text: 'Har ingen afsender' }),
+      fakeMessage(202, { fromEmail: 'x@y.dk', text: '   ' }),
+    ]);
+    expect(res.processed).toBe(0);
+    expect(res.skipped).toBe(2);
+    expect(await listInboxItems()).toHaveLength(0);
   });
 });
