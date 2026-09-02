@@ -139,6 +139,8 @@ export default function LivInboxClient({ embedded = false, onClose }: Props) {
   const [signatureDraft, setSignatureDraft] = useState('');
   const [thresholdDraft, setThresholdDraft] = useState(70);
   const [guidelinesSaved, setGuidelinesSaved] = useState(false);
+  const [seeding, setSeeding] = useState(false);
+  const [seedMsg, setSeedMsg] = useState<string | null>(null);
 
   // Per-item draft editing
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -247,6 +249,30 @@ export default function LivInboxClient({ embedded = false, onClose }: Props) {
       setBusy(false);
     }
   }, [guidelinesDraft, editorialFactsDraft, signatureDraft, thresholdDraft, applySettings]);
+
+  const seedMemory = useCallback(async () => {
+    setSeeding(true);
+    setSeedMsg(null);
+    setError(null);
+    try {
+      const res = await fetch('/api/accreditation/memory/sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'sync' }),
+      }).then((r) => r.json());
+      const d = res?.data;
+      if (d && (d.ok || d.imported !== undefined)) {
+        setSeedMsg(`Hukommelse opdateret: ${d.upserted ?? 0} kontakter (${d.imported ?? 0} nye).`);
+        await loadAll();
+      } else {
+        setError(res?.error || 'Kunne ikke seede hukommelsen.');
+      }
+    } catch {
+      setError('Kunne ikke seede hukommelsen fra historikken.');
+    } finally {
+      setSeeding(false);
+    }
+  }, [loadAll]);
 
   const runSimulate = useCallback(async () => {
     if (!fromEmail.trim() || !body.trim()) {
@@ -694,6 +720,26 @@ export default function LivInboxClient({ embedded = false, onClose }: Props) {
                 {busy ? 'Gemmer…' : 'Gem retningslinjer'}
               </button>
               {guidelinesSaved && <span className="text-[11px] text-emerald-300">Gemt</span>}
+            </div>
+
+            <div className="rounded-xl border border-white/[0.06] p-3.5">
+              <p className="text-[12px] font-medium text-white/80">Hukommelse</p>
+              <p className="mt-0.5 text-[10px] text-white/40">
+                Seed Livs hukommelse fra den eksisterende mailboks-historik, så hun kender etablerede relationer fra
+                dag ét (kendt vs. ny afsender som eksplicit signal).
+              </p>
+              <div className="mt-2 flex items-center gap-3">
+                <button
+                  type="button"
+                  className={secondaryBtn}
+                  style={{ width: 'auto', paddingInline: '1rem' }}
+                  disabled={seeding}
+                  onClick={seedMemory}
+                >
+                  {seeding ? 'Seeder…' : 'Seed hukommelse'}
+                </button>
+                {seedMsg && <span className="text-[11px] text-emerald-300">{seedMsg}</span>}
+              </div>
             </div>
           </div>
         )}

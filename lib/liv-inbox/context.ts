@@ -15,6 +15,7 @@ import {
   loadMemoryForReply,
   updateMemoryAfterEvent,
 } from '@/lib/accreditation/memory-store';
+import type { ContactRelationshipStatus } from '@/lib/accreditation/memory-types';
 import type { SheetContact } from '@/lib/accreditation/types';
 
 export const LIV_INBOX_MAILBOX = 'liv@aproposmagazine.com';
@@ -26,8 +27,26 @@ export interface SenderIntelligence {
   known: boolean;
   /** How many prior interactions we have logged with this contact. */
   priorInteractions: number;
+  /** Trust tier from the contact profile (established_two_way / one_way / unknown …). */
+  relationshipStatus?: ContactRelationshipStatus;
   /** Short human-facing note for the UI, e.g. "Kendt kontakt · 3 tidligere". */
   note?: string;
+}
+
+/** Danish label for a trust tier, for the prompt + UI. */
+export function trustTierLabel(status?: ContactRelationshipStatus): string {
+  switch (status) {
+    case 'established_two_way':
+      return 'etableret (to-vejs-dialog)';
+    case 'one_way':
+      return 'kun én vej indtil videre';
+    case 'automated':
+      return 'automatisk afsender';
+    case 'do_not_contact':
+      return 'må ikke kontaktes';
+    default:
+      return 'ukendt/ny';
+  }
 }
 
 /** Stable per-contact conversation key for the inbox desk. */
@@ -85,6 +104,7 @@ export async function gatherSenderIntelligence(
   const parts: string[] = [];
   let known = false;
   let priorInteractions = 0;
+  let relationshipStatus: ContactRelationshipStatus | undefined;
 
   // 1) Contact memory (profile + rolling conversation summary)
   try {
@@ -96,6 +116,7 @@ export async function gatherSenderIntelligence(
     if (profile) {
       known = true;
       priorInteractions = profile.interactionCount || 0;
+      relationshipStatus = profile.relationshipStatus;
     }
   } catch {
     /* memory unavailable — continue without it */
@@ -121,14 +142,27 @@ export async function gatherSenderIntelligence(
     /* sheet unavailable — continue */
   }
 
+  // Explicit trust signal for both the model and the human reviewer.
+  if (relationshipStatus && relationshipStatus !== 'unknown') {
+    parts.push(`TILLIDSNIVEAU: ${trustTierLabel(relationshipStatus)}.`);
+  }
+
   const block = parts.join('\n\n');
+  const trust =
+    relationshipStatus === 'established_two_way'
+      ? 'Etableret'
+      : relationshipStatus === 'one_way'
+        ? 'Kendt (én vej)'
+        : known
+          ? 'Kendt'
+          : 'Ny';
   const note = known
     ? priorInteractions > 0
-      ? `Kendt kontakt · ${priorInteractions} tidligere`
-      : 'Kendt kontakt'
+      ? `${trust} kontakt · ${priorInteractions} tidligere`
+      : `${trust} kontakt`
     : 'Ny kontakt';
 
-  return { block, known, priorInteractions, note };
+  return { block, known, priorInteractions, relationshipStatus, note };
 }
 
 /**
