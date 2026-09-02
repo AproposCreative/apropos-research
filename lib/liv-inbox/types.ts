@@ -66,6 +66,13 @@ export interface LivInboxItem {
   sourceMessageId?: string;
   /** IMAP UID of the source message. */
   sourceUid?: number;
+
+  /** True when Liv already knew this sender from the contact database. */
+  contactKnown?: boolean;
+  /** Number of prior logged interactions with this sender. */
+  priorInteractions?: number;
+  /** Short research note for the UI, e.g. "Kendt kontakt · 3 tidligere". */
+  contactNote?: string;
 }
 
 export interface LivInboxDecision {

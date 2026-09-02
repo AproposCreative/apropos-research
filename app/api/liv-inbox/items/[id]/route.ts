@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getRequestId } from '@/lib/api/request-utils';
 import { createErrorResponse, createSuccessResponse, ErrorCode } from '@/lib/api/types';
 import { getInboxItem, updateInboxItem } from '@/lib/liv-inbox/inbox-store';
+import { rememberSentReply } from '@/lib/liv-inbox/context';
 import { sanitizeLivOutput } from '@/lib/accreditation/sanitize';
 
 export const runtime = 'nodejs';
@@ -47,6 +48,14 @@ export async function POST(request: NextRequest, ctx: { params: Promise<{ id: st
         needsHuman: false,
         handledAt: new Date().toISOString(),
       });
+      if (item && draftReply) {
+        await rememberSentReply({
+          email: item.fromEmail,
+          name: item.fromName,
+          subject: item.subject,
+          replyBlurb: draftReply,
+        });
+      }
       return NextResponse.json(createSuccessResponse({ item }, { requestId }));
     }
 
