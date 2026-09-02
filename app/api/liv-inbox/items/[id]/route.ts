@@ -61,6 +61,7 @@ export async function POST(request: NextRequest, ctx: { params: Promise<{ id: st
             to: existing.fromEmail,
             subject: `Re: ${existing.subject}`,
             text: draftReply,
+            inReplyToMessageId: existing.sourceMessageId,
           })
         : { sent: false, reason: 'Ingen kladde at sende' };
 
@@ -73,6 +74,7 @@ export async function POST(request: NextRequest, ctx: { params: Promise<{ id: st
         sentTo: send.to,
         sentAt: send.sent ? new Date().toISOString() : undefined,
         sendId: send.id,
+        outboundMessageId: send.outboundMessageId,
         sendRedirected: send.redirected,
         sentVia: send.transport,
         sentCopyArchived: send.sentCopyArchived,
