@@ -44,6 +44,7 @@ export const DEFAULT_SETTINGS: LivInboxSettings = {
   signature: 'Bedste hilsner\nLiv Brandt\nApropos Magazine',
   confidenceThreshold: 70,
   editorNotes: '',
+  editorialFacts: '',
   updatedAt: new Date(0).toISOString(),
 };
 
@@ -86,7 +87,13 @@ export async function updateLivInboxSettings(
   patch: Partial<
     Pick<
       LivInboxSettings,
-      'autoRespond' | 'guidelines' | 'signature' | 'confidenceThreshold' | 'editorNotes' | 'updatedBy'
+      | 'autoRespond'
+      | 'guidelines'
+      | 'signature'
+      | 'confidenceThreshold'
+      | 'editorNotes'
+      | 'editorialFacts'
+      | 'updatedBy'
     >
   >
 ): Promise<LivInboxSettings> {

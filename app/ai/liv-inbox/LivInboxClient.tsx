@@ -135,6 +135,7 @@ export default function LivInboxClient({ embedded = false, onClose }: Props) {
 
   // Guidelines editor drafts
   const [guidelinesDraft, setGuidelinesDraft] = useState('');
+  const [editorialFactsDraft, setEditorialFactsDraft] = useState('');
   const [signatureDraft, setSignatureDraft] = useState('');
   const [thresholdDraft, setThresholdDraft] = useState(70);
   const [guidelinesSaved, setGuidelinesSaved] = useState(false);
@@ -146,6 +147,7 @@ export default function LivInboxClient({ embedded = false, onClose }: Props) {
   const applySettings = useCallback((s: LivInboxSettings, model?: string) => {
     setSettings(s);
     setGuidelinesDraft(s.guidelines);
+    setEditorialFactsDraft(s.editorialFacts || '');
     setSignatureDraft(s.signature);
     setThresholdDraft(s.confidenceThreshold);
     if (model) setAgentModel(model);
@@ -226,6 +228,7 @@ export default function LivInboxClient({ embedded = false, onClose }: Props) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           guidelines: guidelinesDraft,
+          editorialFacts: editorialFactsDraft,
           signature: signatureDraft,
           confidenceThreshold: thresholdDraft,
           updatedBy: 'studio',
@@ -243,7 +246,7 @@ export default function LivInboxClient({ embedded = false, onClose }: Props) {
     } finally {
       setBusy(false);
     }
-  }, [guidelinesDraft, signatureDraft, thresholdDraft, applySettings]);
+  }, [guidelinesDraft, editorialFactsDraft, signatureDraft, thresholdDraft, applySettings]);
 
   const runSimulate = useCallback(async () => {
     if (!fromEmail.trim() || !body.trim()) {
@@ -633,6 +636,21 @@ export default function LivInboxClient({ embedded = false, onClose }: Props) {
                 className={`${inputClass} mt-2 min-h-[240px] resize-y`}
                 value={guidelinesDraft}
                 onChange={(e) => setGuidelinesDraft(e.target.value)}
+              />
+            </div>
+
+            <div>
+              <p className="text-[12px] font-medium text-white/80">Redaktionelle fakta</p>
+              <p className="mt-0.5 text-[10px] text-white/40">
+                Hvad dækker vi, hvad er allerede planlagt, deadlines, hvem skriver hvad. Liv bruger det til at svare
+                præcist (fx &quot;vi dækker allerede den festival&quot;) i stedet for generisk. Aktive sager fra
+                akkrediterings-arket tilføjes automatisk.
+              </p>
+              <textarea
+                className={`${inputClass} mt-2 min-h-[140px] resize-y`}
+                value={editorialFactsDraft}
+                onChange={(e) => setEditorialFactsDraft(e.target.value)}
+                placeholder={'Fx:\n- Vi dækker Roskilde, Northside og SPOT i 2026.\n- Anmelder koncerter/festivaler, ikke albums.\n- Deadline for sommernummer: 1. juni.'}
               />
             </div>
 

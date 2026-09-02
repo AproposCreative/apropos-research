@@ -20,6 +20,7 @@ import { createInboxItem, listInboxItems, updateInboxItem } from '@/lib/liv-inbo
 import { fallbackDecision } from '@/lib/liv-inbox/assistant';
 import { isMeaningfulEdit, mergeNote, learnFromEdit } from '@/lib/liv-inbox/learn';
 import { buildThreadContext, correlateInboundToLivItem } from '@/lib/liv-inbox/correlate';
+import { loadEditorialContext, __resetEditorialCacheForTests } from '@/lib/liv-inbox/editorial';
 import { processInboundEmail, resolveInboxStatus } from '@/lib/liv-inbox/process';
 import { ingestFetchedMessages, type FetchedMessage } from '@/lib/liv-inbox/imap-sync';
 import type { LivInboxSettings } from '@/lib/liv-inbox/types';
@@ -361,6 +362,23 @@ describe('recipient routing (domain allowlist vs test-redirect)', () => {
   it('blocks fail-closed when no redirect and not allowlisted', () => {
     const r = resolveLivInboxRecipient('someone@external.com');
     expect(r.blocked).toBe(true);
+  });
+});
+
+describe('editorial facts grounding', () => {
+  it('exposes editorialFacts in the prompt when set (best-effort digest)', async () => {
+    __resetEditorialCacheForTests();
+    await updateLivInboxSettings({ editorialFacts: 'Vi dækker Roskilde og Northside i 2026.' });
+    const ctx = await loadEditorialContext();
+    expect(ctx).toContain('REDAKTIONELLE FAKTA');
+    expect(ctx).toContain('Roskilde');
+  });
+
+  it('returns empty context when nothing is configured', async () => {
+    __resetEditorialCacheForTests();
+    await updateLivInboxSettings({ editorialFacts: '' });
+    const ctx = await loadEditorialContext();
+    expect(ctx).toBe('');
   });
 });
 

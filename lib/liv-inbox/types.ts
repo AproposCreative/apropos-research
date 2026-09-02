@@ -27,6 +27,11 @@ export interface LivInboxSettings {
    * corrections of Liv's drafts. Appended over time; injected into her prompt.
    */
   editorNotes?: string;
+  /**
+   * Editorial facts Liv can rely on when answering ("what we cover / what's
+   * already planned / deadlines"). Editable in the UI; injected into her prompt.
+   */
+  editorialFacts?: string;
   updatedAt: string;
   updatedBy?: string;
 }

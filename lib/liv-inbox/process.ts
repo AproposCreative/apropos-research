@@ -3,6 +3,7 @@ import { createInboxItem, listInboxItems, updateInboxItem } from '@/lib/liv-inbo
 import { decideInboxReply, type InboundEmailInput } from '@/lib/liv-inbox/assistant';
 import { gatherSenderIntelligence, rememberInboxInteraction } from '@/lib/liv-inbox/context';
 import { buildThreadContext, correlateInboundToLivItem } from '@/lib/liv-inbox/correlate';
+import { loadEditorialContext } from '@/lib/liv-inbox/editorial';
 import { appendLivInboxAudit, type LivInboxAuditType } from '@/lib/liv-inbox/audit-store';
 import { isLivInboxSendingEnabled, sendLivInboxReply } from '@/lib/liv-inbox/send';
 import { newEntityId } from '@/lib/accreditation/ids';
@@ -65,7 +66,13 @@ export async function processInboundEmail(
   const threadId = parent?.threadId || newEntityId('thread');
   const threadItems = parent ? allItems.filter((i) => i.threadId === threadId) : [];
   const threadBlock = buildThreadContext(threadItems);
-  const combinedIntel = [intel.block, threadBlock].filter((b) => b && b.trim()).join('\n\n');
+
+  // Editorial grounding: what we cover / what's planned (facts + workflow sheet).
+  const editorialBlock = await loadEditorialContext();
+
+  const combinedIntel = [intel.block, threadBlock, editorialBlock]
+    .filter((b) => b && b.trim())
+    .join('\n\n');
 
   const decision = await decideInboxReply(settings, input, combinedIntel);
   const status = resolveInboxStatus(settings, decision);
