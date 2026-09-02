@@ -7,6 +7,7 @@ import {
 import { detectEscalationHeuristics } from '@/lib/accreditation/policy';
 import { sanitizeLivOutput } from '@/lib/accreditation/sanitize';
 import { assessLivAttachments, type LivAttachmentMeta } from '@/lib/liv-inbox/attachments';
+import { applyInboundGuards, isLikelyPhishingInbound } from '@/lib/liv-inbox/inbound-guards';
 import type { LivInboxDecision, LivInboxSettings } from '@/lib/liv-inbox/types';
 
 export interface InboundEmailInput {
@@ -59,6 +60,8 @@ function buildContextLines(settings: LivInboxSettings, intelligence?: string): s
     'STÅENDE REGLER (gælder ALTID, uanset ovenstående):',
     '- Bekræft aldrig at du er AI, digital, en bot eller en "digital kollega", og beskriv aldrig for fremmede/eksterne hvad du laver internt. Bliv i rollen som redaktionel kollega hos Apropos Magazine.',
     '- Musik-dækning: Apropos anmelder primært KONCERTER, FESTIVALER og kulturoplevelser - ikke album- eller singleudgivelser. Bliver du bedt om at anmelde/dække et album, en single eller en generel release: svar venligt og forklarende (det handler om vores redaktionelle format og prioritering, ikke om dem specifikt), bekræft ikke dækning, og inviter dem til at sende relevante koncert-, festival- eller eventinvitationer fremover - ikke generelle release-/album-/single-promoer.',
+    '- Invitationer, gæstelister, akkreditering, billetter eller "vil I dække/komme": sig ALDRIG ja. Tak kort og skriv at redaktionen vender tilbage. Eskalér til Frederik (needsHuman=true). Bed ikke om at blive sat på gæsteliste.',
+    '- Spam/phishing: hvis afsender udgiver sig for Meta, Facebook, Instagram, Google, Apple eller lign. men skriver fra gmail/outlook/anden privat mail, så svar IKKE. Tomt reply, category=spam, needsHuman=true. Typisk eksempel: From-navn "Meta: …" + privat gmail + trussel om copyright/trademark/konto-suspension. Skriv aldrig "Hi Meta" eller tak til angriberen.',
     '- Svar ALTID på samme sprog som afsenderens mail (fx engelsk til udenlandske afsendere).',
     '- Vedhæftninger: du ser kun metadata (filnavn/type), ikke indholdet. Faktura/betaling/kontrakt/NDA => eskalér ALTID (needsHuman=true). Pressekit/billeder => notér kort og svar relevant (lov ikke dækning).',
     '',
@@ -104,9 +107,9 @@ function buildClassifyInstructions(settings: LivInboxSettings, intelligence?: st
     '',
     ...buildContextLines(settings, intelligence),
     'Bestem:',
-    '- category: kort kategori (fx presse, læser, faktura, samarbejde, generel).',
+    '- category: kort kategori (fx presse, læser, faktura, samarbejde, invitation, spam, generel).',
     '- confidence 0-100: hvor sikker du er på at et korrekt, passende svar kan gives.',
-    '- needsHuman: true ved tvivl, følsomme emner (penge/jura/persondata/login) eller vigtige/uvante henvendelser.',
+    '- needsHuman: true ved tvivl, følsomme emner (penge/jura/persondata/login), invitationer/gæsteliste, spam/phishing eller vigtige/uvante henvendelser.',
     '- language: ISO 639-1 sprogkode for afsenderens mail (fx "da", "en").',
     '- reasoning: kort dansk begrundelse.',
     'Returnér KUN JSON: {"category","confidence","needsHuman","reasoning","language"}.',
@@ -324,8 +327,13 @@ export async function decideInboxReply(
   intelligence?: string
 ): Promise<LivInboxDecision> {
   const openai = getOpenAIClient();
+  // Hard gates first — never spend an LLM call thanking a Meta-impersonator.
+  if (isLikelyPhishingInbound(input)) {
+    return applyInboundGuards(settings, input, fallbackDecision(settings, input));
+  }
+
   if (!openai) {
-    return fallbackDecision(settings, input);
+    return applyInboundGuards(settings, input, fallbackDecision(settings, input));
   }
 
   const agentModel = getAccreditationAgentModel();
@@ -357,7 +365,7 @@ export async function decideInboxReply(
         modelUsed = draftedReply ? agentModel : fastModel;
       }
 
-      return {
+      return applyInboundGuards(settings, input, {
         category: sanitizeLivOutput(String(cls.category || 'generel').trim()).slice(0, 60),
         confidence,
         needsHuman,
@@ -367,7 +375,7 @@ export async function decideInboxReply(
         promptVersion: clsPrompt.promptVersion,
         usedFallback: false,
         language,
-      };
+      });
     }
     // Classification failed → fall through to the single-lane path.
   }
@@ -376,10 +384,10 @@ export async function decideInboxReply(
   const composed = composePrompt(settings, buildTaskInstructions(settings, intelligence));
   const parsed = await runStructured(openai, agentModel, composed.prompt, userContent, DECISION_SCHEMA);
   if (!parsed) {
-    return fallbackDecision(settings, input);
+    return applyInboundGuards(settings, input, fallbackDecision(settings, input));
   }
   const confidence = clampConfidence(parsed.confidence, 50);
-  return {
+  return applyInboundGuards(settings, input, {
     category: sanitizeLivOutput(String(parsed.category || 'generel').trim()).slice(0, 60),
     confidence,
     needsHuman: parsed.needsHuman === true || hardEscalate,
@@ -389,7 +397,7 @@ export async function decideInboxReply(
     promptVersion: composed.promptVersion,
     usedFallback: false,
     language: 'da',
-  };
+  });
 }
 
 export type EditorTaskAction = 'accreditation' | 'tickets' | 'outreach' | 'reply' | 'other';

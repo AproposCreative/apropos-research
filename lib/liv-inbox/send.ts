@@ -30,6 +30,7 @@ import {
 import { getAccreditationReplyToFallbackEmail } from '@/lib/accreditation/send-email';
 import { appendLivSentCopy } from '@/lib/accreditation/imap/sent-copy';
 import { normalizeMsgId } from '@/lib/liv-inbox/correlate';
+import { getLivInboxSettings } from '@/lib/liv-inbox/settings-store';
 
 export function isLivInboxSendingEnabled(): boolean {
   return process.env.LIV_INBOX_SENDING_ENABLED === 'true';
@@ -324,9 +325,21 @@ export async function sendLivInboxReply(params: {
   subject: string;
   text: string;
   inReplyToMessageId?: string;
+  /** Human clicked Godkend & send. All other Liv sends require Auto-svar ON. */
+  manual?: boolean;
 }): Promise<LivSendResult> {
   if (!isLivInboxSendingEnabled()) {
     return { sent: false, blocked: true, reason: 'LIV_INBOX_SENDING_ENABLED er ikke slået til (skygge-tilstand)' };
+  }
+  if (!params.manual) {
+    const desk = await getLivInboxSettings();
+    if (!desk.autoRespond) {
+      return {
+        sent: false,
+        blocked: true,
+        reason: 'Auto-svar er slået fra i Liv Indbakke',
+      };
+    }
   }
 
   const resolved = resolveLivInboxRecipient(params.to);

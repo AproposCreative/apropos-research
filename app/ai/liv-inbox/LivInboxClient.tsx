@@ -249,7 +249,11 @@ function AutoToggle({
           ? 'border-emerald-400/30 bg-emerald-400/[0.08] text-white'
           : 'border-white/12 bg-white/[0.04] text-white/70 hover:bg-white/[0.07]'
       }`}
-      title={enabled ? 'Liv svarer automatisk' : 'Liv laver kun kladder'}
+      title={
+        enabled
+          ? 'Liv sender svar selv. Slå fra for at stoppe al automatisk afsendelse.'
+          : 'Liv sender ingen mails automatisk. Godkend & send virker stadig.'
+      }
     >
       <span
         className={`relative inline-flex h-4 w-7 items-center rounded-full transition-colors ${
@@ -286,6 +290,7 @@ export default function LivInboxClient({ embedded = false, onClose }: Props) {
 
   const [metrics, setMetrics] = useState<Metrics | null>(null);
   const [activity, setActivity] = useState<AuditEvent[]>([]);
+  const [sendingEnabled, setSendingEnabled] = useState(false);
 
   // Guidelines editor drafts
   const [guidelinesDraft, setGuidelinesDraft] = useState('');
@@ -320,6 +325,7 @@ export default function LivInboxClient({ embedded = false, onClose }: Props) {
         fetch('/api/liv-inbox/activity').then((r) => r.json()),
       ]);
       if (sRes?.data?.settings) applySettings(sRes.data.settings, sRes.data.agentModel);
+      if (sRes?.data?.sending) setSendingEnabled(sRes.data.sending.enabled === true);
       if (iRes?.data?.items) setItems(iRes.data.items);
       if (iRes?.data?.metrics) setMetrics(iRes.data.metrics);
       if (mRes?.data?.mailbox) setMailbox(mRes.data.mailbox);
@@ -353,6 +359,8 @@ export default function LivInboxClient({ embedded = false, onClose }: Props) {
     void loadAll();
   }, [loadAll]);
 
+  const deskLive = settings?.autoRespond === true && sendingEnabled;
+
   const toggleAuto = useCallback(
     async (next: boolean) => {
       setBusy(true);
@@ -363,8 +371,12 @@ export default function LivInboxClient({ embedded = false, onClose }: Props) {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ autoRespond: next, updatedBy: 'studio' }),
         }).then((r) => r.json());
-        if (res?.data?.settings) applySettings(res.data.settings, res.data.agentModel);
-        else setError(res?.error || 'Kunne ikke opdatere.');
+        if (res?.data?.settings) {
+          applySettings(res.data.settings, res.data.agentModel);
+          if (res?.data?.sending) setSendingEnabled(res.data.sending.enabled === true);
+        } else {
+          setError(res?.error || 'Kunne ikke opdatere.');
+        }
       } catch {
         setError('Kunne ikke opdatere auto-svar.');
       } finally {
@@ -480,7 +492,7 @@ export default function LivInboxClient({ embedded = false, onClose }: Props) {
         onClose={onClose}
         trailing={
           <div className="flex flex-wrap items-center gap-2">
-            <AutoToggle enabled={settings?.autoRespond === true} busy={busy} onToggle={toggleAuto} />
+            <AutoToggle enabled={deskLive} busy={busy} onToggle={toggleAuto} />
             <div className="flex flex-wrap items-center gap-1">
               {tabs.map((t) => (
                 <button key={t.id} type="button" className={segBtn(tab === t.id)} onClick={() => setTab(t.id)}>

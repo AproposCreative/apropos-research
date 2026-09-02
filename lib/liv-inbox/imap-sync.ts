@@ -100,7 +100,7 @@ export async function ingestFetchedMessages(
     existing.map((i) => i.sourceUid).filter((u): u is number => typeof u === 'number')
   );
   const settings = await getLivInboxSettings();
-  const sendingOn = isLivInboxSendingEnabled();
+  const sendingOn = isLivInboxSendingEnabled() && settings.autoRespond;
 
   let scanned = 0;
   let processed = 0;

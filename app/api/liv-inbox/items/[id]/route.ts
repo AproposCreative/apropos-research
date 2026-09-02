@@ -62,6 +62,7 @@ export async function POST(request: NextRequest, ctx: { params: Promise<{ id: st
             subject: `Re: ${existing.subject}`,
             text: draftReply,
             inReplyToMessageId: existing.sourceMessageId,
+            manual: true,
           })
         : { sent: false, reason: 'Ingen kladde at sende' };
 

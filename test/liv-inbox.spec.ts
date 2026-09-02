@@ -33,6 +33,12 @@ import {
   staffFromAuthLooksForged,
 } from '@/lib/liv-inbox/staff';
 import { fallbackDecision, isTwoLaneEnabled } from '@/lib/liv-inbox/assistant';
+import {
+  applyInboundGuards,
+  isAccessOrInvitationOffer,
+  isLikelyBrandImpersonation,
+  isLikelyPhishingInbound,
+} from '@/lib/liv-inbox/inbound-guards';
 import { isMeaningfulEdit, mergeNote, learnFromEdit } from '@/lib/liv-inbox/learn';
 import { buildThreadContext, correlateInboundToLivItem } from '@/lib/liv-inbox/correlate';
 import { loadEditorialContext, __resetEditorialCacheForTests } from '@/lib/liv-inbox/editorial';
@@ -156,6 +162,89 @@ describe('fallbackDecision (no OpenAI key)', () => {
     expect(d.reply).toContain('Ida');
     expect(d.reply).not.toContain('\u2014');
     expect(d.reply).not.toContain('\u2013');
+  });
+});
+
+describe('inbound guards (phishing + invitations)', () => {
+  it('flags a Meta impersonation from a private Gmail as phishing', () => {
+    const mail = {
+      fromEmail: 'arblasterwaynevb@gmail.com',
+      fromName: 'Meta: The protection of intellectual property such as trademarks and copyrights should be a top priority.',
+      subject: 'Suggested clarification: the use of copyrighted and trademarked advertising content without written permission from the owner.',
+      body: 'Your account may be suspended. Legal action may follow.',
+    };
+    expect(isLikelyBrandImpersonation(mail)).toBe(true);
+    expect(isLikelyPhishingInbound(mail)).toBe(true);
+    const d = applyInboundGuards(baseSettings, mail, fallbackDecision(baseSettings, mail));
+    expect(d.category).toBe('spam');
+    expect(d.needsHuman).toBe(true);
+    expect(d.reply).toBe('');
+  });
+
+  it('does not treat a real-looking gmail reader as brand impersonation', () => {
+    expect(
+      isLikelyBrandImpersonation({
+        fromEmail: 'ida@gmail.com',
+        fromName: 'Ida',
+        subject: 'Ros',
+        body: 'Elsker magasinet',
+      })
+    ).toBe(false);
+  });
+
+  it('does not flag a reader who merely mentions Instagram or Meta', () => {
+    const mail = {
+      fromEmail: 'ida@gmail.com',
+      fromName: 'Ida Nielsen',
+      subject: 'Elsker jeres Instagram',
+      body: 'Så jeres post på Instagram og et Meta-ad. Fedt magasin.',
+    };
+    expect(isLikelyBrandImpersonation(mail)).toBe(false);
+    expect(isLikelyPhishingInbound(mail)).toBe(false);
+  });
+
+  it('flags a copyright threat that names Meta even without a spoofed display name', () => {
+    const mail = {
+      fromEmail: 'random.attacker@outlook.com',
+      fromName: 'IP Protection',
+      subject: 'Use of copyrighted and trademarked advertising content',
+      body: 'Meta requires written permission. Your account may be suspended.',
+    };
+    expect(isLikelyPhishingInbound(mail)).toBe(true);
+  });
+
+  it('treats concert guest-list offers as invitations that only thank and wait', () => {
+    const mail = {
+      fromEmail: 'virtualjaspermusic@gmail.com',
+      fromName: 'Virtual Jasper',
+      subject: 'Virtual Jasper LIVE - Anmelder gæstespot/liste til debutkoncert',
+      body: 'Kan I sætte en anmelder på gæstelisten til min debutkoncert?',
+    };
+    expect(isAccessOrInvitationOffer(mail)).toBe(true);
+    const d = applyInboundGuards(baseSettings, mail, fallbackDecision(baseSettings, mail));
+    expect(d.needsHuman).toBe(true);
+    expect(d.reply).toMatch(/vender tilbage/i);
+    expect(d.reply).not.toMatch(/gæsteliste/i);
+  });
+});
+
+describe('processInboundEmail phishing (Meta impersonation)', () => {
+  it('leaves no draft and never auto-sends a Meta Gmail impersonation', async () => {
+    await updateLivInboxSettings({ autoRespond: true, confidenceThreshold: 40 });
+    const item = await processInboundEmail({
+      fromEmail: 'arblasterwaynevb@gmail.com',
+      fromName:
+        'Meta: The protection of intellectual property such as trademarks and copyrights should be a top priority.',
+      subject:
+        'Suggested clarification: the use of copyrighted and trademarked advertising content without written permission from the owner.',
+      body: 'Your Instagram and Facebook advertising uses copyrighted content without written permission. Account suspension may follow.',
+    });
+    expect(item.category).toBe('spam');
+    expect(item.status).toBe('escalated');
+    expect(item.needsHuman).toBe(true);
+    expect(item.draftReply).toBe('');
+    expect(item.sent).toBeFalsy();
+    expect(item.reasoning || '').toMatch(/phishing|impersonation/i);
   });
 });
 
@@ -455,6 +544,40 @@ describe('outbound safety gates (fail-closed)', () => {
     });
     expect(item.status).toBe('auto_replied');
     expect(item.sent).toBeFalsy(); // shadow: prepared but never sent
+  });
+
+  it('blocks autonomous send when Auto-svar is OFF even if the env kill-switch is on', async () => {
+    const prev = process.env.LIV_INBOX_SENDING_ENABLED;
+    process.env.LIV_INBOX_SENDING_ENABLED = 'true';
+    try {
+      await updateLivInboxSettings({ autoRespond: false });
+      const r = await sendLivInboxReply({ itemId: 'i1', to: 'x@y.dk', subject: 'Hej', text: 'hej' });
+      expect(r.sent).toBe(false);
+      expect(r.blocked).toBe(true);
+      expect(r.reason || '').toMatch(/Auto-svar/i);
+    } finally {
+      if (prev === undefined) delete process.env.LIV_INBOX_SENDING_ENABLED;
+      else process.env.LIV_INBOX_SENDING_ENABLED = prev;
+    }
+  });
+
+  it('allows a manual Godkend & send while Auto-svar is OFF', async () => {
+    const prev = process.env.LIV_INBOX_SENDING_ENABLED;
+    process.env.LIV_INBOX_SENDING_ENABLED = 'true';
+    try {
+      await updateLivInboxSettings({ autoRespond: false });
+      const r = await sendLivInboxReply({
+        itemId: 'i1',
+        to: 'x@y.dk',
+        subject: 'Hej',
+        text: 'hej',
+        manual: true,
+      });
+      expect(r.reason || '').not.toMatch(/Auto-svar/i);
+    } finally {
+      if (prev === undefined) delete process.env.LIV_INBOX_SENDING_ENABLED;
+      else process.env.LIV_INBOX_SENDING_ENABLED = prev;
+    }
   });
 
   it('reads the per-run auto-send cap from env', () => {

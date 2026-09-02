@@ -8,6 +8,7 @@ import { loadEditorialContext } from '@/lib/liv-inbox/editorial';
 import { appendLivInboxAudit, type LivInboxAuditType } from '@/lib/liv-inbox/audit-store';
 import { isLivInboxSendingEnabled, sendLivInboxReply } from '@/lib/liv-inbox/send';
 import { isHistoricalLivInbound } from '@/lib/liv-inbox/inbound-age';
+import { isAccessOrInvitationOffer, isLikelyPhishingInbound } from '@/lib/liv-inbox/inbound-guards';
 import { newEntityId } from '@/lib/accreditation/ids';
 import type { LivInboxItem, LivInboxItemStatus, LivInboxSettings } from '@/lib/liv-inbox/types';
 
@@ -143,12 +144,22 @@ export async function processInboundEmail(
 
   // Auto-send only for a confident reply, only when the kill-switch is on, and
   // only within the caller's per-run budget. Test-redirect keeps it safe.
+  // Invitation/access offers: send the "tak, vi vender tilbage" holding reply,
+  // then still escalate so Frederik decides coverage.
+  const mayAutoSendHolding =
+    isAccessOrInvitationOffer(input) &&
+    status === 'escalated' &&
+    settings.autoRespond &&
+    Boolean(decision.reply.trim()) &&
+    !isLikelyPhishingInbound(input);
+
   if (
-    status === 'auto_replied' &&
+    (status === 'auto_replied' || mayAutoSendHolding) &&
     options.allowAutoSend !== false &&
     trustAllowsAutoSend &&
     notHistorical &&
     isLivInboxSendingEnabled() &&
+    settings.autoRespond &&
     decision.reply.trim()
   ) {
     const result = await sendLivInboxReply({
@@ -179,7 +190,7 @@ export async function processInboundEmail(
         : `Ikke sendt: ${result.reason}`,
       meta: { sent: result.sent, redirected: result.redirected, to: result.to },
     });
-    return sentItem || item;
+    if (status === 'auto_replied') return sentItem || item;
   }
 
   // In doubt → email the editor the question (dashboard-free human-in-the-loop),
@@ -191,7 +202,7 @@ export async function processInboundEmail(
     options.allowAutoSend !== false &&
     isLivInboxSendingEnabled()
   ) {
-    const asked = await sendEscalationToEditor(item, settings);
+    const asked = await sendEscalationToEditor((await getInboxItem(item.id)) || item, settings);
     if (asked.sent) return (await getInboxItem(item.id)) || item;
   }
 
