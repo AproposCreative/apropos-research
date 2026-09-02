@@ -7,6 +7,7 @@ import { appendLivInboxAudit, listLivInboxAudit } from '@/lib/liv-inbox/audit-st
 import {
   isLivInboxSendingEnabled,
   livInboxMaxAutoSendPerRun,
+  resolveLivInboxRecipient,
   sendLivInboxReply,
 } from '@/lib/liv-inbox/send';
 import {
@@ -324,5 +325,38 @@ describe('outbound safety gates (fail-closed)', () => {
     } finally {
       delete process.env.LIV_INBOX_MAX_AUTOSEND_PER_RUN;
     }
+  });
+});
+
+describe('recipient routing (domain allowlist vs test-redirect)', () => {
+  it('redirects a non-allowed recipient to the test sink', () => {
+    process.env.LIV_INBOX_TEST_REDIRECT_TO = 'sink@test.dev';
+    try {
+      const r = resolveLivInboxRecipient('someone@external.com');
+      expect(r.blocked).toBe(false);
+      expect(r.redirected).toBe(true);
+      expect(r.to).toBe('sink@test.dev');
+    } finally {
+      delete process.env.LIV_INBOX_TEST_REDIRECT_TO;
+    }
+  });
+
+  it('sends real (no redirect) to an allowlisted internal domain', () => {
+    process.env.LIV_INBOX_TEST_REDIRECT_TO = 'sink@test.dev';
+    process.env.LIV_INBOX_ALLOWED_DOMAINS = 'aproposmagazine.com';
+    try {
+      const r = resolveLivInboxRecipient('kollega@aproposmagazine.com');
+      expect(r.blocked).toBe(false);
+      expect(r.redirected).toBe(false);
+      expect(r.to).toBe('kollega@aproposmagazine.com');
+    } finally {
+      delete process.env.LIV_INBOX_TEST_REDIRECT_TO;
+      delete process.env.LIV_INBOX_ALLOWED_DOMAINS;
+    }
+  });
+
+  it('blocks fail-closed when no redirect and not allowlisted', () => {
+    const r = resolveLivInboxRecipient('someone@external.com');
+    expect(r.blocked).toBe(true);
   });
 });

@@ -119,9 +119,12 @@ export default function LivInboxClient({ embedded = false, onClose }: Props) {
 
   const [metrics, setMetrics] = useState<Metrics | null>(null);
   const [activity, setActivity] = useState<AuditEvent[]>([]);
-  const [sending, setSending] = useState<{ enabled: boolean; testRedirectTo: string | null; maxPerRun: number } | null>(
-    null
-  );
+  const [sending, setSending] = useState<{
+    enabled: boolean;
+    testRedirectTo: string | null;
+    maxPerRun: number;
+    allowedDomains: string[];
+  } | null>(null);
 
   // Simulate-inbound form
   const [fromEmail, setFromEmail] = useState('');
@@ -348,9 +351,22 @@ export default function LivInboxClient({ embedded = false, onClose }: Props) {
               </div>
             ) : sending.testRedirectTo ? (
               <div className="rounded-xl border border-emerald-400/20 bg-emerald-400/[0.05] px-3.5 py-2.5 text-[11px] text-white/70">
-                <span className="font-medium text-emerald-200/90">Test-afsendelse aktiv.</span> Alle svar
-                sendes <span className="text-white/85">kun til {sending.testRedirectTo}</span> (test-redirect),
-                aldrig til rigtige modtagere. Maks {sending.maxPerRun} auto-svar pr. hentning.
+                <span className="font-medium text-emerald-200/90">Test-afsendelse aktiv.</span>{' '}
+                {sending.allowedDomains?.length ? (
+                  <>
+                    Rigtige svar til{' '}
+                    <span className="text-white/85">
+                      {sending.allowedDomains.map((d) => `@${d}`).join(', ')}
+                    </span>
+                    ; alle andre omdirigeres til {sending.testRedirectTo}.
+                  </>
+                ) : (
+                  <>
+                    Alle svar sendes <span className="text-white/85">kun til {sending.testRedirectTo}</span>{' '}
+                    (test-redirect), aldrig til rigtige modtagere.
+                  </>
+                )}{' '}
+                Maks {sending.maxPerRun} auto-svar pr. hentning.
               </div>
             ) : (
               <div className="rounded-xl border border-rose-400/25 bg-rose-400/[0.06] px-3.5 py-2.5 text-[11px] text-white/75">
