@@ -35,6 +35,18 @@ export function livInboxTestRedirectTo(): string | null {
   return getAccreditationTestRedirectTo();
 }
 
+/**
+ * Trusted recipient domains that receive REAL replies (bypassing test-redirect).
+ * Use for internal domains only (e.g. aproposmagazine.com) so a team can test
+ * Liv's replies for real, while everyone else stays protected.
+ */
+export function livInboxAllowedDomains(): string[] {
+  return (process.env.LIV_INBOX_ALLOWED_DOMAINS || '')
+    .split(',')
+    .map((s) => s.trim().toLowerCase().replace(/^@/, ''))
+    .filter(Boolean);
+}
+
 function livInboxFromEmail(): string {
   const raw = (
     process.env.LIV_INBOX_FROM_EMAIL ||
@@ -53,11 +65,13 @@ export function livInboxSendingStatus(): {
   enabled: boolean;
   testRedirectTo: string | null;
   maxPerRun: number;
+  allowedDomains: string[];
 } {
   return {
     enabled: isLivInboxSendingEnabled(),
     testRedirectTo: livInboxTestRedirectTo(),
     maxPerRun: livInboxMaxAutoSendPerRun(),
+    allowedDomains: livInboxAllowedDomains(),
   };
 }
 
@@ -66,7 +80,7 @@ export function livInboxSendingStatus(): {
  *  - a configured test-redirect sink always wins (everything goes there),
  *  - otherwise the recipient MUST be on the allowlist or the send is blocked.
  */
-function resolveLivRecipient(intendedTo: string): {
+export function resolveLivInboxRecipient(intendedTo: string): {
   to: string;
   intendedTo: string;
   redirected: boolean;
@@ -74,6 +88,13 @@ function resolveLivRecipient(intendedTo: string): {
   reason?: string;
 } {
   const intended = intendedTo.trim().toLowerCase();
+  const domain = intended.includes('@') ? intended.split('@')[1] || '' : '';
+
+  // Trusted internal domains get a REAL reply (no redirect) so a team can test.
+  if (domain && livInboxAllowedDomains().includes(domain)) {
+    return { to: intended, intendedTo: intended, redirected: false, blocked: false };
+  }
+
   const redirect = livInboxTestRedirectTo();
   if (redirect) {
     return { to: redirect, intendedTo: intended, redirected: true, blocked: false };
@@ -130,7 +151,7 @@ export async function sendLivInboxReply(params: {
     return { sent: false, blocked: true, reason: 'LIV_INBOX_SENDING_ENABLED er ikke slået til (skygge-tilstand)' };
   }
 
-  const resolved = resolveLivRecipient(params.to);
+  const resolved = resolveLivInboxRecipient(params.to);
   if (resolved.blocked) {
     return {
       sent: false,
