@@ -97,6 +97,7 @@ export async function processInboundEmail(
     source: options.source || 'manual',
     sourceMessageId: options.sourceMessageId,
     sourceUid: options.sourceUid,
+    attachments: input.attachments && input.attachments.length ? input.attachments : undefined,
     threadId,
     parentItemId: parent?.id,
     contactKnown: intel.known,

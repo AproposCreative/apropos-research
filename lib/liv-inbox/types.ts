@@ -79,6 +79,9 @@ export interface LivInboxItem {
   /** IMAP UID of the source message. */
   sourceUid?: number;
 
+  /** Attachment metadata (never the bytes) for display + escalation logic. */
+  attachments?: Array<{ filename: string; contentType?: string; size?: number }>;
+
   /** Conversation this item belongs to (shared across a back-and-forth). */
   threadId?: string;
   /** The prior item this one is a reply to (when correlated). */
