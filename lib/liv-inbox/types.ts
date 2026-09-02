@@ -1,0 +1,80 @@
+/**
+ * Liv Indbakke (Liv Inbox) — a general-purpose inbox assistant for Liv.
+ *
+ * Liv reads incoming email, decides how to respond based on the team's
+ * guidelines ("how we normally handle inquiries"), drafts a warm, proactive
+ * reply, and only escalates to a human when she is genuinely in doubt.
+ *
+ * This module is intentionally decoupled from the accreditation desk: it has
+ * its own auto-respond toggle and its own guidelines/context, so turning Liv
+ * on here does not affect the accreditation automation.
+ */
+
+export interface LivInboxSettings {
+  /** Master auto-respond switch for the inbox assistant (own state). */
+  autoRespond: boolean;
+  /** Free-form house rules: how the team normally handles inquiries. */
+  guidelines: string;
+  /** Signature appended to Liv's outgoing replies. */
+  signature: string;
+  /**
+   * Below this confidence (0-100) Liv escalates instead of answering,
+   * even when auto-respond is ON.
+   */
+  confidenceThreshold: number;
+  updatedAt: string;
+  updatedBy?: string;
+}
+
+export type LivInboxItemStatus =
+  | 'auto_replied' // Liv was confident and auto-respond was ON
+  | 'draft' // reply drafted, but auto-respond OFF → awaiting manual send
+  | 'escalated' // Liv is in doubt → needs a human
+  | 'sent' // human approved and sent
+  | 'dismissed'; // human dismissed the item
+
+export interface LivInboxItem {
+  id: string;
+  fromEmail: string;
+  fromName?: string;
+  subject: string;
+  /** Trusted portion of the inbound email body. */
+  body: string;
+  receivedAt: string;
+
+  /** Liv's classification of the inquiry (e.g. "presse", "generel", "faktura"). */
+  category?: string;
+  /** Liv's proposed reply. */
+  draftReply?: string;
+  /** Liv's self-assessed confidence (0-100). */
+  confidence?: number;
+  /** True when Liv decided she needs a human. */
+  needsHuman?: boolean;
+  /** Short human-readable explanation of Liv's decision. */
+  reasoning?: string;
+
+  status: LivInboxItemStatus;
+  handledAt?: string;
+  modelUsed?: string;
+  promptVersion?: string;
+  /** True when the decision came from the deterministic fallback (no LLM). */
+  usedFallback?: boolean;
+
+  /** Source metadata when ingested from Liv's real inbox (one.com IMAP). */
+  source?: 'manual' | 'imap';
+  /** RFC Message-ID used to de-duplicate IMAP ingestion. */
+  sourceMessageId?: string;
+  /** IMAP UID of the source message. */
+  sourceUid?: number;
+}
+
+export interface LivInboxDecision {
+  category: string;
+  confidence: number;
+  needsHuman: boolean;
+  reasoning: string;
+  reply: string;
+  modelUsed: string;
+  promptVersion: string;
+  usedFallback: boolean;
+}
