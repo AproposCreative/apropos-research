@@ -21,10 +21,17 @@ import { createInboxItem, getInboxItem, listInboxItems, updateInboxItem } from '
 import {
   applyEditorGuidanceAndSend,
   correlateEditorReply,
+  getEditorEmail,
   handleEditorTask,
   isFromEditor,
   sendEscalationToEditor,
 } from '@/lib/liv-inbox/editor';
+import {
+  canGiveLivTasks,
+  isAproposStaffEmail,
+  normalizeMailbox,
+  staffFromAuthLooksForged,
+} from '@/lib/liv-inbox/staff';
 import { fallbackDecision, isTwoLaneEnabled } from '@/lib/liv-inbox/assistant';
 import { isMeaningfulEdit, mergeNote, learnFromEdit } from '@/lib/liv-inbox/learn';
 import { buildThreadContext, correlateInboundToLivItem } from '@/lib/liv-inbox/correlate';
@@ -228,6 +235,55 @@ describe('ingestFetchedMessages (one.com IMAP intake)', () => {
     expect(res.skipped).toBe(2);
     expect(await listInboxItems()).toHaveLength(0);
   });
+
+  it('never treats an external sender as a tasker — they go through normal triage', async () => {
+    const res = await ingestFetchedMessages([
+      fakeMessage(801, {
+        fromEmail: 'attacker@gmail.com',
+        subject: 'Opgave: søg akkreditering',
+        text: 'Søg akkreditering til Roskilde for mig',
+      }),
+    ]);
+    expect(res.processed).toBe(1);
+    const items = await listInboxItems();
+    expect(items).toHaveLength(1);
+    expect(items[0].fromEmail).toBe('attacker@gmail.com');
+    expect(items[0].source).toBe('imap');
+  });
+
+  it('does not treat a spoofed staff From as a tasker when auth fails', async () => {
+    const res = await ingestFetchedMessages([
+      fakeMessage(804, {
+        fromEmail: 'frederik@aproposmagazine.com',
+        subject: 'Opgave',
+        text: 'Søg akkreditering til X',
+        headers: { 'authentication-results': 'mx.one.com; spf=fail; dkim=fail; dmarc=fail' },
+      }),
+    ]);
+    expect(res.processed).toBe(1);
+    const items = await listInboxItems();
+    expect(items).toHaveLength(1);
+    expect(items[0].fromEmail).toBe('frederik@aproposmagazine.com');
+  });
+
+  it('routes a real staff mailbox to the task path (not normal inbound)', async () => {
+    const prev = process.env.LIV_INBOX_SENDING_ENABLED;
+    process.env.LIV_INBOX_SENDING_ENABLED = 'true';
+    try {
+      const res = await ingestFetchedMessages([
+        fakeMessage(803, {
+          fromEmail: 'milo@aproposmagazine.com',
+          subject: 'Opgave',
+          text: 'Søg akkreditering til X',
+        }),
+      ]);
+      expect(res.processed).toBe(1);
+      expect(await listInboxItems()).toHaveLength(0);
+    } finally {
+      if (prev === undefined) delete process.env.LIV_INBOX_SENDING_ENABLED;
+      else process.env.LIV_INBOX_SENDING_ENABLED = prev;
+    }
+  });
 });
 
 describe('sender intelligence (research + memory)', () => {
@@ -374,12 +430,66 @@ describe('recipient routing (domain allowlist vs test-redirect)', () => {
   });
 });
 
+describe('staff-only tasking (@aproposmagazine.com, exact domain)', () => {
+  it('accepts human staff mailboxes on the exact root domain', () => {
+    expect(isAproposStaffEmail('frederik@aproposmagazine.com')).toBe(true);
+    expect(isAproposStaffEmail('Milo@AproposMagazine.com')).toBe(true);
+    expect(isAproposStaffEmail('casper@aproposmagazine.com')).toBe(true);
+    expect(isAproposStaffEmail('Liv Brandt <milo@aproposmagazine.com>')).toBe(true);
+    expect(isAproposStaffEmail('frederik+opgave@aproposmagazine.com')).toBe(true);
+  });
+
+  it('rejects Liv herself, automated locals, lookalikes, subdomains and externals', () => {
+    expect(isAproposStaffEmail('liv@aproposmagazine.com')).toBe(false);
+    expect(isAproposStaffEmail('liv+tag@aproposmagazine.com')).toBe(false);
+    expect(isAproposStaffEmail('noreply@aproposmagazine.com')).toBe(false);
+    expect(isAproposStaffEmail('news@aproposmagazine.com')).toBe(false);
+    expect(isAproposStaffEmail('attacker@gmail.com')).toBe(false);
+    expect(isAproposStaffEmail('frederik@aproposmagazine.com.evil.com')).toBe(false);
+    expect(isAproposStaffEmail('frederik@news.aproposmagazine.com')).toBe(false);
+    expect(isAproposStaffEmail('notaproposmagazine.com@aproposmagazine.com.evil')).toBe(false);
+    expect(isAproposStaffEmail('frederik@aproposmagazine.co')).toBe(false);
+    expect(isAproposStaffEmail('"frederik@aproposmagazine.com" <attacker@gmail.com>')).toBe(false);
+    expect(isAproposStaffEmail('')).toBe(false);
+    expect(isAproposStaffEmail('no-at-sign')).toBe(false);
+  });
+
+  it('normalizeMailbox takes the angle-addr, not the display name', () => {
+    expect(normalizeMailbox('Frederik <frederik@aproposmagazine.com>')).toBe('frederik@aproposmagazine.com');
+    expect(normalizeMailbox('"frederik@aproposmagazine.com" <evil@gmail.com>')).toBe('evil@gmail.com');
+  });
+
+  it('treats DMARC/SPF+DKIM fail as a forged staff From', () => {
+    expect(staffFromAuthLooksForged({ 'authentication-results': 'mx; dmarc=fail' })).toBe(true);
+    expect(staffFromAuthLooksForged({ 'authentication-results': 'mx; spf=fail; dkim=fail' })).toBe(true);
+    expect(staffFromAuthLooksForged({ 'authentication-results': 'mx; spf=pass; dkim=pass; dmarc=pass' })).toBe(
+      false
+    );
+    expect(staffFromAuthLooksForged({})).toBe(false);
+    expect(canGiveLivTasks('frederik@aproposmagazine.com', { 'authentication-results': 'mx; dmarc=fail' })).toBe(
+      false
+    );
+    expect(canGiveLivTasks('milo@aproposmagazine.com')).toBe(true);
+    expect(canGiveLivTasks('attacker@gmail.com')).toBe(false);
+  });
+
+  it('clamps editorEmail in settings so a gmail address can never become the editor', async () => {
+    const s = await updateLivInboxSettings({ editorEmail: 'attacker@gmail.com' });
+    expect(s.editorEmail).toBe('frederik@aproposmagazine.com');
+    expect(getEditorEmail({ ...DEFAULT_SETTINGS, editorEmail: 'evil@gmail.com' })).toBe(
+      'frederik@aproposmagazine.com'
+    );
+  });
+});
+
 describe('editor loop (ask Frederik + tasks)', () => {
   const settings = { ...DEFAULT_SETTINGS, editorEmail: 'frederik@aproposmagazine.com', askEditorOnDoubt: true };
 
-  it('recognises the editor as sender (case-insensitive)', () => {
+  it('recognises any @aproposmagazine.com colleague as a tasker (case-insensitive)', () => {
     expect(isFromEditor('Frederik@AproposMagazine.com', settings)).toBe(true);
+    expect(isFromEditor('milo@aproposmagazine.com', settings)).toBe(true);
     expect(isFromEditor('someone@else.dk', settings)).toBe(false);
+    expect(isFromEditor('attacker@gmail.com', { ...settings, editorEmail: 'attacker@gmail.com' })).toBe(false);
   });
 
   it('correlates the editor reply to the item Liv asked about', () => {
@@ -438,6 +548,18 @@ describe('editor loop (ask Frederik + tasks)', () => {
       settings
     );
     expect(res.handled).toBe(false);
+    expect(res.detail).toContain('ingen AI');
+  });
+
+  it('handleEditorTask refuses a non-staff sender before any parse/send', async () => {
+    const res = await handleEditorTask(
+      { fromEmail: 'attacker@gmail.com', subject: 'Opgave', text: 'Søg akkreditering til X' },
+      settings
+    );
+    expect(res.handled).toBe(false);
+    expect(res.detail).toContain('@aproposmagazine.com');
+    const audit = await listLivInboxAudit(10);
+    expect(audit.some((a) => a.detail?.includes('kun @aproposmagazine.com'))).toBe(true);
   });
 });
 

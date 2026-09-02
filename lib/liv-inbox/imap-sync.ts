@@ -86,10 +86,10 @@ export async function ingestFetchedMessages(
       continue;
     }
 
-    // Editor (Frederik) mail: either a reply to Liv's question, or a task for
-    // her to carry out — never a normal inbound. Only acted on when sending is
-    // enabled and within the per-run budget.
-    if (msg.parsed.fromEmail && isFromEditor(msg.parsed.fromEmail, settings)) {
+    // Staff (@aproposmagazine.com only): either a reply to Liv's question, or a
+    // task for her to carry out — never a normal inbound. External From: is
+    // never treated as a task, even if the display-name looks internal.
+    if (msg.parsed.fromEmail && isFromEditor(msg.parsed.fromEmail, settings, msg.parsed.headers)) {
       if (!sendingOn || autoSent >= sendBudget) {
         skipped++;
         continue;

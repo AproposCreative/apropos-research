@@ -35,6 +35,7 @@ export async function POST(request: NextRequest) {
     if (typeof body.editorialFacts === 'string') patch.editorialFacts = body.editorialFacts.slice(0, 6000);
     if (typeof body.askEditorOnDoubt === 'boolean') patch.askEditorOnDoubt = body.askEditorOnDoubt;
     if (typeof body.editorEmail === 'string' && body.editorEmail.includes('@')) {
+      // Clamped to @aproposmagazine.com in the store; never persist an external mailbox.
       patch.editorEmail = body.editorEmail.trim().slice(0, 200);
     }
     if (typeof body.updatedBy === 'string') patch.updatedBy = body.updatedBy.slice(0, 120);

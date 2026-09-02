@@ -3,6 +3,7 @@ import { resolveAccreditationPersistenceKind } from '@/lib/accreditation/persist
 import { requireFirestore, stripUndefined } from '@/lib/accreditation/persistence/firestore-kit';
 import { registerAccreditationStoreReset } from '@/lib/accreditation/persistence/reset-registry';
 import type { LivInboxSettings } from '@/lib/liv-inbox/types';
+import { isAproposStaffEmail } from '@/lib/liv-inbox/staff';
 
 const FILENAME = 'liv_inbox_settings.json';
 const COLLECTION = 'livInboxSettings';
@@ -64,8 +65,8 @@ function migrate(raw: Partial<LivInboxSettings> | null | undefined): LivInboxSet
     confidenceThreshold: clampConfidence(merged.confidenceThreshold),
     askEditorOnDoubt: merged.askEditorOnDoubt !== false,
     editorEmail:
-      typeof merged.editorEmail === 'string' && merged.editorEmail.includes('@')
-        ? merged.editorEmail.trim()
+      typeof merged.editorEmail === 'string' && isAproposStaffEmail(merged.editorEmail)
+        ? merged.editorEmail.trim().toLowerCase()
         : DEFAULT_SETTINGS.editorEmail,
   };
 }

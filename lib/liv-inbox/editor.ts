@@ -5,9 +5,10 @@
  *  1. Ask-when-in-doubt: when Liv escalates, she emails the editor (Frederik)
  *     the question; when he replies, she composes and sends the answer to the
  *     original sender (round-trip).
- *  2. Tasking: the editor can email Liv an instruction ("søg akkreditering til
- *     X", "bed om billetter til Y"); Liv composes and sends the outreach to the
- *     right recipient, then confirms back to the editor.
+ *  2. Tasking: any @aproposmagazine.com colleague can email Liv an instruction
+ *     ("søg akkreditering til X", "bed om billetter til Y"); Liv composes and
+ *     sends the outreach, then confirms back to that colleague. External
+ *     senders can never trigger this path — hardcoded, not a setting.
  *
  * All sends go through the same safety gates as any Liv send (kill-switch,
  * test-redirect, allowlist, per-run cap).
@@ -24,17 +25,24 @@ import {
   type InboundEmailInput,
 } from '@/lib/liv-inbox/assistant';
 import { gatherSenderIntelligence, rememberSentReply } from '@/lib/liv-inbox/context';
+import { canGiveLivTasks, isAproposStaffEmail } from '@/lib/liv-inbox/staff';
 
 const DEFAULT_EDITOR_EMAIL = 'frederik@aproposmagazine.com';
 
 export function getEditorEmail(settings: LivInboxSettings): string {
-  return (settings.editorEmail || process.env.LIV_INBOX_EDITOR_EMAIL || DEFAULT_EDITOR_EMAIL)
+  const candidate = (settings.editorEmail || process.env.LIV_INBOX_EDITOR_EMAIL || DEFAULT_EDITOR_EMAIL)
     .trim()
     .toLowerCase();
+  return isAproposStaffEmail(candidate) ? candidate : DEFAULT_EDITOR_EMAIL;
 }
 
-export function isFromEditor(email: string, settings: LivInboxSettings): boolean {
-  return (email || '').trim().toLowerCase() === getEditorEmail(settings);
+/** Any verified @aproposmagazine.com human — not just the configured editor. */
+export function isFromEditor(
+  email: string,
+  _settings?: LivInboxSettings,
+  headers?: Record<string, string> | null
+): boolean {
+  return canGiveLivTasks(email, headers);
 }
 
 function buildEditorQuestion(item: LivInboxItem): string {
@@ -174,12 +182,30 @@ export interface EditorTaskResult {
   detail: string;
 }
 
-/** Carry out a task the editor emailed to Liv (accreditation, tickets, outreach). */
+/** Carry out a task a staff member emailed to Liv (accreditation, tickets, outreach). */
 export async function handleEditorTask(
-  mail: { fromEmail: string; fromName?: string; subject?: string; text?: string; messageId?: string },
+  mail: {
+    fromEmail: string;
+    fromName?: string;
+    subject?: string;
+    text?: string;
+    messageId?: string;
+    headers?: Record<string, string>;
+  },
   settings: LivInboxSettings
 ): Promise<EditorTaskResult> {
-  const editor = getEditorEmail(settings);
+  if (!canGiveLivTasks(mail.fromEmail, mail.headers)) {
+    await appendLivInboxAudit({
+      type: 'editor_guided',
+      contactEmail: mail.fromEmail,
+      subject: mail.subject,
+      detail: 'Afvist: kun @aproposmagazine.com kan give Liv opgaver.',
+      meta: { rejected: true, reason: 'not_staff' },
+    });
+    return { handled: false, detail: 'Afvist: kun @aproposmagazine.com kan give Liv opgaver.' };
+  }
+
+  const requester = mail.fromEmail.trim().toLowerCase();
   const input: InboundEmailInput = {
     fromEmail: mail.fromEmail,
     fromName: mail.fromName,
@@ -198,16 +224,16 @@ export async function handleEditorTask(
     const q = task.clarificationQuestion || 'Hvem skal jeg sende det til (mail-adresse)?';
     await sendLivInboxReply({
       itemId: `task-clarify-${suffix}`,
-      to: editor,
+      to: requester,
       subject: `Re: ${input.subject}`.slice(0, 180),
-      text: `Hej Frederik,\n\nJeg vil gerne løse opgaven (${task.subject || 'opgave'}), men mangler lige: ${q}\n\nKh Liv`,
+      text: `Hej,\n\nJeg vil gerne løse opgaven (${task.subject || 'opgave'}), men mangler lige: ${q}\n\nKh Liv`,
       inReplyToMessageId: mail.messageId,
     });
     await appendLivInboxAudit({
       type: 'asked_editor',
-      contactEmail: editor,
+      contactEmail: requester,
       subject: input.subject,
-      detail: `Bad Frederik om afklaring: ${q}`,
+      detail: `Bad ${requester} om afklaring: ${q}`,
       meta: { task: task.action },
     });
     return { handled: true, action: task.action, detail: 'Bad om afklaring' };
@@ -230,13 +256,13 @@ export async function handleEditorTask(
     });
   }
 
-  // Confirm back to the editor so he knows what Liv did.
+  // Confirm back to the colleague who tasked her.
   await sendLivInboxReply({
     itemId: `task-confirm-${suffix}`,
-    to: editor,
+    to: requester,
     subject: `Klaret: ${task.subject || input.subject}`.slice(0, 180),
     text: [
-      'Hej Frederik,',
+      'Hej,',
       '',
       send.sent
         ? `Sendt til ${task.recipientName || task.recipientEmail}${send.redirected ? ' (test-redirect)' : ''}.`

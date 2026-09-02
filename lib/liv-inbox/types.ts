@@ -37,7 +37,11 @@ export interface LivInboxSettings {
    * parking it in the dashboard (dashboard-free human-in-the-loop).
    */
   askEditorOnDoubt?: boolean;
-  /** Who Liv asks when in doubt (default frederik@aproposmagazine.com). */
+  /**
+   * Who Liv asks when in doubt. Must be @aproposmagazine.com (clamped in the
+   * store). Tasking itself is open to every staff mailbox on that domain, not
+   * only this address.
+   */
   editorEmail?: string;
   updatedAt: string;
   updatedBy?: string;
