@@ -28,7 +28,7 @@ Before any CMS write the live item is re-read. If SEO/meta or `cmsLastUpdated` c
 May write:
 - `seo-title`
 - `meta-description`
-- server-side JSON-LD snapshot (version history; not editorial CMS body)
+- No automatic schema snapshot is produced by the opportunity scan. JSON-LD remains a separate SEO Engine capability.
 
 **Never** auto-change: redaktionel titel/H1, subtitle, intro, brødtekst, citater, holdning, rating, forfatter, original publiceringsdato, slug/URL, eventfakta.
 
@@ -48,11 +48,11 @@ Reviews get natural `[værk] anmeldelse` / `[work] review` titles (no keyword st
 ## Kill-switch (nød-stop)
 
 - Settings → Automatisk SEO toggle **off**, or
-- Env `SEO_ENGINE_AUTO_OPPORTUNITY_OPT=false`
+- Env `SEO_ENGINE_AUTO_OPPORTUNITY_OPT=false` (wins over stored enable)
 
 Default when unset **and settings read succeeds**: **ON**.
 
-**Fail-closed:** if Firestore/settings cannot be read, auto stays **OFF** (does not fall back to enabled). Explicit env `true` can force on for ops.
+**Fail-closed:** if Firestore/settings cannot be read, auto stays **OFF** (does not fall back to enabled). Explicit env `true` does not bypass stored stop or unavailable settings.
 
 ## GSC windows
 
@@ -83,3 +83,14 @@ When credentials are missing, status is explicit — **no mock data**.
 - `seoEngineOpportunityScans`
 - `seoEngineOpportunityUrlCooldown`
 - `seoEngineOpportunityIdempotency`
+
+
+## Staged writes and recovery (2026-09-09)
+
+Automatic metadata updates are saved to staged CMS fields and read back exactly. They do not publish the item; the editorial flow retains responsibility for publication of body, images and metadata. UI labels new results as verified drafts. Historical applied rows have unknown live state. This prevents SEO from publishing an editor’s unrelated pending changes.
+
+A per-item/locale lease serializes worker/apply/rollback. Idempotency claims reject active owners; expired token owners cannot complete another owner's claim. Frozen pending apply versions support reconciliation after a lost CMS response. Rollback rejects newer editor values, restores only the latest operation and marks completion after readback; retries can complete without a second PATCH.
+
+Manual scan defaults to `collect`. To explicitly write use `mode=optimize` and `autoApply=true`; the UI confirms that this saves up to ten drafts. Stored emergency stop beats environment enable and legacy empty-fill. Requests already sent to CMS may still complete.
+
+These locks coordinate SEO writers, not external Webflow editors. Webflow PATCH here is not a conditional compare-and-swap; a small race after the final read remains. No automatic item publication occurs. Live SEO impact measurement requires a separately verified editorial publication timestamp.

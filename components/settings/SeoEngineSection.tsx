@@ -308,14 +308,14 @@ export default function SeoEngineSection({
           <div className="min-w-0 text-left">
             <p className="text-[12px] font-medium text-white/80">Automatisk SEO (GSC/GA4)</p>
             <p className="text-[10px] text-white/35 mt-0.5 leading-snug">
-              Production-default er automatisk drift (publish + cron). Kun seo-title/meta (+
-              server-schema snapshot). Nød-stop her stopper writes. Aldrig redaktionel
-              titel/brødtekst/holdning/rating/slug.
+              Automatisk drift gemmer SEO-titel og metabeskrivelse som kladde efter publicering
+              og via cron. Redaktionens eget flow publicerer. Nødstop blokerer nye
+              automatiske skrivninger; en allerede afsendt skrivning kan afsluttes.
             </p>
             <p className="text-[10px] text-white/30 mt-1">
               {autoOptEnabled
                 ? 'Automatisk drift: Aktiv (slå fra = nød-stop)'
-                : 'Nød-stop: Aktiv — ingen automatiske SEO-writes'}
+                : 'Nød-stop: Aktiv, nye automatiske skrivninger blokeret'}
             </p>
           </div>
           <div className="touch-target flex shrink-0 items-center justify-center">

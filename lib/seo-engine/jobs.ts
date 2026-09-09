@@ -28,6 +28,8 @@ export type SeoEngineJob = {
   updatedAt?: unknown;
   seoVersionId?: string;
   skipReason?: string;
+  cmsWriteState?: 'staged_verified';
+  cmsVerifiedAt?: string;
 };
 
 const STALE_PROCESSING_MS = 25 * 60 * 1000;

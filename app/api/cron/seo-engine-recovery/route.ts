@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { resolveAutoSeoEngineEnabled } from '@/lib/seo-engine/settings';
 import { listQueuedSeoEngineJobs } from '@/lib/seo-engine/jobs';
-import { enqueueSeoEngineJob } from '@/lib/seo-engine/enqueue';
+import { kickSeoEngineJob } from '@/lib/seo-engine/enqueue';
+import { resolveAutomaticOpportunityRuntime } from '@/lib/seo-engine/opportunity-engine/settings';
 import { logger } from '@/lib/logger';
 import { requireCronSecret } from '@/lib/seo-engine/secret-guards';
 
@@ -17,17 +18,18 @@ export async function GET(req: NextRequest) {
   if (!requireCronSecret(req)) {
     return NextResponse.json({ ok: false, error: 'Unauthorized' }, { status: 401 });
   }
-  if (!(await resolveAutoSeoEngineEnabled())) {
-    return NextResponse.json({ ok: true, skipped: true, reason: 'auto SEO off' });
-  }
   try {
+    const runtime = await resolveAutomaticOpportunityRuntime();
+    const legacy = await resolveAutoSeoEngineEnabled();
+    if (!runtime.killSwitchEnabled || !(runtime.shouldAutoFillOnPublish || legacy)) {
+      return NextResponse.json({ ok: true, skipped: true, reason: 'auto SEO off' });
+    }
     const queued = await listQueuedSeoEngineJobs(15);
     const kicked: string[] = [];
     for (const job of queued) {
-      await enqueueSeoEngineJob({
+      kickSeoEngineJob({
         itemId: job.itemId,
-        cmsLastUpdated: job.cmsLastUpdated || 'unknown',
-        source: 'recovery',
+        jobId: job.jobId,
       });
       kicked.push(job.jobId);
     }

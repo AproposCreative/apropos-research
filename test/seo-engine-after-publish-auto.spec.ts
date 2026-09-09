@@ -28,6 +28,7 @@ vi.mock('@/lib/logger', () => ({
   logger: { warn: vi.fn(), error: vi.fn(), info: vi.fn() },
 }));
 
+import { resolveAutoSeoEngineEnabled } from '../lib/seo-engine/settings';
 import { maybeEnqueueSeoEngineAfterPublish } from '../lib/seo-engine/after-publish';
 import { resolveAutomaticOpportunityRuntime } from '../lib/seo-engine/opportunity-engine/settings';
 import { fetchArticleItemByLocale } from '../lib/webflow/locale-items';
@@ -77,7 +78,8 @@ describe('after-publish automatic empty SEO fill', () => {
     ).resolves.toMatchObject({ enqueued: false });
   });
 
-  it('skips when emergency stopped', async () => {
+  it('skips when emergency stopped even if legacy empty-fill is enabled', async () => {
+    vi.mocked(resolveAutoSeoEngineEnabled).mockResolvedValueOnce(true);
     vi.mocked(resolveAutomaticOpportunityRuntime).mockResolvedValue({
       killSwitchEnabled: false,
       connectionsHealthyForOptimize: true,

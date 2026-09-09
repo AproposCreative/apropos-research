@@ -1,4 +1,4 @@
-import { createHash } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { FieldValue, type Firestore } from 'firebase-admin/firestore';
 import { getAdminDb } from '@/lib/firebase-admin';
 import type {
@@ -61,6 +61,8 @@ export async function upsertOpportunity(
   }
 
   const prev = existing.data() as SeoOpportunity;
+  // Do not replace a frozen proposal while its CMS outcome is being reconciled.
+  if (prev.pendingApply) return { ...prev, id };
   const merged: SeoOpportunity = {
     ...prev,
     ...opp,
@@ -352,42 +354,49 @@ export async function setUrlLastAppliedAt(args: {
 export async function claimIdempotencyKey(args: {
   key: string;
   opportunityId: string;
-}): Promise<boolean> {
-  const db = getAdminDb();
-  if (!db) return true;
+}): Promise<string | null> {
+  const db = requireDb();
+  const owner = randomUUID();
   const ref = db.collection(OPP_COL.idempotency).doc(args.key);
   try {
     return await db.runTransaction(async (tx) => {
       const snap = await tx.get(ref);
-      if (snap.exists && snap.data()?.status === 'applied') return false;
+      const data = snap.data();
+      if (data?.status === 'applied') return null;
+      if (data?.status === 'claimed' && (!data.expiresAt || Number(data.expiresAt) > Date.now())) return null;
       tx.set(ref, {
         key: args.key,
         opportunityId: args.opportunityId,
         status: 'claimed',
+        owner,
+        expiresAt: Date.now() + 10 * 60_000,
         claimedAt: new Date().toISOString(),
         createdAt: FieldValue.serverTimestamp(),
       });
-      return true;
+      return owner;
     });
   } catch {
-    return false;
+    return null;
   }
 }
 
 export async function completeIdempotencyKey(args: {
   key: string;
+  owner: string;
   status: 'applied' | 'failed';
 }): Promise<void> {
-  const db = getAdminDb();
-  if (!db) return;
-  await db.collection(OPP_COL.idempotency).doc(args.key).set(
-    {
+  const db = requireDb();
+  const ref = db.collection(OPP_COL.idempotency).doc(args.key);
+  await db.runTransaction(async (tx) => {
+    const snap = await tx.get(ref);
+    if (snap.data()?.owner !== args.owner) {
+      throw Object.assign(new Error('Idempotency lease mistet'), { code: 'write_busy' });
+    }
+    tx.set(ref, {
       status: args.status,
       completedAt: new Date().toISOString(),
-      updatedAt: FieldValue.serverTimestamp(),
-    },
-    { merge: true }
-  );
+    }, { merge: true });
+  });
 }
 
 function stripUndefined(obj: Record<string, unknown>): Record<string, unknown> {

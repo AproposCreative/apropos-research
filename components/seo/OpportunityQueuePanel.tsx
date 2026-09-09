@@ -20,6 +20,8 @@ type OpportunityRow = {
   score: number;
   confidence?: number;
   status: string;
+  cmsWriteState?: string;
+  pendingApply?: unknown;
   signals: string[];
   why: string;
   skipReason?: string | null;
@@ -126,6 +128,7 @@ export default function OpportunityQueuePanel() {
   };
 
   const runManualOptimize = async () => {
+    if (!window.confirm('Gem SEO-forslag for op til 10 artikler som kladde? Artiklerne bliver ikke publiceret.')) return;
     setScanning(true);
     setError(null);
     setNote(null);
@@ -134,14 +137,14 @@ export default function OpportunityQueuePanel() {
       const res = await fetch('/api/seo-engine/opportunities/scan', {
         method: 'POST',
         headers,
-        body: JSON.stringify({ limit: 10, mode: 'optimize' }),
+        body: JSON.stringify({ limit: 10, mode: 'optimize', autoApply: true }),
       });
       const j = await res.json();
       if (!res.ok) throw new Error(j.error || 'Manuel kørsel fejlede');
       const report = j.report || {};
       const applied = j.autoApply?.applied?.length ?? 0;
       setNote(
-        `${report.statusMessage || 'Kørsel færdig'}${applied ? ` · auto-anvendt ${applied}` : ''}`
+        `${report.statusMessage || 'Kørsel færdig'}${applied ? ` · gemt som kladde: ${applied}` : ''}`
       );
       await refresh();
     } catch (e) {
@@ -184,8 +187,7 @@ export default function OpportunityQueuePanel() {
         <div className="min-w-0 text-left">
           <p className="text-[13px] font-medium text-white/90">Automatisk SEO-optimering</p>
           <p className="text-[11px] text-white/40 mt-0.5">
-            Kører selv (publish + daglig collect / ugentlig optimize). Ingen løbende Scan eller
-            godkendelse. Kun seo-title/meta (+ server-schema snapshot).
+            Kører selv (publish + daglig collect / ugentlig optimize). Gemmer SEO-titel og metabeskrivelse som kladde. Publicering sker i redaktionens flow.
           </p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
@@ -211,7 +213,7 @@ export default function OpportunityQueuePanel() {
             disabled={scanning}
             onClick={() => void runManualOptimize()}
           >
-            {scanning ? 'Kører…' : 'Manuel kørsel'}
+            {scanning ? 'Kører…' : 'Gem SEO-kladder'}
           </button>
         </div>
       </div>
@@ -223,7 +225,7 @@ export default function OpportunityQueuePanel() {
             {mode === 'automatic'
               ? 'Automatisk drift aktiv'
               : mode === 'emergency_stopped'
-                ? 'Nød-stop — ingen automatiske writes'
+                ? 'Nød-stop: nye automatiske skrivninger er blokeret'
                 : 'Venter på sunde GSC/Webflow-forbindelser'}
             {autoEnabled ? '' : ' · deaktiveret'}
           </p>
@@ -234,6 +236,7 @@ export default function OpportunityQueuePanel() {
         </div>
       </div>
 
+      <p className="text-[11px] text-white/45">Nødstop kontrolleres før CMS-skrivning. En allerede afsendt skrivning kan nå at afsluttes.</p>
       {note && <p className="text-[12px] text-white/55">{note}</p>}
       {error && <p className="text-[12px] text-red-400/95">{error}</p>}
 
@@ -255,7 +258,9 @@ export default function OpportunityQueuePanel() {
               <div className="min-w-0 text-left">
                 <p className="text-[13px] font-medium text-white/85 truncate">{row.title}</p>
                 <p className="text-[10px] text-white/30 truncate">
-                  {row.slug} · {row.status}
+                  {row.slug} · {row.cmsWriteState === 'staged_verified'
+                    ? (row.status === 'rolled_back' ? 'Gendannet som kladde' : 'Gemt og verificeret som kladde')
+                    : row.status === 'applied' ? 'Tidligere anvendt; live-status ukendt' : row.status}
                   {row.skipReason ? ` · ${row.skipReason}` : ''}
                 </p>
               </div>
@@ -304,18 +309,18 @@ export default function OpportunityQueuePanel() {
                 ))}
               </div>
             )}
-            {row.status === 'applied' && (
+            {(row.status === 'applied' || Boolean(row.pendingApply)) && (
               <button
                 type="button"
                 className={dangerOutlineBtn}
                 disabled={busyId === row.id}
                 onClick={() => {
-                  const ok = window.confirm('Rul metadata tilbage til før auto-apply?');
+                  const ok = window.confirm('Gendan tidligere metadata som kladde? Nyere redaktørændringer blokerer handlingen.');
                   if (!ok) return;
                   void act(row.id, 'rollback');
                 }}
               >
-                Rollback
+                Gendan metadata
               </button>
             )}
           </div>
