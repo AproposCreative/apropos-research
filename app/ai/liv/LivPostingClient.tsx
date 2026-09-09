@@ -17,6 +17,7 @@ import {
   StickyAppActionBar,
 } from '@/components/embedded-app';
 import { useAuth } from '@/lib/auth-context';
+import { readJsonResponse } from '@/lib/api/read-json-response';
 
 interface LivPostingClientProps {
   embedded?: boolean;
@@ -367,7 +368,7 @@ export default function LivPostingClient({ embedded = false, onClose, initialTab
             excludedTitles: excludedTitlesOverride ?? excludedTopicsRef.current,
           }),
         });
-        const data: PreviewResponse = await res.json();
+        const data = await readJsonResponse<PreviewResponse>(res);
         if (!res.ok) {
           throw new Error(data.error || `HTTP ${res.status}`);
         }
@@ -398,7 +399,7 @@ export default function LivPostingClient({ embedded = false, onClose, initialTab
       setHistoryLoading(true);
       const headers = await authHeader();
       const res = await fetch('/api/liv/status?limit=60&includeCms=1', { headers, cache: 'no-store' });
-      const data: StatusResponse = await res.json();
+      const data = await readJsonResponse<StatusResponse>(res);
       if (!res.ok) {
         throw new Error(data.error || `HTTP ${res.status}`);
       }
@@ -482,7 +483,7 @@ export default function LivPostingClient({ embedded = false, onClose, initialTab
       setPlanLoading(true);
       const headers = await authHeader();
       const res = await fetch('/api/liv/plan?for=tomorrow', { headers, cache: 'no-store' });
-      const data: PlanResponse = await res.json();
+      const data = await readJsonResponse<PlanResponse>(res);
       if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
       setPlan(data.plan || null);
     } catch (e) {
@@ -509,7 +510,7 @@ export default function LivPostingClient({ embedded = false, onClose, initialTab
           mustUseTrending,
         }),
       });
-      const data: PlanResponse = await res.json();
+      const data = await readJsonResponse<PlanResponse>(res);
       if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
       setPlan(data.plan || null);
     } catch (e) {
@@ -528,7 +529,7 @@ export default function LivPostingClient({ embedded = false, onClose, initialTab
         method: 'DELETE',
         headers,
       });
-      const data: PlanResponse = await res.json();
+      const data = await readJsonResponse<PlanResponse>(res);
       if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
       setPlan(null);
     } catch (e) {
@@ -864,6 +865,8 @@ export default function LivPostingClient({ embedded = false, onClose, initialTab
 
                     {previewLoading && !topic ? (
                       <p className="text-[13px] text-white/55">Indlæser dagens emne…</p>
+                    ) : !preview ? (
+                      <p role="status" className="text-[13px] text-amber-200">Dagens emne kunne ikke indlæses. Prøv at opdatere. Dette siger ikke noget om cron-kørslens resultat.</p>
                     ) : !topic ? (
                       <div>
                         <p className="text-[13px] font-medium text-white/85 mb-1">Intet emne valgt i dag</p>

@@ -44,6 +44,9 @@ const autoBuildLabel = `${version}.${buildId}${dirtySuffix}`;
 const buildLabel = process.env.NEXT_PUBLIC_BUILD_LABEL || autoBuildLabel;
 
 const nextConfig = {
+  // Bundle the CJS -> ESM auth chain rather than relying on Node's optional
+  // require(ESM) support, which is disabled in the production runtime.
+  transpilePackages: ['firebase-admin', 'jwks-rsa', 'jose'],
   // ffmpeg-static: lad binær ligge i node_modules (ikke webpack vendor-chunk)
   serverExternalPackages: ['ffmpeg-static'],
   // Inkluder linux ffmpeg-binær i serverless bundle (Vercel file tracing)
