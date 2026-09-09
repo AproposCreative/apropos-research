@@ -50,6 +50,10 @@ const nextConfig = {
   outputFileTracingIncludes: {
     '/api/podcast/process': ['./node_modules/ffmpeg-static/**/*'],
   },
+  // Recovery copies and temporary test data must never enter server bundles.
+  outputFileTracingExcludes: {
+    '/*': ['./tmp/**/*', './.git/**/*', './.env*'],
+  },
   env: {
     NEXT_PUBLIC_APP_VERSION: version,
     NEXT_PUBLIC_BUILD_ID: buildId,
