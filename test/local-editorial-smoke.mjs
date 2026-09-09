@@ -6,7 +6,9 @@ import { stripTypeScriptTypes } from 'node:module';
 import vm from 'node:vm';
 import path from 'node:path';
 
-const tracked = execFileSync('git', ['diff', '--name-only', '--diff-filter=ACM'], { encoding: 'utf8' }).trim().split('\n');
+// Optional base revision also checks staged changes and committed release work.
+const base = process.argv[2] || 'HEAD';
+const tracked = execFileSync('git', ['diff', '--name-only', '--diff-filter=ACM', base, '--'], { encoding: 'utf8' }).trim().split('\n');
 const added = execFileSync('git', ['ls-files', '--others', '--exclude-standard'], { encoding: 'utf8' }).trim().split('\n');
 let parsed = 0;
 for (const file of new Set([...tracked, ...added])) {

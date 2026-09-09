@@ -86,6 +86,7 @@ export type AIWriterView =
   | 'push'
   | 'liv'
   | 'akkreditering'
+  | 'liv-inbox'
   | 'seo'
   | null;
 
@@ -101,6 +102,7 @@ export function resolveViewFromSearchParams(sp: {
   if (view === 'push') return 'push';
   if (view === 'liv') return 'liv';
   if (view === 'akkreditering') return 'akkreditering';
+  if (view === 'liv-inbox') return 'liv-inbox';
   if (view === 'seo') return 'seo';
   if (view === 'ai') return 'ai';
   const n = sp.get('newsletter');
@@ -111,5 +113,6 @@ export function resolveViewFromSearchParams(sp: {
   if (w === 'push-desk') return 'push';
   if (w === 'liv-desk') return 'liv';
   if (w === 'akkreditering') return 'akkreditering';
+  if (w === 'liv-inbox') return 'liv-inbox';
   return null;
 }
