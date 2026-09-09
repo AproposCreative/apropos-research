@@ -9,9 +9,11 @@ afterEach(() => vi.unstubAllEnvs());
 const reason = 'Den konkrete konflikt giver vurderingen tyngde, men slutningen er svagere underbygget.';
 
 describe('Liv voice and review contract', () => {
-  it('loads v3 with an auditable content hash and no generic fallback', () => {
+  it('loads v4 with an auditable content hash and no generic fallback', () => {
     const voice = loadLivVoice();
-    expect(voice.version).toBe('liv-v3');
+    expect(voice.version).toBe('liv-v4');
+    expect(voice.text).toContain('én selvstændig tese');
+    expect(voice.text).toContain('én sekundær kilde');
     expect(voice.hash).toMatch(/^[a-f0-9]{64}$/);
     expect(voice.text).toContain('tør humor');
     expect(voice.text).toContain('eksisterende CMS-toggle');
@@ -21,7 +23,7 @@ describe('Liv voice and review contract', () => {
       { openingStrategyOverride: 'En konkret åbning' }), { 'author-tov': false }, null);
     expect(prompt).toContain(loadLivVoice().text);
     expect(prompt).not.toContain('Ældre profil');
-    expect(composeSystemPrompt(buildPromptSegments('', 'Frederik', {}), {}, null)).not.toContain('LIV BRANDT - PROMPT (v3)');
+    expect(composeSystemPrompt(buildPromptSegments('', 'Frederik', {}), {}, null)).not.toContain('LIV BRANDT - PROMPT (v4)');
     expect(isLivAuthor(' Liv-Brandt ')).toBe(true);
   });
   it('accepts an explicit rating with rationale', () => {

@@ -9,36 +9,40 @@
  * via tre uafhængige signaler:
  *
  *   1. **Embedding cosine similarity** (semantisk lighed)
- *   2. **Karakter-n-gram Jaccard** (lexical overlap — fanger paraphrasing
- *      med samme sætningsbygning)
- *   3. **Åbningssætnings-lighed** (fanger "samme dramaturgiske åbning")
+ *   2. **Ord-5-gram Jaccard** og sammenhængende 12-ords overlap.
+ *   3. **Åbningssætnings-lighed** (lexikalt signal, ikke dramaturgisk bevis).
  *
  * Hver score evalueres mod en tærskel; én alvorlig overskridelse er nok
- * til at blokere publish. Tærskler er konservative — vi vil hellere have
- * en falsk positiv og logge end at publicere plagiat.
+ * til at blokere publish. Ingen af signalerne alene beviser plagiat.
+ * Ordmetoden kræver fortsat kalibrering på redaktionelt bedømte eksempler.
  */
 
 import { cosineSimilarity, getEmbedding } from '@/lib/embeddings';
 import { logger } from '@/lib/logger';
+import { hasCopiedPassage } from '@/lib/liv/research-bundle';
 
 export interface SourceSimilarityScores {
   embeddingSim: number;
   ngramJaccard: number;
   openingSim: number;
+  /** Diagnostic only: common character sequences are not copied phrases. */
+  characterJaccard?: number;
+  copiedPassage?: boolean;
 }
 
 export interface SourceSimilarityResult {
   pass: boolean;
   complete: boolean;
   reason?: string;
-  failure?: 'input-too-short' | 'embedding-unavailable' | 'embedding-invalid' | 'similarity-exceeded';
+  failure?: 'input-too-short' | 'input-too-long' | 'embedding-unavailable' | 'embedding-invalid' | 'similarity-exceeded';
+  method?: 'word-5gram-v2';
   scores: SourceSimilarityScores;
 }
 
 const DEFAULT_THRESHOLDS = {
   /** Conservative review trigger, not a finding of plagiarism. */
   embedding: 0.85,
-  /** Character overlap is language/length dependent; requires editorial calibration. */
+  /** Overlap of actual five-word sequences, not common Danish character fragments. */
   ngram: 0.18,
   /** Opening overlap is a review trigger, not proof of shared dramaturgy. */
   opening: 0.55,
@@ -85,6 +89,24 @@ function firstWords(input: string, count: number): string {
   return tokens.slice(0, count).join(' ');
 }
 
+function wordNGrams(text: string, n = 5): Set<string> {
+  const words = text.split(' ').filter(Boolean);
+  const grams = new Set<string>();
+  for (let i = 0; i <= words.length - n; i++) grams.add(words.slice(i, i + n).join(' '));
+  return grams;
+}
+
+export function lexicalSourceScores(generated: string, source: string) {
+  const genNorm = normalizeText(generated);
+  const srcNorm = normalizeText(source);
+  return {
+    ngramJaccard: jaccard(wordNGrams(genNorm), wordNGrams(srcNorm)),
+    characterJaccard: jaccard(charNGrams(genNorm.slice(0, 6000)), charNGrams(srcNorm.slice(0, 6000))),
+    openingSim: jaccard(charNGrams(firstWords(generated, 25)), charNGrams(firstWords(source, 25))),
+    copiedPassage: hasCopiedPassage(generated, source),
+  };
+}
+
 /* -------------------------------------------------------------------------
  * Hovedtjek
  * ------------------------------------------------------------------------- */
@@ -107,6 +129,12 @@ export async function checkSourceSimilarity(
   const generated = (input.generated || '').trim();
   const source = (input.source || '').trim();
 
+  if (source.length > 60000 || generated.length > 60000) {
+    return { pass: false, complete: false, failure: 'input-too-long', method: 'word-5gram-v2',
+      reason: 'Tekstgrundlaget er for stort til en fuldstændig kontrol.',
+      scores: { embeddingSim: 0, ngramJaccard: 0, openingSim: 0 } };
+  }
+
   // Manglende sammenligningsgrundlag er ikke en godkendelse.
   if (source.length < 80 || generated.length < 80) {
     return {
@@ -118,19 +146,12 @@ export async function checkSourceSimilarity(
     };
   }
 
-  // 2) N-gram Jaccard (lexical) — billig, kør altid.
-  const genNorm = normalizeText(generated).slice(0, 6000);
-  const srcNorm = normalizeText(source).slice(0, 6000);
-  const ngramJaccard = jaccard(charNGrams(genNorm, 4), charNGrams(srcNorm, 4));
+  // Full-text phrase checks. Keep the old char score as a diagnostic only.
+  const lexical = lexicalSourceScores(generated, source);
+  const { ngramJaccard, openingSim } = lexical;
 
-  // 3) Opening sentence overlap (de første 25 ord normaliseret).
-  const openA = charNGrams(firstWords(generated, 25), 4);
-  const openB = charNGrams(firstWords(source, 25), 4);
-  const openingSim = jaccard(openA, openB);
-
-  // 1) Embedding similarity — koster 1 OpenAI-kald pr. side, kør parallelt
-  // hvis vi allerede har varm cache. Vi accepterer en lille latency-koster
-  // for at fange semantisk plagiat.
+  // 1) Existing semantic screen covers the first 4000 characters per side.
+  // It is a review signal, not full-document semantic or plagiarism proof.
   let embeddingSim = 0;
   let complete = false;
   let failure: SourceSimilarityResult['failure'];
@@ -153,23 +174,23 @@ export async function checkSourceSimilarity(
 
   const scores: SourceSimilarityScores = {
     embeddingSim: Number.isFinite(embeddingSim) ? embeddingSim : 0,
-    ngramJaccard,
-    openingSim,
+    ...lexical,
   };
 
   const reasons: string[] = [];
+  if (lexical.copiedPassage) reasons.push('copied-passage: mindst 12 sammenhængende ord');
   if (embeddingSim > t.embedding) {
     reasons.push(`embedding=${embeddingSim.toFixed(3)} > ${t.embedding}`);
   }
   if (ngramJaccard > t.ngram) {
-    reasons.push(`ngram=${ngramJaccard.toFixed(3)} > ${t.ngram}`);
+    reasons.push(`word5gram=${ngramJaccard.toFixed(3)} > ${t.ngram}`);
   }
   if (openingSim > t.opening) {
     reasons.push(`opening=${openingSim.toFixed(3)} > ${t.opening}`);
   }
 
   if (!complete) {
-    return { pass: false, complete: false, failure,
+    return { pass: false, complete: false, failure, method: 'word-5gram-v2',
       reason: failure === 'embedding-invalid'
         ? 'Lighedstjenesten returnerede ugyldige måledata.'
         : 'Lighedstjenesten kunne ikke gennemføre kontrollen.', scores };
@@ -179,11 +200,12 @@ export async function checkSourceSimilarity(
     return {
       pass: false,
       complete,
+      method: 'word-5gram-v2',
       failure: 'similarity-exceeded',
       reason: reasons.join(' | '),
       scores,
     };
   }
 
-  return { pass: true, complete, scores };
+  return { pass: true, complete, method: 'word-5gram-v2', scores };
 }

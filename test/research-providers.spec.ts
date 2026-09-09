@@ -22,6 +22,15 @@ it('requires web search, cancels transport, disables retries, and preserves the 
   expect(data.contextText).toBe(`${text}\n\nA separate counterpoint.`);
   expect(data.sources.map(s => s.url)).toEqual(['https://example.com/film', 'https://other.example/review']);
 });
+it('bounds reasoning for Liv discovery and retains additional consulted URLs without inventing evidence', async () => {
+  m.create.mockResolvedValue({ status: 'completed', output: [{ type: 'web_search_call', status: 'completed', action: { sources: [
+    { url: 'https://official.example/work', title: 'Official work' }, { url: 'https://official.example/work' },
+    { url: 'http://insecure.example' }, { url: 'https://user:password@example.com' },
+  ] } }] });
+  const data = await createOpenAIResponsesProvider('gpt-5.6-sol').search({ query: 'Film', maxResults: 5 });
+  expect(m.create.mock.calls[0][0]).toMatchObject({ reasoning: { effort: 'low' }, tools: [{ type: 'web_search', search_context_size: 'low' }], include: ['web_search_call.action.sources'] });
+  expect(data.sources).toEqual([{ title: 'Official work', url: 'https://official.example/work', source: 'official.example', snippet: '' }]);
+});
 it.each(['incomplete', 'failed', 'cancelled', 'in_progress'])('rejects %s Responses output', async status => {
   m.create.mockResolvedValue({ status, output: [] });
   await expect(createOpenAIResponsesProvider().search({ query: 'fixture', maxResults: 3 })).rejects.toThrow('research_response_incomplete');

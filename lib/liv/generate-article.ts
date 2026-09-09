@@ -23,6 +23,8 @@ import { buildResearchBundle, extractResearchUrls, hasCopiedPassage } from '@/li
 import { checkSourceSimilarity } from '@/lib/liv/source-similarity';
 import { SourceSimilarityError } from '@/lib/liv/source-similarity-error';
 import type { LivSelectedImage } from '@/lib/liv/image-selection';
+import { livResearchQueries } from '@/lib/liv/research-query';
+import { buildLivWritingBrief } from '@/lib/liv/writing-brief';
 
 export interface GeneratedArticle {
   title: string;
@@ -161,10 +163,8 @@ type WebSearchResult = {
 };
 
 async function fetchWebResearch(query: string): Promise<WebSearchResult[]> {
-  const results = await Promise.all([
-    getResearch(query, { maxResults: 5, model: livModels().research, timeoutMs: 45000 }),
-    getResearch(`${query} primærkilder anmeldelser kritik modargumenter`, { maxResults: 5, model: livModels().research, timeoutMs: 45000 }),
-  ]);
+  const results = await Promise.all(livResearchQueries(query).map(subject =>
+    getResearch(subject, { maxResults: 5, model: livModels().research, timeoutMs: 45000 })));
   return results.flatMap(result => result.sources.map(source => ({
     title: source.title, content: source.snippet, source: source.source, url: source.url,
   })));
@@ -189,165 +189,20 @@ async function collectImageSuggestions(opts: {
       pages.push({ url: r.url, source: r.source || 'web', title: r.title });
     }
   }
-  for (const p of pages.slice(0, 10)) {
-    const imgs = await fetchOfficialImagesFromPage(p.url, { timeoutMs: 8000 });
-    for (const img of imgs) {
-      if (seen.has(img)) continue;
-      seen.add(img);
-      candidates.push({ url: img, source: p.source, title: p.title, sourcePageUrl: p.url });
-      if (candidates.length >= 4) return candidates;
+  for (let offset = 0; offset < Math.min(10, pages.length); offset += 4) {
+    const batch = pages.slice(offset, Math.min(offset + 4, 10));
+    const results = await Promise.all(batch.map(async p => ({ p,
+      images: await fetchOfficialImagesFromPage(p.url, { timeoutMs: 8000 }) })));
+    for (const { p, images } of results) {
+      for (const img of images) {
+        if (seen.has(img)) continue;
+        seen.add(img);
+        candidates.push({ url: img, source: p.source, title: p.title, sourcePageUrl: p.url });
+        if (candidates.length >= 4) return candidates;
+      }
     }
   }
   return candidates;
-}
-
-async function extractConcreteNames(opts: {
-  client: ReturnType<typeof getOpenAIClient>;
-  topicTitle: string;
-  sourceExcerpt?: string;
-  webResearch: WebSearchResult[];
-}): Promise<string[]> {
-  if (!opts.client) return [];
-  const snippets = opts.webResearch
-    .map((r) => [r.title || '', r.content || ''].join(' — ').trim())
-    .filter(Boolean)
-    .slice(0, 6)
-    .join('\n');
-  const source = (opts.sourceExcerpt || '').slice(0, 2000);
-  if (!source && !snippets) return [];
-  try {
-    const res = await opts.client.chat.completions.create({
-      model: livModels().utility,
-      max_completion_tokens: 1500,
-      messages: [
-        {
-          role: 'system',
-          content: [
-            'Udtræk konkrete egennavne relateret til kultur/musik emnet.',
-            'Returnér KUN en JSON-array af strings.',
-            'Inkludér kun navne der fremgår direkte af input (kunstnere, bands, festival, venue, nøglepersoner).',
-            'Maks 12 navne.',
-          ].join('\n'),
-        },
-        {
-          role: 'user',
-          content: [
-            `Emne: ${opts.topicTitle}`,
-            '',
-            'Kildeuddrag:',
-            source || '(mangler)',
-            '',
-            'Web-snippets:',
-            snippets || '(mangler)',
-          ].join('\n'),
-        },
-      ],
-    });
-    const text = res.choices[0]?.message?.content?.trim() || '[]';
-    const match = text.match(/\[[\s\S]*\]/);
-    const arr = match ? JSON.parse(match[0]) : [];
-    if (!Array.isArray(arr)) return [];
-    return arr
-      .map((x) => (typeof x === 'string' ? x.trim() : ''))
-      .filter(Boolean)
-      .slice(0, 12);
-  } catch {
-    return [];
-  }
-}
-
-function extractLikelyNamesFromText(text: string): string[] {
-  if (!text) return [];
-  const cleaned = text
-    .replace(/\s+/g, ' ')
-    .replace(/[“”"()]/g, ' ')
-    .trim();
-  const candidates = new Set<string>();
-  const re = /\b(?:[A-ZÆØÅ][A-Za-zÆØÅæøå0-9]+|[0-9]+)\s*(?:&\s*)?(?:[A-ZÆØÅ][A-Za-zÆØÅæøå0-9]+|of|the|The|Of|[0-9]+)*(?:\s+(?:[A-ZÆØÅ][A-Za-zÆØÅæøå0-9]+|of|the|The|Of|[0-9]+))*\b/g;
-  let m: RegExpExecArray | null = null;
-  while ((m = re.exec(cleaned)) !== null) {
-    const raw = (m[0] || '').trim();
-    if (!raw) continue;
-    if (raw.length < 2 || raw.length > 60) continue;
-    if (/^(Heartland|Festival|Program|Danmark|Sommer|Nyheder|Transport|Parkering|Billetter|JUNI)$/i.test(raw)) continue;
-    if (/^\d+$/.test(raw)) continue;
-    if (/&#\d+;/.test(raw)) continue;
-    if (!/[A-ZÆØÅ]/.test(raw)) continue;
-    const words = raw.split(/\s+/).filter(Boolean);
-    if (words.length === 1) {
-      const w = words[0];
-      const isShortAllCaps = /^[A-Z0-9&]{2,4}$/.test(w);
-      if (!isShortAllCaps && w.length < 5) continue;
-      if (/^(Vi|De|Med|Til|Køb)$/i.test(w)) continue;
-    }
-    if (words.length >= 5) continue;
-    candidates.add(raw.replace(/\s{2,}/g, ' ').trim());
-    if (candidates.size >= 20) break;
-  }
-  return Array.from(candidates);
-}
-
-function isStrongNameCandidate(name: string): boolean {
-  if (!name) return false;
-  if (/^(Heartland|Festival|Program|Nyheder|Billetter|Transport|Parkering|JUNI)$/i.test(name)) return false;
-  if (/^\d+$/.test(name)) return false;
-  const words = name.split(/\s+/).filter(Boolean);
-  if (words.length === 1) {
-    const w = words[0];
-    if (/^(Vi|De|Med|Til|Køb)$/i.test(w)) return false;
-    return /^[A-Z0-9&]{2,4}$/.test(w) || w.length >= 5;
-  }
-  return words.length <= 4;
-}
-
-/**
- * Step 1 — destillér kildens uddrag til en neutral fakta-bullet-liste.
- * Den efterfølgende skribent får både denne opsummering og hentede kildetekster.
- * Faktaekstraktion er ikke i sig selv et originalitets- eller faktatjek.
- */
-async function extractFactsFromSource(opts: {
-  client: ReturnType<typeof getOpenAIClient>;
-  sourceTitle: string;
-  sourceExcerpt?: string;
-  sourceName?: string;
-}): Promise<string[]> {
-  if (!opts.client || !opts.sourceExcerpt) return [];
-  const trimmed = opts.sourceExcerpt.slice(0, 1500);
-
-  try {
-    const res = await opts.client.chat.completions.create({
-      model: livModels().utility,
-      max_completion_tokens: 2000,
-      messages: [
-        {
-          role: 'system',
-          content: [
-            'Du er en research-assistent. Du må KUN udtrække neutrale fakta.',
-            'Returnér 4–10 punkter i formatet "- <fakta i ÉN kort sætning>".',
-            'Skriv på dansk. Hver bullet skal være:',
-            '- Selvstændig, kontekst-fri, neutralt formuleret.',
-            '- Ingen citater, ingen vendinger fra originalteksten.',
-            '- Ingen vurderinger, dramatik eller stilistiske greb.',
-            'Hvis et fakta er usikkert, udelad det.',
-          ].join('\n'),
-        },
-        {
-          role: 'user',
-          content: `Kilde: ${opts.sourceName || 'ukendt'} — "${opts.sourceTitle}"\n\nUddrag:\n${trimmed}\n\nUdtræk fakta:`,
-        },
-      ],
-    });
-    const text = res.choices[0]?.message?.content?.trim() || '';
-    return text
-      .split(/\n+/)
-      .map((l) => l.replace(/^\s*[-*•]\s*/, '').trim())
-      .filter((l) => l.length >= 8);
-  } catch (e) {
-    logger.warn('[liv/generate-article] fact extraction failed; retrieved source texts remain available', {
-      err: e instanceof Error ? e.message : String(e),
-    });
-    return [];
-  }
 }
 
 export async function generateLivArticle(options: GenerateArticleOptions): Promise<GeneratedArticle> {
@@ -374,37 +229,10 @@ export async function generateLivArticle(options: GenerateArticleOptions): Promi
     ...discovered.flatMap(s => s.url ? [s.url] : []),
   ]);
   await rememberResearchSources(sourceScope, topic.title, sources);
-  const sourceExcerptCombined = sources[0].text.slice(0, 2600);
-  const facts = await extractFactsFromSource({
-    client,
-    sourceTitle: topic.source?.title || topic.title,
-    sourceExcerpt: sourceExcerptCombined,
-    sourceName: topic.source?.sourceName,
-  });
+  const brief = await buildLivWritingBrief(sources, topic.title);
   const webResearch: WebSearchResult[] = sources.map(s => ({
     title: s.title, content: s.text, url: s.url, source: new URL(s.url).hostname,
   }));
-  const concreteNames = await extractConcreteNames({
-    client,
-    topicTitle: topic.title,
-    sourceExcerpt: sourceExcerptCombined,
-    webResearch,
-  });
-  const fallbackNames = extractLikelyNamesFromText(sourceExcerptCombined);
-  const mergedConcreteNames = Array.from(new Set([...concreteNames, ...fallbackNames]))
-    .filter(isStrongNameCandidate)
-    .slice(0, 12);
-  const webResearchBlock = webResearch.length
-    ? webResearch
-        .map((r) => {
-          const title = (r.title || 'Ukendt resultat').replace(/\s+/g, ' ').trim();
-          const source = (r.source || 'web').replace(/\s+/g, ' ').trim();
-          const snippet = (r.content || '').replace(/\s+/g, ' ').trim().slice(0, 4000);
-          const url = r.url ? ` (${r.url})` : '';
-          return `- [${source}] ${title}${url}${snippet ? ` — ${snippet}` : ''}`;
-        })
-        .join('\n')
-    : '(Ingen webresearch fundet.)';
 
   const systemPrompt = [
     voice.text,
@@ -443,9 +271,9 @@ export async function generateLivArticle(options: GenerateArticleOptions): Promi
     '- Ingen generelle samfundsdiagnoser som erstatning for research. Hvert analyseafsnit skal tage afsæt i et konkret, dokumenteret forhold ved emnet.',
     '- Undgå gentagne skabeloner: "Ikke bare X, men Y", "Det er her", "I en tid hvor". Skriv enkelt når der ikke er belæg for en stor pointe.',
     '- Nævn værkets navn i titel og SEO ved film- og bogstof. AI-markering sker kun via CMS-toggle; tilføj ingen standardforklaring eller badge.',
-    mergedConcreteNames.length >= 3
-      ? `- Inkludér mindst 3 af disse konkrete navne i analysen, når de er relevante: ${mergedConcreteNames.join(', ')}.`
-      : '- Hvis research indeholder kunstnernavne eller venues, så brug dem konkret i teksten.',
+    '- Brug researchens navne og detaljer konkret, når de er relevante. Tilføj ikke navne for at opfylde en kvote.',
+    '- Byg artiklen om én egen tese, dens belæg og et reelt modargument. Skriv ikke en rundtur gennem mediernes domme.',
+    '- En aggregeret anmeldelsesoversigt er én sekundær kilde. Påstå ikke at have læst originalkritikken. Udelad en andenhåndsdom, hvis den ikke er nødvendig for din vinkel.',
     '',
     '— ANTI-PLAGIAT —',
     'Disse regler er ABSOLUTTE og overrider alt andet:',
@@ -462,18 +290,11 @@ export async function generateLivArticle(options: GenerateArticleOptions): Promi
     options.directiveHint?.trim() || '(ingen)',
   ].join('\n');
 
-  const factsBlock = facts.length > 0
-    ? facts.map((f) => `- ${f}`).join('\n')
-    : '(Brug kun de hentede kildetekster nedenfor. Ingen titelbaseret faktagætning.)';
-
   const userPrompt = [
     `Emne: ${topic.title}`,
     '',
     'Brug KUN følgende fakta som råmateriale (du må omformulere alt — du må aldrig kopiere ordlyd):',
-    factsBlock,
-    '',
-    'Supplerende webresearch (bruges til at få konkrete navne, steder og datoer):',
-    webResearchBlock,
+    brief.writerText,
     '',
     'Vinkel: Brug Liv\'s personlige, sanselige stemme. Tag stilling. Reflektér over samtid, identitet eller femininitet hvor relevant.',
     'Begynd ikke artiklen med samme rytme eller åbningsfigur som en typisk nyhedsartikel om emnet ville bruge.',
@@ -486,7 +307,7 @@ export async function generateLivArticle(options: GenerateArticleOptions): Promi
       { role: 'system', content: systemPrompt },
       { role: 'user', content: userPrompt },
     ],
-  });
+  }, { timeout: 90000, maxRetries: 0 });
 
   if (completion.choices[0]?.finish_reason !== 'stop') throw new Error('article_generation_incomplete');
   const raw = completion.choices[0]?.message?.content?.trim() || '';
@@ -499,15 +320,6 @@ export async function generateLivArticle(options: GenerateArticleOptions): Promi
   const parsed = parseStructuredResponse(cleanedRaw);
   if (!parsed.title || !parsed.content) {
     throw new Error('Kunne ikke parse title/brødtekst fra OpenAI-respons.');
-  }
-
-  // Guardrail: if we have concrete names from research, ensure at least some make it into the article.
-  if (mergedConcreteNames.length >= 3) {
-    const lowerContent = parsed.content.toLowerCase();
-    const mentioned = mergedConcreteNames.filter((name) => lowerContent.includes(name.toLowerCase()));
-    if (mentioned.length < 2) {
-      throw new Error('article_specificity_insufficient: Udkastet bruger ikke researchens konkrete navne. Omskrivning kræves.');
-    }
   }
 
   const slug = slugify(parsed.title);
@@ -525,10 +337,6 @@ export async function generateLivArticle(options: GenerateArticleOptions): Promi
     section,
     keywords: topic.tags,
   }, { model: livModels().utility });
-  const imageSuggestions = await collectImageSuggestions({
-    topic,
-    researchResults: webResearch,
-  });
   const finalText = [parsed.title, parsed.subtitle, parsed.intro, parsed.content, rating?.reason, seo.seoTitle, seo.seoDescription].filter(Boolean).join('\n\n');
   if (finalText.includes('—')) throw new Error('article_style_invalid: Em dash skal omskrives.');
   if (hasCopiedPassage(finalText, buildStyleReferenceBlock(section, 2, true))) throw new Error('style_sample_copy_detected');
@@ -543,6 +351,8 @@ export async function generateLivArticle(options: GenerateArticleOptions): Promi
       throw error;
     }
   }
+
+  const imageSuggestions = await collectImageSuggestions({ topic, researchResults: webResearch });
 
   const webResearchSources = sources.map((r) => ({
     title: r.title,

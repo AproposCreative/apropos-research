@@ -1,5 +1,6 @@
 import { beforeEach, expect, it, vi } from 'vitest';
-import { checkSourceSimilarity } from '@/lib/liv/source-similarity';
+import { checkSourceSimilarity, lexicalSourceScores } from '@/lib/liv/source-similarity';
+import { independentDinnerTexts } from './fixtures/danish-originality';
 import { SourceSimilarityError } from '@/lib/liv/source-similarity-error';
 
 const mocks = vi.hoisted(() => ({ embedding: vi.fn(), cosine: vi.fn(), warn: vi.fn() }));
@@ -42,6 +43,38 @@ it('still blocks high semantic similarity', async () => {
 
 it('still blocks literal overlap independently of embeddings', async () => {
   expect(await checkSourceSimilarity({ generated, source: generated })).toMatchObject({ pass: false, complete: true, failure: 'similarity-exceeded' });
+});
+
+it('does not confuse shared Danish fragments with five-word sequences in independent same-topic controls', async () => {
+  const [generated, source] = independentDinnerTexts;
+  const lexical = lexicalSourceScores(generated, source);
+  // This short pair has ~16% common character fragments without shared phrasing.
+  // It is a control, not evidence that the previous The Invite flag was false.
+  expect(lexical.characterJaccard).toBeGreaterThan(0.1);
+  expect(lexical.ngramJaccard).toBeLessThan(0.01);
+  expect(lexical.copiedPassage).toBe(false);
+  expect(await checkSourceSimilarity({ generated, source })).toMatchObject({ pass: true, method: 'word-5gram-v2' });
+});
+
+it('blocks copied and punctuation-disguised paragraphs anywhere in a long article', async () => {
+  const [original, independent] = independentDinnerTexts;
+  const copied = original.split('\n')[1].replaceAll(' ', ', ');
+  const result = await checkSourceSimilarity({ generated: independent.repeat(8) + copied, source: original });
+  expect(result).toMatchObject({ pass: false, complete: true, scores: { copiedPassage: true } });
+});
+
+it('blocks patchwriting with repeated five-word chunks despite avoiding a twelve-word run', async () => {
+  const source = independentDinnerTexts[0];
+  const words = source.match(/[\p{L}\p{N}]+/gu)!;
+  const chunks = [];
+  for (let i = 0; i < words.length; i += 10) chunks.push(words.slice(i, i + 10).join(' '));
+  const generated = chunks.reverse().join(' omskrevet ');
+  expect((await checkSourceSimilarity({ generated, source })).pass).toBe(false);
+});
+
+it('does not silently truncate oversized input into approval', async () => {
+  expect(await checkSourceSimilarity({ generated: 'x'.repeat(60001), source })).toMatchObject({ pass: false, complete: false, failure: 'input-too-long' });
+  expect(mocks.embedding).not.toHaveBeenCalled();
 });
 
 it.each([true, false])('returns safe diagnostics for complete=%s', async complete => {

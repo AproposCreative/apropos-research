@@ -16,6 +16,7 @@ export class SourceSimilarityError extends Error {
     failure: SourceSimilarityResult['failure'];
     reason: SourceSimilarityResult['reason'];
     scores: SourceSimilarityResult['scores'];
+    method?: SourceSimilarityResult['method'];
   };
 
   constructor(result: SourceSimilarityResult, source: { url: string; contentHash: string },
@@ -30,7 +31,7 @@ export class SourceSimilarityError extends Error {
     this.code = code;
     this.status = result.complete ? 422 : 503;
     this.detail = { sourceHost: host, sourceHash: source.contentHash,
-      complete: result.complete, failure: result.failure, reason: result.reason, scores: result.scores };
+      complete: result.complete, failure: result.failure, reason: result.reason, scores: result.scores, method: result.method };
     if (review?.text.trim() && review.text.length <= 60000) {
       this.#review = { ...review, status: 'blocked', textHash: createHash('sha256').update(review.text).digest('hex') };
     }

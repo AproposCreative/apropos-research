@@ -11,6 +11,8 @@ vi.mock('@/lib/factcheck/source-reader', async importOriginal => ({ ...await imp
 vi.mock('@/lib/liv/fetch-official-images', () => ({ fetchOfficialImagesFromPage: async () => [] }));
 vi.mock('@/lib/seo/generate-seo-meta', () => ({ generateSeoMetaAI: mocks.seo }));
 vi.mock('@/lib/liv/source-similarity', () => ({ checkSourceSimilarity: mocks.similarity }));
+// Evidence-note extraction is validated separately, including invented quotes and source IDs.
+vi.mock('@/lib/liv/writing-brief', () => ({ buildLivWritingBrief: async () => ({ writerText: '[S1] Olivia Wilde instruerer The Invite. Seth Rogen medvirker.', notes: [] }) }));
 
 const primaryUrl = 'https://a24films.com/films/the-invite';
 const criticUrl = 'https://example.com/criticism/the-invite';
@@ -28,9 +30,7 @@ beforeEach(() => {
     contentHash: 'hash', publishedAt: null, retrievedAt: '2026-09-09T18:00:00Z' }));
   mocks.seo.mockResolvedValue({ seoTitle: 'The Invite: Middagen som magtkamp', seoDescription: 'En konkret vurdering af præmissen og dens konflikt.', source: 'ai' });
   mocks.similarity.mockResolvedValue({ pass: true, complete: true });
-  mocks.create.mockResolvedValueOnce(response('- Olivia Wilde instruerer filmen.'))
-    .mockResolvedValueOnce(response('["Olivia Wilde", "The Invite", "Seth Rogen"]'))
-    .mockResolvedValueOnce(response(rawArticle()));
+  mocks.create.mockReset().mockResolvedValueOnce(response(rawArticle()));
 });
 
 it('runs shared search, re-fetches recalled sources, applies v3 and preserves rating/model through CMS', async () => {
@@ -40,7 +40,7 @@ it('runs shared search, re-fetches recalled sources, applies v3 and preserves ra
   expect(mocks.retrieve).toHaveBeenCalledWith(primaryUrl, expect.any(String));
   expect(mocks.retrieve).toHaveBeenCalledWith(criticUrl, expect.any(String));
   expect(mocks.remember).toHaveBeenCalledWith('editor-a', 'The Invite', expect.arrayContaining([expect.objectContaining({ url: primaryUrl })]));
-  const request = mocks.create.mock.calls[2][0];
+  const request = mocks.create.mock.calls[0][0];
   expect(request.messages[0].content).toContain(loadLivVoice().text);
   expect(request.messages[0].content).toContain(primaryUrl);
   expect(request.messages[1].content).toContain('Seth Rogen');
@@ -63,16 +63,14 @@ it('stops before generation when the source archive fails', async () => {
 });
 
 it('rejects an incomplete model response', async () => {
-  mocks.create.mockReset().mockResolvedValueOnce(response('- En neutral oplysning.'))
-    .mockResolvedValueOnce(response('[]')).mockResolvedValueOnce({ choices: [{ message: { content: rawArticle() }, finish_reason: 'length' }] });
+  mocks.create.mockReset().mockResolvedValueOnce({ choices: [{ message: { content: rawArticle() }, finish_reason: 'length' }] });
   await expect(generateLivArticle({ topic: { title: 'The Invite', score: 0 }, articleFormat: 'research-review' })).rejects.toThrow('article_generation_incomplete');
 });
 
 it('blocks copied passages even when the similarity service says pass', async () => {
   const copied = 'Denne lange og helt særlige formulering fra et andet medie skal aldrig genbruges i Livs artikel.';
   mocks.retrieve.mockImplementation(async (url: string, id: string) => ({ id, url, title: 'The Invite', text: `${copied} ${'research '.repeat(80)}`, contentHash: 'hash', retrievedAt: '2026-09-09T18:00:00Z', publishedAt: null }));
-  mocks.create.mockReset().mockResolvedValueOnce(response('- En neutral oplysning.')).mockResolvedValueOnce(response('[]'))
-    .mockResolvedValueOnce(response(`${rawArticle()}\n\n${copied}`));
+  mocks.create.mockReset().mockResolvedValueOnce(response(`${rawArticle()}\n\n${copied}`));
   await expect(generateLivArticle({ topic: { title: 'The Invite', score: 0 }, articleFormat: 'research-review' })).rejects.toThrow('source_copy_detected');
 });
 
