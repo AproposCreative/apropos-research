@@ -26,9 +26,10 @@ import { pickLivTopic } from '@/lib/liv/pick-topic';
 import { generateLivArticle } from '@/lib/liv/generate-article';
 import { buildLivCmsPayload } from '@/lib/liv/build-cms-payload';
 import { checkCmsDraft } from '@/lib/editorial/cms-preflight';
+import { inspectLivCmsDraft } from '@/lib/liv/cms-readback';
 import { runSafetyGates } from '@/lib/liv/run-safety-gates';
 import { buildResearchQaSummary } from '@/lib/liv/research-qa';
-import { publishCanonicalArticleToWebflow } from '@/lib/articles/publish';
+import { publishArticleDraftToWebflow } from '@/lib/articles/publish';
 import type { WebflowArticleFields } from '@/lib/webflow/types';
 import { sendGa4MeasurementEvent } from '@/lib/newsletter/ga4-measurement';
 import {
@@ -52,10 +53,6 @@ function resolveLivPublicationMode(): LivPublicationMode {
   return 'draft';
 }
 
-function webflowStatusForMode(mode: LivPublicationMode): 'draft' | 'published' {
-  return mode === 'auto_publish' ? 'published' : 'draft';
-}
-
 function resolveBaseUrl(req: NextRequest): string {
   const fromHeader = req.nextUrl.origin;
   if (fromHeader && /^https?:\/\//.test(fromHeader)) return fromHeader;
@@ -66,7 +63,7 @@ function resolveBaseUrl(req: NextRequest): string {
 }
 
 async function reportGa4(
-  status: 'published' | 'skipped' | 'failed',
+  status: 'draft' | 'published' | 'skipped' | 'failed',
   params: Record<string, string | number | undefined>
 ): Promise<void> {
   try {
@@ -89,7 +86,9 @@ export async function GET(req: NextRequest) {
   const dayKey = todayDayKeyUTC();
   const baseUrl = resolveBaseUrl(req);
   const publicationMode = resolveLivPublicationMode();
-  const livWebflowStatus = webflowStatusForMode(publicationMode);
+  // The shared CMS writer saves staged drafts, not live items. Requested mode
+  // must never be mistaken for an observed publication result.
+  const livWebflowStatus = 'draft' as const;
 
   // Kill-switch: sæt LIV_DAILY_PAUSED=1 på Vercel for at stoppe alle
   // auto-publish runs uden deploy. dryRun ignorerer kill-switch så vi
@@ -137,6 +136,7 @@ export async function GET(req: NextRequest) {
   }
 
   let pickedTopicTitle: string | undefined;
+  let savedWebflowItemId: string | undefined;
   let gateResults: GateResult[] = [];
   const plan = await getLivDailyPlan(dayKey);
   const { topicHint, mustUseTrending } = resolveLivTopicInputsFromPlan(plan);
@@ -323,26 +323,34 @@ export async function GET(req: NextRequest) {
       aiModel: process.env.LIV_GENERATION_MODEL || 'claude-opus-4.7',
     });
 
-    // Source verification alone must never unlock publication while image rights
-    // and live CMS reference/readback checks are still missing.
+    // Keep researched articles as drafts while publication proof is missing.
+    // Do not discard the article, and do not equate auto mode with a live result.
     const cmsCheck = checkCmsDraft(article);
     if (publicationMode === 'auto_publish' && !cmsCheck.publicationReady) {
       const reason = 'cms_publication_unverified: Billedrettigheder og CMS-referencekontrol mangler.';
       gateResults.push({ name: 'cms-publication', pass: false, detail: reason });
-      await finishLivDaily(dayKey, { status: 'skipped_factcheck', topic: topic.title, reason, gateResults });
-      if (plan) await markPlanFailed(dayKey, reason);
-      return NextResponse.json({ ok: true, skipped: true, reason, dayKey, gateResults, cmsCheck });
     }
 
-    const { articleId: webflowItemId } = await publishCanonicalArticleToWebflow(payload, {
+    const { articleId: webflowItemId } = await publishArticleDraftToWebflow(payload, {
       source: 'liv',
-      defaultStatus: livWebflowStatus,
       defaultAuthor: 'Liv Brandt',
       defaultCategory: 'Kultur',
     });
+    savedWebflowItemId = webflowItemId;
+    const cmsReadback = await inspectLivCmsDraft({ itemId: webflowItemId, expected: payload });
+    gateResults.push({
+      name: 'cms-draft-readback',
+      pass: cmsReadback.draftConfirmed,
+      detail: `Dansk kladde læst tilbage: ${webflowItemId}. Ikke live.`,
+    });
+    gateResults.push({
+      name: 'cms-draft-fields',
+      pass: false,
+      detail: cmsReadback.checks.filter(check => !check.ok).map(check => check.id).join(', '),
+    });
 
     await finishLivDaily(dayKey, {
-      status: livWebflowStatus === 'published' ? 'published' : 'draft',
+      status: 'draft',
       topic: topic.title,
       title: article.title,
       slug: article.slug,
@@ -354,14 +362,14 @@ export async function GET(req: NextRequest) {
       await markPlanUsed(dayKey);
     }
 
-    await reportGa4('published', {
+    await reportGa4('draft', {
       day_key: dayKey,
       topic: topic.title.slice(0, 100),
       slug: article.slug,
       word_count: article.content.split(/\s+/).filter(Boolean).length,
     });
 
-    logger.info('[cron/liv-daily] published', {
+    logger.info('[cron/liv-daily] draft saved and read back', {
       dayKey,
       slug: article.slug,
       webflowItemId,
@@ -378,8 +386,12 @@ export async function GET(req: NextRequest) {
       slug: article.slug,
       webflowItemId,
       webflowStatus: livWebflowStatus,
+      publicationMode,
+      publicationBlocked: true,
       gateResults,
       qa,
+      cmsCheck,
+      cmsReadback,
     });
   } catch (e) {
     const msg = e instanceof Error ? e.message : 'Ukendt fejl';
@@ -389,6 +401,7 @@ export async function GET(req: NextRequest) {
       topic: pickedTopicTitle,
       reason: msg,
       gateResults,
+      ...(savedWebflowItemId ? { webflowItemId: savedWebflowItemId } : {}),
     });
     await reportGa4('failed', { reason: msg.slice(0, 100), day_key: dayKey });
     if (plan) {

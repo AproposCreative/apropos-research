@@ -121,6 +121,8 @@ export type FinishLivDailyInput =
       topic?: string;
       reason: string;
       gateResults?: GateResult[];
+      /** Preserve the staged item after a failed readback; do not blindly recreate it. */
+      webflowItemId?: string;
     };
 
 export async function finishLivDaily(dayKey: string, input: FinishLivDailyInput): Promise<void> {
@@ -155,6 +157,7 @@ export async function finishLivDaily(dayKey: string, input: FinishLivDailyInput)
       status: skippedOrFailed.status,
       topic: skippedOrFailed.topic?.slice(0, 500) || null,
       reason: skippedOrFailed.reason.slice(0, 1000),
+      ...(skippedOrFailed.webflowItemId ? { webflowItemId: skippedOrFailed.webflowItemId } : {}),
       gateResults: (skippedOrFailed.gateResults || []).slice(0, 20),
       completedAt: FieldValue.serverTimestamp(),
       processingStartedAt: FieldValue.delete(),
