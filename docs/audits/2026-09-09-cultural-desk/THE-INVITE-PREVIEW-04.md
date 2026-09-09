@@ -84,6 +84,34 @@ warnings in existing accreditation/podcast/SEO paths (the preceding build showed
 three), rather than a warning-free build. All 207 manifest exclusion checks and
 six Liv runtime import/voice-packaging checks still pass.
 
+## 90f33fc deployment and latest boundary
+
+`90f33fcdf2f8b6f39b2e743eef4ae7447362a3a3` was pushed and became READY as
+`dpl_Adnxc2syu91o66UM3SZgC1Kq6MjH`, including the production alias. The browser
+confirmed BUILD 1.0.0.90f33fc. The obsolete local disabled push URL was replaced
+with this repository's normal GitHub push URL under the new standing mandate.
+No global Git security settings were changed.
+
+One identical preview started at 21:53:10 UTC. Search again passed twice, without
+fallback, in 9,862 and 10,273 ms with five leads each. Evidence references resolved
+and the structured article response parsed. At 21:53:51.894 UTC the model returned
+the explicit insufficient-evidence outcome. The UI shows
+`article_evidence_insufficient`, reference `1788990790258-tp6pzvryg`.
+
+This is NOT a completed review. The format contract can now express abstention,
+but a ready article with accepted stars has not yet passed production verification.
+The current API still exposes this business rejection as HTTP 500; a dedicated
+422 response and explicit missing-evidence diagnostics remain useful follow-up.
+The exact neutral brief and reason for abstention are not yet retained, so do not
+guess which detail is missing or assert the film is inherently unreviewable.
+
+Next: retain a source-bound diagnostic research brief, identify and retrieve the
+missing relevant evidence, then retry generation and complete factual/originality
+checks. Image rights/asset proof, trailer validation, actual CMS fields/readback
+and item-scoped publication are still outstanding. No article publication, daily
+plan change, cron execution or Instagram action occurred in these tests. The
+existing Auto-live/active env display is not evidence of a working live cron.
+
 Skills used: deployment/API for exact release checks, verification and browser
 guidance for the authenticated flow, observability for production evidence,
 OpenAI credential gate with existing approved reuse, Next.js bundling for release
