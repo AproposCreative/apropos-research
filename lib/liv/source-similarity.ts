@@ -36,11 +36,11 @@ export interface SourceSimilarityResult {
 }
 
 const DEFAULT_THRESHOLDS = {
-  /** Cosine sim > 0.85 ≈ samme historie/vinkel. */
+  /** Conservative review trigger, not a finding of plagiarism. */
   embedding: 0.85,
-  /** 4-gram Jaccard > 0.18 ≈ tydelig paraphrasing. */
+  /** Character overlap is language/length dependent; requires editorial calibration. */
   ngram: 0.18,
-  /** Åbningssætnings-overlap > 0.55 ≈ samme dramaturgiske åbning. */
+  /** Opening overlap is a review trigger, not proof of shared dramaturgy. */
   opening: 0.55,
 };
 

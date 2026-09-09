@@ -162,8 +162,8 @@ type WebSearchResult = {
 
 async function fetchWebResearch(query: string): Promise<WebSearchResult[]> {
   const results = await Promise.all([
-    getResearch(query, { maxResults: 5, model: livModels().research }),
-    getResearch(`${query} primærkilder anmeldelser kritik modargumenter`, { maxResults: 5, model: livModels().research }),
+    getResearch(query, { maxResults: 5, model: livModels().research, timeoutMs: 45000 }),
+    getResearch(`${query} primærkilder anmeldelser kritik modargumenter`, { maxResults: 5, model: livModels().research, timeoutMs: 45000 }),
   ]);
   return results.flatMap(result => result.sources.map(source => ({
     title: source.title, content: source.snippet, source: source.source, url: source.url,
@@ -536,7 +536,9 @@ export async function generateLivArticle(options: GenerateArticleOptions): Promi
     if (hasCopiedPassage(finalText, source.text)) throw new Error('source_copy_detected: Sammenhængende tekstoverlap med kilde. Omskrivning kræves.');
     const similarity = await checkSourceSimilarity({ generated: finalText, source: source.text });
     if (!similarity.complete || !similarity.pass) {
-      const error = new SourceSimilarityError(similarity, source);
+      const error = new SourceSimilarityError(similarity, source, {
+        text: finalText, model: completion.model || generationModel, voiceVersion: voice.version,
+      });
       logger.warn('[liv/generate-article] source similarity blocked', error.detail);
       throw error;
     }

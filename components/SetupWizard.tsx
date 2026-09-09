@@ -8,6 +8,7 @@ import StepChip from '@/components/ui/StepChip';
 import { useAuth } from '@/lib/auth-context';
 import { EDITORIAL_ARTICLE_TYPE_OPTIONS, getEditorialArticleTypeOption } from '@/lib/editorial/signal-store';
 import { readJsonResponse } from '@/lib/api/read-json-response';
+import { writerResearchLengthInstruction } from '@/lib/ai-chat/article-length';
 
 type Step = 'template' | 'articleType' | 'source' | 'trending' | 'inspiration' | 'recommended' | 'analysis' | 'author' | 'section' | 'topic' | 'platform' | 'rating' | 'press';
 
@@ -596,9 +597,12 @@ export default function SetupWizard({
     setLoadingAnalysis(true);
     const analyzeResearch = async () => {
         try {
+          if (!user) throw new Error('Log ind for at analysere research.');
+          const token = await user.getIdToken();
+          if (controller.signal.aborted) return;
           const res = await fetch('/api/analyze-research', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
             body: analysisInput,
             signal: controller.signal,
           });
@@ -626,7 +630,7 @@ export default function SetupWizard({
       };
     void analyzeResearch();
     return () => controller.abort();
-  }, [step, data.template, analysisInput, analysisRetry]);
+  }, [step, data.template, analysisInput, analysisRetry, user]);
 
   // Auto-refresh articles in background every 2 minutes when on trending step
   useEffect(() => {
@@ -1085,7 +1089,7 @@ ${keyPoints}
 **KRITISKE INSTRUKTIONER FOR ORIGINALITET:**
 1. Parafrasér ALTID - omskriv alle fakta og pointer i dine egne ord
 2. Tilføj din egen vinkel og analyse - brug ikke samme struktur som originalen
-3. Udvid med nye elementer: ekspertcitater, statistikker, historisk kontekst, kulturelle referencer
+3. Udvid kun med verificerede fund. Opfind aldrig ekspertcitater, statistikker, cases eller personlige visningsoplevelser
 4. Brug forskellige eksempler end originalen - find dine egne cases og sammenligninger
 5. Skriv med din egen forfatterstemme og stil - ikke samme tone som kilden
 6. Strukturer artiklen anderledes - brug din egen logik og flow
@@ -1093,7 +1097,7 @@ ${keyPoints}
 
 **MÅL:**
 - Skriv en artikel der er inspireret af emnet, men helt original i formulering, struktur og indhold
-- Minimum 800-1200 ord med dybdegående analyse
+- ${writerResearchLengthInstruction({ articleType: data.articleType })}
 - Inkluder verificerede fakta, eksperter og statistikker fra eksterne kilder
 - Brug research-artiklen som udgangspunkt, men skriv din egen unikke artikel
 

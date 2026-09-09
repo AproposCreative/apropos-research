@@ -222,7 +222,8 @@ async function buildPreview(req: NextRequest, input: PreviewRequestInput, uid: s
   } catch (e) {
     if (e instanceof SourceSimilarityError) {
       return NextResponse.json({ ok: false, error: e.message, code: e.code,
-        dayKey, gatePass: false, canAutoPublish: false, diagnostic: e.detail },
+        dayKey, gatePass: false, canAutoPublish: false, diagnostic: e.detail,
+        ...(e.blockedReview ? { blockedReview: e.blockedReview } : {}) },
       { status: e.status, headers: { 'Cache-Control': 'no-store' } });
     }
     const msg = e instanceof Error ? e.message : 'Ukendt fejl';

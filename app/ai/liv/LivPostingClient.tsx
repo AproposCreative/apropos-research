@@ -19,6 +19,7 @@ import {
 import { useAuth } from '@/lib/auth-context';
 import { readJsonResponse } from '@/lib/api/read-json-response';
 import type { LivArticleFormat } from '@/lib/liv/review-format';
+import { readBlockedSourceReview, type BlockedSourceReview } from '@/lib/liv/blocked-review';
 
 interface LivPostingClientProps {
   embedded?: boolean;
@@ -297,6 +298,8 @@ const quickPillBtnActive = `${quickPillBtn} border-emerald-400/35 bg-emerald-500
 export default function LivPostingClient({ embedded = false, onClose, initialTab = 'topic' }: LivPostingClientProps) {
   const { user } = useAuth();
   const [preview, setPreview] = useState<PreviewResponse | null>(null);
+  const [blockedReview, setBlockedReview] = useState<BlockedSourceReview | null>(null);
+  const previewRequestId = useRef(0);
   const [previewLoading, setPreviewLoading] = useState(false);
   const [generateLoading, setGenerateLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -357,8 +360,10 @@ export default function LivPostingClient({ embedded = false, onClose, initialTab
         mustUseTrending: mustUseTrendingOverride,
         excludedTitles: excludedTitlesOverride,
       } = opts;
+      const requestId = ++previewRequestId.current;
       try {
         setError(null);
+        setBlockedReview(null);
         if (generate) setGenerateLoading(true);
         else setPreviewLoading(true);
         const headers = await authHeader();
@@ -378,7 +383,17 @@ export default function LivPostingClient({ embedded = false, onClose, initialTab
             excludedTitles: excludedTitlesOverride ?? excludedTopicsRef.current,
           }),
         });
+        if (requestId !== previewRequestId.current) return;
+        if (res.status === 422 || res.status === 503) {
+          const review = readBlockedSourceReview(await res.clone().json().catch(() => null));
+          if (requestId !== previewRequestId.current) return;
+          if (review) {
+            setBlockedReview(review);
+            setPreview(null);
+          }
+        }
         const data = await readJsonResponse<PreviewResponse>(res);
+        if (requestId !== previewRequestId.current) return;
         if (!res.ok) {
           throw new Error(data.error || `HTTP ${res.status}`);
         }
@@ -394,10 +409,12 @@ export default function LivPostingClient({ embedded = false, onClose, initialTab
           return data;
         });
       } catch (e) {
-        setError(e instanceof Error ? e.message : 'Kunne ikke hente preview');
+        if (requestId === previewRequestId.current) setError(e instanceof Error ? e.message : 'Kunne ikke hente preview');
       } finally {
-        setPreviewLoading(false);
-        setGenerateLoading(false);
+        if (requestId === previewRequestId.current) {
+          setPreviewLoading(false);
+          setGenerateLoading(false);
+        }
       }
     },
     [authHeader]
@@ -742,6 +759,17 @@ export default function LivPostingClient({ embedded = false, onClose, initialTab
 
           {error && (
             <p className="text-[13px] text-red-400/95">{error}</p>
+          )}
+          {blockedReview && (
+            <details className="rounded-xl border border-amber-300/25 p-4 text-white/80">
+              <summary className="cursor-pointer">Læs blokeret udkast til redaktionel gennemgang</summary>
+              <p className="mt-3 text-sm text-amber-200">
+                Ikke godkendt til publicering. Teksten vises kun i denne session og er ikke gemt i CMS.
+                En lighedsscore er ikke i sig selv bevis for plagiat. Kildekontrol og øvrige kontroller er ikke færdige.
+              </p>
+              <p className="mt-2 text-xs break-all">Model: {blockedReview.model} · Liv-stemme: {blockedReview.voiceVersion} · Tekst-ID: {blockedReview.textHash}</p>
+              <pre className="mt-4 whitespace-pre-wrap break-words font-sans text-sm leading-relaxed">{blockedReview.text}</pre>
+            </details>
           )}
 
           <div className="rounded-xl border border-white/[0.10] bg-gradient-to-b from-white/[0.04] to-transparent p-3.5 space-y-2.5">

@@ -12,3 +12,7 @@ export function writerLengthCheck(content: string, context: Record<string, unkno
   const actual = content.replace(/<[^>]*>/g, ' ').trim().split(/\s+/).filter(Boolean).length;
   return { ...policy, actual, pass: actual >= policy.min && actual <= policy.max };
 }
+
+export function writerResearchLengthInstruction(context: Record<string, unknown>): string {
+  return `Brødtekst: ${writerLengthPolicy(context).label}, eksklusive titel, undertitel og intro. Følg den valgte artikeltype. Opfind ikke stof for at nå længden.`;
+}

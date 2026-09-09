@@ -23,10 +23,11 @@ export function createLegacyWebSearchProvider(): ResearchProviderClient {
         method: 'POST',
         headers: internalApiHeaders(),
         body: JSON.stringify({ query: request.query, maxResults: request.maxResults }),
+        signal: request.signal,
       });
 
       if (!res.ok) {
-        return emptyResult(request.query, Date.now() - t0);
+        throw Object.assign(new Error('research_legacy_http_error'), { status: res.status });
       }
 
       const data = await res.json();

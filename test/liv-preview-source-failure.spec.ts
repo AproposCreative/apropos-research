@@ -37,3 +37,18 @@ it('still rejects unauthenticated generation before calling any model', async ()
   expect((await POST(request())).status).toBe(401);
   expect(mocks.generate).not.toHaveBeenCalled();
 });
+
+it('returns review-only text to the authenticated editor without an article or any approval', async () => {
+  mocks.generate.mockRejectedValue(new SourceSimilarityError({ pass: false, complete: true,
+    scores: { embeddingSim: 0.8, ngramJaccard: 0.3, openingSim: 0.1 } },
+  { url: 'https://example.com/source', contentHash: 'hash' },
+  { text: 'Private generated draft for editorial comparison.', model: 'fixture-model', voiceVersion: 'fixture-voice' }));
+  const response = await POST(request());
+  expect(response.status).toBe(422);
+  expect(response.headers.get('cache-control')).toBe('no-store');
+  const data = await response.json();
+  expect(data).toMatchObject({ ok: false, gatePass: false, canAutoPublish: false,
+    blockedReview: { status: 'blocked', text: 'Private generated draft for editorial comparison.', model: 'fixture-model', voiceVersion: 'fixture-voice' } });
+  expect(data).not.toHaveProperty('article');
+  expect(mocks.gates).not.toHaveBeenCalled();
+});

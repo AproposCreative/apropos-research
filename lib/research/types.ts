@@ -23,6 +23,14 @@ export interface ResearchDebugMetadata {
   rawResultCount: number;
   gateScore: number;
   gateReasons: string[];
+  /** Safe attempt metadata: no queries, provider bodies or credentials. */
+  attempts?: Array<{
+    provider: ResearchProviderName;
+    latencyMs: number;
+    outcome: 'passed' | 'quality_gate' | 'timeout' | 'exception';
+    sourceCount: number;
+    status?: number;
+  }>;
 }
 
 export interface ResearchResult {
@@ -34,6 +42,8 @@ export interface ResearchResult {
 export interface ResearchRequest {
   query: string;
   maxResults: number;
+  signal?: AbortSignal;
+  timeoutMs?: number;
 }
 
 export interface ResearchProviderClient {

@@ -1,152 +1,80 @@
 import { logger } from '@/lib/logger';
-import type {
-  ResearchProviderClient,
-  ResearchProviderName,
-  ResearchResult,
-  ResearchFallbackReason,
-} from './types';
+import type { ResearchProviderName, ResearchResult, ResearchFallbackReason, ResearchDebugMetadata } from './types';
 import { evaluateResearchQuality } from './qualityGate';
 import { createOpenAIResponsesProvider } from './providers/openaiResponsesProvider';
 import { createLegacyWebSearchProvider } from './providers/legacyWebSearchProvider';
 
-const TIMEOUT_MS = parseInt(process.env.RESEARCH_TIMEOUT_MS || '15000', 10);
-const DEBUG_LOG = process.env.RESEARCH_DEBUG_LOG === 'true';
-
-function getProviderName(): ResearchProviderName {
-  const v = (process.env.RESEARCH_PROVIDER || 'openai_responses').trim();
-  if (v === 'legacy_web_search') return 'legacy_web_search';
-  return 'openai_responses';
+function boundedTimeout(value: unknown, fallback = 15000): number {
+  const n = Number(value);
+  return Number.isFinite(n) && n >= 1000 ? Math.min(60000, Math.floor(n)) : fallback;
 }
 
-function getFallbackProviderName(): ResearchProviderName | null {
-  const v = (process.env.RESEARCH_FALLBACK_PROVIDER || 'legacy_web_search').trim();
-  if (v === 'none') return null;
-  if (v === 'legacy_web_search') return 'legacy_web_search';
-  return 'legacy_web_search';
+function buildProvider(name: ResearchProviderName, model?: string) {
+  return name === 'openai_responses' ? createOpenAIResponsesProvider(model) : createLegacyWebSearchProvider();
 }
 
-function buildProvider(name: ResearchProviderName, model?: string): ResearchProviderClient {
-  switch (name) {
-    case 'openai_responses':
-      return createOpenAIResponsesProvider(model);
-    case 'legacy_web_search':
-      return createLegacyWebSearchProvider();
+/** Abort the actual transport as well as rejecting callers that ignore cancellation. */
+async function withTimeout<T>(run: (signal: AbortSignal) => Promise<T>, ms: number): Promise<T> {
+  const controller = new AbortController();
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(() => {
+          reject(new Error('research_timeout'));
+          controller.abort();
+        }, ms);
+      }),
+      run(controller.signal),
+    ]);
+  } finally {
+    clearTimeout(timer);
   }
-}
-
-function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
-  return new Promise<T>((resolve, reject) => {
-    const timer = setTimeout(() => reject(new Error(`research_timeout_${ms}ms`)), ms);
-    promise.then(
-      val => { clearTimeout(timer); resolve(val); },
-      err => { clearTimeout(timer); reject(err); },
-    );
-  });
 }
 
 export async function getResearch(
   query: string,
-  opts: { maxResults?: number; model?: string } = {},
+  opts: { maxResults?: number; model?: string; timeoutMs?: number } = {},
 ): Promise<ResearchResult> {
-  const maxResults = opts.maxResults ?? 3;
-  const primaryName = getProviderName();
-  const fallbackName = getFallbackProviderName();
-  const primary = buildProvider(primaryName, opts.model);
+  const started = Date.now();
+  const maxResults = Number.isFinite(opts.maxResults) ? Math.max(1, Math.min(20, Math.floor(opts.maxResults!))) : 3;
+  const configuredTimeout = boundedTimeout(process.env.RESEARCH_TIMEOUT_MS);
+  const timeoutMs = boundedTimeout(opts.timeoutMs, configuredTimeout);
+  const primaryName: ResearchProviderName = process.env.RESEARCH_PROVIDER?.trim() === 'legacy_web_search'
+    ? 'legacy_web_search' : 'openai_responses';
+  const fallbackName = process.env.RESEARCH_FALLBACK_PROVIDER?.trim() === 'none' ? null : 'legacy_web_search';
+  const attempts: NonNullable<ResearchDebugMetadata['attempts']> = [];
 
-  let result: ResearchResult;
-  let fallbackReason: ResearchFallbackReason | undefined;
-
-  try {
-    result = await withTimeout(
-      primary.search({ query, maxResults }),
-      TIMEOUT_MS,
-    );
-
-    const gate = evaluateResearchQuality(result);
-    result.debug.gateScore = gate.score;
-    result.debug.gateReasons = gate.reasons;
-
-    if (!gate.pass && fallbackName && fallbackName !== primaryName) {
-      fallbackReason = 'quality_gate';
-      if (DEBUG_LOG) {
-        logger.debug('Research quality gate failed, running fallback', {
-          provider: primaryName,
-          gateScore: gate.score,
-          gateReasons: gate.reasons,
-        });
-      }
-      result = await runFallback(fallbackName, query, maxResults, fallbackReason);
-    }
-  } catch (err) {
-    const isTimeout = err instanceof Error && err.message.startsWith('research_timeout');
-    fallbackReason = isTimeout ? 'timeout' : 'exception';
-
-    if (DEBUG_LOG) {
-      logger.debug('Research primary provider failed', {
-        provider: primaryName,
-        reason: fallbackReason,
-        error: err instanceof Error ? err.message : String(err),
-      });
-    }
-
-    if (fallbackName && fallbackName !== primaryName) {
-      result = await runFallback(fallbackName, query, maxResults, fallbackReason);
-    } else {
-      result = emptyResult(primaryName, query, fallbackReason);
+  async function attempt(name: ResearchProviderName, budget: number, model?: string): Promise<ResearchResult> {
+    const start = Date.now();
+    try {
+      const result = await withTimeout(signal => buildProvider(name, model).search({ query, maxResults, signal, timeoutMs: budget }), budget);
+      const gate = evaluateResearchQuality(result);
+      result.debug.gateScore = gate.score;
+      result.debug.gateReasons = gate.reasons;
+      attempts.push({ provider: name, latencyMs: Date.now() - start, outcome: gate.pass ? 'passed' : 'quality_gate', sourceCount: result.sources.length });
+      return result;
+    } catch (error) {
+      const timeout = error instanceof Error && error.message === 'research_timeout';
+      const status = (error as { status?: unknown } | null)?.status;
+      attempts.push({ provider: name, latencyMs: Date.now() - start, outcome: timeout ? 'timeout' : 'exception', sourceCount: 0,
+        ...(typeof status === 'number' && Number.isInteger(status) && status >= 400 && status <= 599 ? { status } : {}) });
+      return emptyResult(name, query);
     }
   }
 
-  logResearch(result);
-  return result;
-}
-
-async function runFallback(
-  name: ResearchProviderName,
-  query: string,
-  maxResults: number,
-  reason: ResearchFallbackReason,
-): Promise<ResearchResult> {
-  try {
-    const provider = buildProvider(name);
-    const result = await withTimeout(
-      provider.search({ query, maxResults }),
-      TIMEOUT_MS,
-    );
+  let result = await attempt(primaryName, timeoutMs, opts.model);
+  const primaryOutcome = attempts[0].outcome;
+  if (primaryOutcome !== 'passed' && fallbackName && fallbackName !== primaryName) {
+    // The fallback has its own bounded budget; do not double Liv's longer primary allowance.
+    const fallback = await attempt(fallbackName, Math.min(configuredTimeout, 15000));
+    // Preserve useful primary evidence when the fallback is empty or weaker.
+    if (attempts[1].outcome === 'passed' || fallback.debug.gateScore > result.debug.gateScore) result = fallback;
     result.debug.fallbackUsed = true;
-    result.debug.fallbackReason = reason;
-
-    const gate = evaluateResearchQuality(result);
-    result.debug.gateScore = gate.score;
-    result.debug.gateReasons = gate.reasons;
-
-    return result;
-  } catch {
-    return emptyResult(name, query, reason);
+    result.debug.fallbackReason = primaryOutcome as ResearchFallbackReason;
   }
-}
-
-function emptyResult(
-  provider: ResearchProviderName,
-  query: string,
-  fallbackReason?: ResearchFallbackReason,
-): ResearchResult {
-  return {
-    contextText: '',
-    sources: [],
-    debug: {
-      provider,
-      fallbackUsed: !!fallbackReason,
-      fallbackReason,
-      latencyMs: 0,
-      query,
-      rawResultCount: 0,
-      gateScore: 0,
-      gateReasons: ['empty_result'],
-    },
-  };
-}
-
-function logResearch(result: ResearchResult): void {
+  result.debug.attempts = attempts;
+  result.debug.latencyMs = Date.now() - started;
   logger.info('Research completed', {
     'research.provider': result.debug.provider,
     'research.fallback_used': result.debug.fallbackUsed,
@@ -155,6 +83,13 @@ function logResearch(result: ResearchResult): void {
     'research.sources_count': result.sources.length,
     'research.gate_score': result.debug.gateScore,
     'research.context_length': result.contextText.length,
-    'research.query_length': result.debug.query.length,
+    'research.query_length': query.length,
+    'research.attempts': attempts,
   });
+  return result;
+}
+
+function emptyResult(provider: ResearchProviderName, query: string): ResearchResult {
+  return { contextText: '', sources: [], debug: { provider, fallbackUsed: false, latencyMs: 0,
+    query, rawResultCount: 0, gateScore: 0, gateReasons: ['empty_result'] } };
 }
