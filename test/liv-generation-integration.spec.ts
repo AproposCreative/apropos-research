@@ -19,7 +19,10 @@ const criticUrl = 'https://example.com/criticism/the-invite';
 const reason = 'Præmissens præcise konflikt vejer tungt i dommen, selv om indvendingerne også skal med.';
 const body = 'Olivia Wilde sætter The Invite omkring en middag. Det konkrete sammenstød giver stof til en dom, ikke blot et handlingsreferat.';
 const response = (raw: string) => ({ model: 'gpt-5.6-sol-test-snapshot', choices: [{ message: { content: raw }, finish_reason: 'stop' }] });
-const rawArticle = (rated = true) => `Title: The Invite: Middagen som magtkamp\nSubtitle: En selvstændig dom med plads til tvivl\n${rated ? `Rating: 4\nRatingReason: ${reason}\n` : ''}Intro: Høflighed kan være et krævende stykke arbejde.\nBrødtekst:\n${body}`;
+const rawArticle = (rated = true, content = body) => JSON.stringify({ status: 'ready',
+  title: 'The Invite: Middagen som magtkamp', subtitle: 'En selvstændig dom med plads til tvivl',
+  intro: 'Høflighed kan være et krævende stykke arbejde.', content,
+  rating: rated ? 4 : null, ratingReason: rated ? reason : null });
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -33,7 +36,7 @@ beforeEach(() => {
   mocks.create.mockReset().mockResolvedValueOnce(response(rawArticle()));
 });
 
-it('runs shared search, re-fetches recalled sources, applies v3 and preserves rating/model through CMS', async () => {
+it('runs shared search, re-fetches recalled sources, applies v4 and preserves rating/model through CMS', async () => {
   const article = await generateLivArticle({ topic: { title: 'The Invite', score: 0 }, directiveHint: `Kilder: ${primaryUrl}`, articleFormat: 'research-review', sourceScope: 'editor-a' });
   expect(mocks.search).toHaveBeenCalledTimes(2);
   expect(mocks.search.mock.calls[0][1].model).toBe('gpt-5.6-sol');
@@ -46,6 +49,8 @@ it('runs shared search, re-fetches recalled sources, applies v3 and preserves ra
   expect(request.messages[1].content).toContain('Seth Rogen');
   expect(request.messages[1].content).not.toContain('Søgeresultat, ikke selve kilden');
   expect(request).not.toHaveProperty('temperature');
+  expect(request.response_format).toMatchObject({ type: 'json_schema', json_schema: { strict: true, name: 'liv_article_v1' } });
+  expect(request.store).toBe(false);
   expect(mocks.seo.mock.calls[0][1].model).toBe('gpt-5.6-luna');
   expect(article.voiceHash).toBe(loadLivVoice().hash);
   const payload = buildLivCmsPayload({ article, topic: { title: 'The Invite', score: 0 } });
@@ -70,8 +75,18 @@ it('rejects an incomplete model response', async () => {
 it('blocks copied passages even when the similarity service says pass', async () => {
   const copied = 'Denne lange og helt særlige formulering fra et andet medie skal aldrig genbruges i Livs artikel.';
   mocks.retrieve.mockImplementation(async (url: string, id: string) => ({ id, url, title: 'The Invite', text: `${copied} ${'research '.repeat(80)}`, contentHash: 'hash', retrievedAt: '2026-09-09T18:00:00Z', publishedAt: null }));
-  mocks.create.mockReset().mockResolvedValueOnce(response(`${rawArticle()}\n\n${copied}`));
+  mocks.create.mockReset().mockResolvedValueOnce(response(rawArticle(true, `${body}\n\n${copied}`)));
   await expect(generateLivArticle({ topic: { title: 'The Invite', score: 0 }, articleFormat: 'research-review' })).rejects.toThrow('source_copy_detected');
+});
+
+it.each(['article_generation_refused', 'article_evidence_insufficient'])('does not send a declined article to SEO or similarity: %s', async code => {
+  const result = code === 'article_generation_refused'
+    ? { choices: [{ finish_reason: 'stop', message: { refusal: 'Declined', content: null } }] }
+    : response(JSON.stringify({ ...JSON.parse(rawArticle()), status: 'insufficient_evidence', rating: null, ratingReason: null }));
+  mocks.create.mockReset().mockResolvedValueOnce(result);
+  await expect(generateLivArticle({ topic: { title: 'The Invite', score: 0 }, articleFormat: 'research-review' })).rejects.toThrow(code);
+  expect(mocks.seo).not.toHaveBeenCalled();
+  expect(mocks.similarity).not.toHaveBeenCalled();
 });
 
 it.each([true, false])('stops with diagnosable source failure, complete=%s', async complete => {

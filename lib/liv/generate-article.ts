@@ -13,7 +13,8 @@ import { loadLivVoice } from '@/lib/liv/voice';
 import { livModels } from '@/lib/liv/model-config';
 import { getResearch } from '@/lib/research/service';
 import { recalledSourceUrls, rememberResearchSources } from '@/lib/liv/source-archive';
-import { parseResearchRating, type LivArticleFormat } from '@/lib/liv/review-format';
+import type { LivArticleFormat } from '@/lib/liv/review-format';
+import { livArticleResponseFormat, parseLivArticleOutput } from '@/lib/liv/article-output';
 import { logger } from '@/lib/logger';
 import type { PickedTopic } from '@/lib/liv/pick-topic';
 import { fetchOfficialImagesFromPage } from '@/lib/liv/fetch-official-images';
@@ -76,67 +77,6 @@ function slugify(input: string): string {
     .replace(/-+/g, '-')
     .slice(0, 100)
     .replace(/^-|-$/g, '');
-}
-
-interface ParsedSections {
-  title: string;
-  subtitle: string;
-  intro: string;
-  content: string;
-}
-
-function parseStructuredResponse(raw: string): ParsedSections {
-  const text = raw.trim();
-  const labelMatch = (label: string) =>
-    new RegExp(`^\\s*${label}\\s*[:\\-–—]\\s*(.+)$`, 'im').exec(text);
-
-  const titleMatch = labelMatch('title') || labelMatch('titel');
-  const subtitleMatch = labelMatch('subtitle') || labelMatch('undertitel');
-
-  let title = titleMatch?.[1]?.trim() || '';
-  let subtitle = subtitleMatch?.[1]?.trim() || '';
-
-  // Brødtekst kan være markeret med "Brødtekst:" eller "BRØDTEKST:" — split der.
-  const brodMarker = /^\s*br[øo]dtekst\s*[:\-–—]?\s*$/im;
-  const brodIdx = text.search(brodMarker);
-  let intro = '';
-  let content = '';
-
-  if (brodIdx >= 0) {
-    const before = text.slice(0, brodIdx);
-    const after = text.slice(brodIdx).replace(brodMarker, '').trim();
-    const introMatch =
-      labelMatch('intro') || labelMatch('indledning') || /^Intro\s*[:\-–—]\s*(.+)$/im.exec(before);
-    if (introMatch) {
-      intro = introMatch[1].trim();
-    } else {
-      // Tag første hele paragraf før brødtekst-markøren.
-      const firstParagraph = before
-        .replace(/^\s*(?:title|titel|subtitle|undertitel)\s*[:\-–—].*$/gim, '')
-        .split(/\n{2,}/)
-        .map((p) => p.trim())
-        .find(Boolean);
-      intro = firstParagraph || '';
-    }
-    content = after;
-  } else {
-    // Ingen explicit markør — brug første afsnit som intro, resten som content.
-    const cleaned = text
-      .replace(/^\s*(?:title|titel|subtitle|undertitel)\s*[:\-–—].*$/gim, '')
-      .replace(/^\s*intro\s*[:\-–—]\s*/im, '')
-      .trim();
-    const paragraphs = cleaned.split(/\n{2,}/).map((p) => p.trim()).filter(Boolean);
-    intro = paragraphs[0] || '';
-    content = paragraphs.slice(1).join('\n\n');
-  }
-
-  // Hvis ingen titel er parseret, brug første ikke-tomme linje.
-  if (!title) {
-    const firstLine = text.split(/\n/).map((l) => l.trim()).find(Boolean) || '';
-    title = firstLine.replace(/^[#*\s]+/, '').slice(0, 120);
-  }
-
-  return { title, subtitle, intro, content };
 }
 
 export interface GenerateArticleOptions {
@@ -240,16 +180,14 @@ export async function generateLivArticle(options: GenerateArticleOptions): Promi
     buildStyleReferenceBlock(section, 2, true),
     '',
     '— STRUKTUR —',
-    'Returnér artiklen i dette format (præcist, uden ekstra forklaring):',
-    'Title: <max 60 tegn, fængende, dansk>',
-    'Subtitle: <8-14 ord, konkret og skarp>',
+    'Returnér JSON efter det krævede schema, uden labels eller markdown omkring svaret.',
+    'status: ready når researchen rækker; ellers insufficient_evidence med tomme tekstfelter og null i rating og ratingReason. Opfind aldrig en dom for at udfylde schemaet.',
+    'title: max 60 tegn, fængende, dansk. subtitle: 8-14 ord, konkret og skarp.',
     ...(articleFormat === 'research-review' ? [
-      'Rating: <heltal 1-6>',
-      'RatingReason: <én konkret sætning der begrunder dommen og afvejer svagheder>',
-    ] : []),
-    'Intro: <2-4 sætninger, sanselig åbning der trækker læseren ind>',
-    'Brødtekst:',
-    '<7-12 fyldige paragraffer i Liv Brandts stil — sanselige, ærlige, med holdning. Brug \\n\\n mellem paragraffer.>',
+      'rating: heltal 1-6. ratingReason: 30-600 tegn, én konkret sætning der begrunder dommen og afvejer svagheder.',
+    ] : ['rating og ratingReason skal begge være null.']),
+    'intro: 2-4 sætninger, konkret åbning der trækker læseren ind.',
+    'content: 7-12 fyldige paragraffer i Liv Brandts stil. Brug \\n\\n mellem paragraffer.',
     '',
     'Krav:',
     '- Skriv på dansk.',
@@ -303,24 +241,23 @@ export async function generateLivArticle(options: GenerateArticleOptions): Promi
   const completion = await client.chat.completions.create({
     model: generationModel,
     max_completion_tokens: 8000,
+    response_format: livArticleResponseFormat,
+    store: false,
     messages: [
       { role: 'system', content: systemPrompt },
       { role: 'user', content: userPrompt },
     ],
   }, { timeout: 90000, maxRetries: 0 });
 
+  if (completion.choices[0]?.message?.refusal) throw new Error('article_generation_refused');
   if (completion.choices[0]?.finish_reason !== 'stop') throw new Error('article_generation_incomplete');
   const raw = completion.choices[0]?.message?.content?.trim() || '';
   if (!raw) {
     throw new Error('OpenAI returnerede tom respons.');
   }
 
-  const rating = parseResearchRating(raw, articleFormat);
-  const cleanedRaw = raw.replace(/^\s*Rating(?:Reason)?\s*:.*$/gim, '');
-  const parsed = parseStructuredResponse(cleanedRaw);
-  if (!parsed.title || !parsed.content) {
-    throw new Error('Kunne ikke parse title/brødtekst fra OpenAI-respons.');
-  }
+  const parsed = parseLivArticleOutput(raw, articleFormat);
+  const rating = parsed.rating !== null ? { value: parsed.rating, reason: parsed.ratingReason! } : null;
 
   const slug = slugify(parsed.title);
   const excerpt = (parsed.intro || parsed.content)
