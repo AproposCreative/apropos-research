@@ -441,3 +441,20 @@ describe('server-rendered Review JSON-LD (raw HTML)', () => {
     );
   });
 });
+
+describe('GEO entity relationships', () => {
+  it('connects the page and article and preserves an explicitly supplied author profile', () => {
+    const input = makeInput({author:'Casper Fiil',authorUrl:'https://www.aproposmagazine.com/author/casper-fiil',existingUrl:'https://www.aproposmagazine.com/articles/untamed-netflix'});
+    const graph=buildJsonLd({input,analysis:makeAnalysis(input),seoTitle:'Untamed',metaDescription:'Anmeldelse.'});
+    const page=findJsonLdNodesByType(graph,'WebPage')[0];
+    const article=findJsonLdNodesByType(graph,'Article')[0];
+    expect(page.mainEntity).toEqual({'@id':article['@id']});
+    expect(article.mainEntityOfPage).toEqual({'@id':page['@id']});
+    expect(article.author).toEqual({'@type':'Person',name:'Casper Fiil',url:input.authorUrl});
+  });
+  it.each([undefined,'javascript:alert(1)','https://user:secret@example.com','/author/guessed'])('does not invent or expose invalid profile URLs: %s', authorUrl => {
+    const input=makeInput({author:'Editorial name',authorUrl});
+    const graph=buildJsonLd({input,analysis:makeAnalysis(input),seoTitle:'Title',metaDescription:'Description'});
+    expect(findJsonLdNodesByType(graph,'Article')[0].author).toEqual({'@type':'Person',name:'Editorial name'});
+  });
+});

@@ -110,6 +110,8 @@ export const SeoEngineInputContractSchema = z.object({
   subtitle: z.string().max(500).optional(),
   intro: z.string().max(8_000).optional(),
   author: z.string().max(200).optional(),
+  /** Explicit resolved author profile URL; never derive from a display name. */
+  authorUrl: OptionalHttpUrlSchema,
   section: z.string().max(200).optional(),
   articleType: z.string().max(120).optional(),
   rating: z.number().min(1).max(6).optional(),

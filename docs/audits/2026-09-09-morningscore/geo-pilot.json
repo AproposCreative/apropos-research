@@ -1,0 +1,111 @@
+{
+  "checkedAt": "2026-09-09T18:19:30.426Z",
+  "scope": "Five public pilot pages, not a whole-site or ranking audit",
+  "results": [
+    {
+      "path": "/om",
+      "status": 200,
+      "title": "Om Apropos Magazine | Uafhængigt kulturmedie",
+      "h1": [
+        "Apropos Magazine. Et uafhængigt kulturmedie med fokus på kulturjournalistik, der tør mene noget. Vi skriver med personlighed, præcision og perspektiv om alt fra tv-serier og musik til mennesker, koncerter og koplevelser."
+      ],
+      "canonical": "https://www.aproposmagazine.com/om",
+      "invalidJson": 0,
+      "schemaTypes": [],
+      "articleAuthors": [],
+      "authorLinks": [
+        "/author/mathilde-sigshoj",
+        "/author/marianne-kragh",
+        "/author/mads-bulow",
+        "/author/eva-linde",
+        "/author/frederik-kragh",
+        "/author/peter-milo",
+        "/author/casper-fiil",
+        "/author/andreas-christensen",
+        "/author/liv-brandt"
+      ]
+    },
+    {
+      "path": "/author/liv-brandt",
+      "status": 200,
+      "title": "Apropos Magazine: Liv Brandt  – Skribent og kulturkommentator",
+      "h1": [
+        "Skribent og kulturkommentator"
+      ],
+      "canonical": "https://www.aproposmagazine.com/author/liv-brandt",
+      "invalidJson": 0,
+      "schemaTypes": [],
+      "articleAuthors": [],
+      "authorLinks": [
+        "/author/liv-brandt",
+        "/en/author/liv-brandt"
+      ]
+    },
+    {
+      "path": "/author/casper-fiil",
+      "status": 200,
+      "title": "Apropos Magazine: Casper Fiil  – Anmelder & skribent",
+      "h1": [
+        "Anmelder & skribent"
+      ],
+      "canonical": "https://www.aproposmagazine.com/author/casper-fiil",
+      "invalidJson": 0,
+      "schemaTypes": [],
+      "articleAuthors": [],
+      "authorLinks": [
+        "/author/casper-fiil",
+        "/en/author/casper-fiil"
+      ]
+    },
+    {
+      "path": "/articles/untamed-netflix",
+      "status": 200,
+      "title": "Anmeldelse: Untamed (Netflix)",
+      "h1": [
+        "Untamed (Netflix)"
+      ],
+      "canonical": "https://www.aproposmagazine.com/articles/untamed-netflix",
+      "invalidJson": 0,
+      "schemaTypes": [
+        "Article"
+      ],
+      "articleAuthors": [
+        {
+          "name": "Casper Fiil",
+          "url": "/author/casper-fiil",
+          "language": "da",
+          "datePublished": "2025-07-31T08:23:44.912Z",
+          "dateModified": "2026-06-10T13:27:46.234Z"
+        }
+      ],
+      "authorLinks": [
+        "/author/casper-fiil"
+      ]
+    },
+    {
+      "path": "/en/articles/justice-o-days-festival-total-release-in-mud-and-bass-drops",
+      "status": 200,
+      "title": "Review: Justice at O Days Festival",
+      "h1": [
+        "Justice (O Days Festival): Total release in mud and bass drops"
+      ],
+      "canonical": "https://www.aproposmagazine.com/en/articles/justice-o-days-festival-total-release-in-mud-and-bass-drops",
+      "invalidJson": 0,
+      "schemaTypes": [
+        "Article"
+      ],
+      "articleAuthors": [
+        {
+          "name": "Frederik Kragh",
+          "url": "/en/author/frederik-kragh",
+          "language": "en",
+          "datePublished": "2025-11-06T13:21:58.738Z",
+          "dateModified": "2026-07-01T09:48:26.814Z"
+        }
+      ],
+      "authorLinks": [
+        "/en/author/frederik-kragh"
+      ]
+    }
+  ]
+}

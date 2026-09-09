@@ -1,3 +1,4 @@
+import { schemaAuthor } from '@/lib/seo-engine/schema-author';
 /**
  * Server-side Review JSON-LD eligibility + itemReviewed typing.
  *
@@ -260,7 +261,7 @@ export function buildReviewSchemaNode(args: {
   }
 
   if (input.author?.trim()) {
-    review.author = { '@type': 'Person', name: input.author.trim() };
+    review.author = schemaAuthor(input.author, input.authorUrl);
   }
   if (datePublished) review.datePublished = datePublished;
   if (dateModified) review.dateModified = dateModified;
