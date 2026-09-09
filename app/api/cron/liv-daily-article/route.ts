@@ -25,6 +25,7 @@ import {
 import { pickLivTopic } from '@/lib/liv/pick-topic';
 import { generateLivArticle } from '@/lib/liv/generate-article';
 import { buildLivCmsPayload } from '@/lib/liv/build-cms-payload';
+import { checkCmsDraft } from '@/lib/editorial/cms-preflight';
 import { runSafetyGates } from '@/lib/liv/run-safety-gates';
 import { buildResearchQaSummary } from '@/lib/liv/research-qa';
 import { publishCanonicalArticleToWebflow } from '@/lib/articles/publish';
@@ -221,6 +222,8 @@ export async function GET(req: NextRequest) {
       intro: article.intro,
       authorName: 'Liv Brandt',
       sourceExcerpt: topic.source?.excerpt,
+      sourceUrls: [...new Set([topic.source?.url, ...(article.researchSources || []).map(source => source.url)].filter((url): url is string => !!url))].slice(0, 8),
+      additionalTexts: [article.subtitle, article.excerpt, article.seoTitle, article.seoDescription].filter(Boolean),
       requireCompleteVerification: publicationMode === 'auto_publish',
     });
     gateResults = gates.results;
@@ -319,6 +322,17 @@ export async function GET(req: NextRequest) {
       status: livWebflowStatus,
       aiModel: process.env.LIV_GENERATION_MODEL || 'claude-opus-4.7',
     });
+
+    // Source verification alone must never unlock publication while image rights
+    // and live CMS reference/readback checks are still missing.
+    const cmsCheck = checkCmsDraft(article);
+    if (publicationMode === 'auto_publish' && !cmsCheck.publicationReady) {
+      const reason = 'cms_publication_unverified: Billedrettigheder og CMS-referencekontrol mangler.';
+      gateResults.push({ name: 'cms-publication', pass: false, detail: reason });
+      await finishLivDaily(dayKey, { status: 'skipped_factcheck', topic: topic.title, reason, gateResults });
+      if (plan) await markPlanFailed(dayKey, reason);
+      return NextResponse.json({ ok: true, skipped: true, reason, dayKey, gateResults, cmsCheck });
+    }
 
     const { articleId: webflowItemId } = await publishCanonicalArticleToWebflow(payload, {
       source: 'liv',

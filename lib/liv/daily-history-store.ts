@@ -9,6 +9,7 @@
 
 import { FieldValue, Timestamp } from 'firebase-admin/firestore';
 import { getAdminDb } from '@/lib/firebase-admin';
+import type { GroundedReport } from '@/lib/factcheck/grounded';
 
 export const LIV_DAILY_COLLECTION = 'livDailyArticles';
 
@@ -103,7 +104,7 @@ export async function claimLivDaily(dayKey: string): Promise<LivDailyClaimResult
 }
 
 /** skipped: gate blev ikke kørt (infra/mangler input); pass kan stadig være true for ikke at blokere publish. */
-export type GateResult = { name: string; pass: boolean; detail?: string; skipped?: boolean };
+export type GateResult = { name: string; pass: boolean; detail?: string; skipped?: boolean; evidence?: GroundedReport };
 
 export type FinishLivDailyInput =
   | {

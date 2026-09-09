@@ -3,7 +3,7 @@
  *
  * Tre gates kaldes sekventielt — første failure stopper publish:
  *  1. Moderation (plagiat-/lighedstjek + min. ordtælling)
- *  2. Factcheck (OpenAI vurderer påstande udtrukket fra brødtekst)
+ *  2. Factcheck (hentede kilder og belæg for hele artikelversionen)
  *  3. TOV (kort kritiker-evaluering — vi accepterer alle tips, men logger dem)
  *
  * Hver gate returneres som `{ name, pass, detail }` og gemmes i Firestore
@@ -14,6 +14,7 @@ import type { GateResult } from '@/lib/liv/daily-history-store';
 import { internalApiHeaders } from '@/lib/api/internal-auth';
 import { logger } from '@/lib/logger';
 import { checkSourceSimilarity } from '@/lib/liv/source-similarity';
+import { isCompleteGroundedReport, type GroundedReport } from '@/lib/factcheck/grounded';
 
 export interface SafetyGatesInput {
   baseUrl: string;
@@ -27,6 +28,9 @@ export interface SafetyGatesInput {
    * Hvis ikke sat, springer vi gaten over (fx ved manuel preview).
    */
   sourceExcerpt?: string;
+  sourceUrls?: string[];
+  /** Other publishable text, including subtitle, excerpt and SEO fields. */
+  additionalTexts?: string[];
   /** Auto-publish må kun ske, når alle relevante gates faktisk er kørt. */
   requireCompleteVerification?: boolean;
 }
@@ -49,6 +53,7 @@ interface ModerationResponse {
 interface FactcheckResponse {
   ok?: boolean;
   verificationMethod?: string;
+  blockers?: string[];
   results?: Array<{
     claim?: string;
     status?: 'verified' | 'disputed' | 'unverifiable' | string;
@@ -84,11 +89,14 @@ export async function runSafetyGates(input: SafetyGatesInput): Promise<SafetyGat
     intro,
     authorName = 'Liv Brandt',
     sourceExcerpt,
+    sourceUrls = [],
+    additionalTexts = [],
     requireCompleteVerification = false,
   } = input;
   const results: GateResult[] = [];
   let anyGateSkipped = false;
   const fullText = [intro, content].filter(Boolean).join('\n\n');
+  const factcheckText = [title, ...additionalTexts, intro, content].filter(Boolean).join('\n\n');
 
   // --- Gate 0: Source similarity (paraphrasing/strukturel kopiering af kilden) ---
   // Køres først fordi det er det mest direkte plagiat-signal når Liv har
@@ -179,16 +187,15 @@ export async function runSafetyGates(input: SafetyGatesInput): Promise<SafetyGat
     const res = await fetch(fcUrl, {
       method: 'POST',
       headers: internalApiHeaders(),
-      body: JSON.stringify({ articleText: fullText.slice(0, 6000) }),
+      body: JSON.stringify({ articleText: factcheckText, sourceUrls }),
       cache: 'no-store',
+      signal: AbortSignal.timeout(115_000),
     });
     fcHttpStatus = res.status;
     if (!res.ok) {
-      const bodySnippet = (await res.text()).slice(0, 280);
       logger.warn('[liv/safety-gates] factcheck HTTP ikke-OK', {
         status: res.status,
         fcUrl,
-        bodySnippet,
       });
       fc = null;
     } else {
@@ -216,8 +223,8 @@ export async function runSafetyGates(input: SafetyGatesInput): Promise<SafetyGat
       detail: `${statusHint}. Factcheck blev ikke kørt — ikke et reelt faktatjek.`,
     });
   } else {
-    const checked = fc.results || [];
-    const sourceGrounded = fc.verificationMethod === 'retrieved-sources' && checked.length > 0 && checked.every(r => r.status === 'verified');
+    const checked = Array.isArray(fc.results) ? fc.results.filter(r => r && typeof r === 'object') : [];
+    const sourceGrounded = isCompleteGroundedReport(fc, factcheckText);
     if (!sourceGrounded) anyGateSkipped = true;
     const disputed = checked.filter((r) => r.status === 'disputed');
     if (disputed.length > 0) {
@@ -236,9 +243,14 @@ export async function runSafetyGates(input: SafetyGatesInput): Promise<SafetyGat
       name: 'factcheck',
       pass: true,
       skipped: !sourceGrounded,
+      ...(sourceGrounded ? { evidence: fc as GroundedReport } : {}),
       detail:
-        !sourceGrounded ? 'Ingen fuldstændig kildebaseret verifikation. Modelvurderingen er kun rådgivende.' : checked.length === 0
-          ? '0 påstande returneret (tom eller kun unverifiable) — intet disputed'
+        !sourceGrounded
+          ? fc.verificationMethod === 'retrieved-sources'
+            ? `Ufuldstændigt kildefaktatjek: ${Array.isArray(fc.blockers) && fc.blockers.length
+              ? fc.blockers.filter(b => typeof b === 'string').slice(0, 3).join(' ')
+              : 'Artikelversion, aktualitet eller evidens kunne ikke godkendes.'}`
+            : 'Ingen fuldstændig kildebaseret verifikation. Modelvurderingen er kun rådgivende.'
           : `${checked.length} påstande tjekket, 0 disputed`,
     });
   }

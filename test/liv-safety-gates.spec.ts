@@ -55,4 +55,21 @@ describe('Liv safety gates', () => {
     expect(result.pass).toBe(false);
     expect(result.anyGateSkipped).toBe(true);
   });
+
+  it('sends title, metadata and the full article without the old 6000-character cutoff', async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(jsonResponse({ data: { metrics: { wordCount: 1800, plagiarismRisk: 'low' } } }))
+      .mockResolvedValueOnce(jsonResponse({ ok: true, verificationMethod: 'retrieved-sources', results: [{ status: 'verified' }] }))
+      .mockResolvedValueOnce(jsonResponse({ data: { tips: 'Fin tekst.' } }));
+    vi.stubGlobal('fetch', fetchMock);
+    const content = `${'Lang artikel. '.repeat(800)}SIDSTE FAKTUELLE PÅSTAND`;
+    const result = await runSafetyGates({ baseUrl: 'http://localhost:3000', title: 'Titlen', content,
+      additionalTexts: ['Undertitel', 'SEO-beskrivelse'], sourceUrls: ['https://museum.dk/kilde'],
+      requireCompleteVerification: true });
+    const body = JSON.parse(fetchMock.mock.calls[1][1].body);
+    expect(body.articleText).toContain('Titlen\n\nUndertitel\n\nSEO-beskrivelse');
+    expect(body.articleText).toContain('SIDSTE FAKTUELLE PÅSTAND');
+    expect(body.sourceUrls).toEqual(['https://museum.dk/kilde']);
+    expect(result.pass).toBe(false); // A method flag alone is not a verified report.
+  });
 });

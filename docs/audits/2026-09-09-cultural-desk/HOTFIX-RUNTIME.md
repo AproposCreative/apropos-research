@@ -56,3 +56,27 @@ med højst fem minutters fremtidstolerance. Der ændres ikke i historiske
 Firestore-dokumenter eller SEO-worktreet. Ti datotests dækker dansk dato,
 ISO, ugyldige/udaterede/fremtidige og for gamle kilder. Dette filtrerer det
 daglige trending-emnevalg, ikke alle discovery-idéer; kildeverifikation mangler stadig.
+
+## Lokal opfølgning under recovery-reglerne
+
+Udgangspunkt: `f703c31`. Ingen produktionsadgang, nye credentials, installation,
+push eller deployment i denne opfølgning. Historiske livekontroller ovenfor er
+ikke en ny kontrol af den aktuelle produktion.
+
+Datoparseren ignorerede klokkeslættet i danske kildedatoer. Den bevarer nu
+klokkeslættet med Europe/Copenhagen-tidszone og afviser ugyldige tider samt
+tvetydige eller ikke-eksisterende tider ved skift mellem sommer- og vintertid.
+ISO-tider valideres stramt; en ugyldig referenceklokke giver afvisning.
+Datoer uden klokkeslæt beholder den eksisterende dagpræcision (UTC-midnat).
+
+32 fokuserede tests består: 22 datotests og 10 API-response-tests. Testlageret
+er fortsat `./tmp/vitest-rage`; ingen dependencies eller tracked research-data
+er ændret.
+
+Den næste publiceringsblokering er fortsat `app/api/factcheck/route.ts`:
+kontrollen benytter modelviden og højst otte udtrukne påstande fra begyndelsen
+af artiklen. Det er ikke kildebaseret faktatjek af hele teksten.
+`lib/liv/run-safety-gates.ts` kræver kildebaseret kontrol ved auto-publicering.
+Denne regel er bevaret. Næste implementering skal dokumentere faktisk hentede
+kilder, understøttende tekst og datoer, dække hele artikelversionen og afvise
+manglende eller modstridende evidens. Et metadataflag alene er ikke bevis.
