@@ -1,3 +1,4 @@
+import { schemaAuthor } from '@/lib/seo-engine/schema-author';
 import type { EditorialAnalysisV1, JsonLdGraph, SeoEngineInputContract } from '@/lib/seo-engine/schema';
 import {
   buildEventSchemaNode,
@@ -60,6 +61,7 @@ export function buildJsonLd(args: {
     url: pageUrl,
     inLanguage,
     isPartOf: { '@id': APROPOS_WEBSITE_ID },
+    mainEntity: pageUrl ? { '@id': articleEntityId(pageUrl) } : undefined,
   });
 
   const articleType = suggestSchemaArticleType(analysis, input);
@@ -76,7 +78,7 @@ export function buildJsonLd(args: {
     },
   };
   if (input.author?.trim()) {
-    article.author = { '@type': 'Person', name: input.author.trim() };
+    article.author = schemaAuthor(input.author, input.authorUrl);
   }
   article.publisher = {
     '@id': APROPOS_ORGANIZATION_ID,

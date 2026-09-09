@@ -15,6 +15,8 @@ export function webflowItemToSeoEngineInput(args: {
   dateModified?: string | null;
   /** Resolved author display name (not the CMS reference id). */
   authorName?: string | null;
+  /** Resolved public profile URL, not a CMS reference id. */
+  authorUrl?: string | null;
 }): SeoEngineInputContract {
   const fd = args.fieldData;
   const slugs = getCmsSeoSlugs();
@@ -40,6 +42,7 @@ export function webflowItemToSeoEngineInput(args: {
     subtitle: optionalString(fd.subtitle),
     intro: optionalString(fd.intro),
     author: optionalString(args.authorName) || undefined,
+    authorUrl: optionalString(args.authorUrl),
     articleType: articleType || undefined,
     existingSlug: optionalString(fd.slug),
     existingUrl: args.existingUrl,
