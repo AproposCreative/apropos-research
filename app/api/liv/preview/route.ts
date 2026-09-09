@@ -22,6 +22,7 @@ import { runSafetyGates } from '@/lib/liv/run-safety-gates';
 import { buildResearchQaSummary } from '@/lib/liv/research-qa';
 import { checkCmsDraft } from '@/lib/editorial/cms-preflight';
 import { isLivArticleFormat, type LivArticleFormat } from '@/lib/liv/review-format';
+import { SourceSimilarityError } from '@/lib/liv/source-similarity-error';
 
 // Generation plus bounded source retrieval/factcheck must fit in one preview run.
 export const maxDuration = 300;
@@ -219,6 +220,11 @@ async function buildPreview(req: NextRequest, input: PreviewRequestInput, uid: s
       },
     });
   } catch (e) {
+    if (e instanceof SourceSimilarityError) {
+      return NextResponse.json({ ok: false, error: e.message, code: e.code,
+        dayKey, gatePass: false, canAutoPublish: false, diagnostic: e.detail },
+      { status: e.status, headers: { 'Cache-Control': 'no-store' } });
+    }
     const msg = e instanceof Error ? e.message : 'Ukendt fejl';
     logger.error('[api/liv/preview] failed', e instanceof Error ? e : new Error(msg), {
       dayKey,

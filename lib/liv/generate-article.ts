@@ -21,6 +21,7 @@ import { generateSeoMetaAI } from '@/lib/seo/generate-seo-meta';
 import { buildStyleReferenceBlock } from '@/lib/loadAproposStyleSamples';
 import { buildResearchBundle, extractResearchUrls, hasCopiedPassage } from '@/lib/liv/research-bundle';
 import { checkSourceSimilarity } from '@/lib/liv/source-similarity';
+import { SourceSimilarityError } from '@/lib/liv/source-similarity-error';
 import type { LivSelectedImage } from '@/lib/liv/image-selection';
 
 export interface GeneratedArticle {
@@ -534,7 +535,11 @@ export async function generateLivArticle(options: GenerateArticleOptions): Promi
   for (const source of sources) {
     if (hasCopiedPassage(finalText, source.text)) throw new Error('source_copy_detected: Sammenhængende tekstoverlap med kilde. Omskrivning kræves.');
     const similarity = await checkSourceSimilarity({ generated: finalText, source: source.text });
-    if (!similarity.complete || !similarity.pass) throw new Error('source_similarity_unapproved: Kildelighed er ikke godkendt. Ingen publicering.');
+    if (!similarity.complete || !similarity.pass) {
+      const error = new SourceSimilarityError(similarity, source);
+      logger.warn('[liv/generate-article] source similarity blocked', error.detail);
+      throw error;
+    }
   }
 
   const webResearchSources = sources.map((r) => ({

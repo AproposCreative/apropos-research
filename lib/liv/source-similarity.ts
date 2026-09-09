@@ -31,6 +31,7 @@ export interface SourceSimilarityResult {
   pass: boolean;
   complete: boolean;
   reason?: string;
+  failure?: 'input-too-short' | 'embedding-unavailable' | 'embedding-invalid' | 'similarity-exceeded';
   scores: SourceSimilarityScores;
 }
 
@@ -96,7 +97,7 @@ export interface SourceSimilarityInput {
 
 /**
  * Beregn lighed mellem genereret tekst og kilde-uddrag. Kører IKKE embedding-
- * kaldet hvis input er for kort (returnerer pass=true).
+ * kaldet hvis input er for kort. Ufuldstændige kontroller godkendes aldrig.
  */
 export async function checkSourceSimilarity(
   input: SourceSimilarityInput
@@ -106,11 +107,13 @@ export async function checkSourceSimilarity(
   const generated = (input.generated || '').trim();
   const source = (input.source || '').trim();
 
-  // Ingen kilde at sammenligne mod — gate'en er ikke relevant, lad den passere.
+  // Manglende sammenligningsgrundlag er ikke en godkendelse.
   if (source.length < 80 || generated.length < 80) {
     return {
-      pass: true,
+      pass: false,
       complete: false,
+      failure: 'input-too-short',
+      reason: 'Tekstgrundlaget er for kort til kildelighedskontrol.',
       scores: { embeddingSim: 0, ngramJaccard: 0, openingSim: 0 },
     };
   }
@@ -130,21 +133,26 @@ export async function checkSourceSimilarity(
   // for at fange semantisk plagiat.
   let embeddingSim = 0;
   let complete = false;
+  let failure: SourceSimilarityResult['failure'];
   try {
     const [genEmb, srcEmb] = await Promise.all([
       getEmbedding(generated.slice(0, 4000)),
       getEmbedding(source.slice(0, 4000)),
     ]);
     embeddingSim = cosineSimilarity(genEmb, srcEmb);
-    complete = genEmb.length > 0 && genEmb.length === srcEmb.length && genEmb.every(Number.isFinite) && srcEmb.every(Number.isFinite) && Number.isFinite(embeddingSim);
-  } catch (e) {
-    logger.warn('[liv/source-similarity] embedding failed — falling back to lexical only', {
-      err: e instanceof Error ? e.message : String(e),
-    });
+    complete = genEmb.length > 0 && genEmb.length === srcEmb.length
+      && genEmb.every(Number.isFinite) && srcEmb.every(Number.isFinite)
+      && genEmb.some(v => v !== 0) && srcEmb.some(v => v !== 0)
+      && Number.isFinite(embeddingSim);
+    if (!complete) failure = 'embedding-invalid';
+  } catch {
+    failure = 'embedding-unavailable';
+    // Never log provider error bodies, article content or credentials.
+    logger.warn('[liv/source-similarity] embedding unavailable; verification incomplete');
   }
 
   const scores: SourceSimilarityScores = {
-    embeddingSim,
+    embeddingSim: Number.isFinite(embeddingSim) ? embeddingSim : 0,
     ngramJaccard,
     openingSim,
   };
@@ -160,10 +168,18 @@ export async function checkSourceSimilarity(
     reasons.push(`opening=${openingSim.toFixed(3)} > ${t.opening}`);
   }
 
+  if (!complete) {
+    return { pass: false, complete: false, failure,
+      reason: failure === 'embedding-invalid'
+        ? 'Lighedstjenesten returnerede ugyldige måledata.'
+        : 'Lighedstjenesten kunne ikke gennemføre kontrollen.', scores };
+  }
+
   if (reasons.length > 0) {
     return {
       pass: false,
       complete,
+      failure: 'similarity-exceeded',
       reason: reasons.join(' | '),
       scores,
     };

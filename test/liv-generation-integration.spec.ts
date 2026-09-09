@@ -75,3 +75,12 @@ it('blocks copied passages even when the similarity service says pass', async ()
     .mockResolvedValueOnce(response(`${rawArticle()}\n\n${copied}`));
   await expect(generateLivArticle({ topic: { title: 'The Invite', score: 0 }, articleFormat: 'research-review' })).rejects.toThrow('source_copy_detected');
 });
+
+it.each([true, false])('stops with diagnosable source failure, complete=%s', async complete => {
+  mocks.similarity.mockResolvedValueOnce({ pass: false, complete,
+    scores: { embeddingSim: 0.9, ngramJaccard: 0.1, openingSim: 0.1 } });
+  await expect(generateLivArticle({ topic: { title: 'The Invite', score: 0 }, articleFormat: 'research-review' }))
+    .rejects.toMatchObject({ name: 'SourceSimilarityError', status: complete ? 422 : 503,
+      code: complete ? 'source_similarity_unapproved' : 'source_similarity_incomplete',
+      detail: expect.objectContaining({ complete, sourceHash: 'hash' }) });
+});

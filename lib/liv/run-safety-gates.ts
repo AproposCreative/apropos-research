@@ -107,7 +107,11 @@ export async function runSafetyGates(input: SafetyGatesInput): Promise<SafetyGat
         generated: fullText,
         source: sourceExcerpt,
       });
-      if (!sim.complete) anyGateSkipped = true;
+      if (!sim.complete) {
+        results.push({ name: 'source-similarity', pass: false, skipped: true,
+          detail: 'Kildelighedskontrollen kunne ikke gennemføres. Det er ikke en konstatering af plagiat.' });
+        return { pass: false, failedGate: 'source-similarity', anyGateSkipped: true, results };
+      }
       if (!sim.pass) {
         const detail = `Kilde-lighed for høj — ${sim.reason}. Scores: emb=${sim.scores.embeddingSim.toFixed(3)}, ngram=${sim.scores.ngramJaccard.toFixed(3)}, opening=${sim.scores.openingSim.toFixed(3)}.`;
         results.push({ name: 'source-similarity', pass: false, detail });
