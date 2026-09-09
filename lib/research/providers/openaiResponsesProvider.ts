@@ -74,7 +74,7 @@ function buildContextText(text: string, sources: ResearchSource[]): string {
   return '';
 }
 
-export function createOpenAIResponsesProvider(): ResearchProviderClient {
+export function createOpenAIResponsesProvider(model = models.research): ResearchProviderClient {
   return {
     name: 'openai_responses',
 
@@ -86,7 +86,7 @@ export function createOpenAIResponsesProvider(): ResearchProviderClient {
       }
 
       const response = await (client as any).responses.create({
-        model: models.research,
+        model,
         tools: [{ type: 'web_search' as any }],
         input: `Find current, citable web sources for a Danish culture journalism research brief about: ${request.query}.
 Prioritize factual information with citations: names, dates, organizations, reports, numbers, cases, quotes, cultural context, Danish relevance and counterpoints.

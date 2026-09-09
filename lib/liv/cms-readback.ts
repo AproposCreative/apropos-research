@@ -114,6 +114,11 @@ export async function inspectLivCmsDraft(input: {
   checks.push({ id: 'field:content', ok: !!text(fields.content) });
   checks.push({ id: 'field:intro', ok: !!text(fields.intro) });
   checks.push({ id: 'field:ai-generated', ok: fields['ai-generated'] === true });
+  if (input.expected.rating !== undefined) {
+    checks.push({ id: 'field:stjerne', ok: schemaFields.some(field => field.slug === 'stjerne') &&
+      Number.isInteger(input.expected.rating) && input.expected.rating >= 1 && input.expected.rating <= 6 &&
+      fields.stjerne === input.expected.rating });
+  }
   // Articles currently has no word-count field. Keep the count in the canonical
   // article; check CMS readback only if the field actually exists in its schema.
   if (schemaFields.some(field => field.slug === 'word-count')) {

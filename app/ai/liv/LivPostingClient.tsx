@@ -18,6 +18,7 @@ import {
 } from '@/components/embedded-app';
 import { useAuth } from '@/lib/auth-context';
 import { readJsonResponse } from '@/lib/api/read-json-response';
+import type { LivArticleFormat } from '@/lib/liv/review-format';
 
 interface LivPostingClientProps {
   embedded?: boolean;
@@ -40,6 +41,10 @@ interface PreviewTopic {
 }
 
 interface PreviewArticle {
+  rating?: number;
+  ratingReason?: string;
+  aiModel?: string;
+  voiceVersion?: string;
   title: string;
   subtitle: string;
   intro: string;
@@ -91,6 +96,7 @@ interface PreviewResponse {
 }
 
 interface LivDailyPlan {
+  articleFormat?: LivArticleFormat;
   dayKey: string;
   topicHint?: string;
   directiveHint?: string;
@@ -304,6 +310,9 @@ export default function LivPostingClient({ embedded = false, onClose, initialTab
   const [activeDirectiveModes, setActiveDirectiveModes] = useState<string[]>([]);
   const [directiveCustom, setDirectiveCustom] = useState('');
   const [mustUseTrending, setMustUseTrending] = useState(true);
+  const [articleFormat, setArticleFormat] = useState<LivArticleFormat>('article');
+  const articleFormatRef = useRef(articleFormat);
+  articleFormatRef.current = articleFormat;
   const [excludedTopics, setExcludedTopics] = useState<string[]>([]);
   const [plan, setPlan] = useState<LivDailyPlan | null>(null);
   const [planLoading, setPlanLoading] = useState(false);
@@ -362,6 +371,7 @@ export default function LivPostingClient({ embedded = false, onClose, initialTab
           cache: 'no-store',
           body: JSON.stringify({
             generate,
+            articleFormat: articleFormatRef.current,
             topicHint: (topicHintOverride ?? topicHintRef.current).trim() || undefined,
             directiveHint: (directiveHintOverride ?? directiveHintRef.current).trim() || undefined,
             mustUseTrending: mustUseTrendingOverride ?? mustUseTrendingRef.current,
@@ -508,6 +518,7 @@ export default function LivPostingClient({ embedded = false, onClose, initialTab
           topicHint: topicHint.trim() || undefined,
           directiveHint: directiveHint.trim() || undefined,
           mustUseTrending,
+          articleFormat,
         }),
       });
       const data = await readJsonResponse<PlanResponse>(res);
@@ -518,7 +529,7 @@ export default function LivPostingClient({ embedded = false, onClose, initialTab
     } finally {
       setPlanLoading(false);
     }
-  }, [authHeader, directiveHint, mustUseTrending, topicHint]);
+  }, [authHeader, directiveHint, mustUseTrending, topicHint, articleFormat]);
 
   const clearPlan = useCallback(async () => {
     try {
@@ -596,6 +607,10 @@ export default function LivPostingClient({ embedded = false, onClose, initialTab
     }
     setMustUseTrending(plan.mustUseTrending !== false);
   }, [plan, topicHint, directiveHint]);
+
+  useEffect(() => {
+    if (plan) setArticleFormat(plan.articleFormat || 'article');
+  }, [plan]);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -1039,6 +1054,16 @@ export default function LivPostingClient({ embedded = false, onClose, initialTab
                   />
                 </label>
 
+                <label className="block space-y-1.5">
+                  <span className="text-[11px] text-white/55">Artikelformat</span>
+                  <select value={articleFormat} onChange={e => setArticleFormat(e.target.value as LivArticleFormat)}
+                    disabled={generateLoading || planLoading}
+                    className="apropos-input-dark w-full rounded-lg border px-3 py-2.5 text-[13px]">
+                    <option value="article">Artikel uden stjerner</option>
+                    <option value="research-review">Researchanmeldelse med 1-6 stjerner</option>
+                  </select>
+                </label>
+
                 <label className="flex items-start gap-2 text-[12px] text-white/65">
                   <input
                     type="checkbox"
@@ -1241,6 +1266,11 @@ export default function LivPostingClient({ embedded = false, onClose, initialTab
                       {article.subtitle && (
                         <p className="text-white/65 text-[13px] mt-1 leading-snug">{article.subtitle}</p>
                       )}
+                      {article.rating !== undefined && (
+                        <p className="text-white/85 text-[13px] mt-2" aria-label={`${article.rating} af 6 stjerner`}>
+                          {'★'.repeat(article.rating)}{'☆'.repeat(6 - article.rating)}
+                        </p>
+                      )}
                     </div>
 
                     {article.intro && (
@@ -1253,6 +1283,8 @@ export default function LivPostingClient({ embedded = false, onClose, initialTab
 
                     <div className="rounded-lg border border-white/[0.08] bg-[#141414] px-3 py-3 space-y-2">
                       <p className="text-[10px] uppercase tracking-wider text-white/45">SEO &amp; META</p>
+                      <p className="text-[10px] text-white/45">AI Generated: ja · Model: {article.aiModel || 'Ukendt'} · TOV: {article.voiceVersion || 'Ukendt'}</p>
+                      {article.ratingReason && <p className="text-[12px] text-white/75">Stjernebegrundelse: {article.ratingReason}</p>}
                       <div>
                         <p className="text-[10px] text-white/45 mb-0.5">Title ({(article.seoTitle || '').length} tegn)</p>
                         <p className="text-[12px] text-white/85">{article.seoTitle || '—'}</p>

@@ -24,8 +24,10 @@ input til en brugbar briefing i Apropos-stil.
 ## Liv Brandts profil hos Apropos
 
 - Skriver fra kroppen, erfaringen og samtidens stemninger.
-- Fokus paa koncerter, identitet, femininitet, kulturens nerve.
+- Fokus paa hele kulturlivet. Musik og København er ikke standardvinklen.
 - Må gerne vaere temperamentsfuld, men altid med empati.
+- Brug den kanoniske liv-brandt.txt v3 ved konflikt med dette stilkort.
+- Tør humor og præcise detaljer, ikke mekaniske treled eller opdigtede oplevelser.
 
 ## Outputformat for en redaktionel briefing
 

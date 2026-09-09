@@ -21,6 +21,7 @@ import { expandDirective } from '@/lib/liv/expand-directive';
 import { runSafetyGates } from '@/lib/liv/run-safety-gates';
 import { buildResearchQaSummary } from '@/lib/liv/research-qa';
 import { checkCmsDraft } from '@/lib/editorial/cms-preflight';
+import { isLivArticleFormat, type LivArticleFormat } from '@/lib/liv/review-format';
 
 // Generation plus bounded source retrieval/factcheck must fit in one preview run.
 export const maxDuration = 300;
@@ -48,6 +49,7 @@ function previewImageFor(topic: PickedTopic | null): string | null {
 }
 
 type PreviewRequestInput = {
+  articleFormat?: LivArticleFormat;
   generate?: boolean;
   topicHint?: string;
   directiveHint?: string;
@@ -56,6 +58,7 @@ type PreviewRequestInput = {
 };
 
 async function buildPreview(req: NextRequest, input: PreviewRequestInput, uid: string) {
+  if (input.articleFormat !== undefined && !isLivArticleFormat(input.articleFormat)) return NextResponse.json({ error: 'Ugyldigt artikelformat.' }, { status: 400 });
   const baseUrl = resolveBaseUrl(req);
   const dayKey = todayDayKeyUTC();
   const generate = !!input.generate;
@@ -68,7 +71,8 @@ async function buildPreview(req: NextRequest, input: PreviewRequestInput, uid: s
   const mustUseTrending = thInput
     ? input.mustUseTrending !== false
     : resolved.mustUseTrending;
-  const directiveHint = input.directiveHint?.trim();
+  const directiveHint = input.directiveHint?.trim() || (!thInput ? plan?.directiveHint : undefined);
+  const articleFormat = input.articleFormat || (!thInput ? plan?.articleFormat : undefined) || 'article';
   const excludedTitles = Array.isArray(input.excludedTitles)
     ? input.excludedTitles.filter((x): x is string => typeof x === 'string' && x.trim().length > 0)
     : [];
@@ -122,6 +126,8 @@ async function buildPreview(req: NextRequest, input: PreviewRequestInput, uid: s
       expandedDirective: expanded.expandedDirective,
       directiveHint,
       baseUrl,
+      articleFormat,
+      sourceScope: uid,
     });
     const gates = await runSafetyGates({
       baseUrl,
@@ -131,7 +137,7 @@ async function buildPreview(req: NextRequest, input: PreviewRequestInput, uid: s
       authorName: 'Liv Brandt',
       sourceExcerpt: topic.source?.excerpt || article.researchSources?.[0]?.snippet,
       sourceUrls: [...new Set([topic.source?.url, ...(article.researchSources || []).map(source => source.url)].filter((url): url is string => !!url))].slice(0, 8),
-      additionalTexts: [article.subtitle, article.excerpt, article.seoTitle, article.seoDescription].filter(Boolean),
+      additionalTexts: [article.subtitle, article.excerpt, article.seoTitle, article.seoDescription, article.ratingReason].filter(Boolean),
     });
     if (!gates.pass) {
       const failed = gates.failedGate || 'unknown';
@@ -173,9 +179,16 @@ async function buildPreview(req: NextRequest, input: PreviewRequestInput, uid: s
       topicMatchedTrending: !!topic.source,
       previewExpandedDirective: expanded.expandedDirective || null,
       warnings,
-      gatePass: gates.pass,
+      gatePass: gates.pass && !gates.anyGateSkipped,
       gateResults: gates.results,
       article: {
+        articleFormat: article.articleFormat,
+        rating: article.rating,
+        ratingReason: article.ratingReason,
+        aiGenerated: true,
+        aiModel: article.aiModel,
+        voiceVersion: article.voiceVersion,
+        voiceHash: article.voiceHash,
         title: article.title,
         subtitle: article.subtitle,
         intro: article.intro,
@@ -230,6 +243,7 @@ export async function GET(req: NextRequest) {
       generate: sp.get('generate') === '1' || sp.get('generate')?.toLowerCase() === 'true',
       topicHint: sp.get('topicHint') || undefined,
       directiveHint: sp.get('directiveHint') || undefined,
+      articleFormat: (sp.get('articleFormat') || undefined) as LivArticleFormat | undefined,
       mustUseTrending:
         sp.get('mustUseTrending') === null
           ? true

@@ -25,10 +25,10 @@ function getFallbackProviderName(): ResearchProviderName | null {
   return 'legacy_web_search';
 }
 
-function buildProvider(name: ResearchProviderName): ResearchProviderClient {
+function buildProvider(name: ResearchProviderName, model?: string): ResearchProviderClient {
   switch (name) {
     case 'openai_responses':
-      return createOpenAIResponsesProvider();
+      return createOpenAIResponsesProvider(model);
     case 'legacy_web_search':
       return createLegacyWebSearchProvider();
   }
@@ -46,12 +46,12 @@ function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
 
 export async function getResearch(
   query: string,
-  opts: { maxResults?: number } = {},
+  opts: { maxResults?: number; model?: string } = {},
 ): Promise<ResearchResult> {
   const maxResults = opts.maxResults ?? 3;
   const primaryName = getProviderName();
   const fallbackName = getFallbackProviderName();
-  const primary = buildProvider(primaryName);
+  const primary = buildProvider(primaryName, opts.model);
 
   let result: ResearchResult;
   let fallbackReason: ResearchFallbackReason | undefined;

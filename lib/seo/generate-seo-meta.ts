@@ -89,8 +89,9 @@ export function generateSeoMetaSmart(input: SeoInput): SeoOutput {
  * Async AI-driven generator. Falls back to the smart heuristic if OpenAI
  * is unavailable or returns invalid JSON. Result is cached by content hash.
  */
-export async function generateSeoMetaAI(input: SeoInput): Promise<SeoOutput> {
-  const cacheKey = `seo-meta:${hashInput(input)}`;
+export async function generateSeoMetaAI(input: SeoInput, options: { model?: string } = {}): Promise<SeoOutput> {
+  const model = options.model || 'gpt-4o-mini';
+  const cacheKey = `seo-meta:${model}:${hashInput(input)}`;
   const cached = apiCache.get<SeoOutput>(cacheKey);
   if (cached) return cached;
 
@@ -121,8 +122,8 @@ export async function generateSeoMetaAI(input: SeoInput): Promise<SeoOutput> {
 
   try {
     const completion = await client.chat.completions.create({
-      model: 'gpt-4o-mini',
-      temperature: 0.4,
+      model,
+      max_completion_tokens: 2000,
       response_format: { type: 'json_object' },
       messages: [
         { role: 'system', content: systemPrompt },

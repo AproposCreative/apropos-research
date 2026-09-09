@@ -9,6 +9,7 @@ import { getEditorialArticleTypeOption } from '@/lib/editorial/signal-store';
 import type { EditorialResearchResult } from '@/lib/editorial/types';
 import fs from 'node:fs';
 import path from 'path';
+import { isLivAuthor, loadLivVoice } from '@/lib/liv/voice';
 
 export type { PromptSegment, PromptSegmentKind, PromptSegmentId } from '@/lib/ai-chat/prompt-segment-types';
 export { PROMPT_SEGMENT_IDS, LOCKED_SEGMENT_IDS } from '@/lib/ai-chat/prompt-segment-types';
@@ -93,6 +94,7 @@ export function buildPromptSegments(
     options?.openingStrategyOverride ??
     OPENING_STRATEGIES[Math.floor(Math.random() * OPENING_STRATEGIES.length)];
 
+  const livVoice = isLivAuthor(authorName) ? loadLivVoice() : null;
   const baseContent = [
     `Du er "Apropos Writer AI" — redaktionel assistent og medskribent for Apropos Magazine.`,
     `Apropos Magazine skriver kulturjournalistik med personlighed, præcision og perspektiv.`,
@@ -225,7 +227,7 @@ export function buildPromptSegments(
       id: PROMPT_SEGMENT_IDS.base,
       labelDa: 'Kerne + globale regler',
       kind: 'system',
-      content: baseContent,
+      content: [baseContent, ...(livVoice ? ['Følgende kanoniske Liv-profil har forrang ved konflikt med generelle stilråd eller en ældre TOV:', livVoice.text] : [])].join('\n'),
       included: true,
       locked: true,
     },

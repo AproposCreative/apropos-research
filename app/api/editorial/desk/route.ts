@@ -111,6 +111,8 @@ export async function POST(req: NextRequest) {
               excerpt: story.signal.sources?.[0]?.content, sourceName: story.signal.sources?.[0]?.source,
             } },
             expandedDirective: story.research?.brief.text,
+            sourceScope: uid,
+            directiveHint: (story.research?.dossier.sources || []).map(source => source.url).filter(Boolean).join('\n'),
             section: story.signal.beat,
             targetWordCount: story.research?.brief.targetWordCount,
             // Do not forward internal credentials to a caller-controlled Host.

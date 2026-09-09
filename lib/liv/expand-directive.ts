@@ -2,9 +2,10 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { getOpenAIClient } from '@/lib/openai';
 import { logger } from '@/lib/logger';
+import { loadLivVoice } from '@/lib/liv/voice';
+import { livModels } from '@/lib/liv/model-config';
 
 let styleCardCache: string | null = null;
-let livPromptCache: string | null = null;
 const briefCache = new Map<string, { value: string; ts: number }>();
 
 async function readStyleCard(): Promise<string> {
@@ -18,24 +19,15 @@ async function readStyleCard(): Promise<string> {
   return styleCardCache;
 }
 
-async function readLivPrompt(): Promise<string> {
-  if (livPromptCache) return livPromptCache;
-  const file = path.join(process.cwd(), 'data', 'author-prompts', 'liv-brandt.txt');
-  try {
-    livPromptCache = await fs.readFile(file, 'utf8');
-  } catch {
-    livPromptCache = 'Liv Brandt: sanselig, feministisk, personlig kulturkritik.';
-  }
-  return livPromptCache;
-}
-
 export async function expandDirective(input: {
   topicHint?: string;
   directiveHint?: string;
 }): Promise<{ expandedDirective: string; cached: boolean }> {
   const topicHint = input.topicHint?.trim() || '';
   const directiveHint = input.directiveHint?.trim() || '';
-  const key = `${topicHint}::${directiveHint}`.toLowerCase();
+  const voice = loadLivVoice();
+  const model = livModels().utility;
+  const key = `${voice.hash}::${model}::${topicHint}::${directiveHint}`;
   const now = Date.now();
   const found = briefCache.get(key);
   if (found && now - found.ts < 10 * 60 * 1000) {
@@ -52,13 +44,12 @@ export async function expandDirective(input: {
     return { expandedDirective: directiveHint || topicHint, cached: false };
   }
 
-  const [styleCard, livPrompt] = await Promise.all([readStyleCard(), readLivPrompt()]);
+  const styleCard = await readStyleCard();
 
   try {
     const res = await client.chat.completions.create({
-      model: 'gpt-4o-mini',
-      temperature: 0.35,
-      max_completion_tokens: 500,
+      model,
+      max_completion_tokens: 2000,
       messages: [
         {
           role: 'system',
@@ -76,7 +67,7 @@ export async function expandDirective(input: {
             styleCard,
             '',
             'Liv stemmeprofil:',
-            livPrompt.slice(0, 2500),
+            voice.text,
           ].join('\n'),
         },
         {

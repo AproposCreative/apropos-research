@@ -6,6 +6,7 @@ import {
   suggestLocationLine,
 } from '@/lib/liv/cms-webflow-meta';
 import type { PickedTopic } from '@/lib/liv/pick-topic';
+import { parseResearchRating } from '@/lib/liv/review-format';
 
 function articleIdFromSlug(slug: string): string {
   return `liv-daily-${slug}-${Date.now().toString(36)}`.slice(0, 80);
@@ -23,6 +24,11 @@ export function buildLivCmsPayload(input: {
   aiModel?: string;
 }): ArticlePayload {
   const { article, topic } = input;
+  if (article.articleFormat === 'research-review') {
+    parseResearchRating(`Rating: ${article.rating}\nRatingReason: ${article.ratingReason || ''}`, 'research-review');
+  } else if (article.rating !== undefined) {
+    throw new Error('unexpected_article_rating');
+  }
   const section = article.section || input.sectionFallback || 'Kultur';
   const status = normalizeStatus(input.status);
   const publishDate = new Date().toISOString();
@@ -64,8 +70,9 @@ export function buildLivCmsPayload(input: {
     wordCount,
     presseakkreditering: false,
     aiGenerated: true,
+    ...(article.rating !== undefined ? { rating: article.rating } : {}),
     aiSourceUrl: topic.source?.url || null,
-    aiModel: input.aiModel || process.env.LIV_GENERATION_MODEL || 'claude-opus-4.7',
+    aiModel: article.aiModel || input.aiModel || null,
     featuredImage: thumbCandidate,
     ...(fotoCredit ? { fotoCredit } : {}),
     ...(locationLine ? { location: locationLine } : {}),

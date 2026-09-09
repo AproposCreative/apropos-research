@@ -7,6 +7,7 @@ import {
   setLivDailyPlan,
 } from '@/lib/liv/daily-plan-store';
 import { expandDirective } from '@/lib/liv/expand-directive';
+import { isLivArticleFormat, type LivArticleFormat } from '@/lib/liv/review-format';
 
 function dayKeyFor(mode: string | null): string {
   if (mode === 'tomorrow') {
@@ -34,6 +35,7 @@ export async function POST(req: NextRequest) {
     topicHint?: string;
     directiveHint?: string;
     mustUseTrending?: boolean;
+    articleFormat?: LivArticleFormat;
   } = {};
   try {
     body = (await req.json()) as typeof body;
@@ -41,6 +43,7 @@ export async function POST(req: NextRequest) {
     // keep defaults
   }
 
+  if (body.articleFormat !== undefined && !isLivArticleFormat(body.articleFormat)) return NextResponse.json({ error: 'Ugyldigt artikelformat.' }, { status: 400 });
   const topicHint = body.topicHint?.trim() || '';
   const directiveHint = body.directiveHint?.trim() || '';
   const mustUseTrending = body.mustUseTrending !== false;
@@ -58,6 +61,7 @@ export async function POST(req: NextRequest) {
     topicHint,
     directiveHint,
     expandedDirective: expanded.expandedDirective,
+    articleFormat: body.articleFormat || 'article',
     mustUseTrending,
     createdBy: uid,
   });

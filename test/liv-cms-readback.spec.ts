@@ -31,6 +31,16 @@ function fixture() {
   return { item, schema, read, dependencies: { read, collectionId, localeId } };
 }
 afterEach(() => vi.unstubAllGlobals());
+it('checks the actual CMS star field for a rated article', async () => {
+  const f = fixture();
+  f.schema.fields.push({ slug: 'stjerne', type: 'Number' });
+  Object.assign(f.item.fieldData, { stjerne: 4 });
+  const result = await inspectLivCmsDraft({ itemId, expected: { ...expected, rating: 4 } }, f.dependencies);
+  expect(result.checks.find(check => check.id === 'field:stjerne')?.ok).toBe(true);
+  Object.assign(f.item.fieldData, { stjerne: 5 });
+  const mismatch = await inspectLivCmsDraft({ itemId, expected: { ...expected, rating: 4 } }, f.dependencies);
+  expect(mismatch.checks.find(check => check.id === 'field:stjerne')?.ok).toBe(false);
+});
 it('reads actual schema and referenced author/section, without certifying image rights', async () => {
   const f = fixture();
   const result = await inspectLivCmsDraft({ itemId, expected }, f.dependencies);

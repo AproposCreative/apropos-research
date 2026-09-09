@@ -1,5 +1,6 @@
 import { FieldValue, Timestamp } from 'firebase-admin/firestore';
 import { getAdminDb } from '@/lib/firebase-admin';
+import { isLivArticleFormat, type LivArticleFormat } from '@/lib/liv/review-format';
 
 export const LIV_DAILY_PLAN_COLLECTION = 'livDailyPlan';
 
@@ -10,6 +11,7 @@ export interface LivDailyPlan {
   topicHint?: string;
   directiveHint?: string;
   expandedDirective?: string;
+  articleFormat?: LivArticleFormat;
   mustUseTrending: boolean;
   status: LivDailyPlanStatus;
   createdAt: string | null;
@@ -34,6 +36,7 @@ export async function setLivDailyPlan(input: {
   topicHint?: string;
   directiveHint?: string;
   expandedDirective?: string;
+  articleFormat?: LivArticleFormat;
   mustUseTrending: boolean;
   createdBy?: string;
 }): Promise<void> {
@@ -46,6 +49,7 @@ export async function setLivDailyPlan(input: {
       topicHint: input.topicHint?.trim() || null,
       directiveHint: input.directiveHint?.trim() || null,
       expandedDirective: input.expandedDirective?.trim() || null,
+      articleFormat: input.articleFormat || 'article',
       mustUseTrending: input.mustUseTrending,
       status: 'pending',
       failedReason: null,
@@ -70,6 +74,7 @@ export async function getLivDailyPlan(dayKey: string): Promise<LivDailyPlan | nu
     topicHint: typeof d.topicHint === 'string' ? d.topicHint : undefined,
     directiveHint: typeof d.directiveHint === 'string' ? d.directiveHint : undefined,
     expandedDirective: typeof d.expandedDirective === 'string' ? d.expandedDirective : undefined,
+    articleFormat: isLivArticleFormat(d.articleFormat) ? d.articleFormat : 'article',
     mustUseTrending: d.mustUseTrending !== false,
     status: (d.status as LivDailyPlanStatus) || 'pending',
     createdAt: tsToIso(d.createdAt),

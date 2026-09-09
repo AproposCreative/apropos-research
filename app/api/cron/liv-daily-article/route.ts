@@ -165,6 +165,8 @@ export async function GET(req: NextRequest) {
       topic,
       expandedDirective: plan?.expandedDirective,
       directiveHint: plan?.directiveHint,
+      articleFormat: plan?.articleFormat,
+      sourceScope: 'liv-daily',
       baseUrl,
     });
 
@@ -224,7 +226,7 @@ export async function GET(req: NextRequest) {
       authorName: 'Liv Brandt',
       sourceExcerpt: topic.source?.excerpt || article.researchSources?.[0]?.snippet,
       sourceUrls: [...new Set([topic.source?.url, ...(article.researchSources || []).map(source => source.url)].filter((url): url is string => !!url))].slice(0, 8),
-      additionalTexts: [article.subtitle, article.excerpt, article.seoTitle, article.seoDescription].filter(Boolean),
+      additionalTexts: [article.subtitle, article.excerpt, article.seoTitle, article.seoDescription, article.ratingReason].filter(Boolean),
       requireCompleteVerification: publicationMode === 'auto_publish',
     });
     gateResults = gates.results;
@@ -321,7 +323,7 @@ export async function GET(req: NextRequest) {
       topic,
       sectionFallback: 'Kultur',
       status: livWebflowStatus,
-      aiModel: process.env.LIV_GENERATION_MODEL || 'claude-opus-4.7',
+      aiModel: article.aiModel,
     });
 
     // Keep researched articles as drafts while publication proof is missing.

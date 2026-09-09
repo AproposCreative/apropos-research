@@ -13,6 +13,8 @@ import {
 } from '@/lib/ai-chat/build-system-prompt';
 import { generateSeoMetaSmart } from '@/lib/seo/generate-seo-meta';
 import { SEO_TITLE_MAX } from '@/lib/seo/constants';
+import { isLivAuthor, loadLivVoice } from '@/lib/liv/voice';
+import { livModels } from '@/lib/liv/model-config';
 
 const openai = getOpenAIClient();
 
@@ -60,12 +62,12 @@ function buildProgressSteps(hasResearch: boolean) {
 }
 
 
-async function runQuickQualityCheck(openaiClient: ReturnType<typeof getOpenAIClient>, articleText: string): Promise<string[]> {
+async function runQuickQualityCheck(openaiClient: ReturnType<typeof getOpenAIClient>, articleText: string, liv = false): Promise<string[]> {
   if (!openaiClient || !articleText || articleText.length < 200) return [];
   try {
     const response = await openaiClient.chat.completions.create({
-      model: models.default,
-      temperature: 0.2,
+      model: liv ? livModels().utility : models.default,
+      ...(liv ? {} : { temperature: 0.2 }),
       max_completion_tokens: 512,
       messages: [
         {
@@ -472,6 +474,8 @@ export async function POST(request: NextRequest) {
       updateProgressStep(clientRequestId, 'prepare', 'active');
     }
 
+    const liv = typeof authorName === 'string' && isLivAuthor(authorName);
+    const generationModel = liv ? livModels().article : models.default;
     const promptSegments = buildPromptSegments(authorTOV, authorName, articleData as Record<string, unknown>, notes);
 
     // --- Step: Web Search (when research context is available) ---
@@ -489,7 +493,7 @@ export async function POST(request: NextRequest) {
       if (searchPlatform) queryParts.push(String(searchPlatform));
       if (searchCategory && typeof searchCategory === 'string' && !/generel/i.test(searchCategory)) queryParts.push(searchCategory);
       const searchQuery = queryParts.join(' ');
-      researchResult = await getResearch(searchQuery, { maxResults: 3 });
+      researchResult = await getResearch(searchQuery, { maxResults: 3, ...(liv ? { model: livModels().research } : {}) });
       webSegment = buildWebSearchSegment(researchResult.contextText);
       if (clientRequestId) {
         updateProgressStep(clientRequestId, 'web-search', 'completed');
@@ -516,10 +520,10 @@ export async function POST(request: NextRequest) {
     messages.push({ role: 'user', content: message.trim() });
 
     const completion = await openai.chat.completions.create({
-      model: models.default,
+      model: generationModel,
       messages,
-      temperature: 0.7,
-      max_completion_tokens: 4096,
+      ...(liv ? {} : { temperature: 0.7 }),
+      max_completion_tokens: liv ? 8000 : 4096,
     });
 
     const responseText = completion.choices[0]?.message?.content?.trim() ?? '';
@@ -549,9 +553,9 @@ export async function POST(request: NextRequest) {
       if (wc > 0 && wc < minWords) {
         try {
           const expansion = await openai.chat.completions.create({
-            model: models.default,
-            temperature: 0.5,
-            max_completion_tokens: 4096,
+            model: generationModel,
+            ...(liv ? {} : { temperature: 0.5 }),
+            max_completion_tokens: liv ? 8000 : 4096,
             messages: [
               {
                 role: 'system',
@@ -582,7 +586,7 @@ export async function POST(request: NextRequest) {
     let warnings: string[] = [];
     if (articleUpdate?.content && clientRequestId) {
       updateProgressStep(clientRequestId, 'quality', 'active');
-      warnings = await runQuickQualityCheck(openai, articleUpdate.content);
+      warnings = await runQuickQualityCheck(openai, articleUpdate.content, liv);
       updateProgressStep(clientRequestId, 'quality', 'completed');
     } else if (clientRequestId) {
       updateProgressStep(clientRequestId, 'quality', 'completed');
@@ -595,6 +599,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       response: finalResponseText,
+      ...(liv ? { aiModel: completion.model || generationModel, voiceVersion: loadLivVoice().version } : {}),
       ...(articleUpdate && Object.keys(articleUpdate).length > 0 ? { articleUpdate } : {}),
       ...(warnings.length > 0 ? { warnings } : {}),
       ...(researchResult?.sources?.length ? { researchSources: researchResult.sources } : {}),

@@ -4,6 +4,8 @@ import { getOpenAIClient, models } from '@/lib/openai';
 import { logger, createRequestLogger } from '@/lib/logger';
 import { getRequestId } from '@/lib/api/request-utils';
 import { createErrorResponse, createSuccessResponse, ErrorCode } from '@/lib/api/types';
+import { isLivAuthor, loadLivVoice } from '@/lib/liv/voice';
+import { livModels } from '@/lib/liv/model-config';
 
 const client = getOpenAIClient();
 
@@ -42,16 +44,16 @@ export async function POST(request: NextRequest) {
 			);
 		}
 
+		const liv = typeof author === 'string' && isLivAuthor(author);
 		const messages: ChatCompletionMessageParam[] = [
-			{ role: 'system', content: CRITIC_SYSTEM },
+			{ role: 'system', content: [CRITIC_SYSTEM, ...(liv ? [loadLivVoice().text, 'Bedøm mod denne profil. Kræv konkrete belæg, selvstændig vinkel og passende humor. Afvis opdigtede førstehåndsoplevelser.'] : [])].join('\n') },
 			{ role: 'user', content: `Forfatter: ${author || 'Apropos'}\n\nTekst:\n${text}` }
 		];
 		
 		const comp = await client.chat.completions.create({ 
-			model: models.default, 
+			model: liv ? livModels().article : models.default,
 			messages, 
-			temperature: 1, 
-			max_completion_tokens: 600 
+			max_completion_tokens: liv ? 3000 : 600
 		});
 		
 		const tips = comp.choices[0]?.message?.content || '';
@@ -77,5 +79,3 @@ export async function POST(request: NextRequest) {
 		);
 	}
 }
-
-
