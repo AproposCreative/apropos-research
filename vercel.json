@@ -17,10 +17,6 @@
       "schedule": "0 8 * * *"
     },
     {
-      "path": "/api/cron/funding-weekly",
-      "schedule": "0 7 * * 1"
-    },
-    {
       "path": "/api/cron/accreditation-followups",
       "schedule": "0 */6 * * *"
     },

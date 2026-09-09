@@ -6,7 +6,6 @@ import {
   handleAccreditationResendEvent,
   isAccreditationTaggedEvent,
 } from '@/lib/accreditation/inbound-handler';
-import { handleFundingResendEvent, isFundingTaggedEvent } from '@/lib/funding/inbound-handler';
 
 export const runtime = 'nodejs';
 
@@ -84,13 +83,8 @@ export async function POST(req: NextRequest) {
 
   if (
     type === 'email.received' ||
-    isFundingTaggedEvent(data) ||
     isAccreditationTaggedEvent(data)
   ) {
-    const fundingResult = await handleFundingResendEvent(type, data);
-    if (fundingResult.handled) {
-      return NextResponse.json({ ok: true, received: type, funding: fundingResult.detail });
-    }
     const accreditationResult = await handleAccreditationResendEvent(type, data);
     if (accreditationResult.handled) {
       return NextResponse.json({

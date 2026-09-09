@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAdminDb } from '@/lib/firebase-admin';
+import { getNewsletterUserIdFromRequest } from '@/lib/newsletter/auth-request';
 import { logger, createRequestLogger } from '@/lib/logger';
 import { getRequestId } from '@/lib/api/request-utils';
 import { createErrorResponse, createSuccessResponse, ErrorCode } from '@/lib/api/types';
@@ -21,14 +22,14 @@ const DEFAULT_SOURCES: Omit<MediaSourceDoc, 'id' | 'userId' | 'createdAt'>[] = [
   { name: 'BT', baseUrl: 'https://www.bt.dk', sitemapIndex: '/sitemap.xml/news', enabled: true },
 ];
 
-function getUserIdFromRequest(req: NextRequest): string | null {
-  return req.headers.get('x-user-id') || new URL(req.url).searchParams.get('userId') || null;
+async function getUserIdFromRequest(req: NextRequest): Promise<string | null> {
+  return getNewsletterUserIdFromRequest(req);
 }
 
 export async function GET(request: NextRequest) {
   const requestId = getRequestId(request);
   const requestLogger = createRequestLogger(requestId);
-  const userId = getUserIdFromRequest(request);
+  const userId = await getUserIdFromRequest(request);
 
   const db = getAdminDb();
   if (!db || !userId) {
@@ -70,7 +71,7 @@ export async function GET(request: NextRequest) {
 export async function POST(req: NextRequest) {
   const requestId = getRequestId(req);
   const requestLogger = createRequestLogger(requestId);
-  const userId = getUserIdFromRequest(req);
+  const userId = await getUserIdFromRequest(req);
 
   if (!userId) {
     return NextResponse.json(createErrorResponse('userId er påkrævet', { statusCode: 401, errorCode: ErrorCode.AUTHENTICATION, requestId }), { status: 401 });
@@ -127,7 +128,7 @@ export async function POST(req: NextRequest) {
 export async function PUT(req: NextRequest) {
   const requestId = getRequestId(req);
   const requestLogger = createRequestLogger(requestId);
-  const userId = getUserIdFromRequest(req);
+  const userId = await getUserIdFromRequest(req);
 
   if (!userId) {
     return NextResponse.json(createErrorResponse('userId er påkrævet', { statusCode: 401, errorCode: ErrorCode.AUTHENTICATION, requestId }), { status: 401 });
@@ -182,7 +183,7 @@ export async function PUT(req: NextRequest) {
 export async function DELETE(req: NextRequest) {
   const requestId = getRequestId(req);
   const requestLogger = createRequestLogger(requestId);
-  const userId = getUserIdFromRequest(req);
+  const userId = await getUserIdFromRequest(req);
 
   if (!userId) {
     return NextResponse.json(createErrorResponse('userId er påkrævet', { statusCode: 401, errorCode: ErrorCode.AUTHENTICATION, requestId }), { status: 401 });

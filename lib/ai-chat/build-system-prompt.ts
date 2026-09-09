@@ -7,8 +7,6 @@ import {
 import { composeSystemPrompt as composeSystemPromptFromLib } from '@/lib/ai-chat/compose-prompt';
 import { getEditorialArticleTypeOption } from '@/lib/editorial/signal-store';
 import type { EditorialResearchResult } from '@/lib/editorial/types';
-import type { ApplicationSection, FundingResearchResult } from '@/lib/funding/types';
-import { getApplicationSectionOption } from '@/lib/funding/application-sections';
 import fs from 'node:fs';
 import path from 'path';
 
@@ -161,36 +159,8 @@ export function buildPromptSegments(
       ].filter(Boolean).join('\n')
     : '';
 
-  const fundingResearch = articleContext?.fundingResearch as FundingResearchResult | null | undefined;
-  const fundingSection = getApplicationSectionOption(articleContext?.applicationSection as ApplicationSection | undefined);
-  const fundingDossierContent = fundingResearch?.dossier
-    ? [
-        '\n**FUNDING DESK DOSSIER — SKRIV ANSØGNINGSTEKST (IKKE ARTIKEL):**',
-        `Mulighed: ${fundingResearch.dossier.opportunity.title}`,
-        `Funder: ${fundingResearch.dossier.opportunity.funder}`,
-        `Ansøgningssektion: ${fundingSection.label}`,
-        `Quality gate: ${fundingResearch.qualityGate.ready ? 'Klar' : 'Kræver opmærksomhed'} (${fundingResearch.qualityGate.score}/100)`,
-        `Eligibility: ${fundingResearch.dossier.eligibilityMatch}`,
-        fundingResearch.dossier.eligibilityGaps.length
-          ? `Gaps:\n${fundingResearch.dossier.eligibilityGaps.map((g, i) => `${i + 1}. ${g}`).join('\n')}`
-          : '',
-        `Narrativ vinkel: ${fundingResearch.dossier.narrativeAngle}`,
-        'Krævede dokumenter:',
-        fundingResearch.dossier.requiredDocuments.map((d, i) => `${i + 1}. ${d}`).join('\n'),
-        'Key facts:',
-        fundingResearch.dossier.keyFacts.slice(0, 8).map((fact, index) => `${index + 1}. ${fact}`).join('\n'),
-        'Kilder:',
-        fundingResearch.dossier.sources.slice(0, 8).map((source, index) => {
-          const sourceName = cleanEditorialDossierText(source.source.replace(/^ChatGPT websearch:\s*/i, '')) || source.domain || 'web';
-          const titleText = cleanEditorialDossierText(source.title);
-          const contentText = cleanEditorialDossierText(source.content);
-          return `${index + 1}. ${titleText}\n   Kilde: ${sourceName}\n   Relevans: ${contentText}`;
-        }).join('\n'),
-        'Ubesvarede spørgsmål:',
-        fundingResearch.dossier.unansweredQuestions.map((q, index) => `${index + 1}. ${q}`).join('\n'),
-        'Opfind ikke beløb, deadlines eller krav der ikke fremgår af kilderne. Skriv professionel ansøgningstekst til Apropos Magazine.',
-      ].filter(Boolean).join('\n')
-    : '';
+  // Reserved segment ID for previously saved prompt configurations.
+  const fundingDossierContent = '';
 
   const research = articleContext?.researchSelected as
     | { title?: string; source?: string; keyPoints?: string[]; content?: string }

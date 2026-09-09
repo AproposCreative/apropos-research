@@ -8,6 +8,7 @@
  */
 
 import { logger } from '@/lib/logger';
+import { internalApiHeaders } from '@/lib/api/internal-auth';
 import { getRecentLivDailySlugs, getRecentLivDailyTopics } from '@/lib/liv/daily-history-store';
 
 export interface PickedTopic {
@@ -176,7 +177,7 @@ export async function pickLivTopic(options: PickTopicOptions): Promise<PickedTop
   const trendingUrl = new URL('/api/trending', baseUrl).toString();
   let articles: TrendingArticle[] = [];
   try {
-    const res = await fetch(trendingUrl, { cache: 'no-store' });
+    const res = await fetch(trendingUrl, { cache: 'no-store', headers: internalApiHeaders() });
     if (!res.ok) {
       logger.warn('[liv/pick-topic] /api/trending returned non-ok', { status: res.status });
       return null;

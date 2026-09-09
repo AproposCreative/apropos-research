@@ -43,9 +43,11 @@ function resolveWebflowConfig() {
   return { token, siteId, articlesCollectionId, authorsCollectionId };
 }
 
-function resolveLivDailyWebflowStatus(): 'draft' | 'published' {
-  const raw = (process.env.LIV_DAILY_WEBFLOW_STATUS || '').trim().toLowerCase();
-  if (raw === 'published') return 'published';
+type LivPublicationMode = 'draft' | 'human_approval' | 'auto_publish';
+
+function resolveLivPublicationMode(): LivPublicationMode {
+  const raw = (process.env.LIV_DAILY_PUBLICATION_MODE || '').trim().toLowerCase();
+  if (raw === 'human_approval' || raw === 'auto_publish') return raw;
   return 'draft';
 }
 
@@ -237,7 +239,7 @@ export async function GET(req: NextRequest) {
     );
 
     const { siteId, articlesCollectionId } = resolveWebflowConfig();
-    const livDailyWebflowStatus = resolveLivDailyWebflowStatus();
+    const livPublicationMode = resolveLivPublicationMode();
     const livDailyPaused = isLivDailyPaused();
     const designerBaseUrl = siteId?.trim()
       ? `https://webflow.com/design/${encodeURIComponent(siteId.trim())}`
@@ -253,7 +255,7 @@ export async function GET(req: NextRequest) {
       },
       entries,
       config: {
-        livDailyWebflowStatus,
+        livPublicationMode,
         livDailyPaused,
         /** Samme som daglig cron — default draft (redaktionelt review i CMS). */
         cronNote: '0 8 * * * (08:00 UTC) — se vercel.json',

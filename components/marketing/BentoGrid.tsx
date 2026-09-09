@@ -8,7 +8,7 @@ const TILES = [
   { title: 'Editorial cockpit', desc: 'Signals, queues, and research threads in one view.' },
   { title: 'Prompt library', desc: 'Tone-of-voice presets per author and section.' },
   { title: 'Preflight checks', desc: 'Catch missing CMS fields before publish.' },
-  { title: 'Funding desk', desc: 'Track grants and inbound replies (Studio tier).' },
+  { title: 'Liv · Redaktion', desc: 'Find culture stories, research sources and prepare article drafts.' },
   { title: 'Cron automation', desc: 'Daily articles, weekly newsletters — on schedule.', span: 'md:col-span-2' },
 ];
 

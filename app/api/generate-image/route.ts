@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { internalApiHeaders } from '@/lib/api/internal-auth';
+import { optimizeAndUploadImage } from '@/lib/images/optimize-and-upload';
 import { getOpenAIClient, models } from '@/lib/openai';
 import { config } from '@/lib/config/env';
 import { logger, createRequestLogger } from '@/lib/logger';
@@ -31,7 +31,12 @@ export async function POST(req: NextRequest) {
     const aiImagesEnabled =
       process.env.AI_IMAGE_GENERATION_ENABLED === '1' ||
       process.env.AI_IMAGE_GENERATION_ENABLED?.toLowerCase() === 'true';
-    if (!aiImagesEnabled) {
+    const requestBody = await req.json().catch(() => ({}));
+    const { title, topic, author, category, content, section, platform, streaming_service, rating, skipIndex } = requestBody as GenerateImageRequest & { section?: string; platform?: string; streaming_service?: string; rating?: number; skipIndex?: number };
+
+    // Official-image lookup must remain available when paid AI generation is disabled.
+    const searchOnly = checkIfMediaReview({ title, category, section, topic, platform, streaming_service, content, rating });
+    if (!aiImagesEnabled && !searchOnly) {
       requestLogger.warn('generate-image rejected — AI billedgenerering er globalt slået fra');
       return NextResponse.json(
         createErrorResponse(
@@ -46,7 +51,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    if (!openai) {
+    if (!openai && !searchOnly) {
       requestLogger.error('OpenAI client not initialized');
       return NextResponse.json(
         createErrorResponse('OpenAI API key not configured', {
@@ -58,8 +63,6 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const requestBody = await req.json().catch(() => ({}));
-    const { title, topic, author, category, content, section, platform, streaming_service, rating, skipIndex } = requestBody as GenerateImageRequest & { section?: string; platform?: string; streaming_service?: string; rating?: number; skipIndex?: number };
 
     requestLogger.info('Generate image request received', {
       hasTitle: !!title,
@@ -239,6 +242,10 @@ export async function POST(req: NextRequest) {
       console.log('🎨 No media image found, falling back to AI generation...');
     }
     
+    // Never turn a failed official-image lookup into an unapproved paid request.
+    if (!aiImagesEnabled || !openai) {
+      return NextResponse.json({ success: false, error: 'Intet billede fundet. AI-generering er ikke tilgængelig; vælg eller upload et billede.' }, { status: 503 });
+    }
     // Generate AI image (either not a media review, or fallback from media search)
     console.log('🎨 Generating AI image for:', title);
 
@@ -270,36 +277,23 @@ export async function POST(req: NextRequest) {
 
     console.log('✅ Apropos-style image generated successfully:', imageUrl);
 
-    // Process image to WebP format and compress to under 400KB
-    let processedImageUrl = imageUrl;
-    try {
-      console.log('🖼️ Processing image to WebP format...');
-      const processResponse = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/api/process-image`, {
-        method: 'POST',
-        headers: internalApiHeaders(),
-        body: JSON.stringify({
-          imageUrl: imageUrl,
-          maxSizeKB: 400,
-          quality: 85
-        })
-      });
-
-      if (processResponse.ok) {
-        const processData = await processResponse.json();
-        if (processData.success && processData.processedImageUrl) {
-          processedImageUrl = processData.processedImageUrl;
-          console.log(`✅ Image processed: ${processData.originalSizeKB}KB → ${processData.processedSizeKB}KB`);
-        }
-      } else {
-        console.log('⚠️ Image processing failed, using original image');
-      }
-    } catch (error) {
-      console.log('⚠️ Image processing error, using original image:', error);
-    }
+    // Return only a persisted CMS-ready image, never an expiring provider URL.
+    const stored = await optimizeAndUploadImage({
+      imageUrl,
+      maxSizeKB: 400,
+      qualityStart: 85,
+      qualityMin: 35,
+      targetDimensions: { width: 1920, height: 1080 },
+      folder: 'editorial-images',
+      baseName: title,
+      role: 'hero',
+    });
 
     return NextResponse.json({
       success: true,
-      imageUrl: processedImageUrl,
+      imageUrl: stored.url,
+      width: stored.width,
+      height: stored.height,
       prompt
     });
 
@@ -350,7 +344,7 @@ CRITICAL REQUIREMENTS:
 - NO TEXT: Absolutely no text, logos, letters, numbers, or words of any kind. Pure visual elements only.
 - Format: 16:9 aspect ratio (1920x1080)
 - Background: Solid off-white with subtle grainy texture
-- Style: Hand-drawn, digital, fresh and subtle - like modern magazine illustrations
+- Style: Loose hand-drawn strokes, slightly uneven outlines, visible paper fibres and grain. No glossy surfaces, polished AI rendering or stock-photo look.
 - Color palette: Muted, aesthetic colors that match the article's tone
 - Focus: Mood, feeling, and motif - NOT plot or people
 - Composition: Clean, minimal, editorial aesthetic

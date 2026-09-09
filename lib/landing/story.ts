@@ -19,7 +19,7 @@ export const STORY = {
   },
   platform: {
     title: 'Same shell, more modules',
-    body: 'Editorial cockpit, funding desk, cron automation — all embedded in the studio chrome you already use.',
+    body: 'Editorial cockpit, Liv research and cron automation, embedded in the studio you already use.',
   },
   cta: {
     title: 'Run the stack on your terms',

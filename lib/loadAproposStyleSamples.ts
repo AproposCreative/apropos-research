@@ -59,30 +59,34 @@ export function invalidateStyleCache(): void {
  */
 export function getRelevantStyleSamples(
   category?: string,
-  maxSamples = 3
+  maxSamples = 3,
+  deterministic = false
 ): AproposStyleSample[] {
   const all = loadAll();
   if (all.length === 0) return [];
 
   const needle = (category || '').toLowerCase().trim();
+  const pick = deterministic
+    ? (rows: AproposStyleSample[], count: number) => [...rows].sort((a, b) => String(a.id).localeCompare(String(b.id))).slice(0, count)
+    : pickRandom<AproposStyleSample>;
 
   if (needle) {
     const matched = all.filter((s) => {
       const cat = (s.category || '').toLowerCase();
-      return cat.includes(needle) || needle.includes(cat);
+      return !!cat && (cat.includes(needle) || needle.includes(cat));
     });
 
     if (matched.length >= maxSamples) {
-      return pickRandom(matched, maxSamples);
+      return pick(matched, maxSamples);
     }
     if (matched.length > 0) {
       const remaining = maxSamples - matched.length;
       const others = all.filter((s) => !matched.includes(s));
-      return [...matched, ...pickRandom(others, remaining)];
+      return [...pick(matched, matched.length), ...pick(others, remaining)];
     }
   }
 
-  return pickRandom(all, maxSamples);
+  return pick(all, maxSamples);
 }
 
 /**
@@ -92,9 +96,10 @@ export function getRelevantStyleSamples(
  */
 export function buildStyleReferenceBlock(
   category?: string,
-  maxSamples = 3
+  maxSamples = 3,
+  deterministic = false
 ): string {
-  const samples = getRelevantStyleSamples(category, maxSamples);
+  const samples = getRelevantStyleSamples(category, maxSamples, deterministic);
   if (samples.length === 0) return '';
 
   const parts = [

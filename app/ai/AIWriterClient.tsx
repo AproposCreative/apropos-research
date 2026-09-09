@@ -23,7 +23,7 @@ import DashboardClient from '@/app/dashboard/DashboardClient';
 import PodcastClient from '@/app/ai/podcast/PodcastClient';
 import SeoEngineClient from '@/app/ai/seo/SeoEngineClient';
 import PushDeskClient from '@/app/push/PushDeskClient';
-import FundingDeskView from '@/app/funding/FundingDeskView';
+import LivDeskClient from '@/app/ai/liv/LivDeskClient';
 import AkkrediteringClient from '@/app/ai/akkreditering/AkkrediteringClient';
 import { useAuth } from '@/lib/auth-context';
 import { saveDraft, getDraft, type ArticleDraft } from '@/lib/firebase-service';
@@ -43,7 +43,6 @@ import {
   normalizeArticleData,
   resolveViewFromSearchParams,
 } from './ai-writer/article-defaults';
-import { clearFundingBriefHandoff, readFundingBriefHandoff } from '@/lib/funding/handoff';
 
 const APP_VERSION = process.env.NEXT_PUBLIC_APP_VERSION || '0.0.0';
 const BUILD_ID = process.env.NEXT_PUBLIC_BUILD_ID || 'local';
@@ -109,8 +108,8 @@ export default function AIWriterClient() {
         params.set('view', 'podcast');
       } else if (view === 'push') {
         params.set('view', 'push');
-      } else if (view === 'funding') {
-        params.set('view', 'funding');
+      } else if (view === 'liv') {
+        params.set('view', 'liv');
       } else if (view === 'akkreditering') {
         params.set('view', 'akkreditering');
         if (options?.startAccreditation) params.set('start', '1');
@@ -236,7 +235,7 @@ export default function AIWriterClient() {
   useEffect(() => {
     const next = resolveViewFromSearchParams(searchParams);
     setActiveView((prev) => (prev === next ? prev : next));
-    if (next === 'newsletter' || next === 'dashboard' || next === 'podcast' || next === 'push' || next === 'funding' || next === 'akkreditering') {
+    if (next === 'newsletter' || next === 'dashboard' || next === 'podcast' || next === 'push' || next === 'liv' || next === 'akkreditering') {
       setReviewOpen(false);
       setSourcesOpen(false);
       setSettingsOpen(false);
@@ -256,8 +255,8 @@ export default function AIWriterClient() {
         applyActiveView('push');
         return;
       }
-      if (id === 'funding-desk') {
-        applyActiveView('funding');
+      if (id === 'liv-desk') {
+        applyActiveView('liv');
         return;
       }
       if (id === 'akkreditering') {
@@ -311,7 +310,7 @@ export default function AIWriterClient() {
       activeView !== 'dashboard' &&
       activeView !== 'podcast' &&
       activeView !== 'push' &&
-      activeView !== 'funding' &&
+      activeView !== 'liv' &&
       activeView !== 'akkreditering' &&
       activeView !== 'seo'
     ) {
@@ -1119,26 +1118,6 @@ export default function AIWriterClient() {
     }
   }, [notes, addChatMessage, handleSendMessage]);
 
-  const fundingHandoffRanRef = useRef(false);
-  useEffect(() => {
-    if (fundingHandoffRanRef.current) return;
-    if (searchParams.get('from') !== 'funding') return;
-    const handoff = readFundingBriefHandoff();
-    if (!handoff) return;
-    fundingHandoffRanRef.current = true;
-    clearFundingBriefHandoff();
-    setArticleData((prev) => ({
-      ...prev,
-      fundingOpportunityId: handoff.opportunityId,
-      fundingResearch: handoff.fundingResearch ?? null,
-      applicationSection: handoff.applicationSection,
-      topic: handoff.opportunityTitle,
-      title: handoff.opportunityTitle,
-    }));
-    setActiveView('ai');
-    void handleSendMessage(handoff.briefText);
-  }, [searchParams, handleSendMessage]);
-
   // Automatically reveal review drawer when fresh article content arrives
   const previousContentRef = useRef(articleData.content || '');
   useEffect(() => {
@@ -1846,7 +1825,7 @@ export default function AIWriterClient() {
             </div>
             )}
 
-            {activeView === 'funding' && (
+            {activeView === 'liv' && (
             <div
               className="w-full flex-shrink-0 absolute top-0 bottom-0 left-0 md:top-[1%] md:bottom-[1%] md:left-[1%] z-10"
               style={{
@@ -1868,7 +1847,28 @@ export default function AIWriterClient() {
                 </div>
               )}
               <div className={`h-full w-full flex flex-col font-poppins ${embeddedPanelShell}`}>
-                <FundingDeskView embedded onClose={() => applyActiveView(null)} />
+                <LivDeskClient key={user?.uid || 'signed-out'} onClose={() => applyActiveView(null)} onOpenWriter={(story) => {
+                  if (!story.article) return;
+                  if ((articleData?.title || articleData?.content || notes || chatMessages.length > 0) &&
+                    !window.confirm('Åbn Livs udkast i Writer? Ikke-gemte ændringer i den nuværende artikel bliver erstattet. Annuller for at gemme dem først.')) return;
+                  setCurrentDraftId(null);
+                  setChatMessages([]);
+                  setArticleData(normalizeArticleData({
+                    ...story.article,
+                    author: 'Liv Brandt',
+                    category: story.article.section,
+                    featuredImage: story.article.imageSuggestions?.[0]?.url,
+                    editorialSignalId: story.id,
+                    editorialResearch: story.research,
+                    editorialSignalTitle: story.signal.title,
+                    articleType: story.research?.brief.articleType,
+                    researchSelected: story.signal.sources?.[0],
+                  }));
+                  setNotes(story.research?.brief.text || '');
+                  setShowWizard(false);
+                  applyActiveView('ai');
+                  setReviewOpen(true);
+                }} />
               </div>
             </div>
             )}

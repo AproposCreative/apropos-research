@@ -41,11 +41,18 @@ export const maxDuration = 300;
 const MIN_VERIFIED_RESEARCH_SOURCES = 2;
 const MIN_LINEUP_NAMES = 2;
 
-function resolveLivWebflowStatus(): 'draft' | 'published' {
-  const raw = (process.env.LIV_DAILY_WEBFLOW_STATUS || '').trim().toLowerCase();
-  if (raw === 'published') return 'published';
-  // Default to draft so items always land in Webflow CMS first.
+type LivPublicationMode = 'draft' | 'human_approval' | 'auto_publish';
+
+function resolveLivPublicationMode(): LivPublicationMode {
+  const raw = (process.env.LIV_DAILY_PUBLICATION_MODE || '').trim().toLowerCase();
+  if (raw === 'human_approval' || raw === 'auto_publish') return raw;
+  // Safe default. The legacy LIV_DAILY_WEBFLOW_STATUS is intentionally ignored
+  // so an old env value cannot silently turn on live publication.
   return 'draft';
+}
+
+function webflowStatusForMode(mode: LivPublicationMode): 'draft' | 'published' {
+  return mode === 'auto_publish' ? 'published' : 'draft';
 }
 
 function resolveBaseUrl(req: NextRequest): string {
@@ -80,7 +87,8 @@ export async function GET(req: NextRequest) {
   const dryRun = sp.get('dryRun') === '1' || sp.get('dryRun')?.toLowerCase() === 'true';
   const dayKey = todayDayKeyUTC();
   const baseUrl = resolveBaseUrl(req);
-  const livWebflowStatus = resolveLivWebflowStatus();
+  const publicationMode = resolveLivPublicationMode();
+  const livWebflowStatus = webflowStatusForMode(publicationMode);
 
   // Kill-switch: sæt LIV_DAILY_PAUSED=1 på Vercel for at stoppe alle
   // auto-publish runs uden deploy. dryRun ignorerer kill-switch så vi
@@ -213,6 +221,7 @@ export async function GET(req: NextRequest) {
       intro: article.intro,
       authorName: 'Liv Brandt',
       sourceExcerpt: topic.source?.excerpt,
+      requireCompleteVerification: publicationMode === 'auto_publish',
     });
     gateResults = gates.results;
 

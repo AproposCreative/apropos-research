@@ -29,6 +29,7 @@ export interface SourceSimilarityScores {
 
 export interface SourceSimilarityResult {
   pass: boolean;
+  complete: boolean;
   reason?: string;
   scores: SourceSimilarityScores;
 }
@@ -109,6 +110,7 @@ export async function checkSourceSimilarity(
   if (source.length < 80 || generated.length < 80) {
     return {
       pass: true,
+      complete: false,
       scores: { embeddingSim: 0, ngramJaccard: 0, openingSim: 0 },
     };
   }
@@ -127,12 +129,14 @@ export async function checkSourceSimilarity(
   // hvis vi allerede har varm cache. Vi accepterer en lille latency-koster
   // for at fange semantisk plagiat.
   let embeddingSim = 0;
+  let complete = false;
   try {
     const [genEmb, srcEmb] = await Promise.all([
       getEmbedding(generated.slice(0, 4000)),
       getEmbedding(source.slice(0, 4000)),
     ]);
     embeddingSim = cosineSimilarity(genEmb, srcEmb);
+    complete = genEmb.length > 0 && genEmb.length === srcEmb.length && genEmb.every(Number.isFinite) && srcEmb.every(Number.isFinite) && Number.isFinite(embeddingSim);
   } catch (e) {
     logger.warn('[liv/source-similarity] embedding failed — falling back to lexical only', {
       err: e instanceof Error ? e.message : String(e),
@@ -159,10 +163,11 @@ export async function checkSourceSimilarity(
   if (reasons.length > 0) {
     return {
       pass: false,
+      complete,
       reason: reasons.join(' | '),
       scores,
     };
   }
 
-  return { pass: true, scores };
+  return { pass: true, complete, scores };
 }

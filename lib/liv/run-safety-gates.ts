@@ -27,6 +27,8 @@ export interface SafetyGatesInput {
    * Hvis ikke sat, springer vi gaten over (fx ved manuel preview).
    */
   sourceExcerpt?: string;
+  /** Auto-publish må kun ske, når alle relevante gates faktisk er kørt. */
+  requireCompleteVerification?: boolean;
 }
 
 export interface SafetyGatesOutput {
@@ -46,6 +48,7 @@ interface ModerationResponse {
 
 interface FactcheckResponse {
   ok?: boolean;
+  verificationMethod?: string;
   results?: Array<{
     claim?: string;
     status?: 'verified' | 'disputed' | 'unverifiable' | string;
@@ -74,7 +77,15 @@ async function postJson<T>(url: string, body: unknown): Promise<T | null> {
 }
 
 export async function runSafetyGates(input: SafetyGatesInput): Promise<SafetyGatesOutput> {
-  const { baseUrl, title, content, intro, authorName = 'Liv Brandt', sourceExcerpt } = input;
+  const {
+    baseUrl,
+    title,
+    content,
+    intro,
+    authorName = 'Liv Brandt',
+    sourceExcerpt,
+    requireCompleteVerification = false,
+  } = input;
   const results: GateResult[] = [];
   let anyGateSkipped = false;
   const fullText = [intro, content].filter(Boolean).join('\n\n');
@@ -88,6 +99,7 @@ export async function runSafetyGates(input: SafetyGatesInput): Promise<SafetyGat
         generated: fullText,
         source: sourceExcerpt,
       });
+      if (!sim.complete) anyGateSkipped = true;
       if (!sim.pass) {
         const detail = `Kilde-lighed for høj — ${sim.reason}. Scores: emb=${sim.scores.embeddingSim.toFixed(3)}, ngram=${sim.scores.ngramJaccard.toFixed(3)}, opening=${sim.scores.openingSim.toFixed(3)}.`;
         results.push({ name: 'source-similarity', pass: false, detail });
@@ -96,6 +108,7 @@ export async function runSafetyGates(input: SafetyGatesInput): Promise<SafetyGat
       results.push({
         name: 'source-similarity',
         pass: true,
+        skipped: !sim.complete,
         detail: `emb=${sim.scores.embeddingSim.toFixed(3)}, ngram=${sim.scores.ngramJaccard.toFixed(3)}, opening=${sim.scores.openingSim.toFixed(3)}`,
       });
     } catch (e) {
@@ -165,7 +178,7 @@ export async function runSafetyGates(input: SafetyGatesInput): Promise<SafetyGat
   try {
     const res = await fetch(fcUrl, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: internalApiHeaders(),
       body: JSON.stringify({ articleText: fullText.slice(0, 6000) }),
       cache: 'no-store',
     });
@@ -204,6 +217,8 @@ export async function runSafetyGates(input: SafetyGatesInput): Promise<SafetyGat
     });
   } else {
     const checked = fc.results || [];
+    const sourceGrounded = fc.verificationMethod === 'retrieved-sources' && checked.length > 0 && checked.every(r => r.status === 'verified');
+    if (!sourceGrounded) anyGateSkipped = true;
     const disputed = checked.filter((r) => r.status === 'disputed');
     if (disputed.length > 0) {
       results.push({
@@ -220,8 +235,9 @@ export async function runSafetyGates(input: SafetyGatesInput): Promise<SafetyGat
     results.push({
       name: 'factcheck',
       pass: true,
+      skipped: !sourceGrounded,
       detail:
-        checked.length === 0
+        !sourceGrounded ? 'Ingen fuldstændig kildebaseret verifikation. Modelvurderingen er kun rådgivende.' : checked.length === 0
           ? '0 påstande returneret (tom eller kun unverifiable) — intet disputed'
           : `${checked.length} påstande tjekket, 0 disputed`,
     });
@@ -231,6 +247,7 @@ export async function runSafetyGates(input: SafetyGatesInput): Promise<SafetyGat
   const tovUrl = new URL('/api/critic/tov', baseUrl).toString();
   const tov = await postJson<TovResponse>(tovUrl, { text: fullText, author: authorName });
   const tipsRaw = tov?.data?.tips || '';
+  if (!tipsRaw.trim()) anyGateSkipped = true;
   // TOV-gate er informativ — vi blokerer kun hvis kritiker eksplicit siger
   // "AFVIST" / "REJECTED" / "STOP" (case-insensitive). Ellers accepteres.
   const tipsLower = tipsRaw.toLowerCase();
@@ -245,8 +262,18 @@ export async function runSafetyGates(input: SafetyGatesInput): Promise<SafetyGat
   results.push({
     name: 'tov',
     pass: true,
+    skipped: !tipsRaw.trim(),
     detail: tipsRaw ? `Tips logget (${tipsRaw.length} tegn)` : 'Ingen kritik returneret',
   });
+
+  if (requireCompleteVerification && anyGateSkipped) {
+    results.push({
+      name: 'verification-complete',
+      pass: false,
+      detail: 'Mindst én sikkerhedsgate blev sprunget over; auto-publish er blokeret.',
+    });
+    return { pass: false, failedGate: 'verification-complete', results, anyGateSkipped };
+  }
 
   return { pass: true, results, anyGateSkipped };
 }

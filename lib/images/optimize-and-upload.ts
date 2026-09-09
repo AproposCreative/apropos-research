@@ -18,6 +18,8 @@ export type OptimizeAndUploadImageOptions = {
   role?: string;
   /** Bevar original opløsning — kun format/komprimering (desktop thumb). */
   preserveDimensions?: boolean;
+  /** Exact editorial canvas; quality may change but dimensions must not shrink. */
+  targetDimensions?: { width: number; height: number };
   /** Spring over hvis original er mindre (undtagen PNG). */
   minOriginalKB?: number;
   /** WebP encode-effort (1-6). Lavere = hurtigere (vigtigt for store fotos/timeouts). Default 6. */
@@ -123,7 +125,20 @@ export async function optimizeAndUploadImage(
   let metaWidth: number | null = originalMeta.width ?? null;
   let metaHeight: number | null = originalMeta.height ?? null;
 
-  if (options.preserveDimensions) {
+  if (options.targetDimensions) {
+    const { width, height } = options.targetDimensions;
+    if (![width, height].every(n => Number.isInteger(n) && n >= 200 && n <= 4096)) {
+      throw new Error('Invalid target image dimensions');
+    }
+    const canvas = await sharp(imageBuffer).rotate().resize(width, height, { fit: 'cover' }).toBuffer();
+    metaWidth = width;
+    metaHeight = height;
+    while (true) {
+      processedBuffer = await sharp(canvas).webp({ quality: currentQuality, effort }).toBuffer();
+      if (processedBuffer.byteLength <= maxSizeKB * 1024 || currentQuality === qualityMin) break;
+      currentQuality = Math.max(qualityMin, currentQuality - 5);
+    }
+  } else if (options.preserveDimensions) {
     // Roter én gang til en arbejds-buffer, så vi ikke gen-dekoder originalen i hver iteration.
     const rotatedBuffer = await sharp(imageBuffer).rotate().toBuffer();
     while (currentQuality >= qualityMin) {

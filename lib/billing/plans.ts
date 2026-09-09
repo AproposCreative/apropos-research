@@ -46,7 +46,7 @@ export const BILLING_PLANS: BillingPlan[] = [
     features: [
       'Everything in Pro',
       'Social distribution',
-      'Funding desk',
+      'Liv · Redaktion',
       'Whitelabel — early access',
     ],
     badge: 'Early access',

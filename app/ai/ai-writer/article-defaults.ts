@@ -84,7 +84,7 @@ export type AIWriterView =
   | 'dashboard'
   | 'podcast'
   | 'push'
-  | 'funding'
+  | 'liv'
   | 'akkreditering'
   | 'seo'
   | null;
@@ -99,7 +99,7 @@ export function resolveViewFromSearchParams(sp: {
   if (view === 'dashboard') return 'dashboard';
   if (view === 'podcast') return 'podcast';
   if (view === 'push') return 'push';
-  if (view === 'funding') return 'funding';
+  if (view === 'liv') return 'liv';
   if (view === 'akkreditering') return 'akkreditering';
   if (view === 'seo') return 'seo';
   if (view === 'ai') return 'ai';
@@ -109,7 +109,7 @@ export function resolveViewFromSearchParams(sp: {
   if (w === 'dashboard') return 'dashboard';
   if (w === 'podcast') return 'podcast';
   if (w === 'push-desk') return 'push';
-  if (w === 'funding-desk') return 'funding';
+  if (w === 'liv-desk') return 'liv';
   if (w === 'akkreditering') return 'akkreditering';
   return null;
 }

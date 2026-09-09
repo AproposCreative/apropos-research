@@ -1,6 +1,6 @@
 import type { CoveredEditorialTopic, EditorialArticleType } from '@/lib/editorial/signal-store';
 
-export type EditorialBeatId = 'musik' | 'film-tv' | 'gaming' | 'kultur';
+export type EditorialBeatId = 'musik' | 'film-tv' | 'gaming' | 'kultur' | 'kulturpolitik' | 'scenekunst' | 'litteratur' | 'kunst' | 'arkitektur-design' | 'kulturarv';
 
 export type EditorialBeat = {
   id: EditorialBeatId;
@@ -35,6 +35,8 @@ export type EditorialSignal = {
   sources?: EditorialSource[];
   duplicateRisk?: number;
   suggestedArticleType?: EditorialArticleType;
+  priorityReason?: string;
+  audienceArticlePath?: string;
 };
 
 export type QualityGateCheck = {
@@ -80,5 +82,6 @@ export type EditorialResearchResult = {
 export type DiscoverSignalsOptions = {
   coveredTopics?: CoveredEditorialTopic[];
   limit?: number;
+  recentBeats?: string[];
+  audienceSignals?: import('./audience-signals').AudienceSignal[];
 };
-

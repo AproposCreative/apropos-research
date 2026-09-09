@@ -53,6 +53,7 @@ export async function runGa4Report(input: Ga4RunReportInput): Promise<Ga4RunRepo
 
   const res = await fetch(url, {
     method: 'POST',
+    signal: AbortSignal.timeout(20000),
     headers: {
       Authorization: `Bearer ${token}`,
       'Content-Type': 'application/json',

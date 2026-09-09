@@ -26,11 +26,18 @@ export async function GET(request: NextRequest) {
 
     // Hent fra Firestore (erstatter den gamle data/rage_articles.jsonl-pipeline,
     // som ikke virkede serverless).
-    const records = await getRecentTrendingArticles({
+    let records = await getRecentTrendingArticles({
       days,
       limit,
       source: sourceFilter,
     });
+    // User-owned source IDs can differ from IDs stored by shared ingestion.
+    // Match the publisher name in a bounded fallback, never another user's UID.
+    if (sourceFilter && !records.length) {
+      const name = (searchParams.get('sourceName') || sourceFilter).trim().toLowerCase();
+      const candidates = await getRecentTrendingArticles({ days, limit: Math.min(500, Math.max(limit, 200)) });
+      records = candidates.filter(r => (r.sourceName || '').toLowerCase() === name || r.source.toLowerCase() === name);
+    }
 
     // Transformer til SimpleArticle-format som resten af siden forventer.
     const allArticles: SimpleArticle[] = records

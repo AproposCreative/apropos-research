@@ -21,6 +21,7 @@ import { useAuth } from '@/lib/auth-context';
 interface LivPostingClientProps {
   embedded?: boolean;
   onClose?: () => void;
+  initialTab?: 'topic' | 'history';
 }
 
 interface PreviewTopic {
@@ -131,7 +132,7 @@ interface StatusEntry {
 }
 
 interface LivStatusConfig {
-  livDailyWebflowStatus: 'draft' | 'published';
+  livPublicationMode: 'draft' | 'human_approval' | 'auto_publish';
   livDailyPaused: boolean;
   designerBaseUrl: string | null;
   hasArticlesCollectionId: boolean;
@@ -286,7 +287,7 @@ function parseDirectiveString(s: string): { modeIds: string[]; custom: string } 
 
 const quickPillBtnActive = `${quickPillBtn} border-emerald-400/35 bg-emerald-500/[0.1] text-emerald-100/90`;
 
-export default function LivPostingClient({ embedded = false, onClose }: LivPostingClientProps) {
+export default function LivPostingClient({ embedded = false, onClose, initialTab = 'topic' }: LivPostingClientProps) {
   const { user } = useAuth();
   const [preview, setPreview] = useState<PreviewResponse | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
@@ -297,7 +298,7 @@ export default function LivPostingClient({ embedded = false, onClose }: LivPosti
   const [historyLoading, setHistoryLoading] = useState(false);
   const [historyError, setHistoryError] = useState<string | null>(null);
   const [livConfig, setLivConfig] = useState<LivStatusConfig | null>(null);
-  const [activeTab, setActiveTab] = useState<'topic' | 'history'>('topic');
+  const [activeTab, setActiveTab] = useState<'topic' | 'history'>(initialTab);
   const [topicHint, setTopicHint] = useState('');
   const [activeDirectiveModes, setActiveDirectiveModes] = useState<string[]>([]);
   const [directiveCustom, setDirectiveCustom] = useState('');
@@ -748,13 +749,13 @@ export default function LivPostingClient({ embedded = false, onClose }: LivPosti
               <div className="rounded-lg bg-white/[0.04] px-2.5 py-2 text-center">
                 <p
                   className={`text-[15px] font-semibold leading-tight ${
-                    !livConfig ? 'text-white/30' : livConfig.livDailyWebflowStatus === 'published' ? 'text-emerald-400/95' : 'text-amber-200/90'
+                    !livConfig ? 'text-white/30' : livConfig.livPublicationMode === 'auto_publish' ? 'text-emerald-400/95' : 'text-amber-200/90'
                   }`}
                 >
-                  {!livConfig ? '—' : livConfig.livDailyWebflowStatus === 'published' ? 'Live' : 'Kladde'}
+                  {!livConfig ? '—' : livConfig.livPublicationMode === 'auto_publish' ? 'Auto-live' : livConfig.livPublicationMode === 'human_approval' ? 'Godkendelse' : 'Kladde'}
                 </p>
                 <p className="text-[9px] text-white/32 mt-0.5">Webflow efter cron</p>
-                <p className="text-[10px] text-white/35 mt-0.5">LIV_DAILY_WEBFLOW_STATUS</p>
+                <p className="text-[10px] text-white/35 mt-0.5">LIV_DAILY_PUBLICATION_MODE</p>
               </div>
               <div className="rounded-lg bg-white/[0.04] px-2.5 py-2 text-center">
                 <p
@@ -785,9 +786,8 @@ export default function LivPostingClient({ embedded = false, onClose }: LivPosti
               <span className="text-white/45">Forhåndsvisning</span> i dette panel skriver <span className="text-white/50">ikke</span> til
               CMS. <span className="text-white/45">Daglig cron</span> opretter/ajourfører artiklen i Webflow; standard er{' '}
               <code className="text-white/55">kladde</code> i CMS, så den behøver ikke være synlig på aproposmagazine.com, før
-              I publicerer. Vil I have cron til at sætte status til publiceret, kan I sætte miljøvariablen{' '}
-              <code className="text-white/55">LIV_DAILY_WEBFLOW_STATUS=published</code> i Vercel (kontrol over drift findes
-              i kortene ovenfor).
+              I publicerer. Auto-live kræver eksplicit komplet verifikation via{' '}
+              <code className="text-white/55">LIV_DAILY_PUBLICATION_MODE=auto_publish</code> i Vercel.
             </p>
           </div>
 
@@ -813,7 +813,7 @@ export default function LivPostingClient({ embedded = false, onClose }: LivPosti
               </li>
               <li>
                 <span className="text-white/75">Daglig cron (08:00 UTC)</span> — genererer artikel, kører sikkerhed og
-                skriver til Webflow med status fra <code className="text-white/50">LIV_DAILY_WEBFLOW_STATUS</code> (kladde
+                skriver til Webflow med status fra <code className="text-white/50">LIV_DAILY_PUBLICATION_MODE</code> (kladde
                 som standard; typisk ikke ude på sitet, før I publicerer i Webflow Designer).
               </li>
             </ol>

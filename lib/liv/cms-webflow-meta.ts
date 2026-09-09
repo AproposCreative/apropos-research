@@ -6,12 +6,9 @@
 import type { GeneratedArticle } from '@/lib/liv/generate-article';
 import type { PickedTopic } from '@/lib/liv/pick-topic';
 
-/** Korte navne der typisk findes som Topics i Webflow — bruges som fallback efter tags. */
-const FALLBACK_TOPIC_LABELS = ['Musik', 'Kultur', 'Festival', 'Danmark', 'Livet', 'Natteliv'];
-
 /**
  * Byg en prioriteret liste af emnenavne til `topicsSelected` (API resolver hvert navn til item-id).
- * Rækkefølge: artikel-tags → emne-tags/kategori → heuristik fra titel → stabile fallback-navne.
+ * Rækkefølge: artikel-tags → emne-tags/kategori → heuristik fra titel.
  */
 export function buildTopicsSelectedForCms(topic: PickedTopic, article: GeneratedArticle): string[] {
   const out: string[] = [];
@@ -35,23 +32,14 @@ export function buildTopicsSelectedForCms(topic: PickedTopic, article: Generated
   if (/\b(kultur|film|teater|litteratur|museum|udstilling)\b/i.test(hay)) add('Kultur');
   if (/\b(mode|beauty|stil|makeup)\b/i.test(hay)) add('Mode');
 
-  for (const f of FALLBACK_TOPIC_LABELS) add(f);
-
   return out.slice(0, 12);
 }
 
 export function fotoCreditFromFeaturedUrl(imageUrl: string | undefined | null): string | undefined {
-  if (!imageUrl || typeof imageUrl !== 'string') return undefined;
-  const u = imageUrl.trim();
-  if (!/^https?:\/\//i.test(u)) return undefined;
-  try {
-    const host = new URL(u).hostname.replace(/^www\./, '').toLowerCase();
-    if (host.includes('heartlandfestival.dk')) return 'Heartland Festival';
-    if (host.includes('roskilde-festival.dk')) return 'Roskilde Festival';
-    return `Pressefoto · ${host}`;
-  } catch {
-    return undefined;
-  }
+  // A hostname establishes neither photographer identity nor a press licence.
+  // Keep the legacy helper signature; verified credits must be supplied explicitly.
+  void imageUrl;
+  return undefined;
 }
 
 /** Kort stedlinje når vi kan udlede det fra indhold (fx festival på slot). */

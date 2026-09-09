@@ -6,6 +6,7 @@ import {
   type EditorialArticleType,
 } from '@/lib/editorial/signal-store';
 import { performMultiStrategySearch } from '@/lib/editorial/search';
+import { audienceMatch } from './audience-signals';
 import type {
   ArticleBrief,
   DiscoverSignalsOptions,
@@ -38,10 +39,16 @@ export const EDITORIAL_BEATS: EditorialBeat[] = [
   },
   {
     id: 'kultur',
-    label: 'Kultur',
-    searchSeeds: ['kultur', 'kunst', 'frivillige festival', 'kulturpolitik'],
+    label: 'Kulturfællesskaber og vaner',
+    searchSeeds: ['kulturfællesskaber Danmark', 'ændrede kulturvaner', 'frivillige kultur'],
     audience: 'Kulturinteresserede læsere der vil have et perspektiv før emnet bliver gammelt.',
   },
+  { id: 'kulturpolitik', label: 'Kulturpolitik', searchSeeds: ['kulturpolitik Danmark', 'kulturbudget kommuner'], audience: 'Læsere der vil forstå hvem der bestemmer over kulturen.' },
+  { id: 'scenekunst', label: 'Teater og scenekunst', searchSeeds: ['scenekunst Danmark', 'teater Aarhus Aalborg Odense'], audience: 'Teaterpublikum og læsere med interesse for levende scenekunst.' },
+  { id: 'litteratur', label: 'Litteratur', searchSeeds: ['litteratur Danmark', 'biblioteker læsekultur'], audience: 'Læsere med interesse for bøger, forfattere og læsning.' },
+  { id: 'kunst', label: 'Billedkunst og museer', searchSeeds: ['billedkunst museer Danmark', 'museum udstilling Jylland Fyn'], audience: 'Læsere der vil forstå kunsten og institutionerne omkring den.' },
+  { id: 'arkitektur-design', label: 'Arkitektur og design', searchSeeds: ['arkitektur design Danmark', 'byudvikling kultur provinsen'], audience: 'Læsere optaget af de rum og genstande vi lever med.' },
+  { id: 'kulturarv', label: 'Kulturarv', searchSeeds: ['kulturarv Danmark', 'bevaring lokalhistorie'], audience: 'Læsere der vil forstå hvad vi bevarer og hvorfor.' },
 ];
 
 function clamp(value: number, min = 20, max = 95) {
@@ -105,7 +112,8 @@ function duplicateRiskFor(text: string, coveredTopics: CoveredEditorialTopic[] =
 
 function inferArticleType(signal: EditorialSignal, sources: EditorialSource[]): EditorialArticleType {
   const text = normalizeEditorialText([signal.title, signal.angle, signal.nextAction, sources.map((s) => s.title).join(' ')].join(' '));
-  if (/anmeld|review|premiere|album|film|serie|spil/.test(text)) return 'review';
+  // A news signal does not provide first-hand observations needed for a review.
+  if (/anmeld|review|premiere|album|film|serie|spil/.test(text)) return 'analysis';
   if (/analyse|pris|økonomi|branche|rettighed|platform|streaming/.test(text)) return 'analysis';
   if (/kommentar|essay|debat|holdning/.test(text)) return 'commentary';
   if (/longread|portræt|interview|baggrund/.test(text)) return 'longread';
@@ -170,16 +178,41 @@ export function scoreSignal(signal: EditorialSignal): number {
 
 export async function discoverSignals(options: DiscoverSignalsOptions = {}): Promise<EditorialSignal[]> {
   const limit = Math.max(3, Math.min(12, options.limit || 8));
-  const batches = await Promise.all(
-    EDITORIAL_BEATS.map(async (beat) => {
+  const batches: EditorialSignal[][] = [];
+  // Bound provider fan-out as the desk now covers ten beats instead of four.
+  for (let offset = 0; offset < EDITORIAL_BEATS.length; offset += 2) {
+    batches.push(...await Promise.all(EDITORIAL_BEATS.slice(offset, offset + 2).map(async (beat) => {
       const sources = await performMultiStrategySearch(buildDiscoveryQueries(beat), { maxResults: 5 });
       return sources.slice(0, 2).map((source, index) => signalFromSource(beat, source, index, options.coveredTopics || []));
-    })
-  );
-  return batches
+    })));
+  }
+  const counts = (options.recentBeats || []).reduce<Record<string, number>>((acc, beat) => {
+    acc[beat] = (acc[beat] || 0) + 1;
+    return acc;
+  }, {});
+  const prioritized = batches
     .flat()
-    .sort((a, b) => scoreSignal(b) - scoreSignal(a))
-    .slice(0, limit);
+    .map(signal => {
+      const match = audienceMatch(signal.title, options.audienceSignals || []);
+      return {
+        ...signal,
+        audienceArticlePath: match?.path,
+        priorityReason: `${counts[signal.beat] || 0} nyere idéer i dette felt.${match ? ' Relateret artikel har stigende læserinteresse; find en ny vinkel.' : ''}`,
+      };
+    })
+    .sort((a, b) => {
+      const rank = (s: EditorialSignal) => scoreSignal(s) - Math.min(24, (counts[s.beat] || 0) * 4) + (s.audienceArticlePath ? 6 : 0);
+      return rank(b) - rank(a);
+    });
+  // One candidate per beat before filling remaining slots. Never fill with weak placeholders.
+  const first: EditorialSignal[] = [];
+  const rest: EditorialSignal[] = [];
+  const seen = new Set<string>();
+  for (const signal of prioritized) {
+    if (seen.has(signal.beat)) rest.push(signal);
+    else { seen.add(signal.beat); first.push(signal); }
+  }
+  return [...first, ...rest].slice(0, limit);
 }
 
 function buildKeyFacts(signal: EditorialSignal, sources: EditorialSource[]): string[] {
@@ -299,4 +332,3 @@ export async function runEditorialResearch(
   const brief = buildArticleBrief(dossier, qualityGate);
   return { dossier, qualityGate, brief };
 }
-

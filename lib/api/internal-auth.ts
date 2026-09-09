@@ -8,13 +8,12 @@ export function internalApiHeaders(
     'Content-Type': 'application/json',
   };
 
-  const secret =
-    process.env.INTERNAL_API_SECRET?.trim() ||
-    process.env.CRON_SECRET?.trim() ||
-    '';
+  const secret = process.env.INTERNAL_API_SECRET?.trim();
 
   if (secret) {
     headers['x-internal-api-secret'] = secret;
+  } else if (process.env.CRON_SECRET?.trim()) {
+    headers.Authorization = `Bearer ${process.env.CRON_SECRET.trim()}`;
   }
 
   if (extra) {

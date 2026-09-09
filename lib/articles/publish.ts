@@ -34,7 +34,7 @@ export async function publishArticleDraftToWebflow(
   input: Partial<ArticlePayload> & Pick<WebflowArticleFields, 'title' | 'content'>,
   options: Omit<NormalizeArticlePayloadOptions, 'defaultStatus'> = {}
 ): Promise<PublishCanonicalArticleResult> {
-  return publishCanonicalArticleToWebflow(input, {
+  return publishCanonicalArticleToWebflow({ ...input, status: 'draft', workflowState: 'webflow_draft' }, {
     ...options,
     defaultStatus: 'draft',
   });

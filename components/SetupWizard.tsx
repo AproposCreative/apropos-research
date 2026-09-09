@@ -5,6 +5,7 @@ import type { PointerEvent as ReactPointerEvent, MouseEvent as ReactMouseEvent }
 import { WebflowAuthor } from '@/lib/webflow-service';
 import type { ArticleData } from '@/types/article';
 import StepChip from '@/components/ui/StepChip';
+import { useAuth } from '@/lib/auth-context';
 import { EDITORIAL_ARTICLE_TYPE_OPTIONS, getEditorialArticleTypeOption } from '@/lib/editorial/signal-store';
 
 type Step = 'template' | 'articleType' | 'source' | 'trending' | 'inspiration' | 'recommended' | 'analysis' | 'author' | 'section' | 'topic' | 'platform' | 'rating' | 'press';
@@ -71,6 +72,9 @@ export default function SetupWizard({
   onChange,
   onOpenAccreditation,
 }: SetupWizardProps) {
+  const { user } = useAuth();
+  const [sourceError, setSourceError] = useState('');
+  const [articleError, setArticleError] = useState('');
   const [step, setStep] = useState<Step>('template');
   const stepperRef = useRef<HTMLDivElement | null>(null);
   const [authors, setAuthors] = useState<WebflowAuthor[]>([]);
@@ -241,20 +245,24 @@ export default function SetupWizard({
   useEffect(() => {
     const run = async () => {
       try {
-        const res = await fetch('/api/media-sources');
+        setSourceError('');
+        const token = await user?.getIdToken();
+        const res = await fetch('/api/media-sources', { headers: token ? { Authorization: `Bearer ${token}` } : {} });
+        if (!res.ok) throw new Error('Medierne kunne ikke hentes. Log ind og prøv igen.');
         const j = await res.json();
         // Handle both old format (j.sources) and new format (j.data.sources)
         const sources = j.data?.sources || j.sources || [];
-        setMediaSources(Array.isArray(sources) ? sources.map((s:any)=>({ id: s.id, name: s.name })) : []);
+        setMediaSources(Array.isArray(sources) ? sources.filter((s:any) => s.enabled !== false).map((s:any)=>({ id: s.id, name: s.name })) : []);
       } catch (error) {
         console.error('Error loading media sources:', error);
+        setSourceError('Medierne kunne ikke hentes. Genåbn opsætningen og prøv igen.');
         setMediaSources([]);
       } finally { 
         setLoadingSources(false); 
       }
     };
     run();
-  }, []);
+  }, [user]);
 
   // Auto-refresh articles in background when SetupWizard opens (for research template)
   useEffect(() => {
@@ -444,6 +452,7 @@ export default function SetupWizard({
   // Helper function to load articles (trending or recommended)
   const loadArticles = useCallback(async (sourceName: string, forceRefresh = false) => {
     if (!sourceName || loadingTrending || loadingRecommended) return;
+    setArticleError('');
     
     // If "Anbefalet" is selected, load recommendations
     if (sourceName === 'Anbefalet') {
@@ -453,10 +462,7 @@ export default function SetupWizard({
           cache: 'no-store',
           headers: { 'Cache-Control': 'no-cache' }
         });
-        if (!res.ok) {
-          console.error('Recommended API error:', res.status, res.statusText);
-          return;
-        }
+        if (!res.ok) throw new Error('Anbefalingerne kunne ikke hentes. Prøv igen.');
         const j = await res.json();
         const items = Array.isArray(j.recommendations) ? j.recommendations : [];
         const sortedRecommendations = sortByNewest(items, (item: any) => item.date || item.published_at || item.publishDate || item.releaseDate);
@@ -479,6 +485,9 @@ export default function SetupWizard({
         setTrendingItems(sortedNormalized);
       } catch (error) {
         console.error('Error loading recommended articles:', error);
+        setRecommendedItems([]);
+        setTrendingItems([]);
+        setArticleError(error instanceof Error ? error.message : 'Anbefalingerne kunne ikke hentes.');
       } finally {
         setLoadingRecommended(false);
       }
@@ -489,21 +498,18 @@ export default function SetupWizard({
     const controller = new AbortController();
     try {
       setLoadingTrending(true);
-      const id = (mediaSources.find(s => s.name === sourceName)?.id) || sourceName;
+      const id = sourceName === 'Alle medier' ? '' : (mediaSources.find(s => s.name === sourceName)?.id) || sourceName;
       if (trendingAbortRef.current) {
         try { trendingAbortRef.current.abort(); } catch {}
       }
       trendingAbortRef.current = controller;
       const timestamp = Date.now();
-      const res = await fetch(`/api/trending?source=${encodeURIComponent(id)}&_t=${timestamp}`, { 
+      const res = await fetch(`/api/trending?source=${encodeURIComponent(id)}&sourceName=${encodeURIComponent(sourceName)}&_t=${timestamp}`, {
         signal: controller.signal,
         cache: 'no-store',
         headers: { 'Cache-Control': 'no-cache' }
       });
-      if (!res.ok) {
-        console.error('Trending API error:', res.status, res.statusText);
-        return;
-      }
+      if (!res.ok) throw new Error('Artiklerne kunne ikke hentes.');
       const j = await res.json();
       let items: any[] = [];
       if (Array.isArray(j.trendingTemplates)) {
@@ -544,6 +550,8 @@ export default function SetupWizard({
     } catch (error) {
       if (controller.signal.aborted) return;
       console.error('Error loading trending articles:', error);
+      setTrendingItems([]);
+      setArticleError('Artiklerne kunne ikke hentes. Prøv igen.');
     } finally {
       if (trendingAbortRef.current === controller) {
         setLoadingTrending(false);
@@ -556,7 +564,7 @@ export default function SetupWizard({
     const shouldLoad = step === 'trending' && 
                       data.template === 'research' && 
                       data.inspirationSource && 
-                      (data.inspirationSource !== currentSourceRef.current || trendingItems.length === 0) && 
+                      data.inspirationSource !== currentSourceRef.current &&
                       !loadingTrending &&
                       mediaSources.length > 0;
     
@@ -874,7 +882,7 @@ export default function SetupWizard({
           <div className="text-white/80 text-sm">Vælg medie (kilde)</div>
           <div className="flex flex-wrap gap-x-3 md:gap-x-[16px] gap-y-2 md:gap-y-[10px]">
             {(
-              loadingSources ? ['Indlæser…'] : (['Anbefalet', ...mediaSources.map(s=>s.name)])
+              loadingSources ? [] : (['Alle medier', 'Anbefalet', ...mediaSources.map(s=>s.name)])
             ).map((name:string)=> {
               const selected = data.inspirationSource === name;
               return (
@@ -897,12 +905,16 @@ export default function SetupWizard({
             {!loadingSources && mediaSources.length===0 && (
               <div className="text-white/60 text-xs">Ingen medier fundet</div>
             )}
+            {loadingSources && <p role="status" className="text-xs text-white/60">Henter medier…</p>}
+            {sourceError && <p role="alert" className="text-xs text-amber-200">{sourceError}</p>}
           </div>
         </div>
       )}
 
       {step==='trending' && data.template==='research' && (
         <div className="space-y-3 md:space-y-[14px]">
+          <div className="flex flex-wrap gap-2"><button type="button" className="text-xs underline text-white/60" onClick={() => setStep('source')}>Skift medie</button><button type="button" disabled={loadingTrending || loadingRecommended} className="text-xs underline text-white/60" onClick={() => void loadArticles(data.inspirationSource || 'Alle medier', true)}>Prøv igen / opdater</button></div>
+          {articleError && <p role="alert" className="text-xs text-amber-200">{articleError}</p>}
           <div className="text-white/80 text-sm">
             {data.inspirationSource === 'Anbefalet' ? 'Anbefalet anmeldelser' : `Trending fra ${data.inspirationSource || 'valgt medie'}`}
             {loadingTrending && <span className="ml-2 text-white/40 text-xs">(Opdaterer automatisk...)</span>}
@@ -911,7 +923,7 @@ export default function SetupWizard({
             <div className="grid gap-2 md:gap-[10px]">
             {loadingTrending && (<div className="w-6 h-6 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>)}
             {!loadingTrending && trendingItems.map((it, idx)=> {
-              const selected = data.researchSelected?.title === it.title || data.researchSelected?.url === it.url;
+              const selected = !!data.researchSelected && (data.researchSelected.title === it.title || (!!it.url && data.researchSelected.url === it.url));
               return (
                 <button
                   key={it.url || it.title || idx}
