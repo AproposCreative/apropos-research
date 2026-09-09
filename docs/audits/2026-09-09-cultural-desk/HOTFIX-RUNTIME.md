@@ -40,3 +40,19 @@ til kontrol i brugerens eksisterende indloggede Studio-fane.
 
 Dette hotfix er ikke en implementering af det manglende kildebaserede faktatjek
 eller dokumentation for en automatisk publiceret artikel.
+
+## Livekontrol efter 3985fb5
+
+Vercel READY og korrekt build-id verificeret i den eksisterende indloggede
+Studio-fane. Overblik, Historier, Kilder, Udgivelser og Indstillinger indlæser
+uden JSON-fejlen. Driftsstatus viser Aktiv/Auto-live, og historikken henter 38
+eksisterende publicerede CMS-artikler. En manuel discovery oprettede 10 idéer
+og indlæste GA4-perioderapporten. Det er idéer, ikke publiceringsgodkendte artikler.
+
+Livekontrollen afslørede desuden et gammelt GAFFA-emne (12.05.2026), der blev
+vist som 5. december 2026. Livs daglige emnevalg har derfor fået en særskilt
+dansk/ISO-datoparser og accepterer kun daterede kilder fra de seneste syv dage,
+med højst fem minutters fremtidstolerance. Der ændres ikke i historiske
+Firestore-dokumenter eller SEO-worktreet. Ti datotests dækker dansk dato,
+ISO, ugyldige/udaterede/fremtidige og for gamle kilder. Dette filtrerer det
+daglige trending-emnevalg, ikke alle discovery-idéer; kildeverifikation mangler stadig.
