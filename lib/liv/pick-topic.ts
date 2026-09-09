@@ -10,6 +10,7 @@
 import { logger } from '@/lib/logger';
 import { internalApiHeaders } from '@/lib/api/internal-auth';
 import { getRecentLivDailySlugs, getRecentLivDailyTopics } from '@/lib/liv/daily-history-store';
+import { currentSourceDate } from '@/lib/liv/source-date';
 
 export interface PickedTopic {
   title: string;
@@ -208,6 +209,8 @@ export async function pickLivTopic(options: PickTopicOptions): Promise<PickedTop
   ]);
 
   const ranked = articles
+    .map(article => ({ ...article, date: currentSourceDate(article.date) }))
+    .filter(article => article.date !== null)
     .map((a) => {
       const title = (a.title || '').trim();
       const score = title ? scoreCandidate(a) : 0;

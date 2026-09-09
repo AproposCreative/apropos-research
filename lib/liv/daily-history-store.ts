@@ -9,6 +9,7 @@
 
 import { FieldValue, Timestamp } from 'firebase-admin/firestore';
 import { getAdminDb } from '@/lib/firebase-admin';
+import type { GroundedReport } from '@/lib/factcheck/grounded';
 
 export const LIV_DAILY_COLLECTION = 'livDailyArticles';
 
@@ -103,7 +104,7 @@ export async function claimLivDaily(dayKey: string): Promise<LivDailyClaimResult
 }
 
 /** skipped: gate blev ikke kørt (infra/mangler input); pass kan stadig være true for ikke at blokere publish. */
-export type GateResult = { name: string; pass: boolean; detail?: string; skipped?: boolean };
+export type GateResult = { name: string; pass: boolean; detail?: string; skipped?: boolean; evidence?: GroundedReport };
 
 export type FinishLivDailyInput =
   | {
@@ -120,6 +121,8 @@ export type FinishLivDailyInput =
       topic?: string;
       reason: string;
       gateResults?: GateResult[];
+      /** Preserve the staged item after a failed readback; do not blindly recreate it. */
+      webflowItemId?: string;
     };
 
 export async function finishLivDaily(dayKey: string, input: FinishLivDailyInput): Promise<void> {
@@ -154,6 +157,7 @@ export async function finishLivDaily(dayKey: string, input: FinishLivDailyInput)
       status: skippedOrFailed.status,
       topic: skippedOrFailed.topic?.slice(0, 500) || null,
       reason: skippedOrFailed.reason.slice(0, 1000),
+      ...(skippedOrFailed.webflowItemId ? { webflowItemId: skippedOrFailed.webflowItemId } : {}),
       gateResults: (skippedOrFailed.gateResults || []).slice(0, 20),
       completedAt: FieldValue.serverTimestamp(),
       processingStartedAt: FieldValue.delete(),

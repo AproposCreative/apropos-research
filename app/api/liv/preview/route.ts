@@ -20,8 +20,10 @@ import { env } from '@/lib/config/env';
 import { expandDirective } from '@/lib/liv/expand-directive';
 import { runSafetyGates } from '@/lib/liv/run-safety-gates';
 import { buildResearchQaSummary } from '@/lib/liv/research-qa';
+import { checkCmsDraft } from '@/lib/editorial/cms-preflight';
 
-export const maxDuration = 120;
+// Generation plus bounded source retrieval/factcheck must fit in one preview run.
+export const maxDuration = 300;
 const MIN_VERIFIED_RESEARCH_SOURCES = 2;
 
 function resolveBaseUrl(req: NextRequest): string {
@@ -127,6 +129,8 @@ async function buildPreview(req: NextRequest, input: PreviewRequestInput, uid: s
       intro: article.intro,
       authorName: 'Liv Brandt',
       sourceExcerpt: topic.source?.excerpt,
+      sourceUrls: [...new Set([topic.source?.url, ...(article.researchSources || []).map(source => source.url)].filter((url): url is string => !!url))].slice(0, 8),
+      additionalTexts: [article.subtitle, article.excerpt, article.seoTitle, article.seoDescription].filter(Boolean),
     });
     if (!gates.pass) {
       const failed = gates.failedGate || 'unknown';
@@ -154,6 +158,10 @@ async function buildPreview(req: NextRequest, input: PreviewRequestInput, uid: s
     }
     if (!qa.canAutoPublish) {
       warnings.push(`Auto-publish blokeres nu: ${qa.blockers.join(' · ')}`);
+    }
+    const cmsCheck = checkCmsDraft(article);
+    if (!cmsCheck.publicationReady) {
+      warnings.push('Auto-publish afventer billedrettigheder og kontrol af de faktiske Webflow-referencefelter.');
     }
 
     return NextResponse.json({
@@ -187,8 +195,12 @@ async function buildPreview(req: NextRequest, input: PreviewRequestInput, uid: s
           researchConfidence: qa.researchConfidence,
           lineupNamesUsed: qa.lineupNamesUsed,
           requiresLineupNames: qa.requiresLineupNames,
-          canAutoPublish: qa.canAutoPublish,
-          blockers: qa.blockers,
+          canAutoPublish: qa.canAutoPublish && gates.pass && !gates.anyGateSkipped && cmsCheck.publicationReady,
+          cmsCheck,
+          blockers: [...qa.blockers,
+            ...(!gates.pass || gates.anyGateSkipped ? ['Sikkerhedskontrollerne er ikke fuldt godkendt.'] : []),
+            ...(!cmsCheck.publicationReady ? ['Billedrettigheder og Webflow-referencefelter er ikke verificeret.'] : []),
+          ],
         },
       },
     });

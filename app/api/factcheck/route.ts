@@ -1,5 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getOpenAIClient, models } from '@/lib/openai';
+import { isApiRequestAuthorized } from '@/lib/api/middleware-auth';
+import { groundedInput } from '@/lib/factcheck/grounded';
+import { verifyArticleSources } from '@/lib/factcheck/verify-article';
+
+export const maxDuration = 120;
 
 const SYSTEM_PROMPT = `Du er en faktakontrollør for Apropos Magazine. Du modtager en liste af påstande (claims) fra en artikel.
 
@@ -21,8 +26,27 @@ Svar KUN med JSON-array. Eksempel:
 Vær ærlig om usikkerhed. Brug "unverifiable" når du ikke har tilstrækkelig viden.`;
 
 export async function POST(request: NextRequest) {
+  if (!(await isApiRequestAuthorized(request))) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+  let input: unknown;
+  try { input = await request.json(); } catch {
+    return NextResponse.json({ error: 'Ugyldig JSON.' }, { status: 400 });
+  }
+  if (!input || typeof input !== 'object' || Array.isArray(input)) {
+    return NextResponse.json({ error: 'Et JSON-objekt er påkrævet.' }, { status: 400 });
+  }
+  if ('sourceUrls' in input) {
+    const parsed = groundedInput.safeParse(input);
+    if (!parsed.success) return NextResponse.json({ error: 'Faktatjek kræver artikeltekst (20-40000 tegn) og 1-8 kilde-URL’er.' }, { status: 400 });
+    try {
+      return NextResponse.json(await verifyArticleSources(parsed.data.articleText, parsed.data.sourceUrls), { headers: { 'Cache-Control': 'no-store' } });
+    } catch {
+      return NextResponse.json({ error: 'Kildebaseret faktatjek kunne ikke gennemføres.', complete: false }, { status: 503 });
+    }
+  }
   try {
-    const { claims, articleText } = await request.json();
+    const { claims, articleText } = input as { claims?: string[]; articleText?: string };
 
     if (!Array.isArray(claims) || claims.length === 0) {
       if (!articleText || typeof articleText !== 'string') {
@@ -96,7 +120,7 @@ export async function POST(request: NextRequest) {
       }));
     }
 
-    return NextResponse.json({ ok: true, results, extractedClaims: !claims?.length });
+    return NextResponse.json({ ok: true, results, extractedClaims: !claims?.length, verificationMethod: 'model-advisory', complete: false });
   } catch (e: any) {
     console.error('[factcheck]', e);
     return NextResponse.json({ error: e?.message || 'factcheck failed' }, { status: 500 });
