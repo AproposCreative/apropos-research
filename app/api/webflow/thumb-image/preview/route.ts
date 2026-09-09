@@ -2,13 +2,16 @@ import { NextRequest, NextResponse } from 'next/server';
 import { previewThumbImageOptimization } from '@/lib/webflow/thumb-image-optimizer';
 
 export const dynamic = 'force-dynamic';
+export const maxDuration = 60;
 
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json().catch(() => ({}));
     const result = await previewThumbImageOptimization({
+      offset: Number(body.offset || 0),
       force: !!body.force,
-      maxSizeKB: Number(body.maxSizeKB || 600),
+      maxLongEdge: Number(body.maxLongEdge || 2400),
+      maxSizeKB: Number(body.maxSizeKB || 450),
       minOriginalKB: Number(body.minOriginalKB || 120),
       limit: Number(body.limit || 10),
     });

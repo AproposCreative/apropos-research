@@ -85,6 +85,10 @@ export type SeoOpportunity = {
   appliedBy?: string | null;
   versionIds?: string[];
   skipReason?: string | null;
+  /** Frozen versions persisted before CMS write; retries reconcile uncertain outcomes. */
+  pendingApply?: { key: string; versionIds: string[]; appliedAt: string; cmsLastUpdated?: string | null } | null;
+  cmsWriteState?: 'staged_verified';
+  cmsVerifiedAt?: string | null;
 };
 
 export type OpportunityScanStatus =

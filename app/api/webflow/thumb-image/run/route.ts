@@ -8,11 +8,13 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json().catch(() => ({}));
     const result = await runThumbImageOptimization({
+      offset: Number(body.offset || 0),
       force: !!body.force,
-      maxSizeKB: Number(body.maxSizeKB || 600),
+      maxLongEdge: Number(body.maxLongEdge || 2400),
+      maxSizeKB: Number(body.maxSizeKB || 450),
       minOriginalKB: Number(body.minOriginalKB || 120),
       limit: Number(body.limit || 10),
-      preserveDimensions: body.preserveDimensions !== false,
+      preserveDimensions: body.preserveDimensions === true,
     });
     return NextResponse.json({ ok: true, ...result });
   } catch (e) {

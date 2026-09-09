@@ -19,10 +19,11 @@ const CONTENT_PRESET = {
   force: false,
 };
 const THUMB_PRESET = {
-  maxSizeKB: 600,
+  maxSizeKB: 450,
+  maxLongEdge: 2400,
   minOriginalKB: 120,
   limit: 10,
-  preserveDimensions: true,
+  preserveDimensions: false,
   force: false,
 };
 
@@ -66,7 +67,7 @@ function ResultBanner({ result, mode }: { result: ApiResult; mode: 'preview' | '
   if (mode === 'preview' && ready === 0) {
     return (
       <p className="rounded-lg border border-white/15 bg-white/[0.04] px-3 py-2 text-[11px] text-white/55 leading-snug">
-        Ingen artikler mangler mobil-optimering lige nu.
+        Ingen billeder klar i denne gruppe. Se eventuelle målefejl nedenfor.
       </p>
     );
   }
@@ -93,12 +94,13 @@ function ResultsTable({ rows }: { rows: Array<Record<string, unknown>> }) {
             if (row.ok === true) status = 'Opdateret';
             else if (row.ok === false) status = 'Fejl';
             else if (status === 'ready') status = 'Klar';
-            else if (status === 'skip-existing') status = 'Optimeret';
+            else if (status === 'skip-existing') status = 'Verificeret';
+            else if (status === 'check-failed') status = 'Kunne ikke måles';
             else if (status === 'missing-thumb') status = 'Mangler thumb';
             return (
               <tr key={id} className="border-t border-white/[0.06]">
                 <td className="px-2.5 py-1.5 text-white/80 font-medium truncate max-w-[180px]">{title}</td>
-                <td className="px-2.5 py-1.5 text-white/50">{status}</td>
+                <td className="px-2.5 py-1.5 text-white/50">{status}{row.error ? <span className="block text-red-300">{String(row.error)}</span> : null}</td>
               </tr>
             );
           })}
@@ -108,13 +110,13 @@ function ResultsTable({ rows }: { rows: Array<Record<string, unknown>> }) {
   );
 }
 
-function AutoOptimizeStatusToggle({ enabled, loading }: { enabled: boolean; loading: boolean }) {
+function AutoOptimizeStatusToggle({ enabled, loading }: { enabled: boolean | null; loading: boolean }) {
   return (
     <div className="flex items-center justify-between gap-3 rounded-xl border border-white/[0.06] bg-white/[0.02] px-3.5 py-2.5">
       <div className="min-w-0 text-left">
         <p className="text-[12px] font-medium text-white/80">Auto-optimering</p>
         <p className="text-[10px] text-white/30 truncate">
-          {loading ? 'Tjekker…' : enabled ? 'Slået til' : 'Slået fra'}
+          {loading ? 'Tjekker…' : enabled === null ? 'Status kunne ikke bekræftes' : enabled ? 'Nye artikler: billeder måles og optimeres automatisk' : 'Slået fra'}
         </p>
       </div>
       <div
@@ -122,7 +124,7 @@ function AutoOptimizeStatusToggle({ enabled, loading }: { enabled: boolean; load
         aria-label={
           loading
             ? 'Auto-optimering status indlæses'
-            : enabled
+            : enabled === null ? 'Auto-optimering status ukendt' : enabled
               ? 'Auto-optimering er slået til'
               : 'Auto-optimering er slået fra'
         }
@@ -149,6 +151,7 @@ function OptimizeCard({
   error,
   onScan,
   onRun,
+  onNext,
   stats,
   rows,
 }: {
@@ -160,6 +163,7 @@ function OptimizeCard({
   error: string | null;
   onScan: () => void;
   onRun: () => void;
+  onNext?: () => void;
   stats: Array<[string, string | number]>;
   rows: Array<Record<string, unknown>>;
 }) {
@@ -187,6 +191,7 @@ function OptimizeCard({
           <button type="button" onClick={onScan} disabled={busy} className={secondaryBtn}>
             {previewLoading ? '…' : 'Scan'}
           </button>
+          {onNext ? <button type="button" onClick={onNext} disabled={busy} className={secondaryBtn}>Næste 10</button> : null}
           <button type="button" onClick={onRun} disabled={busy} className={primaryBtn}>
             {runLoading ? '…' : 'Kør'}
           </button>
@@ -195,6 +200,7 @@ function OptimizeCard({
       {error ? <p className="text-red-400/95 text-[11px]">{error}</p> : null}
       {result ? (
         <div className="space-y-2">
+          {typeof result.checked === 'number' ? <p className="text-xs text-white/60">Kontrolleret {result.checked} af {String(result.total)} · fra nr. {Number(result.offset ?? 0) + 1}</p> : null}
           {mode ? <ResultBanner result={result} mode={mode} /> : null}
           <div className="grid grid-cols-3 gap-2">
             {stats.map(([label, value]) => (
@@ -216,7 +222,7 @@ export default function ImageOptimizationSection({
   showHeading?: boolean;
 }) {
   const resultsRef = useRef<HTMLDivElement>(null);
-  const [autoOptimizeEnabled, setAutoOptimizeEnabled] = useState(true);
+  const [autoOptimizeEnabled, setAutoOptimizeEnabled] = useState<boolean | null>(null);
   const [autoOptimizeLoading, setAutoOptimizeLoading] = useState(true);
 
   const [mobilePreviewLoading, setMobilePreviewLoading] = useState(false);
@@ -253,7 +259,7 @@ export default function ImageOptimizationSection({
           setAutoOptimizeEnabled(!!data.enabled);
         }
       } catch {
-        if (!cancelled) setAutoOptimizeEnabled(true);
+        if (!cancelled) setAutoOptimizeEnabled(null);
       } finally {
         if (!cancelled) setAutoOptimizeLoading(false);
       }
@@ -276,12 +282,12 @@ export default function ImageOptimizationSection({
     return data as ApiResult;
   };
 
-  const scanMobile = async () => {
+  const scanMobile = async (offset = 0) => {
     setMobilePreviewLoading(true);
     setMobileError(null);
     setMobileMode('preview');
     try {
-      setMobileResult(await callApi('/api/webflow/mobile-image/preview', MOBILE_PRESET));
+      setMobileResult(await callApi('/api/webflow/mobile-image/preview', { ...MOBILE_PRESET, offset }));
       scrollToResults();
     } catch (e) {
       setMobileError(e instanceof Error ? e.message : String(e));
@@ -295,7 +301,7 @@ export default function ImageOptimizationSection({
     setMobileError(null);
     setMobileMode('run');
     try {
-      setMobileResult(await callApi('/api/webflow/mobile-image/run', MOBILE_PRESET));
+      setMobileResult(await callApi('/api/webflow/mobile-image/run', { ...MOBILE_PRESET, offset: Number(mobileResult?.offset ?? 0) }));
       scrollToResults();
     } catch (e) {
       setMobileError(e instanceof Error ? e.message : String(e));
@@ -330,12 +336,12 @@ export default function ImageOptimizationSection({
     }
   };
 
-  const scanThumb = async () => {
+  const scanThumb = async (offset = 0) => {
     setThumbPreviewLoading(true);
     setThumbError(null);
     setThumbMode('preview');
     try {
-      setThumbResult(await callApi('/api/webflow/thumb-image/preview', THUMB_PRESET));
+      setThumbResult(await callApi('/api/webflow/thumb-image/preview', { ...THUMB_PRESET, offset }));
       scrollToResults();
     } catch (e) {
       setThumbError(e instanceof Error ? e.message : String(e));
@@ -349,7 +355,7 @@ export default function ImageOptimizationSection({
     setThumbError(null);
     setThumbMode('run');
     try {
-      setThumbResult(await callApi('/api/webflow/thumb-image/run', THUMB_PRESET));
+      setThumbResult(await callApi('/api/webflow/thumb-image/run', { ...THUMB_PRESET, offset: Number(thumbResult?.offset ?? 0) }));
       scrollToResults();
     } catch (e) {
       setThumbError(e instanceof Error ? e.message : String(e));
@@ -379,6 +385,7 @@ export default function ImageOptimizationSection({
         error={thumbError}
         onScan={() => void scanThumb()}
         onRun={() => void runThumb()}
+        onNext={typeof thumbResult?.nextOffset === 'number' ? () => void scanThumb(Number(thumbResult.nextOffset)) : undefined}
         stats={[
           ['Artikler', String(thumbResult?.total ?? '—')],
           ['Klar', String(thumbResult?.ready ?? thumbResult?.totalCandidates ?? '—')],
@@ -395,6 +402,7 @@ export default function ImageOptimizationSection({
         error={mobileError}
         onScan={() => void scanMobile()}
         onRun={() => void runMobile()}
+        onNext={typeof mobileResult?.nextOffset === 'number' ? () => void scanMobile(Number(mobileResult.nextOffset)) : undefined}
         stats={[
           ['Artikler', String(mobileResult?.total ?? '—')],
           ['Klar', String(mobileResult?.ready ?? mobileResult?.totalCandidates ?? '—')],

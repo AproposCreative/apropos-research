@@ -1,4 +1,4 @@
-import { createHash } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { FieldValue, type Firestore } from 'firebase-admin/firestore';
 import { getAdminDb } from '@/lib/firebase-admin';
 import type {
@@ -44,59 +44,62 @@ export async function upsertOpportunity(
   const db = requireDb();
   const id = opp.id || opportunityDocId(opp.fingerprint);
   const ref = db.collection(OPP_COL.opportunities).doc(id);
-  const existing = await ref.get();
-  const now = new Date().toISOString();
+  return db.runTransaction(async (tx) => {
+    const existing = await tx.get(ref);
+    const now = new Date().toISOString();
 
-  if (!existing.exists) {
-    const doc: SeoOpportunity = {
+    if (!existing.exists) {
+      const doc: SeoOpportunity = {
+        ...opp,
+        id,
+        status: 'open',
+        createdAt: now,
+        updatedAt: now,
+        versionIds: [],
+      };
+      tx.set(ref, stripUndefined(doc as unknown as Record<string, unknown>));
+      return doc;
+    }
+
+    const prev = existing.data() as SeoOpportunity;
+    // Do not replace a frozen proposal while its CMS outcome is being reconciled.
+    if (prev.pendingApply || prev.status === 'approved') return { ...prev, id };
+    const merged: SeoOpportunity = {
+      ...prev,
       ...opp,
       id,
       status: 'open',
-      createdAt: now,
+      createdAt: prev.createdAt || now,
       updatedAt: now,
-      versionIds: [],
+      versionIds: prev.versionIds || [],
     };
-    await ref.set(stripUndefined(doc as unknown as Record<string, unknown>));
-    return doc;
-  }
+    // Rejected / dismissed stay closed unless ops reopen manually
+    if (prev.status === 'rejected' || prev.status === 'dismissed') {
+      merged.status = prev.status;
 
-  const prev = existing.data() as SeoOpportunity;
-  const merged: SeoOpportunity = {
-    ...prev,
-    ...opp,
-    id,
-    status: 'open',
-    createdAt: prev.createdAt || now,
-    updatedAt: now,
-    versionIds: prev.versionIds || [],
-  };
-  // Rejected / dismissed stay closed unless ops reopen manually
-  if (prev.status === 'rejected' || prev.status === 'dismissed') {
-    merged.status = prev.status;
-  } else if (prev.status === 'approved') {
-    merged.status = 'approved';
-  } else if (prev.status === 'applied' || prev.status === 'rolled_back') {
-    // Reopen after cooldown when fingerprint/evidence materially changed — never lock forever
-    const cooldownExpired = !isAppliedWithinCooldown(prev.appliedAt, now);
-    const evidenceChanged =
-      prev.fingerprint !== opp.fingerprint ||
-      prev.idempotencyKey !== opp.idempotencyKey ||
-      Math.abs((prev.score || 0) - (opp.score || 0)) >= 8;
-    if (cooldownExpired && evidenceChanged) {
+    } else if (prev.status === 'applied' || prev.status === 'rolled_back') {
+      // Reopen after cooldown when fingerprint/evidence materially changed — never lock forever
+      const cooldownExpired = !isAppliedWithinCooldown(prev.appliedAt, now);
+      const evidenceChanged =
+        prev.fingerprint !== opp.fingerprint ||
+        prev.idempotencyKey !== opp.idempotencyKey ||
+        Math.abs((prev.score || 0) - (opp.score || 0)) >= 8;
+      if (cooldownExpired && evidenceChanged) {
+        merged.status = 'open';
+        merged.skipReason = null;
+        merged.appliedAt = prev.appliedAt;
+        merged.versionIds = prev.versionIds || [];
+      } else {
+        merged.status = prev.status;
+      }
+    } else if (prev.status === 'skipped') {
+      // Skipped items reopen on later scan with fresh evidence
       merged.status = 'open';
       merged.skipReason = null;
-      merged.appliedAt = prev.appliedAt;
-      merged.versionIds = prev.versionIds || [];
-    } else {
-      merged.status = prev.status;
     }
-  } else if (prev.status === 'skipped') {
-    // Skipped items reopen on later scan with fresh evidence
-    merged.status = 'open';
-    merged.skipReason = null;
-  }
-  await ref.set(stripUndefined(merged as unknown as Record<string, unknown>), { merge: true });
-  return merged;
+    tx.set(ref, stripUndefined(merged as unknown as Record<string, unknown>), { merge: true });
+    return merged;
+  });
 }
 
 export async function listOpportunities(args?: {
@@ -141,17 +144,20 @@ export async function updateOpportunityStatus(args: {
 }): Promise<SeoOpportunity> {
   const db = requireDb();
   const ref = db.collection(OPP_COL.opportunities).doc(args.id);
-  const snap = await ref.get();
-  if (!snap.exists) throw new Error('Opportunity ikke fundet');
-  const prev = snap.data() as SeoOpportunity;
-  const next: SeoOpportunity = {
-    ...prev,
-    ...args.extra,
-    id: args.id,
-    status: args.status,
-    updatedAt: new Date().toISOString(),
-  };
-  await ref.set(stripUndefined(next as unknown as Record<string, unknown>), { merge: true });
+  const next = await db.runTransaction(async (tx) => {
+    const snap = await tx.get(ref);
+    if (!snap.exists) throw new Error('Opportunity ikke fundet');
+    const prev = snap.data() as SeoOpportunity;
+    const next: SeoOpportunity = {
+      ...prev,
+      ...args.extra,
+      id: args.id,
+      status: args.status,
+      updatedAt: new Date().toISOString(),
+    };
+    tx.set(ref, stripUndefined(next as unknown as Record<string, unknown>), { merge: true });
+    return next;
+  });
   await appendAudit({
     actor: args.actor,
     action:
@@ -352,42 +358,49 @@ export async function setUrlLastAppliedAt(args: {
 export async function claimIdempotencyKey(args: {
   key: string;
   opportunityId: string;
-}): Promise<boolean> {
-  const db = getAdminDb();
-  if (!db) return true;
+}): Promise<string | null> {
+  const db = requireDb();
+  const owner = randomUUID();
   const ref = db.collection(OPP_COL.idempotency).doc(args.key);
   try {
     return await db.runTransaction(async (tx) => {
       const snap = await tx.get(ref);
-      if (snap.exists && snap.data()?.status === 'applied') return false;
+      const data = snap.data();
+      if (data?.status === 'applied') return null;
+      if (data?.status === 'claimed' && (!data.expiresAt || Number(data.expiresAt) > Date.now())) return null;
       tx.set(ref, {
         key: args.key,
         opportunityId: args.opportunityId,
         status: 'claimed',
+        owner,
+        expiresAt: Date.now() + 10 * 60_000,
         claimedAt: new Date().toISOString(),
         createdAt: FieldValue.serverTimestamp(),
       });
-      return true;
+      return owner;
     });
   } catch {
-    return false;
+    return null;
   }
 }
 
 export async function completeIdempotencyKey(args: {
   key: string;
+  owner: string;
   status: 'applied' | 'failed';
 }): Promise<void> {
-  const db = getAdminDb();
-  if (!db) return;
-  await db.collection(OPP_COL.idempotency).doc(args.key).set(
-    {
+  const db = requireDb();
+  const ref = db.collection(OPP_COL.idempotency).doc(args.key);
+  await db.runTransaction(async (tx) => {
+    const snap = await tx.get(ref);
+    if (snap.data()?.owner !== args.owner) {
+      throw Object.assign(new Error('Idempotency lease mistet'), { code: 'write_busy' });
+    }
+    tx.set(ref, {
       status: args.status,
       completedAt: new Date().toISOString(),
-      updatedAt: FieldValue.serverTimestamp(),
-    },
-    { merge: true }
-  );
+    }, { merge: true });
+  });
 }
 
 function stripUndefined(obj: Record<string, unknown>): Record<string, unknown> {

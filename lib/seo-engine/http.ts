@@ -41,6 +41,8 @@ export function mapPipelineError(e: unknown) {
     empty_patch: 400,
     no_versions: 400,
     idempotency_duplicate: 409,
+    write_busy: 409,
+    readback_failed: 502,
     ai_parse_error: 502,
     ai_schema_error: 502,
     ai_timeout: 504,

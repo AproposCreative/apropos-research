@@ -1,3 +1,5 @@
+import { acquireCmsWriteLease } from '@/lib/seo-engine/cms-write-lease';
+import { resolveAutoOpportunityOptimizationEnabled } from '@/lib/seo-engine/opportunity-engine/settings';
 import { logger } from '@/lib/logger';
 import { computeInputVersionHash } from '@/lib/seo-engine/hash';
 import { cmsSeoEmptiness, webflowItemToSeoEngineInput } from '@/lib/seo-engine/cms-contract';
@@ -15,7 +17,8 @@ import { toWebflowSeoPatch, getCmsSeoSlugs, isCmsSeoFieldEmpty } from '@/lib/seo
 import { getSeoVersion } from '@/lib/seo-engine/store';
 import {
   patchArticleFieldDataForLocale,
-  publishArticleItemForLocale,
+  fetchArticleItemByLocale,
+  isWebflowLocalePublished,
   resolveWebflowLocaleIds,
 } from '@/lib/webflow/locale-items';
 
@@ -24,6 +27,7 @@ export type CmsItemSnapshot = {
   fieldData: Record<string, unknown>;
   lastUpdated: string;
   lastPublished?: string | null;
+  isDraft?: boolean;
 };
 
 /** Pure decision helpers for worker tests. */
@@ -82,37 +86,9 @@ async function fetchCmsItemFull(
   itemId: string,
   locale: 'da' | 'en' = 'da'
 ): Promise<CmsItemSnapshot> {
-  const { getWebflowConfig } = await import('@/lib/webflow-config');
-  const { env } = await import('@/lib/config/env');
-  const file = getWebflowConfig();
-  const token = (file.apiToken !== undefined ? file.apiToken : env.WEBFLOW_API_TOKEN) || '';
-  const collectionId =
-    (file.articlesCollectionId !== undefined
-      ? file.articlesCollectionId
-      : env.WEBFLOW_ARTICLES_COLLECTION_ID) || '';
   const { dk, en } = resolveWebflowLocaleIds();
-  const cmsLocaleId = locale === 'en' ? en : dk;
-  const qs = new URLSearchParams({ cmsLocaleId });
-  const url = `https://api.webflow.com/v2/collections/${collectionId}/items/${itemId}?${qs}`;
-  const res = await fetch(url, {
-    headers: { Authorization: `Bearer ${token}`, 'Accept-Version': '1.0.0' },
-  });
-  if (!res.ok) {
-    const j = await res.json().catch(() => ({}));
-    throw new Error(j?.message || `Webflow fetch ${res.status}`);
-  }
-  const item = (await res.json()) as {
-    id?: string;
-    fieldData?: Record<string, unknown>;
-    lastUpdated?: string;
-    lastPublished?: string | null;
-  };
-  return {
-    id: String(item.id || itemId),
-    fieldData: (item.fieldData || {}) as Record<string, unknown>,
-    lastUpdated: String(item.lastUpdated || ''),
-    lastPublished: item.lastPublished ?? null,
-  };
+  const item = await fetchArticleItemByLocale(itemId, locale === 'en' ? en : dk);
+  return { ...item, lastUpdated: item.lastUpdated || '' };
 }
 
 /**
@@ -124,7 +100,11 @@ export async function runSeoEngineJob(jobId: string): Promise<{
   skipped?: boolean;
   reason?: string;
   seoVersionId?: string;
+  cmsWriteState?: 'staged_verified';
 }> {
+  if (!(await resolveAutoOpportunityOptimizationEnabled())) {
+    return { ok: true, skipped: true, reason: 'auto_disabled' };
+  }
   const claimed = await claimSeoEngineJob(jobId);
   if (!claimed) {
     return { ok: true, skipped: true, reason: 'Job ikke claimet (allerede done/busy)' };
@@ -134,9 +114,14 @@ export async function runSeoEngineJob(jobId: string): Promise<{
   const claimKey = `${claimed.itemId}:${locale}`;
   let contentHash: string | null = null;
   let contentClaimed = false;
+  let lease: Awaited<ReturnType<typeof acquireCmsWriteLease>> | undefined;
 
   try {
     const item = await fetchCmsItemFull(claimed.itemId, locale);
+    if (!isWebflowLocalePublished(item)) {
+      await updateSeoEngineJob(jobId, { status: 'skipped', skipReason: 'locale_not_published' });
+      return { ok: true, skipped: true, reason: 'locale_not_published' };
+    }
     if (shouldSkipBothSeoFilled(item.fieldData)) {
       await updateSeoEngineJob(jobId, {
         status: 'skipped',
@@ -216,6 +201,7 @@ export async function runSeoEngineJob(jobId: string): Promise<{
       return { ok: false, reason: 'stale_after_strategy' };
     }
 
+    lease = await acquireCmsWriteLease(claimed.itemId, locale);
     const fresh = await fetchCmsItemFull(claimed.itemId, locale);
     if (
       isFreshFetchStaleVsAnalyzed({
@@ -233,6 +219,9 @@ export async function runSeoEngineJob(jobId: string): Promise<{
       return { ok: false, reason: 'stale_fresh_lastUpdated', seoVersionId: strategy.seoVersionId };
     }
 
+    if (!isWebflowLocalePublished(fresh)) {
+      throw Object.assign(new Error('Artiklen er nu kladde'), { code: 'revision_conflict' });
+    }
     const freshEmpty = cmsSeoEmptiness(fresh.fieldData);
     if (!freshEmpty.anyEmpty) {
       await completeContentClaim(claimKey, inputVersionHash, 'skipped');
@@ -279,6 +268,15 @@ export async function runSeoEngineJob(jobId: string): Promise<{
 
     const { dk, en } = resolveWebflowLocaleIds();
     const cmsLocaleId = locale === 'en' ? en : dk;
+    const beforeWrite = await fetchCmsItemFull(claimed.itemId, locale);
+    if (!isWebflowLocalePublished(beforeWrite) || beforeWrite.lastUpdated !== fresh.lastUpdated ||
+        JSON.stringify(beforeWrite.fieldData) !== JSON.stringify(fresh.fieldData)) {
+      throw Object.assign(new Error('CMS ændret før skrivning'), { code: 'revision_conflict' });
+    }
+    if (!(await resolveAutoOpportunityOptimizationEnabled())) {
+      throw Object.assign(new Error('Automatisk SEO er stoppet'), { code: 'auto_disabled' });
+    }
+    await lease.assertOwned();
     await patchArticleFieldDataForLocale(claimed.itemId, cmsPatch, cmsLocaleId);
 
     const verified = await fetchCmsItemFull(claimed.itemId, locale);
@@ -299,16 +297,13 @@ export async function runSeoEngineJob(jobId: string): Promise<{
       }
     }
 
-    // Publish only if the item was already published (never publish drafts via auto)
-    // Does not alter original publish date — Webflow publish keeps created publishDate.
-    if (fresh.lastPublished) {
-      await publishArticleItemForLocale(claimed.itemId, cmsLocaleId);
-    }
-
+    // Staged metadata only. Publishing an item could release unrelated editorial drafts.
     await completeContentClaim(claimKey, inputVersionHash, 'succeeded');
     contentClaimed = false;
     await updateSeoEngineJob(jobId, {
       status: 'succeeded',
+      cmsWriteState: 'staged_verified',
+      cmsVerifiedAt: new Date().toISOString(),
       seoVersionId: strategy.seoVersionId,
       inputVersionHash,
     });
@@ -320,7 +315,7 @@ export async function runSeoEngineJob(jobId: string): Promise<{
       patched: Object.keys(cmsPatch),
     });
 
-    return { ok: true, seoVersionId: strategy.seoVersionId };
+    return { ok: true, seoVersionId: strategy.seoVersionId, cmsWriteState: 'staged_verified' };
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e);
     logger.error(
@@ -337,6 +332,11 @@ export async function runSeoEngineJob(jobId: string): Promise<{
       }
     }
 
+    const code = (e as { code?: string }).code;
+    if (code === 'auto_disabled' || code === 'write_busy') {
+      await requeueSeoEngineJob(jobId, code, { refundAttempt: true });
+      return { ok: false, reason: code };
+    }
     const attempt = claimed.attempt || 1;
     const terminal = attempt >= (claimed.maxAttempts || 3);
     await updateSeoEngineJob(jobId, {
@@ -344,6 +344,8 @@ export async function runSeoEngineJob(jobId: string): Promise<{
       lastError: message.slice(0, 500),
     });
     return { ok: false, reason: message };
+  } finally {
+    await lease?.release().catch(() => undefined);
   }
 }
 

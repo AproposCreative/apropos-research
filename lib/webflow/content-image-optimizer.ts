@@ -1,9 +1,10 @@
+import { load } from 'cheerio';
+import { replaceOptimizedImageHtml } from '@/lib/images/output-image-html';
 import { FieldValue } from 'firebase-admin/firestore';
 import { getAdminDb } from '@/lib/firebase-admin';
 import { optimizeAndUploadImage, type OptimizeAndUploadImageResult } from '@/lib/images/optimize-and-upload';
 import {
   buildContentImageRole,
-  buildImageAltText,
   resolveArticleSeoImageBaseName,
 } from '@/lib/images/seo-image-name';
 import { logger } from '@/lib/logger';
@@ -94,16 +95,11 @@ async function fetchAllArticleItems(): Promise<any[]> {
 export function extractImageSrcsFromHtml(html: string): ContentImageEntry[] {
   if (!html || typeof html !== 'string') return [];
   const entries: ContentImageEntry[] = [];
-  const re = /<img\b[^>]*\bsrc\s*=\s*["']([^"']+)["'][^>]*>/gi;
-  let match: RegExpExecArray | null;
-  let index = 0;
-  while ((match = re.exec(html)) !== null) {
-    const src = match[1]?.trim();
-    if (src && /^https?:\/\//i.test(src)) {
-      entries.push({ src, index });
-      index += 1;
-    }
-  }
+  const $ = load(html);
+  $('img').each((_index, element) => {
+    const src = $(element).attr('src')?.trim();
+    if (src && /^https?:\/\//i.test(src)) entries.push({ src, index: entries.length });
+  });
   return entries;
 }
 
@@ -253,29 +249,6 @@ async function logContentOptimization(result: ContentImageRunResult): Promise<vo
   });
 }
 
-function escapeHtmlAttr(value: string): string {
-  return value
-    .replace(/&/g, '&amp;')
-    .replace(/"/g, '&quot;')
-    .replace(/</g, '&lt;');
-}
-
-function replaceImageSrc(html: string, oldSrc: string, newSrc: string, alt?: string): string {
-  let next = html.split(oldSrc).join(newSrc);
-  if (!alt?.trim()) return next;
-
-  const escapedSrc = newSrc.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  const imgRe = new RegExp(`(<img\\b[^>]*\\bsrc\\s*=\\s*["']${escapedSrc}["'])([^>]*>)`, 'gi');
-  next = next.replace(imgRe, (match, prefix: string, suffix: string) => {
-    const safeAlt = escapeHtmlAttr(alt.trim());
-    if (/\balt\s*=\s*["'][^"']+["']/i.test(match)) {
-      return `${prefix}${suffix.replace(/\balt\s*=\s*["'][^"']*["']/i, `alt="${safeAlt}"`)}`;
-    }
-    return `${prefix} alt="${safeAlt}"${suffix}`;
-  });
-  return next;
-}
-
 export type ContentImageInlineOptimizeResult = {
   html: string;
   imagesOptimized: number;
@@ -342,12 +315,7 @@ export async function optimizeContentHtmlInline(
         baseName,
         role,
       });
-      const alt = buildImageAltText({
-        seoTitle: options.articleSeoTitle,
-        articleTitle: options.articleTitle,
-        role,
-      });
-      nextHtml = replaceImageSrc(nextHtml, img.src, output.url, alt);
+      nextHtml = replaceOptimizedImageHtml(nextHtml, img.src, output);
       imagesOptimized += 1;
     } catch (e) {
       imagesFailed += 1;
@@ -541,12 +509,7 @@ export async function runContentImageOptimization(options: ContentImageOptimizeO
           baseName,
           role,
         });
-        const alt = buildImageAltText({
-          seoTitle,
-          articleTitle: candidate.title,
-          role,
-        });
-        html = replaceImageSrc(html, img.src, output.url, alt);
+        html = replaceOptimizedImageHtml(html, img.src, output);
         outputs.push(output);
         articleImagesOk += 1;
         imagesOptimized += 1;

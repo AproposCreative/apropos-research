@@ -8,6 +8,7 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json().catch(() => ({}));
     const result = await runMobileImageOptimization({
+      offset: Number(body.offset || 0),
       force: !!body.force,
       maxSizeKB: Number(body.maxSizeKB || 260),
       maxLongEdge: Number(body.maxLongEdge || 1200),

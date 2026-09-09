@@ -5,7 +5,7 @@
  * Fail-closed: Firestore/settings read failures → auto OFF (never fall back to enabled).
  * Env:
  *   SEO_ENGINE_AUTO_OPPORTUNITY_OPT=false  → force off (kill-switch)
- *   SEO_ENGINE_AUTO_OPPORTUNITY_OPT=true   → force on (ops override)
+ *   SEO_ENGINE_AUTO_OPPORTUNITY_OPT=true   → enable default; never overrides an emergency stop
  *   unset                                  → ON only after successful settings read with no stop
  */
 
@@ -47,8 +47,6 @@ export async function resolveAutoOpportunityOptimizationEnabled(): Promise<boole
   const envParsed = parseAutoOpportunityOptEnv(process.env.SEO_ENGINE_AUTO_OPPORTUNITY_OPT);
   // Explicit env false always wins (ops kill-switch without Firestore)
   if (envParsed.explicit && !envParsed.enabled) return false;
-  // Explicit env true forces on even if Firestore is down (ops override)
-  if (envParsed.explicit && envParsed.enabled) return true;
 
   const db = getAdminDb();
   if (!db) {

@@ -45,7 +45,7 @@ export async function maybeEnqueueSeoEngineAfterPublish(args: {
       resolveAutomaticOpportunityRuntime(),
     ]);
 
-    const allow = runtime.shouldAutoFillOnPublish || legacyAutoSeo;
+    const allow = runtime.killSwitchEnabled && (runtime.shouldAutoFillOnPublish || legacyAutoSeo);
     if (!allow) {
       return {
         enqueued: false,

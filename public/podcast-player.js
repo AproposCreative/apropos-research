@@ -73,7 +73,7 @@
     '</a>' +
     '</div>' +
     '<div class="audio-player__meta">' +
-    '<img data-apropos-podcast-artwork="" alt="" src="https://cdn.prod.website-files.com/67dbf17ba540975b5b21c180/67ed19b047d73997242e9f86_05AproposMagazine_Random.webp" class="audio-player__artwork"/>' +
+    '<img data-apropos-podcast-artwork="" alt="" width="44" height="44" src="https://cdn.prod.website-files.com/67dbf17ba540975b5b21c180/67ed19b047d73997242e9f86_05AproposMagazine_Random-p-500.webp" class="audio-player__artwork"/>' +
     '<div class="audio-player__meta-text">' +
     '<div class="audio-player__title-row"><div class="audio-player__title-mask">' +
     '<p data-apropos-podcast-title="" class="audio-player__title">Artikeltitel</p>' +

@@ -49,7 +49,7 @@ export async function PATCH(req: NextRequest) {
       await setAutoOpportunityOptimizationEnabled(body.autoOpportunityOptEnabled);
       return NextResponse.json({
         ok: true,
-        autoOpportunityOptEnabled: body.autoOpportunityOptEnabled,
+        autoOpportunityOptEnabled: await resolveAutoOpportunityOptimizationEnabled(),
       });
     }
     if (typeof body.enabled !== 'boolean') {

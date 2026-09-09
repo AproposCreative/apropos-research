@@ -10,7 +10,7 @@ export const dynamic = 'force-dynamic';
 
 /**
  * Optional manual scan (not required for normal ops).
- * Default mode=optimize and auto-applies when automatic drift is active.
+ * Default is collection only. Optimization writes require explicit autoApply=true.
  */
 export async function POST(req: NextRequest) {
   const auth = await requireSeoEngineUser(req);
@@ -19,10 +19,10 @@ export async function POST(req: NextRequest) {
     const body = (await req.json().catch(() => ({}))) as {
       limit?: number;
       mode?: 'collect' | 'optimize';
-      /** @deprecated — automatic by default; set false to collect-only */
+      /** Explicit opt-in to write staged metadata. */
       autoApply?: boolean;
     };
-    const mode = body.mode || 'optimize';
+    const mode = body.mode || 'collect';
     const report = await runOpportunityScan({
       actor: auth.userId,
       limit: body.limit,
@@ -32,7 +32,7 @@ export async function POST(req: NextRequest) {
 
     let autoApply: { applied: string[]; skipped: Array<{ id: string; reason: string }> } | null =
       null;
-    const shouldApply = body.autoApply !== false && mode === 'optimize';
+    const shouldApply = body.autoApply === true && mode === 'optimize';
     if (shouldApply) {
       autoApply = await maybeAutoApplyOpportunities({
         opportunities: report.opportunities,

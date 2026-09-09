@@ -7,7 +7,24 @@
 - Scope: `lib/seo-engine/**`, `app/api/seo-engine/**`, `app/api/internal/seo-engine-article/**`, `app/api/cron/seo-engine-recovery/**`, `app/ai/seo/**`, `components/settings/SeoEngineSection.tsx`, `test/seo-engine*.ts`.
 - Known legacy deviations outside this gate: global `strict: false`; ProductStoryShowcase lint debt (unrelated).
 
-## Feature flags (default OFF for auto)
+## Current write contract (2026-09-09)
+
+| Path | Permission / stop rule | CMS result |
+| --- | --- | --- |
+| Publish empty-fill | Opportunity stop must allow work; opportunity runtime or legacy empty-fill enabled | DA/EN published locales only; empty fields saved and read back as staged metadata |
+| Recovery | Same stop rule; kick original durable job ID, retaining locale and attempts | No replacement DA job for an EN job |
+| Weekly optimize | Readable settings, no env/stored stop, healthy connections and guardrails | Staged metadata, exact readback; no item publication |
+| Manual scan | Default collect; writes require mode=optimize and autoApply=true | UI confirms up to 10 staged changes |
+| Manual approved apply / rollback | Explicit editorial action; conflict checks and per-item/locale lease | Staged metadata, exact readback; no item publication |
+| Archive/content/backfill | Separate frozen preview and confirmation | These existing explicit workflows can publish; do not use for unattended audit |
+
+`SEO_ENGINE_AUTO_OPPORTUNITY_OPT=false` or a stored `autoOpportunityOptEnabled=false` stops new automatic writes, including legacy empty-fill. Environment true never overrides stored stop or unreadable settings. The worker checks stop before processing and again before writing. A request already sent to CMS cannot be recalled.
+
+`applied` is a legacy internal status: new writes additionally record `cmsWriteState=staged_verified` and `cmsVerifiedAt`. Neither means live publication. The editorial publication flow owns publication; SEO must not release unrelated staged body changes. Cooldown is measured from the staged operation as a write throttle, not as proof of SEO effect.
+
+Rollback reads the current locale and only restores fields still matching the recorded operation, or reconciles fields already restored by a prior attempt. It marks history complete after exact readback. Apply persists frozen pending versions before PATCH so uncertain responses can be reconciled without regeneration.
+
+## Feature flags
 
 | Flag | Default | Effect |
 |------|---------|--------|
@@ -23,7 +40,7 @@
 - **Production default ON** (nød-stop via Settings / `SEO_ENGINE_AUTO_OPPORTUNITY_OPT=false`)
 - Publish: empty SEO fill enqueue (fail closed — never blocks publish)
 - Cron daily = collect; weekly = optimize (max 10, 14d cooldown, confidence gates)
-- Safe writes only: seo-title / meta-description (+ server JSON-LD snapshot)
+- Safe writes only: seo-title / meta-description (staged metadata only)
 - UI: SEO Engine → **Optimering** (status + nød-stop + rollback) — no ongoing Scan needed
 - Docs: `docs/seo-engine-opportunity-engine.md`
 - Review JSON-LD (server HTML): `docs/seo-engine-review-jsonld.md`
@@ -104,11 +121,11 @@ Deploy `firestore.indexes.json` **before** relying on:
 
 ## Empty-only CMS write
 
-Re-fetch before PATCH; only still-empty `seo-title` / `meta-description` on **DK locale** helpers. Never EN.
+Re-fetch before PATCH; only still-empty `seo-title` / `meta-description` in the job’s **DA or EN locale**. Skip drafts. Exact readback, no automatic item publication.
 
 ## One-off overwrite backfill
 
-Separate from the auto worker (does **not** change DK-only / fill-empty rules).
+Separate from the auto worker (does **not** change locale-aware / fill-empty rules).
 
 ```bash
 # 1) Dry-run (zero Webflow writes) — real AI; writes frozen manifest
@@ -142,11 +159,11 @@ npm run seo-engine:backfill-overwrite -- \
 
 ## Rollout
 
-1. Keep auto **OFF** (`WEBFLOW_AUTO_SEO_ENGINE=false`, Settings toggle off).
+1. Keep automatic writes **OFF** (`SEO_ENGINE_AUTO_OPPORTUNITY_OPT=false`, opportunity toggle off; legacy enable cannot override the stop).
 2. Manual AI smoke: authenticated POST `/api/seo-engine/analyze` (≥200 char body) → `mode: "ai"`, Zod-valid — no worker/CMS write.
 3. Staging worker with empty DK SEO fields (internal secret + one item).
 4. Enable toggle / env → monitor logs (webhook enqueue, worker, recovery cron).
-5. **Rollback** = toggle OFF (and/or env `false`) — stops new auto work; in-flight jobs may finish.
+5. **Rollback** = toggle OFF (and/or env `false`) — blocks new automatic CMS requests; a request already sent may finish. Legacy enable cannot override this stop.
 
 ## Ops checklist
 
