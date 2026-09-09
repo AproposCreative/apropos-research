@@ -116,3 +116,9 @@ Recovery-reglen fra projektets brugerleverede AGENTS.md: “Push and deploy rema
 ### Lokal validering
 
 494 tests i 48 filer bestod med isoleret `RAGE_STORAGE_DIR=./tmp/vitest-rage`. Efter en TypeScript-kompatibilitetsrettelse til Cheerio-kald blev de seks billedtests kørt igen og bestod. Global TypeScript og strict SEO-TypeScript bestod. ESLint bestod for de tre ændrede TypeScript-filer; audit-scriptet er undtaget af repoets ESLint-konfiguration og blev i stedet kørt mod de 465 offentlige sider. `git diff --check` bestod. Den tidligere programrettelse er build-verificeret; denne ekstra billedrettelse er ikke kørt gennem en ny produktionsbuild. Ingen afhængigheder er tilføjet eller ændret.
+
+### Opfølgning: konkret Webflow-pilot og build
+
+[WEBFLOW-PILOT.md](WEBFLOW-PILOT.md) indeholder verificerede offentlige side-ID'er, reelle SVG-forhold og konkrete før/efter-forslag. Direkte Webflow-arbejde afventer, at Apropos tilknyttes connectoren: siteoversigten viser kun Azide/North Consulting, og Apropos-sitekaldet returnerer 404. Ingen Webflow-mutation er udført.
+
+Den ekstra billedrettelse er nu også verificeret med en fuld lokal Next-produktionsbuild uden servicecredentials, efter bestået `assert-safe-build-config.mjs`. Bygningen bestod. Dette erstatter begrænsningen om manglende ny build i afsnittet ovenfor. Ingen ændringer i tracked researchdata, Liv-kode, dependencies eller Vitest-storagekonfiguration.
