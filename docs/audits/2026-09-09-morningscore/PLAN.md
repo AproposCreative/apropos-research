@@ -122,3 +122,13 @@ Recovery-reglen fra projektets brugerleverede AGENTS.md: “Push and deploy rema
 [WEBFLOW-PILOT.md](WEBFLOW-PILOT.md) indeholder verificerede offentlige side-ID'er, reelle SVG-forhold og konkrete før/efter-forslag. Direkte Webflow-arbejde afventer, at Apropos tilknyttes connectoren: siteoversigten viser kun Azide/North Consulting, og Apropos-sitekaldet returnerer 404. Ingen Webflow-mutation er udført.
 
 Den ekstra billedrettelse er nu også verificeret med en fuld lokal Next-produktionsbuild uden servicecredentials, efter bestået `assert-safe-build-config.mjs`. Bygningen bestod. Dette erstatter begrænsningen om manglende ny build i afsnittet ovenfor. Ingen ændringer i tracked researchdata, Liv-kode, dependencies eller Vitest-storagekonfiguration.
+
+### Opfølgning: Morningscore-kontrol og automatisk eftermåling
+
+Brugeren har nu bedt om efterkontrol i Morningscore og optimering af hele området. Genaflæsning 9. september: fortsat 72/100, 458 sider og 1.825 store billedforekomster; seneste scanning er stadig 8. september 16:05. Ingen forbedring tilskrives lokale ændringer. Implementeringsstatus og 510 beståede tests er beskrevet i AUTOMATION.md; dette erstatter tidligere valideringsstatus ovenfor.
+
+GEO-rapporten kunne nu åbnes: 43%, rapportdato 8. september, 924 sider. Delmål: SEO 40%, brandomtale 40% (160 websites), indhold 79%, anmeldelser 0%, links 40%, sociale medier 60% (9 platforme, 349 omtaler). Indholdsfanen viser kun to underliggende tests: website-helbred 87% og antal sider 70%. GEO's 87% er ikke samme tal som helbredsrapportens 72/100; forskellige rapporter/dækning må ikke blandes. Anmeldelser 0% vedrører anmeldelser af virksomheden, ikke antallet af kulturartikler eller journalistiske ratings. Det er ikke begrundelse for at opfinde ratings, købe omtale eller fylde sitet med flere sider.
+
+Daglig opfølgning kl. 10 er oprettet i denne opgave, automation `kontroll-r-apropos-efter-seo-udgivelse`. Den forbliver stille indtil dokumenteret godkendt udgivelse af billed-/SEO-rettelserne og starter derefter offentlig pilotkontrol og Morningscore-scan. Sammenlign samme URL/locale-dækning og scan-tidspunkt, og registrér både løste og resterende fund. Efterkontrollen autoriserer ikke selve udgivelsen eller CMS-masseændringer. Ingen ny scan, AI Fix eller ændring af Morningscores problemstatus udført under denne genaflæsning.
+
+Arbejdsrækkefølgen er fortsat: fælles billed-/skabelonfejl og performance, derefter metadata/H1 og relevante interne links på pilotsider, derefter indholds-/søgeordsarbejde koordineret med Liv. Releasegodkendelse og visuel responsive-verifikation er fortsat åbne; hele sitet er ikke færdigoptimeret.
