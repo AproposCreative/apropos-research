@@ -70,8 +70,6 @@ export function isLineupTopic(input: {
   const hay = [
     input.topicTitle || '',
     input.topicHint || '',
-    input.directiveHint || '',
-    input.expandedDirective || '',
   ]
     .join(' ')
     .toLowerCase();

@@ -120,6 +120,7 @@ async function buildPreview(req: NextRequest, input: PreviewRequestInput, uid: s
     const article = await generateLivArticle({
       topic,
       expandedDirective: expanded.expandedDirective,
+      directiveHint,
       baseUrl,
     });
     const gates = await runSafetyGates({
@@ -128,7 +129,7 @@ async function buildPreview(req: NextRequest, input: PreviewRequestInput, uid: s
       content: article.content,
       intro: article.intro,
       authorName: 'Liv Brandt',
-      sourceExcerpt: topic.source?.excerpt,
+      sourceExcerpt: topic.source?.excerpt || article.researchSources?.[0]?.snippet,
       sourceUrls: [...new Set([topic.source?.url, ...(article.researchSources || []).map(source => source.url)].filter((url): url is string => !!url))].slice(0, 8),
       additionalTexts: [article.subtitle, article.excerpt, article.seoTitle, article.seoDescription].filter(Boolean),
     });

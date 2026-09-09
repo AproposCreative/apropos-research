@@ -164,6 +164,7 @@ export async function GET(req: NextRequest) {
     const article = await generateLivArticle({
       topic,
       expandedDirective: plan?.expandedDirective,
+      directiveHint: plan?.directiveHint,
       baseUrl,
     });
 
@@ -221,7 +222,7 @@ export async function GET(req: NextRequest) {
       content: article.content,
       intro: article.intro,
       authorName: 'Liv Brandt',
-      sourceExcerpt: topic.source?.excerpt,
+      sourceExcerpt: topic.source?.excerpt || article.researchSources?.[0]?.snippet,
       sourceUrls: [...new Set([topic.source?.url, ...(article.researchSources || []).map(source => source.url)].filter((url): url is string => !!url))].slice(0, 8),
       additionalTexts: [article.subtitle, article.excerpt, article.seoTitle, article.seoDescription].filter(Boolean),
       requireCompleteVerification: publicationMode === 'auto_publish',
