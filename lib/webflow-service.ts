@@ -13,6 +13,7 @@ import {
 } from '@/lib/webflow/field-mapping';
 import { fotoCreditFromFeaturedUrl } from '@/lib/liv/cms-webflow-meta';
 import { resolveBestOfficialFeaturedImage } from '@/lib/liv/fetch-official-images';
+import { resolveCmsFeaturedImage, cmsThumbValue } from '@/lib/liv/cms-image-input';
 import type {
   WebflowArticleFields,
   WebflowAuthor,
@@ -604,8 +605,8 @@ export async function publishArticleToWebflow(articleData: WebflowArticleFields)
     };
 
     const imageSourceList = mergeImageSourceUrls();
-    if (imageSourceList.length > 0) {
-      const fromOfficial = await resolveBestOfficialFeaturedImage(imageSourceList);
+    if (!articleData.featuredImage?.trim()) {
+      const fromOfficial = await resolveCmsFeaturedImage(articleData, imageSourceList, resolveBestOfficialFeaturedImage);
       if (fromOfficial) {
         articleData.featuredImage = fromOfficial;
         logger.info('[webflow] featuredImage from official page (og / JSON-LD)', {
@@ -1146,7 +1147,7 @@ async function buildFieldDataFromMapping(articleData: WebflowArticleFields, mapp
       } else if (isLikelyUrl(imageUrl)) {
         // Use 'thumb' as the slug (from mapping.json) - this should match Webflow field slug
         // Always set thumb if we have a valid HTTP URL (even if mapping already set it, use the direct value)
-        data['thumb'] = imageUrl;
+        data['thumb'] = cmsThumbValue(imageUrl, articleData.featuredImageAlt);
         console.log('🖼️ Added featured image URL to field data (thumb):', imageUrl.substring(0, 100) + '...');
       } else {
         logger.warn('[webflow] featured image URL is not valid HTTP/HTTPS', { imageUrl: imageUrl.substring(0, 100) });
@@ -1180,7 +1181,7 @@ async function buildFieldDataFromMapping(articleData: WebflowArticleFields, mapp
   if (!data['thumb'] && articleData.featuredImage) {
     const imageUrl = articleData.featuredImage.trim();
     if (isLikelyUrl(imageUrl)) {
-      data['thumb'] = imageUrl;
+      data['thumb'] = cmsThumbValue(imageUrl, articleData.featuredImageAlt);
       console.log('✅ Added thumb as final fallback (HTTP URL):', imageUrl.substring(0, 100) + '...');
     } else if (!imageUrl.startsWith('data:image/')) {
       logger.warn('[webflow] featuredImage exists but is neither HTTP URL nor data URL', { imageUrl: imageUrl.substring(0, 100) });

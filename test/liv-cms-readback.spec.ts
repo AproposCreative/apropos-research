@@ -3,12 +3,14 @@ vi.mock('@/lib/config/env', () => ({ env: {} }));
 vi.mock('@/lib/webflow-config', () => ({ getWebflowConfig: () => ({ apiToken: 'test-only' }) }));
 import { inspectLivCmsDraft, readLivWebflowJson } from '@/lib/liv/cms-readback';
 import type { WebflowArticleFields } from '@/lib/webflow/types';
+import { createHash } from 'node:crypto';
+import sharp from 'sharp';
 
 const collectionId = 'a'.repeat(24), localeId = 'b'.repeat(24), itemId = 'c'.repeat(24);
 const authorId = 'd'.repeat(24), sectionId = 'e'.repeat(24);
 const authorCollection = '1'.repeat(24), sectionCollection = '2'.repeat(24);
 const expected: WebflowArticleFields = { id: 'liv', title: 'Et museum åbner', slug: 'et-museum-aabner',
-  content: 'Indhold', subtitle: 'Undertitel', seoTitle: 'SEO', seoDescription: 'Meta', author: 'Liv Brandt',
+  content: 'Indhold', intro: 'Intro', subtitle: 'Undertitel', seoTitle: 'SEO', seoDescription: 'Meta', author: 'Liv Brandt',
   category: 'Kultur', status: 'draft', tags: [], wordCount: 1000, readTime: 5 };
 function fixture() {
   const item = { id: itemId, cmsLocaleId: localeId, isDraft: true, isArchived: false,
@@ -31,6 +33,25 @@ function fixture() {
   return { item, schema, read, dependencies: { read, collectionId, localeId } };
 }
 afterEach(() => vi.unstubAllGlobals());
+it('compares all visible body/intro text instead of mere presence', async () => {
+  const f = fixture(); f.item.fieldData.content = '<p>Indhold med en opdigtet slutning</p>'; f.item.fieldData.intro = 'En anden intro';
+  const result = await inspectLivCmsDraft({ itemId, expected }, f.dependencies);
+  expect(result.checks).toContainEqual({ id: 'field:content', ok: false });
+  expect(result.checks).toContainEqual({ id: 'field:intro', ok: false });
+});
+it('checks actual CMS bytes even when Webflow rewrites the URL, and rejects changed pixels/alt/credit', async () => {
+  const f = fixture();
+  const bytes = await sharp({ create: { width: 1920, height: 1080, channels: 3, background: '#ddd' } }).webp().toBuffer();
+  const payload = { ...expected, featuredImage: 'https://museum.dk/original.webp', featuredImageHash: createHash('sha256').update(bytes).digest('hex'), featuredImageAlt: 'To stole på et museum', fotoCredit: 'Fotograf' };
+  Object.assign(f.item.fieldData.thumb, { alt: payload.featuredImageAlt }); f.item.fieldData['foto-credit'] = 'Fotograf';
+  const readImage = vi.fn().mockResolvedValue(bytes);
+  const result = await inspectLivCmsDraft({ itemId, expected: payload }, { ...f.dependencies, readImage });
+  expect(result.checks).toContainEqual({ id: 'image:stored-bytes-match', ok: true }); expect(result.publicationReady).toBe(false);
+  expect(readImage).toHaveBeenCalledWith('https://example.com/image.webp');
+  readImage.mockResolvedValue(Buffer.from('changed')); Object.assign(f.item.fieldData.thumb, { alt: 'Andet motiv' }); f.item.fieldData['foto-credit'] = 'Anden';
+  const changed = await inspectLivCmsDraft({ itemId, expected: payload }, { ...f.dependencies, readImage });
+  for (const id of ['image:stored-bytes-match', 'image:alt-matches', 'image:credit-matches']) expect(changed.checks).toContainEqual({ id, ok: false });
+});
 it('checks the actual CMS star field for a rated article', async () => {
   const f = fixture();
   f.schema.fields.push({ slug: 'stjerne', type: 'Number' });

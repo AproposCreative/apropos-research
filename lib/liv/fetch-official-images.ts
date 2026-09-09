@@ -6,12 +6,12 @@
  * i stedet for AI-genererede fantasibilleder.
  */
 
-const DEFAULT_UA =
-  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36';
+import { sourceUrl } from '@/lib/factcheck/source-reader';
+import { readPublicMedia } from '@/lib/liv/public-media-reader';
 
 function absoluteUrl(raw: string, base: string): string | null {
   try {
-    return new URL(raw.trim(), base).toString();
+    return sourceUrl(new URL(raw.trim(), base).href).href;
   } catch {
     return null;
   }
@@ -124,32 +124,8 @@ export async function fetchOfficialImagesFromPage(
   opts?: { timeoutMs?: number }
 ): Promise<string[]> {
   try {
-    const u = new URL(pageUrl);
-    if (!/^https?:$/i.test(u.protocol)) return [];
-  } catch {
-    return [];
-  }
-
-  const timeoutMs = opts?.timeoutMs ?? 8000;
-  try {
-    const ctrl = new AbortController();
-    const t = setTimeout(() => ctrl.abort(), timeoutMs);
-    const res = await fetch(pageUrl, {
-      cache: 'no-store',
-      signal: ctrl.signal,
-      redirect: 'follow',
-      headers: {
-        Accept: 'text/html,application/xhtml+xml;q=0.9,*/*;q=0.8',
-        'Accept-Language': 'da,en;q=0.9',
-        'User-Agent': DEFAULT_UA,
-      },
-    });
-    clearTimeout(t);
-    if (!res.ok) return [];
-    const ct = res.headers.get('content-type') || '';
-    if (!/text\/html|application\/xhtml/i.test(ct)) return [];
-    const html = await res.text();
-    return extractCandidateImagesFromHtml(html, pageUrl);
+    const html = await readPublicMedia(pageUrl, 'html', opts?.timeoutMs ?? 8000);
+    return extractCandidateImagesFromHtml(html.toString('utf8'), pageUrl);
   } catch {
     return [];
   }

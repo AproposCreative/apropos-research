@@ -79,6 +79,8 @@ export function normalizeArticlePayload(
     author,
     rating: input.rating,
     featuredImage: input.featuredImage,
+    featuredImageAlt: input.featuredImageAlt,
+    featuredImageHash: input.featuredImageHash,
     gallery: input.gallery,
     publishDate: input.publishDate || new Date().toISOString(),
     status,

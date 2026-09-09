@@ -6,6 +6,7 @@ import type { DeskStory } from '@/lib/editorial/desk-types';
 import LivPostingClient from './LivPostingClient';
 import type { AudienceSnapshot } from '@/lib/editorial/audience-research';
 import { readJsonResponse } from '@/lib/api/read-json-response';
+import LivImageSelection from './LivImageSelection';
 
 const tabs = ['Overblik', 'Historier', 'Kilder og dækning', 'Udgivelser', 'Indstillinger'] as const;
 const labels: Record<DeskStory['status'], string> = { discovered: 'Idé', researching: 'Research i gang', researched: 'Research klar', drafting: 'Liv skriver', draft: 'Udkast klar', failed: 'Kræver handling' };
@@ -32,9 +33,9 @@ export default function LivDeskClient({ onClose, onOpenWriter }: { onClose: () =
     catch (e) { setLoaded(false); setError(e instanceof Error ? e.message : 'Der opstod en fejl.'); }
   }, [request]);
   useEffect(() => { void refresh(); }, [refresh]);
-  async function act(action: string, id?: string) {
+  async function act(action: string, id?: string, extra?: object) {
     setBusy(true); setError('');
-    try { await request({ action, id }); await refresh(); }
+    try { await request({ action, id, ...extra }); await refresh(); }
     catch (e) { await refresh(); setError(e instanceof Error ? e.message : 'Der opstod en fejl.'); }
     finally { setBusy(false); }
   }
@@ -72,6 +73,7 @@ export default function LivDeskClient({ onClose, onOpenWriter }: { onClose: () =
         {current.research && <><p className="text-sm">Researchgrundlag: {current.research.qualityGate.score}/100. Endeligt faktatjek af artiklen mangler.</p><ul className="text-xs text-white/60">{current.research.qualityGate.checks.filter(c => !c.ok).map(c => <li key={c.id}>{c.label}: {c.detail}</li>)}</ul></>}
         <div className="flex flex-wrap gap-2"><button className={button} disabled={busy || current.status === 'draft'} onClick={() => void act('research', current.id)}>Research historien</button><button className={button} disabled={busy || !current.research?.qualityGate.ready || current.status === 'draft'} onClick={() => void act('draft', current.id)}>Lad Liv skrive</button>{current.article && <button className={button} onClick={() => onOpenWriter(current)}>Åbn i Writer · tekst og billeder</button>}</div>
         {busy && <p role="status" className="text-xs text-white/60">Arbejder på historien. Det kan tage nogle minutter.</p>}
+        {current.article && <LivImageSelection key={`${current.id}:${current.updatedAt}`} article={current.article} busy={busy} onPrepare={input => act('prepare-image', current.id, input)} />}
         {current.article && <section className="border-t border-white/15 pt-3 space-y-2">
           <button className={button} disabled={busy} onClick={() => void act('preflight', current.id)}>Kontrollér CMS-kladden</button>
           {current.cmsPreflight && <>

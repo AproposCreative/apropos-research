@@ -2,11 +2,11 @@ import type { GeneratedArticle } from '@/lib/liv/generate-article';
 import type { ArticlePayload } from '@/lib/articles/article-payload';
 import {
   buildTopicsSelectedForCms,
-  fotoCreditFromFeaturedUrl,
   suggestLocationLine,
 } from '@/lib/liv/cms-webflow-meta';
 import type { PickedTopic } from '@/lib/liv/pick-topic';
 import { parseResearchRating } from '@/lib/liv/review-format';
+import { livImageArticleHash } from '@/lib/liv/article-image-hash';
 
 function articleIdFromSlug(slug: string): string {
   return `liv-daily-${slug}-${Date.now().toString(36)}`.slice(0, 80);
@@ -47,8 +47,10 @@ export function buildLivCmsPayload(input: {
   }
   const imageSourceUrlsFinal = imageSourceUrls.slice(0, 12);
 
-  const thumbCandidate = article.imageSuggestions?.[0]?.url;
-  const fotoCredit = fotoCreditFromFeaturedUrl(thumbCandidate);
+  const selectedImage = article.selectedImage;
+  if (selectedImage && selectedImage.articleHash !== livImageArticleHash(article)) throw new Error('image_article_changed');
+  const thumbCandidate = selectedImage?.url;
+  const fotoCredit = selectedImage?.credit;
   const locationLine = suggestLocationLine(topic, article);
 
   return {
@@ -74,6 +76,8 @@ export function buildLivCmsPayload(input: {
     aiSourceUrl: topic.source?.url || null,
     aiModel: article.aiModel || input.aiModel || null,
     featuredImage: thumbCandidate,
+    featuredImageAlt: selectedImage?.alt,
+    featuredImageHash: selectedImage?.contentHash,
     ...(fotoCredit ? { fotoCredit } : {}),
     ...(locationLine ? { location: locationLine } : {}),
     imageSourceUrls: imageSourceUrlsFinal.length > 0 ? imageSourceUrlsFinal : undefined,

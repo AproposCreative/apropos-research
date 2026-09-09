@@ -8,6 +8,7 @@ import type { DeskStory } from '@/lib/editorial/desk-types';
 import { fetchEditorialAudience } from '@/lib/editorial/audience-research';
 import { canonicalSourceUrl } from '@/lib/editorial/audience-signals';
 import { checkCmsDraft } from '@/lib/editorial/cms-preflight';
+import { prepareLivStoryImage } from '@/lib/liv/prepare-story-image';
 
 export const maxDuration = 300;
 
@@ -35,7 +36,7 @@ export async function POST(req: NextRequest) {
   if (!uid) return NextResponse.json({ error: 'Log ind for at arbejde i redaktionen.' }, { status: 401 });
   if (!db) return NextResponse.json({ error: 'Redaktionens database er ikke tilgængelig.' }, { status: 503 });
   const body = await req.json().catch(() => null);
-  if (!body || !['discover', 'research', 'draft', 'preflight'].includes(body.action)) return NextResponse.json({ error: 'Ugyldig handling.' }, { status: 400 });
+  if (!body || !['discover', 'research', 'draft', 'preflight', 'prepare-image'].includes(body.action)) return NextResponse.json({ error: 'Ugyldig handling.' }, { status: 400 });
   const desk = db.collection('editorialDesks').doc(uid);
   const stories = desk.collection('stories');
   try {
@@ -83,6 +84,24 @@ export async function POST(req: NextRequest) {
     }
     if (typeof body.id !== 'string' || !/^[a-f0-9]{64}$/.test(body.id)) return NextResponse.json({ error: 'Ugyldig historie.' }, { status: 400 });
     const ref = stories.doc(body.id);
+    if (body.action === 'prepare-image') {
+      try {
+        const image = await prepareLivStoryImage(uid, { id: body.id, url: body.url, alt: body.alt, credit: body.credit });
+        return NextResponse.json({ ok: true, image }, { headers: { 'Cache-Control': 'no-store' } });
+      } catch (error) {
+        const errors: Record<string, [number, string]> = {
+          image_storage_unavailable: [503, 'Billedlageret er ikke tilgængeligt eller konfigureret.'],
+          image_selection_invalid: [400, 'Vælg et gyldigt billedforslag og udfyld alt-tekst og kredit.'],
+          image_not_in_research: [400, 'Billedet findes ikke blandt denne kladdes researchforslag.'],
+          image_draft_missing: [404, 'Den gemte kladde kunne ikke findes.'],
+          image_already_processing: [409, 'Dette billedvalg bliver allerede klargjort. Opdater historien om lidt.'],
+          image_preparation_rate_limit: [429, 'Kladden har nået seks billedforsøg inden for en time. Vent, før du prøver igen.'],
+        };
+        const [status, message] = errors[error instanceof Error ? error.message : ''] || [409,
+          'Billedet kunne ikke klargøres, eller en nyere artikel/billedversion overtog. Vælg en direkte JPG-, PNG- eller WebP-fil på mindst 1920 × 1080 og opdater historien.'];
+        return NextResponse.json({ error: `${message} Ingen publicering er sket.` }, { status, headers: { 'Cache-Control': 'no-store' } });
+      }
+    }
     if (body.action === 'preflight') {
       await db.runTransaction(async tx => {
         const row = (await tx.get(ref)).data() as DeskStory | undefined;

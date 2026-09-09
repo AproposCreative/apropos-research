@@ -40,6 +40,9 @@ export interface WebflowArticleFields {
   author: string;
   rating?: number;
   featuredImage?: string;
+  featuredImageAlt?: string;
+  /** SHA-256 of the selected stored image; readback evidence, never a CMS field. */
+  featuredImageHash?: string;
   gallery?: string[];
   publishDate?: string;
   status: 'draft' | 'published' | 'archived';

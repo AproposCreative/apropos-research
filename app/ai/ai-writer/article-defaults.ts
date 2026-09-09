@@ -57,6 +57,12 @@ export const normalizeArticleData = (incoming?: Partial<ArticleData>): ArticleDa
   };
 };
 
+/** A replacement image cannot inherit another image's alt, credit or byte proof. */
+export function mergeArticleUpdate(previous: ArticleData, updates: Partial<ArticleData>): ArticleData {
+  const replaced = Object.prototype.hasOwnProperty.call(updates, 'featuredImage') && updates.featuredImage !== previous.featuredImage;
+  return { ...previous, ...(replaced ? { featuredImageAlt: undefined, featuredImageHash: undefined, fotoCredit: undefined } : {}), ...updates };
+}
+
 export const BASE_THINKING_STEPS: ThinkingStep[] = [
   { id: 'analysis', label: 'Analyserer brief og noter', status: 'pending', icon: 'dot' },
   { id: 'analysis-read', label: 'Indlæser template & noter', status: 'pending', icon: 'doc', indent: 1 },

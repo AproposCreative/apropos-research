@@ -49,6 +49,9 @@ export interface ArticleData {
   topicsSelected?: string[];
   streaming_service?: string;
   featuredImage?: string;
+  featuredImageAlt?: string;
+  featuredImageHash?: string;
+  fotoCredit?: string;
   /** Prompt brugt ved seneste AI-billedgenerering (til debugging/visning) */
   lastGeneratedImagePrompt?: string;
   generationMode?: 'fast' | 'editorial';

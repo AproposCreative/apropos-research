@@ -21,6 +21,7 @@ import { generateSeoMetaAI } from '@/lib/seo/generate-seo-meta';
 import { buildStyleReferenceBlock } from '@/lib/loadAproposStyleSamples';
 import { buildResearchBundle, extractResearchUrls, hasCopiedPassage } from '@/lib/liv/research-bundle';
 import { checkSourceSimilarity } from '@/lib/liv/source-similarity';
+import type { LivSelectedImage } from '@/lib/liv/image-selection';
 
 export interface GeneratedArticle {
   title: string;
@@ -47,7 +48,9 @@ export interface GeneratedArticle {
     url: string;
     source: string;
     title?: string;
+    sourcePageUrl?: string;
   }>;
+  selectedImage?: LivSelectedImage;
   rawResponse: string;
   aiModel?: string;
   voiceVersion?: string;
@@ -169,8 +172,8 @@ async function fetchWebResearch(query: string): Promise<WebSearchResult[]> {
 async function collectImageSuggestions(opts: {
   topic: PickedTopic;
   researchResults: WebSearchResult[];
-}): Promise<Array<{ url: string; source: string; title?: string }>> {
-  const candidates: Array<{ url: string; source: string; title?: string }> = [];
+}): Promise<NonNullable<GeneratedArticle['imageSuggestions']>> {
+  const candidates: NonNullable<GeneratedArticle['imageSuggestions']> = [];
   const seen = new Set<string>();
   const pages: Array<{ url: string; source: string; title?: string }> = [];
   if (opts.topic.source?.url) {
@@ -190,7 +193,7 @@ async function collectImageSuggestions(opts: {
     for (const img of imgs) {
       if (seen.has(img)) continue;
       seen.add(img);
-      candidates.push({ url: img, source: p.source, title: p.title });
+      candidates.push({ url: img, source: p.source, title: p.title, sourcePageUrl: p.url });
       if (candidates.length >= 4) return candidates;
     }
   }

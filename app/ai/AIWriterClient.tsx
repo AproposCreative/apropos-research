@@ -42,6 +42,7 @@ import {
   type AIWriterView,
   buildDefaultArticleData,
   normalizeArticleData,
+  mergeArticleUpdate,
   resolveViewFromSearchParams,
 } from './ai-writer/article-defaults';
 
@@ -478,8 +479,7 @@ export default function AIWriterClient() {
 
   const updateArticleData = (updates: Partial<ArticleData>) => {
     setArticleData(prev => ({
-      ...prev,
-      ...updates,
+      ...mergeArticleUpdate(prev, updates),
       generationMode: updates.generationMode
         ? (updates.generationMode === 'fast' ? 'fast' : 'editorial')
         : (prev.generationMode || 'editorial')
@@ -487,7 +487,7 @@ export default function AIWriterClient() {
   };
 
   const handleSetupWizardChange = useCallback((d: any) => {
-    setArticleData(prev => ({ ...prev, ...d }));
+    setArticleData(prev => mergeArticleUpdate(prev, d));
   }, []);
 
 
@@ -1060,7 +1060,7 @@ export default function AIWriterClient() {
         return;
       }
 
-      setArticleData(prev => ({ ...prev, ...articleUpdate }));
+      setArticleData(prev => mergeArticleUpdate(prev, articleUpdate));
       setImportImages([]);
 
       const summary = [
@@ -1865,7 +1865,10 @@ export default function AIWriterClient() {
                     ...story.article,
                     author: 'Liv Brandt',
                     category: story.article.section,
-                    featuredImage: story.article.imageSuggestions?.[0]?.url,
+                    featuredImage: story.article.selectedImage?.url,
+                    featuredImageAlt: story.article.selectedImage?.alt,
+                    featuredImageHash: story.article.selectedImage?.contentHash,
+                    fotoCredit: story.article.selectedImage?.credit,
                     editorialSignalId: story.id,
                     editorialResearch: story.research,
                     editorialSignalTitle: story.signal.title,
@@ -2037,7 +2040,7 @@ export default function AIWriterClient() {
                       applyActiveView('seo');
                     }}
                     onUpdateArticle={(updates) => {
-                      setArticleData(prev => ({ ...prev, ...updates }));
+                      setArticleData(prev => mergeArticleUpdate(prev, updates));
                     }}
                     onPreflightComplete={(warnings, criticTips, factResults, moderation) => {
                       // Store Preflight data in localStorage so MainChatPanel can access it

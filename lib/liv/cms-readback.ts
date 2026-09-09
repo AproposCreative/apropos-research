@@ -1,6 +1,10 @@
 import { env } from '@/lib/config/env';
 import { getWebflowConfig } from '@/lib/webflow-config';
 import type { WebflowArticleFields } from '@/lib/webflow/types';
+import { createHash } from 'node:crypto';
+import sharp from 'sharp';
+import { stripHtml } from '@/lib/webflow/field-mapping';
+import { readPublicMedia } from '@/lib/liv/public-media-reader';
 
 type JsonObject = Record<string, unknown>;
 export type LivCmsReadback = {
@@ -20,6 +24,9 @@ function object(value: unknown): JsonObject {
 }
 function text(value: unknown): string {
   return typeof value === 'string' ? value.trim() : '';
+}
+function visibleText(value: unknown): string {
+  return stripHtml(text(value)).replace(/\s+/gu, ' ').trim();
 }
 
 /** GET-only adapter. Credentials stay server-side; upstream bodies are not logged. */
@@ -77,6 +84,7 @@ export async function inspectLivCmsDraft(input: {
   collectionId: string;
   localeId: string;
   read: (path: string) => Promise<JsonObject>;
+  readImage?: (url: string) => Promise<Buffer>;
 }): Promise<LivCmsReadback> {
   const config = dependencies ? undefined : getWebflowConfig();
   const collectionId = dependencies?.collectionId ??
@@ -111,13 +119,15 @@ export async function inspectLivCmsDraft(input: {
   ] as const) {
     checks.push({ id: `field:${slug}`, ok: !!text(expected) && text(fields[slug]) === text(expected) });
   }
-  checks.push({ id: 'field:content', ok: !!text(fields.content) });
-  checks.push({ id: 'field:intro', ok: !!text(fields.intro) });
+  checks.push({ id: 'field:content', ok: !!visibleText(input.expected.content) && visibleText(fields.content) === visibleText(input.expected.content) });
+  checks.push({ id: 'field:intro', ok: !!visibleText(input.expected.intro) && visibleText(fields.intro) === visibleText(input.expected.intro) });
   checks.push({ id: 'field:ai-generated', ok: fields['ai-generated'] === true });
   if (input.expected.rating !== undefined) {
     checks.push({ id: 'field:stjerne', ok: schemaFields.some(field => field.slug === 'stjerne') &&
       Number.isInteger(input.expected.rating) && input.expected.rating >= 1 && input.expected.rating <= 6 &&
       fields.stjerne === input.expected.rating });
+  } else if (schemaFields.some(field => field.slug === 'stjerne')) {
+    checks.push({ id: 'field:no-unrequested-rating', ok: fields.stjerne === undefined || fields.stjerne === null || fields.stjerne === 0 });
   }
   // Articles currently has no word-count field. Keep the count in the canonical
   // article; check CMS readback only if the field actually exists in its schema.
@@ -130,6 +140,20 @@ export async function inspectLivCmsDraft(input: {
   checks.push({ id: 'field:presseakkreditering', ok: fields.presseakkreditering === false });
   checks.push({ id: 'image:thumb-present', ok: /^https:\/\//.test(text(object(fields.thumb).url)) });
   checks.push({ id: 'image:credit-present', ok: !!text(fields['foto-credit']) });
+  if (input.expected.fotoCredit) checks.push({ id: 'image:credit-matches', ok: text(fields['foto-credit']) === input.expected.fotoCredit.trim() });
+  if (input.expected.featuredImageAlt) checks.push({ id: 'image:alt-matches', ok: text(object(fields.thumb).alt) === input.expected.featuredImageAlt.trim() });
+  if (input.expected.featuredImageHash) {
+    let matches = false;
+    if (/^[a-f0-9]{64}$/.test(input.expected.featuredImageHash)) {
+      try {
+        const bytes = await (dependencies?.readImage || (url => readPublicMedia(url, 'image')))(text(object(fields.thumb).url));
+        const meta = await sharp(bytes, { limitInputPixels: 80_000_000 }).metadata();
+        matches = bytes.length <= 450 * 1024 && meta.format === 'webp' && (meta.pages ?? 1) === 1 &&
+          meta.width === 1920 && meta.height === 1080 && createHash('sha256').update(bytes).digest('hex') === input.expected.featuredImageHash;
+      } catch { /* No byte proof means no approval, including URL rewrites and unavailable images. */ }
+    }
+    checks.push({ id: 'image:stored-bytes-match', ok: matches });
+  }
 
   for (const [slug, expectedName] of [['author', input.expected.author], ['section', input.expected.category]] as const) {
     const field = schemaFields.find(field => field.slug === slug);
