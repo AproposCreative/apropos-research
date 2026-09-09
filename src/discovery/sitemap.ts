@@ -3,22 +3,22 @@ import { env } from "../utils/env";
 import { fetchText } from "../fetch/fetch";
 import { getMediaSources } from "../../lib/getMediaSources";
 
-export async function discoverFromSitemaps(): Promise<string[]> {
+export async function discoverFromSitemaps(options: { source?: string; persistCache?: boolean } = {}): Promise<string[]> {
   // Load dynamic sources from file system - only enabled sources
   let sources = getMediaSources()
-    .filter(source => source.enabled)
+    .filter(source => source.enabled && (!options.source || source.id === options.source))
     .map(source => ({
       baseUrl: source.baseUrl,
       sitemapIndex: source.sitemapIndex
     }));
 
   // Fallback to default sources if no dynamic sources found
-  if (sources.length === 0) {
+  if (sources.length === 0 && !options.source) {
     sources = [
       { baseUrl: env.RAGE_BASE_URL, sitemapIndex: env.RAGE_SITEMAP_INDEX },
       { baseUrl: 'https://gaffa.dk', sitemapIndex: '/sitemap' },
-      { baseUrl: 'https://www.berlingske.dk', sitemapIndex: '/sitemap.xml/news' },
-      { baseUrl: 'https://www.bt.dk', sitemapIndex: '/sitemap.xml/news' }
+      { baseUrl: 'https://www.berlingske.dk', sitemapIndex: '/news-sitemap.xml' },
+      { baseUrl: 'https://www.bt.dk', sitemapIndex: '/news-sitemap.xml' }
     ];
   }
 
@@ -31,7 +31,7 @@ export async function discoverFromSitemaps(): Promise<string[]> {
     for (const sitemapPath of sitemapPaths) {
       try {
         const indexUrl = new URL(sitemapPath, baseUrl).toString();
-        const { text, contentType } = await fetchText(indexUrl);
+        const { text, contentType } = await fetchText(indexUrl, { persistCache: options.persistCache });
         
         if (!contentType || !(contentType.includes("xml") || contentType.includes("rss"))) {
           console.log(`Skipping ${baseUrl}${sitemapPath}: not XML/RSS content (got: ${contentType})`);
@@ -75,14 +75,15 @@ export async function discoverFromSitemaps(): Promise<string[]> {
         if (depth > 3) return; // Prevent infinite recursion
         
         try {
-          const { text: smText, contentType: ct } = await fetchText(smUrl);
+          const { text: smText, contentType: ct } = await fetchText(smUrl, { persistCache: options.persistCache });
           if (!ct || !ct.includes("xml")) return;
           
           const smXml = parser.parse(smText);
           
           if (smXml?.sitemapindex?.sitemap) {
             // This is another sitemap index, recurse
-            const nestedSitemaps = smXml?.sitemapindex?.sitemap ?? [];
+            const rawNested = smXml?.sitemapindex?.sitemap ?? [];
+            const nestedSitemaps = Array.isArray(rawNested) ? rawNested : [rawNested];
             for (const nestedSm of nestedSitemaps.slice(0, 5)) { // Limit to first 5 to avoid timeout
               const nestedLoc: string | undefined = nestedSm?.loc;
               if (nestedLoc) {
@@ -119,5 +120,3 @@ export async function discoverFromSitemaps(): Promise<string[]> {
 
   return allUrls;
 }
-
-

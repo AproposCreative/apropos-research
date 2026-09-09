@@ -10,6 +10,7 @@ import type { EditorialResearchResult } from '@/lib/editorial/types';
 import fs from 'node:fs';
 import path from 'path';
 import { isLivAuthor, loadLivVoice } from '@/lib/liv/voice';
+import { writerLengthPolicy } from '@/lib/ai-chat/article-length';
 
 export type { PromptSegment, PromptSegmentKind, PromptSegmentId } from '@/lib/ai-chat/prompt-segment-types';
 export { PROMPT_SEGMENT_IDS, LOCKED_SEGMENT_IDS } from '@/lib/ai-chat/prompt-segment-types';
@@ -130,13 +131,8 @@ export function buildPromptSegments(
   }
   const articleMetaContent = metaParts.join('\n');
   const articleTypeOption = getEditorialArticleTypeOption(articleContext?.articleType as string | undefined);
-  const targetLengthLabel =
-    (articleContext?.targetLengthLabel as string | undefined) || articleTypeOption.targetLengthLabel;
-  const targetWordCount =
-    typeof articleContext?.targetWordCount === 'number'
-      ? articleContext.targetWordCount
-      : articleTypeOption.targetWordCount;
-  const articleTypeLengthContent = `\n**ARTIKELTYPE OG LÆNGDE — OVERSTYRER GENERELLE LÆNGDEMÅL:**\nArtikeltype: ${articleTypeOption.label}\nMållængde: ${targetLengthLabel} (ca. ${targetWordCount} ord)\nSkriv til denne længde, også hvis structure.apropos.md nævner bredere standardintervaller.`;
+  const lengthPolicy = writerLengthPolicy(articleContext);
+  const articleTypeLengthContent = `\n**ARTIKELTYPE OG LÆNGDE — OVERSTYRER GENERELLE LÆNGDEMÅL:**\nArtikeltype: ${articleTypeOption.label}\nBrødtekst: ${lengthPolicy.label} (ca. ${lengthPolicy.target} ord), eksklusive titel, undertitel, intro og metadata.\nSkriv til dette interval, også hvis structure.apropos.md nævner bredere standardintervaller. Opfind ikke fakta eller gentag pointer for at fylde ud.`;
 
   const editorialResearch = articleContext?.editorialResearch as EditorialResearchResult | null | undefined;
   const editorialDossierContent = editorialResearch?.dossier

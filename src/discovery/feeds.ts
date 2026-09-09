@@ -5,9 +5,9 @@ import { getMediaSources } from "../../lib/getMediaSources";
 
 export type FeedItem = { url: string; published_at?: string; source: string };
 
-export async function discoverFromFeed(): Promise<FeedItem[]> {
+export async function discoverFromFeed(sourceId?: string): Promise<FeedItem[]> {
   // Get dynamic media sources
-  let sources = getMediaSources();
+  let sources = getMediaSources().filter(s => !sourceId || s.id === sourceId);
   
   // Filter for enabled sources and sources that have RSS/feed paths
   sources = sources.filter(source => {
@@ -24,7 +24,7 @@ export async function discoverFromFeed(): Promise<FeedItem[]> {
   }));
 
   // Fallback to default Soundvenue feed if no dynamic sources found
-  if (feedSources.length === 0) {
+  if (feedSources.length === 0 && (!sourceId || sourceId === 'soundvenue')) {
     feedSources.push({ baseUrl: env.RAGE_BASE_URL, feedPath: '/feed', source: 'soundvenue' });
   }
   
@@ -32,10 +32,11 @@ export async function discoverFromFeed(): Promise<FeedItem[]> {
   // This ensures we still discover from feeds even if sitemapIndex points to sitemap
   // BUT: For BT and Berlingske, skip feeds (they're general news, not relevant)
   const defaultSources = getMediaSources().filter(s => {
+    if (sourceId && s.id !== sourceId) return false;
     if (!s.enabled) return false;
     // Skip BT and Berlingske - they're general news, not relevant for Apropos
-    const sourceId = s.id.toLowerCase();
-    if (sourceId.includes('bt') || sourceId.includes('berlingske')) return false;
+    const publisherId = s.id.toLowerCase();
+    if (publisherId.includes('bt') || publisherId.includes('berlingske')) return false;
     return true;
   });
   
@@ -65,7 +66,7 @@ export async function discoverFromFeed(): Promise<FeedItem[]> {
       // Force refresh for feed discovery (no conditional requests)
       const response = await fetch(url, {
         headers: { 'User-Agent': 'Apropos Research Bot 1.0' },
-        redirect: 'follow'
+        redirect: 'follow', signal: AbortSignal.timeout(10000)
       });
       const text = await response.text();
       const contentType = response.headers.get('content-type');
@@ -83,13 +84,14 @@ export async function discoverFromFeed(): Promise<FeedItem[]> {
       const xml = parser.parse(text);
       
       // Try RSS 2.0
-      const items = xml?.rss?.channel?.item ?? [];
+      const rawItems = xml?.rss?.channel?.item ?? [];
+      const items = Array.isArray(rawItems) ? rawItems : [rawItems];
       
       for (const it of items) {
         const link: string | undefined = it?.link ?? it?.guid?.["#text"]; 
-        if (!link) continue;
+        if (typeof link !== 'string' || !link.trim()) continue;
         const pub = it?.pubDate ?? it?.published ?? undefined;
-        allItems.push({ url: link, published_at: pub, source });
+        allItems.push({ url: link.trim(), published_at: pub, source });
       }
       
       console.log(`Found ${items.length} items from ${source}`);
@@ -100,5 +102,3 @@ export async function discoverFromFeed(): Promise<FeedItem[]> {
 
   return allItems;
 }
-
-

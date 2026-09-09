@@ -10,6 +10,7 @@ export type AIDraft = {
 };
 
 export interface ArticleData {
+  webflowId?: string;
   title: string;
   subtitle: string;
   category: string; // also referred as section in wizard
@@ -60,6 +61,8 @@ export interface ArticleData {
   articleType?: EditorialArticleType;
   targetWordCount?: number;
   targetLengthLabel?: string;
+  lengthCheck?: { min: number; max: number; target: number; label: string; articleType: string; actual: number; pass: boolean };
+  researchSources?: Array<{ title: string; source: string; url?: string | null; snippet?: string }>;
   editorialResearch?: EditorialResearchResult | null;
   fundingOpportunityId?: string;
   fundingResearch?: FundingResearchResult | null;

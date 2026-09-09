@@ -1,8 +1,12 @@
 'use client';
+import { slugifyArticleTitle } from '@/lib/articles/article-payload';
+import { writerArticleBody } from '@/lib/ai-chat/article-content';
 
 import { useState, useEffect } from 'react';
 import type { WebflowArticleFields } from '@/lib/webflow/types';
 import { SEO_DESCRIPTION_MAX } from '@/lib/seo/constants';
+import { runWriterFactcheck } from '@/lib/ai-chat/writer-factcheck';
+import { writerLengthCheck } from '@/lib/ai-chat/article-length';
 
 function resolvePressFields(src: Record<string, unknown>): {
   press: boolean | null;
@@ -89,7 +93,7 @@ export default function WebflowPublishPanel({ articleData, onPublish, onClose, e
     topicsSelected: articleData.topicsSelected || [],
     streaming_service: articleData.streaming_service || articleData.platform || '',
     platform: articleData.platform || articleData.streaming_service || '',
-    watchUrl: articleData.watchUrl || articleData.platform || '',
+    watchUrl: articleData.watchUrl || '',
     streamingUrl: articleData.streamingUrl || '',
     videoTrailer: articleData.videoTrailer || articleData.video_trailer || '',
   };
@@ -123,7 +127,7 @@ export default function WebflowPublishPanel({ articleData, onPublish, onClose, e
       topicsSelected: articleData.topicsSelected || prev.topicsSelected,
       streaming_service: articleData.streaming_service || articleData.platform || prev.streaming_service,
       platform: articleData.platform || articleData.streaming_service || prev.platform,
-      watchUrl: articleData.watchUrl || articleData.platform || prev.watchUrl,
+      watchUrl: articleData.watchUrl ?? prev.watchUrl,
       streamingUrl: articleData.streamingUrl || prev.streamingUrl,
       videoTrailer: articleData.videoTrailer || articleData.video_trailer || prev.videoTrailer,
       featured: articleData.featured !== undefined ? articleData.featured : prev.featured,
@@ -168,16 +172,7 @@ export default function WebflowPublishPanel({ articleData, onPublish, onClose, e
   // Keep formData in sync when articleData prop changes (so fields don't show "—")
   useEffect(() => {
     try {
-      const deriveContent = () => {
-        let c = articleData?.content || articleData?.['post-body'] || '';
-        if (!c && Array.isArray(articleData?._chatMessages)) {
-          const assistants = (articleData._chatMessages as any[]).filter(m => m.role === 'assistant');
-          const last = assistants[assistants.length - 1]?.content as string | undefined;
-          if (last) c = last;
-        }
-        return c || '';
-      };
-      const content = deriveContent();
+      const content = writerArticleBody(articleData);
       const wc = content ? content.trim().split(/\s+/).filter(Boolean).length : 0;
       const rt = wc ? Math.ceil(wc / 200) : 0;
       setFormData(prev => ({
@@ -203,6 +198,9 @@ export default function WebflowPublishPanel({ articleData, onPublish, onClose, e
 
   useEffect(() => {
     fetchFields();
+  }, []);
+
+  useEffect(() => {
     generateSlug();
     calculateStats();
   }, [formData.title, formData.content]);
@@ -226,11 +224,7 @@ export default function WebflowPublishPanel({ articleData, onPublish, onClose, e
 
   const generateSlug = () => {
     if (formData.title && !formData.slug) {
-      const slug = formData.title
-        .toLowerCase()
-        .replace(/[^a-z0-9\s-]/g, '')
-        .replace(/\s+/g, '-')
-        .trim();
+      const slug = slugifyArticleTitle(formData.title);
       setFormData(prev => ({ ...prev, slug }));
     }
   };
@@ -295,6 +289,8 @@ export default function WebflowPublishPanel({ articleData, onPublish, onClose, e
       // Preflight checks (plagiat/fakta/TOV)
       setPreflightRunning(true);
       const warnings: string[] = [];
+      let checkedModeration: any = null;
+      let checkedCriticTips = '';
       try {
         const modRes = await fetch('/api/moderation/check', {
           method: 'POST',
@@ -302,44 +298,42 @@ export default function WebflowPublishPanel({ articleData, onPublish, onClose, e
           body: JSON.stringify({ title: formData.title, content: formData.content })
         }).then(r=>r.ok?r.json():null);
         if (modRes) {
-          setModeration(modRes);
-          if (modRes.metrics?.plagiarismRisk === 'high') warnings.push('Høj lighed med eksisterende tekst. Omskriv før publicering.');
-          if (modRes.metrics?.plagiarismRisk === 'medium') warnings.push('Middel lighed — anbefalet omskrivning/variation.');
-          if ((modRes.metrics?.wordCount||0) < 600) warnings.push('Artiklen er meget kort. Øg længde eller tilpas format.');
+          const moderationData = modRes.data || modRes;
+          checkedModeration = moderationData;
+          setModeration(moderationData);
+          if (moderationData.metrics?.plagiarismRisk === 'high') warnings.push('Høj lighed med eksisterende tekst. Omskriv før publicering.');
+          if (moderationData.metrics?.plagiarismRisk === 'medium') warnings.push('Middel lighed — anbefalet omskrivning/variation.');
+        } else {
+          warnings.push('Lighedskontrollen kunne ikke gennemføres.');
         }
-      } catch {}
+      } catch { warnings.push('Lighedskontrollen kunne ikke gennemføres.'); }
       try {
         const tipsRes = await fetch('/api/critic/tov', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ text: formData.content, author: articleData.author })
         }).then(r=>r.ok?r.json():null);
-        if (tipsRes?.tips) setCriticTips(tipsRes.tips);
+        checkedCriticTips = tipsRes?.data?.tips || tipsRes?.tips || '';
+        setCriticTips(checkedCriticTips);
       } catch {}
-      try {
-        const claims = extractClaims(formData.content).slice(0, 12);
-        if (claims.length) {
-          const fcRes = await fetch('/api/factcheck', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ claims })
-          }).then(r=>r.ok?r.json():null);
-          if (fcRes?.results) {
-            setFactResults(fcRes.results);
-            const unknown = fcRes.results.filter((x:any)=>x.status!=='true');
-            if (unknown.length>0) warnings.push('Nogle påstande er ikke verificeret. Overvej at tilføje kilder eller omformulere.');
-          }
-        }
-      } catch {}
+      const factcheck = await runWriterFactcheck({ ...articleData, ...formData });
+      setFactResults(factcheck.results);
+      warnings.push(...factcheck.warnings);
+      const length = writerLengthCheck(formData.content, articleData);
+      if (articleData.articleType && !length.pass) warnings.push(`Brødteksten er ${length.actual} ord; valgt skabelon kræver ${length.label}.`);
       setPreflightWarnings(warnings);
       setPreflightRunning(false);
       
       // Send Preflight results to chat
       if (onPreflightComplete) {
-        onPreflightComplete(warnings, criticTips, factResults || [], moderation);
+        onPreflightComplete(warnings, checkedCriticTips, factcheck.results, checkedModeration);
       }
       
-      // Preflight recommendations are now auto-applied in chat, so we don't block publishing
+      // Failed checks may be saved as a draft, never treated as live approval.
+      if (formData.status === 'published' && (!factcheck.complete || warnings.length > 0)) {
+        setPublishing(false);
+        return;
+      }
 
       const publishPayload: WebflowArticleFields = {
         ...formData,
@@ -361,7 +355,7 @@ export default function WebflowPublishPanel({ articleData, onPublish, onClose, e
               articleData: formData,
               messages: (articleData._chatMessages || []).map((m:any)=>({ role: m.role, content: m.content, timestamp: m.timestamp })),
               notes: articleData.notes,
-              published: true
+              published: formData.status === 'published'
             })
           });
         } catch (e) {
@@ -414,7 +408,7 @@ export default function WebflowPublishPanel({ articleData, onPublish, onClose, e
       {!embed && (
         <div className="p-6">
           <div className="flex items-center justify-between">
-            <h2 className="text-white text-xl font-medium">Udgiv artikel til Webflow</h2>
+            <h2 className="text-white text-xl font-medium">Gem kladde i Webflow</h2>
             <button onClick={onClose} className="text-white/60 hover:text-white transition-colors">
               <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -430,6 +424,10 @@ export default function WebflowPublishPanel({ articleData, onPublish, onClose, e
         {/* Simple Sticky Publish Button */}
         <div className="fixed bottom-0 left-0 right-0 z-50">
           <div className="max-w-7xl mx-auto px-6 py-6">
+            {preflightWarnings.length > 0 && <div role="alert" className="mb-3 max-h-40 overflow-auto rounded-lg bg-black border border-amber-200/40 p-3 text-sm text-amber-200">
+              <p>Kladde, ikke godkendt til live-publicering:</p>
+              <ul>{preflightWarnings.map((warning, index) => <li key={index}>{warning}</li>)}</ul>
+            </div>}
             <div className="flex justify-end">
               <button
                 onClick={handlePublish}
@@ -439,7 +437,7 @@ export default function WebflowPublishPanel({ articleData, onPublish, onClose, e
                 {publishing && (
                   <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
                 )}
-                {publishing ? 'Udgiver...' : 'Publish to Webflow'}
+                {publishing ? 'Kontrollerer og gemmer...' : 'Gem kladde i Webflow'}
               </button>
             </div>
           </div>

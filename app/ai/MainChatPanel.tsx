@@ -16,6 +16,7 @@ import PreflightStatus from '@/components/PreflightStatus';
 import type { ThinkingStep, ThinkingStatus } from '@/types/thinking';
 import { THINKING_TEXTS } from '@/components/main-chat/constants';
 import type { ChatMessage, LocalArticleData } from '@/components/main-chat/types';
+import { runWriterFactcheck } from '@/lib/ai-chat/writer-factcheck';
 
 interface MainChatPanelProps {
   messages: ChatMessage[];
@@ -578,8 +579,9 @@ const fallbackThinkingSteps: ThinkingStep[] = [
       }).then(r => r.ok ? r.json() : null);
       
       if (modRes) {
-        setPreflightModeration(modRes);
-        if (modRes.metrics?.plagiarismRisk === 'high') {
+        const moderationData = modRes.data || modRes;
+        setPreflightModeration(moderationData);
+        if (moderationData.metrics?.plagiarismRisk === 'high') {
           warnings.push('Høj lighed med eksisterende tekst. Omskriv før publicering.');
         }
       }
@@ -590,25 +592,23 @@ const fallbackThinkingSteps: ThinkingStep[] = [
       const criticRes = await fetch('/api/critic/tov', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ content })
+        body: JSON.stringify({ text: content, author: articleData.author })
       }).then(r => r.ok ? r.json() : null);
       
-      if (criticRes && criticRes.tips) {
+      if (criticRes && (criticRes.data?.tips || criticRes.tips)) {
+        criticRes.tips = criticRes.data?.tips || criticRes.tips;
         setPreflightCriticTips(criticRes.tips);
       }
       
       // Step 3: Fact check
       setPreflightCurrentStep(3);
       setPreflightStepName('Fact Check');
-      const factRes = await fetch('/api/factcheck', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ content })
-      }).then(r => r.ok ? r.json() : null);
+      const factRes = await runWriterFactcheck({ ...articleData, title, content });
+      warnings.push(...factRes.warnings);
       
       if (factRes && factRes.results) {
         setPreflightFactResults(factRes.results);
-        const unknown = factRes.results.filter((x: any) => x.status !== 'true');
+        const unknown = factRes.results.filter((x: any) => x.status !== 'verified');
         if (unknown.length > 0) {
           warnings.push('Nogle påstande er ikke verificeret. Overvej at tilføje kilder eller omformulere.');
         }
@@ -616,8 +616,8 @@ const fallbackThinkingSteps: ThinkingStep[] = [
       
       setPreflightWarnings(warnings);
       setPreflightRunning(false);
-      setPreflightStepName('Færdig!');
-      setPreflightCompleted(true);
+      setPreflightStepName(factRes.complete ? 'Færdig!' : 'Kræver kildekontrol');
+      setPreflightCompleted(factRes.complete);
       
       // Auto-apply recommendations if any issues found
       if (warnings.length > 0 || criticRes?.tips || (factRes?.results && factRes.results.length > 0)) {
@@ -632,7 +632,7 @@ const fallbackThinkingSteps: ThinkingStep[] = [
         
         // Add fact check improvements
         if (factRes?.results) {
-          const unverified = factRes.results.filter((x: any) => x.status !== 'true');
+          const unverified = factRes.results.filter((x: any) => x.status !== 'verified');
           if (unverified.length > 0) {
             improvements.push(`Fakta forbedringer: Tilføj kilder eller omformulér:\n${unverified.map(f => `• "${f.claim}"`).join('\n')}`);
           }
@@ -818,7 +818,7 @@ const fallbackThinkingSteps: ThinkingStep[] = [
       }
       
       if (preflightFactResults && preflightFactResults.length > 0) {
-        const unverified = preflightFactResults.filter((x: any) => x.status !== 'true');
+        const unverified = preflightFactResults.filter((x: any) => x.status !== 'verified');
         if (unverified.length > 0) {
           recommendations.push(`Fakta verificering: ${unverified.length} påstande skal verificeres`);
         }
@@ -878,7 +878,7 @@ const fallbackThinkingSteps: ThinkingStep[] = [
   };
 
   const handleAutoFixFacts = () => {
-    const unverifiedFacts = preflightFactResults?.filter(x => x.status !== 'true') || [];
+    const unverifiedFacts = preflightFactResults?.filter(x => x.status !== 'verified') || [];
     if (unverifiedFacts.length === 0) return;
     
     const factList = unverifiedFacts.map(f => `- "${f.claim}"`).join('\n');

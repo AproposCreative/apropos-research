@@ -11,6 +11,7 @@ import { createRequestLogger } from '@/lib/logger';
 import { getRequestId } from '@/lib/api/request-utils';
 import { createErrorResponse, ErrorCode } from '@/lib/api/types';
 import { getRecentTrendingArticles } from '@/lib/trending/firestore-store';
+import { resolveTrendingSource, matchesTrendingSource } from '@/lib/trending/source-filter';
 
 export const runtime = 'nodejs';
 
@@ -20,9 +21,14 @@ export async function GET(request: NextRequest) {
 
   try {
     const { searchParams } = new URL(request.url);
-    const sourceFilter = (searchParams.get('source') || '').toLowerCase().trim() || undefined;
-    const days = Number(searchParams.get('days') || 7);
-    const limit = Number(searchParams.get('limit') || 200);
+    const filter = resolveTrendingSource(searchParams.get('source') || '', searchParams.get('sourceName') || '');
+    const sourceFilter = filter.id || undefined;
+    const bounded = (raw: string | null, fallback: number, max: number) => {
+      const n = Number(raw ?? fallback);
+      return Number.isFinite(n) ? Math.min(max, Math.max(1, Math.floor(n))) : fallback;
+    };
+    const days = bounded(searchParams.get('days'), 7, 30);
+    const limit = bounded(searchParams.get('limit'), 200, 500);
 
     // Hent fra Firestore (erstatter den gamle data/rage_articles.jsonl-pipeline,
     // som ikke virkede serverless).
@@ -34,9 +40,8 @@ export async function GET(request: NextRequest) {
     // User-owned source IDs can differ from IDs stored by shared ingestion.
     // Match the publisher name in a bounded fallback, never another user's UID.
     if (sourceFilter && !records.length) {
-      const name = (searchParams.get('sourceName') || sourceFilter).trim().toLowerCase();
       const candidates = await getRecentTrendingArticles({ days, limit: Math.min(500, Math.max(limit, 200)) });
-      records = candidates.filter(r => (r.sourceName || '').toLowerCase() === name || r.source.toLowerCase() === name);
+      records = candidates.filter(r => matchesTrendingSource(r, filter));
     }
 
     // Transformer til SimpleArticle-format som resten af siden forventer.
@@ -57,6 +62,13 @@ export async function GET(request: NextRequest) {
           keyPoints: extractKeyPoints(fullText, r.title, content),
         };
       });
+
+    // Writer's explicit source picker is a catalogue, not an auto-editorial ranking.
+    // Do not hide film/culture sources because they miss trending music keywords.
+    if (searchParams.get('view') === 'writer') {
+      return NextResponse.json({ success: true, articles: allArticles, totalArticles: allArticles.length },
+        { headers: { 'Cache-Control': 'no-store' } });
+    }
 
     // Relevans-filter (samme tærskel som tidligere).
     const relevantArticles = filterRelevantArticles(allArticles, 10);

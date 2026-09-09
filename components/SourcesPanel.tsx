@@ -16,8 +16,8 @@ interface SourceItem {
 const PREMADE_SOURCES: Omit<SourceItem, 'addedAt' | 'createdAt'>[] = [
   { id: 'soundvenue', name: 'Soundvenue', baseUrl: 'https://soundvenue.com', sitemapIndex: '/sitemap.xml', enabled: true, preset: true },
   { id: 'gaffa', name: 'GAFFA', baseUrl: 'https://gaffa.dk', sitemapIndex: '/sitemap', enabled: true, preset: true },
-  { id: 'berlingske', name: 'Berlingske', baseUrl: 'https://www.berlingske.dk', sitemapIndex: '/sitemap.xml/news', enabled: true, preset: true },
-  { id: 'bt', name: 'BT', baseUrl: 'https://www.bt.dk', sitemapIndex: '/sitemap.xml/news', enabled: true, preset: true },
+  { id: 'berlingske', name: 'Berlingske', baseUrl: 'https://www.berlingske.dk', sitemapIndex: '/news-sitemap.xml', enabled: true, preset: true },
+  { id: 'bt', name: 'BT', baseUrl: 'https://www.bt.dk', sitemapIndex: '/news-sitemap.xml', enabled: true, preset: true },
   { id: 'ign-nordic', name: 'IGN Nordic', baseUrl: 'https://nordic.ign.com', sitemapIndex: '/sitemap.xml', enabled: false, preset: true },
   { id: 'ekkofilm', name: 'Ekkofilm', baseUrl: 'https://www.ekkofilm.dk', sitemapIndex: '/sitemap.xml', enabled: false, preset: true },
   { id: 'information', name: 'Information', baseUrl: 'https://www.information.dk', sitemapIndex: '/sitemap.xml', enabled: false, preset: true },

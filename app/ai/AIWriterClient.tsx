@@ -28,6 +28,7 @@ import AkkrediteringClient from '@/app/ai/akkreditering/AkkrediteringClient';
 import LivInboxClient from '@/app/ai/liv-inbox/LivInboxClient';
 import { useAuth } from '@/lib/auth-context';
 import { saveDraft, getDraft, type ArticleDraft } from '@/lib/firebase-service';
+import { createWriterDraftIdentity } from '@/lib/ai-chat/draft-identity';
 import { autoSaveService } from '@/lib/auto-save-service';
 import type { ArticleData } from '@/types/article';
 import type { ThinkingStep, ThinkingStatus } from '@/types/thinking';
@@ -62,7 +63,17 @@ export default function AIWriterClient() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const { user, logout } = useAuth();
-  const [currentDraftId, setCurrentDraftId] = useState<string | null>(null);
+  const [currentDraftId, setDraftIdState] = useState<string | null>(null);
+  const draftIdentityRef = useRef(createWriterDraftIdentity());
+  const setCurrentDraftId = useCallback((id: string | null) => {
+    draftIdentityRef.current.set(id);
+    setDraftIdState(id);
+  }, []);
+  const reserveDraftId = useCallback(() => {
+    const id = draftIdentityRef.current.reserve();
+    setDraftIdState(id);
+    return id;
+  }, []);
   const [showSearchModal, setShowSearchModal] = useState(false);
   const [isThinking, setIsThinking] = useState(false);
   const [showWizard, setShowWizard] = useState(() => {
@@ -763,8 +774,7 @@ export default function AIWriterClient() {
         }
 
         addChatMessage('assistant', data.response);
-        // Warnings are now suppressed on server side - don't show them
-        setEditorialWarnings([]);
+        setEditorialWarnings(Array.isArray(data.warnings) ? data.warnings.filter((w: unknown): w is string => typeof w === 'string') : []);
         // Live preview sync: try to extract a working title from the response
         try {
           const m = String(data.response || '').match(/^(?:arbejdstitel|titel)[:\-]\s*(.+)$/im) || String(data.response||'').match(/^#\s+(.+)$/m);
@@ -777,6 +787,9 @@ export default function AIWriterClient() {
         // Consolidate all article data updates into one call to prevent overwrites
         setArticleData(prev => {
           const articleUpdate = data.articleUpdate || {};
+          // A chat answer is not an article revision. Never turn its first lines
+          // into a new CMS title/subtitle or overwrite the current draft.
+          if (Object.keys(articleUpdate).length === 0) return { ...prev, _chatMessages: compactMessages };
           
           // DEBUG: Log what we receive from API
           console.log('📥 API Response - articleUpdate:', {
@@ -862,6 +875,7 @@ export default function AIWriterClient() {
             ...prev, 
             ...meaningfulUpdate,
             ...extractedFields,
+            ...(Array.isArray(data.researchSources) ? { researchSources: data.researchSources } : {}),
             ...(!meaningfulUpdate.title && !extractedFields.title && (parsedTitle || inferredTitle) ? { title: parsedTitle || inferredTitle } : {}),
             ...(!meaningfulUpdate.subtitle && !extractedFields.subtitle && (parsedSubtitle || inferredSubtitle) ? { subtitle: parsedSubtitle || inferredSubtitle } : {}),
             ...(!meaningfulUpdate.intro && !extractedFields.intro && parsedIntro ? { intro: parsedIntro } : {}),
@@ -1139,7 +1153,7 @@ export default function AIWriterClient() {
 
   // Auto-save to Firebase when data changes (kun i AI Writer — undgår Firestore-fejl i andre views)
   useEffect(() => {
-    if (!user || chatMessages.length === 0 || activeView !== 'ai') return;
+    if (!user || (!chatMessages.length && !articleData.content && !notes) || activeView !== 'ai') return;
 
     const autoSaveTimeout = setTimeout(async () => {
       try {
@@ -1150,7 +1164,7 @@ export default function AIWriterClient() {
         }));
 
         const draftData = {
-          id: currentDraftId || undefined,
+          id: reserveDraftId(),
           title: articleData.title || 'Untitled',
           chatTitle: chatTitle,
           messages: cleanChatMessages,
@@ -1174,10 +1188,9 @@ export default function AIWriterClient() {
           lastModified: new Date()
         };
 
-        const draftId = await saveDraft(user.uid, draftData);
+        await saveDraft(user.uid, draftData);
         
         if (!currentDraftId) {
-          setCurrentDraftId(draftId);
           setRefreshTrigger(prev => prev + 1); // Trigger refresh for new drafts
         }
       } catch (error) {
@@ -1186,7 +1199,7 @@ export default function AIWriterClient() {
     }, 2000); // Auto-save after 2 seconds of inactivity
 
     return () => clearTimeout(autoSaveTimeout);
-  }, [chatMessages, articleData, notes, user, currentDraftId, chatTitle, activeView]);
+  }, [chatMessages, articleData, notes, user, currentDraftId, chatTitle, activeView, reserveDraftId]);
 
   const handleLoadDraft = (draft: ArticleDraft) => {
     
@@ -1241,7 +1254,7 @@ export default function AIWriterClient() {
         }));
 
         const draftData = {
-          id: currentDraftId || undefined,
+          id: reserveDraftId(),
           title: articleData.title || 'Untitled',
           chatTitle: chatTitle,
           messages: cleanChatMessages,
@@ -1269,6 +1282,8 @@ export default function AIWriterClient() {
         savedPreviousDraft = true;
       } catch (error) {
         console.error('Error saving current article:', error);
+        addChatMessage('assistant', 'Kladden kunne ikke gemmes. Din artikel er bevaret her. Prøv igen, før du starter en ny artikel.');
+        return;
       }
     }
 

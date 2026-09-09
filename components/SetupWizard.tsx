@@ -7,6 +7,7 @@ import type { ArticleData } from '@/types/article';
 import StepChip from '@/components/ui/StepChip';
 import { useAuth } from '@/lib/auth-context';
 import { EDITORIAL_ARTICLE_TYPE_OPTIONS, getEditorialArticleTypeOption } from '@/lib/editorial/signal-store';
+import { readJsonResponse } from '@/lib/api/read-json-response';
 
 type Step = 'template' | 'articleType' | 'source' | 'trending' | 'inspiration' | 'recommended' | 'analysis' | 'author' | 'section' | 'topic' | 'platform' | 'rating' | 'press';
 
@@ -92,6 +93,8 @@ export default function SetupWizard({
   const [loadingTrending, setLoadingTrending] = useState(false);
   const [analysisData, setAnalysisData] = useState<{ trend: string; angle: string; audience: string; suggestions: string[] } | null>(null);
   const [loadingAnalysis, setLoadingAnalysis] = useState(false);
+  const [analysisError, setAnalysisError] = useState('');
+  const [analysisRetry, setAnalysisRetry] = useState(0);
   const trendingAbortRef = useRef<AbortController | null>(null);
   const currentSourceRef = useRef<string>('');
   const dragInfoRef = useRef<{ active: boolean; pointerId: number | null; startX: number; scrollLeft: number; moved: boolean }>({ active: false, pointerId: null, startX: 0, scrollLeft: 0, moved: false });
@@ -264,18 +267,8 @@ export default function SetupWizard({
     run();
   }, [user]);
 
-  // Auto-refresh articles in background when SetupWizard opens (for research template)
-  useEffect(() => {
-    // Trigger refresh in background to get latest articles
-    // This runs silently in the background - user doesn't need to wait
-    fetch('/api/refresh', { 
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ sinceHours: 72, limit: 200 }) // Last 3 days, up to 200 articles
-    }).catch(() => {
-      // Silently fail - this is just a background refresh
-    });
-  }, []); // Run once on mount
+  // Opening the wizard is read-only; ingestion is an explicit refresh action.
+  useEffect(() => () => trendingAbortRef.current?.abort(), []);
 
   const isPlatformRequired = useMemo(() => {
     const sec = (data.section || '').toLowerCase();
@@ -401,6 +394,7 @@ export default function SetupWizard({
   const updateData = (updater: (d:any)=>any, advanceFrom?: Step, advanceTo?: Step) => {
     setData((prev: any) => {
       const next = typeof updater === 'function' ? updater(prev) : prev;
+      if (next.researchSelected !== prev.researchSelected) next.aiDraft = null;
       if (advanceFrom === 'press') {
         queueMicrotask(() => complete(next));
       }
@@ -451,19 +445,27 @@ export default function SetupWizard({
 
   // Helper function to load articles (trending or recommended)
   const loadArticles = useCallback(async (sourceName: string, forceRefresh = false) => {
-    if (!sourceName || loadingTrending || loadingRecommended) return;
+    if (!sourceName) return;
+    trendingAbortRef.current?.abort();
+    const controller = new AbortController();
+    trendingAbortRef.current = controller;
+    currentSourceRef.current = sourceName;
+    setTrendingItems([]);
     setArticleError('');
     
     // If "Anbefalet" is selected, load recommendations
     if (sourceName === 'Anbefalet') {
       try {
         setLoadingRecommended(true);
+        setLoadingTrending(true);
         const res = await fetch('/api/recommended?type=all&_t=' + Date.now(), {
+          signal: controller.signal,
           cache: 'no-store',
           headers: { 'Cache-Control': 'no-cache' }
         });
         if (!res.ok) throw new Error('Anbefalingerne kunne ikke hentes. Prøv igen.');
-        const j = await res.json();
+        const j = await readJsonResponse(res);
+        if (controller.signal.aborted) return;
         const items = Array.isArray(j.recommendations) ? j.recommendations : [];
         const sortedRecommendations = sortByNewest(items, (item: any) => item.date || item.published_at || item.publishDate || item.releaseDate);
         setRecommendedItems(sortedRecommendations);
@@ -484,33 +486,37 @@ export default function SetupWizard({
         );
         setTrendingItems(sortedNormalized);
       } catch (error) {
+        if (controller.signal.aborted) return;
         console.error('Error loading recommended articles:', error);
         setRecommendedItems([]);
         setTrendingItems([]);
         setArticleError(error instanceof Error ? error.message : 'Anbefalingerne kunne ikke hentes.');
       } finally {
-        setLoadingRecommended(false);
+        if (trendingAbortRef.current === controller) { setLoadingRecommended(false); setLoadingTrending(false); }
       }
       return;
     }
     
     // Load trending articles for selected source
-    const controller = new AbortController();
     try {
       setLoadingTrending(true);
+      setLoadingRecommended(false);
       const id = sourceName === 'Alle medier' ? '' : (mediaSources.find(s => s.name === sourceName)?.id) || sourceName;
-      if (trendingAbortRef.current) {
-        try { trendingAbortRef.current.abort(); } catch {}
+      if (forceRefresh) {
+        await readJsonResponse(await fetch('/api/refresh', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' }, signal: controller.signal,
+          body: JSON.stringify({ sinceHours: 168, limit: 20, source: id, sourceName }),
+        }));
       }
-      trendingAbortRef.current = controller;
       const timestamp = Date.now();
-      const res = await fetch(`/api/trending?source=${encodeURIComponent(id)}&sourceName=${encodeURIComponent(sourceName)}&_t=${timestamp}`, {
+      const res = await fetch(`/api/trending?view=writer&source=${encodeURIComponent(id)}&sourceName=${encodeURIComponent(sourceName)}&_t=${timestamp}`, {
         signal: controller.signal,
         cache: 'no-store',
         headers: { 'Cache-Control': 'no-cache' }
       });
       if (!res.ok) throw new Error('Artiklerne kunne ikke hentes.');
-      const j = await res.json();
+      const j = await readJsonResponse(res);
+      if (controller.signal.aborted) return;
       let items: any[] = [];
       if (Array.isArray(j.trendingTemplates)) {
         items = j.trendingTemplates.flatMap((t: any) => Array.isArray(t.articles) ? t.articles : []);
@@ -551,13 +557,13 @@ export default function SetupWizard({
       if (controller.signal.aborted) return;
       console.error('Error loading trending articles:', error);
       setTrendingItems([]);
-      setArticleError('Artiklerne kunne ikke hentes. Prøv igen.');
+      setArticleError(error instanceof Error ? error.message : 'Artiklerne kunne ikke hentes. Prøv igen.');
     } finally {
       if (trendingAbortRef.current === controller) {
         setLoadingTrending(false);
       }
     }
-  }, [loadingTrending, loadingRecommended, mediaSources]);
+  }, [mediaSources]);
 
   // Load trending articles when navigating to trending step if source is selected but articles not loaded
   useEffect(() => {
@@ -565,7 +571,6 @@ export default function SetupWizard({
                       data.template === 'research' && 
                       data.inspirationSource && 
                       data.inspirationSource !== currentSourceRef.current &&
-                      !loadingTrending &&
                       mediaSources.length > 0;
     
     if (shouldLoad) {
@@ -574,61 +579,61 @@ export default function SetupWizard({
     }
   }, [step, data.template, data.inspirationSource, loadingTrending, mediaSources, trendingItems.length, loadArticles]);
 
-  // Load dynamic analysis when entering analysis step with a research article
+  const analysisInput = data.researchSelected ? JSON.stringify({
+    title: data.researchSelected.title, content: data.researchSelected.content,
+    keyPoints: data.researchSelected.keyPoints, source: data.researchSelected.source,
+    url: data.researchSelected.url,
+  }) : '';
+  // Only the active selection may write analysis results. UI state changes do not refetch.
   useEffect(() => {
-    const shouldAnalyze = step === 'analysis' && 
-                         data.template === 'research' && 
-                         data.researchSelected && 
-                         !loadingAnalysis &&
-                         (!analysisData || analysisData.trend === 'Stabil'); // Only analyze if we don't have dynamic data yet
-    
-    if (shouldAnalyze) {
-      const analyzeResearch = async () => {
-        setLoadingAnalysis(true);
+    setAnalysisData(null);
+    setAnalysisError('');
+    if (step !== 'analysis' || data.template !== 'research' || !analysisInput) {
+      setLoadingAnalysis(false);
+      return;
+    }
+    const controller = new AbortController();
+    setLoadingAnalysis(true);
+    const analyzeResearch = async () => {
         try {
           const res = await fetch('/api/analyze-research', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              title: data.researchSelected.title,
-              content: data.researchSelected.content,
-              keyPoints: data.researchSelected.keyPoints,
-              source: data.researchSelected.source
-            })
+            body: analysisInput,
+            signal: controller.signal,
           });
-          
-          if (res.ok) {
-            const result = await res.json();
+            const result = await readJsonResponse(res);
+            if (controller.signal.aborted) return;
             const analysis = result.data || result;
             if (analysis.trend && analysis.angle && analysis.audience && Array.isArray(analysis.suggestions)) {
               setAnalysisData(analysis);
-              // Update aiDraft with suggestions
-              updateData((d: any) => ({
+              // Update only suggestions, without advancing the wizard.
+              setData((d: any) => ({
                 ...d,
                 aiDraft: {
                   ...(d.aiDraft || {}),
                   suggestions: analysis.suggestions
                 }
               }));
-            }
-          }
+            } else throw new Error('Analysen var ufuldstændig.');
         } catch (error) {
+          if (controller.signal.aborted) return;
           console.error('Error analyzing research article:', error);
+          setAnalysisError('Analysen kunne ikke hentes. Prøv igen, eller skriv selv din vinkel i prompten.');
         } finally {
-          setLoadingAnalysis(false);
+          if (!controller.signal.aborted) setLoadingAnalysis(false);
         }
       };
-      
-      analyzeResearch();
-    }
-  }, [step, data.template, data.researchSelected, loadingAnalysis, analysisData, updateData]);
+    void analyzeResearch();
+    return () => controller.abort();
+  }, [step, data.template, analysisInput, analysisRetry]);
 
   // Auto-refresh articles in background every 2 minutes when on trending step
   useEffect(() => {
     if (step !== 'trending' || !data.inspirationSource || data.template !== 'research') return;
     
     const interval = setInterval(() => {
-      loadArticles(data.inspirationSource, true);
+      loadArticles(data.inspirationSource);
     }, 120000); // 2 minutes
     
     return () => clearInterval(interval);
@@ -642,7 +647,7 @@ export default function SetupWizard({
     if (step==='template') return !!data.template;
     if (step==='articleType') return !!data.articleType;
     if (step==='source') return !!data.inspirationSource;
-    if (step==='trending') return !!data.researchSelected || true;
+    if (step==='trending') return !!data.researchSelected;
     if (step==='inspiration') return !!data.researchSelected;
     if (step==='analysis') return !!data.aiDraft?.completed;
     if (step==='author') return !!data.authorId || !!data.author;
@@ -811,6 +816,12 @@ export default function SetupWizard({
                 <button
                   key={opt.key}
                   onClick={()=> {
+                    trendingAbortRef.current?.abort();
+                    currentSourceRef.current = '';
+                    setLoadingTrending(false);
+                    setLoadingRecommended(false);
+                    setTrendingItems([]);
+                    setArticleError('');
                     if (selected) {
                       updateData((d:any)=> ({ ...d, template: '', inspirationSource: '', researchSelected: null, inspirationAcknowledged: false }));
                     } else {
@@ -889,9 +900,14 @@ export default function SetupWizard({
                 <button
                   key={name}
                   onClick={()=> {
+                    trendingAbortRef.current?.abort();
+                    currentSourceRef.current = '';
+                    setLoadingTrending(false);
+                    setLoadingRecommended(false);
+                    setTrendingItems([]);
+                    setArticleError('');
                     if (selected) {
-          updateData((d:any)=> ({ ...d, inspirationSource: '', researchSelected: null, inspirationAcknowledged: false }));
-                      setTrendingItems([]);
+                      updateData((d:any)=> ({ ...d, inspirationSource: '', researchSelected: null, inspirationAcknowledged: false }));
                       return;
                     }
                     updateData((d:any)=> ({ ...d, inspirationSource: name, researchSelected: null, inspirationAcknowledged: false }), 'source');
@@ -1120,14 +1136,15 @@ ${toneInstruction}`;
                     </div>
                   ) : (
                     <div className="text-white/80 text-xs space-y-1">
-                      <div>Trend: <span className="px-2 py-0.5 rounded bg-white/10">{analysisData?.trend || 'Stabil'}</span></div>
-                      <div>Vinkel: <span className="opacity-80">{analysisData?.angle || 'Balanceret analyse'}</span></div>
-                      <div>Målgruppe: <span className="opacity-80">{analysisData?.audience || 'Generel læser'}</span></div>
+                      <div>Trend: <span className="px-2 py-0.5 rounded bg-white/10">{analysisData?.trend || 'Ikke analyseret'}</span></div>
+                      <div>Vinkel: <span className="opacity-80">{analysisData?.angle || 'Ikke analyseret'}</span></div>
+                      <div>Målgruppe: <span className="opacity-80">{analysisData?.audience || 'Ikke analyseret'}</span></div>
+                      {analysisError && <p role="alert">{analysisError} <button type="button" className="underline" onClick={() => setAnalysisRetry(n => n + 1)}>Prøv igen</button></p>}
                     </div>
                   )}
                 </div>
                 <div className="bg-white/5 rounded-lg border border-white/10 p-3">
-                  <div className="text-white/70 text-xs mb-2">AI Forslag (for at undgå plagiering) {loadingAnalysis && <span className="text-white/40">(Genererer...)</span>}</div>
+                  <div className="text-white/70 text-xs mb-2">{analysisData ? 'Forslag til selvstændig research' : 'Generelle researchråd, ikke en plagiatkontrol'} {loadingAnalysis && <span className="text-white/40">(Genererer...)</span>}</div>
                   {loadingAnalysis ? (
                     <div className="flex items-center gap-2">
                       <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>

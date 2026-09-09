@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import WebflowPublishPanel from './WebflowPublishPanel';
 import type { WebflowArticleFields } from '@/lib/webflow/types';
 import { stripIntroDuplicateFromBody } from '@/lib/article-intro-strip';
+import { writerArticleBody } from '@/lib/ai-chat/article-content';
 import { addCoveredEditorialTopic, addPublishedEditorialSignalId } from '@/lib/editorial/signal-store';
 
 interface ReviewPanelProps {
@@ -205,13 +206,7 @@ export default function ReviewPanel({ articleData, onClose, frameless, onPreflig
   const category = mergedArticleData?.category || mergedArticleData?.section || '—';
   const topic = (mergedArticleData?.tags || [])[1] || mergedArticleData?.topic || '';
   const rating = mergedArticleData?.rating || 0;
-  // Fallbacks: use content, post-body, or last assistant reply from _chatMessages
-  let content: string = mergedArticleData?.content || mergedArticleData?.['post-body'] || '';
-  if (!content && Array.isArray(mergedArticleData?._chatMessages)) {
-    const assistants = (mergedArticleData._chatMessages as any[]).filter(m => m.role === 'assistant');
-    const last = assistants[assistants.length - 1]?.content as string | undefined;
-    if (last) content = last;
-  }
+  let content = writerArticleBody(mergedArticleData);
   if (!content) content = 'Her vil artikelindholdet blive vist, når du begynder at skrive i chatten.';
   
   // Extract intro and body from content
@@ -773,42 +768,17 @@ export default function ReviewPanel({ articleData, onClose, frameless, onPreflig
               });
               const j = await res.json().catch(()=>null);
               if (!res.ok) {
-                const msg = j?.details || j?.error || 'Udgivelse fejlede';
-                
-                // Show error message in a styled modal instead of alert
-                const modal = document.createElement('div');
-                modal.className = 'fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[99999] animate-fade-in';
-                modal.innerHTML = `
-                  <div class="bg-white dark:bg-pure-black backdrop-blur-2xl border border-white/20 dark:border-black-800/50 rounded-2xl shadow-2xl ring-1 ring-white/10 dark:ring-black-800/20 p-8 max-w-md w-[90%] text-center animate-scale-in">
-                    <div class="w-16 h-16 bg-gradient-to-br from-red-500 to-red-600 rounded-2xl flex items-center justify-center text-white text-2xl font-bold mx-auto mb-6 shadow-lg animate-bounce-in">
-                      ✗
-                    </div>
-                    <h3 class="text-xl font-semibold text-slate-800 dark:text-black-100 mb-4">Fejl ved udgivelse</h3>
-                    <p class="text-slate-600 dark:text-black-400 mb-6">${msg}</p>
-                    <button
-                      onclick="this.closest('.fixed').remove()"
-                      class="group px-8 py-3 bg-red-600 dark:bg-red-500 text-white rounded-xl font-medium hover:bg-red-700 dark:hover:bg-red-400 hover:shadow-lg hover:scale-105 transition-all duration-200 ease-out shadow-md"
-                    >
-                      <span class="group-hover:scale-110 transition-transform duration-200">❌</span>
-                      <span class="ml-2">OK</span>
-                    </button>
-                  </div>
-                `;
-                document.body.appendChild(modal);
-                
-                // Auto-remove after 8 seconds
-                setTimeout(() => {
-                  if (modal.parentNode) {
-                    modal.remove();
-                  }
-                }, 8000);
-                return;
+                const msg = typeof j?.error === 'string' ? j.error
+                  : typeof j?.error?.message === 'string' ? j.error.message : 'Gemning i Webflow fejlede';
+                throw new Error(msg);
               }
               const isUpdate = formData.webflowId && formData.webflowId !== '';
               const articleTitle = formData.title || 'Artiklen';
-              const webflowId = j?.articleId || 'ukendt';
+              const webflowId = j?.data?.articleId || j?.articleId;
+              if (!webflowId) throw new Error('Webflow svarede uden artikel-ID. Gemningen kunne ikke bekræftes.');
+              onUpdateArticle?.({ webflowId });
               const editorialSignalId = String(articleData?.editorialSignalId || '').trim();
-              if (editorialSignalId) {
+              if (editorialSignalId && formData.status === 'published') {
                 const publishedDetail = {
                   signalId: editorialSignalId,
                   signalTitle: String(articleData?.editorialSignalTitle || '').trim() || undefined,
@@ -834,8 +804,8 @@ export default function ReviewPanel({ articleData, onClose, frameless, onPreflig
                     ✓
                   </div>
                   <h3 class="text-xl font-semibold text-slate-800 dark:text-black-100 mb-2">${isUpdate ? 'Opdateret' : 'Sendt til Webflow'}</h3>
-                  <p class="text-slate-600 dark:text-black-400 mb-4 text-sm">"${articleTitle}"</p>
-                  <p class="text-slate-500 dark:text-black-500 mb-6 text-xs">Status: Draft • ID: ${webflowId}</p>
+                  <p class="text-slate-600 dark:text-black-400 mb-4 text-sm"></p>
+                  <p class="text-slate-500 dark:text-black-500 mb-6 text-xs"></p>
                   <button
                     onclick="this.closest('.fixed').remove()"
                     class="group px-8 py-3 bg-primary-600 dark:bg-primary-500 text-white rounded-xl font-medium hover:bg-primary-700 dark:hover:bg-primary-400 hover:shadow-lg hover:scale-105 transition-all duration-200 ease-out shadow-md"
@@ -845,6 +815,9 @@ export default function ReviewPanel({ articleData, onClose, frameless, onPreflig
                   </button>
                 </div>
               `;
+              const paragraphs = modal.querySelectorAll('p');
+              paragraphs[0].textContent = String(articleTitle);
+              paragraphs[1].textContent = `Status: ${formData.status === 'published' ? 'Publiceret' : 'Kladde'} · ID: ${webflowId}`;
               document.body.appendChild(modal);
               
               // Auto-remove after 5 seconds
@@ -865,7 +838,7 @@ export default function ReviewPanel({ articleData, onClose, frameless, onPreflig
                     ✗
                   </div>
                   <h3 class="text-xl font-semibold text-slate-800 dark:text-black-100 mb-4">Uventet fejl</h3>
-                  <p class="text-slate-600 dark:text-black-400 mb-6">${errorMsg}</p>
+                  <p class="text-slate-600 dark:text-black-400 mb-6"></p>
                   <button
                     onclick="this.closest('.fixed').remove()"
                     class="group px-8 py-3 bg-red-600 dark:bg-red-500 text-white rounded-xl font-medium hover:bg-red-700 dark:hover:bg-red-400 hover:shadow-lg hover:scale-105 transition-all duration-200 ease-out shadow-md"
@@ -875,6 +848,7 @@ export default function ReviewPanel({ articleData, onClose, frameless, onPreflig
                   </button>
                 </div>
               `;
+              modal.querySelector('p')!.textContent = errorMsg;
               document.body.appendChild(modal);
               
               // Auto-remove after 8 seconds
@@ -883,6 +857,7 @@ export default function ReviewPanel({ articleData, onClose, frameless, onPreflig
                   modal.remove();
                 }
               }, 8000);
+              throw e;
             }
           }}
           onClose={() => {}}

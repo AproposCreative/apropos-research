@@ -12,8 +12,8 @@ interface MediaSource {
 const DEFAULT_MEDIA_SOURCES: MediaSource[] = [
   { id: 'soundvenue', name: 'Soundvenue', baseUrl: 'https://soundvenue.com', sitemapIndex: '/sitemap.xml', enabled: true },
   { id: 'gaffa', name: 'GAFFA', baseUrl: 'https://gaffa.dk', sitemapIndex: '/sitemap', enabled: true },
-  { id: 'berlingske', name: 'BERLINGSKE', baseUrl: 'https://www.berlingske.dk', sitemapIndex: '/sitemap.xml/news', enabled: true },
-  { id: 'bt', name: 'BT', baseUrl: 'https://www.bt.dk', sitemapIndex: '/sitemap.xml/news', enabled: true },
+  { id: 'berlingske', name: 'BERLINGSKE', baseUrl: 'https://www.berlingske.dk', sitemapIndex: '/news-sitemap.xml', enabled: true },
+  { id: 'bt', name: 'BT', baseUrl: 'https://www.bt.dk', sitemapIndex: '/news-sitemap.xml', enabled: true },
 ];
 
 export function getDefaultMediaSources(): MediaSource[] {

@@ -23,6 +23,7 @@ import {
   type TrendingArticleInput,
 } from '@/lib/trending/firestore-store';
 import { logger as appLogger } from '@/lib/logger';
+import { resolveTrendingSource } from '@/lib/trending/source-filter';
 
 const logger = pino({ level: 'info' });
 
@@ -84,9 +85,6 @@ function resolveSourceFromUrl(
     const domain = u.hostname.replace(/^www\./, '').toLowerCase();
     const direct = map.get(domain);
     if (direct) return direct;
-    for (const [key, value] of map.entries()) {
-      if (domain.includes(key) || key.includes(domain)) return value;
-    }
   } catch {
     // ignore
   }
@@ -118,25 +116,25 @@ export async function runIngestToFirestore(opts: IngestOptions = {}): Promise<In
   let sources: MediaSourceLite[] = [];
   try {
     const all = await getAllEnabledMediaSources();
-    sources = all.map((s) => ({ id: s.id, name: s.name, baseUrl: s.baseUrl }));
+    sources = all.map((s) => ({ id: resolveTrendingSource(s.id, s.name).id, name: s.name, baseUrl: s.baseUrl }));
   } catch (err) {
     logger.warn({ err: err instanceof Error ? err.message : String(err) }, 'falling back to default media sources');
     sources = getDefaultMediaSources().map((s) => ({ id: s.id, name: s.name, baseUrl: s.baseUrl }));
   }
-  const sourceMap = buildSourceMap(sources);
+  const sourceMap = buildSourceMap([...getDefaultMediaSources(), ...sources]);
 
   // Discover candidates fra feeds + sitemaps (kan slås fra individuelt).
   let candidates: { url: string; published_at?: string; source?: string }[] = [];
   if (!opts.sitemapOnly) {
     try {
-      candidates = await discoverFromFeed();
+      candidates = await discoverFromFeed(opts.source);
     } catch (err) {
       logger.warn({ err: err instanceof Error ? err.message : String(err) }, 'feed-discovery failed');
     }
   }
   if (!opts.feedOnly) {
     try {
-      const urls = await discoverFromSitemaps();
+      const urls = await discoverFromSitemaps({ source: opts.source, persistCache: false });
       const fromSitemap = urls.map((url) => {
         const sourceInfo = resolveSourceFromUrl(url, sourceMap);
         return { url, source: sourceInfo?.id ?? 'unknown' };
@@ -166,11 +164,11 @@ export async function runIngestToFirestore(opts: IngestOptions = {}): Promise<In
 
   // Dedup på URL og enforce limit.
   const seen = new Set<string>();
-  const unique: { url: string; source?: string }[] = [];
+  const unique: { url: string; source?: string; published_at?: string }[] = [];
   for (const c of filtered) {
     if (seen.has(c.url)) continue;
     seen.add(c.url);
-    unique.push({ url: c.url, source: c.source });
+    unique.push({ url: c.url, source: c.source, published_at: c.published_at });
     if (opts.limit && unique.length >= opts.limit) break;
   }
   metrics.discovered = unique.length;
@@ -181,11 +179,15 @@ export async function runIngestToFirestore(opts: IngestOptions = {}): Promise<In
 
   // Fetch + parse hver candidate, byg op til Firestore-batch.
   const records: TrendingArticleInput[] = [];
-  for (const { url, source } of unique) {
+  for (const { url, source, published_at } of unique) {
     try {
-      const { text, contentType, status } = await fetchText(url, { noRobots: opts.noRobots });
+      const { text, contentType, status } = await fetchText(url, { noRobots: opts.noRobots, persistCache: false });
       if (status === 304) {
         metrics.fetched_304++;
+        continue;
+      }
+      if (status < 200 || status >= 300) {
+        metrics.fetched_fail++;
         continue;
       }
       if (!contentType || !contentType.includes('html')) {
@@ -212,8 +214,8 @@ export async function runIngestToFirestore(opts: IngestOptions = {}): Promise<In
         source: finalSource,
         sourceName: sourceMeta?.name,
         category: parsed.category,
-        date: parsed.date || new Date().toISOString(),
-        published_at: parsed.date || new Date().toISOString(),
+        date: parsed.date || published_at,
+        published_at: parsed.date || published_at,
         fetched_at: new Date().toISOString(),
         image: parsed.image,
       });

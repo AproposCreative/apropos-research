@@ -18,8 +18,8 @@ interface MediaSourceDoc {
 const DEFAULT_SOURCES: Omit<MediaSourceDoc, 'id' | 'userId' | 'createdAt'>[] = [
   { name: 'Soundvenue', baseUrl: 'https://soundvenue.com', sitemapIndex: '/sitemap.xml', enabled: true },
   { name: 'GAFFA', baseUrl: 'https://gaffa.dk', sitemapIndex: '/sitemap', enabled: true },
-  { name: 'BERLINGSKE', baseUrl: 'https://www.berlingske.dk', sitemapIndex: '/sitemap.xml/news', enabled: true },
-  { name: 'BT', baseUrl: 'https://www.bt.dk', sitemapIndex: '/sitemap.xml/news', enabled: true },
+  { name: 'BERLINGSKE', baseUrl: 'https://www.berlingske.dk', sitemapIndex: '/news-sitemap.xml', enabled: true },
+  { name: 'BT', baseUrl: 'https://www.bt.dk', sitemapIndex: '/news-sitemap.xml', enabled: true },
 ];
 
 async function getUserIdFromRequest(req: NextRequest): Promise<string | null> {

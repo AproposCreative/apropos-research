@@ -15,6 +15,7 @@ import { generateSeoMetaSmart } from '@/lib/seo/generate-seo-meta';
 import { SEO_TITLE_MAX } from '@/lib/seo/constants';
 import { isLivAuthor, loadLivVoice } from '@/lib/liv/voice';
 import { livModels } from '@/lib/liv/model-config';
+import { writerLengthCheck, writerLengthPolicy } from '@/lib/ai-chat/article-length';
 
 const openai = getOpenAIClient();
 
@@ -74,14 +75,17 @@ async function runQuickQualityCheck(openaiClient: ReturnType<typeof getOpenAICli
           role: 'system',
           content: 'Du er kvalitetskontrollør. Gennemgå artiklen for: 1) Faktuelle udsagn der bør tjekkes, 2) Gentagelser, 3) Tone-problemer. Returnér KUN en JSON-array af korte advarsler på dansk (maks 5). Returnér [] hvis artiklen er god.',
         },
-        { role: 'user', content: articleText.slice(0, 3000) },
+        { role: 'user', content: articleText },
       ],
     });
-    const raw = response.choices[0]?.message?.content?.trim() || '[]';
+    if (response.choices[0]?.finish_reason !== 'stop') throw new Error('Incomplete quality check');
+    const raw = response.choices[0]?.message?.content?.trim() || '';
     const match = raw.match(/\[[\s\S]*\]/);
-    return match ? JSON.parse(match[0]) : [];
+    const warnings: unknown = match ? JSON.parse(match[0]) : null;
+    if (!Array.isArray(warnings) || !warnings.every(w => typeof w === 'string')) throw new Error('Invalid quality check');
+    return warnings;
   } catch {
-    return [];
+    return ['Den hurtige redaktionelle kontrol kunne ikke gennemføres. Udkastet er ikke kvalitetsgodkendt.'];
   }
 }
 
@@ -327,19 +331,6 @@ function normalizeContentWithIntro(content: string, intro: string | null): strin
   return remainder ? `Intro: ${intro}\n\n${remainder}` : `Intro: ${intro}`;
 }
 
-function getTargetMinWords(articleContext: Record<string, unknown>): number {
-  const section = String(articleContext?.section || articleContext?.category || '').toLowerCase();
-  const template = String(articleContext?.template || '').toLowerCase();
-  const topics = Array.isArray(articleContext?.topicsSelected) ? articleContext.topicsSelected.map((x) => String(x).toLowerCase()) : [];
-  const tags = Array.isArray(articleContext?.tags) ? articleContext.tags.map((x) => String(x).toLowerCase()) : [];
-  const hay = [section, template, ...topics, ...tags].join(' ');
-  if (/nyhed|news|kort/.test(hay)) return 600;
-  if (/koncert|musik|live/.test(hay)) return 700;
-  if (/film|serie|tv|streaming/.test(hay)) return 900;
-  if (/kultur|feature|essay|interview|portræt|portr.t/.test(hay)) return 1200;
-  return 900;
-}
-
 function extractArticleUpdate(responseText: string, userRating?: number): Record<string, any> | null {
   const t = responseText.trim();
   if (!t) return null;
@@ -352,9 +343,7 @@ function extractArticleUpdate(responseText: string, userRating?: number): Record
     !!brodSplit ||
     /(?:intro|indledning)\s*[:\-–—]/i.test(contentWithoutSubtitle) ||
     !!extractedTitle ||
-    !!extractedSubtitle ||
-    contentWithoutSubtitle.length > 200 ||
-    /\n\n/.test(contentWithoutSubtitle);
+    !!extractedSubtitle;
   if (!looksLikeArticle) return null;
 
   let finalContent: string;
@@ -523,8 +512,13 @@ export async function POST(request: NextRequest) {
       model: generationModel,
       messages,
       ...(liv ? {} : { temperature: 0.7 }),
-      max_completion_tokens: liv ? 8000 : 4096,
+      max_completion_tokens: 10000,
     });
+
+    if (completion.choices[0]?.finish_reason !== 'stop') {
+      if (clientRequestId) completeProgress(clientRequestId);
+      return NextResponse.json({ error: 'Modellens svar blev afbrudt. Artiklen er ikke opdateret. Prøv igen.' }, { status: 503 });
+    }
 
     const responseText = completion.choices[0]?.message?.content?.trim() ?? '';
     if (!responseText) {
@@ -546,47 +540,53 @@ export async function POST(request: NextRequest) {
     let finalResponseText = responseText;
     let articleUpdate = extractArticleUpdate(finalResponseText, userRating) ?? undefined;
 
-    // Expansion pass to enforce practical minimum article length.
+    // One bounded repair, for both too-short and too-long drafts. Never silently
+    // label a failed repair as meeting the user's selected template.
+    let lengthWarning: string | undefined;
     if (articleUpdate?.content) {
-      const minWords = getTargetMinWords(articleData || {});
-      const wc = countWords(articleUpdate.content);
-      if (wc > 0 && wc < minWords) {
+      const policy = writerLengthPolicy(articleData);
+      if (!writerLengthCheck(articleUpdate.content, articleData).pass) {
         try {
           const expansion = await openai.chat.completions.create({
             model: generationModel,
             ...(liv ? {} : { temperature: 0.5 }),
-            max_completion_tokens: liv ? 8000 : 4096,
+            max_completion_tokens: 10000,
             messages: [
               {
                 role: 'system',
                 content:
-                  `${systemPrompt}\n\nDu er redaktør. Udvid artiklen til korrekt længde uden at ændre hovedvinkel, TOV eller redaktionel retning. Returnér i formatet: Arbejdstitel, Undertitel, Intro, tom linje, brødtekst.`,
+                  `${systemPrompt}\n\nDu er redaktør. Tilpas artiklen til korrekt længde uden at ændre hovedvinkel, TOV eller redaktionel retning. Returnér Arbejdstitel:, Undertitel:, Intro: og Brødtekst: med hele brødteksten. Ingen nye udokumenterede fakta, citater eller fyld.`,
               },
               {
                 role: 'user',
                 content:
-                  `Udvid følgende artikel til mindst ${minWords} ord.\n` +
-                  'Behold titel, undertitel og intro konsistent, men gør brødteksten dybere og mere detaljeret.\n\n' +
+                  `Brødteksten skal være ${policy.min}-${policy.max} ord, sigt efter ${policy.target}. Titel, undertitel og intro tæller ikke med.\n` +
+                  'Forkort hvis for lang, uddyb eksisterende belæg hvis for kort. Bevar fakta og kildehenvisninger.\n\n' +
                   finalResponseText,
               },
             ],
           });
           const expanded = expansion.choices[0]?.message?.content?.trim();
-          if (expanded) {
+          const repaired = expanded && expansion.choices[0]?.finish_reason === 'stop'
+            ? extractArticleUpdate(expanded, userRating) : null;
+          if (repaired?.content && writerLengthCheck(repaired.content, articleData).pass) {
             finalResponseText = expanded;
-            articleUpdate = extractArticleUpdate(finalResponseText, userRating) ?? articleUpdate;
+            articleUpdate = repaired;
           }
         } catch (expErr) {
-          console.warn('[ai-chat] expansion pass failed:', expErr);
+          console.warn('[ai-chat] length repair failed; original draft retained');
         }
       }
+      const lengthCheck = writerLengthCheck(articleUpdate.content, articleData);
+      articleUpdate.lengthCheck = lengthCheck;
+      if (!lengthCheck.pass) lengthWarning = `Længde kræver rettelse: Brødteksten er ${lengthCheck.actual} ord; valgt skabelon kræver ${lengthCheck.label}. Udkastet er bevaret, men længden er ikke godkendt.`;
     }
 
     // --- Step: Quality Check ---
-    let warnings: string[] = [];
+    let warnings: string[] = lengthWarning ? [lengthWarning] : [];
     if (articleUpdate?.content && clientRequestId) {
       updateProgressStep(clientRequestId, 'quality', 'active');
-      warnings = await runQuickQualityCheck(openai, articleUpdate.content, liv);
+      warnings.push(...await runQuickQualityCheck(openai, articleUpdate.content, liv));
       updateProgressStep(clientRequestId, 'quality', 'completed');
     } else if (clientRequestId) {
       updateProgressStep(clientRequestId, 'quality', 'completed');

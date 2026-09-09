@@ -25,7 +25,7 @@ export type NormalizeArticlePayloadOptions = {
   defaultCategory?: string;
 };
 
-function slugify(input: string): string {
+export function slugifyArticleTitle(input: string): string {
   return input
     .toLowerCase()
     .normalize('NFKD')
@@ -69,7 +69,7 @@ export function normalizeArticlePayload(
     id: input.id || `article-${Date.now().toString(36)}`,
     webflowId: input.webflowId,
     title: input.title,
-    slug: input.slug || slugify(input.title),
+    slug: input.slug || slugifyArticleTitle(input.title),
     subtitle: input.subtitle,
     content,
     excerpt: input.excerpt,

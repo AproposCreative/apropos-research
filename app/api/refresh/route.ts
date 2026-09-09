@@ -1,89 +1,30 @@
-import { NextResponse } from 'next/server';
-import { execFile } from 'node:child_process';
-import path from 'node:path';
-import { invalidatePromptsCache } from '../../../lib/readPrompts';
-import { logger } from '@/lib/logger';
+import { NextRequest, NextResponse } from 'next/server';
+import { getNewsletterUserIdFromRequest } from '@/lib/newsletter/auth-request';
+import { getAdminDb } from '@/lib/firebase-admin';
+import { runIngestToFirestore } from '@/lib/trending/ingest-runner';
+import { resolveTrendingSource } from '@/lib/trending/source-filter';
+import { getDefaultMediaSources } from '@/lib/getMediaSources';
 
-export async function POST(request: Request) {
-  // Parse request body to get custom parameters
-  let sinceHours = 168; // Default: 1 week
-  let limit = 200; // Default: 200 articles
-  let source: string | undefined = undefined; // Optional: specific media source ID
-  
+export const maxDuration = 300;
+
+/** Same Firestore pipeline as scheduled ingestion, awaited rather than detached. */
+export async function POST(request: NextRequest) {
+  if (!await getNewsletterUserIdFromRequest(request)) return NextResponse.json({ error: 'Log ind for at opdatere kilder.' }, { status: 401 });
+  if (!getAdminDb()) return NextResponse.json({ error: 'Artikelarkivet er ikke tilgængeligt.' }, { status: 503 });
+  let body;
+  try { const raw = await request.text(); body = raw.trim() ? JSON.parse(raw) : {}; } catch { return NextResponse.json({ error: 'Ugyldig JSON.' }, { status: 400 }); }
+  if (!body || typeof body !== 'object' || Array.isArray(body)) return NextResponse.json({ error: 'Ugyldig forespørgsel.' }, { status: 400 });
+  const source = resolveTrendingSource(typeof body.source === 'string' ? body.source : '', typeof body.sourceName === 'string' ? body.sourceName : '');
+  // User-added publishers need a supported discovery adapter, not silent success.
+  if (source.id && !getDefaultMediaSources().some(s => s.id === source.id)) return NextResponse.json({ error: 'Dette medies indlæsning er endnu ikke understøttet. Gemte artikler kan stadig læses.' }, { status: 422 });
+  const limit = Math.min(20, Math.max(1, Number(body.limit) || 20));
+  const requestedHours = Number(body.sinceHours) || (Number(body.sinceMinutes) / 60) || 168;
+  const sinceHrs = Math.min(720, Math.max(1 / 60, requestedHours));
   try {
-    const body = await request.json();
-    if (body.sinceMinutes) {
-      // Convert minutes to hours (use decimal for precision)
-      sinceHours = body.sinceMinutes / 60;
-    } else if (body.sinceHours) {
-      sinceHours = body.sinceHours;
-    }
-    if (body.limit) {
-      limit = body.limit;
-    }
-    if (body.source) {
-      source = body.source;
-    }
+    const metrics = await runIngestToFirestore({ source: source.id || undefined, limit: Math.floor(limit), sinceHrs });
+    if (!metrics.added && !metrics.updated && !metrics.unchanged) return NextResponse.json({ error: 'Ingen læsbare artikler blev hentet. Mediets feed, adgang eller parser kræver kontrol.', metrics }, { status: 422 });
+    return NextResponse.json({ ok: true, metrics }, { headers: { 'Cache-Control': 'no-store' } });
   } catch {
-    // If no body or parsing fails, use defaults
-  }
-  
-  const root = process.cwd(); // We're already in the project root
-  
-  // Try to use direct import first (if tsx works), otherwise fall back to exec
-  let useDirectImport = false;
-  try {
-    // Check if we can import the ingestion module directly
-    // This avoids exec() and esbuild issues
-    const { ingestOnce } = await import('../../../src/cli/ingest-rage');
-    useDirectImport = true;
-    
-    // Run ingestion in background (don't await)
-    ingestOnce({ sinceHrs: sinceHours, limit, source }).then(() => {
-      invalidatePromptsCache();
-      logger.info('Ingest completed successfully', { sinceHours, limit, source });
-    }).catch((err) => {
-      logger.error('Ingest failed', err instanceof Error ? err : new Error(String(err)), { sinceHours, limit, source });
-    });
-    
-    return NextResponse.json({
-      ok: true,
-      message: source ? `Ingest started in background for ${source}` : 'Ingest started in background (direct import)',
-      sinceHours,
-      limit,
-      source
-    }, { status: 202 });
-  } catch (importErr) {
-    // Fall back to exec if direct import fails
-    const errorObj = importErr instanceof Error ? importErr : new Error(String(importErr));
-    logger.warn('Direct import failed, using exec fallback', { error: String(importErr) }, errorObj);
-    const commandArgs = [
-      'run',
-      'ingest:rage',
-      '--',
-      `--since=${sinceHours}`,
-      `--limit=${limit}`,
-      ...(source ? [`--source=${source}`] : []),
-    ];
-
-    // Start ingest in background - don't wait for it to complete
-    execFile('npm', commandArgs, { cwd: root, env: process.env, timeout: 1000 * 60 * 5 }, (err, stdout, stderr) => {
-      if (!err) {
-        // Invalidate cache after successful refresh
-        invalidatePromptsCache();
-        logger.info('Ingest completed successfully (exec)', { sinceHours, limit });
-      } else {
-        logger.error('Ingest failed (exec)', err instanceof Error ? err : new Error(String(err)), { stderr });
-      }
-    });
-
-    // Return immediately
-    return NextResponse.json({
-      ok: true,
-      message: source ? `Ingest started in background for ${source} (exec fallback)` : 'Ingest started in background (exec fallback)',
-      sinceHours,
-      limit,
-      source
-    }, { status: 202 }); // 202 Accepted
+    return NextResponse.json({ error: 'Kilderne kunne ikke opdateres. Prøv igen.' }, { status: 503 });
   }
 }

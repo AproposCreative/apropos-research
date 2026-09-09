@@ -67,6 +67,7 @@ async function checkRobots(url: string, opts?: { noRobots?: boolean }): Promise<
       const res = await fetch(robotsUrl, {
         method: "GET",
         headers: { "User-Agent": env.RAGE_USER_AGENT },
+        signal: AbortSignal.timeout(10000),
       });
       lastRequestAt = Date.now();
       if (!res.ok) {
@@ -96,7 +97,7 @@ export async function httpFetch(
   url: string,
   method: HttpMethod = "GET",
   accept: string = "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-  opts?: { noRobots?: boolean }
+  opts?: { noRobots?: boolean; persistCache?: boolean }
 ): Promise<Response> {
   await checkRobots(url, { noRobots: opts?.noRobots });
 
@@ -112,14 +113,14 @@ export async function httpFetch(
 
     // Conditional headers from index
     try {
-      const idx = await readIndex();
+      const idx = opts?.persistCache === false ? { heads: {} } : await readIndex();
       const head = idx.heads[url];
       if (head?.etag) headers["If-None-Match"] = head.etag;
       if (head?.lastModified) headers["If-Modified-Since"] = head.lastModified;
     } catch {}
 
     await rateLimitWait();
-    const res = await fetch(url, { method, headers, redirect: "follow" });
+    const res = await fetch(url, { method, headers, redirect: "follow", signal: AbortSignal.timeout(10000) });
     lastRequestAt = Date.now();
 
     if (res.status === 429 || (res.status >= 500 && res.status <= 599)) {
@@ -134,7 +135,7 @@ export async function httpFetch(
     try {
       const etag = res.headers.get("etag") || undefined;
       const lastModified = res.headers.get("last-modified") || undefined;
-      await upsertHead(url, {
+      if (opts?.persistCache !== false) await upsertHead(url, {
         etag,
         lastModified,
         lastSeenAt: new Date().toISOString(),
@@ -148,9 +149,9 @@ export async function httpFetch(
 
 export async function fetchText(
   url: string,
-  opts?: { noRobots?: boolean }
+  opts?: { noRobots?: boolean; persistCache?: boolean }
 ): Promise<{ text: string; contentType: string | null; status: number }>{
-  const res = await httpFetch(url, "GET", undefined as any, { noRobots: opts?.noRobots });
+  const res = await httpFetch(url, "GET", undefined as any, opts);
   if (res.status === 304) {
     return { text: "", contentType: res.headers.get("content-type"), status: 304 };
   }
@@ -158,5 +159,3 @@ export async function fetchText(
   const contentType = res.headers.get("content-type");
   return { text, contentType, status: res.status };
 }
-
-
