@@ -19,7 +19,7 @@ Dato: 2026-09-09. Udgangspunkt: f0772e9. Ingen produktionskald eller nye nøgler
 1. `liv-brandt.txt` v3 er fælles profil for generator, briefing, Writer og TOV-kritiker.
    Writer placerer den i det låste kernesegment, så deaktivering af en gammel
    forfatter-TOV ikke fjerner den. Manglende/ukendt profil stopper frem for generisk fallback.
-   Generatoren returnerer profilversion og SHA-256 samt modellens faktiske respons-ID.
+   Generatoren returnerer profilversion og SHA-256 samt model-ID'et fra det faktiske svar.
 2. Liv bruger den fælles `getResearch`-service med OpenAI Responses-websøgning,
    eksisterende kvalitetskontrol og fallback. Direkte briefkilder prioriteres.
    Genfundne kilder hentes igen med den eksisterende SSRF-sikre kildehenter.
@@ -63,8 +63,21 @@ Ingen Instagram-post eller CMS-artikel er oprettet.
 
 Nøglerotation/genbrug er tidligere dokumenteret i SOURCE-VERIFICATION.md.
 Push/deploy af denne nye samlede release afventer særskilt godkendelse af eksakt
-clean commit. Den allerede godkendte SEO-release 617a251 integreres lokalt før sluttest.
+clean commit. De allerede godkendte SEO/GEO-releases til og med 127ddc5 er integreret
+lokalt før sluttest, så en Liv-deployment ikke ruller dem tilbage.
 Ingen dependencyændringer eller npm lifecycle scripts. Vitest bruger isoleret tmp/vitest-rage.
+
+## Samlet lokal sluttest
+
+- 649 tests i 62 filer består efter integration af SEO/GEO-release 127ddc5.
+- Produktionsbuild og TypeScript består. Tre eksisterende tracing-advarsler i
+  podcast/SEO er uændrede; de er ikke løst i dette trin.
+- Seks kompilerede Liv-ruter består opstart/JSON-test uden credentials: fem
+  afviser med 401; cron afviser med 503 uden konfigureret cron-secret.
+- Liv v3-profilen er med i deployment-manifestet for Writer, TOV-kritiker,
+  preview, plan, editorial desk og cron. Dette kontrolleres nu i runtime-smoketesten.
+- 207 deployment-manifester er kontrolleret uden tmp, Git eller root-env-filer.
+- Ingen ændringer i dependencies, deploymentkonfiguration eller tracked research-data.
 
 ## Modelreferencer
 
