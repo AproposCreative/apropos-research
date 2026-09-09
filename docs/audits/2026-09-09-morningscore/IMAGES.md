@@ -38,6 +38,8 @@ Dette er en lokal kodeændring, ikke en publiceret rettelse. Node-syntakskontrol
 
 ## Næste billedrettelser
 
+Opdatering: Programfejlene i punkt 3 er nu rettet lokalt; se AUTOMATION.md for den implementerede politik, målinger og resterende templatearbejde. Beskrivelsen nedenfor fastholder udgangspunktet.
+
 1. Bevar desktop-originaler til store hero-visninger. Giv små artikelkort egne responsive kandidater og korrekte sizes. Brug picture/media eller anden verificeret enkelt-downloadløsning, så både mobil- og desktop-img ikke eager-loades på samme viewport.
 2. Start med Ericka Jane, Torsdag/Sombr og Kurt Vile, fordi de genbruges bredt. Forbered mindre afledte filer efter visuel kontrol af motiv, crop og credits. Ingen overskrivning af kildeaktiver eller automatisk CMS-backfill.
 3. Thumbnail-programmet bruger aktuelt `preserveDimensions: true` og et størrelsesmål på 600 KB; ved minimumskvalitet kan output stadig overstige målet. Det forklarer, hvorfor “optimeret” ikke er et størrelsesløfte. Ændr ikke globalt til lav opløsning, da samme felt også bruges som hero. Afledte kortbilleder er den rette afgrænsning at teste.

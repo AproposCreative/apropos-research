@@ -1,3 +1,4 @@
+import { imageMeetsPolicy, inspectImageBatch } from '@/lib/images/inspect-image';
 import { FieldValue } from 'firebase-admin/firestore';
 import { env } from '@/lib/config/env';
 import { getAdminDb } from '@/lib/firebase-admin';
@@ -13,6 +14,7 @@ export type MobileImageOptimizeOptions = {
   qualityMin?: number;
   force?: boolean;
   limit?: number;
+  offset?: number;
 };
 
 export type MobileImageCandidate = {
@@ -21,19 +23,11 @@ export type MobileImageCandidate = {
   slug: string;
   thumbUrl: string | null;
   mobileImageUrl: string | null;
-  status: 'ready' | 'skip-existing' | 'missing-thumb';
+  status: 'ready' | 'skip-existing' | 'missing-thumb' | 'check-failed';
+  error?: string;
 };
 
 const MOBILE_OPTIMIZED_PATH = 'webflow/mobile-images';
-
-function normalizeUrlForCompare(url: string): string {
-  try {
-    const u = new URL(url);
-    return `${u.origin}${u.pathname}`.toLowerCase();
-  } catch {
-    return url.toLowerCase().split('?')[0] ?? url.toLowerCase();
-  }
-}
 
 /** Kun spring over hvis Mobile Image er vores optimerede WebP-upload (Firebase). */
 export function isOptimizedMobileImageUrl(url: string | null | undefined): boolean {
@@ -51,19 +45,13 @@ export function isOptimizedMobileImageUrl(url: string | null | undefined): boole
   );
 }
 
-export function needsMobileImageOptimization(args: {
-  thumbUrl: string | null;
-  mobileImageUrl: string | null;
-  force?: boolean;
-}): boolean {
-  if (args.force) return !!args.thumbUrl;
+export async function needsMobileImageOptimization(args: {
+  thumbUrl: string | null; mobileImageUrl: string | null; force?: boolean;
+  maxSizeKB?: number; maxLongEdge?: number;
+}): Promise<boolean> {
   if (!args.thumbUrl) return false;
-  if (!args.mobileImageUrl) return true;
-  if (isOptimizedMobileImageUrl(args.mobileImageUrl)) return false;
-  // Samme URL som thumb = ikke en dedikeret mobil-variant
-  if (normalizeUrlForCompare(args.thumbUrl) === normalizeUrlForCompare(args.mobileImageUrl)) return true;
-  // Felt udfyldt med stort hero-billede fra Webflow — skal stadig optimeres
-  return true;
+  if (args.force || !args.mobileImageUrl) return true;
+  return !(await imageMeetsPolicy(args.mobileImageUrl, Math.min(260, args.maxSizeKB ?? 260), Math.min(1200, args.maxLongEdge ?? 1200)));
 }
 
 export type MobileImageRunResult = MobileImageCandidate & {
@@ -170,24 +158,19 @@ async function fetchAllArticleItems(): Promise<any[]> {
   return items;
 }
 
-function candidateFromItem(item: any, thumbSlug: string, mobileImageSlug: string, force: boolean): MobileImageCandidate {
+async function candidateFromItem(item: any, thumbSlug: string, mobileImageSlug: string, force: boolean, options: MobileImageOptimizeOptions): Promise<MobileImageCandidate> {
   const fd = (item?.fieldData || {}) as Record<string, unknown>;
   const thumbUrl = resolveImageUrl(fd[thumbSlug]);
   const mobileImageUrl = resolveImageUrl(fd[mobileImageSlug]);
   const title = typeof fd.name === 'string' && fd.name.trim() ? fd.name.trim() : String(item.id);
   const slug = typeof fd.slug === 'string' && fd.slug.trim() ? fd.slug.trim() : title;
-  return {
-    id: String(item.id),
-    title,
-    slug,
-    thumbUrl,
-    mobileImageUrl,
-    status: !thumbUrl
-      ? 'missing-thumb'
-      : needsMobileImageOptimization({ thumbUrl, mobileImageUrl, force })
-        ? 'ready'
-        : 'skip-existing',
-  };
+  const base = { id: String(item.id), title, slug, thumbUrl, mobileImageUrl };
+  if (!thumbUrl) return { ...base, status: 'missing-thumb' };
+  try {
+    const needed = await needsMobileImageOptimization({ thumbUrl, mobileImageUrl, force, ...options });
+    return { ...base, status: needed ? 'ready' : 'skip-existing' };
+  } catch (error) { return { ...base, status: 'check-failed', error: error instanceof Error ? error.message : String(error) }; }
+
 }
 
 export async function previewMobileImageOptimization(options: MobileImageOptimizeOptions = {}): Promise<{
@@ -198,15 +181,18 @@ export async function previewMobileImageOptimization(options: MobileImageOptimiz
   missingThumb: number;
   existing: number;
   candidates: MobileImageCandidate[];
+  offset: number; checked: number; nextOffset: number | null;
 }> {
   const { thumbSlug, mobileImageSlug } = await getMobileImageFieldSlugs();
   const force = !!options.force;
   const items = await fetchAllArticleItems();
-  const candidates = items.map((item) => candidateFromItem(item, thumbSlug, mobileImageSlug, force));
+  const batch = await inspectImageBatch(items, options.offset, item => candidateFromItem(item, thumbSlug, mobileImageSlug, force, options));
+  const candidates = batch.candidates;
   return {
     thumbSlug,
     mobileImageSlug,
-    total: candidates.length,
+    ...batch,
+    total: items.length,
     ready: candidates.filter((c) => c.status === 'ready').length,
     missingThumb: candidates.filter((c) => c.status === 'missing-thumb').length,
     existing: candidates.filter((c) => c.status === 'skip-existing').length,
@@ -214,7 +200,7 @@ export async function previewMobileImageOptimization(options: MobileImageOptimiz
   };
 }
 
-async function updateMobileImageField(itemId: string, fieldSlug: string, url: string): Promise<void> {
+async function updateMobileImageField(itemId: string, fieldSlug: string, url: string, expectedMobile: string | null, thumbSlug: string, expectedThumb: string): Promise<void> {
   const { token, siteId, collectionId } = resolveRuntime();
   const itemUrl = `https://api.webflow.com/v2/sites/${siteId}/collections/${collectionId}/items/${itemId}`;
   const current = await fetch(itemUrl, {
@@ -228,6 +214,9 @@ async function updateMobileImageField(itemId: string, fieldSlug: string, url: st
     throw new Error(j?.message || `Webflow fetch item error ${current.status}`);
   }
   const item: any = await current.json();
+  if (resolveImageUrl(item.fieldData?.[fieldSlug]) !== expectedMobile || resolveImageUrl(item.fieldData?.[thumbSlug]) !== expectedThumb) {
+    throw new Error('Article images changed during optimization; retry from a fresh preview');
+  }
   const res = await fetch(itemUrl, {
     method: 'PATCH',
     headers: {
@@ -237,8 +226,8 @@ async function updateMobileImageField(itemId: string, fieldSlug: string, url: st
     },
     body: JSON.stringify({
       fieldData: {
-        ...(item.fieldData || {}),
-        [fieldSlug]: url,
+        [fieldSlug]: item.fieldData?.[fieldSlug] && typeof item.fieldData[fieldSlug] === 'object' && 'alt' in item.fieldData[fieldSlug]
+          ? { url, alt: item.fieldData[fieldSlug].alt } : url,
       },
     }),
   });
@@ -282,16 +271,18 @@ export async function runMobileImageOptimization(options: MobileImageOptimizeOpt
   allAlreadyOptimized: boolean;
   skippedReason: string | null;
   results: MobileImageRunResult[];
+  offset: number; checked: number; nextOffset: number | null;
 }> {
   const { thumbSlug, mobileImageSlug } = await getMobileImageFieldSlugs();
   const force = !!options.force;
   const limit = Math.min(Math.max(Math.round(options.limit ?? 10), 1), 25);
   const items = await fetchAllArticleItems();
-  const allCandidates = items.map((item) => candidateFromItem(item, thumbSlug, mobileImageSlug, force));
+  const batch = await inspectImageBatch(items, options.offset, item => candidateFromItem(item, thumbSlug, mobileImageSlug, force, options));
+  const allCandidates = batch.candidates;
   const readyCount = allCandidates.filter((c) => c.status === 'ready').length;
   const candidates = allCandidates.filter((c) => c.status === 'ready').slice(0, limit);
 
-  const results: MobileImageRunResult[] = [];
+  const results: MobileImageRunResult[] = allCandidates.filter(c => c.status === 'check-failed').map(c => ({ ...c, ok: false }));
 
   for (const candidate of candidates) {
     if (!candidate.thumbUrl) {
@@ -301,9 +292,9 @@ export async function runMobileImageOptimization(options: MobileImageOptimizeOpt
 
     try {
       const output = await optimizeAndUploadImage({
-        imageUrl: candidate.thumbUrl,
-        maxSizeKB: options.maxSizeKB ?? 260,
-        maxLongEdge: options.maxLongEdge ?? 1200,
+        imageUrl: candidate.mobileImageUrl || candidate.thumbUrl,
+        maxSizeKB: Math.min(260, options.maxSizeKB ?? 260),
+        maxLongEdge: Math.min(1200, options.maxLongEdge ?? 1200),
         qualityStart: options.qualityStart ?? 85,
         qualityMin: options.qualityMin ?? 65,
         folder: 'webflow/mobile-images',
@@ -313,7 +304,7 @@ export async function runMobileImageOptimization(options: MobileImageOptimizeOpt
         }),
         role: 'mobile',
       });
-      await updateMobileImageField(candidate.id, mobileImageSlug, output.url);
+      await updateMobileImageField(candidate.id, mobileImageSlug, output.url, candidate.mobileImageUrl, thumbSlug, candidate.thumbUrl);
       const result: MobileImageRunResult = {
         ...candidate,
         mobileImageUrl: output.url,
@@ -340,15 +331,15 @@ export async function runMobileImageOptimization(options: MobileImageOptimizeOpt
   const processed = results.length;
   const succeeded = results.filter((r) => r.ok).length;
   const failed = results.filter((r) => !r.ok).length;
-  const allAlreadyOptimized = readyCount === 0 && !force;
+  const allAlreadyOptimized = allCandidates.length > 0 && allCandidates.every(c => c.status === 'skip-existing') && !force;
 
   let skippedReason: string | null = null;
   if (processed === 0) {
     if (allAlreadyOptimized) {
       skippedReason =
-        'Alle artikler har allerede en optimeret Mobile Image (WebP fra batch).';
+        'De kontrollerede mobilbilleder overholder størrelse og opløsning.';
     } else if (readyCount === 0) {
-      skippedReason = 'Ingen artikler er klar — tjek at thumb-feltet er udfyldt.';
+      skippedReason = 'Ingen billeder klar i denne gruppe. Kontrollér manglende billeder og fejl i målingen.';
     } else {
       skippedReason = 'Ingen artikler blev behandlet i denne batch.';
     }
@@ -357,13 +348,14 @@ export async function runMobileImageOptimization(options: MobileImageOptimizeOpt
   return {
     thumbSlug,
     mobileImageSlug,
-    total: allCandidates.length,
+    offset: batch.offset, checked: batch.checked, nextOffset: batch.nextOffset,
+    total: items.length,
     ready: readyCount,
     totalCandidates: candidates.length,
     processed,
     succeeded,
     failed,
-    skipped: items.length - readyCount,
+    skipped: allCandidates.filter(c => c.status !== 'ready' && c.status !== 'check-failed').length,
     allAlreadyOptimized,
     skippedReason,
     results,
@@ -384,21 +376,23 @@ export async function patchMobileImageFromThumb(args: {
     process.env.WEBFLOW_MOBILE_IMAGE_OPTIMIZE !== 'false';
   if (!enabled) return { patched: false };
 
-  const { mobileImageSlug } = await getMobileImageFieldSlugs();
+  const { thumbSlug, mobileImageSlug } = await getMobileImageFieldSlugs();
   if (
-    !needsMobileImageOptimization({
+    !(await needsMobileImageOptimization({
       thumbUrl: args.thumbUrl,
       mobileImageUrl: args.mobileImageUrl ?? null,
       force: args.force,
-    })
+      maxSizeKB: Math.min(260, Number(process.env.WEBFLOW_MOBILE_IMAGE_MAX_KB || 260)),
+      maxLongEdge: Math.min(1200, Number(process.env.WEBFLOW_MOBILE_IMAGE_MAX_EDGE || 1200)),
+    }))
   ) {
     return { patched: false };
   }
 
   const output = await optimizeAndUploadImage({
-    imageUrl: args.thumbUrl,
-    maxSizeKB: Number(process.env.WEBFLOW_MOBILE_IMAGE_MAX_KB || 260),
-    maxLongEdge: Number(process.env.WEBFLOW_MOBILE_IMAGE_MAX_EDGE || 1200),
+    imageUrl: args.mobileImageUrl || args.thumbUrl,
+    maxSizeKB: Math.min(260, Number(process.env.WEBFLOW_MOBILE_IMAGE_MAX_KB || 260)),
+    maxLongEdge: Math.min(1200, Number(process.env.WEBFLOW_MOBILE_IMAGE_MAX_EDGE || 1200)),
     qualityStart: 85,
     qualityMin: 65,
     folder: 'webflow/mobile-images',
@@ -409,7 +403,7 @@ export async function patchMobileImageFromThumb(args: {
     }),
     role: 'mobile',
   });
-  await updateMobileImageField(args.itemId, mobileImageSlug, output.url);
+  await updateMobileImageField(args.itemId, mobileImageSlug, output.url, args.mobileImageUrl ?? null, thumbSlug, args.thumbUrl);
   return { patched: true, output };
 }
 
@@ -431,13 +425,13 @@ export async function maybeOptimizeMobileImageForFieldData(args: {
     const thumbUrl = resolveImageUrl(fieldData[thumbSlug] ?? fieldData.thumb);
     const mobileImageUrl = resolveImageUrl(fieldData[mobileImageSlug]);
     if (!thumbUrl) return;
-    if (!needsMobileImageOptimization({ thumbUrl, mobileImageUrl, force: args.force ?? false })) {
+    if (!(await needsMobileImageOptimization({ thumbUrl, mobileImageUrl, force: args.force ?? false, maxSizeKB: Math.min(260, Number(process.env.WEBFLOW_MOBILE_IMAGE_MAX_KB || 260)), maxLongEdge: Math.min(1200, Number(process.env.WEBFLOW_MOBILE_IMAGE_MAX_EDGE || 1200)) }))) {
       return;
     }
     const output = await optimizeAndUploadImage({
-      imageUrl: thumbUrl,
-      maxSizeKB: Number(process.env.WEBFLOW_MOBILE_IMAGE_MAX_KB || 260),
-      maxLongEdge: Number(process.env.WEBFLOW_MOBILE_IMAGE_MAX_EDGE || 1200),
+      imageUrl: mobileImageUrl || thumbUrl,
+      maxSizeKB: Math.min(260, Number(process.env.WEBFLOW_MOBILE_IMAGE_MAX_KB || 260)),
+      maxLongEdge: Math.min(1200, Number(process.env.WEBFLOW_MOBILE_IMAGE_MAX_EDGE || 1200)),
       qualityStart: 85,
       qualityMin: 65,
       folder: 'webflow/mobile-images',
@@ -448,10 +442,12 @@ export async function maybeOptimizeMobileImageForFieldData(args: {
       }),
       role: 'mobile',
     });
-    fieldData[mobileImageSlug] = output.url;
+    const prior = fieldData[mobileImageSlug];
+    fieldData[mobileImageSlug] = prior && typeof prior === 'object' && 'alt' in prior ? { url: output.url, alt: prior.alt } : output.url;
   } catch (e) {
-    logger.warn('[webflow/mobile-image] auto optimize skipped', {
+    logger.warn('[webflow/mobile-image] auto optimization failed', {
       message: e instanceof Error ? e.message : String(e),
     });
+    throw e;
   }
 }

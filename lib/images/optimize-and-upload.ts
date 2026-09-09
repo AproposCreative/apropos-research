@@ -1,5 +1,6 @@
-import { randomUUID } from 'crypto';
-import sharp from 'sharp';
+import { downloadImage } from '@/lib/images/inspect-image';
+import { randomUUID, createHash } from 'crypto';
+import { encodeWebp } from '@/lib/images/encode-webp';
 import { env } from '@/lib/config/env';
 import { getAdminStorageBucket } from '@/lib/firebase-admin';
 import { buildSeoImageFileName } from '@/lib/images/seo-image-name';
@@ -16,11 +17,11 @@ export type OptimizeAndUploadImageOptions = {
   folder?: string;
   baseName?: string;
   role?: string;
-  /** Bevar original opløsning — kun format/komprimering (desktop thumb). */
+  /** Explicit fixed-canvas callers only; automatic thumbnails always resize. */
   preserveDimensions?: boolean;
   /** Exact editorial canvas; quality may change but dimensions must not shrink. */
   targetDimensions?: { width: number; height: number };
-  /** Spring over hvis original er mindre (undtagen PNG). */
+  /** Legacy compatibility option; actual byte and dimension policy determines processing. */
   minOriginalKB?: number;
   /** WebP encode-effort (1-6). Lavere = hurtigere (vigtigt for store fotos/timeouts). Default 6. */
   effort?: number;
@@ -98,132 +99,27 @@ export async function optimizeAndUploadImage(
   const effort = Math.min(6, Math.max(1, Math.round(options.effort ?? 6)));
   const fetchTimeoutMs = Math.max(5000, Math.round(options.fetchTimeoutMs ?? 30000));
 
-  const imageResponse = await fetch(options.imageUrl, {
-    signal: AbortSignal.timeout(fetchTimeoutMs),
-  });
-  if (!imageResponse.ok) {
-    throw new Error(`Failed to fetch image: ${imageResponse.status}`);
-  }
-
-  const imageBuffer = Buffer.from(await imageResponse.arrayBuffer());
+  const imageBuffer = await downloadImage(options.imageUrl, fetchTimeoutMs);
   const originalSizeKB = Math.round(imageBuffer.byteLength / 1024);
-  const originalMeta = await sharp(imageBuffer).metadata();
-  const isPng = (originalMeta.format || '').toLowerCase() === 'png';
-  const minOriginalKB = Math.max(0, Math.round(options.minOriginalKB ?? 0));
-  if (
-    minOriginalKB > 0 &&
-    !isPng &&
-    originalSizeKB < minOriginalKB &&
-    !options.preserveDimensions
-  ) {
-    throw new Error(`Billede er allerede lille nok (${originalSizeKB} KB)`);
-  }
-
-  let currentQuality = qualityStart;
-  let currentLongEdge = maxLongEdge;
-  let processedBuffer: Buffer | null = null;
-  let metaWidth: number | null = originalMeta.width ?? null;
-  let metaHeight: number | null = originalMeta.height ?? null;
-
-  if (options.targetDimensions) {
-    const { width, height } = options.targetDimensions;
-    if (![width, height].every(n => Number.isInteger(n) && n >= 200 && n <= 4096)) {
-      throw new Error('Invalid target image dimensions');
-    }
-    const canvas = await sharp(imageBuffer).rotate().resize(width, height, { fit: 'cover' }).toBuffer();
-    metaWidth = width;
-    metaHeight = height;
-    while (true) {
-      processedBuffer = await sharp(canvas).webp({ quality: currentQuality, effort }).toBuffer();
-      if (processedBuffer.byteLength <= maxSizeKB * 1024 || currentQuality === qualityMin) break;
-      currentQuality = Math.max(qualityMin, currentQuality - 5);
-    }
-  } else if (options.preserveDimensions) {
-    // Roter én gang til en arbejds-buffer, så vi ikke gen-dekoder originalen i hver iteration.
-    const rotatedBuffer = await sharp(imageBuffer).rotate().toBuffer();
-    while (currentQuality >= qualityMin) {
-      processedBuffer = await sharp(rotatedBuffer)
-        .webp({
-          quality: currentQuality,
-          effort,
-          lossless: false,
-        })
-        .toBuffer();
-
-      const processedSizeKB = Math.round(processedBuffer.byteLength / 1024);
-      if (processedSizeKB <= maxSizeKB || currentQuality <= qualityMin) {
-        break;
-      }
-      currentQuality -= 5;
-    }
-  } else {
-    // Forrresize én gang til arbejds-buffer; kvalitets-loopet gen-encoder så det lille
-    // billede i stedet for at dekode + resize den fulde original hver gang (stor CPU/memory-gevinst).
-    let workBuffer = await sharp(imageBuffer)
-      .rotate()
-      .resize({
-        width: currentLongEdge,
-        height: currentLongEdge,
-        fit: 'inside',
-        withoutEnlargement: true,
-      })
-      .toBuffer();
-
-    while (currentLongEdge >= 280) {
-      currentQuality = qualityStart;
-      while (currentQuality >= qualityMin) {
-        processedBuffer = await sharp(workBuffer)
-          .webp({
-            quality: currentQuality,
-            effort,
-            lossless: false,
-          })
-          .toBuffer();
-
-        const processedSizeKB = Math.round(processedBuffer.byteLength / 1024);
-        const meta = await sharp(processedBuffer).metadata();
-        metaWidth = meta.width ?? null;
-        metaHeight = meta.height ?? null;
-        if (processedSizeKB <= maxSizeKB) {
-          break;
-        }
-        currentQuality -= 7;
-      }
-
-      if (!processedBuffer || Math.round(processedBuffer.byteLength / 1024) <= maxSizeKB) {
-        break;
-      }
-      currentLongEdge = Math.round(currentLongEdge * 0.88);
-      workBuffer = await sharp(imageBuffer)
-        .rotate()
-        .resize({
-          width: currentLongEdge,
-          height: currentLongEdge,
-          fit: 'inside',
-          withoutEnlargement: true,
-        })
-        .toBuffer();
-    }
-  }
-
-  if (!processedBuffer) {
-    throw new Error('Image processing failed');
-  }
-
-  const processedSizeKB = Math.round(processedBuffer.byteLength / 1024);
-  if (!metaWidth || !metaHeight) {
-    const finalMeta = await sharp(processedBuffer).metadata();
-    metaWidth = finalMeta.width ?? originalMeta.width ?? null;
-    metaHeight = finalMeta.height ?? originalMeta.height ?? null;
-  }
+  const encoded = await encodeWebp(imageBuffer, {
+    maxSizeKB, maxLongEdge, qualityStart, qualityMin, effort,
+    preserveDimensions: options.preserveDimensions,
+    targetDimensions: options.targetDimensions,
+  });
+  const processedBuffer = encoded.data;
+  const processedSizeKB = Math.ceil(encoded.bytes / 1024);
+  const metaWidth = encoded.width;
+  const metaHeight = encoded.height;
+  const currentQuality = encoded.quality;
 
   const fileNameOnly = buildSeoImageFileName({
     baseName: options.baseName,
     role: options.role || 'mobile',
-    maxLongEdge,
+    maxLongEdge: metaWidth,
     imageUrl: options.imageUrl,
   });
-  const fileName = `${datedFolder(folder)}/${fileNameOnly}`;
+  const digest = createHash('sha256').update(processedBuffer).digest('hex').slice(0, 16);
+  const fileName = `${datedFolder(folder)}/${fileNameOnly.replace(/\.webp$/, `-${digest}-${randomUUID()}.webp`)}`;
 
   let lastError: unknown = null;
   for (const bucket of resolveBucketCandidates()) {

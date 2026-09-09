@@ -1,3 +1,4 @@
+import { imageMeetsPolicy, inspectImageBatch } from '@/lib/images/inspect-image';
 import { FieldValue } from 'firebase-admin/firestore';
 import { getAdminDb } from '@/lib/firebase-admin';
 import { optimizeAndUploadImage, type OptimizeAndUploadImageResult } from '@/lib/images/optimize-and-upload';
@@ -19,7 +20,8 @@ export type ThumbImageCandidate = {
   title: string;
   slug: string;
   thumbUrl: string | null;
-  status: 'ready' | 'skip-existing' | 'missing-thumb' | 'skip-small';
+  status: 'ready' | 'skip-existing' | 'missing-thumb' | 'skip-small' | 'check-failed';
+  error?: string;
 };
 
 export type ThumbImageRunResult = ThumbImageCandidate & {
@@ -54,24 +56,13 @@ export function isOptimizedThumbImageUrl(url: string | null | undefined): boolea
   );
 }
 
-export function needsThumbImageOptimization(args: {
-  thumbUrl: string | null;
-  force?: boolean;
-  minOriginalKB?: number;
-}): boolean {
+export async function needsThumbImageOptimization(args: {
+  thumbUrl: string | null; force?: boolean; minOriginalKB?: number;
+  maxSizeKB?: number; maxLongEdge?: number;
+}): Promise<boolean> {
   if (!args.thumbUrl) return false;
   if (args.force) return true;
-  if (isOptimizedThumbImageUrl(args.thumbUrl)) return false;
-
-  const lower = args.thumbUrl.toLowerCase();
-  if (/\.png(\?|$)/i.test(lower)) return true;
-  if (/\.(jpe?g|webp)(\?|$)/i.test(lower) && lower.includes('cdn.prod.website-files.com')) {
-    return true;
-  }
-  if (/\.(jpe?g)(\?|$)/i.test(lower) && !lower.includes(THUMB_OPTIMIZED_PATH)) {
-    return true;
-  }
-  return !isOptimizedThumbImageUrl(args.thumbUrl);
+  return !(await imageMeetsPolicy(args.thumbUrl, Math.min(450, args.maxSizeKB ?? 450), Math.min(2400, args.maxLongEdge ?? 2400)));
 }
 
 async function fetchAllArticleItems(): Promise<any[]> {
@@ -109,12 +100,13 @@ async function fetchAllArticleItems(): Promise<any[]> {
   return items;
 }
 
-function candidateFromItem(
+async function candidateFromItem(
   item: any,
   thumbSlug: string,
   force: boolean,
-  minOriginalKB: number
-): ThumbImageCandidate {
+  minOriginalKB: number,
+  options: ThumbImageOptimizeOptions
+): Promise<ThumbImageCandidate> {
   const fd = (item?.fieldData || {}) as Record<string, unknown>;
   const thumbUrl = resolveImageUrl(fd[thumbSlug]);
   const title = typeof fd.name === 'string' && fd.name.trim() ? fd.name.trim() : String(item.id);
@@ -123,10 +115,14 @@ function candidateFromItem(
   if (!thumbUrl) {
     return { id: String(item.id), title, slug, thumbUrl: null, status: 'missing-thumb' };
   }
-  if (!needsThumbImageOptimization({ thumbUrl, force, minOriginalKB })) {
-    return { id: String(item.id), title, slug, thumbUrl, status: 'skip-existing' };
+  try {
+    if (!(await needsThumbImageOptimization({ thumbUrl, force, minOriginalKB, ...options }))) {
+      return { id: String(item.id), title, slug, thumbUrl, status: 'skip-existing' };
+    }
+    return { id: String(item.id), title, slug, thumbUrl, status: 'ready' };
+  } catch (error) {
+    return { id: String(item.id), title, slug, thumbUrl, status: 'check-failed', error: error instanceof Error ? error.message : String(error) };
   }
-  return { id: String(item.id), title, slug, thumbUrl, status: 'ready' };
 }
 
 export async function previewThumbImageOptimization(options: ThumbImageOptimizeOptions = {}): Promise<{
@@ -136,15 +132,18 @@ export async function previewThumbImageOptimization(options: ThumbImageOptimizeO
   missingThumb: number;
   existing: number;
   candidates: ThumbImageCandidate[];
+  offset: number; checked: number; nextOffset: number | null;
 }> {
   const { thumbSlug } = await getMobileImageFieldSlugs();
   const force = !!options.force;
   const minOriginalKB = Math.max(0, Math.round(options.minOriginalKB ?? 120));
   const items = await fetchAllArticleItems();
-  const candidates = items.map((item) => candidateFromItem(item, thumbSlug, force, minOriginalKB));
+  const batch = await inspectImageBatch(items, options.offset, item => candidateFromItem(item, thumbSlug, force, minOriginalKB, options));
+  const candidates = batch.candidates;
   return {
     thumbSlug,
-    total: candidates.length,
+    ...batch,
+    total: items.length,
     ready: candidates.filter((c) => c.status === 'ready').length,
     missingThumb: candidates.filter((c) => c.status === 'missing-thumb').length,
     existing: candidates.filter((c) => c.status === 'skip-existing').length,
@@ -152,7 +151,7 @@ export async function previewThumbImageOptimization(options: ThumbImageOptimizeO
   };
 }
 
-async function updateThumbField(itemId: string, thumbSlug: string, url: string): Promise<void> {
+async function updateThumbField(itemId: string, thumbSlug: string, url: string, expectedSource: string): Promise<void> {
   const { getWebflowConfig } = await import('@/lib/webflow-config');
   const { env } = await import('@/lib/config/env');
   const file = getWebflowConfig();
@@ -174,7 +173,10 @@ async function updateThumbField(itemId: string, thumbSlug: string, url: string):
     throw new Error(j?.message || `Webflow fetch item error ${current.status}`);
   }
   const item: { fieldData?: Record<string, unknown> } = await current.json();
-  const fieldData = { ...(item.fieldData || {}), [thumbSlug]: url };
+  const previous = item.fieldData?.[thumbSlug];
+  if (resolveImageUrl(previous) !== expectedSource) throw new Error('Desktop image changed during optimization; retry from a fresh preview');
+  const value = previous && typeof previous === 'object' && 'alt' in previous ? { url, alt: previous.alt } : url;
+  const fieldData = { [thumbSlug]: value };
   const patch = await fetch(itemUrl, {
     method: 'PATCH',
     headers: {
@@ -218,17 +220,19 @@ export async function runThumbImageOptimization(options: ThumbImageOptimizeOptio
   allAlreadyOptimized: boolean;
   skippedReason: string | null;
   results: ThumbImageRunResult[];
+  offset: number; checked: number; nextOffset: number | null;
 }> {
   const { thumbSlug, mobileImageSlug } = await getMobileImageFieldSlugs();
   const force = !!options.force;
   const limit = Math.min(Math.max(Math.round(options.limit ?? 10), 1), 25);
   const minOriginalKB = Math.max(0, Math.round(options.minOriginalKB ?? 120));
   const items = await fetchAllArticleItems();
-  const allCandidates = items.map((item) => candidateFromItem(item, thumbSlug, force, minOriginalKB));
+  const batch = await inspectImageBatch(items, options.offset, item => candidateFromItem(item, thumbSlug, force, minOriginalKB, options));
+  const allCandidates = batch.candidates;
   const readyCount = allCandidates.filter((c) => c.status === 'ready').length;
   const candidates = allCandidates.filter((c) => c.status === 'ready').slice(0, limit);
 
-  const results: ThumbImageRunResult[] = [];
+  const results: ThumbImageRunResult[] = allCandidates.filter(c => c.status === 'check-failed').map(c => ({ ...c, ok: false }));
 
   for (const candidate of candidates) {
     if (!candidate.thumbUrl) {
@@ -239,11 +243,11 @@ export async function runThumbImageOptimization(options: ThumbImageOptimizeOptio
     try {
       const output = await optimizeAndUploadImage({
         imageUrl: candidate.thumbUrl,
-        maxSizeKB: options.maxSizeKB ?? Number(process.env.WEBFLOW_THUMB_IMAGE_MAX_KB || 600),
-        maxLongEdge: options.maxLongEdge ?? 2400,
+        maxSizeKB: Math.min(450, options.maxSizeKB ?? Number(process.env.WEBFLOW_THUMB_IMAGE_MAX_KB || 450)),
+        maxLongEdge: Math.min(2400, options.maxLongEdge ?? 2400),
         qualityStart: options.qualityStart ?? 88,
         qualityMin: options.qualityMin ?? 72,
-        preserveDimensions: options.preserveDimensions !== false,
+        preserveDimensions: false,
         minOriginalKB,
         folder: 'webflow/thumb-images',
         baseName: resolveArticleSeoImageBaseName({
@@ -252,7 +256,7 @@ export async function runThumbImageOptimization(options: ThumbImageOptimizeOptio
         }),
         role: 'thumb',
       });
-      await updateThumbField(candidate.id, thumbSlug, output.url);
+      await updateThumbField(candidate.id, thumbSlug, output.url, candidate.thumbUrl);
 
       const sourceItem = items.find((it) => String(it.id) === candidate.id);
       const fd = (sourceItem?.fieldData || {}) as Record<string, unknown>;
@@ -290,14 +294,14 @@ export async function runThumbImageOptimization(options: ThumbImageOptimizeOptio
   const processed = results.length;
   const succeeded = results.filter((r) => r.ok).length;
   const failed = results.filter((r) => !r.ok).length;
-  const allAlreadyOptimized = readyCount === 0 && !force;
+  const allAlreadyOptimized = allCandidates.length > 0 && allCandidates.every(c => c.status === 'skip-existing') && !force;
 
   let skippedReason: string | null = null;
   if (processed === 0) {
     if (allAlreadyOptimized) {
-      skippedReason = 'Alle desktop-billeder er allerede optimeret (WebP).';
+      skippedReason = 'De kontrollerede desktop-billeder overholder størrelse og opløsning.';
     } else if (readyCount === 0) {
-      skippedReason = 'Ingen artikler er klar — tjek at thumb-feltet er udfyldt.';
+      skippedReason = 'Ingen billeder klar i denne gruppe. Kontrollér manglende billeder og fejl i målingen.';
     } else {
       skippedReason = 'Ingen artikler blev behandlet i denne batch.';
     }
@@ -305,13 +309,14 @@ export async function runThumbImageOptimization(options: ThumbImageOptimizeOptio
 
   return {
     thumbSlug,
-    total: allCandidates.length,
+    offset: batch.offset, checked: batch.checked, nextOffset: batch.nextOffset,
+    total: items.length,
     ready: readyCount,
     totalCandidates: readyCount,
     processed,
     succeeded,
     failed,
-    skipped: allCandidates.length - readyCount,
+    skipped: allCandidates.filter(c => c.status !== 'ready' && c.status !== 'check-failed').length,
     allAlreadyOptimized,
     skippedReason,
     results,
@@ -334,18 +339,18 @@ export async function maybeOptimizeThumbImageForFieldData(args: {
     const { thumbSlug } = await getMobileImageFieldSlugs();
     const thumbUrl = resolveImageUrl(args.fieldData[thumbSlug] ?? args.fieldData.thumb);
     const minOriginalKB = Number(process.env.WEBFLOW_THUMB_IMAGE_MIN_KB || 120);
-    if (!needsThumbImageOptimization({ thumbUrl, force: args.force, minOriginalKB })) {
+    if (!(await needsThumbImageOptimization({ thumbUrl, force: args.force, minOriginalKB, maxSizeKB: Math.min(450, Number(process.env.WEBFLOW_THUMB_IMAGE_MAX_KB || 450)), maxLongEdge: Math.min(2400, Number(process.env.WEBFLOW_THUMB_IMAGE_MAX_EDGE || 2400)) }))) {
       return false;
     }
     if (!thumbUrl) return false;
 
     const output = await optimizeAndUploadImage({
       imageUrl: thumbUrl,
-      maxSizeKB: Number(process.env.WEBFLOW_THUMB_IMAGE_MAX_KB || 600),
-      maxLongEdge: Number(process.env.WEBFLOW_THUMB_IMAGE_MAX_EDGE || 2400),
+      maxSizeKB: Math.min(450, Number(process.env.WEBFLOW_THUMB_IMAGE_MAX_KB || 450)),
+      maxLongEdge: Math.min(2400, Number(process.env.WEBFLOW_THUMB_IMAGE_MAX_EDGE || 2400)),
       qualityStart: 88,
       qualityMin: 72,
-      preserveDimensions: true,
+      preserveDimensions: false,
       minOriginalKB,
       folder: 'webflow/thumb-images',
       baseName: resolveArticleSeoImageBaseName({
@@ -355,12 +360,13 @@ export async function maybeOptimizeThumbImageForFieldData(args: {
       }),
       role: 'thumb',
     });
-    args.fieldData[thumbSlug] = output.url;
+    const prior = args.fieldData[thumbSlug];
+    args.fieldData[thumbSlug] = prior && typeof prior === 'object' && 'alt' in prior ? { url: output.url, alt: prior.alt } : output.url;
     return true;
   } catch (e) {
-    logger.warn('[webflow/thumb-image] auto optimize skipped', {
+    logger.warn('[webflow/thumb-image] auto optimization failed', {
       message: e instanceof Error ? e.message : String(e),
     });
-    return false;
+    throw e;
   }
 }

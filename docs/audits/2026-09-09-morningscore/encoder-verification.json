@@ -1,0 +1,72 @@
+{
+  "generatedAt": "2026-09-09T17:45:50.411Z",
+  "mode": "In-memory only, no output files or upload",
+  "results": [
+    {
+      "source": "https://cdn.prod.website-files.com/67dbf17ba540975b5b21c233/6a4520d0417c61ccb614f50c_webflow%252Fthumb-images%252F2026%252F07%252Fturboweekend-tinderbox-2026-thumb-2400w-19nwvj.webp",
+      "role": "desktop",
+      "originalBytes": 2943352,
+      "outputBytes": 303874,
+      "width": 2400,
+      "height": 1260,
+      "quality": 88,
+      "milliseconds": 475,
+      "savedPercent": 90
+    },
+    {
+      "source": "https://cdn.prod.website-files.com/67dbf17ba540975b5b21c233/6a4520d0417c61ccb614f50c_webflow%252Fthumb-images%252F2026%252F07%252Fturboweekend-tinderbox-2026-thumb-2400w-19nwvj.webp",
+      "role": "mobile",
+      "originalBytes": 2943352,
+      "outputBytes": 75444,
+      "width": 1200,
+      "height": 630,
+      "quality": 85,
+      "milliseconds": 257,
+      "savedPercent": 97
+    },
+    {
+      "source": "https://cdn.prod.website-files.com/67dbf17ba540975b5b21c233/6a876afdaf2e45880351be10_webflow%252Fthumb-images%252F2026%252F08%252Fericka-jane-syd-for-solen-2026-anmeldelse-thumb-2400w-1grdaa.webp",
+      "role": "desktop",
+      "originalBytes": 1631816,
+      "outputBytes": 460266,
+      "width": 2040,
+      "height": 1360,
+      "quality": 88,
+      "milliseconds": 2078,
+      "savedPercent": 72
+    },
+    {
+      "source": "https://cdn.prod.website-files.com/67dbf17ba540975b5b21c233/6a876afdaf2e45880351be10_webflow%252Fthumb-images%252F2026%252F08%252Fericka-jane-syd-for-solen-2026-anmeldelse-thumb-2400w-1grdaa.webp",
+      "role": "mobile",
+      "originalBytes": 1631816,
+      "outputBytes": 98640,
+      "width": 1200,
+      "height": 800,
+      "quality": 85,
+      "milliseconds": 183,
+      "savedPercent": 94
+    },
+    {
+      "source": "https://cdn.prod.website-files.com/67dbf17ba540975b5b21c233/6a86db750c1b155bc109b113_webflow%252Fthumb-images%252F2026%252F08%252Fkurt-vile-the-violators-i-vega-slackerens-storhedstid-thumb-2400w-tfz1hj.webp",
+      "role": "desktop",
+      "originalBytes": 533872,
+      "outputBytes": 314388,
+      "width": 2400,
+      "height": 2020,
+      "quality": 88,
+      "milliseconds": 520,
+      "savedPercent": 41
+    },
+    {
+      "source": "https://cdn.prod.website-files.com/67dbf17ba540975b5b21c233/6a86db750c1b155bc109b113_webflow%252Fthumb-images%252F2026%252F08%252Fkurt-vile-the-violators-i-vega-slackerens-storhedstid-thumb-2400w-tfz1hj.webp",
+      "role": "mobile",
+      "originalBytes": 533872,
+      "outputBytes": 124086,
+      "width": 1200,
+      "height": 1010,
+      "quality": 85,
+      "milliseconds": 168,
+      "savedPercent": 77
+    }
+  ]
+}
