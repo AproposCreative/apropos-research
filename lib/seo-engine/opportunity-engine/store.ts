@@ -44,61 +44,62 @@ export async function upsertOpportunity(
   const db = requireDb();
   const id = opp.id || opportunityDocId(opp.fingerprint);
   const ref = db.collection(OPP_COL.opportunities).doc(id);
-  const existing = await ref.get();
-  const now = new Date().toISOString();
+  return db.runTransaction(async (tx) => {
+    const existing = await tx.get(ref);
+    const now = new Date().toISOString();
 
-  if (!existing.exists) {
-    const doc: SeoOpportunity = {
+    if (!existing.exists) {
+      const doc: SeoOpportunity = {
+        ...opp,
+        id,
+        status: 'open',
+        createdAt: now,
+        updatedAt: now,
+        versionIds: [],
+      };
+      tx.set(ref, stripUndefined(doc as unknown as Record<string, unknown>));
+      return doc;
+    }
+
+    const prev = existing.data() as SeoOpportunity;
+    // Do not replace a frozen proposal while its CMS outcome is being reconciled.
+    if (prev.pendingApply || prev.status === 'approved') return { ...prev, id };
+    const merged: SeoOpportunity = {
+      ...prev,
       ...opp,
       id,
       status: 'open',
-      createdAt: now,
+      createdAt: prev.createdAt || now,
       updatedAt: now,
-      versionIds: [],
+      versionIds: prev.versionIds || [],
     };
-    await ref.set(stripUndefined(doc as unknown as Record<string, unknown>));
-    return doc;
-  }
+    // Rejected / dismissed stay closed unless ops reopen manually
+    if (prev.status === 'rejected' || prev.status === 'dismissed') {
+      merged.status = prev.status;
 
-  const prev = existing.data() as SeoOpportunity;
-  // Do not replace a frozen proposal while its CMS outcome is being reconciled.
-  if (prev.pendingApply) return { ...prev, id };
-  const merged: SeoOpportunity = {
-    ...prev,
-    ...opp,
-    id,
-    status: 'open',
-    createdAt: prev.createdAt || now,
-    updatedAt: now,
-    versionIds: prev.versionIds || [],
-  };
-  // Rejected / dismissed stay closed unless ops reopen manually
-  if (prev.status === 'rejected' || prev.status === 'dismissed') {
-    merged.status = prev.status;
-  } else if (prev.status === 'approved') {
-    merged.status = 'approved';
-  } else if (prev.status === 'applied' || prev.status === 'rolled_back') {
-    // Reopen after cooldown when fingerprint/evidence materially changed — never lock forever
-    const cooldownExpired = !isAppliedWithinCooldown(prev.appliedAt, now);
-    const evidenceChanged =
-      prev.fingerprint !== opp.fingerprint ||
-      prev.idempotencyKey !== opp.idempotencyKey ||
-      Math.abs((prev.score || 0) - (opp.score || 0)) >= 8;
-    if (cooldownExpired && evidenceChanged) {
+    } else if (prev.status === 'applied' || prev.status === 'rolled_back') {
+      // Reopen after cooldown when fingerprint/evidence materially changed — never lock forever
+      const cooldownExpired = !isAppliedWithinCooldown(prev.appliedAt, now);
+      const evidenceChanged =
+        prev.fingerprint !== opp.fingerprint ||
+        prev.idempotencyKey !== opp.idempotencyKey ||
+        Math.abs((prev.score || 0) - (opp.score || 0)) >= 8;
+      if (cooldownExpired && evidenceChanged) {
+        merged.status = 'open';
+        merged.skipReason = null;
+        merged.appliedAt = prev.appliedAt;
+        merged.versionIds = prev.versionIds || [];
+      } else {
+        merged.status = prev.status;
+      }
+    } else if (prev.status === 'skipped') {
+      // Skipped items reopen on later scan with fresh evidence
       merged.status = 'open';
       merged.skipReason = null;
-      merged.appliedAt = prev.appliedAt;
-      merged.versionIds = prev.versionIds || [];
-    } else {
-      merged.status = prev.status;
     }
-  } else if (prev.status === 'skipped') {
-    // Skipped items reopen on later scan with fresh evidence
-    merged.status = 'open';
-    merged.skipReason = null;
-  }
-  await ref.set(stripUndefined(merged as unknown as Record<string, unknown>), { merge: true });
-  return merged;
+    tx.set(ref, stripUndefined(merged as unknown as Record<string, unknown>), { merge: true });
+    return merged;
+  });
 }
 
 export async function listOpportunities(args?: {
@@ -143,17 +144,20 @@ export async function updateOpportunityStatus(args: {
 }): Promise<SeoOpportunity> {
   const db = requireDb();
   const ref = db.collection(OPP_COL.opportunities).doc(args.id);
-  const snap = await ref.get();
-  if (!snap.exists) throw new Error('Opportunity ikke fundet');
-  const prev = snap.data() as SeoOpportunity;
-  const next: SeoOpportunity = {
-    ...prev,
-    ...args.extra,
-    id: args.id,
-    status: args.status,
-    updatedAt: new Date().toISOString(),
-  };
-  await ref.set(stripUndefined(next as unknown as Record<string, unknown>), { merge: true });
+  const next = await db.runTransaction(async (tx) => {
+    const snap = await tx.get(ref);
+    if (!snap.exists) throw new Error('Opportunity ikke fundet');
+    const prev = snap.data() as SeoOpportunity;
+    const next: SeoOpportunity = {
+      ...prev,
+      ...args.extra,
+      id: args.id,
+      status: args.status,
+      updatedAt: new Date().toISOString(),
+    };
+    tx.set(ref, stripUndefined(next as unknown as Record<string, unknown>), { merge: true });
+    return next;
+  });
   await appendAudit({
     actor: args.actor,
     action:

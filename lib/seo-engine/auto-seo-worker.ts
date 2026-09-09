@@ -268,15 +268,15 @@ export async function runSeoEngineJob(jobId: string): Promise<{
 
     const { dk, en } = resolveWebflowLocaleIds();
     const cmsLocaleId = locale === 'en' ? en : dk;
-    if (!(await resolveAutoOpportunityOptimizationEnabled())) {
-      throw Object.assign(new Error('Automatisk SEO er stoppet'), { code: 'auto_disabled' });
-    }
-    await lease.assertOwned();
     const beforeWrite = await fetchCmsItemFull(claimed.itemId, locale);
     if (!isWebflowLocalePublished(beforeWrite) || beforeWrite.lastUpdated !== fresh.lastUpdated ||
         JSON.stringify(beforeWrite.fieldData) !== JSON.stringify(fresh.fieldData)) {
       throw Object.assign(new Error('CMS ændret før skrivning'), { code: 'revision_conflict' });
     }
+    if (!(await resolveAutoOpportunityOptimizationEnabled())) {
+      throw Object.assign(new Error('Automatisk SEO er stoppet'), { code: 'auto_disabled' });
+    }
+    await lease.assertOwned();
     await patchArticleFieldDataForLocale(claimed.itemId, cmsPatch, cmsLocaleId);
 
     const verified = await fetchCmsItemFull(claimed.itemId, locale);

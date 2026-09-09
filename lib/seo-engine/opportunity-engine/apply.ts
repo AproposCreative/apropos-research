@@ -1,8 +1,7 @@
 /**
  * Apply / rollback for opportunity proposals.
  *
- * Automatic production path writes ONLY seo-title + meta-description (+ stores
- * server JSON-LD snapshot). Never editorial title/body/stance/rating/slug/dates.
+ * Automatic production path writes ONLY seo-title + meta-description (staged, verified metadata). Never editorial title/body/stance/rating/slug/dates.
  */
 
 import { acquireCmsWriteLease } from '@/lib/seo-engine/cms-write-lease';
@@ -158,14 +157,18 @@ export async function applyOpportunityProposals(args: {
       conflict('CMS-indhold ændret siden den afbrudte skrivning');
     }
     if (Object.keys(patch).length) {
-      if (args.mode === 'auto') await assertAutoMayWrite();
-      await lease.assertOwned();
       // Recheck after saving the backup/operation; those network roundtrips can take time.
       const fresh = await fetchArticleItemByLocale(opp.itemId, cmsLocaleId);
       if (fresh.isDraft === true || !fresh.lastPublished || fresh.lastUpdated !== live.lastUpdated ||
           versions.some((v) => v.field !== 'serverJsonLd' && cmsValue(fresh.fieldData, v.field) !== cmsValue(live.fieldData, v.field))) {
         conflict('CMS ændret før skrivning');
       }
+      const current = await getOpportunity(opp.id);
+      if (current?.status !== 'approved' || current.pendingApply?.key !== key) {
+        conflict('Godkendelsen er ændret før CMS-skrivning');
+      }
+      if (args.mode === 'auto') await assertAutoMayWrite();
+      await lease.assertOwned();
       await patchArticleFieldDataForLocale(opp.itemId, patch, cmsLocaleId);
     }
     const verified = await fetchArticleItemByLocale(opp.itemId, cmsLocaleId);
@@ -284,7 +287,8 @@ export async function rollbackOpportunity(args: {
       });
     }
     return await updateOpportunityStatus({ id: opp.id, status: 'rolled_back', actor: args.actor, extra: {
-      pendingApply: null, cmsWriteState: 'staged_verified', cmsVerifiedAt: new Date().toISOString(),
+      pendingApply: null, versionIds: [...new Set([...(opp.versionIds || []), ...versions.map((v) => v.id)])],
+      cmsWriteState: 'staged_verified', cmsVerifiedAt: new Date().toISOString(),
     } });
   } finally {
     await lease.release().catch(() => undefined);

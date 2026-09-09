@@ -159,7 +159,7 @@ npm run seo-engine:backfill-overwrite -- \
 
 ## Rollout
 
-1. Keep auto **OFF** (`WEBFLOW_AUTO_SEO_ENGINE=false`, Settings toggle off).
+1. Keep automatic writes **OFF** (`SEO_ENGINE_AUTO_OPPORTUNITY_OPT=false`, opportunity toggle off; legacy enable cannot override the stop).
 2. Manual AI smoke: authenticated POST `/api/seo-engine/analyze` (≥200 char body) → `mode: "ai"`, Zod-valid — no worker/CMS write.
 3. Staging worker with empty DK SEO fields (internal secret + one item).
 4. Enable toggle / env → monitor logs (webhook enqueue, worker, recovery cron).

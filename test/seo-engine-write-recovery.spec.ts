@@ -6,13 +6,18 @@ const state = vi.hoisted(() => ({
   cms: { id: 'item', lastUpdated: 'v1', lastPublished: 'published', isDraft: false,
     fieldData: { 'seo-title': 'Old title', 'meta-description': 'Old description' } } as any,
   allow: true,
+  failRollbackHistory: false,
 }));
 
 // Serialized, atomic transactions exercise actual store/lease code without service access.
 vi.mock('@/lib/firebase-admin', () => {
   const ref = (path: string) => ({ path,
     get: async () => ({ exists: state.docs.has(path), id: path.split('/').at(-1), data: () => structuredClone(state.docs.get(path)) }),
-    set: async (data: any, opts?: any) => { state.docs.set(path, opts?.merge ? { ...state.docs.get(path), ...data } : data); },
+    set: async (data: any, opts?: any) => {
+      if (state.failRollbackHistory && path.startsWith('seoEngineOpportunityVersions/') && data.rolledBackAt) {
+        state.failRollbackHistory = false; throw new Error('History unavailable');
+      }
+      state.docs.set(path, opts?.merge ? { ...state.docs.get(path), ...data } : data); },
   });
   return { getAdminDb: () => ({
     collection: (name: string) => ({ doc: (id: string) => ref(`${name}/${id}`) }),
@@ -64,7 +69,7 @@ const rollback = () => rollbackOpportunity({ opportunityId: 'opp', actor: 'edito
 const versions = () => [...state.docs.entries()].filter(([k]) => k.startsWith('seoEngineOpportunityVersions/')).map(([, v]) => v);
 
 beforeEach(() => {
-  vi.clearAllMocks(); state.docs.clear(); state.tail = Promise.resolve(); state.allow = true;
+  vi.clearAllMocks(); state.docs.clear(); state.tail = Promise.resolve(); state.allow = true; state.failRollbackHistory = false;
   state.cms = { id: 'item', lastUpdated: 'v1', lastPublished: 'published', isDraft: false,
     fieldData: { 'seo-title': 'Old title', 'meta-description': 'Old description' } };
   vi.mocked(fetchArticleItemByLocale).mockImplementation(async () => structuredClone(state.cms));
@@ -128,12 +133,35 @@ describe('CMS writes and rollback recovery', () => {
     expect(patchArticleFieldDataForLocale).toHaveBeenCalledTimes(1);
     expect(versions()).toHaveLength(2);
   });
+  it('retries history completion after successful rollback without another PATCH', async () => {
+    await apply(); state.failRollbackHistory = true;
+    await expect(rollback()).rejects.toThrow('History unavailable');
+    expect(state.cms.fieldData['seo-title']).toBe('Old title');
+    const count = vi.mocked(patchArticleFieldDataForLocale).mock.calls.length;
+    await rollback();
+    expect(patchArticleFieldDataForLocale).toHaveBeenCalledTimes(count);
+    expect(versions().every((v) => v.rolledBackAt)).toBe(true);
+  });
+  it('does not retry a frozen proposal over changed editorial content', async () => {
+    vi.mocked(patchArticleFieldDataForLocale).mockRejectedValueOnce(new Error('offline'));
+    await expect(apply()).rejects.toThrow('offline');
+    state.cms.lastUpdated = 'editor-change';
+    await expect(apply()).rejects.toMatchObject({ code: 'revision_conflict' });
+    expect(patchArticleFieldDataForLocale).toHaveBeenCalledTimes(1);
+  });
   it('does not report applied on incorrect readback', async () => {
     vi.mocked(patchArticleFieldDataForLocale).mockResolvedValueOnce(undefined);
     await expect(apply()).rejects.toMatchObject({ code: 'readback_failed' });
     expect((await getOpportunity('opp'))?.status).toBe('approved');
     await apply();
     expect((await getOpportunity('opp'))?.status).toBe('applied');
+  });
+  it('does not replace an approved proposal during a concurrent scan', async () => {
+    const before = await getOpportunity('opp');
+    await upsertOpportunity({ ...before!, proposals: [], idempotencyKey: 'different' });
+    expect((await getOpportunity('opp'))?.idempotencyKey).toBe('key');
+    await apply();
+    expect(state.cms.fieldData['seo-title']).toBe('New title');
   });
   it('freezes a pending operation across new scans', async () => {
     vi.mocked(patchArticleFieldDataForLocale).mockRejectedValueOnce(new Error('offline'));
