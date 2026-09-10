@@ -44,6 +44,8 @@ const autoBuildLabel = `${version}.${buildId}${dirtySuffix}`;
 const buildLabel = process.env.NEXT_PUBLIC_BUILD_LABEL || autoBuildLabel;
 
 const nextConfig = {
+  // Allow a clean, isolated verification build without reading old build caches.
+  distDir: process.env.APROPOS_BUILD_DIR || '.next',
   // Bundle the CJS -> ESM auth chain rather than relying on Node's optional
   // require(ESM) support, which is disabled in the production runtime.
   transpilePackages: ['firebase-admin', 'jwks-rsa', 'jose'],

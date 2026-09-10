@@ -12,12 +12,14 @@ import { getAdminDb } from '@/lib/firebase-admin';
 import type { GroundedReport } from '@/lib/factcheck/grounded';
 import type { GeneratedArticle } from '@/lib/liv/generate-article';
 import { livImageArticleHash } from '@/lib/liv/article-image-hash';
+import type { PreparationProof } from '@/lib/liv/prepared-admission';
 
 export const LIV_DAILY_COLLECTION = 'livDailyArticles';
+export type LivDailyScope = 'daily' | 'prepare' | 'reserve';
 
 /** Dokument-id til daglig auto-publish: `daily-2026-04-20` (UTC). */
-export function livDailyDocId(dayKey: string): string {
-  return `daily-${dayKey}`;
+export function livDailyDocId(dayKey: string, scope: LivDailyScope = 'daily'): string {
+  return `${scope}-${dayKey}`;
 }
 
 export type LivDailyStatus =
@@ -50,10 +52,10 @@ export function todayDayKeyUTC(reference = new Date()): string {
  * Stale processing without saved work may be reclaimed. Saved article/media
  * work or a CMS ID must be reconciled, not regenerated after a timeout.
  */
-export async function claimLivDaily(dayKey: string): Promise<LivDailyClaimResult> {
+export async function claimLivDaily(dayKey: string, scope: LivDailyScope = 'daily'): Promise<LivDailyClaimResult> {
   const db = getAdminDb();
   if (!db) return { ok: false, reason: 'no_db' };
-  const ref = db.collection(LIV_DAILY_COLLECTION).doc(livDailyDocId(dayKey));
+  const ref = db.collection(LIV_DAILY_COLLECTION).doc(livDailyDocId(dayKey, scope));
 
   try {
     let result: LivDailyClaimResult = { ok: false, reason: 'transaction_failed' };
@@ -110,11 +112,11 @@ export async function claimLivDaily(dayKey: string): Promise<LivDailyClaimResult
 }
 
 /** Preserve paid text before media work; never silently restart that work. */
-export async function checkpointLivDailyArticle(dayKey: string, article: GeneratedArticle): Promise<void> {
+export async function checkpointLivDailyArticle(dayKey: string, article: GeneratedArticle, scope: LivDailyScope = 'daily'): Promise<void> {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(dayKey) || !article.title || !article.content) throw new Error('liv_article_checkpoint_invalid');
   const db = getAdminDb();
   if (!db) throw new Error('liv_article_checkpoint_unavailable');
-  const ref = db.collection(LIV_DAILY_COLLECTION).doc(livDailyDocId(dayKey));
+  const ref = db.collection(LIV_DAILY_COLLECTION).doc(livDailyDocId(dayKey, scope));
   await db.runTransaction(async tx => {
     const row = (await tx.get(ref)).data();
     if (row?.status !== 'processing' || row.webflowItemId) throw new Error('liv_article_checkpoint_conflict');
@@ -124,19 +126,31 @@ export async function checkpointLivDailyArticle(dayKey: string, article: Generat
 }
 
 /** Record identity immediately after CMS save, before slow verification/SEO. */
-export async function checkpointLivDailyCmsItem(dayKey: string, itemId: string): Promise<void> {
+export async function checkpointLivDailyCmsItem(dayKey: string, itemId: string, scope: LivDailyScope = 'daily'): Promise<void> {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(dayKey) || !/^[a-f0-9]{24}$/i.test(itemId)) {
     throw new Error('liv_cms_checkpoint_invalid');
   }
   const db = getAdminDb();
   if (!db) throw new Error('liv_cms_checkpoint_unavailable');
-  const ref = db.collection(LIV_DAILY_COLLECTION).doc(livDailyDocId(dayKey));
+  const ref = db.collection(LIV_DAILY_COLLECTION).doc(livDailyDocId(dayKey, scope));
   await db.runTransaction(async tx => {
     const row = (await tx.get(ref)).data();
     if (row?.status !== 'processing' || (row.webflowItemId && row.webflowItemId !== itemId)) {
       throw new Error('liv_cms_checkpoint_conflict');
     }
     tx.set(ref, { webflowItemId: itemId, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+  });
+}
+
+/** Before CMS create: a later timeout must not cause a second create. */
+export async function checkpointPreparationProof(dayKey: string, scope: 'prepare' | 'reserve', proof: PreparationProof) {
+  const db = getAdminDb();
+  if (!db) throw new Error('liv_preparation_store_unavailable');
+  const ref = db.collection(LIV_DAILY_COLLECTION).doc(livDailyDocId(dayKey, scope));
+  await db.runTransaction(async tx => {
+    const row = (await tx.get(ref)).data();
+    if (row?.status !== 'processing' || row.preparationProof || row.webflowItemId) throw new Error('liv_preparation_proof_conflict');
+    tx.set(ref, { preparationProof: JSON.parse(JSON.stringify(proof)), cmsSaveStarted: true }, { merge: true });
   });
 }
 
@@ -162,10 +176,10 @@ export type FinishLivDailyInput =
       webflowItemId?: string;
     };
 
-export async function finishLivDaily(dayKey: string, input: FinishLivDailyInput): Promise<void> {
+export async function finishLivDaily(dayKey: string, input: FinishLivDailyInput, scope: LivDailyScope = 'daily'): Promise<void> {
   const db = getAdminDb();
   if (!db) return;
-  const ref = db.collection(LIV_DAILY_COLLECTION).doc(livDailyDocId(dayKey));
+  const ref = db.collection(LIV_DAILY_COLLECTION).doc(livDailyDocId(dayKey, scope));
 
   if (input.status === 'published' || input.status === 'draft') {
     await ref.set(
@@ -235,10 +249,10 @@ export async function listRecentLivDaily(limit = 7): Promise<LivDailyLogEntry[]>
     const snap = await db
       .collection(LIV_DAILY_COLLECTION)
       .orderBy('completedAt', 'desc')
-      .limit(Math.min(Math.max(limit, 1), 60))
+      .limit(Math.min(Math.max(limit, 1), 60) * 3)
       .get();
 
-    return snap.docs.map((doc) => {
+    return snap.docs.filter(doc => doc.id.startsWith('daily-')).slice(0, Math.min(Math.max(limit, 1), 60)).map((doc) => {
       const d = doc.data() as Record<string, unknown>;
       return {
         id: doc.id,

@@ -8,8 +8,12 @@ import {
 } from '@/lib/liv/daily-plan-store';
 import { expandDirective } from '@/lib/liv/expand-directive';
 import { isLivArticleFormat, type LivArticleFormat } from '@/lib/liv/review-format';
+import { addDays, copenhagenClock } from '@/lib/liv/delivery-policy';
 
 function dayKeyFor(mode: string | null): string {
+  if (process.env.LIV_DELIVERY_QUEUE_ENABLED === 'true' || process.env.LIV_DELIVERY_PREPARE_ENABLED === 'true') {
+    return addDays(copenhagenClock().day, mode === 'tomorrow' ? 1 : 0);
+  }
   if (mode === 'tomorrow') {
     const d = new Date(Date.now() + 24 * 60 * 60 * 1000);
     return todayDayKeyUTC(d);

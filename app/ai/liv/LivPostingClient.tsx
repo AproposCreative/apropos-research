@@ -20,6 +20,11 @@ import { useAuth } from '@/lib/auth-context';
 import { readJsonResponse } from '@/lib/api/read-json-response';
 import type { LivArticleFormat } from '@/lib/liv/review-format';
 import { readBlockedSourceReview, type BlockedSourceReview } from '@/lib/liv/blocked-review';
+import type { deliveryHealth } from '@/lib/liv/delivery-policy';
+
+type DeliveryResponse = { error?: string; queueEnabled: boolean; preparationEnabled: boolean;
+  health: ReturnType<typeof deliveryHealth> | null;
+  entries: Array<{ title: string; scheduledDay: string; kind: 'scheduled' | 'reserve'; state: string }> };
 
 interface LivPostingClientProps {
   embedded?: boolean;
@@ -308,6 +313,8 @@ export default function LivPostingClient({ embedded = false, onClose, initialTab
   const [historyLoading, setHistoryLoading] = useState(false);
   const [historyError, setHistoryError] = useState<string | null>(null);
   const [livConfig, setLivConfig] = useState<LivStatusConfig | null>(null);
+  const [delivery, setDelivery] = useState<DeliveryResponse | null>(null);
+  const [deliveryError, setDeliveryError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'topic' | 'history'>(initialTab);
   const [topicHint, setTopicHint] = useState('');
   const [activeDirectiveModes, setActiveDirectiveModes] = useState<string[]>([]);
@@ -420,7 +427,17 @@ export default function LivPostingClient({ embedded = false, onClose, initialTab
     [authHeader]
   );
 
+  const loadDelivery = useCallback(async () => {
+    try {
+      const res = await fetch('/api/liv/delivery', { headers: await authHeader(), cache: 'no-store' });
+      const data = await readJsonResponse<DeliveryResponse>(res);
+      if (!res.ok) throw new Error(data.error || 'Udgivelseskøen kunne ikke læses');
+      setDelivery(data); setDeliveryError(null);
+    } catch (e) { setDelivery(null); setDeliveryError(e instanceof Error ? e.message : 'Ukendt status'); }
+  }, [authHeader]);
+
   const loadHistory = useCallback(async () => {
+    void loadDelivery();
     try {
       setHistoryError(null);
       setHistoryLoading(true);
@@ -438,7 +455,7 @@ export default function LivPostingClient({ embedded = false, onClose, initialTab
     } finally {
       setHistoryLoading(false);
     }
-  }, [authHeader]);
+  }, [authHeader, loadDelivery]);
 
   const runQuickStart = useCallback(
     async (nextTopic: string, nextDirection?: string) => {
@@ -787,8 +804,8 @@ export default function LivPostingClient({ embedded = false, onClose, initialTab
             </div>
             <div className="grid grid-cols-3 gap-2">
               <div className="rounded-lg bg-white/[0.04] px-2.5 py-2 text-center">
-                <p className="text-[12px] font-semibold text-white/90 tabular-nums leading-tight">08:00 UTC</p>
-                <p className="text-[9px] text-white/32 mt-0.5">≈ {cronLocalCopenhagen} København</p>
+                <p className="text-[12px] font-semibold text-white/90 tabular-nums leading-tight">{delivery?.queueEnabled ? '10:00 København' : '08:00 UTC'}</p>
+                <p className="text-[9px] text-white/32 mt-0.5">{delivery?.queueEnabled ? 'Kontrol hvert 15. minut' : `≈ ${cronLocalCopenhagen} København`}</p>
                 <p className="text-[10px] text-white/35 mt-0.5">Daglig cron</p>
               </div>
               <div className="rounded-lg bg-white/[0.04] px-2.5 py-2 text-center">
@@ -835,6 +852,24 @@ export default function LivPostingClient({ embedded = false, onClose, initialTab
               <code className="text-white/55">LIV_DAILY_PUBLICATION_MODE=auto_publish</code> i Vercel.
             </p>
           </div>
+
+          <section className="rounded-xl border border-white/10 p-4 space-y-2" aria-label="Daglig udgivelseskø">
+            <h3 className="text-sm text-white/90">Daglig udgivelseskø</h3>
+            {deliveryError ? <p role="alert" className="text-sm text-amber-200">{deliveryError}</p> : !delivery ?
+              <p className="text-sm text-white/50">Henter køstatus…</p> : <>
+              <p className="text-sm text-white/60">{delivery.queueEnabled ? 'Automatisk kø-publicering er aktiveret.' : 'Kø-publicering er ikke aktiveret.'}{' '}
+                {delivery.preparationEnabled ? 'Forberedelse kører.' : 'Forberedelse er ikke aktiveret.'}</p>
+              {delivery.health && <>
+                <p className="text-sm text-white/80">{delivery.health.published ? 'Dagens artikel er verificeret live.' : 'Dagens artikel er endnu ikke verificeret live.'}{' '}
+                  Reserver: {delivery.health.reserves}/{delivery.health.reserveTarget}.{' '}
+                  {delivery.health.missingDays.length} af de næste 7 dage mangler en færdig artikel.</p>
+                {delivery.health.needsReconciliation && <p className="text-sm text-amber-200">Et publiceringsforsøg skal kontrolleres. Der oprettes ikke en dublet.</p>}
+                {delivery.queueEnabled && delivery.health.overdue && <p role="alert" className="text-sm text-amber-200">Udgivelsesfristen er overskredet. Se driftskontrollen.</p>}
+              </>}
+              {delivery.entries.length > 0 && <ul className="text-sm text-white/70 space-y-1">{delivery.entries.map((entry, i) =>
+                <li key={`${entry.scheduledDay}-${i}`}>{entry.kind === 'reserve' ? 'Reserve' : entry.scheduledDay}: {entry.title}</li>)}</ul>}
+            </>}
+          </section>
 
           <CollapsibleSection
             open={flowHelpOpen}

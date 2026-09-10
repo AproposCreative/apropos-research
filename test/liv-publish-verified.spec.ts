@@ -1,7 +1,7 @@
 import { expect, it, vi } from 'vitest';
 vi.mock('@/lib/config/env', () => ({ env: {} }));
 vi.mock('@/lib/webflow-config', () => ({ getWebflowConfig: () => ({}) }));
-import { publishVerifiedLivArticle } from '@/lib/liv/publish-verified';
+import { publishVerifiedLivArticle, verifyLiveLivArticle } from '@/lib/liv/publish-verified';
 import { cmsFieldHash } from '@/lib/liv/cms-field-hash';
 import type { WebflowArticleFields } from '@/lib/webflow/types';
 
@@ -79,4 +79,40 @@ it('rejects malformed targets before any access', async () => {
   const f = fixture();
   await expect(publishVerifiedLivArticle({ itemId: '../bad', expected: f.expected }, f.deps)).rejects.toThrow('invalid_identity');
   expect(f.inspect).not.toHaveBeenCalled(); expect(f.publish).not.toHaveBeenCalled();
+});
+it('durably records intent before the external publish', async () => {
+  const f = fixture(); const beforePublish = vi.fn().mockResolvedValue(undefined);
+  await publishVerifiedLivArticle({ itemId, expected: f.expected, beforePublish }, f.deps);
+  expect(beforePublish).toHaveBeenCalledWith(cmsFieldHash(f.staged.fieldData));
+  expect(beforePublish.mock.invocationCallOrder[0]).toBeLessThan(f.publish.mock.invocationCallOrder[0]);
+});
+it('does not publish if the intent checkpoint cannot be saved', async () => {
+  const f = fixture();
+  await expect(publishVerifiedLivArticle({ itemId, expected: f.expected,
+    beforePublish: async () => { throw new Error('database unavailable'); } }, f.deps)).rejects.toThrow('database unavailable');
+  expect(f.publish).not.toHaveBeenCalled();
+});
+it('reconciles a successful but unacknowledged write using reads only', async () => {
+  const f = fixture();
+  await expect(verifyLiveLivArticle({ itemId, expected: f.expected,
+    fieldDataHash: cmsFieldHash(f.live.fieldData) }, f.deps)).resolves.toMatchObject({ publicationVerified: true });
+  expect(f.publish).not.toHaveBeenCalled(); expect(f.inspect).not.toHaveBeenCalled();
+  expect(f.read.mock.calls.every(([path]) => path.includes('/live?'))).toBe(true);
+});
+it('sets the selected publication date before final CMS proof, including for reserves', async () => {
+  const f = fixture(); const date = '2026-09-11T08:00:00.000Z'; const assertLease = vi.fn().mockResolvedValue(undefined);
+  const patchDate = vi.fn(async (_id: string, data: Record<string, unknown>) => {
+    Object.assign(f.staged.fieldData, data);
+    f.inspect.mockResolvedValue({ ...(await f.inspect()), fieldDataHash: cmsFieldHash(f.staged.fieldData) });
+  });
+  await publishVerifiedLivArticle({ itemId, expected: f.expected, publicationDate: date, assertLease }, { ...f.deps, patchDate });
+  expect(patchDate).toHaveBeenCalledWith(itemId, { 'publish-date': date }, localeId);
+  expect(assertLease.mock.invocationCallOrder[0]).toBeLessThan(patchDate.mock.invocationCallOrder[0]);
+  expect(patchDate.mock.invocationCallOrder[0]).toBeLessThan(f.publish.mock.invocationCallOrder[0]);
+});
+it('does not publish if the date patch fails', async () => {
+  const f = fixture();
+  await expect(publishVerifiedLivArticle({ itemId, expected: f.expected, publicationDate: '2026-09-11T08:00:00Z',
+    assertLease: async () => {} }, { ...f.deps, patchDate: async () => { throw new Error('network'); } })).rejects.toThrow('network');
+  expect(f.publish).not.toHaveBeenCalled();
 });

@@ -85,6 +85,18 @@ export async function getLivDailyPlan(dayKey: string): Promise<LivDailyPlan | nu
   };
 }
 
+/** Create only missing defaults; a concurrent editor's plan always wins. */
+export async function ensureLivDailyPlan(plan: LivDailyPlan): Promise<void> {
+  const db = getAdminDb();
+  if (!db) throw new Error('liv_plan_store_unavailable');
+  const ref = db.collection(LIV_DAILY_PLAN_COLLECTION).doc(planDocId(plan.dayKey));
+  await db.runTransaction(async tx => {
+    if ((await tx.get(ref)).exists) return;
+    tx.create(ref, { ...plan, createdBy: 'liv-rolling-plan', createdAt: FieldValue.serverTimestamp(),
+      updatedAt: FieldValue.serverTimestamp() });
+  });
+}
+
 export async function clearLivDailyPlan(dayKey: string): Promise<void> {
   const db = getAdminDb();
   if (!db) return;

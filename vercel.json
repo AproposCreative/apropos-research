@@ -17,6 +17,14 @@
       "schedule": "0 8 * * *"
     },
     {
+      "path": "/api/cron/liv-prepare",
+      "schedule": "20 * * * *"
+    },
+    {
+      "path": "/api/cron/liv-delivery-check",
+      "schedule": "*/15 * * * *"
+    },
+    {
       "path": "/api/cron/accreditation-followups",
       "schedule": "0 */6 * * *"
     },
