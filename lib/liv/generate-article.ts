@@ -56,6 +56,7 @@ export interface GeneratedArticle {
     sourcePageUrl?: string;
   }>;
   selectedImage?: LivSelectedImage;
+  preparedMedia?: import('@/lib/liv/automatic-media').MediaEvidence[];
   rawResponse: string;
   aiModel?: string;
   voiceVersion?: string;
@@ -111,7 +112,7 @@ async function fetchWebResearch(query: string, format: LivArticleFormat): Promis
   })));
 }
 
-async function collectImageSuggestions(opts: {
+export async function collectImageSuggestions(opts: {
   topic: PickedTopic;
   researchResults: WebSearchResult[];
 }): Promise<NonNullable<GeneratedArticle['imageSuggestions']>> {
@@ -130,16 +131,20 @@ async function collectImageSuggestions(opts: {
       pages.push({ url: r.url, source: r.source || 'web', title: r.title });
     }
   }
-  for (let offset = 0; offset < Math.min(10, pages.length); offset += 4) {
-    const batch = pages.slice(offset, Math.min(offset + 4, 10));
+  // Do not let four news thumbnails crowd out the distributor's still gallery.
+  const { isLivOfficialImageSource } = await import('@/lib/liv/photo-credit');
+  const uniquePages = [...new Map(pages.map(page => [page.url, page])).values()]
+    .sort((a, b) => Number(isLivOfficialImageSource(b.url)) - Number(isLivOfficialImageSource(a.url))).slice(0, 10);
+  for (let offset = 0; offset < uniquePages.length; offset += 4) {
+    const batch = uniquePages.slice(offset, offset + 4);
     const results = await Promise.all(batch.map(async p => ({ p,
       images: await fetchOfficialImagesFromPage(p.url, { timeoutMs: 8000 }) })));
     for (const { p, images } of results) {
-      for (const img of images) {
+      for (const img of images.slice(0, 6)) {
         if (seen.has(img)) continue;
         seen.add(img);
         candidates.push({ url: img, source: p.source, title: p.title, sourcePageUrl: p.url });
-        if (candidates.length >= 4) return candidates;
+        if (candidates.length >= 12) return candidates;
       }
     }
   }

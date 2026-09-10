@@ -10,6 +10,8 @@
 import { FieldValue, Timestamp } from 'firebase-admin/firestore';
 import { getAdminDb } from '@/lib/firebase-admin';
 import type { GroundedReport } from '@/lib/factcheck/grounded';
+import type { GeneratedArticle } from '@/lib/liv/generate-article';
+import { livImageArticleHash } from '@/lib/liv/article-image-hash';
 
 export const LIV_DAILY_COLLECTION = 'livDailyArticles';
 
@@ -45,8 +47,8 @@ export function todayDayKeyUTC(reference = new Date()): string {
 
 /**
  * Atomic claim. Completed/skipped/failed runs are terminal for this day.
- * Stale processing without a saved CMS ID may be reclaimed. A saved ID must
- * be reconciled, not recreated, even if the process died before finish.
+ * Stale processing without saved work may be reclaimed. Saved article/media
+ * work or a CMS ID must be reconciled, not regenerated after a timeout.
  */
 export async function claimLivDaily(dayKey: string): Promise<LivDailyClaimResult> {
   const db = getAdminDb();
@@ -60,7 +62,7 @@ export async function claimLivDaily(dayKey: string): Promise<LivDailyClaimResult
       const d = snap.data();
       const status = d?.status as LivDailyStatus | undefined;
 
-      if (typeof d?.webflowItemId === 'string' && d.webflowItemId.trim()) {
+      if ((typeof d?.webflowItemId === 'string' && d.webflowItemId.trim()) || d?.articleCheckpointHash) {
         result = { ok: false, reason: 'already_done' };
         return;
       }
@@ -105,6 +107,20 @@ export async function claimLivDaily(dayKey: string): Promise<LivDailyClaimResult
     console.error('[liv/daily] claimLivDaily transaction error:', e);
     return { ok: false, reason: 'transaction_failed' };
   }
+}
+
+/** Preserve paid text before media work; never silently restart that work. */
+export async function checkpointLivDailyArticle(dayKey: string, article: GeneratedArticle): Promise<void> {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dayKey) || !article.title || !article.content) throw new Error('liv_article_checkpoint_invalid');
+  const db = getAdminDb();
+  if (!db) throw new Error('liv_article_checkpoint_unavailable');
+  const ref = db.collection(LIV_DAILY_COLLECTION).doc(livDailyDocId(dayKey));
+  await db.runTransaction(async tx => {
+    const row = (await tx.get(ref)).data();
+    if (row?.status !== 'processing' || row.webflowItemId) throw new Error('liv_article_checkpoint_conflict');
+    tx.set(ref, { articleCheckpoint: JSON.parse(JSON.stringify(article)), articleCheckpointHash: livImageArticleHash(article),
+      title: article.title, slug: article.slug, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+  });
 }
 
 /** Record identity immediately after CMS save, before slow verification/SEO. */

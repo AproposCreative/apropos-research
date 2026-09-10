@@ -7,7 +7,8 @@ vi.mock('@/lib/firebase-admin', () => ({ getAdminDb: () => state.available ? {
     set: (_ref: unknown, patch: any) => { state.writes(patch); Object.assign(state.row, patch); },
   }),
 } : null }));
-import { claimLivDaily, checkpointLivDailyCmsItem } from '@/lib/liv/daily-history-store';
+import { claimLivDaily, checkpointLivDailyCmsItem, checkpointLivDailyArticle } from '@/lib/liv/daily-history-store';
+import type { GeneratedArticle } from '@/lib/liv/generate-article';
 const id = '0123456789abcdef01234567';
 beforeEach(() => {
   state.available = true;
@@ -22,6 +23,17 @@ it('retains the item before completion and prevents stale processing from creati
 });
 it('permits recovery of stale processing with no known CMS item', async () => {
   expect(await claimLivDaily('2026-09-10')).toEqual({ ok: true, dayKey: '2026-09-10' });
+});
+it('preserves generated text and prevents a stale retry from regenerating paid media', async () => {
+  const article = { title: 'Kunst i parken', slug: 'kunst', intro: 'Intro', content: 'Gemt tekst' } as GeneratedArticle;
+  await checkpointLivDailyArticle('2026-09-10', article);
+  expect(state.row.articleCheckpoint).toEqual(article);
+  expect(state.row.articleCheckpointHash).toMatch(/^[a-f0-9]{64}$/);
+  expect(await claimLivDaily('2026-09-10')).toEqual({ ok: false, reason: 'already_done' });
+});
+it('cannot replace text after the CMS item has been saved', async () => {
+  state.row.webflowItemId = id;
+  await expect(checkpointLivDailyArticle('2026-09-10', { title: 'Title', content: 'Content' } as GeneratedArticle)).rejects.toThrow('conflict');
 });
 it('does not overwrite a different known item', async () => {
   state.row.webflowItemId = '1123456789abcdef01234567';

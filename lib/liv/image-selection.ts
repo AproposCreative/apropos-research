@@ -15,5 +15,5 @@ export type LivSelectedImage = {
   credit: string;
   createdAt: string;
   rightsStatus: 'unverified';
-  visualReview: 'pending';
+  visualReview: 'pending' | 'automated';
 };

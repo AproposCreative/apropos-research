@@ -4,7 +4,7 @@ import type { WebflowArticleFields } from '@/lib/webflow/types';
 import { createHash } from 'node:crypto';
 import sharp from 'sharp';
 import { stripHtml } from '@/lib/webflow/field-mapping';
-import { readPublicMedia } from '@/lib/liv/public-media-reader';
+import { readLivStoredImage } from '@/lib/liv/stored-image-reader';
 import { load } from 'cheerio';
 import { cmsFieldHash } from '@/lib/liv/cms-field-hash';
 
@@ -149,7 +149,7 @@ export async function inspectLivCmsDraft(input: {
     let matches = false;
     if (/^[a-f0-9]{64}$/.test(input.expected.featuredImageHash)) {
       try {
-        const bytes = await (dependencies?.readImage || (url => readPublicMedia(url, 'image')))(text(object(fields.thumb).url));
+        const bytes = await (dependencies?.readImage || readLivStoredImage)(text(object(fields.thumb).url));
         const meta = await sharp(bytes, { limitInputPixels: 80_000_000 }).metadata();
         matches = bytes.length <= 450 * 1024 && meta.format === 'webp' && (meta.pages ?? 1) === 1 &&
           meta.width === 1920 && meta.height === 1080 && createHash('sha256').update(bytes).digest('hex') === input.expected.featuredImageHash;
@@ -198,7 +198,7 @@ export async function inspectLivCmsDraft(input: {
       if (!text(element.attr('alt')) || !/(?:foto|illustration|kilde|credit)\s*:|©/i.test(caption) || !/^https:\/\//.test(src) ||
           element.css('height') !== 'auto') { bodyAssetsOk = false; break; }
       try {
-        const bytes = await (dependencies?.readImage || (url => readPublicMedia(url, 'image')))(src);
+        const bytes = await (dependencies?.readImage || readLivStoredImage)(src);
         const meta = await sharp(bytes, { limitInputPixels: 80_000_000 }).metadata();
         const digest = createHash('sha256').update(bytes).digest('hex');
         if (!['jpeg', 'png', 'webp'].includes(meta.format || '') || (meta.pages ?? 1) !== 1 ||

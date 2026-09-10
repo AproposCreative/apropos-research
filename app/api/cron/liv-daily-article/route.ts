@@ -20,11 +20,13 @@ import {
   claimLivDaily,
   finishLivDaily,
   checkpointLivDailyCmsItem,
+  checkpointLivDailyArticle,
   todayDayKeyUTC,
   type GateResult,
 } from '@/lib/liv/daily-history-store';
 import { pickLivTopic } from '@/lib/liv/pick-topic';
 import { generateLivArticle } from '@/lib/liv/generate-article';
+import { prepareLivAutomaticMedia } from '@/lib/liv/automatic-media';
 import { buildLivCmsPayload } from '@/lib/liv/build-cms-payload';
 import { checkCmsDraft } from '@/lib/editorial/cms-preflight';
 import { inspectLivCmsDraft } from '@/lib/liv/cms-readback';
@@ -81,6 +83,8 @@ async function reportGa4(
 }
 
 export async function GET(req: NextRequest) {
+  // Reserve one minute of the function budget for gates/CMS/receipt checks.
+  const mediaDeadline = Date.now() + 240_000;
   const authFail = requireCronBearer(req);
   if (authFail) return authFail;
 
@@ -164,7 +168,7 @@ export async function GET(req: NextRequest) {
     }
     pickedTopicTitle = topic.title;
 
-    const article = await generateLivArticle({
+    let article = await generateLivArticle({
       topic,
       expandedDirective: plan?.expandedDirective,
       directiveHint: plan?.directiveHint,
@@ -172,6 +176,7 @@ export async function GET(req: NextRequest) {
       sourceScope: 'liv-daily',
       baseUrl,
     });
+    await checkpointLivDailyArticle(dayKey, article);
 
     const verifiedResearchSources = (article.researchSources || []).filter(
       (r) =>
@@ -221,6 +226,12 @@ export async function GET(req: NextRequest) {
       });
     }
 
+    if (publicationMode === 'auto_publish') {
+      article = await prepareLivAutomaticMedia(article, { dayKey, deadline: mediaDeadline });
+      await checkpointLivDailyArticle(dayKey, article);
+    }
+
+    // Check the final body including generated captions, not a text-only revision.
     const gates = await runSafetyGates({
       baseUrl,
       title: article.title,

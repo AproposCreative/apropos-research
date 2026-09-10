@@ -8,6 +8,7 @@
 
 import { sourceUrl } from '@/lib/factcheck/source-reader';
 import { readPublicMedia } from '@/lib/liv/public-media-reader';
+import { load } from 'cheerio';
 
 function absoluteUrl(raw: string, base: string): string | null {
   try {
@@ -58,6 +59,14 @@ export function extractCandidateImagesFromHtml(html: string, pageUrl: string): s
   while ((m = linkImgAlt.exec(html)) !== null) push(m[1]);
 
   extractImagesFromLdJson(html, pageUrl).forEach((u) => push(u));
+
+  // Include press/gallery stills, not just the page's single social thumbnail.
+  // Credit and relevance are independently checked before automatic selection.
+  const $ = load(html);
+  $('figure:has(figcaption) img').each((_, node) => {
+    if ($(node).parents('header,footer,nav,aside').length) return;
+    push($(node).attr('data-src') || $(node).attr('src'));
+  });
 
   return out;
 }

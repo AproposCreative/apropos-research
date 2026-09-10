@@ -1,11 +1,12 @@
 import { beforeEach, afterEach, it, expect, vi } from 'vitest';
 import { NextRequest } from 'next/server';
-const mocks = vi.hoisted(() => ({ publish: vi.fn(), live: vi.fn(), finish: vi.fn(), gates: vi.fn(), claim: vi.fn(), readback: vi.fn(), analytics: vi.fn() }));
+const mocks = vi.hoisted(() => ({ publish: vi.fn(), live: vi.fn(), finish: vi.fn(), gates: vi.fn(), claim: vi.fn(), readback: vi.fn(), analytics: vi.fn(), media: vi.fn(), checkpoint: vi.fn() }));
+vi.mock('@/lib/liv/automatic-media', () => ({ prepareLivAutomaticMedia: mocks.media }));
 vi.mock('@/lib/liv/publish-verified', () => ({ publishVerifiedLivArticle: mocks.live }));
 vi.mock('@/lib/cron/cron-auth', () => ({ requireCronBearer: () => null }));
 vi.mock('@/lib/config/env', () => ({ env: {} }));
 vi.mock('@/lib/liv/daily-history-store', () => ({ claimLivDaily: mocks.claim, finishLivDaily: mocks.finish,
-  checkpointLivDailyCmsItem: vi.fn(), todayDayKeyUTC: () => '2026-09-09' }));
+  checkpointLivDailyCmsItem: vi.fn(), checkpointLivDailyArticle: mocks.checkpoint, todayDayKeyUTC: () => '2026-09-09' }));
 vi.mock('@/lib/liv/pick-topic', () => ({ pickLivTopic: async () => ({ title: 'Et museum åbner', source: { url: 'https://museum.dk/news' } }) }));
 vi.mock('@/lib/liv/generate-article', () => ({ generateLivArticle: async () => ({ title: 'Et museum åbner', subtitle: 'En ny udstilling', intro: 'Intro', content: 'Kultur '.repeat(1000), slug: 'et-museum-aabner', excerpt: 'Udstilling', section: 'Kunst', seoTitle: 'Museum', seoDescription: 'Udstilling', researchSources: [{ url: 'https://museum.dk/news', source: 'Museum' }, { url: 'https://kultur.dk/news', source: 'Kultur' }] }) }));
 vi.mock('@/lib/liv/build-cms-payload', () => ({ buildLivCmsPayload: () => ({ title: 'Et museum åbner' }) }));
@@ -27,6 +28,7 @@ beforeEach(() => {
   vi.stubEnv('LIV_DAILY_PUBLICATION_MODE', 'auto_publish');
   vi.stubEnv('LIV_DAILY_PAUSED', '0');
   mocks.claim.mockResolvedValue({ ok: true });
+  mocks.media.mockImplementation(async article => article);
   mocks.gates.mockResolvedValue({ pass: true, results: [] });
   mocks.publish.mockResolvedValue(saveResult);
   mocks.readback.mockResolvedValue({ draftConfirmed: true, publicationReady: false, checks: [{ id: 'image:rights', ok: false }] });
@@ -57,6 +59,7 @@ it.each(['draft', 'human_approval'])('never publishes in %s mode even with passe
   const result = await (await GET(new NextRequest('http://localhost/api/cron/liv-daily-article'))).json();
   expect(mocks.live).not.toHaveBeenCalled();
   expect(result.webflowStatus).toBe('draft');
+  expect(mocks.media).not.toHaveBeenCalled();
 });
 it('retains the CMS identity when the live verification fails', async () => {
   mocks.readback.mockResolvedValue({ draftConfirmed: true, publicationReady: true, checks: [{ id: 'all', ok: true }] });
@@ -72,6 +75,31 @@ it('keeps the pause switch ahead of claim and publication', async () => {
   expect(result.reason).toBe('paused');
   expect(mocks.claim).not.toHaveBeenCalled();
   expect(mocks.publish).not.toHaveBeenCalled();
+  expect(mocks.media).not.toHaveBeenCalled();
+});
+
+it('checks captions after preparing and checkpointing the media revision', async () => {
+  mocks.media.mockImplementation(async article => ({ ...article, content: article.content + '<figcaption>Illustration: Apropos / AI</figcaption>' }));
+  await GET(new NextRequest('http://localhost/api/cron/liv-daily-article'));
+  expect(mocks.checkpoint).toHaveBeenCalledTimes(2);
+  expect(mocks.checkpoint.mock.invocationCallOrder[0]).toBeLessThan(mocks.media.mock.invocationCallOrder[0]);
+  expect(mocks.media.mock.invocationCallOrder[0]).toBeLessThan(mocks.gates.mock.invocationCallOrder[0]);
+  expect(mocks.gates).toHaveBeenCalledWith(expect.objectContaining({ content: expect.stringContaining('<figcaption>') }));
+});
+it('retains the text checkpoint and performs no CMS write on media failure', async () => {
+  mocks.media.mockRejectedValue(new Error('liv_media_credited_photos_missing'));
+  const response = await GET(new NextRequest('http://localhost/api/cron/liv-daily-article'));
+  expect(response.status).toBe(500);
+  expect(mocks.checkpoint).toHaveBeenCalledTimes(1);
+  expect(mocks.publish).not.toHaveBeenCalled();
+  expect(mocks.live).not.toHaveBeenCalled();
+  expect(mocks.finish).toHaveBeenCalledWith('2026-09-09', expect.objectContaining({ status: 'failed', reason: 'liv_media_credited_photos_missing' }));
+});
+it('does not prepare paid media in dry-run mode', async () => {
+  const result = await (await GET(new NextRequest('http://localhost/api/cron/liv-daily-article?dryRun=1'))).json();
+  expect(result.dryRun).toBe(true);
+  expect(mocks.media).not.toHaveBeenCalled();
+  expect(mocks.checkpoint).not.toHaveBeenCalled();
 });
 it('reports a saved draft as draft in history, response and analytics', async () => {
   vi.stubEnv('LIV_DAILY_PUBLICATION_MODE', 'human_approval');

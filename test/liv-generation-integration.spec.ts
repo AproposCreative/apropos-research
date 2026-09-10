@@ -1,14 +1,14 @@
 import { beforeEach, expect, it, vi } from 'vitest';
-import { generateLivArticle } from '@/lib/liv/generate-article';
+import { generateLivArticle, collectImageSuggestions } from '@/lib/liv/generate-article';
 import { loadLivVoice } from '@/lib/liv/voice';
 import { buildLivCmsPayload } from '@/lib/liv/build-cms-payload';
 
-const mocks = vi.hoisted(() => ({ create: vi.fn(), search: vi.fn(), retrieve: vi.fn(), remember: vi.fn(), rememberBrief: vi.fn(), recall: vi.fn(), seo: vi.fn(), similarity: vi.fn() }));
+const mocks = vi.hoisted(() => ({ create: vi.fn(), search: vi.fn(), retrieve: vi.fn(), remember: vi.fn(), rememberBrief: vi.fn(), recall: vi.fn(), seo: vi.fn(), similarity: vi.fn(), images: vi.fn() }));
 vi.mock('@/lib/openai', () => ({ getOpenAIClient: () => ({ chat: { completions: { create: mocks.create } } }) }));
 vi.mock('@/lib/research/service', () => ({ getResearch: mocks.search }));
 vi.mock('@/lib/liv/source-archive', () => ({ rememberResearchSources: mocks.remember, rememberWritingBrief: mocks.rememberBrief, recalledSourceUrls: mocks.recall }));
 vi.mock('@/lib/factcheck/source-reader', async importOriginal => ({ ...await importOriginal<typeof import('@/lib/factcheck/source-reader')>(), retrieveSource: mocks.retrieve }));
-vi.mock('@/lib/liv/fetch-official-images', () => ({ fetchOfficialImagesFromPage: async () => [] }));
+vi.mock('@/lib/liv/fetch-official-images', () => ({ fetchOfficialImagesFromPage: mocks.images }));
 vi.mock('@/lib/seo/generate-seo-meta', () => ({ generateSeoMetaAI: mocks.seo }));
 vi.mock('@/lib/liv/source-similarity', () => ({ checkSourceSimilarity: mocks.similarity }));
 // Evidence-note extraction is validated separately, including invented quotes and source IDs.
@@ -26,6 +26,7 @@ const rawArticle = (rated = true, content = body) => JSON.stringify({ status: 'r
 
 beforeEach(() => {
   vi.clearAllMocks();
+  mocks.images.mockReset().mockResolvedValue([]);
   mocks.search.mockResolvedValue({ sources: [{ title: 'Kritik', snippet: 'Søgeresultat, ikke selve kilden', source: 'example.com', url: criticUrl }] });
   mocks.recall.mockResolvedValue([primaryUrl]);
   mocks.remember.mockResolvedValue(undefined);
@@ -35,6 +36,18 @@ beforeEach(() => {
   mocks.seo.mockResolvedValue({ seoTitle: 'The Invite: Middagen som magtkamp', seoDescription: 'En konkret vurdering af præmissen og dens konflikt.', source: 'ai' });
   mocks.similarity.mockResolvedValue({ pass: true, complete: true });
   mocks.create.mockReset().mockResolvedValueOnce(response(rawArticle()));
+});
+
+it('keeps official gallery candidates ahead of unrelated news thumbnails and deduplicates source pages', async () => {
+  mocks.images.mockImplementation(async (page: string) => Array.from({ length: 6 }, (_, i) => `${page}/image-${i}.jpg`));
+  const result = await collectImageSuggestions({ topic: { title: 'The Invite', score: 0 }, researchResults: [
+    ...Array.from({ length: 5 }, (_, i) => ({ title: 'News', source: 'News', content: 'News', url: `https://news.example.com/${i}` })),
+    { title: 'Official', source: 'A24', content: 'Film', url: primaryUrl },
+    { title: 'Official duplicate', source: 'A24', content: 'Film', url: primaryUrl },
+  ] });
+  expect(result).toHaveLength(12);
+  expect(result.slice(0, 6).every(image => image.sourcePageUrl === primaryUrl)).toBe(true);
+  expect(mocks.images.mock.calls.filter(call => call[0] === primaryUrl)).toHaveLength(1);
 });
 
 it('runs shared search, re-fetches recalled sources, applies v4 and preserves rating/model through CMS', async () => {
