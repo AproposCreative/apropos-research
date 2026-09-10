@@ -1,3 +1,4 @@
+import { fitCardText } from './fitCardText';
 import type { SocialCardData, SocialCardSize } from './SocialCardCanvas';
 import { DIMENSIONS } from './SocialCardCanvas';
 
@@ -64,41 +65,6 @@ function loadImage(url: string): Promise<HTMLImageElement> {
 
 function isWebflowReferenceId(value: string): boolean {
   return /^[a-f0-9]{24}$/i.test(value.trim());
-}
-
-function wrapText(
-  ctx: CanvasRenderingContext2D,
-  text: string,
-  maxWidth: number,
-  maxLines = 3
-): string[] {
-  const words = text.trim().split(/\s+/);
-  const lines: string[] = [];
-  let current = '';
-  for (const word of words) {
-    const next = current ? `${current} ${word}` : word;
-    const metrics = ctx.measureText(next);
-    if (metrics.width > maxWidth && current) {
-      lines.push(current);
-      if (lines.length >= maxLines) return lines;
-      current = word;
-    } else {
-      current = next;
-    }
-  }
-  if (current) lines.push(current);
-  return lines;
-}
-
-function trimDanglingHeadlineEnding(text: string): string {
-  const trailing = new Set(['med', 'et', 'en', 'at', 'på', 'for', 'og', 'i', 'til', 'som', 'der', 'når', 'hvor']);
-  const words = text.replace(/\s+/g, ' ').trim().split(' ').filter(Boolean);
-  while (words.length > 2) {
-    const last = words[words.length - 1].replace(/[.,;:!?…]+$/g, '').toLowerCase();
-    if (!trailing.has(last)) break;
-    words.pop();
-  }
-  return words.join(' ').trim();
 }
 
 function loadLogoImage(): Promise<HTMLImageElement> {
@@ -183,9 +149,9 @@ async function renderCardToContext(
   const isSquare = size === 'square';
   const isStory = size === 'story';
   const padding = isSquare ? SQUARE_H1_PADDING_H : isStory ? STORY_H1_PADDING_H : 56;
-  const titleSize = isSquare ? SQUARE_H1_FONT_SIZE : isStory ? STORY_H1_FONT_SIZE : 44;
+  let titleSize = isSquare ? SQUARE_H1_FONT_SIZE : isStory ? STORY_H1_FONT_SIZE : 44;
   const titleLineHeight = isSquare ? SQUARE_H1_LINE_HEIGHT : 1.2;
-  const excerptSize = isSquare ? BYLINE_FONT_SIZE_SQUARE : isStory ? BYLINE_FONT_SIZE_STORY : 40;
+  let excerptSize = isSquare ? BYLINE_FONT_SIZE_SQUARE : isStory ? BYLINE_FONT_SIZE_STORY : 40;
   const categorySize = isSquare ? 35 : isStory ? STORY_EYEBROW_FONT_SIZE : 28;
   const logoMainSize = isStory ? 22 : 26;
   const logoSubSize = isStory ? 14 : 16;
@@ -203,8 +169,12 @@ async function renderCardToContext(
   // Keep Story vertical spacing stable by allowing image area to shrink.
   const minImageH = isSquare ? 380 : isStory ? 0 : 220;
 
+  const dark = data.theme === 'dark';
+  const foreground = dark ? '#ffffff' : '#000000';
+  const background = dark ? '#000000' : '#ffffff';
+  const separator = dark ? 'rgba(255,255,255,0.6)' : 'rgba(0,0,0,0.6)';
   // ---- Base: white background for box 1 + box 2 ----
-  ctx.fillStyle = '#ffffff';
+  ctx.fillStyle = background;
   ctx.fillRect(0, 0, width, height);
 
   let y: number;
@@ -214,9 +184,11 @@ async function renderCardToContext(
     try {
       const logoImg = await loadLogoImage();
       const logoX = (width - SQUARE_LOGO_W) / 2;
+      ctx.filter = dark ? 'invert(1)' : 'none';
       ctx.drawImage(logoImg, logoX, SQUARE_LOGO_TOP, SQUARE_LOGO_W, SQUARE_LOGO_H);
+      ctx.filter = 'none';
     } catch {
-      ctx.fillStyle = '#000000';
+      ctx.fillStyle = foreground;
       ctx.font = 'bold 26px system-ui, sans-serif';
       ctx.textAlign = 'center';
       ctx.fillText('APROPOS', width / 2, SQUARE_LOGO_TOP + 20);
@@ -229,9 +201,11 @@ async function renderCardToContext(
     try {
       const logoImg = await loadLogoImage();
       const logoX = (width - STORY_LOGO_W) / 2;
+      ctx.filter = dark ? 'invert(1)' : 'none';
       ctx.drawImage(logoImg, logoX, STORY_LOGO_TOP, STORY_LOGO_W, STORY_LOGO_H);
+      ctx.filter = 'none';
     } catch {
-      ctx.fillStyle = '#000000';
+      ctx.fillStyle = foreground;
       ctx.font = `bold ${logoMainSize}px system-ui, sans-serif`;
       ctx.textAlign = 'center';
       const logoY = STORY_LOGO_TOP + logoMainSize;
@@ -241,7 +215,7 @@ async function renderCardToContext(
     }
     y = STORY_LOGO_TOP + STORY_LOGO_H + 34 + categorySize;
   } else {
-    ctx.fillStyle = '#000000';
+    ctx.fillStyle = foreground;
     ctx.font = `bold ${logoMainSize}px system-ui, sans-serif`;
     ctx.textAlign = 'center';
     const logoY = padding + logoMainSize + 4;
@@ -264,7 +238,7 @@ async function renderCardToContext(
   const rating = data.rating ?? 0;
   ctx.font = `400 ${categorySize}px ${amiriFontFamily}`;
   ctx.textAlign = 'center';
-  ctx.fillStyle = '#000000';
+  ctx.fillStyle = foreground;
   const separatorWidth = ctx.measureText('|').width;
   const partsWidth = topEyebrowParts.reduce((sum, part) => sum + ctx.measureText(part).width, 0);
   const separatorsBetweenParts = Math.max(topEyebrowParts.length - 1, 0);
@@ -283,12 +257,12 @@ async function renderCardToContext(
   let cursorX = metaStartX;
   for (let i = 0; i < topEyebrowParts.length; i++) {
     const part = topEyebrowParts[i];
-    ctx.fillStyle = '#000000';
+    ctx.fillStyle = foreground;
     ctx.fillText(part, cursorX, y);
     cursorX += ctx.measureText(part).width;
     if (i < eyebrowParts.length - 1) {
       cursorX += EYEBROW_BADGE_GAP / 2;
-      ctx.fillStyle = 'rgba(0,0,0,0.6)';
+      ctx.fillStyle = separator;
       ctx.fillText('|', cursorX, y);
       cursorX += separatorWidth + EYEBROW_BADGE_GAP / 2;
     }
@@ -299,14 +273,16 @@ async function renderCardToContext(
     let starX = cursorX;
     if (topEyebrowParts.length > 0) {
       starX += EYEBROW_BADGE_GAP / 2;
-      ctx.fillStyle = 'rgba(0,0,0,0.6)';
+      ctx.fillStyle = separator;
       ctx.fillText('|', starX, y);
       starX += separatorWidth + EYEBROW_BADGE_GAP / 2;
-      ctx.fillStyle = '#000000';
+      ctx.fillStyle = foreground;
     }
     for (let i = 1; i <= 6; i++) {
       const img = i <= rating ? filled : outline;
+      ctx.filter = dark ? 'invert(1)' : 'none';
       ctx.drawImage(img, starX, starY, STAR_SIZE, STAR_SIZE);
+      ctx.filter = 'none';
       starX += STAR_SIZE + STAR_GAP;
     }
   }
@@ -316,12 +292,14 @@ async function renderCardToContext(
   y += Math.round(eyebrowLineHeight - categorySize);
   y += headerToTextGap;
   y += textBlockTopGap;
+  const titleFit = fitCardText(ctx, data.title || 'Overskrift', maxTextWidth, 2, titleSize, value => `400 ${value}px ${amiriFontFamily}`);
+  titleSize = titleFit.fontSize;
   y += Math.round(titleSize * 0.75);
 
   // Headline – Amiri Regular (400) for both post and story
   ctx.font = `400 ${titleSize}px ${amiriFontFamily}`;
-  ctx.fillStyle = '#000000';
-  const titleLines = wrapText(ctx, trimDanglingHeadlineEnding(data.title || 'Overskrift'), maxTextWidth, 2);
+  ctx.fillStyle = foreground;
+  const titleLines = titleFit.lines;
   const lineHeightPx = titleSize * (typeof titleLineHeight === 'number' ? titleLineHeight : 1.2);
   for (const line of titleLines) {
     ctx.fillText(line, width / 2, y);
@@ -331,10 +309,12 @@ async function renderCardToContext(
   // Byline (under H1): #353535, Amiri italic 57px, 400, line-height 120%
   if (data.excerpt) {
     y += isSquare ? -10 : -10;
+    const excerptFit = fitCardText(ctx, data.excerpt, maxBylineWidth, isStory ? 3 : 2, excerptSize, value => `italic 400 ${value}px ${amiriFontFamily}`);
+    excerptSize = excerptFit.fontSize;
     ctx.font = `italic 400 ${excerptSize}px ${amiriFontFamily}`;
-    ctx.fillStyle = isStory ? STORY_BYLINE_COLOR : BYLINE_COLOR;
+    ctx.fillStyle = dark ? foreground : isStory ? STORY_BYLINE_COLOR : BYLINE_COLOR;
     ctx.textAlign = 'center';
-    const excerptLines = wrapText(ctx, data.excerpt, maxBylineWidth, isStory ? 3 : 2);
+    const excerptLines = excerptFit.lines;
     const bylineLineHeight = excerptSize * (isStory ? STORY_BYLINE_LINE_HEIGHT : BYLINE_LINE_HEIGHT);
     for (const line of excerptLines) {
       ctx.fillText(line, width / 2, y);
@@ -349,13 +329,15 @@ async function renderCardToContext(
     const storyStarY = y - STORY_STAR_SIZE;
     for (let i = 1; i <= 6; i++) {
       const img = i <= rating ? filled : outline;
+      ctx.filter = dark ? 'invert(1)' : 'none';
       ctx.drawImage(img, storyStarX, storyStarY, STORY_STAR_SIZE, STORY_STAR_SIZE);
+      ctx.filter = 'none';
       storyStarX += STORY_STAR_SIZE + STORY_STAR_GAP;
     }
     y += STORY_STAR_SIZE + 18;
   }
   if (isStory && bottomMetaParts.length > 0) {
-    ctx.fillStyle = '#000000';
+    ctx.fillStyle = foreground;
     ctx.font = `400 ${STORY_BOTTOM_META_FONT_SIZE}px Inter, Arial, sans-serif`;
     const bottomSeparatorWidth = ctx.measureText('|').width;
     const leftBadgeWidth = ctx.measureText(bottomMetaParts[0]).width;
@@ -369,17 +351,17 @@ async function renderCardToContext(
     let bottomX = (width - bottomTotalWidth) / 2;
     ctx.textAlign = 'left';
     // Badge 1
-    ctx.fillStyle = '#000000';
+    ctx.fillStyle = foreground;
     y += STORY_BOTTOM_META_BADGE_PAD_Y;
     ctx.fillText(bottomMetaParts[0], bottomX, y);
     y -= STORY_BOTTOM_META_BADGE_PAD_Y;
     bottomX += leftBadgeTotal;
     if (hasSecond) {
       bottomX += STORY_BOTTOM_META_ROW_GAP;
-      ctx.fillStyle = 'rgba(0,0,0,0.6)';
+      ctx.fillStyle = separator;
       ctx.fillText('|', bottomX, y);
       bottomX += bottomSeparatorWidth + STORY_BOTTOM_META_ROW_GAP;
-      ctx.fillStyle = '#000000';
+      ctx.fillStyle = foreground;
       y += STORY_BOTTOM_META_BADGE_PAD_Y;
       ctx.fillText(bottomMetaParts[1], bottomX, y);
       y -= STORY_BOTTOM_META_BADGE_PAD_Y;
@@ -415,10 +397,10 @@ async function renderCardToContext(
   const ctaX = (width - ctaW) / 2;
   const ctaY = imageTop + CTA_OFFSET - ctaH / 2;
   const radius = ctaH / 2;
-  ctx.fillStyle = '#000000';
+  ctx.fillStyle = foreground;
   roundRect(ctx, ctaX, ctaY, ctaW, ctaH, radius);
   ctx.fill();
-  ctx.fillStyle = '#ffffff';
+  ctx.fillStyle = background;
   ctx.font = `500 ${ctaFontSize}px Inter, Arial, sans-serif`;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';

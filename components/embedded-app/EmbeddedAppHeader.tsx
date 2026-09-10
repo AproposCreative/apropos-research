@@ -11,6 +11,8 @@ const pillLink =
 
 export type EmbeddedAppHeaderProps = {
   embedded: boolean;
+  /** Opt-in compact controls beside the close button. */
+  inlineControls?: boolean;
   title: string;
   /** Én linje kontekst under titlen */
   subtitle?: string;
@@ -30,6 +32,7 @@ export type EmbeddedAppHeaderProps = {
  */
 export function EmbeddedAppHeader({
   embedded,
+  inlineControls = false,
   title,
   subtitle,
   onClose,
@@ -48,7 +51,7 @@ export function EmbeddedAppHeader({
     >
       <div className="flex flex-col gap-2 min-w-0">
         {/* Row 1: title (left) + close/back (top-right) — always. */}
-        <div className="flex items-start justify-between gap-3">
+        <div className={`flex justify-between ${inlineControls ? 'items-center gap-1' : 'items-start gap-3'}`}>
           <div className="flex items-center gap-2 min-w-0 flex-1">
             {leading ? <div className="shrink-0">{leading}</div> : null}
             <div className="min-w-0 flex-1">
@@ -62,6 +65,7 @@ export function EmbeddedAppHeader({
               ) : null}
             </div>
           </div>
+          {inlineControls ? trailing : null}
           {onClose || (!embedded && showBackLink !== false) ? (
             <div className="flex items-center gap-1.5 shrink-0">
               {onClose ? (
@@ -82,7 +86,7 @@ export function EmbeddedAppHeader({
 
         {/* Row 2: controls (segmented tabs, toggles). Full width, wraps on
             mobile so it never squeezes the title; right-aligned on desktop. */}
-        {trailing ? (
+        {trailing && !inlineControls ? (
           <div className="flex flex-wrap items-center gap-1.5 md:gap-2 md:justify-end">
             {trailing}
           </div>

@@ -19,14 +19,6 @@ const DEFAULT_PANEL_WIDTH = 300;
 const MIN_PANEL_WIDTH = 240;
 const MAX_PANEL_WIDTH = 520;
 const PANEL_GAP = 12;
-const SQUARE_H1_PADDING_H = 100;
-const SQUARE_H1_FONT_SIZE = 80;
-const BYLINE_FONT_SIZE_SQUARE = 48;
-const STORY_H1_PADDING_H = 40;
-const STORY_H1_FONT_SIZE = 100;
-const BYLINE_FONT_SIZE_STORY = 60;
-const STORY_TITLE_MAX_WIDTH = 992;
-const STORY_BYLINE_MAX_WIDTH = 1000;
 
 const CAPTION_FOOTER_TEXT = 'Læs gratis med – uden reklamer, pop-ups eller anden støj: www.aproposmagazine.com';
 const ARTICLE_BASE_URL = 'https://www.aproposmagazine.com/articles';
@@ -67,19 +59,19 @@ function describePublishError(error: unknown, stage: 'export' | 'upload' | 'publ
 
 /** Samme segment-knapper som Liv / Nyhedsbrev (apropos-design-system). */
 const segBtn = (active: boolean) =>
-  `rounded-lg px-2.5 py-1.5 text-[11px] font-medium tracking-wide transition-all duration-200 active:scale-[0.97] ${
+  `rounded-md px-1.5 py-1 text-[11px] font-medium tracking-wide transition-all duration-200 active:scale-[0.97] ${
     active ? 'bg-white/12 text-white shadow-sm border border-white/10' : 'text-white/45 hover:text-white/75 border border-transparent'
   }`;
 
 const embedHeaderIconBtn = (active?: boolean) =>
-  `touch-target flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border transition-all duration-200 active:scale-[0.97] ${
+  `flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border transition-all duration-200 active:scale-[0.97] ${
     active
       ? 'border-white/25 bg-white/10 text-white'
       : 'border-white/12 bg-white/[0.06] text-white/75 hover:bg-white/[0.12] hover:border-white/18 hover:text-white'
   } disabled:opacity-40 disabled:pointer-events-none`;
 
 const embedHeaderPostBtn =
-  'touch-target flex h-10 shrink-0 items-center justify-center rounded-lg border border-white/12 bg-white/[0.06] px-3.5 text-[12px] font-medium text-white/85 transition-all duration-200 hover:bg-white/[0.12] hover:border-white/18 hover:text-white active:scale-[0.97] disabled:opacity-40 disabled:pointer-events-none';
+  'flex h-8 shrink-0 items-center justify-center rounded-lg border border-white/12 bg-white/[0.06] px-2 text-[11px] font-medium text-white/85 transition-all duration-200 hover:bg-white/[0.12] hover:border-white/18 hover:text-white active:scale-[0.97] disabled:opacity-40 disabled:pointer-events-none';
 
 function PublishFeedback({
   success,
@@ -119,62 +111,6 @@ function stripHtmlForPrompt(input: string): string {
     .replace(/&#39;/g, "'")
     .replace(/\s+/g, ' ')
     .trim();
-}
-
-function wrapTextForWidth(
-  ctx: CanvasRenderingContext2D,
-  text: string,
-  maxWidth: number,
-  maxLines: number
-): string[] {
-  const words = text.trim().split(/\s+/).filter(Boolean);
-  const lines: string[] = [];
-  let current = '';
-  for (const word of words) {
-    const next = current ? `${current} ${word}` : word;
-    if (ctx.measureText(next).width > maxWidth && current) {
-      lines.push(current);
-      if (lines.length >= maxLines) return lines;
-      current = word;
-    } else {
-      current = next;
-    }
-  }
-  if (current) lines.push(current);
-  return lines;
-}
-
-function truncateToFit(
-  ctx: CanvasRenderingContext2D,
-  text: string,
-  maxWidth: number,
-  maxLines: number
-): string {
-  const normalized = text.replace(/\s+/g, ' ').trim();
-  if (!normalized) return '';
-  const lines = wrapTextForWidth(ctx, normalized, maxWidth, maxLines);
-  if (lines.length <= maxLines) return normalized;
-
-  const words = normalized.split(' ');
-  while (words.length > 1) {
-    words.pop();
-    const candidate = `${words.join(' ').replace(/[.,;:!?-]+$/g, '').trim()}…`;
-    if (!candidate || candidate === '…') continue;
-    const candidateLines = wrapTextForWidth(ctx, candidate, maxWidth, maxLines);
-    if (candidateLines.length <= maxLines) return candidate;
-  }
-  return `${normalized.slice(0, 18).trim()}…`;
-}
-
-function trimDanglingHeadlineEnding(text: string): string {
-  const trailing = new Set(['med', 'et', 'en', 'at', 'på', 'for', 'og', 'i', 'til', 'som', 'der', 'når', 'hvor']);
-  const words = text.replace(/\s+/g, ' ').trim().split(' ').filter(Boolean);
-  while (words.length > 2) {
-    const last = words[words.length - 1].replace(/[.,;:!?…]+$/g, '').toLowerCase();
-    if (!trailing.has(last)) break;
-    words.pop();
-  }
-  return words.join(' ').trim();
 }
 
 function normalizeLabelForCompare(value: string): string {
@@ -276,6 +212,7 @@ export default function DesignEditorView({ onBack, embedMode }: DesignEditorView
   const [articles, setArticles] = useState<NormalizedArticle[]>([]);
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<NormalizedArticle | null>(null);
+  const [theme, setTheme] = useState<'light' | 'dark'>('light');
   const [size, setSize] = useState<SocialCardSize>('square');
   const [exporting, setExporting] = useState(false);
   /** I AI Writer (embed) start med kanvas: undgå overlap med header. Desktop viser artikelpanel. */
@@ -587,6 +524,7 @@ export default function DesignEditorView({ onBack, embedMode }: DesignEditorView
     return {
       title: selected?.title ?? '',
       excerpt: selected?.excerpt ?? undefined,
+      theme,
       imageUrl: selected?.imageUrl ?? undefined,
       category: selected?.category ?? undefined,
       categorySecondary: undefined,
@@ -598,7 +536,7 @@ export default function DesignEditorView({ onBack, embedMode }: DesignEditorView
         : (dedupedStoryBottomMetaLabels.length > 0 ? dedupedStoryBottomMetaLabels : undefined),
       rating: selected?.rating ?? undefined,
     };
-  }, [selected?.title, selected?.excerpt, selected?.imageUrl, selected?.category, selected?.section, selected?.primaryTopic, selected?.topics, selected?.rating, selected?.authorId, eyebrowChips, authors, sections, topics, resolveName, size, storyMetaShuffleSeed]);
+  }, [selected?.title, selected?.excerpt, selected?.imageUrl, selected?.category, selected?.section, selected?.primaryTopic, selected?.topics, selected?.rating, selected?.authorId, eyebrowChips, authors, sections, topics, resolveName, size, storyMetaShuffleSeed, theme]);
 
   const filteredArticles = useMemo(() => {
     const q = articleSearch.trim().toLowerCase();
@@ -753,64 +691,6 @@ export default function DesignEditorView({ onBack, embedMode }: DesignEditorView
     clearPublishFeedback();
     setConfirmInstagramPostOpen(true);
   }, [clearPublishFeedback]);
-
-  useEffect(() => {
-    let cancelled = false;
-    const fitCurrentText = async () => {
-      if (!selected) return;
-      await Promise.allSettled([
-        document.fonts.load(`400 ${size === 'square' ? SQUARE_H1_FONT_SIZE : size === 'story' ? STORY_H1_FONT_SIZE : 44}px ${amiri.style.fontFamily}`),
-        document.fonts.load(`italic 400 ${size === 'square' ? BYLINE_FONT_SIZE_SQUARE : size === 'story' ? BYLINE_FONT_SIZE_STORY : 40}px ${amiri.style.fontFamily}`),
-        document.fonts.ready,
-      ]);
-      if (cancelled) return;
-      const canvas = document.createElement('canvas');
-      const ctx = canvas.getContext('2d');
-      if (!ctx) return;
-
-      const padding = size === 'square' ? SQUARE_H1_PADDING_H : size === 'story' ? STORY_H1_PADDING_H : 56;
-      const maxTextWidth = size === 'story' ? STORY_TITLE_MAX_WIDTH : DIMENSIONS[size].width - padding * 2;
-      const maxBylineWidth = size === 'story' ? STORY_BYLINE_MAX_WIDTH : DIMENSIONS[size].width - padding * 2;
-      const titleSize = size === 'square' ? SQUARE_H1_FONT_SIZE : size === 'story' ? STORY_H1_FONT_SIZE : 44;
-      const excerptSize = size === 'square' ? BYLINE_FONT_SIZE_SQUARE : size === 'story' ? BYLINE_FONT_SIZE_STORY : 40;
-      const excerptMaxLines = size === 'story' ? 3 : 2;
-
-      const currentTitle = String(selected.title || '').trim();
-      const currentExcerpt = String(selected.excerpt || '').trim();
-
-      ctx.font = `400 ${titleSize}px ${amiri.style.fontFamily}`;
-      const roughFittedTitle = truncateToFit(ctx, currentTitle, maxTextWidth, 2);
-      const polishedTitle = trimDanglingHeadlineEnding(roughFittedTitle) || roughFittedTitle;
-      const fittedTitle = truncateToFit(ctx, polishedTitle, maxTextWidth, 2);
-
-      ctx.font = `italic 400 ${excerptSize}px ${amiri.style.fontFamily}`;
-      const fittedExcerpt = truncateToFit(ctx, currentExcerpt, maxBylineWidth, excerptMaxLines);
-
-      if (fittedTitle === currentTitle && fittedExcerpt === currentExcerpt) return;
-
-      setSelected((prev) => {
-        if (!prev || prev.id !== selected.id) return prev;
-        return {
-          ...prev,
-          title: fittedTitle,
-          excerpt: fittedExcerpt,
-        };
-      });
-
-      setArticles((prev) =>
-        prev.map((item) =>
-          item.id === selected.id
-            ? { ...item, title: fittedTitle, excerpt: fittedExcerpt }
-            : item
-        )
-      );
-    };
-
-    fitCurrentText();
-    return () => {
-      cancelled = true;
-    };
-  }, [selected?.id, selected?.title, selected?.excerpt, size]);
 
   /** Brødtekst for editor (preview vs canvas) — delt mellem standalone og AI Writer embed. */
   const editorCanvas = (
@@ -1009,11 +889,11 @@ export default function DesignEditorView({ onBack, embedMode }: DesignEditorView
     ? `flex flex-col h-full min-h-0 text-white bg-[#0a0a0a] lg:bg-transparent font-poppins overflow-hidden ${amiri.variable}`
     : `min-h-[100dvh] h-[100dvh] bg-[#0a0a0a] md:bg-[#0a0a0a] md:p-[1%] p-0 flex flex-col md:flex-row relative overflow-hidden ${amiri.variable}`;
 
-  /** 1:1 + 9:16 + forhåndsvisning + eksport — i header på desktop; egen række under header på mobil (nyhedsbreb-mønster). */
+  /** Compact controls share the title/close row at every viewport size. */
   const embedToolbarControlsInner = (
     <>
       <div
-        className="flex h-10 shrink-0 items-center rounded-lg border border-white/12 bg-black/30 p-0.5 gap-0.5 backdrop-blur-sm"
+        className="flex h-8 shrink-0 items-center rounded-lg border border-white/12 bg-black/30 p-0.5 gap-0.5 backdrop-blur-sm"
         role="group"
         aria-label="Kortformat"
       >
@@ -1021,6 +901,7 @@ export default function DesignEditorView({ onBack, embedMode }: DesignEditorView
           type="button"
           onClick={() => setSize('square')}
           className={segBtn(size === 'square')}
+          aria-pressed={size === 'square'}
           title="1080×1080 (kvadrat)"
         >
           1:1
@@ -1029,11 +910,17 @@ export default function DesignEditorView({ onBack, embedMode }: DesignEditorView
           type="button"
           onClick={() => setSize('story')}
           className={segBtn(size === 'story')}
+          aria-pressed={size === 'story'}
           title="1080×1920 (story)"
         >
           9:16
         </button>
       </div>
+      <button type="button" onClick={() => setTheme(value => value === 'light' ? 'dark' : 'light')}
+        className={embedHeaderIconBtn(theme === 'dark')} aria-label={theme === 'light' ? 'Skift til Dark mode' : 'Skift til Light mode'}
+        aria-pressed={theme === 'dark'} title={theme === 'light' ? 'Dark mode' : 'Light mode'}>
+        <span aria-hidden="true" className="text-lg">{theme === 'light' ? '◐' : '☀'}</span>
+      </button>
       <button
         type="button"
         onClick={requestPostToInstagram}
@@ -1056,7 +943,7 @@ export default function DesignEditorView({ onBack, embedMode }: DesignEditorView
       </button>
     </>
   );
-  const embedToolbarForDesktopHeader = <div className="flex flex-wrap items-center justify-end gap-2">{embedToolbarControlsInner}</div>;
+  const embedToolbarForDesktopHeader = <div className="flex flex-nowrap items-center justify-end gap-1">{embedToolbarControlsInner}</div>;
 
   return (
     <div ref={rootRef} className={rootClass}>
@@ -1064,13 +951,14 @@ export default function DesignEditorView({ onBack, embedMode }: DesignEditorView
         <>
           <EmbeddedAppHeader
             embedded
-            title="SoMe Posting"
+            title="SoMe"
+            inlineControls
             onClose={onBack}
             leading={
               <button
                 type="button"
                 onClick={() => setArticlesOpen((o) => !o)}
-                className="lg:hidden touch-target w-9 h-9 shrink-0 flex items-center justify-center rounded-lg border border-white/12 bg-white/[0.06] text-white hover:bg-white/[0.1] transition-colors"
+                className="lg:hidden w-8 h-8 shrink-0 flex items-center justify-center rounded-lg border border-white/12 bg-white/[0.06] text-white hover:bg-white/[0.1] transition-colors"
                 title={articlesOpen ? 'Luk artikelliste' : 'Mine artikler'}
                 aria-label={articlesOpen ? 'Luk artikelliste' : 'Mine artikler'}
                 aria-pressed={articlesOpen}
@@ -1078,16 +966,8 @@ export default function DesignEditorView({ onBack, embedMode }: DesignEditorView
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M4 6h16M4 12h16M4 18h16" /></svg>
               </button>
             }
-            trailing={<div className="hidden lg:block">{embedToolbarForDesktopHeader}</div>}
+            trailing={embedToolbarForDesktopHeader}
           />
-          <div
-            className="shrink-0 z-20 flex lg:hidden flex-nowrap items-center justify-end gap-2 border-b border-white/8 bg-black/45 px-3 py-2 overflow-x-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
-            role="toolbar"
-            aria-label="Format, forhåndsvisning og eksport"
-          >
-            {embedToolbarControlsInner}
-          </div>
-
           <div className="flex-1 flex min-h-0 overflow-hidden flex-col lg:flex-row">
             <aside className="hidden lg:flex w-[min(300px,100%)] shrink-0 flex-col border-r border-white/10 bg-black/10 overflow-hidden">
               <div className="px-4 py-3 border-b border-white/10 shrink-0">
@@ -1306,55 +1186,15 @@ export default function DesignEditorView({ onBack, embedMode }: DesignEditorView
           {/* Top bar */}
           <div className="sticky top-0 z-20 flex-shrink-0 flex items-center justify-between gap-2 px-3 py-2 md:p-4 app-safe-top border-b border-white/10 bg-[#0a0a0a]/90 backdrop-blur-3xl">
             <div className="flex items-center gap-2 min-w-0 shrink-0">
-              <button onClick={() => setArticlesOpen(true)} className="touch-target w-10 h-10 flex items-center justify-center hover:bg-white/10 rounded-xl transition-colors md:hidden" aria-label="Artikler">
+              <button onClick={() => setArticlesOpen(true)} className="w-8 h-8 flex items-center justify-center hover:bg-white/10 rounded-xl transition-colors md:hidden" aria-label="Artikler">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-white"><path d="M4 6h16M4 12h16M4 18h16" /></svg>
               </button>
-              <h1 className="hidden md:block text-white/90 text-[15px] font-medium tracking-tight leading-tight">
-                Apropos SoMe Posting
+              <h1 className="text-white/90 text-[15px] font-medium tracking-tight leading-tight">
+                SoMe
               </h1>
             </div>
-            <div className="flex flex-wrap md:flex-nowrap items-center justify-end gap-2">
-              <div
-                className="flex rounded-lg border border-white/12 p-0.5 gap-0.5 bg-black/30 backdrop-blur-sm"
-                role="group"
-                aria-label="Kortformat"
-              >
-                <button type="button" onClick={() => setSize('square')} className={segBtn(size === 'square')} title="1080×1080 (kvadrat)">
-                  1:1
-                </button>
-                <button type="button" onClick={() => setSize('story')} className={segBtn(size === 'story')} title="1080×1920 (story)">
-                  9:16
-                </button>
-              </div>
-              <button
-                type="button"
-                onClick={() => setArticlesOpen((v) => !v)}
-                className={embedHeaderIconBtn(articlesOpen)}
-                title="Mine artikler"
-                aria-label="Mine artikler"
-              >
-                <svg className="size-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16" /></svg>
-              </button>
-              <button
-                type="button"
-                onClick={requestPostToInstagram}
-                disabled={postingToInstagram || instagramConfigured === false}
-                className={embedHeaderPostBtn}
-                title={size === 'story' ? 'Post det viste story-design direkte til Instagram Story' : 'Post det viste opslag direkte til Instagram'}
-                aria-label={size === 'story' ? 'Post til Instagram Story' : 'Post til Instagram'}
-              >
-                {postingToInstagram ? 'Poster…' : 'Post'}
-              </button>
-              <button
-                type="button"
-                onClick={handleExportPng}
-                disabled={exporting}
-                className={embedHeaderIconBtn()}
-                title="Eksporter PNG"
-                aria-label={exporting ? 'Eksporterer…' : 'Eksporter PNG'}
-              >
-                <svg className="size-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-              </button>
+            <div className="flex flex-nowrap items-center justify-end gap-1">
+              {embedToolbarControlsInner}
               {onBack ? (
                 <button
                   type="button"
