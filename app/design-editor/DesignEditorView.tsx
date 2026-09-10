@@ -5,6 +5,7 @@ import { Amiri } from 'next/font/google';
 import { EmbeddedAppHeader } from '@/components/embedded-app';
 import SocialCardCanvas, { type SocialCardData, type SocialCardSize, DIMENSIONS } from './SocialCardCanvas';
 import { exportCardToPng, exportCardToJpegBlob } from './exportCardToPng';
+import { useCardSubtitle } from './useCardSubtitle';
 import { storage } from '@/lib/firebase';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 
@@ -214,6 +215,7 @@ export default function DesignEditorView({ onBack, embedMode }: DesignEditorView
   const [selected, setSelected] = useState<NormalizedArticle | null>(null);
   const [theme, setTheme] = useState<'light' | 'dark'>('light');
   const [size, setSize] = useState<SocialCardSize>('square');
+  const subtitle = useCardSubtitle(selected?.id ?? '', selected?.title ?? '', selected?.excerpt ?? '', size, amiri.style.fontFamily);
   const [exporting, setExporting] = useState(false);
   /** I AI Writer (embed) start med kanvas: undgå overlap med header. Desktop viser artikelpanel. */
   const [articlesOpen, setArticlesOpen] = useState(!embedMode);
@@ -523,7 +525,7 @@ export default function DesignEditorView({ onBack, embedMode }: DesignEditorView
 
     return {
       title: selected?.title ?? '',
-      excerpt: selected?.excerpt ?? undefined,
+      excerpt: subtitle.text || undefined,
       theme,
       imageUrl: selected?.imageUrl ?? undefined,
       category: selected?.category ?? undefined,
@@ -536,7 +538,7 @@ export default function DesignEditorView({ onBack, embedMode }: DesignEditorView
         : (dedupedStoryBottomMetaLabels.length > 0 ? dedupedStoryBottomMetaLabels : undefined),
       rating: selected?.rating ?? undefined,
     };
-  }, [selected?.title, selected?.excerpt, selected?.imageUrl, selected?.category, selected?.section, selected?.primaryTopic, selected?.topics, selected?.rating, selected?.authorId, eyebrowChips, authors, sections, topics, resolveName, size, storyMetaShuffleSeed, theme]);
+  }, [subtitle.text, selected?.title, selected?.excerpt, selected?.imageUrl, selected?.category, selected?.section, selected?.primaryTopic, selected?.topics, selected?.rating, selected?.authorId, eyebrowChips, authors, sections, topics, resolveName, size, storyMetaShuffleSeed, theme]);
 
   const filteredArticles = useMemo(() => {
     const q = articleSearch.trim().toLowerCase();
@@ -594,6 +596,7 @@ export default function DesignEditorView({ onBack, embedMode }: DesignEditorView
   }, [selected, articles]);
 
   const handleExportPng = useCallback(async () => {
+    if (!subtitle.ready) { alert('Underteksten skal forkortes, før billedet kan hentes.'); return; }
     setExporting(true);
     try {
       const dataUrl = await exportCardToPng(cardData, size, { amiriFontFamily: amiri.style.fontFamily });
@@ -607,7 +610,7 @@ export default function DesignEditorView({ onBack, embedMode }: DesignEditorView
     } finally {
       setExporting(false);
     }
-  }, [size, cardData]);
+  }, [size, cardData, subtitle.ready]);
 
   const clearPublishFeedback = useCallback(() => {
     setInstagramError(null);
@@ -688,9 +691,10 @@ export default function DesignEditorView({ onBack, embedMode }: DesignEditorView
   }, [size, cardData, captionForPublish, selectedArticleUrl, clearPublishFeedback]);
 
   const requestPostToInstagram = useCallback(() => {
+    if (!subtitle.ready) { alert('Underteksten skal forkortes, før opslaget kan sendes.'); return; }
     clearPublishFeedback();
     setConfirmInstagramPostOpen(true);
-  }, [clearPublishFeedback]);
+  }, [clearPublishFeedback, subtitle.ready]);
 
   /** Brødtekst for editor (preview vs canvas) — delt mellem standalone og AI Writer embed. */
   const editorCanvas = (
@@ -775,6 +779,21 @@ export default function DesignEditorView({ onBack, embedMode }: DesignEditorView
           className="flex-1 min-h-0 w-full flex flex-col items-center overflow-y-auto overflow-x-hidden touch-pan-y [overscroll-behavior:contain] md:justify-start justify-start bg-black/25 p-2 md:p-4 app-safe-bottom"
         >
           <div className="w-full flex min-h-min flex-col items-center gap-3 md:gap-5 pt-3 md:pt-10 pb-8">
+            {selected?.excerpt && (
+              <details className="w-full max-w-xl rounded-xl border border-white/20 p-3 text-sm">
+                <summary className="cursor-pointer">Undertekst på billedet{subtitle.status === 'loading' ? ' · AI forkorter…' : subtitle.status === 'ai' ? ' · AI-forkortet' : !subtitle.ready ? ' · Skal forkortes' : ''}</summary>
+                <label className="mt-3 block">Redigér undertekst
+                  <textarea aria-label="Undertekst på billedet" value={subtitle.text} onChange={event => subtitle.edit(event.target.value)} rows={3} className="apropos-input-dark mt-1 w-full rounded-lg border p-2" />
+                </label>
+                <div className="mt-2 flex gap-3">
+                  <button type="button" disabled={subtitle.status === 'loading' || !subtitle.text.trim()} onClick={() => void subtitle.shorten()} className="rounded-lg border border-white/30 px-3 py-2 disabled:opacity-40">Forkort med AI</button>
+                  <button type="button" onClick={subtitle.restore} className="rounded-lg border border-white/30 px-3 py-2">Gendan original</button>
+                </div>
+                <p className="mt-2 text-white/60">Kun billedets undertekst ændres. Kontrollér AI-forslaget før brug.</p>
+                {subtitle.error && <p role="alert" className="mt-2 text-amber-300">{subtitle.error}</p>}
+                {!subtitle.ready && subtitle.status !== 'loading' && <p className="mt-2 text-amber-300">Forkort underteksten for at bevare en læsbar skriftstørrelse ved download og posting.</p>}
+              </details>
+            )}
             {eyebrowChips.length > 0 && size !== 'story' && (
               <div className="inline-flex max-w-full overflow-x-auto no-scrollbar justify-start items-center gap-1.5 md:gap-2 rounded-2xl border border-white/15 bg-black/65 p-1.5 md:p-2 mb-2 md:mb-5 backdrop-blur-md shadow-[0_8px_24px_rgba(0,0,0,0.35)]">
                 {eyebrowChips.map((chip, index) => (
