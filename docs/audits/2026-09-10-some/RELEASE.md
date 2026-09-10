@@ -12,3 +12,9 @@ Validation: 1,037 tests in 101 files passed, full TypeScript and changed-file ES
 The full local app route requires runtime Firebase configuration and did not complete its auth boot in the empty-environment smoke test; the isolated component test is not an authenticated production test. Production deployment SHA and public/authenticated readback are recorded separately after release.
 
 The user's current request explicitly authorizes deployment of this SoMe change after testing. Earlier image-recovery and unrelated editorial working files are not part of this release.
+
+## Follow-up design comparison
+
+Compared the previous and current PNG renderers in the same browser/font session. Short-copy light cards in square and story (including logo, rating and metadata) produce byte-identical PNG output. Geometry/constants, font family and image-cover algorithm remain unchanged. Text fitting can change the text block height and therefore image crop through the existing flow layout.
+
+The standalone desktop topbar lost its article-list shortcut when controls were consolidated; the separate navigation still provided access. Restored the topbar shortcut at all widths, using the compact control size. Verified closing/reopening the article list at desktop plus repeated five-viewport and four theme/format checks. No other design changes in this follow-up.
