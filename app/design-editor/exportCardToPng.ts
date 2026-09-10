@@ -111,7 +111,7 @@ function loadStarImages(): Promise<{ filled: HTMLImageElement; outline: HTMLImag
 /** Safari/iOS does not consistently support CanvasRenderingContext2D.filter.
  * Recolor only the asset's alpha mask using standard canvas compositing. */
 function drawThemeAsset(ctx: CanvasRenderingContext2D, image: HTMLImageElement,
-  x: number, y: number, width: number, height: number, dark: boolean) {
+  x: number, y: number, width: number, height: number, dark: boolean, darkColor = '#ffffff') {
   if (!dark) { ctx.drawImage(image, x, y, width, height); return; }
   const mask = document.createElement('canvas');
   mask.width = Math.ceil(width);
@@ -120,7 +120,7 @@ function drawThemeAsset(ctx: CanvasRenderingContext2D, image: HTMLImageElement,
   if (!paint) throw new Error('Canvas 2d not available');
   paint.drawImage(image, 0, 0, mask.width, mask.height);
   paint.globalCompositeOperation = 'source-in';
-  paint.fillStyle = '#ffffff';
+  paint.fillStyle = darkColor;
   paint.fillRect(0, 0, mask.width, mask.height);
   ctx.drawImage(mask, x, y, width, height);
 }
@@ -293,7 +293,7 @@ async function renderCardToContext(
     }
     for (let i = 1; i <= 6; i++) {
       const img = i <= rating ? filled : outline;
-      drawThemeAsset(ctx, img, starX, starY, STAR_SIZE, STAR_SIZE, dark);
+      drawThemeAsset(ctx, img, starX, starY, STAR_SIZE, STAR_SIZE, dark, i <= rating ? '#ffffff' : '#555555');
       starX += STAR_SIZE + STAR_GAP;
     }
   }
@@ -341,7 +341,7 @@ async function renderCardToContext(
     const storyStarY = y - STORY_STAR_SIZE;
     for (let i = 1; i <= 6; i++) {
       const img = i <= rating ? filled : outline;
-      drawThemeAsset(ctx, img, storyStarX, storyStarY, STORY_STAR_SIZE, STORY_STAR_SIZE, dark);
+      drawThemeAsset(ctx, img, storyStarX, storyStarY, STORY_STAR_SIZE, STORY_STAR_SIZE, dark, i <= rating ? '#ffffff' : '#555555');
       storyStarX += STORY_STAR_SIZE + STORY_STAR_GAP;
     }
     y += STORY_STAR_SIZE + 18;
