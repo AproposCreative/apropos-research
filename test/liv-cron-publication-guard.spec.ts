@@ -1,6 +1,7 @@
 import { beforeEach, afterEach, it, expect, vi } from 'vitest';
 import { NextRequest } from 'next/server';
-const mocks = vi.hoisted(() => ({ publish: vi.fn(), finish: vi.fn(), gates: vi.fn(), claim: vi.fn(), readback: vi.fn(), analytics: vi.fn() }));
+const mocks = vi.hoisted(() => ({ publish: vi.fn(), live: vi.fn(), finish: vi.fn(), gates: vi.fn(), claim: vi.fn(), readback: vi.fn(), analytics: vi.fn() }));
+vi.mock('@/lib/liv/publish-verified', () => ({ publishVerifiedLivArticle: mocks.live }));
 vi.mock('@/lib/cron/cron-auth', () => ({ requireCronBearer: () => null }));
 vi.mock('@/lib/config/env', () => ({ env: {} }));
 vi.mock('@/lib/liv/daily-history-store', () => ({ claimLivDaily: mocks.claim, finishLivDaily: mocks.finish,
@@ -29,6 +30,7 @@ beforeEach(() => {
   mocks.gates.mockResolvedValue({ pass: true, results: [] });
   mocks.publish.mockResolvedValue(saveResult);
   mocks.readback.mockResolvedValue({ draftConfirmed: true, publicationReady: false, checks: [{ id: 'image:rights', ok: false }] });
+  mocks.live.mockResolvedValue({ publicationVerified: true, publicUrl: 'https://www.aproposmagazine.com/articles/et-museum-aabner' });
 });
 afterEach(() => vi.unstubAllEnvs());
 it('keeps researched auto-mode articles as drafts while image/CMS checks are missing', async () => {
@@ -39,6 +41,30 @@ it('keeps researched auto-mode articles as drafts while image/CMS checks are mis
   expect(result.publicationMode).toBe('auto_publish');
   expect(result.gateResults).toContainEqual(expect.objectContaining({ name: 'cms-publication', pass: false }));
   expect(mocks.finish).toHaveBeenCalledWith('2026-09-09', expect.objectContaining({ status: 'draft' }));
+  expect(mocks.live).not.toHaveBeenCalled();
+});
+it('automatically publishes only after structure and CMS checks pass', async () => {
+  mocks.readback.mockResolvedValue({ draftConfirmed: true, publicationReady: true, checks: [{ id: 'all', ok: true }] });
+  const result = await (await GET(new NextRequest('http://localhost/api/cron/liv-daily-article'))).json();
+  expect(mocks.live).toHaveBeenCalledTimes(1);
+  expect(result).toMatchObject({ publicationVerified: true, publicationBlocked: false, webflowStatus: 'published' });
+  expect(mocks.finish).toHaveBeenCalledWith('2026-09-09', expect.objectContaining({ status: 'published' }));
+  expect(mocks.analytics).toHaveBeenCalledWith(expect.objectContaining({ params: expect.objectContaining({ status: 'published' }) }));
+});
+it.each(['draft', 'human_approval'])('never publishes in %s mode even with passed checks', async mode => {
+  vi.stubEnv('LIV_DAILY_PUBLICATION_MODE', mode);
+  mocks.readback.mockResolvedValue({ draftConfirmed: true, publicationReady: true, checks: [{ id: 'all', ok: true }] });
+  const result = await (await GET(new NextRequest('http://localhost/api/cron/liv-daily-article'))).json();
+  expect(mocks.live).not.toHaveBeenCalled();
+  expect(result.webflowStatus).toBe('draft');
+});
+it('retains the CMS identity when the live verification fails', async () => {
+  mocks.readback.mockResolvedValue({ draftConfirmed: true, publicationReady: true, checks: [{ id: 'all', ok: true }] });
+  mocks.live.mockRejectedValue(new Error('liv_publication_live_mismatch'));
+  const response = await GET(new NextRequest('http://localhost/api/cron/liv-daily-article'));
+  expect(response.status).toBe(500);
+  expect(mocks.finish).toHaveBeenCalledWith('2026-09-09', expect.objectContaining({ status: 'failed', webflowItemId: 'saved-item' }));
+  expect(mocks.analytics).not.toHaveBeenCalledWith(expect.objectContaining({ params: expect.objectContaining({ status: 'published' }) }));
 });
 it('keeps the pause switch ahead of claim and publication', async () => {
   vi.stubEnv('LIV_DAILY_PAUSED', '1');

@@ -6,7 +6,7 @@
  *   2. Vælg trending-emne der matcher Liv's temaer.
  *   3. Generér artikel + AI-SEO via den fælles modelkonfiguration.
  *   4. Kør sikkerhedsporte (moderation → factcheck → TOV).
- *   5. Gem i Webflow og læs tilbage. Live-publicering er endnu ikke aktiveret.
+ *   5. Gem og kontrollér CMS; auto-mode publicerer og verificerer live-versionen.
  *   6. Send GA4-status-event + log resultat i Firestore.
  *
  * Schedule: 08:00 UTC daglig (`0 8 * * *`) — registrér i `vercel.json`.
@@ -32,6 +32,7 @@ import { runSafetyGates } from '@/lib/liv/run-safety-gates';
 import { buildResearchQaSummary } from '@/lib/liv/research-qa';
 import { publishArticleDraftToWebflow } from '@/lib/articles/publish';
 import { ArticleSaveError } from '@/lib/articles/save-receipt';
+import { publishVerifiedLivArticle } from '@/lib/liv/publish-verified';
 import type { WebflowArticleFields } from '@/lib/webflow/types';
 import { sendGa4MeasurementEvent } from '@/lib/newsletter/ga4-measurement';
 import {
@@ -328,15 +329,11 @@ export async function GET(req: NextRequest) {
       aiModel: article.aiModel,
     });
 
-    // Keep researched articles as drafts while publication proof is missing.
-    // Do not discard the article, and do not equate auto mode with a live result.
+    // Structure is only one part of approval. CMS fields and assets are checked
+    // after saving, and live publication has its own verified receipt.
     const cmsCheck = checkCmsDraft(article);
-    if (publicationMode === 'auto_publish' && !cmsCheck.publicationReady) {
-      const reason = 'cms_publication_unverified: Billedrettigheder og CMS-referencekontrol mangler.';
-      gateResults.push({ name: 'cms-publication', pass: false, detail: reason });
-    }
 
-    const { articleId: webflowItemId, receipt, publicationVerified } = await publishArticleDraftToWebflow(payload, {
+    const { articleId: webflowItemId, receipt } = await publishArticleDraftToWebflow(payload, {
       source: 'liv',
       defaultAuthor: 'Liv Brandt',
       defaultCategory: 'Kultur',
@@ -358,8 +355,22 @@ export async function GET(req: NextRequest) {
       detail: cmsReadback.checks.filter(check => !check.ok).map(check => check.id).join(', '),
     });
 
+    const canPublish = cmsCheck.structureReady && cmsReadback.publicationReady &&
+      cmsReadback.checks.length > 0 && cmsReadback.checks.every(check => check.ok);
+    let liveReceipt: Awaited<ReturnType<typeof publishVerifiedLivArticle>> | undefined;
+    if (publicationMode === 'auto_publish') {
+      gateResults.push({ name: 'cms-publication', pass: canPublish,
+        detail: canPublish ? 'Struktur, CMS og billedkontroller bestået.' : [
+          ...cmsCheck.checks.filter(check => !check.ok).map(check => check.id),
+          ...cmsReadback.checks.filter(check => !check.ok).map(check => check.id),
+        ].join(', ') || 'CMS-kontrol er ikke færdig.' });
+      if (canPublish) liveReceipt = await publishVerifiedLivArticle({ itemId: webflowItemId, expected: payload });
+    }
+    const publicationVerified = liveReceipt?.publicationVerified === true;
+    const observedStatus = publicationVerified ? 'published' as const : 'draft' as const;
+
     await finishLivDaily(dayKey, {
-      status: 'draft',
+      status: observedStatus,
       topic: topic.title,
       title: article.title,
       slug: article.slug,
@@ -371,18 +382,18 @@ export async function GET(req: NextRequest) {
       await markPlanUsed(dayKey);
     }
 
-    await reportGa4('draft', {
+    await reportGa4(observedStatus, {
       day_key: dayKey,
       topic: topic.title.slice(0, 100),
       slug: article.slug,
       word_count: article.content.split(/\s+/).filter(Boolean).length,
     });
 
-    logger.info('[cron/liv-daily] draft saved and read back', {
+    logger.info('[cron/liv-daily] completed with verified status', {
       dayKey,
       slug: article.slug,
       webflowItemId,
-      webflowStatus: livWebflowStatus,
+      webflowStatus: observedStatus,
       score: topic.score,
     });
 
@@ -394,10 +405,11 @@ export async function GET(req: NextRequest) {
       title: article.title,
       slug: article.slug,
       webflowItemId,
-      webflowStatus: livWebflowStatus,
+      webflowStatus: observedStatus,
       publicationMode,
-      publicationBlocked: true,
+      publicationBlocked: !publicationVerified,
       publicationVerified,
+      ...(liveReceipt ? { liveReceipt } : {}),
       saveState: receipt.saveState,
       saveVerified: receipt.saveVerified,
       gateResults,

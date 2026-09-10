@@ -33,6 +33,24 @@ function fixture() {
   return { item, schema, read, dependencies: { read, collectionId, localeId } };
 }
 afterEach(() => vi.unstubAllGlobals());
+it('can pass with verified hero bytes and two distinct credited body images, without certifying rights', async () => {
+  const f = fixture();
+  const buffers = await Promise.all(['#aaa', '#bbb', '#ccc'].map(background =>
+    sharp({ create: { width: 1920, height: 1080, channels: 3, background } }).webp().toBuffer()));
+  const content = '<p>Indhold</p>' + [1, 2].map(i => `<figure><img src="https://example.com/${i}.webp" alt="Motiv ${i}" style="height:auto"><figcaption>Motiv ${i}. Foto: Fotograf.</figcaption></figure>`).join('');
+  f.item.fieldData.content = content;
+  Object.assign(f.item.fieldData.thumb, { alt: 'Hero motiv' });
+  const payload = { ...expected, content, featuredImage: 'https://example.com/image.webp',
+    featuredImageHash: createHash('sha256').update(buffers[0]).digest('hex'), featuredImageAlt: 'Hero motiv', fotoCredit: 'AI-illustration' };
+  const readImage = vi.fn(async (url: string) => buffers[url.includes('/1.') ? 1 : url.includes('/2.') ? 2 : 0]);
+  const result = await inspectLivCmsDraft({ itemId, expected: payload }, { ...f.dependencies, readImage });
+  expect(result.checks.filter(check => !check.ok)).toEqual([]);
+  expect(result.publicationReady).toBe(true);
+  readImage.mockResolvedValue(buffers[0]);
+  const duplicate = await inspectLivCmsDraft({ itemId, expected: payload }, { ...f.dependencies, readImage });
+  expect(duplicate.publicationReady).toBe(false);
+  expect(duplicate.checks).toContainEqual({ id: 'image:body-assets', ok: false });
+});
 it('compares all visible body/intro text instead of mere presence', async () => {
   const f = fixture(); f.item.fieldData.content = '<p>Indhold med en opdigtet slutning</p>'; f.item.fieldData.intro = 'En anden intro';
   const result = await inspectLivCmsDraft({ itemId, expected }, f.dependencies);
@@ -67,7 +85,7 @@ it('reads actual schema and referenced author/section, without certifying image 
   const result = await inspectLivCmsDraft({ itemId, expected }, f.dependencies);
   expect(result.draftConfirmed).toBe(true);
   expect(result.publicationReady).toBe(false);
-  expect(result.checks.filter(c => !c.ok).map(c => c.id)).toEqual(['image:rights-and-asset-unverified']);
+  expect(result.checks.filter(c => !c.ok).map(c => c.id)).toEqual(['image:selection-proof', 'image:body-count', 'image:body-assets']);
   expect(f.read).toHaveBeenCalledTimes(4);
 });
 it.each(['id', 'cmsLocaleId', 'isDraft', 'isArchived', 'name', 'slug'])('rejects a mismatched draft identity/state: %s', async key => {

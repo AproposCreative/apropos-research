@@ -5,15 +5,18 @@ import { createHash } from 'node:crypto';
 import sharp from 'sharp';
 import { stripHtml } from '@/lib/webflow/field-mapping';
 import { readPublicMedia } from '@/lib/liv/public-media-reader';
+import { load } from 'cheerio';
+import { cmsFieldHash } from '@/lib/liv/cms-field-hash';
 
 type JsonObject = Record<string, unknown>;
 export type LivCmsReadback = {
   itemId: string;
   localeId: string;
   checkedAt: string;
+  fieldDataHash: string;
   draftConfirmed: boolean;
-  /** Readback does not verify image rights or authorize publication. */
-  publicationReady: false;
+  /** Technical readiness only; does not certify copyright ownership. */
+  publicationReady: boolean;
   checks: { id: string; ok: boolean }[];
 };
 
@@ -167,8 +170,46 @@ export async function inspectLivCmsDraft(input: {
     }
     checks.push({ id: `reference:${slug}`, ok });
   }
-  // Search results, TMDB images and og:image URLs do not themselves grant reuse rights.
-  checks.push({ id: 'image:rights-and-asset-unverified', ok: false });
-  return { itemId: input.itemId, localeId, checkedAt: new Date().toISOString(), draftConfirmed: true,
-    publicationReady: false, checks };
+  // Rights remain unknown, not a permanently failing technical check. Require
+  // actual selected-image evidence and two distinct credited body images.
+  checks.push({ id: 'image:selection-proof', ok: !!input.expected.featuredImageHash &&
+    !!text(input.expected.featuredImageAlt) && !!text(input.expected.fotoCredit) });
+  const body = load(text(fields.content));
+  const expectedBody = load(input.expected.content);
+  const bodyImages = body('img').toArray();
+  const expectedUrls = expectedBody('img').toArray().map(image => expectedBody(image).attr('src'));
+  const urls = bodyImages.map(image => body(image).attr('src') || '');
+  checks.push({ id: 'image:body-count', ok: bodyImages.length >= 2 && bodyImages.length <= 12 &&
+    new Set(urls).size === bodyImages.length && !urls.includes(text(object(fields.thumb).url)) &&
+    !urls.includes(input.expected.featuredImage || '') });
+  checks.push({ id: 'image:body-matches', ok: JSON.stringify(urls) === JSON.stringify(expectedUrls) &&
+    bodyImages.every((image, index) => {
+      const expectedImage = expectedBody(expectedBody('img').toArray()[index]);
+      return body(image).attr('alt') === expectedImage.attr('alt') &&
+        body(image).closest('figure').find('figcaption').text().trim() === expectedImage.closest('figure').find('figcaption').text().trim();
+    }) });
+  let bodyAssetsOk = bodyImages.length >= 2 && bodyImages.length <= 12;
+  if (bodyAssetsOk) {
+    const hashes = new Set<string>();
+    for (const image of bodyImages) {
+      const element = body(image);
+      const src = element.attr('src') || '';
+      const caption = element.closest('figure').find('figcaption').text().trim();
+      if (!text(element.attr('alt')) || !/(?:foto|illustration|kilde|credit)\s*:|©/i.test(caption) || !/^https:\/\//.test(src) ||
+          element.css('height') !== 'auto') { bodyAssetsOk = false; break; }
+      try {
+        const bytes = await (dependencies?.readImage || (url => readPublicMedia(url, 'image')))(src);
+        const meta = await sharp(bytes, { limitInputPixels: 80_000_000 }).metadata();
+        const digest = createHash('sha256').update(bytes).digest('hex');
+        if (!['jpeg', 'png', 'webp'].includes(meta.format || '') || (meta.pages ?? 1) !== 1 ||
+            !meta.width || meta.width < 800 || !meta.height || bytes.length > 5 * 1024 * 1024 ||
+            hashes.has(digest) || digest === input.expected.featuredImageHash) bodyAssetsOk = false;
+        hashes.add(digest);
+      } catch { bodyAssetsOk = false; }
+      if (!bodyAssetsOk) break;
+    }
+  }
+  checks.push({ id: 'image:body-assets', ok: bodyAssetsOk });
+  return { itemId: input.itemId, localeId, checkedAt: new Date().toISOString(), fieldDataHash: cmsFieldHash(fields), draftConfirmed: true,
+    publicationReady: checks.length > 0 && checks.every(check => check.ok), checks };
 }
