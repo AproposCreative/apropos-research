@@ -4,9 +4,9 @@
  * Pipeline:
  *   1. Idempotent claim på dagens UTC-key (Firestore).
  *   2. Vælg trending-emne der matcher Liv's temaer.
- *   3. Generér artikel + AI-SEO via gpt-4o.
+ *   3. Generér artikel + AI-SEO via den fælles modelkonfiguration.
  *   4. Kør sikkerhedsporte (moderation → factcheck → TOV).
- *   5. Send til Webflow (draft/published via env).
+ *   5. Gem i Webflow og læs tilbage. Live-publicering er endnu ikke aktiveret.
  *   6. Send GA4-status-event + log resultat i Firestore.
  *
  * Schedule: 08:00 UTC daglig (`0 8 * * *`) — registrér i `vercel.json`.
@@ -19,6 +19,7 @@ import { logger } from '@/lib/logger';
 import {
   claimLivDaily,
   finishLivDaily,
+  checkpointLivDailyCmsItem,
   todayDayKeyUTC,
   type GateResult,
 } from '@/lib/liv/daily-history-store';
@@ -30,6 +31,7 @@ import { inspectLivCmsDraft } from '@/lib/liv/cms-readback';
 import { runSafetyGates } from '@/lib/liv/run-safety-gates';
 import { buildResearchQaSummary } from '@/lib/liv/research-qa';
 import { publishArticleDraftToWebflow } from '@/lib/articles/publish';
+import { ArticleSaveError } from '@/lib/articles/save-receipt';
 import type { WebflowArticleFields } from '@/lib/webflow/types';
 import { sendGa4MeasurementEvent } from '@/lib/newsletter/ga4-measurement';
 import {
@@ -334,10 +336,14 @@ export async function GET(req: NextRequest) {
       gateResults.push({ name: 'cms-publication', pass: false, detail: reason });
     }
 
-    const { articleId: webflowItemId } = await publishArticleDraftToWebflow(payload, {
+    const { articleId: webflowItemId, receipt, publicationVerified } = await publishArticleDraftToWebflow(payload, {
       source: 'liv',
       defaultAuthor: 'Liv Brandt',
       defaultCategory: 'Kultur',
+      onSaved: async itemId => {
+        savedWebflowItemId = itemId;
+        await checkpointLivDailyCmsItem(dayKey, itemId);
+      },
     });
     savedWebflowItemId = webflowItemId;
     const cmsReadback = await inspectLivCmsDraft({ itemId: webflowItemId, expected: payload });
@@ -348,7 +354,7 @@ export async function GET(req: NextRequest) {
     });
     gateResults.push({
       name: 'cms-draft-fields',
-      pass: false,
+      pass: cmsReadback.checks.length > 0 && cmsReadback.checks.every(check => check.ok),
       detail: cmsReadback.checks.filter(check => !check.ok).map(check => check.id).join(', '),
     });
 
@@ -391,12 +397,16 @@ export async function GET(req: NextRequest) {
       webflowStatus: livWebflowStatus,
       publicationMode,
       publicationBlocked: true,
+      publicationVerified,
+      saveState: receipt.saveState,
+      saveVerified: receipt.saveVerified,
       gateResults,
       qa,
       cmsCheck,
       cmsReadback,
     });
   } catch (e) {
+    if (e instanceof ArticleSaveError && e.articleId) savedWebflowItemId = e.articleId;
     const msg = e instanceof Error ? e.message : 'Ukendt fejl';
     const stack = e instanceof Error ? e.stack : undefined;
     await finishLivDaily(dayKey, {

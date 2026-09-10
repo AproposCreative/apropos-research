@@ -1,4 +1,4 @@
-import { readJsonFile, writeJsonFile } from '@/lib/funding/json-store';
+import { readJsonFile, writeJsonFile } from '@/lib/storage/json-store';
 import { newEntityId, nextRequestId } from '@/lib/accreditation/ids';
 import { assertTransition } from '@/lib/accreditation/state-machine';
 import {

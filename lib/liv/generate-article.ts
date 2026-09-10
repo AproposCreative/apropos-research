@@ -103,8 +103,8 @@ type WebSearchResult = {
   url?: string | null;
 };
 
-async function fetchWebResearch(query: string): Promise<WebSearchResult[]> {
-  const results = await Promise.all(livResearchQueries(query).map(subject =>
+async function fetchWebResearch(query: string, format: LivArticleFormat): Promise<WebSearchResult[]> {
+  const results = await Promise.all(livResearchQueries(query, format).map(subject =>
     getResearch(subject, { maxResults: 5, model: livModels().research, timeoutMs: 45000 })));
   return results.flatMap(result => result.sources.map(source => ({
     title: source.title, content: source.snippet, source: source.source, url: source.url,
@@ -160,7 +160,7 @@ export async function generateLivArticle(options: GenerateArticleOptions): Promi
 
   // Retrieve evidence before writing; source prose is data, never instructions.
   const [discovered, remembered] = await Promise.all([
-    fetchWebResearch(topic.title), recalledSourceUrls(sourceScope, topic.title),
+    fetchWebResearch(topic.title, articleFormat), recalledSourceUrls(sourceScope, topic.title),
   ]);
   const sources = await buildResearchBundle([
     ...extractResearchUrls(options.directiveHint || ''),

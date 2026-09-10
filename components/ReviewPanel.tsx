@@ -6,6 +6,7 @@ import type { WebflowArticleFields } from '@/lib/webflow/types';
 import { stripIntroDuplicateFromBody } from '@/lib/article-intro-strip';
 import { writerArticleBody } from '@/lib/ai-chat/article-content';
 import { addCoveredEditorialTopic, addPublishedEditorialSignalId } from '@/lib/editorial/signal-store';
+import { articleSaveFeedback } from '@/lib/articles/save-response';
 
 interface ReviewPanelProps {
   articleData: any;
@@ -767,6 +768,8 @@ export default function ReviewPanel({ articleData, onClose, frameless, onPreflig
                 body: JSON.stringify(formData),
               });
               const j = await res.json().catch(()=>null);
+              const saved = articleSaveFeedback(j);
+              if (saved.articleId) onUpdateArticle?.({ webflowId: saved.articleId });
               if (!res.ok) {
                 const msg = typeof j?.error === 'string' ? j.error
                   : typeof j?.error?.message === 'string' ? j.error.message : 'Gemning i Webflow fejlede';
@@ -774,11 +777,10 @@ export default function ReviewPanel({ articleData, onClose, frameless, onPreflig
               }
               const isUpdate = formData.webflowId && formData.webflowId !== '';
               const articleTitle = formData.title || 'Artiklen';
-              const webflowId = j?.data?.articleId || j?.articleId;
+              const webflowId = saved.articleId;
               if (!webflowId) throw new Error('Webflow svarede uden artikel-ID. Gemningen kunne ikke bekræftes.');
-              onUpdateArticle?.({ webflowId });
               const editorialSignalId = String(articleData?.editorialSignalId || '').trim();
-              if (editorialSignalId && formData.status === 'published') {
+              if (editorialSignalId && saved.publicationVerified) {
                 const publishedDetail = {
                   signalId: editorialSignalId,
                   signalTitle: String(articleData?.editorialSignalTitle || '').trim() || undefined,
@@ -817,7 +819,7 @@ export default function ReviewPanel({ articleData, onClose, frameless, onPreflig
               `;
               const paragraphs = modal.querySelectorAll('p');
               paragraphs[0].textContent = String(articleTitle);
-              paragraphs[1].textContent = `Status: ${formData.status === 'published' ? 'Publiceret' : 'Kladde'} · ID: ${webflowId}`;
+              paragraphs[1].textContent = `Status: ${saved.label} · ID: ${webflowId}`;
               document.body.appendChild(modal);
               
               // Auto-remove after 5 seconds

@@ -15,10 +15,26 @@
   "pressAccreditation": false,
   "instagram": false,
   "webflowItemId": null,
-  "cmsReferencesResolved": false,
+  "cmsReferencesResolved": true,
+  "cmsTransfer": {
+    "state": "blocked_by_connector_schema_policy_before_item_creation",
+    "collectionId": "67dbf17ba540975b5b21c2a6",
+    "authorId": "67dbf17ba540975b5b21c31c",
+    "sectionId": "67dbf17ba540975b5b21c30a",
+    "topicId": "67dbf17ba540975b5b21c301",
+    "payloadFile": "cms-draft-payload.json",
+    "requestedDraft": true,
+    "itemCreated": false,
+    "published": false,
+    "assetsUploaded": true,
+    "assetUploadStatus": [201, 201, 201],
+    "publicAssetReadbackStatus": [200, 200, 200],
+    "assetIds": ["6aa2abf4491e1c92898b8fa9", "6aa2abf5cb1342b2f5b64bfe", "6aa2abf503b7f4b66b31d84e"],
+    "error": "Connector schema validation rejected create_collection_items as an additional property under workspace admin constraints. No alternative write route attempted."
+  },
   "illustration": {
-    "file": "images/expressive-rat-v1.png",
-    "promptFile": "illustration-prompt.txt",
+    "file": "images/expressive-rat-v2.png",
+    "promptFile": "illustration-prompt-v2.txt",
     "generationMode": "built_in_imagegen",
     "style": "Apropos Expressive",
     "width": 1672,
@@ -28,9 +44,34 @@
     "productionDimensionsVerified": false,
     "caption": "Illustration: Apropos Magazine / AI. Fri fortolkning, ikke et udstillingsfoto."
   },
+  "bodyIllustrations": [
+    {
+      "file": "images/expressive-ticks-v1.png",
+      "promptFile": "body-illustration-prompts.md",
+      "subject": "Three patterned inflatable ticks near a lake",
+      "placement": "After the first paragraph under Flåten er klædt bedre på end sin undskyldning",
+      "width": 1672,
+      "height": 941,
+      "generationMode": "built_in_imagegen",
+      "style": "Apropos Expressive",
+      "isDocumentaryPhoto": false
+    },
+    {
+      "file": "images/expressive-plant-jaws-v1.png",
+      "promptFile": "body-illustration-prompts.md",
+      "subject": "Two open carnivorous plant jaws",
+      "placement": "After the title interpretation, before Gerne et billede. Også gerne en tanke",
+      "width": 1672,
+      "height": 941,
+      "generationMode": "built_in_imagegen",
+      "style": "Apropos Expressive",
+      "isDocumentaryPhoto": false
+    }
+  ],
   "exhibitionStart": "2026-09-04",
   "exhibitionEnd": "2026-09-12",
-  "openingReception": "2026-09-03",
+  "openingReception": null,
+  "openingReceptionStatus": "cancelled: organizer event page marks planned September 3 reception AFLYST; exhibition programme still lists September 4-12",
   "location": "Ørstedsparken, København",
   "sources": [
     {
@@ -49,6 +90,28 @@
       "limitation": "Same promotional provenance as organizer text; not counted as an independent corroborating source. No direct quotation used."
     },
     {
+      "url": "https://www.vogue.com/article/esben-weile-kjaer-shell-interview",
+      "kind": "artist_interview_about_prior_work",
+      "author": "Laird Borrelli-Persson",
+      "publishedAt": "2025-06-02",
+      "supports": ["Artist's stated interest in uncertain boundaries between beautiful and ugly"],
+      "limitation": "Interview about Shell and wider practice, not a THIRST TRAP review. Article attributes this narrowly, then develops its own reading."
+    },
+    {
+      "url": "https://www.goldendays.dk/program/fernisering-thirst-trap-med-esben-weile-kjaer",
+      "kind": "organizer_primary_status_correction",
+      "publishedAt": null,
+      "supports": ["Planned September 3 reception marked AFLYST"],
+      "limitation": "Cancellation concerns reception only; not evidence exhibition is cancelled. Do not claim the announced talk occurred or was listened to."
+    },
+    {
+      "url": "https://www.goldendays.dk/program/udstilling-thirst-trap",
+      "kind": "organizer_primary",
+      "publishedAt": null,
+      "supports": ["Exhibition September 4-12, listed daily hours 09:00-20:00, free admission"],
+      "limitation": "Same provenance as organizer presentation, not an independent critical source."
+    },
+    {
       "url": "https://cphmuseum.kk.dk/nyheder/podcast-queer-i-koebenhavn-gennem-1000-aar",
       "kind": "museum_primary",
       "publishedAt": null,
@@ -61,10 +124,21 @@
     "observations": ["Gold-colored rats beside existing small bronze sculpture", "Silver plant jaws", "Large patterned ticks on grass near lake", "Visible seams and tethering in inflatable forms"],
     "firsthandVisit": false,
     "photographer": null,
-    "creditStatus": "unknown; local preview captions explicitly say photographer not supplied",
-    "productionImageCreditsComplete": false
+    "creditStatus": "Photographs excluded from article by explicit user instruction; retained only as research references",
+    "photographPublicationAllowed": false,
+    "articlePhotoCount": 0,
+    "articleIllustrationCount": 3,
+    "bodyIllustrationCount": 2
   },
-  "editorialMethod": "Original interpretive feature grounded in exhibition photographs and sources. Positive angle explained through material, scale and setting. No rating, invented visit, fabricated interview, audience reaction or claimed independent history of pruning.",
+  "editorialMethod": "Revised interpretive feature grounded in supplied exhibition photographs, organizer material, museum history and a dated artist interview about earlier work. Thesis: whether welcome depends on making the unwanted aesthetically desirable. Develops gold/material versus monument prestige, site versus visibility/privacy, and jaws versus spectator control. Counterreading: spectacle may turn exclusion into harmless decorative content. Explicitly distinguishes artist statements from Liv's reading. No rating, invented visit, fabricated interview, audience reaction or claimed independent history of pruning.",
+  "interpretationResearch": {
+    "readAt": "2026-09-10",
+    "independentThirstTrapReviewFound": false,
+    "searchAndReadingNotes": "INTERPRETATION-REVISION-2026-09-10.md",
+    "modelFineTuned": false,
+    "canonicalPromptUpdatedLocally": true,
+    "canonicalPromptDeployed": false
+  },
   "checks": {
     "manualSourceReading": true,
     "automatedFactcheck": "not_run",
@@ -72,5 +146,5 @@
     "publicCmsReadback": "not_run"
   },
   "credentialRotation": "User confirmed rotation on 2026-09-10; not independently audited",
-  "releaseBlockers": ["Exact clean app release-commit approval still required", "Photographer credit for supplied exhibition photographs not identified", "Illustration output is 1672x941, not yet the requested production target 1920x1080", "No CMS reference resolution or publication/readback performed"]
+  "releaseBlockers": ["Previously approved commit b7d7308 contains the superseded photo layout and earlier prompt; revised package not yet committed or deployed", "Illustration output is 1672x941, not yet the requested production target 1920x1080", "All three assets uploaded and public URLs verified; CMS create action rejected by connector workspace constraints, so no CMS item created or read back"]
 }

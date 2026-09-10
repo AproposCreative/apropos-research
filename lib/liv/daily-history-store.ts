@@ -44,10 +44,9 @@ export function todayDayKeyUTC(reference = new Date()): string {
 }
 
 /**
- * Atomic claim — sætter status `processing` hvis ledigt. `published` er
- * terminal. `skipped_*` og `failed` er retryable; cron'en kan prøve igen
- * (typisk den efterfølgende dag — vi forsøger ikke samme dag igen for at
- * undgå at brænde tokens på en fejlende kilde).
+ * Atomic claim. Completed/skipped/failed runs are terminal for this day.
+ * Stale processing without a saved CMS ID may be reclaimed. A saved ID must
+ * be reconciled, not recreated, even if the process died before finish.
  */
 export async function claimLivDaily(dayKey: string): Promise<LivDailyClaimResult> {
   const db = getAdminDb();
@@ -60,6 +59,11 @@ export async function claimLivDaily(dayKey: string): Promise<LivDailyClaimResult
       const snap = await tx.get(ref);
       const d = snap.data();
       const status = d?.status as LivDailyStatus | undefined;
+
+      if (typeof d?.webflowItemId === 'string' && d.webflowItemId.trim()) {
+        result = { ok: false, reason: 'already_done' };
+        return;
+      }
 
       // Terminal states for *today*.
       if (status === 'published' || status === 'draft') {
@@ -101,6 +105,23 @@ export async function claimLivDaily(dayKey: string): Promise<LivDailyClaimResult
     console.error('[liv/daily] claimLivDaily transaction error:', e);
     return { ok: false, reason: 'transaction_failed' };
   }
+}
+
+/** Record identity immediately after CMS save, before slow verification/SEO. */
+export async function checkpointLivDailyCmsItem(dayKey: string, itemId: string): Promise<void> {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dayKey) || !/^[a-f0-9]{24}$/i.test(itemId)) {
+    throw new Error('liv_cms_checkpoint_invalid');
+  }
+  const db = getAdminDb();
+  if (!db) throw new Error('liv_cms_checkpoint_unavailable');
+  const ref = db.collection(LIV_DAILY_COLLECTION).doc(livDailyDocId(dayKey));
+  await db.runTransaction(async tx => {
+    const row = (await tx.get(ref)).data();
+    if (row?.status !== 'processing' || (row.webflowItemId && row.webflowItemId !== itemId)) {
+      throw new Error('liv_cms_checkpoint_conflict');
+    }
+    tx.set(ref, { webflowItemId: itemId, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+  });
 }
 
 /** skipped: gate blev ikke kørt (infra/mangler input); pass kan stadig være true for ikke at blokere publish. */

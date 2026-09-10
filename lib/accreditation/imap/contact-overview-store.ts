@@ -1,4 +1,4 @@
-import { readJsonFile, writeJsonFile } from '@/lib/funding/json-store';
+import { readJsonFile, writeJsonFile } from '@/lib/storage/json-store';
 import type { MailboxId } from '@/lib/accreditation/imap/config';
 import { resolveAccreditationPersistenceKind } from '@/lib/accreditation/persistence/env';
 import {

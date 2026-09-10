@@ -1,4 +1,4 @@
-import { readJsonFile, writeJsonFile } from '@/lib/funding/json-store';
+import { readJsonFile, writeJsonFile } from '@/lib/storage/json-store';
 import { newEntityId } from '@/lib/accreditation/ids';
 import { resolveAccreditationPersistenceKind } from '@/lib/accreditation/persistence/env';
 import { requireFirestore, stripUndefined } from '@/lib/accreditation/persistence/firestore-kit';

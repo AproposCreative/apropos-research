@@ -258,7 +258,7 @@ describe('accreditation automation control', () => {
   });
 
   it('maps legacy paused:true to automation OFF', async () => {
-    const { writeJsonFile } = await import('@/lib/funding/json-store');
+    const { writeJsonFile } = await import('@/lib/storage/json-store');
     const { getAgentControl, setAgentControl } = await import('@/lib/accreditation/agent-control');
     __setAccreditationPersistenceKindForTests('json');
     const before = await getAgentControl();

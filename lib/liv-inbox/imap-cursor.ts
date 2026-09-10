@@ -4,7 +4,7 @@
  * Must not share accreditation's `liv` cursor: that poll marks the same
  * mailbox \\Seen and would otherwise steal or skip intern mail.
  */
-import { readJsonFile, writeJsonFile } from '@/lib/funding/json-store';
+import { readJsonFile, writeJsonFile } from '@/lib/storage/json-store';
 import { resolveAccreditationPersistenceKind } from '@/lib/accreditation/persistence/env';
 import { requireFirestore, stripUndefined } from '@/lib/accreditation/persistence/firestore-kit';
 import { registerAccreditationStoreReset } from '@/lib/accreditation/persistence/reset-registry';

@@ -1,4 +1,4 @@
-import { readJsonFile, writeJsonFile } from '@/lib/funding/json-store';
+import { readJsonFile, writeJsonFile } from '@/lib/storage/json-store';
 import { getOpenAIClient } from '@/lib/openai';
 import { appendAiAudit } from '@/lib/accreditation/audit-store';
 import { getAgentControl, isAutomationEnabled } from '@/lib/accreditation/agent-control';

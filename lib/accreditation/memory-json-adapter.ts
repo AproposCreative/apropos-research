@@ -1,4 +1,4 @@
-import { readJsonFile, writeJsonFile } from '@/lib/funding/json-store';
+import { readJsonFile, writeJsonFile } from '@/lib/storage/json-store';
 import { sanitizeLivOutput } from '@/lib/accreditation/sanitize';
 import type { MemoryBackend } from '@/lib/accreditation/memory-backend';
 import {

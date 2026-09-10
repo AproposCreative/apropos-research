@@ -1,10 +1,10 @@
 # Endelig en rotte, København ikke kan ignorere
 
-Esben Weile Kjærs THIRST TRAP giver skadedyrene hovedrollen i Ørstedsparken. Bag guldet og de psykedeliske mønstre ligger en langt mere fræk idé: Den pæne by tilhører også dem, der ødelægger billedet.
+Esben Weile Kjærs THIRST TRAP giver skadedyrene hovedrollen i Ørstedsparken. Guldet lokker os tættere på et ubehageligt spørgsmål: Hvorfor skal det uønskede gøres smukt, før vi giver det plads?
 
 Af Liv Brandt · Feature
 
-![Redaktionel illustration: En stor okkergul rotte ved en lille blå parkstatue.](images/expressive-rat-v1.png)
+![Redaktionel illustration: En stor gul rotte med pink ører ved en lille koboltblå parkstatue.](images/expressive-rat-v2.png)
 
 *Illustration: Apropos Magazine / AI. Fri fortolkning, ikke et udstillingsfoto.*
 
@@ -12,7 +12,7 @@ Den gyldne rotte har ikke tænkt sig at undskylde. Den ligger ved siden af en li
 
 I Esben Weile Kjærs THIRST TRAP er størrelsesforholdene løbet af med skadedyrene. Rotterne er guldfarvede, de kødædende planter har sølvblanke gab, og flåterne er klædt i mønstre, der nægter at enes. Værkerne indtager Ørstedsparken under [Golden Days](https://www.goldendays.dk/udstilling-thirst-trap-af-esben-weile-kjaer). Her er rigeligt at kigge på. Heldigvis er der også noget at blive hængende i.
 
-Det imponerende er ikke bare størrelsen. Den kunne enhver med en luftpumpe og et generøst budget forsøge sig med. Det er præcisionen i sammenstødet: et dyr, vi helst vil slippe for, får den behandling, vi normalt reserverer til nogen, der skal hyldes. Guldet gør arbejdet. Pludselig ser rotten ud, som om parken er anlagt til ære for den.
+Jeg læser udstillingen som en fælde for vores egen rummelighed. Rotten bliver lettere at holde af, når den har fået monumentets størrelse og guldfarvede prestige. Men hvis den skal opgraderes så voldsomt for at blive velkommen, hvor rummelige var vi så til at begynde med? Det er den mistanke, som gør de oppustelige dyr værd at tage alvorligt. Begejstringen får en regning.
 
 ## Skadedyret har fået råd til guld
 
@@ -22,11 +22,11 @@ På udstillingsbillederne er den siddende rotte både enorm og mærkeligt veltil
 
 Ved siden af bronzefiguren bliver guldet en vittighed om monumenter. Bronze har tyngde og patina. Den oppustelige overflade har syninger og luft. Alligevel er det rotten, der vinder kampen om opmærksomheden. Den gamle figur beholder sin sokkel, men har mistet kontrollen over selskabet.
 
-Jeg læser det som en kærkommen forstyrrelse af den respekt, vi kan komme til at vise materialer helt automatisk. Er noget værdigt, fordi det er støbt? Bliver det mindre interessant, fordi det kan tømmes for luft? Det midlertidige kan godt stille et spørgsmål, der bliver siddende længere end en mindeplade.
+Guldfarven låner en autoritet, som dyret ikke har i forvejen. Den siger kostbar og værd at bevare, mens motivet siger få den væk. Når de to beskeder sidder på samme krop, afslører de, hvor hurtigt vores vurdering kan flyttes af en overflade. Rotten har hverken forbedret sin opførsel eller søgt om medlemskab. Den har skiftet dresscode.
 
-![En guldfarvet kæmperotte ved siden af en mindre bronzefigur i Ørstedsparken.](images/rat-and-statue.jpeg)
+Luftkroppen gør samtidig monumentets magt midlertidig. De synlige syninger modsiger forestillingen om noget evigt, selv om figuren dominerer den lille statue. Det giver mig en mere præcis grund til at være begejstret end størrelsen alene: Værket viser, at den, der fylder mest i dag, ikke nødvendigvis har en naturlig ret til pladsen. Det gælder også den gamle figur på soklen.
 
-*THIRST TRAP i Ørstedsparken. Udstillingsfoto fremsendt til redaktionen; fotograf ikke oplyst.*
+I et [Vogue-interview fra 2025](https://www.vogue.com/article/esben-weile-kjaer-shell-interview) beskriver Weile Kjær sin interesse for at gøre grænsen mellem smukt og grimt usikker. Interviewet handler om hans praksis og et andet værk, Shell, ikke om THIRST TRAP. Det giver alligevel en relevant nøgle: Her er min smag noget, værket kan flytte på, frem for en sikker målestok, jeg kan holde det op imod.
 
 ## Parken har aldrig været uskyldig
 
@@ -38,30 +38,38 @@ Golden Days knytter selv værkerne til parkens cruisinghistorie og beskriver, hv
 
 Det kræver samtidig lidt omtanke at tale om mennesker gennem skadedyr. Queer liv er selvfølgelig ikke noget, der skal forklares med en flåt. For mig ligger forbindelsen i den magt, der udpeger noget som uønsket: Hvem får lov at bestemme, hvad der hører til? Man behøver ikke overtage betegnelsen for at undersøge, hvem der bruger den.
 
-Jeg bliver mere optaget af den kamp end af forestillingen om en by, hvor alle bare skal være synlige hele tiden. Retten til at fylde er vigtig. Retten til at slippe for andres blik er det også. En fri park må kunne rumme begge ønsker, selv om det gør den vanskeligere at holde pæn på billeder.
+Placeringen gør dermed mere end at give dyrene en køn baggrund. På en neutral messeplads ville guldrotten stadig være morsom. I en park med denne historie bliver dens enorme synlighed en provokation mod et rum, hvor andre har haft brug for at kunne skjule sig. Det er forskellen på et stedsspecifikt værk og en stor genstand, der blot står udendørs.
+
+Men synlighed er ikke automatisk frigørelse. Hvis alle skal kunne ses, forsvinder muligheden for selv at vælge sit publikum. Jeg synes, udstillingen bliver mest interessant i netop den modsætning: Dyrene kræver hele blikket, mens parkens historie også handler om at undslippe det. Retten til at fylde og retten til diskretion kan ikke erstatte hinanden. En fri park må kunne rumme begge.
 
 ## Flåten er klædt bedre på end sin undskyldning
 
 Flåterne har zebra, tern, leopardpletter og farver, der flyder ud i hinanden. Deres runde kroppe og buttede ben gør dem næsten nuttede. Jeg får mere lyst til at studere mønstrene end til at holde afstand. Det er en temmelig effektiv overflade at give et dyr, hvis selskab jeg ellers ville afslå på stedet.
 
-Plantegabene skruer til gengæld op for tænderne. De blanke flader ligner fest, mens formen lover det modsatte af en varm velkomst. Tiltrækning og fare findes i samme objekt. Man skal ikke vælge mellem dem for at forstå joken.
+![Tre runde flåter med tern, zebrastriber og pink, gule og blå felter på græs ved en sø.](images/expressive-ticks-v1.png)
 
-Titlen THIRST TRAP passer til den dobbelthed. I udstillingens egen præsentation handler den både om at lokke blikket til og om at tage kontrollen over at blive set. Min læsning er, at værkerne også gør beskuerens smag til en del af fælden. Vi opdager noget uimodståeligt dér, hvor vi havde regnet med at være enige om, at det var frastødende.
+*De mønstrede flåter, fortolket i Apropos' farver. Illustration: Apropos Magazine / AI, efter Esben Weile Kjærs THIRST TRAP.*
 
-![Mønstrede, oppustelige flåter på græsset ved søen i Ørstedsparken.](images/patterned-ticks.jpeg)
+Mønstrene gør dyrets krop til noget, man kan aflæse som stil. Flåten kommer ikke i diskret naturfarvet camouflage, men i tern og zebrastriber, som konkurrerer om øjet. Min læsning er, at udsmykningen bryder forbindelsen mellem det naturlige og det passende. Det uønskede behøver ikke se beskedent ud for at bede om plads. Det kan også møde op overdressed og lade os håndtere problemet.
 
-*THIRST TRAP i Ørstedsparken. Udstillingsfoto fremsendt til redaktionen; fotograf ikke oplyst.*
+Plantegabene skruer til gengæld op for tænderne. Deres sølvblanke flader tilbyder glans, mens de åbne munde tilbyder at æde. Dermed bliver blikkets retning vendt: Jeg kan kigge på planten som et objekt, men formen placerer også mig på den forkerte side af en mund. Beskueren er ikke helt så suveræn, som hun havde regnet med. Det er et ret effektivt greb, når emnet er begær og kontrol.
+
+Golden Days forklarer titlen THIRST TRAP gennem tiltrækning og kontrollen over at blive set. Jeg vil skubbe den læsning et skridt videre: Når et skadedyr kan forføre mit blik, bliver min egen afsky mindre troværdig som begrundelse for at holde det ude. Den virker pludselig påvirkelig. Jeg må undersøge, om jeg har en begrundelse eller bare en smagsdom, der har fået lov at bestemme for meget.
+
+![To åbne plantegab med koboltblå kanter, pink indersider og lyse spidser på en grøn flade.](images/expressive-plant-jaws-v1.png)
+
+*Plantegabet som farverig fælde. Illustration: Apropos Magazine / AI, efter Esben Weile Kjærs THIRST TRAP. Farverne er en fri fortolkning.*
 
 ## Gerne et billede. Også gerne en tanke
 
 Den oplagte indvending er selvfølgelig, at gulddyr og psykedeliske flåter kan ende som baggrund for et pænt opslag. Noget stort og fotogent er ikke automatisk en god kunstnerisk idé. Man kan sagtens lokke folk til at kigge uden at give dem noget at se.
 
-Men jeg synes, THIRST TRAP har mere på spil. Forholdet til parkens eksisterende skulpturer giver overdrivelsen retning. Dyrene behøver ikke ligne natur for at sige noget om vores forhold til den. Og den lokale historie forhindrer stedet i bare at være et stykke praktisk græs under værkerne.
+Den modlæsning kan ikke fejes væk. Hvis jeg alene tager billedet med hjem, har byen fået en dekorativ rotte, og ingen behøver ændre mening om dem, der faktisk bliver holdt ude. Det foragtede er blevet acceptabelt på betingelse af, at det leverer et godt motiv. Så kan udstillingen komme til at gentage netop den handel, jeg læser som dens problem. Et fotogent skadedyr er trods alt ikke en social forandring.
 
-Det er den slags ambition, jeg gerne vil have mere af i offentlig kunst: noget, der tør være umiddelbart dragende og stadig giver modstand, når man prøver at forstå det. Man må gerne komme for guldet. Man behøver ikke kunne redegøre for parkens historie for at blive nysgerrig på den.
+Jeg hælder alligevel til den mere krævende læsning, fordi modsætningerne sidder i værkerne. Den gyldne krop er stadig en rotte. Planten beholder sit gab. Og mødet med parkens skulpturer lader den oppustelige gæst overtage opmærksomheden fra noget, der så ud til at have permanent opholdsret. Ubehaget er ikke pyntet helt væk. Det kan fortsat forstyrre begejstringen.
 
-Jeg har langt større tiltro til den nysgerrighed end til kunst, der virker fornærmet over, at nogen gerne vil kunne lide den. Her kan begejstringen godt komme først. Det afgørende er, om den åbner for noget andet bagefter.
+Derfor imponerer THIRST TRAP mig som idé. Den bruger lysten til at kigge som indgang til at undersøge den, der kigger. Jeg behøver ikke have gennemført et grundkursus for at blive lokket af guldet. Men jeg kan heller ikke blive ved med at udnævne min første reaktion til sund fornuft, når den så let lod sig købe af en blank overflade.
 
-Den lille bronzefigur får sandsynligvis ro igen. Indtil da har den fået en nabo, som ikke respekterer, at nogen var her først. København kunne godt bruge flere af den slags besøg.
+For mig ender udstillingen derfor ikke med, at alle bare skal have lov at være anderledes. Den efterlader et mere besværligt spørgsmål: Giver vi plads til det, der forstyrrer os, eller kun til det, der gør sig lækkert nok til at blive tilgivet? Rotten har fået sin guldfarvede adgangsbillet. Jeg vil gerne vide, hvad vi gør med dem, der ikke har en.
 
 THIRST TRAP kan opleves i Ørstedsparken til og med 12. september 2026.

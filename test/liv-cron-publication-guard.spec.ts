@@ -3,7 +3,8 @@ import { NextRequest } from 'next/server';
 const mocks = vi.hoisted(() => ({ publish: vi.fn(), finish: vi.fn(), gates: vi.fn(), claim: vi.fn(), readback: vi.fn(), analytics: vi.fn() }));
 vi.mock('@/lib/cron/cron-auth', () => ({ requireCronBearer: () => null }));
 vi.mock('@/lib/config/env', () => ({ env: {} }));
-vi.mock('@/lib/liv/daily-history-store', () => ({ claimLivDaily: mocks.claim, finishLivDaily: mocks.finish, todayDayKeyUTC: () => '2026-09-09' }));
+vi.mock('@/lib/liv/daily-history-store', () => ({ claimLivDaily: mocks.claim, finishLivDaily: mocks.finish,
+  checkpointLivDailyCmsItem: vi.fn(), todayDayKeyUTC: () => '2026-09-09' }));
 vi.mock('@/lib/liv/pick-topic', () => ({ pickLivTopic: async () => ({ title: 'Et museum åbner', source: { url: 'https://museum.dk/news' } }) }));
 vi.mock('@/lib/liv/generate-article', () => ({ generateLivArticle: async () => ({ title: 'Et museum åbner', subtitle: 'En ny udstilling', intro: 'Intro', content: 'Kultur '.repeat(1000), slug: 'et-museum-aabner', excerpt: 'Udstilling', section: 'Kunst', seoTitle: 'Museum', seoDescription: 'Udstilling', researchSources: [{ url: 'https://museum.dk/news', source: 'Museum' }, { url: 'https://kultur.dk/news', source: 'Kultur' }] }) }));
 vi.mock('@/lib/liv/build-cms-payload', () => ({ buildLivCmsPayload: () => ({ title: 'Et museum åbner' }) }));
@@ -15,6 +16,10 @@ vi.mock('@/lib/newsletter/ga4-measurement', () => ({ sendGa4MeasurementEvent: mo
 vi.mock('@/lib/liv/daily-plan-store', () => ({ getLivDailyPlan: async () => null, markPlanFailed: async () => {}, markPlanUsed: async () => {} }));
 vi.mock('@/lib/liv/resolve-liv-topic-hints', () => ({ resolveLivTopicInputsFromPlan: () => ({}) }));
 import { GET } from '@/app/api/cron/liv-daily-article/route';
+import { ArticleSaveError } from '@/lib/articles/save-receipt';
+
+const saveResult = { articleId: 'saved-item', publicationVerified: false,
+  receipt: { saveState: 'draft', saveVerified: true, cmsLocaleId: 'locale' } };
 
 beforeEach(() => {
   vi.resetAllMocks();
@@ -22,7 +27,7 @@ beforeEach(() => {
   vi.stubEnv('LIV_DAILY_PAUSED', '0');
   mocks.claim.mockResolvedValue({ ok: true });
   mocks.gates.mockResolvedValue({ pass: true, results: [] });
-  mocks.publish.mockResolvedValue({ articleId: 'saved-item' });
+  mocks.publish.mockResolvedValue(saveResult);
   mocks.readback.mockResolvedValue({ draftConfirmed: true, publicationReady: false, checks: [{ id: 'image:rights', ok: false }] });
 });
 afterEach(() => vi.unstubAllEnvs());
@@ -44,7 +49,7 @@ it('keeps the pause switch ahead of claim and publication', async () => {
 });
 it('reports a saved draft as draft in history, response and analytics', async () => {
   vi.stubEnv('LIV_DAILY_PUBLICATION_MODE', 'human_approval');
-  mocks.publish.mockResolvedValue({ articleId: 'saved-item' });
+  mocks.publish.mockResolvedValue(saveResult);
   mocks.readback.mockResolvedValue({ draftConfirmed: true, publicationReady: false, checks: [{ id: 'image:rights', ok: false }] });
   const result = await (await GET(new NextRequest('http://localhost/api/cron/liv-daily-article'))).json();
   expect(result.webflowStatus).toBe('draft');
@@ -55,10 +60,24 @@ it('reports a saved draft as draft in history, response and analytics', async ()
 });
 it('preserves a saved item ID when readback fails instead of claiming success', async () => {
   vi.stubEnv('LIV_DAILY_PUBLICATION_MODE', 'draft');
-  mocks.publish.mockResolvedValue({ articleId: 'saved-item' });
+  mocks.publish.mockResolvedValue(saveResult);
   mocks.readback.mockRejectedValue(new Error('liv_cms_readback_draft_mismatch'));
   const response = await GET(new NextRequest('http://localhost/api/cron/liv-daily-article'));
   expect(response.status).toBe(500);
   expect(mocks.finish).toHaveBeenCalledWith('2026-09-09', expect.objectContaining({ status: 'failed', webflowItemId: 'saved-item' }));
   expect(mocks.analytics).not.toHaveBeenCalledWith(expect.objectContaining({ params: expect.objectContaining({ status: 'published' }) }));
+});
+it('retains the shared save error ID in daily history', async () => {
+  const id = '0123456789abcdef01234567';
+  mocks.publish.mockRejectedValue(new ArticleSaveError(id));
+  const response = await GET(new NextRequest('http://localhost/api/cron/liv-daily-article'));
+  expect(response.status).toBe(500);
+  expect(mocks.finish).toHaveBeenCalledWith('2026-09-09', expect.objectContaining({ status: 'failed', webflowItemId: id }));
+  expect(mocks.readback).not.toHaveBeenCalled();
+});
+it('reports actual field checks without equating them to publication', async () => {
+  mocks.readback.mockResolvedValue({ draftConfirmed: true, publicationReady: false, checks: [{ id: 'field:content', ok: true }] });
+  const result = await (await GET(new NextRequest('http://localhost/api/cron/liv-daily-article'))).json();
+  expect(result.gateResults).toContainEqual(expect.objectContaining({ name: 'cms-draft-fields', pass: true }));
+  expect(result).toMatchObject({ saveState: 'draft', saveVerified: true, publicationVerified: false, publicationBlocked: true });
 });

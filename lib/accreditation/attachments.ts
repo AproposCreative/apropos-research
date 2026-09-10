@@ -1,7 +1,7 @@
 import { createHash, randomUUID } from 'crypto';
 import fs from 'fs';
 import path from 'path';
-import { readJsonFile, writeJsonFile } from '@/lib/funding/json-store';
+import { readJsonFile, writeJsonFile } from '@/lib/storage/json-store';
 import type { AccessPackage, AccessPackageAsset } from '@/lib/accreditation/types';
 import { resolveAccreditationPersistenceKind } from '@/lib/accreditation/persistence/env';
 import {

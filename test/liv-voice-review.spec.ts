@@ -55,6 +55,23 @@ describe('Liv voice and review contract', () => {
     expect(parseResearchRating('En almindelig artikel', 'article')).toBeNull();
     expect(isLivArticleFormat('review')).toBe(false);
   });
+  it('carries cultural interpretation requirements into the shared voice and Writer', () => {
+    const voice = loadLivVoice();
+    for (const requirement of [
+      'KULTURFAGLIG FORTOLKNING',
+      'konkret belæg til formgreb til fortolkning til kulturel konsekvens',
+      'mindst to forskellige dokumenterede detaljer',
+      'Intention er ikke facit',
+      'En genudgivet pressemeddelelse er samme kildeoprindelse',
+      'Afprøv tesen mod en konkret modlæsning',
+      'En illustration er ikke dokumentation for originalværkets farver eller form',
+      'ikke dokumentation for en bestået automatisk kontrol',
+    ]) expect(voice.text).toContain(requirement);
+    const writer = composeSystemPrompt(buildPromptSegments('', 'Liv Brandt', {}, undefined,
+      { openingStrategyOverride: 'En konkret åbning' }), { 'author-tov': false }, null);
+    expect(writer).toContain(voice.text);
+    // Checks prompt propagation only, not the literary quality of model output.
+  });
   it('preserves the requested young Copenhagen viewpoint with reasoned opinions and comparisons', () => {
     const voice = loadLivVoice();
     expect(voice.text).toContain('UNG KØBENHAVNSK STEMME MED SMAG OG KANT');
