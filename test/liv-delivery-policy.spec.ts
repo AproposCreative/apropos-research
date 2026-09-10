@@ -11,6 +11,22 @@ function entry(overrides: Partial<ReadyEntry> = {}): ReadyEntry {
     kind: 'scheduled', state: 'ready', preparedAt: '2026-09-10T12:00:00Z', payloadHash: 'b'.repeat(64), ...overrides };
 }
 describe('daily delivery policy', () => {
+  it('prefers an approved eligible story and never uses an editorial rejection as fallback', () => {
+    const state = emptyDeliveryState();
+    state.entries = [entry({ decision: 'rejected' }), entry({ itemId: 'pending', kind: 'reserve' }),
+      entry({ itemId: 'approved', kind: 'reserve', decision: 'approved' }),
+      entry({ itemId: 'future', decision: 'approved', scheduledDay: '2026-09-12' })];
+    expect(eligibleEntries(state, day).map(e => e.itemId)).toEqual(['approved', 'pending']);
+    state.entries = [entry()];
+    expect(eligibleEntries(state, day)).toHaveLength(1);
+  });
+  it('does not count editorial rejections as prepared inventory', () => {
+    const state = emptyDeliveryState();
+    state.entries = [entry({ kind: 'reserve', decision: 'rejected' }),
+      entry({ scheduledDay: '2026-09-12', expiresDay: '2026-09-12', decision: 'rejected' })];
+    expect(deliveryHealth(state, new Date('2026-09-11T08:00:00Z')).reserves).toBe(0);
+    expect(preparationCandidates(state, day)[0]).toMatchObject({ dayKey: '2026-09-12', kind: 'scheduled' });
+  });
   it('keeps 10:00 Copenhagen in summer and winter', () => {
     expect(copenhagenClock(new Date('2026-09-11T08:00:00Z'))).toEqual({ day, hour: 10 });
     expect(copenhagenClock(new Date('2026-12-11T09:00:00Z'))).toEqual({ day: '2026-12-11', hour: 10 });

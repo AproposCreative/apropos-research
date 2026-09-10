@@ -20,7 +20,7 @@ vi.mock('@/lib/firebase-admin', () => ({ getAdminDb: () => database.available ? 
   },
 } : null }));
 import { enqueueReadyArticle, claimDelivery, readDeliveryPayload, readDeliveryState,
-  updateDelivery, claimPreparation, releasePreparation } from '@/lib/liv/delivery-store';
+  updateDelivery, claimPreparation, releasePreparation, decideDelivery } from '@/lib/liv/delivery-store';
 import type { WebflowArticleFields } from '@/lib/webflow/types';
 const day = '2026-09-11', itemId = 'a'.repeat(24);
 const entry = { itemId, slug: 'kultur', title: 'Kultur', scheduledDay: day, expiresDay: day, kind: 'scheduled' as const };
@@ -71,4 +71,36 @@ it('allows one preparation worker and prevents an old worker from unlocking its 
 it('fails closed when the database is unavailable', async () => {
   database.available = false;
   await expect(claimDelivery(day)).rejects.toThrow('unavailable');
+});
+async function choice() {
+  await enqueueReadyArticle(entry, expected);
+  return { itemId, payloadHash: (await readDeliveryState()).entries[0].payloadHash, revision: 0, decision: 'approved' as const };
+}
+it('persists an approval with user and exact revision, and allows reversal', async () => {
+  const input = await choice();
+  await decideDelivery(input, 'editor', new Date('2026-09-10T12:00:00Z'));
+  expect((await readDeliveryState()).entries[0]).toMatchObject({ decision: 'approved', decisionRevision: 1, decidedBy: 'editor' });
+  await decideDelivery({ ...input, revision: 1, decision: 'rejected' }, 'editor', new Date('2026-09-10T13:00:00Z'));
+  expect((await readDeliveryState()).entries[0].decision).toBe('rejected');
+});
+it('a rejection committed before worker selection blocks automatic publication', async () => {
+  await decideDelivery({ ...await choice(), decision: 'rejected' }, 'editor', new Date('2026-09-10T12:00:00Z'));
+  expect(await claimDelivery(day, 100)).toBeNull();
+});
+it('a worker selection committed first locks editorial changes', async () => {
+  const input = await choice();
+  await claimDelivery(day, 100);
+  await expect(decideDelivery({ ...input, decision: 'rejected' }, 'editor', new Date('2026-09-10T12:00:00Z'))).rejects.toThrow('Opdater');
+  expect((await readDeliveryState()).entries[0].decision).toBeUndefined();
+});
+it('rejects a stale browser tab and mismatched content without overwriting the latest choice', async () => {
+  const input = await choice(), now = new Date('2026-09-10T12:00:00Z');
+  await expect(decideDelivery({ ...input, payloadHash: 'f'.repeat(64) }, 'editor', now)).rejects.toThrow('Opdater');
+  await decideDelivery(input, 'editor', now);
+  await expect(decideDelivery({ ...input, decision: 'rejected' }, 'second-editor', now)).rejects.toThrow('Opdater');
+});
+it('cannot approve an expired story or accept an invalid action', async () => {
+  const input = await choice();
+  await expect(decideDelivery(input, 'editor', new Date('2026-09-12T12:00:00Z'))).rejects.toThrow('Opdater');
+  await expect(decideDelivery({ ...input, decision: 'publish' as any }, 'editor')).rejects.toThrow('invalid_decision');
 });

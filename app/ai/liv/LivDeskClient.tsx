@@ -7,13 +7,14 @@ import LivPostingClient from './LivPostingClient';
 import type { AudienceSnapshot } from '@/lib/editorial/audience-research';
 import { readJsonResponse } from '@/lib/api/read-json-response';
 import LivImageSelection from './LivImageSelection';
+import LivApprovalFeed from './LivApprovalFeed';
 
-const tabs = ['Overblik', 'Historier', 'Kilder og dækning', 'Udgivelser', 'Indstillinger'] as const;
+const tabs = ['Ugens historier', 'Overblik', 'Historier', 'Kilder og dækning', 'Udgivelser', 'Indstillinger'] as const;
 const labels: Record<DeskStory['status'], string> = { discovered: 'Idé', researching: 'Research i gang', researched: 'Research klar', drafting: 'Liv skriver', draft: 'Udkast klar', failed: 'Kræver handling' };
 
 export default function LivDeskClient({ onClose, onOpenWriter }: { onClose: () => void; onOpenWriter: (story: DeskStory) => void }) {
   const { user } = useAuth();
-  const [tab, setTab] = useState<typeof tabs[number]>('Overblik');
+  const [tab, setTab] = useState<typeof tabs[number]>('Ugens historier');
   const [stories, setStories] = useState<DeskStory[]>([]);
   const [selected, setSelected] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -32,7 +33,7 @@ export default function LivDeskClient({ onClose, onOpenWriter }: { onClose: () =
     try { const data = await request(); if (!Array.isArray(data.stories)) throw new Error('Serveren returnerede ikke en gyldig historiekø.'); setStories(data.stories); setAudience(data.audience || null); setLoaded(true); setError(''); }
     catch (e) { setLoaded(false); setError(e instanceof Error ? e.message : 'Der opstod en fejl.'); }
   }, [request]);
-  useEffect(() => { void refresh(); }, [refresh]);
+  useEffect(() => { if (tab === 'Overblik' || tab === 'Historier' || tab === 'Kilder og dækning') void refresh(); }, [refresh, tab]);
   async function act(action: string, id?: string, extra?: object) {
     setBusy(true); setError('');
     try { await request({ action, id, ...extra }); await refresh(); }
@@ -44,8 +45,8 @@ export default function LivDeskClient({ onClose, onOpenWriter }: { onClose: () =
   return <section className="flex h-full flex-col text-white font-poppins">
     <header className="flex items-center justify-between border-b border-white/10 p-5"><div><h1 className="text-lg">Liv · Redaktion</h1><p className="text-xs text-white/50">Research, egne vinkler og artikeludkast</p></div><button className={button} onClick={onClose} aria-label="Luk Liv Redaktion">✕</button></header>
     <nav aria-label="Redaktionens faner" className="flex gap-2 overflow-x-auto p-3 border-b border-white/10">{tabs.map(t => <button key={t} onClick={() => setTab(t)} aria-current={tab === t ? 'page' : undefined} className={`${button} shrink-0 ${tab === t ? 'bg-white/15' : ''}`}>{t}</button>)}</nav>
-    {error && <p role="alert" className="p-4 text-sm text-amber-200">{error}</p>}
-    {tab === 'Indstillinger' || tab === 'Udgivelser' ? <div className="min-h-0 flex-1"><LivPostingClient key={tab} embedded initialTab={tab === 'Udgivelser' ? 'history' : 'topic'} /></div> : <div className="flex-1 overflow-y-auto p-5 space-y-5">
+    {error && tab !== 'Ugens historier' && <p role="alert" className="p-4 text-sm text-amber-200">{error}</p>}
+    {tab === 'Ugens historier' ? <LivApprovalFeed /> : tab === 'Indstillinger' || tab === 'Udgivelser' ? <div className="min-h-0 flex-1"><LivPostingClient key={tab} embedded initialTab={tab === 'Udgivelser' ? 'history' : 'topic'} /></div> : <div className="flex-1 overflow-y-auto p-5 space-y-5">
       {tab === 'Overblik' && <><div className="rounded-xl border border-white/15 p-4"><h2>Dit redaktionelle overblik</h2><p className="text-sm text-white/60 mt-2">{loaded ? `${stories.length} historier · ${stories.filter(s => s.status === 'draft').length} udkast · ${stories.filter(s => s.status === 'failed').length} kræver handling` : 'Historik er ikke indlæst. Antal historier og udkast er ukendt.'}</p><p className="text-xs text-white/50 mt-3">Denne kø gemmer research og udkast. Åbn et udkast i Writer for redigering, billeder og kvalitetstjek. Daglig cron og CMS-historik findes under Indstillinger og Udgivelser.</p></div><button className={button} disabled={busy || !user} onClick={() => void act('discover')}>{busy ? 'Arbejder…' : 'Find kulturhistorier'}</button></>}
       {tab === 'Kilder og dækning' && <><h2>Kilder i dine historier</h2><p className="text-sm text-white/50">Antal registrerede idéer pr. kulturfelt. Dette er ikke en opgørelse over publicerede artikler.</p>{Object.entries(stories.reduce<Record<string, number>>((acc, s) => { acc[s.signal.beat] = (acc[s.signal.beat] || 0) + 1; return acc; }, {})).map(([beat, count]) => <p key={beat} className="flex justify-between border-b border-white/10 pb-2">{beat}<span>{count}</span></p>)}</>}
       {(tab === 'Overblik' || tab === 'Kilder og dækning') && (

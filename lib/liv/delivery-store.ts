@@ -74,6 +74,29 @@ export async function readDeliveryPayload(itemId: string) {
   return row.expected as WebflowArticleFields;
 }
 
+export class DeliveryDecisionConflict extends Error {}
+
+/** Shares the worker's transaction lock: a rejection can never race past selection. */
+export async function decideDelivery(input: { itemId: string; payloadHash: string; revision: number;
+  decision: 'approved' | 'rejected' }, userId: string, now = new Date()) {
+  if (!/^[a-f0-9]{24}$/i.test(input.itemId) || !/^[a-f0-9]{64}$/i.test(input.payloadHash) ||
+    !Number.isSafeInteger(input.revision) || input.revision < 0 ||
+    !['approved', 'rejected'].includes(input.decision) || !userId) throw new Error('liv_delivery_invalid_decision');
+  return mutateDelivery(state => {
+    const entry = state.entries.find(e => e.itemId === input.itemId);
+    if (!entry || entry.state !== 'ready' || entry.expiresDay < copenhagenClock(now).day ||
+      entry.payloadHash !== input.payloadHash || (entry.decisionRevision || 0) !== input.revision ||
+      Object.values(state.slots).some(slot => slot.itemId === input.itemId)) {
+      throw new DeliveryDecisionConflict('Historien er ændret, udløbet eller ved at blive udgivet. Opdater listen.');
+    }
+    entry.decision = input.decision;
+    entry.decisionRevision = input.revision + 1;
+    entry.decidedAt = now.toISOString();
+    entry.decidedBy = userId;
+    return { itemId: entry.itemId, decision: entry.decision, revision: entry.decisionRevision };
+  });
+}
+
 export function selectDelivery(state: DeliveryState, day: string, now: number, token: string): DeliverySlot | null {
   if (!validDay(day)) throw new Error('liv_delivery_invalid_day');
   // A pre-write job from an earlier day cannot be published late. Expired

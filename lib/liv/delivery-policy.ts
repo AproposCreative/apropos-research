@@ -30,6 +30,8 @@ export type ReadyEntry = {
   itemId: string; slug: string; title: string; scheduledDay: string; expiresDay: string;
   kind: 'scheduled' | 'reserve'; state: 'ready' | 'selected' | 'published' | 'rejected';
   preparedAt: string; payloadHash: string; planHash?: string;
+  decision?: 'approved' | 'rejected'; decisionRevision?: number;
+  decidedAt?: string; decidedBy?: string;
 };
 export type DeliverySlot = {
   itemId: string; token: string; state: 'selected' | 'attempted' | 'published';
@@ -42,19 +44,20 @@ export const emptyDeliveryState = (): DeliveryState => ({ entries: [], slots: {}
 
 /** A future scheduled story can never be pulled forward as a fallback. */
 export function eligibleEntries(state: DeliveryState, day: string) {
-  return state.entries.filter(e => e.state === 'ready' && e.scheduledDay <= day && e.expiresDay >= day &&
+  return state.entries.filter(e => e.state === 'ready' && e.decision !== 'rejected' && e.scheduledDay <= day && e.expiresDay >= day &&
     (e.kind === 'reserve' || e.scheduledDay === day))
-    .sort((a, b) => Number(a.kind === 'reserve') - Number(b.kind === 'reserve') ||
+    .sort((a, b) => Number(b.decision === 'approved') - Number(a.decision === 'approved') ||
+      Number(a.kind === 'reserve') - Number(b.kind === 'reserve') ||
       a.expiresDay.localeCompare(b.expiresDay) || a.preparedAt.localeCompare(b.preparedAt));
 }
 
 export function deliveryHealth(state: DeliveryState, now = new Date()) {
   const { day, hour } = copenhagenClock(now);
   const slot = state.slots[day];
-  const reserves = state.entries.filter(e => e.kind === 'reserve' && e.state === 'ready' &&
+  const reserves = state.entries.filter(e => e.kind === 'reserve' && e.state === 'ready' && e.decision !== 'rejected' &&
     e.scheduledDay <= day && e.expiresDay >= day).length;
   const missingDays = Array.from({ length: LIV_PLAN_DAYS }, (_, i) => addDays(day, i + 1))
-    .filter(d => !state.entries.some(e => e.state === 'ready' && e.kind === 'scheduled' &&
+    .filter(d => !state.entries.some(e => e.state === 'ready' && e.decision !== 'rejected' && e.kind === 'scheduled' &&
       e.scheduledDay === d && e.expiresDay >= d));
   return { day, published: slot?.state === 'published', publicUrl: slot?.publicUrl ?? null,
     overdue: hour >= 10 && slot?.state !== 'published', reserves, reserveTarget: LIV_RESERVE_TARGET,

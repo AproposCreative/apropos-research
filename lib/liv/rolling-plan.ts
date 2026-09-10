@@ -59,9 +59,9 @@ export function defaultEditorialPlan(day: string, reserve = false): LivDailyPlan
 export function preparationCandidates(state: DeliveryState, today: string) {
   const dates = Array.from({ length: LIV_PLAN_DAYS }, (_, i) => addDays(today, i + 1));
   const scheduled = dates.filter(day => !state.entries.some(e => e.kind === 'scheduled' &&
-    ['ready', 'selected', 'published'].includes(e.state) && e.scheduledDay === day))
+    e.decision !== 'rejected' && ['ready', 'selected', 'published'].includes(e.state) && e.scheduledDay === day))
     .map(dayKey => ({ dayKey, kind: 'scheduled' as const }));
-  const count = state.entries.filter(e => e.kind === 'reserve' && e.state === 'ready' &&
+  const count = state.entries.filter(e => e.kind === 'reserve' && e.state === 'ready' && e.decision !== 'rejected' &&
     e.scheduledDay <= today && e.expiresDay >= today).length;
   const reserves = count >= LIV_RESERVE_TARGET ? [] : Array.from({ length: LIV_RESERVE_TARGET }, (_, i) =>
     ({ dayKey: addDays(today, i), kind: 'reserve' as const }));
