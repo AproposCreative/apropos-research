@@ -108,6 +108,23 @@ function loadStarImages(): Promise<{ filled: HTMLImageElement; outline: HTMLImag
   ]).then(([filled, outline]) => ({ filled, outline }));
 }
 
+/** Safari/iOS does not consistently support CanvasRenderingContext2D.filter.
+ * Recolor only the asset's alpha mask using standard canvas compositing. */
+function drawThemeAsset(ctx: CanvasRenderingContext2D, image: HTMLImageElement,
+  x: number, y: number, width: number, height: number, dark: boolean) {
+  if (!dark) { ctx.drawImage(image, x, y, width, height); return; }
+  const mask = document.createElement('canvas');
+  mask.width = Math.ceil(width);
+  mask.height = Math.ceil(height);
+  const paint = mask.getContext('2d');
+  if (!paint) throw new Error('Canvas 2d not available');
+  paint.drawImage(image, 0, 0, mask.width, mask.height);
+  paint.globalCompositeOperation = 'source-in';
+  paint.fillStyle = '#ffffff';
+  paint.fillRect(0, 0, mask.width, mask.height);
+  ctx.drawImage(mask, x, y, width, height);
+}
+
 async function ensureDesignFontsLoaded(amiriFontFamily: string) {
   if (typeof document === 'undefined' || !('fonts' in document)) return;
   await Promise.allSettled([
@@ -184,9 +201,7 @@ async function renderCardToContext(
     try {
       const logoImg = await loadLogoImage();
       const logoX = (width - SQUARE_LOGO_W) / 2;
-      ctx.filter = dark ? 'invert(1)' : 'none';
-      ctx.drawImage(logoImg, logoX, SQUARE_LOGO_TOP, SQUARE_LOGO_W, SQUARE_LOGO_H);
-      ctx.filter = 'none';
+      drawThemeAsset(ctx, logoImg, logoX, SQUARE_LOGO_TOP, SQUARE_LOGO_W, SQUARE_LOGO_H, dark);
     } catch {
       ctx.fillStyle = foreground;
       ctx.font = 'bold 26px system-ui, sans-serif';
@@ -201,9 +216,7 @@ async function renderCardToContext(
     try {
       const logoImg = await loadLogoImage();
       const logoX = (width - STORY_LOGO_W) / 2;
-      ctx.filter = dark ? 'invert(1)' : 'none';
-      ctx.drawImage(logoImg, logoX, STORY_LOGO_TOP, STORY_LOGO_W, STORY_LOGO_H);
-      ctx.filter = 'none';
+      drawThemeAsset(ctx, logoImg, logoX, STORY_LOGO_TOP, STORY_LOGO_W, STORY_LOGO_H, dark);
     } catch {
       ctx.fillStyle = foreground;
       ctx.font = `bold ${logoMainSize}px system-ui, sans-serif`;
@@ -280,9 +293,7 @@ async function renderCardToContext(
     }
     for (let i = 1; i <= 6; i++) {
       const img = i <= rating ? filled : outline;
-      ctx.filter = dark ? 'invert(1)' : 'none';
-      ctx.drawImage(img, starX, starY, STAR_SIZE, STAR_SIZE);
-      ctx.filter = 'none';
+      drawThemeAsset(ctx, img, starX, starY, STAR_SIZE, STAR_SIZE, dark);
       starX += STAR_SIZE + STAR_GAP;
     }
   }
@@ -308,7 +319,8 @@ async function renderCardToContext(
 
   // Byline (under H1): #353535, Amiri italic 57px, 400, line-height 120%
   if (data.excerpt) {
-    y += isSquare ? -10 : -10;
+    // Story gets 32px more breathing room; following metadata/CTA/image move with it.
+    y += isStory ? 22 : -10;
     const excerptFit = fitCardText(ctx, data.excerpt, maxBylineWidth, isStory ? 3 : 2, excerptSize, value => `italic 400 ${value}px ${amiriFontFamily}`);
     excerptSize = excerptFit.fontSize;
     ctx.font = `italic 400 ${excerptSize}px ${amiriFontFamily}`;
@@ -329,9 +341,7 @@ async function renderCardToContext(
     const storyStarY = y - STORY_STAR_SIZE;
     for (let i = 1; i <= 6; i++) {
       const img = i <= rating ? filled : outline;
-      ctx.filter = dark ? 'invert(1)' : 'none';
-      ctx.drawImage(img, storyStarX, storyStarY, STORY_STAR_SIZE, STORY_STAR_SIZE);
-      ctx.filter = 'none';
+      drawThemeAsset(ctx, img, storyStarX, storyStarY, STORY_STAR_SIZE, STORY_STAR_SIZE, dark);
       storyStarX += STORY_STAR_SIZE + STORY_STAR_GAP;
     }
     y += STORY_STAR_SIZE + 18;

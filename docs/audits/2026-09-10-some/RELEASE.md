@@ -18,3 +18,11 @@ The user's current request explicitly authorizes deployment of this SoMe change 
 Compared the previous and current PNG renderers in the same browser/font session. Short-copy light cards in square and story (including logo, rating and metadata) produce byte-identical PNG output. Geometry/constants, font family and image-cover algorithm remain unchanged. Text fitting can change the text block height and therefore image crop through the existing flow layout.
 
 The standalone desktop topbar lost its article-list shortcut when controls were consolidated; the separate navigation still provided access. Restored the topbar shortcut at all widths, using the compact control size. Verified closing/reopening the article list at desktop plus repeated five-viewport and four theme/format checks. No other design changes in this follow-up.
+
+## Story spacing and filter-independent dark assets
+
+Added 32 export pixels between the Story headline and subtitle (existing -10 adjustment becomes +22). Subsequent metadata, CTA and image follow the existing flow. Square spacing is unchanged.
+
+Replaced canvas.filter inversion for logo/stars with an isolated alpha-mask canvas using source-in compositing. This avoids the limited filter API in Safari/iOS. Light assets are drawn by the original path. Source: https://developer.mozilla.org/en-US/docs/Web/API/CanvasRenderingContext2D/filter .
+
+Browser verification with canvas.filter forced to a no-op: visible white logo pixels in both dark export sizes; all four PNG/JPEG combinations and five viewport controls pass. Square light short-copy output remains byte-identical to the original renderer. Story changes as intended. TypeScript, ESLint and diff checks pass. This is a simulated unsupported-filter regression check, not a claim of testing the user's physical iPhone.
