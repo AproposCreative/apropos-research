@@ -780,7 +780,7 @@ export default function DesignEditorView({ onBack, embedMode }: DesignEditorView
         >
           <div className="w-full flex min-h-min flex-col items-center gap-3 md:gap-5 pt-3 md:pt-10 pb-8">
             {selected?.excerpt && (
-              <details className="w-full max-w-xl rounded-xl border border-white/20 p-3 text-sm">
+              <details className="w-full max-w-xl rounded-xl border border-white/20 p-3 text-sm text-white">
                 <summary className="cursor-pointer">Undertekst på billedet{subtitle.status === 'loading' ? ' · AI forkorter…' : subtitle.status === 'ai' ? ' · AI-forkortet' : !subtitle.ready ? ' · Skal forkortes' : ''}</summary>
                 <label className="mt-3 block">Redigér undertekst
                   <textarea aria-label="Undertekst på billedet" value={subtitle.text} onChange={event => subtitle.edit(event.target.value)} rows={3} className="apropos-input-dark mt-1 w-full rounded-lg border p-2" />
