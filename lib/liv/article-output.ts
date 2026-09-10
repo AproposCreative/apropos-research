@@ -1,5 +1,22 @@
 import { z } from 'zod';
 import type { LivArticleFormat } from './review-format';
+import { createHash } from 'node:crypto';
+import type { BlockedSourceReview } from './blocked-review';
+
+export class ArticleEvidenceError extends Error {
+  readonly code = 'article_evidence_insufficient';
+  #review?: BlockedSourceReview;
+  get blockedReview() { return this.#review; }
+  constructor(readonly missingEvidence: string[]) {
+    super('article_evidence_insufficient: Researchgrundlaget rækker endnu ikke til den ønskede artikel.');
+    this.name = 'ArticleEvidenceError';
+  }
+  attachBrief(text: string, model: string, voiceVersion: string) {
+    const review = `MANGLENDE BELÆG\n${this.missingEvidence.map(s => `- ${s}`).join('\n')}\n\nDEN BRIEF SKRIBENTEN MODTOG\n${text}`;
+    this.#review = { status: 'blocked', kind: 'research', text: review, model, voiceVersion,
+      textHash: createHash('sha256').update(review).digest('hex') };
+  }
+}
 
 /** The provider owns JSON syntax; our validator still owns editorial acceptance. */
 export const livArticleResponseFormat = {
@@ -14,8 +31,9 @@ export const livArticleResponseFormat = {
         intro: { type: 'string' }, content: { type: 'string' },
         rating: { type: ['integer', 'null'], enum: [1, 2, 3, 4, 5, 6, null] },
         ratingReason: { type: ['string', 'null'] },
+        missingEvidence: { type: 'array', items: { type: 'string' } },
       },
-      required: ['status', 'title', 'subtitle', 'intro', 'content', 'rating', 'ratingReason'],
+      required: ['status', 'title', 'subtitle', 'intro', 'content', 'rating', 'ratingReason', 'missingEvidence'],
     },
   },
 };
@@ -26,6 +44,7 @@ const articleSchema = z.object({
   intro: z.string().trim().max(3000), content: z.string().trim().max(40000),
   rating: z.number().int().min(1).max(6).nullable(),
   ratingReason: z.string().trim().max(600).nullable(),
+  missingEvidence: z.array(z.string().trim().min(5).max(500)).max(6).default([]),
 }).strict();
 
 export function parseLivArticleOutput(raw: string, format: LivArticleFormat) {
@@ -35,7 +54,9 @@ export function parseLivArticleOutput(raw: string, format: LivArticleFormat) {
   if (!checked.success) throw new Error('article_output_invalid_fields');
   const article = checked.data;
   // A schema must not force the model to manufacture a verdict when evidence is missing.
-  if (article.status !== 'ready') throw new Error('article_evidence_insufficient');
+  if (article.status !== 'ready') throw new ArticleEvidenceError(article.missingEvidence.length
+    ? article.missingEvidence : ['Modellen angav ikke, hvilke konkrete belæg der mangler.']);
+  if (article.missingEvidence.length) throw new Error('article_output_conflicting_status');
   if (!article.title || !article.subtitle || !article.intro || !article.content) throw new Error('article_output_empty_fields');
   if (format === 'research-review') {
     if (article.rating === null || !article.ratingReason || article.ratingReason.length < 30) {

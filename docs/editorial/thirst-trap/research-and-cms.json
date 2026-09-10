@@ -1,0 +1,76 @@
+{
+  "status": "local_article_package_not_published",
+  "researchedAt": "2026-09-10",
+  "articleFormat": "feature",
+  "title": "Endelig en rotte, København ikke kan ignorere",
+  "slug": "esben-weile-kjaer-thirst-trap-oerstedsparken",
+  "seoTitle": "THIRST TRAP: Esben Weile Kjærs kæmperotter | Apropos",
+  "metaDescription": "Esben Weile Kjærs THIRST TRAP indtager Ørstedsparken. Liv ser på guldfarvede rotter, begær og retten til at fylde i den pæne by under Golden Days.",
+  "author": "Liv Brandt",
+  "section": "Kultur",
+  "topic": "Kultur & Mening",
+  "rating": null,
+  "ratingReason": null,
+  "aiGenerated": true,
+  "pressAccreditation": false,
+  "instagram": false,
+  "webflowItemId": null,
+  "cmsReferencesResolved": false,
+  "illustration": {
+    "file": "images/expressive-rat-v1.png",
+    "promptFile": "illustration-prompt.txt",
+    "generationMode": "built_in_imagegen",
+    "style": "Apropos Expressive",
+    "width": 1672,
+    "height": 941,
+    "targetWidth": 1920,
+    "targetHeight": 1080,
+    "productionDimensionsVerified": false,
+    "caption": "Illustration: Apropos Magazine / AI. Fri fortolkning, ikke et udstillingsfoto."
+  },
+  "exhibitionStart": "2026-09-04",
+  "exhibitionEnd": "2026-09-12",
+  "openingReception": "2026-09-03",
+  "location": "Ørstedsparken, København",
+  "sources": [
+    {
+      "url": "https://www.goldendays.dk/udstilling-thirst-trap-af-esben-weile-kjaer",
+      "kind": "organizer_primary",
+      "publishedAt": null,
+      "supports": ["Exhibition title, artist, location and dates", "Organizer interpretation of desire and visibility", "Organizer account of vegetation management"],
+      "limitation": "Promotional primary account, not independent critical validation or independent proof of the motives behind each historical pruning decision."
+    },
+    {
+      "url": "https://www.idoart.dk/kalender/esben-weile-kjaer-thirst-trap",
+      "kind": "republished_press_release",
+      "publishedMonth": "2026-08",
+      "publishedAt": null,
+      "supports": ["Explicit year 2026", "Reception September 3 versus exhibition September 4-12", "Artist statement and organizer interpretation"],
+      "limitation": "Same promotional provenance as organizer text; not counted as an independent corroborating source. No direct quotation used."
+    },
+    {
+      "url": "https://cphmuseum.kk.dk/nyheder/podcast-queer-i-koebenhavn-gennem-1000-aar",
+      "kind": "museum_primary",
+      "publishedAt": null,
+      "supports": ["Park in Copenhagen queer history, encounters in the nineteenth century"],
+      "limitation": "Podcast landing page read; audio not listened to. Do not attribute additional claims to the podcast."
+    }
+  ],
+  "visualEvidence": {
+    "source": "13 exhibition screenshots attached by the user",
+    "observations": ["Gold-colored rats beside existing small bronze sculpture", "Silver plant jaws", "Large patterned ticks on grass near lake", "Visible seams and tethering in inflatable forms"],
+    "firsthandVisit": false,
+    "photographer": null,
+    "creditStatus": "unknown; local preview captions explicitly say photographer not supplied",
+    "productionImageCreditsComplete": false
+  },
+  "editorialMethod": "Original interpretive feature grounded in exhibition photographs and sources. Positive angle explained through material, scale and setting. No rating, invented visit, fabricated interview, audience reaction or claimed independent history of pruning.",
+  "checks": {
+    "manualSourceReading": true,
+    "automatedFactcheck": "not_run",
+    "automatedSimilarity": "not_run",
+    "publicCmsReadback": "not_run"
+  },
+  "credentialRotation": "User confirmed rotation on 2026-09-10; not independently audited",
+  "releaseBlockers": ["Exact clean app release-commit approval still required", "Photographer credit for supplied exhibition photographs not identified", "Illustration output is 1672x941, not yet the requested production target 1920x1080", "No CMS reference resolution or publication/readback performed"]
+}

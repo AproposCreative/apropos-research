@@ -9,12 +9,13 @@
  */
 
 import { getOpenAIClient } from '@/lib/openai';
+import { randomUUID } from 'node:crypto';
 import { loadLivVoice } from '@/lib/liv/voice';
 import { livModels } from '@/lib/liv/model-config';
 import { getResearch } from '@/lib/research/service';
-import { recalledSourceUrls, rememberResearchSources } from '@/lib/liv/source-archive';
+import { recalledSourceUrls, rememberResearchSources, rememberWritingBrief } from '@/lib/liv/source-archive';
 import type { LivArticleFormat } from '@/lib/liv/review-format';
-import { livArticleResponseFormat, parseLivArticleOutput } from '@/lib/liv/article-output';
+import { ArticleEvidenceError, livArticleResponseFormat, parseLivArticleOutput } from '@/lib/liv/article-output';
 import { logger } from '@/lib/logger';
 import type { PickedTopic } from '@/lib/liv/pick-topic';
 import { fetchOfficialImagesFromPage } from '@/lib/liv/fetch-official-images';
@@ -170,6 +171,10 @@ export async function generateLivArticle(options: GenerateArticleOptions): Promi
   ]);
   await rememberResearchSources(sourceScope, topic.title, sources);
   const brief = await buildLivWritingBrief(sources, topic.title);
+  const researchRunId = randomUUID();
+  await rememberWritingBrief(sourceScope, topic.title, { runId: researchRunId, writerText: brief.writerText,
+    model: generationModel, voiceVersion: voice.version,
+    sources: sources.map(({ id, url, contentHash, retrievedAt, publishedAt }) => ({ id, url, contentHash, retrievedAt, publishedAt })) });
   const webResearch: WebSearchResult[] = sources.map(s => ({
     title: s.title, content: s.text, url: s.url, source: new URL(s.url).hostname,
   }));
@@ -182,6 +187,7 @@ export async function generateLivArticle(options: GenerateArticleOptions): Promi
     '— STRUKTUR —',
     'Returnér JSON efter det krævede schema, uden labels eller markdown omkring svaret.',
     'status: ready når researchen rækker; ellers insufficient_evidence med tomme tekstfelter og null i rating og ratingReason. Opfind aldrig en dom for at udfylde schemaet.',
+    'missingEvidence: tom liste ved ready. Ved insufficient_evidence: 1-6 konkrete mangler, der forklarer præcis hvorfor den givne brief ikke rækker, og hvad der skal researches. Ikke blot "flere kilder".',
     'title: max 60 tegn, fængende, dansk. subtitle: 8-14 ord, konkret og skarp.',
     ...(articleFormat === 'research-review' ? [
       'rating: heltal 1-6. ratingReason: 30-600 tegn, én konkret sætning der begrunder dommen og afvejer svagheder.',
@@ -249,6 +255,11 @@ export async function generateLivArticle(options: GenerateArticleOptions): Promi
     ],
   }, { timeout: 90000, maxRetries: 0 });
 
+  const rawResponse = completion.choices[0]?.message?.content || '';
+  await rememberWritingBrief(sourceScope, topic.title, { runId: researchRunId, writerText: brief.writerText,
+    model: completion.model || generationModel, voiceVersion: voice.version, rawResponse,
+    ...(completion.usage ? { tokenUsage: { input: completion.usage.prompt_tokens, output: completion.usage.completion_tokens } } : {}),
+  });
   if (completion.choices[0]?.message?.refusal) throw new Error('article_generation_refused');
   if (completion.choices[0]?.finish_reason !== 'stop') throw new Error('article_generation_incomplete');
   const raw = completion.choices[0]?.message?.content?.trim() || '';
@@ -256,7 +267,16 @@ export async function generateLivArticle(options: GenerateArticleOptions): Promi
     throw new Error('OpenAI returnerede tom respons.');
   }
 
-  const parsed = parseLivArticleOutput(raw, articleFormat);
+  let parsed: ReturnType<typeof parseLivArticleOutput>;
+  try { parsed = parseLivArticleOutput(raw, articleFormat); }
+  catch (error) {
+    if (error instanceof ArticleEvidenceError) {
+      error.attachBrief(`Kørsels-ID: ${researchRunId}\n${brief.writerText}`, completion.model || generationModel, voice.version);
+      await rememberWritingBrief(sourceScope, topic.title, { runId: researchRunId, writerText: brief.writerText,
+        model: completion.model || generationModel, voiceVersion: voice.version, missingEvidence: error.missingEvidence });
+    }
+    throw error;
+  }
   const rating = parsed.rating !== null ? { value: parsed.rating, reason: parsed.ratingReason! } : null;
 
   const slug = slugify(parsed.title);

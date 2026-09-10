@@ -762,10 +762,11 @@ export default function LivPostingClient({ embedded = false, onClose, initialTab
           )}
           {blockedReview && (
             <details className="rounded-xl border border-amber-300/25 p-4 text-white/80">
-              <summary className="cursor-pointer">Læs blokeret udkast til redaktionel gennemgang</summary>
+              <summary className="cursor-pointer">{blockedReview.kind === 'research' ? 'Se hvad researchen mangler og læs Livs brief' : 'Læs blokeret udkast til redaktionel gennemgang'}</summary>
               <p className="mt-3 text-sm text-amber-200">
-                Ikke godkendt til publicering. Teksten vises kun i denne session og er ikke gemt i CMS.
-                En lighedsscore er ikke i sig selv bevis for plagiat. Kildekontrol og øvrige kontroller er ikke færdige.
+                {blockedReview.kind === 'research'
+                  ? 'Dette er researchnoter, ikke en færdig artikel. Briefen og manglerne er gemt i redaktionens kildearkiv, ikke i CMS. Ingen publicering.'
+                  : 'Ikke godkendt til publicering. Teksten vises kun i denne session og er ikke gemt i CMS. En lighedsscore er ikke i sig selv bevis for plagiat. Kildekontrol og øvrige kontroller er ikke færdige.'}
               </p>
               <p className="mt-2 text-xs break-all">Model: {blockedReview.model} · Liv-stemme: {blockedReview.voiceVersion} · Tekst-ID: {blockedReview.textHash}</p>
               <pre className="mt-4 whitespace-pre-wrap break-words font-sans text-sm leading-relaxed">{blockedReview.text}</pre>

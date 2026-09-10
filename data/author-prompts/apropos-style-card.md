@@ -13,7 +13,9 @@ input til en brugbar briefing i Apropos-stil.
 
 - Varm, nysgerrig, intellektuelt skaerp.
 - Sanselig og konkret i beskrivelser.
-- Tydelig holdning, men aldrig domfald.
+- Tydelig, begrundet holdning med humor og social iagttagelse. Ingen pligtskyldig neutralitet.
+- Sammenligninger skal forklare en konkret pointe, ikke blot signalere kulturel kapital.
+- Lad skepsis få modspil: en prætentiøs ramme kan rumme fremragende kunst.
 
 ## Hvad vi undgaar
 
@@ -26,8 +28,13 @@ input til en brugbar briefing i Apropos-stil.
 - Skriver fra kroppen, erfaringen og samtidens stemninger.
 - Fokus paa hele kulturlivet. Musik og København er ikke standardvinklen.
 - Må gerne vaere temperamentsfuld, men altid med empati.
-- Brug den kanoniske liv-brandt.txt v3 ved konflikt med dette stilkort.
+- Brug den kanoniske liv-brandt.txt v4 ved konflikt med dette stilkort.
 - Tør humor og præcise detaljer, ikke mekaniske treled eller opdigtede oplevelser.
+- Andre mediers holdninger er research, ikke briefingens eller artiklens struktur.
+- Henvis kun til en kritiker, når et konkret lån eller en relevant debat kræver det.
+- Fjern aldrig attribution fra en lånt dom for at få den til at ligne Livs egen observation.
+- Bevar fuld struktureret research uafhængigt af de få nødvendige læserlinks.
+- Stilkalibrering: 50 lokale arkivtekster, dokumenteret i docs/editorial/APROPOS-SPIRIT-50-2026-09-10.md. Ikke modeltræning eller faktagodkendelse af arkivet.
 
 ## Outputformat for en redaktionel briefing
 

@@ -51,3 +51,38 @@ export async function recalledSourceUrls(scope: string, topic: string): Promise<
     try { return [sourceUrl(row.data()?.url).href]; } catch { return []; }
   });
 }
+
+/** Private run history plus latest-topic pointer, never a publication approval. */
+export async function rememberWritingBrief(scope: string, topic: string, input: {
+  runId: string; writerText: string; model: string; voiceVersion: string; missingEvidence?: string[];
+  rawResponse?: string; tokenUsage?: { input: number; output: number };
+  sources?: Array<Pick<RetrievedSource, 'id' | 'url' | 'contentHash' | 'retrievedAt' | 'publishedAt'>>;
+}): Promise<void> {
+  if (!scope || !/^[a-f0-9-]{36}$/.test(input.runId) || !input.writerText.trim() || input.writerText.length > 24000 ||
+      (input.rawResponse?.length || 0) > 60000 ||
+      (input.sources?.length || 0) > 8 ||
+      (input.missingEvidence?.length || 0) > 6 || input.missingEvidence?.some(s => s.length > 500)) {
+    throw new Error('research_diagnostic_invalid');
+  }
+  const db = getAdminDb();
+  if (!db) throw new Error('source_archive_unavailable');
+  const desk = db.collection('livSourceArchives').doc(hash(scope));
+  const ref = desk.collection('topics').doc(topicId(topic));
+  const run = desk.collection('runs').doc(input.runId);
+  await db.runTransaction(async tx => {
+    const previous = (await tx.get(run)).data();
+    const row = { ...input, missingEvidence: input.missingEvidence || [],
+      status: input.missingEvidence?.length ? 'insufficient_evidence' : 'not_verified',
+      textHash: hash(input.writerText), recordedAt: new Date().toISOString(),
+      createdAt: previous?.createdAt || new Date().toISOString() };
+    tx.set(run, row, { merge: true });
+    tx.set(ref, { latestBrief: row }, { merge: true });
+  });
+}
+
+export async function readWritingBrief(scope: string, runId: string) {
+  if (!scope || !/^[a-f0-9-]{36}$/.test(runId)) return null;
+  const db = getAdminDb();
+  if (!db) throw new Error('source_archive_unavailable');
+  return (await db.collection('livSourceArchives').doc(hash(scope)).collection('runs').doc(runId).get()).data() || null;
+}

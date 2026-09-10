@@ -5,7 +5,7 @@ const article = { status: 'ready', title: 'En film med kant', subtitle: 'En konk
   intro: 'En selvstændig åbning.', content: 'Første afsnit.\n\nAndet afsnit.', rating: 4,
   ratingReason: 'Konflikten er præcis, men afslutningen svækker filmens samlede vurdering.' };
 it('keeps text, paragraphs and a justified numeric rating separate', () => {
-  expect(parseLivArticleOutput(JSON.stringify(article), 'research-review')).toEqual(article);
+  expect(parseLivArticleOutput(JSON.stringify(article), 'research-review')).toEqual({ ...article, missingEvidence: [] });
   expect(livArticleResponseFormat.json_schema.schema.required.sort())
     .toEqual(Object.keys(livArticleResponseFormat.json_schema.schema.properties).sort());
 });
@@ -23,6 +23,17 @@ it('supports explicit abstention without forcing a judgment', () => {
   expect(() => parseLivArticleOutput(JSON.stringify({ ...article, status: 'insufficient_evidence',
     title: '', subtitle: '', intro: '', content: '', rating: null, ratingReason: null }), 'research-review'))
     .toThrow('article_evidence_insufficient');
+});
+it('preserves concrete missing evidence and rejects a contradictory ready result', () => {
+  const missingEvidence = ['Der mangler dokumentation for den beskrevne slutscene.'];
+  try {
+    parseLivArticleOutput(JSON.stringify({ ...article, status: 'insufficient_evidence', missingEvidence }), 'research-review');
+    throw new Error('Expected evidence rejection');
+  } catch (error) {
+    expect(error).toMatchObject({ code: 'article_evidence_insufficient', missingEvidence });
+  }
+  expect(() => parseLivArticleOutput(JSON.stringify({ ...article, missingEvidence }), 'research-review'))
+    .toThrow('article_output_conflicting_status');
 });
 it.each(['not JSON', 'null', '[]', JSON.stringify({ ...article, content: '' }),
   JSON.stringify({ ...article, title: undefined }), JSON.stringify({ ...article, extra: 'field' })])('fails closed on malformed output', raw => {

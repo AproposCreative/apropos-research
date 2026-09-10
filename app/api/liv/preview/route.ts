@@ -23,6 +23,8 @@ import { buildResearchQaSummary } from '@/lib/liv/research-qa';
 import { checkCmsDraft } from '@/lib/editorial/cms-preflight';
 import { isLivArticleFormat, type LivArticleFormat } from '@/lib/liv/review-format';
 import { SourceSimilarityError } from '@/lib/liv/source-similarity-error';
+import { ArticleEvidenceError } from '@/lib/liv/article-output';
+import { readWritingBrief } from '@/lib/liv/source-archive';
 
 // Generation plus bounded source retrieval/factcheck must fit in one preview run.
 export const maxDuration = 300;
@@ -220,6 +222,11 @@ async function buildPreview(req: NextRequest, input: PreviewRequestInput, uid: s
       },
     });
   } catch (e) {
+    if (e instanceof ArticleEvidenceError) {
+      return NextResponse.json({ ok: false, error: e.message, code: e.code, dayKey,
+        gatePass: false, canAutoPublish: false, blockedReview: e.blockedReview,
+      }, { status: 422, headers: { 'Cache-Control': 'no-store' } });
+    }
     if (e instanceof SourceSimilarityError) {
       return NextResponse.json({ ok: false, error: e.message, code: e.code,
         dayKey, gatePass: false, canAutoPublish: false, diagnostic: e.detail,
@@ -244,6 +251,16 @@ export async function GET(req: NextRequest) {
   }
 
   const sp = req.nextUrl.searchParams;
+  if (sp.has('researchRunId')) {
+    try {
+      const research = await readWritingBrief(uid, sp.get('researchRunId') || '');
+      return NextResponse.json({ ok: !!research, canAutoPublish: false, research },
+        { status: research ? 200 : 404, headers: { 'Cache-Control': 'no-store' } });
+    } catch {
+      return NextResponse.json({ ok: false, error: 'Kørslen kunne ikke hentes.', canAutoPublish: false },
+        { status: 503, headers: { 'Cache-Control': 'no-store' } });
+    }
+  }
   return buildPreview(
     req,
     {

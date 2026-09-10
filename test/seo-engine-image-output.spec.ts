@@ -3,6 +3,14 @@ import { load } from 'cheerio';
 import { replaceOptimizedImageHtml } from '../lib/images/output-image-html';
 const output = { url: 'https://images.example/new.webp?a=1&b=2', width: 1200, height: 800 };
 describe('optimized inline image HTML', () => {
+  it('keeps intrinsic dimensions with responsive display height', () => {
+    const $ = load(replaceOptimizedImageHtml('<img src="old.jpg" style="height:675px!important; border-radius:4px; max-width:none">', 'old.jpg', output));
+    expect($('img').attr('width')).toBe('1200');
+    expect($('img').attr('height')).toBe('800');
+    expect($('img').css('height')).toBe('auto');
+    expect($('img').css('max-width')).toBe('100%');
+    expect($('img').css('border-radius')).toBe('4px');
+  });
   it('sets actual output dimensions and preserves alt preceding src, credits and text', () => {
     const html = '<p>Photo old.jpg</p><a href="old.jpg"><img alt="Musikeren på scenen" src="old.jpg" data-credit="Fotograf" width="auto" height="auto"></a>';
     const result = replaceOptimizedImageHtml(html, 'old.jpg', output);

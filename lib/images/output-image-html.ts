@@ -15,6 +15,11 @@ export function replaceOptimizedImageHtml(html: string, oldSrc: string, output: 
       image.attr('width', String(output.width));
       image.attr('height', String(output.height));
     }
+    // Intrinsic dimensions reserve space, but a constrained width must not leave
+    // the HTML height fixed (1200x675 displayed at 720x675 stretched film stills).
+    // Preserve unrelated inline declarations while overriding stale fixed sizing.
+    image.css('max-width', '100%');
+    image.css('height', 'auto');
     // Old responsive candidates would bypass the optimized image. Keep layout sizes.
     if (image.attr('srcset') !== undefined) {
       if (hasDimensions) image.attr('srcset', `${output.url} ${output.width}w`);

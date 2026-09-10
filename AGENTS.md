@@ -1,5 +1,21 @@
 # Apropos project working instructions
 
+## Local recovery safety override (2026-09-10)
+
+The latest user-supplied recovery instructions take precedence over the historical
+standing mandate below. Work only from this local checkout; do not import or
+execute Dropbox copies, old dependencies, caches, build output, editor rules or
+quarantine content. Keep npm lifecycle scripts disabled and require the SSD
+dependency gate for any new or changed dependency. Do not add secrets,
+credentials, tokens, signing material or production service access. Push and
+deploy remain blocked until credential rotation and an exact clean commit are
+separately approved. Preserve the isolated Vitest storage path.
+
+Recovery checkpoint (2026-09-10): the user explicitly confirmed that the affected
+production credentials have been rotated. This is user attestation, not an
+independent credential audit. Exact release-commit approval is still required;
+the generic deployment permission does not approve an unidentified commit.
+
 ## Standing delivery mandate
 
 The user updated the recovery instructions on 2026-09-09: necessary implementation,
@@ -41,3 +57,25 @@ the SSD dependency gate for new or changed dependencies.
   wording or structure. Ratings must be reasoned, not random.
 - Report completed releases and publications with evidence and identify remaining
   blockers plainly. Do not claim perfect quality or a live article without proof.
+
+## Standing online-image instruction (2026-09-10)
+
+- Articles must include at least two distinct, relevant images within the body,
+  in addition to the hero image. Hero/mobile fields and trailer thumbnails do not
+  count toward this minimum. Place body images at natural section breaks with
+  descriptive alt text, a short caption and the actual source credit. Never
+  duplicate an image or invent a URL merely to meet the minimum; report missing
+  assets when the requirement cannot yet be met.
+- Liv may independently find and select images online for articles without asking
+  for permission again. Film and TV reviews prioritize real official stills from
+  the producer, distributor or press material, not AI substitutes for film scenes.
+- The user does not require separate documentation of editorial reuse rights as
+  an editorial selection prerequisite. This supersedes that earlier requirement,
+  but is not a claim that attribution grants a license or that rights are verified.
+- Preserve the source page, original image URL and actual supplied credit. Credit
+  the photographer/rightsholder and producer/distributor as indicated by the source;
+  do not invent credits. Keep unknown rights status unknown in verification data.
+- For other article types, retain both image search and AI illustration options.
+  The Invite must use real film images, without an AI illustration fallback.
+- Do not bypass authentication, paywalls or technical asset/security validation.
+  This instruction does not change the recovery override or authorize deployment.

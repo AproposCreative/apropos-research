@@ -2,6 +2,7 @@ import { expect, it } from 'vitest';
 import { createHash } from 'node:crypto';
 import { SourceSimilarityError } from '@/lib/liv/source-similarity-error';
 import { readBlockedSourceReview } from '@/lib/liv/blocked-review';
+import { ArticleEvidenceError } from '@/lib/liv/article-output';
 
 const review = { text: 'Draft text <script>untrusted markup</script>', model: 'fixture', voiceVersion: 'voice1' };
 const makeError = (text = review.text) => new SourceSimilarityError({ pass: false, complete: true,
@@ -29,4 +30,11 @@ it.each([{ ok: true }, { gatePass: true }, { canAutoPublish: true }, { code: 'ot
 it('does not return oversized or empty diagnostic text', () => {
   expect(makeError('x'.repeat(60001)).blockedReview).toBeUndefined();
   expect(makeError(' ').blockedReview).toBeUndefined();
+});
+it('recognizes private research diagnostics without treating them as a finished article', () => {
+  const error = new ArticleEvidenceError(['Der mangler dokumentation for en konkret scene.']);
+  error.attachBrief('[S1] En konkret faktanote.', 'model', 'liv-v4');
+  const data = { ok: false, canAutoPublish: false, gatePass: false, code: error.code, blockedReview: error.blockedReview };
+  expect(readBlockedSourceReview(data)).toMatchObject({ kind: 'research', text: expect.stringContaining('MANGLENDE BELÆG') });
+  expect(readBlockedSourceReview({ ...data, blockedReview: { ...error.blockedReview, kind: undefined } })).toBeNull();
 });
