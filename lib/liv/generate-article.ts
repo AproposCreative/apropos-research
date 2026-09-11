@@ -19,7 +19,7 @@ import { ArticleEvidenceError, livArticleResponseFormat, parseLivArticleOutput }
 import { logger } from '@/lib/logger';
 import type { PickedTopic } from '@/lib/liv/pick-topic';
 import { fetchOfficialImagesFromPage } from '@/lib/liv/fetch-official-images';
-import { generateSeoMetaAI } from '@/lib/seo/generate-seo-meta';
+import { generateSeoMetaAI, generateSeoMetaSmart } from '@/lib/seo/generate-seo-meta';
 import { buildStyleReferenceBlock } from '@/lib/loadAproposStyleSamples';
 import { buildResearchBundle, extractResearchUrls, hasCopiedPassage } from '@/lib/liv/research-bundle';
 import { checkSourceSimilarity } from '@/lib/liv/source-similarity';
@@ -95,6 +95,8 @@ export interface GenerateArticleOptions {
   sourceScope?: string;
   /** Base URL til interne API-kald (web-search). */
   baseUrl?: string;
+  /** Preparation jobs use a bounded latency profile; publication gates remain unchanged. */
+  preparation?: boolean;
 }
 
 type WebSearchResult = {
@@ -104,9 +106,9 @@ type WebSearchResult = {
   url?: string | null;
 };
 
-async function fetchWebResearch(query: string, format: LivArticleFormat): Promise<WebSearchResult[]> {
+async function fetchWebResearch(query: string, format: LivArticleFormat, timeoutMs = 45000): Promise<WebSearchResult[]> {
   const results = await Promise.all(livResearchQueries(query, format).map(subject =>
-    getResearch(subject, { maxResults: 5, model: livModels().research, timeoutMs: 45000 })));
+    getResearch(subject, { maxResults: 5, model: livModels().research, timeoutMs })));
   return results.flatMap(result => result.sources.map(source => ({
     title: source.title, content: source.snippet, source: source.source, url: source.url,
   })));
@@ -155,6 +157,8 @@ export async function generateLivArticle(options: GenerateArticleOptions): Promi
   const { topic, section = 'Kultur', expandedDirective } = options;
   const articleFormat = options.articleFormat || 'article';
   const sourceScope = options.sourceScope || 'liv-daily';
+  const preparation = options.preparation === true;
+  const modelTimeoutMs = preparation ? 60_000 : 90_000;
   const client = getOpenAIClient();
   if (!client) {
     throw new Error('OPENAI_API_KEY mangler — kan ikke generere Liv-artikel.');
@@ -165,7 +169,7 @@ export async function generateLivArticle(options: GenerateArticleOptions): Promi
 
   // Retrieve evidence before writing; source prose is data, never instructions.
   const [discovered, remembered] = await Promise.all([
-    fetchWebResearch(topic.title, articleFormat), recalledSourceUrls(sourceScope, topic.title),
+    fetchWebResearch(topic.title, articleFormat, preparation ? 30_000 : 45_000), recalledSourceUrls(sourceScope, topic.title),
   ]);
   const sources = await buildResearchBundle([
     ...extractResearchUrls(options.directiveHint || ''),
@@ -175,7 +179,7 @@ export async function generateLivArticle(options: GenerateArticleOptions): Promi
     ...discovered.flatMap(s => s.url ? [s.url] : []),
   ]);
   await rememberResearchSources(sourceScope, topic.title, sources);
-  const brief = await buildLivWritingBrief(sources, topic.title);
+  const brief = await buildLivWritingBrief(sources, topic.title, { timeoutMs: preparation ? 30_000 : 45_000 });
   const researchRunId = randomUUID();
   await rememberWritingBrief(sourceScope, topic.title, { runId: researchRunId, writerText: brief.writerText,
     model: generationModel, voiceVersion: voice.version,
@@ -259,7 +263,7 @@ export async function generateLivArticle(options: GenerateArticleOptions): Promi
       { role: 'system', content: systemPrompt },
       { role: 'user', content: userPrompt },
     ],
-  }, { timeout: 90000, maxRetries: 0 });
+  }, { timeout: modelTimeoutMs, maxRetries: 0 });
 
   let rawResponse = completion.choices[0]?.message?.content || '';
   await rememberWritingBrief(sourceScope, topic.title, { runId: researchRunId, writerText: brief.writerText,
@@ -292,7 +296,14 @@ export async function generateLivArticle(options: GenerateArticleOptions): Promi
     .slice(0, 220);
 
   // Liv's server-owned utility model also supplies SEO metadata.
-  let seo = await generateSeoMetaAI({
+  let seo = preparation ? generateSeoMetaSmart({
+    title: parsed.title,
+    subtitle: parsed.subtitle,
+    intro: parsed.intro,
+    content: parsed.content,
+    section,
+    keywords: topic.tags,
+  }) : await generateSeoMetaAI({
     title: parsed.title,
     subtitle: parsed.subtitle,
     intro: parsed.intro,
@@ -343,7 +354,7 @@ export async function generateLivArticle(options: GenerateArticleOptions): Promi
           blockedSourceHost: new URL(similarityBlocked.sourceUrl).hostname,
         }) },
       ],
-    }, { timeout: 90000, maxRetries: 0 });
+    }, { timeout: modelTimeoutMs, maxRetries: 0 });
     if (rewrite.choices[0]?.finish_reason !== 'stop') throw new Error('article_originality_rewrite_incomplete');
     const rewrittenRaw = rewrite.choices[0]?.message?.content?.trim() || '';
     if (!rewrittenRaw) throw new Error('article_originality_rewrite_empty');
@@ -352,7 +363,8 @@ export async function generateLivArticle(options: GenerateArticleOptions): Promi
     rating = parsed.rating !== null ? { value: parsed.rating, reason: parsed.ratingReason! } : null;
     slug = slugify(parsed.title);
     excerpt = (parsed.intro || parsed.content).replace(/\s+/g, ' ').trim().slice(0, 220);
-    seo = await generateSeoMetaAI({ title: parsed.title, subtitle: parsed.subtitle, intro: parsed.intro, content: parsed.content,
+    seo = preparation ? generateSeoMetaSmart({ title: parsed.title, subtitle: parsed.subtitle, intro: parsed.intro, content: parsed.content,
+      section, keywords: topic.tags }) : await generateSeoMetaAI({ title: parsed.title, subtitle: parsed.subtitle, intro: parsed.intro, content: parsed.content,
       section, keywords: topic.tags }, { model: livModels().utility });
     finalText = [parsed.title, parsed.subtitle, parsed.intro, parsed.content, rating?.reason, seo.seoTitle, seo.seoDescription].filter(Boolean).join('\n\n');
     for (const source of sources) {

@@ -33,6 +33,8 @@ export interface SafetyGatesInput {
   additionalTexts?: string[];
   /** Auto-publish må kun ske, når alle relevante gates faktisk er kørt. */
   requireCompleteVerification?: boolean;
+  /** Bound infrastructure checks so preparation jobs cannot outlive the worker. */
+  timeoutMs?: number;
 }
 
 export interface SafetyGatesOutput {
@@ -92,6 +94,7 @@ export async function runSafetyGates(input: SafetyGatesInput): Promise<SafetyGat
     sourceUrls = [],
     additionalTexts = [],
     requireCompleteVerification = false,
+    timeoutMs = 115_000,
   } = input;
   const results: GateResult[] = [];
   let anyGateSkipped = false;
@@ -193,7 +196,7 @@ export async function runSafetyGates(input: SafetyGatesInput): Promise<SafetyGat
       headers: internalApiHeaders(),
       body: JSON.stringify({ articleText: factcheckText, sourceUrls }),
       cache: 'no-store',
-      signal: AbortSignal.timeout(115_000),
+      signal: AbortSignal.timeout(timeoutMs),
     });
     fcHttpStatus = res.status;
     if (!res.ok) {

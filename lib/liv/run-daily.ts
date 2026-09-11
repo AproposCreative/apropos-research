@@ -89,8 +89,9 @@ export async function runLivDaily(req: NextRequest, preparation?: {
   const checkpointLivDailyCmsItem: typeof checkpointCms = (day, item) => preparation ? checkpointCms(day, item, scope) : checkpointCms(day, item);
   const checkpointLivDailyArticle: typeof checkpointArticle = (day, article) => preparation ? checkpointArticle(day, article, scope) : checkpointArticle(day, article);
   const markPlanFailed = (day: string, reason: string) => preparation?.kind === 'reserve' ? Promise.resolve() : failPlan(day, reason);
-  // Reserve one minute of the function budget for gates/CMS/receipt checks.
-  const mediaDeadline = Date.now() + 240_000;
+  // Preparation has a bounded media budget so the remaining safety/CMS checks
+  // still finish inside Vercel's 300 second function limit.
+  const mediaDeadline = Date.now() + (preparation ? 165_000 : 240_000);
   const authFail = requireCronBearer(req);
   if (authFail) return authFail;
 
@@ -196,6 +197,7 @@ export async function runLivDaily(req: NextRequest, preparation?: {
       articleFormat: plan?.articleFormat,
       sourceScope: 'liv-daily',
       baseUrl,
+      preparation: !!preparation,
     });
     await checkpointLivDailyArticle(dayKey, article);
 
@@ -263,6 +265,7 @@ export async function runLivDaily(req: NextRequest, preparation?: {
       sourceUrls: [...new Set([topic.source?.url, ...(article.researchSources || []).map(source => source.url)].filter((url): url is string => !!url))].slice(0, 8),
       additionalTexts: [article.subtitle, article.excerpt, article.seoTitle, article.seoDescription, article.ratingReason].filter(Boolean),
       requireCompleteVerification: publicationMode === 'auto_publish' || !!preparation,
+      timeoutMs: preparation ? 45_000 : undefined,
     });
     gateResults = gates.results;
 
