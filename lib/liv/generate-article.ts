@@ -26,7 +26,7 @@ import { checkSourceSimilarity } from '@/lib/liv/source-similarity';
 import { SourceSimilarityError } from '@/lib/liv/source-similarity-error';
 import type { LivSelectedImage } from '@/lib/liv/image-selection';
 import { livResearchQueries } from '@/lib/liv/research-query';
-import { buildLivWritingBrief } from '@/lib/liv/writing-brief';
+import { buildLivWritingBrief, writingBriefContract } from '@/lib/liv/writing-brief';
 
 export interface GeneratedArticle {
   title: string;
@@ -190,6 +190,7 @@ export async function generateLivArticle(options: GenerateArticleOptions): Promi
     buildStyleReferenceBlock(section, 2, true),
     '',
     '— STRUKTUR —',
+    writingBriefContract,
     'Returnér JSON efter det krævede schema, uden labels eller markdown omkring svaret.',
     'status: ready når researchen rækker; ellers insufficient_evidence med tomme tekstfelter og null i rating og ratingReason. Opfind aldrig en dom for at udfylde schemaet.',
     'missingEvidence: tom liste ved ready. Ved insufficient_evidence: 1-6 konkrete mangler, der forklarer præcis hvorfor den givne brief ikke rækker, og hvad der skal researches. Ikke blot "flere kilder".',

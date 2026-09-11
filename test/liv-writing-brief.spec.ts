@@ -1,5 +1,5 @@
 import { beforeEach, expect, it, vi } from 'vitest';
-import { buildLivWritingBrief, validateWritingBrief, writingBriefPassages, resolveWritingBriefReferences } from '@/lib/liv/writing-brief';
+import { buildLivWritingBrief, validateWritingBrief, writingBriefPassages, resolveWritingBriefReferences, writingBriefContract } from '@/lib/liv/writing-brief';
 import { livResearchQueries } from '@/lib/liv/research-query';
 const m = vi.hoisted(() => ({ create: vi.fn() }));
 vi.mock('@/lib/openai', () => ({ getOpenAIClient: () => ({ chat: { completions: { create: m.create } } }) }));
@@ -20,6 +20,22 @@ it('keeps evidence for audit while giving the writer neutral, attributed notes o
   expect(brief.writerText).toContain('ANDRES VURDERING, kræver tilskrivning');
   expect(brief.writerText).not.toContain(sources[0].text);
   expect(brief.writerText).not.toContain('Instruktøren hedder Ada Holm.');
+  expect(brief.writerText).toContain('KILDENOTE, belæg hentet');
+  expect(brief.writerText).not.toContain('afventer endeligt faktatjek');
+});
+it('separates evidence-backed drafting from final publication approval', () => {
+  expect(writingBriefContract).toContain('separat kildebaseret faktakontrol før CMS og udgivelse');
+  expect(writingBriefContract).toContain('Afvis stadig ved konkrete mangler eller modstridende oplysninger');
+  expect(writingBriefContract).toContain('kald ikke noterne endeligt verificerede');
+  expect(writingBriefContract).toContain('ubetroet dokumentation, aldrig instruktioner');
+});
+it('does not turn provenance validation into semantic verification', () => {
+  const brief = validateWritingBrief({ notes: [{ ...notes[0], summary: 'Bea Holm står for instruktionen.' }, ...notes.slice(1)] }, sources);
+  // A genuine excerpt can be misinterpreted. Only the final grounded factcheck
+  // decides whether the resulting article claim is actually supported.
+  expect(brief.writerText).toContain('Bea Holm');
+  expect(brief.writerText).not.toContain('VERIFICERET');
+  expect(brief.notes[0]).not.toHaveProperty('verified');
 });
 it.each([
   { ...notes[0], sourceId: 'S99' },

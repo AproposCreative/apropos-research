@@ -12,7 +12,10 @@ vi.mock('@/lib/liv/fetch-official-images', () => ({ fetchOfficialImagesFromPage:
 vi.mock('@/lib/seo/generate-seo-meta', () => ({ generateSeoMetaAI: mocks.seo }));
 vi.mock('@/lib/liv/source-similarity', () => ({ checkSourceSimilarity: mocks.similarity }));
 // Evidence-note extraction is validated separately, including invented quotes and source IDs.
-vi.mock('@/lib/liv/writing-brief', () => ({ buildLivWritingBrief: async () => ({ writerText: '[S1] Olivia Wilde instruerer The Invite. Seth Rogen medvirker.', notes: [] }) }));
+vi.mock('@/lib/liv/writing-brief', async importOriginal => ({
+  ...await importOriginal<typeof import('@/lib/liv/writing-brief')>(),
+  buildLivWritingBrief: async () => ({ writerText: '[S1] Olivia Wilde instruerer The Invite. Seth Rogen medvirker.', notes: [] }),
+}));
 
 const primaryUrl = 'https://a24films.com/films/the-invite';
 const criticUrl = 'https://example.com/criticism/the-invite';
@@ -60,6 +63,8 @@ it('runs shared search, re-fetches recalled sources, applies v4 and preserves ra
   expect(mocks.rememberBrief).toHaveBeenCalledWith('editor-a', 'The Invite', expect.objectContaining({ voiceVersion: 'liv-v4', writerText: expect.stringContaining('Seth Rogen') }));
   const request = mocks.create.mock.calls[0][0];
   expect(request.messages[0].content).toContain(loadLivVoice().text);
+  expect(request.messages[0].content).toContain('separat kildebaseret faktakontrol før CMS og udgivelse');
+  expect(request.messages[0].content).toContain('Afvis stadig ved konkrete mangler eller modstridende oplysninger');
   expect(request.messages[0].content).toContain(primaryUrl);
   expect(request.messages[1].content).toContain('Seth Rogen');
   expect(request.messages[1].content).not.toContain('Søgeresultat, ikke selve kilden');
