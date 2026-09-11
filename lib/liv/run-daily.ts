@@ -176,7 +176,7 @@ export async function runLivDaily(req: NextRequest, preparation?: {
     const prepRow = preparation ? await getAdminDb()?.collection('livDailyArticles')
       .doc(`prepare-${dayKey}`).get() : null;
     const checkpoint = prepRow?.data()?.articleCheckpoint as GeneratedArticle | undefined;
-    const topic = checkpoint
+    const pickedTopic = checkpoint
       ? { title: prepRow?.data()?.topic || checkpoint.title, score: 0,
           source: checkpoint.researchSources?.[0] ? {
             title: checkpoint.researchSources[0].title,
@@ -186,6 +186,9 @@ export async function runLivDaily(req: NextRequest, preparation?: {
             publishedAt: checkpoint.researchSources[0].publishedAt || undefined,
           } : undefined }
       : await pickLivTopic({ baseUrl, topicHint, mustUseTrending });
+    const topic = pickedTopic || (topicHint && !mustUseTrending
+      ? { title: topicHint, score: 0, synthetic: true as const }
+      : null);
     if (!topic) {
       await finishLivDaily(dayKey, {
         status: 'skipped_no_topic',
