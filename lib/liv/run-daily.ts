@@ -377,7 +377,7 @@ export async function runLivDaily(req: NextRequest, preparation?: {
 
     // Structure is only one part of approval. CMS fields and assets are checked
     // after saving, and live publication has its own verified receipt.
-    const cmsCheck = checkCmsDraft(article);
+    const cmsCheck = checkCmsDraft(article, preparation ? 650 : 1000);
     let preparationProof: PreparationProof | undefined;
     if (preparation) {
       if (!cmsCheck.structureReady) throw new Error('liv_preparation_structure_failed');
