@@ -81,7 +81,7 @@ export async function claimLivDaily(dayKey: string, scope: LivDailyScope = 'dail
       }
       // Only preparation transport/no-topic failures before paid work may retry.
       const retryPreparation = scope !== 'daily' && canRetryUnstartedPreparation(d);
-      if (status && status.startsWith('skipped_') && !retryPreparation) {
+      if (status && status.startsWith('skipped_') && !retryPreparation && !resumableCheckpoint) {
         result = { ok: false, reason: 'already_done' };
         return;
       }
