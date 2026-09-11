@@ -198,6 +198,7 @@ export async function runLivDaily(req: NextRequest, preparation?: {
       sourceScope: 'liv-daily',
       baseUrl,
       preparation: !!preparation,
+      targetWordCount: preparation ? 650 : undefined,
     });
     await checkpointLivDailyArticle(dayKey, article);
 
@@ -265,7 +266,7 @@ export async function runLivDaily(req: NextRequest, preparation?: {
       sourceUrls: [...new Set([topic.source?.url, ...(article.researchSources || []).map(source => source.url)].filter((url): url is string => !!url))].slice(0, 8),
       additionalTexts: [article.subtitle, article.excerpt, article.seoTitle, article.seoDescription, article.ratingReason].filter(Boolean),
       requireCompleteVerification: publicationMode === 'auto_publish' || !!preparation,
-      timeoutMs: preparation ? 45_000 : undefined,
+      timeoutMs: preparation ? 70_000 : undefined,
     });
     gateResults = gates.results;
 
