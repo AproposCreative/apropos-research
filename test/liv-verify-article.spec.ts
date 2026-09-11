@@ -40,3 +40,20 @@ it('rejects malformed model JSON', async () => {
   mocks.create.mockResolvedValue({ choices: [{ finish_reason: 'stop', message: { content: '{' } }] });
   expect((await verifyArticleSources(claim, urls)).complete).toBe(false);
 });
+it('reviews every mixed-text unit separately without accepting omitted units', async () => {
+  const text = `${claim} ${'Dette er min vurdering. '.repeat(170)}`;
+  mocks.create.mockImplementation(async (body) => {
+    const { units } = JSON.parse(body.messages[1].content);
+    expect(units).toHaveLength(1);
+    expect(body.messages[0].content).toContain('I blandede afsnit');
+    const unit = units[0];
+    return { choices: [{ finish_reason: 'stop', message: { content: JSON.stringify({ units: [{
+      id: unit.id, opinionOnly: !unit.text.includes(claim),
+      claims: unit.text.includes(claim) ? assessment.units[0].claims : [],
+    }] }) } }] };
+  });
+  const report = await verifyArticleSources(text, urls);
+  expect(report.complete).toBe(true);
+  expect(report.coverage.checkedUnits).toBe(report.coverage.expectedUnits);
+  expect(mocks.create.mock.calls.length).toBeGreaterThan(1);
+});
