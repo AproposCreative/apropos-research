@@ -89,8 +89,22 @@ function publicationDate(raw: string | undefined, now: number): string | null {
 export function parseSourceHtml(url: string, html: string, id: string, now = Date.now()): RetrievedSource {
   const $ = cheerio.load(html);
   const title = $('meta[property="og:title"]').attr('content') || $('title').text();
-  const publishedAt = publicationDate($('meta[property="article:published_time"]').attr('content') ||
-    $('meta[name="date"]').attr('content') || $('time[itemprop="datePublished"][datetime]').first().attr('datetime'), now);
+  const explicitDate = $('meta[property="article:published_time"]').attr('content') ||
+    $('meta[name="date"]').attr('content') || $('time[itemprop="datePublished"][datetime]').first().attr('datetime');
+  let publishedAt = publicationDate(explicitDate, now);
+  // This news template renders its publication date in the article hero, not
+  // metadata. Never infer it from event dates, body prose, scripts or other sites.
+  const page = new URL(url);
+  if (!explicitDate && /^(www\.)?roskilde-festival\.dk$/.test(page.hostname) && page.pathname.startsWith('/nyheder/')) {
+    const dates = $('[class*="article-hero-module"][class*="appearanceText"]')
+      .filter((_, el) => !$(el).closest('nav,footer,[hidden],[aria-hidden="true"]').length)
+      .map((_, el) => $(el).text().trim()).get().filter(value => /^\d{2}\.\d{2}\.\d{4}$/.test(value));
+    const unique = [...new Set(dates)];
+    if (unique.length === 1) {
+      const [day, month, year] = unique[0].split('.');
+      publishedAt = publicationDate(`${year}-${month}-${day}`, now);
+    }
+  }
   $('script,style,noscript,nav,header,footer,form,iframe,svg,[hidden],[aria-hidden="true"]').remove();
   const root = $('article').first().length ? $('article').first() : $('main').first();
   // An archive/navigation page is not silently treated as article evidence.

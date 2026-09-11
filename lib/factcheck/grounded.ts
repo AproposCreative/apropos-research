@@ -40,6 +40,14 @@ export const assessmentSchema = z.object({
   })).min(1).max(50),
 });
 
+// Constrain provider output to the same shape the server validates. JSON mode
+// alone guarantees syntax, not the required unit/claim/citation structure.
+const { $schema: _schemaVersion, ...assessmentJsonSchema } = z.toJSONSchema(assessmentSchema);
+export const groundedResponseFormat = {
+  type: 'json_schema' as const,
+  json_schema: { name: 'grounded_factcheck_v1', strict: true, schema: assessmentJsonSchema },
+};
+
 export interface GroundedReport {
   ok: true;
   verificationMethod: 'retrieved-sources';
@@ -50,12 +58,14 @@ export interface GroundedReport {
   coverage: { expectedUnits: number; checkedUnits: number };
   results: { claim: string; status: string; evidence: string; citations: { sourceId: string; url: string; quote: string }[] }[];
   sources: Omit<RetrievedSource, 'text'>[];
+  diagnostic?: { code: 'insufficient_dated_sources' | 'model_response_incomplete' | 'model_response_invalid_json' | 'model_response_invalid_schema' };
 }
 
 const normalize = (text: string) => text.replace(/\s+/gu, ' ').trim();
 
 /** Only server-retrieved text can support a citation. Model URLs and flags are not trusted. */
-export function assessGroundedReport(text: string, sources: RetrievedSource[], raw: unknown, now = Date.now()): GroundedReport {
+export function assessGroundedReport(text: string, sources: RetrievedSource[], raw: unknown, now = Date.now(),
+  failure?: { code: NonNullable<GroundedReport['diagnostic']>['code']; message: string }): GroundedReport {
   const units = articleUnits(text);
   const parsed = assessmentSchema.safeParse(raw);
   const blockers: string[] = [];
@@ -63,7 +73,8 @@ export function assessGroundedReport(text: string, sources: RetrievedSource[], r
   const checked = new Set<string>();
   const citedHosts = new Set<string>();
   const sourceMap = new Map(sources.map(source => [source.id, source]));
-  if (!parsed.success) blockers.push('Ugyldigt svar fra faktakontrollen.');
+  if (failure) blockers.push(failure.message);
+  else if (!parsed.success) blockers.push('Ugyldigt svar fra faktakontrollen.');
   for (const row of parsed.success ? parsed.data.units : []) {
     const unit = units.find(candidate => candidate.id === row.id);
     if (!unit || checked.has(row.id)) {
@@ -99,6 +110,7 @@ export function assessGroundedReport(text: string, sources: RetrievedSource[], r
     checkedAt: new Date(now).toISOString(), complete: blockers.length === 0,
     blockers: [...new Set(blockers)], coverage: { expectedUnits: units.length, checkedUnits: checked.size },
     results, sources: sources.map(({ text: _text, ...metadata }) => metadata),
+    ...(!parsed.success || failure ? { diagnostic: { code: failure?.code || 'model_response_invalid_schema' as const } } : {}),
   };
 }
 
