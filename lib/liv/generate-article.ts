@@ -192,7 +192,7 @@ export async function generateLivArticle(options: GenerateArticleOptions): Promi
     '— STRUKTUR —',
     writingBriefContract,
     'Returnér JSON efter det krævede schema, uden labels eller markdown omkring svaret.',
-    'status: ready når researchen rækker; ellers insufficient_evidence med tomme tekstfelter og null i rating og ratingReason. Opfind aldrig en dom for at udfylde schemaet.',
+    'status: ready når researchen rækker; ellers insufficient_evidence med tomme tekstfelter og null i rating og ratingReason. Opfind aldrig en dom for at udfylde schemaet. Sæt ikke insufficient_evidence alene fordi en detalje mangler, eller fordi en kilde er sekundær: udelad den udokumenterede detalje og skriv en kortere artikel ud fra de konkrete fakta, hvis briefen har mindst to kildehosts og mindst to faktanoter.',
     'missingEvidence: tom liste ved ready. Ved insufficient_evidence: 1-6 konkrete mangler, der forklarer præcis hvorfor den givne brief ikke rækker, og hvad der skal researches. Ikke blot "flere kilder".',
     'title: max 60 tegn, fængende, dansk. subtitle: 8-14 ord, konkret og skarp.',
     ...(articleFormat === 'research-review' ? [
