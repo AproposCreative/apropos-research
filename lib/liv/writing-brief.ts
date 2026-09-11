@@ -80,6 +80,7 @@ export async function buildLivWritingBrief(sources: RetrievedSource[], topic: st
   if (!client) throw new Error('research_brief_unavailable');
   const response = await client.chat.completions.create({
     model: livModels().utility,
+    reasoning_effort: 'high',
     max_completion_tokens: 6000,
     response_format: { type: 'json_object' },
     messages: [
