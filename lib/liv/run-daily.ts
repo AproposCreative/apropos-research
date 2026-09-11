@@ -14,7 +14,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { requireCronBearer } from '@/lib/cron/cron-auth';
-import { env } from '@/lib/config/env';
+import { livInternalOrigin } from '@/lib/liv/internal-origin';
 import { logger } from '@/lib/logger';
 import {
   claimLivDaily as claimDaily,
@@ -65,15 +65,6 @@ function resolveLivPublicationMode(): LivPublicationMode {
   return 'draft';
 }
 
-function resolveBaseUrl(req: NextRequest): string {
-  const fromHeader = req.nextUrl.origin;
-  if (fromHeader && /^https?:\/\//.test(fromHeader)) return fromHeader;
-  const prodHost = env.VERCEL_PROJECT_PRODUCTION_URL?.trim().replace(/^https?:\/\//, '');
-  if (prodHost) return `https://${prodHost}`;
-  if (env.VERCEL_URL) return `https://${env.VERCEL_URL.replace(/^https?:\/\//, '')}`;
-  return env.NEXT_PUBLIC_BASE_URL?.trim().replace(/\/$/, '') || 'http://localhost:3000';
-}
-
 async function reportGa4(
   status: 'draft' | 'published' | 'skipped' | 'failed',
   params: Record<string, string | number | undefined>
@@ -106,7 +97,7 @@ export async function runLivDaily(req: NextRequest, preparation?: {
   const sp = req.nextUrl.searchParams;
   const dryRun = sp.get('dryRun') === '1' || sp.get('dryRun')?.toLowerCase() === 'true';
   const dayKey = preparation?.dayKey ?? todayDayKeyUTC();
-  const baseUrl = resolveBaseUrl(req);
+  const baseUrl = livInternalOrigin(req.nextUrl.origin);
   const publicationMode = resolveLivPublicationMode();
   // The shared CMS writer saves staged drafts, not live items. Requested mode
   // must never be mistaken for an observed publication result.
@@ -128,27 +119,34 @@ export async function runLivDaily(req: NextRequest, preparation?: {
   }
 
   if (dryRun) {
-    const plan = await getLivDailyPlan(dayKey);
-    const { topicHint, mustUseTrending } = resolveLivTopicInputsFromPlan(plan);
-    const topic = await pickLivTopic({
-      baseUrl,
-      topicHint,
-      mustUseTrending,
-    });
-    logger.info('[cron/liv-daily] dryRun', {
-      dayKey,
-      picked: topic?.title || null,
-      score: topic?.score,
-      usingPlan: !!plan,
-    });
-    return NextResponse.json({
-      ok: true,
-      dryRun: true,
-      dayKey,
-      plan,
-      pickedTopic: topic,
-      hint: 'dryRun springer claim/publish over. Fjern ?dryRun=1 for at køre rigtigt.',
-    });
+    try {
+      const plan = await getLivDailyPlan(dayKey);
+      const { topicHint, mustUseTrending } = resolveLivTopicInputsFromPlan(plan);
+      const topic = await pickLivTopic({
+        baseUrl,
+        topicHint,
+        mustUseTrending,
+      });
+      logger.info('[cron/liv-daily] dryRun', {
+        dayKey,
+        picked: topic?.title || null,
+        score: topic?.score,
+        usingPlan: !!plan,
+      });
+      return NextResponse.json({
+        ok: true,
+        dryRun: true,
+        dayKey,
+        plan,
+        pickedTopic: topic,
+        hint: 'dryRun springer claim/publish over. Fjern ?dryRun=1 for at køre rigtigt.',
+      });
+    } catch (e) {
+      const msg = e instanceof Error && /^liv_trending_(http_\d{3}|invalid_response|unavailable)$/.test(e.message)
+        ? e.message : 'liv_dry_run_failed';
+      return NextResponse.json({ ok: false, dryRun: true, error: msg, dayKey },
+        { status: 503, headers: { 'Cache-Control': 'no-store' } });
+    }
   }
 
   const claim = await claimLivDaily(dayKey);

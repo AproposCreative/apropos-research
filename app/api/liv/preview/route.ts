@@ -16,7 +16,7 @@ import { todayDayKeyUTC } from '@/lib/liv/daily-history-store';
 import { getLivDailyPlan } from '@/lib/liv/daily-plan-store';
 import { resolveLivTopicInputsFromPlan } from '@/lib/liv/resolve-liv-topic-hints';
 import { logger } from '@/lib/logger';
-import { env } from '@/lib/config/env';
+import { livInternalOrigin } from '@/lib/liv/internal-origin';
 import { expandDirective } from '@/lib/liv/expand-directive';
 import { runSafetyGates } from '@/lib/liv/run-safety-gates';
 import { buildResearchQaSummary } from '@/lib/liv/research-qa';
@@ -29,15 +29,6 @@ import { readWritingBrief } from '@/lib/liv/source-archive';
 // Generation plus bounded source retrieval/factcheck must fit in one preview run.
 export const maxDuration = 300;
 const MIN_VERIFIED_RESEARCH_SOURCES = 2;
-
-function resolveBaseUrl(req: NextRequest): string {
-  const fromHeader = req.nextUrl.origin;
-  if (fromHeader && /^https?:\/\//.test(fromHeader)) return fromHeader;
-  const prodHost = env.VERCEL_PROJECT_PRODUCTION_URL?.trim().replace(/^https?:\/\//, '');
-  if (prodHost) return `https://${prodHost}`;
-  if (env.VERCEL_URL) return `https://${env.VERCEL_URL.replace(/^https?:\/\//, '')}`;
-  return env.NEXT_PUBLIC_BASE_URL?.trim().replace(/\/$/, '') || 'http://localhost:3000';
-}
 
 function previewImageFor(topic: PickedTopic | null): string | null {
   const url = topic?.source?.url;
@@ -62,7 +53,7 @@ type PreviewRequestInput = {
 
 async function buildPreview(req: NextRequest, input: PreviewRequestInput, uid: string) {
   if (input.articleFormat !== undefined && !isLivArticleFormat(input.articleFormat)) return NextResponse.json({ error: 'Ugyldigt artikelformat.' }, { status: 400 });
-  const baseUrl = resolveBaseUrl(req);
+  const baseUrl = livInternalOrigin(req.nextUrl.origin);
   const dayKey = todayDayKeyUTC();
   const generate = !!input.generate;
   const thInput = (input.topicHint || '').trim();

@@ -13,6 +13,7 @@ import type { GroundedReport } from '@/lib/factcheck/grounded';
 import type { GeneratedArticle } from '@/lib/liv/generate-article';
 import { livImageArticleHash } from '@/lib/liv/article-image-hash';
 import type { PreparationProof } from '@/lib/liv/prepared-admission';
+import { canRetryUnstartedPreparation } from '@/lib/liv/preparation-retry';
 
 export const LIV_DAILY_COLLECTION = 'livDailyArticles';
 export type LivDailyScope = 'daily' | 'prepare' | 'reserve';
@@ -48,7 +49,8 @@ export function todayDayKeyUTC(reference = new Date()): string {
 }
 
 /**
- * Atomic claim. Completed/skipped/failed runs are terminal for this day.
+ * Atomic claim. Daily completed/skipped/failed runs are terminal for this day.
+ * Preparation may retry known pre-generation topic failures, bounded to 3 claims.
  * Stale processing without saved work may be reclaimed. Saved article/media
  * work or a CMS ID must be reconciled, not regenerated after a timeout.
  */
@@ -64,7 +66,7 @@ export async function claimLivDaily(dayKey: string, scope: LivDailyScope = 'dail
       const d = snap.data();
       const status = d?.status as LivDailyStatus | undefined;
 
-      if ((typeof d?.webflowItemId === 'string' && d.webflowItemId.trim()) || d?.articleCheckpointHash) {
+      if ((typeof d?.webflowItemId === 'string' && d.webflowItemId.trim()) || d?.articleCheckpoint || d?.articleCheckpointHash || d?.preparationProof) {
         result = { ok: false, reason: 'already_done' };
         return;
       }
@@ -74,12 +76,13 @@ export async function claimLivDaily(dayKey: string, scope: LivDailyScope = 'dail
         result = { ok: false, reason: 'already_done' };
         return;
       }
-      // Skipped/failed today is also terminal — vi venter til næste dag.
-      if (status && status.startsWith('skipped_')) {
+      // Only preparation transport/no-topic failures before paid work may retry.
+      const retryPreparation = scope !== 'daily' && canRetryUnstartedPreparation(d);
+      if (status && status.startsWith('skipped_') && !retryPreparation) {
         result = { ok: false, reason: 'already_done' };
         return;
       }
-      if (status === 'failed') {
+      if (status === 'failed' && !retryPreparation) {
         result = { ok: false, reason: 'already_done' };
         return;
       }
@@ -99,6 +102,7 @@ export async function claimLivDaily(dayKey: string, scope: LivDailyScope = 'dail
           status: 'processing',
           processingStartedAt: FieldValue.serverTimestamp(),
           updatedAt: FieldValue.serverTimestamp(),
+          ...(scope !== 'daily' ? { preparationAttempts: (d?.preparationAttempts ?? 0) + 1 } : {}),
         },
         { merge: true }
       );

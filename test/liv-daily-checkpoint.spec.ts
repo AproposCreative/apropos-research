@@ -24,6 +24,21 @@ it('retains the item before completion and prevents stale processing from creati
 it('permits recovery of stale processing with no known CMS item', async () => {
   expect(await claimLivDaily('2026-09-10')).toEqual({ ok: true, dayKey: '2026-09-10' });
 });
+it('retries only pre-generation preparation failures, never daily terminal results', async () => {
+  state.row = { status: 'skipped_no_topic' };
+  expect(await claimLivDaily('2026-09-12')).toEqual({ ok: false, reason: 'already_done' });
+  expect(await claimLivDaily('2026-09-12', 'prepare')).toEqual({ ok: true, dayKey: '2026-09-12' });
+  expect(state.row.preparationAttempts).toBe(1);
+});
+it('cannot claim a preparation retry a fourth time', async () => {
+  state.row = { status: 'failed', reason: 'liv_trending_http_401', preparationAttempts: 3 };
+  expect(await claimLivDaily('2026-09-12', 'prepare')).toEqual({ ok: false, reason: 'already_done' });
+  expect(state.writes).not.toHaveBeenCalled();
+});
+it('preserves an article checkpoint even when its hash is absent', async () => {
+  state.row = { status: 'skipped_no_topic', articleCheckpoint: { title: 'Already generated' } };
+  expect(await claimLivDaily('2026-09-12', 'prepare')).toEqual({ ok: false, reason: 'already_done' });
+});
 it('preserves generated text and prevents a stale retry from regenerating paid media', async () => {
   const article = { title: 'Kunst i parken', slug: 'kunst', intro: 'Intro', content: 'Gemt tekst' } as GeneratedArticle;
   await checkpointLivDailyArticle('2026-09-10', article);

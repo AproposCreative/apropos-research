@@ -165,7 +165,7 @@ interface TrendingArticle {
 
 /**
  * Vælg et emne til Liv. Returnerer null hvis ingen kandidater opfylder
- * minimumstærsklen — cron'en springer dagen over og prøver igen i morgen.
+ * minimumstærsklen. Transport/auth/schema-fejl kastes, ikke maskeres som ingen emner.
  */
 export async function pickLivTopic(options: PickTopicOptions): Promise<PickedTopic | null> {
   const { baseUrl, topicHint, mustUseTrending = true, limit = 1, dedupeDays = 14, excludedTitles = [] } = options;
@@ -178,18 +178,23 @@ export async function pickLivTopic(options: PickTopicOptions): Promise<PickedTop
   const trendingUrl = new URL('/api/trending', baseUrl).toString();
   let articles: TrendingArticle[] = [];
   try {
-    const res = await fetch(trendingUrl, { cache: 'no-store', headers: internalApiHeaders() });
+    const res = await fetch(trendingUrl, {
+      cache: 'no-store', headers: internalApiHeaders(), redirect: 'error',
+      signal: AbortSignal.timeout(20_000),
+    });
     if (!res.ok) {
       logger.warn('[liv/pick-topic] /api/trending returned non-ok', { status: res.status });
-      return null;
+      throw new Error(`liv_trending_http_${res.status}`);
     }
     const data = await res.json();
-    if (Array.isArray(data?.articles)) {
-      articles = data.articles as TrendingArticle[];
-    }
+    if (!Array.isArray(data?.articles)) throw new Error('liv_trending_invalid_response');
+    articles = data.articles as TrendingArticle[];
   } catch (e) {
-    logger.error('[liv/pick-topic] failed to fetch trending', e instanceof Error ? e : new Error(String(e)));
-    return null;
+    // Never echo upstream HTML, request headers or redirect URLs to the UI/history.
+    const code = e instanceof Error && /^liv_trending_(http_\d{3}|invalid_response)$/.test(e.message)
+      ? e.message : 'liv_trending_unavailable';
+    logger.error('[liv/pick-topic] failed to fetch trending', new Error(code));
+    throw new Error(code);
   }
 
   if (articles.length === 0) {

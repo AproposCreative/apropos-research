@@ -1,6 +1,6 @@
 import { beforeEach, afterEach, it, expect, vi } from 'vitest';
 import { NextRequest } from 'next/server';
-const mocks = vi.hoisted(() => ({ publish: vi.fn(), live: vi.fn(), finish: vi.fn(), gates: vi.fn(), claim: vi.fn(), readback: vi.fn(), analytics: vi.fn(), media: vi.fn(), checkpoint: vi.fn(), admission: vi.fn(), proof: vi.fn() }));
+const mocks = vi.hoisted(() => ({ topic: vi.fn(), publish: vi.fn(), live: vi.fn(), finish: vi.fn(), gates: vi.fn(), claim: vi.fn(), readback: vi.fn(), analytics: vi.fn(), media: vi.fn(), checkpoint: vi.fn(), admission: vi.fn(), proof: vi.fn() }));
 vi.mock('@/lib/liv/prepared-admission', () => ({ admitPreparedArticle: mocks.admission }));
 vi.mock('@/lib/liv/automatic-media', () => ({ prepareLivAutomaticMedia: mocks.media }));
 vi.mock('@/lib/liv/publish-verified', () => ({ publishVerifiedLivArticle: mocks.live }));
@@ -8,7 +8,7 @@ vi.mock('@/lib/cron/cron-auth', () => ({ requireCronBearer: () => null }));
 vi.mock('@/lib/config/env', () => ({ env: {} }));
 vi.mock('@/lib/liv/daily-history-store', () => ({ claimLivDaily: mocks.claim, finishLivDaily: mocks.finish,
   checkpointLivDailyCmsItem: vi.fn(), checkpointLivDailyArticle: mocks.checkpoint, checkpointPreparationProof: mocks.proof, todayDayKeyUTC: () => '2026-09-09' }));
-vi.mock('@/lib/liv/pick-topic', () => ({ pickLivTopic: async () => ({ title: 'Et museum åbner', source: { url: 'https://museum.dk/news' } }) }));
+vi.mock('@/lib/liv/pick-topic', () => ({ pickLivTopic: mocks.topic }));
 vi.mock('@/lib/liv/generate-article', () => ({ generateLivArticle: async () => ({ title: 'Et museum åbner', subtitle: 'En ny udstilling', intro: 'Intro', content: 'Kultur '.repeat(1000), slug: 'et-museum-aabner', excerpt: 'Udstilling', section: 'Kunst', seoTitle: 'Museum', seoDescription: 'Udstilling', researchSources: [{ url: 'https://museum.dk/news', source: 'Museum' }, { url: 'https://kultur.dk/news', source: 'Kultur' }] }) }));
 vi.mock('@/lib/liv/build-cms-payload', () => ({ buildLivCmsPayload: () => ({ title: 'Et museum åbner' }) }));
 vi.mock('@/lib/liv/run-safety-gates', () => ({ runSafetyGates: mocks.gates }));
@@ -31,6 +31,7 @@ beforeEach(() => {
   vi.stubEnv('LIV_DAILY_PUBLICATION_MODE', 'auto_publish');
   vi.stubEnv('LIV_DAILY_PAUSED', '0');
   mocks.claim.mockResolvedValue({ ok: true });
+  mocks.topic.mockResolvedValue({ title: 'Et museum åbner', source: { url: 'https://museum.dk/news' } });
   mocks.media.mockImplementation(async article => article);
   mocks.gates.mockResolvedValue({ pass: true, results: [] });
   mocks.publish.mockResolvedValue(saveResult);
@@ -38,6 +39,24 @@ beforeEach(() => {
   mocks.live.mockResolvedValue({ publicationVerified: true, publicUrl: 'https://www.aproposmagazine.com/articles/et-museum-aabner' });
 });
 afterEach(() => vi.unstubAllEnvs());
+it('surfaces research failure without generating media or pretending the day had no topic', async () => {
+  vi.stubEnv('VERCEL_ENV', 'production');
+  mocks.topic.mockRejectedValue(new Error('liv_trending_http_401'));
+  const response = await GET(new NextRequest('https://protected.vercel.app/api/cron/liv-daily-article'));
+  expect(response.status).toBe(500);
+  expect(mocks.topic).toHaveBeenCalledWith(expect.objectContaining({ baseUrl: 'https://ai.aproposmagazine.com' }));
+  expect(mocks.finish).toHaveBeenCalledWith('2026-09-09', expect.objectContaining({ status: 'failed', reason: 'liv_trending_http_401' }));
+  expect(mocks.media).not.toHaveBeenCalled();
+  expect(mocks.publish).not.toHaveBeenCalled();
+  expect(mocks.checkpoint).not.toHaveBeenCalled();
+});
+it('returns JSON for a failed dry-run without claiming or writing history', async () => {
+  mocks.topic.mockRejectedValue(new Error('liv_trending_http_401'));
+  const response = await GET(new NextRequest('http://localhost/api/cron/liv-daily-article?dryRun=1'));
+  expect(response.status).toBe(503);
+  expect(await response.json()).toMatchObject({ ok: false, dryRun: true, error: 'liv_trending_http_401' });
+  expect(mocks.claim).not.toHaveBeenCalled(); expect(mocks.finish).not.toHaveBeenCalled();
+});
 it('keeps researched auto-mode articles as drafts while image/CMS checks are missing', async () => {
   const response = await GET(new NextRequest('http://localhost/api/cron/liv-daily-article'));
   const result = await response.json();

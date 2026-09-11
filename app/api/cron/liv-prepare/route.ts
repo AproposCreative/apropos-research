@@ -8,6 +8,7 @@ import { readDeliveryState, claimPreparation, releasePreparation } from '@/lib/l
 import { defaultEditorialPlan, preparationCandidates } from '@/lib/liv/rolling-plan';
 import { runLivDaily } from '@/lib/liv/run-daily';
 import { admitPreparedArticle, type PreparationProof } from '@/lib/liv/prepared-admission';
+import { canRetryUnstartedPreparation } from '@/lib/liv/preparation-retry';
 
 export const maxDuration = 300;
 export async function GET(req: NextRequest) {
@@ -47,7 +48,7 @@ export async function GET(req: NextRequest) {
             return NextResponse.json({ status: 'recovered_ready_draft', day: candidate.dayKey });
           } catch { /* Unready work is retained; try another candidate instead. */ }
         }
-        continue;
+        if (!canRetryUnstartedPreparation(row)) continue;
       }
       return await runLivDaily(req, { ...candidate, defaultPlan: defaultEditorialPlan(candidate.dayKey, scope === 'reserve') });
     }
