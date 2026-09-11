@@ -302,7 +302,7 @@ export async function getRecentLivDailySlugs(days = 14): Promise<Set<string>> {
   return out;
 }
 
-/** Topics der allerede er dækket af Liv de seneste N dage — bruges til dedupe. */
+/** Topics der allerede er dækket eller afvist i Livs seneste køforsøg — dedupe. */
 export async function getRecentLivDailyTopics(days = 14): Promise<Set<string>> {
   const out = new Set<string>();
   const db = getAdminDb();
@@ -316,7 +316,9 @@ export async function getRecentLivDailyTopics(days = 14): Promise<Set<string>> {
       .get();
     for (const doc of snap.docs) {
       const data = doc.data();
-      if (data?.status !== 'published') continue;
+      // A failed preparation must not keep selecting the same source topic on
+      // every retry. Published topics remain deduped as before; unstarted
+      // preparation failures are also excluded so the next run can move on.
       const topic = data?.topic;
       if (typeof topic === 'string' && topic.trim()) out.add(topic.trim().toLowerCase());
       if (out.size >= days) break;
