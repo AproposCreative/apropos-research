@@ -71,5 +71,8 @@ export function preparationCandidates(state: DeliveryState, today: string) {
   const reserves = count >= LIV_RESERVE_TARGET ? [] : Array.from({ length: LIV_RESERVE_TARGET }, (_, i) =>
     ({ dayKey: addDays(today, i), kind: 'reserve' as const }));
   const tomorrow = scheduled.filter(p => p.dayKey === dates[0]);
-  return [...tomorrow, ...reserves, ...scheduled.filter(p => p.dayKey !== dates[0])];
+  const overflow = scheduled.length === dates.length && state.entries.length > 0
+    ? Array.from({ length: 14 }, (_, i) => ({ dayKey: addDays(today, LIV_PLAN_DAYS + i + 1), kind: 'scheduled' as const }))
+    : [];
+  return [...tomorrow, ...reserves, ...scheduled.filter(p => p.dayKey !== dates[0]), ...overflow];
 }
