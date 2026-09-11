@@ -1,20 +1,22 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useState } from 'react';
 import { useAuth } from '@/lib/auth-context';
 import type { DeskStory } from '@/lib/editorial/desk-types';
-import LivPostingClient from './LivPostingClient';
 import type { AudienceSnapshot } from '@/lib/editorial/audience-research';
 import { readJsonResponse } from '@/lib/api/read-json-response';
 import LivImageSelection from './LivImageSelection';
 import LivApprovalFeed from './LivApprovalFeed';
+import LivPublicationHistory from './LivPublicationHistory';
+import LivContentColumn from './LivContentColumn';
 
-const tabs = ['Ugens historier', 'Overblik', 'Historier', 'Kilder og dækning', 'Udgivelser', 'Indstillinger'] as const;
+const LivPostingClient = lazy(() => import('./LivPostingClient'));
+type View = 'upcoming' | 'published' | 'settings' | 'research' | 'manual';
 const labels: Record<DeskStory['status'], string> = { discovered: 'Idé', researching: 'Research i gang', researched: 'Research klar', drafting: 'Liv skriver', draft: 'Udkast klar', failed: 'Kræver handling' };
 
 export default function LivDeskClient({ onClose, onOpenWriter }: { onClose: () => void; onOpenWriter: (story: DeskStory) => void }) {
   const { user } = useAuth();
-  const [tab, setTab] = useState<typeof tabs[number]>('Ugens historier');
+  const [view, setView] = useState<View>('upcoming');
   const [stories, setStories] = useState<DeskStory[]>([]);
   const [selected, setSelected] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -33,7 +35,7 @@ export default function LivDeskClient({ onClose, onOpenWriter }: { onClose: () =
     try { const data = await request(); if (!Array.isArray(data.stories)) throw new Error('Serveren returnerede ikke en gyldig historiekø.'); setStories(data.stories); setAudience(data.audience || null); setLoaded(true); setError(''); }
     catch (e) { setLoaded(false); setError(e instanceof Error ? e.message : 'Der opstod en fejl.'); }
   }, [request]);
-  useEffect(() => { if (tab === 'Overblik' || tab === 'Historier' || tab === 'Kilder og dækning') void refresh(); }, [refresh, tab]);
+  useEffect(() => { if (view === 'research') void refresh(); }, [refresh, view]);
   async function act(action: string, id?: string, extra?: object) {
     setBusy(true); setError('');
     try { await request({ action, id, ...extra }); await refresh(); }
@@ -41,17 +43,44 @@ export default function LivDeskClient({ onClose, onOpenWriter }: { onClose: () =
     finally { setBusy(false); }
   }
   const current = stories.find(s => s.id === selected);
-  const button = 'rounded-lg border border-white/20 px-3 py-2 text-sm hover:bg-white/10 disabled:opacity-40';
-  return <section className="flex h-full flex-col text-white font-poppins">
-    <header className="flex items-center justify-between border-b border-white/10 p-5"><div><h1 className="text-lg">Liv · Redaktion</h1><p className="text-xs text-white/50">Research, egne vinkler og artikeludkast</p></div><button className={button} onClick={onClose} aria-label="Luk Liv Redaktion">✕</button></header>
-    <nav aria-label="Redaktionens faner" className="flex gap-2 overflow-x-auto p-3 border-b border-white/10">{tabs.map(t => <button key={t} onClick={() => setTab(t)} aria-current={tab === t ? 'page' : undefined} className={`${button} shrink-0 ${tab === t ? 'bg-white/15' : ''}`}>{t}</button>)}</nav>
-    {error && tab !== 'Ugens historier' && <p role="alert" className="p-4 text-sm text-amber-200">{error}</p>}
-    {tab === 'Ugens historier' ? <LivApprovalFeed /> : tab === 'Indstillinger' || tab === 'Udgivelser' ? <div className="min-h-0 flex-1"><LivPostingClient key={tab} embedded initialTab={tab === 'Udgivelser' ? 'history' : 'topic'} /></div> : <div className="flex-1 overflow-y-auto p-5 space-y-5">
-      {tab === 'Overblik' && <><div className="rounded-xl border border-white/15 p-4"><h2>Dit redaktionelle overblik</h2><p className="text-sm text-white/60 mt-2">{loaded ? `${stories.length} historier · ${stories.filter(s => s.status === 'draft').length} udkast · ${stories.filter(s => s.status === 'failed').length} kræver handling` : 'Historik er ikke indlæst. Antal historier og udkast er ukendt.'}</p><p className="text-xs text-white/50 mt-3">Denne kø gemmer research og udkast. Åbn et udkast i Writer for redigering, billeder og kvalitetstjek. Daglig cron og CMS-historik findes under Indstillinger og Udgivelser.</p></div><button className={button} disabled={busy || !user} onClick={() => void act('discover')}>{busy ? 'Arbejder…' : 'Find kulturhistorier'}</button></>}
-      {tab === 'Kilder og dækning' && <><h2>Kilder i dine historier</h2><p className="text-sm text-white/50">Antal registrerede idéer pr. kulturfelt. Dette er ikke en opgørelse over publicerede artikler.</p>{Object.entries(stories.reduce<Record<string, number>>((acc, s) => { acc[s.signal.beat] = (acc[s.signal.beat] || 0) + 1; return acc; }, {})).map(([beat, count]) => <p key={beat} className="flex justify-between border-b border-white/10 pb-2">{beat}<span>{count}</span></p>)}</>}
-      {(tab === 'Overblik' || tab === 'Kilder og dækning') && (
-        <section className="rounded-xl border border-white/15 p-4 space-y-3" aria-label="Læserinteresse">
-          <h2>Stigende interesse hos Apropos</h2>
+  const button = 'min-h-11 rounded-lg border border-white/20 px-3 py-2 text-sm hover:bg-white/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white disabled:opacity-40';
+  const mainView = view === 'upcoming' || view === 'published';
+  return <section className="flex h-full min-h-0 min-w-0 w-full flex-col text-white font-poppins">
+    <header className="shrink-0 border-b border-white/10">
+      <LivContentColumn className="flex items-center justify-between gap-2 py-4">
+      <div className="min-w-0"><h1 className="text-lg font-medium">Liv · Redaktion</h1><p className="mt-1 text-xs text-white/50">Dit valg. Liv skriver.</p></div>
+      <div className="flex shrink-0 gap-1">
+        <button className={`${button} min-w-11 border-transparent`} onClick={() => setView('settings')} aria-label="Indstillinger og værktøjer" aria-pressed={!mainView}>
+          <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="m9 3-.7 2.2-2 .9L4 5.6 2 9l1.6 1.7v2.6L2 15l2 3.4 2.3-.5 2 .9L9 21h4l.7-2.2 2-.9 2.3.5 2-3.4-1.6-1.7v-2.6L20 9l-2-3.4-2.3.5-2-.9L13 3Z"/><circle cx="11" cy="12" r="3"/></svg>
+        </button>
+        <button className={`${button} min-w-11 border-transparent`} onClick={onClose} aria-label="Luk Liv Redaktion">✕</button>
+      </div>
+      </LivContentColumn>
+    </header>
+    {mainView ? <nav aria-label="Redaktionens faner" className="shrink-0 border-b border-white/10">
+      <LivContentColumn className="grid grid-cols-2 gap-2 py-2">
+      {([{ id: 'upcoming', label: 'Kommende' }, { id: 'published', label: 'Udgivet' }] as const).map(t => <button key={t.id} onClick={() => setView(t.id)} aria-current={view === t.id ? 'page' : undefined} className={`${button} min-w-0 border-transparent ${view === t.id ? 'bg-white/15 text-white' : 'text-white/55'}`}>{t.label}</button>)}
+      </LivContentColumn>
+    </nav> : <div className="shrink-0 border-b border-white/10"><LivContentColumn className="py-2"><button className={`${button} border-transparent`} onClick={() => setView(view === 'settings' ? 'upcoming' : 'settings')}>← {view === 'settings' ? 'Til historierne' : 'Til indstillinger'}</button></LivContentColumn></div>}
+    {view === 'upcoming' && <LivApprovalFeed />}
+    {view === 'published' && <LivPublicationHistory />}
+    {view === 'settings' && <div className="min-h-0 flex-1 overflow-y-auto"><LivContentColumn className="space-y-5 py-6">
+      <h2 className="text-xl font-medium">Indstillinger og værktøjer</h2>
+      <p className="text-sm leading-relaxed text-white/60">Til det redaktionelle arbejde bag historierne. Dine daglige valg ligger under Kommende.</p>
+      <div className="divide-y divide-white/10 rounded-xl border border-white/15">
+        <button onClick={() => setView('research')} className="block w-full space-y-2 p-5 text-left hover:bg-white/5 focus-visible:outline focus-visible:outline-white"><span className="block font-medium">Research og kilder →</span><span className="block text-sm text-white/55">Idéer, kildegrundlag og udkast. Åbn en historie i Writer.</span></button>
+        <button onClick={() => setView('manual')} className="block w-full space-y-2 p-5 text-left hover:bg-white/5 focus-visible:outline focus-visible:outline-white"><span className="block font-medium">Avanceret drift →</span><span className="block text-sm text-white/55">Udgivelsesstatus, fejllog og manuel planlægning.</span></button>
+      </div>
+    </LivContentColumn></div>}
+    {view === 'manual' && <div className="min-h-0 flex-1"><Suspense fallback={<p role="status" className="p-5 text-sm text-white/60">Henter drift…</p>}><LivPostingClient embedded initialTab="history" /></Suspense></div>}
+    {view === 'research' && <div className="min-h-0 flex-1 overflow-y-auto"><LivContentColumn className="space-y-5 py-6">
+      <h2 className="text-xl font-medium">Research og kilder</h2>
+      {error && <p role="alert" className="text-sm text-amber-200">{error}</p>}
+      <p className="text-sm text-white/60">{loaded ? `${stories.length} idéer · ${stories.filter(s => s.status === 'draft').length} udkast · ${stories.filter(s => s.status === 'failed').length} kræver handling` : 'Henter redaktionens udkast…'}</p>
+      <button className={button} disabled={busy || !user} onClick={() => void act('discover')}>{busy ? 'Arbejder…' : 'Find kulturhistorier'}</button>
+        <details className="rounded-xl border border-white/15 p-4 space-y-3">
+          <summary className="cursor-pointer py-2 text-sm">Læserinteresse og dækning</summary>
+          {Object.entries(stories.reduce<Record<string, number>>((acc, s) => { acc[s.signal.beat] = (acc[s.signal.beat] || 0) + 1; return acc; }, {})).map(([beat, count]) => <p key={beat} className="flex justify-between border-b border-white/10 pb-2">{beat}<span>{count} idéer</span></p>)}
           <p className="text-xs text-white/60">{audience?.period || 'Analytics opdateres, når du vælger Find kulturhistorier.'}</p>
           {audience && <>
             <p className="text-xs text-white/60">{audience.note}</p>
@@ -62,11 +91,10 @@ export default function LivDeskClient({ onClose, onOpenWriter }: { onClose: () =
               <p className="text-xs text-white/50">{signal.views} visninger i går · normalt {Math.round(signal.baselineDailyViews)} pr. dag</p>
             </div>)}
           </>}
-        </section>
-      )}
-      <div className="flex justify-between items-center"><h2>{tab === 'Kilder og dækning' ? 'Historier og kildegrundlag' : 'Historiekø'}</h2><button className={button} disabled={busy} onClick={() => void refresh()}>Opdater</button></div>
+        </details>
+      <div className="flex justify-between items-center"><h2>Idéer og udkast</h2><button className={button} disabled={busy} onClick={() => void refresh()}>Opdater</button></div>
       {!loaded && !error && <p role="status">Henter historier…</p>}
-      {loaded && !stories.length && <p className="text-sm text-white/50">Ingen historier endnu. Vælg “Find kulturhistorier” under Overblik.</p>}
+      {loaded && !stories.length && <p className="text-sm text-white/50">Ingen idéer endnu. Vælg “Find kulturhistorier” ovenfor.</p>}
       {stories.map(story => <button key={story.id} className={`w-full text-left rounded-xl border p-4 ${selected === story.id ? 'border-white/50 bg-white/10' : 'border-white/15'}`} onClick={() => setSelected(story.id)}><p className="text-xs text-white/50">{story.signal.beat} · {labels[story.status]}</p><h3 className="mt-2">{story.article?.title || story.signal.title}</h3></button>)}
       {current && <article className="rounded-xl border border-white/20 p-4 space-y-3"><h2>{current.signal.title}</h2><p className="text-sm text-white/65">{current.signal.angle}</p>{current.error && <p role="alert">{current.error}</p>}
         {current.signal.priorityReason && <p className="text-xs text-white/50">Prioritering: {current.signal.priorityReason}</p>}
@@ -84,6 +112,6 @@ export default function LivDeskClient({ onClose, onOpenWriter }: { onClose: () =
           <p className="text-xs text-amber-200">Ikke publiceringsgodkendt. Faktabelæg, billedrettigheder og de faktiske Webflow-referencer skal kontrolleres. Kontrollen gælder køens gemte udkast, ikke senere ændringer i Writer.</p>
         </section>}
       </article>}
-    </div>}
+    </LivContentColumn></div>}
   </section>;
 }

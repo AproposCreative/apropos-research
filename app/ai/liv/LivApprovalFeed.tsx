@@ -5,6 +5,7 @@ import Image from 'next/image';
 import { useAuth } from '@/lib/auth-context';
 import { readJsonResponse } from '@/lib/api/read-json-response';
 import type { ApprovalFeed, ApprovalStory } from '@/lib/liv/approval-types';
+import LivContentColumn from './LivContentColumn';
 
 const decisions = { pending: 'Afventer dit valg', approved: 'Godkendt', rejected: 'Afvist' };
 function dateLabel(day: string) {
@@ -103,12 +104,12 @@ export default function LivApprovalFeed() {
     } finally { busy.current = false; setSaving(null); }
   }
   return <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
-    <div className="mx-auto max-w-[640px] space-y-5 px-3 py-6 sm:px-5">
-      <header className="space-y-3 px-2">
+    <LivContentColumn className="space-y-5 py-6">
+      <header className="space-y-3">
         <div className="flex items-center justify-between gap-3"><h2 className="text-xl font-medium">Ugens historier</h2>
           <button className="min-h-11 px-2 text-sm text-white/70 underline underline-offset-4 disabled:opacity-40" disabled={loading || !!saving} onClick={() => void refresh()}>Opdater</button></div>
-        <p className="text-sm leading-relaxed text-white/65">Vælg det, du vil læse. Godkendte historier får førsteprioritet, når de kan udgives. Vælger du ikke, vælger Liv. Afviste historier bliver aldrig valgt.</p>
-        <p className="text-xs text-white/45">Fem forslag ad gangen · Du kan ændre dit valg indtil udgivelsen starter.</p>
+        <p className="text-sm leading-relaxed text-white/65">Godkend dine favoritter. Vælger du ikke, vælger Liv. Afviste historier springes over.</p>
+        <p className="text-xs text-white/45">Fem ad gangen · Dit valg kan ændres indtil udgivelsen starter.</p>
       </header>
       {notice && <p role="status" className="rounded-xl border border-emerald-300/20 bg-emerald-300/5 p-4 text-sm text-emerald-200">{notice}</p>}
       {error && <p role="alert" className="rounded-xl border border-amber-200/20 p-4 text-sm text-amber-200">{error}</p>}
@@ -121,6 +122,6 @@ export default function LivApprovalFeed() {
         saving={saving === story.itemId} onDecide={decision => void decide(story, decision)} />)}
       {feed?.nextOffset != null && <button className="min-h-12 w-full rounded-xl border border-white/20 p-3 text-sm disabled:opacity-40"
         disabled={loading || !!saving} onClick={() => void refresh(feed.nextOffset!)}>{loading ? 'Henter…' : 'Vis fem mere'}</button>}
-    </div>
+    </LivContentColumn>
   </div>;
 }
