@@ -45,8 +45,13 @@ const RESERVE_QUESTIONS = [
 export function defaultEditorialPlan(day: string, reserve = false): LivDailyPlan {
   const questions = reserve ? RESERVE_QUESTIONS : QUESTIONS;
   const index = Math.floor(Date.parse(`${day}T12:00:00Z`) / 86_400_000) % questions.length;
-  return { dayKey: day, topicHint: questions[index],
-    directiveHint: 'Skriv en selvstændig dansk kulturfeature i Livs Apropos-stemme. Besvar spørgsmålet med ' +
+  // The question is an editorial lens, not a literal topic. Keeping it out of
+  // topicHint lets the picker choose a concrete, current source-backed story;
+  // the old behavior often turned the question into a synthetic topic with no
+  // usable evidence, leaving the weekly feed empty.
+  return { dayKey: day,
+    directiveHint: `Skriv en selvstændig dansk kulturfeature i Livs Apropos-stemme. Brug dette redaktionelle spørgsmål som vinkel, men vælg et konkret aktuelt værk, navn eller kulturfænomen fra researchen: ${questions[index]} ` +
+      'Besvar spørgsmålet med ' +
       'konkrete, kildebelagte værker eller eksempler, kulturel fortolkning, modargument og en tydelig egen tese. ' +
       'Ingen opdigtede oplevelser, interviews, aktuelle begivenheder eller anmeldelsesstjerner. ' +
       'Undgå genbrug af nyligt dækkede vinkler. ' +
