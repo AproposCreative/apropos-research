@@ -18,8 +18,16 @@ export function articleUnits(text: string): { id: string; text: string }[] {
   while (remaining.length) {
     let end = Math.min(1800, remaining.length);
     if (end < remaining.length) {
-      const boundary = remaining.lastIndexOf(' ', end);
-      if (boundary > 900) end = boundary + 1;
+      // Keep the premise and qualification together. Only fall back to spaces
+      // for unusually long paragraphs/sentences; never omit any characters.
+      const paragraph = remaining.lastIndexOf('\n', end - 1);
+      const sentences = [...remaining.slice(0, end).matchAll(/[.!?](?:<\/p>)?\s+/gu)];
+      const sentence = sentences.at(-1);
+      const sentenceEnd = sentence ? sentence.index! + sentence[0].length : 0;
+      const space = remaining.lastIndexOf(' ', end - 1);
+      if (paragraph >= 900) end = paragraph + 1;
+      else if (sentenceEnd >= 900) end = sentenceEnd;
+      else if (space >= 900) end = space + 1;
     }
     units.push({ id: `u${units.length + 1}`, text: remaining.slice(0, end) });
     remaining = remaining.slice(end);
@@ -56,7 +64,7 @@ export interface GroundedReport {
   complete: boolean;
   blockers: string[];
   coverage: { expectedUnits: number; checkedUnits: number };
-  results: { claim: string; status: string; evidence: string; citations: { sourceId: string; url: string; quote: string }[] }[];
+  results: { claim: string; status: string; evidence: string; validationErrors?: string[]; citations: { sourceId: string; url: string; quote: string }[] }[];
   sources: Omit<RetrievedSource, 'text'>[];
   diagnostic?: { code: 'insufficient_dated_sources' | 'model_response_incomplete' | 'model_response_invalid_json' | 'model_response_invalid_schema' };
 }
@@ -88,10 +96,12 @@ export function assessGroundedReport(text: string, sources: RetrievedSource[], r
     for (const claim of row.claims) {
       const citations: GroundedReport['results'][number]['citations'] = [];
       let valid = normalize(unit.text).includes(normalize(claim.claim));
+      const validationErrors: string[] = valid ? [] : ['claim_not_in_unit'];
       for (const citation of claim.citations) {
         const source = sourceMap.get(citation.sourceId);
         if (!source || !source.publishedAt || !normalize(source.text).includes(normalize(citation.quote))) {
           valid = false;
+          validationErrors.push(!source ? 'unknown_source' : !source.publishedAt ? 'undated_source' : 'quote_not_in_source');
           continue;
         }
         citations.push({ sourceId: source.id, url: source.url, quote: citation.quote });
@@ -99,7 +109,8 @@ export function assessGroundedReport(text: string, sources: RetrievedSource[], r
       const status = claim.status === 'verified' && (!valid || citations.length === 0) ? 'unverifiable' : claim.status;
       if (status !== 'verified') blockers.push(`Manglende eller modstridende belæg i ${row.id}.`);
       if (status === 'verified') citations.forEach(citation => citedHosts.add(new URL(citation.url).hostname.replace(/^www\./, '')));
-      results.push({ claim: claim.claim, status, evidence: claim.explanation, citations });
+      results.push({ claim: claim.claim, status, evidence: claim.explanation, citations,
+        ...(validationErrors.length ? { validationErrors } : {}) });
     }
   }
   if (checked.size !== units.length) blockers.push('Ikke hele artikelteksten er kontrolleret.');

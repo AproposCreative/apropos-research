@@ -41,6 +41,16 @@ it('rejects malformed model JSON', async () => {
   mocks.create.mockResolvedValue({ choices: [{ finish_reason: 'stop', message: { content: '{' } }] });
   expect((await verifyArticleSources(claim, urls)).complete).toBe(false);
 });
+it('retries a provider 500 once, without weakening evidence checks', async () => {
+  mocks.create.mockRejectedValueOnce(Object.assign(new Error('provider unavailable'),{status:500}));
+  expect((await verifyArticleSources(claim,urls)).complete).toBe(true);
+  expect(mocks.create).toHaveBeenCalledTimes(2);
+});
+it.each([401,403,429])('does not retry auth, access or quota responses: %s', async status => {
+  mocks.create.mockRejectedValue(Object.assign(new Error('provider rejection'),{status}));
+  await expect(verifyArticleSources(claim,urls)).rejects.toThrow('provider rejection');
+  expect(mocks.create).toHaveBeenCalledTimes(1);
+});
 it('reviews every mixed-text unit separately without accepting omitted units', async () => {
   const text = `${claim} ${'Dette er min vurdering. '.repeat(170)}`;
   mocks.create.mockImplementation(async (body) => {

@@ -61,6 +61,22 @@ describe('source-grounded verification', () => {
     expect(articleUnits(long).map(unit => unit.text).join('')).toBe(long);
     expect(assessGroundedReport(long, sources(), assessment(), now).complete).toBe(false);
   });
+  it('preserves paragraph and sentence context without omitting characters', () => {
+    const paragraph = `${'x'.repeat(1200)}.\n`;
+    const long = paragraph + 'En hel sætning med et vigtigt forbehold. '.repeat(90);
+    const units = articleUnits(long);
+    expect(units[0].text).toBe(paragraph);
+    expect(units.map(unit => unit.text).join('')).toBe(long.trim());
+    expect(units.every(unit => unit.text.length <= 1800)).toBe(true);
+    expect(units[1].text.trim().endsWith('.')).toBe(true);
+  });
+  it('explains a rejected citation without accepting fabricated evidence', () => {
+    const raw = assessment();
+    raw.units[0].claims[0].citations[0].quote = 'Dette står ikke i kilden og må aldrig godkendes.';
+    const report = assessGroundedReport(text, sources(), raw, now);
+    expect(report.complete).toBe(false);
+    expect(report.results[0].validationErrors).toContain('quote_not_in_source');
+  });
   it('rejects duplicate units and opinion-only responses with claims', () => {
     const raw = assessment(); raw.units.push(raw.units[0]);
     expect(assessGroundedReport(text, sources(), raw, now).complete).toBe(false);
