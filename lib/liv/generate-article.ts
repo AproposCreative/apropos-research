@@ -106,9 +106,9 @@ type WebSearchResult = {
   url?: string | null;
 };
 
-async function fetchWebResearch(query: string, format: LivArticleFormat, timeoutMs = 45000): Promise<WebSearchResult[]> {
+async function fetchWebResearch(query: string, format: LivArticleFormat, timeoutMs = 45000, model = livModels().research): Promise<WebSearchResult[]> {
   const results = await Promise.all(livResearchQueries(query, format).map(subject =>
-    getResearch(subject, { maxResults: 5, model: livModels().research, timeoutMs })));
+    getResearch(subject, { maxResults: 5, model, timeoutMs })));
   return results.flatMap(result => result.sources.map(source => ({
     title: source.title, content: source.snippet, source: source.source, url: source.url,
   })));
@@ -158,18 +158,19 @@ export async function generateLivArticle(options: GenerateArticleOptions): Promi
   const articleFormat = options.articleFormat || 'article';
   const sourceScope = options.sourceScope || 'liv-daily';
   const preparation = options.preparation === true;
-  const modelTimeoutMs = preparation ? 60_000 : 90_000;
+  const modelTimeoutMs = 90_000;
   const client = getOpenAIClient();
   if (!client) {
     throw new Error('OPENAI_API_KEY mangler — kan ikke generere Liv-artikel.');
   }
 
   const voice = loadLivVoice();
-  const generationModel = livModels().article;
+  const generationModel = preparation ? livModels().utility : livModels().article;
 
   // Retrieve evidence before writing; source prose is data, never instructions.
   const [discovered, remembered] = await Promise.all([
-    fetchWebResearch(topic.title, articleFormat, preparation ? 30_000 : 45_000), recalledSourceUrls(sourceScope, topic.title),
+    fetchWebResearch(topic.title, articleFormat, preparation ? 30_000 : 45_000,
+      preparation ? livModels().utility : livModels().research), recalledSourceUrls(sourceScope, topic.title),
   ]);
   const sources = await buildResearchBundle([
     ...extractResearchUrls(options.directiveHint || ''),
