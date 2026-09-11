@@ -35,6 +35,9 @@ export function readConfigFile(): WebflowConfig {
 }
 
 export function getWebflowConfig(): WebflowConfig {
+  // Operational server jobs can explicitly select the rotated service env.
+  // Do not read or copy a stale development token in that mode.
+  if (process.env.WEBFLOW_CONFIG_SOURCE === 'environment') return {};
   return readConfigFile();
 }
 
@@ -64,5 +67,4 @@ export function getTokenPreview(token?: string): string | undefined {
   if (token.length <= 8) return token;
   return `${token.slice(0, 6)}…`;
 }
-
 

@@ -32,6 +32,20 @@ function visibleText(value: unknown): string {
   return stripHtml(text(value)).replace(/\s+/gu, ' ').trim();
 }
 
+// Webflow may rewrite an uploaded image URL to a CDN URL with a new asset
+// prefix. The stable identity is the supplied asset filename, not that prefix.
+function imageAssetKey(value: unknown): string {
+  const raw = text(value);
+  try {
+    const pathname = new URL(raw).pathname;
+    const filename = decodeURIComponent(pathname.slice(pathname.lastIndexOf('/') + 1));
+    const marker = filename.indexOf('apropos-');
+    return marker >= 0 ? filename.slice(marker) : filename;
+  } catch {
+    return raw;
+  }
+}
+
 /** GET-only adapter. Credentials stay server-side; upstream bodies are not logged. */
 export async function readLivWebflowJson(path: string): Promise<JsonObject> {
   // Only CMS schema/item reads with validated IDs, never arbitrary URLs.
@@ -182,7 +196,7 @@ export async function inspectLivCmsDraft(input: {
   checks.push({ id: 'image:body-count', ok: bodyImages.length >= 2 && bodyImages.length <= 12 &&
     new Set(urls).size === bodyImages.length && !urls.includes(text(object(fields.thumb).url)) &&
     !urls.includes(input.expected.featuredImage || '') });
-  checks.push({ id: 'image:body-matches', ok: JSON.stringify(urls) === JSON.stringify(expectedUrls) &&
+  checks.push({ id: 'image:body-matches', ok: urls.map(imageAssetKey).join('\n') === expectedUrls.map(imageAssetKey).join('\n') &&
     bodyImages.every((image, index) => {
       const expectedImage = expectedBody(expectedBody('img').toArray()[index]);
       return body(image).attr('alt') === expectedImage.attr('alt') &&
