@@ -18,6 +18,7 @@ it('uses fetched source text, deduplicates URLs and returns evidence', async () 
   expect(report.complete).toBe(true);
   expect(mocks.retrieve).toHaveBeenCalledTimes(2);
   const [body, options] = mocks.create.mock.calls[0];
+  expect(body.reasoning_effort).toBe('low');
   expect(JSON.parse(body.messages[1].content).sources[0].text).toBe(claim);
   expect(options.maxRetries).toBe(0);
   expect(options.timeout).toBe(90000);
