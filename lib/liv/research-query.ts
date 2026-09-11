@@ -5,7 +5,10 @@ export function livResearchQueries(title: string, format: LivArticleFormat = 'ar
   // Do not truncate real work titles such as "Star Wars: A New Hope".
   const subject = title.trim().split(/(?:\s+[–—]\s+|:\s+)(?=(?:når|hvorfor|hvordan|hvad|derfor)\b)/iu)[0].trim().slice(0, 180);
   if (!subject) throw new Error('research_query_missing');
-  return [subject, format === 'research-review'
-    ? `${subject} anmeldelse review`
-    : `${subject} interview baggrund intention kontekst`];
+  return [
+    `${subject} official source statement programme credits`,
+    format === 'research-review'
+      ? `${subject} independent review criticism context`
+      : `${subject} independent journalism interview background context`,
+  ];
 }

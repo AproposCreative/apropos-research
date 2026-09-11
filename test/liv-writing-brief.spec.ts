@@ -83,12 +83,12 @@ it('segments long sources deterministically into exact bounded excerpts', () => 
 });
 it('uses the work name, not the editorial thesis, for source discovery', () => {
   expect(livResearchQueries('The Invite (2026), Olivia Wilde: Når en middag bliver en stresstest af parforholdet', 'research-review'))
-    .toEqual(['The Invite (2026), Olivia Wilde', 'The Invite (2026), Olivia Wilde anmeldelse review']);
+    .toEqual(['The Invite (2026), Olivia Wilde official source statement programme credits', 'The Invite (2026), Olivia Wilde independent review criticism context']);
   expect(() => livResearchQueries(' ')).toThrow();
-  expect(livResearchQueries('Star Wars: A New Hope')[0]).toBe('Star Wars: A New Hope');
+  expect(livResearchQueries('Star Wars: A New Hope')[0]).toBe('Star Wars: A New Hope official source statement programme credits');
 });
 it('seeks context and intention for ordinary articles, not competitor reviews', () => {
   expect(livResearchQueries('Esben Weile Kjær THIRST TRAP: Hvorfor skal rotten være smuk?'))
-    .toEqual(['Esben Weile Kjær THIRST TRAP', 'Esben Weile Kjær THIRST TRAP interview baggrund intention kontekst']);
+    .toEqual(['Esben Weile Kjær THIRST TRAP official source statement programme credits', 'Esben Weile Kjær THIRST TRAP independent journalism interview background context']);
   expect(livResearchQueries('The Invite', 'article')[1]).not.toMatch(/anmeldelse|review/);
 });
