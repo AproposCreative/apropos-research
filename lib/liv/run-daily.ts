@@ -175,9 +175,7 @@ export async function runLivDaily(req: NextRequest, preparation?: {
   try {
     const prepRow = preparation ? await getAdminDb()?.collection('livDailyArticles')
       .doc(`prepare-${dayKey}`).get() : null;
-    const checkpoint = prepRow?.data()?.status === 'skipped_moderation'
-      ? prepRow?.data()?.articleCheckpoint as GeneratedArticle | undefined
-      : undefined;
+    const checkpoint = prepRow?.data()?.articleCheckpoint as GeneratedArticle | undefined;
     const topic = checkpoint
       ? { title: prepRow?.data()?.topic || checkpoint.title, score: 0,
           source: checkpoint.researchSources?.[0] ? {
