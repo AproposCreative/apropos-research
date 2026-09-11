@@ -48,7 +48,9 @@ export async function GET(req: NextRequest) {
             return NextResponse.json({ status: 'recovered_ready_draft', day: candidate.dayKey });
           } catch { /* Unready work is retained; try another candidate instead. */ }
         }
-        if (!canRetryUnstartedPreparation(row)) continue;
+        const resumableCheckpoint = row?.status === 'skipped_moderation' && row?.articleCheckpoint &&
+          !row?.webflowItemId && !row?.preparationProof;
+        if (!resumableCheckpoint && !canRetryUnstartedPreparation(row)) continue;
       }
       return await runLivDaily(req, { ...candidate, defaultPlan: defaultEditorialPlan(candidate.dayKey, scope === 'reserve') });
     }

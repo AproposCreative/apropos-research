@@ -66,7 +66,10 @@ export async function claimLivDaily(dayKey: string, scope: LivDailyScope = 'dail
       const d = snap.data();
       const status = d?.status as LivDailyStatus | undefined;
 
-      if ((typeof d?.webflowItemId === 'string' && d.webflowItemId.trim()) || d?.articleCheckpoint || d?.articleCheckpointHash || d?.preparationProof) {
+      const resumableCheckpoint = scope !== 'daily' && d?.status === 'skipped_moderation' && d?.articleCheckpoint &&
+        !d?.webflowItemId && !d?.preparationProof;
+      if ((typeof d?.webflowItemId === 'string' && d.webflowItemId.trim()) ||
+        ((!resumableCheckpoint) && (d?.articleCheckpoint || d?.articleCheckpointHash || d?.preparationProof))) {
         result = { ok: false, reason: 'already_done' };
         return;
       }

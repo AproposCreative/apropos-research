@@ -14,6 +14,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { requireCronBearer } from '@/lib/cron/cron-auth';
+import { getAdminDb } from '@/lib/firebase-admin';
 import { livInternalOrigin } from '@/lib/liv/internal-origin';
 import { logger } from '@/lib/logger';
 import {
@@ -28,6 +29,7 @@ import {
 } from '@/lib/liv/daily-history-store';
 import { pickLivTopic } from '@/lib/liv/pick-topic';
 import { generateLivArticle } from '@/lib/liv/generate-article';
+import type { GeneratedArticle } from '@/lib/liv/generate-article';
 import { prepareLivAutomaticMedia } from '@/lib/liv/automatic-media';
 import { buildLivCmsPayload } from '@/lib/liv/build-cms-payload';
 import { checkCmsDraft } from '@/lib/editorial/cms-preflight';
@@ -171,11 +173,21 @@ export async function runLivDaily(req: NextRequest, preparation?: {
   const { topicHint, mustUseTrending } = resolveLivTopicInputsFromPlan(plan);
 
   try {
-    const topic = await pickLivTopic({
-      baseUrl,
-      topicHint,
-      mustUseTrending,
-    });
+    const prepRow = preparation ? await getAdminDb()?.collection('livDailyArticles')
+      .doc(`prepare-${dayKey}`).get() : null;
+    const checkpoint = prepRow?.data()?.status === 'skipped_moderation'
+      ? prepRow?.data()?.articleCheckpoint as GeneratedArticle | undefined
+      : undefined;
+    const topic = checkpoint
+      ? { title: prepRow?.data()?.topic || checkpoint.title, score: 0,
+          source: checkpoint.researchSources?.[0] ? {
+            title: checkpoint.researchSources[0].title,
+            url: checkpoint.researchSources[0].url || undefined,
+            excerpt: checkpoint.researchSources[0].snippet,
+            sourceName: checkpoint.researchSources[0].source,
+            publishedAt: checkpoint.researchSources[0].publishedAt || undefined,
+          } : undefined }
+      : await pickLivTopic({ baseUrl, topicHint, mustUseTrending });
     if (!topic) {
       await finishLivDaily(dayKey, {
         status: 'skipped_no_topic',
@@ -190,7 +202,7 @@ export async function runLivDaily(req: NextRequest, preparation?: {
     }
     pickedTopicTitle = topic.title;
 
-    let article = await generateLivArticle({
+    let article = checkpoint ?? await generateLivArticle({
       topic,
       expandedDirective: plan?.expandedDirective,
       directiveHint: plan?.directiveHint,
