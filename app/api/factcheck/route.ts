@@ -3,6 +3,7 @@ import { getOpenAIClient, models } from '@/lib/openai';
 import { isApiRequestAuthorized } from '@/lib/api/middleware-auth';
 import { groundedInput } from '@/lib/factcheck/grounded';
 import { verifyArticleSources } from '@/lib/factcheck/verify-article';
+import { logger } from '@/lib/logger';
 
 export const maxDuration = 120;
 
@@ -41,7 +42,14 @@ export async function POST(request: NextRequest) {
     if (!parsed.success) return NextResponse.json({ error: 'Faktatjek kræver artikeltekst (20-40000 tegn) og 1-8 kilde-URL’er.' }, { status: 400 });
     try {
       return NextResponse.json(await verifyArticleSources(parsed.data.articleText, parsed.data.sourceUrls), { headers: { 'Cache-Control': 'no-store' } });
-    } catch {
+    } catch (error) {
+      const failure = error as { name?: unknown; status?: unknown; code?: unknown } | null;
+      // Log only bounded error classification, never provider bodies or credentials.
+      logger.warn('[factcheck] grounded verification failed', {
+        errorType: typeof failure?.name === 'string' ? failure.name.slice(0, 80) : 'unknown',
+        status: typeof failure?.status === 'number' ? failure.status : null,
+        code: typeof failure?.code === 'string' && /^[a-z0-9_-]{1,80}$/i.test(failure.code) ? failure.code : null,
+      });
       return NextResponse.json({ error: 'Kildebaseret faktatjek kunne ikke gennemføres.', complete: false }, { status: 503 });
     }
   }
