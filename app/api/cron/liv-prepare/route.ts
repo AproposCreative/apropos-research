@@ -48,7 +48,8 @@ export async function GET(req: NextRequest) {
             return NextResponse.json({ status: 'recovered_ready_draft', day: candidate.dayKey });
           } catch { /* Unready work is retained; try another candidate instead. */ }
         }
-        const resumableCheckpoint = Array.isArray(row?.articleCheckpoint?.preparedMedia) && row.articleCheckpoint.preparedMedia.length >= 3 &&
+        const resumableCheckpoint = Number(row?.preparationAttempts ?? 0) <= 4 &&
+          Array.isArray(row?.articleCheckpoint?.preparedMedia) && row.articleCheckpoint.preparedMedia.length >= 3 &&
           !row?.webflowItemId && !row?.preparationProof;
         if (!resumableCheckpoint && !canRetryUnstartedPreparation(row)) continue;
       }
