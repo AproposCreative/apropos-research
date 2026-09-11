@@ -261,7 +261,7 @@ export async function generateLivArticle(options: GenerateArticleOptions): Promi
     ],
   }, { timeout: 90000, maxRetries: 0 });
 
-  const rawResponse = completion.choices[0]?.message?.content || '';
+  let rawResponse = completion.choices[0]?.message?.content || '';
   await rememberWritingBrief(sourceScope, topic.title, { runId: researchRunId, writerText: brief.writerText,
     model: completion.model || generationModel, voiceVersion: voice.version, rawResponse,
     ...(completion.usage ? { tokenUsage: { input: completion.usage.prompt_tokens, output: completion.usage.completion_tokens } } : {}),
@@ -283,16 +283,16 @@ export async function generateLivArticle(options: GenerateArticleOptions): Promi
     }
     throw error;
   }
-  const rating = parsed.rating !== null ? { value: parsed.rating, reason: parsed.ratingReason! } : null;
+  let rating = parsed.rating !== null ? { value: parsed.rating, reason: parsed.ratingReason! } : null;
 
-  const slug = slugify(parsed.title);
-  const excerpt = (parsed.intro || parsed.content)
+  let slug = slugify(parsed.title);
+  let excerpt = (parsed.intro || parsed.content)
     .replace(/\s+/g, ' ')
     .trim()
     .slice(0, 220);
 
   // Liv's server-owned utility model also supplies SEO metadata.
-  const seo = await generateSeoMetaAI({
+  let seo = await generateSeoMetaAI({
     title: parsed.title,
     subtitle: parsed.subtitle,
     intro: parsed.intro,
@@ -300,18 +300,69 @@ export async function generateLivArticle(options: GenerateArticleOptions): Promi
     section,
     keywords: topic.tags,
   }, { model: livModels().utility });
-  const finalText = [parsed.title, parsed.subtitle, parsed.intro, parsed.content, rating?.reason, seo.seoTitle, seo.seoDescription].filter(Boolean).join('\n\n');
+  let finalText = [parsed.title, parsed.subtitle, parsed.intro, parsed.content, rating?.reason, seo.seoTitle, seo.seoDescription].filter(Boolean).join('\n\n');
   if (finalText.includes('—')) throw new Error('article_style_invalid: Em dash skal omskrives.');
   if (hasCopiedPassage(finalText, buildStyleReferenceBlock(section, 2, true))) throw new Error('style_sample_copy_detected');
+  let similarityBlocked: { sourceUrl: string; detail: string } | null = null;
   for (const source of sources) {
     if (hasCopiedPassage(finalText, source.text)) throw new Error('source_copy_detected: Sammenhængende tekstoverlap med kilde. Omskrivning kræves.');
     const similarity = await checkSourceSimilarity({ generated: finalText, source: source.text });
     if (!similarity.complete || !similarity.pass) {
-      const error = new SourceSimilarityError(similarity, source, {
+      similarityBlocked = { sourceUrl: source.url, detail: new SourceSimilarityError(similarity, source, {
         text: finalText, model: completion.model || generationModel, voiceVersion: voice.version,
-      });
-      logger.warn('[liv/generate-article] source similarity blocked', error.detail);
-      throw error;
+      }).message };
+      break;
+    }
+  }
+
+  // One bounded originality pass handles false-positive/high-semantic overlap
+  // without weakening the gate. The rewritten article is checked again below;
+  // a second failure remains a hard stop.
+  if (similarityBlocked) {
+    logger.warn('[liv/generate-article] source similarity blocked; retrying originality pass', similarityBlocked);
+    const rewrite = await client.chat.completions.create({
+      model: generationModel,
+      max_completion_tokens: 8000,
+      response_format: livArticleResponseFormat,
+      store: false,
+      messages: [
+        { role: 'system', content: [
+          voice.text,
+          writingBriefContract,
+          'Omskriv et eksisterende udkast til helt selvstændig dansk kulturjournalistik.',
+          'Bevar kun dokumenterbare fakta fra udkastet, men skift åbning, rækkefølge, metaforer, argumentation og formuleringer markant.',
+          'Kopiér ingen sætninger fra kilderne. Skriv ingen førstehåndsoplevelser, citater eller nye fakta.',
+          'Returnér kun JSON efter det krævede schema. Følg samme artikeltype og længdekrav som det oprindelige udkast.',
+        ].join('\n') },
+        { role: 'user', content: JSON.stringify({
+          topic: topic.title,
+          editorialDirection: expandedDirective || options.directiveHint || null,
+          researchNotes: brief.writerText,
+          draftToRewrite: { title: parsed.title, subtitle: parsed.subtitle, intro: parsed.intro, content: parsed.content,
+            rating: parsed.rating, ratingReason: parsed.ratingReason },
+          blockedSourceHost: new URL(similarityBlocked.sourceUrl).hostname,
+        }) },
+      ],
+    }, { timeout: 90000, maxRetries: 0 });
+    if (rewrite.choices[0]?.finish_reason !== 'stop') throw new Error('article_originality_rewrite_incomplete');
+    const rewrittenRaw = rewrite.choices[0]?.message?.content?.trim() || '';
+    if (!rewrittenRaw) throw new Error('article_originality_rewrite_empty');
+    parsed = parseLivArticleOutput(rewrittenRaw, articleFormat);
+    rawResponse = rewrittenRaw;
+    rating = parsed.rating !== null ? { value: parsed.rating, reason: parsed.ratingReason! } : null;
+    slug = slugify(parsed.title);
+    excerpt = (parsed.intro || parsed.content).replace(/\s+/g, ' ').trim().slice(0, 220);
+    seo = await generateSeoMetaAI({ title: parsed.title, subtitle: parsed.subtitle, intro: parsed.intro, content: parsed.content,
+      section, keywords: topic.tags }, { model: livModels().utility });
+    finalText = [parsed.title, parsed.subtitle, parsed.intro, parsed.content, rating?.reason, seo.seoTitle, seo.seoDescription].filter(Boolean).join('\n\n');
+    for (const source of sources) {
+      if (hasCopiedPassage(finalText, source.text)) throw new Error('source_copy_detected: Sammenhængende tekstoverlap efter originality-pass.');
+      const similarity = await checkSourceSimilarity({ generated: finalText, source: source.text });
+      if (!similarity.complete || !similarity.pass) {
+        const error = new SourceSimilarityError(similarity, source, { text: finalText, model: rewrite.model || generationModel, voiceVersion: voice.version });
+        logger.warn('[liv/generate-article] originality pass still blocked', error.detail);
+        throw error;
+      }
     }
   }
 
