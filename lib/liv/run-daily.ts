@@ -158,8 +158,15 @@ export async function runLivDaily(req: NextRequest, preparation?: {
   let pickedTopicTitle: string | undefined;
   let savedWebflowItemId: string | undefined;
   let gateResults: GateResult[] = [];
-  const plan = preparation?.kind === 'reserve' ? preparation.defaultPlan :
-    (await getLivDailyPlan(dayKey)) ?? preparation?.defaultPlan;
+  const savedPlan = await getLivDailyPlan(dayKey);
+  // A failed preparation may have been created with an older rolling-plan
+  // question as a literal topic. Retry it with the current default plan so the
+  // picker can select a concrete source-backed topic after a code/data fix.
+  const plan = preparation?.kind === 'reserve'
+    ? preparation.defaultPlan
+    : preparation
+      ? (savedPlan?.status === 'pending' ? savedPlan : preparation.defaultPlan)
+      : savedPlan;
   const { topicHint, mustUseTrending } = resolveLivTopicInputsFromPlan(plan);
 
   try {

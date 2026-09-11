@@ -29,7 +29,6 @@ it('does not let a legacy pre-generation no-topic record permanently block tomor
   await GET(request()); expect(mocks.run).toHaveBeenCalledTimes(1);
 });
 it.each([
-  { status: 'failed', reason: 'liv_media_unavailable' },
   { status: 'skipped_no_topic', articleCheckpoint: { title: 'Saved work' } },
   { status: 'skipped_no_topic', preparationAttempts: 3 },
   { status: 'failed', webflowItemId: 'known-item' },
