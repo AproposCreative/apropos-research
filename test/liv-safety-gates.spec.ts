@@ -153,14 +153,15 @@ describe('Liv safety gates', () => {
     const gate = result.results.find(gate => gate.name === 'factcheck')!;
     expect(result).toMatchObject({ pass: false, failedGate: 'verification-complete', anyGateSkipped: true });
     expect(gate.diagnosticEvidence).toEqual(failed);
-    expect(gate.diagnosticEvidence!.results[0]).toMatchObject({ status: 'unverifiable', validationErrors: ['undated_source'] });
+    expect(gate.diagnosticEvidence!.results[0].status).toBe('verified');
+    expect(gate.diagnosticEvidence!.blockers).toContain('Der kræves belæg fra mindst to kildeværter.');
     expect(gate).not.toHaveProperty('evidence');
     expect(vi.mocked(fetch)).toHaveBeenCalledTimes(2);
     expect(vi.mocked(fetch).mock.calls.some(call => String(call[0]).includes('/api/critic/tov'))).toBe(false);
   });
 
   it('reuses an exact fresh failed report without buying the same factcheck or a voice review', async () => {
-    const failed = report('verified', true);
+    const failed = report('unverifiable');
     const fetchMock = vi.fn().mockResolvedValueOnce(jsonResponse({ data: { metrics: { wordCount: 700, plagiarismRisk: 'low' } } }));
     vi.stubGlobal('fetch', fetchMock);
     const result = await runSafetyGates({ ...diagnosticInput, priorFactcheck: failed,
@@ -173,6 +174,28 @@ describe('Liv safety gates', () => {
   const editorialFields = { title: diagnosticInput.title, subtitle: 'Undertitel', seoDescription: 'SEO',
     intro: diagnosticInput.intro, content: diagnosticInput.content };
   const fieldContextHash = livEditorialFieldContext(diagnosticText, editorialFields).hash;
+  it.each([undefined, 'retrieved-sources-v1'])('rechecks failed reports under policy %s without modifying saved evidence', async policyVersion => {
+    const old = { ...report('unverifiable'), policyVersion, fieldContextHash };
+    old.results[0].validationErrors = ['undated_source'];
+    const before = structuredClone(old);
+    respondWithFactcheck({ ...report(), editorialReview: editorialProof(), fieldContextHash });
+    const result = await runSafetyGates({ ...diagnosticInput, editorialFields, priorFactcheck: old });
+    expect(result.pass).toBe(true);
+    expect(old).toEqual(before);
+    expect(vi.mocked(fetch)).toHaveBeenCalledTimes(2);
+    expect(vi.mocked(fetch).mock.calls.some(call => String(call[0]).includes('/api/factcheck'))).toBe(true);
+  });
+  it.each([undefined, 'retrieved-sources-v1'])('keeps successful stricter-policy %s reports reusable', async policyVersion => {
+    const saved = { ...report(), policyVersion, editorialReview: editorialProof(), fieldContextHash };
+    const before = structuredClone(saved);
+    const fetchMock = vi.fn().mockResolvedValueOnce(jsonResponse({ data: { metrics: { wordCount: 700, plagiarismRisk: 'low' } } }));
+    vi.stubGlobal('fetch', fetchMock);
+    const result = await runSafetyGates({ ...diagnosticInput, editorialFields, priorFactcheck: saved });
+    expect(result.pass).toBe(true);
+    expect(saved).toEqual(before);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(result.results.find(gate => gate.name === 'factcheck')?.evidence).toEqual(saved);
+  });
   it.each(['missing', 'different'])('reassesses an old failed verdict with %s context without mutating it', async kind => {
     const old = { ...report('unverifiable'), ...(kind === 'different' ? { fieldContextHash: 'b'.repeat(64) } : {}) };
     const before = structuredClone(old);
@@ -203,7 +226,7 @@ describe('Liv safety gates', () => {
   });
 
   it.each(['new-sources', 'stale', 'new-text', 'partial-coverage', 'future'])('does not reuse failed review after %s', async kind => {
-    const failed = report('verified', true);
+    const failed = report('unverifiable');
     if (kind === 'stale') failed.checkedAt = new Date(Date.now() - 16 * 60_000).toISOString();
     if (kind === 'future') failed.checkedAt = new Date(Date.now() + 60_000).toISOString();
     if (kind === 'partial-coverage') failed.coverage.checkedUnits = 0;

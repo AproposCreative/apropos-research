@@ -15,7 +15,7 @@ import type { GateResult } from '@/lib/liv/daily-history-store';
 import { internalApiHeaders } from '@/lib/api/internal-auth';
 import { logger } from '@/lib/logger';
 import { checkSourceSimilarity } from '@/lib/liv/source-similarity';
-import { articleFingerprint, articleUnits, isCompleteGroundedReport, type GroundedReport } from '@/lib/factcheck/grounded';
+import { articleFingerprint, articleUnits, GROUNDED_POLICY_VERSION, isCompleteGroundedReport, type GroundedReport } from '@/lib/factcheck/grounded';
 import { z } from 'zod';
 import { isLivAuthor, loadLivVoice } from '@/lib/liv/voice';
 import { editorialVerdictPasses, readLivEditorialEvidence, livEditorialFieldContext, type LivEditorialFields } from '@/lib/liv/editorial-assessment-contract';
@@ -82,6 +82,7 @@ interface TovResponse {
 // Strip unknown fields so upstream extras (including full source text) are not archived.
 const diagnosticReportSchema = z.object({
   ok: z.literal(true), verificationMethod: z.literal('retrieved-sources'),
+  policyVersion: z.string().optional(),
   articleHash: z.string().regex(/^[a-f0-9]{64}$/), checkedAt: z.string().datetime(), complete: z.boolean(),
   fieldContextHash: z.string().regex(/^[a-f0-9]{64}$/).optional(),
   blockers: z.array(z.string()),
@@ -108,7 +109,7 @@ function diagnosticReport(value: unknown, text: string): GroundedReport | undefi
  * text, partial coverage, infrastructure failures and stale checks need work. */
 function reusableFailedReport(value: unknown, text: string, sourceUrls: string[]): GroundedReport | undefined {
   const report = diagnosticReport(value, text);
-  if (!report || report.complete || report.diagnostic || !report.results.some(result => result.status !== 'verified') ||
+  if (!report || report.policyVersion !== GROUNDED_POLICY_VERSION || report.complete || report.diagnostic || !report.results.some(result => result.status !== 'verified') ||
       report.coverage.expectedUnits !== articleUnits(text).length ||
       report.coverage.checkedUnits !== report.coverage.expectedUnits) return undefined;
   const age = Date.now() - Date.parse(report.checkedAt);

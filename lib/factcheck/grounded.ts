@@ -56,7 +56,11 @@ export const groundedResponseFormat = {
   json_schema: { name: 'grounded_factcheck_v1', strict: true, schema: assessmentJsonSchema },
 };
 
+export const GROUNDED_POLICY_VERSION = 'retrieved-sources-v2-undated-concrete';
+
 export interface GroundedReport {
+  /** Optional for successful reports produced under the older, stricter policy. */
+  policyVersion?: string;
   ok: true;
   verificationMethod: 'retrieved-sources';
   articleHash: string;
@@ -70,6 +74,14 @@ export interface GroundedReport {
 }
 
 const normalize = (text: string) => text.replace(/\s+/gu, ' ').trim();
+
+function freshSourceMetadata(source: { contentHash?: string; retrievedAt?: string; publishedAt?: string | null }, now: number) {
+  const retrievedAt = Date.parse(source.retrievedAt || '');
+  return Number.isFinite(now) && /^[a-f0-9]{64}$/.test(source.contentHash || '') &&
+    Number.isFinite(retrievedAt) && retrievedAt >= now - 900_000 && retrievedAt <= now + 300_000 &&
+    (source.publishedAt === null || (typeof source.publishedAt === 'string' &&
+      Number.isFinite(Date.parse(source.publishedAt)) && Date.parse(source.publishedAt) <= now + 300_000));
+}
 
 /** Only server-retrieved text can support a citation. Model URLs and flags are not trusted. */
 export function assessGroundedReport(text: string, sources: RetrievedSource[], raw: unknown, now = Date.now(),
@@ -99,16 +111,19 @@ export function assessGroundedReport(text: string, sources: RetrievedSource[], r
       const validationErrors: string[] = valid ? [] : ['claim_not_in_unit'];
       for (const citation of claim.citations) {
         const source = sourceMap.get(citation.sourceId);
-        if (!source || !source.publishedAt || !normalize(source.text).includes(normalize(citation.quote))) {
+        if (!source || !freshSourceMetadata(source, now) || !normalize(source.text).includes(normalize(citation.quote))) {
           valid = false;
-          validationErrors.push(!source ? 'unknown_source' : !source.publishedAt ? 'undated_source' : 'quote_not_in_source');
+          validationErrors.push(!source ? 'unknown_source' : !freshSourceMetadata(source, now) ? 'invalid_source_metadata' : 'quote_not_in_source');
           continue;
         }
         citations.push({ sourceId: source.id, url: source.url, quote: citation.quote });
       }
       const status = claim.status === 'verified' && (!valid || citations.length === 0) ? 'unverifiable' : claim.status;
       if (status !== 'verified') blockers.push(`Manglende eller modstridende belæg i ${row.id}.`);
-      if (status === 'verified') citations.forEach(citation => citedHosts.add(new URL(citation.url).hostname.replace(/^www\./, '')));
+      if (status === 'verified') citations.forEach(citation => {
+        // Undated evidence may prove a fact, never the two-dated-host minimum.
+        if (sourceMap.get(citation.sourceId)?.publishedAt) citedHosts.add(new URL(citation.url).hostname.replace(/^www\./, ''));
+      });
       results.push({ claim: claim.claim, status, evidence: claim.explanation, citations,
         ...(validationErrors.length ? { validationErrors } : {}) });
     }
@@ -117,7 +132,7 @@ export function assessGroundedReport(text: string, sources: RetrievedSource[], r
   if (!results.length) blockers.push('Ingen dokumenterede faktuelle påstande.');
   if (citedHosts.size < 2) blockers.push('Der kræves belæg fra mindst to kildeværter.');
   return {
-    ok: true, verificationMethod: 'retrieved-sources', articleHash: articleFingerprint(text),
+    ok: true, verificationMethod: 'retrieved-sources', policyVersion: GROUNDED_POLICY_VERSION, articleHash: articleFingerprint(text),
     checkedAt: new Date(now).toISOString(), complete: blockers.length === 0,
     blockers: [...new Set(blockers)], coverage: { expectedUnits: units.length, checkedUnits: checked.size },
     results, sources: sources.map(({ text: _text, ...metadata }) => metadata),
@@ -148,12 +163,10 @@ export function isCompleteGroundedReport(value: unknown, text: string, now = Dat
   const hosts = new Set<string>();
   const valid = report.results.every(result => result.citations.every(citation => {
     const source = report.sources.find(source => source.id === citation.sourceId && source.url === citation.url);
-    // Undated context is allowed in the report, never as cited evidence.
-    if (!source || source.publishedAt === null || !Number.isFinite(Date.parse(source.publishedAt)) || Date.parse(source.publishedAt) > now + 300_000 ||
-        !Number.isFinite(Date.parse(source.retrievedAt)) || Date.parse(source.retrievedAt) < now - 900_000 || Date.parse(source.retrievedAt) > now + 300_000) return false;
+    if (!source || !freshSourceMetadata(source, now)) return false;
     const url = new URL(source.url);
     if (url.protocol !== 'https:' || url.username || url.password) return false;
-    hosts.add(url.hostname.replace(/^www\./, ''));
+    if (source.publishedAt !== null) hosts.add(url.hostname.replace(/^www\./, ''));
     return true;
   }));
   return valid && hosts.size >= 2;

@@ -34,7 +34,7 @@ describe('source-grounded verification', () => {
     expect(report.sources[2].publishedAt).toBeNull();
     expect(isCompleteGroundedReport(report, text, now)).toBe(true);
   });
-  it.each([null, '', 'not-a-date', new Date(now + 300001).toISOString()])('rejects cited publication date %j even on a report marked complete', publishedAt => {
+  it.each([null, '', 'not-a-date', new Date(now + 300001).toISOString()])('rejects missing second dated-host coverage or invalid dates even on a report marked complete: %j', publishedAt => {
     const report = assessGroundedReport(text, sources(), assessment(), now);
     report.sources[0].publishedAt = publishedAt;
     expect(report.complete).toBe(true);
@@ -69,13 +69,62 @@ describe('source-grounded verification', () => {
     raw.units[0].claims[0].claim = 'Der er fri entré hver onsdag.';
     expect(assessGroundedReport(text, sources(), raw, now).complete).toBe(false);
   });
-  it('rejects fabricated source IDs and undated sources', () => {
+  it('rejects fabricated source IDs and insufficient dated cited hosts', () => {
     const raw = assessment();
     raw.units[0].claims[0].citations[0].sourceId = 'invented';
     expect(assessGroundedReport(text, sources(), raw, now).complete).toBe(false);
     const docs = sources();
     docs[0].publishedAt = null;
     expect(assessGroundedReport(text, docs, assessment(), now).complete).toBe(false);
+  });
+  const concrete = 'Udstillingen er skabt i samarbejde med National Portrait Gallery i London.';
+  const mixedText = `${text} ${concrete}`;
+  function mixedEvidence() {
+    const official = parseSourceHtml('https://louisiana.dk/udstilling', `<article><p>${concrete}</p><p>${'Kunst og materialer. '.repeat(20)}</p></article>`, 's3', now);
+    const raw = assessment();
+    raw.units[0].claims.push({ claim: concrete, status: 'verified', explanation: 'Den hentede officielle side angiver samarbejdet.',
+      citations: [{ sourceId: 's3', quote: concrete }] });
+    return { docs: [...sources(), official], raw };
+  }
+  it('verifies a concrete claim using only undated official evidence while two other dated hosts are genuinely cited', () => {
+    const { docs, raw } = mixedEvidence();
+    const report = assessGroundedReport(mixedText, docs, raw, now);
+    expect(report.complete).toBe(true); expect(isCompleteGroundedReport(report, mixedText, now)).toBe(true);
+    expect(report.results[1]).toMatchObject({ status: 'verified', citations: [{ sourceId: 's3', quote: concrete }] });
+    expect(report.sources[2].publishedAt).toBeNull(); expect(docs[2].publishedAt).toBeNull();
+  });
+  it.each([0, 1])('never counts undated citations or uncited dated inventory as the two dated hosts: %s cited', count => {
+    const { docs, raw } = mixedEvidence();
+    raw.units[0].claims[0].citations = count ? [{ sourceId: 's1', quote: claim }] : [];
+    const report = assessGroundedReport(mixedText, docs, raw, now);
+    expect(report.complete).toBe(false);
+    expect(report.blockers).toContain('Der kræves belæg fra mindst to kildeværter.');
+    expect(isCompleteGroundedReport({ ...report, complete: true, blockers: [] }, mixedText, now)).toBe(false);
+  });
+  it.each(['stale', 'future-retrieval', 'invalid-retrieval', 'invalid-hash', 'invalid-publication', 'future-publication'])(
+    'retains metadata validation for an additional cited source: %s', kind => {
+      const { docs, raw } = mixedEvidence();
+      const validReport = assessGroundedReport(mixedText, docs, raw, now);
+      const changed = docs[2];
+      if (kind === 'stale') changed.retrievedAt = new Date(now - 900001).toISOString();
+      if (kind === 'future-retrieval') changed.retrievedAt = new Date(now + 300001).toISOString();
+      if (kind === 'invalid-retrieval') changed.retrievedAt = 'invalid';
+      if (kind === 'invalid-hash') changed.contentHash = 'invalid';
+      if (kind === 'invalid-publication') changed.publishedAt = 'invalid';
+      if (kind === 'future-publication') changed.publishedAt = new Date(now + 300001).toISOString();
+      const report = assessGroundedReport(mixedText, docs, raw, now);
+      expect(report.complete).toBe(false);
+      expect(report.results[1].validationErrors).toContain('invalid_source_metadata');
+      validReport.sources[2] = changed;
+      expect(isCompleteGroundedReport(validReport, mixedText, now)).toBe(false);
+    });
+  it.each(['quote', 'claim', 'disputed', 'unverifiable'])('does not excuse invalid or conflicting undated evidence: %s', kind => {
+    const { docs, raw } = mixedEvidence();
+    const checked = raw.units[0].claims[1];
+    if (kind === 'quote') checked.citations[0].quote = 'Et opfundet citat som ikke står i kilden.';
+    if (kind === 'claim') checked.claim = 'En påstand der ikke står i artiklen.';
+    if (kind === 'disputed' || kind === 'unverifiable') checked.status = kind;
+    expect(assessGroundedReport(mixedText, docs, raw, now).complete).toBe(false);
   });
   it('does not count two pages on the same host as two source hosts', () => {
     expect(assessGroundedReport(text, [source(), source('s2', 'https://www.museum.dk/other')], assessment(), now).complete).toBe(false);
