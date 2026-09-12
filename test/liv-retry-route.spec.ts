@@ -64,3 +64,33 @@ it('rejects dryRun semantics before any retry grant', async () => {
     dayKey: '2026-09-12', kind: 'reserve', requestId: 'retry-123', reason: 'Fix' }) });
   expect((await POST(req)).status).toBe(400); expect(mocks.grant).not.toHaveBeenCalled();
 });
+
+const checkpointRetry = { dayKey: '2026-09-12', kind: 'reserve', scope: 'reserve-editorial',
+  requestId: 'checkpoint-gates-retry-1', reason: 'Verifier fixed; recheck the saved article and photos.' };
+it('dispatches checkpoint-only retry with its audited plan and no writer/rewrite options', async () => {
+  const defaultPlan = { dayKey: checkpointRetry.dayKey, topicHint: 'Immutable topic', directiveHint: 'Immutable direction',
+    articleFormat: 'research-review', mustUseTrending: false, status: 'pending', createdAt: null, updatedAt: null };
+  mocks.grant.mockResolvedValue({ status: 'retry_authorized', defaultPlan });
+  expect((await POST(request(checkpointRetry))).status).toBe(200);
+  expect(mocks.grant).toHaveBeenCalledExactlyOnceWith(checkpointRetry, 'owner');
+  expect(mocks.run).toHaveBeenCalledExactlyOnceWith(expect.anything(), {
+    dayKey: checkpointRetry.dayKey, kind: 'reserve', scope: 'reserve-editorial', defaultPlan });
+  expect(mocks.release).toHaveBeenCalledWith('owner');
+});
+it('returns the existing checkpoint retry receipt without starting another continuation', async () => {
+  mocks.grant.mockResolvedValue({ status: 'already_requested' });
+  expect(await (await POST(request(checkpointRetry))).json()).toEqual({ status: 'already_requested' });
+  expect(mocks.run).not.toHaveBeenCalled();
+  expect(mocks.release).toHaveBeenCalledWith('owner');
+});
+it('does not dispatch a conflicting or unsafe saved checkpoint', async () => {
+  mocks.grant.mockRejectedValue(new Error('liv_retry_conflict'));
+  const response = await POST(request(checkpointRetry));
+  expect(response.status).toBe(409); expect(await response.json()).toEqual({ error: 'liv_retry_conflict' });
+  expect(mocks.run).not.toHaveBeenCalled(); expect(mocks.release).toHaveBeenCalledWith('owner');
+});
+it.each(['disabled', 'paused'])('keeps the %s switch ahead of checkpoint retry authorization', async mode => {
+  vi.stubEnv(mode === 'disabled' ? 'LIV_DELIVERY_PREPARE_ENABLED' : 'LIV_DAILY_PAUSED', mode === 'disabled' ? 'false' : 'true');
+  expect((await POST(request(checkpointRetry))).status).toBe(409);
+  expect(mocks.grant).not.toHaveBeenCalled(); expect(mocks.lease).not.toHaveBeenCalled();
+});

@@ -6,6 +6,7 @@ import { verifyArticleSources } from '@/lib/factcheck/verify-article';
 import { logger } from '@/lib/logger';
 import { assessLivEditorialArticle } from '@/lib/liv/editorial-assessment';
 import { withLivCostRequest } from '@/lib/liv/cost-context';
+import { livEditorialFieldsSchema, livEditorialFieldContext, type LivEditorialFields } from '@/lib/liv/editorial-assessment-contract';
 
 export const maxDuration = 120;
 
@@ -44,6 +45,9 @@ async function handlePost(request: NextRequest) {
   if (!input || typeof input !== 'object' || Array.isArray(input)) {
     return NextResponse.json({ error: 'Et JSON-objekt er påkrævet.' }, { status: 400 });
   }
+  if ('editorialFields' in input && (!('editorialReview' in input) || input.editorialReview !== 'liv-v1')) {
+    return NextResponse.json({ error: 'Feltkontekst kræver Liv-redaktørvurdering.' }, { status: 400 });
+  }
   if ('editorialReview' in input && !('sourceUrls' in input)) {
     return NextResponse.json({ error: 'Redaktionel vurdering kræver kilde-URL’er.' }, { status: 400 });
   }
@@ -53,9 +57,20 @@ async function handlePost(request: NextRequest) {
     }
     const parsed = groundedInput.safeParse(input);
     if (!parsed.success) return NextResponse.json({ error: 'Faktatjek kræver artikeltekst (20-40000 tegn) og 1-8 kilde-URL’er.' }, { status: 400 });
+    let editorialFields: LivEditorialFields | undefined;
+    if ('editorialFields' in input) {
+      try {
+        editorialFields = livEditorialFieldsSchema.parse(input.editorialFields);
+        livEditorialFieldContext(parsed.data.articleText, editorialFields);
+      } catch {
+        return NextResponse.json({ error: 'CMS-feltkonteksten matcher ikke den fulde artikeltekst.' }, { status: 400 });
+      }
+    }
     try {
-      const verify = 'editorialReview' in input ? assessLivEditorialArticle : verifyArticleSources;
-      return NextResponse.json(await verify(parsed.data.articleText, parsed.data.sourceUrls), { headers: { 'Cache-Control': 'no-store' } });
+      const report = 'editorialReview' in input
+        ? await assessLivEditorialArticle(parsed.data.articleText, parsed.data.sourceUrls, editorialFields)
+        : await verifyArticleSources(parsed.data.articleText, parsed.data.sourceUrls);
+      return NextResponse.json(report, { headers: { 'Cache-Control': 'no-store' } });
     } catch (error) {
       const failure = error as { name?: unknown; status?: unknown; code?: unknown } | null;
       // Log only bounded error classification, never provider bodies or credentials.

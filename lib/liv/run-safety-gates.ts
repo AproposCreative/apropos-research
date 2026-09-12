@@ -18,7 +18,7 @@ import { checkSourceSimilarity } from '@/lib/liv/source-similarity';
 import { articleFingerprint, articleUnits, isCompleteGroundedReport, type GroundedReport } from '@/lib/factcheck/grounded';
 import { z } from 'zod';
 import { isLivAuthor, loadLivVoice } from '@/lib/liv/voice';
-import { editorialVerdictPasses, readLivEditorialEvidence } from '@/lib/liv/editorial-assessment-contract';
+import { editorialVerdictPasses, readLivEditorialEvidence, livEditorialFieldContext, type LivEditorialFields } from '@/lib/liv/editorial-assessment-contract';
 import { livCostHeaders } from '@/lib/liv/cost-context';
 
 export interface SafetyGatesInput {
@@ -36,6 +36,8 @@ export interface SafetyGatesInput {
   sourceUrls?: string[];
   /** Other publishable text, including subtitle, excerpt and SEO fields. */
   additionalTexts?: string[];
+  /** Exact named CMS fields; labels never alter the existing checked text. */
+  editorialFields?: LivEditorialFields;
   /** Auto-publish må kun ske, når alle relevante gates faktisk er kørt. */
   requireCompleteVerification?: boolean;
   /** Bound infrastructure checks so preparation jobs cannot outlive the worker. */
@@ -64,6 +66,7 @@ interface FactcheckResponse {
   verificationMethod?: string;
   blockers?: string[];
   editorialReview?: unknown;
+  fieldContextHash?: string;
   results?: Array<{
     claim?: string;
     status?: 'verified' | 'disputed' | 'unverifiable' | string;
@@ -80,6 +83,7 @@ interface TovResponse {
 const diagnosticReportSchema = z.object({
   ok: z.literal(true), verificationMethod: z.literal('retrieved-sources'),
   articleHash: z.string().regex(/^[a-f0-9]{64}$/), checkedAt: z.string().datetime(), complete: z.boolean(),
+  fieldContextHash: z.string().regex(/^[a-f0-9]{64}$/).optional(),
   blockers: z.array(z.string()),
   coverage: z.object({ expectedUnits: z.number().int().positive(), checkedUnits: z.number().int().nonnegative() }),
   results: z.array(z.object({
@@ -150,6 +154,8 @@ export async function runSafetyGates(input: SafetyGatesInput): Promise<SafetyGat
   const fullText = [intro, content].filter(Boolean).join('\n\n');
   const factcheckText = [title, ...additionalTexts, intro, content].filter(Boolean).join('\n\n');
   const consolidated = requireCompleteVerification && isLivAuthor(authorName);
+  const fieldContext = consolidated && input.editorialFields !== undefined
+    ? livEditorialFieldContext(factcheckText, input.editorialFields) : undefined;
   const voiceHash = consolidated ? loadLivVoice().hash : '';
 
   // --- Gate 0: Source similarity (paraphrasing/strukturel kopiering af kilden) ---
@@ -242,14 +248,18 @@ export async function runSafetyGates(input: SafetyGatesInput): Promise<SafetyGat
   const priorEditorial = readLivEditorialEvidence((input.priorFactcheck as FactcheckResponse | undefined)?.editorialReview, factcheckText, voiceHash);
   const sameSourceUrls = JSON.stringify([...new Set(sourceUrls)].sort()) ===
     JSON.stringify([...new Set(input.priorFactcheck?.sources?.map(source => source.url) || [])].sort());
-  let fc: FactcheckResponse | null = isCompleteGroundedReport(input.priorFactcheck, factcheckText) && (!consolidated || (priorEditorial && sameSourceUrls))
-    ? input.priorFactcheck! : reusableFailedReport(input.priorFactcheck, factcheckText, sourceUrls) || null;
+  const sameFieldContext = !fieldContext || (input.priorFactcheck as FactcheckResponse | undefined)?.fieldContextHash === fieldContext.hash;
+  let fc: FactcheckResponse | null = sameFieldContext
+    ? isCompleteGroundedReport(input.priorFactcheck, factcheckText) && (!consolidated || (priorEditorial && sameSourceUrls))
+      ? input.priorFactcheck! : reusableFailedReport(input.priorFactcheck, factcheckText, sourceUrls) || null
+    : null;
   let fcHttpStatus: number | null = null;
   if (!fc) try {
     const res = await fetch(fcUrl, {
       method: 'POST',
       headers: internalApiHeaders(livCostHeaders('/api/factcheck')),
-      body: JSON.stringify({ articleText: factcheckText, sourceUrls, ...(consolidated ? { editorialReview: 'liv-v1' } : {}) }),
+      body: JSON.stringify({ articleText: factcheckText, sourceUrls, ...(consolidated ? { editorialReview: 'liv-v1',
+        ...(fieldContext ? { editorialFields: input.editorialFields } : {}) } : {}) }),
       cache: 'no-store',
       signal: AbortSignal.timeout(timeoutMs),
     });
@@ -270,6 +280,10 @@ export async function runSafetyGates(input: SafetyGatesInput): Promise<SafetyGat
     });
     fc = null;
   }
+
+  // A contextual request cannot consume an old-method response, even on the
+  // same text. This invalidates reuse, never edits or clears a failed verdict.
+  if (fieldContext && fc?.fieldContextHash !== fieldContext.hash) fc = null;
 
   const fcUsable = fc != null && (fc.ok === true || (Array.isArray(fc.results) && fc.ok !== false));
 

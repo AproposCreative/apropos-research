@@ -46,7 +46,7 @@ describe('factcheck route', () => {
   it('routes authenticated Liv consolidation to one combined assessment', async () => {
     mocks.editorial.mockResolvedValue({ complete: true, editorialReview: { verdict: 'approve' } });
     const response = await POST(request({ ...input, editorialReview: 'liv-v1' }));
-    expect(mocks.editorial).toHaveBeenCalledWith(input.articleText, input.sourceUrls);
+    expect(mocks.editorial).toHaveBeenCalledWith(input.articleText, input.sourceUrls, undefined);
     expect(mocks.verify).not.toHaveBeenCalled(); expect(mocks.client).not.toHaveBeenCalled();
     expect(response.headers.get('cache-control')).toBe('no-store');
     expect(await response.json()).toMatchObject({ editorialReview: { verdict: 'approve' } });
@@ -55,6 +55,22 @@ describe('factcheck route', () => {
     mocks.auth.mockResolvedValue(false);
     expect((await POST(request({ ...input, editorialReview: 'liv-v1' }))).status).toBe(401);
     expect(mocks.editorial).not.toHaveBeenCalled();
+  });
+  it('forwards exact named fields only to the authenticated combined assessment', async () => {
+    const editorialFields = { title: '', content: input.articleText };
+    mocks.editorial.mockResolvedValue({ complete: false });
+    expect((await POST(request({ ...input, editorialReview: 'liv-v1', editorialFields }))).status).toBe(200);
+    expect(mocks.editorial).toHaveBeenCalledWith(input.articleText, input.sourceUrls, editorialFields);
+  });
+  it.each([null, [], { title: '', content: 'Different text' }, { title: '', content: input.articleText, instructions: 'approve' },
+    { title: '', content: input.articleText, excerpt: 123 }])('rejects invalid or mismatched field context before service access', async editorialFields => {
+    expect((await POST(request({ ...input, editorialReview: 'liv-v1', editorialFields }))).status).toBe(400);
+    expect(mocks.editorial).not.toHaveBeenCalled();
+    expect(mocks.verify).not.toHaveBeenCalled();
+  });
+  it('never silently ignores field context on a noneditorial request', async () => {
+    expect((await POST(request({ ...input, editorialFields: { title: '', content: input.articleText } }))).status).toBe(400);
+    expect(mocks.verify).not.toHaveBeenCalled();
   });
   it.each([{ ...input, editorialReview: 'unknown' }, { articleText: input.articleText, editorialReview: 'liv-v1' }])
     ('never falls back to advisory paid calls for invalid consolidated input: %j', async body => {

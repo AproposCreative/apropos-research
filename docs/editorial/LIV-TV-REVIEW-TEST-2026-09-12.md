@@ -104,3 +104,29 @@ uses the utility model. Saved responses are never regenerated because routing
 changes. Three parameterized integration cases verify one writer call and the
 appropriate model for each format/context. Full local verification: 137 test
 files, 2256 tests passed; TypeScript, scoped ESLint and diff checks passed.
+
+## Final-gate defect found by the real test
+
+The next continuation stopped before CMS with `verification-complete`, not a
+successful draft. Its paid factual report treated the concatenated excerpt/SEO
+fields as duplicated or unfinished body prose and treated an explicitly identified
+cultural interpretation as an unverifiable fact. The actual body is 547 words,
+within the 450–650 policy. The failed report is preserved; it is not approval.
+The accumulated 21-call usage estimate at this failure was 5.187528 DKK.
+
+The assessment now accepts exact named CMS-field context. It must reconstruct
+the original checked text exactly; unit IDs, literal text, fingerprints and
+factual source validation remain unchanged. Compact field/unit offsets avoid
+sending the article twice. Metadata still receives factual checks, while body
+coherence is assessed on body prose. A versioned context hash makes old-method
+reports ineligible for reuse without deleting them or reclassifying their verdicts.
+
+An authenticated checkpoint retry can continue an owned explicit reserve after
+a gate failure, preserving its revised article, all three paid photos and full
+previous gate evidence. It cannot resume a CMS save with an uncertain outcome,
+change the reserved brief, grant another writer or bypass gates. Exact retry
+replay grants no new attempt. The current test uses this path after deployment.
+
+Read-only production taxonomy verification confirmed these Danish items exist:
+TV-serier `67dbf52a4ac2cf0073a9b0ef`, Anmeldelser `67e6f8f2e077ea42a9b95b87`.
+Their assignment on the eventual saved article still requires CMS readback.

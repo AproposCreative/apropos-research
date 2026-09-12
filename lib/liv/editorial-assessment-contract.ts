@@ -1,6 +1,36 @@
 import { z } from 'zod';
 import { articleFingerprint, assessmentSchema } from '@/lib/factcheck/grounded';
 
+const fieldText = z.string().max(40_000);
+export const livEditorialFieldsSchema = z.object({
+  title: fieldText, subtitle: fieldText.optional(), excerpt: fieldText.optional(),
+  seoTitle: fieldText.optional(), seoDescription: fieldText.optional(), ratingReason: fieldText.optional(),
+  intro: fieldText.optional(), content: fieldText,
+}).strict();
+export type LivEditorialFields = z.infer<typeof livEditorialFieldsSchema>;
+export const LIV_EDITORIAL_FIELD_POLICY = 'liv-editorial-fields-v1';
+const fieldOrder = ['title', 'subtitle', 'excerpt', 'seoTitle', 'seoDescription', 'ratingReason', 'intro', 'content'] as const;
+
+/** Field labels are context, never exemptions. Require exact reconstruction of
+ * the already-fingerprinted text; keep its original unit IDs and literal offsets. */
+export function livEditorialFieldContext(articleText: string, value: unknown) {
+  const input = livEditorialFieldsSchema.parse(value);
+  const entries = fieldOrder.flatMap(name => input[name] ? [{ name, text: input[name]! }] : []);
+  const joined = entries.map(field => field.text).join('\n\n');
+  if (joined.trim() !== articleText.trim()) throw new Error('liv_editorial_fields_mismatch');
+  const leading = joined.length - joined.trimStart().length;
+  const length = articleText.trim().length;
+  let offset = 0;
+  const fields = entries.map(field => {
+    const start = Math.max(0, Math.min(length, offset - leading));
+    const end = Math.max(start, Math.min(length, offset + field.text.length - leading));
+    offset += field.text.length + 2;
+    return { name: field.name, start, end, text: articleText.trim().slice(start, end) };
+  });
+  const context = { policy: LIV_EDITORIAL_FIELD_POLICY, fields };
+  return { ...context, hash: articleFingerprint(JSON.stringify(context)) };
+}
+
 export const editorialVerdictSchema = z.object({
   verdict: z.enum(['approve', 'revise']),
   summary: z.string().trim().min(1).max(1600),
@@ -22,6 +52,7 @@ export const editorialEvidenceSchema = editorialVerdictSchema.extend({
   version: z.literal('liv-editorial-v1'), articleHash: z.string().regex(/^[a-f0-9]{64}$/),
   voiceHash: z.string().regex(/^[a-f0-9]{64}$/), checkedAt: z.string().datetime(),
   assessmentId: z.string().regex(/^[a-f0-9]{64}$/),
+  fieldContextHash: z.string().regex(/^[a-f0-9]{64}$/).optional(),
 });
 export type LivEditorialEvidence = z.infer<typeof editorialEvidenceSchema>;
 

@@ -5,6 +5,7 @@ import { LIV_DAILY_COLLECTION, livDailyDocId } from '@/lib/liv/daily-history-sto
 import { validDay } from '@/lib/liv/delivery-policy';
 import { explicitPreparationInput } from '@/lib/liv/explicit-preparation';
 import { cmsFieldHash } from '@/lib/liv/cms-field-hash';
+import { livImageArticleHash } from '@/lib/liv/article-image-hash';
 import { loadRecoverableWritingBrief } from '@/lib/liv/source-archive';
 import { parseLivArticleOutput } from '@/lib/liv/article-output';
 import type { LivDailyPlan } from '@/lib/liv/daily-plan-store';
@@ -19,9 +20,9 @@ export type PreparationRetry = { dayKey: string; kind: 'scheduled' | 'reserve'; 
 export async function authorizePreparationRetry(input: PreparationRetry, lease?: string) {
   const explicit = input.scope === 'reserve-editorial';
   if (!validDay(input.dayKey) || !['scheduled', 'reserve'].includes(input.kind) ||
-    (input.scope !== undefined && (input.plan || (explicit ? input.kind !== 'reserve' || !input.resumeWritingRunId :
+    (input.scope !== undefined && (input.plan || (explicit ? input.kind !== 'reserve' :
       input.scope !== 'prepare-alternative' || input.kind !== 'scheduled'))) ||
-    (input.allowOriginalityRevision !== undefined && (!explicit || input.allowOriginalityRevision !== true)) ||
+    (input.allowOriginalityRevision !== undefined && (!explicit || input.allowOriginalityRevision !== true || !input.resumeWritingRunId)) ||
     (explicit && (!lease || Object.keys(input).some(key => !['dayKey', 'kind', 'scope', 'requestId', 'reason', 'resumeWritingRunId', 'allowOriginalityRevision'].includes(key)))) ||
     !/^[a-zA-Z0-9_-]{8,100}$/.test(input.requestId) || !input.reason?.trim() || input.reason.length > 500) {
     throw new Error('liv_retry_invalid');
@@ -42,7 +43,8 @@ export async function authorizePreparationRetry(input: PreparationRetry, lease?:
   const retryInputHash = cmsFieldHash(input);
   const reservationRef = db.collection('livExplicitPreparations').doc(livDailyDocId(input.dayKey, 'reserve-editorial'));
   let recovery: { rowHash: string; reservationHash: string; defaultPlan: LivDailyPlan;
-    writerHash: string; writerRef: DocumentReference; pointerRef: DocumentReference } | undefined;
+    checkpointHash?: string; checkpointEvidenceHash?: string;
+    writing?: { writerHash: string; writerRef: DocumentReference; pointerRef: DocumentReference } } | undefined;
   if (explicit) {
     const previous = await audit.get();
     if (previous.exists) {
@@ -54,27 +56,41 @@ export async function authorizePreparationRetry(input: PreparationRetry, lease?:
     const parsed = explicitPreparationInput.safeParse(saved?.input);
     if (!row || !parsed.success || parsed.data.dayKey !== input.dayKey ||
       saved?.inputHash !== cmsFieldHash(parsed.data) || row.explicitPreparationInputHash !== saved.inputHash ||
-      row.dayKey !== input.dayKey || row.status !== 'failed' || row.articleCheckpoint || row.articleCheckpointHash ||
-      typeof row.topic !== 'string' || !row.topic.trim() ||
-      !/^source_similarity_(unapproved|incomplete):/.test(row.reason || '')) throw new Error('liv_retry_conflict');
-    // Read/validate existing paid output only. This performs no source or model calls.
-    const brief = await loadRecoverableWritingBrief('liv-daily', row.topic, input.resumeWritingRunId!);
-    if (brief.articleFormat !== parsed.data.articleFormat || brief.finishReason !== 'stop' || brief.refusal) throw new Error('liv_retry_conflict');
-    if (input.allowOriginalityRevision && brief.parentRunId) throw new Error('liv_retry_conflict');
-    try { parseLivArticleOutput(brief.rawResponse, brief.articleFormat); }
-    catch { throw new Error('liv_retry_conflict'); }
-    const hash = (text: string) => createHash('sha256').update(text).digest('hex');
-    const desk = db.collection('livSourceArchives').doc(hash('liv-daily'));
-    const writerRef = desk.collection('runs').doc(input.resumeWritingRunId!);
-    const pointerRef = desk.collection('topics').doc(hash(row.topic.toLocaleLowerCase('da').replace(/[^\p{L}\p{N}]+/gu, ' ').trim()));
-    // Recheck the exact archive snapshot in the authorization transaction below.
-    const writer = (await writerRef.get()).data();
-    if (!writer || cmsFieldHash(Object.fromEntries(Object.keys(brief).map(key => [key, writer[key]]))) !== cmsFieldHash(brief)) {
-      throw new Error('liv_retry_conflict');
-    }
-    recovery = { rowHash: cmsFieldHash(row), reservationHash: cmsFieldHash(saved!), writerHash: cmsFieldHash(writer), writerRef, pointerRef,
+      row.dayKey !== input.dayKey || typeof row.topic !== 'string' || !row.topic.trim()) throw new Error('liv_retry_conflict');
+    recovery = { rowHash: cmsFieldHash(row), reservationHash: cmsFieldHash(saved!),
       defaultPlan: { dayKey: input.dayKey, topicHint: parsed.data.topicHint, directiveHint: parsed.data.directiveHint,
         articleFormat: parsed.data.articleFormat, mustUseTrending: false, status: 'pending', createdAt: null, updatedAt: null } };
+    if (!input.resumeWritingRunId) {
+      const article = row.articleCheckpoint;
+      // This grants continuation of owned paid work, not regeneration or approval.
+      // The whole snapshot (including media and failed gates) is rechecked below.
+      if (!['failed', 'skipped_factcheck', 'skipped_moderation', 'skipped_tov'].includes(row.status) ||
+        !article || !['title', 'slug', 'intro', 'content'].every(key => typeof article[key] === 'string') ||
+        !article.title.trim() || !article.content.trim() || row.articleCheckpointHash !== livImageArticleHash(article)) {
+        throw new Error('liv_retry_conflict');
+      }
+      recovery.checkpointHash = row.articleCheckpointHash;
+      recovery.checkpointEvidenceHash = cmsFieldHash(article);
+    } else {
+      if (row.status !== 'failed' || row.articleCheckpoint || row.articleCheckpointHash ||
+        !/^source_similarity_(unapproved|incomplete):/.test(row.reason || '')) throw new Error('liv_retry_conflict');
+      // Read/validate existing paid output only. This performs no source or model calls.
+      const brief = await loadRecoverableWritingBrief('liv-daily', row.topic, input.resumeWritingRunId);
+      if (brief.articleFormat !== parsed.data.articleFormat || brief.finishReason !== 'stop' || brief.refusal) throw new Error('liv_retry_conflict');
+      if (input.allowOriginalityRevision && brief.parentRunId) throw new Error('liv_retry_conflict');
+      try { parseLivArticleOutput(brief.rawResponse, brief.articleFormat); }
+      catch { throw new Error('liv_retry_conflict'); }
+      const hash = (text: string) => createHash('sha256').update(text).digest('hex');
+      const desk = db.collection('livSourceArchives').doc(hash('liv-daily'));
+      const writerRef = desk.collection('runs').doc(input.resumeWritingRunId);
+      const pointerRef = desk.collection('topics').doc(hash(row.topic.toLocaleLowerCase('da').replace(/[^\p{L}\p{N}]+/gu, ' ').trim()));
+      // Recheck the exact archive snapshot in the authorization transaction below.
+      const writer = (await writerRef.get()).data();
+      if (!writer || cmsFieldHash(Object.fromEntries(Object.keys(brief).map(key => [key, writer[key]]))) !== cmsFieldHash(brief)) {
+        throw new Error('liv_retry_conflict');
+      }
+      recovery.writing = { writerHash: cmsFieldHash(writer), writerRef, pointerRef };
+    }
   }
   return db.runTransaction(async tx => {
     const previous = await tx.get(audit);
@@ -87,14 +103,17 @@ export async function authorizePreparationRetry(input: PreparationRetry, lease?:
     if (recovery) {
       const manifest = (await tx.get(db.collection('livDelivery').doc('manifest'))).data();
       const reservation = (await tx.get(reservationRef)).data();
-      const writer = (await tx.get(recovery.writerRef)).data();
-      const pointer = (await tx.get(recovery.pointerRef)).data();
+      if (recovery.writing) {
+        const writer = (await tx.get(recovery.writing.writerRef)).data();
+        const pointer = (await tx.get(recovery.writing.pointerRef)).data();
+        if (!writer || cmsFieldHash(writer) !== recovery.writing.writerHash ||
+          pointer?.latestBrief?.runId !== input.resumeWritingRunId) throw new Error('liv_retry_conflict');
+      }
       if (!manifest || manifest.preparation?.token !== lease || !Number.isFinite(manifest.preparation?.leaseUntil) ||
         manifest.preparation.leaseUntil <= Date.now() || manifest.coverRevision ||
         Object.values(manifest.slots || {}).some(slot => (slot as { state?: unknown })?.state === 'attempted') ||
-        !row || !reservation || !writer || cmsFieldHash(row) !== recovery.rowHash ||
-        cmsFieldHash(reservation) !== recovery.reservationHash || cmsFieldHash(writer) !== recovery.writerHash ||
-        pointer?.latestBrief?.runId !== input.resumeWritingRunId) throw new Error('liv_retry_conflict');
+        !row || !reservation || cmsFieldHash(row) !== recovery.rowHash ||
+        cmsFieldHash(reservation) !== recovery.reservationHash) throw new Error('liv_retry_conflict');
     }
     if (!row || row.status === 'published' || row.status === 'draft' || row.webflowItemId ||
       row.preparationProof || row.cmsSaveStarted || row.retryAuthorization || row.continuationReady) {
@@ -111,7 +130,9 @@ export async function authorizePreparationRetry(input: PreparationRetry, lease?:
       authorizedBy: 'cron-authenticated-operator', requestId: input.requestId,
       resumeWritingRunId: input.resumeWritingRunId || null,
       ...(recovery ? { retryInputHash, reservedPlan: recovery.defaultPlan,
-        explicitPreparationInputHash: row.explicitPreparationInputHash, writingEvidenceHash: recovery.writerHash,
+        explicitPreparationInputHash: row.explicitPreparationInputHash,
+        ...(recovery.writing ? { writingEvidenceHash: recovery.writing.writerHash } : {
+          articleCheckpointHash: recovery.checkpointHash, checkpointEvidenceHash: recovery.checkpointEvidenceHash }),
         allowOriginalityRevision: input.allowOriginalityRevision === true } : {}) });
     if (input.plan) tx.set(planRef, { dayKey: input.dayKey, topicHint: input.plan.topicHint.trim() || null,
       directiveHint: input.plan.directiveHint.trim() || null, expandedDirective: null, articleFormat: 'article',

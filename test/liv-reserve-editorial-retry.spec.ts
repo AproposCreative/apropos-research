@@ -20,6 +20,7 @@ vi.mock('@/lib/firebase-admin', () => {
 });
 import { authorizePreparationRetry } from '@/lib/liv/retry-preparation';
 import { cmsFieldHash } from '@/lib/liv/cms-field-hash';
+import { livImageArticleHash } from '@/lib/liv/article-image-hash';
 
 const hash = (text: string) => createHash('sha256').update(text).digest('hex');
 const runId = '22f6a890-794f-4041-84da-5ce28b5336d9'; // ID only; all data below is synthetic, never fetched live.
@@ -152,10 +153,103 @@ it('rejects a concurrently changed writer archive before the authorization trans
 });
 
 it.each([
-  { ...input, resumeWritingRunId: undefined }, { ...input, kind: 'scheduled' },
+  { ...input, kind: 'scheduled' },
   { ...input, plan: { topicHint: 'Other', directiveHint: 'Other' } },
   { ...input, similarityOverride: true }, { ...input, skipGates: true },
-])('rejects changed plans, missing writer pointers and any proposed bypass', async invalid => {
+])('rejects changed plans and any proposed bypass', async invalid => {
   await expect(authorizePreparationRetry(invalid as typeof input, 'lease')).rejects.toThrow('invalid');
+  expect(state.writes).not.toHaveBeenCalled();
+});
+
+const checkpointInput = { dayKey: input.dayKey, kind: input.kind, scope: input.scope,
+  requestId: 'checkpoint-gates-retry-1', reason: 'Re-evaluate the exact saved review after the verifier fix.' };
+const checkpointAudit = `${path}/retryRequests/${hash(checkpointInput.requestId)}`;
+function seedCheckpoint(status = 'skipped_moderation') {
+  const article = { title: 'Revised saved review', slug: 'revised-saved-review', intro: 'Saved introduction',
+    content: '<p>Exact revised article.</p>', factRevisionId: 'saved-revision', factRevisionCount: 1,
+    researchSources: [{ url: 'https://example.com/source', snippet: 'Saved evidence' }],
+    preparedMedia: ['hero', 'body1', 'body2'].map(role => ({ role, url: `https://example.com/${role}.jpg`, alt: role })),
+    selectedImage: { url: 'https://example.com/hero.jpg', articleHash: 'saved-image-evidence' } };
+  const row = state.rows.get(path);
+  Object.assign(row, { status, reason: 'verification-complete', articleCheckpoint: article,
+    articleCheckpointHash: livImageArticleHash(article), preparationAttempts: 5,
+    resumeWritingRunId: runId, allowOriginalityRevision: true,
+    gateResults: [{ name: 'verification-complete', pass: false, detail: 'Incomplete u1',
+      diagnosticEvidence: { articleHash: livImageArticleHash(article), claims: [{ id: 'u1', status: 'unverified' }] } }] });
+  // Checkpoint continuation must not need or consult the old writer archive.
+  state.rows.delete(writerPath); state.rows.delete(pointer);
+  return row;
+}
+
+it.each(['failed', 'skipped_factcheck', 'skipped_moderation', 'skipped_tov'])(
+  'audits checkpoint-only continuation from %s without changing text, media, failed gates or counters', async status => {
+    const before = structuredClone(seedCheckpoint(status));
+    const otherRows = structuredClone([...state.rows].filter(([key]) => key !== path));
+    const receipt = await authorizePreparationRetry(checkpointInput, 'lease');
+    expect(receipt).toMatchObject({ status: 'retry_authorized', defaultPlan: {
+      topicHint: original.topicHint, directiveHint: original.directiveHint, articleFormat: original.articleFormat } });
+    expect(state.rows.get(path)).toEqual({ ...before, retryAuthorization: hash(checkpointInput.requestId),
+      allowOriginalityRevision: false, updatedAt: expect.anything() });
+    expect(state.rows.get(checkpointAudit)).toMatchObject({ previous: before, resumeWritingRunId: null,
+      articleCheckpointHash: before.articleCheckpointHash, checkpointEvidenceHash: cmsFieldHash(before.articleCheckpoint),
+      retryInputHash: cmsFieldHash(checkpointInput), allowOriginalityRevision: false });
+    expect(state.rows.get(checkpointAudit)).not.toHaveProperty('writingEvidenceHash');
+    for (const [key, value] of otherRows) expect(state.rows.get(key)).toEqual(value);
+    expect(state.writes.mock.calls.map(call => call[0])).toEqual([checkpointAudit, path]);
+    expect(await authorizePreparationRetry(checkpointInput, 'lease')).toEqual({ status: 'already_requested' });
+    await expect(authorizePreparationRetry({ ...checkpointInput, reason: 'Changed treatment' }, 'lease')).rejects.toThrow('conflict');
+    await expect(authorizePreparationRetry({ ...checkpointInput, resumeWritingRunId: runId, allowOriginalityRevision: true }, 'lease'))
+      .rejects.toThrow('conflict');
+    expect(state.writes).toHaveBeenCalledTimes(2);
+  });
+
+it.each(['published', 'draft', 'processing', 'skipped_duplicate', 'skipped_no_topic', 'skipped_unknown', 'unknown'])(
+  'does not grant checkpoint retry for status %s', async status => {
+    seedCheckpoint(status);
+    await expect(authorizePreparationRetry(checkpointInput, 'lease')).rejects.toThrow('conflict');
+    expect(state.writes).not.toHaveBeenCalled();
+  });
+
+it.each(['missing', 'hash', 'malformed', 'empty', 'ownership', 'reservation', 'cms', 'cms-started', 'proof', 'grant', 'continuation',
+  'expired-lease', 'wrong-lease', 'cover', 'attempted', 'writer', 'rewrite'])(
+  'rejects unsafe checkpoint continuation: %s', async kind => {
+    const row = seedCheckpoint(), manifest = state.rows.get('livDelivery/manifest');
+    let attempt = { ...checkpointInput };
+    if (kind === 'missing') delete row.articleCheckpoint;
+    if (kind === 'hash') row.articleCheckpointHash = 'wrong';
+    if (kind === 'malformed') row.articleCheckpoint.content = {};
+    if (kind === 'empty') { row.articleCheckpoint.title = ''; row.articleCheckpointHash = livImageArticleHash(row.articleCheckpoint); }
+    if (kind === 'ownership') row.explicitPreparationInputHash = 'other';
+    if (kind === 'reservation') state.rows.delete(reservation);
+    if (kind === 'cms') row.webflowItemId = 'uncertain-cms-item';
+    if (kind === 'cms-started') row.cmsSaveStarted = true;
+    if (kind === 'proof') row.preparationProof = {};
+    if (kind === 'grant') row.retryAuthorization = 'other';
+    if (kind === 'continuation') row.continuationReady = true;
+    if (kind === 'expired-lease') manifest.preparation.leaseUntil = Date.now() - 1;
+    if (kind === 'wrong-lease') manifest.preparation.token = 'other';
+    if (kind === 'cover') manifest.coverRevision = { id: 'hold' };
+    if (kind === 'attempted') manifest.slots[input.dayKey] = { state: 'attempted' };
+    if (kind === 'writer') attempt = { ...attempt, resumeWritingRunId: runId } as typeof attempt;
+    if (kind === 'rewrite') attempt = { ...attempt, allowOriginalityRevision: true } as typeof attempt;
+    await expect(authorizePreparationRetry(attempt, 'lease')).rejects.toThrow(/^liv_retry_(conflict|invalid)$/);
+    expect(state.writes).not.toHaveBeenCalled();
+  });
+
+it.each(['media', 'gates', 'reservation', 'cms-started'])('rechecks concurrent checkpoint %s changes transactionally', async kind => {
+  seedCheckpoint();
+  state.txHook = () => {
+    const row = state.rows.get(path);
+    if (kind === 'media') row.articleCheckpoint.preparedMedia[0].url = 'https://example.com/changed.jpg';
+    if (kind === 'gates') row.gateResults = [];
+    if (kind === 'reservation') state.rows.get(reservation).input.directiveHint = 'Changed';
+    if (kind === 'cms-started') row.cmsSaveStarted = true;
+  };
+  await expect(authorizePreparationRetry(checkpointInput, 'lease')).rejects.toThrow('conflict');
+  expect(state.writes).not.toHaveBeenCalled();
+});
+
+it('does not regenerate when neither a checkpoint nor an explicit writer pointer is available', async () => {
+  await expect(authorizePreparationRetry(checkpointInput, 'lease')).rejects.toThrow('conflict');
   expect(state.writes).not.toHaveBeenCalled();
 });

@@ -3,6 +3,7 @@ import { runSafetyGates } from '@/lib/liv/run-safety-gates';
 import { checkSourceSimilarity } from '@/lib/liv/source-similarity';
 import { articleFingerprint, assessGroundedReport } from '@/lib/factcheck/grounded';
 import { loadLivVoice } from '@/lib/liv/voice';
+import { livEditorialFieldContext } from '@/lib/liv/editorial-assessment-contract';
 
 vi.mock('@/lib/liv/source-similarity', () => ({
   checkSourceSimilarity: vi.fn(async () => ({ pass: true, complete: true, scores: { embeddingSim: 0, ngramJaccard: 0, openingSim: 0 } })),
@@ -168,6 +169,37 @@ describe('Liv safety gates', () => {
     expect(result.results.find(gate => gate.name === 'factcheck')?.diagnosticEvidence).toEqual(failed);
     expect(result.results.find(gate => gate.name === 'factcheck')).not.toHaveProperty('evidence');
     expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+  const editorialFields = { title: diagnosticInput.title, subtitle: 'Undertitel', seoDescription: 'SEO',
+    intro: diagnosticInput.intro, content: diagnosticInput.content };
+  const fieldContextHash = livEditorialFieldContext(diagnosticText, editorialFields).hash;
+  it.each(['missing', 'different'])('reassesses an old failed verdict with %s context without mutating it', async kind => {
+    const old = { ...report('unverifiable'), ...(kind === 'different' ? { fieldContextHash: 'b'.repeat(64) } : {}) };
+    const before = structuredClone(old);
+    respondWithFactcheck({ ...report(), editorialReview: editorialProof(), fieldContextHash });
+    const result = await runSafetyGates({ ...diagnosticInput, editorialFields, priorFactcheck: old });
+    expect(result.pass).toBe(true);
+    expect(old).toEqual(before);
+    expect(vi.mocked(fetch)).toHaveBeenCalledTimes(2);
+    expect(JSON.parse(vi.mocked(fetch).mock.calls[1][1]?.body as string)).toMatchObject({ articleText: diagnosticText, editorialFields });
+  });
+  it('retains and reuses a failed contextual report with the same hash instead of discarding failures generally', async () => {
+    const failed = { ...report('unverifiable'), fieldContextHash };
+    respondWithFactcheck(failed);
+    const first = await runSafetyGates({ ...diagnosticInput, editorialFields });
+    const diagnostic = first.results.find(gate => gate.name === 'factcheck')?.diagnosticEvidence;
+    expect(diagnostic).toMatchObject({ fieldContextHash, complete: false });
+    respondWithFactcheck(failed);
+    const second = await runSafetyGates({ ...diagnosticInput, editorialFields, priorFactcheck: diagnostic });
+    expect(second.pass).toBe(false);
+    expect(vi.mocked(fetch)).toHaveBeenCalledTimes(1);
+  });
+  it('rejects a contextless API answer to a contextual request and rejects inconsistent sidecars before network access', async () => {
+    respondWithFactcheck({ ...report(), editorialReview: editorialProof() });
+    expect((await runSafetyGates({ ...diagnosticInput, editorialFields })).pass).toBe(false);
+    vi.mocked(fetch).mockClear();
+    await expect(runSafetyGates({ ...diagnosticInput, editorialFields: { ...editorialFields, content: 'Different body' } })).rejects.toThrow('fields_mismatch');
+    expect(vi.mocked(fetch)).not.toHaveBeenCalled();
   });
 
   it.each(['new-sources', 'stale', 'new-text', 'partial-coverage', 'future'])('does not reuse failed review after %s', async kind => {

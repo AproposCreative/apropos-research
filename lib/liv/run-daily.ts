@@ -355,6 +355,9 @@ async function runLivDailyOperation(req: NextRequest, preparation?: LivPreparati
       sourceExcerpt: topic.source?.excerpt || article.researchSources?.[0]?.snippet,
       sourceUrls: [...new Set([topic.source?.url, ...(article.researchSources || []).map(source => source.url)].filter((url): url is string => !!url))].slice(0, 8),
       additionalTexts: [article.subtitle, article.excerpt, article.seoTitle, article.seoDescription, article.ratingReason].filter(Boolean),
+      editorialFields: { title: article.title, subtitle: article.subtitle, excerpt: article.excerpt,
+        seoTitle: article.seoTitle, seoDescription: article.seoDescription, ratingReason: article.ratingReason,
+        intro: article.intro, content: article.content },
       requireCompleteVerification: publicationMode === 'auto_publish' || !!preparation,
       timeoutMs: preparation ? 90_000 : undefined,
       priorFactcheck: preparation ? prepRow?.data()?.gateResults?.find((result: GateResult) => result.name === 'factcheck')?.evidence
