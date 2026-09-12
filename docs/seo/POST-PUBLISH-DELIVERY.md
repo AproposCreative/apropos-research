@@ -17,9 +17,20 @@ plus later optimization grounded in Search Console and GA4 results.
 - New `post-publish/review.ts` reviews both filled fields using article content,
   then independently checks proposed changes. Strict output parsing, no fake
   fallback, no silent article truncation. Calls are dependency-injected.
-- 16 unit tests pass with existing local Vitest runtime; no live model call,
+- 31 unit tests and full `tsc --noEmit` pass with existing local runtime; no live model call,
   CMS change or deployment yet. The reused dependency tree differs from this
   release lockfile: these isolated tests are not a full build verification.
+- Added atomic Firestore model-stage persistence, saved-response replay,
+  request/model hash checks and explicit reconciliation for uncertain transport.
+  Production provider uses the existing server OpenAI client with transport retries
+  disabled; the job adapter still needs to invoke it.
+- Added live/staged CMS snapshot comparison and a metadata-only live PATCH
+  adapter using the existing shared CMS lease. It verifies exact CMS metadata,
+  preserved editorial fields and public HTML, and exposes a read-only reconciliation
+  path for uncertain writes. No shared Webflow helper was changed.
+- Webflow endpoint contract checked against official documentation:
+  https://developers.webflow.com/data/reference/cms/collection-items/live-items/update-items-live
+  https://developers.webflow.com/data/reference/cms/collection-items/live-items/get-item-live
 
 ## Required work before claiming completion
 
