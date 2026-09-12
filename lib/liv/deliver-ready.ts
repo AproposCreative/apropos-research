@@ -7,6 +7,16 @@ import { cmsFieldHash } from '@/lib/liv/cms-field-hash';
 import { finishLivDaily } from '@/lib/liv/daily-history-store';
 import { markPlanUsed } from '@/lib/liv/daily-plan-store';
 import type { WebflowArticleFields } from '@/lib/webflow/types';
+import { logger } from '@/lib/logger';
+
+function safeDeliveryReason(error: unknown): string {
+  const message = error instanceof Error ? error.message : '';
+  if (/^liv_[a-z0-9_]{1,100}$/.test(message)) return message;
+  const status = (error as { status?: unknown } | null)?.status;
+  const http = typeof status === 'number' && Number.isInteger(status) && status >= 400 && status <= 599
+    ? status : message.match(/^Webflow locale (?:update|publish) error ([45]\d\d)$/)?.[1];
+  return http ? `liv_delivery_upstream_http_${http}` : 'liv_delivery_failed';
+}
 
 /** No generation, CMS creation, Instagram or site-wide publication in this worker. */
 export async function deliverReadyArticle(now = new Date(), dependencies = {
@@ -27,12 +37,16 @@ export async function deliverReadyArticle(now = new Date(), dependencies = {
   const slot = await dependencies.claimDelivery(day, now.getTime());
   if (!slot) return { status: state.slots[day]?.state === 'published' ? 'published' : 'waiting', day };
   let attempted = slot.state === 'attempted';
+  let stage = 'read_payload';
   try {
     const expected = await dependencies.readDeliveryPayload(slot.itemId);
-    const entry = state.entries.find(e => e.itemId === slot.itemId);
+    // A cover revision may have committed between the initial read and claim.
+    const entry = (await dependencies.readDeliveryState()).entries.find(e => e.itemId === slot.itemId);
     if (!entry || (!attempted && entry.expiresDay < clock.day)) throw new Error('liv_delivery_expired');
     if (entry.payloadHash !== cmsFieldHash(expected as unknown as Record<string, unknown>)) throw new Error('liv_delivery_payload_changed');
+    stage = 'plan_check';
     if (!attempted && entry.planHash && entry.planHash !== await dependencies.planHash(day)) throw new Error('liv_delivery_plan_changed');
+    stage = attempted ? 'live_readback' : 'publication_preflight';
     const receipt = attempted
       ? await dependencies.verify({ itemId: slot.itemId, expected, fieldDataHash: slot.fieldDataHash! })
       : await dependencies.publish({ itemId: slot.itemId, expected, publicationDate: publicationTime(day),
@@ -45,8 +59,11 @@ export async function deliverReadyArticle(now = new Date(), dependencies = {
           current.fieldDataHash = hash;
         });
         attempted = true;
+        stage = 'publish_or_readback';
       } });
+    stage = 'record_history';
     await dependencies.record(day, slot.itemId, expected, entry.kind === 'scheduled');
+    stage = 'finalize_delivery';
     await dependencies.updateDelivery(day, slot.token, (current, manifest) => {
       current.state = 'published';
       current.publicUrl = receipt.publicUrl;
@@ -56,8 +73,16 @@ export async function deliverReadyArticle(now = new Date(), dependencies = {
     });
     return { status: 'published', day, ...receipt };
   } catch (error) {
-    const reason = error instanceof Error ? error.message : 'liv_delivery_failed';
+    const reason = safeDeliveryReason(error);
+    const lastFailure = { at: new Date().toISOString(), stage, reason, attempted };
+    // Never log raw provider bodies, request URLs, credentials or exception stacks.
+    logger.warn('[liv/delivery] attempt failed', { day, itemId: slot.itemId, ...lastFailure });
     await dependencies.updateDelivery(day, slot.token, (current, manifest) => {
+      // Keep diagnostic metadata on the entry even if a definitive rejection
+      // removes its slot. This is not evidence of publication or gate approval.
+      Object.assign(current, { lastFailure });
+      const entry = manifest.entries.find(e => e.itemId === slot.itemId);
+      if (entry) Object.assign(entry, { lastFailure });
       // Only definitive pre-write rejection allows a different story for this day.
       // Network errors retry the same ready item; ambiguous writes only retry reads.
       if (!attempted && ['liv_publication_checks_failed', 'liv_publication_draft_changed',

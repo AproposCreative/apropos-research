@@ -2,13 +2,15 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 vi.mock('@/lib/firebase-admin', () => ({ getAdminDb: () => null }));
 vi.mock('@/lib/config/env', () => ({ env: {} }));
 vi.mock('@/lib/webflow-config', () => ({ getWebflowConfig: () => ({}) }));
+vi.mock('@/lib/logger', () => ({ logger: { warn: vi.fn() } }));
+import { logger } from '@/lib/logger';
 import * as store from '@/lib/liv/delivery-store';
 import { deliverReadyArticle } from '@/lib/liv/deliver-ready';
 import { emptyDeliveryState } from '@/lib/liv/delivery-policy';
 import type { WebflowArticleFields } from '@/lib/webflow/types';
 import { cmsFieldHash } from '@/lib/liv/cms-field-hash';
 const now = new Date('2026-09-11T08:00:00Z'), day = '2026-09-11';
-beforeEach(() => { vi.useFakeTimers(); vi.setSystemTime(now); });
+beforeEach(() => { vi.clearAllMocks(); vi.useFakeTimers(); vi.setSystemTime(now); });
 afterEach(() => vi.useRealTimers());
 function fixture() {
   const state = emptyDeliveryState();
@@ -87,5 +89,44 @@ it('reconciles rather than republishing after the history database fails', async
   await deliverReadyArticle(now, f.deps);
   const later = new Date(now.getTime() + 16 * 60_000); vi.setSystemTime(later);
   expect(await deliverReadyArticle(later, f.deps)).toMatchObject({ status: 'published' });
+  expect(f.publish).toHaveBeenCalledTimes(1); expect(f.verify).toHaveBeenCalledTimes(1);
+});
+
+it('persists and logs a safe preflight HTTP reason while retaining the selected item and backoff', async () => {
+  const f = fixture(); f.publish.mockRejectedValueOnce(new Error('Webflow locale update error 400'));
+  expect(await deliverReadyArticle(now, f.deps)).toMatchObject({ status: 'retry_required', reason: 'liv_delivery_upstream_http_400' });
+  const lastFailure = { at: now.toISOString(), stage: 'publication_preflight', reason: 'liv_delivery_upstream_http_400', attempted: false };
+  expect(f.state.slots[day]).toMatchObject({ state: 'selected', leaseUntil: 0,
+    nextAttemptAt: now.getTime() + 15 * 60_000, lastFailure });
+  expect(f.state.entries[0]).toMatchObject({ lastFailure });
+  expect(logger.warn).toHaveBeenCalledWith('[liv/delivery] attempt failed', { day, itemId: 'a'.repeat(24), ...lastFailure });
+});
+
+it('retains a definitive rejection reason on the entry after its slot is removed', async () => {
+  const f = fixture(); f.publish.mockRejectedValueOnce(new Error('liv_publication_checks_failed'));
+  await deliverReadyArticle(now, f.deps);
+  expect(f.state.slots[day]).toBeUndefined();
+  expect(f.state.entries[0]).toMatchObject({ state: 'rejected', lastFailure: {
+    stage: 'publication_preflight', reason: 'liv_publication_checks_failed', attempted: false,
+  } });
+});
+
+it('does not expose upstream secrets in persisted errors, logs, or the returned reason', async () => {
+  const f = fixture(); const secret = 'Bearer private-token https://upstream.example/?token=private-token';
+  f.publish.mockRejectedValueOnce(new Error(secret));
+  const result = await deliverReadyArticle(now, f.deps);
+  expect(result.reason).toBe('liv_delivery_failed');
+  expect(JSON.stringify([result, f.state, vi.mocked(logger.warn).mock.calls])).not.toContain('private-token');
+});
+
+it('records post-intent failures as ambiguous without retrying publication', async () => {
+  const f = fixture();
+  f.publish.mockImplementationOnce(async input => { await input.beforePublish?.('c'.repeat(64)); throw new Error('liv_publication_live_mismatch'); });
+  await deliverReadyArticle(now, f.deps);
+  expect(f.state.slots[day]).toMatchObject({ state: 'attempted', lastFailure: {
+    stage: 'publish_or_readback', reason: 'liv_publication_live_mismatch', attempted: true,
+  } });
+  const later = new Date(now.getTime() + 16 * 60_000); vi.setSystemTime(later);
+  await deliverReadyArticle(later, f.deps);
   expect(f.publish).toHaveBeenCalledTimes(1); expect(f.verify).toHaveBeenCalledTimes(1);
 });

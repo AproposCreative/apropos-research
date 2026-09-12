@@ -39,6 +39,8 @@ export type DeliverySlot = {
   publicUrl?: string; checkedAt?: string;
 };
 export type DeliveryState = { entries: ReadyEntry[]; slots: Record<string, DeliverySlot>;
+  /** Staged editorial mutation, never a publish attempt. Retained until reconciled. */
+  coverRevision?: { id: string; itemId: string; day: string };
   preparation?: { token: string; leaseUntil: number } };
 export const emptyDeliveryState = (): DeliveryState => ({ entries: [], slots: {} });
 

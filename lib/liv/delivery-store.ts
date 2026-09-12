@@ -99,6 +99,8 @@ export async function decideDelivery(input: { itemId: string; payloadHash: strin
 
 export function selectDelivery(state: DeliveryState, day: string, now: number, token: string): DeliverySlot | null {
   if (!validDay(day)) throw new Error('liv_delivery_invalid_day');
+  // Do not expire, replace or publish a slot while a cover PATCH is unresolved.
+  if (state.coverRevision) return null;
   // A pre-write job from an earlier day cannot be published late. Expired
   // workers lose their token; ambiguous external writes are never discarded.
   for (const [previousDay, previous] of Object.entries(state.slots)) {
@@ -145,7 +147,7 @@ export async function updateDelivery(day: string, token: string,
   change: (slot: DeliverySlot, state: DeliveryState) => void) {
   return mutateDelivery(state => {
     const slot = state.slots[day];
-    if (!slot || slot.token !== token) throw new Error('liv_delivery_lease_lost');
+    if (!slot || slot.token !== token || state.coverRevision) throw new Error('liv_delivery_lease_lost');
     change(slot, state);
   });
 }

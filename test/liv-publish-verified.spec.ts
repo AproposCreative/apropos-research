@@ -13,12 +13,13 @@ function fixture() {
     thumb: { url: 'https://example.com/hero.webp' } };
   const staged = { id: itemId, cmsLocaleId: localeId, isDraft: true, isArchived: false, fieldData: fields };
   const live = { ...staged, isDraft: false, lastPublished: new Date().toISOString() };
+  const schema = { id: collectionId, fields: [{ slug: 'publish-date', type: 'DateTime' }] };
   const inspect = vi.fn().mockResolvedValue({ itemId, localeId, draftConfirmed: true,
     publicationReady: true, fieldDataHash: cmsFieldHash(fields), checks: [{ id: 'all', ok: true }] });
-  const read = vi.fn(async (path: string) => path.includes('/live?') ? live : staged);
+  const read = vi.fn(async (path: string) => path === `collections/${collectionId}` ? schema : path.includes('/live?') ? live : staged);
   const publish = vi.fn().mockResolvedValue(undefined);
   const readPage = vi.fn().mockResolvedValue(Buffer.from(`<h1>En artikel</h1><img src="https://example.com/hero.webp">${content}`));
-  return { expected, staged, live, inspect, read, publish, readPage,
+  return { expected, staged, live, schema, inspect, read, publish, readPage,
     deps: { collectionId, localeId, inspect, read, publish, readPage, wait: vi.fn().mockResolvedValue(undefined) } };
 }
 it('publishes exactly the checked item and locale, then verifies live data and public HTML', async () => {
@@ -115,4 +116,68 @@ it('does not publish if the date patch fails', async () => {
   await expect(publishVerifiedLivArticle({ itemId, expected: f.expected, publicationDate: '2026-09-11T08:00:00Z',
     assertLease: async () => {} }, { ...f.deps, patchDate: async () => { throw new Error('network'); } })).rejects.toThrow('network');
   expect(f.publish).not.toHaveBeenCalled();
+});
+
+it('skips the absent publish-date field, preserves event dates, and still proves the exact live/public revision', async () => {
+  const f = fixture(); const date = '2026-09-12T08:00:00.000Z';
+  f.schema.fields = [{ slug: 'start-dato', type: 'DateTime' }, { slug: 'slut-dato', type: 'DateTime' }];
+  Object.assign(f.staged.fieldData, { 'start-dato': '2026-10-01T00:00:00Z', 'slut-dato': '2026-10-02T00:00:00Z' });
+  f.inspect.mockResolvedValue({ ...(await f.inspect()), fieldDataHash: cmsFieldHash(f.staged.fieldData) });
+  f.inspect.mockClear();
+  const original = structuredClone(f.staged.fieldData);
+  const patchDate = vi.fn(); const assertLease = vi.fn().mockResolvedValue(undefined);
+  const beforePublish = vi.fn().mockResolvedValue(undefined);
+  const result = await publishVerifiedLivArticle({ itemId, expected: f.expected,
+    publicationDate: date, assertLease, beforePublish }, { ...f.deps, patchDate });
+  expect(result.publicationVerified).toBe(true);
+  expect(patchDate).not.toHaveBeenCalled();
+  expect(f.staged.fieldData).toEqual(original);
+  expect(f.inspect).toHaveBeenCalledTimes(1);
+  expect(assertLease).toHaveBeenCalledTimes(2);
+  expect(beforePublish).toHaveBeenCalledWith(cmsFieldHash(original));
+  expect(f.publish).toHaveBeenCalledExactlyOnceWith(itemId, localeId);
+  expect(f.read).toHaveBeenCalledWith(`collections/${collectionId}/items/${itemId}/live?cmsLocaleId=${localeId}`);
+  expect(f.readPage).toHaveBeenCalledTimes(1);
+});
+
+it.each(['timestamp', 'cms-gate', 'public-text', 'public-images', 'lease'])('does not bypass %s when the optional CMS date field is absent', async failure => {
+  const f = fixture(); f.schema.fields = [{ slug: 'start-dato', type: 'DateTime' }];
+  const patchDate = vi.fn(); const assertLease = vi.fn().mockResolvedValue(undefined);
+  if (failure === 'timestamp') f.live.lastPublished = '';
+  if (failure === 'cms-gate') f.inspect.mockResolvedValue({ ...(await f.inspect()), publicationReady: false });
+  if (failure === 'public-text') f.readPage.mockResolvedValue(Buffer.from('<h1>En artikel</h1><p>Forkert tekst.</p>'));
+  if (failure === 'public-images') f.readPage.mockResolvedValue(Buffer.from('<h1>En artikel</h1><p>Første afsnit.</p><p>Andet afsnit med holdning.</p>'));
+  if (failure === 'lease') assertLease.mockResolvedValueOnce(undefined).mockRejectedValueOnce(new Error('liv_delivery_lease_lost'));
+  await expect(publishVerifiedLivArticle({ itemId, expected: f.expected,
+    publicationDate: '2026-09-12T08:00:00.000Z', assertLease }, { ...f.deps, patchDate })).rejects.toThrow();
+  expect(patchDate).not.toHaveBeenCalled();
+  expect(f.publish).toHaveBeenCalledTimes(['cms-gate', 'lease'].includes(failure) ? 0 : 1);
+});
+
+it.each(['wrong-type', 'duplicate', 'missing-fields', 'wrong-collection', 'unavailable'])('fails closed for %s schema instead of treating it as an absent date field', async failure => {
+  const f = fixture(); const patchDate = vi.fn();
+  if (failure === 'wrong-type') f.schema.fields[0].type = 'PlainText';
+  if (failure === 'duplicate') f.schema.fields.push({ ...f.schema.fields[0] });
+  if (failure === 'missing-fields') f.schema.fields = [];
+  if (failure === 'wrong-collection') f.schema.id = 'd'.repeat(24);
+  if (failure === 'unavailable') f.read.mockRejectedValueOnce(new Error('liv_cms_readback_http_503'));
+  await expect(publishVerifiedLivArticle({ itemId, expected: f.expected,
+    publicationDate: '2026-09-12T08:00:00.000Z', assertLease: async () => {} }, { ...f.deps, patchDate })).rejects.toThrow();
+  expect(patchDate).not.toHaveBeenCalled(); expect(f.publish).not.toHaveBeenCalled();
+});
+
+it('requires readback of the requested date when the DateTime field exists, not just a successful patch response', async () => {
+  const f = fixture(); const patchDate = vi.fn().mockResolvedValue(undefined);
+  await expect(publishVerifiedLivArticle({ itemId, expected: f.expected,
+    publicationDate: '2026-09-12T08:00:00.000Z', assertLease: async () => {} }, { ...f.deps, patchDate })).rejects.toThrow('draft_changed');
+  expect(patchDate).toHaveBeenCalledTimes(1); expect(f.publish).not.toHaveBeenCalled();
+});
+
+it('does not repeat an already-correct date patch', async () => {
+  const f = fixture(); const publicationDate = '2026-09-12T08:00:00.000Z';
+  Object.assign(f.staged.fieldData, { 'publish-date': publicationDate });
+  f.inspect.mockResolvedValue({ ...(await f.inspect()), fieldDataHash: cmsFieldHash(f.staged.fieldData) });
+  const patchDate = vi.fn();
+  await publishVerifiedLivArticle({ itemId, expected: f.expected, publicationDate, assertLease: async () => {} }, { ...f.deps, patchDate });
+  expect(patchDate).not.toHaveBeenCalled(); expect(f.publish).toHaveBeenCalledTimes(1);
 });

@@ -36,15 +36,27 @@ export async function publishVerifiedLivArticle(input: { itemId: string; expecte
   const inspect = dependencies?.inspect ?? inspectLivCmsDraft;
   const read = dependencies?.read ?? readLivWebflowJson;
   const path = `collections/${collectionId}/items/${input.itemId}`;
+  let verifyPublicationDate = false;
   if (input.publicationDate) {
     if (!Number.isFinite(Date.parse(input.publicationDate)) || !input.assertLease) throw new Error('liv_publication_invalid_date');
     await input.assertLease();
+    const schema = await read(`collections/${collectionId}`);
+    if (schema.id !== collectionId || !Array.isArray(schema.fields) || !schema.fields.length) {
+      throw new Error('liv_publication_schema_invalid');
+    }
+    const dateFields = schema.fields.map(object).filter(field => field.slug === 'publish-date');
+    if (dateFields.length > 1 || (dateFields.length === 1 && dateFields[0].type !== 'DateTime')) {
+      throw new Error('liv_publication_date_field_invalid');
+    }
+    verifyPublicationDate = dateFields.length === 1;
     const draft = await read(`${path}?cmsLocaleId=${localeId}`);
     if (draft.id !== input.itemId || draft.cmsLocaleId !== localeId || draft.isDraft !== true || draft.isArchived === true) {
       throw new Error('liv_publication_draft_changed');
     }
-    // Deterministic, repeatable metadata-only patch. Never republish or replace body/media here.
-    if (object(draft.fieldData)['publish-date'] !== input.publicationDate) {
+    // A collection without this optional field uses the internal delivery day
+    // and Webflow's actual lastPublished evidence. Never substitute event dates.
+    if (verifyPublicationDate && object(draft.fieldData)['publish-date'] !== input.publicationDate) {
+      await input.assertLease();
       await (dependencies?.patchDate ?? patchArticleFieldDataForLocale)(input.itemId,
         { 'publish-date': input.publicationDate }, localeId!);
     }
@@ -60,12 +72,13 @@ export async function publishVerifiedLivArticle(input: { itemId: string; expecte
   const fields = object(staged.fieldData);
   if (staged.id !== input.itemId || staged.cmsLocaleId !== localeId || staged.isDraft !== true || staged.isArchived === true ||
       fields.name !== input.expected.title || fields.slug !== input.expected.slug ||
-      (input.publicationDate && fields['publish-date'] !== input.publicationDate) ||
+      (verifyPublicationDate && fields['publish-date'] !== input.publicationDate) ||
       cmsFieldHash(fields) !== proof.fieldDataHash ||
       normalized(String(fields.content || '')) !== normalized(input.expected.content)) throw new Error('liv_publication_draft_changed');
 
   // Persist write intent before contacting Webflow. A crashed/ambiguous attempt
   // is subsequently reconciled by reads only, never blindly republished.
+  await input.assertLease?.();
   await input.beforePublish?.(cmsFieldHash(fields));
   await (dependencies?.publish ?? publishArticleItemForLocale)(input.itemId, localeId);
   return verifyLiveLivArticle({ ...input, fieldDataHash: cmsFieldHash(fields) }, {
