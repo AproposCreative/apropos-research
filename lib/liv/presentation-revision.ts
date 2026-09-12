@@ -127,15 +127,27 @@ export async function reviseLivPresentation(value: unknown) {
     const after = await readLivWebflowJson(path);
     if (after.isDraft !== true || after.lastPublished != null || hash(after.fieldData as object) !== hash(expectedFields)) return fail('readback_pending');
     const inspection = await inspectLivCmsDraft({ itemId: input.itemId, expected });
-    await save({ inspection });
-    if (!inspection.draftConfirmed || !inspection.publicationReady || !inspection.checks.length || inspection.checks.some(c => !c.ok) ||
+    // A scoped copyedit must not overwrite unrelated edits made in Webflow.
+    // Compare the actual current full checks with the immutable pre-edit CMS
+    // snapshot. Existing failures remain explicit publication blockers; this
+    // operation never converts them into passes or approves publication.
+    const baselineInspection = await inspectLivCmsDraft({ itemId: input.itemId, expected: audit.payload.expected }, {
+      collectionId: collection, localeId: locale,
+      read: async requested => requested === path ? audit.cms : readLivWebflowJson(requested),
+    });
+    await save({ inspection, baselineInspection });
+    const priorFailures = new Set(baselineInspection.checks.filter(c => !c.ok).map(c => c.id));
+    if (!inspection.draftConfirmed || !inspection.checks.length ||
+      inspection.checks.some(c => !c.ok && !priorFailures.has(c.id)) ||
+      inspection.checks.some(c => ['field:seo-title', 'field:meta-description'].includes(c.id) && !c.ok) ||
       inspection.fieldDataHash !== hash(expectedFields)) return fail('inspection_failed');
     await lease.assertOwned();
     const final = await readLivWebflowJson(path);
     if (final.isDraft !== true || final.lastPublished != null || hash(final.fieldData as object) !== hash(expectedFields)) return fail('cms_changed');
     const receipt = { status: 'presentation_staged', itemId: input.itemId, revisionId: id, title: expected.title,
       seoTitle: expected.seoTitle, seoDescription: expected.seoDescription, payloadHash: hash(expected),
-      fieldDataHash: inspection.fieldDataHash, publicationVerified: false, checkedAt: new Date().toISOString() };
+      fieldDataHash: inspection.fieldDataHash, publicationVerified: false, publicationReady: inspection.publicationReady,
+      publicationBlockers: inspection.checks.filter(c => !c.ok).map(c => c.id), checkedAt: new Date().toISOString() };
     await db.runTransaction(async tx => {
       const latest = (await tx.get(revisionRef)).data();
       const state = (await tx.get(manifestRef)).data() as DeliveryState;
@@ -151,7 +163,7 @@ export async function reviseLivPresentation(value: unknown) {
         tx.set(db.collection('livDailyArticles').doc(saved.id), { ...saved.row, articleCheckpoint: article, title: article.title,
           articleCheckpointHash: livImageArticleHash(article),
           preparationProof: { ...saved.row.preparationProof, expected, hash: hash(expected) },
-          presentationRevisionId: id, updatedAt: FieldValue.serverTimestamp() });
+          presentationRevisionId: id, presentationPublicationBlockers: receipt.publicationBlockers, updatedAt: FieldValue.serverTimestamp() });
       }
       tx.set(payloadRef, { ...audit.payload, expected, payloadHash: hash(expected), presentationRevisionId: id });
       entry.title = expected.title; entry.payloadHash = hash(expected);

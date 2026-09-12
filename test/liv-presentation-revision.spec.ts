@@ -99,3 +99,12 @@ it('accepts only delivery image attributes changing between paid checkpoint and 
  expect(samePresentationBody(a,b)).toBe(true);
  for(const changed of [b.replace('Preserved prose','Different claim'),b.replace('Actual subject','Invented subject'),b.replace('Actual source credit','Invented credit')]) expect(samePresentationBody(a,changed)).toBe(false);
 });
+
+it('preserves unrelated pre-existing CMS failures as explicit blockers without approving publication', async () => {
+  io.inspect.mockImplementation(async () => ({ draftConfirmed: true, publicationReady: false,
+    checks: [{ id: 'field:content', ok: false }, { id: 'field:seo-title', ok: true }, { id: 'field:meta-description', ok: true }], fieldDataHash: cmsFieldHash(cms.fieldData) }));
+  const r = await reviseLivPresentation(input);
+  expect(r.publicationReady).toBe(false); expect(r.publicationBlockers).toEqual(['field:content']);
+  expect(r.publicationVerified).toBe(false); expect(cms.fieldData.content).toBe('<p>Preserved body.</p>');
+  expect(manifest().coverRevision).toBeUndefined();
+});
