@@ -441,6 +441,17 @@ it('audits three exact scheduled content patches after factual revision, keeping
   expect(state.writes).not.toHaveBeenCalled();
 });
 
+it('allows an audited correction at a yielded scheduled media checkpoint without granting retries or changing pixels', async () => {
+  const { path, planPath, edit, revised } = scheduledMediaFixture();
+  Object.assign(state.rows.get(path), { status: 'processing', continuationReady: true });
+  state.rows.get(planPath).status = 'pending';
+  expect((await POST(request(edit))).status).toBe(200);
+  expect(state.rows.get(path)).toMatchObject({status:'processing',continuationReady:true});
+  expect(state.rows.get(path).retryAuthorization).toBeUndefined();
+  expect(state.rows.get(path).articleCheckpoint.preparedMedia).toEqual(revised.preparedMedia);
+  expect(state.rows.get(path).articleCheckpoint.selectedImage.visualReview).toBe('pending');
+});
+
 it.each(['pending-plan', 'wrong-day-plan', 'active', 'retry', 'cms', 'title', 'caption', 'figure-text', 'tampered-lineage', 'second-edit'])('blocks unsafe scheduled post-media edit: %s', async kind => {
   const { path, planPath, edit, revised } = scheduledMediaFixture();
   if (kind === 'pending-plan') state.rows.get(planPath).status = 'pending';

@@ -92,12 +92,13 @@ export async function editLivEditorialCheckpoint(value: unknown, lease: string, 
     }
     const article = row.articleCheckpoint as GeneratedArticle | undefined;
     const postMedia = Array.isArray(article?.preparedMedia) && article.preparedMedia.length === 3 && !!article.selectedImage;
-    if (scheduled && (plan?.dayKey !== input.dayKey || plan.status !== (postMedia ? 'failed' : 'pending') || state.slots?.[input.dayKey] ||
+    const yielded = scheduled && row.status === 'processing' && row.continuationReady === true;
+    if (scheduled && (plan?.dayKey !== input.dayKey || plan.status !== (postMedia && !yielded ? 'failed' : 'pending') || state.slots?.[input.dayKey] ||
       (state.entries || []).some((entry: { scheduledDay?: string }) => entry.scheduledDay === input.dayKey))) {
       throw new Error('liv_edit_conflict');
     }
     const editableState = postMedia
-      ? ['failed', 'skipped_factcheck', 'skipped_moderation', 'skipped_tov'].includes(row.status) && !row.continuationReady
+      ? yielded || (['failed', 'skipped_factcheck', 'skipped_moderation', 'skipped_tov'].includes(row.status) && !row.continuationReady)
       : row.status === 'processing' && row.continuationReady === true;
     if (!editableState || row.retryAuthorization ||
       row.webflowItemId || row.preparationProof || row.cmsSaveStarted || !article ||
