@@ -193,6 +193,48 @@ it('allows one distinct second fact correction, preserving its parent audit, pai
   expect(state.calls).toHaveBeenCalledTimes(1);
 });
 
+it('accepts a distinct second correction when parent object keys are recursively reordered, including selectedImage', async () => {
+  const original = article();
+  original.content = original.content.replace('Et modargument.', secondClaim);
+  const buffers = await Promise.all(['red', 'green', 'blue'].map(background =>
+    sharp({ create: { width: 10, height: 10, channels: 3, background } }).webp().toBuffer()));
+  original.preparedMedia = buffers.map((bytes, i) => ({ role: ['hero', 'body-1', 'body-2'][i],
+    url: `https://assets.test/${i}`, contentHash: createHash('sha256').update(bytes).digest('hex'),
+    alt: 'En illustration', caption: 'En billedtekst' })) as any;
+  original.selectedImage = { articleHash: livImageArticleHash(original), url: 'https://assets.test/0', id: 'original-image' } as any;
+  state.readImage.mockImplementation(async (url: string) => buffers[Number(url.split('/').at(-1))]);
+  for (const output of [patches, { pass: true }, secondPatches, { pass: true }]) {
+    state.calls.mockResolvedValueOnce({ choices: [{ finish_reason: 'stop', message: { content: JSON.stringify(output) } }] });
+  }
+  const first = await repairLivArticleFacts(original, report(original));
+  const parentId = first.factRevisionId!;
+  const reverseKeys = (value: unknown): unknown => {
+    if (Array.isArray(value)) return value.map(reverseKeys);
+    if (value && typeof value === 'object') return Object.fromEntries(Object.entries(value).reverse()
+      .map(([key, nested]) => [key, reverseKeys(nested)]));
+    return value;
+  };
+  const parent = { ...structuredClone(state.rows.get(parentId)), article: reverseKeys(first) as GeneratedArticle };
+  expect(parent.article).toEqual(first);
+  expect(JSON.stringify(parent.article)).not.toBe(JSON.stringify(first));
+  expect(Object.keys(parent.article.selectedImage!)).toEqual(Object.keys(first.selectedImage!).reverse());
+  expect(Object.keys(parent.article.preparedMedia![0])).toEqual(Object.keys(first.preparedMedia![0]).reverse());
+  state.rows.set(parentId, parent);
+  const diagnostic = report(first); diagnostic.results[0].claim = secondClaim;
+  const second = await repairLivArticleFacts(first, diagnostic);
+  expect(second.factRevisionCount).toBe(2);
+  expect(second.content).toContain(secondPatches.patches[0].after);
+  expect(second.preparedMedia).toEqual(first.preparedMedia);
+  expect(second.selectedImage!.articleHash).toBe(livImageArticleHash(second));
+  expect(state.rows.get(parentId)).toEqual(parent);
+  expect(state.rows.get(second.factRevisionId!)?.previous).toEqual(first);
+  // Only parent equality changes; keep the existing order-sensitive archive-id contract.
+  const inputHash = createHash('sha256').update(JSON.stringify(first)).digest('hex');
+  expect(second.factRevisionId).toBe(createHash('sha256').update(`liv-fact-revision-v1:${inputHash}`).digest('hex'));
+  expect(state.calls).toHaveBeenCalledTimes(4);
+  expect(state.readImage).toHaveBeenCalledTimes(6);
+});
+
 it.each(['missing', 'incomplete', 'snapshot-mismatch'])('rejects a second correction with %s parent before source or model calls', async kind => {
   const { first, parentId, parent, diagnostic } = await firstRevision();
   if (kind === 'missing') state.rows.delete(parentId);

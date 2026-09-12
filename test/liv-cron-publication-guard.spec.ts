@@ -1,5 +1,6 @@
 import { beforeEach, afterEach, it, expect, vi } from 'vitest';
 import { NextRequest } from 'next/server';
+import { articleFingerprint } from '@/lib/factcheck/grounded';
 const repair = vi.hoisted(() => vi.fn());
 const resumeFacts = vi.hoisted(() => vi.fn());
 vi.mock('@/lib/liv/fact-revision', () => ({ repairLivArticleFacts: repair, resumeLivFactRevision: resumeFacts }));
@@ -271,4 +272,26 @@ it('resumes an archived correction before repeating paid safety gates or media g
   expect(mocks.checkpoint).toHaveBeenLastCalledWith('2026-09-12', expect.objectContaining({ factRevisionId: 'archived' }), 'prepare');
   expect(mocks.gates).not.toHaveBeenCalled(); expect(mocks.media).not.toHaveBeenCalled();
   expect(mocks.publish).not.toHaveBeenCalled();
+});
+
+it('recovers exact-version fact diagnostics from retry audit without accepting a different article', async () => {
+  const a = { title: 'Saved', content: 'Known unsupported wording' };
+  const diagnostic = { articleHash: articleFingerprint([a.title, a.content].join('\n\n')), complete: false,
+    results: [{ claim: a.content, status: 'unverifiable' }] };
+  const gates = [{ name: 'factcheck', diagnosticEvidence: diagnostic }];
+  mocks.row = { articleCheckpoint: a, reason: 'liv_fact_revision_not_applicable', gateResults: [] };
+  const auditGet = vi.fn().mockResolvedValue({ docs: [
+    { data: () => ({ previous: { gateResults: [{ name: 'factcheck', diagnosticEvidence: { articleHash: 'other' } }] } }) },
+    { data: () => ({ previous: { gateResults: gates } }) },
+  ] });
+  mocks.doc.mockImplementation(() => ({ get: async () => ({ data: () => mocks.row }),
+    collection: () => ({ orderBy: () => ({ limit: () => ({ get: auditGet }) }) }) }));
+  resumeFacts.mockResolvedValue({ ...a, content: 'Corrected wording', factRevisionId: 'new' });
+  const result = await (await runLivDaily(new NextRequest('http://localhost/api/cron/liv-prepare'), {
+    dayKey: '2026-09-12', kind: 'scheduled', defaultPlan: defaultEditorialPlan('2026-09-12'),
+  })).json();
+  expect(result.status).toBe('facts_revised');
+  expect(resumeFacts).toHaveBeenCalledWith(a, diagnostic);
+  expect(auditGet).toHaveBeenCalledTimes(1);
+  expect(mocks.gates).not.toHaveBeenCalled(); expect(mocks.publish).not.toHaveBeenCalled();
 });

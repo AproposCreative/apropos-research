@@ -35,6 +35,7 @@ import type { GeneratedArticle } from '@/lib/liv/generate-article';
 import { prepareLivAutomaticMedia } from '@/lib/liv/automatic-media';
 import { buildLivCmsPayload } from '@/lib/liv/build-cms-payload';
 import { checkCmsDraft } from '@/lib/editorial/cms-preflight';
+import { articleFingerprint } from '@/lib/factcheck/grounded';
 import { inspectLivCmsDraft } from '@/lib/liv/cms-readback';
 import { runSafetyGates } from '@/lib/liv/run-safety-gates';
 import { buildResearchQaSummary } from '@/lib/liv/research-qa';
@@ -224,7 +225,20 @@ export async function runLivDaily(req: NextRequest, preparation?: {
     }
     if (preparation && checkpoint && (article.factRevisionCount ?? (article.factRevisionId ? 1 : 0)) < 2) {
       const { resumeLivFactRevision } = await import('@/lib/liv/fact-revision');
-      const priorDiagnostic = prepRow?.data()?.gateResults?.find((result: { name: string }) => result.name === 'factcheck')?.diagnosticEvidence;
+      let priorResults: GateResult[] = prepRow?.data()?.gateResults || [];
+      // An earlier revision failure can predate retaining its diagnostic on the
+      // current row. Recover the exact-version report from immutable retry audit.
+      if (!priorResults.length && String(prepRow?.data()?.reason || '').startsWith('liv_fact_revision_')) {
+        const audits = await getAdminDb()!.collection('livDailyArticles').doc(livDailyDocId(dayKey, scope))
+          .collection('retryRequests').orderBy('requestedAt', 'desc').limit(5).get();
+        const fingerprint = articleFingerprint([article.title, article.subtitle, article.excerpt, article.seoTitle,
+          article.seoDescription, article.ratingReason, article.intro, article.content].filter(Boolean).join('\n\n'));
+        priorResults = audits.docs.map(doc => doc.data().previous?.gateResults as GateResult[] | undefined)
+          .find(results => results?.some(result => result.name === 'factcheck' && result.diagnosticEvidence?.articleHash === fingerprint)) || [];
+      }
+      const priorDiagnostic = priorResults.find(result => result.name === 'factcheck')?.diagnosticEvidence;
+      // Preserve this diagnostic if correction fails before producing new gates.
+      gateResults = priorResults;
       const resumed = await resumeLivFactRevision(article, priorDiagnostic);
       if (resumed) {
         await checkpointLivDailyArticle(dayKey, resumed);

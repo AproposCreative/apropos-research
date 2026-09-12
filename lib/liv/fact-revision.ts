@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import { isDeepStrictEqual } from 'node:util';
 import { load } from 'cheerio';
 import sharp from 'sharp';
 import { getAdminDb } from '@/lib/firebase-admin';
@@ -89,7 +90,7 @@ export async function repairLivArticleFacts(article: GeneratedArticle, report: G
       ...(previous?.patchResult?.patches || []).flatMap((patch: Patch) => [patch.before, patch.after]),
     ].filter(Boolean).map(normalize);
     if (previous?.status !== 'complete' || !previous?.article ||
-        hash(JSON.stringify(previous.article)) !== hash(JSON.stringify(article)) ||
+        !isDeepStrictEqual(previous.article, json(article)) ||
         report.results.filter(result => result.status !== 'verified').some(result =>
           oldSpans.some(span => span.includes(normalize(result.claim)) || normalize(result.claim).includes(span)))) throw new Error('liv_fact_revision_not_applicable');
   }
