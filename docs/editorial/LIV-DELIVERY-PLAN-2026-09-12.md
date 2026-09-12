@@ -106,7 +106,11 @@ Forenklingen erstatter de tidligere fem-forslag/tre-reserve-krav. Den er under
 implementering, ikke endnu dokumenteret som deployet.
 
 - Én afgrænset researchrunde med få relevante kilder; genbrug af gemte resultater.
-- Én tekst og højst én målrettet korrektur. Ingen endeløse omskrivningsforsøg.
+- Én tekst og én målrettet korrekturoperation. Normalt ét modelkald; hvis en
+  færdig, ellers strukturelt gyldig rettelse stadig er for lang, må samme
+  operation bruge højst ét afgrænset længdeefterløb med den gemte rettelse.
+  Begge betalte svar bevares og tælles. Ingen ny research, nye billeder eller
+  endeløse omskrivningsforsøg. Tekniske tomme svar har særskilt snæver audit.
 - Én samlet redaktionel kontrol; billige strukturelle kontroller forbliver kode.
 - Pressebilleder før nye illustrationer, når relevante officielle aktiver findes.
 - Månedligt budgetmål/loft 300 kr. med synlige registreringer, inklusive retries

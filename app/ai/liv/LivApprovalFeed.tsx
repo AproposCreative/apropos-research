@@ -157,7 +157,7 @@ export default function LivApprovalFeed() {
           {feed.cost.status !== 'ready_partial' && <p className="text-amber-200">{feed.cost.status === 'unavailable' ?
             'Budgetstatus kunne ikke hentes.' : feed.cost.status === 'unconfigured' ?
               'Budgetstyringen mangler opsætning.' : 'Budgetstyringen kræver afklaring før nye betalte kald.'}</p>}
-          <p>Kun registrerede kald fra det daglige flow. Manuel Writer, særskilte previews og tidligere forbrug er ikke medregnet. Dette er et estimat, ikke API-udbyderens faktura.</p>
+          <p>Kun registrerede kald fra det daglige flow. Manuel Writer, særskilte previews, øvrige AI-funktioner og tidligere forbrug er ikke medregnet. Dette er et estimat, ikke API-udbyderens faktura eller et loft på hele kontoen.</p>
         </div>
       </details>}
     </LivContentColumn>

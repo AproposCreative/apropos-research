@@ -326,6 +326,144 @@ function longArticle() {
   return { a, paragraphs, output: { patches: [], bodyEdits: paragraphs.slice(5).map((before, i) => ({ index: i + 5, before, after: '' })) } };
 }
 
+function lengthFinishingFixture() {
+  const { a, paragraphs } = longArticle();
+  a.intro = 'Filmen hedder forkert.';
+  const factPatches = [{ field: 'intro', before: a.intro, after: 'Filmen hedder rigtigt.' }];
+  const edits = (counts: number[]) => paragraphs.slice(3).map((before, i) => ({ index: i + 3, before,
+    after: Array(counts[i]).fill('kultur').join(' ') }));
+  const first = { patches: factPatches, bodyEdits: edits([65, 65, 65, 65, 65, 65, 69]) };
+  const final = { patches: factPatches, bodyEdits: edits([28, 28, 28, 28, 28, 28, 32]) };
+  const length = checkLivArticleLength(a.content);
+  const inputHash = createHash('sha256').update(JSON.stringify(a)).digest('hex');
+  const id = createHash('sha256').update(`liv-fact-revision-v1:${inputHash}`).digest('hex');
+  const receipt = { rawResponse: JSON.stringify(first), patchResult: first, finishReason: 'stop', refusal: false,
+    usage: { prompt_tokens: 17235, completion_tokens: 2639, completion_tokens_details: { reasoning_tokens: 184 } }, model: 'saved-model' };
+  const row = { inputHash, previous: structuredClone(a), report: report(a), length, status: 'processing', ...receipt };
+  return { a, first, final, length, id, row, receipt };
+}
+
+it('finishes the saved complete 809-word patch once with a 200-word edit budget, preserving first paid evidence', async () => {
+  const f = lengthFinishingFixture(); state.rows.set(f.id, f.row);
+  state.calls.mockResolvedValueOnce(modelResult(f.final));
+  expect(() => applyLivTargetedPatches(f.a, f.first, f.length)).toThrow('length_failed');
+  const revised = await resumeLivFactRevision(f.a);
+  expect(checkLivArticleLength(revised!.content).wordCount).toBe(550);
+  expect(revised).toMatchObject({ intro: 'Filmen hedder rigtigt.', rawResponse: 'paid-original', subjectType: 'film', factRevisionId: f.id, factRevisionCount: 1 });
+  expect(state.row).toMatchObject(f.receipt);
+  expect(state.row.lengthCompletion).toMatchObject({ attemptCount: 1, candidateWords: 809, untouchedWords: 350,
+    editedWordAllowance: 200, firstPaid: f.receipt });
+  expect(state.row.previous).toEqual(f.a); expect(state.row.report).toEqual(f.row.report);
+  expect(state.row.lengthCompletionRaw).toBe(JSON.stringify(f.final));
+  expect(state.row.lengthCompletionPatchResult).toEqual(f.final);
+  expect(state.row.lengthCompletion.attempt.status).toBe('started');
+  const request = state.calls.mock.calls[0][0];
+  const prompt = JSON.parse(request.messages[1].content);
+  expect(prompt).toMatchObject({ originalWords: 1050, candidateWords: 809, untouchedWords: 350, editedWordAllowance: 200, firstPatch: f.first });
+  expect(prompt.paragraphs.reduce((sum: number, p: any) => sum + p.targetWords, 0)).toBe(200);
+  expect(request).toMatchObject({ reasoning_effort: 'low', max_completion_tokens: 10000 });
+  expect(state.calls.mock.calls[0][1]).toEqual({ timeout: 90000, maxRetries: 0 });
+  expect(await resumeLivFactRevision(f.a)).toEqual(revised);
+  expect(state.calls).toHaveBeenCalledTimes(1); expect(state.retrieve).not.toHaveBeenCalled();
+  expect(state.readImage).not.toHaveBeenCalled();
+});
+
+it('includes initial body/paragraph counts and can finish after two completed patch calls in the same correction', async () => {
+  const f = lengthFinishingFixture();
+  state.calls.mockResolvedValueOnce({ ...modelResult(f.first), usage: f.receipt.usage }).mockResolvedValueOnce(modelResult(f.final));
+  const revised = await repairLivArticleFacts(f.a, report(f.a), { length: f.length });
+  const initial = JSON.parse(state.calls.mock.calls[0][0].messages.at(-1).content);
+  expect(initial.bodyWordCount).toBe(1050);
+  expect(initial.paragraphs.map((p: any) => p.wordCount)).toEqual([150, ...Array(9).fill(100)]);
+  expect(initial.lengthBudgetRule).toContain('550 minus');
+  expect(revised.factRevisionCount).toBe(1); expect(state.calls).toHaveBeenCalledTimes(2);
+});
+
+it.each(['refusal', 'partial', 'network-ambiguous', 'invalid-structure', 'too-short', 'mismatched-raw', 'wrong-original', 'wrong-context'])
+('never length-finishes first receipt with %s', async kind => {
+  const f = lengthFinishingFixture(); const row: any = f.row;
+  if (kind === 'refusal') row.refusal = true;
+  if (kind === 'partial') row.finishReason = 'length';
+  if (kind === 'network-ambiguous') { delete row.rawResponse; delete row.patchResult; delete row.usage; }
+  if (kind === 'invalid-structure') { row.patchResult.bodyEdits[0].after = '<div>bad</div>'; row.rawResponse = JSON.stringify(row.patchResult); }
+  if (kind === 'too-short') {
+    row.patchResult.bodyEdits = [...f.a.content.matchAll(/<p>(.*?)<\/p>/g)].slice(2).map((m, i) => ({ index: i + 2, before: m[1], after: '' }));
+    row.rawResponse = JSON.stringify(row.patchResult);
+  }
+  if (kind === 'mismatched-raw') row.rawResponse = JSON.stringify(f.final);
+  if (kind === 'wrong-original') row.previous.title = 'other';
+  if (kind === 'wrong-context') row.lengthCompletion = { attemptCount: 1, contextHash: 'other' };
+  state.rows.set(f.id, row);
+  await expect(resumeLivFactRevision(f.a)).rejects.toThrow();
+  expect(state.calls).not.toHaveBeenCalled(); expect(state.readImage).not.toHaveBeenCalled();
+});
+
+it.each(['too-long', 'too-short', 'partial', 'refusal', 'network', 'changed-fact', 'changed-before', 'extra-edit', 'invalid-json'])
+('preserves both receipts and never repeats the length completion after %s', async kind => {
+  const f = lengthFinishingFixture(); state.rows.set(f.id, f.row);
+  let output: any = structuredClone(f.final);
+  if (kind === 'too-long') output = f.first;
+  // Below 450, but still structurally valid: deleting all selected paragraphs
+  // leaves the three untouched paragraphs (350 words).
+  if (kind === 'too-short') output.bodyEdits.forEach((e: any) => { e.after = ''; });
+  if (kind === 'changed-fact') output.patches[0].after = 'Andet navn.';
+  if (kind === 'changed-before') output.bodyEdits[0].before = 'Wrong original';
+  if (kind === 'extra-edit') output.bodyEdits.push(output.bodyEdits[0]);
+  if (kind === 'network') state.calls.mockRejectedValueOnce(new Error('timeout'));
+  else state.calls.mockResolvedValueOnce({ choices: [{ finish_reason: kind === 'partial' ? 'length' : 'stop',
+    message: { content: kind === 'invalid-json' ? '{broken' : JSON.stringify(output), refusal: kind === 'refusal' ? 'refused' : null } }], usage: { completion_tokens: 1000 } });
+  await expect(resumeLivFactRevision(f.a)).rejects.toThrow();
+  const audit = structuredClone(state.row.lengthCompletion);
+  await expect(resumeLivFactRevision(f.a)).rejects.toThrow();
+  expect(state.calls).toHaveBeenCalledTimes(1); expect(state.row).toMatchObject(f.receipt);
+  expect(state.row.lengthCompletion).toEqual(audit);
+  expect(audit.attempt.status).toBe('started'); expect(audit.attemptCount).toBe(1);
+  expect(state.row.lengthCompletionCostDenials).toBeUndefined();
+  expect(state.row.status).toBe('processing'); expect(state.readImage).not.toHaveBeenCalled();
+});
+
+it('atomically grants one length completion to competing resumes', async () => {
+  const f = lengthFinishingFixture(); state.rows.set(f.id, f.row);
+  let release!: (value: any) => void;
+  state.calls.mockImplementationOnce(() => new Promise(resolve => { release = resolve; }));
+  const first = resumeLivFactRevision(f.a);
+  await vi.waitFor(() => expect(state.calls).toHaveBeenCalledTimes(1));
+  await expect(resumeLivFactRevision(f.a)).rejects.toThrow('reconciliation');
+  release(modelResult(f.final));
+  expect(checkLivArticleLength((await first)!.content).pass).toBe(true);
+  expect(state.calls).toHaveBeenCalledTimes(1);
+});
+
+it.each([false, true])('reclaims only typed unpaid length completion, preserving paid audit; later network ambiguity=%s', async network => {
+  const f = lengthFinishingFixture(); state.rows.set(f.id, f.row);
+  const denied = new Error('wrapped', { cause: new LivCostPretransportError('liv_budget_month_limit') });
+  state.calls.mockRejectedValueOnce(denied);
+  await expect(resumeLivFactRevision(f.a)).rejects.toBe(denied);
+  const audit = structuredClone(state.row.lengthCompletion);
+  const denial = structuredClone(state.row.lengthCompletionCostDenials);
+  expect(state.row.lengthCompletionAttempt).toMatchObject({ status: 'not_started', providerAttempted: false, contextHash: audit.contextHash });
+  expect(state.row).toMatchObject(f.receipt);
+  if (network) state.calls.mockRejectedValueOnce(new Error('network timeout'));
+  else state.calls.mockResolvedValueOnce(modelResult(f.final));
+  if (network) {
+    await expect(resumeLivFactRevision(f.a)).rejects.toThrow('network timeout');
+    await expect(resumeLivFactRevision(f.a)).rejects.toThrow('reconciliation');
+  } else expect(checkLivArticleLength((await resumeLivFactRevision(f.a))!.content).pass).toBe(true);
+  expect(state.row.lengthCompletion).toEqual(audit); expect(state.row.lengthCompletionCostDenials).toEqual(denial);
+  expect(state.row.lengthCompletionAttempt).toMatchObject({ status: 'started', contextHash: audit.contextHash });
+  expect(state.row.lengthCompletionAttempt.id).not.toBe(audit.attempt.id);
+  expect(state.calls).toHaveBeenCalledTimes(2); // one denial before transport, at most one paid call
+});
+
+it('replays the paid length completion after raw save without purchasing or fetching anything again', async () => {
+  const f = lengthFinishingFixture(); state.rows.set(f.id, f.row);
+  state.calls.mockResolvedValueOnce(modelResult(f.final));
+  const revised = await resumeLivFactRevision(f.a);
+  state.row.status = 'processing'; delete state.row.article; delete state.row.lengthCompletionPatchResult;
+  expect(await resumeLivFactRevision(f.a)).toEqual(revised);
+  expect(state.calls).toHaveBeenCalledTimes(1); expect(state.retrieve).not.toHaveBeenCalled();
+});
+
 it('shortens a 1050-word paid draft to 550 while preserving figures, headings, subject type and paid provenance', () => {
   const { a, output } = longArticle();
   const figure = '<figure data-id="paid"><img src="https://assets.test/1" alt="Gemte pixels"><figcaption>Credit må ikke ændres.</figcaption></figure>';
