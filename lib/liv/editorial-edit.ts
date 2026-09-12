@@ -5,7 +5,7 @@ import { FieldValue } from 'firebase-admin/firestore';
 import { getAdminDb } from '@/lib/firebase-admin';
 import { applyLivFactPatches } from './fact-revision';
 import { applyLivMediaDescriptionCorrections } from './media-description-repair';
-import { copenhagenClock, validDay } from './delivery-policy';
+import { addDays, copenhagenClock, validDay } from './delivery-policy';
 import { LIV_DAILY_COLLECTION, livDailyDocId } from './daily-history-store';
 import { cmsFieldHash } from './cms-field-hash';
 import { livImageArticleHash } from './article-image-hash';
@@ -16,7 +16,7 @@ const captionText = z.string().trim().min(10).max(350)
   .refine(value => !/[<>\x00-\x1f]|https?:\/\//i.test(value));
 export const editorialEditInput = z.object({
   requestId: z.string().regex(/^[a-zA-Z0-9_-]{8,100}$/),
-  dayKey: z.string().refine(validDay), scope: z.literal('reserve-editorial'),
+  dayKey: z.string().refine(validDay), scope: z.enum(['reserve-editorial', 'prepare']),
   expectedArticleHash: sha256,
   expectedCheckpointHash: sha256.optional(),
   reason: z.string().trim().min(3).max(500).refine(value => !/[<>\x00-\x1f]/.test(value)),
@@ -27,6 +27,11 @@ export const editorialEditInput = z.object({
   mediaCaptions: z.array(z.object({ role: z.enum(['body-1', 'body-2']), before: captionText, after: captionText }).strict())
     .min(1).max(2).optional(),
 }).strict().refine(input => input.patches.length > 0 || !!input.mediaCaptions?.length);
+
+export function editorialEditDayAllowed(input: z.infer<typeof editorialEditInput>, now = Date.now()) {
+  const today = copenhagenClock(new Date(now)).day;
+  return input.scope === 'prepare' ? input.dayKey >= today && input.dayKey <= addDays(today, 7) : input.dayKey === today;
+}
 
 const omit = (value: Record<string, unknown>, keys: string[]) => Object.fromEntries(Object.entries(value).filter(([key]) => !keys.includes(key)));
 
@@ -59,7 +64,7 @@ function editPreparedCaptions(article: GeneratedArticle, patches: z.infer<typeof
  * Normal preparation must resume afterward and validate the edited checkpoint. */
 export async function editLivEditorialCheckpoint(value: unknown, lease: string, now = Date.now()) {
   const parsed = editorialEditInput.safeParse(value);
-  if (!parsed.success || parsed.data.dayKey !== copenhagenClock(new Date(now)).day) throw new Error('liv_edit_invalid');
+  if (!parsed.success || !editorialEditDayAllowed(parsed.data, now)) throw new Error('liv_edit_invalid');
   const input = parsed.data, inputHash = cmsFieldHash(input);
   const db = getAdminDb();
   if (!db) throw new Error('liv_edit_store_unavailable');
@@ -68,27 +73,33 @@ export async function editLivEditorialCheckpoint(value: unknown, lease: string, 
   const audit = run.collection('editorialEdits').doc(input.requestId);
   return db.runTransaction(async tx => {
     const state = (await tx.get(db.collection('livDelivery').doc('manifest'))).data();
-    const saved = (await tx.get(db.collection('livExplicitPreparations').doc(runId))).data();
+    const scheduled = input.scope === 'prepare';
+    const saved = scheduled ? undefined : (await tx.get(db.collection('livExplicitPreparations').doc(runId))).data();
+    const plan = scheduled ? (await tx.get(db.collection('livDailyPlan').doc(`plan-${input.dayKey}`))).data() : undefined;
     const row = (await tx.get(run)).data();
     const prior = (await tx.get(audit)).data();
     if (state?.preparation?.token !== lease || !Number.isFinite(state?.preparation?.leaseUntil) ||
       state.preparation.leaseUntil <= now) throw new Error('liv_edit_lease_lost');
     if (state.coverRevision || Object.values(state.slots || {}).some(slot =>
       (slot as { state?: unknown })?.state === 'attempted')) throw new Error('liv_edit_delivery_hold');
-    if (!saved?.input || saved.input.dayKey !== input.dayKey || saved.inputHash !== cmsFieldHash(saved.input) ||
-      row?.dayKey !== input.dayKey || row.explicitPreparationInputHash !== saved.inputHash) throw new Error('liv_edit_conflict');
+    if (row?.dayKey !== input.dayKey || (!scheduled && (!saved?.input || saved.input.dayKey !== input.dayKey ||
+      saved.inputHash !== cmsFieldHash(saved.input) || row.explicitPreparationInputHash !== saved.inputHash))) throw new Error('liv_edit_conflict');
     // An exact replay acknowledges the immutable receipt, never reapplies an
     // old patch over later work (including a later copyedit or media stage).
     if (prior) {
       if (prior.inputHash !== inputHash) throw new Error('liv_edit_conflict');
       return { status: 'already_edited' as const, runId, requestId: input.requestId, articleHash: prior.articleHash as string };
     }
+    if (scheduled && (plan?.dayKey !== input.dayKey || plan.status !== 'pending' || state.slots?.[input.dayKey] ||
+      (state.entries || []).some((entry: { scheduledDay?: string }) => entry.scheduledDay === input.dayKey))) {
+      throw new Error('liv_edit_conflict');
+    }
     const article = row.articleCheckpoint as GeneratedArticle | undefined;
     const postMedia = Array.isArray(article?.preparedMedia) && article.preparedMedia.length === 3 && !!article.selectedImage;
     const editableState = postMedia
       ? ['failed', 'skipped_factcheck', 'skipped_moderation', 'skipped_tov'].includes(row.status) && !row.continuationReady
       : row.status === 'processing' && row.continuationReady === true;
-    if (!editableState || row.retryAuthorization ||
+    if (!editableState || (scheduled && postMedia) || row.retryAuthorization ||
       row.webflowItemId || row.preparationProof || row.cmsSaveStarted || !article ||
       !['title', 'slug', 'intro', 'content'].every(key => typeof article[key as keyof GeneratedArticle] === 'string') ||
       !article.title.trim() || !article.content.trim() || (!postMedia && (article.preparedMedia !== undefined || article.selectedImage ||
@@ -164,6 +175,7 @@ export async function editLivEditorialCheckpoint(value: unknown, lease: string, 
     if (postMedia) revised.selectedImage = { ...article.selectedImage!, articleHash };
     tx.create(audit, { input, inputHash, previousArticle: article, article: revised,
       previousArticleHash: input.expectedArticleHash, articleHash,
+      ...(scheduled ? { previousRun: row, previousPlan: plan } : {}),
       ...(mediaJobId ? { mediaJobId, mediaRevisionIds, previousCheckpointHash: input.expectedCheckpointHash,
         checkpointHash: cmsFieldHash(revised as unknown as Record<string, unknown>) } : {}),
       authority: 'authorized-operator', createdAt: FieldValue.serverTimestamp() });

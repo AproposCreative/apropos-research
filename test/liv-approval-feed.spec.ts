@@ -1,6 +1,6 @@
 import { expect, it } from 'vitest';
 import { approvalEntries, approvalStory, APPROVAL_PAGE_SIZE } from '@/lib/liv/approval-feed';
-import { emptyDeliveryState, type ReadyEntry } from '@/lib/liv/delivery-policy';
+import { emptyDeliveryState, eligibleEntries, type ReadyEntry } from '@/lib/liv/delivery-policy';
 import type { WebflowArticleFields } from '@/lib/webflow/types';
 import { readFileSync } from 'node:fs';
 const entry: ReadyEntry = { itemId: 'a'.repeat(24), payloadHash: 'b'.repeat(64), title: 'En historie', slug: 'historie',
@@ -26,20 +26,34 @@ it('previews today’s eligible reserve before tomorrow’s scheduled story when
   const todayReserve = { ...entry, itemId: 'today-reserve', kind: 'reserve' as const, scheduledDay: '2026-09-10' };
   state.entries = [entry, todayReserve];
   const before = structuredClone(state);
-  expect(approvalEntries(state, '2026-09-10')).toEqual([todayReserve]);
+  expect(approvalEntries(state, '2026-09-10')).toEqual([todayReserve, entry]);
   expect(state).toEqual(before);
   state.entries = [entry];
   expect(approvalEntries(state, '2026-09-10')).toEqual([entry]);
 });
-it('keeps scheduled priority, then uses the real reserve approval/expiry ordering', () => {
+it('keeps delivery approval priority across scheduled stories and reserves', () => {
   const state = emptyDeliveryState();
   state.entries = [entry, { ...entry, itemId: 'reserve', kind: 'reserve', decision: 'approved' },
     { ...entry, itemId: 'older-reserve', kind: 'reserve', preparedAt: '2020' }];
-  expect(approvalEntries(state, '2026-09-11')).toEqual([entry]);
+  expect(approvalEntries(state, '2026-09-11').map(e => e.itemId)).toEqual(['reserve', entry.itemId, 'older-reserve']);
   state.entries[0] = { ...entry, decision: 'rejected' };
-  expect(approvalEntries(state, '2026-09-11').map(e => e.itemId)).toEqual(['reserve']);
+  expect(approvalEntries(state, '2026-09-11').map(e => e.itemId)).toEqual(['reserve', 'older-reserve']);
   state.entries = [state.entries[0]];
   expect(approvalEntries(state, '2026-09-11')[0].decision).toBe('rejected');
+});
+it.each([false, true])('matches delivery ordering for approved reserve vs pending scheduled before future cards (today published=%s)', published => {
+  const state = emptyDeliveryState();
+  const day = published ? '2026-09-10' : '2026-09-11';
+  if (published) state.slots[day] = slot('already-published', 'published');
+  const reserve = { ...entry, itemId: 'approved-reserve', kind: 'reserve' as const, decision: 'approved' as const };
+  const future = { ...entry, itemId: 'future', scheduledDay: '2026-09-14', expiresDay: '2026-09-14' };
+  state.entries = [future, entry, reserve];
+  const before = structuredClone(state);
+  expect(approvalEntries(state, day)).toEqual([...eligibleEntries(state, '2026-09-11'), future]);
+  expect(approvalEntries(state, day)[0]).toBe(reserve);
+  expect(state).toEqual(before);
+  state.entries[1] = { ...entry, decision: 'approved' };
+  expect(approvalEntries(state, day)[0].itemId).toBe(entry.itemId); // equal approval: scheduled first
 });
 it.each(['selected', 'attempted'] as const)('shows only the %s slot owner, never another ready card', status => {
   const state = emptyDeliveryState();
@@ -68,8 +82,8 @@ it('labels reserve availability without promising a scheduled publication date',
   expect(source).toContain("story.kind === 'reserve' ? 'Reserve · klar til næste ledige udgivelse'");
   expect(source).toContain('Planlagt ${dateLabel(story.scheduledDay)}');
 });
-it('supplies one upcoming story and retains a rejected choice for reversal without exposing old stock', () => {
-  expect(APPROVAL_PAGE_SIZE).toBe(1);
+it('supplies up to three upcoming stories and retains a rejected choice for reversal without exposing old stock', () => {
+  expect(APPROVAL_PAGE_SIZE).toBe(3);
   const state = emptyDeliveryState();
   state.entries = [{ ...entry, kind: 'reserve' }, { ...entry, itemId: 'b', decision: 'rejected' },
     { ...entry, expiresDay: '2026-09-09' }, { ...entry, scheduledDay: '2026-09-20', expiresDay: '2026-09-20' }];
@@ -83,7 +97,7 @@ it('prioritizes today over tomorrow and excludes published/rejected-state histor
     { ...entry, itemId: 'today', scheduledDay: '2026-09-10', expiresDay: '2026-09-10' },
     { ...entry, itemId: 'published', state: 'published', scheduledDay: '2026-09-10' },
     { ...entry, itemId: 'archived-rejection', state: 'rejected', scheduledDay: '2026-09-10' }];
-  expect(approvalEntries(state, '2026-09-10').map(e => e.itemId)).toEqual(['today']);
+  expect(approvalEntries(state, '2026-09-10').map(e => e.itemId)).toEqual(['today', 'tomorrow']);
 });
 it('shows tomorrow once today has a publication receipt, not another ready story for today', () => {
   const state = emptyDeliveryState();
@@ -110,6 +124,57 @@ it('breaks same-day ties deterministically and retains approved priority', () =>
   expect(approvalEntries(state, '2026-09-10')[0].itemId).toBe('a');
   state.entries[0].decision = 'approved';
   expect(approvalEntries(state, '2026-09-10')[0].itemId).toBe('b');
+});
+it('shows the existing review reserve plus Monday and Tuesday scheduled stories without changing delivery state', () => {
+  const state = emptyDeliveryState();
+  state.slots['2026-09-12'] = slot('published-today', 'published');
+  const review = { ...entry, itemId: 'gentlemen', kind: 'reserve' as const, scheduledDay: '2026-09-12', expiresDay: '2026-09-17' };
+  const culture = { ...entry, itemId: 'culture', scheduledDay: '2026-09-14', expiresDay: '2026-09-14' };
+  const feature = { ...entry, itemId: 'feature', scheduledDay: '2026-09-15', expiresDay: '2026-09-15' };
+  state.entries = [feature, review, culture];
+  const before = structuredClone(state);
+  expect(approvalEntries(state, '2026-09-12')).toEqual([review, culture, feature]);
+  expect(state).toEqual(before);
+});
+it('includes scheduled day +7 but excludes day +8, past work and work expiring before its scheduled day', () => {
+  const state = emptyDeliveryState();
+  const seventh = { ...entry, itemId: 'seventh', scheduledDay: '2026-09-17', expiresDay: '2026-09-17' };
+  state.entries = [seventh,
+    { ...entry, itemId: 'eighth', scheduledDay: '2026-09-18', expiresDay: '2026-09-18' },
+    { ...entry, itemId: 'past', scheduledDay: '2026-09-09', expiresDay: '2026-09-17' },
+    { ...entry, itemId: 'invalid-expiry', scheduledDay: '2026-09-16', expiresDay: '2026-09-15' }];
+  expect(approvalEntries(state, '2026-09-10')).toEqual([seventh]);
+});
+it('caps the preview at three unique items while preserving approved and chronological ordering', () => {
+  const state = emptyDeliveryState();
+  const first = { ...entry, itemId: 'first', decision: 'approved' as const };
+  state.entries = [entry, first, first,
+    { ...entry, itemId: 'second-day', scheduledDay: '2026-09-12', expiresDay: '2026-09-12' },
+    { ...entry, itemId: 'third-day', scheduledDay: '2026-09-13', expiresDay: '2026-09-13' }];
+  expect(approvalEntries(state, '2026-09-10').map(e => e.itemId)).toEqual(['first', entry.itemId, 'second-day']);
+});
+it('never fills three cards with rejected decisions when non-rejected work exists', () => {
+  const state = emptyDeliveryState();
+  state.entries = [entry, { ...entry, itemId: 'rejected', decision: 'rejected' },
+    { ...entry, itemId: 'rejected-state', state: 'rejected' }, { ...entry, itemId: 'published', state: 'published' }];
+  expect(approvalEntries(state, '2026-09-10')).toEqual([entry]);
+});
+it('keeps a later-week selected slot authoritative and never substitutes a missing owner', () => {
+  const state = emptyDeliveryState();
+  const selected = { ...entry, itemId: 'selected', state: 'selected' as const, scheduledDay: '2026-09-15', expiresDay: '2026-09-15' };
+  state.entries = [entry, selected]; state.slots['2026-09-15'] = slot('selected', 'selected');
+  expect(approvalEntries(state, '2026-09-10')).toEqual([selected]);
+  state.entries = [entry]; expect(approvalEntries(state, '2026-09-10')).toEqual([]);
+});
+it('excludes a published slot owner even if a stale ready entry has a different scheduled day', () => {
+  const state = emptyDeliveryState(); state.entries = [entry];
+  state.slots['2026-09-09'] = slot(entry.itemId, 'published');
+  expect(approvalEntries(state, '2026-09-10')).toEqual([]);
+});
+it('describes three weekly previews without promising three automatic preparations', () => {
+  const source = readFileSync('app/ai/liv/LivApprovalFeed.tsx', 'utf8');
+  expect(source).toContain('Op til tre klargjorte historier fra i dag og syv dage frem.');
+  expect(source).not.toContain('Én historie til i morgen.');
 });
 it('exposes a minimal plain text DTO, not HTML, research internals or editor identity', () => {
   const dto = approvalStory({ ...entry, decidedBy: 'private-editor' }, { ...payload, aiModel: 'private-model' });

@@ -5,13 +5,14 @@ import type { ApprovalStory } from './approval-types';
 import { isLivArticleFormat, parseResearchRating, type LivArticleFormat } from './review-format';
 import { LIV_SUBJECT_LABELS, LIV_SUBJECT_TYPES } from './article-output';
 
-export const APPROVAL_PAGE_SIZE = 1;
+export const APPROVAL_PAGE_SIZE = 3;
 export function approvalEntries(state: DeliveryState, day: string) {
   const tomorrow = addDays(day, 1);
+  const lastDay = addDays(day, 7);
   // An unresolved slot is authoritative, including reserves. Never preview a
   // different ready story while its delivery is selected or uncertain.
   const held = Object.entries(state.slots).filter(([date, slot]) => slot.state === 'attempted' ||
-    (slot.state === 'selected' && [day, tomorrow].includes(date)))
+    (slot.state === 'selected' && date >= day && date <= lastDay))
     .sort(([a, x], [b, y]) => Number(y.state === 'attempted') - Number(x.state === 'attempted') || a.localeCompare(b))[0];
   if (held) return state.entries.filter(entry => entry.itemId === held[1].itemId && entry.state === 'selected').slice(0, 1);
   if (state.coverRevision) return [];
@@ -19,20 +20,27 @@ export function approvalEntries(state: DeliveryState, day: string) {
   // Keep a rejected choice visible until a replacement exists so it can be reversed.
   const decisionOrder = (entry: ReadyEntry) => entry.decision === 'approved' ? 0 : entry.decision === 'rejected' ? 2 : 1;
   const scheduled = state.entries.filter(entry => entry.kind === 'scheduled' && ['ready', 'selected'].includes(entry.state) &&
-    entry.expiresDay >= day && [day, tomorrow].includes(entry.scheduledDay) &&
+    entry.expiresDay >= entry.scheduledDay && entry.scheduledDay >= day && entry.scheduledDay <= lastDay &&
+    !Object.values(state.slots).some(slot => slot.state === 'published' && slot.itemId === entry.itemId) &&
     (!state.slots[entry.scheduledDay] || (state.slots[entry.scheduledDay].state !== 'published' &&
       state.slots[entry.scheduledDay].itemId === entry.itemId)))
     .sort((a, b) => a.scheduledDay.localeCompare(b.scheduledDay) ||
       Number(b.state === 'selected') - Number(a.state === 'selected') || decisionOrder(a) - decisionOrder(b) ||
       a.preparedAt.localeCompare(b.preparedAt) || a.itemId.localeCompare(b.itemId));
   const nextDay = state.slots[day]?.state === 'published' ? tomorrow : day;
-  const readyScheduled = scheduled.find(entry => entry.scheduledDay === nextDay && entry.decision !== 'rejected');
-  if (readyScheduled) return [readyScheduled];
-  if (state.slots[nextDay]) return scheduled.slice(0, 1);
-  const reserve = eligibleEntries(state, nextDay).find(entry => entry.kind === 'reserve' &&
-    !Object.values(state.slots).some(slot => slot.itemId === entry.itemId));
-  const futureScheduled = scheduled.find(entry => entry.decision !== 'rejected');
-  return reserve ? [reserve] : futureScheduled ? [futureScheduled] : scheduled.slice(0, 1);
+  const readyScheduled = scheduled.filter(entry => entry.decision !== 'rejected');
+  const nextEntries = state.slots[nextDay] ? [] : eligibleEntries(state, nextDay).filter(entry =>
+    entry.kind === 'scheduled' ? readyScheduled.includes(entry) :
+      !Object.values(state.slots).some(slot => slot.itemId === entry.itemId));
+  // A three-card preview is not a new generation target or a reservation of
+  // delivery dates. Existing delivery priority still determines the first card.
+  const upcoming = [...nextEntries,
+    ...readyScheduled.filter(entry => entry.scheduledDay !== nextDay)];
+  const seen = new Set<string>();
+  return (upcoming.length ? upcoming : scheduled).filter(entry => {
+    if (seen.has(entry.itemId)) return false;
+    seen.add(entry.itemId); return true;
+  }).slice(0, APPROVAL_PAGE_SIZE);
 }
 function plain(html: string) {
   const $ = load(html || '');

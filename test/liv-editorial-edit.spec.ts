@@ -14,6 +14,7 @@ vi.mock('@/lib/firebase-admin', () => {
     const task = state.queue.catch(() => {}).then(async () => {
       const writes: Array<[string, any]> = [];
       const result = await run({ get: async (ref: any) => {
+        if (writes.length) throw new Error('transaction read after write');
         if (!ref.field) return { data: () => state.rows.get(ref.path) };
         const docs = [...state.rows].filter(([path, row]) => path.startsWith(`${ref.path}/`) && row[ref.field] === ref.value)
           .map(([path, row]) => ({ id: path.split('/').at(-1), data: () => row }));
@@ -150,7 +151,7 @@ it.each(['auth', 'disabled', 'paused', 'busy', 'store'])('rejects %s safely', as
   expect(state.release).toHaveBeenCalledTimes(kind === 'store' ? 1 : 0);
 });
 
-it.each([{ scope: 'daily' }, { scope: 'prepare' }, { dayKey: '2026-09-13' }, { dayKey: '2026-09-11' },
+it.each([{ scope: 'daily' }, { scope: 'prepare-alternative' }, { dayKey: '2026-09-13' }, { dayKey: '2026-09-11' },
   { requestId: '../secret' }, { expectedArticleHash: 'not-a-hash' }, { reason: '' }, { rating: 5 },
   { patches: [] }, { patches: [{ field: 'rating', before: '4', after: '5' }] },
   { patches: [{ field: 'content', before: 'selvmodig', after: 'selvskabt', extra: true }] }])('rejects invalid request before lease: %j', async patch => {
@@ -169,6 +170,95 @@ it('rejects malformed/oversize/query requests and sanitizes unknown errors', asy
   expect(state.claim).not.toHaveBeenCalled();
   state.claim.mockRejectedValue(new Error('upstream secret token'));
   expect(await (await POST(request())).json()).toEqual({ error: 'liv_edit_failed' });
+});
+
+function scheduledFixture(day = '2026-09-15') {
+  const path = `livDailyArticles/prepare-${day}`, planPath = `livDailyPlan/plan-${day}`;
+  state.rows.get('livDelivery/manifest').slots = {};
+  state.rows.set(path, { ...structuredClone(state.rows.get(runPath)), dayKey: day, explicitPreparationInputHash: undefined });
+  state.rows.set(planPath, { dayKey: day, status: 'pending', topicHint: 'Frankenstein', directiveHint: 'Kulturartikel', articleFormat: 'article' });
+  const edit = { ...input, scope: 'prepare', dayKey: day,
+    patches: [{ field: 'title', before: article.title, after: 'Frankensteins skaber og skabning' },
+      { field: 'content', before: 'selvmodig', after: 'selvskabt' }] };
+  return { path, planPath, edit };
+}
+
+it.each(['2026-09-12', '2026-09-15', '2026-09-19'])('edits scheduled pre-media work on %s atomically without providers or changed gates', async day => {
+  const { path, planPath, edit } = scheduledFixture(day), before = structuredClone([...state.rows]);
+  const priorRun = structuredClone(state.rows.get(path)), priorPlan = structuredClone(state.rows.get(planPath));
+  expect((await POST(request(edit))).status).toBe(200);
+  const revised = { ...article, title: edit.patches[0].after, content: article.content.replace('selvmodig', 'selvskabt') };
+  expect(state.rows.get(path)).toEqual({ ...priorRun, articleCheckpoint: revised,
+    articleCheckpointHash: livImageArticleHash(revised), updatedAt: expect.anything() });
+  expect(state.rows.get(`${path}/editorialEdits/${edit.requestId}`)).toMatchObject({ previousRun: priorRun, previousPlan: priorPlan,
+    previousArticle: article, article: revised, input: edit });
+  for (const [key, value] of before) if (key !== path) expect(state.rows.get(key)).toEqual(value);
+  expect(state.writes).toHaveBeenCalledTimes(2);
+});
+
+it.each(['2026-09-11', '2026-09-20'])('rejects scheduled out-of-window %s before lease and in helper', async day => {
+  const { edit } = scheduledFixture(day);
+  expect((await POST(request(edit))).status).toBe(400); expect(state.claim).not.toHaveBeenCalled();
+  await expect(editLivEditorialCheckpoint(edit, 'lease')).rejects.toThrow('liv_edit_invalid');
+  expect(state.writes).not.toHaveBeenCalled();
+});
+
+it.each(['missing-plan', 'wrong-plan-day', 'failed-plan', 'used-plan', 'wrong-run-day', 'missing-run',
+  'slot', 'admitted', 'expired-lease', 'wrong-token', 'cover', 'attempted', 'checkpoint-tamper', 'hash-tamper',
+  'failed', 'skipped_factcheck', 'draft', 'published', 'not-yielded', 'retry', 'cms', 'proof', 'cms-started',
+  'images', 'hero', 'html-image', 'media-processing', 'media-failed', 'media-complete'])('blocks scheduled %s without writes', async kind => {
+  const { path, planPath, edit } = scheduledFixture();
+  const row = state.rows.get(path), plan = state.rows.get(planPath), manifest = state.rows.get('livDelivery/manifest');
+  if (kind === 'missing-plan') state.rows.delete(planPath);
+  if (kind === 'wrong-plan-day') plan.dayKey = dayKey;
+  if (kind === 'failed-plan') plan.status = 'failed';
+  if (kind === 'used-plan') plan.status = 'used';
+  if (kind === 'wrong-run-day') row.dayKey = dayKey;
+  if (kind === 'missing-run') state.rows.delete(path);
+  if (kind === 'slot') manifest.slots[edit.dayKey] = { state: 'selected', itemId: 'other' };
+  if (kind === 'admitted') manifest.entries = [{ scheduledDay: edit.dayKey, state: 'ready' }];
+  if (kind === 'expired-lease') manifest.preparation.leaseUntil = Date.now();
+  if (kind === 'wrong-token') manifest.preparation.token = 'other';
+  if (kind === 'cover') manifest.coverRevision = {};
+  if (kind === 'attempted') manifest.slots[dayKey] = { state: 'attempted' };
+  if (kind === 'checkpoint-tamper') row.articleCheckpoint.content += ' changed';
+  if (kind === 'hash-tamper') row.articleCheckpointHash = 'a'.repeat(64);
+  if (['failed', 'skipped_factcheck', 'draft', 'published'].includes(kind)) row.status = kind;
+  if (kind === 'not-yielded') row.continuationReady = false;
+  if (kind === 'retry') row.retryAuthorization = 'grant';
+  if (kind === 'cms') row.webflowItemId = 'cms';
+  if (kind === 'proof') row.preparationProof = {};
+  if (kind === 'cms-started') row.cmsSaveStarted = true;
+  if (kind === 'images') row.articleCheckpoint.preparedMedia = [];
+  if (kind === 'hero') row.articleCheckpoint.selectedImage = { url: 'paid' };
+  if (kind === 'html-image') row.articleCheckpoint.content += '<img src="paid">';
+  if (kind.startsWith('media-')) state.rows.set('livMediaJobs/paid', { articleInputHash: edit.expectedArticleHash, status: kind.slice(6) });
+  const before = structuredClone([...state.rows]);
+  expect((await POST(request(edit))).status).toBe(409);
+  expect(state.writes).not.toHaveBeenCalled(); expect([...state.rows]).toEqual(before);
+});
+
+it('acknowledges a scheduled edit replay after admission without reapplying it; changed requests conflict', async () => {
+  const { path, planPath, edit } = scheduledFixture();
+  const results = await Promise.all([editLivEditorialCheckpoint(edit, 'lease'), editLivEditorialCheckpoint(edit, 'lease')]);
+  expect(results.map(result => result.status)).toEqual(['edited', 'already_edited']);
+  expect(state.writes).toHaveBeenCalledTimes(2);
+  Object.assign(state.rows.get(path), { status: 'draft', webflowItemId: 'saved-cms', continuationReady: false });
+  state.rows.get(planPath).status = 'used';
+  state.rows.get('livDelivery/manifest').entries = [{ scheduledDay: edit.dayKey, itemId: 'saved-cms', state: 'ready' }];
+  state.writes.mockClear(); const before = structuredClone([...state.rows]);
+  expect(await (await POST(request(edit))).json()).toMatchObject({ status: 'already_edited' });
+  expect((await POST(request({ ...edit, reason: 'Changed input' }))).status).toBe(409);
+  expect((await POST(request({ ...edit, requestId: 'another-edit' }))).status).toBe(409);
+  expect(state.writes).not.toHaveBeenCalled(); expect([...state.rows]).toEqual(before);
+});
+
+it('does not expose the legacy post-media edit capability to scheduled work', async () => {
+  const { edit: mediaEdit } = preparedFixture();
+  const { path, edit } = scheduledFixture();
+  Object.assign(state.rows.get(path), { status: 'processing', continuationReady: true });
+  expect((await POST(request({ ...mediaEdit, scope: edit.scope, dayKey: edit.dayKey }))).status).toBe(409);
+  expect(state.writes).not.toHaveBeenCalled();
 });
 
 function preparedFixture() {

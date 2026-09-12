@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireCronBearer } from '@/lib/cron/cron-auth';
 import { claimPreparation, releasePreparation } from '@/lib/liv/delivery-store';
-import { editorialEditInput, editLivEditorialCheckpoint } from '@/lib/liv/editorial-edit';
-import { copenhagenClock } from '@/lib/liv/delivery-policy';
+import { editorialEditDayAllowed, editorialEditInput, editLivEditorialCheckpoint } from '@/lib/liv/editorial-edit';
 
 export const runtime = 'nodejs';
 export const maxDuration = 60;
@@ -18,8 +17,9 @@ export async function POST(req: NextRequest) {
     if (req.nextUrl.search) throw new Error('invalid');
     const raw = await req.text();
     if (raw.length > 45000) throw new Error('invalid');
-    input = editorialEditInput.parse(JSON.parse(raw));
-    if ((input as { dayKey: string }).dayKey !== copenhagenClock().day) throw new Error('invalid');
+    const parsed = editorialEditInput.parse(JSON.parse(raw));
+    if (!editorialEditDayAllowed(parsed)) throw new Error('invalid');
+    input = parsed;
   } catch { return json({ error: 'liv_edit_invalid' }, 400); }
   let lease: string | null = null;
   try {

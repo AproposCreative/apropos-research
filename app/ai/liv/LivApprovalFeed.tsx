@@ -127,9 +127,9 @@ export default function LivApprovalFeed() {
   return <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
     <LivContentColumn className="space-y-5 py-6">
       <header className="space-y-3">
-        <div className="flex items-center justify-between gap-3"><h2 className="text-xl font-medium">Den næste historie</h2>
+        <div className="flex items-center justify-between gap-3"><h2 className="text-xl font-medium">De kommende historier</h2>
           <button className="min-h-11 px-2 text-sm text-white/70 underline underline-offset-4 disabled:opacity-40" disabled={loading || !!saving} onClick={() => void refresh()}>Opdater</button></div>
-        <p className="text-sm leading-relaxed text-white/65">Én historie til i morgen. Mangler dagens udgivelse, kommer den først.</p>
+        <p className="text-sm leading-relaxed text-white/65">Op til tre klargjorte historier fra i dag og syv dage frem. Mangler dagens udgivelse, kommer den først.</p>
         <p className="text-xs leading-relaxed text-white/45">Godkend eller afvis. Uden et valg fortsætter Liv automatisk. Dit valg kan ændres, indtil historien er valgt til udgivelse.</p>
       </header>
       {notice && <p role="status" className="rounded-xl border border-emerald-300/20 bg-emerald-300/5 p-4 text-sm text-emerald-200">{notice}</p>}
