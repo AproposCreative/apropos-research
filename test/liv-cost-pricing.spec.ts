@@ -44,10 +44,21 @@ it('bounds high-detail vision by patches, excludes encoded transport bytes and c
 it('prices only the exact supported image generation shape with prompt plus image cost', () => {
   const body = { model: 'gpt-image-1.5', prompt: 'An original illustration', size: '1536x1024', quality: 'high' };
   const quote = quoteLivImageRequest('/images/generations', body);
-  expect(quote.fixedUsdBound).toBe(0.20); expect(quote.reservedUsdMicros).toBeGreaterThan(200000);
+  expect(quote.fixedUsdBound).toBe(0); expect(quote.outputTokenBound).toBe(8192);
+  expect(quote.reservedUsdMicros).toBe(quote.inputTokenBound * 5 + 8192 * 32);
   for (const patch of [{ model: 'gpt-image-2' }, { n: 2 }, { size: 'auto' }, { image: 'input' }, { prompt: 'x'.repeat(33000) }]) {
     expect(() => quoteLivImageRequest('/images/generations', { ...body, ...patch })).toThrow(/liv_cost_/);
   }
+});
+
+it.each([[206, 6590], [205, 6544], [210, 6630]])('holds enough for observed image usage %s/%s without changing usage settlement', (inputTokens, outputTokens) => {
+  const quote = quoteLivImageRequest('/images/generations', {
+    model: 'gpt-image-1.5', prompt: 'Saved original editorial illustration', size: '1536x1024', quality: 'high',
+  });
+  const usage = { inputTokens, outputTokens, cachedInputTokens: null, reasoningTokens: null, toolCalls: 0 };
+  expect(usageUsdUpperBound(quote, usage)).toBe(inputTokens * 5 + outputTokens * 32);
+  expect(usageUsdUpperBound(quote, usage)).toBeLessThan(quote.reservedUsdMicros);
+  expect(usageUsdUpperBound(quote, { ...usage, outputTokens: 10000 })).toBeGreaterThan(quote.reservedUsdMicros);
 });
 it('prices the documented embedding model and explicitly knows it has no output token bill', () => {
   const quote = quoteLivOpenAIRequest('/embeddings', { model: 'text-embedding-3-small', input: 'Tekst', encoding_format: 'base64' });

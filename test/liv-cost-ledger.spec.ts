@@ -21,7 +21,7 @@ vi.mock('@/lib/firebase-admin', () => ({ getAdminDb: () => memory.available ? {
   },
 } : null }));
 import { createLivCostLedger, readLivCostSummary, LIV_COST_MAX_CALLS_PER_RUN, LIV_COST_MAX_CALLS_PER_MONTH } from '@/lib/liv/cost-ledger';
-import { LIV_PRICE_VERSION, quoteLivOpenAIRequest } from '@/lib/liv/cost-pricing';
+import { LIV_PRICE_VERSION, quoteLivOpenAIRequest, quoteLivImageRequest } from '@/lib/liv/cost-pricing';
 import { getLivCostPretransportError } from '@/lib/liv/cost-errors';
 const now = new Date('2026-09-12T10:00:00Z');
 const policy = { monthlyLimitDkkMicros: 300_000_000, usdToDkkCeiling: 8, validUntil: '2026-10-01T00:00:00.000Z',
@@ -62,6 +62,30 @@ it('records usage once, releases only unused allowance, and preserves original r
   expect(memory.rows.get(`livCostLedger/call-${reservation.callId}`)).toEqual({ ...original, status: 'usage_recorded' });
   expect(memory.rows.get(`livCostLedger/result-${reservation.callId}`)).toMatchObject({ outcome, billedCostDkkMicros: null, usageBasedUpperDkkMicros: 1120 });
   await expect(ledger.complete(reservation, { ...outcome, httpStatus: 500 })).rejects.toThrow('receipt_conflict');
+});
+it.each([[206, 6590], [205, 6544], [210, 6630]])('settles observed image usage %i/%i below its image quote without blocking the next stage', async (inputTokens, outputTokens) => {
+  const imageQuote = quoteLivImageRequest('/images/generations', {
+    model: 'gpt-image-1.5', prompt: 'Original editorial illustration', size: '1536x1024', quality: 'high', n: 1,
+  });
+  const ledger = createLivCostLedger(() => now);
+  const reservation = await ledger.reserve({ ...call(), quote: imageQuote, context: { ...call().context, stage: 'media' } });
+  const original = structuredClone(memory.rows.get(`livCostLedger/call-${reservation.callId}`));
+  const imageOutcome = { ...outcome, responseModel: imageQuote.model, usage: { ...outcome.usage, inputTokens, outputTokens } };
+  const actualUsageCost = (inputTokens * 5 + outputTokens * 32) * policy.usdToDkkCeiling;
+  expect(reservation.reservedDkkMicros).toBe(imageQuote.reservedUsdMicros * policy.usdToDkkCeiling);
+  expect(reservation.reservedDkkMicros).toBeGreaterThan(actualUsageCost);
+  await ledger.complete(reservation, imageOutcome);
+  const receipt = structuredClone(memory.rows.get(`livCostLedger/result-${reservation.callId}`));
+  await ledger.complete(reservation, imageOutcome); // Exact replay must not charge twice or rewrite the receipt.
+  expect(memory.rows.get(`livCostLedger/result-${reservation.callId}`)).toEqual(receipt);
+  expect(receipt).toMatchObject({ outcome: imageOutcome, usageBasedUpperDkkMicros: actualUsageCost,
+    reservationRetained: false, billedCostDkkMicros: null });
+  expect(memory.rows.get(`livCostLedger/call-${reservation.callId}`)).toEqual({ ...original, status: 'usage_recorded' });
+  const totals = memory.rows.get('livCostLedger/month-2026-09');
+  expect(totals).toMatchObject({ calls: 1, unknownCalls: 0, reservedDkkMicros: 0, committedDkkMicros: actualUsageCost });
+  expect(totals.blocked).not.toBe(true);
+  expect(memory.rows.get('livCostLedger/policy')).toEqual(policy);
+  await expect(ledger.reserve(call(2))).resolves.toMatchObject({ callId: call(2).callId });
 });
 it.each([null, { ...outcome.usage, inputTokens: 100 }])('retains the full hold on an ambiguous/error response, even when usage is present: %j', async usage => {
   const ledger = createLivCostLedger(() => now), reservation = await ledger.reserve(call());

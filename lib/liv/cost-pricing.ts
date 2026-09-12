@@ -8,6 +8,13 @@ export const LIV_PRICE_VERSION = 'openai-standard-2026-09-12';
 export const LIV_PRICE_REVIEW_AFTER = '2026-10-12T00:00:00.000Z';
 export const LIV_PRICE_VALID_UNTIL = LIV_PRICE_REVIEW_AFTER; // Existing summary consumers.
 const SOURCE = 'https://developers.openai.com/api/docs/pricing';
+/** Operational hold for one high 1536x1024 image, not a provider-enforced token
+ * cap. The docs' 6208-token/$0.20 table is not a safe hold for our observed
+ * 6544–6630 output-token receipts. Reserve 8192 at the unchanged $32/M rate;
+ * settle to actual usage, retaining breach protection above this allowance.
+ * https://developers.openai.com/api/docs/guides/image-generation#cost-and-latency
+ */
+export const LIV_IMAGE_OUTPUT_TOKEN_ALLOWANCE = 8192;
 const textRates: Record<string, { input: number; output: number }> = {
   'gpt-5.6-sol': { input: 10, output: 30 },
   'gpt-5.6-terra': { input: 5, output: 18 },
@@ -102,9 +109,9 @@ export function quoteLivImageRequest(endpoint: string, value: unknown): LivPrice
   const input = Buffer.byteLength(body.prompt) + 1024;
   return { model: 'gpt-image-1.5', endpoint, version: LIV_PRICE_VERSION,
     source: 'https://developers.openai.com/api/docs/models/gpt-image-1.5', kind: 'image',
-    inputTokenBound: input, outputTokenBound: 0, toolCallBound: 0,
-    inputUsdPerMillion: 5, outputUsdPerMillion: 32, fixedUsdBound: 0.20,
-    reservedUsdMicros: Math.ceil(input * 5 + 200_000) };
+    inputTokenBound: input, outputTokenBound: LIV_IMAGE_OUTPUT_TOKEN_ALLOWANCE, toolCallBound: 0,
+    inputUsdPerMillion: 5, outputUsdPerMillion: 32, fixedUsdBound: 0,
+    reservedUsdMicros: Math.ceil(input * 5 + LIV_IMAGE_OUTPUT_TOKEN_ALLOWANCE * 32) };
 }
 
 export type LivProviderUsage = { inputTokens: number; outputTokens: number; cachedInputTokens: number | null;
