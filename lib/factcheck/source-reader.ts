@@ -78,6 +78,9 @@ async function download(url: URL, signal: AbortSignal): Promise<string> {
 }
 
 function publicationDate(raw: string | undefined, now: number): string | null {
+  // Schema.org permits a local datetime without timezone. Retain only its
+  // explicit calendar date rather than inventing a timezone/time precision.
+  if (raw && /^\d{4}-\d{2}-\d{2}T(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d)?$/.test(raw)) raw = raw.slice(0, 10);
   if (!raw || !/^\d{4}-\d{2}-\d{2}(?:T(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d{1,3})?)?(?:Z|[+-](?:[01]\d|2[0-3]):[0-5]\d))?$/.test(raw)) return null;
   const day = Date.parse(raw.slice(0, 10));
   const time = Date.parse(raw);
@@ -92,6 +95,36 @@ export function parseSourceHtml(url: string, html: string, id: string, now = Dat
   const explicitDate = $('meta[property="article:published_time"]').attr('content') ||
     $('meta[name="date"]').attr('content') || $('time[itemprop="datePublished"][datetime]').first().attr('datetime');
   let publishedAt = publicationDate(explicitDate, now);
+  if (!explicitDate) {
+    const pageIdentity = (value: unknown): string | null => {
+      try {
+        const candidate = sourceUrl(typeof value === 'string' ? value : '');
+        for (const key of [...candidate.searchParams.keys()]) if (/^(utm_|fbclid$|gclid$)/i.test(key)) candidate.searchParams.delete(key);
+        candidate.searchParams.sort();
+        return `${candidate.origin}${candidate.pathname.replace(/\/$/, '')}${candidate.search}`;
+      } catch { return null; }
+    };
+    const current = pageIdentity(url);
+    const dates = new Set<string>();
+    const types = new Set(['Article', 'NewsArticle', 'BlogPosting', 'ReportageNewsArticle', 'AnalysisNewsArticle', 'OpinionNewsArticle']);
+    $('script[type="application/ld+json"]').slice(0, 20).each((_, element) => {
+      const raw = $(element).text();
+      if (raw.length > 150000) return;
+      try {
+        const parsed = JSON.parse(raw);
+        const roots = Array.isArray(parsed) ? parsed : [parsed];
+        const nodes = roots.flatMap(root => root && Array.isArray(root['@graph']) ? root['@graph'] : [root]).slice(0, 100);
+        for (const node of nodes) {
+          if (!node || typeof node !== 'object' || ![node['@type']].flat().some(type => types.has(type))) continue;
+          const identity = node.url || (typeof node.mainEntityOfPage === 'object' ? node.mainEntityOfPage?.['@id'] : node.mainEntityOfPage) || node['@id'];
+          if (!current || pageIdentity(identity) !== current || typeof node.datePublished !== 'string') continue;
+          const date = publicationDate(node.datePublished, now);
+          if (date) dates.add(date);
+        }
+      } catch { /* Malformed metadata is not evidence. Never execute scripts. */ }
+    });
+    if (dates.size === 1) publishedAt = [...dates][0];
+  }
   // This news template renders its publication date in the article hero, not
   // metadata. Never infer it from event dates, body prose, scripts or other sites.
   const page = new URL(url);

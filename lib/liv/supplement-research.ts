@@ -4,6 +4,21 @@ import { retrieveSource, sourceUrl } from '@/lib/factcheck/source-reader';
 import { canonicalSourceUrl } from '@/lib/editorial/audience-signals';
 import type { GeneratedArticle } from './generate-article';
 
+/** Refresh stale retrieval metadata without another search or writer call. */
+export async function refreshLivResearchDates(article: GeneratedArticle): Promise<GeneratedArticle> {
+  const sources = article.researchSources || [];
+  if (sources.length > 8) throw new Error('liv_research_supplement_source_limit');
+  const researchSources = await Promise.all(sources.map(async source => {
+    try {
+      if (!source.url) return source;
+      const fetched = await retrieveSource(sourceUrl(source.url).href, 'refresh');
+      return { ...source, publishedAt: fetched.publishedAt, retrievedAt: fetched.retrievedAt,
+        contentHash: fetched.contentHash, snippet: fetched.text.slice(0, 240) };
+    } catch { return { ...source, publishedAt: null }; }
+  }));
+  return { ...article, researchSources };
+}
+
 /** One bounded evidence-only supplement. Search snippets/dates are leads, not
  * evidence. Actual pages are fetched again by the final fact checker. */
 export async function supplementLivResearch(article: GeneratedArticle, topic: string): Promise<GeneratedArticle> {
