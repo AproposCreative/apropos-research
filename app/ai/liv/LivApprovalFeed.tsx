@@ -21,9 +21,10 @@ export function LivApprovalCard({ story, disabled, saving, onDecide }: {
   const [feedback, setFeedback] = useState(story.feedback || '');
   // An untouched field is not a request to replace or clear an existing preference.
   const changedFeedback = feedback === (story.feedback || '') ? undefined : feedback;
-  const locked = story.state !== 'ready';
+  const blocked = Boolean(story.publicationBlockers?.length);
+  const locked = story.state !== 'ready' || blocked;
   const status = story.state === 'published' ? 'Udgivet' : story.state === 'selected' ? 'Valgt til udgivelse' :
-    story.state === 'rejected' ? 'Kræver rettelse' : decisions[story.decision];
+    story.state === 'rejected' ? 'Kræver rettelse' : blocked ? 'Publicering blokeret' : decisions[story.decision];
   const ratedReview = story.articleFormat === 'research-review' && Number.isInteger(story.rating) &&
     story.rating! >= 1 && story.rating! <= 6 && !!story.ratingReason;
   const detailsId = `liv-story-${story.itemId}`;
@@ -39,7 +40,7 @@ export function LivApprovalCard({ story, disabled, saving, onDecide }: {
       </div>
       <div className="space-y-3 px-5 pb-4 pt-5">
         <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-white/60">
-          <span>{story.kind === 'reserve' ? 'Reserve · klar til næste ledige udgivelse' : `Planlagt ${dateLabel(story.scheduledDay)}`}</span>
+          <span>{story.kind === 'reserve' ? (blocked ? 'Reserve · publicering blokeret' : 'Reserve · klar til næste ledige udgivelse') : `Planlagt ${dateLabel(story.scheduledDay)}`}</span>
           <span className={story.decision === 'approved' ? 'text-emerald-300' : story.decision === 'rejected' ? 'text-rose-300' : ''}>{status}</span>
         </div>
         <h3 className="break-words text-[22px] font-medium leading-tight sm:text-2xl">{story.title}</h3>

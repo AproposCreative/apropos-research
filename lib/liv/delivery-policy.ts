@@ -33,6 +33,8 @@ export type ReadyEntry = {
   itemId: string; slug: string; title: string; scheduledDay: string; expiresDay: string;
   kind: 'scheduled' | 'reserve'; state: 'ready' | 'selected' | 'published' | 'rejected';
   preparedAt: string; payloadHash: string; planHash?: string;
+  /** Failed current CMS checks; original preparation evidence remains immutable. */
+  publicationBlockers?: string[];
   /** Presentation only; never changes the immutable CMS payload or its proof. */
   editorialKind?: LivEditorialKind;
   decision?: 'approved' | 'rejected'; decisionRevision?: number;
@@ -53,7 +55,7 @@ export const emptyDeliveryState = (): DeliveryState => ({ entries: [], slots: {}
 
 /** A future scheduled story can never be pulled forward as a fallback. */
 export function eligibleEntries(state: DeliveryState, day: string) {
-  return state.entries.filter(e => e.state === 'ready' && e.decision !== 'rejected' && e.scheduledDay <= day && e.expiresDay >= day &&
+  return state.entries.filter(e => e.state === 'ready' && !e.publicationBlockers?.length && e.decision !== 'rejected' && e.scheduledDay <= day && e.expiresDay >= day &&
     (e.kind === 'reserve' || e.scheduledDay === day))
     .sort((a, b) => Number(b.decision === 'approved') - Number(a.decision === 'approved') ||
       Number(a.kind === 'reserve') - Number(b.kind === 'reserve') ||
@@ -63,12 +65,13 @@ export function eligibleEntries(state: DeliveryState, day: string) {
 export function deliveryHealth(state: DeliveryState, now = new Date()) {
   const { day, hour } = copenhagenClock(now);
   const slot = state.slots[day];
-  const reserves = state.entries.filter(e => e.kind === 'reserve' && e.state === 'ready' && e.decision !== 'rejected' &&
+  const reserves = state.entries.filter(e => e.kind === 'reserve' && e.state === 'ready' && !e.publicationBlockers?.length && e.decision !== 'rejected' &&
     e.scheduledDay <= day && e.expiresDay >= day).length;
   const missingDays = Array.from({ length: LIV_PLAN_DAYS }, (_, i) => addDays(day, i + 1))
     .filter(d => !state.entries.some(e => e.state === 'ready' && e.decision !== 'rejected' && e.kind === 'scheduled' &&
       e.scheduledDay === d && e.expiresDay >= d));
-  return { day, published: slot?.state === 'published', publicUrl: slot?.publicUrl ?? null,
+  const blockedItems = state.entries.filter(e => e.state === 'ready' && e.publicationBlockers?.length).map(e => e.itemId);
+  return { blockedItems, day, published: slot?.state === 'published', publicUrl: slot?.publicUrl ?? null,
     overdue: hour >= 10 && slot?.state !== 'published', reserves, reserveTarget: LIV_RESERVE_TARGET,
     missingDays, needsReconciliation: Object.values(state.slots).some(s => s.state === 'attempted') };
 }

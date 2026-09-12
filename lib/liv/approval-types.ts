@@ -15,6 +15,7 @@ export type ApprovalStory = {
   image: string | null; imageAlt: string; credit: string;
   scheduledDay: string; kind: 'scheduled' | 'reserve';
   state: 'ready' | 'selected' | 'published' | 'rejected';
+  publicationBlockers?: string[];
   decision: 'pending' | 'approved' | 'rejected';
 };
 export type ApprovalFeed = { stories: ApprovalStory[]; total: number; nextOffset: number | null;

@@ -108,3 +108,23 @@ it('preserves unrelated pre-existing CMS failures as explicit blockers without a
   expect(r.publicationVerified).toBe(false); expect(cms.fieldData.content).toBe('<p>Preserved body.</p>');
   expect(manifest().coverRevision).toBeUndefined();
 });
+
+it('accepts an explicitly reviewed current CMS headline only when its exact snapshot is pinned', async () => {
+  cms.fieldData.name = 'Edited in CMS';
+  await expect(reviseLivPresentation(input)).rejects.toThrow('checkpoint_changed');
+  input.expectedCmsHash = cmsFieldHash(cms.fieldData);
+  expect((await reviseLivPresentation(input)).title).toBe(input.patch.title);
+});
+it('projects blockers on completed replay without touching CMS or a newer payload', async () => {
+  io.inspect.mockImplementation(async () => ({ draftConfirmed: true, publicationReady: false,
+    checks: [{ id: 'field:content', ok: false }], fieldDataHash: cmsFieldHash(cms.fieldData) }));
+  await reviseLivPresentation(input);
+  expect(manifest().entries[0].publicationBlockers).toEqual(['field:content']);
+  delete manifest().entries[0].publicationBlockers;
+  await reviseLivPresentation(input);
+  expect(manifest().entries[0].publicationBlockers).toEqual(['field:content']);
+  manifest().entries[0].payloadHash = 'newer'; delete manifest().entries[0].publicationBlockers;
+  await reviseLivPresentation(input);
+  expect(manifest().entries[0].publicationBlockers).toBeUndefined();
+  expect(io.patch).toHaveBeenCalledTimes(1);
+});

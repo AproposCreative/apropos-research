@@ -37,7 +37,8 @@ export function approvalEntries(state: DeliveryState, day: string) {
   const upcoming = [...nextEntries,
     ...readyScheduled.filter(entry => entry.scheduledDay !== nextDay)];
   const seen = new Set<string>();
-  return (upcoming.length ? upcoming : scheduled).filter(entry => {
+  const blocked = state.entries.filter(entry => entry.state === 'ready' && entry.publicationBlockers?.length && entry.expiresDay >= day);
+  return [...(upcoming.length ? upcoming : scheduled), ...blocked].filter(entry => {
     if (seen.has(entry.itemId)) return false;
     seen.add(entry.itemId); return true;
   });
@@ -89,5 +90,5 @@ export function approvalStory(entry: ReadyEntry, payload: WebflowArticleFields &
     feedback: viewerUserId && entry.editorialFeedback?.userId === viewerUserId ? entry.editorialFeedback.text : null,
     image: publicImage(payload.featuredImage), imageAlt: plain(payload.featuredImageAlt || entry.title),
     credit: plain(payload.fotoCredit || ''), scheduledDay: entry.scheduledDay, kind: entry.kind, state: entry.state,
-    decision: entry.decision || 'pending' };
+    publicationBlockers: entry.publicationBlockers || [], decision: entry.decision || 'pending' };
 }

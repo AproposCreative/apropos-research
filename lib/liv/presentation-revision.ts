@@ -70,7 +70,21 @@ export async function reviseLivPresentation(value: unknown) {
   try {
     const previous = (await revisionRef.get()).data();
     if (previous?.inputHash !== undefined && previous.inputHash !== inputHash) return fail('request_conflict');
-    if (previous?.receipt) return previous.receipt;
+    if (previous?.receipt) {
+      // Backfill the selection projection for an already completed copyedit.
+      // Never apply an old receipt to a subsequently revised or selected story.
+      await db.runTransaction(async tx => {
+        const state = (await tx.get(manifestRef)).data() as DeliveryState;
+        const entry = state?.entries.find(e => e.itemId === input.itemId);
+        if (entry?.state === 'ready' && entry.payloadHash === previous.receipt.payloadHash &&
+          !Object.values(state.slots).some(s => s.itemId === input.itemId) &&
+          JSON.stringify(entry.publicationBlockers) !== JSON.stringify(previous.receipt.publicationBlockers)) {
+          entry.publicationBlockers = previous.receipt.publicationBlockers;
+          tx.set(manifestRef, state);
+        }
+      });
+      return previous.receipt;
+    }
     const cms = await readLivWebflowJson(path);
     if (cms.id !== input.itemId || cms.cmsLocaleId !== locale || cms.isDraft !== true || cms.isArchived || cms.lastPublished != null) return fail('not_unpublished_draft');
     const fields = cms.fieldData as Record<string, unknown>;
@@ -91,7 +105,7 @@ export async function reviseLivPresentation(value: unknown) {
       if (!payload?.expected || payload.payloadHash !== input.expectedPayloadHash || hash(payload.expected) !== input.expectedPayloadHash ||
         entry.payloadHash !== input.expectedPayloadHash) return fail('payload_changed');
       if (!latest) {
-        if (hash(fields) !== input.expectedCmsHash || fields.name !== payload.expected.title || fields.slug !== payload.expected.slug ||
+        if (hash(fields) !== input.expectedCmsHash || (!input.patch.title && fields.name !== payload.expected.title) || fields.slug !== payload.expected.slug ||
           !rows.length || rows.length >= 10 || rows.some(r => r.row.status !== 'draft' || !r.row.articleCheckpoint || !r.row.preparationProof ||
             r.row.preparationProof.editorialPassed !== true || r.row.preparationProof.structurePassed !== true ||
             r.row.preparationProof.hash !== input.expectedPayloadHash || hash(r.row.preparationProof.expected) !== input.expectedPayloadHash ||
@@ -167,6 +181,7 @@ export async function reviseLivPresentation(value: unknown) {
       }
       tx.set(payloadRef, { ...audit.payload, expected, payloadHash: hash(expected), presentationRevisionId: id });
       entry.title = expected.title; entry.payloadHash = hash(expected);
+      entry.publicationBlockers = receipt.publicationBlockers;
       delete state.coverRevision;
       tx.set(manifestRef, state);
       tx.set(revisionRef, { ...latest, status: 'staged', leaseUntil: 0, receipt });

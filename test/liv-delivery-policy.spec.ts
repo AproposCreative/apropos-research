@@ -130,3 +130,15 @@ describe('daily delivery policy', () => {
     expect(plan.directiveHint).toContain('kildebelagte');
   });
 });
+
+it('does not select blocked drafts or count them as usable reserves, but preserves their preparation day', () => {
+  const state = emptyDeliveryState();
+  state.entries = [entry({ publicationBlockers: ['field:content'], decision: 'approved' }),
+    entry({ itemId: 'reserve', kind: 'reserve', publicationBlockers: ['image:body-assets'] }),
+    entry({ itemId: 'tomorrow', scheduledDay: '2026-09-12', expiresDay: '2026-09-12', publicationBlockers: ['field:content'] })];
+  expect(eligibleEntries(state, day)).toEqual([]);
+  expect(selectDelivery(state, day, 100, 'test')).toBeNull();
+  const health = deliveryHealth(state, new Date('2026-09-11T08:00:00Z'));
+  expect(health.reserves).toBe(0); expect(health.blockedItems).toHaveLength(3);
+  expect(health.missingDays).not.toContain('2026-09-12');
+});

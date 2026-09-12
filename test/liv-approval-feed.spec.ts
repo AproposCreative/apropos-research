@@ -91,7 +91,8 @@ it('does not show a reserve assigned to another slot or pull future stock forwar
 });
 it('labels reserve availability without promising a scheduled publication date', () => {
   const source = readFileSync('app/ai/liv/LivApprovalFeed.tsx', 'utf8');
-  expect(source).toContain("story.kind === 'reserve' ? 'Reserve · klar til næste ledige udgivelse'");
+  expect(source).toContain("Reserve · klar til næste ledige udgivelse");
+  expect(source).toContain("Publicering blokeret");
   expect(source).toContain('Planlagt ${dateLabel(story.scheduledDay)}');
 });
 it('includes prepared stories beyond a week without exposing old stock', () => {
@@ -262,4 +263,11 @@ it('returns private feedback only to its author without disclosing identity or t
   const own = approvalStory(withFeedback, payload, 'private-editor');
   expect(own.feedback).toBe('<b>Min kommentar</b>');
   expect(JSON.stringify(own)).not.toMatch(/private-editor|recordedAt/);
+});
+
+it('keeps blocked stories visible with explicit blockers while excluding them from delivery', () => {
+ const state=emptyDeliveryState();state.entries=[{...entry,kind:'reserve',publicationBlockers:['field:content']}];
+ expect(approvalEntries(state,'2026-09-11')).toHaveLength(1);
+ expect(eligibleEntries(state,'2026-09-11')).toEqual([]);
+ expect(approvalStory(state.entries[0],payload).publicationBlockers).toEqual(['field:content']);
 });
