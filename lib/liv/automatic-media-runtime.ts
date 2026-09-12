@@ -5,7 +5,7 @@ import { getOpenAIClient } from '@/lib/openai';
 import { livModels } from '@/lib/liv/model-config';
 import { livImageArticleHash } from '@/lib/liv/article-image-hash';
 import { readPublicMedia } from '@/lib/liv/public-media-reader';
-import { extractLivPhotoCredit, isLivOfficialImageSource } from '@/lib/liv/photo-credit';
+import { extractLivPhotoCredit, isLivOfficialImageSource, isLivSyndicatedPressPage, extractLivSyndicatedPressPhotos } from '@/lib/liv/photo-credit';
 import type { MediaCandidate, MediaDependencies, MediaEvidence, MediaStyle, StoredMedia } from '@/lib/liv/automatic-media';
 import type { GeneratedArticle } from '@/lib/liv/generate-article';
 import { getLivCostPretransportError } from './cost-errors';
@@ -264,6 +264,27 @@ export function livMediaRuntime(deadline = Date.now() + 180_000): MediaDependenc
           const id = hash(bytes);
           if (!candidates.some(candidate => candidate.id === id)) candidates.push({ id, url: suggestion.url, sourcePageUrl: pageUrl, credit, bytes });
         } catch { /* Unavailable/unclear candidates do not become approved images. */ }
+      }
+      // Official sources retain priority. A public, exactly credited TV 2 still
+      // may also be selected from an already-researched editorial page. This
+      // does not grant access to the broadcaster's authenticated press archive.
+      if (candidates.length < 3) {
+        const sources = [...new Set((article.researchSources || []).map(source => source.url))]
+          .filter(isLivSyndicatedPressPage).slice(0, 3);
+        for (const pageUrl of sources) {
+          if (candidates.length >= 3) break;
+          try {
+            const html = (await readPublicMedia(pageUrl, 'html', timeout(8000))).toString('utf8');
+            for (const photo of extractLivSyndicatedPressPhotos(html, pageUrl)) {
+              if (candidates.length >= 3) break;
+              try {
+                const bytes = await readPublicMedia(photo.url, 'image', timeout(8000));
+                const id = hash(bytes);
+                if (!candidates.some(candidate => candidate.id === id)) candidates.push({ id, ...photo, sourcePageUrl: pageUrl, bytes });
+              } catch { /* Keep looking within the bounded public candidates. */ }
+            }
+          } catch { /* Authentication or fetch failure is never bypassed. */ }
+        }
       }
       return candidates;
     },

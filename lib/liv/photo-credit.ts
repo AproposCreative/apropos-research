@@ -1,5 +1,34 @@
 import { load } from 'cheerio';
 
+/** Publicly reproduced TV 2 stills, not an assertion that the publisher owns
+ * them or that reuse rights were verified. Only exact, captioned assets. */
+export function isLivSyndicatedPressPage(value: string): boolean {
+  try {
+    const url = new URL(value);
+    return url.origin === 'https://soundvenue.com' && !url.username && !url.password && !url.search && !url.hash &&
+      /^\/film\/\d{4}\/\d{2}\/[a-z0-9-]+$/.test(url.pathname);
+  } catch { return false; }
+}
+
+export function extractLivSyndicatedPressPhotos(html: string, pageUrl: string): Array<{url: string; credit: string}> {
+  if (!isLivSyndicatedPressPage(pageUrl) || Buffer.byteLength(html) > LIV_TUDUM_HTML_MAX_BYTES) return [];
+  const $ = load(html), photos = new Map<string, string>();
+  $('figure').slice(0, 40).each((_, node) => {
+    const figure = $(node);
+    if (figure.parents('nav,aside,footer').length || figure.find('img').length !== 1 || figure.find('figcaption').length !== 1) return;
+    const match = figure.find('figcaption').text().replace(/\s+/g, ' ').trim()
+      .match(/\(Foto:\s*([\p{L} .’'-]{2,100})\s*\/\s*TV 2\)\s*$/u);
+    if (!match) return;
+    try {
+      const url = new URL(figure.find('img').attr('src') || '', pageUrl);
+      if (url.origin !== 'https://soundvenue.com' || url.username || url.password || url.search || url.hash ||
+        !/^\/wp-content\/uploads\/\d{4}\/\d{2}\/[a-zA-Z0-9_-]+\.(jpg|jpeg|png|webp)$/.test(url.pathname)) return;
+      photos.set(url.href, `Foto: ${match[1].trim()}/TV 2`);
+    } catch { /* Not a usable public asset. */ }
+  });
+  return [...photos].slice(0, 6).map(([url, credit]) => ({url, credit}));
+}
+
 export const LIV_TUDUM_HTML_MAX_BYTES = 4 * 1024 * 1024;
 /** Netflix's editorial article namespace only, not arbitrary Netflix subdomains/pages. */
 export function isLivTudumSource(pageUrl: string): boolean {
