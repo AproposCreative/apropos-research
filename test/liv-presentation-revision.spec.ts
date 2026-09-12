@@ -114,6 +114,7 @@ it('accepts an explicitly reviewed current CMS headline only when its exact snap
   await expect(reviseLivPresentation(input)).rejects.toThrow('checkpoint_changed');
   input.expectedCmsHash = cmsFieldHash(cms.fieldData);
   expect((await reviseLivPresentation(input)).title).toBe(input.patch.title);
+  expect(io.inspect.mock.calls[1][0].expected.title).toBe('Edited in CMS');
 });
 it('projects blockers on completed replay without touching CMS or a newer payload', async () => {
   io.inspect.mockImplementation(async () => ({ draftConfirmed: true, publicationReady: false,

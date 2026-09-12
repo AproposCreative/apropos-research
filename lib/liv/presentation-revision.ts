@@ -145,7 +145,10 @@ export async function reviseLivPresentation(value: unknown) {
     // Compare the actual current full checks with the immutable pre-edit CMS
     // snapshot. Existing failures remain explicit publication blockers; this
     // operation never converts them into passes or approves publication.
-    const baselineInspection = await inspectLivCmsDraft({ itemId: input.itemId, expected: audit.payload.expected }, {
+    const baselineInspection = await inspectLivCmsDraft({ itemId: input.itemId, expected: { ...audit.payload.expected,
+      // A reviewed headline can already have been edited in CMS. Its pinned
+      // before-image is authoritative for baseline identity, never for content checks.
+      title: audit.cms.fieldData.name } }, {
       collectionId: collection, localeId: locale,
       read: async requested => requested === path ? audit.cms : readLivWebflowJson(requested),
     });
