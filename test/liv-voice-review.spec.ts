@@ -9,6 +9,17 @@ afterEach(() => vi.unstubAllEnvs());
 const reason = 'Den konkrete konflikt giver vurderingen tyngde, men slutningen er svagere underbygget.';
 
 describe('Liv voice and review contract', () => {
+  it('prioritizes identifiable subjects, review scope and matching SEO metadata over clickbait', () => {
+    const voice = loadLivVoice();
+    for (const requirement of ['TYDELIGE TITLER, SEO OG META',
+      "begynde med 'Anmeldelse: '", 'verificerede sæsonnummer',
+      'Opfind aldrig et sæsonnummer', 'SEO-titlen skal kunne forstås uden artikeloverskriften',
+      'Meta-beskrivelsen skal i klart dansk', 'Reglen ændrer ikke allerede gemte artikler automatisk',
+      'Denne regel har forrang']) expect(voice.text).toContain(requirement);
+    const writer = composeSystemPrompt(buildPromptSegments('', 'Liv Brandt', {}, undefined,
+      { openingStrategyOverride: 'En konkret åbning' }), { 'author-tov': false }, null);
+    expect(writer).toContain(voice.text);
+  });
   it('defaults new named screen assessments to reasoned reviews without inventing access or relabelling features', () => {
     const voice = loadLivVoice();
     for (const requirement of ['FORMATVALG FOR FILM OG TV', 'dokumenterede styrker og svagheder',
