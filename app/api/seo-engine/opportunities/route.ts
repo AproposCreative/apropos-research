@@ -67,7 +67,7 @@ export async function GET(req: NextRequest) {
           : 'emergency_stopped',
       runtime,
       teamNote:
-        'SEO-forslag gemmes og verificeres som kladde. Redaktionens flow publicerer. Brug nødstop til nye automatiske skrivninger; gendannelse er tilgængelig.',
+        'Automatisk SEO-kontrol vurderer også udfyldte felter og verificerer forbedringer på den publicerede side. Historik og feltlåse findes nedenfor. Nødstop standser nye automatiske skrivninger.',
     });
   } catch (e) {
     return mapPipelineError(e);

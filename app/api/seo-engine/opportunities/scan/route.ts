@@ -19,7 +19,7 @@ export async function POST(req: NextRequest) {
     const body = (await req.json().catch(() => ({}))) as {
       limit?: number;
       mode?: 'collect' | 'optimize';
-      /** Explicit opt-in to write staged metadata. */
+      /** Explicit opt-in to queue verified live metadata optimization. */
       autoApply?: boolean;
     };
     const mode = body.mode || 'collect';

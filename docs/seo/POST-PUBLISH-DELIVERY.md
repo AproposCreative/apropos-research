@@ -103,7 +103,7 @@ plus later optimization grounded in Search Console and GA4 results.
   access. Screenshots are in ignored tmp/seo-release/{mobile,desktop}.png.
 - Replaced technical status identifiers with Danish explanations in the panel.
 
-## Required work before claiming completion
+## Original acceptance checklist (implemented; deployment receipts below)
 
 1. Connect the reviewer to existing authenticated OpenAI server configuration.
    Persist requests/responses and independent verification by stable job stage;
@@ -133,6 +133,33 @@ plus later optimization grounded in Search Console and GA4 results.
    deployment SHA, credentials/connections, webhook and schedules plus affected
    production flow. Report failures honestly; ready deployment alone is not proof.
 
-Production changes remain unimplemented. The goal is active and is not reduced
-to these two tested modules. Instagram stays off. Existing user authorization
-covers necessary implementation and deployment; no new per-commit approval.
+The dated implementation notes above are historical checkpoints, not current deployment status. Instagram remains off.
+
+## Production verification — 2026-09-12
+
+- Release `3ad7128cf70bac9d9d476e3f202ac69826bf8427`, deployment
+  `dpl_DFnVhWJheLSHpvtKP2wjd7cZwf9L`: READY and production SHA confirmed.
+- Unauthenticated quality, internal-worker and recovery endpoints return 401.
+  Authenticated recovery succeeded and advanced published discovery to DA offset 50.
+- Real production UI shows build 3ad7128 and authenticated metadata history.
+- Completed automatic change: Headline Flip, job
+  `6782bdc9ea94d85461975b4aad671a2ed1a741c48d5dabe6c2a2d4cd33020752`,
+  `applied / verified_public_metadata`, public receipt 2026-09-12T21:00:49.568Z.
+  CMS and public HTML verification required exact metadata and unchanged editorial hash.
+- Alle Guds farver: both filled fields were reviewed; independent verification
+  did not consider the proposed description demonstrably better. `needs_editor`,
+  no write. The Invite likewise required editorial review. Changed article
+  snapshots were marked stale, not overwritten. These are expected safe outcomes.
+- Production Vercel cron definitions match the deployment: recovery every 15 min,
+  Google collection daily at 06:15 UTC, performance review Mondays 06:30 UTC.
+- Publication webhook registration exists. An inspection accidentally emitted
+  its URL query credential; the diagnostic now strips query strings. A replacement
+  credential and registration were created securely; activation/readback follows
+  the next deployment. No credential is included in this ledger.
+- Final UI correction replaces obsolete draft-only wording with the actual live
+  verification workflow and reports queued reviews correctly. Typecheck passed.
+- Existing SEO mutation modules were inspected: legacy worker, archive, backfill
+  and opportunity apply/rollback use the common guarded CMS helper. The new live
+  adapter owns its own lease and durable intent.
+- Traffic impact is not yet measurable. Comparable evidence and 28-day cooldown
+  are enforced; automatic rewrites never establish causal ranking improvements.

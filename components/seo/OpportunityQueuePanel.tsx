@@ -128,7 +128,7 @@ export default function OpportunityQueuePanel() {
   };
 
   const runManualOptimize = async () => {
-    if (!window.confirm('Gem SEO-forslag for op til 10 artikler som kladde? Artiklerne bliver ikke publiceret.')) return;
+    if (!window.confirm('Start SEO-kontrol for op til 10 publicerede artikler? Verificerede forbedringer af SEO-titel og metabeskrivelse bliver opdateret live.')) return;
     setScanning(true);
     setError(null);
     setNote(null);
@@ -142,9 +142,9 @@ export default function OpportunityQueuePanel() {
       const j = await res.json();
       if (!res.ok) throw new Error(j.error || 'Manuel kørsel fejlede');
       const report = j.report || {};
-      const applied = j.autoApply?.applied?.length ?? 0;
+      const queued = j.autoApply?.queued?.length ?? 0;
       setNote(
-        `${report.statusMessage || 'Kørsel færdig'}${applied ? ` · gemt som kladde: ${applied}` : ''}`
+        `${report.statusMessage || 'Kørsel færdig'} · sat i kontrolkø: ${queued}`
       );
       await refresh();
     } catch (e) {
@@ -187,7 +187,7 @@ export default function OpportunityQueuePanel() {
         <div className="min-w-0 text-left">
           <p className="text-[13px] font-medium text-white/90">Automatisk SEO-optimering</p>
           <p className="text-[11px] text-white/40 mt-0.5">
-            Kører selv (publish + daglig collect / ugentlig optimize). Gemmer SEO-titel og metabeskrivelse som kladde. Publicering sker i redaktionens flow.
+            Kontrollerer SEO-titel og metabeskrivelse efter publicering. Indsamler Google-data dagligt og vurderer forbedringer ugentligt. Kun verificerede forbedringer opdateres live.
           </p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
@@ -213,7 +213,7 @@ export default function OpportunityQueuePanel() {
             disabled={scanning}
             onClick={() => void runManualOptimize()}
           >
-            {scanning ? 'Kører…' : 'Gem SEO-kladder'}
+            {scanning ? 'Kører…' : 'Start SEO-kontrol'}
           </button>
         </div>
       </div>
