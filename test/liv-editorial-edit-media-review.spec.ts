@@ -32,6 +32,7 @@ import { applyLivFactPatches, resumeLivFactRevision } from '@/lib/liv/fact-revis
 import { LivCostPretransportError } from '@/lib/liv/cost-errors';
 import type { GeneratedArticle } from '@/lib/liv/generate-article';
 import { readLivVisualEvidence, isAnonymousVisibleCaption } from '@/lib/liv/visual-evidence';
+import { editPreparedCaptions } from '@/lib/liv/editorial-edit';
 const day = '2026-09-15', runId = `prepare-${day}`, requestId = 'final-copyedit-fixture';
 const path = `livDailyArticles/${runId}/editorialEdits/${requestId}`, checkPath = `${path}/checks/visual-review`;
 const digest = (bytes: Buffer) => createHash('sha256').update(bytes).digest('hex');
@@ -137,6 +138,62 @@ it('read-only review mode never starts a missing provider receipt', async () => 
   await expect(reviewLivEditorialEditMedia(pending, day, { readOnly: true })).rejects.toThrow('requires_reconciliation');
   expect(state.chat).not.toHaveBeenCalled(); expect(state.writes).not.toHaveBeenCalled();
 });
+
+function nextCopyedit(previous: GeneratedArticle, nextRequestId: string, captions: boolean) {
+  const parentRequestId = previous.selectedImage!.editorialEdit!.requestId;
+  const parentPath = `livDailyArticles/${runId}/editorialEdits/${parentRequestId}`;
+  const parentAudit = state.rows.get(parentPath), parentReceipt = state.rows.get(`${parentPath}/checks/visual-review`);
+  const input = { ...parentAudit.input, requestId: nextRequestId, expectedArticleHash: livImageArticleHash(previous), expectedCheckpointHash: fullHash(previous),
+    patches: [{ field: 'content' as const, before: captions ? 'var annonceret' : 'var planlagt', after: captions ? 'var planlagt' : 'er planlagt' }],
+    ...(captions ? { mediaCaptions: previous.preparedMedia!.filter(image => image.role !== 'hero').map(image =>
+      ({ role: image.role as 'body-1' | 'body-2', before: image.caption, after: image.alt })) } : {}) };
+  if (!captions) delete input.mediaCaptions;
+  let article = applyLivFactPatches(previous, { patches: input.patches });
+  if (captions) article = editPreparedCaptions(article, input.mediaCaptions);
+  article.selectedImage = { ...previous.selectedImage!, visualReview: 'pending', editorialEdit: { runId, requestId: nextRequestId } };
+  const nextPath = `livDailyArticles/${runId}/editorialEdits/${nextRequestId}`;
+  state.rows.set(nextPath, { input, inputHash: cmsFieldHash(input), previousArticle: previous, article,
+    previousArticleHash: input.expectedArticleHash, previousCheckpointHash: input.expectedCheckpointHash,
+    articleHash: livImageArticleHash(article), checkpointHash: fullHash(article), mediaJobId: 'a'.repeat(64), mediaRevisionIds: ['b'.repeat(64)],
+    authority: 'authorized-operator', previousRun: { dayKey: day, status: 'skipped_moderation', articleCheckpoint: previous },
+    previousPlan: { dayKey: day, status: 'failed' }, previousEditorialEdit: { requestId: parentRequestId,
+      auditHash: cmsFieldHash(parentAudit), receiptHash: cmsFieldHash(parentReceipt) } });
+  return { article, nextPath, parentPath };
+}
+it('checks a second copyedit once, preserves all first/factual media proof, and hands both reviewed alts/captions to factcheck', async () => {
+  const first = await photographicCheckpoint();
+  const before = structuredClone([...state.rows]);
+  const second = nextCopyedit(first.approved, 'second-copyedit-fixture', true);
+  const approved = await reviewLivEditorialEditMedia(second.article, day);
+  expect(state.chat).toHaveBeenCalledOnce(); expect(state.read).toHaveBeenCalledTimes(3);
+  expect(approved.selectedImage!.visualReview).toBe('automated');
+  expect(approved.selectedImage!.articleHash).toBe(livImageArticleHash(approved));
+  expect(approved.preparedMedia!.filter(image => image.role !== 'hero').every(image => image.caption === image.alt)).toBe(true);
+  for (const [key, value] of before) expect(state.rows.get(key)).toEqual(value);
+  state.chat.mockClear(); state.writes.mockClear();
+  expect(await reviewLivEditorialEditMedia(approved, day, { readOnly: true })).toEqual(approved);
+  expect(state.chat).not.toHaveBeenCalled(); expect(state.writes).not.toHaveBeenCalled();
+  state.rows.set(`livDailyArticles/${runId}`, { articleCheckpoint: approved, articleCheckpointHash: livImageArticleHash(approved) });
+  const fields = { ...first.fields, content: approved.content };
+  const sources = await readLivVisualEvidence({ runId, checkpointHash: fullHash(approved) }, Object.values(fields).filter(Boolean).join('\n\n'), fields);
+  expect(sources.map(source => source.id)).toEqual(['visual-body-1-alt', 'visual-body-1-caption', 'visual-body-2-alt', 'visual-body-2-caption']);
+  const third = nextCopyedit(approved, 'third-copyedit-fixture', false);
+  await expect(reviewLivEditorialEditMedia(third.article, day)).rejects.toThrow('requires_reconciliation');
+  expect(state.chat).not.toHaveBeenCalled(); expect(state.writes).not.toHaveBeenCalled();
+});
+it.each(['missing', 'partial', 'failed', 'tampered-parent', 'tampered-binding', 'self-cycle'])(
+  'never purchases a second visual check with invalid ancestry: %s', async failure => {
+    const first = await photographicCheckpoint();
+    const second = nextCopyedit(first.approved, 'second-copyedit-fixture', true);
+    if (failure === 'missing') state.rows.delete(`${path}/checks/visual-review`);
+    if (failure === 'partial') state.rows.get(checkPath).finishReason = 'length';
+    if (failure === 'failed') state.rows.get(checkPath).rawResponse = JSON.stringify({ pass: false, reason: 'Wrong scene.' });
+    if (failure === 'tampered-parent') state.rows.get(path).previousArticle.content += ' Changed';
+    if (failure === 'tampered-binding') state.rows.get(second.nextPath).previousEditorialEdit.receiptHash = 'f'.repeat(64);
+    if (failure === 'self-cycle') state.rows.get(second.nextPath).previousArticle.selectedImage.editorialEdit.requestId = 'second-copyedit-fixture';
+    await expect(reviewLivEditorialEditMedia(second.article, day)).rejects.toThrow();
+    expect(state.chat).not.toHaveBeenCalled(); expect(state.writes).not.toHaveBeenCalled();
+  });
 
 it.each(['pending', 'failed'])('accepts an audited yielded checkpoint with %s plan without rewriting paid work', async status => {
   const audit = state.rows.get(path);

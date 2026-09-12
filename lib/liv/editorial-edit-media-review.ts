@@ -10,6 +10,8 @@ import { readLivStoredImage } from './stored-image-reader';
 import { livModels } from './model-config';
 import { getLivCostPretransportError } from './cost-errors';
 import type { GeneratedArticle } from './generate-article';
+import type { DocumentReference, DocumentData } from 'firebase-admin/firestore';
+import { editPreparedCaptions } from './editorial-edit';
 
 const hash = (value: Buffer) => createHash('sha256').update(value).digest('hex');
 const fingerprint = (article: GeneratedArticle) => cmsFieldHash(article as unknown as Record<string, unknown>);
@@ -17,7 +19,12 @@ const fail = (): never => { throw new Error('liv_edit_media_requires_reconciliat
 
 /** One visual-only check of an immutable operator edit. No text rewrite, image
  * generation or quality approval. Paid/ambiguous attempts cannot be repeated. */
-export async function reviewLivEditorialEditMedia(article: GeneratedArticle, dayKey: string, options: { readOnly?: boolean } = {}): Promise<GeneratedArticle> {
+export async function reviewLivEditorialEditMedia(article: GeneratedArticle, dayKey: string, options: {
+  readOnly?: boolean;
+  /** Optional transaction-bound reader for atomic operator ancestry validation. */
+  read?: (ref: DocumentReference) => Promise<DocumentData | undefined>;
+  ancestryDepth?: number;
+} = {}): Promise<GeneratedArticle> {
   const binding = article.selectedImage?.editorialEdit;
   if (!binding || binding.runId !== `prepare-${dayKey}` || !/^\d{4}-\d{2}-\d{2}$/.test(dayKey) ||
     !/^[a-zA-Z0-9_-]{8,100}$/.test(binding.requestId)) fail();
@@ -25,26 +32,42 @@ export async function reviewLivEditorialEditMedia(article: GeneratedArticle, day
   if (!db) throw new Error('liv_edit_media_unavailable');
   const edit = db.collection('livDailyArticles').doc(binding.runId).collection('editorialEdits').doc(binding.requestId);
   const receiptRef = edit.collection('checks').doc('visual-review');
-  const audit = (await edit.get()).data();
+  if (options.read && !options.readOnly) fail();
+  const read = options.read || (async (ref: DocumentReference) => (await ref.get()).data());
+  const audit = await read(edit);
   const input = editorialEditInput.safeParse(audit?.input);
   const previous = audit?.previousArticle as GeneratedArticle | undefined;
   const yielded = audit?.previousRun?.status === 'processing' && audit.previousRun.continuationReady === true;
   if (!audit || !input.success || input.data.scope !== 'prepare' || input.data.dayKey !== dayKey || input.data.requestId !== binding.requestId ||
-    input.data.mediaCaptions || input.data.patches.some(patch => !['content', 'subtitle'].includes(patch.field)) ||
+    input.data.patches.some(patch => !['content', 'subtitle'].includes(patch.field)) ||
     audit.authority !== 'authorized-operator' || audit.inputHash !== cmsFieldHash(input.data) ||
     audit.previousPlan?.dayKey !== dayKey || !(yielded ? ['pending', 'failed'] : ['failed']).includes(audit.previousPlan?.status) ||
     audit.previousRun?.dayKey !== dayKey || (!yielded && !['failed', 'skipped_factcheck', 'skipped_moderation', 'skipped_tov'].includes(audit.previousRun?.status)) ||
     audit.previousRun?.webflowItemId || audit.previousRun?.preparationProof || audit.previousRun?.cmsSaveStarted ||
     audit.previousRun?.retryAuthorization || (!yielded && audit.previousRun?.continuationReady) ||
-    !previous?.selectedImage || previous.selectedImage.editorialEdit || previous.selectedImage.visualReview !== 'automated' ||
+    !previous?.selectedImage || previous.selectedImage.visualReview !== 'automated' ||
     !audit.article || audit.checkpointHash !== fingerprint(audit.article) ||
     audit.previousCheckpointHash !== fingerprint(previous) || input.data.expectedCheckpointHash !== fingerprint(previous) ||
     audit.previousArticleHash !== livImageArticleHash(previous) || input.data.expectedArticleHash !== audit.previousArticleHash ||
     previous.selectedImage.articleHash !== audit.previousArticleHash ||
     previous.selectedImage.id !== `${audit.mediaJobId}-hero`) fail();
   if (fingerprint(audit.previousRun.articleCheckpoint) !== fingerprint(previous!)) fail();
+  const parent = previous!.selectedImage!.editorialEdit;
+  if (parent) {
+    if ((options.ancestryDepth ?? 0) >= 1 || parent.runId !== binding.runId || parent.requestId === binding.requestId ||
+      !/^[a-zA-Z0-9_-]{8,100}$/.test(parent.requestId) || audit.previousEditorialEdit?.requestId !== parent.requestId) fail();
+    const parentRef = db.collection('livDailyArticles').doc(parent.runId).collection('editorialEdits').doc(parent.requestId);
+    const parentAudit = await read(parentRef), parentReceipt = await read(parentRef.collection('checks').doc('visual-review'));
+    if (!parentAudit || !parentReceipt || cmsFieldHash(parentAudit) !== audit.previousEditorialEdit.auditHash ||
+      cmsFieldHash(parentReceipt) !== audit.previousEditorialEdit.receiptHash ||
+      fingerprint(await reviewLivEditorialEditMedia(previous!, dayKey, { readOnly: true, read, ancestryDepth: 1 })) !== fingerprint(previous!)) fail();
+  } else if (audit.previousEditorialEdit || input.data.mediaCaptions) fail();
+  if (input.data.mediaCaptions?.some(patch => patch.after !== previous!.preparedMedia?.find(image => image.role === patch.role)?.alt)) fail();
   let pending: GeneratedArticle;
-  try { pending = applyLivFactPatches(previous!, { patches: input.data.patches }); } catch { return fail(); }
+  try {
+    pending = input.data.patches.length ? applyLivFactPatches(previous!, { patches: input.data.patches }) : { ...previous! };
+    if (input.data.mediaCaptions) pending = editPreparedCaptions(pending, input.data.mediaCaptions);
+  } catch { return fail(); }
   pending.selectedImage = { ...previous!.selectedImage!, visualReview: 'pending', editorialEdit: binding };
   if (fingerprint(pending) !== audit.checkpointHash || audit.articleHash !== livImageArticleHash(pending)) fail();
   const approved: GeneratedArticle = { ...pending, selectedImage: { ...pending.selectedImage!,
@@ -61,7 +84,7 @@ export async function reviewLivEditorialEditMedia(article: GeneratedArticle, day
     if (saved.articleHash !== proofHash) fail();
     return approved;
   };
-  const saved = (await receiptRef.get()).data();
+  const saved = await read(receiptRef);
   const cached = readResult(saved);
   if (cached) return cached;
   if (options.readOnly) fail(); // Evidence consumers must never create/retry a paid review.

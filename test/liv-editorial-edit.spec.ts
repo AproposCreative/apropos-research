@@ -420,6 +420,66 @@ function scheduledMediaFixture() {
   return { ...scheduled, ...fixture, edit };
 }
 
+async function secondScheduledEdit() {
+  const fixture = scheduledMediaFixture();
+  expect((await POST(request(fixture.edit))).status).toBe(200);
+  const firstAuditPath = `${fixture.path}/editorialEdits/${fixture.edit.requestId}`;
+  const firstAudit = state.rows.get(firstAuditPath);
+  const pending = state.rows.get(fixture.path).articleCheckpoint;
+  const approved = { ...pending, selectedImage: { ...pending.selectedImage, visualReview: 'automated', articleHash: livImageArticleHash(pending) } };
+  const receiptPath = `${firstAuditPath}/checks/visual-review`;
+  state.rows.set(receiptPath, { status: 'complete', auditHash: cmsFieldHash(firstAudit), inputHash: firstAudit.checkpointHash,
+    articleHash: cmsFieldHash(approved), finishReason: 'stop', refusal: false, rawResponse: JSON.stringify({ pass: true, reason: 'Exact fixture image check.' }), usage: { paid: true } });
+  Object.assign(state.rows.get(fixture.path), { articleCheckpoint: approved, articleCheckpointHash: livImageArticleHash(approved) });
+  state.writes.mockClear();
+  const edit = { ...fixture.edit, requestId: 'bounded-second-edit', expectedArticleHash: livImageArticleHash(approved),
+    expectedCheckpointHash: cmsFieldHash(approved), patches: [{ field: 'content', before: 'var annonceret til', after: 'var planlagt til' }],
+    mediaCaptions: approved.preparedMedia.filter((image: MediaEvidence) => image.role !== 'hero').map((image: MediaEvidence) =>
+      ({ role: image.role, before: image.caption, after: image.alt })) };
+  return { ...fixture, edit, approved, firstAuditPath, receiptPath };
+}
+it.each([1, 2])('accepts one bounded second edit with %i exact alt-as-caption replacements and immutable ancestry', async count => {
+  const fixture = await secondScheduledEdit();
+  fixture.edit.mediaCaptions = fixture.edit.mediaCaptions.slice(0, count);
+  const before = structuredClone([...state.rows]);
+  const result = await POST(request(fixture.edit)); expect(await result.json()).toMatchObject({ status: 'edited' });
+  const changed = state.rows.get(fixture.path).articleCheckpoint;
+  expect(changed.content).toContain('var planlagt til');
+  expect(changed.selectedImage.visualReview).toBe('pending');
+  expect(changed.selectedImage.editorialEdit.requestId).toBe(fixture.edit.requestId);
+  for (const [key, value] of before) if (key !== fixture.path) expect(state.rows.get(key)).toEqual(value);
+  expect(changed.rawResponse).toBe(fixture.approved.rawResponse);
+  expect(changed.factRevisionId).toBe(fixture.approved.factRevisionId);
+  expect(changed.preparedMedia).toEqual(fixture.approved.preparedMedia.map((image: MediaEvidence) =>
+    fixture.edit.mediaCaptions.some((patch: { role: string }) => patch.role === image.role) ? { ...image, caption: image.alt } : image));
+  expect(state.rows.get(`${fixture.path}/editorialEdits/${fixture.edit.requestId}`).previousEditorialEdit).toEqual({
+    requestId: state.rows.get(fixture.firstAuditPath).input.requestId,
+    auditHash: cmsFieldHash(state.rows.get(fixture.firstAuditPath)), receiptHash: cmsFieldHash(state.rows.get(fixture.receiptPath)) });
+  state.writes.mockClear(); expect((await POST(request(fixture.edit))).status).toBe(200); expect(state.writes).not.toHaveBeenCalled();
+});
+it.each(['missing-receipt', 'processing', 'failed', 'refusal', 'tampered-audit', 'tampered-receipt', 'third', 'different-alt', 'cms'])(
+  'rejects invalid second-edit ancestry or scope: %s', async failure => {
+    const fixture = await secondScheduledEdit();
+    if (failure === 'missing-receipt') state.rows.delete(fixture.receiptPath);
+    if (failure === 'processing') state.rows.get(fixture.receiptPath).status = 'processing';
+    if (failure === 'failed') state.rows.get(fixture.receiptPath).rawResponse = JSON.stringify({ pass: false, reason: 'Wrong image' });
+    if (failure === 'refusal') state.rows.get(fixture.receiptPath).refusal = true;
+    if (failure === 'tampered-audit') state.rows.get(fixture.firstAuditPath).authority = 'client';
+    if (failure === 'tampered-receipt') state.rows.get(fixture.receiptPath).articleHash = 'f'.repeat(64);
+    if (failure === 'third') state.rows.get(fixture.firstAuditPath).previousArticle.selectedImage.editorialEdit = { runId: 'prepare-2026-09-12', requestId: 'old-parent' };
+    if (failure === 'different-alt') fixture.edit.mediaCaptions[0].after = 'En påstand uden tilsvarende tidligere alt.';
+    if (failure === 'cms') state.rows.get(fixture.path).cmsSaveStarted = true;
+    const before = structuredClone([...state.rows]);
+    expect((await POST(request(fixture.edit))).status).not.toBe(200);
+    expect([...state.rows]).toEqual(before); expect(state.writes).not.toHaveBeenCalled();
+  });
+it('serializes two simultaneous second edits to one immutable correction', async () => {
+  const fixture = await secondScheduledEdit();
+  const results = await Promise.all([POST(request(fixture.edit)), POST(request(fixture.edit))]);
+  expect((await Promise.all(results.map(result => result.json()))).map(result => result.status)).toEqual(['edited', 'already_edited']);
+  expect(state.writes).toHaveBeenCalledTimes(2);
+});
+
 it('audits three exact scheduled content patches after factual revision, keeping paid pixels and old visual binding pending', async () => {
   const { path, planPath, revised: original, edit } = scheduledMediaFixture();
   const before = structuredClone([...state.rows]);

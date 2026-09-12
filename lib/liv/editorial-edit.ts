@@ -37,7 +37,7 @@ const omit = (value: Record<string, unknown>, keys: string[]) => Object.fromEntr
 
 /** Replace only the canonical caption text, never reserialize the document or
  * touch a credit, image attribute, figure position or non-caption byte. */
-function editPreparedCaptions(article: GeneratedArticle, patches: z.infer<typeof editorialEditInput>['mediaCaptions']) {
+export function editPreparedCaptions(article: GeneratedArticle, patches: z.infer<typeof editorialEditInput>['mediaCaptions']) {
   const body = load(article.content);
   if (body('figure').length !== 2 || body('img').length !== 2) throw new Error('liv_edit_blocked_saved_work');
   for (const image of article.preparedMedia!.filter(image => image.role !== 'hero')) {
@@ -110,11 +110,14 @@ export async function editLivEditorialCheckpoint(value: unknown, lease: string, 
       throw new Error('liv_edit_conflict');
     }
     let mediaJobId: string | undefined;
+    let previousEditorialEdit: { requestId: string; auditHash: string; receiptHash: string } | undefined;
     const mediaRevisionIds: string[] = [];
     if (postMedia) {
       if (input.expectedCheckpointHash !== cmsFieldHash(article as unknown as Record<string, unknown>) ||
-        article.selectedImage!.articleHash !== input.expectedArticleHash || article.selectedImage!.editorialEdit ||
-        (scheduled && input.mediaCaptions) ||
+        article.selectedImage!.articleHash !== input.expectedArticleHash ||
+        (article.selectedImage!.editorialEdit && !scheduled) ||
+        (scheduled && input.mediaCaptions && (!article.selectedImage!.editorialEdit || input.mediaCaptions.some(patch =>
+          patch.after !== article.preparedMedia!.find(image => image.role === patch.role)?.alt))) ||
         input.patches.some(patch => patch.field !== 'subtitle' && !(scheduled && patch.field === 'content'))) {
         throw new Error('liv_edit_conflict');
       }
@@ -132,6 +135,28 @@ export async function editLivEditorialCheckpoint(value: unknown, lease: string, 
       // Follow at most two immutable receipts back to the original media job;
       // never rewrite that job or accept an unrecorded edited checkpoint.
       let ancestor = article;
+      if (article.selectedImage!.editorialEdit) {
+        const binding = article.selectedImage!.editorialEdit;
+        if (binding.runId !== runId || binding.requestId === input.requestId || !/^[a-zA-Z0-9_-]{8,100}$/.test(binding.requestId)) {
+          throw new Error('liv_edit_blocked_saved_work');
+        }
+        const previousRef = run.collection('editorialEdits').doc(binding.requestId);
+        const previousAudit = (await tx.get(previousRef)).data();
+        const previousReceipt = (await tx.get(previousRef.collection('checks').doc('visual-review'))).data();
+        // Exactly one completed predecessor, never an arbitrary chain or a
+        // counter that can be reset. Read through this same transaction.
+        if (!previousAudit?.previousArticle?.selectedImage || previousAudit.previousArticle.selectedImage.editorialEdit ||
+          previousAudit.previousEditorialEdit || !previousReceipt) throw new Error('liv_edit_blocked_saved_work');
+        const { reviewLivEditorialEditMedia } = await import('./editorial-edit-media-review');
+        const approved = await reviewLivEditorialEditMedia(article, input.dayKey, {
+          readOnly: true, read: async ref => (await tx.get(ref)).data(),
+        });
+        if (cmsFieldHash(approved as unknown as Record<string, unknown>) !== input.expectedCheckpointHash) {
+          throw new Error('liv_edit_blocked_saved_work');
+        }
+        previousEditorialEdit = { requestId: binding.requestId, auditHash: cmsFieldHash(previousAudit), receiptHash: cmsFieldHash(previousReceipt) };
+        ancestor = previousAudit.previousArticle as GeneratedArticle;
+      }
       while (cmsFieldHash(ancestor as unknown as Record<string, unknown>) !== cmsFieldHash(job.article)) {
         const revisionId = ancestor.factRevisionId;
         if (mediaRevisionIds.length >= 2 || !sha256.safeParse(revisionId).success || mediaRevisionIds.includes(revisionId!)) {
@@ -151,7 +176,7 @@ export async function editLivEditorialCheckpoint(value: unknown, lease: string, 
       const original = job.article as GeneratedArticle;
       const fixedMedia = (images: GeneratedArticle['preparedMedia']) => images?.map(image => omit(image, ['alt', 'caption']));
       if (!original.selectedImage || cmsFieldHash({ images: fixedMedia(article.preparedMedia) }) !== cmsFieldHash({ images: fixedMedia(original.preparedMedia) }) ||
-        cmsFieldHash(omit(article.selectedImage!, ['articleHash', 'alt'])) !== cmsFieldHash(omit(original.selectedImage, ['articleHash', 'alt']))) {
+        cmsFieldHash(omit(article.selectedImage!, ['articleHash', 'alt', 'editorialEdit'])) !== cmsFieldHash(omit(original.selectedImage, ['articleHash', 'alt', 'editorialEdit']))) {
         throw new Error('liv_edit_blocked_saved_work');
       }
       const siblings = await tx.get(db.collection('livMediaJobs').where('articleInputHash', '==', job.articleInputHash).limit(2));
@@ -182,6 +207,7 @@ export async function editLivEditorialCheckpoint(value: unknown, lease: string, 
     tx.create(audit, { input, inputHash, previousArticle: article, article: revised,
       previousArticleHash: input.expectedArticleHash, articleHash,
       ...(scheduled ? { previousRun: row, previousPlan: plan } : {}),
+      ...(previousEditorialEdit ? { previousEditorialEdit } : {}),
       ...(mediaJobId ? { mediaJobId, mediaRevisionIds, previousCheckpointHash: input.expectedCheckpointHash,
         checkpointHash: cmsFieldHash(revised as unknown as Record<string, unknown>) } : {}),
       authority: 'authorized-operator', createdAt: FieldValue.serverTimestamp() });
