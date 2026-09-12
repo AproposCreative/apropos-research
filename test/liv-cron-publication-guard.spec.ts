@@ -1,6 +1,7 @@
 import { beforeEach, afterEach, it, expect, vi } from 'vitest';
 import { NextRequest } from 'next/server';
-const mocks = vi.hoisted(() => ({ topic: vi.fn(), publish: vi.fn(), live: vi.fn(), finish: vi.fn(), gates: vi.fn(), claim: vi.fn(), readback: vi.fn(), analytics: vi.fn(), media: vi.fn(), checkpoint: vi.fn(), admission: vi.fn(), proof: vi.fn(), yield: vi.fn(), row: undefined as any, doc: vi.fn() }));
+const mocks = vi.hoisted(() => ({ supplement: vi.fn(), topic: vi.fn(), publish: vi.fn(), live: vi.fn(), finish: vi.fn(), gates: vi.fn(), claim: vi.fn(), readback: vi.fn(), analytics: vi.fn(), media: vi.fn(), checkpoint: vi.fn(), admission: vi.fn(), proof: vi.fn(), yield: vi.fn(), row: undefined as any, doc: vi.fn() }));
+vi.mock('@/lib/liv/supplement-research', () => ({ supplementLivResearch: mocks.supplement }));
 vi.mock('@/lib/firebase-admin', () => ({ getAdminDb: () => ({ collection: () => ({ doc: mocks.doc }) }) }));
 vi.mock('@/lib/liv/prepared-admission', () => ({ admitPreparedArticle: mocks.admission }));
 vi.mock('@/lib/liv/automatic-media', () => ({ prepareLivAutomaticMedia: mocks.media }));
@@ -164,7 +165,7 @@ it('reports actual field checks without equating them to publication', async () 
 it('prepares tomorrow through the shared full pipeline but never publishes early', async () => {
   mocks.row = { articleCheckpoint: { title: 'Et museum åbner', content: 'Kultur '.repeat(650), slug: 'et-museum-aabner',
     subtitle: 'Udstillingen', intro: 'En intro', seoTitle: 'Museum', seoDescription: 'Kultur', section: 'Kunst',
-    preparedMedia: [{}, {}, {}], researchSources: [{ url: 'https://museum.dk/news' }, { url: 'https://kultur.dk/news' }] } };
+    preparedMedia: [{}, {}, {}], researchSources: [{ url: 'https://museum.dk/news', publishedAt: '2026-09-10' }, { url: 'https://kultur.dk/news', publishedAt: '2026-09-10' }] } };
   mocks.readback.mockResolvedValue({ draftConfirmed: true, publicationReady: true, checks: [{ id: 'all', ok: true }] });
   const result = await (await runLivDaily(new NextRequest('http://localhost/api/cron/liv-prepare'), {
     dayKey: '2026-09-12', kind: 'scheduled', defaultPlan: defaultEditorialPlan('2026-09-12'),
@@ -196,7 +197,7 @@ it('yields after saving generated text and does not spend the remaining budget o
 });
 it('resumes reserve text, checkpoints media, and yields before final checks', async () => {
   mocks.row = { articleCheckpoint: { title: 'Saved text', content: 'Saved text',
-    researchSources: [{ url: 'https://museum.dk/news' }, { url: 'https://kultur.dk/news' }] } };
+    researchSources: [{ url: 'https://museum.dk/news', publishedAt: '2026-09-10' }, { url: 'https://kultur.dk/news', publishedAt: '2026-09-10' }] } };
   mocks.media.mockImplementation(async article => ({ ...article, preparedMedia: [{}, {}, {}] }));
   const result = await (await runLivDaily(new NextRequest('http://localhost/api/cron/liv-prepare'), {
     dayKey: '2026-09-12', kind: 'reserve', defaultPlan: defaultEditorialPlan('2026-09-12', true),
@@ -206,4 +207,26 @@ it('resumes reserve text, checkpoints media, and yields before final checks', as
   expect(mocks.media).toHaveBeenCalledWith(expect.objectContaining({ title: 'Saved text' }), expect.anything());
   expect(mocks.yield).toHaveBeenCalledWith('2026-09-12', 'reserve');
   expect(mocks.gates).not.toHaveBeenCalled(); expect(mocks.publish).not.toHaveBeenCalled();
+});
+
+it('supplements dated evidence before paying for images and keeps the same article checkpoint', async () => {
+  const article = { title: 'Saved text', content: 'Saved text', researchSources: [{ url: 'https://museum.dk/news' }, { url: 'https://kultur.dk/news' }] };
+  mocks.row = { articleCheckpoint: article };
+  mocks.supplement.mockResolvedValue({ ...article, researchSupplementedAt: '2026-09-12T07:00:00Z' });
+  const result = await (await runLivDaily(new NextRequest('http://localhost/api/cron/liv-prepare'), {
+    dayKey: '2026-09-12', kind: 'scheduled', defaultPlan: defaultEditorialPlan('2026-09-12'),
+  })).json();
+  expect(result.status).toBe('research_supplemented');
+  expect(mocks.media).not.toHaveBeenCalled(); expect(mocks.gates).not.toHaveBeenCalled();
+  expect(mocks.checkpoint).toHaveBeenLastCalledWith('2026-09-12', expect.objectContaining({ title: article.title, content: article.content }), 'prepare');
+});
+
+it('does not repeat unsuccessful supplemental searches or spend on media without dated evidence', async () => {
+  mocks.row = { articleCheckpoint: { title: 'Saved text', content: 'Saved text', researchSupplementedAt: '2026-09-12T07:00:00Z',
+    researchSources: [{ url: 'https://museum.dk/news' }, { url: 'https://kultur.dk/news' }] } };
+  const response = await runLivDaily(new NextRequest('http://localhost/api/cron/liv-prepare'), {
+    dayKey: '2026-09-12', kind: 'scheduled', defaultPlan: defaultEditorialPlan('2026-09-12'),
+  });
+  expect(response.status).toBe(500);
+  expect(mocks.supplement).not.toHaveBeenCalled(); expect(mocks.media).not.toHaveBeenCalled();
 });

@@ -57,6 +57,8 @@ export interface GeneratedArticle {
   }>;
   selectedImage?: LivSelectedImage;
   preparedMedia?: import('@/lib/liv/automatic-media').MediaEvidence[];
+  /** Bounded extra evidence search; never a statement that facts passed. */
+  researchSupplementedAt?: string;
   rawResponse: string;
   aiModel?: string;
   voiceVersion?: string;

@@ -271,6 +271,18 @@ export async function runLivDaily(req: NextRequest, preparation?: {
       });
     }
 
+    // The verifier requires two dated hosts. Supplement evidence without
+    // rewriting an already-paid article or replacing its images.
+    const datedHosts = new Set((article.researchSources || []).filter(source => source.url && source.publishedAt)
+      .map(source => new URL(source.url!).hostname.replace(/^www\./, '')));
+    if (preparation && datedHosts.size < 2 && !article.researchSupplementedAt) {
+      article = await (await import('@/lib/liv/supplement-research')).supplementLivResearch(article, topic.title);
+      await checkpointLivDailyArticle(dayKey, article);
+      await yieldLivPreparation(dayKey, scope as 'prepare' | 'reserve');
+      return NextResponse.json({ status: 'research_supplemented', dayKey, title: article.title });
+    }
+    if (preparation && datedHosts.size < 2) throw new Error('research_dated_sources_insufficient');
+
     if (publicationMode === 'auto_publish' || preparation) {
       const hadMedia = (article.preparedMedia?.length ?? 0) >= 3;
       article = await prepareLivAutomaticMedia(article, { dayKey, deadline: mediaDeadline });
