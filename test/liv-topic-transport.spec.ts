@@ -5,7 +5,7 @@ vi.mock('@/lib/logger', () => ({ logger: { warn: vi.fn(), error: vi.fn() } }));
 vi.mock('@/lib/liv/daily-history-store', () => ({ getRecentLivDailySlugs: mocks.history, getRecentLivDailyTopics: mocks.history }));
 import { pickLivTopic } from '@/lib/liv/pick-topic';
 const options = { baseUrl: 'https://app.example', topicHint: 'Kultur i København', mustUseTrending: false };
-beforeEach(() => { vi.resetAllMocks(); vi.stubGlobal('fetch', mocks.fetch); mocks.history.mockResolvedValue([]); });
+beforeEach(() => { vi.resetAllMocks(); vi.stubGlobal('fetch', mocks.fetch); mocks.history.mockResolvedValue(new Set()); });
 afterEach(() => vi.unstubAllGlobals());
 it.each([401, 403, 500, 503])('reports HTTP %s as failure, not a missing topic or synthetic fallback', async status => {
   mocks.fetch.mockResolvedValue(new Response('', { status }));
@@ -15,7 +15,7 @@ it.each([401, 403, 500, 503])('reports HTTP %s as failure, not a missing topic o
 it('keeps internal auth, bounds the wait and refuses login redirects', async () => {
   mocks.fetch.mockResolvedValue(Response.json({ articles: [] }));
   expect(await pickLivTopic(options)).toMatchObject({ synthetic: true, title: options.topicHint });
-  expect(mocks.fetch).toHaveBeenCalledWith('https://app.example/api/trending', expect.objectContaining({
+  expect(mocks.fetch).toHaveBeenCalledWith('https://app.example/api/trending?days=7&limit=500', expect.objectContaining({
     headers: { 'x-internal-api-secret': 'fixture-only' }, redirect: 'error', signal: expect.any(AbortSignal),
   }));
 });

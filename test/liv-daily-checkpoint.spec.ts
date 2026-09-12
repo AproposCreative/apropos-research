@@ -7,7 +7,7 @@ vi.mock('@/lib/firebase-admin', () => ({ getAdminDb: () => state.available ? {
     set: (_ref: unknown, patch: any) => { state.writes(patch); Object.assign(state.row, patch); },
   }),
 } : null }));
-import { claimLivDaily, checkpointLivDailyCmsItem, checkpointLivDailyArticle } from '@/lib/liv/daily-history-store';
+import { claimLivDaily, checkpointLivDailyCmsItem, checkpointLivDailyArticle, yieldLivPreparation } from '@/lib/liv/daily-history-store';
 import type { GeneratedArticle } from '@/lib/liv/generate-article';
 const id = '0123456789abcdef01234567';
 beforeEach(() => {
@@ -67,4 +67,29 @@ it('rejects an invalid identity before writing', async () => {
   await expect(checkpointLivDailyCmsItem('../day', id)).rejects.toThrow('invalid');
   await expect(checkpointLivDailyCmsItem('2026-09-10', 'bad-id')).rejects.toThrow('invalid');
   expect(state.writes).not.toHaveBeenCalled();
+});
+it('yields saved text and resumes it without waiting for a stale worker', async () => {
+  state.row.articleCheckpoint = { title: 'Saved', content: 'Paid text' };
+  state.row.processingStartedAt = { toMillis: () => Date.now() };
+  await yieldLivPreparation('2026-09-12', 'prepare');
+  expect(state.row.continuationReady).toBe(true);
+  expect(await claimLivDaily('2026-09-12', 'prepare')).toMatchObject({ ok: true });
+  expect(state.row.continuationReady).toBe(false);
+  expect(state.row.articleCheckpoint.content).toBe('Paid text');
+});
+it('allows one explicitly authorized retry without resetting attempts or text', async () => {
+  state.row = { status: 'failed', preparationAttempts: 5, retryAuthorization: 'audit-id',
+    articleCheckpoint: { content: 'Paid text' } };
+  expect(await claimLivDaily('2026-09-12', 'prepare')).toMatchObject({ ok: true });
+  expect(state.row.preparationAttempts).toBe(6);
+  expect(state.row.articleCheckpoint.content).toBe('Paid text');
+  expect(typeof state.row.retryAuthorization).not.toBe('string');
+});
+it.each(['webflowItemId', 'preparationProof', 'cmsSaveStarted'])('retry never bypasses an uncertain CMS write: %s', async key => {
+  state.row = { status: 'failed', retryAuthorization: 'audit-id', [key]: key === 'webflowItemId' ? id : true };
+  expect(await claimLivDaily('2026-09-12', 'prepare')).toMatchObject({ ok: false });
+});
+it('resumes failed complete-media checkpoints instead of filtering them out as terminal', async () => {
+  state.row = { status: 'failed', preparationAttempts: 4, articleCheckpoint: { preparedMedia: [{}, {}, {}] } };
+  expect(await claimLivDaily('2026-09-12', 'prepare')).toMatchObject({ ok: true });
 });

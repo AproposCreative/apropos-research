@@ -21,6 +21,7 @@ const primaryUrl = 'https://a24films.com/films/the-invite';
 const criticUrl = 'https://example.com/criticism/the-invite';
 const reason = 'Præmissens præcise konflikt vejer tungt i dommen, selv om indvendingerne også skal med.';
 const body = 'Olivia Wilde sætter The Invite omkring en middag. Det konkrete sammenstød giver stof til en dom, ikke blot et handlingsreferat.';
+const rewrittenBody = 'Gæstfrihed har en pris i The Invite. Middagens magtforhold giver Olivia Wildes film en konkret konflikt at undersøge.';
 const response = (raw: string) => ({ model: 'gpt-5.6-sol-test-snapshot', choices: [{ message: { content: raw }, finish_reason: 'stop' }] });
 const rawArticle = (rated = true, content = body) => JSON.stringify({ status: 'ready',
   title: 'The Invite: Middagen som magtkamp', subtitle: 'En selvstændig dom med plads til tvivl',
@@ -134,11 +135,32 @@ it.each(['article_generation_refused', 'article_evidence_insufficient'])('does n
   expect(mocks.similarity).not.toHaveBeenCalled();
 });
 
-it.each([true, false])('stops with diagnosable source failure, complete=%s', async complete => {
-  mocks.similarity.mockResolvedValueOnce({ pass: false, complete,
+it.each([true, false])('stops with diagnosable source failure after one originality rewrite, complete=%s', async complete => {
+  // The generator permits one rewrite, then requires a fresh passing comparison.
+  mocks.create.mockResolvedValueOnce(response(rawArticle(true, rewrittenBody)));
+  mocks.similarity.mockResolvedValue({ pass: false, complete,
     scores: { embeddingSim: 0.9, ngramJaccard: 0.1, openingSim: 0.1 } });
   await expect(generateLivArticle({ topic: { title: 'The Invite', score: 0 }, articleFormat: 'research-review' }))
     .rejects.toMatchObject({ name: 'SourceSimilarityError', status: complete ? 422 : 503,
       code: complete ? 'source_similarity_unapproved' : 'source_similarity_incomplete',
-      detail: expect.objectContaining({ complete, sourceHash: 'hash' }) });
+      detail: expect.objectContaining({ complete, sourceHash: 'hash' }),
+      blockedReview: { status: 'blocked', text: expect.stringContaining(rewrittenBody) } });
+  expect(mocks.create).toHaveBeenCalledTimes(2);
+  expect(mocks.similarity).toHaveBeenCalledTimes(2);
+  expect(mocks.similarity.mock.calls[1][0].generated).toContain(rewrittenBody);
+  expect(mocks.images).not.toHaveBeenCalled();
+});
+
+it('accepts an originality rewrite only after checking it against every research source', async () => {
+  mocks.create.mockResolvedValueOnce(response(rawArticle(true, rewrittenBody)));
+  mocks.similarity.mockResolvedValueOnce({ pass: false, complete: true,
+    scores: { embeddingSim: 0.9, ngramJaccard: 0.1, openingSim: 0.1 } });
+  const article = await generateLivArticle({ topic: { title: 'The Invite', score: 0 }, articleFormat: 'research-review' });
+  expect(article.content).toBe(rewrittenBody);
+  expect(article.researchSources).toHaveLength(2);
+  expect(mocks.create).toHaveBeenCalledTimes(2);
+  const rewriteRequest = JSON.parse(mocks.create.mock.calls[1][0].messages[1].content);
+  expect(rewriteRequest).toMatchObject({ draftToRewrite: { content: body }, blockedSourceHost: 'a24films.com' });
+  expect(mocks.similarity).toHaveBeenCalledTimes(3);
+  expect(mocks.similarity.mock.calls.slice(1).every(call => call[0].generated.includes(rewrittenBody))).toBe(true);
 });

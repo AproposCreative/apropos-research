@@ -87,6 +87,54 @@ describe('automatic Liv media', () => {
     expect(deps.plan).not.toHaveBeenCalled();
     expect(deps.generate).not.toHaveBeenCalled();
   });
+  it('reuses saved encoded roles and only prepares roles that have no saved evidence', async () => {
+    const completed = await prepareLivAutomaticMedia(article, { dayKey: '2026-09-10' }, deps);
+    const storedBytes = vi.mocked(deps.store).mock.calls;
+    const hero = { evidence: completed.preparedMedia![0], bytes: storedBytes.find(call => call[1] === 'hero')![2] };
+    deps.resume = vi.fn(async () => [hero]);
+    vi.mocked(deps.generate).mockClear();
+    vi.mocked(deps.store).mockClear();
+    const resumed = await prepareLivAutomaticMedia(article, { dayKey: '2026-09-10' }, deps);
+    expect(resumed.preparedMedia![0]).toEqual(hero.evidence);
+    expect(vi.mocked(deps.generate).mock.calls.map(call => call[2])).toEqual(['body-1', 'body-2']);
+    expect(vi.mocked(deps.store).mock.calls.map(call => call[1]).sort()).toEqual(['body-1', 'body-2']);
+    expect(deps.review).toHaveBeenLastCalledWith(article, 'illustration', expect.arrayContaining([
+      { bytes: hero.bytes, alt: hero.evidence.alt, caption: hero.evidence.caption },
+    ]), expect.any(String));
+  });
+  it('resumes saved photography without depending on source availability or replacing source credits', async () => {
+    const input = { ...article, section: 'Film' };
+    const candidates = originals.map((bytes, i) => ({ id: hash(bytes), url: `https://press.test/${i}.png`,
+      sourcePageUrl: 'https://press.test/film', credit: `Foto: Fotograf ${i} / Producent`, bytes }));
+    vi.mocked(deps.candidates).mockResolvedValue(candidates);
+    vi.mocked(deps.plan).mockResolvedValue({ images: plan.images.map((image, i) => ({ ...image, candidateId: candidates[i].id })) });
+    const completed = await prepareLivAutomaticMedia(input, { dayKey: '2026-09-10' }, deps);
+    const storedBytes = vi.mocked(deps.store).mock.calls;
+    deps.resume = vi.fn(async () => completed.preparedMedia!.map(evidence => ({ evidence,
+      bytes: storedBytes.find(call => call[1] === evidence.role)![2] })));
+    vi.mocked(deps.candidates).mockClear().mockRejectedValue(new Error('Source unavailable'));
+    vi.mocked(deps.store).mockClear();
+    const resumed = await prepareLivAutomaticMedia(input, { dayKey: '2026-09-10' }, deps);
+    expect(resumed.preparedMedia).toEqual(completed.preparedMedia);
+    expect(deps.candidates).not.toHaveBeenCalled();
+    expect(deps.generate).not.toHaveBeenCalled();
+    expect(deps.store).not.toHaveBeenCalled();
+    expect(deps.review).toHaveBeenCalledTimes(2);
+  });
+  it('rejects saved evidence that does not match its plan and still applies the duplicate gate', async () => {
+    const completed = await prepareLivAutomaticMedia(article, { dayKey: '2026-09-10' }, deps);
+    const storedBytes = vi.mocked(deps.store).mock.calls;
+    const saved = completed.preparedMedia!.map(evidence => ({ evidence: { ...evidence },
+      bytes: storedBytes.find(call => call[1] === evidence.role)![2] }));
+    deps.resume = vi.fn(async () => saved);
+    vi.mocked(deps.review).mockClear();
+    saved[0].evidence.alt = 'En anden billedtekst';
+    await expect(prepareLivAutomaticMedia(article, { dayKey: '2026-09-10' }, deps)).rejects.toThrow('preparation_incomplete');
+    saved[0].evidence.alt = completed.preparedMedia![0].alt;
+    saved[1].evidence.sourceHash = saved[0].evidence.sourceHash;
+    await expect(prepareLivAutomaticMedia(article, { dayKey: '2026-09-10' }, deps)).rejects.toThrow('duplicate');
+    expect(deps.review).not.toHaveBeenCalled();
+  });
   it.each(['Only one paragraph', '<p>Text</p><img src="https://existing.test/a.png">'])('validates body structure before any claim or paid calls', async content => {
     await expect(prepareLivAutomaticMedia({ ...article, content }, { dayKey: '2026-09-10' }, deps)).rejects.toThrow('liv_media_');
     expect(deps.claim).not.toHaveBeenCalled();

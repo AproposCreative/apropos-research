@@ -25,7 +25,7 @@ describe('daily delivery policy', () => {
     state.entries = [entry({ kind: 'reserve', decision: 'rejected' }),
       entry({ scheduledDay: '2026-09-12', expiresDay: '2026-09-12', decision: 'rejected' })];
     expect(deliveryHealth(state, new Date('2026-09-11T08:00:00Z')).reserves).toBe(0);
-    expect(preparationCandidates(state, day)[0]).toMatchObject({ dayKey: '2026-09-12', kind: 'scheduled' });
+    expect(preparationCandidates(state, day)[0]).toMatchObject({ dayKey: day, kind: 'scheduled' });
   });
   it('keeps 10:00 Copenhagen in summer and winter', () => {
     expect(copenhagenClock(new Date('2026-09-11T08:00:00Z'))).toEqual({ day, hour: 10 });
@@ -81,10 +81,16 @@ describe('daily delivery policy', () => {
   it('does not report overdue before the deadline', () => {
     expect(deliveryHealth(emptyDeliveryState(), new Date('2026-09-11T07:59:00Z')).overdue).toBe(false);
   });
-  it('prepares tomorrow, then reserves, then the rest of the week', () => {
+  it('prepares today, tomorrow, then reserves and the rest of the week', () => {
     const jobs = preparationCandidates(emptyDeliveryState(), day);
-    expect(jobs.slice(0, 4).map(j => j.kind)).toEqual(['scheduled', 'reserve', 'reserve', 'reserve']);
-    expect(jobs.filter(j => j.kind === 'scheduled')).toHaveLength(7);
+    expect(jobs.slice(0, 5).map(j => j.kind)).toEqual(['scheduled', 'scheduled', 'reserve', 'reserve', 'reserve']);
+    expect(jobs.filter(j => j.kind === 'scheduled')).toHaveLength(8);
+  });
+  it('does not generate another article for a covered day or spill into artificial future dates', () => {
+    const state = emptyDeliveryState(); state.entries = [entry()];
+    const jobs = preparationCandidates(state, day);
+    expect(jobs[0].dayKey).toBe('2026-09-12');
+    expect(jobs.every(j => j.dayKey <= addDays(day, 7))).toBe(true);
   });
   it('counts only ready unexpired reserves toward the target', () => {
     const state = emptyDeliveryState();

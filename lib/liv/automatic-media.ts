@@ -15,6 +15,7 @@ export type MediaEvidence = StoredMedia & { role: 'hero' | 'body-1' | 'body-2'; 
 export type MediaOptions = { dayKey: string; mode?: MediaMode; style?: MediaStyle; deadline?: number };
 export type MediaDependencies = {
   claim: (jobId: string, article: GeneratedArticle, mode: MediaMode, style: MediaStyle) => Promise<GeneratedArticle | null>;
+  resume?: (jobId: string) => Promise<Array<{ evidence: MediaEvidence; bytes: Buffer }>>;
   record: (jobId: string, stage: string, data: Record<string, unknown>) => Promise<void>;
   candidates: (article: GeneratedArticle) => Promise<MediaCandidate[]>;
   plan: (article: GeneratedArticle, mode: MediaMode, style: MediaStyle, candidates: MediaCandidate[], jobId: string) => Promise<unknown>;
@@ -93,13 +94,25 @@ export async function prepareLivAutomaticMedia(article: GeneratedArticle, option
   const cached = await deps.claim(jobId, article, mode, style);
   if (cached) return cached;
   try {
-    const candidates = mode === 'photography' ? await deps.candidates(article) : [];
+    const saved = await deps.resume?.(jobId) ?? [];
+    const candidates = mode === 'photography' ? [
+      ...saved.map(({ evidence, bytes }) => ({ id: evidence.sourceHash, url: evidence.sourceUrl!,
+        sourcePageUrl: evidence.sourcePageUrl!, credit: evidence.credit, bytes })),
+      ...(saved.length < 3 ? await deps.candidates(article) : []),
+    ].filter((candidate, index, all) => all.findIndex(item => item.id === candidate.id) === index) : [];
     if (mode === 'photography' && candidates.length < 3) throw new Error('liv_media_credited_photos_missing');
     const plan = validateLivMediaPlan(await deps.plan(article, mode, style, candidates, jobId), mode, candidates);
     await deps.record(jobId, 'plan', { plan });
     // Three fixed roles bound cost and prevent endless "try another image" loops.
     const results = await Promise.allSettled(plan.images.map(async (image, index) => {
       const role = (['hero', 'body-1', 'body-2'] as const)[index];
+      const existing = saved.find(item => item.evidence.role === role);
+      if (existing) {
+        const caption = mode === 'illustration' ? `AI-illustration: ${image.caption}` : image.caption;
+        if (existing.evidence.kind !== mode || existing.evidence.alt !== image.alt || existing.evidence.caption !== caption ||
+            (mode === 'photography' && existing.evidence.sourceHash !== image.candidateId)) throw new Error('liv_media_saved_evidence_invalid');
+        return existing;
+      }
       const candidate = candidates.find(candidate => candidate.id === image.candidateId);
       const original = mode === 'photography' ? candidate!.bytes : await deps.generate(image.prompt, jobId, role);
       const meta = await sharp(original, { limitInputPixels: 80_000_000 }).metadata();

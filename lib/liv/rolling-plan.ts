@@ -1,5 +1,5 @@
 import type { LivDailyPlan } from '@/lib/liv/daily-plan-store';
-import { addDays, LIV_PLAN_DAYS, LIV_RESERVE_TARGET, type DeliveryState } from '@/lib/liv/delivery-policy';
+import { addDays, eligibleEntries, LIV_PLAN_DAYS, LIV_RESERVE_TARGET, type DeliveryState } from '@/lib/liv/delivery-policy';
 import { cmsFieldHash } from '@/lib/liv/cms-field-hash';
 
 export function editorialPlanHash(plan: LivDailyPlan | null) {
@@ -60,7 +60,7 @@ export function defaultEditorialPlan(day: string, reserve = false): LivDailyPlan
     articleFormat: 'article', mustUseTrending: false, status: 'pending', createdAt: null, updatedAt: null };
 }
 
-/** One bounded generation per invocation. Tomorrow first, then reserves, then the week. */
+/** One bounded stage per invocation. Cover today before building future stock. */
 export function preparationCandidates(state: DeliveryState, today: string) {
   const dates = Array.from({ length: LIV_PLAN_DAYS }, (_, i) => addDays(today, i + 1));
   const scheduled = dates.filter(day => !state.entries.some(e => e.kind === 'scheduled' &&
@@ -71,8 +71,7 @@ export function preparationCandidates(state: DeliveryState, today: string) {
   const reserves = count >= LIV_RESERVE_TARGET ? [] : Array.from({ length: LIV_RESERVE_TARGET }, (_, i) =>
     ({ dayKey: addDays(today, i), kind: 'reserve' as const }));
   const tomorrow = scheduled.filter(p => p.dayKey === dates[0]);
-  const overflow = scheduled.length === dates.length && state.entries.length > 0
-    ? Array.from({ length: 14 }, (_, i) => ({ dayKey: addDays(today, LIV_PLAN_DAYS + i + 1), kind: 'scheduled' as const }))
-    : [];
-  return [...tomorrow, ...reserves, ...scheduled.filter(p => p.dayKey !== dates[0]), ...overflow];
+  const urgent = !state.slots[today] && eligibleEntries(state, today).length === 0
+    ? [{ dayKey: today, kind: 'scheduled' as const }] : [];
+  return [...urgent, ...tomorrow, ...reserves, ...scheduled.filter(p => p.dayKey !== dates[0])];
 }

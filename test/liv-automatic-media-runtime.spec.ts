@@ -2,30 +2,49 @@ import { afterEach, beforeAll, beforeEach, expect, it, vi } from 'vitest';
 import sharp from 'sharp';
 import { createHash } from 'node:crypto';
 const mocks = vi.hoisted(() => ({ row: undefined as any, writes: vi.fn(), stages: vi.fn(), save: vi.fn(), download: vi.fn(),
+  stageRows: {} as Record<string, any>, files: new Map<string, Buffer>(), getMetadata: vi.fn(),
   chat: vi.fn(), generate: vi.fn(), read: vi.fn(), dbAvailable: true, keyAvailable: true }));
 vi.mock('@/lib/firebase-admin', () => ({
   getAdminDb: () => mocks.dbAvailable ? {
-    collection: () => ({ doc: () => ({ collection: () => ({ doc: () => ({ set: mocks.stages }) }), update: async (patch: any) => { Object.assign(mocks.row, patch); } }) }),
-    runTransaction: async (fn: any) => fn({ get: async () => ({ data: () => mocks.row }), set: (_ref: any, patch: any) => { mocks.writes(patch); mocks.row = patch; } }),
+    collection: () => ({ doc: () => ({ collection: () => ({ kind: 'stages', doc: (stage: string) => ({ stage }) }) }) }),
+    runTransaction: async (fn: any) => fn({
+      get: async (ref: any) => ref.kind === 'stages'
+        ? { docs: Object.entries(mocks.stageRows).map(([id, data]) => ({ id, data: () => structuredClone(data) })) }
+        : { data: () => mocks.row },
+      set: (ref: any, patch: any, options?: any) => {
+        if (ref.stage) {
+          mocks.stages(patch, options);
+          mocks.stageRows[ref.stage] = { ...mocks.stageRows[ref.stage], ...patch };
+        } else {
+          mocks.writes(patch);
+          mocks.row = options?.merge ? { ...mocks.row, ...patch } : patch;
+        }
+      },
+    }),
   } : null,
-  getAdminStorageBucket: () => ({ file: () => ({ save: mocks.save, download: mocks.download }) }),
+  getAdminStorageBucket: () => ({ file: (path: string) => ({
+    save: async (bytes: Buffer, options: unknown) => { await mocks.save(bytes, options); mocks.files.set(path, bytes); },
+    download: (options: unknown) => mocks.download(path, options), getMetadata: mocks.getMetadata,
+  }) }),
 }));
 vi.mock('@/lib/openai', () => ({ getOpenAIClient: () => mocks.keyAvailable ? { chat: { completions: { create: mocks.chat } }, images: { generate: mocks.generate } } : null }));
 vi.mock('@/lib/liv/model-config', () => ({ livModels: () => ({ utility: 'test-utility-model' }) }));
 vi.mock('@/lib/liv/public-media-reader', () => ({ readPublicMedia: mocks.read }));
 import { livMediaRuntime, aproposIllustrationStyle } from '@/lib/liv/automatic-media-runtime';
 import type { GeneratedArticle } from '@/lib/liv/generate-article';
+import { livImageArticleHash } from '@/lib/liv/article-image-hash';
+import { prepareLivAutomaticMedia } from '@/lib/liv/automatic-media';
 const id = 'b'.repeat(64);
 const article = { title: 'Kunst i byen', intro: 'Kunst med mening', slug: 'kunst-i-byen', content: '<p>Indhold</p>' } as GeneratedArticle;
 let image: Buffer;
 beforeAll(async () => { image = await sharp({ create: { width: 1000, height: 600, channels: 3, background: '#ff3388' } }).png().toBuffer(); });
 beforeEach(() => {
-  vi.clearAllMocks(); mocks.row = undefined; mocks.dbAvailable = true; mocks.keyAvailable = true;
+  vi.resetAllMocks(); mocks.row = undefined; mocks.stageRows = {}; mocks.files.clear(); mocks.dbAvailable = true; mocks.keyAvailable = true;
   vi.stubEnv('FIREBASE_STORAGE_BUCKET', 'test-bucket');
   vi.stubEnv('LIV_IMAGE_MODEL', 'gpt-image-1.5');
   vi.stubEnv('AI_IMAGE_GENERATION_ENABLED', 'true');
   vi.stubEnv('LIV_OFFICIAL_IMAGE_HOSTS', 'sfstudios.dk');
-  mocks.save.mockResolvedValue(undefined); mocks.download.mockResolvedValue([image]);
+  mocks.save.mockResolvedValue(undefined); mocks.download.mockImplementation(async path => [mocks.files.get(path) ?? image]);
   mocks.generate.mockResolvedValue({ data: [{ b64_json: image.toString('base64') }], usage: { total_tokens: 100 } });
   mocks.chat.mockResolvedValue({ choices: [{ finish_reason: 'stop', message: { content: '{"images":[]}' } }], usage: { total_tokens: 30 } });
 });
@@ -73,6 +92,7 @@ it('honours the existing image-generation switch and time budget before an API c
   vi.stubEnv('AI_IMAGE_GENERATION_ENABLED', 'true');
   await expect(livMediaRuntime(Date.now() - 1).generate('Motiv', id, 'hero')).rejects.toThrow('time_budget');
   expect(mocks.generate).not.toHaveBeenCalled();
+  expect(mocks.stages).not.toHaveBeenCalled();
 });
 it('never opens another source host or invents photo credits', async () => {
   mocks.read.mockImplementation(async (url, kind) => kind === 'html' ? Buffer.from('<figure><img src="https://images.example.com/still.png"><figcaption>Foto: Anna / SF Studios</figcaption></figure>') : image);
@@ -86,6 +106,7 @@ it('never opens another source host or invents photo credits', async () => {
 });
 it('fails closed on truncated model JSON or uncertain visual review', async () => {
   const deps = livMediaRuntime();
+  await deps.claim(id, article, 'illustration', 'expressive');
   mocks.chat.mockResolvedValueOnce({ choices: [{ finish_reason: 'length', message: { content: '{}' } }] });
   await expect(deps.plan(article, 'illustration', 'expressive', [], id)).rejects.toThrow('incomplete');
   mocks.chat.mockResolvedValueOnce({ choices: [{ finish_reason: 'stop', message: { content: '{"pass":false}' } }] });
@@ -104,4 +125,162 @@ it('defines both requested styles with no collage and few focal objects', () => 
     expect(aproposIllustrationStyle(style)).toContain('No collage');
     expect(aproposIllustrationStyle(style)).toContain('very few objects');
   }
+});
+
+const savedPlan = { images: Array.from({ length: 3 }, (_, i) => ({ candidateId: null,
+  prompt: `En original tegning med et enkelt kunstmotiv nummer ${i}.`,
+  alt: `Tegning af kunstmotiv nummer ${i}`, caption: `En tegnet fortolkning af kunsten, motiv ${i}.` })) };
+const seedFailed = () => {
+  mocks.row = { status: 'failed', articleInputHash: livImageArticleHash(article), article, mode: 'illustration', style: 'expressive',
+    createdAt: '2026-01-01T00:00:00.000Z', failedAt: '2026-01-01T00:03:00.000Z', estimatedCost: null };
+  mocks.stageRows.plan = { plan: savedPlan, updatedAt: '2026-01-01T00:00:10.000Z' };
+};
+const storedOriginal = () => {
+  const contentHash = createHash('sha256').update(image).digest('hex');
+  const storagePath = `editorial-images/liv-daily/${id}/hero-original-${contentHash}.png`;
+  return { storagePath, contentHash, bytes: image.length, width: 1000, height: 600,
+    url: `https://firebasestorage.googleapis.com/v0/b/test-bucket/o/${encodeURIComponent(storagePath)}?alt=media&token=saved` };
+};
+it('resumes a failed job from its saved plan and original without replacing the audit or calling providers', async () => {
+  seedFailed();
+  mocks.stageRows['hero-call'] = { status: 'complete', original: storedOriginal(), usage: { total_tokens: 123 } };
+  const audit = structuredClone(mocks.stageRows);
+  const deps = livMediaRuntime();
+  expect(await deps.claim(id, article, 'illustration', 'expressive')).toBeNull();
+  vi.stubEnv('AI_IMAGE_GENERATION_ENABLED', 'false');
+  expect(await deps.plan(article, 'illustration', 'expressive', [], id)).toEqual(savedPlan);
+  expect(await deps.generate(savedPlan.images[0].prompt, id, 'hero')).toEqual(image);
+  expect(mocks.row).toMatchObject({ status: 'processing', resumeCount: 1, article,
+    createdAt: '2026-01-01T00:00:00.000Z', failedAt: '2026-01-01T00:03:00.000Z' });
+  expect(mocks.stageRows).toEqual(audit);
+  expect(mocks.chat).not.toHaveBeenCalled();
+  expect(mocks.generate).not.toHaveBeenCalled();
+  expect(mocks.save).not.toHaveBeenCalled();
+});
+it('recovers a completed plan call before the plan stage was saved', async () => {
+  seedFailed();
+  delete mocks.stageRows.plan;
+  mocks.stageRows['plan-call'] = { status: 'complete', result: savedPlan, usage: { total_tokens: 123 } };
+  const deps = livMediaRuntime();
+  await deps.claim(id, article, 'illustration', 'expressive');
+  expect(await deps.plan(article, 'illustration', 'expressive', [], id)).toEqual(savedPlan);
+  expect(mocks.chat).not.toHaveBeenCalled();
+});
+it.each(['plan-call', 'hero-call', 'body-1-call', 'body-2-call'])('rejects an ambiguous %s before spending or claiming a failed job', async stage => {
+  seedFailed();
+  if (stage === 'plan-call') delete mocks.stageRows.plan;
+  mocks.stageRows[stage] = { status: 'processing', model: 'original-model' };
+  const before = structuredClone(mocks.row);
+  await expect(livMediaRuntime().claim(id, article, 'illustration', 'expressive')).rejects.toThrow('reconciliation');
+  expect(mocks.row).toEqual(before);
+  expect(mocks.chat).not.toHaveBeenCalled();
+  expect(mocks.generate).not.toHaveBeenCalled();
+});
+it('rejects completed image calls without a stored result and assets without a saved plan', async () => {
+  seedFailed();
+  mocks.stageRows['hero-call'] = { status: 'complete', usage: { total_tokens: 123 } };
+  await expect(livMediaRuntime().claim(id, article, 'illustration', 'expressive')).rejects.toThrow('reconciliation');
+  mocks.stageRows['hero-call'].original = storedOriginal();
+  delete mocks.stageRows.plan;
+  await expect(livMediaRuntime().claim(id, article, 'illustration', 'expressive')).rejects.toThrow('reconciliation');
+  expect(mocks.generate).not.toHaveBeenCalled();
+});
+it('allows only one resumption, fences stale workers, and preserves completed jobs from late failures', async () => {
+  const old = livMediaRuntime();
+  await old.claim(id, article, 'illustration', 'expressive');
+  mocks.row.leaseUntil = new Date(Date.now() - 1).toISOString();
+  mocks.stageRows.plan = { plan: savedPlan };
+  const current = livMediaRuntime();
+  await current.claim(id, article, 'illustration', 'expressive');
+  await expect(livMediaRuntime().claim(id, article, 'illustration', 'expressive')).rejects.toThrow('reconciliation');
+  await expect(old.generate('Do not spend', id, 'hero')).rejects.toThrow('reconciliation');
+  await expect(old.complete(id, article)).rejects.toThrow('reconciliation');
+  await old.fail(id);
+  expect(mocks.row.status).toBe('processing');
+  expect(mocks.generate).not.toHaveBeenCalled();
+  await current.complete(id, article);
+  await current.fail(id);
+  expect(mocks.row.status).toBe('complete');
+});
+it('resumes expired legacy processing jobs but rejects mismatched article, mode and style', async () => {
+  seedFailed();
+  mocks.row.status = 'processing';
+  await expect(livMediaRuntime().claim(id, { ...article, title: 'Changed' }, 'illustration', 'expressive')).rejects.toThrow('reconciliation');
+  await expect(livMediaRuntime().claim(id, article, 'photography', 'expressive')).rejects.toThrow('reconciliation');
+  await expect(livMediaRuntime().claim(id, article, 'illustration', 'minimal')).rejects.toThrow('reconciliation');
+  expect(await livMediaRuntime().claim(id, article, 'illustration', 'expressive')).toBeNull();
+});
+it.each(['contentHash', 'storagePath', 'url', 'width'])('rejects corrupt saved original %s without regenerating', async field => {
+  seedFailed();
+  const original = storedOriginal();
+  mocks.stageRows['hero-call'] = { status: 'complete', original: { ...original,
+    [field]: field === 'width' ? 999 : field === 'url' ? 'https://evil.example/image.png' : 'incorrect' } };
+  const deps = livMediaRuntime();
+  await deps.claim(id, article, 'illustration', 'expressive');
+  await expect(deps.generate('Motiv', id, 'hero')).rejects.toThrow('storage_mismatch');
+  expect(mocks.generate).not.toHaveBeenCalled();
+});
+it('preserves a paid provider result even when the deadline expires during generation', async () => {
+  vi.useFakeTimers();
+  try {
+    const deps = livMediaRuntime(Date.now() + 2000);
+    await deps.claim(id, article, 'illustration', 'expressive');
+    mocks.generate.mockImplementationOnce(async () => {
+      vi.setSystemTime(Date.now() + 3000);
+      return { data: [{ b64_json: image.toString('base64') }] };
+    });
+    expect(await deps.generate('Motiv', id, 'hero')).toEqual(image);
+    expect(mocks.stageRows['hero-call']).toMatchObject({ status: 'complete', original: { bytes: image.length } });
+  } finally { vi.useRealTimers(); }
+});
+it('reuses an immutable upload after an interrupted stage write and verifies its bytes', async () => {
+  const deps = livMediaRuntime();
+  mocks.save.mockRejectedValue({ code: 412 });
+  const token = '11111111-1111-4111-8111-111111111111';
+  mocks.getMetadata.mockResolvedValue([{ metadata: { firebaseStorageDownloadTokens: token } }]);
+  expect((await deps.store(id, 'hero-original', image)).url).toContain(`token=${token}`);
+  mocks.download.mockResolvedValue([Buffer.from('corrupt')]);
+  await expect(deps.store(id, 'hero-original', image)).rejects.toThrow('storage_mismatch');
+  expect(mocks.generate).not.toHaveBeenCalled();
+});
+it('resumes three saved assets after a visual timeout and archives the prior check without generating again', async () => {
+  const input = { ...article, section: 'Kunst', content: '<p>Først.</p><p>Dernæst.</p><p>Til sidst.</p>' };
+  const originals = await Promise.all(['#ff3388', '#2244cc', '#ffee00'].map((background, index) =>
+    sharp({ create: { width: index === 1 ? 3000 : 1000, height: 600, channels: 3, background } }).png().toBuffer()));
+  originals.forEach(bytes => mocks.generate.mockResolvedValueOnce({ data: [{ b64_json: bytes.toString('base64') }] }));
+  mocks.chat.mockResolvedValueOnce({ choices: [{ finish_reason: 'stop', message: { content: JSON.stringify(savedPlan) } }] });
+  mocks.chat.mockRejectedValueOnce(new Error('timeout'));
+  await expect(prepareLivAutomaticMedia(input, { dayKey: '2026-09-12' }, livMediaRuntime())).rejects.toThrow('liv_media_failed');
+  const before = structuredClone(mocks.stageRows);
+  const saves = mocks.save.mock.calls.length;
+  const failedAt = mocks.row.failedAt;
+  mocks.chat.mockResolvedValueOnce({ choices: [{ finish_reason: 'stop', message: { content: '{"pass":true}' } }] });
+  const result = await prepareLivAutomaticMedia(input, { dayKey: '2026-09-12' }, livMediaRuntime());
+  expect(result.preparedMedia).toHaveLength(3);
+  expect(result.preparedMedia![1].height).toBeLessThan(500); // A valid wide source is scaled down for the body.
+  expect(result.content.match(/<img /g)).toHaveLength(2);
+  expect(mocks.generate).toHaveBeenCalledTimes(3);
+  expect(mocks.chat).toHaveBeenCalledTimes(3); // One plan, the failed review, the resumed review.
+  expect(mocks.save).toHaveBeenCalledTimes(saves);
+  for (const stage of ['plan', 'plan-call', 'hero', 'body-1', 'body-2', 'hero-call', 'body-1-call', 'body-2-call']) expect(mocks.stageRows[stage]).toEqual(before[stage]);
+  expect(Object.entries(mocks.stageRows).find(([stage]) => /^visual-review-/.test(stage))?.[1].previous).toEqual(before['visual-review']);
+  expect(mocks.row).toMatchObject({ status: 'complete', resumeCount: 1, failedAt });
+});
+it('does not repeat a completed rejection or an approval bound to the exact review inputs', async () => {
+  const images = [{ bytes: image, alt: 'Motiv', caption: 'Tekst' }];
+  const first = livMediaRuntime();
+  await first.claim(id, article, 'illustration', 'expressive');
+  mocks.chat.mockResolvedValueOnce({ choices: [{ finish_reason: 'stop', message: { content: '{"pass":true}' } }] });
+  expect(await first.review(article, 'illustration', images, id)).toBe(true);
+  await first.fail(id);
+  const second = livMediaRuntime();
+  await second.claim(id, article, 'illustration', 'expressive');
+  expect(await second.review(article, 'illustration', images, id)).toBe(true);
+  expect(mocks.chat).toHaveBeenCalledTimes(1);
+  await second.fail(id);
+  mocks.stageRows['visual-review'].result.pass = false;
+  const third = livMediaRuntime();
+  await third.claim(id, article, 'illustration', 'expressive');
+  expect(await third.review(article, 'illustration', images, id)).toBe(false);
+  expect(mocks.chat).toHaveBeenCalledTimes(1);
 });

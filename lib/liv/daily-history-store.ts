@@ -13,7 +13,7 @@ import type { GroundedReport } from '@/lib/factcheck/grounded';
 import type { GeneratedArticle } from '@/lib/liv/generate-article';
 import { livImageArticleHash } from '@/lib/liv/article-image-hash';
 import type { PreparationProof } from '@/lib/liv/prepared-admission';
-import { canRetryUnstartedPreparation } from '@/lib/liv/preparation-retry';
+import { canRetryUnstartedPreparation, shouldExcludeLivTopic } from '@/lib/liv/preparation-retry';
 
 export const LIV_DAILY_COLLECTION = 'livDailyArticles';
 export type LivDailyScope = 'daily' | 'prepare' | 'reserve';
@@ -66,10 +66,14 @@ export async function claimLivDaily(dayKey: string, scope: LivDailyScope = 'dail
       const d = snap.data();
       const status = d?.status as LivDailyStatus | undefined;
 
-      const resumableCheckpoint = scope !== 'daily' && Number(d?.preparationAttempts ?? 0) <= 4 &&
-        Array.isArray(d?.articleCheckpoint?.preparedMedia) && d.articleCheckpoint.preparedMedia.length >= 3 &&
+      const continuation = scope !== 'daily' && d?.continuationReady === true && !!d?.articleCheckpoint &&
         !d?.webflowItemId && !d?.preparationProof;
+      const authorizedRetry = scope !== 'daily' && typeof d?.retryAuthorization === 'string';
+      const resumableCheckpoint = continuation || authorizedRetry || (scope !== 'daily' && Number(d?.preparationAttempts ?? 0) <= 4 &&
+        Array.isArray(d?.articleCheckpoint?.preparedMedia) && d.articleCheckpoint.preparedMedia.length >= 3 &&
+        !d?.webflowItemId && !d?.preparationProof);
       if ((typeof d?.webflowItemId === 'string' && d.webflowItemId.trim()) ||
+        d?.preparationProof || d?.cmsSaveStarted ||
         ((!resumableCheckpoint) && (d?.articleCheckpoint || d?.articleCheckpointHash || d?.preparationProof))) {
         result = { ok: false, reason: 'already_done' };
         return;
@@ -86,12 +90,12 @@ export async function claimLivDaily(dayKey: string, scope: LivDailyScope = 'dail
         result = { ok: false, reason: 'already_done' };
         return;
       }
-      if (status === 'failed' && !retryPreparation) {
+      if (status === 'failed' && !retryPreparation && !resumableCheckpoint) {
         result = { ok: false, reason: 'already_done' };
         return;
       }
 
-      if (status === 'processing') {
+      if (status === 'processing' && !continuation) {
         const started = (d?.processingStartedAt as Timestamp | undefined)?.toMillis() ?? 0;
         if (started > 0 && Date.now() - started < STALE_PROCESSING_MS) {
           result = { ok: false, reason: 'already_processing' };
@@ -106,6 +110,8 @@ export async function claimLivDaily(dayKey: string, scope: LivDailyScope = 'dail
           status: 'processing',
           processingStartedAt: FieldValue.serverTimestamp(),
           updatedAt: FieldValue.serverTimestamp(),
+          continuationReady: false,
+          retryAuthorization: FieldValue.delete(),
           ...(scope !== 'daily' ? { preparationAttempts: (d?.preparationAttempts ?? 0) + 1 } : {}),
         },
         { merge: true }
@@ -117,6 +123,21 @@ export async function claimLivDaily(dayKey: string, scope: LivDailyScope = 'dail
     console.error('[liv/daily] claimLivDaily transaction error:', e);
     return { ok: false, reason: 'transaction_failed' };
   }
+}
+
+/** Yield only after a durable checkpoint. The next API invocation resumes it. */
+export async function yieldLivPreparation(dayKey: string, scope: 'prepare' | 'reserve') {
+  const db = getAdminDb();
+  if (!db) throw new Error('liv_preparation_store_unavailable');
+  const ref = db.collection(LIV_DAILY_COLLECTION).doc(livDailyDocId(dayKey, scope));
+  await db.runTransaction(async tx => {
+    const row = (await tx.get(ref)).data();
+    if (row?.status !== 'processing' || !row.articleCheckpoint || row.webflowItemId || row.preparationProof) {
+      throw new Error('liv_preparation_yield_conflict');
+    }
+    tx.set(ref, { continuationReady: true, processingStartedAt: FieldValue.delete(),
+      updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+  });
 }
 
 /** Preserve paid text before media work; never silently restart that work. */
@@ -320,9 +341,7 @@ export async function getRecentLivDailyTopics(days = 14): Promise<Set<string>> {
       .get();
     for (const doc of snap.docs) {
       const data = doc.data();
-      // A failed preparation must not keep selecting the same source topic on
-      // every retry. Published topics remain deduped as before; unstarted
-      // preparation failures are also excluded so the next run can move on.
+      if (!shouldExcludeLivTopic(data)) continue;
       const topic = data?.topic;
       if (typeof topic === 'string' && topic.trim()) out.add(topic.trim().toLowerCase());
       if (out.size >= days) break;

@@ -11,6 +11,7 @@ import { logger } from '@/lib/logger';
 import { internalApiHeaders } from '@/lib/api/internal-auth';
 import { getRecentLivDailySlugs, getRecentLivDailyTopics } from '@/lib/liv/daily-history-store';
 import { currentSourceDate } from '@/lib/liv/source-date';
+import { sourceUrl } from '@/lib/factcheck/source-reader';
 
 export interface PickedTopic {
   title: string;
@@ -163,19 +164,36 @@ interface TrendingArticle {
   url?: string;
 }
 
+function isTrendingArticle(value: unknown): value is TrendingArticle {
+  if (!value || typeof value !== 'object') return false;
+  const article = value as Record<string, unknown>;
+  return typeof article.title === 'string' &&
+    ['category', 'source', 'date', 'content', 'url'].every(key => article[key] == null || typeof article[key] === 'string') &&
+    (article.tags == null || (Array.isArray(article.tags) && article.tags.every(tag => typeof tag === 'string')));
+}
+
+function hasResearchUrl(article: TrendingArticle): boolean {
+  if (!article.url) return false;
+  try { sourceUrl(article.url); return true; }
+  catch { return false; }
+}
+
 /**
  * Vælg et emne til Liv. Returnerer null hvis ingen kandidater opfylder
  * minimumstærsklen. Transport/auth/schema-fejl kastes, ikke maskeres som ingen emner.
  */
 export async function pickLivTopic(options: PickTopicOptions): Promise<PickedTopic | null> {
-  const { baseUrl, topicHint, mustUseTrending = true, limit = 1, dedupeDays = 14, excludedTitles = [] } = options;
+  const { baseUrl, mustUseTrending = true, limit = 1, dedupeDays = 14, excludedTitles = [] } = options;
+  const topicHint = options.topicHint?.trim();
   const excludedSet = new Set(
     excludedTitles
       .map((x) => x?.trim().toLowerCase())
       .filter((x): x is string => !!x)
   );
 
-  const trendingUrl = new URL('/api/trending', baseUrl).toString();
+  // Read the API's full bounded candidate window. Its relevance filters and
+  // Liv's seven-day source-date filter still apply.
+  const trendingUrl = new URL('/api/trending?days=7&limit=500', baseUrl).toString();
   let articles: TrendingArticle[] = [];
   try {
     const res = await fetch(trendingUrl, {
@@ -188,7 +206,11 @@ export async function pickLivTopic(options: PickTopicOptions): Promise<PickedTop
     }
     const data = await res.json();
     if (!Array.isArray(data?.articles)) throw new Error('liv_trending_invalid_response');
-    articles = data.articles as TrendingArticle[];
+    articles = data.articles.filter(isTrendingArticle);
+    if (data.articles.length && !articles.length) throw new Error('liv_trending_invalid_response');
+    if (articles.length !== data.articles.length) {
+      logger.warn('[liv/pick-topic] ignored malformed candidates', { count: data.articles.length - articles.length });
+    }
   } catch (e) {
     // Never echo upstream HTML, request headers or redirect URLs to the UI/history.
     const code = e instanceof Error && /^liv_trending_(http_\d{3}|invalid_response)$/.test(e.message)
@@ -197,23 +219,22 @@ export async function pickLivTopic(options: PickTopicOptions): Promise<PickedTop
     throw new Error(code);
   }
 
-  if (articles.length === 0) {
-    if (topicHint && !mustUseTrending) {
-      return {
-        title: topicHint.trim(),
-        score: 0,
-        synthetic: true,
-      };
-    }
-    return null;
-  }
+  if (articles.length === 0 && (!topicHint || mustUseTrending)) return null;
 
   const [recentSlugs, recentTopics] = await Promise.all([
     getRecentLivDailySlugs(dedupeDays),
     getRecentLivDailyTopics(dedupeDays),
   ]);
 
+  const isExcluded = (title: string) => titleMatchesBlocklist(title) || recentSlugs.has(slugify(title)) ||
+    recentTopics.has(title.toLowerCase()) || excludedSet.has(title.toLowerCase());
+  const syntheticTopic = (): PickedTopic | null => topicHint && !mustUseTrending && !isExcluded(topicHint)
+    ? { title: topicHint, score: 0, synthetic: true } : null;
+
   const ranked = articles
+    // A seed that the source reader necessarily rejects cannot ground research.
+    // This checks URL syntax only; retrieval and multi-host evidence checks remain downstream.
+    .filter(hasResearchUrl)
     .map(article => ({ ...article, date: currentSourceDate(article.date) }))
     .filter(article => article.date !== null)
     .map((a) => {
@@ -225,16 +246,10 @@ export async function pickLivTopic(options: PickTopicOptions): Promise<PickedTop
             overlapScore(`${a.category || ''} ${(a.tags || []).join(' ')}`, topicHint)
           )
         : 0;
-      return { article: a, title, score, hintScore, slug: slugify(title) };
+      return { article: a, title, score, hintScore };
     })
     .filter(({ title }) => title.length > 8)
-    .filter(({ title }) => !titleMatchesBlocklist(title))
-    .filter(({ title, slug }) => {
-      if (recentSlugs.has(slug)) return false;
-      if (recentTopics.has(title.toLowerCase())) return false;
-      if (excludedSet.has(title.toLowerCase())) return false;
-      return true;
-    })
+    .filter(({ title }) => !isExcluded(title))
     .sort((a, b) => {
       if (topicHint) {
         if (b.hintScore !== a.hintScore) return b.hintScore - a.hintScore;
@@ -251,12 +266,7 @@ export async function pickLivTopic(options: PickTopicOptions): Promise<PickedTop
   if (topicHint) {
     const hintGood = top && top.hintScore >= 0.2;
     if (!hintGood) {
-      if (mustUseTrending) return null;
-      return {
-        title: topicHint.trim(),
-        score: 0,
-        synthetic: true,
-      };
+      return syntheticTopic();
     }
   }
   if (!top) return null;

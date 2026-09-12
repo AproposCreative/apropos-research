@@ -27,7 +27,7 @@ export async function GET(req: NextRequest) {
     if (!db) throw new Error('liv_delivery_store_unavailable');
     const today = copenhagenClock().day;
     const state = await readDeliveryState();
-    for (let offset = 1; offset <= LIV_PLAN_DAYS; offset++) {
+    for (let offset = 0; offset <= LIV_PLAN_DAYS; offset++) {
       await ensureLivDailyPlan(defaultEditorialPlan(addDays(today, offset)));
     }
     for (const candidate of preparationCandidates(state, today)) {
@@ -48,9 +48,10 @@ export async function GET(req: NextRequest) {
             return NextResponse.json({ status: 'recovered_ready_draft', day: candidate.dayKey });
           } catch { /* Unready work is retained; try another candidate instead. */ }
         }
-        const resumableCheckpoint = Number(row?.preparationAttempts ?? 0) <= 4 &&
+        const resumableCheckpoint = (row?.continuationReady === true && !!row.articleCheckpoint ||
+          typeof row?.retryAuthorization === 'string' || Number(row?.preparationAttempts ?? 0) <= 4 &&
           Array.isArray(row?.articleCheckpoint?.preparedMedia) && row.articleCheckpoint.preparedMedia.length >= 3 &&
-          !row?.webflowItemId && !row?.preparationProof;
+          !row?.webflowItemId && !row?.preparationProof) && !row?.cmsSaveStarted;
         if (!resumableCheckpoint && !canRetryUnstartedPreparation(row)) continue;
       }
       return await runLivDaily(req, { ...candidate, defaultPlan: defaultEditorialPlan(candidate.dayKey, scope === 'reserve') });

@@ -18,7 +18,7 @@
     },
     {
       "path": "/api/cron/liv-prepare",
-      "schedule": "20 * * * *"
+      "schedule": "*/5 * * * *"
     },
     {
       "path": "/api/cron/liv-delivery-check",

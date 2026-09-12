@@ -26,6 +26,8 @@ import {
   checkpointPreparationProof,
   todayDayKeyUTC,
   type GateResult,
+  livDailyDocId,
+  yieldLivPreparation,
 } from '@/lib/liv/daily-history-store';
 import { pickLivTopic } from '@/lib/liv/pick-topic';
 import { generateLivArticle } from '@/lib/liv/generate-article';
@@ -93,7 +95,7 @@ export async function runLivDaily(req: NextRequest, preparation?: {
   const markPlanFailed = (day: string, reason: string) => preparation?.kind === 'reserve' ? Promise.resolve() : failPlan(day, reason);
   // Preparation has a bounded media budget so the remaining safety/CMS checks
   // still finish inside Vercel's 300 second function limit.
-  const mediaDeadline = Date.now() + (preparation ? 165_000 : 240_000);
+  const mediaDeadline = Date.now() + (preparation ? 210_000 : 240_000);
   const authFail = requireCronBearer(req);
   if (authFail) return authFail;
 
@@ -162,19 +164,17 @@ export async function runLivDaily(req: NextRequest, preparation?: {
   let savedWebflowItemId: string | undefined;
   let gateResults: GateResult[] = [];
   const savedPlan = await getLivDailyPlan(dayKey);
-  // A failed preparation may have been created with an older rolling-plan
-  // question as a literal topic. Retry it with the current default plan so the
-  // picker can select a concrete source-backed topic after a code/data fix.
+  // A transport failure must not silently replace an editor's selected topic.
   const plan = preparation?.kind === 'reserve'
     ? preparation.defaultPlan
     : preparation
-      ? (savedPlan?.status === 'pending' ? savedPlan : preparation.defaultPlan)
+      ? (savedPlan ?? preparation.defaultPlan)
       : savedPlan;
   const { topicHint, mustUseTrending } = resolveLivTopicInputsFromPlan(plan);
 
   try {
     const prepRow = preparation ? await getAdminDb()?.collection('livDailyArticles')
-      .doc(`prepare-${dayKey}`).get() : null;
+      .doc(livDailyDocId(dayKey, scope)).get() : null;
     const checkpoint = prepRow?.data()?.articleCheckpoint as GeneratedArticle | undefined;
     const pickedTopic = checkpoint
       ? { title: prepRow?.data()?.topic || checkpoint.title, score: 0,
@@ -186,9 +186,9 @@ export async function runLivDaily(req: NextRequest, preparation?: {
             publishedAt: checkpoint.researchSources[0].publishedAt || undefined,
           } : undefined }
       : await pickLivTopic({ baseUrl, topicHint, mustUseTrending });
-    const topic = pickedTopic || (topicHint && !mustUseTrending
-      ? { title: topicHint, score: 0, synthetic: true as const }
-      : null);
+    // Picker owns exclusions, including explicit hints. Do not reintroduce an
+    // excluded topic via a second synthetic fallback here.
+    const topic = pickedTopic;
     if (!topic) {
       await finishLivDaily(dayKey, {
         status: 'skipped_no_topic',
@@ -214,6 +214,10 @@ export async function runLivDaily(req: NextRequest, preparation?: {
       targetWordCount: preparation ? 650 : undefined,
     });
     await checkpointLivDailyArticle(dayKey, article);
+    if (preparation && !checkpoint) {
+      await yieldLivPreparation(dayKey, scope as 'prepare' | 'reserve');
+      return NextResponse.json({ status: 'text_prepared', dayKey, title: article.title });
+    }
 
     const verifiedResearchSources = (article.researchSources || []).filter(
       (r) =>
@@ -264,8 +268,13 @@ export async function runLivDaily(req: NextRequest, preparation?: {
     }
 
     if (publicationMode === 'auto_publish' || preparation) {
+      const hadMedia = (article.preparedMedia?.length ?? 0) >= 3;
       article = await prepareLivAutomaticMedia(article, { dayKey, deadline: mediaDeadline });
       await checkpointLivDailyArticle(dayKey, article);
+      if (preparation && !hadMedia) {
+        await yieldLivPreparation(dayKey, scope as 'prepare' | 'reserve');
+        return NextResponse.json({ status: 'media_prepared', dayKey, title: article.title });
+      }
     }
 
     // Check the final body including generated captions, not a text-only revision.
