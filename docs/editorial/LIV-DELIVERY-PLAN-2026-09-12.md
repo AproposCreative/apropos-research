@@ -58,6 +58,32 @@ Forberedelses-API svarede `no_unstarted_work`; dagens udgivelse er ikke bevist.
 7. **Driftsbevis:** næste planlagte serverkørsel skal kunne gennemføre uden manuel
    hjælp. Kontroller mobilfeedets data, valg, afvisning og dubletbeskyttelse.
 
+## Konkret restarbejde til ubemandet drift
+
+Gennemgangen fandt, at et aktiveret cron-job ikke alene kan fylde en kø, hvis
+alle dens faste kandidat-id'er allerede er udtømte. Efter dagens publiceringsbevis
+er rækkefølgen derfor:
+
+1. Vellykkede fortsættelser tæller nu ikke som fejlforsøg (`e40fab4`). Gem også betalt writer-arkiv-id
+   direkte på jobbet, så manglende artikelcheckpoint aldrig betyder gratis/genstartbar.
+2. Indfør afgrænset, trinbestemt recovery med vedvarende backoff i den eksisterende
+   worker. Tvetydige betalte kald og CMS-skrivninger skal afklares, ikke gentages.
+3. Lad en leveringsdag få en ny, faktisk anden kandidat, når den gamle ikke kan
+   bruges. Bevar den afviste kandidats egen identitet, tekst, aktiver, audit og
+   dubletspor. Ingen nye kunstige fremtidsdatoer eller sletning af terminale jobs.
+4. Fyld fem brugbare kommende forslag og tre brugbare reserver. Færdige,
+   afviste, udløbne og allerede udgivne poster tæller ikke som kommende forslag.
+5. Verificer faktisk feed-API, Godkend/Afvis, reservevalg, offentlig readback og
+   næste planlagte serverkørsel. Syv plandatoer er ikke syv færdige artikler.
+
+Arkiveret Storch-tekst kan genbruges, men kræver en auditeret binding til den
+rigtige leveringsdag og dubletkontrol på tværs af jobs. Medina/Tivoli er en
+aktuel kandidat til 17. september. Sombr-vinklen er en feature om internetpop,
+ikke en falsk nyhed om en koncert næste uge. Disse er undersøgte kandidater,
+ikke publiceringsklare historier.
+
+Der skal ikke bygges en ny scheduler eller et separat manuelt publiceringsflow.
+
 ## Senere optimering, ikke ekstra launch-krav
 
 Nyhedsbrevets tidligere manglende udsendelse undersøges separat. Bredere
@@ -66,5 +92,133 @@ daglige leverance. Finjustering af prompts er ikke det samme som modeltræning.
 
 ## Status
 
-Under implementering. Ingen ny artikel eller færdig daglig drift er erklæret
-verificeret endnu. Test-, release- og publiceringskvitteringer tilføjes her.
+Opdateret 12. september kl. 11.28 dansk tid. Arbejdet er genstartet med en
+hovedagent på produktionsflowet og to agenter på medier/genoptagelse og research.
+
+| Del | Verificeret status |
+| --- | --- |
+| Nøgler/credits | OpenAI HTTP 200 og to vellykkede researchkørsler i produktion. |
+| Kø | Dagens manglende artikel prioriteres. Kunstige fremtidsdatoer er fjernet. |
+| Servertrin | Tekst, medier og slutkontrol har hver sit gemte fortsættelsespunkt. |
+| Genstart | Idempotent autentificeret retry med fuld historik; egne fejl er ikke egne dubletter. |
+| Betalt tekst | Arkiveret råtekst kan genoptages; en omskrivning gemmes separat med parent-run-id. |
+| Tests | 989 Liv-tests i 50 filer består. Typecheck, scoped lint og produktionsbuild består. |
+| Dagens artikel | Alle Guds farver, kulturfeature uden stjerner. 621 ord efter faktarettelse, originalitetskontrol bestået, gemt via API. |
+| Billeder | Officielt pressebillede som hero og mobilcover. To oprindelige illustrationer bevaret i brødteksten. Faktisk visuel kontrol og CMS-byteverifikation bestået. |
+| Slutkontrol/CMS | 12 påstande verificeret; struktur-, tekst- og billedkontroller bestået. Samme danske CMS-ID `6aa51107feea4b5112862f09` publiceret gennem normal API; offentlig readback bekræftet 11.28.25. |
+| Fem forslag og tre reserver | Ikke fyldt. |
+| Daglig ubemandet udgivelse | Dagens publicering lykkedes efter API-genstart og schemafix. Aktiverede flags/cron er bekræftet; selvkørende lageropbygning og komplet driftsbevis mangler stadig. |
+
+Releases i denne gennemgang:
+
+- `dd04d00`: køprioritet, gemte servertrin, mediegenoptagelse, operator-retry og
+  forberedelse hvert femte minut.
+- `cea190d`: analysebriefens budget 30 → 90 sekunder.
+- `e33202a`: et eksplicit genforsøg udelukkes ikke som dublet af sig selv.
+- `55cacc4`: genbrug af arkiveret, betalt råtekst; kanonisk kilde-deduplikering.
+  Vercel `dpl_ALTn3mMrCp1NjEiuWgx6KBgdA1ky` er READY med eksakt SHA og alias
+  `ai.aproposmagazine.com`.
+- `457e216`: præcis feedback om den blokerende ordsekvens til den afgrænsede
+  omskrivning. Verificeret live på eksakt SHA.
+- `56c4ba5`: supplerende research uden at ændre tekst/billeder. Dateret belæg
+  kontrolleres før nye billedudgifter. Verificeret live på eksakt SHA.
+- `7b21c42`: læs datePublished fra identificeret Article/NewsArticle JSON-LD,
+  afvis uvedkommende/modstridende/fremtidige datoer. Lokal dato uden timezone
+  bevares med kalenderdagspræcision. Genhent gemte kilders metadata.
+  Vercel `dpl_68fThX21PZ92ieaVrS6Agcm5EhUT` READY med eksakt SHA og produktionsalias.
+- `0ef8dce`: fulde fejlrapporter gemmes særskilt fra godkendt evidens; faktatjekket
+  vælger dateret belæg uden at ignorere konflikter. Én afgrænset faktarettelse kan
+  genoptage gemt tekst. Gamle versioner og modelresultater bevares, eksisterende
+  billedbytes genbruges først efter ny visuel kontrol, og alle slutkontroller
+  køres igen. Reserve-worker springer allerede optagne CMS-identiteter over.
+  Vercel `dpl_5tYEqpuhfEvE5MayNweSa41r8ztW` READY, eksakt SHA og produktionsalias
+  verificeret. Retry `liv-restart-20260912-fact-revision-08` kører.
+- `a9be48d`: genoptag arkiveret faktarettelse før nye betalte gate-kald. En
+  afgrænset rettelse af dokumenteret forkert alt/caption bevarer pixels, credits,
+  URL'er og HTML uden for beskrivelsen. Ny visuel kontrol kræves; den gamle
+  afvisning overskrives ikke. Vercel `dpl_9DsH3F64Q937mUptCD1qC2Yh1Cf6` READY
+  med eksakt SHA og produktionsalias. Retry
+  `liv-restart-20260912-description-repair-09` returnerede HTTP 200 facts_revised.
+- `a6a253e`: forklar det samlede krav om faktisk citeret belæg fra to daterede
+  værter til faktatjekkeren. Ingen ændring af validator, ingen opdigtede citater
+  eller ekstra verifier-løkke. 51 berørte tests, typecheck og build består.
+  Vercel `dpl_8nEVRe4o2fYXsF8qm2agMKmeuQ2E` READY med eksakt SHA og alias.
+  Retry `liv-restart-20260912-corroboration-10` fandt den særskilte Bo-overdrivelse.
+- `e40fab4`: vellykkede fortsættelser bevarer forsøgsbudgettet. Højst to
+  faktarettelser, hvor anden rettelse skal vedrøre en ny, særskilt påstand og
+  matche forælderversionen. Gamle fejl/patches kan ikke genbruges som ny anledning.
+  Ny billedkontrol og alle normale gates kræves stadig.
+- `8a8695b`: databasefelters rækkefølge er ikke en indholdsændring. Den første
+  produktionstest blev afvist uden betalt rettelse, fordi JSON-feltrækkefølgen
+  varierede. Sammenligningen er nu værdibaseret og regressionstestet. Præcis
+  versionsbundet faktarapport kan genfindes i den bevarede retry-audit.
+  Vercel `dpl_DG3ip8Yzv9qFR6W6UdwLKmBz8LDY` READY med eksakt SHA
+  `8a8695b59275bfd514a359b9f63573679beb71b4` og produktionsalias verificeret.
+  Retry `liv-restart-20260912-value-equality-12` returnerede `facts_revised`.
+- `807ac2a`: ukendte datoer på ikke-citerede kontekstkilder er tilladt i rapporten;
+  faktiske citater kræver fortsat daterede kilder. Genbrug af eksakt, frisk
+  serverrapport undgår en ny betalt kontrol af samme tekst. 12 påstande bestod.
+  Retry `liv-restart-20260912-uncited-context-13` gemte og læste den danske
+  Webflow-kladde tilbage. To billedkontroller viste derefter optimizer-mismatch.
+- `139fdb5`: CMS-billeder valideres som enten de oprindelige bytes eller den
+  præcise derivative fra den eksisterende billedoptimering. Captions/alt og
+  distinkte motiver kræves stadig. Snæver læsning af egne optimerede aktiver
+  validerer bucket, token, generation og indholdsdigest. Ingen nye pixels gemt.
+  Vercel `dpl_AjNb2ae9NVQWmUULAyc3RWyP5fLa` READY med eksakt SHA
+  `139fdb55f2b7c2d2239179dfe22d7cc0d936c9c5` og produktionsalias.
+  `/api/cron/liv-prepare` returnerede `recovered_ready_draft` kl. 10.54.
+- `422b7ec`: schema-bevidst valgfrit udgivelsesdatofelt; sikre fejlspor i køen;
+  autentificeret cover-only API med idempotens, mutation-hold, uændret body og
+  bevaret tidligere payload/checkpoint/evidens. Separat mobilcover kan ændres
+  ved eksplicit valg og byteverificeres også efter CMS-CDN-omskrivning.
+  989 tests i 50 Liv-testfiler, typecheck, scoped lint og build består.
+  Vercel `dpl_9ittJi6b5jJs9LadtQghjcKQMDkq` READY på eksakt SHA
+  `422b7ec4578926880c71fd78099890fbae13eba3`, alias verificeret.
+  Cover-request `liv-cover-alle-guds-farver-20260912-01` er sendt via
+  `/api/liv/operations/cover-revision`. Det er ikke i sig selv et publiceringsbevis.
+
+Det oprindelige udkast `4f5f2284-420d-4622-ac68-b42c0bc18ffd` og omskrivningen
+`79b9c20d-4794-4618-9d8e-ecb0999ff53c` er bevaret. Ingen kopi-/kvalitetskontrol
+er slået fra. Omskrivningen er afsluttet; mediejobbet
+`908acde44f747dd28aad3f5134dbe4fa8a16af3cbb0ef410c49654888ce35535` har tre
+gemte aktiver og gennemført visuel kontrol. Artikel og kladde er bevaret, og
+normal CMS-optimering viser de to brødtekstbilleder i 1200 × 800 med height:auto.
+Den planlagte serverkørsel kl. 11 forsøgte at levere, men fejlede før
+publicering. Produktionsschemaet har intet `publish-date`-felt; publisheren
+forsøgte alligevel at patche det. Udgivelse er derfor endnu ikke bekræftet.
+Rettelsen skal bruge feltet alene, hvis det faktisk findes som DateTime,
+ellers bevare planlagt dato internt og verificere Webflows `lastPublished`.
+Eventfelterne `start-dato` og `slut-dato` må ikke bruges som erstatning.
+
+Frederik har derefter valgt det officielle cover `Alle Guds Farver_01.jpg`
+fra https://distribution.paradisbio.dk/film.asp?id=374 og udtrykkeligt beholdt
+de to allerede producerede illustrationer i brødteksten. Kildebilledet er
+3840 × 1920 JPEG og er hentet gennem den eksisterende sikre medielæser.
+Pressepakken indeholder syv originale stills. Ingen fotografcredit er fundet
+på siden; distributørkilden skal krediteres uden at opfinde fotograf eller
+påstå verificeret licens. Et auditeret cover-only API-skift er under arbejde.
+Samme CMS-ID, tekst, body-images og tidligere evidens er bevaret.
+
+Coverrevision `26ce557526bafb90f7b612c8e968a1948a92d3e71d5d3d1390c9c9286669e44b`
+returnerede HTTP 200 `cover_staged`. Faktisk billedkontrol med `gpt-5.6-luna`
+bestod, alle 22 CMS-kontroller bestod, og mobilcoverets faktiske bytes blev
+verificeret. Hero er 1920 × 1080 WebP, 296.770 bytes. Audit-readback bekræftede
+uændret tekst og byte-for-byte identisk evidens for begge brødtekstbilleder.
+Gentaget identisk cover-request returnerede samme kvittering uden ny skrivning.
+
+Den normale `/api/cron/liv-daily-article` returnerede HTTP 200 `published`,
+`publicationVerified: true` kl. `2026-09-12T09:28:25.715Z`, DK-locale
+`67dbf17ba540975b5b21c225`. Dette var et autentificeret API-genforsøg efter
+rettelsen, ikke en påstand om, at kl. 11-cron var lykkedes uden indgriben.
+Offentlig artikel:
+https://www.aproposmagazine.com/articles/alle-guds-farver-et-faellesskab-er-foerst-rummeligt-nar-det-forandrer-sig
+
+Årsagen til illustrationsvalget var `article`/`Kultur`-klassifikationen, som
+valgte illustration uden at søge pressebilleder. Dagsplanen foreskrev direkte
+en kulturfeature og ingen stjerner. Artiklen er derfor ikke en anmeldelse;
+andres anmeldelser er ikke blevet konverteret til en påstået egen filmvisning.
+
+Medina-planen for 17. september er sat i gang med request-id
+`liv-medina-20260917-plan-binding-01`. Det tidligere Remain-forsøg havde intet
+artikelcheckpoint; tidligere arbejde bevares i audit. Det er endnu ikke en
+færdig historie og tæller ikke med i beholdningen på fem.
