@@ -60,6 +60,43 @@ it('still rejects an undated citation even when other dated sources support the 
   expect(report.results[0]).toMatchObject({ status: 'unverifiable', validationErrors: ['undated_source'] });
   expect(isCompleteGroundedReport(report, text)).toBe(false);
 });
+it('tells every unit request to use genuinely supporting exact evidence across dated hosts without padding or ignoring conflicts', async () => {
+  const article = `${text}\n\n${text}`;
+  mocks.create.mockImplementation(async request => {
+    const input = JSON.parse(request.messages[1].content);
+    return { choices: [{ finish_reason: 'stop', message: { content: JSON.stringify({
+      units: [{ ...assessment.units[0], id: input.requiredUnitId }],
+    }) } }] };
+  });
+  const report = await verifyArticleSources(article, urls);
+  expect(report.complete).toBe(true);
+  expect(mocks.create).toHaveBeenCalledTimes(articleUnits(article).length);
+  for (const [request] of mocks.create.mock.calls) {
+    const prompt = request.messages[0].content;
+    expect(prompt).toContain('mindst to forskellige daterede kildeværter (URL-hosts, ikke blot forskellige sider på samme host)');
+    expect(prompt).toContain('ikke et krav om to værter for hver påstand eller hvert afsnit');
+    expect(prompt).toContain('vælg ikke altid den første kilde eller s1');
+    expect(prompt).toContain('NÅR deres hentede tekster faktisk understøtter de konkrete påstande og deres tidslige kontekst');
+    expect(prompt).toContain('begge værters ordrette belæg med deres korrekte sourceId');
+    expect(prompt).toContain('Tilføj aldrig irrelevante eller omtrentlige citater som fyld');
+    expect(prompt).toContain('opfind ikke belæg, og ignorer aldrig modstridende oplysninger');
+    expect(prompt).toContain('lad kravet om to værter være uopfyldt');
+    expect(prompt).toContain('Ved konflikt: disputed');
+    expect(JSON.parse(request.messages[1].content).sources.map(source => source.url)).toEqual(urls);
+  }
+});
+it('keeps the two-host gate closed when all verified claims still cite only the first host, without a model retry', async () => {
+  const raw = structuredClone(assessment);
+  raw.units[0].claims[0].citations = [raw.units[0].claims[0].citations[0]];
+  mocks.create.mockResolvedValue({ choices: [{ finish_reason: 'stop', message: { content: JSON.stringify(raw) } }] });
+  const report = await verifyArticleSources(text, urls);
+  expect(report.results.every(result => result.status === 'verified')).toBe(true);
+  expect(report.coverage.checkedUnits).toBe(report.coverage.expectedUnits);
+  expect(report.complete).toBe(false);
+  expect(report.blockers).toContain('Der kræves belæg fra mindst to kildeværter.');
+  expect(isCompleteGroundedReport(report, text)).toBe(false);
+  expect(mocks.create).toHaveBeenCalledTimes(1);
+});
 it.each([
   ['length', JSON.stringify(assessment), 'model_response_incomplete'],
   ['stop', '{', 'model_response_invalid_json'],
