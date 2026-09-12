@@ -43,3 +43,17 @@ it('never changes the topic attached to already-paid work', async () => {
   await expect(authorizePreparationRetry({ ...input, plan: { topicHint: 'New topic', directiveHint: 'Research it' } })).rejects.toThrow('conflict');
   expect(state.writes).not.toHaveBeenCalled();
 });
+
+it('attaches an explicit paid writer recovery pointer without replacing its topic or counters', async () => {
+  state.row = { status: 'failed', topic: 'Saved topic', preparationAttempts: 6 };
+  const resumeWritingRunId = '4f5f2284-420d-4622-ac68-b42c0bc18ffd';
+  await authorizePreparationRetry({ ...input, resumeWritingRunId });
+  expect(state.row).toMatchObject({ topic: 'Saved topic', preparationAttempts: 6, resumeWritingRunId });
+  expect(state.creates).toHaveBeenCalledWith(expect.objectContaining({ resumeWritingRunId }));
+});
+
+it('never combines paid writer recovery with a changed editorial plan', async () => {
+  await expect(authorizePreparationRetry({ ...input, resumeWritingRunId: '4f5f2284-420d-4622-ac68-b42c0bc18ffd',
+    plan: { topicHint: 'Other', directiveHint: 'Other' } })).rejects.toThrow('invalid');
+  expect(state.writes).not.toHaveBeenCalled();
+});

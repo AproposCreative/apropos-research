@@ -13,7 +13,7 @@ import { randomUUID } from 'node:crypto';
 import { loadLivVoice } from '@/lib/liv/voice';
 import { livModels } from '@/lib/liv/model-config';
 import { getResearch } from '@/lib/research/service';
-import { recalledSourceUrls, rememberResearchSources, rememberWritingBrief } from '@/lib/liv/source-archive';
+import { recalledSourceUrls, rememberResearchSources, rememberWritingBrief, loadRecoverableWritingBrief } from '@/lib/liv/source-archive';
 import type { LivArticleFormat } from '@/lib/liv/review-format';
 import { ArticleEvidenceError, livArticleResponseFormat, parseLivArticleOutput } from '@/lib/liv/article-output';
 import { logger } from '@/lib/logger';
@@ -97,6 +97,8 @@ export interface GenerateArticleOptions {
   baseUrl?: string;
   /** Preparation jobs use a bounded latency profile; publication gates remain unchanged. */
   preparation?: boolean;
+  /** Explicit server-owned recovery pointer. Never an unvalidated request draft. */
+  resumeWritingRunId?: string;
 }
 
 type WebSearchResult = {
@@ -166,13 +168,18 @@ export async function generateLivArticle(options: GenerateArticleOptions): Promi
 
   const voice = loadLivVoice();
   const generationModel = preparation ? livModels().utility : livModels().article;
+  const resumed = options.resumeWritingRunId
+    ? await loadRecoverableWritingBrief(sourceScope, topic.title, options.resumeWritingRunId) : null;
+  if (resumed && resumed.voiceVersion !== voice.version) throw new Error('article_resume_voice_changed');
+  if (resumed?.refusal) throw new Error('article_generation_refused');
+  if (resumed?.finishReason && resumed.finishReason !== 'stop') throw new Error('article_generation_incomplete');
 
   // Retrieve evidence before writing; source prose is data, never instructions.
-  const [discovered, remembered] = await Promise.all([
+  const [discovered, remembered] = resumed ? [[], []] : await Promise.all([
     fetchWebResearch(topic.title, articleFormat, preparation ? 30_000 : 45_000,
       preparation ? livModels().utility : livModels().research), recalledSourceUrls(sourceScope, topic.title),
   ]);
-  const sources = await buildResearchBundle([
+  const sources = await buildResearchBundle(resumed ? resumed.sources.map(s => s.url) : [
     ...extractResearchUrls(options.directiveHint || ''),
     ...extractResearchUrls(expandedDirective || ''),
     ...(topic.source?.url ? [topic.source.url] : []),
@@ -183,9 +190,10 @@ export async function generateLivArticle(options: GenerateArticleOptions): Promi
   // Preparation now yields after text, before media and publication checks.
   // Give the analytical brief room for high-reasoning models; the old 30s cap
   // aborted valid research before the writer could begin.
-  const brief = await buildLivWritingBrief(sources, topic.title, { timeoutMs: preparation ? 90_000 : 45_000 });
-  const researchRunId = randomUUID();
-  await rememberWritingBrief(sourceScope, topic.title, { runId: researchRunId, writerText: brief.writerText,
+  const brief = resumed ? { writerText: resumed.writerText }
+    : await buildLivWritingBrief(sources, topic.title, { timeoutMs: preparation ? 90_000 : 45_000 });
+  const researchRunId = options.resumeWritingRunId || randomUUID();
+  if (!resumed) await rememberWritingBrief(sourceScope, topic.title, { runId: researchRunId, writerText: brief.writerText,
     model: generationModel, voiceVersion: voice.version,
     sources: sources.map(({ id, url, contentHash, retrievedAt, publishedAt }) => ({ id, url, contentHash, retrievedAt, publishedAt })) });
   const webResearch: WebSearchResult[] = sources.map(s => ({
@@ -258,7 +266,7 @@ export async function generateLivArticle(options: GenerateArticleOptions): Promi
     'Begynd ikke artiklen med samme rytme eller åbningsfigur som en typisk nyhedsartikel om emnet ville bruge.',
   ].join('\n');
 
-  const completion = await client.chat.completions.create({
+  const completion = resumed ? null : await client.chat.completions.create({
     model: generationModel,
     max_completion_tokens: 8000,
     response_format: livArticleResponseFormat,
@@ -269,14 +277,16 @@ export async function generateLivArticle(options: GenerateArticleOptions): Promi
     ],
   }, { timeout: modelTimeoutMs, maxRetries: 0 });
 
-  let rawResponse = completion.choices[0]?.message?.content || '';
-  await rememberWritingBrief(sourceScope, topic.title, { runId: researchRunId, writerText: brief.writerText,
-    model: completion.model || generationModel, voiceVersion: voice.version, rawResponse,
+  let rawResponse = resumed?.rawResponse || completion?.choices[0]?.message?.content || '';
+  let writerModel = resumed?.model || completion?.model || generationModel;
+  if (completion) await rememberWritingBrief(sourceScope, topic.title, { runId: researchRunId, writerText: brief.writerText,
+    model: writerModel, voiceVersion: voice.version, rawResponse,
+    finishReason: completion.choices[0]?.finish_reason, refusal: completion.choices[0]?.message?.refusal ?? null,
     ...(completion.usage ? { tokenUsage: { input: completion.usage.prompt_tokens, output: completion.usage.completion_tokens } } : {}),
   });
-  if (completion.choices[0]?.message?.refusal) throw new Error('article_generation_refused');
-  if (completion.choices[0]?.finish_reason !== 'stop') throw new Error('article_generation_incomplete');
-  const raw = completion.choices[0]?.message?.content?.trim() || '';
+  if (completion?.choices[0]?.message?.refusal) throw new Error('article_generation_refused');
+  if (completion && completion.choices[0]?.finish_reason !== 'stop') throw new Error('article_generation_incomplete');
+  const raw = rawResponse.trim();
   if (!raw) {
     throw new Error('OpenAI returnerede tom respons.');
   }
@@ -285,9 +295,9 @@ export async function generateLivArticle(options: GenerateArticleOptions): Promi
   try { parsed = parseLivArticleOutput(raw, articleFormat); }
   catch (error) {
     if (error instanceof ArticleEvidenceError) {
-      error.attachBrief(`Kørsels-ID: ${researchRunId}\n${brief.writerText}`, completion.model || generationModel, voice.version);
-      await rememberWritingBrief(sourceScope, topic.title, { runId: researchRunId, writerText: brief.writerText,
-        model: completion.model || generationModel, voiceVersion: voice.version, missingEvidence: error.missingEvidence });
+      error.attachBrief(`Kørsels-ID: ${researchRunId}\n${brief.writerText}`, writerModel, voice.version);
+      if (!resumed) await rememberWritingBrief(sourceScope, topic.title, { runId: researchRunId, writerText: brief.writerText,
+        model: writerModel, voiceVersion: voice.version, missingEvidence: error.missingEvidence });
     }
     throw error;
   }
@@ -320,11 +330,14 @@ export async function generateLivArticle(options: GenerateArticleOptions): Promi
   if (hasCopiedPassage(finalText, buildStyleReferenceBlock(section, 2, true))) throw new Error('style_sample_copy_detected');
   let similarityBlocked: { sourceUrl: string; detail: string } | null = null;
   for (const source of sources) {
-    if (hasCopiedPassage(finalText, source.text)) throw new Error('source_copy_detected: Sammenhængende tekstoverlap med kilde. Omskrivning kræves.');
+    if (hasCopiedPassage(finalText, source.text)) {
+      similarityBlocked = { sourceUrl: source.url, detail: 'Sammenhængende tekstoverlap med kilde. Omskrivning kræves.' };
+      break;
+    }
     const similarity = await checkSourceSimilarity({ generated: finalText, source: source.text });
     if (!similarity.complete || !similarity.pass) {
       similarityBlocked = { sourceUrl: source.url, detail: new SourceSimilarityError(similarity, source, {
-        text: finalText, model: completion.model || generationModel, voiceVersion: voice.version,
+        text: finalText, model: writerModel, voiceVersion: voice.version,
       }).message };
       break;
     }
@@ -348,6 +361,7 @@ export async function generateLivArticle(options: GenerateArticleOptions): Promi
           'Bevar kun dokumenterbare fakta fra udkastet, men skift åbning, rækkefølge, metaforer, argumentation og formuleringer markant.',
           'Kopiér ingen sætninger fra kilderne. Skriv ingen førstehåndsoplevelser, citater eller nye fakta.',
           'Returnér kun JSON efter det krævede schema. Følg samme artikeltype og længdekrav som det oprindelige udkast.',
+          `Brødtekst: cirka ${options.targetWordCount || (preparation ? 650 : 1000)} ord. Udelad unødvendige andenhåndsdomme og alle kopierede formuleringer.`,
         ].join('\n') },
         { role: 'user', content: JSON.stringify({
           topic: topic.title,
@@ -362,8 +376,14 @@ export async function generateLivArticle(options: GenerateArticleOptions): Promi
     if (rewrite.choices[0]?.finish_reason !== 'stop') throw new Error('article_originality_rewrite_incomplete');
     const rewrittenRaw = rewrite.choices[0]?.message?.content?.trim() || '';
     if (!rewrittenRaw) throw new Error('article_originality_rewrite_empty');
-    parsed = parseLivArticleOutput(rewrittenRaw, articleFormat);
     rawResponse = rewrittenRaw;
+    writerModel = rewrite.model || generationModel;
+    await rememberWritingBrief(sourceScope, topic.title, { runId: randomUUID(), parentRunId: researchRunId,
+      writerText: brief.writerText, model: writerModel, voiceVersion: voice.version, rawResponse,
+      finishReason: rewrite.choices[0]?.finish_reason, refusal: rewrite.choices[0]?.message?.refusal ?? null,
+      sources: sources.map(({ id, url, contentHash, retrievedAt, publishedAt }) => ({ id, url, contentHash, retrievedAt, publishedAt })),
+      ...(rewrite.usage ? { tokenUsage: { input: rewrite.usage.prompt_tokens, output: rewrite.usage.completion_tokens } } : {}) });
+    parsed = parseLivArticleOutput(rewrittenRaw, articleFormat);
     rating = parsed.rating !== null ? { value: parsed.rating, reason: parsed.ratingReason! } : null;
     slug = slugify(parsed.title);
     excerpt = (parsed.intro || parsed.content).replace(/\s+/g, ' ').trim().slice(0, 220);
@@ -371,6 +391,8 @@ export async function generateLivArticle(options: GenerateArticleOptions): Promi
       section, keywords: topic.tags }) : await generateSeoMetaAI({ title: parsed.title, subtitle: parsed.subtitle, intro: parsed.intro, content: parsed.content,
       section, keywords: topic.tags }, { model: livModels().utility });
     finalText = [parsed.title, parsed.subtitle, parsed.intro, parsed.content, rating?.reason, seo.seoTitle, seo.seoDescription].filter(Boolean).join('\n\n');
+    if (finalText.includes('—')) throw new Error('article_style_invalid: Em dash skal omskrives.');
+    if (hasCopiedPassage(finalText, buildStyleReferenceBlock(section, 2, true))) throw new Error('style_sample_copy_detected');
     for (const source of sources) {
       if (hasCopiedPassage(finalText, source.text)) throw new Error('source_copy_detected: Sammenhængende tekstoverlap efter originality-pass.');
       const similarity = await checkSourceSimilarity({ generated: finalText, source: source.text });
@@ -408,8 +430,8 @@ export async function generateLivArticle(options: GenerateArticleOptions): Promi
     primaryKeyword: seo.primaryKeyword,
     researchSources: webResearchSources,
     imageSuggestions,
-    rawResponse: raw,
-    aiModel: completion.model || generationModel,
+    rawResponse,
+    aiModel: writerModel,
     voiceVersion: voice.version,
     voiceHash: voice.hash,
     articleFormat,

@@ -5,7 +5,7 @@ import { LIV_DAILY_COLLECTION, livDailyDocId } from '@/lib/liv/daily-history-sto
 import { validDay } from '@/lib/liv/delivery-policy';
 
 export type PreparationRetry = { dayKey: string; kind: 'scheduled' | 'reserve'; requestId: string; reason: string;
-  plan?: { topicHint: string; directiveHint: string } };
+  plan?: { topicHint: string; directiveHint: string }; resumeWritingRunId?: string };
 
 /** Explicit operator retry, not a reset. Retain the full previous run and paid
  * checkpoints. A replayed request never grants a second attempt. CMS writes
@@ -17,6 +17,9 @@ export async function authorizePreparationRetry(input: PreparationRetry) {
   }
   if (input.plan && (input.kind !== 'scheduled' || typeof input.plan.topicHint !== 'string' ||
     typeof input.plan.directiveHint !== 'string' || input.plan.topicHint.length > 500 || input.plan.directiveHint.length > 6000)) {
+    throw new Error('liv_retry_invalid');
+  }
+  if (input.resumeWritingRunId && (input.plan || !/^[a-f0-9-]{36}$/.test(input.resumeWritingRunId))) {
     throw new Error('liv_retry_invalid');
   }
   const db = getAdminDb();
@@ -35,19 +38,22 @@ export async function authorizePreparationRetry(input: PreparationRetry) {
       throw new Error('liv_retry_conflict');
     }
     if (input.plan && (row.articleCheckpoint || row.articleCheckpointHash)) throw new Error('liv_retry_conflict');
+    if (input.resumeWritingRunId && (row.articleCheckpoint || !row.topic)) throw new Error('liv_retry_conflict');
     // A live worker owns its run, including the gap before its first checkpoint.
     if (row.status === 'processing' && Date.now() - (row.processingStartedAt?.toMillis?.() || 0) < 25 * 60_000) {
       throw new Error('liv_retry_processing');
     }
     tx.create(audit, { reason: input.reason.trim(), previous: row, previousPlan: previousPlan ?? null,
       requestedAt: FieldValue.serverTimestamp(),
-      authorizedBy: 'cron-authenticated-operator', requestId: input.requestId });
+      authorizedBy: 'cron-authenticated-operator', requestId: input.requestId,
+      resumeWritingRunId: input.resumeWritingRunId || null });
     if (input.plan) tx.set(planRef, { dayKey: input.dayKey, topicHint: input.plan.topicHint.trim() || null,
       directiveHint: input.plan.directiveHint.trim() || null, expandedDirective: null, articleFormat: 'article',
       mustUseTrending: false, status: 'pending', failedReason: null, usedAt: null,
       updatedAt: FieldValue.serverTimestamp(), createdAt: previousPlan?.createdAt ?? FieldValue.serverTimestamp(),
       createdBy: 'liv-api-operator' });
-    tx.set(ref, { retryAuthorization: audit.id, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+    tx.set(ref, { retryAuthorization: audit.id, updatedAt: FieldValue.serverTimestamp(),
+      ...(input.resumeWritingRunId ? { resumeWritingRunId: input.resumeWritingRunId } : {}) }, { merge: true });
     return { status: 'retry_authorized' as const };
   });
 }

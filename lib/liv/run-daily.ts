@@ -176,7 +176,10 @@ export async function runLivDaily(req: NextRequest, preparation?: {
     const prepRow = preparation ? await getAdminDb()?.collection('livDailyArticles')
       .doc(livDailyDocId(dayKey, scope)).get() : null;
     const checkpoint = prepRow?.data()?.articleCheckpoint as GeneratedArticle | undefined;
-    const pickedTopic = checkpoint
+    const resumeWritingRunId = prepRow?.data()?.resumeWritingRunId as string | undefined;
+    const pickedTopic = resumeWritingRunId && prepRow?.data()?.topic && !checkpoint
+      ? { title: prepRow.data()!.topic as string, score: 0 }
+      : checkpoint
       ? { title: prepRow?.data()?.topic || checkpoint.title, score: 0,
           source: checkpoint.researchSources?.[0] ? {
             title: checkpoint.researchSources[0].title,
@@ -211,6 +214,7 @@ export async function runLivDaily(req: NextRequest, preparation?: {
       sourceScope: 'liv-daily',
       baseUrl,
       preparation: !!preparation,
+      resumeWritingRunId,
       targetWordCount: preparation ? 650 : undefined,
     });
     await checkpointLivDailyArticle(dayKey, article);

@@ -3,10 +3,10 @@ import { generateLivArticle, collectImageSuggestions } from '@/lib/liv/generate-
 import { loadLivVoice } from '@/lib/liv/voice';
 import { buildLivCmsPayload } from '@/lib/liv/build-cms-payload';
 
-const mocks = vi.hoisted(() => ({ create: vi.fn(), search: vi.fn(), retrieve: vi.fn(), remember: vi.fn(), rememberBrief: vi.fn(), recall: vi.fn(), seo: vi.fn(), similarity: vi.fn(), images: vi.fn() }));
+const mocks = vi.hoisted(() => ({ resume: vi.fn(), create: vi.fn(), search: vi.fn(), retrieve: vi.fn(), remember: vi.fn(), rememberBrief: vi.fn(), recall: vi.fn(), seo: vi.fn(), similarity: vi.fn(), images: vi.fn() }));
 vi.mock('@/lib/openai', () => ({ getOpenAIClient: () => ({ chat: { completions: { create: mocks.create } } }) }));
 vi.mock('@/lib/research/service', () => ({ getResearch: mocks.search }));
-vi.mock('@/lib/liv/source-archive', () => ({ rememberResearchSources: mocks.remember, rememberWritingBrief: mocks.rememberBrief, recalledSourceUrls: mocks.recall }));
+vi.mock('@/lib/liv/source-archive', () => ({ loadRecoverableWritingBrief: mocks.resume, rememberResearchSources: mocks.remember, rememberWritingBrief: mocks.rememberBrief, recalledSourceUrls: mocks.recall }));
 vi.mock('@/lib/factcheck/source-reader', async importOriginal => ({ ...await importOriginal<typeof import('@/lib/factcheck/source-reader')>(), retrieveSource: mocks.retrieve }));
 vi.mock('@/lib/liv/fetch-official-images', () => ({ fetchOfficialImagesFromPage: mocks.images }));
 vi.mock('@/lib/seo/generate-seo-meta', () => ({ generateSeoMetaAI: mocks.seo }));
@@ -31,6 +31,7 @@ const rawArticle = (rated = true, content = body) => JSON.stringify({ status: 'r
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.images.mockReset().mockResolvedValue([]);
+  mocks.resume.mockReset();
   mocks.search.mockResolvedValue({ sources: [{ title: 'Kritik', snippet: 'Søgeresultat, ikke selve kilden', source: 'example.com', url: criticUrl }] });
   mocks.recall.mockResolvedValue([primaryUrl]);
   mocks.remember.mockResolvedValue(undefined);
@@ -121,8 +122,36 @@ it('rejects an incomplete model response', async () => {
 it('blocks copied passages even when the similarity service says pass', async () => {
   const copied = 'Denne lange og helt særlige formulering fra et andet medie skal aldrig genbruges i Livs artikel.';
   mocks.retrieve.mockImplementation(async (url: string, id: string) => ({ id, url, title: 'The Invite', text: `${copied} ${'research '.repeat(80)}`, contentHash: 'hash', retrievedAt: '2026-09-09T18:00:00Z', publishedAt: null }));
-  mocks.create.mockReset().mockResolvedValueOnce(response(rawArticle(true, `${body}\n\n${copied}`)));
+  mocks.create.mockReset().mockResolvedValueOnce(response(rawArticle(true, `${body}\n\n${copied}`)))
+    .mockResolvedValueOnce(response(rawArticle(true, `${rewrittenBody}\n\n${copied}`)));
   await expect(generateLivArticle({ topic: { title: 'The Invite', score: 0 }, articleFormat: 'research-review' })).rejects.toThrow('source_copy_detected');
+});
+
+it('resumes paid text through source re-fetch and all checks without repeating research or the initial writer', async () => {
+  const runId = '4f5f2284-420d-4622-ac68-b42c0bc18ffd';
+  const original = rawArticle();
+  mocks.resume.mockResolvedValue({ rawResponse: original, writerText: '[S1] Saved evidence notes',
+    model: 'saved-writer', voiceVersion: 'liv-v4', sources: [{ url: primaryUrl }, { url: criticUrl }] });
+  mocks.create.mockReset().mockResolvedValueOnce(response(rawArticle(true, rewrittenBody)));
+  mocks.similarity.mockResolvedValueOnce({ pass: false, complete: true });
+  const article = await generateLivArticle({ topic: { title: 'The Invite', score: 0 }, articleFormat: 'research-review', resumeWritingRunId: runId });
+  expect(mocks.resume).toHaveBeenCalledWith('liv-daily', 'The Invite', runId);
+  expect(mocks.search).not.toHaveBeenCalled();
+  expect(mocks.create).toHaveBeenCalledTimes(1);
+  expect(mocks.retrieve).toHaveBeenCalledTimes(2);
+  expect(article.rawResponse).toBe(rawArticle(true, rewrittenBody));
+  expect(mocks.rememberBrief).toHaveBeenCalledTimes(1);
+  expect(mocks.rememberBrief.mock.calls[0][2]).toMatchObject({ parentRunId: runId, rawResponse: article.rawResponse });
+  expect(mocks.rememberBrief.mock.calls[0][2].runId).not.toBe(runId);
+  expect(mocks.similarity).toHaveBeenCalledTimes(3);
+});
+
+it('fails closed on a missing or mismatched archived draft instead of generating again', async () => {
+  mocks.resume.mockRejectedValue(new Error('writing_resume_mismatch'));
+  await expect(generateLivArticle({ topic: { title: 'The Invite', score: 0 }, resumeWritingRunId: '4f5f2284-420d-4622-ac68-b42c0bc18ffd' }))
+    .rejects.toThrow('writing_resume_mismatch');
+  expect(mocks.create).not.toHaveBeenCalled();
+  expect(mocks.search).not.toHaveBeenCalled();
 });
 
 it.each(['article_generation_refused', 'article_evidence_insufficient'])('does not send a declined article to SEO or similarity: %s', async code => {

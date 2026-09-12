@@ -1,4 +1,5 @@
 import { retrieveSource, sourceUrl, type RetrievedSource } from '@/lib/factcheck/source-reader';
+import { canonicalSourceUrl } from '@/lib/editorial/audience-signals';
 
 export function extractResearchUrls(text: string): string[] {
   const urls = new Set<string>();
@@ -12,9 +13,23 @@ export function extractResearchUrls(text: string): string[] {
 }
 
 export async function buildResearchBundle(urls: string[], read = retrieveSource): Promise<RetrievedSource[]> {
-  const unique = [...new Set(urls)].slice(0, 8);
-  const results = await Promise.all(unique.map(async (url, i) => {
-    try { return await read(sourceUrl(url).href, `S${i + 1}`); }
+  const unique = new Map<string, string>();
+  for (const raw of urls) {
+    try {
+      const url = sourceUrl(raw);
+      const canonical = canonicalSourceUrl(url.href);
+      if (!canonical || unique.has(canonical)) continue;
+      // Canonical identity folds www/trailing slashes; never use it as the
+      // fetch address. Preserve the first supplied host/path to avoid redirects.
+      for (const key of [...url.searchParams.keys()]) {
+        if (/^(utm_|fbclid$|gclid$)/i.test(key)) url.searchParams.delete(key);
+      }
+      unique.set(canonical, url.href);
+      if (unique.size === 8) break;
+    } catch { /* Invalid/private URLs must not consume the retrieval budget. */ }
+  }
+  const results = await Promise.all([...unique.values()].map(async (url, i) => {
+    try { return await read(url, `S${i + 1}`); }
     catch { return null; }
   }));
   const sources = results.filter((s): s is RetrievedSource => !!s && s.text.trim().length >= 200);
