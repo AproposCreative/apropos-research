@@ -2,10 +2,72 @@ import { expect, it } from 'vitest';
 import { approvalEntries, approvalStory, APPROVAL_PAGE_SIZE } from '@/lib/liv/approval-feed';
 import { emptyDeliveryState, type ReadyEntry } from '@/lib/liv/delivery-policy';
 import type { WebflowArticleFields } from '@/lib/webflow/types';
+import { readFileSync } from 'node:fs';
 const entry: ReadyEntry = { itemId: 'a'.repeat(24), payloadHash: 'b'.repeat(64), title: 'En historie', slug: 'historie',
   scheduledDay: '2026-09-11', expiresDay: '2026-09-11', kind: 'scheduled', state: 'ready', preparedAt: '' };
 const payload = { content: '<h2>En vinkel</h2><p>Analyse &amp; mening</p><script>alert(1)</script>',
   category: 'TV-serier', tags: [], excerpt: '<b>Et resumé</b>', featuredImage: 'https://cdn.prod.website-files.com/a.jpg' } as WebflowArticleFields;
+
+const slot = (itemId: string, state: 'selected' | 'attempted' | 'published') => ({ itemId, state,
+  token: 'fixture', leaseUntil: 0, attempts: 1, nextAttemptAt: 0 });
+it('shows one eligible reserve when today is published and tomorrow has no ready scheduled story', () => {
+  const state = emptyDeliveryState();
+  state.slots['2026-09-10'] = slot('published', 'published');
+  state.entries = [{ ...entry, itemId: 'reserve', kind: 'reserve' },
+    { ...entry, itemId: 'expired', kind: 'reserve', expiresDay: '2026-09-10' },
+    { ...entry, itemId: 'rejected', kind: 'reserve', decision: 'rejected' },
+    { ...entry, itemId: 'future', kind: 'reserve', scheduledDay: '2026-09-12' }];
+  const before = structuredClone(state);
+  expect(approvalEntries(state, '2026-09-10').map(e => e.itemId)).toEqual(['reserve']);
+  expect(state).toEqual(before);
+});
+it('previews today’s eligible reserve before tomorrow’s scheduled story when today is unpublished', () => {
+  const state = emptyDeliveryState();
+  const todayReserve = { ...entry, itemId: 'today-reserve', kind: 'reserve' as const, scheduledDay: '2026-09-10' };
+  state.entries = [entry, todayReserve];
+  const before = structuredClone(state);
+  expect(approvalEntries(state, '2026-09-10')).toEqual([todayReserve]);
+  expect(state).toEqual(before);
+  state.entries = [entry];
+  expect(approvalEntries(state, '2026-09-10')).toEqual([entry]);
+});
+it('keeps scheduled priority, then uses the real reserve approval/expiry ordering', () => {
+  const state = emptyDeliveryState();
+  state.entries = [entry, { ...entry, itemId: 'reserve', kind: 'reserve', decision: 'approved' },
+    { ...entry, itemId: 'older-reserve', kind: 'reserve', preparedAt: '2020' }];
+  expect(approvalEntries(state, '2026-09-11')).toEqual([entry]);
+  state.entries[0] = { ...entry, decision: 'rejected' };
+  expect(approvalEntries(state, '2026-09-11').map(e => e.itemId)).toEqual(['reserve']);
+  state.entries = [state.entries[0]];
+  expect(approvalEntries(state, '2026-09-11')[0].decision).toBe('rejected');
+});
+it.each(['selected', 'attempted'] as const)('shows only the %s slot owner, never another ready card', status => {
+  const state = emptyDeliveryState();
+  const selected = { ...entry, itemId: 'selected-reserve', kind: 'reserve' as const, state: 'selected' as const };
+  state.entries = [entry, selected, { ...entry, itemId: 'other-reserve', kind: 'reserve' }];
+  state.slots['2026-09-11'] = slot(selected.itemId, status);
+  expect(approvalEntries(state, '2026-09-10')).toEqual([selected]);
+  state.entries = [entry];
+  expect(approvalEntries(state, '2026-09-10')).toEqual([]);
+});
+it('does not preview another reserve across an earlier uncertain delivery or cover hold', () => {
+  const state = emptyDeliveryState(); state.entries = [{ ...entry, kind: 'reserve' }];
+  state.slots['2026-09-09'] = slot('unknown', 'attempted');
+  expect(approvalEntries(state, '2026-09-11')).toEqual([]);
+  state.slots = {}; state.coverRevision = { id: 'hold', itemId: 'unknown', day: '2026-09-11' };
+  expect(approvalEntries(state, '2026-09-11')).toEqual([]);
+});
+it('does not show a reserve assigned to another slot or pull future stock forward', () => {
+  const state = emptyDeliveryState(); state.entries = [{ ...entry, kind: 'reserve' }];
+  expect(approvalEntries(state, '2026-09-10')).toEqual([]);
+  state.slots['2026-09-09'] = slot(entry.itemId, 'published');
+  expect(approvalEntries(state, '2026-09-11')).toEqual([]);
+});
+it('labels reserve availability without promising a scheduled publication date', () => {
+  const source = readFileSync('app/ai/liv/LivApprovalFeed.tsx', 'utf8');
+  expect(source).toContain("story.kind === 'reserve' ? 'Reserve · klar til næste ledige udgivelse'");
+  expect(source).toContain('Planlagt ${dateLabel(story.scheduledDay)}');
+});
 it('supplies one upcoming story and retains a rejected choice for reversal without exposing old stock', () => {
   expect(APPROVAL_PAGE_SIZE).toBe(1);
   const state = emptyDeliveryState();

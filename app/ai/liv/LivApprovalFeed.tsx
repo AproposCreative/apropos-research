@@ -39,7 +39,7 @@ export function LivApprovalCard({ story, disabled, saving, onDecide }: {
       </div>
       <div className="space-y-3 px-5 pb-4 pt-5">
         <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-white/60">
-          <span>Planlagt {dateLabel(story.scheduledDay)}</span>
+          <span>{story.kind === 'reserve' ? 'Reserve · klar til næste ledige udgivelse' : `Planlagt ${dateLabel(story.scheduledDay)}`}</span>
           <span className={story.decision === 'approved' ? 'text-emerald-300' : story.decision === 'rejected' ? 'text-rose-300' : ''}>{status}</span>
         </div>
         <h3 className="break-words text-[22px] font-medium leading-tight sm:text-2xl">{story.title}</h3>
