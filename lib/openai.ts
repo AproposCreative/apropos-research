@@ -1,5 +1,6 @@
 import OpenAI from 'openai';
 import { config } from '@/lib/config/env';
+import { LivBudgetOpenAI } from '@/lib/liv/cost-openai';
 
 let _client: OpenAI | null = null;
 
@@ -10,7 +11,7 @@ let _client: OpenAI | null = null;
 export function getOpenAIClient(): OpenAI | null {
   if (!config.openai.apiKey) return null;
   if (!_client) {
-    _client = new OpenAI({ apiKey: config.openai.apiKey });
+    _client = new LivBudgetOpenAI({ apiKey: config.openai.apiKey });
   }
   return _client;
 }

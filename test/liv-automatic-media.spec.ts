@@ -28,6 +28,33 @@ beforeEach(() => {
   };
 });
 describe('automatic Liv media', () => {
+  it.each(['film', 'tv-series'] as const)('uses explicit %s classification for press-photo selection even under the Kultur section', subjectType => {
+    expect(resolveLivMediaMode({ ...article, section: 'Kultur', tags: [], subjectType })).toBe('photography');
+    expect(() => resolveLivMediaMode({ ...article, section: 'Kultur', subjectType }, 'illustration')).toThrow('requires_photography');
+  });
+  it('prefers three official press stills for a culture feature without generating images', async () => {
+    const suggestions = originals.map((_, i) => ({ url: `https://distribution.paradisbio.dk/${i}.jpg`,
+      source: 'Øst for Paradis', sourcePageUrl: 'https://distribution.paradisbio.dk/film.asp?id=374' }));
+    const candidates = originals.map((bytes, i) => ({ id: String(i), url: suggestions[i].url,
+      sourcePageUrl: suggestions[i].sourcePageUrl, credit: 'Pressebillede: Øst for Paradis', bytes }));
+    vi.mocked(deps.candidates).mockResolvedValue(candidates);
+    vi.mocked(deps.plan).mockResolvedValue({ images: plan.images.map((image, i) => ({ ...image, candidateId: String(i) })) });
+    const result = await prepareLivAutomaticMedia({ ...article, section: 'Kultur', imageSuggestions: suggestions }, { dayKey: '2026-09-12' }, deps);
+    expect(deps.generate).not.toHaveBeenCalled();
+    expect(result.preparedMedia?.every(image => image.kind === 'photography')).toBe(true);
+  });
+  it('does not abandon paid illustrations when a new default discovers press material', async () => {
+    const input = { ...article, imageSuggestions: [0, 1, 2].map(i => ({ url: `https://press.test/${i}.jpg`,
+      source: 'Press', sourcePageUrl: 'https://a24films.com/film' })) };
+    expect(resolveLivMediaMode(input)).toBe('photography');
+    deps.existingMode = vi.fn(async () => 'illustration');
+    const cached = { ...input, content: 'Saved paid text and media' };
+    vi.mocked(deps.claim).mockResolvedValue(cached);
+    expect(await prepareLivAutomaticMedia(input, { dayKey: '2026-09-12' }, deps)).toBe(cached);
+    expect(deps.claim).toHaveBeenCalledWith(expect.any(String), input, 'illustration', 'expressive');
+    expect(deps.plan).not.toHaveBeenCalled();
+    expect(deps.generate).not.toHaveBeenCalled();
+  });
   it('prepares one hero and two distinct body images, preserving text order and aspect ratio', async () => {
     const result = await prepareLivAutomaticMedia(article, { dayKey: '2026-09-10' }, deps);
     const $ = load(result.content);

@@ -1,7 +1,7 @@
 import { beforeEach, expect, it, vi } from 'vitest';
-const state = vi.hoisted(() => ({ row: {} as any, plan: {} as any, audit: false, writes: vi.fn(), creates: vi.fn() }));
+const state = vi.hoisted(() => ({ row: {} as any, plan: {} as any, audit: false, writes: vi.fn(), creates: vi.fn(), docs: vi.fn() }));
 vi.mock('@/lib/firebase-admin', () => ({ getAdminDb: () => ({
-  collection: () => ({ doc: (id: string) => ({ id, collection: () => ({ doc: () => ({ id: 'audit' }) }) }) }),
+  collection: () => ({ doc: (id: string) => { state.docs(id); return { id, collection: () => ({ doc: () => ({ id: 'audit' }) }) }; } }),
   runTransaction: async (fn: any) => fn({
     get: async (ref: any) => ref.id === 'audit' ? { exists: state.audit } : { data: () => ref.id.startsWith('plan-') ? state.plan : state.row },
     create: (_ref: any, row: any) => { state.creates(row); state.audit = true; },
@@ -31,6 +31,21 @@ it('never reclaims a still-running worker', async () => {
 });
 it('rejects invalid identity before storing anything', async () => {
   await expect(authorizePreparationRetry({ ...input, dayKey: '2026-02-30' })).rejects.toThrow('invalid');
+  expect(state.writes).not.toHaveBeenCalled();
+});
+it('retries only the separately identified alternative and leaves the saved plan unchanged', async () => {
+  const before = structuredClone(state.plan);
+  await authorizePreparationRetry({ ...input, scope: 'prepare-alternative' });
+  expect(state.docs).toHaveBeenCalledWith('prepare-alternative-2026-09-12');
+  expect(state.docs).not.toHaveBeenCalledWith('prepare-2026-09-12');
+  expect(state.plan).toEqual(before);
+  expect(state.row.articleCheckpoint.title).toBe('Saved');
+});
+it('never combines an alternative retry with a reserve or replacement plan', async () => {
+  for (const invalid of [{ ...input, scope: 'prepare-alternative' as const, kind: 'reserve' as const },
+    { ...input, scope: 'prepare-alternative' as const, plan: { topicHint: 'Other', directiveHint: '' } }]) {
+    await expect(authorizePreparationRetry(invalid)).rejects.toThrow('invalid');
+  }
   expect(state.writes).not.toHaveBeenCalled();
 });
 it('can atomically replace an unstarted plan while retaining its previous version', async () => {

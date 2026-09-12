@@ -9,6 +9,10 @@ import tailwind from 'tailwindcss';
 import { chromium } from 'playwright';
 
 const component = resolve('app/ai/liv/LivDeskClient.tsx');
+const postingSource = await readFile(resolve('app/ai/liv/LivPostingClient.tsx'), 'utf8');
+assert.doesNotMatch(postingSource, /Reserver:|af de næste 7 dage/);
+assert.ok(postingSource.includes('Morgendagens artikel mangler at blive klar.'));
+assert.ok(postingSource.includes('Morgendagens artikel er klar.'));
 const bundled = await build({ stdin: { contents: `import React from 'react'; import {createRoot} from 'react-dom/client';
   import Desk from ${JSON.stringify(component)}; createRoot(document.getElementById('root')).render(<Desk
     onClose={() => document.body.dataset.closed = 'true'} onOpenWriter={story => document.body.dataset.writer = story.id}/>);`,
@@ -32,14 +36,17 @@ const css = (await postcss([tailwind({ content: [{ raw: source, extension: 'tsx'
   .process('@tailwind base; @tailwind components; @tailwind utilities;', { from: undefined })).css;
 const stories = ['Når en serie bliver vores fælles samtale', 'Hvad kan biografen, som sofaen ikke kan?',
   'Kunst, der flytter ind i hverdagen', 'Byens små scener har noget på hjerte', 'Hvem bestemmer den gode smag?', 'Reservehistorie'].map((title, i) => ({
-  itemId: String(i).padStart(24, '0'), payloadHash: 'b'.repeat(64), revision: 0, decision: 'pending', state: 'ready',
+  itemId: String(i).padStart(24, '0'), payloadHash: 'b'.repeat(64), revision: 0, decision: 'pending', state: 'ready', feedback: null,
   title, category: ['TV-serie', 'Film', 'Kunst', 'Musik', 'Kultur', 'Kultur'][i],
+  articleFormat: i === 0 ? 'research-review' : 'article', formatLabel: i === 0 ? 'Researchanmeldelse' : 'Artikel',
+  rating: i === 0 ? 4 : null, ratingReason: i === 0 ? 'Seriens præcise karaktertegning gør konflikten vedkommende, selv om afslutningen er for enkel.' : null,
   summary: 'Demonstrationsdata til lokal UI-test. Liv undersøger en kulturel vinkel og giver plads til både analyse og modargumenter.',
   paragraphs: ['Dette er et længere uddrag, som kun bruges til at afprøve læsevisningen.'],
   image: '/fixture.svg', imageAlt: 'Test af billedformat', credit: 'Lokal testgrafik', scheduledDay: '2026-09-12', kind: 'scheduled' }));
 let failNext = false;
 let historyMode = 'ready';
 let emptyFeed = false;
+let activeStory = 0;
 const requests = [];
 const draft = { id: 'research-fixture', status: 'draft', signal: { beat: 'Film', title: 'Et gemt researchudkast', angle: 'Test af bevaret Writer-adgang', sources: [] },
   article: { title: 'Et gemt researchudkast', imageSuggestions: [] }, updatedAt: '2026-09-11' };
@@ -68,12 +75,16 @@ const server = createServer(async (req, res) => {
       let raw = ''; for await (const chunk of req) raw += chunk;
       const input = JSON.parse(raw), story = stories.find(s => s.itemId === input.itemId);
       assert.equal(input.revision, story.revision);
+      if (input.feedback !== undefined) {
+        assert.equal(typeof input.feedback, 'string'); assert.ok(input.feedback.length <= 500);
+        story.feedback = input.feedback.trim() || null;
+      }
       story.revision++; story.decision = input.decision;
-      return res.end(JSON.stringify({ decision: story.decision, revision: story.revision }));
+      return res.end(JSON.stringify({ decision: story.decision, revision: story.revision, feedback: story.feedback }));
     }
-    const offset = Number(url.searchParams.get('offset') || 0);
-    return res.end(JSON.stringify({ stories: emptyFeed ? [] : stories.slice(offset, offset + 5), total: emptyFeed ? 0 : stories.length,
-      nextOffset: emptyFeed ? null : offset + 5 < stories.length ? offset + 5 : null, queueEnabled: !emptyFeed, preparationEnabled: !emptyFeed }));
+    return res.end(JSON.stringify({ stories: emptyFeed ? [] : [stories[activeStory]], total: emptyFeed ? 0 : 1,
+      nextOffset: null, queueEnabled: !emptyFeed, preparationEnabled: !emptyFeed,
+      cost: { monthlyLimitDkk: 300, usageBasedUpperDkk: null, reservedUpperDkk: null, status: 'unconfigured' } }));
   }
   if (url.pathname === '/bundle.js') { res.setHeader('Content-Type', 'text/javascript'); return res.end(bundled.outputFiles[0].text); }
   if (url.pathname === '/fixture.svg') {
@@ -95,8 +106,15 @@ try {
   await page.goto(origin);
   try { await page.getByRole('heading', { name: stories[0].title }).waitFor({ timeout: 10000 }); }
   catch (error) { console.error(await page.locator('body').innerText()); throw error; }
-  assert.equal(await page.locator('article').count(), 5);
+  assert.equal(await page.locator('article').count(), 1);
+  await page.getByText('Researchanmeldelse · TV-serie', { exact: true }).waitFor();
+  await page.getByRole('img', { name: 'Bedømmelse: 4 af 6 stjerner' }).waitFor();
+  await page.getByText(stories[0].ratingReason, { exact: false }).waitFor();
   assert.deepEqual(requests, ['GET /api/liv/delivery/feed']);
+  await page.locator('summary').filter({ hasText: 'API-budget' }).click();
+  await page.getByText('Registreret forbrug er endnu ukendt.', { exact: true }).waitFor();
+  await page.getByText('Budgetstyringen mangler opsætning.', { exact: true }).waitFor();
+  await page.locator('summary').filter({ hasText: 'API-budget' }).click();
   assert.equal(await page.getByRole('navigation', { name: 'Redaktionens faner' }).getByRole('button').count(), 2);
   assert.equal(await page.getByRole('button', { name: 'Overblik', exact: true }).count(), 0);
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
@@ -107,7 +125,7 @@ try {
       page.getByRole('button', { name: 'Kommende', exact: true }).boundingBox(),
       page.getByRole('button', { name: 'Udgivet', exact: true }).boundingBox(),
       page.getByRole('button', { name: 'Luk Liv Redaktion', exact: true }).boundingBox(),
-      card.boundingBox(), page.getByRole('heading', { name: 'Ugens historier', exact: true }).boundingBox(),
+      card.boundingBox(), page.getByRole('heading', { name: 'Den næste historie', exact: true }).boundingBox(),
     ]);
     for (const x of [title.x, start.x, heading.x]) assert.ok(Math.abs(x - box.x) <= 1, 'Header, navigation and content share the left edge');
     for (const right of [end.x + end.width, close.x + close.width]) assert.ok(Math.abs(right - box.x - box.width) <= 1, 'Header, navigation and content share the right edge');
@@ -120,26 +138,44 @@ try {
   for (const name of ['Godkend', 'Afvis']) assert.ok((await first.getByRole('button', { name, exact: true }).boundingBox()).height >= 44);
   await mkdir('tmp/liv-approval-visual', { recursive: true });
   await page.screenshot({ path: 'tmp/liv-approval-visual/mobile.png' });
+  const comment = first.getByRole('textbox', { name: 'Din redaktionelle kommentar (valgfri)' });
+  assert.equal(await comment.getAttribute('maxlength'), '500');
+  await comment.fill('Mere konkret kulturkritik, færre generelle indledninger.');
+  await comment.scrollIntoViewIfNeeded();
+  await page.screenshot({ path: 'tmp/liv-approval-visual/feedback-mobile.png' });
   await first.getByRole('button', { name: 'Godkend', exact: true }).click();
   await page.getByRole('status').filter({ hasText: 'Godkendt.' }).waitFor();
   assert.equal(await first.getByRole('button', { name: 'Godkend', exact: true }).getAttribute('aria-pressed'), 'true');
   await page.reload(); await page.getByRole('heading', { name: stories[0].title }).waitFor();
+  assert.equal(await comment.inputValue(), 'Mere konkret kulturkritik, færre generelle indledninger.');
   assert.equal(await first.getByRole('button', { name: 'Godkend', exact: true }).getAttribute('aria-pressed'), 'true');
   await first.getByRole('button', { name: 'Afvis', exact: true }).click();
   await page.getByRole('status').filter({ hasText: 'Afvist.' }).waitFor();
   await first.getByRole('button').first().click();
   await first.getByText(stories[0].paragraphs[0], { exact: true }).waitFor();
   assert.equal(await first.getByRole('button').first().getAttribute('aria-expanded'), 'true');
-  await page.getByRole('button', { name: 'Vis fem mere' }).click();
-  await page.getByRole('heading', { name: 'Reservehistorie' }).waitFor();
-  assert.equal(await page.locator('article').count(), 6);
+  assert.equal(await page.getByRole('button', { name: /Vis .*mere/ }).count(), 0);
+  assert.equal(await page.locator('article').count(), 1);
   failNext = true;
+  await comment.fill('En endnu ikke gemt kommentar.');
   await first.getByRole('button', { name: 'Godkend', exact: true }).click();
   await page.getByRole('alert').waitFor();
   assert.equal(await first.getByRole('button', { name: 'Godkend', exact: true }).isDisabled(), true);
+  assert.equal(await comment.inputValue(), 'En endnu ikke gemt kommentar.');
+  assert.equal(stories[0].feedback, 'Mere konkret kulturkritik, færre generelle indledninger.');
   await page.getByRole('button', { name: 'Opdater', exact: true }).click();
   await page.getByRole('alert').waitFor({ state: 'hidden' });
   assert.equal(await first.getByRole('button', { name: 'Afvis', exact: true }).getAttribute('aria-pressed'), 'true');
+  activeStory = 1;
+  await page.getByRole('button', { name: 'Opdater', exact: true }).click();
+  await page.getByRole('heading', { name: stories[1].title }).waitFor();
+  await page.getByText('Artikel · Film', { exact: true }).waitFor();
+  assert.equal(await page.getByRole('img', { name: /Bedømmelse/ }).count(), 0);
+  stories[1].state = 'selected';
+  await page.getByRole('button', { name: 'Opdater', exact: true }).click();
+  await page.getByText('Valgt til udgivelse', { exact: true }).waitFor();
+  assert.equal(await first.getByRole('button', { name: 'Godkend', exact: true }).isDisabled(), true);
+  assert.equal(await comment.isDisabled(), true);
   await page.setViewportSize({ width: 320, height: 740 });
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
   const nav = page.getByRole('navigation', { name: 'Redaktionens faner' });
@@ -186,9 +222,9 @@ try {
   await page.getByRole('button', { name: 'Til indstillinger' }).click();
   emptyFeed = true;
   await page.getByRole('button', { name: 'Til historierne' }).click();
-  await page.getByRole('heading', { name: 'Ingen færdige forslag endnu' }).waitFor();
+  await page.getByRole('heading', { name: 'Den næste historie er ikke klar endnu' }).waitFor();
   await page.getByText('Automatisk udgivelse er ikke aktiveret.', { exact: false }).waitFor();
-  const emptyCard = page.getByRole('heading', { name: 'Ingen færdige forslag endnu' }).locator('..');
+  const emptyCard = page.getByRole('heading', { name: 'Den næste historie er ikke klar endnu' }).locator('..');
   const inactive = page.getByText('Automatisk udgivelse er ikke aktiveret.', { exact: false });
   for (const width of [320, 390, 768, 1280]) {
     await page.setViewportSize({ width, height: 844 });
@@ -203,5 +239,5 @@ try {
   await page.getByRole('button', { name: 'Luk Liv Redaktion' }).click();
   assert.equal(await page.locator('body').getAttribute('data-closed'), 'true');
   assert.deepEqual(errors, []);
-  console.log('PASS: aligned header/navigation/cards/status/empty-state edges at 320/390/768/1280px; two-tab desk; 44px targets; approve/reject/reload; details; pagination; conflict recovery; read-only published history; errors/empty states; settings/back; retained research-to-Writer action; no eager research/preview/plan requests; close; no page errors. Offline fixtures; legacy manual posting stubbed.');
+  console.log('PASS: one upcoming card without pagination; explicit type/category; reasoned review stars; unrated article; selected action lock; bounded feedback save/reload and unsaved conflict text retained; tomorrow status copy; aligned layout at 320/390/768/1280px; 44px targets; approve/reject/reload; details; conflict recovery; retained published history and research/Writer access; errors/empty states; no eager research/preview/plan requests; no page errors. Offline fixtures only.');
 } finally { await browser.close(); server.close(); }

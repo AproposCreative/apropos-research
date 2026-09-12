@@ -1,5 +1,5 @@
 import type { LivDailyPlan } from '@/lib/liv/daily-plan-store';
-import { addDays, eligibleEntries, LIV_PLAN_DAYS, LIV_RESERVE_TARGET, type DeliveryState } from '@/lib/liv/delivery-policy';
+import { addDays, eligibleEntries, type DeliveryState } from '@/lib/liv/delivery-policy';
 import { cmsFieldHash } from '@/lib/liv/cms-field-hash';
 
 export function editorialPlanHash(plan: LivDailyPlan | null) {
@@ -60,18 +60,17 @@ export function defaultEditorialPlan(day: string, reserve = false): LivDailyPlan
     articleFormat: 'article', mustUseTrending: false, status: 'pending', createdAt: null, updatedAt: null };
 }
 
-/** One bounded stage per invocation. Cover today before building future stock. */
+/** One article in production at a time. Keep old inventory and paid jobs intact.
+ * An explicit rejection permits one alternative in a separate durable job, never
+ * a reset of the rejected article or an unbounded stream of replacements. */
 export function preparationCandidates(state: DeliveryState, today: string) {
-  const dates = Array.from({ length: LIV_PLAN_DAYS }, (_, i) => addDays(today, i + 1));
-  const scheduled = dates.filter(day => !state.entries.some(e => e.kind === 'scheduled' &&
-    e.decision !== 'rejected' && ['ready', 'selected', 'published'].includes(e.state) && e.scheduledDay === day))
-    .map(dayKey => ({ dayKey, kind: 'scheduled' as const }));
-  const count = state.entries.filter(e => e.kind === 'reserve' && e.state === 'ready' && e.decision !== 'rejected' &&
-    e.scheduledDay <= today && e.expiresDay >= today).length;
-  const reserves = count >= LIV_RESERVE_TARGET ? [] : Array.from({ length: LIV_RESERVE_TARGET }, (_, i) =>
-    ({ dayKey: addDays(today, i), kind: 'reserve' as const }));
-  const tomorrow = scheduled.filter(p => p.dayKey === dates[0]);
-  const urgent = !state.slots[today] && eligibleEntries(state, today).length === 0
-    ? [{ dayKey: today, kind: 'scheduled' as const }] : [];
-  return [...urgent, ...tomorrow, ...reserves, ...scheduled.filter(p => p.dayKey !== dates[0])];
+  if (state.coverRevision || Object.values(state.slots).some(slot => slot.state === 'attempted')) return [];
+  const dayKey = !state.slots[today] && eligibleEntries(state, today).length === 0 ? today : addDays(today, 1);
+  if (state.slots[dayKey] || state.entries.some(e => e.kind === 'scheduled' && e.scheduledDay === dayKey &&
+      e.expiresDay >= dayKey && e.decision !== 'rejected' && ['ready', 'selected', 'published'].includes(e.state))) return [];
+  const rejected = state.entries.filter(e => e.kind === 'scheduled' && e.scheduledDay === dayKey &&
+    e.decision === 'rejected');
+  if (rejected.length >= 2) return [];
+  return [{ dayKey, kind: 'scheduled' as const,
+    ...(rejected.length ? { scope: 'prepare-alternative' as const } : {}) }];
 }

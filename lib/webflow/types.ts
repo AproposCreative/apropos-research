@@ -39,6 +39,9 @@ export interface WebflowArticleFields {
   tags: string[];
   author: string;
   rating?: number;
+  /** Editorial metadata retained in Liv's payload; not an invented Webflow field. */
+  articleFormat?: 'article' | 'research-review';
+  ratingReason?: string;
   featuredImage?: string;
   featuredImageAlt?: string;
   /** SHA-256 of the selected stored image; readback evidence, never a CMS field. */
@@ -62,6 +65,8 @@ export interface WebflowArticleFields {
    * frontend/nyhedsbrev til at filtrere eller mærke AI-indhold.
    */
   aiGenerated?: boolean | null;
+  /** Editorial preview classification, separate from the site's CMS section reference. */
+  subjectType?: import('@/lib/liv/article-output').LivSubjectType;
   /** URL til original kilde — sporbarhed for AI-genererede artikler. */
   aiSourceUrl?: string | null;
   /**

@@ -3,6 +3,12 @@ import type { LivArticleFormat } from './review-format';
 import { createHash } from 'node:crypto';
 import type { BlockedSourceReview } from './blocked-review';
 
+export const LIV_SUBJECT_TYPES = ['film', 'tv-series', 'music', 'art', 'literature', 'culture'] as const;
+export type LivSubjectType = typeof LIV_SUBJECT_TYPES[number];
+export const LIV_SUBJECT_LABELS: Record<LivSubjectType, string> = {
+  film: 'Film', 'tv-series': 'TV-serie', music: 'Musik', art: 'Kunst', literature: 'Litteratur', culture: 'Kultur',
+};
+
 export class ArticleEvidenceError extends Error {
   readonly code = 'article_evidence_insufficient';
   #review?: BlockedSourceReview;
@@ -29,11 +35,12 @@ export const livArticleResponseFormat = {
         status: { type: 'string', enum: ['ready', 'insufficient_evidence'] },
         title: { type: 'string' }, subtitle: { type: 'string' },
         intro: { type: 'string' }, content: { type: 'string' },
+        subjectType: { type: 'string', enum: [...LIV_SUBJECT_TYPES] },
         rating: { type: ['integer', 'null'], enum: [1, 2, 3, 4, 5, 6, null] },
         ratingReason: { type: ['string', 'null'] },
         missingEvidence: { type: 'array', items: { type: 'string' } },
       },
-      required: ['status', 'title', 'subtitle', 'intro', 'content', 'rating', 'ratingReason', 'missingEvidence'],
+      required: ['status', 'title', 'subtitle', 'intro', 'content', 'subjectType', 'rating', 'ratingReason', 'missingEvidence'],
     },
   },
 };
@@ -42,6 +49,8 @@ const articleSchema = z.object({
   status: z.enum(['ready', 'insufficient_evidence']),
   title: z.string().trim().max(120), subtitle: z.string().trim().max(300),
   intro: z.string().trim().max(3000), content: z.string().trim().max(40000),
+  // Old paid responses remain readable; do not infer classification from their titles.
+  subjectType: z.enum(LIV_SUBJECT_TYPES).optional(),
   rating: z.number().int().min(1).max(6).nullable(),
   ratingReason: z.string().trim().max(600).nullable(),
   missingEvidence: z.array(z.string().trim().min(5).max(500)).max(6).default([]),

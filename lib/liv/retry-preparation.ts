@@ -5,13 +5,14 @@ import { LIV_DAILY_COLLECTION, livDailyDocId } from '@/lib/liv/daily-history-sto
 import { validDay } from '@/lib/liv/delivery-policy';
 
 export type PreparationRetry = { dayKey: string; kind: 'scheduled' | 'reserve'; requestId: string; reason: string;
-  plan?: { topicHint: string; directiveHint: string }; resumeWritingRunId?: string };
+  plan?: { topicHint: string; directiveHint: string }; resumeWritingRunId?: string; scope?: 'prepare-alternative' };
 
 /** Explicit operator retry, not a reset. Retain the full previous run and paid
  * checkpoints. A replayed request never grants a second attempt. CMS writes
  * with uncertain outcomes must use reconciliation, never this operation. */
 export async function authorizePreparationRetry(input: PreparationRetry) {
   if (!validDay(input.dayKey) || !['scheduled', 'reserve'].includes(input.kind) ||
+    (input.scope !== undefined && (input.scope !== 'prepare-alternative' || input.kind !== 'scheduled' || input.plan)) ||
     !/^[a-zA-Z0-9_-]{8,100}$/.test(input.requestId) || !input.reason?.trim() || input.reason.length > 500) {
     throw new Error('liv_retry_invalid');
   }
@@ -24,7 +25,7 @@ export async function authorizePreparationRetry(input: PreparationRetry) {
   }
   const db = getAdminDb();
   if (!db) throw new Error('liv_retry_store_unavailable');
-  const scope = input.kind === 'reserve' ? 'reserve' : 'prepare';
+  const scope = input.kind === 'reserve' ? 'reserve' : input.scope || 'prepare';
   const ref = db.collection(LIV_DAILY_COLLECTION).doc(livDailyDocId(input.dayKey, scope));
   const audit = ref.collection('retryRequests').doc(createHash('sha256').update(input.requestId).digest('hex'));
   const planRef = db.collection('livDailyPlan').doc(`plan-${input.dayKey}`);

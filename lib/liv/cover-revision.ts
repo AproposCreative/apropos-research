@@ -52,7 +52,8 @@ const receiptFor = (id: string, input: CoverRevisionInput, payloadHash: string, 
 function draftFields(cms: Json, input: CoverRevisionInput, localeId: string, expected: WebflowArticleFields) {
   const fields = object(cms.fieldData);
   if (cms.id !== input.itemId || cms.cmsLocaleId !== localeId || cms.isDraft !== true || cms.isArchived === true ||
-      cms.lastPublished !== null || fields.name !== expected.title || fields.slug !== expected.slug || fields['ai-generated'] !== true) fail('draft_changed');
+      cms.lastPublished !== null || fields.name !== expected.title || fields.slug !== expected.slug ||
+      fields['ai-generated'] !== (expected.aiGenerated ?? true)) fail('draft_changed');
   return fields;
 }
 

@@ -1,26 +1,11 @@
 import { getDownloadURL, ref } from 'firebase/storage';
 import { storage } from './firebase';
-import { logger } from '@/lib/logger';
-import { getOpenAIClient } from '@/lib/openai';
-
-function getClient() {
-	const client = getOpenAIClient();
-	if (!client) {
-		logger.error('OPENAI_API_KEY is not set', new Error('OPENAI_API_KEY is not set'));
-		throw new Error('OPENAI_API_KEY is not set');
-	}
-	return client;
-}
+import { getLivCachedEmbedding } from '@/lib/liv/embedding-cache';
 
 export async function getEmbedding(text: string): Promise<number[]> {
-	const openai = getClient();
 	const cleaned = (text || '').replace(/\s+/g, ' ').trim();
 	const input = cleaned.slice(0, 4000); // safety bound
-	const res = await openai.embeddings.create({
-		model: 'text-embedding-3-small',
-		input
-	});
-	return res.data[0]?.embedding || [];
+	return getLivCachedEmbedding(input);
 }
 
 export function cosineSimilarity(a: number[], b: number[]): number {
@@ -74,5 +59,4 @@ export async function loadEmbeddingsRemoteOrLocal(): Promise<EmbeddedArticle[]> 
 	} catch {}
 	return loadEmbeddingsFromDisk();
 }
-
 

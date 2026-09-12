@@ -1,10 +1,11 @@
 /**
  * Liv Brandt — sikkerhedsporte før auto-publish.
  *
- * Tre gates kaldes sekventielt — første failure stopper publish:
+ * Separate logical gates remain independently blocking. Strict Liv checks use
+ * one combined model assessment for facts and editorial feedback:
  *  1. Moderation (plagiat-/lighedstjek + min. ordtælling)
  *  2. Factcheck (hentede kilder og belæg for hele artikelversionen)
- *  3. TOV (kort kritiker-evaluering — vi accepterer alle tips, men logger dem)
+ *  3. TOV (minor stylistic tips are advisory; explicit material issues block)
  *
  * Hver gate returneres som `{ name, pass, detail }` og gemmes i Firestore
  * for transparens.
@@ -14,8 +15,11 @@ import type { GateResult } from '@/lib/liv/daily-history-store';
 import { internalApiHeaders } from '@/lib/api/internal-auth';
 import { logger } from '@/lib/logger';
 import { checkSourceSimilarity } from '@/lib/liv/source-similarity';
-import { articleFingerprint, isCompleteGroundedReport, type GroundedReport } from '@/lib/factcheck/grounded';
+import { articleFingerprint, articleUnits, isCompleteGroundedReport, type GroundedReport } from '@/lib/factcheck/grounded';
 import { z } from 'zod';
+import { isLivAuthor, loadLivVoice } from '@/lib/liv/voice';
+import { editorialVerdictPasses, readLivEditorialEvidence } from '@/lib/liv/editorial-assessment-contract';
+import { livCostHeaders } from '@/lib/liv/cost-context';
 
 export interface SafetyGatesInput {
   baseUrl: string;
@@ -59,6 +63,7 @@ interface FactcheckResponse {
   ok?: boolean;
   verificationMethod?: string;
   blockers?: string[];
+  editorialReview?: unknown;
   results?: Array<{
     claim?: string;
     status?: 'verified' | 'disputed' | 'unverifiable' | string;
@@ -95,13 +100,29 @@ function diagnosticReport(value: unknown, text: string): GroundedReport | undefi
   return { ...parsed.data, sources: parsed.data.sources.map(source => ({ ...source, publishedAt: source.publishedAt ?? null })) };
 }
 
-async function postJson<T>(url: string, body: unknown): Promise<T | null> {
+/** Reuse a real failed check, never turn it into approval. New sources, new
+ * text, partial coverage, infrastructure failures and stale checks need work. */
+function reusableFailedReport(value: unknown, text: string, sourceUrls: string[]): GroundedReport | undefined {
+  const report = diagnosticReport(value, text);
+  if (!report || report.complete || report.diagnostic || !report.results.some(result => result.status !== 'verified') ||
+      report.coverage.expectedUnits !== articleUnits(text).length ||
+      report.coverage.checkedUnits !== report.coverage.expectedUnits) return undefined;
+  const age = Date.now() - Date.parse(report.checkedAt);
+  if (age < 0 || age > 900_000) return undefined;
+  const expected = [...new Set(sourceUrls)].sort();
+  const checked = [...new Set(report.sources.map(source => source.url))].sort();
+  if (expected.length < 2 || JSON.stringify(expected) !== JSON.stringify(checked)) return undefined;
+  return report;
+}
+
+async function postJson<T>(url: string, body: unknown, timeoutMs: number): Promise<T | null> {
   try {
     const res = await fetch(url, {
       method: 'POST',
-      headers: internalApiHeaders(),
+      headers: internalApiHeaders(livCostHeaders(new URL(url).pathname)),
       body: JSON.stringify(body),
       cache: 'no-store',
+      signal: AbortSignal.timeout(timeoutMs),
     });
     if (!res.ok) return null;
     return (await res.json()) as T;
@@ -128,6 +149,8 @@ export async function runSafetyGates(input: SafetyGatesInput): Promise<SafetyGat
   let anyGateSkipped = false;
   const fullText = [intro, content].filter(Boolean).join('\n\n');
   const factcheckText = [title, ...additionalTexts, intro, content].filter(Boolean).join('\n\n');
+  const consolidated = requireCompleteVerification && isLivAuthor(authorName);
+  const voiceHash = consolidated ? loadLivVoice().hash : '';
 
   // --- Gate 0: Source similarity (paraphrasing/strukturel kopiering af kilden) ---
   // Køres først fordi det er det mest direkte plagiat-signal når Liv har
@@ -180,7 +203,7 @@ export async function runSafetyGates(input: SafetyGatesInput): Promise<SafetyGat
 
   // --- Gate 1: Moderation ---
   const modUrl = new URL('/api/moderation/check', baseUrl).toString();
-  const mod = await postJson<ModerationResponse>(modUrl, { title, content: fullText });
+  const mod = await postJson<ModerationResponse>(modUrl, { title, content: fullText }, timeoutMs);
 
   if (!mod) {
     const r: GateResult = { name: 'moderation', pass: false, detail: 'API svarede ikke' };
@@ -216,14 +239,17 @@ export async function runSafetyGates(input: SafetyGatesInput): Promise<SafetyGat
 
   // --- Gate 2: Factcheck ---
   const fcUrl = new URL('/api/factcheck', baseUrl).toString();
-  let fc: FactcheckResponse | null = isCompleteGroundedReport(input.priorFactcheck, factcheckText)
-    ? input.priorFactcheck! : null;
+  const priorEditorial = readLivEditorialEvidence((input.priorFactcheck as FactcheckResponse | undefined)?.editorialReview, factcheckText, voiceHash);
+  const sameSourceUrls = JSON.stringify([...new Set(sourceUrls)].sort()) ===
+    JSON.stringify([...new Set(input.priorFactcheck?.sources?.map(source => source.url) || [])].sort());
+  let fc: FactcheckResponse | null = isCompleteGroundedReport(input.priorFactcheck, factcheckText) && (!consolidated || (priorEditorial && sameSourceUrls))
+    ? input.priorFactcheck! : reusableFailedReport(input.priorFactcheck, factcheckText, sourceUrls) || null;
   let fcHttpStatus: number | null = null;
   if (!fc) try {
     const res = await fetch(fcUrl, {
       method: 'POST',
-      headers: internalApiHeaders(),
-      body: JSON.stringify({ articleText: factcheckText, sourceUrls }),
+      headers: internalApiHeaders(livCostHeaders('/api/factcheck')),
+      body: JSON.stringify({ articleText: factcheckText, sourceUrls, ...(consolidated ? { editorialReview: 'liv-v1' } : {}) }),
       cache: 'no-store',
       signal: AbortSignal.timeout(timeoutMs),
     });
@@ -293,9 +319,33 @@ export async function runSafetyGates(input: SafetyGatesInput): Promise<SafetyGat
     });
   }
 
-  // --- Gate 3: TOV (rådgivende) ---
+  // Do not buy an editorial review of a version that already cannot pass.
+  // Keep the exact diagnostic report available for the one targeted repair.
+  if (requireCompleteVerification && anyGateSkipped) {
+    results.push({ name: 'verification-complete', pass: false,
+      detail: 'Mindst én sikkerhedsgate blev sprunget over; auto-publish er blokeret.' });
+    return { pass: false, failedGate: 'verification-complete', results, anyGateSkipped };
+  }
+
+  // Both gates come from the same real assessment. Missing editorial evidence
+  // must block; never fall back to a second paid critic or infer voice approval
+  // from factual completeness alone.
+  if (consolidated) {
+    const editorial = readLivEditorialEvidence(fc?.editorialReview, factcheckText, voiceHash);
+    if (!editorial) {
+      results.push({ name: 'tov', pass: false, skipped: true, detail: 'Den samlede vurdering mangler gyldigt redaktionelt belæg.' });
+      results.push({ name: 'verification-complete', pass: false, detail: 'Den redaktionelle vurdering er ikke fuldstændig.' });
+      return { pass: false, failedGate: 'verification-complete', anyGateSkipped: true, results };
+    }
+    const pass = editorialVerdictPasses(editorial);
+    results.push({ name: 'tov', pass, detail: pass ? editorial.summary : editorial.blockingIssues
+      .map(issue => `${issue.kind}: ${issue.explanation} (${issue.articleQuote})`).join(' | ') });
+    return { pass, ...(!pass ? { failedGate: 'tov' } : {}), results, anyGateSkipped };
+  }
+
+  // --- Gate 3: legacy advisory critic for non-Liv/manual flows ---
   const tovUrl = new URL('/api/critic/tov', baseUrl).toString();
-  const tov = await postJson<TovResponse>(tovUrl, { text: fullText, author: authorName });
+  const tov = await postJson<TovResponse>(tovUrl, { text: fullText, author: authorName }, timeoutMs);
   const tipsRaw = tov?.data?.tips || '';
   if (!tipsRaw.trim()) anyGateSkipped = true;
   // TOV-gate er informativ — vi blokerer kun hvis kritiker eksplicit siger

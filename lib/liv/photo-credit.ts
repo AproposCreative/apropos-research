@@ -2,7 +2,7 @@ import { load } from 'cheerio';
 
 /** A source-selection policy, not a licence assertion or a URL-fetch permission. */
 export function isLivOfficialImageSource(pageUrl: string): boolean {
-  const hosts = (process.env.LIV_OFFICIAL_IMAGE_HOSTS || 'sfstudios.dk,sfstudios.com,a24films.com,nordiskfilm.dk')
+  const hosts = (process.env.LIV_OFFICIAL_IMAGE_HOSTS || 'sfstudios.dk,sfstudios.com,a24films.com,nordiskfilm.dk,distribution.paradisbio.dk,tivoli.dk,goldendays.dk')
     .split(',').map(host => host.trim().toLowerCase()).filter(host => /^[a-z0-9.-]+\.[a-z]+$/.test(host));
   try {
     const host = new URL(pageUrl).hostname.toLowerCase();
@@ -21,5 +21,19 @@ export function extractLivPhotoCredit(html: string, imageUrl: string, pageUrl: s
     const match = caption.match(/(?:\b(?:foto(?:grafi)?|photo(?:graph)?|credit)\s*:\s*|©\s*)(.{2,180})$/i);
     if (match && !/[<>\x00-\x1f]/.test(match[1])) return match[0];
   }
+  // A distributor's exact film press-download link proves the source, not the
+  // photographer or a licence. Never invent a photographer from the site footer.
+  if (isParadisPressStill(imageUrl, pageUrl) && $('a[href]').toArray().some(node =>
+      absolute($(node).attr('href')) === imageUrl)) return 'Pressebillede: Øst for Paradis';
   return null;
+}
+
+export function isParadisPressStill(imageUrl: string, pageUrl: string): boolean {
+  try {
+    const page = new URL(pageUrl), image = new URL(imageUrl), id = page.searchParams.get('id');
+    return [page, image].every(url => url.origin === 'https://distribution.paradisbio.dk' &&
+      !url.username && !url.password && !url.port && !url.hash) && page.pathname === '/film.asp' &&
+      page.searchParams.size === 1 && !!id && /^[1-9][0-9]{0,5}$/.test(id) && !image.search &&
+      new RegExp(`^/log/film/[^/]+ \\(${id}\\)/[^/]+_[0-9]{2}\\.jpg$`).test(decodeURIComponent(image.pathname));
+  } catch { return false; }
 }

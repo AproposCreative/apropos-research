@@ -34,19 +34,17 @@ beforeEach(() => {
 });
 afterEach(() => vi.useRealTimers());
 
-it('starts both bounded utility searches in parallel with the exact quoted topic and host exclusions', async () => {
-  let release!: (value: ReturnType<typeof results>) => void;
-  mocks.search.mockImplementation(() => new Promise(resolve => { release = resolve; }));
+it('starts one bounded utility search without paid fallback with the exact topic and host exclusions', async () => {
   const first = Promise.withResolvers<ReturnType<typeof results>>();
   mocks.search.mockImplementationOnce(() => first.promise);
   const pending = supplementLivResearch(article, 'Alle Guds farver');
-  expect(mocks.search).toHaveBeenCalledTimes(2);
+  expect(mocks.search).toHaveBeenCalledTimes(1);
   for (const [query, options] of mocks.search.mock.calls) {
     expect(query).toContain('"Alle Guds farver"');
     for (const domain of ['soundvenue.com', 'newtales.dk', 'kino.dk']) expect(query).toContain(`-site:${domain}`);
-    expect(options).toEqual({ maxResults: 5, model: 'fixture-utility', timeoutMs: 30000 });
+    expect(options).toEqual({ maxResults: 5, model: 'fixture-utility', timeoutMs: 30000, allowFallback: false });
   }
-  first.resolve(results([])); release(results([])); await pending;
+  first.resolve(results([])); await pending;
 });
 
 it('preserves all existing records and every non-research field, including text, media and image hash', async () => {
@@ -65,10 +63,10 @@ it('preserves all existing records and every non-research field, including text,
   expect(livImageArticleHash(updated)).toBe(livImageArticleHash(article));
 });
 
-it('prioritizes retrieved dated pages across both queries before undated pages and caps total at eight', async () => {
+it('prioritizes retrieved dated pages before undated pages and caps total at eight', async () => {
   const undated = Array.from({ length: 5 }, (_, i) => `https://press.example/undated-${i}`);
   const dated = Array.from({ length: 3 }, (_, i) => `https://news.example/dated-${i}`);
-  mocks.search.mockResolvedValueOnce(results(undated)).mockResolvedValueOnce(results(dated));
+  mocks.search.mockResolvedValueOnce(results([...undated, ...dated]));
   mocks.retrieve.mockImplementation(async (url, id) => ({ id, url, title: 'Retrieved', text: 'evidence '.repeat(40),
     contentHash: 'hash', retrievedAt: now, publishedAt: url.includes('/undated') ? null : '2026-09-11T00:00:00Z' }));
   const updated = await supplementLivResearch(article, article.title);
@@ -82,7 +80,6 @@ it('filters unsafe URLs, existing hosts, and canonical duplicates before retriev
   mocks.search.mockResolvedValueOnce(results([
     'https://www.soundvenue.com/new', 'https://news.kino.dk/new', 'https://127.0.0.1/private',
     'https://user:password@press.example/private', 'https://www.press.example/news/?utm_source=openai',
-  ])).mockResolvedValueOnce(results([
     'https://press.example/news', 'http://press.example/unsafe', 'https://publisher.internal/a',
     'https://www.newtales.dk/other', 'https://www.press.example/news/?gclid=x',
   ]));
@@ -102,9 +99,7 @@ it('never trusts search dates or turns failed and short downloads into evidence'
   expect(updated.researchSupplementedAt).toBe(now);
 });
 
-it('retains useful evidence when one search fails and records an empty attempt without inventing sources', async () => {
-  mocks.search.mockRejectedValueOnce(new Error('provider failed')).mockResolvedValueOnce(results(['https://press.example/news']));
-  expect((await supplementLivResearch(article, article.title)).researchSources).toHaveLength(4);
+it('records a failed attempt without new sources or another paid search', async () => {
   mocks.search.mockRejectedValue(new Error('provider failed'));
   const empty = await supplementLivResearch(article, article.title);
   expect(empty.researchSources).toEqual(article.researchSources);

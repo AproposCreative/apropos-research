@@ -7,6 +7,7 @@ import {
 import type { PickedTopic } from '@/lib/liv/pick-topic';
 import { parseResearchRating } from '@/lib/liv/review-format';
 import { livImageArticleHash } from '@/lib/liv/article-image-hash';
+import { countLivBodyWords } from '@/lib/liv/article-length';
 
 function articleIdFromSlug(slug: string): string {
   return `liv-daily-${slug}-${Date.now().toString(36)}`.slice(0, 80);
@@ -32,7 +33,7 @@ export function buildLivCmsPayload(input: {
   const section = article.section || input.sectionFallback || 'Kultur';
   const status = normalizeStatus(input.status);
   const publishDate = new Date().toISOString();
-  const wordCount = article.content.split(/\s+/).filter(Boolean).length;
+  const wordCount = countLivBodyWords(article.content);
 
   const imageSourceUrls: string[] = [];
   const pushUrl = (u?: string | null) => {
@@ -71,8 +72,11 @@ export function buildLivCmsPayload(input: {
     readTime: Math.max(1, Math.ceil(wordCount / 200)),
     wordCount,
     presseakkreditering: false,
-    aiGenerated: true,
-    ...(article.rating !== undefined ? { rating: article.rating } : {}),
+    // Public CMS label is disabled by editorial choice; model/source provenance remains below.
+    aiGenerated: false,
+    articleFormat: article.articleFormat || 'article',
+    ...(article.subjectType ? { subjectType: article.subjectType } : {}),
+    ...(article.rating !== undefined ? { rating: article.rating, ratingReason: article.ratingReason } : {}),
     aiSourceUrl: topic.source?.url || null,
     aiModel: article.aiModel || input.aiModel || null,
     featuredImage: thumbCandidate,

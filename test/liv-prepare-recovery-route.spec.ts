@@ -39,7 +39,7 @@ it.each([
 ])('does not regenerate preserved or terminal work: %j', async row => {
   mocks.row = row;
   const response = await GET(request());
-  expect((await response.json()).status).toBe('no_unstarted_work');
+  expect(await response.json()).toMatchObject({ status: 'blocked_saved_work', day: '2026-09-12', runStatus: row.status });
   expect(mocks.run).not.toHaveBeenCalled();
 });
 it('keeps authentication before preparation and storage', async () => {
@@ -61,7 +61,8 @@ it('skips exhausted complete-media failures without granting another attempt', a
   mocks.row = { status: 'failed', preparationAttempts: 5,
     articleCheckpoint: { content: 'Paid text', preparedMedia: [{}, {}, {}] } };
   const before = structuredClone(mocks.row);
-  expect((await (await GET(request())).json()).status).toBe('no_unstarted_work');
+  expect(await (await GET(request())).json()).toEqual({ status: 'blocked_saved_work', day: '2026-09-12',
+    scope: 'prepare', runStatus: 'failed', reasonCode: 'retry_limit_reached' });
   expect(mocks.run).not.toHaveBeenCalled();
   expect(mocks.row).toEqual(before);
 });
@@ -89,7 +90,7 @@ function coverTodayAndTomorrow() {
   mocks.state.entries.push({ ...reserveItem(9), kind: 'scheduled', scheduledDay: '2026-09-13', expiresDay: '2026-09-13' });
 }
 
-it('advances from one to three ready reserves and then the rest of the week without recovering existing stock', async () => {
+it('does no paid work when tomorrow is ready, regardless of missing reserve stock', async () => {
   coverTodayAndTomorrow();
   for (let ready = 1; ready <= 3; ready++) {
     const index = ready - 1;
@@ -97,25 +98,23 @@ it('advances from one to three ready reserves and then the rest of the week with
     mocks.rows.set(`reserve-${reserveDays[index]}`, savedReserve(index));
     const before = structuredClone({ state: mocks.state, rows: [...mocks.rows] });
     await GET(request());
-    expect(mocks.run).toHaveBeenLastCalledWith(expect.any(NextRequest), expect.objectContaining({
-      dayKey: ready < 3 ? reserveDays[ready] : '2026-09-14', kind: ready < 3 ? 'reserve' : 'scheduled',
-    }));
+    expect(mocks.run).not.toHaveBeenCalled();
     expect({ state: mocks.state, rows: [...mocks.rows] }).toEqual(before);
   }
-  expect(mocks.run).toHaveBeenCalledTimes(3);
+  expect(mocks.run).not.toHaveBeenCalled();
   expect(mocks.admit).not.toHaveBeenCalled();
 });
-it.each(['selected', 'published', 'rejected'] as const)('preserves %s reserve work while selecting the next missing job', async state => {
+it.each(['selected', 'published', 'rejected'] as const)('preserves %s legacy reserve work without refilling it', async state => {
   coverTodayAndTomorrow();
   mocks.state.entries.push({ ...reserveItem(0), state });
   mocks.rows.set(`reserve-${today}`, savedReserve(0));
   const before = structuredClone(mocks.state);
   await GET(request());
-  expect(mocks.run).toHaveBeenCalledWith(expect.any(NextRequest), expect.objectContaining({ dayKey: '2026-09-13', kind: 'reserve' }));
+  expect(mocks.run).not.toHaveBeenCalled();
   expect(mocks.admit).not.toHaveBeenCalled();
   expect(mocks.state).toEqual(before);
 });
-it('reaches later scheduled work when all reserve job IDs exist but fewer than three remain available', async () => {
+it('does not start later scheduled work merely because old reserve IDs are occupied', async () => {
   coverTodayAndTomorrow();
   const states = ['ready', 'selected', 'rejected'] as const;
   states.forEach((state, index) => {
@@ -124,17 +123,16 @@ it('reaches later scheduled work when all reserve job IDs exist but fewer than t
   });
   const before = structuredClone({ state: mocks.state, rows: [...mocks.rows] });
   await GET(request());
-  expect(mocks.run).toHaveBeenCalledTimes(1);
-  expect(mocks.run).toHaveBeenCalledWith(expect.any(NextRequest), expect.objectContaining({ dayKey: '2026-09-14', kind: 'scheduled' }));
+  expect(mocks.run).not.toHaveBeenCalled();
   expect(mocks.admit).not.toHaveBeenCalled();
   expect({ state: mocks.state, rows: [...mocks.rows] }).toEqual(before);
 });
-it('does not re-admit an editorially rejected reserve or let it block a later job', async () => {
+it('does not re-admit or replace an editorially rejected legacy reserve', async () => {
   coverTodayAndTomorrow();
   mocks.state.entries.push({ ...reserveItem(0), decision: 'rejected' });
   mocks.rows.set(`reserve-${today}`, savedReserve(0));
   await GET(request());
-  expect(mocks.run).toHaveBeenCalledWith(expect.any(NextRequest), expect.objectContaining({ dayKey: '2026-09-13', kind: 'reserve' }));
+  expect(mocks.run).not.toHaveBeenCalled();
   expect(mocks.state.entries[1].decision).toBe('rejected');
   expect(mocks.admit).not.toHaveBeenCalled();
 });
@@ -145,29 +143,71 @@ it('preserves an item owned by an ambiguous delivery slot even when its manifest
   const before = structuredClone(mocks.state);
   await GET(request());
   expect(mocks.admit).not.toHaveBeenCalled();
-  expect(mocks.run).toHaveBeenCalledWith(expect.any(NextRequest), expect.objectContaining({ dayKey: '2026-09-13', kind: 'reserve' }));
+  expect(mocks.run).not.toHaveBeenCalled();
   expect(mocks.state).toEqual(before);
 });
-it('recovers an unadmitted paid CMS draft once, then advances past it on the next invocation', async () => {
+it('recovers tomorrow’s unadmitted paid CMS draft once, then stops spending', async () => {
   coverTodayAndTomorrow();
-  mocks.rows.set(`reserve-${today}`, savedReserve(0));
+  mocks.state.entries = [];
+  mocks.rows.set('prepare-2026-09-13', savedReserve(0));
   const before = structuredClone([...mocks.rows]);
-  mocks.admit.mockImplementationOnce(async () => { mocks.state.entries.push(reserveItem(0)); });
-  expect(await (await GET(request())).json()).toEqual({ status: 'recovered_ready_draft', day: today });
+  mocks.admit.mockImplementationOnce(async () => { mocks.state.entries.push({ ...reserveItem(0), kind: 'scheduled',
+    scheduledDay: '2026-09-13', expiresDay: '2026-09-13' }); });
+  expect(await (await GET(request())).json()).toEqual({ status: 'recovered_ready_draft', day: '2026-09-13' });
   expect(mocks.run).not.toHaveBeenCalled();
   await GET(request());
-  expect(mocks.run).toHaveBeenCalledWith(expect.any(NextRequest), expect.objectContaining({ dayKey: '2026-09-13', kind: 'reserve' }));
+  expect(mocks.run).not.toHaveBeenCalled();
   expect(mocks.admit).toHaveBeenCalledTimes(1);
   expect([...mocks.rows]).toEqual(before);
 });
-it.each(['no-op', 'failed'])('moves past %s admission without claiming recovery or regenerating its saved work', async outcome => {
+it.each(['no-op', 'failed'])('retains %s admission without claiming recovery or regenerating its saved work', async outcome => {
   coverTodayAndTomorrow();
-  mocks.rows.set(`reserve-${today}`, savedReserve(0));
+  mocks.state.entries = [];
+  mocks.rows.set('prepare-2026-09-13', savedReserve(0));
   const before = structuredClone([...mocks.rows]);
   if (outcome === 'failed') mocks.admit.mockRejectedValueOnce(new Error('liv_preparation_cms_not_ready'));
   const response = await GET(request());
-  expect((await response.json()).status).toBe('fixture');
-  expect(mocks.run).toHaveBeenCalledTimes(1);
-  expect(mocks.run).toHaveBeenCalledWith(expect.any(NextRequest), expect.objectContaining({ dayKey: '2026-09-13', kind: 'reserve' }));
+  expect(await response.json()).toMatchObject({ status: 'blocked_saved_work', day: '2026-09-13', reasonCode: 'cms_reconciliation_required' });
+  expect(mocks.run).not.toHaveBeenCalled();
+  expect(mocks.admit).toHaveBeenCalledTimes(1);
   expect([...mocks.rows]).toEqual(before);
+});
+
+it('starts the separate alternative job after rejection and retains the original CMS identity', async () => {
+  coverTodayAndTomorrow();
+  mocks.state.entries[0].decision = 'rejected';
+  mocks.rows.set('prepare-2026-09-13', { status: 'draft', webflowItemId: mocks.state.entries[0].itemId });
+  const before = structuredClone({ state: mocks.state, rows: [...mocks.rows] });
+  await GET(request());
+  expect(mocks.run).toHaveBeenCalledWith(expect.any(NextRequest), expect.objectContaining({
+    dayKey: '2026-09-13', kind: 'scheduled', scope: 'prepare-alternative' }));
+  expect({ state: mocks.state, rows: [...mocks.rows] }).toEqual(before);
+  expect(mocks.admit).not.toHaveBeenCalled();
+});
+
+it('does not create a third paid story after two explicit rejections', async () => {
+  coverTodayAndTomorrow();
+  mocks.state.entries[0].decision = 'rejected';
+  mocks.state.entries.push({ ...mocks.state.entries[0], itemId: 'b'.repeat(24) });
+  expect((await (await GET(request())).json()).status).toBe('no_unstarted_work');
+  expect(mocks.run).not.toHaveBeenCalled();
+});
+
+it('reports an automatic prewrite rejection without starting an unauthorized alternative', async () => {
+  coverTodayAndTomorrow();
+  mocks.state.entries[0].state = 'rejected';
+  mocks.rows.set('prepare-2026-09-13', { status: 'draft', webflowItemId: mocks.state.entries[0].itemId });
+  expect(await (await GET(request())).json()).toMatchObject({ status: 'blocked_saved_work', scope: 'prepare',
+    day: '2026-09-13', reasonCode: 'cms_reconciliation_required' });
+  expect(mocks.run).not.toHaveBeenCalled(); expect(mocks.admit).not.toHaveBeenCalled();
+});
+
+it('never exposes persisted provider messages or paid content in a blocked response', async () => {
+  mocks.row = { status: 'skipped_factcheck', preparationAttempts: 5, reason: 'provider-secret https://private.example',
+    articleCheckpoint: { content: 'Private paid article', preparedMedia: [{}, {}, {}] }, sources: ['private-source'],
+    rawResponse: 'raw-model', usage: { cost: 999 } };
+  const before = structuredClone(mocks.row);
+  expect(await (await GET(request())).json()).toEqual({ status: 'blocked_saved_work', day: '2026-09-12',
+    scope: 'prepare', runStatus: 'skipped_factcheck', reasonCode: 'factcheck_required' });
+  expect(mocks.row).toEqual(before); expect(mocks.run).not.toHaveBeenCalled();
 });

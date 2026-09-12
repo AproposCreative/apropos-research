@@ -60,10 +60,9 @@ export function normalizeArticlePayload(
   const source = input.source || options.source || 'unknown';
   const aiGenerated =
     input.aiGenerated ??
-    (source === 'liv' ||
-      !!input.aiModel ||
-      !!input.aiSourceUrl ||
-      /liv\s*brandt/i.test(author));
+    (source === 'liv' || /liv\s*brandt/i.test(author)
+      ? false
+      : !!input.aiModel || !!input.aiSourceUrl);
 
   return {
     id: input.id || `article-${Date.now().toString(36)}`,
@@ -78,6 +77,9 @@ export function normalizeArticlePayload(
     tags: Array.isArray(input.tags) ? input.tags : [],
     author,
     rating: input.rating,
+    ...(input.articleFormat ? { articleFormat: input.articleFormat } : {}),
+    ...(input.subjectType ? { subjectType: input.subjectType } : {}),
+    ...(input.ratingReason ? { ratingReason: input.ratingReason } : {}),
     featuredImage: input.featuredImage,
     featuredImageAlt: input.featuredImageAlt,
     featuredImageHash: input.featuredImageHash,

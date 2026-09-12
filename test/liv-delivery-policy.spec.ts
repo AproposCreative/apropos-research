@@ -73,31 +73,55 @@ describe('daily delivery policy', () => {
     state.slots[day].leaseUntil = 0; state.slots[day].nextAttemptAt = 500000;
     expect(selectDelivery(state, day, 400000, 'retry')).toBeNull();
   });
-  it('reports a missing daily publication, empty reserve and all seven uncovered dates', () => {
+  it('reports a missing daily publication and only tomorrow, without a reserve requirement', () => {
     const health = deliveryHealth(emptyDeliveryState(), new Date('2026-09-11T08:15:00Z'));
-    expect(health).toMatchObject({ overdue: true, published: false, reserves: 0, reserveTarget: 3 });
-    expect(health.missingDays).toHaveLength(7);
+    expect(health).toMatchObject({ overdue: true, published: false, reserves: 0, reserveTarget: 0 });
+    expect(health.missingDays).toEqual(['2026-09-12']);
   });
   it('does not report overdue before the deadline', () => {
     expect(deliveryHealth(emptyDeliveryState(), new Date('2026-09-11T07:59:00Z')).overdue).toBe(false);
   });
-  it('prepares today, tomorrow, then reserves and the rest of the week', () => {
+  it('prepares only today when missing, never a speculative backlog', () => {
     const jobs = preparationCandidates(emptyDeliveryState(), day);
-    expect(jobs.slice(0, 5).map(j => j.kind)).toEqual(['scheduled', 'scheduled', 'reserve', 'reserve', 'reserve']);
-    expect(jobs.filter(j => j.kind === 'scheduled')).toHaveLength(8);
+    expect(jobs).toEqual([{ dayKey: day, kind: 'scheduled' }]);
   });
   it('does not generate another article for a covered day or spill into artificial future dates', () => {
     const state = emptyDeliveryState(); state.entries = [entry()];
     const jobs = preparationCandidates(state, day);
     expect(jobs[0].dayKey).toBe('2026-09-12');
-    expect(jobs.every(j => j.dayKey <= addDays(day, 7))).toBe(true);
+    expect(jobs).toHaveLength(1);
+    expect(jobs.every(j => j.dayKey <= addDays(day, 1))).toBe(true);
   });
-  it('counts only ready unexpired reserves toward the target', () => {
+  it('does not refill existing reserve stock when a reserve is consumed', () => {
     const state = emptyDeliveryState();
     state.entries = [0, 1, 2].map(i => entry({ itemId: String(i), kind: 'reserve' }));
     expect(preparationCandidates(state, day).some(j => j.kind === 'reserve')).toBe(false);
     state.entries[0].state = 'published';
-    expect(preparationCandidates(state, day).some(j => j.kind === 'reserve')).toBe(true);
+    expect(preparationCandidates(state, day).some(j => j.kind === 'reserve')).toBe(false);
+  });
+  it('stops paid preparation completely once today and tomorrow are covered', () => {
+    const state = emptyDeliveryState();
+    state.entries = [entry(), entry({ itemId: 'tomorrow', scheduledDay: addDays(day, 1), expiresDay: addDays(day, 1) })];
+    expect(preparationCandidates(state, day)).toEqual([]);
+  });
+  it('creates one separately identified alternative after rejection without mutating saved work', () => {
+    const state = emptyDeliveryState(); state.entries = [entry({ decision: 'rejected' })];
+    const before = structuredClone(state);
+    expect(preparationCandidates(state, day)).toEqual([{ dayKey: day, kind: 'scheduled', scope: 'prepare-alternative' }]);
+    expect(state).toEqual(before);
+    state.entries.push(entry({ itemId: 'alternative', decision: 'rejected' }));
+    expect(preparationCandidates(state, day)).toEqual([]);
+  });
+  it.each([undefined, 'pending', 'approved'] as const)('does not treat worker rejection as editorial permission: %s', decision => {
+    const state = emptyDeliveryState(); state.entries = [entry({ state: 'rejected', decision })];
+    const before = structuredClone(state);
+    expect(preparationCandidates(state, day)).toEqual([{ dayKey: day, kind: 'scheduled' }]);
+    expect(state).toEqual(before);
+  });
+  it('does not spend on fresh articles while a publication outcome is uncertain', () => {
+    const state = emptyDeliveryState();
+    state.slots[day] = { itemId: 'uncertain', token: 'x', state: 'attempted', leaseUntil: 0, attempts: 1, nextAttemptAt: 0 };
+    expect(preparationCandidates(state, day)).toEqual([]);
   });
   it('uses question-led features without fabricated current events or ratings as fallback', () => {
     const plan = defaultEditorialPlan(day, true);

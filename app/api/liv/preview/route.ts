@@ -177,9 +177,10 @@ async function buildPreview(req: NextRequest, input: PreviewRequestInput, uid: s
       gateResults: gates.results,
       article: {
         articleFormat: article.articleFormat,
+        subjectType: article.subjectType,
         rating: article.rating,
         ratingReason: article.ratingReason,
-        aiGenerated: true,
+        aiGenerated: false,
         aiModel: article.aiModel,
         voiceVersion: article.voiceVersion,
         voiceHash: article.voiceHash,

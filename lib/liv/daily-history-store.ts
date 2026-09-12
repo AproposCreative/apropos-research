@@ -16,7 +16,7 @@ import type { PreparationProof } from '@/lib/liv/prepared-admission';
 import { canRetryUnstartedPreparation, shouldExcludeLivTopic } from '@/lib/liv/preparation-retry';
 
 export const LIV_DAILY_COLLECTION = 'livDailyArticles';
-export type LivDailyScope = 'daily' | 'prepare' | 'reserve';
+export type LivDailyScope = 'daily' | 'prepare' | 'prepare-alternative' | 'reserve';
 
 /** Dokument-id til daglig auto-publish: `daily-2026-04-20` (UTC). */
 export function livDailyDocId(dayKey: string, scope: LivDailyScope = 'daily'): string {
@@ -129,7 +129,7 @@ export async function claimLivDaily(dayKey: string, scope: LivDailyScope = 'dail
 }
 
 /** Yield only after a durable checkpoint. The next API invocation resumes it. */
-export async function yieldLivPreparation(dayKey: string, scope: 'prepare' | 'reserve') {
+export async function yieldLivPreparation(dayKey: string, scope: Exclude<LivDailyScope, 'daily'>) {
   const db = getAdminDb();
   if (!db) throw new Error('liv_preparation_store_unavailable');
   const ref = db.collection(LIV_DAILY_COLLECTION).doc(livDailyDocId(dayKey, scope));
@@ -175,7 +175,7 @@ export async function checkpointLivDailyCmsItem(dayKey: string, itemId: string, 
 }
 
 /** Before CMS create: a later timeout must not cause a second create. */
-export async function checkpointPreparationProof(dayKey: string, scope: 'prepare' | 'reserve', proof: PreparationProof) {
+export async function checkpointPreparationProof(dayKey: string, scope: Exclude<LivDailyScope, 'daily'>, proof: PreparationProof) {
   const db = getAdminDb();
   if (!db) throw new Error('liv_preparation_store_unavailable');
   const ref = db.collection(LIV_DAILY_COLLECTION).doc(livDailyDocId(dayKey, scope));

@@ -3,24 +3,33 @@ import sharp from 'sharp';
 import { createHash } from 'node:crypto';
 const mocks = vi.hoisted(() => ({ row: undefined as any, writes: vi.fn(), stages: vi.fn(), save: vi.fn(), download: vi.fn(),
   stageRows: {} as Record<string, any>, files: new Map<string, Buffer>(), getMetadata: vi.fn(),
-  chat: vi.fn(), generate: vi.fn(), read: vi.fn(), dbAvailable: true, keyAvailable: true }));
+  chat: vi.fn(), generate: vi.fn(), read: vi.fn(), dbAvailable: true, keyAvailable: true, tail: Promise.resolve() as Promise<unknown> }));
 vi.mock('@/lib/firebase-admin', () => ({
   getAdminDb: () => mocks.dbAvailable ? {
-    collection: () => ({ doc: () => ({ collection: () => ({ kind: 'stages', doc: (stage: string) => ({ stage }) }) }) }),
-    runTransaction: async (fn: any) => fn({
+    collection: () => ({ doc: () => ({
+      get: async () => ({ exists: false, data: () => undefined }),
+      collection: () => ({ kind: 'stages', doc: (stage: string) => ({ stage }) }) }) }),
+    runTransaction: (fn: any) => {
+      const result = mocks.tail.then(async () => {
+      const writes: Array<() => void> = [];
+      const value = await fn({
       get: async (ref: any) => ref.kind === 'stages'
         ? { docs: Object.entries(mocks.stageRows).map(([id, data]) => ({ id, data: () => structuredClone(data) })) }
-        : { data: () => mocks.row },
-      set: (ref: any, patch: any, options?: any) => {
+        : { data: () => structuredClone(ref.stage ? mocks.stageRows[ref.stage] : mocks.row) },
+      set: (ref: any, patch: any, options?: any) => writes.push(() => {
         if (ref.stage) {
           mocks.stages(patch, options);
-          mocks.stageRows[ref.stage] = { ...mocks.stageRows[ref.stage], ...patch };
+          mocks.stageRows[ref.stage] = options?.merge ? { ...mocks.stageRows[ref.stage], ...patch } : patch;
         } else {
           mocks.writes(patch);
           mocks.row = options?.merge ? { ...mocks.row, ...patch } : patch;
         }
-      },
-    }),
+      }),
+      });
+      writes.forEach(write => write()); return value;
+      });
+      mocks.tail = result.catch(() => undefined); return result;
+    },
   } : null,
   getAdminStorageBucket: () => ({ file: (path: string) => ({
     save: async (bytes: Buffer, options: unknown) => { await mocks.save(bytes, options); mocks.files.set(path, bytes); },
@@ -34,12 +43,13 @@ import { livMediaRuntime, aproposIllustrationStyle } from '@/lib/liv/automatic-m
 import type { GeneratedArticle } from '@/lib/liv/generate-article';
 import { livImageArticleHash } from '@/lib/liv/article-image-hash';
 import { prepareLivAutomaticMedia } from '@/lib/liv/automatic-media';
+import { LivCostPretransportError } from '@/lib/liv/cost-errors';
 const id = 'b'.repeat(64);
 const article = { title: 'Kunst i byen', intro: 'Kunst med mening', slug: 'kunst-i-byen', content: '<p>Indhold</p>' } as GeneratedArticle;
 let image: Buffer;
 beforeAll(async () => { image = await sharp({ create: { width: 1000, height: 600, channels: 3, background: '#ff3388' } }).png().toBuffer(); });
 beforeEach(() => {
-  vi.resetAllMocks(); mocks.row = undefined; mocks.stageRows = {}; mocks.files.clear(); mocks.dbAvailable = true; mocks.keyAvailable = true;
+  vi.resetAllMocks(); mocks.row = undefined; mocks.stageRows = {}; mocks.files.clear(); mocks.dbAvailable = true; mocks.keyAvailable = true; mocks.tail = Promise.resolve();
   vi.stubEnv('FIREBASE_STORAGE_BUCKET', 'test-bucket');
   vi.stubEnv('LIV_IMAGE_MODEL', 'gpt-image-1.5');
   vi.stubEnv('AI_IMAGE_GENERATION_ENABLED', 'true');
@@ -283,4 +293,97 @@ it('does not repeat a completed rejection or an approval bound to the exact revi
   await third.claim(id, article, 'illustration', 'expressive');
   expect(await third.review(article, 'illustration', images, id)).toBe(false);
   expect(mocks.chat).toHaveBeenCalledTimes(1);
+});
+it.each(['plan-call', 'hero-call', 'body-1-call', 'body-2-call', 'visual-review'])('saves exact unpaid %s evidence and archives it on guarded resumption', async stage => {
+  const first = livMediaRuntime();
+  await first.claim(id, article, 'illustration', 'expressive');
+  if (stage !== 'plan-call') mocks.stageRows.plan = { plan: savedPlan };
+  const invoke = (deps: ReturnType<typeof livMediaRuntime>) => stage === 'plan-call'
+    ? deps.plan(article, 'illustration', 'expressive', [], id)
+    : stage === 'visual-review' ? deps.review(article, 'illustration', [{ bytes: image, alt: 'Kunst', caption: 'Kunstmotiv' }], id)
+      : deps.generate('Samme motiv', id, stage.replace('-call', '') as 'hero' | 'body-1' | 'body-2');
+  const provider = stage === 'plan-call' || stage === 'visual-review' ? mocks.chat : mocks.generate;
+  provider.mockRejectedValueOnce(new Error('SDK wrapper', { cause: new LivCostPretransportError('liv_cost_monthly_budget_exceeded') }));
+  await expect(invoke(first)).rejects.toThrow('SDK wrapper');
+  const unpaid = structuredClone(mocks.stageRows[stage]);
+  expect(unpaid).toMatchObject({ status: 'not_started', notStarted: { version: 1, jobId: id, stage,
+    providerAttempted: false, code: 'liv_cost_monthly_budget_exceeded', attemptId: unpaid.attemptId, requestHash: unpaid.requestHash } });
+  await first.fail(id);
+  const second = livMediaRuntime();
+  await second.claim(id, article, 'illustration', 'expressive');
+  await invoke(second);
+  expect(mocks.stageRows[stage].status).toBe('complete');
+  expect(mocks.stageRows[stage].notStarted).toBeUndefined();
+  expect(mocks.stageRows[`${stage}-unpaid-${unpaid.attemptId}`]).toEqual({ previous: unpaid });
+  expect(provider).toHaveBeenCalledTimes(2);
+});
+it('rejects changed unpaid-stage inputs, double reclamation and stale-owner denial writes', async () => {
+  seedFailed();
+  const first = livMediaRuntime();
+  await first.claim(id, article, 'illustration', 'expressive');
+  mocks.generate.mockRejectedValueOnce(new LivCostPretransportError('liv_cost_call_limit_exceeded'));
+  await expect(first.generate('Motiv', id, 'hero')).rejects.toThrow('call_limit');
+  await first.fail(id);
+  const second = livMediaRuntime();
+  const claims = await Promise.allSettled([second.claim(id, article, 'illustration', 'expressive'),
+    livMediaRuntime().claim(id, article, 'illustration', 'expressive')]);
+  expect(claims.map(x => x.status)).toEqual(['fulfilled', 'rejected']);
+  await expect(second.generate('Changed motive', id, 'hero')).rejects.toThrow('reconciliation');
+  expect(mocks.generate).toHaveBeenCalledTimes(1);
+  let rejectPending!: (error: Error) => void;
+  mocks.generate.mockImplementationOnce(() => new Promise((_, reject) => { rejectPending = reject; }));
+  const pending = second.generate('Motiv', id, 'hero');
+  await vi.waitFor(() => expect(mocks.generate).toHaveBeenCalledTimes(2));
+  await expect(second.generate('Motiv', id, 'hero')).rejects.toThrow('reconciliation');
+  mocks.row.owner = 'different-owner';
+  rejectPending(new LivCostPretransportError('liv_cost_monthly_budget_exceeded'));
+  await expect(pending).rejects.toThrow('reconciliation');
+  expect(mocks.stageRows['hero-call'].status).toBe('processing');
+});
+it.each(['stage', 'requestHash', 'attemptId', 'providerAttempted'])('does not reclaim malformed unpaid evidence: %s', async field => {
+  seedFailed();
+  const first = livMediaRuntime();
+  await first.claim(id, article, 'illustration', 'expressive');
+  mocks.generate.mockRejectedValueOnce(new LivCostPretransportError('liv_cost_monthly_budget_exceeded'));
+  await expect(first.generate('Motiv', id, 'hero')).rejects.toThrow('monthly_budget');
+  await first.fail(id);
+  mocks.stageRows['hero-call'].notStarted[field] = field === 'providerAttempted' ? true : 'wrong';
+  await expect(livMediaRuntime().claim(id, article, 'illustration', 'expressive')).rejects.toThrow('reconciliation');
+  expect(mocks.generate).toHaveBeenCalledTimes(1);
+});
+it('does not reuse historical unpaid evidence after a resumed call has an ambiguous transport outcome', async () => {
+  seedFailed();
+  const first = livMediaRuntime();
+  await first.claim(id, article, 'illustration', 'expressive');
+  mocks.generate.mockRejectedValueOnce(new LivCostPretransportError('liv_cost_monthly_budget_exceeded'));
+  await expect(first.generate('Motiv', id, 'hero')).rejects.toThrow('monthly_budget');
+  await first.fail(id);
+  const second = livMediaRuntime(); await second.claim(id, article, 'illustration', 'expressive');
+  mocks.generate.mockRejectedValueOnce(new Error('liv_cost_monthly_budget_exceeded')); // String is NOT unpaid evidence.
+  await expect(second.generate('Motiv', id, 'hero')).rejects.toThrow('monthly_budget');
+  await second.fail(id);
+  await expect(livMediaRuntime().claim(id, article, 'illustration', 'expressive')).rejects.toThrow('reconciliation');
+  expect(mocks.stageRows['hero-call'].notStarted).toBeUndefined();
+  expect(mocks.generate).toHaveBeenCalledTimes(2);
+});
+it('resumes only a budget-denied image while preserving the completed paid sibling stages and plan', async () => {
+  const input = { ...article, section: 'Kunst', content: '<p>Først.</p><p>Dernæst.</p><p>Til sidst.</p>' };
+  const originals = await Promise.all(['#ff3388', '#2244cc', '#ffee00'].map(background =>
+    sharp({ create: { width: 1000, height: 600, channels: 3, background } }).png().toBuffer()));
+  mocks.chat.mockResolvedValueOnce({ choices: [{ finish_reason: 'stop', message: { content: JSON.stringify(savedPlan) } }] });
+  mocks.generate.mockResolvedValueOnce({ data: [{ b64_json: originals[0].toString('base64') }] })
+    .mockRejectedValueOnce(new LivCostPretransportError('liv_cost_monthly_budget_exceeded'))
+    .mockResolvedValueOnce({ data: [{ b64_json: originals[2].toString('base64') }] });
+  await expect(prepareLivAutomaticMedia(input, { dayKey: '2026-09-12' }, livMediaRuntime())).rejects.toThrow('preparation_incomplete');
+  expect(mocks.stageRows['body-1-call'].status).toBe('not_started');
+  const before = structuredClone(mocks.stageRows);
+  mocks.generate.mockResolvedValueOnce({ data: [{ b64_json: originals[1].toString('base64') }] });
+  mocks.chat.mockResolvedValueOnce({ choices: [{ finish_reason: 'stop', message: { content: '{"pass":true}' } }] });
+  const result = await prepareLivAutomaticMedia(input, { dayKey: '2026-09-12' }, livMediaRuntime());
+  expect(result.preparedMedia).toHaveLength(3);
+  expect(mocks.generate).toHaveBeenCalledTimes(4); // Three results plus the explicitly unpaid denial.
+  expect(mocks.chat).toHaveBeenCalledTimes(2);
+  for (const stage of ['plan', 'plan-call', 'hero', 'hero-call', 'body-2', 'body-2-call']) expect(mocks.stageRows[stage]).toEqual(before[stage]);
+  const denied = before['body-1-call'];
+  expect(mocks.stageRows[`body-1-call-unpaid-${denied.attemptId}`]).toEqual({ previous: denied });
 });

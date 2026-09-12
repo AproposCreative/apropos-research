@@ -30,6 +30,12 @@ it('uses the shared server workflow and always releases its preparation lease', 
   expect(mocks.run).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ dayKey: '2026-09-12', kind: 'scheduled' }));
   expect(mocks.release).toHaveBeenCalledWith('owner');
 });
+it('passes the explicit alternative scope into the shared workflow', async () => {
+  const input = { dayKey: '2026-09-12', kind: 'scheduled', scope: 'prepare-alternative', requestId: 'alternative-retry', reason: 'Provider restored' };
+  expect((await POST(request(input))).status).toBe(200);
+  expect(mocks.grant).toHaveBeenCalledWith(input);
+  expect(mocks.run).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ dayKey: input.dayKey, scope: input.scope }));
+});
 it('does not race a currently preparing worker', async () => {
   mocks.lease.mockResolvedValue(null); expect((await POST(request())).status).toBe(409);
   expect(mocks.grant).not.toHaveBeenCalled(); expect(mocks.run).not.toHaveBeenCalled();

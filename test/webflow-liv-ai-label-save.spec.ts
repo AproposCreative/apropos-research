@@ -1,0 +1,101 @@
+import { afterEach, beforeEach, expect, it, vi } from 'vitest';
+
+const state = vi.hoisted(() => ({
+  fetch: vi.fn(), readback: vi.fn(), seo: vi.fn(),
+  fields: undefined as Record<string, unknown> | undefined,
+  collectionId: '111111111111111111111111', itemId: '222222222222222222222222',
+  localeId: '333333333333333333333333',
+}));
+vi.mock('@/lib/config/env', () => ({ env: {
+  WEBFLOW_CMS_LOCALE_DK: state.localeId, WEBFLOW_CMS_LOCALE_EN: '555555555555555555555555',
+} }));
+vi.mock('@/lib/webflow-config', () => ({ getWebflowConfig: () => ({
+  apiToken: 'unit-test-placeholder', siteId: '444444444444444444444444', articlesCollectionId: state.collectionId,
+}), saveWebflowConfig: vi.fn() }));
+vi.mock('@/lib/logger', () => ({ logger: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() } }));
+// Controlled schema/mapping fixture; the service's buildFieldDataFromMapping,
+// Boolean transform, schema filtering and HTTP serialization remain REAL.
+vi.mock('@/lib/webflow-mapping', () => ({ readMapping: () => ({ entries: [
+  { internal: 'title', webflowSlug: 'name', transform: 'identity', required: true },
+  { internal: 'slug', webflowSlug: 'slug', transform: 'identity', required: true },
+  { internal: 'content', webflowSlug: 'content', transform: 'plainToHtml', required: true },
+  { internal: 'aiGenerated', webflowSlug: 'ai-generated', transform: 'boolean' },
+] }) }));
+vi.mock('@/lib/webflow/article-image-auto-optimize', () => ({ autoOptimizeArticleFieldData: async () => ({
+  thumbOptimized: false, mobileOptimized: false, contentImagesOptimized: 0,
+}) }));
+vi.mock('@/lib/liv/cms-readback', () => ({ readLivWebflowJson: state.readback }));
+vi.mock('@/lib/seo-engine/after-publish', () => ({ maybeEnqueueSeoEngineAfterPublish: state.seo }));
+
+import { publishArticleDraftToWebflow } from '@/lib/articles/publish';
+import { publishArticleToWebflow } from '@/lib/webflow-service';
+import type { ArticlePayload } from '@/lib/articles/article-payload';
+import type { WebflowArticleFields } from '@/lib/webflow/types';
+
+beforeEach(() => {
+  vi.resetAllMocks();
+  state.fields = undefined;
+  vi.spyOn(console, 'log').mockImplementation(() => {});
+  vi.stubGlobal('fetch', state.fetch);
+  state.fetch.mockImplementation(async (input: string, init?: RequestInit) => {
+    const base = `https://api.webflow.com/v2/collections/${state.collectionId}`;
+    if (input === base && (!init?.method || init.method === 'GET')) {
+      return Response.json({ fields: ['name', 'slug', 'content', 'ai-generated'].map(slug => ({ slug,
+        type: slug === 'ai-generated' ? 'Switch' : 'PlainText', required: slug !== 'ai-generated' })) });
+    }
+    if ((input === `${base}/items/bulk` && init?.method === 'POST') ||
+        (input === `${base}/items/${state.itemId}` && init?.method === 'PATCH')) {
+      const body = JSON.parse(String(init.body));
+      state.fields = structuredClone(body.fieldData);
+      return Response.json(init.method === 'POST' ? { items: [{ id: state.itemId }] } : { id: state.itemId });
+    }
+    throw new Error(`Unexpected stubbed Webflow request: ${init?.method || 'GET'} ${input}`);
+  });
+  // Remote readback reflects ONLY the fields captured from the real service's
+  // serialized write. No hard-coded AI-label value can make this check pass.
+  state.readback.mockImplementation(async (path: string) => {
+    expect(path).toBe(`collections/${state.collectionId}/items/${state.itemId}?cmsLocaleId=${state.localeId}`);
+    if (!state.fields) throw new Error('Readback before write');
+    return { id: state.itemId, cmsLocaleId: state.localeId, isDraft: true, isArchived: false,
+      fieldData: structuredClone(state.fields) };
+  });
+});
+afterEach(() => { vi.restoreAllMocks(); vi.unstubAllGlobals(); });
+
+const baseArticle = { title: 'Liv og kulturens rum', slug: 'liv-og-kulturens-rum', content: '<p>En original kulturartikel.</p>',
+  featuredImage: 'https://assets.test/cover.webp', aiModel: 'test-model', aiSourceUrl: 'https://source.test/article' };
+
+it.each([
+  { name: 'Liv explicit off', input: { source: 'liv', author: 'Liv Brandt', aiGenerated: false }, expected: false },
+  { name: 'Liv source default', input: { source: 'liv', author: 'Redaktionen' }, expected: false },
+  { name: 'Liv author default', input: { source: 'ai', author: 'Liv Brandt' }, expected: false },
+  { name: 'Liv explicit on', input: { source: 'liv', author: 'Liv Brandt', aiGenerated: true }, expected: true },
+  { name: 'other AI author unchanged', input: { source: 'ai', author: 'Redaktionen' }, expected: true },
+  { name: 'other author explicit off', input: { source: 'ai', author: 'Redaktionen', aiGenerated: false }, expected: false },
+])('persists $name through normalization, real service mapping, HTTP write and staged readback', async ({ input, expected }) => {
+  const result = await publishArticleDraftToWebflow({ ...baseArticle, ...input } as Partial<ArticlePayload> & typeof baseArticle);
+  expect(result.articleId).toBe(state.itemId);
+  expect(state.fields).toHaveProperty('ai-generated', expected);
+  expect(typeof state.fields!['ai-generated']).toBe('boolean');
+  const writes = state.fetch.mock.calls.filter(([, init]) => init?.method === 'POST');
+  expect(writes).toHaveLength(1);
+  expect(JSON.parse(writes[0][1].body)).toMatchObject({ isDraft: true, cmsLocaleIds: [state.localeId, '555555555555555555555555'],
+    fieldData: { name: baseArticle.title, slug: baseArticle.slug, content: baseArticle.content, 'ai-generated': expected } });
+  expect(state.readback).toHaveBeenCalledTimes(1);
+  const saved = await state.readback.mock.results[0].value;
+  expect(saved.fieldData['ai-generated']).toBe(expected);
+  expect(result.payload).toMatchObject({ aiGenerated: expected, aiModel: baseArticle.aiModel, aiSourceUrl: baseArticle.aiSourceUrl });
+  expect(result).toMatchObject({ publicationVerified: false, receipt: { saveState: 'draft', saveVerified: true } });
+  expect(state.fetch).toHaveBeenCalledTimes(2); // Schema and staged create only, never live publication.
+});
+
+it.each([false, true, undefined])('preserves direct service Liv toggle=%s on the actual update request', async aiGenerated => {
+  await publishArticleToWebflow({ ...baseArticle, author: 'Liv Brandt', aiGenerated,
+    webflowId: state.itemId, status: 'draft' } as WebflowArticleFields);
+  const updates = state.fetch.mock.calls.filter(([, init]) => init?.method === 'PATCH');
+  expect(updates).toHaveLength(1);
+  expect(JSON.parse(updates[0][1].body)).toMatchObject({ cmsLocaleId: state.localeId,
+    fieldData: { 'ai-generated': aiGenerated ?? false } });
+  expect(state.fields!['ai-generated']).toBe(aiGenerated ?? false);
+  expect(state.fetch).toHaveBeenCalledTimes(2);
+});

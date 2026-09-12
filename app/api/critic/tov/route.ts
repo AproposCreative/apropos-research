@@ -6,6 +6,7 @@ import { getRequestId } from '@/lib/api/request-utils';
 import { createErrorResponse, createSuccessResponse, ErrorCode } from '@/lib/api/types';
 import { isLivAuthor, loadLivVoice } from '@/lib/liv/voice';
 import { livModels } from '@/lib/liv/model-config';
+import { withLivCostRequest } from '@/lib/liv/cost-context';
 
 const client = getOpenAIClient();
 
@@ -14,6 +15,11 @@ Evaluer en kladde efter TOV: rytme, sanselighed, personligt nærvær, intro/afsl
 Returnér korte, præcise forbedringsforslag i punktform. Dansk.`;
 
 export async function POST(request: NextRequest) {
+	try { return await withLivCostRequest(request, 'tov', () => handlePost(request)); }
+	catch { return NextResponse.json({ error: 'Ugyldig intern budgetkontekst.' }, { status: 401 }); }
+}
+
+async function handlePost(request: NextRequest) {
 	const requestId = getRequestId(request);
 	const requestLogger = createRequestLogger(requestId);
 	

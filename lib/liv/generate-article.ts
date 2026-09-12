@@ -27,8 +27,10 @@ import { SourceSimilarityError } from '@/lib/liv/source-similarity-error';
 import type { LivSelectedImage } from '@/lib/liv/image-selection';
 import { livResearchQueries } from '@/lib/liv/research-query';
 import { buildLivWritingBrief, writingBriefContract } from '@/lib/liv/writing-brief';
+import { loadLivEditorialFeedbackPrompt } from '@/lib/liv/editorial-feedback';
 
 export interface GeneratedArticle {
+  subjectType?: import('@/lib/liv/article-output').LivSubjectType;
   title: string;
   subtitle: string;
   intro: string;
@@ -113,9 +115,14 @@ type WebSearchResult = {
   url?: string | null;
 };
 
-async function fetchWebResearch(query: string, format: LivArticleFormat, timeoutMs = 45000, model = livModels().research): Promise<WebSearchResult[]> {
-  const results = await Promise.all(livResearchQueries(query, format).map(subject =>
-    getResearch(subject, { maxResults: 5, model, timeoutMs })));
+async function fetchWebResearch(query: string, format: LivArticleFormat, timeoutMs = 45000,
+  model = livModels().research, preparation = false): Promise<WebSearchResult[]> {
+  const queries = livResearchQueries(query, format);
+  // One discovery request covers primary evidence and independent context.
+  // Manual Writer retains its existing research profile.
+  const subjects = preparation ? [queries.join('; ')] : queries;
+  const results = await Promise.all(subjects.map(subject =>
+    getResearch(subject, { maxResults: 5, model, timeoutMs, ...(preparation ? { allowFallback: false } : {}) })));
   return results.flatMap(result => result.sources.map(source => ({
     title: source.title, content: source.snippet, source: source.source, url: source.url,
   })));
@@ -178,19 +185,38 @@ export async function generateLivArticle(options: GenerateArticleOptions): Promi
   if (resumed && resumed.voiceVersion !== voice.version) throw new Error('article_resume_voice_changed');
   if (resumed?.refusal) throw new Error('article_generation_refused');
   if (resumed?.finishReason && resumed.finishReason !== 'stop') throw new Error('article_generation_incomplete');
+  const editorialFeedback = preparation && !resumed ? await loadLivEditorialFeedbackPrompt() : '';
 
   // Retrieve evidence before writing; source prose is data, never instructions.
-  const [discovered, remembered] = resumed ? [[], []] : await Promise.all([
-    fetchWebResearch(topic.title, articleFormat, preparation ? 30_000 : 45_000,
-      preparation ? livModels().utility : livModels().research), recalledSourceUrls(sourceScope, topic.title),
-  ]);
-  const sources = await buildResearchBundle(resumed ? resumed.sources.map(s => s.url) : [
+  const remembered = resumed ? [] : await recalledSourceUrls(sourceScope, topic.title);
+  const explicitUrls = [
     ...extractResearchUrls(options.directiveHint || ''),
     ...extractResearchUrls(expandedDirective || ''),
     ...(topic.source?.url ? [topic.source.url] : []),
-    ...remembered.slice(0, 2),
-    ...discovered.flatMap(s => s.url ? [s.url] : []),
-  ]);
+  ];
+  const savedUrls = [...explicitUrls, ...remembered.slice(0, 8)];
+  let sources: Awaited<ReturnType<typeof buildResearchBundle>> | undefined;
+  if (preparation && !resumed && savedUrls.length >= 2) {
+    // Archive snippets are not evidence. Re-fetch the saved URLs and require
+    // actual dates on two hosts before avoiding a new paid discovery pass.
+    try {
+      const saved = await buildResearchBundle(savedUrls);
+      if (new Set(saved.filter(source => source.publishedAt).map(source =>
+        new URL(source.url).hostname.replace(/^www\./, ''))).size >= 2) sources = saved;
+    } catch (error) {
+      if (!(error instanceof Error) || !error.message.startsWith('research_sources_unavailable:')) throw error;
+    }
+  }
+  if (!sources) {
+    const discovered = resumed ? [] : await fetchWebResearch(topic.title, articleFormat,
+      preparation ? 30_000 : 45_000, preparation ? livModels().utility : livModels().research, preparation);
+    sources = await buildResearchBundle(resumed ? resumed.sources.map(s => s.url) : [
+      ...explicitUrls,
+      ...(preparation ? [] : remembered.slice(0, 2)),
+      ...discovered.flatMap(s => s.url ? [s.url] : []),
+      ...(preparation ? remembered : []),
+    ]);
+  }
   await rememberResearchSources(sourceScope, topic.title, sources);
   // Preparation now yields after text, before media and publication checks.
   // Give the analytical brief room for high-reasoning models; the old 30s cap
@@ -216,6 +242,7 @@ export async function generateLivArticle(options: GenerateArticleOptions): Promi
     'status: ready når researchen rækker; ellers insufficient_evidence med tomme tekstfelter og null i rating og ratingReason. Opfind aldrig en dom for at udfylde schemaet. Sæt ikke insufficient_evidence alene fordi en detalje mangler, eller fordi en kilde er sekundær: udelad den udokumenterede detalje og skriv en kortere artikel ud fra de konkrete fakta, hvis briefen har mindst to kildehosts og mindst to faktanoter.',
     'missingEvidence: tom liste ved ready. Ved insufficient_evidence: 1-6 konkrete mangler, der forklarer præcis hvorfor den givne brief ikke rækker, og hvad der skal researches. Ikke blot "flere kilder".',
     'title: max 60 tegn, fængende, dansk. subtitle: 8-14 ord, konkret og skarp.',
+    'subjectType: klassificér artiklens hovedemne fra researchen som film, tv-series, music, art, literature eller culture. En film nævnt som sammenligning gør ikke en musikartikel til film. Brug culture ved tværgående kulturstof eller tvivl.',
     ...(articleFormat === 'research-review' ? [
       'rating: heltal 1-6. ratingReason: 30-600 tegn, én konkret sætning der begrunder dommen og afvejer svagheder.',
     ] : ['rating og ratingReason skal begge være null.']),
@@ -230,7 +257,9 @@ export async function generateLivArticle(options: GenerateArticleOptions): Promi
     articleFormat === 'research-review'
       ? '- Skriv en selvstændig researchanmeldelse med en begrundet dom og stjerner. Tilskriv andres kritik tydeligt, når den bruges. Stop uden tilstrækkeligt belæg.'
       : '- Skriv den ønskede artikeltype uden stjerner. Ingen anmeldelsesstjerner for nyheder eller essays.',
-    `- Sigt efter ${Math.max(450, Math.min(2200, options.targetWordCount || (preparation ? 650 : 1000)))} ord i brødteksten. Følg artikeltypen og længden fra briefet.`,
+    (preparation || options.sourceScope === 'liv-daily') && !options.targetWordCount
+      ? '- Brødteksten skal være 450–650 ord, sigt efter 550. Intro, billedtekster og metadata tæller ikke med. Prioritér én tese, konkrete belæg og ét modargument; fjern gentagelser.'
+      : `- Sigt efter ${Math.max(450, Math.min(2200, options.targetWordCount || 1000))} ord i brødteksten. Følg artikeltypen og længden fra briefet.`,
     '- Ingen overskrifter (h1/h2) — kun løbende tekst.',
     '- Ingen markdown-syntax (* _ # `).',
     '- Vær præcis med fakta — opfind ikke navne, datoer eller citater.',
@@ -259,6 +288,7 @@ export async function generateLivArticle(options: GenerateArticleOptions): Promi
     expandedDirective?.trim() || '(Ingen ekstra retning sat i panelet. Vælg naturlig Liv-vinkel.)',
     'Original redaktionel instruktion (krav her må ikke bortfalde under udvidelsen):',
     options.directiveHint?.trim() || '(ingen)',
+    editorialFeedback,
   ].join('\n');
 
   const userPrompt = [
@@ -336,11 +366,15 @@ export async function generateLivArticle(options: GenerateArticleOptions): Promi
   let similarityBlocked: { sourceUrl: string; detail: string } | null = null;
   for (const source of sources) {
     if (hasCopiedPassage(finalText, source.text)) {
+      if (preparation) throw new Error('source_copy_detected: Udkastet kræver redaktionel gennemgang; ingen automatisk omskrivning.');
       similarityBlocked = { sourceUrl: source.url, detail: 'Sammenhængende tekstoverlap med kilde. Omskrivning kræves.' };
       break;
     }
     const similarity = await checkSourceSimilarity({ generated: finalText, source: source.text });
     if (!similarity.complete || !similarity.pass) {
+      if (preparation) throw new SourceSimilarityError(similarity, source, {
+        text: finalText, model: writerModel, voiceVersion: voice.version,
+      });
       similarityBlocked = { sourceUrl: source.url, detail: new SourceSimilarityError(similarity, source, {
         text: finalText, model: writerModel, voiceVersion: voice.version,
       }).message };
@@ -424,6 +458,7 @@ export async function generateLivArticle(options: GenerateArticleOptions): Promi
   }));
 
   return {
+    ...(parsed.subjectType ? { subjectType: parsed.subjectType } : {}),
     title: parsed.title,
     subtitle: parsed.subtitle,
     intro: parsed.intro,

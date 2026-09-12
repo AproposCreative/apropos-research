@@ -861,8 +861,7 @@ export default function LivPostingClient({ embedded = false, onClose, initialTab
                 {delivery.preparationEnabled ? 'Forberedelse kører.' : 'Forberedelse er ikke aktiveret.'}</p>
               {delivery.health && <>
                 <p className="text-sm text-white/80">{delivery.health.published ? 'Dagens artikel er verificeret live.' : 'Dagens artikel er endnu ikke verificeret live.'}{' '}
-                  Reserver: {delivery.health.reserves}/{delivery.health.reserveTarget}.{' '}
-                  {delivery.health.missingDays.length} af de næste 7 dage mangler en færdig artikel.</p>
+                  {delivery.health.missingDays.length ? 'Morgendagens artikel mangler at blive klar.' : 'Morgendagens artikel er klar.'}</p>
                 {delivery.health.needsReconciliation && <p className="text-sm text-amber-200">Et publiceringsforsøg skal kontrolleres. Der oprettes ikke en dublet.</p>}
                 {delivery.queueEnabled && delivery.health.overdue && <p role="alert" className="text-sm text-amber-200">Udgivelsesfristen er overskredet. Se driftskontrollen.</p>}
               </>}

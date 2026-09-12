@@ -35,6 +35,7 @@ import type { GeneratedArticle } from '@/lib/liv/generate-article';
 import { prepareLivAutomaticMedia } from '@/lib/liv/automatic-media';
 import { buildLivCmsPayload } from '@/lib/liv/build-cms-payload';
 import { checkCmsDraft } from '@/lib/editorial/cms-preflight';
+import { checkLivArticleLength } from '@/lib/liv/article-length';
 import { articleFingerprint } from '@/lib/factcheck/grounded';
 import { inspectLivCmsDraft } from '@/lib/liv/cms-readback';
 import { runSafetyGates } from '@/lib/liv/run-safety-gates';
@@ -55,6 +56,7 @@ import { cmsFieldHash } from '@/lib/liv/cms-field-hash';
 import { editorialPlanHash } from '@/lib/liv/rolling-plan';
 import { addDays, copenhagenClock } from '@/lib/liv/delivery-policy';
 import type { LivDailyPlan } from '@/lib/liv/daily-plan-store';
+import { withLivCostContext, withLivCostStage } from '@/lib/liv/cost-context';
 
 export const maxDuration = 300;
 const MIN_VERIFIED_RESEARCH_SOURCES = 2;
@@ -85,15 +87,26 @@ async function reportGa4(
   }
 }
 
-export async function runLivDaily(req: NextRequest, preparation?: {
-  dayKey: string; kind: 'scheduled' | 'reserve'; defaultPlan: LivDailyPlan;
-}) {
-  const scope: LivDailyScope = preparation ? preparation.kind === 'reserve' ? 'reserve' : 'prepare' : 'daily';
+type LivPreparation = {
+  dayKey: string; kind: 'scheduled' | 'reserve'; defaultPlan: LivDailyPlan; scope?: 'prepare-alternative';
+};
+export async function runLivDaily(req: NextRequest, preparation?: LivPreparation) {
+  const denied = requireCronBearer(req);
+  if (denied) return denied;
+  const day = preparation?.dayKey ?? todayDayKeyUTC();
+  const scope = preparation ? preparation.kind === 'reserve' ? 'reserve' : preparation.scope || 'prepare' : 'daily';
+  return withLivCostContext({ runId: livDailyDocId(day, scope), stage: 'daily-workflow' },
+    () => runLivDailyOperation(req, preparation));
+}
+
+async function runLivDailyOperation(req: NextRequest, preparation?: LivPreparation) {
+  const scope: LivDailyScope = preparation ? preparation.kind === 'reserve' ? 'reserve' : preparation.scope || 'prepare' : 'daily';
   const claimLivDaily = (day: string) => preparation ? claimDaily(day, scope) : claimDaily(day);
   const finishLivDaily: typeof finishDaily = (day, input) => preparation ? finishDaily(day, input, scope) : finishDaily(day, input);
   const checkpointLivDailyCmsItem: typeof checkpointCms = (day, item) => preparation ? checkpointCms(day, item, scope) : checkpointCms(day, item);
   const checkpointLivDailyArticle: typeof checkpointArticle = (day, article) => preparation ? checkpointArticle(day, article, scope) : checkpointArticle(day, article);
-  const markPlanFailed = (day: string, reason: string) => preparation?.kind === 'reserve' ? Promise.resolve() : failPlan(day, reason);
+  const markPlanFailed = (day: string, reason: string) => preparation?.kind === 'reserve' || scope === 'prepare-alternative'
+    ? Promise.resolve() : failPlan(day, reason);
   // Preparation has a bounded media budget so the remaining safety/CMS checks
   // still finish inside Vercel's 300 second function limit.
   const mediaDeadline = Date.now() + (preparation ? 210_000 : 240_000);
@@ -127,7 +140,8 @@ export async function runLivDaily(req: NextRequest, preparation?: {
   if (dryRun) {
     try {
       const plan = await getLivDailyPlan(dayKey);
-      const { topicHint, mustUseTrending } = resolveLivTopicInputsFromPlan(plan);
+      const { topicHint, mustUseTrending } = resolveLivTopicInputsFromPlan(
+        scope === 'prepare-alternative' ? preparation!.defaultPlan : plan);
       const topic = await pickLivTopic({
         baseUrl,
         topicHint,
@@ -171,7 +185,10 @@ export async function runLivDaily(req: NextRequest, preparation?: {
     : preparation
       ? (savedPlan ?? preparation.defaultPlan)
       : savedPlan;
-  const { topicHint, mustUseTrending } = resolveLivTopicInputsFromPlan(plan);
+  // Rejection authorizes a different story, not a mutation of the editor's
+  // saved plan. The saved plan remains the delivery ownership/hash boundary.
+  const generationPlan = scope === 'prepare-alternative' ? preparation!.defaultPlan : plan;
+  const { topicHint, mustUseTrending } = resolveLivTopicInputsFromPlan(generationPlan);
 
   try {
     const prepRow = preparation ? await getAdminDb()?.collection('livDailyArticles')
@@ -207,23 +224,24 @@ export async function runLivDaily(req: NextRequest, preparation?: {
     }
     pickedTopicTitle = topic.title;
 
-    let article = checkpoint ?? await generateLivArticle({
+    let article = checkpoint ?? await withLivCostStage('research-writing', () => generateLivArticle({
       topic,
-      expandedDirective: plan?.expandedDirective,
-      directiveHint: plan?.directiveHint,
-      articleFormat: plan?.articleFormat,
+      expandedDirective: generationPlan?.expandedDirective,
+      directiveHint: generationPlan?.directiveHint,
+      articleFormat: generationPlan?.articleFormat,
       sourceScope: 'liv-daily',
       baseUrl,
       preparation: !!preparation,
       resumeWritingRunId,
-      targetWordCount: preparation ? 650 : undefined,
-    });
+    }));
     await checkpointLivDailyArticle(dayKey, article);
     if (preparation && !checkpoint) {
-      await yieldLivPreparation(dayKey, scope as 'prepare' | 'reserve');
+      await yieldLivPreparation(dayKey, scope as Exclude<LivDailyScope, 'daily'>);
       return NextResponse.json({ status: 'text_prepared', dayKey, title: article.title });
     }
-    if (preparation && checkpoint && (article.factRevisionCount ?? (article.factRevisionId ? 1 : 0)) < 2) {
+    const priorRevisionCount = article.factRevisionCount ?? (article.factRevisionId ? 1 : 0);
+    if (preparation && checkpoint && Number.isInteger(priorRevisionCount) && priorRevisionCount >= 0 && priorRevisionCount < 2 &&
+        (priorRevisionCount === 0 || !!article.factRevisionId)) {
       const { resumeLivFactRevision } = await import('@/lib/liv/fact-revision');
       let priorResults: GateResult[] = prepRow?.data()?.gateResults || [];
       // An earlier revision failure can predate retaining its diagnostic on the
@@ -239,10 +257,11 @@ export async function runLivDaily(req: NextRequest, preparation?: {
       const priorDiagnostic = priorResults.find(result => result.name === 'factcheck')?.diagnosticEvidence;
       // Preserve this diagnostic if correction fails before producing new gates.
       gateResults = priorResults;
-      const resumed = await resumeLivFactRevision(article, priorDiagnostic);
+      const length = checkLivArticleLength(article.content);
+      const resumed = await resumeLivFactRevision(article, priorDiagnostic, length.pass ? {} : { length });
       if (resumed) {
         await checkpointLivDailyArticle(dayKey, resumed);
-        await yieldLivPreparation(dayKey, scope as 'prepare' | 'reserve');
+        await yieldLivPreparation(dayKey, scope as Exclude<LivDailyScope, 'daily'>);
         return NextResponse.json({ status: 'facts_revised', dayKey, title: resumed.title });
       }
     }
@@ -303,7 +322,7 @@ export async function runLivDaily(req: NextRequest, preparation?: {
     if (preparation && datedHosts < 2 && !article.researchSupplementedAt) {
       article = await (await import('@/lib/liv/supplement-research')).supplementLivResearch(article, topic.title);
       await checkpointLivDailyArticle(dayKey, article);
-      await yieldLivPreparation(dayKey, scope as 'prepare' | 'reserve');
+      await yieldLivPreparation(dayKey, scope as Exclude<LivDailyScope, 'daily'>);
       return NextResponse.json({ status: 'research_supplemented', dayKey, title: article.title });
     }
     if (preparation && datedHosts < 2) {
@@ -315,10 +334,10 @@ export async function runLivDaily(req: NextRequest, preparation?: {
 
     if (publicationMode === 'auto_publish' || preparation) {
       const hadMedia = (article.preparedMedia?.length ?? 0) >= 3;
-      article = await prepareLivAutomaticMedia(article, { dayKey, deadline: mediaDeadline });
+      article = await withLivCostStage('media', () => prepareLivAutomaticMedia(article, { dayKey, deadline: mediaDeadline }));
       await checkpointLivDailyArticle(dayKey, article);
       if (preparation && !hadMedia) {
-        await yieldLivPreparation(dayKey, scope as 'prepare' | 'reserve');
+        await yieldLivPreparation(dayKey, scope as Exclude<LivDailyScope, 'daily'>);
         return NextResponse.json({ status: 'media_prepared', dayKey, title: article.title });
       }
     }
@@ -340,18 +359,26 @@ export async function runLivDaily(req: NextRequest, preparation?: {
     });
     gateResults = gates.results;
 
+    // One correction budget covers factual AND length defects. Collect the real
+    // fact diagnostic first, so a shortening pass cannot consume the budget
+    // before a known factual defect is addressed.
+    const length = checkLivArticleLength(article.content);
+    const diagnostic = gates.results.find(result => result.name === 'factcheck')?.diagnosticEvidence;
+    const factRepairNeeded = !!diagnostic &&
+      ['factcheck', 'verification-complete'].includes(gates.failedGate || '') &&
+      diagnostic.results.some(result => result.status !== 'verified');
+    if (preparation && !article.factRevisionId && (article.factRevisionCount ?? 0) === 0 &&
+        (factRepairNeeded || (gates.pass && !length.pass))) {
+      const { repairLivArticleFacts } = await import('@/lib/liv/fact-revision');
+      article = await repairLivArticleFacts(article, factRepairNeeded ? diagnostic : undefined,
+        length.pass ? {} : { length });
+      await checkpointLivDailyArticle(dayKey, article);
+      await yieldLivPreparation(dayKey, scope as Exclude<LivDailyScope, 'daily'>);
+      return NextResponse.json({ status: 'facts_revised', dayKey, title: article.title });
+    }
+
     if (!gates.pass) {
       const failed = gates.failedGate || 'unknown';
-      const diagnostic = gates.results.find(result => result.name === 'factcheck')?.diagnosticEvidence;
-      if (preparation && (article.factRevisionCount ?? (article.factRevisionId ? 1 : 0)) < 2 && diagnostic &&
-          ['factcheck', 'verification-complete'].includes(failed) &&
-          diagnostic.results.some(result => result.status !== 'verified')) {
-        const { repairLivArticleFacts } = await import('@/lib/liv/fact-revision');
-        article = await repairLivArticleFacts(article, diagnostic);
-        await checkpointLivDailyArticle(dayKey, article);
-        await yieldLivPreparation(dayKey, scope as 'prepare' | 'reserve');
-        return NextResponse.json({ status: 'facts_revised', dayKey, title: article.title });
-      }
       // Source-similarity-fejl logges som "skipped_moderation" — vi har ikke
       // en separat status, men `gateResults` bevarer det nøjagtige gate-navn.
       const status: 'skipped_factcheck' | 'skipped_moderation' | 'skipped_tov' =
@@ -392,9 +419,9 @@ export async function runLivDaily(req: NextRequest, preparation?: {
       topic,
       researchSources: article.researchSources || [],
       gates: gates.results || [],
-      topicHint: plan?.topicHint,
-      directiveHint: plan?.directiveHint,
-      expandedDirective: plan?.expandedDirective,
+      topicHint: generationPlan?.topicHint,
+      directiveHint: generationPlan?.directiveHint,
+      expandedDirective: generationPlan?.expandedDirective,
       minVerifiedSources: MIN_VERIFIED_RESEARCH_SOURCES,
       minLineupNames: MIN_LINEUP_NAMES,
     });
@@ -447,14 +474,14 @@ export async function runLivDaily(req: NextRequest, preparation?: {
 
     // Structure is only one part of approval. CMS fields and assets are checked
     // after saving, and live publication has its own verified receipt.
-    const cmsCheck = checkCmsDraft(article, preparation ? 650 : 1000);
+    const cmsCheck = checkCmsDraft(article, 'liv-daily');
     let preparationProof: PreparationProof | undefined;
     if (preparation) {
       if (!cmsCheck.structureReady) throw new Error('liv_preparation_structure_failed');
       preparationProof = { expected: payload, hash: cmsFieldHash(payload as unknown as Record<string, unknown>),
         editorialPassed: true, structurePassed: true,
-        ...(preparation.kind === 'scheduled' ? { planHash: editorialPlanHash(plan ?? null) } : {}) };
-      await checkpointPreparationProof(dayKey, preparation.kind === 'reserve' ? 'reserve' : 'prepare', preparationProof);
+        ...(preparation.kind === 'scheduled' ? { planHash: editorialPlanHash(scope === 'prepare-alternative' ? savedPlan : plan ?? null) } : {}) };
+      await checkpointPreparationProof(dayKey, scope as Exclude<LivDailyScope, 'daily'>, preparationProof);
     }
 
     const { articleId: webflowItemId, receipt } = await publishArticleDraftToWebflow(payload, {
@@ -517,7 +544,7 @@ export async function runLivDaily(req: NextRequest, preparation?: {
       day_key: dayKey,
       topic: topic.title.slice(0, 100),
       slug: article.slug,
-      word_count: article.content.split(/\s+/).filter(Boolean).length,
+      word_count: cmsCheck.wordCount,
     });
 
     logger.info('[cron/liv-daily] completed with verified status', {

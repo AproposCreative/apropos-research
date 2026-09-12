@@ -2,6 +2,8 @@ import { randomUUID } from 'node:crypto';
 import { getAdminDb } from '@/lib/firebase-admin';
 import type { WebflowArticleFields } from '@/lib/webflow/types';
 import { cmsFieldHash } from '@/lib/liv/cms-field-hash';
+import { EDITORIAL_FEEDBACK_COLLECTION, parseEditorialFeedback, updateEditorialFeedbackRecords,
+  type EditorialFeedback } from '@/lib/liv/editorial-feedback';
 import { eligibleEntries, emptyDeliveryState, LIV_DELIVERY_LEASE_MS, validDay, copenhagenClock, addDays,
   type DeliveryState, type ReadyEntry, type DeliverySlot } from '@/lib/liv/delivery-policy';
 
@@ -78,22 +80,41 @@ export class DeliveryDecisionConflict extends Error {}
 
 /** Shares the worker's transaction lock: a rejection can never race past selection. */
 export async function decideDelivery(input: { itemId: string; payloadHash: string; revision: number;
-  decision: 'approved' | 'rejected' }, userId: string, now = new Date()) {
+  decision: 'approved' | 'rejected'; feedback?: string }, userId: string, now = new Date()) {
   if (!/^[a-f0-9]{24}$/i.test(input.itemId) || !/^[a-f0-9]{64}$/i.test(input.payloadHash) ||
     !Number.isSafeInteger(input.revision) || input.revision < 0 ||
-    !['approved', 'rejected'].includes(input.decision) || !userId) throw new Error('liv_delivery_invalid_decision');
-  return mutateDelivery(state => {
+    !['approved', 'rejected'].includes(input.decision) || !userId || userId.length > 128) throw new Error('liv_delivery_invalid_decision');
+  const feedback = input.feedback === undefined ? undefined : parseEditorialFeedback(input.feedback);
+  const db = database();
+  const manifest = db.collection(COLLECTION).doc('manifest');
+  const recent = db.collection(EDITORIAL_FEEDBACK_COLLECTION).doc('recent');
+  return db.runTransaction(async tx => {
+    const state = (await tx.get(manifest)).data() as DeliveryState || emptyDeliveryState();
     const entry = state.entries.find(e => e.itemId === input.itemId);
     if (!entry || entry.state !== 'ready' || entry.expiresDay < copenhagenClock(now).day ||
       entry.payloadHash !== input.payloadHash || (entry.decisionRevision || 0) !== input.revision ||
       Object.values(state.slots).some(slot => slot.itemId === input.itemId)) {
       throw new DeliveryDecisionConflict('Historien er ændret, udløbet eller ved at blive udgivet. Opdater listen.');
     }
+    if (feedback !== undefined) {
+      const previous = (await tx.get(recent)).data();
+      const record: EditorialFeedback = { source: 'liv-delivery-decision', scope: 'liv-daily',
+        itemId: entry.itemId, payloadHash: entry.payloadHash, title: entry.title.slice(0, 180),
+        userId, revision: input.revision + 1, decision: input.decision, text: feedback, recordedAt: now.toISOString() };
+      tx.create(db.collection(EDITORIAL_FEEDBACK_COLLECTION).doc(`decision-${entry.itemId}-${record.revision}`), {
+        ...record, previousDecision: entry.decision || 'pending', previousRevision: entry.decisionRevision || 0,
+      });
+      tx.set(recent, { records: updateEditorialFeedbackRecords(previous?.records, record) });
+      if (feedback) entry.editorialFeedback = { text: feedback, userId, recordedAt: record.recordedAt, revision: record.revision };
+      else if (entry.editorialFeedback?.userId === userId) delete entry.editorialFeedback;
+    }
     entry.decision = input.decision;
     entry.decisionRevision = input.revision + 1;
     entry.decidedAt = now.toISOString();
     entry.decidedBy = userId;
-    return { itemId: entry.itemId, decision: entry.decision, revision: entry.decisionRevision };
+    tx.set(manifest, state);
+    return { itemId: entry.itemId, decision: entry.decision, revision: entry.decisionRevision,
+      feedback: entry.editorialFeedback?.userId === userId ? entry.editorialFeedback.text : null };
   });
 }
 

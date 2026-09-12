@@ -104,3 +104,67 @@ it('cannot approve an expired story or accept an invalid action', async () => {
   await expect(decideDelivery(input, 'editor', new Date('2026-09-12T12:00:00Z'))).rejects.toThrow('Opdater');
   await expect(decideDelivery({ ...input, decision: 'publish' as any }, 'editor')).rejects.toThrow('invalid_decision');
 });
+it('atomically stores private attributed feedback without changing content, assets or payload hash', async () => {
+  const input = await choice(), now = new Date('2026-09-10T12:00:00Z');
+  const originalPayload = structuredClone(database.rows.get(`livDelivery/item-${itemId}`));
+  const result = await decideDelivery({ ...input, feedback: '  Mere konkret kulturkritik.  ' }, 'editor', now);
+  expect(result).toMatchObject({ feedback: 'Mere konkret kulturkritik.', revision: 1 });
+  expect((await readDeliveryState()).entries[0]).toMatchObject({ payloadHash: input.payloadHash,
+    editorialFeedback: { text: 'Mere konkret kulturkritik.', userId: 'editor', revision: 1, recordedAt: now.toISOString() } });
+  expect(database.rows.get(`livEditorialFeedback/decision-${itemId}-1`)).toMatchObject({
+    source: 'liv-delivery-decision', scope: 'liv-daily', itemId, payloadHash: input.payloadHash, userId: 'editor',
+    previousDecision: 'pending', previousRevision: 0, decision: 'approved', text: 'Mere konkret kulturkritik.',
+  });
+  expect(database.rows.get('livEditorialFeedback/recent').records).toHaveLength(1);
+  expect(database.rows.get(`livDelivery/item-${itemId}`)).toEqual(originalPayload);
+});
+it('preserves audit on edits and permits only the author to clear their active preference', async () => {
+  const input = await choice(), now = new Date('2026-09-10T12:00:00Z');
+  await decideDelivery({ ...input, feedback: 'En konkret præference' }, 'editor', now);
+  const audit = structuredClone(database.rows.get(`livEditorialFeedback/decision-${itemId}-1`));
+  const other = await decideDelivery({ ...input, revision: 1, feedback: '' }, 'other-editor', now);
+  expect(other.feedback).toBeNull();
+  expect((await readDeliveryState()).entries[0].editorialFeedback?.userId).toBe('editor');
+  expect(database.rows.get('livEditorialFeedback/recent').records).toHaveLength(1);
+  await decideDelivery({ ...input, revision: 2, feedback: 'En ændret præference' }, 'editor', now);
+  expect(database.rows.get('livEditorialFeedback/recent').records[0].text).toBe('En ændret præference');
+  await decideDelivery({ ...input, revision: 3, feedback: '' }, 'editor', now);
+  expect((await readDeliveryState()).entries[0].editorialFeedback).toBeUndefined();
+  expect(database.rows.get('livEditorialFeedback/recent').records).toEqual([]);
+  expect(database.rows.get(`livEditorialFeedback/decision-${itemId}-1`)).toEqual(audit);
+  expect(database.rows.get(`livEditorialFeedback/decision-${itemId}-3`).text).toBe('En ændret præference');
+});
+it('keeps comments on old-client decisions that omit the optional field', async () => {
+  const input = await choice(), now = new Date('2026-09-10T12:00:00Z');
+  await decideDelivery({ ...input, feedback: 'Kortere indledning.' }, 'editor', now);
+  await decideDelivery({ ...input, revision: 1, decision: 'rejected' }, 'editor', now);
+  expect((await readDeliveryState()).entries[0].editorialFeedback?.text).toBe('Kortere indledning.');
+  expect(database.rows.has(`livEditorialFeedback/decision-${itemId}-2`)).toBe(false);
+});
+it('cannot persist feedback through stale revision, changed payload, selected slot or invalid text', async () => {
+  const input = await choice(), now = new Date('2026-09-10T12:00:00Z');
+  const before = structuredClone(database.rows);
+  for (const patch of [{ revision: 2 }, { payloadHash: 'f'.repeat(64) }, { feedback: 'x'.repeat(501) }]) {
+    await expect(decideDelivery({ ...input, feedback: 'Test', ...patch }, 'editor', now)).rejects.toThrow();
+    expect(database.rows).toEqual(before);
+  }
+  await claimDelivery(day, 100);
+  const selected = structuredClone(database.rows);
+  await expect(decideDelivery({ ...input, feedback: 'Test' }, 'editor', now)).rejects.toThrow('Opdater');
+  expect(database.rows).toEqual(selected);
+});
+it('retains feedback and immutable audits after ready entries are compacted', async () => {
+  const input = await choice(), now = new Date('2026-09-10T12:00:00Z');
+  await decideDelivery({ ...input, feedback: 'Mere kulturhistorie.' }, 'editor', now);
+  database.rows.set('livDelivery/manifest', { entries: [], slots: {} });
+  expect(database.rows.get('livEditorialFeedback/recent').records[0].text).toBe('Mere kulturhistorie.');
+  expect(database.rows.has(`livEditorialFeedback/decision-${itemId}-1`)).toBe(true);
+});
+it('does not overwrite an existing immutable audit or partially persist a failed transaction', async () => {
+  const input = await choice();
+  database.rows.set(`livEditorialFeedback/decision-${itemId}-1`, { text: 'Immutable old audit' });
+  const before = structuredClone(database.rows);
+  await expect(decideDelivery({ ...input, feedback: 'New comment' }, 'editor', new Date('2026-09-10T12:00:00Z')))
+    .rejects.toThrow('exists');
+  expect(database.rows).toEqual(before);
+});

@@ -1,10 +1,13 @@
 import { beforeEach, describe, it, expect, vi } from 'vitest';
 import { NextRequest } from 'next/server';
-const mocks = vi.hoisted(() => ({ auth: vi.fn(), verify: vi.fn(), client: vi.fn() }));
+const mocks = vi.hoisted(() => ({ auth: vi.fn(), verify: vi.fn(), client: vi.fn(), editorial: vi.fn() }));
 vi.mock('@/lib/api/middleware-auth', () => ({ isApiRequestAuthorized: mocks.auth }));
 vi.mock('@/lib/factcheck/verify-article', () => ({ verifyArticleSources: mocks.verify }));
+vi.mock('@/lib/liv/editorial-assessment', () => ({ assessLivEditorialArticle: mocks.editorial }));
 vi.mock('@/lib/openai', () => ({ getOpenAIClient: mocks.client, models: { default: 'test' } }));
 import { POST } from '@/app/api/factcheck/route';
+import { currentLivCostContext, livCostHeaders, withLivCostContext } from '@/lib/liv/cost-context';
+import { internalApiHeaders } from '@/lib/api/internal-auth';
 
 const input = { articleText: 'En kulturartikel med faktuelle påstande.', sourceUrls: ['https://museum.dk/nyhed'] };
 const request = (body: unknown) => new NextRequest('http://localhost/api/factcheck', { method: 'POST', body: JSON.stringify(body) });
@@ -39,5 +42,50 @@ describe('factcheck route', () => {
     const body = await response.text();
     expect(body).not.toContain('secret');
     expect(JSON.parse(body).complete).toBe(false);
+  });
+  it('routes authenticated Liv consolidation to one combined assessment', async () => {
+    mocks.editorial.mockResolvedValue({ complete: true, editorialReview: { verdict: 'approve' } });
+    const response = await POST(request({ ...input, editorialReview: 'liv-v1' }));
+    expect(mocks.editorial).toHaveBeenCalledWith(input.articleText, input.sourceUrls);
+    expect(mocks.verify).not.toHaveBeenCalled(); expect(mocks.client).not.toHaveBeenCalled();
+    expect(response.headers.get('cache-control')).toBe('no-store');
+    expect(await response.json()).toMatchObject({ editorialReview: { verdict: 'approve' } });
+  });
+  it('requires authentication for the combined assessment too', async () => {
+    mocks.auth.mockResolvedValue(false);
+    expect((await POST(request({ ...input, editorialReview: 'liv-v1' }))).status).toBe(401);
+    expect(mocks.editorial).not.toHaveBeenCalled();
+  });
+  it.each([{ ...input, editorialReview: 'unknown' }, { articleText: input.articleText, editorialReview: 'liv-v1' }])
+    ('never falls back to advisory paid calls for invalid consolidated input: %j', async body => {
+      expect((await POST(request(body))).status).toBe(400);
+      expect(mocks.editorial).not.toHaveBeenCalled(); expect(mocks.client).not.toHaveBeenCalled();
+    });
+  it('returns a readable combined failure without upstream error details or a fallback call', async () => {
+    mocks.editorial.mockRejectedValue(new Error('secret provider response'));
+    const response = await POST(request({ ...input, editorialReview: 'liv-v1' }));
+    expect(response.status).toBe(503);
+    expect(await response.text()).not.toContain('secret');
+    expect(mocks.verify).not.toHaveBeenCalled(); expect(mocks.client).not.toHaveBeenCalled();
+  });
+  it('preserves the authenticated run budget across the HTTP assessment boundary', async () => {
+    vi.stubEnv('INTERNAL_API_SECRET', 'test-only-internal-secret-at-least-32-characters');
+    try {
+      mocks.editorial.mockImplementation(async () => ({ context: currentLivCostContext() }));
+      const headers = withLivCostContext({ runId: 'prepare-2026-09-13', stage: 'safety-gates' },
+        () => internalApiHeaders(livCostHeaders('/api/factcheck')));
+      const response = await POST(new NextRequest('http://localhost/api/factcheck', {
+        method: 'POST', headers, body: JSON.stringify({ ...input, editorialReview: 'liv-v1' }),
+      }));
+      expect(await response.json()).toMatchObject({ context: { runId: 'prepare-2026-09-13', stage: 'factcheck' } });
+    } finally { vi.unstubAllEnvs(); }
+  });
+  it('rejects a forged cost header rather than downgrading to an unmetered request', async () => {
+    const response = await POST(new NextRequest('http://localhost/api/factcheck', {
+      method: 'POST', headers: { 'x-liv-cost-context': 'forged.signature' },
+      body: JSON.stringify({ ...input, editorialReview: 'liv-v1' }),
+    }));
+    expect(response.status).toBe(401);
+    expect(mocks.editorial).not.toHaveBeenCalled(); expect(mocks.verify).not.toHaveBeenCalled();
   });
 });

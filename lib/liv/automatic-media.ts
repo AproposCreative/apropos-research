@@ -4,6 +4,7 @@ import { load } from 'cheerio';
 import { encodeWebp } from '@/lib/images/encode-webp';
 import { livImageArticleHash } from '@/lib/liv/article-image-hash';
 import type { GeneratedArticle } from '@/lib/liv/generate-article';
+import { isLivOfficialImageSource } from '@/lib/liv/photo-credit';
 
 export type MediaMode = 'illustration' | 'photography';
 export type MediaStyle = 'expressive' | 'minimal';
@@ -14,6 +15,8 @@ export type MediaEvidence = StoredMedia & { role: 'hero' | 'body-1' | 'body-2'; 
   credit: string; sourceUrl: string | null; sourcePageUrl: string | null; sourceHash: string; kind: MediaMode };
 export type MediaOptions = { dayKey: string; mode?: MediaMode; style?: MediaStyle; deadline?: number };
 export type MediaDependencies = {
+  /** Preserve an already-paid job if a new default would choose another mode. */
+  existingMode?: (jobIds: Record<MediaMode, string>) => Promise<MediaMode | null>;
   claim: (jobId: string, article: GeneratedArticle, mode: MediaMode, style: MediaStyle) => Promise<GeneratedArticle | null>;
   resume?: (jobId: string) => Promise<Array<{ evidence: MediaEvidence; bytes: Buffer }>>;
   record: (jobId: string, stage: string, data: Record<string, unknown>) => Promise<void>;
@@ -32,9 +35,12 @@ const escape = (value: string) => value.replace(/&/g, '&amp;').replace(/</g, '&l
 
 export function resolveLivMediaMode(article: GeneratedArticle, requested?: MediaMode): MediaMode {
   // Reviews and film/TV content must not acquire invented documentary imagery.
-  const realImages = article.articleFormat === 'research-review' || /\b(?:film|serier|tv|biograf)\b/i.test(article.section);
+  const realImages = article.articleFormat === 'research-review' || ['film', 'tv-series'].includes(article.subjectType || '') ||
+    /\b(?:film|serie|serier|tv|biograf)\b/i.test([article.section, ...(article.tags || [])].join(' '));
   if (realImages && requested === 'illustration') throw new Error('liv_media_review_requires_photography');
-  return realImages ? 'photography' : requested || 'illustration';
+  const officialStills = new Set((article.imageSuggestions || []).filter(image =>
+    isLivOfficialImageSource(image.sourcePageUrl || '')).map(image => image.url));
+  return realImages ? 'photography' : requested || (officialStills.size >= 3 ? 'photography' : 'illustration');
 }
 
 export function validateLivMediaPlan(value: unknown, mode: MediaMode, candidates: MediaCandidate[]): MediaPlan {
@@ -86,11 +92,20 @@ export async function prepareLivAutomaticMedia(article: GeneratedArticle, option
   }
   if (article.selectedImage) throw new Error('liv_media_existing_hero');
   bodyDocument(article.content); // Fail before claiming or making paid calls.
-  const mode = resolveLivMediaMode(article, options.mode);
+  let mode = resolveLivMediaMode(article, options.mode);
   const style = options.style || 'expressive';
   if (!['expressive', 'minimal'].includes(style)) throw new Error('liv_media_style_invalid');
-  const jobId = digest(JSON.stringify(['liv-media-v1', options.dayKey, livImageArticleHash(article), mode, style]));
   const deps = dependencies ?? (await import('@/lib/liv/automatic-media-runtime')).livMediaRuntime(options.deadline);
+  const jobIds = Object.fromEntries((['illustration', 'photography'] as const).map(value =>
+    [value, digest(JSON.stringify(['liv-media-v1', options.dayKey, livImageArticleHash(article), value, style]))])) as Record<MediaMode, string>;
+  if (!options.mode && deps.existingMode) {
+    const existing = await deps.existingMode(jobIds);
+    if (existing) {
+      // Saved work wins over changing defaults, except a forbidden review image.
+      mode = resolveLivMediaMode(article, existing);
+    }
+  }
+  const jobId = jobIds[mode];
   const cached = await deps.claim(jobId, article, mode, style);
   if (cached) return cached;
   try {

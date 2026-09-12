@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { runSafetyGates } from '@/lib/liv/run-safety-gates';
 import { checkSourceSimilarity } from '@/lib/liv/source-similarity';
 import { articleFingerprint, assessGroundedReport } from '@/lib/factcheck/grounded';
+import { loadLivVoice } from '@/lib/liv/voice';
 
 vi.mock('@/lib/liv/source-similarity', () => ({
   checkSourceSimilarity: vi.fn(async () => ({ pass: true, complete: true, scores: { embeddingSim: 0, ngramJaccard: 0, openingSim: 0 } })),
@@ -92,6 +93,7 @@ describe('Liv safety gates', () => {
     content: 'Koncerten afholdes den 5. november 2026 i København.',
     sourceExcerpt: 'En separat og dokumenteret kilde med en anden formulering. '.repeat(4),
     requireCompleteVerification: true,
+    sourceUrls: ['https://primary.example/news', 'https://secondary.example/news'],
   };
   const diagnosticText = [diagnosticInput.title, ...diagnosticInput.additionalTexts, diagnosticInput.intro, diagnosticInput.content].join('\n\n');
   function report(status = 'verified', undated = false) {
@@ -110,8 +112,16 @@ describe('Liv safety gates', () => {
       .mockResolvedValueOnce(jsonResponse({ data: { tips: 'Fin tekst.' } })));
   }
 
+  function editorialProof() {
+    return { version: 'liv-editorial-v1' as const, articleHash: articleFingerprint(diagnosticText),
+      voiceHash: loadLivVoice().hash, checkedAt: new Date().toISOString(), assessmentId: 'a'.repeat(64),
+      verdict: 'approve' as const, summary: 'Selvstændig vinkel, korrekt tilskrivning og passende Liv-stemme.',
+      blockingIssues: [] as Array<{ kind: string; articleQuote: string; explanation: string }>,
+      checks: { voice: true, independentAngle: true, sourceAttribution: true, noInventedExperience: true, coherence: true } };
+  }
+
   it('reuses an exact fresh server report while still running similarity, moderation and voice gates', async () => {
-    const saved = report();
+    const saved = { ...report(), editorialReview: editorialProof() };
     const fetchMock = vi.fn()
       .mockResolvedValueOnce(jsonResponse({ data: { metrics: { wordCount: 700, plagiarismRisk: 'low' } } }))
       .mockResolvedValueOnce(jsonResponse({ data: { tips: 'Fin tekst.' } }));
@@ -119,13 +129,13 @@ describe('Liv safety gates', () => {
     const result = await runSafetyGates({ ...diagnosticInput, priorFactcheck: saved });
     expect(result.pass).toBe(true);
     expect(result.results.find(gate => gate.name === 'factcheck')).toMatchObject({ skipped: false, evidence: saved });
-    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(fetchMock.mock.calls.some(call => String(call[0]).includes('/api/factcheck'))).toBe(false);
     expect(result.results.map(gate => gate.name)).toEqual(['source-similarity', 'moderation', 'factcheck', 'tov']);
   });
 
-  it.each(['stale', 'wrong-version', 'unverified', 'undated-citation'])('does not reuse %s saved evidence', async kind => {
-    const saved = kind === 'undated-citation' ? report('verified', true) : report();
+  it.each(['stale', 'wrong-version', 'unverified'])('does not reuse %s saved evidence', async kind => {
+    const saved = report();
     if (kind === 'stale') saved.checkedAt = new Date(Date.now() - 16 * 60_000).toISOString();
     if (kind === 'wrong-version') saved.articleHash = articleFingerprint('Different text');
     if (kind === 'unverified') saved.results[0].status = 'unverifiable';
@@ -144,6 +154,32 @@ describe('Liv safety gates', () => {
     expect(gate.diagnosticEvidence).toEqual(failed);
     expect(gate.diagnosticEvidence!.results[0]).toMatchObject({ status: 'unverifiable', validationErrors: ['undated_source'] });
     expect(gate).not.toHaveProperty('evidence');
+    expect(vi.mocked(fetch)).toHaveBeenCalledTimes(2);
+    expect(vi.mocked(fetch).mock.calls.some(call => String(call[0]).includes('/api/critic/tov'))).toBe(false);
+  });
+
+  it('reuses an exact fresh failed report without buying the same factcheck or a voice review', async () => {
+    const failed = report('verified', true);
+    const fetchMock = vi.fn().mockResolvedValueOnce(jsonResponse({ data: { metrics: { wordCount: 700, plagiarismRisk: 'low' } } }));
+    vi.stubGlobal('fetch', fetchMock);
+    const result = await runSafetyGates({ ...diagnosticInput, priorFactcheck: failed,
+      sourceUrls: failed.sources.map(source => source.url) });
+    expect(result).toMatchObject({ pass: false, failedGate: 'verification-complete' });
+    expect(result.results.find(gate => gate.name === 'factcheck')?.diagnosticEvidence).toEqual(failed);
+    expect(result.results.find(gate => gate.name === 'factcheck')).not.toHaveProperty('evidence');
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it.each(['new-sources', 'stale', 'new-text', 'partial-coverage', 'future'])('does not reuse failed review after %s', async kind => {
+    const failed = report('verified', true);
+    if (kind === 'stale') failed.checkedAt = new Date(Date.now() - 16 * 60_000).toISOString();
+    if (kind === 'future') failed.checkedAt = new Date(Date.now() + 60_000).toISOString();
+    if (kind === 'partial-coverage') failed.coverage.checkedUnits = 0;
+    respondWithFactcheck(failed);
+    await runSafetyGates({ ...diagnosticInput, priorFactcheck: failed,
+      ...(kind === 'new-text' ? { title: 'Ny titel' } : {}),
+      sourceUrls: [...failed.sources.map(source => source.url), ...(kind === 'new-sources' ? ['https://new.example/news'] : [])] });
+    expect(vi.mocked(fetch).mock.calls.some(call => String(call[0]).includes('/api/factcheck'))).toBe(true);
   });
 
   it('retains disputed reports before the factcheck early return without approval', async () => {
@@ -186,12 +222,86 @@ describe('Liv safety gates', () => {
   });
 
   it('keeps fully validated approval evidence separate from diagnostic evidence', async () => {
-    const passed = report();
+    const passed = { ...report(), editorialReview: editorialProof() };
     respondWithFactcheck(passed);
     const result = await runSafetyGates(diagnosticInput);
     expect(result.pass).toBe(true);
     const gate = result.results.find(gate => gate.name === 'factcheck')!;
     expect(gate.evidence).toEqual(passed);
     expect(gate).not.toHaveProperty('diagnosticEvidence');
+    expect(vi.mocked(fetch)).toHaveBeenCalledTimes(2);
+    expect(vi.mocked(fetch).mock.calls[0][1]?.signal).toBeInstanceOf(AbortSignal);
+    expect(vi.mocked(fetch).mock.calls[1][1]?.signal).toBeInstanceOf(AbortSignal);
+    expect(JSON.parse(vi.mocked(fetch).mock.calls[1][1]?.body as string).editorialReview).toBe('liv-v1');
+    expect(vi.mocked(fetch).mock.calls.some(call => String(call[0]).includes('/api/critic/tov'))).toBe(false);
+  });
+
+  it.each(['missing', 'wrong-text', 'wrong-voice', 'stale'])('blocks %s combined editorial proof without a second critic call', async kind => {
+    const editorialReview = editorialProof();
+    if (kind === 'wrong-text') editorialReview.articleHash = 'b'.repeat(64);
+    if (kind === 'wrong-voice') editorialReview.voiceHash = 'b'.repeat(64);
+    if (kind === 'stale') editorialReview.checkedAt = new Date(Date.now() - 16 * 60_000).toISOString();
+    respondWithFactcheck({ ...report(), ...(kind === 'missing' ? {} : { editorialReview }) });
+    const result = await runSafetyGates(diagnosticInput);
+    expect(result).toMatchObject({ pass: false, failedGate: 'verification-complete', anyGateSkipped: true });
+    expect(result.results.find(gate => gate.name === 'tov')).toMatchObject({ pass: false, skipped: true });
+    expect(vi.mocked(fetch)).toHaveBeenCalledTimes(2);
+  });
+
+  it.each(['verdict', 'voice', 'independentAngle', 'sourceAttribution', 'noInventedExperience', 'coherence'])('keeps %s feedback advisory without a concrete material issue', async kind => {
+    const editorialReview = { ...editorialProof(), verdict: 'approve' };
+    if (kind === 'verdict') editorialReview.verdict = 'revise';
+    else editorialReview.checks[kind as keyof typeof editorialReview.checks] = false;
+    respondWithFactcheck({ ...report(), editorialReview });
+    const result = await runSafetyGates(diagnosticInput);
+    expect(result.pass).toBe(true);
+    expect(result.results.find(gate => gate.name === 'tov')).toMatchObject({ pass: true, detail: editorialReview.summary });
+    expect(vi.mocked(fetch)).toHaveBeenCalledTimes(2);
+  });
+
+  it.each(['unsupported_thesis', 'incoherent_thesis', 'copied_structure', 'missing_attribution', 'invented_experience'])
+    ('blocks a concrete material editorial problem: %s', async kind => {
+      const editorialReview = editorialProof();
+      editorialReview.blockingIssues = [{ kind, articleQuote: diagnosticInput.content,
+        explanation: 'Et konkret alvorligt redaktionelt problem i det præcise citerede artikeludsnit.' }];
+      respondWithFactcheck({ ...report(), editorialReview });
+      const result = await runSafetyGates(diagnosticInput);
+      expect(result).toMatchObject({ pass: false, failedGate: 'tov' });
+      expect(result.results.find(gate => gate.name === 'tov')?.detail).toContain(kind);
+      expect(vi.mocked(fetch)).toHaveBeenCalledTimes(2);
+    });
+
+  it('does not accept a material issue citing text that is not in the article', async () => {
+    const editorialReview = editorialProof();
+    editorialReview.blockingIssues = [{ kind: 'invented_experience', articleQuote: 'Jeg var selv til koncerten.',
+      explanation: 'Dette opdigtede udsagn findes ikke i den indsendte artikeltekst.' }];
+    respondWithFactcheck({ ...report(), editorialReview });
+    expect((await runSafetyGates(diagnosticInput)).failedGate).toBe('verification-complete');
+    expect(vi.mocked(fetch)).toHaveBeenCalledTimes(2);
+  });
+
+  it('requires a real combined assessment when an older factual-only receipt lacks editorial evidence', async () => {
+    respondWithFactcheck({ ...report(), editorialReview: editorialProof() });
+    const result = await runSafetyGates({ ...diagnosticInput, priorFactcheck: report() });
+    expect(result.pass).toBe(true);
+    expect(vi.mocked(fetch)).toHaveBeenCalledTimes(2);
+    expect(vi.mocked(fetch).mock.calls.some(call => String(call[0]).includes('/api/critic/tov'))).toBe(false);
+  });
+
+  it('does not reuse combined approval after another potentially conflicting source is supplied', async () => {
+    const saved = { ...report(), editorialReview: editorialProof() };
+    respondWithFactcheck(saved);
+    await runSafetyGates({ ...diagnosticInput, priorFactcheck: saved,
+      sourceUrls: [...diagnosticInput.sourceUrls, 'https://additional.example/conflict'] });
+    expect(vi.mocked(fetch)).toHaveBeenCalledTimes(2);
+    expect(vi.mocked(fetch).mock.calls.some(call => String(call[0]).includes('/api/factcheck'))).toBe(true);
+  });
+
+  it('preserves the legacy advisory critic for non-Liv requests', async () => {
+    respondWithFactcheck(report());
+    const result = await runSafetyGates({ ...diagnosticInput, authorName: 'Other author' });
+    expect(result.pass).toBe(true);
+    expect(vi.mocked(fetch)).toHaveBeenCalledTimes(3);
+    expect(JSON.parse(vi.mocked(fetch).mock.calls[1][1]?.body as string)).not.toHaveProperty('editorialReview');
   });
 });

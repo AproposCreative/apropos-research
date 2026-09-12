@@ -9,6 +9,7 @@ import { defaultEditorialPlan, preparationCandidates } from '@/lib/liv/rolling-p
 import { runLivDaily } from '@/lib/liv/run-daily';
 import { admitPreparedArticle, type PreparationProof } from '@/lib/liv/prepared-admission';
 import { canRetryUnstartedPreparation } from '@/lib/liv/preparation-retry';
+import { canResumeLivPreparationCheckpoint, livPreparationStatusForRow } from '@/lib/liv/preparation-status';
 
 export const maxDuration = 300;
 export async function GET(req: NextRequest) {
@@ -31,7 +32,7 @@ export async function GET(req: NextRequest) {
       await ensureLivDailyPlan(defaultEditorialPlan(addDays(today, offset)));
     }
     for (const candidate of preparationCandidates(state, today)) {
-      const scope = candidate.kind === 'reserve' ? 'reserve' : 'prepare';
+      const scope = candidate.scope || 'prepare';
       // Existing paid or uncertain work is retained. Do not start it again merely
       // because this hourly call happened; incomplete jobs appear in health status.
       const saved = await db.collection(LIV_DAILY_COLLECTION).doc(livDailyDocId(candidate.dayKey, scope)).get();
@@ -41,32 +42,36 @@ export async function GET(req: NextRequest) {
         // identity to skip admitted work, including selected/rejected/published
         // items, instead of repeatedly recovering it while the stock is below target.
         if (row?.webflowItemId && (state.entries.some(entry => entry.itemId === row.webflowItemId) ||
-            Object.values(state.slots).some(slot => slot.itemId === row.webflowItemId))) continue;
+            Object.values(state.slots).some(slot => slot.itemId === row.webflowItemId))) {
+          if (state.entries.some(entry => entry.itemId === row.webflowItemId && entry.state === 'rejected')) {
+            return NextResponse.json(livPreparationStatusForRow(candidate.dayKey, scope, row));
+          }
+          continue;
+        }
         if (row?.webflowItemId && row.preparationProof) {
           const proof = row.preparationProof as PreparationProof;
           try {
             // Re-read the known CMS item; never regenerate text/images or create an item here.
             await admitPreparedArticle({ itemId: row.webflowItemId, slug: proof.expected.slug,
               title: proof.expected.title, kind: candidate.kind,
-              scheduledDay: scope === 'reserve' ? today : candidate.dayKey,
-              expiresDay: scope === 'reserve' ? addDays(candidate.dayKey, 5) : candidate.dayKey }, proof);
+              scheduledDay: candidate.dayKey,
+              expiresDay: candidate.dayKey }, proof);
             const recovered = await readDeliveryState();
             if (recovered.entries.some(entry => entry.itemId === row.webflowItemId && entry.state === 'ready' &&
                 entry.decision !== 'rejected' && entry.expiresDay >= today)) {
               return NextResponse.json({ status: 'recovered_ready_draft', day: candidate.dayKey });
             }
-          } catch { /* Unready work is retained; try another candidate instead. */ }
+          } catch { /* Retain unready work and expose only a safe blocked status. */ }
           // An immutable payload may already exist without an active manifest
           // entry. A no-op admission is not progress and must never regenerate it.
-          continue;
+          return NextResponse.json(livPreparationStatusForRow(candidate.dayKey, scope, row));
         }
-        const resumableCheckpoint = (row?.continuationReady === true && !!row.articleCheckpoint ||
-          typeof row?.retryAuthorization === 'string' || Number(row?.preparationAttempts ?? 0) <= 4 &&
-          Array.isArray(row?.articleCheckpoint?.preparedMedia) && row.articleCheckpoint.preparedMedia.length >= 3 &&
-          !row?.webflowItemId && !row?.preparationProof) && !row?.cmsSaveStarted;
-        if (!resumableCheckpoint && !canRetryUnstartedPreparation(row)) continue;
+        const resumableCheckpoint = canResumeLivPreparationCheckpoint(row);
+        if (!resumableCheckpoint && !canRetryUnstartedPreparation(row)) {
+          return NextResponse.json(livPreparationStatusForRow(candidate.dayKey, scope, row));
+        }
       }
-      return await runLivDaily(req, { ...candidate, defaultPlan: defaultEditorialPlan(candidate.dayKey, scope === 'reserve') });
+      return await runLivDaily(req, { ...candidate, defaultPlan: defaultEditorialPlan(candidate.dayKey) });
     }
     return NextResponse.json({ status: 'no_unstarted_work', day: today });
   } catch { return NextResponse.json({ error: 'liv_preparation_failed' }, { status: 503 }); }

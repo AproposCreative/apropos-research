@@ -3,9 +3,15 @@ import { cosineSimilarity, getEmbedding, loadEmbeddingsRemoteOrLocal } from '@/l
 import { logger, createRequestLogger } from '@/lib/logger';
 import { getRequestId } from '@/lib/api/request-utils';
 import { createErrorResponse, createSuccessResponse, ErrorCode } from '@/lib/api/types';
+import { withLivCostRequest } from '@/lib/liv/cost-context';
 
 // Simple similarity + length checks as a preflight for plagiarism/fake signals
 export async function POST(request: NextRequest) {
+	try { return await withLivCostRequest(request, 'moderation', () => handlePost(request)); }
+	catch { return NextResponse.json({ error: 'Ugyldig intern budgetkontekst.' }, { status: 401 }); }
+}
+
+async function handlePost(request: NextRequest) {
 	const requestId = getRequestId(request);
 	const requestLogger = createRequestLogger(requestId);
 	
@@ -67,5 +73,4 @@ export async function POST(request: NextRequest) {
 		);
 	}
 }
-
 

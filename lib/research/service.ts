@@ -34,7 +34,7 @@ async function withTimeout<T>(run: (signal: AbortSignal) => Promise<T>, ms: numb
 
 export async function getResearch(
   query: string,
-  opts: { maxResults?: number; model?: string; timeoutMs?: number } = {},
+  opts: { maxResults?: number; model?: string; timeoutMs?: number; allowFallback?: boolean } = {},
 ): Promise<ResearchResult> {
   const started = Date.now();
   const maxResults = Number.isFinite(opts.maxResults) ? Math.max(1, Math.min(20, Math.floor(opts.maxResults!))) : 3;
@@ -42,7 +42,8 @@ export async function getResearch(
   const timeoutMs = boundedTimeout(opts.timeoutMs, configuredTimeout);
   const primaryName: ResearchProviderName = process.env.RESEARCH_PROVIDER?.trim() === 'legacy_web_search'
     ? 'legacy_web_search' : 'openai_responses';
-  const fallbackName = process.env.RESEARCH_FALLBACK_PROVIDER?.trim() === 'none' ? null : 'legacy_web_search';
+  const fallbackName = opts.allowFallback === false || process.env.RESEARCH_FALLBACK_PROVIDER?.trim() === 'none'
+    ? null : 'legacy_web_search';
   const attempts: NonNullable<ResearchDebugMetadata['attempts']> = [];
 
   async function attempt(name: ResearchProviderName, budget: number, model?: string): Promise<ResearchResult> {

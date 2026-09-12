@@ -100,12 +100,13 @@ describe('Liv voice and review contract', () => {
     expect(() => parseResearchRating('Rating: 4', 'research-review')).toThrow();
     expect(() => parseResearchRating(`Rating: 4\nRating: 5\nRatingReason: ${reason}`, 'research-review')).toThrow();
   });
-  it('keeps the existing AI flag, passes stars and records the actual model without injecting labels', () => {
+  it('disables the public AI flag, passes stars and preserves actual model provenance', () => {
     const article = { title: 'The Invite', subtitle: 'En dom', intro: 'En indledning.', content: 'En selvstændig tekst.',
       slug: 'the-invite', excerpt: 'Et uddrag', section: 'Film', tags: [], rawResponse: '',
       articleFormat: 'research-review' as const, rating: 4, ratingReason: reason, aiModel: 'actual-model-snapshot' };
     const payload = buildLivCmsPayload({ article, topic: { title: 'The Invite', score: 1 }, aiModel: 'incorrect-fallback' });
-    expect(payload.aiGenerated).toBe(true);
+    expect(payload).toMatchObject({ articleFormat: 'research-review', rating: 4, ratingReason: reason });
+    expect(payload.aiGenerated).toBe(false);
     expect(payload.rating).toBe(4);
     expect(payload.aiModel).toBe('actual-model-snapshot');
     expect(payload.content).toBe(article.content);

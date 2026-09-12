@@ -9,6 +9,11 @@ it('keeps text, paragraphs and a justified numeric rating separate', () => {
   expect(livArticleResponseFormat.json_schema.schema.required.sort())
     .toEqual(Object.keys(livArticleResponseFormat.json_schema.schema.properties).sort());
 });
+it('validates explicit subject type while keeping old paid drafts readable', () => {
+  expect(parseLivArticleOutput(JSON.stringify({ ...article, subjectType: 'tv-series' }), 'research-review').subjectType).toBe('tv-series');
+  expect(parseLivArticleOutput(JSON.stringify(article), 'research-review').subjectType).toBeUndefined();
+  expect(() => parseLivArticleOutput(JSON.stringify({ ...article, subjectType: 'invented' }), 'research-review')).toThrow();
+});
 it.each([0, 7, 4.5, '4', '4/6', null])('rejects an invalid review rating %s without coercion', rating => {
   expect(() => parseLivArticleOutput(JSON.stringify({ ...article, rating }), 'research-review')).toThrow();
 });

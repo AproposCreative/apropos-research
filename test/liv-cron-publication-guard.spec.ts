@@ -1,8 +1,10 @@
 import { beforeEach, afterEach, it, expect, vi } from 'vitest';
 import { NextRequest } from 'next/server';
 import { articleFingerprint } from '@/lib/factcheck/grounded';
+import { checkLivArticleLength } from '@/lib/liv/article-length';
 const repair = vi.hoisted(() => vi.fn());
 const resumeFacts = vi.hoisted(() => vi.fn());
+const plans = vi.hoisted(() => ({ saved: null as any, failed: vi.fn(), generate: vi.fn(), qa: vi.fn() }));
 vi.mock('@/lib/liv/fact-revision', () => ({ repairLivArticleFacts: repair, resumeLivFactRevision: resumeFacts }));
 const mocks = vi.hoisted(() => ({ refresh: vi.fn(), supplement: vi.fn(), topic: vi.fn(), publish: vi.fn(), live: vi.fn(), finish: vi.fn(), gates: vi.fn(), claim: vi.fn(), readback: vi.fn(), analytics: vi.fn(), media: vi.fn(), checkpoint: vi.fn(), admission: vi.fn(), proof: vi.fn(), yield: vi.fn(), row: undefined as any, doc: vi.fn() }));
 vi.mock('@/lib/liv/supplement-research', () => ({ supplementLivResearch: mocks.supplement, refreshLivResearchDates: mocks.refresh }));
@@ -16,19 +18,24 @@ vi.mock('@/lib/liv/daily-history-store', () => ({ claimLivDaily: mocks.claim, fi
   checkpointLivDailyCmsItem: vi.fn(), checkpointLivDailyArticle: mocks.checkpoint, checkpointPreparationProof: mocks.proof, todayDayKeyUTC: () => '2026-09-09',
   livDailyDocId: (day: string, scope: string) => `${scope}-${day}`, yieldLivPreparation: mocks.yield }));
 vi.mock('@/lib/liv/pick-topic', () => ({ pickLivTopic: mocks.topic }));
-vi.mock('@/lib/liv/generate-article', () => ({ generateLivArticle: async () => ({ title: 'Et museum åbner', subtitle: 'En ny udstilling', intro: 'Intro', content: 'Kultur '.repeat(1000), slug: 'et-museum-aabner', excerpt: 'Udstilling', section: 'Kunst', seoTitle: 'Museum', seoDescription: 'Udstilling', researchSources: [{ url: 'https://museum.dk/news', source: 'Museum' }, { url: 'https://kultur.dk/news', source: 'Kultur' }] }) }));
+vi.mock('@/lib/liv/generate-article', () => ({ generateLivArticle: async (options: unknown) => {
+  plans.generate(options);
+  return { title: 'Et museum åbner', subtitle: 'En ny udstilling', intro: 'Intro', content: 'Kultur '.repeat(550), slug: 'et-museum-aabner', excerpt: 'Udstilling', section: 'Kunst', seoTitle: 'Museum', seoDescription: 'Udstilling', researchSources: [{ url: 'https://museum.dk/news', source: 'Museum' }, { url: 'https://kultur.dk/news', source: 'Kultur' }] };
+} }));
 vi.mock('@/lib/liv/build-cms-payload', () => ({ buildLivCmsPayload: () => ({ title: 'Et museum åbner' }) }));
 vi.mock('@/lib/liv/run-safety-gates', () => ({ runSafetyGates: mocks.gates }));
-vi.mock('@/lib/liv/research-qa', () => ({ buildResearchQaSummary: () => ({ canAutoPublish: true, blockers: [] }) }));
+vi.mock('@/lib/liv/research-qa', () => ({ buildResearchQaSummary: (input: unknown) => {
+  plans.qa(input); return { canAutoPublish: true, blockers: [] };
+} }));
 vi.mock('@/lib/articles/publish', () => ({ publishArticleDraftToWebflow: mocks.publish }));
 vi.mock('@/lib/liv/cms-readback', () => ({ inspectLivCmsDraft: mocks.readback }));
 vi.mock('@/lib/newsletter/ga4-measurement', () => ({ sendGa4MeasurementEvent: mocks.analytics }));
-vi.mock('@/lib/liv/daily-plan-store', () => ({ getLivDailyPlan: async () => null, markPlanFailed: async () => {}, markPlanUsed: async () => {} }));
-vi.mock('@/lib/liv/resolve-liv-topic-hints', () => ({ resolveLivTopicInputsFromPlan: () => ({}) }));
+vi.mock('@/lib/liv/daily-plan-store', () => ({ getLivDailyPlan: async () => plans.saved, markPlanFailed: plans.failed, markPlanUsed: async () => {} }));
+vi.mock('@/lib/liv/resolve-liv-topic-hints', () => ({ resolveLivTopicInputsFromPlan: (plan: any) => ({ topicHint: plan?.topicHint, mustUseTrending: plan?.mustUseTrending }) }));
 import { GET } from '@/app/api/cron/liv-daily-article/route';
 import { ArticleSaveError } from '@/lib/articles/save-receipt';
 import { runLivDaily } from '@/lib/liv/run-daily';
-import { defaultEditorialPlan } from '@/lib/liv/rolling-plan';
+import { defaultEditorialPlan, editorialPlanHash } from '@/lib/liv/rolling-plan';
 
 const saveResult = { articleId: 'saved-item', publicationVerified: false,
   receipt: { saveState: 'draft', saveVerified: true, cmsLocaleId: 'locale' } };
@@ -36,6 +43,7 @@ const saveResult = { articleId: 'saved-item', publicationVerified: false,
 beforeEach(() => {
   vi.resetAllMocks();
   mocks.row = undefined;
+  plans.saved = null;
   mocks.doc.mockImplementation(() => ({ get: async () => ({ data: () => mocks.row }) }));
   vi.stubEnv('LIV_DAILY_PUBLICATION_MODE', 'auto_publish');
   vi.stubEnv('LIV_DAILY_PAUSED', '0');
@@ -84,6 +92,30 @@ it('automatically publishes only after structure and CMS checks pass', async () 
   expect(result).toMatchObject({ publicationVerified: true, publicationBlocked: false, webflowStatus: 'published' });
   expect(mocks.finish).toHaveBeenCalledWith('2026-09-09', expect.objectContaining({ status: 'published' }));
   expect(mocks.analytics).toHaveBeenCalledWith(expect.objectContaining({ params: expect.objectContaining({ status: 'published' }) }));
+});
+it('blocks a 1050-word direct daily article on length alone despite passed editorial and CMS checks', async () => {
+  vi.stubEnv('LIV_DELIVERY_QUEUE_ENABLED', 'false');
+  // Supply the oversized final body at the media boundary; leave all other
+  // article fields valid and exercise the real deterministic CMS preflight.
+  mocks.media.mockImplementation(async article => ({ ...article, content: '<p>' + 'Kultur '.repeat(1050) + '</p>' }));
+  mocks.readback.mockResolvedValue({ draftConfirmed: true, publicationReady: true, checks: [{ id: 'all', ok: true }] });
+  const response = await GET(new NextRequest('http://localhost/api/cron/liv-daily-article'));
+  const result = await response.json();
+  expect(response.status).toBe(200);
+  expect(result).toMatchObject({ publicationMode: 'auto_publish', publicationVerified: false,
+    publicationBlocked: true, webflowStatus: 'draft', cmsCheck: { wordCount: 1050, structureReady: false } });
+  expect(result.cmsCheck.checks.filter((check: { ok: boolean }) => !check.ok).map((check: { id: string }) => check.id)).toEqual(['length']);
+  expect(result.gateResults).toContainEqual({ name: 'cms-publication', pass: false, detail: 'length' });
+  expect(mocks.gates).toHaveBeenCalledTimes(1);
+  expect(mocks.publish).toHaveBeenCalledTimes(1); // A saved draft is not publication.
+  expect(mocks.readback).toHaveBeenCalledTimes(1);
+  expect(mocks.live).not.toHaveBeenCalled();
+  expect(mocks.admission).not.toHaveBeenCalled();
+  expect(repair).not.toHaveBeenCalled(); // Direct daily has no automatic correction path.
+  expect(plans.generate).toHaveBeenCalledTimes(1);
+  expect(plans.generate).toHaveBeenCalledWith(expect.objectContaining({ preparation: false, sourceScope: 'liv-daily' }));
+  expect(mocks.finish).toHaveBeenCalledWith('2026-09-09', expect.objectContaining({ status: 'draft', webflowItemId: 'saved-item' }));
+  expect(mocks.analytics).not.toHaveBeenCalledWith(expect.objectContaining({ params: expect.objectContaining({ status: 'published' }) }));
 });
 it.each(['draft', 'human_approval'])('never publishes in %s mode even with passed checks', async mode => {
   vi.stubEnv('LIV_DAILY_PUBLICATION_MODE', mode);
@@ -200,6 +232,46 @@ it('yields after saving generated text and does not spend the remaining budget o
   expect(mocks.topic).toHaveBeenCalledWith(expect.objectContaining({ currentRunId: 'prepare-2026-09-12' }));
   expect(mocks.media).not.toHaveBeenCalled(); expect(mocks.publish).not.toHaveBeenCalled();
 });
+
+it('uses the alternative editorial direction without changing the saved plan or its delivery hash', async () => {
+  const dayKey = '2026-09-12';
+  plans.saved = { ...defaultEditorialPlan(dayKey), topicHint: 'Rejected topic',
+    directiveHint: 'Old directive', expandedDirective: 'Old expanded directive', articleFormat: 'research-review' };
+  const original = structuredClone(plans.saved);
+  const defaultPlan = { ...defaultEditorialPlan(dayKey), topicHint: 'Different story',
+    directiveHint: 'New directive', expandedDirective: 'New expanded directive' };
+  const options = { dayKey, kind: 'scheduled' as const, scope: 'prepare-alternative' as const, defaultPlan };
+  await runLivDaily(new NextRequest('http://localhost/api/cron/liv-prepare'), options);
+  expect(mocks.topic).toHaveBeenCalledWith(expect.objectContaining({ topicHint: 'Different story',
+    currentRunId: 'prepare-alternative-2026-09-12' }));
+  expect(plans.generate).toHaveBeenCalledWith(expect.objectContaining({ directiveHint: 'New directive',
+    expandedDirective: 'New expanded directive', articleFormat: 'article' }));
+
+  mocks.row = { articleCheckpoint: { title: 'Et museum åbner', content: 'Kultur '.repeat(650), slug: 'et-museum-aabner',
+    subtitle: 'Udstillingen', intro: 'En intro', seoTitle: 'Museum', seoDescription: 'Kultur', section: 'Kunst',
+    preparedMedia: [{}, {}, {}], researchSources: [{ url: 'https://museum.dk/news', publishedAt: '2026-09-10' },
+      { url: 'https://kultur.dk/news', publishedAt: '2026-09-10' }] } };
+  mocks.readback.mockResolvedValue({ draftConfirmed: true, publicationReady: true, checks: [{ id: 'all', ok: true }] });
+  const result = await (await runLivDaily(new NextRequest('http://localhost/api/cron/liv-prepare'), options)).json();
+  expect(result.queued).toBe(true);
+  expect(plans.generate).toHaveBeenCalledTimes(1); // checkpoint wins on continuation
+  expect(plans.qa).toHaveBeenCalledWith(expect.objectContaining({ topicHint: 'Different story', directiveHint: 'New directive' }));
+  expect(mocks.proof).toHaveBeenCalledWith(dayKey, 'prepare-alternative', expect.objectContaining({ planHash: editorialPlanHash(original) }));
+  expect(mocks.admission).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ planHash: editorialPlanHash(original) }));
+  expect(plans.saved).toEqual(original);
+  expect(plans.failed).not.toHaveBeenCalled();
+});
+
+it('does not mark the old plan failed when an alternative has no topic', async () => {
+  plans.saved = { ...defaultEditorialPlan('2026-09-12'), topicHint: 'Rejected topic' };
+  mocks.topic.mockResolvedValue(null);
+  await runLivDaily(new NextRequest('http://localhost/api/cron/liv-prepare'), {
+    dayKey: '2026-09-12', kind: 'scheduled', scope: 'prepare-alternative', defaultPlan: defaultEditorialPlan('2026-09-12'),
+  });
+  expect(mocks.topic).toHaveBeenCalledWith(expect.objectContaining({ topicHint: undefined }));
+  expect(plans.failed).not.toHaveBeenCalled();
+  expect(plans.generate).not.toHaveBeenCalled();
+});
 it('resumes reserve text, checkpoints media, and yields before final checks', async () => {
   mocks.row = { articleCheckpoint: { title: 'Saved text', content: 'Saved text',
     researchSources: [{ url: 'https://museum.dk/news', publishedAt: '2026-09-10' }, { url: 'https://kultur.dk/news', publishedAt: '2026-09-10' }] } };
@@ -238,7 +310,7 @@ it('does not repeat unsuccessful supplemental searches or spend on media without
 
 it.each([false, true])('bounds factual correction, checkpoints it and requires all gates again (already revised=%s)', async revised => {
   const article = { title: 'Saved', content: 'Kultur '.repeat(650), intro: 'Intro', preparedMedia: [{}, {}, {}],
-    factRevisionId: revised ? 'prior-revision' : undefined, factRevisionCount: revised ? 2 : 0,
+    factRevisionId: revised ? 'prior-revision' : undefined, factRevisionCount: revised ? 1 : 0,
     researchSources: [{ url: 'https://museum.dk/news', publishedAt: '2026-09-10' }, { url: 'https://kultur.dk/news', publishedAt: '2026-09-10' }] };
   mocks.row = { articleCheckpoint: article };
   const diagnostic = { results: [{ claim: 'En præmis', status: 'unverifiable' }] };
@@ -250,13 +322,58 @@ it.each([false, true])('bounds factual correction, checkpoints it and requires a
   })).json();
   if (revised) {
     expect(repair).not.toHaveBeenCalled(); expect(result.skipped).toBe(true);
+    expect(resumeFacts).toHaveBeenCalledTimes(1); // Archive lookup is not a new paid correction.
   } else {
-    expect(repair).toHaveBeenCalledWith(article, diagnostic);
+    expect(repair).toHaveBeenCalledWith(article, diagnostic, {});
     expect(result.status).toBe('facts_revised');
     expect(mocks.checkpoint).toHaveBeenLastCalledWith('2026-09-12', expect.objectContaining({ factRevisionId: 'audited-revision' }), 'prepare');
     expect(mocks.yield).toHaveBeenCalledTimes(1);
   }
   expect(mocks.publish).not.toHaveBeenCalled(); expect(mocks.admission).not.toHaveBeenCalled();
+});
+
+it.each([
+  { factRevisionId: 'legacy-first-revision' },
+  { factRevisionId: 'inconsistent-counter', factRevisionCount: 0 },
+  { factRevisionCount: 1 }, { factRevisionCount: 2 }, { factRevisionCount: -1 },
+])('does not reset the correction budget for legacy or inconsistent metadata: %j', async revision => {
+  const article = { title: 'Saved', intro: 'Intro', content: 'Kultur '.repeat(650), preparedMedia: [{}, {}, {}],
+    ...revision, researchSources: [{ url: 'https://museum.dk/news', publishedAt: '2026-09-10' },
+      { url: 'https://kultur.dk/news', publishedAt: '2026-09-10' }] };
+  mocks.row = { articleCheckpoint: article };
+  mocks.gates.mockResolvedValue({ pass: false, failedGate: 'verification-complete', results: [
+    { name: 'factcheck', pass: true, skipped: true, diagnosticEvidence: { results: [{ status: 'unverifiable' }] } },
+  ] });
+  await runLivDaily(new NextRequest('http://localhost/api/cron/liv-prepare'), {
+    dayKey: '2026-09-12', kind: 'scheduled', defaultPlan: defaultEditorialPlan('2026-09-12'), scope: 'prepare-alternative',
+  });
+  expect(mocks.claim).toHaveBeenCalledWith('2026-09-12', 'prepare-alternative');
+  const count = revision.factRevisionCount ?? (revision.factRevisionId ? 1 : 0);
+  expect(resumeFacts).toHaveBeenCalledTimes(count >= 0 && count < 2 && (count === 0 || !!revision.factRevisionId) ? 1 : 0);
+  expect(repair).not.toHaveBeenCalled();
+  expect(mocks.gates).toHaveBeenCalledTimes(1);
+  expect(mocks.publish).not.toHaveBeenCalled(); expect(mocks.admission).not.toHaveBeenCalled();
+});
+
+it.each([true, false])('uses one correction for daily length with real failed facts only when present (%s)', async factFailure => {
+  const article = { title: 'Saved', intro: 'Intro', content: '<p>' + 'Kultur '.repeat(1050) + '</p>',
+    preparedMedia: [{}, {}, {}], researchSources: [
+      { url: 'https://museum.dk/news', publishedAt: '2026-09-10' },
+      { url: 'https://kultur.dk/news', publishedAt: '2026-09-10' },
+    ] };
+  mocks.row = { articleCheckpoint: article };
+  const diagnostic = { complete: false, results: [{ claim: 'Wrong film title', status: 'unverifiable' }] };
+  mocks.gates.mockResolvedValue(factFailure ? { pass: false, failedGate: 'verification-complete',
+    results: [{ name: 'factcheck', diagnosticEvidence: diagnostic }] } : { pass: true, results: [] });
+  repair.mockResolvedValue({ ...article, content: '<p>' + 'Kultur '.repeat(550) + '</p>', factRevisionId: 'one' });
+  const result = await (await runLivDaily(new NextRequest('http://localhost/api/cron/liv-prepare'), {
+    dayKey: '2026-09-12', kind: 'scheduled', defaultPlan: defaultEditorialPlan('2026-09-12'),
+  })).json();
+  expect(result.status).toBe('facts_revised');
+  expect(repair).toHaveBeenCalledExactlyOnceWith(article, factFailure ? diagnostic : undefined,
+    { length: checkLivArticleLength(article.content) });
+  expect(mocks.publish).not.toHaveBeenCalled();
+  expect(mocks.admission).not.toHaveBeenCalled();
 });
 
 it('resumes an archived correction before repeating paid safety gates or media generation', async () => {
@@ -268,7 +385,8 @@ it('resumes an archived correction before repeating paid safety gates or media g
     dayKey: '2026-09-12', kind: 'scheduled', defaultPlan: defaultEditorialPlan('2026-09-12'),
   })).json();
   expect(result.status).toBe('facts_revised');
-  expect(resumeFacts).toHaveBeenCalledWith(mocks.row.articleCheckpoint, diagnostic);
+  expect(resumeFacts).toHaveBeenCalledWith(mocks.row.articleCheckpoint, diagnostic,
+    { length: checkLivArticleLength(mocks.row.articleCheckpoint.content) });
   expect(mocks.checkpoint).toHaveBeenLastCalledWith('2026-09-12', expect.objectContaining({ factRevisionId: 'archived' }), 'prepare');
   expect(mocks.gates).not.toHaveBeenCalled(); expect(mocks.media).not.toHaveBeenCalled();
   expect(mocks.publish).not.toHaveBeenCalled();
@@ -291,7 +409,7 @@ it('recovers exact-version fact diagnostics from retry audit without accepting a
     dayKey: '2026-09-12', kind: 'scheduled', defaultPlan: defaultEditorialPlan('2026-09-12'),
   })).json();
   expect(result.status).toBe('facts_revised');
-  expect(resumeFacts).toHaveBeenCalledWith(a, diagnostic);
+  expect(resumeFacts).toHaveBeenCalledWith(a, diagnostic, { length: checkLivArticleLength(a.content) });
   expect(auditGet).toHaveBeenCalledTimes(1);
   expect(mocks.gates).not.toHaveBeenCalled(); expect(mocks.publish).not.toHaveBeenCalled();
 });

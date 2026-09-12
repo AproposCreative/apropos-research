@@ -2,13 +2,22 @@ import { load } from 'cheerio';
 import type { WebflowArticleFields } from '@/lib/webflow/types';
 import { addDays, type DeliveryState, type ReadyEntry } from './delivery-policy';
 import type { ApprovalStory } from './approval-types';
+import { isLivArticleFormat, parseResearchRating, type LivArticleFormat } from './review-format';
+import { LIV_SUBJECT_LABELS, LIV_SUBJECT_TYPES } from './article-output';
 
-export const APPROVAL_PAGE_SIZE = 5;
+export const APPROVAL_PAGE_SIZE = 1;
 export function approvalEntries(state: DeliveryState, day: string) {
-  return state.entries.filter(e => e.expiresDay >= day && e.scheduledDay <= addDays(day, 7) &&
-    (e.kind === 'reserve' || e.scheduledDay >= day))
-    .sort((a, b) => Number(a.kind === 'reserve') - Number(b.kind === 'reserve') ||
-      a.scheduledDay.localeCompare(b.scheduledDay) || a.itemId.localeCompare(b.itemId));
+  const tomorrow = addDays(day, 1);
+  // Presentation only: retain legacy reserves, future stock and decisions in storage.
+  // Keep a rejected choice visible until a replacement exists so it can be reversed.
+  const decisionOrder = (entry: ReadyEntry) => entry.decision === 'approved' ? 0 : entry.decision === 'rejected' ? 2 : 1;
+  return state.entries.filter(entry => entry.kind === 'scheduled' && ['ready', 'selected'].includes(entry.state) &&
+    entry.expiresDay >= day && [day, tomorrow].includes(entry.scheduledDay) &&
+    (!state.slots[entry.scheduledDay] || (state.slots[entry.scheduledDay].state !== 'published' &&
+      state.slots[entry.scheduledDay].itemId === entry.itemId)))
+    .sort((a, b) => a.scheduledDay.localeCompare(b.scheduledDay) ||
+      Number(b.state === 'selected') - Number(a.state === 'selected') || decisionOrder(a) - decisionOrder(b) ||
+      a.preparedAt.localeCompare(b.preparedAt) || a.itemId.localeCompare(b.itemId)).slice(0, 1);
 }
 function plain(html: string) {
   const $ = load(html || '');
@@ -25,17 +34,33 @@ function publicImage(value?: string) {
     return url.href;
   } catch { return null; }
 }
-export function approvalStory(entry: ReadyEntry, payload: WebflowArticleFields): ApprovalStory {
+export function approvalStory(entry: ReadyEntry, payload: WebflowArticleFields & {
+  articleFormat?: LivArticleFormat; ratingReason?: string;
+}, viewerUserId?: string): ApprovalStory {
   const $ = load(payload.content || '');
   $('script, style, iframe, noscript, figure').remove();
   const paragraphs = $('p, h2, h3').toArray().map(node => plain($(node).html() || '')).filter(Boolean);
-  const topic = [payload.category, ...(payload.tags || []), ...(payload.topicsSelected || [])].join(' ').toLowerCase();
-  const category = /\btv\b|serie|streaming/.test(topic) ? 'TV-serie' : /film|biograf/.test(topic) ? 'Film' :
-    /kunst|udstilling/.test(topic) ? 'Kunst' : /musik|koncert|album/.test(topic) ? 'Musik' : 'Kultur';
+  const intro = plain(payload.intro || '');
+  const body = paragraphs.length ? paragraphs : [plain(payload.content)];
+  const savedCategory = plain(payload.category || '').slice(0, 100);
+  const subjectType = payload.subjectType && LIV_SUBJECT_TYPES.includes(payload.subjectType) ? payload.subjectType : null;
+  const category = subjectType ? LIV_SUBJECT_LABELS[subjectType]
+    : /^tv-serier?$/i.test(savedCategory) ? 'TV-serie' : savedCategory || 'Kultur';
+  const articleFormat = isLivArticleFormat(payload.articleFormat) ? payload.articleFormat : null;
+  let rating: number | null = null, ratingReason: string | null = null;
+  if (articleFormat === 'research-review' && Number.isInteger(payload.rating)) {
+    const reason = typeof payload.ratingReason === 'string' ? plain(payload.ratingReason) : '';
+    try {
+      const validated = parseResearchRating(`Rating: ${payload.rating}\nRatingReason: ${reason}`, articleFormat);
+      if (validated) { rating = validated.value; ratingReason = validated.reason; }
+    } catch { /* Missing or invalid rationale is never replaced with invented stars. */ }
+  }
   return { itemId: entry.itemId, payloadHash: entry.payloadHash, revision: entry.decisionRevision || 0,
     title: plain(entry.title), summary: plain(payload.excerpt || payload.subtitle || payload.intro || paragraphs[0] || '').slice(0, 360),
-    paragraphs: (paragraphs.length ? paragraphs : [plain(payload.content)]).slice(0, 12).map(p => p.slice(0, 3000)),
-    category, image: publicImage(payload.featuredImage), imageAlt: plain(payload.featuredImageAlt || entry.title),
+    paragraphs: intro && body[0] !== intro ? [intro, ...body] : body,
+    category, articleFormat, formatLabel: articleFormat === 'research-review' ? 'Researchanmeldelse' : 'Artikel', rating, ratingReason,
+    feedback: viewerUserId && entry.editorialFeedback?.userId === viewerUserId ? entry.editorialFeedback.text : null,
+    image: publicImage(payload.featuredImage), imageAlt: plain(payload.featuredImageAlt || entry.title),
     credit: plain(payload.fotoCredit || ''), scheduledDay: entry.scheduledDay, kind: entry.kind, state: entry.state,
     decision: entry.decision || 'pending' };
 }

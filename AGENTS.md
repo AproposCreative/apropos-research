@@ -63,7 +63,9 @@ the SSD dependency gate for new or changed dependencies.
 - Use the canonical Liv voice in `data/author-prompts/liv-brandt.txt` in both
   Writer and daily generation. Danish by default, independent prose, concrete
   cultural relevance, no em dash, no sponsored editorial content.
-- Keep the CMS AI-generated field. Do not fabricate first-hand film attendance,
+- Keep the CMS AI-generated field available, but set its public label toggle to
+  false for new Liv articles per the user's 2026-09-12 instruction. Preserve
+  internal model/source provenance. Do not fabricate first-hand film attendance,
   quotations or sources. Attribute other critics' judgments and do not copy their
   wording or structure. Ratings must be reasoned, not random.
 - Report completed releases and publications with evidence and identify remaining

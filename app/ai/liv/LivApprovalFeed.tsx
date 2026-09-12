@@ -14,13 +14,18 @@ function dateLabel(day: string) {
 }
 export function LivApprovalCard({ story, disabled, saving, onDecide }: {
   story: ApprovalStory; disabled: boolean; saving: boolean;
-  onDecide: (decision: 'approved' | 'rejected') => void;
+  onDecide: (decision: 'approved' | 'rejected', feedback?: string) => void;
 }) {
   const [expanded, setExpanded] = useState(false);
   const [brokenImage, setBrokenImage] = useState(false);
+  const [feedback, setFeedback] = useState(story.feedback || '');
+  // An untouched field is not a request to replace or clear an existing preference.
+  const changedFeedback = feedback === (story.feedback || '') ? undefined : feedback;
   const locked = story.state !== 'ready';
-  const status = story.state === 'published' ? 'Udgivet' : story.state === 'selected' ? 'Udgivelse i gang' :
+  const status = story.state === 'published' ? 'Udgivet' : story.state === 'selected' ? 'Valgt til udgivelse' :
     story.state === 'rejected' ? 'Kræver rettelse' : decisions[story.decision];
+  const ratedReview = story.articleFormat === 'research-review' && Number.isInteger(story.rating) &&
+    story.rating! >= 1 && story.rating! <= 6 && !!story.ratingReason;
   const detailsId = `liv-story-${story.itemId}`;
   const actionClass = 'min-h-12 rounded-xl px-4 py-3 text-sm font-medium transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-white disabled:opacity-40';
   return <article className="overflow-hidden rounded-2xl border border-white/15 bg-[#111111]">
@@ -30,28 +35,42 @@ export function LivApprovalCard({ story, disabled, saving, onDecide }: {
         {story.image && !brokenImage ? <Image src={story.image} alt={story.imageAlt} fill unoptimized
           sizes="(max-width: 640px) 100vw, 600px" className="object-cover" onError={() => setBrokenImage(true)} /> :
           <div className="flex h-full items-center justify-center text-sm text-white/50">Billede ikke tilgængeligt</div>}
-        <span className="absolute left-4 top-4 rounded-full bg-[#000000]/85 px-3 py-1.5 text-xs font-medium text-white">{story.category}</span>
+        <span className="absolute left-4 top-4 max-w-[calc(100%-2rem)] rounded-full bg-[#000000]/85 px-3 py-1.5 text-xs font-medium text-white">{story.formatLabel || 'Artikel'} · {story.category}</span>
       </div>
       <div className="space-y-3 px-5 pb-4 pt-5">
         <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-white/60">
-          <span>{story.kind === 'reserve' ? 'Reserve · Liv kan vælge denne' : `Planlagt ${dateLabel(story.scheduledDay)}`}</span>
+          <span>Planlagt {dateLabel(story.scheduledDay)}</span>
           <span className={story.decision === 'approved' ? 'text-emerald-300' : story.decision === 'rejected' ? 'text-rose-300' : ''}>{status}</span>
         </div>
         <h3 className="break-words text-[22px] font-medium leading-tight sm:text-2xl">{story.title}</h3>
+        {ratedReview ? <div role="img" aria-label={`Bedømmelse: ${story.rating} af 6 stjerner`} className="text-amber-200">
+          <span aria-hidden="true">{'★'.repeat(story.rating!)}{'☆'.repeat(6 - story.rating!)} <span className="ml-2 text-sm">{story.rating}/6</span></span>
+        </div> : null}
         <p className="break-words text-sm leading-relaxed text-white/75 sm:text-base">{story.summary}</p>
+        {ratedReview ? <p className="break-words text-sm leading-relaxed text-white/65"><span className="font-medium text-white/85">Livs begrundelse: </span>{story.ratingReason}</p> : null}
         <span className="inline-block text-sm text-white/80 underline underline-offset-4">{expanded ? 'Læs mindre ↑' : 'Læs mere ↓'}</span>
       </div>
     </button>
     <div id={detailsId} hidden={!expanded} className="space-y-4 border-t border-white/10 px-5 py-5">
-      <p className="text-xs uppercase tracking-wider text-white/50">Uddrag af Livs artikel</p>
+      <p className="text-xs uppercase tracking-wider text-white/50">Livs artikel</p>
       {story.paragraphs.map((paragraph, i) => <p key={i} className="break-words text-sm leading-7 text-white/80">{paragraph}</p>)}
       {story.credit && <p className="text-xs text-white/50">Billede: {story.credit}</p>}
     </div>
+    <div className="space-y-2 px-5 pb-4">
+      <label htmlFor={`${detailsId}-feedback`} className="block text-sm text-white/80">Din redaktionelle kommentar (valgfri)</label>
+      <textarea id={`${detailsId}-feedback`} value={feedback} maxLength={500} rows={3}
+        disabled={disabled || locked || saving} onChange={event => setFeedback(event.target.value)}
+        aria-describedby={`${detailsId}-feedback-help`}
+        className="apropos-input-dark w-full resize-y rounded-lg border border-white/25 bg-[#141414] p-3 text-sm text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-white disabled:opacity-40" />
+      <p id={`${detailsId}-feedback-help`} className="text-xs leading-relaxed text-white/50">
+        {feedback.length}/500 tegn · Gemmes med Godkend eller Afvis. Kommentaren er privat og bruges som redaktionelt input til kommende tekster, ikke som fakta. Den ændrer ikke denne artikel.
+      </p>
+    </div>
     <div className="grid grid-cols-2 gap-3 px-5 pb-5" role="group" aria-label={`Vælg: ${story.title}`}>
       <button type="button" disabled={disabled || locked || saving} aria-pressed={story.decision === 'approved'}
-        onClick={() => onDecide('approved')} className={`${actionClass} ${story.decision === 'approved' ? 'bg-emerald-200 text-emerald-950' : 'bg-white text-[#000000] hover:bg-white/85'}`}>Godkend</button>
+        onClick={() => onDecide('approved', changedFeedback)} className={`${actionClass} ${story.decision === 'approved' ? 'bg-emerald-200 text-emerald-950' : 'bg-white text-[#000000] hover:bg-white/85'}`}>Godkend</button>
       <button type="button" disabled={disabled || locked || saving} aria-pressed={story.decision === 'rejected'}
-        onClick={() => onDecide('rejected')} className={`${actionClass} border ${story.decision === 'rejected' ? 'border-rose-300 bg-rose-300/10 text-rose-200' : 'border-white/25 text-white hover:bg-white/10'}`}>Afvis</button>
+        onClick={() => onDecide('rejected', changedFeedback)} className={`${actionClass} border ${story.decision === 'rejected' ? 'border-rose-300 bg-rose-300/10 text-rose-200' : 'border-white/25 text-white hover:bg-white/10'}`}>Afvis</button>
     </div>
     {saving && <p className="px-5 pb-4 text-xs text-white/60" role="status">Gemmer dit valg…</p>}
   </article>;
@@ -66,39 +85,41 @@ export default function LivApprovalFeed() {
   const [notice, setNotice] = useState('');
   const version = useRef(0);
   const busy = useRef(false);
-  const request = useCallback(async (offset = 0, body?: object) => {
+  const request = useCallback(async (body?: object) => {
     if (!user) throw new Error('Log ind for at se Livs historier.');
     const token = await user.getIdToken();
-    const response = await fetch(`/api/liv/delivery/feed?offset=${offset}`, { method: body ? 'POST' : 'GET', cache: 'no-store',
+    const response = await fetch('/api/liv/delivery/feed', { method: body ? 'POST' : 'GET', cache: 'no-store',
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
       ...(body ? { body: JSON.stringify(body) } : {}) });
     const data = await readJsonResponse(response);
     if (!response.ok) throw new Error(data.error || 'Livs historier kunne ikke hentes.');
     return data;
   }, [user]);
-  const refresh = useCallback(async (offset = 0) => {
+  const refresh = useCallback(async () => {
     const current = ++version.current;
     setLoading(true);
     try {
-      const data = await request(offset) as ApprovalFeed;
+      const data = await request() as ApprovalFeed;
       if (!Array.isArray(data.stories)) throw new Error('Historielisten er ugyldig.');
       if (current !== version.current) return;
-      setFeed(old => ({ ...data, stories: offset && old ?
-        [...old.stories, ...data.stories.filter(story => !old.stories.some(s => s.itemId === story.itemId))] : data.stories }));
+      setFeed({ ...data, stories: data.stories.slice(0, 1), nextOffset: null });
       setError('');
     } catch (e) { if (current === version.current) setError(e instanceof Error ? e.message : 'Prøv igen.'); }
     finally { if (current === version.current) setLoading(false); }
   }, [request]);
   useEffect(() => { setFeed(null); void refresh(); return () => { version.current++; }; }, [refresh]);
-  async function decide(story: ApprovalStory, decision: 'approved' | 'rejected') {
+  async function decide(story: ApprovalStory, decision: 'approved' | 'rejected', feedback?: string) {
     if (busy.current) return;
+    const current = version.current;
     busy.current = true; setSaving(story.itemId); setNotice('');
     try {
-      const result = await request(0, { itemId: story.itemId, payloadHash: story.payloadHash, revision: story.revision, decision });
+      const result = await request({ itemId: story.itemId, payloadHash: story.payloadHash, revision: story.revision, decision, feedback });
+      if (current !== version.current) return;
       setFeed(old => old && ({ ...old, stories: old.stories.map(s => s.itemId === story.itemId ?
-        { ...s, decision: result.decision, revision: result.revision } : s) }));
+        { ...s, decision: result.decision, revision: result.revision, feedback: result.feedback ?? null } : s) }));
       setNotice(decision === 'approved' ? 'Godkendt. Historien får prioritet på sin udgivelsesdag.' : 'Afvist. Liv vælger ikke denne historie.');
     } catch (e) {
+      if (current !== version.current) return;
       await refresh();
       setError(e instanceof Error ? e.message : 'Valget kunne ikke gemmes. Opdater listen.');
     } finally { busy.current = false; setSaving(null); }
@@ -106,22 +127,39 @@ export default function LivApprovalFeed() {
   return <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
     <LivContentColumn className="space-y-5 py-6">
       <header className="space-y-3">
-        <div className="flex items-center justify-between gap-3"><h2 className="text-xl font-medium">Ugens historier</h2>
+        <div className="flex items-center justify-between gap-3"><h2 className="text-xl font-medium">Den næste historie</h2>
           <button className="min-h-11 px-2 text-sm text-white/70 underline underline-offset-4 disabled:opacity-40" disabled={loading || !!saving} onClick={() => void refresh()}>Opdater</button></div>
-        <p className="text-sm leading-relaxed text-white/65">Godkend dine favoritter. Vælger du ikke, vælger Liv. Afviste historier springes over.</p>
-        <p className="text-xs text-white/45">Fem ad gangen · Dit valg kan ændres indtil udgivelsen starter.</p>
+        <p className="text-sm leading-relaxed text-white/65">Én historie til i morgen. Mangler dagens udgivelse, kommer den først.</p>
+        <p className="text-xs leading-relaxed text-white/45">Godkend eller afvis. Uden et valg fortsætter Liv automatisk. Dit valg kan ændres, indtil historien er valgt til udgivelse.</p>
       </header>
       {notice && <p role="status" className="rounded-xl border border-emerald-300/20 bg-emerald-300/5 p-4 text-sm text-emerald-200">{notice}</p>}
       {error && <p role="alert" className="rounded-xl border border-amber-200/20 p-4 text-sm text-amber-200">{error}</p>}
       {feed && !feed.queueEnabled && <p className="rounded-xl border border-white/15 p-4 text-sm text-white/60">Automatisk udgivelse er ikke aktiveret. Dine valg udgiver ikke noget med det samme.</p>}
       {loading && !feed && <p role="status" className="p-5 text-sm text-white/60">Henter Livs historier…</p>}
       {feed && !feed.stories.length && <div className="rounded-2xl border border-dashed border-white/20 px-6 py-12 text-center">
-        <h3 className="text-lg">Ingen færdige forslag endnu</h3><p className="mt-3 text-sm leading-relaxed text-white/55">
-          {feed.preparationEnabled ? 'De første fem vises her, efterhånden som Liv har research, tekst og billeder klar.' : 'Forberedelsen skal aktiveres, før Liv kan fylde listen med fem historier.'}</p></div>}
-      {feed?.stories.map(story => <LivApprovalCard key={story.itemId} story={story} disabled={loading || !!saving || !!error}
-        saving={saving === story.itemId} onDecide={decision => void decide(story, decision)} />)}
-      {feed?.nextOffset != null && <button className="min-h-12 w-full rounded-xl border border-white/20 p-3 text-sm disabled:opacity-40"
-        disabled={loading || !!saving} onClick={() => void refresh(feed.nextOffset!)}>{loading ? 'Henter…' : 'Vis fem mere'}</button>}
+        <h3 className="text-lg">Den næste historie er ikke klar endnu</h3><p className="mt-3 text-sm leading-relaxed text-white/55">
+          {!feed.preparationEnabled ? 'Forberedelsen er ikke aktiveret. Gemte historier og dine valg er bevaret.' :
+            feed.preparation?.status === 'blocked_saved_work' || feed.preparation?.status === 'reconciliation_required' ?
+              'Forberedelsen er stoppet på et gemt trin. Tekst og billeder er bevaret; udgivelsen er endnu ikke klar.' :
+            feed.preparation?.status === 'unavailable' ? 'Forberedelsens status kunne ikke hentes. Prøv Opdater.' :
+            feed.preparation?.status === 'preparing' ? 'Liv arbejder på historien nu. Den vises her, når den er klar.' :
+              'Historien vises her, når research, tekst, billeder og kontroller er klar.'}</p>
+        {feed.preparation?.day && <p className="mt-3 text-xs text-white/45">Planlagt {dateLabel(feed.preparation.day)}</p>}
+      </div>}
+      {feed?.stories.map(story => <LivApprovalCard key={`${story.itemId}:${story.revision}`} story={story} disabled={loading || !!saving || !!error}
+        saving={saving === story.itemId} onDecide={(decision, feedback) => void decide(story, decision, feedback)} />)}
+      {feed?.cost && <details className="rounded-xl border border-white/15 p-4 text-xs leading-relaxed text-white/60">
+        <summary className="min-h-11 cursor-pointer text-sm text-white/80">Daglig Liv · API-budget {feed.cost.monthlyLimitDkk} kr./måned</summary>
+        <div className="mt-3 space-y-2">
+          <p>{feed.cost.usageBasedUpperDkk === null ? 'Registreret forbrug er endnu ukendt.' :
+            `Estimat for registrerede kald: ${feed.cost.usageBasedUpperDkk.toLocaleString('da-DK', { maximumFractionDigits: 2 })} kr.`}</p>
+          {feed.cost.reservedUpperDkk !== null && <p>Reserveret til igangværende eller uafklarede kald: {feed.cost.reservedUpperDkk.toLocaleString('da-DK', { maximumFractionDigits: 2 })} kr.</p>}
+          {feed.cost.status !== 'ready_partial' && <p className="text-amber-200">{feed.cost.status === 'unavailable' ?
+            'Budgetstatus kunne ikke hentes.' : feed.cost.status === 'unconfigured' ?
+              'Budgetstyringen mangler opsætning.' : 'Budgetstyringen kræver afklaring før nye betalte kald.'}</p>}
+          <p>Kun registrerede kald fra det daglige flow. Manuel Writer, særskilte previews og tidligere forbrug er ikke medregnet. Dette er et estimat, ikke API-udbyderens faktura.</p>
+        </div>
+      </details>}
     </LivContentColumn>
   </div>;
 }

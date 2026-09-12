@@ -58,6 +58,14 @@ it('compares all visible body/intro text instead of mere presence', async () => 
   expect(result.checks).toContainEqual({ id: 'field:content', ok: false });
   expect(result.checks).toContainEqual({ id: 'field:intro', ok: false });
 });
+it('verifies an explicitly disabled AI label rather than requiring it to be enabled', async () => {
+  const f = fixture();
+  f.item.fieldData['ai-generated'] = false;
+  const result = await inspectLivCmsDraft({ itemId, expected: { ...expected, aiGenerated: false } }, f.dependencies);
+  expect(result.checks).toContainEqual({ id: 'field:ai-generated', ok: true });
+  const mismatch = await inspectLivCmsDraft({ itemId, expected: { ...expected, aiGenerated: true } }, f.dependencies);
+  expect(mismatch.checks).toContainEqual({ id: 'field:ai-generated', ok: false });
+});
 it('checks actual CMS bytes even when Webflow rewrites the URL, and rejects changed pixels/alt/credit', async () => {
   const f = fixture();
   const bytes = await sharp({ create: { width: 1920, height: 1080, channels: 3, background: '#ddd' } }).webp().toBuffer();

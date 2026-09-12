@@ -35,9 +35,9 @@ export async function supplementLivResearch(article: GeneratedArticle, topic: st
   const subject = topic.replace(/["\n\r]/g, ' ').slice(0, 300);
   const excluded = hosts.map(host => `-site:${host}`).join(' ');
   const searches = await Promise.allSettled([
-    `"${subject}" officiel nyhed presse dato ${excluded}`,
-    `"${subject}" kultur dokumentar omtale udgivet ${excluded}`,
-  ].map(query => getResearch(query, { maxResults: 5, model: livModels().utility, timeoutMs: 30_000 })));
+    getResearch(`"${subject}" officiel presse og uafhængig kultur omtale udgivet dato ${excluded}`,
+      { maxResults: 5, model: livModels().utility, timeoutMs: 30_000, allowFallback: false }),
+  ]);
   const urls = new Map<string, string>();
   for (const result of searches) {
     if (result.status !== 'fulfilled') continue;

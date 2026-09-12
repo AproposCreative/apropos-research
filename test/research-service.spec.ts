@@ -28,6 +28,14 @@ it('returns passing primary evidence without fallback and clears its timer', asy
   expect(vi.getTimerCount()).toBe(0);
   expect(JSON.stringify(m.info.mock.calls)).not.toContain('private-query');
 });
+it('honors a single-pass caller even when global fallback is enabled', async () => {
+  m.primary.mockRejectedValue(new Error('provider unavailable'));
+  const data = await getResearch('fixture', { allowFallback: false });
+  expect(m.primary).toHaveBeenCalledTimes(1);
+  expect(m.fallback).not.toHaveBeenCalled();
+  expect(data.debug.attempts).toHaveLength(1);
+  expect(data.debug.fallbackUsed).toBe(false);
+});
 it('aborts the primary transport at the bounded deadline and records total latency', async () => {
   m.primary.mockImplementation(() => new Promise(() => {}));
   const pending = getResearch('fixture', { timeoutMs: 45000 });

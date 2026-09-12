@@ -10,8 +10,11 @@ selvstændig dansk Apropos-artikel hver kalenderdag via serverens API-flow.
 Normal udgivelse er kl. 10 i Europe/Copenhagen. En åben browser, denne samtale
 eller en ulåst computer må ikke være en forudsætning. Instagram er slukket.
 
-Frederik kan vælge mellem fem faktiske, færdige forslag i Kommende. Hvert kort
-viser billede, titel, kategori og resumé med Godkend/Afvis og detaljevisning.
+Frederik ser én kommende artikel i Kommende, normalt morgendagens. Mangler
+dagens artikel, får den førsteprioritet. Kortet viser billede, titel, eksplicit
+artikeltype, kategori og resumé med Godkend/Afvis og detaljevisning. En anmeldelse
+viser de gemte stjerner på en 1–6-skala og Livs konkrete begrundelse. En feature
+får aldrig stjerner alene, fordi den handler om en film.
 Godkendte historier prioriteres, ellers vælger Liv. Afviste historier vælges
 aldrig. En redaktionel beslutning er ikke en øjeblikkelig publicering.
 
@@ -19,18 +22,25 @@ aldrig. En redaktionel beslutning er ikke en øjeblikkelig publicering.
 
 - Én verificeret publicering pr. dansk kalenderdag. Idempotens forhindrer to
   artikler ved gentagne cron-kald. En tvetydig CMS-skrivning afklares først.
-- Fem færdige forslag og tre kvalitetssikrede, tidsrobuste reserveartikler.
-- Daglig feature som udgangspunkt 650 ord; de faktiske længdegrænser i
-  CMS-kontrollen håndhæves. Anmeldelser følger valgt format og begrundet rating.
+- Én kommende artikel. Ingen automatisk produktion af fem forslag, en uge af
+  færdige artikler eller tre reserver. Allerede gemt arbejde bevares.
+- En afvisning giver højst ét nyt alternativ med egen identitet. Afvises også
+  alternativet, vises problemet; der bruges ikke penge på en endeløs række.
+- Daglige artikler har 450–650 ord i brødteksten, mål 550. Overskrifter og
+  billedtekster tæller ikke med. CMS-kontrollen håndhæver grænserne; én samlet
+  rettelse kan håndtere både længde og fakta. Writerens manuelle længdevalg
+  ændres ikke. Anmeldelser kræver begrundet rating.
 - Kanonisk Liv-stemme, egen tese og kulturfaglig fortolkning, konkrete eksempler
   og modargument. Ingen opdigtede visninger, interviews, kilder eller citater.
 - Dokumenteret research, dato- og dubletkontrol, originalitet og korrekt CMS.
-  AI-feltet bevares. Hero plus to forskellige brødtekstbilleder, alt-tekster og
+  CMS-feltet AI-generated bevares, men markeringen er slået fra for nye Liv-artikler
+  efter Frederiks ønske 12. september. Intern model- og kildehistorik bevares.
+  Hero plus to forskellige brødtekstbilleder, alt-tekster og
   faktiske credits. Korrekte billedproportioner. Ingen AI-filmscener.
 - Betalt tekst og billeder gemmes og genoptages; tidligere fejl slettes ikke.
 - Manglende dagens artikel giver synlig fejlstatus, ikke et grønt succesflag.
 
-Eksterne tjenester kan fejle. Driftsmålet er daglig levering med reserver,
+Eksterne tjenester kan fejle. Driftsmålet er daglig levering med gemt arbejde,
 kontrollerede retries og tydelig fejlmelding, ikke et udokumenterbart løfte om
 100 % oppetid.
 
@@ -43,8 +53,8 @@ Forberedelses-API svarede `no_unstarted_work`; dagens udgivelse er ikke bevist.
 
 ## Eksekveringsrækkefølge
 
-1. **Kø og genstart:** dæk i dag først; behold én uges horisont frem for kunstige
-   fremtidsdatoer. Genoptag gemte trin, korrekt scope og oprindelig plan.
+1. **Kø og genstart:** dæk i dag først og forbered derefter kun i morgen.
+   Genoptag gemte trin, korrekt scope og oprindelig plan.
 2. **Tidsbudget:** adskil tekst, billeder og slutkontrol i gemte, fortsættelige
    servertrin. Hvert trin får sit eget funktionsbudget.
 3. **Fejlhåndtering:** autentificeret, idempotent genstart af præcist identificeret
@@ -54,7 +64,7 @@ Forberedelses-API svarede `no_unstarted_work`; dagens udgivelse er ikke bevist.
    behold alle redaktionelle og tekniske kontroller.
 5. **Release:** isolerede tests, typecheck, sikker build, push og eksakt deployment.
 6. **Produktionsbevis:** kør dagens normale API-flow og kontroller Webflow samt
-   offentlig artikel. Fyld derefter fem forslag og tre reserver.
+   offentlig artikel. Forbered derefter én artikel til i morgen.
 7. **Driftsbevis:** næste planlagte serverkørsel skal kunne gennemføre uden manuel
    hjælp. Kontroller mobilfeedets data, valg, afvisning og dubletbeskyttelse.
 
@@ -71,10 +81,10 @@ er rækkefølgen derfor:
 3. Lad en leveringsdag få en ny, faktisk anden kandidat, når den gamle ikke kan
    bruges. Bevar den afviste kandidats egen identitet, tekst, aktiver, audit og
    dubletspor. Ingen nye kunstige fremtidsdatoer eller sletning af terminale jobs.
-4. Fyld fem brugbare kommende forslag og tre brugbare reserver. Færdige,
-   afviste, udløbne og allerede udgivne poster tæller ikke som kommende forslag.
-5. Verificer faktisk feed-API, Godkend/Afvis, reservevalg, offentlig readback og
-   næste planlagte serverkørsel. Syv plandatoer er ikke syv færdige artikler.
+4. Vis én brugbar kommende artikel med format, kategori og eventuelle begrundede
+   stjerner. Færdige historiske poster tæller ikke som næste artikel.
+5. Verificer faktisk feed-API, Godkend/Afvis, et enkelt alternativ, offentlig
+   readback og næste planlagte serverkørsel.
 
 Arkiveret Storch-tekst kan genbruges, men kræver en auditeret binding til den
 rigtige leveringsdag og dubletkontrol på tværs af jobs. Medina/Tivoli er en
@@ -90,7 +100,66 @@ Nyhedsbrevets tidligere manglende udsendelse undersøges separat. Bredere
 AI-Writer-oprydning og flere illustrationstemplates må ikke forsinke den
 daglige leverance. Finjustering af prompts er ikke det samme som modeltræning.
 
-## Status
+## Godkendt forenkling 12. september
+
+Forenklingen erstatter de tidligere fem-forslag/tre-reserve-krav. Den er under
+implementering, ikke endnu dokumenteret som deployet.
+
+- Én afgrænset researchrunde med få relevante kilder; genbrug af gemte resultater.
+- Én tekst og højst én målrettet korrektur. Ingen endeløse omskrivningsforsøg.
+- Én samlet redaktionel kontrol; billige strukturelle kontroller forbliver kode.
+- Pressebilleder før nye illustrationer, når relevante officielle aktiver findes.
+- Månedligt budgetmål/loft 300 kr. med synlige registreringer, inklusive retries
+  og billeder. Historisk faktisk API-forbrug er endnu ikke målt; beløbet er ikke
+  en dokumenteret prisprognose. Ufuldstændige forbrugsdata må ikke vises som nul.
+- Redaktionel feedback gemmes og bruges til følgende tekster. Prompttilpasning
+  og præferencehukommelse må ikke kaldes model-finetuning.
+
+Aktuelle lokale beviser: 69 policy/checkpoint/recovery-tests og 48 medietests
+bestået. En kommende historie og format/rating-visning er implementeret lokalt.
+Den fulde release og produktionsprøve resterer. API-nøglen er til stede i Vercel;
+den eksisterende, brugerautoriserede nøgle genbruges uden at blive udskrevet.
+
+## Historisk status før forenklingen
+
+### Releasekontrol 12. september kl. 12.40
+
+Målet er fortsat automatisk skrivning **og publicering hver dag**, også uden
+et Godkend-valg. Instagram er fortsat slukket. Webflow-service, normalisering
+og boolean-mapping er nu regressionstestet for `ai-generated=false` på nye
+Liv-artikler; eksplicitte valg og intern model-/kildehistorik bevares.
+
+1.883 tests i 129 filer består efter sidste integrationsændring. Budgetpolicyen er oprettet i produktion med
+300 DKK som loft for nyligt registrerede daglige Liv-kald. Omregning bruger et
+eksplicit konservativt skøn på 8 DKK/USD inklusive margin, ikke en aktuel
+valutakurs. Historisk forbrug, manuel Writer, særskilte previews, manuelle
+coverrettelser og det øvrige redaktionsværktøj er ikke medregnet. Der hævdes
+derfor ikke et samlet loft på hele OpenAI-kontoen.
+
+Kendte afvisninger før afsendelse må ikke registreres som tvetydigt betalt
+arbejde. QA, embeddings, faktarettelser og medietrin bevarer dokumentation
+for ikke-startede kald og genoptager kun det konkrete ubetalte trin.
+Tvetydige netværkskald og CMS-skrivninger bliver ikke kaldt gratis.
+
+Den autentificerede feed-respons viser nu også, om næste gemte arbejde er
+i gang, afventer eller er stoppet. En tom liste er ikke bevis på aktiv
+forberedelse. Dagens udgivelse og eksisterende CMS-identitet bevares.
+
+### Lokal integrationskontrol kl. 12.24, 12. september
+
+Den aktuelle forenkling er endnu ikke deployet. Hele testsuiten: 1.805 tests
+i 127 filer består; TypeScript, scoped ESLint og produktionsbuild består.
+Offline mobiltest består ved 320/390/768/1280 px, inklusive format, begrundede
+stjerner, én historie, Godkend/Afvis, privat feedback og budgetstatus uden falsk
+nulforbrug. Ingen produktionsudgivelse eller betalt AI-kørsel er foretaget som
+del af disse tests. `AI-generated=false` for nye Liv-artikler er dækket af
+payload-, preview- og CMS-readback-kontroller. Interne model/kildebeviser bevares.
+
+Før release færdiggøres budgetgrænsen, så den hverken tæller teoretisk
+fuld kontekst som faktisk forbrug eller udløber og stopper daglig levering
+uden varsel. Tekniske fejl må heller ikke tolkes som redaktørens Afvis.
+Derefter genoptages det gemte Oasis-udkast til 13. september med én samlet
+fakta-/længderettelse og genbrug af dets tre eksisterende billeder.
 
 Opdateret 12. september kl. 11.28 dansk tid. Arbejdet er genstartet med en
 hovedagent på produktionsflowet og to agenter på medier/genoptagelse og research.

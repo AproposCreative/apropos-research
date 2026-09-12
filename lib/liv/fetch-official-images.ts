@@ -9,6 +9,7 @@
 import { sourceUrl } from '@/lib/factcheck/source-reader';
 import { readPublicMedia } from '@/lib/liv/public-media-reader';
 import { load } from 'cheerio';
+import { isParadisPressStill } from '@/lib/liv/photo-credit';
 
 function absoluteUrl(raw: string, base: string): string | null {
   try {
@@ -66,6 +67,10 @@ export function extractCandidateImagesFromHtml(html: string, pageUrl: string): s
   $('figure:has(figcaption) img').each((_, node) => {
     if ($(node).parents('header,footer,nav,aside').length) return;
     push($(node).attr('data-src') || $(node).attr('src'));
+  });
+  $('a[href]').each((_, node) => {
+    const url = absoluteUrl($(node).attr('href') || '', pageUrl);
+    if (url && isParadisPressStill(url, pageUrl)) push(url);
   });
 
   return out;
@@ -134,7 +139,9 @@ export async function fetchOfficialImagesFromPage(
 ): Promise<string[]> {
   try {
     const html = await readPublicMedia(pageUrl, 'html', opts?.timeoutMs ?? 8000);
-    return extractCandidateImagesFromHtml(html.toString('utf8'), pageUrl);
+    const decoded = new URL(pageUrl).hostname === 'distribution.paradisbio.dk'
+      ? new TextDecoder('windows-1252').decode(html) : html.toString('utf8');
+    return extractCandidateImagesFromHtml(decoded, pageUrl);
   } catch {
     return [];
   }

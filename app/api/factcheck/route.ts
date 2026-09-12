@@ -4,6 +4,8 @@ import { isApiRequestAuthorized } from '@/lib/api/middleware-auth';
 import { groundedInput } from '@/lib/factcheck/grounded';
 import { verifyArticleSources } from '@/lib/factcheck/verify-article';
 import { logger } from '@/lib/logger';
+import { assessLivEditorialArticle } from '@/lib/liv/editorial-assessment';
+import { withLivCostRequest } from '@/lib/liv/cost-context';
 
 export const maxDuration = 120;
 
@@ -27,6 +29,11 @@ Svar KUN med JSON-array. Eksempel:
 Vær ærlig om usikkerhed. Brug "unverifiable" når du ikke har tilstrækkelig viden.`;
 
 export async function POST(request: NextRequest) {
+  try { return await withLivCostRequest(request, 'factcheck', () => handlePost(request)); }
+  catch { return NextResponse.json({ error: 'Ugyldig intern budgetkontekst.', complete: false }, { status: 401 }); }
+}
+
+async function handlePost(request: NextRequest) {
   if (!(await isApiRequestAuthorized(request))) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
@@ -37,11 +44,18 @@ export async function POST(request: NextRequest) {
   if (!input || typeof input !== 'object' || Array.isArray(input)) {
     return NextResponse.json({ error: 'Et JSON-objekt er påkrævet.' }, { status: 400 });
   }
+  if ('editorialReview' in input && !('sourceUrls' in input)) {
+    return NextResponse.json({ error: 'Redaktionel vurdering kræver kilde-URL’er.' }, { status: 400 });
+  }
   if ('sourceUrls' in input) {
+    if ('editorialReview' in input && input.editorialReview !== 'liv-v1') {
+      return NextResponse.json({ error: 'Ugyldig redaktionel vurdering.' }, { status: 400 });
+    }
     const parsed = groundedInput.safeParse(input);
     if (!parsed.success) return NextResponse.json({ error: 'Faktatjek kræver artikeltekst (20-40000 tegn) og 1-8 kilde-URL’er.' }, { status: 400 });
     try {
-      return NextResponse.json(await verifyArticleSources(parsed.data.articleText, parsed.data.sourceUrls), { headers: { 'Cache-Control': 'no-store' } });
+      const verify = 'editorialReview' in input ? assessLivEditorialArticle : verifyArticleSources;
+      return NextResponse.json(await verify(parsed.data.articleText, parsed.data.sourceUrls), { headers: { 'Cache-Control': 'no-store' } });
     } catch (error) {
       const failure = error as { name?: unknown; status?: unknown; code?: unknown } | null;
       // Log only bounded error classification, never provider bodies or credentials.

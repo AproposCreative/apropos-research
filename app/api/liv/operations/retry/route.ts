@@ -24,6 +24,7 @@ export async function POST(req: NextRequest) {
     const receipt = await authorizePreparationRetry(input);
     if (receipt.status === 'already_requested') return NextResponse.json(receipt);
     return await runLivDaily(req, { dayKey: input.dayKey, kind: input.kind,
+      ...(input.scope ? { scope: input.scope } : {}),
       defaultPlan: defaultEditorialPlan(input.dayKey, input.kind === 'reserve') });
   } catch (error) {
     const code = error instanceof Error && /^liv_retry_(invalid|conflict|processing|store_unavailable)$/.test(error.message)

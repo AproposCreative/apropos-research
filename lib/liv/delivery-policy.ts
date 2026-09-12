@@ -1,6 +1,8 @@
 /** Pure policy shared by preparation, delivery and status. All days are Danish calendar days. */
-export const LIV_RESERVE_TARGET = 3;
-export const LIV_PLAN_DAYS = 7;
+// Produce one next-day article, not a speculative week of paid inventory.
+// Existing reserves remain eligible; no new reserve stock is required.
+export const LIV_RESERVE_TARGET = 0;
+export const LIV_PLAN_DAYS = 1;
 export const LIV_DELIVERY_LEASE_MS = 6 * 60_000;
 
 export function copenhagenClock(now = new Date()) {
@@ -32,6 +34,8 @@ export type ReadyEntry = {
   preparedAt: string; payloadHash: string; planHash?: string;
   decision?: 'approved' | 'rejected'; decisionRevision?: number;
   decidedAt?: string; decidedBy?: string;
+  /** Private author-owned projection; immutable feedback audit is stored separately. */
+  editorialFeedback?: { text: string; userId: string; recordedAt: string; revision: number };
 };
 export type DeliverySlot = {
   itemId: string; token: string; state: 'selected' | 'attempted' | 'published';

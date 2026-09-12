@@ -644,8 +644,9 @@ export async function publishArticleToWebflow(articleData: WebflowArticleFields)
     {
       const a = articleData.author;
       const name = typeof a === 'string' ? a.trim() : '';
-      if (name && /liv\s*brandt/i.test(name)) {
-        articleData = { ...articleData, aiGenerated: true };
+      if (name && /liv\s*brandt/i.test(name) && articleData.aiGenerated == null) {
+        // Respect an explicit editorial toggle; Liv's current default is off.
+        articleData = { ...articleData, aiGenerated: false };
       }
     }
 

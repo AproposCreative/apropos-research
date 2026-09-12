@@ -125,7 +125,9 @@ export async function inspectLivCmsDraft(input: {
   }
   checks.push({ id: 'field:content', ok: !!visibleText(input.expected.content) && visibleText(fields.content) === visibleText(input.expected.content) });
   checks.push({ id: 'field:intro', ok: !!visibleText(input.expected.intro) && visibleText(fields.intro) === visibleText(input.expected.intro) });
-  checks.push({ id: 'field:ai-generated', ok: fields['ai-generated'] === true });
+  // Verify the saved editorial choice, including false. Legacy proofs predate
+  // the explicit toggle and used true; do not silently reinterpret old work.
+  checks.push({ id: 'field:ai-generated', ok: fields['ai-generated'] === (input.expected.aiGenerated ?? true) });
   if (input.expected.rating !== undefined) {
     checks.push({ id: 'field:stjerne', ok: schemaFields.some(field => field.slug === 'stjerne') &&
       Number.isInteger(input.expected.rating) && input.expected.rating >= 1 && input.expected.rating <= 6 &&
