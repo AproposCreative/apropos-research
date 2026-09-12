@@ -102,7 +102,7 @@ export default function LivApprovalFeed() {
       const data = await request() as ApprovalFeed;
       if (!Array.isArray(data.stories)) throw new Error('Historielisten er ugyldig.');
       if (current !== version.current) return;
-      setFeed({ ...data, stories: data.stories.slice(0, 3), nextOffset: null });
+      setFeed(data);
       setError('');
     } catch (e) { if (current === version.current) setError(e instanceof Error ? e.message : 'Prøv igen.'); }
     finally { if (current === version.current) setLoading(false); }
@@ -129,7 +129,7 @@ export default function LivApprovalFeed() {
       <header className="space-y-3">
         <div className="flex items-center justify-between gap-3"><h2 className="text-xl font-medium">De kommende historier</h2>
           <button className="min-h-11 px-2 text-sm text-white/70 underline underline-offset-4 disabled:opacity-40" disabled={loading || !!saving} onClick={() => void refresh()}>Opdater</button></div>
-        <p className="text-sm leading-relaxed text-white/65">Op til tre klargjorte historier fra i dag og syv dage frem. Mangler dagens udgivelse, kommer den først.</p>
+        <p className="text-sm leading-relaxed text-white/65">Alle klargjorte kommende historier samlet på én liste. Mangler dagens udgivelse, kommer den først.</p>
         <p className="text-xs leading-relaxed text-white/45">Godkend eller afvis. Uden et valg fortsætter Liv automatisk. Dit valg kan ændres, indtil historien er valgt til udgivelse.</p>
       </header>
       {notice && <p role="status" className="rounded-xl border border-emerald-300/20 bg-emerald-300/5 p-4 text-sm text-emerald-200">{notice}</p>}

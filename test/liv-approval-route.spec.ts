@@ -34,14 +34,14 @@ it('requires authentication for reads and decisions', async () => {
   expect(mock.state).not.toHaveBeenCalled(); expect(mock.decide).not.toHaveBeenCalled();
   expect(mock.preparation).not.toHaveBeenCalled();
 });
-it('returns at most three safe weekly previews with no extra stock pages or cache', async () => {
+it('returns all seven prepared previews in one response without writes or cache', async () => {
   const response = await GET(request()); const data = await response.json();
-  expect(data.stories).toHaveLength(3); expect(data.total).toBe(3); expect(data.nextOffset).toBeNull();
+  expect(data.stories).toHaveLength(7); expect(data.total).toBe(7); expect(data.nextOffset).toBeNull();
   expect(data.preparation).toMatchObject({ status: 'blocked_saved_work', reasonCode: 'factcheck_required' });
-  expect(mock.payload).toHaveBeenCalledTimes(3);
+  expect(mock.payload).toHaveBeenCalledTimes(7);
   expect(response.headers.get('cache-control')).toContain('no-store');
-  expect((await (await GET(request(undefined, '?offset=3'))).json()).stories).toHaveLength(0);
-  expect(mock.payload).toHaveBeenCalledTimes(3);
+  expect((await (await GET(request(undefined, '?offset=3'))).json()).stories).toHaveLength(4);
+  expect(mock.payload).toHaveBeenCalledTimes(11);
   expect(mock.decide).not.toHaveBeenCalled();
 });
 it('does not pretend to have articles when preparation is disabled', async () => {
@@ -52,7 +52,7 @@ it('keeps the saved preview visible while accurately reporting paused automation
   vi.stubEnv('LIV_DAILY_PAUSED', 'true');
   const data = await (await GET(request())).json();
   expect(data).toMatchObject({ queueEnabled: false, preparationEnabled: false });
-  expect(data.stories).toHaveLength(3);
+  expect(data.stories).toHaveLength(7);
 });
 it('does not advertise automatic publication when CMS mode is draft', async () => {
   vi.stubEnv('LIV_DAILY_PUBLICATION_MODE', 'draft');
@@ -65,7 +65,7 @@ it('fails closed for corrupted immutable content', async () => {
 it('validates the payload hash on every card, including the third weekly article', async () => {
   mock.payload.mockResolvedValueOnce(payload).mockResolvedValueOnce(payload).mockResolvedValueOnce({ ...payload, content: 'Changed third story' });
   expect((await GET(request())).status).toBe(503);
-  expect(mock.payload).toHaveBeenCalledTimes(3); expect(mock.decide).not.toHaveBeenCalled();
+  expect(mock.payload).toHaveBeenCalledTimes(7); expect(mock.decide).not.toHaveBeenCalled();
 });
 it.each([{ ...body, revision: -1 }, { ...body, decision: 'publish' }, { ...body, itemId: '../manifest' }, null])('rejects malformed decisions', async value => {
   expect((await POST(request(value))).status).toBe(400); expect(mock.decide).not.toHaveBeenCalled();

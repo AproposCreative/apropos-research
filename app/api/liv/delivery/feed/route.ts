@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getNewsletterUserIdFromRequest } from '@/lib/newsletter/auth-request';
 import { readDeliveryState, readDeliveryPayload, decideDelivery, DeliveryDecisionConflict } from '@/lib/liv/delivery-store';
 import { copenhagenClock } from '@/lib/liv/delivery-policy';
-import { approvalEntries, approvalStory, APPROVAL_PAGE_SIZE } from '@/lib/liv/approval-feed';
+import { approvalEntries, approvalStory } from '@/lib/liv/approval-feed';
 import { cmsFieldHash } from '@/lib/liv/cms-field-hash';
 import { parseEditorialFeedback } from '@/lib/liv/editorial-feedback';
 import { readLivCostSummary } from '@/lib/liv/cost-ledger';
@@ -26,12 +26,12 @@ export async function GET(req: NextRequest) {
     const [state, cost] = await Promise.all([readDeliveryState(), readLivCostSummary()]);
     const preparation = await readNextLivPreparationStatus(state);
     const entries = approvalEntries(state, copenhagenClock().day);
-    const stories = await Promise.all(entries.slice(offset, offset + APPROVAL_PAGE_SIZE).map(async entry => {
+    const stories = await Promise.all(entries.slice(offset).map(async entry => {
       const payload = await readDeliveryPayload(entry.itemId);
       if (cmsFieldHash(payload as unknown as Record<string, unknown>) !== entry.payloadHash) throw new Error('changed');
       return approvalStory(entry, payload, userId);
     }));
-    return reply({ stories, total: entries.length, nextOffset: offset + APPROVAL_PAGE_SIZE < entries.length ? offset + APPROVAL_PAGE_SIZE : null,
+    return reply({ stories, total: entries.length, nextOffset: null,
       queueEnabled, preparationEnabled, cost, preparation });
   } catch { return reply({ error: 'Historierne kunne ikke hentes. Prøv igen; dine gemte valg er ikke ændret.' }, 503); }
 }

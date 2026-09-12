@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest';
-import { approvalEntries, approvalStory, APPROVAL_PAGE_SIZE } from '@/lib/liv/approval-feed';
+import { approvalEntries, approvalStory } from '@/lib/liv/approval-feed';
 import { emptyDeliveryState, eligibleEntries, type ReadyEntry } from '@/lib/liv/delivery-policy';
 import type { WebflowArticleFields } from '@/lib/webflow/types';
 import { readFileSync } from 'node:fs';
@@ -94,13 +94,12 @@ it('labels reserve availability without promising a scheduled publication date',
   expect(source).toContain("story.kind === 'reserve' ? 'Reserve · klar til næste ledige udgivelse'");
   expect(source).toContain('Planlagt ${dateLabel(story.scheduledDay)}');
 });
-it('supplies up to three upcoming stories and retains a rejected choice for reversal without exposing old stock', () => {
-  expect(APPROVAL_PAGE_SIZE).toBe(3);
+it('includes prepared stories beyond a week without exposing old stock', () => {
   const state = emptyDeliveryState();
   state.entries = [{ ...entry, kind: 'reserve' }, { ...entry, itemId: 'b', decision: 'rejected' },
     { ...entry, expiresDay: '2026-09-09' }, { ...entry, scheduledDay: '2026-09-20', expiresDay: '2026-09-20' }];
   const before = structuredClone(state);
-  expect(approvalEntries(state, '2026-09-10').map(e => e.itemId)).toEqual(['b']);
+  expect(approvalEntries(state, '2026-09-10').map(e => e.itemId)).toEqual([entry.itemId]);
   expect(state).toEqual(before);
 });
 it('prioritizes today over tomorrow and excludes published/rejected-state history', () => {
@@ -148,22 +147,22 @@ it('shows the existing review reserve plus Monday and Tuesday scheduled stories 
   expect(approvalEntries(state, '2026-09-12')).toEqual([review, culture, feature]);
   expect(state).toEqual(before);
 });
-it('includes scheduled day +7 but excludes day +8, past work and work expiring before its scheduled day', () => {
+it('includes scheduled work beyond day +7 but excludes past work and invalid expiry', () => {
   const state = emptyDeliveryState();
   const seventh = { ...entry, itemId: 'seventh', scheduledDay: '2026-09-17', expiresDay: '2026-09-17' };
   state.entries = [seventh,
     { ...entry, itemId: 'eighth', scheduledDay: '2026-09-18', expiresDay: '2026-09-18' },
     { ...entry, itemId: 'past', scheduledDay: '2026-09-09', expiresDay: '2026-09-17' },
     { ...entry, itemId: 'invalid-expiry', scheduledDay: '2026-09-16', expiresDay: '2026-09-15' }];
-  expect(approvalEntries(state, '2026-09-10')).toEqual([seventh]);
+  expect(approvalEntries(state, '2026-09-10')).toEqual([seventh, state.entries[1]]);
 });
-it('caps the preview at three unique items while preserving approved and chronological ordering', () => {
+it('shows every unique item including the fourth while preserving approved and chronological ordering', () => {
   const state = emptyDeliveryState();
   const first = { ...entry, itemId: 'first', decision: 'approved' as const };
   state.entries = [entry, first, first,
     { ...entry, itemId: 'second-day', scheduledDay: '2026-09-12', expiresDay: '2026-09-12' },
     { ...entry, itemId: 'third-day', scheduledDay: '2026-09-13', expiresDay: '2026-09-13' }];
-  expect(approvalEntries(state, '2026-09-10').map(e => e.itemId)).toEqual(['first', entry.itemId, 'second-day']);
+  expect(approvalEntries(state, '2026-09-10').map(e => e.itemId)).toEqual(['first', entry.itemId, 'second-day', 'third-day']);
 });
 it('never fills three cards with rejected decisions when non-rejected work exists', () => {
   const state = emptyDeliveryState();
@@ -183,9 +182,10 @@ it('excludes a published slot owner even if a stale ready entry has a different 
   state.slots['2026-09-09'] = slot(entry.itemId, 'published');
   expect(approvalEntries(state, '2026-09-10')).toEqual([]);
 });
-it('describes three weekly previews without promising three automatic preparations', () => {
+it('renders all returned stories without a client-side cap or promising extra generation', () => {
   const source = readFileSync('app/ai/liv/LivApprovalFeed.tsx', 'utf8');
-  expect(source).toContain('Op til tre klargjorte historier fra i dag og syv dage frem.');
+  expect(source).toContain('Alle klargjorte kommende historier samlet på én liste.');
+  expect(source).not.toContain('data.stories.slice');
   expect(source).not.toContain('Én historie til i morgen.');
 });
 it('exposes a minimal plain text DTO, not HTML, research internals or editor identity', () => {
