@@ -215,7 +215,6 @@ export async function generateLivArticle(options: GenerateArticleOptions): Promi
   }
 
   const voice = loadLivVoice();
-  const generationModel = preparation ? livModels().utility : livModels().article;
   const resumeRunId = options.resumeWritingRunId && preparation && options.allowOriginalityRevision === true
     ? await recoverOriginalityChild(sourceScope, topic.title, options.resumeWritingRunId) || options.resumeWritingRunId
     : options.resumeWritingRunId;
@@ -226,6 +225,10 @@ export async function generateLivArticle(options: GenerateArticleOptions): Promi
   // A saved writer response retains its original format. Never relabel paid text.
   const articleFormat = resumed ? (resumed.articleFormat || options.articleFormat || 'article')
     : selectLivArticleFormat(options);
+  // Spend the stronger writer on argued reviews, where a cheap draft plus a
+  // corrective rewrite is false economy. Ordinary preparation stays economical;
+  // saved responses below retain their model and are never generated again.
+  const generationModel = preparation && articleFormat !== 'research-review' ? livModels().utility : livModels().article;
   if (resumed && resumed.voiceVersion !== voice.version) throw new Error('article_resume_voice_changed');
   if (resumed?.refusal) throw new Error('article_generation_refused');
   if (resumed?.finishReason && resumed.finishReason !== 'stop') throw new Error('article_generation_incomplete');

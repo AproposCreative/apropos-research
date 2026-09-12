@@ -61,10 +61,11 @@ research notes and sources remain unchanged. Five tracked calls (brief, writing
 and three embedding cache misses) totalled 0.15092 DKK as a usage-based upper
 estimate, not an invoice. No discovery or image-generation call was needed.
 
-The acceptance test must resume this paid work after contextual similarity
-review is implemented, not create a replacement article. A small editorial
-correction changes the erroneous word “selvmodig” to “selvskabt” through the
-authenticated, audited checkpoint-edit API before normal downstream gates.
+The acceptance test resumes this paid work after contextual similarity
+review is implemented, not a replacement research run. An authenticated,
+audited checkpoint-edit API was tested for small exact text corrections,
+but the proposed manual “selvmodig” correction was not applied in production:
+the later linked originality revision superseded that draft.
 The contextual review returned a structural-dependence concern, but some
 purported source excerpts contained ellipses and were not exact anchors. It was
 therefore retained as an invalid/incomplete review, never converted to approval.
@@ -74,4 +75,32 @@ allowed from that saved brief through an audited retry, using the configured
 article model. A pre-call claim and immutable linked child prevent repeated
 rewrite charges; the child must pass the normal checks. This is a text-quality
 revision, not another discovery/research run or an exemption from source checks.
-CMS, image and queue acceptance results remain pending until measured.
+CMS and queue acceptance results remain pending until measured.
+
+## Linked revision and media acceptance
+
+Production release `6443204df550d6e4c1b359fb54e77a46c0dae94e`, deployment
+`dpl_AzK6P686d195THvCMGP5tLpBNaWu`, was verified READY with the production
+alias. The explicitly authorized single originality revision reused the saved
+research and preserved its parent writer response. The resulting Sol review,
+“The Gentlemen sæson 2 gør privilegium til et våben”, gives 4/6 stars and passed
+the contextual source comparison. The next authenticated continuation returned
+`media_prepared`, with three distinct official Netflix photos, not generated
+illustrations. The following continuation returned `facts_revised`, preserving
+those media while applying the normal factual correction stage.
+
+At that checkpoint, 18 tracked model/embedding calls had a combined usage-based
+upper estimate of 3.178776 DKK, including the rejected original, originality
+revision and factual review. This is neither the final acceptance cost nor a
+provider invoice. The largest charges so far were the Sol editorial assessment
+(1.81904 DKK) and originality revision (1.0524 DKK). No paid discovery or image
+generation was used. Automatic factual corrections are not silently counted as
+free work.
+
+The test exposed false economy in using the utility writer for an argued
+review followed by a stronger corrective rewrite. Future research-review drafts
+now select the configured article model directly; ordinary preparation still
+uses the utility model. Saved responses are never regenerated because routing
+changes. Three parameterized integration cases verify one writer call and the
+appropriate model for each format/context. Full local verification: 137 test
+files, 2256 tests passed; TypeScript, scoped ESLint and diff checks passed.

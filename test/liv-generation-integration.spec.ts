@@ -100,6 +100,17 @@ it('keeps an explicitly selected film feature without stars on fresh generation'
   expect(article.rating).toBeUndefined();
 });
 
+it.each([
+  [true, 'research-review', 'gpt-5.6-sol'],
+  [true, 'article', 'gpt-5.6-luna'],
+  [false, 'article', 'gpt-5.6-sol'],
+] as const)('routes preparation=%s format=%s directly to %s without an extra writer', async (preparation, articleFormat, model) => {
+  mocks.create.mockReset().mockResolvedValueOnce(response(rawArticle(articleFormat === 'research-review')));
+  await generateLivArticle({ topic: { title: 'The Invite', score: 0 }, preparation, articleFormat });
+  expect(mocks.create).toHaveBeenCalledTimes(1);
+  expect(mocks.create.mock.calls[0][0].model).toBe(model);
+});
+
 it.each(['article', 'research-review', undefined] as const)('resumes paid format %s without new discovery or writer calls', async articleFormat => {
   const rawResponse = rawArticle(articleFormat === 'research-review');
   mocks.resume.mockResolvedValue({ rawResponse, articleFormat, writerText: '[S1] Saved evidence notes',
