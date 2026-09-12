@@ -49,6 +49,7 @@ export function buildLivCmsPayload(input: {
   const imageSourceUrlsFinal = imageSourceUrls.slice(0, 12);
 
   const selectedImage = article.selectedImage;
+  if (selectedImage?.editorialEdit && selectedImage.visualReview !== 'automated') throw new Error('image_editorial_review_pending');
   if (selectedImage && selectedImage.articleHash !== livImageArticleHash(article)) throw new Error('image_article_changed');
   const thumbCandidate = selectedImage?.url;
   const fotoCredit = selectedImage?.credit;

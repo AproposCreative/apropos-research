@@ -33,6 +33,7 @@ import { extractLivTudumPhotos, isLivTudumSource } from '@/lib/liv/photo-credit'
 import { readPublicMedia } from '@/lib/liv/public-media-reader';
 import { withLivCostStage } from '@/lib/liv/cost-context';
 import { getLivCostPretransportError } from '@/lib/liv/cost-errors';
+import { livExcerpt } from '@/lib/liv/excerpt';
 
 export interface GeneratedArticle {
   subjectType?: import('@/lib/liv/article-output').LivSubjectType;
@@ -386,10 +387,7 @@ export async function generateLivArticle(options: GenerateArticleOptions): Promi
   let rating = parsed.rating !== null ? { value: parsed.rating, reason: parsed.ratingReason! } : null;
 
   let slug = slugify(parsed.title);
-  let excerpt = (parsed.intro || parsed.content)
-    .replace(/\s+/g, ' ')
-    .trim()
-    .slice(0, 220);
+  let excerpt = livExcerpt(parsed.intro || parsed.content);
 
   // Liv's server-owned utility model also supplies SEO metadata.
   let seo = preparation ? generateSeoMetaSmart({
@@ -510,7 +508,7 @@ export async function generateLivArticle(options: GenerateArticleOptions): Promi
     parsed = parseLivArticleOutput(rewrittenRaw, articleFormat);
     rating = parsed.rating !== null ? { value: parsed.rating, reason: parsed.ratingReason! } : null;
     slug = slugify(parsed.title);
-    excerpt = (parsed.intro || parsed.content).replace(/\s+/g, ' ').trim().slice(0, 220);
+    excerpt = livExcerpt(parsed.intro || parsed.content);
     seo = preparation ? generateSeoMetaSmart({ title: parsed.title, subtitle: parsed.subtitle, intro: parsed.intro, content: parsed.content,
       section, keywords: topic.tags }) : await generateSeoMetaAI({ title: parsed.title, subtitle: parsed.subtitle, intro: parsed.intro, content: parsed.content,
       section, keywords: topic.tags }, { model: livModels().utility });

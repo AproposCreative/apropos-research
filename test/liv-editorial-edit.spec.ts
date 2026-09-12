@@ -261,10 +261,10 @@ it('does not expose the legacy post-media edit capability to scheduled work', as
   expect(state.writes).not.toHaveBeenCalled();
 });
 
-function preparedFixture() {
+function preparedFixture(content?: string) {
   const sourceArticle = { ...structuredClone(article), section: 'Kultur', tags: [],
     subtitle: 'I anden sæson bliver forskellen mellem dem seriens skarpeste konflikt.',
-    content: `${article.content}<p>Andet afsnit med bevaret kilde.</p><p>Tredje afsnit med kultur.</p><p>En afslutning.</p>` } as GeneratedArticle;
+    content: content || `${article.content}<p>Andet afsnit med bevaret kilde.</p><p>Tredje afsnit med kultur.</p><p>En afslutning.</p>` } as GeneratedArticle;
   const articleInputHash = livImageArticleHash(sourceArticle);
   const jobId = createHash('sha256').update(JSON.stringify(['liv-media-v1', dayKey, articleInputHash, 'photography', 'expressive'])).digest('hex');
   const media: MediaEvidence[] = (['hero', 'body-1', 'body-2'] as const).map((role, index) => ({
@@ -368,8 +368,8 @@ it('serializes concurrent post-media edits to one audited change', async () => {
   expect(results.map(result => result.status)).toEqual(['edited', 'already_edited']); expect(state.writes).toHaveBeenCalledTimes(2);
 });
 
-function revisedFixture(count = 1) {
-  const fixture = preparedFixture();
+function revisedFixture(count = 1, content?: string) {
+  const fixture = preparedFixture(content);
   let previous: GeneratedArticle = fixture.checkpoint;
   for (let index = 1; index <= count; index++) {
     const revisionId = String(index + 6).repeat(64);
@@ -402,6 +402,64 @@ it.each([1, 2])('accepts an exact %i-completed-revision chain with changed capti
   for (const [path, row] of before) if (path !== runPath) expect(state.rows.get(path)).toEqual(row);
   expect(state.rows.get(`${runPath}/editorialEdits/${edit.requestId}`).mediaRevisionIds).toHaveLength(count);
   expect(state.rows.get(`livMediaJobs/${jobId}`).article).not.toEqual(revised);
+});
+
+function scheduledMediaFixture() {
+  const content = '<p>giver han den sammensatte krop liv ser på resultatet. Romanens undertitel, Jeg læser undertitlen som en advarsel.</p>' +
+    '<p>Arrangementet fandt sted 3. september på Glyptoteket.</p>' +
+    `<p>${'En selvstændig betragtning om kultur og ansvar. '.repeat(20)}</p>`;
+  const fixture = revisedFixture(1, content);
+  const scheduled = scheduledFixture(dayKey);
+  state.rows.get(scheduled.planPath).status = 'failed';
+  const edit = { ...scheduled.edit, expectedArticleHash: livImageArticleHash(fixture.revised),
+    expectedCheckpointHash: cmsFieldHash(fixture.revised as unknown as Record<string, unknown>), patches: [
+      { field: 'content', before: 'giver han den sammensatte krop liv ser på resultatet', after: 'giver han den sammensatte krop liv, ser på resultatet' },
+      { field: 'content', before: 'Romanens undertitel, Jeg læser undertitlen', after: 'Jeg læser undertitlen' },
+      { field: 'content', before: 'fandt sted 3. september på Glyptoteket', after: 'var annonceret til 3. september på Glyptoteket' },
+    ] };
+  return { ...scheduled, ...fixture, edit };
+}
+
+it('audits three exact scheduled content patches after factual revision, keeping paid pixels and old visual binding pending', async () => {
+  const { path, planPath, revised: original, edit } = scheduledMediaFixture();
+  const before = structuredClone([...state.rows]);
+  expect((await POST(request(edit))).status).toBe(200);
+  const changed = state.rows.get(path).articleCheckpoint;
+  expect(changed.content).toContain('liv, ser på resultatet');
+  expect(changed.content).not.toContain('Romanens undertitel,');
+  expect(changed.content).toContain('var annonceret til 3. september');
+  expect(changed.content.match(/<figure[\s\S]*?<\/figure>/g)).toEqual(original.content.match(/<figure[\s\S]*?<\/figure>/g));
+  expect(changed.preparedMedia).toEqual(original.preparedMedia);
+  expect(changed.selectedImage).toEqual({ ...original.selectedImage, visualReview: 'pending',
+    editorialEdit: { runId: `prepare-${dayKey}`, requestId: edit.requestId } });
+  expect(changed.selectedImage.articleHash).not.toBe(livImageArticleHash(changed));
+  expect(changed.rawResponse).toBe(original.rawResponse); expect(changed.factRevisionId).toBe(original.factRevisionId);
+  expect(changed.factRevisionCount).toBe(1); expect(state.rows.get(planPath).status).toBe('failed');
+  expect(state.rows.get(path)).toMatchObject({ status: 'skipped_factcheck', continuationReady: false });
+  for (const [key, value] of before) if (key !== path) expect(state.rows.get(key)).toEqual(value);
+  state.writes.mockClear(); expect(await (await POST(request(edit))).json()).toMatchObject({ status: 'already_edited' });
+  expect(state.writes).not.toHaveBeenCalled();
+});
+
+it.each(['pending-plan', 'wrong-day-plan', 'active', 'retry', 'cms', 'title', 'caption', 'figure-text', 'tampered-lineage', 'second-edit'])('blocks unsafe scheduled post-media edit: %s', async kind => {
+  const { path, planPath, edit, revised } = scheduledMediaFixture();
+  if (kind === 'pending-plan') state.rows.get(planPath).status = 'pending';
+  if (kind === 'wrong-day-plan') state.rows.get(planPath).dayKey = '2026-09-13';
+  if (kind === 'active') state.rows.get(path).status = 'processing';
+  if (kind === 'retry') state.rows.get(path).retryAuthorization = 'grant';
+  if (kind === 'cms') state.rows.get(path).webflowItemId = 'cms';
+  if (kind === 'title') edit.patches[0].field = 'title';
+  if (kind === 'caption') Object.assign(edit, { mediaCaptions: [{ role: 'body-2', before: revised.preparedMedia![2].caption, after: 'Ny billedtekst ved vandet.' }] });
+  if (kind === 'figure-text') edit.patches = [{ field: 'content', before: revised.preparedMedia![2].caption, after: 'Ny billedtekst ved vandet.' }];
+  if (kind === 'tampered-lineage') state.rows.get(`livFactRevisions/${revised.factRevisionId}`).status = 'processing';
+  if (kind === 'second-edit') {
+    await POST(request(edit)); edit.requestId = 'another-edit';
+    edit.expectedArticleHash = state.rows.get(path).articleCheckpointHash;
+    edit.expectedCheckpointHash = cmsFieldHash(state.rows.get(path).articleCheckpoint); state.writes.mockClear();
+  }
+  const before = structuredClone([...state.rows]);
+  expect([400, 409]).toContain((await POST(request(edit))).status);
+  expect(state.writes).not.toHaveBeenCalled(); expect([...state.rows]).toEqual(before);
 });
 
 it.each(['missing', 'processing', 'wrong-current', 'wrong-previous', 'wrong-count', 'failed-visual', 'stale-visual', 'changed-pixels',

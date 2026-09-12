@@ -87,6 +87,9 @@ export function insertLivBodyMedia(content: string, images: MediaEvidence[]): st
 /** Prepares all three images before CMS publication. Does not call Webflow. */
 export async function prepareLivAutomaticMedia(article: GeneratedArticle, options: MediaOptions, dependencies?: MediaDependencies): Promise<GeneratedArticle> {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(options.dayKey)) throw new Error('liv_media_day_invalid');
+  if (article.selectedImage?.editorialEdit) {
+    return (await import('./editorial-edit-media-review')).reviewLivEditorialEditMedia(article, options.dayKey);
+  }
   if (article.selectedImage && load(article.content)('img').length >= 2) {
     if (article.selectedImage.articleHash !== livImageArticleHash(article)) throw new Error('image_article_changed');
     return article; // Explicit prepared media wins; CMS byte/readback gates still apply.

@@ -15,4 +15,6 @@ export type LivSelectedImage = {
   createdAt: string;
   rightsStatus: 'unverified';
   visualReview: 'pending' | 'automated';
+  /** Immutable operator copyedit whose changed text requires fresh media proof. */
+  editorialEdit?: { runId: string; requestId: string };
 } & LivHeroDimensions;

@@ -4,6 +4,7 @@ import { addDays, eligibleEntries, type DeliveryState, type ReadyEntry } from '.
 import type { ApprovalStory } from './approval-types';
 import { isLivArticleFormat, parseResearchRating, type LivArticleFormat } from './review-format';
 import { LIV_SUBJECT_LABELS, LIV_SUBJECT_TYPES } from './article-output';
+import { livExcerpt } from './excerpt';
 
 export const APPROVAL_PAGE_SIZE = 3;
 export function approvalEntries(state: DeliveryState, day: string) {
@@ -64,6 +65,7 @@ export function approvalStory(entry: ReadyEntry, payload: WebflowArticleFields &
   $('script, style, iframe, noscript, figure').remove();
   const paragraphs = $('p, h2, h3').toArray().map(node => plain($(node).html() || '')).filter(Boolean);
   const intro = plain(payload.intro || '');
+  const excerpt = plain(payload.excerpt || '');
   const body = paragraphs.length ? paragraphs : [plain(payload.content)];
   const savedCategory = plain(payload.category || '').slice(0, 100);
   const subjectType = payload.subjectType && LIV_SUBJECT_TYPES.includes(payload.subjectType) ? payload.subjectType : null;
@@ -79,7 +81,8 @@ export function approvalStory(entry: ReadyEntry, payload: WebflowArticleFields &
     } catch { /* Missing or invalid rationale is never replaced with invented stars. */ }
   }
   return { itemId: entry.itemId, payloadHash: entry.payloadHash, revision: entry.decisionRevision || 0,
-    title: plain(entry.title), summary: plain(payload.excerpt || payload.subtitle || payload.intro || paragraphs[0] || '').slice(0, 360),
+    title: plain(entry.title), summary: livExcerpt(excerpt || payload.subtitle || payload.intro || paragraphs[0] || '', 360,
+      excerpt ? { sourceText: intro || payload.content, truncated: excerpt.length === 220 } : {}),
     paragraphs: intro && body[0] !== intro ? [intro, ...body] : body,
     category, articleFormat, formatLabel: articleFormat === 'research-review' ? 'Researchanmeldelse' : 'Artikel', rating, ratingReason,
     feedback: viewerUserId && entry.editorialFeedback?.userId === viewerUserId ? entry.editorialFeedback.text : null,

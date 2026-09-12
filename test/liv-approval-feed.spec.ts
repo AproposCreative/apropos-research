@@ -187,6 +187,13 @@ it('shows the whole saved draft, including the ending beyond twelve paragraphs',
   const dto = approvalStory(entry, { ...payload, content: paragraphs.map(text => `<p>${text}</p>`).join('') });
   expect(dto.paragraphs).toEqual(paragraphs);
 });
+it('formats legacy truncated preview excerpts without modifying saved content or payload identity', () => {
+  const saved = { ...payload, excerpt: 'En hel sætning. Det kan', intro: 'En hel sætning. Det kan blive spændende.' };
+  const before = structuredClone(saved), beforeEntry = structuredClone(entry);
+  expect(approvalStory(entry, saved)).toMatchObject({ summary: 'En hel sætning.', payloadHash: entry.payloadHash });
+  expect(saved).toEqual(before); expect(entry).toEqual(beforeEntry);
+  expect(approvalStory(entry, { ...saved, excerpt: 'En hel sætning. Det ka' }).summary).toBe('En hel sætning.');
+});
 it('includes the saved introduction once in the full preview', () => {
   const dto = approvalStory(entry, { ...payload, intro: '<p>En konkret åbning.</p>', content: '<p>Resten af teksten.</p>' });
   expect(dto.paragraphs).toEqual(['En konkret åbning.', 'Resten af teksten.']);

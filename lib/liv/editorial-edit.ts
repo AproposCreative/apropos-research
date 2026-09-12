@@ -90,16 +90,16 @@ export async function editLivEditorialCheckpoint(value: unknown, lease: string, 
       if (prior.inputHash !== inputHash) throw new Error('liv_edit_conflict');
       return { status: 'already_edited' as const, runId, requestId: input.requestId, articleHash: prior.articleHash as string };
     }
-    if (scheduled && (plan?.dayKey !== input.dayKey || plan.status !== 'pending' || state.slots?.[input.dayKey] ||
+    const article = row.articleCheckpoint as GeneratedArticle | undefined;
+    const postMedia = Array.isArray(article?.preparedMedia) && article.preparedMedia.length === 3 && !!article.selectedImage;
+    if (scheduled && (plan?.dayKey !== input.dayKey || plan.status !== (postMedia ? 'failed' : 'pending') || state.slots?.[input.dayKey] ||
       (state.entries || []).some((entry: { scheduledDay?: string }) => entry.scheduledDay === input.dayKey))) {
       throw new Error('liv_edit_conflict');
     }
-    const article = row.articleCheckpoint as GeneratedArticle | undefined;
-    const postMedia = Array.isArray(article?.preparedMedia) && article.preparedMedia.length === 3 && !!article.selectedImage;
     const editableState = postMedia
       ? ['failed', 'skipped_factcheck', 'skipped_moderation', 'skipped_tov'].includes(row.status) && !row.continuationReady
       : row.status === 'processing' && row.continuationReady === true;
-    if (!editableState || (scheduled && postMedia) || row.retryAuthorization ||
+    if (!editableState || row.retryAuthorization ||
       row.webflowItemId || row.preparationProof || row.cmsSaveStarted || !article ||
       !['title', 'slug', 'intro', 'content'].every(key => typeof article[key as keyof GeneratedArticle] === 'string') ||
       !article.title.trim() || !article.content.trim() || (!postMedia && (article.preparedMedia !== undefined || article.selectedImage ||
@@ -111,7 +111,9 @@ export async function editLivEditorialCheckpoint(value: unknown, lease: string, 
     const mediaRevisionIds: string[] = [];
     if (postMedia) {
       if (input.expectedCheckpointHash !== cmsFieldHash(article as unknown as Record<string, unknown>) ||
-        article.selectedImage!.articleHash !== input.expectedArticleHash || input.patches.some(patch => patch.field !== 'subtitle')) {
+        article.selectedImage!.articleHash !== input.expectedArticleHash || article.selectedImage!.editorialEdit ||
+        (scheduled && input.mediaCaptions) ||
+        input.patches.some(patch => patch.field !== 'subtitle' && !(scheduled && patch.field === 'content'))) {
         throw new Error('liv_edit_conflict');
       }
       mediaJobId = article.selectedImage!.id.match(/^([a-f0-9]{64})-hero$/)?.[1];
@@ -172,7 +174,9 @@ export async function editLivEditorialCheckpoint(value: unknown, lease: string, 
     catch { throw new Error('liv_edit_invalid_patch'); }
     if (postMedia) revised = editPreparedCaptions(revised, input.mediaCaptions);
     const articleHash = livImageArticleHash(revised);
-    if (postMedia) revised.selectedImage = { ...article.selectedImage!, articleHash };
+    if (postMedia) revised.selectedImage = scheduled
+      ? { ...article.selectedImage!, visualReview: 'pending', editorialEdit: { runId, requestId: input.requestId } }
+      : { ...article.selectedImage!, articleHash };
     tx.create(audit, { input, inputHash, previousArticle: article, article: revised,
       previousArticleHash: input.expectedArticleHash, articleHash,
       ...(scheduled ? { previousRun: row, previousPlan: plan } : {}),
