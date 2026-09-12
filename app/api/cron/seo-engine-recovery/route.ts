@@ -1,4 +1,6 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { after, NextRequest, NextResponse } from 'next/server';
+import { listRecoverableQualityJobs } from '@/lib/seo-engine/post-publish/jobs';
+import { runProductionQualityJob } from '@/lib/seo-engine/post-publish/runtime';
 import { resolveAutoSeoEngineEnabled } from '@/lib/seo-engine/settings';
 import { listQueuedSeoEngineJobs } from '@/lib/seo-engine/jobs';
 import { kickSeoEngineJob } from '@/lib/seo-engine/enqueue';
@@ -7,7 +9,7 @@ import { logger } from '@/lib/logger';
 import { requireCronSecret } from '@/lib/seo-engine/secret-guards';
 
 export const runtime = 'nodejs';
-export const maxDuration = 60;
+export const maxDuration = 300;
 export const dynamic = 'force-dynamic';
 
 /**
@@ -19,10 +21,19 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ ok: false, error: 'Unauthorized' }, { status: 401 });
   }
   try {
+    const qualityJobs = await listRecoverableQualityJobs(2);
+    // Awaited background work is bounded by this route's duration. Each worker
+    // handles its own gate, including read-only reconciliation while stopped.
+    after(async () => {
+      const outcomes = await Promise.allSettled(qualityJobs.map(runProductionQualityJob));
+      outcomes.forEach((outcome, index) => {
+        if (outcome.status === 'rejected') logger.warn('[seo-quality] recovery worker failed', { jobId: qualityJobs[index] });
+      });
+    });
     const runtime = await resolveAutomaticOpportunityRuntime();
     const legacy = await resolveAutoSeoEngineEnabled();
     if (!runtime.killSwitchEnabled || !(runtime.shouldAutoFillOnPublish || legacy)) {
-      return NextResponse.json({ ok: true, skipped: true, reason: 'auto SEO off' });
+      return NextResponse.json({ ok: true, skipped: true, reason: 'auto SEO off', qualityJobs });
     }
     const queued = await listQueuedSeoEngineJobs(15);
     const kicked: string[] = [];
@@ -33,7 +44,7 @@ export async function GET(req: NextRequest) {
       });
       kicked.push(job.jobId);
     }
-    return NextResponse.json({ ok: true, kicked: kicked.length, jobIds: kicked });
+    return NextResponse.json({ ok: true, kicked: kicked.length, jobIds: kicked, qualityJobs });
   } catch (e) {
     logger.error(
       '[cron/seo-engine-recovery] failed',

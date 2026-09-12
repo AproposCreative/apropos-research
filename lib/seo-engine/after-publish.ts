@@ -1,6 +1,6 @@
 import { logger } from '@/lib/logger';
-import { cmsSeoEmptiness } from '@/lib/seo-engine/cms-contract';
-import { enqueueSeoEngineJob } from '@/lib/seo-engine/enqueue';
+import { enqueuePublishedQualityReview } from '@/lib/seo-engine/post-publish/runtime';
+import { kickQualityJob } from '@/lib/seo-engine/post-publish/dispatch';
 import { resolveAutoSeoEngineEnabled } from '@/lib/seo-engine/settings';
 import { resolveAutomaticOpportunityRuntime } from '@/lib/seo-engine/opportunity-engine/settings';
 import { cmsLocaleIdFor } from '@/lib/seo-engine/opportunity-engine/locale';
@@ -20,7 +20,7 @@ export type AfterPublishEnqueueResult = {
 };
 
 /**
- * Canonical publish-path hook: enqueue auto-SEO for empty SEO fields.
+ * Canonical publish-path hook: review both filled and empty SEO fields.
  *
  * Only enqueues for locales that are actually published (not draft/unpublished).
  * DK publish must never write an EN draft's empty metadata.
@@ -62,7 +62,7 @@ export async function maybeEnqueueSeoEngineAfterPublish(args: {
       : ['da', 'en'];
     const jobIds: string[] = [];
     const skippedLocales: Array<{ locale: 'da' | 'en'; reason: string }> = [];
-    let anyPublishedEmpty = false;
+    let enqueueAttempted = false;
 
     for (const locale of locales) {
       const cmsLocaleId = cmsLocaleIdFor(locale);
@@ -72,20 +72,13 @@ export async function maybeEnqueueSeoEngineAfterPublish(args: {
           skippedLocales.push({ locale, reason: 'locale_not_published' });
           continue;
         }
-        const empty = cmsSeoEmptiness(item.fieldData);
-        if (!empty.anyEmpty) {
-          skippedLocales.push({ locale, reason: 'seo_fields_filled' });
-          continue;
-        }
-        anyPublishedEmpty = true;
-        const cmsLastUpdated = item.lastUpdated || item.lastPublished || new Date().toISOString();
-        const enq = await enqueueSeoEngineJob({
-          itemId,
-          cmsLastUpdated,
-          source: args.source || 'publish_app',
-          locale,
-        });
-        jobIds.push(enq.jobId);
+        enqueueAttempted = true;
+        const enq = await enqueuePublishedQualityReview(itemId, locale,
+          args.source === 'manual' ? 'recovery' : args.source || 'publish_app');
+        if (enq.enqueued && 'jobId' in enq && enq.jobId) {
+          jobIds.push(enq.jobId);
+          kickQualityJob(enq.jobId);
+        } else skippedLocales.push({ locale, reason: enq.reason || 'quality_not_enqueued' });
       } catch (localeErr) {
         skippedLocales.push({
           locale,
@@ -102,11 +95,11 @@ export async function maybeEnqueueSeoEngineAfterPublish(args: {
     if (jobIds.length === 0) {
       return {
         enqueued: false,
-        reason: anyPublishedEmpty
+        reason: enqueueAttempted
           ? 'enqueue_failed'
           : skippedLocales.every((s) => s.reason === 'locale_not_published')
             ? 'no_published_locale'
-            : 'seo_fields_filled',
+            : 'no_quality_jobs',
         skippedLocales,
       };
     }

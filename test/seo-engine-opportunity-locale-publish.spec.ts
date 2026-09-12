@@ -1,3 +1,4 @@
+vi.mock('@/lib/seo-engine/post-publish/dispatch', () => ({ kickQualityJob: vi.fn() }));
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { runOpportunityScan } from '../lib/seo-engine/opportunity-engine/engine';
 import type { QueryPageRow } from '../lib/seo-engine/opportunity-engine/scoring';
@@ -24,10 +25,10 @@ vi.mock('@/lib/webflow/locale-items', () => ({
   },
 }));
 
-vi.mock('@/lib/seo-engine/enqueue', () => ({
-  enqueueSeoEngineJob: vi.fn(async ({ locale }: { locale?: string }) => ({
+vi.mock('@/lib/seo-engine/post-publish/runtime', () => ({
+  enqueuePublishedQualityReview: vi.fn(async (_itemId: string, locale: string) => ({
     jobId: `job-${locale || 'da'}`,
-    created: true,
+    enqueued: true,
   })),
 }));
 
@@ -38,7 +39,7 @@ vi.mock('@/lib/logger', () => ({
 import { maybeEnqueueSeoEngineAfterPublish } from '../lib/seo-engine/after-publish';
 import { resolveAutomaticOpportunityRuntime } from '../lib/seo-engine/opportunity-engine/settings';
 import { fetchArticleItemByLocale } from '../lib/webflow/locale-items';
-import { enqueueSeoEngineJob } from '../lib/seo-engine/enqueue';
+import { enqueuePublishedQualityReview } from '../lib/seo-engine/post-publish/runtime';
 
 function row(
   partial: Partial<QueryPageRow> & Pick<QueryPageRow, 'query' | 'page'>
@@ -183,8 +184,8 @@ describe('after-publish: only published locales', () => {
     });
     expect(result.enqueued).toBe(true);
     expect(result.jobIds).toEqual(['job-da']);
-    expect(enqueueSeoEngineJob).toHaveBeenCalledTimes(1);
-    expect(vi.mocked(enqueueSeoEngineJob).mock.calls[0]![0]).toMatchObject({ locale: 'da' });
+    expect(enqueuePublishedQualityReview).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(enqueuePublishedQualityReview).mock.calls[0]![1]).toBe('da');
     expect(result.skippedLocales?.some((s) => s.locale === 'en' && s.reason === 'locale_not_published')).toBe(
       true
     );

@@ -17,7 +17,7 @@ plus later optimization grounded in Search Console and GA4 results.
 - New `post-publish/review.ts` reviews both filled fields using article content,
   then independently checks proposed changes. Strict output parsing, no fake
   fallback, no silent article truncation. Calls are dependency-injected.
-- 31 unit tests and full `tsc --noEmit` pass with existing local runtime; no live model call,
+- 48 targeted tests and full `tsc --noEmit` pass with existing local runtime; no live model call,
   CMS change or deployment yet. The reused dependency tree differs from this
   release lockfile: these isolated tests are not a full build verification.
 - Added atomic Firestore model-stage persistence, saved-response replay,
@@ -31,6 +31,18 @@ plus later optimization grounded in Search Console and GA4 results.
 - Webflow endpoint contract checked against official documentation:
   https://developers.webflow.com/data/reference/cms/collection-items/live-items/update-items-live
   https://developers.webflow.com/data/reference/cms/collection-items/live-items/get-item-live
+- Added Firestore quality job queue, fenced worker checkpoints, atomic article
+  write reservation and pending-write reconciliation. Single indexed `readyAt`
+  field schedules retry/recovery without requiring a composite index. Firestore
+  transaction behavior still needs integration verification; worker tests use ports.
+- Shared `after-publish.ts` now enqueues quality review for filled and empty
+  metadata, preserving the existing published-locale and emergency-stop gates.
+  New authenticated `/api/internal/seo-quality` starts a durable job; best-effort
+  dispatch is supplemented by the existing 15-minute recovery route, now with
+  a 300-second budget for up to two workers. No Vercel schedule changed.
+- Regression tests cover both DA/EN and filled metadata. Still inspect the
+  Webflow webhook's partial-failure handling and prove all publishing paths in
+  integration; new code has not reached production.
 
 ## Required work before claiming completion
 

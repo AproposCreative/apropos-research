@@ -1,3 +1,4 @@
+vi.mock('@/lib/seo-engine/post-publish/dispatch', () => ({ kickQualityJob: vi.fn() }));
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 
 vi.mock('@/lib/seo-engine/settings', () => ({
@@ -17,10 +18,10 @@ vi.mock('@/lib/webflow/locale-items', () => ({
   },
 }));
 
-vi.mock('@/lib/seo-engine/enqueue', () => ({
-  enqueueSeoEngineJob: vi.fn(async ({ locale }: { locale?: string }) => ({
+vi.mock('@/lib/seo-engine/post-publish/runtime', () => ({
+  enqueuePublishedQualityReview: vi.fn(async (_itemId: string, locale: string) => ({
     jobId: `job-${locale || 'da'}`,
-    created: true,
+    enqueued: true,
   })),
 }));
 
@@ -32,14 +33,14 @@ import { resolveAutoSeoEngineEnabled } from '../lib/seo-engine/settings';
 import { maybeEnqueueSeoEngineAfterPublish } from '../lib/seo-engine/after-publish';
 import { resolveAutomaticOpportunityRuntime } from '../lib/seo-engine/opportunity-engine/settings';
 import { fetchArticleItemByLocale } from '../lib/webflow/locale-items';
-import { enqueueSeoEngineJob } from '../lib/seo-engine/enqueue';
+import { enqueuePublishedQualityReview } from '../lib/seo-engine/post-publish/runtime';
 
-describe('after-publish automatic empty SEO fill', () => {
+describe('after-publish automatic metadata quality review', () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
-  it('enqueues da+en when both locales are published and SEO empty', async () => {
+  it.each(['', 'Allerede udfyldt SEO'])('enqueues da+en for published metadata: %s', async existing => {
     vi.mocked(resolveAutomaticOpportunityRuntime).mockResolvedValue({
       killSwitchEnabled: true,
       connectionsHealthyForOptimize: true,
@@ -50,7 +51,7 @@ describe('after-publish automatic empty SEO fill', () => {
     });
     vi.mocked(fetchArticleItemByLocale).mockResolvedValue({
       id: 'item1',
-      fieldData: { name: 'Title', 'seo-title': '', 'meta-description': '' },
+      fieldData: { name: 'Title', 'seo-title': existing, 'meta-description': existing },
       lastUpdated: '2026-07-01T00:00:00.000Z',
       lastPublished: '2026-07-01T00:00:00.000Z',
       isDraft: false,
@@ -59,7 +60,7 @@ describe('after-publish automatic empty SEO fill', () => {
     const result = await maybeEnqueueSeoEngineAfterPublish({ itemId: 'item1' });
     expect(result.enqueued).toBe(true);
     expect(result.jobIds).toEqual(['job-da', 'job-en']);
-    expect(enqueueSeoEngineJob).toHaveBeenCalledTimes(2);
+    expect(enqueuePublishedQualityReview).toHaveBeenCalledTimes(2);
   });
 
   it('fail-closed: never throws when enqueue fails', async () => {
@@ -92,6 +93,6 @@ describe('after-publish automatic empty SEO fill', () => {
     const result = await maybeEnqueueSeoEngineAfterPublish({ itemId: 'item1' });
     expect(result.enqueued).toBe(false);
     expect(result.reason).toMatch(/emergency_stopped|auto_fill/);
-    expect(enqueueSeoEngineJob).not.toHaveBeenCalled();
+    expect(enqueuePublishedQualityReview).not.toHaveBeenCalled();
   });
 });
