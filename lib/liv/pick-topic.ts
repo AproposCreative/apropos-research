@@ -47,6 +47,8 @@ export interface PickTopicOptions {
   dedupeDays?: number;
   /** Titler som redaktionen aktivt har afvist i den nuværende session. */
   excludedTitles?: string[];
+  /** Server-owned identity of the already-claimed run; never an arbitrary UI bypass. */
+  currentRunId?: string;
 }
 
 /* Liv's primære temaer — vægtes højest. */
@@ -223,7 +225,7 @@ export async function pickLivTopic(options: PickTopicOptions): Promise<PickedTop
 
   const [recentSlugs, recentTopics] = await Promise.all([
     getRecentLivDailySlugs(dedupeDays),
-    getRecentLivDailyTopics(dedupeDays),
+    getRecentLivDailyTopics(dedupeDays, options.currentRunId),
   ]);
 
   const isExcluded = (title: string) => titleMatchesBlocklist(title) || recentSlugs.has(slugify(title)) ||

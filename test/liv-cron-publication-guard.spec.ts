@@ -191,6 +191,7 @@ it('yields after saving generated text and does not spend the remaining budget o
   expect(result.status).toBe('text_prepared');
   expect(mocks.checkpoint).toHaveBeenCalledTimes(1);
   expect(mocks.yield).toHaveBeenCalledWith('2026-09-12', 'prepare');
+  expect(mocks.topic).toHaveBeenCalledWith(expect.objectContaining({ currentRunId: 'prepare-2026-09-12' }));
   expect(mocks.media).not.toHaveBeenCalled(); expect(mocks.publish).not.toHaveBeenCalled();
 });
 it('resumes reserve text, checkpoints media, and yields before final checks', async () => {

@@ -328,7 +328,7 @@ export async function getRecentLivDailySlugs(days = 14): Promise<Set<string>> {
 }
 
 /** Topics der allerede er dækket eller afvist i Livs seneste køforsøg — dedupe. */
-export async function getRecentLivDailyTopics(days = 14): Promise<Set<string>> {
+export async function getRecentLivDailyTopics(days = 14, currentRunId?: string): Promise<Set<string>> {
   const out = new Set<string>();
   const db = getAdminDb();
   if (!db) return out;
@@ -340,6 +340,9 @@ export async function getRecentLivDailyTopics(days = 14): Promise<Set<string>> {
       .limit(Math.min(Math.max(days * 4, days), 120))
       .get();
     for (const doc of snap.docs) {
+      // A claimed retry of this very run is not a duplicate of another article.
+      // All other saved, published and rejected topics remain excluded.
+      if (doc.id === currentRunId) continue;
       const data = doc.data();
       if (!shouldExcludeLivTopic(data)) continue;
       const topic = data?.topic;
