@@ -125,6 +125,8 @@ it('blocks copied passages even when the similarity service says pass', async ()
   mocks.create.mockReset().mockResolvedValueOnce(response(rawArticle(true, `${body}\n\n${copied}`)))
     .mockResolvedValueOnce(response(rawArticle(true, `${rewrittenBody}\n\n${copied}`)));
   await expect(generateLivArticle({ topic: { title: 'The Invite', score: 0 }, articleFormat: 'research-review' })).rejects.toThrow('source_copy_detected');
+  const feedback = JSON.parse(mocks.create.mock.calls[1][0].messages[1].content);
+  expect(feedback.forbiddenSourcePhrases).toEqual(['denne lange og helt særlige formulering fra et andet medie skal aldrig']);
 });
 
 it('resumes paid text through source re-fetch and all checks without repeating research or the initial writer', async () => {

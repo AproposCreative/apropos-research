@@ -21,7 +21,7 @@ import type { PickedTopic } from '@/lib/liv/pick-topic';
 import { fetchOfficialImagesFromPage } from '@/lib/liv/fetch-official-images';
 import { generateSeoMetaAI, generateSeoMetaSmart } from '@/lib/seo/generate-seo-meta';
 import { buildStyleReferenceBlock } from '@/lib/loadAproposStyleSamples';
-import { buildResearchBundle, extractResearchUrls, hasCopiedPassage } from '@/lib/liv/research-bundle';
+import { buildResearchBundle, extractResearchUrls, hasCopiedPassage, copiedPassage } from '@/lib/liv/research-bundle';
 import { checkSourceSimilarity } from '@/lib/liv/source-similarity';
 import { SourceSimilarityError } from '@/lib/liv/source-similarity-error';
 import type { LivSelectedImage } from '@/lib/liv/image-selection';
@@ -362,6 +362,7 @@ export async function generateLivArticle(options: GenerateArticleOptions): Promi
           'Kopiér ingen sætninger fra kilderne. Skriv ingen førstehåndsoplevelser, citater eller nye fakta.',
           'Returnér kun JSON efter det krævede schema. Følg samme artikeltype og længdekrav som det oprindelige udkast.',
           `Brødtekst: cirka ${options.targetWordCount || (preparation ? 650 : 1000)} ord. Udelad unødvendige andenhåndsdomme og alle kopierede formuleringer.`,
+          'forbiddenSourcePhrases viser præcise overlap, ikke tekst du må genbruge. Udelad gerne en uvæsentlig detalje; ellers skriv faktummet i en helt anden sætningsbygning. Ingen af disse ordsekvenser må optræde igen.',
         ].join('\n') },
         { role: 'user', content: JSON.stringify({
           topic: topic.title,
@@ -370,6 +371,7 @@ export async function generateLivArticle(options: GenerateArticleOptions): Promi
           draftToRewrite: { title: parsed.title, subtitle: parsed.subtitle, intro: parsed.intro, content: parsed.content,
             rating: parsed.rating, ratingReason: parsed.ratingReason },
           blockedSourceHost: new URL(similarityBlocked.sourceUrl).hostname,
+          forbiddenSourcePhrases: [...new Set(sources.map(source => copiedPassage(finalText, source.text)).filter(Boolean))],
         }) },
       ],
     }, { timeout: modelTimeoutMs, maxRetries: 0 });

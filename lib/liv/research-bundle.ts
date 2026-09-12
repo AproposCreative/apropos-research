@@ -41,10 +41,18 @@ export async function buildResearchBundle(urls: string[], read = retrieveSource)
 
 /** Full-text verbatim screen, not a guarantee against plagiarism or paraphrase. */
 export function hasCopiedPassage(article: string, source: string, size = 12): boolean {
+  return copiedPassage(article, source, size) !== null;
+}
+
+/** Exact normalized overlap for actionable rewrite feedback, never an exemption. */
+export function copiedPassage(article: string, source: string, size = 12): string | null {
   const words = (text: string) => text.toLowerCase().normalize('NFKC').match(/[\p{L}\p{N}]+/gu) || [];
   const a = words(article), s = words(source);
   const phrases = new Set<string>();
   for (let i = 0; i <= s.length - size; i++) phrases.add(s.slice(i, i + size).join(' '));
-  for (let i = 0; i <= a.length - size; i++) if (phrases.has(a.slice(i, i + size).join(' '))) return true;
-  return false;
+  for (let i = 0; i <= a.length - size; i++) {
+    const phrase = a.slice(i, i + size).join(' ');
+    if (phrases.has(phrase)) return phrase;
+  }
+  return null;
 }
