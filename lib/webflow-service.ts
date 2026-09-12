@@ -4,6 +4,7 @@ import { readMapping, type WebflowMapping } from './webflow-mapping';
 import { env } from '@/lib/config/env';
 import { logger } from '@/lib/logger';
 import { autoOptimizeArticleFieldData } from '@/lib/webflow/article-image-auto-optimize';
+import { fetchWebflowAuthorItems, webflowAuthorTov } from '@/lib/webflow/author-retrieval';
 import {
   extractFirstYouTubeUrl,
   isLikelyUrl,
@@ -172,52 +173,33 @@ export async function getWebflowAuthors(): Promise<WebflowAuthor[]> {
       hasAuthorsCollectionId: !!authorsCollectionId,
     });
     
-    if (!token || !siteId || !authorsCollectionId) {
+    if (!token || !authorsCollectionId) {
       logger.warn('WEBFLOW_API_TOKEN not configured, using fallback authors');
       return getFallbackAuthors();
     }
 
-    // Skip sites check and go directly to authors collection
-    logger.debug('Connecting directly to authors collection');
-    
-    // Get Authors collection
-    logger.debug('Fetching authors from collection', { siteId, authorsCollectionId });
-    const authorsResponse = await fetch(`https://api.webflow.com/v2/sites/${siteId}/collections/${authorsCollectionId}/items`, {
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Accept-Version': '1.0.0',
-      },
+    const authors = await fetchWebflowAuthorItems({ token, collectionId: authorsCollectionId,
+      localeId: env.WEBFLOW_CMS_LOCALE_DK });
+    logger.info('Fetched real authors from Webflow', { count: authors.length });
+
+    return authors.map(author => {
+      const tov = webflowAuthorTov(author.fieldData) || stripHtml(generateTOVFromBio(author.fieldData?.bio, author.fieldData?.position));
+      return {
+        id: author.id,
+        name: author.fieldData?.name || 'Unknown Author',
+        slug: author.fieldData?.slug || author.id,
+        bio: author.fieldData?.bio,
+        avatar: author.fieldData?.photo?.url,
+        email: author.fieldData?.['e-mail'],
+        social: {
+          twitter: author.fieldData?.twitter,
+          instagram: author.fieldData?.instagram,
+          linkedin: author.fieldData?.linkedin,
+        },
+        tov,
+        specialties: author.fieldData?.specialties || generateSpecialtiesFromPosition(author.fieldData?.position),
+      };
     });
-
-    logger.debug('Authors response status', { status: authorsResponse.status });
-
-    if (authorsResponse.ok) {
-      const authorsData = await authorsResponse.json();
-      logger.info('Fetched real authors from Webflow', { count: authorsData.items?.length });
-      
-      return authorsData.items.map((author: any) => {
-        const rawTov = author.fieldData?.['author-prompt'] || author.fieldData?.authorPrompt || author.fieldData?.tov || author.fieldData?.toneOfVoice || generateTOVFromBio(author.fieldData?.bio, author.fieldData?.position);
-        return {
-          id: author.id,
-          name: author.fieldData?.name || 'Unknown Author',
-          slug: author.fieldData?.slug || author.id,
-          bio: author.fieldData?.bio,
-          avatar: author.fieldData?.photo?.url,
-          email: author.fieldData?.['e-mail'],
-          social: {
-            twitter: author.fieldData?.twitter,
-            instagram: author.fieldData?.instagram,
-            linkedin: author.fieldData?.linkedin,
-          },
-          tov: stripHtml(rawTov),
-          specialties: author.fieldData?.specialties || generateSpecialtiesFromPosition(author.fieldData?.position),
-        };
-      });
-    } else {
-      const errorData = await authorsResponse.json();
-      logger.warn('Could not fetch authors from Webflow', { errorData: JSON.stringify(errorData).substring(0, 200) });
-      return getFallbackAuthors();
-    }
     
   } catch (error) {
     logger.error('Error fetching Webflow authors', error instanceof Error ? error : new Error(String(error)));

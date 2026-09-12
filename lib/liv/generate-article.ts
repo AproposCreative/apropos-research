@@ -306,7 +306,7 @@ export async function generateLivArticle(options: GenerateArticleOptions): Promi
       : '- Skriv den ønskede artikeltype uden stjerner. Ingen anmeldelsesstjerner for nyheder eller essays.',
     (preparation || options.sourceScope === 'liv-daily') && !options.targetWordCount
       ? '- Brødteksten skal være 450–650 ord, sigt efter 550. Intro, billedtekster og metadata tæller ikke med. Prioritér én tese, konkrete belæg og ét modargument; fjern gentagelser.'
-      : `- Sigt efter ${Math.max(450, Math.min(2200, options.targetWordCount || 1000))} ord i brødteksten. Følg artikeltypen og længden fra briefet.`,
+      : `- Sigt efter ${Math.max(300, Math.min(2200, options.targetWordCount || 1000))} ord i brødteksten. Følg artikeltypen og længden fra briefet.`,
     '- Ingen overskrifter (h1/h2) — kun løbende tekst.',
     '- Ingen markdown-syntax (* _ # `).',
     '- Vær præcis med fakta — opfind ikke navne, datoer eller citater.',

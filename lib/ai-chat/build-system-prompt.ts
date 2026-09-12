@@ -132,7 +132,7 @@ export function buildPromptSegments(
   const articleMetaContent = metaParts.join('\n');
   const articleTypeOption = getEditorialArticleTypeOption(articleContext?.articleType as string | undefined);
   const lengthPolicy = writerLengthPolicy(articleContext);
-  const articleTypeLengthContent = `\n**ARTIKELTYPE OG LÆNGDE — OVERSTYRER GENERELLE LÆNGDEMÅL:**\nArtikeltype: ${articleTypeOption.label}\nBrødtekst: ${lengthPolicy.label} (ca. ${lengthPolicy.target} ord), eksklusive titel, undertitel, intro og metadata.\nSkriv til dette interval, også hvis structure.apropos.md nævner bredere standardintervaller. Opfind ikke fakta eller gentag pointer for at fylde ud.`;
+  const articleTypeLengthContent = `\n**ARTIKELTYPE OG LÆNGDE — OVERSTYRER GENERELLE LÆNGDEMÅL:**\nArtikeltype: ${articleTypeOption.label}\nBrødtekst: ${lengthPolicy.label} (ca. ${lengthPolicy.target} ord), eksklusive titel, undertitel, intro, mellemrubrikker, billedtekster, billedcredits, indlejrede medier og metadata.\nSkriv til dette interval, også hvis structure.apropos.md nævner bredere standardintervaller. Opfind ikke fakta eller gentag pointer for at fylde ud.`;
 
   const editorialResearch = articleContext?.editorialResearch as EditorialResearchResult | null | undefined;
   const editorialDossierContent = editorialResearch?.dossier

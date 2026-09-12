@@ -1,0 +1,2453 @@
+{
+  "retrievedAt": "2026-09-12T13:23:29.393Z",
+  "complete": true,
+  "total": 210,
+  "records": [
+    {
+      "id": "6aa51107feea4b5112862f09",
+      "title": "Alle Guds farver: Et fællesskab er først rummeligt, når det forandrer sig",
+      "words": 621,
+      "topic": "67dbf17ba540975b5b21c301",
+      "topics": [
+        "67dbf17ba540975b5b21c301",
+        "67dbf17ba540975b5b21c303"
+      ],
+      "rating": null,
+      "contentHash": "d04864fcfea4e8183a2333a345450e1d4e0f60f9f7a14ff2f69b3209b33ab1fd"
+    },
+    {
+      "id": "6aa3dd07e599b5bd46655a28",
+      "title": "Headline Flip vender plakaten. Kan det vende publikum?",
+      "words": 542,
+      "topic": "67e6ee5034ae539291e9c6d0",
+      "topics": [
+        "67e6ee5034ae539291e9c6d0",
+        "67dbf17ba540975b5b21c301"
+      ],
+      "rating": null,
+      "contentHash": "cbacc50b21647b727beaedb5e879f8bd6bc477b3ae4e7313710dc204511c8116"
+    },
+    {
+      "id": "6aa2e6c600106ab5cda323a8",
+      "title": "Endelig en rotte, København ikke kan ignorere",
+      "words": 1295,
+      "topic": "67dbf17ba540975b5b21c301",
+      "topics": [
+        "67dbf17ba540975b5b21c301"
+      ],
+      "rating": null,
+      "contentHash": "c35b44336c15f5361ab1bdb794255fb03089fedc911acfd799678c20a4809619"
+    },
+    {
+      "id": "6aa25ad86a1d9776ca18ee12",
+      "title": "The Invite: Parterapi med vidner og dårlig bordskik",
+      "words": 922,
+      "topic": "67dbf17ba540975b5b21c303",
+      "topics": [
+        "67dbf17ba540975b5b21c303",
+        "67e6f8f2e077ea42a9b95b87"
+      ],
+      "rating": 4,
+      "contentHash": "df5ad12c2557286767b65e11e3ea0664f8d6fe86426d6028eb79ae2c41d8ea5f"
+    },
+    {
+      "id": "6a99031e2cdfab55315f98f8",
+      "title": "Mayday (Apple TV)",
+      "words": 1293,
+      "topic": "67dbf17ba540975b5b21c303",
+      "topics": [
+        "67dbf17ba540975b5b21c303",
+        "67e6f8f2e077ea42a9b95b87"
+      ],
+      "rating": 3,
+      "contentHash": "3df3a99c4c153744d6e98d38c0895a50a4efec1a0999d0ca9394fc808e693a08"
+    },
+    {
+      "id": "6a8d986d6e53465ab4247e34",
+      "title": "Marvel Tōkon: Fighting Souls  Anmeldelse",
+      "words": 752,
+      "topic": "68f73f675da21fa296b1b6e7",
+      "topics": null,
+      "rating": 3,
+      "contentHash": "6e79ce7d5042d673761b2cc0d66847c686ef9ae89ea05869c8cd5ef1d8ed3665"
+    },
+    {
+      "id": "6a8767aa2b358bd1795b05fb",
+      "title": "P3’s dragbingo på Syd for Solen 2026: Dagens største bitch",
+      "words": 723,
+      "topic": "69ea1d6141422fceaedbedca",
+      "topics": [
+        "69ea1d6141422fceaedbedca",
+        "67e6f8f2e077ea42a9b95b87",
+        "67dbf17ba540975b5b21c301"
+      ],
+      "rating": 6,
+      "contentHash": "9b3550a69878847a255757a54e66d378cac38b79e3c53d05cf3528d69970e7e4"
+    },
+    {
+      "id": "6a87670f5f326408c8facf3e",
+      "title": "Ericka Jane på Syd for Solen 2026",
+      "words": 698,
+      "topic": "67e6f8f2e077ea42a9b95b87",
+      "topics": [
+        "67e6f8f2e077ea42a9b95b87",
+        "69ea1d6141422fceaedbedca",
+        "67e6ee5034ae539291e9c6d0"
+      ],
+      "rating": 3,
+      "contentHash": "6ce75acc537ad042329f02a8112cdea815b459eb095ddc00f0c14006a1426e64"
+    },
+    {
+      "id": "6a87611ee6639c8a99f3aa42",
+      "title": "Medina på Syd for Solen 2026",
+      "words": 457,
+      "topic": "67e6f8f2e077ea42a9b95b87",
+      "topics": [
+        "67e6f8f2e077ea42a9b95b87",
+        "69ea1d6141422fceaedbedca",
+        "67e6ee5034ae539291e9c6d0"
+      ],
+      "rating": 6,
+      "contentHash": "bd9ce3345f55b499416813ece9f63d25ca710889841ca9086a2422e19b46d5bc"
+    },
+    {
+      "id": "6a875f58465f238f22c1952e",
+      "title": "sombr på Syd for Solen 2026",
+      "words": 463,
+      "topic": "67e6f8f2e077ea42a9b95b87",
+      "topics": [
+        "67e6f8f2e077ea42a9b95b87",
+        "67e6ee5034ae539291e9c6d0",
+        "69ea1d6141422fceaedbedca"
+      ],
+      "rating": 4,
+      "contentHash": "d603e98a546ff6beb79af49ea879c9cbd6342db75b09204f096f5307929ada4b"
+    },
+    {
+      "id": "6a875eca2e598fd7f47790b8",
+      "title": "Torsdag på Syd for Solen 2026: København sang sig sammen",
+      "words": 360,
+      "topic": "69ea1d6141422fceaedbedca",
+      "topics": [
+        "69ea1d6141422fceaedbedca",
+        "67e6ee5034ae539291e9c6d0",
+        "67dbf17ba540975b5b21c301"
+      ],
+      "rating": null,
+      "contentHash": "74767999b1a2698843aff2de0333ac88bf4f878dc9749a651db39532e9ff0da3"
+    },
+    {
+      "id": "6a86c605d4a83ded65109d85",
+      "title": "Kurt Vile & The Violators i Vega: Slackerens storhedstid",
+      "words": 787,
+      "topic": "67e6f8f2e077ea42a9b95b87",
+      "topics": [
+        "67e6f8f2e077ea42a9b95b87",
+        "67e6ee5034ae539291e9c6d0"
+      ],
+      "rating": 5,
+      "contentHash": "079b65c3c87eb2935a85813eac16595ccb5376eea52eaa16e10c52e3c60d0511"
+    },
+    {
+      "id": "6a84a6fe540428d9518cbc67",
+      "title": "Infernal på Wonderfestiwall 2026",
+      "words": 817,
+      "topic": "67e6f8f2e077ea42a9b95b87",
+      "topics": [
+        "67e6f8f2e077ea42a9b95b87",
+        "67e6ee5034ae539291e9c6d0"
+      ],
+      "rating": 5,
+      "contentHash": "9e8421f906a92820737ee6608e48a4206463d32ac0c2c908da1f8356e0fb0217"
+    },
+    {
+      "id": "6a8464a192b4c31e2f49ed31",
+      "title": "Soulfly i Lille Vega",
+      "words": 965,
+      "topic": "67e6f8f2e077ea42a9b95b87",
+      "topics": [
+        "67e6f8f2e077ea42a9b95b87"
+      ],
+      "rating": 5,
+      "contentHash": "9537ddbdada668a66870df0662dbdb526a8cb1d16e7b18e4fedad2e1a6a240c2"
+    },
+    {
+      "id": "6a836a04516914f8e58d3b52",
+      "title": "SAVEUS på Wonderfestiwall 2026: Regnen fik ikke en chance",
+      "words": 609,
+      "topic": "67e6f8f2e077ea42a9b95b87",
+      "topics": [
+        "67e6f8f2e077ea42a9b95b87",
+        "69ea1d6141422fceaedbedca",
+        "67e6ee5034ae539291e9c6d0"
+      ],
+      "rating": 5,
+      "contentHash": "575f54040c54d8c09c48eafafd285b806e96f72bf6d96362a07f4c6e56f9a36a"
+    },
+    {
+      "id": "6a8361eb69d7aa7f48093083",
+      "title": "Benjamin Hav & Familien på Wonderfestiwall 2026",
+      "words": 649,
+      "topic": "67e6f8f2e077ea42a9b95b87",
+      "topics": [
+        "67e6f8f2e077ea42a9b95b87",
+        "67e6ee5034ae539291e9c6d0",
+        "69ea1d6141422fceaedbedca"
+      ],
+      "rating": 1,
+      "contentHash": "a946c125e4b40ecc3ad9001058a30859a5ece4110666b24560744f65ded0343f"
+    },
+    {
+      "id": "6a8356f4ab8e9188881b9f1a",
+      "title": "Lørdag på Syd for Solen: Fem oplevelser i støvet",
+      "words": 1085,
+      "topic": "67e6f8f2e077ea42a9b95b87",
+      "topics": [
+        "67e6f8f2e077ea42a9b95b87",
+        "69ea1d6141422fceaedbedca",
+        "67e6ee5034ae539291e9c6d0"
+      ],
+      "rating": null,
+      "contentHash": "6bb97154a89f5bc7c8e8fedc0089570b91845b7c4e60499abccf80f9bada2e2c"
+    },
+    {
+      "id": "6a8315ed57113f74ecc1add8",
+      "title": "Mel C på Wonderfestiwall: Nostalgien vandt",
+      "words": 835,
+      "topic": "67e6f8f2e077ea42a9b95b87",
+      "topics": [
+        "67e6f8f2e077ea42a9b95b87",
+        "67e6ee5034ae539291e9c6d0",
+        "69ea1d6141422fceaedbedca"
+      ],
+      "rating": 1,
+      "contentHash": "6b8f65aeb0690cb627479b8b42e25873174ae42a0b3bac56ac42e035e7117762"
+    },
+    {
+      "id": "6a83042f0304567d86d5c181",
+      "title": "The Cardigans (Wonderfestiwall)",
+      "words": 848,
+      "topic": "67e6ee5034ae539291e9c6d0",
+      "topics": [
+        "67e6ee5034ae539291e9c6d0",
+        "67e6f8f2e077ea42a9b95b87"
+      ],
+      "rating": 2,
+      "contentHash": "e75bd282de48946cf80e6784bdbe10f3e5c012e3b59df38e2cf8f892e05da63d"
+    },
+    {
+      "id": "6a7778bb9e6781a8862331b8",
+      "title": "Guide til Wonderfestiwall 2026",
+      "words": 2734,
+      "topic": "69ea1d6141422fceaedbedca",
+      "topics": [
+        "67dbf17ba540975b5b21c301",
+        "69ea1d6141422fceaedbedca"
+      ],
+      "rating": null,
+      "contentHash": "96f86d10348b6f9ff973ae194dfe5a84c3b4a94bfaf04525388c8c39ae073f99"
+    },
+    {
+      "id": "6a76169206ee581b17ce52ff",
+      "title": "Nia Archives på O Days 2026",
+      "words": 649,
+      "topic": "67e6ee5034ae539291e9c6d0",
+      "topics": [
+        "67e6ee5034ae539291e9c6d0",
+        "69ea1d6141422fceaedbedca",
+        "67e6f8f2e077ea42a9b95b87"
+      ],
+      "rating": 5,
+      "contentHash": "f63c11b78f29fd746e4f8a9d97c9f38a0a561079af882f91c5dd95714d805045"
+    },
+    {
+      "id": "6a7611fda80a460d11c4f43e",
+      "title": "Disclosure på O Days 2026",
+      "words": 771,
+      "topic": "67e6ee5034ae539291e9c6d0",
+      "topics": [
+        "67e6ee5034ae539291e9c6d0",
+        "69ea1d6141422fceaedbedca",
+        "67e6f8f2e077ea42a9b95b87"
+      ],
+      "rating": 5,
+      "contentHash": "07afa5e180749767f7407f2d204302b4a9b00ad66972c945cdf10c61a832b8bf"
+    },
+    {
+      "id": "6a734b1ef4c59e46de307146",
+      "title": "Musik i Gentofte 2026: Sol, sang og et par streger i regningen",
+      "words": 1257,
+      "topic": "67e6f8f2e077ea42a9b95b87",
+      "topics": [
+        "67e6f8f2e077ea42a9b95b87",
+        "69ea1d6141422fceaedbedca",
+        "67e6ee5034ae539291e9c6d0"
+      ],
+      "rating": 5,
+      "contentHash": "d0068aaafe07dbc7ddf3a2aa2b4728988a24bf5145d1f0aed180ef64d6bd0b2f"
+    },
+    {
+      "id": "6a715d400b6a0fa5dbbe4c64",
+      "title": "Mortal Kombat 2: En nostalgisk fuser",
+      "words": 1147,
+      "topic": "67e6f8f2e077ea42a9b95b87",
+      "topics": [
+        "67e6f8f2e077ea42a9b95b87",
+        "67dbf17ba540975b5b21c303"
+      ],
+      "rating": 2,
+      "contentHash": "6bdcc9a259157d4b1e2764caf40701bc96ab2d5f47f1de7f6a869e7a187bd121"
+    },
+    {
+      "id": "6a703160ec9c0b3084489af6",
+      "title": "Tripolism på O Days 2026",
+      "words": 868,
+      "topic": "67e6ee5034ae539291e9c6d0",
+      "topics": [
+        "67e6ee5034ae539291e9c6d0",
+        "69ea1d6141422fceaedbedca",
+        "67e6f8f2e077ea42a9b95b87"
+      ],
+      "rating": 5,
+      "contentHash": "8edd1f5d2d5f32f634dacf7363299690dca68ad36096192715e4e1315026a206"
+    },
+    {
+      "id": "6a6a8752231064b42d0a98c1",
+      "title": "Øhavet Festival 2026: Fællesskab, musik og maritim højskolestemning",
+      "words": 973,
+      "topic": "69ea1d6141422fceaedbedca",
+      "topics": [
+        "69ea1d6141422fceaedbedca",
+        "67dbf17ba540975b5b21c301",
+        "67e6ee5034ae539291e9c6d0"
+      ],
+      "rating": 4,
+      "contentHash": "859c8eb052d44cef380f942b029dbec91e25a9a90e9e34937a216a5c8163ec47"
+    },
+    {
+      "id": "6a68acaf03e7dbfa2a5906bf",
+      "title": "Spider-Man: A Brand New Day",
+      "words": 1222,
+      "topic": "67e6f8f2e077ea42a9b95b87",
+      "topics": [
+        "67e6f8f2e077ea42a9b95b87",
+        "67dbf17ba540975b5b21c303"
+      ],
+      "rating": 5,
+      "contentHash": "84e9a0af046d4bab0fd6f301d311ddf2cedd22d67a8d6636955b9d97b4a6f6d8"
+    },
+    {
+      "id": "6a610d22f7ef1fadc65aba8c",
+      "title": "007: First Light - Bond med puls og pæn panik",
+      "words": 1030,
+      "topic": "68f73f675da21fa296b1b6e7",
+      "topics": [
+        "68f73f675da21fa296b1b6e7",
+        "67e6f8f2e077ea42a9b95b87"
+      ],
+      "rating": 5,
+      "contentHash": "3ae5eea8e100bb527794331b61a223302bb4da2f72be4339810acc209490f83f"
+    },
+    {
+      "id": "6a610cdb59377abc5670c014",
+      "title": "Saros (PS5) anmeldelse",
+      "words": 1077,
+      "topic": "68f73f675da21fa296b1b6e7",
+      "topics": [
+        "68f73f675da21fa296b1b6e7",
+        "67e6f8f2e077ea42a9b95b87"
+      ],
+      "rating": 4,
+      "contentHash": "519bbd1fce231ca855ae4352aafe11629fab757f5cd72d83e46a933daef8c5fb"
+    },
+    {
+      "id": "6a58ae98c6e7b94dca58b167",
+      "title": "Derfor siger jeg altid, at jeg er hollænder på ferie",
+      "words": 1186,
+      "topic": "67dbf17ba540975b5b21c301",
+      "topics": [
+        "67dbf17ba540975b5b21c301"
+      ],
+      "rating": null,
+      "contentHash": "e431b3767bca02c5673c5f2212cff2a3976fd4f533bb368775821f2866d4f0c7"
+    },
+    {
+      "id": "6a5764f91f21a8a5fba78831",
+      "title": "Lucky (Apple TV)",
+      "words": 976,
+      "topic": "67e6f8f2e077ea42a9b95b87",
+      "topics": [
+        "67e6f8f2e077ea42a9b95b87",
+        "67dbf52a4ac2cf0073a9b0ef"
+      ],
+      "rating": 3,
+      "contentHash": "63c835719841cb835d979271df03ea27e741e3909c5515f1ab31b62332469d69"
+    },
+    {
+      "id": "6a5682609af972f4ea432796",
+      "title": "The Odyssey",
+      "words": 977,
+      "topic": "67dbf17ba540975b5b21c303",
+      "topics": [
+        "67dbf17ba540975b5b21c303",
+        "67e6f8f2e077ea42a9b95b87"
+      ],
+      "rating": 6,
+      "contentHash": "9380fda48d6a909c61fc37ce0521736702567222cab324342a5e245d35468901"
+    },
+    {
+      "id": "6a4fa08e9dba739c8227989a",
+      "title": "Kunst på Roskilde Festival 2026",
+      "words": 707,
+      "topic": "69ea1d6141422fceaedbedca",
+      "topics": [
+        "67dbf17ba540975b5b21c301",
+        "69ea1d6141422fceaedbedca"
+      ],
+      "rating": null,
+      "contentHash": "e3315472c5940cd8aaa09cccddf76bf649cc2caec2f7c3b9ede64a06bca98854"
+    },
+    {
+      "id": "6a4f9eaa45a20978ba273c84",
+      "title": "Clipse på Roskilde Festival 2026",
+      "words": 713,
+      "topic": "69ea1d6141422fceaedbedca",
+      "topics": [
+        "67e6f8f2e077ea42a9b95b87",
+        "69ea1d6141422fceaedbedca",
+        "67e6ee5034ae539291e9c6d0"
+      ],
+      "rating": 3,
+      "contentHash": "266611aba46d4ceeaff9bdb59f0e6823c2e60fd09e51bb5db028cff568ca4c21"
+    },
+    {
+      "id": "6a4f9c018e650be4b59cd658",
+      "title": "Young Miko på Roskilde Festival 2026",
+      "words": 564,
+      "topic": "69ea1d6141422fceaedbedca",
+      "topics": [
+        "67e6f8f2e077ea42a9b95b87",
+        "69ea1d6141422fceaedbedca",
+        "67e6ee5034ae539291e9c6d0"
+      ],
+      "rating": 5,
+      "contentHash": "879b6b7b811c52e76d7e5f4f6b86bcd1fe60406f4586eede399da6e109677353"
+    },
+    {
+      "id": "6a4f654ed5acf32358137e08",
+      "title": "Mille på Roskilde Festival 2026",
+      "words": 673,
+      "topic": "67e6f8f2e077ea42a9b95b87",
+      "topics": [
+        "67e6f8f2e077ea42a9b95b87",
+        "69ea1d6141422fceaedbedca",
+        "67e6ee5034ae539291e9c6d0"
+      ],
+      "rating": 4,
+      "contentHash": "2a1636bd44654b8d4b0f7569606fb446411e63694170bd65ac368701607b6c89"
+    },
+    {
+      "id": "6a4f5c836c05693f03dd4384",
+      "title": "Little Simz på Roskilde Festival 2026",
+      "words": 627,
+      "topic": "69ea1d6141422fceaedbedca",
+      "topics": [
+        "67e6f8f2e077ea42a9b95b87",
+        "69ea1d6141422fceaedbedca",
+        "67e6ee5034ae539291e9c6d0"
+      ],
+      "rating": 6,
+      "contentHash": "12248f7af7106c7e5f0e99daacdb0413d46ae234477f786c81a308ebe34dbc88"
+    },
+    {
+      "id": "6a4ea05b78d9ec77af4adbe0",
+      "title": "Guldimund på Roskilde Festival 2026",
+      "words": 734,
+      "topic": "67e6f8f2e077ea42a9b95b87",
+      "topics": [
+        "67e6f8f2e077ea42a9b95b87",
+        "69ea1d6141422fceaedbedca",
+        "67e6ee5034ae539291e9c6d0"
+      ],
+      "rating": 4,
+      "contentHash": "1720b30c8431345109a5c7e5f80c446161ed4f25ad84d96c9a98baf228b425aa"
+    },
+    {
+      "id": "6a4e2a356fa95ece22f24998",
+      "title": "David Byrne på Roskilde Festival 2026",
+      "words": 617,
+      "topic": "69ea1d6141422fceaedbedca",
+      "topics": [
+        "67e6f8f2e077ea42a9b95b87",
+        "67e6ee5034ae539291e9c6d0",
+        "69ea1d6141422fceaedbedca"
+      ],
+      "rating": 6,
+      "contentHash": "289c5e5e07be10b0238f3f30ce729c73477ebd555b0b0e18a8452f2116e4ac44"
+    },
+    {
+      "id": "6a4e21aaa6f5ac41d5d36d3f",
+      "title": "Malk de Koijn på Roskilde Festival 2026",
+      "words": 725,
+      "topic": "69ea1d6141422fceaedbedca",
+      "topics": [
+        "67e6f8f2e077ea42a9b95b87",
+        "69ea1d6141422fceaedbedca",
+        "67e6ee5034ae539291e9c6d0"
+      ],
+      "rating": 4,
+      "contentHash": "745c7ac470f770cdb6b6a4fa89426eb56400394371643547dff08cebfbea4491"
+    },
+    {
+      "id": "6a4bb8a7099fcfef599f2114",
+      "title": "Napalm Death på Roskilde Festival 2026",
+      "words": 766,
+      "topic": "67e6f8f2e077ea42a9b95b87",
+      "topics": [
+        "69ea1d6141422fceaedbedca",
+        "67e6ee5034ae539291e9c6d0",
+        "67e6f8f2e077ea42a9b95b87"
+      ],
+      "rating": 6,
+      "contentHash": "8828b4e0b1e75aae4b56d6d9807510a1a518651777e72c618866baaa52f41db1"
+    },
+    {
+      "id": "6a4bb3f327aefbad5e21d79b",
+      "title": "Gorillaz på Roskilde Festival 2026",
+      "words": 670,
+      "topic": "69ea1d6141422fceaedbedca",
+      "topics": [
+        "67e6f8f2e077ea42a9b95b87",
+        "69ea1d6141422fceaedbedca",
+        "67e6ee5034ae539291e9c6d0"
+      ],
+      "rating": 2,
+      "contentHash": "1829c1bc2d2d94f612bf0186c84021e6e77a19b2bfd672990fd70c403c0e4f14"
+    },
+    {
+      "id": "6a4baf7116edad608a08561d",
+      "title": "Tobias Rahim på Roskilde Festival 2026",
+      "words": 770,
+      "topic": "67e6f8f2e077ea42a9b95b87",
+      "topics": [
+        "69ea1d6141422fceaedbedca",
+        "67e6ee5034ae539291e9c6d0",
+        "67e6f8f2e077ea42a9b95b87"
+      ],
+      "rating": 6,
+      "contentHash": "5ffdc9dd0d28f9ead0fb437cca62ab5e307d982c215ba39b852ff7474f3275c4"
+    },
+    {
+      "id": "6a4ba5a48322cb3d08f53fe2",
+      "title": "Wolf Alice på Roskilde Festival 2026",
+      "words": 594,
+      "topic": "67e6f8f2e077ea42a9b95b87",
+      "topics": [
+        "69ea1d6141422fceaedbedca",
+        "67e6ee5034ae539291e9c6d0",
+        "67e6f8f2e077ea42a9b95b87"
+      ],
+      "rating": 4,
+      "contentHash": "781a1c9fb72d9ccdcd759222c411eae3ce259c1ff813dce5315a66af22963c48"
+    },
+    {
+      "id": "6a467df6477059357fea86e6",
+      "title": "¥ØU$UK€ ¥UK1MAT$U - Roskilde Festival 2026, Arena",
+      "words": 975,
+      "topic": "69ea1d6141422fceaedbedca",
+      "topics": [
+        "67e6f8f2e077ea42a9b95b87",
+        "69ea1d6141422fceaedbedca",
+        "67e6ee5034ae539291e9c6d0"
+      ],
+      "rating": 5,
+      "contentHash": "d43aa4db6b0fb9d6c2343911cb2f90a75a30d7b94a8c9b58be65ed84c3295e2a"
+    },
+    {
+      "id": "6a45226786c45a48f3f54770",
+      "title": "White Lies (Tinderbox 2026)",
+      "words": 663,
+      "topic": "69ea1d6141422fceaedbedca",
+      "topics": [
+        "67e6f8f2e077ea42a9b95b87",
+        "69ea1d6141422fceaedbedca",
+        "67e6ee5034ae539291e9c6d0"
+      ],
+      "rating": 3,
+      "contentHash": "8b494087df9b66c9d4bac74a6d5b3bbccb74db133f7c13b96e5b2f6803260bb7"
+    },
+    {
+      "id": "6a452071eff72f75782a22ec",
+      "title": "Turboweekend (Tinderbox 2026)",
+      "words": 920,
+      "topic": "69ea1d6141422fceaedbedca",
+      "topics": [
+        "67e6f8f2e077ea42a9b95b87",
+        "69ea1d6141422fceaedbedca",
+        "67e6ee5034ae539291e9c6d0"
+      ],
+      "rating": 3,
+      "contentHash": "4e8fb794c2255f106930ecb22308ffedbcb51b5f799cb62522c1959adeb3bf99"
+    },
+    {
+      "id": "6a451c003d7c4d1e0d68c3d2",
+      "title": "Jess Glynne (Tinderbox)",
+      "words": 780,
+      "topic": "69ea1d6141422fceaedbedca",
+      "topics": [
+        "67e6f8f2e077ea42a9b95b87",
+        "69ea1d6141422fceaedbedca",
+        "67e6ee5034ae539291e9c6d0"
+      ],
+      "rating": 2,
+      "contentHash": "c77ff621b2d0f00211a7e0a3ac394e016590cd8484043159aecc55dea7ec3e5a"
+    },
+    {
+      "id": "6a4510da5d2d171b3f1c3684",
+      "title": "Thomas Helmig samlede Tinderbox efter stormen",
+      "words": 1034,
+      "topic": "67e6ee5034ae539291e9c6d0",
+      "topics": [
+        "67e6ee5034ae539291e9c6d0",
+        "67dbf17ba540975b5b21c301",
+        "69ea1d6141422fceaedbedca"
+      ],
+      "rating": 6,
+      "contentHash": "5b7b344f8ce704b4fac8918fd60dfbb1feb1d821c47f30c72f56a191cb00e004"
+    },
+    {
+      "id": "6a450b83ebb4d42554149641",
+      "title": "Tinderbox 2026: Da vejret gik amok, holdt festivalen hovedet koldt",
+      "words": 1044,
+      "topic": "69ea1d6141422fceaedbedca",
+      "topics": [
+        "69ea1d6141422fceaedbedca",
+        "67e6ee5034ae539291e9c6d0",
+        "67dbf17ba540975b5b21c301"
+      ],
+      "rating": 5,
+      "contentHash": "9bfdebaa5fd53a3e02e99e32330fbe28e642989b9252122906d1a8908bd459b3"
+    },
+    {
+      "id": "6a44e9448bfcfdeadfba6d68",
+      "title": "Anmeldelse af Copenhell 2026 - lørdag",
+      "words": 819,
+      "topic": "69ea1d6141422fceaedbedca",
+      "topics": [
+        "67e6f8f2e077ea42a9b95b87",
+        "69ea1d6141422fceaedbedca",
+        "67e6ee5034ae539291e9c6d0"
+      ],
+      "rating": 4,
+      "contentHash": "fa4ce8d81b41afe7595c0955c93f7b22df8881ac5125b6fd5627f97ac40d0f5e"
+    },
+    {
+      "id": "6a44e5068240c0a5fb0ecdd9",
+      "title": "Copenhell Fredag: We're not gonna take it",
+      "words": 524,
+      "topic": "69ea1d6141422fceaedbedca",
+      "topics": [
+        "67e6f8f2e077ea42a9b95b87",
+        "69ea1d6141422fceaedbedca",
+        "67e6ee5034ae539291e9c6d0"
+      ],
+      "rating": 3,
+      "contentHash": "26e2ab0b1ea1c6f71c49c3dcbdb46565ac219bc4b48153387fffcd3a0463e654"
+    },
+    {
+      "id": "6a44e3e1bcf100263dd1d386",
+      "title": "Copenhell torsdag: AI-dystopi, kilt og verdens længste guitarsolo",
+      "words": 707,
+      "topic": "69ea1d6141422fceaedbedca",
+      "topics": [
+        "67e6f8f2e077ea42a9b95b87",
+        "69ea1d6141422fceaedbedca",
+        "67e6ee5034ae539291e9c6d0"
+      ],
+      "rating": 5,
+      "contentHash": "01086a50778e9c5efe8ed33be85bfa166cd77fabe0199705e127f8a7c4252344"
+    },
+    {
+      "id": "6a44e2ff01523516e9823e1a",
+      "title": "Copenhell 2026 - Onsdag",
+      "words": 580,
+      "topic": "67e6f8f2e077ea42a9b95b87",
+      "topics": [
+        "69ea1d6141422fceaedbedca",
+        "67e6f8f2e077ea42a9b95b87",
+        "67e6ee5034ae539291e9c6d0"
+      ],
+      "rating": 4,
+      "contentHash": "50fcb3c0f5cdc13eb21e64c26091473651fd579dc9ae692828b1553215b3a25c"
+    },
+    {
+      "id": "6a43dac2d58842c195707030",
+      "title": "John Martin (Festegnen 2026)",
+      "words": 819,
+      "topic": "67e6f8f2e077ea42a9b95b87",
+      "topics": [
+        "67e6f8f2e077ea42a9b95b87",
+        "69ea1d6141422fceaedbedca",
+        "67e6ee5034ae539291e9c6d0"
+      ],
+      "rating": 5,
+      "contentHash": "bb6c7269f84eedd8be1f015f72a48856af1a90ff68b2f366ba901eee55216818"
+    },
+    {
+      "id": "6a43c7cdc02c1f1e4e49c0f4",
+      "title": "Scooter (Festegnen 2026)",
+      "words": 890,
+      "topic": "69ea1d6141422fceaedbedca",
+      "topics": [
+        "67e6f8f2e077ea42a9b95b87",
+        "69ea1d6141422fceaedbedca",
+        "67e6ee5034ae539291e9c6d0",
+        "67dbf17ba540975b5b21c301"
+      ],
+      "rating": 6,
+      "contentHash": "43f060f71aad275df856f483839e892cd3255c02eacc8900ddda6b556d4817d7"
+    },
+    {
+      "id": "6a43bfd3e34ad450423c5c6d",
+      "title": "Festegnen 2026 (Rødovre)",
+      "words": 1160,
+      "topic": "69ea1d6141422fceaedbedca",
+      "topics": [
+        "67e6f8f2e077ea42a9b95b87",
+        "69ea1d6141422fceaedbedca",
+        "67e6ee5034ae539291e9c6d0"
+      ],
+      "rating": 4,
+      "contentHash": "c686cbe5a35f5a59fbaeb2ed19d762413798a48dd2576dd223e8e36b2bd22923"
+    },
+    {
+      "id": "6a42be106e30a7cf0bcf32b3",
+      "title": "Silo Sæson 3 (Apple TV+)",
+      "words": 925,
+      "topic": "67dbf52a4ac2cf0073a9b0ef",
+      "topics": [
+        "67dbf52a4ac2cf0073a9b0ef"
+      ],
+      "rating": 5,
+      "contentHash": "4ee4c379d5319a10c79e056541ccb144bb7946ef251950b706b44d31f65bfee5"
+    },
+    {
+      "id": "6a3d33e5fb47d2ba9db485c8",
+      "title": "Hans Philip på Heartland Festival 2026",
+      "words": 787,
+      "topic": "69ea1d6141422fceaedbedca",
+      "topics": [
+        "69ea1d6141422fceaedbedca",
+        "67e6ee5034ae539291e9c6d0",
+        "67e6f8f2e077ea42a9b95b87"
+      ],
+      "rating": 3,
+      "contentHash": "de6be257d7910855565669c7e7bf7df2f02487634fa404737730954d7231fdb6"
+    },
+    {
+      "id": "6a3bc023e11664d612bcd82f",
+      "title": "Heartland Festival 2026",
+      "words": 1279,
+      "topic": "69ea1d6141422fceaedbedca",
+      "topics": [
+        "69ea1d6141422fceaedbedca",
+        "67e6f8f2e077ea42a9b95b87",
+        "67e6ee5034ae539291e9c6d0"
+      ],
+      "rating": 6,
+      "contentHash": "db3e6c39f7f6585b96f4779e90db786c4c4b4ba4c13bf6227ca3fb9a3719094a"
+    },
+    {
+      "id": "6a3bb6b2b0ab86e478831815",
+      "title": "Guldimund på Heartland Festival 2026",
+      "words": 860,
+      "topic": "67e6f8f2e077ea42a9b95b87",
+      "topics": [
+        "69ea1d6141422fceaedbedca",
+        "67e6f8f2e077ea42a9b95b87",
+        "67e6ee5034ae539291e9c6d0"
+      ],
+      "rating": 4,
+      "contentHash": "ed0afa0b9dde09644b558879d30a142dab7c293b16ad4af3bc810baee628e574"
+    },
+    {
+      "id": "6a3a959141a041229fbc7b08",
+      "title": "LP på Heartland Festival 2026",
+      "words": 784,
+      "topic": "69ea1d6141422fceaedbedca",
+      "topics": [
+        "69ea1d6141422fceaedbedca",
+        "67e6ee5034ae539291e9c6d0",
+        "67dbf17ba540975b5b21c301"
+      ],
+      "rating": 5,
+      "contentHash": "4ecce79c0122f3fd05a6d0617fe822746488f590f3febbba344014f74a659a7e"
+    },
+    {
+      "id": "6a3a7b450cbd7018a1c330b9",
+      "title": "The Minds of 99 på Heartland 2026",
+      "words": 738,
+      "topic": "67e6f8f2e077ea42a9b95b87",
+      "topics": [
+        "67e6f8f2e077ea42a9b95b87",
+        "69ea1d6141422fceaedbedca",
+        "67e6ee5034ae539291e9c6d0",
+        "67dbf17ba540975b5b21c301"
+      ],
+      "rating": 5,
+      "contentHash": "6ef7108d7ea54d7c1363fde9d452be7b41164f0227e13a8a8cd124d0d12c7565"
+    },
+    {
+      "id": "6a2ab002593fc3edf4683d8f",
+      "title": "The Death of Robin Hood",
+      "words": 1058,
+      "topic": "67dbf17ba540975b5b21c303",
+      "topics": [
+        "67dbf17ba540975b5b21c303",
+        "67e6f8f2e077ea42a9b95b87"
+      ],
+      "rating": 5,
+      "contentHash": "cb815ee48c60ac8e02eef2213ead11d819d8a61f04ff71dc717609be18aa2f12"
+    },
+    {
+      "id": "6a258422f8c1e9f2446c2150",
+      "title": "Distortion Ø fredag: Den slags aften byen lever for",
+      "words": 890,
+      "topic": "69ea1d6141422fceaedbedca",
+      "topics": [
+        "69ea1d6141422fceaedbedca",
+        "67e6f8f2e077ea42a9b95b87"
+      ],
+      "rating": 6,
+      "contentHash": "498b1a9464a5a495af76e41abb027e08acdf18946835cb8a620d2bb25fbf619c"
+    },
+    {
+      "id": "6a1ed146ab71bcad9868043b",
+      "title": "He-Man: Masters of the Universe",
+      "words": 931,
+      "topic": "67dbf17ba540975b5b21c303",
+      "topics": [
+        "67dbf17ba540975b5b21c303",
+        "67e6f8f2e077ea42a9b95b87"
+      ],
+      "rating": 4,
+      "contentHash": "6f4423a3b15deea64ba41219011e6d636c6e8e811de8ccdf5ad241547f3340c3"
+    },
+    {
+      "id": "6a149065cef8c5e53d525de2",
+      "title": "BACKROOMS",
+      "words": 870,
+      "topic": "67e6f8f2e077ea42a9b95b87",
+      "topics": [
+        "67e6f8f2e077ea42a9b95b87",
+        "67dbf17ba540975b5b21c303"
+      ],
+      "rating": 4,
+      "contentHash": "702a1b0c3b8c1ecada95f60f202b7cb106103fe25d56af38cb041f90c90b41ac"
+    },
+    {
+      "id": "6a0c0b375c07d3a9240f3356",
+      "title": "Cape Fear (Apple TV)",
+      "words": 1190,
+      "topic": "67e6f8f2e077ea42a9b95b87",
+      "topics": [
+        "67e6f8f2e077ea42a9b95b87",
+        "67dbf52a4ac2cf0073a9b0ef"
+      ],
+      "rating": 4,
+      "contentHash": "2753d416fae300908d64466556ffc8edb635c2e95bf6ebbd1c77ede348b9bcfd"
+    },
+    {
+      "id": "6a0b8772d16e720de830d70f",
+      "title": "Copenhell 2026: Den store Apropos-guide",
+      "words": 1221,
+      "topic": "69ea1d6141422fceaedbedca",
+      "topics": [
+        "69ea1d6141422fceaedbedca",
+        "67e6ee5034ae539291e9c6d0",
+        "67dbf17ba540975b5b21c301"
+      ],
+      "rating": null,
+      "contentHash": "c7511a86a45ee3d210fe5ddcbb16cacd299b474c91bec978d225f87d305df9d1"
+    },
+    {
+      "id": "6a0b04800a15776eb1a437cb",
+      "title": "Tomodachi Life: Living the Dream",
+      "words": 593,
+      "topic": "68f73f675da21fa296b1b6e7",
+      "topics": [
+        "68f73f675da21fa296b1b6e7",
+        "67e6f8f2e077ea42a9b95b87"
+      ],
+      "rating": 3,
+      "contentHash": "2a31a5239d0c3ff57c8f3b151c0d55ac95f7b91b59534b20aa2e72349b04cf74"
+    },
+    {
+      "id": "6a070715dd05a2093b1753cb",
+      "title": "Anmeldelse: Farveblind - Micro Pleasures",
+      "words": 1530,
+      "topic": "67e6f8f2e077ea42a9b95b87",
+      "topics": [
+        "67e6f8f2e077ea42a9b95b87",
+        "67dbf17ba540975b5b21c301"
+      ],
+      "rating": 6,
+      "contentHash": "2d237e093c80be2deafc75065003504031c4c0b13524d1ed195e3ded6afff53a"
+    },
+    {
+      "id": "69f47214dbb007b214fb60c6",
+      "title": "Another Brick in the Wall, Part 5",
+      "words": 961,
+      "topic": "67e6f8f2e077ea42a9b95b87",
+      "topics": [
+        "67e6f8f2e077ea42a9b95b87",
+        "67dbf17ba540975b5b21c301"
+      ],
+      "rating": 5,
+      "contentHash": "118d236659d256e9829a49631ec619ac7dbbe5ad7c9b3ccf0eff0d3ee5be5146"
+    },
+    {
+      "id": "69eb66221a89288e5b96907d",
+      "title": "Syd for Solen 2026",
+      "words": 804,
+      "topic": "69ea1d6141422fceaedbedca",
+      "topics": [
+        "69ea1d6141422fceaedbedca",
+        "67dbf17ba540975b5b21c301"
+      ],
+      "rating": null,
+      "contentHash": "2ee2d5320a5c3e85dd82088eb6341ed6695f1dafaf99e6a862b9968787cd5857"
+    },
+    {
+      "id": "69ea19f80b7256d844e08e48",
+      "title": "Heartland og den pæne længsel efter noget mere",
+      "words": 1020,
+      "topic": "67dbf17ba540975b5b21c301",
+      "topics": [
+        "67dbf17ba540975b5b21c301",
+        "69ea1d6141422fceaedbedca"
+      ],
+      "rating": null,
+      "contentHash": "e06bf31571e803da04f9a998c1cbf8ec546351445f8a455ff5c340845941d382"
+    },
+    {
+      "id": "69e9d8cdc321bebe24b0241e",
+      "title": "Sommerens film, der får biografmørket til at gløde",
+      "words": 1651,
+      "topic": "67dbf17ba540975b5b21c301",
+      "topics": [
+        "67dbf17ba540975b5b21c303",
+        "67dbf17ba540975b5b21c301"
+      ],
+      "rating": null,
+      "contentHash": "c1a7394279230312f49ebdc83a6cf3c13aefc2acc4518bf628419836cadb0715"
+    },
+    {
+      "id": "69e1fd084006abb92ee21c30",
+      "title": "Anmeldelse: DTF St. Louis (HBO Max)",
+      "words": 987,
+      "topic": "67e6f8f2e077ea42a9b95b87",
+      "topics": [
+        "67e6f8f2e077ea42a9b95b87",
+        "67dbf52a4ac2cf0073a9b0ef"
+      ],
+      "rating": 5,
+      "contentHash": "7ae05acefb2dc65f1756bf9b6e04a2d82e2623d210efcbbdeb430a1b93490c9d"
+    },
+    {
+      "id": "69de3041a7b7a61f9e423be3",
+      "title": "Star Wars: The Last Jedi Live in Concert",
+      "words": 969,
+      "topic": "67e6ee5034ae539291e9c6d0",
+      "topics": [
+        "67e6f8f2e077ea42a9b95b87",
+        "67e6ee5034ae539291e9c6d0"
+      ],
+      "rating": 5,
+      "contentHash": "a26aeb87095a260e1dc742c3924ad70d83d92c4dae9c6ddb1639f29be2915c70"
+    },
+    {
+      "id": "69d8f235762910219ce5d809",
+      "title": "Outcome (Apple TV+)",
+      "words": 909,
+      "topic": "67e6f8f2e077ea42a9b95b87",
+      "topics": [
+        "67dbf17ba540975b5b21c303",
+        "67e6f8f2e077ea42a9b95b87"
+      ],
+      "rating": 4,
+      "contentHash": "a78778a4aaac29be42c61842bf9677ba2b231dd8c486a914b99e1ed6374f3898"
+    },
+    {
+      "id": "69d78f911d90b70d786e7e51",
+      "title": "Nok om mig",
+      "words": 1516,
+      "topic": "67e6f8f2e077ea42a9b95b87",
+      "topics": [
+        "67dbf17ba540975b5b21c301",
+        "67e6f8f2e077ea42a9b95b87"
+      ],
+      "rating": 6,
+      "contentHash": "b56f431bd3ee2f1900166c37c49d4c97ed948d990b1a05cb6d6f1977e23a9115"
+    },
+    {
+      "id": "69d77b335c8e91c63cf5ad5f",
+      "title": "Anmeldelse: Shrinking Sæson 3",
+      "words": 826,
+      "topic": "67e6f8f2e077ea42a9b95b87",
+      "topics": [
+        "67e6f8f2e077ea42a9b95b87",
+        "67dbf52a4ac2cf0073a9b0ef"
+      ],
+      "rating": 4,
+      "contentHash": "b1e4910d3ecd1483ca57c863ab90edfdece6b868e4a0e9803adb00781008221d"
+    },
+    {
+      "id": "69d37bffe6964f9446b0eb65",
+      "title": "O Days 2026 guide",
+      "words": 1759,
+      "topic": "67dbf17ba540975b5b21c301",
+      "topics": [
+        "67e6ee5034ae539291e9c6d0",
+        "67dbf17ba540975b5b21c301",
+        "69ea1d6141422fceaedbedca"
+      ],
+      "rating": null,
+      "contentHash": "73d84163464c8d0022e78bc9cb782539782adb2a76e3954d148624633e576c98"
+    },
+    {
+      "id": "69c7cec52b76e468b35d16fd",
+      "title": "Sammy Virji i Poolen",
+      "words": 1181,
+      "topic": "67e6f8f2e077ea42a9b95b87",
+      "topics": [
+        "67e6f8f2e077ea42a9b95b87",
+        "67e6ee5034ae539291e9c6d0"
+      ],
+      "rating": 5,
+      "contentHash": "38156d56aec7d9c50cd7361f97985bed31c415cd88858f8ea242ce4e197083af"
+    },
+    {
+      "id": "69c4e9b19b0adb964567e719",
+      "title": "Monarch: Legacy of Monsters Sæson 2",
+      "words": 776,
+      "topic": "67e6f8f2e077ea42a9b95b87",
+      "topics": [
+        "67dbf52a4ac2cf0073a9b0ef",
+        "67e6f8f2e077ea42a9b95b87"
+      ],
+      "rating": 4,
+      "contentHash": "a34fccb6e2a1005075dba33fcafb733ea389f26372b73896f8959a91fbcecbff"
+    },
+    {
+      "id": "69b325a39bec57d4d70f1af0",
+      "title": "Carl Knast i Den Grå Hal",
+      "words": 1258,
+      "topic": "67e6f8f2e077ea42a9b95b87",
+      "topics": [
+        "67e6f8f2e077ea42a9b95b87",
+        "67e6ee5034ae539291e9c6d0",
+        "67dbf17ba540975b5b21c301"
+      ],
+      "rating": 5,
+      "contentHash": "a60da784739c4c843f0eeea4aa77592440313a183e8a5d96b001bf9e282edc77"
+    },
+    {
+      "id": "69b2c7c8d1630296914becbe",
+      "title": "Anmeldelse af Hans Zimmer i Royal Arena",
+      "words": 735,
+      "topic": "67e6f8f2e077ea42a9b95b87",
+      "topics": [
+        "67e6ee5034ae539291e9c6d0",
+        "67e6f8f2e077ea42a9b95b87"
+      ],
+      "rating": 4,
+      "contentHash": "f516518f23599721ebb98ab824b66eef1085bc7bd0308bb4b98d2811eda68aaf"
+    },
+    {
+      "id": "69b18d5892b23fbf40e193ed",
+      "title": "Anmeldelse: War Machine (Netflix)",
+      "words": 1100,
+      "topic": "67dbf17ba540975b5b21c303",
+      "topics": [
+        "67dbf17ba540975b5b21c303",
+        "67e6f8f2e077ea42a9b95b87"
+      ],
+      "rating": 2,
+      "contentHash": "0d10d58a0140809dc7d65a21dcd09eca460a511f3608578b8a45da2704b1961d"
+    },
+    {
+      "id": "69ab55e440ef3875cfc3061d",
+      "title": "The Moment Anmeldelse",
+      "words": 1026,
+      "topic": "67e6f8f2e077ea42a9b95b87",
+      "topics": [
+        "67e6f8f2e077ea42a9b95b87",
+        "67dbf17ba540975b5b21c303"
+      ],
+      "rating": 6,
+      "contentHash": "1a03fec2d54294dddf6b74ebaf2758e6d1a509e51a14b0806cecf57c7f1d2421"
+    },
+    {
+      "id": "69aabd31df9c6e8837dfbe78",
+      "title": "Eros Ramazzotti i Royal Arena",
+      "words": 700,
+      "topic": "67e6f8f2e077ea42a9b95b87",
+      "topics": [
+        "67e6ee5034ae539291e9c6d0",
+        "67e6f8f2e077ea42a9b95b87"
+      ],
+      "rating": 5,
+      "contentHash": "cf2d1852263230ac7d3fd60114884727a56686b0ae8ecbc5515598f769139ab2"
+    },
+    {
+      "id": "69a0b39f5fb3ce8789ee10c9",
+      "title": "SPLIT:TED x ZIMA på Rust",
+      "words": 717,
+      "topic": "67e6f8f2e077ea42a9b95b87",
+      "topics": [
+        "67e6f8f2e077ea42a9b95b87",
+        "67e6ee5034ae539291e9c6d0",
+        "67dbf17ba540975b5b21c301"
+      ],
+      "rating": null,
+      "contentHash": "648f97ca71c272aa58942e9b16c6759ee19b27e6bdad7542d9ed4c00f070ed23"
+    },
+    {
+      "id": "699dba5fec5bf55623104c80",
+      "title": "Simon Talbot - Ekstra Extra Anmeldelse",
+      "words": 527,
+      "topic": "67e6f8f2e077ea42a9b95b87",
+      "topics": [
+        "67e6f8f2e077ea42a9b95b87",
+        "67dbf17ba540975b5b21c301"
+      ],
+      "rating": 4,
+      "contentHash": "75163ec5806d70c47ed51ec1d7efb5cafd2df3d08594d6ecbe8ae30ba5d4533d"
+    },
+    {
+      "id": "698f48c10c34d4973bcb1fd2",
+      "title": "Anmeldelse: Jason Derulo - Last Dance Tour",
+      "words": 823,
+      "topic": "67e6f8f2e077ea42a9b95b87",
+      "topics": [
+        "67e6f8f2e077ea42a9b95b87",
+        "67e6ee5034ae539291e9c6d0"
+      ],
+      "rating": 4,
+      "contentHash": "2be78b5844ef7ccac678072e489eabf8914f7776854270fbea77b9e2cc0ceceb"
+    },
+    {
+      "id": "698ca5b46c84372eee40a82f",
+      "title": "Mario Tennis: Før første serv",
+      "words": 601,
+      "topic": "68f73f675da21fa296b1b6e7",
+      "topics": [
+        "67e6f8f2e077ea42a9b95b87",
+        "68f73f675da21fa296b1b6e7"
+      ],
+      "rating": null,
+      "contentHash": "fbaaeeb6a7925029ff1a52efbcb6ec4c4c0fc6bce2f180db1cf42da4c01ed552"
+    },
+    {
+      "id": "698893d0c5bf2f7515524361",
+      "title": "Danish Coffee Festival 2026",
+      "words": 470,
+      "topic": "67e6f8f2e077ea42a9b95b87",
+      "topics": [
+        "67e6f8f2e077ea42a9b95b87",
+        "67dbf17ba540975b5b21c301"
+      ],
+      "rating": null,
+      "contentHash": "9aa61918224c80ef0d898e69aad56d610f92a0752ce4aa175caa18af1ae91868"
+    },
+    {
+      "id": "6978ee9b8e00e18deca28761",
+      "title": "Alter Bridge i KB Hallen",
+      "words": 487,
+      "topic": "67e6f8f2e077ea42a9b95b87",
+      "topics": [
+        "67e6ee5034ae539291e9c6d0",
+        "67e6f8f2e077ea42a9b95b87"
+      ],
+      "rating": 4,
+      "contentHash": "5fc908a09f25503602aa3696cc569167568813b53c7be21a68e7fa2d9f7cfcf2"
+    },
+    {
+      "id": "6976782581fe246e33348995",
+      "title": "Holdo (Ideal Bar)",
+      "words": 1126,
+      "topic": "67e6f8f2e077ea42a9b95b87",
+      "topics": [
+        "67e6ee5034ae539291e9c6d0",
+        "67e6f8f2e077ea42a9b95b87"
+      ],
+      "rating": 5,
+      "contentHash": "b089a2f5fd31e9ed4da473977d32adbdedc871b9eab73815049fed88c86a55df"
+    },
+    {
+      "id": "695d1665f717ab6a2e54e904",
+      "title": "Anmeldelse: Stranger Things, Sæson 5",
+      "words": 776,
+      "topic": "67e6f8f2e077ea42a9b95b87",
+      "topics": [
+        "67dbf52a4ac2cf0073a9b0ef",
+        "67e6f8f2e077ea42a9b95b87"
+      ],
+      "rating": 4,
+      "contentHash": "b31d9b2626d125de546bfd1d9c27d128fceb3d87493d5c5e4d15ec6316fade9c"
+    },
+    {
+      "id": "694f7c66161d8e55efab5731",
+      "title": "Anmeldelse: Den Gode Stemning",
+      "words": 1038,
+      "topic": "67e6f8f2e077ea42a9b95b87",
+      "topics": [
+        "67dbf52a4ac2cf0073a9b0ef",
+        "67e6f8f2e077ea42a9b95b87"
+      ],
+      "rating": 5,
+      "contentHash": "c81f98763bb0dbf35302ea35d98b8b05caa8030ce7e9b59d6ebcec3e5f362224"
+    },
+    {
+      "id": "6940853df1a0aab09969cc04",
+      "title": "Metroid Prime 4 Beyond Anmeldelse",
+      "words": 770,
+      "topic": "68f73f675da21fa296b1b6e7",
+      "topics": [
+        "67e6f8f2e077ea42a9b95b87",
+        "68f73f675da21fa296b1b6e7"
+      ],
+      "rating": 4,
+      "contentHash": "3a4885ac7b322df93ab6b9a5b05a244ee8496fb8168ae358dc6b31411b0d41c4"
+    },
+    {
+      "id": "6939dbcd9f66e5e02b5238c7",
+      "title": "Lorde i Royal Arena",
+      "words": 997,
+      "topic": "67e6f8f2e077ea42a9b95b87",
+      "topics": [
+        "67e6f8f2e077ea42a9b95b87",
+        "67e6ee5034ae539291e9c6d0"
+      ],
+      "rating": 6,
+      "contentHash": "4494ff88ca9734b72bfb4cf1082b2f65aaeae0ef3039572fe5f23fcd40b939aa"
+    },
+    {
+      "id": "6928d4482986b95475ad1c9e",
+      "title": "Cradle of Filth - Velformuleret, grotesk, æstetisk galskab",
+      "words": 757,
+      "topic": "67e6f8f2e077ea42a9b95b87",
+      "topics": [
+        "67e6f8f2e077ea42a9b95b87",
+        "67e6ee5034ae539291e9c6d0"
+      ],
+      "rating": 3,
+      "contentHash": "1e27c374843800dabb1f6fea6790fa221155495f643df852c661239489be58ee"
+    },
+    {
+      "id": "692570616ad564ed9a24ccf3",
+      "title": "KALASET - Anmeldelse",
+      "words": 787,
+      "topic": "67e6f8f2e077ea42a9b95b87",
+      "topics": [
+        "67e6f8f2e077ea42a9b95b87",
+        "67e6ee5034ae539291e9c6d0"
+      ],
+      "rating": 5,
+      "contentHash": "2d9475f429a75c8cf0d84e33afd3099c45468ce0f4977242fd21f812d7d3130c"
+    },
+    {
+      "id": "69218a80d6cdfe672bb558dd",
+      "title": "Now You See Me 3: Now You Don’t",
+      "words": 930,
+      "topic": "67dbf17ba540975b5b21c303",
+      "topics": [
+        "67e6f8f2e077ea42a9b95b87",
+        "67dbf17ba540975b5b21c303"
+      ],
+      "rating": 4,
+      "contentHash": "037d99a0fd3bcdf63c60ccabf65f317ea98ab0ae332b20b162d68f35c4acb976"
+    },
+    {
+      "id": "6915cde2911b5f4630d78ab5",
+      "title": "Nak & Æd (DR) – Farvel til et ikonisk tv-eventyr",
+      "words": 794,
+      "topic": "67dbf17ba540975b5b21c301",
+      "topics": [
+        "67dbf17ba540975b5b21c301",
+        "67dbf52a4ac2cf0073a9b0ef"
+      ],
+      "rating": null,
+      "contentHash": "0869e2a611ade41000f1a846e01b507f4e7837ccd2db3c12bea417961b61ada8"
+    },
+    {
+      "id": "6910877b7c956d29dea17863",
+      "title": "AV AV AV (POOLEN)",
+      "words": 1336,
+      "topic": "67e6f8f2e077ea42a9b95b87",
+      "topics": [
+        "67e6ee5034ae539291e9c6d0"
+      ],
+      "rating": 6,
+      "contentHash": "c2f126bc94cf564e86672d45f8cb710ddcb631e562520b85beab5e8858687b5a"
+    },
+    {
+      "id": "690ca1e0dbf3414ca41d6284",
+      "title": "Todd Rundgren – Amager Bio",
+      "words": 680,
+      "topic": "67e6f8f2e077ea42a9b95b87",
+      "topics": [
+        "67e6ee5034ae539291e9c6d0"
+      ],
+      "rating": 5,
+      "contentHash": "0ae8c08af8f8c2a1bec5831398edb384eba7316fcbbb630b36c7ea7dfef7ea01"
+    },
+    {
+      "id": "690b344f45c86d6e3acc8bbc",
+      "title": "Highest 2 Lowest (Apple TV+)",
+      "words": 865,
+      "topic": "67e6f8f2e077ea42a9b95b87",
+      "topics": [
+        "67dbf17ba540975b5b21c303"
+      ],
+      "rating": 2,
+      "contentHash": "7f5af5e4dc7c0d409e782a6b36bfac9c8e075511b48a4d4e473039a62513ab87"
+    },
+    {
+      "id": "6904adc2dcb4f51e08292973",
+      "title": "Deathloop",
+      "words": 878,
+      "topic": "68f73f675da21fa296b1b6e7",
+      "topics": [
+        "67e6f8f2e077ea42a9b95b87"
+      ],
+      "rating": 6,
+      "contentHash": "1151bae5c0607844efc4d4175d708e8fe59f0070499fbe74443b7f75cd0eed3a"
+    },
+    {
+      "id": "69048f3c981ad03deb804b16",
+      "title": "OneRepublic (Royal Arena)",
+      "words": 734,
+      "topic": "67e6f8f2e077ea42a9b95b87",
+      "topics": [
+        "67e6ee5034ae539291e9c6d0"
+      ],
+      "rating": 4,
+      "contentHash": "47cc4acb42cac4d720b5da3dd8c0bc572c56ebd05e68b91e5c2ac04169c9a4b3"
+    },
+    {
+      "id": "69048365f9c27c1f9f04e144",
+      "title": "Anmeldelse: Astro Bot",
+      "words": 967,
+      "topic": "68f73f675da21fa296b1b6e7",
+      "topics": [
+        "67e6f8f2e077ea42a9b95b87"
+      ],
+      "rating": 5,
+      "contentHash": "f6d595ee66c7b57f590afa80a1146461cf0621fdef02e365381c553c57472e64"
+    },
+    {
+      "id": "6900815b16af94030e8f5d1d",
+      "title": "Anmeldelse: Silksong",
+      "words": 515,
+      "topic": "68f73f675da21fa296b1b6e7",
+      "topics": [
+        "67e6f8f2e077ea42a9b95b87"
+      ],
+      "rating": 5,
+      "contentHash": "c90674103010cdfe96655ca558c1fae81077e20a1ebd0067d5ebd2d00f6a3422"
+    },
+    {
+      "id": "68f7478cb1a043373b7ac358",
+      "title": "Ghost of Yōtei",
+      "words": 1178,
+      "topic": "67e6f8f2e077ea42a9b95b87",
+      "topics": [
+        "68f73f675da21fa296b1b6e7"
+      ],
+      "rating": 5,
+      "contentHash": "304f350063828f747347a251403b594c0f78005257f06e51d790d26037644d23"
+    },
+    {
+      "id": "68ee2bdf1509a05d87f75952",
+      "title": "KPop Demon Hunters",
+      "words": 873,
+      "topic": "67e6f8f2e077ea42a9b95b87",
+      "topics": [
+        "67dbf17ba540975b5b21c303"
+      ],
+      "rating": 6,
+      "contentHash": "4de45ce548157d60c6058dd1559ada1895a7d1dbcb9a9665f8a9e70cb2af8d09"
+    },
+    {
+      "id": "68dd28b614b1cb3cbc995b9c",
+      "title": "Alien: Earth",
+      "words": 860,
+      "topic": "67e6f8f2e077ea42a9b95b87",
+      "topics": [
+        "67dbf52a4ac2cf0073a9b0ef"
+      ],
+      "rating": 5,
+      "contentHash": "b95e432fd9db506622ecd77d0385492553d3f27cf69749c9e838801b547decc9"
+    },
+    {
+      "id": "68d650ae3f52ca01277140c2",
+      "title": "Nordic Race 2025 (Refshaleøen)",
+      "words": 827,
+      "topic": "67dbf17ba540975b5b21c301",
+      "topics": null,
+      "rating": null,
+      "contentHash": "51bfefd76d48a27251220287d77ca8c7c31795a3e238b40a976e309240795edf"
+    },
+    {
+      "id": "68c7eac8f0d0e86eb90e981c",
+      "title": "TechBBQ 2025 (Bella Center)",
+      "words": 1130,
+      "topic": "67dbf17ba540975b5b21c301",
+      "topics": null,
+      "rating": null,
+      "contentHash": "e5515e6b83996626884c11669309bd654ccb37df2d90e1179a93564eebb380d9"
+    },
+    {
+      "id": "68c31c0ccc7c024b1c091d27",
+      "title": "Go-Jo På Lille Vega",
+      "words": 547,
+      "topic": "67e6f8f2e077ea42a9b95b87",
+      "topics": [
+        "67e6ee5034ae539291e9c6d0"
+      ],
+      "rating": 4,
+      "contentHash": "a9c11a10ee6de02a31ca3bd9c7d132563e5f5042c5b9f24c5c76a5f44192c884"
+    },
+    {
+      "id": "68b091ebb18bf82a7a0e4629",
+      "title": "Path of Exile 2 (Beta 0.3.0)",
+      "words": 871,
+      "topic": "67e6f8f2e077ea42a9b95b87",
+      "topics": [
+        "68f73f675da21fa296b1b6e7"
+      ],
+      "rating": 4,
+      "contentHash": "ef1887451d54167f3b35601fbe1f18f6dbceecb1f920f003c4ada63aa43b4d23"
+    },
+    {
+      "id": "68aeee14e6e0750804d698f5",
+      "title": "Nordic Race (Reffen): Mudder, smerte og OCD, der ikke hjælper",
+      "words": 608,
+      "topic": "67dbf17ba540975b5b21c301",
+      "topics": null,
+      "rating": null,
+      "contentHash": "d7da95983c23372b17159abd93bb326248f96a3ed0d07ee5f445c78cf21e74e5"
+    },
+    {
+      "id": "68ac12001356a15cc6954843",
+      "title": "Uro på Wonderfestiwall: Seks stjerner i solen",
+      "words": 573,
+      "topic": "67e6f8f2e077ea42a9b95b87",
+      "topics": [
+        "67e6ee5034ae539291e9c6d0"
+      ],
+      "rating": 6,
+      "contentHash": "7af27425b3c8aff41b48d6d890341f09030a92bf88fa4d568a342392c0b6fe9e"
+    },
+    {
+      "id": "68a7376aac4c4ecea3afab1d",
+      "title": "Anastasia fylder scenen – stort, men ikke helt os",
+      "words": 648,
+      "topic": "67e6f8f2e077ea42a9b95b87",
+      "topics": [
+        "67e6ee5034ae539291e9c6d0"
+      ],
+      "rating": 3,
+      "contentHash": "4657b403714f037ca0f1f9aab9a9506f7411a096357627a9ffdaf3b51af7339f"
+    },
+    {
+      "id": "68a580b74ebe82f38017ca6e",
+      "title": "Wonderfestiwall: Bornholms unikke festivaloplevelse",
+      "words": 936,
+      "topic": "67dbf17ba540975b5b21c301",
+      "topics": [
+        "67e6ee5034ae539291e9c6d0"
+      ],
+      "rating": 5,
+      "contentHash": "6e4441a2cf2e3bc83675552f1e609f03d0fd124347b864febe821583e2db97eb"
+    },
+    {
+      "id": "688f3fe0a1a07e32fbf1e666",
+      "title": "Justice (O Days Festival): Total forløsning i mudder og bassdrops",
+      "words": 563,
+      "topic": "67e6f8f2e077ea42a9b95b87",
+      "topics": [
+        "67e6ee5034ae539291e9c6d0"
+      ],
+      "rating": 5,
+      "contentHash": "2a2da8c1bb3002b6599c9a7c4e13d0799a9a51e20d37d2c1e61d18371ace7f54"
+    },
+    {
+      "id": "688b281027183a3b84cafba4",
+      "title": "Untamed (Netflix)",
+      "words": 837,
+      "topic": "67dbf52a4ac2cf0073a9b0ef",
+      "topics": [
+        "67e6f8f2e077ea42a9b95b87"
+      ],
+      "rating": 4,
+      "contentHash": "57946d438e31bd3ec2e4d389cd34348cf39863974ee424f5101fa5bb9d676633"
+    },
+    {
+      "id": "6878f7c545e7d5f7d4f95db7",
+      "title": "Charli XCX: Jeg blev festet op i ansigtet",
+      "words": 650,
+      "topic": "67e6f8f2e077ea42a9b95b87",
+      "topics": [
+        "67e6ee5034ae539291e9c6d0"
+      ],
+      "rating": 5,
+      "contentHash": "56c6e607f90e70896b8eb97ff3559eb41c5d6f4402151bba4909521995c3c3ca"
+    },
+    {
+      "id": "686e63d8d375222b11276eff",
+      "title": "Olivia Rodrigo (Roskilde Festival 2025)",
+      "words": 423,
+      "topic": "67e6f8f2e077ea42a9b95b87",
+      "topics": [
+        "67e6ee5034ae539291e9c6d0"
+      ],
+      "rating": 4,
+      "contentHash": "237e55ad5880260ec8a665a3b39c6425e22a275e012e5a0f982ebd195122502b"
+    },
+    {
+      "id": "686e632dbbffc251d4c6e9d2",
+      "title": "Nine Inch Nails leverede intens og uforglemmelig koncertoplevelse på Roskilde Festival 2025",
+      "words": 319,
+      "topic": "67e6f8f2e077ea42a9b95b87",
+      "topics": [
+        "67e6ee5034ae539291e9c6d0"
+      ],
+      "rating": 6,
+      "contentHash": "f3303caababe2fca6418a4c413162c32b1979693e2ea94303954e96620eb2e5c"
+    },
+    {
+      "id": "686e624e1a171d8582c72d1d",
+      "title": "Kenny: Stor produktion uden retning",
+      "words": 608,
+      "topic": "67e6ee5034ae539291e9c6d0",
+      "topics": [
+        "67e6f8f2e077ea42a9b95b87"
+      ],
+      "rating": 3,
+      "contentHash": "d59000cb96ed69453a0604af86e15563c84f77432f75a9d74ad644540ad46e2c"
+    },
+    {
+      "id": "686e61f30604f72c8838d10e",
+      "title": "Africa Express på Roskilde",
+      "words": 603,
+      "topic": "67e6f8f2e077ea42a9b95b87",
+      "topics": [
+        "67e6ee5034ae539291e9c6d0"
+      ],
+      "rating": 4,
+      "contentHash": "c7063aa6f021131fe6b5c92fa70fe8843be79efbd23d73e04cea97a9e8d40af7"
+    },
+    {
+      "id": "686e61a32c3a56a11356ef3d",
+      "title": "Electric Callboy på Roskilde Festival 2025",
+      "words": 430,
+      "topic": "67e6f8f2e077ea42a9b95b87",
+      "topics": [
+        "67e6ee5034ae539291e9c6d0"
+      ],
+      "rating": 2,
+      "contentHash": "075d32ae7006bdc00d8681a4e54df642dff7906fc1b98e1e15563f415d3a0061"
+    },
+    {
+      "id": "6867b2428cc54360ce0e8c29",
+      "title": "Beabadoobee på Orange Scene",
+      "words": 471,
+      "topic": "67e6f8f2e077ea42a9b95b87",
+      "topics": [
+        "67e6ee5034ae539291e9c6d0"
+      ],
+      "rating": 3,
+      "contentHash": "d6122b6601a56f0667c86c1a5dec02a71e69aa78c1150043b7dafdebcf70a443"
+    },
+    {
+      "id": "6867aeca8cc54360ce0cb928",
+      "title": "Tanner Adell på Eos: Moderne country med kant og charme",
+      "words": 491,
+      "topic": "67e6f8f2e077ea42a9b95b87",
+      "topics": [
+        "67e6ee5034ae539291e9c6d0"
+      ],
+      "rating": 6,
+      "contentHash": "0fdc3cb3f5dae6aa945f6e8cd1970c10fdb74785f53ac1dad7d1d8d196e5df7e"
+    },
+    {
+      "id": "686396e662e5289971fca320",
+      "title": "MagicBox på Tinderbox: En festival i festivalen",
+      "words": 449,
+      "topic": "67e6f8f2e077ea42a9b95b87",
+      "topics": [
+        "67e6ee5034ae539291e9c6d0"
+      ],
+      "rating": 5,
+      "contentHash": "f89302bad042f01d24b89b51a877a315d12d7985a0f74ddf95d60fbb7c2ebd33"
+    },
+    {
+      "id": "6863966220fa9e39c03e0d77",
+      "title": "Latto på Tinderbox: Nå, men så gik vi igen",
+      "words": 135,
+      "topic": "67e6f8f2e077ea42a9b95b87",
+      "topics": [
+        "67e6ee5034ae539291e9c6d0"
+      ],
+      "rating": 1,
+      "contentHash": "2f102d739bc8b80420b19ab989510450dc2e101f0018da072b0499b75865c341"
+    },
+    {
+      "id": "686394671a5e64fb2575d2dd",
+      "title": "Green Day (Tinderbox 2025): En knytnæve fra fortiden, der stadig rammer hårdt",
+      "words": 640,
+      "topic": "67e6f8f2e077ea42a9b95b87",
+      "topics": [
+        "67e6ee5034ae539291e9c6d0"
+      ],
+      "rating": 4,
+      "contentHash": "3444b16c39536d16fdd2bfc84e2e672a0aa9eb5d0fa316b96910ffcd71c821fa"
+    },
+    {
+      "id": "6862d54ea9b4b817791873cf",
+      "title": "The Bear - Season 4",
+      "words": 593,
+      "topic": "67e6f8f2e077ea42a9b95b87",
+      "topics": [
+        "67dbf52a4ac2cf0073a9b0ef"
+      ],
+      "rating": 3,
+      "contentHash": "4d05fc143202a712b0da1bbdd45cc028f280cabdf9c7a5e1a5202c7d5e047393"
+    },
+    {
+      "id": "686188e91d437ce7210dfe11",
+      "title": "Hugorm (Tinderbox): Kvamm danser, men sangene halter",
+      "words": 391,
+      "topic": "67e6f8f2e077ea42a9b95b87",
+      "topics": [
+        "67e6ee5034ae539291e9c6d0"
+      ],
+      "rating": 2,
+      "contentHash": "b9652fa0c3f66a9efb4e745d24bb86c89c7b080aedb4190d634fd368ca906429"
+    },
+    {
+      "id": "68617cb918cc9807954415fe",
+      "title": "The Streets (Tinderbox): 40.000 gik glip af dagens største magiske øjeblik",
+      "words": 495,
+      "topic": "67e6f8f2e077ea42a9b95b87",
+      "topics": [
+        "67e6ee5034ae539291e9c6d0"
+      ],
+      "rating": 6,
+      "contentHash": "b5794881d49c85a7c7c679b2060a3d99b28d57676c931da6628e033230ed1740"
+    },
+    {
+      "id": "685a9313e36ed15973acbc57",
+      "title": "Mnemic (Copenhell): Tilbage med selvtillid og sved på panden",
+      "words": 521,
+      "topic": "67e6f8f2e077ea42a9b95b87",
+      "topics": [
+        "67e6ee5034ae539291e9c6d0"
+      ],
+      "rating": 4,
+      "contentHash": "cbb791a9814d512e77f7edb7d39d1033e0b7556e7ec11ad5e88987ba2e37c904"
+    },
+    {
+      "id": "685a8c74b3e04990d550ca27",
+      "title": "Gloryhammer (Copenhell): Riddermetal med plastiksværd og børneshow-energi",
+      "words": 397,
+      "topic": "67e6ee5034ae539291e9c6d0",
+      "topics": [
+        "67e6f8f2e077ea42a9b95b87"
+      ],
+      "rating": 2,
+      "contentHash": "3efe85f9e2a75aa5b2c16ef542e50df66235a7be79b028e15e99cb9a0a164fe6"
+    },
+    {
+      "id": "685a7f717a68780f7668872c",
+      "title": "Bullet For My Valentine (Copenhell): Cringe metal med stadionattitude",
+      "words": 375,
+      "topic": "67e6f8f2e077ea42a9b95b87",
+      "topics": [
+        "67e6ee5034ae539291e9c6d0"
+      ],
+      "rating": 2,
+      "contentHash": "babab36bf9e6f4983bd848c19e3e0574d1cc419459c98313b4814ca0cfdc8220"
+    },
+    {
+      "id": "68546389e1c6e007235c9dde",
+      "title": "Sylosis (Copenhell): Flammer, vrede og en sonisk uppercut midt i brystkassen",
+      "words": 293,
+      "topic": "67e6ee5034ae539291e9c6d0",
+      "topics": [
+        "67e6f8f2e077ea42a9b95b87"
+      ],
+      "rating": 5,
+      "contentHash": "bb03ed9f257a249de83a0b4e66814e89f7ffdf247a615db53883cd54dbd151c8"
+    },
+    {
+      "id": "68545fefb1a933d078b0d368",
+      "title": "Skunk Anansie (Copenhell): 90’ernes vrede vendte hjem – og fik publikum til at skrige med",
+      "words": 338,
+      "topic": "67e6f8f2e077ea42a9b95b87",
+      "topics": [
+        "67e6ee5034ae539291e9c6d0"
+      ],
+      "rating": 5,
+      "contentHash": "33b3b58754abc8bab8697fdbf9b8e6eb46644011e9f72824153620126987baa3"
+    },
+    {
+      "id": "685455e282a78a705b50dd71",
+      "title": "Wormrot (Copenhell): Eternal sunshine of the Singaporean grind",
+      "words": 465,
+      "topic": "67e6ee5034ae539291e9c6d0",
+      "topics": [
+        "67e6f8f2e077ea42a9b95b87"
+      ],
+      "rating": 6,
+      "contentHash": "7c85dd852e60a4dbf4e98997fb2323fc2a5b0342f1d34b6c5f6371994d45dec4"
+    },
+    {
+      "id": "6853c131e99f6e3d878c33f6",
+      "title": "28 Years Later: Zombie-trilogiens ambitiøse, filosofiske finale",
+      "words": 471,
+      "topic": "67e6f8f2e077ea42a9b95b87",
+      "topics": [
+        "67dbf17ba540975b5b21c303"
+      ],
+      "rating": 5,
+      "contentHash": "34395c6aeca1f20f0c273e1a4712738dfe13e2b5b884a2df1efd3554f2fba380"
+    },
+    {
+      "id": "6851994bb7f3c7ca44562b07",
+      "title": "Du så How to Train Your Dragon i IMAX og mærkede vinden under vingerne",
+      "words": 730,
+      "topic": "67dbf17ba540975b5b21c303",
+      "topics": [
+        "67e6f8f2e077ea42a9b95b87"
+      ],
+      "rating": 6,
+      "contentHash": "a68d58205e0b828975162901f59ff4ba2e54e04eabc076af2543b29340fa9dd0"
+    },
+    {
+      "id": "684a91c9158ee1f0d2fd0119",
+      "title": "The Last Of US - Season 2",
+      "words": 674,
+      "topic": "67dbf52a4ac2cf0073a9b0ef",
+      "topics": [
+        "67e6f8f2e077ea42a9b95b87"
+      ],
+      "rating": 3,
+      "contentHash": "35f4b27340f98740a9ad9c816bf4c115c112230217e0f50b195307aca7e92951"
+    },
+    {
+      "id": "68496165812cad2671431991",
+      "title": "We Love Green Festival - Paris 2025",
+      "words": 1564,
+      "topic": "67e6f8f2e077ea42a9b95b87",
+      "topics": [
+        "67dbf17ba540975b5b21c301",
+        "67e6ee5034ae539291e9c6d0"
+      ],
+      "rating": 5,
+      "contentHash": "1d9879a9ed1122262cf0a65549663cfda81d156359093fc21fa87c9ad32cf53b"
+    },
+    {
+      "id": "683c625d03c4fb46099318e0",
+      "title": "Mew i Royal Arena: Farvel til fremtiden – et punktum med stjernestøv efter 30 år",
+      "words": 418,
+      "topic": "67e6f8f2e077ea42a9b95b87",
+      "topics": [
+        "67e6ee5034ae539291e9c6d0"
+      ],
+      "rating": 5,
+      "contentHash": "ee79a2703503701000ea840796b9edf49dd2fd2a018e0964758526cd59dbe0e9"
+    },
+    {
+      "id": "6839b69ee9eb3fc2ac5accee",
+      "title": "The Brian Jonestown Massacre (Amager Bio): En støjfest for de indviede",
+      "words": 385,
+      "topic": "67e6f8f2e077ea42a9b95b87",
+      "topics": [
+        "67e6ee5034ae539291e9c6d0"
+      ],
+      "rating": 5,
+      "contentHash": "6bcfa338d723ca00ef7f1f6b1c1ffa6a920335aaa8f8e98fb69fb4c19f7b0110"
+    },
+    {
+      "id": "683735ae1907f974c2ea7d4f",
+      "title": "Vi Elsker! (Rødovre): Som en firmafest fra 1998, bare med bedre lyd og færre hæmninger",
+      "words": 598,
+      "topic": "67e6f8f2e077ea42a9b95b87",
+      "topics": [
+        "67e6ee5034ae539291e9c6d0",
+        "67dbf17ba540975b5b21c301"
+      ],
+      "rating": null,
+      "contentHash": "8d57e0dfe66d239feae1b0a6c7b37bdeb150af88c2b00b05a2ca2c771c30facf"
+    },
+    {
+      "id": "683078b0e018d941911e3e42",
+      "title": "Mission: Impossible – The Final Reckoning: Cruise løber, og vi følger med",
+      "words": 271,
+      "topic": "67e6f8f2e077ea42a9b95b87",
+      "topics": [
+        "67dbf17ba540975b5b21c303"
+      ],
+      "rating": 4,
+      "contentHash": "dc6df91818fc982d02a92dd0e6784afd5b6fc2507346ac8bd8378dc26b9ec167"
+    },
+    {
+      "id": "682eead540b458841a01e41b",
+      "title": "Aphaca (Live i Vega): Som at få hjertekamrene åbnet indefra",
+      "words": 418,
+      "topic": "67e6f8f2e077ea42a9b95b87",
+      "topics": [
+        "67e6ee5034ae539291e9c6d0"
+      ],
+      "rating": 5,
+      "contentHash": "07441873a33c6f509e0523899bd423ba563c8abdbc83dbe80c57c8d7958823d0"
+    },
+    {
+      "id": "682ca29ad8068c4e6cd5e7b5",
+      "title": "Bicep present CHROMA (O Days 2025)",
+      "words": 538,
+      "topic": "67e6ee5034ae539291e9c6d0",
+      "topics": [
+        "67dbf17ba540975b5b21c301"
+      ],
+      "rating": null,
+      "contentHash": "b4d959580be702abfa0c1b02abed93c9a766ec4da315dd66e01df63e8a7a1a33"
+    },
+    {
+      "id": "682c647e7b0f564fe2029a43",
+      "title": "The Streets (Tinderbox 2025): Fra piratmateriale til poetisk comeback",
+      "words": 720,
+      "topic": "67e6ee5034ae539291e9c6d0",
+      "topics": [
+        "67e6f8f2e077ea42a9b95b87"
+      ],
+      "rating": null,
+      "contentHash": "da289762e3db8ba32dea6118f6eb935b97b3b633458d0e5fd6cb3c1537ebb195"
+    },
+    {
+      "id": "6827088fb7897182bf965c20",
+      "title": "Teufel Bash – Råt, råbende og røvcharmerende i fuglekvarteret",
+      "words": 342,
+      "topic": "67e6f8f2e077ea42a9b95b87",
+      "topics": [
+        "67dbf17ba540975b5b21c301"
+      ],
+      "rating": 6,
+      "contentHash": "087fb0be15e0dc5c9a96cf24875674b7c02ffe0d35fe3f536be0cbe58b8309c8"
+    },
+    {
+      "id": "6826f74439aa3af215b53e9b",
+      "title": "MagicBox (Tinderbox): Din ultimative guide til festen",
+      "words": 855,
+      "topic": "67e6ee5034ae539291e9c6d0",
+      "topics": [
+        "67dbf17ba540975b5b21c301"
+      ],
+      "rating": null,
+      "contentHash": "628bbc0b230f4d5c5ebc3ff5abb096048faf0e42e1b84684a23d6c2d06164932"
+    },
+    {
+      "id": "681f0d0822db1ec2806868ac",
+      "title": "Kors, kaos og Justice på O Days Festival",
+      "words": 754,
+      "topic": "67e6ee5034ae539291e9c6d0",
+      "topics": [
+        "67dbf17ba540975b5b21c301"
+      ],
+      "rating": null,
+      "contentHash": "b7e6f491a4baf1034eee00794f31c2d1f9091abcbf2f46b8d6b204e5e6882240"
+    },
+    {
+      "id": "681c765c3c24aaf773f8efc7",
+      "title": "Tyler, The Creator (Royal Arena): Et visuelt vanvid af lyd og lys",
+      "words": 476,
+      "topic": "67e6f8f2e077ea42a9b95b87",
+      "topics": [
+        "67e6ee5034ae539291e9c6d0"
+      ],
+      "rating": 6,
+      "contentHash": "a6008c6655c33ae58e65da109cbafaa625d570bfc623ea8d0cf46c57db38ecab"
+    },
+    {
+      "id": "681b21687199d8c9c06b8ee9",
+      "title": "“You can call me Patrick Swayze” – eller du kan bare komme ned på Coco Hotel og lytte",
+      "words": 252,
+      "topic": "67e6ee5034ae539291e9c6d0",
+      "topics": [
+        "67dbf17ba540975b5b21c301"
+      ],
+      "rating": null,
+      "contentHash": "be78939a6b9a056638100920355ccbe7e22e481819919045b049127ba7c6f87c"
+    },
+    {
+      "id": "6818cd26d4c8fdca71514554",
+      "title": "Black Mirror Sæson 7 (Netflix): AI-eks’er, digitalt vanvid og den vildeste åbner i årevis",
+      "words": 849,
+      "topic": "67dbf52a4ac2cf0073a9b0ef",
+      "topics": [
+        "67e6f8f2e077ea42a9b95b87"
+      ],
+      "rating": 3,
+      "contentHash": "67b907b36e48391f8c3fb4977db44357c24e86b397f4a255f572a26506a20a48"
+    },
+    {
+      "id": "681759242b10b43b9436525e",
+      "title": "Kesi i Royal Arena: Kongen af dansk rap samlede hoffet",
+      "words": 470,
+      "topic": "67e6ee5034ae539291e9c6d0",
+      "topics": [
+        "67e6f8f2e077ea42a9b95b87"
+      ],
+      "rating": 5,
+      "contentHash": "f3bb13de8274b5895b55b3e49d5f0138e7f2225fb53d4cbf3ea8c7d4c31ec0bd"
+    },
+    {
+      "id": "681628e748546a0f5e28ff35",
+      "title": "SPOT Festival Dag 1",
+      "words": 263,
+      "topic": "67e6ee5034ae539291e9c6d0",
+      "topics": [
+        "67dbf17ba540975b5b21c301"
+      ],
+      "rating": 4,
+      "contentHash": "6cc1fa2c15a00a3fad86fba6ea66ac2a03490d1bc518551da2bb58bab4cf719e"
+    },
+    {
+      "id": "681372e6804b5659ddfa442b",
+      "title": "Billie Eilish i Royal Arena",
+      "words": 342,
+      "topic": "67e6f8f2e077ea42a9b95b87",
+      "topics": [
+        "67e6ee5034ae539291e9c6d0"
+      ],
+      "rating": null,
+      "contentHash": "89906c8553dafb0e73a5ca60627d366cafdefc24ce872cc2de655b24e1b05ea6"
+    },
+    {
+      "id": "6813715e5f4c63cff792f56c",
+      "title": "O Days – En guide til dig, der er færdig med Roskilde-støv og TikTok-hits",
+      "words": 448,
+      "topic": "67e6ee5034ae539291e9c6d0",
+      "topics": [
+        "67dbf17ba540975b5b21c301"
+      ],
+      "rating": null,
+      "contentHash": "ce1900858e91ef1a0445d5f6762ec671c2735a382d15454eee77953bf55a9752"
+    },
+    {
+      "id": "68135fb7e56fb94f0f6f2c76",
+      "title": "Tinderbox 2025 - Festen hvor alt kan ske",
+      "words": 275,
+      "topic": "67e6ee5034ae539291e9c6d0",
+      "topics": [
+        "67dbf17ba540975b5b21c301"
+      ],
+      "rating": null,
+      "contentHash": "8dd0884b393ccf4b5258812a8f1cc5217cb9b92eca001c472b94334b8d5c5cdf"
+    },
+    {
+      "id": "68121f293cb4663a2d709d38",
+      "title": "Tears of the Kingdom (Nintendo Switch): Den ultimative Zelda-oplevelse",
+      "words": 491,
+      "topic": "67e6f8f2e077ea42a9b95b87",
+      "topics": [
+        "68f73f675da21fa296b1b6e7"
+      ],
+      "rating": 6,
+      "contentHash": "bc55d5c6698607bac82feb2b5b97b319e73afea1b72ac1d39d8511731169aee3"
+    },
+    {
+      "id": "680f62b934d1c0dd90a31afe",
+      "title": "First Days på Roskilde: De bedste koncerter du kan høre før det hele eksploderer",
+      "words": 447,
+      "topic": "67e6ee5034ae539291e9c6d0",
+      "topics": [
+        "67dbf17ba540975b5b21c301"
+      ],
+      "rating": null,
+      "contentHash": "42b92b9d3c9b279e91c1a7d29712f710d195cc954fe768bf8049eb12b452e9c6"
+    },
+    {
+      "id": "680f62b950a2bc48b04422a0",
+      "title": "Torsdag på Roskilde Festival 2025: Seks navne der redder en lidt tynd dag",
+      "words": 447,
+      "topic": "67e6ee5034ae539291e9c6d0",
+      "topics": [
+        "67dbf17ba540975b5b21c301"
+      ],
+      "rating": null,
+      "contentHash": "7141a6946f87fde457b34e0a62ec8fc5f2b483f718627935926e2a11c20c81fa"
+    },
+    {
+      "id": "680f62b9992e17ee76e25ee3",
+      "title": "Fredag på Roskilde: Din overlevelsesguide til Roskildes vildeste dag",
+      "words": 565,
+      "topic": "67e6ee5034ae539291e9c6d0",
+      "topics": [
+        "67dbf17ba540975b5b21c301"
+      ],
+      "rating": null,
+      "contentHash": "4f31841997ed5ddaa7354f320f8cc10531fe240c385dfb858775a7d505547c5a"
+    },
+    {
+      "id": "680f62b906ed8e1cf7969180",
+      "title": "Hvem skal du se onsdag på Roskilde?",
+      "words": 588,
+      "topic": "67e6ee5034ae539291e9c6d0",
+      "topics": [
+        "67dbf17ba540975b5b21c301"
+      ],
+      "rating": null,
+      "contentHash": "47ab1c93aaa55bc6934c37e2ee1675b193623b05085cc915d9b96abdaefbd462"
+    },
+    {
+      "id": "680f62b9084ba38889f21e82",
+      "title": "Lørdag på Roskilde: TikTok-dronninger og deprimeret onkelrock",
+      "words": 352,
+      "topic": "67e6ee5034ae539291e9c6d0",
+      "topics": [
+        "67dbf17ba540975b5b21c301"
+      ],
+      "rating": null,
+      "contentHash": "d9342ef9da3664a3d981c66301904fae3368515fc284f697dc0a48bf995e8aea"
+    },
+    {
+      "id": "680f62b87b0efa5c4fa2823e",
+      "title": "Apropos Guide: Wonderfestiwall 2025",
+      "words": 393,
+      "topic": "67e6ee5034ae539291e9c6d0",
+      "topics": [
+        "67dbf17ba540975b5b21c301"
+      ],
+      "rating": null,
+      "contentHash": "2570b93bccf1198c032006a13ab7bbd33693c5fff0a0485816dc4e76b01323c9"
+    },
+    {
+      "id": "680f4b4db143c5f289124e2a",
+      "title": "Havoc (Netflix) Anmeldelse",
+      "words": 268,
+      "topic": "67dbf17ba540975b5b21c303",
+      "topics": [
+        "67e6f8f2e077ea42a9b95b87"
+      ],
+      "rating": null,
+      "contentHash": "2dea026332ff551013a0e51821c53083027d3d2f7d887fcd94f9fc8de60e933f"
+    },
+    {
+      "id": "6803f50b78c9a55db18a93fc",
+      "title": "Mew & The War on Drugs",
+      "words": 546,
+      "topic": "67e6ee5034ae539291e9c6d0",
+      "topics": [
+        "67e6f8f2e077ea42a9b95b87"
+      ],
+      "rating": null,
+      "contentHash": "d4b7bee7aeb68319406d74e277561235dc784b5aa98416ef657f359d6985aea0"
+    },
+    {
+      "id": "6803e91416f3596487ee8c90",
+      "title": "Tremonti i Store VEGA",
+      "words": 446,
+      "topic": "67e6ee5034ae539291e9c6d0",
+      "topics": [
+        "67e6f8f2e077ea42a9b95b87"
+      ],
+      "rating": null,
+      "contentHash": "9236e3d0a9b2d5fdcf91071c262efcdc59f45ee9c6210c8eff312f929284c8e5"
+    },
+    {
+      "id": "680361ec9d4025c3b090d3f4",
+      "title": "Silvana Imam i Lille VEGA",
+      "words": 173,
+      "topic": "67e6ee5034ae539291e9c6d0",
+      "topics": [
+        "67e6f8f2e077ea42a9b95b87"
+      ],
+      "rating": null,
+      "contentHash": "190dba4e8dd6f5fce18403caafba2a6489ac67dc7a169759b2b7146eb3d81d94"
+    },
+    {
+      "id": "68035e0e647fd1e9f196b6e2",
+      "title": "Andreas Odbjerg i Royal Arena",
+      "words": 286,
+      "topic": "67e6ee5034ae539291e9c6d0",
+      "topics": [
+        "67e6f8f2e077ea42a9b95b87"
+      ],
+      "rating": null,
+      "contentHash": "1e04af3713e4511c594c85bf45741c7e9f8a364bb8df1bd8dbdc017c111a22a2"
+    },
+    {
+      "id": "680357b62093732bdbf0c196",
+      "title": "Post Malone i Royal Arena",
+      "words": 307,
+      "topic": "67e6ee5034ae539291e9c6d0",
+      "topics": [
+        "67e6f8f2e077ea42a9b95b87"
+      ],
+      "rating": 3,
+      "contentHash": "49674184e4d69117d748131360f1e590f1534cc2576b0c2c531710151f03e71a"
+    },
+    {
+      "id": "68029ac50bbc2b5d50acd814",
+      "title": "Limp Bizkit (Royal Arena)",
+      "words": 462,
+      "topic": "67e6ee5034ae539291e9c6d0",
+      "topics": [
+        "67e6f8f2e077ea42a9b95b87"
+      ],
+      "rating": null,
+      "contentHash": "a020eb3455492f016eb18216b8c489526a49960637c14ed98f4f4fc8731a1e12"
+    },
+    {
+      "id": "68028ef86bf8ed2f84b5f6a4",
+      "title": "D-A-D i Forum",
+      "words": 310,
+      "topic": "67e6ee5034ae539291e9c6d0",
+      "topics": [
+        "67e6f8f2e077ea42a9b95b87"
+      ],
+      "rating": null,
+      "contentHash": "e3a7691ed4f55af288f04a0235569ef7365864a321d9327f1377a033c8691876"
+    },
+    {
+      "id": "680278ffd31a2bed9ad0f3aa",
+      "title": "Outlander (Netflix) – Sæson 7",
+      "words": 313,
+      "topic": "67dbf52a4ac2cf0073a9b0ef",
+      "topics": [
+        "67e6f8f2e077ea42a9b95b87"
+      ],
+      "rating": null,
+      "contentHash": "bf27df703ccfa85b13eebfa9cc3663ced9fc02f29da2d72a2864820d2f01b72e"
+    },
+    {
+      "id": "68022f765e5779c891571036",
+      "title": "The Last of Us (Sæson 1)",
+      "words": 350,
+      "topic": "67dbf52a4ac2cf0073a9b0ef",
+      "topics": [
+        "67e6f8f2e077ea42a9b95b87"
+      ],
+      "rating": 4,
+      "contentHash": "ff034cd28601b69bb93b5498cdc6cd574aa4da9355b8021a42e93d7917acdd19"
+    },
+    {
+      "id": "68022cb2cce2b20faf8d7276",
+      "title": "Surface (Apple TV+)",
+      "words": 329,
+      "topic": "67dbf52a4ac2cf0073a9b0ef",
+      "topics": [
+        "67e6f8f2e077ea42a9b95b87"
+      ],
+      "rating": 2,
+      "contentHash": "b21dc5b3a3fd5da31d40c329977495d0edee8b64c1f46535d9337b7c56b12606"
+    },
+    {
+      "id": "67fd167350de8097000c98e8",
+      "title": "White Lotus sæson 3",
+      "words": 389,
+      "topic": "67dbf52a4ac2cf0073a9b0ef",
+      "topics": [
+        "67e6f8f2e077ea42a9b95b87"
+      ],
+      "rating": null,
+      "contentHash": "4f3e345666ba47f3f7034991416be46709d9d7cb593f4c1493590509df2d67e0"
+    },
+    {
+      "id": "67f2ce965e0b1d5ad086d40d",
+      "title": "The Boys – Sæson 4",
+      "words": 302,
+      "topic": "67dbf52a4ac2cf0073a9b0ef",
+      "topics": [
+        "67e6f8f2e077ea42a9b95b87"
+      ],
+      "rating": 5,
+      "contentHash": "bf543eaa6338209ba7881d760a767a5e8cd43b455060775d875527260818bb76"
+    },
+    {
+      "id": "67f13b41b5ffebcd5a80ec9e",
+      "title": "Reacher sæson 3",
+      "words": 405,
+      "topic": "67dbf52a4ac2cf0073a9b0ef",
+      "topics": [
+        "67e6f8f2e077ea42a9b95b87"
+      ],
+      "rating": 3,
+      "contentHash": "769faabfc3d81e0c688488b4fc15b07131d5fa922ac17f2330d128aa3d846892"
+    },
+    {
+      "id": "67f1202aa44eac761ae5b004",
+      "title": "Black Bag",
+      "words": 401,
+      "topic": "67dbf17ba540975b5b21c303",
+      "topics": [
+        "67e6f8f2e077ea42a9b95b87"
+      ],
+      "rating": 4,
+      "contentHash": "502f7ccc268268a4a0fd9005543bc04fc90a2ddc46d9fd0dd15fc3834f7a17dc"
+    },
+    {
+      "id": "67ef9e3a70eb01920e01a107",
+      "title": "Hvornår blev dårlig kvalitet okay, bare fordi det var gratis?",
+      "words": 349,
+      "topic": "67dbf17ba540975b5b21c301",
+      "topics": null,
+      "rating": null,
+      "contentHash": "b9e23a9a19e9ce0569c654a9199eaa896ca6b83d71189b13e57aa7b5b0068c01"
+    },
+    {
+      "id": "67eec29132a2d319c7e07a81",
+      "title": "Baby Reindeer",
+      "words": 401,
+      "topic": "67dbf52a4ac2cf0073a9b0ef",
+      "topics": [
+        "67e6f8f2e077ea42a9b95b87"
+      ],
+      "rating": 4,
+      "contentHash": "69b48e8cd6004d6bd098892217c8778770ff6ae580544b9baffb6523d53cd25d"
+    },
+    {
+      "id": "67eec115e4f179dad080e008",
+      "title": "Three Body Problem",
+      "words": 339,
+      "topic": "67dbf52a4ac2cf0073a9b0ef",
+      "topics": [
+        "67e6f8f2e077ea42a9b95b87"
+      ],
+      "rating": 4,
+      "contentHash": "3ae502806de7389db78ad791739d7d668d346f52eb9eaba8d190e29a1dddb32d"
+    },
+    {
+      "id": "67ed811dd306a2abc6e195de",
+      "title": "Guldimund, Heartland at Noma",
+      "words": 598,
+      "topic": "67e6ee5034ae539291e9c6d0",
+      "topics": [
+        "67e6f8f2e077ea42a9b95b87"
+      ],
+      "rating": 6,
+      "contentHash": "5cd4d4a4cea752445fb7af9cb11d9c1f8f1caa1f2ca636b589f6c598afa30c7f"
+    },
+    {
+      "id": "67ec503fc770b958ac549cfa",
+      "title": "Benny Jamz x Danmarks Underholdningsorkester",
+      "words": 251,
+      "topic": "67e6ee5034ae539291e9c6d0",
+      "topics": [
+        "67e6f8f2e077ea42a9b95b87"
+      ],
+      "rating": 4,
+      "contentHash": "3b2044407cba9d024a606eecb89e6b8d63a8e7db6c89bfea2780750e3455fe82"
+    },
+    {
+      "id": "67ec4d217aac04368f5e7069",
+      "title": "MØ, Operaen på Christiania",
+      "words": 319,
+      "topic": "67e6ee5034ae539291e9c6d0",
+      "topics": [
+        "67e6f8f2e077ea42a9b95b87"
+      ],
+      "rating": 5,
+      "contentHash": "4c1479c3d39b653c52c4ae2716b9826ccdccb7659420f82a576e722b8f66264b"
+    },
+    {
+      "id": "67ebdd51e1a092a0af7cdd79",
+      "title": "Sabrina Carpenter I Royal Arena",
+      "words": 344,
+      "topic": "67e6ee5034ae539291e9c6d0",
+      "topics": [
+        "67e6f8f2e077ea42a9b95b87"
+      ],
+      "rating": 4,
+      "contentHash": "1446d042155e2eb2bd9cdbd026e8915443f1cfd9e092c099ba6aa10daefe2a2e"
+    },
+    {
+      "id": "67ea4eb0e09e26ed5a727590",
+      "title": "Riff Raff",
+      "words": 294,
+      "topic": "67dbf17ba540975b5b21c303",
+      "topics": [
+        "67e6f8f2e077ea42a9b95b87"
+      ],
+      "rating": 2,
+      "contentHash": "03da26a97dda6f0cb9c45e5b3282696d11966ba8c28918cf7faf7cee56c689e3"
+    },
+    {
+      "id": "67ea446c92d4fccc9bf8d221",
+      "title": "The Studio",
+      "words": 416,
+      "topic": "67dbf52a4ac2cf0073a9b0ef",
+      "topics": [
+        "67e6f8f2e077ea42a9b95b87"
+      ],
+      "rating": 4,
+      "contentHash": "e011ddd7af7fae016e1f0ddb492eb35af3cba8bbe5209adcf4d86ea42dfe8802"
+    },
+    {
+      "id": "67e96d08a3c2433046349554",
+      "title": "Showbizz – Politik som musical, tro som replik",
+      "words": 603,
+      "topic": "67dbf17ba540975b5b21c301",
+      "topics": [
+        "67e6f8f2e077ea42a9b95b87"
+      ],
+      "rating": 4,
+      "contentHash": "56d2a361c804eceeffad7bc297085b69d5ed46e863d12bcb607b7b9ec6002f38"
+    },
+    {
+      "id": "67e6f99db0b9f7a482fe15fe",
+      "title": "Lenny Kravitz i Royal Arena",
+      "words": 266,
+      "topic": "67e6ee5034ae539291e9c6d0",
+      "topics": [
+        "67e6f8f2e077ea42a9b95b87"
+      ],
+      "rating": 3,
+      "contentHash": "0b8199eeae06c6e4ead0e31a14248f70f0d61481b19b9c56be388d4e37d6594d"
+    },
+    {
+      "id": "67e6f497cdcc20589098ae55",
+      "title": "Emma Sehested Høeg i DR Koncerthuset",
+      "words": 298,
+      "topic": "67e6ee5034ae539291e9c6d0",
+      "topics": [
+        "67e6f8f2e077ea42a9b95b87"
+      ],
+      "rating": 5,
+      "contentHash": "c34a611f2820f5a9050543d6f9973e544ef432c4c2b4e131684934a4022a5a5d"
+    },
+    {
+      "id": "67e6bb3ccc224de525ee86f6",
+      "title": "Live, men optaget – koncertkulturens kollaps",
+      "words": 518,
+      "topic": "67dbf17ba540975b5b21c301",
+      "topics": null,
+      "rating": null,
+      "contentHash": "cd1227f043030131352ebdb3d021fb511770eb612a1d92affbc3a3b4db8fe943"
+    },
+    {
+      "id": "67e6b4123ae41c5aaf0d889a",
+      "title": "Er TikTok den nye litterære avantgarde?",
+      "words": 448,
+      "topic": "67dbf17ba540975b5b21c301",
+      "topics": null,
+      "rating": null,
+      "contentHash": "64a8ad4a545ecb29a4d5aed142fe99ec962f3c331c0c7506dcb4b64cb2769525"
+    },
+    {
+      "id": "67e6a0eadd6a75928e9a8d99",
+      "title": "Ripley",
+      "words": 363,
+      "topic": "67dbf52a4ac2cf0073a9b0ef",
+      "topics": [
+        "67e6f8f2e077ea42a9b95b87"
+      ],
+      "rating": 5,
+      "contentHash": "d256830cb3907bae182e560b5ddb6e2e435c21657e221604dfede3e0f060bbbe"
+    },
+    {
+      "id": "67e692006eda958f5bee852b",
+      "title": "Copenhagen Contemporary",
+      "words": 378,
+      "topic": "67dbf17ba540975b5b21c301",
+      "topics": [
+        "67e6f8f2e077ea42a9b95b87"
+      ],
+      "rating": 4,
+      "contentHash": "97accda3f8d24423ea96a65e311d3181824216f54806379692bfce21fb478daa"
+    },
+    {
+      "id": "67e167481e81fa9a212fb66d",
+      "title": "Shōgun",
+      "words": 496,
+      "topic": "67dbf52a4ac2cf0073a9b0ef",
+      "topics": [
+        "67e6f8f2e077ea42a9b95b87"
+      ],
+      "rating": 4,
+      "contentHash": "22b12bd668b25de0cd0aa2c8a5f1cb9c17804d0efdbbbc0fd56e2854870d2e10"
+    },
+    {
+      "id": "67dfca398190f33913afdf28",
+      "title": "Anora ",
+      "words": 525,
+      "topic": "67dbf17ba540975b5b21c303",
+      "topics": [
+        "67e6f8f2e077ea42a9b95b87"
+      ],
+      "rating": 4,
+      "contentHash": "aba8af05a9f0e365922fb4597441defa18bded6bf31a05100562d81ffccae9a6"
+    },
+    {
+      "id": "67ded0c4a659780f71cff300",
+      "title": "Captain America: Brave New World",
+      "words": 323,
+      "topic": "67dbf17ba540975b5b21c303",
+      "topics": [
+        "67e6f8f2e077ea42a9b95b87"
+      ],
+      "rating": 1,
+      "contentHash": "d63aea12d9bf57bd264c75126cc77c65757b3e5b1bb4a8e0f33d7e9c5e3ba21a"
+    },
+    {
+      "id": "67dd764bf4de0665e9943b95",
+      "title": "Paradise – Perfektionens pris på Disney+",
+      "words": 426,
+      "topic": "67dbf52a4ac2cf0073a9b0ef",
+      "topics": [
+        "67e6f8f2e077ea42a9b95b87"
+      ],
+      "rating": 5,
+      "contentHash": "5600482018553b2ffda2795ca7e4255aab73802d3a8ca96d693fe07041e42480"
+    },
+    {
+      "id": "67dd733d3e2cb1d183b19583",
+      "title": "Adolescence",
+      "words": 359,
+      "topic": "67dbf52a4ac2cf0073a9b0ef",
+      "topics": [
+        "67e6f8f2e077ea42a9b95b87"
+      ],
+      "rating": 5,
+      "contentHash": "e71dd52f075ea28b2cf0fa4a1aa458759e6a6882c57eca26d1e349422e50ae23"
+    },
+    {
+      "id": "67dc6b24834b7ef7dce9ca20",
+      "title": "Silo Sæson 1",
+      "words": 286,
+      "topic": "67dbf52a4ac2cf0073a9b0ef",
+      "topics": [
+        "67e6f8f2e077ea42a9b95b87"
+      ],
+      "rating": 5,
+      "contentHash": "8e98b18b1276e5823608349bdf4219ccfc9707076375abdd8d328a80fff6f1d3"
+    },
+    {
+      "id": "67dbf17ba540975b5b21c31a",
+      "title": "Shrinking",
+      "words": 467,
+      "topic": "67dbf52a4ac2cf0073a9b0ef",
+      "topics": [
+        "67e6f8f2e077ea42a9b95b87"
+      ],
+      "rating": 4,
+      "contentHash": "45fbc1c2f962a946dc0d270dfb9c7a0dd2a5cdf81f9dbf6e352ca4e6e3b5f1b1"
+    }
+  ],
+  "previousLivAuthorPrompt": "<p><strong><code>LIV BRANDT — PROMPT (v.01)</code></strong></p><p><code>Du er </code><em><code>Liv Brandt</code></em><code>, journalist for Apropos Magazine.<br></code></p><p><strong><code>Biografi:</code></strong></p><p><code>Liv Brandt er en moderne kulturstem­me, der skriver fra kroppen, ikke skrivebordet. Hun kombinerer litterær sensibilitet med et feministisk blik og en intuitiv sans for det menneskelige i kunsten. Hendes tekster balancerer mellem følelse og fornuft — og insisterer på, at kritik stadig kan være kærlig.<br></code></p><p><strong><code>Persona:</code></strong></p><p><code>Den ærlige og indignerede. Liv repræsenterer den moderne, kvindelige kulturkritiker: følsom, men skarp. Hun skriver med holdning, æstetik og intellekt, men altid forankret i kroppen og erfaringen. Liv er ikke bange for at tage stilling, men hun gør det med varme.<br></code></p><p><strong><code>Stil:</code></strong></p><p><code>– Poetisk, sanselig og temperamentsfuld</code></p><p><code>– Klar prosa med rytme, følelse og præcision</code></p><p><code>– Skriver, som man tænker – ærligt, intuitivt og med nerve</code></p><p><code>– Fri og levende – oftere essayistisk end journalistisk<br></code></p><p><strong><code>Temaer:</code></strong></p><p><code>Koncerter, identitet, samtid og femininitet<br></code></p><p><strong><code>Tone:</code></strong></p><p><code>“Jeg så det, jeg mærkede det, og jeg forstod først bagefter, hvorfor det ramte mig.”<br></code></p><p><strong><code>Sproglige karakteristika:</code></strong></p><p><code>– Sanselige beskrivelser af oplevelser</code></p><p><code>– Personlig refleksion og indre indsigt</code></p><p><code>– Temperamentsfuld, men konstruktiv kritik</code></p><p><code>– Fokus på kropslige og emotionelle reaktioner</code></p><p><code>– Poetisk, men aldrig pretentiøs prosa<br></code></p><p><strong><code>Eksempler på din skrivning:</code></strong></p><p><code>– Koncertanmeldelser fortalt gennem krop og stemning</code></p><p><code>– Refleksioner over identitet og femininitet i kultur og kunst</code></p><p><code>– Kritik, der mærkes mere end den argumenteres</code></p><p><code>– Sanselige skildringer af rum, mennesker og energi<br></code></p><p><strong><code>Instruktioner:</code></strong></p><p><code>– Skriv i Liv Brandts stil</code></p><p><code>– Vær ærlig og indigneret, men med varme</code></p><p><code>– Beskriv oplevelser, som du mærkede dem i kroppen</code></p><p><code>– Brug poetisk sprog, men hold tonen autentisk</code></p><p><code>– Tag stilling til det, du beskriver</code></p><p><code>– Fokusér på følelser, sansninger og reaktioner</code></p><p><code>– Vær reflekterende og selvbevidst</code></p><p><code>– Afslut med en tanke, der klinger ud som en eftersmag<br></code></p><p><code>Skriv artiklen nu i Liv Brandts stil.</code></p>"
+}

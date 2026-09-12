@@ -32,36 +32,36 @@ export const EDITORIAL_ARTICLE_TYPE_OPTIONS: EditorialArticleTypeOption[] = [
     id: 'short-news',
     label: 'Kort nyhed',
     description: 'Hurtig, skarp og aktuel',
-    targetWordCount: 550,
-    targetLengthLabel: '450-650 ord',
+    targetWordCount: 400,
+    targetLengthLabel: '300-500 ord',
   },
   {
     id: 'review',
     label: 'Anmeldelse',
     description: 'Vurdering med oplevelse og kontekst',
-    targetWordCount: 950,
-    targetLengthLabel: '800-1100 ord',
+    targetWordCount: 675,
+    targetLengthLabel: '500-850 ord',
   },
   {
     id: 'feature',
     label: 'Feature',
     description: 'Fortællende kulturartikel',
-    targetWordCount: 1250,
-    targetLengthLabel: '1100-1400 ord',
+    targetWordCount: 750,
+    targetLengthLabel: '600-900 ord',
   },
   {
     id: 'analysis',
     label: 'Analyse',
     description: 'Kontekst, mønstre og konsekvens',
-    targetWordCount: 1050,
-    targetLengthLabel: '900-1200 ord',
+    targetWordCount: 750,
+    targetLengthLabel: '600-900 ord',
   },
   {
     id: 'commentary',
     label: 'Kommentar/essay',
     description: 'Tydelig holdning og refleksion',
-    targetWordCount: 1150,
-    targetLengthLabel: '1000-1300 ord',
+    targetWordCount: 600,
+    targetLengthLabel: '450-750 ord',
   },
   {
     id: 'longread',
@@ -73,7 +73,7 @@ export const EDITORIAL_ARTICLE_TYPE_OPTIONS: EditorialArticleTypeOption[] = [
 ];
 
 export function getEditorialArticleTypeOption(value?: string | null): EditorialArticleTypeOption {
-  return EDITORIAL_ARTICLE_TYPE_OPTIONS.find((option) => option.id === value) || EDITORIAL_ARTICLE_TYPE_OPTIONS[2];
+  return EDITORIAL_ARTICLE_TYPE_OPTIONS.find((option) => option.id === value) || EDITORIAL_ARTICLE_TYPE_OPTIONS[0];
 }
 
 export function normalizeEditorialText(input: unknown): string {
@@ -165,4 +165,3 @@ export function isEditorialTopicCovered(
     return candidateText.includes(coveredText) || coveredText.includes(candidateText);
   });
 }
-

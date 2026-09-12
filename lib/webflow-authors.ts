@@ -2,6 +2,7 @@
 
 import { env } from '@/lib/config/env';
 import { logger } from '@/lib/logger';
+import { fetchWebflowAuthorItems, webflowAuthorTov } from '@/lib/webflow/author-retrieval';
 
 export interface WebflowAuthor {
   id: string;
@@ -64,30 +65,16 @@ export class WebflowAuthors {
         };
       }
 
-      const response = await fetch(
-        `https://api.webflow.com/v2/collections/${this.authorsCollectionId}/items`,
-        {
-          headers: {
-            'Authorization': `Bearer ${this.apiKey}`,
-            'accept-version': '1.0.0'
-          }
-        }
-      );
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(`Webflow API error: ${errorData.message || response.statusText}`);
-      }
-
-      const result = await response.json();
+      const items = await fetchWebflowAuthorItems({ token: this.apiKey, collectionId: this.authorsCollectionId,
+        localeId: env.WEBFLOW_CMS_LOCALE_DK });
       
-      const authors: WebflowAuthor[] = result.items.map((item: any) => ({
+      const authors: WebflowAuthor[] = items.map(item => ({
         id: item.id,
         name: item.fieldData['author-name'] || item.fieldData.name,
-        slug: item.fieldData['author-slug'] || item.slug,
+        slug: item.fieldData['author-slug'] || item.fieldData.slug || item.slug || item.id,
         bio: item.fieldData['author-bio'] || item.fieldData.bio,
         image: item.fieldData['author-image'] || item.fieldData.image,
-        tov: item.fieldData['author-tov'] || ''
+        tov: webflowAuthorTov(item.fieldData)
       }));
 
       return {
