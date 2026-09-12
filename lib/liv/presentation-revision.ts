@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { FieldValue } from 'firebase-admin/firestore';
 import { z } from 'zod';
+import { load } from 'cheerio';
 import { getAdminDb } from '@/lib/firebase-admin';
 import { cmsFieldHash } from './cms-field-hash';
 import { livImageArticleHash } from './article-image-hash';
@@ -25,6 +26,20 @@ type Input = z.infer<typeof presentationRevisionInput>;
 type Row = Record<string, unknown> & { articleCheckpoint?: GeneratedArticle; preparationProof?: PreparationProof };
 const hash = (x: object) => cmsFieldHash(x as Record<string, unknown>);
 const fail = (code: string): never => { throw new Error(`liv_presentation_${code}`); };
+/** CMS image optimization legitimately rewrites delivery URLs/dimensions.
+ * Compare all prose, captions, alt text, order and other markup; the existing
+ * full CMS inspection separately verifies the saved derivative image bytes. */
+export function samePresentationBody(checkpoint: string, payload: string) {
+  const canonical = (html: string) => {
+    const $ = load(html);
+    $('img').each((_, element) => {
+      for (const key of ['src', 'srcset', 'width', 'height', 'style']) $(element).removeAttr(key);
+      if ('attribs' in element) element.attribs = Object.fromEntries(Object.entries(element.attribs).sort(([a], [b]) => a.localeCompare(b)));
+    });
+    return $('body').html();
+  };
+  return canonical(checkpoint) === canonical(payload);
+}
 export function presentationFields(before: Record<string, unknown>, patch: Input['patch']) {
   return { ...before, ...(patch.title ? { name: patch.title } : {}), 'seo-title': patch.seoTitle, 'meta-description': patch.seoDescription };
 }
@@ -80,7 +95,7 @@ export async function reviseLivPresentation(value: unknown) {
           !rows.length || rows.length >= 10 || rows.some(r => r.row.status !== 'draft' || !r.row.articleCheckpoint || !r.row.preparationProof ||
             r.row.preparationProof.editorialPassed !== true || r.row.preparationProof.structurePassed !== true ||
             r.row.preparationProof.hash !== input.expectedPayloadHash || hash(r.row.preparationProof.expected) !== input.expectedPayloadHash ||
-            r.row.articleCheckpoint.content !== payload.expected.content)) return fail('checkpoint_changed');
+            !samePresentationBody(r.row.articleCheckpoint.content, payload.expected.content))) return fail('checkpoint_changed');
         tx.create(auditRef, { input, cms, payload, rows, entry, createdAt: new Date().toISOString(),
           editorialReview: { kind: 'explicit-operator-copyedit', reason: input.reason, originalChecksPreserved: true } });
       } else if (!audit || hash(audit.input) !== inputHash || state.coverRevision?.id !== id) return fail('audit_invalid');

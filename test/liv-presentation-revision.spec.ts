@@ -31,7 +31,7 @@ vi.mock('@/lib/webflow/locale-items', () => ({ patchArticleFieldDataForLocale: i
 vi.mock('@/lib/seo-engine/cms-write-lease', () => ({ acquireCmsWriteLease: async () => ({ assertOwned: io.assertOwned, release: io.release }) }));
 vi.mock('@/lib/seo-engine/opportunity-engine/locale', () => ({ cmsLocaleIdFor: () => 'b'.repeat(24) }));
 vi.mock('@/lib/webflow-config', () => ({ getWebflowConfig: () => ({ articlesCollectionId: 'a'.repeat(24) }) }));
-import { reviseLivPresentation, presentationRevisionInput } from '@/lib/liv/presentation-revision';
+import { reviseLivPresentation, presentationRevisionInput, samePresentationBody } from '@/lib/liv/presentation-revision';
 import { cmsFieldHash } from '@/lib/liv/cms-field-hash';
 const id = 'c'.repeat(24);
 let cms: any, input: any;
@@ -91,4 +91,11 @@ it('blocks active publisher, mismatched CMS and unrelated fields', async () => {
 it('does not accept a failed original editorial proof',async()=>{
  database.rows.get('livDailyArticles/prepare-2026-09-15')!.preparationProof.editorialPassed=false;
  await expect(reviseLivPresentation(input)).rejects.toThrow('checkpoint_changed');expect(io.patch).not.toHaveBeenCalled();
+});
+
+it('accepts only delivery image attributes changing between paid checkpoint and CMS payload',()=>{
+ const a='<p>Preserved prose</p><figure><img src="original.webp" alt="Actual subject" width="1536" height="1024" style="max-width:100%"><figcaption>Actual source credit</figcaption></figure>';
+ const b=a.replace('original.webp','optimized.webp').replace('1536','1200').replace('1024','800').replace('max-width:100%','max-width: 100%;');
+ expect(samePresentationBody(a,b)).toBe(true);
+ for(const changed of [b.replace('Preserved prose','Different claim'),b.replace('Actual subject','Invented subject'),b.replace('Actual source credit','Invented credit')]) expect(samePresentationBody(a,changed)).toBe(false);
 });
