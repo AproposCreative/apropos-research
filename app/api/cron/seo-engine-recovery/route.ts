@@ -1,6 +1,7 @@
 import { after, NextRequest, NextResponse } from 'next/server';
 import { listRecoverableQualityJobs } from '@/lib/seo-engine/post-publish/jobs';
 import { runProductionQualityJob } from '@/lib/seo-engine/post-publish/runtime';
+import { discoverPublishedQualityJobs } from '@/lib/seo-engine/post-publish/discovery';
 import { resolveAutoSeoEngineEnabled } from '@/lib/seo-engine/settings';
 import { listQueuedSeoEngineJobs } from '@/lib/seo-engine/jobs';
 import { kickSeoEngineJob } from '@/lib/seo-engine/enqueue';
@@ -25,9 +26,11 @@ export async function GET(req: NextRequest) {
     // Awaited background work is bounded by this route's duration. Each worker
     // handles its own gate, including read-only reconciliation while stopped.
     after(async () => {
-      const outcomes = await Promise.allSettled(qualityJobs.map(runProductionQualityJob));
+      const outcomes = await Promise.allSettled([
+        ...qualityJobs.map(runProductionQualityJob), discoverPublishedQualityJobs(),
+      ]);
       outcomes.forEach((outcome, index) => {
-        if (outcome.status === 'rejected') logger.warn('[seo-quality] recovery worker failed', { jobId: qualityJobs[index] });
+        if (outcome.status === 'rejected') logger.warn('[seo-quality] recovery worker failed', { jobId: qualityJobs[index] || 'discovery' });
       });
     });
     const runtime = await resolveAutomaticOpportunityRuntime();

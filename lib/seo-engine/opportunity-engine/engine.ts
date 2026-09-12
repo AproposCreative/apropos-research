@@ -499,6 +499,9 @@ export async function runOpportunityScan(
   const report = baseReport({
     status,
     statusMessage,
+    comparison: { currentStart: windows.currentStart, currentEnd: windows.currentEnd,
+      previousStart: windows.previousStart, previousEnd: windows.previousEnd,
+      complete: prevRes.ok && currentRows.length < GSC_ROW_CAP && previousRows.length < GSC_ROW_CAP },
     gscConfigured: true,
     ga4Configured,
     scannedPages: toFetch.length,

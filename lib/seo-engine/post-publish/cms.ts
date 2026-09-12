@@ -25,6 +25,22 @@ async function readItem(itemId: string, cmsLocaleId: string, live: boolean): Pro
   return response.json();
 }
 
+export async function listPublishedArticlePage(locale: 'da' | 'en', offset: number, limit = 50): Promise<{ items: CmsSnapshot[]; total: number }> {
+  const { token, collectionId } = runtimeConfig();
+  if (!Number.isInteger(offset) || offset < 0 || !Number.isInteger(limit) || limit < 1 || limit > 100) throw new Error('seo_invalid_page');
+  const cmsLocaleId = cmsLocaleIdFor(locale);
+  if (!cmsLocaleId) throw new Error('seo_webflow_locale_missing');
+  const query = new URLSearchParams({ cmsLocaleId, offset: String(offset), limit: String(limit) });
+  const response = await fetch(`https://api.webflow.com/v2/collections/${encodeURIComponent(collectionId)}/items/live?${query}`, {
+    headers: { Authorization: `Bearer ${token}` }, cache: 'no-store', signal: AbortSignal.timeout(20_000),
+  });
+  if (!response.ok) throw new Error(`seo_webflow_list_${response.status}`);
+  const data = await response.json();
+  if (!Array.isArray(data.items) || !Number.isInteger(data.pagination?.total) || data.pagination.total < 0 ||
+    data.items.some((item: CmsSnapshot) => !item.id || item.cmsLocaleId !== cmsLocaleId || !item.fieldData)) throw new Error('seo_invalid_live_page');
+  return { items: data.items, total: data.pagination.total };
+}
+
 export async function readPublishedArticle(itemId: string, locale: 'da' | 'en') {
   const cmsLocaleId = cmsLocaleIdFor(locale);
   if (!cmsLocaleId) throw new Error('seo_webflow_locale_missing');

@@ -191,6 +191,9 @@ export async function POST(req: NextRequest) {
         } else if (enq.enqueued && enq.jobId) {
           seoEngineQueued.push(enq.jobId);
         }
+        if (enq.needsRetry) {
+          seoEngineErrors.push({ itemId, error: 'SEO quality enqueue incomplete; retry required' });
+        }
       } catch (e) {
         const message = e instanceof Error ? e.message : String(e);
         logger.warn('[webhooks/webflow] seo-engine enqueue failed', { itemId, message });

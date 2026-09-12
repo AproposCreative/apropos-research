@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireSeoEngineUser } from '@/lib/seo-engine/require-auth';
 import { mapPipelineError } from '@/lib/seo-engine/http';
 import { runOpportunityScan } from '@/lib/seo-engine/opportunity-engine/engine';
-import { maybeAutoApplyOpportunities } from '@/lib/seo-engine/opportunity-engine/apply';
+import { enqueuePerformanceReviews } from '@/lib/seo-engine/post-publish/performance';
 
 export const runtime = 'nodejs';
 export const maxDuration = 120;
@@ -30,14 +30,11 @@ export async function POST(req: NextRequest) {
       mode,
     });
 
-    let autoApply: { applied: string[]; skipped: Array<{ id: string; reason: string }> } | null =
+    let autoApply: { applied: string[]; queued?: string[]; skipped: Array<{ id: string; reason: string }> } | null =
       null;
     const shouldApply = body.autoApply === true && mode === 'optimize';
     if (shouldApply) {
-      autoApply = await maybeAutoApplyOpportunities({
-        opportunities: report.opportunities,
-        actor: auth.userId,
-      });
+      autoApply = { applied: [], ...await enqueuePerformanceReviews(report) };
     }
 
     return NextResponse.json({

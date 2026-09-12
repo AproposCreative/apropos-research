@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireCronSecret } from '@/lib/seo-engine/secret-guards';
 import { runOpportunityScan } from '@/lib/seo-engine/opportunity-engine/engine';
-import { maybeAutoApplyOpportunities } from '@/lib/seo-engine/opportunity-engine/apply';
+import { enqueuePerformanceReviews } from '@/lib/seo-engine/post-publish/performance';
 import {
   claimOpportunityCronSlot,
   completeOpportunityCronSlot,
@@ -12,7 +12,7 @@ import { logger } from '@/lib/logger';
 /**
  * Idempotent daily collect / weekly optimize.
  * Daily: gather GSC/GA4 opportunities (no writes).
- * Weekly: optimize — auto-apply up to 10 with guardrails.
+ * Weekly: enqueue up to 10 evidence-based reviews; the quality worker verifies publication.
  * Failed runs release the lease so the next tick can retry.
  */
 export async function handleOpportunityCron(
@@ -50,13 +50,10 @@ export async function handleOpportunityCron(
       limit: cadence === 'weekly' ? 10 : 40,
     });
 
-    let autoApply: { applied: string[]; skipped: Array<{ id: string; reason: string }> } | null =
+    let autoApply: { applied: string[]; queued?: string[]; skipped: Array<{ id: string; reason: string }> } | null =
       null;
     if (cadence === 'weekly' && report.status !== 'auto_disabled' && report.status !== 'missing_gsc') {
-      autoApply = await maybeAutoApplyOpportunities({
-        opportunities: report.opportunities,
-        actor: `system:cron-opportunities:${cadence}`,
-      });
+      autoApply = { applied: [], ...await enqueuePerformanceReviews(report) };
     }
 
     await completeOpportunityCronSlot({
@@ -73,6 +70,7 @@ export async function handleOpportunityCron(
       statusMessage: report.statusMessage,
       opportunityCount: report.opportunityCount,
       appliedCount: autoApply?.applied.length ?? 0,
+      queuedCount: autoApply?.queued?.length ?? 0,
       skippedCount: autoApply?.skipped.length ?? 0,
       autoApply,
     });

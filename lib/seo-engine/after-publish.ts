@@ -12,6 +12,8 @@ import type { SeoEngineJob } from '@/lib/seo-engine/jobs';
 
 export type AfterPublishEnqueueResult = {
   enqueued: boolean;
+  /** Durable enqueue failed for at least one locale; successful siblings do not mask it. */
+  needsRetry?: boolean;
   jobIds?: string[];
   /** @deprecated use jobIds — kept for older callers/tests */
   jobId?: string;
@@ -63,6 +65,7 @@ export async function maybeEnqueueSeoEngineAfterPublish(args: {
     const jobIds: string[] = [];
     const skippedLocales: Array<{ locale: 'da' | 'en'; reason: string }> = [];
     let enqueueAttempted = false;
+    let needsRetry = false;
 
     for (const locale of locales) {
       const cmsLocaleId = cmsLocaleIdFor(locale);
@@ -80,6 +83,7 @@ export async function maybeEnqueueSeoEngineAfterPublish(args: {
           kickQualityJob(enq.jobId);
         } else skippedLocales.push({ locale, reason: enq.reason || 'quality_not_enqueued' });
       } catch (localeErr) {
+        needsRetry = true;
         skippedLocales.push({
           locale,
           reason: localeErr instanceof Error ? localeErr.message : 'locale_fetch_failed',
@@ -101,9 +105,10 @@ export async function maybeEnqueueSeoEngineAfterPublish(args: {
             ? 'no_published_locale'
             : 'no_quality_jobs',
         skippedLocales,
+        needsRetry,
       };
     }
-    return { enqueued: true, jobIds, jobId: jobIds[0], skippedLocales };
+    return { enqueued: true, jobIds, jobId: jobIds[0], skippedLocales, needsRetry };
   } catch (e) {
     logger.warn('[seo-engine] after-publish enqueue failed (non-blocking)', {
       itemId,
@@ -111,6 +116,7 @@ export async function maybeEnqueueSeoEngineAfterPublish(args: {
     });
     return {
       enqueued: false,
+      needsRetry: true,
       reason: e instanceof Error ? e.message : 'enqueue_failed',
     };
   }

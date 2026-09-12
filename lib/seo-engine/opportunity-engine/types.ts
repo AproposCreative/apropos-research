@@ -103,6 +103,10 @@ export type OpportunityScanStatus =
 export type OpportunityScanMode = 'collect' | 'optimize';
 
 export type OpportunityScanReport = {
+  comparison?: {
+    currentStart: string; currentEnd: string; previousStart: string; previousEnd: string;
+    complete: boolean;
+  };
   schemaVersion: 2;
   kind: 'seo-opportunity-scan';
   scanId: string;

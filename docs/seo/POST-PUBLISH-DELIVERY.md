@@ -17,7 +17,7 @@ plus later optimization grounded in Search Console and GA4 results.
 - New `post-publish/review.ts` reviews both filled fields using article content,
   then independently checks proposed changes. Strict output parsing, no fake
   fallback, no silent article truncation. Calls are dependency-injected.
-- 48 targeted tests and full `tsc --noEmit` pass with existing local runtime; no live model call,
+- 368 SEO regression tests pass with existing local runtime; no live model call,
   CMS change or deployment yet. The reused dependency tree differs from this
   release lockfile: these isolated tests are not a full build verification.
 - Added atomic Firestore model-stage persistence, saved-response replay,
@@ -41,8 +41,25 @@ plus later optimization grounded in Search Console and GA4 results.
   dispatch is supplemented by the existing 15-minute recovery route, now with
   a 300-second budget for up to two workers. No Vercel schedule changed.
 - Regression tests cover both DA/EN and filled metadata. Still inspect the
-  Webflow webhook's partial-failure handling and prove all publishing paths in
+  full Webflow webhook and prove all publishing paths in
   integration; new code has not reached production.
+- Fixed partial-failure propagation: after-publish now returns `needsRetry` and
+  the webhook includes it in its existing 503/retry decision, even if another
+  locale was successfully queued.
+- Recovery now also runs one 50-item live-CMS discovery page. A leased Firestore
+  cursor cycles through all DA then EN pages, advancing only after enqueue
+  succeeds. Discovery performs no CMS writes; actual staged/live comparison is
+  repeated by the worker before model calls and writes.
+- Existing opportunity scans now preserve explicit equal comparison windows and
+  whether both GSC fetches completed without reaching their row cap. Weekly and
+  explicit manual optimization now enqueue the same quality worker instead of
+  directly writing heuristic proposals. Jobs include actual query/CTR/position,
+  previous-period values and available GA4 engagement context. Queued counts are
+  distinct from applied counts; missing GA4 remains null, never fabricated zero.
+- Remaining release work includes editorial UI/locks/history, uniqueness checks,
+  transaction integration tests, actual analytics/publication verification and
+  deployment coordination. Performance observations after metadata changes and
+  lock/cooldown compatibility with manual legacy SEO writers need audit.
 
 ## Required work before claiming completion
 

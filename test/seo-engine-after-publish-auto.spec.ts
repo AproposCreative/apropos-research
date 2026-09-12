@@ -76,7 +76,18 @@ describe('after-publish automatic metadata quality review', () => {
 
     await expect(
       maybeEnqueueSeoEngineAfterPublish({ itemId: 'item1' })
-    ).resolves.toMatchObject({ enqueued: false });
+    ).resolves.toMatchObject({ enqueued: false, needsRetry: true });
+  });
+
+  it('reports a failed locale even when its sibling was queued successfully', async () => {
+    vi.mocked(resolveAutomaticOpportunityRuntime).mockResolvedValue({ killSwitchEnabled: true,
+      connectionsHealthyForOptimize: true, canAutoFillOnPublish: true, shouldAutoOptimize: true,
+      shouldAutoFillOnPublish: true, connectionSummary: 'ok' });
+    vi.mocked(fetchArticleItemByLocale).mockResolvedValueOnce({ id: 'item1', fieldData: {}, lastPublished: '2026-09-12' })
+      .mockRejectedValueOnce(new Error('EN read failed'));
+    expect(await maybeEnqueueSeoEngineAfterPublish({ itemId: 'item1' })).toMatchObject({
+      enqueued: true, jobIds: ['job-da'], needsRetry: true,
+    });
   });
 
   it('skips when emergency stopped even if legacy empty-fill is enabled', async () => {
