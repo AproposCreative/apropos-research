@@ -9,9 +9,10 @@ import { livImageArticleHash } from '@/lib/liv/article-image-hash';
 import { loadRecoverableWritingBrief } from '@/lib/liv/source-archive';
 import { parseLivArticleOutput } from '@/lib/liv/article-output';
 import type { LivDailyPlan } from '@/lib/liv/daily-plan-store';
+import { isLivArticleFormat, type LivArticleFormat } from '@/lib/liv/review-format';
 
 export type PreparationRetry = { dayKey: string; kind: 'scheduled' | 'reserve'; requestId: string; reason: string;
-  plan?: { topicHint: string; directiveHint: string }; resumeWritingRunId?: string; scope?: 'prepare-alternative' | 'reserve-editorial';
+  plan?: { topicHint: string; directiveHint: string; articleFormat?: LivArticleFormat }; resumeWritingRunId?: string; scope?: 'prepare-alternative' | 'reserve-editorial';
   allowOriginalityRevision?: true };
 
 /** Explicit operator retry, not a reset. Retain the full previous run and paid
@@ -28,7 +29,8 @@ export async function authorizePreparationRetry(input: PreparationRetry, lease?:
     throw new Error('liv_retry_invalid');
   }
   if (input.plan && (input.kind !== 'scheduled' || typeof input.plan.topicHint !== 'string' ||
-    typeof input.plan.directiveHint !== 'string' || input.plan.topicHint.length > 500 || input.plan.directiveHint.length > 6000)) {
+    typeof input.plan.directiveHint !== 'string' || input.plan.topicHint.length > 500 || input.plan.directiveHint.length > 6000 ||
+    (input.plan.articleFormat !== undefined && !isLivArticleFormat(input.plan.articleFormat)))) {
     throw new Error('liv_retry_invalid');
   }
   if (input.resumeWritingRunId && (input.plan || !/^[a-f0-9-]{36}$/.test(input.resumeWritingRunId))) {
@@ -135,7 +137,7 @@ export async function authorizePreparationRetry(input: PreparationRetry, lease?:
           articleCheckpointHash: recovery.checkpointHash, checkpointEvidenceHash: recovery.checkpointEvidenceHash }),
         allowOriginalityRevision: input.allowOriginalityRevision === true } : {}) });
     if (input.plan) tx.set(planRef, { dayKey: input.dayKey, topicHint: input.plan.topicHint.trim() || null,
-      directiveHint: input.plan.directiveHint.trim() || null, expandedDirective: null, articleFormat: 'article',
+      directiveHint: input.plan.directiveHint.trim() || null, expandedDirective: null, articleFormat: input.plan.articleFormat || 'article',
       mustUseTrending: false, status: 'pending', failedReason: null, usedAt: null,
       updatedAt: FieldValue.serverTimestamp(), createdAt: previousPlan?.createdAt ?? FieldValue.serverTimestamp(),
       createdBy: 'liv-api-operator' });

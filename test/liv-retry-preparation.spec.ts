@@ -59,6 +59,19 @@ it('never changes the topic attached to already-paid work', async () => {
   expect(state.writes).not.toHaveBeenCalled();
 });
 
+it('preserves an explicitly requested review format in a replacement plan', async () => {
+  delete state.row.articleCheckpoint;
+  await authorizePreparationRetry({ ...input, plan: { topicHint: 'Klovn', directiveHint: 'To stjerner', articleFormat: 'research-review' } });
+  expect(state.plan.articleFormat).toBe('research-review');
+});
+
+it('rejects unsupported replacement formats before granting a retry', async () => {
+  delete state.row.articleCheckpoint;
+  await expect(authorizePreparationRetry({ ...input, plan: { topicHint: 'Klovn', directiveHint: '', articleFormat: 'unknown' as any } })).rejects.toThrow('invalid');
+  expect(state.writes).not.toHaveBeenCalled();
+  expect(state.creates).not.toHaveBeenCalled();
+});
+
 it('attaches an explicit paid writer recovery pointer without replacing its topic or counters', async () => {
   state.row = { status: 'failed', topic: 'Saved topic', preparationAttempts: 6 };
   const resumeWritingRunId = '4f5f2284-420d-4622-ac68-b42c0bc18ffd';
