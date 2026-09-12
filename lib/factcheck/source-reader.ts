@@ -143,7 +143,10 @@ export function parseSourceHtml(url: string, html: string, id: string, now = Dat
       publishedAt = publicationDate(`${year}-${month}-${day}`, now);
     }
   }
-  $('script,style,noscript,nav,header,footer,form,iframe,svg,[hidden],[aria-hidden="true"]').remove();
+  // Article headers carry real headlines, bylines and standfirsts. Only the
+  // site's outer navigation header is boilerplate, not the article's header.
+  $('header').filter((_, element) => !$(element).closest('article').length).remove();
+  $('script,style,noscript,nav,footer,form,iframe,svg,[hidden],[aria-hidden="true"]').remove();
   const tudum = isLivTudumSource(url);
   const tudumContent = $('[data-uia="article-content"][data-sel="article-content"]');
   if (tudum && tudumContent.length !== 1) throw new Error('Ingen entydig Tudum-artikeltekst i kilden.');

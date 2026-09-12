@@ -14,6 +14,13 @@ const assessment = () => ({ units: [{ id: 'u1', opinionOnly: false, claims: [{ c
 const sources = () => [source(), source('s2', 'https://kultur.dk/nyhed')];
 
 describe('source-grounded verification', () => {
+  it('retains article headline and byline evidence while dropping site navigation headers', () => {
+    const result = parseSourceHtml('https://culture.dk/review', `<header>Site menu</header><article><header><h1>A cultural review</h1><p>Af Alexander Grevy</p><nav>Share menu</nav></header><p>${'Documented cultural context. '.repeat(15)}</p></article>`, 's1', now);
+    expect(result.text).toContain('A cultural review');
+    expect(result.text).toContain('Af Alexander Grevy');
+    expect(result.text).not.toContain('Site menu');
+    expect(result.text).not.toContain('Share menu');
+  });
   it('accepts matching evidence from two dated source hosts for this exact article', () => {
     const report = assessGroundedReport(text, sources(), assessment(), now);
     expect(report.complete).toBe(true);

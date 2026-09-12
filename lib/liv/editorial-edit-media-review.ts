@@ -17,7 +17,7 @@ const fail = (): never => { throw new Error('liv_edit_media_requires_reconciliat
 
 /** One visual-only check of an immutable operator edit. No text rewrite, image
  * generation or quality approval. Paid/ambiguous attempts cannot be repeated. */
-export async function reviewLivEditorialEditMedia(article: GeneratedArticle, dayKey: string): Promise<GeneratedArticle> {
+export async function reviewLivEditorialEditMedia(article: GeneratedArticle, dayKey: string, options: { readOnly?: boolean } = {}): Promise<GeneratedArticle> {
   const binding = article.selectedImage?.editorialEdit;
   if (!binding || binding.runId !== `prepare-${dayKey}` || !/^\d{4}-\d{2}-\d{2}$/.test(dayKey) ||
     !/^[a-zA-Z0-9_-]{8,100}$/.test(binding.requestId)) fail();
@@ -64,6 +64,7 @@ export async function reviewLivEditorialEditMedia(article: GeneratedArticle, day
   const saved = (await receiptRef.get()).data();
   const cached = readResult(saved);
   if (cached) return cached;
+  if (options.readOnly) fail(); // Evidence consumers must never create/retry a paid review.
   if (saved && !(saved.status === 'not_started' && saved.providerAttempted === false &&
     saved.auditHash === auditHash && saved.inputHash === audit.checkpointHash &&
     /^liv_cost_[a-z_]+$/.test(saved.code || '') && /^[a-f0-9-]{36}$/.test(saved.attemptId || ''))) fail();

@@ -1,6 +1,9 @@
 import { beforeEach, afterEach, expect, it, vi } from 'vitest';
 const state = vi.hoisted(() => ({ rows: new Map<string, any>(), create: vi.fn(), retrieve: vi.fn(),
-  available: true, failSave: false, queue: Promise.resolve() as Promise<unknown> }));
+  available: true, failSave: false, queue: Promise.resolve() as Promise<unknown>, visual: vi.fn() }));
+vi.mock('@/lib/liv/visual-evidence', async original => ({
+  ...await original<typeof import('@/lib/liv/visual-evidence')>(), readLivVisualEvidence: state.visual,
+}));
 vi.mock('@/lib/openai', () => ({ models: { default: 'test' }, getOpenAIClient: () => ({ chat: { completions: { create: state.create } } }) }));
 vi.mock('@/lib/api/middleware-auth', () => ({ isApiRequestAuthorized: async () => true }));
 vi.mock('@/lib/liv/source-similarity', () => ({ checkSourceSimilarity: async () => ({ pass: true, complete: true,
@@ -33,6 +36,7 @@ import { POST } from '@/app/api/factcheck/route';
 import { NextRequest } from 'next/server';
 import { currentLivCostContext, withLivCostContext, LIV_COST_HEADER } from '@/lib/liv/cost-context';
 import { LivCostPretransportError } from '@/lib/liv/cost-errors';
+import { cmsFieldHash } from '@/lib/liv/cms-field-hash';
 
 const claim = 'Koncerten afholdes den 5. november 2026 i København.';
 const urls = ['https://primary.example/news', 'https://secondary.example/news'];
@@ -58,6 +62,91 @@ beforeEach(() => {
   });
 });
 afterEach(() => { vi.useRealTimers(); vi.unstubAllEnvs(); vi.unstubAllGlobals(); });
+
+const visible = 'To mænd går side om side på en vinterlig bygade.';
+const visualReference = { runId: 'prepare-2026-09-15', checkpointHash: 'b'.repeat(64) };
+function visualFixture() {
+  const fields = { title: 'En anmeldelse', content: `<p>${claim}</p><figure><img alt="${visible}"><figcaption>Byens sociale uro.</figcaption></figure>` };
+  const text = `${fields.title}\n\n${fields.content}`;
+  const source = { id: 'visual-body-1-alt', url: 'https://storage.googleapis.com/fixture/body-1.webp', title: 'Serververificeret billedobservation',
+    text: visible, contentHash: 'c'.repeat(64), retrievedAt: new Date().toISOString(), publishedAt: null,
+    evidenceKind: 'verified-image-observation', imageHash: 'd'.repeat(64), receiptHash: 'e'.repeat(64), unitIds: ['u1'] };
+  state.visual.mockResolvedValue([source]);
+  state.create.mockImplementation(async () => {
+    const raw = rawFor(text);
+    raw.units[0].claims.push({ claim: visible, status: 'verified', explanation: 'Den anonyme beskrivelse er kontrolleret mod de præcise billedbytes.',
+      citations: [{ sourceId: source.id, quote: visible }] });
+    return response(raw);
+  });
+  return { fields, text, source };
+}
+it('validates exact visual observations beside real textual facts without changing the article hash or weakening citations', async () => {
+  const { fields, text } = visualFixture();
+  const report = await assessLivEditorialArticle(text, urls, fields, visualReference);
+  expect(isCompleteGroundedReport(report, text)).toBe(true);
+  expect(report.visualContextHash).toBe(cmsFieldHash(visualReference));
+  expect(report.results.map(row => row.claim)).toEqual([claim, visible]);
+  expect(report.sources.at(-1)).toMatchObject({ publishedAt: null, evidenceKind: 'verified-image-observation' });
+  expect(state.visual).toHaveBeenCalledWith(visualReference, text, fields);
+  const request = state.create.mock.calls[0][0];
+  expect(request.messages[0].content).toContain('source.text');
+  expect(request.messages[0].content).toContain('Brug aldrig source.title');
+  expect(JSON.parse(request.messages[1].content).units.map((unit: any) => unit.text).join('')).toBe(text);
+  await assessLivEditorialArticle(text, urls, fields, visualReference);
+  expect(state.visual).toHaveBeenCalledTimes(2); expect(state.create).toHaveBeenCalledOnce(); // revalidate receipt, reuse paid assessment
+});
+it.each(['identity', 'fragment', 'other-unit', 'assembled-quote', 'redundant-invalid-citation', 'text-only-one-host'])(
+  'never promotes out-of-scope or incomplete visual/text evidence: %s', async failure => {
+    const { fields, text, source } = visualFixture();
+    if (failure === 'text-only-one-host') state.retrieve.mockImplementation(async (url: string, id: string) => ({
+      id, url, title: 'Koncert', text: claim.repeat(8), contentHash: 'a'.repeat(64), retrievedAt: new Date().toISOString(),
+      publishedAt: id === 's1' ? '2026-09-09T10:00:00Z' : null }));
+    state.create.mockImplementation(async () => {
+      const raw = rawFor(text);
+      const row = { claim: visible, status: 'verified', explanation: 'Fixture', citations: [{ sourceId: source.id, quote: visible }] };
+      if (failure === 'identity') row.claim = 'Frank går på gaden.';
+      if (failure === 'fragment') row.claim = 'To mænd går side om side';
+      if (failure === 'assembled-quote') row.citations[0].quote = `${visible} Flere oplysninger.`;
+      if (failure === 'other-unit') state.visual.mockResolvedValue([{ ...source, unitIds: ['u2'] }]);
+      if (failure === 'redundant-invalid-citation') raw.units[0].claims[0].citations.push({ sourceId: source.id, quote: visible });
+      raw.units[0].claims.push(row);
+      return response(raw);
+    });
+    if (failure === 'other-unit') state.visual.mockResolvedValue([{ ...source, unitIds: ['u2'] }]);
+    const report = await assessLivEditorialArticle(text, urls, fields, visualReference);
+    expect(isCompleteGroundedReport(report, text)).toBe(false);
+    if (failure === 'text-only-one-host') expect(state.create).not.toHaveBeenCalled();
+  });
+it('routes only authenticated exact-reference visual handoff and rejects client caption/pass inputs', async () => {
+  const { fields, text } = visualFixture();
+  vi.stubEnv('INTERNAL_API_SECRET', 'fixture-secret');
+  const body = { articleText: text, sourceUrls: urls, editorialReview: 'liv-v1', editorialFields: fields, visualReference };
+  const request = (value: unknown, secret?: string) => new NextRequest('http://localhost/api/factcheck', {
+    method: 'POST', body: JSON.stringify(value), headers: secret ? { 'x-internal-api-secret': secret } : {},
+  });
+  expect((await POST(request(body))).status).toBe(401);
+  expect((await POST(request({ ...body, visualReference: { ...visualReference, pass: true, caption: visible } }, 'fixture-secret'))).status).toBe(400);
+  expect(state.visual).not.toHaveBeenCalled(); expect(state.create).not.toHaveBeenCalled();
+  expect((await POST(request(body, 'fixture-secret'))).status).toBe(200);
+});
+it('passes the pointer through final safety gates, revalidates visual receipts on resume and blocks mismatched handoffs', async () => {
+  const { fields, text } = visualFixture();
+  vi.stubEnv('INTERNAL_API_SECRET', 'fixture-secret');
+  const fetchMock = vi.fn(async (url: string, options: RequestInit) => url.endsWith('/api/moderation/check')
+    ? Response.json({ data: { metrics: { wordCount: 600, plagiarismRisk: 'low' } } }) : POST(new NextRequest(url, options)));
+  vi.stubGlobal('fetch', fetchMock);
+  const input = { baseUrl: 'http://localhost', ...fields, editorialFields: fields, sourceUrls: urls,
+    sourceExcerpt: claim.repeat(3), requireCompleteVerification: true, visualReference };
+  const first = await runSafetyGates(input);
+  expect(first.pass).toBe(true);
+  const priorFactcheck = first.results.find(result => result.name === 'factcheck')!.evidence;
+  expect(isCompleteGroundedReport(priorFactcheck, text)).toBe(true);
+  expect((await runSafetyGates({ ...input, priorFactcheck })).pass).toBe(true);
+  expect(state.visual).toHaveBeenCalledTimes(2); expect(state.create).toHaveBeenCalledOnce();
+  state.visual.mockRejectedValue(new Error('liv_visual_evidence_invalid'));
+  expect((await runSafetyGates({ ...input, priorFactcheck })).pass).toBe(false);
+  expect(state.create).toHaveBeenCalledOnce();
+});
 
 it('checks every unit and Liv editorial criteria in ONE bounded call, retaining raw output and usage', async () => {
   const text = Array.from({ length: 4 }, () => `${claim}\n${'Jeg bliver nysgerrig på den fælles oplevelse. '.repeat(30)}`).join('\n\n');

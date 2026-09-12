@@ -31,6 +31,7 @@ import { livImageArticleHash } from '@/lib/liv/article-image-hash';
 import { applyLivFactPatches, resumeLivFactRevision } from '@/lib/liv/fact-revision';
 import { LivCostPretransportError } from '@/lib/liv/cost-errors';
 import type { GeneratedArticle } from '@/lib/liv/generate-article';
+import { readLivVisualEvidence, isAnonymousVisibleCaption } from '@/lib/liv/visual-evidence';
 const day = '2026-09-15', runId = `prepare-${day}`, requestId = 'final-copyedit-fixture';
 const path = `livDailyArticles/${runId}/editorialEdits/${requestId}`, checkPath = `${path}/checks/visual-review`;
 const digest = (bytes: Buffer) => createHash('sha256').update(bytes).digest('hex');
@@ -67,6 +68,75 @@ beforeEach(async () => {
   state.read.mockImplementation(async url => state.assets.get(url)); state.chat.mockResolvedValue(response());
 });
 afterEach(() => expect(state.generate).not.toHaveBeenCalled());
+
+async function photographicCheckpoint() {
+  const audit = state.rows.get(path);
+  const original = structuredClone(audit.previousArticle) as GeneratedArticle;
+  const alts = ['Et pressefoto.', 'To mænd går side om side på en vinterlig bygade.',
+    'En mand og en kvinde står uden for en café med hver sin kaffekop.'];
+  original.preparedMedia = original.preparedMedia!.map((image, i) => {
+    const caption = i === 1 ? 'En gåtur gennem byen med en underspillet, anspændt stemning.' : 'Et hverdagsøjeblik med social uro.';
+    original.content = original.content.replace(`alt="${image.alt}"`, `alt="${alts[i]}"`).replace(image.caption, caption);
+    return { ...image, kind: 'photography', alt: alts[i], caption };
+  });
+  original.selectedImage!.articleHash = livImageArticleHash(original);
+  const input = { ...audit.input, expectedArticleHash: livImageArticleHash(original), expectedCheckpointHash: fullHash(original) };
+  pending = applyLivFactPatches(original, input);
+  pending.selectedImage = { ...original.selectedImage!, visualReview: 'pending', editorialEdit: { runId, requestId } };
+  Object.assign(audit, { input, inputHash: cmsFieldHash(input), previousArticle: original, article: pending,
+    previousArticleHash: input.expectedArticleHash, previousCheckpointHash: input.expectedCheckpointHash,
+    checkpointHash: fullHash(pending), articleHash: livImageArticleHash(pending),
+    previousRun: { ...audit.previousRun, articleCheckpoint: original } });
+  const approved = await reviewLivEditorialEditMedia(pending, day);
+  state.rows.set(`livDailyArticles/${runId}`, { articleCheckpoint: approved, articleCheckpointHash: livImageArticleHash(approved) });
+  state.chat.mockClear(); state.writes.mockClear(); state.read.mockClear();
+  const fields = { title: approved.title, subtitle: approved.subtitle, excerpt: approved.excerpt, intro: approved.intro, content: approved.content };
+  const text = Object.values(fields).filter(Boolean).join('\n\n');
+  return { approved, fields, text, reference: { runId, checkpointHash: fullHash(approved) } };
+}
+
+it('hands off actual reviewed ALT observations, not interpretive captions, with unchanged bytes, audits and full article', async () => {
+  const { fields, text, reference } = await photographicCheckpoint();
+  const before = structuredClone([...state.rows]);
+  const evidence = await readLivVisualEvidence(reference, text, fields);
+  expect(evidence.map(source => source.text)).toEqual(['To mænd går side om side på en vinterlig bygade.',
+    'En mand og en kvinde står uden for en café med hver sin kaffekop.']);
+  expect(evidence.every(source => source.publishedAt === null && source.evidenceKind === 'verified-image-observation')).toBe(true);
+  expect(evidence.map(source => source.id)).toEqual(['visual-body-1-alt', 'visual-body-2-alt']);
+  expect(state.read).toHaveBeenCalledTimes(3); expect(state.chat).not.toHaveBeenCalled(); expect(state.writes).not.toHaveBeenCalled();
+  expect([...state.rows]).toEqual(before);
+});
+
+it.each(['missing', 'processing', 'refused', 'failed', 'receipt-hash', 'audit-hash', 'future', 'pixels', 'article', 'fields', 'client-pass'])(
+  'rejects invalid visual handoff %s without paid calls or writes', async failure => {
+    const { fields, text, reference } = await photographicCheckpoint();
+    const receipt = state.rows.get(checkPath);
+    if (failure === 'missing') state.rows.delete(checkPath);
+    if (failure === 'processing') receipt.status = 'processing';
+    if (failure === 'refused') receipt.refusal = true;
+    if (failure === 'failed') receipt.rawResponse = JSON.stringify({ pass: false, reason: 'Not visible' });
+    if (failure === 'receipt-hash') receipt.articleHash = 'f'.repeat(64);
+    if (failure === 'audit-hash') receipt.auditHash = 'f'.repeat(64);
+    if (failure === 'future') receipt.completedAt = '2099-01-01T00:00:00Z';
+    if (failure === 'pixels') state.read.mockResolvedValue(Buffer.from('changed pixels'));
+    if (failure === 'article') reference.checkpointHash = 'f'.repeat(64);
+    if (failure === 'fields') fields.content += '<p>Unreviewed content</p>';
+    await expect(readLivVisualEvidence(failure === 'client-pass' ? { ...reference, pass: true } : reference, text, fields)).rejects.toThrow();
+    expect(state.chat).not.toHaveBeenCalled(); expect(state.writes).not.toHaveBeenCalled();
+  });
+
+it.each(['Frank går side om side på en vinterlig bygade.', 'To mænd går side om side på en vinterlig bygade i København.',
+  'En mand og hans kone står uden for en café med hver sin kaffekop.', 'To mænd går side om side på en vinterlig bygade efter et mord.',
+  'En mand står uden for en café og er vred.', 'En mand står uden for en café. Han hedder Frank.'])(
+  'never admits identity, relationships, place names, events or emotion from pixels: %s', text => {
+    expect(isAnonymousVisibleCaption(text)).toBe(false);
+  });
+it.each(['En kvinde sidder på en bænk.', 'To personer står ved et bord.', 'En mand går på en gade.'])(
+  'supports reusable anonymous visible grammar: %s', text => expect(isAnonymousVisibleCaption(text)).toBe(true));
+it('read-only review mode never starts a missing provider receipt', async () => {
+  await expect(reviewLivEditorialEditMedia(pending, day, { readOnly: true })).rejects.toThrow('requires_reconciliation');
+  expect(state.chat).not.toHaveBeenCalled(); expect(state.writes).not.toHaveBeenCalled();
+});
 
 it.each(['pending', 'failed'])('accepts an audited yielded checkpoint with %s plan without rewriting paid work', async status => {
   const audit = state.rows.get(path);

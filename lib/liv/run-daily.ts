@@ -361,6 +361,10 @@ async function runLivDailyOperation(req: NextRequest, preparation?: LivPreparati
       editorialFields: { title: article.title, subtitle: article.subtitle, excerpt: article.excerpt,
         seoTitle: article.seoTitle, seoDescription: article.seoDescription, ratingReason: article.ratingReason,
         intro: article.intro, content: article.content },
+      ...(article.selectedImage?.editorialEdit ? { visualReference: {
+        runId: article.selectedImage.editorialEdit.runId,
+        checkpointHash: cmsFieldHash(article as unknown as Record<string, unknown>),
+      } } : {}),
       requireCompleteVerification: publicationMode === 'auto_publish' || !!preparation,
       timeoutMs: preparation ? 90_000 : undefined,
       priorFactcheck: preparation ? prepRow?.data()?.gateResults?.find((result: GateResult) => result.name === 'factcheck')?.evidence

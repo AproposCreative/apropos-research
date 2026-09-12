@@ -20,6 +20,8 @@ import { z } from 'zod';
 import { isLivAuthor, loadLivVoice } from '@/lib/liv/voice';
 import { editorialVerdictPasses, readLivEditorialEvidence, livEditorialFieldContext, type LivEditorialFields } from '@/lib/liv/editorial-assessment-contract';
 import { livCostHeaders } from '@/lib/liv/cost-context';
+import type { LivVisualReference } from './visual-evidence';
+import { cmsFieldHash } from './cms-field-hash';
 
 export interface SafetyGatesInput {
   baseUrl: string;
@@ -44,6 +46,8 @@ export interface SafetyGatesInput {
   timeoutMs?: number;
   /** Server-saved report only; reusable solely for the exact text within its freshness window. */
   priorFactcheck?: GroundedReport;
+  /** Pointer only; /api/factcheck resolves the exact saved audit and pixel proof. */
+  visualReference?: LivVisualReference;
 }
 
 export interface SafetyGatesOutput {
@@ -67,6 +71,7 @@ interface FactcheckResponse {
   blockers?: string[];
   editorialReview?: unknown;
   fieldContextHash?: string;
+  visualContextHash?: string;
   results?: Array<{
     claim?: string;
     status?: 'verified' | 'disputed' | 'unverifiable' | string;
@@ -85,6 +90,7 @@ const diagnosticReportSchema = z.object({
   policyVersion: z.string().optional(),
   articleHash: z.string().regex(/^[a-f0-9]{64}$/), checkedAt: z.string().datetime(), complete: z.boolean(),
   fieldContextHash: z.string().regex(/^[a-f0-9]{64}$/).optional(),
+  visualContextHash: z.string().regex(/^[a-f0-9]{64}$/).optional(),
   blockers: z.array(z.string()),
   coverage: z.object({ expectedUnits: z.number().int().positive(), checkedUnits: z.number().int().nonnegative() }),
   results: z.array(z.object({
@@ -250,7 +256,9 @@ export async function runSafetyGates(input: SafetyGatesInput): Promise<SafetyGat
   const sameSourceUrls = JSON.stringify([...new Set(sourceUrls)].sort()) ===
     JSON.stringify([...new Set(input.priorFactcheck?.sources?.map(source => source.url) || [])].sort());
   const sameFieldContext = !fieldContext || (input.priorFactcheck as FactcheckResponse | undefined)?.fieldContextHash === fieldContext.hash;
-  let fc: FactcheckResponse | null = sameFieldContext
+  // Visual evidence is re-resolved server-side on every attempt. Only the
+  // assessment's exact paid output can be cached, not a stale image proof.
+  let fc: FactcheckResponse | null = sameFieldContext && !input.visualReference
     ? isCompleteGroundedReport(input.priorFactcheck, factcheckText) && (!consolidated || (priorEditorial && sameSourceUrls))
       ? input.priorFactcheck! : reusableFailedReport(input.priorFactcheck, factcheckText, sourceUrls) || null
     : null;
@@ -260,6 +268,7 @@ export async function runSafetyGates(input: SafetyGatesInput): Promise<SafetyGat
       method: 'POST',
       headers: internalApiHeaders(livCostHeaders('/api/factcheck')),
       body: JSON.stringify({ articleText: factcheckText, sourceUrls, ...(consolidated ? { editorialReview: 'liv-v1',
+        ...(input.visualReference ? { visualReference: input.visualReference } : {}),
         ...(fieldContext ? { editorialFields: input.editorialFields } : {}) } : {}) }),
       cache: 'no-store',
       signal: AbortSignal.timeout(timeoutMs),
@@ -285,6 +294,7 @@ export async function runSafetyGates(input: SafetyGatesInput): Promise<SafetyGat
   // A contextual request cannot consume an old-method response, even on the
   // same text. This invalidates reuse, never edits or clears a failed verdict.
   if (fieldContext && fc?.fieldContextHash !== fieldContext.hash) fc = null;
+  if (input.visualReference && fc?.visualContextHash !== cmsFieldHash(input.visualReference)) fc = null;
 
   const fcUsable = fc != null && (fc.ok === true || (Array.isArray(fc.results) && fc.ok !== false));
 
