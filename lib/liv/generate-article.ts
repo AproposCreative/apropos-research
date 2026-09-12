@@ -61,6 +61,7 @@ export interface GeneratedArticle {
   researchSupplementedAt?: string;
   /** One audited factual correction. All final gates must run again. */
   factRevisionId?: string;
+  factRevisionCount?: number;
   rawResponse: string;
   aiModel?: string;
   voiceVersion?: string;

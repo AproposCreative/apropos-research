@@ -5,11 +5,19 @@ import { createHash } from 'node:crypto';
 import sharp from 'sharp';
 import { livImageArticleHash } from '@/lib/liv/article-image-hash';
 import { insertLivBodyMedia } from '@/lib/liv/automatic-media';
-const state = vi.hoisted(() => ({ row: null as any, calls: vi.fn(), retrieve: vi.fn(), readImage: vi.fn() }));
+const state = vi.hoisted(() => ({ row: null as any, rows: new Map<string, any>(), calls: vi.fn(), retrieve: vi.fn(), readImage: vi.fn() }));
 vi.mock('@/lib/firebase-admin', () => ({ getAdminDb: () => {
-  const ref = { get: async () => ({ data: () => state.row }), set: async (value: any) => { state.row = { ...state.row, ...value }; } };
-  return { collection: () => ({ doc: () => ref }), runTransaction: async (fn: any) => fn({
-    get: async () => ({ data: () => state.row }), create: (_ref: any, value: any) => { state.row = value; },
+  const doc = (id: string) => ({ id,
+    get: async () => ({ data: () => structuredClone(state.rows.get(id)) }),
+    set: async (value: any) => {
+      state.row = { ...state.rows.get(id), ...structuredClone(value) }; state.rows.set(id, state.row);
+    },
+  });
+  return { collection: () => ({ doc }), runTransaction: async (fn: any) => fn({
+    get: async (ref: ReturnType<typeof doc>) => ref.get(), create: (ref: ReturnType<typeof doc>, value: any) => {
+      if (state.rows.has(ref.id)) throw new Error('already-exists');
+      state.row = structuredClone(value); state.rows.set(ref.id, state.row);
+    },
   }) };
 } }));
 vi.mock('@/lib/openai', () => ({ getOpenAIClient: () => ({ chat: { completions: { create: state.calls } } }) }));
@@ -26,7 +34,7 @@ const report = (a: GeneratedArticle): any => ({ ok: true, verificationMethod: 'r
   coverage: { expectedUnits: 1, checkedUnits: 1 }, results: [{ claim: 'Bo er hans borgerlige navn.', status: 'unverifiable', evidence: 'Ikke dokumenteret', citations: [] }],
   checkedAt: new Date().toISOString(), blockers: ['Missing evidence'], sources: [] });
 beforeEach(() => {
-  vi.resetAllMocks(); state.row = null;
+  vi.resetAllMocks(); state.row = null; state.rows.clear();
   state.calls.mockResolvedValue({ choices: [{ finish_reason: 'stop', message: { content: JSON.stringify(patches) } }] });
   state.retrieve.mockImplementation(async (url: string) => ({ url, publishedAt: '2026-09-10T00:00:00Z', text: 'Kirketjeneren hedder Bo.' }));
 });
@@ -66,7 +74,7 @@ it('archives one provider result and replays the same saved revision without a s
 it.each(['other-version', 'second-attempt', 'incomplete-coverage'])('refuses %s before any paid call', async kind => {
   const a = article(); const r = report(a);
   if (kind === 'other-version') r.articleHash = 'old';
-  if (kind === 'second-attempt') a.factRevisionId = 'already-revised';
+  if (kind === 'second-attempt') { a.factRevisionId = 'already-revised'; a.factRevisionCount = 2; }
   if (kind === 'incomplete-coverage') r.coverage.checkedUnits = 0;
   await expect(repairLivArticleFacts(a, r)).rejects.toThrow('not_applicable');
   expect(state.calls).not.toHaveBeenCalled();
@@ -139,6 +147,105 @@ it('finds archived correction results without replacing them or paying again', a
   const a = article(); expect(await resumeLivFactRevision(a)).toBeNull();
   const revised = await repairLivArticleFacts(a, report(a));
   expect(await resumeLivFactRevision(a)).toEqual(revised);
-  expect(await resumeLivFactRevision(revised)).toBeNull();
+  expect(await resumeLivFactRevision({ ...revised, factRevisionCount: 2 })).toBeNull();
   expect(state.calls).toHaveBeenCalledTimes(1);
+});
+
+const secondClaim = 'Bo må stadig skifte mellem forskellige måder at være synlig på.';
+const secondPatches = { patches: [{ field: 'content', before: secondClaim,
+  after: 'Bo skifter mellem forskellige måder at være synlig på.' }] };
+async function firstRevision() {
+  const original = article();
+  original.content = original.content.replace('Et modargument.', secondClaim);
+  const first = await repairLivArticleFacts(original, report(original));
+  const parentId = first.factRevisionId!;
+  const parent = structuredClone(state.rows.get(parentId));
+  const diagnostic = report(first);
+  diagnostic.results[0].claim = secondClaim;
+  state.calls.mockClear(); state.retrieve.mockClear();
+  state.calls.mockResolvedValue({ choices: [{ finish_reason: 'stop', message: { content: JSON.stringify(secondPatches) } }] });
+  return { original, first, parentId, parent, diagnostic };
+}
+
+it('allows one distinct second fact correction, preserving its parent audit, paid originals, and count-two marker without granting factual approval', async () => {
+  const { original, first, parentId, parent, diagnostic } = await firstRevision();
+  const second = await repairLivArticleFacts(first, diagnostic);
+  expect(second).toEqual({ ...first, content: first.content.replace(secondClaim, secondPatches.patches[0].after),
+    factRevisionCount: 2, factRevisionId: expect.stringMatching(/^[a-f0-9]{64}$/) });
+  expect(second.factRevisionId).not.toBe(parentId);
+  expect(second.rawResponse).toBe(original.rawResponse);
+  expect(state.rows.size).toBe(2);
+  expect(state.rows.get(parentId)).toEqual(parent);
+  const child = state.rows.get(second.factRevisionId!);
+  expect(child.previous).toEqual(first);
+  expect(child.previous.factRevisionId).toBe(parentId);
+  expect(child.report).toEqual(diagnostic);
+  expect(child.report.complete).toBe(false);
+  expect(child.patchResult).toEqual(secondPatches);
+  expect(child.rawResponse).toBe(JSON.stringify(secondPatches));
+  expect(parent.previous).toEqual(original);
+  expect(parent.rawResponse).toBe(JSON.stringify(patches));
+  expect(await repairLivArticleFacts(first, diagnostic)).toEqual(second);
+  expect(state.calls).toHaveBeenCalledTimes(1);
+  const thirdReport = report(second); thirdReport.results[0].claim = 'En tredje ny påstand.';
+  await expect(repairLivArticleFacts(second, thirdReport)).rejects.toThrow('not_applicable');
+  expect(await resumeLivFactRevision(second, thirdReport)).toBeNull();
+  expect(state.calls).toHaveBeenCalledTimes(1);
+});
+
+it.each(['missing', 'incomplete', 'snapshot-mismatch'])('rejects a second correction with %s parent before source or model calls', async kind => {
+  const { first, parentId, parent, diagnostic } = await firstRevision();
+  if (kind === 'missing') state.rows.delete(parentId);
+  if (kind === 'incomplete') state.rows.set(parentId, { ...parent, status: 'processing' });
+  if (kind === 'snapshot-mismatch') state.rows.set(parentId, { ...parent, article: { ...first, rawResponse: 'different-snapshot' } });
+  await expect(repairLivArticleFacts(first, diagnostic)).rejects.toThrow('not_applicable');
+  expect(state.calls).not.toHaveBeenCalled(); expect(state.retrieve).not.toHaveBeenCalled();
+});
+
+it.each([
+  ['prior-failure-shorter', 'Bo er hans borgerlige navn.', 'HANS  BORGERLIGE navn'],
+  ['prior-failure-longer', 'hans borgerlige navn', 'Bo er hans borgerlige navn.'],
+  ['patch-before-shorter', patches.patches[0].before, 'Bo er hans borgerlige navn'],
+  ['patch-before-longer', patches.patches[0].before, 'Bo er hans borgerlige navn, ifølge teksten.'],
+  ['patch-after-shorter', patches.patches[0].after, 'KIRKETJENEREN hedder Bo'],
+  ['patch-after-longer', patches.patches[0].after, 'Kirketjeneren hedder Bo, ifølge teksten.'],
+])('rejects overlapping %s rather than treating different punctuation/case or excerpt length as a new defect', async (kind, oldSpan, newClaim) => {
+  const { first, parentId, parent, diagnostic } = await firstRevision();
+  // Isolate each historical span source so the guard is independently covered.
+  parent.report.results = kind.startsWith('prior-failure')
+    ? [{ ...parent.report.results[0], claim: oldSpan }] : [];
+  parent.patchResult = { patches: kind.startsWith('patch-') ? [{ field: 'content',
+    before: kind.startsWith('patch-before') ? oldSpan : 'Et helt andet gammelt udsagn.',
+    after: kind.startsWith('patch-after') ? oldSpan : 'Et helt andet rettet udsagn.',
+  }] : [] };
+  state.rows.set(parentId, parent);
+  diagnostic.results[0].claim = newClaim;
+  await expect(repairLivArticleFacts(first, diagnostic)).rejects.toThrow('not_applicable');
+  expect(state.calls).not.toHaveBeenCalled(); expect(state.retrieve).not.toHaveBeenCalled();
+  expect(state.rows.size).toBe(1);
+  expect(state.rows.get(parentId)).toEqual(parent);
+});
+
+it('resumes an exact-hash saved failure into a distinct correction and reuses the archived result without a fresh verification call', async () => {
+  const { first, parentId, parent, diagnostic } = await firstRevision();
+  const corrected = await resumeLivFactRevision(first, diagnostic);
+  expect(corrected?.factRevisionCount).toBe(2);
+  expect(corrected?.content).toContain(secondPatches.patches[0].after);
+  expect(state.rows.get(parentId)).toEqual(parent);
+  expect(state.rows.get(corrected!.factRevisionId!)?.report).toEqual(diagnostic);
+  expect(await resumeLivFactRevision(first, diagnostic)).toEqual(corrected);
+  expect(state.calls).toHaveBeenCalledTimes(1);
+  expect(state.calls.mock.calls[0][0].messages[0].content).toContain('Du er faktaredaktør');
+});
+
+it.each(['stale-hash', 'complete-report', 'incomplete-coverage', 'diagnostic-error', 'all-verified'])('ignores %s prior diagnostics without paid source/model calls or an audit write', async kind => {
+  const { first, parentId, parent, diagnostic } = await firstRevision();
+  if (kind === 'stale-hash') diagnostic.articleHash = parent.report.articleHash;
+  if (kind === 'complete-report') diagnostic.complete = true;
+  if (kind === 'incomplete-coverage') diagnostic.coverage.checkedUnits = 0;
+  if (kind === 'diagnostic-error') diagnostic.diagnostic = { code: 'model_response_incomplete', message: 'incomplete' };
+  if (kind === 'all-verified') diagnostic.results[0].status = 'verified';
+  expect(await resumeLivFactRevision(first, diagnostic)).toBeNull();
+  expect(state.calls).not.toHaveBeenCalled(); expect(state.retrieve).not.toHaveBeenCalled();
+  expect(state.rows.size).toBe(1); expect(state.rows.get(parentId)).toEqual(parent);
 });

@@ -48,6 +48,33 @@ it('keeps authentication before preparation and storage', async () => {
   expect(mocks.run).not.toHaveBeenCalled(); expect(mocks.release).not.toHaveBeenCalled();
 });
 
+it.each([1, 4, 9])('dispatches a saved continuation without altering its existing counter %s', async preparationAttempts => {
+  mocks.row = { status: 'processing', continuationReady: true, preparationAttempts,
+    articleCheckpoint: { content: 'Paid text' } };
+  const before = structuredClone(mocks.row);
+  await GET(request());
+  expect(mocks.run).toHaveBeenCalledTimes(1);
+  expect(mocks.row).toEqual(before);
+});
+
+it('skips exhausted complete-media failures without granting another attempt', async () => {
+  mocks.row = { status: 'failed', preparationAttempts: 5,
+    articleCheckpoint: { content: 'Paid text', preparedMedia: [{}, {}, {}] } };
+  const before = structuredClone(mocks.row);
+  expect((await (await GET(request())).json()).status).toBe('no_unstarted_work');
+  expect(mocks.run).not.toHaveBeenCalled();
+  expect(mocks.row).toEqual(before);
+});
+
+it('dispatches an operator-granted retry beyond the automatic limit without changing the grant', async () => {
+  mocks.row = { status: 'failed', preparationAttempts: 9, retryAuthorization: 'existing-audit-id',
+    articleCheckpoint: { content: 'Paid text' } };
+  const before = structuredClone(mocks.row);
+  await GET(request());
+  expect(mocks.run).toHaveBeenCalledTimes(1);
+  expect(mocks.row).toEqual(before);
+});
+
 const today = '2026-09-12';
 const reserveDays = [today, '2026-09-13', '2026-09-14'];
 const reserveItem = (index: number): ReadyEntry => ({ itemId: String(index + 1).repeat(24), slug: `reserve-${index}`,

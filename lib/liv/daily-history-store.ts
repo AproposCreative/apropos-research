@@ -69,6 +69,9 @@ export async function claimLivDaily(dayKey: string, scope: LivDailyScope = 'dail
       const continuation = scope !== 'daily' && d?.continuationReady === true && !!d?.articleCheckpoint &&
         !d?.webflowItemId && !d?.preparationProof;
       const authorizedRetry = scope !== 'daily' && typeof d?.retryAuthorization === 'string';
+      // A yielded, saved stage continues the same attempt. Preserve legacy
+      // counters verbatim; failures and explicit retry grants still consume one.
+      const successfulContinuation = continuation && status === 'processing' && !authorizedRetry;
       const resumableCheckpoint = continuation || authorizedRetry || (scope !== 'daily' && Number(d?.preparationAttempts ?? 0) <= 4 &&
         Array.isArray(d?.articleCheckpoint?.preparedMedia) && d.articleCheckpoint.preparedMedia.length >= 3 &&
         !d?.webflowItemId && !d?.preparationProof);
@@ -112,7 +115,7 @@ export async function claimLivDaily(dayKey: string, scope: LivDailyScope = 'dail
           updatedAt: FieldValue.serverTimestamp(),
           continuationReady: false,
           retryAuthorization: FieldValue.delete(),
-          ...(scope !== 'daily' ? { preparationAttempts: (d?.preparationAttempts ?? 0) + 1 } : {}),
+          ...(scope !== 'daily' && !successfulContinuation ? { preparationAttempts: (d?.preparationAttempts ?? 0) + 1 } : {}),
         },
         { merge: true }
       );

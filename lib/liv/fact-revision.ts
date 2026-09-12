@@ -41,29 +41,58 @@ export function applyLivFactPatches(article: GeneratedArticle, value: unknown): 
 
 /** Resume an already-paid correction before any new gate calls. This also
  * recovers a completed result if the article checkpoint write was interrupted. */
-export async function resumeLivFactRevision(article: GeneratedArticle): Promise<GeneratedArticle | null> {
-  if (article.factRevisionId) return null;
+export async function resumeLivFactRevision(article: GeneratedArticle, priorDiagnostic?: GroundedReport): Promise<GeneratedArticle | null> {
+  if ((article.factRevisionCount ?? (article.factRevisionId ? 1 : 0)) >= 2) return null;
   const db = getAdminDb();
   if (!db) throw new Error('liv_fact_revision_unavailable');
   const id = hash(`liv-fact-revision-v1:${hash(JSON.stringify(article))}`);
   const saved = (await db.collection('livFactRevisions').doc(id).get()).data();
-  if (!saved) return null;
+  if (!saved) {
+    // Correct a known, exact-version defect instead of rerunning a paid checker
+    // and hoping it overlooks the same wording on another invocation.
+    const checkedText = [article.title, article.subtitle, article.excerpt, article.seoTitle, article.seoDescription,
+      article.ratingReason, article.intro, article.content].filter(Boolean).join('\n\n');
+    if (priorDiagnostic && !priorDiagnostic.complete && !priorDiagnostic.diagnostic &&
+        priorDiagnostic.verificationMethod === 'retrieved-sources' &&
+        priorDiagnostic.articleHash === articleFingerprint(checkedText) &&
+        priorDiagnostic.coverage.checkedUnits === priorDiagnostic.coverage.expectedUnits &&
+        priorDiagnostic.results.some(result => result.status !== 'verified')) {
+      return repairLivArticleFacts(article, priorDiagnostic);
+    }
+    return null;
+  }
   return repairLivArticleFacts(article, saved.report as GroundedReport);
 }
 
-/** One paid correction of a saved version. Provider outputs, old text and failed
+/** At most two factual corrections, the second only for newly identified facts.
+ * Provider outputs, old text and failed
  * reports remain addressable. Every edited version must pass the normal gates
  * again; this function grants no factual or CMS approval. */
 export async function repairLivArticleFacts(article: GeneratedArticle, report: GroundedReport): Promise<GeneratedArticle> {
   const checkedText = [article.title, article.subtitle, article.excerpt, article.seoTitle, article.seoDescription,
     article.ratingReason, article.intro, article.content].filter(Boolean).join('\n\n');
-  if (article.factRevisionId || report.complete || report.verificationMethod !== 'retrieved-sources' ||
+  const revisionCount = article.factRevisionCount ?? (article.factRevisionId ? 1 : 0);
+  if (!Number.isInteger(revisionCount) || revisionCount < 0 || revisionCount >= 2 ||
+      (revisionCount > 0 && !article.factRevisionId) || report.complete || report.verificationMethod !== 'retrieved-sources' ||
       report.articleHash !== articleFingerprint(checkedText) || report.diagnostic ||
       report.coverage.checkedUnits !== report.coverage.expectedUnits ||
       !report.results.some(result => result.status !== 'verified')) throw new Error('liv_fact_revision_not_applicable');
   const db = getAdminDb();
   const client = getOpenAIClient();
   if (!db || !client) throw new Error('liv_fact_revision_unavailable');
+  if (article.factRevisionId) {
+    const previous = (await db.collection('livFactRevisions').doc(article.factRevisionId).get()).data();
+    const normalize = (text: string) => text.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
+    const oldSpans: string[] = [
+      ...(previous?.report?.results || []).filter((result: { status: string }) => result.status !== 'verified')
+        .map((result: { claim: string }) => result.claim),
+      ...(previous?.patchResult?.patches || []).flatMap((patch: Patch) => [patch.before, patch.after]),
+    ].filter(Boolean).map(normalize);
+    if (previous?.status !== 'complete' || !previous?.article ||
+        hash(JSON.stringify(previous.article)) !== hash(JSON.stringify(article)) ||
+        report.results.filter(result => result.status !== 'verified').some(result =>
+          oldSpans.some(span => span.includes(normalize(result.claim)) || normalize(result.claim).includes(span)))) throw new Error('liv_fact_revision_not_applicable');
+  }
   const inputHash = hash(JSON.stringify(article));
   const id = hash(`liv-fact-revision-v1:${inputHash}`);
   const ref = db.collection('livFactRevisions').doc(id);
@@ -167,6 +196,7 @@ export async function repairLivArticleFacts(article: GeneratedArticle, report: G
     revised.selectedImage = { ...revised.selectedImage!, articleHash: livImageArticleHash(revised) };
   }
   revised.factRevisionId = id;
+  revised.factRevisionCount = revisionCount + 1;
   await ref.set(json({ status: 'complete', article: revised, completedAt: new Date().toISOString() }), { merge: true });
   return revised;
 }

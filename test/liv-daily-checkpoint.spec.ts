@@ -93,3 +93,58 @@ it('resumes failed complete-media checkpoints instead of filtering them out as t
   state.row = { status: 'failed', preparationAttempts: 4, articleCheckpoint: { preparedMedia: [{}, {}, {}] } };
   expect(await claimLivDaily('2026-09-12', 'prepare')).toMatchObject({ ok: true });
 });
+
+it.each(['prepare', 'reserve'] as const)('preserves legacy counters across saved %s continuations', async scope => {
+  for (const attempts of [undefined, 1, 4, 9]) {
+    const articleCheckpoint = { content: 'Paid text', preparedMedia: [{}, {}, {}] };
+    state.row = { status: 'processing', articleCheckpoint,
+      ...(attempts === undefined ? {} : { preparationAttempts: attempts }) };
+    for (let stage = 0; stage < 4; stage++) {
+      await yieldLivPreparation('2026-09-12', scope);
+      expect(await claimLivDaily('2026-09-12', scope)).toMatchObject({ ok: true });
+      expect(state.writes.mock.lastCall?.[0]).not.toHaveProperty('preparationAttempts');
+      expect(state.row.preparationAttempts).toBe(attempts);
+      expect(state.row.articleCheckpoint).toBe(articleCheckpoint);
+      expect(state.row.continuationReady).toBe(false);
+    }
+  }
+});
+
+it.each(['prepare', 'reserve'] as const)('still exhausts genuine %s failures after successful stages', async scope => {
+  state.row = {};
+  expect(await claimLivDaily('2026-09-12', scope)).toMatchObject({ ok: true });
+  expect(state.row.preparationAttempts).toBe(1);
+  state.row.articleCheckpoint = { content: 'Paid text', preparedMedia: [{}, {}, {}] };
+  for (let attempt = 1; attempt <= 5; attempt++) {
+    await yieldLivPreparation('2026-09-12', scope);
+    expect(await claimLivDaily('2026-09-12', scope)).toMatchObject({ ok: true });
+    expect(state.row.preparationAttempts).toBe(attempt);
+    state.row.status = 'failed';
+    const writes = state.writes.mock.calls.length;
+    expect(await claimLivDaily('2026-09-12', scope)).toMatchObject({ ok: attempt < 5 });
+    expect(state.row.preparationAttempts).toBe(Math.min(attempt + 1, 5));
+    if (attempt === 5) expect(state.writes).toHaveBeenCalledTimes(writes);
+  }
+});
+
+it.each(['failed', 'skipped_factcheck'])('does not exempt a %s retry with a leftover continuation flag', async status => {
+  state.row = { status, continuationReady: true, preparationAttempts: 2, articleCheckpoint: { content: 'Paid text' } };
+  expect(await claimLivDaily('2026-09-12', 'prepare')).toMatchObject({ ok: true });
+  expect(state.row.preparationAttempts).toBe(3);
+});
+
+it('counts and consumes an operator grant even alongside a saved continuation', async () => {
+  state.row = { status: 'processing', continuationReady: true, preparationAttempts: 9,
+    retryAuthorization: 'existing-audit-id', articleCheckpoint: { content: 'Paid text' } };
+  expect(await claimLivDaily('2026-09-12', 'prepare')).toMatchObject({ ok: true });
+  expect(state.row.preparationAttempts).toBe(10);
+  expect(typeof state.row.retryAuthorization).not.toBe('string');
+  expect(state.row.articleCheckpoint.content).toBe('Paid text');
+});
+
+it.each(['prepare', 'reserve'] as const)('keeps an exhausted legacy %s checkpoint terminal without a continuation or grant', async scope => {
+  state.row = { status: 'failed', preparationAttempts: 9, articleCheckpoint: { preparedMedia: [{}, {}, {}] } };
+  expect(await claimLivDaily('2026-09-12', scope)).toEqual({ ok: false, reason: 'already_done' });
+  expect(state.row.preparationAttempts).toBe(9);
+  expect(state.writes).not.toHaveBeenCalled();
+});

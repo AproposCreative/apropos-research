@@ -222,9 +222,10 @@ export async function runLivDaily(req: NextRequest, preparation?: {
       await yieldLivPreparation(dayKey, scope as 'prepare' | 'reserve');
       return NextResponse.json({ status: 'text_prepared', dayKey, title: article.title });
     }
-    if (preparation && checkpoint && !article.factRevisionId) {
+    if (preparation && checkpoint && (article.factRevisionCount ?? (article.factRevisionId ? 1 : 0)) < 2) {
       const { resumeLivFactRevision } = await import('@/lib/liv/fact-revision');
-      const resumed = await resumeLivFactRevision(article);
+      const priorDiagnostic = prepRow?.data()?.gateResults?.find((result: { name: string }) => result.name === 'factcheck')?.diagnosticEvidence;
+      const resumed = await resumeLivFactRevision(article, priorDiagnostic);
       if (resumed) {
         await checkpointLivDailyArticle(dayKey, resumed);
         await yieldLivPreparation(dayKey, scope as 'prepare' | 'reserve');
@@ -326,7 +327,7 @@ export async function runLivDaily(req: NextRequest, preparation?: {
     if (!gates.pass) {
       const failed = gates.failedGate || 'unknown';
       const diagnostic = gates.results.find(result => result.name === 'factcheck')?.diagnosticEvidence;
-      if (preparation && !article.factRevisionId && diagnostic &&
+      if (preparation && (article.factRevisionCount ?? (article.factRevisionId ? 1 : 0)) < 2 && diagnostic &&
           ['factcheck', 'verification-complete'].includes(failed) &&
           diagnostic.results.some(result => result.status !== 'verified')) {
         const { repairLivArticleFacts } = await import('@/lib/liv/fact-revision');

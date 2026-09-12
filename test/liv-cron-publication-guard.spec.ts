@@ -237,7 +237,7 @@ it('does not repeat unsuccessful supplemental searches or spend on media without
 
 it.each([false, true])('bounds factual correction, checkpoints it and requires all gates again (already revised=%s)', async revised => {
   const article = { title: 'Saved', content: 'Kultur '.repeat(650), intro: 'Intro', preparedMedia: [{}, {}, {}],
-    factRevisionId: revised ? 'prior-revision' : undefined,
+    factRevisionId: revised ? 'prior-revision' : undefined, factRevisionCount: revised ? 2 : 0,
     researchSources: [{ url: 'https://museum.dk/news', publishedAt: '2026-09-10' }, { url: 'https://kultur.dk/news', publishedAt: '2026-09-10' }] };
   mocks.row = { articleCheckpoint: article };
   const diagnostic = { results: [{ claim: 'En præmis', status: 'unverifiable' }] };
@@ -259,12 +259,15 @@ it.each([false, true])('bounds factual correction, checkpoints it and requires a
 });
 
 it('resumes an archived correction before repeating paid safety gates or media generation', async () => {
-  mocks.row = { articleCheckpoint: { title: 'Saved', content: 'Saved body' } };
+  const diagnostic = { complete: false, results: [{ claim: 'Saved body', status: 'unverifiable' }] };
+  mocks.row = { articleCheckpoint: { title: 'Saved', content: 'Saved body' },
+    gateResults: [{ name: 'factcheck', diagnosticEvidence: diagnostic }] };
   resumeFacts.mockResolvedValue({ title: 'Saved', content: 'Corrected body', factRevisionId: 'archived' });
   const result = await (await runLivDaily(new NextRequest('http://localhost/api/cron/liv-prepare'), {
     dayKey: '2026-09-12', kind: 'scheduled', defaultPlan: defaultEditorialPlan('2026-09-12'),
   })).json();
   expect(result.status).toBe('facts_revised');
+  expect(resumeFacts).toHaveBeenCalledWith(mocks.row.articleCheckpoint, diagnostic);
   expect(mocks.checkpoint).toHaveBeenLastCalledWith('2026-09-12', expect.objectContaining({ factRevisionId: 'archived' }), 'prepare');
   expect(mocks.gates).not.toHaveBeenCalled(); expect(mocks.media).not.toHaveBeenCalled();
   expect(mocks.publish).not.toHaveBeenCalled();
