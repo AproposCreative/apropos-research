@@ -121,6 +121,8 @@ it('fails closed on truncated model JSON or uncertain visual review', async () =
   await expect(deps.plan(article, 'illustration', 'expressive', [], id)).rejects.toThrow('incomplete');
   mocks.chat.mockResolvedValueOnce({ choices: [{ finish_reason: 'stop', message: { content: '{"pass":false}' } }] });
   expect(await deps.review(article, 'illustration', [{ bytes: image, alt: 'Motiv', caption: 'Tekst' }], id)).toBe(false);
+  expect(mocks.chat.mock.calls.map(call => ({ reasoning: call[0].reasoning_effort, limit: call[0].max_completion_tokens })))
+    .toEqual([{ reasoning: 'low', limit: 4000 }, { reasoning: 'low', limit: 2000 }]);
 });
 it('does not silently create clients or credentials if the existing configuration is missing', () => {
   mocks.keyAvailable = false;

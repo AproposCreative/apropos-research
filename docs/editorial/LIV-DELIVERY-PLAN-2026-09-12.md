@@ -124,6 +124,22 @@ den eksisterende, brugerautoriserede nøgle genbruges uden at blive udskrevet.
 
 ### Releasekontrol 12. september kl. 12.40
 
+Produktionsrelease `0d28de7f5252287c7fcd9c67891eac1751cfcc83` er READY på
+`dpl_hQSdLXq3VhNhpQEuF888QV955VmL` og aliasset til ai.aproposmagazine.com.
+Autentificeret feed-API returnerede HTTP 200, `queueEnabled=true`,
+`preparationEnabled=true` og præcis status for det blokerede gemte Oasis-job.
+Begge cron-dryruns bestod. Dagens eksisterende publicering blev ikke gentaget.
+
+Genoptagelse af Oasis fandt en konkret providerfejl: Luna-kaldet med høj
+reasoning og 5.000 completion-tokens brugte alle 5.000 på reasoning og
+returnerede `finish_reason=length` samt tom tekst. Den betalte respons er
+gemt; fem registrerede kald kostede estimeret 2,421088 DKK med nul uafklarede
+reservationer. Dette er ikke en faktura eller en pris for en ny hel artikel.
+Den målrettede rettelse sænker reasoning og giver kun den dokumenterede
+reasoning-only respons én auditeret ny prøve under samme revisionsidentitet.
+Netværksfejl, refusals og delvist skrevet output udløser ikke denne prøve.
+Morgendagens preview er endnu ikke klar på dette tidspunkt.
+
 Målet er fortsat automatisk skrivning **og publicering hver dag**, også uden
 et Godkend-valg. Instagram er fortsat slukket. Webflow-service, normalisering
 og boolean-mapping er nu regressionstestet for `ai-generated=false` på nye

@@ -2,6 +2,7 @@ import { beforeEach, expect, it, vi } from 'vitest';
 import { articleFingerprint } from '@/lib/factcheck/grounded';
 import type { GeneratedArticle } from '@/lib/liv/generate-article';
 import { createHash } from 'node:crypto';
+import { FieldValue } from 'firebase-admin/firestore';
 import sharp from 'sharp';
 import { livImageArticleHash } from '@/lib/liv/article-image-hash';
 import { insertLivBodyMedia } from '@/lib/liv/automatic-media';
@@ -22,7 +23,14 @@ vi.mock('@/lib/firebase-admin', () => ({ getAdminDb: () => {
       if (state.rows.has(ref.id)) throw new Error('already-exists');
       state.row = structuredClone(value); state.rows.set(ref.id, state.row);
     },
-    update: async (ref: ReturnType<typeof doc>, value: any) => ref.set(value),
+    update: async (ref: ReturnType<typeof doc>, value: any) => {
+      const row = { ...state.rows.get(ref.id) };
+      for (const [key, entry] of Object.entries(value)) {
+        if (entry instanceof FieldValue && entry.isEqual(FieldValue.delete())) delete row[key];
+        else row[key] = structuredClone(entry);
+      }
+      state.row = row; state.rows.set(ref.id, row);
+    },
     }));
     state.transactionTail = result.then(() => undefined, () => undefined);
     return result;
@@ -561,4 +569,105 @@ it('does not attach an older caller’s pretransport denial to a newer owner', a
   expect(state.row.textPatchCostDenials).toBeUndefined();
   await expect(resumeLivFactRevision(a)).rejects.toThrow('reconciliation');
   expect(state.calls).toHaveBeenCalledTimes(1);
+});
+
+function seedReasoningExhaustion(a = article(), overrides: Record<string, unknown> = {}) {
+  const inputHash = createHash('sha256').update(JSON.stringify(a)).digest('hex');
+  const id = createHash('sha256').update(`liv-fact-revision-v1:${inputHash}`).digest('hex');
+  const row = { status: 'processing', inputHash, previous: structuredClone(a), report: report(a),
+    rawResponse: '', finishReason: 'length', refusal: false, model: 'saved-model',
+    usage: { prompt_tokens: 17235, completion_tokens: 5000, total_tokens: 22235,
+      completion_tokens_details: { reasoning_tokens: 5000 } },
+    textPatchAttempt: { id: 'first-paid-attempt', contextHash: inputHash, status: 'started', startedAt: '2026-09-12T10:00:00Z' },
+    ...overrides };
+  state.rows.set(id, structuredClone(row)); state.row = structuredClone(row);
+  return { a, id, row };
+}
+
+it('recovers one exact empty reasoning-limit receipt on the same revision identity, retaining the first PAID receipt', async () => {
+  const { a, id, row } = seedReasoningExhaustion();
+  const revised = await resumeLivFactRevision(a);
+  expect(revised?.factRevisionId).toBe(id);
+  expect(revised?.factRevisionCount).toBe(1);
+  expect(revised?.rawResponse).toBe(a.rawResponse);
+  expect(state.rows.size).toBe(1);
+  expect(state.row.textPatchEmptyLengthRecovery).toMatchObject({ retryCount: 1, inputHash: row.inputHash,
+    firstPaidReceipt: { rawResponse: '', finishReason: 'length', refusal: false, model: row.model, usage: row.usage },
+    firstAttempt: row.textPatchAttempt });
+  expect(state.row.previous).toEqual(row.previous);
+  expect(state.row.report).toEqual(row.report);
+  expect(state.row.rawResponse).toBe(JSON.stringify(patches));
+  expect(state.row.textPatchAttempt.id).not.toBe(row.textPatchAttempt.id);
+  expect(state.row.textPatchCostDenials).toBeUndefined(); // Never falsely classified as unpaid.
+  expect(state.calls).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ reasoning_effort: 'low', max_completion_tokens: 10000 }),
+    { timeout: 90000, maxRetries: 0 });
+  expect(await resumeLivFactRevision(a)).toEqual(revised);
+  expect(state.calls).toHaveBeenCalledTimes(1);
+});
+
+it.each([
+  { rawResponse: '{"patches":[' }, { rawResponse: ' ' }, { refusal: true }, { refusal: undefined },
+  { finishReason: 'content_filter' }, { finishReason: undefined }, { usage: undefined },
+  { usage: { prompt_tokens: 17235, completion_tokens: 5000, completion_tokens_details: { reasoning_tokens: 4999 } } },
+  { patchResult: null }, { textPatchEmptyLengthRecovery: { retryCount: 1 } },
+  { textPatchAttempt: { id: 'different-context', contextHash: 'wrong', status: 'started' } },
+  { previous: { title: 'A different paid article' } },
+  { visualReviewStarted: '2026-09-12T10:00:00Z' },
+])('does not use empty-length recovery for partial/refused/ambiguous/mismatched or consumed evidence: %j', async overrides => {
+  const { a, row } = seedReasoningExhaustion(article(), overrides);
+  await expect(resumeLivFactRevision(a)).rejects.toThrow();
+  expect(state.calls).not.toHaveBeenCalled();
+  expect(state.row).toEqual(row);
+});
+
+it.each(['length', 'network', 'refusal', 'partial'])('never makes a second paid recovery call after the one retry ends with %s', async outcome => {
+  const { a } = seedReasoningExhaustion();
+  if (outcome === 'network') state.calls.mockRejectedValueOnce(new Error('network timeout'));
+  else state.calls.mockResolvedValueOnce({ choices: [{ finish_reason: outcome === 'refusal' ? 'stop' : 'length',
+    message: { content: outcome === 'partial' ? '{"patches":[' : '', refusal: outcome === 'refusal' ? 'refused' : null } }],
+    usage: { prompt_tokens: 17235, completion_tokens: 5000, completion_tokens_details: { reasoning_tokens: 5000 } } });
+  await expect(resumeLivFactRevision(a)).rejects.toThrow();
+  const audit = structuredClone(state.row.textPatchEmptyLengthRecovery);
+  await expect(resumeLivFactRevision(a)).rejects.toThrow();
+  expect(state.calls).toHaveBeenCalledTimes(1);
+  expect(state.row.textPatchEmptyLengthRecovery).toEqual(audit);
+  expect(state.row.status).toBe('processing');
+});
+
+it('atomically consumes the single paid recovery slot across concurrent resumes', async () => {
+  const { a } = seedReasoningExhaustion();
+  let started!: () => void; let release!: (value: unknown) => void;
+  const startedPromise = new Promise<void>(resolve => { started = resolve; });
+  state.calls.mockImplementationOnce(() => { started(); return new Promise(resolve => { release = resolve; }); });
+  const pair = Promise.allSettled([resumeLivFactRevision(a), resumeLivFactRevision(a)]);
+  await startedPromise; await state.transactionTail;
+  release(modelResult(patches));
+  const results = await pair;
+  expect(results.filter(result => result.status === 'fulfilled')).toHaveLength(1);
+  expect(results.filter(result => result.status === 'rejected')).toHaveLength(1);
+  expect(state.calls).toHaveBeenCalledTimes(1);
+  expect(state.row.textPatchEmptyLengthRecovery.retryCount).toBe(1);
+  expect(state.row.status).toBe('complete');
+});
+
+it('retains the first paid receipt through a proven budget denial of the recovery, without creating another paid retry slot', async () => {
+  const { a, row } = seedReasoningExhaustion();
+  state.calls.mockRejectedValueOnce(new LivCostPretransportError('liv_budget_month_limit'));
+  await expect(resumeLivFactRevision(a)).rejects.toThrow('liv_budget_month_limit');
+  const audit = structuredClone(state.row.textPatchEmptyLengthRecovery);
+  expect(state.row.textPatchAttempt.status).toBe('not_started');
+  expect(audit.firstPaidReceipt.usage).toEqual(row.usage);
+  await resumeLivFactRevision(a);
+  expect(state.row.textPatchEmptyLengthRecovery).toEqual(audit);
+  expect(state.row.textPatchCostDenials).toHaveLength(1);
+  expect(state.calls).toHaveBeenCalledTimes(2); // Denied transport plus ONE provider retry.
+  expect(state.row.status).toBe('complete');
+});
+
+it('uses low reasoning for short media calls without increasing their declared output limits', async () => {
+  const { a, outputs } = await costStageFixture();
+  for (const output of outputs) state.calls.mockResolvedValueOnce(modelResult(output));
+  await repairLivArticleFacts(a, report(a));
+  expect(state.calls.mock.calls.map(([request]) => [request.reasoning_effort, request.max_completion_tokens]))
+    .toEqual([['low', 10000], ['low', 2000], ['low', 2500], ['low', 2000]]);
 });
