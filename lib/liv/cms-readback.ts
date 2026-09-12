@@ -7,6 +7,7 @@ import { stripHtml } from '@/lib/webflow/field-mapping';
 import { readLivStoredImage } from '@/lib/liv/stored-image-reader';
 import { load } from 'cheerio';
 import { cmsFieldHash } from '@/lib/liv/cms-field-hash';
+import { encodeWebp } from '@/lib/images/encode-webp';
 
 type JsonObject = Record<string, unknown>;
 export type LivCmsReadback = {
@@ -30,20 +31,6 @@ function text(value: unknown): string {
 }
 function visibleText(value: unknown): string {
   return stripHtml(text(value)).replace(/\s+/gu, ' ').trim();
-}
-
-// Webflow may rewrite an uploaded image URL to a CDN URL with a new asset
-// prefix. The stable identity is the supplied asset filename, not that prefix.
-function imageAssetKey(value: unknown): string {
-  const raw = text(value);
-  try {
-    const pathname = new URL(raw).pathname;
-    const filename = decodeURIComponent(pathname.slice(pathname.lastIndexOf('/') + 1));
-    const marker = filename.indexOf('apropos-');
-    return marker >= 0 ? filename.slice(marker) : filename;
-  } catch {
-    return raw;
-  }
 }
 
 /** GET-only adapter. Credentials stay server-side; upstream bodies are not logged. */
@@ -196,16 +183,17 @@ export async function inspectLivCmsDraft(input: {
   checks.push({ id: 'image:body-count', ok: bodyImages.length >= 2 && bodyImages.length <= 12 &&
     new Set(urls).size === bodyImages.length && !urls.includes(text(object(fields.thumb).url)) &&
     !urls.includes(input.expected.featuredImage || '') });
-  checks.push({ id: 'image:body-matches', ok: urls.map(imageAssetKey).join('\n') === expectedUrls.map(imageAssetKey).join('\n') &&
+  const bodyMatches = { id: 'image:body-matches', ok: bodyImages.length === expectedUrls.length &&
     bodyImages.every((image, index) => {
       const expectedImage = expectedBody(expectedBody('img').toArray()[index]);
       return body(image).attr('alt') === expectedImage.attr('alt') &&
         body(image).closest('figure').find('figcaption').text().trim() === expectedImage.closest('figure').find('figcaption').text().trim();
-    }) });
+    }) };
+  checks.push(bodyMatches);
   let bodyAssetsOk = bodyImages.length >= 2 && bodyImages.length <= 12;
   if (bodyAssetsOk) {
     const hashes = new Set<string>();
-    for (const image of bodyImages) {
+    for (const [index, image] of bodyImages.entries()) {
       const element = body(image);
       const src = element.attr('src') || '';
       const caption = element.closest('figure').find('figcaption').text().trim();
@@ -215,11 +203,26 @@ export async function inspectLivCmsDraft(input: {
         const bytes = await (dependencies?.readImage || readLivStoredImage)(src);
         const meta = await sharp(bytes, { limitInputPixels: 80_000_000 }).metadata();
         const digest = createHash('sha256').update(bytes).digest('hex');
+        const originalUrl = expectedUrls[index];
+        if (!originalUrl) bodyMatches.ok = false;
+        else {
+          const original = src === originalUrl ? bytes : await (dependencies?.readImage || readLivStoredImage)(originalUrl);
+          if (!original.equals(bytes)) {
+            // The normal CMS save path optimizes inline assets. Prove the exact
+            // deterministic derivative, never infer identity from a filename.
+            const encoded = await encodeWebp(original, {
+              maxSizeKB: Number(process.env.WEBFLOW_CONTENT_IMAGE_MAX_KB || 200),
+              maxLongEdge: Number(process.env.WEBFLOW_CONTENT_IMAGE_MAX_EDGE || 1200),
+              qualityStart: 82, qualityMin: 55, effort: 6,
+            });
+            if (!encoded.data.equals(bytes)) bodyMatches.ok = false;
+          }
+        }
         if (!['jpeg', 'png', 'webp'].includes(meta.format || '') || (meta.pages ?? 1) !== 1 ||
             !meta.width || meta.width < 800 || !meta.height || bytes.length > 5 * 1024 * 1024 ||
             hashes.has(digest) || digest === input.expected.featuredImageHash) bodyAssetsOk = false;
         hashes.add(digest);
-      } catch { bodyAssetsOk = false; }
+      } catch { bodyAssetsOk = false; bodyMatches.ok = false; }
       if (!bodyAssetsOk) break;
     }
   }

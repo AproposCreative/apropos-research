@@ -1,10 +1,11 @@
-import { afterEach, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 vi.mock('@/lib/config/env', () => ({ env: {} }));
 vi.mock('@/lib/webflow-config', () => ({ getWebflowConfig: () => ({ apiToken: 'test-only' }) }));
 import { inspectLivCmsDraft, readLivWebflowJson } from '@/lib/liv/cms-readback';
 import type { WebflowArticleFields } from '@/lib/webflow/types';
 import { createHash } from 'node:crypto';
 import sharp from 'sharp';
+import { encodeWebp } from '@/lib/images/encode-webp';
 
 const collectionId = 'a'.repeat(24), localeId = 'b'.repeat(24), itemId = 'c'.repeat(24);
 const authorId = 'd'.repeat(24), sectionId = 'e'.repeat(24);
@@ -139,4 +140,95 @@ it('cannot send credentials to arbitrary URLs or write endpoints', async () => {
     await expect(readLivWebflowJson(path)).rejects.toThrow('invalid_path');
   }
   expect(fetchMock).not.toHaveBeenCalled();
+});
+
+describe('body image byte binding after deterministic CMS optimization', () => {
+  afterEach(() => vi.unstubAllEnvs());
+
+  async function optimizedFixture() {
+    vi.stubEnv('WEBFLOW_CONTENT_IMAGE_MAX_KB', '200');
+    vi.stubEnv('WEBFLOW_CONTENT_IMAGE_MAX_EDGE', '1200');
+    const f = fixture();
+    const originals = await Promise.all(['#b13251', '#326da8'].map(background =>
+      sharp({ create: { width: 1536, height: 1024, channels: 3, background } }).webp().toBuffer()));
+    const converted = await Promise.all(originals.map(original => encodeWebp(original,
+      { maxSizeKB: 200, maxLongEdge: 1200, qualityStart: 82, qualityMin: 55, effort: 6 })));
+    const hero = await sharp({ create: { width: 1920, height: 1080, channels: 3, background: '#e5c623' } }).webp().toBuffer();
+    const originalUrls = [1, 2].map(i => `https://assets.example/original/body-${i}.webp`);
+    const optimizedUrls = [1, 2].map(i => `https://assets.example/optimized/body-${i}.webp`);
+    const body = (urls: string[]) => '<p>Indhold</p>' + urls.map((url, i) =>
+      `<figure><img src="${url}" alt="Motiv ${i + 1}" style="height:auto"><figcaption>Motiv ${i + 1}. Foto: Fotograf.</figcaption></figure>`).join('');
+    const payload = { ...expected, content: body(originalUrls), featuredImage: f.item.fieldData.thumb.url,
+      featuredImageHash: createHash('sha256').update(hero).digest('hex'), featuredImageAlt: 'Hero motiv', fotoCredit: 'AI-illustration' };
+    f.item.fieldData.content = body(optimizedUrls);
+    Object.assign(f.item.fieldData.thumb, { alt: payload.featuredImageAlt });
+    const assets = new Map<string, Buffer>([[payload.featuredImage, hero],
+      ...originalUrls.map((url, i) => [url, originals[i]] as [string, Buffer]),
+      ...optimizedUrls.map((url, i) => [url, converted[i].data] as [string, Buffer])]);
+    const readImage = vi.fn(async (url: string) => {
+      const bytes = assets.get(url);
+      if (!bytes) throw new Error('test asset unavailable');
+      return bytes;
+    });
+    return { ...f, payload, originals, converted, originalUrls, optimizedUrls, assets, readImage };
+  }
+
+  it('accepts two actual 1200x800 deterministic derivatives of distinct 1536x1024 originals and reads both sides', async () => {
+    const f = await optimizedFixture();
+    for (const [i, converted] of f.converted.entries()) {
+      expect(await sharp(f.originals[i]).metadata()).toMatchObject({ width: 1536, height: 1024 });
+      expect(await sharp(converted.data).metadata()).toMatchObject({ width: 1200, height: 800, format: 'webp' });
+      expect(converted.data.equals(f.originals[i])).toBe(false);
+    }
+    expect(f.converted[0].data.equals(f.converted[1].data)).toBe(false);
+    const result = await inspectLivCmsDraft({ itemId, expected: f.payload }, { ...f.dependencies, readImage: f.readImage });
+    expect(result.checks.filter(check => !check.ok)).toEqual([]);
+    expect(result.publicationReady).toBe(true);
+    for (const url of [...f.originalUrls, ...f.optimizedUrls]) expect(f.readImage).toHaveBeenCalledWith(url);
+    expect(f.readImage).toHaveBeenCalledTimes(5); // Hero plus both actual/expected body pairs.
+  });
+
+  it.each(['swapped', 'wrong-pixels'])('rejects %s despite similar original/optimized filenames and valid distinct assets', async kind => {
+    const f = await optimizedFixture();
+    if (kind === 'swapped') {
+      f.assets.set(f.optimizedUrls[0], f.converted[1].data);
+      f.assets.set(f.optimizedUrls[1], f.converted[0].data);
+    } else {
+      const wrong = await sharp({ create: { width: 1200, height: 800, channels: 3, background: '#17be85' } }).webp().toBuffer();
+      f.assets.set(f.optimizedUrls[0], wrong);
+    }
+    const result = await inspectLivCmsDraft({ itemId, expected: f.payload }, { ...f.dependencies, readImage: f.readImage });
+    expect(result.publicationReady).toBe(false);
+    expect(result.checks).toContainEqual({ id: 'image:body-matches', ok: false });
+    expect(result.checks).toContainEqual({ id: 'image:body-assets', ok: true });
+    expect(result.checks).toContainEqual({ id: 'field:content', ok: true });
+  });
+
+  it.each(['alt', 'caption'])('still rejects changed %s when both deterministic image conversions are exact', async kind => {
+    const f = await optimizedFixture();
+    f.item.fieldData.content = kind === 'alt'
+      ? f.item.fieldData.content.replace('alt="Motiv 1"', 'alt="Et forkert motiv"')
+      : f.item.fieldData.content.replace('Motiv 1. Foto: Fotograf.', 'En forkert billedtekst. Foto: Fotograf.');
+    const result = await inspectLivCmsDraft({ itemId, expected: f.payload }, { ...f.dependencies, readImage: f.readImage });
+    expect(result.publicationReady).toBe(false);
+    expect(result.checks).toContainEqual({ id: 'image:body-matches', ok: false });
+    expect(result.checks).toContainEqual({ id: 'image:body-assets', ok: true });
+    if (kind === 'caption') expect(result.checks).toContainEqual({ id: 'field:content', ok: false });
+  });
+
+  it('keeps duplicate-pixel rejection even when optimized URLs are distinct', async () => {
+    const f = await optimizedFixture();
+    f.assets.set(f.optimizedUrls[1], f.converted[0].data);
+    const result = await inspectLivCmsDraft({ itemId, expected: f.payload }, { ...f.dependencies, readImage: f.readImage });
+    expect(result.publicationReady).toBe(false);
+    expect(result.checks).toContainEqual({ id: 'image:body-assets', ok: false });
+  });
+
+  it('fails closed if the expected original cannot be read, even when optimized pixels are otherwise valid', async () => {
+    const f = await optimizedFixture(); f.assets.delete(f.originalUrls[0]);
+    const result = await inspectLivCmsDraft({ itemId, expected: f.payload }, { ...f.dependencies, readImage: f.readImage });
+    expect(result.publicationReady).toBe(false);
+    expect(result.checks).toContainEqual({ id: 'image:body-matches', ok: false });
+    expect(result.checks).toContainEqual({ id: 'image:body-assets', ok: false });
+  });
 });
