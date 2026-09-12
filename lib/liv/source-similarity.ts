@@ -12,14 +12,15 @@
  *   2. **Ord-5-gram Jaccard** og sammenhængende 12-ords overlap.
  *   3. **Åbningssætnings-lighed** (lexikalt signal, ikke dramaturgisk bevis).
  *
- * Hver score evalueres mod en tærskel; én alvorlig overskridelse er nok
- * til at blokere publish. Ingen af signalerne alene beviser plagiat.
+ * Leksikalske overskridelser blokerer. En isoleret semantisk overskridelse
+ * kræver dokumenteret kvalitativ kontrol. Ingen score alene beviser plagiat.
  * Ordmetoden kræver fortsat kalibrering på redaktionelt bedømte eksempler.
  */
 
 import { cosineSimilarity, getEmbedding } from '@/lib/embeddings';
 import { logger } from '@/lib/logger';
 import { hasCopiedPassage } from '@/lib/liv/research-bundle';
+import { reviewSemanticSource, type SemanticSourceReview } from './semantic-source-review';
 
 export interface SourceSimilarityScores {
   embeddingSim: number;
@@ -34,9 +35,10 @@ export interface SourceSimilarityResult {
   pass: boolean;
   complete: boolean;
   reason?: string;
-  failure?: 'input-too-short' | 'input-too-long' | 'embedding-unavailable' | 'embedding-invalid' | 'similarity-exceeded';
+  failure?: 'input-too-short' | 'input-too-long' | 'embedding-unavailable' | 'embedding-invalid' | 'similarity-exceeded' | 'semantic-review-unavailable';
   method?: 'word-5gram-v2';
   scores: SourceSimilarityScores;
+  semanticReview?: SemanticSourceReview;
 }
 
 const DEFAULT_THRESHOLDS = {
@@ -194,6 +196,21 @@ export async function checkSourceSimilarity(
       reason: failure === 'embedding-invalid'
         ? 'Lighedstjenesten returnerede ugyldige måledata.'
         : 'Lighedstjenesten kunne ikke gennemføre kontrollen.', scores };
+  }
+
+  // Only a complete semantic-only trigger can enter qualitative review. Full
+  // lexical/copy/opening hard stops above cannot be overridden by a model.
+  if (embeddingSim > t.embedding && !lexical.copiedPassage && ngramJaccard <= t.ngram && openingSim <= t.opening) {
+    try {
+      const semanticReview = await reviewSemanticSource(generated, source);
+      if (semanticReview.decision === 'independent') return { pass: true, complete: true,
+        method: 'word-5gram-v2', scores, semanticReview };
+      return { pass: false, complete: true, failure: 'similarity-exceeded', method: 'word-5gram-v2', scores,
+        semanticReview, reason: 'Den kvalitative kildekontrol dokumenterer ikke tilstrækkelig uafhængighed.' };
+    } catch {
+      return { pass: false, complete: false, failure: 'semantic-review-unavailable', method: 'word-5gram-v2', scores,
+        reason: 'Den kvalitative kildekontrol kunne ikke gennemføres med gyldig dokumentation.' };
+    }
   }
 
   if (reasons.length > 0) {

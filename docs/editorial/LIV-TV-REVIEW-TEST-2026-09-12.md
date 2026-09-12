@@ -45,5 +45,24 @@ ordering, not a new paid queue or a change to publication selection.
 - Identical completed-request replay must not create another draft or paid call.
 - A saved/ready draft is not proof of publication or of all future daily runs.
 
-Production acceptance results are recorded after the deployed API test, not
-inferred from unit tests or a READY deployment.
+## Production test, first pass
+
+Release `4ab8a1da4be0ec5bcfff020d87b2293329f1f277` was READY on production
+deployment `dpl_GRWPWCcgAdTAApYZ8hk6ZSVaLvev`, including the
+`ai.aproposmagazine.com` alias. The authenticated preparation API produced a
+saved 558-word TV review with 4/6 stars. It did not save to CMS: the old
+similarity gate stopped at semantic cosine 0.892823 against Soundvenue.
+The identical source hash, cached vectors and full-text lexical calculation
+showed zero five-word overlap, no copied 12-word passage and opening score
+0.07258. This is a review trigger, not evidence of plagiarism by itself.
+
+Saved writer run: `22f6a890-794f-4041-84da-5ce28b5336d9`. Its original response,
+research notes and sources remain unchanged. Five tracked calls (brief, writing
+and three embedding cache misses) totalled 0.15092 DKK as a usage-based upper
+estimate, not an invoice. No discovery or image-generation call was needed.
+
+The acceptance test must resume this paid work after contextual similarity
+review is implemented, not create a replacement article. A small editorial
+correction changes the erroneous word “selvmodig” to “selvskabt” through the
+authenticated, audited checkpoint-edit API before normal downstream gates.
+CMS, image and queue acceptance results remain pending until measured.

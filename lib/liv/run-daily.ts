@@ -31,6 +31,7 @@ import {
 } from '@/lib/liv/daily-history-store';
 import { pickLivTopic } from '@/lib/liv/pick-topic';
 import { generateLivArticle } from '@/lib/liv/generate-article';
+import { SourceSimilarityError } from '@/lib/liv/source-similarity-error';
 import type { GeneratedArticle } from '@/lib/liv/generate-article';
 import { prepareLivAutomaticMedia } from '@/lib/liv/automatic-media';
 import { buildLivCmsPayload } from '@/lib/liv/build-cms-payload';
@@ -579,6 +580,11 @@ async function runLivDailyOperation(req: NextRequest, preparation?: LivPreparati
   } catch (e) {
     if (e instanceof ArticleSaveError && e.articleId) savedWebflowItemId = e.articleId;
     const msg = e instanceof Error ? e.message : 'Ukendt fejl';
+    // Retain actual pre-checkpoint scores, never raw text or approval evidence.
+    const similarity = e instanceof SourceSimilarityError ? e : null;
+    const diagnostic = similarity ? (({ sourceHost, sourceHash, complete, failure, scores, method }) =>
+      ({ sourceHost, sourceHash, complete, failure, scores, method }))(similarity.detail) : undefined;
+    if (diagnostic) gateResults.push({ name: 'source-similarity', pass: false, detail: JSON.stringify(diagnostic) });
     const stack = e instanceof Error ? e.stack : undefined;
     await finishLivDaily(dayKey, {
       status: 'failed',
@@ -592,6 +598,7 @@ async function runLivDailyOperation(req: NextRequest, preparation?: LivPreparati
       await markPlanFailed(dayKey, msg);
     }
     logger.error('[cron/liv-daily] unhandled error', e instanceof Error ? e : new Error(msg), { dayKey, stack });
-    return NextResponse.json({ error: msg, dayKey }, { status: 500 });
+    return NextResponse.json({ error: msg, dayKey, ...(similarity ? { code: similarity.code, diagnostic } : {}) },
+      { status: similarity?.status || 500 });
   }
 }

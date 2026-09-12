@@ -3,7 +3,8 @@ import { checkSourceSimilarity, lexicalSourceScores } from '@/lib/liv/source-sim
 import { independentDinnerTexts } from './fixtures/danish-originality';
 import { SourceSimilarityError } from '@/lib/liv/source-similarity-error';
 
-const mocks = vi.hoisted(() => ({ embedding: vi.fn(), cosine: vi.fn(), warn: vi.fn() }));
+const mocks = vi.hoisted(() => ({ embedding: vi.fn(), cosine: vi.fn(), warn: vi.fn(), review: vi.fn() }));
+vi.mock('@/lib/liv/semantic-source-review', () => ({ reviewSemanticSource: mocks.review }));
 vi.mock('@/lib/embeddings', () => ({ getEmbedding: mocks.embedding, cosineSimilarity: mocks.cosine }));
 vi.mock('@/lib/logger', () => ({ logger: { warn: mocks.warn } }));
 
@@ -13,6 +14,7 @@ beforeEach(() => {
   vi.resetAllMocks();
   mocks.embedding.mockResolvedValue([1, 2]);
   mocks.cosine.mockReturnValue(0.1);
+  mocks.review.mockResolvedValue({ decision: 'uncertain', reason: 'Insufficient comparative evidence.' });
 });
 
 it('approves a completed comparison with low scores', async () => {
@@ -39,6 +41,32 @@ it.each([[], [0, 0], [NaN, 1], [Infinity, 1], [1]].map(vector => ({ vector })))(
 it('still blocks high semantic similarity', async () => {
   mocks.cosine.mockReturnValue(0.9);
   expect(await checkSourceSimilarity({ generated, source })).toMatchObject({ pass: false, complete: true, failure: 'similarity-exceeded' });
+});
+
+it('allows a complete semantic-only trigger only with independent qualitative evidence and returns it', async () => {
+  mocks.cosine.mockReturnValue(0.892823);
+  const review = { decision: 'independent', reviewId: 'cached-review', evidence: [{ aspect: 'structure' }] };
+  mocks.review.mockResolvedValue(review);
+  const result = await checkSourceSimilarity({ generated, source });
+  expect(result).toMatchObject({ pass: true, complete: true, semanticReview: review, scores: { embeddingSim: 0.892823 } });
+  expect(mocks.review).toHaveBeenCalledWith(generated.trim(), source.trim());
+});
+
+it.each(['copied', 'ngram', 'opening', 'embedding-unavailable', 'embedding-invalid', 'below-threshold'])('never invokes semantic review for %s', async kind => {
+  mocks.cosine.mockReturnValue(kind === 'below-threshold' ? 0.2 : 0.9);
+  if (kind === 'embedding-unavailable') mocks.embedding.mockRejectedValue(new Error('unavailable'));
+  if (kind === 'embedding-invalid') mocks.embedding.mockResolvedValue([]);
+  await checkSourceSimilarity({ generated, source: kind === 'copied' ? generated : source,
+    thresholds: kind === 'ngram' ? { ngram: -1 } : kind === 'opening' ? { opening: -1 } : undefined });
+  expect(mocks.review).not.toHaveBeenCalled();
+});
+
+it('fails closed without exposing invalid review or provider text', async () => {
+  mocks.cosine.mockReturnValue(0.9);
+  mocks.review.mockRejectedValue(new Error('private source and provider details'));
+  const result = await checkSourceSimilarity({ generated, source });
+  expect(result).toMatchObject({ pass: false, complete: false, failure: 'semantic-review-unavailable' });
+  expect(JSON.stringify(result)).not.toContain('private');
 });
 
 it('still blocks literal overlap independently of embeddings', async () => {

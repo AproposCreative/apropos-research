@@ -40,3 +40,27 @@ it('does not race a currently preparing worker', async () => {
   mocks.lease.mockResolvedValue(null); expect((await POST(request())).status).toBe(409);
   expect(mocks.grant).not.toHaveBeenCalled(); expect(mocks.run).not.toHaveBeenCalled();
 });
+
+it('dispatches the explicit reserve scope with the audited immutable plan, never a fresh default', async () => {
+  const input = { dayKey: '2026-09-12', kind: 'reserve', scope: 'reserve-editorial', requestId: 'saved-writer-retry',
+    reason: 'Semantic check fixed; re-evaluate original text', resumeWritingRunId: '22f6a890-794f-4041-84da-5ce28b5336d9' };
+  const defaultPlan = { dayKey: input.dayKey, topicHint: 'The Gentlemen sæson 2', directiveHint: 'Original official source URLs',
+    articleFormat: 'research-review', mustUseTrending: false, status: 'pending', createdAt: null, updatedAt: null };
+  mocks.grant.mockResolvedValue({ status: 'retry_authorized', defaultPlan });
+  expect((await POST(request(input))).status).toBe(200);
+  expect(mocks.grant).toHaveBeenCalledWith(input, 'owner');
+  expect(mocks.run).toHaveBeenCalledExactlyOnceWith(expect.anything(), { dayKey: input.dayKey, kind: 'reserve', scope: 'reserve-editorial', defaultPlan });
+  expect(mocks.release).toHaveBeenCalledWith('owner');
+});
+
+it('never falls back to a generic reserve plan when an explicit reservation was not returned', async () => {
+  expect((await POST(request({ dayKey: '2026-09-12', kind: 'reserve', scope: 'reserve-editorial', requestId: 'saved-writer-retry',
+    reason: 'Re-evaluate original', resumeWritingRunId: '22f6a890-794f-4041-84da-5ce28b5336d9' }))).status).toBe(409);
+  expect(mocks.run).not.toHaveBeenCalled();
+});
+
+it('rejects dryRun semantics before any retry grant', async () => {
+  const req = new NextRequest('https://example.com/api/liv/operations/retry?dryRun=1', { method: 'POST', body: JSON.stringify({
+    dayKey: '2026-09-12', kind: 'reserve', requestId: 'retry-123', reason: 'Fix' }) });
+  expect((await POST(req)).status).toBe(400); expect(mocks.grant).not.toHaveBeenCalled();
+});

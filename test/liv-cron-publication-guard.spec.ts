@@ -35,10 +35,34 @@ vi.mock('@/lib/liv/resolve-liv-topic-hints', () => ({ resolveLivTopicInputsFromP
 import { GET } from '@/app/api/cron/liv-daily-article/route';
 import { ArticleSaveError } from '@/lib/articles/save-receipt';
 import { runLivDaily } from '@/lib/liv/run-daily';
+import { SourceSimilarityError } from '@/lib/liv/source-similarity-error';
 import { defaultEditorialPlan, editorialPlanHash } from '@/lib/liv/rolling-plan';
 
 const saveResult = { articleId: 'saved-item', publicationVerified: false,
   receipt: { saveState: 'draft', saveVerified: true, cmsLocaleId: 'locale' } };
+
+it.each([true, false])('persists actual failed similarity diagnostics before checkpoint, complete=%s', async complete => {
+  const scores = { embeddingSim: 0.892823, ngramJaccard: 0, openingSim: 0.07258, copiedPassage: false };
+  const error = new SourceSimilarityError({ pass: false, complete, scores, reason: 'private provider reason',
+    failure: complete ? 'similarity-exceeded' : 'embedding-unavailable', method: 'word-5gram-v2' },
+  { url: 'https://soundvenue.com/film?token=private-token', contentHash: 'a'.repeat(64) },
+  { text: 'Private paid article', model: 'fixture', voiceVersion: 'liv-v4' });
+  plans.generate.mockImplementation(() => { throw error; });
+  const response = await runLivDaily(new NextRequest('http://localhost/api/liv/operations/retry'), {
+    dayKey: '2026-09-12', kind: 'reserve', scope: 'reserve-editorial', defaultPlan: defaultEditorialPlan('2026-09-12', true) });
+  expect(response.status).toBe(complete ? 422 : 503);
+  const body = await response.json();
+  expect(body).toMatchObject({ code: complete ? 'source_similarity_unapproved' : 'source_similarity_incomplete',
+    diagnostic: { sourceHost: 'soundvenue.com', sourceHash: 'a'.repeat(64), complete, scores } });
+  const gate = mocks.finish.mock.calls[0][1].gateResults[0];
+  expect(gate).toMatchObject({ name: 'source-similarity', pass: false });
+  expect(JSON.parse(gate.detail)).toEqual(body.diagnostic);
+  expect(gate).not.toHaveProperty('evidence');
+  expect(JSON.stringify([body, mocks.finish.mock.calls])).not.toMatch(/private-token|private provider|Private paid/);
+  expect(mocks.finish).toHaveBeenCalledWith('2026-09-12', expect.objectContaining({ status: 'failed' }), 'reserve-editorial');
+  expect(mocks.checkpoint).not.toHaveBeenCalled(); expect(mocks.media).not.toHaveBeenCalled();
+  expect(mocks.publish).not.toHaveBeenCalled(); expect(mocks.live).not.toHaveBeenCalled();
+});
 
 beforeEach(() => {
   vi.resetAllMocks();
