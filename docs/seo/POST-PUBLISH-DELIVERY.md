@@ -86,6 +86,22 @@ plus later optimization grounded in Search Console and GA4 results.
   `dpl_BnvZRsvX79rHDsEfYgaiegTiQ2tF`, READY at
   `17e0c6f9ddab445f12cf64dc1287d433c2fac1cf`. That commit is merged in this branch.
   SEO has not been deployed. Visual/runtime service verification is next.
+- Live service probes with existing production credentials succeeded: Firestore
+  settings readable and autoOpportunityOptEnabled=true; live DA CMS reports 210
+  items and the first article's staged/live data match; GA4 returns 3296 pageviews
+  and 611 engaged sessions for the requested last-28-days report; GSC returns
+  actual page impressions for 2026-08-13 through 2026-09-09. No CMS write occurred.
+- Vercel's sensitive INTERNAL_API_SECRET is present but cannot be exported through
+  the environment API. Existing server configuration is preserved; production
+  worker verification can use the authenticated cron recovery path. Credentials
+  were held only in process memory, never stored or printed.
+- Isolated browser test of the actual MetadataQualityPanel with compiled project
+  CSS passed at 390px and 1280px: no horizontal overflow or page errors, per-field
+  lock reflected the mocked API acknowledgement, failed history read showed its
+  error. Used the already installed Chrome via locked Playwright; agent-browser
+  CLI was unavailable. This fixture proves UI behavior, not authenticated production
+  access. Screenshots are in ignored tmp/seo-release/{mobile,desktop}.png.
+- Replaced technical status identifiers with Danish explanations in the panel.
 
 ## Required work before claiming completion
 
