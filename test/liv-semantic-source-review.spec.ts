@@ -62,7 +62,7 @@ it('persists exact anchored evidence, policy, usage and bounded paid request; co
   first.evidence[0].explanation = 'mutated';
   expect(await reviewSemanticSource(article, source)).toEqual(second);
   expect(state.create).toHaveBeenCalledTimes(1);
-  expect(state.create).toHaveBeenCalledWith(expect.objectContaining({ max_completion_tokens: 4000, model: state.model }), { timeout: 30_000, maxRetries: 0 });
+  expect(state.create).toHaveBeenCalledWith(expect.objectContaining({ max_completion_tokens: 4000, model: state.model }), { timeout: 90_000, maxRetries: 0 });
   expect([...state.rows.values()][0]).toMatchObject({ status: 'complete', finishReason: 'stop', usage: { prompt_tokens: 250 }, rawHash: expect.any(String) });
 });
 

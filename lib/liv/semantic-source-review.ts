@@ -103,7 +103,7 @@ export function reviewSemanticSource(article: string, source: string): Promise<S
       const response = await withLivCostStage('source-similarity', () => client.chat.completions.create({
         model, reasoning_effort: 'low', max_completion_tokens: 4000, response_format: { type: 'json_object' },
         messages: [{ role: 'system', content: prompt }, { role: 'user', content: JSON.stringify({ article, source }) }],
-      }, { timeout: 30_000, maxRetries: 0 })).catch(async error => {
+      }, { timeout: 90_000, maxRetries: 0 })).catch(async error => {
         const refusal = getLivCostPretransportError(error);
         if (refusal) await ref.set({ status: 'not_started',
           notStartedReason: ['liv_cost_monthly_budget_exceeded', 'liv_cost_call_limit_exceeded',
