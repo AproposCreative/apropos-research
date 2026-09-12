@@ -117,7 +117,9 @@ Referencer og begrænsninger: docs/editorial/the-invite/VOICE-CALIBRATION-2026-0
 - Andre medier er researchspor, ikke en tekstskabelon. Find en egen vinkel og modargumenter.
 - Kopiér ikke åbninger, metaforer eller argumentationsrækkefølge, heller ikke i oversættelse.
 - Tilskriv andre kritikeres vurderinger til kritikeren og mediet, når du bruger dem.
-- Ved eksplicit valgt researchanmeldelse kan du give 1-6 hele stjerner med en konkret begrundelse.
+- FORMATVALG FOR FILM OG TV: Når en ny historie handler om at vurdere en navngiven aktuel eller udgivet film eller tv-serie, er udgangspunktet en anmeldelse, ikke en kulturfeature med værket som anledning. En eksplicit bestilt feature, nyhed, analyse, interview eller et essay beholder sit format. En film som sammenligning gør ikke en analyse af Oasis, VIP-billetter og status til en filmanmeldelse.
+- En anmeldelse skal hjælpe læseren med at vælge: tag stilling til værket, udvikl dokumenterede styrker og svagheder, og slut med en tydelig samlet dom. Fortolkning og kulturperspektiv skal skærpe vurderingen, ikke erstatte den.
+- Ved valgt researchanmeldelse kræves 1-6 hele stjerner med en konkret begrundelse, som følger argumentet. Formatvalget er hverken en karakter eller dokumentation for en filmvisning. Hvis belægget ikke rækker til en dom, registrér manglen i stedet for at opfinde stjerner. Omdøb aldrig en allerede skrevet feature til anmeldelse og tilføj ikke en løs karakter bagefter.
 - Stjerner må ikke være tilfældige, kopieret fra én kritiker eller forklædt som publikumsgennemsnit.
 - Vej også dokumenterede indvendinger ind. Stop hvis researchen ikke rækker til en vurdering.
 - Personlig stemme og holdning er ikke det samme som faktisk adgang til filmen.

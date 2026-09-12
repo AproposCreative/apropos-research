@@ -14,6 +14,7 @@ import {
 import { fotoCreditFromFeaturedUrl } from '@/lib/liv/cms-webflow-meta';
 import { resolveBestOfficialFeaturedImage } from '@/lib/liv/fetch-official-images';
 import { resolveCmsFeaturedImage, cmsThumbValue } from '@/lib/liv/cms-image-input';
+import { readWebflowTopicCollection, resolveWebflowTopicId, resolveWebflowTopics, type WebflowTopicItem } from '@/lib/webflow/topic-resolution';
 import type {
   WebflowArticleFields,
   WebflowAuthor,
@@ -388,75 +389,19 @@ async function resolveStreamingServiceIdFromName(nameOrSlug: string): Promise<st
   }
 }
 
-const topicSlugify = (s: string) =>
-  s
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/\p{Diacritic}+/gu, '')
-    .replace(/[^a-z0-9\s-]/g, '')
-    .trim()
-    .replace(/\s+/g, '-');
-
-async function fetchTopicCollectionItems(siteId: string, collectionId: string, token: string): Promise<any[]> {
-  const base = `https://api.webflow.com/v2/sites/${siteId}/collections/${collectionId}/items`;
-  const all: any[] = [];
-  let offset = 0;
-  const limit = 100;
-  while (offset < 5000) {
-    const res = await fetch(`${base}?offset=${offset}&limit=${limit}`, {
-      headers: { Authorization: `Bearer ${token}`, 'Accept-Version': '1.0.0' },
+async function fetchTopicCollectionItems(collectionId: string, token: string): Promise<WebflowTopicItem[]> {
+  if (!/^[a-f0-9]{24}$/i.test(collectionId)) throw new Error('webflow_topics_invalid_collection');
+  const localeId = env.WEBFLOW_CMS_LOCALE_DK;
+  const localeQuery = localeId && /^[a-f0-9]{24}$/i.test(localeId) ? `&cmsLocaleId=${localeId}` : '';
+  const signal = AbortSignal.timeout(15_000);
+  // Data API v2 collection items are NOT nested under /sites/:siteId.
+  return readWebflowTopicCollection(async offset => {
+    const response = await fetch(`https://api.webflow.com/v2/collections/${collectionId}/items?offset=${offset}&limit=100${localeQuery}`, {
+      headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' }, cache: 'no-store', redirect: 'error', signal,
     });
-    if (!res.ok) break;
-    const data: any = await res.json();
-    const batch = data.items || [];
-    all.push(...batch);
-    if (batch.length < limit) break;
-    offset += limit;
-  }
-  return all;
-}
-
-// Resolve topic itemId by matching name or slug (case-insensitive)
-async function resolveTopicIdFromName(nameOrSlug: string): Promise<string | undefined> {
-  try {
-    const { token, siteId } = resolveConfig();
-    if (!token || !siteId) return undefined;
-
-    const collectionId =
-      resolveConfig().topicsCollectionId?.trim() || '67dbf17ba540975b5b21c2af';
-
-    const items = await fetchTopicCollectionItems(siteId, collectionId, token);
-    if (!items.length) return undefined;
-
-    const needleRaw = (nameOrSlug || '').trim();
-    const needle = needleRaw.toLowerCase();
-    const needleSlug = topicSlugify(needleRaw);
-    const needleFirst = needle.split(/\s*&\s*|,\s*|\/|\s+/)[0]?.trim() || needle;
-
-    const score = (it: any): number => {
-      const fd = it.fieldData || {};
-      const nm = String(fd.name ?? fd.title ?? '').toLowerCase().trim();
-      const sl = String(fd.slug ?? '').toLowerCase().trim();
-      const title = String(fd.title ?? '').toLowerCase().trim();
-      if (nm === needle || title === needle) return 100;
-      if (sl === needle || sl === needleSlug || topicSlugify(nm) === needleSlug) return 95;
-      if (nm.startsWith(needleFirst) || sl.startsWith(topicSlugify(needleFirst))) return 85;
-      if (nm.includes(needle) || title.includes(needle)) return 70;
-      if (needleFirst.length >= 3 && (nm.includes(needleFirst) || sl.includes(topicSlugify(needleFirst)))) return 60;
-      return 0;
-    };
-
-    let best: { id: string; s: number } | undefined;
-    for (const it of items) {
-      const s = score(it);
-      if (s > 0 && (!best || s > best.s)) {
-        best = { id: it.id, s };
-      }
-    }
-    return best?.id;
-  } catch {
-    return undefined;
-  }
+    if (!response.ok) throw new Error(`webflow_topics_http_${response.status}`);
+    return response.json();
+  }, localeQuery ? localeId : undefined);
 }
 
 // Get article collection fields
@@ -695,24 +640,11 @@ export async function publishArticleToWebflow(articleData: WebflowArticleFields)
       primary?: string;
       multi?: string[];
     }> => {
+      let collection: Promise<WebflowTopicItem[]> | undefined;
+      const items = () => collection ??= fetchTopicCollectionItems(
+        resolveConfig().topicsCollectionId?.trim() || '67dbf17ba540975b5b21c2af', token);
       if (Array.isArray(topicsSelected) && topicsSelected.length > 0) {
-        const resolved = await Promise.all(
-          topicsSelected.map(async (raw) => {
-            const name = String(raw || '').trim();
-            if (!name) return undefined;
-            if (/^[a-f0-9]{24}$/i.test(name)) return name;
-            return resolveTopicIdFromName(name).catch(() => undefined);
-          })
-        );
-        const resolvedIdsOrdered: string[] = [];
-        const seen = new Set<string>();
-        for (const id of resolved) {
-          if (id && !seen.has(id)) {
-            seen.add(id);
-            resolvedIdsOrdered.push(id);
-          }
-        }
-        if (resolvedIdsOrdered.length === 0) return {};
+        const resolvedIdsOrdered = resolveWebflowTopics(topicsSelected, await items());
         return { primary: resolvedIdsOrdered[0], multi: resolvedIdsOrdered };
       }
 
@@ -720,7 +652,7 @@ export async function publishArticleToWebflow(articleData: WebflowArticleFields)
         typeof fieldData['topic'] === 'string' ? fieldData['topic'] : undefined;
       const primaryPromise =
         topicVal && looksLikeNameOrSlug(topicVal)
-          ? resolveTopicIdFromName(topicVal).catch(() => undefined)
+          ? items().then(rows => resolveWebflowTopicId(topicVal, rows))
           : Promise.resolve(undefined);
 
       const topicsVal = fieldData['topics'];
@@ -729,7 +661,7 @@ export async function publishArticleToWebflow(articleData: WebflowArticleFields)
             topicsVal.map(async (topicItem) => {
               if (typeof topicItem !== 'string') return topicItem;
               if (!looksLikeNameOrSlug(topicItem)) return topicItem;
-              const resolved = await resolveTopicIdFromName(topicItem).catch(() => undefined);
+              const resolved = resolveWebflowTopicId(topicItem, await items());
               return resolved ?? null;
             })
           ).then((ids) => ids.filter((id): id is string => typeof id === 'string' && id.length > 0))

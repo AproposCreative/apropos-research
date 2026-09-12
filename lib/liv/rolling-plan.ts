@@ -50,14 +50,14 @@ export function defaultEditorialPlan(day: string, reserve = false): LivDailyPlan
   // the old behavior often turned the question into a synthetic topic with no
   // usable evidence, leaving the weekly feed empty.
   return { dayKey: day,
-    directiveHint: `Skriv en selvstændig dansk kulturfeature i Livs Apropos-stemme. Brug dette redaktionelle spørgsmål som vinkel, men vælg et konkret aktuelt værk, navn eller kulturfænomen fra researchen: ${questions[index]} ` +
+    directiveHint: `Skriv selvstændig dansk kulturjournalistik i Livs Apropos-stemme. Brug dette redaktionelle spørgsmål som mulig vinkel, ikke som et påtvunget format; lad det konkrete værk være hovedsagen, når det skal vurderes: ${questions[index]} ` +
       'Besvar spørgsmålet med ' +
       'konkrete, kildebelagte værker eller eksempler, kulturel fortolkning, modargument og en tydelig egen tese. ' +
-      'Ingen opdigtede oplevelser, interviews, aktuelle begivenheder eller anmeldelsesstjerner. ' +
+      'Ingen opdigtede oplevelser, citater eller aktuelle begivenheder. En eventuel karakter skal begrundes i dokumenterede styrker og svagheder, aldrig vælges tilfældigt. ' +
       'Undgå genbrug af nyligt dækkede vinkler. ' +
       (reserve ? 'Tidløs reserve: ingen snart udløbende arrangementer, relative datoer som i morgen eller udokumenterede besøg.' :
         'Faktatjek aktualitet til den planlagte udgivelsesdato, ikke alene produktionsdagen.'),
-    articleFormat: 'article', mustUseTrending: false, status: 'pending', createdAt: null, updatedAt: null };
+    ...(reserve ? { articleFormat: 'article' as const } : {}), mustUseTrending: false, status: 'pending', createdAt: null, updatedAt: null };
 }
 
 /** One article in production at a time. Keep old inventory and paid jobs intact.

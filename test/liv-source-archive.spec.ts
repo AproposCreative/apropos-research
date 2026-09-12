@@ -72,6 +72,15 @@ const paidBrief = { runId: paidRunId, writerText: '[S1] En neutral faktanote.', 
 const seedPaid = async () => rememberWritingBrief('liv-daily', 'Dagens emne', paidBrief);
 const savedRun = () => [...state.data.entries()].find(([path]) => path.endsWith(`/runs/${paidRunId}`))![1];
 
+it('retains the chosen format with paid output and rejects later reclassification', async () => {
+  await rememberWritingBrief('liv-daily', 'Dagens emne', { ...paidBrief, articleFormat: 'research-review' });
+  expect((await loadRecoverableWritingBrief('liv-daily', 'Dagens emne', paidRunId)).articleFormat).toBe('research-review');
+  await expect(rememberWritingBrief('liv-daily', 'Dagens emne', { ...paidBrief, articleFormat: 'article' }))
+    .rejects.toThrow('research_recovery_conflict');
+  savedRun().articleFormat = 'review';
+  await expect(loadRecoverableWritingBrief('liv-daily', 'Dagens emne', paidRunId)).rejects.toThrow('research_recovery_invalid');
+});
+
 it('loads the exact scoped paid response and metadata without inventing finish evidence or source text', async () => {
   await seedPaid();
   const before = structuredClone([...state.data]);

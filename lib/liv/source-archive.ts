@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 import { getAdminDb } from '@/lib/firebase-admin';
 import { sourceUrl, type RetrievedSource } from '@/lib/factcheck/source-reader';
 import { canonicalSourceUrl } from '@/lib/editorial/audience-signals';
+import { isLivArticleFormat, type LivArticleFormat } from '@/lib/liv/review-format';
 
 const hash = (value: string) => createHash('sha256').update(value).digest('hex');
 const topicId = (topic: string) => hash(topic.toLocaleLowerCase('da').replace(/[^\p{L}\p{N}]+/gu, ' ').trim());
@@ -21,7 +22,7 @@ const validFinishReason = (value: unknown): value is FinishReason => value === n
 export type WritingBriefSource = Pick<RetrievedSource, 'id' | 'url' | 'contentHash' | 'retrievedAt' | 'publishedAt'>;
 export type RecoverableWritingBrief = {
   runId: string; rawResponse: string; writerText: string; sources: WritingBriefSource[];
-  model: string; voiceVersion: string; parentRunId?: string; finishReason?: FinishReason; refusal?: string | null;
+  model: string; voiceVersion: string; articleFormat?: LivArticleFormat; parentRunId?: string; finishReason?: FinishReason; refusal?: string | null;
 };
 
 export function archiveSourceRecord(source: RetrievedSource) {
@@ -72,11 +73,12 @@ export async function recalledSourceUrls(scope: string, topic: string): Promise<
 
 /** Private run history plus latest-topic pointer, never a publication approval. */
 export async function rememberWritingBrief(scope: string, topic: string, input: {
-  runId: string; writerText: string; model: string; voiceVersion: string; missingEvidence?: string[];
+  runId: string; writerText: string; model: string; voiceVersion: string; articleFormat?: LivArticleFormat; missingEvidence?: string[];
   rawResponse?: string; tokenUsage?: { input: number; output: number };
   sources?: WritingBriefSource[]; parentRunId?: string; finishReason?: FinishReason; refusal?: string | null;
 }): Promise<void> {
   if (!scope || !validRunId(input.runId) || !input.writerText.trim() || input.writerText.length > 24000 ||
+      (input.articleFormat !== undefined && !isLivArticleFormat(input.articleFormat)) ||
       (input.parentRunId !== undefined && (!validRunId(input.parentRunId) || input.parentRunId === input.runId)) ||
       (input.finishReason !== undefined && !validFinishReason(input.finishReason)) ||
       (input.refusal !== undefined && input.refusal !== null && (typeof input.refusal !== 'string' || input.refusal.length > 60000)) ||
@@ -105,7 +107,7 @@ export async function rememberWritingBrief(scope: string, topic: string, input: 
     // Diagnostics may be appended, but a paid response and its provenance cannot
     // be replaced. An originality rewrite belongs to a new, linked run.
     if (previous?.rawResponse !== undefined) {
-      for (const key of ['rawResponse', 'writerText', 'model', 'voiceVersion', 'sources', 'tokenUsage', 'finishReason', 'refusal', 'parentRunId'] as const) {
+      for (const key of ['rawResponse', 'writerText', 'model', 'voiceVersion', 'articleFormat', 'sources', 'tokenUsage', 'finishReason', 'refusal', 'parentRunId'] as const) {
         if (input[key] !== undefined && JSON.stringify(input[key]) !== JSON.stringify(previous[key])) {
           throw new Error('research_recovery_conflict');
         }
@@ -143,6 +145,7 @@ export async function loadRecoverableWritingBrief(scope: string, topic: string, 
     if (!row) throw new Error('research_recovery_missing');
     if (row.runId !== runId) throw new Error('research_recovery_conflict');
     if (!boundedText(row.rawResponse, 60000) || !boundedText(row.writerText, 24000) ||
+        (row.articleFormat !== undefined && !isLivArticleFormat(row.articleFormat)) ||
         !validLabel(row.model) || !validLabel(row.voiceVersion) ||
         (row.parentRunId !== undefined && (!validRunId(row.parentRunId) || row.parentRunId === runId)) ||
         !Array.isArray(row.sources) || !row.sources.length || row.sources.length > 8 ||
@@ -168,6 +171,7 @@ export async function loadRecoverableWritingBrief(scope: string, topic: string, 
         retrievedAt: source.retrievedAt, publishedAt: typeof source.publishedAt === 'string' ? source.publishedAt : null };
     });
     return { runId, rawResponse: row.rawResponse, writerText: row.writerText, sources, model: row.model, voiceVersion: row.voiceVersion,
+      ...(row.articleFormat !== undefined ? { articleFormat: row.articleFormat } : {}),
       ...(row.parentRunId !== undefined ? { parentRunId: row.parentRunId } : {}),
       ...(row.finishReason !== undefined ? { finishReason: row.finishReason } : {}),
       ...(row.refusal !== undefined ? { refusal: row.refusal } : {}) };

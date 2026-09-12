@@ -245,7 +245,7 @@ it('uses the alternative editorial direction without changing the saved plan or 
   expect(mocks.topic).toHaveBeenCalledWith(expect.objectContaining({ topicHint: 'Different story',
     currentRunId: 'prepare-alternative-2026-09-12' }));
   expect(plans.generate).toHaveBeenCalledWith(expect.objectContaining({ directiveHint: 'New directive',
-    expandedDirective: 'New expanded directive', articleFormat: 'article' }));
+    expandedDirective: 'New expanded directive', articleFormat: undefined }));
 
   mocks.row = { articleCheckpoint: { title: 'Et museum åbner', content: 'Kultur '.repeat(650), slug: 'et-museum-aabner',
     subtitle: 'Udstillingen', intro: 'En intro', seoTitle: 'Museum', seoDescription: 'Kultur', section: 'Kunst',

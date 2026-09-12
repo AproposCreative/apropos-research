@@ -8,7 +8,7 @@ import type { PickedTopic } from '@/lib/liv/pick-topic';
 
 /**
  * Byg en prioriteret liste af emnenavne til `topicsSelected` (API resolver hvert navn til item-id).
- * Rækkefølge: artikel-tags → emne-tags/kategori → heuristik fra titel.
+ * Rækkefølge: eksplicit hovedemne → faktisk anmeldelsesformat → tags/kategori.
  */
 export function buildTopicsSelectedForCms(topic: PickedTopic, article: GeneratedArticle): string[] {
   const out: string[] = [];
@@ -20,19 +20,33 @@ export function buildTopicsSelectedForCms(topic: PickedTopic, article: Generated
     out.push(t);
   };
 
-  for (const t of article.tags || []) add(t);
-  for (const t of topic.tags || []) add(t);
-  if (topic.category) add(topic.category);
+  if (article.subjectType === 'film') add('Film');
+  if (article.subjectType === 'tv-series') add('TV-serier');
+  if (article.articleFormat === 'research-review') add('Anmeldelser');
+
+  const addCandidate = (value?: string) => {
+    // Generated tags/categories cannot turn an analysis into a review.
+    if (/^anmeldelse(?:r)?$/i.test(value?.trim() || '') && article.articleFormat !== 'research-review') return;
+    add(value);
+  };
+  for (const t of article.tags || []) addCandidate(t);
+  for (const t of topic.tags || []) addCandidate(t);
+  addCandidate(topic.category);
 
   const hay = `${topic.title} ${article.title} ${article.subtitle || ''}`.toLowerCase();
-  if (/\b(festival|lineup|koncert|scene|headliner|heartland|roskilde|spotify)\b/i.test(hay)) {
-    add('Musik');
-    add('Festival');
-  }
+  if (/\b(festival|festivalen|heartland|roskilde)\b/i.test(hay)) add('Festival');
+  if (/\b(koncert|koncerter|koncerten|koncerterne)\b/i.test(hay)) add('Koncerter');
   if (/\b(kultur|film|teater|litteratur|museum|udstilling)\b/i.test(hay)) add('Kultur');
   if (/\b(mode|beauty|stil|makeup)\b/i.test(hay)) add('Mode');
 
-  return out.slice(0, 12);
+  // Free-form tags need not exist in Webflow. Keep an actual broad CMS topic
+  // after the explicit subject/format, including when the tag limit is reached.
+  const selected = out.slice(0, 10);
+  out.length = 0;
+  selected.forEach(add);
+  addCandidate(article.section);
+  add('Kultur & Mening');
+  return out;
 }
 
 export function fotoCreditFromFeaturedUrl(imageUrl: string | undefined | null): string | undefined {

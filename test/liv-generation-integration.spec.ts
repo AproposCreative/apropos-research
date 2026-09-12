@@ -3,6 +3,8 @@ import { generateLivArticle, collectImageSuggestions } from '@/lib/liv/generate-
 import { loadLivVoice } from '@/lib/liv/voice';
 import { buildLivCmsPayload } from '@/lib/liv/build-cms-payload';
 import { normalizeArticlePayload } from '@/lib/articles/article-payload';
+import { defaultEditorialPlan } from '@/lib/liv/rolling-plan';
+import { livResearchQueries } from '@/lib/liv/research-query';
 
 const mocks = vi.hoisted(() => ({ feedback: vi.fn(), resume: vi.fn(), create: vi.fn(), search: vi.fn(), retrieve: vi.fn(), remember: vi.fn(), rememberBrief: vi.fn(), recall: vi.fn(), seo: vi.fn(), similarity: vi.fn(), images: vi.fn() }));
 vi.mock('@/lib/liv/editorial-feedback', () => ({ loadLivEditorialFeedbackPrompt: mocks.feedback }));
@@ -46,6 +48,42 @@ beforeEach(() => {
   mocks.seo.mockResolvedValue({ seoTitle: 'The Invite: Middagen som magtkamp', seoDescription: 'En konkret vurdering af præmissen og dens konflikt.', source: 'ai' });
   mocks.similarity.mockResolvedValue({ pass: true, complete: true });
   mocks.create.mockReset().mockResolvedValueOnce(response(rawArticle()));
+});
+
+it('selects a fresh automatic film review BEFORE discovery and preserves its requested rating, not a derived score', async () => {
+  const plan = defaultEditorialPlan('2026-09-15');
+  const topic = { title: 'The Invite', score: 0, category: 'Film', source: { title: 'The Invite: anmeldelse' } };
+  const article = await generateLivArticle({ topic, preparation: true, articleFormat: plan.articleFormat,
+    directiveHint: plan.directiveHint });
+  expect(mocks.search).toHaveBeenCalledExactlyOnceWith(livResearchQueries(topic.title, 'research-review').join('; '),
+    expect.objectContaining({ allowFallback: false, maxResults: 5 }));
+  expect(mocks.create.mock.calls[0][0].messages[0].content).toContain('dokumenterede styrker og svagheder');
+  expect(article).toMatchObject({ articleFormat: 'research-review', rating: 4, ratingReason: reason });
+  expect(mocks.rememberBrief.mock.calls.every(call => call[2].articleFormat === 'research-review')).toBe(true);
+});
+
+it('keeps an explicitly selected film feature without stars on fresh generation', async () => {
+  mocks.create.mockReset().mockResolvedValueOnce(response(rawArticle(false)));
+  const article = await generateLivArticle({ topic: { title: 'The Invite', score: 0, category: 'Film',
+    source: { title: 'The Invite: anmeldelse' } }, articleFormat: 'article' });
+  expect(mocks.search.mock.calls.map(call => call[0])).toEqual(livResearchQueries('The Invite', 'article'));
+  expect(article.articleFormat).toBe('article');
+  expect(article.rating).toBeUndefined();
+});
+
+it.each(['article', 'research-review', undefined] as const)('resumes paid format %s without new discovery or writer calls', async articleFormat => {
+  const rawResponse = rawArticle(articleFormat === 'research-review');
+  mocks.resume.mockResolvedValue({ rawResponse, articleFormat, writerText: '[S1] Saved evidence notes',
+    model: 'saved-writer', voiceVersion: 'liv-v4', sources: [{ url: primaryUrl }, { url: criticUrl }] });
+  mocks.create.mockReset();
+  const article = await generateLivArticle({ topic: { title: 'The Invite', score: 0, category: 'Film',
+    source: { title: 'The Invite: anmeldelse' } }, resumeWritingRunId: '4f5f2284-420d-4622-ac68-b42c0bc18ffd' });
+  expect(article.articleFormat).toBe(articleFormat || 'article');
+  expect(article.rawResponse).toBe(rawResponse);
+  expect(mocks.search).not.toHaveBeenCalled();
+  expect(mocks.create).not.toHaveBeenCalled();
+  expect(mocks.retrieve).toHaveBeenCalled();
+  expect(mocks.similarity).toHaveBeenCalled();
 });
 
 it('keeps official gallery candidates ahead of unrelated news thumbnails and deduplicates source pages', async () => {

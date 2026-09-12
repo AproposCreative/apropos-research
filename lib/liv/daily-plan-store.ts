@@ -74,7 +74,9 @@ export async function getLivDailyPlan(dayKey: string): Promise<LivDailyPlan | nu
     topicHint: typeof d.topicHint === 'string' ? d.topicHint : undefined,
     directiveHint: typeof d.directiveHint === 'string' ? d.directiveHint : undefined,
     expandedDirective: typeof d.expandedDirective === 'string' ? d.expandedDirective : undefined,
-    articleFormat: isLivArticleFormat(d.articleFormat) ? d.articleFormat : 'article',
+    // Missing format on new automatic plans means select after the topic is known.
+    // Existing explicit article/review choices are never reinterpreted.
+    articleFormat: isLivArticleFormat(d.articleFormat) ? d.articleFormat : undefined,
     mustUseTrending: d.mustUseTrending !== false,
     status: (d.status as LivDailyPlanStatus) || 'pending',
     createdAt: tsToIso(d.createdAt),

@@ -8,6 +8,7 @@ import { readLivStoredImage } from '@/lib/liv/stored-image-reader';
 import { load } from 'cheerio';
 import { cmsFieldHash } from '@/lib/liv/cms-field-hash';
 import { encodeWebp } from '@/lib/images/encode-webp';
+import { readWebflowTopicCollection, resolveWebflowTopics } from '@/lib/webflow/topic-resolution';
 
 type JsonObject = Record<string, unknown>;
 export type LivCmsReadback = {
@@ -36,7 +37,8 @@ function visibleText(value: unknown): string {
 /** GET-only adapter. Credentials stay server-side; upstream bodies are not logged. */
 export async function readLivWebflowJson(path: string): Promise<JsonObject> {
   // Only CMS schema/item reads with validated IDs, never arbitrary URLs.
-  if (!/^collections\/[a-f0-9]{24}(?:\/items\/[a-f0-9]{24}(?:\/live)?\?cmsLocaleId=[a-f0-9]{24})?$/i.test(path)) {
+  if (!/^collections\/[a-f0-9]{24}(?:\/items\/[a-f0-9]{24}(?:\/live)?\?cmsLocaleId=[a-f0-9]{24})?$/i.test(path) &&
+      !/^collections\/[a-f0-9]{24}\/items\?cmsLocaleId=[a-f0-9]{24}&offset=(?:0|[1-9]00|[1-4][0-9]00)&limit=100$/i.test(path)) {
     throw new Error('liv_cms_readback_invalid_path');
   }
   const config = getWebflowConfig();
@@ -172,6 +174,27 @@ export async function inspectLivCmsDraft(input: {
         text(object(referenced.fieldData).name) === expectedName;
     }
     checks.push({ id: `reference:${slug}`, ok });
+  }
+  if (Array.isArray(input.expected.topicsSelected) && input.expected.topicsSelected.length > 0) {
+    const primaryField = schemaFields.find(field => field.slug === 'topic');
+    const multiField = schemaFields.find(field => field.slug === 'topics');
+    const referenceCollection = (field: JsonObject | undefined) => text(object(field?.validations).collectionId) || text(object(field?.reference).collectionId);
+    const topicCollection = referenceCollection(primaryField);
+    let primaryOk = false, multiOk = false;
+    if (primaryField?.type === 'Reference' && multiField?.type === 'MultiReference' &&
+        OBJECT_ID.test(topicCollection) && referenceCollection(multiField) === topicCollection) {
+      try {
+        const items = await readWebflowTopicCollection(offset => read(
+          `collections/${topicCollection}/items?cmsLocaleId=${localeId}&offset=${offset}&limit=100`), localeId);
+        // Ignore free-form tags absent from the actual CMS taxonomy, just as save does.
+        const selected = resolveWebflowTopics(input.expected.topicsSelected, items);
+        const primary = text(fields.topic), multi = fields.topics;
+        primaryOk = primary === selected[0];
+        multiOk = Array.isArray(multi) && multi.length === selected.length && new Set(multi).size === multi.length &&
+          multi.includes(primary) && selected.every(id => multi.includes(id));
+      } catch { /* Missing, ambiguous, archived or unreadable taxonomy is not proof. */ }
+    }
+    checks.push({ id: 'reference:topic', ok: primaryOk }, { id: 'reference:topics', ok: multiOk });
   }
   // Rights remain unknown, not a permanently failing technical check. Require
   // actual selected-image evidence and two distinct credited body images.

@@ -34,6 +34,60 @@ function fixture() {
   return { item, schema, read, dependencies: { read, collectionId, localeId } };
 }
 afterEach(() => vi.unstubAllGlobals());
+const topicCollection = '3'.repeat(24), filmId = '4'.repeat(24), reviewId = '5'.repeat(24);
+function topicFixture() {
+  const f = fixture();
+  f.schema.fields.push({ slug: 'topic', type: 'Reference', validations: { collectionId: topicCollection } },
+    { slug: 'topics', type: 'MultiReference', validations: { collectionId: topicCollection } });
+  Object.assign(f.item.fieldData, { topic: filmId, topics: [filmId, reviewId] });
+  const items = [
+    { id: filmId, cmsLocaleId: localeId, isDraft: false, isArchived: false, fieldData: { name: 'Film', slug: 'film' } },
+    { id: reviewId, cmsLocaleId: localeId, isDraft: false, isArchived: false, fieldData: { name: 'Anmeldelser', slug: 'anmeldelser' } },
+  ];
+  const original = f.read.getMockImplementation()!;
+  f.read.mockImplementation(async path => path === `collections/${topicCollection}/items?cmsLocaleId=${localeId}&offset=0&limit=100`
+    ? { items } : original(path));
+  return { ...f, items };
+}
+it('checks optional topic fields when requested, ignoring non-taxonomy tags and fetching the collection once', async () => {
+  const f = topicFixture();
+  const result = await inspectLivCmsDraft({ itemId, expected: { ...expected, topicsSelected: ['Film', 'lgbt', 'identitet', 'Anmeldelse'] } }, f.dependencies);
+  expect(result.checks).toContainEqual({ id: 'reference:topic', ok: true });
+  expect(result.checks).toContainEqual({ id: 'reference:topics', ok: true });
+  expect(f.read.mock.calls.filter(([path]) => path.startsWith(`collections/${topicCollection}/items?`))).toHaveLength(1);
+});
+it.each(['missing-fields', 'missing-primary', 'missing-multi', 'primary-not-in-multi', 'wrong-primary', 'wrong-collection',
+  'wrong-locale', 'archived', 'missing-resolved-topic', 'ambiguous'])('rejects requested taxonomy readback: %s', async defect => {
+  const f = topicFixture();
+  if (defect === 'missing-fields') f.schema.fields = f.schema.fields.filter(field => !['topic', 'topics'].includes(field.slug));
+  if (defect === 'missing-primary') Object.assign(f.item.fieldData, { topic: null });
+  if (defect === 'missing-multi') Object.assign(f.item.fieldData, { topics: [] });
+  if (defect === 'primary-not-in-multi') Object.assign(f.item.fieldData, { topics: [reviewId] });
+  if (defect === 'wrong-primary') Object.assign(f.item.fieldData, { topic: reviewId });
+  if (defect === 'wrong-collection') f.schema.fields.find(field => field.slug === 'topics')!.validations!.collectionId = '9'.repeat(24);
+  if (defect === 'wrong-locale') f.items[0].cmsLocaleId = '9'.repeat(24);
+  if (defect === 'archived') f.items[0].isArchived = true;
+  if (defect === 'missing-resolved-topic') Object.assign(f.item.fieldData, { topics: [filmId] });
+  if (defect === 'ambiguous') f.items.push({ ...f.items[0], id: '9'.repeat(24) });
+  const result = await inspectLivCmsDraft({ itemId, expected: { ...expected, topicsSelected: ['Film', 'Anmeldelser'] } }, f.dependencies);
+  expect(result.checks.filter(check => check.id.startsWith('reference:topic')).some(check => !check.ok)).toBe(true);
+  expect(result.publicationReady).toBe(false);
+});
+it.each([undefined, []])('keeps legacy no-selection readbacks unchanged: %j', async topicsSelected => {
+  const f = fixture();
+  const result = await inspectLivCmsDraft({ itemId, expected: { ...expected, topicsSelected } }, f.dependencies);
+  expect(result.checks.some(check => check.id.startsWith('reference:topic'))).toBe(false);
+  expect(f.read.mock.calls.some(([path]) => path.includes('/items?'))).toBe(false);
+});
+it('allows only bounded locale-scoped collection pagination reads', async () => {
+  const fetchMock = vi.fn().mockImplementation(async () => Response.json({ items: [] })); vi.stubGlobal('fetch', fetchMock);
+  await expect(readLivWebflowJson(`collections/${topicCollection}/items?cmsLocaleId=${localeId}&offset=0&limit=100`)).resolves.toEqual({ items: [] });
+  for (const query of [`cmsLocaleId=${localeId}&offset=1&limit=100`, `cmsLocaleId=${localeId}&offset=5000&limit=100`,
+    `cmsLocaleId=${localeId}&offset=0&limit=200`, 'url=https://evil.example']) {
+    await expect(readLivWebflowJson(`collections/${topicCollection}/items?${query}`)).rejects.toThrow('invalid_path');
+  }
+  expect(fetchMock).toHaveBeenCalledTimes(1);
+});
 it('can pass with verified hero bytes and two distinct credited body images, without certifying rights', async () => {
   const f = fixture();
   const buffers = await Promise.all(['#aaa', '#bbb', '#ccc'].map(background =>

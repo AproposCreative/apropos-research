@@ -5,6 +5,7 @@ const state = vi.hoisted(() => ({
   fields: undefined as Record<string, unknown> | undefined,
   collectionId: '111111111111111111111111', itemId: '222222222222222222222222',
   localeId: '333333333333333333333333',
+  topicItems: [] as Array<{ id: string; cmsLocaleId: string; fieldData: { name: string; slug: string } }>,
 }));
 vi.mock('@/lib/config/env', () => ({ env: {
   WEBFLOW_CMS_LOCALE_DK: state.localeId, WEBFLOW_CMS_LOCALE_EN: '555555555555555555555555',
@@ -20,6 +21,8 @@ vi.mock('@/lib/webflow-mapping', () => ({ readMapping: () => ({ entries: [
   { internal: 'slug', webflowSlug: 'slug', transform: 'identity', required: true },
   { internal: 'content', webflowSlug: 'content', transform: 'plainToHtml', required: true },
   { internal: 'aiGenerated', webflowSlug: 'ai-generated', transform: 'boolean' },
+  { internal: 'topic', webflowSlug: 'topic', transform: 'identity' },
+  { internal: 'topics', webflowSlug: 'topics', transform: 'identity' },
 ] }) }));
 vi.mock('@/lib/webflow/article-image-auto-optimize', () => ({ autoOptimizeArticleFieldData: async () => ({
   thumbOptimized: false, mobileOptimized: false, contentImagesOptimized: 0,
@@ -35,13 +38,22 @@ import type { WebflowArticleFields } from '@/lib/webflow/types';
 beforeEach(() => {
   vi.resetAllMocks();
   state.fields = undefined;
+  state.topicItems = [
+    { id: '67dbf17ba540975b5b21c303', cmsLocaleId: state.localeId, fieldData: { name: 'Film', slug: 'film' } },
+    { id: '67e6f8f2e077ea42a9b95b87', cmsLocaleId: state.localeId, fieldData: { name: 'Anmeldelser', slug: 'anmeldelser' } },
+  ];
   vi.spyOn(console, 'log').mockImplementation(() => {});
   vi.stubGlobal('fetch', state.fetch);
   state.fetch.mockImplementation(async (input: string, init?: RequestInit) => {
     const base = `https://api.webflow.com/v2/collections/${state.collectionId}`;
     if (input === base && (!init?.method || init.method === 'GET')) {
-      return Response.json({ fields: ['name', 'slug', 'content', 'ai-generated'].map(slug => ({ slug,
-        type: slug === 'ai-generated' ? 'Switch' : 'PlainText', required: slug !== 'ai-generated' })) });
+      return Response.json({ fields: [...['name', 'slug', 'content', 'ai-generated'].map(slug => ({ slug,
+        type: slug === 'ai-generated' ? 'Switch' : 'PlainText', required: slug !== 'ai-generated' })),
+        { slug: 'topic', type: 'Reference', validations: { collectionId: '67dbf17ba540975b5b21c2af' } },
+        { slug: 'topics', type: 'MultiReference', validations: { collectionId: '67dbf17ba540975b5b21c2af' } }] });
+    }
+    if (input === `https://api.webflow.com/v2/collections/67dbf17ba540975b5b21c2af/items?offset=0&limit=100&cmsLocaleId=${state.localeId}`) {
+      return Response.json({ items: state.topicItems });
     }
     if ((input === `${base}/items/bulk` && init?.method === 'POST') ||
         (input === `${base}/items/${state.itemId}` && init?.method === 'PATCH')) {
@@ -98,4 +110,27 @@ it.each([false, true, undefined])('preserves direct service Liv toggle=%s on the
     fieldData: { 'ai-generated': aiGenerated ?? false } });
   expect(state.fields!['ai-generated']).toBe(aiGenerated ?? false);
   expect(state.fetch).toHaveBeenCalledTimes(2);
+});
+it('resolves all topic candidates with one canonical collection fetch and writes ordered primary/multi references', async () => {
+  await publishArticleToWebflow({ ...baseArticle, author: 'Liv Brandt', aiGenerated: false, status: 'draft',
+    topicsSelected: ['Film', 'lgbt', 'identitet', 'Anmeldelse', 'film'] } as WebflowArticleFields);
+  expect(state.fields).toMatchObject({ topic: state.topicItems[0].id, topics: state.topicItems.map(item => item.id), 'ai-generated': false });
+  expect(state.fetch.mock.calls.filter(([url]) => url.includes('/67dbf17ba540975b5b21c2af/items?'))).toHaveLength(1);
+  expect(state.fetch.mock.calls.some(([url]) => url.includes('/sites/'))).toBe(false);
+});
+it('shares the collection fetch for legacy manual primary/multi names while preserving direct IDs', async () => {
+  await publishArticleToWebflow({ ...baseArticle, status: 'draft', topic: 'Film', topics: ['Anmeldelse', state.topicItems[0].id] } as unknown as WebflowArticleFields);
+  expect(state.fields).toMatchObject({ topic: state.topicItems[0].id, topics: [state.topicItems[1].id, state.topicItems[0].id] });
+  expect(state.fetch.mock.calls.filter(([url]) => url.includes('/67dbf17ba540975b5b21c2af/items?'))).toHaveLength(1);
+});
+it.each(['unresolved', 'ambiguous', 'upstream'])('does not silently omit explicit topics after %s resolution', async failure => {
+  if (failure === 'ambiguous') state.topicItems.push({ ...state.topicItems[0], id: 'f'.repeat(24) });
+  if (failure === 'upstream') {
+    const original = state.fetch.getMockImplementation()!;
+    state.fetch.mockImplementation((url: string, init?: RequestInit) => url.includes('/67dbf17ba540975b5b21c2af/items?')
+      ? Promise.resolve(new Response('', { status: 401 })) : original(url, init));
+  }
+  await expect(publishArticleToWebflow({ ...baseArticle, status: 'draft',
+    topicsSelected: failure === 'unresolved' ? ['Filmfestival', 'identitet'] : ['Film'] } as WebflowArticleFields)).rejects.toThrow(/webflow_topic/);
+  expect(state.fetch.mock.calls.filter(([, init]) => ['POST', 'PATCH'].includes(init?.method))).toHaveLength(0);
 });

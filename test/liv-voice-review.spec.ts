@@ -9,6 +9,13 @@ afterEach(() => vi.unstubAllEnvs());
 const reason = 'Den konkrete konflikt giver vurderingen tyngde, men slutningen er svagere underbygget.';
 
 describe('Liv voice and review contract', () => {
+  it('defaults new named screen assessments to reasoned reviews without inventing access or relabelling features', () => {
+    const voice = loadLivVoice();
+    for (const requirement of ['FORMATVALG FOR FILM OG TV', 'dokumenterede styrker og svagheder',
+      'en tydelig samlet dom', 'ikke en kulturfeature', 'beholder sit format',
+      'registrér manglen i stedet for at opfinde stjerner', 'Omdøb aldrig en allerede skrevet feature',
+      'Ingen \'jeg sad i salen\'']) expect(voice.text).toContain(requirement);
+  });
   it('loads v4 with an auditable content hash and no generic fallback', () => {
     const voice = loadLivVoice();
     expect(voice.version).toBe('liv-v4');
