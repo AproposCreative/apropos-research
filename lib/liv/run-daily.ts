@@ -234,6 +234,8 @@ async function runLivDailyOperation(req: NextRequest, preparation?: LivPreparati
       baseUrl,
       preparation: !!preparation,
       resumeWritingRunId,
+      ...(scope === 'reserve-editorial' && resumeWritingRunId && prepRow?.data()?.allowOriginalityRevision === true
+        ? { allowOriginalityRevision: true } : {}),
     }));
     await checkpointLivDailyArticle(dayKey, article);
     if (preparation && !checkpoint) {

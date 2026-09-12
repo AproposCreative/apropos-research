@@ -1,17 +1,34 @@
 import { beforeEach, expect, it, vi } from 'vitest';
+import { createHash } from 'node:crypto';
 import { generateLivArticle, collectImageSuggestions } from '@/lib/liv/generate-article';
 import { loadLivVoice } from '@/lib/liv/voice';
 import { buildLivCmsPayload } from '@/lib/liv/build-cms-payload';
 import { normalizeArticlePayload } from '@/lib/articles/article-payload';
 import { defaultEditorialPlan } from '@/lib/liv/rolling-plan';
 import { livResearchQueries } from '@/lib/liv/research-query';
+import { LivCostPretransportError } from '@/lib/liv/cost-errors';
 
-const mocks = vi.hoisted(() => ({ mediaRead: vi.fn(), feedback: vi.fn(), resume: vi.fn(), create: vi.fn(), search: vi.fn(), retrieve: vi.fn(), remember: vi.fn(), rememberBrief: vi.fn(), recall: vi.fn(), seo: vi.fn(), similarity: vi.fn(), images: vi.fn() }));
+const mocks = vi.hoisted(() => ({ rows: new Map<string, any>(), tail: Promise.resolve() as Promise<unknown>, failReceiptSave: false,
+  readBrief: vi.fn(), mediaRead: vi.fn(), feedback: vi.fn(), resume: vi.fn(), create: vi.fn(), search: vi.fn(), retrieve: vi.fn(), remember: vi.fn(), rememberBrief: vi.fn(), recall: vi.fn(), seo: vi.fn(), similarity: vi.fn(), images: vi.fn() }));
+vi.mock('@/lib/firebase-admin', () => {
+  const ref = (path: string): any => ({ path, collection: (name: string) => ({ doc: (id: string) => ref(`${path}/${name}/${id}`) }),
+    get: async () => ({ data: () => structuredClone(mocks.rows.get(path)) }),
+    set: async (patch: object) => {
+      if (mocks.failReceiptSave) throw new Error('receipt save failed');
+      mocks.rows.set(path, { ...mocks.rows.get(path), ...structuredClone(patch) });
+    } });
+  return { getAdminDb: () => ({ collection: (name: string) => ({ doc: (id: string) => ref(`${name}/${id}`) }),
+    runTransaction: (fn: any) => {
+      const result = mocks.tail.catch(() => {}).then(() => fn({ get: (r: any) => r.get(), set: (r: any, row: object) => r.set(row),
+        create: (r: any, row: object) => mocks.rows.set(r.path, structuredClone(row)) }));
+      mocks.tail = result; return result;
+    } }) };
+});
 vi.mock('@/lib/liv/public-media-reader', () => ({ readPublicMedia: mocks.mediaRead }));
 vi.mock('@/lib/liv/editorial-feedback', () => ({ loadLivEditorialFeedbackPrompt: mocks.feedback }));
 vi.mock('@/lib/openai', () => ({ getOpenAIClient: () => ({ chat: { completions: { create: mocks.create } } }) }));
 vi.mock('@/lib/research/service', () => ({ getResearch: mocks.search }));
-vi.mock('@/lib/liv/source-archive', () => ({ loadRecoverableWritingBrief: mocks.resume, rememberResearchSources: mocks.remember, rememberWritingBrief: mocks.rememberBrief, recalledSourceUrls: mocks.recall }));
+vi.mock('@/lib/liv/source-archive', () => ({ readWritingBrief: mocks.readBrief, loadRecoverableWritingBrief: mocks.resume, rememberResearchSources: mocks.remember, rememberWritingBrief: mocks.rememberBrief, recalledSourceUrls: mocks.recall }));
 vi.mock('@/lib/factcheck/source-reader', async importOriginal => ({ ...await importOriginal<typeof import('@/lib/factcheck/source-reader')>(), retrieveSource: mocks.retrieve }));
 vi.mock('@/lib/liv/fetch-official-images', () => ({ fetchOfficialImagesFromPage: mocks.images }));
 vi.mock('@/lib/seo/generate-seo-meta', async importOriginal => ({
@@ -34,9 +51,19 @@ const rawArticle = (rated = true, content = body) => JSON.stringify({ status: 'r
   title: 'The Invite: Middagen som magtkamp', subtitle: 'En selvstændig dom med plads til tvivl',
   intro: 'Høflighed kan være et krævende stykke arbejde.', content,
   rating: rated ? 4 : null, ratingReason: rated ? reason : null });
+const hash = (value: string) => createHash('sha256').update(value).digest('hex');
+const runPath = (scope: string, id: string) => `livSourceArchives/${hash(scope)}/runs/${id}`;
+const topicPath = (scope: string, topic: string) => `livSourceArchives/${hash(scope)}/topics/${hash(topic.toLocaleLowerCase('da').replace(/[^\p{L}\p{N}]+/gu, ' ').trim())}`;
+const archiveBrief = async (scope: string, topic: string, value: any) => {
+  const path = runPath(scope, value.runId);
+  mocks.rows.set(path, { ...mocks.rows.get(path), ...structuredClone(value) });
+  mocks.rows.set(topicPath(scope, topic), { latestBrief: { runId: value.runId } });
+};
 
 beforeEach(() => {
   vi.clearAllMocks();
+  mocks.rows.clear(); mocks.tail = Promise.resolve(); mocks.failReceiptSave = false;
+  mocks.readBrief.mockReset().mockImplementation(async (scope, id) => mocks.rows.get(runPath(scope, id)) || null);
   mocks.feedback.mockReset().mockResolvedValue('');
   mocks.mediaRead.mockReset().mockResolvedValue(Buffer.from(''));
   mocks.images.mockReset().mockResolvedValue([]);
@@ -44,7 +71,7 @@ beforeEach(() => {
   mocks.search.mockResolvedValue({ sources: [{ title: 'Kritik', snippet: 'Søgeresultat, ikke selve kilden', source: 'example.com', url: criticUrl }] });
   mocks.recall.mockResolvedValue([primaryUrl]);
   mocks.remember.mockResolvedValue(undefined);
-  mocks.rememberBrief.mockResolvedValue(undefined);
+  mocks.rememberBrief.mockReset().mockImplementation(archiveBrief);
   mocks.retrieve.mockImplementation(async (url: string, id: string) => ({ id, url, title: 'The Invite', text: 'Olivia Wilde. The Invite. Seth Rogen. '.repeat(12),
     contentHash: 'hash', publishedAt: null, retrievedAt: '2026-09-09T18:00:00Z' }));
   mocks.seo.mockResolvedValue({ seoTitle: 'The Invite: Middagen som magtkamp', seoDescription: 'En konkret vurdering af præmissen og dens konflikt.', source: 'ai' });
@@ -198,7 +225,8 @@ it('does not buy research or writing when feedback storage is unavailable', asyn
   expect(mocks.create).not.toHaveBeenCalled();
 });
 
-it.each([true, false])('preparation retains the initial draft and never buys a full rewrite after similarity failure, complete=%s', async complete => {
+it('preparation retains the initial draft without rewriting an incomplete similarity check', async () => {
+  const complete = false;
   mocks.similarity.mockResolvedValueOnce({ pass: false, complete,
     scores: { embeddingSim: 0.9, ngramJaccard: 0.1, openingSim: 0.1 } });
   await expect(generateLivArticle({ topic: { title: 'The Invite', score: 0 }, articleFormat: 'research-review', preparation: true }))
@@ -208,14 +236,107 @@ it.each([true, false])('preparation retains the initial draft and never buys a f
   expect(mocks.rememberBrief).toHaveBeenLastCalledWith('liv-daily', 'The Invite', expect.objectContaining({ rawResponse: rawArticle() }));
 });
 
-it('preparation blocks copied prose without spending on a full rewrite', async () => {
+it('new preparation automatically buys only one durable revision for copied prose and retains both paid outputs', async () => {
   const copied = 'Denne lange og helt særlige formulering fra et andet medie skal aldrig genbruges i Livs artikel.';
   mocks.retrieve.mockImplementation(async (url: string, id: string) => ({ id, url, title: 'Research',
     text: `${copied} ${'research '.repeat(80)}`, contentHash: 'hash', retrievedAt: new Date().toISOString(), publishedAt: null }));
-  mocks.create.mockReset().mockResolvedValueOnce(response(rawArticle(true, `${body}\n\n${copied}`)));
-  await expect(generateLivArticle({ topic: { title: 'The Invite', score: 0 }, articleFormat: 'research-review', preparation: true }))
-    .rejects.toThrow('source_copy_detected');
+  const original = rawArticle(true, `${body}\n\n${copied}`);
+  mocks.create.mockReset().mockResolvedValueOnce(response(original)).mockResolvedValueOnce(response(rawArticle(true, rewrittenBody)));
+  const result = await generateLivArticle({ topic: { title: 'The Invite', score: 0 }, articleFormat: 'research-review', preparation: true });
+  expect(result.rawResponse).toBe(rawArticle(true, rewrittenBody));
+  expect(mocks.create).toHaveBeenCalledTimes(2);
+  expect(mocks.search).toHaveBeenCalledTimes(1);
+  const receipt = [...mocks.rows.entries()].find(([path]) => path.startsWith('livOriginalityRevisions/'))![1];
+  expect(mocks.rows.get(runPath('liv-daily', receipt.parentRunId)).rawResponse).toBe(original);
+  expect(receipt).toMatchObject({ status: 'response_saved', child: { parentRunId: receipt.parentRunId, rawResponse: result.rawResponse } });
+});
+
+const originalRunId = '4f5f2284-420d-4622-ac68-b42c0bc18ffd';
+async function seedOriginal() {
+  await archiveBrief('liv-daily', 'The Invite', { runId: originalRunId, rawResponse: rawArticle(), articleFormat: 'research-review',
+    writerText: '[S1] Saved evidence notes', model: 'saved-writer', voiceVersion: 'liv-v4', sources: [{ url: primaryUrl }, { url: criticUrl }] });
+  mocks.resume.mockImplementation(async (scope, topic, id) => {
+    if (mocks.rows.get(topicPath(scope, topic))?.latestBrief.runId !== id) throw new Error('research_recovery_conflict');
+    return structuredClone(mocks.rows.get(runPath(scope, id)));
+  });
+  mocks.create.mockReset().mockResolvedValue(response(rawArticle(true, rewrittenBody)));
+}
+const authorizedOptions = { topic: { title: 'The Invite', score: 0 }, preparation: true, resumeWritingRunId: originalRunId, allowOriginalityRevision: true };
+
+it('uses explicit authorization to revise the original paid draft once on invalid semantic review, not research or brief again', async () => {
+  await seedOriginal();
+  mocks.similarity.mockResolvedValueOnce({ pass: false, complete: false, failure: 'semantic-review-unavailable' });
+  mocks.create.mockImplementationOnce(async request => {
+    expect([...mocks.rows.values()].some(row => row.status === 'processing' && row.parentRunId === originalRunId)).toBe(true);
+    expect(request.model).toBe('gpt-5.6-sol');
+    expect(request.messages[0].content).toContain('450-650');
+    expect(request.messages[0].content).toContain('ubetroet');
+    return response(rawArticle(true, rewrittenBody));
+  });
+  const result = await generateLivArticle(authorizedOptions);
+  expect(result.rawResponse).toBe(rawArticle(true, rewrittenBody));
+  expect(mocks.create).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ max_completion_tokens: 8000 }), { timeout: 90000, maxRetries: 0 });
+  expect(mocks.search).not.toHaveBeenCalled();
+  expect(mocks.feedback).not.toHaveBeenCalled();
+  expect(mocks.rememberBrief).toHaveBeenCalledTimes(1);
+  expect(mocks.rows.get(runPath('liv-daily', originalRunId)).rawResponse).toBe(rawArticle());
+  expect((await generateLivArticle(authorizedOptions)).rawResponse).toBe(result.rawResponse);
   expect(mocks.create).toHaveBeenCalledTimes(1);
+});
+
+it.each(['embedding-unavailable', 'embedding-invalid', 'input-too-short'])('does not spend on an explicitly authorized rewrite after %s', async failure => {
+  await seedOriginal();
+  mocks.similarity.mockResolvedValueOnce({ pass: false, complete: false, failure });
+  await expect(generateLivArticle(authorizedOptions)).rejects.toMatchObject({ name: 'SourceSimilarityError', status: 503 });
+  expect(mocks.create).not.toHaveBeenCalled();
+});
+
+it('requires explicit authorization for a resumed original and never gives a child another rewrite', async () => {
+  await seedOriginal();
+  mocks.similarity.mockResolvedValue({ pass: false, complete: true });
+  await expect(generateLivArticle({ ...authorizedOptions, allowOriginalityRevision: false })).rejects.toMatchObject({ name: 'SourceSimilarityError' });
+  expect(mocks.create).not.toHaveBeenCalled();
+  await expect(generateLivArticle(authorizedOptions)).rejects.toMatchObject({ name: 'SourceSimilarityError' });
+  expect(mocks.create).toHaveBeenCalledTimes(1);
+  await expect(generateLivArticle(authorizedOptions)).rejects.toMatchObject({ name: 'SourceSimilarityError' });
+  expect(mocks.create).toHaveBeenCalledTimes(1);
+});
+
+it.each(['provider-timeout', 'receipt-save', 'archive-save', 'after-archive'])('never pays twice after %s interruption', async kind => {
+  await seedOriginal();
+  mocks.similarity.mockResolvedValueOnce({ pass: false, complete: true });
+  if (kind === 'provider-timeout') mocks.create.mockRejectedValueOnce(new Error('provider timeout'));
+  if (kind === 'receipt-save') mocks.failReceiptSave = true;
+  if (kind === 'archive-save') mocks.rememberBrief.mockRejectedValueOnce(new Error('archive interrupted'));
+  if (kind === 'after-archive') mocks.rememberBrief.mockImplementationOnce(async (...args) => { await archiveBrief(args[0], args[1], args[2]); throw new Error('reply interrupted'); });
+  await expect(generateLivArticle(authorizedOptions)).rejects.toThrow();
+  mocks.failReceiptSave = false;
+  if (kind === 'archive-save' || kind === 'after-archive') expect((await generateLivArticle(authorizedOptions)).rawResponse).toBe(rawArticle(true, rewrittenBody));
+  else await expect(generateLivArticle(authorizedOptions)).rejects.toThrow('requires_reconciliation');
+  expect(mocks.create).toHaveBeenCalledTimes(1);
+  expect(mocks.rows.get(runPath('liv-daily', originalRunId)).rawResponse).toBe(rawArticle());
+});
+
+it('fences concurrent authorized revisions and rejects changed topic bindings', async () => {
+  await seedOriginal();
+  mocks.similarity.mockResolvedValue({ pass: false, complete: true });
+  await Promise.allSettled([generateLivArticle(authorizedOptions), generateLivArticle(authorizedOptions)]);
+  expect(mocks.create).toHaveBeenCalledTimes(1);
+  await expect(generateLivArticle({ ...authorizedOptions, topic: { title: 'Another topic', score: 0 } })).rejects.toThrow('conflict');
+  expect(mocks.create).toHaveBeenCalledTimes(1);
+});
+it('can reclaim an exactly unpaid budget-denied revision without changing its child identity', async () => {
+  await seedOriginal();
+  mocks.similarity.mockResolvedValueOnce({ pass: false, complete: true });
+  mocks.create.mockRejectedValueOnce(new LivCostPretransportError('liv_cost_call_limit_exceeded'));
+  await expect(generateLivArticle(authorizedOptions)).rejects.toThrow('liv_cost_call_limit_exceeded');
+  const denied = [...mocks.rows.entries()].find(([path]) => path.startsWith('livOriginalityRevisions/'))![1];
+  expect(denied).toMatchObject({ status: 'not_started', providerAttempted: false });
+  mocks.similarity.mockResolvedValueOnce({ pass: false, complete: true });
+  await generateLivArticle(authorizedOptions);
+  const saved = [...mocks.rows.entries()].find(([path]) => path.startsWith('livOriginalityRevisions/'))![1];
+  expect(saved.child.runId).toBe(denied.childRunId);
+  expect(mocks.create).toHaveBeenCalledTimes(2); // one pretransport denial, one paid call
 });
 
 it('persists the run before writing and keeps the response and specific evidence gap under the same ID', async () => {

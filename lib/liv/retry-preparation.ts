@@ -10,7 +10,8 @@ import { parseLivArticleOutput } from '@/lib/liv/article-output';
 import type { LivDailyPlan } from '@/lib/liv/daily-plan-store';
 
 export type PreparationRetry = { dayKey: string; kind: 'scheduled' | 'reserve'; requestId: string; reason: string;
-  plan?: { topicHint: string; directiveHint: string }; resumeWritingRunId?: string; scope?: 'prepare-alternative' | 'reserve-editorial' };
+  plan?: { topicHint: string; directiveHint: string }; resumeWritingRunId?: string; scope?: 'prepare-alternative' | 'reserve-editorial';
+  allowOriginalityRevision?: true };
 
 /** Explicit operator retry, not a reset. Retain the full previous run and paid
  * checkpoints. A replayed request never grants a second attempt. CMS writes
@@ -20,7 +21,8 @@ export async function authorizePreparationRetry(input: PreparationRetry, lease?:
   if (!validDay(input.dayKey) || !['scheduled', 'reserve'].includes(input.kind) ||
     (input.scope !== undefined && (input.plan || (explicit ? input.kind !== 'reserve' || !input.resumeWritingRunId :
       input.scope !== 'prepare-alternative' || input.kind !== 'scheduled'))) ||
-    (explicit && (!lease || Object.keys(input).some(key => !['dayKey', 'kind', 'scope', 'requestId', 'reason', 'resumeWritingRunId'].includes(key)))) ||
+    (input.allowOriginalityRevision !== undefined && (!explicit || input.allowOriginalityRevision !== true)) ||
+    (explicit && (!lease || Object.keys(input).some(key => !['dayKey', 'kind', 'scope', 'requestId', 'reason', 'resumeWritingRunId', 'allowOriginalityRevision'].includes(key)))) ||
     !/^[a-zA-Z0-9_-]{8,100}$/.test(input.requestId) || !input.reason?.trim() || input.reason.length > 500) {
     throw new Error('liv_retry_invalid');
   }
@@ -58,6 +60,7 @@ export async function authorizePreparationRetry(input: PreparationRetry, lease?:
     // Read/validate existing paid output only. This performs no source or model calls.
     const brief = await loadRecoverableWritingBrief('liv-daily', row.topic, input.resumeWritingRunId!);
     if (brief.articleFormat !== parsed.data.articleFormat || brief.finishReason !== 'stop' || brief.refusal) throw new Error('liv_retry_conflict');
+    if (input.allowOriginalityRevision && brief.parentRunId) throw new Error('liv_retry_conflict');
     try { parseLivArticleOutput(brief.rawResponse, brief.articleFormat); }
     catch { throw new Error('liv_retry_conflict'); }
     const hash = (text: string) => createHash('sha256').update(text).digest('hex');
@@ -108,13 +111,16 @@ export async function authorizePreparationRetry(input: PreparationRetry, lease?:
       authorizedBy: 'cron-authenticated-operator', requestId: input.requestId,
       resumeWritingRunId: input.resumeWritingRunId || null,
       ...(recovery ? { retryInputHash, reservedPlan: recovery.defaultPlan,
-        explicitPreparationInputHash: row.explicitPreparationInputHash, writingEvidenceHash: recovery.writerHash } : {}) });
+        explicitPreparationInputHash: row.explicitPreparationInputHash, writingEvidenceHash: recovery.writerHash,
+        allowOriginalityRevision: input.allowOriginalityRevision === true } : {}) });
     if (input.plan) tx.set(planRef, { dayKey: input.dayKey, topicHint: input.plan.topicHint.trim() || null,
       directiveHint: input.plan.directiveHint.trim() || null, expandedDirective: null, articleFormat: 'article',
       mustUseTrending: false, status: 'pending', failedReason: null, usedAt: null,
       updatedAt: FieldValue.serverTimestamp(), createdAt: previousPlan?.createdAt ?? FieldValue.serverTimestamp(),
       createdBy: 'liv-api-operator' });
     tx.set(ref, { retryAuthorization: audit.id, updatedAt: FieldValue.serverTimestamp(),
+      // An unflagged explicit retry must not inherit a previous edit permission.
+      ...(explicit ? { allowOriginalityRevision: input.allowOriginalityRevision === true } : {}),
       ...(input.resumeWritingRunId ? { resumeWritingRunId: input.resumeWritingRunId } : {}) }, { merge: true });
     return { status: 'retry_authorized' as const, ...(recovery ? { defaultPlan: recovery.defaultPlan } : {}) };
   });

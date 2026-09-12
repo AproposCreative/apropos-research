@@ -74,6 +74,46 @@ it.each(['reason', 'resumeWritingRunId'])('rejects changed %s under the same aud
   expect(state.writes).not.toHaveBeenCalled();
 });
 
+it('persists an explicit original-writing edit permission in the immutable audit and run, never the initial reservation', async () => {
+  const beforeReservation = structuredClone(state.rows.get(reservation)), beforeWriter = structuredClone(state.rows.get(writerPath));
+  const flagged = { ...input, allowOriginalityRevision: true as const };
+  await authorizePreparationRetry(flagged, 'lease');
+  expect(state.rows.get(path)).toMatchObject({ allowOriginalityRevision: true, preparationAttempts: 1, resumeWritingRunId: runId });
+  expect(state.rows.get(audit)).toMatchObject({ allowOriginalityRevision: true, retryInputHash: cmsFieldHash(flagged) });
+  expect(state.rows.get(reservation)).toEqual(beforeReservation); expect(state.rows.get(writerPath)).toEqual(beforeWriter);
+  expect(await authorizePreparationRetry(flagged, 'lease')).toEqual({ status: 'already_requested' });
+  await expect(authorizePreparationRetry(input, 'lease')).rejects.toThrow('conflict');
+});
+
+it('cannot turn an already-audited unflagged retry into an edit by replaying its ID', async () => {
+  await authorizePreparationRetry(input, 'lease');
+  await expect(authorizePreparationRetry({ ...input, allowOriginalityRevision: true }, 'lease')).rejects.toThrow('conflict');
+  expect(state.rows.get(path).allowOriginalityRevision).toBe(false);
+});
+
+it('does not inherit old edit permission when the new explicit retry omits the flag', async () => {
+  state.rows.get(path).allowOriginalityRevision = true;
+  await authorizePreparationRetry(input, 'lease');
+  expect(state.rows.get(path).allowOriginalityRevision).toBe(false);
+  expect(state.rows.get(audit)).toMatchObject({ allowOriginalityRevision: false, previous: { allowOriginalityRevision: true } });
+});
+
+it('never authorizes another edit of a child writer run', async () => {
+  state.rows.get(writerPath).parentRunId = '11111111-1111-4111-8111-111111111111';
+  await expect(authorizePreparationRetry({ ...input, allowOriginalityRevision: true }, 'lease')).rejects.toThrow('conflict');
+  expect(state.writes).not.toHaveBeenCalled();
+});
+
+it.each([false, 'true', 1, null])('rejects non-literal edit permission %s', async flag => {
+  await expect(authorizePreparationRetry({ ...input, allowOriginalityRevision: flag } as typeof input, 'lease')).rejects.toThrow('invalid');
+  expect(state.writes).not.toHaveBeenCalled();
+});
+
+it('rejects edit authorization outside the explicit editorial reserve', async () => {
+  await expect(authorizePreparationRetry({ ...input, scope: undefined, allowOriginalityRevision: true }, 'lease')).rejects.toThrow('invalid');
+  expect(state.writes).not.toHaveBeenCalled();
+});
+
 it.each(['ownership', 'reservation', 'checkpoint', 'checkpoint-hash', 'cms', 'proof', 'cms-started', 'grant', 'continuation', 'processing', 'other-failure',
   'missing-writer', 'wrong-pointer', 'changed-format', 'missing-format', 'truncated', 'refused', 'invalid-raw', 'unsafe-source', 'missing-lease', 'cover', 'attempted'])(
   'rejects unsafe recovery without granting a retry: %s', async kind => {

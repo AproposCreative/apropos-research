@@ -41,6 +41,24 @@ import { defaultEditorialPlan, editorialPlanHash } from '@/lib/liv/rolling-plan'
 const saveResult = { articleId: 'saved-item', publicationVerified: false,
   receipt: { saveState: 'draft', saveVerified: true, cmsLocaleId: 'locale' } };
 
+it.each([true, false, undefined])('passes originality permission only from an explicitly flagged saved reserve row: %s', async flag => {
+  mocks.row = { topic: 'Saved TV review', resumeWritingRunId: '22f6a890-794f-4041-84da-5ce28b5336d9', allowOriginalityRevision: flag };
+  await runLivDaily(new NextRequest('http://localhost/api/liv/operations/retry', { method: 'POST',
+    body: JSON.stringify({ allowOriginalityRevision: true }) }), {
+    dayKey: '2026-09-12', kind: 'reserve', scope: 'reserve-editorial', defaultPlan: defaultEditorialPlan('2026-09-12', true) });
+  const options = plans.generate.mock.calls[0][0];
+  if (flag === true) expect(options.allowOriginalityRevision).toBe(true);
+  else expect(options).not.toHaveProperty('allowOriginalityRevision');
+  expect(options.resumeWritingRunId).toBe(mocks.row.resumeWritingRunId);
+});
+
+it('does not extend a saved edit flag to other scopes', async () => {
+  mocks.row = { topic: 'Saved', resumeWritingRunId: '22f6a890-794f-4041-84da-5ce28b5336d9', allowOriginalityRevision: true };
+  await runLivDaily(new NextRequest('http://localhost/api/liv/operations/retry'), {
+    dayKey: '2026-09-12', kind: 'reserve', defaultPlan: defaultEditorialPlan('2026-09-12', true) });
+  expect(plans.generate.mock.calls[0][0]).not.toHaveProperty('allowOriginalityRevision');
+});
+
 it.each([true, false])('persists actual failed similarity diagnostics before checkpoint, complete=%s', async complete => {
   const scores = { embeddingSim: 0.892823, ngramJaccard: 0, openingSim: 0.07258, copiedPassage: false };
   const error = new SourceSimilarityError({ pass: false, complete, scores, reason: 'private provider reason',

@@ -65,4 +65,13 @@ The acceptance test must resume this paid work after contextual similarity
 review is implemented, not create a replacement article. A small editorial
 correction changes the erroneous word “selvmodig” to “selvskabt” through the
 authenticated, audited checkpoint-edit API before normal downstream gates.
+The contextual review returned a structural-dependence concern, but some
+purported source excerpts contained ellipses and were not exact anchors. It was
+therefore retained as an invalid/incomplete review, never converted to approval.
+Its single paid result added 0.024816 DKK; cumulative estimate: 0.175736 DKK.
+The original draft remains available. One explicit originality revision is now
+allowed from that saved brief through an audited retry, using the configured
+article model. A pre-call claim and immutable linked child prevent repeated
+rewrite charges; the child must pass the normal checks. This is a text-quality
+revision, not another discovery/research run or an exemption from source checks.
 CMS, image and queue acceptance results remain pending until measured.
