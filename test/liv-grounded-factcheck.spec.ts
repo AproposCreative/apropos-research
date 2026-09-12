@@ -129,6 +129,14 @@ describe('safe source extraction', () => {
     expect(isPublicSourceAddress('93.184.216.34')).toBe(true);
     expect(sourceUrl('https://museum.dk/a#section').href).toBe('https://museum.dk/a');
   });
+  it.each(['192.0.0.0', '192.0.0.255', '192.0.2.0', '192.0.2.255', '192.168.0.0', '192.168.255.255'])(
+    'retains the exact reserved/private 192 boundaries: %s', address => {
+      expect(isPublicSourceAddress(address)).toBe(false);
+    });
+  it.each(['192.0.1.0', '192.0.1.255', '192.0.3.0', '192.0.66.23', '192.0.255.255'])(
+    'does not misclassify the rest of 192.0/16: %s', address => {
+      expect(isPublicSourceAddress(address)).toBe(true);
+    });
   it('does not use navigation pages or script content as evidence', () => {
     expect(() => parseSourceHtml('https://museum.dk', `<nav>${text.repeat(20)}</nav>`, 's1', now)).toThrow();
     const doc = parseSourceHtml('https://museum.dk/a', `<article>${text.repeat(20)}<script>SECRET_INSTRUCTION</script></article>`, 's1', now);

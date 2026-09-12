@@ -13,6 +13,43 @@ import { isLivHeroDimensions } from './hero-dimensions';
 
 const hash = (bytes: Buffer | string) => createHash('sha256').update(bytes).digest('hex');
 const json = (value: unknown) => JSON.parse(JSON.stringify(value));
+function safeStageStackFrames(stack: unknown, limit: number): string[] {
+  if (typeof stack !== 'string' || stack.length > 16_384 || limit < 1) return [];
+  const frames: string[] = [];
+  // Never inspect the first line: it contains the error message and may contain credentials.
+  for (const line of stack.split('\n', 33).slice(1)) {
+    if (/:\/\/|sk-|token|bearer|secret|api[_-]?key/i.test(line)) continue;
+    const match = /^\s+at (?:((?:async )?[A-Za-z_$][A-Za-z0-9_$.]{0,119}) \()?((?:\/[A-Za-z0-9_.-]+)*\/\.next\/[A-Za-z0-9_./\[\]-]{1,240}):(\d{1,9}):(\d{1,9})(\))?$/.exec(line);
+    if (!match || Boolean(match[1]) !== Boolean(match[5]) || Number(match[3]) < 1 || Number(match[4]) < 1) continue;
+    const path = match[2].slice(match[2].indexOf('/.next/') + 1);
+    if (path.split('/').includes('..')) continue;
+    frames.push(`${match[1] ? `${match[1]} ` : ''}${path}:${match[3]}:${match[4]}`);
+    if (frames.length === limit) break;
+  }
+  return frames;
+}
+/** Diagnostic only: structural lookalikes never establish non-payment. No raw messages or stacks. */
+function stageFailureCauses(error: unknown) {
+  const causes: Array<{ errorName: string; status: number | null; code: string | null; frames?: string[] }> = [];
+  let remainingFrames = 4;
+  const seen = new Set<object>();
+  for (let current = error; current && typeof current === 'object' && !seen.has(current) && causes.length < 8;) {
+    seen.add(current);
+    const row = current as Record<string, unknown>;
+    const name = typeof row.name === 'string' && /^(?:Error|TypeError|RangeError|AbortError|TimeoutError|API[A-Za-z]+Error|BadRequestError|AuthenticationError|PermissionDeniedError|NotFoundError|ConflictError|UnprocessableEntityError|RateLimitError|InternalServerError|LivCostPretransportError)$/.test(row.name)
+      ? row.name : 'UnknownError';
+    const token = typeof row.code === 'string' ? row.code
+      : typeof row.message === 'string' && row.message.startsWith('liv_') ? row.message : null;
+    const frames = safeStageStackFrames(row.stack, remainingFrames);
+    remainingFrames -= frames.length;
+    causes.push({ errorName: name,
+      status: typeof row.status === 'number' && Number.isInteger(row.status) && row.status >= 100 && row.status <= 599 ? row.status : null,
+      code: token && token.length <= 100 && /^[a-z][a-z0-9_]+$/.test(token) ? token : null,
+      ...(frames.length ? { frames } : {}) });
+    current = row.cause;
+  }
+  return causes;
+}
 type SavedStage = {
   status?: string; plan?: unknown; result?: unknown; original?: StoredMedia; evidence?: MediaEvidence; inputHash?: string;
   attemptId?: string; attemptOwner?: string; requestHash?: string;
@@ -85,14 +122,19 @@ export function livMediaRuntime(deadline = Date.now() + 180_000): MediaDependenc
     try { return await run(); }
     catch (error) {
       const denial = getLivCostPretransportError(error);
-      if (denial) await db.runTransaction(async transaction => {
+      await db.runTransaction(async transaction => {
         const row = (await transaction.get(ref)).data();
         const current = (await transaction.get(stageRef)).data();
         if (row?.owner !== owner || current?.status !== 'processing' || current.attemptId !== attemptId || current.requestHash !== requestHash) {
           throw new Error('liv_media_job_requires_reconciliation');
         }
-        transaction.set(stageRef, { status: 'not_started', notStarted: { version: 1, jobId: id, stage,
-          attemptId, requestHash, providerAttempted: false, code: denial.code, recordedAt: new Date().toISOString() } }, { merge: true });
+        const recordedAt = new Date().toISOString();
+        transaction.set(stageRef, {
+          failureDiagnostic: { version: 1, jobId: id, stage, attemptId, requestHash, recordedAt,
+            causes: stageFailureCauses(error) },
+          ...(denial ? { status: 'not_started', notStarted: { version: 1, jobId: id, stage,
+            attemptId, requestHash, providerAttempted: false, code: denial.code, recordedAt } } : {}),
+        }, { merge: true });
       });
       throw error;
     }

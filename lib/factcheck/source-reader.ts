@@ -29,10 +29,13 @@ export function sourceUrl(value: string): URL {
 /** Conservative IPv4-only egress. Never connect to a private or reserved address. */
 export function isPublicSourceAddress(address: string): boolean {
   if (isIP(address) !== 4) return false;
-  const [a, b] = address.split('.').map(Number);
+  const [a, b, c] = address.split('.').map(Number);
   return !(a === 0 || a === 10 || a === 127 || a >= 224 ||
     (a === 100 && b >= 64 && b <= 127) || (a === 169 && b === 254) ||
-    (a === 172 && b >= 16 && b <= 31) || (a === 192 && [0, 168].includes(b)) ||
+    (a === 172 && b >= 16 && b <= 31) ||
+    // IANA: 192.0.0/24 (protocol assignments) and 192.0.2/24 (documentation),
+    // not all of 192.0/16. Keep the separate 192.168/16 private block intact.
+    (a === 192 && (b === 168 || (b === 0 && [0, 2].includes(c)))) ||
     (a === 198 && [18, 19, 51].includes(b)) || (a === 203 && b === 0));
 }
 

@@ -42,6 +42,21 @@ import { cmsFieldHash } from '@/lib/liv/cms-field-hash';
 const saveResult = { articleId: 'saved-item', publicationVerified: false,
   receipt: { saveState: 'draft', saveVerified: true, cmsLocaleId: 'locale' } };
 
+it('refreshes omitted seeds only from the server plan after supplementation, never request-body URLs', async () => {
+  const seed = 'https://news.harvard.edu/gazette/story/2026/03/our-frankenstein-fixation/';
+  const article = { title: 'Saved', slug: 'saved', intro: 'Intro', content: 'Kultur '.repeat(550),
+    researchSupplementedAt: '2026-09-12', preparedMedia: [{}, {}, {}], researchSources: [
+      { url: 'https://first.example/a', source: 'First', publishedAt: '2026-03-12' },
+      { url: 'https://second.example/a', source: 'Second', publishedAt: null }] };
+  mocks.row = { articleCheckpoint: article };
+  await runLivDaily(new NextRequest('http://localhost/api/liv/operations/retry', { method: 'POST',
+    body: JSON.stringify({ directiveHint: 'https://untrusted.example/a', seedUrls: ['https://untrusted.example/b'] }) }), {
+    dayKey: '2026-09-15', kind: 'reserve', scope: 'reserve-editorial',
+    defaultPlan: { ...defaultEditorialPlan('2026-09-15', true), directiveHint: `Known seed ${seed}` } });
+  expect(mocks.refresh).toHaveBeenCalledExactlyOnceWith(article, [seed]);
+  expect(mocks.supplement).not.toHaveBeenCalled(); expect(plans.generate).not.toHaveBeenCalled();
+});
+
 it.each([true, false, undefined])('passes originality permission only from an explicitly flagged saved reserve row: %s', async flag => {
   mocks.row = { topic: 'Saved TV review', resumeWritingRunId: '22f6a890-794f-4041-84da-5ce28b5336d9', allowOriginalityRevision: flag };
   await runLivDaily(new NextRequest('http://localhost/api/liv/operations/retry', { method: 'POST',

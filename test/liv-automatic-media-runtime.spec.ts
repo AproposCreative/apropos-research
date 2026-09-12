@@ -139,6 +139,114 @@ it('defines both requested styles with no collage and few focal objects', () => 
   }
 });
 
+it.each(['liv_cost_context_blocked', 'liv_cost_ledger_requires_reconciliation'])('records wrapped %s without claiming non-payment', async code => {
+  const deps = livMediaRuntime();
+  await deps.claim(id, article, 'illustration', 'expressive');
+  const failure = new Error('Connection error with private request', { cause: new Error(code) });
+  failure.name = 'APIConnectionError';
+  mocks.chat.mockRejectedValueOnce(failure);
+  await expect(deps.review(article, 'illustration', [{ bytes: image, alt: 'Motiv', caption: 'Tekst' }], id)).rejects.toBe(failure);
+  const stage = mocks.stageRows['visual-review'];
+  expect(stage.status).toBe('processing');
+  expect(stage.notStarted).toBeUndefined();
+  expect(stage.failureDiagnostic).toMatchObject({ version: 1, jobId: id, stage: 'visual-review',
+    attemptId: stage.attemptId, requestHash: stage.requestHash,
+    causes: [{ errorName: 'APIConnectionError', status: null, code: null }, { errorName: 'Error', status: null, code }] });
+  expect(JSON.stringify(stage)).not.toContain('private');
+  expect(mocks.chat).toHaveBeenCalledTimes(1);
+});
+
+it('diagnoses a cross-class denial lookalike but never authorizes unpaid recovery', async () => {
+  const deps = livMediaRuntime();
+  await deps.claim(id, article, 'illustration', 'expressive');
+  const failure = Object.assign(new Error('liv_cost_request_unbounded'), {
+    name: 'LivCostPretransportError', code: 'liv_cost_request_unbounded', providerAttempted: false,
+  });
+  mocks.generate.mockRejectedValueOnce(new Error('Connection error', { cause: failure }));
+  await expect(deps.generate('Motiv', id, 'hero')).rejects.toThrow('Connection error');
+  expect(mocks.stageRows['hero-call']).toMatchObject({ status: 'processing', failureDiagnostic: {
+    causes: [{ errorName: 'Error', status: null, code: null },
+      { errorName: 'LivCostPretransportError', status: null, code: 'liv_cost_request_unbounded' }],
+  } });
+  expect(mocks.stageRows['hero-call'].notStarted).toBeUndefined();
+  await deps.fail(id);
+  await expect(livMediaRuntime().claim(id, article, 'illustration', 'expressive')).rejects.toThrow('reconciliation');
+});
+
+it('retains genuine branded denial evidence alongside the diagnostic', async () => {
+  const deps = livMediaRuntime();
+  await deps.claim(id, article, 'illustration', 'expressive');
+  mocks.generate.mockRejectedValueOnce(new Error('Connection error', { cause: new LivCostPretransportError('liv_cost_monthly_budget_exceeded') }));
+  await expect(deps.generate('Motiv', id, 'hero')).rejects.toThrow('Connection error');
+  expect(mocks.stageRows['hero-call']).toMatchObject({ status: 'not_started',
+    notStarted: { providerAttempted: false, code: 'liv_cost_monthly_budget_exceeded' },
+    failureDiagnostic: { jobId: id, stage: 'hero-call' } });
+});
+
+it('redacts unsafe codes, names, messages, bodies and stacks and bounds cyclic causes', async () => {
+  const deps = livMediaRuntime();
+  await deps.claim(id, article, 'illustration', 'expressive');
+  const failure = { name: 'sk-secret', code: 'sk-secret', message: 'Bearer private', status: 429,
+    stack: '/Users/private/key', body: { apiKey: 'private' }, cause: null as unknown };
+  failure.cause = failure;
+  mocks.generate.mockRejectedValueOnce(failure);
+  await expect(deps.generate('Motiv', id, 'hero')).rejects.toBe(failure);
+  expect(mocks.stageRows['hero-call'].failureDiagnostic.causes).toEqual([{ errorName: 'UnknownError', status: 429, code: null }]);
+  expect(JSON.stringify(mocks.stageRows['hero-call'])).not.toMatch(/private|sk-secret/);
+});
+
+it('keeps only four sanitized production frames across the cause chain', async () => {
+  const deps = livMediaRuntime();
+  await deps.claim(id, article, 'illustration', 'expressive');
+  const root = new TypeError('Cannot read private value');
+  root.stack = 'TypeError: private\n    at a (/var/task/.next/server/chunks/456.js:2:30)\n    at /var/task/.next/server/app/api/liv/route.js:8:90\n    at extra (/var/task/.next/server/chunks/789.js:1:99)';
+  const failure = new Error('private', { cause: root });
+  failure.stack = '    at forbidden (/var/task/.next/server/message.js:1:1)\n    at async run (/var/task/.next/server/chunks/[root]__123.js:1:234)\n    at b (/var/task/.next/server/chunks/123.js:2:10)';
+  mocks.chat.mockRejectedValueOnce(failure);
+  await expect(deps.review(article, 'illustration', [{ bytes: image, alt: 'Motiv', caption: 'Tekst' }], id)).rejects.toBe(failure);
+  const causes = mocks.stageRows['visual-review'].failureDiagnostic.causes;
+  expect(causes.map((cause: any) => cause.frames)).toEqual([
+    ['async run .next/server/chunks/[root]__123.js:1:234', 'b .next/server/chunks/123.js:2:10'],
+    ['a .next/server/chunks/456.js:2:30', '.next/server/app/api/liv/route.js:8:90'],
+  ]);
+  expect(JSON.stringify(causes)).not.toMatch(/private|forbidden|extra|var\/task/);
+  expect(mocks.stageRows['visual-review'].status).toBe('processing');
+  expect(mocks.stageRows['visual-review'].notStarted).toBeUndefined();
+});
+
+it.each([
+  '    at fetch (https://example.com/.next/server/chunks/a.js:1:2)',
+  '    at a (/var/task/.next/server/chunks/sk-private.js:1:2)',
+  '    at token (/var/task/.next/server/chunks/a.js:1:2)',
+  '    at a (/var/task/.next/server/chunks/a.js?secret=value:1:2)',
+  '    at a (/var/task/.next/server/../secret.js:1:2)',
+  '    at a (/Users/private/project/lib/a.ts:1:2)',
+  '    at a (/var/task/.next/server/chunks/a.js:0:2)',
+  '    at a (/var/task/.next/server/chunks/a.js:1234567890:2)',
+  '    at eval (private, /var/task/.next/server/chunks/a.js:1:2)',
+])('drops unsafe or unbounded stack frame %s', async frame => {
+  const deps = livMediaRuntime();
+  await deps.claim(id, article, 'illustration', 'expressive');
+  const failure = new TypeError('private');
+  failure.stack = `TypeError: private\n${frame}`;
+  mocks.generate.mockRejectedValueOnce(failure);
+  await expect(deps.generate('Motiv', id, 'hero')).rejects.toBe(failure);
+  expect(mocks.stageRows['hero-call'].failureDiagnostic.causes).toEqual([{ errorName: 'TypeError', status: null, code: null }]);
+});
+
+it('caps diagnostics at eight causal entries and does not change paid sibling evidence', async () => {
+  const deps = livMediaRuntime();
+  await deps.claim(id, article, 'illustration', 'expressive');
+  await deps.generate('Motiv', id, 'hero');
+  const paid = structuredClone(mocks.stageRows['hero-call']);
+  let failure: Error = new Error('liv_cost_context_blocked');
+  for (let i = 0; i < 10; i++) failure = new Error('Connection error', { cause: failure });
+  mocks.chat.mockRejectedValueOnce(failure);
+  await expect(deps.review(article, 'illustration', [{ bytes: image, alt: 'Motiv', caption: 'Tekst' }], id)).rejects.toBe(failure);
+  expect(mocks.stageRows['visual-review'].failureDiagnostic.causes).toHaveLength(8);
+  expect(mocks.stageRows['hero-call']).toEqual(paid);
+});
+
 const savedPlan = { images: Array.from({ length: 3 }, (_, i) => ({ candidateId: null,
   prompt: `En original tegning med et enkelt kunstmotiv nummer ${i}.`,
   alt: `Tegning af kunstmotiv nummer ${i}`, caption: `En tegnet fortolkning af kunsten, motiv ${i}.` })) };

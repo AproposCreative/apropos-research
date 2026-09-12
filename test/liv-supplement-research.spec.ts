@@ -8,7 +8,7 @@ vi.mock('@/lib/liv/model-config', () => ({ livModels: () => ({ utility: 'fixture
 vi.mock('@/lib/factcheck/source-reader', async original => ({
   ...await original<typeof import('@/lib/factcheck/source-reader')>(), retrieveSource: mocks.retrieve,
 }));
-import { supplementLivResearch } from '@/lib/liv/supplement-research';
+import { supplementLivResearch, refreshLivResearchDates } from '@/lib/liv/supplement-research';
 
 const now = '2026-09-12T12:00:00.000Z';
 const lead = (url: string) => ({ url, title: 'Search title', snippet: 'Search date 2026-09-12', source: 'Search' });
@@ -115,4 +115,55 @@ it('preserves eight existing records without appending beyond the cap', async ()
   const updated = await supplementLivResearch(full, article.title);
   expect(updated.researchSources).toEqual(full.researchSources);
   expect(updated.researchSources).toHaveLength(8);
+});
+
+const harvard = 'https://news.harvard.edu/gazette/story/2026/03/our-frankenstein-fixation/';
+function sparseRefresh() {
+  mocks.retrieve.mockImplementation(async (url, id) => ({ id, url, title: 'Retrieved actual title', text: 'Actual evidence. '.repeat(30),
+    contentHash: 'actual-hash', retrievedAt: now, publishedAt: url === harvard || url.includes('soundvenue') ? '2026-03-12T00:00:00Z' : null }));
+}
+it('recovers an omitted seed using actual retrieval metadata without search, text/media changes or source loss', async () => {
+  sparseRefresh(); const before = structuredClone(article);
+  const result = await refreshLivResearchDates(article, [harvard]);
+  expect(result.researchSources).toHaveLength(4);
+  expect(result.researchSources!.slice(0, 3).map(source => source.url)).toEqual(article.researchSources!.map(source => source.url));
+  expect(result.researchSources![3]).toMatchObject({ url: harvard, contentHash: 'actual-hash', publishedAt: '2026-03-12T00:00:00Z',
+    retrievedAt: now, title: 'Retrieved actual title', snippet: ('Actual evidence. '.repeat(30)).slice(0, 240) });
+  expect(result.preparedMedia).toBe(article.preparedMedia); expect(result.selectedImage).toBe(article.selectedImage);
+  expect(livImageArticleHash(result)).toBe(livImageArticleHash(article)); expect(article).toEqual(before);
+  expect(mocks.search).not.toHaveBeenCalled();
+});
+it('bounds unknown seeds to three after canonical dedupe, preserves fetch host, and excludes unsafe/existing URLs', async () => {
+  sparseRefresh();
+  await refreshLivResearchDates(article, ['https://127.0.0.1/no', 'http://bad.example/no', 'https://user:pass@bad.example/no',
+    'https://www.soundvenue.com/film?utm_source=openai', 'https://www.seed.example/a/?utm_source=openai',
+    'https://seed.example/a', harvard, 'https://third.example/a', 'https://fourth.example/a']);
+  expect(mocks.retrieve.mock.calls.slice(3).map(call => call[0])).toEqual(['https://www.seed.example/a/', harvard, 'https://third.example/a']);
+  expect(mocks.search).not.toHaveBeenCalled();
+});
+it('adds dated seeds first within eight records and never replaces existing history', async () => {
+  sparseRefresh();
+  const full = { ...article, researchSources: [...article.researchSources!, ...Array.from({ length: 4 }, (_, i) => ({
+    title: 'Original', source: 'Original', url: `https://old.example/${i}` }))] };
+  const result = await refreshLivResearchDates(full, ['https://undated.example/a', harvard]);
+  expect(result.researchSources).toHaveLength(8); expect(result.researchSources![7].url).toBe(harvard);
+  expect(result.researchSources!.slice(0, 7).map(source => source.url)).toEqual(full.researchSources.map(source => source.url));
+});
+it('does not fetch omitted seeds once refreshed sources have two dated hosts', async () => {
+  const result = await refreshLivResearchDates(article, [harvard]);
+  expect(result.researchSources).toHaveLength(3); expect(mocks.retrieve).toHaveBeenCalledTimes(3);
+});
+it('does not fetch omitted seeds when eight existing records already fill the cap', async () => {
+  sparseRefresh();
+  const full = { ...article, researchSources: Array.from({ length: 8 }, (_, i) => ({ title: 'Original', source: 'Original', url: `https://old.example/${i}` })) };
+  expect((await refreshLivResearchDates(full, [harvard])).researchSources).toHaveLength(8);
+  expect(mocks.retrieve).toHaveBeenCalledTimes(8);
+});
+it('does not promote failed or short seeds into evidence, or infer dates from URLs', async () => {
+  sparseRefresh(); const real = mocks.retrieve.getMockImplementation()!;
+  mocks.retrieve.mockImplementation((url, id) => id === 'seed-1' ? Promise.reject(new Error('unavailable')) :
+    id === 'seed-2' ? Promise.resolve({ url, text: 'short' }) : real(url, id));
+  const result = await refreshLivResearchDates(article, [harvard, 'https://short.example/a', 'https://undated.example/2026/03/12']);
+  expect(result.researchSources).toHaveLength(4); expect(result.researchSources![3].publishedAt).toBeNull();
+  expect(mocks.search).not.toHaveBeenCalled();
 });

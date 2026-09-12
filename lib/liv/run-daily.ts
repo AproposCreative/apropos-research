@@ -31,6 +31,7 @@ import {
 } from '@/lib/liv/daily-history-store';
 import { pickLivTopic } from '@/lib/liv/pick-topic';
 import { generateLivArticle } from '@/lib/liv/generate-article';
+import { extractResearchUrls } from '@/lib/liv/research-bundle';
 import { SourceSimilarityError } from '@/lib/liv/source-similarity-error';
 import type { GeneratedArticle } from '@/lib/liv/generate-article';
 import { prepareLivAutomaticMedia } from '@/lib/liv/automatic-media';
@@ -329,7 +330,8 @@ async function runLivDailyOperation(req: NextRequest, preparation?: LivPreparati
       return NextResponse.json({ status: 'research_supplemented', dayKey, title: article.title });
     }
     if (preparation && datedHosts < 2) {
-      article = await (await import('@/lib/liv/supplement-research')).refreshLivResearchDates(article);
+      article = await (await import('@/lib/liv/supplement-research')).refreshLivResearchDates(article,
+        extractResearchUrls(generationPlan?.directiveHint || ''));
       await checkpointLivDailyArticle(dayKey, article);
       datedHosts = countDatedHosts();
       if (datedHosts < 2) throw new Error('research_dated_sources_insufficient');

@@ -5,7 +5,7 @@ import { canonicalSourceUrl } from '@/lib/editorial/audience-signals';
 import type { GeneratedArticle } from './generate-article';
 
 /** Refresh stale retrieval metadata without another search or writer call. */
-export async function refreshLivResearchDates(article: GeneratedArticle): Promise<GeneratedArticle> {
+export async function refreshLivResearchDates(article: GeneratedArticle, seedUrls: readonly string[] = []): Promise<GeneratedArticle> {
   const sources = article.researchSources || [];
   if (sources.length > 8) throw new Error('liv_research_supplement_source_limit');
   const researchSources = await Promise.all(sources.map(async source => {
@@ -16,6 +16,35 @@ export async function refreshLivResearchDates(article: GeneratedArticle): Promis
         contentHash: fetched.contentHash, snippet: fetched.text.slice(0, 240) };
     } catch { return { ...source, publishedAt: null }; }
   }));
+  const datedHosts = new Set(researchSources.flatMap(source => {
+    try { return source.url && source.publishedAt ? [sourceUrl(source.url).hostname.replace(/^www\./, '')] : []; }
+    catch { return []; }
+  }));
+  if (datedHosts.size >= 2 || researchSources.length >= 8) return { ...article, researchSources };
+  const identities = new Set(sources.flatMap(source => {
+    try { return source.url ? [canonicalSourceUrl(sourceUrl(source.url).href)] : []; } catch { return []; }
+  }));
+  const missing = new Map<string, string>();
+  // Server-owned plan seeds only. A prior failed fetch may have omitted a valid
+  // seed; retry at most three without search, rewriting, or dropping history.
+  for (const raw of seedUrls) {
+    try {
+      const url = sourceUrl(raw), canonical = canonicalSourceUrl(url.href);
+      if (!canonical || identities.has(canonical) || missing.has(canonical)) continue;
+      for (const key of [...url.searchParams.keys()]) if (/^(utm_|fbclid$|gclid$)/i.test(key)) url.searchParams.delete(key);
+      missing.set(canonical, url.href);
+      if (missing.size === 3) break;
+    } catch { /* Invalid seeds never consume a source slot or become evidence. */ }
+  }
+  const fetched = await Promise.allSettled([...missing.values()].map((url, i) => retrieveSource(url, `seed-${i + 1}`)));
+  const added = fetched.flatMap(result => result.status === 'fulfilled' && result.value.text.trim().length >= 200
+    ? [result.value] : []).sort((a, b) => Number(!!b.publishedAt) - Number(!!a.publishedAt))
+    .slice(0, 8 - researchSources.length).map(source => ({
+      title: source.title, source: new URL(source.url).hostname, url: source.url,
+      snippet: source.text.slice(0, 240), contentHash: source.contentHash,
+      retrievedAt: source.retrievedAt, publishedAt: source.publishedAt,
+    }));
+  researchSources.push(...added);
   return { ...article, researchSources };
 }
 
