@@ -180,7 +180,10 @@ export async function generateLivArticle(options: GenerateArticleOptions): Promi
     ...discovered.flatMap(s => s.url ? [s.url] : []),
   ]);
   await rememberResearchSources(sourceScope, topic.title, sources);
-  const brief = await buildLivWritingBrief(sources, topic.title, { timeoutMs: preparation ? 30_000 : 45_000 });
+  // Preparation now yields after text, before media and publication checks.
+  // Give the analytical brief room for high-reasoning models; the old 30s cap
+  // aborted valid research before the writer could begin.
+  const brief = await buildLivWritingBrief(sources, topic.title, { timeoutMs: preparation ? 90_000 : 45_000 });
   const researchRunId = randomUUID();
   await rememberWritingBrief(sourceScope, topic.title, { runId: researchRunId, writerText: brief.writerText,
     model: generationModel, voiceVersion: voice.version,
