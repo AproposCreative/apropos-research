@@ -1,7 +1,8 @@
 import { beforeEach, afterEach, it, expect, vi } from 'vitest';
 import { NextRequest } from 'next/server';
 const repair = vi.hoisted(() => vi.fn());
-vi.mock('@/lib/liv/fact-revision', () => ({ repairLivArticleFacts: repair }));
+const resumeFacts = vi.hoisted(() => vi.fn());
+vi.mock('@/lib/liv/fact-revision', () => ({ repairLivArticleFacts: repair, resumeLivFactRevision: resumeFacts }));
 const mocks = vi.hoisted(() => ({ refresh: vi.fn(), supplement: vi.fn(), topic: vi.fn(), publish: vi.fn(), live: vi.fn(), finish: vi.fn(), gates: vi.fn(), claim: vi.fn(), readback: vi.fn(), analytics: vi.fn(), media: vi.fn(), checkpoint: vi.fn(), admission: vi.fn(), proof: vi.fn(), yield: vi.fn(), row: undefined as any, doc: vi.fn() }));
 vi.mock('@/lib/liv/supplement-research', () => ({ supplementLivResearch: mocks.supplement, refreshLivResearchDates: mocks.refresh }));
 vi.mock('@/lib/firebase-admin', () => ({ getAdminDb: () => ({ collection: () => ({ doc: mocks.doc }) }) }));
@@ -255,4 +256,16 @@ it.each([false, true])('bounds factual correction, checkpoints it and requires a
     expect(mocks.yield).toHaveBeenCalledTimes(1);
   }
   expect(mocks.publish).not.toHaveBeenCalled(); expect(mocks.admission).not.toHaveBeenCalled();
+});
+
+it('resumes an archived correction before repeating paid safety gates or media generation', async () => {
+  mocks.row = { articleCheckpoint: { title: 'Saved', content: 'Saved body' } };
+  resumeFacts.mockResolvedValue({ title: 'Saved', content: 'Corrected body', factRevisionId: 'archived' });
+  const result = await (await runLivDaily(new NextRequest('http://localhost/api/cron/liv-prepare'), {
+    dayKey: '2026-09-12', kind: 'scheduled', defaultPlan: defaultEditorialPlan('2026-09-12'),
+  })).json();
+  expect(result.status).toBe('facts_revised');
+  expect(mocks.checkpoint).toHaveBeenLastCalledWith('2026-09-12', expect.objectContaining({ factRevisionId: 'archived' }), 'prepare');
+  expect(mocks.gates).not.toHaveBeenCalled(); expect(mocks.media).not.toHaveBeenCalled();
+  expect(mocks.publish).not.toHaveBeenCalled();
 });

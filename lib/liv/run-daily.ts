@@ -222,6 +222,15 @@ export async function runLivDaily(req: NextRequest, preparation?: {
       await yieldLivPreparation(dayKey, scope as 'prepare' | 'reserve');
       return NextResponse.json({ status: 'text_prepared', dayKey, title: article.title });
     }
+    if (preparation && checkpoint && !article.factRevisionId) {
+      const { resumeLivFactRevision } = await import('@/lib/liv/fact-revision');
+      const resumed = await resumeLivFactRevision(article);
+      if (resumed) {
+        await checkpointLivDailyArticle(dayKey, resumed);
+        await yieldLivPreparation(dayKey, scope as 'prepare' | 'reserve');
+        return NextResponse.json({ status: 'facts_revised', dayKey, title: resumed.title });
+      }
+    }
 
     const verifiedResearchSources = (article.researchSources || []).filter(
       (r) =>
