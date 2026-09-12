@@ -37,6 +37,7 @@ import { ArticleSaveError } from '@/lib/articles/save-receipt';
 import { runLivDaily } from '@/lib/liv/run-daily';
 import { SourceSimilarityError } from '@/lib/liv/source-similarity-error';
 import { defaultEditorialPlan, editorialPlanHash } from '@/lib/liv/rolling-plan';
+import { cmsFieldHash } from '@/lib/liv/cms-field-hash';
 
 const saveResult = { articleId: 'saved-item', publicationVerified: false,
   receipt: { saveState: 'draft', saveVerified: true, cmsLocaleId: 'locale' } };
@@ -94,7 +95,10 @@ beforeEach(() => {
   mocks.media.mockImplementation(async article => article);
   mocks.refresh.mockImplementation(async article => article);
   mocks.gates.mockResolvedValue({ pass: true, results: [] });
-  mocks.publish.mockResolvedValue(saveResult);
+  mocks.publish.mockImplementation(async (payload, options) => {
+    await options.onBeforeSave?.(payload);
+    return saveResult;
+  });
   mocks.readback.mockResolvedValue({ draftConfirmed: true, publicationReady: false, checks: [{ id: 'image:rights', ok: false }] });
   mocks.live.mockResolvedValue({ publicationVerified: true, publicUrl: 'https://www.aproposmagazine.com/articles/et-museum-aabner' });
 });
@@ -251,10 +255,49 @@ it('prepares tomorrow through the shared full pipeline but never publishes early
   })).json();
   expect(result.queued).toBe(true);
   expect(mocks.claim).toHaveBeenCalledWith('2026-09-12', 'prepare');
-  expect(mocks.proof.mock.invocationCallOrder[0]).toBeLessThan(mocks.publish.mock.invocationCallOrder[0]);
+  expect(mocks.proof.mock.invocationCallOrder[0]).toBeLessThan(mocks.readback.mock.invocationCallOrder[0]);
   expect(mocks.gates).toHaveBeenCalledWith(expect.objectContaining({ requireCompleteVerification: true }));
   expect(mocks.admission).toHaveBeenCalledTimes(1);
   expect(mocks.live).not.toHaveBeenCalled();
+});
+it('persists and admits the canonical optimized expectation, detached from later publisher mutation', async () => {
+  const article = { title: 'Saved review', content: 'Kultur '.repeat(550), slug: 'saved-review', intro: 'Saved intro',
+    subtitle: 'Saved subtitle', seoTitle: 'Saved review', seoDescription: 'Saved description', section: 'Kunst',
+    preparedMedia: [{}, {}, {}], researchSources: [
+      { url: 'https://museum.dk/news', publishedAt: '2026-09-10' }, { url: 'https://kultur.dk/news', publishedAt: '2026-09-10' }] };
+  mocks.row = { articleCheckpoint: article };
+  const canonical = { title: 'Saved review', content: '<figure><img src="https://example.com/webflow/content-images/normalized.webp" alt="Actual scene"><figcaption>Foto: Official</figcaption></figure>' };
+  let persisted: any;
+  mocks.proof.mockImplementation(async (_day, _scope, proof) => { persisted = structuredClone(proof); });
+  mocks.publish.mockImplementation(async (_payload, options) => {
+    const output = structuredClone(canonical);
+    await options.onBeforeSave(output);
+    expect(persisted.expected).toEqual(canonical); // before simulated CMS write
+    output.content = 'Later mutation must not alter the saved expectation';
+    return saveResult;
+  });
+  mocks.readback.mockResolvedValue({ draftConfirmed: true, publicationReady: true, checks: [{ id: 'all', ok: true }] });
+  const response = await runLivDaily(new NextRequest('http://localhost/api/cron/liv-prepare'), {
+    dayKey: '2026-09-12', kind: 'reserve', scope: 'reserve-editorial', defaultPlan: defaultEditorialPlan('2026-09-12', true) });
+  expect((await response.json()).queued).toBe(true);
+  expect(persisted.hash).toBe(cmsFieldHash(canonical));
+  expect(mocks.readback).toHaveBeenCalledWith({ itemId: saveResult.articleId, expected: persisted.expected });
+  expect(mocks.admission.mock.calls[0][1]).toEqual(persisted);
+  expect(mocks.row.articleCheckpoint).toEqual(article);
+  expect(plans.generate).not.toHaveBeenCalled(); expect(mocks.live).not.toHaveBeenCalled();
+});
+
+it('never admits a preparation if the publisher omitted its canonical checkpoint callback', async () => {
+  mocks.row = { articleCheckpoint: { title: 'Saved review', content: 'Kultur '.repeat(550), slug: 'saved-review', intro: 'Intro',
+    subtitle: 'Saved subtitle', seoTitle: 'Saved review', seoDescription: 'Saved description', section: 'Kunst',
+    preparedMedia: [{}, {}, {}], researchSources: [
+      { url: 'https://museum.dk/news', publishedAt: '2026-09-10' }, { url: 'https://kultur.dk/news', publishedAt: '2026-09-10' }] } };
+  mocks.publish.mockResolvedValue(saveResult);
+  const response = await runLivDaily(new NextRequest('http://localhost/api/cron/liv-prepare'), {
+    dayKey: '2026-09-12', kind: 'reserve', defaultPlan: defaultEditorialPlan('2026-09-12', true) });
+  expect(response.status).toBe(500);
+  expect(mocks.publish).toHaveBeenCalledTimes(1);
+  expect(mocks.admission).not.toHaveBeenCalled(); expect(mocks.readback).not.toHaveBeenCalled();
 });
 it('does not enqueue preparation with failed CMS checks', async () => {
   await runLivDaily(new NextRequest('http://localhost/api/cron/liv-prepare'), {

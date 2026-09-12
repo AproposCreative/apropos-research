@@ -148,3 +148,59 @@ rights status, alt text and figure positions cannot be replaced. The paid media
 job and all prior judgments remain unchanged. Normal gates must run again on the
 edited version. This is an audited API edit, not a direct manual CMS write or an
 invented automated verification.
+
+## Completed draft and independent readback
+
+Release `943998f3d594a89f8599dfe3d56be4ccde68ddc7`, deployment
+`dpl_6RdFHTwE5Z2W2UWf2Y9qPGyUyeSb`, was verified READY on the production
+project and alias. The exact copyedit receipt is `tv-copyedit-final-1`.
+The normal authenticated retry then passed the actual factual/editorial gates
+and saved the Danish Webflow draft, without replacing its paid writing or media:
+
+- Item `6aa54ddfd3c29b324372d24b`, locale `67dbf17ba540975b5b21c225`.
+- Title: The Gentlemen sæson 2 gør privilegium til et våben.
+- Slug: `the-gentlemen-saeson-2-goer-privilegium-til-et-vaben`.
+- Body 547 words, rating 4/6 with a stated argument.
+- Three distinct official Netflix photos, credited CHRISTOPHER RAPHAEL.
+- Primary Topic TV-serier; topics TV-serier, Anmeldelser, Kultur & Mening.
+- CMS AI-generated false as requested; internal research/model provenance kept.
+- Normal owner-authenticated `/api/liv/delivery/feed` returned this story in
+  ready state with its cover, rating and TV-series category.
+
+Independent CMS readback at `2026-09-12T13:13:55.137Z` passed all 24 checks,
+using the persisted preparation expectation, not an expectation copied from CMS.
+The exact field-data hash was
+`2c3bc79ff4c16914d417b23d8903bcbf097afb72bdbae3ffb1b94b174b1ec94d`.
+An earlier local check falsely failed body-image checks because the local helper
+omitted the storage-bucket configuration required by the immutable-asset reader.
+Loading the existing production bucket configuration fixed that diagnostic;
+no CMS write, proof rewrite, quality override or AI generation was needed.
+The existing deterministic derivative check correctly verified the one inline
+photo recompressed by the normal CMS optimizer.
+
+The complete acceptance test, including failed/corrective assessments, recorded
+23 model/embedding calls and a usage-based upper estimate of **9.121688 DKK**.
+This is not an invoice or a promise of the cost of every future article.
+Replaying the same completed prepare request returned `blocked_saved_work`
+without a new CMS item or additional model calls. No paid discovery or image
+generation was used. Reusing saved sources, draft stages and images prevented
+whole-article regeneration at each failure.
+
+The draft is not published as a second daily story. Today's existing
+Alle Guds Farver publication is preserved; this reserve is available to the
+normal delivery selection. Instagram remains off. A successful draft test does
+not certify that every future daily run will succeed.
+
+## Canonical-save hardening
+
+Future saves now await a detached locally normalized expectation after inline
+image optimization and before the CMS create/update. The same expectation is
+used for the saved preparation proof, readback and queue admission. A failed
+checkpoint prevents the CMS write; no CMS readback is adopted blindly as proof.
+This reduces reliance on derivative reconstruction during later checks. It is
+hardening, not a claim that this draft's persisted proof was invalid.
+
+Verification: 137 test files / 2361 tests passed with isolated RAGE storage;
+TypeScript, scoped ESLint and `git diff --check` passed. Regression coverage
+includes optimized-content checkpoint ordering, detached snapshots, checkpoint
+failure before CMS mutation, and identical proof/readback/admission payloads.

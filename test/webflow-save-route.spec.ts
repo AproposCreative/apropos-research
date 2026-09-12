@@ -47,7 +47,8 @@ describe('Webflow save API, not a live publication endpoint', () => {
     const response = await POST(request(JSON.stringify({ ...article, status: 'published' })));
     const result = await response.json();
     expect(response.status).toBe(200);
-    expect(mocks.save).toHaveBeenCalledWith(expect.objectContaining({ status: 'draft' }));
+    expect(mocks.save).toHaveBeenCalledWith(expect.objectContaining({ status: 'draft' }),
+      expect.objectContaining({ onBeforeSave: expect.any(Function) }));
     expect(mocks.inspect).toHaveBeenCalledWith({ articleId: id, expected: expect.objectContaining({
       ...article, workflowState: 'webflow_draft', status: 'draft',
     }) });

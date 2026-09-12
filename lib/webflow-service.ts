@@ -495,7 +495,10 @@ export async function getArticlesCollectionFieldsDetailed(): Promise<WebflowFiel
 }
 
 // Publish article to Webflow
-export async function publishArticleToWebflow(articleData: WebflowArticleFields): Promise<string> {
+export async function publishArticleToWebflow(articleData: WebflowArticleFields, options: {
+  /** Trusted server caller only; awaited after normalization, before the CMS write. */
+  onBeforeSave?: (expected: WebflowArticleFields) => Promise<void>;
+} = {}): Promise<string> {
   try {
     const { token, siteId, articlesCollectionId } = resolveConfig();
     if (!token || !siteId || !articlesCollectionId) {
@@ -596,7 +599,8 @@ export async function publishArticleToWebflow(articleData: WebflowArticleFields)
     }
 
     // Build fieldData via mapping
-    const fieldData = await buildFieldDataFromMapping(articleData, readMapping());
+    const mapping = readMapping();
+    const fieldData = await buildFieldDataFromMapping(articleData, mapping);
     const imageOptimize = await autoOptimizeArticleFieldData({
       fieldData,
       articleTitle: articleData.title,
@@ -929,6 +933,15 @@ export async function publishArticleToWebflow(articleData: WebflowArticleFields)
       thumbUrl: fieldData['thumb'] ? (typeof fieldData['thumb'] === 'string' ? fieldData['thumb'].substring(0, 100) + '...' : 'Not a string') : 'N/A'
     });
 
+    if (options.onBeforeSave) {
+      const contentSlug = mapping.entries?.find(entry => entry.internal === 'content')?.webflowSlug || 'content';
+      if (typeof fieldData[contentSlug] !== 'string' || !fieldData[contentSlug].trim()) {
+        throw new Error('webflow_canonical_content_missing');
+      }
+      // Derived from the supported local mapping/optimizer, never CMS readback.
+      // Detach the snapshot so the checkpoint callback cannot mutate transport.
+      await options.onBeforeSave(structuredClone({ ...articleData, content: fieldData[contentSlug] as string }));
+    }
     const publishResponse = await fetch(url, {
       method,
       headers: {

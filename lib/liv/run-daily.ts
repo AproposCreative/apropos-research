@@ -470,7 +470,7 @@ async function runLivDailyOperation(req: NextRequest, preparation?: LivPreparati
       });
     }
 
-    const payload: WebflowArticleFields = buildLivCmsPayload({
+    let payload: WebflowArticleFields = buildLivCmsPayload({
       article,
       topic,
       sectionFallback: 'Kultur',
@@ -482,24 +482,31 @@ async function runLivDailyOperation(req: NextRequest, preparation?: LivPreparati
     // after saving, and live publication has its own verified receipt.
     const cmsCheck = checkCmsDraft(article, 'liv-daily');
     let preparationProof: PreparationProof | undefined;
-    if (preparation) {
-      if (!cmsCheck.structureReady) throw new Error('liv_preparation_structure_failed');
-      preparationProof = { expected: payload, hash: cmsFieldHash(payload as unknown as Record<string, unknown>),
-        editorialPassed: true, structurePassed: true,
-        ...(preparation.kind === 'scheduled' ? { planHash: editorialPlanHash(scope === 'prepare-alternative' ? savedPlan : plan ?? null) } : {}) };
-      await checkpointPreparationProof(dayKey, scope as Exclude<LivDailyScope, 'daily'>, preparationProof);
-    }
+    if (preparation && !cmsCheck.structureReady) throw new Error('liv_preparation_structure_failed');
 
     const { articleId: webflowItemId, receipt } = await publishArticleDraftToWebflow(payload, {
       source: 'liv',
       defaultAuthor: 'Liv Brandt',
       defaultCategory: 'Kultur',
+      onBeforeSave: async expected => {
+        // The publisher has finished mapping and inline-image optimization.
+        // Freeze the locally derived expectation before CMS side effects, and
+        // use this same detached snapshot for readback and queue admission.
+        payload = JSON.parse(JSON.stringify(expected)) as WebflowArticleFields;
+        if (preparation) {
+          preparationProof = { expected: payload, hash: cmsFieldHash(payload as unknown as Record<string, unknown>),
+            editorialPassed: true, structurePassed: true,
+            ...(preparation.kind === 'scheduled' ? { planHash: editorialPlanHash(scope === 'prepare-alternative' ? savedPlan : plan ?? null) } : {}) };
+          await checkpointPreparationProof(dayKey, scope as Exclude<LivDailyScope, 'daily'>, preparationProof);
+        }
+      },
       onSaved: async itemId => {
         savedWebflowItemId = itemId;
         await checkpointLivDailyCmsItem(dayKey, itemId);
       },
     });
     savedWebflowItemId = webflowItemId;
+    if (preparation && !preparationProof) throw new Error('liv_preparation_canonical_proof_missing');
     const cmsReadback = await inspectLivCmsDraft({ itemId: webflowItemId, expected: payload });
     gateResults.push({
       name: 'cms-draft-readback',

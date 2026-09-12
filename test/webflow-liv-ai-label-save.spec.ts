@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 
 const state = vi.hoisted(() => ({
-  fetch: vi.fn(), readback: vi.fn(), seo: vi.fn(),
+  fetch: vi.fn(), readback: vi.fn(), seo: vi.fn(), optimize: vi.fn(),
   fields: undefined as Record<string, unknown> | undefined,
   collectionId: '111111111111111111111111', itemId: '222222222222222222222222',
   localeId: '333333333333333333333333',
@@ -24,9 +24,7 @@ vi.mock('@/lib/webflow-mapping', () => ({ readMapping: () => ({ entries: [
   { internal: 'topic', webflowSlug: 'topic', transform: 'identity' },
   { internal: 'topics', webflowSlug: 'topics', transform: 'identity' },
 ] }) }));
-vi.mock('@/lib/webflow/article-image-auto-optimize', () => ({ autoOptimizeArticleFieldData: async () => ({
-  thumbOptimized: false, mobileOptimized: false, contentImagesOptimized: 0,
-}) }));
+vi.mock('@/lib/webflow/article-image-auto-optimize', () => ({ autoOptimizeArticleFieldData: state.optimize }));
 vi.mock('@/lib/liv/cms-readback', () => ({ readLivWebflowJson: state.readback }));
 vi.mock('@/lib/seo-engine/after-publish', () => ({ maybeEnqueueSeoEngineAfterPublish: state.seo }));
 
@@ -37,6 +35,7 @@ import type { WebflowArticleFields } from '@/lib/webflow/types';
 
 beforeEach(() => {
   vi.resetAllMocks();
+  state.optimize.mockResolvedValue({ thumbOptimized: false, mobileOptimized: false, contentImagesOptimized: 0 });
   state.fields = undefined;
   state.topicItems = [
     { id: '67dbf17ba540975b5b21c303', cmsLocaleId: state.localeId, fieldData: { name: 'Film', slug: 'film' } },
@@ -133,4 +132,37 @@ it.each(['unresolved', 'ambiguous', 'upstream'])('does not silently omit explici
   await expect(publishArticleToWebflow({ ...baseArticle, status: 'draft',
     topicsSelected: failure === 'unresolved' ? ['Filmfestival', 'identitet'] : ['Film'] } as WebflowArticleFields)).rejects.toThrow(/webflow_topic/);
   expect(state.fetch.mock.calls.filter(([, init]) => ['POST', 'PATCH'].includes(init?.method))).toHaveLength(0);
+});
+
+it('awaits the detached canonical content checkpoint after optimization and before the CMS write', async () => {
+  const html = '<p>Unchanged review.</p><figure><img src="https://example.com/optimized.webp" alt="Scene"><figcaption>Foto: Producer</figcaption></figure>';
+  state.optimize.mockImplementation(async ({ fieldData }) => {
+    fieldData.content = html;
+    return { thumbOptimized: false, mobileOptimized: false, contentImagesOptimized: 1 };
+  });
+  let savedExpectation: any;
+  const checkpoint = vi.fn(async expected => {
+    expect(state.fields).toBeUndefined(); // No CMS write yet.
+    expect(expected.content).toBe(html);
+    savedExpectation = structuredClone(expected);
+    await Promise.resolve();
+    expected.content = 'Callback cannot mutate the request';
+  });
+  const original = structuredClone(baseArticle);
+  const result = await publishArticleDraftToWebflow(baseArticle, { onBeforeSave: checkpoint });
+  expect(checkpoint).toHaveBeenCalledTimes(1);
+  expect(state.fields!.content).toBe(html);
+  expect(result.payload.content).toBe(savedExpectation.content);
+  expect(baseArticle).toEqual(original);
+  expect(state.optimize.mock.invocationCallOrder[0]).toBeLessThan(checkpoint.mock.invocationCallOrder[0]);
+  expect(checkpoint.mock.invocationCallOrder[0]).toBeLessThan(state.readback.mock.invocationCallOrder[0]);
+});
+
+it('never sends a CMS write when persisting the canonical expectation fails', async () => {
+  const checkpoint = vi.fn().mockRejectedValue(new Error('checkpoint unavailable'));
+  await expect(publishArticleDraftToWebflow(baseArticle, { onBeforeSave: checkpoint }))
+    .rejects.toMatchObject({ message: 'webflow_save_unverified' });
+  expect(checkpoint).toHaveBeenCalledTimes(1);
+  expect(state.fetch.mock.calls.filter(([, init]) => ['POST', 'PATCH'].includes(init?.method))).toHaveLength(0);
+  expect(state.readback).not.toHaveBeenCalled(); expect(state.seo).not.toHaveBeenCalled();
 });

@@ -18,6 +18,8 @@ export type PublishCanonicalArticleResult = {
 };
 
 type SaveOptions = NormalizeArticlePayloadOptions & {
+  /** Exact locally normalized save expectation, before any CMS create/update. */
+  onBeforeSave?: (expected: WebflowArticleFields) => Promise<void>;
   /** Server-owned checkpoint, awaited before readback or optional follow-up work. */
   onSaved?: (articleId: string) => Promise<void>;
 };
@@ -34,7 +36,12 @@ export async function publishCanonicalArticleToWebflow(
   let articleId: string | undefined;
   let receipt: PublishCanonicalArticleResult['receipt'];
   try {
-    const savedId = await publishArticleToWebflow(toWebflowArticleFields(payload));
+    const savedId = await publishArticleToWebflow(toWebflowArticleFields(payload), {
+      onBeforeSave: async expected => {
+        Object.assign(payload, expected);
+        await options.onBeforeSave?.(structuredClone(expected));
+      },
+    });
     if (typeof savedId !== 'string' || !/^[a-f0-9]{24}$/i.test(savedId)) {
       throw new Error('webflow_save_missing_item_id');
     }
