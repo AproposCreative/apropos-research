@@ -30,7 +30,7 @@ const bundled = await build({ stdin: { contents: `import React from 'react'; imp
     builder.onLoad({ filter: /^auth$/, namespace: 'fixture' }, () => ({ contents:
       `const user = {getIdToken: async () => 'offline-fixture-only'}; export const useAuth = () => ({user});` }));
   } }] });
-const source = (await Promise.all(['LivDeskClient', 'LivApprovalFeed', 'LivPublicationHistory', 'LivImageSelection', 'LivContentColumn']
+const source = (await Promise.all(['LivDeskClient', 'LivApprovalFeed', 'LivPublicationHistory', 'LivImageSelection', 'LivContentColumn', 'LivStoryNavigation', 'LivBudgetSettings']
   .map(name => readFile(resolve(`app/ai/liv/${name}.tsx`), 'utf8')))).join('\n');
 const css = (await postcss([tailwind({ content: [{ raw: source, extension: 'tsx' }], theme: { extend: {} } })])
   .process('@tailwind base; @tailwind components; @tailwind utilities;', { from: undefined })).css;
@@ -47,6 +47,7 @@ let failNext = false;
 let historyMode = 'ready';
 let emptyFeed = false;
 let activeStory = 0;
+let queueBatch = false;
 const requests = [];
 const draft = { id: 'research-fixture', status: 'draft', signal: { beat: 'Film', title: 'Et gemt researchudkast', angle: 'Test af bevaret Writer-adgang', sources: [] },
   article: { title: 'Et gemt researchudkast', imageSuggestions: [] }, updatedAt: '2026-09-11' };
@@ -82,7 +83,7 @@ const server = createServer(async (req, res) => {
       story.revision++; story.decision = input.decision;
       return res.end(JSON.stringify({ decision: story.decision, revision: story.revision, feedback: story.feedback }));
     }
-    return res.end(JSON.stringify({ stories: emptyFeed ? [] : [stories[activeStory]], total: emptyFeed ? 0 : 1,
+    return res.end(JSON.stringify({ stories: emptyFeed ? [] : queueBatch ? stories.slice(0, 3) : [stories[activeStory]], total: emptyFeed ? 0 : queueBatch ? 3 : 1,
       nextOffset: null, queueEnabled: !emptyFeed, preparationEnabled: !emptyFeed,
       cost: { monthlyLimitDkk: 300, usageBasedUpperDkk: null, reservedUpperDkk: null, status: 'unconfigured' } }));
   }
@@ -111,10 +112,14 @@ try {
   await page.getByRole('img', { name: 'Bedømmelse: 4 af 6 stjerner' }).waitFor();
   await page.getByText(stories[0].ratingReason, { exact: false }).waitFor();
   assert.deepEqual(requests, ['GET /api/liv/delivery/feed']);
+  assert.equal(await page.locator('summary').filter({ hasText: 'API-budget' }).count(), 0);
+  await page.getByRole('button', { name: 'Indstillinger og værktøjer', exact: true }).click();
   await page.locator('summary').filter({ hasText: 'API-budget' }).click();
   await page.getByText('Registreret forbrug er endnu ukendt.', { exact: true }).waitFor();
   await page.getByText('Budgetstyringen mangler opsætning.', { exact: true }).waitFor();
   await page.locator('summary').filter({ hasText: 'API-budget' }).click();
+  await page.getByRole('button', { name: 'Til historierne' }).click();
+  await page.getByRole('heading', { name: stories[0].title }).waitFor();
   assert.equal(await page.getByRole('navigation', { name: 'Redaktionens faner' }).getByRole('button').count(), 2);
   assert.equal(await page.getByRole('button', { name: 'Overblik', exact: true }).count(), 0);
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
@@ -125,7 +130,7 @@ try {
       page.getByRole('button', { name: 'Kommende', exact: true }).boundingBox(),
       page.getByRole('button', { name: 'Udgivet', exact: true }).boundingBox(),
       page.getByRole('button', { name: 'Luk Liv Redaktion', exact: true }).boundingBox(),
-      card.boundingBox(), page.getByRole('heading', { name: 'Den næste historie', exact: true }).boundingBox(),
+      card.boundingBox(), page.getByRole('heading', { name: 'De kommende historier', exact: true }).boundingBox(),
     ]);
     for (const x of [title.x, start.x, heading.x]) assert.ok(Math.abs(x - box.x) <= 1, 'Header, navigation and content share the left edge');
     for (const right of [end.x + end.width, close.x + close.width]) assert.ok(Math.abs(right - box.x - box.width) <= 1, 'Header, navigation and content share the right edge');
@@ -137,6 +142,30 @@ try {
   await page.setViewportSize({ width: 390, height: 844 });
   for (const name of ['Godkend', 'Afvis']) assert.ok((await first.getByRole('button', { name, exact: true }).boundingBox()).height >= 44);
   await mkdir('tmp/liv-approval-visual', { recursive: true });
+  async function checkScrollNavigation() {
+    const scroller = page.locator('[data-liv-story-scroll]');
+    const navigation = page.locator('nav[aria-label="Redaktionens faner"]');
+    const header = page.getByRole('heading', { name: 'Liv · Redaktion', exact: true });
+    const startHeader = await header.boundingBox(), startScroll = await scroller.boundingBox();
+    await scroller.evaluate(el => { el.scrollTop = 180; });
+    await page.waitForFunction(() => document.querySelector('nav')?.getAttribute('aria-hidden') === 'true');
+    await page.waitForTimeout(350);
+    assert.equal(await navigation.getAttribute('inert'), '');
+    assert.equal((await header.boundingBox()).y, startHeader.y);
+    assert.equal((await scroller.boundingBox()).height, startScroll.height, 'Hiding navigation must not resize the scrollport');
+    const box = await navigation.boundingBox();
+    assert.ok(box.y + box.height <= startScroll.y + 1, 'Navigation slides behind the top bar');
+    await page.screenshot({ path: 'tmp/liv-approval-visual/scroll-hidden.png' });
+    await scroller.evaluate(el => { el.scrollTop -= 20; });
+    await page.waitForFunction(() => document.querySelector('nav')?.getAttribute('aria-hidden') === 'false');
+    await page.waitForTimeout(350);
+    assert.equal(await navigation.getAttribute('inert'), null);
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    assert.equal(await navigation.evaluate(el => getComputedStyle(el).transitionDuration), '0s');
+    await scroller.evaluate(el => { el.scrollTop = 0; });
+    await page.emulateMedia({ reducedMotion: 'no-preference' });
+  }
+  await checkScrollNavigation();
   await page.screenshot({ path: 'tmp/liv-approval-visual/mobile.png' });
   const comment = first.getByRole('textbox', { name: 'Din redaktionelle kommentar (valgfri)' });
   assert.equal(await comment.getAttribute('maxlength'), '500');
@@ -195,6 +224,8 @@ try {
   assert.equal(await page.getByText('Fejlet kørsel', { exact: true }).count(), 0);
   assert.equal(await page.getByRole('link', { name: 'Læs på Apropos' }).getAttribute('href'), 'https://aproposmagazine.com/articles/en-udgivet-artikel');
   await page.getByText('Dato ikke registreret').waitFor();
+  await page.setViewportSize({ width: 390, height: 420 });
+  await checkScrollNavigation();
   await page.setViewportSize({ width: 390, height: 844 });
   await page.screenshot({ path: 'tmp/liv-approval-visual/published-mobile.png' });
   for (const mode of ['error', 'malformed', 'empty']) {
@@ -208,8 +239,10 @@ try {
   requests.length = 0;
   await page.getByRole('button', { name: 'Indstillinger og værktøjer', exact: true }).click();
   await page.getByRole('heading', { name: 'Indstillinger og værktøjer' }).waitFor();
-  assert.deepEqual(requests, []);
+  await page.locator('summary').filter({ hasText: 'API-budget 300' }).waitFor();
+  assert.deepEqual(requests, ['GET /api/liv/delivery/feed']);
   await page.screenshot({ path: 'tmp/liv-approval-visual/settings-mobile.png' });
+  requests.length = 0;
   await page.getByRole('button', { name: 'Research og kilder' }).click();
   await page.getByRole('heading', { name: draft.signal.title }).waitFor();
   assert.deepEqual(requests, ['GET /api/editorial/desk']);
@@ -220,6 +253,11 @@ try {
   await page.getByRole('button', { name: 'Avanceret drift' }).click();
   await page.getByText('Manuel drift — lokal teststub').waitFor();
   await page.getByRole('button', { name: 'Til indstillinger' }).click();
+  queueBatch = true;
+  await page.getByRole('button', { name: 'Til historierne' }).click();
+  await page.getByRole('heading', { name: stories[2].title }).waitFor();
+  assert.equal(await page.locator('article').count(), 3, 'Render all three prepared API stories');
+  await page.getByRole('button', { name: 'Indstillinger og værktøjer', exact: true }).click();
   emptyFeed = true;
   await page.getByRole('button', { name: 'Til historierne' }).click();
   await page.getByRole('heading', { name: 'Den næste historie er ikke klar endnu' }).waitFor();
@@ -239,5 +277,5 @@ try {
   await page.getByRole('button', { name: 'Luk Liv Redaktion' }).click();
   assert.equal(await page.locator('body').getAttribute('data-closed'), 'true');
   assert.deepEqual(errors, []);
-  console.log('PASS: one upcoming card without pagination; explicit type/category; reasoned review stars; unrated article; selected action lock; bounded feedback save/reload and unsaved conflict text retained; tomorrow status copy; aligned layout at 320/390/768/1280px; 44px targets; approve/reject/reload; details; conflict recovery; retained published history and research/Writer access; errors/empty states; no eager research/preview/plan requests; no page errors. Offline fixtures only.');
+  console.log('PASS: one or three prepared cards; budget under settings only; smooth directional navigation on upcoming and published with fixed header/scrollport, inert hidden controls and reduced motion; aligned 320/390/768/1280px layout; 44px targets; ratings; feedback save/reload; approval/rejection; details/conflicts; history and Writer access; errors/empty states; no paid workflow requests or page errors. Offline fixtures only.');
 } finally { await browser.close(); server.close(); }

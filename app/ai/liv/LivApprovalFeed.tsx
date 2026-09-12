@@ -102,7 +102,7 @@ export default function LivApprovalFeed() {
       const data = await request() as ApprovalFeed;
       if (!Array.isArray(data.stories)) throw new Error('Historielisten er ugyldig.');
       if (current !== version.current) return;
-      setFeed({ ...data, stories: data.stories.slice(0, 1), nextOffset: null });
+      setFeed({ ...data, stories: data.stories.slice(0, 3), nextOffset: null });
       setError('');
     } catch (e) { if (current === version.current) setError(e instanceof Error ? e.message : 'Prøv igen.'); }
     finally { if (current === version.current) setLoading(false); }
@@ -124,7 +124,7 @@ export default function LivApprovalFeed() {
       setError(e instanceof Error ? e.message : 'Valget kunne ikke gemmes. Opdater listen.');
     } finally { busy.current = false; setSaving(null); }
   }
-  return <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
+  return <div data-liv-story-scroll style={{ paddingTop: 'var(--liv-tabs-height, 0px)' }} className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
     <LivContentColumn className="space-y-5 py-6">
       <header className="space-y-3">
         <div className="flex items-center justify-between gap-3"><h2 className="text-xl font-medium">De kommende historier</h2>
@@ -148,18 +148,6 @@ export default function LivApprovalFeed() {
       </div>}
       {feed?.stories.map(story => <LivApprovalCard key={`${story.itemId}:${story.revision}`} story={story} disabled={loading || !!saving || !!error}
         saving={saving === story.itemId} onDecide={(decision, feedback) => void decide(story, decision, feedback)} />)}
-      {feed?.cost && <details className="rounded-xl border border-white/15 p-4 text-xs leading-relaxed text-white/60">
-        <summary className="min-h-11 cursor-pointer text-sm text-white/80">Daglig Liv · API-budget {feed.cost.monthlyLimitDkk} kr./måned</summary>
-        <div className="mt-3 space-y-2">
-          <p>{feed.cost.usageBasedUpperDkk === null ? 'Registreret forbrug er endnu ukendt.' :
-            `Estimat for registrerede kald: ${feed.cost.usageBasedUpperDkk.toLocaleString('da-DK', { maximumFractionDigits: 2 })} kr.`}</p>
-          {feed.cost.reservedUpperDkk !== null && <p>Reserveret til igangværende eller uafklarede kald: {feed.cost.reservedUpperDkk.toLocaleString('da-DK', { maximumFractionDigits: 2 })} kr.</p>}
-          {feed.cost.status !== 'ready_partial' && <p className="text-amber-200">{feed.cost.status === 'unavailable' ?
-            'Budgetstatus kunne ikke hentes.' : feed.cost.status === 'unconfigured' ?
-              'Budgetstyringen mangler opsætning.' : 'Budgetstyringen kræver afklaring før nye betalte kald.'}</p>}
-          <p>Kun registrerede kald fra det daglige flow. Manuel Writer, særskilte previews, øvrige AI-funktioner og tidligere forbrug er ikke medregnet. Dette er et estimat, ikke API-udbyderens faktura eller et loft på hele kontoen.</p>
-        </div>
-      </details>}
     </LivContentColumn>
   </div>;
 }

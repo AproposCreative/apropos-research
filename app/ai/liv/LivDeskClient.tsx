@@ -9,6 +9,8 @@ import LivImageSelection from './LivImageSelection';
 import LivApprovalFeed from './LivApprovalFeed';
 import LivPublicationHistory from './LivPublicationHistory';
 import LivContentColumn from './LivContentColumn';
+import LivBudgetSettings from './LivBudgetSettings';
+import LivStoryNavigation from './LivStoryNavigation';
 
 const LivPostingClient = lazy(() => import('./LivPostingClient'));
 type View = 'upcoming' | 'published' | 'settings' | 'research' | 'manual';
@@ -46,7 +48,7 @@ export default function LivDeskClient({ onClose, onOpenWriter }: { onClose: () =
   const button = 'min-h-11 rounded-lg border border-white/20 px-3 py-2 text-sm hover:bg-white/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white disabled:opacity-40';
   const mainView = view === 'upcoming' || view === 'published';
   return <section className="flex h-full min-h-0 min-w-0 w-full flex-col text-white font-poppins">
-    <header className="shrink-0 border-b border-white/10">
+    <header className="relative z-30 shrink-0 border-b border-white/10 bg-[#080808]">
       <LivContentColumn className="flex items-center justify-between gap-2 py-4">
       <div className="min-w-0"><h1 className="text-lg font-medium">Liv · Redaktion</h1><p className="mt-1 text-xs text-white/50">Én historie ad gangen.</p></div>
       <div className="flex shrink-0 gap-1">
@@ -57,13 +59,9 @@ export default function LivDeskClient({ onClose, onOpenWriter }: { onClose: () =
       </div>
       </LivContentColumn>
     </header>
-    {mainView ? <nav aria-label="Redaktionens faner" className="shrink-0 border-b border-white/10">
-      <LivContentColumn className="grid grid-cols-2 gap-2 py-2">
-      {([{ id: 'upcoming', label: 'Kommende' }, { id: 'published', label: 'Udgivet' }] as const).map(t => <button key={t.id} onClick={() => setView(t.id)} aria-current={view === t.id ? 'page' : undefined} className={`${button} min-w-0 border-transparent ${view === t.id ? 'bg-white/15 text-white' : 'text-white/55'}`}>{t.label}</button>)}
-      </LivContentColumn>
-    </nav> : <div className="shrink-0 border-b border-white/10"><LivContentColumn className="py-2"><button className={`${button} border-transparent`} onClick={() => setView(view === 'settings' ? 'upcoming' : 'settings')}>← {view === 'settings' ? 'Til historierne' : 'Til indstillinger'}</button></LivContentColumn></div>}
-    {view === 'upcoming' && <LivApprovalFeed />}
-    {view === 'published' && <LivPublicationHistory />}
+    {mainView ? <LivStoryNavigation key={view} view={view} onChange={setView}>
+      {view === 'upcoming' ? <LivApprovalFeed /> : <LivPublicationHistory />}
+    </LivStoryNavigation> : <div className="shrink-0 border-b border-white/10"><LivContentColumn className="py-2"><button className={`${button} border-transparent`} onClick={() => setView(view === 'settings' ? 'upcoming' : 'settings')}>← {view === 'settings' ? 'Til historierne' : 'Til indstillinger'}</button></LivContentColumn></div>}
     {view === 'settings' && <div className="min-h-0 flex-1 overflow-y-auto"><LivContentColumn className="space-y-5 py-6">
       <h2 className="text-xl font-medium">Indstillinger og værktøjer</h2>
       <p className="text-sm leading-relaxed text-white/60">Til det redaktionelle arbejde bag historierne. Dine daglige valg ligger under Kommende.</p>
@@ -71,6 +69,7 @@ export default function LivDeskClient({ onClose, onOpenWriter }: { onClose: () =
         <button onClick={() => setView('research')} className="block w-full space-y-2 p-5 text-left hover:bg-white/5 focus-visible:outline focus-visible:outline-white"><span className="block font-medium">Research og kilder →</span><span className="block text-sm text-white/55">Idéer, kildegrundlag og udkast. Åbn en historie i Writer.</span></button>
         <button onClick={() => setView('manual')} className="block w-full space-y-2 p-5 text-left hover:bg-white/5 focus-visible:outline focus-visible:outline-white"><span className="block font-medium">Avanceret drift →</span><span className="block text-sm text-white/55">Udgivelsesstatus, fejllog og manuel planlægning.</span></button>
       </div>
+      <LivBudgetSettings />
     </LivContentColumn></div>}
     {view === 'manual' && <div className="min-h-0 flex-1"><Suspense fallback={<p role="status" className="p-5 text-sm text-white/60">Henter drift…</p>}><LivPostingClient embedded initialTab="history" /></Suspense></div>}
     {view === 'research' && <div className="min-h-0 flex-1 overflow-y-auto"><LivContentColumn className="space-y-5 py-6">

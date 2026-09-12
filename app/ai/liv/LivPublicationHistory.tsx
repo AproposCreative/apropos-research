@@ -68,7 +68,7 @@ export default function LivPublicationHistory() {
     return () => { requestVersion.current++; pending.current?.abort(); };
   }, [refresh]);
 
-  return <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
+  return <div data-liv-story-scroll style={{ paddingTop: 'var(--liv-tabs-height, 0px)' }} className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
     <LivContentColumn className="space-y-5 py-6">
       <header>
         <div className="flex items-center justify-between gap-3">
