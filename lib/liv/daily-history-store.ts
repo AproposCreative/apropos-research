@@ -184,7 +184,11 @@ export async function checkpointPreparationProof(dayKey: string, scope: 'prepare
 }
 
 /** skipped: gate blev ikke kørt (infra/mangler input); pass kan stadig være true for ikke at blokere publish. */
-export type GateResult = { name: string; pass: boolean; detail?: string; skipped?: boolean; evidence?: GroundedReport };
+export type GateResult = {
+  name: string; pass: boolean; detail?: string; skipped?: boolean; evidence?: GroundedReport;
+  /** Article-matched failed/incomplete factcheck, retained for diagnosis only. Never approval evidence. */
+  diagnosticEvidence?: GroundedReport;
+};
 
 export type FinishLivDailyInput =
   | {

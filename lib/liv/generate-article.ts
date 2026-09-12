@@ -59,6 +59,8 @@ export interface GeneratedArticle {
   preparedMedia?: import('@/lib/liv/automatic-media').MediaEvidence[];
   /** Bounded extra evidence search; never a statement that facts passed. */
   researchSupplementedAt?: string;
+  /** One audited factual correction. All final gates must run again. */
+  factRevisionId?: string;
   rawResponse: string;
   aiModel?: string;
   voiceVersion?: string;

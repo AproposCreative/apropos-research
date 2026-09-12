@@ -37,6 +37,11 @@ export async function GET(req: NextRequest) {
       const saved = await db.collection(LIV_DAILY_COLLECTION).doc(livDailyDocId(candidate.dayKey, scope)).get();
       if (saved.exists) {
         const row = saved.data();
+        // Reserve job days differ from their delivery dates. Use the saved CMS
+        // identity to skip admitted work, including selected/rejected/published
+        // items, instead of repeatedly recovering it while the stock is below target.
+        if (row?.webflowItemId && (state.entries.some(entry => entry.itemId === row.webflowItemId) ||
+            Object.values(state.slots).some(slot => slot.itemId === row.webflowItemId))) continue;
         if (row?.webflowItemId && row.preparationProof) {
           const proof = row.preparationProof as PreparationProof;
           try {
@@ -45,8 +50,15 @@ export async function GET(req: NextRequest) {
               title: proof.expected.title, kind: candidate.kind,
               scheduledDay: scope === 'reserve' ? today : candidate.dayKey,
               expiresDay: scope === 'reserve' ? addDays(candidate.dayKey, 5) : candidate.dayKey }, proof);
-            return NextResponse.json({ status: 'recovered_ready_draft', day: candidate.dayKey });
+            const recovered = await readDeliveryState();
+            if (recovered.entries.some(entry => entry.itemId === row.webflowItemId && entry.state === 'ready' &&
+                entry.decision !== 'rejected' && entry.expiresDay >= today)) {
+              return NextResponse.json({ status: 'recovered_ready_draft', day: candidate.dayKey });
+            }
           } catch { /* Unready work is retained; try another candidate instead. */ }
+          // An immutable payload may already exist without an active manifest
+          // entry. A no-op admission is not progress and must never regenerate it.
+          continue;
         }
         const resumableCheckpoint = (row?.continuationReady === true && !!row.articleCheckpoint ||
           typeof row?.retryAuthorization === 'string' || Number(row?.preparationAttempts ?? 0) <= 4 &&

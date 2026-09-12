@@ -34,6 +34,32 @@ it('requires two dated hosts, not two pages from the same host', async () => {
   expect(report.diagnostic?.code).toBe('insufficient_dated_sources');
   expect(mocks.create).not.toHaveBeenCalled();
 });
+it('instructs the verifier to cite exact dated evidence while retaining undated context and conflicts', async () => {
+  const undatedUrl = 'https://context.example/film';
+  mocks.retrieve.mockImplementation(async (url: string, id: string) => ({ id, url, title: 'Koncert', text: text.repeat(8),
+    contentHash: 'a'.repeat(64), publishedAt: url === undatedUrl ? null : '2026-09-09T10:00:00Z', retrievedAt: new Date().toISOString() }));
+  const report = await verifyArticleSources(text, [...urls, undatedUrl]);
+  const request = mocks.create.mock.calls[0][0];
+  const prompt = request.messages[0].content;
+  expect(prompt).toContain('Vælg citations fra kilder med kendt publishedAt');
+  expect(prompt).toContain('bruge dens sourceId og ordrette citat frem for en udateret side');
+  expect(prompt).toContain('publishedAt=null er kun kontekst og kan aldrig opfylde kravet til belæg for verified');
+  expect(prompt).toContain('inklusive udaterede sider; ignorer ikke konflikter');
+  expect(prompt).toContain('Ved konflikt: disputed');
+  expect(JSON.parse(request.messages[1].content).sources).toContainEqual(expect.objectContaining({ url: undatedUrl, publishedAt: null }));
+  expect(report.complete).toBe(true); // This fixture cites only the two dated sources.
+});
+it('still rejects an undated citation even when other dated sources support the same claim', async () => {
+  mocks.retrieve.mockImplementation(async (url: string, id: string) => ({ id, url, title: 'Koncert', text: text.repeat(8),
+    contentHash: 'a'.repeat(64), publishedAt: id === 's3' ? null : '2026-09-09T10:00:00Z', retrievedAt: new Date().toISOString() }));
+  const raw = structuredClone(assessment);
+  raw.units[0].claims[0].citations.push({ sourceId: 's3', quote: text });
+  mocks.create.mockResolvedValue({ choices: [{ finish_reason: 'stop', message: { content: JSON.stringify(raw) } }] });
+  const report = await verifyArticleSources(text, [...urls, 'https://context.example/film']);
+  expect(report.complete).toBe(false);
+  expect(report.results[0]).toMatchObject({ status: 'unverifiable', validationErrors: ['undated_source'] });
+  expect(isCompleteGroundedReport(report, text)).toBe(false);
+});
 it.each([
   ['length', JSON.stringify(assessment), 'model_response_incomplete'],
   ['stop', '{', 'model_response_invalid_json'],

@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { runSafetyGates } from '@/lib/liv/run-safety-gates';
 import { checkSourceSimilarity } from '@/lib/liv/source-similarity';
+import { articleFingerprint, assessGroundedReport } from '@/lib/factcheck/grounded';
 
 vi.mock('@/lib/liv/source-similarity', () => ({
   checkSourceSimilarity: vi.fn(async () => ({ pass: true, complete: true, scores: { embeddingSim: 0, ngramJaccard: 0, openingSim: 0 } })),
@@ -84,5 +85,88 @@ describe('Liv safety gates', () => {
     expect(body.articleText).toContain('SIDSTE FAKTUELLE PÅSTAND');
     expect(body.sourceUrls).toEqual(['https://museum.dk/kilde']);
     expect(result.pass).toBe(false); // A method flag alone is not a verified report.
+  });
+
+  const diagnosticInput = {
+    baseUrl: 'http://localhost:3000', title: 'Koncerten', additionalTexts: ['Undertitel', 'SEO'], intro: 'Introduktion.',
+    content: 'Koncerten afholdes den 5. november 2026 i København.',
+    sourceExcerpt: 'En separat og dokumenteret kilde med en anden formulering. '.repeat(4),
+    requireCompleteVerification: true,
+  };
+  const diagnosticText = [diagnosticInput.title, ...diagnosticInput.additionalTexts, diagnosticInput.intro, diagnosticInput.content].join('\n\n');
+  function report(status = 'verified', undated = false) {
+    const sources = ['primary', 'secondary'].map((name, i) => ({ id: `s${i + 1}`, url: `https://${name}.example/news`,
+      title: 'Koncert', text: diagnosticInput.content.repeat(8), contentHash: String(i + 1).repeat(64),
+      retrievedAt: new Date().toISOString(), publishedAt: undated && i === 1 ? null : '2026-09-09T10:00:00Z' }));
+    return assessGroundedReport(diagnosticText, sources, { units: [{ id: 'u1', opinionOnly: false, claims: [{
+      claim: diagnosticInput.content, status, explanation: 'Begrundelse med konkret kildebelæg.',
+      citations: sources.map(source => ({ sourceId: source.id, quote: diagnosticInput.content })),
+    }] }] });
+  }
+  function respondWithFactcheck(value: unknown) {
+    vi.stubGlobal('fetch', vi.fn()
+      .mockResolvedValueOnce(jsonResponse({ data: { metrics: { wordCount: 700, plagiarismRisk: 'low' } } }))
+      .mockResolvedValueOnce(jsonResponse(value))
+      .mockResolvedValueOnce(jsonResponse({ data: { tips: 'Fin tekst.' } })));
+  }
+
+  it('retains incomplete claims, validation errors and source metadata as diagnostics without approval', async () => {
+    const failed = report('verified', true);
+    respondWithFactcheck(failed);
+    const result = await runSafetyGates(diagnosticInput);
+    const gate = result.results.find(gate => gate.name === 'factcheck')!;
+    expect(result).toMatchObject({ pass: false, failedGate: 'verification-complete', anyGateSkipped: true });
+    expect(gate.diagnosticEvidence).toEqual(failed);
+    expect(gate.diagnosticEvidence!.results[0]).toMatchObject({ status: 'unverifiable', validationErrors: ['undated_source'] });
+    expect(gate).not.toHaveProperty('evidence');
+  });
+
+  it('retains disputed reports before the factcheck early return without approval', async () => {
+    const disputed = report('disputed');
+    respondWithFactcheck(disputed);
+    const result = await runSafetyGates(diagnosticInput);
+    expect(result).toMatchObject({ pass: false, failedGate: 'factcheck' });
+    expect(result.results.find(gate => gate.name === 'factcheck')).toMatchObject({ pass: false, diagnosticEvidence: disputed });
+    expect(result.results.find(gate => gate.name === 'factcheck')).not.toHaveProperty('evidence');
+  });
+
+  it('retains source/date failure diagnostics even when no claims could be checked', async () => {
+    const incomplete = assessGroundedReport(diagnosticText, [], null, Date.now(), {
+      code: 'insufficient_dated_sources', message: 'Mindst to daterede kildeværter kræves.',
+    });
+    respondWithFactcheck(incomplete);
+    const result = await runSafetyGates(diagnosticInput);
+    expect(result.pass).toBe(false);
+    expect(result.results.find(gate => gate.name === 'factcheck')?.diagnosticEvidence).toEqual(incomplete);
+  });
+
+  it.each([
+    { articleHash: articleFingerprint(diagnosticInput.content) },
+    { verificationMethod: 'model-only' }, { checkedAt: 'invalid' }, { coverage: null },
+    { blockers: 'failure' }, { sources: [{}] }, { results: [{ claim: 'Invalid', status: 'disputed' }] },
+  ])('does not archive mismatched or malformed diagnostics: %j', async patch => {
+    respondWithFactcheck({ ...report('verified', true), ...patch });
+    const result = await runSafetyGates(diagnosticInput);
+    expect(result.pass).toBe(false);
+    const gate = result.results.find(gate => gate.name === 'factcheck')!;
+    expect(gate).not.toHaveProperty('diagnosticEvidence');
+    expect(gate).not.toHaveProperty('evidence');
+  });
+
+  it('does not retain unknown upstream fields or full source text in diagnostic records', async () => {
+    const failed = report('verified', true);
+    respondWithFactcheck({ ...failed, providerBody: 'private', sources: failed.sources.map(source => ({ ...source, text: 'full source body' })) });
+    const result = await runSafetyGates(diagnosticInput);
+    expect(result.results.find(gate => gate.name === 'factcheck')?.diagnosticEvidence).toEqual(failed);
+  });
+
+  it('keeps fully validated approval evidence separate from diagnostic evidence', async () => {
+    const passed = report();
+    respondWithFactcheck(passed);
+    const result = await runSafetyGates(diagnosticInput);
+    expect(result.pass).toBe(true);
+    const gate = result.results.find(gate => gate.name === 'factcheck')!;
+    expect(gate.evidence).toEqual(passed);
+    expect(gate).not.toHaveProperty('diagnosticEvidence');
   });
 });

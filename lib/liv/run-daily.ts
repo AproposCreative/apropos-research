@@ -316,6 +316,16 @@ export async function runLivDaily(req: NextRequest, preparation?: {
 
     if (!gates.pass) {
       const failed = gates.failedGate || 'unknown';
+      const diagnostic = gates.results.find(result => result.name === 'factcheck')?.diagnosticEvidence;
+      if (preparation && !article.factRevisionId && diagnostic &&
+          ['factcheck', 'verification-complete'].includes(failed) &&
+          diagnostic.results.some(result => result.status !== 'verified')) {
+        const { repairLivArticleFacts } = await import('@/lib/liv/fact-revision');
+        article = await repairLivArticleFacts(article, diagnostic);
+        await checkpointLivDailyArticle(dayKey, article);
+        await yieldLivPreparation(dayKey, scope as 'prepare' | 'reserve');
+        return NextResponse.json({ status: 'facts_revised', dayKey, title: article.title });
+      }
       // Source-similarity-fejl logges som "skipped_moderation" — vi har ikke
       // en separat status, men `gateResults` bevarer det nøjagtige gate-navn.
       const status: 'skipped_factcheck' | 'skipped_moderation' | 'skipped_tov' =

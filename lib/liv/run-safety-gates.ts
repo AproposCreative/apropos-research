@@ -14,7 +14,8 @@ import type { GateResult } from '@/lib/liv/daily-history-store';
 import { internalApiHeaders } from '@/lib/api/internal-auth';
 import { logger } from '@/lib/logger';
 import { checkSourceSimilarity } from '@/lib/liv/source-similarity';
-import { isCompleteGroundedReport, type GroundedReport } from '@/lib/factcheck/grounded';
+import { articleFingerprint, isCompleteGroundedReport, type GroundedReport } from '@/lib/factcheck/grounded';
+import { z } from 'zod';
 
 export interface SafetyGatesInput {
   baseUrl: string;
@@ -65,6 +66,31 @@ interface FactcheckResponse {
 
 interface TovResponse {
   data?: { tips?: string };
+}
+
+// Retention validates structure and article identity, not truth or approval.
+// Strip unknown fields so upstream extras (including full source text) are not archived.
+const diagnosticReportSchema = z.object({
+  ok: z.literal(true), verificationMethod: z.literal('retrieved-sources'),
+  articleHash: z.string().regex(/^[a-f0-9]{64}$/), checkedAt: z.string().datetime(), complete: z.boolean(),
+  blockers: z.array(z.string()),
+  coverage: z.object({ expectedUnits: z.number().int().positive(), checkedUnits: z.number().int().nonnegative() }),
+  results: z.array(z.object({
+    claim: z.string(), status: z.string(), evidence: z.string(), validationErrors: z.array(z.string()).optional(),
+    citations: z.array(z.object({ sourceId: z.string(), url: z.string().url(), quote: z.string() })),
+  })),
+  sources: z.array(z.object({
+    id: z.string(), url: z.string().url(), title: z.string(), contentHash: z.string().regex(/^[a-f0-9]{64}$/),
+    retrievedAt: z.string().datetime(), publishedAt: z.string().nullable(),
+  })),
+  diagnostic: z.object({ code: z.enum(['insufficient_dated_sources', 'model_response_incomplete',
+    'model_response_invalid_json', 'model_response_invalid_schema']) }).optional(),
+});
+
+function diagnosticReport(value: unknown, text: string): GroundedReport | undefined {
+  const parsed = diagnosticReportSchema.safeParse(value);
+  if (!parsed.success || parsed.data.articleHash !== articleFingerprint(text)) return undefined;
+  return { ...parsed.data, sources: parsed.data.sources.map(source => ({ ...source, publishedAt: source.publishedAt ?? null })) };
 }
 
 async function postJson<T>(url: string, body: unknown): Promise<T | null> {
@@ -232,12 +258,14 @@ export async function runSafetyGates(input: SafetyGatesInput): Promise<SafetyGat
   } else {
     const checked = Array.isArray(fc.results) ? fc.results.filter(r => r && typeof r === 'object') : [];
     const sourceGrounded = isCompleteGroundedReport(fc, factcheckText);
+    const diagnosticEvidence = sourceGrounded ? undefined : diagnosticReport(fc, factcheckText);
     if (!sourceGrounded) anyGateSkipped = true;
     const disputed = checked.filter((r) => r.status === 'disputed');
     if (disputed.length > 0) {
       results.push({
         name: 'factcheck',
         pass: false,
+        ...(diagnosticEvidence ? { diagnosticEvidence } : {}),
         detail: `${disputed.length} disputed claim(s): ${disputed
           .slice(0, 3)
           .map((d) => d.claim)
@@ -250,7 +278,7 @@ export async function runSafetyGates(input: SafetyGatesInput): Promise<SafetyGat
       name: 'factcheck',
       pass: true,
       skipped: !sourceGrounded,
-      ...(sourceGrounded ? { evidence: fc as GroundedReport } : {}),
+      ...(sourceGrounded ? { evidence: fc as GroundedReport } : diagnosticEvidence ? { diagnosticEvidence } : {}),
       detail:
         !sourceGrounded
           ? fc.verificationMethod === 'retrieved-sources'

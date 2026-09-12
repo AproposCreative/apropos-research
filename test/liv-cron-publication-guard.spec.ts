@@ -1,5 +1,7 @@
 import { beforeEach, afterEach, it, expect, vi } from 'vitest';
 import { NextRequest } from 'next/server';
+const repair = vi.hoisted(() => vi.fn());
+vi.mock('@/lib/liv/fact-revision', () => ({ repairLivArticleFacts: repair }));
 const mocks = vi.hoisted(() => ({ refresh: vi.fn(), supplement: vi.fn(), topic: vi.fn(), publish: vi.fn(), live: vi.fn(), finish: vi.fn(), gates: vi.fn(), claim: vi.fn(), readback: vi.fn(), analytics: vi.fn(), media: vi.fn(), checkpoint: vi.fn(), admission: vi.fn(), proof: vi.fn(), yield: vi.fn(), row: undefined as any, doc: vi.fn() }));
 vi.mock('@/lib/liv/supplement-research', () => ({ supplementLivResearch: mocks.supplement, refreshLivResearchDates: mocks.refresh }));
 vi.mock('@/lib/firebase-admin', () => ({ getAdminDb: () => ({ collection: () => ({ doc: mocks.doc }) }) }));
@@ -230,4 +232,27 @@ it('does not repeat unsuccessful supplemental searches or spend on media without
   });
   expect(response.status).toBe(500);
   expect(mocks.supplement).not.toHaveBeenCalled(); expect(mocks.media).not.toHaveBeenCalled();
+});
+
+it.each([false, true])('bounds factual correction, checkpoints it and requires all gates again (already revised=%s)', async revised => {
+  const article = { title: 'Saved', content: 'Kultur '.repeat(650), intro: 'Intro', preparedMedia: [{}, {}, {}],
+    factRevisionId: revised ? 'prior-revision' : undefined,
+    researchSources: [{ url: 'https://museum.dk/news', publishedAt: '2026-09-10' }, { url: 'https://kultur.dk/news', publishedAt: '2026-09-10' }] };
+  mocks.row = { articleCheckpoint: article };
+  const diagnostic = { results: [{ claim: 'En præmis', status: 'unverifiable' }] };
+  mocks.gates.mockResolvedValue({ pass: false, failedGate: 'verification-complete',
+    results: [{ name: 'factcheck', pass: true, skipped: true, diagnosticEvidence: diagnostic }] });
+  repair.mockResolvedValue({ ...article, factRevisionId: 'audited-revision' });
+  const result = await (await runLivDaily(new NextRequest('http://localhost/api/cron/liv-prepare'), {
+    dayKey: '2026-09-12', kind: 'scheduled', defaultPlan: defaultEditorialPlan('2026-09-12'),
+  })).json();
+  if (revised) {
+    expect(repair).not.toHaveBeenCalled(); expect(result.skipped).toBe(true);
+  } else {
+    expect(repair).toHaveBeenCalledWith(article, diagnostic);
+    expect(result.status).toBe('facts_revised');
+    expect(mocks.checkpoint).toHaveBeenLastCalledWith('2026-09-12', expect.objectContaining({ factRevisionId: 'audited-revision' }), 'prepare');
+    expect(mocks.yield).toHaveBeenCalledTimes(1);
+  }
+  expect(mocks.publish).not.toHaveBeenCalled(); expect(mocks.admission).not.toHaveBeenCalled();
 });
