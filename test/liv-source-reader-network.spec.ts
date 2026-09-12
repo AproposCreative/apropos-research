@@ -47,6 +47,15 @@ describe('source reader transport', () => {
     reply(200, { 'content-type': 'text/html' }, 'x'.repeat(1_000_001));
     await expect(retrieveSource('https://museum.dk/article', 's1')).rejects.toThrow('for stor');
   });
+  it('bounds Tudum article HTML at 4 MiB and keeps other pages at 1 MB', async () => {
+    const body = `<script>${' '.repeat(1_100_000)}</script><div data-uia="article-content" data-sel="article-content">${'Kulturel baggrund. '.repeat(20)}</div>`;
+    reply(200, { 'content-type': 'text/html' }, body);
+    expect((await retrieveSource('https://www.netflix.com/tudum/articles/the-gentlemen', 's1')).text).toContain('Kulturel baggrund.');
+    await expect(retrieveSource('https://www.netflix.com/browse', 's1')).rejects.toThrow('for stor');
+    await expect(retrieveSource('https://evil.netflix.com/tudum/articles/the-gentlemen', 's1')).rejects.toThrow('for stor');
+    reply(200, { 'content-type': 'text/html' }, ' '.repeat(4 * 1024 * 1024 + 1));
+    await expect(retrieveSource('https://www.netflix.com/tudum/articles/the-gentlemen', 's1')).rejects.toThrow('for stor');
+  });
   it('pins the public address and sends no authorization or cookies', async () => {
     reply(200, { 'content-type': 'text/html; charset=utf-8' }, `<article>${'Kulturel baggrund. '.repeat(20)}</article>`);
     const result = await retrieveSource('https://museum.dk/article', 's1');

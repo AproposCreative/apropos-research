@@ -6,7 +6,8 @@ import { normalizeArticlePayload } from '@/lib/articles/article-payload';
 import { defaultEditorialPlan } from '@/lib/liv/rolling-plan';
 import { livResearchQueries } from '@/lib/liv/research-query';
 
-const mocks = vi.hoisted(() => ({ feedback: vi.fn(), resume: vi.fn(), create: vi.fn(), search: vi.fn(), retrieve: vi.fn(), remember: vi.fn(), rememberBrief: vi.fn(), recall: vi.fn(), seo: vi.fn(), similarity: vi.fn(), images: vi.fn() }));
+const mocks = vi.hoisted(() => ({ mediaRead: vi.fn(), feedback: vi.fn(), resume: vi.fn(), create: vi.fn(), search: vi.fn(), retrieve: vi.fn(), remember: vi.fn(), rememberBrief: vi.fn(), recall: vi.fn(), seo: vi.fn(), similarity: vi.fn(), images: vi.fn() }));
+vi.mock('@/lib/liv/public-media-reader', () => ({ readPublicMedia: mocks.mediaRead }));
 vi.mock('@/lib/liv/editorial-feedback', () => ({ loadLivEditorialFeedbackPrompt: mocks.feedback }));
 vi.mock('@/lib/openai', () => ({ getOpenAIClient: () => ({ chat: { completions: { create: mocks.create } } }) }));
 vi.mock('@/lib/research/service', () => ({ getResearch: mocks.search }));
@@ -37,6 +38,7 @@ const rawArticle = (rated = true, content = body) => JSON.stringify({ status: 'r
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.feedback.mockReset().mockResolvedValue('');
+  mocks.mediaRead.mockReset().mockResolvedValue(Buffer.from(''));
   mocks.images.mockReset().mockResolvedValue([]);
   mocks.resume.mockReset();
   mocks.search.mockResolvedValue({ sources: [{ title: 'Kritik', snippet: 'Søgeresultat, ikke selve kilden', source: 'example.com', url: criticUrl }] });
@@ -96,6 +98,17 @@ it('keeps official gallery candidates ahead of unrelated news thumbnails and ded
   expect(result).toHaveLength(12);
   expect(result.slice(0, 6).every(image => image.sourcePageUrl === primaryUrl)).toBe(true);
   expect(mocks.images.mock.calls.filter(call => call[0] === primaryUrl)).toHaveLength(1);
+});
+it('collects three exact credited Tudum assets once, without a paid writer or generic social-thumbnail substitution', async () => {
+  const url = 'https://www.netflix.com/tudum/articles/the-gentlemen-season-2-release-date-photos';
+  const assets = ['hero', 'theo-esposito', 'susie-car'].map(name => `https://dnm.nflximg.net/api/v6/abc/${name}.jpg?r=96a`);
+  mocks.mediaRead.mockResolvedValue(Buffer.from(`<div><div data-uia="image-container"><img src="${assets[0]}"></div><div data-uia="image-credit">PHOTO BY CHRISTOPHER RAPHAEL</div></div>` +
+    `<div data-sel="media-card" data-content-type="inlineImageCollection">${assets.slice(1).map(src => `<div><picture><img src="${src}"></picture><div data-uia="media-details"><div>PHOTO BY CHRISTOPHER RAPHAEL</div></div></div>`).join('')}</div>`));
+  const selected = await collectImageSuggestions({ topic: { title: 'The Gentlemen', score: 0, source: { title: 'Netflix', url } },
+    researchResults: [{ title: 'Netflix', url, source: 'Netflix Tudum', content: 'Official page' }] });
+  expect(selected.map(image => image.url)).toEqual(assets);
+  expect(selected.every(image => image.sourcePageUrl === url)).toBe(true);
+  expect(mocks.mediaRead).toHaveBeenCalledOnce(); expect(mocks.images).not.toHaveBeenCalled(); expect(mocks.create).not.toHaveBeenCalled();
 });
 
 it('runs shared search, re-fetches recalled sources, applies v4 and preserves rating/model through CMS', async () => {

@@ -88,19 +88,19 @@ async function reportGa4(
 }
 
 type LivPreparation = {
-  dayKey: string; kind: 'scheduled' | 'reserve'; defaultPlan: LivDailyPlan; scope?: 'prepare-alternative';
+  dayKey: string; kind: 'scheduled' | 'reserve'; defaultPlan: LivDailyPlan; scope?: 'prepare-alternative' | 'reserve-editorial';
 };
 export async function runLivDaily(req: NextRequest, preparation?: LivPreparation) {
   const denied = requireCronBearer(req);
   if (denied) return denied;
   const day = preparation?.dayKey ?? todayDayKeyUTC();
-  const scope = preparation ? preparation.kind === 'reserve' ? 'reserve' : preparation.scope || 'prepare' : 'daily';
+  const scope = preparation ? preparation.scope ?? (preparation.kind === 'reserve' ? 'reserve' : 'prepare') : 'daily';
   return withLivCostContext({ runId: livDailyDocId(day, scope), stage: 'daily-workflow' },
     () => runLivDailyOperation(req, preparation));
 }
 
 async function runLivDailyOperation(req: NextRequest, preparation?: LivPreparation) {
-  const scope: LivDailyScope = preparation ? preparation.kind === 'reserve' ? 'reserve' : preparation.scope || 'prepare' : 'daily';
+  const scope: LivDailyScope = preparation ? preparation.scope ?? (preparation.kind === 'reserve' ? 'reserve' : 'prepare') : 'daily';
   const claimLivDaily = (day: string) => preparation ? claimDaily(day, scope) : claimDaily(day);
   const finishLivDaily: typeof finishDaily = (day, input) => preparation ? finishDaily(day, input, scope) : finishDaily(day, input);
   const checkpointLivDailyCmsItem: typeof checkpointCms = (day, item) => preparation ? checkpointCms(day, item, scope) : checkpointCms(day, item);

@@ -16,7 +16,7 @@ import type { PreparationProof } from '@/lib/liv/prepared-admission';
 import { canRetryUnstartedPreparation, shouldExcludeLivTopic } from '@/lib/liv/preparation-retry';
 
 export const LIV_DAILY_COLLECTION = 'livDailyArticles';
-export type LivDailyScope = 'daily' | 'prepare' | 'prepare-alternative' | 'reserve';
+export type LivDailyScope = 'daily' | 'prepare' | 'prepare-alternative' | 'reserve' | 'reserve-editorial';
 
 /** Dokument-id til daglig auto-publish: `daily-2026-04-20` (UTC). */
 export function livDailyDocId(dayKey: string, scope: LivDailyScope = 'daily'): string {

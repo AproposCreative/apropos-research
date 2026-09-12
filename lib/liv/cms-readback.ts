@@ -9,6 +9,7 @@ import { load } from 'cheerio';
 import { cmsFieldHash } from '@/lib/liv/cms-field-hash';
 import { encodeWebp } from '@/lib/images/encode-webp';
 import { readWebflowTopicCollection, resolveWebflowTopics } from '@/lib/webflow/topic-resolution';
+import { isLivHeroDimensions } from './hero-dimensions';
 
 type JsonObject = Record<string, unknown>;
 export type LivCmsReadback = {
@@ -157,7 +158,7 @@ export async function inspectLivCmsDraft(input: {
         const bytes = await (dependencies?.readImage || readLivStoredImage)(text(object(fields.thumb).url));
         const meta = await sharp(bytes, { limitInputPixels: 80_000_000 }).metadata();
         matches = bytes.length <= 450 * 1024 && meta.format === 'webp' && (meta.pages ?? 1) === 1 &&
-          meta.width === 1920 && meta.height === 1080 && createHash('sha256').update(bytes).digest('hex') === input.expected.featuredImageHash;
+          isLivHeroDimensions(meta) && createHash('sha256').update(bytes).digest('hex') === input.expected.featuredImageHash;
       } catch { /* No byte proof means no approval, including URL rewrites and unavailable images. */ }
     }
     checks.push({ id: 'image:stored-bytes-match', ok: matches });

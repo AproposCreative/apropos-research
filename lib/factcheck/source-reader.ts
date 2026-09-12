@@ -3,6 +3,7 @@ import { request } from 'node:https';
 import { isIP } from 'node:net';
 import { createHash } from 'node:crypto';
 import * as cheerio from 'cheerio';
+import { isLivTudumSource, LIV_TUDUM_HTML_MAX_BYTES } from '@/lib/liv/photo-credit';
 
 export interface RetrievedSource {
   id: string;
@@ -36,6 +37,7 @@ export function isPublicSourceAddress(address: string): boolean {
 }
 
 async function download(url: URL, signal: AbortSignal): Promise<string> {
+  const byteLimit = isLivTudumSource(url.href) ? LIV_TUDUM_HTML_MAX_BYTES : 1_000_000;
   const addresses = await Promise.race([
     lookup(url.hostname, { all: true, family: 4 }),
     new Promise<never>((_, reject) => {
@@ -63,7 +65,7 @@ async function download(url: URL, signal: AbortSignal): Promise<string> {
       let bytes = 0;
       response.on('data', (chunk: Buffer) => {
         bytes += chunk.length;
-        if (bytes > 1_000_000) {
+        if (bytes > byteLimit) {
           response.destroy(new Error('Kildesiden er for stor.'));
           return;
         }
@@ -139,7 +141,11 @@ export function parseSourceHtml(url: string, html: string, id: string, now = Dat
     }
   }
   $('script,style,noscript,nav,header,footer,form,iframe,svg,[hidden],[aria-hidden="true"]').remove();
-  const root = $('article').first().length ? $('article').first() : $('main').first();
+  const tudum = isLivTudumSource(url);
+  const tudumContent = $('[data-uia="article-content"][data-sel="article-content"]');
+  if (tudum && tudumContent.length !== 1) throw new Error('Ingen entydig Tudum-artikeltekst i kilden.');
+  const root = tudum ? tudumContent : $('article').first().length ? $('article').first() : $('main').first();
+  if (tudum) root.find('article').remove(); // Related-story cards are not this article's evidence.
   // An archive/navigation page is not silently treated as article evidence.
   if (!root.length) throw new Error('Ingen afgrænset artikeltekst i kilden.');
   root.find('p,h1,h2,h3,li,br').each((_, el) => { $(el).append('\n'); });

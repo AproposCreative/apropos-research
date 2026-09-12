@@ -2,6 +2,7 @@ import { lookup } from 'node:dns/promises';
 import type { LookupAddress } from 'node:dns';
 import { request } from 'node:https';
 import { sourceUrl, isPublicSourceAddress } from '@/lib/factcheck/source-reader';
+import { isLivTudumSource, LIV_TUDUM_HTML_MAX_BYTES } from './photo-credit';
 
 /** No credentials, redirects or second DNS lookup. HTML and raster bytes only. */
 export async function readPublicMedia(value: string, kind: 'html' | 'image', timeoutMs = 12_000): Promise<Buffer> {
@@ -23,7 +24,7 @@ export async function readPublicMedia(value: string, kind: 'html' | 'image', tim
   } finally { signal.removeEventListener('abort', abort); }
   signal.throwIfAborted();
   if (!addresses.length || addresses.some(({ address }) => !isPublicSourceAddress(address))) throw new Error('media_address_blocked');
-  const limit = kind === 'html' ? 1_000_000 : 24 * 1024 * 1024;
+  const limit = kind === 'html' ? isLivTudumSource(url.href) ? LIV_TUDUM_HTML_MAX_BYTES : 1_000_000 : 24 * 1024 * 1024;
   return new Promise((resolve, reject) => {
     const req = request(url, { signal, agent: false, family: 4,
       lookup: (_host, _options, callback) => callback(null, addresses[0].address, 4),

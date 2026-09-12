@@ -88,10 +88,10 @@ it('allows only bounded locale-scoped collection pagination reads', async () => 
   }
   expect(fetchMock).toHaveBeenCalledTimes(1);
 });
-it('can pass with verified hero bytes and two distinct credited body images, without certifying rights', async () => {
+it.each([[1920, 1080], [1200, 675]])('can pass with verified %i x %i hero bytes and two distinct credited body images, without certifying rights', async (width, height) => {
   const f = fixture();
   const buffers = await Promise.all(['#aaa', '#bbb', '#ccc'].map(background =>
-    sharp({ create: { width: 1920, height: 1080, channels: 3, background } }).webp().toBuffer()));
+    sharp({ create: { width, height, channels: 3, background } }).webp().toBuffer()));
   const content = '<p>Indhold</p>' + [1, 2].map(i => `<figure><img src="https://example.com/${i}.webp" alt="Motiv ${i}" style="height:auto"><figcaption>Motiv ${i}. Foto: Fotograf.</figcaption></figure>`).join('');
   f.item.fieldData.content = content;
   Object.assign(f.item.fieldData.thumb, { alt: 'Hero motiv' });

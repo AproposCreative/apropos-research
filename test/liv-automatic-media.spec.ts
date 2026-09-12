@@ -28,6 +28,26 @@ beforeEach(() => {
   };
 });
 describe('automatic Liv media', () => {
+  it('keeps native official 1200px photography without upscaling or misreporting selected dimensions', async () => {
+    const candidates = await Promise.all(originals.map(async (bytes, i) => ({ id: String(i),
+      url: `https://press.test/${i}.jpg`, sourcePageUrl: 'https://www.netflix.com/tudum/articles/the-gentlemen',
+      credit: 'Foto: CHRISTOPHER RAPHAEL', bytes: await sharp(bytes).resize(1200, i ? 800 : 675).jpeg().toBuffer() })));
+    vi.mocked(deps.candidates).mockResolvedValue(candidates);
+    vi.mocked(deps.plan).mockResolvedValue({ images: plan.images.map((image, i) => ({ ...image, candidateId: String(i) })) });
+    const result = await prepareLivAutomaticMedia({ ...article, section: 'Film' }, { dayKey: '2026-09-12' }, deps);
+    expect(result.selectedImage).toMatchObject({ width: 1200, height: 675, rightsStatus: 'unverified', credit: candidates[0].credit });
+    const heroBytes = vi.mocked(deps.store).mock.calls.find(call => call[1] === 'hero')![2];
+    expect(await sharp(heroBytes).metadata()).toMatchObject({ width: 1200, height: 675, format: 'webp' });
+    expect(result.selectedImage?.contentHash).toBe(hash(heroBytes));
+    expect(deps.generate).not.toHaveBeenCalled();
+    const stores = vi.mocked(deps.store).mock.calls;
+    deps.resume = vi.fn(async () => result.preparedMedia!.map(evidence => ({ evidence, bytes: stores.find(call => call[1] === evidence.role)![2] })));
+    vi.mocked(deps.plan).mockResolvedValue({ images: plan.images.map((image, i) => ({ ...image, candidateId: result.preparedMedia![i].sourceHash })) });
+    vi.mocked(deps.store).mockClear();
+    const resumed = await prepareLivAutomaticMedia({ ...article, section: 'Film' }, { dayKey: '2026-09-12' }, deps);
+    expect(resumed.selectedImage).toMatchObject({ width: 1200, height: 675 });
+    expect(deps.store).not.toHaveBeenCalled();
+  });
   it.each(['film', 'tv-series'] as const)('uses explicit %s classification for press-photo selection even under the Kultur section', subjectType => {
     expect(resolveLivMediaMode({ ...article, section: 'Kultur', tags: [], subjectType })).toBe('photography');
     expect(() => resolveLivMediaMode({ ...article, section: 'Kultur', subjectType }, 'illustration')).toThrow('requires_photography');

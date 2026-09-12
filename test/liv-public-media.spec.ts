@@ -36,6 +36,17 @@ describe('Liv public media transport', () => {
     reply(200, { 'content-type': 'text/html' }, [Buffer.alloc(1_000_001)]);
     await expect(readPublicMedia('https://example.com/a', 'html')).rejects.toThrow('too_large');
   });
+  it('allows bounded larger Tudum articles without relaxing other HTML limits', async () => {
+    reply(200, { 'content-type': 'text/html' }, [Buffer.alloc(1_100_000)]);
+    expect((await readPublicMedia('https://www.netflix.com/tudum/articles/the-gentlemen', 'html')).length).toBe(1_100_000);
+    for (const url of ['https://www.netflix.com/browse', 'https://evil.netflix.com/tudum/articles/the-gentlemen']) {
+      await expect(readPublicMedia(url, 'html')).rejects.toThrow('too_large');
+    }
+    reply(200, { 'content-type': 'text/html' }, [Buffer.alloc(4 * 1024 * 1024 + 1)]);
+    await expect(readPublicMedia('https://www.netflix.com/tudum/articles/the-gentlemen', 'html')).rejects.toThrow('too_large');
+    reply(200, { 'content-type': 'text/html', 'content-length': String(4 * 1024 * 1024 + 1) });
+    await expect(readPublicMedia('https://www.netflix.com/tudum/articles/the-gentlemen', 'html')).rejects.toThrow('response_rejected');
+  });
   it('pins DNS, omits app headers and uses the same safe transport for source pages', async () => {
     reply(200, { 'content-type': 'text/html' }, [Buffer.from('<meta property="og:image" content="/hero.webp">')]);
     expect(await fetchOfficialImagesFromPage('https://museum.dk/article')).toEqual(['https://museum.dk/hero.webp']);

@@ -5,6 +5,7 @@ import { encodeWebp } from '@/lib/images/encode-webp';
 import { livImageArticleHash } from '@/lib/liv/article-image-hash';
 import type { GeneratedArticle } from '@/lib/liv/generate-article';
 import { isLivOfficialImageSource } from '@/lib/liv/photo-credit';
+import { chooseLivHeroDimensions, isLivHeroDimensions } from './hero-dimensions';
 
 export type MediaMode = 'illustration' | 'photography';
 export type MediaStyle = 'expressive' | 'minimal';
@@ -132,10 +133,11 @@ export async function prepareLivAutomaticMedia(article: GeneratedArticle, option
       const original = mode === 'photography' ? candidate!.bytes : await deps.generate(image.prompt, jobId, role);
       const meta = await sharp(original, { limitInputPixels: 80_000_000 }).metadata();
       if (!['jpeg', 'png', 'webp'].includes(meta.format || '') || (meta.pages ?? 1) !== 1 || !meta.width || !meta.height ||
-          meta.width < (index === 0 && mode === 'photography' ? 1920 : 800) ||
-          meta.height < (index === 0 && mode === 'photography' ? 1080 : 500)) throw new Error('liv_media_source_invalid');
+          meta.width < 800 || meta.height < 500) throw new Error('liv_media_source_invalid');
+      const heroDimensions = mode === 'photography' ? chooseLivHeroDimensions(meta.width, meta.height, meta.orientation) : { width: 1920, height: 1080 };
+      if (index === 0 && !heroDimensions) throw new Error('liv_media_source_invalid');
       const encoded = await encodeWebp(original, { maxSizeKB: 450, maxLongEdge: 1920, qualityStart: 85, qualityMin: 55,
-        effort: 4, ...(index === 0 ? { targetDimensions: { width: 1920, height: 1080 } } : {}) });
+        effort: 4, ...(index === 0 ? { targetDimensions: heroDimensions! } : {}) });
       const stored = await deps.store(jobId, role, encoded.data);
       if (stored.contentHash !== digest(encoded.data) || stored.bytes !== encoded.bytes ||
           stored.width !== encoded.width || stored.height !== encoded.height || !/^https:\/\//.test(stored.url)) throw new Error('liv_media_storage_mismatch');
@@ -157,9 +159,10 @@ export async function prepareLivAutomaticMedia(article: GeneratedArticle, option
     const media = prepared.map(item => item.evidence);
     const result: GeneratedArticle = { ...article, content: insertLivBodyMedia(article.content, media), preparedMedia: media };
     const hero = media[0];
+    if (!isLivHeroDimensions(hero)) throw new Error('liv_media_saved_evidence_invalid');
     result.selectedImage = { id: `${jobId}-hero`, articleHash: livImageArticleHash(result), url: hero.url,
       storagePath: hero.storagePath, sourceUrl: hero.sourceUrl || hero.url, sourcePageUrl: hero.sourcePageUrl,
-      contentHash: hero.contentHash, sourceHash: hero.sourceHash, width: 1920, height: 1080, bytes: hero.bytes,
+      contentHash: hero.contentHash, sourceHash: hero.sourceHash, ...({ width: hero.width, height: hero.height } as import('./hero-dimensions').LivHeroDimensions), bytes: hero.bytes,
       alt: hero.alt, credit: hero.credit, createdAt: new Date().toISOString(), rightsStatus: 'unverified', visualReview: 'automated' };
     await deps.complete(jobId, result);
     return result;

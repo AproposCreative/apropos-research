@@ -153,6 +153,26 @@ const storedOriginal = () => {
   return { storagePath, contentHash, bytes: image.length, width: 1000, height: 600,
     url: `https://firebasestorage.googleapis.com/v0/b/test-bucket/o/${encodeURIComponent(storagePath)}?alt=media&token=saved` };
 };
+it.each([[1200, 675, true], [1920, 1080, true], [1200, 800, false], [1920, 675, false]])('restores only exact native hero pairs %i x %i', async (width, height, valid) => {
+  const bytes = await sharp({ create: { width, height, channels: 3, background: '#345678' } }).webp().toBuffer();
+  const first = livMediaRuntime();
+  await first.claim(id, article, 'photography', 'expressive');
+  const stored = await first.store(id, 'hero', bytes);
+  await first.record(id, 'plan', { plan: savedPlan });
+  const evidence = { ...stored, role: 'hero', kind: 'photography', sourceHash: stored.contentHash,
+    alt: 'Et konkret pressemotiv', caption: 'Et billede fra serien.', credit: 'Foto: CHRISTOPHER RAPHAEL',
+    sourceUrl: 'https://press.test/photo.jpg', sourcePageUrl: 'https://www.netflix.com/tudum/articles/the-gentlemen' };
+  await first.record(id, 'hero', { evidence });
+  await first.fail(id);
+  const audit = structuredClone(mocks.stageRows);
+  const resumed = livMediaRuntime();
+  await resumed.claim(id, article, 'photography', 'expressive');
+  if (valid) expect(await resumed.resume!(id)).toEqual([{ evidence, bytes }]);
+  else await expect(resumed.resume!(id)).rejects.toThrow('saved_evidence_invalid');
+  expect(mocks.stageRows).toEqual(audit);
+  expect(mocks.chat).not.toHaveBeenCalled();
+  expect(mocks.generate).not.toHaveBeenCalled();
+});
 it('resumes a failed job from its saved plan and original without replacing the audit or calling providers', async () => {
   seedFailed();
   mocks.stageRows['hero-call'] = { status: 'complete', original: storedOriginal(), usage: { total_tokens: 123 } };

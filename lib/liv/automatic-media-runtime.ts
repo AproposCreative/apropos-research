@@ -9,6 +9,7 @@ import { extractLivPhotoCredit, isLivOfficialImageSource } from '@/lib/liv/photo
 import type { MediaCandidate, MediaDependencies, MediaEvidence, MediaStyle, StoredMedia } from '@/lib/liv/automatic-media';
 import type { GeneratedArticle } from '@/lib/liv/generate-article';
 import { getLivCostPretransportError } from './cost-errors';
+import { isLivHeroDimensions } from './hero-dimensions';
 
 const hash = (bytes: Buffer | string) => createHash('sha256').update(bytes).digest('hex');
 const json = (value: unknown) => JSON.parse(JSON.stringify(value));
@@ -197,7 +198,7 @@ export function livMediaRuntime(deadline = Date.now() + 180_000): MediaDependenc
         const original = savedStages[`${role}-call`]?.original;
         if (evidence.role !== role || !/^[a-f0-9]{64}$/.test(evidence.sourceHash) ||
             (original && evidence.sourceHash !== original.contentHash) ||
-            (role === 'hero' && (evidence.width !== 1920 || evidence.height !== 1080)) ||
+            (role === 'hero' && !isLivHeroDimensions(evidence)) ||
             evidence.bytes > 450 * 1024 || !evidence.credit?.trim() ||
             (evidence.kind === 'photography' && (!evidence.sourceUrl || !evidence.sourcePageUrl))) throw new Error('liv_media_saved_evidence_invalid');
         return { evidence, bytes: await restore(id, role, evidence) };

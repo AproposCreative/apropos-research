@@ -28,6 +28,8 @@ import type { LivSelectedImage } from '@/lib/liv/image-selection';
 import { livResearchQueries } from '@/lib/liv/research-query';
 import { buildLivWritingBrief, writingBriefContract } from '@/lib/liv/writing-brief';
 import { loadLivEditorialFeedbackPrompt } from '@/lib/liv/editorial-feedback';
+import { extractLivTudumPhotos, isLivTudumSource } from '@/lib/liv/photo-credit';
+import { readPublicMedia } from '@/lib/liv/public-media-reader';
 
 export interface GeneratedArticle {
   subjectType?: import('@/lib/liv/article-output').LivSubjectType;
@@ -154,7 +156,9 @@ export async function collectImageSuggestions(opts: {
   for (let offset = 0; offset < uniquePages.length; offset += 4) {
     const batch = uniquePages.slice(offset, offset + 4);
     const results = await Promise.all(batch.map(async p => ({ p,
-      images: await fetchOfficialImagesFromPage(p.url, { timeoutMs: 8000 }) })));
+      images: isLivTudumSource(p.url)
+        ? await readPublicMedia(p.url, 'html', 8000).then(html => extractLivTudumPhotos(html.toString('utf8'), p.url).map(photo => photo.url)).catch(() => [])
+        : await fetchOfficialImagesFromPage(p.url, { timeoutMs: 8000 }) })));
     for (const { p, images } of results) {
       for (const img of images.slice(0, 6)) {
         if (seen.has(img)) continue;
