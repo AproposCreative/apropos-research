@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { FieldValue } from 'firebase-admin/firestore';
 import { z } from 'zod';
 import { getAdminDb } from '@/lib/firebase-admin';
 import { cmsFieldHash } from './cms-field-hash';
@@ -132,10 +133,10 @@ export async function reviseLivPresentation(value: unknown) {
         hash({ rows }) !== hash({ rows: audit.rows }) || Object.values(state.slots).some(s => s.itemId === input.itemId)) return fail('conflict');
       for (const saved of audit.rows as Array<{ id: string; row: Row }>) {
         const article = presentationCheckpoint(saved.row.articleCheckpoint!, input.patch);
-        tx.set(db.collection('livDailyArticles').doc(saved.id), { ...saved.row, articleCheckpoint: article,
+        tx.set(db.collection('livDailyArticles').doc(saved.id), { ...saved.row, articleCheckpoint: article, title: article.title,
           articleCheckpointHash: livImageArticleHash(article),
           preparationProof: { ...saved.row.preparationProof, expected, hash: hash(expected) },
-          presentationRevisionId: id, updatedAt: new Date().toISOString() });
+          presentationRevisionId: id, updatedAt: FieldValue.serverTimestamp() });
       }
       tx.set(payloadRef, { ...audit.payload, expected, payloadHash: hash(expected), presentationRevisionId: id });
       entry.title = expected.title; entry.payloadHash = hash(expected);
