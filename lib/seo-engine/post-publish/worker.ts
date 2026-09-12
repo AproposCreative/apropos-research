@@ -9,6 +9,7 @@ export type QualityWorkerDependencies = {
   read: (itemId: string, locale: 'da' | 'en') => Promise<{ snapshot: PublishedArticle }>;
   enabled: () => Promise<boolean>;
   model: (jobId: string) => ReviewModelCall;
+  duplicates: (snapshot: PublishedArticle) => Promise<{ seoTitle: string[]; metaDescription: string[] }>;
   reserve: (job: QualityJob, decision: PolicyDecision) => Promise<void>;
   checkpoint: (job: QualityJob, patch: Partial<QualityJob>, release?: boolean) => Promise<void>;
   finish: (job: QualityJob, patch: Partial<QualityJob>) => Promise<void>;
@@ -48,7 +49,11 @@ export async function runQualityJob(id: string, deps: QualityWorkerDependencies)
     if (state.lastAppliedAt && (deps.now?.() ?? Date.now()) - Date.parse(state.lastAppliedAt) < POST_PUBLISH_POLICY.cooldownMs) {
       return await finish('kept', 'cooldown');
     }
-    const review = await reviewPublishedMetadata(job.article, deps.model(job.id));
+    // Persist the model's exact duplicate evidence once, so retries replay the
+    // same paid request even if another article's metadata changes later.
+    const duplicateMetadata = job.duplicateMetadata ?? await deps.duplicates(job.snapshot);
+    if (!job.duplicateMetadata) await deps.checkpoint(job, { duplicateMetadata });
+    const review = await reviewPublishedMetadata({ ...job.article, duplicateMetadata }, deps.model(job.id));
     // Model output is already durable; refresh editorial state after its latency.
     const current = await deps.read(job.snapshot.itemId, job.snapshot.locale);
     const currentState = await deps.state(job.snapshot.itemId, job.snapshot.locale);
@@ -68,7 +73,7 @@ export async function runQualityJob(id: string, deps: QualityWorkerDependencies)
   } catch (error) {
     const reason = error instanceof Error ? error.message : 'seo_quality_failed';
     const status: QualityJob['status'] = job.writeStartedAt ? 'verify_pending'
-      : reason.includes('reconciliation') || reason.includes('request_changed') ? 'needs_editor'
+      : reason.includes('reconciliation') || reason.includes('request_changed') || reason.includes('metadata_duplicate') ? 'needs_editor'
       : job.attempt >= 5 ? 'failed' : 'queued';
     await deps.checkpoint(job, { status, reason }, true);
     return { ok: false, status, reason };

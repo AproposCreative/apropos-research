@@ -73,6 +73,19 @@ plus later optimization grounded in Search Console and GA4 results.
   coverage; no CMS payload/proof fields were altered.
 - Still audit direct CMS writers that bypass this shared helper, transaction
   integration, per-article performance follow-up, uniqueness and deployment.
+- Implemented full live-locale duplicate traversal before AI review and again
+  before metadata changes. Duplicate evidence is checkpointed for reproducible
+  model replay. Automatic writes are serialized by locale during the final peer
+  check; the item snapshot is refreshed after traversal. Blank metadata and the
+  same article/other language are excluded. Incomplete API traversal fails closed.
+- Fresh `npm ci --ignore-scripts --no-audit --no-fund` completed in this worktree
+  against its exact package lock. Install scripts were inspected and not executed.
+  `npm run build` passed including security config, TypeScript and route generation
+  on Node 22. All 509 selected SEO + Liv/CMS tests passed on this fresh runtime.
+- Authoritative Vercel readback: project Node 22.x, current production
+  `dpl_BnvZRsvX79rHDsEfYgaiegTiQ2tF`, READY at
+  `17e0c6f9ddab445f12cf64dc1287d433c2fac1cf`. That commit is merged in this branch.
+  SEO has not been deployed. Visual/runtime service verification is next.
 
 ## Required work before claiming completion
 

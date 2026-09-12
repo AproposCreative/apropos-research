@@ -13,6 +13,7 @@ const Verification = z.object({
 }).strict();
 
 export type ReviewArticle = {
+  duplicateMetadata?: { seoTitle: string[]; metaDescription: string[] };
   performanceContext?: {
     query: string | null;
     clicks: number | null; impressions: number | null; ctr: number | null; position: number | null;
@@ -48,6 +49,8 @@ do not truncate a name or sentence just to fit 60/160 characters. Never add an e
 The description should add useful article-specific context, not just repeat the title.
 Do not change the editorial headline. If source facts conflict, choose needs_editor, not a guessed fix.
 Do not assert uniqueness across the site without comparison data. Do not invent search performance.
+When duplicateMetadata lists other article IDs, that field duplicates real published metadata.
+Rewrite duplicate metadata using this article's distinctive factual content; do not just append random words.
 When performanceContext is supplied, use actual queries and metrics to understand search intent.
 GA4 is complementary engagement evidence, not proof that a title caused clicks or engagement.
 Interpret CTR alongside position, query and observation periods. Missing metrics are unknown, never zero.
@@ -91,6 +94,9 @@ export async function reviewPublishedMetadata(article: ReviewArticle, call: Revi
   return { reviewResponse, verificationResponse, assessments: (['seoTitle', 'metaDescription'] as const).map(field => {
     const r = review[field];
     const verified = verification?.[field];
+    if (r.verdict === 'keep' && article.duplicateMetadata?.[field]?.length) {
+      return { field, verdict: 'needs_editor' as const, reason: 'Feltet er identisk med en anden publiceret artikel; AI foreslog ingen sikker forbedring.', verifiedAgainstArticle: false };
+    }
     return { field, verdict: r.verdict, reason: r.reason,
       ...(r.proposedValue ? { proposedValue: r.proposedValue } : {}),
       verifiedAgainstArticle: r.verdict === 'improve' && verified?.supported === true && verified.better === true };

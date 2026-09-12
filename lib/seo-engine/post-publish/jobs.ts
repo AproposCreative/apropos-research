@@ -20,6 +20,7 @@ export type QualityJob = {
   readyAt?: number;
   decision?: PolicyDecision;
   assessments?: FieldAssessment[];
+  duplicateMetadata?: { seoTitle: string[]; metaDescription: string[] };
   writeStartedAt?: string;
   after?: PublishedArticle;
   publicReceipt?: { url: string; checkedAt: string };

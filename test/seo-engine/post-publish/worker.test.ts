@@ -19,6 +19,7 @@ function fixture() {
   const deps: QualityWorkerDependencies = {
     claim: vi.fn(async () => job), state: vi.fn(async () => ({ lockedFields: [] })),
     read: vi.fn(async () => ({ snapshot })), enabled: vi.fn(async () => true), model: vi.fn(() => call),
+    duplicates: vi.fn(async () => ({ seoTitle: [], metaDescription: [] })),
     reserve: vi.fn(async (j, decision) => { j.writeStartedAt = '2026-09-12T12:00:00Z'; j.decision = decision; }),
     checkpoint: vi.fn(async () => {}), finish: vi.fn(async () => {}),
     apply: vi.fn(async args => { await args.beforeWrite(snapshot); return receipt; }),
