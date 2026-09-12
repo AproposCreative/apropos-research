@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { editorialKindForArticle } from './editorial-kind';
 import { getAdminDb } from '@/lib/firebase-admin';
 import type { WebflowArticleFields } from '@/lib/webflow/types';
 import { cmsFieldHash } from '@/lib/liv/cms-field-hash';
@@ -29,6 +30,9 @@ export async function mutateDelivery<T>(change: (state: DeliveryState) => T): Pr
 }
 export async function enqueueReadyArticle(entry: Omit<ReadyEntry, 'state' | 'payloadHash' | 'preparedAt'>,
   expected: WebflowArticleFields) {
+  if (entry.editorialKind !== undefined && editorialKindForArticle(entry.editorialKind, expected.articleFormat) !== entry.editorialKind) {
+    throw new Error('liv_delivery_invalid_entry');
+  }
   if (!/^[a-f0-9]{24}$/i.test(entry.itemId) || !validDay(entry.scheduledDay) || !validDay(entry.expiresDay) ||
       entry.expiresDay < entry.scheduledDay || entry.slug !== expected.slug || entry.title !== expected.title) {
     throw new Error('liv_delivery_invalid_entry');

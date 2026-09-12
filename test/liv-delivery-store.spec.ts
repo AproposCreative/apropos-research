@@ -26,6 +26,20 @@ const day = '2026-09-11', itemId = 'a'.repeat(24);
 const entry = { itemId, slug: 'kultur', title: 'Kultur', scheduledDay: day, expiresDay: day, kind: 'scheduled' as const };
 const expected = { title: 'Kultur', slug: 'kultur', content: 'Tekst' } as WebflowArticleFields;
 beforeEach(() => { database.rows.clear(); database.available = true; });
+it.each(['feature', 'culture-story'] as const)('admits %s metadata without inserting it into the immutable payload', async editorialKind => {
+  const payload = { ...expected, articleFormat: 'article' as const };
+  await enqueueReadyArticle({ ...entry, editorialKind }, payload);
+  expect((await readDeliveryState()).entries[0].editorialKind).toBe(editorialKind);
+  expect(await readDeliveryPayload(itemId)).toEqual(payload);
+  await enqueueReadyArticle({ ...entry, editorialKind: editorialKind === 'feature' ? 'culture-story' : 'feature' }, payload);
+  expect((await readDeliveryState()).entries[0].editorialKind).toBe(editorialKind); // relabel requires the audited operation
+});
+it.each([{ articleFormat: 'research-review', editorialKind: 'feature' }, { articleFormat: 'article', editorialKind: 'guess' }])(
+  'rejects incompatible or unknown labels on admission', async fields => {
+    await expect(enqueueReadyArticle({ ...entry, editorialKind: fields.editorialKind as any },
+      { ...expected, articleFormat: fields.articleFormat as any })).rejects.toThrow('liv_delivery_invalid_entry');
+    expect(database.rows.size).toBe(0);
+  });
 it('atomically stores a single ready entry and immutable payload', async () => {
   await enqueueReadyArticle(entry, expected); await enqueueReadyArticle(entry, expected);
   expect((await readDeliveryState()).entries).toHaveLength(1);

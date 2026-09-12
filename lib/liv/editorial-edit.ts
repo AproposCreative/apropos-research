@@ -93,7 +93,8 @@ export async function editLivEditorialCheckpoint(value: unknown, lease: string, 
     const article = row.articleCheckpoint as GeneratedArticle | undefined;
     const postMedia = Array.isArray(article?.preparedMedia) && article.preparedMedia.length === 3 && !!article.selectedImage;
     const yielded = scheduled && row.status === 'processing' && row.continuationReady === true;
-    if (scheduled && (plan?.dayKey !== input.dayKey || plan.status !== (postMedia && !yielded ? 'failed' : 'pending') || state.slots?.[input.dayKey] ||
+    const allowedPlanStatuses = postMedia ? (yielded ? ['failed', 'pending'] : ['failed']) : ['pending'];
+    if (scheduled && (plan?.dayKey !== input.dayKey || !allowedPlanStatuses.includes(plan.status) || state.slots?.[input.dayKey] ||
       (state.entries || []).some((entry: { scheduledDay?: string }) => entry.scheduledDay === input.dayKey))) {
       throw new Error('liv_edit_conflict');
     }

@@ -10,9 +10,10 @@ import { loadRecoverableWritingBrief } from '@/lib/liv/source-archive';
 import { parseLivArticleOutput } from '@/lib/liv/article-output';
 import type { LivDailyPlan } from '@/lib/liv/daily-plan-store';
 import { isLivArticleFormat, type LivArticleFormat } from '@/lib/liv/review-format';
+import { isLivEditorialKind, type LivEditorialKind } from '@/lib/liv/editorial-kind';
 
 export type PreparationRetry = { dayKey: string; kind: 'scheduled' | 'reserve'; requestId: string; reason: string;
-  plan?: { topicHint: string; directiveHint: string; articleFormat?: LivArticleFormat }; resumeWritingRunId?: string; scope?: 'prepare-alternative' | 'reserve-editorial';
+  plan?: { topicHint: string; directiveHint: string; articleFormat?: LivArticleFormat; editorialKind?: LivEditorialKind }; resumeWritingRunId?: string; scope?: 'prepare-alternative' | 'reserve-editorial';
   allowOriginalityRevision?: true };
 
 /** Explicit operator retry, not a reset. Retain the full previous run and paid
@@ -30,7 +31,8 @@ export async function authorizePreparationRetry(input: PreparationRetry, lease?:
   }
   if (input.plan && (input.kind !== 'scheduled' || typeof input.plan.topicHint !== 'string' ||
     typeof input.plan.directiveHint !== 'string' || input.plan.topicHint.length > 500 || input.plan.directiveHint.length > 6000 ||
-    (input.plan.articleFormat !== undefined && !isLivArticleFormat(input.plan.articleFormat)))) {
+    (input.plan.articleFormat !== undefined && !isLivArticleFormat(input.plan.articleFormat)) ||
+    (input.plan.editorialKind !== undefined && (!isLivEditorialKind(input.plan.editorialKind) || input.plan.articleFormat === 'research-review')))) {
     throw new Error('liv_retry_invalid');
   }
   if (input.resumeWritingRunId && (input.plan || !/^[a-f0-9-]{36}$/.test(input.resumeWritingRunId))) {
@@ -61,6 +63,7 @@ export async function authorizePreparationRetry(input: PreparationRetry, lease?:
       row.dayKey !== input.dayKey || typeof row.topic !== 'string' || !row.topic.trim()) throw new Error('liv_retry_conflict');
     recovery = { rowHash: cmsFieldHash(row), reservationHash: cmsFieldHash(saved!),
       defaultPlan: { dayKey: input.dayKey, topicHint: parsed.data.topicHint, directiveHint: parsed.data.directiveHint,
+        ...(parsed.data.editorialKind ? { editorialKind: parsed.data.editorialKind } : {}),
         articleFormat: parsed.data.articleFormat, mustUseTrending: false, status: 'pending', createdAt: null, updatedAt: null } };
     if (!input.resumeWritingRunId) {
       const article = row.articleCheckpoint;
@@ -138,6 +141,7 @@ export async function authorizePreparationRetry(input: PreparationRetry, lease?:
         allowOriginalityRevision: input.allowOriginalityRevision === true } : {}) });
     if (input.plan) tx.set(planRef, { dayKey: input.dayKey, topicHint: input.plan.topicHint.trim() || null,
       directiveHint: input.plan.directiveHint.trim() || null, expandedDirective: null, articleFormat: input.plan.articleFormat || 'article',
+      ...(input.plan.editorialKind ? { editorialKind: input.plan.editorialKind } : {}),
       mustUseTrending: false, status: 'pending', failedReason: null, usedAt: null,
       updatedAt: FieldValue.serverTimestamp(), createdAt: previousPlan?.createdAt ?? FieldValue.serverTimestamp(),
       createdBy: 'liv-api-operator' });

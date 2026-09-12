@@ -5,6 +5,7 @@ import type { ApprovalStory } from './approval-types';
 import { isLivArticleFormat, parseResearchRating, type LivArticleFormat } from './review-format';
 import { LIV_SUBJECT_LABELS, LIV_SUBJECT_TYPES } from './article-output';
 import { livExcerpt } from './excerpt';
+import { editorialKindForArticle, LIV_EDITORIAL_KIND_LABELS } from './editorial-kind';
 
 export const APPROVAL_PAGE_SIZE = 3;
 export function approvalEntries(state: DeliveryState, day: string) {
@@ -72,6 +73,7 @@ export function approvalStory(entry: ReadyEntry, payload: WebflowArticleFields &
   const category = subjectType ? LIV_SUBJECT_LABELS[subjectType]
     : /^tv-serier?$/i.test(savedCategory) ? 'TV-serie' : savedCategory || 'Kultur';
   const articleFormat = isLivArticleFormat(payload.articleFormat) ? payload.articleFormat : null;
+  const editorialKind = editorialKindForArticle(entry.editorialKind, articleFormat);
   let rating: number | null = null, ratingReason: string | null = null;
   if (articleFormat === 'research-review' && Number.isInteger(payload.rating)) {
     const reason = typeof payload.ratingReason === 'string' ? plain(payload.ratingReason) : '';
@@ -84,7 +86,8 @@ export function approvalStory(entry: ReadyEntry, payload: WebflowArticleFields &
     title: plain(entry.title), summary: livExcerpt(excerpt || payload.subtitle || payload.intro || paragraphs[0] || '', 360,
       excerpt ? { sourceText: intro || payload.content, truncated: excerpt.length === 220 } : {}),
     paragraphs: intro && body[0] !== intro ? [intro, ...body] : body,
-    category, articleFormat, formatLabel: articleFormat === 'research-review' ? 'Researchanmeldelse' : 'Artikel', rating, ratingReason,
+    category, articleFormat, ...(editorialKind ? { editorialKind } : {}),
+    formatLabel: articleFormat === 'research-review' ? 'Researchanmeldelse' : editorialKind ? LIV_EDITORIAL_KIND_LABELS[editorialKind] : 'Artikel', rating, ratingReason,
     feedback: viewerUserId && entry.editorialFeedback?.userId === viewerUserId ? entry.editorialFeedback.text : null,
     image: publicImage(payload.featuredImage), imageAlt: plain(payload.featuredImageAlt || entry.title),
     credit: plain(payload.fotoCredit || ''), scheduledDay: entry.scheduledDay, kind: entry.kind, state: entry.state,

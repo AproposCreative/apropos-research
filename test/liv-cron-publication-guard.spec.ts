@@ -260,19 +260,23 @@ it('reports actual field checks without equating them to publication', async () 
   expect(result.gateResults).toContainEqual(expect.objectContaining({ name: 'cms-draft-fields', pass: true }));
   expect(result).toMatchObject({ saveState: 'draft', saveVerified: true, publicationVerified: false, publicationBlocked: true });
 });
-it('prepares tomorrow through the shared full pipeline but never publishes early', async () => {
+it.each([undefined, 'feature', 'culture-story'] as const)('prepares tomorrow and propagates only explicit label %s, never publishing early', async editorialKind => {
   mocks.row = { articleCheckpoint: { title: 'Et museum åbner', content: 'Kultur '.repeat(650), slug: 'et-museum-aabner',
-    subtitle: 'Udstillingen', intro: 'En intro', seoTitle: 'Museum', seoDescription: 'Kultur', section: 'Kunst',
+    subtitle: 'Udstillingen', intro: 'En intro', seoTitle: 'Museum', seoDescription: 'Kultur', section: 'Kunst', articleFormat: 'article',
     preparedMedia: [{}, {}, {}], researchSources: [{ url: 'https://museum.dk/news', publishedAt: '2026-09-10' }, { url: 'https://kultur.dk/news', publishedAt: '2026-09-10' }] } };
   mocks.readback.mockResolvedValue({ draftConfirmed: true, publicationReady: true, checks: [{ id: 'all', ok: true }] });
   const result = await (await runLivDaily(new NextRequest('http://localhost/api/cron/liv-prepare'), {
-    dayKey: '2026-09-12', kind: 'scheduled', defaultPlan: defaultEditorialPlan('2026-09-12'),
+    dayKey: '2026-09-12', kind: 'scheduled', defaultPlan: { ...defaultEditorialPlan('2026-09-12'),
+      articleFormat: 'article', ...(editorialKind ? { editorialKind } : {}) },
   })).json();
   expect(result.queued).toBe(true);
   expect(mocks.claim).toHaveBeenCalledWith('2026-09-12', 'prepare');
   expect(mocks.proof.mock.invocationCallOrder[0]).toBeLessThan(mocks.readback.mock.invocationCallOrder[0]);
   expect(mocks.gates).toHaveBeenCalledWith(expect.objectContaining({ requireCompleteVerification: true }));
   expect(mocks.admission).toHaveBeenCalledTimes(1);
+  if (editorialKind) expect(mocks.admission.mock.calls[0][0].editorialKind).toBe(editorialKind);
+  else expect(mocks.admission.mock.calls[0][0]).not.toHaveProperty('editorialKind');
+  expect(mocks.proof.mock.calls[0][1]).not.toHaveProperty('editorialKind');
   expect(mocks.live).not.toHaveBeenCalled();
 });
 it('persists and admits the canonical optimized expectation, detached from later publisher mutation', async () => {

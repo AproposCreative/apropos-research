@@ -8,6 +8,7 @@ import {
 } from '@/lib/liv/daily-plan-store';
 import { expandDirective } from '@/lib/liv/expand-directive';
 import { isLivArticleFormat, type LivArticleFormat } from '@/lib/liv/review-format';
+import { isLivEditorialKind, type LivEditorialKind } from '@/lib/liv/editorial-kind';
 import { addDays, copenhagenClock } from '@/lib/liv/delivery-policy';
 
 function dayKeyFor(mode: string | null): string {
@@ -40,6 +41,7 @@ export async function POST(req: NextRequest) {
     directiveHint?: string;
     mustUseTrending?: boolean;
     articleFormat?: LivArticleFormat;
+    editorialKind?: LivEditorialKind;
   } = {};
   try {
     body = (await req.json()) as typeof body;
@@ -48,6 +50,9 @@ export async function POST(req: NextRequest) {
   }
 
   if (body.articleFormat !== undefined && !isLivArticleFormat(body.articleFormat)) return NextResponse.json({ error: 'Ugyldigt artikelformat.' }, { status: 400 });
+  if (body.editorialKind !== undefined && (!isLivEditorialKind(body.editorialKind) || body.articleFormat === 'research-review')) {
+    return NextResponse.json({ error: 'Ugyldig redaktionel type.' }, { status: 400 });
+  }
   const topicHint = body.topicHint?.trim() || '';
   const directiveHint = body.directiveHint?.trim() || '';
   const mustUseTrending = body.mustUseTrending !== false;
@@ -66,6 +71,7 @@ export async function POST(req: NextRequest) {
     directiveHint,
     expandedDirective: expanded.expandedDirective,
     articleFormat: body.articleFormat || 'article',
+    ...(body.editorialKind ? { editorialKind: body.editorialKind } : {}),
     mustUseTrending,
     createdBy: uid,
   });

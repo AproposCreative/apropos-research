@@ -48,6 +48,20 @@ beforeEach(() => {
 });
 afterEach(() => { vi.useRealTimers(); vi.unstubAllEnvs(); });
 
+it.each(['feature', 'culture-story'] as const)('binds explicit %s input and propagates it to the server plan', async editorialKind => {
+  const body = { ...input, articleFormat: 'article', editorialKind };
+  expect((await POST(request(body))).status).toBe(200);
+  expect(state.run.mock.calls[0][1].defaultPlan).toMatchObject({ articleFormat: 'article', editorialKind });
+  expect(state.rows.get(reservationPath).input).toEqual(body);
+  yieldRow(); state.run.mockClear();
+  expect((await POST(request({ ...body, editorialKind: editorialKind === 'feature' ? 'culture-story' : 'feature' }))).status).toBe(409);
+  expect(state.run).not.toHaveBeenCalled();
+});
+it.each([{ ...input, editorialKind: 'feature' }, { ...input, articleFormat: 'article', editorialKind: 'inferred' }])(
+  'rejects incompatible or unknown explicit labels before claims', async body => {
+    expect((await POST(request(body))).status).toBe(400); expect(state.claim).not.toHaveBeenCalled();
+  });
+
 it('atomically binds one immutable explicit reserve, delegating to the full shared workflow and preserving all other work', async () => {
   const before = structuredClone([...state.rows]);
   const result = await POST(request());

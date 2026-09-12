@@ -1,4 +1,5 @@
 import type { LivArticleFormat } from './review-format';
+import type { LivEditorialKind } from './editorial-kind';
 import type { LivCostSummary } from './cost-ledger';
 import type { LivNextPreparationStatus } from './preparation-status';
 
@@ -7,6 +8,7 @@ export type ApprovalStory = {
   title: string; summary: string; paragraphs: string[]; category: string;
   /** Explicit saved format; legacy/unknown metadata never implies a review. */
   articleFormat: LivArticleFormat | null; formatLabel: string;
+  editorialKind?: LivEditorialKind;
   rating: number | null; ratingReason: string | null;
   /** Only returned to the authenticated author, never part of CMS content. */
   feedback: string | null;

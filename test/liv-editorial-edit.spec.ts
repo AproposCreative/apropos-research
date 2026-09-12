@@ -441,10 +441,10 @@ it('audits three exact scheduled content patches after factual revision, keeping
   expect(state.writes).not.toHaveBeenCalled();
 });
 
-it('allows an audited correction at a yielded scheduled media checkpoint without granting retries or changing pixels', async () => {
+it.each(['pending', 'failed'])('allows a yielded media edit with a %s plan while preserving history and pixels', async status => {
   const { path, planPath, edit, revised } = scheduledMediaFixture();
   Object.assign(state.rows.get(path), { status: 'processing', continuationReady: true });
-  state.rows.get(planPath).status = 'pending';
+  state.rows.get(planPath).status = status;
   expect((await POST(request(edit))).status).toBe(200);
   expect(state.rows.get(path)).toMatchObject({status:'processing',continuationReady:true});
   expect(state.rows.get(path).retryAuthorization).toBeUndefined();

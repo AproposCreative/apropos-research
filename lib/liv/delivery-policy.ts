@@ -1,3 +1,4 @@
+import type { LivEditorialKind } from './editorial-kind';
 /** Pure policy shared by preparation, delivery and status. All days are Danish calendar days. */
 // Produce one next-day article, not a speculative week of paid inventory.
 // Existing reserves remain eligible; no new reserve stock is required.
@@ -32,6 +33,8 @@ export type ReadyEntry = {
   itemId: string; slug: string; title: string; scheduledDay: string; expiresDay: string;
   kind: 'scheduled' | 'reserve'; state: 'ready' | 'selected' | 'published' | 'rejected';
   preparedAt: string; payloadHash: string; planHash?: string;
+  /** Presentation only; never changes the immutable CMS payload or its proof. */
+  editorialKind?: LivEditorialKind;
   decision?: 'approved' | 'rejected'; decisionRevision?: number;
   decidedAt?: string; decidedBy?: string;
   /** Private author-owned projection; immutable feedback audit is stored separately. */

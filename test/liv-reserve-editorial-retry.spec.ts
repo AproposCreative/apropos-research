@@ -67,6 +67,17 @@ it('audits one exact paid-writing retry, preserves every saved artifact and retu
   expect(await authorizePreparationRetry(input, 'lease')).toEqual({ status: 'already_requested' });
   expect(state.writes).toHaveBeenCalledTimes(2);
 });
+it.each(['feature', 'culture-story'] as const)('preserves explicit %s from the immutable reservation on checkpoint retry', async editorialKind => {
+  const reserved = { ...original, articleFormat: 'article', editorialKind };
+  state.rows.set(reservation, { input: reserved, inputHash: cmsFieldHash(reserved), createdAt: 'saved' });
+  const article = { title: 'Saved article', slug: 'saved', intro: 'Intro', content: 'Exact paid content' };
+  Object.assign(state.rows.get(path), { explicitPreparationInputHash: cmsFieldHash(reserved),
+    articleCheckpoint: article, articleCheckpointHash: livImageArticleHash(article) });
+  const { resumeWritingRunId: _unused, ...checkpointInput } = input;
+  const result = await authorizePreparationRetry(checkpointInput, 'lease');
+  expect(result).toMatchObject({ status: 'retry_authorized', defaultPlan: { articleFormat: 'article', editorialKind } });
+  expect(state.rows.get(path).articleCheckpoint).toEqual(article);
+});
 
 it.each(['reason', 'resumeWritingRunId'])('rejects changed %s under the same audited request ID', async key => {
   await authorizePreparationRetry(input, 'lease'); state.writes.mockClear();

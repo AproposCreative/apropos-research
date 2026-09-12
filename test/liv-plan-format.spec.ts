@@ -7,10 +7,24 @@ vi.mock('@/lib/firebase-admin', () => ({ getAdminDb: () => ({
   }),
 }) }));
 import { ensureLivDailyPlan, getLivDailyPlan } from '@/lib/liv/daily-plan-store';
-import { defaultEditorialPlan } from '@/lib/liv/rolling-plan';
+import { defaultEditorialPlan, editorialPlanHash } from '@/lib/liv/rolling-plan';
 import { selectLivArticleFormat } from '@/lib/liv/review-format';
 
 beforeEach(() => state.rows.clear());
+it.each(['feature', 'culture-story'] as const)('roundtrips explicit %s without changing the editorial proof hash', async editorialKind => {
+  const original = { ...defaultEditorialPlan('2026-09-15'), articleFormat: 'article' as const };
+  await ensureLivDailyPlan({ ...original, editorialKind });
+  const saved = await getLivDailyPlan(original.dayKey);
+  expect(saved?.editorialKind).toBe(editorialKind);
+  expect(editorialPlanHash({ ...original, editorialKind })).toBe(editorialPlanHash(original));
+});
+it('does not infer labels from directives or accept invalid/review labels', async () => {
+  const original = { ...defaultEditorialPlan('2026-09-15'), directiveHint: 'Skriv en feature og kulturhistorie' };
+  await ensureLivDailyPlan(original);
+  expect(await getLivDailyPlan(original.dayKey)).not.toHaveProperty('editorialKind');
+  await expect(ensureLivDailyPlan({ ...original, editorialKind: 'feature', articleFormat: 'research-review' })).rejects.toThrow('editorial_kind_invalid');
+  await expect(ensureLivDailyPlan({ ...original, editorialKind: 'guess' as any, articleFormat: 'article' })).rejects.toThrow('editorial_kind_invalid');
+});
 const day = '2026-09-15';
 const topic = { title: 'Alle Guds farver', category: 'Film', source: { title: 'Alle Guds farver: anmeldelse' } };
 

@@ -6,6 +6,7 @@ import { LIV_DAILY_COLLECTION, livDailyDocId } from './daily-history-store';
 import { cmsFieldHash } from './cms-field-hash';
 import { livImageArticleHash } from './article-image-hash';
 import type { LivDailyPlan } from './daily-plan-store';
+import { LIV_EDITORIAL_KINDS } from './editorial-kind';
 
 const text = (max: number) => z.string().trim().min(3).max(max)
   .refine(value => !/[<>\x00-\x08\x0b-\x1f\x7f\u202a-\u202e\u2066-\u2069]/.test(value));
@@ -14,7 +15,8 @@ export const explicitPreparationInput = z.object({
   dayKey: z.string().refine(validDay),
   topicHint: text(200), directiveHint: text(4000),
   articleFormat: z.enum(['article', 'research-review']),
-}).strict();
+  editorialKind: z.enum(LIV_EDITORIAL_KINDS).optional(),
+}).strict().refine(input => input.editorialKind === undefined || input.articleFormat === 'article');
 
 /** Called only behind cron auth and the shared preparation lease. This reserves
  * input/ownership, never a retry grant, quality approval or separate workflow. */
@@ -63,6 +65,7 @@ export async function reserveExplicitLivPreparation(value: unknown, lease: strin
   });
   const defaultPlan: LivDailyPlan = { dayKey: input.dayKey, topicHint: input.topicHint,
     directiveHint: input.directiveHint, articleFormat: input.articleFormat, mustUseTrending: false,
+    ...(input.editorialKind ? { editorialKind: input.editorialKind } : {}),
     status: 'pending', createdAt: null, updatedAt: null };
   return { dayKey: input.dayKey, kind: 'reserve' as const, scope: 'reserve-editorial' as const, defaultPlan };
 }

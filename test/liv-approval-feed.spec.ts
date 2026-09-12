@@ -8,6 +8,18 @@ const entry: ReadyEntry = { itemId: 'a'.repeat(24), payloadHash: 'b'.repeat(64),
 const payload = { content: '<h2>En vinkel</h2><p>Analyse &amp; mening</p><script>alert(1)</script>',
   category: 'TV-serier', tags: [], excerpt: '<b>Et resumé</b>', featuredImage: 'https://cdn.prod.website-files.com/a.jpg' } as WebflowArticleFields;
 
+it.each([['feature', 'Feature'], ['culture-story', 'Kulturhistorie']] as const)('displays explicit %s independently of category/content', (editorialKind, formatLabel) => {
+  expect(approvalStory({ ...entry, editorialKind }, { ...payload, articleFormat: 'article' })).toMatchObject({
+    editorialKind, formatLabel, category: 'TV-serie', rating: null, payloadHash: entry.payloadHash });
+});
+it('never infers editorial labels or lets them override reviews and stars', () => {
+  expect(approvalStory(entry, { ...payload, articleFormat: 'article', title: 'Feature: kulturhistorie' })).toMatchObject({ formatLabel: 'Artikel' });
+  expect(approvalStory({ ...entry, editorialKind: 'guess' as any }, { ...payload, articleFormat: 'article' })).not.toHaveProperty('editorialKind');
+  expect(approvalStory({ ...entry, editorialKind: 'feature' }, { ...payload, articleFormat: 'research-review', rating: 4,
+    ratingReason: 'Stærke karakterer og konkret konflikt opvejer den ujævne rytme.' })).toMatchObject({
+    formatLabel: 'Researchanmeldelse', rating: 4 });
+});
+
 const slot = (itemId: string, state: 'selected' | 'attempted' | 'published') => ({ itemId, state,
   token: 'fixture', leaseUntil: 0, attempts: 1, nextAttemptAt: 0 });
 it('shows one eligible reserve when today is published and tomorrow has no ready scheduled story', () => {

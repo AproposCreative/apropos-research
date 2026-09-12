@@ -54,6 +54,18 @@ it('can atomically replace an unstarted plan while retaining its previous versio
   expect(state.plan).toMatchObject({ topicHint: 'New topic', status: 'pending' });
   expect(state.creates).toHaveBeenCalledWith(expect.objectContaining({ previousPlan: expect.anything() }));
 });
+it.each(['feature', 'culture-story'] as const)('preserves the explicitly selected %s label in a replacement plan', async editorialKind => {
+  delete state.row.articleCheckpoint;
+  await authorizePreparationRetry({ ...input, plan: { topicHint: 'New topic', directiveHint: 'Research it', articleFormat: 'article', editorialKind } });
+  expect(state.plan).toMatchObject({ editorialKind, articleFormat: 'article' });
+  expect(state.creates).toHaveBeenCalledWith(expect.objectContaining({ previousPlan: expect.anything() }));
+});
+it.each([{ articleFormat: 'research-review', editorialKind: 'feature' }, { articleFormat: 'article', editorialKind: 'guess' }])(
+  'rejects incompatible or unknown replacement labels before retry authorization', async fields => {
+    delete state.row.articleCheckpoint;
+    await expect(authorizePreparationRetry({ ...input, plan: { topicHint: 'Other', directiveHint: '', ...fields } as any })).rejects.toThrow('invalid');
+    expect(state.creates).not.toHaveBeenCalled(); expect(state.writes).not.toHaveBeenCalled();
+  });
 it('never changes the topic attached to already-paid work', async () => {
   await expect(authorizePreparationRetry({ ...input, plan: { topicHint: 'New topic', directiveHint: 'Research it' } })).rejects.toThrow('conflict');
   expect(state.writes).not.toHaveBeenCalled();

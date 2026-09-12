@@ -1,6 +1,7 @@
 import { FieldValue, Timestamp } from 'firebase-admin/firestore';
 import { getAdminDb } from '@/lib/firebase-admin';
 import { isLivArticleFormat, type LivArticleFormat } from '@/lib/liv/review-format';
+import { editorialKindForArticle, isLivEditorialKind, type LivEditorialKind } from './editorial-kind';
 
 export const LIV_DAILY_PLAN_COLLECTION = 'livDailyPlan';
 
@@ -12,6 +13,7 @@ export interface LivDailyPlan {
   directiveHint?: string;
   expandedDirective?: string;
   articleFormat?: LivArticleFormat;
+  editorialKind?: LivEditorialKind;
   mustUseTrending: boolean;
   status: LivDailyPlanStatus;
   createdAt: string | null;
@@ -37,9 +39,13 @@ export async function setLivDailyPlan(input: {
   directiveHint?: string;
   expandedDirective?: string;
   articleFormat?: LivArticleFormat;
+  editorialKind?: LivEditorialKind;
   mustUseTrending: boolean;
   createdBy?: string;
 }): Promise<void> {
+  if (input.editorialKind !== undefined && (!isLivEditorialKind(input.editorialKind) || input.articleFormat === 'research-review')) {
+    throw new Error('liv_plan_editorial_kind_invalid');
+  }
   const db = getAdminDb();
   if (!db) return;
   const ref = db.collection(LIV_DAILY_PLAN_COLLECTION).doc(planDocId(input.dayKey));
@@ -50,6 +56,7 @@ export async function setLivDailyPlan(input: {
       directiveHint: input.directiveHint?.trim() || null,
       expandedDirective: input.expandedDirective?.trim() || null,
       articleFormat: input.articleFormat || 'article',
+      editorialKind: input.editorialKind ?? FieldValue.delete(),
       mustUseTrending: input.mustUseTrending,
       status: 'pending',
       failedReason: null,
@@ -77,6 +84,7 @@ export async function getLivDailyPlan(dayKey: string): Promise<LivDailyPlan | nu
     // Missing format on new automatic plans means select after the topic is known.
     // Existing explicit article/review choices are never reinterpreted.
     articleFormat: isLivArticleFormat(d.articleFormat) ? d.articleFormat : undefined,
+    ...(editorialKindForArticle(d.editorialKind, d.articleFormat) ? { editorialKind: d.editorialKind as LivEditorialKind } : {}),
     mustUseTrending: d.mustUseTrending !== false,
     status: (d.status as LivDailyPlanStatus) || 'pending',
     createdAt: tsToIso(d.createdAt),
@@ -89,6 +97,9 @@ export async function getLivDailyPlan(dayKey: string): Promise<LivDailyPlan | nu
 
 /** Create only missing defaults; a concurrent editor's plan always wins. */
 export async function ensureLivDailyPlan(plan: LivDailyPlan): Promise<void> {
+  if (plan.editorialKind !== undefined && editorialKindForArticle(plan.editorialKind, plan.articleFormat) !== plan.editorialKind) {
+    throw new Error('liv_plan_editorial_kind_invalid');
+  }
   const db = getAdminDb();
   if (!db) throw new Error('liv_plan_store_unavailable');
   const ref = db.collection(LIV_DAILY_PLAN_COLLECTION).doc(planDocId(plan.dayKey));

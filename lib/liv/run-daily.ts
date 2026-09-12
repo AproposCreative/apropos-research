@@ -54,6 +54,7 @@ import {
 } from '@/lib/liv/daily-plan-store';
 import { resolveLivTopicInputsFromPlan } from '@/lib/liv/resolve-liv-topic-hints';
 import { admitPreparedArticle, type PreparationProof } from '@/lib/liv/prepared-admission';
+import { editorialKindForArticle } from '@/lib/liv/editorial-kind';
 import { cmsFieldHash } from '@/lib/liv/cms-field-hash';
 import { editorialPlanHash } from '@/lib/liv/rolling-plan';
 import { addDays, copenhagenClock } from '@/lib/liv/delivery-policy';
@@ -534,7 +535,9 @@ async function runLivDailyOperation(req: NextRequest, preparation?: LivPreparati
     }
     if (preparation && canPublish) {
       const today = copenhagenClock().day;
+      const editorialKind = editorialKindForArticle(generationPlan?.editorialKind, article.articleFormat);
       await admitPreparedArticle({ itemId: webflowItemId, slug: article.slug, title: article.title,
+        ...(editorialKind ? { editorialKind } : {}),
         scheduledDay: preparation.kind === 'reserve' ? today : dayKey,
         expiresDay: preparation.kind === 'reserve' ? addDays(dayKey, 5) : dayKey,
         kind: preparation.kind }, preparationProof!);
