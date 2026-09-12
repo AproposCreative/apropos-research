@@ -28,13 +28,14 @@ export async function reviewLivEditorialEditMedia(article: GeneratedArticle, day
   const audit = (await edit.get()).data();
   const input = editorialEditInput.safeParse(audit?.input);
   const previous = audit?.previousArticle as GeneratedArticle | undefined;
+  const yielded = audit?.previousRun?.status === 'processing' && audit.previousRun.continuationReady === true;
   if (!audit || !input.success || input.data.scope !== 'prepare' || input.data.dayKey !== dayKey || input.data.requestId !== binding.requestId ||
     input.data.mediaCaptions || input.data.patches.some(patch => !['content', 'subtitle'].includes(patch.field)) ||
     audit.authority !== 'authorized-operator' || audit.inputHash !== cmsFieldHash(input.data) ||
-    audit.previousPlan?.dayKey !== dayKey || audit.previousPlan?.status !== 'failed' ||
-    audit.previousRun?.dayKey !== dayKey || !['failed', 'skipped_factcheck', 'skipped_moderation', 'skipped_tov'].includes(audit.previousRun?.status) ||
+    audit.previousPlan?.dayKey !== dayKey || !(yielded ? ['pending', 'failed'] : ['failed']).includes(audit.previousPlan?.status) ||
+    audit.previousRun?.dayKey !== dayKey || (!yielded && !['failed', 'skipped_factcheck', 'skipped_moderation', 'skipped_tov'].includes(audit.previousRun?.status)) ||
     audit.previousRun?.webflowItemId || audit.previousRun?.preparationProof || audit.previousRun?.cmsSaveStarted ||
-    audit.previousRun?.retryAuthorization || audit.previousRun?.continuationReady ||
+    audit.previousRun?.retryAuthorization || (!yielded && audit.previousRun?.continuationReady) ||
     !previous?.selectedImage || previous.selectedImage.editorialEdit || previous.selectedImage.visualReview !== 'automated' ||
     !audit.article || audit.checkpointHash !== fingerprint(audit.article) ||
     audit.previousCheckpointHash !== fingerprint(previous) || input.data.expectedCheckpointHash !== fingerprint(previous) ||

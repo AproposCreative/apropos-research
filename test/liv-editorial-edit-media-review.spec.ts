@@ -68,6 +68,21 @@ beforeEach(async () => {
 });
 afterEach(() => expect(state.generate).not.toHaveBeenCalled());
 
+it.each(['pending', 'failed'])('accepts an audited yielded checkpoint with %s plan without rewriting paid work', async status => {
+  const audit = state.rows.get(path);
+  audit.previousPlan.status = status;
+  audit.previousRun.status = 'processing';
+  audit.previousRun.continuationReady = true;
+  const approved = await reviewLivEditorialEditMedia(pending, day);
+  expect(approved.content).toBe(pending.content);
+  expect(state.chat).toHaveBeenCalledOnce();
+});
+it('rejects a processing checkpoint that was not yielded', async () => {
+  state.rows.get(path).previousRun.status = 'processing';
+  await expect(reviewLivEditorialEditMedia(pending, day)).rejects.toThrow('liv_edit_media_requires_reconciliation');
+  expect(state.chat).not.toHaveBeenCalled();
+});
+
 it('blocks CMS before fresh proof, then reviews actual saved pixels and keeps the text, images, provenance and revision count intact', async () => {
   expect(() => buildLivCmsPayload({ article: pending, topic: { title: pending.title, score: 0 } })).toThrow('image_editorial_review_pending');
   const original = structuredClone(pending), audit = structuredClone(state.rows.get(path));
