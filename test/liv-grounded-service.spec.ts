@@ -48,6 +48,7 @@ it('instructs the verifier to cite exact dated evidence while retaining undated 
   expect(prompt).toContain('Ved konflikt: disputed');
   expect(JSON.parse(request.messages[1].content).sources).toContainEqual(expect.objectContaining({ url: undatedUrl, publishedAt: null }));
   expect(report.complete).toBe(true); // This fixture cites only the two dated sources.
+  expect(isCompleteGroundedReport(report, text)).toBe(true);
 });
 it('still rejects an undated citation even when other dated sources support the same claim', async () => {
   mocks.retrieve.mockImplementation(async (url: string, id: string) => ({ id, url, title: 'Koncert', text: text.repeat(8),

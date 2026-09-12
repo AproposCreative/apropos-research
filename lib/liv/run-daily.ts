@@ -335,6 +335,8 @@ export async function runLivDaily(req: NextRequest, preparation?: {
       additionalTexts: [article.subtitle, article.excerpt, article.seoTitle, article.seoDescription, article.ratingReason].filter(Boolean),
       requireCompleteVerification: publicationMode === 'auto_publish' || !!preparation,
       timeoutMs: preparation ? 90_000 : undefined,
+      priorFactcheck: preparation ? prepRow?.data()?.gateResults?.find((result: GateResult) => result.name === 'factcheck')?.evidence
+        ?? prepRow?.data()?.gateResults?.find((result: GateResult) => result.name === 'factcheck')?.diagnosticEvidence : undefined,
     });
     gateResults = gates.results;
 

@@ -36,6 +36,8 @@ export interface SafetyGatesInput {
   requireCompleteVerification?: boolean;
   /** Bound infrastructure checks so preparation jobs cannot outlive the worker. */
   timeoutMs?: number;
+  /** Server-saved report only; reusable solely for the exact text within its freshness window. */
+  priorFactcheck?: GroundedReport;
 }
 
 export interface SafetyGatesOutput {
@@ -214,9 +216,10 @@ export async function runSafetyGates(input: SafetyGatesInput): Promise<SafetyGat
 
   // --- Gate 2: Factcheck ---
   const fcUrl = new URL('/api/factcheck', baseUrl).toString();
-  let fc: FactcheckResponse | null = null;
+  let fc: FactcheckResponse | null = isCompleteGroundedReport(input.priorFactcheck, factcheckText)
+    ? input.priorFactcheck! : null;
   let fcHttpStatus: number | null = null;
-  try {
+  if (!fc) try {
     const res = await fetch(fcUrl, {
       method: 'POST',
       headers: internalApiHeaders(),

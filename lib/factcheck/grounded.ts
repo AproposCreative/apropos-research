@@ -135,7 +135,7 @@ export function isCompleteGroundedReport(value: unknown, text: string, now = Dat
       sourceId: z.string(), url: z.string().url(), quote: z.string().min(20),
     })).min(1) })).min(1),
     sources: z.array(z.object({ id: z.string(), url: z.string().url(), contentHash: z.string().regex(/^[a-f0-9]{64}$/),
-      publishedAt: z.string(), retrievedAt: z.string() })),
+      publishedAt: z.string().nullable(), retrievedAt: z.string() })),
   });
   const parsed = schema.safeParse(value);
   if (!parsed.success || !Number.isFinite(now)) return false;
@@ -148,7 +148,8 @@ export function isCompleteGroundedReport(value: unknown, text: string, now = Dat
   const hosts = new Set<string>();
   const valid = report.results.every(result => result.citations.every(citation => {
     const source = report.sources.find(source => source.id === citation.sourceId && source.url === citation.url);
-    if (!source || !Number.isFinite(Date.parse(source.publishedAt)) || Date.parse(source.publishedAt) > now + 300_000 ||
+    // Undated context is allowed in the report, never as cited evidence.
+    if (!source || source.publishedAt === null || !Number.isFinite(Date.parse(source.publishedAt)) || Date.parse(source.publishedAt) > now + 300_000 ||
         !Number.isFinite(Date.parse(source.retrievedAt)) || Date.parse(source.retrievedAt) < now - 900_000 || Date.parse(source.retrievedAt) > now + 300_000) return false;
     const url = new URL(source.url);
     if (url.protocol !== 'https:' || url.username || url.password) return false;

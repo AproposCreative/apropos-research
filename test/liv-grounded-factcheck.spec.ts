@@ -27,6 +27,35 @@ describe('source-grounded verification', () => {
     expect(isCompleteGroundedReport(report, text, now + 900001)).toBe(false);
     expect(isCompleteGroundedReport(report, text, now - 300001)).toBe(false);
   });
+  it('accepts uncited undated context alongside evidence from two dated hosts', () => {
+    const context = { ...source('s3', 'https://context.dk/baggrund'), publishedAt: null };
+    const report = assessGroundedReport(text, [...sources(), context], assessment(), now);
+    expect(report.complete).toBe(true);
+    expect(report.sources[2].publishedAt).toBeNull();
+    expect(isCompleteGroundedReport(report, text, now)).toBe(true);
+  });
+  it.each([null, '', 'not-a-date', new Date(now + 300001).toISOString()])('rejects cited publication date %j even on a report marked complete', publishedAt => {
+    const report = assessGroundedReport(text, sources(), assessment(), now);
+    report.sources[0].publishedAt = publishedAt;
+    expect(report.complete).toBe(true);
+    expect(isCompleteGroundedReport(report, text, now)).toBe(false);
+  });
+  it.each(['not-a-date', new Date(now - 900001).toISOString(), new Date(now + 300001).toISOString()])('rejects invalid, stale or future cited retrieval %s', retrievedAt => {
+    const report = assessGroundedReport(text, sources(), assessment(), now);
+    report.sources[0].retrievedAt = retrievedAt;
+    expect(isCompleteGroundedReport(report, text, now)).toBe(false);
+  });
+  it('does not count an uncited context host toward the two-host requirement', () => {
+    const report = assessGroundedReport(text, [...sources(), { ...source('s3', 'https://context.dk/page'), publishedAt: null }], assessment(), now);
+    report.results[0].citations.pop();
+    expect(isCompleteGroundedReport(report, text, now)).toBe(false);
+  });
+  it('retains method and source hash validation when undated context exists', () => {
+    const report = assessGroundedReport(text, [...sources(), { ...source('s3', 'https://context.dk/page'), publishedAt: null }], assessment(), now);
+    expect(isCompleteGroundedReport({ ...report, verificationMethod: 'model-only' }, text, now)).toBe(false);
+    report.sources[0].contentHash = 'invalid';
+    expect(isCompleteGroundedReport(report, text, now)).toBe(false);
+  });
   it.each([null, {}, { complete: true }, { results: [null] }, { verificationMethod: 'retrieved-sources', results: [{ status: 'verified' }] }])('rejects incomplete or malformed report %j', raw => {
     expect(isCompleteGroundedReport(raw, text, now)).toBe(false);
   });

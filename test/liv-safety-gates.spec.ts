@@ -110,6 +110,31 @@ describe('Liv safety gates', () => {
       .mockResolvedValueOnce(jsonResponse({ data: { tips: 'Fin tekst.' } })));
   }
 
+  it('reuses an exact fresh server report while still running similarity, moderation and voice gates', async () => {
+    const saved = report();
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(jsonResponse({ data: { metrics: { wordCount: 700, plagiarismRisk: 'low' } } }))
+      .mockResolvedValueOnce(jsonResponse({ data: { tips: 'Fin tekst.' } }));
+    vi.stubGlobal('fetch', fetchMock);
+    const result = await runSafetyGates({ ...diagnosticInput, priorFactcheck: saved });
+    expect(result.pass).toBe(true);
+    expect(result.results.find(gate => gate.name === 'factcheck')).toMatchObject({ skipped: false, evidence: saved });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock.mock.calls.some(call => String(call[0]).includes('/api/factcheck'))).toBe(false);
+    expect(result.results.map(gate => gate.name)).toEqual(['source-similarity', 'moderation', 'factcheck', 'tov']);
+  });
+
+  it.each(['stale', 'wrong-version', 'unverified', 'undated-citation'])('does not reuse %s saved evidence', async kind => {
+    const saved = kind === 'undated-citation' ? report('verified', true) : report();
+    if (kind === 'stale') saved.checkedAt = new Date(Date.now() - 16 * 60_000).toISOString();
+    if (kind === 'wrong-version') saved.articleHash = articleFingerprint('Different text');
+    if (kind === 'unverified') saved.results[0].status = 'unverifiable';
+    respondWithFactcheck({ error: 'unavailable' });
+    const result = await runSafetyGates({ ...diagnosticInput, priorFactcheck: saved });
+    expect(result.pass).toBe(false);
+    expect(vi.mocked(fetch).mock.calls.some(call => String(call[0]).includes('/api/factcheck'))).toBe(true);
+  });
+
   it('retains incomplete claims, validation errors and source metadata as diagnostics without approval', async () => {
     const failed = report('verified', true);
     respondWithFactcheck(failed);
