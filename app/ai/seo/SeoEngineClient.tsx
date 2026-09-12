@@ -5,6 +5,7 @@ import { EmbeddedAppHeader } from '@/components/embedded-app';
 import { useAuth } from '@/lib/auth-context';
 import ArchiveAuditPanel from '@/components/seo/ArchiveAuditPanel';
 import OpportunityQueuePanel from '@/components/seo/OpportunityQueuePanel';
+import MetadataQualityPanel from '@/components/seo/MetadataQualityPanel';
 import {
   ARTICLE_TYPE_OPTIONS,
   EDITOR_FIELD_ORDER,
@@ -746,7 +747,7 @@ export default function SeoEngineClient({
 
         {mainTab === 'arkiv' && <ArchiveAuditPanel />}
 
-        {mainTab === 'optimering' && <OpportunityQueuePanel />}
+        {mainTab === 'optimering' && <><OpportunityQueuePanel /><MetadataQualityPanel /></>}
 
         {mainTab === 'artikel' && (
           <>

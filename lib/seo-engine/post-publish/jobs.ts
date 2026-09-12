@@ -1,7 +1,7 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { getAdminDb } from '@/lib/firebase-admin';
 import { FieldValue } from 'firebase-admin/firestore';
-import { reviewKey, type PublishedArticle, type MetadataField, type PolicyDecision, type PerformanceEvidence } from './policy';
+import { reviewKey, type PublishedArticle, type MetadataField, type PolicyDecision, type PerformanceEvidence, type FieldAssessment } from './policy';
 import type { ReviewArticle } from './review';
 
 export type QualityJob = {
@@ -19,6 +19,7 @@ export type QualityJob = {
   leaseUntil?: number;
   readyAt?: number;
   decision?: PolicyDecision;
+  assessments?: FieldAssessment[];
   writeStartedAt?: string;
   after?: PublishedArticle;
   publicReceipt?: { url: string; checkedAt: string };

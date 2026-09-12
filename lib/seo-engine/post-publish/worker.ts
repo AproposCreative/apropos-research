@@ -55,7 +55,7 @@ export async function runQualityJob(id: string, deps: QualityWorkerDependencies)
     const decision = decideMetadataUpdate({ analyzed: job.snapshot, fresh: current.snapshot,
       assessments: review.assessments, lockedFields: currentState.lockedFields, mode: job.mode,
       nowMs: deps.now?.() ?? Date.now(), lastAppliedAt: currentState.lastAppliedAt, evidence: job.evidence });
-    await deps.checkpoint(job, { decision });
+    await deps.checkpoint(job, { decision, assessments: review.assessments });
     if (decision.action !== 'apply') {
       return await finish(decision.action === 'keep' ? 'kept' : decision.action === 'needs_editor' ? 'needs_editor' : 'stale', decision.reason, { decision });
     }

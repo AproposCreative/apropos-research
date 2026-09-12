@@ -17,7 +17,7 @@ plus later optimization grounded in Search Console and GA4 results.
 - New `post-publish/review.ts` reviews both filled fields using article content,
   then independently checks proposed changes. Strict output parsing, no fake
   fallback, no silent article truncation. Calls are dependency-injected.
-- 368 SEO regression tests pass with existing local runtime; no live model call,
+- 375 SEO regression tests and 127 Liv/CMS save/publication tests pass with existing local runtime; no live model call,
   CMS change or deployment yet. The reused dependency tree differs from this
   release lockfile: these isolated tests are not a full build verification.
 - Added atomic Firestore model-stage persistence, saved-response replay,
@@ -60,6 +60,19 @@ plus later optimization grounded in Search Console and GA4 results.
   transaction integration tests, actual analytics/publication verification and
   deployment coordination. Performance observations after metadata changes and
   lock/cooldown compatibility with manual legacy SEO writers need audit.
+- Added authenticated paginated `/api/seo-engine/quality` history and per-field
+  lock controls under the existing CMS lease, with lock-change audit records.
+  New panel in the existing optimization tab shows before/proposed/verified
+  metadata, actual assessment reasons, Google evidence periods and statuses.
+  React review covers request races, stale user requests, keyboard controls and
+  minimal server serialization. Visual/browser verification is still outstanding.
+- Shared `patchArticleFieldDataForLocale` now checks SEO locks and pending quality
+  writes only when metadata fields are present. Tests prove unchanged filled Liv
+  metadata payload, refusal before transport for locked fields, and unchanged
+  non-metadata operations. Liv requested and received its 127-test regression
+  coverage; no CMS payload/proof fields were altered.
+- Still audit direct CMS writers that bypass this shared helper, transaction
+  integration, per-article performance follow-up, uniqueness and deployment.
 
 ## Required work before claiming completion
 

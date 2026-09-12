@@ -143,6 +143,16 @@ export async function patchArticleFieldDataForLocale(
   fieldData: Record<string, unknown>,
   cmsLocaleId: string
 ): Promise<void> {
+  const { getCmsSeoSlugs } = await import('@/lib/seo-engine/webflow-adapter');
+  const slugs = getCmsSeoSlugs();
+  const metadataFields = (['seoTitle', 'metaDescription'] as const).filter(field => slugs[field] in fieldData);
+  if (metadataFields.length) {
+    const ids = resolveWebflowLocaleIds();
+    const locale = cmsLocaleId === ids.dk ? 'da' : cmsLocaleId === ids.en ? 'en' : null;
+    if (!locale) throw new Error('Ukendt SEO-locale');
+    const { assertEditorialMetadataWritable } = await import('@/lib/seo-engine/post-publish/editorial');
+    await assertEditorialMetadataWritable(itemId, locale, metadataFields);
+  }
   const { token, collectionId } = await resolveRuntime();
   const url = `https://api.webflow.com/v2/collections/${collectionId}/items`;
   const res = await fetch(url, {
