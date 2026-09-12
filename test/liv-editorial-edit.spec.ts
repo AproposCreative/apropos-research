@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { NextRequest, NextResponse } from 'next/server';
+import { createHash } from 'node:crypto';
 const state = vi.hoisted(() => ({ rows: new Map<string, any>(), available: true, auth: vi.fn(), claim: vi.fn(),
   release: vi.fn(), writes: vi.fn(), provider: vi.fn(), queue: Promise.resolve() as Promise<unknown> }));
 vi.mock('@/lib/openai', () => ({ getOpenAIClient: state.provider }));
@@ -12,9 +13,12 @@ vi.mock('@/lib/firebase-admin', () => {
   return { getAdminDb: () => state.available ? { collection, runTransaction: (run: any) => {
     const task = state.queue.catch(() => {}).then(async () => {
       const writes: Array<[string, any]> = [];
-      const result = await run({ get: async (ref: any) => ref.field
-        ? { empty: ![...state.rows].some(([path, row]) => path.startsWith(`${ref.path}/`) && row[ref.field] === ref.value) }
-        : { data: () => state.rows.get(ref.path) },
+      const result = await run({ get: async (ref: any) => {
+        if (!ref.field) return { data: () => state.rows.get(ref.path) };
+        const docs = [...state.rows].filter(([path, row]) => path.startsWith(`${ref.path}/`) && row[ref.field] === ref.value)
+          .map(([path, row]) => ({ id: path.split('/').at(-1), data: () => row }));
+        return { empty: docs.length === 0, size: docs.length, docs };
+      },
       create: (ref: any, value: any) => { if (state.rows.has(ref.path)) throw new Error('exists'); writes.push([ref.path, value]); },
       update: (ref: any, value: any) => { if (!state.rows.has(ref.path)) throw new Error('missing'); writes.push([ref.path, { ...state.rows.get(ref.path), ...value }]); } });
       for (const [path, value] of writes) { state.writes(path); state.rows.set(path, value); }
@@ -27,6 +31,9 @@ import { POST } from '@/app/api/liv/operations/edit/route';
 import { editLivEditorialCheckpoint } from '@/lib/liv/editorial-edit';
 import { livImageArticleHash } from '@/lib/liv/article-image-hash';
 import { cmsFieldHash } from '@/lib/liv/cms-field-hash';
+import { insertLivBodyMedia, type MediaEvidence } from '@/lib/liv/automatic-media';
+import type { GeneratedArticle } from '@/lib/liv/generate-article';
+import { applyLivMediaDescriptionCorrections } from '@/lib/liv/media-description-repair';
 
 const dayKey = '2026-09-12', runId = `reserve-editorial-${dayKey}`, runPath = `livDailyArticles/${runId}`;
 const article = { title: 'The Gentlemen sæson 2', subtitle: 'Arven lugter af magt', slug: 'gentlemen', intro: 'En arving møder modstand.',
@@ -162,4 +169,169 @@ it('rejects malformed/oversize/query requests and sanitizes unknown errors', asy
   expect(state.claim).not.toHaveBeenCalled();
   state.claim.mockRejectedValue(new Error('upstream secret token'));
   expect(await (await POST(request())).json()).toEqual({ error: 'liv_edit_failed' });
+});
+
+function preparedFixture() {
+  const sourceArticle = { ...structuredClone(article), section: 'Kultur', tags: [],
+    subtitle: 'I anden sæson bliver forskellen mellem dem seriens skarpeste konflikt.',
+    content: `${article.content}<p>Andet afsnit med bevaret kilde.</p><p>Tredje afsnit med kultur.</p><p>En afslutning.</p>` } as GeneratedArticle;
+  const articleInputHash = livImageArticleHash(sourceArticle);
+  const jobId = createHash('sha256').update(JSON.stringify(['liv-media-v1', dayKey, articleInputHash, 'photography', 'expressive'])).digest('hex');
+  const media: MediaEvidence[] = (['hero', 'body-1', 'body-2'] as const).map((role, index) => ({
+    role, url: `https://storage.googleapis.com/bucket/${role}.webp`, storagePath: `liv/${role}.webp`,
+    contentHash: String(index + 1).repeat(64), sourceHash: String(index + 4).repeat(64), width: 1200, height: index ? 800 : 675, bytes: 40000,
+    alt: `Officielt Netflix stillbillede ${index}`, caption: index === 2 ? 'Ved godsets vandkant mødes arv, ambition og familiebånd.' : 'Eddie og Susie taler sammen.',
+    credit: 'Christopher Rafael / Netflix', sourceUrl: `https://netflix.com/photo-${index}.jpg`,
+    sourcePageUrl: 'https://netflix.com/tudum/', kind: 'photography',
+  }));
+  const complete = { ...sourceArticle, content: insertLivBodyMedia(sourceArticle.content, media), preparedMedia: media };
+  const hero = media[0];
+  const selectedImage = { id: `${jobId}-hero`, articleHash: livImageArticleHash(complete), url: hero.url,
+    storagePath: hero.storagePath, sourceUrl: hero.sourceUrl!, sourcePageUrl: hero.sourcePageUrl, contentHash: hero.contentHash,
+    sourceHash: hero.sourceHash, width: 1200 as const, height: 675 as const, bytes: hero.bytes, alt: hero.alt, credit: hero.credit,
+    createdAt: '2026-09-12T10:00:00Z', rightsStatus: 'unverified' as const, visualReview: 'automated' as const };
+  const checkpoint = { ...complete, selectedImage };
+  state.rows.set(`livMediaJobs/${jobId}`, { status: 'complete', articleInputHash, article: structuredClone(checkpoint), mode: 'photography', style: 'expressive' });
+  for (const image of media) state.rows.set(`livMediaJobs/${jobId}/stages/${image.role}`, { evidence: structuredClone(image) });
+  state.rows.set(`livMediaJobs/${jobId}/stages/visual-review`, { status: 'complete', result: { pass: true }, usage: { paid: true } });
+  Object.assign(state.rows.get(runPath), { status: 'skipped_factcheck', continuationReady: false,
+    articleCheckpoint: checkpoint, articleCheckpointHash: livImageArticleHash(checkpoint) });
+  const edit = { ...input, expectedArticleHash: livImageArticleHash(checkpoint), expectedCheckpointHash: cmsFieldHash(checkpoint),
+    patches: [{ field: 'subtitle', before: sourceArticle.subtitle, after: 'For mig er forskellen mellem dem anden sæsons skarpeste konflikt.' }],
+    mediaCaptions: [{ role: 'body-2', before: media[2].caption, after: 'Ved vandkanten mødes arv, ambition og familiebånd.' }] };
+  return { checkpoint, jobId, edit };
+}
+
+it('atomically copyedits failed prepared subtitle + caption, preserving all paid assets, rendered credits, positions, gates and status', async () => {
+  const { checkpoint, jobId, edit } = preparedFixture(); const before = structuredClone([...state.rows]);
+  const result = await POST(request(edit)); expect(result.status).toBe(200);
+  const revised = state.rows.get(runPath).articleCheckpoint;
+  expect(revised.content).toBe(checkpoint.content.replace(edit.mediaCaptions[0].before, edit.mediaCaptions[0].after));
+  expect(revised.subtitle).toBe(edit.patches[0].after);
+  expect(revised.preparedMedia).toEqual(checkpoint.preparedMedia.map(image => image.role === 'body-2' ? { ...image, caption: edit.mediaCaptions[0].after } : image));
+  expect(revised.selectedImage).toEqual({ ...checkpoint.selectedImage, articleHash: livImageArticleHash(revised) });
+  expect(state.rows.get(runPath).articleCheckpointHash).toBe(livImageArticleHash(revised));
+  for (const [key, value] of Object.entries(checkpoint)) if (!['content', 'subtitle', 'preparedMedia', 'selectedImage'].includes(key)) expect(revised[key]).toEqual(value);
+  for (const [path, row] of before) {
+    if (path !== runPath) expect(state.rows.get(path)).toEqual(row);
+    else for (const [key, value] of Object.entries(row)) if (!['articleCheckpoint', 'articleCheckpointHash'].includes(key)) expect(state.rows.get(path)[key]).toEqual(value);
+  }
+  expect(state.rows.get(`${runPath}/editorialEdits/${edit.requestId}`)).toMatchObject({ mediaJobId: jobId,
+    previousArticle: checkpoint, article: revised, previousCheckpointHash: edit.expectedCheckpointHash, checkpointHash: cmsFieldHash(revised) });
+  state.writes.mockClear(); expect(await (await POST(request(edit))).json()).toMatchObject({ status: 'already_edited' });
+  expect(state.writes).not.toHaveBeenCalled();
+});
+
+it.each(['failed', 'skipped_factcheck', 'skipped_moderation', 'skipped_tov'])('permits failed %s media checkpoints without authorizing retry', async status => {
+  const { edit } = preparedFixture(); state.rows.get(runPath).status = status;
+  expect((await POST(request(edit))).status).toBe(200);
+  expect(state.rows.get(runPath)).toMatchObject({ status, continuationReady: false });
+  expect(state.rows.get(runPath)).not.toHaveProperty('retryAuthorization');
+});
+
+it.each(['subtitle-only', 'caption-only'])('permits %s while preserving all unrelated text', async kind => {
+  const { edit } = preparedFixture();
+  expect((await POST(request(kind === 'subtitle-only' ? { ...edit, mediaCaptions: undefined } : { ...edit, patches: [] }))).status).toBe(200);
+});
+
+it.each(['processing', 'failed-job', 'missing-job', 'changed-job-article', 'stage-missing', 'stage-changed', 'visual-ambiguous',
+  'sibling-job', 'newer-job', 'wrong-day-job', 'stale-whole-hash', 'stale-selected-hash', 'incomplete-media', 'credit-mismatch',
+  'caption-mismatch', 'duplicate-role', 'body-patch', 'retry-grant', 'cms', 'proof', 'cms-started', 'continuation'])('rejects uncertain/tampered post-media work: %s', async kind => {
+  const { jobId, edit } = preparedFixture(), row = state.rows.get(runPath), job = state.rows.get(`livMediaJobs/${jobId}`);
+  if (kind === 'processing') row.status = 'processing';
+  if (kind === 'failed-job') job.status = 'failed';
+  if (kind === 'missing-job') state.rows.delete(`livMediaJobs/${jobId}`);
+  if (kind === 'changed-job-article') job.article.rawResponse += 'tampered';
+  if (kind === 'stage-missing') state.rows.delete(`livMediaJobs/${jobId}/stages/body-2`);
+  if (kind === 'stage-changed') state.rows.get(`livMediaJobs/${jobId}/stages/body-2`).evidence.credit = 'other';
+  if (kind === 'visual-ambiguous') state.rows.get(`livMediaJobs/${jobId}/stages/visual-review`).status = 'processing';
+  if (kind === 'sibling-job') state.rows.set('livMediaJobs/other', { articleInputHash: job.articleInputHash, status: 'processing' });
+  if (kind === 'newer-job') state.rows.set('livMediaJobs/other', { articleInputHash: edit.expectedArticleHash, status: 'failed' });
+  if (kind === 'wrong-day-job') job.style = 'minimal';
+  if (kind === 'stale-whole-hash') edit.expectedCheckpointHash = 'a'.repeat(64);
+  if (kind === 'stale-selected-hash') row.articleCheckpoint.selectedImage.articleHash = 'b'.repeat(64);
+  if (kind === 'incomplete-media') row.articleCheckpoint.preparedMedia.pop();
+  if (kind === 'credit-mismatch') row.articleCheckpoint.preparedMedia[2].credit = 'Other';
+  if (kind === 'caption-mismatch') edit.mediaCaptions[0].before = 'En anden billedtekst.';
+  if (kind === 'duplicate-role') edit.mediaCaptions.push({ ...edit.mediaCaptions[0] });
+  if (kind === 'body-patch') edit.patches = [{ field: 'content', before: 'selvmodig', after: 'selvskabt' }];
+  if (kind === 'retry-grant') row.retryAuthorization = 'grant';
+  if (kind === 'cms') row.webflowItemId = 'saved';
+  if (kind === 'proof') row.preparationProof = {};
+  if (kind === 'cms-started') row.cmsSaveStarted = true;
+  if (kind === 'continuation') row.continuationReady = true;
+  const before = structuredClone([...state.rows]);
+  expect([400, 409]).toContain((await POST(request(edit))).status);
+  expect(state.writes).not.toHaveBeenCalled(); expect([...state.rows]).toEqual(before);
+});
+
+it.each([{ role: 'hero' }, { after: '<b>Ny billedtekst</b>' }, { after: 'https://other.example' },
+  { credit: 'Changed' }, { url: 'https://other.example' }])('rejects caption schema bypasses: %j', async patch => {
+  const { edit } = preparedFixture();
+  expect((await POST(request({ ...edit, mediaCaptions: [{ ...edit.mediaCaptions[0], ...patch }] }))).status).toBe(400);
+  expect(state.writes).not.toHaveBeenCalled();
+});
+
+it('serializes concurrent post-media edits to one audited change', async () => {
+  const { edit } = preparedFixture();
+  const results = await Promise.all([editLivEditorialCheckpoint(edit, 'lease'), editLivEditorialCheckpoint(edit, 'lease')]);
+  expect(results.map(result => result.status)).toEqual(['edited', 'already_edited']); expect(state.writes).toHaveBeenCalledTimes(2);
+});
+
+function revisedFixture(count = 1) {
+  const fixture = preparedFixture();
+  let previous: GeneratedArticle = fixture.checkpoint;
+  for (let index = 1; index <= count; index++) {
+    const revisionId = String(index + 6).repeat(64);
+    const revised = applyLivMediaDescriptionCorrections({ ...previous, subtitle: fixture.checkpoint.subtitle }, { corrections: [{
+      role: 'body-2', alt: `Eddie og Susie står ved vandkanten, version ${index}.`,
+      caption: index === count ? 'Ved godsets vandkant mødes arv, ambition og familiebånd.' : `Eddie og Susie ser mod vandet, version ${index}.`,
+    }] });
+    revised.factRevisionId = revisionId; revised.factRevisionCount = index;
+    revised.selectedImage = { ...revised.selectedImage!, articleHash: livImageArticleHash(revised) };
+    state.rows.set(`livFactRevisions/${revisionId}`, { status: 'complete', previous: structuredClone(previous),
+      article: structuredClone(revised), visualReview: { pass: false }, descriptionReview: { pass: true, articleHash: livImageArticleHash(revised) },
+      rawResponse: 'paid patch', descriptionCorrectionUsage: { paid: true } });
+    previous = revised;
+  }
+  Object.assign(state.rows.get(runPath), { articleCheckpoint: previous, articleCheckpointHash: livImageArticleHash(previous) });
+  fixture.edit.expectedArticleHash = livImageArticleHash(previous);
+  fixture.edit.expectedCheckpointHash = cmsFieldHash(previous as unknown as Record<string, unknown>);
+  fixture.edit.mediaCaptions[0].after = 'Arv og ambition er en sprængfarlig familieforretning.';
+  return { ...fixture, revised: previous };
+}
+
+it.each([1, 2])('accepts an exact %i-completed-revision chain with changed captions/alts but identical pixels and provenance', async count => {
+  const { edit, jobId, revised } = revisedFixture(count); const before = structuredClone([...state.rows]);
+  expect((await POST(request(edit))).status).toBe(200);
+  const result = state.rows.get(runPath).articleCheckpoint;
+  expect(result.content).toBe(revised.content.replace(edit.mediaCaptions[0].before, edit.mediaCaptions[0].after));
+  expect(result.preparedMedia).toEqual(revised.preparedMedia!.map(image => image.role === 'body-2' ? { ...image, caption: edit.mediaCaptions[0].after } : image));
+  expect(result.selectedImage).toEqual({ ...revised.selectedImage, articleHash: livImageArticleHash(result) });
+  expect(result.factRevisionId).toBe(revised.factRevisionId); expect(result.factRevisionCount).toBe(count);
+  for (const [path, row] of before) if (path !== runPath) expect(state.rows.get(path)).toEqual(row);
+  expect(state.rows.get(`${runPath}/editorialEdits/${edit.requestId}`).mediaRevisionIds).toHaveLength(count);
+  expect(state.rows.get(`livMediaJobs/${jobId}`).article).not.toEqual(revised);
+});
+
+it.each(['missing', 'processing', 'wrong-current', 'wrong-previous', 'wrong-count', 'failed-visual', 'stale-visual', 'changed-pixels',
+  'changed-credit', 'changed-hero', 'third-link'])('rejects unproved revision chain: %s', async kind => {
+  const { edit, revised } = revisedFixture(kind === 'third-link' ? 3 : 1);
+  const path = `livFactRevisions/${revised.factRevisionId}`, revision = state.rows.get(path);
+  if (kind === 'missing') state.rows.delete(path);
+  if (kind === 'processing') revision.status = 'processing';
+  if (kind === 'wrong-current') revision.article.subtitle += 'other';
+  if (kind === 'wrong-previous') revision.previous.rawResponse += 'tampered';
+  if (kind === 'wrong-count') revision.previous.factRevisionCount = 4;
+  if (kind === 'failed-visual') revision.descriptionReview.pass = false;
+  if (kind === 'stale-visual') revision.descriptionReview.articleHash = '0'.repeat(64);
+  if (['changed-pixels', 'changed-credit', 'changed-hero'].includes(kind)) {
+    // Even an otherwise matching completed receipt may not authorize new assets.
+    if (kind === 'changed-pixels') revised.preparedMedia![2].contentHash = 'c'.repeat(64);
+    if (kind === 'changed-credit') revised.preparedMedia![2].credit = 'Other rightsholder';
+    if (kind === 'changed-hero') revised.selectedImage!.url = 'https://storage.googleapis.com/other.webp';
+    revision.article = structuredClone(revised); edit.expectedCheckpointHash = cmsFieldHash(revised as unknown as Record<string, unknown>);
+  }
+  const before = structuredClone([...state.rows]);
+  expect((await POST(request(edit))).status).toBe(409); expect(state.writes).not.toHaveBeenCalled(); expect([...state.rows]).toEqual(before);
 });

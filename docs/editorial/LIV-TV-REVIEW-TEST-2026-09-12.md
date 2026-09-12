@@ -130,3 +130,21 @@ replay grants no new attempt. The current test uses this path after deployment.
 Read-only production taxonomy verification confirmed these Danish items exist:
 TV-serier `67dbf52a4ac2cf0073a9b0ef`, Anmeldelser `67e6f8f2e077ea42a9b95b87`.
 Their assignment on the eventual saved article still requires CMS readback.
+
+Release `7a5c04d459444a7d0a8437202bc9716dcc7ea878` was verified READY on
+`dpl_wWAjwosrV4Uv1ewnDAYUYBaaKFYp`, production alias included. The 2309-test
+suite passed. The real contextual assessment approved the editorial quality but
+still withheld factual completion: the subtitle's comparative opinion and an
+unsupported reference to “godsets vandkant” in a photo caption. This was not
+declared a successful CMS test. Cumulative estimate: 7.173688 DKK / 22 calls.
+
+The final operator copyedit makes the subtitle explicitly a personal judgment
+and replaces the uncertain scene-location caption with a thematic caption.
+Post-media editing is limited to subtitle and exact role-bound body captions on
+an owned failed checkpoint, before any CMS-save attempt. It validates the full
+checkpoint, completed media job, actual role evidence and at most two immutable
+completed fact-revision receipts linking back to that job. URLs, pixels, credits,
+rights status, alt text and figure positions cannot be replaced. The paid media
+job and all prior judgments remain unchanged. Normal gates must run again on the
+edited version. This is an audited API edit, not a direct manual CMS write or an
+invented automated verification.
