@@ -44,6 +44,20 @@ remain. Prompt preserves review label and work/season clarity. Subtitle generati
 also receives Writer accounting and truncation rejection. No current headline
 caller was found, so no actual savings are claimed for that route. Pending release.
 
+### Standalone research verification
+
+The independent verifyContent entry establishes one shared Writer run for its two
+model checks, with zero retries and 45-second timeouts. A pretransport denial
+propagates immediately and cannot trigger the second paid check. Missing AI,
+missing sources, malformed/out-of-range scores and truncated responses cannot
+produce a passing result. Removed the unused lexical fallback that could present
+failed AI verification as a score. Eight mocked tests and TypeScript pass. No
+production verification calls or model requests were made; pending release.
+
+Image route inventory: generate-image has a text-planning completion followed by
+JSON DALL-E 3 generation. Price support and the planning fallback still need
+verification before claiming shared-budget coverage for this path.
+
 ## Implemented locally
 
 - Exact-origin token attachment, preserving Request headers.

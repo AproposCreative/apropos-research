@@ -8,7 +8,8 @@
 import fs from 'fs';
 import path from 'path';
 import { internalApiHeaders } from '@/lib/api/internal-auth';
-import { livCostHeaders } from '@/lib/liv/cost-context';
+import { livCostHeaders, withSharedCostContext } from '@/lib/liv/cost-context';
+import { getLivCostPretransportError } from '@/lib/liv/cost-errors';
 import { config } from '@/lib/config/env';
 import { logger } from '@/lib/logger';
 import { getOpenAIClient } from '@/lib/openai';
@@ -579,6 +580,15 @@ export async function verifyContent(
   researchSources: ResearchSources,
   originalNotes?: string
 ): Promise<VerificationResult> {
+  return withSharedCostContext({ scope: 'writer', stage: 'research-verification' }, () =>
+    verifyContentWithinBudget(generatedContent, researchSources, originalNotes));
+}
+
+async function verifyContentWithinBudget(
+  generatedContent: string,
+  researchSources: ResearchSources,
+  originalNotes?: string
+): Promise<VerificationResult> {
   const result: VerificationResult = {
     passed: true,
     issues: [],
@@ -590,6 +600,8 @@ export async function verifyContent(
   };
 
   if (!openai) {
+    result.passed = false;
+    result.issues.push('AI-verifikation er ikke tilgængelig.');
     result.warnings.push('OpenAI API not available - skipping verification');
     return result;
   }
@@ -606,7 +618,9 @@ export async function verifyContent(
       result.warnings.push(`Moderat plagiat-score (${Math.round(plagiarismScore * 100)}%) - overvej at parafrasere mere`);
     }
   } catch (error) {
-    console.error('Plagiarism check failed:', error);
+    if (getLivCostPretransportError(error)) throw error;
+    result.passed = false;
+    result.issues.push('Plagiatkontrol kunne ikke gennemføres.');
     result.warnings.push('Plagiat-check fejlede');
   }
 
@@ -622,7 +636,9 @@ export async function verifyContent(
       result.warnings.push(`Moderat faktualitet-score (${Math.round(factualityScore * 100)}%) - nogle påstande mangler kilder`);
     }
   } catch (error) {
-    console.error('Factuality check failed:', error);
+    if (getLivCostPretransportError(error)) throw error;
+    result.passed = false;
+    result.issues.push('Faktualitetskontrol kunne ikke gennemføres.');
     result.warnings.push('Faktualitet-check fejlede');
   }
 
@@ -683,7 +699,7 @@ async function checkPlagiarism(
     sourceTexts.push(...sources.advancedResearch.keyFindings);
   }
 
-  if (sourceTexts.length === 0) return 0;
+  if (sourceTexts.length === 0) throw new Error('verification_sources_missing');
 
   try {
     const response = await openai.chat.completions.create({
@@ -701,14 +717,14 @@ async function checkPlagiarism(
       temperature: 0.3,
       max_completion_tokens: 200,
       response_format: { type: 'json_object' }
-    });
+    }, { maxRetries: 0, timeout: 45_000 });
 
-    const result = JSON.parse(response.choices[0]?.message?.content || '{"similarity": 0}');
-    return result.similarity || 0;
+    if (response.choices[0]?.finish_reason !== 'stop') throw new Error('verification_incomplete');
+    const result = JSON.parse(response.choices[0]?.message?.content || '{}');
+    if (typeof result.similarity !== 'number' || !Number.isFinite(result.similarity) || result.similarity < 0 || result.similarity > 1) throw new Error('verification_score_invalid');
+    return result.similarity;
   } catch (error) {
-    console.error('Plagiarism check error:', error);
-    // Fallback: simple text similarity
-    return calculateTextSimilarity(content, sourceTexts.join(' '));
+    throw error;
   }
 }
 
@@ -739,7 +755,7 @@ async function checkFactuality(
     verificationContext.push(`Faktuelle data: ${sources.advancedResearch.factualData.join(', ')}`);
   }
 
-  if (verificationContext.length === 0) return 0.5; // Neutral if no sources
+  if (verificationContext.length === 0) throw new Error('verification_sources_missing');
 
   try {
     const response = await openai.chat.completions.create({
@@ -757,13 +773,14 @@ async function checkFactuality(
       temperature: 0.3,
       max_completion_tokens: 300,
       response_format: { type: 'json_object' }
-    });
+    }, { maxRetries: 0, timeout: 45_000 });
 
-    const result = JSON.parse(response.choices[0]?.message?.content || '{"factuality": 0.5}');
-    return result.factuality || 0.5;
+    if (response.choices[0]?.finish_reason !== 'stop') throw new Error('verification_incomplete');
+    const result = JSON.parse(response.choices[0]?.message?.content || '{}');
+    if (typeof result.factuality !== 'number' || !Number.isFinite(result.factuality) || result.factuality < 0 || result.factuality > 1) throw new Error('verification_score_invalid');
+    return result.factuality;
   } catch (error) {
-    console.error('Factuality check error:', error);
-    return 0.5; // Neutral on error
+    throw error;
   }
 }
 
@@ -790,19 +807,6 @@ function extractCitations(content: string, sources: ResearchSources): string[] {
   }
   
   return citations;
-}
-
-/**
- * Simple text similarity calculation (fallback)
- */
-function calculateTextSimilarity(text1: string, text2: string): number {
-  const words1 = new Set(text1.toLowerCase().split(/\s+/));
-  const words2 = new Set(text2.toLowerCase().split(/\s+/));
-  
-  const intersection = new Set([...words1].filter(x => words2.has(x)));
-  const union = new Set([...words1, ...words2]);
-  
-  return intersection.size / union.size;
 }
 
 /**
