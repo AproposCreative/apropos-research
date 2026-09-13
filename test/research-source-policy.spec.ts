@@ -1,10 +1,17 @@
 import { expect, it } from 'vitest';
-import { enforceSourcePolicy, sourcePolicy, sourcePolicyQuery } from '@/lib/research/source-policy';
+import { enforceSourcePolicy, sourcePolicy, sourcePolicyQuery, researchPromptContext } from '@/lib/research/source-policy';
 import type { ResearchResult } from '@/lib/research/types';
 import { vi } from 'vitest';
 import { createWriterResearchCache } from '@/lib/ai-chat/research-cache';
 const result = (urls: (string | null)[]): ResearchResult => ({contextText: 'A mixed provider-generated brief.', sources: urls.map(url=>({url,title:'Evidence',source:'web',snippet:'Evidence'})),debug:{provider:'openai_responses',fallbackUsed:false,latencyMs:1,query:'q',rawResultCount:urls.length,gateScore:1,gateReasons:[]}});
 const policy = {preferred:['official.example'],excluded:['blocked.example']};
+it('omits unverified old research from the prompt without changing saved text or metadata',()=>{
+  const saved={title:'My article',body:'My draft',researchSelected:{title:'Old research',content:'Mixed facts'},editorialResearch:{dossier:{keyFacts:['old fact']}},notes:'My notes'};
+  const before=structuredClone(saved);
+  expect(researchPromptContext(saved,policy)).toEqual({title:'My article',body:'My draft',notes:'My notes'});
+  expect(saved).toEqual(before);
+  expect(researchPromptContext(saved)).toBe(saved);
+});
 it('canonicalizes preferences with exclusion winning overlapping domains',()=>{
   expect(sourcePolicy([{baseUrl:'https://WWW.blocked.example/x',enabled:false},{baseUrl:'https://news.blocked.example',enabled:true},{baseUrl:'https://official.example',enabled:true}])).toEqual(policy);
 });

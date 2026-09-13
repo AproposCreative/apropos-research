@@ -1,6 +1,16 @@
 import type { ResearchResult } from './types';
 
 export interface ResearchSourcePolicy { preferred: string[]; excluded: string[] }
+
+/** Build a prompt-only view. Never mutate or delete the user's saved work.
+ * Old generated dossiers lack a trustworthy policy receipt, so do not certify
+ * them as source evidence under a current exclusion policy.
+ */
+export function researchPromptContext(context: Record<string, unknown>, policy?: ResearchSourcePolicy): Record<string, unknown> {
+  if (!policy?.excluded.length) return context;
+  const { researchSelected: _selected, editorialResearch: _dossier, ...remaining } = context;
+  return remaining;
+}
 export function sourcePolicy(rows: { baseUrl?: unknown; enabled?: unknown }[]): ResearchSourcePolicy {
   const preferred = new Set<string>(); const excluded = new Set<string>();
   for (const row of rows) {

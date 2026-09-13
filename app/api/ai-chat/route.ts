@@ -19,6 +19,7 @@ import { writerLengthCheck, writerLengthPolicy } from '@/lib/ai-chat/article-len
 import { boundedWriterConversation } from '@/lib/ai-chat/bounded-history';
 import { getWriterResearch, writerResearchScope } from '@/lib/ai-chat/research-cache';
 import { personalSourcePolicy } from '@/lib/ai-chat/personal-source-policy';
+import { researchPromptContext } from '@/lib/research/source-policy';
 import { withSharedCostContext } from '@/lib/liv/cost-context';
 import { getLivCostPretransportError } from '@/lib/liv/cost-errors';
 
@@ -486,7 +487,9 @@ async function handleWriterRequest(request: NextRequest) {
 
     const liv = typeof authorName === 'string' && isLivAuthor(authorName);
     const generationModel = liv ? livModels().article : models.default;
-    const promptSegments = buildPromptSegments(authorTOV, authorName, articleData as Record<string, unknown>, notes);
+    const sourcePolicy = await personalSourcePolicy(request);
+    const promptContext = researchPromptContext(articleData as Record<string, unknown>, sourcePolicy);
+    const promptSegments = buildPromptSegments(authorTOV, authorName, promptContext, notes);
 
     // --- Step: Web Search (when research context is available) ---
     let researchResult: Awaited<ReturnType<typeof getResearch>> | undefined;
@@ -503,7 +506,6 @@ async function handleWriterRequest(request: NextRequest) {
       if (searchPlatform) queryParts.push(String(searchPlatform));
       if (searchCategory && typeof searchCategory === 'string' && !/generel/i.test(searchCategory)) queryParts.push(searchCategory);
       const searchQuery = queryParts.join(' ');
-      const sourcePolicy = await personalSourcePolicy(request);
       researchResult = await getWriterResearch(writerResearchScope(request.headers), searchQuery, { maxResults: 3, ...(sourcePolicy ? { sourcePolicy } : {}), ...(liv ? { model: livModels().research } : {}) });
       webSegment = buildWebSearchSegment(researchResult.contextText);
       if (clientRequestId) {

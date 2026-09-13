@@ -98,3 +98,13 @@ test its use when preferences change before claiming all Writer context obeys
 exclusions. New search enforcement does not prove that the provider never
 consulted an unreported source; the installed SDK exposes allowed_domains only.
 No deployment of the research-policy changes at this checkpoint.
+
+Saved-context follow-up: Writer now builds a prompt-only article view under a
+nonempty exclusion policy. It omits old researchSelected and editorialResearch
+auto-evidence segments, while preserving all stored data, article text, notes,
+history and the original topic used for fresh research. With no personal
+exclusions the prior behavior remains unchanged. This deliberately does not
+rewrite user-provided draft text or conversation history, nor claim a source
+purge of those materials. A mutation-preservation test was added. Full isolated
+regression: 3,383 tests / 232 files passed; typecheck passed. Production build and
+release verification are separate from this recorded local result.
