@@ -18,6 +18,13 @@ Build the user's approved September 13 plan. Only the three verified colleagues 
 
 ## Required before this checkpoint can release
 
+### Delivery alarms (local, not deployed)
+
+- Extended the existing authenticated quarter-hour delivery check, without another scheduler or AI call. Alarm policy waits until 10:15 Copenhagen time or a definitive non-user rejection; healthy days are quiet. One accepted failure notice and one accepted resolution per day, only to Frederik.
+- Firestore stores immutable message payload/lease and provider ID. Uncertain requests retry the identical provider idempotency key within a conservative 23-hour window; older ambiguity requires reconciliation instead of a possible duplicate. An uncertain failure is reconciled before a resolution notice.
+- Thirteen policy/send/route tests passed, including summer/winter deadline, stable retry payload/identity, suppression and one resolution. TypeScript passed.
+- Still required before deployment: previous-day resolution/cross-midnight handling, preparation-terminal status integration, error isolation when delivery itself throws, stronger concurrent-transaction tests and production acceptance. Current tests use fixtures, not real alert mail. The owner operations UI remains separate pending work.
+
 ### Account mail production release
 
 - Account mail flow through `ec5b63b` is now deployed. See `AUTH-MAIL-RELEASE-2026-09-13.md`: verified sender domain, production auth/origin boundary checks, one owner reset request and provider `delivered` evidence. No password or verification flag was changed.

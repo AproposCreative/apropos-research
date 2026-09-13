@@ -4,6 +4,7 @@ import { GET as deliver } from '@/app/api/cron/liv-daily-article/route';
 import { readDeliveryState } from '@/lib/liv/delivery-store';
 import { deliveryHealth } from '@/lib/liv/delivery-policy';
 import { logger } from '@/lib/logger';
+import { notifyDeliveryHealth } from '@/lib/liv/delivery-alerts';
 
 export const maxDuration = 300;
 export async function GET(req: NextRequest) {
@@ -14,9 +15,9 @@ export async function GET(req: NextRequest) {
   if (req.nextUrl.searchParams.has('dryRun') || ['1', 'true'].includes((process.env.LIV_DAILY_PAUSED || '').toLowerCase()) ||
       process.env.LIV_DAILY_PUBLICATION_MODE?.trim().toLowerCase() !== 'auto_publish') return response;
   try {
-    const health = deliveryHealth(await readDeliveryState());
-    // Non-2xx makes a missed deadline visible to platform monitoring. No email,
-    // social post or new external destination is silently configured here.
+    const state = await readDeliveryState();
+    const health = deliveryHealth(state);
+    await notifyDeliveryHealth(state);
     if (health.overdue) logger.error('[liv/delivery] daily publication overdue', new Error('liv_daily_overdue'), health);
     return NextResponse.json({ delivery: await response.json(), health }, { status: health.overdue ? 503 : response.status });
   } catch { return NextResponse.json({ error: 'liv_delivery_health_unavailable' }, { status: 503 }); }
