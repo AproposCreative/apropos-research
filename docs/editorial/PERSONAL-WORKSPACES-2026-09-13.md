@@ -18,6 +18,15 @@ Build the user's approved September 13 plan. Only the three verified colleagues 
 
 ## Required before this checkpoint can release
 
+### Operations release result
+
+- `89b7d8f` is deployed READY; next-story/current-alert operations API is live and verified. Full 3,334-test regression, build and isolated history browser checks passed.
+- Production history is NOT verified/working: Firestore requires the declared `livDeliveryAlerts` collection `__name__ DESCENDING` index. Existing service account may list but cannot create it (403). Administrator index creation is required, without widening runtime IAM. See `OPERATIONS-RELEASE-2026-09-13.md`.
+
+### Next privacy finding
+
+- Source audit found `PROMPT_ARCHITECT_CONTEXT_KEY` is still a global sessionStorage key. Writer stores articleData/notes under it; PromptArchitectClient reads it without a UID namespace and posts the preview without an explicit bearer token. This is an unresolved cross-account stale-context risk, not proof of actual data disclosure. Next implementation must scope both sides to the authenticated UID, ignore legacy unowned data, clear in-memory state on account changes and authenticate preview requests. Keep this separate from the already tested operations release.
+
 ### Owner operations extension (local)
 
 - Historical alert follow-up: added owner-only read-only `/api/editorial/operations/alerts`, validated keyset cursor and 20-record pages with one lookahead. No age cutoff hides old ambiguous sends; the panel offers older/newest navigation and retry without any resend. Responses project only day/status. Invalid/failed reads are explicit, never an empty healthy list.
