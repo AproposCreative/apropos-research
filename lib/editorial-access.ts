@@ -4,6 +4,12 @@ import { OWNER_EMAIL } from './editorial-capabilities';
 
 export const EDITORIAL_ACCESS_COLLECTION = 'editorialAccess';
 
+/** Resolve identity from a verified bearer token, never a client supplied UID. */
+export async function editorialRequestAccess(request: Request) {
+  const header = request.headers.get('authorization') || '';
+  return header.startsWith('Bearer ') ? verifyEditorialToken(header.slice(7)) : null;
+}
+
 /** No positive cache: removing access must also affect existing sessions. */
 export async function verifyEditorialToken(token: string): Promise<{ uid: string; role: EditorialRole; owner: boolean } | null> {
   const auth = getAdminAuth();

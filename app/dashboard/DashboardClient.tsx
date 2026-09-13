@@ -208,9 +208,9 @@ export default function DashboardClient({ embedded = false, onClose }: Dashboard
 
           <div className="order-1 min-w-0 space-y-4 lg:order-1 lg:col-start-1 lg:row-start-1">
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
-              <StatCard
+              {data?.newsletter && <StatCard
                 label="Nyhedsbrev"
-                value={data ? fmt(data.newsletter.signups) : '—'}
+                value={fmt(data.newsletter.signups)}
                 hint={
                   data?.newsletter.error
                     ? 'Tjek Webflow forms'
@@ -218,11 +218,11 @@ export default function DashboardClient({ embedded = false, onClose }: Dashboard
                       ? `${fmt(data.newsletter.totalSignups)} tilmeldt i alt`
                       : 'Aktive modtagere'
                 }
-              />
+              />}
               <StatCard
                 label="Artikler"
                 value={data ? fmt(data.articles.published) : '—'}
-                hint={data ? `${fmt(data.articles.drafts)} kladder` : 'Publiceret i Webflow'}
+                hint={data?.articles.drafts !== undefined ? `${fmt(data.articles.drafts)} kladder` : 'Publiceret i Webflow'}
               />
               <StatCard
                 label="Besøgende"

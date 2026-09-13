@@ -120,23 +120,35 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     let generation = 0;
+    let acceptedUid: string | null = null;
     const check = async (candidate: User | null) => {
       const current = ++generation;
-      autoSaveService.setOwner(null);
-      setUser(null);
-      setCapabilities(NO_CAPABILITIES);
+      const sameAccount = Boolean(candidate && candidate.uid === acceptedUid);
+      // Rechecking a token/focused tab must not unmount the editor and lose work.
+      // Every API request still independently revalidates current server access.
+      if (!sameAccount) {
+        acceptedUid = null;
+        autoSaveService.setOwner(null);
+        setUser(null);
+        setCapabilities(NO_CAPABILITIES);
+      }
       setVerificationEmail(candidate && !candidate.emailVerified ? candidate.email : null);
       if (!candidate) { setLoading(false); return; }
-      setLoading(true);
+      if (!sameAccount) setLoading(true);
       try {
         const rights = await requireAllowedUser(candidate);
         if (current !== generation) return;
         setAccessError('');
+        acceptedUid = candidate.uid;
         autoSaveService.setOwner(candidate.uid);
         setCapabilities(rights);
         setUser(candidate);
       } catch {
         if (current !== generation) return;
+        acceptedUid = null;
+        autoSaveService.setOwner(null);
+        setUser(null);
+        setCapabilities(NO_CAPABILITIES);
         setAccessError(ACCESS_MESSAGE);
       } finally { if (current === generation) setLoading(false); }
     };

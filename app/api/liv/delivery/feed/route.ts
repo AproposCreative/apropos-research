@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getNewsletterUserIdFromRequest } from '@/lib/newsletter/auth-request';
+import { editorialRequestAccess } from '@/lib/editorial-access';
 import { readDeliveryState, readDeliveryPayload, decideDelivery, DeliveryDecisionConflict } from '@/lib/liv/delivery-store';
 import { copenhagenClock } from '@/lib/liv/delivery-policy';
 import { approvalEntries, approvalStory } from '@/lib/liv/approval-feed';
@@ -11,8 +11,9 @@ import { readNextLivPreparationStatus } from '@/lib/liv/preparation-status';
 const headers = { 'Cache-Control': 'private, no-store' };
 const reply = (body: object, status = 200) => NextResponse.json(body, { status, headers });
 export async function GET(req: NextRequest) {
-  const userId = await getNewsletterUserIdFromRequest(req);
-  if (!userId) return reply({ error: 'Log ind for at se Livs historier.' }, 401);
+  const access = await editorialRequestAccess(req);
+  if (!access) return reply({ error: 'Log ind for at se Livs historier.' }, 401);
+  const userId = access.uid;
   const offset = Number(req.nextUrl.searchParams.get('offset') || 0);
   if (!Number.isSafeInteger(offset) || offset < 0 || offset > 100) return reply({ error: 'Ugyldig side.' }, 400);
   const queueConfigured = process.env.LIV_DELIVERY_QUEUE_ENABLED === 'true';
@@ -23,8 +24,8 @@ export async function GET(req: NextRequest) {
   // Keep saved previews available when paused; effective flags must not imply publication is active.
   if (!queueConfigured && !preparationConfigured) return reply({ stories: [], total: 0, nextOffset: null, queueEnabled, preparationEnabled });
   try {
-    const [state, cost] = await Promise.all([readDeliveryState(), readLivCostSummary()]);
-    const preparation = await readNextLivPreparationStatus(state);
+    const [state, cost] = await Promise.all([readDeliveryState(), access.owner ? readLivCostSummary() : undefined]);
+    const preparation = access.owner ? await readNextLivPreparationStatus(state) : undefined;
     const entries = approvalEntries(state, copenhagenClock().day);
     const stories = await Promise.all(entries.slice(offset).map(async entry => {
       const payload = await readDeliveryPayload(entry.itemId);
@@ -32,12 +33,14 @@ export async function GET(req: NextRequest) {
       return approvalStory(entry, payload, userId);
     }));
     return reply({ stories, total: entries.length, nextOffset: null,
-      queueEnabled, preparationEnabled, cost, preparation });
+      queueEnabled, preparationEnabled, ...(access.owner ? { cost, preparation } : {}) });
   } catch { return reply({ error: 'Historierne kunne ikke hentes. Prøv igen; dine gemte valg er ikke ændret.' }, 503); }
 }
 export async function POST(req: NextRequest) {
-  const userId = await getNewsletterUserIdFromRequest(req);
-  if (!userId) return reply({ error: 'Log ind for at vælge historier.' }, 401);
+  const access = await editorialRequestAccess(req);
+  if (!access) return reply({ error: 'Log ind for at vælge historier.' }, 401);
+  if (!access.owner) return reply({ error: 'Kun Frederik kan vælge historier til udgivelse.' }, 403);
+  const userId = access.uid;
   let body;
   try {
     const raw = await req.text();

@@ -16,6 +16,15 @@ Build the user's approved September 13 plan. Only the three verified colleagues 
 
 ## Required before this checkpoint can release
 
+### Additional local audit checkpoint, September 13
+
+- Liv feed now derives identity through the verified editorial account within the route itself. Colleagues receive previews without cost/preparation diagnostics; owner-only decisions are enforced even without middleware.
+- Liv status sends colleagues only allowlisted published article fields, excluding draft/run/configuration data. Other Liv GET routes are owner-only, except preview feed and publication history.
+- Dashboard does not fetch newsletter recipients for colleagues and omits newsletter/draft totals from their response. Leaderboard excludes unpublished/archived work for colleagues; publication counting now requires a publication timestamp rather than merely non-draft status. Dashboard errors are sanitized and successful responses private/no-store.
+- Legacy Webflow configuration, Instagram credential management and editorial desk routes are owner-gated. This does not activate Instagram or any publication.
+- Same-account focus/token rechecks no longer unmount the editor. Failed authorization still clears access; account switches still reset the subtree. Browser verification remains required.
+- Verification: 3,206 tests in 206 files passed; TypeScript and git diff checks passed. No paid AI calls, production writes or deployment in this checkpoint.
+
 - Complete capability route/data audit, including legacy settings endpoints and dashboard aggregation; preserve public podcast feeds and signed server cron workflows. Ensure colleagues cannot invoke shared Liv research/publication through alternative routes. Verify direct Firebase/Storage access for restricted services.
 - Test browser resume, initial fetch race, new workspace, in-flight account switch, offline/reconnect and conflict recovery UX. Add explicit retry and selectable preserved versions. Audit remaining browser/session cache keys; do not claim all personal state isolated yet.
 - Ensure the new private workspace history is visible alongside Mine artikler. Implement explicit read-only shared snapshots with copy-to-own-workspace, no collaborative original overwrite. Preserve original ownership in migrations.

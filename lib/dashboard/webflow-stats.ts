@@ -8,6 +8,7 @@ export type CmsArticleMeta = {
   authorId?: string;
   authorName?: string;
   isDraft: boolean;
+  isPublished: boolean;
 };
 
 export async function fetchCmsArticles(): Promise<CmsArticleMeta[]> {
@@ -35,6 +36,7 @@ export async function fetchCmsArticles(): Promise<CmsArticleMeta[]> {
         authorId: typeof fd.author === 'string' ? fd.author : undefined,
         authorName: typeof fd['author-name'] === 'string' ? fd['author-name'] : undefined,
         isDraft: Boolean(it.isDraft),
+        isPublished: !it.isDraft && !it.isArchived && typeof it.lastPublished === 'string' && Number.isFinite(Date.parse(it.lastPublished)),
       });
     }
     if (batch.length < pageSize) break;
@@ -46,7 +48,7 @@ export async function fetchCmsArticles(): Promise<CmsArticleMeta[]> {
 
 export async function fetchArticleCounts() {
   const articles = await fetchCmsArticles();
-  const published = articles.filter((a) => !a.isDraft).length;
+  const published = articles.filter((a) => a.isPublished).length;
   return {
     total: articles.length,
     published,
@@ -55,7 +57,7 @@ export async function fetchArticleCounts() {
 }
 
 export async function buildAuthorLeaderboard(
-  viewsBySlug: Map<string, number>
+  viewsBySlug: Map<string, number>, publishedOnly = false
 ): Promise<
   Array<{
     authorId: string;
@@ -74,6 +76,7 @@ export async function buildAuthorLeaderboard(
   >();
 
   for (const article of cmsArticles) {
+    if (publishedOnly && !article.isPublished) continue;
     const views = viewsBySlug.get(article.slug) || 0;
     if (!views && !article.authorId) continue;
 

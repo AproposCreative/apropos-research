@@ -3,7 +3,7 @@ import { NextRequest } from 'next/server';
 const mock = vi.hoisted(() => ({ auth: vi.fn(), state: vi.fn(), payload: vi.fn(), decide: vi.fn(), cost: vi.fn(), preparation: vi.fn() }));
 vi.mock('@/lib/liv/preparation-status', () => ({ readNextLivPreparationStatus: mock.preparation }));
 vi.mock('@/lib/liv/cost-ledger', () => ({ readLivCostSummary: mock.cost }));
-vi.mock('@/lib/newsletter/auth-request', () => ({ getNewsletterUserIdFromRequest: mock.auth }));
+vi.mock('@/lib/editorial-access', () => ({ editorialRequestAccess: mock.auth }));
 vi.mock('@/lib/liv/delivery-store', () => ({ readDeliveryState: mock.state, readDeliveryPayload: mock.payload,
   decideDelivery: mock.decide, DeliveryDecisionConflict: class extends Error {} }));
 import { GET, POST } from '@/app/api/liv/delivery/feed/route';
@@ -20,7 +20,7 @@ beforeEach(() => {
   vi.resetAllMocks(); vi.useFakeTimers(); vi.setSystemTime(new Date('2026-09-10T12:00:00Z'));
   vi.stubEnv('LIV_DELIVERY_QUEUE_ENABLED', 'true'); vi.stubEnv('LIV_DELIVERY_PREPARE_ENABLED', 'true');
   vi.stubEnv('LIV_DAILY_PAUSED', '0'); vi.stubEnv('LIV_DAILY_PUBLICATION_MODE', 'auto_publish');
-  mock.auth.mockResolvedValue('editor'); mock.payload.mockResolvedValue(payload);
+  mock.auth.mockResolvedValue({ uid: 'editor', owner: true }); mock.payload.mockResolvedValue(payload);
   mock.cost.mockResolvedValue({ status: 'unavailable', billedDkk: null, usageBasedUpperDkk: null });
   mock.preparation.mockResolvedValue({ day: '2026-09-11', scope: 'prepare', status: 'blocked_saved_work', runStatus: 'skipped_factcheck', reasonCode: 'factcheck_required' });
   mock.state.mockResolvedValue({ entries: Array.from({ length: 7 }, (_, i) => ({ ...body,
@@ -104,8 +104,24 @@ it('does not expose another editor comment or attribution on GET', async () => {
   const other = await (await GET(request())).json();
   expect(other.stories[0].feedback).toBeNull();
   expect(JSON.stringify(other)).not.toMatch(/Privat kommentar|other-editor|private-date/);
-  mock.auth.mockResolvedValue('other-editor');
+  mock.auth.mockResolvedValue({ uid: 'other-editor', owner: false });
   expect((await (await GET(request())).json()).stories[0].feedback).toBe('Privat kommentar');
+});
+it('lets colleagues read previews without loading private budget or operational diagnostics', async () => {
+  mock.auth.mockResolvedValue({ uid: 'casper', owner: false });
+  const response = await GET(request());
+  const data = await response.json();
+  expect(response.status).toBe(200);
+  expect(data.stories).toHaveLength(7);
+  expect(data).not.toHaveProperty('cost');
+  expect(data).not.toHaveProperty('preparation');
+  expect(mock.cost).not.toHaveBeenCalled();
+  expect(mock.preparation).not.toHaveBeenCalled();
+});
+it('rejects colleague decisions even when the route is invoked without middleware', async () => {
+  mock.auth.mockResolvedValue({ uid: 'milo', owner: false });
+  expect((await POST(request({ ...body, owner: true }))).status).toBe(403);
+  expect(mock.decide).not.toHaveBeenCalled();
 });
 it('rejects malformed JSON and oversized bodies without writing comments', async () => {
   for (const raw of ['{', JSON.stringify({ ...body, feedback: 'x'.repeat(5001) })]) {

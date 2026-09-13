@@ -18,7 +18,7 @@ export type DashboardPayload = {
     pageViews: number;
     sessions: number;
   };
-  newsletter: {
+  newsletter?: {
     /** Aktive modtagere (efter framelding). */
     signups: number;
     /** Alle tilmeldinger i Webflow (før framelding). */
@@ -28,9 +28,9 @@ export type DashboardPayload = {
     error?: string;
   };
   articles: {
-    total: number;
+    total?: number;
     published: number;
-    drafts: number;
+    drafts?: number;
   };
   topArticles: Array<{ path: string; slug: string; title: string; views: number }>;
   viewsTrend: Array<{ date: string; views: number }>;
@@ -46,7 +46,7 @@ export type DashboardPayload = {
   recommendations: string[];
 };
 
-export async function buildDashboardData(period: DashboardPeriod): Promise<DashboardPayload> {
+export async function buildDashboardData(period: DashboardPeriod, owner = false): Promise<DashboardPayload> {
   const [overview, topArticles, viewsTrend, trafficSources, google, articleCounts, recipients] =
     await Promise.all([
       fetchGa4Overview(period),
@@ -55,11 +55,11 @@ export async function buildDashboardData(period: DashboardPeriod): Promise<Dashb
       fetchTrafficSources(period),
       fetchGoogleDiscovery(period),
       fetchArticleCounts(),
-      getNewsletterRecipients(),
+      owner ? getNewsletterRecipients() : Promise.resolve(null),
     ]);
 
   const viewsBySlug = await fetchArticleViewsBySlug(period);
-  const authorLeaderboard = await buildAuthorLeaderboard(viewsBySlug);
+  const authorLeaderboard = await buildAuthorLeaderboard(viewsBySlug, !owner);
 
   const recommendations = [
     ...(google.searchConsoleLinked
@@ -78,19 +78,19 @@ export async function buildDashboardData(period: DashboardPeriod): Promise<Dashb
     period,
     generatedAt: new Date().toISOString(),
     overview,
-    newsletter: {
+    ...(recipients ? { newsletter: {
       signups: recipients.emails.length,
       totalSignups: recipients.total,
       unsubscribed: recipients.unsubscribedCount,
       source: recipients.source,
       error: recipients.error,
-    },
-    articles: articleCounts,
+    } } : {}),
+    articles: owner ? articleCounts : { published: articleCounts.published },
     topArticles,
     viewsTrend,
     trafficSources,
     google,
     authorLeaderboard,
-    recommendations,
+    recommendations: owner ? recommendations : ['Publiceringstempo: udgivne artikler pr. forfatter pr. måned.'],
   };
 }

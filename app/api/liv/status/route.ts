@@ -10,7 +10,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getNewsletterUserIdFromRequest } from '@/lib/newsletter/auth-request';
+import { editorialRequestAccess } from '@/lib/editorial-access';
 import { listRecentLivDaily } from '@/lib/liv/daily-history-store';
 import { env } from '@/lib/config/env';
 import { getWebflowConfig } from '@/lib/webflow-config';
@@ -197,8 +197,8 @@ async function listRecentLivFromWebflow(limit: number): Promise<LivStatusEntry[]
 }
 
 export async function GET(req: NextRequest) {
-  const uid = await getNewsletterUserIdFromRequest(req);
-  if (!uid) {
+  const access = await editorialRequestAccess(req);
+  if (!access) {
     return NextResponse.json({ error: 'Ikke autoriseret' }, { status: 401, headers: { 'Cache-Control': 'private, no-store' } });
   }
 
@@ -231,6 +231,12 @@ export async function GET(req: NextRequest) {
         return tb - ta;
       })
       .slice(0, limit);
+
+    // Colleagues need publication history, not CMS drafts, run diagnostics or configuration.
+    if (!access.owner) return NextResponse.json({ ok: true, entries: entries
+      .filter(entry => entry.status === 'published')
+      .map(({ id, status, title, topic, slug, finishedAt }) => ({ id, status, title, topic, slug, finishedAt })) },
+      { headers: { 'Cache-Control': 'private, no-store' } });
 
     const counts = entries.reduce(
       (acc, e) => {

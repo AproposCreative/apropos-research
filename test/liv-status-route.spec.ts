@@ -1,14 +1,14 @@
 import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest';
 import { NextRequest } from 'next/server';
 const mocks = vi.hoisted(() => ({ auth: vi.fn(), history: vi.fn() }));
-vi.mock('@/lib/newsletter/auth-request', () => ({ getNewsletterUserIdFromRequest: mocks.auth }));
+vi.mock('@/lib/editorial-access', () => ({ editorialRequestAccess: mocks.auth }));
 vi.mock('@/lib/liv/daily-history-store', () => ({ listRecentLivDaily: mocks.history }));
 vi.mock('@/lib/config/env', () => ({ env: {} }));
 vi.mock('@/lib/webflow-config', () => ({ getWebflowConfig: () => ({ apiToken: 'fixture', siteId: 'site', articlesCollectionId: 'articles' }) }));
 import { GET } from '@/app/api/liv/status/route';
 
 describe('Liv status evidence and privacy', () => {
-  beforeEach(() => { vi.clearAllMocks(); mocks.auth.mockResolvedValue('editor'); mocks.history.mockResolvedValue([]); });
+  beforeEach(() => { vi.clearAllMocks(); mocks.auth.mockResolvedValue({ uid: 'editor', owner: true }); mocks.history.mockResolvedValue([]); });
   afterEach(() => { vi.unstubAllGlobals(); });
   it('does not read history for an unauthorized caller', async () => {
     mocks.auth.mockResolvedValue(null);
@@ -37,5 +37,14 @@ describe('Liv status evidence and privacy', () => {
     expect(response.status).toBe(500);
     expect(response.headers.get('cache-control')).toBe('private, no-store');
     expect(await response.json()).toEqual({ error: 'Kunne ikke hente Livs udgivelsesstatus' });
+  });
+  it('returns only publication fields to colleagues, excluding draft and runtime details', async () => {
+    mocks.auth.mockResolvedValue({ uid: 'milo', owner: false });
+    mocks.history.mockResolvedValue([
+      { id: 'published', status: 'published', title: 'Artikel', slug: 'artikel', reason: 'private', gateResults: ['private'] },
+      { id: 'draft', status: 'draft', title: 'Private draft' },
+    ]);
+    const response = await GET(new NextRequest('https://example.test/api/liv/status?includeCms=0'));
+    expect(await response.json()).toEqual({ ok: true, entries: [{ id: 'published', status: 'published', title: 'Artikel', slug: 'artikel' }] });
   });
 });

@@ -19,11 +19,14 @@ export function canOpenEditorialApp(app: string, capabilities: EditorialCapabili
 export function requiresEditorialOwner(path: string, method: string): boolean {
   const trees = ['/api/seo', '/api/seo-engine', '/api/podcast', '/api/newsletter',
     '/api/liv-inbox', '/api/push', '/api/push-desk', '/api/admin', '/api/editorial/operations',
-    '/api/ai-cost'];
+    '/api/ai-cost', '/api/editorial/desk', '/api/webflow/config', '/api/instagram/config',
+    '/api/instagram/meta-config', '/api/instagram/exchange-token', '/api/instagram/renew-token',
+    '/api/instagram/token-status'];
   if (trees.some(prefix => path === prefix || path.startsWith(`${prefix}/`))) return true;
   if (path.endsWith('/settings') || path.endsWith('/control')) return true;
   if (path.startsWith('/api/cron/') || path.startsWith('/api/internal/') || path.startsWith('/api/test-')) return true;
   if (path === '/api/liv/delivery/feed') return !['GET', 'HEAD'].includes(method);
-  if (path.startsWith('/api/liv/')) return !['GET', 'HEAD'].includes(method);
+  if (path === '/api/liv/status') return !['GET', 'HEAD'].includes(method);
+  if (path.startsWith('/api/liv/')) return true;
   return false;
 }
