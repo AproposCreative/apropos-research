@@ -1,5 +1,7 @@
 import type { EditorialSource } from '@/lib/editorial/types';
 import { getResearch } from '@/lib/research/service';
+import { withSharedCostContext } from '@/lib/liv/cost-context';
+import { getLivCostPretransportError } from '@/lib/liv/cost-errors';
 
 type SearchLogger = {
   debug: (message: string, meta?: Record<string, unknown>) => void;
@@ -252,12 +254,19 @@ export async function performMultiStrategySearch(
   queries: Array<{ query: string; strategy: string }>,
   options: { maxResults?: number; logger?: SearchLogger } = {}
 ): Promise<EditorialSource[]> {
+  return withSharedCostContext({ scope: 'writer', stage: 'editorial-search' }, () => searchWithinBudget(queries, options));
+}
+
+async function searchWithinBudget(
+  queries: Array<{ query: string; strategy: string }>,
+  options: { maxResults?: number; logger?: SearchLogger } = {}
+): Promise<EditorialSource[]> {
   const maxResults = Math.max(1, Math.min(30, options.maxResults || 8));
-  const primaryQueries = queries.slice(0, 2);
+  const primaryQueries = queries.slice(0, 1);
   const openAiBatches = await Promise.all(
     primaryQueries.map(async (item) => {
       try {
-        const result = await getResearch(item.query, { maxResults });
+        const result = await getResearch(item.query, { maxResults, allowFallback: false });
         return result.sources.map((source) => enrichSource({
           title: source.title,
           content: source.snippet,
@@ -265,13 +274,16 @@ export async function performMultiStrategySearch(
           url: source.url,
         }, `chatgpt-${item.strategy}`));
       } catch (error) {
+        if (getLivCostPretransportError(error)) throw error;
         options.logger?.debug('ChatGPT websearch failed', { error: String(error), query: item.query });
         return [];
       }
     })
   );
+  const primary = dedupeSources(openAiBatches.flat());
+  if (primary.length >= maxResults) return primary.slice(0, maxResults);
   const legacyBatches = await Promise.all(
-    queries.slice(0, 6).map((item) => performSourceSearch(item.query, {
+    queries.slice(0, 2).map((item) => performSourceSearch(item.query, {
       maxResults: Math.max(4, maxResults),
       strategy: item.strategy,
       logger: options.logger,
@@ -282,4 +294,3 @@ export async function performMultiStrategySearch(
     .sort((a, b) => (b.score || 0) - (a.score || 0))
     .slice(0, maxResults);
 }
-

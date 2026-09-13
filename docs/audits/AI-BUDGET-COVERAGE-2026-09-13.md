@@ -68,6 +68,15 @@ replace unsupported success fallbacks before treating these paths as editorial
 quality evidence. Do not delete the routes without tracing active consumers.
 # Shared transport closure (local, after f805c88)
 
+Editorial multi-strategy discovery was another unscoped caller. It now has one
+Writer/editorial-search context, one primary AI query without provider fallback,
+and at most two legacy query sets only when primary discovery yields fewer than
+the requested distinct leads. Previously two AI queries were followed by six
+legacy sets even when sufficient. Budget refusal propagates before legacy work.
+Two mocked boundary tests and TypeScript pass. Lead counts are not factchecking;
+downstream source/quality controls remain. Google Custom Search usage is still
+outside the AI ledger, and actual monetary savings have not been measured.
+
 Prompt inspector: /api/ai-chat/prompt-preview previously launched getResearch
 whenever article context existed, including repeated inspector openings. Removed
 that paid work; it builds from existing article prompt segments and explicitly
