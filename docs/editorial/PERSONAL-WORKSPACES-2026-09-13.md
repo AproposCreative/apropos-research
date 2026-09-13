@@ -25,6 +25,8 @@ Build the user's approved September 13 plan. Only the three verified colleagues 
 
 ### Next privacy finding
 
+- Release update: implementation through `fd864a4` is deployed READY and real preview API verified: anonymous 401, owner 200 private/no-store, no research requested. See `PROMPT-PRIVACY-RELEASE-2026-09-13.md`. The local-only notes below are historical checkpoints. Full Writer navigation and other private-state audit items remain open.
+
 - Full isolated regression after the privacy change: 3,337 tests in 226 files passed. Build and deployment remain pending; production is still the operations release, not this privacy fix.
 
 - Browser checkpoint: real Architect/ReactFlow component in StrictMode, isolated auth/fetch and a mocked navigation link. Seeded A/B contexts plus legacy unowned context; held A's response, switched to B, then released A while deliberately ignoring abort in the fake transport. Only B's label rendered; requests used each matching token/context, legacy text never sent, no uncaught errors. Switching back to A and logging out before releasing its response left only the login message. Screenshot inspected. Fixture closed after testing. This does not exercise the real Firebase login or full Writer navigation; those remain release acceptance work.
