@@ -29,4 +29,9 @@ The user has removed shared-story copies from the desired product. Superseding
 the sharing requirement in PERSONAL-WORKSPACES-2026-09-13.md: retain private
 autosave and versions; completed stories go to Webflow as drafts. Retire the
 sharing entry points without deleting existing private snapshots or audit data.
-This scope change is recorded, not yet implemented by this checkpoint.
+Follow-up implementation removes the Writer sharing dialog import/state and both
+desktop/mobile sharing entry points. Mine artikler retains private versions and
+resume controls. Existing API records and restoration compatibility are retained;
+no stored snapshots are deleted. The current Webflow save panel is unchanged.
+Typecheck and 11 focused shelf/restore tests pass. Deployment is not established
+by these local checks.

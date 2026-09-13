@@ -18,7 +18,6 @@ interface DraftsShelfProps {
   onRenameLive?: (draftId: string, newTitle: string) => void; // notify open session
   refreshTrigger?: number; // trigger refresh when this changes
   onOpenVersions?: () => void;
-  onOpenShares?: () => void;
   workspaceControls?: ReactNode;
 }
 
@@ -27,7 +26,7 @@ export default function DraftsShelf(props: DraftsShelfProps) {
   return user ? <OwnedDraftsShelf key={user.uid} {...props} uid={user.uid} /> : null;
 }
 
-function OwnedDraftsShelf({ uid, onSelect, onClose, isOpen = true, onRenameLive, refreshTrigger, onOpenVersions, onOpenShares, workspaceControls }: DraftsShelfProps & { uid: string }) {
+function OwnedDraftsShelf({ uid, onSelect, onClose, isOpen = true, onRenameLive, refreshTrigger, onOpenVersions, workspaceControls }: DraftsShelfProps & { uid: string }) {
   const mounted = useRef(false);
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
   const [drafts, setDrafts] = useState<ArticleDraft[]>([]);
@@ -149,7 +148,6 @@ function OwnedDraftsShelf({ uid, onSelect, onClose, isOpen = true, onRenameLive,
       </header>
       <nav aria-label="Mit arbejdsrum" className="flex flex-wrap gap-2 border-b border-white/10 px-3 py-3">
         {onOpenVersions && <button type="button" className={secondaryBtn} onClick={onOpenVersions}>Gemte versioner</button>}
-        {onOpenShares && <button type="button" className={secondaryBtn} onClick={onOpenShares}>Delte kopier</button>}
       </nav>
       <div
         className="flex-1 overflow-y-auto overflow-x-hidden px-3 py-3 nice-scrollbar min-h-0 transition-[opacity,transform] duration-500 ease-out"

@@ -32,7 +32,6 @@ import { createWriterDraftIdentity } from '@/lib/ai-chat/draft-identity';
 import { autoSaveService } from '@/lib/auto-save-service';
 import { useWriterWorkspace } from '@/lib/use-writer-workspace';
 import WorkspaceVersions from './WorkspaceVersions';
-import WorkspaceShares from './WorkspaceShares';
 import type { WorkspacePayload } from '@/lib/writer-workspace';
 import type { ArticleData } from '@/types/article';
 import type { ThinkingStep, ThinkingStatus } from '@/types/thinking';
@@ -80,7 +79,6 @@ export default function AIWriterClient() {
   }, []);
   const [showSearchModal, setShowSearchModal] = useState(false);
   const [showWorkspaceVersions, setShowWorkspaceVersions] = useState(false);
-  const [showWorkspaceShares, setShowWorkspaceShares] = useState(false);
   const [localResume, setLocalResume] = useState<WorkspacePayload | null>(() => {
     const saved = autoSaveService.load();
     if (!saved.messages.length && !saved.notes && !saved.articleData?.title && !saved.articleData?.content) return null;
@@ -1309,9 +1307,6 @@ export default function AIWriterClient() {
   return (
     <>
       {!user && <AuthModal />}
-      {user && showWorkspaceShares && <WorkspaceShares onClose={() => setShowWorkspaceShares(false)} onCopy={async selection => {
-        const snapshot = await workspace.restore(selection); applySavedWorkspace(snapshot.data);
-      }} />}
       {user && showWorkspaceVersions && <WorkspaceVersions onClose={() => setShowWorkspaceVersions(false)} onRestore={async selection => {
         const snapshot = await workspace.restore(selection); applySavedWorkspace(snapshot.data);
       }} />}
@@ -1372,7 +1367,6 @@ export default function AIWriterClient() {
                   <DraftsShelf 
                     workspaceControls={workspaceControls}
                     onOpenVersions={() => setShowWorkspaceVersions(true)}
-                    onOpenShares={() => setShowWorkspaceShares(true)}
                     isOpen={shelfOpen} 
                     onSelect={(draft)=>{ 
                       setShelfOpen(false); 
@@ -1409,7 +1403,6 @@ export default function AIWriterClient() {
                 <DraftsShelf 
                   workspaceControls={workspaceControls}
                   onOpenVersions={() => setShowWorkspaceVersions(true)}
-                  onOpenShares={() => setShowWorkspaceShares(true)}
                   isOpen={shelfOpen} 
                   onSelect={(draft)=>{ 
                     setShelfOpen(false); 

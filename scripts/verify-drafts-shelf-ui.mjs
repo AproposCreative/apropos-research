@@ -17,7 +17,6 @@ const bundle = await build({stdin:{resolveDir:process.cwd(),loader:'tsx',content
  onClose={()=>setOpen(false)} workspaceControls={<div><span role="status">Klar</span><button onClick={()=>window.fixture.actions.push('resume')}>Fortsæt hvor du slap</button></div>}
  onSelect={draft=>window.fixture.actions.push('open:'+draft.id)}
  onOpenVersions={()=>window.fixture.actions.push('versions')}
- onOpenShares={()=>window.fixture.actions.push('shares')}
  />:<Launcher onOpenShelf={()=>setOpen(true)} onSelectApp={id=>window.fixture.actions.push(id)}/>;}
  createRoot(document.getElementById('root')).render(<StrictMode><FixtureProvider><Flow/></FixtureProvider></StrictMode>);
 `},bundle:true,write:false,jsx:'automatic',format:'iife',define:{'process.env.NODE_ENV':'"development"'},plugins:[{name:'fixtures',setup(b){
