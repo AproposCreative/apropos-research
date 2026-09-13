@@ -62,3 +62,13 @@ evidence only: no paid request, credential change or production mutation occurre
 Literal or obfuscated direct HTTP remains outside this SDK-import assertion;
 the existing transport tests separately cover guarded requests. The full monthly
 cap and historical/invoice qualifications above are unchanged.
+
+## Cross-scope allowance regression, September 13 18:52 Copenhagen
+
+A source-isolated ledger test now submits four concurrent 80 DKK reservation
+fixtures under independent Liv, Writer, SEO and accreditation run identities.
+Only three are accepted into the same September ledger; the fourth is denied.
+Settling all accepted results as ambiguous preserves all 240 DKK of holds, and
+a further 80 DKK attempt is still denied. Thirty ledger tests and TypeScript
+pass. These are mocked transactions, not a production spending experiment or
+proof about historical provider invoices. No production ledger was changed.

@@ -54,6 +54,30 @@ it('serializes simultaneous reservations so two workers cannot overspend the sam
   expect(getLivCostPretransportError(denial?.status === 'rejected' ? denial.reason : null)).toMatchObject({ providerAttempted: false, code: 'liv_cost_monthly_budget_exceeded' });
   expect(memory.rows.get('livCostLedger/month-2026-09').reservedDkkMicros).toBe(160_000_000);
 });
+it('shares one monthly allowance across all four scopes and preserves ambiguous holds', async () => {
+  memory.rows.set('livCostLedger/policy', { ...policy, sharedScopesEnabled: true,
+    sharedTrackingStartedAt: '2026-09-12T09:00:00Z' });
+  const ledger = createLivCostLedger(() => now);
+  const scopes = [undefined, 'writer', 'seo', 'accreditation'] as const;
+  const requests = scopes.map((scope, i) => ({ ...call(i + 1),
+    context: { runId: `independent-${i}`, stage: 'test', ...(scope ? { scope } : {}) },
+    quote: { ...quote, reservedUsdMicros: 10_000_000 } }));
+  const results = await Promise.allSettled(requests.map(request => ledger.reserve(request)));
+  const accepted = results.filter(result => result.status === 'fulfilled');
+  expect(accepted).toHaveLength(3); // Three 80 DKK holds; the fourth exceeds 300.
+  expect(results.filter(result => result.status === 'rejected')).toHaveLength(1);
+  expect(memory.rows.get('livCostLedger/month-2026-09')).toMatchObject({
+    committedDkkMicros: 0, reservedDkkMicros: 240_000_000, unknownCalls: 3, calls: 3,
+  });
+  for (const result of accepted) {
+    if (result.status === 'fulfilled') await ledger.complete(result.value, {
+      ...outcome, status: 'ambiguous', httpStatus: 500, usage: null,
+    });
+  }
+  await expect(ledger.reserve({ ...requests[3], callId: call(5).callId }))
+    .rejects.toThrow('liv_cost_monthly_budget_exceeded');
+  expect(memory.rows.get('livCostLedger/month-2026-09').reservedDkkMicros).toBe(240_000_000);
+});
 it('records usage once, releases only unused allowance, and preserves original reservation attribution', async () => {
   const ledger = createLivCostLedger(() => now), reservation = await ledger.reserve(call());
   const original = structuredClone(memory.rows.get(`livCostLedger/call-${reservation.callId}`));
