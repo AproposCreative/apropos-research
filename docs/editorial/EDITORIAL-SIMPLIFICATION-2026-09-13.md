@@ -26,7 +26,12 @@
   tests and TypeScript pass. Isolated real-component visual test passes eight
   scenarios at mobile/desktop widths, including refresh and error states.
   Still needs full production settings-shell verification.
-- [ ] Remove only proven obsolete code; preserve editorial work and audit.
+- [x] Remove proven obsolete embedding code; preserve editorial work and audit.
+  Removed `scripts/train-style-embeddings.ts` and its sole caller, the inactive
+  `github/workflows/train-upload.yml` copy. Actual `.github` workflow uses
+  `train-embeddings-clean.ts`, cached and shared-budgeted. Removed implementation
+  recreated a raw OpenAI client per article and saved partial archives after errors.
+  Both files remain recoverable in Git; no datasets or production jobs changed.
 - [ ] Record seven consecutive API-driven daily publications and next preview.
   September 13 16:09 UTC: feed confirms three ready stories with no blockers;
   next is Lucian Freud on September 14. Klovn September 16 now has the agreed
