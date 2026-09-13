@@ -2,6 +2,7 @@ import type { ArticlePayload } from './article-payload';
 import { env } from '@/lib/config/env';
 import { getWebflowConfig } from '@/lib/webflow-config';
 import { readLivWebflowJson } from '@/lib/liv/cms-readback';
+import { sameCmsBody } from './cms-body-equivalence';
 
 /** Safe shared error; do not expose upstream response bodies or credentials. */
 export class ArticleSaveError extends Error {
@@ -30,10 +31,12 @@ export async function inspectArticleSave(
   if (item.id !== input.articleId || item.cmsLocaleId !== localeId || item.isArchived === true ||
       typeof item.isDraft !== 'boolean' || !fields ||
       fields.name !== input.expected.title || fields.slug !== input.expected.slug ||
-      typeof fields.content !== 'string' || !fields.content.trim()) {
+      typeof fields.content !== 'string' || typeof input.expected.content !== 'string' ||
+      !sameCmsBody(input.expected.content, fields.content)) {
     throw new Error('webflow_save_readback_mismatch');
   }
   // Full field equivalence, source checks, image proof and live readback belong
-  // to publication validation. This receipt verifies identity and staged presence.
+  // to publication validation. This receipt verifies identity, staged prose and
+  // embedded targets, not every formatting detail or a live publication.
   return { saveState: item.isDraft ? 'draft' : 'staged', saveVerified: true, cmsLocaleId: localeId };
 }

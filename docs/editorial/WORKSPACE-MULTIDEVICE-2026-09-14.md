@@ -1,5 +1,22 @@
 # Private workspace acceptance checkpoint
 
+## CMS stale-body verification fix (local)
+
+During lost-create-response reconciliation review, found that inspectArticleSave
+accepted any nonempty body with the matching title/slug/locale. A stale revision
+could therefore receive saveVerified=true. Added local-only body equivalence:
+visible prose with block boundaries and entity/whitespace normalization, plus
+ordered link/media targets (href/src/srcset/poster/alt). Changed prose, removed
+images and changed source URLs are rejected. Formatting equivalence is not a
+publication-quality or licensing proof. No extra CMS reads or model calls.
+
+46 focused body/receipt/route/shared-save tests passed. Not yet deployed.
+Lost-create-response handling still requires a durable owner-scoped operation
+record, a checkpoint before the external create, and read-only reconciliation
+of an unambiguous matching item; a title/slug-only match is insufficient. Never
+automatically issue another create merely because the prior response is absent.
+This fix is a prerequisite, not completion of that recovery requirement.
+
 ## Writer-to-CMS UI checkpoint (local follow-up)
 
 The browser fixture now includes the actual ReviewPanel and WebflowPublishPanel,

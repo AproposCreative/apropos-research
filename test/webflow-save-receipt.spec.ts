@@ -29,8 +29,13 @@ it.each([
   { ...stored, isArchived: true }, { ...stored, isDraft: undefined },
   { ...stored, fieldData: { ...stored.fieldData, name: 'Anden artikel' } },
   { ...stored, fieldData: { ...stored.fieldData, content: '' } },
+  { ...stored, fieldData: { ...stored.fieldData, content: '<p>En ældre fortolkning.</p>' } },
 ])('rejects mismatched or empty CMS data', async item => {
   await expect(run(item).result).rejects.toThrow('webflow_save_readback_mismatch');
+});
+it('accepts harmless HTML serialization changes without accepting changed prose', async () => {
+  expect(await run({ ...stored, fieldData: { ...stored.fieldData, content: '\n<p>Fortolkning.</p>\n' } }).result)
+    .toMatchObject({ saveVerified: true });
 });
 it('rejects unsafe identifiers before reading', async () => {
   const read = vi.fn();
