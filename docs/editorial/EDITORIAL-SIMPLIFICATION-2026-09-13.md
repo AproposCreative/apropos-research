@@ -27,30 +27,66 @@ seven consecutive verified daily publications before operational sign-off.
 
 ## Evidence
 
+- 2026-09-13 13:40 UTC: rules activated and real Firebase client verification
+  succeeded. Active Firestore ruleset: 85f95abb-69b5-49f4-ac1a-54ba740c97cd;
+  Storage ruleset: 057e8d8b-8114-4b96-81be-2e36af5ffeb5. Prior IDs retained below.
+  Allowlisted administrator draft write/read and Storage upload/delete succeeded;
+  owner transfer, client access-list read, unsigned draft and unsigned upload
+  were denied. UUID-tagged verification artifacts were deleted. These checks do
+  not yet prove deployed application login behavior or all access-list variants.
+  IAM administration/Google service-agent impersonation are no longer release
+  dependencies. A mandatory live verifier follows release readback; failures
+  restore only unchanged releases created by this run.
+
 - Local full suite: 171 files, 2,980 tests passed.
 - Typecheck and Next.js production build passed.
 - Targeted lint: no errors (release script excluded by existing lint configuration).
 - Firebase Rules API tests: 5 Firestore + 5 Storage cases passed with function mocks.
   This proves policy evaluation, not live cross-service IAM permission.
-- Security commit: d93aef8 (local). No successful push or app deployment this run.
+- Security commit: d93aef8; savings commit: fe698d6. GitHub Workflow authorization
+  completed and branch push verified by remote readback at
+  fe698d691aa2f91999d5a657c85edcb829cad4e0. No app deployment yet.
+- Google Cloud IAM UI confirmed "Policy updated" and the existing Storage service
+  agent service-817066738308@gcp-sa-firebasestorage.iam.gserviceaccount.com now has
+  Firebase Rules Firestore Service Agent in addition to its previous role.
+  Propagation and a live cross-service rules test remain to be verified.
+- Existing explicit administrator migration executed via the server SDK with
+  production credentials held in memory: one verified active administrator,
+  transactional audit entry and access-list readback confirmed. Existing revoked
+  or non-admin entries fail closed and are not overwritten by migration.
 
 ## External blockers (not application failures)
 
-1. GitHub rejected push: OAuth token lacks `workflow` scope for the new CI file.
-   Existing scopes verified: gist, project, read:org, repo. Reauthorize the same
-   connection with workflow scope; do not bypass its permission restriction.
+1. GitHub workflow-scope blocker resolved; actual push and remote SHA verified.
 2. Firebase release preflight: project.get succeeds but projects.getIamPolicy
    returns 403. Storage's Firestore lookup needs the existing Storage service agent
-   to have `roles/firebaserules.firestoreServiceAgent`. An authorized project
-   administrator must arrange this and permit verification. Do not grant Owner
-   merely for this operation.
+   to have `roles/firebaserules.firestoreServiceAgent`. This precise grant is now
+   confirmed in the administrator's IAM UI. Adapt the release preflight to verify
+   the externally provisioned prerequisite without requiring runtime IAM write
+   authority. Do not grant Owner merely for this operation.
 
-The release utility stopped before admin migration, IAM writes or rules updates.
-Production app and active Firebase rules remain unchanged.
+The release utility previously stopped before admin migration or rules updates.
+The administrator-approved IAM grant, explicit administrator migration and
+verified Firebase rule release are now applied. App deployment remains pending.
 
 Reference: https://firebase.google.com/docs/rules/manage-deploy#manage_permissions_for_cross-service_cloud_storage_security_rules
 
 ## Remaining implementation / verification
+
+- Additional local cost cleanup: attachment filename classification no longer
+  calls a model (no current callers found, therefore no claimed current spend
+  reduction). Active inbound-mail summaries now cap completion tokens at 2,000
+  and disable automatic SDK retries. This is bounded output, not full ledger
+  coverage: accreditation and podcast still need shared-budget integration.
+
+- Release preflight experiment: replaced IAM policy mutation with an existing-
+  authority, five-minute Storage service-agent permission probe. Real API returned
+  `storage_probe_auth_http_403:IAM_PERMISSION_DENIED` before any rules writes.
+  This proves impersonation is unavailable, not that Storage lacks its saved role.
+  Do not broaden runtime authority to satisfy this diagnostic. Resolve via a
+  legitimate administrative read or direct cross-service flow verification.
+  Two fail-closed regression tests pass; TypeScript check passed before adding
+  the sanitized reason diagnostic. The probe is not a completed release solution.
 
 - Complete route-by-route role coverage, admin-list management presentation and
   live auth/storage tests after access is restored.

@@ -2,8 +2,35 @@ import { readFile } from 'node:fs/promises';
 import { GoogleAuth } from 'google-auth-library';
 import { getAdminAuth, getAdminDb } from '../lib/firebase-admin';
 
+/** Provision only the explicit existing administrators; never reactivate revoked entries. */
+export async function migrateEditorialAdministrators() {
+  const database = getAdminDb(), userAuth = getAdminAuth();
+  if (!database || !userAuth) throw new Error('firebase_admin_unavailable');
+  const uids = [...new Set((process.env.SEO_ENGINE_ADMIN_UIDS || '').split(',').map(x => x.trim()).filter(Boolean))];
+  if (!uids.length) throw new Error('existing_admin_list_empty');
+  for (const uid of uids) {
+    const user = await userAuth.getUser(uid);
+    if (!user.email || !user.emailVerified || user.disabled) throw new Error('bootstrap_admin_not_verified');
+    const ref = database.collection('editorialAccess').doc(user.email.trim().toLowerCase());
+    await database.runTransaction(async tx => {
+      const existing = await tx.get(ref);
+      if (existing.exists) {
+        if (existing.data()?.active !== true || existing.data()?.role !== 'admin') throw new Error('existing_admin_entry_conflict');
+        return;
+      }
+      const entry = { active: true, role: 'admin', updatedBy: 'migration:existing-admin-list', updatedAt: new Date().toISOString() };
+      tx.create(ref, entry);
+      tx.create(database.collection('editorialAccessAudit').doc(), { email: ref.id, ...entry });
+    });
+    const saved = (await ref.get()).data();
+    if (saved?.active !== true || saved?.role !== 'admin') throw new Error('admin_migration_readback_failed');
+  }
+  console.log(JSON.stringify({ administratorMigration: 'verified', count: uids.length }));
+}
+
 /** Call after securely supplying the production env. Never logs credentials or account emails. */
-export async function editorialRulesRelease(activate = false) {
+export async function editorialRulesRelease(activate = false, verifyLive?: () => Promise<void>) {
+  if (activate && !verifyLive) throw new Error('live_rules_verifier_required');
   const project = process.env.FIREBASE_ADMIN_PROJECT_ID!;
   const auth = new GoogleAuth({ credentials: { client_email: process.env.FIREBASE_ADMIN_CLIENT_EMAIL,
     private_key: process.env.FIREBASE_ADMIN_PRIVATE_KEY?.replace(/\\n/g, '\n') }, scopes: ['https://www.googleapis.com/auth/cloud-platform'] });
@@ -44,42 +71,32 @@ export async function editorialRulesRelease(activate = false) {
     validated.push({ name: release.name, old: release.rulesetName, source });
   }
   if (!activate) return;
-  // Cross-service Storage rules require this narrowly scoped service-agent role.
-  async function cloud(path: string, method = 'GET', body?: unknown) {
-    const response = await fetch(`https://cloudresourcemanager.googleapis.com/v1/${path}`, { method,
-      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-      ...(body ? { body: JSON.stringify(body) } : {}) });
-    if (!response.ok) throw new Error(`rules_iam_http_${response.status}`);
-    return response.json();
-  }
-  const projectInfo = await cloud(`projects/${project}`);
-  const member = `serviceAccount:service-${projectInfo.projectNumber}@gcp-sa-firebasestorage.iam.gserviceaccount.com`;
-  const policy = await cloud(`projects/${project}:getIamPolicy`, 'POST', { options: { requestedPolicyVersion: 3 } });
-  const role = 'roles/firebaserules.firestoreServiceAgent';
-  if (!policy.bindings?.some((b: { role: string; members: string[]; condition?: unknown }) => b.role === role && !b.condition && b.members.includes(member))) {
-    policy.bindings = [...(policy.bindings || []), { role, members: [member] }];
-    await cloud(`projects/${project}:setIamPolicy`, 'POST', { policy });
-  }
+  // IAM provisioning belongs to the project administrator, not the application.
+  // Require direct client-flow verification and roll back only our exact releases
+  // on failure. Never impersonate Google service agents to deploy application rules.
   // Only migrate the existing explicit admin list, never all Firebase users.
-  const database = getAdminDb()!, userAuth = getAdminAuth()!;
-  for (const uid of (process.env.SEO_ENGINE_ADMIN_UIDS || '').split(',').map(x => x.trim()).filter(Boolean)) {
-    const user = await userAuth.getUser(uid);
-    if (!user.email || !user.emailVerified || user.disabled) throw new Error('bootstrap_admin_not_verified');
-    const ref = database.collection('editorialAccess').doc(user.email.trim().toLowerCase());
-    await database.runTransaction(async tx => {
-      if ((await tx.get(ref)).exists) return;
-      const entry = { active: true, role: 'admin', updatedBy: 'migration:existing-admin-list', updatedAt: new Date().toISOString() };
-      tx.create(ref, entry);
-      tx.create(database.collection('editorialAccessAudit').doc(), { email: ref.id, ...entry });
-    });
-  }
+  await migrateEditorialAdministrators();
+  const applied: Array<{ name: string; old: string; current: string }> = [];
+  try {
   for (const item of validated) {
     const current = await api(item.name);
     if (current.rulesetName !== item.old) throw new Error('rules_changed_concurrently');
     const ruleset = await api(`projects/${project}/rulesets`, 'POST', { source: item.source });
     await api(`${item.name}?updateMask=rulesetName`, 'PATCH', { release: { name: item.name, rulesetName: ruleset.name } });
+    applied.push({ name: item.name, old: item.old, current: ruleset.name });
     const readback = await api(item.name);
     if (readback.rulesetName !== ruleset.name) throw new Error('rules_readback_mismatch');
     console.log(JSON.stringify({ release: item.name, previous: item.old, current: ruleset.name }));
+  }
+  await verifyLive!();
+  } catch (error) {
+    for (const item of applied.reverse()) {
+      const current = await api(item.name);
+      if (current.rulesetName !== item.current) throw new Error('rules_rollback_concurrent_change');
+      await api(`${item.name}?updateMask=rulesetName`, 'PATCH', { release: { name: item.name, rulesetName: item.old } });
+      if ((await api(item.name)).rulesetName !== item.old) throw new Error('rules_rollback_readback_failed');
+      console.log(JSON.stringify({ rollback: item.name, restored: item.old }));
+    }
+    throw error;
   }
 }
