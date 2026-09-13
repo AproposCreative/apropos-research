@@ -140,5 +140,8 @@ No paid model tests, CMS writes, newsletter sends or Instagram changes were made
   ready drafts; they must not be misused to regenerate the articles.
 - 85 relevant tests pass, TypeScript passes. Commits cfdcdf2 and 70022b3 pushed;
   production deployment `dpl_FT76ViE8G4RrPvkwSAhQEYmo6GYV` targets exact SHA
-  `70022b3633f97bfc6c3c58c96cb11e1a594d2007`. Last observed BUILDING, not yet
-  verified live. No paid AI requests or CMS writes in this diagnostic.
+  `70022b3633f97bfc6c3c58c96cb11e1a594d2007`. READY and production target SHA
+  verified. Authenticated production delivery and feed GETs return HTTP 200:
+  tomorrow is missing readiness and shows `blocked_saved_work` with
+  `cms_reconciliation_required`, not false idle. Today's publication remains true.
+  No paid AI requests or CMS writes in this diagnostic.
