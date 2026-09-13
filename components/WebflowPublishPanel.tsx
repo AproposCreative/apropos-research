@@ -58,7 +58,6 @@ export default function WebflowPublishPanel({ articleData, onPublish, onClose, e
   const [moderation, setModeration] = useState<any | null>(null);
   const [criticTips, setCriticTips] = useState<string>('');
   const [factResults, setFactResults] = useState<any[] | null>(null);
-  const [recommendationsApplied, setRecommendationsApplied] = useState(false);
   const [formData, setFormData] = useState<WebflowArticleFields>(() => {
     const pressFields = resolvePressFields(articleData || {});
     return {
@@ -135,39 +134,6 @@ export default function WebflowPublishPanel({ articleData, onPublish, onClose, e
       ...resolvePressFields({ ...prev, ...articleData }),
     }));
   }, [articleData]);
-
-  // Listen for recommendations being applied
-  useEffect(() => {
-    const checkRecommendationsApplied = () => {
-      try {
-        const savedData = localStorage.getItem('ai-writer-autosave');
-        if (savedData) {
-          const parsed = JSON.parse(savedData);
-          // Check if there's a recent message about applying recommendations
-          if (parsed.messages && Array.isArray(parsed.messages)) {
-            const lastMessage = parsed.messages[parsed.messages.length - 1];
-            if (lastMessage && lastMessage.content && 
-                (lastMessage.content.includes('Anvend disse Preflight anbefalinger') ||
-                 lastMessage.content.includes('KRITISK: Fix disse problemer') ||
-                 lastMessage.content.includes('Anvend disse forbedringer'))) {
-              setRecommendationsApplied(true);
-              console.log('✅ Recommendations marked as applied');
-            }
-          }
-        }
-      } catch (error) {
-        console.error('Error checking recommendations applied:', error);
-      }
-    };
-
-    // Check immediately
-    checkRecommendationsApplied();
-    
-    // Poll for changes
-    const intervalId = setInterval(checkRecommendationsApplied, 2000);
-    
-    return () => clearInterval(intervalId);
-  }, []);
 
   // Keep formData in sync when articleData prop changes (so fields don't show "—")
   useEffect(() => {

@@ -5,7 +5,7 @@ import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
 import postcss from 'postcss';
 import tailwind from 'tailwindcss';
-const files=['app/ai/AIWriterClient.tsx','app/ai/MainChatPanel.tsx','components/DraftsShelf.tsx','app/ai/WorkspaceVersions.tsx','components/MobileAppLauncher.tsx','components/MiniMenu.tsx'];
+const files=['app/ai/AIWriterClient.tsx','app/ai/MainChatPanel.tsx','components/DraftsShelf.tsx','app/ai/WorkspaceVersions.tsx','components/MobileAppLauncher.tsx','components/MiniMenu.tsx','components/ReviewPanel.tsx','components/WebflowPublishPanel.tsx'];
 const content=await Promise.all(files.map(p=>readFile(p,'utf8')));
 const css=(await postcss([tailwind({content:content.map(raw=>({raw,extension:'tsx'}))})]).process('@tailwind base; @tailwind utilities;',{from:undefined})).css;
 const bundle=await build({stdin:{resolveDir:process.cwd(),loader:'tsx',contents:`
@@ -20,6 +20,19 @@ localStorage.setItem('ai-writer-draft:v2:fixture-writer',JSON.stringify({chatTit
 window.fixture.server={revision:1,updatedAt:new Date().toISOString(),data:{messages:[{id:'saved',role:'assistant',content:'Min bevarede artikeltekst fra en anden enhed.',timestamp:new Date().toISOString()}],chatTitle:'Min gemte kulturhistorie',articleData:{title:'Min gemte kulturhistorie',content:'Min bevarede artikeltekst fra en anden enhed.'},notes:'Mine private researchnoter',showWizard:false,currentDraftId:'fixture-draft'}};
 window.fetch=async(url,options={})=>{
  const path=String(url);window.fixture.calls.push({path,method:options.method||'GET'});
+ if(['/api/webflow/authors','/api/webflow/topics','/api/webflow/sections'].includes(path))return Response.json({items:[]});
+ if(path==='/api/webflow/article-fields')return Response.json({fields:[]});
+ if(path==='/api/webflow/analysis')return Response.json({guidance:[]});
+ if(path==='/api/moderation/check')return Response.json({metrics:{plagiarismRisk:'low'}});
+ if(path==='/api/critic/tov')return Response.json({tips:''});
+ if(path==='/api/auth/me')return Response.json({uid:'fixture-writer'});
+ if(path==='/api/training/optin')return Response.json({ok:true});
+ if(path==='/api/webflow/publish'){
+  const input=JSON.parse(options.body);(window.fixture.cmsBodies ||= []).push(input);
+  const articleId=input.webflowId||'0123456789abcdef01234567';
+  if(window.fixture.cmsReadbackFailure)return Response.json({articleId,saveState:'unverified',publicationVerified:false,error:'Test: CMS-ID bevaret, men readback fejlede.'},{status:502});
+  return Response.json({data:{articleId,saveState:'draft',saveVerified:true,publicationVerified:false}});
+ }
  if(path==='/api/writer/workspace'){
   if(window.fixture.offline)throw new Error('Fixture offline');
   if(options.method==='PUT'){const input=JSON.parse(options.body);if(input.revision!==window.fixture.server.revision){window.fixture.versions.push({id:'a'.repeat(64),kind:'conflicts',snapshot:{revision:input.revision,data:input.data,updatedAt:new Date().toISOString()}});return Response.json({error:'conflict'},{status:409});}window.fixture.server={revision:input.revision+1,data:input.data,updatedAt:new Date().toISOString()};return Response.json({revision:window.fixture.server.revision});}
@@ -47,7 +60,7 @@ window.fetch=async(url,options={})=>{
 };
 createRoot(document.getElementById('root')).render(<StrictMode><Writer/></StrictMode>);
 `},bundle:true,write:false,jsx:'automatic',format:'iife',define:{'process.env.NODE_ENV':'"development"','process.env':'{}'},plugins:[{name:'isolated-services',setup(b){
- const omitted=/\/(SetupWizard|AccreditationSetupFlow|ReviewPanel|WebAppsPanel|DesignEditorView|AuthModal|ChatSearchModal|SourcesPanel|SettingsPanel|NewsletterClient|DashboardClient|PodcastClient|SeoEngineClient|PushDeskClient|LivDeskClient|AkkrediteringClient|LivInboxClient|SplineIframeEmbed|FileDropZone|ArticleTemplates|AuthorSelection|ArticleSuggestions|ArticlePicker|CategorySelection|PreflightRecommendations|PreflightStatus)$/;
+ const omitted=/\/(SetupWizard|AccreditationSetupFlow|WebAppsPanel|DesignEditorView|AuthModal|ChatSearchModal|SourcesPanel|SettingsPanel|NewsletterClient|DashboardClient|PodcastClient|SeoEngineClient|PushDeskClient|LivDeskClient|AkkrediteringClient|LivInboxClient|SplineIframeEmbed|FileDropZone|ArticleTemplates|AuthorSelection|ArticleSuggestions|ArticlePicker|CategorySelection|PreflightRecommendations|PreflightStatus)$/;
  b.onResolve({filter:/.*/},a=>{
   if(omitted.test(a.path))return {path:'empty',namespace:'fixture'};
   if(/auth-context$|firebase-service$|file-upload-service$|^next\/navigation$|^next\/link$/.test(a.path))return {path:a.path.split('/').pop(),namespace:'fixture'};

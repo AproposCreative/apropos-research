@@ -1,5 +1,30 @@
 # Private workspace acceptance checkpoint
 
+## Writer-to-CMS UI checkpoint (local follow-up)
+
+The browser fixture now includes the actual ReviewPanel and WebflowPublishPanel,
+not stubs. At 390x844, explicitly resumed a private workspace, opened its real
+review panel and used Gem kladde i Webflow. Taxonomy/schema, moderation/TOV,
+CMS save and optional training transports are local mocks; no real AI/CMS calls.
+
+- The first outgoing CMS payload has status draft and no item ID.
+- Simulated a 502 readback failure returning a known CMS ID. The real parent
+  preserved that ID in articleData and the workspace autosave.
+- The next explicit save sends the same ID and draft status, not a new create.
+  Both calls were observed; no uncaught browser errors. Optional training called
+  only after the successful result. This is not evidence of actual model training.
+- The actual route/service/readback tests separately verify forced draft status,
+  retention of known IDs, publicationVerified=false and no automatic create retry.
+- Found and removed an unused two-second poll of the unowned legacy
+  ai-writer-autosave cache in WebflowPublishPanel. Its boolean was never read.
+  This reduces browser work, not model spending; editorial checks remain intact.
+
+37 route/shared-save/readback tests pass. Remaining acceptance: real authenticated
+Writer-to-Webflow save, and durable reconciliation when the initial create response
+is lost before any CMS ID is known. Current no-automatic-retry behavior is not full
+end-to-end idempotency. Do not claim that gap solved. Browser and fixture closed.
+This cleanup and the preceding version-read retry are not yet released.
+
 ## Conflict UI acceptance and read retry (local follow-up)
 
 September 14: extended `verify-writer-resume-ui.mjs` with isolated conflict,

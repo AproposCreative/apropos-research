@@ -17,3 +17,8 @@ it('shows the authoritative parent workspace status rather than a local timer ti
   expect(panel).toContain('role="status"');
   expect(panel).toContain('{workspaceStatus}');
 });
+it('does not poll an unowned legacy autosave cache from the CMS panel', () => {
+  const panel = readFileSync('components/WebflowPublishPanel.tsx', 'utf8');
+  expect(panel).not.toContain("localStorage.getItem('ai-writer-autosave')");
+  expect(panel).not.toContain('checkRecommendationsApplied');
+});
