@@ -131,6 +131,7 @@ async function listRecentLivFromWebflow(limit: number): Promise<LivStatusEntry[]
       items?: Array<{
         id?: string;
         isDraft?: boolean;
+        isArchived?: boolean;
         createdOn?: string;
         lastUpdated?: string;
         lastPublished?: string;
@@ -166,7 +167,8 @@ async function listRecentLivFromWebflow(limit: number): Promise<LivStatusEntry[]
       const createdOn = safeIso(item.createdOn);
       const finishedAt = publishDate || lastPublished || lastUpdated || createdOn;
 
-      const status = item.isDraft ? 'draft' : 'published';
+      // A non-draft CMS item alone is not evidence of publication.
+      const status = item.isArchived ? 'archived' : item.isDraft || !lastPublished ? 'draft' : 'published';
       entries.push({
         id: `webflow-${item.id || slug || Math.random().toString(36).slice(2)}`,
         dayKey: dayKeyFromIso(finishedAt),
@@ -197,7 +199,7 @@ async function listRecentLivFromWebflow(limit: number): Promise<LivStatusEntry[]
 export async function GET(req: NextRequest) {
   const uid = await getNewsletterUserIdFromRequest(req);
   if (!uid) {
-    return NextResponse.json({ error: 'Ikke autoriseret' }, { status: 401 });
+    return NextResponse.json({ error: 'Ikke autoriseret' }, { status: 401, headers: { 'Cache-Control': 'private, no-store' } });
   }
 
   const sp = req.nextUrl.searchParams;
@@ -257,16 +259,15 @@ export async function GET(req: NextRequest) {
       config: {
         livPublicationMode,
         livDailyPaused,
-        /** Samme som daglig cron — default draft (redaktionelt review i CMS). */
-        cronNote: '0 8 * * * (08:00 UTC) — se vercel.json',
+        cronNote: 'Dagligt kl. 10 Europe/Copenhagen. Cron: 08 og 09 UTC; serveren kontrollerer lokal tid og dagens udgivelse.',
         designerBaseUrl,
         hasArticlesCollectionId: Boolean(articlesCollectionId?.trim()),
       },
-    });
-  } catch (e) {
+    }, { headers: { 'Cache-Control': 'private, no-store' } });
+  } catch {
     return NextResponse.json(
-      { error: e instanceof Error ? e.message : 'Ukendt fejl' },
-      { status: 500 }
+      { error: 'Kunne ikke hente Livs udgivelsesstatus' },
+      { status: 500, headers: { 'Cache-Control': 'private, no-store' } }
     );
   }
 }
