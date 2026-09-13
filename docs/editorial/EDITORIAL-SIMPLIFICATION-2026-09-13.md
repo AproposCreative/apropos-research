@@ -8,9 +8,9 @@
 - [x] Shared accounting extended to newsletter intro, inbox learning/generation
   and translation; output/retry/time bounds and truncation checks tested.
 - [x] Read-only authenticated operations API and Liv settings panel implemented.
-- [x] Full regression at f534831: 3,088 tests in 188 files passed, isolated from production.
-- [x] Production release f534831 READY and exact production target verified;
-  authenticated operations 200, anonymous 401 on 2026-09-13 15:20 UTC.
+- [x] Full regression at 4590fcc: 3,103 tests in 190 files passed, isolated from production.
+- [x] Production release 4590fcc READY and exact production target verified;
+  authenticated operations 200, anonymous 401, oversized import 400 on September 13 15:30 UTC.
 - [ ] Complete remaining independent quality/media AI budget coverage. The
   300 DKK limit is not yet a verified full-application/invoice cap.
 - [ ] Verify settings UI visually and remaining access-list role variants.
