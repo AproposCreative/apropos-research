@@ -161,3 +161,18 @@ No paid model tests, CMS writes, newsletter sends or Instagram changes were made
   Existing pre-CMS edit/continue routes cannot safely perform this operation.
   Preserve current CMS before-image, editorial responsibility, paid checkpoint,
   item identity and write-intent audit; recheck CMS after any scoped edit.
+
+### Freud ready for September 14, verified server revision
+
+- Reused the existing audited presentation API with `restorePreparedIntro: true`.
+  Only canonical reviewed intro can be restored; differing CMS text is archived,
+  paid response/checkpoints/check results remain, duplicate calls do not rewrite.
+  66 tests pass; TypeScript passed. Production deployment
+  `dpl_3PpSC8E4L29B8ZsRRDrkHeTz2orc` is READY and production target verified at
+  SHA `061a5a0fc8b4259d4b467f5e197035ddb45110d6`.
+- Authenticated POST `/api/liv/operations/presentation` for Freud returned
+  `publicationReady: true`, no blockers, `publicationVerified: false` at
+  2026-09-13T14:03:45.273Z. Revision audit:
+  `861a1edd891bfb5a55a1bf29e2ef6445ddcd4a40318a2a11fe65ba5ab68f357b`.
+  No AI regeneration, no early publication. This is preparation readiness for
+  tomorrow, not evidence of tomorrow's scheduled publication.
