@@ -9,6 +9,7 @@ import { applyLivFactPatches } from './fact-revision';
 import { readLivStoredImage } from './stored-image-reader';
 import { livModels } from './model-config';
 import { getLivCostPretransportError } from './cost-errors';
+import { currentLivCostContext, withLivCostContext } from './cost-context';
 import type { GeneratedArticle } from './generate-article';
 import type { DocumentReference, DocumentData } from 'firebase-admin/firestore';
 import { editPreparedCaptions } from './editorial-edit';
@@ -28,6 +29,9 @@ export async function reviewLivEditorialEditMedia(article: GeneratedArticle, day
   const binding = article.selectedImage?.editorialEdit;
   if (!binding || binding.runId !== `prepare-${dayKey}` || !/^\d{4}-\d{2}-\d{2}$/.test(dayKey) ||
     !/^[a-zA-Z0-9_-]{8,100}$/.test(binding.requestId)) fail();
+  if (!options.readOnly && !currentLivCostContext()) return withLivCostContext({
+    runId: binding!.runId, stage: 'editorial-edit-media',
+  }, () => reviewLivEditorialEditMedia(article, dayKey, options));
   const db = getAdminDb();
   if (!db) throw new Error('liv_edit_media_unavailable');
   const edit = db.collection('livDailyArticles').doc(binding.runId).collection('editorialEdits').doc(binding.requestId);

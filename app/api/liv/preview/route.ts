@@ -25,6 +25,8 @@ import { isLivArticleFormat, type LivArticleFormat } from '@/lib/liv/review-form
 import { SourceSimilarityError } from '@/lib/liv/source-similarity-error';
 import { ArticleEvidenceError } from '@/lib/liv/article-output';
 import { readWritingBrief } from '@/lib/liv/source-archive';
+import { withSharedCostContext } from '@/lib/liv/cost-context';
+import { getLivCostPretransportError } from '@/lib/liv/cost-errors';
 
 // Generation plus bounded source retrieval/factcheck must fit in one preview run.
 export const maxDuration = 300;
@@ -52,6 +54,17 @@ type PreviewRequestInput = {
 };
 
 async function buildPreview(req: NextRequest, input: PreviewRequestInput, uid: string) {
+  try {
+    return await withSharedCostContext({ scope: 'writer', stage: 'liv-preview' },
+      () => buildPreviewWithinBudget(req, input, uid));
+  } catch (error) {
+    if (!getLivCostPretransportError(error)) throw error;
+    return NextResponse.json({ ok: false, error: 'Forhåndsvisningen afventer tilgængeligt AI-budget.',
+      canAutoPublish: false }, { status: 503, headers: { 'Cache-Control': 'no-store' } });
+  }
+}
+
+async function buildPreviewWithinBudget(req: NextRequest, input: PreviewRequestInput, uid: string) {
   if (input.articleFormat !== undefined && !isLivArticleFormat(input.articleFormat)) return NextResponse.json({ error: 'Ugyldigt artikelformat.' }, { status: 400 });
   const baseUrl = livInternalOrigin(req.nextUrl.origin);
   const dayKey = todayDayKeyUTC();
@@ -214,6 +227,7 @@ async function buildPreview(req: NextRequest, input: PreviewRequestInput, uid: s
       },
     });
   } catch (e) {
+    if (getLivCostPretransportError(e)) throw e;
     if (e instanceof ArticleEvidenceError) {
       return NextResponse.json({ ok: false, error: e.message, code: e.code, dayKey,
         gatePass: false, canAutoPublish: false, blockedReview: e.blockedReview,

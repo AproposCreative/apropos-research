@@ -1,7 +1,9 @@
-import { beforeEach, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { NextRequest } from 'next/server';
 import { SourceSimilarityError } from '@/lib/liv/source-similarity-error';
 import { ArticleEvidenceError } from '@/lib/liv/article-output';
+import { currentLivCostContext } from '@/lib/liv/cost-context';
+import { LivCostPretransportError } from '@/lib/liv/cost-errors';
 
 const mocks = vi.hoisted(() => ({ auth: vi.fn(), generate: vi.fn(), gates: vi.fn(), readBrief: vi.fn() }));
 vi.mock('@/lib/liv/source-archive', () => ({ readWritingBrief: mocks.readBrief }));
@@ -18,6 +20,22 @@ const request = () => new NextRequest('https://studio.example/api/liv/preview', 
   method: 'POST', body: JSON.stringify({ generate: true, topicHint: 'The Invite', mustUseTrending: false }),
 });
 beforeEach(() => { vi.resetAllMocks(); mocks.auth.mockResolvedValue('editor-fixture'); });
+afterEach(() => vi.unstubAllEnvs());
+
+it('owns manual generation in a shared budget and refuses without claiming an article', async () => {
+  vi.stubEnv('AI_SHARED_COST_ENABLED', 'true');
+  mocks.generate.mockImplementation(async () => {
+    expect(currentLivCostContext()).toMatchObject({ scope: 'writer', stage: 'liv-preview',
+      runId: expect.stringMatching(/^writer-/) });
+    throw new LivCostPretransportError('liv_cost_budget_exceeded');
+  });
+  const res = await POST(request());
+  expect(res.status).toBe(503);
+  expect(res.headers.get('cache-control')).toBe('no-store');
+  expect(await res.json()).toMatchObject({ ok: false, canAutoPublish: false });
+  expect(mocks.gates).not.toHaveBeenCalled();
+  expect(currentLivCostContext()).toBeUndefined();
+});
 
 it('reads stored diagnostics only in the authenticated scope with no cache or approval', async () => {
   mocks.readBrief.mockResolvedValue({ writerText: 'Private research notes', status: 'not_verified' });

@@ -1,4 +1,5 @@
 import { beforeEach, expect, it, vi } from 'vitest';
+import { currentLivCostContext } from '@/lib/liv/cost-context';
 const database = vi.hoisted(() => ({ rows: new Map<string, Record<string, any>>(), available: true }));
 vi.mock('@/lib/firebase-admin', () => {
   const doc = (collection: string, id: string) => ({ id, key: `${collection}/${id}`,
@@ -87,7 +88,11 @@ beforeEach(() => {
   input.expectedCmsHash = cmsFieldHash(cms.fieldData); input.replaceMobile = true;
   deps = { collectionId, localeId, prepare: vi.fn().mockResolvedValue(media),
     verifyImage: vi.fn().mockResolvedValue(true),
-    review: vi.fn().mockResolvedValue({ pass: true, reason: 'Actual crop reviewed', model: 'fixture', finishReason: 'stop', usage: null, contentHash: newHash }),
+    review: vi.fn().mockImplementation(async () => {
+      expect(currentLivCostContext()).toMatchObject({ stage: 'cover-revision' });
+      expect(currentLivCostContext()?.runId).toMatch(/^cover-[a-f0-9]{64}$/);
+      return { pass: true, reason: 'Actual crop reviewed', model: 'fixture', finishReason: 'stop', usage: null, contentHash: newHash };
+    }),
     read: vi.fn().mockImplementation(async path => structuredClone(path === `collections/${collectionId}` ? schema : cms)),
     patch: vi.fn().mockImplementation(async (_id, fields) => { Object.assign(cms.fieldData, fields); }),
     inspect: vi.fn().mockImplementation(async () => ({ itemId, localeId, checkedAt: new Date().toISOString(),

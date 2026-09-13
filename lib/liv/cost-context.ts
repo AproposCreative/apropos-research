@@ -27,7 +27,7 @@ export function sharedCostEnabled(): boolean {
 /** Wrap the operation at a server-owned boundary, including any asynchronous
  * provider work. Never accept scope/run identity from an untrusted request.
  * Existing Liv/Writer ownership and poison state survive nested SEO calls.
- * No blanket singleton guard: unrelated services keep their existing behavior.
+ * With shared accounting enabled, the singleton refuses missing ownership.
  */
 export function withSharedCostContext<T>(context: { scope: SharedCostScope; stage: string }, run: () => T): T {
   if (!['writer', 'seo', 'accreditation'].includes(context.scope) || !valid(context.stage)) throw new Error('liv_cost_context_invalid');

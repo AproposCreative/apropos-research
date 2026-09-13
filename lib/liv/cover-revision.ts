@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { currentLivCostContext, withLivCostContext } from './cost-context';
 import { FieldValue } from 'firebase-admin/firestore';
 import { z } from 'zod';
 import { getAdminDb } from '@/lib/firebase-admin';
@@ -78,6 +79,10 @@ export async function reviseLivCover(value: unknown, dependencies?: CoverRevisio
   const parsed = coverRevisionInput.safeParse(value);
   if (!parsed.success) return fail('invalid');
   const input = parsed.data;
+  if (!currentLivCostContext()) return withLivCostContext({
+    runId: `cover-${fingerprint({ itemId: input.itemId, requestId: input.requestId })}`,
+    stage: 'cover-revision',
+  }, () => reviseLivCover(input, dependencies));
   try { validateCoverSource(input); } catch { return fail('invalid_source'); }
   const db = getAdminDb();
   if (!db) return fail('store_unavailable');

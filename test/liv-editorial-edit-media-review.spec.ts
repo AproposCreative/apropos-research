@@ -30,6 +30,7 @@ import { cmsFieldHash } from '@/lib/liv/cms-field-hash';
 import { livImageArticleHash } from '@/lib/liv/article-image-hash';
 import { applyLivFactPatches, resumeLivFactRevision } from '@/lib/liv/fact-revision';
 import { LivCostPretransportError } from '@/lib/liv/cost-errors';
+import { currentLivCostContext } from '@/lib/liv/cost-context';
 import type { GeneratedArticle } from '@/lib/liv/generate-article';
 import { readLivVisualEvidence, isAnonymousVisibleCaption } from '@/lib/liv/visual-evidence';
 import { editPreparedCaptions } from '@/lib/liv/editorial-edit';
@@ -66,7 +67,10 @@ beforeEach(async () => {
     checkpointHash: fullHash(pending), mediaJobId: 'a'.repeat(64), mediaRevisionIds: ['b'.repeat(64)], authority: 'authorized-operator',
     previousRun: { dayKey: day, status: 'skipped_moderation', articleCheckpoint: original, continuationReady: false },
     previousPlan: { dayKey: day, status: 'failed' } });
-  state.read.mockImplementation(async url => state.assets.get(url)); state.chat.mockResolvedValue(response());
+  state.read.mockImplementation(async url => state.assets.get(url)); state.chat.mockImplementation(async () => {
+    expect(currentLivCostContext()).toMatchObject({ runId, stage: 'editorial-edit-media' });
+    return response();
+  });
 });
 afterEach(() => expect(state.generate).not.toHaveBeenCalled());
 

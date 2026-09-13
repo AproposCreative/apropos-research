@@ -3,6 +3,19 @@
 Read-only source inspection, September 13. This is a coverage inventory, not an
 invoice or proof of runtime traffic. No paid model requests were made.
 
+## Latest local ownership closure
+
+Manual cover revision now owns a deterministic item/request cost identity; visual
+review after editorial editing reuses its preparation run. Both preserve existing
+parent ownership and saved receipts. Read-only media review starts no paid work.
+Manual Liv preview now owns one shared Writer context across generation and
+internal checks, returning no-store 503 on budget denial rather than claiming
+an article. Stored research readback remains outside this paid boundary.
+
+104 targeted tests and TypeScript passed for these changes, with mocked provider
+transport only. These changes are not yet deployed; the last verified production
+revision remains 4590fcc. Full application invoice coverage remains unverified.
+
 ## Current delta after original inventory
 
 - Live cf430c9 covers newsletter intro, inbox assistant/learning and translation.
