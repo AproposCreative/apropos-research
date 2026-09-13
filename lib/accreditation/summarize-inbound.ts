@@ -62,6 +62,7 @@ export async function summarizeAccreditationInbound(params: {
   try {
     const completion = await openai.chat.completions.create({
       model,
+      max_completion_tokens: 2000,
       temperature: 0.3,
       messages: [
         { role: 'system', content: composed.prompt },
@@ -76,7 +77,7 @@ export async function summarizeAccreditationInbound(params: {
         },
       ],
       response_format: { type: 'json_object' },
-    });
+    }, { maxRetries: 0 });
 
     await appendAiAudit({
       requestId: params.thread?.requestId,
