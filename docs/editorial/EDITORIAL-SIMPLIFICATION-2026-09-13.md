@@ -11,15 +11,18 @@
 - [x] Shared accounting extended to newsletter intro, inbox learning/generation
   and translation; output/retry/time bounds and truncation checks tested.
 - [x] Read-only authenticated operations API and Liv settings panel implemented.
-- [x] Full regression at cb4e465: 3,113 tests in 193 files passed, isolated from production.
-- [x] Production release cb4e465 READY and exact production target verified;
-  authenticated operations 200, anonymous 401 on September 13 15:50 UTC.
+- [x] Full regression at 7e48f75: 3,127 tests in 194 files passed, isolated from production.
+- [x] Production release 7e48f75 READY and exact production target verified;
+  authenticated operations 200 on September 13 16:00 UTC. Live membership
+  approval/suspension and editor/admin separation verified at 15:57 UTC.
 - [x] Shared-mode transport refuses missing cost ownership; manual preview and
   revisions accounted. Prompt inspection is free of paid research; discovery
   skips redundant fallback searches. Actual monetary savings are not measured.
 - [ ] Complete remaining independent quality/media AI budget coverage. The
   300 DKK limit is not yet a verified full-application/invoice cap.
 - [ ] Verify settings UI visually and remaining access-list role variants.
+  Fix LivOperations null usage formatting first: its current toFixed call can
+  throw when the ledger correctly returns unknown usage. Do not substitute zero.
 - [ ] Remove only proven obsolete code; preserve editorial work and audit.
 - [ ] Record seven consecutive API-driven daily publications and next preview.
 
