@@ -72,3 +72,23 @@ It is not Webflow's actual publication timestamp. Neither inspected document
 records caller/scheduler provenance; an authenticated manual call uses the same
 worker. Keep scheduler provenance unverified, rather than inferring it solely
 from timing. No production state changed during inspection.
+
+### September 13: platform log correlation
+
+Vercel runtime MCP query of production, 07:59–08:02 UTC, query `liv-daily`,
+returned one GET `/api/cron/liv-daily-article`, timestamp 08:00:14, HTTP 200.
+Grouped request-path query independently returned count 1. Deployment was
+`dpl_FF7W7LJgJDn3sKPCyaTRSwndLexP`, branch
+`codex/seo-post-publish-quality` (not the later 15ff3f0 release).
+Together with the 08:00:22 receipt, this corroborates successful on-time endpoint
+execution. The tool does not expose scheduler identity/user-agent here, so it
+does not independently distinguish a scheduled invocation from an authorized
+manual invocation. Do not manufacture that missing field.
+
+The log includes PassThrough `MaxListenersExceededWarning` for error/close
+listeners. HTTP 200 is preserved as the actual result, despite the log's error
+level. A separate current-production query for
+`dpl_6HkRqtMjm81NqycSUuh5KLb59Jeg`, 16:30–16:45 UTC, found the same warning on
+GET `/api/podcast/public/episode` at 16:38:12, also HTTP 200. Investigate the shared
+stream lifecycle; do not suppress warnings with a higher listener limit as a fix.
+These logs alone do not prove a memory leak or a failed publication.
