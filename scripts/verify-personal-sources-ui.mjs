@@ -9,13 +9,16 @@ const css = (await postcss([tailwind({content:[{raw:source,extension:'tsx'}]})])
 const bundle = await build({stdin:{resolveDir:process.cwd(),loader:'tsx',contents:`
 import React,{StrictMode} from 'react';import {createRoot} from 'react-dom/client';
 import Panel from './components/SourcesPanel';import {FixtureProvider} from '@/lib/auth-context';
+import {MediaProvider,useMedia} from './lib/media-context';
+function Observer(){const m=useMedia();window.mediaObserved={sources:m.mediaSources,enabled:m.getEnabledMedias(),error:m.error};window.refreshObserved=m.refreshMediaSources;return null;}
 window.fixture={requests:[],pending:[],errors:[],failRead:false,failWrite:false,holdRead:false};
 window.addEventListener('error',e=>window.fixture.errors.push(e.message));
 window.addEventListener('unhandledrejection',e=>window.fixture.errors.push(String(e.reason)));
 window.fetch=async(input,init={})=>{
- if(input!=='/api/media-sources'&&!String(input).startsWith('/api/media-sources?'))throw new Error('unexpected fixture network');
+ if(input!=='/api/article-counts'&&input!=='/api/media-sources'&&!String(input).startsWith('/api/media-sources?'))throw new Error('unexpected fixture network');
  const uid=new Headers(init.headers).get('Authorization')?.replace('Bearer token-','');
  if(!['a','b'].includes(uid))return Response.json({error:'unauthorized'},{status:401});
+ if(input==='/api/article-counts')return Response.json({data:{counts:{soundvenue:12,total:12}}});
  const key='sources-'+uid;let sources=JSON.parse(sessionStorage.getItem(key)||'[]');
  const method=init.method||'GET';window.fixture.requests.push({uid,method,url:input});
  if(method==='GET'){
@@ -27,9 +30,9 @@ window.fetch=async(input,init={})=>{
  const saved={...body,id,createdAt:'2026-09-14'};sources=[...sources.filter(s=>s.id!==id),saved];
  sessionStorage.setItem(key,JSON.stringify(sources));return Response.json({data:{source:saved}});
 };
-createRoot(document.getElementById('root')).render(<StrictMode><FixtureProvider><Panel isOpen onClose={()=>{}}/></FixtureProvider></StrictMode>);
+createRoot(document.getElementById('root')).render(<StrictMode><FixtureProvider><MediaProvider><Observer/><Panel isOpen onClose={()=>{}}/></MediaProvider></FixtureProvider></StrictMode>);
 `},bundle:true,write:false,jsx:'automatic',format:'iife',define:{'process.env.NODE_ENV':'"development"'},plugins:[{name:'fixture',setup(b){
- b.onResolve({filter:/^@\/lib\/auth-context$/},a=>({path:a.path,namespace:'fixture'}));
+ b.onResolve({filter:/auth-context$/},()=>({path:'auth-context',namespace:'fixture'}));
  b.onLoad({filter:/.*/,namespace:'fixture'},()=>({resolveDir:process.cwd(),contents:`
  import React,{createContext,useContext,useState,useMemo} from 'react';const C=createContext({user:null});
  export const useAuth=()=>useContext(C);export function FixtureProvider({children}){

@@ -1,6 +1,7 @@
 'use client';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '@/lib/auth-context';
+import { notifyMediaSourcesChanged } from '@/lib/media-source-events';
 
 interface SourceItem {
   id: string;
@@ -107,7 +108,10 @@ function OwnedSourcesPanel({ isOpen, onClose }: { isOpen: boolean; onClose: () =
       const json = await response.json();
       const saved = json.data?.source;
       if (!saved?.id || saved.enabled !== newEnabled) throw new Error('source_save_unconfirmed');
-      if (alive.current) setSources(prev => prev.map(s => s.id === source.id ? { ...saved, saved: true, preset: source.preset } : s));
+      if (alive.current) {
+        setSources(prev => prev.map(s => s.id === source.id ? { ...saved, saved: true, preset: source.preset } : s));
+        notifyMediaSourcesChanged(user.uid);
+      }
     } catch {
       if (alive.current) setError('Valget kunne ikke bekræftes. Opdater listen før et nyt forsøg.');
     } finally {
@@ -123,13 +127,18 @@ function OwnedSourcesPanel({ isOpen, onClose }: { isOpen: boolean; onClose: () =
         headers: { Authorization: `Bearer ${await user.getIdToken()}` },
       });
       if (!response.ok) throw new Error('source_delete_failed');
-      if (alive.current) setSources(prev => prev.filter(s => s.id !== source.id));
+      if (alive.current) {
+        setSources(prev => prev.filter(s => s.id !== source.id));
+        notifyMediaSourcesChanged(user.uid);
+      }
     } catch {
       if (alive.current) setError('Sletningen kunne ikke bekræftes. Opdater listen.');
     }
   };
 
   const handleAddComplete = () => {
+    if (!alive.current || !user) return;
+    notifyMediaSourcesChanged(user.uid);
     setAddFormOpen(false);
     loadSources();
   };

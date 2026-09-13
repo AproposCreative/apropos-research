@@ -3,12 +3,13 @@ import { useSearchParams, usePathname } from 'next/navigation';
 import { Suspense } from 'react';
 import Link from 'next/link';
 import { useMedia } from '../lib/media-context';
+import { resolveSourceFilter, sourceArticleCount } from '@/lib/media-selection';
 
 function MediaNavInner() {
   const searchParams = useSearchParams();
   const pathname = usePathname();
   const currentSource = searchParams.get('source');
-  const { getEnabledMedias, getDisabledMedias, mediaSources, articleCounts } = useMedia();
+  const { getEnabledMedias, getDisabledMedias, mediaSources, articleCounts, error, refreshMediaSources } = useMedia();
 
   const getLinkClasses = (href: string, isActive: boolean) => {
     return `flex items-center px-4 py-3 rounded-xl transition-all duration-300 backdrop-blur-sm ${
@@ -22,7 +23,7 @@ function MediaNavInner() {
   const mediaData = mediaSources.map(source => ({
     id: source.id,
     name: source.name,
-    count: articleCounts[source.id] || 0
+    count: sourceArticleCount(source, articleCounts)
   }));
 
   const enabledMedias = getEnabledMedias();
@@ -36,6 +37,7 @@ function MediaNavInner() {
 
   return (
     <nav className="space-y-3">
+      {error && <div role="alert" className="p-3 text-sm"><p>{error}</p><button type="button" className="underline" onClick={refreshMediaSources}>Prøv igen</button></div>}
       {/* Alle medier link */}
       <Link href="/alle-medier" className={getLinkClasses('/alle-medier', pathname === '/alle-medier' && !currentSource)}>
         <div className="flex items-center justify-between w-full">
@@ -51,7 +53,7 @@ function MediaNavInner() {
         const media = mediaData.find(m => m.id === mediaId);
         if (!media) return null;
         
-        const isActive = pathname === '/alle-medier' && currentSource === mediaId;
+        const isActive = pathname === '/alle-medier' && resolveSourceFilter(mediaSources, currentSource || '') === mediaId;
         
         return (
           <div key={mediaId} className={`relative overflow-hidden rounded-xl transition-all duration-300 backdrop-blur-sm ${

@@ -7,6 +7,7 @@ import SorterPager from './SorterPager';
 import SearchInput from './SearchInput';
 import { ShimmerGrid } from './Shimmer';
 import CompactHeader from './CompactHeader';
+import { selectedSourceId, resolveSourceFilter } from '@/lib/media-selection';
 
 const YouTubeGrid = dynamicImport(() => import('./YouTubeGrid'), {
   loading: () => <ShimmerGrid />
@@ -47,33 +48,7 @@ export default function AlleMedierClient({ initialData, searchParams }: AlleMedi
   const [filteredData, setFilteredData] = useState(initialData);
 
   // Helper to map a human/source/domain to our media id
-  const mapSourceToId = (source: string | undefined, url?: string): string | undefined => {
-    const normalized = (source || '').trim().toLowerCase();
-    if (!normalized && url) {
-      try {
-        const u = new URL(url);
-        const host = u.hostname.replace('www.', '').toLowerCase();
-        if (host.includes('berlingske')) return 'berlingske';
-        if (host.includes('bt.dk')) return 'bt';
-        if (host.includes('gaffa')) return 'gaffa';
-        if (host.includes('soundvenue')) return 'soundvenue';
-        if (host.includes('ign.com') || host.includes('nordic.ign')) return 'ign-nordic';
-        if (host.includes('ekkofilm')) return 'ekkofilm';
-        if (host.includes('markedsforing')) return 'https-markedsforing-dk';
-      } catch {}
-    }
-    if (!normalized) return undefined;
-    // Direct match for exact source IDs first
-    if (normalized === 'https-markedsforing-dk' || normalized === 'markedsføring.dk' || normalized === 'markedsforing.dk') return 'https-markedsforing-dk';
-    if (normalized.includes('berlingske')) return 'berlingske';
-    if (normalized === 'bt' || normalized.includes('bt.dk')) return 'bt';
-    if (normalized.includes('gaffa')) return 'gaffa';
-    if (normalized.includes('soundvenue')) return 'soundvenue';
-    if (normalized.includes('ign')) return 'ign-nordic';
-    if (normalized.includes('ekkofilm')) return 'ekkofilm';
-    if (normalized.includes('markedsforing') || normalized.includes('markedsføring')) return 'https-markedsforing-dk';
-    return undefined;
-  };
+  const mapSourceToId = (source: string | undefined, url?: string) => selectedSourceId(mediaSources, source, url);
 
   // Normalize sources and cache once (base list); filtering by enabled happens during render
   useEffect(() => {
@@ -138,6 +113,7 @@ export default function AlleMedierClient({ initialData, searchParams }: AlleMedi
   const sort = String(searchParams.sort || 'newest');
   const page = Math.max(1, Number(searchParams.page) || 1);
   const source = String(searchParams.source || '').trim();
+  const resolvedSource = resolveSourceFilter(mediaSources, source);
   // Default to 'today' filter - always show only today's articles unless explicitly set to 'all'
   const timeFilter = String(searchParams.time || 'today').trim();
 
@@ -148,7 +124,7 @@ export default function AlleMedierClient({ initialData, searchParams }: AlleMedi
     if (!source) return "Alle Medier";
     
     // Find media source by ID
-    const mediaSource = mediaSources.find(s => s.id.toLowerCase() === source.toLowerCase());
+    const mediaSource = mediaSources.find(s => s.id === resolvedSource);
     return mediaSource ? mediaSource.name : source.toUpperCase();
   };
 
@@ -161,7 +137,7 @@ export default function AlleMedierClient({ initialData, searchParams }: AlleMedi
   const beforeFilterCount = source 
     ? filteredData.filter(p => {
         const mappedId = mapSourceToId(p.source, p.url);
-        return mappedId === source.toLowerCase();
+        return Boolean(resolvedSource && mappedId === resolvedSource);
       }).length
     : filteredData.length;
   
@@ -193,39 +169,9 @@ export default function AlleMedierClient({ initialData, searchParams }: AlleMedi
       return false;
     })() : true;
 
-    const okSource = source ? (() => {
-      const articleSource = (p.source || '').toLowerCase();
-      const filterSource = source.toLowerCase();
-      
-      // Also check URL if source doesn't match
-      let urlMatch = false;
-      if (p.url) {
-        try {
-          const urlObj = new URL(p.url);
-          const hostname = urlObj.hostname.replace('www.', '').toLowerCase();
-          
-          // Map filter source to domain patterns
-          const sourceToDomain: Record<string, string[]> = {
-            'gaffa': ['gaffa.dk'],
-            'berlingske': ['berlingske.dk'],
-            'bt': ['bt.dk'],
-            'soundvenue': ['soundvenue.com'],
-            'ign-nordic': ['ign.com', 'nordic.ign.com'],
-            'ekkofilm': ['ekkofilm.dk']
-          };
-          
-          const domains = sourceToDomain[filterSource] || [];
-          urlMatch = domains.some(domain => hostname.includes(domain));
-        } catch {}
-      }
-      
-      // Match if the article source contains the filter source OR URL matches
-      return articleSource.includes(filterSource) || urlMatch;
-    })() : true;
-
-    // Respect enabled media toggles globally
     const mappedId = mapSourceToId(p.source, p.url);
-    const okEnabled = mappedId ? enabledIds.has(mappedId) : true;
+    const okSource = !source || Boolean(resolvedSource && mappedId === resolvedSource);
+    const okEnabled = Boolean(mappedId && enabledIds.has(mappedId));
 
     const okSince = sinceHours ? (() => {
       const ts = normalizeDate(p.date ?? p.published_at ?? p.fetched_at ?? '');
