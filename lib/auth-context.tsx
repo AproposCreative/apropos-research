@@ -16,6 +16,7 @@ import { getFirebaseAuth } from './firebase';
 import { isSameOriginApi, requestHeaders } from './auth-policy';
 import { createEmailVerificationActions } from './email-verification';
 import { requestAuthMail } from './auth-mail-client';
+import { registerEditorialAccount } from './editorial-signup';
 import { NO_CAPABILITIES, isOwnerPage, type EditorialCapabilities } from './editorial-capabilities';
 import { autoSaveService } from './auto-save-service';
 
@@ -201,7 +202,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signUp = async (email: string, password: string) => {
     const firebaseAuth = getFirebaseAuth();
     if (!firebaseAuth) throw new Error('Firebase not initialized');
-    await createUserWithEmailAndPassword(firebaseAuth, email, password);
+    await registerEditorialAccount(email, password, {
+      create: (address, secret) => createUserWithEmailAndPassword(firebaseAuth, address, secret),
+      current: () => firebaseAuth.currentUser,
+      send: token => requestAuthMail({ kind: 'verify' }, token),
+    });
   };
 
   const signInWithGoogle = async () => {

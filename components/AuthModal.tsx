@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useAuth } from '@/lib/auth-context';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 
 export default function AuthModal() {
   const { user, signInWithGoogle, accessError, verificationEmail, sendVerification, checkVerification } = useAuth();
@@ -75,6 +76,10 @@ export default function AuthModal() {
           </svg>
           {loading ? 'Logger ind...' : 'Fortsæt med Google'}
         </button>
+
+        <Link href="/login" className="mt-3 block w-full rounded-lg border border-white/30 px-4 py-3 text-center text-sm text-white hover:bg-white/10">
+          Log ind med mail og adgangskode
+        </Link>
 
         <div className="mt-6 text-center">
           <p className="text-white/40 text-xs">

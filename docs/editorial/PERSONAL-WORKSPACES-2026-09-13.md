@@ -13,8 +13,10 @@ the in-progress personal-source repair first; do not start unrelated new feature
 
 1. **Working media sources:** persist choices, distinguish selection from uptime,
    report actual errors, and verify reload/account isolation plus actual research
-   consumption. Current local repair is `297a3a9`; browser acceptance and release
-   remain pending. See PERSONAL-MEDIA-SOURCES-2026-09-14.md.
+   consumption. Source UI repair and Writer policy integration were released in
+   `b0b70512d3b57baf1fdbc6fd2ebbb43d5a020df4`. Source API readback passed;
+   research policy was verified with mocked providers, not a paid live generation.
+   See PERSONAL-MEDIA-SOURCES-2026-09-14.md.
 2. **Self-service onboarding:** automatically send first verification after
    allowed account creation, retain explicit resend with durable limits, and
    provide clear failures. Verify Casper and Milo's real login and restricted

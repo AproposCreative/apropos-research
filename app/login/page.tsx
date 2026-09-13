@@ -15,7 +15,7 @@ export default function LoginPage() {
   const [showForgotPassword, setShowForgotPassword] = useState(false);
   const [forgotEmail, setForgotEmail] = useState('');
 
-  const { user, signIn, signUp, resetPassword, signInWithGoogle } = useAuth();
+  const { user, verificationEmail, signIn, signUp, resetPassword, signInWithGoogle } = useAuth();
   const router = useRouter();
 
   useEffect(() => {
@@ -29,6 +29,8 @@ export default function LoginPage() {
     switch (code) {
       case 'invalid-email':
         return 'Ugyldig emailadresse';
+      case 'email-already-in-use':
+        return 'Kontoen findes allerede. Log ind, eller vælg glemt adgangskode. Du skal ikke oprette den igen.';
       case 'missing-password':
       case 'weak-password':
         return 'Ugyldigt eller manglende password';
@@ -59,14 +61,16 @@ export default function LoginPage() {
     try {
       if (isSignUp) {
         await signUp(email, password);
-        setSuccess('Thank you! Your submission has been received!');
+        setSuccess('Kontoen er oprettet. Tjek din mail for bekræftelseslinket.');
         setIsSignUp(false);
+        router.replace('/ai');
       } else {
         await signIn(email, password);
         setSuccess('Thank you! Your submission has been received!');
         router.replace('/ai');
       }
     } catch (error: any) {
+      if (error?.code === 'auth/verification-send-failed' || error?.code === 'auth/email-already-in-use') setIsSignUp(false);
       setError(formatAuthError(error));
     } finally {
       setLoading(false);
@@ -229,6 +233,7 @@ export default function LoginPage() {
             </div>
           )}
 
+          {verificationEmail && <p className="mb-4 text-sm text-white/80">Din mail mangler bekræftelse. <Link className="underline" href="/ai">Åbn mailbekræftelse</Link></p>}
           {error && (
             <div className="mb-4 p-4 bg-red-900/20 border border-red-500/30 rounded-lg text-red-300 text-sm">
               {error}
