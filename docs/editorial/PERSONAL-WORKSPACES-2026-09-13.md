@@ -18,6 +18,12 @@ Build the user's approved September 13 plan. Only the three verified colleagues 
 
 ## Required before this checkpoint can release
 
+### Shared-copy restore checkpoint
+
+- Extended the existing restore operation with a strictly validated shared-snapshot selector. Membership is checked inside the transaction; no owner override. Source share and sender workspace are never written.
+- Uses the same exact-operation receipt, optimistic revision and saved-local/server conflict history as ordinary restore, opening the copy under a fresh draft identity. The existing sync controller can submit this selector without a parallel restore implementation.
+- 29 restore/sync/share tests passed, including own-only writes, preserved unsaved typing and rejection of a share addressed to someone else. TypeScript passed. UI integration and end-to-end browser verification remain pending; not deployed.
+
 ### Explicit private-share backend checkpoint
 
 - Added authenticated own-workspace sharing with an exact revision precondition, named verified colleague recipient and immutable snapshot. Source UID comes exclusively from authentication, not request input. No recipient gets live access to subsequent edits.

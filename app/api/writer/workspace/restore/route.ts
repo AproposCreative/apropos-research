@@ -23,11 +23,16 @@ export async function POST(req: NextRequest) {
       const existing = (await tx.get(receipt)).data();
       if (existing) return existing.hash === hash ? { workspace: existing.workspace } : { status: 409, error: 'Gendannelsens indhold er ændret. Åbn versionslisten igen.' };
       const [current, selected] = await Promise.all([
-        tx.get(ref), tx.get(ref.collection(body.selection.kind).doc(body.selection.id)),
+        tx.get(ref), tx.get(body.selection.kind === 'shared'
+          ? db.collection('writerWorkspaceShares').doc(body.selection.id)
+          : ref.collection(body.selection.kind).doc(body.selection.id)),
       ]);
       if (!selected.exists) return { status: 404, error: 'Versionen findes ikke.' };
       const previous = current.exists ? workspaceSnapshotSchema.parse(current.data()) : null;
-      const source = selected.data();
+      const selectedData = selected.data();
+      if (body.selection.kind === 'shared' && !selectedData?.participants?.includes(user.uid))
+        return { status: 404, error: 'Den delte kopi findes ikke.' };
+      const source = body.selection.kind === 'shared' ? selectedData?.snapshot : selectedData;
       const snapshot = workspaceSnapshotSchema.parse({ ...source, updatedAt: source?.updatedAt || source?.savedAt });
       if ((previous?.revision || 0) !== body.revision) return { status: 409, error: 'Arbejdsrummet er ændret på en anden enhed. Prøv igen; intet er overskrevet.' };
       const now = new Date().toISOString();

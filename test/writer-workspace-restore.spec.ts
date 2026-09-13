@@ -31,6 +31,29 @@ it('atomically preserves both versions and restores to a new draft identity', as
   expect(mock.create).toHaveBeenCalledTimes(1);
   expect(mock.paths.every(path => path.startsWith('writerWorkspaces/actual'))).toBe(true);
 });
+it('copies a shared snapshot into own workspace without writing the share or sender', async () => {
+  const shareId = 'a'.repeat(64);
+  mock.get.mockImplementation(async ({ path }: { path: string }) => {
+    const value = path === `writerWorkspaceShares/${shareId}` ? { participants: ['sender', 'actual'], snapshot: selected }
+      : path.endsWith('/actual') ? current : undefined;
+    return { exists: !!value, data: () => value };
+  });
+  const response = await POST(req({ ...body, selection: { kind: 'shared', id: shareId } }));
+  expect(response.status).toBe(200);
+  expect((await response.json()).workspace.data.currentDraftId).toBe(`restored-${body.operationId}`);
+  expect(mock.set.mock.calls.every(([ref]) => ref.path.startsWith('writerWorkspaces/actual'))).toBe(true);
+  expect(mock.create.mock.calls.every(([ref]) => ref.path.startsWith('writerWorkspaces/actual'))).toBe(true);
+  expect(mock.set.mock.calls.some(([ref, value]) => ref.path.includes('/conflicts/') && value.data.notes === 'unsaved local')).toBe(true);
+});
+it('denies copying an unshared snapshot even to Frederik', async () => {
+  mock.get.mockImplementation(async ({ path }: { path: string }) => {
+    const value = path.startsWith('writerWorkspaceShares/') ? { participants: ['sender', 'someone-else'], snapshot: selected }
+      : path.endsWith('/actual') ? current : undefined;
+    return { exists: !!value, data: () => value };
+  });
+  expect((await POST(req({ ...body, selection: { kind: 'shared', id: 'b'.repeat(64) } }))).status).toBe(404);
+  expect(mock.set).not.toHaveBeenCalled(); expect(mock.create).not.toHaveBeenCalled();
+});
 it('returns the saved receipt on retry without restoring twice', async () => {
   const first = await (await POST(req())).json();
   const receipt = mock.create.mock.calls[0][1]; mock.set.mockClear(); mock.create.mockClear();
