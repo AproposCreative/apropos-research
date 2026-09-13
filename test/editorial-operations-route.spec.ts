@@ -11,8 +11,13 @@ it('denies anonymous or unapproved users before reading operations', async () =>
   }
   expect(mocks.read).not.toHaveBeenCalled();
 });
-it('returns read-only noncached status for an approved editor', async () => {
-  mocks.auth.mockResolvedValue({ uid: 'test', role: 'editor' });
+it.each(['editor', 'admin'])('denies a colleague with role %s directly without middleware', async role => {
+  mocks.auth.mockResolvedValue({ uid: 'colleague', role, owner: false });
+  expect((await route.GET(new NextRequest('https://test/api/editorial/operations', { headers: { authorization: 'Bearer colleague' } }))).status).toBe(403);
+  expect(mocks.read).not.toHaveBeenCalled();
+});
+it('returns read-only noncached status for the verified owner', async () => {
+  mocks.auth.mockResolvedValue({ uid: 'test', role: 'editor', owner: true });
   mocks.read.mockResolvedValue({ liv: { available: false }, newsletter: { available: true } });
   const result = await route.GET(new NextRequest('https://test/api/editorial/operations', { headers: { authorization: 'Bearer approved' } }));
   expect(result.status).toBe(200);

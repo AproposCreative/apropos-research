@@ -21,5 +21,20 @@ it('returns independent safe unavailable sections without error bodies', async (
   expect(result.liv.available).toBe(false);
   expect(result.newsletter.available).toBe(false);
   expect(result.budget.available).toBe(true);
+  expect(result.alerts.available).toBe(false);
   expect(JSON.stringify(result)).not.toContain('private');
+});
+it('shows the next eligible story, excluding rejected and blocked work', async () => {
+  const entry = { itemId: 'a', title: 'Næste anmeldelse', slug: 'next', scheduledDay: '2026-09-14', expiresDay: '2026-09-15', kind: 'scheduled', state: 'ready', preparedAt: '2026-09-13', payloadHash: 'private' };
+  mocks.delivery.mockResolvedValue({ slots: { '2026-09-13': { state: 'published' } }, entries: [
+    { ...entry, itemId: 'blocked', title: 'Blocked', publicationBlockers: ['gate'] },
+    { ...entry, itemId: 'rejected', title: 'Rejected', decision: 'rejected' }, entry,
+  ] });
+  const result = await readEditorialOperations(new Date('2026-09-13T12:00:00Z'));
+  expect(result.liv).toMatchObject({ available: true, data: { nextDay: '2026-09-14', nextStory: { title: 'Næste anmeldelse', state: 'ready' } } });
+  if (result.liv.available) expect(Object.keys(result.liv.data.nextStory!)).toEqual(['title', 'state']);
+});
+it('prioritizes a missing today rather than promising a future story', async () => {
+  mocks.delivery.mockResolvedValue({ entries: [], slots: {} });
+  expect((await readEditorialOperations(new Date('2026-09-13T12:00:00Z'))).liv).toMatchObject({ available: true, data: { nextDay: '2026-09-13', nextStory: null } });
 });

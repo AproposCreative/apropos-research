@@ -1,6 +1,7 @@
 import { getAdminDb } from '@/lib/firebase-admin';
 import { readDeliveryState } from '@/lib/liv/delivery-store';
-import { deliveryHealth } from '@/lib/liv/delivery-policy';
+import { deliveryHealth, addDays, eligibleEntries } from '@/lib/liv/delivery-policy';
+import { readDeliveryAlertStatus } from '@/lib/liv/alert-status';
 import { readSharedCostSummary } from '@/lib/liv/cost-ledger';
 import { getCopenhagenIsoWeekKey } from '@/lib/newsletter/copenhagen-time';
 import { DEFAULT_WEEKLY_AUTO_SETTINGS, WEEKLY_AUTO_SETTINGS_COLLECTION, WEEKLY_AUTO_SETTINGS_DOC_ID } from '@/lib/newsletter/weekly-auto-settings';
@@ -42,13 +43,21 @@ async function section<T>(read: () => Promise<T>) {
 
 /** Each section fails independently; missing evidence must not become healthy. */
 export async function readEditorialOperations(now = new Date()) {
-  const [liv, newsletter, budget] = await Promise.all([
-    section(async () => ({ ...deliveryHealth(await readDeliveryState(), now),
+  const [liv, newsletter, budget, alerts] = await Promise.all([
+    section(async () => {
+      const state = await readDeliveryState();
+      const health = deliveryHealth(state, now);
+      const nextDay = health.published ? addDays(health.day, 1) : health.day;
+      const selected = state.slots[nextDay];
+      const next = selected ? state.entries.find(e => e.itemId === selected.itemId) : eligibleEntries(state, nextDay)[0];
+      return { ...health, nextDay, nextStory: next ? { title: next.title, state: next.state } : null,
       autoPublishEnabled: process.env.LIV_DELIVERY_QUEUE_ENABLED === 'true' &&
         process.env.LIV_DAILY_PUBLICATION_MODE === 'auto_publish' &&
-        !['1', 'true'].includes((process.env.LIV_DAILY_PAUSED || '').toLowerCase()) })),
+        !['1', 'true'].includes((process.env.LIV_DAILY_PAUSED || '').toLowerCase()) };
+    }),
     section(() => readNewsletterOperations(now)),
     section(readSharedCostSummary),
+    section(() => readDeliveryAlertStatus(now)),
   ]);
-  return { checkedAt: now.toISOString(), liv, newsletter, budget };
+  return { checkedAt: now.toISOString(), liv, newsletter, budget, alerts };
 }

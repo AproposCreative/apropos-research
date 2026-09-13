@@ -18,6 +18,14 @@ Build the user's approved September 13 plan. Only the three verified colleagues 
 
 ## Required before this checkpoint can release
 
+### Owner operations extension (local)
+
+- Reused the existing gear-menu operations panel instead of adding another dashboard. Added next-day/current-missing-day eligible story title and a separate read-only current-day alert projection. Selection respects existing rejection/blocker/priority policy and existing selected slots.
+- Direct operations route now requires verified `owner`, independently of middleware. Colleague editor/admin roles are rejected before reading operations.
+- Alert DTO contains only day/status; no payload, recipient or provider identity. Missing history is not successful delivery; unavailable storage remains a separate unavailable section. Provider acceptance is labeled as acceptance, not inbox delivery.
+- Sixteen targeted tests passed, including colleague denial, Danish midnight, uncertain/old sends, unavailable sections and candidate filtering. TypeScript passed before the final test additions; no paid API calls or production mutations.
+- Still local: visual verification, complete regression/build and release verification remain. Historical unresolved alert display and actual failure/resolution delivery acceptance are not covered by this current-day panel.
+
 ### Delivery alert production release
 
 - Supersedes the historical local-only alert checkpoints below: `f246509` is deployed READY on `ai.aproposmagazine.com`; full 3,315-test regression and build passed.

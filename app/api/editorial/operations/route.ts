@@ -9,7 +9,7 @@ const headers = { 'Cache-Control': 'private, no-store' };
 export async function GET(request: NextRequest) {
   const bearer = request.headers.get('authorization') || '';
   const access = bearer.startsWith('Bearer ') ? await verifyEditorialToken(bearer.slice(7)) : null;
-  if (!access) return NextResponse.json({ error: 'Log ind med redaktionel adgang.' }, { status: 403, headers });
+  if (!access?.owner) return NextResponse.json({ error: 'Kun Frederik har adgang til drift.' }, { status: 403, headers });
   try { return NextResponse.json(await readEditorialOperations(), { headers }); }
   catch { return NextResponse.json({ error: 'Driftsstatus kunne ikke hentes.' }, { status: 503, headers }); }
 }
