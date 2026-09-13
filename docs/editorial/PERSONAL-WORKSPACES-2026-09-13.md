@@ -18,6 +18,11 @@ Build the user's approved September 13 plan. Only the three verified colleagues 
 
 ## Required before this checkpoint can release
 
+### Account mail production release
+
+- Account mail flow through `ec5b63b` is now deployed. See `AUTH-MAIL-RELEASE-2026-09-13.md`: verified sender domain, production auth/origin boundary checks, one owner reset request and provider `delivered` evidence. No password or verification flag was changed.
+- Full build and 3,305 tests passed. Historical local/not-deployed notes below are superseded for this mail implementation. Colleague verification completion, central alerts and interrupted-mail recovery remain open.
+
 ### Permanent auth mail implementation (local, not deployed)
 
 - Added exact POST `/api/auth/mail`, using fresh revoked-token verification and Firebase user readback for verification; the client cannot select another verification recipient. Reset remains available logged out with identical responses and account lookup/provider work deferred through Next `after` to avoid account-dependent response timing.
