@@ -1,7 +1,16 @@
 import { expect, it } from 'vitest';
 import { deliveryAlertKind, type DeliveryAlertRecord } from '@/lib/liv/delivery-alerts';
 import { emptyDeliveryState } from '@/lib/liv/delivery-policy';
+import { livPreparationStatusForRow } from '@/lib/liv/preparation-status';
 const sent = {accepted:true,startedAt:0,leaseUntil:0,payload:{from:'fixture',to:'fixture',subject:'fixture',text:'fixture'}};
+it('uses the existing preparation retry policy before alarming',()=>{
+ const state=emptyDeliveryState();const now=new Date('2026-09-13T07:00:00Z');const day='2026-09-13';
+ const classify=(row:any)=>deliveryAlertKind(state,{},now,day,livPreparationStatusForRow(day,'prepare',row,now.getTime()));
+ expect(classify({status:'failed',preparationAttempts:1})).toBeNull();
+ expect(classify({status:'processing',continuationReady:true,articleCheckpoint:{}})).toBeNull();
+ expect(classify({status:'failed',preparationAttempts:3})).toBe('failure');
+ expect(classify({status:'skipped_factcheck',articleCheckpoint:{}})).toBe('failure');
+});
 it('waits until 10:15 in both summer and winter Danish time',()=>{
  const s=emptyDeliveryState();
  expect(deliveryAlertKind(s,{},new Date('2026-09-13T08:14:59Z'))).toBeNull();

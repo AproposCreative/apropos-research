@@ -1,13 +1,15 @@
 import { Resend } from 'resend';
 import { getAdminDb } from '@/lib/firebase-admin';
 import { publicationTime, copenhagenClock, validDay, type DeliveryState } from './delivery-policy';
+import type { LivNextPreparationStatus } from './preparation-status';
 
 type Notice = { startedAt: number; leaseUntil: number; accepted?: boolean; providerId?: string;
   payload: {from:string;to:string;subject:string;text:string} };
 export type DeliveryAlertRecord = { failure?: Notice; resolved?: Notice };
 
 /** No alarm before the 10:15 Danish deadline unless a definitive rejection exists. */
-export function deliveryAlertKind(state: DeliveryState, old: DeliveryAlertRecord, now = new Date(), day = copenhagenClock(now).day) {
+export function deliveryAlertKind(state: DeliveryState, old: DeliveryAlertRecord, now = new Date(), day = copenhagenClock(now).day,
+  preparation?: LivNextPreparationStatus) {
   if (!validDay(day) || day > copenhagenClock(now).day) return null;
   // Historical slots may resolve existing notices, never create retrospective alarms.
   if (day < copenhagenClock(now).day && !old.failure) return null;
@@ -16,20 +18,22 @@ export function deliveryAlertKind(state: DeliveryState, old: DeliveryAlertRecord
   if (state.slots[day]?.state === 'published') {
     return old.failure?.accepted && !old.resolved?.accepted ? 'resolved' : null;
   }
-  const terminal = state.entries.some(e => e.scheduledDay === day && e.state === 'rejected' && e.decision !== 'rejected');
+  const failedPreparation = preparation?.day === day && preparation.status === 'blocked_saved_work' &&
+    (preparation.runStatus === 'failed' || preparation.runStatus?.startsWith('skipped_'));
+  const terminal = failedPreparation || state.entries.some(e => e.scheduledDay === day && e.state === 'rejected' && e.decision !== 'rejected');
   if (!old.failure?.accepted && (terminal || now.getTime() >= Date.parse(publicationTime(day)) + 15 * 60000)) return 'failure';
   return null;
 }
 
 /** Called by the existing authenticated check. Never publishes or generates content. */
-async function notifyDeliveryDay(state: DeliveryState, now: Date, day: string) {
+async function notifyDeliveryDay(state: DeliveryState, now: Date, day: string, preparation?: LivNextPreparationStatus) {
   const db = getAdminDb(); if (!db) throw new Error('liv_alert_store_unavailable');
   const ref = db.collection('livDeliveryAlerts').doc(day);
   const key = process.env.RESEND_API_KEY; const from = process.env.RESEND_FROM_EMAIL;
   if (!key || !from) throw new Error('liv_alert_mail_configuration_missing');
   const claim = await db.runTransaction(async tx => {
     const old = ((await tx.get(ref)).data() || {}) as DeliveryAlertRecord;
-    const kind = deliveryAlertKind(state, old, now, day); if (!kind) return null;
+    const kind = deliveryAlertKind(state, old, now, day, preparation); if (!kind) return null;
     let notice = old[kind];
     if (notice?.leaseUntil && notice.leaseUntil > now.getTime()) return null;
     // Do not resend an ambiguous operation outside the provider's idempotency window.
@@ -50,12 +54,12 @@ async function notifyDeliveryDay(state: DeliveryState, now: Date, day: string) {
   return {status:'accepted',kind:claim.kind};
 }
 
-export async function notifyDeliveryHealth(state: DeliveryState, now = new Date()) {
+export async function notifyDeliveryHealth(state: DeliveryState, now = new Date(), preparation?: LivNextPreparationStatus) {
   const today = copenhagenClock(now).day;
   const days = [today, ...Object.keys(state.slots).filter(day => validDay(day) && day < today).sort().reverse().slice(0,14)];
   const results = []; const failedDays: string[] = [];
   for (const day of days) {
-    try { results.push({day,...await notifyDeliveryDay(state,now,day)}); }
+    try { results.push({day,...await notifyDeliveryDay(state,now,day,preparation)}); }
     catch { failedDays.push(day); }
   }
   if (failedDays.length) throw new Error(`liv_alert_unconfirmed:${failedDays.join(',')}`);

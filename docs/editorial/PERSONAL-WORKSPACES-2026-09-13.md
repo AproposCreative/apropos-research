@@ -18,6 +18,12 @@ Build the user's approved September 13 plan. Only the three verified colleagues 
 
 ## Required before this checkpoint can release
 
+### Preparation and concurrent alert checkpoint
+
+- The check reads the existing read-only preparation DTO. Today's terminal failed/skipped preparation can alarm before the deadline; queued retries, saved continuation stages and active work do not. Unavailable preparation status is exposed as unknown/503, not healthy.
+- Tests reuse the actual preparation classifier. Eight simultaneous calls against serialized mock transactions produce one send; retries beyond the conservative provider deduplication window stop without resending.
+- Nineteen targeted tests and TypeScript passed. Mock transaction serialization is not a live Firestore concurrency test. Build/regression and production acceptance still required; no actual alert has been sent. Future-day preparation alarms are not covered by the current-day policy.
+
 ### Alert cross-midnight/error-isolation checkpoint
 
 - Existing prior-day slots are considered for resolving existing notices (bounded to fourteen). No retrospective failure notice is created for days without an existing alert. Future/invalid days are rejected by policy.

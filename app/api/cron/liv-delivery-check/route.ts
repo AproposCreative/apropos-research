@@ -5,6 +5,7 @@ import { readDeliveryState } from '@/lib/liv/delivery-store';
 import { deliveryHealth } from '@/lib/liv/delivery-policy';
 import { logger } from '@/lib/logger';
 import { notifyDeliveryHealth } from '@/lib/liv/delivery-alerts';
+import { readNextLivPreparationStatus } from '@/lib/liv/preparation-status';
 
 export const maxDuration = 300;
 export async function GET(req: NextRequest) {
@@ -19,10 +20,11 @@ export async function GET(req: NextRequest) {
   try {
     const state = await readDeliveryState();
     const health = deliveryHealth(state);
+    const preparation = await readNextLivPreparationStatus(state);
     let alerts = 'checked';
-    try { await notifyDeliveryHealth(state); }
+    try { await notifyDeliveryHealth(state, new Date(), preparation); }
     catch { alerts = 'unconfirmed'; }
     if (health.overdue) logger.error('[liv/delivery] daily publication overdue', new Error('liv_daily_overdue'), health);
-    return NextResponse.json({ delivery: await response.json(), health, alerts }, { status: health.overdue || alerts === 'unconfirmed' ? 503 : response.status });
+    return NextResponse.json({ delivery: await response.json(), health, alerts, preparation }, { status: health.overdue || alerts === 'unconfirmed' || preparation.status === 'unavailable' ? 503 : response.status });
   } catch { return NextResponse.json({ error: 'liv_delivery_health_unavailable' }, { status: 503 }); }
 }

@@ -1,12 +1,27 @@
-import { beforeEach, expect, it, vi } from 'vitest';
-const m=vi.hoisted(()=>({row:null as any,send:vi.fn()}));
+import { afterEach, beforeEach, expect, it, vi } from 'vitest';
+const m=vi.hoisted(()=>({row:null as any,send:vi.fn(),tail:Promise.resolve()}));
 vi.mock('resend',()=>({Resend:class {emails={send:m.send};}}));
 vi.mock('@/lib/firebase-admin',()=>({getAdminDb:()=>({collection:()=>({doc:()=>({update:async(p:any)=>{
  for(const [key,value] of Object.entries(p)){const [kind,field]=key.split('.');m.row[kind][field]=value;}
-}})}),runTransaction:async(fn:any)=>fn({get:async()=>({data:()=>structuredClone(m.row)}),set:(_:any,d:any)=>{m.row=structuredClone(d);}})})}));
+}})}),runTransaction:async(fn:any)=>{
+ const previous=m.tail;let release!:()=>void;m.tail=new Promise<void>(r=>{release=r;});await previous;
+ try{return await fn({get:async()=>({data:()=>structuredClone(m.row)}),set:(_:any,d:any)=>{m.row=structuredClone(d);}});}finally{release();}
+}})}));
 import { notifyDeliveryHealth } from '@/lib/liv/delivery-alerts';
 import { emptyDeliveryState } from '@/lib/liv/delivery-policy';
-beforeEach(()=>{vi.resetAllMocks();m.row=null;vi.stubEnv('RESEND_API_KEY','fixture');vi.stubEnv('RESEND_FROM_EMAIL','fixture@example.com');m.send.mockResolvedValue({data:{id:'fixture'}});});
+beforeEach(()=>{vi.resetAllMocks();m.row=null;m.tail=Promise.resolve();vi.stubEnv('RESEND_API_KEY','fixture');vi.stubEnv('RESEND_FROM_EMAIL','fixture@example.com');m.send.mockResolvedValue({data:{id:'fixture'}});});
+afterEach(()=>vi.unstubAllEnvs());
+it('only one of simultaneous checks sends under serialized storage transactions',async()=>{
+ const state=emptyDeliveryState();const now=new Date('2026-09-13T08:15:00Z');
+ await Promise.all(Array.from({length:8},()=>notifyDeliveryHealth(state,now)));
+ expect(m.send).toHaveBeenCalledTimes(1);expect(m.row.failure.accepted).toBe(true);
+});
+it('does not retry outside the provider deduplication window',async()=>{
+ const state=emptyDeliveryState();m.send.mockRejectedValueOnce(new Error('unknown'));
+ await expect(notifyDeliveryHealth(state,new Date('2026-09-13T00:00:00Z'),{day:'2026-09-13',scope:'prepare',status:'blocked_saved_work',runStatus:'failed',reasonCode:'retry_limit_reached'})).rejects.toThrow();
+ await expect(notifyDeliveryHealth(state,new Date('2026-09-13T23:01:00Z'))).rejects.toThrow();
+ expect(m.send).toHaveBeenCalledTimes(1);
+});
 it('retains the same provider identity and payload after uncertain failure',async()=>{
  const state=emptyDeliveryState();const now=new Date('2026-09-13T08:15:00Z');
  m.send.mockRejectedValueOnce(new Error('network'));

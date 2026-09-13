@@ -6,6 +6,7 @@ vi.mock('@/lib/liv/run-daily', () => ({ runLivDaily: mocks.legacy }));
 vi.mock('@/lib/liv/deliver-ready', () => ({ deliverReadyArticle: mocks.delivery }));
 vi.mock('@/lib/liv/delivery-store', () => ({ readDeliveryState: mocks.state }));
 vi.mock('@/lib/liv/delivery-alerts', () => ({ notifyDeliveryHealth: mocks.alerts }));
+vi.mock('@/lib/liv/preparation-status', () => ({ readNextLivPreparationStatus: async () => ({status:'idle'}) }));
 vi.mock('@/lib/newsletter/auth-request', () => ({ getNewsletterUserIdFromRequest: mocks.uid }));
 import { GET as daily } from '@/app/api/cron/liv-daily-article/route';
 import { GET as check } from '@/app/api/cron/liv-delivery-check/route';
