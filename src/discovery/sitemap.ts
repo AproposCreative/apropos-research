@@ -20,6 +20,11 @@ export async function discoverFromSitemaps(options: { source?: string; persistCa
   // Load dynamic sources from file system - only enabled sources
   let sources = (options.sources ?? getMediaSources())
     .filter(source => source.enabled && (!options.source || source.id === options.source))
+    .filter(source => {
+      if (options.sources === undefined) return true;
+      if (source.check?.kind) return source.check.kind === 'sitemap' || source.check.kind === 'index';
+      return !/feed|rss|atom/i.test(source.sitemapIndex);
+    })
     .map(source => ({
       baseUrl: source.baseUrl,
       sitemapIndex: source.sitemapIndex

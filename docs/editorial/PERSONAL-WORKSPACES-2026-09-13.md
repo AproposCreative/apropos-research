@@ -16,6 +16,13 @@ Build the user's approved September 13 plan. Only the three verified colleagues 
 
 ## Required before this checkpoint can release
 
+### Feed compatibility and efficiency checkpoint
+
+- Shared discovery uses the validated XML kind when available, including Atom endpoints without RSS/feed words in their URL. Atom alternate article links and publication dates are extracted. Explicit configurations never trigger the legacy Ekko guessed-feed fallback.
+- The sitemap pass skips configured RSS/Atom sources, avoiding a second fetch that could not yield sitemap articles.
+- Real read-only discovery check at 2026-09-13 19:59:58 UTC: Soundvenue `/feed` returned 10 candidates, all 10 with publication dates; the sitemap pass returned zero without another download. This is development-environment evidence, not a production ingest/publication run.
+- Full isolated regression: 3,271 tests in 213 files passed. TypeScript passed. No paid AI calls or production writes.
+
 ### Recurring discovery transport checkpoint
 
 - Explicitly configured server feed/sitemap discovery now uses the pinned HTTPS XML transport, validates XML before parsing, shares a 20-second deadline per discovery pass and caps downloads at 20. Nested sitemaps use the same transport and deadline; cycles are skipped. Existing RSS date extraction is preserved.
@@ -67,7 +74,7 @@ Build the user's approved September 13 plan. Only the three verified colleagues 
 - Test browser resume, initial fetch race, new workspace, in-flight account switch, offline/reconnect and conflict recovery UX. Add explicit retry and selectable preserved versions. Audit remaining browser/session cache keys; do not claim all personal state isolated yet.
 - Ensure the new private workspace history is visible alongside Mine artikler. Implement explicit read-only shared snapshots with copy-to-own-workspace, no collaborative original overwrite. Preserve original ownership in migrations.
 - Add colleague tip submission and shared tip list without paid research on submit.
-- Complete media source transport security, bounded XML/RSS parsing, 24-hour status cache and UI; validate real sources. Separate system source configuration from private users' lists. Currently lib/getMediaSources.ts still aggregates across users; do not call this separation complete. lib/trending/ingest-runner.ts has a default fallback and separate discovery functions requiring integration review.
+- Complete production initialization and end-to-end source verification. Shared-source isolation, bounded XML transport, 24-hour cache and owner settings are now implemented locally (see newer checkpoints); personal-source UI status and article HTML transport still require review. Do not treat the historical pre-separation notes above as current implementation status.
 - Permanent verified-sender Firebase verification/password-reset flow, enumeration-safe responses and rate limits. Prior mails were individual service operations only.
 - Owner-only simple operations card, deduplicated server-side failure email after 10:15, resolution follow-up; no desktop dependency.
 - Targeted title/shorten/cover revision UI using existing audited operations, versioned visible per-article/fixed Liv rules, one evergreen reserve with duplicate-safe publication. No fine-tuning jobs.

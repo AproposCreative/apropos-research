@@ -9,6 +9,21 @@ import { discoverFromFeed } from '@/src/discovery/feeds';
 import { discoverFromSitemaps } from '@/src/discovery/sitemap';
 beforeEach(() => vi.clearAllMocks());
 afterEach(() => vi.unstubAllGlobals());
+it('uses validated Atom type even when the URL has no feed hint, preserving date and alternate link', async () => {
+  mocks.download.mockResolvedValue({ text: '<feed><entry><link rel="self" href="https://shared.example/xml/1"/><link rel="alternate" href="https://shared.example/story"/><published>2026-09-13T08:00:00Z</published><updated>2026-09-14T08:00:00Z</updated></entry></feed>', url: 'https://shared.example/latest' });
+  const sources = [{ id: 'shared', name: 'Shared', enabled: true, baseUrl: 'https://shared.example', sitemapIndex: '/latest', check: { kind: 'atom' } }];
+  expect(await discoverFromFeed(undefined, sources)).toEqual([{ url: 'https://shared.example/story', published_at: '2026-09-13T08:00:00Z', source: 'shared' }]);
+  expect(await discoverFromSitemaps({ sources })).toEqual([]);
+  expect(mocks.download).toHaveBeenCalledTimes(1);
+});
+it('does not download configured RSS again in the sitemap pass', async () => {
+  expect(await discoverFromSitemaps({ sources: [{ id: 'shared', name: 'Shared', enabled: true, baseUrl: 'https://shared.example', sitemapIndex: '/rss' }] })).toEqual([]);
+  expect(mocks.download).not.toHaveBeenCalled();
+});
+it('does not guess a special publisher feed when explicit configuration is a sitemap', async () => {
+  expect(await discoverFromFeed(undefined, [{ id: 'ekkofilm', name: 'Ekko', enabled: true, baseUrl: 'https://ekkofilm.dk', sitemapIndex: '/sitemap.xml' }])).toEqual([]);
+  expect(mocks.download).not.toHaveBeenCalled();
+});
 it('respects an explicitly empty shared list without trying default feeds or sitemaps', async () => {
   const fetch = vi.fn(); vi.stubGlobal('fetch', fetch);
   expect(await discoverFromFeed(undefined, [])).toEqual([]);

@@ -15,8 +15,9 @@ export async function discoverFromFeed(sourceId?: string, configuredSources?: Me
   // Filter for enabled sources and sources that have RSS/feed paths
   sources = sources.filter(source => {
     if (!source.enabled) return false;
+    if (source.check?.kind) return source.check.kind === 'rss' || source.check.kind === 'atom';
     const sitemapPath = source.sitemapIndex.toLowerCase();
-    return sitemapPath.includes('feed') || sitemapPath.includes('rss');
+    return sitemapPath.includes('feed') || sitemapPath.includes('rss') || sitemapPath.includes('atom');
   });
 
   // Convert to feed sources format
@@ -57,7 +58,7 @@ export async function discoverFromFeed(sourceId?: string, configuredSources?: Me
   
   // Special handling for Ekkofilm - try their specific feed path
   const ekkofilmSource = defaultSources.find(s => s.id.toLowerCase().includes('ekkofilm'));
-  if (ekkofilmSource && !feedSources.some(fs => fs.source === ekkofilmSource.id)) {
+  if (configuredSources === undefined && ekkofilmSource && !feedSources.some(fs => fs.source === ekkofilmSource.id)) {
     feedSources.push({ baseUrl: ekkofilmSource.baseUrl, feedPath: '/feeds/artikler/', source: ekkofilmSource.id });
   }
 
@@ -89,7 +90,7 @@ export async function discoverFromFeed(sourceId?: string, configuredSources?: Me
         continue;
       }
 
-      const parser = new XMLParser({ ignoreAttributes: false, attributeNamePrefix: "@_" });
+      const parser = new XMLParser({ ignoreAttributes: false, attributeNamePrefix: "@_", processEntities: false });
       const xml = parser.parse(text);
       
       // Try RSS 2.0
@@ -101,6 +102,19 @@ export async function discoverFromFeed(sourceId?: string, configuredSources?: Me
         if (typeof link !== 'string' || !link.trim()) continue;
         const pub = it?.pubDate ?? it?.published ?? undefined;
         allItems.push({ url: link.trim(), published_at: pub, source });
+      }
+
+      // Atom's alternate href is the article, not the self link to the XML entry.
+      const entries = xml?.feed?.entry ?? [];
+      for (const entry of Array.isArray(entries) ? entries : [entries]) {
+        const links = entry?.link ?? [];
+        const alternate = (Array.isArray(links) ? links : [links])
+          .find(link => !link?.['@_rel'] || link['@_rel'] === 'alternate');
+        const href = alternate?.['@_href'];
+        if (typeof href !== 'string' || !href.trim()) continue;
+        const published = entry.published ?? entry.updated;
+        allItems.push({ url: new URL(href.trim(), url).href,
+          published_at: typeof published === 'string' ? published : undefined, source });
       }
       
       console.log(`Found ${items.length} items from ${source}`);

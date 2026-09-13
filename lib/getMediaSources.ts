@@ -7,6 +7,7 @@ export interface MediaSource {
   sitemapIndex: string;
   enabled: boolean;
   userId?: string;
+  check?: { kind?: string };
 }
 
 const DEFAULT_MEDIA_SOURCES: MediaSource[] = [
