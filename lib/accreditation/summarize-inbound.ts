@@ -1,4 +1,5 @@
 import { getOpenAIClient } from '@/lib/openai';
+import { withSharedCostContext } from '@/lib/liv/cost-context';
 import { appendAiAudit } from '@/lib/accreditation/audit-store';
 import { isAutomationEnabled } from '@/lib/accreditation/agent-control';
 import { composeLivSystemPrompt } from '@/lib/accreditation/liv-system-prompt';
@@ -60,7 +61,7 @@ export async function summarizeAccreditationInbound(params: {
   const model = resolveAccreditationModelForTask('external_dialogue');
 
   try {
-    const completion = await openai.chat.completions.create({
+    const completion = await withSharedCostContext({ scope: 'accreditation', stage: 'inbound-summary' }, () => openai.chat.completions.create({
       model,
       max_completion_tokens: 2000,
       temperature: 0.3,
@@ -77,7 +78,7 @@ export async function summarizeAccreditationInbound(params: {
         },
       ],
       response_format: { type: 'json_object' },
-    }, { maxRetries: 0 });
+    }, { maxRetries: 0 }));
 
     await appendAiAudit({
       requestId: params.thread?.requestId,

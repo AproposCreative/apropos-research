@@ -16,7 +16,7 @@ export type LivBudgetPolicy = {
   conversionBasis: string; priceVersion: string;
 };
 export type LivCostReservation = {
-  scope?: 'liv' | 'writer' | 'seo';
+  scope?: 'liv' | 'writer' | 'seo' | 'accreditation';
   callId: string; month: string; runId: string; stage: string; requestHash: string;
   model: string; quote: LivPriceQuote; reservedDkkMicros: number; policy: LivBudgetPolicy; createdAt: string;
 };
@@ -71,7 +71,7 @@ export function createLivCostLedger(now: () => Date = () => new Date()): LivCost
       return database.runTransaction(async tx => {
         const policyRow = (await tx.get(collection.doc('policy'))).data();
         const policy = policyOf(policyRow);
-        if (context.scope !== undefined && (!['writer', 'seo'].includes(context.scope) || !sharedPolicyReady(policyRow, date))) {
+        if (context.scope !== undefined && (!['writer', 'seo', 'accreditation'].includes(context.scope) || !sharedPolicyReady(policyRow, date))) {
           throw new LivCostPretransportError('liv_cost_shared_policy_unconfigured');
         }
         const existing = (await tx.get(callRef)).data();
@@ -191,7 +191,7 @@ export type SharedCostSummary = Omit<LivCostSummary, 'coverage'> & {
   coverage: 'shared_server_cost_contexts';
   sharedActivation: 'disabled' | 'policy_required' | 'enabled' | 'invalid_flag' | 'unavailable';
   sharedTrackingStartedAt: string | null;
-  includedScopes: Array<'liv' | 'writer' | 'seo'>;
+  includedScopes: Array<'liv' | 'writer' | 'seo' | 'accreditation'>;
   excludedScopes: string[];
   unpricedBehavior: 'deny_before_transport';
   unknownUsageBehavior: 'retain_full_reservation';
@@ -205,7 +205,7 @@ export async function readSharedCostSummary(now = new Date()): Promise<SharedCos
   const base = await readLivCostSummary(now);
   const result: SharedCostSummary = { ...base, coverage: 'shared_server_cost_contexts',
     sharedActivation: 'disabled', sharedTrackingStartedAt: null, includedScopes: ['liv'],
-    excludedScopes: ['unscoped_openai_calls', 'accreditation', 'podcast', 'other_providers', 'historical_untracked_calls'],
+    excludedScopes: ['unscoped_openai_calls', 'accreditation_other_calls', 'podcast', 'other_providers', 'historical_untracked_calls'],
     unpricedBehavior: 'deny_before_transport', unknownUsageBehavior: 'retain_full_reservation', existingLivCostsIncluded: true };
   let enabled: boolean;
   try { enabled = sharedCostEnabled(); }
@@ -215,7 +215,7 @@ export async function readSharedCostSummary(now = new Date()): Promise<SharedCos
     if (sharedPolicyReady(policy, now)) {
       result.sharedTrackingStartedAt = policy!.sharedTrackingStartedAt as string;
       // Coverage remains partial and includes previously tracked scopes after rollback.
-      result.includedScopes = ['liv', 'writer', 'seo'];
+      result.includedScopes = ['liv', 'writer', 'seo', 'accreditation'];
     }
     if (enabled) {
       result.sharedActivation = 'policy_required';

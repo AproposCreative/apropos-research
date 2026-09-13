@@ -49,6 +49,19 @@ it('requires explicit opt-in and fails closed on mistyped activation', () => {
   vi.stubEnv('AI_SHARED_COST_ENABLED', 'TRUE');
   expect(() => withSharedCostContext({ scope: 'seo', stage: 'meta' }, () => 1)).toThrow('shared_flag_invalid');
 });
+it('tracks accreditation summaries without resetting an existing Liv parent', async () => {
+  vi.stubEnv('AI_SHARED_COST_ENABLED', 'true');
+  await withSharedCostContext({ scope: 'accreditation', stage: 'inbound-summary' }, async () => {
+    await Promise.resolve();
+    expect(currentLivCostContext()).toMatchObject({ scope: 'accreditation', stage: 'inbound-summary' });
+  });
+  withLivCostContext(context, () => {
+    withSharedCostContext({ scope: 'accreditation', stage: 'inbound-summary' }, () => {
+      expect(currentLivCostContext()?.runId).toBe(context.runId);
+      expect(currentLivCostContext()?.scope).toBeUndefined();
+    });
+  });
+});
 it('isolates Writer/SEO operations and preserves parent ownership and poison across nested work', async () => {
   vi.stubEnv('AI_SHARED_COST_ENABLED', 'true');
   const contexts = await Promise.all(['writer', 'seo'].map(scope =>

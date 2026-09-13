@@ -194,7 +194,7 @@ it('shares the existing 300DKK balance across Liv, Writer and SEO without import
   expect(memory.rows.get('livCostLedger/month-2026-09')).toMatchObject({ committedDkkMicros: 44_760_000, reservedDkkMicros: 128_000_000, calls: 8 });
   vi.stubEnv('AI_SHARED_COST_ENABLED', 'true');
   expect(await readSharedCostSummary(now)).toMatchObject({ sharedActivation: 'enabled', usageBasedUpperDkk: 44.76,
-    includedScopes: ['liv', 'writer', 'seo'], historicalCostsIncluded: false, fullMonthlyCapVerified: false,
+    includedScopes: ['liv', 'writer', 'seo', 'accreditation'], historicalCostsIncluded: false, fullMonthlyCapVerified: false,
     existingLivCostsIncluded: true, billedDkk: null, availableAllowanceDkk: 127.24 });
 });
 it('reports policy/activation failures and rollback without erasing shared history', async () => {
@@ -202,7 +202,7 @@ it('reports policy/activation failures and rollback without erasing shared histo
   expect(await readSharedCostSummary(now)).toMatchObject({ sharedActivation: 'policy_required' });
   memory.rows.set('livCostLedger/policy', { ...policy, sharedScopesEnabled: true, sharedTrackingStartedAt: now.toISOString() });
   vi.stubEnv('AI_SHARED_COST_ENABLED', 'false');
-  expect(await readSharedCostSummary(now)).toMatchObject({ sharedActivation: 'disabled', includedScopes: ['liv', 'writer', 'seo'] });
+  expect(await readSharedCostSummary(now)).toMatchObject({ sharedActivation: 'disabled', includedScopes: ['liv', 'writer', 'seo', 'accreditation'] });
   vi.stubEnv('AI_SHARED_COST_ENABLED', 'typo');
   expect(await readSharedCostSummary(now)).toMatchObject({ sharedActivation: 'invalid_flag' });
   vi.stubEnv('AI_SHARED_COST_ENABLED', 'true'); memory.available = false;

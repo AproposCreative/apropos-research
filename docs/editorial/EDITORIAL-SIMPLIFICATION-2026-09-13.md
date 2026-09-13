@@ -194,3 +194,15 @@ No paid model tests, CMS writes, newsletter sends or Instagram changes were made
 - Continue the broader goal: budget coverage beyond Liv/Writer/SEO, operational
   Liv/newsletter read-only view, access coverage/admin UX, and seven-day delivery
   evidence. Ready drafts do not prove those remaining requirements.
+
+### Shared budget expansion: inbound accreditation summaries
+
+- Added server-owned accreditation cost scope and wrapped inbound summary model
+  transport with the existing shared reservation/settlement policy. Nested Liv
+  ownership survives. Existing 2000 output token cap and zero SDK retries remain.
+  Invalid budget config returns the manual-review fallback without model contact.
+- 37 context/ledger tests and two actual-summary-boundary mock tests pass; no
+  paid model calls. TypeScript passes. This change is not deployed yet.
+- Summary coverage explicitly retains `accreditation_other_calls`, podcast,
+  unscoped OpenAI, other providers and historical untracked calls as exclusions.
+  The global 300 DKK objective is still incomplete; do not advertise full coverage.
