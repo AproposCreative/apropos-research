@@ -75,6 +75,14 @@ Build the user's approved September 13 plan. Only the three verified colleagues 
 
 ## Decisions fixed by user
 
+### Shared-source settings checkpoint
+
+- Added `/api/liv/media-sources` GET/PUT with direct verified-owner enforcement, bounded strict input, stable URL identity and transactional revision checks. GET is read-only and private/no-store; personal collections are not read or copied.
+- Enabling validates through the existing safe 24-hour check cache. Disabling does not require a working remote source. Failed validation preserves the configured document; manual refresh is explicit and uses no AI.
+- Added shared-source list, enable/disable, last check/link counts and add form in Liv's settings. Counts are explicitly discovered URLs, not verified articles. React checklist and TypeScript reviewed; no browser acceptance yet.
+- Verification: 24 targeted tests passed, including eight new owner/settings tests. TypeScript and diff checks passed.
+- Not deployed. Production shared sources still require initialization through the authenticated API before switching ingest. Remaining full-plan work and production acceptance remain open.
+
 - Private until explicitly shared, including against Frederik's normal application access.
 - Casper/Milo can see and suggest in Liv, not approve/reject/publish.
 - One deployment with authorization, not separate forks of the application.
