@@ -35,6 +35,15 @@ internal contexts still fail before work. Advisory factcheck and TOV calls have
 zero SDK retries and 45-second timeouts. Source checks and editorial assessment
 are retained. This change is local pending the next release, not proven live.
 
+### Design copy simplification
+
+Headline helper now makes one bounded, shared-budget call and rejects invalid or
+truncated results without invented fallback claims. Removed heuristic retry and
+generic praise helpers are retained in Git history. Existing API/alias contracts
+remain. Prompt preserves review label and work/season clarity. Subtitle generation
+also receives Writer accounting and truncation rejection. No current headline
+caller was found, so no actual savings are claimed for that route. Pending release.
+
 ## Implemented locally
 
 - Exact-origin token attachment, preserving Request headers.

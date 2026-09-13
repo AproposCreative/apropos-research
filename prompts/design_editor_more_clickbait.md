@@ -25,8 +25,8 @@ Constraints:
 - Avoid emojis.
 - Do not add claims that are not in the source.
 - Never use the cliché phrase "her er hvorfor".
-- Do not start the title with "Anmeldelse:".
-- Do not reuse more than ~70% of the original title wording.
+- For reviews, retain "Anmeldelse:" and the identifiable work/season when present.
+- Preserve subject clarity before novelty; do not remove a season or work name just to change wording.
 - Avoid repeating a long subject prefix at the start (e.g. "X i Royal Arena ...") in every output.
 - Vary headline structure so the key angle can come first.
 

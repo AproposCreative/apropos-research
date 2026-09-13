@@ -3,6 +3,21 @@
 Read-only source inspection, September 13. This is a coverage inventory, not an
 invoice or proof of runtime traffic. No paid model requests were made.
 
+## Current delta after original inventory
+
+- Live cf430c9 covers newsletter intro, inbox assistant/learning and translation.
+- Local e46cc5f adds independent factcheck/TOV/moderation Writer ownership.
+- Design headline/subtitle boundaries now use shared Writer accounting. Headline
+  generation uses one call, no retry loop, no invented generic success fallback,
+  and validates full output rather than truncating it. Removed obsolete fallback
+  helpers remain recoverable in Git. API and better-copy alias remain available.
+- No current source caller was found for either headline URL; therefore this is
+  removal of a potential cost/quality problem, not measured production savings.
+- Research-engine's old five-call/fabricated-fallback implementation was replaced
+  in live b81651d. Remaining concerns below refer to historical source except
+  where still explicitly open (quality-check, content-enhancer, media and
+  standalone research-verification). Full-application cap is still unverified.
+
 ## Verified source architecture
 
 `lib/openai.ts` creates `LivBudgetOpenAI`. Its fetch wrapper only reserves costs
