@@ -6,6 +6,7 @@ import fs from 'fs';
 import path from 'path';
 import type OpenAI from 'openai';
 import { models } from '@/lib/openai';
+import { withSharedCostContext } from '@/lib/liv/cost-context';
 import {
   buildSeoFields,
   calcReadTime,
@@ -110,18 +111,22 @@ export async function translateArticleToEnglish(
     throw new Error('Artiklen mangler titel og indhold at oversætte.');
   }
 
-  const completion = await openai.chat.completions.create({
+  if (userPayload.length > 48000) throw new Error('Artiklen er for lang til én oversættelse. Kilden er ikke ændret.');
+
+  const completion = await withSharedCostContext({ scope: 'writer', stage: 'article-translation' }, () => openai.chat.completions.create({
     model: models.default,
+    max_completion_tokens: 8000,
     temperature: 0.35,
     response_format: { type: 'json_object' },
     messages: [
       { role: 'system', content: loadSystemPrompt() },
       {
         role: 'user',
-        content: `Translate this Danish Apropos Magazine article to English. Input JSON:\n${userPayload.slice(0, 48000)}`,
+        content: `Translate this Danish Apropos Magazine article to English. Input JSON:\n${userPayload}`,
       },
     ],
-  });
+  }, { maxRetries: 0, timeout: 60000 }));
+  if (completion.choices[0]?.finish_reason !== 'stop') throw new Error('Oversættelsen blev ikke færdig. CMS er ikke ændret.');
 
   const raw = completion.choices[0]?.message?.content?.trim();
   if (!raw) throw new Error('Tomt svar fra AI ved oversættelse.');
@@ -135,6 +140,12 @@ export async function translateArticleToEnglish(
     parsed = JSON.parse(match[0]);
   }
 
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed) ||
+    typeof parsed.name !== 'string' || !parsed.name.trim() ||
+    typeof parsed.content !== 'string' || !parsed.content.trim() ||
+    (strField(dkFieldData, 'intro') && (typeof parsed.intro !== 'string' || !parsed.intro.trim()))) {
+    throw new Error('Oversættelsen mangler nødvendige tekstfelter. CMS er ikke ændret.');
+  }
   return normalizeTranslation(parsed, dkFieldData);
 }
 

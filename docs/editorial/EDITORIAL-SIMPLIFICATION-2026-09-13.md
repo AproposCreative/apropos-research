@@ -289,3 +289,13 @@ No paid model tests, CMS writes, newsletter sends or Instagram changes were made
   best-effort failure behavior does not initiate or repeat mail delivery.
 - 83 existing inbox tests and three new learning boundary tests pass, without
   model requests; TypeScript passes. Changes remain pending deployment.
+
+### Translation boundary
+
+- English article translation now establishes shared Writer accounting, caps
+  output at 8000 tokens and uses zero retries with a 60-second timeout.
+- Oversized source payloads are rejected before provider work rather than silently
+  sliced. Truncated responses and missing required translated text throw before
+  returning to the caller's CMS patch. Existing source-hash skip remains intact.
+- Five boundary tests and TypeScript pass. No translation or CMS mutation was
+  performed against production. Pending the next combined release.
