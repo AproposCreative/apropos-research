@@ -279,6 +279,17 @@ describe('body image byte binding after deterministic CMS optimization', () => {
     expect(f.readImage).toHaveBeenCalledTimes(5); // Hero plus both actual/expected body pairs.
   });
 
+  it.each(['exact', 'stretched', 'missing', 'fixed-style'])('checks sanitized intrinsic dimensions against actual bytes: %s', async kind => {
+    const f = await optimizedFixture();
+    const attributes = kind === 'exact' ? 'width="1200" height="800"' : kind === 'stretched'
+      ? 'width="1200" height="1200"' : kind === 'fixed-style'
+        ? 'width="1200" height="800" style="height:1200px"' : '';
+    f.item.fieldData.content = f.item.fieldData.content.replaceAll('style="height:auto"', attributes);
+    const result = await inspectLivCmsDraft({ itemId, expected: f.payload }, { ...f.dependencies, readImage: f.readImage });
+    expect(result.checks).toContainEqual({ id: 'image:body-assets', ok: kind === 'exact' });
+    expect(result.publicationReady).toBe(kind === 'exact');
+  });
+
   it.each(['swapped', 'wrong-pixels'])('rejects %s despite similar original/optimized filenames and valid distinct assets', async kind => {
     const f = await optimizedFixture();
     if (kind === 'swapped') {

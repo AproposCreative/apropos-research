@@ -228,11 +228,19 @@ export async function inspectLivCmsDraft(input: {
       const element = body(image);
       const src = element.attr('src') || '';
       const caption = element.closest('figure').find('figcaption').text().trim();
-      if (!text(element.attr('alt')) || !/(?:foto|illustration|kilde|credit)\s*:|©/i.test(caption) || !/^https:\/\//.test(src) ||
-          element.css('height') !== 'auto') { bodyAssetsOk = false; break; }
+      if (!text(element.attr('alt')) || !/(?:foto|illustration|kilde|credit)\s*:|©/i.test(caption) || !/^https:\/\//.test(src)) {
+        bodyAssetsOk = false; break;
+      }
       try {
         const bytes = await (dependencies?.readImage || readLivStoredImage)(src);
         const meta = await sharp(bytes, { limitInputPixels: 80_000_000 }).metadata();
+        // Webflow sanitizes inline style but retains intrinsic width/height.
+        // Accept that representation only against decoded bytes, not filenames
+        // or unverified HTML dimensions. This is not a computed-CSS assertion.
+        const intrinsicDimensions = !text(element.attr('style')) &&
+          element.attr('width') === String(meta.width) && element.attr('height') === String(meta.height) &&
+          !!meta.width && !!meta.height;
+        if (element.css('height') !== 'auto' && !intrinsicDimensions) bodyAssetsOk = false;
         const digest = createHash('sha256').update(bytes).digest('hex');
         const originalUrl = expectedUrls[index];
         if (!originalUrl) bodyMatches.ok = false;

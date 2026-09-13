@@ -145,3 +145,19 @@ No paid model tests, CMS writes, newsletter sends or Instagram changes were made
   tomorrow is missing readiness and shows `blocked_saved_work` with
   `cms_reconciliation_required`, not false idle. Today's publication remains true.
   No paid AI requests or CMS writes in this diagnostic.
+
+### Intrinsic image dimensions verified, September 13
+
+- CMS retains Freud body images as width=1200 height=800 with no style. The
+  technical asset check now accepts style-free intrinsic dimensions only when
+  both attributes exactly match decoded image bytes. Changed/missing dimensions
+  and fixed-height styling remain rejected; no computed CSS claim is made.
+- 52 CMS inspection tests pass, including exact/stretched/missing/fixed-style
+  cases, and TypeScript passes. Read-only inspection against actual production
+  CMS and downloaded assets now leaves Freud blocked only by `field:intro`.
+  Frankenstein still fails content/caption/credit checks. No blocker was removed
+  from production state and no CMS content was written.
+- Next: audited, hash-pinned API reconciliation for already-saved ready drafts.
+  Existing pre-CMS edit/continue routes cannot safely perform this operation.
+  Preserve current CMS before-image, editorial responsibility, paid checkpoint,
+  item identity and write-intent audit; recheck CMS after any scoped edit.
