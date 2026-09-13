@@ -5,7 +5,18 @@
 - Isolated regression: 3,113 tests in 193 files passed; TypeScript passed.
 - Production deployment: dpl_HL6SpQjhuGm5uWbi6SNH4cKkh7k1
 - URL: apropos-research-pxyk4xtxp-frederik-kraghs-projects.vercel.app
-- Last observed deployment state: BUILDING. Production success not yet verified.
+- Last observed deployment state: READY. Project production target and exact SHA
+  both matched this deployment.
+
+At 2026-09-13T15:50:38.821Z authenticated operations returned 200/private-no-store;
+anonymous access returned 401. Liv reported autoPublishEnabled true, today's
+publication true, overdue false, missingDays/blockedItems empty and no pending
+reconciliation. Recorded public URL:
+https://www.aproposmagazine.com/articles/the-gentlemen-saeson-2-goer-privilegium-til-et-vaben
+
+Newsletter 2026-W37 is enabled with a sent record (14 sent, 0 failed), not proof
+of inbox delivery. Budget section is available, fullMonthlyCapVerified false.
+No runtime error/drain scan or visual UI verification was performed for this release.
 
 Changes: when shared accounting is enabled, unowned OpenAI requests fail before
 transport; manual Liv preview and media revisions receive server-owned contexts.
