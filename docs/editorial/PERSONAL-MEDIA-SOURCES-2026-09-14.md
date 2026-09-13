@@ -1,6 +1,6 @@
 # Personal media-source repair
 
-Local implementation, not yet deployed or browser-accepted:
+Implementation and isolated browser acceptance; deployment recorded separately:
 
 - POST respects an explicit boolean enabled choice; PUT persists and returns it.
 - Omitted enabled retains the existing setting. Invalid types are rejected.
@@ -22,3 +22,13 @@ source creation, rejected/uncertain saves, account switching and empty/error
 states; rerun typecheck/build after final edits. Personal research consumption
 and older MediaContext state remain separate integration work, not proven by
 these controls. No production source choices changed and no AI calls made.
+
+Browser acceptance follow-up: real SourcesPanel in StrictMode at 390x844 with
+isolated auth/API. Created Soundvenue from an unsaved suggestion; reloaded and
+confirmed enabled state plus canonical ID. A failed PUT retained the prior state,
+showed an error and disabled retries until readback. Failed GET showed zero
+switches rather than fake defaults. Held account A's read, switched to B, then
+released A: B retained its empty selection. All requests used matching fixture
+account tokens, no uncaught errors and no horizontal overflow. Screenshot
+inspected. Fixture is scripts/verify-personal-sources-ui.mjs. This proves the UI
+against a controlled transport, not live publisher availability or research use.
