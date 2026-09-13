@@ -34,6 +34,14 @@ The fixture does not render the full Writer or use production user storage.
 This covers normal page lifecycle events, not operating-system force termination
 or browser storage failures.
 
-Full regression/build and release verification remain required before this fix
-is called live. Actual full-Writer cross-device/offline UX acceptance and the
-broader goal remain open.
+## Release receipt
+
+- All 3,406 tests in 236 files and production build passed. Nine pre-existing
+  file-tracing warnings remain.
+- Deployment `dpl_67Hky2EwJLREq7QzxPvtFub2YwZ1` READY for
+  `344daf2c3b40da2ff8da09e37be3ec18c89f97c3`, production alias attached.
+- Production `/ai` returned 200; served JavaScript contains pending autosave
+  handling and the pagehide/visibilitychange listeners. Anonymous workspace
+  access returned 401. No production workspace data was changed.
+- Full-Writer cross-device/offline UX acceptance and the broader goal remain
+  open; the isolated tests are not substituted for those requirements.
