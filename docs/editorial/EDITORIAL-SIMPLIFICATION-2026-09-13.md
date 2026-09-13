@@ -20,7 +20,7 @@
   skips redundant fallback searches. Actual monetary savings are not measured.
 - [ ] Complete remaining independent quality/media AI budget coverage. The
   300 DKK limit is not yet a verified full-application/invoice cap.
-- [ ] Verify settings UI visually and remaining access-list role variants.
+- [x] Verify settings UI visually and remaining access-list role variants.
   LivOperations null usage formatting released: unknown values remain unknown,
   genuine zero remains zero and Danish amounts are formatted safely. 14 targeted
   tests and TypeScript pass. Isolated real-component visual test passes eight
@@ -29,7 +29,14 @@
   gear, budget disclosure, live operations, mobile scroll and back-to-three-stories
   work at build b903348; 390px viewport has no document overflow. Evidence:
   `docs/audits/LIV-SETTINGS-PRODUCTION-2026-09-13.md`.
-  Remaining role variants are not implied by this administrator UI check.
+  Separate live API verification at September 13 16:26:17 UTC proves exact
+  verified company domain allowed as editor (200), unverified company email,
+  subdomain, suffix-attack domain and outside-domain account denied (401).
+  Disabling the temporary domain user denies the same existing token (401).
+  Existing administrator remains admin (200); anonymous is denied (401).
+  Temporary identity deletion completed. Eighteen policy/server/admin-route tests
+  and TypeScript pass. This complements, rather than replaces, the live external
+  allowlist approval/suspension evidence above.
 - [x] Remove proven obsolete embedding code; preserve editorial work and audit.
   Removed `scripts/train-style-embeddings.ts` and its sole caller, the inactive
   `github/workflows/train-upload.yml` copy. Actual `.github` workflow uses

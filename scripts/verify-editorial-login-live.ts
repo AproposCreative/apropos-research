@@ -4,7 +4,7 @@ import { getAuth, signInWithCustomToken, signOut } from 'firebase/auth';
 import { getAdminAuth } from '../lib/firebase-admin';
 
 /** Read-only application requests. Creates one temporary Firebase Auth identity
- * to prove a valid token from outside the allowlist is rejected, then deletes it.
+ * to verify domain/verification/disabled policy, then deletes it. Never sends mail.
  */
 export async function verifyEditorialLoginLive(origin: string) {
   if (new URL(origin).origin !== 'https://ai.aproposmagazine.com') throw new Error('unexpected_verification_origin');
@@ -32,7 +32,33 @@ export async function verifyEditorialLoginLive(origin: string) {
     const outsiderSession = await signInWithCustomToken(auth, await admin.createCustomToken(outsider.uid));
     const denied = await check(await outsiderSession.user.getIdToken());
     if (![401, 403].includes(denied.status) || denied.allowed === true) throw new Error('outsider_login_not_denied');
-    console.log(JSON.stringify({ login: 'verified', anonymous: anonymous.status, administrator: allowed, verifiedOutsideDomain: denied.status }));
+    const variants: Array<{ name: string; email: string; emailVerified: boolean; expected: 'editor' | null }> = [
+      { name: 'exact_domain', email: `verification-${outsider.uid}@aproposmagazine.com`, emailVerified: true, expected: 'editor' },
+      { name: 'unverified_domain', email: `verification-${outsider.uid}@aproposmagazine.com`, emailVerified: false, expected: null },
+      { name: 'subdomain', email: `verification-${outsider.uid}@sub.aproposmagazine.com`, emailVerified: true, expected: null },
+      { name: 'suffix_attack', email: `verification-${outsider.uid}@aproposmagazine.com.example.invalid`, emailVerified: true, expected: null },
+    ];
+    const outcomes: Record<string, number> = {};
+    for (const variant of variants) {
+      await admin.updateUser(outsider.uid, { email: variant.email, emailVerified: variant.emailVerified });
+      await signOut(auth);
+      const session = await signInWithCustomToken(auth, await admin.createCustomToken(outsider.uid));
+      const result = await check(await session.user.getIdToken());
+      if (variant.expected ? result.status !== 200 || result.allowed !== true || result.role !== variant.expected
+        : ![401, 403].includes(result.status) || result.allowed === true) throw new Error(`access_variant_failed:${variant.name}`);
+      outcomes[variant.name] = result.status;
+    }
+    await admin.updateUser(outsider.uid, { email: variants[0].email, emailVerified: true });
+    await signOut(auth);
+    const enabledSession = await signInWithCustomToken(auth, await admin.createCustomToken(outsider.uid));
+    const existingToken = await enabledSession.user.getIdToken();
+    const beforeDisable = await check(existingToken);
+    if (beforeDisable.status !== 200 || beforeDisable.role !== 'editor') throw new Error('disable_baseline_failed');
+    await admin.updateUser(outsider.uid, { disabled: true });
+    const disabled = await check(existingToken);
+    if (![401, 403].includes(disabled.status) || disabled.allowed === true) throw new Error('disabled_session_not_denied');
+    console.log(JSON.stringify({ login: 'verified', checkedAt: new Date().toISOString(), anonymous: anonymous.status,
+      administrator: allowed, verifiedOutsideDomain: denied.status, variants: outcomes, disabledExistingToken: disabled.status }));
   } finally {
     try { if (temporaryUid) await admin.deleteUser(temporaryUid); }
     finally { await deleteApp(app); }
