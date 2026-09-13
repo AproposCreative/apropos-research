@@ -2,9 +2,9 @@
 import { useEffect, useRef, useState } from 'react';
 import { useAuth } from '@/lib/auth-context';
 
-type Tip = { id: string; url: string; angle: string };
+type Tip = { id: string; url: string; angle: string; status: string };
 export default function LivTips() {
-  const { user } = useAuth();
+  const { user, capabilities } = useAuth();
   const [open, setOpen] = useState(false);
   const [tips, setTips] = useState<Tip[]>([]);
   const [url, setUrl] = useState('');
@@ -15,6 +15,20 @@ export default function LivTips() {
   const [attempt, setAttempt] = useState(0);
   const pending = useRef<{ operationId: string; url: string; angle: string } | null>(null);
   const sending = useRef(false);
+  async function select(id: string) {
+    if (!user || sending.current) return;
+    sending.current = true; setBusy(true); setMessage('');
+    try {
+      const token = await user.getIdToken();
+      const response = await fetch('/api/editorial/tips/select', { method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ id }) });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Tipset kunne ikke vælges.');
+      setMessage('Idéen ligger under tandhjul → Research og kilder. Research er ikke startet endnu.');
+      setAttempt(n => n + 1);
+    } catch (e) { setMessage(e instanceof Error ? e.message : 'Prøv samme tip igen.'); }
+    finally { sending.current = false; setBusy(false); }
+  }
   useEffect(() => {
     if (!open || !user) return;
     const controller = new AbortController(); setLoaded(false);
@@ -61,7 +75,9 @@ export default function LivTips() {
     {loaded && !tips.length && <p className="text-white/60">Ingen tip endnu.</p>}
     <ul className="space-y-3">{tips.map(tip => <li key={tip.id} className="border-t border-white/15 pt-3">
       <p className="whitespace-pre-wrap break-words">{tip.angle}</p>
+      <p className="text-xs text-white/60">{tip.status === 'selected' ? 'Valgt til redaktionen' : 'Foreslået'}</p>
       <a href={tip.url} target="_blank" rel="noopener noreferrer" className="block min-h-11 break-all py-2 text-white/60 underline">{tip.url}</a>
+      {capabilities.owner && tip.status !== 'selected' && <button disabled={busy} className="min-h-11 underline" onClick={() => void select(tip.id)}>Vælg til redaktionen</button>}
     </li>)}</ul>
   </details>;
 }

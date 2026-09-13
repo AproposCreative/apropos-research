@@ -19,7 +19,7 @@ export function canOpenEditorialApp(app: string, capabilities: EditorialCapabili
 export function requiresEditorialOwner(path: string, method: string): boolean {
   const trees = ['/api/seo', '/api/seo-engine', '/api/podcast', '/api/newsletter',
     '/api/liv-inbox', '/api/push', '/api/push-desk', '/api/admin', '/api/editorial/operations',
-    '/api/ai-cost', '/api/editorial/desk', '/api/webflow/config', '/api/instagram/config',
+    '/api/ai-cost', '/api/editorial/desk', '/api/editorial/tips/select', '/api/webflow/config', '/api/instagram/config',
     '/api/instagram/meta-config', '/api/instagram/exchange-token', '/api/instagram/renew-token',
     '/api/instagram/token-status'];
   if (trees.some(prefix => path === prefix || path.startsWith(`${prefix}/`))) return true;

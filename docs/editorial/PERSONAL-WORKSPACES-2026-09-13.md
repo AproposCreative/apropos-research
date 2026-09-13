@@ -16,6 +16,13 @@ Build the user's approved September 13 plan. Only the three verified colleagues 
 
 ## Required before this checkpoint can release
 
+### Tip-to-desk selection checkpoint
+
+- Added owner-only POST `/api/editorial/tips/select`, also gated in middleware policy. It atomically creates a discovered idea in Frederik's existing editorial desk and marks the shared tip selected. Existing source URL keys prevent duplicate ideas across tips; retries preserve the same story and selection timestamp.
+- Tip angle/link are retained; no sourced facts, research result or quality evidence are invented. New ideas use provisional culture categorization and zero unassessed signal scores, requiring the existing explicit research operation before drafting.
+- Frederik sees “Vælg til redaktionen”; selected status is visible to all colleagues. The confirmation directs Frederik to gear → Research og kilder, where existing research/draft operations apply. Selection itself performs no external fetch or paid call.
+- Five selection tests and seven submission tests passed; TypeScript and diff checks passed. Browser verification, durable client retry across navigation and actual production release remain outstanding.
+
 ### Shared editorial tips checkpoint
 
 - Added authenticated `/api/editorial/tips` GET/POST for all three verified colleagues, with a strict bounded HTTPS link/angle schema and UID-scoped operation receipts. Identical retries return the existing tip; changed payloads under the same operation ID are rejected.
