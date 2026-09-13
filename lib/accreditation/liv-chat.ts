@@ -1,5 +1,6 @@
 import { readJsonFile, writeJsonFile } from '@/lib/storage/json-store';
 import { getOpenAIClient } from '@/lib/openai';
+import { withSharedCostContext } from '@/lib/liv/cost-context';
 import { appendAiAudit } from '@/lib/accreditation/audit-store';
 import { getAgentControl, isAutomationEnabled } from '@/lib/accreditation/agent-control';
 import { newEntityId } from '@/lib/accreditation/ids';
@@ -186,14 +187,15 @@ export async function replyAsLiv(params: {
         role: m.role as 'user' | 'assistant' | 'system',
         content: m.content,
       }));
-      const completion = await openai.chat.completions.create({
+      const completion = await withSharedCostContext({ scope: 'accreditation', stage: 'studio-chat' }, () => openai.chat.completions.create({
         model,
         temperature: 0.55,
+        max_completion_tokens: 2000,
         messages: [
           { role: 'system', content: composed.prompt },
           ...history.filter((m) => m.role !== 'system'),
         ],
-      });
+      }, { maxRetries: 0 }));
       content = completion.choices[0]?.message?.content?.trim() || content;
       await appendAiAudit({
         requestId: request?.id,

@@ -1,5 +1,6 @@
 import * as cheerio from 'cheerio';
 import { getOpenAIClient } from '@/lib/openai';
+import { withSharedCostContext } from '@/lib/liv/cost-context';
 import { appendAiAudit } from '@/lib/accreditation/audit-store';
 import { composeLivSystemPrompt } from '@/lib/accreditation/liv-system-prompt';
 import { resolveAccreditationModelForTask } from '@/lib/accreditation/models';
@@ -296,8 +297,9 @@ async function refineWithOpenAi(
         'Udtræk koncert/event-fakta. Returnér JSON: artist, venue?, eventDate? (helst YYYY-MM-DD), promoter?, contactEmail?, contactName?, confidence(0-1), notes. Gæt ikke emails. eventDate er vigtig — læs den fra titel/JSON-LD hvis den findes.',
     });
     const model = resolveAccreditationModelForTask('url_extract');
-    const completion = await openai.chat.completions.create({
+    const completion = await withSharedCostContext({ scope: 'accreditation', stage: 'event-extract' }, () => openai.chat.completions.create({
       model,
+      max_completion_tokens: 2000,
       temperature: 0.1,
       messages: [
         { role: 'system', content: composed.prompt },
@@ -307,7 +309,7 @@ async function refineWithOpenAi(
         },
       ],
       response_format: { type: 'json_object' },
-    });
+    }, { maxRetries: 0 }));
     await appendAiAudit({
       type: 'ai_url_extract',
       detail: `URL extract ${finalUrl}`,
@@ -384,8 +386,9 @@ async function ensureEventDate(extraction: EventPageExtraction): Promise<EventPa
     const openai = getOpenAIClient();
     if (openai && blob.trim().length > 40) {
       const model = resolveAccreditationModelForTask('url_extract');
-      const completion = await openai.chat.completions.create({
+      const completion = await withSharedCostContext({ scope: 'accreditation', stage: 'event-date' }, () => openai.chat.completions.create({
         model,
+        max_completion_tokens: 500,
         temperature: 0,
         messages: [
           {
@@ -399,7 +402,7 @@ async function ensureEventDate(extraction: EventPageExtraction): Promise<EventPa
           },
         ],
         response_format: { type: 'json_object' },
-      });
+      }, { maxRetries: 0 }));
       const raw = JSON.parse(completion.choices[0]?.message?.content || '{}') as {
         eventDate?: string | null;
       };

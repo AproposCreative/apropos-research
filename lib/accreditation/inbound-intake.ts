@@ -1,4 +1,5 @@
 import { getOpenAIClient } from '@/lib/openai';
+import { withSharedCostContext } from '@/lib/liv/cost-context';
 import { appendAiAudit } from '@/lib/accreditation/audit-store';
 import {
   detectEscalationHeuristics,
@@ -238,9 +239,10 @@ export async function classifyAndExtractIntake(params: {
   const model = resolveAccreditationModelForTask('intake_classify');
 
   try {
-    const completion = await openai.chat.completions.create({
+    const completion = await withSharedCostContext({ scope: 'accreditation', stage: 'intake-classify' }, () => openai.chat.completions.create({
       model,
       temperature: 0.1,
+      max_completion_tokens: 2000,
       messages: [
         { role: 'system', content: composed.prompt },
         {
@@ -258,7 +260,7 @@ export async function classifyAndExtractIntake(params: {
         },
       ],
       response_format: { type: 'json_object' },
-    });
+    }, { maxRetries: 0 }));
 
     await appendAiAudit({
       type: 'ai_intake_classify',

@@ -206,3 +206,15 @@ No paid model tests, CMS writes, newsletter sends or Instagram changes were made
 - Summary coverage explicitly retains `accreditation_other_calls`, podcast,
   unscoped OpenAI, other providers and historical untracked calls as exclusions.
   The global 300 DKK objective is still incomplete; do not advertise full coverage.
+
+### Accreditation completion inventory, September 13
+
+- All six direct OpenAI chat completion sites under `lib/accreditation` now use
+  the server-owned shared cost scope: inbound summary, event extraction, event
+  date, intake classification, studio chat, and multi-turn dialogue test.
+  Event-date output is bounded at 500 tokens, others at 2000; SDK retries zero.
+- 81 accreditation tests pass and TypeScript passes, all without live model
+  requests. These tests preserve existing behavior but are not proof of each
+  production provider path. Changes remain pending deployment with b04dff9.
+- Web research invoked by accreditation and other provider/client paths still
+  require tracing. Keep partial-coverage disclosures until that audit is complete.

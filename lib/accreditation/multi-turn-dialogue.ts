@@ -9,6 +9,7 @@ import { createRequest, updateRequest } from '@/lib/accreditation/request-store'
 import { ensureRequestIdInSubject, sanitizeLivOutput } from '@/lib/accreditation/sanitize';
 import { getAccreditationReplyTo } from '@/lib/accreditation/send-email';
 import { LIV_MAILBOX } from '@/lib/accreditation/types';
+import { withSharedCostContext } from '@/lib/liv/cost-context';
 import {
   assertDialogueTranscript,
   buildMockedDialogueReplies,
@@ -112,8 +113,9 @@ export function createOpenAiDialogueGenerator(): DialogueReplyGenerator {
     });
 
     const model = resolveAccreditationModelForTask('external_dialogue');
-    const completion = await openai.chat.completions.create({
+    const completion = await withSharedCostContext({ scope: 'accreditation', stage: 'dialogue-test' }, () => openai.chat.completions.create({
       model,
+      max_completion_tokens: 2000,
       temperature: 0.2,
       messages: [
         { role: 'system', content: composed.prompt },
@@ -123,7 +125,7 @@ export function createOpenAiDialogueGenerator(): DialogueReplyGenerator {
         },
       ],
       response_format: { type: 'json_object' },
-    });
+    }, { maxRetries: 0 }));
 
     const raw = completion.choices[0]?.message?.content || '{}';
     const parsed = JSON.parse(raw) as {
