@@ -4,6 +4,7 @@ vi.mock('@/lib/openai', () => ({ getOpenAIClient: () => ({ responses: { create: 
 vi.mock('@/lib/api/internal-auth', () => ({ internalApiHeaders: () => ({ 'Content-Type': 'application/json' }) }));
 import { createOpenAIResponsesProvider } from '@/lib/research/providers/openaiResponsesProvider';
 import { createLegacyWebSearchProvider } from '@/lib/research/providers/legacyWebSearchProvider';
+import { withLivCostContext } from '@/lib/liv/cost-context';
 
 const citation = (url: string) => ({ type: 'url_citation', title: 'Fixture', url, start_index: 1, end_index: 5 });
 const text = 'Factual research context. '.repeat(20);
@@ -15,6 +16,11 @@ beforeEach(() => {
   ] }] });
 });
 afterEach(() => { vi.unstubAllGlobals(); vi.unstubAllEnvs(); });
+it('does not send budgeted work to the unmetered legacy route', async () => {
+  await expect(withLivCostContext({ runId: 'test-budget', stage: 'research' }, () =>
+    createLegacyWebSearchProvider().search({ query: 'fixture', maxResults: 3 }))).rejects.toMatchObject({ providerAttempted: false });
+  expect(m.fetch).not.toHaveBeenCalled();
+});
 it('requires web search, cancels transport, disables retries, and preserves the cited brief', async () => {
   const signal = new AbortController().signal;
   const data = await createOpenAIResponsesProvider().search({ query: 'fixture', maxResults: 5, signal, timeoutMs: 45000 });

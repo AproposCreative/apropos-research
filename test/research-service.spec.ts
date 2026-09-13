@@ -5,6 +5,7 @@ vi.mock('@/lib/research/providers/openaiResponsesProvider', () => ({ createOpenA
 vi.mock('@/lib/research/providers/legacyWebSearchProvider', () => ({ createLegacyWebSearchProvider: () => ({ search: m.fallback }) }));
 vi.mock('@/lib/logger', () => ({ logger: { info: m.info } }));
 import { getResearch } from '@/lib/research/service';
+import { LivCostPretransportError } from '@/lib/liv/cost-errors';
 
 function result(count = 2, provider: ResearchProviderName = 'openai_responses'): ResearchResult {
   return { contextText: count ? 'Research evidence. '.repeat(30) : '',
@@ -27,6 +28,14 @@ it('returns passing primary evidence without fallback and clears its timer', asy
   expect(m.fallback).not.toHaveBeenCalled();
   expect(vi.getTimerCount()).toBe(0);
   expect(JSON.stringify(m.info.mock.calls)).not.toContain('private-query');
+});
+it('propagates a wrapped budget denial without a second provider attempt', async () => {
+  const denial = new LivCostPretransportError('liv_cost_monthly_budget_exceeded');
+  const wrapped = new Error('SDK connection error', { cause: denial });
+  m.primary.mockRejectedValue(wrapped);
+  await expect(getResearch('fixture')).rejects.toBe(wrapped);
+  expect(m.fallback).not.toHaveBeenCalled();
+  expect(vi.getTimerCount()).toBe(0);
 });
 it('honors a single-pass caller even when global fallback is enabled', async () => {
   m.primary.mockRejectedValue(new Error('provider unavailable'));

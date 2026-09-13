@@ -368,7 +368,8 @@ async function ensureEventDate(extraction: EventPageExtraction): Promise<EventPa
     ]
       .filter(Boolean)
       .join(' ');
-    const research = await getResearch(q, { maxResults: 5 });
+    const research = await withSharedCostContext({ scope: 'accreditation', stage: 'event-research' },
+      () => getResearch(q, { maxResults: 5, allowFallback: false }));
     const blob = [
       research.contextText || '',
       ...(research.sources || []).map((s) => `${s.title || ''} ${s.snippet || ''} ${s.url || ''}`),

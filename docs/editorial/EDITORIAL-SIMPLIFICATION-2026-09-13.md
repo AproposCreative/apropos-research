@@ -218,3 +218,16 @@ No paid model tests, CMS writes, newsletter sends or Instagram changes were made
   production provider path. Changes remain pending deployment with b04dff9.
 - Web research invoked by accreditation and other provider/client paths still
   require tracing. Keep partial-coverage disclosures until that audit is complete.
+
+### Research budget escape closed
+
+- Wrapped accreditation event-date and contact research in shared cost context,
+  with one provider attempt. Research propagates branded pretransport budget
+  errors instead of swallowing them and starting fallback work.
+- Legacy search HTTP adapter refuses scoped work before transport because it
+  cannot yet propagate and settle its provider costs. Unscoped legacy behavior
+  is unchanged; this is an explicit partial-coverage boundary, not full billing.
+- 99 research/accreditation tests and TypeScript pass; no paid API calls. Added
+  regressions for wrapped budget errors and refusing unmetered legacy transport.
+  Changes pending the combined budget release. Podcast/other-provider audit and
+  production budget verification remain required.

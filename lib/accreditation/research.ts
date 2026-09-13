@@ -14,6 +14,7 @@ import type {
   SheetContact,
 } from '@/lib/accreditation/types';
 import { getResearch } from '@/lib/research/service';
+import { withSharedCostContext } from '@/lib/liv/cost-context';
 
 function norm(s: string): string {
   return s
@@ -345,7 +346,8 @@ export async function researchAccreditationContact(
     ]
       .filter(Boolean)
       .join(' ');
-    const research = await getResearch(q, { maxResults: 5 });
+    const research = await withSharedCostContext({ scope: 'accreditation', stage: 'contact-research' },
+      () => getResearch(q, { maxResults: 5, allowFallback: false }));
     const ctx = research.contextText || '';
     for (const s of (research.sources || []).slice(0, 5)) {
       sources.push({ title: s.title || s.url || 'kilde', url: s.url || undefined });
