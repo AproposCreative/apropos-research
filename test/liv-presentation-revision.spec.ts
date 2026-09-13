@@ -90,6 +90,29 @@ it('restores only the pinned prepared intro and preserves the replaced CMS intro
   await reviseLivPresentation(input);
   expect(io.patch).toHaveBeenCalledTimes(1);
 });
+it('restores prepared captions through audited CMS write without replacing image URLs', async () => {
+  const payload = database.rows.get(`livDelivery/item-${id}`)!;
+  const body = (prefix: string, credit: boolean) => '<p>Preserved body.</p>' + [1, 2].map(i =>
+    `<figure><img src="https://example.org/${prefix}-${i}.webp" alt="Motiv ${i}"><figcaption>Motiv ${i}.${credit ? ' Illustration: Apropos Magazine / AI' : ''}</figcaption></figure>`).join('');
+  payload.expected.content = body('original', true);
+  payload.payloadHash = cmsFieldHash(payload.expected);
+  manifest().entries[0].payloadHash = payload.payloadHash;
+  const row = database.rows.get('livDailyArticles/prepare-2026-09-15')!;
+  row.articleCheckpoint.content = payload.expected.content;
+  row.preparationProof = { ...row.preparationProof, expected: structuredClone(payload.expected), hash: payload.payloadHash };
+  cms.fieldData.content = body('cms', false);
+  const before = cms.fieldData.content;
+  input.expectedCmsHash = cmsFieldHash(cms.fieldData);
+  input.expectedPayloadHash = payload.payloadHash;
+  input.restorePreparedCaptions = true;
+  await reviseLivPresentation(input);
+  expect(cms.fieldData.content).toContain('https://example.org/cms-1.webp');
+  expect(cms.fieldData.content).toContain('Illustration: Apropos Magazine / AI');
+  expect([...database.rows].find(([key]) => key.startsWith('livPresentationAudits/'))![1].cms.fieldData.content).toBe(before);
+  expect(row.articleCheckpoint.content).toBe(payload.expected.content);
+  await reviseLivPresentation(input);
+  expect(io.patch).toHaveBeenCalledTimes(1);
+});
 it('reconciles an uncertain successful write without repeating it', async () => {
   io.patch.mockImplementationOnce(async (_id, fields) => { Object.assign(cms.fieldData, fields); throw new Error('transport_lost'); });
   await expect(reviseLivPresentation(input)).rejects.toThrow('transport_lost');
