@@ -4,6 +4,7 @@ import { getNewsletterUserIdFromRequest } from '@/lib/newsletter/auth-request';
 import { logger, createRequestLogger } from '@/lib/logger';
 import { getRequestId } from '@/lib/api/request-utils';
 import { createErrorResponse, createSuccessResponse, ErrorCode } from '@/lib/api/types';
+import { checkMediaSource } from '@/lib/media-source-check-cache';
 
 interface MediaSourceDoc {
   id: string;
@@ -75,14 +76,7 @@ export async function POST(req: NextRequest) {
     }
 
     try {
-      const sitemapUrl = new URL(sitemapIndex, baseUrl).toString();
-      let response = await fetch(sitemapUrl, { method: 'HEAD', headers: { 'User-Agent': 'Apropos Research Bot 1.0' } });
-      if (!response.ok && response.status !== 302 && response.status !== 301) {
-        response = await fetch(sitemapUrl, { headers: { 'User-Agent': 'Apropos Research Bot 1.0' }, redirect: 'follow' });
-      }
-      if (!response.ok) {
-        return NextResponse.json({ error: 'Sitemap not accessible or invalid' }, { status: 400 });
-      }
+      await checkMediaSource(userId, baseUrl, sitemapIndex);
     } catch {
       return NextResponse.json({ error: 'Cannot access sitemap URL' }, { status: 400 });
     }
@@ -132,12 +126,7 @@ export async function PUT(req: NextRequest) {
     if (existing.userId !== userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
 
     try {
-      const sitemapUrl = new URL(sitemapIndex, baseUrl).toString();
-      let response = await fetch(sitemapUrl, { method: 'HEAD', headers: { 'User-Agent': 'Apropos Research Bot 1.0' } });
-      if (!response.ok && response.status !== 302 && response.status !== 301) {
-        response = await fetch(sitemapUrl, { headers: { 'User-Agent': 'Apropos Research Bot 1.0' }, redirect: 'follow' });
-      }
-      if (!response.ok) return NextResponse.json({ error: 'Sitemap not accessible or invalid' }, { status: 400 });
+      await checkMediaSource(userId, baseUrl, sitemapIndex);
     } catch {
       return NextResponse.json({ error: 'Cannot access sitemap URL' }, { status: 400 });
     }

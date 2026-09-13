@@ -16,6 +16,14 @@ Build the user's approved September 13 plan. Only the three verified colleagues 
 
 ## Required before this checkpoint can release
 
+### Media validation checkpoint
+
+- Added a DNS-pinned HTTPS XML transport: public IPv4 only, no credentials, every redirect revalidated (max three), 1 MB response cap, identity encoding, supported XML MIME types and shared 20-second deadline.
+- XML validation rejects malformed data and DTD/entity declarations; RSS/Atom/sitemap parsing counts discovered URLs rather than inventing verified article totals. Nested checks cap at five documents and mark partial results.
+- Replaced the old permissive validator route with authenticated bounded input and sanitized errors. Personal-source create/update use the same validator via a per-UID 24-hour server cache; explicit refresh bypasses cached success. No silent fallback on failure.
+- Remaining: integrate hardened transport into recurring discovery (existing discovery fetchers still need replacement), owner shared-source configuration and initialization, UI status/manual refresh and real-source validation. The change is not deployed and does not prove production sources work.
+- Targeted tests: 16 passed; TypeScript/diff checks passed. No paid model calls.
+
 ### Shared-source separation checkpoint
 
 - System ingest now reads only enabled `sharedMediaSources`, never the personal `mediaSources` collection. Missing database/read failures are explicit errors; a deliberate empty shared list stays empty.
