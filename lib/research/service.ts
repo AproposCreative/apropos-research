@@ -4,6 +4,7 @@ import type { ResearchProviderName, ResearchResult, ResearchFallbackReason, Rese
 import { evaluateResearchQuality } from './qualityGate';
 import { createOpenAIResponsesProvider } from './providers/openaiResponsesProvider';
 import { createLegacyWebSearchProvider } from './providers/legacyWebSearchProvider';
+import { enforceSourcePolicy, sourcePolicyQuery, type ResearchSourcePolicy } from './source-policy';
 
 function boundedTimeout(value: unknown, fallback = 15000): number {
   const n = Number(value);
@@ -35,7 +36,7 @@ async function withTimeout<T>(run: (signal: AbortSignal) => Promise<T>, ms: numb
 
 export async function getResearch(
   query: string,
-  opts: { maxResults?: number; model?: string; timeoutMs?: number; allowFallback?: boolean } = {},
+  opts: { maxResults?: number; model?: string; timeoutMs?: number; allowFallback?: boolean; sourcePolicy?: ResearchSourcePolicy } = {},
 ): Promise<ResearchResult> {
   const started = Date.now();
   const maxResults = Number.isFinite(opts.maxResults) ? Math.max(1, Math.min(20, Math.floor(opts.maxResults!))) : 3;
@@ -50,7 +51,7 @@ export async function getResearch(
   async function attempt(name: ResearchProviderName, budget: number, model?: string): Promise<ResearchResult> {
     const start = Date.now();
     try {
-      const result = await withTimeout(signal => buildProvider(name, model).search({ query, maxResults, signal, timeoutMs: budget }), budget);
+      const result = enforceSourcePolicy(await withTimeout(signal => buildProvider(name, model).search({ query: sourcePolicyQuery(query, opts.sourcePolicy), maxResults, signal, timeoutMs: budget }), budget), opts.sourcePolicy);
       const gate = evaluateResearchQuality(result);
       result.debug.gateScore = gate.score;
       result.debug.gateReasons = gate.reasons;

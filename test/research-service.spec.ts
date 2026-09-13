@@ -29,6 +29,14 @@ it('returns passing primary evidence without fallback and clears its timer', asy
   expect(vi.getTimerCount()).toBe(0);
   expect(JSON.stringify(m.info.mock.calls)).not.toContain('private-query');
 });
+it('applies exclusions to primary and fallback and never retains a mixed brief', async () => {
+  m.fallback.mockResolvedValue(result(2, 'legacy_web_search'));
+  const data = await getResearch('private-query', { sourcePolicy: { preferred: [], excluded: ['source0.example'] } });
+  expect(m.primary.mock.calls[0][0].query).toContain('source0.example');
+  expect(m.fallback.mock.calls[0][0].query).toContain('source0.example');
+  expect(data.contextText).toBe(''); expect(data.sources).toEqual([]);
+  expect(m.primary).toHaveBeenCalledTimes(1); expect(m.fallback).toHaveBeenCalledTimes(1);
+});
 it('propagates a wrapped budget denial without a second provider attempt', async () => {
   const denial = new LivCostPretransportError('liv_cost_monthly_budget_exceeded');
   const wrapped = new Error('SDK connection error', { cause: denial });

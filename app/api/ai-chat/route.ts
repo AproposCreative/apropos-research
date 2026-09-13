@@ -18,6 +18,7 @@ import { livModels } from '@/lib/liv/model-config';
 import { writerLengthCheck, writerLengthPolicy } from '@/lib/ai-chat/article-length';
 import { boundedWriterConversation } from '@/lib/ai-chat/bounded-history';
 import { getWriterResearch, writerResearchScope } from '@/lib/ai-chat/research-cache';
+import { personalSourcePolicy } from '@/lib/ai-chat/personal-source-policy';
 import { withSharedCostContext } from '@/lib/liv/cost-context';
 import { getLivCostPretransportError } from '@/lib/liv/cost-errors';
 
@@ -502,7 +503,8 @@ async function handleWriterRequest(request: NextRequest) {
       if (searchPlatform) queryParts.push(String(searchPlatform));
       if (searchCategory && typeof searchCategory === 'string' && !/generel/i.test(searchCategory)) queryParts.push(searchCategory);
       const searchQuery = queryParts.join(' ');
-      researchResult = await getWriterResearch(writerResearchScope(request.headers), searchQuery, { maxResults: 3, ...(liv ? { model: livModels().research } : {}) });
+      const sourcePolicy = await personalSourcePolicy(request);
+      researchResult = await getWriterResearch(writerResearchScope(request.headers), searchQuery, { maxResults: 3, ...(sourcePolicy ? { sourcePolicy } : {}), ...(liv ? { model: livModels().research } : {}) });
       webSegment = buildWebSearchSegment(researchResult.contextText);
       if (clientRequestId) {
         updateProgressStep(clientRequestId, 'web-search', 'completed');

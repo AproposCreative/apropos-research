@@ -62,3 +62,25 @@ context (not only the displayed citation list); preserve primary-source fact
 checking and do not add a second paid search by default. Keep Liv's shared
 research path independent. Until that integration is verified, the released
 panel is source configuration, not proof that Writer obeys its selections.
+
+## Research integration checkpoint (local, not deployed)
+
+Writer now loads authenticated personal mediaSources before research and passes
+a deterministic normalized preferred/excluded domain policy through the existing
+cache options. Internal calls without Firebase identity load no personal policy;
+shared Liv ingestion is unchanged. Storage errors stop the operation rather than
+silently losing preferences. Up to 100 personal records, no silent truncation.
+
+The existing service attaches the preferences to both primary and fallback
+queries. Returned evidence citing excluded domains/subdomains is discarded as
+a whole, including its generated context. Primary sources remain allowed and
+enabled publishers are preferences, not an exclusive whitelist. No new search
+stage or retry loop was added. Thirty mocked policy/cache/provider/storage tests
+passed; no paid calls.
+
+Remaining before release: service receives provider results after source-count
+truncation, so exclusions must additionally be checked against each provider's
+full evidence before truncation. Query instructions alone are not proof of
+provider-level domain exclusion. Audit uncited/mixed context and prior article
+research reuse; run Writer route integration and full regression/build. This
+checkpoint is useful wiring, not a completed enforcement guarantee.
