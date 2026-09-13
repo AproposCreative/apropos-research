@@ -5,10 +5,23 @@ import { useAuth } from '@/lib/auth-context';
 import { useRouter } from 'next/navigation';
 
 export default function AuthModal() {
-  const { user, signInWithGoogle, accessError } = useAuth();
+  const { user, signInWithGoogle, accessError, verificationEmail, sendVerification, checkVerification } = useAuth();
   const router = useRouter();
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [notice, setNotice] = useState('');
+
+  const handleVerification = async (check: boolean) => {
+    setLoading(true);
+    setError('');
+    setNotice('');
+    try {
+      if (check) { await checkVerification(); router.replace('/ai'); }
+      else { await sendVerification(); setNotice('Verificeringsmail sendt. Tjek også spam.'); }
+    } catch (error: unknown) {
+      setError(error instanceof Error ? error.message : 'Kunne ikke kontrollere mailen. Prøv igen.');
+    } finally { setLoading(false); }
+  };
 
   const handleGoogleSignIn = async () => {
     setLoading(true);
@@ -37,6 +50,15 @@ export default function AuthModal() {
         {(error || accessError) && (
           <div className="mb-4 p-3 bg-red-500/10 border border-red-500/20 rounded-lg">
             <p className="text-red-400 text-sm" role="alert">{error || accessError}</p>
+          </div>
+        )}
+
+        {verificationEmail && (
+          <div className="mb-5 space-y-3 text-sm text-white/80">
+            <p>Bekræft din mail: <span className="break-all">{verificationEmail}</span></p>
+            <button type="button" disabled={loading} onClick={() => handleVerification(false)} className="w-full rounded-lg border border-white/30 px-4 py-3 disabled:opacity-50">Send verificeringsmail</button>
+            <button type="button" disabled={loading} onClick={() => handleVerification(true)} className="w-full rounded-lg border border-white/30 px-4 py-3 disabled:opacity-50">Jeg har verificeret min mail</button>
+            {notice && <p role="status">{notice}</p>}
           </div>
         )}
 

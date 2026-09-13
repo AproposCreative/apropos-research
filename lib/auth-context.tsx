@@ -15,6 +15,7 @@ import {
 } from 'firebase/auth';
 import { getFirebaseAuth } from './firebase';
 import { isSameOriginApi, requestHeaders } from './auth-policy';
+import { createEmailVerificationActions } from './email-verification';
 
 const ACCESS_MESSAGE = 'Adgang kræver en verificeret @aproposmagazine.com-mail eller en godkendelse fra administratoren.';
 async function requireAllowedUser(user: User): Promise<void> {
@@ -26,6 +27,9 @@ interface AuthContextType {
   user: User | null;
   loading: boolean;
   accessError: string;
+  verificationEmail: string | null;
+  sendVerification: () => Promise<void>;
+  checkVerification: () => Promise<void>;
   signIn: (email: string, password: string) => Promise<void>;
   signUp: (email: string, password: string) => Promise<void>;
   resetPassword: (email: string) => Promise<void>;
@@ -37,6 +41,9 @@ const AuthContext = createContext<AuthContextType>({
   user: null,
   loading: true,
   accessError: '',
+  verificationEmail: null,
+  sendVerification: async () => {},
+  checkVerification: async () => {},
   signIn: async () => {},
   signUp: async () => {},
   resetPassword: async () => {},
@@ -54,6 +61,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [accessError, setAccessError] = useState('');
+  const [verificationEmail, setVerificationEmail] = useState<string | null>(null);
+  const [{ sendVerification, checkVerification }] = useState(() =>
+    createEmailVerificationActions(() => getFirebaseAuth()?.currentUser ?? null, requireAllowedUser));
   const [aiBootOpen, setAiBootOpen] = useState(false);
   const aiBootStartRef = useRef<number | null>(null);
   const wasOnAiRef = useRef(false);
@@ -106,6 +116,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const check = async (candidate: User | null) => {
       const current = ++generation;
       setUser(null);
+      setVerificationEmail(candidate && !candidate.emailVerified ? candidate.email : null);
       if (!candidate) { setLoading(false); return; }
       setLoading(true);
       try {
@@ -194,6 +205,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     user,
     loading,
     accessError,
+    verificationEmail,
+    sendVerification,
+    checkVerification,
     signIn,
     signUp,
     resetPassword,
