@@ -4,6 +4,7 @@ import { getOpenAIClient } from '@/lib/openai';
 import { logger } from '@/lib/logger';
 import { loadLivVoice } from '@/lib/liv/voice';
 import { livModels } from '@/lib/liv/model-config';
+import { withSharedCostContext } from '@/lib/liv/cost-context';
 
 let styleCardCache: string | null = null;
 const briefCache = new Map<string, { value: string; ts: number }>();
@@ -47,7 +48,7 @@ export async function expandDirective(input: {
   const styleCard = await readStyleCard();
 
   try {
-    const res = await client.chat.completions.create({
+    const res = await withSharedCostContext({ scope: 'writer', stage: 'expand-directive' }, () => client.chat.completions.create({
       model,
       max_completion_tokens: 2000,
       messages: [
@@ -79,15 +80,14 @@ export async function expandDirective(input: {
           ].join('\n'),
         },
       ],
-    });
+    }, { maxRetries: 0, timeout: 45000 }));
+    if (res.choices[0]?.finish_reason !== 'stop') throw new Error('directive_incomplete');
     const expanded = res.choices[0]?.message?.content?.trim() || '';
     const finalText = expanded || directiveHint || topicHint;
     briefCache.set(key, { value: finalText, ts: now });
     return { expandedDirective: finalText, cached: false };
   } catch (e) {
-    logger.warn('[liv/expand-directive] failed, fallback to raw hint', {
-      err: e instanceof Error ? e.message : String(e),
-    });
+    logger.warn('[liv/expand-directive] unavailable, preserving raw hint');
     return { expandedDirective: directiveHint || topicHint, cached: false };
   }
 }

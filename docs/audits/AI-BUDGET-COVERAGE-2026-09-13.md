@@ -68,6 +68,14 @@ replace unsupported success fallbacks before treating these paths as editorial
 quality evidence. Do not delete the routes without tracing active consumers.
 # Shared transport closure (local, after f805c88)
 
+Follow-up: expandDirective was an actual unscoped helper called directly from
+Liv plan and preview. It now establishes Writer/expand-directive accounting,
+zero SDK retries and 45-second timeout. Existing 10-minute voice/model/input
+cache survives; incomplete completions are not cached. A failed optional expansion
+returns the original user hint, not invented research. Three boundary/cache tests
+and the 23 transport tests pass without paid calls. Remaining unwrapped helpers
+must still be traced to their parent contexts before deploying the global guard.
+
 With AI_SHARED_COST_ENABLED=true, the shared OpenAI fetch wrapper now refuses
 missing ALS context before any provider request. SDK retries are zero for that
 refusal even if the caller asks for retries. Invalid shared configuration also
