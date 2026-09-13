@@ -4,6 +4,9 @@
 
 - [x] Production staff access and Firebase rules released; administrator and
   outsider API cases verified. Full role/UI coverage remains below.
+- [x] Live external-editor membership lifecycle verified through admin API:
+  denied before approval, allowed with same token after approval, no admin access,
+  denied with same token after suspension. Temporary identity removed; audit retained.
 - [x] Preserve existing prepared articles; no paid regeneration for verification.
 - [x] Shared accounting extended to newsletter intro, inbox learning/generation
   and translation; output/retry/time bounds and truncation checks tested.
