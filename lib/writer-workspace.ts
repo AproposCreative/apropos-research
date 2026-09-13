@@ -12,3 +12,10 @@ export const workspaceSnapshotSchema = z.object({ revision: z.number().int().non
   data: workspacePayloadSchema, updatedAt: z.string() });
 export const workspaceWriteSchema = z.object({ revision: z.number().int().nonnegative(), data: workspacePayloadSchema }).strict();
 export const WORKSPACE_MAX_BYTES = 500000;
+export const workspaceVersionSelectorSchema = z.discriminatedUnion('kind', [
+  z.object({ kind: z.literal('history'), id: z.string().regex(/^\d{1,16}$/) }).strict(),
+  z.object({ kind: z.literal('conflicts'), id: z.string().regex(/^[a-f0-9]{64}$/) }).strict(),
+]);
+export type WorkspaceVersionSelector = z.infer<typeof workspaceVersionSelectorSchema>;
+export const workspaceRestoreSchema = z.object({ operationId: z.string().uuid(),
+  revision: z.number().int().nonnegative(), selection: workspaceVersionSelectorSchema, local: workspacePayloadSchema }).strict();

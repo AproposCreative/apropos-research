@@ -1,11 +1,12 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
 import { useAuth } from './auth-context';
-import type { WorkspacePayload } from './writer-workspace';
+import type { WorkspacePayload, WorkspaceVersionSelector } from './writer-workspace';
 import { WriterWorkspaceSync, type WorkspaceSyncState } from './writer-workspace-sync';
 
 const labels = { loading: 'Henter arbejdsrum…', ready: 'Klar', resume: 'Gemt arbejdsrum fundet',
   saving: 'Gemmer…', saved: 'Gemt', offline: 'Ikke synkroniseret',
+  restoring: 'Gendanner og bevarer dine versioner…', 'restore-error': 'Gendannelse afventer. Åbn Gemte versioner og prøv igen.',
   conflict: 'Konflikt: Begge versioner er bevaret', invalid: 'Arbejdsrummet kunne ikke gemmes. Kontrollér størrelse og indhold.' };
 export function useWriterWorkspace(data: WorkspacePayload) {
   const { user } = useAuth();
@@ -20,6 +21,7 @@ export function useWriterWorkspace(data: WorkspacePayload) {
     const session = new WriterWorkspaceSync({
       read: async () => fetch('/api/writer/workspace', { headers: await headers(), cache: 'no-store', signal: controller.signal }),
       write: async body => fetch('/api/writer/workspace', { method: 'PUT', headers: await headers(), body, signal: controller.signal }),
+      restore: async body => fetch('/api/writer/workspace/restore', { method: 'POST', headers: await headers(), body, signal: controller.signal }),
     }, setState);
     sync.current = session;
     session.setData(currentData.current);
@@ -30,5 +32,9 @@ export function useWriterWorkspace(data: WorkspacePayload) {
   }, [user]);
   useEffect(() => { sync.current?.setData(JSON.parse(serialized)); }, [serialized]);
   return { status: labels[state.phase], resume: state.resume, canRetry: state.phase === 'offline',
+    restore: (selection: WorkspaceVersionSelector) => {
+      if (!sync.current) return Promise.reject(new Error('Log ind igen.'));
+      return sync.current.restore(selection);
+    },
     retry: () => { void sync.current?.retry(); }, acceptResume: () => sync.current?.acceptResume() };
 }

@@ -16,6 +16,13 @@ Build the user's approved September 13 plan. Only the three verified colleagues 
 
 ## Required before this checkpoint can release
 
+### Restore continuation checkpoint
+
+- Implemented explicit POST `/api/writer/workspace/restore`: verified own UID only, bounded schema, immutable operation receipt, optimistic revision, preserve current server snapshot and submitted local text, then open selected own history/conflict snapshot under a new draft identity. Retries read the same receipt; modified operation bodies and concurrent writes are rejected.
+- Versions dialog now offers “Åbn som ny kopi i Writer”. Sync pauses while restoring, retries the exact uncertain operation, refuses swapping selections mid-retry, ignores disposed-account results, and retains newer local typing rather than replacing it with a late restore result.
+- This supersedes the previous checkpoint's missing direct-restore implementation. Actual multi-device/browser acceptance, Mine artikler integration, sharing, pagination and the broader plan still remain.
+- Targeted server/controller tests: 22 passed; TypeScript passed. No deployment or paid AI calls.
+
 ### Workspace continuation checkpoint
 
 - Extracted an account-lifetime sync controller and connected it to the Writer. Two-second debounce, no empty initial write, serialized saves, exact-body retry after uncertain network results, manual retry and online reconnect. Disposed accounts cannot apply late reads/writes. Conflicts remain paused rather than overwritten.

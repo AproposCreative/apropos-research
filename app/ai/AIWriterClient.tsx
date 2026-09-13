@@ -1297,7 +1297,9 @@ export default function AIWriterClient() {
   return (
     <>
       {!user && <AuthModal />}
-      {user && showWorkspaceVersions && <WorkspaceVersions onClose={() => setShowWorkspaceVersions(false)} />}
+      {user && showWorkspaceVersions && <WorkspaceVersions onClose={() => setShowWorkspaceVersions(false)} onRestore={async selection => {
+        const snapshot = await workspace.restore(selection); applySavedWorkspace(snapshot.data);
+      }} />}
       {user && <AuthModal />}
       {user && (activeView === 'ai' || activeView === null) && <aside className="fixed bottom-3 left-1/2 z-50 max-w-[calc(100%-2rem)] -translate-x-1/2 rounded-xl border border-white/20 bg-black/95 px-4 py-2 text-sm text-white">
         <span role="status">{workspace.status}</span>

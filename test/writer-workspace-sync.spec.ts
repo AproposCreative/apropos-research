@@ -9,9 +9,10 @@ afterEach(() => vi.useRealTimers());
 function fixture() {
   const read = vi.fn().mockImplementation(async () => Response.json({ workspace: null }));
   const write = vi.fn().mockImplementation(async () => Response.json({ revision: 1 }));
-  const changed = vi.fn(); const sync = new WriterWorkspaceSync({ read, write }, changed);
+  const restore = vi.fn().mockImplementation(async () => Response.json({ workspace: { ...snapshot, revision: 5 } }));
+  const changed = vi.fn(); const sync = new WriterWorkspaceSync({ read, write, restore }, changed);
   sync.setData(data());
-  return { sync, read, write, changed };
+  return { sync, read, write, restore, changed };
 }
 it('debounces latest work for two seconds and makes no empty initial write', async () => {
   const { sync, write } = fixture(); await sync.start(); await vi.advanceTimersByTimeAsync(2000);
@@ -88,4 +89,39 @@ it('ignores late initial reads from a disposed account', async () => {
   const started = sync.start(); sync.dispose(); changed.mockClear();
   pending.resolve(Response.json({ workspace: snapshot })); await started; await vi.advanceTimersByTimeAsync(10000);
   expect(changed).not.toHaveBeenCalled(); expect(write).not.toHaveBeenCalled();
+});
+it('restores a selected version and cancels a scheduled autosave of the previous content', async () => {
+  const { sync, read, restore, write } = fixture(); await sync.start(); sync.setData(data('local'));
+  read.mockResolvedValueOnce(Response.json({ workspace: snapshot }));
+  const result = await sync.restore({ kind: 'history', id: '3' });
+  expect(result.data.notes).toBe('cloud');
+  expect(JSON.parse(restore.mock.calls[0][0])).toMatchObject({ revision: 4, local: data('local'), selection: { kind: 'history', id: '3' } });
+  await vi.advanceTimersByTimeAsync(2000); expect(write).not.toHaveBeenCalled(); sync.dispose();
+});
+it('retries an uncertain restore with the exact same operation and refuses another selection', async () => {
+  const { sync, restore } = fixture(); await sync.start(); sync.setData(data('local'));
+  restore.mockRejectedValueOnce(new Error('lost response'));
+  await expect(sync.restore({ kind: 'history', id: '3' })).rejects.toThrow();
+  await expect(sync.restore({ kind: 'history', id: '4' })).rejects.toThrow('samme version');
+  expect(restore).toHaveBeenCalledTimes(1);
+  await sync.restore({ kind: 'history', id: '3' });
+  expect(restore.mock.calls[1][0]).toBe(restore.mock.calls[0][0]); sync.dispose();
+});
+it('keeps newer local edits after an uncertain restore instead of replacing them on retry', async () => {
+  const { sync, restore, write } = fixture(); await sync.start(); sync.setData(data('local before'));
+  restore.mockRejectedValueOnce(new Error('lost response'));
+  await expect(sync.restore({ kind: 'history', id: '3' })).rejects.toThrow();
+  sync.setData(data('local newer'));
+  await expect(sync.restore({ kind: 'history', id: '3' })).rejects.toThrow('nyere lokale');
+  expect(sync.state.phase).toBe('resume'); expect(sync.state.resume?.data.notes).toBe('cloud');
+  await vi.advanceTimersByTimeAsync(5000); expect(write).not.toHaveBeenCalled(); sync.dispose();
+});
+it('ignores a restore response when the account has been disposed', async () => {
+  const { sync, restore, changed } = fixture(); await sync.start();
+  const pending = deferred(); restore.mockReturnValueOnce(pending.promise);
+  const operation = sync.restore({ kind: 'history', id: '3' });
+  const rejected = expect(operation).rejects.toThrow('Kontoen');
+  await vi.advanceTimersByTimeAsync(0); sync.dispose(); changed.mockClear();
+  pending.resolve(Response.json({ workspace: snapshot })); await rejected;
+  expect(changed).not.toHaveBeenCalled();
 });
