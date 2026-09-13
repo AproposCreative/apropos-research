@@ -245,3 +245,14 @@ No paid model tests, CMS writes, newsletter sends or Instagram changes were made
 - Remaining scope: independent quality/research/media helpers and newsletter
   generation, production budget verification, operations UI, documented cleanup
   and seven consecutive daily publication readbacks. Goal remains active.
+
+### Multi-stage budget boundaries
+
+- Research-engine, content-enhancer and quality-check now keep their model calls
+  within one shared Writer run, retaining any existing parent Liv ownership.
+  SDK-wrapped pretransport denials propagate as no-store 503, not success.
+- 69 focused route/transport/ledger tests and TypeScript pass without paid calls.
+  New tests exercise all five stages, invalid configuration and parent ownership.
+- Still pending combined deployment. The coverage audit records additional
+  editorial debt in legacy research and quality fallbacks; wrapping is not proof
+  of grounded research or a complete global budget.

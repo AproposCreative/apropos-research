@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { withSharedCostContext } from '@/lib/liv/cost-context';
+import { getLivCostPretransportError } from '@/lib/liv/cost-errors';
 import { getOpenAIClient, models } from '@/lib/openai';
 import { logger, createRequestLogger } from '@/lib/logger';
 import { getRequestId } from '@/lib/api/request-utils';
@@ -7,6 +9,20 @@ import { createErrorResponse, createSuccessResponse, ErrorCode } from '@/lib/api
 const openai = getOpenAIClient();
 
 export async function POST(request: NextRequest) {
+  try {
+    return await withSharedCostContext({ scope: 'writer', stage: 'content-enhancer' }, () => handlePost(request));
+  } catch (error) {
+    if (!getLivCostPretransportError(error)) throw error;
+    return NextResponse.json(
+      createErrorResponse('AI-kaldet blev stoppet af budgetkontrollen. Se budget og driftsstatus.', {
+        statusCode: 503, errorCode: ErrorCode.INTERNAL_ERROR, requestId: getRequestId(request),
+      }),
+      { status: 503, headers: { 'Cache-Control': 'no-store' } }
+    );
+  }
+}
+
+async function handlePost(request: NextRequest) {
   const requestId = getRequestId(request);
   const requestLogger = createRequestLogger(requestId);
   
@@ -93,6 +109,7 @@ export async function POST(request: NextRequest) {
 
   } catch (error) {
     const errorObj = error instanceof Error ? error : new Error(String(error));
+    if (getLivCostPretransportError(error)) throw error;
     requestLogger.error('Content enhancement error', errorObj);
     return NextResponse.json(
       createErrorResponse('Failed to enhance content', {

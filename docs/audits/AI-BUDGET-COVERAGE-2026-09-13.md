@@ -14,8 +14,8 @@ provider transport. Merely using this singleton does NOT enforce the budget.
 | Writer chat | `app/api/ai-chat/route.ts` wraps handler in shared writer context | Verify all internal downstream hops retain scope |
 | Factcheck / TOV / moderation routes | Accept signed Liv context, missing header preserves manual behavior | Add own authenticated shared boundary for independent use |
 | Accreditation completions and research | Explicit shared contexts, caps, zero retries in pending commits b04dff9 through c22fdba | Deploy together and verify policy activation |
-| AI suggestions, analyze-research, generate-article, generate-webflow-fields | Direct completion sites, no shared boundary in route file | Add bounded server-owned scope and denial UX |
-| Content-enhancer, quality-check, research-engine | Multiple completion sites, no shared boundary in route file | Bound whole request, retain one budget across stages |
+| AI suggestions, analyze-research, generate-article, generate-webflow-fields | Shared Writer boundary, capped calls, zero retries and budget-denial response in 65f20a1 | Deploy and verify policy activation |
+| Content-enhancer, quality-check, research-engine | Shared Writer request context across all five calls; nested ownership and denial tested | Deploy; reduce redundant stages and replace unsupported research fallbacks |
 | Design editor helpers | Completion sites in more-clickbait and shorten-subtitle | Add budget and bounded output, test existing error handling |
 | Generate-image | Text planning call plus image pipeline | Trace JSON/multipart transports, price support and failover before wrapping |
 | Newsletter intro | `lib/newsletter/intro-ai.ts` direct completion | Add newsletter context; preserve send/draft behavior on budget denial |
@@ -41,3 +41,13 @@ contacting providers, and preserve completed paid responses on settlement errors
 
 The existing fullMonthlyCapVerified=false remains correct. Do not replace it
 with true based on this inventory or on narrow unit tests.
+
+## Editorial debt found while tracing budget boundaries
+
+`research-engine` still makes five ungrounded completion requests and constructs
+generic claimed media interest/expert opinions when JSON is empty or invalid.
+These are not verified research. `quality-check` can substitute a score of 50
+for invalid JSON; `content-enhancer` asks for full rewrites with small token caps.
+Budget wrapping does not fix these functional problems. Inspect consumers and
+replace unsupported success fallbacks before treating these paths as editorial
+quality evidence. Do not delete the routes without tracing active consumers.
