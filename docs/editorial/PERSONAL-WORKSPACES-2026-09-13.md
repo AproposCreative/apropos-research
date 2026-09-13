@@ -6,6 +6,8 @@ Build the user's approved September 13 plan. Only the three verified colleagues 
 
 ## Local checkpoint (not deployed)
 
+**Release update:** the implementation through `ff2af68` is now deployed and read-only API-verified in production. See `WORKSPACE-RELEASE-2026-09-13.md` for exact SHA, deployment and evidence. Older “not deployed” notes below describe historical checkpoints, not the current release. The broader plan and acceptance checks are still incomplete.
+
 - Server-derived owner capability in auth/access. Middleware owner gates, mobile/desktop launcher filtering, standalone page guard and embedded view filtering. Owner status requires Frederik's verified identity, not merely the admin role.
 - Liv approval controls and settings gear hidden for colleagues; server denies queue decision mutations.
 - Autosave keys scoped by UID. Unknown legacy cache never adopted automatically. Account-keyed React subtree prevents state reuse across accounts. MainChatPanel secondary cache also scoped.
