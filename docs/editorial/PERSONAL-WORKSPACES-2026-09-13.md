@@ -18,6 +18,12 @@ Build the user's approved September 13 plan. Only the three verified colleagues 
 
 ## Required before this checkpoint can release
 
+### Alert cross-midnight/error-isolation checkpoint
+
+- Existing prior-day slots are considered for resolving existing notices (bounded to fourteen). No retrospective failure notice is created for days without an existing alert. Future/invalid days are rejected by policy.
+- Publisher exceptions no longer skip health/alert evaluation. Mail failures preserve delivery and health evidence in the response and return a distinct `alerts: unconfirmed` flag with 503. One day's alert failure does not prevent processing the other selected days.
+- Sixteen targeted policy/send/route tests passed and TypeScript passed, including cross-midnight resolution and publisher/mail failures. Still local, not deployed. Preparation terminal state integration, stronger concurrent storage coverage and production alarm acceptance remain pending.
+
 ### Delivery alarms (local, not deployed)
 
 - Extended the existing authenticated quarter-hour delivery check, without another scheduler or AI call. Alarm policy waits until 10:15 Copenhagen time or a definitive non-user rejection; healthy days are quiet. One accepted failure notice and one accepted resolution per day, only to Frederik.

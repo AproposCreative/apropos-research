@@ -1,11 +1,11 @@
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { NextRequest, NextResponse } from 'next/server';
-const mocks = vi.hoisted(() => ({ auth: vi.fn(), legacy: vi.fn(), delivery: vi.fn(), state: vi.fn(), uid: vi.fn() }));
+const mocks = vi.hoisted(() => ({ auth: vi.fn(), legacy: vi.fn(), delivery: vi.fn(), state: vi.fn(), uid: vi.fn(), alerts: vi.fn() }));
 vi.mock('@/lib/cron/cron-auth', () => ({ requireCronBearer: mocks.auth }));
 vi.mock('@/lib/liv/run-daily', () => ({ runLivDaily: mocks.legacy }));
 vi.mock('@/lib/liv/deliver-ready', () => ({ deliverReadyArticle: mocks.delivery }));
 vi.mock('@/lib/liv/delivery-store', () => ({ readDeliveryState: mocks.state }));
-vi.mock('@/lib/liv/delivery-alerts', () => ({ notifyDeliveryHealth: vi.fn().mockResolvedValue({status:'unchanged'}) }));
+vi.mock('@/lib/liv/delivery-alerts', () => ({ notifyDeliveryHealth: mocks.alerts }));
 vi.mock('@/lib/newsletter/auth-request', () => ({ getNewsletterUserIdFromRequest: mocks.uid }));
 import { GET as daily } from '@/app/api/cron/liv-daily-article/route';
 import { GET as check } from '@/app/api/cron/liv-delivery-check/route';
@@ -16,6 +16,7 @@ beforeEach(() => {
   vi.stubEnv('LIV_DELIVERY_PREPARE_ENABLED', 'false'); vi.stubEnv('LIV_DAILY_PAUSED', 'false');
   vi.stubEnv('LIV_DAILY_PUBLICATION_MODE', 'auto_publish');
   mocks.delivery.mockResolvedValue({ status: 'waiting' });
+  mocks.alerts.mockResolvedValue([]);
   mocks.legacy.mockResolvedValue(NextResponse.json({ status: 'legacy' }));
   mocks.state.mockResolvedValue({ entries: [], slots: {} });
 });
@@ -48,6 +49,17 @@ it('returns a monitor-visible error when the deadline has been missed', async ()
   const response = await check(request());
   expect(response.status).toBe(503);
   expect((await response.json()).health.overdue).toBe(true);
+});
+it('retains health evidence when alert delivery fails', async () => {
+  mocks.alerts.mockRejectedValue(new Error('mail offline'));
+  const response = await check(request());const data=await response.json();
+  expect(response.status).toBe(503);expect(data.alerts).toBe('unconfirmed');
+  expect(data.health).toBeDefined();expect(data.delivery.status).toBe('waiting');
+});
+it('still evaluates alerts after a publisher failure', async () => {
+  mocks.delivery.mockRejectedValue(new Error('publisher offline'));
+  const response = await check(request());
+  expect(response.status).toBe(503);expect(mocks.alerts).toHaveBeenCalledTimes(1);
 });
 it('protects queue titles behind the existing authentication', async () => {
   mocks.uid.mockResolvedValue(null);

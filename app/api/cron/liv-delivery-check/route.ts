@@ -11,14 +11,18 @@ export async function GET(req: NextRequest) {
   const denied = requireCronBearer(req);
   if (denied) return denied;
   if (process.env.LIV_DELIVERY_QUEUE_ENABLED !== 'true') return NextResponse.json({ status: 'disabled' });
-  const response = await deliver(req);
+  let response: Response;
+  try { response = await deliver(req); }
+  catch { response = NextResponse.json({error:'liv_delivery_failed'}, {status:503}); }
   if (req.nextUrl.searchParams.has('dryRun') || ['1', 'true'].includes((process.env.LIV_DAILY_PAUSED || '').toLowerCase()) ||
       process.env.LIV_DAILY_PUBLICATION_MODE?.trim().toLowerCase() !== 'auto_publish') return response;
   try {
     const state = await readDeliveryState();
     const health = deliveryHealth(state);
-    await notifyDeliveryHealth(state);
+    let alerts = 'checked';
+    try { await notifyDeliveryHealth(state); }
+    catch { alerts = 'unconfirmed'; }
     if (health.overdue) logger.error('[liv/delivery] daily publication overdue', new Error('liv_daily_overdue'), health);
-    return NextResponse.json({ delivery: await response.json(), health }, { status: health.overdue ? 503 : response.status });
+    return NextResponse.json({ delivery: await response.json(), health, alerts }, { status: health.overdue || alerts === 'unconfirmed' ? 503 : response.status });
   } catch { return NextResponse.json({ error: 'liv_delivery_health_unavailable' }, { status: 503 }); }
 }

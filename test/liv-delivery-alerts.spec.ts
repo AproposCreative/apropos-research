@@ -19,3 +19,11 @@ it('sends one failure and one resolution, never success without prior failure',(
  expect(deliveryAlertKind(s,old,now)).toBe('resolved');
  expect(deliveryAlertKind(s,{...old,resolved:sent},now)).toBeNull();
 });
+it('resolves a previous day after midnight without inventing a historical failure',()=>{
+ const state=emptyDeliveryState();const now=new Date('2026-09-14T00:30:00Z');
+ state.slots['2026-09-13']={state:'published',itemId:'fixture',token:'fixture',leaseUntil:0,attempts:1,nextAttemptAt:0};
+ expect(deliveryAlertKind(state,{failure:sent},now,'2026-09-13')).toBe('resolved');
+ expect(deliveryAlertKind(state,{},now,'2026-09-13')).toBeNull();
+ expect(deliveryAlertKind(state,{},now,'2026-09-15')).toBeNull();
+ expect(deliveryAlertKind(state,{},now,'bad')).toBeNull();
+});
