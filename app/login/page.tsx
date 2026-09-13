@@ -97,7 +97,7 @@ export default function LoginPage() {
 
     try {
       await resetPassword(forgotEmail);
-      setSuccess('Password reset email sent! Check your inbox.');
+      setSuccess('Hvis adressen har adgang, sender vi et link til nulstilling. Tjek din indbakke og spam.');
       setShowForgotPassword(false);
     } catch (error: any) {
       setError('Failed to send reset email');

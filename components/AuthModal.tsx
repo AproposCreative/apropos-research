@@ -17,7 +17,7 @@ export default function AuthModal() {
     setNotice('');
     try {
       if (check) { await checkVerification(); router.replace('/ai'); }
-      else { await sendVerification(); setNotice('Verificeringsmail sendt. Tjek også spam.'); }
+      else { await sendVerification(); setNotice('Tjek din indbakke og spam. Vent et minut før et nyt forsøg.'); }
     } catch (error: unknown) {
       setError(error instanceof Error ? error.message : 'Kunne ikke kontrollere mailen. Prøv igen.');
     } finally { setLoading(false); }
