@@ -20,6 +20,9 @@ Build the user's approved September 13 plan. Only the three verified colleagues 
 
 ### Owner operations extension (local)
 
+- Browser acceptance checkpoint: real `LivOperations` component rendered in isolated React StrictMode fixture using fake auth/fetch. At 390×844 and 1280×900, no horizontal overflow or uncaught errors; long titles wrap. HTTP 503 hides stale success and shows an error; explicit refresh recovers. Only GET operations calls occurred. Fixture/server and browser were closed afterward. This is component evidence, not full application or production acceptance.
+- Full isolated regression after the extension: 3,326 tests in 224 files passed. Build/release remains pending. `scripts/verify-liv-operations-ui.mjs` preserves the reproducible fixture.
+
 - Reused the existing gear-menu operations panel instead of adding another dashboard. Added next-day/current-missing-day eligible story title and a separate read-only current-day alert projection. Selection respects existing rejection/blocker/priority policy and existing selected slots.
 - Direct operations route now requires verified `owner`, independently of middleware. Colleague editor/admin roles are rejected before reading operations.
 - Alert DTO contains only day/status; no payload, recipient or provider identity. Missing history is not successful delivery; unavailable storage remains a separate unavailable section. Provider acceptance is labeled as acceptance, not inbox delivery.
