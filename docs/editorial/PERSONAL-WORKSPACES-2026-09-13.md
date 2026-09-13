@@ -25,6 +25,10 @@ Build the user's approved September 13 plan. Only the three verified colleagues 
 
 ### Next privacy finding
 
+- Full isolated regression after the privacy change: 3,337 tests in 226 files passed. Build and deployment remain pending; production is still the operations release, not this privacy fix.
+
+- Browser checkpoint: real Architect/ReactFlow component in StrictMode, isolated auth/fetch and a mocked navigation link. Seeded A/B contexts plus legacy unowned context; held A's response, switched to B, then released A while deliberately ignoring abort in the fake transport. Only B's label rendered; requests used each matching token/context, legacy text never sent, no uncaught errors. Switching back to A and logging out before releasing its response left only the login message. Screenshot inspected. Fixture closed after testing. This does not exercise the real Firebase login or full Writer navigation; those remain release acceptance work.
+
 - Local implementation: Writer and Prompt Architect now use versioned UID-scoped context and toggle keys, ignoring legacy keys without deleting them. Architect is keyed by UID, unmounts on logout and aborts obsolete preview fetches; preview includes bearer authentication. The server route verifies editorial identity directly and returns private/no-store responses without logging raw prompt exceptions.
 - Four targeted storage/route/no-research tests and TypeScript passed. React review completed. This is not deployed; actual browser account-switch/late-result tests, broader regression and release acceptance remain required. Toggle preferences remain local per user, not yet cross-device cloud state.
 
