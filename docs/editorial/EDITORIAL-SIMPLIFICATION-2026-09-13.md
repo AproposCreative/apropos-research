@@ -319,3 +319,15 @@ No paid model tests, CMS writes, newsletter sends or Instagram changes were made
   No raw errors, recipient addresses or email subject/body are returned.
 - Three projection tests and TypeScript pass. No cron/send/generation calls.
   Authenticated route and settings-menu UI still required; not deployed yet.
+
+### Operations API and settings panel
+
+- Added GET-only /api/editorial/operations with verifyEditorialToken (revocation,
+  current account and editorial membership), private no-store responses and safe
+  errors. Anonymous/unapproved calls do not read operational stores.
+- Liv settings now contains a compact Liv/newsletter/budget status panel. It only
+  fetches while mounted or on manual refresh; cancellation prevents late updates.
+  No cron, generation, recipient loading or send action exists in this panel.
+- Five API/projection tests and TypeScript pass. React checklist reviewed for
+  effect cleanup, conditional mounting and type-only server imports. Visual and
+  production verification remain pending; not claimed live yet.
