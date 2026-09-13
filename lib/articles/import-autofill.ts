@@ -10,6 +10,7 @@
 
 import type OpenAI from 'openai';
 import { models } from '@/lib/openai';
+import { withSharedCostContext } from '@/lib/liv/cost-context';
 import { buildImageAltText } from '@/lib/images/seo-image-name';
 import {
   buildSeoFields,
@@ -97,19 +98,37 @@ function buildSystemPrompt(input: AnalyzeArticleInput): string {
 }
 
 /** Kald OpenAI og parse den strukturerede JSON. Kaster ved fejl. */
+export class ImportInputError extends Error {}
+
+export function validateImportInput(input: AnalyzeArticleInput): void {
+  if (typeof input.articleText !== 'string' || !input.articleText.trim() || input.articleText.length > 24000) {
+    throw new ImportInputError('Artikelteksten skal være mellem 1 og 24.000 tegn. Originalen er ikke ændret.');
+  }
+  if (buildSystemPrompt(input).length > 24000) {
+    throw new ImportInputError('For mange CMS-valgmuligheder til én import. Originalen er ikke ændret.');
+  }
+}
+
 export async function analyzeArticleForImport(
   openai: OpenAI,
-  input: AnalyzeArticleInput
+  input: AnalyzeArticleInput,
+  signal?: AbortSignal
 ): Promise<ImportAnalysis> {
-  const completion = await openai.chat.completions.create({
+  validateImportInput(input);
+  const completion = await withSharedCostContext({ scope: 'writer', stage: 'article-import' }, () => openai.chat.completions.create({
     model: models.default,
+    max_completion_tokens: 10000,
     temperature: 0.3,
     response_format: { type: 'json_object' },
     messages: [
       { role: 'system', content: buildSystemPrompt(input) },
-      { role: 'user', content: input.articleText.slice(0, 24000) },
+      { role: 'user', content: input.articleText },
     ],
-  });
+  }, { maxRetries: 0, timeout: 60000, signal }));
+
+  if (completion.choices[0]?.finish_reason !== 'stop') {
+    throw new Error('AI-analysen blev ikke færdig. Originalen er ikke ændret.');
+  }
 
   const raw = completion.choices[0]?.message?.content?.trim();
   if (!raw) {
@@ -125,6 +144,13 @@ export async function analyzeArticleForImport(
     parsed = JSON.parse(match[0]);
   }
 
+  if (!parsed || typeof parsed !== 'object' ||
+    !['title', 'intro', 'contentHtml'].every(key => {
+      const value = parsed[key as keyof ImportAnalysis];
+      return typeof value === 'string' && value.trim().length > 0;
+    })) {
+    throw new Error('AI-analysen mangler obligatoriske tekstfelter. Originalen er ikke ændret.');
+  }
   return normalizeAnalysis(parsed, input.articleText);
 }
 

@@ -8,9 +8,9 @@
 - [x] Shared accounting extended to newsletter intro, inbox learning/generation
   and translation; output/retry/time bounds and truncation checks tested.
 - [x] Read-only authenticated operations API and Liv settings panel implemented.
-- [x] Full regression: 3,051 tests in 184 files passed, isolated from production.
-- [x] Production release cf430c9 READY and exact production target verified;
-  authenticated operations 200, anonymous 401 on 2026-09-13 14:52 UTC.
+- [x] Full regression at f534831: 3,088 tests in 188 files passed, isolated from production.
+- [x] Production release f534831 READY and exact production target verified;
+  authenticated operations 200, anonymous 401 on 2026-09-13 15:20 UTC.
 - [ ] Complete remaining independent quality/media AI budget coverage. The
   300 DKK limit is not yet a verified full-application/invoice cap.
 - [ ] Verify settings UI visually and remaining access-list role variants.
@@ -19,6 +19,18 @@
 
 Historical sections below are an append-only execution trail, not the current
 deployment status. No new user approval is required for scoped implementation.
+
+### Import boundary (after f534831, local)
+
+Article import now establishes shared Writer accounting, bounds output to 10,000
+tokens, disables SDK retries and passes cancellation with a 60-second timeout.
+Oversized article/CMS-option inputs are rejected before model or image work rather
+than silently dropping source text. Incomplete output cannot construct an article
+update. Budget denial returns uncached 503; raw provider errors are not exposed.
+Seventeen import/translation tests pass without paid calls; TypeScript passes.
+Existing parallel image uploads remain, so provider failure may still leave
+uploaded assets. This is not resumable paid-work checkpoint coverage. Thumbnail
+still uses the legacy model and remains the next uncovered image route.
 
 ## Target
 

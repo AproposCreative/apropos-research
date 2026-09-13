@@ -9,7 +9,10 @@ import {
   analyzeArticleForImport,
   buildImportArticleUpdate,
   type CmsOption,
+  validateImportInput,
+  ImportInputError,
 } from '@/lib/articles/import-autofill';
+import { getLivCostPretransportError } from '@/lib/liv/cost-errors';
 import { deriveSlug } from '@/lib/articles/seo-utils';
 
 export const runtime = 'nodejs';
@@ -114,6 +117,16 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    const analysisInput = {
+      articleText,
+      sections: asOptions(body.sections),
+      topics: asOptions(body.topics),
+      authors: asOptions(body.authors),
+      streamingServices: asOptions(body.streamingServices),
+    };
+    // Validate before any model request or parallel image uploads. Never silently
+    // discard the end of a supplied article to fit the provider request.
+    validateImportInput(analysisInput);
     requestLogger.info('Import: analyzing + optimizing (parallel)', { length: articleText.length });
 
     // Provisorisk filnavn-base fra artiklens første linje, så billedoptimering kan
@@ -177,13 +190,7 @@ export async function POST(req: NextRequest) {
     ];
 
     const [analysis, [heroDesktop, heroMobile, bodyOne, bodyTwo]] = await Promise.all([
-      analyzeArticleForImport(openai, {
-        articleText,
-        sections: asOptions(body.sections),
-        topics: asOptions(body.topics),
-        authors: asOptions(body.authors),
-        streamingServices: asOptions(body.streamingServices),
-      }),
+      analyzeArticleForImport(openai, analysisInput, req.signal),
       runWithConcurrency(imageTasks, 2),
     ]);
 
@@ -216,10 +223,16 @@ export async function POST(req: NextRequest) {
       )
     );
   } catch (err) {
-    const errorObj = err instanceof Error ? err : new Error(String(err));
-    requestLogger.error('Import article error', errorObj);
+    if (err instanceof ImportInputError || getLivCostPretransportError(err)) {
+      const status = err instanceof ImportInputError ? 400 : 503;
+      return NextResponse.json(createErrorResponse(
+        err instanceof ImportInputError ? err.message : 'AI-budgettet tillader ikke import lige nu. Originalen er ikke ændret.',
+        { statusCode: status, errorCode: status === 400 ? ErrorCode.INVALID_REQUEST : ErrorCode.INTERNAL_ERROR, requestId }
+      ), { status, headers: { 'Cache-Control': 'no-store' } });
+    }
+    requestLogger.error('Import article failed');
     return NextResponse.json(
-      createErrorResponse(errorObj.message || 'Import af artikel fejlede.', {
+      createErrorResponse('Import af artikel fejlede. Originalen er ikke ændret.', {
         statusCode: 500,
         errorCode: ErrorCode.INTERNAL_ERROR,
         requestId,
