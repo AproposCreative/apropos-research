@@ -2,6 +2,11 @@
 
 ## Current checklist (supersedes historical pending notes below)
 
+- [x] Production c9e9c2a verified READY with exact production SHA at September 13
+  17:06 UTC; 3,159 tests in 198 files passed. Receipt: `DEPLOY-RECEIPT-c9e9c2a.md`.
+  Sanitized runtime warning capture now identifies the teeny-request streaming
+  call site; underlying listener warning remains under investigation, not fixed.
+
 - [x] Production staff access and Firebase rules released; administrator and
   outsider API cases verified. Full role/UI coverage remains below.
 - [x] Live external-editor membership lifecycle verified through admin API:
