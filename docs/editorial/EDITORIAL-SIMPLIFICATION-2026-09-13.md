@@ -126,3 +126,19 @@ No paid model tests, CMS writes, newsletter sends or Instagram changes were made
 - Budget readback: estimated tracked upper 46.306176 DKK, limit 300 DKK, tracking
   began September 12. `fullMonthlyCapVerified=false`; remaining allowance is not
   proof of actual account-wide September spending.
+
+### CMS normalization diagnosis and release, September 13
+
+- Direct read-only CMS comparison confirms Freud's main prose and captions are
+  unchanged. The false content failure occurs at the figure-to-paragraph boundary:
+  Webflow drops the serialization newline after the caption. Semantic block text
+  comparison now passes that exact case, still rejecting changed words/captions.
+- Actual editorial changes remain: Freud's intro differs; Frankenstein's captions
+  have lost illustration credits. CMS also strips inline image style. Do not
+  erase blockers: reconcile reviewed text and establish image layout/byte proof.
+  Existing continue/edit endpoints target pre-CMS checkpoints, not these saved
+  ready drafts; they must not be misused to regenerate the articles.
+- 85 relevant tests pass, TypeScript passes. Commits cfdcdf2 and 70022b3 pushed;
+  production deployment `dpl_FT76ViE8G4RrPvkwSAhQEYmo6GYV` targets exact SHA
+  `70022b3633f97bfc6c3c58c96cb11e1a594d2007`. Last observed BUILDING, not yet
+  verified live. No paid AI requests or CMS writes in this diagnostic.
