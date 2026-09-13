@@ -21,8 +21,9 @@
 - [ ] Complete remaining independent quality/media AI budget coverage. The
   300 DKK limit is not yet a verified full-application/invoice cap.
 - [ ] Verify settings UI visually and remaining access-list role variants.
-  Fix LivOperations null usage formatting first: its current toFixed call can
-  throw when the ledger correctly returns unknown usage. Do not substitute zero.
+  LivOperations null usage formatting fixed locally: unknown values remain unknown,
+  genuine zero remains zero and Danish amounts are formatted safely. 14 targeted
+  tests and TypeScript pass. Still needs release and rendered UI verification.
 - [ ] Remove only proven obsolete code; preserve editorial work and audit.
 - [ ] Record seven consecutive API-driven daily publications and next preview.
 

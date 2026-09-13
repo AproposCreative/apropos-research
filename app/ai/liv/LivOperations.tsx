@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react';
 import { useAuth } from '@/lib/auth-context';
 import type { readEditorialOperations } from '@/lib/editorial-operations';
+import { operationsBudgetLabel } from '@/lib/editorial-operations-view';
 
 type Snapshot = Awaited<ReturnType<typeof readEditorialOperations>>;
 const states: Record<string, string> = { sent: 'Afsendelse registreret', failed: 'Afsendelse fejlede', skipped: 'Sprunget over', processing: 'Behandles', not_recorded: 'Ingen afsendelse registreret', unknown: 'Ukendt status' };
@@ -39,7 +40,7 @@ export default function LivOperations() {
     {snapshot && <div className="space-y-3 text-sm">
       <div><h4>Liv</h4><p className="text-white/65">{liv ? `${liv.autoPublishEnabled ? 'Automatik aktiv' : 'Automatik inaktiv'} · ${liv.published ? 'Dagens udgivelse registreret' : liv.overdue ? 'Dagens udgivelse mangler' : 'Afventer kl. 10'}` : 'Status utilgængelig'}</p>{liv && (liv.blockedItems.length > 0 || liv.needsReconciliation) && <p className="text-amber-200">Gemte udgivelser kræver kontrol.</p>}</div>
       <div><h4>Nyhedsbrev</h4><p className="text-white/65">{mail ? `${mail.enabled ? 'Ugeautomatik aktiv' : 'Ugeautomatik inaktiv'} · ${states[mail.status] || states.unknown}` : 'Status utilgængelig'}</p>{mail && <p className="text-xs text-white/50">{mail.week} · {mail.sentCount ?? 'Ukendt antal'} afsendt · {mail.failedCount ?? 'Ukendt antal'} fejl</p>}</div>
-      <div><h4>AI-budget</h4><p className="text-white/65">{budget ? `${budget.usageBasedUpperDkk.toFixed(2)} kr. registreret af ${budget.monthlyLimitDkk} kr.` : 'Status utilgængelig'}</p>{budget && !budget.fullMonthlyCapVerified && <p className="text-xs text-amber-200">Delvis dækning. Ikke en komplet faktura.</p>}</div>
+      <div><h4>AI-budget</h4><p className="text-white/65">{operationsBudgetLabel(budget)}</p>{budget && !budget.fullMonthlyCapVerified && <p className="text-xs text-amber-200">Delvis dækning. Ikke en komplet faktura.</p>}</div>
       <p className="text-xs text-white/40">Aflæst {new Date(snapshot.checkedAt).toLocaleString('da-DK')}</p>
     </div>}
   </section>;
