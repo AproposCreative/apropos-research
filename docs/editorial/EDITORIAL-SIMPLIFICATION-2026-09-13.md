@@ -25,7 +25,11 @@
   genuine zero remains zero and Danish amounts are formatted safely. 14 targeted
   tests and TypeScript pass. Isolated real-component visual test passes eight
   scenarios at mobile/desktop widths, including refresh and error states.
-  Still needs full production settings-shell verification.
+  Actual production settings shell verified September 13 18:22 Copenhagen:
+  gear, budget disclosure, live operations, mobile scroll and back-to-three-stories
+  work at build b903348; 390px viewport has no document overflow. Evidence:
+  `docs/audits/LIV-SETTINGS-PRODUCTION-2026-09-13.md`.
+  Remaining role variants are not implied by this administrator UI check.
 - [x] Remove proven obsolete embedding code; preserve editorial work and audit.
   Removed `scripts/train-style-embeddings.ts` and its sole caller, the inactive
   `github/workflows/train-upload.yml` copy. Actual `.github` workflow uses
