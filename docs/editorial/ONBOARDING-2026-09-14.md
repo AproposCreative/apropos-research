@@ -27,5 +27,19 @@
   `TEAM-VERIFICATION-2026-09-14.md`; actual recipient verification/login remains
   separate acceptance evidence.
 
-Release/build and exact production verification are recorded after completion;
-this checkpoint alone does not establish deployment.
+## Release receipt
+
+- All 3,388 tests in 233 files passed. Production build and TypeScript passed;
+  nine existing file-tracing warnings remain.
+- Production deployment `dpl_45ynDnzA6mcyLKM8jUxrh9qKHSEa` is READY for
+  `d4f790f9342e2859f81082b292d633bde0c716ee`, with the
+  `ai.aproposmagazine.com` alias attached.
+- Production `/login` returned 200. Its served JavaScript contains the new
+  signup helper, existing-account error and verification link. Unauthenticated
+  POST verification returned 401 without sending mail.
+- Fresh read-only Firebase lookup: Frederik verified and enabled; Casper and
+  Milo enabled but not yet verified. No accounts, passwords or verification
+  flags were changed by this release verification.
+- Automatic first-mail success was tested with isolated dependencies, not by
+  deleting/recreating a real colleague. Actual colleague verification and login
+  remain open; deployment is not evidence those actions occurred.
