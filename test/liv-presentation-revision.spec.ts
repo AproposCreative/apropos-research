@@ -69,6 +69,27 @@ it('updates CMS, checkpoint and delivery together while preserving body, date, a
 it('replays a completed request without writing again', async () => {
   const first=await reviseLivPresentation(input); expect(await reviseLivPresentation(input)).toEqual(first); expect(io.patch).toHaveBeenCalledTimes(1);
 });
+it('restores only the pinned prepared intro and preserves the replaced CMS intro in audit', async () => {
+  const payload = database.rows.get(`livDelivery/item-${id}`)!;
+  payload.expected.intro = 'The original prepared and reviewed intro.';
+  payload.payloadHash = cmsFieldHash(payload.expected);
+  manifest().entries[0].payloadHash = payload.payloadHash;
+  const row = database.rows.get('livDailyArticles/prepare-2026-09-15')!;
+  row.articleCheckpoint.intro = payload.expected.intro;
+  row.preparationProof = { ...row.preparationProof, expected: structuredClone(payload.expected), hash: payload.payloadHash };
+  cms.fieldData.intro = 'A different CMS intro that must remain in history.';
+  input.expectedCmsHash = cmsFieldHash(cms.fieldData);
+  input.expectedPayloadHash = payload.payloadHash;
+  input.restorePreparedIntro = true;
+  const result = await reviseLivPresentation(input);
+  expect(result.publicationReady).toBe(true);
+  expect(cms.fieldData.intro).toBe(payload.expected.intro);
+  const audit = [...database.rows].find(([key]) => key.startsWith('livPresentationAudits/'))![1];
+  expect(audit.cms.fieldData.intro).toBe('A different CMS intro that must remain in history.');
+  expect(row.articleCheckpoint.intro).toBe(payload.expected.intro);
+  await reviseLivPresentation(input);
+  expect(io.patch).toHaveBeenCalledTimes(1);
+});
 it('reconciles an uncertain successful write without repeating it', async () => {
   io.patch.mockImplementationOnce(async (_id, fields) => { Object.assign(cms.fieldData, fields); throw new Error('transport_lost'); });
   await expect(reviseLivPresentation(input)).rejects.toThrow('transport_lost');
