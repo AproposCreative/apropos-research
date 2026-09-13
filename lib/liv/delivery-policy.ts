@@ -1,8 +1,9 @@
 import type { LivEditorialKind } from './editorial-kind';
 /** Pure policy shared by preparation, delivery and status. All days are Danish calendar days. */
 // Produce one next-day article, not a speculative week of paid inventory.
-// Existing reserves remain eligible; no new reserve stock is required.
+// New reserve production is opt-in; existing reserves always remain eligible.
 export const LIV_RESERVE_TARGET = 0;
+export function reserveTarget() { return process.env.LIV_RESERVE_ENABLED === 'true' ? 1 : LIV_RESERVE_TARGET; }
 export const LIV_PLAN_DAYS = 1;
 export const LIV_DELIVERY_LEASE_MS = 6 * 60_000;
 
@@ -48,6 +49,8 @@ export type DeliverySlot = {
   publicUrl?: string; checkedAt?: string;
 };
 export type DeliveryState = { entries: ReadyEntry[]; slots: Record<string, DeliverySlot>;
+  /** Durable automatic reserve identity. Never replaced merely because a day changed. */
+  reservePreparation?: { dayKey: string };
   /** Staged editorial mutation, never a publish attempt. Retained until reconciled. */
   coverRevision?: { id: string; itemId: string; day: string };
   preparation?: { token: string; leaseUntil: number } };
@@ -72,6 +75,6 @@ export function deliveryHealth(state: DeliveryState, now = new Date()) {
       e.scheduledDay === d && e.expiresDay >= d));
   const blockedItems = state.entries.filter(e => e.state === 'ready' && e.publicationBlockers?.length).map(e => e.itemId);
   return { blockedItems, day, published: slot?.state === 'published', publicUrl: slot?.publicUrl ?? null,
-    overdue: hour >= 10 && slot?.state !== 'published', reserves, reserveTarget: LIV_RESERVE_TARGET,
+    overdue: hour >= 10 && slot?.state !== 'published', reserves, reserveTarget: reserveTarget(),
     missingDays, needsReconciliation: Object.values(state.slots).some(s => s.state === 'attempted') };
 }

@@ -18,9 +18,9 @@ export function deliveryAlertKind(state: DeliveryState, old: DeliveryAlertRecord
   if (state.slots[day]?.state === 'published') {
     return old.failure?.accepted && !old.resolved?.accepted ? 'resolved' : null;
   }
-  const failedPreparation = preparation?.day === day && preparation.status === 'blocked_saved_work' &&
+  const failedPreparation = preparation?.scope !== 'reserve' && preparation?.day === day && preparation.status === 'blocked_saved_work' &&
     (preparation.runStatus === 'failed' || preparation.runStatus?.startsWith('skipped_'));
-  const terminal = failedPreparation || state.entries.some(e => e.scheduledDay === day && e.state === 'rejected' && e.decision !== 'rejected');
+  const terminal = failedPreparation || state.entries.some(e => e.kind === 'scheduled' && e.scheduledDay === day && e.state === 'rejected' && e.decision !== 'rejected');
   if (!old.failure?.accepted && (terminal || now.getTime() >= Date.parse(publicationTime(day)) + 15 * 60000)) return 'failure';
   return null;
 }

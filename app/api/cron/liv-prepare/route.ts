@@ -10,6 +10,7 @@ import { runLivDaily } from '@/lib/liv/run-daily';
 import { admitPreparedArticle, type PreparationProof } from '@/lib/liv/prepared-admission';
 import { canRetryUnstartedPreparation } from '@/lib/liv/preparation-retry';
 import { canResumeLivPreparationCheckpoint, livPreparationStatusForRow } from '@/lib/liv/preparation-status';
+import { claimReserveCandidate } from '@/lib/liv/reserve-preparation';
 
 export const maxDuration = 300;
 export async function GET(req: NextRequest) {
@@ -31,8 +32,13 @@ export async function GET(req: NextRequest) {
     for (let offset = 0; offset <= LIV_PLAN_DAYS; offset++) {
       await ensureLivDailyPlan(defaultEditorialPlan(addDays(today, offset)));
     }
-    for (const candidate of preparationCandidates(state, today)) {
-      const scope = candidate.scope || 'prepare';
+    const candidates: Array<{ dayKey: string; kind: 'scheduled' | 'reserve'; scope?: 'prepare-alternative' }> = preparationCandidates(state, today);
+    if (!candidates.length) {
+      const reserve = await claimReserveCandidate(lease);
+      if (reserve) candidates.push(reserve);
+    }
+    for (const candidate of candidates) {
+      const scope = candidate.scope || (candidate.kind === 'reserve' ? 'reserve' : 'prepare');
       // Existing paid or uncertain work is retained. Do not start it again merely
       // because this hourly call happened; incomplete jobs appear in health status.
       const saved = await db.collection(LIV_DAILY_COLLECTION).doc(livDailyDocId(candidate.dayKey, scope)).get();
@@ -54,8 +60,8 @@ export async function GET(req: NextRequest) {
             // Re-read the known CMS item; never regenerate text/images or create an item here.
             await admitPreparedArticle({ itemId: row.webflowItemId, slug: proof.expected.slug,
               title: proof.expected.title, kind: candidate.kind,
-              scheduledDay: candidate.dayKey,
-              expiresDay: candidate.dayKey }, proof);
+              scheduledDay: candidate.kind === 'reserve' ? today : candidate.dayKey,
+              expiresDay: candidate.kind === 'reserve' ? addDays(candidate.dayKey, 5) : candidate.dayKey }, proof);
             const recovered = await readDeliveryState();
             if (recovered.entries.some(entry => entry.itemId === row.webflowItemId && entry.state === 'ready' &&
                 entry.decision !== 'rejected' && entry.expiresDay >= today)) {
@@ -71,7 +77,7 @@ export async function GET(req: NextRequest) {
           return NextResponse.json(livPreparationStatusForRow(candidate.dayKey, scope, row));
         }
       }
-      return await runLivDaily(req, { ...candidate, defaultPlan: defaultEditorialPlan(candidate.dayKey) });
+      return await runLivDaily(req, { ...candidate, defaultPlan: defaultEditorialPlan(candidate.dayKey, candidate.kind === 'reserve') });
     }
     return NextResponse.json({ status: 'no_unstarted_work', day: today });
   } catch { return NextResponse.json({ error: 'liv_preparation_failed' }, { status: 503 }); }

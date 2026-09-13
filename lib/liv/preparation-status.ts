@@ -3,10 +3,11 @@ import { LIV_DAILY_COLLECTION, livDailyDocId } from '@/lib/liv/daily-history-sto
 import { addDays, copenhagenClock, type DeliveryState } from '@/lib/liv/delivery-policy';
 import { preparationCandidates } from '@/lib/liv/rolling-plan';
 import { canRetryUnstartedPreparation } from '@/lib/liv/preparation-retry';
+import { reserveNeeded } from './reserve-preparation';
 
 const runStatuses = ['processing', 'published', 'draft', 'skipped_no_topic', 'skipped_factcheck',
   'skipped_moderation', 'skipped_tov', 'skipped_duplicate', 'failed'] as const;
-type PreparationScope = 'prepare' | 'prepare-alternative';
+type PreparationScope = 'prepare' | 'prepare-alternative' | 'reserve';
 export type LivNextPreparationStatus = {
   day: string | null;
   scope: PreparationScope | null;
@@ -77,7 +78,8 @@ export async function readNextLivPreparationStatus(state: DeliveryState, now = n
       other.state === 'ready' && other.decision !== 'rejected' && !other.publicationBlockers?.length && other.expiresDay >= entry.scheduledDay));
   if (blocked) return { day: blocked.scheduledDay, scope: 'prepare', runStatus: null,
     status: 'blocked_saved_work', reasonCode: 'cms_reconciliation_required' };
-  const candidate = preparationCandidates(state, today)[0];
+  const candidate: { dayKey: string; scope?: PreparationScope } | undefined = preparationCandidates(state, today)[0] ??
+    (reserveNeeded(state,today) ? { dayKey: state.reservePreparation?.dayKey ?? today, scope: 'reserve' } : undefined);
   if (!candidate) {
     const exhaustedDay = [today, addDays(today, 1)].find(day => !state.slots[day] &&
       state.entries.filter(entry => entry.kind === 'scheduled' && entry.scheduledDay === day && entry.decision === 'rejected').length >= 2 &&

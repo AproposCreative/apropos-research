@@ -3,7 +3,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import type { DeliveryState, ReadyEntry } from '@/lib/liv/delivery-policy';
 const mocks = vi.hoisted(() => ({ row: undefined as Record<string, unknown> | undefined,
   rows: new Map<string, Record<string, unknown>>(), state: { entries: [], slots: {} } as DeliveryState,
-  run: vi.fn(), release: vi.fn(), admit: vi.fn(), auth: vi.fn() }));
+  run: vi.fn(), release: vi.fn(), admit: vi.fn(), auth: vi.fn(), reserve: vi.fn() }));
+vi.mock('@/lib/liv/reserve-preparation', () => ({ claimReserveCandidate: mocks.reserve, reserveNeeded: () => false }));
 vi.mock('@/lib/cron/cron-auth', () => ({ requireCronBearer: mocks.auth }));
 vi.mock('@/lib/firebase-admin', () => ({ getAdminDb: () => ({ collection: () => ({ doc: (id: string) => ({
   get: async () => { const row = mocks.rows.get(id) ?? mocks.row; return { exists: !!row, data: () => row }; },
@@ -26,6 +27,7 @@ afterEach(() => { vi.unstubAllEnvs(); vi.useRealTimers(); });
 const request = () => new NextRequest('https://app.example/api/cron/liv-prepare');
 it('starts just one bounded job for an empty queue', async () => {
   await GET(request()); expect(mocks.run).toHaveBeenCalledTimes(1); expect(mocks.release).toHaveBeenCalledWith('lease');
+  expect(mocks.reserve).not.toHaveBeenCalled();
 });
 it('does not let a legacy pre-generation no-topic record permanently block tomorrow', async () => {
   mocks.row = { status: 'skipped_no_topic' };
@@ -89,6 +91,29 @@ function coverTodayAndTomorrow() {
     attempts: 1, nextAttemptAt: 0 };
   mocks.state.entries.push({ ...reserveItem(9), kind: 'scheduled', scheduledDay: '2026-09-13', expiresDay: '2026-09-13' });
 }
+
+it('uses the reserve scope and timeless directive for an existing reserved job', async () => {
+  coverTodayAndTomorrow(); mocks.reserve.mockResolvedValue({dayKey:'2026-09-11',kind:'reserve'});
+  mocks.rows.set('reserve-2026-09-11',{status:'processing',continuationReady:true,articleCheckpoint:{content:'Saved text'}});
+  await GET(request());
+  expect(mocks.reserve).toHaveBeenCalledWith('lease');
+  expect(mocks.run).toHaveBeenCalledWith(expect.any(NextRequest),expect.objectContaining({dayKey:'2026-09-11',kind:'reserve',
+    defaultPlan:expect.objectContaining({directiveHint:expect.stringContaining('Tidløs reserve')})}));
+});
+it('recovers a reserve with its five-day expiry, not a scheduled one-day window', async () => {
+  coverTodayAndTomorrow();mocks.reserve.mockResolvedValue({dayKey:today,kind:'reserve'});
+  mocks.rows.set(`reserve-${today}`,savedReserve(0));
+  mocks.admit.mockImplementationOnce(async()=>{mocks.state.entries.push(reserveItem(0));});
+  expect(await (await GET(request())).json()).toEqual({status:'recovered_ready_draft',day:today});
+  expect(mocks.admit).toHaveBeenCalledWith(expect.objectContaining({kind:'reserve',scheduledDay:today,expiresDay:'2026-09-17'}),expect.anything());
+  expect(mocks.run).not.toHaveBeenCalled();
+});
+it('keeps a failed saved reserve blocked instead of starting another job',async()=>{
+  coverTodayAndTomorrow();mocks.reserve.mockResolvedValue({dayKey:'2026-09-11',kind:'reserve'});
+  mocks.rows.set('reserve-2026-09-11',{status:'failed',preparationAttempts:5,articleCheckpoint:{content:'Saved'}});
+  expect(await (await GET(request())).json()).toMatchObject({status:'blocked_saved_work',scope:'reserve',day:'2026-09-11'});
+  expect(mocks.run).not.toHaveBeenCalled();
+});
 
 it('does no paid work when tomorrow is ready, regardless of missing reserve stock', async () => {
   coverTodayAndTomorrow();
