@@ -16,6 +16,13 @@ Build the user's approved September 13 plan. Only the three verified colleagues 
 
 ## Required before this checkpoint can release
 
+### Build-side ingestion defect repaired
+
+- Production build at local commit `394ed46` succeeded but revealed an old `/api/test-ingest` import of `src/cli/ingest-rage.ts`. Its unconditional `main()` caused feed/sitemap requests during module import/build, outside an explicit ingest request. Build output showed Soundvenue and GAFFA discovery twice. No tracked research datasets changed in the resulting git status.
+- Removed the CLI import. Test ingestion now uses `runIngestToFirestore` only inside an authenticated owner POST (24-hour window, 10 candidates). GET returns 405 without ingestion; errors no longer expose stacks. No tracked callers of the old GET endpoint were found.
+- Four focused route tests passed. A second complete production build passed, including TypeScript/security config checks, with no feed/sitemap discovery output. Nine existing broad filesystem tracing warnings remain; these are not resolved by this patch.
+- This is local build evidence only. No push/deployment, shared-production-source initialization, paid AI call or article publication occurred in this step.
+
 ### Feed compatibility and efficiency checkpoint
 
 - Shared discovery uses the validated XML kind when available, including Atom endpoints without RSS/feed words in their URL. Atom alternate article links and publication dates are extracted. Explicit configurations never trigger the legacy Ekko guessed-feed fallback.

@@ -1,39 +1,27 @@
-import { NextResponse } from 'next/server';
-import { ingestOnce } from '../../../src/cli/ingest-rage';
-import { logger, createRequestLogger } from '@/lib/logger';
-import { getRequestId } from '@/lib/api/request-utils';
-import { createErrorResponse, createSuccessResponse, ErrorCode } from '@/lib/api/types';
+import { editorialRequestAccess } from '@/lib/editorial-access';
+import { runIngestToFirestore } from '@/lib/trending/ingest-runner';
 
-export async function GET(request: Request) {
-  const requestId = getRequestId(request as any);
-  const requestLogger = createRequestLogger(requestId);
-  
-  try {
-    requestLogger.info('Test ingestion started');
-    
-    // Run a small test ingestion (last 24 hours, limit 10)
-    const result = await ingestOnce({ sinceHrs: 24, limit: 10 });
-    
-    requestLogger.info('Test ingestion completed', { result });
-    
-    return NextResponse.json(
-      createSuccessResponse({
-        result,
-        message: 'Test ingestion completed'
-      }, { requestId })
-    );
-  } catch (error: any) {
-    const errorObj = error instanceof Error ? error : new Error(String(error));
-    requestLogger.error('Test ingestion failed', errorObj);
-    return NextResponse.json(
-      createErrorResponse(errorObj.message || 'Test ingestion failed', {
-        statusCode: 500,
-        errorCode: ErrorCode.INTERNAL_ERROR,
-        requestId,
-        details: errorObj.stack,
-      }),
-      { status: 500 }
-    );
-  }
+export const runtime = 'nodejs';
+export const maxDuration = 300;
+const reply = (body: unknown, status = 200) => Response.json(body, {
+  status, headers: { 'Cache-Control': 'private, no-store' },
+});
+
+/** A diagnostic GET must never trigger ingestion or import a CLI entry point. */
+export async function GET() {
+  return Response.json({ error: 'Brug en eksplicit POST for at starte indlæsning.' }, {
+    status: 405, headers: { Allow: 'POST', 'Cache-Control': 'private, no-store' },
+  });
 }
 
+export async function POST(request: Request) {
+  const access = await editorialRequestAccess(request);
+  if (!access) return reply({ error: 'Log ind.' }, 401);
+  if (!access.owner) return reply({ error: 'Kun Frederik kan starte testindlæsning.' }, 403);
+  try {
+    const result = await runIngestToFirestore({ sinceHrs: 24, limit: 10 });
+    return reply({ result });
+  } catch {
+    return reply({ error: 'Testindlæsning mislykkedes. Kontrollér fælles mediekilder.' }, 503);
+  }
+}
