@@ -27,6 +27,14 @@ seven consecutive verified daily publications before operational sign-off.
 
 ## Evidence
 
+- Production release verified: dpl_5NxYgkNSaxy5btcq9eV8Lkfuhj3Q, READY,
+  exact Git SHA a2f14d8f79a24e92fe7472c541ac5d7077f365ed, selected as production
+  target by project API readback. https://ai.aproposmagazine.com/api/auth/access
+  returned 200/allowed/admin for the existing administrator, 401 anonymously,
+  and 401 for a temporary verified external Firebase user not on the allowlist.
+  The temporary Auth identity was deleted in the verifier's finally block.
+  This proves API access for those cases, not every frontend/login variant.
+
 - 2026-09-13 13:40 UTC: rules activated and real Firebase client verification
   succeeded. Active Firestore ruleset: 85f95abb-69b5-49f4-ac1a-54ba740c97cd;
   Storage ruleset: 057e8d8b-8114-4b96-81be-2e36af5ffeb5. Prior IDs retained below.
@@ -67,7 +75,8 @@ seven consecutive verified daily publications before operational sign-off.
 
 The release utility previously stopped before admin migration or rules updates.
 The administrator-approved IAM grant, explicit administrator migration and
-verified Firebase rule release are now applied. App deployment remains pending.
+verified Firebase rule release are now applied. App deployment a2f14d8 is live
+with authenticated/anonymous/outside-domain API verification recorded above.
 
 Reference: https://firebase.google.com/docs/rules/manage-deploy#manage_permissions_for_cross-service_cloud_storage_security_rules
 
