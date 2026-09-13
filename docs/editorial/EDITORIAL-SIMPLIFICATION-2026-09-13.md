@@ -29,8 +29,13 @@
 - [ ] Remove only proven obsolete code; preserve editorial work and audit.
 - [ ] Record seven consecutive API-driven daily publications and next preview.
   September 13 16:09 UTC: feed confirms three ready stories with no blockers;
-  next is Lucian Freud on September 14. Klovn September 16 still needs the agreed
+  next is Lucian Freud on September 14. Klovn September 16 now has the agreed
   Anmeldelse title prefix, via the audited presentation API (no paid rewrite).
+  September 13 16:15:44 UTC: revision
+  `945815809ae100b6a0c1b7d85c6ce7fb55442cb85e3e571f86f457eeec40872c`
+  returned publicationReady=true, no blockers, still an unpublished draft.
+  Independent saved-state readback at 16:16:03 UTC confirms ready September 16,
+  unchanged body and only title/seoTitle payload changes. Original audit retained.
 
 Historical sections below are an append-only execution trail, not the current
 deployment status. No new user approval is required for scoped implementation.
