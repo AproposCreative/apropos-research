@@ -66,3 +66,26 @@ for invalid JSON; `content-enhancer` asks for full rewrites with small token cap
 Budget wrapping does not fix these functional problems. Inspect consumers and
 replace unsupported success fallbacks before treating these paths as editorial
 quality evidence. Do not delete the routes without tracing active consumers.
+# Podcast source audit, after release 4590fcc
+
+The checked-in podcast implementation does not synthesize or transcribe audio.
+`app/api/podcast/process/route.ts` resolves metadata, creates a job, and chooses
+the configured Cloud processor or the inline pipeline. Both
+`lib/podcast/run-pipeline.ts` and `services/podcast-processor/src/pipeline.js`
+download an existing incoming audio file, encode AAC using FFmpeg, upload audio,
+update the manifest, notify, and mark the existing Webflow article. The processor
+package depends only on Firebase Admin. The encoders invoke local FFmpeg, not a
+paid model. Notifications are HTTP calls to the configured Firebase notification
+function; they are not model calls in this repository.
+
+Therefore do not build a speculative podcast AI reservation integration. Costs
+for compute/storage/notifications are not AI model usage. This source inspection
+does not prove the deployed external processor matches this checkout: verify its
+configured target/revision before clearing the broad runtime exclusion. No job,
+notification, audio upload or provider request was triggered by this audit.
+
+Provider-constructor inventory across tracked runtime TS/JS found the OpenAI
+singleton and guarded subclass, with other OpenAI imports type-only or APIError.
+This narrows the next audit to shared-client call chains and configurable external
+adapters, not hypothetical SDK integrations. It is not proof of complete budget
+coverage: the guarded fetch still passes through calls lacking ALS context.
