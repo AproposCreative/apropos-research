@@ -268,3 +268,14 @@ No paid model tests, CMS writes, newsletter sends or Instagram changes were made
   runtime caller now reads the standard data envelope and forwards cost context.
 - 20 targeted tests and TypeScript pass, no paid calls. Pending combined release;
   this source change alone is not proof of production savings or publication.
+
+### Newsletter intro budget
+
+- Newsletter intro generation now uses shared Writer accounting, stage
+  newsletter-intro, 600-token cap, zero retries and a 45-second timeout.
+- Invalid/denied accounting returns empty generated fields and a safe warning;
+  composeWeeklyNewsletterDraft retains its existing standard-text fallback.
+  Truncated model responses are rejected even if their JSON parses. Provider
+  error bodies no longer leak into draft warnings. Sending behavior is unchanged.
+- 24 intro/transport tests and TypeScript pass without live model requests.
+  Pending deployment; not a claim of successful newsletter delivery.

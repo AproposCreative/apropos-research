@@ -1,5 +1,7 @@
 import { env } from '@/lib/config/env';
 import { getOpenAIClient } from '@/lib/openai';
+import { withSharedCostContext } from '@/lib/liv/cost-context';
+import { getLivCostPretransportError } from '@/lib/liv/cost-errors';
 import type { NewsletterArticle } from '@/lib/newsletter/webflow-sources';
 import type { WeekRange } from '@/lib/newsletter/week-range';
 
@@ -71,7 +73,7 @@ export async function generateNewsletterIntro(
   ].join('\n');
 
   try {
-    const completion = await client.chat.completions.create({
+    const completion = await withSharedCostContext({ scope: 'writer', stage: 'newsletter-intro' }, () => client.chat.completions.create({
       model: env.OPENAI_MODEL,
       temperature: 0.85,
       max_completion_tokens: 600,
@@ -84,7 +86,10 @@ export async function generateNewsletterIntro(
         },
         { role: 'user', content: user },
       ],
-    });
+    }, { maxRetries: 0, timeout: 45000 }));
+    if (completion.choices[0]?.finish_reason !== 'stop') {
+      return { headline: '', intro: '', error: 'AI-introen blev ikke færdig. Standardtekst bruges.' };
+    }
     const raw = completion.choices[0]?.message?.content?.trim() || '';
     if (!raw) return { headline: '', intro: '', error: 'Tomt svar fra modellen' };
     let headline = '';
@@ -99,6 +104,8 @@ export async function generateNewsletterIntro(
     if (!intro) return { headline: '', intro: '', error: 'Modellen returnerede ingen intro-tekst' };
     return { headline, intro };
   } catch (e) {
-    return { headline: '', intro: '', error: e instanceof Error ? e.message : 'OpenAI-fejl' };
+    return { headline: '', intro: '', error: getLivCostPretransportError(e)
+      ? 'AI-introen blev stoppet af budgetkontrollen. Standardtekst bruges.'
+      : 'AI-introen kunne ikke genereres. Standardtekst bruges.' };
   }
 }
