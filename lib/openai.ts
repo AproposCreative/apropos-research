@@ -1,4 +1,4 @@
-import OpenAI from 'openai';
+import type OpenAI from 'openai';
 import { config } from '@/lib/config/env';
 import { LivBudgetOpenAI } from '@/lib/liv/cost-openai';
 

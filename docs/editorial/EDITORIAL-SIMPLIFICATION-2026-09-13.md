@@ -20,6 +20,11 @@
   skips redundant fallback searches. Actual monetary savings are not measured.
 - [ ] Complete remaining independent quality/media AI budget coverage. The
   300 DKK limit is not yet a verified full-application/invoice cap.
+  Source-only provider-boundary regression now scans app/lib/scripts/services
+  for runtime OpenAI imports outside the budget transport (type imports and
+  APIError classification allowed). 52 architecture/transport/ledger tests pass.
+  This prevents an ordinary direct SDK reintroduction, not arbitrary obfuscated
+  network calls or independently deployed services. No provider calls made.
 - [x] Verify settings UI visually and remaining access-list role variants.
   LivOperations null usage formatting released: unknown values remain unknown,
   genuine zero remains zero and Danish amounts are formatted safely. 14 targeted
