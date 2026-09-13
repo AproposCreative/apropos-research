@@ -1,6 +1,16 @@
 # Private workspace acceptance checkpoint
 
-## Follow-up: remove competing chat cache (local, not released)
+## Follow-up: remove competing chat cache (released September 14)
+
+Release `5940383e1b7544b35b33e61e0fd741903232c219` is READY in deployment
+`dpl_AARsV3npChSTnppAxNP3g7G5TCs1`, with `ai.aproposmagazine.com` assigned.
+Full isolated regression: 3,408 tests in 237 files passed. Production build
+passed, retaining nine known file-tracing warnings.
+Post-deploy read-only check: `/ai` 200; its 16 script resources contain
+`workspaceStatus` and the canonical `ai-writer-autosave:v2:` key, and no longer
+contain the obsolete `ai-writer-draft:v2:` key. Anonymous workspace GET is 401.
+This proves release delivery and the anonymous gate, not a production draft
+write or a new Liv publication. No production workspace records were changed.
 
 Reviewing the actual Writer UI found that MainChatPanel independently persisted
 another browser snapshot and restored just its old title on mount. This could
@@ -33,8 +43,8 @@ No production records or paid providers are accessed.
 Fixture limitations: not real Firebase devices, not full conflict/version UI
 acceptance, and not Webflow draft submission. The separate New action was not
 accepted here because the isolated Firebase saveDraft intentionally rejects
-writes. Server and browser were closed. Full regression/build/release remain
-pending for this follow-up; previous production release remains unchanged.
+writes. Server and browser were closed. Full regression/build/release were
+subsequently completed as recorded above. The wider acceptance gaps remain.
 
 ## Integration evidence
 
