@@ -1,5 +1,41 @@
 # Private workspace acceptance checkpoint
 
+## Follow-up: remove competing chat cache (local, not released)
+
+Reviewing the actual Writer UI found that MainChatPanel independently persisted
+another browser snapshot and restored just its old title on mount. This could
+rename fresh work without an explicit resume choice. Removed that secondary
+writer/loader and its optimistic timestamp; chat now displays the parent
+workspace sync status. The obsolete stored browser key is not deleted or
+silently imported. The canonical local backup and cloud workspace remain.
+
+Two architecture regressions guard against reintroducing that independent
+store. All 27 focused workspace/ownership/controller tests and TypeScript pass.
+
+Browser evidence, September 14: `scripts/verify-writer-resume-ui.mjs` renders
+the actual AIWriterClient, MainChatPanel, DraftsShelf, WorkspaceVersions and
+useWriterWorkspace/controller in StrictMode at 390x844. Auth, workspace API,
+Firebase draft storage and unrelated feature panels are isolated fixtures.
+No production records or paid providers are accessed.
+
+- Open menu -> Drafts -> Fortsæt hvor du slap restores the saved title, chat
+  text and notes; seeded obsolete cache title is never applied.
+- Initial cloud resume discovery performs no PUT before the explicit choice.
+- Resuming normalizes article defaults and saves through the existing hook.
+  With fixture transport offline, both status displays show Ikke synkroniseret,
+  no uncaught errors, and server revision stays 1.
+- Reconnecting via the browser online event retries successfully; both status
+  displays show Gemt, server revision 2 retains title, notes and chat text.
+- Screenshot inspected after closing the automatically opened review drawer:
+  saved title and text are visible in the mobile chat, with its save status.
+  The review panel itself is stubbed and not verified by this fixture.
+
+Fixture limitations: not real Firebase devices, not full conflict/version UI
+acceptance, and not Webflow draft submission. The separate New action was not
+accepted here because the isolated Firebase saveDraft intentionally rejects
+writes. Server and browser were closed. Full regression/build/release remain
+pending for this follow-up; previous production release remains unchanged.
+
 ## Integration evidence
 
 `test/writer-workspace-multidevice.spec.ts` connects two actual

@@ -19,6 +19,7 @@ import type { ChatMessage, LocalArticleData } from '@/components/main-chat/types
 import { runWriterFactcheck } from '@/lib/ai-chat/writer-factcheck';
 
 interface MainChatPanelProps {
+  workspaceStatus?: string;
   messages: ChatMessage[];
   setChatMessages: (messages: ChatMessage[]) => void;
   onSendMessage: (message: string, files?: UploadedFile[]) => void;
@@ -83,14 +84,13 @@ export default function MainChatPanel({
   importImages = [],
   onImportImagesChange,
   onImportSubmit,
+  workspaceStatus,
 }: MainChatPanelProps) {
   const { user, logout } = useAuth();
   const [inputMessage, setInputMessage] = useState('');
   const [hoveredMessage, setHoveredMessage] = useState<string | null>(null);
   const [editingMessage, setEditingMessage] = useState<string | null>(null);
   const [editContent, setEditContent] = useState('');
-  const [isAutoSaving, setIsAutoSaving] = useState(false);
-  const [lastSaved, setLastSaved] = useState<Date | null>(null);
   const [showFileDrop, setShowFileDrop] = useState(false);
   const [importUploading, setImportUploading] = useState(false);
   const [importSubmitAttempted, setImportSubmitAttempted] = useState(false);
@@ -111,7 +111,6 @@ export default function MainChatPanel({
   const [showArticlePicker, setShowArticlePicker] = useState(false);
   const [trendingTemplate, setTrendingTemplate] = useState<any>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const autoSaveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const messageListRef = useRef<HTMLDivElement>(null);
   const [messageScrollFade, setMessageScrollFade] = useState(false);
   const [thinkingText, setThinkingText] = useState('Finder vinklen…');
@@ -465,80 +464,8 @@ const fallbackThinkingSteps: ThinkingStep[] = [
     }
   }, [showUrlInput]);
 
-  // Auto-save functionality
-  const saveToLocalStorage = () => {
-    if (!user) return;
-    try {
-      const chatData = {
-        messages,
-        chatTitle,
-        notes,
-        articleData,
-        lastModified: new Date().toISOString()
-      };
-      localStorage.setItem(`ai-writer-draft:v2:${encodeURIComponent(user.uid)}`, JSON.stringify(chatData));
-      setLastSaved(new Date());
-    } catch (error) {
-      console.error('Failed to save draft:', error);
-    }
-  };
-
-  const loadFromLocalStorage = () => {
-    if (!user) return;
-    try {
-      const savedData = localStorage.getItem(`ai-writer-draft:v2:${encodeURIComponent(user.uid)}`);
-      if (savedData) {
-        const parsed = JSON.parse(savedData);
-        if (parsed.messages && Array.isArray(parsed.messages)) {
-          // Convert timestamp strings back to Date objects
-          const messagesWithDates = parsed.messages.map((msg: any) => ({
-            ...msg,
-            timestamp: new Date(msg.timestamp)
-          }));
-          
-          // Update parent component with loaded data
-          if (parsed.messages.length > 0) {
-            // Note: This would need to be passed up to parent component
-            // For now, we'll just set the chat title
-            if (parsed.chatTitle && parsed.chatTitle !== 'Ny artikkel') {
-              onChatTitleChange(parsed.chatTitle);
-            }
-          }
-        }
-      }
-    } catch (error) {
-      console.error('Failed to load draft:', error);
-    }
-  };
-
-  // Auto-save when messages change (with debounce)
-  useEffect(() => {
-    if (messages.length > 0) {
-      // Clear existing timeout
-      if (autoSaveTimeoutRef.current) {
-        clearTimeout(autoSaveTimeoutRef.current);
-      }
-      
-      // Set new timeout for auto-save (2 seconds after last change)
-      autoSaveTimeoutRef.current = setTimeout(() => {
-        setIsAutoSaving(true);
-        saveToLocalStorage();
-        setTimeout(() => setIsAutoSaving(false), 1000); // Show saving indicator for 1 second
-      }, 2000);
-    }
-
-    // Cleanup timeout on unmount
-    return () => {
-      if (autoSaveTimeoutRef.current) {
-        clearTimeout(autoSaveTimeoutRef.current);
-      }
-    };
-  }, [messages, chatTitle, notes, articleData]);
-
-  // Load saved data on component mount
-  useEffect(() => {
-    loadFromLocalStorage();
-  }, []);
+  // The parent owns workspace sync, local backup and explicit resume. Never
+  // auto-load an old title from the obsolete ai-writer-draft browser cache.
 
   // Add text selection listener
   useEffect(() => {
@@ -1227,14 +1154,7 @@ const fallbackThinkingSteps: ThinkingStep[] = [
                 </span>
               ) : chatTitle}
             </h1>
-            {isAutoSaving && (
-              <span className="text-[11px] text-green-400/80 animate-pulse ml-auto md:ml-0">Gemmer…</span>
-            )}
-            {lastSaved && !isAutoSaving && (
-              <span className="text-[11px] text-white/30 ml-auto md:ml-0">
-                {lastSaved.toLocaleTimeString('da-DK', { hour: '2-digit', minute: '2-digit' })}
-              </span>
-            )}
+            {workspaceStatus && <span role="status" className="text-[11px] text-white/60 ml-auto md:ml-0">{workspaceStatus}</span>}
           </div>
           {/* Right: actions */}
           <div className="flex items-center gap-1 shrink-0 ml-3">

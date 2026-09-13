@@ -1455,6 +1455,7 @@ export default function AIWriterClient() {
               )}
               {/* Always keep chat visible underneath */}
               <MainChatPanel 
+                workspaceStatus={workspace.status}
                 messages={chatMessages}
                 setChatMessages={setChatMessages}
                 onSendMessage={handleSendMessage}
