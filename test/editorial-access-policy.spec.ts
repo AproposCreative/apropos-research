@@ -2,22 +2,28 @@ import { describe, it, expect } from 'vitest';
 import { editorialRole, isSameOriginApi, requestHeaders } from '../lib/auth-policy';
 
 describe('editorial access', () => {
-  it('requires a verified exact domain', () => {
-    expect(editorialRole({ email: 'Liv@Aproposmagazine.com', emailVerified: true })).toBe('editor');
+  it('requires a verified named colleague', () => {
+    for (const email of ['Milo@Aproposmagazine.com', 'casper@aproposmagazine.com', 'frederik@aproposmagazine.com']) {
+      expect(editorialRole({ email, emailVerified: true })).toBe('editor');
+      expect(editorialRole({ email, emailVerified: false })).toBeNull();
+    }
     for (const email of ['a@aproposmagazine.com.evil.test', 'a@sub.aproposmagazine.com', 'a@gmail.com']) {
       expect(editorialRole({ email, emailVerified: true })).toBeNull();
     }
     expect(editorialRole({ email: 'a@aproposmagazine.com' })).toBeNull();
   });
-  it('permits only explicitly approved external users, with revocation', () => {
+  it('does not allow old allowlist or bootstrap entries to bypass the three-address restriction', () => {
     const user = { email: 'guest@example.com', emailVerified: true };
-    expect(editorialRole({ ...user, entry: { active: true, role: 'editor' } })).toBe('editor');
+    expect(editorialRole({ ...user, entry: { active: true, role: 'editor' } })).toBeNull();
+    expect(editorialRole({ ...user, bootstrapAdmin: true })).toBeNull();
+    expect(editorialRole({ email: 'other@aproposmagazine.com', emailVerified: true, entry: { active: true, role: 'admin' } })).toBeNull();
     expect(editorialRole({ ...user, entry: { active: false, role: 'editor' } })).toBeNull();
     expect(editorialRole({ ...user, disabled: true, bootstrapAdmin: true })).toBeNull();
     expect(editorialRole({ ...user, emailVerified: false, bootstrapAdmin: true })).toBeNull();
   });
   it('preserves existing verified administrators without elevating domain users', () => {
-    expect(editorialRole({ email: 'a@example.com', emailVerified: true, bootstrapAdmin: true })).toBe('admin');
+    expect(editorialRole({ email: 'frederik@aproposmagazine.com', emailVerified: true, bootstrapAdmin: true })).toBe('admin');
+    expect(editorialRole({ email: 'milo@aproposmagazine.com', emailVerified: true, entry: { active: false, role: 'editor' } })).toBeNull();
   });
 });
 

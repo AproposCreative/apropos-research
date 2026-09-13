@@ -5,8 +5,8 @@ service cloud.firestore {
       let email = request.auth.token.email.lower();
       let path = /databases/$(database)/documents/editorialAccess/$(email);
       return request.auth != null && request.auth.token.email_verified == true
-        && ((!exists(path) && email.matches('^[^@]+@aproposmagazine[.]com$'))
-          || (exists(path) && get(path).data.active == true));
+        && email in ['milo@aproposmagazine.com', 'casper@aproposmagazine.com', 'frederik@aproposmagazine.com']
+        && (!exists(path) || get(path).data.active == true);
     }
     // Preserve the public magazine app's existing read-only CMS mirrors.
     match /{collection}/{id} {

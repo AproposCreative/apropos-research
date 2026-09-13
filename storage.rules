@@ -7,8 +7,8 @@ service firebase.storage {
       let email = request.auth.token.email.lower();
       let path = /databases/(default)/documents/editorialAccess/$(email);
       return request.auth != null && request.auth.token.email_verified == true
-        && ((!firestore.exists(path) && email.matches('^[^@]+@aproposmagazine[.]com$'))
-          || (firestore.exists(path) && firestore.get(path).data.active == true));
+        && email in ['milo@aproposmagazine.com', 'casper@aproposmagazine.com', 'frederik@aproposmagazine.com']
+        && (!firestore.exists(path) || firestore.get(path).data.active == true);
     }
     match /apropos-config/{allPaths=**} {
       allow read: if true;

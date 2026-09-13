@@ -1,6 +1,7 @@
 /** Shared policy only; never trust email/domain supplied by the client. */
 export type EditorialRole = 'editor' | 'admin';
 export type AccessEntry = { active: boolean; role: EditorialRole };
+export const EDITORIAL_EMAILS = ['milo@aproposmagazine.com', 'casper@aproposmagazine.com', 'frederik@aproposmagazine.com'] as const;
 
 export function normalizeAccessEmail(email: unknown): string | null {
   if (typeof email !== 'string') return null;
@@ -13,12 +14,12 @@ export function editorialRole(args: {
   entry?: AccessEntry | null; bootstrapAdmin?: boolean;
 }): EditorialRole | null {
   const email = normalizeAccessEmail(args.email);
-  if (!email || !args.emailVerified || args.disabled) return null;
+  if (!email || !EDITORIAL_EMAILS.some(allowed => allowed === email) || !args.emailVerified || args.disabled) return null;
   // Explicit suspension also disables a domain account.
   if (args.entry?.active === false) return null;
   if (args.bootstrapAdmin) return 'admin';
   if (args.entry?.active === true) return args.entry.role === 'admin' ? 'admin' : 'editor';
-  return email.split('@')[1] === 'aproposmagazine.com' ? 'editor' : null;
+  return 'editor';
 }
 
 export function isSameOriginApi(input: string | URL | Request, origin: string): boolean {

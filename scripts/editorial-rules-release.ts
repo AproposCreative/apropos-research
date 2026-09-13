@@ -53,10 +53,14 @@ export async function editorialRulesRelease(activate = false, verifyLive?: () =>
     if (!release) throw new Error('rules_release_missing');
     const prefix = storage ? '/b/test-bucket/o/article-imports/user/test.jpg' : '/databases/(default)/documents/drafts/test';
     const cases = [
-      { email: 'test@aproposmagazine.com', verified: true, exists: false, active: false, expectation: 'ALLOW' },
+      { email: 'milo@aproposmagazine.com', verified: true, exists: false, active: false, expectation: 'ALLOW' },
+      { email: 'casper@aproposmagazine.com', verified: true, exists: false, active: false, expectation: 'ALLOW' },
+      { email: 'frederik@aproposmagazine.com', verified: true, exists: true, active: true, expectation: 'ALLOW' },
+      { email: 'other@aproposmagazine.com', verified: true, exists: true, active: true, expectation: 'DENY' },
       { email: 'test@aproposmagazine.com.evil.test', verified: true, exists: false, active: false, expectation: 'DENY' },
-      { email: 'test@aproposmagazine.com', verified: false, exists: false, active: false, expectation: 'DENY' },
-      { email: 'test@example.com', verified: true, exists: true, active: true, expectation: 'ALLOW' },
+      { email: 'milo@aproposmagazine.com', verified: false, exists: false, active: false, expectation: 'DENY' },
+      { email: 'test@example.com', verified: true, exists: true, active: true, expectation: 'DENY' },
+      { email: 'milo@aproposmagazine.com', verified: true, exists: true, active: false, expectation: 'DENY' },
       { email: 'test@example.com', verified: true, exists: true, active: false, expectation: 'DENY' },
     ].map(c => ({ expectation: c.expectation, request: { path: prefix, method: storage ? 'write' : 'get',
       auth: { uid: 'user', token: { email: c.email, email_verified: c.verified } } },
