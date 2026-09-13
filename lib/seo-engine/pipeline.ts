@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { getOpenAIClient, models } from '@/lib/openai';
+import { withSharedCostContext } from '@/lib/liv/cost-context';
 import {
   EditorialAnalysisV1Schema,
   SeoEngineInputContractSchema,
@@ -297,7 +298,7 @@ export async function analyzeArticle(
       provider = 'openai';
       const schema = loadEditorialAnalysisJsonSchema();
       const completion = await withTimeout(
-        client.chat.completions.create({
+        withSharedCostContext({ scope: 'seo', stage: 'seo-analyze' }, () => client.chat.completions.create({
           model,
           temperature: 0.2,
           max_completion_tokens: openaiMaxTokens(),
@@ -336,7 +337,7 @@ export async function analyzeArticle(
               }),
             },
           ],
-        }),
+        })),
         openaiTimeoutMs(),
         'analyze'
       );
@@ -508,7 +509,7 @@ export async function strategizeFromRun(
       const client = getOpenAIClient()!;
       const schema = loadSeoStrategyPackJsonSchema();
       const completion = await withTimeout(
-        client.chat.completions.create({
+        withSharedCostContext({ scope: 'seo', stage: 'seo-strategize' }, () => client.chat.completions.create({
           model: models.default,
           temperature: 0.3,
           max_completion_tokens: openaiMaxTokens(),
@@ -538,7 +539,7 @@ export async function strategizeFromRun(
               }),
             },
           ],
-        }),
+        })),
         openaiTimeoutMs(),
         'strategize'
       );
@@ -810,7 +811,7 @@ export async function regenerateField(args: {
       };
     }
     const completion = await withTimeout(
-      client.chat.completions.create({
+      withSharedCostContext({ scope: 'seo', stage: 'seo-regenerate' }, () => client.chat.completions.create({
         model: models.default,
         temperature: 0.4,
         max_completion_tokens: Math.min(1500, openaiMaxTokens()),
@@ -834,7 +835,7 @@ export async function regenerateField(args: {
             }),
           },
         ],
-      }),
+      })),
       openaiTimeoutMs(),
       'regenerate'
     );

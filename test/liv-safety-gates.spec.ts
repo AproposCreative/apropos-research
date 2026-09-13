@@ -121,17 +121,17 @@ describe('Liv safety gates', () => {
       checks: { voice: true, independentAngle: true, sourceAttribution: true, noInventedExperience: true, coherence: true } };
   }
 
-  it('reuses an exact fresh server report while still running similarity, moderation and voice gates', async () => {
+  it('revalidates an exact fresh Liv report through the assessment API while running the other gates', async () => {
     const saved = { ...report(), editorialReview: editorialProof() };
     const fetchMock = vi.fn()
       .mockResolvedValueOnce(jsonResponse({ data: { metrics: { wordCount: 700, plagiarismRisk: 'low' } } }))
-      .mockResolvedValueOnce(jsonResponse({ data: { tips: 'Fin tekst.' } }));
+      .mockResolvedValueOnce(jsonResponse(saved));
     vi.stubGlobal('fetch', fetchMock);
     const result = await runSafetyGates({ ...diagnosticInput, priorFactcheck: saved });
     expect(result.pass).toBe(true);
     expect(result.results.find(gate => gate.name === 'factcheck')).toMatchObject({ skipped: false, evidence: saved });
-    expect(fetchMock).toHaveBeenCalledTimes(1);
-    expect(fetchMock.mock.calls.some(call => String(call[0]).includes('/api/factcheck'))).toBe(false);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock.mock.calls.some(call => String(call[0]).includes('/api/factcheck'))).toBe(true);
     expect(result.results.map(gate => gate.name)).toEqual(['source-similarity', 'moderation', 'factcheck', 'tov']);
   });
 
@@ -160,16 +160,17 @@ describe('Liv safety gates', () => {
     expect(vi.mocked(fetch).mock.calls.some(call => String(call[0]).includes('/api/critic/tov'))).toBe(false);
   });
 
-  it('reuses an exact fresh failed report without buying the same factcheck or a voice review', async () => {
+  it('revalidates a failed Liv report through the assessment API without a separate voice review', async () => {
     const failed = report('unverifiable');
-    const fetchMock = vi.fn().mockResolvedValueOnce(jsonResponse({ data: { metrics: { wordCount: 700, plagiarismRisk: 'low' } } }));
+    const fetchMock = vi.fn().mockResolvedValueOnce(jsonResponse({ data: { metrics: { wordCount: 700, plagiarismRisk: 'low' } } }))
+      .mockResolvedValueOnce(jsonResponse(failed));
     vi.stubGlobal('fetch', fetchMock);
     const result = await runSafetyGates({ ...diagnosticInput, priorFactcheck: failed,
       sourceUrls: failed.sources.map(source => source.url) });
     expect(result).toMatchObject({ pass: false, failedGate: 'verification-complete' });
     expect(result.results.find(gate => gate.name === 'factcheck')?.diagnosticEvidence).toEqual(failed);
     expect(result.results.find(gate => gate.name === 'factcheck')).not.toHaveProperty('evidence');
-    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
   });
   const editorialFields = { title: diagnosticInput.title, subtitle: 'Undertitel', seoDescription: 'SEO',
     intro: diagnosticInput.intro, content: diagnosticInput.content };
@@ -185,15 +186,16 @@ describe('Liv safety gates', () => {
     expect(vi.mocked(fetch)).toHaveBeenCalledTimes(2);
     expect(vi.mocked(fetch).mock.calls.some(call => String(call[0]).includes('/api/factcheck'))).toBe(true);
   });
-  it.each([undefined, 'retrieved-sources-v1'])('keeps successful stricter-policy %s reports reusable', async policyVersion => {
+  it.each([undefined, 'retrieved-sources-v1'])('revalidates successful policy %s reports without mutating them', async policyVersion => {
     const saved = { ...report(), policyVersion, editorialReview: editorialProof(), fieldContextHash };
     const before = structuredClone(saved);
-    const fetchMock = vi.fn().mockResolvedValueOnce(jsonResponse({ data: { metrics: { wordCount: 700, plagiarismRisk: 'low' } } }));
+    const fetchMock = vi.fn().mockResolvedValueOnce(jsonResponse({ data: { metrics: { wordCount: 700, plagiarismRisk: 'low' } } }))
+      .mockResolvedValueOnce(jsonResponse(saved));
     vi.stubGlobal('fetch', fetchMock);
     const result = await runSafetyGates({ ...diagnosticInput, editorialFields, priorFactcheck: saved });
     expect(result.pass).toBe(true);
     expect(saved).toEqual(before);
-    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
     expect(result.results.find(gate => gate.name === 'factcheck')?.evidence).toEqual(saved);
   });
   it.each(['missing', 'different'])('reassesses an old failed verdict with %s context without mutating it', async kind => {
@@ -215,7 +217,7 @@ describe('Liv safety gates', () => {
     respondWithFactcheck(failed);
     const second = await runSafetyGates({ ...diagnosticInput, editorialFields, priorFactcheck: diagnostic });
     expect(second.pass).toBe(false);
-    expect(vi.mocked(fetch)).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(fetch)).toHaveBeenCalledTimes(2);
   });
   it('rejects a contextless API answer to a contextual request and rejects inconsistent sidecars before network access', async () => {
     respondWithFactcheck({ ...report(), editorialReview: editorialProof() });

@@ -20,9 +20,10 @@ vi.mock('@/lib/firebase-admin', () => ({ getAdminDb: () => memory.available ? {
     memory.tail = result.catch(() => undefined); return result;
   },
 } : null }));
-import { createLivCostLedger, readLivCostSummary, LIV_COST_MAX_CALLS_PER_RUN, LIV_COST_MAX_CALLS_PER_MONTH } from '@/lib/liv/cost-ledger';
+import { createLivCostLedger, readLivCostSummary, readSharedCostSummary, LIV_COST_MAX_CALLS_PER_RUN, LIV_COST_MAX_CALLS_PER_MONTH } from '@/lib/liv/cost-ledger';
 import { LIV_PRICE_VERSION, quoteLivOpenAIRequest, quoteLivImageRequest } from '@/lib/liv/cost-pricing';
 import { getLivCostPretransportError } from '@/lib/liv/cost-errors';
+import { activateSharedCostPolicy, inspectSharedCostActivation } from '@/lib/liv/cost-activation';
 const now = new Date('2026-09-12T10:00:00Z');
 const policy = { monthlyLimitDkkMicros: 300_000_000, usdToDkkCeiling: 8, validUntil: '2026-10-01T00:00:00.000Z',
   conversionBasis: 'TEST fixture ceiling; not a market exchange-rate claim', priceVersion: LIV_PRICE_VERSION };
@@ -171,4 +172,61 @@ it('reconciles thirty daily searches to usage plus tool fees, not thirty full-co
   const summary = await readLivCostSummary(now);
   expect(summary).toMatchObject({ trackedCalls: 30, unknownCalls: 0, reservedUpperDkk: 0, status: 'ready_partial' });
   expect(summary.usageBasedUpperDkk).toBeCloseTo(8.4);
+});
+
+it('requires explicit shared policy without changing existing Liv authorization', async () => {
+  const ledger = createLivCostLedger(() => now);
+  await expect(ledger.reserve({ ...call(), context: { ...call().context, scope: 'writer' } })).rejects.toThrow('shared_policy_unconfigured');
+  await expect(ledger.reserve(call())).resolves.toBeDefined();
+  expect(memory.rows.get('livCostLedger/policy')).toEqual(policy);
+});
+it('shares the existing 300DKK balance across Liv, Writer and SEO without importing costs twice', async () => {
+  memory.rows.set('livCostLedger/policy', { ...policy, sharedScopesEnabled: true, sharedTrackingStartedAt: now.toISOString() });
+  memory.rows.set('livCostLedger/month-2026-09', {
+    committedDkkMicros: 44_760_000, reservedDkkMicros: 0, calls: 7, unknownCalls: 0,
+    trackingStartedAt: '2026-09-01T10:00:00Z',
+  });
+  const ledger = createLivCostLedger(() => now);
+  const results = await Promise.allSettled(([undefined, 'writer', 'seo'] as const).map((scope, i) =>
+    ledger.reserve({ ...call(i + 1), context: { ...call().context, runId: `operation-${i}`, ...(scope ? { scope } : {}) },
+      quote: { ...quote, reservedUsdMicros: 16_000_000 } })));
+  expect(results.filter(x => x.status === 'fulfilled')).toHaveLength(1);
+  expect(memory.rows.get('livCostLedger/month-2026-09')).toMatchObject({ committedDkkMicros: 44_760_000, reservedDkkMicros: 128_000_000, calls: 8 });
+  vi.stubEnv('AI_SHARED_COST_ENABLED', 'true');
+  expect(await readSharedCostSummary(now)).toMatchObject({ sharedActivation: 'enabled', usageBasedUpperDkk: 44.76,
+    includedScopes: ['liv', 'writer', 'seo'], historicalCostsIncluded: false, fullMonthlyCapVerified: false,
+    existingLivCostsIncluded: true, billedDkk: null, availableAllowanceDkk: 127.24 });
+});
+it('reports policy/activation failures and rollback without erasing shared history', async () => {
+  vi.stubEnv('AI_SHARED_COST_ENABLED', 'true');
+  expect(await readSharedCostSummary(now)).toMatchObject({ sharedActivation: 'policy_required' });
+  memory.rows.set('livCostLedger/policy', { ...policy, sharedScopesEnabled: true, sharedTrackingStartedAt: now.toISOString() });
+  vi.stubEnv('AI_SHARED_COST_ENABLED', 'false');
+  expect(await readSharedCostSummary(now)).toMatchObject({ sharedActivation: 'disabled', includedScopes: ['liv', 'writer', 'seo'] });
+  vi.stubEnv('AI_SHARED_COST_ENABLED', 'typo');
+  expect(await readSharedCostSummary(now)).toMatchObject({ sharedActivation: 'invalid_flag' });
+  vi.stubEnv('AI_SHARED_COST_ENABLED', 'true'); memory.available = false;
+  expect(await readSharedCostSummary(now)).toMatchObject({ sharedActivation: 'unavailable', status: 'unavailable' });
+});
+
+it('preflights default Writer/SEO prices and activates only by explicit compare-and-set without touching totals', async () => {
+  expect(inspectSharedCostActivation().ready).toBe(true);
+  const totals = { committedDkkMicros: 44_760_000, reservedDkkMicros: 99, calls: 7, unknownCalls: 1 };
+  memory.rows.set('livCostLedger/month-2026-09', totals);
+  const args = { deploymentSha: 'a'.repeat(40), expectedPolicy: policy };
+  await expect(activateSharedCostPolicy({ ...args, expectedPolicy: { ...policy, usdToDkkCeiling: 9 } }, now)).rejects.toThrow('policy_changed');
+  expect(memory.rows.get('livCostLedger/policy')).toEqual(policy);
+  await activateSharedCostPolicy(args, now);
+  const original = structuredClone([...memory.rows]);
+  await activateSharedCostPolicy(args, new Date(now.getTime() + 1000));
+  expect([...memory.rows]).toEqual(original);
+  expect(memory.rows.get('livCostLedger/month-2026-09')).toEqual(totals);
+  expect(memory.rows.get('livCostLedger/policy')).toEqual({ ...policy, sharedScopesEnabled: true, sharedTrackingStartedAt: now.toISOString() });
+  expect(memory.rows.get(`livCostLedger/shared-activation-${args.deploymentSha}`)).toMatchObject({ historicalCostsImported: false });
+});
+it('refuses activation if any configured baseline model lacks a verified quote', async () => {
+  vi.stubEnv('LIV_UTILITY_MODEL', 'gpt-unpriced');
+  expect(inspectSharedCostActivation().ready).toBe(false);
+  await expect(activateSharedCostPolicy({ deploymentSha: 'a'.repeat(40), expectedPolicy: policy }, now)).rejects.toThrow('activation_unpriced');
+  expect(memory.rows.size).toBe(1);
 });

@@ -1,4 +1,5 @@
 import { getOpenAIClient, models } from '@/lib/openai';
+import { withSharedCostContext } from '@/lib/liv/cost-context';
 import { durableReviewModel } from './durable-model';
 import { firestoreModelStageStore } from './model-store';
 import type { ReviewModelCall } from './review';
@@ -11,12 +12,12 @@ export function productionReviewModel(jobId: string): ReviewModelCall {
   return durableReviewModel({
     jobId, model, store: firestoreModelStageStore(),
     call: async request => {
-      const response = await client.chat.completions.create({
+      const response = await withSharedCostContext({ scope: 'seo', stage: `seo-post-publish-${request.stage}` }, () => client.chat.completions.create({
         model,
         messages: [{ role: 'system', content: request.system }, { role: 'user', content: request.input }],
         response_format: { type: 'json_object' },
         max_completion_tokens: 4000,
-      }, { timeout: 90_000, maxRetries: 0 });
+      }, { timeout: 90_000, maxRetries: 0 }));
       const choice = response.choices[0];
       if (!choice || choice.message.refusal || choice.finish_reason !== 'stop') {
         throw new Error('seo_model_response_incomplete');

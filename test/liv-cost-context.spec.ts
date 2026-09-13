@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
-import { currentLivCostContext, livCostHeaders, LIV_COST_HEADER, withLivCostContext, withLivCostRequest, withLivCostStage } from '@/lib/liv/cost-context';
+import { currentLivCostContext, livCostHeaders, LIV_COST_HEADER, withLivCostContext, withLivCostRequest, withLivCostStage, withSharedCostContext } from '@/lib/liv/cost-context';
 const secret = 'fixture-internal-secret-not-real-123456789';
 const now = Date.parse('2026-09-12T10:00:00Z');
 beforeEach(() => { vi.stubEnv('INTERNAL_API_SECRET', secret); vi.stubEnv('CRON_SECRET', 'fixture-cron-secret-not-real-123456789'); });
@@ -41,4 +41,36 @@ it('rejects forged, expired, future, replayed-to-another-path and non-internal c
 it('requires a sufficiently strong existing signing secret without creating or exposing one', () => {
   vi.stubEnv('INTERNAL_API_SECRET', 'short');
   expect(signed).toThrow('secret_unavailable');
+});
+
+it('requires explicit opt-in and fails closed on mistyped activation', () => {
+  vi.stubEnv('AI_SHARED_COST_ENABLED', 'false');
+  expect(withSharedCostContext({ scope: 'writer', stage: 'chat' }, currentLivCostContext)).toBeUndefined();
+  vi.stubEnv('AI_SHARED_COST_ENABLED', 'TRUE');
+  expect(() => withSharedCostContext({ scope: 'seo', stage: 'meta' }, () => 1)).toThrow('shared_flag_invalid');
+});
+it('isolates Writer/SEO operations and preserves parent ownership and poison across nested work', async () => {
+  vi.stubEnv('AI_SHARED_COST_ENABLED', 'true');
+  const contexts = await Promise.all(['writer', 'seo'].map(scope =>
+    withSharedCostContext({ scope: scope as 'writer' | 'seo', stage: 'test' }, async () => {
+      await Promise.resolve(); return currentLivCostContext();
+    })));
+  expect(contexts.map(x => x?.scope)).toEqual(['writer', 'seo']);
+  expect(contexts[0]?.runId).not.toBe(contexts[1]?.runId);
+  withLivCostContext(context, () => {
+    withSharedCostContext({ scope: 'seo', stage: 'seo-meta' }, () => {
+      expect(currentLivCostContext()).toMatchObject({ runId: context.runId, stage: 'seo-meta' });
+      expect(currentLivCostContext()?.scope).toBeUndefined();
+      currentLivCostContext()!.blocked = true;
+    });
+    expect(currentLivCostContext()?.blocked).toBe(true);
+    expect(() => withSharedCostContext({ scope: 'writer', stage: 'chat' }, () => 1)).toThrow('blocked');
+  });
+  expect(currentLivCostContext()).toBeUndefined();
+});
+it('propagates signed Writer scope without resetting it to Liv on internal hops', () => {
+  vi.stubEnv('AI_SHARED_COST_ENABLED', 'true');
+  const headers = withSharedCostContext({ scope: 'writer', stage: 'chat' }, () => livCostHeaders('/api/factcheck', now));
+  const req = { url: 'https://example.test/api/factcheck', headers: new Headers({ ...headers, 'x-internal-api-secret': secret }) };
+  expect(withLivCostRequest(req, 'factcheck', currentLivCostContext, now)).toMatchObject({ scope: 'writer', stage: 'factcheck' });
 });

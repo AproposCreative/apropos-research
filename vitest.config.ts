@@ -8,6 +8,7 @@ export default defineConfig({
     globals: false,
     pool: 'threads',
     reporters: ['default'],
+    setupFiles: ['./test/setup-no-paid-api.ts'],
     env: {
       // Keep storage tests away from the tracked production-like dataset.
       RAGE_STORAGE_DIR: './tmp/vitest-rage',

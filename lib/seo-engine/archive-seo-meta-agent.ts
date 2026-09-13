@@ -4,6 +4,7 @@
  */
 
 import { getOpenAIClient, models } from '@/lib/openai';
+import { withSharedCostContext } from '@/lib/liv/cost-context';
 import { checkReviewSeoTitle } from '@/lib/seo-engine/review-title-rule';
 import { findForbiddenPhrases } from '@/lib/seo-engine/forbidden-phrases';
 import { stripHtmlToText } from '@/lib/seo-engine/html-text';
@@ -198,7 +199,7 @@ export async function proposeArchiveSeoMeta(args: {
     } else {
       const client = getOpenAIClient();
       if (!client) return heuristic();
-      const completion = await client.chat.completions.create({
+      const completion = await withSharedCostContext({ scope: 'seo', stage: 'seo-archive-meta' }, () => client.chat.completions.create({
         model: models.default,
         messages: [
           { role: 'system', content: system },
@@ -206,7 +207,7 @@ export async function proposeArchiveSeoMeta(args: {
         ],
         response_format: { type: 'json_object' },
         max_completion_tokens: 400,
-      });
+      }));
       raw = completion.choices[0]?.message?.content || '';
     }
 

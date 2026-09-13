@@ -1,7 +1,7 @@
 import { getAdminDb } from '@/lib/firebase-admin';
 import { copenhagenClock } from './delivery-policy';
 import { LIV_PRICE_VALID_UNTIL, LIV_PRICE_VERSION, usageUsdUpperBound, type LivPriceQuote, type LivProviderUsage } from './cost-pricing';
-import type { LivCostContext } from './cost-context';
+import { sharedCostEnabled, type LivCostContext } from './cost-context';
 import { livModels } from './model-config';
 import { LivCostPretransportError } from './cost-errors';
 
@@ -16,6 +16,7 @@ export type LivBudgetPolicy = {
   conversionBasis: string; priceVersion: string;
 };
 export type LivCostReservation = {
+  scope?: 'liv' | 'writer' | 'seo';
   callId: string; month: string; runId: string; stage: string; requestHash: string;
   model: string; quote: LivPriceQuote; reservedDkkMicros: number; policy: LivBudgetPolicy; createdAt: string;
 };
@@ -43,7 +44,17 @@ function policyOf(value: unknown): LivBudgetPolicy {
   return { monthlyLimitDkkMicros: p.monthlyLimitDkkMicros, usdToDkkCeiling: p.usdToDkkCeiling,
     validUntil: p.validUntil, conversionBasis: p.conversionBasis, priceVersion: p.priceVersion };
 }
+export { policyOf as validateLivCostPolicy };
 const safeCount = (value: unknown) => Number.isSafeInteger(value) && Number(value) >= 0;
+
+/** Merge these fields into the EXISTING policy via a privileged Admin SDK
+ * operation after reviewing the unchanged price/FX assumptions. Never reset
+ * monthly totals or copy old Liv costs into a second ledger.
+ */
+function sharedPolicyReady(value: Record<string, unknown> | undefined, now: Date): boolean {
+  return value?.sharedScopesEnabled === true && typeof value.sharedTrackingStartedAt === 'string' &&
+    Number.isFinite(Date.parse(value.sharedTrackingStartedAt)) && Date.parse(value.sharedTrackingStartedAt) <= now.getTime();
+}
 
 export function createLivCostLedger(now: () => Date = () => new Date()): LivCostLedger {
   return {
@@ -58,7 +69,11 @@ export function createLivCostLedger(now: () => Date = () => new Date()): LivCost
       const monthRef = collection.doc(`month-${month}`), callRef = collection.doc(`call-${callId}`);
       const runRef = collection.doc(`run-${month}-${context.runId}`);
       return database.runTransaction(async tx => {
-        const policy = policyOf((await tx.get(collection.doc('policy'))).data());
+        const policyRow = (await tx.get(collection.doc('policy'))).data();
+        const policy = policyOf(policyRow);
+        if (context.scope !== undefined && (!['writer', 'seo'].includes(context.scope) || !sharedPolicyReady(policyRow, date))) {
+          throw new LivCostPretransportError('liv_cost_shared_policy_unconfigured');
+        }
         const existing = (await tx.get(callRef)).data();
         const totals = (await tx.get(monthRef)).data() || { committedDkkMicros: 0, reservedDkkMicros: 0, calls: 0, unknownCalls: 0 };
         const run = (await tx.get(runRef)).data() || { calls: 0 };
@@ -75,7 +90,7 @@ export function createLivCostLedger(now: () => Date = () => new Date()): LivCost
         }
         const reservation: LivCostReservation = { callId, month, runId: context.runId, stage: context.stage, requestHash,
           model: quote.model, quote, reservedDkkMicros: amount, policy, createdAt: date.toISOString() };
-        tx.create(callRef, { ...reservation, status: 'reserved', usage: null, billedCostDkkMicros: null });
+        tx.create(callRef, { ...reservation, scope: context.scope ?? 'liv', status: 'reserved', usage: null, billedCostDkkMicros: null });
         tx.set(runRef, { calls: run.calls + 1, updatedAt: date.toISOString() });
         tx.set(monthRef, { ...totals, reservedDkkMicros: totals.reservedDkkMicros + amount, calls: totals.calls + 1,
           unknownCalls: totals.unknownCalls + 1, trackingStartedAt: totals.trackingStartedAt || date.toISOString(), updatedAt: date.toISOString() });
@@ -127,7 +142,7 @@ export type LivCostSummary = {
   pricingStatus: 'verified' | 'review_due' | 'missing_or_expired'; priceVersion: string;
   /** Legacy name: review reminder only; stale assumptions remain estimates, not verified current prices. */
   priceValidUntil: string;
-  coverage: 'liv_openai_context_only'; historicalCostsIncluded: false; fullMonthlyCapVerified: false;
+  coverage: 'liv_openai_context_only' | 'shared_server_cost_contexts'; historicalCostsIncluded: false; fullMonthlyCapVerified: false;
   maxCallsPerRun: number; maxCallsPerMonth: number;
 };
 /** Read-only; estimates apply only to tracked calls, never historical account billing. */
@@ -150,6 +165,7 @@ export async function readLivCostSummary(now = new Date()): Promise<LivCostSumma
     let policy: LivBudgetPolicy | null = null;
     try { policy = policyOf(policyRow.data()); } catch { /* No fabricated zero-cost policy. */ }
     if (policy) { result.monthlyLimitDkk = policy.monthlyLimitDkkMicros / 1_000_000; result.status = 'ready_partial'; }
+    if (policyRow.data()?.sharedTrackingStartedAt) result.coverage = 'shared_server_cost_contexts';
     if (policy && result.pricingStatus === 'verified' && now.getTime() >= Date.parse(policy.validUntil)) result.pricingStatus = 'review_due';
     if (result.pricingStatus === 'missing_or_expired') result.status = 'blocked';
     const totals = monthRow.data();
@@ -163,8 +179,48 @@ export async function readLivCostSummary(now = new Date()): Promise<LivCostSumma
       result.trackingStartedAt = typeof totals.trackingStartedAt === 'string' ? totals.trackingStartedAt : null;
       if (policy && result.status === 'ready_partial') result.availableAllowanceDkk = Math.max(0,
         policy.monthlyLimitDkkMicros - totals.committedDkkMicros - totals.reservedDkkMicros) / 1_000_000;
-      if (totals.blocked || totals.calls >= LIV_COST_MAX_CALLS_PER_MONTH) result.status = 'blocked';
+      if (totals.blocked || totals.calls >= LIV_COST_MAX_CALLS_PER_MONTH) {
+        result.status = 'blocked'; result.availableAllowanceDkk = null;
+      }
     }
     return result;
   } catch { return { ...result, status: 'unavailable' }; }
+}
+
+export type SharedCostSummary = Omit<LivCostSummary, 'coverage'> & {
+  coverage: 'shared_server_cost_contexts';
+  sharedActivation: 'disabled' | 'policy_required' | 'enabled' | 'invalid_flag' | 'unavailable';
+  sharedTrackingStartedAt: string | null;
+  includedScopes: Array<'liv' | 'writer' | 'seo'>;
+  excludedScopes: string[];
+  unpricedBehavior: 'deny_before_transport';
+  unknownUsageBehavior: 'retain_full_reservation';
+  existingLivCostsIncluded: true;
+};
+
+/** App estimates only. Activation describes configuration, not proof that every
+ * boundary was deployed or that historical Writer/SEO spend was captured.
+ */
+export async function readSharedCostSummary(now = new Date()): Promise<SharedCostSummary> {
+  const base = await readLivCostSummary(now);
+  const result: SharedCostSummary = { ...base, coverage: 'shared_server_cost_contexts',
+    sharedActivation: 'disabled', sharedTrackingStartedAt: null, includedScopes: ['liv'],
+    excludedScopes: ['unscoped_openai_calls', 'accreditation', 'podcast', 'other_providers', 'historical_untracked_calls'],
+    unpricedBehavior: 'deny_before_transport', unknownUsageBehavior: 'retain_full_reservation', existingLivCostsIncluded: true };
+  let enabled: boolean;
+  try { enabled = sharedCostEnabled(); }
+  catch { return { ...result, sharedActivation: 'invalid_flag' }; }
+  try {
+    const policy = (await db().collection(LIV_COST_COLLECTION).doc('policy').get()).data();
+    if (sharedPolicyReady(policy, now)) {
+      result.sharedTrackingStartedAt = policy!.sharedTrackingStartedAt as string;
+      // Coverage remains partial and includes previously tracked scopes after rollback.
+      result.includedScopes = ['liv', 'writer', 'seo'];
+    }
+    if (enabled) {
+      result.sharedActivation = 'policy_required';
+      try { policyOf(policy); if (sharedPolicyReady(policy, now)) result.sharedActivation = 'enabled'; } catch { /* Fail closed. */ }
+    }
+  } catch { result.sharedActivation = 'unavailable'; }
+  return result;
 }

@@ -44,7 +44,7 @@ export interface SafetyGatesInput {
   requireCompleteVerification?: boolean;
   /** Bound infrastructure checks so preparation jobs cannot outlive the worker. */
   timeoutMs?: number;
-  /** Server-saved report only; reusable solely for the exact text within its freshness window. */
+  /** Server-saved report only. Consolidated Liv retries revalidate through the assessment cache. */
   priorFactcheck?: GroundedReport;
   /** Pointer only; /api/factcheck resolves the exact saved audit and pixel proof. */
   visualReference?: LivVisualReference;
@@ -252,14 +252,13 @@ export async function runSafetyGates(input: SafetyGatesInput): Promise<SafetyGat
 
   // --- Gate 2: Factcheck ---
   const fcUrl = new URL('/api/factcheck', baseUrl).toString();
-  const priorEditorial = readLivEditorialEvidence((input.priorFactcheck as FactcheckResponse | undefined)?.editorialReview, factcheckText, voiceHash);
-  const sameSourceUrls = JSON.stringify([...new Set(sourceUrls)].sort()) ===
-    JSON.stringify([...new Set(input.priorFactcheck?.sources?.map(source => source.url) || [])].sort());
   const sameFieldContext = !fieldContext || (input.priorFactcheck as FactcheckResponse | undefined)?.fieldContextHash === fieldContext.hash;
-  // Visual evidence is re-resolved server-side on every attempt. Only the
-  // assessment's exact paid output can be cached, not a stale image proof.
-  let fc: FactcheckResponse | null = sameFieldContext && !input.visualReference
-    ? isCompleteGroundedReport(input.priorFactcheck, factcheckText) && (!consolidated || (priorEditorial && sameSourceUrls))
+  // Consolidated evidence must go through fresh source/visual retrieval and
+  // the exact request cache on every attempt. A prior report cannot establish
+  // unchanged source content, model or prompt, even within its freshness window.
+  // This reuses paid output, including failures, without reusing stale approval.
+  let fc: FactcheckResponse | null = !consolidated && sameFieldContext && !input.visualReference
+    ? isCompleteGroundedReport(input.priorFactcheck, factcheckText)
       ? input.priorFactcheck! : reusableFailedReport(input.priorFactcheck, factcheckText, sourceUrls) || null
     : null;
   let fcHttpStatus: number | null = null;

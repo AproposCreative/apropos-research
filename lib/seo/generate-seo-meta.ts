@@ -24,6 +24,7 @@
 import { createHash } from 'node:crypto';
 import { apiCache, CACHE_TTL } from '@/lib/cache';
 import { getOpenAIClient } from '@/lib/openai';
+import { withSharedCostContext } from '@/lib/liv/cost-context';
 import {
   SEO_DESCRIPTION_MAX,
   SEO_DESCRIPTION_MIN,
@@ -121,7 +122,7 @@ export async function generateSeoMetaAI(input: SeoInput, options: { model?: stri
     .join('\n\n');
 
   try {
-    const completion = await client.chat.completions.create({
+    const completion = await withSharedCostContext({ scope: 'seo', stage: 'seo-meta' }, () => client.chat.completions.create({
       model,
       max_completion_tokens: 2000,
       response_format: { type: 'json_object' },
@@ -129,7 +130,7 @@ export async function generateSeoMetaAI(input: SeoInput, options: { model?: stri
         { role: 'system', content: systemPrompt },
         { role: 'user', content: userPrompt },
       ],
-    });
+    }));
 
     const raw = completion.choices[0]?.message?.content?.trim();
     if (!raw) return cacheAndReturn(cacheKey, generateSeoMetaSmart(input));

@@ -1,13 +1,16 @@
 import { createHash, randomUUID } from 'node:crypto';
 import type { ReviewModelCall } from './review';
+import { getLivCostPretransportError } from '@/lib/liv/cost-errors';
 
 export type ModelStageRecord = {
   requestHash: string;
   owner: string;
-  status: 'started' | 'responded' | 'uncertain';
+  status: 'started' | 'responded' | 'uncertain' | 'not_started';
   startedAt: string;
   response?: string;
   respondedAt?: string;
+  notStartedReason?: 'cost_denied';
+  costDenials?: Array<{ owner: string; startedAt: string; recordedAt: string; code: string; providerAttempted: false }>;
 };
 
 /** Transactions must be atomic across processes, including the initial create. */
@@ -46,17 +49,26 @@ export function durableReviewModel(args: {
         if (current.status === 'responded' && typeof current.response === 'string') {
           return { result: { response: current.response } };
         }
-        throw new Error('seo_model_requires_reconciliation');
+        if (current.status !== 'not_started' || current.notStartedReason !== 'cost_denied' ||
+          current.response !== undefined || current.respondedAt !== undefined ||
+          !current.costDenials?.length || current.costDenials.at(-1)?.providerAttempted !== false) {
+          throw new Error('seo_model_requires_reconciliation');
+        }
       }
-      return { next: { requestHash, owner, status: 'started', startedAt: now() }, result: { claimed: true } };
+      return { next: { requestHash, owner, status: 'started', startedAt: now(),
+        ...(current?.costDenials ? { costDenials: current.costDenials } : {}) }, result: { claimed: true } };
     });
     if ('response' in claimed) return claimed.response;
     let response: string;
     try {
       response = await args.call(request);
     } catch (error) {
+      const denial = getLivCostPretransportError(error);
       await args.store.transact(key, current => {
         if (!current || current.owner !== owner || current.status !== 'started') throw new Error('seo_model_stage_conflict');
+        if (denial) return { next: { ...current, status: 'not_started', notStartedReason: 'cost_denied',
+          costDenials: [...(current.costDenials || []), { owner, startedAt: current.startedAt,
+            recordedAt: now(), code: denial.code, providerAttempted: false }] }, result: undefined };
         return { next: { ...current, status: 'uncertain' }, result: undefined };
       });
       throw error;

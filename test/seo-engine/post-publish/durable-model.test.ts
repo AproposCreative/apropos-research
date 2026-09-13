@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
-import { durableReviewModel, type ModelStageStore, type ModelStageRecord } from '../../../lib/seo-engine/post-publish/durable-model';
+import { durableReviewModel, modelRequestHash, type ModelStageStore, type ModelStageRecord } from '../../../lib/seo-engine/post-publish/durable-model';
+import { LivCostPretransportError } from '@/lib/liv/cost-errors';
 
 function memoryStore(): ModelStageStore {
   const records = new Map<string, ModelStageRecord>();
@@ -12,6 +13,53 @@ function memoryStore(): ModelStageStore {
 const request = { stage: 'review' as const, system: 'review', input: 'article' };
 
 describe('durable model stages', () => {
+  it.each([{ response: 'paid output' }, { response: '' }, { respondedAt: '2026-09-13T12:00:00Z' }])('never retries malformed not_started records with response evidence: %j', async evidence => {
+    const current: ModelStageRecord = { requestHash: modelRequestHash(request, 'model'), owner: 'old', status: 'not_started',
+      startedAt: '2026-09-13T11:00:00Z', notStartedReason: 'cost_denied', ...evidence,
+      costDenials: [{ owner: 'old', startedAt: '2026-09-13T11:00:00Z', recordedAt: '2026-09-13T11:01:00Z', code: 'liv_cost_monthly_budget_exceeded', providerAttempted: false }] };
+    const call = vi.fn();
+    const store: ModelStageStore = { async transact(_key, fn) { return fn(current).result; } };
+    await expect(durableReviewModel({ jobId: 'job1', model: 'model', store, call })(request)).rejects.toThrow('requires_reconciliation');
+    expect(call).not.toHaveBeenCalled();
+  });
+  it('records branded SDK-wrapped cost denial as not_started and permits a fresh budget-checked attempt', async () => {
+    const records: ModelStageRecord[] = [];
+    const backing = memoryStore();
+    const store: ModelStageStore = { transact: (key, fn) => backing.transact(key, current => {
+      const mutation = fn(current); if (mutation.next) records.push(structuredClone(mutation.next)); return mutation;
+    }) };
+    const call = vi.fn().mockRejectedValueOnce(new Error('SDK connection error', { cause: new LivCostPretransportError('liv_cost_monthly_budget_exceeded') }))
+      .mockResolvedValue('saved');
+    const args = { jobId: 'job1', model: 'model', store, call };
+    await expect(durableReviewModel(args)(request)).rejects.toThrow('SDK connection');
+    expect(records.at(-1)).toMatchObject({ status: 'not_started', notStartedReason: 'cost_denied',
+      costDenials: [{ code: 'liv_cost_monthly_budget_exceeded', providerAttempted: false }] });
+    await expect(durableReviewModel(args)({ ...request, input: 'changed' })).rejects.toThrow('request_changed');
+    expect(await durableReviewModel(args)(request)).toBe('saved');
+    expect(await durableReviewModel(args)(request)).toBe('saved');
+    expect(call).toHaveBeenCalledTimes(2);
+    expect(records.at(-1)?.costDenials).toEqual(records[1].costDenials);
+  });
+  it.each([
+    new Error('liv_cost_monthly_budget_exceeded'),
+    new Error('network', { cause: { name: 'LivCostPretransportError', code: 'liv_cost_monthly_budget_exceeded', providerAttempted: false } }),
+    new Error('reservation commit outcome unknown'),
+  ])('does not grant retries from lookalike or ambiguous errors: %s', async failure => {
+    const args = { jobId: 'job1', model: 'model', store: memoryStore(), call: vi.fn().mockRejectedValue(failure) };
+    await expect(durableReviewModel(args)(request)).rejects.toThrow();
+    await expect(durableReviewModel(args)(request)).rejects.toThrow('requires_reconciliation');
+    expect(args.call).toHaveBeenCalledOnce();
+  });
+  it('claims only one concurrent retry after an unpaid denial', async () => {
+    let finish!: (value: string) => void;
+    const call = vi.fn().mockRejectedValueOnce(new LivCostPretransportError('liv_cost_shared_policy_unconfigured'))
+      .mockImplementation(() => new Promise<string>(resolve => { finish = resolve; }));
+    const args = { jobId: 'job1', model: 'model', store: memoryStore(), call };
+    await expect(durableReviewModel(args)(request)).rejects.toThrow('shared_policy_unconfigured');
+    const first = durableReviewModel(args)(request); await Promise.resolve();
+    await expect(durableReviewModel(args)(request)).rejects.toThrow('requires_reconciliation');
+    finish('saved'); expect(await first).toBe('saved'); expect(call).toHaveBeenCalledTimes(2);
+  });
   it('replays saved output across worker instances without calling the provider', async () => {
     const store = memoryStore();
     const call = vi.fn().mockResolvedValue('saved JSON');

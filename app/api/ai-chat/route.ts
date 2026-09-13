@@ -16,11 +16,21 @@ import { SEO_TITLE_MAX } from '@/lib/seo/constants';
 import { isLivAuthor, loadLivVoice } from '@/lib/liv/voice';
 import { livModels } from '@/lib/liv/model-config';
 import { writerLengthCheck, writerLengthPolicy } from '@/lib/ai-chat/article-length';
+import { boundedWriterConversation } from '@/lib/ai-chat/bounded-history';
+import { getWriterResearch, writerResearchScope } from '@/lib/ai-chat/research-cache';
+import { withSharedCostContext } from '@/lib/liv/cost-context';
+import { getLivCostPretransportError } from '@/lib/liv/cost-errors';
 
 const openai = getOpenAIClient();
 
 /** User-visible message; maps OpenAI HTTP statuses to actionable Danish text. */
 function formatAiChatError(err: unknown): string {
+  const budgetError = getLivCostPretransportError(err);
+  if (budgetError) {
+    return /(?:monthly_budget|call_limit)_exceeded$/.test(budgetError.code)
+      ? 'Appens AI-budgetgrænse er nået. Det blokerede kald blev ikke sendt til AI-udbyderen. Tjek appens budgetindstillinger.'
+      : 'Appens AI-budgetkontrol blokerede kaldet før afsendelse. Tjek budgetopsætningen og prisdækningen for den valgte model.';
+  }
   if (err instanceof APIError) {
     const nested =
       err.error &&
@@ -84,7 +94,8 @@ async function runQuickQualityCheck(openaiClient: ReturnType<typeof getOpenAICli
     const warnings: unknown = match ? JSON.parse(match[0]) : null;
     if (!Array.isArray(warnings) || !warnings.every(w => typeof w === 'string')) throw new Error('Invalid quality check');
     return warnings;
-  } catch {
+  } catch (error) {
+    if (getLivCostPretransportError(error)) return [formatAiChatError(error)];
     return ['Den hurtige redaktionelle kontrol kunne ikke gennemføres. Udkastet er ikke kvalitetsgodkendt.'];
   }
 }
@@ -418,6 +429,15 @@ export const maxDuration = 300;
 
 export async function POST(request: NextRequest) {
   try {
+    return await withSharedCostContext({ scope: 'writer', stage: 'ai-chat' }, () => handleWriterRequest(request));
+  } catch (error) {
+    if (!getLivCostPretransportError(error)) throw error;
+    return NextResponse.json({ error: formatAiChatError(error), errorCode: 'AI_BUDGET_BLOCKED' }, { status: 503 });
+  }
+}
+
+async function handleWriterRequest(request: NextRequest) {
+  try {
     const body = await request.json().catch(() => ({}));
     const {
       message,
@@ -482,7 +502,7 @@ export async function POST(request: NextRequest) {
       if (searchPlatform) queryParts.push(String(searchPlatform));
       if (searchCategory && typeof searchCategory === 'string' && !/generel/i.test(searchCategory)) queryParts.push(searchCategory);
       const searchQuery = queryParts.join(' ');
-      researchResult = await getResearch(searchQuery, { maxResults: 3, ...(liv ? { model: livModels().research } : {}) });
+      researchResult = await getWriterResearch(writerResearchScope(request.headers), searchQuery, { maxResults: 3, ...(liv ? { model: livModels().research } : {}) });
       webSegment = buildWebSearchSegment(researchResult.contextText);
       if (clientRequestId) {
         updateProgressStep(clientRequestId, 'web-search', 'completed');
@@ -500,13 +520,8 @@ export async function POST(request: NextRequest) {
 
     const messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
       { role: 'system', content: systemPrompt },
+      ...boundedWriterConversation(chatHistory, message.trim()),
     ];
-    for (const m of chatHistory) {
-      const role = m.role === 'user' ? 'user' : 'assistant';
-      const content = typeof m.content === 'string' ? m.content : String(m.content ?? '');
-      if (content) messages.push({ role, content });
-    }
-    messages.push({ role: 'user', content: message.trim() });
 
     const completion = await openai.chat.completions.create({
       model: generationModel,
@@ -543,6 +558,7 @@ export async function POST(request: NextRequest) {
     // One bounded repair, for both too-short and too-long drafts. Never silently
     // label a failed repair as meeting the user's selected template.
     let lengthWarning: string | undefined;
+    let repairBudgetWarning: string | undefined;
     if (articleUpdate?.content) {
       const policy = writerLengthPolicy(articleData);
       if (!writerLengthCheck(articleUpdate.content, articleData).pass) {
@@ -574,6 +590,7 @@ export async function POST(request: NextRequest) {
             articleUpdate = repaired;
           }
         } catch (expErr) {
+          if (getLivCostPretransportError(expErr)) repairBudgetWarning = formatAiChatError(expErr);
           console.warn('[ai-chat] length repair failed; original draft retained');
         }
       }
@@ -584,6 +601,7 @@ export async function POST(request: NextRequest) {
 
     // --- Step: Quality Check ---
     let warnings: string[] = lengthWarning ? [lengthWarning] : [];
+    if (repairBudgetWarning) warnings.push(repairBudgetWarning);
     if (articleUpdate?.content && clientRequestId) {
       updateProgressStep(clientRequestId, 'quality', 'active');
       warnings.push(...await runQuickQualityCheck(openai, articleUpdate.content, liv));
@@ -606,6 +624,7 @@ export async function POST(request: NextRequest) {
       ...(researchResult?.debug ? { researchDebug: researchResult.debug } : {}),
     });
   } catch (err) {
+    if (getLivCostPretransportError(err)) throw err;
     const message = formatAiChatError(err);
     console.error('[ai-chat]', err);
     const status =

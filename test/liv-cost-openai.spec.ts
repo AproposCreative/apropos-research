@@ -1,7 +1,7 @@
-import { beforeEach, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 vi.mock('@/lib/firebase-admin', () => ({ getAdminDb: () => null }));
 import { LivBudgetOpenAI, livBudgetFetch } from '@/lib/liv/cost-openai';
-import { currentLivCostContext, withLivCostContext, withLivCostStage } from '@/lib/liv/cost-context';
+import { currentLivCostContext, withLivCostContext, withLivCostStage, withSharedCostContext } from '@/lib/liv/cost-context';
 import type { LivCostLedger } from '@/lib/liv/cost-ledger';
 import { LivCostPretransportError, getLivCostPretransportError } from '@/lib/liv/cost-errors';
 const context = { runId: 'prepare-2026-09-13', stage: 'writing' };
@@ -19,6 +19,43 @@ beforeEach(() => {
     policy: { monthlyLimitDkkMicros: 300000000, usdToDkkCeiling: 8, conversionBasis: 'Fixture only', priceVersion: input.quote.version, validUntil: '2026-10-01' } }));
 });
 const client = () => new LivBudgetOpenAI({ apiKey: 'fixture-only-not-a-real-key', fetch: mock.transport }, ledger);
+afterEach(() => vi.unstubAllEnvs());
+it.each(['writer', 'seo'] as const)('guards %s with real SDK mocked transport, no retries and unknown usage held', async scope => {
+  vi.stubEnv('AI_SHARED_COST_ENABLED', 'true');
+  const sdk = client();
+  mock.transport.mockResolvedValueOnce(new Response('{}', { status: 500, headers: { 'content-type': 'application/json', 'retry-after-ms': '1' } }));
+  await expect(withSharedCostContext({ scope, stage: 'test' }, () => sdk.chat.completions.create(request, { maxRetries: 5 }))).rejects.toThrow();
+  expect(mock.transport).toHaveBeenCalledOnce();
+  expect(mock.reserve.mock.calls[0][0].context.scope).toBe(scope);
+  expect(mock.complete.mock.calls[0][1]).toMatchObject({ status: 'ambiguous', usage: null });
+  const error = await withSharedCostContext({ scope, stage: 'test' }, () => sdk.chat.completions.create({ ...request, model: 'unpriced-model' })).catch(e => e);
+  expect(getLivCostPretransportError(error)?.code).toBe('liv_cost_pricing_unknown');
+  expect(mock.transport).toHaveBeenCalledOnce();
+});
+it('nested Writer SEO and Liv SEO calls reserve exactly once with parent ownership', async () => {
+  vi.stubEnv('AI_SHARED_COST_ENABLED', 'true');
+  const sdk = client();
+  await withSharedCostContext({ scope: 'writer', stage: 'chat' }, () =>
+    withSharedCostContext({ scope: 'seo', stage: 'seo-meta' }, () => sdk.chat.completions.create(request)));
+  expect(mock.reserve).toHaveBeenCalledOnce();
+  expect(mock.reserve.mock.calls[0][0].context).toMatchObject({ scope: 'writer', stage: 'seo-meta' });
+  await withLivCostContext(context, () => withSharedCostContext({ scope: 'seo', stage: 'seo-meta' }, () => sdk.chat.completions.create(request)));
+  expect(mock.reserve).toHaveBeenCalledTimes(2);
+  expect(mock.reserve.mock.calls[1][0].context).toMatchObject({ runId: context.runId, stage: 'seo-meta' });
+});
+it('accepts default Writer research and legacy SEO through the guarded SDK using official quote rates', async () => {
+  vi.stubEnv('AI_SHARED_COST_ENABLED', 'true');
+  const sdk = client();
+  await withSharedCostContext({ scope: 'writer', stage: 'research' }, () => sdk.responses.create({
+    model: 'gpt-5.4-mini', tools: [{ type: 'web_search', search_context_size: 'low' }],
+    reasoning: { effort: 'low' }, include: ['web_search_call.action.sources'], tool_choice: 'required',
+    store: false, max_output_tokens: 3000, input: 'Find sources' }));
+  await withSharedCostContext({ scope: 'seo', stage: 'seo-meta' }, () => sdk.chat.completions.create({
+    ...request, model: 'gpt-4o-mini', response_format: { type: 'json_object' } }));
+  expect(mock.reserve).toHaveBeenCalledTimes(2);
+  expect(mock.reserve.mock.calls.map(([input]) => input.quote.model)).toEqual(['gpt-5.4-mini', 'gpt-4o-mini']);
+  expect(mock.transport).toHaveBeenCalledTimes(2);
+});
 it('reserves before transport and records usage/request attribution without persisting private prompt or result', async () => {
   const sdk = client();
   mock.transport.mockImplementation(async () => { expect(mock.reserve).toHaveBeenCalledOnce(); return completion(); });

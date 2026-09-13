@@ -1,6 +1,13 @@
 import { beforeEach, afterEach, expect, it, vi } from 'vitest';
 const state = vi.hoisted(() => ({ rows: new Map<string, any>(), create: vi.fn(), retrieve: vi.fn(),
-  available: true, failSave: false, queue: Promise.resolve() as Promise<unknown>, visual: vi.fn() }));
+  available: true, failSave: false, queue: Promise.resolve() as Promise<unknown>, visual: vi.fn(), voiceRevision: false }));
+vi.mock('@/lib/liv/voice', async original => {
+  const actual = await original<typeof import('@/lib/liv/voice')>();
+  return { ...actual, loadLivVoice: () => {
+    const voice = actual.loadLivVoice();
+    return state.voiceRevision ? { ...voice, text: `${voice.text}\nNy stemmeinstruks.`, hash: 'f'.repeat(64) } : voice;
+  } };
+});
 vi.mock('@/lib/liv/visual-evidence', async original => ({
   ...await original<typeof import('@/lib/liv/visual-evidence')>(), readLivVisualEvidence: state.visual,
 }));
@@ -52,6 +59,7 @@ const response = (value: unknown) => ({ model: 'snapshot', choices: [{ finish_re
 
 beforeEach(() => {
   vi.resetAllMocks(); state.rows.clear(); state.available = true; state.failSave = false; state.queue = Promise.resolve();
+  state.voiceRevision = false;
   vi.useFakeTimers(); vi.setSystemTime(new Date('2026-09-12T10:00:00Z'));
   state.retrieve.mockImplementation(async (url: string, id: string) => ({ id, url, title: 'Koncert', text: claim.repeat(8),
     contentHash: 'a'.repeat(64), publishedAt: '2026-09-09T10:00:00Z', retrievedAt: new Date().toISOString() }));
@@ -182,6 +190,40 @@ it('reuses exact paid output after fresh source retrieval and revalidates with r
   expect(isCompleteGroundedReport(second, claim)).toBe(true);
   expect([...state.rows.values()][0].completedAt).toBe('2026-09-12T10:00:00.000Z');
 });
+
+it.each(['unchanged', 'title', 'seo', 'body', 'source-text', 'source-url', 'voice', 'model', 'unavailable-source'])(
+  'revalidates consolidated prior approval through the exact cache on %s', async kind => {
+    vi.stubEnv('INTERNAL_API_SECRET', 'test-only-internal-secret-at-least-32-characters');
+    const fields = { title: 'Koncerten', seoDescription: 'Musik og fællesskab.', content: claim };
+    const input = { baseUrl: 'http://localhost', ...fields, additionalTexts: [fields.seoDescription],
+      editorialFields: fields, sourceUrls: urls, sourceExcerpt: claim.repeat(3), requireCompleteVerification: true };
+    const fetchMock = vi.fn(async (url: string, options: RequestInit) => url.endsWith('/api/moderation/check')
+      ? Response.json({ data: { metrics: { wordCount: 600, plagiarismRisk: 'low' } } }) : POST(new NextRequest(url, options)));
+    vi.stubGlobal('fetch', fetchMock);
+    const first = await runSafetyGates(input);
+    expect(first.pass).toBe(true);
+    const priorFactcheck = first.results.find(gate => gate.name === 'factcheck')!.evidence!;
+    const saved = structuredClone(priorFactcheck);
+    const revised = { ...fields };
+    if (kind === 'title') revised.title = 'En anden titel';
+    if (kind === 'seo') revised.seoDescription = 'En anden søgebeskrivelse.';
+    if (kind === 'body') revised.content += ' Jeg er nysgerrig.';
+    if (kind === 'voice') state.voiceRevision = true;
+    if (kind === 'model') vi.stubEnv('LIV_RESEARCH_MODEL', 'gpt-test-changed');
+    if (kind === 'source-text') {
+      const retrieve = state.retrieve.getMockImplementation()!;
+      state.retrieve.mockImplementation(async (...args) => ({ ...await retrieve(...args), text: claim.repeat(8) + ' Opdateret kilde.' }));
+    }
+    if (kind === 'unavailable-source') state.retrieve.mockRejectedValue(new Error('unavailable'));
+    const second = await runSafetyGates({ ...input, ...revised, editorialFields: revised,
+      additionalTexts: [revised.seoDescription], priorFactcheck,
+      sourceUrls: kind === 'source-url' ? [urls[0], 'https://third.example/news'] : urls });
+    expect(second.pass).toBe(kind !== 'unavailable-source');
+    expect(fetchMock).toHaveBeenCalledTimes(4);
+    expect(state.retrieve).toHaveBeenCalledTimes(4);
+    expect(state.create).toHaveBeenCalledTimes(['unchanged', 'unavailable-source'].includes(kind) ? 1 : 2);
+    expect(priorFactcheck).toEqual(saved);
+  });
 
 it('separates CMS fields from prose without changing units, omitting facts or duplicating text in the prompt', async () => {
   const opinion = 'For mig er uniformen et adgangskort til autoritet, ikke et løfte om visdom.';
@@ -407,7 +449,7 @@ it.each(['approved', 'editorial-rejection', 'unsupported-fact'])('integrates gat
     const resumed = await runSafetyGates({ ...gateInput, priorFactcheck: factGate.evidence });
     expect(resumed.pass).toBe(true);
     expect(state.create).toHaveBeenCalledTimes(1);
-    expect(fetchMock).toHaveBeenCalledTimes(3); // current moderation only on resume
+    expect(fetchMock).toHaveBeenCalledTimes(4); // fresh retrieval, same paid request
   }
 });
 
@@ -439,6 +481,6 @@ it('rechecks an old failed report exactly once through gates and route, then reu
   const second = await runSafetyGates({ ...gateInput, priorFactcheck: diagnostic });
   expect(second.pass).toBe(false);
   expect(state.create).toHaveBeenCalledTimes(2);
-  expect(fetchMock).toHaveBeenCalledTimes(3); // first moderation+assessment; then moderation only
+  expect(fetchMock).toHaveBeenCalledTimes(4); // fresh retrieval, same cached failure
   expect(old).toEqual(oldSnapshot);
 });

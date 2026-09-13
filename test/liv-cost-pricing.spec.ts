@@ -1,5 +1,15 @@
 import { expect, it } from 'vitest';
 import { quoteLivOpenAIRequest, quoteLivImageRequest, readLivProviderUsage, usageUsdUpperBound } from '@/lib/liv/cost-pricing';
+
+it.each([['gpt-5.4-mini', 0.75, 4.5], ['gpt-4o-mini', 0.15, 0.6]] as const)('quotes existing %s text defaults using dated official rates', (model, input, output) => {
+  const quote = quoteLivOpenAIRequest('/chat/completions', { model, max_completion_tokens: 2000,
+    response_format: { type: 'json_object' }, messages: [{ role: 'user', content: 'Danish SEO text' }] });
+  expect(quote).toMatchObject({ inputUsdPerMillion: input, outputUsdPerMillion: output,
+    source: `https://developers.openai.com/api/docs/models/${model}`, sourceCheckedAt: '2026-09-13' });
+  expect(usageUsdUpperBound(quote, { inputTokens: 100, outputTokens: 100, cachedInputTokens: null, reasoningTokens: null, toolCalls: 0 })).toBe(Math.ceil(100 * input + 100 * output));
+  expect(() => quoteLivOpenAIRequest('/chat/completions', { model, max_completion_tokens: 100,
+    messages: [{ role: 'user', content: [{ type: 'image_url', image_url: { url: 'https://example.test/image.jpg', detail: 'high' } }] }] })).toThrow('image_detail_unbounded');
+});
 const chat = { model: 'gpt-5.6-luna', max_completion_tokens: 1000, messages: [{ role: 'user', content: 'Dansk kultur' }] };
 it('uses documented long-context/cache-write ceilings, not arbitrary estimated cheap rates', () => {
   const luna = quoteLivOpenAIRequest('/chat/completions', chat);
