@@ -52,3 +52,23 @@ made for these checks. The article is independently confirmed publicly reachable
 Exact publication timestamp, CMS readback and automatic-run provenance remain
 unverified in this record; September 13 is still not counted as a verified
 on-time automatic day.
+
+### September 13: authenticated delivery-history readback
+
+At `2026-09-13T16:43:17.249Z`, read-only Firebase Admin queries of
+`livDelivery/manifest` and `livDailyArticles/daily-2026-09-13` found:
+
+- Delivery slot state `published`, one attempt, item `6aa54ddfd3c29b324372d24b`.
+- Delivery `checkedAt`: `2026-09-13T08:00:22.864Z`, or 10:00:22.864 Copenhagen.
+- Daily history status `published`, same item; server completion timestamp
+  seconds `1789286422`, nanoseconds `927000000` (08:00:22.927 UTC).
+- Slot public URL matches the independent public check above.
+
+Source review of `deliver-ready.ts` confirms `checkedAt` is copied from the
+publication verification receipt, after CMS/public checks, rather than from the
+scheduled display date. History completion is recorded immediately before the
+slot is finalized. This materially supports a successful on-time server delivery.
+It is not Webflow's actual publication timestamp. Neither inspected document
+records caller/scheduler provenance; an authenticated manual call uses the same
+worker. Keep scheduler provenance unverified, rather than inferring it solely
+from timing. No production state changed during inspection.
