@@ -256,3 +256,15 @@ No paid model tests, CMS writes, newsletter sends or Instagram changes were made
 - Still pending combined deployment. The coverage audit records additional
   editorial debt in legacy research and quality fallbacks; wrapping is not proof
   of grounded research or a complete global budget.
+
+### Legacy research replacement
+
+- Replaced research-engine's five ungrounded completion passes and fabricated
+  fallback findings with one bounded existing source-discovery request, no paid
+  fallback. Shared budget and signed parent context are preserved. Explicit auth
+  and topic length validation happen before provider work.
+- Results expose cited source discovery, not verified facts/expert judgments.
+  Insufficient evidence returns 503 instead of invented success. The only found
+  runtime caller now reads the standard data envelope and forwards cost context.
+- 20 targeted tests and TypeScript pass, no paid calls. Pending combined release;
+  this source change alone is not proof of production savings or publication.

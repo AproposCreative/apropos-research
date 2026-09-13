@@ -5,11 +5,9 @@ import { LivCostPretransportError } from '@/lib/liv/cost-errors';
 const provider = vi.hoisted(() => ({ create: vi.fn() }));
 vi.mock('@/lib/openai', () => ({ models: { default: 'test', research: 'test' }, getOpenAIClient: () => ({ chat: { completions: { create: provider.create } } }) }));
 vi.mock('@/lib/logger', () => ({ logger: {}, createRequestLogger: () => ({ warn: vi.fn(), error: vi.fn(), info: vi.fn() }) }));
-import { POST as research } from '@/app/api/research-engine/route';
 import { POST as enhance } from '@/app/api/content-enhancer/route';
 import { POST as quality } from '@/app/api/quality-check/route';
 const routes = [
-  { name: 'research-engine', post: research },
   { name: 'content-enhancer', post: enhance },
   { name: 'quality-check', post: quality },
 ];

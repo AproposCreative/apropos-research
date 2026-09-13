@@ -8,6 +8,7 @@
 import fs from 'fs';
 import path from 'path';
 import { internalApiHeaders } from '@/lib/api/internal-auth';
+import { livCostHeaders } from '@/lib/liv/cost-context';
 import { config } from '@/lib/config/env';
 import { logger } from '@/lib/logger';
 import { getOpenAIClient } from '@/lib/openai';
@@ -218,7 +219,7 @@ export async function performComprehensiveResearch(
       if (baseUrl) {
       const researchResponse = await fetch(`${baseUrl}/api/research-engine`, {
         method: 'POST',
-        headers: internalApiHeaders(),
+        headers: { ...internalApiHeaders(), ...livCostHeaders('/api/research-engine') },
         body: JSON.stringify({
           topic: topic,
           articleType: articleData?.category || 'Generel',
@@ -229,8 +230,9 @@ export async function performComprehensiveResearch(
       });
 
       if (researchResponse.ok) {
-        const structured = await researchResponse.json();
-        if (structured?.success) {
+        const envelope = await researchResponse.json();
+        const structured = envelope?.data;
+        if (envelope?.success && structured) {
           sources.advancedResearch = {
             keyFindings: structured.keyFindings || [],
             culturalContext: structured.culturalContext || [],
@@ -940,4 +942,3 @@ export function formatResearchForPrompt(sources: ResearchSources): string {
   
   return prompt;
 }
-
