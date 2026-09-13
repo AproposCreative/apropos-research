@@ -33,6 +33,9 @@
   recreated a raw OpenAI client per article and saved partial archives after errors.
   Both files remain recoverable in Git; no datasets or production jobs changed.
 - [ ] Record seven consecutive API-driven daily publications and next preview.
+  Daily 10:20 Codex after-check created ACTIVE as
+  `verific-r-livs-daglige-udgivelse`; journal: `LIV-DAILY-VERIFICATION.md`.
+  This local verification does not replace the server publication cron.
   September 13 16:09 UTC: feed confirms three ready stories with no blockers;
   next is Lucian Freud on September 14. Klovn September 16 now has the agreed
   Anmeldelse title prefix, via the audited presentation API (no paid rewrite).
