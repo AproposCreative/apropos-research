@@ -4,6 +4,43 @@
 
 Build the user's approved September 13 plan. Only the three verified colleagues may enter. Frederik alone has SEO, Podcast, Newsletter, Liv Inbox, Push, budget and Liv publication control. Casper and Milo can see Liv and propose topics. Personal drafts are private even from Frederik until explicitly shared. Keep one API-published article daily, no Instagram, bounded AI spend, saved paid work and audit intact.
 
+## Approved optimization priorities, September 14
+
+The user approved all six recommendations and requested that they be added to
+the existing goal after the current work. This is an additive execution phase,
+not a replacement or completion claim for the broader goal. Finish and verify
+the in-progress personal-source repair first; do not start unrelated new features.
+
+1. **Working media sources:** persist choices, distinguish selection from uptime,
+   report actual errors, and verify reload/account isolation plus actual research
+   consumption. Current local repair is `297a3a9`; browser acceptance and release
+   remain pending. See PERSONAL-MEDIA-SOURCES-2026-09-14.md.
+2. **Self-service onboarding:** automatically send first verification after
+   allowed account creation, retain explicit resend with durable limits, and
+   provide clear failures. Verify Casper and Milo's real login and restricted
+   capabilities. Delivered emails alone do not prove completed onboarding.
+3. **Proven daily Liv publication:** verify seven actual consecutive daily
+   publications, no duplicates, required images/metadata and CMS/live readback.
+   Keep the visible operational view limited to today, next story and actionable
+   failures. Do not generate extra paid articles merely to simulate seven days.
+4. **One working editorial flow:** Mine artikler -> write -> review -> Webflow
+   draft. Verify private resume across mobile/desktop and interrupted connections.
+   This supersedes the old shared-copy feature requirement: sharing entry points
+   were retired in `c32b0db`; retain private autosave/version history and existing
+   records, without reintroducing a second collaboration system.
+5. **Visible bounded costs:** reuse saved research/assets and resume checkpoints;
+   reconcile tracked spending with actual provider billing. Retain the 300 DKK
+   tracked budget and inexpensive essential editorial/security/publication checks.
+   No blanket retries, extra model checks or fine-tuning jobs to claim quality.
+6. **Cleanup after reliability:** remove unused panels/code with dependency and
+   regression checks, address known file-tracing build warnings, and resolve the
+   alert-history Firestore index through authorized administration. Preserve
+   records and audit history; do not widen runtime permissions to bypass denial.
+
+Completion requires evidence for each item and the remaining original scope.
+No additional major features before sources, onboarding, daily publication and
+private workspaces have been demonstrated to work.
+
 ## Local checkpoint (not deployed)
 
 **Latest release (supersedes historical status below):** `dc79e1e` is READY on production. “Mine artikler” now links to saved versions/shared copies, isolates late account responses and uses canonical draft IDs. 3,339 tests and build passed; isolated mobile/browser checks passed. Production private workspace/versions/shares reads are 200 and anonymous access is denied. Three Liv stories remain visible through the feed API with preparation enabled. Alert history alone in the smoke check still fails 503 pending the documented administrator-created Firestore index. Full-project completion is not claimed. See `DRAFTS-SHELF-2026-09-13.md` for exact evidence and remaining acceptance scope.
