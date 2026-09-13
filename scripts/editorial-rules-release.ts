@@ -1,15 +1,18 @@
 import { readFile } from 'node:fs/promises';
 import { GoogleAuth } from 'google-auth-library';
 import { getAdminAuth, getAdminDb } from '../lib/firebase-admin';
+import { editorialRole, EDITORIAL_EMAILS } from '../lib/auth-policy';
 
 /** Provision only the explicit existing administrators; never reactivate revoked entries. */
 export async function migrateEditorialAdministrators() {
   const database = getAdminDb(), userAuth = getAdminAuth();
   if (!database || !userAuth) throw new Error('firebase_admin_unavailable');
   const uids = [...new Set((process.env.SEO_ENGINE_ADMIN_UIDS || '').split(',').map(x => x.trim()).filter(Boolean))];
-  if (!uids.length) throw new Error('existing_admin_list_empty');
+  let migrated = 0;
   for (const uid of uids) {
     const user = await userAuth.getUser(uid);
+    // Historical administrators outside the current roster must not regain access.
+    if (!EDITORIAL_EMAILS.some(email => email === user.email?.trim().toLowerCase())) continue;
     if (!user.email || !user.emailVerified || user.disabled) throw new Error('bootstrap_admin_not_verified');
     const ref = database.collection('editorialAccess').doc(user.email.trim().toLowerCase());
     await database.runTransaction(async tx => {
@@ -24,8 +27,18 @@ export async function migrateEditorialAdministrators() {
     });
     const saved = (await ref.get()).data();
     if (saved?.active !== true || saved?.role !== 'admin') throw new Error('admin_migration_readback_failed');
+    migrated++;
   }
-  console.log(JSON.stringify({ administratorMigration: 'verified', count: uids.length }));
+  let currentAdministrators = 0;
+  for (const email of EDITORIAL_EMAILS) {
+    const user = await userAuth.getUserByEmail(email).catch(() => null);
+    if (!user) continue;
+    const entry = (await database.collection('editorialAccess').doc(email).get()).data();
+    if (editorialRole({ email, emailVerified: user.emailVerified, disabled: user.disabled,
+      entry: entry as Parameters<typeof editorialRole>[0]['entry'] }) === 'admin') currentAdministrators++;
+  }
+  if (!currentAdministrators) throw new Error('current_roster_admin_missing');
+  console.log(JSON.stringify({ administratorMigration: 'verified', count: migrated, currentAdministrators }));
 }
 
 /** Call after securely supplying the production env. Never logs credentials or account emails. */

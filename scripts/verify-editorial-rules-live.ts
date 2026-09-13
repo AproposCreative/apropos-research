@@ -9,10 +9,10 @@ import { getAdminAuth } from '../lib/firebase-admin';
  * verification artifacts are created and removed. No provider/model/CMS calls.
  */
 export async function verifyEditorialRulesLive() {
-  const uid = process.env.SEO_ENGINE_ADMIN_UIDS?.split(',')[0]?.trim();
   const admin = getAdminAuth();
-  if (!uid || !admin) throw new Error('live_rules_admin_missing');
-  const user = await admin.getUser(uid);
+  if (!admin) throw new Error('live_rules_admin_missing');
+  const user = await admin.getUserByEmail('frederik@aproposmagazine.com');
+  const uid = user.uid;
   if (!user.emailVerified || user.disabled) throw new Error('live_rules_admin_invalid');
   const app = initializeApp({ apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
     projectId: process.env.FIREBASE_ADMIN_PROJECT_ID,
