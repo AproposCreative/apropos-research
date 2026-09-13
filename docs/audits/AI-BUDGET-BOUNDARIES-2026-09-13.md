@@ -72,3 +72,20 @@ Settling all accepted results as ambiguous preserves all 240 DKK of holds, and
 a further 80 DKK attempt is still denied. Thirty ledger tests and TypeScript
 pass. These are mocked transactions, not a production spending experiment or
 proof about historical provider invoices. No production ledger was changed.
+
+## Discovery cache consolidation (e93d604)
+
+The research-engine route now uses the existing Writer research cache after its
+authorization and accounting checks. Exact topic/options, provider/model settings
+and a credential digest partition entries. Good results are reused for ten minutes;
+same-key concurrent requests share one in-flight operation. Missing credentials
+disable reuse. Failures/weak evidence are not stored. The response remains no-store
+at the HTTP layer, so this does not create a public CDN research cache.
+
+Route tests prove same-credential concurrent/repeated requests make one mocked
+lookup while a second credential makes its own lookup. Together with existing
+cache expiration/isolation tests, 27 targeted tests pass; full regression at
+e93d604 passes 3,156 tests in 197 files, and TypeScript passes. Cache is per-process:
+cold starts, token rotation and different instances can still repeat work. No
+production monetary savings have been measured. Deployment was dispatched as
+`dpl_FXQSAgKnRiVBkPkjKgpbhis8Lxr4`; readiness requires separate verification.
