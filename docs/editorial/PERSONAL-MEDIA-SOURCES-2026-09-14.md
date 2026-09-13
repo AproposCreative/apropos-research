@@ -32,3 +32,33 @@ released A: B retained its empty selection. All requests used matching fixture
 account tokens, no uncaught errors and no horizontal overflow. Screenshot
 inspected. Fixture is scripts/verify-personal-sources-ui.mjs. This proves the UI
 against a controlled transport, not live publisher availability or research use.
+
+## Production release and consumption audit
+
+Release `18fc7b4f6158559895b389028b7db9aaf30aca03` is READY at
+`dpl_7oyxqQbCaD2FNzMuWH6ve65xXNBA`, aliased to ai.aproposmagazine.com.
+Production page returned 200 with the selected-source label and explicit save
+failure message; anonymous personal-source GET returned 401. Build passed with
+nine existing tracing warnings. Live personal choices were not changed.
+
+Follow-up source tracing found a remaining functional gap:
+
+- `app/api/ai-chat/route.ts` builds its research query from topic, platform and
+  category, then calls getWriterResearch without loading personal mediaSources.
+- `lib/ai-chat/research-cache.ts` caches by credential digest, query and options;
+  a source-policy fingerprint must be included when preferences are integrated,
+  otherwise old evidence could survive changed choices.
+- `lib/research/service.ts` currently supports no source-policy option. Merely
+  changing the panel or local MediaContext will not govern research transport.
+- `lib/getMediaSources.ts` deliberately reads sharedMediaSources for system/Liv
+  ingestion. Do not replace this with a colleague's personal collection.
+- Legacy MediaContext has separate unscoped local selection state, not the
+  authoritative personal-source choices. This remains part of privacy cleanup.
+
+Next implementation must connect authenticated own-user source policy to the
+Writer's existing research path, include it in cache identity, and cover both
+primary and fallback providers. Test excluded sources cannot enter generated
+context (not only the displayed citation list); preserve primary-source fact
+checking and do not add a second paid search by default. Keep Liv's shared
+research path independent. Until that integration is verified, the released
+panel is source configuration, not proof that Writer obeys its selections.
