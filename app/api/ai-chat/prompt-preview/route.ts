@@ -7,12 +7,11 @@ import {
   hasResearchContext,
 } from '@/lib/ai-chat/build-system-prompt';
 import { buildPromptFlowGraph } from '@/lib/ai-chat/prompt-flow-graph';
-import { getResearch } from '@/lib/research/service';
 import { createErrorResponse, ErrorCode } from '@/lib/api/types';
 
 /**
  * Preview prompt pipeline for Prompt Architect UI (no chat message required).
- * Uses first opening strategy for stable preview; live web search when hasResearchContext.
+ * Uses first opening strategy for stable preview. Never starts paid research.
  */
 export async function POST(request: NextRequest) {
   try {
@@ -38,30 +37,9 @@ export async function POST(request: NextRequest) {
     });
 
     const hasResearch = hasResearchContext(article);
-    let webSegment = null as ReturnType<typeof buildWebSearchSegment>;
-
-    if (hasResearch) {
-      const baseQuery =
-        (article?.researchSelected as { title?: string } | undefined)?.title ||
-        article?.title ||
-        message ||
-        'preview';
-      const queryParts = [String(baseQuery)];
-      const searchPlatform = article?.platform || article?.streaming_service;
-      const searchCategory = article?.category || article?.section;
-      if (searchPlatform) queryParts.push(String(searchPlatform));
-      if (searchCategory && typeof searchCategory === 'string' && !/generel/i.test(searchCategory)) {
-        queryParts.push(searchCategory);
-      }
-      const searchQuery = queryParts.join(' ');
-      try {
-        const researchResult = await getResearch(searchQuery, { maxResults: 3 });
-        webSegment = buildWebSearchSegment(researchResult.contextText);
-      } catch (e) {
-        console.warn('[prompt-preview] getResearch failed', e);
-        webSegment = buildWebSearchSegment(undefined);
-      }
-    }
+    // Existing article research is included by buildPromptSegments. Fresh web
+    // evidence belongs to the actual Writer run, not opening this inspector.
+    const webSegment = null as ReturnType<typeof buildWebSearchSegment>;
 
     const { nodes, edges } = buildPromptFlowGraph(segments, webSegment);
     const composedFull = composeSystemPrompt(segments, undefined, webSegment);
@@ -89,6 +67,7 @@ export async function POST(request: NextRequest) {
           }
         : null,
       hasResearchContext: hasResearch,
+      researchStatus: hasResearch ? 'deferred_to_writer' : 'not_requested',
       totalCharCount: composedFull.length,
       effectiveCharCount: composedWithToggles.length,
     });

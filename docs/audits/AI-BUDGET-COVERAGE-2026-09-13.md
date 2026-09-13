@@ -68,6 +68,14 @@ replace unsupported success fallbacks before treating these paths as editorial
 quality evidence. Do not delete the routes without tracing active consumers.
 # Shared transport closure (local, after f805c88)
 
+Prompt inspector: /api/ai-chat/prompt-preview previously launched getResearch
+whenever article context existed, including repeated inspector openings. Removed
+that paid work; it builds from existing article prompt segments and explicitly
+reports researchStatus=deferred_to_writer when relevant. The Writer's research
+path is unchanged. Regression calls preview twice and verifies no research call,
+valid graph and absent fresh web evidence. No monetary saving amount is claimed
+without invocation history. Local pending release.
+
 Follow-up: expandDirective was an actual unscoped helper called directly from
 Liv plan and preview. It now establishes Writer/expand-directive accounting,
 zero SDK retries and 45-second timeout. Existing 10-minute voice/model/input
