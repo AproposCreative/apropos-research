@@ -5,7 +5,7 @@ export function cmsBodyEvidence(html: string) {
   const $ = load(html);
   const targets = $('a,img,iframe,video,audio,source').toArray().map(element => {
     const node = $(element);
-    return { tag: element.tagName, href: node.attr('href') || '', src: node.attr('src') || '',
+    return { tag: String(node.prop('tagName') || '').toLowerCase(), href: node.attr('href') || '', src: node.attr('src') || '',
       srcset: node.attr('srcset') || '', poster: node.attr('poster') || '', alt: node.attr('alt') || '' };
   });
   $('script,style').remove();
