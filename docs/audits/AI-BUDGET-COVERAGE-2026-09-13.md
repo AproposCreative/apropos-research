@@ -3,6 +3,21 @@
 Read-only source inspection, September 13. This is a coverage inventory, not an
 invoice or proof of runtime traffic. No paid model requests were made.
 
+## Media fallback closure (local, after cb4e465)
+
+Current source already rechecked the image-generation switch after media lookup.
+The remaining defect was lookup failure falling into AI when that switch was on.
+Film/TV lookup errors, empty game lookup and ambiguous media classification now
+return actionable failures without generation. Non-media illustration remains.
+Raw image-provider errors are no longer returned or logged by the outer handler.
+11 image tests pass, including enabled/disabled failures, and TypeScript passes.
+
+Shared budget status now separately reports current unscoped OpenAI enforcement.
+With the flag enabled the singleton denies those requests, so they are no longer
+listed as a bypass in excludedScopes. Historical spend and other service coverage
+remain unverified; fullMonthlyCapVerified is still false. 28 ledger tests pass.
+These changes are local and are not yet a production verification receipt.
+
 ## Latest local ownership closure
 
 Manual cover revision now owns a deterministic item/request cost identity; visual

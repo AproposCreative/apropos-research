@@ -122,7 +122,6 @@ async function handlePost(req: NextRequest) {
     
     if (shouldSearchForMedia) {
       requestLogger.info('Detected media review, searching for existing image first');
-      let foundMediaImage = false;
       try {
         // Import and call search functions directly to avoid HTTP fetch issues
         const { isMediaReview: checkMediaReview, searchTMDB, searchGoogleImages } = await import('@/lib/media-search-utils');
@@ -174,7 +173,6 @@ async function handlePost(req: NextRequest) {
           }
           if (imageUrl) {
             console.log(`✅ Found TMDB image: ${imageUrl}`);
-            foundMediaImage = true;
             return NextResponse.json({
               success: true,
               imageUrl: imageUrl,
@@ -197,7 +195,6 @@ async function handlePost(req: NextRequest) {
             // Return Google Images URL directly - may need CORS proxy for some sources
             // But for now, return directly and let browser handle it
             console.log(`✅ Returning Google Images URL directly for: ${title}`);
-            foundMediaImage = true;
             return NextResponse.json({
               success: true,
               imageUrl: imageUrl, // Return Google Images URL directly
@@ -205,21 +202,9 @@ async function handlePost(req: NextRequest) {
               prompt: 'Found from Google'
             });
           } else {
-            // No image found - fall back to AI generation if title is not a placeholder
-            console.log(`⚠️ No Google image found for: "${mediaCheck.searchTerm}"`);
-            
-            // If title is a placeholder, don't fall back to AI
-            const isPlaceholderTitle = !title || title.toLowerCase().includes('arbejdstitel') || title.toLowerCase().includes('ikke sat');
-            if (isPlaceholderTitle) {
-              return NextResponse.json({
-                success: false,
-                error: `No image found for game: ${mediaCheck.searchTerm}. Please set a proper title before generating images.`
-              }, { status: 404 });
-            }
-            
-            // Fall back to AI generation for non-placeholder titles
-            console.log('🎨 Falling back to AI generation for game review...');
-            // Continue to AI generation below
+            return NextResponse.json({ success: false,
+              error: 'Intet spilbillede fundet. Vælg eller upload et officielt billede.' },
+              { status: 404, headers: { 'Cache-Control': 'no-store' } });
           }
         } else {
           // No media type detected - this shouldn't happen if checkIfMediaReview returned true
@@ -232,30 +217,22 @@ async function handlePost(req: NextRequest) {
             streaming_service,
             mediaCheckResult: mediaCheck
           });
-          // Don't return 400 - fall back to AI generation instead
-          console.log('🎨 Falling back to AI generation (no media type detected)');
-          // Continue to AI generation below
+          return NextResponse.json({ success: false, error: 'Angiv om anmeldelsen handler om film, serie eller spil.' },
+            { status: 400, headers: { 'Cache-Control': 'no-store' } });
         }
       } catch (error) {
-        console.error('❌ Media image search error:', error);
-        // Continue to AI generation on error
-        foundMediaImage = false;
+        if (getLivCostPretransportError(error)) throw error;
+        requestLogger.warn('Official media lookup failed; no AI fallback');
+        return NextResponse.json({ success: false, error: 'Billedsøgningen kunne ikke gennemføres. Vælg eller upload et officielt billede.' },
+          { status: 503, headers: { 'Cache-Control': 'no-store' } });
       }
-      
-      // If we found a media image, we already returned it above
-      // Otherwise, continue to AI generation
-      if (foundMediaImage) {
-        return; // This should never be reached, but just in case
-      }
-      
-      console.log('🎨 No media image found, falling back to AI generation...');
     }
     
     // Never turn a failed official-image lookup into an unapproved paid request.
     if (!aiImagesEnabled || !openai) {
       return NextResponse.json({ success: false, error: 'Intet billede fundet. AI-generering er ikke tilgængelig; vælg eller upload et billede.' }, { status: 503 });
     }
-    // Generate AI image (either not a media review, or fallback from media search)
+    // Generate illustrations only for non-media articles.
     console.log('🎨 Generating AI image for:', title);
 
     // Generate contextual prompt based on article content
@@ -302,25 +279,11 @@ async function handlePost(req: NextRequest) {
 
   } catch (err) {
     if (getLivCostPretransportError(err)) throw err;
-    console.error('❌ Image generation API error:', err);
-    console.error('❌ Error details:', {
-      message: err instanceof Error ? err.message : String(err),
-      stack: err instanceof Error ? err.stack : undefined,
-      name: err instanceof Error ? err.name : undefined
-    });
-    
-    // If it's a validation error (like missing title), return 400
-    if (err instanceof Error && err.message.includes('required')) {
-      return NextResponse.json({
-        success: false,
-        error: err.message
-      }, { status: 400 });
-    }
-    
+    requestLogger.warn('Image generation or persistence failed');
     return NextResponse.json({
       success: false,
-      error: err instanceof Error ? err.message : 'Image generation failed'
-    }, { status: 500 });
+      error: 'Billedet kunne ikke færdiggøres.'
+    }, { status: 500, headers: { 'Cache-Control': 'no-store' } });
   }
 }
 

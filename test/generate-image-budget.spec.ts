@@ -3,16 +3,36 @@ import { NextRequest } from 'next/server';
 import { currentLivCostContext } from '@/lib/liv/cost-context';
 import { quoteLivImageRequest } from '@/lib/liv/cost-pricing';
 import { LivCostPretransportError } from '@/lib/liv/cost-errors';
-const m = vi.hoisted(() => ({ text: vi.fn(), image: vi.fn(), store: vi.fn(), tmdb: vi.fn() }));
+const m = vi.hoisted(() => ({ text: vi.fn(), image: vi.fn(), store: vi.fn(), tmdb: vi.fn(), media: vi.fn(), google: vi.fn() }));
 vi.mock('@/lib/openai', () => ({ getOpenAIClient: () => ({ chat: { completions: { create: m.text } }, images: { generate: m.image } }), models: { default: 'test' } }));
 vi.mock('@/lib/images/optimize-and-upload', () => ({ optimizeAndUploadImageBytes: m.store }));
 vi.mock('@/lib/config/env', () => ({ config: { features: { tmdb: true } } }));
-vi.mock('@/lib/media-search-utils', () => ({ isMediaReview: () => ({ type: 'film', searchTerm: 'Film' }), searchTMDB: m.tmdb, searchGoogleImages: vi.fn() }));
+vi.mock('@/lib/media-search-utils', () => ({ isMediaReview: m.media, searchTMDB: m.tmdb, searchGoogleImages: m.google }));
 import { POST } from '@/app/api/generate-image/route';
 import { POST as thumbnail } from '@/app/api/generate-thumbnail/route';
 const request = (body: object) => new NextRequest('http://localhost/api/generate-image', { method: 'POST', body: JSON.stringify(body) });
-beforeEach(() => { vi.resetAllMocks(); vi.stubEnv('AI_SHARED_COST_ENABLED', 'true'); vi.stubEnv('AI_IMAGE_GENERATION_ENABLED', 'true'); });
+beforeEach(() => { vi.resetAllMocks(); m.media.mockReturnValue({ type: 'film', searchTerm: 'Film' }); vi.stubEnv('AI_SHARED_COST_ENABLED', 'true'); vi.stubEnv('AI_IMAGE_GENERATION_ENABLED', 'true'); });
 afterEach(() => vi.unstubAllEnvs());
+it.each(['true', 'false'])('never turns a failed film lookup into paid AI, enabled=%s', async enabled => {
+  vi.stubEnv('AI_IMAGE_GENERATION_ENABLED', enabled);
+  m.tmdb.mockRejectedValue(new Error('provider-secret-fixture'));
+  const response = await POST(request({ title: 'Film', category: 'Film' }));
+  expect(response.status).toBe(503);
+  expect(JSON.stringify(await response.json())).not.toContain('provider-secret-fixture');
+  expect(m.image).not.toHaveBeenCalled(); expect(m.text).not.toHaveBeenCalled();
+});
+it('does not substitute a generated scene when game lookup is empty', async () => {
+  m.media.mockReturnValue({ type: 'game', searchTerm: 'Game' }); m.google.mockResolvedValue(null);
+  const response = await POST(request({ title: 'Spilanmeldelse', category: 'Gaming' }));
+  expect(response.status).toBe(404); expect(m.google).toHaveBeenCalledOnce();
+  expect(m.image).not.toHaveBeenCalled(); expect(m.text).not.toHaveBeenCalled();
+});
+it('keeps provider details out of image failure responses', async () => {
+  m.image.mockRejectedValue(new Error('provider-secret-fixture required'));
+  const response = await POST(request({ title: 'Byens parker' }));
+  expect(response.status).toBe(500); expect(response.headers.get('cache-control')).toBe('no-store');
+  expect(JSON.stringify(await response.json())).not.toContain('provider-secret-fixture');
+});
 it('generates the priced shape once and persists bytes before returning a URL', async () => {
   m.image.mockImplementation(async (body, options) => {
     expect(currentLivCostContext()).toMatchObject({ scope: 'writer', stage: 'generate-image' });

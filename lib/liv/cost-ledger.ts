@@ -193,6 +193,8 @@ export type SharedCostSummary = Omit<LivCostSummary, 'coverage'> & {
   sharedTrackingStartedAt: string | null;
   includedScopes: Array<'liv' | 'writer' | 'seo' | 'accreditation'>;
   excludedScopes: string[];
+  /** Current singleton behavior, not an assertion about other deployments/providers. */
+  unscopedOpenAIBehavior: 'deny_before_transport' | 'not_enforced' | 'invalid_configuration';
   unpricedBehavior: 'deny_before_transport';
   unknownUsageBehavior: 'retain_full_reservation';
   existingLivCostsIncluded: true;
@@ -206,10 +208,15 @@ export async function readSharedCostSummary(now = new Date()): Promise<SharedCos
   const result: SharedCostSummary = { ...base, coverage: 'shared_server_cost_contexts',
     sharedActivation: 'disabled', sharedTrackingStartedAt: null, includedScopes: ['liv'],
     excludedScopes: ['unscoped_openai_calls', 'accreditation_other_calls', 'podcast', 'other_providers', 'historical_untracked_calls'],
+    unscopedOpenAIBehavior: 'not_enforced',
     unpricedBehavior: 'deny_before_transport', unknownUsageBehavior: 'retain_full_reservation', existingLivCostsIncluded: true };
   let enabled: boolean;
   try { enabled = sharedCostEnabled(); }
-  catch { return { ...result, sharedActivation: 'invalid_flag' }; }
+  catch { return { ...result, sharedActivation: 'invalid_flag', unscopedOpenAIBehavior: 'invalid_configuration' }; }
+  if (enabled) {
+    result.unscopedOpenAIBehavior = 'deny_before_transport';
+    result.excludedScopes = result.excludedScopes.filter(scope => scope !== 'unscoped_openai_calls');
+  }
   try {
     const policy = (await db().collection(LIV_COST_COLLECTION).doc('policy').get()).data();
     if (sharedPolicyReady(policy, now)) {
