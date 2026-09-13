@@ -20,9 +20,8 @@ it.each([publishCanonicalArticleToWebflow, publishArticleDraftToWebflow])('retur
     payload: { status: 'draft', workflowState: 'webflow_draft' }, receipt: { saveVerified: true } });
   expect(mocks.save).toHaveBeenCalledTimes(1);
   expect(mocks.inspect).toHaveBeenCalledTimes(1);
-  expect(mocks.seo).toHaveBeenCalledTimes(1);
+  expect(mocks.seo).not.toHaveBeenCalled();
   expect(mocks.save.mock.invocationCallOrder[0]).toBeLessThan(mocks.inspect.mock.invocationCallOrder[0]);
-  expect(mocks.inspect.mock.invocationCallOrder[0]).toBeLessThan(mocks.seo.mock.invocationCallOrder[0]);
 });
 it('retains an existing update ID if the write response is uncertain', async () => {
   mocks.save.mockRejectedValue(new Error('PRIVATE'));
@@ -39,10 +38,12 @@ it('does not enqueue SEO after a failed readback or recreate the item', async ()
   expect(mocks.save).toHaveBeenCalledTimes(1);
   expect(mocks.seo).not.toHaveBeenCalled();
 });
-it('does not lose a checked save if the optional SEO enqueue fails', async () => {
+it('does not invoke post-publication SEO when staging an existing item', async () => {
   mocks.seo.mockRejectedValue(new Error('PRIVATE'));
-  await expect(publishArticleDraftToWebflow({ title: 'Kultur', content: 'tekst' }))
+  mocks.inspect.mockResolvedValue({ saveState: 'staged', saveVerified: true, cmsLocaleId: id });
+  await expect(publishArticleDraftToWebflow({ title: 'Kultur', content: 'tekst', webflowId: id }))
     .resolves.toMatchObject({ articleId: id, publicationVerified: false });
+  expect(mocks.seo).not.toHaveBeenCalled();
 });
 it('awaits the caller checkpoint before readback and retains the ID if it fails', async () => {
   const checkpoint = vi.fn().mockRejectedValue(new Error('checkpoint offline'));

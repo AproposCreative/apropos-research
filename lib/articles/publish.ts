@@ -55,13 +55,9 @@ export async function publishCanonicalArticleToWebflow(
       ? input.webflowId : undefined;
     throw new ArticleSaveError(articleId || existingId);
   }
-  // Best-effort SEO enqueue after checked staging. This is not a live event.
-  try {
-    const { maybeEnqueueSeoEngineAfterPublish } = await import('@/lib/seo-engine/after-publish');
-    await maybeEnqueueSeoEngineAfterPublish({ itemId: articleId, source: 'publish_app' });
-  } catch {
-    /* ignore */
-  }
+  // Staging is not a publication event. Leave post-publication SEO to the
+  // authenticated Webflow publication webhook: saving (or updating) a draft
+  // must not read both locales or schedule review of an older live version.
   return { articleId, payload, receipt, publicationVerified: false };
 }
 
