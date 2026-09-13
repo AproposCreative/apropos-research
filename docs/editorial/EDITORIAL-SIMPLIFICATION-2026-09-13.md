@@ -299,3 +299,13 @@ No paid model tests, CMS writes, newsletter sends or Instagram changes were made
   returning to the caller's CMS patch. Existing source-hash skip remains intact.
 - Five boundary tests and TypeScript pass. No translation or CMS mutation was
   performed against production. Pending the next combined release.
+
+### Daily schedule across daylight saving
+
+- Primary Vercel trigger now uses 08:00 and 09:00 UTC. The existing Copenhagen
+  hour gate ignores the early winter invocation; published-day state makes the
+  second summer invocation a no-op. The 15-minute catch-up remains unchanged.
+- 48 schedule/policy/worker/route tests pass, including actual worker regression
+  cases for winter's early trigger and summer's second trigger. TypeScript and
+  build-configuration security check pass. No publication triggered by tests.
+- Pending deployment. This is not evidence of seven successful publication days.

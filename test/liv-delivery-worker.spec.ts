@@ -37,6 +37,30 @@ it('does not publish before 10 Copenhagen', async () => {
   expect(await deliverReadyArticle(new Date('2026-09-11T07:59:00Z'), f.deps)).toMatchObject({ status: 'before_deadline' });
   expect(f.publish).not.toHaveBeenCalled();
 });
+it('ignores the early winter trigger and publishes once at 10 local time', async () => {
+  const f = fixture();
+  for (const entry of f.state.entries) {
+    entry.scheduledDay = '2026-12-11';
+    entry.expiresDay = '2026-12-18';
+  }
+  const early = new Date('2026-12-11T08:00:00Z');
+  vi.setSystemTime(early);
+  expect(await deliverReadyArticle(early, f.deps)).toMatchObject({ status: 'before_deadline' });
+  expect(f.publish).not.toHaveBeenCalled();
+  const due = new Date('2026-12-11T09:00:00Z');
+  vi.setSystemTime(due);
+  expect(await deliverReadyArticle(due, f.deps)).toMatchObject({ status: 'published' });
+  await deliverReadyArticle(due, f.deps);
+  expect(f.publish).toHaveBeenCalledTimes(1);
+});
+it('does not duplicate summer publication on the second UTC trigger', async () => {
+  const f = fixture();
+  await deliverReadyArticle(now, f.deps);
+  const later = new Date('2026-09-11T09:00:00Z');
+  vi.setSystemTime(later);
+  await deliverReadyArticle(later, f.deps);
+  expect(f.publish).toHaveBeenCalledTimes(1);
+});
 it('publishes one item and treats duplicate ticks as completed', async () => {
   const f = fixture();
   expect(await deliverReadyArticle(now, f.deps)).toMatchObject({ status: 'published' });
