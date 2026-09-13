@@ -58,6 +58,20 @@ Image route inventory: generate-image has a text-planning completion followed by
 JSON DALL-E 3 generation. Price support and the planning fallback still need
 verification before claiming shared-budget coverage for this path.
 
+### Image-route migration (local)
+
+Official DALL-E 3 model documentation now states removal from the API:
+https://developers.openai.com/api/docs/models/dall-e-3 . Replaced the legacy call
+with the existing priced gpt-image-1.5/high/1536x1024 shape. Planning and generation
+share Writer accounting; a branded planning denial stops before image generation.
+Image call has zero retries and 90-second timeout, planning zero retries/45 seconds.
+Returned base64 bytes use the shared encoding/upload pipeline; remote downloads
+retain existing URL validation. Official image lookup remains available when AI
+generation is disabled. Thirty pricing/route/upload tests and TypeScript pass,
+no paid generation. Pending release. Standalone route persistence still lacks
+Liv's resumable original-image checkpoint and must not be represented as equivalent
+to the daily media workflow. Full-app budget coverage remains unverified.
+
 ## Implemented locally
 
 - Exact-origin token attachment, preserving Request headers.

@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { optimizeAndUploadImage } from '@/lib/images/optimize-and-upload';
+import { optimizeAndUploadImageBytes } from '@/lib/images/optimize-and-upload';
+import { withSharedCostContext } from '@/lib/liv/cost-context';
+import { getLivCostPretransportError } from '@/lib/liv/cost-errors';
 import { getOpenAIClient, models } from '@/lib/openai';
 import { config } from '@/lib/config/env';
 import { logger, createRequestLogger } from '@/lib/logger';
@@ -24,6 +26,13 @@ interface GenerateImageResponse {
 }
 
 export async function POST(req: NextRequest) {
+  try { return await withSharedCostContext({ scope: 'writer', stage: 'generate-image' }, () => handlePost(req)); }
+  catch (error) {
+    return NextResponse.json({ success: false, error: getLivCostPretransportError(error) ? 'AI-budgettet tillader ikke billedgenerering.' : 'Billedgenerering kunne ikke gennemføres.' }, { status: 503, headers: { 'Cache-Control': 'no-store' } });
+  }
+}
+
+async function handlePost(req: NextRequest) {
   const requestId = getRequestId(req);
   const requestLogger = createRequestLogger(requestId);
   
@@ -260,26 +269,20 @@ export async function POST(req: NextRequest) {
 
     console.log('🎨 Generated Apropos prompt:', prompt);
 
-    // Generate image using DALL-E 3 (backup when no official image found; film/TV use TMDB only)
+    // Same model/shape as the existing priced Liv illustration path.
     const imageResponse = await openai.images.generate({
-      model: "dall-e-3",
+      model: 'gpt-image-1.5',
       prompt: prompt,
-      size: "1792x1024", // 16:9 aspect ratio (closest to 1920x1080)
-      quality: "hd",
+      size: '1536x1024',
+      quality: 'high',
       n: 1,
-    });
-
-    const imageUrl = imageResponse.data[0]?.url;
-
-    if (!imageUrl) {
-      throw new Error('No image URL returned from DALL-E 3');
-    }
-
-    console.log('✅ Apropos-style image generated successfully:', imageUrl);
+    }, { maxRetries: 0, timeout: 90_000, signal: req.signal });
+    const raw = imageResponse.data?.[0]?.b64_json;
+    if (!raw || raw.length > 32 * 1024 * 1024) throw new Error('invalid_generated_image');
 
     // Return only a persisted CMS-ready image, never an expiring provider URL.
-    const stored = await optimizeAndUploadImage({
-      imageUrl,
+    const stored = await optimizeAndUploadImageBytes(Buffer.from(raw, 'base64'), {
+      imageUrl: '',
       maxSizeKB: 400,
       qualityStart: 85,
       qualityMin: 35,
@@ -298,6 +301,7 @@ export async function POST(req: NextRequest) {
     });
 
   } catch (err) {
+    if (getLivCostPretransportError(err)) throw err;
     console.error('❌ Image generation API error:', err);
     console.error('❌ Error details:', {
       message: err instanceof Error ? err.message : String(err),
@@ -456,7 +460,7 @@ Themes:`;
       messages: [{ role: 'user', content: analysisPrompt }],
       max_completion_tokens: 100,
       temperature: 1, // GPT-5 only supports default temperature (1)
-    });
+    }, { maxRetries: 0, timeout: 45_000 });
 
     const themesText = response.choices[0]?.message?.content?.trim() || '';
     
@@ -467,7 +471,7 @@ Themes:`;
       return safeThemes;
     }
   } catch (error) {
-    console.error('❌ Error extracting visual themes:', error);
+    if (getLivCostPretransportError(error)) throw error;
   }
 
   // Fallback to simple keyword matching

@@ -1,0 +1,42 @@
+import { beforeEach, afterEach, it, expect, vi } from 'vitest';
+import { NextRequest } from 'next/server';
+import { currentLivCostContext } from '@/lib/liv/cost-context';
+import { quoteLivImageRequest } from '@/lib/liv/cost-pricing';
+import { LivCostPretransportError } from '@/lib/liv/cost-errors';
+const m = vi.hoisted(() => ({ text: vi.fn(), image: vi.fn(), store: vi.fn(), tmdb: vi.fn() }));
+vi.mock('@/lib/openai', () => ({ getOpenAIClient: () => ({ chat: { completions: { create: m.text } }, images: { generate: m.image } }), models: { default: 'test' } }));
+vi.mock('@/lib/images/optimize-and-upload', () => ({ optimizeAndUploadImageBytes: m.store }));
+vi.mock('@/lib/config/env', () => ({ config: { features: { tmdb: true } } }));
+vi.mock('@/lib/media-search-utils', () => ({ isMediaReview: () => ({ type: 'film', searchTerm: 'Film' }), searchTMDB: m.tmdb, searchGoogleImages: vi.fn() }));
+import { POST } from '@/app/api/generate-image/route';
+const request = (body: object) => new NextRequest('http://localhost/api/generate-image', { method: 'POST', body: JSON.stringify(body) });
+beforeEach(() => { vi.resetAllMocks(); vi.stubEnv('AI_SHARED_COST_ENABLED', 'true'); vi.stubEnv('AI_IMAGE_GENERATION_ENABLED', 'true'); });
+afterEach(() => vi.unstubAllEnvs());
+it('generates the priced shape once and persists bytes before returning a URL', async () => {
+  m.image.mockImplementation(async (body, options) => {
+    expect(currentLivCostContext()).toMatchObject({ scope: 'writer', stage: 'generate-image' });
+    expect(quoteLivImageRequest('/images/generations', body).reservedUsdMicros).toBeGreaterThan(0);
+    expect(options).toMatchObject({ maxRetries: 0, timeout: 90000 });
+    return { data: [{ b64_json: Buffer.from('mock image bytes').toString('base64') }] };
+  });
+  m.store.mockResolvedValue({ url: 'https://stored.example/art.webp', width: 1920, height: 1080 });
+  const response = await POST(request({ title: 'Byens parker', category: 'Kultur' }));
+  expect(response.status).toBe(200); expect((await response.json()).imageUrl).toBe('https://stored.example/art.webp');
+  expect(m.image).toHaveBeenCalledTimes(1); expect(Buffer.isBuffer(m.store.mock.calls[0][0])).toBe(true);
+});
+it('planning denial stops before image generation', async () => {
+  m.text.mockRejectedValue(new LivCostPretransportError('limit'));
+  const response = await POST(request({ title: 'Byens parker', content: 'Kunst og kultur. '.repeat(20) }));
+  expect(response.status).toBe(503); expect(m.image).not.toHaveBeenCalled(); expect(m.store).not.toHaveBeenCalled();
+});
+it('image denial does not upload or retry', async () => {
+  m.image.mockRejectedValue(new LivCostPretransportError('limit'));
+  expect((await POST(request({ title: 'Byens parker' }))).status).toBe(503);
+  expect(m.image).toHaveBeenCalledTimes(1); expect(m.store).not.toHaveBeenCalled();
+});
+it('official lookup works with generation disabled and never calls a model', async () => {
+  vi.stubEnv('AI_IMAGE_GENERATION_ENABLED', 'false'); m.tmdb.mockResolvedValue('https://image.tmdb.org/poster.jpg');
+  const response = await POST(request({ title: 'Film', category: 'Film' }));
+  expect(response.status).toBe(200); expect((await response.json()).source).toBe('tmdb');
+  expect(m.text).not.toHaveBeenCalled(); expect(m.image).not.toHaveBeenCalled();
+});
