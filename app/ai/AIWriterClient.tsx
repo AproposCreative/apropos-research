@@ -2038,6 +2038,7 @@ export default function AIWriterClient() {
                 </div>
                 <div className="overflow-y-auto flex-1 p-3 md:p-[10px] no-scrollbar">
                   <ReviewPanel 
+                    ensureDraftId={reserveDraftId}
                     key={`${currentDraftId || 'new'}-${articleData?.title || ''}-${articleData?.content?.substring(0, 50) || ''}`}
                     articleData={articleData} 
                     frameless 

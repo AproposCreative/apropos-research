@@ -9,6 +9,7 @@ import { addCoveredEditorialTopic, addPublishedEditorialSignalId } from '@/lib/e
 import { articleSaveFeedback } from '@/lib/articles/save-response';
 
 interface ReviewPanelProps {
+  ensureDraftId: () => string;
   articleData: any;
   onClose?: () => void;
   frameless?: boolean; // when true, caller provides outer container/style
@@ -114,7 +115,7 @@ function inferBestAuthor(authors: AuthorCandidate[], corpus: string): string | u
   return best && best.score >= 3 ? best.name : undefined;
 }
 
-export default function ReviewPanel({ articleData, onClose, frameless, onPreflightComplete, onRecommendationsApplied, onUpdateArticle, onEditorialSignalPublished, onOpenSeoEngine }: ReviewPanelProps) {
+export default function ReviewPanel({ ensureDraftId, articleData, onClose, frameless, onPreflightComplete, onRecommendationsApplied, onUpdateArticle, onEditorialSignalPublished, onOpenSeoEngine }: ReviewPanelProps) {
   const [wfSlugs, setWfSlugs] = useState<string[] | null>(null);
   const [isGeneratingImage, setIsGeneratingImage] = useState(false);
   const [imageProgress, setImageProgress] = useState(0);
@@ -762,10 +763,10 @@ export default function ReviewPanel({ articleData, onClose, frameless, onPreflig
           articleData={mergedArticleData}
           onPublish={async (formData: WebflowArticleFields) => {
             try {
-              const res = await fetch('/api/webflow/publish', {
+              const res = await fetch('/api/writer/cms-save', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(formData),
+                body: JSON.stringify({ draftId: ensureDraftId(), article: formData }),
               });
               const j = await res.json().catch(()=>null);
               const saved = articleSaveFeedback(j);

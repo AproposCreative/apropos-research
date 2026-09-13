@@ -1,5 +1,34 @@
 # Private workspace acceptance checkpoint
 
+## Durable Writer CMS operation (local, not released)
+
+Writer ReviewPanel now sends its reserved private draft ID to the authenticated
+`/api/writer/cms-save` route. The legacy shared save endpoint and Liv flow remain
+unchanged. A Firestore operation under the server-derived UID/draft records
+preparation, a fenced checkpoint immediately before CMS transport, known item ID
+before readback, and completed status. Prior attempts are retained in history.
+
+Uncertain creates never turn back into automatic creates after a timer. Recovery
+uses bounded GET-only listing and requires exactly one matching DK draft with
+the expected title/slug/body/targets, excluding all item IDs present before the
+write. No match, ambiguous matches and incomplete listing remain unverified.
+Known-ID retries inspect that item. Newer requested text first reconciles old
+work and returns its ID, then a subsequent save updates the same item.
+
+19 focused operation, candidate-scan and route tests passed: lost response,
+same-result replay, concurrent request, owner namespace, changed payload,
+pre-existing/ambiguous/absent candidates, private response and anonymous denial.
+TypeScript passed before the final route tests/history checkpoint addition.
+Tests use mocked Firestore/transport, not live CMS writes. Browser fixture has
+been adapted to the new request envelope but has not yet been rerun.
+
+Remaining release work: real browser retest, full regression/build, real API
+authentication and production read/write acceptance. Collection scans cap at
+5000 items (50 reads) and fail closed if incomplete; this adds CMS/network work
+on initial create and uncertain reconciliation, no model calls. Unique matching
+fields are not proof of exclusive authorship if another actor creates identical
+content concurrently. No blind-create fallback is permitted.
+
 ## CMS stale-body verification fix (local)
 
 During lost-create-response reconciliation review, found that inspectArticleSave

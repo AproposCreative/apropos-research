@@ -27,8 +27,8 @@ window.fetch=async(url,options={})=>{
  if(path==='/api/critic/tov')return Response.json({tips:''});
  if(path==='/api/auth/me')return Response.json({uid:'fixture-writer'});
  if(path==='/api/training/optin')return Response.json({ok:true});
- if(path==='/api/webflow/publish'){
-  const input=JSON.parse(options.body);(window.fixture.cmsBodies ||= []).push(input);
+ if(path==='/api/writer/cms-save'){
+  const envelope=JSON.parse(options.body);const input=envelope.article;(window.fixture.cmsBodies ||= []).push(input);
   const articleId=input.webflowId||'0123456789abcdef01234567';
   if(window.fixture.cmsReadbackFailure)return Response.json({articleId,saveState:'unverified',publicationVerified:false,error:'Test: CMS-ID bevaret, men readback fejlede.'},{status:502});
   return Response.json({data:{articleId,saveState:'draft',saveVerified:true,publicationVerified:false}});
