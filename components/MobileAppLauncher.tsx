@@ -65,7 +65,8 @@ export default function MobileAppLauncher({ onSelectApp, onOpenShelf }: MobileAp
   const apps = getWebApps().filter(app => canOpenEditorialApp(app.id, capabilities));
 
   return (
-    <div className="md:hidden absolute inset-0 z-20 flex flex-col items-center justify-center px-6">
+    <div className="md:hidden absolute inset-0 z-20 flex flex-col overflow-y-auto overscroll-contain px-6 py-6">
+      <div className="my-auto flex w-full shrink-0 flex-col items-center">
       <img
         src="/images/Apropos Research White.png"
         alt="Apropos Research"
@@ -84,6 +85,7 @@ export default function MobileAppLauncher({ onSelectApp, onOpenShelf }: MobileAp
           </svg>
           <span className="text-[13px] text-white/70 text-center leading-tight">Mine artikler</span>
         </button>
+      </div>
       </div>
     </div>
   );

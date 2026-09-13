@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { useAuth } from '@/lib/auth-context';
 import { getUserDrafts, deleteDraft, updateDraft, type ArticleDraft } from '@/lib/firebase-service';
 import ContextMenu from './ContextMenu';
@@ -19,6 +19,7 @@ interface DraftsShelfProps {
   refreshTrigger?: number; // trigger refresh when this changes
   onOpenVersions?: () => void;
   onOpenShares?: () => void;
+  workspaceControls?: ReactNode;
 }
 
 export default function DraftsShelf(props: DraftsShelfProps) {
@@ -26,7 +27,7 @@ export default function DraftsShelf(props: DraftsShelfProps) {
   return user ? <OwnedDraftsShelf key={user.uid} {...props} uid={user.uid} /> : null;
 }
 
-function OwnedDraftsShelf({ uid, onSelect, onClose, isOpen = true, onRenameLive, refreshTrigger, onOpenVersions, onOpenShares }: DraftsShelfProps & { uid: string }) {
+function OwnedDraftsShelf({ uid, onSelect, onClose, isOpen = true, onRenameLive, refreshTrigger, onOpenVersions, onOpenShares, workspaceControls }: DraftsShelfProps & { uid: string }) {
   const mounted = useRef(false);
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
   const [drafts, setDrafts] = useState<ArticleDraft[]>([]);
@@ -157,6 +158,7 @@ function OwnedDraftsShelf({ uid, onSelect, onClose, isOpen = true, onRenameLive,
           transform: isOpen ? 'translateY(0px)' : 'translateY(4px)',
         }}
       >
+        {workspaceControls && <section aria-label="Mit gemte arbejde" className="mb-4 rounded-xl border border-white/15 p-3 text-sm text-white/75">{workspaceControls}</section>}
         {error && <div role="alert" className="mb-3 text-sm text-white/80">{error} <button type="button" className={secondaryBtn} onClick={() => setRetry(value => value + 1)}>Opdater listen</button></div>}
         {loading ? (
           <p className="text-white/45 text-[13px]">Indlæser…</p>

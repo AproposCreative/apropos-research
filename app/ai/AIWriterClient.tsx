@@ -1296,6 +1296,15 @@ export default function AIWriterClient() {
     return `hsl(${h} 70% 30%)`;
   })();
   const userName = (user?.displayName || user?.email?.split('@')[0] || 'Bruger');
+  const workspaceControls = <div className="flex flex-col gap-2 break-words">
+    <span role="status">{workspace.status}</span>
+    {localResume && <button className="min-h-11 text-left underline" onClick={() => { applySavedWorkspace(localResume); setShelfOpen(false); }}>Genoptag min lokale kopi</button>}
+    {workspace.canRetry && <button className="min-h-11 text-left underline" onClick={workspace.retry}>Prøv synkronisering igen</button>}
+    {workspace.resume && <>
+      <button className="min-h-11 text-left underline" onClick={() => { restoreWorkspace(); setShelfOpen(false); }}>Fortsæt hvor du slap</button>
+      <button className="min-h-11 text-left underline" onClick={() => { setCurrentDraftId(null); reserveDraftId(); workspace.acceptResume(); }}>Fortsæt med arbejdet på denne enhed</button>
+    </>}
+  </div>;
 
   return (
     <>
@@ -1307,17 +1316,6 @@ export default function AIWriterClient() {
         const snapshot = await workspace.restore(selection); applySavedWorkspace(snapshot.data);
       }} />}
       {user && <AuthModal />}
-      {user && (activeView === 'ai' || activeView === null) && <aside className="fixed bottom-3 left-1/2 z-50 max-w-[calc(100%-2rem)] -translate-x-1/2 rounded-xl border border-white/20 bg-black/95 px-4 py-2 text-sm text-white">
-        <span role="status">{workspace.status}</span>
-        {localResume && <button className="ml-3 min-h-11 underline" onClick={() => applySavedWorkspace(localResume)}>Genoptag min lokale kopi</button>}
-        <button className="ml-3 min-h-11 underline" onClick={() => setShowWorkspaceVersions(true)}>Gemte versioner</button>
-        <button className="ml-3 min-h-11 underline" onClick={() => setShowWorkspaceShares(true)}>Delte kopier</button>
-        {workspace.canRetry && <button className="ml-3 min-h-11 underline" onClick={workspace.retry}>Prøv synkronisering igen</button>}
-        {workspace.resume && <div className="flex flex-wrap gap-3">
-          <button className="min-h-11 underline" onClick={restoreWorkspace}>Fortsæt hvor du slap</button>
-          <button className="min-h-11 underline" onClick={() => { setCurrentDraftId(null); reserveDraftId(); workspace.acceptResume(); }}>Fortsæt med arbejdet på denne enhed</button>
-        </div>}
-      </aside>}
       {showSearchModal && (
         <ChatSearchModal
           isOpen={showSearchModal}
@@ -1372,6 +1370,7 @@ export default function AIWriterClient() {
                 )}
                 {shelfOpen && (
                   <DraftsShelf 
+                    workspaceControls={workspaceControls}
                     onOpenVersions={() => setShowWorkspaceVersions(true)}
                     onOpenShares={() => setShowWorkspaceShares(true)}
                     isOpen={shelfOpen} 
@@ -1408,6 +1407,7 @@ export default function AIWriterClient() {
             <div className={`md:hidden ${shelfOpen ? 'absolute inset-0 z-40 translate-x-0' : 'hidden'} transition-transform duration-300`}>
               <div className="h-full flex flex-col rounded-none border-t border-white/15 bg-[#070707]/95 backdrop-blur-3xl">
                 <DraftsShelf 
+                  workspaceControls={workspaceControls}
                   onOpenVersions={() => setShowWorkspaceVersions(true)}
                   onOpenShares={() => setShowWorkspaceShares(true)}
                   isOpen={shelfOpen} 
