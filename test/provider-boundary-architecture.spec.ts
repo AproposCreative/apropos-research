@@ -74,7 +74,7 @@ it.each([
 
 it('keeps runtime OpenAI SDK access behind the budget transport', () => {
   const violations: string[] = [];
-  for (const path of [...['app', 'lib', 'scripts', 'services', 'src', 'components'].flatMap(files), 'proxy.ts']) {
+  for (const path of [...['app', 'lib', 'scripts', 'services', 'src', 'components'].flatMap(files), 'proxy.ts', 'instrumentation.ts']) {
     const name = relative(process.cwd(), path).replaceAll('\\', '/');
     if (name === 'lib/liv/cost-openai.ts') continue;
     violations.push(...runtimeImports(readFileSync(path, 'utf8'), name));
