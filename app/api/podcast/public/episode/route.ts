@@ -20,8 +20,7 @@ export async function GET(req: NextRequest) {
       return podcastPublicJson(req, { ok: true, found: false, episode: null });
     }
     return podcastPublicJson(req, { ok: true, found: true, episode });
-  } catch (e) {
-    const msg = e instanceof Error ? e.message : 'Kunne ikke hente episode';
-    return podcastPublicJson(req, { ok: false, found: false, error: msg }, { status: 500 });
+  } catch {
+    return podcastPublicJson(req, { ok: false, found: false, error: 'Kunne ikke hente episode' }, { status: 500 });
   }
 }

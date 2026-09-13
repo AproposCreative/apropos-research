@@ -59,8 +59,10 @@ export function podcastPublicJson(
   body: unknown,
   init?: { status?: number }
 ): NextResponse {
+  const headers = new Headers(podcastCorsHeaders(req));
+  if ((init?.status ?? 200) >= 400) headers.set('Cache-Control', 'no-store');
   return NextResponse.json(body, {
     status: init?.status ?? 200,
-    headers: podcastCorsHeaders(req),
+    headers,
   });
 }
