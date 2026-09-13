@@ -18,6 +18,12 @@ Build the user's approved September 13 plan. Only the three verified colleagues 
 
 ## Required before this checkpoint can release
 
+### Delivery alert production release
+
+- Supersedes the historical local-only alert checkpoints below: `f246509` is deployed READY on `ai.aproposmagazine.com`; full 3,315-test regression and build passed.
+- Real authenticated delivery-check API returned published true, overdue false, alerts checked and preparation idle for September 13. Healthy-path verification does not prove actual failure/resolution mail delivery.
+- Exact deployment and remaining limitations: `DELIVERY-ALERT-RELEASE-2026-09-13.md`. The owner operations UI and broader acceptance work remain open.
+
 ### Preparation and concurrent alert checkpoint
 
 - The check reads the existing read-only preparation DTO. Today's terminal failed/skipped preparation can alarm before the deadline; queued retries, saved continuation stages and active work do not. Unavailable preparation status is exposed as unknown/503, not healthy.
