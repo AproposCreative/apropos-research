@@ -11,7 +11,7 @@ export type QualityJob = {
   article: ReviewArticle;
   mode: 'publication_quality' | 'performance';
   evidence?: PerformanceEvidence;
-  status: 'queued' | 'running' | 'verify_pending' | 'kept' | 'applied' | 'needs_editor' | 'stale' | 'failed';
+  status: 'queued' | 'waiting_budget' | 'running' | 'verify_pending' | 'kept' | 'applied' | 'needs_editor' | 'stale' | 'failed';
   createdAt: string;
   updatedAt: string;
   attempt: number;
@@ -67,6 +67,7 @@ export async function claimQualityJob(id: string): Promise<QualityJob | null> {
     if (!snap.exists) return null;
     const job = snap.data() as QualityJob;
     if (TERMINAL_QUALITY_STATES.includes(job.status) || (job.leaseUntil ?? 0) > Date.now()) return null;
+    if ((job.readyAt ?? 0) > Date.now()) return null;
     if (job.attempt >= 5 && !job.writeStartedAt) {
       tx.update(ref, { status: 'failed', reason: 'retry_budget_exhausted', readyAt: FieldValue.delete(), updatedAt: new Date().toISOString() });
       return null;
@@ -86,7 +87,8 @@ export async function checkpointQualityJob(job: QualityJob, patch: Partial<Quali
     const current = (await tx.get(ref)).data() as QualityJob | undefined;
     if (!current || !job.owner || current.owner !== job.owner || (current.leaseUntil ?? 0) <= Date.now()) throw new Error('seo_job_lease_lost');
     tx.update(ref, { ...JSON.parse(JSON.stringify(patch)), updatedAt: new Date().toISOString(),
-      readyAt: TERMINAL_QUALITY_STATES.includes(patch.status || current.status) ? FieldValue.delete() : Date.now() + (release ? 60_000 : LEASE_MS),
+      readyAt: TERMINAL_QUALITY_STATES.includes(patch.status || current.status) ? FieldValue.delete()
+        : patch.readyAt ?? Date.now() + (release ? 60_000 : LEASE_MS),
       leaseUntil: release ? 0 : Date.now() + LEASE_MS });
   });
 }

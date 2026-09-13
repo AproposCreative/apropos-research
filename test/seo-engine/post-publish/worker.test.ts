@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { runQualityJob, type QualityWorkerDependencies } from '../../../lib/seo-engine/post-publish/worker';
 import type { QualityJob } from '../../../lib/seo-engine/post-publish/jobs';
+import { LivCostPretransportError } from '../../../lib/liv/cost-errors';
 
 function fixture() {
   const snapshot = { itemId: 'item', locale: 'da' as const, published: true, hasUnpublishedChanges: false,
@@ -29,6 +30,15 @@ function fixture() {
 }
 
 describe('publication quality worker', () => {
+  it('waits six hours without burning attempts on a proven pre-transport denial', async () => {
+    const { job, deps, call } = fixture();
+    job.attempt = 5;
+    call.mockReset().mockRejectedValue(new LivCostPretransportError('liv_cost_monthly_budget_exceeded'));
+    expect((await runQualityJob('job', deps)).status).toBe('waiting_budget');
+    expect(deps.checkpoint).toHaveBeenLastCalledWith(job, expect.objectContaining({ attempt: 4,
+      readyAt: deps.now!() + 6 * 60 * 60_000 }), true);
+    expect(deps.apply).not.toHaveBeenCalled();
+  });
   it('reviews filled fields, reserves the write and only completes after public verification', async () => {
     const { deps } = fixture();
     expect((await runQualityJob('job', deps)).status).toBe('applied');

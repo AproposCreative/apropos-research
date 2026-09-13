@@ -1,104 +1,56 @@
 #!/usr/bin/env tsx
+import { readFile, writeFile, rename } from 'node:fs/promises';
+import { randomUUID } from 'node:crypto';
+import { config } from 'dotenv';
+import { getAdminDb } from '../lib/firebase-admin';
+import { LivBudgetOpenAI } from '../lib/liv/cost-openai';
+import { withSharedCostContext } from '../lib/liv/cost-context';
+import { getLivCostPretransportError } from '../lib/liv/cost-errors';
+import { buildEmbeddingArchive, EMBEDDING_MODEL, validEmbedding } from '../lib/incremental-embeddings';
 
-import * as fs from 'fs';
-import * as path from 'path';
-import OpenAI from 'openai';
-
-type Article = {
-	url?: string;
-	title: string;
-	author?: string;
-	category?: string;
-	content: string;
-	date?: string;
-};
-
-async function getEmbedding(text: string): Promise<number[]> {
-	const apiKey = process.env.OPENAI_API_KEY;
-	if (!apiKey) throw new Error('OPENAI_API_KEY is not set');
-	
-	const openai = new OpenAI({ apiKey });
-	const cleaned = (text || '').replace(/\s+/g, ' ').trim();
-	const input = cleaned.slice(0, 4000); // safety bound
-	
-	const res = await openai.embeddings.create({
-		model: 'text-embedding-3-small',
-		input
-	});
-	return res.data[0]?.embedding || [];
-}
-
+config({ path: '.env.local', quiet: true });
 async function main() {
-	console.log('🚀 Starting embeddings training...');
-	
-	// Load OPENAI_API_KEY from .env.local if present (no external deps)
-	try {
-		const envPath = path.join(process.cwd(), '.env.local');
-		if (fs.existsSync(envPath)) {
-			console.log('📁 Loading environment variables from .env.local...');
-			const lines = fs.readFileSync(envPath, 'utf8').split(/\r?\n/);
-			for (const line of lines) {
-				const t = line.trim();
-				if (!t || t.startsWith('#')) continue;
-				const eq = t.indexOf('=');
-				if (eq === -1) continue;
-				const key = t.slice(0, eq).trim();
-				let val = t.slice(eq + 1).trim();
-				val = val.replace(/^['"]|['"]$/g, '');
-				if (!process.env[key]) process.env[key] = val;
-			}
-		}
-	} catch (e) {
-		console.warn('⚠️ Could not load .env.local:', e);
-	}
-
-	// Verify OpenAI API key
-	if (!process.env.OPENAI_API_KEY) {
-		console.error('❌ OPENAI_API_KEY is not set');
-		process.exit(1);
-	}
-	console.log('✅ OpenAI API key found');
-
-	const inputFile = path.join(process.cwd(), 'data', 'apropos-articles.json');
-	if (!fs.existsSync(inputFile)) {
-		console.error('❌ Missing data/apropos-articles.json');
-		process.exit(1);
-	}
-	console.log('✅ Found input file:', inputFile);
-
-	const raw = fs.readFileSync(inputFile, 'utf8');
-	const items: Article[] = JSON.parse(raw);
-	console.log(`📊 Processing ${items.length} articles...`);
-	
-	const out: any[] = [];
-	let i = 0;
-	for (const art of items) {
-		i++;
-		const base = `${art.title}\n\n${(art.content || '').replace(/\s+/g, ' ').trim()}`.slice(0, 6000);
-		try {
-			const emb = await getEmbedding(base);
-			out.push({
-				id: `${i}`,
-				url: art.url,
-				title: art.title,
-				author: art.author,
-				category: art.category,
-				embedding: emb,
-				meta: { date: art.date }
-			});
-			if (i % 10 === 0) console.log(`📈 Embedded ${i}/${items.length}`);
-			await new Promise(r => setTimeout(r, 250));
-		} catch (e) {
-			console.warn('⚠️ Embedding failed for:', art.title, e);
-		}
-	}
-	
-	const outFile = path.join(process.cwd(), 'data', 'articles-embeddings.json');
-	fs.writeFileSync(outFile, JSON.stringify(out, null, 2));
-	console.log(`✅ Saved ${out.length} embeddings to ${outFile}`);
+  if (!process.env.OPENAI_API_KEY) throw new Error('OPENAI_API_KEY_missing');
+  process.env.AI_SHARED_COST_ENABLED = 'true';
+  const db = getAdminDb();
+  if (!db) throw new Error('embedding_cache_unavailable');
+  const cache = db.collection('editorialEmbeddingCache');
+  const client = new LivBudgetOpenAI({ apiKey: process.env.OPENAI_API_KEY, maxRetries: 0 });
+  const articles = JSON.parse(await readFile('data/apropos-articles.json', 'utf8'));
+  let generated = 0;
+  const output = await buildEmbeddingArchive(articles, {
+    read: async key => {
+      const row = (await cache.doc(key).get()).data();
+      return row?.status === 'responded' && validEmbedding(row.embedding) ? row.embedding : null;
+    },
+    generate: async (key, input) => {
+      const ref = cache.doc(key), owner = randomUUID();
+      const saved = await db.runTransaction(async tx => {
+        const row = (await tx.get(ref)).data();
+        if (row?.status === 'responded' && validEmbedding(row.embedding)) return row.embedding;
+        if (row && row.status !== 'not_started') throw new Error('embedding_requires_reconciliation');
+        tx.set(ref, { status: 'started', owner, model: EMBEDDING_MODEL, startedAt: new Date().toISOString() });
+        return null;
+      });
+      if (saved) return saved;
+      try {
+        const response = await withSharedCostContext({ scope: 'writer', stage: 'archive_embeddings' },
+          () => client.embeddings.create({ model: EMBEDDING_MODEL, input }));
+        const embedding = response.data[0]?.embedding;
+        if (!validEmbedding(embedding)) throw new Error('invalid_embedding_vector');
+        await ref.update({ status: 'responded', embedding, respondedAt: new Date().toISOString() });
+        generated++;
+        return embedding;
+      } catch (error) {
+        const denial = getLivCostPretransportError(error);
+        await ref.update({ status: denial ? 'not_started' : 'uncertain', error: denial?.code || 'generation_or_persistence_failed' });
+        throw error;
+      }
+    },
+  });
+  const target = 'data/articles-embeddings.json', temporary = `${target}.${randomUUID()}.tmp`;
+  await writeFile(temporary, JSON.stringify(output, null, 2));
+  await rename(temporary, target);
+  console.log(JSON.stringify({ articles: output.length, generated, reused: output.length - generated }));
 }
-
-main().catch(err => {
-	console.error('❌ Error:', err);
-	process.exit(1);
-});
+main().catch(() => { console.error('Embedding update failed; previous published archive retained. Inspect cache/ledger before retry.'); process.exitCode = 1; });

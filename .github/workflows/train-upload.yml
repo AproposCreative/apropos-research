@@ -1,11 +1,20 @@
-name: Train and Upload Embeddings
+name: Update changed article embeddings
 
 on:
   workflow_dispatch: {}
   push:
     branches: [ main ]
-  schedule:
-    - cron: '0 3 * * *' # daily at 03:00 UTC (after article ingestion at 02:00)
+    paths:
+      - 'data/apropos-articles.json'
+      - 'scripts/train-embeddings-clean.ts'
+      - 'lib/incremental-embeddings.ts'
+      - 'prompts/apropos_writer.prompt'
+      - '.github/workflows/train-upload.yml'
+permissions:
+  contents: read
+concurrency:
+  group: article-embeddings
+  cancel-in-progress: false
 
 jobs:
   train-upload:
@@ -24,17 +33,12 @@ jobs:
       - name: Use Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
           cache: 'npm'
           cache-dependency-path: 'package-lock.json'
 
       - name: Install dependencies
-        run: npm ci
-
-      - name: Debug environment
-        run: |
-          chmod +x scripts/debug-env.sh
-          ./scripts/debug-env.sh
+        run: npm ci --ignore-scripts
 
       - name: Verify environment variables
         run: |
@@ -71,5 +75,4 @@ jobs:
         run: |
           echo "📤 Uploading prompt to Firebase Storage..."
           npx tsx scripts/upload-to-storage.ts prompts/apropos_writer.prompt apropos-config/prompts/apropos_writer.prompt
-
 

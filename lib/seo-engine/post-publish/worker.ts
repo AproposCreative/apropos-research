@@ -1,6 +1,7 @@
 import { decideMetadataUpdate, POST_PUBLISH_POLICY, reviewKey, type PublishedArticle, type PolicyDecision } from './policy';
 import { reviewPublishedMetadata, type ReviewModelCall } from './review';
 import type { QualityJob, ArticleQualityState } from './jobs';
+import { getLivCostPretransportError } from '@/lib/liv/cost-errors';
 
 type Receipt = { after: PublishedArticle; publicReceipt: { url: string; checkedAt: string } };
 export type QualityWorkerDependencies = {
@@ -71,6 +72,12 @@ export async function runQualityJob(id: string, deps: QualityWorkerDependencies)
       } });
     return await finish('applied', 'verified_public_metadata', receipt);
   } catch (error) {
+    const denial = getLivCostPretransportError(error);
+    if (denial && !job.writeStartedAt) {
+      await deps.checkpoint(job, { status: 'waiting_budget', reason: denial.code,
+        attempt: Math.max(0, job.attempt - 1), readyAt: (deps.now?.() ?? Date.now()) + 6 * 60 * 60_000 }, true);
+      return { ok: false, status: 'waiting_budget', reason: denial.code };
+    }
     const reason = error instanceof Error ? error.message : 'seo_quality_failed';
     const status: QualityJob['status'] = job.writeStartedAt ? 'verify_pending'
       : reason.includes('reconciliation') || reason.includes('request_changed') || reason.includes('metadata_duplicate') ? 'needs_editor'
