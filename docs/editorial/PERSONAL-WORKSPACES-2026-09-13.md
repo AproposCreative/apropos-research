@@ -18,6 +18,13 @@ Build the user's approved September 13 plan. Only the three verified colleagues 
 
 ## Required before this checkpoint can release
 
+### Explicit private-share backend checkpoint
+
+- Added authenticated own-workspace sharing with an exact revision precondition, named verified colleague recipient and immutable snapshot. Source UID comes exclusively from authentication, not request input. No recipient gets live access to subsequent edits.
+- Read/list access requires participant membership; Frederik's owner capability provides no override. Responses omit participant/receipt metadata. Retries reuse the same UID-scoped operation identity; changed revision/recipient cannot replace a shared snapshot.
+- Five targeted tests passed, including immutable snapshot, owner denied when not a participant, stale/forged requests, verified recipient and idempotency. TypeScript passed.
+- Not deployed. Writer sharing UI, recipient copy-to-own operation, list pagination beyond 50 and browser acceptance remain pending. No actual private workspace was shared during these tests.
+
 ### Production shared-source initialization
 
 - Read-only production check confirmed Frederik verified/enabled and an empty `sharedMediaSources` list.
