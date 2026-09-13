@@ -20,6 +20,9 @@ Build the user's approved September 13 plan. Only the three verified colleagues 
 
 ### Owner operations extension (local)
 
+- Historical alert follow-up: added owner-only read-only `/api/editorial/operations/alerts`, validated keyset cursor and 20-record pages with one lookahead. No age cutoff hides old ambiguous sends; the panel offers older/newest navigation and retry without any resend. Responses project only day/status. Invalid/failed reads are explicit, never an empty healthy list.
+- History policy/route tests: 15 passed including current status cases; TypeScript passed. The updated history UI/fixture still needs browser verification, full regression/build and production acceptance. React review confirms aborted request suppression, UID-keyed history lifetime, no browser cache of alert data and bounded reads. This supersedes the earlier current-day-only limitation for browsing; actual mail reconciliation is still separate.
+
 - Browser acceptance checkpoint: real `LivOperations` component rendered in isolated React StrictMode fixture using fake auth/fetch. At 390×844 and 1280×900, no horizontal overflow or uncaught errors; long titles wrap. HTTP 503 hides stale success and shows an error; explicit refresh recovers. Only GET operations calls occurred. Fixture/server and browser were closed afterward. This is component evidence, not full application or production acceptance.
 - Full isolated regression after the extension: 3,326 tests in 224 files passed. Build/release remains pending. `scripts/verify-liv-operations-ui.mjs` preserves the reproducible fixture.
 

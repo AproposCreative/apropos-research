@@ -5,7 +5,7 @@ import { readFile } from 'node:fs/promises';
 import postcss from 'postcss';
 import tailwind from 'tailwindcss';
 
-const source = await readFile(new URL('../app/ai/liv/LivOperations.tsx', import.meta.url), 'utf8');
+const source = (await Promise.all(['LivOperations.tsx','LivAlertHistory.tsx'].map(name => readFile(new URL('../app/ai/liv/' + name, import.meta.url), 'utf8')))).join('\n');
 const css = (await postcss([tailwind({ content: [{ raw: source, extension: 'tsx' }] })])
   .process('@tailwind base; @tailwind utilities;', { from: undefined })).css;
 const bundle = await build({ stdin: { resolveDir: process.cwd(), loader: 'tsx', contents: `
@@ -18,8 +18,9 @@ const bundle = await build({ stdin: { resolveDir: process.cwd(), loader: 'tsx', 
   window.fetch = async (path, options = {}) => {
     window.fixture.calls.push({path,method:options.method||'GET'});
     await new Promise(r => setTimeout(r, 20)); options.signal?.throwIfAborted();
-    if (path !== '/api/editorial/operations') throw new Error('Unexpected request');
     if (window.fixture.fail) return Response.json({}, {status:503});
+    if (path.startsWith('/api/editorial/operations/alerts')) return Response.json({records:[{day:path.includes('cursor=')?'2026-08-01':'2026-09-12',status:'reconciliation_required'}],nextCursor:path.includes('cursor=')?null:'2026-09-12'});
+    if (path !== '/api/editorial/operations') throw new Error('Unexpected request');
     return Response.json({ checkedAt:'2026-09-13T12:00:00Z',
       liv:{available:true,data:{autoPublishEnabled:true,published:true,overdue:false,blockedItems:[],needsReconciliation:false,nextDay:'2026-09-14',nextStory:{title:'Anmeldelse: En usædvanligt lang titel der stadig skal kunne læses på en smal mobilskærm',state:'ready'}}},
       newsletter:{available:false},budget:{available:true,data:{usageBasedUpperDkk:47.45,monthlyLimitDkk:300,fullMonthlyCapVerified:false}},
