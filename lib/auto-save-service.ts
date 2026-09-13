@@ -31,10 +31,12 @@ const SAVE_DEBOUNCE_MS = 2000;
 
 export class AutoSaveService {
   private ownerId: string | null = null;
+  private pendingData: Partial<AutoSaveData> | null = null;
   setOwner(userId: string | null): void {
     if (this.ownerId === userId) return;
     if (this.saveTimeout) clearTimeout(this.saveTimeout);
     this.saveTimeout = null;
+    this.pendingData = null;
     this.ownerId = userId;
   }
   private get storageKey(): string | null {
@@ -46,13 +48,24 @@ export class AutoSaveService {
   // Debounced save to prevent excessive writes
   save(data: Partial<AutoSaveData>): void {
     if (!this.ownerId) return;
+    this.pendingData = data;
     if (this.saveTimeout) {
       clearTimeout(this.saveTimeout);
     }
 
     this.saveTimeout = setTimeout(() => {
-      this.performSave(data);
+      this.flush();
     }, SAVE_DEBOUNCE_MS);
+  }
+
+  // Synchronous local-only save for pagehide/visibility changes. Never starts a
+  // network request or transfers a pending write across authenticated owners.
+  flush(): void {
+    if (this.saveTimeout) clearTimeout(this.saveTimeout);
+    this.saveTimeout = null;
+    const pending = this.pendingData;
+    this.pendingData = null;
+    if (pending && this.ownerId) this.performSave(pending);
   }
 
   private performSave(data: Partial<AutoSaveData>): void {
@@ -116,6 +129,7 @@ export class AutoSaveService {
     try {
       if (this.saveTimeout) clearTimeout(this.saveTimeout);
       this.saveTimeout = null;
+      this.pendingData = null;
       const key = this.storageKey;
       if (key) localStorage.removeItem(key);
     } catch (error) {

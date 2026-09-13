@@ -30,3 +30,20 @@ it('clears only the current owner and cancels the pending save', () => {
   service.setOwner('frederik'); service.save({ notes: 'discard' }); service.clear(); vi.advanceTimersByTime(2000);
   service.setOwner('milo'); expect(service.load().notes).toBe('keep');
 });
+it('flushes the latest pending local edit before the debounce expires', () => {
+  const service = new AutoSaveService(); service.setOwner('frederik');
+  service.save({ notes: 'first' }); service.save({ notes: 'latest' });
+  service.flush(); expect(service.load().notes).toBe('latest');
+  const saved = [...rows]; vi.advanceTimersByTime(2000);
+  expect([...rows]).toEqual(saved);
+});
+it('does not flush a previous owners pending data into the next account', () => {
+  const service = new AutoSaveService(); service.setOwner('frederik');
+  service.save({ notes: 'private' }); service.setOwner('milo'); service.flush();
+  expect(rows.size).toBe(0);
+});
+it('does not resurrect cleared pending work on page exit', () => {
+  const service = new AutoSaveService(); service.setOwner('frederik');
+  service.save({ notes: 'discard' }); service.clear(); service.flush();
+  expect(rows.size).toBe(0);
+});

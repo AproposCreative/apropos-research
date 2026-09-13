@@ -31,6 +31,7 @@ import { saveDraft, getDraft, type ArticleDraft } from '@/lib/firebase-service';
 import { createWriterDraftIdentity } from '@/lib/ai-chat/draft-identity';
 import { autoSaveService } from '@/lib/auto-save-service';
 import { useWriterWorkspace } from '@/lib/use-writer-workspace';
+import { bindAutosaveLifecycle } from '@/lib/autosave-lifecycle';
 import WorkspaceVersions from './WorkspaceVersions';
 import type { WorkspacePayload } from '@/lib/writer-workspace';
 import type { ArticleData } from '@/types/article';
@@ -437,6 +438,7 @@ export default function AIWriterClient() {
       });
     }
   }, [chatMessages, chatTitle, articleData, notes, showWizard, currentDraftId]);
+  useEffect(() => bindAutosaveLifecycle(() => autoSaveService.flush()), []);
 
 
   useEffect(() => {
