@@ -28,12 +28,15 @@ Source inspected at `5b0164d`, September 13, 2026. No paid provider calls.
 
 ## Exact remaining work
 
-1. Read production podcast processor configuration and deployed revision using
-   supported Google Cloud API access. Match its artifact/source before treating
-   the checked-in non-AI pipeline as evidence for that service. gcloud is absent
-   locally and no connected Google Cloud tool was found; existing scoped service
-   credentials may still support read-only REST inspection. Do not grant Owner
-   or change the service merely for an audit.
+1. RESOLVED for current production: Vercel deployment API readback identifies
+   READY `dpl_52d78N2JUhZAmABCWdRk8RqgGsVm`, SHA
+   `b903348198dc734e7c1b8b48a87e53e3b09178d0`. Its 193 environment-variable
+   names do not include `PODCAST_PROCESSOR_URL`; only PODCAST_NOTIFY_URL and
+   PODCAST_NOTIFY_SECRET are listed for podcast. Current project production
+   metadata also has no processor URL. Thus the inspected inline FFmpeg path,
+   not the independent Cloud Run processor, is selected. No new Google Cloud
+   permissions or Cloud Run mutation are necessary. Notification configuration
+   value inspection did not complete and no notification was sent.
 2. Check every runtime provider boundary against the deployed application SHA,
    then replace generic exclusions with the actual scoped coverage. Preserve
    historical untracked spend as unknown; do not import guessed zero costs.
