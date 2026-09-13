@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { withSharedCostContext } from '@/lib/liv/cost-context';
+import { getLivCostPretransportError } from '@/lib/liv/cost-errors';
 import { getOpenAIClient, models } from '@/lib/openai';
 import { APROPOS_PROMPTS, WebflowArticle } from '@/lib/apropos-ai';
 import { logger, createRequestLogger } from '@/lib/logger';
@@ -38,7 +40,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const completion = await openai.chat.completions.create({
+    const completion = await withSharedCostContext({ scope: 'writer', stage: 'generate-webflow-fields' }, () => openai.chat.completions.create({
       model: models.default,
       messages: [
         {
@@ -52,7 +54,7 @@ export async function POST(request: NextRequest) {
       ],
       temperature: 1, // GPT-5 only supports default temperature (1)
       max_completion_tokens: 1500,
-    });
+    }, { timeout: 45000, maxRetries: 0, signal: request.signal }));
 
     const response = completion.choices[0]?.message?.content;
 
@@ -99,6 +101,14 @@ export async function POST(request: NextRequest) {
     );
 
   } catch (error) {
+    if (getLivCostPretransportError(error)) {
+      return NextResponse.json(
+        createErrorResponse('AI-kaldet blev stoppet af budgetkontrollen. Se budget og driftsstatus.', {
+          statusCode: 503, errorCode: ErrorCode.INTERNAL_ERROR, requestId,
+        }),
+        { status: 503, headers: { 'Cache-Control': 'no-store' } }
+      );
+    }
     const errorObj = error instanceof Error ? error : new Error(String(error));
     requestLogger.error('Webflow fields generation error', errorObj);
     return NextResponse.json(

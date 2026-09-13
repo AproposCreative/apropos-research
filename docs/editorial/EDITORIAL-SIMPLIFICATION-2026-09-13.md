@@ -231,3 +231,17 @@ No paid model tests, CMS writes, newsletter sends or Instagram changes were made
   regressions for wrapped budget errors and refusing unmetered legacy transport.
   Changes pending the combined budget release. Podcast/other-provider audit and
   production budget verification remain required.
+
+### Standalone text tools, September 13
+
+- `ai-suggestions`, `generate-article`, `generate-webflow-fields` and
+  `analyze-research` now establish the shared Writer budget at the provider call.
+  Parent Liv ownership is preserved. Existing token caps are unchanged; all
+  calls use zero SDK retries, a 45-second timeout and request cancellation.
+- Branded budget pretransport failures (including SDK-wrapped failures) return
+  a no-store 503 rather than a misleading successful fallback or raw error.
+- 41 focused route/context/transport tests and TypeScript pass, without paid
+  provider requests. These changes are local pending the combined budget release.
+- Remaining scope: independent quality/research/media helpers and newsletter
+  generation, production budget verification, operations UI, documented cleanup
+  and seven consecutive daily publication readbacks. Goal remains active.

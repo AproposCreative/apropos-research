@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { withSharedCostContext } from '@/lib/liv/cost-context';
+import { getLivCostPretransportError } from '@/lib/liv/cost-errors';
 import { getOpenAIClient, models } from '@/lib/openai';
 import { createRequestLogger } from '@/lib/logger';
 import { getNewsletterUserIdFromRequest } from '@/lib/newsletter/auth-request';
@@ -86,7 +88,7 @@ Returnér KUN et JSON-objekt med denne struktur:
   ]
 }`;
 
-    const completion = await openai.chat.completions.create({
+    const completion = await withSharedCostContext({ scope: 'writer', stage: 'analyze-research' }, () => openai.chat.completions.create({
       model: models.default,
       messages: [
         {
@@ -100,7 +102,7 @@ Returnér KUN et JSON-objekt med denne struktur:
       ],
       max_completion_tokens: 3000,
       response_format: { type: 'json_object' }
-    }, { timeout: 45000, maxRetries: 0, signal: request.signal });
+    }, { timeout: 45000, maxRetries: 0, signal: request.signal }));
 
     const responseText = completion.choices[0]?.message?.content || '';
     let analysis;
@@ -130,6 +132,14 @@ Returnér KUN et JSON-objekt med denne struktur:
       { status: 200, headers: { 'Cache-Control': 'no-store' } }
     );
   } catch (error) {
+    if (getLivCostPretransportError(error)) {
+      return NextResponse.json(
+        createErrorResponse('AI-kaldet blev stoppet af budgetkontrollen. Se budget og driftsstatus.', {
+          statusCode: 503, errorCode: ErrorCode.INTERNAL_ERROR, requestId,
+        }),
+        { status: 503, headers: { 'Cache-Control': 'no-store' } }
+      );
+    }
     const status = (error as { status?: unknown } | null)?.status;
     requestLogger.warn('Research analysis request failed', { status: typeof status === 'number' ? status : undefined });
     return NextResponse.json(

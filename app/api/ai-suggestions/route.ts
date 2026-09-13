@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { withSharedCostContext } from '@/lib/liv/cost-context';
+import { getLivCostPretransportError } from '@/lib/liv/cost-errors';
 import { getOpenAIClient, models } from '@/lib/openai';
 import { logger, createRequestLogger } from '@/lib/logger';
 import { getRequestId } from '@/lib/api/request-utils';
@@ -78,7 +80,7 @@ Kontekst: ${context || 'Generel artikel'}
 Giv kun forslagene, ikke forklaringer.`;
     }
 
-    const completion = await openai.chat.completions.create({
+    const completion = await withSharedCostContext({ scope: 'writer', stage: 'ai-suggestions' }, () => openai.chat.completions.create({
       model: models.default,
       messages: [
         {
@@ -92,7 +94,7 @@ Giv kun forslagene, ikke forklaringer.`;
       ],
       max_completion_tokens: 300,
       temperature: 1, // GPT-5 only supports default temperature (1)
-    });
+    }, { timeout: 45000, maxRetries: 0, signal: request.signal }));
 
     const response = completion.choices[0]?.message?.content || '';
     
@@ -114,6 +116,14 @@ Giv kun forslagene, ikke forklaringer.`;
     );
 
   } catch (error) {
+    if (getLivCostPretransportError(error)) {
+      return NextResponse.json(
+        createErrorResponse('AI-kaldet blev stoppet af budgetkontrollen. Se budget og driftsstatus.', {
+          statusCode: 503, errorCode: ErrorCode.INTERNAL_ERROR, requestId,
+        }),
+        { status: 503, headers: { 'Cache-Control': 'no-store' } }
+      );
+    }
     const errorObj = error instanceof Error ? error : new Error(String(error));
     requestLogger.error('Error generating AI suggestions', errorObj);
     
