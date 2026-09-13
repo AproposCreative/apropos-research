@@ -1,6 +1,20 @@
 # Private workspace acceptance checkpoint
 
-## Durable Writer CMS operation (local, not released)
+## Durable Writer CMS operation (released September 14)
+
+Production deployment `dpl_CSRDQ8GTFYoPqZReALwZyQfyRp5g` is READY for exact
+commit `fd2ed7d7bebdbb126edce013f345f496c7438edf`, assigned to
+ai.aproposmagazine.com. This releases the preceding local retry/cache/body
+verification follow-ups too. Build passed with nine existing tracing warnings.
+Production `/ai` returned 200; served scripts contain the new CMS route and
+version-read retry, without the obsolete poll. Invalid empty POST to cms-save
+was 401 anonymously and 400 private/no-store with the real verified owner's
+Firebase token. This request is rejected before any CMS/database save. Existing
+owner workspace GET returned 200. No CMS items or production drafts changed.
+
+Live authentication/routing and release delivery are verified; a real CMS save,
+Firestore operation write and real transport-loss reconciliation are NOT yet
+production-verified. Do not represent the mock integration as that evidence.
 
 Release-candidate verification: full regression passed 3,437 tests in 241 files.
 Three additional failure/history tests then passed with the existing operation
