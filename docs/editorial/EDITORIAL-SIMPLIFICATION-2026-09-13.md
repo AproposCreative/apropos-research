@@ -176,3 +176,21 @@ No paid model tests, CMS writes, newsletter sends or Instagram changes were made
   `861a1edd891bfb5a55a1bf29e2ef6445ddcd4a40318a2a11fe65ba5ab68f357b`.
   No AI regeneration, no early publication. This is preparation readiness for
   tomorrow, not evidence of tomorrow's scheduled publication.
+
+### Frankenstein ready for September 15, verified caption restoration
+
+- Existing presentation API now supports restoring only prepared captions. It
+  rejects changed surrounding prose, alt/order/count conflicts, preserves CMS
+  image URLs/dimensions, and archives the old CMS content. Complete CMS content,
+  caption and byte checks must pass after restoration. No fabricated credit.
+- 20 targeted caption/revision tests and TypeScript pass. Production deployment
+  `dpl_28qi47JEb59Nf9Ax7mcGHFXMySyN` READY and production target verified at
+  `83cba47c6dd6bb04658b51b5b4962a67cc206d44`.
+- Authenticated API restoration for item `6aa56bc84e30064cbbb7c4c5` returned
+  `publicationReady: true`, no blockers, `publicationVerified: false` at
+  2026-09-13T14:10:00.006Z. Immutable revision audit:
+  `f662e175bbbf578c0c3eb907a7495384f3c1c898d1a2e8b39621e68087c1fa41`.
+  Saved text/images reused, no paid model calls, no early publication.
+- Continue the broader goal: budget coverage beyond Liv/Writer/SEO, operational
+  Liv/newsletter read-only view, access coverage/admin UX, and seven-day delivery
+  evidence. Ready drafts do not prove those remaining requirements.
