@@ -54,6 +54,8 @@ export async function isApiRequestAuthorized(request: NextRequest): Promise<bool
   const { pathname } = request.nextUrl;
 
   if (!pathname.startsWith('/api/')) return true;
+  // Bootstrap mail handler verifies unverified users itself; reset must work logged out.
+  if (pathname === '/api/auth/mail' && request.method === 'POST') return true;
   if (isPublicApiPath(pathname)) return true;
 
   if (hasInternalSecret(request) || hasCronSecret(request)) return true;

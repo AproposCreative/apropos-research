@@ -1,4 +1,5 @@
-import { reload, sendEmailVerification, type User } from 'firebase/auth';
+import { reload, type User } from 'firebase/auth';
+import { requestAuthMail } from './auth-mail-client';
 
 /** No side effects until the user explicitly sends or checks verification. */
 export function createEmailVerificationActions(currentUser: () => User | null,
@@ -14,7 +15,9 @@ export function createEmailVerificationActions(currentUser: () => User | null,
       }
       sending = true;
       try {
-        await sendEmailVerification(user);
+        const token = await user.getIdToken();
+        if (currentUser() !== user) throw new Error('Kontoen er ændret. Prøv igen.');
+        await requestAuthMail({ kind: 'verify' }, token);
         lastSent = { uid: user.uid, at: Date.now() };
       } finally { sending = false; }
     },

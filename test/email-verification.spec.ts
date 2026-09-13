@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { User } from 'firebase/auth';
 const sdk = vi.hoisted(() => ({ reload: vi.fn(), sendEmailVerification: vi.fn() }));
 vi.mock('firebase/auth', () => sdk);
+vi.mock('@/lib/auth-mail-client', () => ({ requestAuthMail: sdk.sendEmailVerification }));
 import { createEmailVerificationActions } from '@/lib/email-verification';
 
 describe('email verification actions', () => {

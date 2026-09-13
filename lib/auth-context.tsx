@@ -10,12 +10,12 @@ import {
   signOut,
   onIdTokenChanged,
   GoogleAuthProvider,
-  signInWithPopup,
-  sendPasswordResetEmail
+  signInWithPopup
 } from 'firebase/auth';
 import { getFirebaseAuth } from './firebase';
 import { isSameOriginApi, requestHeaders } from './auth-policy';
 import { createEmailVerificationActions } from './email-verification';
+import { requestAuthMail } from './auth-mail-client';
 import { NO_CAPABILITIES, isOwnerPage, type EditorialCapabilities } from './editorial-capabilities';
 import { autoSaveService } from './auto-save-service';
 
@@ -213,9 +213,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const resetPassword = async (email: string) => {
-    const firebaseAuth = getFirebaseAuth();
-    if (!firebaseAuth) throw new Error('Firebase not initialized');
-    await sendPasswordResetEmail(firebaseAuth, email);
+    await requestAuthMail({ kind: 'reset', email });
   };
 
   const logout = async () => {

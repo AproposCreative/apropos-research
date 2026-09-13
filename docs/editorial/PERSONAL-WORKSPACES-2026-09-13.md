@@ -18,6 +18,13 @@ Build the user's approved September 13 plan. Only the three verified colleagues 
 
 ## Required before this checkpoint can release
 
+### Permanent auth mail implementation (local, not deployed)
+
+- Added exact POST `/api/auth/mail`, using fresh revoked-token verification and Firebase user readback for verification; the client cannot select another verification recipient. Reset remains available logged out with identical responses and account lookup/provider work deferred through Next `after` to avoid account-dependent response timing.
+- Replaced direct client Firebase mail calls with this application endpoint. Firebase still creates and validates the actual action links; no manual `emailVerified` mutation.
+- Resend uses the existing configured sender/API key. Durable transaction limits: one/minute and six/day per address/action, thirty/day overall. This reserves attempts before provider calls, including failed attempts. Audit records contain recipient hashes, status and provider IDs, not action links or credentials. Provider acceptance is not proof of inbox delivery.
+- Initial service, route, client verification and access-policy tests pass; TypeScript passed. Remaining before release: verify configured sender/domain, middleware regression/full build, production background execution and actual delivery acceptance. This checkpoint is not yet deployed and does not replace the earlier production mail flow until release.
+
 ### Sharing browser verification and durable retry
 
 - Real React StrictMode dialog tested via agent-browser with isolated HTTP/auth fixtures, never production data. Verified own-version preview, recipient and explicit consent gate, simulated network failure, exact same-operation retry, received snapshot copy callback and modal close. No uncaught browser errors.
