@@ -11,7 +11,10 @@
 - [x] Shared accounting extended to newsletter intro, inbox learning/generation
   and translation; output/retry/time bounds and truncation checks tested.
 - [x] Read-only authenticated operations API and Liv settings panel implemented.
-- [x] Full regression at c36fb5e: 3,154 tests in 197 files passed, isolated from production.
+- [x] Full regression at e93d604: 3,156 tests in 197 files passed, isolated from production.
+- [x] Production release e93d604 READY, exact production target verified
+  September 13 16:56 UTC. Research anonymous 401/no-store verified; scoped cache
+  reuse tested without paid calls. Receipt: `DEPLOY-RECEIPT-e93d604.md`.
 - [x] Production release c36fb5e READY and exact production target verified
   September 13 16:50 UTC; public podcast invalid-input no-store behavior verified.
   Receipt: `DEPLOY-RECEIPT-c36fb5e.md`. Earlier release 15ff3f0:
