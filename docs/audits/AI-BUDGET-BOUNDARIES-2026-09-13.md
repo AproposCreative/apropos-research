@@ -89,3 +89,19 @@ e93d604 passes 3,156 tests in 197 files, and TypeScript passes. Cache is per-pro
 cold starts, token rotation and different instances can still repeat work. No
 production monetary savings have been measured. Deployment was dispatched as
 `dpl_FXQSAgKnRiVBkPkjKgpbhis8Lxr4`; readiness requires separate verification.
+# Provider reconciliation access check, 17:15 UTC
+
+Production environment metadata was read at 2026-09-13T17:15:58.035Z.
+Neither OPENAI_ADMIN_KEY nor OPENAI_ADMIN_API_KEY is configured. No
+OpenAI billing/costs/usage-named key or OPENAI_PROJECT_ID was found.
+No credential value was fetched or printed for this check.
+
+This is evidence about configuration names, not proof of the privileges of
+every existing credential or all possible external connections. No invoice
+data has been obtained. `historicalCostsIncluded=false` and
+`fullMonthlyCapVerified=false` must remain unchanged.
+
+An account-owner supplied project-scoped usage/cost export for the month would
+allow reconciliation without adding broad administrative credentials to the
+application. Until then, distinguish the tracked application's reservation
+limit from actual invoiced costs. Do not invent historical ledger entries.
