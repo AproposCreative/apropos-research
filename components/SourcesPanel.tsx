@@ -11,6 +11,7 @@ interface SourceItem {
   addedAt?: string;
   createdAt?: string;
   preset?: boolean;
+  saved?: boolean;
 }
 
 const PREMADE_SOURCES: Omit<SourceItem, 'addedAt' | 'createdAt'>[] = [
@@ -39,33 +40,50 @@ const CATEGORY_MAP: Record<string, string> = {
 
 export default function SourcesPanel({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
   const { user } = useAuth();
+  return user ? <OwnedSourcesPanel key={user.uid} isOpen={isOpen} onClose={onClose} /> : null;
+}
+
+function OwnedSourcesPanel({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
+  const { user } = useAuth();
   const [sources, setSources] = useState<SourceItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [addFormOpen, setAddFormOpen] = useState(false);
   const [togglingId, setTogglingId] = useState<string | null>(null);
+  const [error, setError] = useState('');
+  const alive = useRef(false);
+  const loadSequence = useRef(0);
+  useEffect(() => { alive.current = true; return () => { alive.current = false; loadSequence.current++; }; }, []);
 
   const loadSources = useCallback(async () => {
     if (!user) { setLoading(false); return; }
+    const sequence = ++loadSequence.current;
+    setLoading(true);
+    setError('');
     try {
-      const res = await fetch('/api/media-sources', { headers: { 'x-user-id': user.uid } });
+      const res = await fetch('/api/media-sources', { headers: { Authorization: `Bearer ${await user.getIdToken()}` }, cache: 'no-store' });
+      if (!res.ok) throw new Error('source_read_failed');
       const json = await res.json();
-      const fetched: SourceItem[] = json.data?.sources || json.sources || [];
+      const fetched: SourceItem[] = json.data?.sources || json.sources;
+      if (!Array.isArray(fetched)) throw new Error('source_read_invalid');
 
       const merged = PREMADE_SOURCES.map(preset => {
         const existing = fetched.find(s => s.id === preset.id || s.name.toLowerCase() === preset.name.toLowerCase());
-        if (existing) return { ...existing, preset: true };
-        return { ...preset, addedAt: new Date().toISOString() };
+        if (existing) return { ...existing, preset: true, saved: true };
+        return { ...preset, enabled: false, saved: false };
       });
 
       const customSources = fetched.filter(s =>
         !PREMADE_SOURCES.some(p => p.id === s.id || p.name.toLowerCase() === s.name.toLowerCase())
       );
 
-      setSources([...merged, ...customSources]);
+      if (alive.current && sequence === loadSequence.current) setSources([...merged, ...customSources.map(s => ({ ...s, saved: true }))]);
     } catch {
-      setSources(PREMADE_SOURCES.map(p => ({ ...p, addedAt: new Date().toISOString() })));
+      if (alive.current && sequence === loadSequence.current) {
+        setSources([]);
+        setError('Dine mediekilder kunne ikke hentes. Ingen valg er ændret.');
+      }
     } finally {
-      setLoading(false);
+      if (alive.current && sequence === loadSequence.current) setLoading(false);
     }
   }, [user]);
 
@@ -75,43 +93,39 @@ export default function SourcesPanel({ isOpen, onClose }: { isOpen: boolean; onC
   }, [isOpen, loadSources]);
 
   const toggleSource = async (source: SourceItem) => {
-    if (!user) return;
+    if (!user || togglingId || error) return;
     setTogglingId(source.id);
+    setError('');
     const newEnabled = !source.enabled;
-
-    setSources(prev => prev.map(s => s.id === source.id ? { ...s, enabled: newEnabled } : s));
-
     try {
-      if (!sources.some(s => s.id === source.id && s.addedAt)) {
-        await fetch('/api/media-sources', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'x-user-id': user.uid },
-          body: JSON.stringify({ name: source.name, baseUrl: source.baseUrl, sitemapIndex: source.sitemapIndex, enabled: newEnabled }),
-        });
-      } else {
-        await fetch(`/api/media-sources?id=${source.id}`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json', 'x-user-id': user.uid },
-          body: JSON.stringify({ name: source.name, baseUrl: source.baseUrl, sitemapIndex: source.sitemapIndex, enabled: newEnabled }),
-        });
-      }
+      const response = await fetch(source.saved ? `/api/media-sources?id=${encodeURIComponent(source.id)}` : '/api/media-sources', {
+        method: source.saved ? 'PUT' : 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${await user.getIdToken()}` },
+        body: JSON.stringify({ name: source.name, baseUrl: source.baseUrl, sitemapIndex: source.sitemapIndex, enabled: newEnabled }),
+      });
+      if (!response.ok) throw new Error('source_save_failed');
+      const json = await response.json();
+      const saved = json.data?.source;
+      if (!saved?.id || saved.enabled !== newEnabled) throw new Error('source_save_unconfirmed');
+      if (alive.current) setSources(prev => prev.map(s => s.id === source.id ? { ...saved, saved: true, preset: source.preset } : s));
     } catch {
-      setSources(prev => prev.map(s => s.id === source.id ? { ...s, enabled: !newEnabled } : s));
+      if (alive.current) setError('Valget kunne ikke bekræftes. Opdater listen før et nyt forsøg.');
     } finally {
-      setTogglingId(null);
+      if (alive.current) setTogglingId(null);
     }
   };
 
   const handleDelete = async (source: SourceItem) => {
     if (!user || source.preset) return;
-    setSources(prev => prev.filter(s => s.id !== source.id));
     try {
-      await fetch(`/api/media-sources?id=${source.id}`, {
+      const response = await fetch(`/api/media-sources?id=${encodeURIComponent(source.id)}`, {
         method: 'DELETE',
-        headers: { 'x-user-id': user.uid },
+        headers: { Authorization: `Bearer ${await user.getIdToken()}` },
       });
+      if (!response.ok) throw new Error('source_delete_failed');
+      if (alive.current) setSources(prev => prev.filter(s => s.id !== source.id));
     } catch {
-      loadSources();
+      if (alive.current) setError('Sletningen kunne ikke bekræftes. Opdater listen.');
     }
   };
 
@@ -131,7 +145,7 @@ export default function SourcesPanel({ isOpen, onClose }: { isOpen: boolean; onC
       <div className="flex items-center justify-between px-4 py-3 border-b border-white/10 flex-shrink-0">
         <div>
           <h2 className="text-white font-medium text-sm">Mediekilder</h2>
-          <p className="text-white/40 text-[11px] mt-0.5">{enabledCount} aktive kilder</p>
+          <p className="text-white/40 text-[11px] mt-0.5">{loading ? 'Henter dine valg…' : `${enabledCount} valgte kilder`}</p>
         </div>
         <div className="flex items-center gap-2">
           <button
@@ -163,6 +177,8 @@ export default function SourcesPanel({ isOpen, onClose }: { isOpen: boolean; onC
         />
 
         <div className="p-3 space-y-4">
+          <p className="text-xs text-white/50">Kontakten vælger kilden til eller fra. Den viser ikke, om hjemmesiden er online.</p>
+          {error && <div role="alert" className="text-sm text-white/80">{error} <button className="min-h-11 underline" onClick={loadSources}>Opdater listen</button></div>}
           {loading ? (
             <div className="space-y-2">
               {[...Array(5)].map((_, i) => (
@@ -178,7 +194,7 @@ export default function SourcesPanel({ isOpen, onClose }: { isOpen: boolean; onC
                     <SourceCard
                       key={source.id}
                       source={source}
-                      toggling={togglingId === source.id}
+                      toggling={togglingId !== null || !!error}
                       onToggle={() => toggleSource(source)}
                       category={CATEGORY_MAP[source.id]}
                     />
@@ -194,7 +210,7 @@ export default function SourcesPanel({ isOpen, onClose }: { isOpen: boolean; onC
                       <SourceCard
                         key={source.id}
                         source={source}
-                        toggling={togglingId === source.id}
+                        toggling={togglingId !== null || !!error}
                         onToggle={() => toggleSource(source)}
                         onDelete={() => handleDelete(source)}
                       />

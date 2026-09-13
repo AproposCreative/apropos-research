@@ -60,6 +60,10 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const { name, baseUrl, sitemapIndex } = body;
 
+    if (body.enabled !== undefined && typeof body.enabled !== 'boolean') {
+      return NextResponse.json({ error: 'enabled must be a boolean' }, { status: 400 });
+    }
+
     if (!name || !baseUrl || !sitemapIndex) {
       return NextResponse.json({ error: 'Name, baseUrl, and sitemapIndex are required' }, { status: 400 });
     }
@@ -81,7 +85,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Cannot access sitemap URL' }, { status: 400 });
     }
 
-    const newSource: MediaSourceDoc = { id, userId, name, baseUrl, sitemapIndex, enabled: true, createdAt: new Date().toISOString() };
+    const newSource: MediaSourceDoc = { id, userId, name, baseUrl, sitemapIndex, enabled: body.enabled ?? true, createdAt: new Date().toISOString() };
     await db.collection('mediaSources').doc(id).set(newSource);
 
     requestLogger.info('Media source added', { id, name, userId });
@@ -112,6 +116,9 @@ export async function PUT(req: NextRequest) {
 
     const body = await req.json();
     const { name, baseUrl, sitemapIndex } = body;
+    if (body.enabled !== undefined && typeof body.enabled !== 'boolean') {
+      return NextResponse.json({ error: 'enabled must be a boolean' }, { status: 400 });
+    }
     if (!name || !baseUrl || !sitemapIndex) return NextResponse.json({ error: 'Name, baseUrl, and sitemapIndex are required' }, { status: 400 });
 
     try { new URL(baseUrl); new URL(sitemapIndex, baseUrl); } catch {
@@ -125,15 +132,20 @@ export async function PUT(req: NextRequest) {
     const existing = docSnap.data() as MediaSourceDoc;
     if (existing.userId !== userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
 
-    try {
-      await checkMediaSource(userId, baseUrl, sitemapIndex);
-    } catch {
-      return NextResponse.json({ error: 'Cannot access sitemap URL' }, { status: 400 });
+    const enabled = body.enabled ?? existing.enabled;
+    // Disabling an existing endpoint must also work when its publisher is down.
+    // New/changed endpoints and activation still require safe URL validation.
+    if (enabled !== false || baseUrl !== existing.baseUrl || sitemapIndex !== existing.sitemapIndex) {
+      try {
+        await checkMediaSource(userId, baseUrl, sitemapIndex);
+      } catch {
+        return NextResponse.json({ error: 'Cannot access sitemap URL' }, { status: 400 });
+      }
     }
 
-    await docRef.update({ name, baseUrl, sitemapIndex });
+    await docRef.update({ name, baseUrl, sitemapIndex, enabled });
 
-    const updatedSource = { ...existing, name, baseUrl, sitemapIndex };
+    const updatedSource = { ...existing, name, baseUrl, sitemapIndex, enabled };
     requestLogger.info('Media source updated', { id, name, userId });
     return NextResponse.json(createSuccessResponse({ source: updatedSource, message: `${name} er blevet opdateret` }, { requestId }));
   } catch (error) {
