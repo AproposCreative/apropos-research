@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useAuth } from '@/lib/auth-context';
 import { getUserDrafts, deleteDraft, updateDraft, type ArticleDraft } from '@/lib/firebase-service';
 import ContextMenu from './ContextMenu';
@@ -17,12 +17,22 @@ interface DraftsShelfProps {
   isOpen?: boolean;
   onRenameLive?: (draftId: string, newTitle: string) => void; // notify open session
   refreshTrigger?: number; // trigger refresh when this changes
+  onOpenVersions?: () => void;
+  onOpenShares?: () => void;
 }
 
-export default function DraftsShelf({ onSelect, onClose, isOpen = true, onRenameLive, refreshTrigger }: DraftsShelfProps) {
+export default function DraftsShelf(props: DraftsShelfProps) {
   const { user } = useAuth();
+  return user ? <OwnedDraftsShelf key={user.uid} {...props} uid={user.uid} /> : null;
+}
+
+function OwnedDraftsShelf({ uid, onSelect, onClose, isOpen = true, onRenameLive, refreshTrigger, onOpenVersions, onOpenShares }: DraftsShelfProps & { uid: string }) {
+  const mounted = useRef(false);
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
   const [drafts, setDrafts] = useState<ArticleDraft[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [retry, setRetry] = useState(0);
   const [contextMenu, setContextMenu] = useState<{
     isOpen: boolean;
     position: { x: number; y: number };
@@ -36,18 +46,21 @@ export default function DraftsShelf({ onSelect, onClose, isOpen = true, onRename
   const [newTitle, setNewTitle] = useState('');
 
   useEffect(() => {
+    let cancelled = false;
     const run = async () => {
-      if (!user) return;
       try {
-        setLoading(true);
-        const ds = await getUserDrafts(user.uid);
-        setDrafts(ds);
+        setLoading(true); setError('');
+        const ds = await getUserDrafts(uid);
+        if (!cancelled) setDrafts(ds);
+      } catch {
+        if (!cancelled) setError('Dine artikler kunne ikke hentes. Prøv igen.');
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     };
-    run();
-  }, [user, refreshTrigger]);
+    void run();
+    return () => { cancelled = true; };
+  }, [uid, refreshTrigger, retry]);
 
   const normalizeDate = (v: any): Date => {
     if (!v) return new Date();
@@ -75,9 +88,9 @@ export default function DraftsShelf({ onSelect, onClose, isOpen = true, onRename
   const handleDelete = async () => {
     try {
       await deleteDraft(contextMenu.draftId);
-      setDrafts(drafts.filter(d => d.id !== contextMenu.draftId));
-    } catch (error) {
-      console.error('Error deleting draft:', error);
+      if (mounted.current) setDrafts(prev => prev.filter(d => d.id !== contextMenu.draftId));
+    } catch {
+      if (mounted.current) setError('Artiklen kunne ikke slettes.');
     }
   };
 
@@ -95,6 +108,7 @@ export default function DraftsShelf({ onSelect, onClose, isOpen = true, onRename
     try {
       const trimmed = newTitle.trim();
       await updateDraft(renamingDraft, { chatTitle: trimmed, title: trimmed });
+      if (!mounted.current) return;
       setDrafts(prev =>
         prev.map(d =>
           d.id === renamingDraft
@@ -112,8 +126,8 @@ export default function DraftsShelf({ onSelect, onClose, isOpen = true, onRename
       } catch {}
       setRenamingDraft(null);
       setNewTitle('');
-    } catch (error) {
-      console.error('Error renaming draft:', error);
+    } catch {
+      if (mounted.current) setError('Titlen kunne ikke gemmes.');
     }
   };
 
@@ -132,6 +146,10 @@ export default function DraftsShelf({ onSelect, onClose, isOpen = true, onRename
           </button>
         )}
       </header>
+      <nav aria-label="Mit arbejdsrum" className="flex flex-wrap gap-2 border-b border-white/10 px-3 py-3">
+        {onOpenVersions && <button type="button" className={secondaryBtn} onClick={onOpenVersions}>Gemte versioner</button>}
+        {onOpenShares && <button type="button" className={secondaryBtn} onClick={onOpenShares}>Delte kopier</button>}
+      </nav>
       <div
         className="flex-1 overflow-y-auto overflow-x-hidden px-3 py-3 nice-scrollbar min-h-0 transition-[opacity,transform] duration-500 ease-out"
         style={{
@@ -139,10 +157,11 @@ export default function DraftsShelf({ onSelect, onClose, isOpen = true, onRename
           transform: isOpen ? 'translateY(0px)' : 'translateY(4px)',
         }}
       >
+        {error && <div role="alert" className="mb-3 text-sm text-white/80">{error} <button type="button" className={secondaryBtn} onClick={() => setRetry(value => value + 1)}>Opdater listen</button></div>}
         {loading ? (
           <p className="text-white/45 text-[13px]">Indlæser…</p>
         ) : drafts.length === 0 ? (
-          <p className="text-white/45 text-[13px]">Ingen artikler endnu</p>
+          !error && <p className="text-white/45 text-[13px]">Ingen artikler endnu</p>
         ) : (
           <div className="flex flex-col gap-2">
             {drafts.map((d, i) => (

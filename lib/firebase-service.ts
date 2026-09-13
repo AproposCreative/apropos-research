@@ -225,10 +225,11 @@ export const getUserDrafts = async (userId: string) => {
       const data = doc.data();
       drafts.push({
         ...data,
+        id: doc.id,
         createdAt: data.createdAt?.toDate ? data.createdAt.toDate() : new Date(),
         updatedAt: data.updatedAt?.toDate ? data.updatedAt.toDate() : new Date(),
         lastModified: data.lastModified?.toDate ? data.lastModified.toDate() : new Date(),
-        messages: data.messages?.map((msg: any) => ({
+        messages: (data.messages || []).map((msg: any) => ({
           ...msg,
           timestamp: msg.timestamp instanceof Date ? msg.timestamp : 
                      msg.timestamp?.toDate ? msg.timestamp.toDate() : 
@@ -420,4 +421,3 @@ export const getTrainingSamples = async (limitCount = 100) => {
     return [];
   }
 };
-

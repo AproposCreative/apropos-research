@@ -1372,6 +1372,8 @@ export default function AIWriterClient() {
                 )}
                 {shelfOpen && (
                   <DraftsShelf 
+                    onOpenVersions={() => setShowWorkspaceVersions(true)}
+                    onOpenShares={() => setShowWorkspaceShares(true)}
                     isOpen={shelfOpen} 
                     onSelect={(draft)=>{ 
                       setShelfOpen(false); 
@@ -1379,6 +1381,7 @@ export default function AIWriterClient() {
                     }} 
                     onClose={()=> setShelfOpen(false)}
                     onRenameLive={(draftId, newTitle) => {
+                      if (draftId !== currentDraftId) return;
                       setChatTitle(newTitle);
                       setArticleData(prev => ({
                         ...prev,
@@ -1405,6 +1408,8 @@ export default function AIWriterClient() {
             <div className={`md:hidden ${shelfOpen ? 'absolute inset-0 z-40 translate-x-0' : 'hidden'} transition-transform duration-300`}>
               <div className="h-full flex flex-col rounded-none border-t border-white/15 bg-[#070707]/95 backdrop-blur-3xl">
                 <DraftsShelf 
+                  onOpenVersions={() => setShowWorkspaceVersions(true)}
+                  onOpenShares={() => setShowWorkspaceShares(true)}
                   isOpen={shelfOpen} 
                   onSelect={(draft)=>{ 
                     setShelfOpen(false); 
@@ -1412,6 +1417,7 @@ export default function AIWriterClient() {
                   }} 
                   onClose={()=> setShelfOpen(false)}
                   onRenameLive={(draftId, newTitle) => {
+                    if (draftId !== currentDraftId) return;
                     setChatTitle(newTitle);
                     setArticleData(prev => ({
                       ...prev,
