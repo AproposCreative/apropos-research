@@ -16,6 +16,13 @@ Build the user's approved September 13 plan. Only the three verified colleagues 
 
 ## Required before this checkpoint can release
 
+### Production shared-source initialization
+
+- Read-only production check confirmed Frederik verified/enabled and an empty `sharedMediaSources` list.
+- Initialized Soundvenue `https://soundvenue.com/feed` using the real GET/PUT application handlers in a local release process with an authenticated owner token and production storage. Credentials stayed in memory. No personal source collection was read or copied.
+- API readback: document `1ea055a90c51ff9259c5b57ba85b50eb71e592789e19fd25fa3a8aea11819ad5`, enabled, revision 1. Check at 2026-09-13 20:14:33.631 UTC: RSS, 10 links, not partial. Counts are candidate links, not researched articles.
+- Added an explicit, import-safe setup helper that skips a nonempty shared list. TypeScript/diff checks passed. This resolves the empty shared production configuration prerequisite, not the pending deployment or Vercel runtime verification. No article/CMS/AI operation ran.
+
 ### Tip-to-desk selection checkpoint
 
 - Added owner-only POST `/api/editorial/tips/select`, also gated in middleware policy. It atomically creates a discovered idea in Frederik's existing editorial desk and marks the shared tip selected. Existing source URL keys prevent duplicate ideas across tips; retries preserve the same story and selection timestamp.
