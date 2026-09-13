@@ -31,6 +31,8 @@ import { saveDraft, getDraft, type ArticleDraft } from '@/lib/firebase-service';
 import { createWriterDraftIdentity } from '@/lib/ai-chat/draft-identity';
 import { autoSaveService } from '@/lib/auto-save-service';
 import { useWriterWorkspace } from '@/lib/use-writer-workspace';
+import WorkspaceVersions from './WorkspaceVersions';
+import type { WorkspacePayload } from '@/lib/writer-workspace';
 import type { ArticleData } from '@/types/article';
 import type { ThinkingStep, ThinkingStatus } from '@/types/thinking';
 import { PROMPT_ARCHITECT_CONTEXT_KEY } from '@/lib/prompt-architect-constants';
@@ -76,6 +78,13 @@ export default function AIWriterClient() {
     return id;
   }, []);
   const [showSearchModal, setShowSearchModal] = useState(false);
+  const [showWorkspaceVersions, setShowWorkspaceVersions] = useState(false);
+  const [localResume, setLocalResume] = useState<WorkspacePayload | null>(() => {
+    const saved = autoSaveService.load();
+    if (!saved.messages.length && !saved.notes && !saved.articleData?.title && !saved.articleData?.content) return null;
+    return JSON.parse(JSON.stringify({ messages: saved.messages, chatTitle: saved.chatTitle, articleData: saved.articleData,
+      notes: saved.notes, showWizard: saved.showWizard, currentDraftId: saved.currentDraftId }));
+  });
   const [isThinking, setIsThinking] = useState(false);
   const [showWizard, setShowWizard] = useState(() => {
     if (typeof window === 'undefined') return true;
@@ -402,6 +411,9 @@ export default function AIWriterClient() {
   function restoreWorkspace() {
     const saved = workspace.resume?.data;
     if (!saved) return;
+    applySavedWorkspace(saved);
+  }
+  function applySavedWorkspace(saved: WorkspacePayload) {
     setChatMessages(saved.messages.map(message => ({ ...message, timestamp: new Date(message.timestamp || Date.now()) })));
     setChatTitle(saved.chatTitle);
     setArticleData(normalizeArticleData(saved.articleData));
@@ -409,6 +421,7 @@ export default function AIWriterClient() {
     setShowWizard(saved.showWizard);
     setCurrentDraftId(saved.currentDraftId);
     workspace.acceptResume();
+    setLocalResume(null);
     applyActiveView('ai');
   }
   useEffect(() => {
@@ -433,67 +446,6 @@ export default function AIWriterClient() {
   }, [isThinking, stopThinkingTimeline]);
 
   useEffect(() => () => stopThinkingTimeline(), [stopThinkingTimeline]);
-  // Restore data from localStorage on page load.
-  // Disabled by default so users always land in a clean lobby state on login.
-  // Toggle with localStorage key "ai-writer-restore-autosave" = "true" for manual testing.
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const shouldRestore = localStorage.getItem('ai-writer-restore-autosave') === 'true';
-      if (!shouldRestore) return;
-    }
-
-    const restoreData = () => {
-      try {
-        const savedData = autoSaveService.load();
-        
-        if (savedData.messages.length > 0) {
-          setChatMessages(savedData.messages);
-        }
-        
-        if (savedData.chatTitle && savedData.chatTitle !== 'Ny artikkel') {
-          setChatTitle(savedData.chatTitle);
-        }
-        
-        if (savedData.articleData && Object.keys(savedData.articleData).length > 0) {
-          setArticleData(normalizeArticleData(savedData.articleData));
-        }
-        
-        if (savedData.notes) {
-          setNotes(savedData.notes);
-        }
-        
-        if (savedData.currentDraftId) {
-          setCurrentDraftId(savedData.currentDraftId);
-        }
-        
-        // Restore wizard state based on whether setup is complete
-        const hasAuthor = Boolean(savedData.articleData?.author || savedData.articleData?.authorId);
-        const hasCategory = Boolean(savedData.articleData?.category || savedData.articleData?.section);
-        const hasTemplate = Boolean(savedData.articleData?.template);
-        const setupComplete = hasAuthor && hasCategory && hasTemplate;
-        
-        setShowWizard(!setupComplete);
-        
-        // Restore Preflight data (will be passed to MainChatPanel via props)
-        if (savedData.preflightWarnings || savedData.preflightCriticTips || savedData.preflightFactResults) {
-          // Store in a ref or state that can be passed to MainChatPanel
-          // For now, we'll let MainChatPanel restore its own Preflight data
-        }
-        
-        console.log('🔄 Restored data from localStorage:', {
-          messages: savedData.messages.length,
-          chatTitle: savedData.chatTitle,
-          hasArticleData: Object.keys(savedData.articleData).length > 0,
-          hasNotes: !!savedData.notes,
-          showWizard: !setupComplete
-        });
-      } catch (error) {
-        console.error('Failed to restore data from localStorage:', error);
-      }
-    };
-
-    restoreData();
-  }, []); // Only run on mount
 
   // Listen for mobile menu background change events
   useEffect(() => {
@@ -1345,12 +1297,16 @@ export default function AIWriterClient() {
   return (
     <>
       {!user && <AuthModal />}
+      {user && showWorkspaceVersions && <WorkspaceVersions onClose={() => setShowWorkspaceVersions(false)} />}
       {user && <AuthModal />}
       {user && (activeView === 'ai' || activeView === null) && <aside className="fixed bottom-3 left-1/2 z-50 max-w-[calc(100%-2rem)] -translate-x-1/2 rounded-xl border border-white/20 bg-black/95 px-4 py-2 text-sm text-white">
         <span role="status">{workspace.status}</span>
+        {localResume && <button className="ml-3 min-h-11 underline" onClick={() => applySavedWorkspace(localResume)}>Genoptag min lokale kopi</button>}
+        <button className="ml-3 min-h-11 underline" onClick={() => setShowWorkspaceVersions(true)}>Gemte versioner</button>
+        {workspace.canRetry && <button className="ml-3 min-h-11 underline" onClick={workspace.retry}>Prøv synkronisering igen</button>}
         {workspace.resume && <div className="flex flex-wrap gap-3">
           <button className="min-h-11 underline" onClick={restoreWorkspace}>Fortsæt hvor du slap</button>
-          <button className="min-h-11 underline" onClick={() => { setCurrentDraftId(null); reserveDraftId(); workspace.acceptResume(); }}>Start nyt arbejdsrum</button>
+          <button className="min-h-11 underline" onClick={() => { setCurrentDraftId(null); reserveDraftId(); workspace.acceptResume(); }}>Fortsæt med arbejdet på denne enhed</button>
         </div>}
       </aside>}
       {showSearchModal && (

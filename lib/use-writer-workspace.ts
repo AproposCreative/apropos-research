@@ -1,49 +1,34 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
 import { useAuth } from './auth-context';
-import type { WorkspacePayload, WorkspaceSnapshot } from './writer-workspace';
+import type { WorkspacePayload } from './writer-workspace';
+import { WriterWorkspaceSync, type WorkspaceSyncState } from './writer-workspace-sync';
 
+const labels = { loading: 'Henter arbejdsrum…', ready: 'Klar', resume: 'Gemt arbejdsrum fundet',
+  saving: 'Gemmer…', saved: 'Gemt', offline: 'Ikke synkroniseret',
+  conflict: 'Konflikt: Begge versioner er bevaret', invalid: 'Arbejdsrummet kunne ikke gemmes. Kontrollér størrelse og indhold.' };
 export function useWriterWorkspace(data: WorkspacePayload) {
   const { user } = useAuth();
-  const [resume, setResume] = useState<WorkspaceSnapshot | null>(null);
-  const [status, setStatus] = useState('Henter arbejdsrum…');
-  const [ready, setReady] = useState(false);
-  const [tick, setTick] = useState(0);
-  const revision = useRef(0), lastSaved = useRef(''), busy = useRef(false), mounted = useRef(true);
+  const [state, setState] = useState<WorkspaceSyncState>({ phase: 'loading', resume: null });
+  const sync = useRef<WriterWorkspaceSync | null>(null);
+  const currentData = useRef(data); currentData.current = data;
   const serialized = JSON.stringify(data);
   useEffect(() => {
-    mounted.current = true;
-    let active = true;
-    if (user) void (async () => {
-      try {
-        const response = await fetch('/api/writer/workspace', { headers: { Authorization: `Bearer ${await user.getIdToken()}` }, cache: 'no-store' });
-        if (!response.ok) throw new Error('unavailable');
-        const body = await response.json();
-        if (!active) return;
-        revision.current = body.workspace?.revision || 0;
-        setResume(body.workspace || null); setReady(true); setStatus(body.workspace ? 'Gemt arbejdsrum fundet' : 'Klar');
-      } catch { if (active) setStatus('Ikke synkroniseret'); }
-    })();
-    return () => { active = false; mounted.current = false; };
+    if (!user) return;
+    const controller = new AbortController();
+    const headers = async () => ({ Authorization: `Bearer ${await user.getIdToken()}`, 'Content-Type': 'application/json' });
+    const session = new WriterWorkspaceSync({
+      read: async () => fetch('/api/writer/workspace', { headers: await headers(), cache: 'no-store', signal: controller.signal }),
+      write: async body => fetch('/api/writer/workspace', { method: 'PUT', headers: await headers(), body, signal: controller.signal }),
+    }, setState);
+    sync.current = session;
+    session.setData(currentData.current);
+    void session.start();
+    const reconnect = () => { void session.retry(); };
+    window.addEventListener('online', reconnect);
+    return () => { session.dispose(); controller.abort(); window.removeEventListener('online', reconnect); sync.current = null; };
   }, [user]);
-  useEffect(() => {
-    if (!user || !ready || resume || serialized === lastSaved.current) return;
-    if (!data.messages.length && !data.notes && !data.articleData.title) return;
-    const timer = setTimeout(async () => {
-      if (busy.current) return;
-      busy.current = true; setStatus('Gemmer…');
-      try {
-        const response = await fetch('/api/writer/workspace', { method: 'PUT',
-          headers: { Authorization: `Bearer ${await user.getIdToken()}`, 'Content-Type': 'application/json' },
-          body: JSON.stringify({ revision: revision.current, data: JSON.parse(serialized) }) });
-        const body = await response.json();
-        if (!mounted.current) return;
-        if (!response.ok) { setReady(false); setStatus(response.status === 409 ? 'Konflikt: Begge versioner er bevaret' : 'Ikke synkroniseret'); return; }
-        revision.current = body.revision; lastSaved.current = serialized; setStatus('Gemt');
-      } catch { if (mounted.current) { setReady(false); setStatus('Ikke synkroniseret'); } }
-      finally { busy.current = false; if (mounted.current) setTick(value => value + 1); }
-    }, 2000);
-    return () => clearTimeout(timer);
-  }, [serialized, ready, resume, user, tick]);
-  return { status, resume, acceptResume: () => setResume(null) };
+  useEffect(() => { sync.current?.setData(JSON.parse(serialized)); }, [serialized]);
+  return { status: labels[state.phase], resume: state.resume, canRetry: state.phase === 'offline',
+    retry: () => { void sync.current?.retry(); }, acceptResume: () => sync.current?.acceptResume() };
 }

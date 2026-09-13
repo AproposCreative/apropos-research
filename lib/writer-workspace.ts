@@ -8,5 +8,7 @@ export const workspacePayloadSchema = z.object({
 }).strict();
 export type WorkspacePayload = z.infer<typeof workspacePayloadSchema>;
 export type WorkspaceSnapshot = { revision: number; data: WorkspacePayload; updatedAt: string };
+export const workspaceSnapshotSchema = z.object({ revision: z.number().int().nonnegative(),
+  data: workspacePayloadSchema, updatedAt: z.string() });
 export const workspaceWriteSchema = z.object({ revision: z.number().int().nonnegative(), data: workspacePayloadSchema }).strict();
 export const WORKSPACE_MAX_BYTES = 500000;

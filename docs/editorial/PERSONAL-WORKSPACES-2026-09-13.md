@@ -16,6 +16,14 @@ Build the user's approved September 13 plan. Only the three verified colleagues 
 
 ## Required before this checkpoint can release
 
+### Workspace continuation checkpoint
+
+- Extracted an account-lifetime sync controller and connected it to the Writer. Two-second debounce, no empty initial write, serialized saves, exact-body retry after uncertain network results, manual retry and online reconnect. Disposed accounts cannot apply late reads/writes. Conflicts remain paused rather than overwritten.
+- Added a visible own-local-copy resume button; removed the old opt-in testing flag and restore metadata logging. Offline initial reads stay retryable when local work is opened.
+- Added private `/api/writer/workspace/versions` list/detail endpoint. Authenticated UID only, including for Frederik; bounded 20-per-kind metadata list, validated selectors and read-only snapshot responses. No data mutation on read.
+- Added a native modal versions list, plain-text reading and JSON download for preserved historical/conflicting versions. Direct restore/copy into the editor, pagination beyond the first 20 and integration with Mine artikler remain pending. These read-only tools are not a claim that conflict recovery is complete.
+- Targeted verification: 29 tests passed; TypeScript and diff checks passed. Live multi-device/browser verification remains pending. No paid model calls or deployment.
+
 ### Additional local audit checkpoint, September 13
 
 - Liv feed now derives identity through the verified editorial account within the route itself. Colleagues receive previews without cost/preparation diagnostics; owner-only decisions are enforced even without middleware.
