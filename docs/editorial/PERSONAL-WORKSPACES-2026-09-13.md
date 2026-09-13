@@ -25,6 +25,9 @@ Build the user's approved September 13 plan. Only the three verified colleagues 
 
 ### Next privacy finding
 
+- Local implementation: Writer and Prompt Architect now use versioned UID-scoped context and toggle keys, ignoring legacy keys without deleting them. Architect is keyed by UID, unmounts on logout and aborts obsolete preview fetches; preview includes bearer authentication. The server route verifies editorial identity directly and returns private/no-store responses without logging raw prompt exceptions.
+- Four targeted storage/route/no-research tests and TypeScript passed. React review completed. This is not deployed; actual browser account-switch/late-result tests, broader regression and release acceptance remain required. Toggle preferences remain local per user, not yet cross-device cloud state.
+
 - Source audit found `PROMPT_ARCHITECT_CONTEXT_KEY` is still a global sessionStorage key. Writer stores articleData/notes under it; PromptArchitectClient reads it without a UID namespace and posts the preview without an explicit bearer token. This is an unresolved cross-account stale-context risk, not proof of actual data disclosure. Next implementation must scope both sides to the authenticated UID, ignore legacy unowned data, clear in-memory state on account changes and authenticate preview requests. Keep this separate from the already tested operations release.
 
 ### Owner operations extension (local)

@@ -21,7 +21,9 @@ import {
 import '@xyflow/react/dist/style.css';
 import { composeSystemPrompt } from '@/lib/ai-chat/compose-prompt';
 import type { PromptSegment } from '@/lib/ai-chat/prompt-segment-types';
-import { PROMPT_ARCHITECT_CONTEXT_KEY } from '@/lib/prompt-architect-constants';
+import { PROMPT_ARCHITECT_CONTEXT_KEY, promptArchitectKey } from '@/lib/prompt-architect-constants';
+import { useAuth } from '@/lib/auth-context';
+import type { User } from 'firebase/auth';
 import { loadPromptModuleToggles, savePromptModuleToggles } from '@/lib/prompt-architect-storage';
 
 type PreviewPayload = {
@@ -176,6 +178,11 @@ function FitViewWhenReady({ ready, nodeCount }: { ready: boolean; nodeCount: num
 }
 
 export default function PromptArchitectClient() {
+  const { user } = useAuth();
+  return user ? <OwnedPromptArchitect key={user.uid} user={user} /> : <p role="status">Log ind for at se din prompt.</p>;
+}
+
+function OwnedPromptArchitect({ user }: { user: User }) {
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
   const [loading, setLoading] = useState(true);
@@ -231,26 +238,27 @@ export default function PromptArchitectClient() {
     (nodeId: string, next: boolean) => {
       const merged = { ...togglesRef.current, [nodeId]: next };
       togglesRef.current = merged;
-      savePromptModuleToggles(merged);
+      savePromptModuleToggles(merged, user.uid);
       const p = previewRef.current;
       if (p) recomputeLength(p.segments, p.segmentContents, p.webContent, merged);
       setNodes((nds) =>
         nds.map((n) => (n.id === nodeId ? { ...n, data: { ...n.data, moduleOn: next } } : n))
       );
     },
-    [setNodes]
+    [setNodes, user.uid]
   );
   const handleToggleRef = useRef(handleToggle);
   handleToggleRef.current = handleToggle;
 
   useEffect(() => {
     let cancelled = false;
+    const controller = new AbortController();
     (async () => {
       setLoading(true);
       setError(null);
       let body: Record<string, unknown> = { articleData: {}, notes: '', authorTOV: '', authorName: '' };
       try {
-        const raw = sessionStorage.getItem(PROMPT_ARCHITECT_CONTEXT_KEY);
+        const raw = sessionStorage.getItem(promptArchitectKey(PROMPT_ARCHITECT_CONTEXT_KEY, user.uid));
         if (raw) {
           const ctx = JSON.parse(raw) as typeof body;
           if (ctx && typeof ctx === 'object') {
@@ -264,13 +272,16 @@ export default function PromptArchitectClient() {
         }
       } catch { /* ignore */ }
 
-      const stored = loadPromptModuleToggles();
+      const stored = loadPromptModuleToggles(user.uid);
       if (!cancelled) togglesRef.current = stored;
 
       try {
+        const token = await user.getIdToken();
+        if (cancelled) return;
         const res = await fetch('/api/ai-chat/prompt-preview', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          signal: controller.signal,
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
           body: JSON.stringify({ ...body, promptModuleToggles: stored }),
         });
         const data = (await res.json()) as PreviewPayload & { error?: string };
@@ -321,8 +332,8 @@ export default function PromptArchitectClient() {
         if (!cancelled) setLoading(false);
       }
     })();
-    return () => { cancelled = true; };
-  }, [setEdges, setNodes]);
+    return () => { cancelled = true; controller.abort(); };
+  }, [setEdges, setNodes, user]);
 
   const inspected = inspectId ? previewRef.current : null;
   const inspectSeg = inspected?.segments.find((s) => s.id === inspectId);

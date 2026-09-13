@@ -36,7 +36,7 @@ import WorkspaceShares from './WorkspaceShares';
 import type { WorkspacePayload } from '@/lib/writer-workspace';
 import type { ArticleData } from '@/types/article';
 import type { ThinkingStep, ThinkingStatus } from '@/types/thinking';
-import { PROMPT_ARCHITECT_CONTEXT_KEY } from '@/lib/prompt-architect-constants';
+import { PROMPT_ARCHITECT_CONTEXT_KEY, promptArchitectKey } from '@/lib/prompt-architect-constants';
 import { loadPromptModuleToggles } from '@/lib/prompt-architect-storage';
 import { SPLINE_BACKGROUNDS, STORAGE_KEY_SPLINE_BG } from '@/lib/spline-backgrounds';
 import SplineIframeEmbed from '@/components/SplineIframeEmbed';
@@ -165,9 +165,10 @@ export default function AIWriterClient() {
 
   const [notes, setNotes] = useState('');
   const openPromptArchitect = useCallback(() => {
+    if (!user) return;
     try {
       sessionStorage.setItem(
-        PROMPT_ARCHITECT_CONTEXT_KEY,
+        promptArchitectKey(PROMPT_ARCHITECT_CONTEXT_KEY, user.uid),
         JSON.stringify({
           articleData,
           notes,
@@ -179,7 +180,7 @@ export default function AIWriterClient() {
       /* ignore */
     }
     router.push('/ai/prompt-architect');
-  }, [articleData, notes, router]);
+  }, [articleData, notes, router, user]);
 
   const [chatTitle, setChatTitle] = useState('Ny artikkel');
   const [refreshTrigger, setRefreshTrigger] = useState(0);
@@ -693,7 +694,7 @@ export default function AIWriterClient() {
         ? setTimeout(() => controller.abort(), 90000) // 90s fast
         : setTimeout(() => controller.abort(), 300000); // 5 min editorial (matches Vercel maxDuration 300)
 
-      const promptModuleToggles = loadPromptModuleToggles();
+      const promptModuleToggles = user ? loadPromptModuleToggles(user.uid) : {};
 
       let response: Response;
       try {

@@ -8,12 +8,15 @@ import {
 } from '@/lib/ai-chat/build-system-prompt';
 import { buildPromptFlowGraph } from '@/lib/ai-chat/prompt-flow-graph';
 import { createErrorResponse, ErrorCode } from '@/lib/api/types';
+import { editorialRequestAccess } from '@/lib/editorial-access';
+const privateHeaders = { 'Cache-Control': 'private, no-store' };
 
 /**
  * Preview prompt pipeline for Prompt Architect UI (no chat message required).
  * Uses first opening strategy for stable preview. Never starts paid research.
  */
 export async function POST(request: NextRequest) {
+  if (!await editorialRequestAccess(request)) return NextResponse.json({ error: 'Log ind med redaktionel adgang.' }, { status: 403, headers: privateHeaders });
   try {
     const body = await request.json().catch(() => ({}));
     const {
@@ -70,15 +73,14 @@ export async function POST(request: NextRequest) {
       researchStatus: hasResearch ? 'deferred_to_writer' : 'not_requested',
       totalCharCount: composedFull.length,
       effectiveCharCount: composedWithToggles.length,
-    });
-  } catch (err) {
-    console.error('[prompt-preview]', err);
+    }, { headers: privateHeaders });
+  } catch {
     return NextResponse.json(
       createErrorResponse('Kunne ikke bygge prompt-preview', {
         statusCode: 500,
         errorCode: ErrorCode.OPENAI_ERROR,
       }),
-      { status: 500 }
+      { status: 500, headers: privateHeaders }
     );
   }
 }

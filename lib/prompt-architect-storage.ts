@@ -1,9 +1,9 @@
-import { PROMPT_MODULE_TOGGLES_KEY } from '@/lib/prompt-architect-constants';
+import { PROMPT_MODULE_TOGGLES_KEY, promptArchitectKey } from '@/lib/prompt-architect-constants';
 
-export function loadPromptModuleToggles(): Record<string, boolean> {
+export function loadPromptModuleToggles(uid: string): Record<string, boolean> {
   if (typeof window === 'undefined') return {};
   try {
-    const raw = localStorage.getItem(PROMPT_MODULE_TOGGLES_KEY);
+    const raw = localStorage.getItem(promptArchitectKey(PROMPT_MODULE_TOGGLES_KEY, uid));
     if (!raw) return {};
     const p = JSON.parse(raw) as unknown;
     if (!p || typeof p !== 'object' || Array.isArray(p)) return {};
@@ -17,9 +17,9 @@ export function loadPromptModuleToggles(): Record<string, boolean> {
   }
 }
 
-export function savePromptModuleToggles(t: Record<string, boolean>) {
+export function savePromptModuleToggles(t: Record<string, boolean>, uid: string) {
   try {
-    localStorage.setItem(PROMPT_MODULE_TOGGLES_KEY, JSON.stringify(t));
+    localStorage.setItem(promptArchitectKey(PROMPT_MODULE_TOGGLES_KEY, uid), JSON.stringify(t));
   } catch {
     /* ignore */
   }
