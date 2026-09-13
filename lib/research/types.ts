@@ -40,6 +40,7 @@ export interface ResearchResult {
 }
 
 export interface ResearchRequest {
+  sourcePolicy?: import('./source-policy').ResearchSourcePolicy;
   query: string;
   maxResults: number;
   signal?: AbortSignal;

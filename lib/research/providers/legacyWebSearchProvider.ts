@@ -1,4 +1,5 @@
 import { internalApiHeaders } from '@/lib/api/internal-auth';
+import { enforceSourcePolicy } from '../source-policy';
 import { currentLivCostContext } from '@/lib/liv/cost-context';
 import { LivCostPretransportError } from '@/lib/liv/cost-errors';
 import type {
@@ -41,15 +42,15 @@ export function createLegacyWebSearchProvider(): ResearchProviderClient {
         return emptyResult(request.query, Date.now() - t0);
       }
 
-      const sources: ResearchSource[] = raw.slice(0, request.maxResults).map((r: any) => ({
+      const sources: ResearchSource[] = raw.map((r: any) => ({
         title: r.title || '',
         url: r.url || null,
         source: r.source || 'web',
         snippet: (r.content || r.extract || r.snippet || '').slice(0, 500),
       }));
 
-      const contextText = formatContextText(sources);
-      return {
+      const contextText = formatContextText(sources.slice(0, request.maxResults));
+      const checked = enforceSourcePolicy({
         contextText,
         sources,
         debug: {
@@ -61,7 +62,8 @@ export function createLegacyWebSearchProvider(): ResearchProviderClient {
           gateScore: 0,
           gateReasons: [],
         },
-      };
+      }, request.sourcePolicy);
+      return { ...checked, sources: checked.sources.slice(0, request.maxResults) };
     },
   };
 }

@@ -8,6 +8,16 @@ import { withLivCostContext } from '@/lib/liv/cost-context';
 
 const citation = (url: string) => ({ type: 'url_citation', title: 'Fixture', url, start_index: 1, end_index: 5 });
 const text = 'Factual research context. '.repeat(20);
+it('checks excluded citations beyond the displayed source limit', async () => {
+  m.create.mockResolvedValue({ status: 'completed', output: [{ type: 'message', content: [{type:'output_text',text,annotations:[citation('https://allowed.example/a'),citation('https://blocked.example/b')]}] }] });
+  const data=await createOpenAIResponsesProvider().search({query:'fixture',maxResults:1,sourcePolicy:{preferred:[],excluded:['blocked.example']}});
+  expect(data.sources).toEqual([]); expect(data.contextText).toBe('');
+});
+it('checks all legacy results before trimming them', async () => {
+  m.fetch.mockResolvedValue({ok:true,json:async()=>({results:[{url:'https://allowed.example/a',content:text},{url:'https://blocked.example/b',content:text}]})});
+  const data=await createLegacyWebSearchProvider().search({query:'fixture',maxResults:1,sourcePolicy:{preferred:[],excluded:['blocked.example']}});
+  expect(data.sources).toEqual([]); expect(data.contextText).toBe('');
+});
 beforeEach(() => {
   vi.resetAllMocks(); vi.stubGlobal('fetch', m.fetch);
   m.create.mockResolvedValue({ status: 'completed', output: [{ type: 'message', content: [

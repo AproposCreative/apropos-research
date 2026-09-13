@@ -84,3 +84,17 @@ full evidence before truncation. Query instructions alone are not proof of
 provider-level domain exclusion. Audit uncited/mixed context and prior article
 research reuse; run Writer route integration and full regression/build. This
 checkpoint is useful wiring, not a completed enforcement guarantee.
+
+Full-evidence follow-up: both providers now receive sourcePolicy and enforce it
+against their complete returned source sets before applying maxResults. Added
+tests where the excluded URL is after the visible limit, for both providers.
+Full isolated regression passed: 3,382 tests in 232 files; typecheck passed.
+
+Remaining acceptance finding: build-system-prompt.ts independently includes
+previously selected wizard research and editorial dossiers. This older supplied
+evidence does not currently carry/enforce the new source-policy decision. It must
+not be silently discarded from saved work or advertised as filtered. Define and
+test its use when preferences change before claiming all Writer context obeys
+exclusions. New search enforcement does not prove that the provider never
+consulted an unreported source; the installed SDK exposes allowed_domains only.
+No deployment of the research-policy changes at this checkpoint.

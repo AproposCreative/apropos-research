@@ -1,4 +1,5 @@
 import { getOpenAIClient, models } from '@/lib/openai';
+import { enforceSourcePolicy } from '../source-policy';
 import type { ResponseIncludable } from 'openai/resources/responses/responses';
 import type {
   ResearchProviderClient,
@@ -131,9 +132,9 @@ Prefer an official primary source and independent dated journalism. Search once,
       const sources = extractSourcesFromOutput(output);
       const contextText = buildContextText(text, sources);
 
-      return {
+      const checked = enforceSourcePolicy({
         contextText,
-        sources: sources.slice(0, request.maxResults),
+        sources,
         debug: {
           provider: 'openai_responses',
           fallbackUsed: false,
@@ -143,7 +144,8 @@ Prefer an official primary source and independent dated journalism. Search once,
           gateScore: 0,
           gateReasons: [],
         },
-      };
+      }, request.sourcePolicy);
+      return { ...checked, sources: checked.sources.slice(0, request.maxResults) };
     },
   };
 }

@@ -51,7 +51,7 @@ export async function getResearch(
   async function attempt(name: ResearchProviderName, budget: number, model?: string): Promise<ResearchResult> {
     const start = Date.now();
     try {
-      const result = enforceSourcePolicy(await withTimeout(signal => buildProvider(name, model).search({ query: sourcePolicyQuery(query, opts.sourcePolicy), maxResults, signal, timeoutMs: budget }), budget), opts.sourcePolicy);
+      const result = enforceSourcePolicy(await withTimeout(signal => buildProvider(name, model).search({ query: sourcePolicyQuery(query, opts.sourcePolicy), maxResults, signal, timeoutMs: budget, ...(opts.sourcePolicy ? { sourcePolicy: opts.sourcePolicy } : {}) }), budget), opts.sourcePolicy);
       const gate = evaluateResearchQuality(result);
       result.debug.gateScore = gate.score;
       result.debug.gateReasons = gate.reasons;
