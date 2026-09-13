@@ -5,7 +5,7 @@ import { useAuth } from '@/lib/auth-context';
 import { useRouter } from 'next/navigation';
 
 export default function AuthModal() {
-  const { user, signInWithGoogle, logout } = useAuth();
+  const { user, signInWithGoogle, accessError } = useAuth();
   const router = useRouter();
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -34,9 +34,9 @@ export default function AuthModal() {
           <p className="text-white/60 text-sm">Log ind for at komme i gang</p>
         </div>
 
-        {error && (
+        {(error || accessError) && (
           <div className="mb-4 p-3 bg-red-500/10 border border-red-500/20 rounded-lg">
-            <p className="text-red-400 text-sm">{error}</p>
+            <p className="text-red-400 text-sm" role="alert">{error || accessError}</p>
           </div>
         )}
 
@@ -56,11 +56,10 @@ export default function AuthModal() {
 
         <div className="mt-6 text-center">
           <p className="text-white/40 text-xs">
-            Ved at logge ind accepterer du vores vilkår og betingelser
+            Kun for verificerede @aproposmagazine.com-mails og særskilt godkendte brugere.
           </p>
         </div>
       </div>
     </div>
   );
 }
-

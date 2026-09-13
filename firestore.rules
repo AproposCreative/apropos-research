@@ -1,0 +1,33 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function editor() {
+      let email = request.auth.token.email.lower();
+      let path = /databases/$(database)/documents/editorialAccess/$(email);
+      return request.auth != null && request.auth.token.email_verified == true
+        && ((!exists(path) && email.matches('^[^@]+@aproposmagazine[.]com$'))
+          || (exists(path) && get(path).data.active == true));
+    }
+    // Preserve the public magazine app's existing read-only CMS mirrors.
+    match /{collection}/{id} {
+      allow read: if collection in ['articles', 'series', 'topics', 'sections', 'authors', 'metadata'];
+    }
+    match /users/{userId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+      match /favorites/{favoriteId} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
+    }
+    // Access entries and audit are Admin SDK-only. No client can self-enrol.
+    match /editorialAccess/{email} { allow read, write: if false; }
+    match /editorialAccessAudit/{id} { allow read, write: if false; }
+    match /{collection}/{id} {
+      allow read, delete: if collection in ['drafts', 'mediaSources', 'exportedArticles', 'chatSessions', 'trainingSamples']
+        && editor() && resource.data.userId == request.auth.uid;
+      allow create: if collection in ['drafts', 'mediaSources', 'exportedArticles', 'chatSessions', 'trainingSamples']
+        && editor() && request.resource.data.userId == request.auth.uid;
+      allow update: if collection in ['drafts', 'mediaSources', 'exportedArticles', 'chatSessions', 'trainingSamples']
+        && editor() && resource.data.userId == request.auth.uid && request.resource.data.userId == request.auth.uid;
+    }
+  }
+}

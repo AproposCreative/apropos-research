@@ -8,16 +8,24 @@ import {
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
   signOut,
-  onAuthStateChanged,
+  onIdTokenChanged,
   GoogleAuthProvider,
   signInWithPopup,
   sendPasswordResetEmail
 } from 'firebase/auth';
 import { getFirebaseAuth } from './firebase';
+import { isSameOriginApi, requestHeaders } from './auth-policy';
+
+const ACCESS_MESSAGE = 'Adgang kræver en verificeret @aproposmagazine.com-mail eller en godkendelse fra administratoren.';
+async function requireAllowedUser(user: User): Promise<void> {
+  const response = await fetch('/api/auth/access', { headers: { Authorization: `Bearer ${await user.getIdToken()}` }, cache: 'no-store' });
+  if (!response.ok) throw new Error(ACCESS_MESSAGE);
+}
 
 interface AuthContextType {
   user: User | null;
   loading: boolean;
+  accessError: string;
   signIn: (email: string, password: string) => Promise<void>;
   signUp: (email: string, password: string) => Promise<void>;
   resetPassword: (email: string) => Promise<void>;
@@ -28,6 +36,7 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType>({
   user: null,
   loading: true,
+  accessError: '',
   signIn: async () => {},
   signUp: async () => {},
   resetPassword: async () => {},
@@ -44,6 +53,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const [accessError, setAccessError] = useState('');
   const [aiBootOpen, setAiBootOpen] = useState(false);
   const aiBootStartRef = useRef<number | null>(null);
   const wasOnAiRef = useRef(false);
@@ -92,12 +102,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    const unsubscribe = onAuthStateChanged(firebaseAuth, (user) => {
-      setUser(user);
-      setLoading(false);
-    });
-
-    return unsubscribe;
+    let generation = 0;
+    const check = async (candidate: User | null) => {
+      const current = ++generation;
+      setUser(null);
+      if (!candidate) { setLoading(false); return; }
+      setLoading(true);
+      try {
+        await requireAllowedUser(candidate);
+        if (current !== generation) return;
+        setAccessError('');
+        setUser(candidate);
+      } catch {
+        if (current !== generation) return;
+        setAccessError(ACCESS_MESSAGE);
+      } finally { if (current === generation) setLoading(false); }
+    };
+    const unsubscribe = onIdTokenChanged(firebaseAuth, check);
+    const recheck = () => { void check(firebaseAuth.currentUser); };
+    window.addEventListener('focus', recheck);
+    return () => { generation++; unsubscribe(); window.removeEventListener('focus', recheck); };
   }, []);
 
   // Attach Firebase ID token to all same-origin /api/* fetches (middleware auth gate).
@@ -106,18 +130,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const originalFetch = window.fetch.bind(window);
 
     window.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
-      const url =
-        typeof input === 'string'
-          ? input
-          : input instanceof URL
-            ? input.href
-            : input.url;
-
-      const isLocalApi =
-        url.startsWith('/api/') ||
-        (url.startsWith(window.location.origin) && url.includes('/api/'));
-
-      if (!isLocalApi) {
+      if (!isSameOriginApi(input, window.location.origin)) {
         return originalFetch(input, init);
       }
 
@@ -129,7 +142,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       try {
         const token = await currentUser.getIdToken();
-        const headers = new Headers(init?.headers);
+        const headers = requestHeaders(input, init);
         if (!headers.has('Authorization')) {
           headers.set('Authorization', `Bearer ${token}`);
         }
@@ -147,7 +160,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signIn = async (email: string, password: string) => {
     const firebaseAuth = getFirebaseAuth();
     if (!firebaseAuth) throw new Error('Firebase not initialized');
-    await signInWithEmailAndPassword(firebaseAuth, email, password);
+    const result = await signInWithEmailAndPassword(firebaseAuth, email, password);
+    await requireAllowedUser(result.user);
   };
 
   const signUp = async (email: string, password: string) => {
@@ -160,7 +174,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const firebaseAuth = getFirebaseAuth();
     if (!firebaseAuth) throw new Error('Firebase not initialized');
     const provider = new GoogleAuthProvider();
-    await signInWithPopup(firebaseAuth, provider);
+    const result = await signInWithPopup(firebaseAuth, provider);
+    await requireAllowedUser(result.user);
   };
 
   const resetPassword = async (email: string) => {
@@ -178,6 +193,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const value = {
     user,
     loading,
+    accessError,
     signIn,
     signUp,
     resetPassword,

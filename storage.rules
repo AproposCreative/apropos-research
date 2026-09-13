@@ -3,26 +3,33 @@ rules_version = '2';
 // Deploy: firebase deploy --only storage
 service firebase.storage {
   match /b/{bucket}/o {
+    function editor() {
+      let email = request.auth.token.email.lower();
+      let path = /databases/(default)/documents/editorialAccess/$(email);
+      return request.auth != null && request.auth.token.email_verified == true
+        && ((!firestore.exists(path) && email.matches('^[^@]+@aproposmagazine[.]com$'))
+          || (firestore.exists(path) && firestore.get(path).data.active == true));
+    }
     match /apropos-config/{allPaths=**} {
       allow read: if true;
-      allow write: if request.auth != null;
+      allow write: if false; // Published configuration is server-owned.
     }
 
     match /instagram-publish/{fileName} {
-      allow read, write: if request.auth != null;
+      allow read, write: if editor();
     }
 
     // Indloggede brugere uploader rå billeder til "Importér artikel".
     // Optimeres efterfølgende server-side til WebP via vores pipeline.
     match /article-imports/{userId}/{fileName} {
       allow read: if true;
-      allow write: if request.auth != null && request.auth.uid == userId;
+      allow write: if editor() && request.auth.uid == userId;
     }
 
     // Indloggede brugere må lægge rå podcast-filer i incoming (browser-upload).
     // Størrelse valideres server-side i /api/podcast/upload-url.
     match /podcasts/incoming/{slug}/{fileName} {
-      allow read, write: if request.auth != null;
+      allow read, write: if editor();
     }
 
     // Publicerede episoder og manifest håndteres af Admin SDK / Cloud Run.

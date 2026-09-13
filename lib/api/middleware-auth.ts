@@ -1,5 +1,5 @@
 import type { NextRequest } from 'next/server';
-import { createRemoteJWKSet, jwtVerify } from 'jose';
+import { verifyEditorialToken } from '@/lib/editorial-access';
 
 /** Routes that carry their own auth (webhooks, public unsubscribe links, health). */
 const PUBLIC_API_PREFIXES = [
@@ -29,41 +29,6 @@ function internalSecret(): string | undefined {
 
 function cronSecret(): string | undefined {
   return process.env.CRON_SECRET?.trim() || undefined;
-}
-
-function firebaseProjectId(): string | undefined {
-  return (
-    process.env.FIREBASE_ADMIN_PROJECT_ID?.trim() ||
-    process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID?.trim() ||
-    undefined
-  );
-}
-
-let firebaseJwks: ReturnType<typeof createRemoteJWKSet> | null = null;
-
-function getFirebaseJwks() {
-  if (!firebaseJwks) {
-    firebaseJwks = createRemoteJWKSet(
-      new URL(
-        'https://www.googleapis.com/service_accounts/v1/jwk/securetoken@system.gserviceaccount.com'
-      )
-    );
-  }
-  return firebaseJwks;
-}
-
-async function verifyFirebaseIdToken(token: string): Promise<boolean> {
-  const projectId = firebaseProjectId();
-  if (!projectId) return false;
-  try {
-    await jwtVerify(token, getFirebaseJwks(), {
-      issuer: `https://securetoken.google.com/${projectId}`,
-      audience: projectId,
-    });
-    return true;
-  } catch {
-    return false;
-  }
 }
 
 function hasInternalSecret(request: NextRequest): boolean {
@@ -98,7 +63,14 @@ export async function isApiRequestAuthorized(request: NextRequest): Promise<bool
     const cron = cronSecret();
     if (secret && bearer === secret) return true;
     if (cron && bearer === cron) return true;
-    if (await verifyFirebaseIdToken(bearer)) return true;
+    const access = await verifyEditorialToken(bearer);
+    if (access) {
+      const adminOnly = pathname.startsWith('/api/admin/') || pathname.startsWith('/api/test-') ||
+        pathname === '/api/webflow/debug-schema' ||
+        (!['GET', 'HEAD', 'OPTIONS'].includes(request.method) && (
+          pathname.endsWith('/settings') || pathname.endsWith('/control') || pathname === '/api/liv/delivery'));
+      return !adminOnly || access.role === 'admin';
+    }
   }
 
   // Development without INTERNAL_API_SECRET: allow local iteration (production stays locked).
