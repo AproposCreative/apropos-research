@@ -309,3 +309,13 @@ No paid model tests, CMS writes, newsletter sends or Instagram changes were made
   cases for winter's early trigger and summer's second trigger. TypeScript and
   build-configuration security check pass. No publication triggered by tests.
 - Pending deployment. This is not evidence of seven successful publication days.
+
+### Read-only operations foundation
+
+- Added server projection for Liv delivery health, weekly newsletter record and
+  shared budget. Each section reports unavailable independently on read failure.
+- Newsletter settings are read strictly; absent settings are labelled default,
+  database failures do not imply enabled/healthy, absent history is not_recorded.
+  No raw errors, recipient addresses or email subject/body are returned.
+- Three projection tests and TypeScript pass. No cron/send/generation calls.
+  Authenticated route and settings-menu UI still required; not deployed yet.
