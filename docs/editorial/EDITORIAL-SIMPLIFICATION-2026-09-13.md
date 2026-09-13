@@ -11,9 +11,10 @@
 - [x] Shared accounting extended to newsletter intro, inbox learning/generation
   and translation; output/retry/time bounds and truncation checks tested.
 - [x] Read-only authenticated operations API and Liv settings panel implemented.
-- [x] Full regression at b903348: 3,138 tests in 195 files passed, isolated from production.
-- [x] Production release b903348 READY and exact production target verified;
-  authenticated operations 200 on September 13 16:00 UTC. Live membership
+- [x] Full regression at 15ff3f0: 3,140 tests in 196 files passed, isolated from production.
+- [x] Production release 15ff3f0 READY and exact production target verified;
+  authenticated operations 200 on September 13 16:36 UTC. Receipt:
+  `DEPLOY-RECEIPT-15ff3f0.md`. Live membership
   approval/suspension and editor/admin separation verified at 15:57 UTC.
 - [x] Shared-mode transport refuses missing cost ownership; manual preview and
   revisions accounted. Prompt inspection is free of paid research; discovery
