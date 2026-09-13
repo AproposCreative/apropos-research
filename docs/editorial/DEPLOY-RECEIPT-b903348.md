@@ -6,7 +6,22 @@
 - Eight isolated real-component browser scenarios passed (see visual audit).
 - Deployment: dpl_52d78N2JUhZAmABCWdRk8RqgGsVm
 - URL: apropos-research-m9bykvf5x-frederik-kraghs-projects.vercel.app
-- Last observed state: INITIALIZING, not yet verified live.
+- State: READY. Exact project production deployment and SHA matched.
+
+Authenticated feed read during the build at 2026-09-13T16:09:16.177Z returned
+200/private-no-store: preparation and queue enabled, three ready stories, no
+publication blockers, and no new preparation needed. This read did not execute
+or regenerate any story:
+
+- September 14: Lucian Freud på Louisiana: Portrætter uden forskønnelse
+- September 15: Frankenstein: Hvorfor flygter Victor fra sin skabning?
+- September 16: Klovn sæson 11 kvæler sin egen pinlighed
+
+All three previews had an image and text paragraphs. This is saved-preview
+evidence, not a new inspection of all body images or a future publication receipt.
+Klovn's saved title still lacks the user's requested Anmeldelse prefix and needs
+an audited presentation copyedit before publication. Full production settings UI
+and runtime error/drain scan remain unverified.
 
 Changes prevent unknown budget values from crashing the read-only operations card.
 No new paid generation or publication is required for this verification.

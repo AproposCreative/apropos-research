@@ -11,8 +11,8 @@
 - [x] Shared accounting extended to newsletter intro, inbox learning/generation
   and translation; output/retry/time bounds and truncation checks tested.
 - [x] Read-only authenticated operations API and Liv settings panel implemented.
-- [x] Full regression at 7e48f75: 3,127 tests in 194 files passed, isolated from production.
-- [x] Production release 7e48f75 READY and exact production target verified;
+- [x] Full regression at b903348: 3,138 tests in 195 files passed, isolated from production.
+- [x] Production release b903348 READY and exact production target verified;
   authenticated operations 200 on September 13 16:00 UTC. Live membership
   approval/suspension and editor/admin separation verified at 15:57 UTC.
 - [x] Shared-mode transport refuses missing cost ownership; manual preview and
@@ -21,13 +21,16 @@
 - [ ] Complete remaining independent quality/media AI budget coverage. The
   300 DKK limit is not yet a verified full-application/invoice cap.
 - [ ] Verify settings UI visually and remaining access-list role variants.
-  LivOperations null usage formatting fixed locally: unknown values remain unknown,
+  LivOperations null usage formatting released: unknown values remain unknown,
   genuine zero remains zero and Danish amounts are formatted safely. 14 targeted
   tests and TypeScript pass. Isolated real-component visual test passes eight
   scenarios at mobile/desktop widths, including refresh and error states.
-  Still needs release and full production settings-shell verification.
+  Still needs full production settings-shell verification.
 - [ ] Remove only proven obsolete code; preserve editorial work and audit.
 - [ ] Record seven consecutive API-driven daily publications and next preview.
+  September 13 16:09 UTC: feed confirms three ready stories with no blockers;
+  next is Lucian Freud on September 14. Klovn September 16 still needs the agreed
+  Anmeldelse title prefix, via the audited presentation API (no paid rewrite).
 
 Historical sections below are an append-only execution trail, not the current
 deployment status. No new user approval is required for scoped implementation.
