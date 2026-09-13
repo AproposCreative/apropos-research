@@ -14,9 +14,11 @@ export async function verifyWorkspaceRelease() {
   try {
     const signed = await signInWithCustomToken(auth, await admin.createCustomToken(owner.uid));
     const token = await signed.user.getIdToken();
+    const failures: string[] = [];
     const paths = ['/api/auth/access', '/api/writer/workspace', '/api/writer/workspace/versions', '/api/writer/workspace/shares',
       '/api/liv/media-sources', '/api/editorial/tips', '/api/liv/delivery/feed', '/api/editorial/operations', '/api/editorial/operations/alerts'];
     for (const path of paths) {
+      try {
       const response = await fetch(`${origin}${path}`, { headers: { Authorization: `Bearer ${token}` }, redirect: 'error', signal: AbortSignal.timeout(30000) });
       if (!response.ok) throw new Error(`read_failed:${path}:${response.status}`);
       const data = await response.json();
@@ -26,11 +28,19 @@ export async function verifyWorkspaceRelease() {
       if (path === '/api/editorial/operations/alerts' && !Array.isArray(data.records)) throw new Error('alert_history_invalid');
       console.log(JSON.stringify({ path, status: response.status, cache: response.headers.get('cache-control'),
         ...(path === '/api/liv/delivery/feed' ? { queueEnabled: data.queueEnabled, preparationEnabled: data.preparationEnabled, stories: data.stories?.length } : {}) }));
+      } catch (error) {
+        failures.push(error instanceof Error ? error.message : `read_failed:${path}`);
+      }
     }
     for (const path of ['/api/writer/workspace', '/api/writer/workspace/shares', '/api/liv/media-sources', '/api/editorial/tips', '/api/editorial/operations', '/api/editorial/operations/alerts']) {
+      try {
       const response = await fetch(`${origin}${path}`, { redirect: 'manual', signal: AbortSignal.timeout(30000) });
       if (![401, 403].includes(response.status)) throw new Error(`anonymous_access_unexpected:${path}:${response.status}`);
       console.log(JSON.stringify({ case: 'anonymous-denied', path, status: response.status }));
+      } catch (error) {
+        failures.push(error instanceof Error ? error.message : `anonymous_check_failed:${path}`);
+      }
     }
+    if (failures.length) throw new Error(`release_checks_failed:${failures.join(';')}`);
   } finally { await signOut(auth); await deleteApp(app); }
 }
