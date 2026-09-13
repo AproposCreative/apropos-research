@@ -18,6 +18,12 @@ Build the user's approved September 13 plan. Only the three verified colleagues 
 
 ## Required before this checkpoint can release
 
+### Writer sharing dialog checkpoint
+
+- Added “Delte kopier” to Writer. Native modal with focus/escape handling, list of participant-only shares, exact stored-version preview, explicit colleague selection and confirmation that the entire article/chat/notes/reference snapshot is shared.
+- Received snapshots can open through the protected existing restore controller as a new own copy, preserving current local/server work. Network requests cancel on dialog close; same-operation sharing retries retain their identity while mounted. React strict-effect cleanup no longer leaves the loading lock stuck.
+- TypeScript and diff checks passed; existing share/restore/sync tests remain the behavioral backend coverage. Actual modal/browser acceptance and navigation-persistent pending receipts are still required. This UI and share endpoints are not yet deployed; production remains `ff2af68`.
+
 ### Shared-copy restore checkpoint
 
 - Extended the existing restore operation with a strictly validated shared-snapshot selector. Membership is checked inside the transaction; no owner override. Source share and sender workspace are never written.

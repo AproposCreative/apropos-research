@@ -32,6 +32,7 @@ import { createWriterDraftIdentity } from '@/lib/ai-chat/draft-identity';
 import { autoSaveService } from '@/lib/auto-save-service';
 import { useWriterWorkspace } from '@/lib/use-writer-workspace';
 import WorkspaceVersions from './WorkspaceVersions';
+import WorkspaceShares from './WorkspaceShares';
 import type { WorkspacePayload } from '@/lib/writer-workspace';
 import type { ArticleData } from '@/types/article';
 import type { ThinkingStep, ThinkingStatus } from '@/types/thinking';
@@ -79,6 +80,7 @@ export default function AIWriterClient() {
   }, []);
   const [showSearchModal, setShowSearchModal] = useState(false);
   const [showWorkspaceVersions, setShowWorkspaceVersions] = useState(false);
+  const [showWorkspaceShares, setShowWorkspaceShares] = useState(false);
   const [localResume, setLocalResume] = useState<WorkspacePayload | null>(() => {
     const saved = autoSaveService.load();
     if (!saved.messages.length && !saved.notes && !saved.articleData?.title && !saved.articleData?.content) return null;
@@ -1297,6 +1299,9 @@ export default function AIWriterClient() {
   return (
     <>
       {!user && <AuthModal />}
+      {user && showWorkspaceShares && <WorkspaceShares onClose={() => setShowWorkspaceShares(false)} onCopy={async selection => {
+        const snapshot = await workspace.restore(selection); applySavedWorkspace(snapshot.data);
+      }} />}
       {user && showWorkspaceVersions && <WorkspaceVersions onClose={() => setShowWorkspaceVersions(false)} onRestore={async selection => {
         const snapshot = await workspace.restore(selection); applySavedWorkspace(snapshot.data);
       }} />}
@@ -1305,6 +1310,7 @@ export default function AIWriterClient() {
         <span role="status">{workspace.status}</span>
         {localResume && <button className="ml-3 min-h-11 underline" onClick={() => applySavedWorkspace(localResume)}>Genoptag min lokale kopi</button>}
         <button className="ml-3 min-h-11 underline" onClick={() => setShowWorkspaceVersions(true)}>Gemte versioner</button>
+        <button className="ml-3 min-h-11 underline" onClick={() => setShowWorkspaceShares(true)}>Delte kopier</button>
         {workspace.canRetry && <button className="ml-3 min-h-11 underline" onClick={workspace.retry}>Prøv synkronisering igen</button>}
         {workspace.resume && <div className="flex flex-wrap gap-3">
           <button className="min-h-11 underline" onClick={restoreWorkspace}>Fortsæt hvor du slap</button>
