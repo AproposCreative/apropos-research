@@ -32,3 +32,23 @@ recorded in EDITORIAL-SIMPLIFICATION-2026-09-13.md.
 ## Daily records
 
 No future-day evidence exists yet. Append actual checks here.
+
+### September 13: independent public HTTP readback
+
+At `2026-09-13T16:41:50.022Z`, an unauthenticated GET of the baseline public URL
+returned HTTP 200 at the same URL, with a matching canonical URL and nonempty
+article rich text. HTML title: “The Gentlemen sæson 2 anmeldelse: Klasse og
+kriminalitet”; H1: “The Gentlemen Sæson 2”. This records the actual public text;
+no headline was overwritten to match a saved draft.
+
+At `2026-09-13T16:42:04.667Z`, HEAD requests to both distinct image URLs found
+inside `.w-richtext` returned HTTP 200, `image/webp`, content lengths 79,458 and
+77,384 bytes. Both image elements had descriptive Danish alt text; both figure
+captions read “Foto: Netflix”. This verifies availability and markup, not visual
+layout, licensing or whether the two files depict different scenes.
+
+No authenticated application write, generation, publication or paid AI call was
+made for these checks. The article is independently confirmed publicly reachable.
+Exact publication timestamp, CMS readback and automatic-run provenance remain
+unverified in this record; September 13 is still not counted as a verified
+on-time automatic day.
