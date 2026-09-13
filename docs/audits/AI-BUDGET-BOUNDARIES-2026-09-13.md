@@ -47,3 +47,18 @@ Source inspected at `5b0164d`, September 13, 2026. No paid provider calls.
 
 The target remains a covering 300 DKK application AI budget, not merely a new
 status label. No coverage flags or policy totals were modified by this audit.
+
+## Source-boundary follow-up, September 13 18:40 Copenhagen
+
+Expanded the regression to include src, components and proxy.ts, in addition to
+app/lib/scripts/services. Package scripts invoke src CLI entrypoints, so these
+must not be omitted from a repository-level dependency check. Runtime re-exports
+and TypeScript import-equals are now rejected too. Seven negative fixtures and
+four permitted type/error-only fixtures exercise the detector itself; the actual
+source-tree assertion also passes (12 tests total). TypeScript passes.
+
+No additional runtime SDK bypass was found in these directories. This is source
+evidence only: no paid request, credential change or production mutation occurred.
+Literal or obfuscated direct HTTP remains outside this SDK-import assertion;
+the existing transport tests separately cover guarded requests. The full monthly
+cap and historical/invoice qualifications above are unchanged.

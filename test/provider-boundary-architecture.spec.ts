@@ -13,12 +13,9 @@ function files(directory: string): string[] {
   });
 }
 
-it('keeps runtime OpenAI SDK access behind the budget transport', () => {
-  const violations: string[] = [];
-  for (const path of ['app', 'lib', 'scripts', 'services'].flatMap(files)) {
-    const name = relative(process.cwd(), path).replaceAll('\\', '/');
-    if (name === 'lib/liv/cost-openai.ts') continue;
-    const source = ts.createSourceFile(path, readFileSync(path, 'utf8'), ts.ScriptTarget.Latest, true);
+function runtimeImports(text: string, name: string): string[] {
+    const violations: string[] = [];
+    const source = ts.createSourceFile(name, text, ts.ScriptTarget.Latest, true);
     function visit(node: ts.Node) {
       if (ts.isImportDeclaration(node) && ts.isStringLiteral(node.moduleSpecifier) &&
         /^openai(?:\/|$)/.test(node.moduleSpecifier.text)) {
@@ -30,6 +27,18 @@ it('keeps runtime OpenAI SDK access behind the budget transport', () => {
           element.isTypeOnly || (element.propertyName || element.name).text === 'APIError');
         if (clause?.name || !safeNamed) violations.push(`${name}: runtime SDK import`);
       }
+      if (ts.isExportDeclaration(node) && node.moduleSpecifier && ts.isStringLiteral(node.moduleSpecifier) &&
+        /^openai(?:\/|$)/.test(node.moduleSpecifier.text) && !node.isTypeOnly) {
+        const bindings = node.exportClause;
+        const safeNamed = bindings && ts.isNamedExports(bindings) && bindings.elements.every(element =>
+          element.isTypeOnly || (element.propertyName || element.name).text === 'APIError');
+        if (!safeNamed) violations.push(`${name}: runtime SDK re-export`);
+      }
+      if (ts.isImportEqualsDeclaration(node) && !node.isTypeOnly &&
+        ts.isExternalModuleReference(node.moduleReference) && node.moduleReference.expression &&
+        ts.isStringLiteral(node.moduleReference.expression) && /^openai(?:\/|$)/.test(node.moduleReference.expression.text)) {
+        violations.push(`${name}: runtime SDK import-equals`);
+      }
       if (ts.isCallExpression(node) && node.arguments[0] && ts.isStringLiteral(node.arguments[0]) &&
         /^openai(?:\/|$)/.test(node.arguments[0].text) &&
         (node.expression.kind === ts.SyntaxKind.ImportKeyword ||
@@ -39,6 +48,36 @@ it('keeps runtime OpenAI SDK access behind the budget transport', () => {
       ts.forEachChild(node, visit);
     }
     visit(source);
+    return violations;
+}
+
+it.each([
+  "import OpenAI from 'openai'",
+  "export { default as Client } from 'openai'",
+  "export * from 'openai'",
+  "export * as SDK from 'openai'",
+  "import SDK = require('openai')",
+  "const SDK = require('openai')",
+  "const SDK = import('openai')",
+])('detects an unguarded provider dependency: %s', text => {
+  expect(runtimeImports(text, 'fixture.ts')).toHaveLength(1);
+});
+
+it.each([
+  "import type OpenAI from 'openai'",
+  "export type { ClientOptions } from 'openai'",
+  "export { type ClientOptions, APIError } from 'openai'",
+  "import { APIError as ProviderError, type ClientOptions } from 'openai'",
+])('allows types and error classification: %s', text => {
+  expect(runtimeImports(text, 'fixture.ts')).toEqual([]);
+});
+
+it('keeps runtime OpenAI SDK access behind the budget transport', () => {
+  const violations: string[] = [];
+  for (const path of [...['app', 'lib', 'scripts', 'services', 'src', 'components'].flatMap(files), 'proxy.ts']) {
+    const name = relative(process.cwd(), path).replaceAll('\\', '/');
+    if (name === 'lib/liv/cost-openai.ts') continue;
+    violations.push(...runtimeImports(readFileSync(path, 'utf8'), name));
   }
   expect(violations).toEqual([]);
 });
