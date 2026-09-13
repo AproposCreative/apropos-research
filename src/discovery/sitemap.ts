@@ -1,11 +1,11 @@
 import { XMLParser } from "fast-xml-parser";
 import { env } from "../utils/env";
 import { fetchText } from "../fetch/fetch";
-import { getMediaSources } from "../../lib/getMediaSources";
+import { getMediaSources, type MediaSource } from "../../lib/getMediaSources";
 
-export async function discoverFromSitemaps(options: { source?: string; persistCache?: boolean } = {}): Promise<string[]> {
+export async function discoverFromSitemaps(options: { source?: string; persistCache?: boolean; sources?: MediaSource[] } = {}): Promise<string[]> {
   // Load dynamic sources from file system - only enabled sources
-  let sources = getMediaSources()
+  let sources = (options.sources ?? getMediaSources())
     .filter(source => source.enabled && (!options.source || source.id === options.source))
     .map(source => ({
       baseUrl: source.baseUrl,
@@ -13,7 +13,7 @@ export async function discoverFromSitemaps(options: { source?: string; persistCa
     }));
 
   // Fallback to default sources if no dynamic sources found
-  if (sources.length === 0 && !options.source) {
+  if (options.sources === undefined && sources.length === 0 && !options.source) {
     sources = [
       { baseUrl: env.RAGE_BASE_URL, sitemapIndex: env.RAGE_SITEMAP_INDEX },
       { baseUrl: 'https://gaffa.dk', sitemapIndex: '/sitemap' },

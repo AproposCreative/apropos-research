@@ -16,6 +16,14 @@ Build the user's approved September 13 plan. Only the three verified colleagues 
 
 ## Required before this checkpoint can release
 
+### Shared-source separation checkpoint
+
+- System ingest now reads only enabled `sharedMediaSources`, never the personal `mediaSources` collection. Missing database/read failures are explicit errors; a deliberate empty shared list stays empty.
+- Server ingest passes the configured list through feed and sitemap discovery. Explicit lists no longer trigger hard-coded fallback sources. Candidate publisher hosts must belong to that same list before article fetch; forged source labels cannot authorize another host.
+- Legacy CLI discovery without an explicit list retains its existing static defaults. Personal-source research consumption still needs its own integration verification.
+- Required before deployment: owner-only shared-source configuration/initialization, network transport validation and actual source checks. No shared production documents have been initialized in this checkpoint. Deploying without that step would leave shared ingestion empty; do not infer live readiness.
+- Targeted tests: 12 passed, including configured feed use, disabled/foreign publisher exclusion, empty configuration and unavailable storage. TypeScript/diff checks passed; no paid model calls.
+
 ### Restore continuation checkpoint
 
 - Implemented explicit POST `/api/writer/workspace/restore`: verified own UID only, bounded schema, immutable operation receipt, optimistic revision, preserve current server snapshot and submitted local text, then open selected own history/conflict snapshot under a new draft identity. Retries read the same receipt; modified operation bodies and concurrent writes are rejected.

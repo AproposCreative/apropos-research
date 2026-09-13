@@ -16,7 +16,7 @@ import { discoverFromSitemaps } from '@/src/discovery/sitemap';
 import { fetchText } from '@/src/fetch/fetch';
 import { parseArticleHtml } from '@/src/parse/article';
 import { sha256 } from '@/src/utils/hash';
-import { getDefaultMediaSources, getAllEnabledMediaSources } from '@/lib/getMediaSources';
+import { getAllEnabledMediaSources } from '@/lib/getMediaSources';
 import {
   upsertTrendingArticles,
   pruneOldTrendingArticles,
@@ -66,7 +66,7 @@ function buildSourceMap(sources: MediaSourceLite[]): Map<string, { id: string; n
     try {
       const u = new URL(s.baseUrl);
       const domain = u.hostname.replace(/^www\./, '').toLowerCase();
-      map.set(domain, { id: s.id, name: s.name });
+      map.set(`host:${domain}`, { id: s.id, name: s.name });
       map.set(s.id.toLowerCase(), { id: s.id, name: s.name });
       map.set(s.name.toLowerCase(), { id: s.id, name: s.name });
     } catch {
@@ -83,7 +83,7 @@ function resolveSourceFromUrl(
   try {
     const u = new URL(url);
     const domain = u.hostname.replace(/^www\./, '').toLowerCase();
-    const direct = map.get(domain);
+    const direct = map.get(`host:${domain}`);
     if (direct) return direct;
   } catch {
     // ignore
@@ -112,29 +112,22 @@ export async function runIngestToFirestore(opts: IngestOptions = {}): Promise<In
     durationMs: 0,
   };
 
-  // Resolve media sources (fra Firestore eller default-fallback).
-  let sources: MediaSourceLite[] = [];
-  try {
-    const all = await getAllEnabledMediaSources();
-    sources = all.map((s) => ({ id: resolveTrendingSource(s.id, s.name).id, name: s.name, baseUrl: s.baseUrl }));
-  } catch (err) {
-    logger.warn({ err: err instanceof Error ? err.message : String(err) }, 'falling back to default media sources');
-    sources = getDefaultMediaSources().map((s) => ({ id: s.id, name: s.name, baseUrl: s.baseUrl }));
-  }
-  const sourceMap = buildSourceMap([...getDefaultMediaSources(), ...sources]);
+  // A deliberate empty shared list stays empty; storage failure is an error.
+  const sources = (await getAllEnabledMediaSources()).map(s => ({ ...s, id: resolveTrendingSource(s.id, s.name).id }));
+  const sourceMap = buildSourceMap(sources);
 
   // Discover candidates fra feeds + sitemaps (kan slås fra individuelt).
   let candidates: { url: string; published_at?: string; source?: string }[] = [];
   if (!opts.sitemapOnly) {
     try {
-      candidates = await discoverFromFeed(opts.source);
+      candidates = await discoverFromFeed(opts.source, sources);
     } catch (err) {
       logger.warn({ err: err instanceof Error ? err.message : String(err) }, 'feed-discovery failed');
     }
   }
   if (!opts.feedOnly) {
     try {
-      const urls = await discoverFromSitemaps({ source: opts.source, persistCache: false });
+      const urls = await discoverFromSitemaps({ source: opts.source, persistCache: false, sources });
       const fromSitemap = urls.map((url) => {
         const sourceInfo = resolveSourceFromUrl(url, sourceMap);
         return { url, source: sourceInfo?.id ?? 'unknown' };
@@ -148,6 +141,9 @@ export async function runIngestToFirestore(opts: IngestOptions = {}): Promise<In
   // Apply since-filter.
   const sinceCutoff = opts.sinceHrs ? Date.now() - opts.sinceHrs * 3600_000 : undefined;
   let filtered = candidates.filter((c) => {
+    // Never fetch an article from a disabled/unconfigured publisher, even when
+    // another publisher's feed links to it or labels it as an allowed source.
+    if (!resolveSourceFromUrl(c.url, sourceMap)) return false;
     if (!sinceCutoff) return true;
     if (c.published_at) {
       const t = Date.parse(c.published_at);

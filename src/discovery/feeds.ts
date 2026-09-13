@@ -1,13 +1,14 @@
 import { XMLParser } from "fast-xml-parser";
 import { env } from "../utils/env";
 import { fetchText } from "../fetch/fetch";
-import { getMediaSources } from "../../lib/getMediaSources";
+import { getMediaSources, type MediaSource } from "../../lib/getMediaSources";
 
 export type FeedItem = { url: string; published_at?: string; source: string };
 
-export async function discoverFromFeed(sourceId?: string): Promise<FeedItem[]> {
+export async function discoverFromFeed(sourceId?: string, configuredSources?: MediaSource[]): Promise<FeedItem[]> {
   // Get dynamic media sources
-  let sources = getMediaSources().filter(s => !sourceId || s.id === sourceId);
+  const available = configuredSources ?? getMediaSources();
+  let sources = available.filter(s => !sourceId || s.id === sourceId);
   
   // Filter for enabled sources and sources that have RSS/feed paths
   sources = sources.filter(source => {
@@ -24,14 +25,14 @@ export async function discoverFromFeed(sourceId?: string): Promise<FeedItem[]> {
   }));
 
   // Fallback to default Soundvenue feed if no dynamic sources found
-  if (feedSources.length === 0 && (!sourceId || sourceId === 'soundvenue')) {
+  if (configuredSources === undefined && feedSources.length === 0 && (!sourceId || sourceId === 'soundvenue')) {
     feedSources.push({ baseUrl: env.RAGE_BASE_URL, feedPath: '/feed', source: 'soundvenue' });
   }
   
   // Also add default feed paths for sources that don't have feed in sitemapIndex
   // This ensures we still discover from feeds even if sitemapIndex points to sitemap
   // BUT: For BT and Berlingske, skip feeds (they're general news, not relevant)
-  const defaultSources = getMediaSources().filter(s => {
+  const defaultSources = available.filter(s => {
     if (sourceId && s.id !== sourceId) return false;
     if (!s.enabled) return false;
     // Skip BT and Berlingske - they're general news, not relevant for Apropos

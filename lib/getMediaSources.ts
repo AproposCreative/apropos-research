@@ -1,6 +1,6 @@
 import { getAdminDb } from './firebase-admin';
 
-interface MediaSource {
+export interface MediaSource {
   id: string;
   name: string;
   baseUrl: string;
@@ -21,20 +21,20 @@ export function getDefaultMediaSources(): MediaSource[] {
 }
 
 /**
- * Fetches all enabled media sources across all users (for cron/system usage).
- * Falls back to defaults if Firestore is unavailable.
+ * System ingestion reads only explicitly configured shared sources.
+ * Personal collections are never promoted into the shared research corpus.
  */
 export async function getAllEnabledMediaSources(): Promise<MediaSource[]> {
   const db = getAdminDb();
-  if (!db) return DEFAULT_MEDIA_SOURCES;
+  if (!db) throw new Error('shared_media_sources_unavailable');
 
   try {
-    const snap = await db.collection('mediaSources').where('enabled', '==', true).get();
-    if (snap.empty) return DEFAULT_MEDIA_SOURCES;
+    const snap = await db.collection('sharedMediaSources').where('enabled', '==', true).get();
 
     const seen = new Map<string, MediaSource>();
     snap.docs.forEach(d => {
-      const data = d.data() as MediaSource;
+      const data = { ...d.data(), id: d.id } as MediaSource;
+      if (data.enabled !== true || data.userId || !data.name || !data.baseUrl || !data.sitemapIndex) return;
       const key = data.baseUrl;
       if (!seen.has(key)) {
         seen.set(key, data);
@@ -42,8 +42,7 @@ export async function getAllEnabledMediaSources(): Promise<MediaSource[]> {
     });
     return Array.from(seen.values());
   } catch (error) {
-    console.error('Error loading media sources from Firestore:', error);
-    return DEFAULT_MEDIA_SOURCES;
+    throw new Error('shared_media_sources_unavailable');
   }
 }
 
