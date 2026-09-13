@@ -1,5 +1,25 @@
 # Editorial simplification: execution record
 
+## Current checklist (supersedes historical pending notes below)
+
+- [x] Production staff access and Firebase rules released; administrator and
+  outsider API cases verified. Full role/UI coverage remains below.
+- [x] Preserve existing prepared articles; no paid regeneration for verification.
+- [x] Shared accounting extended to newsletter intro, inbox learning/generation
+  and translation; output/retry/time bounds and truncation checks tested.
+- [x] Read-only authenticated operations API and Liv settings panel implemented.
+- [x] Full regression: 3,051 tests in 184 files passed, isolated from production.
+- [x] Production release cf430c9 READY and exact production target verified;
+  authenticated operations 200, anonymous 401 on 2026-09-13 14:52 UTC.
+- [ ] Complete remaining independent quality/media AI budget coverage. The
+  300 DKK limit is not yet a verified full-application/invoice cap.
+- [ ] Verify settings UI visually and remaining access-list role variants.
+- [ ] Remove only proven obsolete code; preserve editorial work and audit.
+- [ ] Record seven consecutive API-driven daily publications and next preview.
+
+Historical sections below are an append-only execution trail, not the current
+deployment status. No new user approval is required for scoped implementation.
+
 ## Target
 
 One API-published Liv article at 10:00 Europe/Copenhagen per day, tomorrow's
