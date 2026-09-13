@@ -16,14 +16,19 @@ import {
 import { getFirebaseAuth } from './firebase';
 import { isSameOriginApi, requestHeaders } from './auth-policy';
 import { createEmailVerificationActions } from './email-verification';
+import { NO_CAPABILITIES, isOwnerPage, type EditorialCapabilities } from './editorial-capabilities';
+import { autoSaveService } from './auto-save-service';
 
-const ACCESS_MESSAGE = 'Adgang kræver en verificeret @aproposmagazine.com-mail eller en godkendelse fra administratoren.';
-async function requireAllowedUser(user: User): Promise<void> {
+const ACCESS_MESSAGE = 'Adgang er kun for redaktionens tre godkendte og verificerede konti.';
+async function requireAllowedUser(user: User): Promise<EditorialCapabilities> {
   const response = await fetch('/api/auth/access', { headers: { Authorization: `Bearer ${await user.getIdToken()}` }, cache: 'no-store' });
   if (!response.ok) throw new Error(ACCESS_MESSAGE);
+  const body = await response.json();
+  return { owner: body.capabilities?.owner === true };
 }
 
 interface AuthContextType {
+  capabilities: EditorialCapabilities;
   user: User | null;
   loading: boolean;
   accessError: string;
@@ -38,6 +43,7 @@ interface AuthContextType {
 }
 
 const AuthContext = createContext<AuthContextType>({
+  capabilities: NO_CAPABILITIES,
   user: null,
   loading: true,
   accessError: '',
@@ -59,11 +65,12 @@ const MIN_AI_BOOT_MS = 2000;
 export function AuthProvider({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const [user, setUser] = useState<User | null>(null);
+  const [capabilities, setCapabilities] = useState<EditorialCapabilities>(NO_CAPABILITIES);
   const [loading, setLoading] = useState(true);
   const [accessError, setAccessError] = useState('');
   const [verificationEmail, setVerificationEmail] = useState<string | null>(null);
   const [{ sendVerification, checkVerification }] = useState(() =>
-    createEmailVerificationActions(() => getFirebaseAuth()?.currentUser ?? null, requireAllowedUser));
+    createEmailVerificationActions(() => getFirebaseAuth()?.currentUser ?? null, async user => { await requireAllowedUser(user); }));
   const [aiBootOpen, setAiBootOpen] = useState(false);
   const aiBootStartRef = useRef<number | null>(null);
   const wasOnAiRef = useRef(false);
@@ -115,14 +122,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     let generation = 0;
     const check = async (candidate: User | null) => {
       const current = ++generation;
+      autoSaveService.setOwner(null);
       setUser(null);
+      setCapabilities(NO_CAPABILITIES);
       setVerificationEmail(candidate && !candidate.emailVerified ? candidate.email : null);
       if (!candidate) { setLoading(false); return; }
       setLoading(true);
       try {
-        await requireAllowedUser(candidate);
+        const rights = await requireAllowedUser(candidate);
         if (current !== generation) return;
         setAccessError('');
+        autoSaveService.setOwner(candidate.uid);
+        setCapabilities(rights);
         setUser(candidate);
       } catch {
         if (current !== generation) return;
@@ -202,6 +213,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const value = {
+    capabilities,
     user,
     loading,
     accessError,
@@ -226,7 +238,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           onExited={() => setLoaderMounted(false)}
         />
       ) : null}
-      {showChildren ? children : null}
+      {showChildren ? (user && !capabilities.owner && isOwnerPage(pathname || '')
+        ? <main className="p-8 text-white"><p>Denne funktion er kun tilgængelig for Frederik.</p><a href="/ai">Til mit arbejdsrum</a></main>
+        : <div key={user?.uid || 'signed-out'} className="contents">{children}</div>) : null}
     </AuthContext.Provider>
   );
 }

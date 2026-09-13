@@ -18,7 +18,7 @@ type View = 'upcoming' | 'published' | 'settings' | 'research' | 'manual';
 const labels: Record<DeskStory['status'], string> = { discovered: 'Idé', researching: 'Research i gang', researched: 'Research klar', drafting: 'Liv skriver', draft: 'Udkast klar', failed: 'Kræver handling' };
 
 export default function LivDeskClient({ onClose, onOpenWriter }: { onClose: () => void; onOpenWriter: (story: DeskStory) => void }) {
-  const { user } = useAuth();
+  const { user, capabilities } = useAuth();
   const [view, setView] = useState<View>('upcoming');
   const [stories, setStories] = useState<DeskStory[]>([]);
   const [selected, setSelected] = useState<string | null>(null);
@@ -53,9 +53,9 @@ export default function LivDeskClient({ onClose, onOpenWriter }: { onClose: () =
       <LivContentColumn className="flex items-center justify-between gap-2 py-4">
       <div className="min-w-0"><h1 className="text-lg font-medium">Liv · Redaktion</h1><p className="mt-1 text-xs text-white/50">Én historie ad gangen.</p></div>
       <div className="flex shrink-0 gap-1">
-        <button className={`${button} min-w-11 border-transparent`} onClick={() => setView('settings')} aria-label="Indstillinger og værktøjer" aria-pressed={!mainView}>
+        {capabilities.owner && <button className={`${button} min-w-11 border-transparent`} onClick={() => setView('settings')} aria-label="Indstillinger og værktøjer" aria-pressed={!mainView}>
           <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="m9 3-.7 2.2-2 .9L4 5.6 2 9l1.6 1.7v2.6L2 15l2 3.4 2.3-.5 2 .9L9 21h4l.7-2.2 2-.9 2.3.5 2-3.4-1.6-1.7v-2.6L20 9l-2-3.4-2.3.5-2-.9L13 3Z"/><circle cx="11" cy="12" r="3"/></svg>
-        </button>
+        </button>}
         <button className={`${button} min-w-11 border-transparent`} onClick={onClose} aria-label="Luk Liv Redaktion">✕</button>
       </div>
       </LivContentColumn>

@@ -27,14 +27,25 @@ export interface AutoSaveData {
 }
 
 const STORAGE_KEY = 'ai-writer-autosave';
-const SAVE_DEBOUNCE_MS = 1000; // Save 1 second after last change
+const SAVE_DEBOUNCE_MS = 2000;
 
-class AutoSaveService {
+export class AutoSaveService {
+  private ownerId: string | null = null;
+  setOwner(userId: string | null): void {
+    if (this.ownerId === userId) return;
+    if (this.saveTimeout) clearTimeout(this.saveTimeout);
+    this.saveTimeout = null;
+    this.ownerId = userId;
+  }
+  private get storageKey(): string | null {
+    return this.ownerId ? `${STORAGE_KEY}:v2:${encodeURIComponent(this.ownerId)}` : null;
+  }
   private saveTimeout: NodeJS.Timeout | null = null;
   private isSaving = false;
 
   // Debounced save to prevent excessive writes
   save(data: Partial<AutoSaveData>): void {
+    if (!this.ownerId) return;
     if (this.saveTimeout) {
       clearTimeout(this.saveTimeout);
     }
@@ -45,6 +56,8 @@ class AutoSaveService {
   }
 
   private performSave(data: Partial<AutoSaveData>): void {
+    const key = this.storageKey;
+    if (!key) return;
     if (this.isSaving) return;
     
     try {
@@ -61,9 +74,8 @@ class AutoSaveService {
       };
 
       // Save to localStorage
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(merged));
+      localStorage.setItem(key, JSON.stringify(merged));
       
-      console.log('💾 Auto-saved to localStorage');
     } catch (error) {
       console.error('Failed to auto-save:', error);
     } finally {
@@ -73,7 +85,9 @@ class AutoSaveService {
 
   load(): AutoSaveData {
     try {
-      const saved = localStorage.getItem(STORAGE_KEY);
+      const key = this.storageKey;
+      if (!key) return this.getDefaultData();
+      const saved = localStorage.getItem(key);
       if (!saved) {
         return this.getDefaultData();
       }
@@ -100,8 +114,10 @@ class AutoSaveService {
 
   clear(): void {
     try {
-      localStorage.removeItem(STORAGE_KEY);
-      console.log('🗑️ Cleared auto-save data');
+      if (this.saveTimeout) clearTimeout(this.saveTimeout);
+      this.saveTimeout = null;
+      const key = this.storageKey;
+      if (key) localStorage.removeItem(key);
     } catch (error) {
       console.error('Failed to clear auto-save data:', error);
     }
@@ -109,7 +125,9 @@ class AutoSaveService {
 
   hasData(): boolean {
     try {
-      const saved = localStorage.getItem(STORAGE_KEY);
+      const key = this.storageKey;
+      if (!key) return false;
+      const saved = localStorage.getItem(key);
       return saved !== null;
     } catch {
       return false;
@@ -135,6 +153,7 @@ class AutoSaveService {
 
   // Convert auto-save data to Firebase draft format
   toDraftData(userId: string): Partial<ArticleDraft> {
+    if (this.ownerId !== userId) throw new Error('autosave_owner_mismatch');
     const data = this.load();
     
     return {

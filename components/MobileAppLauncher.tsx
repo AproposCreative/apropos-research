@@ -2,6 +2,8 @@
 
 import type { WebAppEntry } from '@/lib/web-apps-config';
 import { getWebApps } from '@/lib/web-apps-config';
+import { useAuth } from '@/lib/auth-context';
+import { canOpenEditorialApp } from '@/lib/editorial-capabilities';
 
 function AppIcon({ app }: { app: WebAppEntry }) {
   if (app.iconUrl) {
@@ -59,7 +61,8 @@ type MobileAppLauncherProps = {
 };
 
 export default function MobileAppLauncher({ onSelectApp, onOpenShelf }: MobileAppLauncherProps) {
-  const apps = getWebApps();
+  const { capabilities } = useAuth();
+  const apps = getWebApps().filter(app => canOpenEditorialApp(app.id, capabilities));
 
   return (
     <div className="md:hidden absolute inset-0 z-20 flex flex-col items-center justify-center px-6">

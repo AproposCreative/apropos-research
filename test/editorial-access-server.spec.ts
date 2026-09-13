@@ -18,7 +18,7 @@ it('rereads approval for an existing token and respects revocation', async () =>
   mocks.user.mockResolvedValue({ uid: 'external', email: 'milo@aproposmagazine.com', emailVerified: true });
   mocks.read.mockResolvedValueOnce({ exists: true, data: () => ({ active: true, role: 'editor' }) });
   mocks.read.mockResolvedValueOnce({ exists: true, data: () => ({ active: false, role: 'editor' }) });
-  expect(await verifyEditorialToken('same-token')).toEqual({ uid: 'external', role: 'editor' });
+  expect(await verifyEditorialToken('same-token')).toEqual({ uid: 'external', role: 'editor', owner: false });
   expect(await verifyEditorialToken('same-token')).toBeNull();
 });
 it('fails closed when Firebase is unavailable', async () => {

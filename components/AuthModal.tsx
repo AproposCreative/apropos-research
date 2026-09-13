@@ -78,7 +78,7 @@ export default function AuthModal() {
 
         <div className="mt-6 text-center">
           <p className="text-white/40 text-xs">
-            Kun for verificerede @aproposmagazine.com-mails og særskilt godkendte brugere.
+            Kun for redaktionens tre godkendte og verificerede konti.
           </p>
         </div>
       </div>

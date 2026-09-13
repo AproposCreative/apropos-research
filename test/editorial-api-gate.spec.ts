@@ -11,8 +11,15 @@ it('denies an unapproved token and prevents editor admin mutations', async () =>
   expect(await isApiRequestAuthorized(req('webflow/publish'))).toBe(false);
   verify.mockResolvedValue({ uid: 'user', role: 'editor' });
   expect(await isApiRequestAuthorized(req('admin/access'))).toBe(false);
-  verify.mockResolvedValue({ uid: 'user', role: 'admin' });
+  verify.mockResolvedValue({ uid: 'user', role: 'admin', owner: true });
   expect(await isApiRequestAuthorized(req('admin/access'))).toBe(true);
+});
+it('denies owner tools even to a non-owner administrator', async () => {
+  vi.stubEnv('NODE_ENV', 'production');
+  verify.mockResolvedValue({ uid: 'colleague', role: 'admin', owner: false });
+  for (const path of ['seo-engine/jobs', 'podcast/upload', 'newsletter/draft', 'liv-inbox/threads', 'push/send']) {
+    expect(await isApiRequestAuthorized(new NextRequest('https://example.com/api/' + path, { headers: { Authorization: 'Bearer colleague' } }))).toBe(false);
+  }
 });
 it('preserves cron auth and public health without user lookups', async () => {
   vi.stubEnv('CRON_SECRET', 'test-cron');

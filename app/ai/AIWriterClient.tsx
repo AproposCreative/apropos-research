@@ -30,6 +30,7 @@ import { useAuth } from '@/lib/auth-context';
 import { saveDraft, getDraft, type ArticleDraft } from '@/lib/firebase-service';
 import { createWriterDraftIdentity } from '@/lib/ai-chat/draft-identity';
 import { autoSaveService } from '@/lib/auto-save-service';
+import { useWriterWorkspace } from '@/lib/use-writer-workspace';
 import type { ArticleData } from '@/types/article';
 import type { ThinkingStep, ThinkingStatus } from '@/types/thinking';
 import { PROMPT_ARCHITECT_CONTEXT_KEY } from '@/lib/prompt-architect-constants';
@@ -62,7 +63,7 @@ export default function AIWriterClient() {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  const { user, logout } = useAuth();
+  const { user, logout, capabilities } = useAuth();
   const [currentDraftId, setDraftIdState] = useState<string | null>(null);
   const draftIdentityRef = useRef(createWriterDraftIdentity());
   const setCurrentDraftId = useCallback((id: string | null) => {
@@ -94,9 +95,10 @@ export default function AIWriterClient() {
   const [sourcesOpen, setSourcesOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [isClosing, setIsClosing] = useState(false);
-  const [activeView, setActiveView] = useState<AIWriterView>(() =>
+  const [requestedView, setActiveView] = useState<AIWriterView>(() =>
     resolveViewFromSearchParams(searchParams)
   );
+  const activeView = !capabilities.owner && ['seo', 'podcast', 'newsletter', 'liv-inbox', 'push'].includes(requestedView || '') ? null : requestedView;
   const leftPanelOpen = shelfOpen || webAppsOpen;
 
   /** Opdater aktiv visning og URL, så refresh og deling bevarer fx nyhedsbrev (`?view=newsletter`). */
@@ -394,6 +396,21 @@ export default function AIWriterClient() {
   const currentSplineBg = SPLINE_BACKGROUNDS.find(bg => bg.id === selectedSplineBg) || SPLINE_BACKGROUNDS[0];
 
   // Auto-save to localStorage whenever data changes
+  const workspace = useWriterWorkspace(JSON.parse(JSON.stringify({
+    messages: chatMessages, chatTitle, articleData, notes, showWizard, currentDraftId,
+  })));
+  function restoreWorkspace() {
+    const saved = workspace.resume?.data;
+    if (!saved) return;
+    setChatMessages(saved.messages.map(message => ({ ...message, timestamp: new Date(message.timestamp || Date.now()) })));
+    setChatTitle(saved.chatTitle);
+    setArticleData(normalizeArticleData(saved.articleData));
+    setNotes(saved.notes);
+    setShowWizard(saved.showWizard);
+    setCurrentDraftId(saved.currentDraftId);
+    workspace.acceptResume();
+    applyActiveView('ai');
+  }
   useEffect(() => {
     if (chatMessages.length > 0 || articleData.title || notes) {
       autoSaveService.save({
@@ -1329,6 +1346,13 @@ export default function AIWriterClient() {
     <>
       {!user && <AuthModal />}
       {user && <AuthModal />}
+      {user && (activeView === 'ai' || activeView === null) && <aside className="fixed bottom-3 left-1/2 z-50 max-w-[calc(100%-2rem)] -translate-x-1/2 rounded-xl border border-white/20 bg-black/95 px-4 py-2 text-sm text-white">
+        <span role="status">{workspace.status}</span>
+        {workspace.resume && <div className="flex flex-wrap gap-3">
+          <button className="min-h-11 underline" onClick={restoreWorkspace}>Fortsæt hvor du slap</button>
+          <button className="min-h-11 underline" onClick={() => { setCurrentDraftId(null); reserveDraftId(); workspace.acceptResume(); }}>Start nyt arbejdsrum</button>
+        </div>}
+      </aside>}
       {showSearchModal && (
         <ChatSearchModal
           isOpen={showSearchModal}

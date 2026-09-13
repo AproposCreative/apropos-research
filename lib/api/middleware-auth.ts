@@ -1,5 +1,6 @@
 import type { NextRequest } from 'next/server';
 import { verifyEditorialToken } from '@/lib/editorial-access';
+import { requiresEditorialOwner } from '@/lib/editorial-capabilities';
 
 /** Routes that carry their own auth (webhooks, public unsubscribe links, health). */
 const PUBLIC_API_PREFIXES = [
@@ -65,6 +66,7 @@ export async function isApiRequestAuthorized(request: NextRequest): Promise<bool
     if (cron && bearer === cron) return true;
     const access = await verifyEditorialToken(bearer);
     if (access) {
+      if (requiresEditorialOwner(pathname, request.method) && access.owner !== true) return false;
       const adminOnly = pathname.startsWith('/api/admin/') || pathname.startsWith('/api/test-') ||
         pathname === '/api/webflow/debug-schema' ||
         (!['GET', 'HEAD', 'OPTIONS'].includes(request.method) && (

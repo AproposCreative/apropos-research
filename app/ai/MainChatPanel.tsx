@@ -467,6 +467,7 @@ const fallbackThinkingSteps: ThinkingStep[] = [
 
   // Auto-save functionality
   const saveToLocalStorage = () => {
+    if (!user) return;
     try {
       const chatData = {
         messages,
@@ -475,7 +476,7 @@ const fallbackThinkingSteps: ThinkingStep[] = [
         articleData,
         lastModified: new Date().toISOString()
       };
-      localStorage.setItem('ai-writer-draft', JSON.stringify(chatData));
+      localStorage.setItem(`ai-writer-draft:v2:${encodeURIComponent(user.uid)}`, JSON.stringify(chatData));
       setLastSaved(new Date());
     } catch (error) {
       console.error('Failed to save draft:', error);
@@ -483,8 +484,9 @@ const fallbackThinkingSteps: ThinkingStep[] = [
   };
 
   const loadFromLocalStorage = () => {
+    if (!user) return;
     try {
-      const savedData = localStorage.getItem('ai-writer-draft');
+      const savedData = localStorage.getItem(`ai-writer-draft:v2:${encodeURIComponent(user.uid)}`);
       if (savedData) {
         const parsed = JSON.parse(savedData);
         if (parsed.messages && Array.isArray(parsed.messages)) {

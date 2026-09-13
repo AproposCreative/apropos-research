@@ -3,6 +3,8 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { getWebApps } from '@/lib/web-apps-config';
+import { useAuth } from '@/lib/auth-context';
+import { canOpenEditorialApp } from '@/lib/editorial-capabilities';
 
 interface WebAppsPanelProps {
   isOpen: boolean;
@@ -13,7 +15,8 @@ interface WebAppsPanelProps {
 
 export default function WebAppsPanel({ isOpen, onClose, onSelectApp }: WebAppsPanelProps) {
   const pathname = usePathname();
-  const apps = getWebApps();
+  const { capabilities } = useAuth();
+  const apps = getWebApps().filter(app => canOpenEditorialApp(app.id, capabilities));
 
   const baseClass = 'flex items-center gap-3 px-3 py-3 rounded-xl border transition-colors w-full text-left';
 

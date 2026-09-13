@@ -15,13 +15,6 @@ interface MediaSourceDoc {
   createdAt: string;
 }
 
-const DEFAULT_SOURCES: Omit<MediaSourceDoc, 'id' | 'userId' | 'createdAt'>[] = [
-  { name: 'Soundvenue', baseUrl: 'https://soundvenue.com', sitemapIndex: '/sitemap.xml', enabled: true },
-  { name: 'GAFFA', baseUrl: 'https://gaffa.dk', sitemapIndex: '/sitemap', enabled: true },
-  { name: 'BERLINGSKE', baseUrl: 'https://www.berlingske.dk', sitemapIndex: '/news-sitemap.xml', enabled: true },
-  { name: 'BT', baseUrl: 'https://www.bt.dk', sitemapIndex: '/news-sitemap.xml', enabled: true },
-];
-
 async function getUserIdFromRequest(req: NextRequest): Promise<string | null> {
   return getNewsletterUserIdFromRequest(req);
 }
@@ -32,39 +25,19 @@ export async function GET(request: NextRequest) {
   const userId = await getUserIdFromRequest(request);
 
   const db = getAdminDb();
-  if (!db || !userId) {
-    requestLogger.info('Media sources: returning defaults (no db or userId)');
-    return NextResponse.json(createSuccessResponse({
-      sources: DEFAULT_SOURCES.map((s, i) => ({ ...s, id: s.name.toLowerCase().replace(/[^a-z0-9]/g, '-'), addedAt: new Date().toISOString() })),
-    }, { requestId }));
-  }
+  if (!userId) return NextResponse.json({ error: 'Log ind for at se dine mediekilder.' }, { status: 401, headers: { 'Cache-Control': 'private, no-store' } });
+  if (!db) return NextResponse.json({ error: 'Mediekilder kunne ikke hentes.' }, { status: 503, headers: { 'Cache-Control': 'private, no-store' } });
 
   try {
     const snap = await db.collection('mediaSources').where('userId', '==', userId).get();
 
-    if (snap.empty) {
-      const batch = db.batch();
-      const seeded: MediaSourceDoc[] = [];
-      for (const s of DEFAULT_SOURCES) {
-        const id = `${userId}_${s.name.toLowerCase().replace(/[^a-z0-9]/g, '-')}`;
-        const doc: MediaSourceDoc = { ...s, id, userId, createdAt: new Date().toISOString() };
-        batch.set(db.collection('mediaSources').doc(id), doc);
-        seeded.push(doc);
-      }
-      await batch.commit();
-      requestLogger.info('Seeded default media sources for user', { userId, count: seeded.length });
-      return NextResponse.json(createSuccessResponse({ sources: seeded }, { requestId }));
-    }
-
     const sources = snap.docs.map(d => d.data() as MediaSourceDoc);
     sources.sort((a, b) => a.name.localeCompare(b.name));
     requestLogger.info('Media sources loaded', { userId, count: sources.length });
-    return NextResponse.json(createSuccessResponse({ sources }, { requestId }));
+    return NextResponse.json(createSuccessResponse({ sources }, { requestId }), { headers: { 'Cache-Control': 'private, no-store' } });
   } catch (error) {
     requestLogger.error('Error loading media sources', error instanceof Error ? error : new Error(String(error)));
-    return NextResponse.json(createSuccessResponse({
-      sources: DEFAULT_SOURCES.map((s) => ({ ...s, id: s.name.toLowerCase().replace(/[^a-z0-9]/g, '-'), addedAt: new Date().toISOString() })),
-    }, { requestId }));
+    return NextResponse.json({ error: 'Mediekilder kunne ikke hentes. Dine gemte kilder er ikke ændret.' }, { status: 503, headers: { 'Cache-Control': 'private, no-store' } });
   }
 }
 
