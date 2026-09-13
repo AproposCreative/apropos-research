@@ -2,6 +2,17 @@
 
 ## Durable Writer CMS operation (local, not released)
 
+Release-candidate verification: full regression passed 3,437 tests in 241 files.
+Three additional failure/history tests then passed with the existing operation
+tests (11 total). They verify no external write before a successful checkpoint,
+ID-checkpoint failure recovery without another external write, and retained
+prior-operation history. Production build passed. Actual Writer/ReviewPanel/
+WebflowPublishPanel mobile fixture was rerun: explicit resume -> Gem kladde i
+Webflow sends POST `/api/writer/cms-save`, status draft, and displays Kladde gemt
+with returned ID. No old publish endpoint called and no uncaught browser errors.
+Screenshot inspected. CMS/auth/provider transports remain mocked; this is not
+live Firestore/Webflow write evidence.
+
 Writer ReviewPanel now sends its reserved private draft ID to the authenticated
 `/api/writer/cms-save` route. The legacy shared save endpoint and Liv flow remain
 unchanged. A Firestore operation under the server-derived UID/draft records

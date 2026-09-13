@@ -11,15 +11,17 @@ const id = '0123456789abcdef01234567';
 const receipt = { saveState: 'draft', saveVerified: true, cmsLocaleId: id };
 function database() {
   const rows = new Map<string, any>();
+  const faults: { failPatch?: (patch: any) => boolean } = {};
   const ref = (path: string): any => ({ path, collection: (name: string) => ref(path + '/' + name), doc: (name: string) => ref(path + '/' + name),
     get: async () => ({ data: () => structuredClone(rows.get(path)) }) });
   let queue = Promise.resolve();
   const db = { collection: (name: string) => ref(name), runTransaction: (fn: any) => {
     const work = queue.then(() => fn({ get: (r: any) => r.get(), set: (r: any, data: any) => rows.set(r.path, structuredClone(data)),
-      update: (r: any, data: any) => rows.set(r.path, { ...rows.get(r.path), ...structuredClone(data) }) }));
+      update: (r: any, data: any) => { if (faults.failPatch?.(data)) throw new Error('fixture checkpoint failure');
+        return rows.set(r.path, { ...rows.get(r.path), ...structuredClone(data) }); } }));
     queue = work.catch(() => {}); return work;
   } } as unknown as Firestore;
-  return { db, rows };
+  return { db, rows, faults };
 }
 beforeEach(() => {
   vi.resetAllMocks();
@@ -87,4 +89,37 @@ it('refuses an overlapping request while the first operation is in flight', asyn
   await ready;
   await expect(saveWriterCmsDraft(db, 'alice', 'draft', article)).rejects.toThrow('afventer');
   release(); await first; expect(mock.publish).toHaveBeenCalledTimes(1);
+});
+it('does not reach the external write unless the attempted checkpoint persists', async () => {
+  const { db, faults } = database();
+  const externalWrite = vi.fn();
+  faults.failPatch = patch => patch.phase === 'attempted';
+  mock.publish.mockImplementation(async (input, hooks) => {
+    await hooks.onBeforeSave(input); externalWrite(); await hooks.onSaved(id); return { articleId: id, receipt };
+  });
+  await expect(saveWriterCmsDraft(db, 'alice', 'draft', article)).rejects.toThrow();
+  expect(externalWrite).not.toHaveBeenCalled();
+  faults.failPatch = undefined;
+  await saveWriterCmsDraft(db, 'alice', 'draft', article);
+  expect(externalWrite).toHaveBeenCalledTimes(1);
+});
+it('recovers without rewriting when persisting the returned CMS ID fails', async () => {
+  const { db, faults } = database();
+  const externalWrite = vi.fn();
+  faults.failPatch = patch => !!patch.articleId;
+  mock.publish.mockImplementation(async (input, hooks) => {
+    await hooks.onBeforeSave(input); externalWrite(); await hooks.onSaved(id); return { articleId: id, receipt };
+  });
+  await expect(saveWriterCmsDraft(db, 'alice', 'draft', article)).rejects.toThrow();
+  faults.failPatch = undefined; mock.candidates.mockResolvedValue([id]);
+  expect(await saveWriterCmsDraft(db, 'alice', 'draft', article)).toMatchObject({ articleId: id });
+  expect(externalWrite).toHaveBeenCalledTimes(1);
+});
+it('retains previous operation history when a newer revision is saved', async () => {
+  const { db, rows } = database();
+  await saveWriterCmsDraft(db, 'alice', 'draft', article);
+  await saveWriterCmsDraft(db, 'alice', 'draft', { ...article, content: '<p>Næste revision.</p>' });
+  const history = [...rows.entries()].filter(([path]) => path.includes('/history/'));
+  expect(history).toHaveLength(1);
+  expect(history[0][1]).toMatchObject({ articleId: id, phase: 'saved', expected: { content: article.content } });
 });
