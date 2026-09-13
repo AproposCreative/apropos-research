@@ -18,6 +18,13 @@ Build the user's approved September 13 plan. Only the three verified colleagues 
 
 ## Required before this checkpoint can release
 
+### Sharing browser verification and durable retry
+
+- Real React StrictMode dialog tested via agent-browser with isolated HTTP/auth fixtures, never production data. Verified own-version preview, recipient and explicit consent gate, simulated network failure, exact same-operation retry, received snapshot copy callback and modal close. No uncaught browser errors.
+- Pending sharing metadata now survives dialog unmount/reload within the tab in UID-scoped sessionStorage. No tokens or draft contents are persisted in the receipt; no automatic resend. Storage failures stop the write before a request is sent. Successful/definitively rejected operations clear the receipt.
+- Browser close/reopen test confirmed two attempts with identical operation payload, then cleared receipt. 390px mobile viewport had no horizontal overflow. Added reusable isolated fixture `scripts/verify-workspace-sharing-ui.mjs`.
+- 32 targeted share/receipt/restore/sync tests passed, TypeScript passed. The browser test mocks transport and does not prove production sharing with colleague accounts. Shares list pagination and full cross-device acceptance remain open.
+
 ### Writer sharing dialog checkpoint
 
 - Added “Delte kopier” to Writer. Native modal with focus/escape handling, list of participant-only shares, exact stored-version preview, explicit colleague selection and confirmation that the entire article/chat/notes/reference snapshot is shared.

@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useAuth } from '@/lib/auth-context';
 import { EDITORIAL_EMAILS } from '@/lib/auth-policy';
 import { workspaceSnapshotSchema, type WorkspaceSnapshot, type WorkspaceVersionSelector } from '@/lib/writer-workspace';
+import { readShareReceipt, writeShareReceipt, clearShareReceipt, type WorkspaceShareReceipt } from '@/lib/workspace-share-receipt';
 
 type Share = { id: string; title: string; own: boolean; createdAt: string };
 export default function WorkspaceShares({ onClose, onCopy }: {
@@ -12,7 +13,7 @@ export default function WorkspaceShares({ onClose, onCopy }: {
   const dialog = useRef<HTMLDialogElement>(null);
   const lifetime = useRef<AbortController | null>(null);
   const lock = useRef(false);
-  const pending = useRef<{ operationId: string; revision: number; recipient: string } | null>(null);
+  const pending = useRef<WorkspaceShareReceipt | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
@@ -31,7 +32,9 @@ export default function WorkspaceShares({ onClose, onCopy }: {
       ...(body ? { body: JSON.stringify(body) } : {}) });
     const data = await response.json();
     if (!response.ok) {
-      if (body && [400, 409].includes(response.status)) pending.current = null;
+      if (body && [400, 409].includes(response.status)) {
+        clearShareReceipt(sessionStorage, user.uid); pending.current = null;
+      }
       throw new Error(data.error || 'Handlingen kunne ikke gennemføres.');
     }
     signal.throwIfAborted(); return data;
@@ -50,7 +53,10 @@ export default function WorkspaceShares({ onClose, onCopy }: {
   useEffect(() => {
     lifetime.current = new AbortController();
     const element = dialog.current; element?.showModal();
-    void act(loadList);
+    void act(async () => {
+      if (user) pending.current = readShareReceipt(sessionStorage, user.uid);
+      await loadList();
+    });
     return () => { lifetime.current?.abort(); lock.current = false; element?.close(); };
     // Account-keyed Writer remounts the dialog on account changes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -64,10 +70,15 @@ export default function WorkspaceShares({ onClose, onCopy }: {
     });
   }
   async function share() {
-    if (!snapshot || !recipient || !confirmed || selectedId) return;
+    if (!user || (!pending.current && (!snapshot || !recipient || !confirmed || selectedId))) return;
     await act(async () => {
-      pending.current ??= { operationId: crypto.randomUUID(), revision: snapshot.revision, recipient };
+      if (!pending.current) {
+        const receipt = { operationId: crypto.randomUUID(), revision: snapshot!.revision, recipient: recipient as WorkspaceShareReceipt['recipient'] };
+        // Save before sending. A reload must not turn an uncertain response into a new share.
+        writeShareReceipt(sessionStorage, user.uid, receipt); pending.current = receipt;
+      }
       await request('/api/writer/workspace/shares', pending.current);
+      clearShareReceipt(sessionStorage, user.uid);
       pending.current = null; setConfirmed(false); setNotice('Den gemte kopi er delt. Senere ændringer forbliver private.');
       await loadList();
     });
@@ -80,13 +91,17 @@ export default function WorkspaceShares({ onClose, onCopy }: {
     <div className="flex flex-wrap gap-2"><button className={button} disabled={busy || !!pending.current} onClick={() => void preview(null)}>Gennemse min gemte kopi</button><button className={button} disabled={busy} onClick={() => void act(loadList)}>Opdater listen</button></div>
     {error && <p role="alert" className="mt-3 text-amber-200">{error}</p>}{notice && <p role="status" className="mt-3 text-emerald-200">{notice}</p>}
     {busy && <p role="status">Arbejder…</p>}
+    {pending.current && <section className="my-4 rounded-xl border border-amber-200/30 p-4">
+      <p className="mb-3 text-sm">En tidligere bekræftet deling af version {pending.current.revision} til {pending.current.recipient} mangler et sikkert svar. Prøv samme deling igen for at få resultatet uden en ekstra kopi.</p>
+      <button className={button} disabled={busy} onClick={() => void share()}>Prøv samme deling igen</button>
+    </section>}
     {snapshot && <section className="my-4 space-y-3 rounded-xl border border-white/20 p-4">
       <h3>{snapshot.data.chatTitle || 'Arbejdsrum'} · version {snapshot.revision}</h3>
       <details><summary className="min-h-11 cursor-pointer">Se alt indhold i kopien</summary><pre className="max-h-64 overflow-auto whitespace-pre-wrap break-all text-xs">{JSON.stringify(snapshot.data, null, 2)}</pre></details>
       {selectedId ? <><p className="text-sm text-white/65">Kopien åbnes som dit eget arbejde. Dit nuværende arbejde gemmes i versionshistorikken.</p><button className={button} disabled={busy} onClick={() => void act(async () => { await onCopy({ kind: 'shared', id: selectedId }); onClose(); })}>Lav min egen kopi i Writer</button></> : <>
         <label className="block">Modtager<select value={recipient} disabled={busy || !!pending.current} onChange={e => { setRecipient(e.target.value); setConfirmed(false); }} className="mt-1 block min-h-11 w-full rounded border border-white/25 bg-[#111] px-2"><option value="">Vælg kollega</option>{EDITORIAL_EMAILS.filter(email => email !== user?.email?.toLowerCase()).map(email => <option key={email} value={email}>{email}</option>)}</select></label>
         <label className="flex min-h-11 items-center gap-3 text-sm"><input type="checkbox" checked={confirmed} disabled={busy || !!pending.current} onChange={e => setConfirmed(e.target.checked)} />Jeg vil dele hele denne gemte kopi med modtageren.</label>
-        <button className={button} disabled={busy || !confirmed || !recipient} onClick={() => void share()}>{pending.current ? 'Prøv samme deling igen' : 'Del denne version'}</button>
+        {!pending.current && <button className={button} disabled={busy || !confirmed || !recipient} onClick={() => void share()}>Del denne version</button>}
       </>}
     </section>}
     {loaded && shares.length === 0 && <p className="my-4 text-white/60">Ingen delte kopier endnu.</p>}
