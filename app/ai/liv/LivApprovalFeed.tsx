@@ -6,6 +6,7 @@ import { useAuth } from '@/lib/auth-context';
 import { readJsonResponse } from '@/lib/api/read-json-response';
 import type { ApprovalFeed, ApprovalStory } from '@/lib/liv/approval-types';
 import LivContentColumn from './LivContentColumn';
+import LivTips from './LivTips';
 
 const decisions = { pending: 'Afventer dit valg', approved: 'Godkendt', rejected: 'Afvist' };
 function dateLabel(day: string) {
@@ -135,6 +136,7 @@ export default function LivApprovalFeed() {
         <p className="text-sm leading-relaxed text-white/65">Alle klargjorte kommende historier samlet på én liste. Mangler dagens udgivelse, kommer den først.</p>
         <p className="text-xs leading-relaxed text-white/45">{capabilities.owner ? 'Godkend eller afvis. Uden et valg fortsætter Liv automatisk. Dit valg kan ændres, indtil historien er valgt til udgivelse.' : 'Her kan du læse kommende historier. Frederik styrer godkendelse og udgivelse.'}</p>
       </header>
+      <LivTips />
       {notice && <p role="status" className="rounded-xl border border-emerald-300/20 bg-emerald-300/5 p-4 text-sm text-emerald-200">{notice}</p>}
       {error && <p role="alert" className="rounded-xl border border-amber-200/20 p-4 text-sm text-amber-200">{error}</p>}
       {feed && !feed.queueEnabled && <p className="rounded-xl border border-white/15 p-4 text-sm text-white/60">Automatisk udgivelse er ikke aktiveret. Dine valg udgiver ikke noget med det samme.</p>}

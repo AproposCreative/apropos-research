@@ -16,6 +16,13 @@ Build the user's approved September 13 plan. Only the three verified colleagues 
 
 ## Required before this checkpoint can release
 
+### Shared editorial tips checkpoint
+
+- Added authenticated `/api/editorial/tips` GET/POST for all three verified colleagues, with a strict bounded HTTPS link/angle schema and UID-scoped operation receipts. Identical retries return the existing tip; changed payloads under the same operation ID are rejected.
+- Shared list returns only explicit tip content/status/date, not private workspace data or receipt metadata. No remote source fetch, research, generation or publication is triggered by submitting or reading a tip.
+- Added a collapsed “Send Liv et tip” form and latest 50 shared tips in the upcoming view. Fetch runs only when opened. Pending retry preserves the same operation while mounted and blocks editing until the receipt is resolved. Session-persistent retry across navigation remains unimplemented.
+- Seven targeted API tests passed; TypeScript and diff checks passed. React checklist reviewed. Browser acceptance, owner selection into the research workflow and production release remain pending.
+
 ### Build-side ingestion defect repaired
 
 - Production build at local commit `394ed46` succeeded but revealed an old `/api/test-ingest` import of `src/cli/ingest-rage.ts`. Its unconditional `main()` caused feed/sitemap requests during module import/build, outside an explicit ingest request. Build output showed Soundvenue and GAFFA discovery twice. No tracked research datasets changed in the resulting git status.
