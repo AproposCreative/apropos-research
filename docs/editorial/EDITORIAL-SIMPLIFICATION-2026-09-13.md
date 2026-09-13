@@ -23,7 +23,9 @@
 - [ ] Verify settings UI visually and remaining access-list role variants.
   LivOperations null usage formatting fixed locally: unknown values remain unknown,
   genuine zero remains zero and Danish amounts are formatted safely. 14 targeted
-  tests and TypeScript pass. Still needs release and rendered UI verification.
+  tests and TypeScript pass. Isolated real-component visual test passes eight
+  scenarios at mobile/desktop widths, including refresh and error states.
+  Still needs release and full production settings-shell verification.
 - [ ] Remove only proven obsolete code; preserve editorial work and audit.
 - [ ] Record seven consecutive API-driven daily publications and next preview.
 
