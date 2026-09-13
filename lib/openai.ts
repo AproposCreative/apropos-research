@@ -8,8 +8,8 @@ let _client: OpenAI | null = null;
  * Singleton OpenAI client. Returns null when OPENAI_API_KEY is not set,
  * allowing callers to handle the missing-key case explicitly.
  * Cost coverage is server ALS only (Liv plus opt-in Writer/SEO boundaries).
- * Unscoped accreditation/podcast calls are intentionally not covered; this is
- * not an account-wide budget or invoice. See withSharedCostContext.
+ * With shared accounting enabled, missing ALS is rejected before transport.
+ * This is not an account-wide budget or invoice. See withSharedCostContext.
  */
 export function getOpenAIClient(): OpenAI | null {
   if (!config.openai.apiKey) return null;

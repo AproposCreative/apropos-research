@@ -66,6 +66,20 @@ for invalid JSON; `content-enhancer` asks for full rewrites with small token cap
 Budget wrapping does not fix these functional problems. Inspect consumers and
 replace unsupported success fallbacks before treating these paths as editorial
 quality evidence. Do not delete the routes without tracing active consumers.
+# Shared transport closure (local, after f805c88)
+
+With AI_SHARED_COST_ENABLED=true, the shared OpenAI fetch wrapper now refuses
+missing ALS context before any provider request. SDK retries are zero for that
+refusal even if the caller asks for retries. Invalid shared configuration also
+fails closed. Disabled/absent flag retains legacy behavior; existing scoped
+requests keep their ownership and normal reservation/settlement. Twenty-three
+real-SDK/mocked-transport tests pass, including three new unscoped denial cases.
+
+This prevents unregistered spend through this client, not proof every feature
+works: remaining callers need boundary verification before release. External
+adapters, independent deployments and historical spending are not covered by
+this change. Do not flip fullMonthlyCapVerified based on this guard alone.
+
 # Podcast source audit, after release 4590fcc
 
 The checked-in podcast implementation does not synthesize or transcribe audio.

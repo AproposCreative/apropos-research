@@ -2,7 +2,7 @@ import OpenAI from 'openai';
 import type { ClientOptions } from 'openai';
 import type { APIPromise } from 'openai/core/api-promise';
 import { createHash, randomUUID } from 'node:crypto';
-import { currentLivCostContext } from './cost-context';
+import { currentLivCostContext, sharedCostEnabled } from './cost-context';
 import { createLivCostLedger, type LivCostLedger, type LivCostOutcome } from './cost-ledger';
 import { quoteLivImageRequest, quoteLivOpenAIRequest, readLivProviderUsage } from './cost-pricing';
 import { LivCostPretransportError } from './cost-errors';
@@ -14,7 +14,10 @@ export function livBudgetFetch(transport: typeof fetch, ledger: LivCostLedger = 
   if (guardedTransports.has(transport)) return transport;
   const guarded: typeof fetch = async (input, init) => {
     const context = currentLivCostContext();
-    if (!context) return transport(input, init);
+    if (!context) {
+      if (sharedCostEnabled()) throw new LivCostPretransportError('liv_cost_context_required');
+      return transport(input, init);
+    }
     if (context.blocked) throw new Error('liv_cost_context_blocked');
     const url = new URL(typeof input === 'string' ? input : input instanceof URL ? input.href : input.url);
     if (url.origin !== 'https://api.openai.com' || url.search || url.hash || url.username || url.password ||
@@ -61,13 +64,18 @@ export function livBudgetFetch(transport: typeof fetch, ledger: LivCostLedger = 
   return guarded;
 }
 
-/** Outside Liv ALS, request options and SDK retry behavior remain unchanged. */
+/** Shared accounting fails closed for forgotten boundaries; disabled mode retains legacy behavior. */
 export class LivBudgetOpenAI extends OpenAI {
   constructor(options: ClientOptions, ledger?: LivCostLedger) {
     super({ ...options, fetch: livBudgetFetch(options.fetch || globalThis.fetch.bind(globalThis), ledger) });
   }
   override request<T>(options: FinalRequestOptions | Promise<FinalRequestOptions>, remainingRetries: number | null = null): APIPromise<T> {
-    if (!currentLivCostContext()) return super.request<T>(options, remainingRetries);
+    if (!currentLivCostContext()) {
+      if (!sharedCostEnabled()) return super.request<T>(options, remainingRetries);
+      // The fetch guard rejects before transport. Do not let SDK retries repeat
+      // a known unregistered request, even if the caller explicitly asks for them.
+      return super.request<T>(Promise.resolve(options).then(value => ({ ...value, maxRetries: 0 })), 0);
+    }
     const bounded = Promise.resolve(options).then(value => {
       const body = value.body && typeof value.body === 'object' && !Array.isArray(value.body)
         ? value.body as Record<string, unknown> : null;

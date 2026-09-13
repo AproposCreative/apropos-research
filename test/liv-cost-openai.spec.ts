@@ -88,6 +88,19 @@ it('retains unrelated manual SDK retry behavior', async () => {
   await client().chat.completions.create(request, { maxRetries: 1 });
   expect(mock.transport).toHaveBeenCalledTimes(2); expect(mock.reserve).not.toHaveBeenCalled();
 });
+it('refuses unscoped SDK work when shared accounting is enabled, without transport or retries', async () => {
+  vi.stubEnv('AI_SHARED_COST_ENABLED', 'true');
+  const error = await client().chat.completions.create(request, { maxRetries: 5 }).catch(e => e);
+  expect(getLivCostPretransportError(error)?.code).toBe('liv_cost_context_required');
+  expect(mock.transport).not.toHaveBeenCalled(); expect(mock.reserve).not.toHaveBeenCalled();
+});
+it.each(['true', 'TRUE'])('refuses raw unscoped transport under shared flag %s', async flag => {
+  vi.stubEnv('AI_SHARED_COST_ENABLED', flag);
+  await expect(livBudgetFetch(mock.transport, ledger)('https://api.openai.com/v1/chat/completions', {
+    method: 'POST', body: JSON.stringify(request),
+  })).rejects.toBeInstanceOf(LivCostPretransportError);
+  expect(mock.transport).not.toHaveBeenCalled();
+});
 it('blocks transport for unknown pricing, exhausted/missing ledger policy and unsupported stream', async () => {
   const sdk = client();
   await expect(withLivCostContext(context, () => sdk.chat.completions.create({ ...request, model: 'unknown' }))).rejects.toThrow();
