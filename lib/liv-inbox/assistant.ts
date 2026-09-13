@@ -1,4 +1,5 @@
 import { getOpenAIClient } from '@/lib/openai';
+import { withSharedCostContext } from '@/lib/liv/cost-context';
 import { getAccreditationAgentModel, getAccreditationFastModel } from '@/lib/accreditation/models';
 import {
   composeLivSystemPrompt,
@@ -230,15 +231,17 @@ async function runStructured(
   schema: JsonSchema
 ): Promise<Record<string, unknown> | null> {
   try {
-    const completion = await openai.chat.completions.create({
+    const completion = await withSharedCostContext({ scope: 'accreditation', stage: 'inbox-assistant' }, () => openai.chat.completions.create({
       model,
+      max_completion_tokens: 2000,
       ...(supportsTemperature(model) ? { temperature: 0.3 } : {}),
       messages: [
         { role: 'system', content: systemPrompt },
         { role: 'user', content: userContent },
       ],
       response_format: { type: 'json_schema', json_schema: schema },
-    });
+    }, { maxRetries: 0, timeout: 45000 }));
+    if (completion.choices[0]?.finish_reason !== 'stop') return null;
     const raw = completion.choices[0]?.message?.content || '{}';
     return JSON.parse(raw) as Record<string, unknown>;
   } catch {

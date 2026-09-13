@@ -279,3 +279,13 @@ No paid model tests, CMS writes, newsletter sends or Instagram changes were made
   error bodies no longer leak into draft warnings. Sending behavior is unchanged.
 - 24 intro/transport tests and TypeScript pass without live model requests.
   Pending deployment; not a claim of successful newsletter delivery.
+
+### Inbox generation and learning budget
+
+- Shared structured inbox generation and learnFromEdit now use accreditation
+  accounting (inbox-assistant/inbox-learn), 2000-token bounds, zero SDK retries
+  and 45-second timeout. Incomplete completions return existing failure values.
+- Learning refuses incomplete rules before settings/contact writes. Existing
+  best-effort failure behavior does not initiate or repeat mail delivery.
+- 83 existing inbox tests and three new learning boundary tests pass, without
+  model requests; TypeScript passes. Changes remain pending deployment.

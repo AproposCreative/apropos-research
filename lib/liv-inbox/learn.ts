@@ -11,6 +11,7 @@
  * the send.
  */
 import { getOpenAIClient } from '@/lib/openai';
+import { withSharedCostContext } from '@/lib/liv/cost-context';
 import { getAccreditationFastModel } from '@/lib/accreditation/models';
 import { sanitizeLivOutput } from '@/lib/accreditation/sanitize';
 import { getContactProfile, upsertContactProfile } from '@/lib/accreditation/memory-store';
@@ -66,8 +67,9 @@ export async function learnFromEdit(params: {
 
   const model = getAccreditationFastModel();
   try {
-    const completion = await openai.chat.completions.create({
+    const completion = await withSharedCostContext({ scope: 'accreditation', stage: 'inbox-learn' }, () => openai.chat.completions.create({
       model,
+      max_completion_tokens: 2000,
       messages: [
         {
           role: 'system',
@@ -91,7 +93,8 @@ export async function learnFromEdit(params: {
         },
       ],
       response_format: { type: 'json_object' },
-    });
+    }, { maxRetries: 0, timeout: 45000 }));
+    if (completion.choices[0]?.finish_reason !== 'stop') return { learned: false };
 
     const raw = completion.choices[0]?.message?.content || '{}';
     const parsed = JSON.parse(raw) as { global?: string; contact?: string };
