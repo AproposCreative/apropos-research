@@ -20,6 +20,18 @@ Build the user's approved September 13 plan. Only the three verified colleagues 
 
 ## Required before this checkpoint can release
 
+### Reserve audit: remaining implementation
+
+The approved one-evergreen reserve is **not implemented/active** merely by existing reserve types. Source inspection after `749fb4a`:
+
+- `delivery-policy.ts` still sets `LIV_RESERVE_TARGET = 0`; `preparationCandidates` only returns scheduled jobs.
+- `defaultEditorialPlan(day, true)` already supplies a timeless directive, and `runLivDaily` already supports a separate reserve scope. Reuse these, rather than a second generator.
+- A durable reserve-job pointer is needed so a pending/failed paid reserve does not become a fresh paid job each midnight. Existing shared preparation lease and retained checkpoints must remain authoritative.
+- Daily/tomorrow work must take priority; one non-rejected valid ready reserve should suppress replenishment. Blocked saved reserves need recovery, not automatic replacement. Never consume the existing three scheduled stories as reserves or pull future publication forward.
+- Main runner admits reserve dates as current preparation day through job-day +5, but cron's readback recovery currently uses job-day for both dates and defaults to a scheduled directive. Reserve scheduling must unify those paths before activation.
+- Read-only preparation status currently permits only prepare/prepare-alternative scopes and must represent reserve continuation accurately without confusing today's delivery alarm.
+- Tests must cover midnight continuation, rejection, expiry, blocked/uncertain CMS work, duplicate selection, and bounded stock. Source/date/media/CMS checks and shared budget remain required. Do not flip the target alone.
+
 ### Operations release result
 
 - `89b7d8f` is deployed READY; next-story/current-alert operations API is live and verified. Full 3,334-test regression, build and isolated history browser checks passed.
