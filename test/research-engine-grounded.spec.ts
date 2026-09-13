@@ -39,3 +39,18 @@ it('rejects oversized topics without paid work', async () => {
   expect((await POST(request({ topic: 'x'.repeat(1001) }))).status).toBe(400);
   expect(mocks.research).not.toHaveBeenCalled();
 });
+it('reuses successful research only for the same authenticated credential and topic', async () => {
+  mocks.research.mockResolvedValue({ contextText: 'Kildebaseret research. '.repeat(20),
+    sources: [1, 2].map(i => ({ url: `https://example.invalid/${i}`, title: 'Kilde', source: 'Test', snippet: 'Kildeuddrag. '.repeat(12) })) });
+  const authenticated = (token: string) => new NextRequest('https://example.invalid/api/research-engine', {
+    method: 'POST', headers: { authorization: `Bearer ${token}` },
+    body: JSON.stringify({ topic: 'Unique cache fixture' }),
+  });
+  const responses = await Promise.all([POST(authenticated('fixture-a')), POST(authenticated('fixture-a'))]);
+  expect(responses.map(response => response.status)).toEqual([200, 200]);
+  expect(mocks.research).toHaveBeenCalledTimes(1);
+  expect((await POST(authenticated('fixture-a'))).status).toBe(200);
+  expect(mocks.research).toHaveBeenCalledTimes(1);
+  expect((await POST(authenticated('fixture-b'))).status).toBe(200);
+  expect(mocks.research).toHaveBeenCalledTimes(2);
+});

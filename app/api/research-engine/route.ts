@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { isApiRequestAuthorized } from '@/lib/api/middleware-auth';
 import { getRequestId } from '@/lib/api/request-utils';
 import { createSuccessResponse } from '@/lib/api/types';
-import { getResearch } from '@/lib/research/service';
+import { getWriterResearch, writerResearchScope } from '@/lib/ai-chat/research-cache';
 import { evaluateResearchQuality } from '@/lib/research/qualityGate';
 import { withLivCostRequest, withSharedCostContext } from '@/lib/liv/cost-context';
 import { getLivCostPretransportError } from '@/lib/liv/cost-errors';
@@ -22,7 +22,8 @@ export async function POST(request: NextRequest) {
   try {
     return await withLivCostRequest(request, 'research-engine', () =>
       withSharedCostContext({ scope: 'writer', stage: 'research-engine' }, async () => {
-        const result = await getResearch(body.topic.trim(), { maxResults: 3, timeoutMs: 45000, allowFallback: false });
+        const result = await getWriterResearch(writerResearchScope(request.headers), body.topic.trim(),
+          { maxResults: 3, timeoutMs: 45000, allowFallback: false });
         if (!evaluateResearchQuality(result).pass) {
           return NextResponse.json({ error: 'Der blev ikke fundet tilstrækkeligt kildemateriale.', complete: false, requestId },
             { status: 503, headers: { 'Cache-Control': 'no-store' } });
