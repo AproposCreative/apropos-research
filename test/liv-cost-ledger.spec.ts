@@ -211,6 +211,20 @@ it('reports policy/activation failures and rollback without erasing shared histo
   expect(await readSharedCostSummary(now)).toMatchObject({ sharedActivation: 'unavailable', status: 'unavailable' });
 });
 
+it('reports actual accreditation and podcast boundaries without claiming invoice coverage', async () => {
+  vi.stubEnv('AI_SHARED_COST_ENABLED', 'true');
+  vi.stubEnv('PODCAST_PROCESSOR_URL', '');
+  expect((await readSharedCostSummary(now)).excludedScopes).toContain('accreditation_other_calls');
+  memory.rows.set('livCostLedger/policy', { ...policy, sharedScopesEnabled: true, sharedTrackingStartedAt: now.toISOString() });
+  const enabled = await readSharedCostSummary(now);
+  expect(enabled.excludedScopes).toEqual(['other_providers', 'historical_untracked_calls']);
+  expect(enabled.fullMonthlyCapVerified).toBe(false);
+  vi.stubEnv('PODCAST_PROCESSOR_URL', 'https://processor.example.invalid');
+  expect((await readSharedCostSummary(now)).excludedScopes).toContain('external_podcast_processor');
+  vi.stubEnv('AI_SHARED_COST_ENABLED', 'false');
+  expect((await readSharedCostSummary(now)).excludedScopes).toContain('accreditation_other_calls');
+});
+
 it('preflights default Writer/SEO prices and activates only by explicit compare-and-set without touching totals', async () => {
   expect(inspectSharedCostActivation().ready).toBe(true);
   const totals = { committedDkkMicros: 44_760_000, reservedDkkMicros: 99, calls: 7, unknownCalls: 1 };

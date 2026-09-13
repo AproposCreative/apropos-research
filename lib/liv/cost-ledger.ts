@@ -207,7 +207,11 @@ export async function readSharedCostSummary(now = new Date()): Promise<SharedCos
   const base = await readLivCostSummary(now);
   const result: SharedCostSummary = { ...base, coverage: 'shared_server_cost_contexts',
     sharedActivation: 'disabled', sharedTrackingStartedAt: null, includedScopes: ['liv'],
-    excludedScopes: ['unscoped_openai_calls', 'accreditation_other_calls', 'podcast', 'other_providers', 'historical_untracked_calls'],
+    excludedScopes: ['unscoped_openai_calls', 'accreditation_other_calls',
+      // Inline podcast processing only encodes uploaded audio. An independently
+      // configured processor is outside this ledger's verified runtime boundary.
+      ...(process.env.PODCAST_PROCESSOR_URL?.trim() ? ['external_podcast_processor'] : []),
+      'other_providers', 'historical_untracked_calls'],
     unscopedOpenAIBehavior: 'not_enforced',
     unpricedBehavior: 'deny_before_transport', unknownUsageBehavior: 'retain_full_reservation', existingLivCostsIncluded: true };
   let enabled: boolean;
@@ -226,7 +230,14 @@ export async function readSharedCostSummary(now = new Date()): Promise<SharedCos
     }
     if (enabled) {
       result.sharedActivation = 'policy_required';
-      try { policyOf(policy); if (sharedPolicyReady(policy, now)) result.sharedActivation = 'enabled'; } catch { /* Fail closed. */ }
+      try {
+        policyOf(policy);
+        if (sharedPolicyReady(policy, now)) {
+          result.sharedActivation = 'enabled';
+          // All six accreditation model boundaries use shared accounting.
+          result.excludedScopes = result.excludedScopes.filter(scope => scope !== 'accreditation_other_calls');
+        }
+      } catch { /* Fail closed. */ }
     }
   } catch { result.sharedActivation = 'unavailable'; }
   return result;
