@@ -11,7 +11,7 @@ const css=(await postcss([tailwind({content:content.map(raw=>({raw,extension:'ts
 const bundle=await build({stdin:{resolveDir:process.cwd(),loader:'tsx',contents:`
 import React,{StrictMode} from 'react';import {createRoot} from 'react-dom/client';
 import Writer from './app/ai/AIWriterClient';import {autoSaveService} from './lib/auto-save-service';
-window.fixture={errors:[],calls:[],offline:false};
+window.fixture={errors:[],calls:[],offline:false,versions:[],receipts:{},restoreBodies:[],failVersions:false,loseRestoreResponse:false};
 window.addEventListener('error',e=>window.fixture.errors.push(e.message));
 window.addEventListener('unhandledrejection',e=>window.fixture.errors.push(String(e.reason)));
 autoSaveService.setOwner('fixture-writer');
@@ -22,8 +22,26 @@ window.fetch=async(url,options={})=>{
  const path=String(url);window.fixture.calls.push({path,method:options.method||'GET'});
  if(path==='/api/writer/workspace'){
   if(window.fixture.offline)throw new Error('Fixture offline');
-  if(options.method==='PUT'){const input=JSON.parse(options.body);if(input.revision!==window.fixture.server.revision)return Response.json({error:'conflict'},{status:409});window.fixture.server={revision:input.revision+1,data:input.data,updatedAt:new Date().toISOString()};return Response.json({revision:window.fixture.server.revision});}
+  if(options.method==='PUT'){const input=JSON.parse(options.body);if(input.revision!==window.fixture.server.revision){window.fixture.versions.push({id:'a'.repeat(64),kind:'conflicts',snapshot:{revision:input.revision,data:input.data,updatedAt:new Date().toISOString()}});return Response.json({error:'conflict'},{status:409});}window.fixture.server={revision:input.revision+1,data:input.data,updatedAt:new Date().toISOString()};return Response.json({revision:window.fixture.server.revision});}
   return Response.json({workspace:window.fixture.server});
+ }
+ if(path.startsWith('/api/writer/workspace/versions')){
+  if(window.fixture.failVersions)return Response.json({error:'unavailable'},{status:503});
+  const query=new URL(path,location.origin).searchParams;
+  if(query.has('id'))return Response.json({snapshot:window.fixture.versions.find(v=>v.id===query.get('id')).snapshot});
+  return Response.json({versions:window.fixture.versions.map(v=>({id:v.id,kind:v.kind,title:v.snapshot.data.chatTitle,updatedAt:v.snapshot.updatedAt,revision:v.snapshot.revision}))});
+ }
+ if(path==='/api/writer/workspace/restore'){
+  const input=JSON.parse(options.body);window.fixture.restoreBodies.push(options.body);
+  let restored=window.fixture.receipts[input.operationId];
+  if(!restored){
+   const selected=window.fixture.versions.find(v=>v.id===input.selection.id).snapshot;
+   window.fixture.versions.push({id:'100',kind:'history',snapshot:structuredClone(window.fixture.server)},{id:'101',kind:'history',snapshot:{revision:input.revision,data:input.local,updatedAt:new Date().toISOString()}});
+   restored={revision:window.fixture.server.revision+1,data:{...structuredClone(selected.data),currentDraftId:'restored-fixture-draft'},updatedAt:new Date().toISOString()};
+   window.fixture.server=restored;window.fixture.receipts[input.operationId]=restored;
+  }
+  if(window.fixture.loseRestoreResponse){window.fixture.loseRestoreResponse=false;throw new Error('Response lost after fixture commit');}
+  return Response.json({workspace:restored});
  }
  throw new Error('Unexpected fixture network: '+path);
 };

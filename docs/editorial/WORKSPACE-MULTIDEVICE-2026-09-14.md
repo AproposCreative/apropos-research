@@ -1,5 +1,36 @@
 # Private workspace acceptance checkpoint
 
+## Conflict UI acceptance and read retry (local follow-up)
+
+September 14: extended `verify-writer-resume-ui.mjs` with isolated conflict,
+version-list/detail and idempotent restore transports. The actual Writer parent,
+workspace hook/controller and version dialog are rendered together at 390x844.
+The real server restore and workspace handlers remain covered separately by
+the existing integration tests, not by this browser fixture's fake transport.
+
+- Advance the fixture server revision after initial read, then explicitly resume
+  the older client snapshot. Its next save receives 409. Writer displays
+  `Konflikt: Begge versioner er bevaret` and retains the local title/text.
+- Navigate through the real menu, Drafts and Gemte versioner. Select the conflict
+  copy and use `Åbn som ny kopi i Writer`.
+- Simulate server restore commit followed by a lost response. The dialog remains
+  open with an error. Click restore again: the two POST bodies are identical,
+  there is one operation receipt and revision remains 3, not a duplicate 4.
+  The dialog closes and Writer adopts `restored-fixture-draft`. Fixture history
+  contains both the newer server title and pre-restore local title. No uncaught
+  browser errors. This does not prove live Firestore records were preserved.
+- Found missing direct retry when reading versions fails. Added
+  `Prøv at hente igen`, scoped only to read failures, using the same selection
+  and authenticated fetch effect. Restore failures keep their existing retry.
+- Verified 503 -> explicit retry -> empty successful list in the real dialog,
+  without closing it, with zero mutation requests, no uncaught errors or mobile
+  horizontal overflow. Screenshot inspected.
+
+28 targeted controller/multidevice/server-restore tests and TypeScript passed.
+No AI/CMS calls, no production workspace writes. This retry change is not yet
+released. Real-account cross-device acceptance and Writer-to-Webflow-draft
+acceptance are still open.
+
 ## Follow-up: remove competing chat cache (released September 14)
 
 Release `5940383e1b7544b35b33e61e0fd741903232c219` is READY in deployment

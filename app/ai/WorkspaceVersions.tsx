@@ -16,6 +16,8 @@ export default function WorkspaceVersions({ onClose, onRestore }: {
   const [choice, setChoice] = useState<Version | null>(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
+  const [readFailed, setReadFailed] = useState(false);
+  const [readAttempt, setReadAttempt] = useState(0);
   const [restoring, setRestoring] = useState(false);
   async function restore() {
     if (!choice) return;
@@ -26,7 +28,7 @@ export default function WorkspaceVersions({ onClose, onRestore }: {
   }
   useEffect(() => {
     const controller = new AbortController();
-    setLoading(true); setError(''); setSelected(null);
+    setLoading(true); setReadFailed(false); setError(''); setSelected(null);
     void (async () => {
       try {
         if (!user) throw new Error();
@@ -39,11 +41,11 @@ export default function WorkspaceVersions({ onClose, onRestore }: {
         if (choice) setSelected(workspaceSnapshotSchema.parse(body.snapshot));
         else if (Array.isArray(body.versions)) setVersions(body.versions);
         else throw new Error();
-      } catch { if (!controller.signal.aborted) setError('Versionerne kunne ikke hentes. Dit arbejde er ikke ændret.'); }
+      } catch { if (!controller.signal.aborted) { setReadFailed(true); setError('Versionerne kunne ikke hentes. Dit arbejde er ikke ændret.'); } }
       finally { if (!controller.signal.aborted) setLoading(false); }
     })();
     return () => controller.abort();
-  }, [user, choice]);
+  }, [user, choice, readAttempt]);
   function download() {
     if (!selected) return;
     const url = URL.createObjectURL(new Blob([JSON.stringify(selected, null, 2)], { type: 'application/json' }));
@@ -55,6 +57,7 @@ export default function WorkspaceVersions({ onClose, onRestore }: {
     <p className="mb-4 text-sm text-white/60">Kun dine egne versioner. Visning og download ændrer ikke dit aktuelle arbejde. De 20 seneste af hver type vises.</p>
     {loading && <p role="status">Henter…</p>}
     {error && <p role="alert">{error}</p>}
+    {readFailed && !loading && <button className="min-h-11 self-start underline" onClick={() => setReadAttempt(attempt => attempt + 1)}>Prøv at hente igen</button>}
     <div className="min-h-0 overflow-y-auto">
       {choice && <button disabled={restoring} className="min-h-11 underline" onClick={() => setChoice(null)}>← Til listen</button>}
       {!choice && !loading && !versions.length && !error && <p>Ingen tidligere versioner endnu.</p>}
