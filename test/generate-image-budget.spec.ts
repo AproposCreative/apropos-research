@@ -9,6 +9,7 @@ vi.mock('@/lib/images/optimize-and-upload', () => ({ optimizeAndUploadImageBytes
 vi.mock('@/lib/config/env', () => ({ config: { features: { tmdb: true } } }));
 vi.mock('@/lib/media-search-utils', () => ({ isMediaReview: () => ({ type: 'film', searchTerm: 'Film' }), searchTMDB: m.tmdb, searchGoogleImages: vi.fn() }));
 import { POST } from '@/app/api/generate-image/route';
+import { POST as thumbnail } from '@/app/api/generate-thumbnail/route';
 const request = (body: object) => new NextRequest('http://localhost/api/generate-image', { method: 'POST', body: JSON.stringify(body) });
 beforeEach(() => { vi.resetAllMocks(); vi.stubEnv('AI_SHARED_COST_ENABLED', 'true'); vi.stubEnv('AI_IMAGE_GENERATION_ENABLED', 'true'); });
 afterEach(() => vi.unstubAllEnvs());
@@ -23,6 +24,29 @@ it('generates the priced shape once and persists bytes before returning a URL', 
   const response = await POST(request({ title: 'Byens parker', category: 'Kultur' }));
   expect(response.status).toBe(200); expect((await response.json()).imageUrl).toBe('https://stored.example/art.webp');
   expect(m.image).toHaveBeenCalledTimes(1); expect(Buffer.isBuffer(m.store.mock.calls[0][0])).toBe(true);
+});
+it('legacy thumbnail uses shared storage and the old data envelope', async () => {
+  m.image.mockImplementation(async (body) => {
+    expect(currentLivCostContext()).toMatchObject({ scope: 'writer', stage: 'generate-image' });
+    expect(body.model).toBe('gpt-image-1.5');
+    return { data: [{ b64_json: Buffer.from('mock bytes').toString('base64') }] };
+  });
+  m.store.mockResolvedValue({ url: 'https://stored.example/thumb.webp' });
+  const response = await thumbnail(request({ title: 'Byens parker' }));
+  expect(response.status).toBe(200);
+  expect(await response.json()).toMatchObject({ success: true, data: { success: true, imageUrl: 'https://stored.example/thumb.webp' } });
+  expect(m.image).toHaveBeenCalledTimes(1);
+});
+it('legacy thumbnail obeys the paid-image off switch', async () => {
+  vi.stubEnv('AI_IMAGE_GENERATION_ENABLED', 'false');
+  expect((await thumbnail(request({ title: 'Byens parker' }))).status).toBe(403);
+  expect(m.image).not.toHaveBeenCalled(); expect(m.text).not.toHaveBeenCalled();
+});
+it('legacy thumbnail propagates budget refusal without fallback', async () => {
+  m.image.mockRejectedValue(new LivCostPretransportError('limit'));
+  const response = await thumbnail(request({ title: 'Byens parker' }));
+  expect(response.status).toBe(503); expect(response.headers.get('cache-control')).toBe('no-store');
+  expect(m.image).toHaveBeenCalledTimes(1); expect(m.store).not.toHaveBeenCalled();
 });
 it('planning denial stops before image generation', async () => {
   m.text.mockRejectedValue(new LivCostPretransportError('limit'));

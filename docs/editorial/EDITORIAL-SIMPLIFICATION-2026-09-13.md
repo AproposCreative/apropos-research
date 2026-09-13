@@ -34,6 +34,19 @@ still uses the legacy model and remains the next uncovered image route.
 
 ## Target
 
+### Thumbnail consolidation (local, after e3004c2)
+
+Removed the duplicate legacy thumbnail model/prompt implementation, retaining
+its endpoint and success envelope as an in-process adapter to generate-image.
+No current app/component/lib caller was found. Shared generation now governs
+budget reservation, image switch, official media lookup and generated-byte upload.
+Seven mocked image tests pass, including adapter success, disabled generation
+and budget denial. The old square temporary-provider output is replaced by the
+shared editorial image format (generated 1920x1080); no square contract was found
+outside the deleted implementation. No paid call or CMS write was made.
+This removes duplicate code, not proof of observed monetary savings. Shared image
+checkpoint/recovery gaps remain as documented; not yet deployed.
+
 One API-published Liv article at 10:00 Europe/Copenhagen per day, tomorrow's
 preview, a hard 300 DKK tracked application AI budget, staff-only access, and
 seven consecutive verified daily publications before operational sign-off.
