@@ -68,7 +68,7 @@ export function deliveryHealth(state: DeliveryState, now = new Date()) {
   const reserves = state.entries.filter(e => e.kind === 'reserve' && e.state === 'ready' && !e.publicationBlockers?.length && e.decision !== 'rejected' &&
     e.scheduledDay <= day && e.expiresDay >= day).length;
   const missingDays = Array.from({ length: LIV_PLAN_DAYS }, (_, i) => addDays(day, i + 1))
-    .filter(d => !state.entries.some(e => e.state === 'ready' && e.decision !== 'rejected' && e.kind === 'scheduled' &&
+    .filter(d => !state.entries.some(e => e.state === 'ready' && !e.publicationBlockers?.length && e.decision !== 'rejected' && e.kind === 'scheduled' &&
       e.scheduledDay === d && e.expiresDay >= d));
   const blockedItems = state.entries.filter(e => e.state === 'ready' && e.publicationBlockers?.length).map(e => e.itemId);
   return { blockedItems, day, published: slot?.state === 'published', publicUrl: slot?.publicUrl ?? null,

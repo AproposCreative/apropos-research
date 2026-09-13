@@ -45,6 +45,18 @@ it('reports idle without database reads when today and tomorrow are already cove
   expect(state.reads).not.toHaveBeenCalled();
 });
 
+it('surfaces blocked tomorrow inventory without regenerating or exposing saved details', async () => {
+  const manifest = emptyDeliveryState();
+  manifest.entries.push(entry(), entry({ scheduledDay: '2026-09-13', expiresDay: '2026-09-13', publicationBlockers: ['private-check'] }));
+  const before = structuredClone(manifest);
+  expect(await readNextLivPreparationStatus(manifest, now)).toEqual({ day: '2026-09-13', scope: 'prepare', runStatus: null,
+    status: 'blocked_saved_work', reasonCode: 'cms_reconciliation_required' });
+  expect(manifest).toEqual(before);
+  expect(state.reads).not.toHaveBeenCalled();
+  manifest.entries.push(entry({ itemId: 'c'.repeat(24), scheduledDay: '2026-09-13', expiresDay: '2026-09-13' }));
+  expect(await readNextLivPreparationStatus(manifest, now)).toMatchObject({ status: 'idle' });
+});
+
 it('surfaces two explicit rejections without creating or reading a third job', async () => {
   const manifest = emptyDeliveryState(); manifest.entries.push(entry({ decision: 'rejected' }), entry({ itemId: 'c'.repeat(24), decision: 'rejected' }));
   expect(await readNextLivPreparationStatus(manifest, now)).toMatchObject({ day, status: 'blocked_saved_work', reasonCode: 'alternative_limit_reached' });

@@ -68,6 +68,15 @@ export async function readNextLivPreparationStatus(state: DeliveryState, now = n
   if (Object.values(state.slots).some(slot => slot.state === 'attempted')) {
     return { ...empty, status: 'reconciliation_required', reasonCode: 'delivery_reconciliation_required' };
   }
+  // Saved inventory can be ready structurally but blocked by a later CMS check.
+  // Surface that work instead of claiming idle or regenerating a paid article.
+  const blocked = state.entries.find(entry => entry.kind === 'scheduled' &&
+    [today, addDays(today, 1)].includes(entry.scheduledDay) && !state.slots[entry.scheduledDay] &&
+    entry.state === 'ready' && entry.decision !== 'rejected' && entry.expiresDay >= entry.scheduledDay && entry.publicationBlockers?.length &&
+    !state.entries.some(other => other.kind === 'scheduled' && other.scheduledDay === entry.scheduledDay &&
+      other.state === 'ready' && other.decision !== 'rejected' && !other.publicationBlockers?.length && other.expiresDay >= entry.scheduledDay));
+  if (blocked) return { day: blocked.scheduledDay, scope: 'prepare', runStatus: null,
+    status: 'blocked_saved_work', reasonCode: 'cms_reconciliation_required' };
   const candidate = preparationCandidates(state, today)[0];
   if (!candidate) {
     const exhaustedDay = [today, addDays(today, 1)].find(day => !state.slots[day] &&

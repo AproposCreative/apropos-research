@@ -11,6 +11,12 @@ function entry(overrides: Partial<ReadyEntry> = {}): ReadyEntry {
     kind: 'scheduled', state: 'ready', preparedAt: '2026-09-10T12:00:00Z', payloadHash: 'b'.repeat(64), ...overrides };
 }
 describe('daily delivery policy', () => {
+  it('reports blocked tomorrow inventory as missing without regenerating paid work', () => {
+    const state = emptyDeliveryState();
+    state.entries = [entry(), entry({ scheduledDay: '2026-09-12', expiresDay: '2026-09-12', publicationBlockers: ['cms_changed'] })];
+    expect(deliveryHealth(state, new Date('2026-09-11T08:00:00Z')).missingDays).toEqual(['2026-09-12']);
+    expect(preparationCandidates(state, day)).toEqual([]);
+  });
   it('prefers an approved eligible story and never uses an editorial rejection as fallback', () => {
     const state = emptyDeliveryState();
     state.entries = [entry({ decision: 'rejected' }), entry({ itemId: 'pending', kind: 'reserve' }),
@@ -140,5 +146,6 @@ it('does not select blocked drafts or count them as usable reserves, but preserv
   expect(selectDelivery(state, day, 100, 'test')).toBeNull();
   const health = deliveryHealth(state, new Date('2026-09-11T08:00:00Z'));
   expect(health.reserves).toBe(0); expect(health.blockedItems).toHaveLength(3);
-  expect(health.missingDays).not.toContain('2026-09-12');
+  expect(health.missingDays).toContain('2026-09-12');
+  expect(preparationCandidates(state, day)).toEqual([]);
 });

@@ -107,3 +107,22 @@ Reference: https://firebase.google.com/docs/rules/manage-deploy#manage_permissio
 - Verify exact production SHA, normal daily API delivery and seven-day record.
 
 No paid model tests, CMS writes, newsletter sends or Instagram changes were made.
+
+### Daily delivery inspection, 2026-09-13 (latest)
+
+- Authenticated production delivery API reports today's publication. Public URL
+  `https://www.aproposmagazine.com/articles/the-gentlemen-saeson-2-goer-privilegium-til-et-vaben`
+  returned HTTP 200 with its canonical URL and two body image elements. This is
+  not evidence of seven consecutive scheduled deliveries or verified image bytes.
+- Tomorrow's saved Lucian Freud item `6aa566cf1d63c39af0d73ad2` is blocked by
+  `field:content`, `field:intro`, `image:body-assets`. Frankenstein on September 15
+  is blocked by `field:content`, `image:body-matches`, `image:body-assets`.
+  Resolve actual CMS/checkpoint differences via server operations; never clear
+  blockers blindly or regenerate paid work merely to fill the queue.
+- Fixed local status projection: blocked tomorrow inventory no longer counts as
+  publication-ready, and preparation exposes a safe saved-work hold instead of
+  idle. No preparation-selection or paid-regeneration policy changed.
+  37 targeted tests and TypeScript pass. This status patch is not deployed yet.
+- Budget readback: estimated tracked upper 46.306176 DKK, limit 300 DKK, tracking
+  began September 12. `fullMonthlyCapVerified=false`; remaining allowance is not
+  proof of actual account-wide September spending.
