@@ -26,6 +26,15 @@ One API-published Liv article at 10:00 Europe/Copenhagen per day, tomorrow's
 preview, a hard 300 DKK tracked application AI budget, staff-only access, and
 seven consecutive verified daily publications before operational sign-off.
 
+### Additional quality-route accounting (after cf430c9)
+
+Factcheck, TOV critic and moderation now establish shared Writer accounting for
+manual requests while preserving signed Liv ownership. Branded pretransport
+denials return uncached 503, not a false 401 or successful control result. Invalid
+internal contexts still fail before work. Advisory factcheck and TOV calls have
+zero SDK retries and 45-second timeouts. Source checks and editorial assessment
+are retained. This change is local pending the next release, not proven live.
+
 ## Implemented locally
 
 - Exact-origin token attachment, preserving Request headers.

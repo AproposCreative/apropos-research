@@ -6,7 +6,8 @@ import { getRequestId } from '@/lib/api/request-utils';
 import { createErrorResponse, createSuccessResponse, ErrorCode } from '@/lib/api/types';
 import { isLivAuthor, loadLivVoice } from '@/lib/liv/voice';
 import { livModels } from '@/lib/liv/model-config';
-import { withLivCostRequest } from '@/lib/liv/cost-context';
+import { withLivCostRequest, withSharedCostContext } from '@/lib/liv/cost-context';
+import { getLivCostPretransportError } from '@/lib/liv/cost-errors';
 
 const client = getOpenAIClient();
 
@@ -15,8 +16,12 @@ Evaluer en kladde efter TOV: rytme, sanselighed, personligt nærvær, intro/afsl
 Returnér korte, præcise forbedringsforslag i punktform. Dansk.`;
 
 export async function POST(request: NextRequest) {
-	try { return await withLivCostRequest(request, 'tov', () => handlePost(request)); }
-	catch { return NextResponse.json({ error: 'Ugyldig intern budgetkontekst.' }, { status: 401 }); }
+	try { return await withLivCostRequest(request, 'tov', () =>
+		withSharedCostContext({ scope: 'writer', stage: 'tov' }, () => handlePost(request))); }
+	catch (error) {
+		if (getLivCostPretransportError(error)) return NextResponse.json({ error: 'AI-budgettet tillader ikke dette kald.' }, { status: 503, headers: { 'Cache-Control': 'no-store' } });
+		return NextResponse.json({ error: 'Ugyldig intern budgetkontekst.' }, { status: 401 });
+	}
 }
 
 async function handlePost(request: NextRequest) {
@@ -60,7 +65,7 @@ async function handlePost(request: NextRequest) {
 			model: liv ? livModels().article : models.default,
 			messages, 
 			max_completion_tokens: liv ? 3000 : 600
-		});
+		}, { maxRetries: 0, timeout: 45_000, signal: request.signal });
 		
 		const tips = comp.choices[0]?.message?.content || '';
 		
@@ -73,6 +78,7 @@ async function handlePost(request: NextRequest) {
 			createSuccessResponse({ ok: true, tips }, { requestId })
 		);
 	} catch (e) {
+		if (getLivCostPretransportError(e)) throw e;
 		const errorObj = e instanceof Error ? e : new Error(String(e));
 		requestLogger.error('Critic failed', errorObj);
 		return NextResponse.json(

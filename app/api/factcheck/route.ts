@@ -5,7 +5,8 @@ import { groundedInput } from '@/lib/factcheck/grounded';
 import { verifyArticleSources } from '@/lib/factcheck/verify-article';
 import { logger } from '@/lib/logger';
 import { assessLivEditorialArticle } from '@/lib/liv/editorial-assessment';
-import { withLivCostRequest } from '@/lib/liv/cost-context';
+import { withLivCostRequest, withSharedCostContext } from '@/lib/liv/cost-context';
+import { getLivCostPretransportError } from '@/lib/liv/cost-errors';
 import { livEditorialFieldsSchema, livEditorialFieldContext, type LivEditorialFields } from '@/lib/liv/editorial-assessment-contract';
 import { livVisualReferenceSchema, type LivVisualReference } from '@/lib/liv/visual-evidence';
 
@@ -31,8 +32,12 @@ Svar KUN med JSON-array. Eksempel:
 Vær ærlig om usikkerhed. Brug "unverifiable" når du ikke har tilstrækkelig viden.`;
 
 export async function POST(request: NextRequest) {
-  try { return await withLivCostRequest(request, 'factcheck', () => handlePost(request)); }
-  catch { return NextResponse.json({ error: 'Ugyldig intern budgetkontekst.', complete: false }, { status: 401 }); }
+  try { return await withLivCostRequest(request, 'factcheck', () =>
+    withSharedCostContext({ scope: 'writer', stage: 'factcheck' }, () => handlePost(request))); }
+  catch (error) {
+    if (getLivCostPretransportError(error)) return NextResponse.json({ error: 'AI-budgettet tillader ikke dette kald.', complete: false }, { status: 503, headers: { 'Cache-Control': 'no-store' } });
+    return NextResponse.json({ error: 'Ugyldig intern budgetkontekst.', complete: false }, { status: 401 });
+  }
 }
 
 async function handlePost(request: NextRequest) {
@@ -87,6 +92,7 @@ async function handlePost(request: NextRequest) {
         : await verifyArticleSources(parsed.data.articleText, parsed.data.sourceUrls);
       return NextResponse.json(report, { headers: { 'Cache-Control': 'no-store' } });
     } catch (error) {
+      if (getLivCostPretransportError(error)) throw error;
       const failure = error as { name?: unknown; status?: unknown; code?: unknown } | null;
       // Log only bounded error classification, never provider bodies or credentials.
       logger.warn('[factcheck] grounded verification failed', {
@@ -131,7 +137,7 @@ async function handlePost(request: NextRequest) {
           },
           { role: 'user', content: articleText.slice(0, 4000) },
         ],
-      });
+      }, { maxRetries: 0, timeout: 45_000, signal: request.signal });
 
       try {
         const raw = extractionResponse.choices[0]?.message?.content?.trim() || '[]';
@@ -156,7 +162,7 @@ async function handlePost(request: NextRequest) {
         { role: 'system', content: SYSTEM_PROMPT },
         { role: 'user', content: userMessage },
       ],
-    });
+    }, { maxRetries: 0, timeout: 45_000, signal: request.signal });
 
     const responseText = response.choices[0]?.message?.content?.trim() || '[]';
     let results;
@@ -174,7 +180,7 @@ async function handlePost(request: NextRequest) {
 
     return NextResponse.json({ ok: true, results, extractedClaims: !claims?.length, verificationMethod: 'model-advisory', complete: false });
   } catch (e: any) {
-    console.error('[factcheck]', e);
-    return NextResponse.json({ error: e?.message || 'factcheck failed' }, { status: 500 });
+    if (getLivCostPretransportError(e)) throw e;
+    return NextResponse.json({ error: 'Faktatjek kunne ikke gennemføres.', complete: false }, { status: 500 });
   }
 }

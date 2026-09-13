@@ -3,12 +3,17 @@ import { cosineSimilarity, getEmbedding, loadEmbeddingsRemoteOrLocal } from '@/l
 import { logger, createRequestLogger } from '@/lib/logger';
 import { getRequestId } from '@/lib/api/request-utils';
 import { createErrorResponse, createSuccessResponse, ErrorCode } from '@/lib/api/types';
-import { withLivCostRequest } from '@/lib/liv/cost-context';
+import { withLivCostRequest, withSharedCostContext } from '@/lib/liv/cost-context';
+import { getLivCostPretransportError } from '@/lib/liv/cost-errors';
 
 // Simple similarity + length checks as a preflight for plagiarism/fake signals
 export async function POST(request: NextRequest) {
-	try { return await withLivCostRequest(request, 'moderation', () => handlePost(request)); }
-	catch { return NextResponse.json({ error: 'Ugyldig intern budgetkontekst.' }, { status: 401 }); }
+	try { return await withLivCostRequest(request, 'moderation', () =>
+		withSharedCostContext({ scope: 'writer', stage: 'moderation' }, () => handlePost(request))); }
+	catch (error) {
+		if (getLivCostPretransportError(error)) return NextResponse.json({ error: 'AI-budgettet tillader ikke dette kald.' }, { status: 503, headers: { 'Cache-Control': 'no-store' } });
+		return NextResponse.json({ error: 'Ugyldig intern budgetkontekst.' }, { status: 401 });
+	}
 }
 
 async function handlePost(request: NextRequest) {
@@ -61,6 +66,7 @@ async function handlePost(request: NextRequest) {
 			}, { requestId })
 		);
 	} catch (e) {
+		if (getLivCostPretransportError(e)) throw e;
 		const errorObj = e instanceof Error ? e : new Error(String(e));
 		requestLogger.error('Moderation check failed', errorObj);
 		return NextResponse.json(
@@ -73,4 +79,3 @@ async function handlePost(request: NextRequest) {
 		);
 	}
 }
-
