@@ -33,7 +33,17 @@ Read-only authenticated application APIs at 2026-09-13T22:52Z reported:
   A's saved API data; logout cleared the consumer. No uncaught fixture errors.
   No production source data or paid APIs were touched by these tests.
 
-## Remaining acceptance before release
+## Release receipt
 
-- Full regression/build and exact deployment/readback. Do not claim the local
-  changes have fixed all private workspaces or are live.
+- All 3,397 tests in 234 files and production build passed; nine existing
+  file-tracing warnings remain.
+- Deployment `dpl_8xABukF8HCEXH5RHrV7vCJC6kWtS` READY at commit
+  `a791dd78c5301bd22f9ae76cc8d7eea7a4c03cef` with production alias attached.
+- Production `/ai` returned 200; its loaded bundles include the source-change
+  event and no literal legacy shared mediaStates read. Anonymous personal-source
+  API request returned 401.
+- During release, authenticated reads confirmed four saved enabled sources and
+  the legacy GAFFA count key. No production source preferences were changed.
+- Browser account-isolation acceptance used isolated fake auth/API transport,
+  not Casper/Milo live sessions. Broader private-workspace and actual colleague
+  onboarding acceptance are separate outstanding requirements.
