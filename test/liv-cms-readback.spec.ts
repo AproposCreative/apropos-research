@@ -34,6 +34,35 @@ function fixture() {
   return { item, schema, read, dependencies: { read, collectionId, localeId } };
 }
 afterEach(() => vi.unstubAllGlobals());
+it('compares block-separated prose independently of CMS serialization whitespace', async () => {
+  const f = fixture();
+  f.item.fieldData.content = '<p>Et <strong>portræt</strong>.</p><p>Ansigt &amp; hænder.</p>';
+  const payload = { ...expected, content: '<p>Et <strong>portræt</strong>.</p>\n<p>Ansigt &amp; hænder.</p>' };
+  const result = await inspectLivCmsDraft({ itemId, expected: payload }, f.dependencies);
+  expect(result.checks).toContainEqual({ id: 'field:content', ok: true });
+  f.item.fieldData.content = '<p>Et <strong>portræt</strong>.</p><p>Ansigt og hænder.</p>';
+  const changed = await inspectLivCmsDraft({ itemId, expected: payload }, f.dependencies);
+  expect(changed.checks).toContainEqual({ id: 'field:content', ok: false });
+});
+it('does not ignore removed captions or inserted inline word boundaries', async () => {
+  const f = fixture();
+  for (const [before, after] of [
+    ['<p>Indhold</p><figure><figcaption>Foto: Fotograf</figcaption></figure>', '<p>Indhold</p>'],
+    ['<p>por<strong>træt</strong></p>', '<p>por <strong>træt</strong></p>'],
+  ]) {
+    f.item.fieldData.content = after;
+    const result = await inspectLivCmsDraft({ itemId, expected: { ...expected, content: before } }, f.dependencies);
+    expect(result.checks).toContainEqual({ id: 'field:content', ok: false });
+  }
+});
+it('preserves the caption-to-paragraph boundary when Webflow removes a newline', async () => {
+  const f = fixture();
+  const figure = '<figure><figcaption>Illustration: Apropos Magazine / AI</figcaption></figure>';
+  f.item.fieldData.content = figure + '<p>KULTURINFORMATION fremhæver portrættet.</p>';
+  const result = await inspectLivCmsDraft({ itemId, expected: { ...expected,
+    content: figure + '\n<p>KULTURINFORMATION fremhæver portrættet.</p>' } }, f.dependencies);
+  expect(result.checks).toContainEqual({ id: 'field:content', ok: true });
+});
 const topicCollection = '3'.repeat(24), filmId = '4'.repeat(24), reviewId = '5'.repeat(24);
 function topicFixture() {
   const f = fixture();

@@ -3,7 +3,6 @@ import { getWebflowConfig } from '@/lib/webflow-config';
 import type { WebflowArticleFields } from '@/lib/webflow/types';
 import { createHash } from 'node:crypto';
 import sharp from 'sharp';
-import { stripHtml } from '@/lib/webflow/field-mapping';
 import { readLivStoredImage } from '@/lib/liv/stored-image-reader';
 import { load } from 'cheerio';
 import { cmsFieldHash } from '@/lib/liv/cms-field-hash';
@@ -32,7 +31,13 @@ function text(value: unknown): string {
   return typeof value === 'string' ? value.trim() : '';
 }
 function visibleText(value: unknown): string {
-  return stripHtml(text(value)).replace(/\s+/gu, ' ').trim();
+  const $ = load(text(value));
+  // Webflow removes serialization whitespace between block elements. Keep
+  // semantic word boundaries without accepting changed prose or captions.
+  $('p,div,h1,h2,h3,h4,h5,h6,li,blockquote,figure,figcaption,br,hr,tr,td,th').each((_, element) => {
+    $(element).before(' ').after(' ');
+  });
+  return $('body').text().replace(/\s+/gu, ' ').trim();
 }
 
 /** GET-only adapter. Credentials stay server-side; upstream bodies are not logged. */
