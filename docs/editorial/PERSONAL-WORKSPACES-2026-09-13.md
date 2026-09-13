@@ -16,6 +16,13 @@ Build the user's approved September 13 plan. Only the three verified colleagues 
 
 ## Required before this checkpoint can release
 
+### Recurring discovery transport checkpoint
+
+- Explicitly configured server feed/sitemap discovery now uses the pinned HTTPS XML transport, validates XML before parsing, shares a 20-second deadline per discovery pass and caps downloads at 20. Nested sitemaps use the same transport and deadline; cycles are skipped. Existing RSS date extraction is preserved.
+- Explicit sitemap configuration no longer guesses four feed endpoints. Legacy CLI calls without an explicit list remain separate and retain old behavior.
+- Actual read-only check: `https://soundvenue.com/feed` passed the new validator on 2026-09-13 at 19:51:04 UTC with 10 candidate links, no partial result. This proves that one public feed works from the development environment, not production configuration or daily publication.
+- Source/discovery targeted tests passed; TypeScript/diff checks passed. Shared-source administration, initialization and production verification remain required. No paid model calls or CMS writes.
+
 ### Media validation checkpoint
 
 - Added a DNS-pinned HTTPS XML transport: public IPv4 only, no credentials, every redirect revalidated (max three), 1 MB response cap, identity encoding, supported XML MIME types and shared 20-second deadline.

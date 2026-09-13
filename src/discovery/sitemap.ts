@@ -2,8 +2,21 @@ import { XMLParser } from "fast-xml-parser";
 import { env } from "../utils/env";
 import { fetchText } from "../fetch/fetch";
 import { getMediaSources, type MediaSource } from "../../lib/getMediaSources";
+import { downloadMediaXml, parseMediaXml } from "../../lib/media-source-validation";
 
 export async function discoverFromSitemaps(options: { source?: string; persistCache?: boolean; sources?: MediaSource[] } = {}): Promise<string[]> {
+  const signal = AbortSignal.timeout(20_000);
+  let downloads = 0;
+  const visited = new Set<string>();
+  const exhausted = () => options.sources !== undefined && (downloads >= 20 || signal.aborted);
+  async function readXml(url: string) {
+    if (options.sources === undefined) return fetchText(url, { persistCache: options.persistCache });
+    if (exhausted() || visited.has(url)) throw new Error('Sitemap-grænse nået eller allerede besøgt.');
+    visited.add(url); downloads++;
+    const { text } = await downloadMediaXml(url, signal);
+    parseMediaXml(text);
+    return { text, contentType: 'application/xml' };
+  }
   // Load dynamic sources from file system - only enabled sources
   let sources = (options.sources ?? getMediaSources())
     .filter(source => source.enabled && (!options.source || source.id === options.source))
@@ -25,13 +38,14 @@ export async function discoverFromSitemaps(options: { source?: string; persistCa
   const allUrls: string[] = [];
 
   for (const { baseUrl, sitemapIndex } of sources) {
+    if (exhausted()) break;
     // Handle multiple sitemap paths separated by comma
     const sitemapPaths = sitemapIndex.split(',').map(path => path.trim());
     
     for (const sitemapPath of sitemapPaths) {
       try {
         const indexUrl = new URL(sitemapPath, baseUrl).toString();
-        const { text, contentType } = await fetchText(indexUrl, { persistCache: options.persistCache });
+        const { text, contentType } = await readXml(indexUrl);
         
         if (!contentType || !(contentType.includes("xml") || contentType.includes("rss"))) {
           console.log(`Skipping ${baseUrl}${sitemapPath}: not XML/RSS content (got: ${contentType})`);
@@ -72,10 +86,10 @@ export async function discoverFromSitemaps(options: { source?: string; persistCa
 
       // Recursive function to handle nested sitemap indexes
       const processSitemap = async (smUrl: string, depth = 0): Promise<void> => {
-        if (depth > 3) return; // Prevent infinite recursion
+        if (depth > 3 || exhausted() || (options.sources !== undefined && visited.has(smUrl))) return;
         
         try {
-          const { text: smText, contentType: ct } = await fetchText(smUrl, { persistCache: options.persistCache });
+          const { text: smText, contentType: ct } = await readXml(smUrl);
           if (!ct || !ct.includes("xml")) return;
           
           const smXml = parser.parse(smText);

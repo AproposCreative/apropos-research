@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
-const mocks = vi.hoisted(() => ({ fetchText: vi.fn() }));
+const mocks = vi.hoisted(() => ({ fetchText: vi.fn(), download: vi.fn() }));
+vi.mock('@/lib/media-source-validation', async original => ({ ...await original<typeof import('@/lib/media-source-validation')>(), downloadMediaXml: mocks.download }));
 vi.mock('@/src/fetch/fetch', () => ({ fetchText: mocks.fetchText }));
 vi.mock('@/lib/getMediaSources', () => ({ getMediaSources: () => [
   { id: 'fixture', enabled: true, baseUrl: 'https://fixture.example', sitemapIndex: '/rss' },
@@ -15,12 +16,29 @@ it('respects an explicitly empty shared list without trying default feeds or sit
   expect(fetch).not.toHaveBeenCalled(); expect(mocks.fetchText).not.toHaveBeenCalled();
 });
 it('uses an explicitly configured shared feed and excludes disabled sources', async () => {
-  const fetch = vi.fn().mockResolvedValue(new Response('<rss><channel><item><link>https://shared.example/article</link></item></channel></rss>', { headers: { 'content-type': 'application/xml' } }));
+  const fetch = vi.fn();
+  mocks.download.mockResolvedValue({ text: '<rss><channel><item><link>https://shared.example/article</link></item></channel></rss>', url: 'https://shared.example/rss' });
   vi.stubGlobal('fetch', fetch);
   const sources = [{ id: 'shared', name: 'Shared', enabled: true, baseUrl: 'https://shared.example', sitemapIndex: '/rss' },
     { id: 'disabled', name: 'Disabled', enabled: false, baseUrl: 'https://disabled.example', sitemapIndex: '/rss' }];
   expect(await discoverFromFeed(undefined, sources)).toEqual([{ url: 'https://shared.example/article', published_at: undefined, source: 'shared' }]);
-  expect(fetch).toHaveBeenCalledTimes(1); expect(fetch.mock.calls[0][0]).toBe('https://shared.example/rss');
+  expect(fetch).not.toHaveBeenCalled(); expect(mocks.download).toHaveBeenCalledTimes(1); expect(mocks.download.mock.calls[0][0]).toBe('https://shared.example/rss');
+});
+it('preserves RSS publication dates through the hardened transport', async () => {
+  mocks.download.mockResolvedValue({ text: '<rss><channel><item><link>https://shared.example/article</link><pubDate>2026-09-13T08:00:00Z</pubDate></item></channel></rss>', url: 'https://shared.example/rss' });
+  const result = await discoverFromFeed(undefined, [{ id: 'shared', name: 'Shared', enabled: true, baseUrl: 'https://shared.example', sitemapIndex: '/rss' }]);
+  expect(result[0].published_at).toBe('2026-09-13T08:00:00Z');
+});
+it('uses hardened transport for nested configured sitemaps and never the old fetcher', async () => {
+  mocks.download.mockResolvedValueOnce({ text: '<sitemapindex><sitemap><loc>https://shared.example/leaf.xml</loc></sitemap></sitemapindex>', url: 'https://shared.example/sitemap.xml' })
+    .mockResolvedValueOnce({ text: '<urlset><url><loc>https://shared.example/article</loc></url></urlset>', url: 'https://shared.example/leaf.xml' });
+  expect(await discoverFromSitemaps({ sources: [{ id: 'shared', name: 'Shared', enabled: true, baseUrl: 'https://shared.example', sitemapIndex: '/sitemap.xml' }] })).toEqual(['https://shared.example/article']);
+  expect(mocks.fetchText).not.toHaveBeenCalled(); expect(mocks.download).toHaveBeenCalledTimes(2);
+  expect(mocks.download.mock.calls[0][1]).toBe(mocks.download.mock.calls[1][1]);
+});
+it('does not guess feeds for an explicit sitemap configuration', async () => {
+  expect(await discoverFromFeed(undefined, [{ id: 'shared', name: 'Shared', enabled: true, baseUrl: 'https://shared.example', sitemapIndex: '/sitemap.xml' }])).toEqual([]);
+  expect(mocks.download).not.toHaveBeenCalled();
 });
 it('reads a single RSS item and trims its canonical URL', async () => {
   vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('<rss><channel><item><link> https://fixture.example/article </link><pubDate>2026-09-09</pubDate></item></channel></rss>', { headers: { 'content-type': 'application/xml' } })));

@@ -1,11 +1,13 @@
 import { XMLParser } from "fast-xml-parser";
 import { env } from "../utils/env";
-import { fetchText } from "../fetch/fetch";
+import { downloadMediaXml, parseMediaXml } from "../../lib/media-source-validation";
 import { getMediaSources, type MediaSource } from "../../lib/getMediaSources";
 
 export type FeedItem = { url: string; published_at?: string; source: string };
 
 export async function discoverFromFeed(sourceId?: string, configuredSources?: MediaSource[]): Promise<FeedItem[]> {
+  const signal = AbortSignal.timeout(20_000);
+  let downloads = 0;
   // Get dynamic media sources
   const available = configuredSources ?? getMediaSources();
   let sources = available.filter(s => !sourceId || s.id === sourceId);
@@ -42,6 +44,7 @@ export async function discoverFromFeed(sourceId?: string, configuredSources?: Me
   });
   
   for (const source of defaultSources) {
+    if (configuredSources !== undefined) continue; // Explicit configuration, no guessed feed endpoints.
     // Skip if already added above
     if (feedSources.some(fs => fs.source === source.id)) continue;
     
@@ -61,17 +64,22 @@ export async function discoverFromFeed(sourceId?: string, configuredSources?: Me
   const allItems: FeedItem[] = [];
 
   for (const { baseUrl, feedPath, source } of feedSources) {
+    if (configuredSources !== undefined && (downloads >= 20 || signal.aborted)) break;
     try {
       const url = new URL(feedPath, baseUrl).toString();
       
       // Force refresh for feed discovery (no conditional requests)
-      const response = await fetch(url, {
-        headers: { 'User-Agent': 'Apropos Research Bot 1.0' },
-        redirect: 'follow', signal: AbortSignal.timeout(10000)
-      });
-      const text = await response.text();
-      const contentType = response.headers.get('content-type');
-      const status = response.status;
+      let text: string; let contentType: string | null; let status: number;
+      if (configuredSources !== undefined) {
+        downloads++;
+        text = (await downloadMediaXml(url, signal)).text;
+        parseMediaXml(text); // Reject malformed XML/DTD before the legacy date parser.
+        contentType = 'application/xml'; status = 200;
+      } else {
+        const response = await fetch(url, { headers: { 'User-Agent': 'Apropos Research Bot 1.0' },
+          redirect: 'follow', signal: AbortSignal.timeout(10000) });
+        text = await response.text(); contentType = response.headers.get('content-type'); status = response.status;
+      }
       
       if (status === 304) {
         continue;
