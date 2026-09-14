@@ -45,7 +45,25 @@ private workspaces have been demonstrated to work.
 
 ### Cost coverage and access follow-up (released September 14)
 
-### Archive admission implementation (local, not deployed)
+### Archive admission release (September 14; migration verified)
+
+- Production release `7916c3d6d0655301830de58613284b4e84f59b87`, deployment
+  `dpl_CtYHAgSLiGnMon2db5avdUXA8cZn`, is READY and the exact production alias
+  was verified. Full regression: 3,696 tests across 260 files passed
+  (`/tmp/apropos-archive-release-tests.log`); build and TypeScript passed.
+- Read-only production acceptance at 07:34 UTC: anonymous revision access denied,
+  invalid mutations rejected, ready Freud article retained at 572 words,
+  autopublish enabled, no blocked items, no overdue publication. This does not
+  prove today's publication; no article mutation or model call was performed.
+- Pre-migration bounded scan: 483 jobs, no truncation, zero active leases,
+  two priority-eligible rows and two derived-field updates required.
+- Migration ran after the new release had been READY for more than the old
+  recovery route's 300-second maximum execution duration. All 483 records were
+  transactionally inspected in five pages; exactly two derived fields updated.
+  Subsequent readback found zero scheduling-field mismatches across 483 jobs.
+  The production-backed `listRecoverableQualityJobs(2)` selected the pending CMS
+  reconciliation first and the queued webhook job second, before ordinary archive
+  work. No model call, article regeneration or CMS write was made by these checks.
 
 - Queue priority now has a derived `priorityReadyAt` single-field index for
   publication hooks and uncertain CMS writes, maintained on enqueue/claim,
@@ -54,11 +72,10 @@ private workspaces have been demonstrated to work.
   full backlog scan. Existing article payloads and model receipts are untouched.
 - Added explicit `scripts/backfill-seo-priority.ts` for existing rows. It pages
   100 records (maximum 30 pages), re-reads each row in a transaction and updates
-  only the derived field. Safe to repeat. NOT RUN yet. Run after deployment and
-  old workers drain, then verify priority selection against the live backlog.
+  only the derived field. Executed and verified above; no repeat run is needed.
 - Six priority tests pass, including a new event behind 224 old archive jobs,
-  dual-lane deduplication, claim/deferral and terminal cleanup. Full regression
-  before the final added cleanup case: 3,695 tests pass. Build and TypeScript
+  dual-lane deduplication, claim/deferral and terminal cleanup. Final full regression:
+  3,696 tests pass. Build and TypeScript
   pass (`/tmp/apropos-priority-tests.log`, `/tmp/apropos-priority-build.log`).
 
 - Added transaction-backed admission for one new recovery-source SEO review per
@@ -70,10 +87,9 @@ private workspaces have been demonstrated to work.
   Proven pre-transport denial does not count as paid work. New publication hooks
   and CMS-write reconciliation bypass the archive admission limit. This bounds
   new archive reviews, not all model calls or provider billing.
-- Seventeen targeted tests plus TypeScript pass. Remaining before release:
-  examine recovery queue priority (currently oldest readyAt, two per cron), full
-  regression/build and production verification. Do not claim new-event queue
-  priority merely because the model-admission gate exempts those events.
+- Admission and priority regression tests, existing-record migration and live queue
+  selection readback passed. Actual future admission receipts and provider billing
+  still need observation; do not claim measured currency savings from this release.
 
 ### Cost coverage release evidence
 
