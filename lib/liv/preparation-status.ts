@@ -85,9 +85,17 @@ export async function readNextLivPreparationStatus(state: DeliveryState, now = n
       state.entries.filter(entry => entry.kind === 'scheduled' && entry.scheduledDay === day && entry.decision === 'rejected').length >= 2 &&
       !state.entries.some(entry => entry.kind === 'scheduled' && entry.scheduledDay === day &&
         ['ready', 'selected', 'published'].includes(entry.state) && entry.decision !== 'rejected' && entry.expiresDay >= day));
-    return exhaustedDay ? { day: exhaustedDay, scope: 'prepare-alternative', runStatus: null,
-      status: 'blocked_saved_work', reasonCode: 'alternative_limit_reached' }
-      : { ...empty, status: 'idle', reasonCode: 'no_preparation_needed' };
+    if (exhaustedDay) return { day: exhaustedDay, scope: 'prepare-alternative', runStatus: null,
+      status: 'blocked_saved_work', reasonCode: 'alternative_limit_reached' };
+    // A retained unusable reserve suppresses replenishment. That is not idle:
+    // expose the hold without replacing its paid work or masking daily work.
+    const reserves = state.entries.filter(e => e.kind === 'reserve' && e.expiresDay >= today && e.state !== 'published');
+    const usableReserve = reserves.some(e => e.state === 'ready' && e.decision !== 'rejected' &&
+      !e.publicationBlockers?.length && e.scheduledDay <= today);
+    const heldReserve = !usableReserve && reserves.find(e => e.state === 'rejected' || e.decision === 'rejected' || e.publicationBlockers?.length);
+    if (heldReserve) return { day: heldReserve.scheduledDay, scope: 'reserve', runStatus: null,
+      status: 'blocked_saved_work', reasonCode: heldReserve.publicationBlockers?.length ? 'cms_reconciliation_required' : 'operator_retry_required' };
+    return { ...empty, status: 'idle', reasonCode: 'no_preparation_needed' };
   }
   const scope = candidate.scope || 'prepare';
   try {

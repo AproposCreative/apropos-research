@@ -1,5 +1,20 @@
 # One reserve: server integration checkpoint
 
+## Retained reserve status repair (local, September 14)
+
+Found a concrete acceptance gap: reserveNeeded correctly suppresses replacement
+of a blocked/rejected retained reserve, but the status reader then returned idle.
+The reader now reports the reserve hold only after scheduled work and exhausted
+daily alternatives have priority. A usable reserve suppresses this nonblocking
+old-stock warning; expired/published reserves are ignored. No retry eligibility,
+job identity, publication decision, generation or activation flag changes.
+
+35 targeted tests and TypeScript pass, including three blocked/rejected variants,
+unchanged input, no datastore reads, healthy replacement, daily precedence and
+expiry. Full regression: 3,701 tests / 260 files pass; build and TypeScript pass.
+Logs: /tmp/apropos-reserve-status-tests.log and /tmp/apropos-reserve-status-build.log.
+Not yet released; current production is still 373c3e7.
+
 ## Production inventory, September 14 approximately 07:48 UTC
 
 Current code is deployed, but reserve activation is still off. Read-only inventory

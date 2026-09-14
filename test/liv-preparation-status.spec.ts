@@ -63,6 +63,29 @@ it('surfaces two explicit rejections without creating or reading a third job', a
   expect(state.reads).not.toHaveBeenCalled();
 });
 
+it.each(['blocked', 'rejected', 'decision-rejected'] as const)('surfaces a retained %s reserve without reading or changing paid work', async kind => {
+  const manifest = emptyDeliveryState();
+  manifest.entries.push(entry(), entry({ scheduledDay: '2026-09-13', expiresDay: '2026-09-13' }),
+    entry({ itemId: 'c'.repeat(24), kind: 'reserve', expiresDay: '2026-09-17',
+      ...(kind === 'blocked' ? { publicationBlockers: ['private-media-details'] } :
+        kind === 'rejected' ? { state: 'rejected' } : { decision: 'rejected' }) }));
+  const before = structuredClone(manifest);
+  expect(await readNextLivPreparationStatus(manifest, now)).toEqual({ day, scope: 'reserve', runStatus: null,
+    status: 'blocked_saved_work', reasonCode: kind === 'blocked' ? 'cms_reconciliation_required' : 'operator_retry_required' });
+  expect(manifest).toEqual(before); expect(state.reads).not.toHaveBeenCalled();
+  manifest.entries.push(entry({ itemId: 'd'.repeat(24), kind: 'reserve', expiresDay: '2026-09-17' }));
+  expect(await readNextLivPreparationStatus(manifest, now)).toMatchObject({ status: 'idle' });
+});
+
+it('keeps missing daily work ahead of a blocked reserve and ignores expired reserves', async () => {
+  const manifest = emptyDeliveryState();
+  manifest.entries.push(entry({ kind: 'reserve', publicationBlockers: ['media'], expiresDay: '2026-09-17' }));
+  expect(await readNextLivPreparationStatus(manifest, now)).toMatchObject({ day, scope: 'prepare', status: 'queued' });
+  manifest.entries[0].expiresDay = '2026-09-11';
+  manifest.entries.push(entry(), entry({ scheduledDay: '2026-09-13', expiresDay: '2026-09-13' }));
+  expect(await readNextLivPreparationStatus(manifest, now)).toMatchObject({ status: 'idle' });
+});
+
 it.each(['cover', 'publish'])('exposes a safe reconciliation hold for %s without any source or CMS read', async kind => {
   const manifest = emptyDeliveryState();
   if (kind === 'cover') manifest.coverRevision = { id: 'private-id', itemId: 'private-item', day };
