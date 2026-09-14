@@ -75,6 +75,15 @@ private workspaces have been demonstrated to work.
 
 ### Shortening implementation checkpoint (local, not released)
 
+- Added `buildLivShorteningCmsPatch`: reconstructs the reviewed candidate from
+  saved paragraph edits and applies those same edits to actual CMS HTML, retaining
+  optimized image URLs/srcset, captions and credits. Rejects changed canonical
+  prose, CMS prose/alt/credits, preview hash and missing reading-time schema.
+  Updates canonical word count/read time; patches CMS word count only when its
+  schema contains that field. No network, approval, proof rewrite or CMS write.
+  Eight new patch tests plus thirteen candidate tests pass with mocked services.
+  Durable acceptance/journal/readback and the owner preview/accept UI remain
+  required before this local feature can be released.
 - Extracted the existing exact paragraph patch engine into `paragraph-edits.ts`;
   factual repair uses the same engine. Original media/links/headings/quotations
   stay byte-identical, edits remain bounded to 80% of prose, and at least three
