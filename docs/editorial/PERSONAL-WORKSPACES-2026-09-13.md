@@ -91,6 +91,15 @@ private workspaces have been demonstrated to work.
   Integrated regression suite: 3,654 tests across 256 files passed, log
   `/tmp/apropos-shortening-integrated-tests.log`; TypeScript passed. Production
   build, exact release deployment and production access/readback remain pending.
+- Release candidate `1defda5f32ba19613b9ed135a02303d28bd1e89c` passed production
+  build (`/tmp/apropos-shortening-build.log`) with the seven existing tracing
+  warnings, and was pushed. A locally expired Vercel session was renewed by the
+  existing CLI `whoami` flow; the original rejected request never reached Vercel.
+  Production deployment `dpl_C7LfRnbgvxjxTZHyuG12GuhnbS1U` was then created and
+  observed BUILDING at the exact candidate SHA. This is not a live-release claim.
+  `verify-liv-shortening-production.ts` checks exact deployment/alias, owner and
+  anonymous access, malformed mutation rejection, baseline and daily status
+  without generating, recording a human review or changing an article.
 - Added owner-only `/api/liv/revisions/shortening/accept` and a durable
   `livShorteningAcceptances` journal with immutable before-images in
   `livShorteningAudits`. Requires an existing exact-preview review by the same
