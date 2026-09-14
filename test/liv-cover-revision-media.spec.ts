@@ -79,6 +79,56 @@ it.each([
 it('accepts the explicit original press URL without inferring a photographer from its filename', () => {
   expect(() => validateCoverSource(source)).not.toThrow();
 });
+it('reuses Netflix asset-specific credits without another research call', async () => {
+  const selected = { ...source, sourcePageUrl: 'https://www.netflix.com/tudum/articles/series-first-look',
+    imageUrl: 'https://dnm.nflximg.net/api/v6/example/photo.jpg?r=abc123' };
+  const html = `<section><div data-uia="image-container"><img src="${selected.imageUrl}"></div><div data-uia="image-credit">PHOTO BY Alex Example/Netflix</div></section>`;
+  const deps = dependencies();
+  deps.read.mockImplementation(async (_url, kind) => kind === 'html' ? Buffer.from(html) : original);
+  const result = await prepareCoverSource(id, selected, deps);
+  expect(result).toMatchObject({ credit: 'Foto: Alex Example/Netflix', attribution: 'image-associated-credit',
+    photographer: null, rightsStatus: 'unverified', sourcePageHash: hash(Buffer.from(html)) });
+  expect(deps.store).toHaveBeenCalledTimes(2);
+  expect(mocks.create).not.toHaveBeenCalled();
+});
+it('keeps TV 2 credit from the exact syndicated still rather than crediting the publisher', async () => {
+  const selected = { ...source, sourcePageUrl: 'https://soundvenue.com/film/2026/09/klovn-anmeldelse',
+    imageUrl: 'https://soundvenue.com/wp-content/uploads/2026/09/klovn.jpg' };
+  const deps = dependencies();
+  deps.read.mockImplementation(async (_url, kind) => kind === 'html'
+    ? Buffer.from(`<figure><img src="${selected.imageUrl}"><figcaption>Klovn (Foto: Per Eksempel/TV 2)</figcaption></figure>`) : original);
+  expect(await prepareCoverSource(id, selected, deps)).toMatchObject({ credit: 'Foto: Per Eksempel/TV 2',
+    attribution: 'image-associated-credit', rightsStatus: 'unverified' });
+});
+it('accepts a credited PNG from an approved official page', async () => {
+  const selected = { ...source, sourcePageUrl: 'https://a24films.com/films/example', imageUrl: 'https://a24films.com/still.png' };
+  const deps = dependencies();
+  const png = await sharp(original).png().toBuffer();
+  deps.read.mockImplementation(async (_url, kind) => kind === 'html'
+    ? Buffer.from(`<figure><img src="${selected.imageUrl}"><figcaption>Photo: Studio Example</figcaption></figure>`) : png);
+  expect(await prepareCoverSource(id, selected, deps)).toMatchObject({ credit: 'Photo: Studio Example', image: { width: 1920, height: 1080 } });
+});
+it.each([
+  '<footer>Photo: Photographer Example</footer><img src="https://a24films.com/still.jpg">',
+  '<figure><img src="https://a24films.com/other.jpg"><figcaption>Photo: Photographer Example</figcaption></figure>',
+])('does not borrow unrelated credits or download the unproven asset', async html => {
+  const selected = { ...source, sourcePageUrl: 'https://a24films.com/films/example', imageUrl: 'https://a24films.com/still.jpg' };
+  const deps = dependencies(); deps.read.mockResolvedValue(Buffer.from(html));
+  await expect(prepareCoverSource(id, selected, deps)).rejects.toThrow('source_not_linked');
+  expect(deps.read).toHaveBeenCalledTimes(1); expect(deps.store).not.toHaveBeenCalled();
+});
+it.each([
+  { sourcePageUrl: 'https://unknown-publisher.example.org/page' },
+  { imageUrl: 'https://127.0.0.1/image.jpg' },
+  { imageUrl: 'https://a24films.com/still.jpg?signature=private' },
+  { sourcePageUrl: 'https://a24films.com/films/example#fragment' },
+  { imageUrl: 'https://a24films.com/still.svg' },
+])('rejects unsupported generic source %j before fetching', async patch => {
+  const selected = { ...source, sourcePageUrl: 'https://a24films.com/films/example', imageUrl: 'https://a24films.com/still.jpg', ...patch };
+  const deps = dependencies();
+  await expect(prepareCoverSource(id, selected, deps)).rejects.toThrow('invalid_source');
+  expect(deps.read).not.toHaveBeenCalled();
+});
 it.each(['small', 'png'])('rejects %s source bytes before uploading', async kind => {
   const deps = dependencies();
   const bytes = kind === 'small' ? await sharp({ create: { width: 200, height: 100, channels: 3, background: 'red' } }).jpeg().toBuffer()

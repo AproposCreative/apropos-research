@@ -8,6 +8,9 @@ import { encodeWebp } from '@/lib/images/encode-webp';
 import { livMediaRuntime } from '@/lib/liv/automatic-media-runtime';
 import { getOpenAIClient } from '@/lib/openai';
 import { livModels } from '@/lib/liv/model-config';
+import { sourceUrl } from '@/lib/factcheck/source-reader';
+import { isLivOfficialImageSource, isLivSyndicatedPressPage, extractLivSyndicatedPressPhotos,
+  extractLivPhotoCredit } from './photo-credit';
 import type { StoredMedia } from '@/lib/liv/automatic-media';
 import type { WebflowArticleFields } from '@/lib/webflow/types';
 
@@ -15,12 +18,23 @@ const hash = (bytes: Buffer) => createHash('sha256').update(bytes).digest('hex')
 export const COVER_SOURCE_CREDIT = 'Pressebillede: Øst for Paradis';
 export type CoverSource = { imageUrl: string; sourcePageUrl: string; alt: string; caption: string };
 export type PreparedCover = { original: StoredMedia; image: StoredMedia; source: CoverSource;
-  sourcePageHash: string; retrievedAt: string; credit: typeof COVER_SOURCE_CREDIT;
-  attribution: 'distributor-source'; photographer: null; rightsStatus: 'unverified'; crop: 'center-cover' };
+  sourcePageHash: string; retrievedAt: string; credit: string;
+  attribution: 'distributor-source' | 'image-associated-credit'; photographer: null; rightsStatus: 'unverified'; crop: 'center-cover' };
 
-/** Deliberately one supported press adapter, not an arbitrary image/provenance override. */
+/** Reuse the established source policy; this never accepts a caller's credit. */
 export function validateCoverSource(input: CoverSource) {
   const image = new URL(input.imageUrl), page = new URL(input.sourcePageUrl);
+  if (page.origin !== 'https://distribution.paradisbio.dk') {
+    try {
+      for (const url of [image, page]) {
+        sourceUrl(url.href);
+        if (url.hash || [...url.searchParams.keys()].some(key => /token|secret|password|signature|credential|api.?key/i.test(key))) throw new Error();
+      }
+      if (!isLivOfficialImageSource(page.href) && !isLivSyndicatedPressPage(page.href)) throw new Error();
+      if (!/\.(?:jpe?g|png|webp)$/i.test(image.pathname)) throw new Error();
+      return;
+    } catch { throw new Error('liv_cover_invalid_source'); }
+  }
   for (const url of [image, page]) {
     if (url.origin !== 'https://distribution.paradisbio.dk' || url.username || url.password || url.port || url.hash) throw new Error('liv_cover_invalid_source');
   }
@@ -35,22 +49,28 @@ export async function prepareCoverSource(id: string, source: CoverSource, depend
 }): Promise<PreparedCover> {
   validateCoverSource(source);
   const pageBytes = await dependencies.read(source.sourcePageUrl, 'html');
-  const $ = load(new TextDecoder('windows-1252').decode(pageBytes));
-  const linked = $('a[href]').toArray().some(node => {
+  const paradis = new URL(source.sourcePageUrl).origin === 'https://distribution.paradisbio.dk';
+  const html = new TextDecoder(paradis ? 'windows-1252' : 'utf-8').decode(pageBytes);
+  const $ = load(html);
+  const linked = paradis && $('a[href]').toArray().some(node => {
     try { return new URL($(node).attr('href')!, source.sourcePageUrl).href === new URL(source.imageUrl).href; }
     catch { return false; }
   });
-  if (!linked) throw new Error('liv_cover_source_not_linked');
+  const credit = paradis ? (linked ? COVER_SOURCE_CREDIT : null) :
+    isLivSyndicatedPressPage(source.sourcePageUrl)
+      ? extractLivSyndicatedPressPhotos(html, source.sourcePageUrl).find(photo => photo.url === new URL(source.imageUrl).href)?.credit
+      : extractLivPhotoCredit(html, new URL(source.imageUrl).href, source.sourcePageUrl);
+  if (!credit) throw new Error('liv_cover_source_not_linked');
   const original = await dependencies.read(source.imageUrl, 'image');
   const meta = await sharp(original, { limitInputPixels: 80_000_000 }).metadata();
-  if (meta.format !== 'jpeg' || (meta.pages ?? 1) !== 1 || !meta.width || !meta.height ||
+  if (!(paradis ? meta.format === 'jpeg' : ['jpeg', 'png', 'webp'].includes(meta.format || '')) || (meta.pages ?? 1) !== 1 || !meta.width || !meta.height ||
       meta.width < 1920 || meta.height < 1080) throw new Error('liv_cover_source_invalid');
   const storedOriginal = await dependencies.store(id, 'hero-original', original);
   const encoded = await encodeWebp(original, { maxSizeKB: 450, maxLongEdge: 1920, qualityStart: 85,
     qualityMin: 55, effort: 4, targetDimensions: { width: 1920, height: 1080 } });
   const image = await dependencies.store(id, 'hero', encoded.data);
   return { original: storedOriginal, image, source, sourcePageHash: hash(pageBytes), retrievedAt: new Date().toISOString(),
-    credit: COVER_SOURCE_CREDIT, attribution: 'distributor-source', photographer: null, rightsStatus: 'unverified', crop: 'center-cover' };
+    credit, attribution: paradis ? 'distributor-source' : 'image-associated-credit', photographer: null, rightsStatus: 'unverified', crop: 'center-cover' };
 }
 
 /** One persisted review of the new crop only. Existing body images are not regenerated. */

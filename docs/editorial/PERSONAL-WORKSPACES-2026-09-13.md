@@ -113,6 +113,24 @@ private workspaces have been demonstrated to work.
   image picker. Owner cover API/UI and broader validated media selection remain
   unfinished; this checkpoint is not a completed covershift release.
 
+### Cover-source extension, September 14 (local, not deployed)
+
+- Supersedes the preceding single-adapter limitation in local code: cover
+  preparation now reuses the existing official-source policy and image-specific
+  credit extraction, including Netflix Tudum and the supported syndicated TV 2
+  stills. The original Paradis adapter remains unchanged for its existing URLs.
+- Source credit must be attached to the exact selected image. No caller-provided
+  credit, footer credit, photographer inference or licence assertion. Both source
+  page and original image URL remain stored; rights status stays unverified.
+- Generic approved-source raster inputs support JPEG/PNG/WebP; dimensions,
+  single-frame decoding, original/crop storage, byte limits, public-HTTPS transport
+  and credential/private-address rejection remain. Page inspection/encoding makes
+  no model call; the existing single crop review is still separate and charged.
+- 82 cover/media tests and TypeScript passed with isolated network/provider
+  dependencies. Tests cover correct Netflix/TV 2 credits, official PNG, unrelated
+  credit rejection and unsafe URLs. Real-source production acceptance, owner
+  cover API/form and release remain open.
+
 ## Local checkpoint (not deployed)
 
 **Latest release (supersedes historical status below):** `dc79e1e` is READY on production. “Mine artikler” now links to saved versions/shared copies, isolates late account responses and uses canonical draft IDs. 3,339 tests and build passed; isolated mobile/browser checks passed. Production private workspace/versions/shares reads are 200 and anonymous access is denied. Three Liv stories remain visible through the feed API with preparation enabled. Alert history alone in the smoke check still fails 503 pending the documented administrator-created Firestore index. Full-project completion is not claimed. See `DRAFTS-SHELF-2026-09-13.md` for exact evidence and remaining acceptance scope.
