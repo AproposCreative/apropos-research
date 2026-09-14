@@ -19,6 +19,21 @@ function fixture() {
   schemaSlugs: ['content', 'minutes-to-read'] };
 }
 describe('shortening CMS patch', () => {
+  it('accepts standard Webflow figure serialization while preserving the saved wrapper', () => {
+    const input = fixture();
+    input.article = { ...article, content: article.content.replace(/<p>/g, '\n<p>') };
+    input.expected.content = input.article.content;
+    input.reviewedCandidateHash = cmsFieldHash({ content: buildLivShorteningCandidate(input.article, 500, edits).content });
+    const wrapped = optimized.replace('<figure>', '<figure class="w-richtext-figure-type-image " data-rt-type="image" data-rt-align=""><div>')
+      .replace('<figcaption>', '</div><figcaption>');
+    input.cmsFields.content = input.cmsFields.content.replace(optimized, wrapped);
+    expect(buildLivShorteningCmsPatch(input).patch.content).toContain(wrapped);
+  });
+  it('does not ignore unknown figure markup', () => {
+    const input = fixture();
+    input.cmsFields.content = input.cmsFields.content.replace('<figure>', '<figure class="unexpected">');
+    expect(() => buildLivShorteningCmsPatch(input)).toThrow('checkpoint_changed');
+  });
   it('preserves optimized media, credits and metadata without mutating inputs or inventing CMS fields', () => {
     const input = fixture(), before = JSON.stringify(input);
     const result = buildLivShorteningCmsPatch(input);

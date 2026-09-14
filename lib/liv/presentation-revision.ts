@@ -61,9 +61,31 @@ export async function cancelUnstartedLivPresentation(value: unknown) {
 export function samePresentationBody(checkpoint: string, payload: string) {
   const canonical = (html: string) => {
     const $ = load(html);
+    $('figure').each((_, figure) => {
+      const node = $(figure);
+      // Webflow's standard rich-text image wrapper is presentation-only.
+      // Do not discard unknown classes, attributes, children or inline markup.
+      if ((node.attr('class') || '').trim() === 'w-richtext-figure-type-image' &&
+        node.attr('data-rt-type') === 'image' && node.attr('data-rt-align') === '') {
+        const wrapper = node.children().first();
+        const element = wrapper.get(0);
+        if (element?.type === 'tag' && element.name === 'div' && Object.keys(element.attribs).length === 0 &&
+          wrapper.contents().length === 1 && wrapper.children('img').length === 1) {
+          wrapper.replaceWith(wrapper.contents());
+          node.removeAttr('class').removeAttr('data-rt-type').removeAttr('data-rt-align');
+        }
+      }
+    });
     $('img').each((_, element) => {
       for (const key of ['src', 'srcset', 'width', 'height', 'style']) $(element).removeAttr(key);
       if ('attribs' in element) element.attribs = Object.fromEntries(Object.entries(element.attribs).sort(([a], [b]) => a.localeCompare(b)));
+    });
+    const blocks = new Set(['p', 'div', 'figure', 'blockquote', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'ul', 'ol']);
+    $('body,figure,div,section,article').contents().each((_, node) => {
+      if (node.type !== 'text' || node.data.trim()) return;
+      const blockOrEdge = (sibling: typeof node.prev) => !sibling ||
+        (sibling.type === 'tag' && blocks.has(sibling.name));
+      if (blockOrEdge(node.prev) && blockOrEdge(node.next)) $(node).remove();
     });
     return $('body').html();
   };
