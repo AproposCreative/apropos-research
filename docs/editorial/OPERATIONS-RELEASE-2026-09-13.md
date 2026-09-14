@@ -25,3 +25,22 @@ Provider acceptance is not inbox delivery. A real failure/resolution mail sequen
 - `/api/editorial/operations/alerts` returned 503. A read-only query reproduced Firestore `FAILED_PRECONDITION` requiring a collection-scope `__name__ DESCENDING` index for `livDeliveryAlerts`.
 - The required index is now declared in `firestore.indexes.json`. Index list succeeded, but creation through the existing application service account returned HTTP 403 `PERMISSION_DENIED`. No IAM changes were attempted and no index operation was created.
 - An authorized Google Cloud administrator must create that declared index, then the same history endpoint needs verification. READY alone is not acceptance; historical browsing remains unavailable in production. The verifier now checks this dependency explicitly.
+
+## September 14 follow-up
+
+- At 00:05 UTC production operations/feed returned 200; current day not yet
+  published and not overdue, three scheduled stories ready, automatic preparation
+  and publication enabled. History still returned 503. The direct query still
+  reports FAILED_PRECONDITION for the exact declared one-field descending index.
+- Existing Google Cloud browser identity can inspect project indexes. No
+  `livDeliveryAlerts` manual index exists. The ordinary creation form requires
+  two fields, so it was cancelled without creating an incorrect index.
+- The Firebase-generated create-index link instead reports no access to list
+  project apps for that identity. No role changes or alternate identities used.
+- Standalone Cloud Shell was provisioned because the embedded terminal could not
+  be operated. It is now at **Authorize Cloud Shell**, requesting permission to
+  use the account credentials for current and future Google Cloud API calls.
+  This grant was not accepted. User confirmation is required for that access
+  grant before any index command runs; no index operation has been submitted.
+- Frederik remains verified; Casper and Milo remain unverified. No verification
+  flags changed, emails sent, new research generated or publication triggered.
