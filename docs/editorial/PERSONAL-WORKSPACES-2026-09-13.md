@@ -131,6 +131,21 @@ private workspaces have been demonstrated to work.
   credit rejection and unsafe URLs. Real-source production acceptance, owner
   cover API/form and release remain open.
 
+### Cover cancellation and owner API, September 14 (local, not deployed)
+
+- Added owner-only POST/DELETE `/api/liv/revisions/cover`, reusing the existing
+  revision service, strict schema, request identity and private/no-store replies.
+  Colleagues/anonymous callers cannot invoke preparation, review or cancellation.
+- Explicit cancellation is possible only before a CMS patch intent exists and
+  while no live cover worker owns the lease. It retains prepared pixels, paid
+  review result, costs and immutable audit, marks the choice cancelled, and
+  releases only that choice's manifest hold. A delayed request cannot revive it.
+  Failed/uncertain CMS writes and completed revisions cannot be cancelled.
+- Tests cover unavailable source, rejected crop, live preparation, delayed
+  request, changed request identity and uncertain/completed CMS writes. No real
+  model/media/CMS operations in these isolated tests. Owner cover baseline/form,
+  full regression and production acceptance remain outstanding.
+
 ## Local checkpoint (not deployed)
 
 **Latest release (supersedes historical status below):** `dc79e1e` is READY on production. “Mine artikler” now links to saved versions/shared copies, isolates late account responses and uses canonical draft IDs. 3,339 tests and build passed; isolated mobile/browser checks passed. Production private workspace/versions/shares reads are 200 and anonymous access is denied. Three Liv stories remain visible through the feed API with preparation enabled. Alert history alone in the smoke check still fails 503 pending the documented administrator-created Firestore index. Full-project completion is not claimed. See `DRAFTS-SHELF-2026-09-13.md` for exact evidence and remaining acceptance scope.

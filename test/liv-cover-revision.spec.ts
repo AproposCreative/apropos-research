@@ -26,7 +26,7 @@ vi.mock('@/lib/firebase-admin', () => {
     },
   } : null };
 });
-import { reviseLivCover, type CoverRevisionDependencies, type CoverRevisionInput } from '@/lib/liv/cover-revision';
+import { reviseLivCover, cancelLivCoverBeforePatch, type CoverRevisionDependencies, type CoverRevisionInput } from '@/lib/liv/cover-revision';
 import { COVER_SOURCE_CREDIT, type PreparedCover } from '@/lib/liv/cover-revision-media';
 import { cmsFieldHash } from '@/lib/liv/cms-field-hash';
 import { livImageArticleHash } from '@/lib/liv/article-image-hash';
@@ -99,6 +99,56 @@ beforeEach(() => {
       fieldDataHash: cmsFieldHash(cms.fieldData), draftConfirmed: true, publicationReady: true,
       checks: [{ id: 'image:stored-bytes-match', ok: true }, { id: 'image:body-matches', ok: true }] })),
   };
+});
+
+it('cancels before work and prevents a delayed cover request from spending', async () => {
+  const before = structuredClone(manifest());
+  const result = await cancelLivCoverBeforePatch(input);
+  expect(result.status).toBe('cover_cancelled');
+  expect(await cancelLivCoverBeforePatch(input)).toEqual(result);
+  await expect(reviseLivCover(input, deps)).rejects.toThrow('cancelled');
+  expect(deps.read).not.toHaveBeenCalled(); expect(deps.prepare).not.toHaveBeenCalled();
+  expect(manifest()).toEqual(before);
+  await expect(cancelLivCoverBeforePatch({ ...input, alt: 'Different alternative text' })).rejects.toThrow('request_conflict');
+});
+it('releases a failed source hold while retaining the audit and original cover', async () => {
+  deps.prepare = vi.fn().mockRejectedValue(new Error('source_unavailable'));
+  const before = structuredClone(active());
+  await expect(reviseLivCover(input, deps)).rejects.toThrow('source_unavailable');
+  const retainedAudit = structuredClone(audit());
+  expect((await cancelLivCoverBeforePatch(input)).status).toBe('cover_cancelled');
+  expect(manifest().coverRevision).toBeUndefined();
+  expect(audit()).toEqual(retainedAudit); expect(active()).toEqual(before);
+  expect(cms.fieldData.thumb.url).toBe(oldHero); expect(deps.patch).not.toHaveBeenCalled();
+});
+it('retains rejected review and prepared media when abandoning the chosen cover', async () => {
+  deps.review = vi.fn().mockResolvedValue({ pass: false, reason: 'Bad crop', contentHash: newHash });
+  await expect(reviseLivCover(input, deps)).rejects.toThrow('visual_rejected');
+  const before = structuredClone(revision());
+  await cancelLivCoverBeforePatch(input);
+  expect(revision()).toMatchObject({ prepared: before.prepared, review: before.review, status: 'cancelled' });
+  expect(deps.patch).not.toHaveBeenCalled(); expect(manifest().coverRevision).toBeUndefined();
+});
+it('refuses cancellation during live image preparation', async () => {
+  const prepare = deps.prepare;
+  deps.prepare = vi.fn().mockImplementation(async (...args) => {
+    await expect(cancelLivCoverBeforePatch(input)).rejects.toThrow('busy');
+    return prepare(...args);
+  });
+  await reviseLivCover(input, deps);
+  expect(revision().status).toBe('staged');
+});
+it('never clears the hold for an uncertain CMS patch', async () => {
+  deps.patch = vi.fn().mockRejectedValue(new Error('response_lost'));
+  await expect(reviseLivCover(input, deps)).rejects.toThrow('response_lost');
+  const before = structuredClone(manifest());
+  await expect(cancelLivCoverBeforePatch(input)).rejects.toThrow('patch_requires_reconciliation');
+  expect(manifest()).toEqual(before); expect(revision().patchStarted).toBe(true);
+});
+it('never cancels a successfully staged cover', async () => {
+  const result = await reviseLivCover(input, deps);
+  await expect(cancelLivCoverBeforePatch(input)).rejects.toThrow('patch_requires_reconciliation');
+  expect(await reviseLivCover(input, deps)).toEqual(result);
 });
 
 it('edits a ready queued cover without selecting or publishing the story', async () => {

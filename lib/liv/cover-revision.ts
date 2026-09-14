@@ -31,7 +31,7 @@ type SavedPreparation = { id: string; row: Json & { articleCheckpoint?: Generate
 type Audit = { input: CoverRevisionInput; cms: Json; schema: Json; slot: DeliveryState['slots'][string] | null;
   entry: DeliveryState['entries'][number]; payload: Json & { expected: WebflowArticleFields; payloadHash: string };
   preparations: SavedPreparation[] };
-type Revision = { inputHash: string; owner: string; leaseUntil: number; status: 'processing' | 'staged';
+type Revision = { inputHash: string; owner: string; leaseUntil: number; status: 'processing' | 'staged' | 'cancelled';
   prepared?: PreparedCover; reviewStarted?: boolean; review?: Awaited<ReturnType<typeof reviewCover>>;
   patchStarted?: boolean; inspection?: LivCmsReadback; receipt?: CoverRevisionReceipt };
 export type CoverRevisionReceipt = { status: 'cover_staged'; revisionId: string; itemId: string;
@@ -45,6 +45,38 @@ export type CoverRevisionDependencies = {
 const object = (value: unknown): Json => value && typeof value === 'object' && !Array.isArray(value) ? value as Json : {};
 const fingerprint = (value: object) => cmsFieldHash(value as Json);
 const fail = (reason: string): never => { throw new Error(`liv_cover_${reason}`); };
+
+/** Explicitly abandon this cover choice, not its history. No CMS writes or
+ * retry grants. A started/uncertain CMS patch must be reconciled instead. */
+export async function cancelLivCoverBeforePatch(value: unknown) {
+  const parsed = coverRevisionInput.safeParse(value);
+  if (!parsed.success) return fail('invalid');
+  const input = parsed.data, db = getAdminDb();
+  if (!db) return fail('store_unavailable');
+  const id = fingerprint({ itemId: input.itemId, requestId: input.requestId }), inputHash = fingerprint(input);
+  const ref = db.collection('livCoverRevisions').doc(id);
+  const manifest = db.collection('livDelivery').doc('manifest');
+  return db.runTransaction(async tx => {
+    const previous = (await tx.get(ref)).data() as Revision | undefined;
+    const audit = (await tx.get(db.collection('livCoverRevisionAudits').doc(id))).data();
+    const state = (await tx.get(manifest)).data() as DeliveryState | undefined;
+    if (previous?.inputHash && previous.inputHash !== inputHash) return fail('request_conflict');
+    if (previous?.status === 'cancelled') return { status: 'cover_cancelled' as const, requestId: input.requestId };
+    if (previous?.receipt || previous?.status === 'staged' || previous?.patchStarted) return fail('patch_requires_reconciliation');
+    if (previous && (!Number.isFinite(previous.leaseUntil) || previous.leaseUntil > Date.now())) return fail('busy');
+    if (previous) {
+      if (!audit || fingerprint(audit.input) !== inputHash || state?.coverRevision?.id !== id ||
+        state.coverRevision.itemId !== input.itemId || state.coverRevision.day !== input.dayKey) return fail('hold_lost');
+      delete state.coverRevision;
+      tx.set(manifest, state);
+    } else if (audit || state?.coverRevision?.id === id) return fail('audit_invalid');
+    // Retain prepared pixels, rejected review, costs and all original evidence.
+    // The tombstone also fences a delayed request that had not claimed yet.
+    tx.set(ref, { ...previous, input, inputHash, status: 'cancelled', leaseUntil: 0,
+      cancelledAt: FieldValue.serverTimestamp(), cancellationReason: 'owner_abandoned_cover_before_cms_patch' });
+    return { status: 'cover_cancelled' as const, requestId: input.requestId };
+  });
+}
 const withoutCover = (fields: Json, mobile: boolean) => Object.fromEntries(Object.entries(fields)
   .filter(([key]) => !['thumb', 'foto-credit', ...(mobile ? ['mobile-image'] : [])].includes(key)));
 const receiptFor = (id: string, input: CoverRevisionInput, payloadHash: string, fieldDataHash: string): CoverRevisionReceipt =>
@@ -100,11 +132,13 @@ export async function reviseLivCover(value: unknown, dependencies?: CoverRevisio
   // A completed replay needs no external calls. The transaction checks again.
   const existing = (await revisionRef.get()).data() as Revision | undefined;
   if (existing && existing.inputHash !== inputHash) return fail('request_conflict');
+  if (existing?.status === 'cancelled') return fail('cancelled');
   const cms = existing ? null : await deps.read(cmsPath);
   const schema = existing ? null : await deps.read(`collections/${deps.collectionId}`);
   const claimed = await db.runTransaction(async tx => {
     const previous = (await tx.get(revisionRef)).data() as Revision | undefined;
     if (previous?.inputHash && previous.inputHash !== inputHash) return fail('request_conflict');
+    if (previous?.status === 'cancelled') return fail('cancelled');
     if (previous?.status === 'staged' && previous.receipt) return { revision: previous, audit: null };
     const state = (await tx.get(manifestRef)).data() as DeliveryState | undefined;
     const payload = (await tx.get(payloadRef)).data() as Audit['payload'] | undefined;
@@ -146,7 +180,7 @@ export async function reviseLivCover(value: unknown, dependencies?: CoverRevisio
       }
       audit = { input, cms, schema, payload, slot: slot ? { ...slot } : null, entry: { ...entry }, preparations: rows };
       // Immutable before-image, including raw Firestore timestamps and prior proofs.
-      tx.create(auditRef, { ...audit, authorizedBy: 'cron-authenticated-operator', selection: 'explicit-human-selection',
+      tx.create(auditRef, { ...audit, authorizedBy: 'authenticated-operator', selection: 'explicit-human-selection',
         createdAt: FieldValue.serverTimestamp() });
     }
     const revision: Revision = { ...previous, inputHash, owner, leaseUntil: Date.now() + 330_000, status: 'processing' };
