@@ -122,6 +122,16 @@ private workspaces have been demonstrated to work.
   existing production credential configuration was presence-checked only, using
   the user's standing reuse authorization. No key created/exported, paid test,
   production proposal or deploy performed for this unfinished feature.
+- Wired owner-authenticated POST to server checkpoint resolution and the saved
+  proposal generator. Strict input accepts only item/request identity, version
+  hashes and target count; no client prose/model/UID. Checks baseline versions,
+  payload and original prepared proof before dispatch; conflicting/missing run
+  checkpoints reject. An already-paid preview can be retrieved after queue
+  changes, but remains unapproved and must pass fresh checks at acceptance.
+- Budget-denied requests get 429 with providerAttempted=false only for branded
+  pretransport evidence; ambiguous failures do not claim non-payment. 44 focused
+  route/resolution/proposal tests and TypeScript pass. No production calls or
+  deploy. Acceptance/review and user interface still remain to build.
 
 ### Earlier title/SEO work
 
