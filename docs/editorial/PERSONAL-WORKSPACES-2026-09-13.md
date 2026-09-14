@@ -47,6 +47,20 @@ private workspaces have been demonstrated to work.
 
 ### Archive admission implementation (local, not deployed)
 
+- Queue priority now has a derived `priorityReadyAt` single-field index for
+  publication hooks and uncertain CMS writes, maintained on enqueue/claim,
+  checkpoints, write reservation and completion. Recovery selects priority IDs
+  before ordinary ready IDs with two bounded queries and deduplication, not a
+  full backlog scan. Existing article payloads and model receipts are untouched.
+- Added explicit `scripts/backfill-seo-priority.ts` for existing rows. It pages
+  100 records (maximum 30 pages), re-reads each row in a transaction and updates
+  only the derived field. Safe to repeat. NOT RUN yet. Run after deployment and
+  old workers drain, then verify priority selection against the live backlog.
+- Six priority tests pass, including a new event behind 224 old archive jobs,
+  dual-lane deduplication, claim/deferral and terminal cleanup. Full regression
+  before the final added cleanup case: 3,695 tests pass. Build and TypeScript
+  pass (`/tmp/apropos-priority-tests.log`, `/tmp/apropos-priority-build.log`).
+
 - Added transaction-backed admission for one new recovery-source SEO review per
   Copenhagen day. Concurrent workers share a day receipt and durable per-job
   receipt. Deferred jobs retain their text/results and attempt budget, retrying

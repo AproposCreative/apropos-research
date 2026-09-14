@@ -1,6 +1,7 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { getAdminDb } from '@/lib/firebase-admin';
 import { FieldValue } from 'firebase-admin/firestore';
+import { qualityPriorityReadyAt } from './priority';
 import { reviewKey, type PublishedArticle, type MetadataField, type PolicyDecision, type PerformanceEvidence, type FieldAssessment } from './policy';
 import type { ReviewArticle } from './review';
 
@@ -18,6 +19,7 @@ export type QualityJob = {
   owner?: string;
   leaseUntil?: number;
   readyAt?: number;
+  priorityReadyAt?: number;
   decision?: PolicyDecision;
   assessments?: FieldAssessment[];
   duplicateMetadata?: { seoTitle: string[]; metaDescription: string[] };
@@ -53,6 +55,8 @@ export async function enqueueQualityJob(input: Pick<QualityJob, 'source' | 'snap
     if ((await tx.get(ref)).exists) return;
     const now = new Date().toISOString();
     const record: QualityJob = { ...input, id, status: 'queued', createdAt: now, updatedAt: now, attempt: 0, readyAt: Date.now() };
+    const priority = qualityPriorityReadyAt(record);
+    if (priority !== null) record.priorityReadyAt = priority;
     // Firestore rejects undefined, including optional analytics evidence.
     tx.create(ref, JSON.parse(JSON.stringify(record)));
   });
@@ -69,12 +73,14 @@ export async function claimQualityJob(id: string): Promise<QualityJob | null> {
     if (TERMINAL_QUALITY_STATES.includes(job.status) || (job.leaseUntil ?? 0) > Date.now()) return null;
     if ((job.readyAt ?? 0) > Date.now()) return null;
     if (job.attempt >= 5 && !job.writeStartedAt) {
-      tx.update(ref, { status: 'failed', reason: 'retry_budget_exhausted', readyAt: FieldValue.delete(), updatedAt: new Date().toISOString() });
+      tx.update(ref, { status: 'failed', reason: 'retry_budget_exhausted', readyAt: FieldValue.delete(), priorityReadyAt: FieldValue.delete(), updatedAt: new Date().toISOString() });
       return null;
     }
     const next: QualityJob = { ...job, status: job.writeStartedAt ? 'verify_pending' : 'running',
       owner: randomUUID(), leaseUntil: Date.now() + LEASE_MS, readyAt: Date.now() + LEASE_MS,
       attempt: job.attempt + 1, updatedAt: new Date().toISOString() };
+    const priority = qualityPriorityReadyAt(next);
+    if (priority === null) delete next.priorityReadyAt; else next.priorityReadyAt = priority;
     tx.set(ref, next);
     return next;
   });
@@ -86,9 +92,11 @@ export async function checkpointQualityJob(job: QualityJob, patch: Partial<Quali
   await db().runTransaction(async tx => {
     const current = (await tx.get(ref)).data() as QualityJob | undefined;
     if (!current || !job.owner || current.owner !== job.owner || (current.leaseUntil ?? 0) <= Date.now()) throw new Error('seo_job_lease_lost');
+    const readyAt = TERMINAL_QUALITY_STATES.includes(patch.status || current.status) ? undefined
+      : patch.readyAt ?? Date.now() + (release ? 60_000 : LEASE_MS);
+    const priority = qualityPriorityReadyAt({ ...current, ...patch, readyAt });
     tx.update(ref, { ...JSON.parse(JSON.stringify(patch)), updatedAt: new Date().toISOString(),
-      readyAt: TERMINAL_QUALITY_STATES.includes(patch.status || current.status) ? FieldValue.delete()
-        : patch.readyAt ?? Date.now() + (release ? 60_000 : LEASE_MS),
+      readyAt: readyAt ?? FieldValue.delete(), priorityReadyAt: priority ?? FieldValue.delete(),
       leaseUntil: release ? 0 : Date.now() + LEASE_MS });
   });
 }
@@ -111,7 +119,8 @@ export async function reserveQualityWrite(job: QualityJob, decision: PolicyDecis
     if (state?.pendingJobId && state.pendingJobId !== job.id) throw new Error('seo_article_write_pending');
     if ((state?.lockedFields || []).some(field => field in decision.patch)) throw new Error('seo_editorial_lock_changed');
     if (state?.lastAppliedAt && Date.now() - Date.parse(state.lastAppliedAt) < 28 * 86400_000) throw new Error('seo_cooldown_changed');
-    tx.update(jobRef, { decision, writeStartedAt: startedAt, status: 'verify_pending', updatedAt: startedAt });
+    tx.update(jobRef, { decision, writeStartedAt: startedAt, status: 'verify_pending', updatedAt: startedAt,
+      priorityReadyAt: current.readyAt ?? current.leaseUntil ?? Date.now() + LEASE_MS });
     tx.set(articleRef, { pendingJobId: job.id }, { merge: true });
   });
   job.writeStartedAt = startedAt;
@@ -127,7 +136,7 @@ export async function finishQualityJob(job: QualityJob, patch: Partial<QualityJo
     const state = (await tx.get(articleRef)).data() as ArticleQualityState | undefined;
     if (!current || !job.owner || current.owner !== job.owner || (current.leaseUntil ?? 0) <= Date.now()) throw new Error('seo_job_lease_lost');
     const now = new Date().toISOString();
-    tx.update(jobRef, { ...JSON.parse(JSON.stringify(patch)), updatedAt: now, leaseUntil: 0, readyAt: FieldValue.delete() });
+    tx.update(jobRef, { ...JSON.parse(JSON.stringify(patch)), updatedAt: now, leaseUntil: 0, readyAt: FieldValue.delete(), priorityReadyAt: FieldValue.delete() });
     tx.set(articleRef, { lastJobId: job.id, lastReviewedKey: reviewKey(job.snapshot),
       ...(patch.status === 'applied' && state?.pendingJobId === job.id ? { pendingJobId: null } : {}),
       ...(patch.status === 'applied' ? { lastAppliedAt: job.writeStartedAt || now } : {}) }, { merge: true });
@@ -135,8 +144,12 @@ export async function finishQualityJob(job: QualityJob, patch: Partial<QualityJo
 }
 
 export async function listRecoverableQualityJobs(limit = 10): Promise<string[]> {
-  // A single indexed scheduling field avoids composite-index deployment and
-  // prevents active/terminal jobs at the front of the collection starving others.
-  const records = await db().collection(JOBS).where('readyAt', '<=', Date.now()).orderBy('readyAt').limit(Math.max(1, Math.min(50, limit))).get();
-  return records.docs.filter(doc => Number(doc.data().leaseUntil || 0) <= Date.now()).map(doc => doc.id);
+  // Two single-field queries, not a scan/sort of the entire archive backlog.
+  const count = Math.max(1, Math.min(50, limit)), now = Date.now();
+  const collection = db().collection(JOBS);
+  const [priority, ordinary] = await Promise.all(['priorityReadyAt', 'readyAt'].map(field =>
+    collection.where(field, '<=', now).orderBy(field).limit(count).get()));
+  return [...new Set([...priority.docs, ...ordinary.docs]
+    .filter(doc => Number(doc.data().leaseUntil || 0) <= now &&
+      !TERMINAL_QUALITY_STATES.includes(doc.data().status)).map(doc => doc.id))].slice(0, count);
 }
