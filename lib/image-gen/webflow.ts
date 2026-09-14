@@ -8,11 +8,13 @@ type CmsItem = { id: string; isDraft?: boolean; isArchived?: boolean; lastPublis
 const idPattern = /^[a-f0-9]{24}$/;
 export function imageGenCmsConfiguration() {
   const file = getWebflowConfig();
-  const token = file.apiToken ?? env.WEBFLOW_API_TOKEN;
-  const collection = file.articlesCollectionId ?? env.WEBFLOW_ARTICLES_COLLECTION_ID;
+  // Production credentials are authoritative. A stale local config file must
+  // never shadow rotated Vercel environment variables for CMS writes.
+  const token = env.WEBFLOW_API_TOKEN ?? file.apiToken;
+  const collection = env.WEBFLOW_ARTICLES_COLLECTION_ID ?? file.articlesCollectionId;
   const locale = env.WEBFLOW_CMS_LOCALE_DK;
   if (!token || !idPattern.test(collection || '') || !idPattern.test(locale || '')) throw new Error('image_gen_cms_unconfigured');
-  return { token, collection, locale, site: file.siteId ?? env.WEBFLOW_SITE_ID };
+  return { token, collection, locale, site: env.WEBFLOW_SITE_ID ?? file.siteId };
 }
 const configuration = imageGenCmsConfiguration;
 async function getCms(path: string, query: URLSearchParams) {
