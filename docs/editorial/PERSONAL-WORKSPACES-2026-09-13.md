@@ -2,7 +2,31 @@
 
 ## Goal
 
-Build the user's approved September 13 plan. Only the three verified colleagues may enter. Frederik alone has SEO, Podcast, Newsletter, Liv Inbox, Push, budget and Liv publication control. Casper and Milo can see Liv and propose topics. Personal drafts are private even from Frederik until explicitly shared. Keep one API-published article daily, no Instagram, bounded AI spend, saved paid work and audit intact.
+Build the user's approved September 13 plan. Only the three verified colleagues may enter. Frederik alone has SEO, Podcast, Newsletter, Liv Inbox, Push, budget and Liv publication control. Casper and Milo can see Liv and propose topics. Personal drafts are private even from Frederik. Finished team articles go to Webflow as drafts; new shared-copy creation is retired. Preserve historical records. Keep one API-published article daily, no Instagram, bounded AI spend, saved paid work and audit intact.
+
+## Completion audit, September 14 after today's publication
+
+This table is the current remaining acceptance list. Older dated checkpoints
+below are historical evidence, not instructions to repeat completed releases or
+restore retired features. Do not generate paid test articles solely to close rows.
+
+| Requirement | Evidence already available | Remaining evidence / next action |
+| --- | --- | --- |
+| Daily API publication | September 14 CMS hash, public page, two body assets and server receipt verified; tomorrow's story ready | Existing daily after-check must collect seven real consecutive days; never simulate future receipts |
+| Team access | Frederik and Milo verified; live Milo service-assisted API reads and owner-feature denial verified | Casper completes actual account setup; normal human login/device acceptance is not established by custom tokens |
+| Private workspace | UID isolation, restore/conflict tests and authenticated production reads | Real mobile-to-desktop saved-draft resume and interrupted-connection acceptance; user request for this check sent |
+| Personal sources | Saved choices and API readback; provider-policy tests | Observe the next legitimate Writer research using its own selections; do not label selection as site uptime |
+| Revision flow | Released routes and local review/accept coverage | A real editorial revision and human acceptance, with retained original/CMS identity |
+| Bounded costs | Admission controls, priority migration and tracked budget | Real archive-admission receipt and provider billing reconciliation; tracked cost is not an invoice |
+| Reserve | Durable-pointer implementation and blocked-status handling released | Today's exhausted unstarted job is not reset; reserve remains disabled pending normal admission and actual stock verification |
+
+Latest runtime release recorded in the release evidence is
+`877402c562d574f8ce76725bede42220d3dc76ce`; local regression reached 3,701 tests.
+Alert-history 503 and file-tracing warnings were resolved in subsequent releases
+to the old workspace receipts. Do not request Cloud Shell/index permissions for
+that obsolete blocker. Consult LIV-DAILY-VERIFICATION.md,
+OPERATIONS-RELEASE-2026-09-13.md, and RESERVE-PREPARATION-2026-09-13.md for
+the exact evidence and limits. These facts do not establish full completion.
 
 ## Approved optimization priorities, September 14
 
@@ -32,7 +56,8 @@ full-project completion.
   CMS item or preparation proof. The explicit September 12 editorial reserve
   retains its successful draft, item and proof and is already consumed.
   Reserve activation remains off pending retry/admission audit, not a new paid
-  generation to make an acceptance test pass. Three scheduled stories remain ready.
+  generation to make an acceptance test pass. After today's Freud publication,
+  Frankenstein and Klovn remain scheduled; the earlier three-ready count is historical.
 - Existing daily 10:20 after-check remains ACTIVE; no duplicate automation created.
 
 Current release follow-up: the alert-history 503 dependency is resolved in

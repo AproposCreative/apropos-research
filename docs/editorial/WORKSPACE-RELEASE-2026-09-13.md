@@ -1,5 +1,12 @@
 # Workspace release, September 13
 
+**Historical release receipt.** See the completion audit at the top of
+PERSONAL-WORKSPACES-2026-09-13.md for current scope. New private-draft sharing
+is no longer a requirement and has been retired. Subsequent releases resolved
+file-tracing warnings and alert-history availability. Human device acceptance,
+seven actual daily publications and provider billing reconciliation remain
+distinct requirements, not claims supported by this earlier read-only check.
+
 - Exact production SHA: `ff2af6836848f404817cc6e501a1465e2224df93`.
 - Deployment: `dpl_7e517qB9hDvn49Ab1ZS3oVWs8cEZ`, READY.
 - Verified production alias: https://ai.aproposmagazine.com.

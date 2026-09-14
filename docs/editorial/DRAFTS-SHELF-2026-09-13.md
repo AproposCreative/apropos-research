@@ -1,5 +1,12 @@
 # Mine artikler: private workspace entry points
 
+**Historical release receipt.** Current acceptance is tracked at the top of
+PERSONAL-WORKSPACES-2026-09-13.md. New shared-copy creation has since been
+retired, alert history now returns 200 for the owner, and file-tracing warnings
+were resolved. The old index-permission blocker below is obsolete. Real
+multi-device Writer acceptance remains open; isolated component tests are not
+evidence of human team use.
+
 Released through `dc79e1e5186636c9f72d15fff4a79eadba65b4da` to production. Deployment `dpl_V18NMN37xkJ1o5f4WfHpFcdTrTVD` is READY with `ai.aproposmagazine.com` alias. Earlier local checkpoints below are historical.
 
 - Desktop and mobile shelves link to existing saved-version and shared-copy dialogs. No additional storage or paid API workflow.
