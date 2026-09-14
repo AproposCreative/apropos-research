@@ -40,6 +40,13 @@ it('persists original and optimized result, retrieves it privately, and never st
   await expect(readImageGenAsset('casper', job.id)).rejects.toThrow('asset_invalid');
   expect(f.edit).toHaveBeenCalledOnce();
 });
+it('carries the bounded visual research into the paid image prompt', async () => {
+  const visualResearch = { status: 'researched', brief: 'VISUEL RESEARCH: Gobs er Victor Gaardboe. Officielle presseportrætter viser ofte kasket, kæder og afslappet urban styling.', sources: ['https://gobs.dk/'] };
+  await runImageGenJob({ ...job, parameters: { ...job.parameters, visualResearch } });
+  const prompt = f.edit.mock.calls[0][0].prompt as string;
+  expect(prompt).toContain('Victor Gaardboe');
+  expect(prompt).toContain('gobs.dk');
+});
 it('edits using the actual previous image plus the style reference', async () => {
   await runImageGenJob(job); const result = f.finish.mock.calls[0][2];
   f.job.mockResolvedValue({ ...job, ...result });
@@ -66,6 +73,19 @@ it('keeps validated motifs if the one press search fails', async () => {
   await runImageGenJob({ ...job, operation: 'ideas' });
   expect(f.chat).toHaveBeenCalledOnce(); expect(f.search).toHaveBeenCalledOnce(); expect(f.edit).not.toHaveBeenCalled();
   expect(f.finish.mock.calls[0][2]).toMatchObject({ status: 'succeeded', result: { motifs: expect.any(Array), press: { status: 'unavailable_no_automatic_retry' } } });
+});
+it('persists source-backed visual research from the existing bounded press call', async () => {
+  f.chat.mockResolvedValue({ choices: [{ finish_reason: 'stop', message: { content: JSON.stringify({ motifs: [1,2,3].map(n => ({ title: `Motiv ${n}`,
+    description: `En enkel illustration med motiv ${n}.`, sectionId: article.sections[0].id, excerpt: article.sections[0].text })) }) } }] });
+  f.search.mockResolvedValue({ output: [
+    { type: 'message', content: [{ type: 'output_text', text: 'VISUEL RESEARCH: Gobs er Victor Gaardboe. Officielle pressebilleder viser kasket, kæder og afslappet urban styling.', annotations: [{ type: 'url_citation', url: 'https://gobs.dk/' }] }] },
+    { type: 'web_search_call', action: { sources: [{ url: 'https://gobs.dk/' }] } },
+  ] });
+  f.media.mockResolvedValue(Buffer.from('<meta property="og:image" content="https://gobs.dk/press.jpg">'));
+  await runImageGenJob({ ...job, operation: 'ideas' });
+  expect(f.finish.mock.calls[0][2]).toMatchObject({ status: 'succeeded', result: {
+    visualResearch: { status: 'researched', brief: expect.stringContaining('Victor Gaardboe'), sources: ['https://gobs.dk/'] },
+  } });
 });
 it('does not fetch a press image without explicit rights confirmation', async () => {
   await runImageGenJob({ ...job, operation: 'press-import', parameters: { ideasJobId: 'c'.repeat(64), candidateId: 'd'.repeat(64), credit: 'Foto: Test' } });

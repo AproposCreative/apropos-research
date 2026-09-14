@@ -28,6 +28,35 @@ export function imageGenArticle(id: string, title: string, content: string, cove
 
 export type ImageGenMotif = { title: string; description: string; sectionId: string; excerpt: string };
 
+/**
+ * A bounded, source-backed visual brief from the single press-search step.
+ * This is research input, not a licence decision and not an instruction.
+ */
+export type ImageGenVisualResearch = {
+  brief: string;
+  sources: string[];
+  status: 'researched' | 'unavailable';
+};
+
+export function validateImageGenVisualResearch(value: unknown): ImageGenVisualResearch {
+  if (!value || typeof value !== 'object') throw new Error('image_gen_visual_research_invalid');
+  const { brief, sources, status } = value as Partial<ImageGenVisualResearch>;
+  if ((status !== 'researched' && status !== 'unavailable') || typeof brief !== 'string' ||
+      brief.length > 2400 || !Array.isArray(sources) || sources.length > 4 ||
+      sources.some(source => typeof source !== 'string' || source.length > 500)) {
+    throw new Error('image_gen_visual_research_invalid');
+  }
+  for (const source of sources) {
+    try {
+      const url = new URL(source);
+      if (url.protocol !== 'https:' || url.username || url.password) throw new Error('invalid_source');
+    } catch {
+      throw new Error('image_gen_visual_research_invalid');
+    }
+  }
+  return { brief, sources, status };
+}
+
 /** A model may choose a scene, but may not invent its supporting quotation. */
 export function validateImageGenMotifs(value: unknown, article: ImageGenArticle): ImageGenMotif[] {
   if (!Array.isArray(value) || value.length !== 3) throw new Error('image_gen_motifs_invalid');

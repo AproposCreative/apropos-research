@@ -7,6 +7,23 @@ import { imageGenHash } from './article';
 export type ImageGenPressCandidate = { id: string; sourceUrl: string; originalUrl: string;
   credit: string | null; rightsStatus: 'unknown'; checkedAt: string };
 
+/** Extract only the assistant's cited search text. Search prose remains
+ * untrusted source material and is never treated as an application command. */
+export function imageGenSearchText(response: unknown): string {
+  const output = (response as { output?: unknown[] })?.output;
+  const texts: string[] = [];
+  for (const item of Array.isArray(output) ? output : []) {
+    const row = item as { type?: string; content?: { type?: string; text?: unknown }[] };
+    if (row.type !== 'message') continue;
+    for (const part of row.content ?? []) {
+      if ((part.type === 'output_text' || part.type === 'text') && typeof part.text === 'string') {
+        texts.push(part.text);
+      }
+    }
+  }
+  return texts.join('\n\n').replace(/\s+/gu, ' ').trim().slice(0, 2400);
+}
+
 /** Only URLs returned as search provenance, never model-invented image URLs. */
 export function imageGenSearchSources(response: unknown): string[] {
   const found = new Set<string>();

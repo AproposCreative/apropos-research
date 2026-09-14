@@ -1,13 +1,19 @@
 import { beforeEach, expect, it, vi } from 'vitest';
 const reader = vi.hoisted(() => vi.fn());
 vi.mock('@/lib/liv/public-media-reader', () => ({ readPublicMedia: reader }));
-import { imageGenSearchSources, inspectImageGenPressSources } from '@/lib/image-gen/press';
+import { imageGenSearchSources, imageGenSearchText, inspectImageGenPressSources } from '@/lib/image-gen/press';
 beforeEach(() => reader.mockReset());
 it('only consumes real search provenance, never model prose URLs', () => {
   expect(imageGenSearchSources({ output: [{ type: 'message', content: [{ text: 'https://fabricated.test/image.jpg',
     annotations: [{ type: 'url_citation', url: 'https://press.example.org/page' }] }] },
     { type: 'web_search_call', action: { sources: [{ url: 'https://127.0.0.1/private' }, { url: 'https://press.example.org/page' }] } }] }))
     .toEqual(['https://press.example.org/page']);
+});
+it('extracts only response text for the visual research brief', () => {
+  expect(imageGenSearchText({ output: [{ type: 'message', content: [
+    { type: 'output_text', text: 'VISUEL RESEARCH: Gobs er Victor Gaardboe.' },
+    { type: 'output_text', text: 'Kilde: officiel side.' },
+  ] }] })).toBe('VISUEL RESEARCH: Gobs er Victor Gaardboe. Kilde: officiel side.');
 });
 it('bounds source reads, deduplicates image URLs, retains unknown rights', async () => {
   reader.mockResolvedValue(Buffer.from('<meta property="og:image" content="https://press.example.org/photo.jpg">'));

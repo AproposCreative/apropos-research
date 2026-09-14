@@ -4,7 +4,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import type { User } from 'firebase/auth';
 import { useAuth } from '@/lib/auth-context';
-import type { ImageGenArticle, ImageGenMotif } from '@/lib/image-gen/article';
+import type { ImageGenArticle, ImageGenMotif, ImageGenVisualResearch } from '@/lib/image-gen/article';
 import type { ImageGenJob } from '@/lib/image-gen/jobs';
 import type { ImageGenAsset } from '@/lib/image-gen/runtime';
 import type { ImageGenPressCandidate } from '@/lib/image-gen/press';
@@ -14,7 +14,7 @@ import styles from './workshop.module.css';
 type ArticleRow = { id: string; title: string; cover: string | null; isDraft: boolean };
 type Snapshot = { article: ImageGenArticle; cover: { url?: string } | null; isDraft: boolean; existingImages?: { url: string; alt: string; caption: string }[] };
 type Quote = { id: string; estimateUpToDkk: number };
-type Ideas = { motifs: ImageGenMotif[]; textVersion?: string; press?: { candidates: ImageGenPressCandidate[]; status: string } };
+type Ideas = { motifs: ImageGenMotif[]; textVersion?: string; visualResearch?: ImageGenVisualResearch; press?: { candidates: ImageGenPressCandidate[]; status: string } };
 const money = (n: number) => n.toLocaleString('da-DK', { maximumFractionDigits: 2 });
 const statusName: Record<string, string> = { running: 'Arbejder · du kan lukke siden', succeeded: 'Gemt', uncertain: 'Resultatet skal kontrolleres. Ingen automatisk genbestilling.', 'failed-before-provider': 'Stoppet før aflevering. Kontrollér indstillinger eller opdatér artiklen.' };
 
@@ -183,6 +183,9 @@ function Workshop({ user, owner, embedded, onClose }: { user: User; owner: boole
             const result = await request('recover', { id: job.id }); setJobs(p => [result.job, ...p.filter(j => j.id !== result.job.id)]);
           })}>{['generate', 'edit'].includes(job.operation) ? 'Gendan eventuelt gemt billede · ingen AI-kald' : 'Kontrollér gemt status · ingen AI-kald'}</button>}</div>)}
         </details>}
+        {ideas?.visualResearch && <details className={styles.utility} open><summary>Visuel research</summary><p>{ideas.visualResearch.brief}</p>
+          {ideas.visualResearch.sources.length > 0 && <p>Kilder: {ideas.visualResearch.sources.map((source, index) => <span key={source}>{index > 0 ? ' · ' : ''}<a href={source} target="_blank" rel="noreferrer">{new URL(source).hostname.replace(/^www\./u, '')} ↗</a></span>)}</p>}
+        </details>}
         {ideas && <section><h3>Tre motivforslag</h3><div className={styles.list}>{ideas.motifs.map((m, i) => <button className={styles.card} key={i} onClick={() => { setMotif(m); setEditId(null); }}>
           <strong>{m.title}</strong><p>{m.description}</p><blockquote>“{m.excerpt}”</blockquote><span>Vælg motiv →</span>
         </button>)}</div></section>}
@@ -192,7 +195,9 @@ function Workshop({ user, owner, embedded, onClose }: { user: User; owner: boole
           {editId && <label>Hvad skal ændres?<textarea value={editText} maxLength={1000} onChange={e => setEditText(e.target.value)}/></label>}
           <p>Ét billede. Ingen automatisk regenerering. Illustration, ikke dokumentation af koncerten.</p>
           <div className={styles.actions}><button disabled={busy || running || !quotes[editId ? 'edit' : 'generate'] || (Boolean(editId) && editText.trim().length < 3)} onClick={() => void act(() => run(editId ? 'edit' : 'generate', {
-            style, description: motif.description, sectionId: motif.sectionId, ...(editId ? { parentJobId: editId, editInstruction: editText } : {}),
+            style, description: motif.description, sectionId: motif.sectionId,
+            ...(ideas?.visualResearch && ideasJob ? { ideasJobId: ideasJob.id } : {}),
+            ...(editId ? { parentJobId: editId, editInstruction: editText } : {}),
           }))}>{editId ? 'Lav rettelsen' : 'Generér ét billede'} · op til {money(quotes[editId ? 'edit' : 'generate']?.estimateUpToDkk ?? 0)} kr.</button>
           <button onClick={() => { setMotif(null); setEditId(null); }}>Andet motiv</button></div>
         </section>}
