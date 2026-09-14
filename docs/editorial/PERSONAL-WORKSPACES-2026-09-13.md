@@ -132,6 +132,18 @@ private workspaces have been demonstrated to work.
   pretransport evidence; ambiguous failures do not claim non-payment. 44 focused
   route/resolution/proposal tests and TypeScript pass. No production calls or
   deploy. Acceptance/review and user interface still remain to build.
+- Added an explicit human-review journal and owner-only review endpoint. Input
+  acknowledges facts/meaning for the exact candidate hash; actor comes from the
+  verified token, never JSON. Rebuilds the candidate from saved raw output and
+  original article before recording immutable evidence. No old model approval is
+  claimed for new prose, no paid recheck or CMS mutation occurs here. A replayed
+  review receipt is historical evidence, not a lease or fresh CMS approval.
+- 17 focused review/service-route tests and TypeScript pass, including actor/
+  candidate conflicts, altered output, stale CMS baseline and concurrent review
+  deduplication. Endpoint remains local/unreleased. Still required: actual
+  preview UI with explicit review action, fenced CMS apply/readback and canonical
+  payload/checkpoint update. Do not call this endpoint on behalf of the user to
+  fabricate a human review of a generated preview they have not seen.
 
 ### Earlier title/SEO work
 
