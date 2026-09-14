@@ -1,6 +1,20 @@
 # Owner operations release
 
-## September 14 date-field repair (local candidate)
+## September 14 date-field repair (released and verified)
+
+Release `373c3e7d4bcc255f3b44082d9453d04646bda181`, deployment
+`dpl_6QYckLEX1HxWsW9t2ev5TijA8Bez`, reached READY with exact production alias.
+The enhanced verifier passed: historical alert schema coverage and API response
+match, history now returns 200 private/no-store, anonymous history access 401.
+Workspace, versions, historical shares, sources, tips, budget, feed and operations
+all returned 200; three stories and preparation remain enabled. New shares return
+410. Error/fatal grouped runtime scan for this deployment over 15 minutes returned
+no entries (limited observation, not proof of all future behavior).
+
+No mail was sent, no verification flag/IAM changed, and no model/CMS call was made
+by this repair verification. The Cloud Shell authorization request for the index
+is obsolete; no grant is needed. Actual future alert delivery and populated
+historical pagination remain distinct from empty-collection live acceptance.
 
 The earlier manual-index requirement is being removed, not bypassed with broader
 permissions. Live read-only diagnosis at approximately 07:40 UTC found zero
@@ -16,9 +30,8 @@ at diagnosis (zero records); this prerequisite must be rechecked after deploymen
 
 24 focused tests and 3,697 full-suite tests pass; production build passed. The
 obsolete local manual-index declaration was removed; no deployed index or IAM
-policy was changed. Exact release and production history acceptance remain pending.
-The previous Cloud Shell authorization request is no longer needed for this fix
-if the production readback passes; no OAuth grant has been accepted.
+policy was changed. Exact release and production history acceptance passed above.
+No OAuth grant has been accepted.
 
 Reference: https://firebase.google.com/docs/firestore/query-data/index-overview
 (automatic single-field indexes). The prior __name__ query failure is documented

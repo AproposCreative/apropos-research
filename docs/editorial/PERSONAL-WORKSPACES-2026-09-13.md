@@ -6,6 +6,19 @@ Build the user's approved September 13 plan. Only the three verified colleagues 
 
 ## Approved optimization priorities, September 14
 
+Current release follow-up: the alert-history 503 dependency is resolved in
+`373c3e7d4bcc255f3b44082d9453d04646bda181` (exact production alias verified).
+History uses the ordinary `day` index; existing collection was empty and schema
+coverage was independently checked. Owner GET returns 200/private; anonymous GET
+returns 401. Cloud Shell authorization/manual-index creation is no longer needed.
+See OPERATIONS-RELEASE-2026-09-13.md. Historical index-blocker notes below are
+superseded, not grounds for requesting more permissions.
+
+Still open: real Casper/Milo onboarding and device acceptance, real generation
+consuming personal source choices, seven actual daily publication receipts,
+provider invoice reconciliation, and the remaining reserve/revision acceptance.
+These are not proven by the passing release smoke check or the 3,697 tests.
+
 The user approved all six recommendations and requested that they be added to
 the existing goal after the current work. This is an additive execution phase,
 not a replacement or completion claim for the broader goal. Finish and verify
