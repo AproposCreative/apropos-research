@@ -106,6 +106,22 @@ private workspaces have been demonstrated to work.
   Casper/Milo, duplicate/extra query parameters and upstream error disclosure are
   covered. Baseline is local only; journal, generation, review, accept and UI
   remain unfinished and this feature has not been deployed.
+- Added the internal saved proposal generator. It pins the server article/input,
+  canonical Liv voice and utility model; claims a durable request before one
+  cost-accounted, no-SDK-retry call; saves raw output/usage before validation and
+  returns only a preview requiring editorial review. No CMS mutation or public
+  POST is wired yet. Replays reuse saved output, including invalid/refused output.
+- Concurrent requests cannot both dispatch; ambiguous transport or lost output
+  storage requires reconciliation rather than another charge. Only branded
+  pretransport cost-denial evidence can allow the same request to try normal
+  budget admission again; its non-started attempt remains in a subcollection.
+  Twelve proposal tests cover replay, concurrency, input conflicts, partial/
+  invalid output, storage failure, cost context and trustworthy denial handling.
+- Full regression now passes 3,589 tests across 250 files; TypeScript passes.
+  Log: `/tmp/apropos-shortening-proposal-tests.log`. Provider calls were mocked;
+  existing production credential configuration was presence-checked only, using
+  the user's standing reuse authorization. No key created/exported, paid test,
+  production proposal or deploy performed for this unfinished feature.
 
 ### Earlier title/SEO work
 
