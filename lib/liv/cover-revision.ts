@@ -28,7 +28,7 @@ export const coverRevisionInput = z.object({
 export type CoverRevisionInput = z.infer<typeof coverRevisionInput>;
 type Json = Record<string, unknown>;
 type SavedPreparation = { id: string; row: Json & { articleCheckpoint?: GeneratedArticle; preparationProof?: PreparationProof } };
-type Audit = { input: CoverRevisionInput; cms: Json; schema: Json; slot: DeliveryState['slots'][string];
+type Audit = { input: CoverRevisionInput; cms: Json; schema: Json; slot: DeliveryState['slots'][string] | null;
   entry: DeliveryState['entries'][number]; payload: Json & { expected: WebflowArticleFields; payloadHash: string };
   preparations: SavedPreparation[] };
 type Revision = { inputHash: string; owner: string; leaseUntil: number; status: 'processing' | 'staged';
@@ -110,8 +110,10 @@ export async function reviseLivCover(value: unknown, dependencies?: CoverRevisio
     const payload = (await tx.get(payloadRef)).data() as Audit['payload'] | undefined;
     const slot = state?.slots[input.dayKey];
     const entry = state?.entries.find(row => row.itemId === input.itemId);
-    if (!state || !slot || slot.itemId !== input.itemId || slot.state !== 'selected' || slot.fieldDataHash || slot.publicUrl ||
-        !entry || entry.state !== 'selected' || entry.decision === 'rejected' || !payload?.expected ||
+    const selected = slot?.itemId === input.itemId && slot.state === 'selected' && !slot.fieldDataHash && !slot.publicUrl && entry?.state === 'selected';
+    const ready = !slot && entry?.state === 'ready' && entry.scheduledDay === input.dayKey &&
+      !Object.values(state?.slots || {}).some(value => value.itemId === input.itemId);
+    if (!state || (!selected && !ready) || !entry || entry.decision === 'rejected' || !payload?.expected ||
         fingerprint(payload.expected) !== input.expectedPayloadHash || payload.payloadHash !== input.expectedPayloadHash ||
         entry.payloadHash !== input.expectedPayloadHash) return fail('conflict');
     if (state.preparation && state.preparation.leaseUntil > Date.now()) return fail('busy');
@@ -123,7 +125,7 @@ export async function reviseLivCover(value: unknown, dependencies?: CoverRevisio
       if (!savedAudit || fingerprint(savedAudit.input) !== inputHash) return fail('audit_invalid');
       audit = savedAudit;
     } else {
-      if (state.coverRevision || slot.leaseUntil > Date.now() || !cms) return fail('busy');
+      if (state.coverRevision || (slot && slot.leaseUntil > Date.now()) || !cms) return fail('busy');
       const schemaFields = Array.isArray(schema?.fields) ? schema.fields.map(object) : [];
       if (schema?.id !== deps.collectionId || !schemaFields.some(field => field.slug === 'thumb' && field.type === 'Image') ||
           !schemaFields.some(field => field.slug === 'foto-credit' && field.type === 'PlainText') ||
@@ -142,14 +144,14 @@ export async function reviseLivCover(value: unknown, dependencies?: CoverRevisio
           row.articleCheckpoint.selectedImage?.contentHash !== payload.expected.featuredImageHash ||
           row.articleCheckpoint.selectedImage.articleHash !== livImageArticleHash(row.articleCheckpoint))) return fail('checkpoint_conflict');
       }
-      audit = { input, cms, schema, payload, slot: { ...slot }, entry: { ...entry }, preparations: rows };
+      audit = { input, cms, schema, payload, slot: slot ? { ...slot } : null, entry: { ...entry }, preparations: rows };
       // Immutable before-image, including raw Firestore timestamps and prior proofs.
       tx.create(auditRef, { ...audit, authorizedBy: 'cron-authenticated-operator', selection: 'explicit-human-selection',
         createdAt: FieldValue.serverTimestamp() });
     }
     const revision: Revision = { ...previous, inputHash, owner, leaseUntil: Date.now() + 330_000, status: 'processing' };
     // Preserve attempts, backoff, dates and all diagnostics; only fence ownership.
-    slot.token = owner;
+    if (slot) slot.token = owner;
     state.coverRevision = { id, itemId: input.itemId, day: input.dayKey };
     tx.set(revisionRef, revision);
     tx.set(manifestRef, state);
@@ -162,8 +164,12 @@ export async function reviseLivCover(value: unknown, dependencies?: CoverRevisio
     await db.runTransaction(async tx => {
       const latest = (await tx.get(revisionRef)).data() as Revision | undefined;
       const state = (await tx.get(manifestRef)).data() as DeliveryState | undefined;
-      if (latest?.owner !== owner || latest.leaseUntil <= Date.now() || state?.coverRevision?.id !== id ||
-          state.slots[input.dayKey]?.token !== owner) return fail('hold_lost');
+      const entry = state?.entries.find(entry => entry.itemId === input.itemId);
+      const slotOwned = audit.slot ? state?.slots[input.dayKey]?.token === owner :
+        !state?.slots[input.dayKey] && !Object.values(state?.slots || {}).some(slot => slot.itemId === input.itemId) &&
+        state?.entries.some(entry => entry.itemId === input.itemId && entry.state === 'ready');
+      if (latest?.owner !== owner || latest.leaseUntil <= Date.now() || state?.coverRevision?.id !== id || !slotOwned ||
+          fingerprint(entry || {}) !== fingerprint(audit.entry)) return fail('hold_lost');
       tx.set(revisionRef, { ...latest, ...patch });
       if (patch.inspection) tx.create(db.collection('livCoverRevisionReadbacks').doc(randomUUID()),
         { revisionId: id, itemId: input.itemId, inspection: patch.inspection });
@@ -217,10 +223,12 @@ export async function reviseLivCover(value: unknown, dependencies?: CoverRevisio
       const rows = preparations.docs.map(doc => ({ id: doc.id, row: doc.data() }));
       const slot = state?.slots[input.dayKey];
       const entry = state?.entries.find(row => row.itemId === input.itemId);
+      const slotUnchanged = audit.slot ? slot?.token === owner && slot.state === 'selected' && slot.itemId === input.itemId &&
+        fingerprint({ ...slot, token: audit.slot.token }) === fingerprint(audit.slot) :
+        !slot && !Object.values(state?.slots || {}).some(value => value.itemId === input.itemId);
       if (latest?.owner !== owner || latest.leaseUntil <= Date.now() || state?.coverRevision?.id !== id ||
-          slot?.token !== owner || slot.state !== 'selected' || slot.itemId !== input.itemId ||
-          !entry || entry.state !== 'selected' || entry.decision === 'rejected' || entry.payloadHash !== input.expectedPayloadHash ||
-          fingerprint({ ...slot, token: audit.slot.token }) !== fingerprint(audit.slot) || fingerprint(payload || {}) !== fingerprint(audit.payload) ||
+          !slotUnchanged || !entry || fingerprint(entry) !== fingerprint(audit.entry) || entry.decision === 'rejected' ||
+          entry.payloadHash !== input.expectedPayloadHash || fingerprint(payload || {}) !== fingerprint(audit.payload) ||
           fingerprint({ rows }) !== fingerprint({ rows: audit.preparations })) return fail('conflict');
       // Active values change only here, after full readback; the audit is never overwritten.
       for (const saved of audit.preparations) {

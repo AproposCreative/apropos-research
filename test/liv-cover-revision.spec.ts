@@ -101,6 +101,46 @@ beforeEach(() => {
   };
 });
 
+it('edits a ready queued cover without selecting or publishing the story', async () => {
+  manifest().slots = {};
+  manifest().entries[0].state = 'ready';
+  const beforeEntry = structuredClone(manifest().entries[0]);
+  const beforePrep = structuredClone(database.rows.get(prepKey));
+  const receipt = await reviseLivCover(input, deps);
+  expect(receipt.status).toBe('cover_staged');
+  expect(manifest().slots).toEqual({});
+  expect(manifest().entries[0]).toEqual({ ...beforeEntry, payloadHash: receipt.payloadHash });
+  expect(audit().slot).toBeNull();
+  expect(database.rows.get(prepKey)!.articleCheckpoint.content).toBe(beforePrep!.articleCheckpoint.content);
+  expect(database.rows.get(prepKey)!.articleCheckpoint.rawResponse).toBe(beforePrep!.articleCheckpoint.rawResponse);
+  expect(cms.isDraft).toBe(true); expect(cms.lastPublished).toBeNull();
+  expect(await reviseLivCover(input, deps)).toEqual(receipt);
+  expect(deps.prepare).toHaveBeenCalledTimes(1); expect(deps.review).toHaveBeenCalledTimes(1);
+  expect(deps.patch).toHaveBeenCalledTimes(1);
+});
+it('rejects queued covers on another day or with an existing slot before media work', async () => {
+  manifest().slots = {}; manifest().entries[0].state = 'ready';
+  manifest().entries[0].scheduledDay = '2026-09-13';
+  await expect(reviseLivCover(input, deps)).rejects.toThrow('conflict');
+  manifest().entries[0].scheduledDay = dayKey;
+  manifest().slots.other = { itemId, state: 'selected' };
+  await expect(reviseLivCover(input, deps)).rejects.toThrow('conflict');
+  expect(deps.prepare).not.toHaveBeenCalled(); expect(deps.patch).not.toHaveBeenCalled();
+});
+it('holds queued publication during cover work and detects concurrent decision changes', async () => {
+  manifest().slots = {}; manifest().entries[0].state = 'ready';
+  deps.review = vi.fn().mockImplementation(async () => {
+    expect(await claimDelivery(dayKey, Date.now())).toBeNull();
+    manifest().entries[0].decision = 'rejected';
+    return { pass: true, contentHash: newHash };
+  });
+  await expect(reviseLivCover(input, deps)).rejects.toThrow('hold_lost');
+  expect(deps.patch).not.toHaveBeenCalled();
+  expect(manifest().coverRevision).toBeDefined();
+  expect(manifest().slots).toEqual({});
+  expect(active().payloadHash).toBe(expectedPayloadHash);
+});
+
 it('stages one cover revision, archives originals and preserves body, counters, dates and all gate evidence', async () => {
   const beforePrep = structuredClone(database.rows.get(prepKey)), beforeSlot = structuredClone(manifest().slots[dayKey]);
   const beforeCms = structuredClone(cms), beforePayload = structuredClone(active());

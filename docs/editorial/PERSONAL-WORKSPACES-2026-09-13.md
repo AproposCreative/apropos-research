@@ -96,6 +96,23 @@ private workspaces have been demonstrated to work.
   Shortening and cover UI remain separate unfinished work; this endpoint alone
   does not complete the targeted editing feature.
 
+### Queued-cover checkpoint, September 14 (local, not deployed)
+
+- Extended the existing cover journal to accept a ready entry on its actual
+  scheduled day with no publication slot. It does not fabricate a selected slot,
+  move publication dates or convert ready into selected. Existing selected-slot
+  support and its backoff/attempt counters remain intact.
+- The same manifest revision hold prevents selection during the change. Each
+  saved stage checks entry identity as well as revision ownership; a concurrent
+  decision change halts before the CMS patch. Completed retries reuse the
+  stored image/review/receipt. Body text, body media and paid writer output remain
+  unchanged. Readback and source validation are still required.
+- 72 cover and media tests passed; TypeScript passed. No paid provider calls or
+  production mutations. The current press-source adapter still only supports
+  distribution.paradisbio.dk and cannot truthfully be presented as a universal
+  image picker. Owner cover API/UI and broader validated media selection remain
+  unfinished; this checkpoint is not a completed covershift release.
+
 ## Local checkpoint (not deployed)
 
 **Latest release (supersedes historical status below):** `dc79e1e` is READY on production. “Mine artikler” now links to saved versions/shared copies, isolates late account responses and uses canonical draft IDs. 3,339 tests and build passed; isolated mobile/browser checks passed. Production private workspace/versions/shares reads are 200 and anonymous access is denied. Three Liv stories remain visible through the feed API with preparation enabled. Alert history alone in the smoke check still fails 503 pending the documented administrator-created Firestore index. Full-project completion is not claimed. See `DRAFTS-SHELF-2026-09-13.md` for exact evidence and remaining acceptance scope.
