@@ -45,6 +45,23 @@ private workspaces have been demonstrated to work.
 
 ### Build tracing cleanup (local, not released)
 
+- FFmpeg follow-up: `npm ci --ignore-scripts` omits ffmpeg-static's native
+  download. Added one explicit post-security-gate preparation step, pinned to
+  package 5.3.0, release b6.1.1 and the reviewed installer SHA-256. Other npm
+  lifecycle scripts stay disabled; installer source/platform overrides are
+  removed and the executable must pass a bounded `-version` check. No AI calls.
+  The first download attempt returned a failure; subsequent checks used the
+  downloaded binary successfully. Clean production installation still needs
+  deployment evidence, rather than assuming the retry proves it.
+- Local real-audio check: one second of generated silent PCM was encoded to AAC
+  (893 bytes) and probed back to one second through the actual podcast functions.
+  The explicit podcast tracing include now contains the native executable.
+  Dynamic spawn arguments use Turbopack's tracing exclusion with that explicit
+  inclusion preserved. Build passes without the seven former tracing warnings;
+  podcast trace has 329 entries, compared with 1,864 before spawn exclusion.
+  This is a file-list count, not measured runtime/API cost savings. Evidence:
+  `/tmp/apropos-ffmpeg-scoped-build.log`. Production remains unchanged.
+
 - Attachment follow-up: validated request IDs before storage and rejected unsafe
   stored-path segments before reading. Local attachment paths remain rooted at
   the existing directory; no assets were moved or deleted. Removing the dynamic

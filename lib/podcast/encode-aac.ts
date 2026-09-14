@@ -58,7 +58,9 @@ export async function encodeToAac96k(inputBuffer: Buffer): Promise<Buffer> {
 
     await new Promise<void>((resolve, reject) => {
       const proc = spawn(
-        ffmpegBin,
+        // Binary is installed by prepare-ffmpeg and explicitly included in the
+        // podcast route trace. Runtime overrides must not trace the whole repo.
+        /* turbopackIgnore: true */ ffmpegBin,
         ['-y', '-i', inputPath, '-c:a', 'aac', '-b:a', '96k', '-movflags', '+faststart', outputPath],
         { stdio: ['ignore', 'pipe', 'pipe'] }
       );

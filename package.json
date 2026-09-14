@@ -10,7 +10,7 @@
     "dev:cron": "node scripts/newsletter-cron-dev.mjs",
     "podcast-processor": "node scripts/run-podcast-processor.mjs",
     "security:config": "node scripts/assert-safe-build-config.mjs",
-    "build": "npm run security:config && next build",
+    "build": "npm run security:config && node scripts/prepare-ffmpeg.mjs && next build",
     "start": "next start",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",

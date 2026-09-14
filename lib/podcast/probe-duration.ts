@@ -53,7 +53,8 @@ export async function probeAudioDurationSeconds(inputBuffer: Buffer): Promise<nu
 
     const stdout = await new Promise<string>((resolve, reject) => {
       const proc = spawn(
-        ffmpegBin,
+        // Same explicit binary inclusion as encode-aac; no whole-repo tracing.
+        /* turbopackIgnore: true */ ffmpegBin,
         ['-i', inputPath, '-f', 'null', '-'],
         { stdio: ['ignore', 'pipe', 'pipe'] }
       );
