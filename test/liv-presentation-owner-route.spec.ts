@@ -1,14 +1,15 @@
 import { beforeEach, expect, it, vi } from 'vitest';
 import { NextRequest } from 'next/server';
 
-const mocks = vi.hoisted(() => ({ access: vi.fn(), revise: vi.fn(), baseline: vi.fn() }));
+const mocks = vi.hoisted(() => ({ access: vi.fn(), revise: vi.fn(), baseline: vi.fn(), cancel: vi.fn() }));
 vi.mock('@/lib/liv/presentation-baseline', () => ({ readLivPresentationBaseline: mocks.baseline }));
 vi.mock('@/lib/editorial-access', () => ({ editorialRequestAccess: mocks.access }));
 vi.mock('@/lib/liv/presentation-revision', async importOriginal => ({
   ...await importOriginal<typeof import('@/lib/liv/presentation-revision')>(),
   reviseLivPresentation: mocks.revise,
+  cancelUnstartedLivPresentation: mocks.cancel,
 }));
-import { GET, POST } from '@/app/api/liv/revisions/presentation/route';
+import { GET, POST, DELETE } from '@/app/api/liv/revisions/presentation/route';
 
 const input = {
   itemId: 'a'.repeat(24), requestId: 'owner-revision-001',
@@ -36,6 +37,17 @@ it('reads an owner baseline with private cache control', async () => {
   expect(response.status).toBe(200);
   expect(response.headers.get('cache-control')).toBe('private, no-store');
   expect(mocks.baseline).toHaveBeenCalledWith(input.itemId);
+});
+it.each([null, { uid: 'colleague', owner: false }])('protects cancellation for %j', async access => {
+  mocks.access.mockResolvedValue(access);
+  expect((await DELETE(request())).status).toBe(access ? 403 : 401);
+  expect(mocks.cancel).not.toHaveBeenCalled();
+});
+it('passes owner cancellation through the existing journal without editing', async () => {
+  mocks.cancel.mockResolvedValue({ status: 'presentation_cancelled', requestId: input.requestId });
+  expect((await DELETE(request())).status).toBe(200);
+  expect(mocks.cancel).toHaveBeenCalledWith(input);
+  expect(mocks.revise).not.toHaveBeenCalled();
 });
 it.each(['', '?itemId=invalid', `?itemId=${input.itemId}&itemId=${input.itemId}`, `?itemId=${input.itemId}&uid=other`])('rejects ambiguous GET %s', async query => {
   expect((await GET(request(input, query))).status).toBe(400);

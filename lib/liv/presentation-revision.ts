@@ -29,6 +29,32 @@ type Input = z.infer<typeof presentationRevisionInput>;
 type Row = Record<string, unknown> & { articleCheckpoint?: GeneratedArticle; preparationProof?: PreparationProof };
 const hash = (x: object) => cmsFieldHash(x as Record<string, unknown>);
 const fail = (code: string): never => { throw new Error(`liv_presentation_${code}`); };
+
+/** Retire an operation only when its durable journal proves it never started.
+ * Keep an immutable tombstone so a delayed POST cannot apply it afterward. */
+export async function cancelUnstartedLivPresentation(value: unknown) {
+  const parsed = presentationRevisionInput.safeParse(value);
+  if (!parsed.success) return fail('invalid');
+  const input = parsed.data, db = getAdminDb();
+  if (!db) return fail('store_unavailable');
+  const id = hash({ itemId: input.itemId, requestId: input.requestId });
+  const inputHash = hash(input);
+  const ref = db.collection('livPresentationRevisions').doc(id);
+  const lease = await acquireCmsWriteLease(input.itemId, 'da');
+  try {
+    return await db.runTransaction(async tx => {
+      const previous = (await tx.get(ref)).data();
+      const audit = (await tx.get(db.collection('livPresentationAudits').doc(id))).data();
+      const state = (await tx.get(db.collection('livDelivery').doc('manifest'))).data();
+      if (previous?.inputHash !== undefined && previous.inputHash !== inputHash) return fail('request_conflict');
+      if (previous?.status === 'cancelled') return { status: 'presentation_cancelled' as const, requestId: input.requestId };
+      if (previous || audit || state?.coverRevision?.id === id) return fail('already_started');
+      tx.create(ref, { input, inputHash, status: 'cancelled', cancelledAt: FieldValue.serverTimestamp(),
+        reason: 'owner_cancelled_before_start' });
+      return { status: 'presentation_cancelled' as const, requestId: input.requestId };
+    });
+  } finally { await lease.release(); }
+}
 /** CMS image optimization legitimately rewrites delivery URLs/dimensions.
  * Compare all prose, captions, alt text, order and other markup; the existing
  * full CMS inspection separately verifies the saved derivative image bytes. */
@@ -73,6 +99,7 @@ export async function reviseLivPresentation(value: unknown) {
   try {
     const previous = (await revisionRef.get()).data();
     if (previous?.inputHash !== undefined && previous.inputHash !== inputHash) return fail('request_conflict');
+    if (previous?.status === 'cancelled') return fail('cancelled');
     if (previous?.receipt) {
       // Backfill the selection projection for an already completed copyedit.
       // Never apply an old receipt to a subsequently revised or selected story.
@@ -98,6 +125,7 @@ export async function reviseLivPresentation(value: unknown) {
       const runDocs = await tx.get(db.collection('livDailyArticles').where('webflowItemId', '==', input.itemId).limit(10));
       const rows = runDocs.docs.map(d => ({ id: d.id, row: d.data() as Row }));
       const audit = (await tx.get(auditRef)).data();
+      if (latest?.status === 'cancelled') return fail('cancelled');
       const entry = state?.entries.find(e => e.itemId === input.itemId);
       if (!entry || entry.state !== 'ready' || entry.decision === 'rejected' ||
         Object.values(state.slots).some(s => s.itemId === input.itemId) ||

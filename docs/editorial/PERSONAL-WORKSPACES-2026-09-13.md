@@ -74,9 +74,15 @@ private workspaces have been demonstrated to work.
   receipt; colleague switch removed the editor. No runtime errors observed.
   Fixture: `scripts/verify-liv-presentation-ui.mjs`; 111 relevant tests and
   TypeScript passed. No production CMS mutation or paid AI calls in this check.
-- Still required: complete integrated-feed browser acceptance and production
-  release. Permanent revision conflicts remain safely preserved but need an
-  actionable reconciliation path instead of endless retries.
+- Integrated-feed mobile fixture passed: a title save refreshes the actual card;
+  unchanged fields cannot submit; a pre-start conflict can be cancelled through
+  owner-only DELETE. Cancellation writes a retained tombstone under the same CMS
+  lease and transaction journal, preventing delayed POST from applying it later.
+  Started or completed revisions cannot be cancelled. Proposed text is retained
+  locally on cancellation. No audit, checkpoint or paid work is removed.
+- Full regression: 3,488 tests across 244 files passed. Production build/release
+  and authenticated production baseline checks remain pending. Browser evidence
+  uses isolated external services, not actual CMS mutation or daily publication.
   Shortening and cover UI remain separate unfinished work; this endpoint alone
   does not complete the targeted editing feature.
 

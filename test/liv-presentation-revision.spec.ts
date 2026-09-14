@@ -31,12 +31,45 @@ vi.mock('@/lib/webflow/locale-items', () => ({ patchArticleFieldDataForLocale: i
 vi.mock('@/lib/seo-engine/cms-write-lease', () => ({ acquireCmsWriteLease: async () => ({ assertOwned: io.assertOwned, release: io.release }) }));
 vi.mock('@/lib/seo-engine/opportunity-engine/locale', () => ({ cmsLocaleIdFor: () => 'b'.repeat(24) }));
 vi.mock('@/lib/webflow-config', () => ({ getWebflowConfig: () => ({ articlesCollectionId: 'a'.repeat(24) }) }));
-import { reviseLivPresentation, presentationRevisionInput, samePresentationBody } from '@/lib/liv/presentation-revision';
+import { reviseLivPresentation, cancelUnstartedLivPresentation, presentationRevisionInput, samePresentationBody } from '@/lib/liv/presentation-revision';
 import { cmsFieldHash } from '@/lib/liv/cms-field-hash';
 const id = 'c'.repeat(24);
 let cms: any, input: any;
 const manifest = () => database.rows.get('livDelivery/manifest')!;
 const revision = () => [...database.rows].find(([k]) => k.startsWith('livPresentationRevisions/'))?.[1];
+it('cancels an unstarted revision idempotently and rejects delayed writes without CMS calls', async () => {
+  const before = structuredClone(manifest());
+  const receipt = await cancelUnstartedLivPresentation(input);
+  expect(receipt).toEqual({ status: 'presentation_cancelled', requestId: input.requestId });
+  expect(await cancelUnstartedLivPresentation(input)).toEqual(receipt);
+  await expect(reviseLivPresentation(input)).rejects.toThrow('liv_presentation_cancelled');
+  expect(io.read).not.toHaveBeenCalled();
+  expect(io.patch).not.toHaveBeenCalled();
+  expect(manifest()).toEqual(before);
+  expect(revision()).toMatchObject({ status: 'cancelled', input });
+});
+it('cannot reuse a cancelled request ID with changed text', async () => {
+  await cancelUnstartedLivPresentation(input);
+  const changed = { ...input, patch: { ...input.patch, title: 'A different article title' } };
+  await expect(cancelUnstartedLivPresentation(changed)).rejects.toThrow('request_conflict');
+  await expect(reviseLivPresentation(changed)).rejects.toThrow('request_conflict');
+  expect(io.patch).not.toHaveBeenCalled();
+});
+it('does not cancel a completed revision or alter its receipt', async () => {
+  const receipt = await reviseLivPresentation(input);
+  const before = structuredClone(revision());
+  await expect(cancelUnstartedLivPresentation(input)).rejects.toThrow('already_started');
+  expect(revision()).toEqual(before);
+  expect(await reviseLivPresentation(input)).toEqual(receipt);
+  expect(io.patch).toHaveBeenCalledTimes(1);
+});
+it('preserves a started revision after a CMS failure', async () => {
+  io.patch.mockRejectedValueOnce(new Error('network'));
+  await expect(reviseLivPresentation(input)).rejects.toThrow('network');
+  const before = structuredClone(revision());
+  await expect(cancelUnstartedLivPresentation(input)).rejects.toThrow('already_started');
+  expect(revision()).toEqual(before);
+});
 beforeEach(() => {
   vi.resetAllMocks(); database.rows.clear(); database.available = true;
   const expected = { title: 'Original article title', slug: 'unchanged-slug', content: '<p>Preserved body.</p>', seoTitle: 'Original SEO title', seoDescription: 'Original description' };

@@ -36,15 +36,32 @@ function Editor({ itemId, uid, getToken, disabled, onSaved }: {
     .every(key => patch[key].trim() === baseline[key].trim());
   const storageKey = `liv-presentation-revision:v1:${encodeURIComponent(uid)}:${itemId}`;
   useEffect(() => { epoch.current++; return () => { epoch.current++; }; }, []);
-  async function call(body?: Revision) {
+  async function call(body?: Revision, cancel = false) {
     const current = epoch.current;
     const token = await getToken();
     if (current !== epoch.current) throw new Error('account_changed');
     return readJsonResponse(await fetch(body ? endpoint : `${endpoint}?itemId=${itemId}`, {
-      method: body ? 'POST' : 'GET', cache: 'no-store',
+      method: body ? (cancel ? 'DELETE' : 'POST') : 'GET', cache: 'no-store',
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
       ...(body ? { body: JSON.stringify(body) } : {}),
     }));
+  }
+  async function cancelPending() {
+    if (!pending || busy.current) return;
+    const current = epoch.current;
+    busy.current = true; setLoading(true); setMessage('');
+    try {
+      const result = await call(pending, true);
+      if (current !== epoch.current) return;
+      if (result.status !== 'presentation_cancelled' || result.requestId !== pending.requestId) throw new Error('unverified_cancel');
+      // Preserve the proposed wording for recovery, independently of the active request.
+      localStorage.setItem(`${storageKey}:cancelled:${pending.requestId}`, JSON.stringify(pending));
+      localStorage.removeItem(storageKey);
+      setPending(null); setBaseline(null); setOpen(false);
+      setMessage('Rettelsen blev annulleret før gemning. Din tekst er bevaret lokalt. Åbn redigering igen for at hente den aktuelle historie.');
+    } catch {
+      if (current === epoch.current) setMessage('Rettelsen kunne ikke annulleres sikkert. Den kan allerede være påbegyndt. Den er bevaret; prøv samme rettelse igen for at få dens status bekræftet.');
+    } finally { if (current === epoch.current) { busy.current = false; setLoading(false); } }
   }
   async function show() {
     setOpen(true);
@@ -110,6 +127,7 @@ function Editor({ itemId, uid, getToken, disabled, onSaved }: {
         {loading ? 'Arbejder…' : pending ? 'Prøv samme rettelse igen' : 'Gem titel og SEO'}
       </button>
       {!baseline && !pending && !loading && <button type="button" onClick={() => void show()} className="min-h-11 underline">Prøv at hente igen</button>}
+      {pending && <button type="button" disabled={loading} onClick={() => void cancelPending()} className="min-h-11 text-sm underline disabled:opacity-40">Annuller, hvis gemningen ikke er startet</button>}
     </form>}
     {loading && <p role="status" className="text-sm text-white/60">{pending ? 'Gemmer rettelsen…' : 'Henter den aktuelle tekst…'}</p>}
     {message && <p role="status" className="py-2 text-sm leading-6 text-white/70">{message}</p>}

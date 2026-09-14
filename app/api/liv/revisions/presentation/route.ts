@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { editorialRequestAccess } from '@/lib/editorial-access';
-import { presentationRevisionInput, reviseLivPresentation } from '@/lib/liv/presentation-revision';
+import { presentationRevisionInput, reviseLivPresentation, cancelUnstartedLivPresentation } from '@/lib/liv/presentation-revision';
 import { readLivPresentationBaseline } from '@/lib/liv/presentation-baseline';
 
 export const runtime = 'nodejs';
@@ -27,6 +27,14 @@ export async function GET(req: NextRequest) {
 // Interactive copyediting uses the same durable journal and CMS fencing as
 // operations/presentation. Never expose a cron credential to the client.
 export async function POST(req: NextRequest) {
+  return mutate(req, false);
+}
+
+export async function DELETE(req: NextRequest) {
+  return mutate(req, true);
+}
+
+async function mutate(req: NextRequest, cancel: boolean) {
   const access = await editorialRequestAccess(req);
   if (!access) return reply({ error: 'liv_revision_login_required' }, 401);
   if (!access.owner) return reply({ error: 'liv_revision_owner_required' }, 403);
@@ -39,7 +47,7 @@ export async function POST(req: NextRequest) {
       .strict().parse(JSON.parse(raw));
   } catch { return reply({ error: 'liv_presentation_invalid' }, 400); }
   try {
-    return reply(await reviseLivPresentation(input));
+    return reply(await (cancel ? cancelUnstartedLivPresentation(input) : reviseLivPresentation(input)));
   } catch (error) {
     // Return only stable application codes, never upstream responses or tokens.
     const code = error instanceof Error && /^liv_presentation_[a-z_]+$/.test(error.message)
