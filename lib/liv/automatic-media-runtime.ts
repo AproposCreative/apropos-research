@@ -10,6 +10,8 @@ import type { MediaCandidate, MediaDependencies, MediaEvidence, MediaStyle, Stor
 import type { GeneratedArticle } from '@/lib/liv/generate-article';
 import { getLivCostPretransportError } from './cost-errors';
 import { isLivHeroDimensions } from './hero-dimensions';
+import { aproposIllustrationStyle } from '@/lib/image-gen/styles';
+export { aproposIllustrationStyle } from '@/lib/image-gen/styles';
 
 const hash = (bytes: Buffer | string) => createHash('sha256').update(bytes).digest('hex');
 const json = (value: unknown) => JSON.parse(JSON.stringify(value));
@@ -62,12 +64,6 @@ const unpaidStage = (id: string, stage: string, row?: SavedStage) => row?.status
   /^[a-f0-9-]{36}$/.test(row.attemptId || '') && row.notStarted.attemptId === row.attemptId &&
   /^[a-f0-9]{64}$/.test(row.requestHash || '') && row.notStarted.requestHash === row.requestHash &&
   !row.result && !row.original && !row.evidence;
-export function aproposIllustrationStyle(style: MediaStyle): string {
-  const common = 'Original editorial illustration, one coherent scene, one clear focal subject, very few objects, ample negative space. No collage, montage, split panels, lettering, logos, photographic fragments, photorealism or 3D. Wide composition with central safe crop. A conceptual illustration, never documentary evidence or a fabricated photograph of an event.';
-  return common + (style === 'minimal'
-    ? ' Minimal classic ink drawing: economical irregular black lines, warm cream paper, at most one restrained accent colour. Cool, simple, understated.'
-    : ' Expressive Apropos colour style: bold slightly irregular black ink outlines, flat saturated cobalt blue, hot pink and yellow shapes, warm cream paper, fine matte screenprint grain. Confident and cheeky, not childish. No gradients or realistic shine. Keep composition simple despite strong colour.');
-}
 
 /** Existing Firebase persistence and existing OpenAI client; no new credentials. */
 export function livMediaRuntime(deadline = Date.now() + 180_000): MediaDependencies {

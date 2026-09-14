@@ -2,7 +2,7 @@ import { AsyncLocalStorage } from 'node:async_hooks';
 import { createHmac, randomUUID, timingSafeEqual } from 'node:crypto';
 import { LivCostPretransportError } from './cost-errors';
 
-export type SharedCostScope = 'writer' | 'seo' | 'accreditation';
+export type SharedCostScope = 'writer' | 'seo' | 'accreditation' | 'image-gen';
 export type LivCostContext = { runId: string; stage: string; scope?: SharedCostScope; blocked?: boolean };
 const storage = new AsyncLocalStorage<LivCostContext>();
 export const LIV_COST_HEADER = 'x-liv-cost-context';
@@ -12,7 +12,7 @@ export const currentLivCostContext = () => storage.getStore();
 /** Establish only at an authenticated, server-owned Liv boundary, never from a request body. */
 export function withLivCostContext<T>(context: Pick<LivCostContext, 'runId' | 'stage' | 'scope'>, run: () => T): T {
   if (!valid(context.runId) || !valid(context.stage) ||
-    (context.scope !== undefined && !['writer', 'seo', 'accreditation'].includes(context.scope))) throw new Error('liv_cost_context_invalid');
+    (context.scope !== undefined && !['writer', 'seo', 'accreditation', 'image-gen'].includes(context.scope))) throw new Error('liv_cost_context_invalid');
   return storage.run({ ...context }, run);
 }
 

@@ -13,6 +13,7 @@ export interface WebAppEntry {
 
 export const WEB_APPS: WebAppEntry[] = [
   { id: 'ai-writer', name: 'AI Writer', path: '/ai', order: 1 },
+  { id: 'image-gen', name: 'Image-gen', path: '/ai/image-gen', order: 1.5 },
   { id: 'design-editor', name: 'SoMe Posting', path: '/design-editor', order: 2 },
   { id: 'newsletter', name: 'Nyhedsbrev', path: '/ai?view=newsletter', order: 3 },
   { id: 'push-desk', name: 'Push', path: '/ai?view=push', order: 4 },

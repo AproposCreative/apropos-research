@@ -16,7 +16,7 @@ export type LivBudgetPolicy = {
   conversionBasis: string; priceVersion: string;
 };
 export type LivCostReservation = {
-  scope?: 'liv' | 'writer' | 'seo' | 'accreditation';
+  scope?: 'liv' | 'writer' | 'seo' | 'accreditation' | 'image-gen';
   callId: string; month: string; runId: string; stage: string; requestHash: string;
   model: string; quote: LivPriceQuote; reservedDkkMicros: number; policy: LivBudgetPolicy; createdAt: string;
 };
@@ -56,7 +56,8 @@ function sharedPolicyReady(value: Record<string, unknown> | undefined, now: Date
     Number.isFinite(Date.parse(value.sharedTrackingStartedAt)) && Date.parse(value.sharedTrackingStartedAt) <= now.getTime();
 }
 
-export function createLivCostLedger(now: () => Date = () => new Date()): LivCostLedger {
+export function createLivCostLedger(now: () => Date = () => new Date(), bucket: 'liv' | 'image-gen' = 'liv'): LivCostLedger {
+  const collectionName = bucket === 'image-gen' ? 'imageGenCostLedger' : LIV_COST_COLLECTION;
   return {
     async reserve({ callId, context, quote, requestHash }) {
       if (!/^[a-f0-9-]{36}$/i.test(callId) || !/^[a-f0-9]{64}$/.test(requestHash) ||
@@ -64,14 +65,17 @@ export function createLivCostLedger(now: () => Date = () => new Date()): LivCost
         !Number.isSafeInteger(quote.reservedUsdMicros) || quote.reservedUsdMicros <= 0 || quote.version !== LIV_PRICE_VERSION) {
         throw new LivCostPretransportError('liv_cost_reservation_invalid');
       }
-      const database = db(), collection = database.collection(LIV_COST_COLLECTION);
+      const database = db(), collection = database.collection(collectionName);
       const date = now(), month = copenhagenClock(date).day.slice(0, 7);
       const monthRef = collection.doc(`month-${month}`), callRef = collection.doc(`call-${callId}`);
       const runRef = collection.doc(`run-${month}-${context.runId}`);
       return database.runTransaction(async tx => {
         const policyRow = (await tx.get(collection.doc('policy'))).data();
         const policy = policyOf(policyRow);
-        if (context.scope !== undefined && (!['writer', 'seo', 'accreditation'].includes(context.scope) || !sharedPolicyReady(policyRow, date))) {
+        if (bucket === 'image-gen' && (context.scope !== 'image-gen' || policy.monthlyLimitDkkMicros > 150_000_000)) {
+          throw new LivCostPretransportError('liv_cost_shared_policy_unconfigured');
+        }
+        if (bucket === 'liv' && context.scope !== undefined && (!['writer', 'seo', 'accreditation'].includes(context.scope) || !sharedPolicyReady(policyRow, date))) {
           throw new LivCostPretransportError('liv_cost_shared_policy_unconfigured');
         }
         const existing = (await tx.get(callRef)).data();
@@ -89,6 +93,7 @@ export function createLivCostLedger(now: () => Date = () => new Date()): LivCost
           throw new LivCostPretransportError('liv_cost_monthly_budget_exceeded');
         }
         const reservation: LivCostReservation = { callId, month, runId: context.runId, stage: context.stage, requestHash,
+          ...(context.scope ? { scope: context.scope } : {}),
           model: quote.model, quote, reservedDkkMicros: amount, policy, createdAt: date.toISOString() };
         tx.create(callRef, { ...reservation, scope: context.scope ?? 'liv', status: 'reserved', usage: null, billedCostDkkMicros: null });
         tx.set(runRef, { calls: run.calls + 1, updatedAt: date.toISOString() });
@@ -98,7 +103,8 @@ export function createLivCostLedger(now: () => Date = () => new Date()): LivCost
       });
     },
     async complete(reservation, outcome) {
-      const database = db(), collection = database.collection(LIV_COST_COLLECTION);
+      if ((reservation.scope === 'image-gen') !== (bucket === 'image-gen')) throw new Error('liv_cost_ledger_bucket_mismatch');
+      const database = db(), collection = database.collection(collectionName);
       const callRef = collection.doc(`call-${reservation.callId}`), monthRef = collection.doc(`month-${reservation.month}`);
       await database.runTransaction(async tx => {
         const call = (await tx.get(callRef)).data();

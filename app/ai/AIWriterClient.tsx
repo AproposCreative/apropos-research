@@ -275,6 +275,7 @@ export default function AIWriterClient() {
   const handleSelectWebApp = useCallback(
     (id: string) => {
       setWebAppsOpen(false);
+      if (id === 'image-gen') { router.push('/ai/image-gen'); return; }
       if (id === 'newsletter') {
         applyActiveView('newsletter');
         return;
@@ -309,7 +310,7 @@ export default function AIWriterClient() {
       }
       applyActiveView(id === 'design-editor' ? 'design-editor' : 'ai');
     },
-    [applyActiveView]
+    [applyActiveView, router]
   );
 
   // Keep width in a sane range, so panels do not overlap on smaller screens.

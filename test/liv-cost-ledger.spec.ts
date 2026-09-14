@@ -270,3 +270,32 @@ it('refuses activation if any configured baseline model lacks a verified quote',
   await expect(activateSharedCostPolicy({ deploymentSha: 'a'.repeat(40), expectedPolicy: policy }, now)).rejects.toThrow('activation_unpriced');
   expect(memory.rows.size).toBe(1);
 });
+
+it('isolates the image-gen 150 DKK ledger from Liv even when Liv is exhausted', async () => {
+  memory.rows.set('imageGenCostLedger/policy', { ...policy, monthlyLimitDkkMicros: 150_000_000 });
+  const livTotals = { committedDkkMicros: 300_000_000, reservedDkkMicros: 0, calls: 999, unknownCalls: 0 };
+  memory.rows.set('livCostLedger/month-2026-09', livTotals);
+  const ledger = createLivCostLedger(() => now, 'image-gen');
+  const input = { ...call(), context: { ...call().context, scope: 'image-gen' as const } };
+  const reservation = await ledger.reserve(input);
+  expect(reservation.scope).toBe('image-gen');
+  await ledger.complete(reservation, outcome);
+  expect(memory.rows.get('livCostLedger/month-2026-09')).toEqual(livTotals);
+  expect(memory.rows.get('imageGenCostLedger/month-2026-09').calls).toBe(1);
+  await expect(createLivCostLedger(() => now).complete(reservation, outcome)).rejects.toThrow('bucket_mismatch');
+});
+it('refuses cross-bucket scopes, an excessive image budget and parallel overspending', async () => {
+  const ledger = createLivCostLedger(() => now, 'image-gen');
+  const input = { ...call(), context: { ...call().context, scope: 'image-gen' as const } };
+  memory.rows.set('imageGenCostLedger/policy', policy);
+  await expect(ledger.reserve(input)).rejects.toThrow('unconfigured');
+  memory.rows.set('imageGenCostLedger/policy', { ...policy, monthlyLimitDkkMicros: 150_000_000 });
+  await expect(ledger.reserve(call())).rejects.toThrow('unconfigured');
+  await expect(createLivCostLedger(() => now).reserve(input)).rejects.toThrow('unconfigured');
+  const amount = Math.ceil(quote.reservedUsdMicros * policy.usdToDkkCeiling);
+  memory.rows.set('imageGenCostLedger/month-2026-09', { committedDkkMicros: 150_000_000 - amount,
+    reservedDkkMicros: 0, calls: 0, unknownCalls: 0 });
+  const results = await Promise.allSettled([ledger.reserve(input), ledger.reserve({ ...input, callId: call(2).callId })]);
+  expect(results.filter(result => result.status === 'fulfilled')).toHaveLength(1);
+  expect(memory.rows.get('imageGenCostLedger/month-2026-09').calls).toBe(1);
+});

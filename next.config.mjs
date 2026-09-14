@@ -53,6 +53,7 @@ const nextConfig = {
   serverExternalPackages: ['ffmpeg-static'],
   // Inkluder linux ffmpeg-binær i serverless bundle (Vercel file tracing)
   outputFileTracingIncludes: {
+    '/api/image-gen/run': ['./data/image-gen/references/*'],
     '/api/podcast/process': ['./node_modules/ffmpeg-static/**/*'],
   },
   // Recovery copies and temporary test data must never enter server bundles.

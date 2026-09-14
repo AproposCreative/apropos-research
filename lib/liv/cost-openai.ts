@@ -6,6 +6,7 @@ import { currentLivCostContext, sharedCostEnabled } from './cost-context';
 import { createLivCostLedger, type LivCostLedger, type LivCostOutcome } from './cost-ledger';
 import { quoteLivImageRequest, quoteLivOpenAIRequest, readLivProviderUsage } from './cost-pricing';
 import { LivCostPretransportError } from './cost-errors';
+import { quoteImageGenEdit } from '@/lib/image-gen/edit-pricing';
 type FinalRequestOptions = Awaited<Parameters<OpenAI['request']>[0]>;
 const guardedTransports = new WeakSet<typeof fetch>();
 
@@ -21,19 +22,28 @@ export function livBudgetFetch(transport: typeof fetch, ledger: LivCostLedger = 
     if (context.blocked) throw new Error('liv_cost_context_blocked');
     const url = new URL(typeof input === 'string' ? input : input instanceof URL ? input.href : input.url);
     if (url.origin !== 'https://api.openai.com' || url.search || url.hash || url.username || url.password ||
-      init?.method?.toUpperCase() !== 'POST' || typeof init.body !== 'string') throw new LivCostPretransportError('liv_cost_transport_uncovered');
+      init?.method?.toUpperCase() !== 'POST') throw new LivCostPretransportError('liv_cost_transport_uncovered');
     const endpoint = url.pathname.replace(/^\/v1(?=\/)/, '');
+    const edit = context.scope === 'image-gen' && endpoint === '/images/edits' && init.body instanceof FormData;
+    if (!edit && typeof init.body !== 'string') throw new LivCostPretransportError('liv_cost_transport_uncovered');
     let body: unknown;
-    try { body = JSON.parse(init.body); } catch { throw new LivCostPretransportError('liv_cost_request_unbounded'); }
+    try { body = edit ? null : JSON.parse(init.body as string); } catch { throw new LivCostPretransportError('liv_cost_request_unbounded'); }
     let quote;
-    try { quote = endpoint === '/images/generations' ? quoteLivImageRequest(endpoint, body) : quoteLivOpenAIRequest(endpoint, body); }
+    let requestHash: string;
+    try {
+      if (edit) ({ quote, requestHash } = await quoteImageGenEdit(init.body as FormData));
+      else {
+        quote = endpoint === '/images/generations' ? quoteLivImageRequest(endpoint, body) : quoteLivOpenAIRequest(endpoint, body);
+        requestHash = createHash('sha256').update(`${endpoint}\n${init.body}`).digest('hex');
+      }
+    }
     catch (error) {
       // Local synchronous validation only, before reservation or provider transport.
       if (error instanceof Error && /^liv_cost_[a-z_]+$/.test(error.message)) throw new LivCostPretransportError(error.message);
       throw error;
     }
     const reservation = await ledger.reserve({ callId: randomUUID(), context, quote,
-      requestHash: createHash('sha256').update(`${endpoint}\n${init.body}`).digest('hex') });
+      requestHash });
     let response: Response;
     try { response = await transport(input, { ...init, redirect: 'error' }); }
     catch (error) {
