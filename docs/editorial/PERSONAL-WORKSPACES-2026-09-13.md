@@ -6,6 +6,27 @@ Build the user's approved September 13 plan. Only the three verified colleagues 
 
 ## Approved optimization priorities, September 14
 
+### Latest team and reserve acceptance, September 14 around 07:48 UTC
+
+- Fresh Firebase read: Frederik and Milo verified, enabled, password provider;
+  Casper enabled but unverified with no linked provider. Do not resend mail or
+  mark Casper verified automatically. Actual mailbox ownership/login is his step.
+- Live Milo service-assisted token check: access API 200 with owner=false,
+  private workspace and versions 200/private/no-store. Budget, operations and
+  alert-history routes deny him with 401/no-store at the proxy. The first check
+  expected endpoint-level 403 and therefore failed; diagnostic readback confirmed
+  denial, not an access leak. Standalone route tests separately cover 403.
+  No verification flags, passwords, private drafts or role records changed.
+  Custom-token verification is not proof of human login or mobile acceptance.
+- Reserve audit: no durable reserve pointer; two historical reserve entries are
+  already published. Legacy reserve September 11–13 jobs are failed; today's
+  reserve is skipped_no_topic. None of these four jobs has an article checkpoint,
+  CMS item or preparation proof. The explicit September 12 editorial reserve
+  retains its successful draft, item and proof and is already consumed.
+  Reserve activation remains off pending retry/admission audit, not a new paid
+  generation to make an acceptance test pass. Three scheduled stories remain ready.
+- Existing daily 10:20 after-check remains ACTIVE; no duplicate automation created.
+
 Current release follow-up: the alert-history 503 dependency is resolved in
 `373c3e7d4bcc255f3b44082d9453d04646bda181` (exact production alias verified).
 History uses the ordinary `day` index; existing collection was empty and schema

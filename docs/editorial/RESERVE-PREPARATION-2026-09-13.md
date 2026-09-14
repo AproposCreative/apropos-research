@@ -1,5 +1,17 @@
 # One reserve: server integration checkpoint
 
+## Production inventory, September 14 approximately 07:48 UTC
+
+Current code is deployed, but reserve activation is still off. Read-only inventory
+found no manifest reservePreparation pointer; historical reserve entries are both
+published. `reserve-2026-09-11`, `reserve-2026-09-12` and `reserve-2026-09-13` are
+failed, while `reserve-2026-09-14` is skipped_no_topic. These four records have no
+article checkpoint, CMS item or preparation proof. The separate successful
+`reserve-editorial-2026-09-12` retains all three and its item is consumed.
+No records were changed and no new generation started. Next activation audit must
+check today's bounded unstarted retry semantics and ensure the successful explicit
+editorial reserve is never regenerated. Keep the three ready scheduled stories.
+
 Implemented locally, not deployed or activated. Opt-in `LIV_RESERVE_ENABLED=true`; absent/false preserves the current zero-reserve policy.
 
 - Existing preparation cron and lease only; no additional scheduler/generator.
