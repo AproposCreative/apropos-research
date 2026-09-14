@@ -1,5 +1,5 @@
 import { after } from 'next/server';
-import { editorialRequestAccess } from '@/lib/editorial-access';
+import { imageGenRequestAccess } from '@/lib/image-gen/access';
 import { claimImageGenJob } from '@/lib/image-gen/jobs';
 import { runImageGenJob } from '@/lib/image-gen/runtime';
 import { imageGenQuotes } from '@/lib/image-gen/quotes';
@@ -7,7 +7,7 @@ export const runtime = 'nodejs';
 export const maxDuration = 300;
 const headers = { 'Cache-Control': 'private, no-store' };
 export async function POST(request: Request) {
-  const access = await editorialRequestAccess(request);
+  const access = await imageGenRequestAccess(request);
   if (!access) return Response.json({ error: 'unauthorized' }, { status: 401, headers });
   if (Number(request.headers.get('content-length') ?? 0) > 20000) return Response.json({ error: 'too_large' }, { status: 413, headers });
   const raw = await request.text();

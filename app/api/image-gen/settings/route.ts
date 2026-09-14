@@ -1,4 +1,4 @@
-import { editorialRequestAccess } from '@/lib/editorial-access';
+import { imageGenRequestAccess } from '@/lib/image-gen/access';
 import { getAdminDb } from '@/lib/firebase-admin';
 import { IMAGE_GEN_LEDGER, readImageGenBudget } from '@/lib/image-gen/budget';
 import { LIV_PRICE_VERSION, LIV_PRICE_REVIEW_AFTER } from '@/lib/liv/cost-pricing';
@@ -6,8 +6,8 @@ export const runtime = 'nodejs';
 /** Explicit owner initialization of the approved separate budget. Never resets usage. */
 export async function POST(request: Request) {
   const headers = { 'Cache-Control': 'private, no-store' };
-  const access = await editorialRequestAccess(request);
-  if (!access?.owner) return Response.json({ error: 'Kun Frederik kan aktivere billedbudgettet.' }, { status: 403, headers });
+  const access = await imageGenRequestAccess(request);
+  if (!access) return Response.json({ error: 'Kun Frederik kan aktivere billedbudgettet.' }, { status: 403, headers });
   try {
     const body = await request.json();
     if (body.action !== 'initialize-budget' || body.monthlyLimitDkk !== 150) throw new Error('invalid');

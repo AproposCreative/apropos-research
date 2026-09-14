@@ -22,19 +22,18 @@ it.each([run, style, settings, draft])('rejects anonymous mutations before state
   f.access.mockResolvedValue(null); expect([401,403]).toContain((await handler(request())).status);
   expect(f.claim).not.toHaveBeenCalled(); expect(f.updateStyle).not.toHaveBeenCalled(); expect(f.preview).not.toHaveBeenCalled();
 });
-it.each(['milo', 'casper'])('allows %s to generate, but not edit common rules or budget', async uid => {
-  f.access.mockResolvedValue({ uid, owner: false }); f.claim.mockResolvedValue({ created: true, job: { id: 'job' } });
-  expect((await run(request())).status).toBe(202); expect(f.claim.mock.calls[0][0]).toBe(uid);
-  expect((await style(request())).status).toBe(403); expect((await settings(request())).status).toBe(403);
-  expect(f.updateStyle).not.toHaveBeenCalled();
+it.each(['milo', 'casper'])('keeps %s out of image-gen mutations during the private pilot', async uid => {
+  f.access.mockResolvedValue({ uid, owner: false });
+  expect((await run(request())).status).toBe(401); expect([401, 403]).toContain((await style(request())).status); expect([401, 403]).toContain((await settings(request())).status); expect((await draft(request())).status).toBe(401);
+  expect(f.claim).not.toHaveBeenCalled(); expect(f.updateStyle).not.toHaveBeenCalled(); expect(f.preview).not.toHaveBeenCalled();
 });
 it('rejects an outdated quote without creating work or calling a provider', async () => {
-  f.access.mockResolvedValue({ uid: 'milo' });
+  f.access.mockResolvedValue({ uid: 'frederik', owner: true });
   expect((await run(request({ ...body, quoteId: 'old' }))).status).toBe(409);
   expect(f.claim).not.toHaveBeenCalled(); expect(f.after).not.toHaveBeenCalled();
 });
 it('does not schedule a duplicate job and uses deterministic research identity', async () => {
-  f.access.mockResolvedValue({ uid: 'milo' }); f.claim.mockResolvedValue({ created: false, job: { id: 'existing', status: 'succeeded' } });
+  f.access.mockResolvedValue({ uid: 'frederik', owner: true }); f.claim.mockResolvedValue({ created: false, job: { id: 'existing', status: 'succeeded' } });
   expect((await run(request({ ...body, operation: 'ideas' }))).status).toBe(200);
   expect(f.claim.mock.calls[0][1].requestId).toBe(`ideas-${body.articleVersion}`);
   expect(f.after).not.toHaveBeenCalled(); expect(f.run).not.toHaveBeenCalled();

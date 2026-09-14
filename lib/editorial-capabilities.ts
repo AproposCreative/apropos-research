@@ -1,13 +1,13 @@
 /** Shared UI policy; the server derives owner status from the verified account. */
 export const OWNER_EMAIL = 'frederik@aproposmagazine.com';
-export const OWNER_APPS = ['seo-engine', 'podcast', 'newsletter', 'liv-inbox', 'push-desk'] as const;
+export const OWNER_APPS = ['seo-engine', 'podcast', 'newsletter', 'liv-inbox', 'push-desk', 'image-gen'] as const;
 export type EditorialCapabilities = { owner: boolean };
 export const NO_CAPABILITIES: EditorialCapabilities = { owner: false };
 export function isOwnerView(view: string | null): boolean {
-  return ['seo', 'podcast', 'newsletter', 'liv-inbox', 'push'].includes(view || '');
+  return ['seo', 'podcast', 'newsletter', 'liv-inbox', 'push', 'image-gen'].includes(view || '');
 }
 export function isOwnerPage(path: string): boolean {
-  return ['/ai/seo', '/ai/podcast', '/ai/newsletter', '/ai/liv-inbox', '/ai/push', '/push', '/liv-inbox', '/settings', '/admin'].some(prefix => path === prefix || path.startsWith(`${prefix}/`));
+  return ['/ai/seo', '/ai/podcast', '/ai/newsletter', '/ai/liv-inbox', '/ai/push', '/ai/image-gen', '/push', '/liv-inbox', '/settings', '/admin'].some(prefix => path === prefix || path.startsWith(`${prefix}/`));
 }
 
 export function canOpenEditorialApp(app: string, capabilities: EditorialCapabilities): boolean {
@@ -17,7 +17,7 @@ export function canOpenEditorialApp(app: string, capabilities: EditorialCapabili
 /** Applies only after authentication. Public feeds and signed service calls retain
  * their separate middleware handling. Segment boundaries avoid prefix collisions. */
 export function requiresEditorialOwner(path: string, method: string): boolean {
-  const trees = ['/api/seo', '/api/seo-engine', '/api/podcast', '/api/newsletter',
+  const trees = ['/api/seo', '/api/seo-engine', '/api/podcast', '/api/newsletter', '/api/image-gen',
     '/api/liv-inbox', '/api/push', '/api/push-desk', '/api/admin', '/api/editorial/operations',
     '/api/ai-cost', '/api/editorial/desk', '/api/editorial/tips/select', '/api/webflow/config', '/api/instagram/config',
     '/api/instagram/meta-config', '/api/instagram/exchange-token', '/api/instagram/renew-token',

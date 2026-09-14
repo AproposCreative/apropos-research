@@ -5,6 +5,7 @@ import { SPLINE_BACKGROUNDS } from '@/lib/spline-backgrounds';
 import ImageOptimizationSection from '@/components/settings/ImageOptimizationSection';
 import ArticleTranslationSection from '@/components/settings/ArticleTranslationSection';
 import SeoEngineSection from '@/components/settings/SeoEngineSection';
+import StyleSettings from '@/app/ai/image-gen/style-settings';
 
 type WebflowStatus = {
   connected: boolean;
@@ -140,7 +141,7 @@ type NewsletterIntegrationStatus = {
 };
 
 function IntegrationsTab() {
-  const { user } = useAuth();
+  const { user, capabilities } = useAuth();
   const [wfStatus, setWfStatus] = useState<WebflowStatus | null>(null);
   const [fbStatus, setFbStatus] = useState<FacebookStatus | null>(null);
   const [nlStatus, setNlStatus] = useState<NewsletterIntegrationStatus | null>(null);
@@ -223,6 +224,7 @@ function IntegrationsTab() {
 
   return (
     <div className="space-y-3">
+      {user && capabilities.owner && <ImageGenSettings user={user} />}
       {/* Webflow */}
       <div className="bg-black rounded-xl p-3 space-y-3">
         <div className="flex items-center justify-between">
@@ -377,6 +379,25 @@ function IntegrationsTab() {
       <ArticleTranslationSection variant="panel" />
     </div>
   );
+}
+
+function ImageGenSettings({ user }: { user: NonNullable<ReturnType<typeof useAuth>['user']> }) {
+  const [budget, setBudget] = useState<{ estimatedDkk?: number; reservedDkk?: number; monthlyLimitDkk?: number } | null>(null);
+  const [loading, setLoading] = useState(true);
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const response = await fetch('/api/image-gen/budget', { headers: { Authorization: `Bearer ${await user.getIdToken()}` }, cache: 'no-store' });
+      setBudget(response.ok ? await response.json() : null);
+    } catch { setBudget(null); }
+    finally { setLoading(false); }
+  }, [user]);
+  useEffect(() => { void load(); }, [load]);
+  return <section className="rounded-xl border border-white/10 bg-black/70 p-3 space-y-2">
+    <div><h3 className="text-white/90 text-sm font-medium">Image-gen</h3><p className="text-white/45 text-xs leading-relaxed">Privat pilot · kun Frederik. Stilregler og separat billedbudget.</p></div>
+    <p className="text-white/65 text-xs">{loading ? 'Henter budget …' : budget ? `${budget.estimatedDkk ?? 0} kr. estimeret · ${budget.reservedDkk ?? 0} kr. reserveret / ${budget.monthlyLimitDkk ?? 150} kr.` : 'Budget ikke tilgængeligt.'}</p>
+    <StyleSettings user={user} onSaved={() => void load()} />
+  </section>;
 }
 
 function AccountTab({ user, logout }: { user: any; logout: () => Promise<void> }) {

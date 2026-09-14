@@ -109,7 +109,7 @@ export default function AIWriterClient() {
   const [requestedView, setActiveView] = useState<AIWriterView>(() =>
     resolveViewFromSearchParams(searchParams)
   );
-  const activeView = !capabilities.owner && ['seo', 'podcast', 'newsletter', 'liv-inbox', 'push'].includes(requestedView || '') ? null : requestedView;
+  const activeView = !capabilities.owner && ['seo', 'podcast', 'newsletter', 'liv-inbox', 'push', 'image-gen'].includes(requestedView || '') ? null : requestedView;
   const leftPanelOpen = shelfOpen || webAppsOpen;
 
   /** Opdater aktiv visning og URL, så refresh og deling bevarer fx nyhedsbrev (`?view=newsletter`). */

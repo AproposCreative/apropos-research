@@ -1,16 +1,16 @@
-import { editorialRequestAccess } from '@/lib/editorial-access';
+import { imageGenRequestAccess } from '@/lib/image-gen/access';
 import { readImageGenStyleConfig, updateImageGenStyle } from '@/lib/image-gen/style-config';
 import type { AproposImageStyle } from '@/lib/image-gen/styles';
 export const runtime = 'nodejs';
 const headers = { 'Cache-Control': 'private, no-store' };
 export async function GET(request: Request) {
-  if (!await editorialRequestAccess(request)) return Response.json({ error: 'unauthorized' }, { status: 401, headers });
+  if (!await imageGenRequestAccess(request)) return Response.json({ error: 'unauthorized' }, { status: 401, headers });
   try { return Response.json(await readImageGenStyleConfig(), { headers }); }
   catch { return Response.json({ error: 'Stilregler kunne ikke hentes.' }, { status: 503, headers }); }
 }
 export async function POST(request: Request) {
-  const access = await editorialRequestAccess(request);
-  if (!access?.owner) return Response.json({ error: 'Kun Frederik kan ændre stilreglerne.' }, { status: 403, headers });
+  const access = await imageGenRequestAccess(request);
+  if (!access) return Response.json({ error: 'Kun Frederik kan ændre stilreglerne.' }, { status: 403, headers });
   if (Number(request.headers.get('content-length') ?? 0) > 2_100_000) return Response.json({ error: 'too_large' }, { status: 413, headers });
   try {
     const form = await request.formData();

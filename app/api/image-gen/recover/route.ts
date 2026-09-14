@@ -1,12 +1,12 @@
 import { after } from 'next/server';
-import { editorialRequestAccess } from '@/lib/editorial-access';
+import { imageGenRequestAccess } from '@/lib/image-gen/access';
 import { claimImageGenJob, markImageGenJobExpired } from '@/lib/image-gen/jobs';
 import { runImageGenJob } from '@/lib/image-gen/runtime';
 export const runtime = 'nodejs';
 export const maxDuration = 300;
 export async function POST(request: Request) {
   const headers = { 'Cache-Control': 'private, no-store' };
-  const access = await editorialRequestAccess(request);
+  const access = await imageGenRequestAccess(request);
   if (!access) return Response.json({ error: 'unauthorized' }, { status: 401, headers });
   try {
     const body = await request.json();

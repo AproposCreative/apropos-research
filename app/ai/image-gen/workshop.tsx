@@ -10,7 +10,6 @@ import type { ImageGenAsset } from '@/lib/image-gen/runtime';
 import type { ImageGenPressCandidate } from '@/lib/image-gen/press';
 import type { ImageGenSelection } from '@/lib/image-gen/draft';
 import styles from './workshop.module.css';
-import StyleSettings from './style-settings';
 
 type ArticleRow = { id: string; title: string; cover: string | null; isDraft: boolean };
 type Snapshot = { article: ImageGenArticle; cover: { url?: string } | null; isDraft: boolean; existingImages?: { url: string; alt: string; caption: string }[] };
@@ -150,11 +149,7 @@ function Workshop({ user, owner, embedded, onClose }: { user: User; owner: boole
   return <main className={embedded ? styles.embeddedShell : styles.shell}>
     <header className={embedded ? styles.embeddedHeader : styles.header}><div><h1>Image-gen</h1><p>Apropos’ fælles billedværksted</p></div>{onClose ? <button className={styles.close} type="button" onClick={onClose} aria-label="Luk Image-gen">×</button> : <Link href="/ai" aria-label="Tilbage til forsiden">Luk ×</Link>}</header>
     <div className={styles.content}>
-      <details className={styles.utility}><summary>Budget og indstillinger</summary>
-        <p className={styles.budget}>{budget}<small>Separat fra Liv · estimat, ikke providerfaktura</small></p>
-        <small role="status">{workspaceSaved}</small>
-        {owner && <StyleSettings user={user} onSaved={() => void refreshBudget()}/>} 
-      </details>
+      <small className={styles.savedStatus} role="status">{workspaceSaved}</small>
       {error && <p role="alert" className={styles.error}>{error}</p>}
       {pending && <details className={styles.utility} open><summary>En tidligere bestilling kræver kontrol</summary><button disabled={busy} onClick={() => void act(async () => {
         const result = await request('run', pending); setPending(null); setJobs(p => [result.job, ...p.filter(j => j.id !== result.job.id)]);
