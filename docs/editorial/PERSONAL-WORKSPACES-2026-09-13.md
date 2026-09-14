@@ -96,7 +96,22 @@ private workspaces have been demonstrated to work.
   Shortening and cover UI remain separate unfinished work; this endpoint alone
   does not complete the targeted editing feature.
 
-### Queued-cover checkpoint, September 14 (local, not deployed)
+### Queued-cover checkpoint, September 14 (released, mutation acceptance still limited)
+
+- Released `6b5d3eef61cfa2112f99af3a452dfaadfff24796`, deployment
+  `dpl_8Rydiv5XY4pURawQUcxVGtidLpTt`, READY. Current domain lookup independently
+  confirmed `ai.aproposmagazine.com` points to this deployment. No env changes.
+- `scripts/verify-liv-cover-production.ts --execute` passed at
+  2026-09-14T01:18:21.949Z: verified-owner baseline GET 200/private-no-store,
+  exact response allowlist and feed hashes/day matched; anonymous GET/POST/DELETE
+  denied with 401; malformed owner POST/DELETE returned 400. No valid mutation,
+  source download, image review or publication was performed by the verifier.
+- Deployment-scoped runtime error/fatal log counts for the preceding 15 minutes
+  were empty. This short scan is not proof of long-term reliability.
+- Daily status readback: autoPublishEnabled/queueEnabled/preparationEnabled true;
+  September 14 publication not yet recorded and not overdue. Lucian Freud on
+  Louisiana is ready; no blocked items or reconciliation flagged. Reserve remains
+  zero/target zero. Daily publication and real-asset cover E2E remain to verify.
 
 - Added the owner-only inline cover form on ready, non-rejected cards. It uses
   the cover baseline and POST/DELETE APIs, never CMS browser sessions. Image URL,
@@ -114,8 +129,9 @@ private workspaces have been demonstrated to work.
   not a production cover mutation or proof of source acceptance for a real asset.
 - 200 relevant backend/feed/store tests, TypeScript and scoped ESLint passed.
   Full regression passed: 3,532 tests across 246 files. Production build passed
-  (`/tmp/apropos-cover-tests.log`, `/tmp/apropos-cover-build.log`). This cover
-  release is not deployed; exact deployment and production API acceptance remain.
+  (`/tmp/apropos-cover-tests.log`, `/tmp/apropos-cover-build.log`). Seven existing
+  tracing warnings remain. Production release/read acceptance is recorded above;
+  these checks do not establish a real cover mutation's source acceptance.
 
 - Extended the existing cover journal to accept a ready entry on its actual
   scheduled day with no publication slot. It does not fabricate a selected slot,
