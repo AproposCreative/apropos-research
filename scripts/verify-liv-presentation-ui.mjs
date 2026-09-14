@@ -4,7 +4,7 @@ import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
 import postcss from 'postcss';
 import tailwind from 'tailwindcss';
-const raw = (await Promise.all(['LivPresentationEditor', 'LivApprovalFeed', 'LivContentColumn', 'LivTips']
+const raw = (await Promise.all(['LivPresentationEditor', 'LivCoverEditor', 'LivApprovalFeed', 'LivContentColumn', 'LivTips']
   .map(name => readFile(`app/ai/liv/${name}.tsx`, 'utf8')))).join('\n');
 const css = (await postcss([tailwind({ content: [{ raw, extension: 'tsx' }] })])
   .process('@tailwind base; @tailwind utilities;', { from: undefined })).css;
@@ -18,6 +18,26 @@ window.addEventListener('error',e=>fixture.errors.push(e.message));
 window.addEventListener('unhandledrejection',e=>fixture.errors.push(String(e.reason)));
 window.fetch=async(url,options={})=>{
  if(String(url)==='/api/liv/delivery/feed')return Response.json({stories:[fixture.story],total:1,nextOffset:null,queueEnabled:true,preparationEnabled:true});
+ if(String(url).startsWith('/api/liv/revisions/cover')){
+  if(options.method==='DELETE'){
+   fixture.cancelBodies.push(options.body);
+   if(fixture.started)return Response.json({error:'liv_cover_patch_requires_reconciliation'},{status:409});
+   fixture.story.publicationBlockers=[];
+   return Response.json({status:'cover_cancelled',requestId:JSON.parse(options.body).requestId});
+  }
+  if(options.method==='POST'){
+   fixture.bodies.push(options.body);
+   fixture.story.publicationBlockers=['editorial_revision_pending'];
+   if(fixture.conflict)return Response.json({error:'liv_cover_source_not_linked'},{status:409});
+   fixture.started=true;
+   if(fixture.loseResponse){fixture.loseResponse=false;throw Error('Lost response');}
+   fixture.story.publicationBlockers=[];
+   fixture.story.revision++;
+   return Response.json({status:'cover_staged',itemId:fixture.story.itemId,publicationVerified:false});
+  }
+  return Response.json({itemId:fixture.story.itemId,dayKey:fixture.story.scheduledDay,
+   expectedCmsHash:'b'.repeat(64),expectedPayloadHash:'c'.repeat(64)});
+ }
  if(!String(url).startsWith('/api/liv/revisions/presentation'))throw Error('Unexpected network');
  if(options.method==='DELETE'){
   fixture.cancelBodies.push(options.body);

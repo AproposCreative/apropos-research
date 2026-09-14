@@ -98,6 +98,25 @@ private workspaces have been demonstrated to work.
 
 ### Queued-cover checkpoint, September 14 (local, not deployed)
 
+- Added the owner-only inline cover form on ready, non-rejected cards. It uses
+  the cover baseline and POST/DELETE APIs, never CMS browser sessions. Image URL,
+  source page, alt and caption are explicit; credit is server-derived. Cover and
+  mobile cover change together without regenerating the article or body images.
+- UID/item-scoped pending requests persist before dispatch. On reload the exact
+  pending request takes priority over a fresh baseline, so a revision hold cannot
+  hide recovery. A receipt is required before clearing it; cancellation retains
+  the proposed input locally and server audit remains intact.
+- Actual-component isolated browser check at 390x844: no horizontal overflow,
+  lost-response request survived reload and replayed byte-identically, successful
+  receipt cleared pending state and refreshed the feed, colleague switch removed
+  editing controls, and no captured browser errors. Extended fixture:
+  `scripts/verify-liv-presentation-ui.mjs`. These are mocked-service UI checks,
+  not a production cover mutation or proof of source acceptance for a real asset.
+- 200 relevant backend/feed/store tests, TypeScript and scoped ESLint passed.
+  Full regression passed: 3,532 tests across 246 files. Production build passed
+  (`/tmp/apropos-cover-tests.log`, `/tmp/apropos-cover-build.log`). This cover
+  release is not deployed; exact deployment and production API acceptance remain.
+
 - Extended the existing cover journal to accept a ready entry on its actual
   scheduled day with no publication slot. It does not fabricate a selected slot,
   move publication dates or convert ready into selected. Existing selected-slot
