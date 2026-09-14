@@ -6,11 +6,12 @@ import { productionReviewModel } from './provider';
 import { runQualityJob } from './worker';
 import { checkLiveMetadataDuplicates } from './uniqueness';
 import { acquireCmsWriteLease } from '@/lib/seo-engine/cms-write-lease';
+import { admitArchiveReview } from './archive-admission';
 
 export function runProductionQualityJob(id: string) {
   return runQualityJob(id, { claim: claimQualityJob, state: getArticleQualityState,
     read: readPublishedArticle, enabled: resolveAutoOpportunityOptimizationEnabled,
-    model: productionReviewModel, reserve: reserveQualityWrite, checkpoint: checkpointQualityJob,
+    model: productionReviewModel, admitArchive: admitArchiveReview, reserve: reserveQualityWrite, checkpoint: checkpointQualityJob,
     finish: finishQualityJob, duplicates: checkLiveMetadataDuplicates,
     apply: async args => {
       // Serialize automatic metadata changes within the locale while comparing

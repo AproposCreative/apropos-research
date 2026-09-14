@@ -45,6 +45,24 @@ private workspaces have been demonstrated to work.
 
 ### Cost coverage and access follow-up (released September 14)
 
+### Archive admission implementation (local, not deployed)
+
+- Added transaction-backed admission for one new recovery-source SEO review per
+  Copenhagen day. Concurrent workers share a day receipt and durable per-job
+  receipt. Deferred jobs retain their text/results and attempt budget, retrying
+  admission after six hours without entering duplicate discovery or model code.
+- Existing started/responded/uncertain durable model stages are preserved and
+  continue through the existing paid-response replay/reconciliation rules.
+  Proven pre-transport denial does not count as paid work. New publication hooks
+  and CMS-write reconciliation bypass the archive admission limit. This bounds
+  new archive reviews, not all model calls or provider billing.
+- Seventeen targeted tests plus TypeScript pass. Remaining before release:
+  examine recovery queue priority (currently oldest readyAt, two per cron), full
+  regression/build and production verification. Do not claim new-event queue
+  priority merely because the model-admission gate exempts those events.
+
+### Cost coverage release evidence
+
 - New bounded read-only audit: 450 recorded calls across September at audit time;
   168 SEO post-publish review and 156 verification calls (324 combined). No
   truncated result. Counts are not currency amounts and include activity after

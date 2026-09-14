@@ -10,6 +10,7 @@ export type QualityWorkerDependencies = {
   read: (itemId: string, locale: 'da' | 'en') => Promise<{ snapshot: PublishedArticle }>;
   enabled: () => Promise<boolean>;
   model: (jobId: string) => ReviewModelCall;
+  admitArchive: (job: QualityJob) => Promise<boolean>;
   duplicates: (snapshot: PublishedArticle) => Promise<{ seoTitle: string[]; metaDescription: string[] }>;
   reserve: (job: QualityJob, decision: PolicyDecision) => Promise<void>;
   checkpoint: (job: QualityJob, patch: Partial<QualityJob>, release?: boolean) => Promise<void>;
@@ -49,6 +50,11 @@ export async function runQualityJob(id: string, deps: QualityWorkerDependencies)
     if (state.lockedFields.includes('seoTitle') && state.lockedFields.includes('metaDescription')) return await finish('kept', 'editorial_locks');
     if (state.lastAppliedAt && (deps.now?.() ?? Date.now()) - Date.parse(state.lastAppliedAt) < POST_PUBLISH_POLICY.cooldownMs) {
       return await finish('kept', 'cooldown');
+    }
+    if (!(await deps.admitArchive(job))) {
+      await deps.checkpoint(job, { status: 'queued', reason: 'archive_daily_allowance',
+        attempt: Math.max(0, job.attempt - 1), readyAt: (deps.now?.() ?? Date.now()) + 6 * 60 * 60_000 }, true);
+      return { ok: true, status: 'queued', reason: 'archive_daily_allowance' };
     }
     // Persist the model's exact duplicate evidence once, so retries replay the
     // same paid request even if another article's metadata changes later.
