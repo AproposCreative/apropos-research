@@ -1,6 +1,6 @@
 # One reserve: server integration checkpoint
 
-## Retained reserve status repair (local, September 14)
+## Retained reserve status repair (released, September 14)
 
 Found a concrete acceptance gap: reserveNeeded correctly suppresses replacement
 of a blocked/rejected retained reserve, but the status reader then returned idle.
@@ -13,7 +13,14 @@ job identity, publication decision, generation or activation flag changes.
 unchanged input, no datastore reads, healthy replacement, daily precedence and
 expiry. Full regression: 3,701 tests / 260 files pass; build and TypeScript pass.
 Logs: /tmp/apropos-reserve-status-tests.log and /tmp/apropos-reserve-status-build.log.
-Not yet released; current production is still 373c3e7.
+Released as `877402c562d574f8ce76725bede42220d3dc76ce` on deployment
+`dpl_8FvkG1XgehwzPxuZKMScctwZpFoQ`, READY with exact production alias verified.
+Read-only production check at 07:55:42 UTC: Freud remains ready at 572 words,
+autopublish enabled, no blocked items, no missing days or reconciliation. Today's
+publication is still not due/published; reserve target remains zero. Anonymous
+revision access denied and invalid mutations rejected. No article/model/publish
+operation was performed by the test. Held-reserve behavior is covered by local
+fixtures; no artificial blocked production record was created for acceptance.
 
 ## Production inventory, September 14 approximately 07:48 UTC
 

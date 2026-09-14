@@ -31,6 +31,15 @@ recorded in EDITORIAL-SIMPLIFICATION-2026-09-13.md.
 
 ## Daily records
 
+### September 14: pre-publication check only
+
+At 07:55:42 UTC (09:55 Copenhagen), authenticated operations reports Freud ready,
+572 words, autoPublishEnabled=true, no blocked items/missing next-day stock or
+reconciliation. No publication yet and not overdue. Exact current deployment:
+`dpl_8FvkG1XgehwzPxuZKMScctwZpFoQ`, SHA
+`877402c562d574f8ce76725bede42220d3dc76ce`. This is not a daily publication
+receipt. No manual cron invocation, generation or article mutation was performed.
+
 No future-day evidence exists yet. Append actual checks here.
 
 ### September 13: independent public HTTP readback
