@@ -9,6 +9,7 @@ import type { ImageGenJob } from '@/lib/image-gen/jobs';
 import type { ImageGenAsset } from '@/lib/image-gen/runtime';
 import type { ImageGenPressCandidate } from '@/lib/image-gen/press';
 import type { ImageGenSelection } from '@/lib/image-gen/draft';
+import StyleSettings from './style-settings';
 import styles from './workshop.module.css';
 
 type ArticleRow = { id: string; title: string; cover: string | null; isDraft: boolean };
@@ -36,6 +37,7 @@ function Workshop({ user, owner, embedded, onClose }: { user: User; owner: boole
   const [selected, setSelected] = useState<ImageGenSelection[]>([]), [previewId, setPreviewId] = useState<string | null>(null);
   const [editId, setEditId] = useState<string | null>(null), [editText, setEditText] = useState('');
   const [pending, setPending] = useState<Record<string, unknown> | null>(null);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const [workspaceReady, setWorkspaceReady] = useState(false), [workspaceSaved, setWorkspaceSaved] = useState('');
   const revision = useRef(0), saveTail = useRef<Promise<unknown>>(Promise.resolve());
   const alive = useRef(true);
@@ -147,10 +149,18 @@ function Workshop({ user, owner, embedded, onClose }: { user: User; owner: boole
     setPreviewId(null); setSelected(previous => previous.map(s => s.jobId === id ? { ...s, ...patch } : s));
   };
   return <main className={embedded ? styles.embeddedShell : styles.shell}>
-    <header className={embedded ? styles.embeddedHeader : styles.header}><div><h1>Image-gen</h1><p>Apropos’ fælles billedværksted</p></div>{onClose ? <button className={styles.close} type="button" onClick={onClose} aria-label="Luk Image-gen">×</button> : <Link href="/ai" aria-label="Tilbage til forsiden">Luk ×</Link>}</header>
+    <header className={embedded ? styles.embeddedHeader : styles.header}><div><h1>Image-gen</h1><p>Apropos’ fælles billedværksted</p></div><div className={styles.headerActions}>
+      {owner && <button className={styles.gear} type="button" onClick={() => setSettingsOpen(previous => !previous)} aria-label="Budget og indstillinger" aria-expanded={settingsOpen} title="Budget og indstillinger">⚙</button>}
+      {onClose ? <button className={styles.close} type="button" onClick={onClose} aria-label="Luk Image-gen">×</button> : <Link href="/ai" aria-label="Tilbage til forsiden">Luk ×</Link>}
+    </div></header>
     <div className={styles.content}>
       <small className={styles.savedStatus} role="status">{workspaceSaved}</small>
       {error && <p role="alert" className={styles.error}>{error}</p>}
+      {settingsOpen && owner && <section className={styles.settingsPanel} aria-label="Budget og indstillinger">
+        <div className={styles.settingsHeading}><h2>Budget og indstillinger</h2><button type="button" className={styles.settingsClose} onClick={() => setSettingsOpen(false)} aria-label="Luk budget og indstillinger">×</button></div>
+        <p className={styles.budget}>{budget}</p>
+        <StyleSettings user={user} onSaved={() => void refreshBudget()} />
+      </section>}
       {pending && <details className={styles.utility} open><summary>En tidligere bestilling kræver kontrol</summary><button disabled={busy} onClick={() => void act(async () => {
         const result = await request('run', pending); setPending(null); setJobs(p => [result.job, ...p.filter(j => j.id !== result.job.id)]);
       })}>Kontrollér samme bestilling</button></details>}
