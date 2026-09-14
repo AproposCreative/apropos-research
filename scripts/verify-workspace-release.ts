@@ -16,7 +16,7 @@ export async function verifyWorkspaceRelease() {
     const token = await signed.user.getIdToken();
     const failures: string[] = [];
     const paths = ['/api/auth/access', '/api/writer/workspace', '/api/writer/workspace/versions', '/api/writer/workspace/shares',
-      '/api/liv/media-sources', '/api/editorial/tips', '/api/liv/delivery/feed', '/api/editorial/operations', '/api/editorial/operations/alerts'];
+      '/api/liv/media-sources', '/api/editorial/tips', '/api/liv/delivery/feed', '/api/ai-cost/summary', '/api/editorial/operations', '/api/editorial/operations/alerts'];
     for (const path of paths) {
       try {
       const response = await fetch(`${origin}${path}`, { headers: { Authorization: `Bearer ${token}` }, redirect: 'error', signal: AbortSignal.timeout(30000) });
@@ -26,13 +26,14 @@ export async function verifyWorkspaceRelease() {
       if (path === '/api/liv/media-sources' && !data.sources?.some((s: any) => s.name === 'Soundvenue' && s.enabled)) throw new Error('shared_source_missing');
       if (path === '/api/editorial/operations' && (!data.liv?.available || !data.alerts?.available)) throw new Error('operations_unavailable');
       if (path === '/api/editorial/operations/alerts' && !Array.isArray(data.records)) throw new Error('alert_history_invalid');
+      if (path === '/api/ai-cost/summary' && (response.headers.get('cache-control') !== 'private, no-store' || data.currency !== 'DKK')) throw new Error('cost_summary_invalid');
       console.log(JSON.stringify({ path, status: response.status, cache: response.headers.get('cache-control'),
         ...(path === '/api/liv/delivery/feed' ? { queueEnabled: data.queueEnabled, preparationEnabled: data.preparationEnabled, stories: data.stories?.length } : {}) }));
       } catch (error) {
         failures.push(error instanceof Error ? error.message : `read_failed:${path}`);
       }
     }
-    for (const path of ['/api/writer/workspace', '/api/writer/workspace/shares', '/api/liv/media-sources', '/api/editorial/tips', '/api/editorial/operations', '/api/editorial/operations/alerts']) {
+    for (const path of ['/api/writer/workspace', '/api/writer/workspace/shares', '/api/liv/media-sources', '/api/editorial/tips', '/api/ai-cost/summary', '/api/editorial/operations', '/api/editorial/operations/alerts']) {
       try {
       const response = await fetch(`${origin}${path}`, { redirect: 'manual', signal: AbortSignal.timeout(30000) });
       if (![401, 403].includes(response.status)) throw new Error(`anonymous_access_unexpected:${path}:${response.status}`);
