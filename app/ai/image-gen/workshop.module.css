@@ -19,4 +19,5 @@
 .embeddedHeader h1 { font-size: 18px; line-height: 1.2; margin: 0; font-weight: 500; }.embeddedHeader p { margin: 4px 0 0; color: #888; font-size: 13px; }
 .close { flex: 0 0 auto; width: 46px; height: 46px; padding: 0 !important; display: grid; place-items: center; border: 1px solid #444 !important; border-radius: 12px !important; background: transparent !important; color: #eee; font-size: 28px; line-height: 1; text-align: center !important; }
 .embeddedShell > .content { min-height: 0; overflow: auto; width: 100%; max-width: none; padding: 22px; }
+.utility { border: 1px solid #2d2d2d; border-radius: 12px; padding: 0 14px; margin: 12px 0; background: rgba(255,255,255,.015); }.utility summary { cursor: pointer; padding: 14px 0; color: #aaa; }.utility[open] summary { color: #eee; border-bottom: 1px solid #252525; margin-bottom: 12px; }.utility > :not(summary) { margin-left: 2px; margin-right: 2px; }
 @media(max-width: 680px) { .list { grid-template-columns: 1fr; }.content { padding: 16px; }.header { padding: 16px; }.content h2 { font-size: 25px; }.actions { flex-direction: column; }.actions button { width: 100%; } }

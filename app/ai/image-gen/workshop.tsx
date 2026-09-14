@@ -150,15 +150,17 @@ function Workshop({ user, owner, embedded, onClose }: { user: User; owner: boole
   return <main className={embedded ? styles.embeddedShell : styles.shell}>
     <header className={embedded ? styles.embeddedHeader : styles.header}><div><h1>Image-gen</h1><p>Apropos’ fælles billedværksted</p></div>{onClose ? <button className={styles.close} type="button" onClick={onClose} aria-label="Luk Image-gen">×</button> : <Link href="/ai" aria-label="Tilbage til forsiden">Luk ×</Link>}</header>
     <div className={styles.content}>
-      <p className={styles.budget}>{budget}<small>Separat fra Liv · estimat, ikke providerfaktura</small></p>
-      <small role="status">{workspaceSaved}</small>
-      {owner && <StyleSettings user={user} onSaved={() => void refreshBudget()}/>}
+      <details className={styles.utility}><summary>Budget og indstillinger</summary>
+        <p className={styles.budget}>{budget}<small>Separat fra Liv · estimat, ikke providerfaktura</small></p>
+        <small role="status">{workspaceSaved}</small>
+        {owner && <StyleSettings user={user} onSaved={() => void refreshBudget()}/>} 
+      </details>
       {error && <p role="alert" className={styles.error}>{error}</p>}
-      {pending && <button disabled={busy} onClick={() => void act(async () => {
+      {pending && <details className={styles.utility} open><summary>En tidligere bestilling kræver kontrol</summary><button disabled={busy} onClick={() => void act(async () => {
         const result = await request('run', pending); setPending(null); setJobs(p => [result.job, ...p.filter(j => j.id !== result.job.id)]);
-      })}>Kontrollér den samme bestilling</button>}
+      })}>Kontrollér samme bestilling</button></details>}
       {!snapshot ? <>
-        <h2>Vælg en artikel</h2><p>Danske kladder og udgivne artikler fra Webflow. At åbne en artikel koster ingen AI-kald.</p>
+        <h2>Vælg en artikel</h2><p>Vælg en Webflow-artikel. Derefter hjælper Image-gen dig med ét billede ad gangen.</p>
         <form className={styles.search} onSubmit={e => { e.preventDefault(); void act(() => search()); }}><input aria-label="Søg i Webflow-artikler" value={query} maxLength={150} onChange={e => setQuery(e.target.value)} placeholder="Søg efter titel …"/><button disabled={busy}>Søg</button></form>
         <div className={styles.list}>{rows.map(row => <button className={styles.article} disabled={busy} key={row.id} onClick={() => void act(() => open(row.id))}>
           {row.cover ? <Image unoptimized width={480} height={280} src={row.cover} alt=""/> : <div className={styles.noImage}>Intet cover</div>}
@@ -166,9 +168,9 @@ function Workshop({ user, owner, embedded, onClose }: { user: User; owner: boole
         </button>)}</div>
         {cursor !== null && <button disabled={busy} onClick={() => void act(() => search(cursor))}>Søg / indlæs flere artikler</button>}
         {!rows.length && !busy && <p>Ingen artikler på denne side. Prøv en anden titel eller søg videre.</p>}
-        <h2>Dit billedarbejde</h2>{jobs.map(job => <button className={styles.history} key={job.id} onClick={() => void act(() => open(job.articleId))}>
+        {jobs.length > 0 && <details className={styles.utility}><summary>Tidligere billedarbejde</summary>{jobs.map(job => <button className={styles.history} key={job.id} onClick={() => void act(() => open(job.articleId))}>
           {job.operation} · {statusName[job.status]}<small>{new Date(job.createdAt).toLocaleString('da-DK')}</small>
-        </button>)}
+        </button>)}</details>}
       </> : <>
         <button className={styles.back} onClick={() => { setSnapshot(null); setPreviewId(null); }}>← Alle artikler</button>
         <h2>{snapshot.article.title}</h2>
@@ -181,10 +183,11 @@ function Workshop({ user, owner, embedded, onClose }: { user: User; owner: boole
           <button disabled={busy || running || !quotes.ideas} onClick={() => void act(() => run('ideas', {}, Boolean(ideas)))}>{ideas ? 'Opdatér idéer og pressesøgning' : 'Find billedidéer'} {quotes.ideas && `· op til ${money(quotes.ideas.estimateUpToDkk)} kr.`}</button>
           <button disabled={busy} onClick={() => void act(() => open(snapshot.article.id))}>Opdatér artikel fra Webflow</button>
         </div>
-        {articleJobs.filter(j => j.status !== 'succeeded').map(job => <div key={job.id}><p role="status">{statusName[job.status]}</p>
+        {articleJobs.filter(j => j.status !== 'succeeded').length > 0 && <details className={styles.utility}><summary>Status og gendannelse</summary>{articleJobs.filter(j => j.status !== 'succeeded').map(job => <div key={job.id}><p role="status">{statusName[job.status]}</p>
           {(job.status === 'uncertain' || Date.now() > job.deadline + 120000) && <button disabled={busy} onClick={() => void act(async () => {
             const result = await request('recover', { id: job.id }); setJobs(p => [result.job, ...p.filter(j => j.id !== result.job.id)]);
           })}>{['generate', 'edit'].includes(job.operation) ? 'Gendan eventuelt gemt billede · ingen AI-kald' : 'Kontrollér gemt status · ingen AI-kald'}</button>}</div>)}
+        </details>}
         {ideas && <section><h3>Tre motivforslag</h3><div className={styles.list}>{ideas.motifs.map((m, i) => <button className={styles.card} key={i} onClick={() => { setMotif(m); setEditId(null); }}>
           <strong>{m.title}</strong><p>{m.description}</p><blockquote>“{m.excerpt}”</blockquote><span>Vælg motiv →</span>
         </button>)}</div></section>}
@@ -198,12 +201,12 @@ function Workshop({ user, owner, embedded, onClose }: { user: User; owner: boole
           }))}>{editId ? 'Lav rettelsen' : 'Generér ét billede'} · op til {money(quotes[editId ? 'edit' : 'generate']?.estimateUpToDkk ?? 0)} kr.</button>
           <button onClick={() => { setMotif(null); setEditId(null); }}>Andet motiv</button></div>
         </section>}
-        {ideas?.press && <section><h3>Pressefund</h3><p>Relevans og tilladelse skal kontrolleres. Et søgeresultat er ikke en brugstilladelse.</p>
+        {ideas?.press && <details className={styles.utility}><summary>Pressefund</summary><section><p>Relevans og tilladelse skal kontrolleres. Et søgeresultat er ikke en brugstilladelse.</p>
           {ideas.press.candidates.map(candidate => <PressCard key={candidate.id} candidate={candidate} disabled={busy || running} onImport={credit => void act(() => run('press-import', {
             ideasJobId: ideasJob!.id, candidateId: candidate.id, credit, permissionConfirmed: true,
           }))}/>)}
           {!ideas.press.candidates.length && <p>{ideas.press.status === 'searched' ? 'Ingen brugbare pressefund i den afgrænsede søgning.' : 'Pressesøgningen kunne ikke afsluttes. Dine motivforslag er bevaret.'}</p>}
-        </section>}
+        </section></details>}
         {assets.length > 0 && <section><h3>Dine gemte billedversioner</h3><div className={styles.list}>{assets.map(job => {
           const asset = job.result as ImageGenAsset, selection = selected.find(s => s.jobId === job.id);
           return <div className={styles.card} key={job.id}><PrivateImage user={user} id={job.id} alt="Gemt billedversion"/><p>{asset.credit}</p>
