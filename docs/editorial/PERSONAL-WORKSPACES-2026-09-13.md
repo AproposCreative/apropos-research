@@ -45,6 +45,23 @@ private workspaces have been demonstrated to work.
 
 ### Sharing retirement follow-up (released September 14)
 
+### Cost coverage and access follow-up (September 14; code local)
+
+- Read-only production summary: September tracked calls 436, usage-based upper
+  cost 50.463456 DKK, reserved 0, unknown calls 0, allowance 249.536544 DKK of
+  300. Shared accounting enabled for Liv, Writer, SEO and accreditation; unscoped
+  OpenAI and unpriced calls denied before transport. Billing remains unknown,
+  historical untracked costs and other providers excluded. Do not present this
+  as the full monthly invoice or a verified account-wide cap. Tracking began
+  September 12; shared scope activation September 13. Per-month call cap 1,000.
+- Found the summary route relied on proxy owner enforcement while accepting any
+  Firebase identity itself. Switched the route to verified editorial owner
+  authorization with direct colleague denial and private/no-store responses.
+  Existing trusted cron/internal credentials retain read access. Six targeted
+  tests and TypeScript pass; no live policy change or paid model request.
+
+### Sharing retirement release evidence
+
 - Removed the remaining share-creation implementation behind the already retired
   UI. Authenticated POST now returns 410 with guidance to send the finished story
   to Webflow as a draft, without reading recipients, workspaces or starting a
