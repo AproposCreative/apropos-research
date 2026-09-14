@@ -45,6 +45,20 @@ private workspaces have been demonstrated to work.
 
 ### Build tracing cleanup (local, not released)
 
+- Attachment follow-up: validated request IDs before storage and rejected unsafe
+  stored-path segments before reading. Local attachment paths remain rooted at
+  the existing directory; no assets were moved or deleted. Removing the dynamic
+  relative path join eliminates the attachment tracing warning. Four FFmpeg
+  warnings remain. Full suite: 3,671 tests in 257 files passed, type-check passed,
+  build passed (`/tmp/apropos-attachment-regression.log`,
+  `/tmp/apropos-attachment-types.log`, `/tmp/apropos-attachment-tracing-build.log`).
+  Thirteen focused cases exercise invalid paths and valid local write/read with
+  mocked filesystem calls. This change is local, not production verification.
+- Next packaging check: the local podcast trace contains ffmpeg-static package
+  files but no native `ffmpeg-static/ffmpeg` executable. Establish installation
+  and production packaging before changing the remaining dynamic spawn tracing;
+  this observation alone does not prove a production podcast failure.
+
 - Separated explicitly configured JSON runtime storage from default bundled
   `data/*.json` reads. Runtime paths are intentionally excluded from Turbopack
   discovery; default reads remain statically scoped and filename validation plus

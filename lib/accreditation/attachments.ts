@@ -232,6 +232,7 @@ export async function storeAttachmentBuffer(params: {
   contentType?: string;
   kind?: AccessPackageAsset['kind'];
 }): Promise<AccessPackageAsset> {
+  if (!/^[a-zA-Z0-9_-]{1,160}$/.test(params.requestId)) throw new Error('invalid_attachment_request_id');
   const check = validateAttachmentSafety({
     filename: params.filename,
     contentType: params.contentType,
@@ -268,7 +269,9 @@ export async function storeAttachmentBuffer(params: {
       memoryBlobs.set(relative, Buffer.from(params.buffer));
       storagePath = relative;
     } else {
-      const relative = path.join(params.requestId, filePart);
+      // Both segments are validated/generated above; only the final absolute
+      // path is a filesystem path. Keep build tracing rooted at ATTACH_DIR.
+      const relative = `${params.requestId}/${filePart}`;
       const absolute = path.join(ATTACH_DIR, relative);
       ensureAttachDir();
       fs.mkdirSync(path.dirname(absolute), { recursive: true });
@@ -292,7 +295,8 @@ export async function storeAttachmentBuffer(params: {
 }
 
 export async function readStoredAttachment(storagePath: string): Promise<Buffer | null> {
-  if (!storagePath) return null;
+  if (!storagePath || storagePath.startsWith('/') || /[\\\x00]/.test(storagePath) ||
+    storagePath.split('/').some(segment => !segment || segment === '.' || segment === '..')) return null;
   const kind = resolveAccreditationPersistenceKind();
 
   if (kind === 'firestore') {
@@ -312,7 +316,7 @@ export async function readStoredAttachment(storagePath: string): Promise<Buffer 
   }
 
   const absolute = path.join(ATTACH_DIR, storagePath);
-  if (!absolute.startsWith(ATTACH_DIR)) return null;
+  if (!absolute.startsWith(`${ATTACH_DIR}${path.sep}`)) return null;
   if (!fs.existsSync(absolute)) return null;
   return fs.readFileSync(absolute);
 }
