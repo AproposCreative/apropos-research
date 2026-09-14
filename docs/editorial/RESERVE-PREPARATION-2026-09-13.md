@@ -24,6 +24,13 @@ fixtures; no artificial blocked production record was created for acceptance.
 
 ## Production inventory, September 14 approximately 07:48 UTC
 
+Follow-up at approximately 07:57 UTC: today's skipped_no_topic record has
+preparationAttempts=3. The actual canRetryUnstartedPreparation helper returns
+false; none of articleCheckpoint, articleCheckpointHash, preparationProof,
+cmsSaveStarted or webflowItemId exists. Activation today would pin an exhausted
+job, not produce a reserve. Do not reset its attempts or erase its history. Keep
+activation off until a justified next admission can use the normal server path.
+
 Current code is deployed, but reserve activation is still off. Read-only inventory
 found no manifest reservePreparation pointer; historical reserve entries are both
 published. `reserve-2026-09-11`, `reserve-2026-09-12` and `reserve-2026-09-13` are

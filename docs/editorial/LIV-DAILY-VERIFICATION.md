@@ -31,6 +31,32 @@ recorded in EDITORIAL-SIMPLIFICATION-2026-09-13.md.
 
 ## Daily records
 
+### September 14: successful on-time server publication
+
+- Vercel runtime readback: GET `/api/cron/liv-daily-article` at 08:00:23 UTC,
+  HTTP 200, deployment `dpl_8FvkG1XgehwzPxuZKMScctwZpFoQ` / SHA `877402c`.
+- CMS live readback at 08:02:43 UTC: item `6aa566cf1d63c39af0d73ad2`,
+  isDraft=false, lastPublished `2026-09-14T08:00:26.847Z` (10:00:26 Copenhagen).
+  Live fieldData hash exactly matches the immutable delivery slot fieldDataHash.
+- Delivery slot published, attempts=1, checkedAt `2026-09-14T08:00:29.406Z`;
+  daily history published, completedAt `2026-09-14T08:00:29.453Z`.
+- Independent unauthenticated HTTP readback at 08:01:35 UTC: 200, canonical
+  https://www.aproposmagazine.com/articles/kroppen-skylder-os-ikke-at-vaere-flatterende
+  and both title/H1 “Lucian Freud på Louisiana: Portrætter uden forskønnelse”.
+- Two distinct body image URLs returned 200 image/webp, 154,086 and 194,690 bytes.
+  Both have descriptive Danish alt and explicit Apropos/AI illustration captions.
+  This is technical availability/markup evidence, not a visual or rights audit.
+- Operations at 08:00:51 UTC: published=true, no blockers, missing next-day stock
+  or reconciliation. Next story: Frankenstein September 15, ready (560 words in
+  the read-only baseline check). Autopublish remains enabled; reserve target zero.
+- No manual cron, publication, generation or CMS write was made by this agent
+  during these checks. Configured schedule and observed endpoint execution are
+  consistent with normal automatic delivery. The log tool still omits scheduler
+  identity/user-agent, so do not claim independent cryptographic caller proof.
+  This proves one on-time server publication, not seven consecutive days.
+- Budget invoice reconciliation was not repeated in this check. Existing tracked
+  budget controls remain; no claim of measured currency savings is made here.
+
 ### September 14: pre-publication check only
 
 At 07:55:42 UTC (09:55 Copenhagen), authenticated operations reports Freud ready,

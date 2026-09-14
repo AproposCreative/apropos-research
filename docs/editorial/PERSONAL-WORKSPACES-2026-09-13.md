@@ -6,6 +6,14 @@ Build the user's approved September 13 plan. Only the three verified colleagues 
 
 ## Approved optimization priorities, September 14
 
+September 14 daily delivery is now independently CMS/public verified: Freud
+published at 10:00:26 Copenhagen, one attempt, exact CMS field hash matches the
+server receipt; public title/canonical and both body-image URLs read back.
+Frankenstein remains ready for tomorrow. No manual publication was invoked by
+the agent. See LIV-DAILY-VERIFICATION.md for provenance limits and timestamps.
+Seven consecutive days remain incomplete; do not conflate today's success with
+full-project completion.
+
 ### Latest team and reserve acceptance, September 14 around 07:48 UTC
 
 - Fresh Firebase read: Frederik and Milo verified, enabled, password provider;
@@ -80,6 +88,12 @@ private workspaces have been demonstrated to work.
 ### Cost coverage and access follow-up (released September 14)
 
 ### Archive admission release (September 14; migration verified)
+
+At approximately 07:57 UTC, read-only runtime evidence found no September 14
+archive admission receipt and no jobs deferred with archive_daily_allowance.
+The previous priority migration/readback and local admission tests still stand;
+actual automatic archive admission is not yet observed. No manual cron or model
+call was started to manufacture this evidence.
 
 - Production release `7916c3d6d0655301830de58613284b4e84f59b87`, deployment
   `dpl_CtYHAgSLiGnMon2db5avdUXA8cZn`, is READY and the exact production alias
