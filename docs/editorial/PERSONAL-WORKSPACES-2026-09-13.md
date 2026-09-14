@@ -43,6 +43,27 @@ Completion requires evidence for each item and the remaining original scope.
 No additional major features before sources, onboarding, daily publication and
 private workspaces have been demonstrated to work.
 
+### Targeted revision checkpoint, September 14 (local, not deployed)
+
+- Inspected current operations rather than assuming they can all edit ready
+  stories. `editorial-edit` is a constrained checkpoint repair, not a general
+  ready-story editor; the cover operation currently requires a selected slot.
+  Neither can simply be wired to every upcoming story as-is.
+- Added owner-authenticated `POST /api/liv/revisions/presentation`, delegating to
+  the existing `reviseLivPresentation` journal, hash conflict checks, CMS lease,
+  draft-only mutation and readback. No cron secret reaches the client. Only
+  title/SEO presentation input is accepted; body restoration and arbitrary
+  fields are rejected. This operation does not publish or generate research.
+- Verified 29 tests across the new route and existing revision implementation;
+  TypeScript and diff checks passed. Route tests cover anonymous/colleague denial,
+  strict input, unchanged request IDs/hashes on retries and sanitized errors.
+  Existing operation tests exercise preserved content, journal replay and CMS
+  conflicts with isolated dependencies, not production publication.
+- Still required: owner-only baseline read API, mobile edit form with exact-body
+  retry and account-change isolation, UI verification, and production release.
+  Shortening and cover UI remain separate unfinished work; this endpoint alone
+  does not complete the targeted editing feature.
+
 ## Local checkpoint (not deployed)
 
 **Latest release (supersedes historical status below):** `dc79e1e` is READY on production. “Mine artikler” now links to saved versions/shared copies, isolates late account responses and uses canonical draft IDs. 3,339 tests and build passed; isolated mobile/browser checks passed. Production private workspace/versions/shares reads are 200 and anonymous access is denied. Three Liv stories remain visible through the feed API with preparation enabled. Alert history alone in the smoke check still fails 503 pending the documented administrator-created Firestore index. Full-project completion is not claimed. See `DRAFTS-SHELF-2026-09-13.md` for exact evidence and remaining acceptance scope.
