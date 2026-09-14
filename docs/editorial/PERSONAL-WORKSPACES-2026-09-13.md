@@ -63,8 +63,20 @@ private workspaces have been demonstrated to work.
   and server-computed hashes, never body/provider data. Rejects selected,
   rejected, published, conflicting and revision-locked items. It performs no
   writes or AI calls. 48 isolated tests pass across baseline, route and revision.
-- Still required: mobile edit form with exact-body
-  retry and account-change isolation, UI verification, and production release.
+- Mobile title/SEO form is now connected to ready, non-rejected owner cards.
+  Only opening the editor reads a CMS baseline. Unchanged text cannot create a
+  revision. A pending body is saved under UID/item-scoped local storage before
+  dispatch; retries reuse it and fields remain locked until a verified receipt.
+  Account changes unmount the editor and late results cannot update its state.
+- Isolated actual-component mobile verification at 390x844 passed: fields fit
+  without horizontal overflow; simulated lost response survived reload; retry
+  submitted the byte-identical body and cleared pending storage only after the
+  receipt; colleague switch removed the editor. No runtime errors observed.
+  Fixture: `scripts/verify-liv-presentation-ui.mjs`; 111 relevant tests and
+  TypeScript passed. No production CMS mutation or paid AI calls in this check.
+- Still required: complete integrated-feed browser acceptance and production
+  release. Permanent revision conflicts remain safely preserved but need an
+  actionable reconciliation path instead of endless retries.
   Shortening and cover UI remain separate unfinished work; this endpoint alone
   does not complete the targeted editing feature.
 

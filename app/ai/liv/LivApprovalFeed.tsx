@@ -7,15 +7,17 @@ import { readJsonResponse } from '@/lib/api/read-json-response';
 import type { ApprovalFeed, ApprovalStory } from '@/lib/liv/approval-types';
 import LivContentColumn from './LivContentColumn';
 import LivTips from './LivTips';
+import LivPresentationEditor from './LivPresentationEditor';
 
 const decisions = { pending: 'Afventer dit valg', approved: 'Godkendt', rejected: 'Afvist' };
 function dateLabel(day: string) {
   return new Intl.DateTimeFormat('da-DK', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'Europe/Copenhagen' })
     .format(new Date(`${day}T12:00:00Z`));
 }
-export function LivApprovalCard({ story, disabled, saving, onDecide, canDecide = false }: {
+export function LivApprovalCard({ story, disabled, saving, onDecide, canDecide = false, onEdited }: {
   story: ApprovalStory; disabled: boolean; saving: boolean;
   canDecide?: boolean;
+  onEdited?: () => void;
   onDecide: (decision: 'approved' | 'rejected', feedback?: string) => void;
 }) {
   const [expanded, setExpanded] = useState(false);
@@ -76,6 +78,8 @@ export function LivApprovalCard({ story, disabled, saving, onDecide, canDecide =
         onClick={() => onDecide('rejected', changedFeedback)} className={`${actionClass} border ${story.decision === 'rejected' ? 'border-rose-300 bg-rose-300/10 text-rose-200' : 'border-white/25 text-white hover:bg-white/10'}`}>Afvis</button>
     </div>
     </>}
+    {canDecide && story.state === 'ready' && story.decision !== 'rejected' && onEdited &&
+      <LivPresentationEditor itemId={story.itemId} disabled={disabled || saving} onSaved={onEdited} />}
     {saving && <p className="px-5 pb-4 text-xs text-white/60" role="status">Gemmer dit valg…</p>}
   </article>;
 }
@@ -152,7 +156,7 @@ export default function LivApprovalFeed() {
         {feed.preparation?.day && <p className="mt-3 text-xs text-white/45">Planlagt {dateLabel(feed.preparation.day)}</p>}
       </div>}
       {feed?.stories.map(story => <LivApprovalCard key={`${story.itemId}:${story.revision}`} story={story} canDecide={capabilities.owner} disabled={loading || !!saving || !!error}
-        saving={saving === story.itemId} onDecide={(decision, feedback) => void decide(story, decision, feedback)} />)}
+        saving={saving === story.itemId} onEdited={() => void refresh()} onDecide={(decision, feedback) => void decide(story, decision, feedback)} />)}
     </LivContentColumn>
   </div>;
 }
