@@ -43,6 +43,23 @@ Completion requires evidence for each item and the remaining original scope.
 No additional major features before sources, onboarding, daily publication and
 private workspaces have been demonstrated to work.
 
+### Build tracing cleanup (local, not released)
+
+- Separated explicitly configured JSON runtime storage from default bundled
+  `data/*.json` reads. Runtime paths are intentionally excluded from Turbopack
+  discovery; default reads remain statically scoped and filename validation plus
+  mandatory test isolation remain intact. No files were deleted or relocated.
+- First experiment moved warnings to read calls and was not accepted as a fix.
+  The final build removes both json-store warnings: seven warnings become five.
+  Remaining warnings belong to accreditation attachment paths and FFmpeg calls.
+  This does not establish API-spend or total bundle-size savings.
+- Ten storage tests pass, including default/absolute/relative directories and
+  unsafe filename/test-isolation denial. Full regression and production build
+  pass; logs `/tmp/apropos-scoped-storage-tests.log` and
+  `/tmp/apropos-scoped-storage-build-2.log`. Built route trace manifests retain
+  18 default data JSON files for inbox-poll and 19 for podcast/process. The
+  runtime-storage change has not yet been pushed or deployed.
+
 ### Daily length alignment, September 14 (released)
 
 - Found an inconsistent legacy minimum in `run-safety-gates`: moderation's

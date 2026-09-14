@@ -31,3 +31,21 @@ it('retains the fallback for a missing data file', () => {
   vi.spyOn(fs, 'existsSync').mockReturnValue(false);
   expect(readJsonFile('missing.json', { count: 0 })).toEqual({ count: 0 });
 });
+it('retains an explicitly configured absolute runtime directory', () => {
+  vi.stubEnv('RAGE_STORAGE_DIR', '/tmp/apropos-json-runtime');
+  vi.spyOn(fs, 'existsSync').mockReturnValue(true);
+  const read = vi.spyOn(fs, 'readFileSync').mockReturnValue('{}');
+  readJsonFile('runtime.json', {});
+  expect(read).toHaveBeenCalledWith('/tmp/apropos-json-runtime/runtime.json', 'utf8');
+});
+it('keeps the default scoped to data outside tests without touching real data', () => {
+  vi.stubEnv('VITEST', ''); vi.stubEnv('RAGE_STORAGE_DIR', '');
+  vi.spyOn(fs, 'existsSync').mockReturnValue(true);
+  const read = vi.spyOn(fs, 'readFileSync').mockReturnValue('{}');
+  vi.spyOn(fs, 'mkdirSync').mockReturnValue(undefined);
+  const write = vi.spyOn(fs, 'writeFileSync').mockReturnValue(undefined);
+  readJsonFile('default.json', {}); writeJsonFile('default.json', {});
+  const expected = path.join(process.cwd(), 'data', 'default.json');
+  expect(read).toHaveBeenCalledWith(expected, 'utf8');
+  expect(write).toHaveBeenCalledWith(expected, '{}', 'utf8');
+});
