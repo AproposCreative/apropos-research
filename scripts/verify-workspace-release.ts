@@ -41,6 +41,15 @@ export async function verifyWorkspaceRelease() {
         failures.push(error instanceof Error ? error.message : `anonymous_check_failed:${path}`);
       }
     }
+    // Empty body is invalid even on the former endpoint, so this check cannot
+    // create a share when pointed at an older deployment.
+    const retired = await fetch(`${origin}/api/writer/workspace/shares`, {
+      method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: '{}', redirect: 'error', signal: AbortSignal.timeout(30000),
+    });
+    if (retired.status !== 410 || retired.headers.get('cache-control') !== 'private, no-store') {
+      failures.push(`share_retirement_unconfirmed:${retired.status}`);
+    } else console.log(JSON.stringify({ case: 'new-sharing-retired', status: retired.status }));
     if (failures.length) throw new Error(`release_checks_failed:${failures.join(';')}`);
   } finally { await signOut(auth); await deleteApp(app); }
 }
