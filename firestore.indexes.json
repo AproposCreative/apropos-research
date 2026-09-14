@@ -1,11 +1,6 @@
 {
   "indexes": [
     {
-      "collectionGroup": "livDeliveryAlerts",
-      "queryScope": "COLLECTION",
-      "fields": [{ "fieldPath": "__name__", "order": "DESCENDING" }]
-    },
-    {
       "collectionGroup": "newsletterScheduledSends",
       "queryScope": "COLLECTION",
       "fields": [

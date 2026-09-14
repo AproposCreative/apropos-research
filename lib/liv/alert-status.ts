@@ -1,6 +1,5 @@
 import { getAdminDb } from '@/lib/firebase-admin';
 import { copenhagenClock, validDay } from './delivery-policy';
-import { FieldPath } from 'firebase-admin/firestore';
 
 export function alertRecordStatus(raw: Record<string, any> | undefined, exists: boolean, now: Date) {
   const notice = raw?.resolved ?? raw?.failure;
@@ -26,11 +25,13 @@ export async function readDeliveryAlertHistory(cursor?: string, now = new Date()
   if (cursor !== undefined && !validDay(cursor)) throw new Error('invalid_alert_cursor');
   const db = getAdminDb();
   if (!db) throw new Error('liv_alert_store_unavailable');
-  let query = db.collection('livDeliveryAlerts').orderBy(FieldPath.documentId(), 'desc');
+  // An ordinary date field uses the automatic single-field index. Descending
+  // document-ID order requires a separate manual index in this database.
+  let query = db.collection('livDeliveryAlerts').orderBy('day', 'desc');
   if (cursor) query = query.startAfter(cursor);
   const snapshot = await query.limit(21).get();
   const records = snapshot.docs.slice(0, 20).map(doc => {
-    if (!validDay(doc.id)) throw new Error('invalid_alert_record');
+    if (!validDay(doc.id) || doc.data()?.day !== doc.id) throw new Error('invalid_alert_record');
     return { day: doc.id, status: alertRecordStatus(doc.data(), true, now) };
   });
   return { records, nextCursor: snapshot.docs.length > 20 ? records[records.length - 1].day : null };

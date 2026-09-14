@@ -14,7 +14,7 @@ afterEach(()=>vi.unstubAllEnvs());
 it('only one of simultaneous checks sends under serialized storage transactions',async()=>{
  const state=emptyDeliveryState();const now=new Date('2026-09-13T08:15:00Z');
  await Promise.all(Array.from({length:8},()=>notifyDeliveryHealth(state,now)));
- expect(m.send).toHaveBeenCalledTimes(1);expect(m.row.failure.accepted).toBe(true);
+ expect(m.send).toHaveBeenCalledTimes(1);expect(m.row.failure.accepted).toBe(true);expect(m.row.day).toBe('2026-09-13');
 });
 it('does not retry outside the provider deduplication window',async()=>{
  const state=emptyDeliveryState();m.send.mockRejectedValueOnce(new Error('unknown'));

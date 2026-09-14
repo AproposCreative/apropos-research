@@ -5,7 +5,7 @@ import type { LivNextPreparationStatus } from './preparation-status';
 
 type Notice = { startedAt: number; leaseUntil: number; accepted?: boolean; providerId?: string;
   payload: {from:string;to:string;subject:string;text:string} };
-export type DeliveryAlertRecord = { failure?: Notice; resolved?: Notice };
+export type DeliveryAlertRecord = { day?: string; failure?: Notice; resolved?: Notice };
 
 /** No alarm before the 10:15 Danish deadline unless a definitive rejection exists. */
 export function deliveryAlertKind(state: DeliveryState, old: DeliveryAlertRecord, now = new Date(), day = copenhagenClock(now).day,
@@ -43,7 +43,7 @@ async function notifyDeliveryDay(state: DeliveryState, now: Date, day: string, p
       text:kind === 'failure' ? `Dagens Liv-udgivelse (${day}) er ikke bekræftet udgivet. Der er registreret en afvisning eller en overskredet frist. Gemt arbejde er bevaret.\n\nSe status på https://ai.aproposmagazine.com/ai?view=liv` : `Dagens Liv-udgivelse (${day}) er nu bekræftet i udgivelsesflowet.\n\nSe artiklen og status på https://ai.aproposmagazine.com/ai?view=liv`,
     }};
     notice.leaseUntil = now.getTime() + 2 * 60000;
-    tx.set(ref,{...old,[kind]:notice});
+    tx.set(ref,{...old,day,[kind]:notice});
     return {kind,notice};
   });
   if (!claim) return {status:'unchanged'};

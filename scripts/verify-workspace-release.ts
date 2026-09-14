@@ -1,13 +1,21 @@
 import { randomUUID } from 'node:crypto';
 import { initializeApp, deleteApp } from 'firebase/app';
 import { getAuth, signInWithCustomToken, signOut } from 'firebase/auth';
-import { getAdminAuth } from '../lib/firebase-admin';
+import { getAdminAuth, getAdminDb } from '../lib/firebase-admin';
+import { validDay } from '../lib/liv/delivery-policy';
 
 /** Read-only live smoke check; never logs private workspace contents or tokens. */
 export async function verifyWorkspaceRelease() {
   const admin = getAdminAuth(); if (!admin) throw new Error('admin_missing');
   const owner = await admin.getUserByEmail('frederik@aproposmagazine.com');
   if (!owner.emailVerified || owner.disabled) throw new Error('owner_not_verified');
+  // An orderBy silently omits records without its field. Verify schema coverage
+  // independently before accepting an empty or partial successful history page.
+  const db = getAdminDb(); if (!db) throw new Error('database_missing');
+  const alerts = await db.collection('livDeliveryAlerts').select('day').limit(1001).get();
+  if (alerts.size > 1000) throw new Error('alert_schema_verification_bound_reached');
+  if (alerts.docs.some(doc => !validDay(doc.id) || doc.data().day !== doc.id)) throw new Error('alert_day_migration_required');
+  const expectedAlertDays = alerts.docs.map(doc => doc.id).sort().reverse().slice(0, 20);
   const app = initializeApp({ apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY }, `workspace-release-${randomUUID()}`);
   const auth = getAuth(app);
   const origin = 'https://ai.aproposmagazine.com';
@@ -26,6 +34,7 @@ export async function verifyWorkspaceRelease() {
       if (path === '/api/liv/media-sources' && !data.sources?.some((s: any) => s.name === 'Soundvenue' && s.enabled)) throw new Error('shared_source_missing');
       if (path === '/api/editorial/operations' && (!data.liv?.available || !data.alerts?.available)) throw new Error('operations_unavailable');
       if (path === '/api/editorial/operations/alerts' && !Array.isArray(data.records)) throw new Error('alert_history_invalid');
+      if (path === '/api/editorial/operations/alerts' && JSON.stringify(data.records.map((r: any) => r.day)) !== JSON.stringify(expectedAlertDays)) throw new Error('alert_history_readback_mismatch');
       if (path === '/api/ai-cost/summary' && (response.headers.get('cache-control') !== 'private, no-store' || data.currency !== 'DKK')) throw new Error('cost_summary_invalid');
       console.log(JSON.stringify({ path, status: response.status, cache: response.headers.get('cache-control'),
         ...(path === '/api/liv/delivery/feed' ? { queueEnabled: data.queueEnabled, preparationEnabled: data.preparationEnabled, stories: data.stories?.length } : {}) }));

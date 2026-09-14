@@ -1,5 +1,29 @@
 # Owner operations release
 
+## September 14 date-field repair (local candidate)
+
+The earlier manual-index requirement is being removed, not bypassed with broader
+permissions. Live read-only diagnosis at approximately 07:40 UTC found zero
+`livDeliveryAlerts` records and confirmed `orderBy('day', 'desc')` succeeds.
+New alert transactions now save the canonical day alongside the unchanged notices;
+history paginates on this ordinary automatically indexed field and rejects a
+day/document-ID mismatch. No notices or provider receipts are erased or resent.
+
+The release verifier independently enumerates day fields before checking the API,
+so missing-field records cannot silently appear to be a successful empty history.
+It fails explicitly if data needs migration. No historical migration was necessary
+at diagnosis (zero records); this prerequisite must be rechecked after deployment.
+
+24 focused tests and 3,697 full-suite tests pass; production build passed. The
+obsolete local manual-index declaration was removed; no deployed index or IAM
+policy was changed. Exact release and production history acceptance remain pending.
+The previous Cloud Shell authorization request is no longer needed for this fix
+if the production readback passes; no OAuth grant has been accepted.
+
+Reference: https://firebase.google.com/docs/firestore/query-data/index-overview
+(automatic single-field indexes). The prior __name__ query failure is documented
+below as historical evidence, not the current proposed implementation.
+
 Candidate: `89b7d8f61ac23043fc1bc67d099fa5292024121a`.
 Deployment: `dpl_EQwssZi5qG23yvBfBjUhVHUPbyWu`.
 

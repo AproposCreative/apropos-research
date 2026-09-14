@@ -14,15 +14,20 @@ beforeEach(() => {
 });
 it('paginates by day without exposing payloads or omitting uncertain historical records', async () => {
   m.get.mockResolvedValue({ docs: Array.from({ length: 21 }, (_, i) => ({
-    id: `2026-08-${String(31-i).padStart(2,'0')}`, data: () => ({ failure: { startedAt: 1, payload: 'private' } }),
+    id: `2026-08-${String(31-i).padStart(2,'0')}`, data: () => ({ day: `2026-08-${String(31-i).padStart(2,'0')}`, failure: { startedAt: 1, payload: 'private' } }),
   })) });
   const page = await readDeliveryAlertHistory(undefined, new Date('2026-09-14'));
   expect(page.records).toHaveLength(20); expect(page.nextCursor).toBe('2026-08-12');
   expect(page.records[0]).toEqual({ day: '2026-08-31', status: 'reconciliation_required' });
   expect(JSON.stringify(page)).not.toContain('private'); expect(m.limit).toHaveBeenCalledWith(21);
+  expect(m.orderBy).toHaveBeenCalledWith('day', 'desc');
   m.get.mockResolvedValue({ docs: [] });
   expect(await readDeliveryAlertHistory(page.nextCursor!)).toEqual({ records: [], nextCursor: null });
   expect(m.startAfter).toHaveBeenCalledWith('2026-08-12');
+});
+it('rejects a mismatched sorting day instead of silently misordering history', async () => {
+  m.get.mockResolvedValue({ docs: [{ id: '2026-09-13', data: () => ({ day: '2026-09-12' }) }] });
+  await expect(readDeliveryAlertHistory()).rejects.toThrow('invalid_alert_record');
 });
 it('denies colleagues before querying even without middleware', async () => {
   m.access.mockResolvedValue({ owner: false, role: 'admin' });
