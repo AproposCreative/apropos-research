@@ -146,6 +146,21 @@ private workspaces have been demonstrated to work.
   model/media/CMS operations in these isolated tests. Owner cover baseline/form,
   full regression and production acceptance remain outstanding.
 
+### Cover baseline and pending-feed continuity, September 14 (local)
+
+- Owner-only cover GET now returns the actual scheduled day, title and current
+  payload/CMS hashes. It rejects selected/published/rejected/held items, requires
+  no SEO fields, exposes no body or provider data, and makes no writes/AI calls.
+- Found and corrected a reload dead end: `approvalEntries` formerly hid all
+  stories during any editorial revision hold. It now returns only the held story
+  with an ephemeral `editorial_revision_pending` blocker. Stored quality evidence
+  is unchanged. The card explicitly says “Redigering afventer afslutning”.
+- Decision mutations now reject changes to the held item server-side, not merely
+  through disabled buttons. Pending editor controls can remain reachable while
+  approval/publication stay blocked. Unknown held IDs do not expose other stories.
+- 112 relevant tests and TypeScript passed. The actual cover form, browser
+  reload/retry integration and production release remain unfinished.
+
 ## Local checkpoint (not deployed)
 
 **Latest release (supersedes historical status below):** `dc79e1e` is READY on production. “Mine artikler” now links to saved versions/shared copies, isolates late account responses and uses canonical draft IDs. 3,339 tests and build passed; isolated mobile/browser checks passed. Production private workspace/versions/shares reads are 200 and anonymous access is denied. Three Liv stories remain visible through the feed API with preparation enabled. Alert history alone in the smoke check still fails 503 pending the documented administrator-created Firestore index. Full-project completion is not claimed. See `DRAFTS-SHELF-2026-09-13.md` for exact evidence and remaining acceptance scope.

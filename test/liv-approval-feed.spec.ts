@@ -76,6 +76,18 @@ it.each(['selected', 'attempted'] as const)('shows only the %s slot owner, never
   state.entries = [entry];
   expect(approvalEntries(state, '2026-09-10')).toEqual([]);
 });
+it('keeps the held revision visible and blocks decisions without changing stored entries', () => {
+  const state = emptyDeliveryState();
+  state.entries = [{ ...entry, publicationBlockers: ['existing-check'] }, { ...entry, itemId: 'other' }];
+  state.coverRevision = { id: 'hold', itemId: entry.itemId, day: '2026-09-11' };
+  const before = structuredClone(state);
+  const result = approvalEntries(state, '2026-09-11');
+  expect(result).toHaveLength(1);
+  expect(result[0]).toMatchObject({ itemId: entry.itemId, state: 'ready',
+    publicationBlockers: ['existing-check', 'editorial_revision_pending'] });
+  expect(state).toEqual(before);
+  expect(approvalStory(result[0], payload).publicationBlockers).toContain('editorial_revision_pending');
+});
 it('does not preview another reserve across an earlier uncertain delivery or cover hold', () => {
   const state = emptyDeliveryState(); state.entries = [{ ...entry, kind: 'reserve' }];
   state.slots['2026-09-09'] = slot('unknown', 'attempted');

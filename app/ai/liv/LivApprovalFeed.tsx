@@ -26,8 +26,9 @@ export function LivApprovalCard({ story, disabled, saving, onDecide, canDecide =
   // An untouched field is not a request to replace or clear an existing preference.
   const changedFeedback = feedback === (story.feedback || '') ? undefined : feedback;
   const blocked = Boolean(story.publicationBlockers?.length);
+  const revisionPending = story.publicationBlockers?.includes('editorial_revision_pending');
   const locked = story.state !== 'ready' || blocked;
-  const status = story.state === 'published' ? 'Udgivet' : story.state === 'selected' ? 'Valgt til udgivelse' :
+  const status = revisionPending ? 'Redigering afventer afslutning' : story.state === 'published' ? 'Udgivet' : story.state === 'selected' ? 'Valgt til udgivelse' :
     story.state === 'rejected' ? 'Kræver rettelse' : blocked ? 'Publicering blokeret' : decisions[story.decision];
   const ratedReview = story.articleFormat === 'research-review' && Number.isInteger(story.rating) &&
     story.rating! >= 1 && story.rating! <= 6 && !!story.ratingReason;

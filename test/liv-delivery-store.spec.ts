@@ -97,6 +97,15 @@ it('persists an approval with user and exact revision, and allows reversal', asy
   await decideDelivery({ ...input, revision: 1, decision: 'rejected' }, 'editor', new Date('2026-09-10T13:00:00Z'));
   expect((await readDeliveryState()).entries[0].decision).toBe('rejected');
 });
+it('rejects decisions while the same story has an unresolved editorial revision', async () => {
+  const input = await choice();
+  database.rows.get('livDelivery/manifest').coverRevision = { id: 'hold', itemId, day };
+  const before = structuredClone(database.rows.get('livDelivery/manifest'));
+  for (const decision of ['approved', 'rejected'] as const) {
+    await expect(decideDelivery({ ...input, decision }, 'editor', new Date('2026-09-10T12:00:00Z'))).rejects.toThrow('Opdater');
+  }
+  expect(database.rows.get('livDelivery/manifest')).toEqual(before);
+});
 it('a rejection committed before worker selection blocks automatic publication', async () => {
   await decideDelivery({ ...await choice(), decision: 'rejected' }, 'editor', new Date('2026-09-10T12:00:00Z'));
   expect(await claimDelivery(day, 100)).toBeNull();

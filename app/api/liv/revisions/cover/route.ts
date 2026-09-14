@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { editorialRequestAccess } from '@/lib/editorial-access';
 import { coverRevisionInput, reviseLivCover, cancelLivCoverBeforePatch } from '@/lib/liv/cover-revision';
+import { readLivCoverBaseline } from '@/lib/liv/cover-baseline';
 
 export const runtime = 'nodejs';
 export const maxDuration = 300;
@@ -9,6 +10,19 @@ const reply = (body: unknown, status = 200) => NextResponse.json(body, { status,
 
 export async function POST(req: NextRequest) { return mutate(req, false); }
 export async function DELETE(req: NextRequest) { return mutate(req, true); }
+export async function GET(req: NextRequest) {
+  const access = await editorialRequestAccess(req);
+  if (!access) return reply({ error: 'liv_revision_login_required' }, 401);
+  if (!access.owner) return reply({ error: 'liv_revision_owner_required' }, 403);
+  const params = req.nextUrl.searchParams;
+  if ([...params.keys()].some(key => key !== 'itemId') || params.getAll('itemId').length !== 1 ||
+    !/^[a-f0-9]{24}$/.test(params.get('itemId') || '')) return reply({ error: 'liv_cover_invalid' }, 400);
+  try { return reply(await readLivCoverBaseline(params.get('itemId')!)); }
+  catch (error) {
+    const code = error instanceof Error && /^liv_cover_[a-z_]{1,60}$/.test(error.message) ? error.message : 'liv_cover_failed';
+    return reply({ error: code }, ['liv_cover_configuration', 'liv_cover_failed'].includes(code) ? 503 : 409);
+  }
+}
 async function mutate(req: NextRequest, cancel: boolean) {
   const access = await editorialRequestAccess(req);
   if (!access) return reply({ error: 'liv_revision_login_required' }, 401);

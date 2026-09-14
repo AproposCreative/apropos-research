@@ -9,13 +9,18 @@ import { editorialKindForArticle, LIV_EDITORIAL_KIND_LABELS } from './editorial-
 
 export function approvalEntries(state: DeliveryState, day: string) {
   const tomorrow = addDays(day, 1);
+  // Preserve access to the pending revision's retry/cancel controls after reload.
+  // This is a read-only projection, not a new publication blocker in storage.
+  if (state.coverRevision) return state.entries
+    .filter(entry => entry.itemId === state.coverRevision!.itemId && ['ready', 'selected'].includes(entry.state))
+    .slice(0, 1).map(entry => ({ ...entry,
+      publicationBlockers: [...new Set([...(entry.publicationBlockers || []), 'editorial_revision_pending'])] }));
   // An unresolved slot is authoritative, including reserves. Never preview a
   // different ready story while its delivery is selected or uncertain.
   const held = Object.entries(state.slots).filter(([date, slot]) => slot.state === 'attempted' ||
     (slot.state === 'selected' && date >= day))
     .sort(([a, x], [b, y]) => Number(y.state === 'attempted') - Number(x.state === 'attempted') || a.localeCompare(b))[0];
   if (held) return state.entries.filter(entry => entry.itemId === held[1].itemId && entry.state === 'selected').slice(0, 1);
-  if (state.coverRevision) return [];
   // Presentation only: retain legacy reserves, future stock and decisions in storage.
   // Keep a rejected choice visible until a replacement exists so it can be reversed.
   const decisionOrder = (entry: ReadyEntry) => entry.decision === 'approved' ? 0 : entry.decision === 'rejected' ? 2 : 1;

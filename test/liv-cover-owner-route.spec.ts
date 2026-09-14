@@ -1,12 +1,13 @@
 import { beforeEach, expect, it, vi } from 'vitest';
 import { NextRequest } from 'next/server';
-const mocks = vi.hoisted(() => ({ access: vi.fn(), revise: vi.fn(), cancel: vi.fn() }));
+const mocks = vi.hoisted(() => ({ access: vi.fn(), revise: vi.fn(), cancel: vi.fn(), baseline: vi.fn() }));
+vi.mock('@/lib/liv/cover-baseline', () => ({ readLivCoverBaseline: mocks.baseline }));
 vi.mock('@/lib/editorial-access', () => ({ editorialRequestAccess: mocks.access }));
 vi.mock('@/lib/liv/cover-revision', async original => ({
   ...await original<typeof import('@/lib/liv/cover-revision')>(),
   reviseLivCover: mocks.revise, cancelLivCoverBeforePatch: mocks.cancel,
 }));
-import { POST, DELETE } from '@/app/api/liv/revisions/cover/route';
+import { GET, POST, DELETE } from '@/app/api/liv/revisions/cover/route';
 const input = { itemId: 'a'.repeat(24), dayKey: '2026-09-15', requestId: 'owner-cover-001',
   expectedCmsHash: 'b'.repeat(64), expectedPayloadHash: 'c'.repeat(64),
   reason: 'Et mere relevant pressebillede.', imageUrl: 'https://a24films.com/still.jpg',
@@ -15,14 +16,24 @@ const request = (body: unknown = input) => new NextRequest('https://example.test
   method: 'POST', body: JSON.stringify(body), headers: { Authorization: 'Bearer fixture' },
 });
 beforeEach(() => { vi.clearAllMocks(); mocks.access.mockResolvedValue({ uid: 'owner', owner: true }); });
-it.each([POST, DELETE])('denies anonymous and colleague requests before all work', async handler => {
+it.each([GET, POST, DELETE])('denies anonymous and colleague requests before all work', async handler => {
   for (const access of [null, { uid: 'casper', owner: false }, { uid: 'milo', owner: false }]) {
     mocks.access.mockResolvedValue(access);
     const response = await handler(request());
     expect(response.status).toBe(access ? 403 : 401);
     expect(response.headers.get('cache-control')).toBe('private, no-store');
   }
-  expect(mocks.revise).not.toHaveBeenCalled(); expect(mocks.cancel).not.toHaveBeenCalled();
+  expect(mocks.revise).not.toHaveBeenCalled(); expect(mocks.cancel).not.toHaveBeenCalled(); expect(mocks.baseline).not.toHaveBeenCalled();
+});
+it('reads only a single explicitly identified owner baseline', async () => {
+  mocks.baseline.mockResolvedValue({ itemId: input.itemId });
+  const response = await GET(new NextRequest(`https://example.test/api/liv/revisions/cover?itemId=${input.itemId}`));
+  expect(response.status).toBe(200); expect(response.headers.get('cache-control')).toBe('private, no-store');
+  expect(mocks.baseline).toHaveBeenCalledWith(input.itemId);
+});
+it.each(['', '?itemId=bad', `?itemId=${input.itemId}&itemId=${input.itemId}`, `?itemId=${input.itemId}&uid=someone`])('rejects invalid cover baseline query %s', async query => {
+  expect((await GET(new NextRequest(`https://example.test/api/liv/revisions/cover${query}`))).status).toBe(400);
+  expect(mocks.baseline).not.toHaveBeenCalled();
 });
 it('uses the existing revision with unchanged request identity', async () => {
   mocks.revise.mockResolvedValue({ status: 'cover_staged', publicationVerified: false });

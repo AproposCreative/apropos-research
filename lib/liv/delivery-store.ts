@@ -95,7 +95,7 @@ export async function decideDelivery(input: { itemId: string; payloadHash: strin
   return db.runTransaction(async tx => {
     const state = (await tx.get(manifest)).data() as DeliveryState || emptyDeliveryState();
     const entry = state.entries.find(e => e.itemId === input.itemId);
-    if (!entry || entry.state !== 'ready' || entry.expiresDay < copenhagenClock(now).day ||
+    if (!entry || entry.state !== 'ready' || state.coverRevision?.itemId === input.itemId || entry.expiresDay < copenhagenClock(now).day ||
       entry.payloadHash !== input.payloadHash || (entry.decisionRevision || 0) !== input.revision ||
       Object.values(state.slots).some(slot => slot.itemId === input.itemId)) {
       throw new DeliveryDecisionConflict('Historien er ændret, udløbet eller ved at blive udgivet. Opdater listen.');
