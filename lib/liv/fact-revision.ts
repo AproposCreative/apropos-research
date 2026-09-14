@@ -13,13 +13,13 @@ import { livImageArticleHash } from '@/lib/liv/article-image-hash';
 import { readLivStoredImage } from '@/lib/liv/stored-image-reader';
 import { checkLivArticleLength, countLivBodyWords, livBodyText, type LivArticleLength } from '@/lib/liv/article-length';
 import { getLivCostPretransportError } from '@/lib/liv/cost-errors';
+import { applyLivParagraphEdits, livEditableParagraphs as revisionParagraphs, type LivBodyEdit as BodyEdit } from './paragraph-edits';
 
 const hash = (value: string | Buffer) => createHash('sha256').update(value).digest('hex');
 const json = (value: unknown) => JSON.parse(JSON.stringify(value));
 const fields = ['title', 'subtitle', 'intro', 'content', 'excerpt', 'seoTitle', 'seoDescription'] as const;
 type Patch = { field: typeof fields[number]; before: string; after: string };
 export type LivRevisionOptions = { length?: LivArticleLength };
-type BodyEdit = { index: number; before: string; after: string };
 type RevisionStage = 'textPatch' | 'lengthCompletion' | 'visualReview' | 'descriptionCorrection' | 'descriptionReview';
 
 function hasStageOutput(row: Record<string, unknown>, stage: RevisionStage): boolean {
@@ -33,16 +33,6 @@ function reclaimableAttempt(attempt: any, contextHash: string): boolean {
   return attempt?.status === 'not_started' && attempt.notStartedReason === 'cost_denied' &&
     attempt.providerAttempted === false && attempt.contextHash === contextHash &&
     typeof attempt.id === 'string' && !!attempt.id;
-}
-
-function revisionParagraphs(content: string) {
-  const protectedRanges = [...content.matchAll(/<(figure|blockquote)\b[^>]*>[\s\S]*?<\/\1>/gi)]
-    .map(match => [match.index!, match.index! + match[0].length]);
-  return [...content.matchAll(/<p\b[^>]*>([\s\S]*?)<\/p>/gi)].map((match, index) => ({
-    index, before: load(match[1]).root().text(), html: match[0], offset: match.index!,
-    // Linked attributions, quotations and media remain untouched by shortening.
-    editable: !/<[^>]+>/.test(match[1]) && !protectedRanges.some(([start, end]) => match.index! >= start && match.index! < end),
-  }));
 }
 
 /** One bounded paragraph edit set, not a replacement HTML document. The original
@@ -63,33 +53,9 @@ function applyTargetedCandidate(article: GeneratedArticle, value: unknown, lengt
   if (!result || !Array.isArray(result.patches) || !Array.isArray(result.bodyEdits) ||
       !result.bodyEdits.length || result.bodyEdits.length > 60) throw new Error('liv_fact_revision_invalid');
   const revised = result.patches.length ? applyLivFactPatches(article, result) : { ...article };
-  const paragraphs = revisionParagraphs(revised.content);
-  const edits = new Map<number, BodyEdit>();
-  let changed = result.patches.filter(patch => patch.field === 'content')
+  const changed = result.patches.filter(patch => patch.field === 'content')
     .reduce((total, patch) => total + Math.max(patch.before.length, patch.after.length), 0);
-  for (const edit of result.bodyEdits) {
-    const paragraph = paragraphs[edit?.index];
-    if (!edit || !Number.isInteger(edit.index) || edits.has(edit.index) || !paragraph?.editable ||
-        typeof edit.before !== 'string' || typeof edit.after !== 'string' || paragraph.before !== edit.before ||
-        edit.before === edit.after || edit.before.length > 6000 || edit.after.length > 6000 ||
-        /[<>\x00-\x1f]/.test(edit.after) || /https?:\/\//i.test(edit.after)) throw new Error('liv_fact_revision_invalid_body_edit');
-    edits.set(edit.index, edit);
-    changed += Math.max(edit.before.length, edit.after.length);
-  }
-  if (changed > livBodyText(article.content).length * 0.8) throw new Error('liv_fact_revision_scope_exceeded');
-  const escape = (text: string) => text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-  // Reverse offsets avoid invalidating earlier positions; no HTML serialization
-  // of the untouched paid article or figures.
-  for (const paragraph of [...paragraphs].reverse()) {
-    const edit = edits.get(paragraph.index);
-    if (!edit) continue;
-    const replacement = edit.after.trim() ? paragraph.html.replace(/^(<p\b[^>]*>)[\s\S]*(<\/p>)$/i,
-      (_, open: string, close: string) => `${open}${escape(edit.after)}${close}`) : '';
-    revised.content = revised.content.slice(0, paragraph.offset) + replacement + revised.content.slice(paragraph.offset + paragraph.html.length);
-  }
-  if (revisionParagraphs(revised.content).filter(p => p.before.trim()).length < 3) {
-    throw new Error('liv_fact_revision_length_failed');
-  }
+  revised.content = applyLivParagraphEdits(revised.content, result.bodyEdits, article.content, changed);
   return revised;
 }
 

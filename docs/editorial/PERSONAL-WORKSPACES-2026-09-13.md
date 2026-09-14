@@ -73,6 +73,31 @@ private workspaces have been demonstrated to work.
 
 ### Targeted revision checkpoint, September 14 (historical checkpoints)
 
+### Shortening implementation checkpoint (local, not released)
+
+- Extracted the existing exact paragraph patch engine into `paragraph-edits.ts`;
+  factual repair uses the same engine. Original media/links/headings/quotations
+  stay byte-identical, edits remain bounded to 80% of prose, and at least three
+  paragraphs survive. This is a refactor, not an extra model/research call.
+- Added `buildLivShorteningCandidate` for explicit shortening of a ready body
+  which can already satisfy the daily interval. Target must be 450–650 and below
+  original word count. Every changed paragraph must shorten; metadata/HTML edits,
+  stale matches, below-minimum and over-target results are rejected.
+- Returns only proposed content/counts with `editorialReviewRequired: true` and
+  `publicationReady: false`, not an article carrying stale passed proof. No
+  network, model, CMS mutation or approval is performed by this helper.
+- Verification: 13 new shortening tests plus the existing 116 factual-revision
+  tests pass; full suite 3,552 tests across 247 files passes, TypeScript passes.
+  Full test log: `/tmp/apropos-shortening-tests.log`. No production deployment
+  was made for this incomplete feature.
+- Remaining end-to-end work: authenticated baseline and durable request journal;
+  one bounded saved model result using existing article/research/voice; targeted
+  editorial evidence for changed prose; fenced CMS draft patch/readback and
+  payload/proof update; owner preview/accept/retry UI. Do not wire a button to
+  the existing failure-repair operation or reuse old proof as new approval.
+
+### Earlier title/SEO work
+
 - Inspected current operations rather than assuming they can all edit ready
   stories. `editorial-edit` is a constrained checkpoint repair, not a general
   ready-story editor; the cover operation currently requires a selected slot.
