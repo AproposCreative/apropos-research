@@ -80,9 +80,19 @@ private workspaces have been demonstrated to work.
   lease and transaction journal, preventing delayed POST from applying it later.
   Started or completed revisions cannot be cancelled. Proposed text is retained
   locally on cancellation. No audit, checkpoint or paid work is removed.
-- Full regression: 3,488 tests across 244 files passed. Production build/release
-  and authenticated production baseline checks remain pending. Browser evidence
-  uses isolated external services, not actual CMS mutation or daily publication.
+- Released `3e0609221a00dec20c5c7e9e4e862f25fc0cc0de`, deployment
+  `dpl_DSx7t5ooSSBeaR4RvcHMHavNZUHZ`, READY with `ai.aproposmagazine.com` alias.
+  Full regression: 3,488 tests across 244 files passed; production build passed
+  with seven existing tracing warnings. No environment variables changed.
+- Real verified-owner baseline GET returned 200/private-no-store for
+  `6aa566cf1d63c39af0d73ad2`, “Lucian Freud på Louisiana: Portrætter uden
+  forskønnelse”. Payload hash matched the live feed. Anonymous GET/POST/DELETE
+  returned 401; malformed owner POST/DELETE returned 400 before mutation.
+  Queue and preparation remained enabled. Production verifier:
+  `scripts/verify-liv-presentation-production.ts --execute`.
+- Browser evidence uses isolated external services. Production acceptance did
+  not submit a real title edit, cancel a real operation or publish an article.
+  Title/SEO editing is released; shortening and cover UI are still unfinished.
   Shortening and cover UI remain separate unfinished work; this endpoint alone
   does not complete the targeted editing feature.
 
