@@ -26,6 +26,7 @@ import PushDeskClient from '@/app/push/PushDeskClient';
 import LivDeskClient from '@/app/ai/liv/LivDeskClient';
 import AkkrediteringClient from '@/app/ai/akkreditering/AkkrediteringClient';
 import LivInboxClient from '@/app/ai/liv-inbox/LivInboxClient';
+import ImageGenWorkshop from '@/app/ai/image-gen/workshop';
 import { useAuth } from '@/lib/auth-context';
 import { saveDraft, getDraft, type ArticleDraft } from '@/lib/firebase-service';
 import { createWriterDraftIdentity } from '@/lib/ai-chat/draft-identity';
@@ -141,6 +142,8 @@ export default function AIWriterClient() {
         else params.delete('start');
       } else if (view === 'liv-inbox') {
         params.set('view', 'liv-inbox');
+      } else if (view === 'image-gen') {
+        params.set('view', 'image-gen');
       } else if (view === 'seo') {
         params.set('view', 'seo');
       } else if (view === 'ai') {
@@ -263,7 +266,7 @@ export default function AIWriterClient() {
   useEffect(() => {
     const next = resolveViewFromSearchParams(searchParams);
     setActiveView((prev) => (prev === next ? prev : next));
-    if (next === 'newsletter' || next === 'dashboard' || next === 'podcast' || next === 'push' || next === 'liv' || next === 'akkreditering' || next === 'liv-inbox') {
+    if (next === 'newsletter' || next === 'dashboard' || next === 'podcast' || next === 'push' || next === 'liv' || next === 'akkreditering' || next === 'liv-inbox' || next === 'image-gen') {
       setReviewOpen(false);
       setSourcesOpen(false);
       setSettingsOpen(false);
@@ -275,7 +278,7 @@ export default function AIWriterClient() {
   const handleSelectWebApp = useCallback(
     (id: string) => {
       setWebAppsOpen(false);
-      if (id === 'image-gen') { router.push('/ai/image-gen'); return; }
+      if (id === 'image-gen') { applyActiveView('image-gen'); return; }
       if (id === 'newsletter') {
         applyActiveView('newsletter');
         return;
@@ -310,7 +313,7 @@ export default function AIWriterClient() {
       }
       applyActiveView(id === 'design-editor' ? 'design-editor' : 'ai');
     },
-    [applyActiveView, router]
+    [applyActiveView]
   );
 
   // Keep width in a sane range, so panels do not overlap on smaller screens.
@@ -1728,6 +1731,33 @@ export default function AIWriterClient() {
               )}
               <div className={`h-full w-full flex flex-col font-poppins ${embeddedPanelShell}`}>
                 <DesignEditorView embedMode onBack={() => applyActiveView(null)} />
+              </div>
+            </div>
+            )}
+
+            {activeView === 'image-gen' && (
+            <div
+              className="w-full flex-shrink-0 absolute top-0 bottom-0 left-0 md:top-[1%] md:bottom-[1%] md:left-[1%] z-10"
+              style={{
+                width: isDesktop ? `${chatWidth}px` : '100%',
+                transition: isResizing ? 'none' : 'transform 320ms cubic-bezier(0.22, 1, 0.36, 1)',
+                transform: leftPanelOpen ? 'translateX(calc(12px + min(300px, 50vw)))' : 'translateX(0)',
+              }}
+            >
+              {isDesktop && (
+                <div
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    setIsResizing(true);
+                  }}
+                  className="absolute top-0 bottom-0 right-0 w-1 cursor-col-resize hover:bg-white/20 transition-colors z-30 group"
+                  style={{ touchAction: 'none' }}
+                >
+                  <div className="absolute top-1/2 right-0 -translate-y-1/2 translate-x-1/2 w-1 h-16 bg-white/0 group-hover:bg-white/30 rounded-full transition-colors" />
+                </div>
+              )}
+              <div className={`h-full w-full flex flex-col font-poppins ${embeddedPanelShell}`}>
+                <ImageGenWorkshop embedded onClose={() => applyActiveView(null)} />
               </div>
             </div>
             )}

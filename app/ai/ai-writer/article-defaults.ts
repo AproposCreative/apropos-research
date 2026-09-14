@@ -93,6 +93,7 @@ export type AIWriterView =
   | 'liv'
   | 'akkreditering'
   | 'liv-inbox'
+  | 'image-gen'
   | 'seo'
   | null;
 
@@ -109,6 +110,7 @@ export function resolveViewFromSearchParams(sp: {
   if (view === 'liv') return 'liv';
   if (view === 'akkreditering') return 'akkreditering';
   if (view === 'liv-inbox') return 'liv-inbox';
+  if (view === 'image-gen') return 'image-gen';
   if (view === 'seo') return 'seo';
   if (view === 'ai') return 'ai';
   const n = sp.get('newsletter');

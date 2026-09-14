@@ -19,15 +19,15 @@ type Ideas = { motifs: ImageGenMotif[]; textVersion?: string; press?: { candidat
 const money = (n: number) => n.toLocaleString('da-DK', { maximumFractionDigits: 2 });
 const statusName: Record<string, string> = { running: 'Arbejder · du kan lukke siden', succeeded: 'Gemt', uncertain: 'Resultatet skal kontrolleres. Ingen automatisk genbestilling.', 'failed-before-provider': 'Stoppet før aflevering. Kontrollér indstillinger eller opdatér artiklen.' };
 
-export default function ImageGenWorkshop() {
+export default function ImageGenWorkshop({ embedded = false, onClose }: { embedded?: boolean; onClose?: () => void }) {
   const { user, loading, capabilities } = useAuth();
-  if (loading) return <main className={styles.shell}>Indlæser …</main>;
-  if (!user) return <main className={styles.shell}><Link href="/ai">Log ind på Apropos AI</Link></main>;
+  if (loading) return <main className={embedded ? styles.embeddedShell : styles.shell}>Indlæser …</main>;
+  if (!user) return <main className={embedded ? styles.embeddedShell : styles.shell}><Link href="/ai">Log ind på Apropos AI</Link></main>;
   // Switching account unmounts all private working state and object URLs.
-  return <Workshop key={user.uid} user={user} owner={capabilities?.owner === true} />;
+  return <Workshop key={user.uid} user={user} owner={capabilities?.owner === true} embedded={embedded} onClose={onClose} />;
 }
 
-function Workshop({ user, owner }: { user: User; owner: boolean }) {
+function Workshop({ user, owner, embedded, onClose }: { user: User; owner: boolean; embedded: boolean; onClose?: () => void }) {
   const [rows, setRows] = useState<ArticleRow[]>([]), [query, setQuery] = useState(''), [cursor, setCursor] = useState<number | null>(null);
   const [snapshot, setSnapshot] = useState<Snapshot | null>(null), [jobs, setJobs] = useState<ImageGenJob[]>([]);
   const [historyCursor, setHistoryCursor] = useState<string | null>(null);
@@ -147,8 +147,8 @@ function Workshop({ user, owner }: { user: User; owner: boolean }) {
   const updateSelection = (id: string, patch: Partial<ImageGenSelection>) => {
     setPreviewId(null); setSelected(previous => previous.map(s => s.jobId === id ? { ...s, ...patch } : s));
   };
-  return <main className={styles.shell}>
-    <header className={styles.header}><div><h1>Image-gen</h1><p>Apropos’ fælles billedværksted</p></div><Link href="/ai" aria-label="Tilbage til forsiden">Luk ×</Link></header>
+  return <main className={embedded ? styles.embeddedShell : styles.shell}>
+    <header className={embedded ? styles.embeddedHeader : styles.header}><div><h1>Image-gen</h1><p>Apropos’ fælles billedværksted</p></div>{onClose ? <button className={styles.close} type="button" onClick={onClose} aria-label="Luk Image-gen">×</button> : <Link href="/ai" aria-label="Tilbage til forsiden">Luk ×</Link>}</header>
     <div className={styles.content}>
       <p className={styles.budget}>{budget}<small>Separat fra Liv · estimat, ikke providerfaktura</small></p>
       <small role="status">{workspaceSaved}</small>

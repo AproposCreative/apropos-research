@@ -1,2 +1,5 @@
-import ImageGenWorkshop from './workshop';
-export default function ImageGenPage() { return <ImageGenWorkshop />; }
+import { redirect } from 'next/navigation';
+
+export default function ImageGenPage() {
+  redirect('/ai?view=image-gen');
+}

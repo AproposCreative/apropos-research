@@ -10,9 +10,12 @@ export async function imageGenQuotes() {
   const styleConfig = await readImageGenStyleConfig();
   if (policy.monthlyLimitDkkMicros > 150_000_000) throw new Error('image_gen_budget_invalid');
   // Conservative operational ceilings for the fixed v1 calls, not invoices.
-  // Image: <=12k prompt bytes, <=2 bounded references, <=8192 output allowance.
+  // Keep the UI quote close to the provider's published image price. The
+  // ledger still applies its own bounded reservation and settles to usage.
+  // GPT Image 1.5 high, 1536x1024: $0.20 per image. The small buffer covers
+  // bounded prompt/reference input without showing a misleading $1 placeholder.
   // Ideas: one bounded text call plus one bounded web search. No paid QA loop.
-  const ceilingUsd = { ideas: 0.30, generate: 1, edit: 1 };
+  const ceilingUsd = { ideas: 0.30, generate: 0.25, edit: 0.25 };
   return Object.fromEntries(Object.entries(ceilingUsd).map(([operation, usd]) => [operation, {
     id: imageGenHash(JSON.stringify([operation, usd, policy, styleConfig.version])),
     estimateUpToDkk: Math.ceil(usd * policy.usdToDkkCeiling * 100) / 100,
