@@ -366,6 +366,7 @@ async function runLivDailyOperation(req: NextRequest, preparation?: LivPreparati
         checkpointHash: cmsFieldHash(article as unknown as Record<string, unknown>),
       } } : {}),
       requireCompleteVerification: publicationMode === 'auto_publish' || !!preparation,
+      bodyLengthPolicy: 'liv-daily',
       timeoutMs: preparation ? 90_000 : undefined,
       priorFactcheck: preparation ? prepRow?.data()?.gateResults?.find((result: GateResult) => result.name === 'factcheck')?.evidence
         ?? prepRow?.data()?.gateResults?.find((result: GateResult) => result.name === 'factcheck')?.diagnosticEvidence : undefined,

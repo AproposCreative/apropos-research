@@ -42,6 +42,9 @@ export interface SafetyGatesInput {
   editorialFields?: LivEditorialFields;
   /** Auto-publish må kun ske, når alle relevante gates faktisk er kørt. */
   requireCompleteVerification?: boolean;
+  /** Daily runner owns the canonical body-length check, correction and CMS
+   * preflight. Do not let the legacy moderation count suppress fact diagnostics. */
+  bodyLengthPolicy?: 'liv-daily';
   /** Bound infrastructure checks so preparation jobs cannot outlive the worker. */
   timeoutMs?: number;
   /** Server-saved report only. Consolidated Liv retries revalidate through the assessment cache. */
@@ -236,7 +239,7 @@ export async function runSafetyGates(input: SafetyGatesInput): Promise<SafetyGat
     });
     return { pass: false, failedGate: 'moderation', results };
   }
-  if (wordCount < 500) {
+  if (input.bodyLengthPolicy !== 'liv-daily' && wordCount < 500) {
     results.push({
       name: 'moderation',
       pass: false,
@@ -247,7 +250,7 @@ export async function runSafetyGates(input: SafetyGatesInput): Promise<SafetyGat
   results.push({
     name: 'moderation',
     pass: true,
-    detail: `wordCount=${wordCount}, plagiarism=${plagiarism}, maxSim=${metrics?.maxSim?.toFixed(3) || '?'}`,
+    detail: `wordCount=${wordCount}, plagiarism=${plagiarism}, maxSim=${metrics?.maxSim?.toFixed(3) || '?'}${input.bodyLengthPolicy === 'liv-daily' ? '; body length checked separately by liv-daily-body-v1 before CMS admission' : ''}`,
   });
 
   // --- Gate 2: Factcheck ---

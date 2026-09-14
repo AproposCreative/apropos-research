@@ -43,7 +43,26 @@ Completion requires evidence for each item and the remaining original scope.
 No additional major features before sources, onboarding, daily publication and
 private workspaces have been demonstrated to work.
 
-### Targeted revision checkpoint, September 14 (local, not deployed)
+### Daily length alignment, September 14 (local, release pending)
+
+- Found an inconsistent legacy minimum in `run-safety-gates`: moderation's
+  combined-text count rejected fewer than 500 words before fact diagnostics,
+  although the daily canonical body range is 450–650. This could reject valid
+  short daily articles and prevent the existing combined fact/length repair.
+- The daily runner now explicitly selects the daily length policy. Moderation
+  still blocks plagiarism; fact/editorial evidence still runs; canonical body
+  counting, the saved correction budget and `checkCmsDraft(..., 'liv-daily')`
+  remain responsible for length before CMS admission. Other callers retain
+  their existing moderation minimum. No new research loop or retry budget.
+- Regression cases cover 449/450/499/650/651 words reaching fact diagnostics,
+  while the real CMS preflight still rejects 449/651. Missing fact evidence
+  and high plagiarism remain blocking. This fixes policy consistency; it does
+  not implement the separate user-facing shortening editor.
+- Verification: 211 focused tests and TypeScript passed; full suite 3,539 tests
+  across 246 files passed; production build passed. Logs:
+  `/tmp/apropos-length-full.log`, `/tmp/apropos-length-build.log`.
+
+### Targeted revision checkpoint, September 14 (historical checkpoints)
 
 - Inspected current operations rather than assuming they can all edit ready
   stories. `editorial-edit` is a constrained checkpoint repair, not a general

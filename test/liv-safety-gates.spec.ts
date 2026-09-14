@@ -4,6 +4,8 @@ import { checkSourceSimilarity } from '@/lib/liv/source-similarity';
 import { articleFingerprint, assessGroundedReport } from '@/lib/factcheck/grounded';
 import { loadLivVoice } from '@/lib/liv/voice';
 import { livEditorialFieldContext } from '@/lib/liv/editorial-assessment-contract';
+import { checkCmsDraft } from '@/lib/editorial/cms-preflight';
+import type { GeneratedArticle } from '@/lib/liv/generate-article';
 
 vi.mock('@/lib/liv/source-similarity', () => ({
   checkSourceSimilarity: vi.fn(async () => ({ pass: true, complete: true, scores: { embeddingSim: 0, ngramJaccard: 0, openingSim: 0 } })),
@@ -19,6 +21,37 @@ function jsonResponse(value: unknown, status = 200): Response {
 describe('Liv safety gates', () => {
   afterEach(() => {
     vi.unstubAllGlobals();
+  });
+
+  it.each([449, 450, 499, 650, 651])('retains daily fact diagnostics at %i words; daily preflight owns length', async wordCount => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(jsonResponse({ data: { metrics: { wordCount, plagiarismRisk: 'low' } } }))
+      .mockResolvedValueOnce(jsonResponse({ error: 'unavailable' }, 503));
+    vi.stubGlobal('fetch', fetchMock);
+    const result = await runSafetyGates({ baseUrl: 'http://localhost:3000', title: 'Kulturhistorien',
+      content: 'ord '.repeat(wordCount), requireCompleteVerification: true, bodyLengthPolicy: 'liv-daily' });
+    expect(result.results.find(gate => gate.name === 'moderation')?.pass).toBe(true);
+    expect(result.results.find(gate => gate.name === 'moderation')?.detail).toContain('liv-daily-body-v1');
+    expect(fetchMock.mock.calls.some(([url]) => String(url).endsWith('/api/factcheck'))).toBe(true);
+    expect(result.pass).toBe(false); // Missing fact evidence never becomes approval.
+    const preflight = checkCmsDraft({ content: 'ord '.repeat(wordCount), researchSources: [] } as unknown as GeneratedArticle, 'liv-daily');
+    expect(preflight.checks.find(check => check.id === 'length')?.ok).toBe(wordCount >= 450 && wordCount <= 650);
+  });
+
+  it('keeps the legacy minimum for callers without a daily length policy', async () => {
+    const fetchMock = vi.fn().mockResolvedValueOnce(jsonResponse({ data: { metrics: { wordCount: 499, plagiarismRisk: 'low' } } }));
+    vi.stubGlobal('fetch', fetchMock);
+    const result = await runSafetyGates({ baseUrl: 'http://localhost:3000', title: 'Kulturhistorien', content: 'ord '.repeat(499) });
+    expect(result.failedGate).toBe('moderation');
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('still blocks daily plagiarism before fact checking', async () => {
+    const fetchMock = vi.fn().mockResolvedValueOnce(jsonResponse({ data: { metrics: { wordCount: 450, plagiarismRisk: 'high' } } }));
+    vi.stubGlobal('fetch', fetchMock);
+    const result = await runSafetyGates({ baseUrl: 'http://localhost:3000', title: 'Kulturhistorien', content: 'ord '.repeat(450), bodyLengthPolicy: 'liv-daily' });
+    expect(result.failedGate).toBe('moderation');
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
   it('reports incomplete similarity as unavailable, not as excessive similarity', async () => {
