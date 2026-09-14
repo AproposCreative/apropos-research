@@ -11,6 +11,9 @@ export async function verifyEditorialRosterProduction() {
   const admin = getAdminAuth();
   if (!admin) throw new Error('firebase_admin_missing');
   const owner = await admin.getUserByEmail('frederik@aproposmagazine.com');
+  if (!owner.emailVerified || owner.disabled) throw new Error('verified_owner_missing');
+  const seoAdmins = [...new Set((process.env.SEO_ENGINE_ADMIN_UIDS || '').split(',').map(x => x.trim()).filter(Boolean))];
+  if (seoAdmins.length !== 1 || seoAdmins[0] !== owner.uid) throw new Error('seo_owner_configuration_mismatch');
   const users = [owner];
   for (const uid of (process.env.SEO_ENGINE_ADMIN_UIDS || '').split(',').map(x => x.trim()).filter(Boolean)) {
     const user = await admin.getUser(uid);
@@ -31,6 +34,14 @@ export async function verifyEditorialRosterProduction() {
       }
       console.log(JSON.stringify({ case: isOwner ? 'verified-owner-admin' : 'former-admin-denied', status: response.status }));
       if (isOwner) {
+        // Invalid selection exercises production SEO auth without creating a
+        // preview, running a model, or modifying a CMS article.
+        const seo = await fetch('https://ai.aproposmagazine.com/api/seo-engine/archive-audit/content-preview', {
+          method: 'POST', headers: { ...headers, 'Content-Type': 'application/json' }, body: '{}',
+          redirect: 'error', signal: AbortSignal.timeout(30_000),
+        });
+        if (seo.status !== 400) throw new Error('production_seo_owner_access_mismatch');
+        console.log(JSON.stringify({ case: 'owner-seo-validation-reached', status: seo.status }));
         const operations = await fetch('https://ai.aproposmagazine.com/api/editorial/operations', { headers, redirect: 'error' });
         if (!operations.ok) throw new Error('operations_read_failed');
         console.log(JSON.stringify({ operations: await operations.json() }));
