@@ -26,9 +26,28 @@ from article preparation.
 
 ## Remaining acceptance
 
-This change is local until a release receipt states otherwise. Deploy and verify
-the exact SHA before the real Writer API test: create one clearly labeled private
-test draft, replay the same draft operation, prove the same CMS ID and checked
-body, then archive that exact test item while retaining its audit. Never publish
-the test or substitute this test for Liv daily-publication acceptance. No actual
-currency savings have yet been measured.
+The production release and same-operation replay test below are complete. Lost
+response recovery still has isolated fault-test evidence, not a deliberately
+interrupted production request. Full Writer UI/multidevice and Liv publication
+acceptance remain separate. No actual currency savings have yet been measured.
+
+## Production receipt
+
+- Commit: `19922f21cfb18572e9ad4cb33dd9912b7558f9e4`.
+- Deployment: `dpl_86aWmEKESVBuqiG433eStfnX8Kra`, READY, exact SHA verified;
+  production alias includes `ai.aproposmagazine.com`.
+- Executed `scripts/verify-writer-cms-production.ts --execute` against the real
+  `/api/writer/cms-save` with an authenticated verified Frederik identity.
+- Two identical requests for `acceptance-writer-cms-19922f2` returned 200,
+  `private, no-store`, `saveVerified: true`, `publicationVerified: false` and
+  the same item ID `6aa739c915cd9e0275428a92`.
+- Server operation journal was `saved`. Direct Webflow readback confirmed exact
+  test title/slug, equivalent body (including Danish characters), `isDraft: true`
+  and no `lastPublished`. Test item was absent from the pre-create ID baseline.
+- Cleanup archived that exact unpublished test item. Readback confirmed
+  `isArchived: true`; item is recoverable, journal retained. No existing article
+  or private workspace snapshot was changed. No test article was published.
+- This test intentionally used a small technical text, not a full illustrated
+  editorial article. It proves real API save/replay/body readback, not editorial
+  image handling, rights, daily publication, or colleague login.
+- Global production error/drain scan was not performed in this step.
