@@ -43,7 +43,22 @@ Completion requires evidence for each item and the remaining original scope.
 No additional major features before sources, onboarding, daily publication and
 private workspaces have been demonstrated to work.
 
-### Build tracing cleanup (local, not released)
+### Build tracing cleanup (released September 14)
+
+- Release verified: `740bb5f0a385917e16b3f3e911fd72102785e780`, deployment
+  `dpl_G1pSt6LWv8HZiETUgRUbfmWoxUMq`, READY and serving
+  `ai.aproposmagazine.com`. The build log confirms `npm ci --ignore-scripts`,
+  the build-configuration security gate, successful reviewed FFmpeg installation
+  and executable check, compilation and TypeScript. This supersedes the local-only
+  status in the historical checkpoints below. No full production podcast job was
+  generated for verification.
+- Read-only API verification at `2026-09-14T07:02:46.544Z`: owner feed and
+  shortening baseline 200 (Freud, 572 words), anonymous calls denied, invalid
+  mutations rejected. Daily operations: autopublish enabled, Freud ready,
+  no blocked items/missing days/reconciliation requirement; today's publication
+  false, overdue false (before scheduled 10:00 Copenhagen publication). No article
+  was changed, generated or published by the verifier. The last-15-minute error/
+  fatal log query returned no counts, not a claim of continuous reliability.
 
 - FFmpeg follow-up: `npm ci --ignore-scripts` omits ffmpeg-static's native
   download. Added one explicit post-security-gate preparation step, pinned to
