@@ -31,6 +31,25 @@ recorded in EDITORIAL-SIMPLIFICATION-2026-09-13.md.
 
 ## Daily records
 
+### September 14: scheduled 10:20 after-check
+
+Read-only check completed at `2026-09-14T08:21:56.515Z` (10:21 Copenhagen).
+Authenticated operations still reports published=true, autopublish enabled,
+no blockers/missing days/reconciliation, and Frankenstein ready September 15.
+CMS live item `6aa566cf1d63c39af0d73ad2` remains non-draft with publication
+timestamp `2026-09-14T08:00:26.847Z`; its field hash still matches the server
+receipt. Slot remains published with one attempt. Public URL below returns 200,
+matching canonical and H1, and both distinct body images return 200 image/webp
+(154,086 and 194,690 bytes) with descriptive alt text.
+
+Budget API: 450 tracked calls; usage-based upper estimate 50.728368 DKK,
+reserved 0, available tracked allowance 249.271632 of 300 DKK. Status remains
+ready_partial, billedDkk=null, fullMonthlyCapVerified=false; historical untracked
+calls and other providers are excluded. This is not an invoice or full-account
+spending guarantee. No paid call, publication, cron invocation or CMS mutation
+was made by this check. No regression or new user action; no notification sent.
+This reconfirms today's existing receipt, not another day in the seven-day series.
+
 ### September 14: successful on-time server publication
 
 - Vercel runtime readback: GET `/api/cron/liv-daily-article` at 08:00:23 UTC,
