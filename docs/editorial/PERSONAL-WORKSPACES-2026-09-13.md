@@ -75,6 +75,22 @@ private workspaces have been demonstrated to work.
 
 ### Shortening implementation checkpoint (local, not released)
 
+- Added the owner-only shortening editor to ready story cards. Baseline reads
+  do not generate; the explicit proposal button uses the existing saved-request
+  API. Text-only preview requires an active facts/meaning acknowledgement before
+  recording review and accepting the draft change. Pending identity is persisted
+  per UID/item before dispatch and retained through uncertain replies/reload.
+  React/Next.js boundary review: no server imports in the component, keyed
+  identity changes invalidate asynchronous UI work, no generated HTML insertion.
+  Isolated 390x844 browser verification: no horizontal overflow or captured
+  runtime errors; acceptance disabled before checkbox; simulated lost response
+  followed by reload replayed byte-identical acceptance body, cleared pending
+  state only after verified receipt, and invoked save callback once. Colleague
+  switch removes the control. Screenshot `/tmp/liv-shortening-preview.png`.
+  These are mocked API/UI tests, not production generation or CMS publication.
+  Integrated regression suite: 3,654 tests across 256 files passed, log
+  `/tmp/apropos-shortening-integrated-tests.log`; TypeScript passed. Production
+  build, exact release deployment and production access/readback remain pending.
 - Added owner-only `/api/liv/revisions/shortening/accept` and a durable
   `livShorteningAcceptances` journal with immutable before-images in
   `livShorteningAudits`. Requires an existing exact-preview review by the same

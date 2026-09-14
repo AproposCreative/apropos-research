@@ -4,19 +4,31 @@ import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
 import postcss from 'postcss';
 import tailwind from 'tailwindcss';
-const raw = (await Promise.all(['LivPresentationEditor', 'LivCoverEditor', 'LivApprovalFeed', 'LivContentColumn', 'LivTips']
+const raw = (await Promise.all(['LivPresentationEditor', 'LivCoverEditor', 'LivShorteningEditor', 'LivApprovalFeed', 'LivContentColumn', 'LivTips']
   .map(name => readFile(`app/ai/liv/${name}.tsx`, 'utf8')))).join('\n');
 const css = (await postcss([tailwind({ content: [{ raw, extension: 'tsx' }] })])
   .process('@tailwind base; @tailwind utilities;', { from: undefined })).css;
 const bundle = await build({ stdin: { resolveDir: process.cwd(), loader: 'tsx', contents: `
 import React,{StrictMode} from 'react'; import {createRoot} from 'react-dom/client';
 import Editor from './app/ai/liv/LivPresentationEditor';
+import Shortening from './app/ai/liv/LivShorteningEditor';
 import Feed from './app/ai/liv/LivApprovalFeed';
 window.fixture={owner:true,bodies:[],errors:[],loseResponse:true,saved:0,conflict:false,started:false,cancelBodies:[]};
 fixture.story={itemId:'a'.repeat(24),payloadHash:'c'.repeat(64),revision:0,title:'Anmeldelse: Klovn sæson 11',summary:'En kritisk og konkret vurdering af komediens seneste sæson.',paragraphs:['Artiklens bevarede indhold.'],category:'TV-serie',articleFormat:'research-review',formatLabel:'Researchanmeldelse',rating:2,ratingReason:'Gentagelser fylder mere end nye idéer.',feedback:null,image:null,imageAlt:'',credit:'',scheduledDay:'2026-09-15',kind:'scheduled',state:'ready',decision:'pending'};
 window.addEventListener('error',e=>fixture.errors.push(e.message));
 window.addEventListener('unhandledrejection',e=>fixture.errors.push(String(e.reason)));
 window.fetch=async(url,options={})=>{
+ if(String(url).startsWith('/api/liv/revisions/shortening')){
+  if(options.method!=='POST')return Response.json({itemId:fixture.story.itemId,expectedCmsHash:'b'.repeat(64),expectedPayloadHash:'c'.repeat(64),wordCount:600,minTargetWords:450,maxTargetWords:599,suggestedTargetWords:500});
+  fixture.bodies.push({url:String(url),body:options.body});
+  const body=JSON.parse(options.body);
+  if(String(url).endsWith('/review'))return Response.json({status:'shortening_review_recorded'});
+  if(String(url).endsWith('/accept')){
+   if(fixture.loseResponse){fixture.loseResponse=false;throw Error('Lost response');}
+   return Response.json({status:'shortening_staged',itemId:body.itemId,candidateHash:body.candidateHash,publicationVerified:false});
+  }
+  return Response.json({status:'preview',candidateHash:'d'.repeat(64),beforeWords:600,afterWords:500,content:'<h2>En komedie på gentagelse</h2><p>Klovn holder fast i sine kendte konflikter. Det er især pauserne mellem pinlighederne, der afslører, hvor lidt figurerne har flyttet sig.</p><p>Dedikationen er tydelig, men gentagelserne giver sæsonen mindre bid end forventet.</p><p>Det er vurderingen af sæsonens greb, ikke bare et resumé, der skal stå tilbage.</p>'});
+ }
  if(String(url)==='/api/liv/delivery/feed')return Response.json({stories:[fixture.story],total:1,nextOffset:null,queueEnabled:true,preparationEnabled:true});
  if(String(url).startsWith('/api/liv/revisions/cover')){
   if(options.method==='DELETE'){
@@ -55,7 +67,7 @@ window.fetch=async(url,options={})=>{
  return Response.json({itemId:'a'.repeat(24),expectedCmsHash:'b'.repeat(64),expectedPayloadHash:'c'.repeat(64),
   title:'Anmeldelse: Klovn sæson 11',seoTitle:'Klovn sæson 11 anmeldelse',seoDescription:'En kritisk anmeldelse af den seneste sæson af Klovn.'});
 };
-createRoot(document.getElementById('root')).render(<StrictMode><h1>Liv · Redaktion</h1>{location.search.includes('feed')?<Feed/>:<Editor itemId={'a'.repeat(24)} onSaved={()=>fixture.saved++}/>}</StrictMode>);
+createRoot(document.getElementById('root')).render(<StrictMode><h1>Liv · Redaktion</h1>{location.search.includes('shortening')?<Shortening itemId={'a'.repeat(24)} onSaved={()=>fixture.saved++}/>:location.search.includes('feed')?<Feed/>:<Editor itemId={'a'.repeat(24)} onSaved={()=>fixture.saved++}/>}</StrictMode>);
 ` }, bundle: true, write: false, jsx: 'automatic', format: 'iife',
   define: { 'process.env.NODE_ENV': '"development"' }, plugins: [{ name: 'fixture-auth', setup(b) {
     b.onResolve({ filter: /auth-context$/ }, () => ({ path: 'auth', namespace: 'fixture' }));

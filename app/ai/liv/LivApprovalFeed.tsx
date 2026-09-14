@@ -8,6 +8,7 @@ import type { ApprovalFeed, ApprovalStory } from '@/lib/liv/approval-types';
 import LivContentColumn from './LivContentColumn';
 import LivTips from './LivTips';
 import LivPresentationEditor from './LivPresentationEditor';
+import LivShorteningEditor from './LivShorteningEditor';
 import LivCoverEditor from './LivCoverEditor';
 
 const decisions = { pending: 'Afventer dit valg', approved: 'Godkendt', rejected: 'Afvist' };
@@ -82,7 +83,8 @@ export function LivApprovalCard({ story, disabled, saving, onDecide, canDecide =
     </>}
     {canDecide && story.state === 'ready' && story.decision !== 'rejected' && onEdited &&
       <><LivPresentationEditor itemId={story.itemId} disabled={disabled || saving} onSaved={onEdited} />
-        <LivCoverEditor itemId={story.itemId} disabled={disabled || saving} onSaved={onEdited} /></>}
+        <LivCoverEditor itemId={story.itemId} disabled={disabled || saving} onSaved={onEdited} />
+        <LivShorteningEditor itemId={story.itemId} disabled={disabled || saving} onSaved={onEdited} /></>}
     {saving && <p className="px-5 pb-4 text-xs text-white/60" role="status">Gemmer dit valg…</p>}
   </article>;
 }
