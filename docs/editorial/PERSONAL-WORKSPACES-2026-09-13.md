@@ -75,6 +75,17 @@ private workspaces have been demonstrated to work.
 
 ### Shortening implementation checkpoint (local, not released)
 
+- Added owner-only `/api/liv/revisions/shortening/accept` and a durable
+  `livShorteningAcceptances` journal with immutable before-images in
+  `livShorteningAudits`. Requires an existing exact-preview review by the same
+  authenticated owner. Uses the shared CMS lease and delivery hold, persists
+  write intent before patching, reconciles ambiguous writes by readback only,
+  and requires full draft inspection plus unchanged checkpoint fingerprints
+  before updating the canonical payload. Retains original model evidence in
+  the audit and explicitly identifies the changed prose's human review.
+  Does not publish or call AI. Local mocked acceptance tests cover replay,
+  lost responses, concurrent changes, validation failure and owner isolation.
+  The owner preview/accept UI and release verification are still outstanding.
 - Added `buildLivShorteningCmsPatch`: reconstructs the reviewed candidate from
   saved paragraph edits and applies those same edits to actual CMS HTML, retaining
   optimized image URLs/srcset, captions and credits. Rejects changed canonical
