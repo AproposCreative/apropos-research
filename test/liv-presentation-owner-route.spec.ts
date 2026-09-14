@@ -1,13 +1,14 @@
 import { beforeEach, expect, it, vi } from 'vitest';
 import { NextRequest } from 'next/server';
 
-const mocks = vi.hoisted(() => ({ access: vi.fn(), revise: vi.fn() }));
+const mocks = vi.hoisted(() => ({ access: vi.fn(), revise: vi.fn(), baseline: vi.fn() }));
+vi.mock('@/lib/liv/presentation-baseline', () => ({ readLivPresentationBaseline: mocks.baseline }));
 vi.mock('@/lib/editorial-access', () => ({ editorialRequestAccess: mocks.access }));
 vi.mock('@/lib/liv/presentation-revision', async importOriginal => ({
   ...await importOriginal<typeof import('@/lib/liv/presentation-revision')>(),
   reviseLivPresentation: mocks.revise,
 }));
-import { POST } from '@/app/api/liv/revisions/presentation/route';
+import { GET, POST } from '@/app/api/liv/revisions/presentation/route';
 
 const input = {
   itemId: 'a'.repeat(24), requestId: 'owner-revision-001',
@@ -23,6 +24,22 @@ beforeEach(() => {
   vi.clearAllMocks();
   mocks.access.mockResolvedValue({ uid: 'owner', owner: true });
   mocks.revise.mockResolvedValue({ status: 'staged', publicationVerified: false });
+});
+it.each([null, { uid: 'colleague', owner: false }])('protects baseline GET for %j', async access => {
+  mocks.access.mockResolvedValue(access);
+  expect((await GET(request(input, `?itemId=${input.itemId}`))).status).toBe(access ? 403 : 401);
+  expect(mocks.baseline).not.toHaveBeenCalled();
+});
+it('reads an owner baseline with private cache control', async () => {
+  mocks.baseline.mockResolvedValue({ itemId: input.itemId });
+  const response = await GET(request(input, `?itemId=${input.itemId}`));
+  expect(response.status).toBe(200);
+  expect(response.headers.get('cache-control')).toBe('private, no-store');
+  expect(mocks.baseline).toHaveBeenCalledWith(input.itemId);
+});
+it.each(['', '?itemId=invalid', `?itemId=${input.itemId}&itemId=${input.itemId}`, `?itemId=${input.itemId}&uid=other`])('rejects ambiguous GET %s', async query => {
+  expect((await GET(request(input, query))).status).toBe(400);
+  expect(mocks.baseline).not.toHaveBeenCalled();
 });
 it.each([null, { uid: 'casper', owner: false }, { uid: 'milo', owner: false }])('denies unauthorized identity %j before any work', async access => {
   mocks.access.mockResolvedValue(access);

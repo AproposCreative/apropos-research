@@ -1,12 +1,28 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { editorialRequestAccess } from '@/lib/editorial-access';
 import { presentationRevisionInput, reviseLivPresentation } from '@/lib/liv/presentation-revision';
+import { readLivPresentationBaseline } from '@/lib/liv/presentation-baseline';
 
 export const runtime = 'nodejs';
 export const maxDuration = 300;
 const reply = (body: unknown, status = 200) => NextResponse.json(body, {
   status, headers: { 'Cache-Control': 'private, no-store' },
 });
+
+export async function GET(req: NextRequest) {
+  const access = await editorialRequestAccess(req);
+  if (!access) return reply({ error: 'liv_revision_login_required' }, 401);
+  if (!access.owner) return reply({ error: 'liv_revision_owner_required' }, 403);
+  const params = req.nextUrl.searchParams;
+  if ([...params.keys()].some(key => key !== 'itemId') || params.getAll('itemId').length !== 1 ||
+    !/^[a-f0-9]{24}$/.test(params.get('itemId') || '')) return reply({ error: 'liv_presentation_invalid' }, 400);
+  try { return reply(await readLivPresentationBaseline(params.get('itemId')!)); }
+  catch (error) {
+    const code = error instanceof Error && /^liv_presentation_[a-z_]+$/.test(error.message)
+      ? error.message : 'liv_presentation_failed';
+    return reply({ error: code }, ['liv_presentation_configuration', 'liv_presentation_failed'].includes(code) ? 503 : 409);
+  }
+}
 
 // Interactive copyediting uses the same durable journal and CMS fencing as
 // operations/presentation. Never expose a cron credential to the client.

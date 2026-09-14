@@ -59,7 +59,11 @@ private workspaces have been demonstrated to work.
   strict input, unchanged request IDs/hashes on retries and sanitized errors.
   Existing operation tests exercise preserved content, journal replay and CMS
   conflicts with isolated dependencies, not production publication.
-- Still required: owner-only baseline read API, mobile edit form with exact-body
+- Added the owner-only baseline GET API: returns current CMS title/SEO fields
+  and server-computed hashes, never body/provider data. Rejects selected,
+  rejected, published, conflicting and revision-locked items. It performs no
+  writes or AI calls. 48 isolated tests pass across baseline, route and revision.
+- Still required: mobile edit form with exact-body
   retry and account-change isolation, UI verification, and production release.
   Shortening and cover UI remain separate unfinished work; this endpoint alone
   does not complete the targeted editing feature.
