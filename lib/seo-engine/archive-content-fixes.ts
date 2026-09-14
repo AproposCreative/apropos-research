@@ -153,21 +153,23 @@ export function slugFromArticleUrl(url: string): string {
 
 /** Load allowlisted internal targets from data/apropos-articles.json (same-site only). */
 export function loadInternalLinkCatalog(opts?: {
-  path?: string;
   raw?: Array<{ url?: string; title?: string }>;
 }): InternalLinkCatalogEntry[] {
-  let rows: Array<{ url?: string; title?: string }> = opts?.raw || [];
+  let rows: unknown = opts?.raw || [];
   if (!opts?.raw) {
-    const p = opts?.path || join(process.cwd(), 'data', 'apropos-articles.json');
     try {
-      rows = JSON.parse(readFileSync(p, 'utf8')) as Array<{ url?: string; title?: string }>;
+      // Only this bundled catalog is read in production. Test/custom callers
+      // can supply raw rows without making file tracing scan arbitrary paths.
+      rows = JSON.parse(readFileSync(join(process.cwd(), 'data', 'apropos-articles.json'), 'utf8'));
     } catch {
       rows = [];
     }
   }
   const out: InternalLinkCatalogEntry[] = [];
   const seen = new Set<string>();
+  if (!Array.isArray(rows)) return out;
   for (const row of rows) {
+    if (!row || typeof row !== 'object') continue;
     const url = normalizeAproposArticleUrl(String(row.url || ''));
     if (!url) continue;
     if (seen.has(url)) continue;
