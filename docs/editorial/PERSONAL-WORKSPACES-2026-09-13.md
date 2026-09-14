@@ -45,6 +45,19 @@ private workspaces have been demonstrated to work.
 
 ### Build tracing cleanup (released September 14)
 
+### Sharing retirement follow-up (local, not deployed)
+
+- Removed the remaining share-creation implementation behind the already retired
+  UI. Authenticated POST now returns 410 with guidance to send the finished story
+  to Webflow as a draft, without reading recipients, workspaces or starting a
+  transaction. Unauthenticated calls remain 401. Existing historical GET and
+  participant isolation are preserved; no saved copies were deleted.
+- Seven focused cases pass, including denial for all three users, historical
+  participant reads and denying Frederik access when not a participant. Type
+  check passed. Release/API verification still required.
+
+### Tracing release evidence
+
 - Release verified: `740bb5f0a385917e16b3f3e911fd72102785e780`, deployment
   `dpl_G1pSt6LWv8HZiETUgRUbfmWoxUMq`, READY and serving
   `ai.aproposmagazine.com`. The build log confirms `npm ci --ignore-scripts`,
