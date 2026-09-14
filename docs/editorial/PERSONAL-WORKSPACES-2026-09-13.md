@@ -75,6 +75,24 @@ private workspaces have been demonstrated to work.
 
 ### Shortening release, September 14 (current result)
 
+### Team onboarding delivery readback, September 14
+
+- Read only the Casper/Milo `authMailOperations` rows and their corresponding
+  Resend email status. Both verification mails from 2026-09-13T22:11Z report
+  `delivered`, not merely `accepted`. Neither account is yet email-verified.
+  Delivery to the recipient mail server does not prove inbox placement, opening
+  the link or successful app login. No verification mail was resent.
+- Casper has no linked login provider. Sent one password-reset request through
+  the production app's `/api/auth/mail`, not a manual provider send. API returned
+  200; the audit records reset accepted at 2026-09-14T03:36:20.280Z and its exact
+  provider message subsequently reports `delivered`. No action links, tokens or
+  message bodies were logged. No password, emailVerified or permissions changed.
+- Remaining user action: Casper chooses a password and confirms his email;
+  Milo confirms his email. Real account login/private-workspace acceptance still
+  needs their participation. Do not equate admin sign-in metadata with that test.
+
+### Shortening release evidence
+
 - Runtime release `6d3333dd468a114f01126c6f9d69953d531c54cb`, deployment
   `dpl_2eHzSQFkXeeFYcFCdbAAprpEZ4DQ`: READY, exact SHA and current production
   domain alias verified. Full regression suite: 3,656 tests / 256 files pass;
