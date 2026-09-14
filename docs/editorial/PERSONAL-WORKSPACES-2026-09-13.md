@@ -43,7 +43,7 @@ Completion requires evidence for each item and the remaining original scope.
 No additional major features before sources, onboarding, daily publication and
 private workspaces have been demonstrated to work.
 
-### Daily length alignment, September 14 (local, release pending)
+### Daily length alignment, September 14 (released)
 
 - Found an inconsistent legacy minimum in `run-safety-gates`: moderation's
   combined-text count rejected fewer than 500 words before fact diagnostics,
@@ -61,6 +61,15 @@ private workspaces have been demonstrated to work.
 - Verification: 211 focused tests and TypeScript passed; full suite 3,539 tests
   across 246 files passed; production build passed. Logs:
   `/tmp/apropos-length-full.log`, `/tmp/apropos-length-build.log`.
+- Released `19ce60e4a6989a9014c3306e70b881eb6ed6931c`, deployment
+  `dpl_7Bkj7ujyb3h92kKs4wKY5rLy7weM`: READY and current domain alias verified.
+  Owner operations API returned 200 at 2026-09-14T01:25:25.032Z: autopublish
+  remains enabled, Lucian Freud ready, today's publication not yet recorded,
+  not overdue, no blocked items or reconciliation. No real article was generated
+  or revised to test this release. The length edge cases are isolated tests,
+  not a claim of a production publication with a short article. The initial
+  deployment-scoped error/fatal log count scan was empty. Seven existing build
+  tracing warnings remain.
 
 ### Targeted revision checkpoint, September 14 (historical checkpoints)
 
