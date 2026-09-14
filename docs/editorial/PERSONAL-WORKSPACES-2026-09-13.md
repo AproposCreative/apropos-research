@@ -43,9 +43,7 @@ Completion requires evidence for each item and the remaining original scope.
 No additional major features before sources, onboarding, daily publication and
 private workspaces have been demonstrated to work.
 
-### Build tracing cleanup (released September 14)
-
-### Sharing retirement follow-up (local, not deployed)
+### Sharing retirement follow-up (released September 14)
 
 - Removed the remaining share-creation implementation behind the already retired
   UI. Authenticated POST now returns 410 with guidance to send the finished story
@@ -54,9 +52,18 @@ private workspaces have been demonstrated to work.
   participant isolation are preserved; no saved copies were deleted.
 - Seven focused cases pass, including denial for all three users, historical
   participant reads and denying Frederik access when not a participant. Type
-  check passed. Release/API verification still required.
+  check and all 3,678 regression tests passed.
+- Production release `fbbd1853f650dacbd3fc979b27231b1fa56312a2`, deployment
+  `dpl_DdcT1MSKwzVnwA5ko6xiVM4fAtoJ`: READY and exact production alias verified.
+  Authenticated POST with an empty body returned 410; historical shares, workspace,
+  versions, shared-source configuration, tips, feed and operations GET returned
+  200. Anonymous requests were rejected. Feed contained three saved stories,
+  queue/preparation enabled. No model, CMS write, share creation or mail send.
+- Full smoke check correctly remains unsuccessful because alarm history returns
+  503 (missing Firestore index). Latest roster read still has Frederik verified,
+  Casper and Milo unverified. No identity flags or runtime IAM were changed.
 
-### Tracing release evidence
+### Build tracing cleanup (released September 14)
 
 - Release verified: `740bb5f0a385917e16b3f3e911fd72102785e780`, deployment
   `dpl_G1pSt6LWv8HZiETUgRUbfmWoxUMq`, READY and serving
