@@ -45,6 +45,21 @@ private workspaces have been demonstrated to work.
 
 ### Cost coverage and access follow-up (released September 14)
 
+- New bounded read-only audit: 450 recorded calls across September at audit time;
+  168 SEO post-publish review and 156 verification calls (324 combined). No
+  truncated result. Counts are not currency amounts and include activity after
+  the earlier 436-call snapshot. Do not attribute most spend to Liv research.
+- SEO jobs created since September 12: 481 records, 395 distinct article/locale
+  pairs, 78 pairs with multiple jobs. Recovery/publication-quality accounts for
+  224 queued, 155 needs-editor, 72 applied, 13 kept, one stale, one verify-pending.
+  Different versions legitimately produce different jobs, so repeated item IDs
+  alone do not prove duplicate provider calls. Durable per-stage responses exist.
+- Next cost optimization: bound automatic archive/recovery review admission and
+  prioritize new publication events, preserving paid responses and allowing
+  uncertain CMS writes to reconcile. Do not disable all SEO or remove independent
+  candidate validation merely to lower call counts. No queue records, policy,
+  models or publication schedules changed during this audit.
+
 - Read-only production summary: September tracked calls 436, usage-based upper
   cost 50.463456 DKK, reserved 0, unknown calls 0, allowance 249.536544 DKK of
   300. Shared accounting enabled for Liv, Writer, SEO and accreditation; unscoped
