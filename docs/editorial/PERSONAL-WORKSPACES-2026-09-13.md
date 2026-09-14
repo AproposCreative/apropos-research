@@ -95,6 +95,17 @@ private workspaces have been demonstrated to work.
   editorial evidence for changed prose; fenced CMS draft patch/readback and
   payload/proof update; owner preview/accept/retry UI. Do not wire a button to
   the existing failure-repair operation or reuse old proof as new approval.
+- Added the owner-only shortening baseline GET API. Ready/unselected/non-rejected
+  queue state, active preparation/revision holds, payload hash, exact locale and
+  unpublished CMS state are checked. Changed prose is rejected; normalized image
+  attributes alone can differ under the existing body comparison. Response gives
+  counts/target range and optimistic hashes, not body text or approval. Mutation
+  must revalidate under its own transaction; this GET does not lock the article.
+- Rejects at/below 450 words and uneditable paragraph structure. 38 focused
+  shortening baseline/route/candidate tests and TypeScript pass. Anonymous,
+  Casper/Milo, duplicate/extra query parameters and upstream error disclosure are
+  covered. Baseline is local only; journal, generation, review, accept and UI
+  remain unfinished and this feature has not been deployed.
 
 ### Earlier title/SEO work
 
