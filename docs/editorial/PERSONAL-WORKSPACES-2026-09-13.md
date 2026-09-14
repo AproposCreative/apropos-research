@@ -43,9 +43,7 @@ Completion requires evidence for each item and the remaining original scope.
 No additional major features before sources, onboarding, daily publication and
 private workspaces have been demonstrated to work.
 
-### Sharing retirement follow-up (released September 14)
-
-### Cost coverage and access follow-up (September 14; code local)
+### Cost coverage and access follow-up (released September 14)
 
 - Read-only production summary: September tracked calls 436, usage-based upper
   cost 50.463456 DKK, reserved 0, unknown calls 0, allowance 249.536544 DKK of
@@ -59,8 +57,17 @@ private workspaces have been demonstrated to work.
   authorization with direct colleague denial and private/no-store responses.
   Existing trusted cron/internal credentials retain read access. Six targeted
   tests and TypeScript pass; no live policy change or paid model request.
+- Release `988a640ab761163ee4ab36988765501114c12a3f`, deployment
+  `dpl_Fr4m1BqXY7qwbjRKg2AbTncq81uA`, READY with exact production alias.
+  Owner budget GET returned 200/private-no-store, anonymous request 401, trusted
+  server budget GET succeeded. Direct colleague denial is covered by route tests;
+  real colleague onboarding remains unverified. Full suite: 3,680 pass. Build and
+  TypeScript pass. Other workspace/source/feed checks remained successful and
+  retired share POST remained 410. The complete live verifier still reports the
+  existing alarm-history 503. No error/fatal counts in the last-15-minute release
+  log query; this is not proof of seven consecutive daily publications.
 
-### Sharing retirement release evidence
+### Sharing retirement follow-up (released September 14)
 
 - Removed the remaining share-creation implementation behind the already retired
   UI. Authenticated POST now returns 410 with guidance to send the finished story
