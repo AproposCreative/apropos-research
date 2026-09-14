@@ -73,7 +73,30 @@ private workspaces have been demonstrated to work.
 
 ### Targeted revision checkpoint, September 14 (historical checkpoints)
 
-### Shortening implementation checkpoint (local, not released)
+### Shortening release, September 14 (current result)
+
+- Runtime release `6d3333dd468a114f01126c6f9d69953d531c54cb`, deployment
+  `dpl_2eHzSQFkXeeFYcFCdbAAprpEZ4DQ`: READY, exact SHA and current production
+  domain alias verified. Full regression suite: 3,656 tests / 256 files pass;
+  production build passes with seven pre-existing tracing warnings. Logs:
+  `/tmp/apropos-shortening-normalization-tests.log` and
+  `/tmp/apropos-shortening-normalization-build.log`.
+- Production verification at 2026-09-14T03:32:45.045Z: anonymous generation,
+  review and acceptance denied; authenticated malformed mutations rejected;
+  ready Lucian Freud baseline returns **200**, body 572 words, allowed target
+  450–571. This resolves the former serialization false conflict. No live model
+  call, human review, CMS revision or publication was performed by this test.
+  The complete preview/accept/reload flow was tested with local mocked APIs;
+  actual paid production shortening and acceptance are not claimed verified.
+- Autopublish remains enabled. Today's Lucian Freud story ready; not yet
+  published, not overdue, no blocked items or reconciliation. The initial
+  deployment-scoped error/fatal count scan was empty, not a long-term guarantee.
+- Fresh Firebase read: Frederik verified/enabled; Casper and Milo enabled but
+  still **emailVerified=false**. Casper has no linked provider; Milo has password.
+  This does not prove real team login or private multi-device acceptance. Do not
+  manufacture verification or infer it from historical administrative sign-ins.
+
+### Shortening implementation checkpoints (historical)
 
 - Release `1defda5` reached READY on `dpl_C7LfRnbgvxjxTZHyuG12GuhnbS1U`;
   current production alias and SHA verified. Production verifier passed access
