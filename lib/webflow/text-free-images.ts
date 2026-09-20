@@ -7,8 +7,11 @@ export async function enforceTextFreeArticleImages(fields: Record<string, unknow
   const seen = new Map<string, Promise<string>>();
   const clean = (url: string) => {
     if (!seen.has(url)) seen.set(url, (async () => {
-      const result = await ensureTextFreeImage(await readEditorialImage(url));
-      return result.receipt.edited ? result.receipt.image.url : url;
+      const source = await readEditorialImage(url);
+      const result = await ensureTextFreeImage(source);
+      // A CMS/CDN copy of a previously cleaned derivative is already clean.
+      // Do not rewrite its URL back to storage and create a webhook publish loop.
+      return result.bytes.equals(source) ? url : result.receipt.image.url;
     })());
     return seen.get(url)!;
   };
