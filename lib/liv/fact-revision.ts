@@ -101,7 +101,6 @@ export async function resumeLivFactRevision(article: GeneratedArticle, priorDiag
   const id = hash(`liv-fact-revision-v1:${hash(JSON.stringify(article))}`);
   const saved = (await db.collection('livFactRevisions').doc(id).get()).data();
   if (!saved) {
-    if (article.factRevisionId || (article.factRevisionCount ?? 0) > 0) return null;
     // Correct a known, exact-version defect instead of rerunning a paid checker
     // and hoping it overlooks the same wording on another invocation.
     if (usableFactDiagnostic(article, priorDiagnostic)) {
@@ -115,7 +114,7 @@ export async function resumeLivFactRevision(article: GeneratedArticle, priorDiag
   return repairLivArticleFacts(article, saved.report as GroundedReport | undefined, { length: saved.length });
 }
 
-/** One new targeted correction total, optionally for facts AND daily length.
+/** At most two targeted corrections, optionally for facts AND daily length.
  * Already-paid legacy v1 jobs remain resumable. Provider outputs, old text and failed
  * reports remain addressable. Every edited version must pass the normal gates
  * again; this function grants no factual or CMS approval. */
@@ -173,16 +172,10 @@ export async function repairLivArticleFacts(article: GeneratedArticle, report?: 
     const existing = (await ref.get()).data();
     if (existing && !existing.patchResult && typeof existing.rawResponse !== 'string' && existing.status !== 'complete') throw new Error('liv_fact_revision_not_applicable');
     const previous = (await db.collection('livFactRevisions').doc(article.factRevisionId).get()).data();
-    const normalize = (text: string) => text.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
-    const oldSpans: string[] = [
-      ...(previous?.report?.results || []).filter((result: { status: string }) => result.status !== 'verified')
-        .map((result: { claim: string }) => result.claim),
-      ...(previous?.patchResult?.patches || []).flatMap((patch: Patch) => [patch.before, patch.after]),
-    ].filter(Boolean).map(normalize);
+    // A still-unresolved claim may receive the second and final correction.
+    // The exact completed parent and fresh diagnostic remain mandatory.
     if (previous?.status !== 'complete' || !previous?.article ||
-        !isDeepStrictEqual(previous.article, json(article)) ||
-        report?.results.filter(result => result.status !== 'verified').some(result =>
-          oldSpans.some(span => span.includes(normalize(result.claim)) || normalize(result.claim).includes(span)))) throw new Error('liv_fact_revision_not_applicable');
+        !isDeepStrictEqual(previous.article, json(article))) throw new Error('liv_fact_revision_not_applicable');
   }
   const saved = await db.runTransaction(async tx => {
     const prior = (await tx.get(ref)).data();
@@ -220,9 +213,8 @@ export async function repairLivArticleFacts(article: GeneratedArticle, report?: 
       }
       return prior;
     }
-    if (revisionCount > 0) throw new Error('liv_fact_revision_not_applicable');
     tx.create(ref, json({ status: 'processing', inputHash, previous: article, report, length: requestedLength,
-      correctionPolicy: 'one-targeted-v2', textPatchAttempt: textAttempt, createdAt: new Date().toISOString() }));
+      correctionPolicy: 'two-targeted-v3', textPatchAttempt: textAttempt, createdAt: new Date().toISOString() }));
     return null;
   });
   if (saved?.status === 'complete') return saved.article as GeneratedArticle;

@@ -34,7 +34,7 @@ export function decidePreparation(row?: Record<string, any>, now = Date.now()): 
   if (/^liv_cost_/.test(reason)) return decision('blocked', 'budget_limit');
   if (/http_(401|403)$|authentication|configuration_missing/.test(reason)) return decision('blocked', 'authentication_required');
   const recovery = row.recovery?.version === PREPARATION_POLICY_VERSION ? row.recovery : {};
-  if (row.articleCheckpoint && (reason === 'liv_preparation_structure_failed' || row.status === 'skipped_factcheck') &&
+  if (row.articleCheckpoint && (reason === 'liv_preparation_structure_failed' || reason === 'liv_fact_revision_not_applicable' || row.status === 'skipped_factcheck') &&
       Number(row.articleCheckpoint.factRevisionCount ?? (row.articleCheckpoint.factRevisionId ? 1 : 0)) < 2 &&
       Number(recovery.repairs ?? 0) < 2) return decision('repair', 'article_correction_required');
   // Retry only errors known to precede writing. Unknown provider failures are not safe retries.

@@ -28,6 +28,8 @@ import { resolveTrendingSource } from '@/lib/trending/source-filter';
 const logger = pino({ level: 'info' });
 
 export interface IngestOptions {
+  /** Stop starting fetches early enough to persist partial progress before server timeout. */
+  maxDurationMs?: number;
   feedOnly?: boolean;
   sitemapOnly?: boolean;
   noRobots?: boolean;
@@ -176,6 +178,7 @@ export async function runIngestToFirestore(opts: IngestOptions = {}): Promise<In
   // Fetch + parse hver candidate, byg op til Firestore-batch.
   const records: TrendingArticleInput[] = [];
   for (const { url, source, published_at } of unique) {
+    if (opts.maxDurationMs && Date.now() - start >= opts.maxDurationMs) break;
     try {
       const { text, contentType, status } = await fetchText(url, { noRobots: opts.noRobots, persistCache: false });
       if (status === 304) {

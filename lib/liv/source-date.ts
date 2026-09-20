@@ -1,17 +1,17 @@
 /** Danish dates must not pass through the engine's US-oriented Date.parse. */
-export function currentSourceDate(value: unknown, now = Date.now()): string | null {
-  if (typeof value !== 'string' || !Number.isFinite(now)) return null;
+export function sourcePublicationDate(value: unknown): string | null {
+  if (typeof value !== 'string') return null;
   const raw = value.trim();
-  const danish = raw.match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})(?:\s*\/\s*(\d{2}):(\d{2}))?$/);
+  const danish = raw.match(/^(\d{1,2})[.-](\d{1,2})[.-](\d{4})(?:\s*(?:\/\s*)?(\d{2}):(\d{2})(?::(\d{2}))?)?$/);
   let timestamp: number;
   if (danish) {
-    const [, d, m, y, hours, minutes] = danish;
+    const [, d, m, y, hours, minutes, seconds = '00'] = danish;
     timestamp = Date.UTC(Number(y), Number(m) - 1, Number(d));
     const date = new Date(timestamp);
     if (date.getUTCFullYear() !== Number(y) || date.getUTCMonth() !== Number(m) - 1 || date.getUTCDate() !== Number(d)) return null;
     if (hours !== undefined) {
-      if (Number(hours) > 23 || Number(minutes) > 59) return null;
-      const wallTime = timestamp + Number(hours) * 3600000 + Number(minutes) * 60000;
+      if (Number(hours) > 23 || Number(minutes) > 59 || Number(seconds) > 59) return null;
+      const wallTime = timestamp + Number(hours) * 3600000 + Number(minutes) * 60000 + Number(seconds) * 1000;
       // Match both Danish UTC offsets against the actual IANA timezone rules.
       // Nonexistent spring times and ambiguous autumn times must not be guessed.
       const formatter = new Intl.DateTimeFormat('en-GB', {
@@ -34,6 +34,13 @@ export function currentSourceDate(value: unknown, now = Date.now()): string | nu
     if (calendar.getUTCFullYear() !== Number(iso[1]) || calendar.getUTCMonth() !== Number(iso[2]) - 1 || calendar.getUTCDate() !== Number(iso[3])) return null;
     timestamp = Date.parse(raw);
   }
-  if (!Number.isFinite(timestamp) || timestamp > now + 5 * 60000 || timestamp < now - 7 * 86400000) return null;
+  if (!Number.isFinite(timestamp)) return null;
   return new Date(timestamp).toISOString();
+}
+
+export function currentSourceDate(value: unknown, now = Date.now()): string | null {
+  const parsed = sourcePublicationDate(value);
+  const timestamp = parsed ? Date.parse(parsed) : NaN;
+  return !Number.isFinite(now) || !Number.isFinite(timestamp) || timestamp > now + 5 * 60000 || timestamp < now - 7 * 86400000
+    ? null : parsed;
 }

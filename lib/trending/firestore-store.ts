@@ -31,6 +31,7 @@ import { Timestamp, FieldValue } from 'firebase-admin/firestore';
 import crypto from 'node:crypto';
 import { getAdminDb } from '@/lib/firebase-admin';
 import { logger } from '@/lib/logger';
+import { sourcePublicationDate } from '@/lib/liv/source-date';
 
 const COLLECTION = 'trendingArticles';
 const MAX_BODY_BYTES = 50_000; // ~50 KB per doc — Firestore limit er 1 MB
@@ -90,6 +91,11 @@ function urlToDocId(url: string): string {
 
 function safeDate(dateStr?: string): Date | null {
   if (!dateStr) return null;
+  // Never interpret GAFFA's 12-06 as December 6 through US Date.parse.
+  if (/^\d{1,2}[.-]\d{1,2}[.-]\d{4}/.test(dateStr)) {
+    const parsed = sourcePublicationDate(dateStr);
+    return parsed ? new Date(parsed) : null;
+  }
   // Try ISO first
   let ts = Date.parse(dateStr);
   if (!Number.isNaN(ts)) return new Date(ts);

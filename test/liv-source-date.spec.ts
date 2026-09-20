@@ -1,6 +1,12 @@
 import { expect, it } from 'vitest';
-import { currentSourceDate } from '@/lib/liv/source-date';
+import { currentSourceDate, sourcePublicationDate } from '@/lib/liv/source-date';
 const now = Date.parse('2026-09-09T13:00:00Z');
+it('parses Danish publisher dash dates with seconds without swapping day and month', () => {
+  expect(sourcePublicationDate('12-06-2026 12:19:00')).toBe('2026-06-12T10:19:00.000Z');
+  expect(currentSourceDate('12-06-2026 12:19:00', now)).toBeNull();
+  expect(currentSourceDate('09-09-2026 12:19:45', now)).toBe('2026-09-09T10:19:45.000Z');
+  expect(sourcePublicationDate('31-06-2026 12:19:00')).toBeNull();
+});
 it('interprets Danish day.month.year without US month/day swapping', () => {
   expect(currentSourceDate('08.09.2026', now)).toBe('2026-09-08T00:00:00.000Z');
 });

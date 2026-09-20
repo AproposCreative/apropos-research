@@ -7,12 +7,12 @@ type Notice = { startedAt: number; leaseUntil: number; accepted?: boolean; provi
   payload: {from:string;to:string;subject:string;text:string} };
 export type DeliveryAlertRecord = { day?: string; failure?: Notice; finalFailure?: Notice; resolved?: Notice };
 
-/** No alarm before the 10:15 Danish deadline unless a definitive rejection exists. */
+/** One warning at 10:15, one final failure at 20, optional verified resolution. */
 export function deliveryAlertKind(state: DeliveryState, old: DeliveryAlertRecord, now = new Date(), day = copenhagenClock(now).day,
   preparation?: LivNextPreparationStatus) {
   if (!validDay(day) || day > copenhagenClock(now).day) return null;
   // Historical slots may resolve existing notices, never create retrospective alarms.
-  if (day < copenhagenClock(now).day && !old.failure) return null;
+  if (day < copenhagenClock(now).day && !old.failure && !old.finalFailure) return null;
   // Reconcile the same uncertain failure send before announcing its resolution.
   if (old.failure && !old.failure.accepted) return 'failure';
   if (old.finalFailure && !old.finalFailure.accepted) return 'finalFailure';

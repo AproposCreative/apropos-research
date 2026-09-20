@@ -2,7 +2,7 @@ import { getAdminDb } from '@/lib/firebase-admin';
 import { copenhagenClock, validDay } from './delivery-policy';
 
 export function alertRecordStatus(raw: Record<string, any> | undefined, exists: boolean, now: Date) {
-  const notice = raw?.resolved ?? raw?.failure;
+  const notice = raw?.resolved ?? raw?.finalFailure ?? raw?.failure;
   if (!exists) return 'not_recorded';
   if (!notice || typeof notice !== 'object') return 'unknown';
   if (notice.accepted === true) return raw?.resolved ? 'resolved_accepted' : 'failure_accepted';

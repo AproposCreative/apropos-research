@@ -278,7 +278,7 @@ it.each([
   ['patch-before-longer', patches.patches[0].before, 'Bo er hans borgerlige navn, ifølge teksten.'],
   ['patch-after-shorter', patches.patches[0].after, 'KIRKETJENEREN hedder Bo'],
   ['patch-after-longer', patches.patches[0].after, 'Kirketjeneren hedder Bo, ifølge teksten.'],
-])('rejects overlapping %s rather than treating different punctuation/case or excerpt length as a new defect', async (kind, oldSpan, newClaim) => {
+])('allows the final bounded correction of an unresolved %s with exact parent and fresh diagnostic', async (kind, oldSpan, newClaim) => {
   const { first, parentId, parent, diagnostic } = await firstRevision();
   // Isolate each historical span source so the guard is independently covered.
   parent.report.results = kind.startsWith('prior-failure')
@@ -290,10 +290,22 @@ it.each([
   state.rows.set(parentId, parent);
   diagnostic.results[0].claim = newClaim;
   seedPaidLegacyRevision(first, diagnostic);
-  await expect(repairLivArticleFacts(first, diagnostic)).rejects.toThrow('not_applicable');
-  expect(state.calls).not.toHaveBeenCalled(); expect(state.retrieve).not.toHaveBeenCalled();
+  const revised = await repairLivArticleFacts(first, diagnostic);
+  expect(revised.factRevisionCount).toBe(2);
+  await expect(repairLivArticleFacts(revised, report(revised))).rejects.toThrow('not_applicable');
+  expect(state.calls).not.toHaveBeenCalled();
   expect(state.rows.size).toBe(2);
   expect(state.rows.get(parentId)).toEqual(parent);
+});
+
+it('creates at most one paid second correction and reuses it on replay', async () => {
+  const { first, parentId, parent, diagnostic } = await firstRevision();
+  const second = await resumeLivFactRevision(first, diagnostic);
+  expect(second?.factRevisionCount).toBe(2);
+  expect(await resumeLivFactRevision(first, diagnostic)).toEqual(second);
+  expect(state.calls).toHaveBeenCalledTimes(1);
+  expect(state.rows.get(parentId)).toEqual(parent);
+  expect(await resumeLivFactRevision(second!, report(second!))).toBeNull();
 });
 
 it('resumes an exact-hash first failure and reuses the archived result without a fresh verification call', async () => {
@@ -501,8 +513,8 @@ it('corrects an actual factual failure AND length in one archived text call, nev
   expect(state.row.rawResponse).toBe(JSON.stringify(combined));
   expect(await resumeLivFactRevision(a, diagnostic, { length })).toEqual(revised);
   expect(state.calls).toHaveBeenCalledTimes(1);
-  expect(await resumeLivFactRevision(revised, report(revised))).toBeNull();
-  await expect(repairLivArticleFacts(revised, report(revised))).rejects.toThrow('not_applicable');
+  expect(await resumeLivFactRevision(revised, diagnostic)).toBeNull();
+  await expect(repairLivArticleFacts(revised, diagnostic)).rejects.toThrow('not_applicable');
   expect(state.calls).toHaveBeenCalledTimes(1);
 });
 
