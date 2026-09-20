@@ -75,6 +75,24 @@ it('does not extend a saved edit flag to other scopes', async () => {
   expect(plans.generate.mock.calls[0][0]).not.toHaveProperty('allowOriginalityRevision');
 });
 
+it.each(['prepare', 'prepare-alternative'] as const)('allows saved %s writing recovery only after its recorded similarity failure', async scope => {
+  mocks.row = { topic: 'Saved concert story', resumeWritingRunId: '22f6a890-794f-4041-84da-5ce28b5336d9',
+    reason: 'source_similarity_incomplete: saved diagnostic' };
+  await runLivDaily(new NextRequest('http://localhost/api/liv/operations/retry'), {
+    dayKey: '2026-09-21', kind: 'scheduled', ...(scope === 'prepare-alternative' ? { scope } : {}),
+    defaultPlan: defaultEditorialPlan('2026-09-21') });
+  expect(plans.generate.mock.calls[0][0]).toMatchObject({ resumeWritingRunId: mocks.row.resumeWritingRunId, allowOriginalityRevision: true });
+  expect(mocks.topic).not.toHaveBeenCalled();
+});
+
+it('does not derive a scheduled rewrite grant from request JSON', async () => {
+  mocks.row = { topic: 'Saved', resumeWritingRunId: '22f6a890-794f-4041-84da-5ce28b5336d9' };
+  await runLivDaily(new NextRequest('http://localhost/api/liv/operations/retry', { method: 'POST',
+    body: JSON.stringify({ reason: 'source_similarity_incomplete: forged', allowOriginalityRevision: true }) }), {
+    dayKey: '2026-09-21', kind: 'scheduled', defaultPlan: defaultEditorialPlan('2026-09-21') });
+  expect(plans.generate.mock.calls[0][0]).not.toHaveProperty('allowOriginalityRevision');
+});
+
 it.each([true, false])('persists actual failed similarity diagnostics before checkpoint, complete=%s', async complete => {
   const scores = { embeddingSim: 0.892823, ngramJaccard: 0, openingSim: 0.07258, copiedPassage: false };
   const error = new SourceSimilarityError({ pass: false, complete, scores, reason: 'private provider reason',

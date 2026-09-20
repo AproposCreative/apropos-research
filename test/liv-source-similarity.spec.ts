@@ -2,6 +2,7 @@ import { beforeEach, expect, it, vi } from 'vitest';
 import { checkSourceSimilarity, lexicalSourceScores } from '@/lib/liv/source-similarity';
 import { independentDinnerTexts } from './fixtures/danish-originality';
 import { SourceSimilarityError } from '@/lib/liv/source-similarity-error';
+import { CompletedSemanticReviewError } from '@/lib/liv/semantic-review-error';
 
 const mocks = vi.hoisted(() => ({ embedding: vi.fn(), cosine: vi.fn(), warn: vi.fn(), review: vi.fn() }));
 vi.mock('@/lib/liv/semantic-source-review', () => ({ reviewSemanticSource: mocks.review }));
@@ -66,6 +67,14 @@ it('fails closed without exposing invalid review or provider text', async () => 
   mocks.review.mockRejectedValue(new Error('private source and provider details'));
   const result = await checkSourceSimilarity({ generated, source });
   expect(result).toMatchObject({ pass: false, complete: false, failure: 'semantic-review-unavailable' });
+  expect(JSON.stringify(result)).not.toContain('private');
+});
+
+it('distinguishes archived invalid evidence from an unknown provider outcome without approving either', async () => {
+  mocks.cosine.mockReturnValue(0.9);
+  mocks.review.mockRejectedValue(new CompletedSemanticReviewError(new Error('private text')));
+  const result = await checkSourceSimilarity({ generated, source });
+  expect(result).toMatchObject({ pass: false, complete: false, failure: 'semantic-review-invalid' });
   expect(JSON.stringify(result)).not.toContain('private');
 });
 

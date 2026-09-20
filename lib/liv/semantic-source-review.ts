@@ -5,6 +5,7 @@ import { getOpenAIClient } from '@/lib/openai';
 import { livModels } from './model-config';
 import { withLivCostStage } from './cost-context';
 import { getLivCostPretransportError } from './cost-errors';
+import { CompletedSemanticReviewError } from './semantic-review-error';
 
 export const LIV_SEMANTIC_SOURCE_POLICY = 'semantic-source-v1';
 const hash = (value: string) => createHash('sha256').update(value).digest('hex');
@@ -118,7 +119,10 @@ export function reviewSemanticSource(article: string, source: string): Promise<S
         responseModel: response.model || null, usage: response.usage || null, completedAt: new Date().toISOString() }, { merge: true });
       if (finishReason !== 'stop') throw new Error('liv_semantic_review_incomplete');
     }
-    return { ...validate(raw, article, source), reviewId: key, policy: LIV_SEMANTIC_SOURCE_POLICY,
+    let validated: ReturnType<typeof validate>;
+    try { validated = validate(raw, article, source); }
+    catch (error) { throw new CompletedSemanticReviewError(error); }
+    return { ...validated, reviewId: key, policy: LIV_SEMANTIC_SOURCE_POLICY,
       model, articleHash, sourceHash };
   })();
   pending.set(key, operation);

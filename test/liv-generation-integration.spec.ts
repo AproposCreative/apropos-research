@@ -263,6 +263,18 @@ it('preparation retains the initial draft without rewriting an incomplete simila
   expect(mocks.rememberBrief).toHaveBeenLastCalledWith('liv-daily', 'The Invite', expect.objectContaining({ rawResponse: rawArticle() }));
 });
 
+it('new preparation repairs complete-but-invalid review evidence once, retaining the original and checking the new text', async () => {
+  mocks.similarity.mockResolvedValueOnce({ pass: false, complete: false, failure: 'semantic-review-invalid' });
+  mocks.create.mockResolvedValueOnce(response(rawArticle(true, rewrittenBody)));
+  const result = await generateLivArticle({ topic: { title: 'The Invite', score: 0 }, articleFormat: 'research-review', preparation: true });
+  expect(result.rawResponse).toBe(rawArticle(true, rewrittenBody));
+  expect(mocks.create).toHaveBeenCalledTimes(2);
+  expect(mocks.search).toHaveBeenCalledTimes(1);
+  expect([...mocks.rows.values()].some(row => row.rawResponse === rawArticle())).toBe(true);
+  expect([...mocks.rows.values()].some(row => row.parentRunId && row.rawResponse === result.rawResponse)).toBe(true);
+  expect(mocks.similarity.mock.calls.some(([input]) => input.generated.includes(rewrittenBody))).toBe(true);
+});
+
 it('new preparation automatically buys only one durable revision for copied prose and retains both paid outputs', async () => {
   const copied = 'Denne lange og helt særlige formulering fra et andet medie skal aldrig genbruges i Livs artikel.';
   mocks.retrieve.mockImplementation(async (url: string, id: string) => ({ id, url, title: 'Research',
@@ -292,7 +304,7 @@ const authorizedOptions = { topic: { title: 'The Invite', score: 0 }, preparatio
 
 it('uses explicit authorization to revise the original paid draft once on invalid semantic review, not research or brief again', async () => {
   await seedOriginal();
-  mocks.similarity.mockResolvedValueOnce({ pass: false, complete: false, failure: 'semantic-review-unavailable' });
+  mocks.similarity.mockResolvedValueOnce({ pass: false, complete: false, failure: 'semantic-review-invalid' });
   mocks.create.mockImplementationOnce(async request => {
     expect([...mocks.rows.values()].some(row => row.status === 'processing' && row.parentRunId === originalRunId)).toBe(true);
     expect(request.model).toBe('gpt-5.6-sol');
@@ -311,7 +323,7 @@ it('uses explicit authorization to revise the original paid draft once on invali
   expect(mocks.create).toHaveBeenCalledTimes(1);
 });
 
-it.each(['embedding-unavailable', 'embedding-invalid', 'input-too-short'])('does not spend on an explicitly authorized rewrite after %s', async failure => {
+it.each(['embedding-unavailable', 'embedding-invalid', 'input-too-short', 'semantic-review-unavailable'])('does not spend on an explicitly authorized rewrite after %s', async failure => {
   await seedOriginal();
   mocks.similarity.mockResolvedValueOnce({ pass: false, complete: false, failure });
   await expect(generateLivArticle(authorizedOptions)).rejects.toMatchObject({ name: 'SourceSimilarityError', status: 503 });

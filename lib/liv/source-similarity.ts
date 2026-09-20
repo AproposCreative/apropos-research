@@ -21,6 +21,7 @@ import { cosineSimilarity, getEmbedding } from '@/lib/embeddings';
 import { logger } from '@/lib/logger';
 import { hasCopiedPassage } from '@/lib/liv/research-bundle';
 import { reviewSemanticSource, type SemanticSourceReview } from './semantic-source-review';
+import { CompletedSemanticReviewError } from './semantic-review-error';
 
 export interface SourceSimilarityScores {
   embeddingSim: number;
@@ -35,7 +36,7 @@ export interface SourceSimilarityResult {
   pass: boolean;
   complete: boolean;
   reason?: string;
-  failure?: 'input-too-short' | 'input-too-long' | 'embedding-unavailable' | 'embedding-invalid' | 'similarity-exceeded' | 'semantic-review-unavailable';
+  failure?: 'input-too-short' | 'input-too-long' | 'embedding-unavailable' | 'embedding-invalid' | 'similarity-exceeded' | 'semantic-review-unavailable' | 'semantic-review-invalid';
   method?: 'word-5gram-v2';
   scores: SourceSimilarityScores;
   semanticReview?: SemanticSourceReview;
@@ -207,8 +208,9 @@ export async function checkSourceSimilarity(
         method: 'word-5gram-v2', scores, semanticReview };
       return { pass: false, complete: true, failure: 'similarity-exceeded', method: 'word-5gram-v2', scores,
         semanticReview, reason: 'Den kvalitative kildekontrol dokumenterer ikke tilstrækkelig uafhængighed.' };
-    } catch {
-      return { pass: false, complete: false, failure: 'semantic-review-unavailable', method: 'word-5gram-v2', scores,
+    } catch (error) {
+      return { pass: false, complete: false,
+        failure: error instanceof CompletedSemanticReviewError ? 'semantic-review-invalid' : 'semantic-review-unavailable', method: 'word-5gram-v2', scores,
         reason: 'Den kvalitative kildekontrol kunne ikke gennemføres med gyldig dokumentation.' };
     }
   }

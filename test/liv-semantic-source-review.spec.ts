@@ -22,6 +22,7 @@ vi.mock('@/lib/firebase-admin', () => ({ getAdminDb: () => state.available ? {
 import { reviewSemanticSource, LIV_SEMANTIC_SOURCE_POLICY } from '@/lib/liv/semantic-source-review';
 import { currentLivCostContext, withLivCostContext } from '@/lib/liv/cost-context';
 import { LivCostPretransportError } from '@/lib/liv/cost-errors';
+import { CompletedSemanticReviewError } from '@/lib/liv/semantic-review-error';
 
 const articleParts = ['A cultural essay opens with a question about inherited social power.',
   'Its middle contrasts visual staging with the audience expectations of genre.',
@@ -105,6 +106,15 @@ it('keeps hostile embedded instructions as data and cannot accept an injected ba
     return response({ decision: 'independent', pass: true });
   });
   await expect(reviewSemanticSource(article, hostile)).rejects.toThrow();
+});
+
+it('marks only complete saved invalid evidence as a known validation failure, not a provider timeout', async () => {
+  state.create.mockResolvedValue(response({ decision: 'independent' }));
+  await expect(reviewSemanticSource(article, source)).rejects.toBeInstanceOf(CompletedSemanticReviewError);
+  await expect(reviewSemanticSource(article, source)).rejects.toBeInstanceOf(CompletedSemanticReviewError);
+  expect(state.create).toHaveBeenCalledTimes(1);
+  state.rows.clear(); state.create.mockRejectedValue(new Error('timeout'));
+  await expect(reviewSemanticSource(article, source)).rejects.not.toBeInstanceOf(CompletedSemanticReviewError);
 });
 
 it.each(['borrowed', 'uncertain'])('records a valid %s judgment without converting it to approval', async decision => {

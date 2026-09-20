@@ -418,7 +418,7 @@ export async function generateLivArticle(options: GenerateArticleOptions): Promi
     const similarity = await checkSourceSimilarity({ generated: finalText, source: source.text });
     if (!similarity.complete || !similarity.pass) {
       if ((preparation && !durableOriginality) || resumed?.parentRunId ||
-          (preparation && !similarity.complete && !(authorizedOriginality && similarity.failure === 'semantic-review-unavailable'))) throw new SourceSimilarityError(similarity, source, {
+          (preparation && !similarity.complete && similarity.failure !== 'semantic-review-invalid')) throw new SourceSimilarityError(similarity, source, {
         text: finalText, model: writerModel, voiceVersion: voice.version,
       });
       similarityBlocked = { sourceUrl: source.url, detail: new SourceSimilarityError(similarity, source, {
