@@ -74,6 +74,27 @@ export function extractLivSyndicatedPressPhotos(html: string, pageUrl: string): 
   return [...photos].slice(0, 6).map(([url, credit]) => ({url, credit}));
 }
 
+/** A higher-resolution rendition explicitly offered by the SAME credited
+ * image's srcset. Never synthesize a CDN URL or borrow another figure's credit. */
+export function livSyndicatedHeroVariant(html: string, pageUrl: string, selectedUrl: string): {url:string;credit:string}|null {
+  const selected = extractLivSyndicatedPressPhotos(html, pageUrl).find(p => p.url === selectedUrl);
+  if (!selected || new URL(pageUrl).origin !== 'https://www.thewrap.com') return null;
+  const $ = load(html), base = new URL(selectedUrl);
+  const image = $('figure img').filter((_, n) => $(n).attr('src') === selectedUrl);
+  if (image.length !== 1) return null;
+  const variants = (image.attr('srcset') || '').split(',').flatMap(part => {
+    const match = part.trim().match(/^(\S+)\s+([1-9][0-9]{2,3})w$/);
+    if (!match || Number(match[2]) < 1200 || Number(match[2]) > 4096) return [];
+    try {
+      const url = new URL(match[1]);
+      if (url.origin !== base.origin || url.pathname !== base.pathname || url.username || url.password || url.hash ||
+          [...url.searchParams].some(([k,v]) => !(['width','height'].includes(k) && /^[1-9][0-9]{1,3}$/.test(v)) && !(k === 'fit' && v === 'bounds'))) return [];
+      return [{url:url.href,width:Number(match[2])}];
+    } catch { return []; }
+  }).sort((a,b)=>b.width-a.width);
+  return variants[0] ? {url:variants[0].url,credit:selected.credit} : null;
+}
+
 export const LIV_TUDUM_HTML_MAX_BYTES = 4 * 1024 * 1024;
 /** Netflix's editorial article namespace only, not arbitrary Netflix subdomains/pages. */
 export function isLivTudumSource(pageUrl: string): boolean {

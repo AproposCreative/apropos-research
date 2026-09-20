@@ -13,7 +13,8 @@ export type MediaCandidate = { id: string; url: string; sourcePageUrl: string; c
 export type MediaPlan = { images: Array<{ candidateId: string | null; prompt: string; alt: string; caption: string }> };
 export type StoredMedia = { url: string; storagePath: string; contentHash: string; width: number; height: number; bytes: number };
 export type MediaEvidence = StoredMedia & { role: 'hero' | 'body-1' | 'body-2'; alt: string; caption: string;
-  credit: string; sourceUrl: string | null; sourcePageUrl: string | null; sourceHash: string; kind: MediaMode };
+  credit: string; sourceUrl: string | null; sourcePageUrl: string | null; sourceHash: string; kind: MediaMode;
+  selectedSourceHash?: string };
 export type MediaOptions = { dayKey: string; mode?: MediaMode; style?: MediaStyle; deadline?: number };
 export type MediaDependencies = {
   /** Preserve an already-paid job if a new default would choose another mode. */
@@ -22,6 +23,7 @@ export type MediaDependencies = {
   resume?: (jobId: string) => Promise<Array<{ evidence: MediaEvidence; bytes: Buffer }>>;
   record: (jobId: string, stage: string, data: Record<string, unknown>) => Promise<void>;
   candidates: (article: GeneratedArticle) => Promise<MediaCandidate[]>;
+  heroVariant?: (candidate: MediaCandidate) => Promise<MediaCandidate | null>;
   plan: (article: GeneratedArticle, mode: MediaMode, style: MediaStyle, candidates: MediaCandidate[], jobId: string) => Promise<unknown>;
   generate: (prompt: string, jobId: string, role: string) => Promise<Buffer>;
   store: (jobId: string, role: string, bytes: Buffer) => Promise<StoredMedia>;
@@ -117,7 +119,7 @@ export async function prepareLivAutomaticMedia(article: GeneratedArticle, option
   try {
     const saved = await deps.resume?.(jobId) ?? [];
     const candidates = mode === 'photography' ? [
-      ...saved.map(({ evidence, bytes }) => ({ id: evidence.sourceHash, url: evidence.sourceUrl!,
+      ...saved.map(({ evidence, bytes }) => ({ id: evidence.selectedSourceHash || evidence.sourceHash, url: evidence.sourceUrl!,
         sourcePageUrl: evidence.sourcePageUrl!, credit: evidence.credit, bytes })),
       ...(saved.length < 3 ? await deps.candidates(article) : []),
     ].filter((candidate, index, all) => all.findIndex(item => item.id === candidate.id) === index) : [];
@@ -131,12 +133,22 @@ export async function prepareLivAutomaticMedia(article: GeneratedArticle, option
       if (existing) {
         const caption = mode === 'illustration' ? `AI-illustration: ${image.caption}` : image.caption;
         if (existing.evidence.kind !== mode || existing.evidence.alt !== image.alt || existing.evidence.caption !== caption ||
-            (mode === 'photography' && existing.evidence.sourceHash !== image.candidateId)) throw new Error('liv_media_saved_evidence_invalid');
+            (mode === 'photography' && (existing.evidence.selectedSourceHash || existing.evidence.sourceHash) !== image.candidateId)) throw new Error('liv_media_saved_evidence_invalid');
         return existing;
       }
-      const candidate = candidates.find(candidate => candidate.id === image.candidateId);
-      const original = mode === 'photography' ? candidate!.bytes : await deps.generate(image.prompt, jobId, role);
-      const meta = await sharp(original, { limitInputPixels: 80_000_000 }).metadata();
+      let candidate = candidates.find(candidate => candidate.id === image.candidateId);
+      let original = mode === 'photography' ? candidate!.bytes : await deps.generate(image.prompt, jobId, role);
+      let meta = await sharp(original, { limitInputPixels: 80_000_000 }).metadata();
+      let selectedSourceHash: string | undefined;
+      if (index === 0 && mode === 'photography' && meta.width && meta.height && !chooseLivHeroDimensions(meta.width, meta.height, meta.orientation)) {
+        const variant = await deps.heroVariant?.(candidate!);
+        if (variant) {
+          if (variant.sourcePageUrl !== candidate!.sourcePageUrl || variant.credit !== candidate!.credit || variant.id !== digest(variant.bytes)) throw new Error('liv_media_source_invalid');
+          selectedSourceHash = candidate!.id;
+          candidate = variant; original = variant.bytes;
+          meta = await sharp(original, { limitInputPixels: 80_000_000 }).metadata();
+        }
+      }
       if (!['jpeg', 'png', 'webp'].includes(meta.format || '') || (meta.pages ?? 1) !== 1 || !meta.width || !meta.height ||
           meta.width < 800 || meta.height < 500) throw new Error('liv_media_source_invalid');
       const heroDimensions = mode === 'photography' ? chooseLivHeroDimensions(meta.width, meta.height, meta.orientation) : { width: 1920, height: 1080 };
@@ -150,7 +162,7 @@ export async function prepareLivAutomaticMedia(article: GeneratedArticle, option
         caption: mode === 'illustration' ? `AI-illustration: ${image.caption}` : image.caption,
         credit: mode === 'illustration' ? 'Illustration: Apropos Magazine / AI' : candidate!.credit,
         sourceUrl: candidate?.url || null, sourcePageUrl: candidate?.sourcePageUrl || null,
-        sourceHash: digest(original), kind: mode };
+        sourceHash: digest(original), kind: mode, ...(selectedSourceHash ? {selectedSourceHash} : {}) };
       await deps.record(jobId, role, { evidence });
       return { evidence, bytes: encoded.data };
     }));

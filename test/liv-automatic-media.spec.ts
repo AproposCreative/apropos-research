@@ -28,6 +28,25 @@ beforeEach(() => {
   };
 });
 describe('automatic Liv media', () => {
+  it('uses a larger exact source rendition for an undersized hero and resumes its original selection without new calls', async () => {
+    const candidates = await Promise.all(originals.map(async (bytes,i) => {
+      const data = i ? bytes : await sharp(bytes).resize(990,557).jpeg().toBuffer();
+      return {id:hash(data),bytes:data,url:`https://press.test/${i}.jpg`,sourcePageUrl:'https://press.test/review',credit:'Foto: Prime Video'};
+    }));
+    vi.mocked(deps.candidates).mockResolvedValue(candidates);
+    vi.mocked(deps.plan).mockResolvedValue({images:plan.images.map((p,i)=>({...p,candidateId:candidates[i].id}))});
+    deps.heroVariant=vi.fn(async()=>({...candidates[0],id:hash(originals[0]),url:'https://press.test/full.jpg',bytes:originals[0]}));
+    const input={...article,section:'Film'};
+    const result=await prepareLivAutomaticMedia(input,{dayKey:'2026-09-20'},deps);
+    expect(result.preparedMedia![0]).toMatchObject({selectedSourceHash:candidates[0].id,sourceHash:hash(originals[0]),sourceUrl:'https://press.test/full.jpg'});
+    const stores=vi.mocked(deps.store).mock.calls;
+    deps.resume=vi.fn(async()=>result.preparedMedia!.map(evidence=>({evidence,bytes:stores.find(c=>c[1]===evidence.role)![2]})));
+    vi.mocked(deps.store).mockClear(); vi.mocked(deps.heroVariant).mockClear();
+    const resumed=await prepareLivAutomaticMedia(input,{dayKey:'2026-09-20'},deps);
+    expect(resumed.preparedMedia).toEqual(result.preparedMedia);
+    expect(deps.heroVariant).not.toHaveBeenCalled(); expect(deps.store).not.toHaveBeenCalled();
+    expect(deps.generate).not.toHaveBeenCalled();
+  });
   it('keeps native official 1200px photography without upscaling or misreporting selected dimensions', async () => {
     const candidates = await Promise.all(originals.map(async (bytes, i) => ({ id: String(i),
       url: `https://press.test/${i}.jpg`, sourcePageUrl: 'https://www.netflix.com/tudum/articles/the-gentlemen',

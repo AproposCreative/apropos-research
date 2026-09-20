@@ -5,7 +5,7 @@ import { getOpenAIClient } from '@/lib/openai';
 import { livModels } from '@/lib/liv/model-config';
 import { livImageArticleHash } from '@/lib/liv/article-image-hash';
 import { readPublicMedia } from '@/lib/liv/public-media-reader';
-import { extractLivPhotoCredit, isLivOfficialImageSource, isLivSyndicatedPressPage, extractLivSyndicatedPressPhotos, isLivTudumSource, extractLivTudumPhotos, isLivAmazonEditorialSource, extractLivAmazonPhotos } from '@/lib/liv/photo-credit';
+import { extractLivPhotoCredit, isLivOfficialImageSource, isLivSyndicatedPressPage, extractLivSyndicatedPressPhotos, isLivTudumSource, extractLivTudumPhotos, isLivAmazonEditorialSource, extractLivAmazonPhotos, livSyndicatedHeroVariant } from '@/lib/liv/photo-credit';
 import type { MediaCandidate, MediaDependencies, MediaEvidence, MediaStyle, StoredMedia } from '@/lib/liv/automatic-media';
 import type { GeneratedArticle } from '@/lib/liv/generate-article';
 import { getLivCostPretransportError } from './cost-errors';
@@ -235,12 +235,23 @@ export function livMediaRuntime(deadline = Date.now() + 180_000): MediaDependenc
         const evidence = savedStages[role].evidence as MediaEvidence;
         const original = savedStages[`${role}-call`]?.original;
         if (evidence.role !== role || !/^[a-f0-9]{64}$/.test(evidence.sourceHash) ||
+            (evidence.selectedSourceHash && (role !== 'hero' || evidence.kind !== 'photography' ||
+              !/^[a-f0-9]{64}$/.test(evidence.selectedSourceHash) ||
+              (savedStages.plan?.plan as {images?: Array<{candidateId?:string}>})?.images?.[0]?.candidateId !== evidence.selectedSourceHash)) ||
             (original && evidence.sourceHash !== original.contentHash) ||
             (role === 'hero' && !isLivHeroDimensions(evidence)) ||
             evidence.bytes > 450 * 1024 || !evidence.credit?.trim() ||
             (evidence.kind === 'photography' && (!evidence.sourceUrl || !evidence.sourcePageUrl))) throw new Error('liv_media_saved_evidence_invalid');
         return { evidence, bytes: await restore(id, role, evidence) };
       }));
+    },
+    async heroVariant(candidate) {
+      if (!isLivSyndicatedPressPage(candidate.sourcePageUrl)) return null;
+      const html = (await readPublicMedia(candidate.sourcePageUrl, 'html', timeout(8000))).toString('utf8');
+      const variant = livSyndicatedHeroVariant(html, candidate.sourcePageUrl, candidate.url);
+      if (!variant || variant.credit !== candidate.credit) return null;
+      const bytes = await readPublicMedia(variant.url, 'image', timeout(8000));
+      return {id:hash(bytes), ...variant, sourcePageUrl:candidate.sourcePageUrl, bytes};
     },
     async candidates(article) {
       const suggestions = (article.imageSuggestions || []).filter(image => isLivOfficialImageSource(image.sourcePageUrl || '')).slice(0, 8);

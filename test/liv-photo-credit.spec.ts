@@ -1,8 +1,19 @@
 import { afterEach, expect, it, vi } from 'vitest';
-import { extractLivPhotoCredit, isLivOfficialImageSource, extractLivTudumPhotos, isLivTudumSource, LIV_TUDUM_HTML_MAX_BYTES, extractLivAmazonPhotos, isLivAmazonEditorialSource, extractLivSyndicatedPressPhotos } from '@/lib/liv/photo-credit';
+import { extractLivPhotoCredit, isLivOfficialImageSource, extractLivTudumPhotos, isLivTudumSource, LIV_TUDUM_HTML_MAX_BYTES, extractLivAmazonPhotos, isLivAmazonEditorialSource, extractLivSyndicatedPressPhotos, livSyndicatedHeroVariant } from '@/lib/liv/photo-credit';
 import { extractCandidateImagesFromHtml } from '@/lib/liv/fetch-official-images';
 const page = 'https://press.example.com/film';
 afterEach(() => vi.unstubAllEnvs());
+it('uses only an explicitly listed larger rendition of the exact credited photo',()=>{
+ const page='https://www.thewrap.com/creative-content/reviews/reacher/';
+ const base='https://www.thewrap.com/wp-content/uploads/2026/08/reacher.jpg';
+ const selected=base+'?width=990&height=557&fit=bounds';
+ const html=`<figure><img src="${selected}" srcset="${base}?width=1200&height=675&fit=bounds 1200w, ${base} 1280w"><figcaption>Reacher (Prime Video)</figcaption></figure>`;
+ expect(livSyndicatedHeroVariant(html,page,selected)).toEqual({url:base,credit:'Foto: Prime Video'});
+ expect(livSyndicatedHeroVariant(html.replace('srcset=','data-not-srcset='),page,selected)).toBeNull();
+ expect(livSyndicatedHeroVariant(html.replace('(Prime Video)','Getty'),page,selected)).toBeNull();
+ expect(livSyndicatedHeroVariant(html.replaceAll('1280w','800w').replaceAll('1200w','700w'),page,selected)).toBeNull();
+ expect(livSyndicatedHeroVariant(html.replace(`srcset="${base}`, 'srcset="https://evil.test/other.jpg').replace(`${base} 1280w`,base+'?token=secret 1280w'),page,selected)).toBeNull();
+});
 it('discovers only exact Amazon editorial images, preserving supplied credit and marking absent photographers',()=>{
  const source='https://www.aboutamazon.com/news/entertainment/reacher';
  const html='<div class="contentItem-role-image"><div class="image"><img src="https://assets.aboutamazon.com/one.jpg"><span class="image-caption">Photo: Actual Name / Prime Video</span></div></div>'+
