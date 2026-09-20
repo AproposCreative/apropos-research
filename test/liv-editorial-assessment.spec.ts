@@ -71,6 +71,23 @@ beforeEach(() => {
 });
 afterEach(() => { vi.useRealTimers(); vi.unstubAllEnvs(); vi.unstubAllGlobals(); });
 
+it('retries one failed public source read before making the single assessment call', async () => {
+  state.retrieve.mockRejectedValueOnce(new Error('temporary source timeout'));
+  const report = await assessLivEditorialArticle(claim, urls);
+  expect(report.complete).toBe(true);
+  expect(state.retrieve).toHaveBeenCalledTimes(3);
+  expect(state.create).toHaveBeenCalledOnce();
+});
+it('does not buy a partial assessment or imply factual defects when one of three saved sources remains unavailable', async () => {
+  const original = state.retrieve.getMockImplementation()!;
+  state.retrieve.mockImplementation(async (url, id) => id === 's3' ? Promise.reject(new Error('unavailable')) : original(url, id));
+  const report = await assessLivEditorialArticle(claim, [...urls, 'https://third.example/news']);
+  expect(report).toMatchObject({ complete: false, diagnostic: { code: 'source_retrieval_incomplete' } });
+  expect(state.retrieve).toHaveBeenCalledTimes(4);
+  expect(state.create).not.toHaveBeenCalled();
+  expect(state.rows.size).toBe(0);
+});
+
 const visible = 'To mænd går side om side på en vinterlig bygade.';
 const visualReference = { runId: 'prepare-2026-09-15', checkpointHash: 'b'.repeat(64) };
 function visualFixture() {
@@ -220,7 +237,7 @@ it.each(['unchanged', 'title', 'seo', 'body', 'source-text', 'source-url', 'voic
       sourceUrls: kind === 'source-url' ? [urls[0], 'https://third.example/news'] : urls });
     expect(second.pass).toBe(kind !== 'unavailable-source');
     expect(fetchMock).toHaveBeenCalledTimes(4);
-    expect(state.retrieve).toHaveBeenCalledTimes(4);
+    expect(state.retrieve).toHaveBeenCalledTimes(kind === 'unavailable-source' ? 6 : 4);
     expect(state.create).toHaveBeenCalledTimes(['unchanged', 'unavailable-source'].includes(kind) ? 1 : 2);
     expect(priorFactcheck).toEqual(saved);
   });
@@ -302,9 +319,9 @@ it.each(['text', 'source-text', 'source-date', 'model', 'day'])('invalidates cac
 it.each(['undated', 'one-host', 'failed-retrieval'])('cannot approve or call a model without two actually dated hosts: %s', async kind => {
   if (kind === 'undated') state.retrieve.mockImplementation(async (url: string, id: string) => ({ id, url,
     title: 'Context', text: claim.repeat(8), contentHash: 'a'.repeat(64), publishedAt: null, retrievedAt: new Date().toISOString() }));
-  if (kind === 'failed-retrieval') state.retrieve.mockRejectedValueOnce(new Error('unavailable'));
+  if (kind === 'failed-retrieval') state.retrieve.mockRejectedValue(new Error('unavailable'));
   const result = await assessLivEditorialArticle(claim, kind === 'one-host' ? [urls[0], `${urls[0]}/other`] : urls);
-  expect(result).toMatchObject({ complete: false, diagnostic: { code: 'insufficient_dated_sources' } });
+  expect(result).toMatchObject({ complete: false, diagnostic: { code: kind === 'failed-retrieval' ? 'source_retrieval_incomplete' : 'insufficient_dated_sources' } });
   expect(state.create).not.toHaveBeenCalled();
 });
 

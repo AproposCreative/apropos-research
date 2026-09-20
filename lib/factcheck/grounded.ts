@@ -70,7 +70,7 @@ export interface GroundedReport {
   coverage: { expectedUnits: number; checkedUnits: number };
   results: { claim: string; status: string; evidence: string; validationErrors?: string[]; citations: { sourceId: string; url: string; quote: string }[] }[];
   sources: Omit<RetrievedSource, 'text'>[];
-  diagnostic?: { code: 'insufficient_dated_sources' | 'model_response_incomplete' | 'model_response_invalid_json' | 'model_response_invalid_schema' };
+  diagnostic?: { code: 'source_retrieval_incomplete' | 'insufficient_dated_sources' | 'model_response_incomplete' | 'model_response_invalid_json' | 'model_response_invalid_schema' };
 }
 
 const normalize = (text: string) => text.replace(/\s+/gu, ' ').trim();

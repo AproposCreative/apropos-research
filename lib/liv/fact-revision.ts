@@ -96,6 +96,18 @@ export function applyLivFactPatches(article: GeneratedArticle, value: unknown): 
  * recovers a completed result if the article checkpoint write was interrupted. */
 export async function resumeLivFactRevision(article: GeneratedArticle, priorDiagnostic?: GroundedReport, options: LivRevisionOptions = {}): Promise<GeneratedArticle | null> {
   if ((article.factRevisionCount ?? (article.factRevisionId ? 1 : 0)) >= 2) return null;
+  if (usableFactDiagnostic(article, priorDiagnostic) && priorDiagnostic.sources.length > 0) {
+    const checkedUrls = new Set(priorDiagnostic.sources.map(source => source.url));
+    const missingSavedSource = (article.researchSources || []).some(source => {
+      try { const url = new URL(source.url); url.hash = ''; return !checkedUrls.has(url.href); }
+      catch { return false; }
+    });
+    // Legacy assessments sometimes continued after a failed source fetch.
+    // Keep their reports and paid correction output untouched, but re-enter
+    // normal gates with complete evidence instead of applying that correction.
+    // The assessment now refuses a paid call if retrieval is still incomplete.
+    if (missingSavedSource) return null;
+  }
   const db = getAdminDb();
   if (!db) throw new Error('liv_fact_revision_unavailable');
   const id = hash(`liv-fact-revision-v1:${hash(JSON.stringify(article))}`);

@@ -43,8 +43,19 @@ export async function assessLivEditorialArticle(articleText: string, sourceUrls:
   const sources: RetrievedSource[] = [];
   for (let start = 0; start < urls.length; start += 4) {
     const fetched = await Promise.allSettled(urls.slice(start, start + 4)
-      .map((url, offset) => retrieveSource(url, `s${start + offset + 1}`)));
+      .map(async (url, offset) => {
+        const id = `s${start + offset + 1}`;
+        try { return await retrieveSource(url, id); }
+        catch { return retrieveSource(url, id); } // One bounded public read retry, never a model retry.
+      }));
     for (const item of fetched) if (item.status === 'fulfilled') sources.push(item.value);
+  }
+  if (sources.length !== urls.length) {
+    // A temporarily missing source is not evidence that its facts need a paid
+    // rewrite. Preserve the article and fail before buying an incomplete check.
+    return { ...assessGroundedReport(input.articleText, sources, null, Date.now(), {
+      code: 'source_retrieval_incomplete', message: 'En eller flere gemte kilder kunne ikke hentes. Ingen model blev kaldt; artiklen er bevaret.',
+    }), ...contextProof };
   }
   if (new Set(sources.filter(source => source.publishedAt).map(source =>
     new URL(source.url).hostname.replace(/^www\./, ''))).size < 2) {

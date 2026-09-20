@@ -88,6 +88,16 @@ it('archives one provider result and replays the same saved revision without a s
   expect(await repairLivArticleFacts(a, report(a))).toEqual(b);
   expect(state.calls).toHaveBeenCalledTimes(1);
 });
+it('preserves a legacy partial-source correction and requests normal complete-evidence gates instead', async () => {
+  const a = article(), diagnostic = report(a);
+  diagnostic.sources = [{ url: a.researchSources![0].url }];
+  const id = createHash('sha256').update(`liv-fact-revision-v1:${createHash('sha256').update(JSON.stringify(a)).digest('hex')}`).digest('hex');
+  const saved = { status: 'failed', previous: a, rawResponse: 'paid correction based on incomplete evidence', report: diagnostic };
+  state.rows.set(id, structuredClone(saved));
+  expect(await resumeLivFactRevision(a, diagnostic)).toBeNull();
+  expect(state.rows.get(id)).toEqual(saved);
+  expect(state.calls).not.toHaveBeenCalled(); expect(state.retrieve).not.toHaveBeenCalled();
+});
 it.each(['other-version', 'second-attempt', 'incomplete-coverage'])('refuses %s before any paid call', async kind => {
   const a = article(); const r = report(a);
   if (kind === 'other-version') r.articleHash = 'old';
