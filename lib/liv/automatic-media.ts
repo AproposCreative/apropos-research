@@ -26,6 +26,8 @@ export type MediaDependencies = {
   generate: (prompt: string, jobId: string, role: string) => Promise<Buffer>;
   store: (jobId: string, role: string, bytes: Buffer) => Promise<StoredMedia>;
   review: (article: GeneratedArticle, mode: MediaMode, images: Array<{ bytes: Buffer; alt: string; caption: string }>, jobId: string) => Promise<boolean>;
+  /** One durable label-only correction and independent review; never new pixels. */
+  repairDescriptions?: (article: GeneratedArticle, images: Buffer[], jobId: string) => Promise<GeneratedArticle>;
   complete: (jobId: string, article: GeneratedArticle) => Promise<void>;
   fail: (jobId: string) => Promise<void>;
 };
@@ -158,15 +160,18 @@ export async function prepareLivAutomaticMedia(article: GeneratedArticle, option
         new Set(prepared.map(item => item.evidence.contentHash)).size !== 3) throw new Error('liv_media_duplicate');
     const approved = await deps.review(article, mode, prepared.map(item => ({ bytes: item.bytes,
       alt: item.evidence.alt, caption: item.evidence.caption })), jobId);
-    if (!approved) throw new Error('liv_media_visual_check_failed');
     const media = prepared.map(item => item.evidence);
-    const result: GeneratedArticle = { ...article, content: insertLivBodyMedia(article.content, media), preparedMedia: media };
+    let result: GeneratedArticle = { ...article, content: insertLivBodyMedia(article.content, media), preparedMedia: media };
     const hero = media[0];
     if (!isLivHeroDimensions(hero)) throw new Error('liv_media_saved_evidence_invalid');
     result.selectedImage = { id: `${jobId}-hero`, articleHash: livImageArticleHash(result), url: hero.url,
       storagePath: hero.storagePath, sourceUrl: hero.sourceUrl || hero.url, sourcePageUrl: hero.sourcePageUrl,
       contentHash: hero.contentHash, sourceHash: hero.sourceHash, ...({ width: hero.width, height: hero.height } as import('./hero-dimensions').LivHeroDimensions), bytes: hero.bytes,
       alt: hero.alt, credit: hero.credit, createdAt: new Date().toISOString(), rightsStatus: 'unverified', visualReview: 'automated' };
+    if (!approved) {
+      if (!deps.repairDescriptions) throw new Error('liv_media_visual_check_failed');
+      result = await deps.repairDescriptions(result, prepared.map(item => item.bytes), jobId);
+    }
     await deps.complete(jobId, result);
     return result;
   } catch (error) {

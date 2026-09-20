@@ -424,6 +424,65 @@ it('does not repeat a completed rejection or an approval bound to the exact revi
   expect(await third.review(article, 'illustration', images, id)).toBe(false);
   expect(mocks.chat).toHaveBeenCalledTimes(1);
 });
+const labelInput = { ...article, section: 'Kunst', content: '<p>Først.</p><p>Dernæst.</p><p>Til sidst.</p>' };
+const responseJson = (result: unknown) => ({ choices: [{ finish_reason: 'stop', message: { content: JSON.stringify(result) } }] });
+async function prepareLabelRepair() {
+  for (const background of ['#ff3388', '#2244cc', '#ffee00']) {
+    const bytes = await sharp({ create: { width: 1000, height: 600, channels: 3, background } }).png().toBuffer();
+    mocks.generate.mockResolvedValueOnce({ data: [{ b64_json: bytes.toString('base64') }] });
+  }
+  mocks.chat.mockResolvedValueOnce(responseJson(savedPlan));
+  mocks.chat.mockResolvedValueOnce(responseJson({ pass: false, reason: 'Kun alt-teksten beskriver motivet forkert.' }));
+}
+const labelCorrection = () => ({ fixable: true, corrections: [{ role: 'body-1',
+  alt: 'En scene med trommer og et kabel i forgrunden.', caption: `AI-illustration: ${savedPlan.images[1].caption}` }] });
+it('repairs labels once and independently approves unchanged pixels while preserving the rejection and original metadata', async () => {
+  await prepareLabelRepair();
+  mocks.chat.mockResolvedValueOnce(responseJson(labelCorrection()));
+  mocks.chat.mockResolvedValueOnce(responseJson({ pass: true }));
+  const result = await prepareLivAutomaticMedia(labelInput, { dayKey: '2026-09-12' }, livMediaRuntime());
+  expect(mocks.generate).toHaveBeenCalledTimes(3);
+  expect(mocks.chat).toHaveBeenCalledTimes(4);
+  expect(mocks.stageRows['visual-review'].result.pass).toBe(false);
+  expect(mocks.stageRows['body-1'].evidence.alt).toBe(savedPlan.images[1].alt);
+  expect(result.preparedMedia![1].alt).toBe(labelCorrection().corrections[0].alt);
+  expect(result.selectedImage!.articleHash).toBe(livImageArticleHash(result));
+  expect(result.content).toContain(labelCorrection().corrections[0].alt);
+  for (const entry of result.preparedMedia!) {
+    const original = mocks.stageRows[entry.role].evidence;
+    expect(entry.contentHash).toBe(original.contentHash);
+    expect(entry.url).toBe(original.url);
+    expect(entry.credit).toBe(original.credit);
+  }
+  const cached = await prepareLivAutomaticMedia(labelInput, { dayKey: '2026-09-12' }, livMediaRuntime());
+  expect(cached).toEqual(result);
+  expect(mocks.chat).toHaveBeenCalledTimes(4);
+});
+it.each(['unfixable', 'rejected', 'invalid', 'timeout'])('never buys another label repair after %s', async kind => {
+  await prepareLabelRepair();
+  if (kind === 'timeout') mocks.chat.mockRejectedValueOnce(new Error('timeout'));
+  else if (kind === 'invalid') mocks.chat.mockResolvedValueOnce(responseJson({ fixable: true, corrections: [] }));
+  else mocks.chat.mockResolvedValueOnce(responseJson(kind === 'unfixable' ? { fixable: false } : labelCorrection()));
+  if (kind === 'rejected') mocks.chat.mockResolvedValueOnce(responseJson({ pass: false }));
+  await expect(prepareLivAutomaticMedia(labelInput, { dayKey: '2026-09-12' }, livMediaRuntime())).rejects.toThrow('liv_media_');
+  const calls = mocks.chat.mock.calls.length;
+  const before = structuredClone(mocks.stageRows);
+  await expect(prepareLivAutomaticMedia(labelInput, { dayKey: '2026-09-12' }, livMediaRuntime())).rejects.toThrow('liv_media_');
+  expect(mocks.chat).toHaveBeenCalledTimes(calls);
+  expect(mocks.generate).toHaveBeenCalledTimes(3);
+  expect(mocks.stageRows['visual-review']).toEqual(before['visual-review']);
+  expect(mocks.row.status).toBe('failed');
+});
+it('reuses the saved label correction but never repeats an uncertain independent review', async () => {
+  await prepareLabelRepair();
+  mocks.chat.mockResolvedValueOnce(responseJson(labelCorrection()));
+  mocks.chat.mockRejectedValueOnce(new Error('timeout'));
+  await expect(prepareLivAutomaticMedia(labelInput, { dayKey: '2026-09-12' }, livMediaRuntime())).rejects.toThrow('liv_media_');
+  expect(mocks.stageRows['description-correction'].status).toBe('complete');
+  await expect(prepareLivAutomaticMedia(labelInput, { dayKey: '2026-09-12' }, livMediaRuntime())).rejects.toThrow('liv_media_');
+  expect(mocks.chat).toHaveBeenCalledTimes(4);
+  expect(mocks.generate).toHaveBeenCalledTimes(3);
+});
 it.each(['plan-call', 'hero-call', 'body-1-call', 'body-2-call', 'visual-review'])('saves exact unpaid %s evidence and archives it on guarded resumption', async stage => {
   const first = livMediaRuntime();
   await first.claim(id, article, 'illustration', 'expressive');
