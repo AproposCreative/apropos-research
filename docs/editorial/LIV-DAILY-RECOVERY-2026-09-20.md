@@ -6,6 +6,7 @@
 - Publication starts only 10:00–19:59 local time. Cron runs every five minutes; uncertain prior publication is read back outside that window too.
 - Saved stages resume without consuming an attempt. Known article defects permit at most two targeted corrections; legacy attempts remain recorded.
 - Transient pre-writing trending errors permit two retries after 5/15 minutes. Unknown provider outcomes never trigger blind rebilling.
+- A genuinely empty topic lookup before writing remains on the same identity and checks the source bank every 15 minutes without AI calls. It does not consume an alternative or a paid transport retry; source-check counts remain recorded.
 - Budget/configuration failure is not permission to bypass limits. CMS uncertainty blocks replacement until reconciled.
 - Exhausted dates no longer starve tomorrow. Historical dates are not republished or backdated.
 - The same pure decision and read-only candidate selection drive the worker and authenticated UI.

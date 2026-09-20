@@ -37,14 +37,24 @@ it('never uses an alternative to bypass a cost stop', async () => {
   expect((await nextScheduledPreparation(emptyDeliveryState(), read, now))?.decision).toMatchObject({ action: 'blocked', reasonCode: 'budget_limit' });
   expect(read).toHaveBeenCalledTimes(1);
 });
-it('uses one separate alternative for old no-topic/evidence failures and preserves rows', async () => {
-  for (const row of [{ status: 'skipped_no_topic', preparationAttempts: 3 },
+it('uses one separate alternative for saved-work/evidence failures and preserves rows', async () => {
+  for (const row of [{ status: 'skipped_no_topic', preparationAttempts: 3, articleCheckpoint: {} },
     { status: 'failed', reason: 'article_evidence_insufficient', preparationAttempts: 3 }]) {
     const before = structuredClone(row);
     const result = await nextScheduledPreparation(emptyDeliveryState(), async (_d, s) => s === 'prepare' ? row : undefined, now);
     expect(result).toMatchObject({ dayKey: '2026-09-20', scope: 'prepare-alternative', decision: { action: 'start' } });
     expect(row).toEqual(before);
   }
+});
+it('rechecks an empty bank without consuming the alternative or paid retry allowance', async () => {
+  const row = { status: 'skipped_no_topic', preparationAttempts: 3, completedAt: +now };
+  expect(decidePreparation(row, +now)).toMatchObject({ action: 'wait', nextAttemptAt: +now + 900000 });
+  const decision = decidePreparation(row, +now + 900000);
+  expect(decision.action).toBe('retry');
+  expect(claimedRecovery(row, decision)).toMatchObject({ sourceChecks: 1, retries: 0, legacyAttempts: 3 });
+  expect(await nextScheduledPreparation(emptyDeliveryState(), async () => row, new Date(+now + 900000)))
+    .toMatchObject({ scope: 'prepare', decision: { action: 'retry' } });
+  expect(decidePreparation({ ...row, resumeWritingRunId: 'paid' }, +now + 900000).action).toBe('alternative');
 });
 it('goes on to tomorrow after both candidates fail, never creates a third today', async () => {
   const read = vi.fn(async (d: string) => d === '2026-09-20' ? { status: 'failed' } : undefined);

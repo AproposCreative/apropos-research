@@ -32,11 +32,12 @@ it('starts just one bounded job for an empty queue', async () => {
 it('does not let a legacy pre-generation no-topic record permanently block tomorrow', async () => {
   mocks.rows.set('prepare-2026-09-12', { status: 'skipped_no_topic', preparationAttempts: 3 });
   await GET(request()); expect(mocks.run).toHaveBeenCalledTimes(1);
-  expect(mocks.run).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ scope: 'prepare-alternative' }));
+  expect(mocks.run).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ dayKey: '2026-09-12', kind: 'scheduled' }));
+  expect(mocks.run.mock.calls[0][1].scope).toBeUndefined();
 });
 it.each([
   { status: 'skipped_no_topic', articleCheckpoint: { title: 'Saved work' } },
-  { status: 'skipped_no_topic', preparationAttempts: 3 },
+  { status: 'skipped_no_topic', preparationAttempts: 3, resumeWritingRunId: 'paid-writing' },
   { status: 'failed', webflowItemId: 'known-item' },
   { status: 'skipped_factcheck' },
 ])('does not regenerate preserved or terminal work: %j', async row => {

@@ -33,6 +33,14 @@ export function decidePreparation(row?: Record<string, any>, now = Date.now()): 
   const reason = typeof row.reason === 'string' ? row.reason.split(':', 1)[0].trim() : '';
   if (/^liv_cost_/.test(reason)) return decision('blocked', 'budget_limit');
   if (/http_(401|403)$|authentication|configuration_missing/.test(reason)) return decision('blocked', 'authentication_required');
+  // An empty, deterministic topic lookup has bought no article. Keep the same
+  // candidate and poll the refreshed bank at most every 15 minutes, including
+  // legacy jobs. Never apply this to saved or uncertain writing operations.
+  if (row.status === 'skipped_no_topic' && !row.articleCheckpoint && !row.resumeWritingRunId && !row.topic) {
+    const finished = timestampMillis(row.completedAt ?? row.updatedAt);
+    const at = Number.isFinite(finished) ? finished + 15 * 60_000 : now;
+    return decision(at > now ? 'wait' : 'retry', 'source_retry_scheduled', at);
+  }
   const recovery = row.recovery?.version === PREPARATION_POLICY_VERSION ? row.recovery : {};
   if (row.articleCheckpoint && (reason === 'liv_preparation_structure_failed' || reason === 'liv_fact_revision_not_applicable' || row.status === 'skipped_factcheck') &&
       Number(row.articleCheckpoint.factRevisionCount ?? (row.articleCheckpoint.factRevisionId ? 1 : 0)) < 2 &&
@@ -60,6 +68,7 @@ export function claimedRecovery(row: Record<string, any> | undefined, d: Prepara
     legacyAttempts: prior.legacyAttempts ?? row?.preparationAttempts ?? 0,
     legacyReason: prior.legacyReason ?? (typeof row?.reason === 'string' ? row.reason.slice(0, 1000) : null),
     repairs: Number(prior.repairs ?? 0) + Number(d.action === 'repair'),
-    retries: Number(prior.retries ?? 0) + Number(d.action === 'retry'),
+    retries: Number(prior.retries ?? 0) + Number(d.action === 'retry' && row?.status !== 'skipped_no_topic'),
+    sourceChecks: Number(prior.sourceChecks ?? 0) + Number(d.action === 'retry' && row?.status === 'skipped_no_topic'),
     stage: d.stage, nextAction: d.action, nextAttemptAt: null };
 }
