@@ -21,8 +21,10 @@ export async function POST(req:NextRequest){
   if(input.dayKey!==copenhagenClock().day)throw Error();input.urls.forEach(u=>sourceUrl(u));
  }catch{return json({error:'liv_sources_invalid'},400);}
  let lease:string|null=null;
+ let stage='lease';
  try{
   lease=await claimPreparation();if(!lease)return json({error:'already_preparing'},409);
+  stage='checkpoint';
   const db=getAdminDb();if(!db)throw Error();
   const run=db.collection('livDailyArticles').doc(`reserve-editorial-${input.dayKey}`),audit=run.collection('sourceSupplements').doc(input.requestId);
   const previous=(await audit.get()).data();
@@ -33,9 +35,11 @@ export async function POST(req:NextRequest){
     snapshot.webflowItemId || snapshot.preparationProof || snapshot.cmsSaveStarted)throw Error();
   const existing=article.researchSources || [],urls=[...new Set(input.urls.map(u=>sourceUrl(u).href))];
   if(existing.length+urls.length>8 || urls.some(u=>existing.some((s:{url:string})=>s.url===u)))throw Error();
+  stage='source_retrieval';
   const sources=await Promise.all(urls.map((u,i)=>retrieveSource(u,`operator-${i+1}`)));
   const revised={...article,researchSources:[...existing,...sources.map(s=>({url:s.url,title:s.title,source:new URL(s.url).hostname,
     snippet:s.text.slice(0,240),contentHash:s.contentHash,retrievedAt:s.retrievedAt,publishedAt:s.publishedAt}))]};
+  stage='transaction';
   await db.runTransaction(async tx=>{
    const current=(await tx.get(run)).data(),state=(await tx.get(db.collection('livDelivery').doc('manifest'))).data();
    const prior=await tx.get(audit);
@@ -44,6 +48,9 @@ export async function POST(req:NextRequest){
    tx.update(run,{articleCheckpoint:revised,articleCheckpointHash:livImageArticleHash(revised)});
   });
   return json({status:'sources_added',count:sources.length,checkpointHash:cmsFieldHash(revised)});
- }catch{return json({error:'liv_sources_conflict_or_unavailable'},409);}
+ }catch{
+  console.error(JSON.stringify({event:'liv_source_supplement_failed',stage,requestId:input.requestId}));
+  return json({error:'liv_sources_conflict_or_unavailable',stage},409);
+ }
  finally{if(lease)await releasePreparation(lease).catch(()=>{});}
 }
