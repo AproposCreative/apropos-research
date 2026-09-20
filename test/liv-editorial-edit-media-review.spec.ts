@@ -112,6 +112,38 @@ it('hands off actual reviewed ALT observations, not interpretive captions, with 
   expect([...state.rows]).toEqual(before);
 });
 
+async function automaticCheckpoint(){
+ const {approved}=await photographicCheckpoint();
+ delete approved.selectedImage!.editorialEdit;
+ const hash='c'.repeat(64),mode='photography',style='expressive';
+ const jobId=createHash('sha256').update(JSON.stringify(['liv-media-v1',day,hash,mode,style])).digest('hex');
+ approved.selectedImage!.id=`${jobId}-hero`;
+ const id=`reserve-editorial-${day}`;
+ state.rows.set(`livDailyArticles/${id}`,{articleCheckpoint:approved,articleCheckpointHash:livImageArticleHash(approved)});
+ const jobPath=`livMediaJobs/${jobId}`;
+ state.rows.set(jobPath,{status:'complete',mode,style,articleInputHash:hash,article:structuredClone(approved)});
+ state.rows.set(`${jobPath}/stages/visual-review`,{status:'complete',updatedAt:new Date().toISOString(),result:{pass:true}});
+ for(const m of approved.preparedMedia!)state.rows.set(`${jobPath}/stages/${m.role}`,{evidence:structuredClone(m)});
+ const fields={title:approved.title,subtitle:approved.subtitle,excerpt:approved.excerpt,intro:approved.intro,content:approved.content};
+ state.chat.mockClear();state.writes.mockClear();state.read.mockClear();
+ return {approved,jobPath,fields,text:Object.values(fields).filter(Boolean).join('\n\n'),reference:{runId:id,checkpointHash:fullHash(approved)}};
+}
+it('hands automatic photography pixels and exact scoped labels to independent final verification without new generation',async()=>{
+ const f=await automaticCheckpoint();const sources=await readLivVisualEvidence(f.reference,f.text,f.fields);
+ expect(sources).toHaveLength(4);expect(sources.every(s=>s.imageDataUrl?.startsWith('data:image/jpeg;base64,') && s.publishedAt===null)).toBe(true);
+ expect(state.chat).not.toHaveBeenCalled();expect(state.writes).not.toHaveBeenCalled();
+});
+it.each(['receipt','caption','stage','pixels','title','job'])('rejects untrusted automatic visual evidence: %s',async failure=>{
+ const f=await automaticCheckpoint();
+ if(failure==='receipt')state.rows.get(`${f.jobPath}/stages/visual-review`).result.pass=false;
+ if(failure==='caption')state.rows.get(f.jobPath).article.preparedMedia[1].caption='Changed';
+ if(failure==='stage')state.rows.get(`${f.jobPath}/stages/body-1`).evidence.contentHash='a'.repeat(64);
+ if(failure==='pixels')state.read.mockResolvedValue(Buffer.from('changed'));
+ if(failure==='title')state.rows.get(f.jobPath).article.title='Another subject';
+ if(failure==='job')state.rows.get(f.jobPath).status='processing';
+ await expect(readLivVisualEvidence(f.reference,f.text,f.fields)).rejects.toThrow();expect(state.chat).not.toHaveBeenCalled();
+});
+
 it.each(['missing', 'processing', 'refused', 'failed', 'receipt-hash', 'audit-hash', 'future', 'pixels', 'article', 'fields', 'client-pass'])(
   'rejects invalid visual handoff %s without paid calls or writes', async failure => {
     const { fields, text, reference } = await photographicCheckpoint();

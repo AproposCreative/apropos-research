@@ -10,14 +10,16 @@ import { livImageArticleHash } from './article-image-hash';
 import { livEditorialFieldContext, type LivEditorialFields } from './editorial-assessment-contract';
 import { reviewLivEditorialEditMedia } from './editorial-edit-media-review';
 import { readLivStoredImage } from './stored-image-reader';
+import sharp from 'sharp';
 
 export const livVisualReferenceSchema = z.object({
-  runId: z.string().regex(/^prepare-\d{4}-\d{2}-\d{2}$/),
+  runId: z.string().regex(/^(?:prepare|reserve-editorial)-\d{4}-\d{2}-\d{2}$/),
   checkpointHash: z.string().regex(/^[a-f0-9]{64}$/),
 }).strict();
 export type LivVisualReference = z.infer<typeof livVisualReferenceSchema>;
 export type LivVisualSource = RetrievedSource & {
   evidenceKind: 'verified-image-observation'; receiptHash: string; imageHash: string; unitIds: string[];
+  imageDataUrl?: string;
 };
 const fingerprint = (article: GeneratedArticle) => cmsFieldHash(article as unknown as Record<string, unknown>);
 const fail = (): never => { throw new Error('liv_visual_evidence_invalid'); };
@@ -41,20 +43,42 @@ export async function readLivVisualEvidence(value: unknown, articleText: string,
   const row = (await run.get()).data();
   const article = row?.articleCheckpoint as GeneratedArticle | undefined;
   if (!article || fingerprint(article) !== reference.checkpointHash || row?.articleCheckpointHash !== livImageArticleHash(article) ||
-    article.selectedImage?.visualReview !== 'automated' || article.selectedImage.articleHash !== livImageArticleHash(article) ||
-    article.selectedImage.editorialEdit?.runId !== reference.runId) fail();
+    article.selectedImage?.visualReview !== 'automated' || article.selectedImage.articleHash !== livImageArticleHash(article)) fail();
   const savedFields = { title: article!.title, subtitle: article!.subtitle, excerpt: article!.excerpt,
     seoTitle: article!.seoTitle, seoDescription: article!.seoDescription, ratingReason: article!.ratingReason,
     intro: article!.intro, content: article!.content };
   const context = livEditorialFieldContext(articleText, fields);
   if (livEditorialFieldContext(articleText, savedFields).hash !== context.hash) fail();
+  const automatic = !article!.selectedImage!.editorialEdit;
+  let receipt:Record<string,any>|undefined;
+  if(automatic){
+    const jobId=article!.selectedImage!.id.match(/^([a-f0-9]{64})-hero$/)?.[1];
+    if(!jobId)fail();
+    const ref=db!.collection('livMediaJobs').doc(jobId!);
+    const job=(await ref.get()).data();
+    receipt=(await ref.collection('stages').doc('visual-review').get()).data();
+    const original=job?.article as GeneratedArticle|undefined;
+    const day=reference.runId.slice(-10);
+    if(!job || job.status!=='complete' || job.mode!=='photography' || !original?.selectedImage ||
+      createHash('sha256').update(JSON.stringify(['liv-media-v1',day,job.articleInputHash,job.mode,job.style])).digest('hex')!==jobId ||
+      original.selectedImage.articleHash!==livImageArticleHash(original) || original.title!==article!.title ||
+      cmsFieldHash({media:original.preparedMedia})!==cmsFieldHash({media:article!.preparedMedia}) ||
+      receipt?.status!=='complete' || receipt.result?.pass!==true || !receipt.updatedAt ||
+      !Number.isFinite(Date.parse(receipt.updatedAt)) || Date.parse(receipt.updatedAt)>Date.now()+300000)fail();
+    for(const media of article!.preparedMedia || []){
+      const stage=(await ref.collection('stages').doc(media.role).get()).data();
+      if(!stage?.evidence || cmsFieldHash(stage.evidence)!==cmsFieldHash(media))fail();
+    }
+  }else{
+  if(article!.selectedImage!.editorialEdit!.runId!==reference.runId)fail();
   const day = reference.runId.slice('prepare-'.length);
   // This reuses all existing audit/patch/hash/receipt validation, with paid work disabled.
   if (fingerprint(await reviewLivEditorialEditMedia(article!, day, { readOnly: true })) !== reference.checkpointHash) fail();
   const edit = run.collection('editorialEdits').doc(article!.selectedImage!.editorialEdit!.requestId);
-  const receipt = (await edit.collection('checks').doc('visual-review').get()).data();
+  receipt = (await edit.collection('checks').doc('visual-review').get()).data();
   if (!receipt || receipt.status !== 'complete' || receipt.articleHash !== reference.checkpointHash ||
     !Number.isFinite(Date.parse(receipt.completedAt)) || Date.parse(receipt.completedAt) > Date.now() + 300_000) fail();
+  }
   const receiptHash = cmsFieldHash(receipt!);
   const media = article!.preparedMedia;
   if (media?.length !== 3 || new Set(media.map(image => image.role)).size !== 3 ||
@@ -82,7 +106,7 @@ export async function readLivVisualEvidence(value: unknown, articleText: string,
     const figureStart = contentStart + fragment.index!, figureEnd = figureStart + fragment[0].length;
     for (const field of ['alt', 'caption'] as const) {
       const text = image[field];
-      if (!isAnonymousVisibleCaption(text)) continue;
+      if (!automatic && !isAnonymousVisibleCaption(text)) continue;
       const fieldFragment = fragment[0].match(field === 'alt' ? /<img\b[^>]*>/ : /<figcaption\b[^>]*>[\s\S]*?<\/figcaption>/);
       if (!fieldFragment) fail();
       // Identical words elsewhere in prose cannot borrow a figure's evidence.
@@ -93,10 +117,11 @@ export async function readLivVisualEvidence(value: unknown, articleText: string,
       const start = figureStart + fieldFragment!.index! + literal, end = start + text.length;
       const unitIds = units.filter(unit => start >= unit.start && end <= unit.end && unit.text.includes(text)).map(unit => unit.id);
       if (unitIds.length !== 1) continue; // Cross-unit/escaped ambiguity remains normal text verification.
-      sources.push({ id: `visual-${image.role}-${field}`, url: image.url, title: `Serververificeret anonym billedobservation (${field}, ikke websidetekst)`,
+      sources.push({ id: `visual-${image.role}-${field}`, url: image.url, title: `Serverkontrolleret billedbeskrivelse (${field}, ikke websidetekst)`,
       text, contentHash: cmsFieldHash({ reference, receiptHash, imageHash: image.contentHash, field, text }),
       retrievedAt: new Date().toISOString(), publishedAt: null, evidenceKind: 'verified-image-observation',
-      receiptHash, imageHash: image.contentHash, unitIds });
+      receiptHash, imageHash: image.contentHash, unitIds,
+      ...(automatic ? {imageDataUrl:`data:image/jpeg;base64,${(await sharp(bytes).resize({width:1000,height:1000,fit:'inside',withoutEnlargement:true}).jpeg({quality:80}).toBuffer()).toString('base64')}`} : {}) });
     }
   }
   return sources;

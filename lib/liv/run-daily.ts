@@ -363,8 +363,9 @@ async function runLivDailyOperation(req: NextRequest, preparation?: LivPreparati
       editorialFields: { title: article.title, subtitle: article.subtitle, excerpt: article.excerpt,
         seoTitle: article.seoTitle, seoDescription: article.seoDescription, ratingReason: article.ratingReason,
         intro: article.intro, content: article.content },
-      ...(article.selectedImage?.editorialEdit ? { visualReference: {
-        runId: article.selectedImage.editorialEdit.runId,
+      ...(article.selectedImage?.visualReview === 'automated' && (article.selectedImage.editorialEdit ||
+        (['prepare','reserve-editorial'].includes(scope) && article.preparedMedia?.every(image=>image.kind==='photography'))) ? { visualReference: {
+        runId: article.selectedImage.editorialEdit?.runId || livDailyDocId(dayKey,scope),
         checkpointHash: cmsFieldHash(article as unknown as Record<string, unknown>),
       } } : {}),
       requireCompleteVerification: publicationMode === 'auto_publish' || !!preparation,

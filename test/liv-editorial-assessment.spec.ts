@@ -78,6 +78,14 @@ it('retries one failed public source read before making the single assessment ca
   expect(state.retrieve).toHaveBeenCalledTimes(3);
   expect(state.create).toHaveBeenCalledOnce();
 });
+it('sends exact verified pixels to the final assessor once per unique image, not only proposed captions',async()=>{
+ const fields={title:'Koncert',content:claim};const text=Object.values(fields).join('\n\n');
+ const record={id:'visual-body-1-alt',url:'https://storage.example/a',title:'Image',text:'En person står ved et bord.',contentHash:'a'.repeat(64),retrievedAt:new Date().toISOString(),publishedAt:null,evidenceKind:'verified-image-observation',imageHash:'b'.repeat(64),receiptHash:'c'.repeat(64),unitIds:['u1'],imageDataUrl:'data:image/jpeg;base64,eA=='};
+ state.visual.mockResolvedValue([record,{...record,id:'visual-body-1-caption'}]);
+ state.create.mockImplementation(async req=>{const parts=req.messages[1].content;expect(parts.filter((p:any)=>p.type==='image_url')).toHaveLength(1);expect(parts[2].image_url.url).toBe(record.imageDataUrl);return response(rawFor(text));});
+ await assessLivEditorialArticle(text,urls,fields,{runId:'reserve-editorial-2026-09-12',checkpointHash:'d'.repeat(64)});
+ expect(state.create).toHaveBeenCalledOnce();
+});
 it('does not buy a partial assessment or imply factual defects when one of three saved sources remains unavailable', async () => {
   const original = state.retrieve.getMockImplementation()!;
   state.retrieve.mockImplementation(async (url, id) => id === 's3' ? Promise.reject(new Error('unavailable')) : original(url, id));
