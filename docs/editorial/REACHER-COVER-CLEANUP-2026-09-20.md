@@ -13,6 +13,7 @@ User requested AI removal of all promotional lettering and logos from their supp
 - Public URL: https://www.aproposmagazine.com/articles/anmeldelse-reacher-saeson-4-er-brutal-lettelse
 - Public HTTP 200, correct title, two cover variants and matching Open Graph image verified at `2026-09-20T21:18:51.989Z`.
 - Public image bytes exactly match SHA-256 `1688040748eb28a53aaf8b5c016b18f54a397cfb6c994a528fb162666f887e98`: 1280×720 WebP, 110,022 bytes.
+- Follow-up at `2026-09-20T21:22:11.590Z`: desktop still has that exact hash. The normal mobile optimizer produced a visually checked 1200×675 / 41,998-byte derivative, SHA-256 `126d70eb394e981172d974a093ab6ba402a3377b78515fabb784bcbc4843751b`, also used by the page's Open Graph template. This is resizing/compression, not another cover generation.
 - Cover/mobile alt: “Alan Ritchson som Reacher i rødt og blåt lys.” Credit retained: “Foto: Prime Video”.
 - Operation verifies all non-cover CMS fields unchanged before publishing: prose, body images, metadata, categories and rating remain intact. No unpublish/reset, queue mutation or Instagram operation.
 
