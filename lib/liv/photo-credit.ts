@@ -8,13 +8,14 @@ export function isLivAmazonEditorialSource(value: string): boolean {
   } catch { return false; }
 }
 
-/** Exact images rendered in Amazon's own editorial body/hero. Source attribution
+/** Exact images rendered in Amazon's own editorial body. Source attribution
  * is NOT a photographer credit or a reuse licence. Never include recommendation
  * cards, author portraits, or invent a photographer from the site's byline. */
 export function extractLivAmazonPhotos(html: string, pageUrl: string): Array<{url: string; credit: string}> {
   if (!isLivAmazonEditorialSource(pageUrl) || Buffer.byteLength(html) > 1024 * 1024) return [];
   const $ = load(html), found = new Map<string, string>();
-  $('.contentItem-role-image .image, .article-header-v2__img-content .lead-image-section').slice(0, 30).each((_, node) => {
+  // Header/social key art often contains marketing text, not a scene still.
+  $('.contentItem-role-image .image').slice(0, 30).each((_, node) => {
     const container = $(node), images = container.find('img');
     if (images.length !== 1 || container.parents('nav,aside,footer,a').length) return;
     try {
@@ -33,6 +34,8 @@ export function extractLivAmazonPhotos(html: string, pageUrl: string): Array<{ur
 export function isLivSyndicatedPressPage(value: string): boolean {
   try {
     const url = new URL(value);
+    if (url.origin === 'https://www.thewrap.com' && !url.username && !url.password && !url.search && !url.hash &&
+        /^\/creative-content\/reviews\/[a-z0-9-]+\/$/.test(url.pathname)) return true;
     return url.origin === 'https://soundvenue.com' && !url.username && !url.password && !url.search && !url.hash &&
       /^\/film\/\d{4}\/\d{2}\/[a-z0-9-]+$/.test(url.pathname);
   } catch { return false; }
@@ -44,7 +47,21 @@ export function extractLivSyndicatedPressPhotos(html: string, pageUrl: string): 
   $('figure').slice(0, 40).each((_, node) => {
     const figure = $(node);
     if (figure.parents('nav,aside,footer').length || figure.find('img').length !== 1 || figure.find('figcaption').length !== 1) return;
-    const match = figure.find('figcaption').text().replace(/\s+/g, ' ').trim()
+    const caption = figure.find('figcaption').text().replace(/\s+/g, ' ').trim();
+    if (new URL(pageUrl).origin === 'https://www.thewrap.com') {
+      // The publisher explicitly labels this exact still Prime Video. That
+      // attribution is retained; no photographer or reuse rights are invented.
+      if (!/\(Prime Video\)$/.test(caption)) return;
+      try {
+        const url = new URL(figure.find('img').attr('src') || '', pageUrl);
+        if (url.origin !== 'https://www.thewrap.com' || url.username || url.password || url.hash ||
+            !/^\/wp-content\/uploads\/\d{4}\/\d{2}\/[a-zA-Z0-9_-]+\.(jpg|jpeg|png|webp)$/.test(url.pathname) ||
+            [...url.searchParams].some(([key,value]) => !(['width','height'].includes(key) && /^[1-9][0-9]{1,3}$/.test(value)) && !(key === 'fit' && value === 'bounds'))) return;
+        photos.set(url.href, 'Foto: Prime Video');
+      } catch { /* Exact public assets only. */ }
+      return;
+    }
+    const match = caption
       .match(/\(Foto:\s*([\p{L} .’'-]{2,100})\s*\/\s*TV 2\)\s*$/u);
     if (!match) return;
     try {
