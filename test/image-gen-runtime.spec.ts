@@ -1,5 +1,6 @@
 import { beforeEach, expect, it, vi } from 'vitest';
 import sharp from 'sharp';
+vi.mock('@/lib/images/text-free', () => ({ ensureTextFreeImage: async (bytes: Buffer) => ({ bytes, receipt: { id: 'verified-text-free-fixture' } }) }));
 const f = vi.hoisted(() => ({ read: vi.fn(), finish: vi.fn(), job: vi.fn(), chat: vi.fn(), search: vi.fn(), edit: vi.fn(),
   media: vi.fn(), rows: new Map<string, any>(), files: new Map<string, Buffer>() }));
 vi.mock('@/lib/firebase-admin', () => {

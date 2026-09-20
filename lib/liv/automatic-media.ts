@@ -14,7 +14,7 @@ export type MediaPlan = { images: Array<{ candidateId: string | null; prompt: st
 export type StoredMedia = { url: string; storagePath: string; contentHash: string; width: number; height: number; bytes: number };
 export type MediaEvidence = StoredMedia & { role: 'hero' | 'body-1' | 'body-2'; alt: string; caption: string;
   credit: string; sourceUrl: string | null; sourcePageUrl: string | null; sourceHash: string; kind: MediaMode;
-  selectedSourceHash?: string };
+  selectedSourceHash?: string; textCleanupId?: string };
 export type MediaOptions = { dayKey: string; mode?: MediaMode; style?: MediaStyle; deadline?: number };
 export type MediaDependencies = {
   /** Preserve an already-paid job if a new default would choose another mode. */
@@ -26,6 +26,7 @@ export type MediaDependencies = {
   heroVariant?: (candidate: MediaCandidate) => Promise<MediaCandidate | null>;
   plan: (article: GeneratedArticle, mode: MediaMode, style: MediaStyle, candidates: MediaCandidate[], jobId: string) => Promise<unknown>;
   generate: (prompt: string, jobId: string, role: string) => Promise<Buffer>;
+  textFree?: (bytes: Buffer) => Promise<{ bytes: Buffer; receipt: { id: string } }>;
   store: (jobId: string, role: string, bytes: Buffer) => Promise<StoredMedia>;
   review: (article: GeneratedArticle, mode: MediaMode, images: Array<{ bytes: Buffer; alt: string; caption: string }>, jobId: string) => Promise<boolean>;
   /** One durable label-only correction and independent review; never new pixels. */
@@ -153,7 +154,8 @@ export async function prepareLivAutomaticMedia(article: GeneratedArticle, option
           meta.width < 800 || meta.height < 500) throw new Error('liv_media_source_invalid');
       const heroDimensions = mode === 'photography' ? chooseLivHeroDimensions(meta.width, meta.height, meta.orientation) : { width: 1920, height: 1080 };
       if (index === 0 && !heroDimensions) throw new Error('liv_media_source_invalid');
-      const encoded = await encodeWebp(original, { maxSizeKB: 450, maxLongEdge: 1920, qualityStart: 85, qualityMin: 55,
+      const cleaned = await deps.textFree?.(original);
+      const encoded = await encodeWebp(cleaned?.bytes || original, { maxSizeKB: 450, maxLongEdge: 1920, qualityStart: 85, qualityMin: 55,
         effort: 4, ...(index === 0 ? { targetDimensions: heroDimensions! } : {}) });
       const stored = await deps.store(jobId, role, encoded.data);
       if (stored.contentHash !== digest(encoded.data) || stored.bytes !== encoded.bytes ||
@@ -162,7 +164,7 @@ export async function prepareLivAutomaticMedia(article: GeneratedArticle, option
         caption: mode === 'illustration' ? `AI-illustration: ${image.caption}` : image.caption,
         credit: mode === 'illustration' ? 'Illustration: Apropos Magazine / AI' : candidate!.credit,
         sourceUrl: candidate?.url || null, sourcePageUrl: candidate?.sourcePageUrl || null,
-        sourceHash: digest(original), kind: mode, ...(selectedSourceHash ? {selectedSourceHash} : {}) };
+        sourceHash: digest(original), kind: mode, ...(cleaned ? { textCleanupId: cleaned.receipt.id } : {}), ...(selectedSourceHash ? {selectedSourceHash} : {}) };
       await deps.record(jobId, role, { evidence });
       return { evidence, bytes: encoded.data };
     }));

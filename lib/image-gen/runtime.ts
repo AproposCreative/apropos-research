@@ -13,10 +13,11 @@ import { imageGenSearchSources, imageGenSearchText, inspectImageGenPressSources 
 import { imageGenQuotes } from './quotes';
 import { readPublicMedia } from '@/lib/liv/public-media-reader';
 import type { ImageGenPressCandidate } from './press';
+import { ensureTextFreeImage } from '@/lib/images/text-free';
 
 export type ImageGenAsset = { storagePath: string; hash: string; width: number; height: number; bytes: number;
   credit: string; provider: 'openai' | 'press'; style?: AproposImageStyle; styleVersion?: string; prompt?: string;
-  sourceUrl?: string; originalUrl?: string; rightsStatus?: 'editor-attested'; permissionConfirmedBy?: string; permissionConfirmedAt?: string };
+  sourceUrl?: string; originalUrl?: string; textCleanupId?: string; rightsStatus?: 'editor-attested'; permissionConfirmedBy?: string; permissionConfirmedAt?: string };
 function bucket() {
   const name = process.env.FIREBASE_STORAGE_BUCKET || process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET || process.env.FIREBASE_ADMIN_STORAGE_BUCKET;
   const storage = name && getAdminStorageBucket(name);
@@ -151,7 +152,8 @@ export async function runImageGenJob(job: ImageGenJob) {
       await stageRef.update({ status: 'response-stored', originalStoragePath: rawPath, usage: response.usage ?? null });
       const meta = await sharp(raw, { limitInputPixels: 30_000_000 }).metadata();
       if ((meta.pages ?? 1) !== 1) throw new Error('image_gen_response_invalid');
-      const encoded = await encodeWebp(raw, { maxSizeKB: 450, maxLongEdge: 1920, qualityStart: 85, qualityMin: 55, effort: 4 });
+      const clean = await ensureTextFreeImage(raw);
+      const encoded = await encodeWebp(clean.bytes, { maxSizeKB: 450, maxLongEdge: 1920, qualityStart: 85, qualityMin: 55, effort: 4 });
       const storagePath = assetPath(job.uid, job.id);
       await storage.file(storagePath).save(encoded.data, { resumable: false, validation: 'crc32c',
         preconditionOpts: { ifGenerationMatch: 0 }, metadata: { contentType: 'image/webp' } });
@@ -160,7 +162,7 @@ export async function runImageGenJob(job: ImageGenJob) {
       if (imageGenHash(readback.toString('base64')) !== hash) throw new Error('image_gen_storage_readback_failed');
       return { storagePath, hash, width: encoded.width, height: encoded.height, bytes: encoded.bytes,
         credit: 'Illustration: Apropos Magazine / AI', provider: 'openai', style,
-        styleVersion: styleConfig.version, prompt } satisfies ImageGenAsset;
+        styleVersion: styleConfig.version, prompt, textCleanupId: clean.receipt.id } satisfies ImageGenAsset;
     });
     await finishImageGenJob(job.uid, job.id, { status: 'succeeded', result });
   } catch (error) {
@@ -182,14 +184,15 @@ async function recoverStoredImage(job: ImageGenJob): Promise<ImageGenAsset> {
   const [raw] = await bucket().file(assetPath(job.uid, parent.id, 'original.webp')).download({ validation: 'crc32c' });
   const meta = await sharp(raw, { limitInputPixels: 30_000_000 }).metadata();
   if ((meta.pages ?? 1) !== 1) throw new Error('image_gen_recovery_invalid');
-  const encoded = await encodeWebp(raw, { maxSizeKB: 450, maxLongEdge: 1920, qualityStart: 85, qualityMin: 55, effort: 4 });
+  const clean = await ensureTextFreeImage(raw);
+  const encoded = await encodeWebp(clean.bytes, { maxSizeKB: 450, maxLongEdge: 1920, qualityStart: 85, qualityMin: 55, effort: 4 });
   const storagePath = assetPath(job.uid, job.id);
   await bucket().file(storagePath).save(encoded.data, { resumable: false, validation: 'crc32c', preconditionOpts: { ifGenerationMatch: 0 }, metadata: { contentType: 'image/webp' } });
   const [readback] = await bucket().file(storagePath).download({ validation: 'crc32c' });
   if (!readback.equals(encoded.data)) throw new Error('image_gen_storage_readback_failed');
   return { storagePath, hash: imageGenHash(encoded.data.toString('base64')), bytes: encoded.bytes, width: encoded.width, height: encoded.height,
     credit: 'Illustration: Apropos Magazine / AI', provider: 'openai', style: (parent.parameters as { style: AproposImageStyle }).style,
-    styleVersion: stage.styleVersion, prompt: stage.prompt };
+    styleVersion: stage.styleVersion, prompt: stage.prompt, textCleanupId: clean.receipt.id };
 }
 
 async function importImageGenPress(job: ImageGenJob, textVersion: string): Promise<ImageGenAsset> {
@@ -206,7 +209,8 @@ async function importImageGenPress(job: ImageGenJob, textVersion: string): Promi
   const meta = await sharp(raw, { limitInputPixels: 30_000_000 }).metadata();
   if (!['jpeg', 'png', 'webp'].includes(meta.format || '') || (meta.pages ?? 1) !== 1 ||
       !meta.width || !meta.height || meta.width < 320 || meta.height < 200) throw new Error('image_gen_press_asset_invalid');
-  const encoded = await encodeWebp(raw, { maxSizeKB: 450, maxLongEdge: 1920, qualityStart: 85, qualityMin: 55, effort: 4 });
+  const clean = await ensureTextFreeImage(raw);
+  const encoded = await encodeWebp(clean.bytes, { maxSizeKB: 450, maxLongEdge: 1920, qualityStart: 85, qualityMin: 55, effort: 4 });
   const storagePath = assetPath(job.uid, job.id);
   await storage.file(storagePath).save(encoded.data, { resumable: false, validation: 'crc32c',
     preconditionOpts: { ifGenerationMatch: 0 }, metadata: { contentType: 'image/webp' } });
@@ -215,5 +219,5 @@ async function importImageGenPress(job: ImageGenJob, textVersion: string): Promi
   return { storagePath, hash: imageGenHash(encoded.data.toString('base64')), width: encoded.width, height: encoded.height,
     bytes: encoded.bytes, credit: p.credit.trim(), provider: 'press', sourceUrl: candidate.sourceUrl,
     originalUrl: candidate.originalUrl, rightsStatus: 'editor-attested', permissionConfirmedBy: job.uid,
-    permissionConfirmedAt: new Date().toISOString() };
+    permissionConfirmedAt: new Date().toISOString(), textCleanupId: clean.receipt.id };
 }

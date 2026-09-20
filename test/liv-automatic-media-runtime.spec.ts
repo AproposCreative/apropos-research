@@ -1,5 +1,6 @@
 import { afterEach, beforeAll, beforeEach, expect, it, vi } from 'vitest';
 import sharp from 'sharp';
+vi.mock('@/lib/images/text-free', () => ({ ensureTextFreeImage: async (bytes: Buffer) => ({ bytes, receipt: { id: 'verified-text-free-fixture' } }) }));
 import { createHash } from 'node:crypto';
 const mocks = vi.hoisted(() => ({ row: undefined as any, writes: vi.fn(), stages: vi.fn(), save: vi.fn(), download: vi.fn(),
   stageRows: {} as Record<string, any>, files: new Map<string, Buffer>(), getMetadata: vi.fn(),

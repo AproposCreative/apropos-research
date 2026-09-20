@@ -12,6 +12,7 @@ import {
 import { maybeOptimizeMobileImageForFieldData } from '@/lib/webflow/mobile-image-optimizer';
 import { resolveSeoTitleFromFieldData } from '@/lib/images/seo-image-name';
 import { maybeOptimizeThumbImageForFieldData } from '@/lib/webflow/thumb-image-optimizer';
+import { enforceTextFreeArticleImages } from '@/lib/webflow/text-free-images';
 
 export type ArticleImageAutoOptimizeResult = {
   itemId: string;
@@ -70,6 +71,8 @@ export async function autoOptimizeArticleFieldData(args: {
     'thumbOptimized' | 'mobileOptimized' | 'contentImagesOptimized' | 'contentImagesFailed'
   >
 > {
+  // Editorial rule is independent of compression settings; failures stop this save.
+  await enforceTextFreeArticleImages(args.fieldData);
   if (!isArticleImageAutoOptimizeEnabled()) {
     return {
       thumbOptimized: false,
