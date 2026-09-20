@@ -262,6 +262,12 @@ async function runLivDailyOperation(req: NextRequest, preparation?: LivPreparati
           .find(results => results?.some(result => result.name === 'factcheck' && result.diagnosticEvidence?.articleHash === fingerprint)) || [];
       }
       const priorDiagnostic = priorResults.find(result => result.name === 'factcheck')?.diagnosticEvidence;
+      const captionRepair = await (await import('./caption-fallback')).repairLivCaptionFromVerifiedAlt(article, priorDiagnostic, livDailyDocId(dayKey,scope));
+      if(captionRepair){
+        await checkpointLivDailyArticle(dayKey,captionRepair);
+        await yieldLivPreparation(dayKey,scope as Exclude<LivDailyScope,'daily'>);
+        return NextResponse.json({status:'captions_revised',dayKey,title:article.title});
+      }
       // Preserve this diagnostic if correction fails before producing new gates.
       gateResults = priorResults;
       const length = checkLivArticleLength(article.content);
@@ -381,6 +387,14 @@ async function runLivDailyOperation(req: NextRequest, preparation?: LivPreparati
     // before a known factual defect is addressed.
     const length = checkLivArticleLength(article.content);
     const diagnostic = gates.results.find(result => result.name === 'factcheck')?.diagnosticEvidence;
+    if(preparation){
+      const captionRepair=await (await import('./caption-fallback')).repairLivCaptionFromVerifiedAlt(article,diagnostic,livDailyDocId(dayKey,scope));
+      if(captionRepair){
+        await checkpointLivDailyArticle(dayKey,captionRepair);
+        await yieldLivPreparation(dayKey,scope as Exclude<LivDailyScope,'daily'>);
+        return NextResponse.json({status:'captions_revised',dayKey,title:article.title});
+      }
+    }
     const factRepairNeeded = !!diagnostic &&
       ['factcheck', 'verification-complete'].includes(gates.failedGate || '') &&
       diagnostic.results.some(result => result.status !== 'verified');

@@ -52,6 +52,7 @@ export async function readLivVisualEvidence(value: unknown, articleText: string,
   const automatic = !article!.selectedImage!.editorialEdit;
   let receipt:Record<string,any>|undefined;
   if(automatic){
+    const ancestor=await (await import('./caption-fallback')).readLivCaptionAncestor(article!,reference.runId);
     const jobId=article!.selectedImage!.id.match(/^([a-f0-9]{64})-hero$/)?.[1];
     if(!jobId)fail();
     const ref=db!.collection('livMediaJobs').doc(jobId!);
@@ -62,10 +63,10 @@ export async function readLivVisualEvidence(value: unknown, articleText: string,
     if(!job || job.status!=='complete' || job.mode!=='photography' || !original?.selectedImage ||
       createHash('sha256').update(JSON.stringify(['liv-media-v1',day,job.articleInputHash,job.mode,job.style])).digest('hex')!==jobId ||
       original.selectedImage.articleHash!==livImageArticleHash(original) || original.title!==article!.title ||
-      cmsFieldHash({media:original.preparedMedia})!==cmsFieldHash({media:article!.preparedMedia}) ||
+      cmsFieldHash({media:original.preparedMedia})!==cmsFieldHash({media:ancestor.preparedMedia}) ||
       receipt?.status!=='complete' || receipt.result?.pass!==true || !receipt.updatedAt ||
       !Number.isFinite(Date.parse(receipt.updatedAt)) || Date.parse(receipt.updatedAt)>Date.now()+300000)fail();
-    for(const media of article!.preparedMedia || []){
+    for(const media of ancestor.preparedMedia || []){
       const stage=(await ref.collection('stages').doc(media.role).get()).data();
       if(!stage?.evidence || cmsFieldHash(stage.evidence)!==cmsFieldHash(media))fail();
     }
