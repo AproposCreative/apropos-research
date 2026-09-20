@@ -1,4 +1,4 @@
-import { addDays, copenhagenClock, eligibleEntries, type DeliveryState } from './delivery-policy';
+import { copenhagenClock, eligibleEntries, scheduledPreparationDays, type DeliveryState } from './delivery-policy';
 import { decidePreparation, type PreparationDecision } from './preparation-policy';
 
 export type ScheduledPreparationScope = 'prepare' | 'prepare-alternative';
@@ -11,7 +11,7 @@ export async function nextScheduledPreparation(state: DeliveryState,
   if (state.coverRevision || Object.values(state.slots).some(s => s.state === 'attempted')) return null;
   const clock = copenhagenClock(now);
   let blocked: ScheduledPreparation | null = null;
-  for (const dayKey of [clock.day, addDays(clock.day, 1)]) {
+  for (const dayKey of scheduledPreparationDays(state, clock.day)) {
     if (dayKey === clock.day && clock.hour >= 20 || state.slots[dayKey] || eligibleEntries(state, dayKey).length) continue;
     const rejected = state.entries.filter(e => e.kind === 'scheduled' && e.scheduledDay === dayKey &&
       (e.decision === 'rejected' || e.state === 'rejected'));

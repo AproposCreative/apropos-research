@@ -9,6 +9,14 @@ afterEach(() => vi.unstubAllEnvs());
 const reason = 'Den konkrete konflikt giver vurderingen tyngde, men slutningen er svagere underbygget.';
 
 describe('Liv voice and review contract', () => {
+  it('preserves the archived v4 voice for paid resumes and rejects unknown versions', () => {
+    const old = loadLivVoice('liv-v4');
+    expect(old.version).toBe('liv-v4');
+    expect(old.text).not.toContain('FREDERIK-KALIBRERING');
+    expect(old.hash).not.toBe(loadLivVoice().hash);
+    expect(() => loadLivVoice('../secret')).toThrow('liv_voice_unavailable');
+    expect(() => loadLivVoice('liv-v3')).toThrow('liv_voice_unavailable');
+  });
   it('prioritizes identifiable subjects, review scope and matching SEO metadata over clickbait', () => {
     const voice = loadLivVoice();
     for (const requirement of ['TYDELIGE TITLER, SEO OG META',
@@ -27,9 +35,11 @@ describe('Liv voice and review contract', () => {
       'registrér manglen i stedet for at opfinde stjerner', 'Omdøb aldrig en allerede skrevet feature',
       'Ingen \'jeg sad i salen\'']) expect(voice.text).toContain(requirement);
   });
-  it('loads v4 with an auditable content hash and no generic fallback', () => {
+  it('loads v5 with an auditable content hash and no generic fallback', () => {
     const voice = loadLivVoice();
-    expect(voice.version).toBe('liv-v4');
+    expect(voice.version).toBe('liv-v5');
+    expect(voice.text).toContain('FREDERIK-KALIBRERING');
+    expect(voice.text).toContain('Genbrug ikke deres karakteristiske metaforer');
     expect(voice.text).toContain('én selvstændig tese');
     expect(voice.text).toContain('én sekundær kilde');
     expect(voice.hash).toMatch(/^[a-f0-9]{64}$/);
@@ -41,7 +51,7 @@ describe('Liv voice and review contract', () => {
       { openingStrategyOverride: 'En konkret åbning' }), { 'author-tov': false }, null);
     expect(prompt).toContain(loadLivVoice().text);
     expect(prompt).not.toContain('Ældre profil');
-    expect(composeSystemPrompt(buildPromptSegments('', 'Frederik', {}), {}, null)).not.toContain('LIV BRANDT - PROMPT (v4)');
+    expect(composeSystemPrompt(buildPromptSegments('', 'Frederik', {}), {}, null)).not.toContain('LIV BRANDT - PROMPT (v5)');
     expect(isLivAuthor(' Liv-Brandt ')).toBe(true);
   });
   it('shares the standing online-image instruction without inventing rights clearance', () => {

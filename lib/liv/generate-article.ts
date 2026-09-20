@@ -215,12 +215,12 @@ export async function generateLivArticle(options: GenerateArticleOptions): Promi
     throw new Error('OPENAI_API_KEY mangler — kan ikke generere Liv-artikel.');
   }
 
-  const voice = loadLivVoice();
   const resumeRunId = options.resumeWritingRunId && preparation && options.allowOriginalityRevision === true
     ? await recoverOriginalityChild(sourceScope, topic.title, options.resumeWritingRunId) || options.resumeWritingRunId
     : options.resumeWritingRunId;
   const resumed = resumeRunId
     ? await loadRecoverableWritingBrief(sourceScope, topic.title, resumeRunId) : null;
+  const voice = loadLivVoice(resumed?.voiceVersion);
   const authorizedOriginality = preparation && options.allowOriginalityRevision === true && !!resumed && !resumed.parentRunId;
   const durableOriginality = preparation && !resumed?.parentRunId && (!resumed || authorizedOriginality);
   // A saved writer response retains its original format. Never relabel paid text.

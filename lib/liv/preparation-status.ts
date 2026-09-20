@@ -1,6 +1,6 @@
 import { getAdminDb } from '@/lib/firebase-admin';
 import { LIV_DAILY_COLLECTION, livDailyDocId } from '@/lib/liv/daily-history-store';
-import { addDays, copenhagenClock, type DeliveryState } from '@/lib/liv/delivery-policy';
+import { copenhagenClock, scheduledPreparationDays, type DeliveryState } from '@/lib/liv/delivery-policy';
 import { canRetryUnstartedPreparation } from '@/lib/liv/preparation-retry';
 import { reserveNeeded } from './reserve-preparation';
 import { decidePreparation, type PreparationDecision } from './preparation-policy';
@@ -77,6 +77,7 @@ export function livPreparationStatusForRow(day: string, scope: PreparationScope,
  * This helper never claims, retries or generates work. */
 export async function readNextLivPreparationStatus(state: DeliveryState, now = new Date()): Promise<LivNextPreparationStatus> {
   const today = copenhagenClock(now).day;
+  const days = scheduledPreparationDays(state, today);
   const empty = { day: null, scope: null, runStatus: null };
   if (state.coverRevision) return { ...empty, status: 'reconciliation_required', reasonCode: 'cover_revision_in_progress' };
   if (Object.values(state.slots).some(slot => slot.state === 'attempted')) {
@@ -85,7 +86,7 @@ export async function readNextLivPreparationStatus(state: DeliveryState, now = n
   // Saved inventory can be ready structurally but blocked by a later CMS check.
   // Surface that work instead of claiming idle or regenerating a paid article.
   const blocked = state.entries.find(entry => entry.kind === 'scheduled' &&
-    [today, addDays(today, 1)].includes(entry.scheduledDay) && !state.slots[entry.scheduledDay] &&
+    days.includes(entry.scheduledDay) && !state.slots[entry.scheduledDay] &&
     entry.state === 'ready' && entry.decision !== 'rejected' && entry.expiresDay >= entry.scheduledDay && entry.publicationBlockers?.length &&
     !state.entries.some(other => other.kind === 'scheduled' && other.scheduledDay === entry.scheduledDay &&
       other.state === 'ready' && other.decision !== 'rejected' && !other.publicationBlockers?.length && other.expiresDay >= entry.scheduledDay));
@@ -107,7 +108,7 @@ export async function readNextLivPreparationStatus(state: DeliveryState, now = n
   const candidate: { dayKey: string; scope?: PreparationScope } | undefined =
     (reserveNeeded(state,today) ? { dayKey: state.reservePreparation?.dayKey ?? today, scope: 'reserve' } : undefined);
   if (!candidate) {
-    const exhaustedDay = [today, addDays(today, 1)].find(day => !state.slots[day] &&
+    const exhaustedDay = days.find(day => !state.slots[day] &&
       state.entries.filter(entry => entry.kind === 'scheduled' && entry.scheduledDay === day && entry.decision === 'rejected').length >= 2 &&
       !state.entries.some(entry => entry.kind === 'scheduled' && entry.scheduledDay === day &&
         ['ready', 'selected', 'published'].includes(entry.state) && entry.decision !== 'rejected' && entry.expiresDay >= day));

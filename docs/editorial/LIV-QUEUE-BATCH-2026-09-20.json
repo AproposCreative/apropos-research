@@ -1,0 +1,18 @@
+{
+  "requestId": "frederik-queue-20260920-v1",
+  "plans": [
+    {
+      "dayKey": "2026-09-22",
+      "topicHint": "Monster: The Lizzie Borden Story sæson 4 på Netflix",
+      "articleFormat": "research-review",
+      "directiveHint": "Skriv en kort selvstændig researchanmeldelse af Monster sæson 4, The Lizzie Borden Story, udgivet på Netflix 17. september 2026. Kontrollér premieredato og omfang i primærkilden. Titel skal begynde Anmeldelse: Monster sæson 4 og navngive The Lizzie Borden Story. 450-650 ord brødtekst. Giv en begrundet karakter på 1-6 stjerner ud fra dokumenterede styrker og svagheder, ingen forudbestemt karakter. Undersøg hvordan seriens blanding af historisk kriminalsag, gotik og frigørelsesfortælling virker, og hvor den svigter. Vær underholdende, konkret og holdningsstærk efter den nye Frederik-kalibrering i Livs faste stemme; ikke en opsamling af andres domme. Lån ikke andre kritikeres åbning, metaforer eller eksempelrækkefølge. Tilskriv specifikke kritiske observationer, ingen påstand om egen visning. Skeln seriens fiktion fra den historiske sag. Prioritér tre forskellige officielle stills fra netop denne sæson, hero plus to i brødteksten med de faktiske fotografcredits; ingen AI-filmscener. Kilder og billedspor: https://www.netflix.com/tudum/articles/monster-season-4-lizzie-borden-release-date-cast-news https://www.netflix.com/tudum/articles/monster-the-lizzie-borden-story-true-story https://www.thewrap.com/creative-content/reviews/monster-the-lizzie-borden-story-netflix-ella-beatty/ https://www.rogerebert.com/reviews/monster-the-lizzie-borden-story-ryan-murphy-netflix-tv-review-2026"
+    },
+    {
+      "dayKey": "2026-09-23",
+      "topicHint": "Suno v6 og Spotify AI Persona: hvem står bag musikken?",
+      "articleFormat": "article",
+      "editorialKind": "feature",
+      "directiveHint": "Skriv en selvstændig musik- og kulturfeature, ikke en produktanmeldelse eller teknisk brugervejledning, om kunstneridentitet efter Suno v6 og Spotifys AI Persona-mærkning. 450-650 ord brødtekst, ingen stjerner. Navngiv Suno og Spotify tydeligt i overskrift og SEO. Mulig tese som skal afprøves, ikke forudsættes: lettere musikproduktion gør det vigtigere at vide, hvem vi knytter os til, men et badge på en profil siger ikke nødvendigvis noget om hele musikkens tilblivelse. Skeln mellem AI-genereret persona, AI-assisteret musik, samtykke og dokumenterede partnerskaber. Gør det konkret og sjovt gennem lytterens valg og selvbillede; ingen moralsk panik eller en række produktfeatures. Anerkend musikalsk skaberglæde som reelt modargument. Ingen påstand om egen test, ingen opdigtede fans, kunstnere eller forbrugstal. Brug den nye Frederik-kalibrering i Livs faste stemme. Kontrollér aktualitet til 23. september; skeln annonceret udrulning fra dokumenteret tilgængelighed. Bevar usikkerhed om rettigheder, undgå juridiske konklusioner. Hero plus to forskellige bodybilleder kan være enkle Apropos-illustrationer med ét hovedmotiv, ikke collage eller falske screenshots. Kildespor: https://help.suno.com/en/articles/13924801 https://help.suno.com/en/articles/13924481 https://newsroom.spotify.com/2026-08-11/ai-persona-badges-transparency/ https://support.spotify.com/uk/article/ai-persona-badge/ https://techcrunch.com/2026/09/09/suno-replaces-its-ai-models-with-a-new-one-trained-on-licensed-music-as-copyright-suits-pile-up/"
+    }
+  ]
+}

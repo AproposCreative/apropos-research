@@ -49,12 +49,19 @@ export type DeliverySlot = {
   publicUrl?: string; checkedAt?: string;
 };
 export type DeliveryState = { entries: ReadyEntry[]; slots: Record<string, DeliverySlot>;
+  /** Explicit bounded batch dates, not a rolling inventory target. */
+  editorialPreparationDays?: string[];
   /** Durable automatic reserve identity. Never replaced merely because a day changed. */
   reservePreparation?: { dayKey: string };
   /** Staged editorial mutation, never a publish attempt. Retained until reconciled. */
   coverRevision?: { id: string; itemId: string; day: string };
   preparation?: { token: string; leaseUntil: number } };
 export const emptyDeliveryState = (): DeliveryState => ({ entries: [], slots: {} });
+
+export function scheduledPreparationDays(state: DeliveryState, today: string) {
+  return [...new Set([today, addDays(today, 1), ...(state.editorialPreparationDays ?? [])
+    .filter(d => validDay(d) && d >= today && d <= addDays(today, 7))])].sort();
+}
 
 /** A future scheduled story can never be pulled forward as a fallback. */
 export function eligibleEntries(state: DeliveryState, day: string) {

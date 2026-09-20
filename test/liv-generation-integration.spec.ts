@@ -165,14 +165,14 @@ it('collects three exact credited Tudum assets once, without a paid writer or ge
   expect(mocks.mediaRead).toHaveBeenCalledOnce(); expect(mocks.images).not.toHaveBeenCalled(); expect(mocks.create).not.toHaveBeenCalled();
 });
 
-it('runs shared search, re-fetches recalled sources, applies v4 and preserves rating/model through CMS', async () => {
+it('runs shared search, re-fetches recalled sources, applies v5 and preserves rating/model through CMS', async () => {
   const article = await generateLivArticle({ topic: { title: 'The Invite', score: 0 }, directiveHint: `Kilder: ${primaryUrl}`, articleFormat: 'research-review', sourceScope: 'editor-a' });
   expect(mocks.search).toHaveBeenCalledTimes(2);
   expect(mocks.search.mock.calls[0][1].model).toBe('gpt-5.6-sol');
   expect(mocks.retrieve).toHaveBeenCalledWith(primaryUrl, expect.any(String));
   expect(mocks.retrieve).toHaveBeenCalledWith(criticUrl, expect.any(String));
   expect(mocks.remember).toHaveBeenCalledWith('editor-a', 'The Invite', expect.arrayContaining([expect.objectContaining({ url: primaryUrl })]));
-  expect(mocks.rememberBrief).toHaveBeenCalledWith('editor-a', 'The Invite', expect.objectContaining({ voiceVersion: 'liv-v4', writerText: expect.stringContaining('Seth Rogen') }));
+  expect(mocks.rememberBrief).toHaveBeenCalledWith('editor-a', 'The Invite', expect.objectContaining({ voiceVersion: 'liv-v5', writerText: expect.stringContaining('Seth Rogen') }));
   const request = mocks.create.mock.calls[0][0];
   expect(request.messages[0].content).toContain(loadLivVoice().text);
   expect(request.messages[0].content).toContain('separat kildebaseret faktakontrol før CMS og udgivelse');
