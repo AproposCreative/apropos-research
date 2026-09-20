@@ -6,7 +6,7 @@ import { cmsFieldHash } from '@/lib/liv/cms-field-hash';
 import { EDITORIAL_FEEDBACK_COLLECTION, parseEditorialFeedback, updateEditorialFeedbackRecords,
   type EditorialFeedback } from '@/lib/liv/editorial-feedback';
 import { eligibleEntries, emptyDeliveryState, LIV_DELIVERY_LEASE_MS, validDay, copenhagenClock, addDays,
-  type DeliveryState, type ReadyEntry, type DeliverySlot } from '@/lib/liv/delivery-policy';
+  type DeliveryState, type ReadyEntry, type DeliverySlot, type ExplicitLivPublication } from '@/lib/liv/delivery-policy';
 
 const COLLECTION = 'livDelivery';
 function database() {
@@ -122,8 +122,16 @@ export async function decideDelivery(input: { itemId: string; payloadHash: strin
   });
 }
 
-export function selectDelivery(state: DeliveryState, day: string, now: number, token: string): DeliverySlot | null {
+export function selectDelivery(state: DeliveryState, day: string, now: number, token: string, explicit?: ExplicitLivPublication): DeliverySlot | null {
   if (!validDay(day)) throw new Error('liv_delivery_invalid_day');
+  if (explicit) {
+    const entry = state.entries.find(e => e.itemId === explicit.itemId), slot = state.slots[day];
+    if (!entry || entry.payloadHash !== explicit.expectedPayloadHash || entry.decision === 'rejected' || entry.publicationBlockers?.length ||
+        entry.expiresDay < day || entry.scheduledDay > day || (entry.kind === 'scheduled' && entry.scheduledDay !== day) ||
+        (slot && slot.itemId !== explicit.itemId) || Object.entries(state.slots).some(([d,s]) => d !== day && s.itemId === explicit.itemId) ||
+        (slot?.explicitPublication && (slot.explicitPublication.requestId !== explicit.requestId ||
+          slot.explicitPublication.expectedPayloadHash !== explicit.expectedPayloadHash))) throw new Error('liv_delivery_explicit_conflict');
+  }
   // Do not expire, replace or publish a slot while a cover PATCH is unresolved.
   if (state.coverRevision) return null;
   // A pre-write job from an earlier day cannot be published late. Expired
@@ -146,14 +154,14 @@ export function selectDelivery(state: DeliveryState, day: string, now: number, t
     slot.attempts += 1;
     return { ...slot };
   }
-  const candidate = eligibleEntries(state, day)[0];
+  const candidate = eligibleEntries(state, day).find(e => !explicit || e.itemId === explicit.itemId);
   if (!candidate) return null;
   candidate.state = 'selected';
   state.slots[day] = { itemId: candidate.itemId, token, state: 'selected', leaseUntil: now + LIV_DELIVERY_LEASE_MS,
-    nextAttemptAt: 0, attempts: 1 };
+    nextAttemptAt: 0, attempts: 1, ...(explicit ? {explicitPublication: {...explicit, requestedAt: new Date(now).toISOString()}} : {}) };
   return { ...state.slots[day] };
 }
-export async function claimDelivery(day: string, now = Date.now()) {
+export async function claimDelivery(day: string, now = Date.now(), explicit?: ExplicitLivPublication) {
   const db = database();
   const ref = db.collection(COLLECTION).doc('manifest');
   const token = randomUUID();
@@ -163,7 +171,7 @@ export async function claimDelivery(day: string, now = Date.now()) {
     // Migration guard: an older deployment may already have published or saved
     // today's item. Never start a second one until that run is reconciled.
     if (legacy && legacy.status !== 'skipped_no_topic' && !state.slots[day]) return null;
-    const slot = selectDelivery(state, day, now, token);
+    const slot = selectDelivery(state, day, now, token, explicit);
     tx.set(ref, state);
     return slot;
   });

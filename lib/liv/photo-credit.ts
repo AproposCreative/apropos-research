@@ -1,5 +1,33 @@
 import { load } from 'cheerio';
 
+export function isLivAmazonEditorialSource(value: string): boolean {
+  try {
+    const url = new URL(value);
+    return url.origin === 'https://www.aboutamazon.com' && !url.username && !url.password && !url.search && !url.hash &&
+      /^\/news\/entertainment\/[a-z0-9-]+$/.test(url.pathname);
+  } catch { return false; }
+}
+
+/** Exact images rendered in Amazon's own editorial body/hero. Source attribution
+ * is NOT a photographer credit or a reuse licence. Never include recommendation
+ * cards, author portraits, or invent a photographer from the site's byline. */
+export function extractLivAmazonPhotos(html: string, pageUrl: string): Array<{url: string; credit: string}> {
+  if (!isLivAmazonEditorialSource(pageUrl) || Buffer.byteLength(html) > 1024 * 1024) return [];
+  const $ = load(html), found = new Map<string, string>();
+  $('.contentItem-role-image .image, .article-header-v2__img-content .lead-image-section').slice(0, 30).each((_, node) => {
+    const container = $(node), images = container.find('img');
+    if (images.length !== 1 || container.parents('nav,aside,footer,a').length) return;
+    try {
+      const url = new URL(images.attr('src') || '');
+      if (url.origin !== 'https://assets.aboutamazon.com' || url.username || url.password || url.hash) return;
+      const caption = container.find('.image-caption').text().replace(/\s+/g, ' ').trim();
+      const credit = caption.match(/(?:\b(?:photo(?:graph)?|credit)\s*:\s*|©\s*)(.{2,180})$/i)?.[0];
+      found.set(url.href, credit && !/[<>\x00-\x1f]/.test(credit) ? credit : 'Kilde: About Amazon / Prime Video. Fotograf ikke oplyst.');
+    } catch { /* Not an exact public Amazon image. */ }
+  });
+  return [...found].slice(0, 12).map(([url, credit]) => ({url, credit}));
+}
+
 /** Publicly reproduced TV 2 stills, not an assertion that the publisher owns
  * them or that reuse rights were verified. Only exact, captioned assets. */
 export function isLivSyndicatedPressPage(value: string): boolean {
@@ -91,7 +119,7 @@ export function extractLivTudumPhotos(html: string, pageUrl: string): Array<{ ur
 /** A source-selection policy, not a licence assertion or a URL-fetch permission. */
 export function isLivOfficialImageSource(pageUrl: string): boolean {
   // This narrowly trusted editorial source survives production host overrides.
-  if (isLivTudumSource(pageUrl)) return true;
+  if (isLivTudumSource(pageUrl) || isLivAmazonEditorialSource(pageUrl)) return true;
   const hosts = (process.env.LIV_OFFICIAL_IMAGE_HOSTS || 'sfstudios.dk,sfstudios.com,a24films.com,nordiskfilm.dk,distribution.paradisbio.dk,tivoli.dk,goldendays.dk')
     .split(',').map(host => host.trim().toLowerCase()).filter(host => /^[a-z0-9.-]+\.[a-z]+$/.test(host));
   try {
@@ -102,6 +130,10 @@ export function isLivOfficialImageSource(pageUrl: string): boolean {
 
 /** Only a credit attached to this exact image; never the site's generic footer. */
 export function extractLivPhotoCredit(html: string, imageUrl: string, pageUrl: string): string | null {
+  if (isLivAmazonEditorialSource(pageUrl)) {
+    try { return extractLivAmazonPhotos(html, pageUrl).find(photo => photo.url === new URL(imageUrl, pageUrl).href)?.credit || null; }
+    catch { return null; }
+  }
   if (isLivTudumSource(pageUrl)) {
     try { return extractLivTudumPhotos(html, pageUrl).find(photo => photo.url === new URL(imageUrl, pageUrl).href)?.credit || null; }
     catch { return null; }

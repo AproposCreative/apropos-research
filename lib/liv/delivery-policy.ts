@@ -47,7 +47,9 @@ export type DeliverySlot = {
   itemId: string; token: string; state: 'selected' | 'attempted' | 'published';
   leaseUntil: number; attempts: number; nextAttemptAt: number; fieldDataHash?: string;
   publicUrl?: string; checkedAt?: string;
+  explicitPublication?: { requestId: string; itemId: string; expectedPayloadHash: string; reason: string; requestedAt: string };
 };
+export type ExplicitLivPublication = { requestId: string; itemId: string; expectedPayloadHash: string; reason: string };
 export type DeliveryState = { entries: ReadyEntry[]; slots: Record<string, DeliverySlot>;
   /** Explicit bounded batch dates, not a rolling inventory target. */
   editorialPreparationDays?: string[];

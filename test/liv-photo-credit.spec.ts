@@ -1,8 +1,21 @@
 import { afterEach, expect, it, vi } from 'vitest';
-import { extractLivPhotoCredit, isLivOfficialImageSource, extractLivTudumPhotos, isLivTudumSource, LIV_TUDUM_HTML_MAX_BYTES } from '@/lib/liv/photo-credit';
+import { extractLivPhotoCredit, isLivOfficialImageSource, extractLivTudumPhotos, isLivTudumSource, LIV_TUDUM_HTML_MAX_BYTES, extractLivAmazonPhotos, isLivAmazonEditorialSource } from '@/lib/liv/photo-credit';
 import { extractCandidateImagesFromHtml } from '@/lib/liv/fetch-official-images';
 const page = 'https://press.example.com/film';
 afterEach(() => vi.unstubAllEnvs());
+it('discovers only exact Amazon editorial images, preserving supplied credit and marking absent photographers',()=>{
+ const source='https://www.aboutamazon.com/news/entertainment/reacher';
+ const html='<div class="contentItem-role-image"><div class="image"><img src="https://assets.aboutamazon.com/one.jpg"><span class="image-caption">Photo: Actual Name / Prime Video</span></div></div>'+
+ '<div class="article-header-v2__img-content"><div class="lead-image-section"><img src="https://assets.aboutamazon.com/two.jpg"></div></div>'+
+ '<a><img src="https://assets.aboutamazon.com/unrelated.jpg"></a><footer>© Photographer not attached to image</footer>';
+ expect(extractLivAmazonPhotos(html,source)).toEqual([{url:'https://assets.aboutamazon.com/one.jpg',credit:'Photo: Actual Name / Prime Video'},
+ {url:'https://assets.aboutamazon.com/two.jpg',credit:'Kilde: About Amazon / Prime Video. Fotograf ikke oplyst.'}]);
+ expect(extractLivPhotoCredit(html,'https://assets.aboutamazon.com/unrelated.jpg',source)).toBeNull();
+ expect(extractLivPhotoCredit(html,'https://assets.aboutamazon.com/one.jpg?changed=1',source)).toBeNull();
+ expect(isLivOfficialImageSource(source)).toBe(true);
+ for(const bad of ['http://www.aboutamazon.com/news/entertainment/reacher','https://www.aboutamazon.com.evil.test/news/entertainment/reacher',source+'?token=x']) expect(isLivAmazonEditorialSource(bad)).toBe(false);
+ expect(extractLivAmazonPhotos(html.replaceAll('assets.aboutamazon.com','evil.example'),source)).toEqual([]);
+});
 it('uses only the credit attached to the exact image, including relative/lazy URLs', () => {
   expect(extractLivPhotoCredit('<figure><img data-src="/still.jpg"><figcaption>En scene. Foto: Anna Jensen / Producent</figcaption></figure>', 'https://press.example.com/still.jpg', page)).toBe('Foto: Anna Jensen / Producent');
 });

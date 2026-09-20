@@ -5,7 +5,7 @@ import { getOpenAIClient } from '@/lib/openai';
 import { livModels } from '@/lib/liv/model-config';
 import { livImageArticleHash } from '@/lib/liv/article-image-hash';
 import { readPublicMedia } from '@/lib/liv/public-media-reader';
-import { extractLivPhotoCredit, isLivOfficialImageSource, isLivSyndicatedPressPage, extractLivSyndicatedPressPhotos, isLivTudumSource, extractLivTudumPhotos } from '@/lib/liv/photo-credit';
+import { extractLivPhotoCredit, isLivOfficialImageSource, isLivSyndicatedPressPage, extractLivSyndicatedPressPhotos, isLivTudumSource, extractLivTudumPhotos, isLivAmazonEditorialSource, extractLivAmazonPhotos } from '@/lib/liv/photo-credit';
 import type { MediaCandidate, MediaDependencies, MediaEvidence, MediaStyle, StoredMedia } from '@/lib/liv/automatic-media';
 import type { GeneratedArticle } from '@/lib/liv/generate-article';
 import { getLivCostPretransportError } from './cost-errors';
@@ -266,12 +266,14 @@ export function livMediaRuntime(deadline = Date.now() + 180_000): MediaDependenc
       // text, doing another paid search, or mutating the article checkpoint.
       if (candidates.length < 3) {
         const sources = [...new Set((article.researchSources || []).map(source => source.url))]
-          .filter(isLivTudumSource).slice(0, 2);
+          .filter(url => isLivTudumSource(url) || isLivAmazonEditorialSource(url)).slice(0, 2);
         for (const pageUrl of sources) {
           if (candidates.length >= 3) break;
           try {
             if (!pages.has(pageUrl)) pages.set(pageUrl, (await readPublicMedia(pageUrl, 'html', timeout(8000))).toString('utf8'));
-            for (const photo of extractLivTudumPhotos(pages.get(pageUrl)!, pageUrl).slice(0, 6)) {
+            const photos = isLivTudumSource(pageUrl) ? extractLivTudumPhotos(pages.get(pageUrl)!, pageUrl)
+              : extractLivAmazonPhotos(pages.get(pageUrl)!, pageUrl);
+            for (const photo of photos.slice(0, 6)) {
               if (candidates.length >= 3) break;
               if (candidates.some(candidate => candidate.url === photo.url)) continue;
               try {

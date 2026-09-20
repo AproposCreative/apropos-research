@@ -24,7 +24,7 @@ function fixture() {
   });
   const verify = vi.fn().mockResolvedValue(receipt);
   const deps = { ...store, readDeliveryState: async () => structuredClone(state),
-    claimDelivery: async (d: string, time = Date.now()) => store.selectDelivery(state, d, time, String(time)),
+    claimDelivery: async (d: string, time = Date.now(), explicit?: Parameters<typeof store.claimDelivery>[2]) => store.selectDelivery(state, d, time, String(time), explicit),
     readDeliveryPayload: async () => ({ title: 'Artikel', slug: 'artikel-a' } as WebflowArticleFields),
     updateDelivery: async (d: string, token: string, change: Parameters<typeof store.updateDelivery>[2]) => {
       if (state.slots[d]?.token !== token) throw new Error('liv_delivery_lease_lost');
@@ -32,6 +32,38 @@ function fixture() {
     }, publish, verify, planHash: async () => 'current-plan', record: vi.fn().mockResolvedValue(undefined) };
   return { state, publish, verify, deps };
 }
+it('explicitly publishes only the requested ready revision after hours, once, without changing cron hours', async () => {
+  const f = fixture(), late = new Date('2026-09-11T20:00:00Z'); vi.setSystemTime(late);
+  const explicit = {itemId:f.state.entries[0].itemId,expectedPayloadHash:f.state.entries[0].payloadHash,
+    requestId:'editor-request-1',reason:'Editor explicitly requests publication now.'};
+  expect(await deliverReadyArticle(late,f.deps)).toMatchObject({status:'after_deadline'});
+  expect(await deliverReadyArticle(late,f.deps,explicit)).toMatchObject({status:'published'});
+  expect(f.state.slots[day].explicitPublication).toEqual({...explicit,requestedAt:late.toISOString()});
+  expect(f.publish).toHaveBeenCalledWith(expect.objectContaining({publicationDate:late.toISOString()}));
+  await deliverReadyArticle(late,f.deps,explicit);
+  expect(f.publish).toHaveBeenCalledTimes(1);
+  expect(f.state.entries[1].state).toBe('ready');
+});
+it.each(['changed','rejected','future','blocked','other-published'])('refuses an explicit %s target without falling back to another story', async mode => {
+  const f = fixture(), target=f.state.entries[0];
+  const explicit={itemId:target.itemId,expectedPayloadHash:target.payloadHash,requestId:'editor-request-2',reason:'Publish exact target.'};
+  if(mode==='changed') target.payloadHash='f'.repeat(64);
+  if(mode==='rejected') target.decision='rejected';
+  if(mode==='future') target.scheduledDay='2026-09-12';
+  if(mode==='blocked') target.publicationBlockers=['source_missing'];
+  if(mode==='other-published') f.state.slots[day]={itemId:f.state.entries[1].itemId,state:'published',token:'old',leaseUntil:0,attempts:1,nextAttemptAt:0};
+  await expect(deliverReadyArticle(now,f.deps,explicit)).rejects.toThrow('liv_delivery_explicit_conflict');
+  expect(f.publish).not.toHaveBeenCalled();
+});
+it('explicit ambiguous publication is reconciled by reads only', async () => {
+  const f=fixture(), explicit={itemId:f.state.entries[0].itemId,expectedPayloadHash:f.state.entries[0].payloadHash,
+    requestId:'editor-request-3',reason:'Publish exact target.'};
+  f.publish.mockImplementationOnce(async input=>{await input.beforePublish?.('c'.repeat(64));throw new Error('timeout')});
+  expect(await deliverReadyArticle(now,f.deps,explicit)).toMatchObject({status:'reconciliation_required'});
+  const later=new Date(now.getTime()+16*60_000);vi.setSystemTime(later);
+  expect(await deliverReadyArticle(later,f.deps,explicit)).toMatchObject({status:'published'});
+  expect(f.publish).toHaveBeenCalledTimes(1);expect(f.verify).toHaveBeenCalledTimes(1);
+});
 it('does not publish before 10 Copenhagen', async () => {
   const f = fixture();
   expect(await deliverReadyArticle(new Date('2026-09-11T07:59:00Z'), f.deps)).toMatchObject({ status: 'before_deadline' });

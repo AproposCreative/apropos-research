@@ -1,4 +1,4 @@
-import { copenhagenClock, publicationTime } from '@/lib/liv/delivery-policy';
+import { copenhagenClock, publicationTime, type ExplicitLivPublication } from '@/lib/liv/delivery-policy';
 import * as store from '@/lib/liv/delivery-store';
 import { publishVerifiedLivArticle, verifyLiveLivArticle } from '@/lib/liv/publish-verified';
 import { getLivDailyPlan } from '@/lib/liv/daily-plan-store';
@@ -28,16 +28,19 @@ export async function deliverReadyArticle(now = new Date(), dependencies = {
         detail: 'CMS-revision, offentlig tekst og billeder verificeret.' }] });
     if (scheduled) await markPlanUsed(day);
   },
-}) {
+}, explicit?: ExplicitLivPublication) {
   const clock = copenhagenClock(now);
   const state = await dependencies.readDeliveryState();
   const ambiguousDay = Object.entries(state.slots).find(([, s]) => s.state === 'attempted')?.[0];
   // Readback of an uncertain publication continues outside the publication window.
-  if (!ambiguousDay && clock.hour < 10) return { status: 'before_deadline' };
-  if (!ambiguousDay && clock.hour >= 20) return { status: 'after_deadline', day: clock.day };
+  if (!explicit && !ambiguousDay && clock.hour < 10) return { status: 'before_deadline' };
+  if (!explicit && !ambiguousDay && clock.hour >= 20) return { status: 'after_deadline', day: clock.day };
+  if (explicit && ambiguousDay && (ambiguousDay !== clock.day || state.slots[ambiguousDay].itemId !== explicit.itemId)) {
+    return {status: 'reconciliation_required', day: ambiguousDay};
+  }
   // Finish a previous day's ambiguous publication before processing today's slot.
   const day = ambiguousDay ?? clock.day;
-  const slot = await dependencies.claimDelivery(day, now.getTime());
+  const slot = explicit ? await dependencies.claimDelivery(day, now.getTime(), explicit) : await dependencies.claimDelivery(day, now.getTime());
   if (!slot) return { status: state.slots[day]?.state === 'published' ? 'published' : 'waiting', day };
   let attempted = slot.state === 'attempted';
   let stage = 'read_payload';
@@ -52,7 +55,7 @@ export async function deliverReadyArticle(now = new Date(), dependencies = {
     stage = attempted ? 'live_readback' : 'publication_preflight';
     const receipt = attempted
       ? await dependencies.verify({ itemId: slot.itemId, expected, fieldDataHash: slot.fieldDataHash! })
-      : await dependencies.publish({ itemId: slot.itemId, expected, publicationDate: publicationTime(day),
+      : await dependencies.publish({ itemId: slot.itemId, expected, publicationDate: slot.explicitPublication?.requestedAt ?? publicationTime(day),
         assertLease: () => dependencies.updateDelivery(day, slot.token, current => {
           if (current.state !== 'selected' || current.leaseUntil <= Date.now()) throw new Error('liv_delivery_lease_lost');
         }), beforePublish: async hash => {

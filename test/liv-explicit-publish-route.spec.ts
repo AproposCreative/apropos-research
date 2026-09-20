@@ -1,0 +1,18 @@
+import {beforeEach,afterEach,it,expect,vi} from 'vitest';
+import {NextRequest,NextResponse} from 'next/server';
+const mocks=vi.hoisted(()=>({auth:vi.fn(),deliver:vi.fn()}));
+vi.mock('@/lib/cron/cron-auth',()=>({requireCronBearer:mocks.auth}));
+vi.mock('@/lib/liv/deliver-ready',()=>({deliverReadyArticle:mocks.deliver}));
+import {POST} from '@/app/api/liv/operations/publish/route';
+const input={dayKey:'2026-09-20',itemId:'a'.repeat(24),expectedPayloadHash:'b'.repeat(64),requestId:'editor-request-1',reason:'Frederik requests immediate publication.'};
+const request=(body:unknown=input,query='')=>new NextRequest('https://app.test/api/liv/operations/publish'+query,{method:'POST',body:JSON.stringify(body)});
+beforeEach(()=>{vi.resetAllMocks();vi.useFakeTimers();vi.setSystemTime(new Date('2026-09-20T20:00:00Z'));
+ vi.stubEnv('LIV_DELIVERY_QUEUE_ENABLED','true');vi.stubEnv('LIV_DAILY_PUBLICATION_MODE','auto_publish');vi.stubEnv('LIV_DAILY_PAUSED','false');
+ mocks.deliver.mockResolvedValue({status:'published',publicationVerified:true});});
+afterEach(()=>{vi.unstubAllEnvs();vi.useRealTimers()});
+it('requires service authentication before any publication',async()=>{mocks.auth.mockReturnValue(NextResponse.json({}, {status:401}));expect((await POST(request())).status).toBe(401);expect(mocks.deliver).not.toHaveBeenCalled()});
+it.each([{...input,dayKey:'2026-09-21'},{...input,itemId:'wrong'},{...input,expectedPayloadHash:'stale'},{...input,force:true}])('rejects invalid, future or override inputs',async body=>{expect((await POST(request(body))).status).toBe(400);expect(mocks.deliver).not.toHaveBeenCalled()});
+it('rejects query switches',async()=>{expect((await POST(request(input,'?force=1'))).status).toBe(400);expect(mocks.deliver).not.toHaveBeenCalled()});
+it.each([['LIV_DAILY_PAUSED','true'],['LIV_DELIVERY_QUEUE_ENABLED','false'],['LIV_DAILY_PUBLICATION_MODE','draft']])('respects disabled configuration %s',async(key,value)=>{vi.stubEnv(key,value);expect((await POST(request())).status).toBe(409);expect(mocks.deliver).not.toHaveBeenCalled()});
+it('uses the shared server publisher and exact revision',async()=>{expect((await POST(request())).status).toBe(200);const {dayKey:_,...explicit}=input;expect(mocks.deliver).toHaveBeenCalledWith(expect.any(Date),undefined,explicit)});
+it('does not leak upstream error details',async()=>{mocks.deliver.mockRejectedValue(new Error('secret-token'));const r=await POST(request());expect(r.status).toBe(409);expect(await r.json()).toEqual({error:'liv_publication_failed'})});
