@@ -30,8 +30,9 @@ it('starts just one bounded job for an empty queue', async () => {
   expect(mocks.reserve).not.toHaveBeenCalled();
 });
 it('does not let a legacy pre-generation no-topic record permanently block tomorrow', async () => {
-  mocks.row = { status: 'skipped_no_topic' };
+  mocks.rows.set('prepare-2026-09-12', { status: 'skipped_no_topic', preparationAttempts: 3 });
   await GET(request()); expect(mocks.run).toHaveBeenCalledTimes(1);
+  expect(mocks.run).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ scope: 'prepare-alternative' }));
 });
 it.each([
   { status: 'skipped_no_topic', articleCheckpoint: { title: 'Saved work' } },
@@ -63,8 +64,8 @@ it('skips exhausted complete-media failures without granting another attempt', a
   mocks.row = { status: 'failed', preparationAttempts: 5,
     articleCheckpoint: { content: 'Paid text', preparedMedia: [{}, {}, {}] } };
   const before = structuredClone(mocks.row);
-  expect(await (await GET(request())).json()).toEqual({ status: 'blocked_saved_work', day: '2026-09-12',
-    scope: 'prepare', runStatus: 'failed', reasonCode: 'retry_limit_reached' });
+  expect(await (await GET(request())).json()).toMatchObject({ status: 'blocked_saved_work', day: '2026-09-12',
+    scope: 'prepare-alternative', runStatus: 'failed', reasonCode: 'alternative_limit_reached' });
   expect(mocks.run).not.toHaveBeenCalled();
   expect(mocks.row).toEqual(before);
 });
@@ -214,25 +215,27 @@ it('does not create a third paid story after two explicit rejections', async () 
   coverTodayAndTomorrow();
   mocks.state.entries[0].decision = 'rejected';
   mocks.state.entries.push({ ...mocks.state.entries[0], itemId: 'b'.repeat(24) });
-  expect((await (await GET(request())).json()).status).toBe('no_unstarted_work');
+  expect((await (await GET(request())).json()).reasonCode).toBe('alternative_limit_reached');
   expect(mocks.run).not.toHaveBeenCalled();
 });
 
-it('reports an automatic prewrite rejection without starting an unauthorized alternative', async () => {
+it('starts the single authorized alternative after definitive prewrite rejection', async () => {
   coverTodayAndTomorrow();
   mocks.state.entries[0].state = 'rejected';
   mocks.rows.set('prepare-2026-09-13', { status: 'draft', webflowItemId: mocks.state.entries[0].itemId });
-  expect(await (await GET(request())).json()).toMatchObject({ status: 'blocked_saved_work', scope: 'prepare',
-    day: '2026-09-13', reasonCode: 'cms_reconciliation_required' });
-  expect(mocks.run).not.toHaveBeenCalled(); expect(mocks.admit).not.toHaveBeenCalled();
+  await GET(request());
+  expect(mocks.run).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ scope: 'prepare-alternative', dayKey: '2026-09-13' }));
+  expect(mocks.admit).not.toHaveBeenCalled();
 });
 
 it('never exposes persisted provider messages or paid content in a blocked response', async () => {
   mocks.row = { status: 'skipped_factcheck', preparationAttempts: 5, reason: 'provider-secret https://private.example',
-    articleCheckpoint: { content: 'Private paid article', preparedMedia: [{}, {}, {}] }, sources: ['private-source'],
+    articleCheckpoint: { content: 'Private paid article', factRevisionCount: 2, preparedMedia: [{}, {}, {}] }, sources: ['private-source'],
     rawResponse: 'raw-model', usage: { cost: 999 } };
   const before = structuredClone(mocks.row);
-  expect(await (await GET(request())).json()).toEqual({ status: 'blocked_saved_work', day: '2026-09-12',
-    scope: 'prepare', runStatus: 'skipped_factcheck', reasonCode: 'factcheck_required' });
+  const result = await (await GET(request())).json();
+  expect(result).toMatchObject({ status: 'blocked_saved_work', day: '2026-09-12',
+    scope: 'prepare-alternative', runStatus: 'skipped_factcheck', reasonCode: 'alternative_limit_reached' });
+  expect(JSON.stringify(result)).not.toMatch(/Private|provider-secret|private-source|raw-model/);
   expect(mocks.row).toEqual(before); expect(mocks.run).not.toHaveBeenCalled();
 });

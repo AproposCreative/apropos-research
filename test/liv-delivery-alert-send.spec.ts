@@ -18,8 +18,10 @@ it('only one of simultaneous checks sends under serialized storage transactions'
 });
 it('does not retry outside the provider deduplication window',async()=>{
  const state=emptyDeliveryState();m.send.mockRejectedValueOnce(new Error('unknown'));
- await expect(notifyDeliveryHealth(state,new Date('2026-09-13T00:00:00Z'),{day:'2026-09-13',scope:'prepare',status:'blocked_saved_work',runStatus:'failed',reasonCode:'retry_limit_reached'})).rejects.toThrow();
- await expect(notifyDeliveryHealth(state,new Date('2026-09-13T23:01:00Z'))).rejects.toThrow();
+ await expect(notifyDeliveryHealth(state,new Date('2026-09-13T08:15:00Z'))).rejects.toThrow();
+ // Simulate a retained ambiguous operation that has exceeded the provider window.
+ m.row.failure.startedAt=Date.parse('2026-09-12T08:00:00Z');m.row.failure.leaseUntil=0;
+ await expect(notifyDeliveryHealth(state,new Date('2026-09-13T08:30:00Z'))).rejects.toThrow();
  expect(m.send).toHaveBeenCalledTimes(1);
 });
 it('retains the same provider identity and payload after uncertain failure',async()=>{

@@ -5,7 +5,7 @@ import type { LivNextPreparationStatus } from './preparation-status';
 
 type Notice = { startedAt: number; leaseUntil: number; accepted?: boolean; providerId?: string;
   payload: {from:string;to:string;subject:string;text:string} };
-export type DeliveryAlertRecord = { day?: string; failure?: Notice; resolved?: Notice };
+export type DeliveryAlertRecord = { day?: string; failure?: Notice; finalFailure?: Notice; resolved?: Notice };
 
 /** No alarm before the 10:15 Danish deadline unless a definitive rejection exists. */
 export function deliveryAlertKind(state: DeliveryState, old: DeliveryAlertRecord, now = new Date(), day = copenhagenClock(now).day,
@@ -15,13 +15,13 @@ export function deliveryAlertKind(state: DeliveryState, old: DeliveryAlertRecord
   if (day < copenhagenClock(now).day && !old.failure) return null;
   // Reconcile the same uncertain failure send before announcing its resolution.
   if (old.failure && !old.failure.accepted) return 'failure';
+  if (old.finalFailure && !old.finalFailure.accepted) return 'finalFailure';
   if (state.slots[day]?.state === 'published') {
-    return old.failure?.accepted && !old.resolved?.accepted ? 'resolved' : null;
+    return (old.failure?.accepted || old.finalFailure?.accepted) && !old.resolved?.accepted ? 'resolved' : null;
   }
-  const failedPreparation = preparation?.scope !== 'reserve' && preparation?.day === day && preparation.status === 'blocked_saved_work' &&
-    (preparation.runStatus === 'failed' || preparation.runStatus?.startsWith('skipped_'));
-  const terminal = failedPreparation || state.entries.some(e => e.kind === 'scheduled' && e.scheduledDay === day && e.state === 'rejected' && e.decision !== 'rejected');
-  if (!old.failure?.accepted && (terminal || now.getTime() >= Date.parse(publicationTime(day)) + 15 * 60000)) return 'failure';
+  if (day === copenhagenClock(now).day && copenhagenClock(now).hour >= 20 && !old.finalFailure?.accepted) return 'finalFailure';
+  if (old.finalFailure?.accepted) return null;
+  if (!old.failure?.accepted && now.getTime() >= Date.parse(publicationTime(day)) + 15 * 60000) return 'failure';
   return null;
 }
 
@@ -39,8 +39,9 @@ async function notifyDeliveryDay(state: DeliveryState, now: Date, day: string, p
     // Do not resend an ambiguous operation outside the provider's idempotency window.
     if (notice && now.getTime() - notice.startedAt >= 23 * 3600000) throw new Error('liv_alert_reconciliation_required');
     notice ??= { startedAt:now.getTime(), leaseUntil:0, payload:{from,to:'frederik@aproposmagazine.com',
-      subject:kind === 'failure' ? `Liv kræver opmærksomhed · ${day}` : `Liv er udgivet · ${day}`,
-      text:kind === 'failure' ? `Dagens Liv-udgivelse (${day}) er ikke bekræftet udgivet. Der er registreret en afvisning eller en overskredet frist. Gemt arbejde er bevaret.\n\nSe status på https://ai.aproposmagazine.com/ai?view=liv` : `Dagens Liv-udgivelse (${day}) er nu bekræftet i udgivelsesflowet.\n\nSe artiklen og status på https://ai.aproposmagazine.com/ai?view=liv`,
+      subject:kind === 'resolved' ? `Liv er udgivet · ${day}` : kind === 'finalFailure' ? `Liv blev ikke udgivet i dag · ${day}` : `Liv er forsinket · ${day}`,
+      text:kind === 'resolved' ? `Dagens Liv-udgivelse (${day}) er nu bekræftet i udgivelsesflowet.\n\nSe artiklen og status på https://ai.aproposmagazine.com/ai?view=liv` :
+        `Dagens Liv-udgivelse (${day}) er ikke bekræftet udgivet. ${kind === 'finalFailure' ? 'Udgivelsesvinduet er lukket.' : 'Automatisk behandling fortsætter inden for budgettet frem til kl. 20.'} Gemt arbejde er bevaret. Status: ${preparation?.reasonCode ?? 'waiting_for_ready_article'}.\n\nSe status på https://ai.aproposmagazine.com/ai?view=liv`,
     }};
     notice.leaseUntil = now.getTime() + 2 * 60000;
     tx.set(ref,{...old,day,[kind]:notice});

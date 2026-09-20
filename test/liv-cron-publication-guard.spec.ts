@@ -424,10 +424,7 @@ it.each([false, true])('bounds factual correction, checkpoints it and requires a
   const result = await (await runLivDaily(new NextRequest('http://localhost/api/cron/liv-prepare'), {
     dayKey: '2026-09-12', kind: 'scheduled', defaultPlan: defaultEditorialPlan('2026-09-12'),
   })).json();
-  if (revised) {
-    expect(repair).not.toHaveBeenCalled(); expect(result.skipped).toBe(true);
-    expect(resumeFacts).toHaveBeenCalledTimes(1); // Archive lookup is not a new paid correction.
-  } else {
+  {
     expect(repair).toHaveBeenCalledWith(article, diagnostic, {});
     expect(result.status).toBe('facts_revised');
     expect(mocks.checkpoint).toHaveBeenLastCalledWith('2026-09-12', expect.objectContaining({ factRevisionId: 'audited-revision' }), 'prepare');
@@ -454,7 +451,7 @@ it.each([
   expect(mocks.claim).toHaveBeenCalledWith('2026-09-12', 'prepare-alternative');
   const count = revision.factRevisionCount ?? (revision.factRevisionId ? 1 : 0);
   expect(resumeFacts).toHaveBeenCalledTimes(count >= 0 && count < 2 && (count === 0 || !!revision.factRevisionId) ? 1 : 0);
-  expect(repair).not.toHaveBeenCalled();
+  expect(repair).toHaveBeenCalledTimes(revision.factRevisionId === 'legacy-first-revision' ? 1 : 0);
   expect(mocks.gates).toHaveBeenCalledTimes(1);
   expect(mocks.publish).not.toHaveBeenCalled(); expect(mocks.admission).not.toHaveBeenCalled();
 });

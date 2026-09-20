@@ -171,7 +171,7 @@ export async function repairLivArticleFacts(article: GeneratedArticle, report?: 
   };
   if (article.factRevisionId) {
     const existing = (await ref.get()).data();
-    if (!existing || (!existing.patchResult && typeof existing.rawResponse !== 'string' && existing.status !== 'complete')) throw new Error('liv_fact_revision_not_applicable');
+    if (existing && !existing.patchResult && typeof existing.rawResponse !== 'string' && existing.status !== 'complete') throw new Error('liv_fact_revision_not_applicable');
     const previous = (await db.collection('livFactRevisions').doc(article.factRevisionId).get()).data();
     const normalize = (text: string) => text.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
     const oldSpans: string[] = [

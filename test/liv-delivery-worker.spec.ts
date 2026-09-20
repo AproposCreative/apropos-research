@@ -37,6 +37,20 @@ it('does not publish before 10 Copenhagen', async () => {
   expect(await deliverReadyArticle(new Date('2026-09-11T07:59:00Z'), f.deps)).toMatchObject({ status: 'before_deadline' });
   expect(f.publish).not.toHaveBeenCalled();
 });
+it.each(['2026-09-11T18:00:00Z', '2026-12-11T19:00:00Z'])('starts no publication after 20 local: %s', async time => {
+  const f = fixture();
+  expect(await deliverReadyArticle(new Date(time), f.deps)).toMatchObject({ status: 'after_deadline' });
+  expect(f.publish).not.toHaveBeenCalled();
+});
+it('still reconciles an attempted publication after the deadline', async () => {
+  const f = fixture();
+  f.publish.mockImplementationOnce(async input => { await input.beforePublish?.('c'.repeat(64)); throw new Error('timeout'); });
+  await deliverReadyArticle(now, f.deps);
+  const late = new Date('2026-09-11T18:30:00Z'); vi.setSystemTime(late);
+  expect(await deliverReadyArticle(late, f.deps)).toMatchObject({ status: 'published' });
+  expect(f.publish).toHaveBeenCalledTimes(1);
+  expect(f.verify).toHaveBeenCalledTimes(1);
+});
 it('ignores the early winter trigger and publishes once at 10 local time', async () => {
   const f = fixture();
   for (const entry of f.state.entries) {

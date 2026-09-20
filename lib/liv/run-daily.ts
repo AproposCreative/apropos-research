@@ -381,7 +381,10 @@ async function runLivDailyOperation(req: NextRequest, preparation?: LivPreparati
     const factRepairNeeded = !!diagnostic &&
       ['factcheck', 'verification-complete'].includes(gates.failedGate || '') &&
       diagnostic.results.some(result => result.status !== 'verified');
-    if (preparation && !article.factRevisionId && (article.factRevisionCount ?? 0) === 0 &&
+    const correctionCount = article.factRevisionCount ?? (article.factRevisionId ? 1 : 0);
+    const correctionMetadataValid = Number.isInteger(correctionCount) && correctionCount >= 0 && correctionCount < 2 &&
+      (correctionCount === 0 ? !article.factRevisionId : !!article.factRevisionId);
+    if (preparation && correctionMetadataValid &&
         (factRepairNeeded || (gates.pass && !length.pass))) {
       const { repairLivArticleFacts } = await import('@/lib/liv/fact-revision');
       article = await repairLivArticleFacts(article, factRepairNeeded ? diagnostic : undefined,
@@ -490,7 +493,11 @@ async function runLivDailyOperation(req: NextRequest, preparation?: LivPreparati
     // after saving, and live publication has its own verified receipt.
     const cmsCheck = checkCmsDraft(article, 'liv-daily');
     let preparationProof: PreparationProof | undefined;
-    if (preparation && !cmsCheck.structureReady) throw new Error('liv_preparation_structure_failed');
+    if (preparation && !cmsCheck.structureReady) {
+      gateResults.push({ name: 'structure', pass: false,
+        detail: `${cmsCheck.checks.filter(check => !check.ok).map(check => check.id).join(',')}; bodyWords=${cmsCheck.wordCount}` });
+      throw new Error('liv_preparation_structure_failed');
+    }
 
     const { articleId: webflowItemId, receipt } = await publishArticleDraftToWebflow(payload, {
       source: 'liv',

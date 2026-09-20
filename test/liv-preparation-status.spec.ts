@@ -17,7 +17,7 @@ beforeEach(() => { state.rows.clear(); state.reads.mockClear(); state.available 
 
 it('projects exactly today’s next candidate with no mutations or generation', async () => {
   const manifest = emptyDeliveryState(), before = structuredClone(manifest);
-  expect(await readNextLivPreparationStatus(manifest, now)).toEqual({ day, scope: 'prepare', runStatus: null,
+  expect(await readNextLivPreparationStatus(manifest, now)).toMatchObject({ day, scope: 'prepare', runStatus: null,
     status: 'queued', reasonCode: 'awaiting_preparation' });
   expect(state.reads).toHaveBeenCalledWith('prepare-2026-09-12');
   expect(manifest).toEqual(before);
@@ -28,8 +28,10 @@ it('reads tomorrow after today is covered and exposes a known exhausted factchec
   state.rows.set('prepare-2026-09-13', { status: 'skipped_factcheck', preparationAttempts: 5,
     title: 'Private title', articleCheckpoint: { content: 'Private text', preparedMedia: [{}, {}, {}] },
     rawResponse: 'Private raw', reason: 'private error containing credentials', historicalCost: 200 });
-  expect(await readNextLivPreparationStatus(manifest, now)).toEqual({ day: '2026-09-13', scope: 'prepare',
-    runStatus: 'skipped_factcheck', status: 'blocked_saved_work', reasonCode: 'factcheck_required' });
+  const result = await readNextLivPreparationStatus(manifest, now);
+  expect(result).toMatchObject({ day: '2026-09-13', scope: 'prepare',
+    runStatus: 'skipped_factcheck', status: 'queued', nextAction: 'repair', reasonCode: 'article_correction_required' });
+  expect(JSON.stringify(result)).not.toMatch(/Private|credentials/);
   expect(state.reads).toHaveBeenCalledTimes(1);
 });
 
@@ -57,10 +59,10 @@ it('surfaces blocked tomorrow inventory without regenerating or exposing saved d
   expect(await readNextLivPreparationStatus(manifest, now)).toMatchObject({ status: 'idle' });
 });
 
-it('surfaces two explicit rejections without creating or reading a third job', async () => {
+it('moves to tomorrow after two explicit rejections without creating a third job today', async () => {
   const manifest = emptyDeliveryState(); manifest.entries.push(entry({ decision: 'rejected' }), entry({ itemId: 'c'.repeat(24), decision: 'rejected' }));
-  expect(await readNextLivPreparationStatus(manifest, now)).toMatchObject({ day, status: 'blocked_saved_work', reasonCode: 'alternative_limit_reached' });
-  expect(state.reads).not.toHaveBeenCalled();
+  expect(await readNextLivPreparationStatus(manifest, now)).toMatchObject({ day: '2026-09-13', status: 'queued' });
+  expect(state.reads).toHaveBeenCalledWith('prepare-2026-09-13');
 });
 
 it.each(['blocked', 'rejected', 'decision-rejected'] as const)('surfaces a retained %s reserve without reading or changing paid work', async kind => {
@@ -98,15 +100,15 @@ it.each(['cover', 'publish'])('exposes a safe reconciliation hold for %s without
 
 it.each(['missing', 'failed'])('returns unavailable rather than false idle on a %s datastore', async kind => {
   state.available = kind !== 'missing'; state.fail = kind === 'failed';
-  expect(await readNextLivPreparationStatus(emptyDeliveryState(), now)).toEqual({ day, scope: 'prepare', runStatus: null,
+  expect(await readNextLivPreparationStatus(emptyDeliveryState(), now)).toEqual({ day: null, scope: null, runStatus: null,
     status: 'unavailable', reasonCode: 'status_unavailable' });
 });
 
 it('maps only known status and reason codes, never arbitrary stored strings', () => {
-  expect(livPreparationStatusForRow(day, 'prepare', { status: 'private-status', reason: 'secret: private-provider-body' })).toEqual({
-    day, scope: 'prepare', runStatus: null, status: 'blocked_saved_work', reasonCode: 'operator_retry_required' });
+  expect(livPreparationStatusForRow(day, 'prepare', { status: 'private-status', reason: 'secret: private-provider-body' })).toMatchObject({
+    day, scope: 'prepare', runStatus: null, status: 'blocked_saved_work', reasonCode: 'candidate_exhausted' });
   expect(livPreparationStatusForRow(day, 'prepare', { status: 'failed', preparationAttempts: 3, reason: 'research_sources_unavailable: private-source' }).reasonCode)
-    .toBe('source_evidence_required');
+    .toBe('candidate_exhausted');
 });
 
 it('preserves automatic attempt limits and explicit continuation/authorization eligibility', () => {

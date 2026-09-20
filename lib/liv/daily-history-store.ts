@@ -14,6 +14,7 @@ import type { GeneratedArticle } from '@/lib/liv/generate-article';
 import { livImageArticleHash } from '@/lib/liv/article-image-hash';
 import type { PreparationProof } from '@/lib/liv/prepared-admission';
 import { canRetryUnstartedPreparation, shouldExcludeLivTopic } from '@/lib/liv/preparation-retry';
+import { claimedRecovery, decidePreparation, executablePreparation } from './preparation-policy';
 
 export const LIV_DAILY_COLLECTION = 'livDailyArticles';
 export type LivDailyScope = 'daily' | 'prepare' | 'prepare-alternative' | 'reserve' | 'reserve-editorial';
@@ -65,6 +66,24 @@ export async function claimLivDaily(dayKey: string, scope: LivDailyScope = 'dail
       const snap = await tx.get(ref);
       const d = snap.data();
       const status = d?.status as LivDailyStatus | undefined;
+
+      // Automatic scheduled work uses the same policy as the cron/UI. Legacy
+      // attempt counters remain audit evidence, not a permanent retry lock.
+      if ((scope === 'prepare' || scope === 'prepare-alternative') && typeof d?.retryAuthorization !== 'string') {
+        const decision = decidePreparation(d);
+        if (!executablePreparation(decision)) {
+          result = { ok: false, reason: decision.action === 'wait' ? 'already_processing' : 'already_done' };
+          return;
+        }
+        tx.set(ref, { dayKey, status: 'processing', processingStartedAt: FieldValue.serverTimestamp(),
+          updatedAt: FieldValue.serverTimestamp(), continuationReady: false,
+          recovery: claimedRecovery(d, decision), candidateNumber: scope === 'prepare-alternative' ? 2 : 1,
+          ...(scope === 'prepare-alternative' ? { previousCandidateId: livDailyDocId(dayKey, 'prepare') } : {}),
+          ...(decision.action !== 'resume' ? { preparationAttempts: (d?.preparationAttempts ?? 0) + 1 } : {}),
+        }, { merge: true });
+        result = { ok: true, dayKey };
+        return;
+      }
 
       const continuation = scope !== 'daily' && d?.continuationReady === true && !!d?.articleCheckpoint &&
         !d?.webflowItemId && !d?.preparationProof;

@@ -24,8 +24,8 @@ it('retains the item before completion and prevents stale processing from creati
 it('permits recovery of stale processing with no known CMS item', async () => {
   expect(await claimLivDaily('2026-09-10')).toEqual({ ok: true, dayKey: '2026-09-10' });
 });
-it('retries only pre-generation preparation failures, never daily terminal results', async () => {
-  state.row = { status: 'skipped_no_topic' };
+it('retries known transient preparation failures, never daily terminal results', async () => {
+  state.row = { status: 'failed', reason: 'liv_trending_http_503', completedAt: 1 };
   expect(await claimLivDaily('2026-09-12')).toEqual({ ok: false, reason: 'already_done' });
   expect(await claimLivDaily('2026-09-12', 'prepare')).toEqual({ ok: true, dayKey: '2026-09-12' });
   expect(state.row.preparationAttempts).toBe(1);
@@ -90,7 +90,7 @@ it.each(['webflowItemId', 'preparationProof', 'cmsSaveStarted'])('retry never by
   expect(await claimLivDaily('2026-09-12', 'prepare')).toMatchObject({ ok: false });
 });
 it('resumes failed complete-media checkpoints instead of filtering them out as terminal', async () => {
-  state.row = { status: 'failed', preparationAttempts: 4, articleCheckpoint: { preparedMedia: [{}, {}, {}] } };
+  state.row = { status: 'failed', reason: 'liv_preparation_structure_failed', preparationAttempts: 4, articleCheckpoint: { preparedMedia: [{}, {}, {}] } };
   expect(await claimLivDaily('2026-09-12', 'prepare')).toMatchObject({ ok: true });
 });
 
@@ -110,7 +110,7 @@ it.each(['prepare', 'reserve'] as const)('preserves legacy counters across saved
   }
 });
 
-it.each(['prepare', 'reserve'] as const)('still exhausts genuine %s failures after successful stages', async scope => {
+it.each(['reserve'] as const)('still exhausts genuine %s failures after successful stages', async scope => {
   state.row = {};
   expect(await claimLivDaily('2026-09-12', scope)).toMatchObject({ ok: true });
   expect(state.row.preparationAttempts).toBe(1);
@@ -128,9 +128,21 @@ it.each(['prepare', 'reserve'] as const)('still exhausts genuine %s failures aft
 });
 
 it.each(['failed', 'skipped_factcheck'])('does not exempt a %s retry with a leftover continuation flag', async status => {
-  state.row = { status, continuationReady: true, preparationAttempts: 2, articleCheckpoint: { content: 'Paid text' } };
+  state.row = { status, reason: 'liv_preparation_structure_failed', continuationReady: true, preparationAttempts: 2, articleCheckpoint: { content: 'Paid text' } };
   expect(await claimLivDaily('2026-09-12', 'prepare')).toMatchObject({ ok: true });
   expect(state.row.preparationAttempts).toBe(3);
+});
+
+it('persists two bounded repairs independently of legacy cron counts', async () => {
+  state.row = { status: 'failed', reason: 'liv_preparation_structure_failed', preparationAttempts: 9,
+    articleCheckpoint: { content: 'Paid text' } };
+  for (let i = 1; i <= 2; i++) {
+    expect(await claimLivDaily('2026-09-20', 'prepare')).toMatchObject({ ok: true });
+    expect(state.row.recovery).toMatchObject({ version: 1, repairs: i, legacyAttempts: 9 });
+    state.row.status = 'failed';
+  }
+  expect(await claimLivDaily('2026-09-20', 'prepare')).toMatchObject({ ok: false });
+  expect(state.row.articleCheckpoint.content).toBe('Paid text');
 });
 
 it('counts and consumes an operator grant even alongside a saved continuation', async () => {

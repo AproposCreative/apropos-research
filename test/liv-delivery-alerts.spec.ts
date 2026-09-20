@@ -8,8 +8,15 @@ it('uses the existing preparation retry policy before alarming',()=>{
  const classify=(row:any)=>deliveryAlertKind(state,{},now,day,livPreparationStatusForRow(day,'prepare',row,now.getTime()));
  expect(classify({status:'failed',preparationAttempts:1})).toBeNull();
  expect(classify({status:'processing',continuationReady:true,articleCheckpoint:{}})).toBeNull();
- expect(classify({status:'failed',preparationAttempts:3})).toBe('failure');
- expect(classify({status:'skipped_factcheck',articleCheckpoint:{}})).toBe('failure');
+ expect(classify({status:'failed',preparationAttempts:3})).toBeNull();
+ expect(classify({status:'skipped_factcheck',articleCheckpoint:{}})).toBeNull();
+});
+it('sends one final failure at 20 Copenhagen and deduplicates it',()=>{
+ const state=emptyDeliveryState();
+ expect(deliveryAlertKind(state,{failure:sent},new Date('2026-09-13T17:59:59Z'))).toBeNull();
+ expect(deliveryAlertKind(state,{failure:sent},new Date('2026-09-13T18:00:00Z'))).toBe('finalFailure');
+ expect(deliveryAlertKind(state,{failure:sent,finalFailure:sent},new Date('2026-09-13T18:15:00Z'))).toBeNull();
+ expect(deliveryAlertKind(state,{failure:sent},new Date('2026-12-13T19:00:00Z'))).toBe('finalFailure');
 });
 it('waits until 10:15 in both summer and winter Danish time',()=>{
  const s=emptyDeliveryState();

@@ -1,9 +1,10 @@
 import { getAdminDb } from '@/lib/firebase-admin';
 import { LIV_DAILY_COLLECTION, livDailyDocId } from '@/lib/liv/daily-history-store';
 import { addDays, copenhagenClock, type DeliveryState } from '@/lib/liv/delivery-policy';
-import { preparationCandidates } from '@/lib/liv/rolling-plan';
 import { canRetryUnstartedPreparation } from '@/lib/liv/preparation-retry';
 import { reserveNeeded } from './reserve-preparation';
+import { decidePreparation, type PreparationDecision } from './preparation-policy';
+import { nextScheduledPreparation } from './next-preparation';
 
 const runStatuses = ['processing', 'published', 'draft', 'skipped_no_topic', 'skipped_factcheck',
   'skipped_moderation', 'skipped_tov', 'skipped_duplicate', 'failed'] as const;
@@ -13,11 +14,15 @@ export type LivNextPreparationStatus = {
   scope: PreparationScope | null;
   status: 'idle' | 'queued' | 'preparing' | 'blocked_saved_work' | 'reconciliation_required' | 'unavailable';
   runStatus: typeof runStatuses[number] | null;
+  stage?: PreparationDecision['stage'];
+  nextAction?: PreparationDecision['action'];
+  nextAttemptAt?: string | null;
   reasonCode: 'no_preparation_needed' | 'awaiting_preparation' | 'preparation_in_progress' |
     'saved_stage_ready' | 'retry_limit_reached' | 'operator_retry_required' | 'cms_reconciliation_required' |
     'source_evidence_required' | 'factcheck_required' | 'moderation_required' | 'editorial_review_required' |
     'budget_limit' | 'delivery_reconciliation_required' | 'cover_revision_in_progress' |
-    'alternative_limit_reached' | 'status_unavailable';
+    'alternative_limit_reached' | 'status_unavailable' | 'article_correction_required' |
+    'source_retry_scheduled' | 'provider_result_unconfirmed' | 'no_topic' | 'candidate_exhausted' | 'already_done' | 'authentication_required';
 };
 
 /** The existing cron eligibility expression, not a new retry authorization. */
@@ -34,6 +39,14 @@ export function livPreparationStatusForRow(day: string, scope: PreparationScope,
   row?: Record<string, any>, now = Date.now()): LivNextPreparationStatus {
   const runStatus = runStatuses.includes(row?.status) ? row!.status as LivNextPreparationStatus['runStatus'] : null;
   const base = { day, scope, runStatus };
+  if (scope === 'prepare' || scope === 'prepare-alternative') {
+    const d = decidePreparation(row, now);
+    return { ...base, stage: d.stage, nextAction: d.action,
+      nextAttemptAt: d.nextAttemptAt ? new Date(d.nextAttemptAt).toISOString() : null,
+      status: d.action === 'wait' ? 'preparing' : ['blocked', 'alternative', 'reconcile'].includes(d.action)
+        ? 'blocked_saved_work' : d.action === 'done' ? 'idle' : 'queued',
+      reasonCode: d.reasonCode as LivNextPreparationStatus['reasonCode'] };
+  }
   if (!row) return { ...base, status: 'queued', reasonCode: 'awaiting_preparation' };
   if (row.webflowItemId || row.preparationProof || row.cmsSaveStarted) {
     return { ...base, status: 'blocked_saved_work', reasonCode: 'cms_reconciliation_required' };
@@ -78,7 +91,20 @@ export async function readNextLivPreparationStatus(state: DeliveryState, now = n
       other.state === 'ready' && other.decision !== 'rejected' && !other.publicationBlockers?.length && other.expiresDay >= entry.scheduledDay));
   if (blocked) return { day: blocked.scheduledDay, scope: 'prepare', runStatus: null,
     status: 'blocked_saved_work', reasonCode: 'cms_reconciliation_required' };
-  const candidate: { dayKey: string; scope?: PreparationScope } | undefined = preparationCandidates(state, today)[0] ??
+  let scheduled;
+  try {
+    const db = getAdminDb();
+    if (!db) throw new Error('unavailable');
+    scheduled = await nextScheduledPreparation(state, async (day, scope) =>
+      (await db.collection(LIV_DAILY_COLLECTION).doc(livDailyDocId(day, scope)).get()).data(), now);
+  } catch { return { ...empty, status: 'unavailable', reasonCode: 'status_unavailable' }; }
+  if (scheduled) {
+    const result = livPreparationStatusForRow(scheduled.dayKey, scheduled.scope, scheduled.row, now.getTime());
+    return { ...result, nextAction: scheduled.decision.action,
+      ...(scheduled.decision.action === 'blocked' ? { status: 'blocked_saved_work' as const,
+        reasonCode: scheduled.decision.reasonCode as LivNextPreparationStatus['reasonCode'] } : {}) };
+  }
+  const candidate: { dayKey: string; scope?: PreparationScope } | undefined =
     (reserveNeeded(state,today) ? { dayKey: state.reservePreparation?.dayKey ?? today, scope: 'reserve' } : undefined);
   if (!candidate) {
     const exhaustedDay = [today, addDays(today, 1)].find(day => !state.slots[day] &&

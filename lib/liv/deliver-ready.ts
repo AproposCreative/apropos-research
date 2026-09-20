@@ -30,10 +30,13 @@ export async function deliverReadyArticle(now = new Date(), dependencies = {
   },
 }) {
   const clock = copenhagenClock(now);
-  if (clock.hour < 10) return { status: 'before_deadline' };
   const state = await dependencies.readDeliveryState();
+  const ambiguousDay = Object.entries(state.slots).find(([, s]) => s.state === 'attempted')?.[0];
+  // Readback of an uncertain publication continues outside the publication window.
+  if (!ambiguousDay && clock.hour < 10) return { status: 'before_deadline' };
+  if (!ambiguousDay && clock.hour >= 20) return { status: 'after_deadline', day: clock.day };
   // Finish a previous day's ambiguous publication before processing today's slot.
-  const day = Object.entries(state.slots).find(([, s]) => s.state === 'attempted')?.[0] ?? clock.day;
+  const day = ambiguousDay ?? clock.day;
   const slot = await dependencies.claimDelivery(day, now.getTime());
   if (!slot) return { status: state.slots[day]?.state === 'published' ? 'published' : 'waiting', day };
   let attempted = slot.state === 'attempted';
