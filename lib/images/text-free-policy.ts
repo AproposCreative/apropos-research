@@ -17,3 +17,16 @@ export function textFreeCanvas(width: number, height: number) {
   const w = Math.round(width * scale), h = Math.round(height * scale);
   return { width: w, height: h, left: Math.floor((1536 - w) / 2), top: Math.floor((1024 - h) / 2) };
 }
+
+export type TextRegion = { x: number; y: number; width: number; height: number };
+export function textFreeRegions(value: unknown): TextRegion[] {
+  if (!Array.isArray(value) || !value.length || value.length > 30) throw new Error('image_text_regions_invalid');
+  let area = 0;
+  for (const r of value) {
+    if (!r || ![r.x, r.y, r.width, r.height].every(Number.isInteger) || r.x < 0 || r.y < 0 ||
+        r.width <= 0 || r.height <= 0 || r.x + r.width > 1000 || r.y + r.height > 1000) throw new Error('image_text_regions_invalid');
+    area += r.width * r.height;
+  }
+  if (area > 650_000) throw new Error('image_text_regions_too_broad');
+  return value.map(({ x, y, width, height }) => ({ x, y, width, height }));
+}

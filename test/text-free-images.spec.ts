@@ -21,7 +21,7 @@ vi.mock('@/lib/openai', () => ({ getImageGenOpenAIClient: () => ({ chat: { compl
 import { ensureTextFreeImage, getTextFreeReceipt } from '@/lib/images/text-free';
 import { textFreeCanvas, textFreeVerdict } from '@/lib/images/text-free-policy';
 let original: Buffer;
-const answer = (hasText: boolean, preserved = true) => ({ choices: [{ finish_reason: 'stop', message: { content: JSON.stringify({ hasText, preserved }) } }] });
+const answer = (hasText: boolean, preserved = true) => ({ choices: [{ finish_reason: 'stop', message: { content: JSON.stringify({ hasText, preserved, regions: hasText ? [{ x: 550, y: 150, width: 400, height: 430 }] : [] }) } }] });
 beforeEach(async () => {
   vi.clearAllMocks(); f.rows.clear(); f.files.clear();
   process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET = 'test-bucket';
@@ -39,7 +39,7 @@ it('does not buy an edit for a clean image and reuses inspection on reopening', 
 it('edits once, preserves original, removes padding, and caches the clean derivative', async () => {
   f.chat.mockResolvedValueOnce(answer(true)).mockResolvedValueOnce(answer(false));
   const result = await ensureTextFreeImage(original);
-  expect(result.receipt.edited).toBe(true); expect(result.receipt.image).toMatchObject({ width: 1536, height: 864 });
+  expect(result.receipt.edited).toBe(true); expect(result.receipt.image).toMatchObject({ width: 1280, height: 720 });
   expect(f.files.get(result.receipt.original.storagePath).bytes.equals(original)).toBe(true);
   await ensureTextFreeImage(original); await ensureTextFreeImage(result.bytes);
   expect(f.edit).toHaveBeenCalledOnce(); expect(f.chat).toHaveBeenCalledTimes(2);

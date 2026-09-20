@@ -50,7 +50,10 @@ export async function cleanPublishedCover(value: unknown) {
     const { sourceBase64: _bytes, ...metadata } = input;
     const revisionId = cmsFieldHash(metadata), ref = db.collection('publishedCoverCleanups').doc(revisionId);
     const existing = (await ref.get()).data();
-    if (existing?.receiptId) return { revisionId, status: existing.status, image: (await getTextFreeReceipt(existing.receiptId)).image };
+    if (existing?.receiptId) {
+      try { return { revisionId, status: existing.status, image: (await getTextFreeReceipt(existing.receiptId)).image }; }
+      catch (error) { if (!(error instanceof Error) || error.message !== 'image_text_not_ready' || existing.status !== 'prepared') throw error; }
+    }
     await ref.set({ input: metadata, requestedAt: new Date().toISOString(), provenance: 'user-supplied; rights not independently verified' }, { merge: true });
     const { receipt } = await ensureTextFreeImage(original);
     await ref.set({ receiptId: receipt.id, status: 'prepared' }, { merge: true });
