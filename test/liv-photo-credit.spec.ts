@@ -59,6 +59,14 @@ it('does not borrow a neighboring picture credit, generic footer, or caption pro
   expect(extractLivPhotoCredit(html, asset('other'), tudum)).toBe('Foto: ANOTHER PHOTOGRAPHER');
   expect(extractLivTudumPhotos(gallery(picture(asset('caption'), 'A PHOTO BY CHRISTOPHER RAPHAEL appears here.')), tudum)).toEqual([]);
 });
+it('supports Tudum photographer/NETFLIX credits only on their exact gallery pictures', () => {
+  const html = gallery(picture(asset('lizzie'), 'SUZANNE TENNER/NETFLIX') + picture(asset('no-credit'), ''));
+  expect(extractLivTudumPhotos(html, tudum)).toEqual([{ url: asset('lizzie'), credit: 'Foto: SUZANNE TENNER/NETFLIX' }]);
+  for (const credit of ['A scene supplied by Suzanne Tenner/Netflix', 'NETFLIX', 'SUZANNE TENNER/OTHER', 'WATCH NOW/NETFLIX!']) {
+    expect(extractLivTudumPhotos(gallery(picture(asset('bad'), credit)), tudum)).toEqual([]);
+  }
+  expect(extractLivTudumPhotos(gallery(picture(asset('one'), 'SUZANNE TENNER/NETFLIX') + picture(asset('one'), 'OTHER NAME/NETFLIX')), tudum)).toEqual([]);
+});
 it('rejects conflicting credits, multi-image hero containers, unrelated cards and unsupported asset hosts', () => {
   expect(extractLivTudumPhotos(gallery(picture(asset('one')) + picture(asset('one'), 'PHOTO BY OTHER PERSON')), tudum)).toEqual([]);
   expect(extractLivTudumPhotos(hero().replace('</div><div data-uia="image-credit">', `<img src="${asset('other')}"></div><div data-uia="image-credit">`), tudum)).toEqual([]);

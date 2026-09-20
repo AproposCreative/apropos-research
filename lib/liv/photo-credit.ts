@@ -39,21 +39,30 @@ export function isLivTudumSource(pageUrl: string): boolean {
   } catch { return false; }
 }
 
+function tudumCredit(value: string): string | null {
+  const text = value.replace(/\s+/g, ' ').trim();
+  const byline = text.match(/^PHOTO BY ([\p{L}\p{N} .,'’&/()-]{2,180})$/iu);
+  if (byline) return byline[1].trim();
+  // Tudum also renders an uppercase photographer/NETFLIX credit without
+  // "PHOTO BY". Accept only that credit form in the image's own credit node.
+  return /^[\p{Lu}\p{M} .,'’&()-]{2,100}\s*\/\s*NETFLIX$/u.test(text) ? text : null;
+}
+
 /** Exact rendered asset URLs only. Never equate different CDN transformations. */
 export function extractLivTudumPhotos(html: string, pageUrl: string): Array<{ url: string; credit: string }> {
   if (!isLivTudumSource(pageUrl) || Buffer.byteLength(html) > LIV_TUDUM_HTML_MAX_BYTES) return [];
   const $ = load(html), found = new Map<string, Set<string>>();
   const add = (raw: string | undefined, rawCredit: string) => {
     if (!raw) return;
-    const match = rawCredit.replace(/\s+/g, ' ').trim().match(/^PHOTO BY ([\p{L}\p{N} .,'’&/()-]{2,180})$/iu);
-    if (!match) return;
+    const credit = tudumCredit(rawCredit);
+    if (!credit) return;
     try {
       const url = new URL(raw, pageUrl);
       if (url.origin !== 'https://dnm.nflximg.net' || url.username || url.password || url.hash ||
           !/^\/api\/v6\/[a-z0-9_-]+\/[a-z0-9_-]+\.(?:jpe?g|png|webp)$/i.test(url.pathname) ||
           [...url.searchParams].some(([key, value]) => key !== 'r' || !/^[a-f0-9]{1,12}$/i.test(value))) return;
       const credits = found.get(url.href) || new Set<string>();
-      credits.add(`Foto: ${match[1].trim()}`); found.set(url.href, credits);
+      credits.add(`Foto: ${credit}`); found.set(url.href, credits);
     } catch { /* Invalid asset is not a source. */ }
   };
   // Hero credit is a direct sibling of its one-image semantic container.
@@ -70,7 +79,7 @@ export function extractLivTudumPhotos(html: string, pageUrl: string): Array<{ ur
     const picture = $(node), parent = picture.parent(), details = parent.children('[data-uia="media-details"]');
     if (picture.parents('header,footer,nav,aside').length || parent.find('img').length !== 1 ||
         parent.children('picture').length !== 1 || details.length !== 1) return;
-    const credits = details.children('div').filter((_, child) => $(child).children().length === 0 && /^PHOTO BY /i.test($(child).text().trim()));
+    const credits = details.children('div').filter((_, child) => $(child).children().length === 0 && tudumCredit($(child).text()) !== null);
     if (credits.length !== 1) return;
     const image = picture.find('img');
     add(image.attr('src') || image.attr('data-src'), credits.text());

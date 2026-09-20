@@ -124,6 +124,23 @@ it('fails closed on truncated model JSON or uncertain visual review', async () =
   expect(mocks.chat.mock.calls.map(call => ({ reasoning: call[0].reasoning_effort, limit: call[0].max_completion_tokens })))
     .toEqual([{ reasoning: 'low', limit: 4000 }, { reasoning: 'low', limit: 2000 }]);
 });
+it('recovers three exact Tudum photos from saved research without new AI calls', async () => {
+  const page = 'https://www.netflix.com/tudum/articles/monster-season-4';
+  const urls = [1, 2, 3].map(i => `https://dnm.nflximg.net/api/v6/abc/still${i}.jpg?r=abc`);
+  const html = `<div data-sel="media-card" data-content-type="inlineImageCollection">${urls.map(url =>
+    `<div><picture><img src="${url}"></picture><div data-uia="media-details"><div>SUZANNE TENNER/NETFLIX</div></div></div>`).join('')}</div>`;
+  mocks.read.mockImplementation(async (url, kind) => kind === 'html' ? Buffer.from(html) : Buffer.from(String(url)));
+  const result = await livMediaRuntime().candidates({ ...article, imageSuggestions: [], researchSources: [{ url: page }] as any });
+  expect(result.map(candidate => candidate.url)).toEqual(urls);
+  expect(result.every(candidate => candidate.credit === 'Foto: SUZANNE TENNER/NETFLIX' && candidate.sourcePageUrl === page)).toBe(true);
+  expect(mocks.read).toHaveBeenCalledTimes(4);
+  expect(mocks.chat).not.toHaveBeenCalled(); expect(mocks.generate).not.toHaveBeenCalled();
+});
+it('does not discover photos from untrusted saved pages or call another page after three photos', async () => {
+  mocks.read.mockResolvedValue(Buffer.from('uncredited images'));
+  expect(await livMediaRuntime().candidates({ ...article, researchSources: [{ url: 'https://evil.netflix.com/tudum/articles/monster' }] as any })).toEqual([]);
+  expect(mocks.read).not.toHaveBeenCalled();
+});
 it('does not silently create clients or credentials if the existing configuration is missing', () => {
   mocks.keyAvailable = false;
   expect(() => livMediaRuntime()).toThrow('model_unavailable');

@@ -5,7 +5,7 @@ import { getOpenAIClient } from '@/lib/openai';
 import { livModels } from '@/lib/liv/model-config';
 import { livImageArticleHash } from '@/lib/liv/article-image-hash';
 import { readPublicMedia } from '@/lib/liv/public-media-reader';
-import { extractLivPhotoCredit, isLivOfficialImageSource, isLivSyndicatedPressPage, extractLivSyndicatedPressPhotos } from '@/lib/liv/photo-credit';
+import { extractLivPhotoCredit, isLivOfficialImageSource, isLivSyndicatedPressPage, extractLivSyndicatedPressPhotos, isLivTudumSource, extractLivTudumPhotos } from '@/lib/liv/photo-credit';
 import type { MediaCandidate, MediaDependencies, MediaEvidence, MediaStyle, StoredMedia } from '@/lib/liv/automatic-media';
 import type { GeneratedArticle } from '@/lib/liv/generate-article';
 import { getLivCostPretransportError } from './cost-errors';
@@ -260,6 +260,28 @@ export function livMediaRuntime(deadline = Date.now() + 180_000): MediaDependenc
           const id = hash(bytes);
           if (!candidates.some(candidate => candidate.id === id)) candidates.push({ id, url: suggestion.url, sourcePageUrl: pageUrl, credit, bytes });
         } catch { /* Unavailable/unclear candidates do not become approved images. */ }
+      }
+      // Saved text can predate a source-markup fix. Discover exact credited
+      // stills from its already-researched official pages, without regenerating
+      // text, doing another paid search, or mutating the article checkpoint.
+      if (candidates.length < 3) {
+        const sources = [...new Set((article.researchSources || []).map(source => source.url))]
+          .filter(isLivTudumSource).slice(0, 2);
+        for (const pageUrl of sources) {
+          if (candidates.length >= 3) break;
+          try {
+            if (!pages.has(pageUrl)) pages.set(pageUrl, (await readPublicMedia(pageUrl, 'html', timeout(8000))).toString('utf8'));
+            for (const photo of extractLivTudumPhotos(pages.get(pageUrl)!, pageUrl).slice(0, 6)) {
+              if (candidates.length >= 3) break;
+              if (candidates.some(candidate => candidate.url === photo.url)) continue;
+              try {
+                const bytes = await readPublicMedia(photo.url, 'image', timeout(8000));
+                const id = hash(bytes);
+                if (!candidates.some(candidate => candidate.id === id)) candidates.push({ id, ...photo, sourcePageUrl: pageUrl, bytes });
+              } catch { /* Asset validation and public-fetch restrictions still apply. */ }
+            }
+          } catch { /* Keep authentication failures and unavailable sources closed. */ }
+        }
       }
       // Official sources retain priority. A public, exactly credited TV 2 still
       // may also be selected from an already-researched editorial page. This
