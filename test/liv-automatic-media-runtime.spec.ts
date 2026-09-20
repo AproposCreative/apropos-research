@@ -147,6 +147,49 @@ it('does not silently create clients or credentials if the existing configuratio
   mocks.dbAvailable = false;
   expect(() => livMediaRuntime()).toThrow('storage_unavailable');
 });
+it('keeps looking at credited press pages when an official roundup has three irrelevant candidates', async () => {
+  const amazon = 'https://www.aboutamazon.com/news/entertainment/august-films';
+  const wrap = 'https://www.thewrap.com/creative-content/reviews/reacher/';
+  mocks.read.mockImplementation(async (url, kind) => kind === 'image' ? Buffer.from(url) : Buffer.from(url === amazon
+    ? [1,2,3].map(i => `<div class="contentItem-role-image"><div class="image"><img src="https://assets.aboutamazon.com/${i}.jpg"></div></div>`).join('')
+    : '<figure><img src="https://www.thewrap.com/wp-content/uploads/2026/08/reacher.jpg"><figcaption>Reacher (Prime Video)</figcaption></figure>'));
+  const candidates = await livMediaRuntime().candidates({...article, researchSources:[{url:amazon},{url:wrap}] as any});
+  expect(candidates).toHaveLength(4);
+  expect(candidates[3].credit).toBe('Foto: Prime Video');
+  expect(mocks.chat).not.toHaveBeenCalled();
+});
+it('retains an empty paid plan and permits only one changed-candidate correction', async () => {
+  const first = livMediaRuntime();
+  await first.claim(id, article, 'photography', 'expressive');
+  await first.plan(article, 'photography', 'expressive', [], id);
+  await first.fail(id);
+  const original = structuredClone(mocks.stageRows['plan-call']);
+  const next = livMediaRuntime();
+  await next.claim(id, article, 'photography', 'expressive');
+  expect(await next.plan(article, 'photography', 'expressive', [], id)).toEqual({images:[]});
+  expect(mocks.chat).toHaveBeenCalledTimes(1);
+  const candidates = [{id:'new',url:'https://example.com/a.jpg',sourcePageUrl:'https://example.com',credit:'Prime Video',bytes:image}];
+  await next.plan(article, 'photography', 'expressive', candidates, id);
+  expect(mocks.chat).toHaveBeenCalledTimes(2);
+  expect(mocks.stageRows['plan-call']).toEqual(original);
+  await next.fail(id);
+  const resumed = livMediaRuntime();
+  await resumed.claim(id, article, 'photography', 'expressive');
+  await resumed.plan(article, 'photography', 'expressive', candidates, id);
+  expect(mocks.chat).toHaveBeenCalledTimes(2);
+  await expect(resumed.plan(article, 'photography', 'expressive', [{...candidates[0],id:'another'}], id)).rejects.toThrow('reconciliation');
+});
+it('never repeats an uncertain changed-candidate selection', async () => {
+  const deps = livMediaRuntime();
+  await deps.claim(id, article, 'photography', 'expressive');
+  await deps.plan(article, 'photography', 'expressive', [], id);
+  await deps.fail(id);
+  mocks.stageRows['plan-candidates-corrected'] = {status:'processing', inputHash:'unknown'};
+  const resumed = livMediaRuntime();
+  await resumed.claim(id, article, 'photography', 'expressive');
+  await expect(resumed.plan(article, 'photography', 'expressive', [{id:'new',url:'https://example.com/a.jpg',sourcePageUrl:'https://example.com',credit:'Prime Video',bytes:image}], id)).rejects.toThrow('reconciliation');
+  expect(mocks.chat).toHaveBeenCalledTimes(1);
+});
 it('defines both requested styles with no collage and few focal objects', () => {
   expect(aproposIllustrationStyle('expressive')).toContain('cobalt blue, hot pink and yellow');
   expect(aproposIllustrationStyle('minimal')).toContain('at most one restrained accent');
