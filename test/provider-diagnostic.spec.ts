@@ -1,5 +1,16 @@
 import { expect, it } from 'vitest';
 import { providerDiagnostic } from '@/lib/ai/provider-diagnostic';
+import { providerFailure, providerQuotaCodes } from '@/lib/ai/provider-error';
+it.each(providerQuotaCodes)('recognizes the specific billing code %s before generic HTTP 429', code => {
+  expect(providerFailure({ status: 429, error: { code, type: 'insufficient_quota' } })).toBe('quota_exhausted');
+  expect(providerFailure({ status: 429, code })).toBe('quota_exhausted');
+  expect(providerDiagnostic({ error: { code, type: 'insufficient_quota' } }, new Headers())).toMatchObject({ code, type: 'insufficient_quota' });
+});
+it('recognizes a future quota code by error type, in both SDK and raw response shape', () => {
+  expect(providerFailure({ status: 429, code: 'future_billing_code', type: 'insufficient_quota' })).toBe('quota_exhausted');
+  expect(providerFailure({ status: 429, error: { code: 'future_billing_code', type: 'insufficient_quota' } })).toBe('quota_exhausted');
+  expect(providerFailure({ status: 429, code: 'slow_down', type: 'rate_limit_error' })).toBe('rate_limited');
+});
 it('retains only closed metadata and bounded rate headers', () => {
   const d = providerDiagnostic({ error: { code: 'rate_limit_exceeded', type: 'tokens',
     message: 'Rate limit reached for org_PRIVATE: tokens per min. Request too large. PRIVATE body' } }, new Headers({

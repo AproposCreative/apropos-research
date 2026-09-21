@@ -29,6 +29,16 @@ it('records safe quota classification without leaking response text or clearing 
   expect(JSON.stringify(mock.complete.mock.calls)).not.toContain('secret provider body');
 });
 afterEach(() => vi.unstubAllEnvs());
+it('preserves the precise spend-limit cause without retrying or treating it as a transient rate limit', async () => {
+  mock.transport.mockResolvedValueOnce(new Response(JSON.stringify({ error: { code: 'project_spend_limit_exceeded',
+    type: 'insufficient_quota', message: 'PRIVATE project/account detail' } }), { status: 429,
+    headers: { 'content-type': 'application/problem+json' } }));
+  await expect(withLivCostContext(context, () => client().responses.create({ model: 'gpt-5.4-mini', input: 'Find sources', max_output_tokens: 100 }))).rejects.toThrow();
+  expect(mock.transport).toHaveBeenCalledOnce();
+  expect(mock.complete.mock.calls[0][1]).toMatchObject({ providerFailure: 'quota_exhausted', status: 'ambiguous',
+    providerDiagnostic: { code: 'project_spend_limit_exceeded', type: 'insufficient_quota', jsonBody: true } });
+  expect(JSON.stringify(mock.complete.mock.calls)).not.toContain('PRIVATE');
+});
 it.each(['writer', 'seo'] as const)('guards %s with real SDK mocked transport, no retries and unknown usage held', async scope => {
   vi.stubEnv('AI_SHARED_COST_ENABLED', 'true');
   const sdk = client();

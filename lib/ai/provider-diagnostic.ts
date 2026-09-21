@@ -1,5 +1,6 @@
 /** Closed, content-free diagnostics. Never persist raw messages, account IDs or headers. */
-const codes = ['insufficient_quota', 'billing_hard_limit_reached', 'rate_limit_exceeded',
+import { providerQuotaCodes } from './provider-error';
+const codes = [...providerQuotaCodes, 'rate_limit_exceeded', 'slow_down', 'server_is_overloaded',
   'requests_limit_exceeded', 'tokens_limit_exceeded', 'invalid_api_key', 'model_not_found',
   'organization_deactivated', 'access_terminated', 'server_error'] as const;
 const types = ['insufficient_quota', 'tokens', 'requests', 'invalid_request_error',
