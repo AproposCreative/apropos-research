@@ -1,5 +1,6 @@
 import OpenAI from 'openai';
 import { providerFailure } from '@/lib/ai/provider-error';
+import { providerDiagnostic } from '@/lib/ai/provider-diagnostic';
 import type { ClientOptions } from 'openai';
 import type { APIPromise } from 'openai/core/api-promise';
 import { createHash, randomUUID } from 'node:crypto';
@@ -55,13 +56,14 @@ export function livBudgetFetch(transport: typeof fetch, ledger: LivCostLedger = 
     let parsed: unknown = null;
     try {
       // Liv calls are non-streaming. Do not consume the caller's response/body.
-      if (response.headers.get('content-type')?.includes('application/json')) parsed = await response.clone().json();
+      if (/\bapplication\/(?:[a-z0-9.-]+\+)?json\b/i.test(response.headers.get('content-type') || '')) parsed = await response.clone().json();
     } catch { /* Missing/unreadable usage retains the full reservation, never zero. */ }
     const row = parsed && typeof parsed === 'object' ? parsed as Record<string, unknown> : {};
     const requestId = response.headers.get('x-request-id');
     const failure = response.ok ? null : providerFailure({ status: response.status, error: row.error });
     const outcome: LivCostOutcome = { status: response.ok ? 'response' : 'ambiguous',
       ...(failure ? { providerFailure: failure } : {}),
+      ...(!response.ok ? { providerDiagnostic: providerDiagnostic(parsed, response.headers) } : {}),
       usage: readLivProviderUsage(parsed, endpoint), httpStatus: response.status,
       providerRequestId: requestId && /^[a-z0-9_-]{1,150}$/i.test(requestId) ? requestId : null,
       responseModel: typeof row.model === 'string' && /^[a-z0-9.-]{1,100}$/i.test(row.model) ? row.model : null };

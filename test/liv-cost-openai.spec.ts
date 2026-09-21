@@ -25,6 +25,7 @@ it('records safe quota classification without leaking response text or clearing 
   await expect(withLivCostContext(context, () => client().chat.completions.create(request))).rejects.toThrow();
   expect(mock.transport).toHaveBeenCalledOnce();
   expect(mock.complete.mock.calls[0][1]).toMatchObject({ providerFailure: 'quota_exhausted', status: 'ambiguous', usage: null });
+  expect(mock.complete.mock.calls[0][1].providerDiagnostic).toMatchObject({ code: 'insufficient_quota', jsonBody: true });
   expect(JSON.stringify(mock.complete.mock.calls)).not.toContain('secret provider body');
 });
 afterEach(() => vi.unstubAllEnvs());

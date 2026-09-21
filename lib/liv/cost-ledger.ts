@@ -1,6 +1,7 @@
 import { getAdminDb } from '@/lib/firebase-admin';
 import { costTotals } from '@/lib/ai/cost-totals';
 import type { ProviderFailure } from '@/lib/ai/provider-error';
+import type { ProviderDiagnostic } from '@/lib/ai/provider-diagnostic';
 import { copenhagenClock } from './delivery-policy';
 import { LIV_PRICE_VALID_UNTIL, LIV_PRICE_VERSION, usageUsdUpperBound, type LivPriceQuote, type LivProviderUsage } from './cost-pricing';
 import { sharedCostEnabled, type LivCostContext } from './cost-context';
@@ -24,6 +25,7 @@ export type LivCostReservation = {
 };
 export type LivCostOutcome = {
   providerFailure?: ProviderFailure;
+  providerDiagnostic?: ProviderDiagnostic;
   status: 'response' | 'ambiguous'; usage: LivProviderUsage | null; providerRequestId: string | null;
   responseModel: string | null; httpStatus: number | null;
 };

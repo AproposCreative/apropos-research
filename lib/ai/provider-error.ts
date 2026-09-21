@@ -13,7 +13,7 @@ export function providerFailure(error: unknown): ProviderFailure | null {
 }
 export const providerFailureLabel: Record<ProviderFailure, string> = {
   quota_exhausted: 'AI-udbyderen afviser kald: credits eller forbrugsgrænse er opbrugt.',
-  rate_limited: 'AI-udbyderen begrænser kald lige nu (429).',
+  rate_limited: 'AI-udbyderen afviser kald med HTTP 429. Kontrollér kvitteringens fejldiagnose.',
   authentication_failed: 'AI-udbyderen afviser API-nøglen.',
   access_denied: 'API-nøglen mangler adgang hos AI-udbyderen.',
   provider_unavailable: 'AI-udbyderen er midlertidigt utilgængelig.',
