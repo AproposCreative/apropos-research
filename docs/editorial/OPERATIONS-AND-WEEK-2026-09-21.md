@@ -28,4 +28,24 @@ Vercel CLI-session blev fornyet med eksisterende login. Fire indledende research
 
 ## Afslutningsbevis
 
-Afventer tests, deployment, præcis providerdiagnose og artikelproduktion. Dette dokument er ikke bevis for, at fem færdige artikler er oprettet.
+### Implementeret og verificeret
+
+- Produktionskode: `d9cfe49ad357bc2ac509b8ddd451fa9410e74968` (inklusive `83bd068107297c83b745ef34001fbb5121eecc9b`).
+- Vercel deployment `dpl_86hqTjYw9aF7XLiHY2UukXyBMWvN` er READY, med den præcise SHA og aliaset `ai.aproposmagazine.com` verificeret.
+- 285 testsuiter / 3.957 tests bestået i isoleret testlager. TypeScript og scoped lint bestået. Ingen betalte AI-kald i regressionstestene.
+- Otte isolerede browser-scenarier ved 390 og 1280 pixels bestået uden JavaScript-fejl eller vandret overflow. Forbrugslisten hentes først efter brugerens klik.
+- Produktion: `/api/editorial/operations`, `/api/ai-cost/actions` og `/api/liv/delivery/feed` returnerer 200 med privat, ikke-cachebar respons. Forbrugsvisningen læste 507 grupper af eksisterende registreringer.
+- Dagens live-status kræver gemt publiceringsbevis med gyldigt link og tidspunkt. En READY deployment eller et CMS-item tæller ikke som publiceringsbevis.
+- Delte budgetprojektioner, sikre providerfejl og statusforklaringer er samlet. Providerafvisning stopper skift til flere emner; den skjules ikke længere som manglende research.
+
+### Ikke færdigt: ugens fem artikler
+
+Fem briefs er bevaret i `WEEK-BRIEFS-2026-09-21.json`. Filen er alene en lokal bestilling med foreløbige datoer, ikke et API-kvitteret køresultat. Ingen af de fem artikler er skrevet, billedbehandlet, oprettet i CMS eller lagt i udgivelseskøen i denne leverance.
+
+Et enkelt researchforsøg efter deployment returnerede HTTP 503 med sikker kode `rate_limited`; den underliggende providerstatus er 429. Et efterfølgende read-only GET på OpenAI `/v1/models` returnerede 200. Det bekræfter nøglens adgang til modellisten, men ikke adgang til betalt generation eller sund kvote. Der er ikke belæg for at konkludere, at credits er opbrugt. Ingen nøgle er roteret, intet budget hævet, og intet køb foretaget.
+
+Appens fælles månedsbudget var ikke opbrugt ved aflæsningen: ca. 100,03 kr. estimeret og 9,82 kr. reserveret af 300 kr. Det er ikke en providerfaktura; uafklarede reservationer er bevaret.
+
+Eksisterende klargjorte historier til 21–23/9 er uændrede. Senere datoer indeholder gamle planposter og afsluttede fejlforløb, som ikke er overskrevet eller slettet. En ny bestilling skal placeres eller erstatte planer gennem en auditeret serveroperation uden at nulstille betalt arbejde. Toy Story-prioriteringen til 23/9 er fortsat uafklaret, og datoen i brugerbriefet er endnu ikke kildebekræftet.
+
+Næste nødvendige trin: afklar den vedvarende provider-429, gennemfør ét vellykket researchkald gennem appens API, og placer derefter briefs via den auditerede plan-/genoptagelsesfunktion. Først derefter artikelproduktion, billedvalidering og verificeret køaflevering. Dagens udgivelse er ikke verificeret live i denne aflæsning.
