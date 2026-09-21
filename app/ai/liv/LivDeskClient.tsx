@@ -71,9 +71,9 @@ export default function LivDeskClient({ onClose, onOpenWriter }: { onClose: () =
         <button onClick={() => setView('research')} className="block w-full space-y-2 p-5 text-left hover:bg-white/5 focus-visible:outline focus-visible:outline-white"><span className="block font-medium">Research og kilder →</span><span className="block text-sm text-white/55">Idéer, kildegrundlag og udkast. Åbn en historie i Writer.</span></button>
         <button onClick={() => setView('manual')} className="block w-full space-y-2 p-5 text-left hover:bg-white/5 focus-visible:outline focus-visible:outline-white"><span className="block font-medium">Avanceret drift →</span><span className="block text-sm text-white/55">Udgivelsesstatus, fejllog og manuel planlægning.</span></button>
       </div>
+      <LivOperations />
       <LivBudgetSettings />
       <SharedMediaSources />
-      <LivOperations />
     </LivContentColumn></div>}
     {view === 'manual' && <div className="min-h-0 flex-1"><Suspense fallback={<p role="status" className="p-5 text-sm text-white/60">Henter drift…</p>}><LivPostingClient embedded initialTab="history" /></Suspense></div>}
     {view === 'research' && <div className="min-h-0 flex-1 overflow-y-auto"><LivContentColumn className="space-y-5 py-6">

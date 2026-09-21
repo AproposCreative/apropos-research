@@ -1,4 +1,5 @@
 import OpenAI from 'openai';
+import { providerFailure } from '@/lib/ai/provider-error';
 import type { ClientOptions } from 'openai';
 import type { APIPromise } from 'openai/core/api-promise';
 import { createHash, randomUUID } from 'node:crypto';
@@ -58,7 +59,9 @@ export function livBudgetFetch(transport: typeof fetch, ledger: LivCostLedger = 
     } catch { /* Missing/unreadable usage retains the full reservation, never zero. */ }
     const row = parsed && typeof parsed === 'object' ? parsed as Record<string, unknown> : {};
     const requestId = response.headers.get('x-request-id');
+    const failure = response.ok ? null : providerFailure({ status: response.status, error: row.error });
     const outcome: LivCostOutcome = { status: response.ok ? 'response' : 'ambiguous',
+      ...(failure ? { providerFailure: failure } : {}),
       usage: readLivProviderUsage(parsed, endpoint), httpStatus: response.status,
       providerRequestId: requestId && /^[a-z0-9_-]{1,150}$/i.test(requestId) ? requestId : null,
       responseModel: typeof row.model === 'string' && /^[a-z0-9.-]{1,100}$/i.test(row.model) ? row.model : null };

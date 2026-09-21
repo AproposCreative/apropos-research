@@ -1,4 +1,5 @@
 import { getAdminDb } from '@/lib/firebase-admin';
+import { costTotals } from '@/lib/ai/cost-totals';
 import { createLivCostLedger, validateLivCostPolicy } from '@/lib/liv/cost-ledger';
 import { copenhagenClock } from '@/lib/liv/delivery-policy';
 
@@ -17,12 +18,11 @@ export async function readImageGenBudget(now = new Date()) {
   try { policy = validateLivCostPolicy(policyRow.data()); } catch { return { status: 'unconfigured', month, monthlyLimitDkk: 150 }; }
   if (policy.monthlyLimitDkkMicros > 150_000_000) throw new Error('image_gen_budget_invalid');
   const totals = totalRow.data() ?? { committedDkkMicros: 0, reservedDkkMicros: 0, calls: 0 };
-  if (![totals.committedDkkMicros, totals.reservedDkkMicros, totals.calls].every(n => Number.isSafeInteger(n) && n >= 0)) {
-    throw new Error('image_gen_budget_invalid');
-  }
+  let projected;
+  try { projected = costTotals(totals); } catch { throw new Error('image_gen_budget_invalid'); }
   return { status: totals.blocked ? 'blocked' : 'ready', month,
     monthlyLimitDkk: policy.monthlyLimitDkkMicros / 1e6,
-    estimatedDkk: totals.committedDkkMicros / 1e6, reservedDkk: totals.reservedDkkMicros / 1e6,
+    estimatedDkk: projected.estimatedDkk, reservedDkk: projected.reservedDkk,
     remainingDkk: Math.max(0, policy.monthlyLimitDkkMicros - totals.committedDkkMicros - totals.reservedDkkMicros) / 1e6,
-    trackedCalls: totals.calls, billedDkk: null, coverage: 'image-gen-only' };
+    trackedCalls: projected.trackedCalls, billedDkk: null, coverage: 'image-gen-only' };
 }

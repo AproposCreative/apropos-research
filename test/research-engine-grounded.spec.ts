@@ -1,6 +1,7 @@
 import { afterEach, expect, it, vi } from 'vitest';
 import { NextRequest } from 'next/server';
 import { currentLivCostContext } from '@/lib/liv/cost-context';
+import { ResearchProviderError } from '@/lib/ai/provider-error';
 const mocks = vi.hoisted(() => ({ auth: vi.fn(async () => true), research: vi.fn() }));
 vi.mock('@/lib/api/middleware-auth', () => ({ isApiRequestAuthorized: mocks.auth }));
 vi.mock('@/lib/research/service', () => ({ getResearch: mocks.research }));
@@ -24,6 +25,13 @@ it('fails honestly when no usable sources exist', async () => {
   const result = await POST(request());
   expect(result.status).toBe(503);
   expect((await result.json()).complete).toBe(false);
+});
+it('returns actionable provider failure instead of claiming that sources do not exist', async () => {
+  mocks.research.mockRejectedValue(new ResearchProviderError('quota_exhausted'));
+  const result = await POST(request());
+  expect(result.status).toBe(503);
+  expect(await result.json()).toMatchObject({ complete: false, code: 'quota_exhausted' });
+  expect(mocks.research).toHaveBeenCalledTimes(1);
 });
 it('blocks invalid accounting before research', async () => {
   vi.stubEnv('AI_SHARED_COST_ENABLED', 'TRUE');

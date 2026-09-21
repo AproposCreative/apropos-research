@@ -26,7 +26,7 @@ const planInput = z.object({
 }).strict().refine(p => p.editorialKind === undefined || p.articleFormat === 'article');
 export const queuePlanInput = z.object({
   requestId: z.string().regex(/^[a-zA-Z0-9_-]{8,100}$/),
-  plans: z.array(planInput).min(1).max(3),
+  plans: z.array(planInput).min(1).max(5),
 }).strict().refine(input => new Set(input.plans.map(p => p.dayKey)).size === input.plans.length);
 
 /** One explicit batch, not a permanent larger paid inventory target. Transaction
@@ -75,7 +75,7 @@ export async function scheduleLivQueue(value: unknown, lease: string, now = Date
     }
     const days = [...new Set([...(state.editorialPreparationDays ?? []).filter(d => d >= today),
       ...input.plans.map(p => p.dayKey)])].sort();
-    if (days.length > 3) throw new Error('liv_queue_limit');
+    if (days.length > 7) throw new Error('liv_queue_limit');
     // All reads precede all writes. Paid work, slots and other plans untouched.
     for (const plan of input.plans) tx.set(db.collection(LIV_DAILY_PLAN_COLLECTION).doc(`plan-${plan.dayKey}`), {
       ...plan, mustUseTrending: false, status: 'pending', createdBy: 'liv-queue-operations',

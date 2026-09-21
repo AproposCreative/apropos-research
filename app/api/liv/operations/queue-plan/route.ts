@@ -16,7 +16,7 @@ export async function POST(req: NextRequest) {
   try {
     if (req.nextUrl.search) throw new Error('invalid');
     const raw = await req.text();
-    if (raw.length > 16000) throw new Error('invalid');
+    if (raw.length > 26000) throw new Error('invalid');
     input = queuePlanInput.parse(JSON.parse(raw));
   } catch { return json({ error: 'liv_queue_invalid' }, 400); }
   let lease: string | null = null;

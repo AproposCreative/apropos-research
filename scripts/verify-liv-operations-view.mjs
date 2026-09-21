@@ -11,12 +11,13 @@ import tailwind from 'tailwindcss';
 
 const root = process.cwd(), require = createRequire(import.meta.url);
 const config = require('../tailwind.config.cjs');
-const css = (await postcss([tailwind({ ...config, content: [resolve(root, 'app/ai/liv/LivOperations.tsx')] })])
+const css = (await postcss([tailwind({ ...config, content: [resolve(root, 'app/ai/liv/LivOperations.tsx'), resolve(root, 'app/ai/liv/CostActions.tsx')] })])
   .process(await readFile('app/globals.css', 'utf8'), { from: resolve(root, 'app/globals.css') })).css;
 const bundle = await build({ stdin: { contents: `import React from 'react';
 import {createRoot} from 'react-dom/client';
 import LivOperations from './app/ai/liv/LivOperations';
-createRoot(document.getElementById('root')).render(<LivOperations/>);`,
+import CostActions from './app/ai/liv/CostActions';
+createRoot(document.getElementById('root')).render(<><LivOperations/><CostActions/></>);`,
   resolveDir: root, loader: 'tsx' }, bundle: true, write: false, platform: 'browser', jsx: 'automatic',
   define: { 'process.env.NODE_ENV': '"production"' },
   plugins: [{ name: 'isolated-auth', setup(b) {
@@ -43,14 +44,28 @@ try {
   for (const viewport of [{ width: 390, height: 844 }, { width: 1280, height: 900 }]) {
     for (const scenario of ['known', 'unknown', 'unavailable', 'error']) {
       const context = await browser.newContext({ viewport });
-      let calls = 0; const errors = [], external = [];
+      let calls = 0, costCalls = 0; const errors = [], external = [];
       await context.route('**/*', async route => {
         const request = route.request();
         if (!request.url().startsWith(origin + '/')) { external.push(request.url()); await route.abort(); return; }
-        if (new URL(request.url()).pathname !== '/api/editorial/operations') { await route.continue(); return; }
+        const path = new URL(request.url()).pathname;
+        if (path === '/api/ai-cost/actions') {
+          assert.equal(request.method(), 'GET'); costCalls++;
+          await route.fulfill({ contentType: 'application/json', body: JSON.stringify({ actions: [{
+            bucket: 'shared', scope: 'liv', stage: 'research', runId: 'prepare-2026-09-21', lastAt: '2026-09-21T08:00:00Z',
+            calls: 2, estimatedDkk: 0.15, reservedDkk: 1.8, unknownCalls: 1, repeatedRequests: 1, failure: 'quota_exhausted',
+          }], billedDkk: null }) }); return;
+        }
+        if (path.startsWith('/api/editorial/operations/alerts')) {
+          await route.fulfill({ contentType: 'application/json', body: JSON.stringify({ records: [], nextCursor: null }) }); return;
+        }
+        if (path !== '/api/editorial/operations') { await route.continue(); return; }
         assert.equal(request.method(), 'GET'); calls++;
         const value = { checkedAt: '2026-09-13T16:00:00Z',
-          liv: { available: true, data: { autoPublishEnabled: true, published: true, overdue: false, blockedItems: [], needsReconciliation: false } },
+          liv: { available: true, data: { day: '2026-09-21', nextDay: '2026-09-22', nextStory: {title:'Næste anmeldelse',state:'ready'},
+            today: { status:'verified_live', title:'Dagens verificerede artikel',publicUrl:'https://www.aproposmagazine.com/articles/test',verifiedAt:'2026-09-21T08:00:00Z'},
+            preparation: {status:'blocked_saved_work',reasonCode:'provider_quota_exhausted'},
+            autoPublishEnabled: true, published: true, overdue: false, blockedItems: [], needsReconciliation: false } },
           newsletter: { available: true, data: { enabled: true, status: 'sent', week: '2026-W37', sentCount: 14, failedCount: 0 } },
           budget: scenario === 'unavailable' ? { available: false } : { available: true,
             data: { usageBasedUpperDkk: scenario === 'unknown' ? null : 46.63, monthlyLimitDkk: 300, fullMonthlyCapVerified: false } } };
@@ -61,11 +76,16 @@ try {
       const expected = scenario === 'error' ? 'Driftsstatus kunne ikke hentes.' : scenario === 'unknown'
         ? 'Registreret forbrug er endnu ukendt.' : scenario === 'unavailable' ? 'Status utilgængelig' : '46,63 kr. registreret af 300 kr.';
       await page.getByText(expected, { exact: true }).waitFor();
-      assert.equal(calls, 1);
+      assert.equal(calls, 1); assert.equal(costCalls, 0);
       assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false);
       await page.getByRole('button', { name: 'Opdater', exact: true }).click();
       await page.getByText(expected, { exact: true }).waitFor();
       assert.equal(calls, 2); assert.deepEqual(errors, []); assert.deepEqual(external, []);
+      await page.getByRole('button', {name:'Vis forbrug pr. handling'}).click();
+      await page.getByText('liv · research', {exact:true}).waitFor();
+      assert.equal(costCalls, 1);
+      assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false);
+      assert.deepEqual(errors, []);
       const screenshot = `${directory}/${viewport.width}-${scenario}.png`;
       await page.screenshot({ path: screenshot, fullPage: true });
       console.log(JSON.stringify({ viewport: viewport.width, scenario, calls, errors: errors.length, horizontalOverflow: false, screenshot }));

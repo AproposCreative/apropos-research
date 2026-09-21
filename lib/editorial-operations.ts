@@ -1,6 +1,7 @@
 import { getAdminDb } from '@/lib/firebase-admin';
 import { readDeliveryState } from '@/lib/liv/delivery-store';
-import { deliveryHealth, addDays, eligibleEntries } from '@/lib/liv/delivery-policy';
+import { livOperationsSnapshot } from '@/lib/liv/operations-snapshot';
+import { readNextLivPreparationStatus } from '@/lib/liv/preparation-status';
 import { readDeliveryAlertStatus } from '@/lib/liv/alert-status';
 import { readSharedCostSummary } from '@/lib/liv/cost-ledger';
 import { getCopenhagenIsoWeekKey } from '@/lib/newsletter/copenhagen-time';
@@ -46,14 +47,7 @@ export async function readEditorialOperations(now = new Date()) {
   const [liv, newsletter, budget, alerts] = await Promise.all([
     section(async () => {
       const state = await readDeliveryState();
-      const health = deliveryHealth(state, now);
-      const nextDay = health.published ? addDays(health.day, 1) : health.day;
-      const selected = state.slots[nextDay];
-      const next = selected ? state.entries.find(e => e.itemId === selected.itemId) : eligibleEntries(state, nextDay)[0];
-      return { ...health, nextDay, nextStory: next ? { title: next.title, state: next.state } : null,
-      autoPublishEnabled: process.env.LIV_DELIVERY_QUEUE_ENABLED === 'true' &&
-        process.env.LIV_DAILY_PUBLICATION_MODE === 'auto_publish' &&
-        !['1', 'true'].includes((process.env.LIV_DAILY_PAUSED || '').toLowerCase()) };
+      return livOperationsSnapshot(state, await readNextLivPreparationStatus(state, now), now);
     }),
     section(() => readNewsletterOperations(now)),
     section(readSharedCostSummary),

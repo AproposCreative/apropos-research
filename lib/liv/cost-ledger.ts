@@ -1,4 +1,6 @@
 import { getAdminDb } from '@/lib/firebase-admin';
+import { costTotals } from '@/lib/ai/cost-totals';
+import type { ProviderFailure } from '@/lib/ai/provider-error';
 import { copenhagenClock } from './delivery-policy';
 import { LIV_PRICE_VALID_UNTIL, LIV_PRICE_VERSION, usageUsdUpperBound, type LivPriceQuote, type LivProviderUsage } from './cost-pricing';
 import { sharedCostEnabled, type LivCostContext } from './cost-context';
@@ -21,6 +23,7 @@ export type LivCostReservation = {
   model: string; quote: LivPriceQuote; reservedDkkMicros: number; policy: LivBudgetPolicy; createdAt: string;
 };
 export type LivCostOutcome = {
+  providerFailure?: ProviderFailure;
   status: 'response' | 'ambiguous'; usage: LivProviderUsage | null; providerRequestId: string | null;
   responseModel: string | null; httpStatus: number | null;
 };
@@ -179,9 +182,10 @@ export async function readLivCostSummary(now = new Date()): Promise<LivCostSumma
       if (![totals.calls, totals.unknownCalls, totals.committedDkkMicros, totals.reservedDkkMicros].every(safeCount)) {
         result.status = 'blocked'; return result;
       }
-      result.trackedCalls = totals.calls; result.unknownCalls = totals.unknownCalls;
-      result.usageBasedUpperDkk = totals.committedDkkMicros / 1_000_000;
-      result.reservedUpperDkk = totals.reservedDkkMicros / 1_000_000;
+      const projected = costTotals(totals);
+      result.trackedCalls = projected.trackedCalls; result.unknownCalls = totals.unknownCalls;
+      result.usageBasedUpperDkk = projected.estimatedDkk;
+      result.reservedUpperDkk = projected.reservedDkk;
       result.trackingStartedAt = typeof totals.trackingStartedAt === 'string' ? totals.trackingStartedAt : null;
       if (policy && result.status === 'ready_partial') result.availableAllowanceDkk = Math.max(0,
         policy.monthlyLimitDkkMicros - totals.committedDkkMicros - totals.reservedDkkMicros) / 1_000_000;

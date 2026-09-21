@@ -4,6 +4,7 @@ import { useAuth } from '@/lib/auth-context';
 import type { readEditorialOperations } from '@/lib/editorial-operations';
 import { operationsBudgetLabel } from '@/lib/editorial-operations-view';
 import LivAlertHistory from './LivAlertHistory';
+import { preparationMessage } from '@/lib/liv/preparation-message';
 
 type Snapshot = Awaited<ReturnType<typeof readEditorialOperations>>;
 const states: Record<string, string> = { sent: 'Afsendelse registreret', failed: 'Afsendelse fejlede', skipped: 'Sprunget over', processing: 'Behandles', not_recorded: 'Ingen afsendelse registreret', unknown: 'Ukendt status' };
@@ -41,9 +42,14 @@ export default function LivOperations() {
     {loading && <p role="status">Henter status…</p>}
     {error && <p role="alert" className="text-sm text-amber-200">{error}</p>}
     {snapshot && <div className="space-y-3 text-sm">
+      {liv && <div><h4>Dagens artikel · {liv.day}</h4>
+        {liv.today.publicUrl ? <><a href={liv.today.publicUrl} target="_blank" rel="noopener noreferrer" className="block break-words text-emerald-200 underline">{liv.today.title || 'Åbn dagens artikel'} ↗</a><p className="text-xs text-white/50">Live verificeret {new Date(liv.today.verifiedAt!).toLocaleString('da-DK')}</p></> :
+          <p className="text-white/65">{liv.today.status === 'recorded_unverified' ? 'Udgivelse registreret, men live-bekræftelse mangler.' : liv.today.status === 'missing' ? 'Dagens artikel er ikke bekræftet live.' : 'Planlagt til kl. 10 dansk tid.'}</p>}
+      </div>}
       {liv && <div><h4>Næste udgivelse · {liv.nextDay}</h4><p className="break-words text-white/65">{liv.nextStory?.title || 'Ingen udgivelsesklar historie endnu'}</p><p className="text-xs text-white/50">Kl. 10 dansk tid. Valget kan ændres indtil udgivelsen starter.</p></div>}
       <div><h4>Driftsalarmer</h4><p className="text-white/65">{alert ? alertLabels[alert.status] || alertLabels.unknown : 'Alarmstatus utilgængelig'}</p><p className="text-xs text-white/50">Udbyderens accept er ikke bevis for levering til indbakken.</p></div>
       <div><h4>Liv</h4><p className="text-white/65">{liv ? `${liv.autoPublishEnabled ? 'Automatik aktiv' : 'Automatik inaktiv'} · ${liv.published ? 'Dagens udgivelse registreret' : liv.overdue ? 'Dagens udgivelse mangler' : 'Afventer kl. 10'}` : 'Status utilgængelig'}</p>{liv && (liv.blockedItems.length > 0 || liv.needsReconciliation) && <p className="text-amber-200">Gemte udgivelser kræver kontrol.</p>}</div>
+      {liv && <div><h4>Forberedelse</h4><p className="text-white/65">{preparationMessage(liv.preparation)}</p></div>}
       <div><h4>Nyhedsbrev</h4><p className="text-white/65">{mail ? `${mail.enabled ? 'Ugeautomatik aktiv' : 'Ugeautomatik inaktiv'} · ${states[mail.status] || states.unknown}` : 'Status utilgængelig'}</p>{mail && <p className="text-xs text-white/50">{mail.week} · {mail.sentCount ?? 'Ukendt antal'} afsendt · {mail.failedCount ?? 'Ukendt antal'} fejl</p>}</div>
       <div><h4>AI-budget</h4><p className="text-white/65">{operationsBudgetLabel(budget)}</p>{budget && !budget.fullMonthlyCapVerified && <p className="text-xs text-amber-200">Delvis dækning. Ikke en komplet faktura.</p>}</div>
       <p className="text-xs text-white/40">Aflæst {new Date(snapshot.checkedAt).toLocaleString('da-DK')}</p>

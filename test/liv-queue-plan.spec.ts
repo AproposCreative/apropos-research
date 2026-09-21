@@ -63,6 +63,14 @@ it('replays a committed batch without rewrites or a fresh generation, even after
   expect(scheduledPreparationDays(state.rows.get('livDelivery/manifest'), '2026-10-01')).toEqual(['2026-10-01', '2026-10-02']);
 });
 
+it('accepts an explicitly requested five-story week, without increasing automatic inventory', async () => {
+  const plans = [22, 23, 24, 25, 26].map(day => ({ ...input.plans[1], dayKey: `2026-09-${day}` }));
+  expect((await POST(request({ requestId: 'explicit-five-week', plans }))).status).toBe(200);
+  expect(state.rows.get('livDelivery/manifest').editorialPreparationDays).toHaveLength(5);
+  expect(scheduledPreparationDays(emptyDeliveryState(), '2026-09-20')).toEqual(['2026-09-20', '2026-09-21']);
+  expect((await POST(request({ requestId: 'too-many-for-batch', plans: [...plans, { ...plans[0], dayKey: '2026-09-27' }] }))).status).toBe(400);
+});
+
 it('binds changed input to a conflict instead of replacing it', async () => {
   await POST(request()); state.writes.mockClear();
   const changed = structuredClone(input); changed.plans[0].topicHint = 'Another topic';
@@ -85,7 +93,7 @@ it.each(['entry', 'slot', 'manual-plan', 'used-plan', 'held', 'cover', 'expired'
   if (kind === 'cover') manifest.coverRevision = { id: 'revision' };
   if (kind === 'expired') manifest.preparation.leaseUntil = Date.now();
   if (kind === 'wrong-token') manifest.preparation.token = 'other';
-  if (kind === 'limit') manifest.editorialPreparationDays = ['2026-09-24', '2026-09-25'];
+  if (kind === 'limit') manifest.editorialPreparationDays = ['2026-09-24', '2026-09-25', '2026-09-26', '2026-09-27', '2026-09-28', '2026-09-29'];
   expect((await POST(request())).status).toBe(409); expect(state.writes).not.toHaveBeenCalled();
 });
 

@@ -6,6 +6,7 @@ import { getWriterResearch, writerResearchScope } from '@/lib/ai-chat/research-c
 import { evaluateResearchQuality } from '@/lib/research/qualityGate';
 import { withLivCostRequest, withSharedCostContext } from '@/lib/liv/cost-context';
 import { getLivCostPretransportError } from '@/lib/liv/cost-errors';
+import { ResearchProviderError, providerFailureLabel } from '@/lib/ai/provider-error';
 
 export const maxDuration = 60;
 
@@ -38,6 +39,8 @@ export async function POST(request: NextRequest) {
         }, { requestId }), { headers: { 'Cache-Control': 'no-store' } });
       }));
   } catch (error) {
+    if (error instanceof ResearchProviderError) return NextResponse.json({ error: providerFailureLabel[error.failure],
+      code: error.failure, complete: false, requestId }, { status: 503, headers: { 'Cache-Control': 'no-store' } });
     return NextResponse.json({
       error: getLivCostPretransportError(error) ? 'Research blev stoppet af budgetkontrollen.' : 'Research kunne ikke gennemføres.',
       complete: false, requestId,

@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useAuth } from '@/lib/auth-context';
 import { readJsonResponse } from '@/lib/api/read-json-response';
 import type { SharedCostSummary } from '@/lib/liv/cost-ledger';
+import CostActions from './CostActions';
 
 /** Settings-only, read-only status. Never starts preparation or a paid call. */
 export default function LivBudgetSettings() {
@@ -45,6 +46,7 @@ export default function LivBudgetSettings() {
         <p>Registrerede OpenAI-kald fra Liv, Writer og SEO deler budgettet, når fælles budgetstyring er aktiv. Tidligere registreret Liv-forbrug er bevaret.</p>
         <p>Historisk, umålt forbrug og øvrige AI-funktioner er ikke medregnet. Beløbene er konservative estimater, ikke API-udbyderens faktura eller et loft på hele kontoen.</p>
       </>}
+      <CostActions />
     </div>
   </details>;
 }

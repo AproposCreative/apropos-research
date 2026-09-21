@@ -1,4 +1,5 @@
 import { logger } from '@/lib/logger';
+import { providerFailure, ResearchProviderError } from '@/lib/ai/provider-error';
 import { getLivCostPretransportError } from '@/lib/liv/cost-errors';
 import type { ResearchProviderName, ResearchResult, ResearchFallbackReason, ResearchDebugMetadata } from './types';
 import { evaluateResearchQuality } from './qualityGate';
@@ -61,6 +62,9 @@ export async function getResearch(
       // A budget refusal is not a provider outage. Never turn it into paid
       // fallback work or hide it as an empty evidence result.
       if (getLivCostPretransportError(error)) throw error;
+      const failure = providerFailure(error);
+      // A provider rejection is not an empty search. Do not hide it or buy a fallback.
+      if (failure) throw new ResearchProviderError(failure);
       const timeout = error instanceof Error && error.message === 'research_timeout';
       const status = (error as { status?: unknown } | null)?.status;
       attempts.push({ provider: name, latencyMs: Date.now() - start, outcome: timeout ? 'timeout' : 'exception', sourceCount: 0,

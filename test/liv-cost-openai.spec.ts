@@ -19,6 +19,14 @@ beforeEach(() => {
     policy: { monthlyLimitDkkMicros: 300000000, usdToDkkCeiling: 8, conversionBasis: 'Fixture only', priceVersion: input.quote.version, validUntil: '2026-10-01' } }));
 });
 const client = () => new LivBudgetOpenAI({ apiKey: 'fixture-only-not-a-real-key', fetch: mock.transport }, ledger);
+it('records safe quota classification without leaking response text or clearing the reservation', async () => {
+  mock.transport.mockResolvedValueOnce(new Response(JSON.stringify({ error: { code: 'insufficient_quota', message: 'secret provider body' } }),
+    { status: 429, headers: { 'content-type': 'application/json' } }));
+  await expect(withLivCostContext(context, () => client().chat.completions.create(request))).rejects.toThrow();
+  expect(mock.transport).toHaveBeenCalledOnce();
+  expect(mock.complete.mock.calls[0][1]).toMatchObject({ providerFailure: 'quota_exhausted', status: 'ambiguous', usage: null });
+  expect(JSON.stringify(mock.complete.mock.calls)).not.toContain('secret provider body');
+});
 afterEach(() => vi.unstubAllEnvs());
 it.each(['writer', 'seo'] as const)('guards %s with real SDK mocked transport, no retries and unknown usage held', async scope => {
   vi.stubEnv('AI_SHARED_COST_ENABLED', 'true');

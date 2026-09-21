@@ -21,7 +21,7 @@ export type LivNextPreparationStatus = {
     'saved_stage_ready' | 'retry_limit_reached' | 'operator_retry_required' | 'cms_reconciliation_required' |
     'source_evidence_required' | 'factcheck_required' | 'moderation_required' | 'editorial_review_required' |
     'budget_limit' | 'delivery_reconciliation_required' | 'cover_revision_in_progress' |
-    'alternative_limit_reached' | 'status_unavailable' | 'article_correction_required' |
+    'alternative_limit_reached' | 'status_unavailable' | 'article_correction_required' | 'provider_quota_exhausted' | 'provider_unavailable' |
     'source_retry_scheduled' | 'provider_result_unconfirmed' | 'no_topic' | 'candidate_exhausted' | 'already_done' | 'authentication_required';
 };
 

@@ -72,13 +72,12 @@ it('does not discard partial primary sources for an empty fallback', async () =>
   expect(data.sources).toHaveLength(1);
   expect(data.debug).toMatchObject({ provider: 'openai_responses', fallbackUsed: true, fallbackReason: 'quality_gate', gateScore: 50 });
 });
-it('selects a passing fallback and logs HTTP status, never the thrown provider body', async () => {
+it('does not turn a provider rate limit into more paid fallback work', async () => {
   m.primary.mockRejectedValue(Object.assign(new Error('private-provider-body'), { status: 429 }));
   m.fallback.mockResolvedValue(result(2, 'legacy_web_search'));
-  const data = await getResearch('fixture');
-  expect(data.debug.provider).toBe('legacy_web_search');
-  expect(data.debug.attempts?.[0]).toMatchObject({ status: 429, outcome: 'exception' });
-  expect(JSON.stringify([data, m.info.mock.calls])).not.toContain('private-provider-body');
+  await expect(getResearch('fixture')).rejects.toThrow('research_provider_rate_limited');
+  expect(m.fallback).not.toHaveBeenCalled();
+  expect(JSON.stringify(m.info.mock.calls)).not.toContain('private-provider-body');
 });
 it('respects disabled fallback and distinguishes timeout from an empty search', async () => {
   vi.stubEnv('RESEARCH_FALLBACK_PROVIDER', 'none');

@@ -10,6 +10,7 @@ import LivTips from './LivTips';
 import LivPresentationEditor from './LivPresentationEditor';
 import LivShorteningEditor from './LivShorteningEditor';
 import LivCoverEditor from './LivCoverEditor';
+import { preparationMessage } from '@/lib/liv/preparation-message';
 
 const decisions = { pending: 'Afventer dit valg', approved: 'Godkendt', rejected: 'Afvist' };
 function dateLabel(day: string) {
@@ -153,16 +154,7 @@ export default function LivApprovalFeed() {
       {feed && !feed.stories.length && <div className="rounded-2xl border border-dashed border-white/20 px-6 py-12 text-center">
         <h3 className="text-lg">Den næste historie er ikke klar endnu</h3><p className="mt-3 text-sm leading-relaxed text-white/55">
           {!feed.preparationEnabled ? 'Forberedelsen er ikke aktiveret. Gemte historier og dine valg er bevaret.' :
-            feed.preparation?.reasonCode === 'budget_limit' ? 'Forberedelsen er stoppet: budgetgrænsen er nået. Gemt arbejde er bevaret.' :
-            feed.preparation?.nextAction === 'repair' ? 'Liv retter artiklens længde eller faktuelle fejl. Tekst og billeder genbruges.' :
-            feed.preparation?.reasonCode === 'source_retry_scheduled' ? 'Kildesøgningen er forsinket. Liv forsøger automatisk igen.' :
-            feed.preparation?.scope === 'prepare-alternative' && feed.preparation?.status === 'queued' ? 'Liv forbereder en anden historie, fordi det første forslag ikke kunne færdiggøres.' :
-            feed.preparation?.reasonCode === 'alternative_limit_reached' ? 'Dagens to mulige historier kunne ikke færdiggøres. Liv går videre til næste dag uden flere betalte forsøg.' :
-            feed.preparation?.status === 'blocked_saved_work' || feed.preparation?.status === 'reconciliation_required' ?
-              'Forberedelsen er stoppet på et gemt trin. Tekst og billeder er bevaret; udgivelsen er endnu ikke klar.' :
-            feed.preparation?.status === 'unavailable' ? 'Forberedelsens status kunne ikke hentes. Prøv Opdater.' :
-            feed.preparation?.status === 'preparing' ? 'Liv arbejder på historien nu. Den vises her, når den er klar.' :
-              'Historien vises her, når research, tekst, billeder og kontroller er klar.'}</p>
+            preparationMessage(feed.preparation)}</p>
         {feed.preparation?.day && <p className="mt-3 text-xs text-white/45">Planlagt {dateLabel(feed.preparation.day)}</p>}
       </div>}
       {feed?.stories.map(story => <LivApprovalCard key={`${story.itemId}:${story.revision}`} story={story} canDecide={capabilities.owner} disabled={loading || !!saving || !!error}
