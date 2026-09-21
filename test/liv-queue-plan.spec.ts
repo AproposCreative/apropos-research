@@ -164,6 +164,9 @@ it('worker selects only explicit future dates after the ready article; keeps bud
   expect(await nextScheduledPreparation(manifest, async () => undefined)).toMatchObject({ dayKey: '2026-09-22', scope: 'prepare' });
   expect(await nextScheduledPreparation(manifest, async () => ({ status: 'failed', reason: 'liv_cost_monthly_budget_exceeded' })))
     .toMatchObject({ dayKey: '2026-09-22', decision: { action: 'blocked', reasonCode: 'budget_limit' } });
+  const read = vi.fn(async () => ({ status: 'failed', reason: 'research_provider_quota_exhausted' }));
+  expect(await nextScheduledPreparation(manifest, read)).toMatchObject({ dayKey: '2026-09-22', decision: { action: 'blocked', reasonCode: 'provider_quota_exhausted' } });
+  expect(read).toHaveBeenCalledTimes(1);
   manifest.editorialPreparationDays = ['2026-09-19', 'bad', '2026-09-30'];
   expect(await nextScheduledPreparation(manifest, async () => undefined)).toBeNull();
 });

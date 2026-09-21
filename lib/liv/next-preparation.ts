@@ -35,7 +35,10 @@ export async function nextScheduledPreparation(state: DeliveryState,
     }
     const candidate: ScheduledPreparation = { dayKey, kind: 'scheduled', scope, row, decision };
     if (decision.action === 'done') continue;
-    if (decision.action === 'blocked' && decision.reasonCode !== 'budget_limit') {
+    // Account/provider failures apply to every topic. Trying the rest of the
+    // week cannot fix them and only creates more calls/reservations.
+    if (decision.action === 'blocked' && !['budget_limit', 'provider_quota_exhausted',
+      'authentication_required', 'provider_unavailable'].includes(decision.reasonCode)) {
       blocked ??= candidate;
       continue;
     }
