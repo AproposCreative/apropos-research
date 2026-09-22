@@ -209,6 +209,7 @@ export async function generateLivArticle(options: GenerateArticleOptions): Promi
   const { topic, section = 'Kultur', expandedDirective } = options;
   const sourceScope = options.sourceScope || 'liv-daily';
   const preparation = options.preparation === true;
+  const dailyLength = (preparation || options.sourceScope === 'liv-daily') && !options.targetWordCount;
   const modelTimeoutMs = 90_000;
   const client = getOpenAIClient();
   if (!client) {
@@ -295,7 +296,9 @@ export async function generateLivArticle(options: GenerateArticleOptions): Promi
       'rating: heltal 1-6. ratingReason: 30-600 tegn, én konkret sætning der begrunder dommen og afvejer svagheder.',
     ] : ['rating og ratingReason skal begge være null.']),
     'intro: 2-4 sætninger, konkret åbning der trækker læseren ind.',
-    'content: 7-12 fyldige paragraffer i Liv Brandts stil. Brug \\n\\n mellem paragraffer.',
+    dailyLength
+      ? 'content: Cirka 8 korte afsnit i Liv Brandts stil, typisk 60-70 ord per afsnit. Det samlede længdekrav har forrang; fyld ikke afsnit ud for at nå et bestemt antal. Brug \\n\\n mellem afsnit.'
+      : 'content: 7-12 fyldige paragraffer i Liv Brandts stil. Brug \\n\\n mellem paragraffer.',
     '',
     'Krav:',
     '- Skriv på dansk.',
@@ -305,7 +308,7 @@ export async function generateLivArticle(options: GenerateArticleOptions): Promi
     articleFormat === 'research-review'
       ? '- Skriv en selvstændig researchanmeldelse med dokumenterede styrker og svagheder, en tydelig samlet dom og begrundede stjerner. Tilskriv andres kritik tydeligt, når den bruges. Stop uden tilstrækkeligt belæg.'
       : '- Skriv den ønskede artikeltype uden stjerner. Ingen anmeldelsesstjerner for nyheder eller essays.',
-    (preparation || options.sourceScope === 'liv-daily') && !options.targetWordCount
+    dailyLength
       ? '- Brødteksten skal være 450–650 ord, sigt efter 550. Intro, billedtekster og metadata tæller ikke med. Prioritér én tese, konkrete belæg og ét modargument; fjern gentagelser.'
       : `- Sigt efter ${Math.max(300, Math.min(2200, options.targetWordCount || 1000))} ord i brødteksten. Følg artikeltypen og længden fra briefet.`,
     '- Ingen overskrifter (h1/h2) — kun løbende tekst.',

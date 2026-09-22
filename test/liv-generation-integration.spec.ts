@@ -83,15 +83,19 @@ it.each([[400, 400], [300, 300], [200, 300], [1600, 1600], [3000, 2200], [undefi
   'honours explicit target %s as %s without contradicting short-news selection', async (targetWordCount, expected) => {
     await generateLivArticle({ topic: { title: 'The Invite', score: 0 }, articleFormat: 'research-review', targetWordCount });
     expect(mocks.create.mock.calls[0][0].messages[0].content).toContain(`- Sigt efter ${expected} ord i brødteksten.`);
+    expect(mocks.create.mock.calls[0][0].messages[0].content).toContain('7-12 fyldige paragraffer');
     expect(mocks.create).toHaveBeenCalledTimes(1);
   },
 );
 
-it.each([{ preparation: true }, { sourceScope: 'liv-daily' }])('keeps automatic daily prompt unchanged for %j', async options => {
+it.each([{ preparation: true }, { sourceScope: 'liv-daily' }])('aligns daily paragraph guidance with its existing word limit for %j', async options => {
   await generateLivArticle({ topic: { title: 'The Invite', score: 0 }, articleFormat: 'research-review', ...options });
   const prompt = mocks.create.mock.calls[0][0].messages[0].content;
   expect(prompt).toContain('- Brødteksten skal være 450–650 ord, sigt efter 550.');
   expect(prompt).not.toContain('- Sigt efter 300 ord');
+  expect(prompt).toContain('Cirka 8 korte afsnit');
+  expect(prompt).toContain('Det samlede længdekrav har forrang');
+  expect(prompt).not.toContain('7-12 fyldige paragraffer');
   expect(mocks.create).toHaveBeenCalledTimes(1);
 });
 
