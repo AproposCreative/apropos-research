@@ -79,3 +79,25 @@ No spending-policy increase, invoice reconciliation or clearing of unknown reser
 - Existing daily follow-up updated in place to seven days, without a duplicate monitor
   or extra paid AI calls. Actual savings and consecutive live publications remain to be
   observed; the model was not downgraded.
+
+## Deferred weekly briefs follow-up
+
+- Production deployment `dpl_Acd39is88m1QjfcRkPkLLZw42E3L` is READY at exact code
+  SHA `87ca5869cb7de7a0756bd888b633f33864badd23`; production alias verified.
+- 4,016 tests, TypeScript, targeted lint and production build pass. Tests use
+  isolated storage and simulated provider responses, not paid AI requests.
+- Existing authenticated retry operation now supports a deferred plan-only request:
+  preparation lease, exact prior plan/run hashes, future date window, immutable
+  previous-state audit and replay detection. It does not execute `runLivDaily`.
+  Existing paid checkpoints, CMS evidence and competing runs prevent replacement.
+- Five briefs registered through this production API and read back successfully:
+  Slow Horses 24 September, Toy Story 5 on 25 September, Tokyo Game Show on
+  26 September, Amalie Smith on 27 September and Christopher on 28 September.
+  Each exact replay returned `already_requested`. Old plans/run history and attempt
+  counters are retained. These are deferred briefs, NOT finished articles; factual
+  premises and availability must still be verified at production time.
+- Today's Monster review and tomorrow's Suno/Spotify feature were not replaced.
+- The ordinary cron reserve attempt stopped at `research_dated_sources_insufficient`.
+  Its saved article/research remain intact, no blind retry was authorized. Seven
+  usage receipts total 395,864 DKK micros (about 0.40 DKK estimated). A completed
+  reserve and consecutive successful daily publications remain unproven.
