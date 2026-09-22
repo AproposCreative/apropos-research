@@ -25,6 +25,16 @@ it('never starts work on replay of the same retry', async () => {
   expect(await (await POST(request())).json()).toEqual({ status: 'already_requested' });
   expect(mocks.run).not.toHaveBeenCalled(); expect(mocks.release).toHaveBeenCalledWith('owner');
 });
+it('records a deferred retry without starting research, writing or publication', async () => {
+  const input = { dayKey: '2026-09-24', kind: 'scheduled', requestId: 'deferred-week', reason: 'New brief',
+    defer: true, expectedRunHash: 'a'.repeat(64), expectedPlanHash: 'b'.repeat(64),
+    plan: { topicHint: 'Subject', directiveHint: 'Research when due' } };
+  const response = await POST(request(input));
+  expect(await response.json()).toEqual({ status: 'scheduled', dayKey: input.dayKey });
+  expect(response.headers.get('cache-control')).toBe('no-store');
+  expect(mocks.grant).toHaveBeenCalledWith(input, 'owner'); expect(mocks.run).not.toHaveBeenCalled();
+  expect(mocks.release).toHaveBeenCalledWith('owner');
+});
 it('uses the shared server workflow and always releases its preparation lease', async () => {
   expect(await (await POST(request())).json()).toEqual({ status: 'text_prepared' });
   expect(mocks.run).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ dayKey: '2026-09-12', kind: 'scheduled' }));

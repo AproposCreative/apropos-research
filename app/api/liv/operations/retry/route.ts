@@ -26,8 +26,10 @@ export async function POST(req: NextRequest) {
   try {
     lease = await claimPreparation();
     if (!lease) return NextResponse.json({ status: 'already_preparing' }, { status: 409 });
-    const receipt = input.scope === 'reserve-editorial' ? await authorizePreparationRetry(input, lease) : await authorizePreparationRetry(input);
+    const receipt = input.scope === 'reserve-editorial' || input.defer !== undefined ? await authorizePreparationRetry(input, lease) : await authorizePreparationRetry(input);
     if (receipt.status === 'already_requested') return NextResponse.json(receipt);
+    if (input.defer === true) return NextResponse.json({ status: 'scheduled', dayKey: input.dayKey },
+      { headers: { 'Cache-Control': 'no-store' } });
     if (input.scope === 'reserve-editorial' && !receipt.defaultPlan) throw new Error('liv_retry_conflict');
     return await runLivDaily(req, { dayKey: input.dayKey, kind: input.kind,
       ...(input.scope ? { scope: input.scope } : {}),

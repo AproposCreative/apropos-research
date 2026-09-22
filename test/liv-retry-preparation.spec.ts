@@ -1,10 +1,10 @@
 import { beforeEach, expect, it, vi } from 'vitest';
-const state = vi.hoisted(() => ({ row: {} as any, plan: {} as any, audit: false, writes: vi.fn(), creates: vi.fn(), docs: vi.fn() }));
+const state = vi.hoisted(() => ({ row: {} as any, plan: {} as any, audit: false, receipt: undefined as any, writes: vi.fn(), creates: vi.fn(), docs: vi.fn() }));
 vi.mock('@/lib/firebase-admin', () => ({ getAdminDb: () => ({
   collection: () => ({ doc: (id: string) => { state.docs(id); return { id, collection: () => ({ doc: () => ({ id: 'audit' }) }) }; } }),
   runTransaction: async (fn: any) => fn({
-    get: async (ref: any) => ref.id === 'audit' ? { exists: state.audit } : { data: () => ref.id.startsWith('plan-') ? state.plan : state.row },
-    create: (_ref: any, row: any) => { state.creates(row); state.audit = true; },
+    get: async (ref: any) => ref.id === 'audit' ? { exists: state.audit, data: () => state.receipt } : { data: () => ref.id.startsWith('plan-') ? state.plan : state.row },
+    create: (_ref: any, row: any) => { state.creates(row); state.audit = true; state.receipt = row; },
     set: (ref: any, patch: any) => { state.writes(patch); Object.assign(ref.id.startsWith('plan-') ? state.plan : state.row, patch); },
   }),
 }) }));

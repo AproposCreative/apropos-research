@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 import { FieldValue, type DocumentReference } from 'firebase-admin/firestore';
 import { getAdminDb } from '@/lib/firebase-admin';
 import { LIV_DAILY_COLLECTION, livDailyDocId } from '@/lib/liv/daily-history-store';
-import { validDay } from '@/lib/liv/delivery-policy';
+import { addDays, copenhagenClock, validDay } from '@/lib/liv/delivery-policy';
 import { explicitPreparationInput } from '@/lib/liv/explicit-preparation';
 import { cmsFieldHash } from '@/lib/liv/cms-field-hash';
 import { livImageArticleHash } from '@/lib/liv/article-image-hash';
@@ -13,6 +13,7 @@ import { isLivArticleFormat, type LivArticleFormat } from '@/lib/liv/review-form
 import { isLivEditorialKind, type LivEditorialKind } from '@/lib/liv/editorial-kind';
 
 export type PreparationRetry = { dayKey: string; kind: 'scheduled' | 'reserve'; requestId: string; reason: string;
+  defer?: true; expectedPlanHash?: string; expectedRunHash?: string;
   plan?: { topicHint: string; directiveHint: string; articleFormat?: LivArticleFormat; editorialKind?: LivEditorialKind }; resumeWritingRunId?: string; scope?: 'prepare-alternative' | 'reserve-editorial';
   allowOriginalityRevision?: true };
 
@@ -21,6 +22,13 @@ export type PreparationRetry = { dayKey: string; kind: 'scheduled' | 'reserve'; 
  * with uncertain outcomes must use reconciliation, never this operation. */
 export async function authorizePreparationRetry(input: PreparationRetry, lease?: string) {
   const explicit = input.scope === 'reserve-editorial';
+  const deferred = input.defer === true;
+  const today = copenhagenClock().day;
+  if (input.defer !== undefined && !deferred || deferred && (!lease || input.kind !== 'scheduled' || input.scope ||
+    !input.plan || input.resumeWritingRunId || input.allowOriginalityRevision || input.dayKey <= today || input.dayKey > addDays(today, 7) ||
+    !/^[a-f0-9]{64}$/.test(input.expectedPlanHash || '') || !/^[a-f0-9]{64}$/.test(input.expectedRunHash || ''))) {
+    throw new Error('liv_retry_invalid');
+  }
   if (!validDay(input.dayKey) || !['scheduled', 'reserve'].includes(input.kind) ||
     (input.scope !== undefined && (input.plan || (explicit ? input.kind !== 'reserve' :
       input.scope !== 'prepare-alternative' || input.kind !== 'scheduled'))) ||
@@ -102,8 +110,22 @@ export async function authorizePreparationRetry(input: PreparationRetry, lease?:
     const row = (await tx.get(ref)).data();
     const previousPlan = input.plan ? (await tx.get(planRef)).data() : null;
     if (previous.exists) {
-      if (explicit && previous.data()?.retryInputHash !== retryInputHash) throw new Error('liv_retry_conflict');
+      if ((explicit || deferred || previous.data()?.retryInputHash) && previous.data()?.retryInputHash !== retryInputHash) throw new Error('liv_retry_conflict');
       return { status: 'already_requested' as const };
+    }
+    if (deferred) {
+      const state = (await tx.get(db.collection('livDelivery').doc('manifest'))).data();
+      if (!state || state.preparation?.token !== lease || !Number.isFinite(state.preparation?.leaseUntil) ||
+        state.preparation.leaseUntil <= Date.now() || state.coverRevision || state.slots?.[input.dayKey] ||
+        Object.values(state.slots || {}).some(slot => (slot as { state?: unknown })?.state === 'attempted') ||
+        state.entries?.some((entry: { scheduledDay?: string }) => entry.scheduledDay === input.dayKey) ||
+        !row || cmsFieldHash(row) !== input.expectedRunHash || cmsFieldHash(previousPlan || {}) !== input.expectedPlanHash ||
+        row.rawResponse || row.resumeWritingRunId || !['failed', 'skipped_no_topic'].includes(row.status)) throw new Error('liv_retry_conflict');
+      for (const otherScope of ['daily', 'prepare-alternative', 'reserve', 'reserve-editorial'] as const) {
+        if ((await tx.get(db.collection(LIV_DAILY_COLLECTION).doc(livDailyDocId(input.dayKey, otherScope)))).exists) {
+          throw new Error('liv_retry_conflict');
+        }
+      }
     }
     if (recovery) {
       const manifest = (await tx.get(db.collection('livDelivery').doc('manifest'))).data();
@@ -132,7 +154,8 @@ export async function authorizePreparationRetry(input: PreparationRetry, lease?:
     }
     tx.create(audit, { reason: input.reason.trim(), previous: row, previousPlan: previousPlan ?? null,
       requestedAt: FieldValue.serverTimestamp(),
-      authorizedBy: 'cron-authenticated-operator', requestId: input.requestId,
+      authorizedBy: 'cron-authenticated-operator', requestId: input.requestId, retryInputHash,
+      ...(deferred ? { deferred: true, expectedPlanHash: input.expectedPlanHash, expectedRunHash: input.expectedRunHash } : {}),
       resumeWritingRunId: input.resumeWritingRunId || null,
       ...(recovery ? { retryInputHash, reservedPlan: recovery.defaultPlan,
         explicitPreparationInputHash: row.explicitPreparationInputHash,
