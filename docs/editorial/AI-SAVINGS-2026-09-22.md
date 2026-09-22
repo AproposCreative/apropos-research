@@ -155,3 +155,17 @@ No spending-policy increase, invoice reconciliation or clearing of unknown reser
   and two embeddings. Shared registered estimate is 110.643448 DKK; unknown
   reservations were retained. No replacement research, writer or image generation.
   Actual 10:00 publication and seven-day savings evidence remain outstanding.
+
+## Daily length guidance
+
+- The writer previously requested 7–12 substantial paragraphs alongside the daily
+  450–650-word limit. Daily defaults now ask for about eight short paragraphs,
+  explicitly subordinate to the unchanged total word limit. Explicit manual word
+  targets retain their existing guidance; saved paid articles are not regenerated.
+- No extra correction call or weaker factual gate was introduced. The existing
+  combined factual/length correction remains, so a separate early shortening call
+  cannot consume the correction allowance before factual diagnostics are known.
+  Fewer overlength drafts is a hypothesis to measure, not a claimed saving.
+- Release `83e7f752d9bff4dd04a8947f961af5f13ad44bb7`, deployment
+  `dpl_BQmBuf6Fqzk4fNj7ZLm8X9nv6vte`: READY with exact production SHA/alias.
+  4,037 tests, TypeScript and targeted lint pass. No paid pilot generation.
