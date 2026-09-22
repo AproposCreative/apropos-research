@@ -533,7 +533,7 @@ it.each(['pending-plan', 'wrong-day-plan', 'active', 'retry', 'cms', 'title', 'c
   expect(state.writes).not.toHaveBeenCalled(); expect([...state.rows]).toEqual(before);
 });
 
-it.each(['missing', 'processing', 'wrong-current', 'wrong-previous', 'wrong-count', 'failed-visual', 'stale-visual', 'changed-pixels',
+it.each(['missing', 'processing', 'wrong-current', 'wrong-previous', 'wrong-count', 'failed-visual', 'stale-visual', 'failed-latest-visual', 'stale-latest-visual', 'changed-pixels',
   'changed-credit', 'changed-hero', 'third-link'])('rejects unproved revision chain: %s', async kind => {
   const { edit, revised } = revisedFixture(kind === 'third-link' ? 3 : 1);
   const path = `livFactRevisions/${revised.factRevisionId}`, revision = state.rows.get(path);
@@ -543,6 +543,8 @@ it.each(['missing', 'processing', 'wrong-current', 'wrong-previous', 'wrong-coun
   if (kind === 'wrong-previous') revision.previous.rawResponse += 'tampered';
   if (kind === 'wrong-count') revision.previous.factRevisionCount = 4;
   if (kind === 'failed-visual') revision.descriptionReview.pass = false;
+  if (kind === 'failed-latest-visual') revision.remainingDescriptionReview = { ...revision.descriptionReview, pass: false };
+  if (kind === 'stale-latest-visual') revision.remainingDescriptionReview = { ...revision.descriptionReview, articleHash: '0'.repeat(64) };
   if (kind === 'stale-visual') revision.descriptionReview.articleHash = '0'.repeat(64);
   if (['changed-pixels', 'changed-credit', 'changed-hero'].includes(kind)) {
     // Even an otherwise matching completed receipt may not authorize new assets.

@@ -168,7 +168,7 @@ export async function editLivEditorialCheckpoint(value: unknown, lease: string, 
           (ancestor.factRevisionCount ?? 1) !== (revision.previous.factRevisionCount ?? (revision.previous.factRevisionId ? 1 : 0)) + 1) {
           throw new Error('liv_edit_blocked_saved_work');
         }
-        const proof = revision.descriptionReview ?? revision.visualReview;
+        const proof = revision.remainingDescriptionReview ?? revision.descriptionReview ?? revision.visualReview;
         if (proof?.pass !== true || proof.articleHash !== livImageArticleHash(ancestor)) throw new Error('liv_edit_blocked_saved_work');
         mediaRevisionIds.push(revisionId!);
         ancestor = revision.previous as GeneratedArticle;

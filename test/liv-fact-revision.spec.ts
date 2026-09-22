@@ -620,7 +620,8 @@ it.each(['caption', 'linked-attribution', 'quote', 'duplicate-index', 'html', 'r
   expect(() => applyLivTargetedPatches(a, output, length)).toThrow();
 });
 
-const revisionStages = ['textPatch', 'visualReview', 'descriptionCorrection', 'descriptionReview'] as const;
+const revisionStages = ['textPatch', 'visualReview', 'descriptionCorrection', 'descriptionReview',
+  'remainingDescriptionCorrection', 'remainingDescriptionReview'] as const;
 const modelResult = (value: unknown) => ({ choices: [{ finish_reason: 'stop', message: { content: JSON.stringify(value) } }] });
 async function costStageFixture() {
   const a = article();
@@ -630,10 +631,13 @@ async function costStageFixture() {
     contentHash: createHash('sha256').update(bytes).digest('hex'), alt: 'En stol i cirklen', caption: 'AI-illustration: Plads til fællesskab.',
     credit: 'Illustration: Apropos Magazine / AI', width: 10, height: 10, kind: 'illustration' })) as any;
   a.content = insertLivBodyMedia(a.content, a.preparedMedia!);
-  a.selectedImage = { articleHash: livImageArticleHash(a), url: 'https://assets.test/0', id: 'paid-hero' } as any;
+  a.selectedImage = { articleHash: livImageArticleHash(a), url: 'https://assets.test/0', id: 'paid-hero',
+    alt: a.preparedMedia![0].alt, contentHash: a.preparedMedia![0].contentHash } as any;
   state.readImage.mockImplementation(async (url: string) => buffers[Number(url.split('/').at(-1))]);
   const outputs = [patches, { pass: false, reason: 'The chair is outside the circle' },
     { fixable: true, corrections: [{ role: 'body-1', alt: 'En stol uden for cirklen', caption: a.preparedMedia![1].caption }] },
+    { pass: false, reason: 'The untouched hero label is also inaccurate' },
+    { fixable: true, corrections: [{ role: 'hero', alt: 'En person sidder ved en stol', caption: a.preparedMedia![0].caption }] },
     { pass: true, reason: 'Accurate labels and relevant paid pixels' }];
   state.calls.mockReset();
   return { a, outputs };
@@ -658,7 +662,7 @@ it.each(revisionStages)('reclaims only the known-unpaid %s stage, preserving ear
   for (const key of ['previous', 'report', 'rawResponse', 'patchResult', 'visualReview', 'visualReviewRaw', 'descriptionCorrection', 'descriptionCorrectionRaw']) {
     if (before[key] !== undefined) expect(state.row[key]).toEqual(before[key]);
   }
-  expect(state.calls).toHaveBeenCalledTimes(outputs.length + 1); // Four successful calls, one proven non-transport denial.
+  expect(state.calls).toHaveBeenCalledTimes(outputs.length + 1); // Successful calls plus one proven non-transport denial.
   expect(revised?.preparedMedia?.map(image => image.contentHash)).toEqual(a.preparedMedia!.map(image => image.contentHash));
 });
 
@@ -829,5 +833,40 @@ it('uses low reasoning for short media calls without increasing their declared o
   for (const output of outputs) state.calls.mockResolvedValueOnce(modelResult(output));
   await repairLivArticleFacts(a, report(a));
   expect(state.calls.mock.calls.map(([request]) => [request.reasoning_effort, request.max_completion_tokens]))
-    .toEqual([['low', 10000], ['low', 2000], ['low', 2500], ['low', 2000]]);
+    .toEqual([['low', 10000], ['low', 2000], ['low', 2500], ['low', 2000], ['low', 2500], ['low', 2000]]);
+});
+
+it('resumes saved rejected labels with only the two remaining calls and preserves paid pixels and audit', async () => {
+  const { a, outputs } = await costStageFixture();
+  for (const output of outputs.slice(0, 4)) state.calls.mockResolvedValueOnce(modelResult(output));
+  state.calls.mockRejectedValueOnce(new LivCostPretransportError('liv_budget_month_limit'));
+  await expect(repairLivArticleFacts(a, report(a))).rejects.toThrow('liv_budget_month_limit');
+  const before = structuredClone(state.row);
+  state.calls.mockClear();
+  for (const output of outputs.slice(4)) state.calls.mockResolvedValueOnce(modelResult(output));
+  const result = await resumeLivFactRevision(a);
+  expect(state.calls).toHaveBeenCalledTimes(2);
+  for (const key of ['previous', 'patchResult', 'visualReview', 'descriptionCorrection', 'descriptionReview']) {
+    expect(state.row[key]).toEqual(before[key]);
+  }
+  expect(result?.preparedMedia?.map(i => [i.url, i.contentHash, i.credit]))
+    .toEqual(a.preparedMedia!.map(i => [i.url, i.contentHash, i.credit]));
+  expect(state.row.remainingDescriptionReview).toMatchObject({ pass: true, articleHash: livImageArticleHash(result!) });
+  expect(result?.selectedImage?.alt).toBe('En person sidder ved en stol');
+  expect(await resumeLivFactRevision(a)).toEqual(result);
+  expect(state.calls).toHaveBeenCalledTimes(2);
+});
+
+it.each(['overlap', 'rejected', 'not-fixable'] as const)('stops a %s remaining repair without any third correction or paid replay', async failure => {
+  const { a, outputs } = await costStageFixture();
+  if (failure === 'overlap') outputs[4] = outputs[2];
+  if (failure === 'not-fixable') outputs[4] = { fixable: false, corrections: [] };
+  if (failure === 'rejected') outputs[5] = { pass: false, reason: 'Still inaccurate' };
+  for (const output of outputs) state.calls.mockResolvedValueOnce(modelResult(output));
+  await expect(repairLivArticleFacts(a, report(a))).rejects.toThrow('liv_fact_revision_media_rejected');
+  const calls = state.calls.mock.calls.length;
+  expect(calls).toBe(failure === 'rejected' ? 6 : 5);
+  await expect(resumeLivFactRevision(a)).rejects.toThrow('liv_fact_revision_media_rejected');
+  expect(state.calls).toHaveBeenCalledTimes(calls);
+  expect(state.row.status).not.toBe('complete');
 });
