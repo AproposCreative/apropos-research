@@ -29,3 +29,9 @@ invented experience remain; minor stylistic feedback does not create an unlimite
 rewrite loop. No existing draft or published article was rewritten by this change.
 Regression uses simulated models and verifies prompt wiring and removal of conflicts;
 it is not a claim that a new real article has passed human editorial review.
+
+Release: `36992c889d6e0b6f6205a52ed525f0621b1f1315`, production deployment
+`dpl_9DgyR2uzFdmNfNAHvgftiBfHSzSw` READY with exact SHA and domain alias.
+4,042 tests, TypeScript and targeted lint passed. Authenticated production prompt
+preview returned HTTP 200 for Liv and Frederik, exact shared rules and locked
+structure even with the toggle off; no research initiated. No paid AI pilot.
