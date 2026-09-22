@@ -50,6 +50,32 @@ calls, repeated request hashes, unknown reservations, publication success and ed
 corrections. Compare similar formats and lengths. Do not reduce factual/rights checks
 or generate articles merely to create a measurement sample.
 
-Provider credits were previously exhausted. This release is not evidence of a top-up,
-successful new generation, completed weekly articles or verified daily publication.
+Provider credits were previously exhausted. A deployment alone is not evidence of a
+top-up, successful generation, completed weekly articles or verified daily publication.
 No spending-policy increase, invoice reconciliation or clearing of unknown reservations.
+
+## Release verification
+
+- Code commits `31bfe0b6a806895cf0291b5546de9fbcca3e5ad0` and
+  `4e21dc4b2c0fab444f6f46d456322100d4d1e3ca` pushed without force.
+- Final production deployment `dpl_4mZbH941ngzaGVXepf2rTuthmCe4`: READY, exact latter
+  SHA, project production target and `ai.aproposmagazine.com` alias verified.
+- 4,004 regression tests pass; TypeScript and targeted lint pass. Production build
+  passes, including final Vercel build. No paid model calls were triggered by tests.
+- Authenticated provider status, cost actions, delivery feed and operations APIs return
+  200 with private/no-store headers. Anonymous provider GET/POST return 401 at middleware.
+  Delivery dry-run returns `dry_run_no_writes`; queue and auto-publish are enabled,
+  pause is off, cron schedules are active. No runtime error records returned in the
+  limited post-deploy log scans; this is not a long-term reliability guarantee.
+- At approximately 08:04 Copenhagen time, today's Monster review and tomorrow's
+  Suno/Spotify feature are ready. Today's slot is not published yet; automatic delivery
+  starts at 10:00. These are existing inventory, not five newly completed weekly briefs.
+- The ordinary production cron started reserve preparation. New provider receipts at
+  06:00–06:01 UTC report HTTP 200 for research/writing and embeddings; the saved reserve
+  stage is ready for continuation. This supersedes the old quota error as latest observed
+  provider status, without claiming a verified balance or completed reserve.
+- Registered shared estimate 100.283712 DKK, image-gen 13.040224 DKK, unresolved reservations
+  14.544048 DKK combined. Historical unknown reservations were not cleared.
+- Existing daily follow-up updated in place to seven days, without a duplicate monitor
+  or extra paid AI calls. Actual savings and consecutive live publications remain to be
+  observed; the model was not downgraded.
