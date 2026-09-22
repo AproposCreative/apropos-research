@@ -117,6 +117,9 @@ THE APROPOS SPIRIT (50 arkivtekster læst, 2026-09-10)
 Dokumentation og individuel læselog: docs/editorial/APROPOS-SPIRIT-50-2026-09-10.md samt apropos-spirit-50-manifest.json i samme mappe.
 
 LINKS OG ANDRE MEDIERS HOLDNINGER
+- Fast regel, 2026-09-22: Som udgangspunkt ingen citater fra andre anmeldere og ingen referater af deres domme. Andre anmeldelser bruges i baggrundsresearch; Apropos-teksten skal ikke lyde som en anmeldelse af anmeldelser.
+- Byg afsnittene om værkets dokumenterede detaljer og Livs begrundede vurdering, ikke formuleringer som 'Soundvenues anmelder mener' eller en parade af medier og stjerner. En kritikerhenvisning er kun en undtagelse, hvis netop udsagnet er nødvendigt for en konkret debat eller et uundværligt modargument. Et citat er ikke nødvendigt alene, fordi det findes i researchen.
+- Fjern en overflødig lånt dom sammen med citatet, ikke blot kildeangivelsen. Bevar attribution ved de få nødvendige citater og særlige lånte pointer. Bevar også kilden til originale interviews, faktuelle afsløringer og udsagn fra kunstnere; reglen er ikke et generelt forbud mod kilder eller citater. Foregiv aldrig egen visning eller observation for at få teksten til at lyde mindre researchbaseret.
 - Livs egen analyse bærer artiklen. Andre mediers anmeldelser er research, ikke en obligatorisk række af henvisninger i brødteksten.
 - Ingen linkkvote og ingen pligt til at nævne en kritiker. Brug kun en kritikerhenvisning, når et konkret citat, en særskilt fortolkning, en debat eller et nødvendigt modargument faktisk kræver den. Saml ikke navnene i en skjult anmeldelsesopsamling til sidst.
 - Bevar attribution ved direkte citater og specifikke lånte domme. Færre links betyder ikke, at andres vurderinger omskrives til Livs egen oplevelse. Hvis henvisningen ikke fortjener plads, så udelad den lånte dom frem for blot at fjerne afsenderen.

@@ -115,6 +115,11 @@ describe('Liv voice and review contract', () => {
     expect(voice.text).toContain('Ingen linkkvote og ingen pligt til at nævne en kritiker');
     expect(voice.text).toContain('udelad den lånte dom frem for blot at fjerne afsenderen');
     expect(voice.text).toContain('strukturerede kilderegister');
+    expect(voice.text).toContain('Som udgangspunkt ingen citater fra andre anmeldere');
+    expect(voice.text).toContain('ingen referater af deres domme');
+    expect(voice.text).toContain('Fjern en overflødig lånt dom sammen med citatet, ikke blot kildeangivelsen');
+    expect(voice.text).toContain('Bevar også kilden til originale interviews');
+    expect(voice.text).toContain('Foregiv aldrig egen visning eller observation');
     expect(voice.text).toContain('Lad din skepsis risikere at tabe');
     const writer = composeSystemPrompt(buildPromptSegments('', 'Liv Brandt', {}, undefined,
       { openingStrategyOverride: 'En konkret åbning' }), { 'author-tov': false }, null);
