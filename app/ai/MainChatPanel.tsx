@@ -17,6 +17,7 @@ import type { ThinkingStep, ThinkingStatus } from '@/types/thinking';
 import { THINKING_TEXTS } from '@/components/main-chat/constants';
 import type { ChatMessage, LocalArticleData } from '@/components/main-chat/types';
 import { runWriterFactcheck } from '@/lib/ai-chat/writer-factcheck';
+import ColleagueNotes from './ColleagueNotes';
 
 interface MainChatPanelProps {
   workspaceStatus?: string;
@@ -1496,6 +1497,7 @@ const fallbackThinkingSteps: ThinkingStep[] = [
               </div>
             </div>
           )}
+          <ColleagueNotes notes={notes} onChange={setNotes} />
           <div ref={messagesEndRef} />
         </div>
           <div className={`pointer-events-none absolute inset-x-0 top-0 h-10 z-10 bg-[linear-gradient(180deg,_#050505,_rgba(5,5,5,0.7),_rgba(5,5,5,0))] transition-opacity duration-300 ${messageScrollFade ? 'opacity-100' : 'opacity-0'}`} />

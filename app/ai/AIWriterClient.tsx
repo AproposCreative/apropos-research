@@ -1,5 +1,7 @@
 'use client';
 
+import { mergeWriterBrief } from '@/lib/editorial/colleague-notes';
+
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter, useSearchParams, usePathname } from 'next/navigation';
 import { type UploadedFile } from '@/lib/file-upload-service';
@@ -591,9 +593,7 @@ export default function AIWriterClient() {
 
     let notesPayload = notes;
     if (isLikelyBrief) {
-      const combined = [notesPayload, trimmedMessage].filter((segment) => segment && segment.trim().length > 0).join('\n\n');
-      // Prevent the notes payload from growing unbounded — keep last ~2000 chars
-      notesPayload = combined.slice(-2000);
+      notesPayload = mergeWriterBrief(notesPayload, trimmedMessage);
       setNotes(notesPayload);
     }
 
@@ -617,9 +617,7 @@ export default function AIWriterClient() {
 
     let notesPayload = notes;
     if (determinedIsLikelyBrief) {
-      const combined = [notesPayload, trimmedMessage].filter((segment) => segment && segment.trim().length > 0).join('\n\n');
-      // Prevent the notes payload from growing unbounded — keep last ~2000 chars
-      notesPayload = combined.slice(-2000);
+      notesPayload = mergeWriterBrief(notesPayload, trimmedMessage);
       setNotes(notesPayload);
     }
 

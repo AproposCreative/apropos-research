@@ -4,6 +4,7 @@ import { useAuth } from '@/lib/auth-context';
 import { readJsonResponse } from '@/lib/api/read-json-response';
 import type { readCostActions } from '@/lib/ai/cost-actions';
 import { providerFailureLabel } from '@/lib/ai/provider-error';
+import { costOverview } from '@/lib/ai/cost-overview';
 type Snapshot = Awaited<ReturnType<typeof readCostActions>>;
 const amount = (value: number) => `${value.toLocaleString('da-DK', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} kr.`;
 export default function CostActions() {
@@ -53,6 +54,14 @@ export default function CostActions() {
       <p>Kun registrerede kald. Estimater, ikke faktura. Image-gen beholder sit separate budget.</p>
       {loading && <p role="status">Henter registrerede handlinger…</p>}
       {error && <p role="alert" className="text-amber-200">{error}</p>}
+      {snapshot && snapshot.actions.length > 0 && <section aria-label="Forbrug fordelt på formål" className="py-3">
+        <h5 className="text-white/85">Hvor går pengene hen?</h5>
+        <p>{snapshot.month} · Registreret forbrug og reservationer vises hver for sig.</p>
+        <ul>{costOverview(snapshot.actions).map(group => <li key={group.label} className="py-2">
+          <p className="text-white/85">{group.label}</p>
+          <p>{amount(group.estimatedDkk)} · {group.calls} kald · {amount(group.reservedDkk)} reserveret</p>
+        </li>)}</ul>
+      </section>}
       {hold?.blocked && <div className="py-3 text-amber-200">
         <p>Nye AI-kald er sat på pause efter manglende credits. Færdige historier kan stadig udgives.</p>
         <button disabled={loading} className="min-h-11 underline disabled:opacity-40" onClick={() => void resume()}>Jeg har opdateret betalingen · tillad nye AI-kald</button>
