@@ -22,3 +22,12 @@ The normal server workflow resolves saved evidence before its existing combined 
 4,073 tests across 295 files passed. Type-check, scoped ESLint and diff checks passed. Regression covers authentication, isolation, required consent, idempotency, changed versions, exact citation scope, immutable receipts, evidence tampering and fail-closed assessment context.
 
 The real component was tested in an isolated installed Chrome at 390px with mocked APIs and existing app CSS: no initial fetch, no horizontal overflow, required consent, conflict preserves entered notes, duplicate submission suppressed, no browser errors. This is component-level mobile verification, not a complete live publication test.
+
+## Production receipt
+
+- Code SHA: `6d7df81322743ab93b9c1404f0df43f5fea2b43e`.
+- Deployment: `dpl_5yjBGcEuPurW1n37M7Ydso4v5BBE`, READY; production target SHA matches; `ai.aproposmagazine.com` alias confirmed.
+- Anonymous GET: 401.
+- Verified Frederik, Casper and Milo: GET 200, private/no-store; invalid empty POST 400, before mutation.
+- Eligible pre-CMS stories at verification: 0 for each user. This is not a claim that the publication queue is empty; ready CMS drafts are intentionally excluded.
+- No production attestations created, no AI requests or CMS writes made by this verification.
