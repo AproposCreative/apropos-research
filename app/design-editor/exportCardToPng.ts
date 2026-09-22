@@ -319,8 +319,8 @@ async function renderCardToContext(
 
   // Byline (under H1): #353535, Amiri italic 57px, 400, line-height 120%
   if (data.excerpt) {
-    // Story gets 32px more breathing room; following metadata/CTA/image move with it.
-    y += isStory ? 22 : -10;
+    // Story gets 16px more breathing room; following metadata/CTA/image move with it.
+    y += isStory ? 6 : -10;
     const excerptFit = fitCardText(ctx, data.excerpt, maxBylineWidth, isStory ? 3 : 2, excerptSize, value => `italic 400 ${value}px ${amiriFontFamily}`);
     excerptSize = excerptFit.fontSize;
     ctx.font = `italic 400 ${excerptSize}px ${amiriFontFamily}`;
