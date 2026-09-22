@@ -146,3 +146,12 @@ No spending-policy increase, invoice reconciliation or clearing of unknown reser
   by the previously saved length correction. Do not claim reserve readiness until
   the normal gates and CMS readback finish. Today's and tomorrow's entries remain
   ready, auto-publication enabled; today's 10:00 local publication is not yet due.
+- Follow-up at approximately 08:53 local: production delivery feed returns three
+  ready items (today, tomorrow, reserve); operations reports reserve target 1/1,
+  no blocked items, no reconciliation needed, preparation idle/no work needed.
+  Reserve is now `draft` and admitted ready through normal API/CMS-readback flow.
+  The earlier reason remains historical on the run, not its current status.
+  Recovery receipts total 2.529184 DKK including the fresh editorial assessment
+  and two embeddings. Shared registered estimate is 110.643448 DKK; unknown
+  reservations were retained. No replacement research, writer or image generation.
+  Actual 10:00 publication and seven-day savings evidence remain outstanding.
