@@ -86,7 +86,9 @@ function publicationDate(raw: string | undefined, now: number): string | null {
   // Schema.org permits a local datetime without timezone. Retain only its
   // explicit calendar date rather than inventing a timezone/time precision.
   if (raw && /^\d{4}-\d{2}-\d{2}T(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d)?$/.test(raw)) raw = raw.slice(0, 10);
-  if (!raw || !/^\d{4}-\d{2}-\d{2}(?:T(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d{1,3})?)?(?:Z|[+-](?:[01]\d|2[0-3]):[0-5]\d))?$/.test(raw)) return null;
+  // Publishers also emit micro/nanosecond ISO timestamps. Date stores millis;
+  // accepting their extra precision does not infer or replace a publication date.
+  if (!raw || !/^\d{4}-\d{2}-\d{2}(?:T(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d{1,9})?)?(?:Z|[+-](?:[01]\d|2[0-3]):[0-5]\d))?$/.test(raw)) return null;
   const day = Date.parse(raw.slice(0, 10));
   const time = Date.parse(raw);
   if (!Number.isFinite(day) || new Date(day).toISOString().slice(0, 10) !== raw.slice(0, 10) ||

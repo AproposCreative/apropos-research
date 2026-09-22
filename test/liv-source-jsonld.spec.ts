@@ -4,6 +4,16 @@ const url = 'https://publisher.example/article';
 const now = Date.parse('2026-09-12T10:00:00Z');
 const node = { '@type': 'NewsArticle', url, datePublished: '2026-09-10T17:04:05' };
 const html = (data: unknown) => `<script type="application/ld+json">${JSON.stringify(data)}</script><article>${'Faktisk artikeltekst. '.repeat(30)}</article>`;
+it.each(['2026-09-10T10:26:12.487003+00:00', '2026-09-10T12:26:12.487003123+02:00'])('reads explicit sub-millisecond publication metadata: %s', date => {
+  expect(parseSourceHtml(url, `<meta property="article:published_time" content="${date}">${html(node)}`, 's1', now).publishedAt)
+    .toBe('2026-09-10T10:26:12.487Z');
+  expect(parseSourceHtml(url, html({...node,datePublished:date}), 's1', now).publishedAt)
+    .toBe('2026-09-10T10:26:12.487Z');
+});
+it.each(['2027-09-10T10:26:12.487003Z', '2026-02-30T10:26:12.487003Z',
+  '2026-09-10T25:26:12.487003Z', '2026-09-10T10:26:12.487003', '2026-09-10T10:26:12.487003+02:99'])('still rejects invalid or future precise dates: %s', date => {
+  expect(parseSourceHtml(url, `<meta property="article:published_time" content="${date}">${html(node)}`, 's1', now).publishedAt).toBeNull();
+});
 it('reads the matching NewsArticle publication calendar date without inventing its timezone', () => {
   expect(parseSourceHtml(url, html(node), 's1', now).publishedAt).toBe('2026-09-10T00:00:00.000Z');
 });
