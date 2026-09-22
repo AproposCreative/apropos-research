@@ -101,3 +101,29 @@ No spending-policy increase, invoice reconciliation or clearing of unknown reser
   Its saved article/research remain intact, no blind retry was authorized. Seven
   usage receipts total 395,864 DKK micros (about 0.40 DKK estimated). A completed
   reserve and consecutive successful daily publications remain unproven.
+
+## Source-date recovery, 22 September
+
+- Root cause observed in the downloaded source: KulturPuls publishes ISO timestamps
+  with microsecond precision (`2026-09-21T10:26:12.487003+00:00`). The parser wrongly
+  rejected more than three fractional digits, marking this actual dated source as
+  undated. Now accepts up to nanosecond precision and normalizes to milliseconds;
+  malformed dates, impossible calendar dates and future dates remain rejected.
+- Code `57363f5d65de73c8ab5691e9cd12df64e8434f5f`, production deployment
+  `dpl_EY6XxGSGAm53keDTvwDdxWhCgvcp` READY and production alias verified.
+  4,023 tests, TypeScript and targeted lint pass; remote production build passes.
+- Existing authenticated retry API resumed `reserve-2026-09-22` once under request
+  `reserve-date-parser-20260922-v1`, retaining the previous run in its audit.
+  Production checkpoint now has two dated hosts and three prepared images.
+  Title, intro and prose (excluding inserted figures) match the prior saved article.
+  No replacement research/writing calls were observed during this recovery; media
+  estimated usage was 5.100880 DKK. It is not a provider invoice.
+- Normal 06:30 UTC cron resumed the yielded checkpoint and completed an editorial
+  assessment. Source similarity, moderation, factcheck (30 claims) and voice passed.
+  A length correction was saved, then visual description review stopped at
+  `liv_fact_revision_media_rejected`: initial review caught body-2 standing/sitting;
+  saved description correction fixed body-2, but its follow-up review identified
+  the same mismatch in the hero alt. All paid outputs/pixels remain stored.
+  Do not rerun the failed revision unchanged or regenerate images to repair labels.
+  Reserve readiness remains unproven; the next repair must reuse the saved text
+  correction and pixels, change inaccurate descriptions and obtain real approval.
