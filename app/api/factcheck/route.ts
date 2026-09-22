@@ -9,6 +9,7 @@ import { withLivCostRequest, withSharedCostContext } from '@/lib/liv/cost-contex
 import { getLivCostPretransportError } from '@/lib/liv/cost-errors';
 import { livEditorialFieldsSchema, livEditorialFieldContext, type LivEditorialFields } from '@/lib/liv/editorial-assessment-contract';
 import { livVisualReferenceSchema, type LivVisualReference } from '@/lib/liv/visual-evidence';
+import { observationReferenceSchema, type ObservationReference } from '@/lib/liv/observation-contract';
 
 export const maxDuration = 120;
 
@@ -52,6 +53,17 @@ async function handlePost(request: NextRequest) {
     return NextResponse.json({ error: 'Et JSON-objekt er påkrævet.' }, { status: 400 });
   }
   let visualReference: LivVisualReference | undefined;
+  let observationReference: ObservationReference | undefined;
+  if ('observationReference' in input) {
+    const internal = process.env.INTERNAL_API_SECRET?.trim(), cron = process.env.CRON_SECRET?.trim();
+    const bearer = request.headers.get('authorization');
+    if (!((internal && (request.headers.get('x-internal-api-secret') === internal || bearer === `Bearer ${internal}`)) ||
+      (cron && bearer === `Bearer ${cron}`))) return NextResponse.json({ error: 'Intern evidens kræver serverautentifikation.' }, { status: 401 });
+    const parsed = observationReferenceSchema.safeParse(input.observationReference);
+    if (!parsed.success || !('editorialFields' in input) || !('editorialReview' in input) || input.editorialReview !== 'liv-v1')
+      return NextResponse.json({ error: 'Ugyldig kollegaevidens.' }, { status: 400 });
+    observationReference = parsed.data;
+  }
   if ('visualReference' in input) {
     const internal = process.env.INTERNAL_API_SECRET?.trim(), cron = process.env.CRON_SECRET?.trim();
     const bearer = request.headers.get('authorization');
@@ -88,7 +100,7 @@ async function handlePost(request: NextRequest) {
     }
     try {
       const report = 'editorialReview' in input
-        ? await assessLivEditorialArticle(parsed.data.articleText, parsed.data.sourceUrls, editorialFields, visualReference)
+        ? await assessLivEditorialArticle(parsed.data.articleText, parsed.data.sourceUrls, editorialFields, visualReference, observationReference)
         : await verifyArticleSources(parsed.data.articleText, parsed.data.sourceUrls);
       return NextResponse.json(report, { headers: { 'Cache-Control': 'no-store' } });
     } catch (error) {

@@ -375,7 +375,9 @@ async function runLivDailyOperation(req: NextRequest, preparation?: LivPreparati
     }
 
     // Check the final body including generated captions, not a text-only revision.
+    const observationReference = await (await import('./observation-evidence')).readObservationReference(livDailyDocId(dayKey, scope), article);
     const gates = await runSafetyGates({
+      ...(observationReference ? { observationReference } : {}),
       baseUrl,
       title: article.title,
       content: article.content,

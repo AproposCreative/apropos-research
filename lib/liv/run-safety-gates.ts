@@ -22,6 +22,7 @@ import { editorialVerdictPasses, readLivEditorialEvidence, livEditorialFieldCont
 import { livCostHeaders } from '@/lib/liv/cost-context';
 import type { LivVisualReference } from './visual-evidence';
 import { cmsFieldHash } from './cms-field-hash';
+import type { ObservationReference } from './observation-contract';
 
 export interface SafetyGatesInput {
   baseUrl: string;
@@ -51,6 +52,7 @@ export interface SafetyGatesInput {
   priorFactcheck?: GroundedReport;
   /** Pointer only; /api/factcheck resolves the exact saved audit and pixel proof. */
   visualReference?: LivVisualReference;
+  observationReference?: ObservationReference;
 }
 
 export interface SafetyGatesOutput {
@@ -75,6 +77,7 @@ interface FactcheckResponse {
   editorialReview?: unknown;
   fieldContextHash?: string;
   visualContextHash?: string;
+  observationContextHash?: string;
   results?: Array<{
     claim?: string;
     status?: 'verified' | 'disputed' | 'unverifiable' | string;
@@ -94,6 +97,7 @@ const diagnosticReportSchema = z.object({
   articleHash: z.string().regex(/^[a-f0-9]{64}$/), checkedAt: z.string().datetime(), complete: z.boolean(),
   fieldContextHash: z.string().regex(/^[a-f0-9]{64}$/).optional(),
   visualContextHash: z.string().regex(/^[a-f0-9]{64}$/).optional(),
+  observationContextHash: z.string().regex(/^[a-f0-9]{64}$/).optional(),
   blockers: z.array(z.string()),
   coverage: z.object({ expectedUnits: z.number().int().positive(), checkedUnits: z.number().int().nonnegative() }),
   results: z.array(z.object({
@@ -260,7 +264,7 @@ export async function runSafetyGates(input: SafetyGatesInput): Promise<SafetyGat
   // the exact request cache on every attempt. A prior report cannot establish
   // unchanged source content, model or prompt, even within its freshness window.
   // This reuses paid output, including failures, without reusing stale approval.
-  let fc: FactcheckResponse | null = !consolidated && sameFieldContext && !input.visualReference
+  let fc: FactcheckResponse | null = !consolidated && sameFieldContext && !input.visualReference && !input.observationReference
     ? isCompleteGroundedReport(input.priorFactcheck, factcheckText)
       ? input.priorFactcheck! : reusableFailedReport(input.priorFactcheck, factcheckText, sourceUrls) || null
     : null;
@@ -271,6 +275,7 @@ export async function runSafetyGates(input: SafetyGatesInput): Promise<SafetyGat
       headers: internalApiHeaders(livCostHeaders('/api/factcheck')),
       body: JSON.stringify({ articleText: factcheckText, sourceUrls, ...(consolidated ? { editorialReview: 'liv-v1',
         ...(input.visualReference ? { visualReference: input.visualReference } : {}),
+        ...(input.observationReference ? { observationReference: input.observationReference } : {}),
         ...(fieldContext ? { editorialFields: input.editorialFields } : {}) } : {}) }),
       cache: 'no-store',
       signal: AbortSignal.timeout(timeoutMs),
@@ -297,6 +302,7 @@ export async function runSafetyGates(input: SafetyGatesInput): Promise<SafetyGat
   // same text. This invalidates reuse, never edits or clears a failed verdict.
   if (fieldContext && fc?.fieldContextHash !== fieldContext.hash) fc = null;
   if (input.visualReference && fc?.visualContextHash !== cmsFieldHash(input.visualReference)) fc = null;
+  if (input.observationReference && fc?.observationContextHash !== cmsFieldHash(input.observationReference)) fc = null;
 
   const fcUsable = fc != null && (fc.ok === true || (Array.isArray(fc.results) && fc.ok !== false));
 

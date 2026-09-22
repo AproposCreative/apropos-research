@@ -26,6 +26,7 @@ export function requiresEditorialOwner(path: string, method: string): boolean {
   if (path.endsWith('/settings') || path.endsWith('/control')) return true;
   if (path.startsWith('/api/cron/') || path.startsWith('/api/internal/') || path.startsWith('/api/test-')) return true;
   if (path === '/api/liv/delivery/feed') return !['GET', 'HEAD'].includes(method);
+  if (path === '/api/liv/observations') return !['GET', 'HEAD', 'POST'].includes(method);
   if (path === '/api/liv/status') return !['GET', 'HEAD'].includes(method);
   if (path.startsWith('/api/liv/')) return true;
   return false;

@@ -1,6 +1,9 @@
 import { beforeEach, afterEach, expect, it, vi } from 'vitest';
 const state = vi.hoisted(() => ({ rows: new Map<string, any>(), create: vi.fn(), retrieve: vi.fn(),
-  available: true, failSave: false, queue: Promise.resolve() as Promise<unknown>, visual: vi.fn(), voiceRevision: false }));
+  available: true, failSave: false, queue: Promise.resolve() as Promise<unknown>, visual: vi.fn(), observations: vi.fn(), voiceRevision: false }));
+vi.mock('@/lib/liv/observation-evidence', async original => ({
+  ...await original<typeof import('@/lib/liv/observation-evidence')>(), readObservationEvidence: state.observations,
+}));
 vi.mock('@/lib/liv/voice', async original => {
   const actual = await original<typeof import('@/lib/liv/voice')>();
   return { ...actual, loadLivVoice: () => {
@@ -379,6 +382,44 @@ it('does not replace missing editorial evidence with a factual approval', async 
   const result = await assessLivEditorialArticle(claim, urls);
   expect(result.complete).toBe(true); // grounded proof alone is genuine but insufficient
   expect(result.editorialReview).toBeUndefined();
+});
+
+it('uses exact attributed colleague evidence within the existing assessment and preserves cache reuse', async () => {
+  const quote = 'Milo fik gåsehud under koncertens sidste nummer.';
+  const observation = 'Jeg fik gåsehud under det sidste nummer ved koncerten.';
+  const text = `${claim}\n\n${quote}`;
+  const fields = { title: '', content: text };
+  const reference = { runId: 'prepare-2026-09-12', checkpointHash: 'a'.repeat(64), evidenceHash: 'b'.repeat(64) };
+  state.observations.mockResolvedValue([{ id: 'colleague-1', url: 'https://ai.aproposmagazine.com/api/liv/observations?runId=prepare-2026-09-12',
+    title: 'Milos egen bekræftelse', text: observation, contentHash: 'c'.repeat(64), retrievedAt: new Date().toISOString(), publishedAt: null,
+    evidenceKind: 'colleague-self-attestation', witness: 'Milo', observation, articleQuote: quote, unitIds: ['u1'] }]);
+  state.create.mockImplementation(async request => {
+    expect(JSON.parse(request.messages[1].content).colleagueEvidence[0].witness).toBe('Milo');
+    const raw = rawFor(text);
+    raw.units[0].claims.push({ claim: quote, status: 'verified', explanation: 'Underbygget af Milos egen bekræftelse.', citations: [{ sourceId: 'colleague-1', quote: observation }] });
+    return response(raw);
+  });
+  const report = await assessLivEditorialArticle(text, urls, fields, undefined, reference);
+  expect(report.complete).toBe(true);
+  expect(report.observationContextHash).toBe(cmsFieldHash(reference));
+  await assessLivEditorialArticle(text, urls, fields, undefined, reference);
+  expect(state.create).toHaveBeenCalledOnce();
+  expect(state.observations).toHaveBeenCalledTimes(2);
+  vi.stubEnv('INTERNAL_API_SECRET', 'fixture-secret');
+  const fetchMock = vi.fn(async (url: string, options: RequestInit) => url.endsWith('/api/moderation/check')
+    ? Response.json({ data: { metrics: { wordCount: 600, plagiarismRisk: 'low' } } }) : POST(new NextRequest(url, options)));
+  vi.stubGlobal('fetch', fetchMock);
+  const gateInput = { baseUrl: 'http://localhost', ...fields, editorialFields: fields, sourceUrls: urls,
+    sourceExcerpt: claim.repeat(3), requireCompleteVerification: true, observationReference: reference };
+  expect((await runSafetyGates(gateInput)).pass).toBe(true);
+  expect(state.create).toHaveBeenCalledOnce();
+  fetchMock.mockImplementation(async (url: string) => url.endsWith('/api/moderation/check')
+    ? Response.json({ data: { metrics: { wordCount: 600, plagiarismRisk: 'low' } } })
+    : Response.json({ ...report, observationContextHash: 'f'.repeat(64) }));
+  expect((await runSafetyGates(gateInput)).pass).toBe(false);
+  state.observations.mockRejectedValue(Error('liv_observation_changed'));
+  await expect(assessLivEditorialArticle(text, urls, fields, undefined, reference)).rejects.toThrow('changed');
+  expect(state.create).toHaveBeenCalledOnce();
 });
 
 it.each(['timeout', 'save-failure'])('never repeats an ambiguous paid call: %s', async kind => {

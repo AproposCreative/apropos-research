@@ -4,6 +4,8 @@ import { articleFingerprint } from '@/lib/factcheck/grounded';
 import { checkLivArticleLength } from '@/lib/liv/article-length';
 const repair = vi.hoisted(() => vi.fn());
 const resumeFacts = vi.hoisted(() => vi.fn());
+const observations = vi.hoisted(() => vi.fn());
+vi.mock('@/lib/liv/observation-evidence', () => ({ readObservationReference: observations }));
 const plans = vi.hoisted(() => ({ saved: null as any, failed: vi.fn(), generate: vi.fn(), qa: vi.fn() }));
 vi.mock('@/lib/liv/fact-revision', () => ({ repairLivArticleFacts: repair, resumeLivFactRevision: resumeFacts }));
 const mocks = vi.hoisted(() => ({ refresh: vi.fn(), supplement: vi.fn(), topic: vi.fn(), publish: vi.fn(), live: vi.fn(), finish: vi.fn(), gates: vi.fn(), claim: vi.fn(), readback: vi.fn(), analytics: vi.fn(), media: vi.fn(), checkpoint: vi.fn(), admission: vi.fn(), proof: vi.fn(), yield: vi.fn(), row: undefined as any, doc: vi.fn() }));
@@ -294,6 +296,8 @@ it('reports actual field checks without equating them to publication', async () 
   expect(result).toMatchObject({ saveState: 'draft', saveVerified: true, publicationVerified: false, publicationBlocked: true });
 });
 it.each([undefined, 'feature', 'culture-story'] as const)('prepares tomorrow and propagates only explicit label %s, never publishing early', async editorialKind => {
+  const observationReference = { runId: 'prepare-2026-09-12', checkpointHash: 'a'.repeat(64), evidenceHash: 'b'.repeat(64) };
+  observations.mockResolvedValue(observationReference);
   mocks.row = { articleCheckpoint: { title: 'Et museum åbner', content: 'Kultur '.repeat(650), slug: 'et-museum-aabner',
     subtitle: 'Udstillingen', intro: 'En intro', seoTitle: 'Museum', seoDescription: 'Kultur', section: 'Kunst', articleFormat: 'article',
     preparedMedia: [{}, {}, {}], researchSources: [{ url: 'https://museum.dk/news', publishedAt: '2026-09-10' }, { url: 'https://kultur.dk/news', publishedAt: '2026-09-10' }] } };
@@ -305,7 +309,7 @@ it.each([undefined, 'feature', 'culture-story'] as const)('prepares tomorrow and
   expect(result.queued).toBe(true);
   expect(mocks.claim).toHaveBeenCalledWith('2026-09-12', 'prepare');
   expect(mocks.proof.mock.invocationCallOrder[0]).toBeLessThan(mocks.readback.mock.invocationCallOrder[0]);
-  expect(mocks.gates).toHaveBeenCalledWith(expect.objectContaining({ requireCompleteVerification: true }));
+  expect(mocks.gates).toHaveBeenCalledWith(expect.objectContaining({ requireCompleteVerification: true, observationReference }));
   expect(mocks.admission).toHaveBeenCalledTimes(1);
   if (editorialKind) expect(mocks.admission.mock.calls[0][0].editorialKind).toBe(editorialKind);
   else expect(mocks.admission.mock.calls[0][0]).not.toHaveProperty('editorialKind');

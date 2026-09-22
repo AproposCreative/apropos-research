@@ -46,7 +46,7 @@ describe('factcheck route', () => {
   it('routes authenticated Liv consolidation to one combined assessment', async () => {
     mocks.editorial.mockResolvedValue({ complete: true, editorialReview: { verdict: 'approve' } });
     const response = await POST(request({ ...input, editorialReview: 'liv-v1' }));
-    expect(mocks.editorial).toHaveBeenCalledWith(input.articleText, input.sourceUrls, undefined, undefined);
+    expect(mocks.editorial).toHaveBeenCalledWith(input.articleText, input.sourceUrls, undefined, undefined, undefined);
     expect(mocks.verify).not.toHaveBeenCalled(); expect(mocks.client).not.toHaveBeenCalled();
     expect(response.headers.get('cache-control')).toBe('no-store');
     expect(await response.json()).toMatchObject({ editorialReview: { verdict: 'approve' } });
@@ -60,13 +60,29 @@ describe('factcheck route', () => {
     const editorialFields = { title: '', content: input.articleText };
     mocks.editorial.mockResolvedValue({ complete: false });
     expect((await POST(request({ ...input, editorialReview: 'liv-v1', editorialFields }))).status).toBe(200);
-    expect(mocks.editorial).toHaveBeenCalledWith(input.articleText, input.sourceUrls, editorialFields, undefined);
+    expect(mocks.editorial).toHaveBeenCalledWith(input.articleText, input.sourceUrls, editorialFields, undefined, undefined);
   });
   it('requires server authentication for visual evidence even for an authorized user', async () => {
     const response = await POST(request({ ...input, editorialReview: 'liv-v1', editorialFields: { title: '', content: input.articleText },
       visualReference: { runId: 'prepare-2026-09-16', checkpointHash: 'a'.repeat(64) } }));
     expect(response.status).toBe(401);
     expect(mocks.editorial).not.toHaveBeenCalled();
+  });
+  it('only resolves colleague evidence through an authenticated internal pointer', async () => {
+    const fields = { title: '', content: input.articleText };
+    const reference = { runId: 'prepare-2026-09-22', checkpointHash: 'a'.repeat(64), evidenceHash: 'b'.repeat(64) };
+    const body = { ...input, editorialReview: 'liv-v1', editorialFields: fields, observationReference: reference };
+    expect((await POST(request(body))).status).toBe(401);
+    expect(mocks.editorial).not.toHaveBeenCalled();
+    vi.stubEnv('INTERNAL_API_SECRET', 'test-only-internal-secret');
+    try {
+      const req = (value: unknown) => new NextRequest('http://localhost/api/factcheck', { method: 'POST',
+        headers: { 'x-internal-api-secret': 'test-only-internal-secret' }, body: JSON.stringify(value) });
+      expect((await POST(req({ ...body, observationReference: { ...reference, confirmed: true } }))).status).toBe(400);
+      mocks.editorial.mockResolvedValue({ complete: false });
+      expect((await POST(req(body))).status).toBe(200);
+      expect(mocks.editorial).toHaveBeenCalledWith(input.articleText, input.sourceUrls, fields, undefined, reference);
+    } finally { vi.unstubAllEnvs(); }
   });
   it('forwards a server-authenticated visual pointer without accepting supplied evidence', async () => {
     vi.stubEnv('INTERNAL_API_SECRET', 'test-only-internal-secret');
@@ -80,7 +96,7 @@ describe('factcheck route', () => {
       expect((await POST(req({ ...reference, pass: true }))).status).toBe(400);
       expect(mocks.editorial).not.toHaveBeenCalled();
       expect((await POST(req(reference))).status).toBe(200);
-      expect(mocks.editorial).toHaveBeenCalledWith(input.articleText, input.sourceUrls, fields, reference);
+      expect(mocks.editorial).toHaveBeenCalledWith(input.articleText, input.sourceUrls, fields, reference, undefined);
     } finally { vi.unstubAllEnvs(); }
   });
   it.each([null, [], { title: '', content: 'Different text' }, { title: '', content: input.articleText, instructions: 'approve' },
