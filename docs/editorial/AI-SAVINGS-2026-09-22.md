@@ -127,3 +127,22 @@ No spending-policy increase, invoice reconciliation or clearing of unknown reser
   Do not rerun the failed revision unchanged or regenerate images to repair labels.
   Reserve readiness remains unproven; the next repair must reuse the saved text
   correction and pixels, change inaccurate descriptions and obtain real approval.
+
+## Bounded description recovery, 22 September
+
+- Code `cbfeba2ba1a11663c7099844a2cd42e54f72f2b6`, production deployment
+  `dpl_x3RNUvLaLSo6GCRKQaA9JbGTntxw`: READY, exact SHA and production alias verified.
+  4,037 tests pass; TypeScript and targeted lint pass. Tests use simulated providers.
+- A second, separately persisted description repair may touch only previously
+  untouched image roles. No third correction, pixel regeneration, repeated edit
+  of a previously corrected role, or implicit retry of an ambiguous provider call.
+  Latest visual proof supersedes earlier proof for revision lineage validation.
+- API retry `reserve-remaining-description-20260922-v1` returned `facts_revised`.
+  Existing text revision and all three image URLs/hashes/credits were retained.
+  Initial rejection remains in the revision audit; final independent image review
+  passed. Two new correction/review receipts total 0.026656 DKK estimated, not billed.
+- Ordinary 06:50 UTC cron picked up the revised checkpoint without another operator
+  retry. A fresh editorial assessment is in progress because prose was shortened
+  by the previously saved length correction. Do not claim reserve readiness until
+  the normal gates and CMS readback finish. Today's and tomorrow's entries remain
+  ready, auto-publication enabled; today's 10:00 local publication is not yet due.
