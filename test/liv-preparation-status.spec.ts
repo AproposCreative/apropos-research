@@ -47,6 +47,14 @@ it('prepares one reserve when today and tomorrow are already covered', async () 
   expect(state.reads).toHaveBeenCalledWith('reserve-2026-09-12');
 });
 
+it('does not let a usable reserve suppress tomorrow’s planned article', async () => {
+  const manifest = emptyDeliveryState();
+  manifest.entries.push(entry({ kind: 'reserve', expiresDay: '2026-09-17' }));
+  expect(await readNextLivPreparationStatus(manifest, now)).toMatchObject({ day: '2026-09-13', scope: 'prepare', status: 'queued' });
+  expect(state.reads).toHaveBeenCalledWith('prepare-2026-09-13');
+  expect(manifest.entries[0].kind).toBe('reserve');
+});
+
 it('surfaces blocked tomorrow inventory without regenerating or exposing saved details', async () => {
   const manifest = emptyDeliveryState();
   manifest.entries.push(entry(), entry({ scheduledDay: '2026-09-13', expiresDay: '2026-09-13', publicationBlockers: ['private-check'] }));

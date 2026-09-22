@@ -12,7 +12,10 @@ export async function nextScheduledPreparation(state: DeliveryState,
   const clock = copenhagenClock(now);
   let blocked: ScheduledPreparation | null = null;
   for (const dayKey of scheduledPreparationDays(state, clock.day)) {
-    if (dayKey === clock.day && clock.hour >= 20 || state.slots[dayKey] || eligibleEntries(state, dayKey).length) continue;
+    // A reserve may cover today's missing delivery, but must not suppress
+    // tomorrow's planned article merely because it is also eligible tomorrow.
+    if (dayKey === clock.day && clock.hour >= 20 || state.slots[dayKey] ||
+      eligibleEntries(state, dayKey).some(entry => dayKey === clock.day || entry.kind === 'scheduled')) continue;
     const rejected = state.entries.filter(e => e.kind === 'scheduled' && e.scheduledDay === dayKey &&
       (e.decision === 'rejected' || e.state === 'rejected'));
     const primary = await read(dayKey, 'prepare');
