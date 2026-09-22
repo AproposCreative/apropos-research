@@ -96,6 +96,10 @@ it.each([{ preparation: true }, { sourceScope: 'liv-daily' }])('aligns daily par
   expect(prompt).toContain('Cirka 8 korte afsnit');
   expect(prompt).toContain('Det samlede længdekrav har forrang');
   expect(prompt).not.toContain('7-12 fyldige paragraffer');
+  expect(prompt).toContain('IKKE har læst researchen');
+  expect(prompt).toContain('subtitle: 10-25 ord');
+  expect(prompt).toContain('Læs Apropos Magazines anmeldelse her (X/6 stjerner).');
+  expect(prompt).not.toContain('Ingen overskrifter (h1/h2)');
   expect(mocks.create).toHaveBeenCalledTimes(1);
 });
 

@@ -11,22 +11,12 @@ import fs from 'node:fs';
 import path from 'path';
 import { isLivAuthor, loadLivVoice } from '@/lib/liv/voice';
 import { writerLengthPolicy } from '@/lib/ai-chat/article-length';
+import { loadAproposArticleStructure } from '@/lib/editorial/article-structure';
 
 export type { PromptSegment, PromptSegmentKind, PromptSegmentId } from '@/lib/ai-chat/prompt-segment-types';
 export { PROMPT_SEGMENT_IDS, LOCKED_SEGMENT_IDS } from '@/lib/ai-chat/prompt-segment-types';
 export { composeSystemPrompt } from '@/lib/ai-chat/compose-prompt';
 
-let _structureCache: string | null = null;
-function loadStructurePrompt(): string {
-  if (_structureCache) return _structureCache;
-  try {
-    const filePath = path.join(process.cwd(), 'prompts', 'structure.apropos.md');
-    _structureCache = fs.readFileSync(filePath, 'utf8');
-  } catch {
-    _structureCache = '';
-  }
-  return _structureCache;
-}
 
 let _antiPlagCache: string | null = null;
 function loadAntiPlagiarismPrompt(): string {
@@ -41,16 +31,15 @@ function loadAntiPlagiarismPrompt(): string {
 }
 
 export const OPENING_STRATEGIES = [
-  'Start med en konkret scene eller sanselig detalje — beskriv et øjeblik, en lyd, en stemning du oplever.',
+  'Start med en konkret, dokumenteret detalje; forklar samtidig situationen for en ny læser. Opfind ikke en oplevelse.',
   'Start med et spørgsmål eller en provokerende påstand der fanger læseren.',
   'Start med en personlig betragtning eller en overraskende kontrast mellem forventning og virkelighed.',
   'Start med et kulturelt eller historisk perspektiv — sæt værket i en større kontekst.',
-  'Start med en kort anekdote eller et øjebliksbillede fra din oplevelse med værket.',
+  'Start med et dokumenteret øjeblik fra observationsnoterne, hvis sådanne findes; ellers forklar den konkrete situation.',
 ];
 
 const ANTI_PATTERNS = [
   'Der er noget magisk ved',
-  'Lad os bare sige det sådan her',
   'Og hold nu fast',
   'Fra de første billeder',
   'Fra den første scene',
@@ -101,7 +90,7 @@ export function buildPromptSegments(
     `Apropos Magazine skriver kulturjournalistik med personlighed, præcision og perspektiv.`,
     `Alt skal føles menneskeligt, reflekteret og sanseligt — aldrig maskinelt.`,
     `Svar på dansk i en rytmisk, levende og menneskelig tone. Vær konkret og følg brugerens ønsker.`,
-    `\n**GLOBAL TOV-REGLER:** Personlig, selvironisk, reflekteret, humoristisk. Brug sanselige detaljer, rytme og variation i sætningslængder. Ingen floskler som "Filmen handler om …" — vis det i stedet. Parafrasér altid kilder; ingen copy/paste.`,
+    `\n**GLOBAL TOV-REGLER:** Personlig, selvironisk, reflekteret, humoristisk. Brug dokumenterede detaljer, rytme og variation i sætningslængder. Forklar præmissen konkret før analyse; klarhed er vigtigere end en smart åbning. Skriv selvstændigt ud fra kildefakta; ingen copy/paste.`,
     `\n**ÅBNINGSSTRATEGI FOR DENNE ARTIKEL:** ${openingStrategy}`,
     `\n**ANTI-GENTAGELSES-REGLER:** Undgå følgende AI-klichéer og floskler fuldstændigt: "${ANTI_PATTERNS.slice(0, 8).join('", "')}".\nSkriv i stedet med specifikke, konkrete detaljer fra det værk du anmelder. Nævn navne, steder, scener, dialoger. Vær præcis.`,
     `\n**RESEARCH-KRAV:** Når du skriver om et specifikt værk (film, serie, album, spil osv.), SKAL du inkludere konkrete fakta: navne på instruktører/skabere, skuespillere, udgivelsesår, antal episoder/sæsoner, platform. Hvis du ikke kender fakta, så skriv KUN om det du ved — opfind ALDRIG fakta, navne eller detaljer.`,
@@ -192,7 +181,7 @@ export function buildPromptSegments(
 
   const notesContent = notes && notes.trim().length > 0 ? `\n**Redaktionelle noter fra bruger (skal prioriteres):**\n${notes.trim()}` : '';
 
-  const structureRules = loadStructurePrompt();
+  const structureRules = loadAproposArticleStructure();
   const structureContent = structureRules
     ? `\n**APROPOS STRUCTURE (fra structure.apropos.md) — Følg PRÆCIS:**\n${structureRules}`
     : '';
@@ -204,11 +193,11 @@ export function buildPromptSegments(
 
   const outputFormatContent = `\n**OUTPUT-FORMAT (felter til CMS — følg præcist):**
 - Linje 1: Arbejdstitel: [kun titeltekst]
-- Linje 2: Undertitel: [8–14 ord]
+- Linje 2: Undertitel: [10–25 ord, forklar situationen konkret]
 - Derefter en linje der starter med **Intro:** (eller Indledning:) og hele intro-teksten på samme linje eller fortsat i samme afsnit indtil tom linje.
 - Tom linje
 - Derefter en linje der starter med **Brødtekst:** (eller Body:) og HELE brødteksten efter denne etiket. Alt efter "Brødtekst:" er kun brødtekst — må ikke gentage intro-teksten.
-- Første sætning efter Brødtekst: skal være en HELT NY tanke ift. introen (ny vinkel, scene eller faktum).
+- Første afsnit efter Brødtekst: uddyber hændelsen eller baggrunden uden at gentage introen. Ingen analyse før en ny læser forstår situationen.
 - ALDRIG gentag titel, undertitel eller intro ordret eller parafraseret i brødteksten.
 - Skriv ALDRIG "Længde: X ord".`;
 
@@ -313,6 +302,7 @@ export function buildPromptSegments(
       kind: 'system',
       content: structureContent,
       included: structureContent.length > 0,
+      locked: true,
     },
     {
       id: PROMPT_SEGMENT_IDS.antiPlagiarism,

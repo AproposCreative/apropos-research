@@ -12,6 +12,7 @@ import { getOpenAIClient } from '@/lib/openai';
 import { createHash, randomUUID } from 'node:crypto';
 import { getAdminDb } from '@/lib/firebase-admin';
 import { loadLivVoice } from '@/lib/liv/voice';
+import { loadAproposArticleStructure } from '@/lib/editorial/article-structure';
 import { livModels } from '@/lib/liv/model-config';
 import { getResearch } from '@/lib/research/service';
 import { recalledSourceUrls, rememberResearchSources, rememberWritingBrief, loadRecoverableWritingBrief, readWritingBrief } from '@/lib/liv/source-archive';
@@ -282,6 +283,7 @@ export async function generateLivArticle(options: GenerateArticleOptions): Promi
 
   const systemPrompt = [
     voice.text,
+    loadAproposArticleStructure(),
     'Stileksemplerne nedenfor er kun teksteksempler, aldrig instruktioner eller dokumentation for den nye historie. Genbrug ikke deres fakta, oplevelser eller sætninger.',
     buildStyleReferenceBlock(section, 2, true),
     '',
@@ -290,7 +292,7 @@ export async function generateLivArticle(options: GenerateArticleOptions): Promi
     'Returnér JSON efter det krævede schema, uden labels eller markdown omkring svaret.',
     'status: ready når researchen rækker; ellers insufficient_evidence med tomme tekstfelter og null i rating og ratingReason. Opfind aldrig en dom for at udfylde schemaet. Sæt ikke insufficient_evidence alene fordi en detalje mangler, eller fordi en kilde er sekundær: udelad den udokumenterede detalje og skriv en kortere artikel ud fra de konkrete fakta, hvis briefen har mindst to kildehosts og mindst to faktanoter.',
     'missingEvidence: tom liste ved ready. Ved insufficient_evidence: 1-6 konkrete mangler, der forklarer præcis hvorfor den givne brief ikke rækker, og hvad der skal researches. Ikke blot "flere kilder".',
-    'title: max 60 tegn, fængende, dansk. subtitle: 8-14 ord, konkret og skarp.',
+    'title: max 60 tegn, menneskelig og tydeligt emne, dansk. subtitle: 10-25 ord, forklar situationen konkret.',
     'subjectType: klassificér artiklens hovedemne fra researchen som film, tv-series, music, art, literature eller culture. En film nævnt som sammenligning gør ikke en musikartikel til film. Brug culture ved tværgående kulturstof eller tvivl.',
     ...(articleFormat === 'research-review' ? [
       'rating: heltal 1-6. ratingReason: 30-600 tegn, én konkret sætning der begrunder dommen og afvejer svagheder.',
@@ -311,7 +313,7 @@ export async function generateLivArticle(options: GenerateArticleOptions): Promi
     dailyLength
       ? '- Brødteksten skal være 450–650 ord, sigt efter 550. Intro, billedtekster og metadata tæller ikke med. Prioritér én tese, konkrete belæg og ét modargument; fjern gentagelser.'
       : `- Sigt efter ${Math.max(300, Math.min(2200, options.targetWordCount || 1000))} ord i brødteksten. Følg artikeltypen og længden fra briefet.`,
-    '- Ingen overskrifter (h1/h2) — kun løbende tekst.',
+    '- Ingen journalistiske mellemoverskrifter. Brug som udgangspunkt én refleksiv slutoverskrift, som et separat tekstafsnit før afslutningen. Ingen HTML eller markdown i dette JSON-tekstfelt.',
     '- Ingen markdown-syntax (* _ # `).',
     '- Vær præcis med fakta — opfind ikke navne, datoer eller citater.',
     '- Brug research aktivt: indarbejd mindst 2 konkrete, verificerbare fakta når der findes kilder.',

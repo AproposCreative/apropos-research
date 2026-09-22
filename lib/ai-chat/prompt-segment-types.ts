@@ -31,4 +31,4 @@ export const PROMPT_SEGMENT_IDS = {
 
 export type PromptSegmentId = (typeof PROMPT_SEGMENT_IDS)[keyof typeof PROMPT_SEGMENT_IDS];
 
-export const LOCKED_SEGMENT_IDS = new Set<string>([PROMPT_SEGMENT_IDS.base, PROMPT_SEGMENT_IDS.outputFormat]);
+export const LOCKED_SEGMENT_IDS = new Set<string>([PROMPT_SEGMENT_IDS.base, PROMPT_SEGMENT_IDS.outputFormat, PROMPT_SEGMENT_IDS.structure]);

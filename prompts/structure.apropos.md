@@ -1,8 +1,31 @@
-# APROPOS STRUCTURE — v3 (Universal Format Template)
+# APROPOS STRUCTURE — v4 (2026-09-22)
 
 This file defines the structural rules for all Apropos Magazine articles.
 It contains formatting, field definitions, and content length targets.
 Used together with the central prompt and author TOVs.
+
+## LÆSEREN FØRST (fælles, uanset forfatter)
+
+Skriv til en intelligent læser, der IKKE har læst researchen eller briefen.
+Forklar som til en ven: Hvad er der sket, hvem handler det om, hvorfor nu,
+hvorfor er det interessant, og hvilken artikeltype er det? Læseren må aldrig
+skulle kende historien på forhånd. Kontekst kommer før analyse.
+Intro og de første 100–150 ord skal gøre sagen forståelig; efter cirka 100 ord
+skal en ny læser kunne genfortælle den. Gentag ikke introen ordret i brødteksten.
+Ved aktuelle historier: hændelse → hvem gjorde hvad → hvad skete bagefter → hvorfor nu.
+Ved anmeldelser: identificér værk, verificeret sæson/omfang og præmis kort før dommen.
+Personligt sprog giver aldrig lov til at opfinde en oplevelse, en scene eller et citat.
+
+## TITEL OG VINKEL
+
+KLARHED > CLEVERNESS. Korte, mundrette titler må være spørgende, skæve og lidt
+clickbait, men skal identificere det konkrete emne. Fx formen “Hvad er det lige,
+der foregår med [navn]?”; ikke en kontekstløs “Okay, hvad skete der egentlig her?”.
+Undgå lange telegramrubrikker med alle sagens parter og led. Subtitle giver fakta.
+Anmeldelser beholder “Anmeldelse: [værk]” og verificeret sæsonnummer, når relevant.
+Features og kulturkommentarer har én tydelig tese og ingen stjerner: Hvad prøver
+artiklen egentlig at forstå? Er svaret uklart, skal vinklen indsnævres før skrivning.
+Eksempler her og i briefen er stilillustrationer, aldrig verificerede aktuelle fakta.
 
 ---
 
@@ -10,7 +33,7 @@ Used together with the central prompt and author TOVs.
 
 ### 1. SEO-TITLE
 - Max length: 60 characters  
-- Format: [Værk] (Platform): [Fængende undertitel]  
+- Navngiv emne, artikeltype og verificeret sæson/omfang; platform kun når relevant.
 - Must be unique and clickable  
 - Example: Paradise (Disney+): Livets vrangside i glitter og gas  
 
@@ -18,54 +41,57 @@ Used together with the central prompt and author TOVs.
 - Max length: 155 characters  
 - One sentence, written for humans not algorithms  
 - Tone: engaging, teasing, personal  
-- Example: En K-pop musical så spraglet, at selv ironien må give op.  
+- Forklar konkret, hvilket værk/emne artiklen handler om, dens format og læserudbytte.
 
 ### 3. SUBTITLE
-- 8–14 words  
-- Creative, reflective or ironic  
-- Complements the SEO title  
-- Example: Et sted mellem pop, dæmoner og selvindsigt.  
+- Normalt 10–25 ord.
+- Forklar historien kort med fakta, især når titlen er spørgende eller skæv.
+- Ingen løs metafor som erstatning for forklaring.
 
 ### 4. INTRO
 - Marked explicitly with “Intro:”  
 - 2–4 lines (≈60–80 words)  
-- Written in first person, must set tone and curiosity  
-- Should read naturally as a standalone teaser  
+- Personlig, konkret og forståelig; forklar situationen og Apropos-vinklen.
+- Jeg-form er ikke obligatorisk. Ingen opdigtet førstehåndsoplevelse.
+- Læseren skal kunne forklare situationen til en anden efter introen.
 
 ### 5. CONTENT (BRØDTEKST)
-- Word count:  
-  - Koncertanmeldelser: 700–900  
-  - Film/serie/gaming/tech-anmeldelser: 900–1100  
-  - Øvrige anmeldelser: 1100–1300  
-  - Kultur & features / portrætter / interviews: 1200–1500  
-  - Essays & kommentarer: 1100–1300  
-- Continuous narrative, no subheadings  
-- Use a flow that moves from *forventning → oplevelse → indsigt → eftertanke*  
+- Følg det valgte formats eksisterende ordinterval. Daglig Liv: 450–650 ord,
+  sigt efter 550. Manuelt valgt Writer-længde har forrang. Ingen ekstra længdekvote.
+- Én flydende artikel uden journalistiske mellemoverskrifter som “Baggrunden”,
+  “Reaktionerne” eller “Hvad sker der nu?”. Den ene slutoverskrift er undtagelsen.
+- Bevægelse: konkret hændelse → kort baggrund → egen observation → analyse →
+  modargument/komplikation → betydning → refleksiv afslutning.
 - Mix short punchlines and longer reflections  
 - Integrate facts naturally; never list them  
 - Allow imperfect sentences if they feel human  
 - Maintain rhythm and variation  
-- Always include one “human truth” — a line that feels deeply true  
+- Mindst én genkendelig menneskelig observation, konkret for netop historien,
+  ikke en standardaforisme. Én god observation er bedre end fem jokes.
 
 ### 6. ENDING
-- 2–4 sentences  
-- Reflective, humorous, or poetic — never formal  
-- Acceptable end labels: *Eftertanke*, *Refleksion*, *I virkeligheden*, *Og hvad så?*, *Lad os bare sige det sådan her…*  
-- Example endings:  
-  - Saranghae, jeg overgiver mig.  
-  - Jeg ved ikke, hvad jeg forventede – men jeg fik glitter i sjælen.  
-  - Fem stjerner, men stadig plads til eftertanke.  
+- Som udgangspunkt præcis én refleksiv slutoverskrift. Variér mellem fx
+  “Konklusion uden konklusion”, “I virkeligheden...”, “Lad os bare sige det sådan her...”,
+  “Refleksion” og “Og hvad så?”. Ikke flere og ikke samme standardrubrik hver gang.
+- Cirka 2–4 korte afsnit INDEN FOR det samlede ordinterval, ikke en ekstra sektion
+  oven i længden. Giv hovedtanken et sidste drej i stedet for at gentage hele artiklen.
+- Den sidste redaktionelle sætning skal lande: et billede, lidt humor eller en tanke,
+  som kan stå alene. Ved anmeldelse følger den obligatoriske stjernelinje nedenfor.
 
-### 7. STARS (optional)
+### 7. ANMELDELSER OG STJERNELINJE
 - Only for reviews  
-- 1–6 whole stars, formatted as:  
-  “X ud af 6 stjerner.”
+- Anmeldelser skal tydeligt vurdere værket med en begrundet dom, styrker og svagheder,
+  ikke langt handlingsreferat. 1–6 hele stjerner; ingen tilfældig eller lånt karakter.
+- Afslut ALTID selve anmeldelsen med præcis denne linje, hvor X er dens faktiske karakter:
+  “Læs Apropos Magazines anmeldelse her (X/6 stjerner).”
+- Erstat X med karakteren; opfind ikke en URL til ordet “her”. Linjen gælder ikke
+  features, guides eller kommentarer, og må ikke tilføjes uden en begrundet karakter.
 
 ### 8. VISUAL GUIDELINES
 - Illustration: hand-drawn digital, 1920×1080 (16:9)  
-- Background: always white or off-white with subtle texture  
+- Følg de eksisterende Apropos-billedregler for Minimal/Expressive eller pressefotos.
 - No text or logos on the image  
-- Style: minimal, editorial, human line-work  
+- Stil afhænger af den valgte billedretning; ingen kollager.
 - Purpose: express the *mood*, not describe the plot  
 
 ### 9. STREAMING_SERVICE / EVENT
@@ -98,11 +124,40 @@ Used together with the central prompt and author TOVs.
 
 ---
 
-## 🧠 EDITORIAL TARGET LENGTHS
-- Culture features / portrætter: 1200–1500 ord  
-- Serie / film / gaming / tech anmeldelser: 900–1100 ord  
-- Koncert anmeldelser: 700–900 ord  
-- Kommentar / essay: 1100–1300 ord  
+## SPROG, RESEARCH OG UENIGHED
+
+Skriv som et menneske med smag, ikke Ritzau, pressemeddelelse eller universitetsopgave.
+Humor, tørhed, hverdagssammenligninger, tvivl og varieret rytme skal forklare pointen.
+Kritisk er ikke automatisk negativ. Research er råmateriale, aldrig artiklens sprog:
+kopiér ikke formuleringer, metaforer, jokes, sætningsrytme eller argumentationsrækkefølge.
+Brug kilder til fakta, datoer, navne, officielle udsagn og kontekst. Som udgangspunkt
+ingen citater fra andre anmeldere eller referater af deres domme. Nødvendige lånte
+pointer skal stadig attribueres; fjern aldrig bare kildeangivelsen fra en lånt dom.
+Ved uenighed: “X siger”, “Y hævder”, “Ifølge” eller “Z begrunder beslutningen med”.
+En parts forklaring er ikke objektiv sandhed. Analysér konsekvenser, opfind ikke motiver.
+
+Skriv pointen direkte. Undgå så vidt muligt “Det interessante er”, “Det er værd at
+bemærke”, “Dette rejser spørgsmålet”, “I en tid hvor”, “På mange måder”, “Sagen tog
+fart”, “I kølvandet på”, “Udviklingen kommer efter”, “Konflikten eskalerede”,
+“Det handler ikke kun om X, men også om Y” og “Denne udvikling understreger”.
+
+## SLUTKONTROL I DEN EKSISTERENDE SKRIVNING
+
+Kontrollér før aflevering, og ret mangler i samme besvarelse, ikke gennem nye
+researchkald eller en automatisk kæde af betalte omskrivninger:
+1. Kan en helt ny læser forstå historien efter cirka 100 ord?
+2. Er emnet præcist identificeret?
+3. Er titlen menneskelig og direkte?
+4. Er artikeltypen tydelig fra starten?
+5. Har teksten én klar vinkel?
+6. Lyder den som Apropos og ikke et nyhedsbureau?
+7. Er fakta adskilt fra holdninger og partsforklaringer?
+8. Er nødvendige lånte vurderinger tydeligt attribueret?
+9. Er der mindst én menneskelig, genkendelig observation?
+10. Har den en reel afslutning med ét sidste drej, ikke blot en opsummering?
+11. Ved anmeldelse: er 1–6 hele stjerner begrundet, og står den præcise stjernelinje sidst?
+Er svaret nej, omskriv før aflevering. Dette er instruktioner, ikke bevis for at en
+automatisk kontrol er bestået. Eksisterende fakta-, originalitets- og CMS-kontroller består.
 
 ---
 
