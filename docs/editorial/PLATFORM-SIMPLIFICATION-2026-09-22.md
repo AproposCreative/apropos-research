@@ -54,3 +54,15 @@ af nye komponenter/hjælpere bestået.
 Regression bruger mockede svar; ingen betalte research- eller genereringskald.
 Mobilens faktiske visuelle opførsel og menneskeligt bekræftede noter gennem
 automatisk Liv-publicering er ikke verificeret af disse tests.
+
+## Produktionskvittering
+
+- Release: `246b7362cff85305f5914844b8b8a6a0c3ad8b55`.
+- Vercel: `dpl_Eh8vnjfX4X7EPhTYC7USP7BQvfaF`, READY, korrekt SHA og
+  `ai.aproposmagazine.com` alias verificeret.
+- Autentificeret prompt-preview for Liv og Frederik: HTTP 200, præcis fælles
+  struktur og notetekst medtaget, ingen research bestilt.
+- Forbrugs-API: HTTP 200. Registreret estimat ca. 123,89 kr.; reservationer
+  ca. 14,54 kr. Historiske kald for ca. 113,07 kr. mangler formålsmærkning.
+  Derfor kan drift kontra udvikling ikke rekonstrueres pålideligt for alt
+  historisk forbrug. UI'et viser ukendt frem for at opfinde en fordeling.
