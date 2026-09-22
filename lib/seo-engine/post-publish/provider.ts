@@ -10,7 +10,7 @@ export function productionReviewModel(jobId: string): ReviewModelCall {
   if (!client) throw new Error('seo_openai_auth_missing');
   const model = models.default;
   return durableReviewModel({
-    jobId, model, store: firestoreModelStageStore(),
+    jobId, model, store: firestoreModelStageStore(), reuseAcrossJobs: true,
     call: async request => {
       const response = await withSharedCostContext({ scope: 'seo', stage: `seo-post-publish-${request.stage}` }, () => client.chat.completions.create({
         model,

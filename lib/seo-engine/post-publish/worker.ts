@@ -39,6 +39,8 @@ export async function runQualityJob(id: string, deps: QualityWorkerDependencies)
       return { ok: true, status: 'queued', reason: 'auto_disabled' };
     }
     const state = await deps.state(job.snapshot.itemId, job.snapshot.locale);
+    if (job.mode === 'publication_quality' && state.lastReviewedKey === reviewKey(job.snapshot) &&
+        !state.pendingJobId) return await finish('kept', 'unchanged_already_reviewed');
     if (state.pendingJobId && state.pendingJobId !== job.id) {
       await deps.checkpoint(job, { status: 'queued', reason: 'article_write_pending', attempt: job.attempt - 1 }, true);
       return { ok: true, status: 'queued', reason: 'article_write_pending' };

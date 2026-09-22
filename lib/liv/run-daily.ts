@@ -59,7 +59,7 @@ import { cmsFieldHash } from '@/lib/liv/cms-field-hash';
 import { editorialPlanHash } from '@/lib/liv/rolling-plan';
 import { addDays, copenhagenClock } from '@/lib/liv/delivery-policy';
 import type { LivDailyPlan } from '@/lib/liv/daily-plan-store';
-import { withLivCostContext, withLivCostStage } from '@/lib/liv/cost-context';
+import { currentLivCostContext, withLivCostContext, withLivCostStage } from '@/lib/liv/cost-context';
 
 export const maxDuration = 300;
 const MIN_VERIFIED_RESEARCH_SOURCES = 2;
@@ -98,7 +98,10 @@ export async function runLivDaily(req: NextRequest, preparation?: LivPreparation
   if (denied) return denied;
   const day = preparation?.dayKey ?? todayDayKeyUTC();
   const scope = preparation ? preparation.scope ?? (preparation.kind === 'reserve' ? 'reserve' : 'prepare') : 'daily';
-  return withLivCostContext({ runId: livDailyDocId(day, scope), stage: 'daily-workflow' },
+  const inherited = currentLivCostContext();
+  return withLivCostContext({ runId: livDailyDocId(day, scope), stage: 'daily-workflow',
+    purpose: inherited?.purpose ?? (scope === 'reserve-editorial' ? 'editorial-change' : 'production'),
+    storyId: livDailyDocId(day, scope) },
     () => runLivDailyOperation(req, preparation));
 }
 
@@ -242,6 +245,11 @@ async function runLivDailyOperation(req: NextRequest, preparation?: LivPreparati
         ? { allowOriginalityRevision: true } : {}),
     }));
     await checkpointLivDailyArticle(dayKey, article);
+    const costContext = currentLivCostContext();
+    if (costContext) costContext.contentVersion = articleFingerprint(JSON.stringify({
+      title: article.title, content: article.content, intro: article.intro,
+      seoTitle: article.seoTitle, seoDescription: article.seoDescription,
+    }));
     if (preparation && !checkpoint) {
       await yieldLivPreparation(dayKey, scope as Exclude<LivDailyScope, 'daily'>);
       return NextResponse.json({ status: 'text_prepared', dayKey, title: article.title });
@@ -325,6 +333,16 @@ async function runLivDailyOperation(req: NextRequest, preparation?: LivPreparati
         required: MIN_VERIFIED_RESEARCH_SOURCES,
         got: verifiedResearchSources.length,
       });
+    }
+
+    // Reject deterministic structural defects before buying source supplements,
+    // media or assessment. Length remains part of the existing combined factual
+    // correction so a short draft does not cause a separate rewriting purchase.
+    const earlyStructure = checkCmsDraft(article, 'liv-daily');
+    const structuralFailures = earlyStructure.checks.filter(check => !['length', 'sources'].includes(check.id) && !check.ok);
+    if (structuralFailures.length) {
+      gateResults = structuralFailures.map(check => ({ name: `structure-${check.id}`, pass: false, detail: check.label }));
+      throw new Error('liv_preparation_structure_failed');
     }
 
     // The verifier requires two dated hosts. Supplement evidence without

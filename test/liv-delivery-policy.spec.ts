@@ -79,9 +79,9 @@ describe('daily delivery policy', () => {
     state.slots[day].leaseUntil = 0; state.slots[day].nextAttemptAt = 500000;
     expect(selectDelivery(state, day, 400000, 'retry')).toBeNull();
   });
-  it('reports a missing daily publication and only tomorrow, without a reserve requirement', () => {
+  it('reports a missing daily publication and tomorrow plus one reserve', () => {
     const health = deliveryHealth(emptyDeliveryState(), new Date('2026-09-11T08:15:00Z'));
-    expect(health).toMatchObject({ overdue: true, published: false, reserves: 0, reserveTarget: 0 });
+    expect(health).toMatchObject({ overdue: true, published: false, reserves: 0, reserveTarget: 1 });
     expect(health.missingDays).toEqual(['2026-09-12']);
   });
   it('does not report overdue before the deadline', () => {

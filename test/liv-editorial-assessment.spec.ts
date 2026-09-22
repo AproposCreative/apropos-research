@@ -71,6 +71,30 @@ beforeEach(() => {
 });
 afterEach(() => { vi.useRealTimers(); vi.unstubAllEnvs(); vi.unstubAllGlobals(); });
 
+it.each(Array.from({length:12}, (_,i) => ({title:`${['Anmeldelse','Feature','Kulturhistorie'][i%3]} ${i+1}`, gap:'\n'.repeat(i+2)})))
+ ('reuses block layout only, while validating fresh evidence: $title', async ({title,gap}) => {
+  const fields = {title,content:`<p>${claim}</p>\n<p>Det er min vurdering, at oplevelsen har kulturel betydning.</p>`};
+  const text = `${fields.title}\n\n${fields.content}`;
+  const first = await assessLivEditorialArticle(text,urls,fields);
+  const changed = {...fields,content:fields.content.replace('</p>\n<p>',`</p>${gap}<p>`)};
+  const second = await assessLivEditorialArticle(`${changed.title}\n\n${changed.content}`,urls,changed);
+  expect(first.complete).toBe(true); expect(second.complete).toBe(true);
+  expect(state.create).toHaveBeenCalledOnce(); expect(state.retrieve).toHaveBeenCalledTimes(4);
+  expect(second.articleHash).not.toBe(first.articleHash);
+  expect(second.fieldContextHash).not.toBe(first.fieldContextHash);
+});
+it.each(['dato','titel','link','inline','attribut'])('does not normalize a meaningful change: %s',async kind=>{
+ const fields={title:'Kultur',content:`<p>${claim}</p>\n<p>Et <strong>godt</strong> værk.</p>`};
+ await assessLivEditorialArticle(`${fields.title}\n\n${fields.content}`,urls,fields);
+ const next=kind==='titel'?{...fields,title:'En anden titel'}:{...fields,content:
+  kind==='dato'?fields.content.replace('5. november','6. november'):
+  kind==='link'?fields.content.replace('værk.','<a href="https://example.com">værk</a>.'):
+  kind==='inline'?fields.content.replace('</strong> ','</strong>'):
+  fields.content.replace('<p>','<p hidden>')};
+ await assessLivEditorialArticle(`${next.title}\n\n${next.content}`,urls,next);
+ expect(state.create).toHaveBeenCalledTimes(2);
+});
+
 it('retries one failed public source read before making the single assessment call', async () => {
   state.retrieve.mockRejectedValueOnce(new Error('temporary source timeout'));
   const report = await assessLivEditorialArticle(claim, urls);

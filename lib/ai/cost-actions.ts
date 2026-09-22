@@ -5,6 +5,7 @@ import { providerFailure, type ProviderFailure } from './provider-error';
 type Row = Record<string, any>;
 type Bucket = 'shared' | 'image-gen';
 export type CostAction = {
+  storyId?: string; purpose?: 'production' | 'editorial-change' | 'development-pilot'; contentVersion?: string;
   bucket: Bucket; scope: string; runId: string; stage: string; lastAt: string;
   calls: number; estimatedDkk: number; reservedDkk: number; unknownCalls: number;
   repeatedRequests: number; failure: ProviderFailure | null;
@@ -21,10 +22,13 @@ export function projectCostActions(rows: Array<{ call: Row; receipt?: Row }>, bu
       !money(call.reservedDkkMicros) || typeof call.createdAt !== 'string' || !Number.isFinite(Date.parse(call.createdAt))) {
       throw new Error('cost_action_invalid');
     }
-    const scope = call.scope ?? 'liv', key = JSON.stringify([scope, call.runId, call.stage]);
+    const attribution = { ...(identifier(call.storyId) ? { storyId: call.storyId } : {}),
+      ...(['production','editorial-change','development-pilot'].includes(call.purpose) ? { purpose: call.purpose } : {}),
+      ...(/^[a-f0-9]{64}$/.test(call.contentVersion || '') ? { contentVersion: call.contentVersion } : {}) };
+    const scope = call.scope ?? 'liv', key = JSON.stringify([scope, call.runId, call.stage, attribution]);
     let group = groups.get(key);
     if (!group) {
-      group = { bucket, scope, runId: call.runId, stage: call.stage, lastAt: call.createdAt,
+      group = { bucket, scope, runId: call.runId, stage: call.stage, lastAt: call.createdAt, ...attribution,
         calls: 0, estimatedDkk: 0, reservedDkk: 0, unknownCalls: 0, repeatedRequests: 0, failure: null, seen: new Set() };
       groups.set(key, group);
     }
@@ -63,6 +67,14 @@ export async function readCostActions(month = copenhagenClock().day.slice(0, 7))
     }
     return projectCostActions(rows, bucket);
   }));
+  const actions = buckets.flat().sort((a, b) => b.lastAt.localeCompare(a.lastAt));
+  const stories = new Map<string, { id: string; bucket: Bucket; estimatedDkk: number; reservedDkk: number; calls: number }>();
+  for (const a of actions) {
+    const id = a.storyId ?? a.runId, key = `${a.bucket}:${id}`;
+    const row = stories.get(key) ?? { id, bucket: a.bucket, estimatedDkk: 0, reservedDkk: 0, calls: 0 };
+    row.estimatedDkk += a.estimatedDkk; row.reservedDkk += a.reservedDkk; row.calls += a.calls;
+    stories.set(key, row);
+  }
   return { month, checkedAt: new Date().toISOString(), billedDkk: null,
-    coverage: 'tracked_calls_only' as const, actions: buckets.flat().sort((a, b) => b.lastAt.localeCompare(a.lastAt)) };
+    coverage: 'tracked_calls_only' as const, actions, stories: [...stories.values()].sort((a,b) => b.estimatedDkk - a.estimatedDkk) };
 }

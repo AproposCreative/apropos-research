@@ -7,6 +7,7 @@ import { LIV_PRICE_VALID_UNTIL, LIV_PRICE_VERSION, usageUsdUpperBound, type LivP
 import { sharedCostEnabled, type LivCostContext } from './cost-context';
 import { livModels } from './model-config';
 import { LivCostPretransportError } from './cost-errors';
+import { providerHoldRef } from '@/lib/ai/provider-hold';
 
 export const LIV_COST_COLLECTION = 'livCostLedger';
 export const LIV_COST_MAX_CALLS_PER_RUN = 40;
@@ -19,6 +20,7 @@ export type LivBudgetPolicy = {
   conversionBasis: string; priceVersion: string;
 };
 export type LivCostReservation = {
+  purpose?: import('./cost-context').CostPurpose; storyId?: string; contentVersion?: string;
   scope?: 'liv' | 'writer' | 'seo' | 'accreditation' | 'image-gen';
   callId: string; month: string; runId: string; stage: string; requestHash: string;
   model: string; quote: LivPriceQuote; reservedDkkMicros: number; policy: LivBudgetPolicy; createdAt: string;
@@ -67,6 +69,9 @@ export function createLivCostLedger(now: () => Date = () => new Date(), bucket: 
     async reserve({ callId, context, quote, requestHash }) {
       if (!/^[a-f0-9-]{36}$/i.test(callId) || !/^[a-f0-9]{64}$/.test(requestHash) ||
         !/^[a-zA-Z0-9_-]{1,100}$/.test(context.runId) || !/^[a-zA-Z0-9_-]{1,100}$/.test(context.stage) ||
+        (context.purpose !== undefined && !['production', 'editorial-change', 'development-pilot'].includes(context.purpose)) ||
+        (context.storyId !== undefined && !/^[a-zA-Z0-9_-]{1,100}$/.test(context.storyId)) ||
+        (context.contentVersion !== undefined && !/^[a-f0-9]{64}$/.test(context.contentVersion)) ||
         !Number.isSafeInteger(quote.reservedUsdMicros) || quote.reservedUsdMicros <= 0 || quote.version !== LIV_PRICE_VERSION) {
         throw new LivCostPretransportError('liv_cost_reservation_invalid');
       }
@@ -74,7 +79,10 @@ export function createLivCostLedger(now: () => Date = () => new Date(), bucket: 
       const date = now(), month = copenhagenClock(date).day.slice(0, 7);
       const monthRef = collection.doc(`month-${month}`), callRef = collection.doc(`call-${callId}`);
       const runRef = collection.doc(`run-${month}-${context.runId}`);
+      const pilotRef = database.collection('aiCostCampaigns').doc('savings-2026-09');
       return database.runTransaction(async tx => {
+        const hold = (await tx.get(providerHoldRef(database))).data();
+        if (hold?.blocked === true) throw new LivCostPretransportError('liv_cost_provider_quota_exhausted');
         const policyRow = (await tx.get(collection.doc('policy'))).data();
         const policy = policyOf(policyRow);
         if (bucket === 'image-gen' && (context.scope !== 'image-gen' || policy.monthlyLimitDkkMicros > 150_000_000)) {
@@ -86,6 +94,8 @@ export function createLivCostLedger(now: () => Date = () => new Date(), bucket: 
         const existing = (await tx.get(callRef)).data();
         const totals = (await tx.get(monthRef)).data() || { committedDkkMicros: 0, reservedDkkMicros: 0, calls: 0, unknownCalls: 0 };
         const run = (await tx.get(runRef)).data() || { calls: 0 };
+        const pilot = context.purpose === 'development-pilot'
+          ? (await tx.get(pilotRef)).data() || { committedDkkMicros: 0, reservedDkkMicros: 0 } : null;
         if (existing) throw new Error('liv_cost_call_already_reserved');
         if (![totals.committedDkkMicros, totals.reservedDkkMicros, totals.calls, totals.unknownCalls].every(safeCount) || totals.blocked) {
           throw new Error('liv_cost_ledger_requires_reconciliation');
@@ -94,13 +104,20 @@ export function createLivCostLedger(now: () => Date = () => new Date(), bucket: 
           throw new LivCostPretransportError('liv_cost_call_limit_exceeded');
         }
         const amount = Math.ceil(quote.reservedUsdMicros * policy.usdToDkkCeiling);
+        if (pilot && (![pilot.committedDkkMicros, pilot.reservedDkkMicros].every(safeCount) ||
+            amount + pilot.committedDkkMicros + pilot.reservedDkkMicros > 20_000_000)) {
+          throw new LivCostPretransportError('liv_cost_pilot_budget_exceeded');
+        }
         if (!Number.isSafeInteger(amount) || amount + totals.committedDkkMicros + totals.reservedDkkMicros > policy.monthlyLimitDkkMicros) {
           throw new LivCostPretransportError('liv_cost_monthly_budget_exceeded');
         }
         const reservation: LivCostReservation = { callId, month, runId: context.runId, stage: context.stage, requestHash,
+          purpose: context.purpose ?? 'production', storyId: context.storyId ?? context.runId,
+          ...(context.contentVersion ? { contentVersion: context.contentVersion } : {}),
           ...(context.scope ? { scope: context.scope } : {}),
           model: quote.model, quote, reservedDkkMicros: amount, policy, createdAt: date.toISOString() };
         tx.create(callRef, { ...reservation, scope: context.scope ?? 'liv', status: 'reserved', usage: null, billedCostDkkMicros: null });
+        if (pilot) tx.set(pilotRef, { ...pilot, reservedDkkMicros: pilot.reservedDkkMicros + amount });
         tx.set(runRef, { calls: run.calls + 1, updatedAt: date.toISOString() });
         tx.set(monthRef, { ...totals, reservedDkkMicros: totals.reservedDkkMicros + amount, calls: totals.calls + 1,
           unknownCalls: totals.unknownCalls + 1, trackingStartedAt: totals.trackingStartedAt || date.toISOString(), updatedAt: date.toISOString() });
@@ -116,11 +133,20 @@ export function createLivCostLedger(now: () => Date = () => new Date(), bucket: 
         const totals = (await tx.get(monthRef)).data();
         const receiptRef = collection.doc(`result-${reservation.callId}`);
         const oldReceipt = (await tx.get(receiptRef)).data();
+        const holdRef = providerHoldRef(database);
+        const hold = outcome.providerFailure === 'quota_exhausted' ? (await tx.get(holdRef)).data() : undefined;
+        const pilotRef = database.collection('aiCostCampaigns').doc('savings-2026-09');
+        const pilot = reservation.purpose === 'development-pilot' ? (await tx.get(pilotRef)).data() : null;
         if (!call || call.requestHash !== reservation.requestHash || call.reservedDkkMicros !== reservation.reservedDkkMicros || !totals ||
           ![totals.committedDkkMicros, totals.reservedDkkMicros, totals.unknownCalls].every(safeCount)) throw new Error('liv_cost_ledger_requires_reconciliation');
         if (oldReceipt) {
           if (JSON.stringify(oldReceipt.outcome) !== JSON.stringify(outcome)) throw new Error('liv_cost_receipt_conflict');
           return;
+        }
+        if (outcome.providerFailure === 'quota_exhausted') {
+          tx.set(holdRef, { blocked: true, reason: 'quota_exhausted', blockedAt: now().toISOString(),
+            revision: (Number.isSafeInteger(hold?.revision) ? hold!.revision : 0) + 1,
+            callId: reservation.callId });
         }
         const modelMatches = !outcome.responseModel || outcome.responseModel === reservation.model ||
           new RegExp(`^${reservation.model.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}-\\d{4}-\\d{2}-\\d{2}$`).test(outcome.responseModel);
@@ -138,6 +164,12 @@ export function createLivCostLedger(now: () => Date = () => new Date(), bucket: 
           tx.set(monthRef, { ...totals, reservedDkkMicros: totals.reservedDkkMicros - reservation.reservedDkkMicros,
             committedDkkMicros: totals.committedDkkMicros + estimate, unknownCalls: totals.unknownCalls - 1,
             ...(breached ? { blocked: true } : {}), updatedAt: now().toISOString() });
+          if (reservation.purpose === 'development-pilot') {
+            if (!pilot || ![pilot.committedDkkMicros, pilot.reservedDkkMicros].every(safeCount) ||
+              pilot.reservedDkkMicros < reservation.reservedDkkMicros) throw new Error('liv_cost_pilot_requires_reconciliation');
+            tx.set(pilotRef, { committedDkkMicros: pilot.committedDkkMicros + estimate,
+              reservedDkkMicros: pilot.reservedDkkMicros - reservation.reservedDkkMicros });
+          }
         }
       });
     },

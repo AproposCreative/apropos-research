@@ -3,16 +3,21 @@ import { createHmac, randomUUID, timingSafeEqual } from 'node:crypto';
 import { LivCostPretransportError } from './cost-errors';
 
 export type SharedCostScope = 'writer' | 'seo' | 'accreditation' | 'image-gen';
-export type LivCostContext = { runId: string; stage: string; scope?: SharedCostScope; blocked?: boolean };
+export type CostPurpose = 'production' | 'editorial-change' | 'development-pilot';
+export type LivCostContext = { runId: string; stage: string; scope?: SharedCostScope; blocked?: boolean;
+  purpose?: CostPurpose; storyId?: string; contentVersion?: string };
 const storage = new AsyncLocalStorage<LivCostContext>();
 export const LIV_COST_HEADER = 'x-liv-cost-context';
 const valid = (value: string) => /^[a-zA-Z0-9_-]{1,100}$/.test(value);
 export const currentLivCostContext = () => storage.getStore();
 
 /** Establish only at an authenticated, server-owned Liv boundary, never from a request body. */
-export function withLivCostContext<T>(context: Pick<LivCostContext, 'runId' | 'stage' | 'scope'>, run: () => T): T {
+export function withLivCostContext<T>(context: Omit<LivCostContext, 'blocked'>, run: () => T): T {
   if (!valid(context.runId) || !valid(context.stage) ||
-    (context.scope !== undefined && !['writer', 'seo', 'accreditation', 'image-gen'].includes(context.scope))) throw new Error('liv_cost_context_invalid');
+    (context.scope !== undefined && !['writer', 'seo', 'accreditation', 'image-gen'].includes(context.scope)) ||
+    (context.purpose !== undefined && !['production', 'editorial-change', 'development-pilot'].includes(context.purpose)) ||
+    (context.storyId !== undefined && !valid(context.storyId)) ||
+    (context.contentVersion !== undefined && !/^[a-f0-9]{64}$/.test(context.contentVersion))) throw new Error('liv_cost_context_invalid');
   return storage.run({ ...context }, run);
 }
 
@@ -40,7 +45,7 @@ export function withLivCostStage<T>(stage: string, run: () => T): T {
   if (!parent) return run();
   if (!valid(stage) || parent.blocked) throw new Error('liv_cost_context_blocked');
   // Share the poison flag across parallel stages if persistence fails after transport.
-  return storage.run({ runId: parent.runId, stage, ...(parent.scope ? { scope: parent.scope } : {}),
+  return storage.run({ ...parent, stage,
     get blocked() { return parent.blocked; }, set blocked(value) { parent.blocked = value; } }, run);
 }
 
@@ -58,7 +63,9 @@ export function livCostHeaders(path: string, now = Date.now()): Record<string, s
   const context = storage.getStore();
   if (!context) return {};
   if (context.blocked || !/^\/api\/[a-z0-9/-]+$/i.test(path)) throw new Error('liv_cost_context_blocked');
-  const payload = Buffer.from(JSON.stringify({ v: 1, runId: context.runId, ...(context.scope ? { scope: context.scope } : {}), path, issuedAt: now, expiresAt: now + 300_000 })).toString('base64url');
+  const payload = Buffer.from(JSON.stringify({ v: 1, runId: context.runId, ...(context.scope ? { scope: context.scope } : {}),
+    ...(context.purpose ? { purpose: context.purpose } : {}), ...(context.storyId ? { storyId: context.storyId } : {}),
+    ...(context.contentVersion ? { contentVersion: context.contentVersion } : {}), path, issuedAt: now, expiresAt: now + 300_000 })).toString('base64url');
   return { [LIV_COST_HEADER]: `${payload}.${createHmac('sha256', signingKey()).update(payload).digest('base64url')}` };
 }
 /** Missing header preserves unrelated manual requests. A present invalid header never downgrades to manual. */
@@ -73,12 +80,15 @@ export function withLivCostRequest<T>(request: { url: string; headers: Headers }
   const [payload, signature, extra] = header.split('.');
   const expected = createHmac('sha256', signingKey()).update(payload || '').digest('base64url');
   if (extra || !signature || !equal(signature, expected)) throw new Error('liv_cost_context_unauthorized');
-  let data: { v?: unknown; runId?: unknown; scope?: SharedCostScope; path?: unknown; issuedAt?: unknown; expiresAt?: unknown };
+  let data: { v?: unknown; runId?: unknown; scope?: SharedCostScope; purpose?: CostPurpose; storyId?: string;
+    contentVersion?: string; path?: unknown; issuedAt?: unknown; expiresAt?: unknown };
   try { data = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8')); }
   catch { throw new Error('liv_cost_context_invalid'); }
   if (!data || data.v !== 1 || typeof data.runId !== 'string' || data.path !== new URL(request.url).pathname ||
     typeof data.issuedAt !== 'number' || typeof data.expiresAt !== 'number' || !Number.isSafeInteger(data.issuedAt) ||
     !Number.isSafeInteger(data.expiresAt) || data.issuedAt > now || data.expiresAt <= now ||
     data.expiresAt - data.issuedAt !== 300_000) throw new Error('liv_cost_context_invalid');
-  return withLivCostContext({ runId: data.runId, stage, ...(data.scope !== undefined ? { scope: data.scope } : {}) }, run);
+  return withLivCostContext({ runId: data.runId, stage, ...(data.scope !== undefined ? { scope: data.scope } : {}),
+    ...(data.purpose !== undefined ? { purpose: data.purpose } : {}), ...(data.storyId !== undefined ? { storyId: data.storyId } : {}),
+    ...(data.contentVersion !== undefined ? { contentVersion: data.contentVersion } : {}) }, run);
 }

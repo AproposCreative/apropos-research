@@ -1,9 +1,9 @@
 import type { LivEditorialKind } from './editorial-kind';
 /** Pure policy shared by preparation, delivery and status. All days are Danish calendar days. */
 // Produce one next-day article, not a speculative week of paid inventory.
-// New reserve production is opt-in; existing reserves always remain eligible.
-export const LIV_RESERVE_TARGET = 0;
-export function reserveTarget() { return process.env.LIV_RESERVE_ENABLED === 'true' ? 1 : LIV_RESERVE_TARGET; }
+// One durable reserve, replenished only after use/expiry. Explicit false is an operational off switch.
+export const LIV_RESERVE_TARGET = 1;
+export function reserveTarget() { return process.env.LIV_RESERVE_ENABLED === 'false' ? 0 : LIV_RESERVE_TARGET; }
 export const LIV_PLAN_DAYS = 1;
 export const LIV_DELIVERY_LEASE_MS = 6 * 60_000;
 
@@ -60,9 +60,10 @@ export type DeliveryState = { entries: ReadyEntry[]; slots: Record<string, Deliv
   preparation?: { token: string; leaseUntil: number } };
 export const emptyDeliveryState = (): DeliveryState => ({ entries: [], slots: {} });
 
-export function scheduledPreparationDays(state: DeliveryState, today: string) {
-  return [...new Set([today, addDays(today, 1), ...(state.editorialPreparationDays ?? [])
-    .filter(d => validDay(d) && d >= today && d <= addDays(today, 7))])].sort();
+export function scheduledPreparationDays(_state: DeliveryState, today: string) {
+  // Future briefs remain saved and visible, but do not buy a speculative week.
+  // Existing ready inventory is untouched; its normal delivery dates still apply.
+  return [today, addDays(today, 1)];
 }
 
 /** A future scheduled story can never be pulled forward as a fallback. */

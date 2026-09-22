@@ -37,31 +37,46 @@ export function durableReviewModel(args: {
   store: ModelStageStore;
   call: ReviewModelCall;
   now?: () => Date;
+  reuseAcrossJobs?: boolean;
 }): ReviewModelCall {
   return async request => {
     const key = createHash('sha256').update(`${args.jobId}:${request.stage}`).digest('hex');
     const requestHash = modelRequestHash(request, args.model);
     const owner = randomUUID();
     const now = () => (args.now?.() ?? new Date()).toISOString();
+    // Recover only a completed shared receipt. This never starts a provider call,
+    // including after a competing job or a failed outer receipt write.
+    const sharedResponse = args.reuseAcrossJobs ? await args.store.transact<string | undefined>(
+      createHash('sha256').update(`request-${requestHash}:${request.stage}`).digest('hex'), current => ({
+        result: current?.requestHash === requestHash && current.status === 'responded' && typeof current.response === 'string'
+          ? current.response : undefined,
+      })) : undefined;
     const claimed = await args.store.transact<{ response: string } | { claimed: true }>(key, current => {
       if (current) {
         if (current.requestHash !== requestHash) throw new Error('seo_model_request_changed');
         if (current.status === 'responded' && typeof current.response === 'string') {
           return { result: { response: current.response } };
         }
+        if (sharedResponse !== undefined) return { next: { ...current, status: 'responded', response: sharedResponse,
+          respondedAt: now() }, result: { response: sharedResponse } };
         if (current.status !== 'not_started' || current.notStartedReason !== 'cost_denied' ||
           current.response !== undefined || current.respondedAt !== undefined ||
           !current.costDenials?.length || current.costDenials.at(-1)?.providerAttempted !== false) {
           throw new Error('seo_model_requires_reconciliation');
         }
       }
+      if (sharedResponse !== undefined) return { next: { requestHash, owner, status: 'responded', startedAt: now(),
+        response: sharedResponse, respondedAt: now() }, result: { response: sharedResponse } };
       return { next: { requestHash, owner, status: 'started', startedAt: now(),
         ...(current?.costDenials ? { costDenials: current.costDenials } : {}) }, result: { claimed: true } };
     });
     if ('response' in claimed) return claimed.response;
     let response: string;
     try {
-      response = await args.call(request);
+      // Cross-job reuse is keyed by the FULL request and configured model.
+      // The outer per-job record still preserves legacy responses/uncertain calls.
+      response = !args.reuseAcrossJobs ? await args.call(request)
+        : await durableReviewModel({ ...args, reuseAcrossJobs: false, jobId: `request-${requestHash}` })(request);
     } catch (error) {
       const denial = getLivCostPretransportError(error);
       await args.store.transact(key, current => {

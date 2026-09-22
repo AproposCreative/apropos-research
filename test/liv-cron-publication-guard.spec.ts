@@ -41,10 +41,25 @@ import { cmsFieldHash } from '@/lib/liv/cms-field-hash';
 
 const saveResult = { articleId: 'saved-item', publicationVerified: false,
   receipt: { saveState: 'draft', saveVerified: true, cmsLocaleId: 'locale' } };
+const structuralFields = { slug: 'saved', subtitle: 'Undertitel', intro: 'Intro',
+  seoTitle: 'Saved', seoDescription: 'Beskrivelse', section: 'Kultur' };
+
+it('stops structural defects before purchasing supplements, images or assessment and preserves saved text', async () => {
+  const article = { ...structuralFields, title: 'Saved', seoTitle: '', content: 'Kultur '.repeat(550),
+    researchSources: [{ url: 'https://museum.dk/news' }, { url: 'https://kultur.dk/news' }] };
+  mocks.row = { articleCheckpoint: article };
+  const response = await runLivDaily(new NextRequest('http://localhost/api/cron/liv-prepare'), {
+    dayKey: '2026-09-12', kind: 'scheduled', defaultPlan: defaultEditorialPlan('2026-09-12') });
+  expect(response.status).toBe(500);
+  expect(mocks.checkpoint).toHaveBeenCalledWith('2026-09-12', article, 'prepare');
+  expect(mocks.supplement).not.toHaveBeenCalled(); expect(mocks.media).not.toHaveBeenCalled();
+  expect(mocks.gates).not.toHaveBeenCalled(); expect(mocks.publish).not.toHaveBeenCalled();
+  expect(mocks.finish).toHaveBeenCalledWith('2026-09-12', expect.objectContaining({ reason: 'liv_preparation_structure_failed' }), 'prepare');
+});
 
 it('refreshes omitted seeds only from the server plan after supplementation, never request-body URLs', async () => {
   const seed = 'https://news.harvard.edu/gazette/story/2026/03/our-frankenstein-fixation/';
-  const article = { title: 'Saved', slug: 'saved', intro: 'Intro', content: 'Kultur '.repeat(550),
+  const article = { ...structuralFields, title: 'Saved', content: 'Kultur '.repeat(550),
     researchSupplementedAt: '2026-09-12', preparedMedia: [{}, {}, {}], researchSources: [
       { url: 'https://first.example/a', source: 'First', publishedAt: '2026-03-12' },
       { url: 'https://second.example/a', source: 'Second', publishedAt: null }] };
@@ -395,7 +410,7 @@ it('does not mark the old plan failed when an alternative has no topic', async (
   expect(plans.generate).not.toHaveBeenCalled();
 });
 it('resumes reserve text, checkpoints media, and yields before final checks', async () => {
-  mocks.row = { articleCheckpoint: { title: 'Saved text', content: 'Saved text',
+  mocks.row = { articleCheckpoint: { ...structuralFields, title: 'Saved text', content: 'Saved text',
     researchSources: [{ url: 'https://museum.dk/news', publishedAt: '2026-09-10' }, { url: 'https://kultur.dk/news', publishedAt: '2026-09-10' }] } };
   mocks.media.mockImplementation(async article => ({ ...article, preparedMedia: [{}, {}, {}] }));
   const result = await (await runLivDaily(new NextRequest('http://localhost/api/cron/liv-prepare'), {
@@ -409,7 +424,7 @@ it('resumes reserve text, checkpoints media, and yields before final checks', as
 });
 
 it('supplements dated evidence before paying for images and keeps the same article checkpoint', async () => {
-  const article = { title: 'Saved text', content: 'Saved text', researchSources: [{ url: 'https://museum.dk/news' }, { url: 'https://kultur.dk/news' }] };
+  const article = { ...structuralFields, title: 'Saved text', content: 'Saved text', researchSources: [{ url: 'https://museum.dk/news' }, { url: 'https://kultur.dk/news' }] };
   mocks.row = { articleCheckpoint: article };
   mocks.supplement.mockResolvedValue({ ...article, researchSupplementedAt: '2026-09-12T07:00:00Z' });
   const result = await (await runLivDaily(new NextRequest('http://localhost/api/cron/liv-prepare'), {
@@ -421,7 +436,7 @@ it('supplements dated evidence before paying for images and keeps the same artic
 });
 
 it('does not repeat unsuccessful supplemental searches or spend on media without dated evidence', async () => {
-  mocks.row = { articleCheckpoint: { title: 'Saved text', content: 'Saved text', researchSupplementedAt: '2026-09-12T07:00:00Z',
+  mocks.row = { articleCheckpoint: { ...structuralFields, title: 'Saved text', content: 'Saved text', researchSupplementedAt: '2026-09-12T07:00:00Z',
     researchSources: [{ url: 'https://museum.dk/news' }, { url: 'https://kultur.dk/news' }] } };
   const response = await runLivDaily(new NextRequest('http://localhost/api/cron/liv-prepare'), {
     dayKey: '2026-09-12', kind: 'scheduled', defaultPlan: defaultEditorialPlan('2026-09-12'),
@@ -431,7 +446,7 @@ it('does not repeat unsuccessful supplemental searches or spend on media without
 });
 
 it.each([false, true])('bounds factual correction, checkpoints it and requires all gates again (already revised=%s)', async revised => {
-  const article = { title: 'Saved', content: 'Kultur '.repeat(650), intro: 'Intro', preparedMedia: [{}, {}, {}],
+  const article = { ...structuralFields, title: 'Saved', content: 'Kultur '.repeat(650), preparedMedia: [{}, {}, {}],
     factRevisionId: revised ? 'prior-revision' : undefined, factRevisionCount: revised ? 1 : 0,
     researchSources: [{ url: 'https://museum.dk/news', publishedAt: '2026-09-10' }, { url: 'https://kultur.dk/news', publishedAt: '2026-09-10' }] };
   mocks.row = { articleCheckpoint: article };
@@ -456,7 +471,7 @@ it.each([
   { factRevisionId: 'inconsistent-counter', factRevisionCount: 0 },
   { factRevisionCount: 1 }, { factRevisionCount: 2 }, { factRevisionCount: -1 },
 ])('does not reset the correction budget for legacy or inconsistent metadata: %j', async revision => {
-  const article = { title: 'Saved', intro: 'Intro', content: 'Kultur '.repeat(650), preparedMedia: [{}, {}, {}],
+  const article = { ...structuralFields, title: 'Saved', content: 'Kultur '.repeat(650), preparedMedia: [{}, {}, {}],
     ...revision, researchSources: [{ url: 'https://museum.dk/news', publishedAt: '2026-09-10' },
       { url: 'https://kultur.dk/news', publishedAt: '2026-09-10' }] };
   mocks.row = { articleCheckpoint: article };
@@ -475,7 +490,7 @@ it.each([
 });
 
 it.each([true, false])('uses one correction for daily length with real failed facts only when present (%s)', async factFailure => {
-  const article = { title: 'Saved', intro: 'Intro', content: '<p>' + 'Kultur '.repeat(1050) + '</p>',
+  const article = { ...structuralFields, title: 'Saved', content: '<p>' + 'Kultur '.repeat(1050) + '</p>',
     preparedMedia: [{}, {}, {}], researchSources: [
       { url: 'https://museum.dk/news', publishedAt: '2026-09-10' },
       { url: 'https://kultur.dk/news', publishedAt: '2026-09-10' },

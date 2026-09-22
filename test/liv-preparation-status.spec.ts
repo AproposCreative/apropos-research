@@ -41,10 +41,10 @@ it('reads only the alternative scope after an explicit rejection', async () => {
   expect(state.reads).toHaveBeenCalledWith('prepare-alternative-2026-09-12');
 });
 
-it('reports idle without database reads when today and tomorrow are already covered', async () => {
+it('prepares one reserve when today and tomorrow are already covered', async () => {
   const manifest = emptyDeliveryState(); manifest.entries.push(entry(), entry({ scheduledDay: '2026-09-13', expiresDay: '2026-09-13' }));
-  expect(await readNextLivPreparationStatus(manifest, now)).toMatchObject({ status: 'idle', reasonCode: 'no_preparation_needed' });
-  expect(state.reads).not.toHaveBeenCalled();
+  expect(await readNextLivPreparationStatus(manifest, now)).toMatchObject({ status: 'queued', scope: 'reserve' });
+  expect(state.reads).toHaveBeenCalledWith('reserve-2026-09-12');
 });
 
 it('surfaces blocked tomorrow inventory without regenerating or exposing saved details', async () => {
@@ -56,7 +56,7 @@ it('surfaces blocked tomorrow inventory without regenerating or exposing saved d
   expect(manifest).toEqual(before);
   expect(state.reads).not.toHaveBeenCalled();
   manifest.entries.push(entry({ itemId: 'c'.repeat(24), scheduledDay: '2026-09-13', expiresDay: '2026-09-13' }));
-  expect(await readNextLivPreparationStatus(manifest, now)).toMatchObject({ status: 'idle' });
+  expect(await readNextLivPreparationStatus(manifest, now)).toMatchObject({ status: 'queued', scope: 'reserve' });
 });
 
 it('moves to tomorrow after two explicit rejections without creating a third job today', async () => {
@@ -85,7 +85,7 @@ it('keeps missing daily work ahead of a blocked reserve and ignores expired rese
   expect(await readNextLivPreparationStatus(manifest, now)).toMatchObject({ day, scope: 'prepare', status: 'queued' });
   manifest.entries[0].expiresDay = '2026-09-11';
   manifest.entries.push(entry(), entry({ scheduledDay: '2026-09-13', expiresDay: '2026-09-13' }));
-  expect(await readNextLivPreparationStatus(manifest, now)).toMatchObject({ status: 'idle' });
+  expect(await readNextLivPreparationStatus(manifest, now)).toMatchObject({ status: 'queued', scope: 'reserve' });
 });
 
 it.each(['cover', 'publish'])('exposes a safe reconciliation hold for %s without any source or CMS read', async kind => {

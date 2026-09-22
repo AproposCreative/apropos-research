@@ -6,6 +6,8 @@ import { evaluateResearchQuality } from './qualityGate';
 import { createOpenAIResponsesProvider } from './providers/openaiResponsesProvider';
 import { createLegacyWebSearchProvider } from './providers/legacyWebSearchProvider';
 import { enforceSourcePolicy, sourcePolicyQuery, type ResearchSourcePolicy } from './source-policy';
+import { savedResearch } from './saved-research';
+import { models } from '@/lib/openai';
 
 function boundedTimeout(value: unknown, fallback = 15000): number {
   const n = Number(value);
@@ -39,6 +41,11 @@ export async function getResearch(
   query: string,
   opts: { maxResults?: number; model?: string; timeoutMs?: number; allowFallback?: boolean; sourcePolicy?: ResearchSourcePolicy } = {},
 ): Promise<ResearchResult> {
+  return savedResearch({ query, opts, model: opts.model ?? models.research, provider: process.env.RESEARCH_PROVIDER ?? 'openai_responses',
+    fallback: process.env.RESEARCH_FALLBACK_PROVIDER ?? null }, () => getUncachedResearch(query, opts));
+}
+
+async function getUncachedResearch(query: string, opts: Parameters<typeof getResearch>[1] = {}): Promise<ResearchResult> {
   const started = Date.now();
   const maxResults = Number.isFinite(opts.maxResults) ? Math.max(1, Math.min(20, Math.floor(opts.maxResults!))) : 3;
   const configuredTimeout = boundedTimeout(process.env.RESEARCH_TIMEOUT_MS);

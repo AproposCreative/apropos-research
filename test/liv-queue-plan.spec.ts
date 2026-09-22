@@ -113,6 +113,7 @@ it('keeps an old unpaid missing-topic row intact, archives its bare plan marker 
   expect((await POST(request())).status).toBe(200);
   expect(state.rows.get('livDailyArticles/prepare-2026-09-22')).toEqual(row);
   expect(state.rows.get('livQueuePlans/queue-20260920').previousPlans[0].plan).toEqual(marker);
+  vi.setSystemTime(new Date('2026-09-21T19:00:00Z'));
   expect(await nextScheduledPreparation(state.rows.get('livDelivery/manifest'), async day => day === row.dayKey ? row : undefined))
     .toMatchObject({ dayKey: '2026-09-22', decision: { action: 'retry', reasonCode: 'source_retry_scheduled' } });
 });
@@ -159,8 +160,11 @@ it('serializes competing requests: exactly one batch owns each day', async () =>
   expect(results.map(r => r.status)).toEqual(['fulfilled', 'rejected']);
 });
 
-it('worker selects only explicit future dates after the ready article; keeps budget/provider holds', async () => {
+it('retains future briefs without producing them early; selects tomorrow and keeps budget/provider holds', async () => {
   await POST(request()); const manifest = state.rows.get('livDelivery/manifest');
+  expect(await nextScheduledPreparation(manifest, async () => undefined)).toBeNull();
+  expect(manifest.editorialPreparationDays).toEqual(['2026-09-22', '2026-09-23']);
+  vi.setSystemTime(new Date('2026-09-21T19:00:00Z'));
   expect(await nextScheduledPreparation(manifest, async () => undefined)).toMatchObject({ dayKey: '2026-09-22', scope: 'prepare' });
   expect(await nextScheduledPreparation(manifest, async () => ({ status: 'failed', reason: 'liv_cost_monthly_budget_exceeded' })))
     .toMatchObject({ dayKey: '2026-09-22', decision: { action: 'blocked', reasonCode: 'budget_limit' } });
@@ -168,5 +172,5 @@ it('worker selects only explicit future dates after the ready article; keeps bud
   expect(await nextScheduledPreparation(manifest, read)).toMatchObject({ dayKey: '2026-09-22', decision: { action: 'blocked', reasonCode: 'provider_quota_exhausted' } });
   expect(read).toHaveBeenCalledTimes(1);
   manifest.editorialPreparationDays = ['2026-09-19', 'bad', '2026-09-30'];
-  expect(await nextScheduledPreparation(manifest, async () => undefined)).toBeNull();
+  expect(await nextScheduledPreparation(manifest, async () => undefined)).toMatchObject({ dayKey: '2026-09-22' });
 });

@@ -24,6 +24,7 @@ import { createLivCostLedger, readLivCostSummary, readSharedCostSummary, LIV_COS
 import { LIV_PRICE_VERSION, quoteLivOpenAIRequest, quoteLivImageRequest } from '@/lib/liv/cost-pricing';
 import { getLivCostPretransportError } from '@/lib/liv/cost-errors';
 import { activateSharedCostPolicy, inspectSharedCostActivation } from '@/lib/liv/cost-activation';
+import { providerHoldId } from '@/lib/ai/provider-hold';
 const now = new Date('2026-09-12T10:00:00Z');
 const policy = { monthlyLimitDkkMicros: 300_000_000, usdToDkkCeiling: 8, validUntil: '2026-10-01T00:00:00.000Z',
   conversionBasis: 'TEST fixture ceiling; not a market exchange-rate claim', priceVersion: LIV_PRICE_VERSION };
@@ -36,6 +37,30 @@ const call = (n = 1) => ({ callId: `00000000-0000-4000-8000-${String(n).padStart
 beforeEach(() => { memory.rows.clear(); memory.available = true; memory.tail = Promise.resolve(); memory.rows.set('livCostLedger/policy', structuredClone(policy));
   vi.stubEnv('LIV_GENERATION_MODEL', 'gpt-5.6-sol'); vi.stubEnv('LIV_RESEARCH_MODEL', 'gpt-5.6-sol'); vi.stubEnv('LIV_UTILITY_MODEL', 'gpt-5.6-luna'); vi.stubEnv('LIV_IMAGE_MODEL', 'gpt-image-1.5'); });
 afterEach(() => vi.unstubAllEnvs());
+it('stops all buckets before reservation after provider credit exhaustion without deleting holds',async()=>{
+ const ledger=createLivCostLedger(()=>now),first=await ledger.reserve(call());
+ await ledger.complete(first,{...outcome,status:'ambiguous',usage:null,httpStatus:429,providerFailure:'quota_exhausted'});
+ const before=structuredClone(memory.rows.get('livCostLedger/month-2026-09'));
+ await expect(ledger.reserve(call(2))).rejects.toThrow('liv_cost_provider_quota_exhausted');
+ await expect(createLivCostLedger(()=>now,'image-gen').reserve({...call(3),context:{runId:'image-job',stage:'generate',scope:'image-gen'}}))
+  .rejects.toThrow('liv_cost_provider_quota_exhausted');
+ expect(memory.rows.get('livCostLedger/month-2026-09')).toEqual(before);
+ expect(memory.rows.get(`aiProviderHolds/${providerHoldId()}`)).toMatchObject({blocked:true,revision:1});
+ await ledger.complete(first,{...outcome,status:'ambiguous',usage:null,httpStatus:429,providerFailure:'quota_exhausted'});
+ expect(memory.rows.get(`aiProviderHolds/${providerHoldId()}`).revision).toBe(1);
+});
+it('reserves a shared 20 DKK pilot allowance atomically across both budgets',async()=>{
+ memory.rows.set('imageGenCostLedger/policy',{...policy,monthlyLimitDkkMicros:150_000_000});
+ const a={...call(),context:{...call().context,purpose:'development-pilot' as const},quote:{...quote,reservedUsdMicros:1_500_000}};
+ const b={...call(2),context:{runId:'pilot-image',stage:'generate',scope:'image-gen' as const,purpose:'development-pilot' as const},quote:a.quote};
+ const results=await Promise.allSettled([createLivCostLedger(()=>now).reserve(a),createLivCostLedger(()=>now,'image-gen').reserve(b)]);
+ expect(results.filter(r=>r.status==='fulfilled')).toHaveLength(1);
+ expect(memory.rows.get('aiCostCampaigns/savings-2026-09').reservedDkkMicros).toBe(12_000_000);
+ const reservation=results[0].status==='fulfilled'?results[0].value:null;
+ expect(reservation).toBeTruthy();
+ await createLivCostLedger(()=>now).complete(reservation!,outcome);
+ expect(memory.rows.get('aiCostCampaigns/savings-2026-09')).toEqual({reservedDkkMicros:0,committedDkkMicros:1120});
+});
 it('reserves durably before a provider call with source pricing and no fabricated billed amount', async () => {
   const ledger = createLivCostLedger(() => now), reservation = await ledger.reserve(call());
   const row = memory.rows.get(`livCostLedger/call-${reservation.callId}`);

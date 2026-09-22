@@ -1,4 +1,3 @@
-import { createHash } from 'node:crypto';
 import { getOpenAIClient } from '@/lib/openai';
 import { getAdminDb } from '@/lib/firebase-admin';
 import { articleFingerprint, articleUnits, assessGroundedReport, groundedInput, type GroundedReport } from '@/lib/factcheck/grounded';
@@ -11,8 +10,8 @@ import { currentLivCostContext, withLivCostContext, withLivCostStage } from './c
 import { getLivCostPretransportError } from './cost-errors';
 import { constrainLivVisualCitations, readLivVisualEvidence, type LivVisualReference } from './visual-evidence';
 import { cmsFieldHash } from './cms-field-hash';
+import { editorialRequestKey } from './editorial-request-key';
 
-const hash = (value: string) => createHash('sha256').update(value).digest('hex');
 const json = (value: unknown) => JSON.parse(JSON.stringify(value));
 export type LivEditorialReport = GroundedReport & { editorialReview?: LivEditorialEvidence; fieldContextHash?: string; visualContextHash?: string };
 
@@ -98,11 +97,30 @@ export async function assessLivEditorialArticle(articleText: string, sourceUrls:
       ])] : userText },
     ],
   };
-  const inputHash = hash(JSON.stringify(request));
+  const keys = editorialRequestKey(request, editorialFields);
+  let inputHash = keys.reusable;
   const db = getAdminDb();
   if (!db) throw new Error('liv_editorial_store_unavailable');
-  const ref = db.collection('livEditorialAssessments').doc(inputHash);
+  let ref = db.collection('livEditorialAssessments').doc(inputHash);
   const saved = await db.runTransaction(async tx => {
+    inputHash = keys.reusable;
+    ref = db.collection('livEditorialAssessments').doc(inputHash);
+    // Preserve paid legacy exact requests, including unfinished/failed ones.
+    const legacy = inputHash === keys.exact ? undefined
+      : (await tx.get(db.collection('livEditorialAssessments').doc(keys.exact))).data();
+    if (legacy) {
+      if (legacy.inputHash === keys.exact && legacy.status === 'not_started' && legacy.notStartedReason === 'cost_denied' &&
+        !['rawResponse', 'finishReason', 'refusal', 'usage', 'completedAt'].some(field => field in legacy)) {
+        inputHash = keys.exact;
+        ref = db.collection('livEditorialAssessments').doc(inputHash);
+        tx.set(ref, { status: 'processing' }, { merge: true });
+        return null;
+      }
+      if (legacy.inputHash !== keys.exact || legacy.status !== 'complete' || typeof legacy.rawResponse !== 'string') {
+        throw new Error('liv_editorial_requires_reconciliation');
+      }
+      return legacy;
+    }
     const existing = (await tx.get(ref)).data();
     if (existing) {
       if (existing.inputHash !== inputHash) throw new Error('liv_editorial_cache_mismatch');
@@ -116,7 +134,7 @@ export async function assessLivEditorialArticle(articleText: string, sourceUrls:
       }
       return existing;
     }
-    tx.create(ref, { inputHash, status: 'processing', articleHash: articleFingerprint(input.articleText),
+    tx.create(ref, { inputHash, exactRequestHash: keys.exact, status: 'processing', articleHash: articleFingerprint(input.articleText),
       ...contextProof,
       voiceHash: voice.hash, model: request.model, createdAt: new Date().toISOString(),
       sources: sources.map(({ id, url, contentHash, publishedAt }) => ({ id, url, contentHash, publishedAt })) });
@@ -133,7 +151,8 @@ export async function assessLivEditorialArticle(articleText: string, sourceUrls:
       const refusal = getLivCostPretransportError(error);
       if (refusal) await ref.set({ status: 'not_started',
         notStartedReason: ['liv_cost_monthly_budget_exceeded', 'liv_cost_call_limit_exceeded',
-          'liv_cost_policy_missing_or_expired'].includes(refusal.code) ? 'cost_denied' : 'pretransport_refused',
+          'liv_cost_policy_missing_or_expired', 'liv_cost_provider_quota_exhausted',
+          'liv_cost_pilot_budget_exceeded'].includes(refusal.code) ? 'cost_denied' : 'pretransport_refused',
         notStartedAt: new Date().toISOString() }, { merge: true });
       throw error; // Unknown transport or persistence failures remain blocked.
     });
@@ -156,6 +175,6 @@ export async function assessLivEditorialArticle(articleText: string, sourceUrls:
   const editorial = editorialVerdictSchema.safeParse((raw as { editorial?: unknown } | null)?.editorial);
   return { ...report, ...contextProof, ...(editorial.success ? { editorialReview: { ...editorial.data, ...contextProof,
     version: 'liv-editorial-v1' as const, articleHash: report.articleHash, voiceHash: voice.hash,
-    checkedAt: report.checkedAt, assessmentId: inputHash,
+    checkedAt: report.checkedAt, assessmentId: output.inputHash,
   } } : {}) };
 }
