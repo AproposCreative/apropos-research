@@ -1,0 +1,38 @@
+{
+  "status": "local_editorial_package_not_cms_saved_or_scheduled",
+  "requestedPublicationDay": "2026-09-24",
+  "requestedPublicationTime": "10:00 Europe/Copenhagen",
+  "author": "Liv Brandt",
+  "title": "Boganmeldelse: De truer med en partybus",
+  "subtitle": "Susan Knorrenborg skriver morsomt og ubehageligt om utroskab, venskab og selvbedrag.",
+  "slug": "boganmeldelse-de-truer-med-en-partybus",
+  "rating": 5,
+  "ratingScale": 6,
+  "seoTitle": "De truer med en partybus: Boganmeldelse | Apropos",
+  "seoDescription": "Susan Knorrenborg skriver morsomt og ubehageligt om utroskab, venskab og selvbedrag. Læs Liv Brandts anmeldelse af De truer med en partybus. 5/6 stjerner.",
+  "sectionRequested": "Kultur",
+  "primaryTopicRequested": "Bøger",
+  "topicsRequested": ["Bøger", "Anmeldelser"],
+  "taxonomyIdsResolved": false,
+  "source": "User-supplied complete review, 23 September 2026",
+  "textFile": "article.md",
+  "copyChanges": ["Removed ZIP filename accidentally inserted in body", "Removed internal rating explanation after final star line", "Normalized double space in intro", "Marked supplied final section title as heading"],
+  "rewriteAuthorized": false,
+  "sourcePackage": "APROPOS_BOGANMELDELSE_KK_PAKKE.zip mentioned, not attached",
+  "book": {"author": "Susan Knorrenborg", "publisher": "Lindhardt og Ringhof", "isbn": "9788727251530", "releaseDate": "2026-05-22"},
+  "sources": [
+    {"url": "https://www.saxo.com/dk/de-truer-med-en-partybus_bog_9788727251530", "supports": "Book metadata and publisher synopsis, not detailed critical observations"},
+    {"url": "https://bog.dk/susan-knorrenborg-sporg-john/", "supports": "Debut in 2024 and author background at that date; photo credit Thomas A."}
+  ],
+  "mediaCandidates": [
+    {"sourcePage": "https://bog.dk/susan-knorrenborg-sporg-john/", "originalUrl": "https://bog.dk/wp-content/uploads/2024/05/F_HA_0461-1024x683.jpg", "credit": "Thomas A.", "rightsStatus": "unknown", "validated": false}
+  ],
+  "remaining": [
+    "Support supplied long-form review in authenticated Liv preparation API without regeneration or daily 450-650-word shortening",
+    "Preserve existing failed run evidence and reserve while assigning requested publication slot",
+    "Resolve CMS taxonomy and author IDs",
+    "Validate three distinct media assets, text-free hero, captions and credits",
+    "Run actual editorial checks, CMS staged save/readback and queue admission",
+    "Verify tomorrow's scheduled entry; no live publication today"
+  ]
+}
