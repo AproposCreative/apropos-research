@@ -40,3 +40,39 @@ Monthly tracked totals at inspection:
 - The 22 September cron log still emits PassThrough error/close `MaxListenersExceededWarning` despite HTTP 200 and successful delivery. This is a persisting warning, not proof of a memory leak or publication failure; do not hide it by increasing listener limits.
 - The bounded 21 September runtime-log query failed with `ExceedsBillingLimitError`. This is Vercel log access failure, not absent execution logs or OpenAI quota evidence. No repeated log query or billing change was made.
 - All findings are observational; no production code/configuration was changed by this scheduled check.
+
+## Day 2 of 7 — 23 September 2026
+
+Readback at `2026-09-23T08:45:16.031Z` (10:45 Copenhagen). Existing Vercel CLI credentials initially expired; installed CLI `whoami` refreshed the existing session successfully. This was a monitoring-authentication issue, not publication downtime. Application operations, cost actions and delivery feed returned 200/private/no-store. No paid work, retries, CMS mutation, publication or reservation reset was triggered by this check. Instagram configuration was not changed.
+
+### Publication evidence
+
+- [Suno v6 og Spotify AI Persona: Hvem står bag musikken?](https://www.aproposmagazine.com/articles/suno-v6-og-spotify-ai-persona-hvem-star-bag-musikken) published on one delivery attempt, verified at `08:00:19.856Z` (10:00:19), item `6ab0332b02373e747b956f72`.
+- Independent live CMS GET: 200, draft/archive false, `lastPublished=2026-09-23T08:00:50.260Z` (later than original delivery receipt). Public GET 200, matching canonical/H1, 4,098 body characters and two body image elements. This is availability/markup verification, not renewed factual review.
+- Runtime log: GET daily cron at `08:00:12Z`, HTTP 200, deployment `dpl_4rYiTFuQc3v2NfUckVmkQH7LJr77` / `08159a716f75d015a398138e6bf4fec952324a6c`. Schedule correlation supports automatic operation, but caller/scheduler identity is still absent in the inspected receipts. No manual publication was initiated by this control. Three consecutive independently proven automatic days remain unestablished.
+- Yesterday's Monster remains live: CMS/public GET 200, two body images. Its H1/body have subsequently changed; latest CMS publication `2026-09-22T09:33:26.445Z` is an update, not evidence of a missed original slot. No outstanding delayed publication from yesterday.
+
+### Regression: tomorrow's dedicated preparation blocked
+
+- Operations: today's delivery healthy; auto-publish enabled; missing dedicated day `2026-09-24`, no reconciliation needed. Preparation `blocked_saved_work`, `alternative_limit_reached`.
+- Slow Horses plan failed with `article_evidence_insufficient`: insufficient research foundation, no article checkpoint.
+- Alternative failed with `source_similarity_unapproved`, source `eilish.dk`; no article checkpoint. This is a saved rejection, not approval to publish copied prose. No failure or audit evidence was cleared and no blind retry made.
+- One ready reserve remains: “Asta Kamma August kritiserer filmbranchens SoMe-pres”, expires 27 September. Operations lists this as next story. There is therefore fallback stock, not a guarantee of tomorrow's successful publication.
+- Recommended follow-up: review the unsupported brief and rejected alternative through the existing editorial API workflow; do not regenerate solely for monitoring. Future Toy Story/TGS/Amalie Smith/Christopher briefs remain pending plans.
+
+### Estimates and call counts
+
+| Run | Calls | Estimated DKK | Research-writing calls | Editorial assessment calls | Repeated hashes | Unknown reservations |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| Today's Suno preparation | 21 | 11.236416 | 2 | 3 | 0 | 0 |
+| Tomorrow's failed primary | 3 | 1.404968 | 3 | 0 | 0 | 0 |
+| Tomorrow's failed alternative | 12 | 1.513256 | 3 | 0 | 0 | 0 |
+| Existing reserve | 25 | 10.617464 | 3 | 2 | 0 | 0 |
+
+Alternative additionally has one originality call (1.199360 DKK), two source-similarity calls (0.052992 DKK), six embeddings (0.000776 DKK). Failed primary plus alternative total 2.918224 DKK. These stage/run totals are not invoices, exact web-search-tool counts, or all-in article costs; downstream translation/SEO/image checks have separate identities. Today's published article is paid inventory from before the savings rollout, so do not claim a savings effect from its cost.
+
+- Shared monthly tracked: 743 calls, estimate **115.789160 DKK**, reserved **16.385616 DKK**, 15 unknown calls, one grouped repeated hash.
+- Image-gen: 36 calls, estimate **13.113776 DKK**, reserved **0.026432 DKK**, one unknown call, no grouped repeats.
+- Combined: 779 calls, estimate **128.902936 DKK**, reserved **16.412048 DKK**, 16 unknown calls. Since Day 1 snapshot: +44 calls, +4.788088 DKK estimated and +1.868000 DKK reserved. This interval includes other platform use, not only Liv or a calendar day. New retained reservation appears under Writer editorial-search; not silently assigned to today's article.
+- Existing monitor remains active: 2/7 recorded days. Five observations and a comparable baseline remain; 30% savings not demonstrated.
+- PassThrough listener warnings persist in today's successful cron log. No new failure is inferred from the warning alone.
