@@ -76,3 +76,31 @@ Alternative additionally has one originality call (1.199360 DKK), two source-sim
 - Combined: 779 calls, estimate **128.902936 DKK**, reserved **16.412048 DKK**, 16 unknown calls. Since Day 1 snapshot: +44 calls, +4.788088 DKK estimated and +1.868000 DKK reserved. This interval includes other platform use, not only Liv or a calendar day. New retained reservation appears under Writer editorial-search; not silently assigned to today's article.
 - Existing monitor remains active: 2/7 recorded days. Five observations and a comparable baseline remain; 30% savings not demonstrated.
 - PassThrough listener warnings persist in today's successful cron log. No new failure is inferred from the warning alone.
+
+## Day 3 of 7 — 24 September 2026
+
+Readback at `2026-09-24T08:36:31.009Z` (10:36 Copenhagen). Existing CLI session refreshed via `whoami`. Authenticated operations, cost actions and delivery feed returned 200/private/no-store. This control made no paid AI calls, retries, CMS writes, publications, reservation changes or Instagram changes.
+
+### Publication and regression
+
+- [Asta Kamma August kritiserer filmbranchens SoMe-pres](https://www.aproposmagazine.com/articles/asta-kamma-august-kritiserer-filmbranchens-some-pres) is live, using the existing reserve. One delivery attempt, verified `08:00:19.614Z`, CMS item `6ab225a3a347a5d0ff388f06`. Independent live CMS GET 200, draft/archive false, lastPublished `08:00:48.810Z`. Public GET 200, matching H1/canonical, 4,033 body characters and two body image elements. No renewed content/rights assessment was performed.
+- Runtime log: GET daily cron `08:00:12Z`, HTTP 200, deployment `dpl_4rYiTFuQc3v2NfUckVmkQH7LJr77`, SHA `08159a716f75d015a398138e6bf4fec952324a6c`. PassThrough listener warnings persist. Publication correlates with the schedule; caller identity is still not independently evidenced. Three consecutive live days are verified, but the stronger automatic-provenance requirement remains open.
+- Yesterday's Suno remains live: CMS/public 200, two body images, H1 now “Hvem har egentlig lavet den her sang?”, 6,427 body characters. CMS lastPublished `2026-09-23T09:12:00.580Z` is a later update. No overdue publication from yesterday.
+- **Tomorrow is not covered.** Feed contains zero ready stories; reserve 0/1, nextStory null, missing day 25 September. Auto-publish remains enabled, but preparation is `blocked_saved_work` / `alternative_limit_reached`.
+- Primary Toy Story preparation failed `article_evidence_insufficient`, no checkpoint. Alternative failed `source_similarity_incomplete` for soundvenue.com, no checkpoint. This is an incomplete check, explicitly not a finding of plagiarism. Saved failures were preserved.
+- User-supplied Partybus review remains a local editorial package, not a scheduled CMS article; it did not become today's delivery. Pending TGS/Amalie/Christopher plans are not ready inventory. Follow-up requires the application editorial workflow; monitoring did not import or regenerate articles.
+
+### Recorded estimates, not invoices
+
+| Run | Calls | Estimated DKK | Research-writing calls | Editorial assessments | Repeated hashes | Unknown calls |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| Published reserve (22 September preparation) | 25 | 10.617464 | 3 | 2 | 0 | 0 |
+| Failed 25 September primary | 3 | 1.469576 | 3 | 0 | 0 | 0 |
+| Failed 25 September alternative | 8 | 1.464216 | 3 | 0 | 0 | 0 |
+
+Tomorrow's failed work totals 2.933792 DKK. Alternative also includes one originality call (1.169680), one similarity call (0.024096), three embeddings (0.000480). No cost records under `reserve-2026-09-24` or `daily-2026-09-24`; this does not mean today's publication was free: inventory was paid previously and translation/SEO/media-inspection use separate run IDs.
+
+- Shared monthly: 783 calls, estimate **119.883392 DKK**, reserved **16.385616 DKK**, 15 unknown calls, one grouped repeated request hash.
+- Image-gen monthly: 55 calls, estimate **16.642680 DKK**, reserved **0.026432 DKK**, one unknown call, no grouped repeats.
+- Combined: 838 calls, estimate **136.526072 DKK**, reserved **16.412048 DKK**, 16 unknown calls. Since Day 2 snapshot: +59 calls and +7.623136 DKK estimated, reservations unchanged. These are platform-wide interval totals, not daily Liv invoice amounts. Shared allowance remaining 163.730992 DKK is not provider credit balance.
+- Observation 3/7 recorded; monitor remains active. Four daily observations and a comparable baseline remain. The 30% savings hypothesis is not demonstrated.
