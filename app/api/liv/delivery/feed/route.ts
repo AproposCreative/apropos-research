@@ -8,6 +8,7 @@ import { parseEditorialFeedback } from '@/lib/liv/editorial-feedback';
 import { readLivCostSummary } from '@/lib/liv/cost-ledger';
 import { readNextLivPreparationStatus } from '@/lib/liv/preparation-status';
 import { readWeeklyPlan } from '@/lib/liv/weekly-plan';
+import { readProviderHold } from '@/lib/ai/provider-hold';
 
 const headers = { 'Cache-Control': 'private, no-store' };
 const reply = (body: object, status = 200) => NextResponse.json(body, { status, headers });
@@ -26,7 +27,11 @@ export async function GET(req: NextRequest) {
   if (!queueConfigured && !preparationConfigured) return reply({ stories: [], total: 0, nextOffset: null, queueEnabled, preparationEnabled });
   try {
     const [state, cost] = await Promise.all([readDeliveryState(), access.owner ? readLivCostSummary() : undefined]);
-    const preparation = access.owner ? await readNextLivPreparationStatus(state) : undefined;
+    let preparation = access.owner ? await readNextLivPreparationStatus(state) : undefined;
+    const hold = access.owner ? await readProviderHold().catch(() => null) : null;
+    if (hold?.blocked && preparation && preparation.status !== 'idle' && preparation.stage !== 'cms' && preparation.status !== 'reconciliation_required') {
+      preparation = {...preparation,status:'blocked_saved_work',nextAction:'blocked',nextAttemptAt:null,reasonCode:'provider_quota_exhausted'};
+    }
     // A plan read failure must not hide the independently verified ready queue.
     const week = access.owner ? await readWeeklyPlan(state).catch(() => undefined) : undefined;
     const entries = approvalEntries(state, copenhagenClock().day);

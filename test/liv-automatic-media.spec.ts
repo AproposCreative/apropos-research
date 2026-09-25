@@ -5,6 +5,7 @@ import { load } from 'cheerio';
 import { prepareLivAutomaticMedia, resolveLivMediaMode, validateLivMediaPlan, type MediaDependencies } from '@/lib/liv/automatic-media';
 import { livImageArticleHash } from '@/lib/liv/article-image-hash';
 import type { GeneratedArticle } from '@/lib/liv/generate-article';
+import {LivCostPretransportError} from '@/lib/liv/cost-errors';
 
 const hash = (bytes: Buffer) => createHash('sha256').update(bytes).digest('hex');
 const article = { title: 'Kunst med tænder', slug: 'kunst-med-taender', intro: 'Kunst i byens park.', section: 'Kunst',
@@ -28,6 +29,12 @@ beforeEach(() => {
   };
 });
 describe('automatic Liv media', () => {
+  it.each(['plan','generate','review'] as const)('preserves a proven provider quota stop from %s instead of misreporting an image defect',async stage=>{
+    const denial=new LivCostPretransportError('liv_cost_provider_quota_exhausted');
+    vi.mocked(deps[stage]).mockRejectedValue(new Error('SDK wrapper',{cause:denial}));
+    await expect(prepareLivAutomaticMedia(article,{dayKey:'2026-09-25'},deps)).rejects.toBe(denial);
+    expect(deps.complete).not.toHaveBeenCalled();expect(deps.fail).toHaveBeenCalledTimes(1);
+  });
   it('uses a larger exact source rendition for an undersized hero and resumes its original selection without new calls', async () => {
     const candidates = await Promise.all(originals.map(async (bytes,i) => {
       const data = i ? bytes : await sharp(bytes).resize(990,557).jpeg().toBuffer();

@@ -6,6 +6,7 @@ import { livImageArticleHash } from '@/lib/liv/article-image-hash';
 import type { GeneratedArticle } from '@/lib/liv/generate-article';
 import { isLivOfficialImageSource } from '@/lib/liv/photo-credit';
 import { chooseLivHeroDimensions, isLivHeroDimensions } from './hero-dimensions';
+import { getLivCostPretransportError } from './cost-errors';
 
 export type MediaMode = 'illustration' | 'photography';
 export type MediaStyle = 'expressive' | 'minimal';
@@ -170,6 +171,10 @@ export async function prepareLivAutomaticMedia(article: GeneratedArticle, option
       await deps.record(jobId, role, { evidence });
       return { evidence, bytes: encoded.data };
     }));
+    for (const result of results) if (result.status === 'rejected') {
+      const denial = getLivCostPretransportError(result.reason);
+      if (denial) throw denial;
+    }
     if (results.some(result => result.status === 'rejected')) throw new Error('liv_media_preparation_incomplete');
     const prepared = results.map(result => (result as PromiseFulfilledResult<{ evidence: MediaEvidence; bytes: Buffer }>).value);
     if (new Set(prepared.map(item => item.evidence.sourceHash)).size !== 3 ||
@@ -197,6 +202,8 @@ export async function prepareLivAutomaticMedia(article: GeneratedArticle, option
     return result;
   } catch (error) {
     await deps.fail(jobId).catch(() => {});
+    const denial = getLivCostPretransportError(error);
+    if (denial) throw denial;
     // Keep uploaded images and generation records; no blind paid retries.
     throw new Error(error instanceof Error && /^liv_media_[a-z_]+$/.test(error.message) ? error.message : 'liv_media_failed');
   }

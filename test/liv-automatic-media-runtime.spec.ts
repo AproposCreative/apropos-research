@@ -671,7 +671,7 @@ it('resumes only a budget-denied image while preserving the completed paid sibli
   mocks.generate.mockResolvedValueOnce({ data: [{ b64_json: originals[0].toString('base64') }] })
     .mockRejectedValueOnce(new LivCostPretransportError('liv_cost_monthly_budget_exceeded'))
     .mockResolvedValueOnce({ data: [{ b64_json: originals[2].toString('base64') }] });
-  await expect(prepareLivAutomaticMedia(input, { dayKey: '2026-09-12' }, livMediaRuntime())).rejects.toThrow('preparation_incomplete');
+  await expect(prepareLivAutomaticMedia(input, { dayKey: '2026-09-12' }, livMediaRuntime())).rejects.toThrow('liv_cost_monthly_budget_exceeded');
   expect(mocks.stageRows['body-1-call'].status).toBe('not_started');
   const before = structuredClone(mocks.stageRows);
   mocks.generate.mockResolvedValueOnce({ data: [{ b64_json: originals[1].toString('base64') }] });

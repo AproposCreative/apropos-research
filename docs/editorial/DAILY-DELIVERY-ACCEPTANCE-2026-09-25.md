@@ -52,3 +52,28 @@ edit stage saves its raw output, independent final review is mandatory, and repl
 rejected output or uncertain timeout cannot buy a second edit. Insufficient runtime
 yields saved work before making a provider request. Photography is never synthesized
 through this repair. This is not permission to bypass a visual gate.
+
+## Verified blocker and retained work
+
+- Production `690566afc7e11c2ad8415321cada0a68044dac20`, deployment
+  `dpl_6BiRjg3cXtzjbuwkxdCYQPJom45e`, READY with the production alias.
+- OpenAI returned HTTP 429, code `credit_balance_exhausted`, type
+  `insufficient_quota`, at 2026-09-25T10:06:58.230Z (12:06 Copenhagen).
+  The configured credential has a shared provider hold. This is not the
+  application's monthly budget: recorded estimate 148.283824 DKK, reservations
+  28.853840 DKK, configured cap 300 DKK. These are not provider invoices.
+- TGS's visual repair planning was denied before transport with
+  `liv_cost_provider_quota_exhausted`. No replacement image was purchased.
+  The original three assets, source supplement and failed checks remain saved.
+- MOR reserve copyedit `mor-remove-research-caveat-20260925` was saved through the
+  authenticated server operation despite the caller timing out. Readback confirms
+  the exact edit binding, pending independent visual review, unchanged three
+  images and retained correction count. It is NOT a ready CMS draft yet.
+- No billing change was asserted, no provider hold cleared, no additional paid
+  retry started, and no budget raised. Ready tomorrow + ready reserve remain
+  unmet. Subsequent unattended publication remains unproven.
+- Saved-plan equality now ignores object-key order. A completed rejected label
+  repair proceeds only to a separately bounded visual repair with independent
+  review. The regression includes a database key-order round trip.
+- Future fact correction explicitly removes peripheral unsupported claims
+  instead of replacing them with unsupported research-absence caveats.
