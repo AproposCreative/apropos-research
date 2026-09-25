@@ -39,16 +39,21 @@ export async function POST(req: NextRequest) {
     const approval: SuppliedApproval = {id:input.requestId,runId,checkpointHash:cmsFieldHash(article),reservationHash:reservation!.inputHash,
       ownerUid:access.uid,createdAt:new Date().toISOString(),authority:input.authority,reason:input.reason};
     const approvalHash = cmsFieldHash(approval);
+    const coverRef = input.cover ? db.collection('printedBookImageApprovals').doc(article.selectedImage.contentHash) : null;
     await db.runTransaction(async tx => {
       const current = (await tx.get(run)).data(), currentReservation = (await tx.get(reservationRef)).data();
       const state = (await tx.get(db.collection('livDelivery').doc('manifest'))).data(), exists = await tx.get(audit);
+      const priorCover = coverRef ? (await tx.get(coverRef)).data() : undefined;
       if (exists.exists || !current || cmsFieldHash(current) !== cmsFieldHash(row) ||
         cmsFieldHash(currentReservation!) !== cmsFieldHash(reservation!) || state?.preparation?.token !== lease ||
         state.preparation.leaseUntil <= Date.now() || state.coverRevision ||
         Object.values(state.slots || {}).some((s:any) => s?.state === 'attempted')) throw Error();
       // Full prior run (including failures) is immutable audit, never relabelled.
       tx.create(audit,{inputHash,approval,approvalHash,previousRun:row,
-        suppliedCover:input.cover ? {sourceHash:article.selectedImage.sourceHash,printedBookTitlePreserved:true,rightsStatus:'unverified'} : null});
+        suppliedCover:input.cover ? {sourceHash:article.selectedImage.sourceHash,contentHash:article.selectedImage.contentHash,
+          printedBookTitlePreserved:true,rightsStatus:'unverified'} : null});
+      if (coverRef && !priorCover) tx.create(coverRef,{kind:'owner-selected-printed-book',contentHash:article.selectedImage.contentHash,
+        rootContentHash:article.selectedImage.contentHash,runId,approvalId:approval.id,approvalHash,createdAt:approval.createdAt});
       tx.update(run,{articleCheckpoint:article,articleCheckpointHash:livImageArticleHash(article),
         suppliedEditorialApproval:{id:input.requestId,hash:approvalHash}});
     });

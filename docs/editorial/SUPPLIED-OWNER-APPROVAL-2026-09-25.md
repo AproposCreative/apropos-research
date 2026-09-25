@@ -25,10 +25,17 @@ and its uncertain cost receipt must not be rewritten as successful evidence.
 
 ## Verification before release
 
-TypeScript passed. Full isolated suite: 298 files, 4,113 tests passed.
+TypeScript passed. Final isolated suite: 299 files, 4,122 tests passed.
 Tests cover owner-only authorization, stale/altered copies and reservations,
 concurrent/active/saved jobs, immutable replay, genuine editorial audit,
 prepared cover validation, storage readback, and common-runner behavior with
 successful and failed CMS readback. Regression uses simulated AI responses.
 
 Production deployment and queue receipt will be recorded after execution.
+
+The shared CMS image optimizer also enforces text removal. A byte-bound,
+owner-selected printed-book exception is therefore recorded in the same
+approval transaction and checked against its immutable audit. It is not a
+text-free verdict. Deterministic resized WebP variants inherit only that
+artwork permission; other assets retain the standard policy. This avoids
+removing the title from the supplied book photograph or buying an AI edit.

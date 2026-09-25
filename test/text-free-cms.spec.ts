@@ -1,8 +1,14 @@
 import { beforeEach, expect, it, vi } from 'vitest';
-const f = vi.hoisted(() => ({ clean: vi.fn(), read: vi.fn() }));
+const f = vi.hoisted(() => ({ clean: vi.fn(), read: vi.fn(), book:vi.fn() }));
 vi.mock('@/lib/images/text-free', () => ({ ensureTextFreeImage: f.clean, readEditorialImage: f.read }));
+vi.mock('@/lib/images/printed-book-approval',()=>({readPrintedBookApproval:f.book}));
 import { enforceTextFreeArticleImages } from '@/lib/webflow/text-free-images';
-beforeEach(() => { vi.clearAllMocks(); f.read.mockResolvedValue(Buffer.from('image')); f.clean.mockResolvedValue({ bytes: Buffer.from('clean image'), receipt: { edited: true, image: { url: 'https://images.test/clean.webp' } } }); });
+beforeEach(() => { vi.clearAllMocks(); f.book.mockResolvedValue(null);f.read.mockResolvedValue(Buffer.from('image')); f.clean.mockResolvedValue({ bytes: Buffer.from('clean image'), receipt: { edited: true, image: { url: 'https://images.test/clean.webp' } } }); });
+it('retains explicitly owner-selected printed book art without buying text removal',async()=>{
+  f.book.mockResolvedValue({kind:'owner-selected-printed-book'});
+  const fields={thumb:'https://images.test/book.webp'};await enforceTextFreeArticleImages(fields);
+  expect(fields.thumb).toBe('https://images.test/book.webp');expect(f.clean).not.toHaveBeenCalled();
+});
 it('cleans cover/mobile/inline and preserves prose, alt, caption and real credit', async () => {
   const fields = { name: 'Reacher', thumb: { url: 'https://images.test/old.jpg', alt: 'Reacher' }, 'mobile-image': 'https://images.test/old.jpg',
     'foto-credit': 'Prime Video', content: '<p>Original prose</p><figure><img src="https://images.test/old.jpg" alt="Alan" srcset="old.jpg 2x"><figcaption>Foto: Prime Video</figcaption></figure>' };

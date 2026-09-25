@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import sharp from 'sharp';
 const storage=vi.hoisted(()=>({file:vi.fn(),save:vi.fn()}));
 vi.mock('../lib/config/env',()=>({env:{NEXT_PUBLIC_FIREBASE_PROJECT_ID:'test-project'}}));
-vi.mock('../lib/firebase-admin',()=>({getAdminStorageBucket:()=>({file:storage.file})}));
+vi.mock('../lib/firebase-admin',()=>({getAdminDb:()=>null,getAdminStorageBucket:()=>({file:storage.file})}));
 import { optimizeAndUploadImage } from '../lib/images/optimize-and-upload';
 beforeEach(()=>{vi.clearAllMocks();storage.file.mockReturnValue({save:storage.save});storage.save.mockResolvedValue(undefined);});
 describe('verified image uploads',()=>{

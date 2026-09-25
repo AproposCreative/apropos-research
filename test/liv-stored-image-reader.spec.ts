@@ -13,6 +13,12 @@ const optimizedPath = `webflow/content-images/2026/09/alle-guds-farver-inline-01
 const optimizedUrl = (storagePath = optimizedPath) => `https://firebasestorage.googleapis.com/v0/b/our-bucket/o/${encodeURIComponent(storagePath)}?alt=media&token=${token}`;
 const optimizedMetadata = () => ({ generation: '12', size: bytes.length, contentType: 'image/webp',
   metadata: { firebaseStorageDownloadTokens: token } });
+it('reads exact immutable owner-supplied covers with the same token and byte integrity checks',async()=>{
+  const supplied=url.replace(encodeURIComponent(path),encodeURIComponent(path.replace('liv-daily','liv-supplied').replace('body-1-','hero-')));
+  expect(await readLivStoredImage(supplied)).toEqual(bytes);
+  mocks.download.mockResolvedValue([Buffer.from('corrupt')]);
+  await expect(readLivStoredImage(supplied)).rejects.toThrow('mismatch');
+});
 beforeEach(() => {
   vi.clearAllMocks();
   vi.stubEnv('FIREBASE_STORAGE_BUCKET', 'our-bucket');

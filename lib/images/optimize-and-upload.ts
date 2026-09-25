@@ -5,6 +5,7 @@ import { env } from '@/lib/config/env';
 import { getAdminStorageBucket } from '@/lib/firebase-admin';
 import { buildSeoImageFileName } from '@/lib/images/seo-image-name';
 import { logger } from '@/lib/logger';
+import { inheritPrintedBookApproval } from './printed-book-approval';
 
 export { buildSeoImageFileName } from '@/lib/images/seo-image-name';
 
@@ -115,6 +116,7 @@ export async function optimizeAndUploadImageBytes(
     targetDimensions: options.targetDimensions,
   });
   const processedBuffer = encoded.data;
+  await inheritPrintedBookApproval(imageBuffer, processedBuffer);
   const processedSizeKB = Math.ceil(encoded.bytes / 1024);
   const metaWidth = encoded.width;
   const metaHeight = encoded.height;

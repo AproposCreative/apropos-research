@@ -18,7 +18,8 @@ export async function attachSuppliedCover(article: GeneratedArticle, cover: NonN
   if (!dimensions || !['jpeg', 'png', 'webp'].includes(meta.format || '') || (meta.pages ?? 1) !== 1) throw Error('liv_supplied_cover_invalid');
   const image = await encodeWebp(original, { maxSizeKB: 450, maxLongEdge: 1920, qualityStart: 85, qualityMin: 70, targetDimensions: dimensions });
   const hash = (b: Buffer) => createHash('sha256').update(b).digest('hex');
-  const bucket = getAdminStorageBucket(); if (!bucket) throw Error('liv_supplied_cover_storage');
+  const bucketName = process.env.FIREBASE_STORAGE_BUCKET || process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET || process.env.FIREBASE_ADMIN_STORAGE_BUCKET;
+  const bucket = bucketName && getAdminStorageBucket(bucketName); if (!bucket) throw Error('liv_supplied_cover_storage');
   const contentHash = hash(image.data), sourceHash = hash(original);
   const storagePath = `editorial-images/liv-supplied/${sourceHash}/hero-${contentHash}.webp`;
   const file = bucket.file(storagePath); let token: string = randomUUID();

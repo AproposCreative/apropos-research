@@ -1,11 +1,12 @@
-import { beforeEach, expect, it, vi } from 'vitest';
+import { beforeEach, afterEach, expect, it, vi } from 'vitest';
 import sharp from 'sharp';
 const s=vi.hoisted(()=>({saved:Buffer.alloc(0),save:vi.fn(),download:vi.fn(),meta:vi.fn(),path:''}));
 vi.mock('@/lib/firebase-admin',()=>({getAdminStorageBucket:()=>({name:'test-bucket',file:(path:string)=>{
   s.path=path;return {save:s.save,download:s.download,getMetadata:s.meta};}})}));
 import { attachSuppliedCover } from '@/lib/liv/supplied-cover';
 const article:any={title:'Book',slug:'book',intro:'Intro',content:'Original prose',preparedMedia:[{role:'hero',url:'old'},{role:'body-1',url:'one'},{role:'body-2',url:'two'}]};
-beforeEach(()=>{vi.resetAllMocks();s.save.mockImplementation(async(b:Buffer)=>{s.saved=b;});s.download.mockImplementation(async()=>[s.saved]);});
+beforeEach(()=>{vi.resetAllMocks();vi.stubEnv('FIREBASE_STORAGE_BUCKET','test-bucket');s.save.mockImplementation(async(b:Buffer)=>{s.saved=b;});s.download.mockImplementation(async()=>[s.saved]);});
+afterEach(()=>vi.unstubAllEnvs());
 const cover=async(width=1280,height=720)=>({base64:(await sharp({create:{width,height,channels:3,background:'#bca879'}}).jpeg().toBuffer()).toString('base64'),
   alt:'Bogen på et træbord',credit:'Brugerleveret billede; fotograf ikke oplyst',preservePrintedBookTitle:true as const});
 it('validates pixels, optimizes without enlargement, reads back bytes, preserves body and records editorial not AI review',async()=>{

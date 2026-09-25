@@ -1,5 +1,6 @@
 import { load } from 'cheerio';
 import { ensureTextFreeImage, readEditorialImage } from '@/lib/images/text-free';
+import { readPrintedBookApproval } from '@/lib/images/printed-book-approval';
 
 /** Runs before CMS save/publish, not in a best-effort optimizer catch block.
  * Captions and real source credits stay outside the pixels and are untouched. */
@@ -8,6 +9,7 @@ export async function enforceTextFreeArticleImages(fields: Record<string, unknow
   const clean = (url: string) => {
     if (!seen.has(url)) seen.set(url, (async () => {
       const source = await readEditorialImage(url);
+      if (await readPrintedBookApproval(source)) return url;
       const result = await ensureTextFreeImage(source);
       // A CMS/CDN copy of a previously cleaned derivative is already clean.
       // Do not rewrite its URL back to storage and create a webhook publish loop.

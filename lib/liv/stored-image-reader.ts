@@ -13,7 +13,8 @@ export async function readLivStoredImage(raw: string): Promise<Buffer> {
   if (!match || decodeURIComponent(match[1]) !== bucketName || url.searchParams.get('alt') !== 'media' ||
       url.searchParams.size !== 2 || !/^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i.test(token)) throw new Error('liv_stored_image_invalid');
   const storagePath = decodeURIComponent(match[2]);
-  const asset = storagePath.match(/^editorial-images\/liv-daily\/[a-f0-9]{64}\/(?:hero|body-[12])-([a-f0-9]{64})\.webp$/);
+  const asset = storagePath.match(/^editorial-images\/liv-daily\/[a-f0-9]{64}\/(?:hero|body-[12])-([a-f0-9]{64})\.webp$/) ||
+    storagePath.match(/^editorial-images\/liv-supplied\/[a-f0-9]{64}\/hero-([a-f0-9]{64})\.webp$/);
   // optimize-and-upload adds an output digest and UUID after the SEO filename.
   // This proves stored-byte integrity, not equivalence to the original image.
   const optimized = storagePath.match(/^webflow\/content-images\/[1-9][0-9]{3}\/(?:0[1-9]|1[0-2])\/[a-z0-9][a-z0-9-]{0,89}-inline-(?:0[1-9]|[1-9][0-9])-[1-9][0-9]{0,3}w-[a-z0-9]{1,6}-([a-f0-9]{16})-[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}\.webp$/);
