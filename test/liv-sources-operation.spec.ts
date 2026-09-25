@@ -4,10 +4,11 @@ const s=vi.hoisted(()=>({rows:new Map<string,any>(),auth:vi.fn(),claim:vi.fn(),r
 vi.mock('@/lib/cron/cron-auth',()=>({requireCronBearer:s.auth}));
 vi.mock('@/lib/liv/delivery-store',()=>({claimPreparation:s.claim,releasePreparation:s.release}));
 vi.mock('@/lib/factcheck/source-reader',async original=>({...await original<typeof import('@/lib/factcheck/source-reader')>(),retrieveSource:s.retrieve}));
-vi.mock('@/lib/firebase-admin',()=>{const ref=(p:string):any=>({path:p,get:async()=>({exists:s.rows.has(p),data:()=>structuredClone(s.rows.get(p))}),collection:(n:string)=>({doc:(id:string)=>ref(`${p}/${n}/${id}`)})});return {getAdminDb:()=>({collection:(n:string)=>({doc:(id:string)=>ref(`${n}/${id}`)}),runTransaction:async(fn:any)=>fn({get:(r:any)=>r.get(),create:(r:any,d:any)=>{s.rows.set(r.path,d);s.writes(r.path)},update:(r:any,d:any)=>{s.rows.set(r.path,{...s.rows.get(r.path),...d});s.writes(r.path)}})})};});
+vi.mock('@/lib/firebase-admin',()=>{const ref=(p:string):any=>({path:p,id:p.split('/').at(-1),get:async()=>({exists:s.rows.has(p),data:()=>structuredClone(s.rows.get(p))}),collection:(n:string)=>({doc:(id:string)=>ref(`${p}/${n}/${id}`)})});return {getAdminDb:()=>({collection:(n:string)=>({doc:(id:string)=>ref(`${n}/${id}`)}),runTransaction:async(fn:any)=>fn({get:(r:any)=>r.get(),create:(r:any,d:any)=>{s.rows.set(r.path,d);s.writes(r.path)},update:(r:any,d:any)=>{s.rows.set(r.path,{...s.rows.get(r.path),...d});s.writes(r.path)}})})};});
 import {POST} from '@/app/api/liv/operations/sources/route';
 import {livImageArticleHash} from '@/lib/liv/article-image-hash';
 import {cmsFieldHash} from '@/lib/liv/cms-field-hash';
+import {readReadingDossier,readingDossierKey,readingDossierFields} from '@/lib/liv/reading-dossier';
 const path='livDailyArticles/reserve-editorial-2026-09-20';
 const article:any={title:'Review',intro:'Intro',content:'Original saved text',researchSources:[{url:'https://first.example/a'}]};
 const input={dayKey:'2026-09-20',requestId:'append-official-source',expectedCheckpointHash:cmsFieldHash(article),reason:'Add missing official evidence',urls:['https://www.20thcenturystudios.com.au/movies/die-hard-2']};
@@ -18,6 +19,20 @@ beforeEach(()=>{vi.resetAllMocks();s.rows.clear();vi.useFakeTimers();vi.setSyste
  s.retrieve.mockImplementation(async(url:string)=>({url,title:'Official source',text:'Fetched body text',contentHash:'a'.repeat(64),retrievedAt:new Date().toISOString(),publishedAt:null}));});
 afterEach(()=>vi.useRealTimers());
 it('requires service auth before reads or writes',async()=>{s.auth.mockReturnValue(NextResponse.json({},{status:401}));expect((await POST(req())).status).toBe(401);expect(s.claim).not.toHaveBeenCalled()});
+it('stores reading notes as attributed evidence for exact copy, not an approval or public source',async()=>{
+ const dossier={title:'Redaktionens læsenoter',text:'Et konkret læsenotat om romanens scener. '.repeat(20),attachmentHash:'c'.repeat(64)};
+ const body={...input,urls:[],dossier};
+ expect((await POST(req(body))).status).toBe(200);
+ const runId=path.split('/')[1],fields=readingDossierFields(article);
+ const notes=await readReadingDossier(runId,fields);
+ expect(notes).toHaveLength(1);expect(notes[0].publishedAt).toBeNull();expect(notes[0].text).toBe(dossier.text.trim());
+ expect(s.rows.get(path).status).toBe('failed');expect(s.rows.get(path).articleCheckpoint).toEqual(article);
+ expect(await readReadingDossier(runId,{...fields,content:'Changed'})).toEqual([]);
+ expect(await readReadingDossier('writer-random',fields)).toEqual([]);
+ expect((await POST(req(body))).status).toBe(200);
+ s.rows.get(`livReadingDossiers/${readingDossierKey(runId,fields)}`).dossier.text+=' changed';
+ await expect(readReadingDossier(runId,fields)).rejects.toThrow('liv_dossier_mismatch');
+});
 it('appends retrieved evidence only and makes replay idempotent',async()=>{
  expect((await POST(req())).status).toBe(200);const a=s.rows.get(path).articleCheckpoint;
  expect(a.content).toBe(article.content);expect(a.researchSources).toHaveLength(2);expect(s.rows.get(path).status).toBe('failed');

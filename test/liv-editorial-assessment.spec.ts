@@ -20,6 +20,7 @@ vi.mock('@/lib/liv/source-similarity', () => ({ checkSourceSimilarity: async () 
   scores: { embeddingSim: 0, ngramJaccard: 0, openingSim: 0 } }) }));
 vi.mock('@/lib/firebase-admin', () => ({ getAdminDb: () => state.available ? {
   collection: (collection: string) => ({ doc: (id: string) => ({ id: `${collection}/${id}`,
+    get: async () => ({data:()=>structuredClone(state.rows.get(`${collection}/${id}`))}),
     set: async (patch: unknown) => {
       if (state.failSave) throw new Error('save unavailable');
       state.rows.set(`${collection}/${id}`, { ...state.rows.get(`${collection}/${id}`), ...patch as object });

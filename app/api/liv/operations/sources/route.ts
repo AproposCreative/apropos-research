@@ -7,12 +7,13 @@ import {cmsFieldHash} from '@/lib/liv/cms-field-hash';
 import {livImageArticleHash} from '@/lib/liv/article-image-hash';
 import {copenhagenClock} from '@/lib/liv/delivery-policy';
 import {retrieveSource,sourceUrl} from '@/lib/factcheck/source-reader';
+import {readingDossierInput,readingDossierFields,readingDossierKey} from '@/lib/liv/reading-dossier';
 export const runtime='nodejs';
 export const maxDuration=60;
 const schema=z.object({dayKey:z.string(),requestId:z.string().regex(/^[a-zA-Z0-9_-]{8,100}$/),expectedCheckpointHash:z.string().regex(/^[a-f0-9]{64}$/),
  reason:z.string().trim().min(10).max(500),urls:z.array(z.string().url()).max(2),
- unavailableUrls:z.array(z.string().url()).min(1).max(2).optional()}).strict()
- .refine(input=>input.urls.length>0 || !!input.unavailableUrls?.length);
+ unavailableUrls:z.array(z.string().url()).min(1).max(2).optional(),dossier:readingDossierInput.optional()}).strict()
+ .refine(input=>input.urls.length>0 || !!input.unavailableUrls?.length || !!input.dossier);
 const json=(body:unknown,status=200)=>NextResponse.json(body,{status,headers:{'Cache-Control':'no-store'}});
 /** Audited evidence repair. Unavailable sources may be retired only after a
  * fresh failed read and successful retrieval of at least two dated hosts.
@@ -20,7 +21,7 @@ const json=(body:unknown,status=200)=>NextResponse.json(body,{status,headers:{'C
 export async function POST(req:NextRequest){
  const denied=requireCronBearer(req);if(denied)return denied;
  let input:z.infer<typeof schema>;
- try{if(req.nextUrl.search)throw Error();const raw=await req.text();if(raw.length>4000)throw Error();input=schema.parse(JSON.parse(raw));
+ try{if(req.nextUrl.search)throw Error();const raw=await req.text();if(raw.length>32000)throw Error();input=schema.parse(JSON.parse(raw));
   if(input.dayKey!==copenhagenClock().day)throw Error();[...input.urls,...input.unavailableUrls||[]].forEach(u=>sourceUrl(u));
  }catch{return json({error:'liv_sources_invalid'},400);}
  let lease:string|null=null;
@@ -56,12 +57,18 @@ export async function POST(req:NextRequest){
   }
   const revised={...article,researchSources:[...retained,...sources.map(s=>({url:s.url,title:s.title,source:new URL(s.url).hostname,
     snippet:s.text.slice(0,240),contentHash:s.contentHash,retrievedAt:s.retrievedAt,publishedAt:s.publishedAt}))]};
+  const fields=readingDossierFields(revised);
+  const dossierRef=input.dossier?db.collection('livReadingDossiers').doc(readingDossierKey(run.id,fields)):null;
   stage='transaction';
   await db.runTransaction(async tx=>{
    const current=(await tx.get(run)).data(),state=(await tx.get(db.collection('livDelivery').doc('manifest'))).data();
    const prior=await tx.get(audit);
+   const previousDossier=dossierRef?(await tx.get(dossierRef)).data():undefined;
+   if(previousDossier && previousDossier.dossierHash!==cmsFieldHash(input.dossier!))throw Error();
    if(prior.exists || !current || cmsFieldHash(current)!==cmsFieldHash(snapshot!) || state?.preparation?.token!==lease || state.preparation.leaseUntil<=Date.now())throw Error();
    tx.create(audit,{inputHash:cmsFieldHash(input),input,previousRun:snapshot,sources,retiredUnavailableUrls:unavailable,checkpointHash:cmsFieldHash(revised),createdAt:new Date().toISOString(),authority:'cron-authenticated-operator'});
+   if(dossierRef && !previousDossier)tx.create(dossierRef,{runId:run.id,fieldHash:cmsFieldHash(fields),dossier:input.dossier,
+    dossierHash:cmsFieldHash(input.dossier!),createdAt:new Date().toISOString(),authority:'cron-authenticated-operator'});
    tx.update(run,{articleCheckpoint:revised,articleCheckpointHash:livImageArticleHash(revised)});
   });
   return json({status:'sources_added',count:sources.length,checkpointHash:cmsFieldHash(revised)});
