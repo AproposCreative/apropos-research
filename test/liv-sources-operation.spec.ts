@@ -27,3 +27,20 @@ it.each([{...input,force:true},{...input,dayKey:'2026-09-21'},{...input,urls:['h
 it.each(['processing','draft','published'])('cannot modify an active or delivered %s run',async status=>{s.rows.get(path).status=status;expect((await POST(req())).status).toBe(409);expect(s.retrieve).not.toHaveBeenCalled()});
 it('preserves work on source failure or stale checkpoints',async()=>{s.retrieve.mockRejectedValue(Error('private error'));const r=await POST(req());expect(r.status).toBe(409);expect(JSON.stringify(await r.json())).not.toContain('private');expect(s.writes).not.toHaveBeenCalled();expect(s.release).toHaveBeenCalledWith('lease');});
 it('rejects an article changed while fetching sources',async()=>{s.retrieve.mockImplementation(async()=>{s.rows.get(path).reason='concurrent edit';return {url:input.urls[0],title:'Source',text:'Text',contentHash:'a'.repeat(64),retrievedAt:new Date().toISOString(),publishedAt:null}});expect((await POST(req())).status).toBe(409);expect(s.writes).not.toHaveBeenCalled()});
+it.each(['ok','available','one-host'])('audits unavailable-source retirement without approving facts: %s',async mode=>{
+ const a={...article,researchSources:[...article.researchSources,{url:'https://second.example/b'},{url:'https://third.example/c'}]};
+ s.rows.set(path,{status:'failed',articleCheckpoint:a,articleCheckpointHash:livImageArticleHash(a)});
+ s.retrieve.mockImplementation(async(url:string)=>{
+  if(url===article.researchSources[0].url && mode!=='available')throw Error('HTTP 403');
+  return {url,title:'Source',text:'Actual source content',contentHash:'a'.repeat(64),retrievedAt:new Date().toISOString(),publishedAt:mode==='one-host'?null:'2026-09-19T10:00:00Z'};
+ });
+ const body={...input,urls:[],unavailableUrls:[article.researchSources[0].url],expectedCheckpointHash:cmsFieldHash(a)};
+ expect((await POST(req(body))).status).toBe(mode==='ok'?200:409);
+ if(mode==='ok'){
+  expect(s.rows.get(path).articleCheckpoint.researchSources).toHaveLength(2);
+  expect(s.rows.get(path).articleCheckpoint.content).toBe(article.content);
+  expect(s.rows.get(path).status).toBe('failed');
+  expect(s.rows.get(`${path}/sourceSupplements/${input.requestId}`).previousRun.articleCheckpoint).toEqual(a);
+  expect((await POST(req(body))).status).toBe(200);
+ }else expect(s.writes).not.toHaveBeenCalled();
+});
