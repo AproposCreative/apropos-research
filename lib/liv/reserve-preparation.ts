@@ -4,19 +4,19 @@ import { addDays, copenhagenClock, eligibleEntries, reserveTarget, validDay, typ
 import { preparationCandidates } from './rolling-plan';
 
 /** A reserve is lower priority than both today's delivery and tomorrow's story. */
-export function reserveNeeded(state: DeliveryState, today: string) {
+export function reserveNeeded(state: DeliveryState, today: string, contentFallback = false) {
   if (!reserveTarget() || state.coverRevision || Object.values(state.slots).some(s => s.state === 'attempted')) return false;
-  if (preparationCandidates(state, today).length) return false;
-  if (!state.slots[today] && !eligibleEntries(state,today).length) return false;
+  if (!contentFallback && preparationCandidates(state, today).length) return false;
+  if (!contentFallback && !state.slots[today] && !eligibleEntries(state,today).length) return false;
   const tomorrow = addDays(today,1);
-  if (!state.slots[tomorrow] && !state.entries.some(e => e.kind === 'scheduled' && e.scheduledDay === tomorrow &&
+  if (!contentFallback && !state.slots[tomorrow] && !state.entries.some(e => e.kind === 'scheduled' && e.scheduledDay === tomorrow &&
       e.expiresDay >= tomorrow && !e.publicationBlockers?.length && e.decision !== 'rejected' && ['ready','selected','published'].includes(e.state))) return false;
   // Even a blocked/rejected reserve is retained for explicit resolution, not replaced for money.
   return !state.entries.some(e => e.kind === 'reserve' && e.expiresDay >= today && e.state !== 'published');
 }
 
 /** Called only inside the authenticated shared preparation lease. No model/CMS calls. */
-export async function claimReserveCandidate(lease: string, now = Date.now()) {
+export async function claimReserveCandidate(lease: string, now = Date.now(), contentFallback = false) {
   if (!reserveTarget()) return null;
   const db = getAdminDb(); if (!db) throw new Error('liv_reserve_store_unavailable');
   const manifest = db.collection('livDelivery').doc('manifest');
@@ -25,7 +25,7 @@ export async function claimReserveCandidate(lease: string, now = Date.now()) {
     const state = (await tx.get(manifest)).data() as DeliveryState | undefined;
     if (!state?.preparation || state.preparation.token !== lease || state.preparation.leaseUntil <= now ||
         !Number.isFinite(state.preparation.leaseUntil)) throw new Error('liv_reserve_lease_lost');
-    if (!reserveNeeded(state,today)) return null;
+    if (!reserveNeeded(state,today,contentFallback)) return null;
     let dayKey = state.reservePreparation?.dayKey ?? today;
     if (!validDay(dayKey) || dayKey > today) throw new Error('liv_reserve_pointer_invalid');
     const row = (await tx.get(db.collection(LIV_DAILY_COLLECTION).doc(livDailyDocId(dayKey,'reserve')))).data();

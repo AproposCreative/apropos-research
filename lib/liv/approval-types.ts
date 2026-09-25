@@ -19,4 +19,5 @@ export type ApprovalStory = {
   decision: 'pending' | 'approved' | 'rejected';
 };
 export type ApprovalFeed = { stories: ApprovalStory[]; total: number; nextOffset: number | null;
+  week?: import('./weekly-plan').WeeklyStory[];
   queueEnabled: boolean; preparationEnabled: boolean; cost?: LivCostSummary; preparation?: LivNextPreparationStatus };

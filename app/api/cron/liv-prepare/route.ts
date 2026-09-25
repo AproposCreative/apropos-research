@@ -13,6 +13,7 @@ import { canResumeLivPreparationCheckpoint, livPreparationStatusForRow } from '@
 import { claimReserveCandidate } from '@/lib/liv/reserve-preparation';
 import { nextScheduledPreparation } from '@/lib/liv/next-preparation';
 import { executablePreparation } from '@/lib/liv/preparation-policy';
+import { canPrepareReserveFallback } from '@/lib/liv/reserve-fallback-policy';
 
 export const maxDuration = 300;
 export async function GET(req: NextRequest) {
@@ -36,12 +37,14 @@ export async function GET(req: NextRequest) {
     }
     const scheduled = await nextScheduledPreparation(state, async (day, scope) =>
       (await db.collection(LIV_DAILY_COLLECTION).doc(livDailyDocId(day, scope)).get()).data());
-    if (scheduled && !executablePreparation(scheduled.decision) && scheduled.decision.action !== 'reconcile') {
+    const contentFallback = canPrepareReserveFallback(scheduled);
+    const reserveFallback = contentFallback ? await claimReserveCandidate(lease, Date.now(), true) : null;
+    if (scheduled && !reserveFallback && !executablePreparation(scheduled.decision) && scheduled.decision.action !== 'reconcile') {
       return NextResponse.json({ ...livPreparationStatusForRow(scheduled.dayKey, scheduled.scope, scheduled.row),
         ...(scheduled.decision.action === 'blocked' ? { status: 'blocked_saved_work' } : {}),
         nextAction: scheduled.decision.action, reasonCode: scheduled.decision.reasonCode });
     }
-    const candidates: Array<{ dayKey: string; kind: 'scheduled' | 'reserve'; scope?: 'prepare-alternative' }> = scheduled
+    const candidates: Array<{ dayKey: string; kind: 'scheduled' | 'reserve'; scope?: 'prepare-alternative' }> = reserveFallback ? [reserveFallback] : scheduled
       ? [{ dayKey: scheduled.dayKey, kind: 'scheduled', ...(scheduled.scope === 'prepare-alternative' ? { scope: scheduled.scope } : {}) }]
       : [];
     if (!candidates.length) {

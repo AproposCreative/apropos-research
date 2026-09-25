@@ -5,6 +5,7 @@ import { canRetryUnstartedPreparation } from '@/lib/liv/preparation-retry';
 import { reserveNeeded } from './reserve-preparation';
 import { decidePreparation, type PreparationDecision } from './preparation-policy';
 import { nextScheduledPreparation } from './next-preparation';
+import { canPrepareReserveFallback } from './reserve-fallback-policy';
 
 const runStatuses = ['processing', 'published', 'draft', 'skipped_no_topic', 'skipped_factcheck',
   'skipped_moderation', 'skipped_tov', 'skipped_duplicate', 'failed'] as const;
@@ -99,14 +100,15 @@ export async function readNextLivPreparationStatus(state: DeliveryState, now = n
     scheduled = await nextScheduledPreparation(state, async (day, scope) =>
       (await db.collection(LIV_DAILY_COLLECTION).doc(livDailyDocId(day, scope)).get()).data(), now);
   } catch { return { ...empty, status: 'unavailable', reasonCode: 'status_unavailable' }; }
-  if (scheduled) {
+  const contentFallback = canPrepareReserveFallback(scheduled) && reserveNeeded(state, today, true);
+  if (scheduled && !contentFallback) {
     const result = livPreparationStatusForRow(scheduled.dayKey, scheduled.scope, scheduled.row, now.getTime());
     return { ...result, nextAction: scheduled.decision.action,
       ...(scheduled.decision.action === 'blocked' ? { status: 'blocked_saved_work' as const,
         reasonCode: scheduled.decision.reasonCode as LivNextPreparationStatus['reasonCode'] } : {}) };
   }
   const candidate: { dayKey: string; scope?: PreparationScope } | undefined =
-    (reserveNeeded(state,today) ? { dayKey: state.reservePreparation?.dayKey ?? today, scope: 'reserve' } : undefined);
+    (reserveNeeded(state,today,contentFallback) ? { dayKey: state.reservePreparation?.dayKey ?? today, scope: 'reserve' } : undefined);
   if (!candidate) {
     const exhaustedDay = days.find(day => !state.slots[day] &&
       state.entries.filter(entry => entry.kind === 'scheduled' && entry.scheduledDay === day && entry.decision === 'rejected').length >= 2 &&

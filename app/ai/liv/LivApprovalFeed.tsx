@@ -14,6 +14,8 @@ import { preparationMessage } from '@/lib/liv/preparation-message';
 import LivObservations from './LivObservations';
 
 const decisions = { pending: 'Afventer dit valg', approved: 'Godkendt', rejected: 'Afvist' };
+const weekStatuses = { unplanned: 'Mangler emne', planned: 'Planlagt', preparing: 'Under forberedelse',
+  blocked: 'Kræver rettelse', ready: 'Klar', published: 'Udgivet' };
 function dateLabel(day: string) {
   return new Intl.DateTimeFormat('da-DK', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'Europe/Copenhagen' })
     .format(new Date(`${day}T12:00:00Z`));
@@ -142,9 +144,9 @@ export default function LivApprovalFeed() {
   return <div data-liv-story-scroll style={{ paddingTop: 'var(--liv-tabs-height, 0px)' }} className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
     <LivContentColumn className="space-y-5 py-6">
       <header className="space-y-3">
-        <div className="flex items-center justify-between gap-3"><h2 className="text-xl font-medium">De kommende historier</h2>
+        <div className="flex items-center justify-between gap-3"><h2 className="text-xl font-medium">Ugens historier</h2>
           <button className="min-h-11 px-2 text-sm text-white/70 underline underline-offset-4 disabled:opacity-40" disabled={loading || !!saving} onClick={() => void refresh()}>Opdater</button></div>
-        <p className="text-sm leading-relaxed text-white/65">Alle klargjorte kommende historier samlet på én liste. Mangler dagens udgivelse, kommer den først.</p>
+        <p className="text-sm leading-relaxed text-white/65">I dag og de næste seks dage. Planlagte historier vises også, før tekst og billeder er klar.</p>
         <p className="text-xs leading-relaxed text-white/45">{capabilities.owner ? 'Godkend eller afvis. Uden et valg fortsætter Liv automatisk. Dit valg kan ændres, indtil historien er valgt til udgivelse.' : 'Her kan du læse kommende historier. Frederik styrer godkendelse og udgivelse.'}</p>
       </header>
       <LivTips />
@@ -153,13 +155,27 @@ export default function LivApprovalFeed() {
       {error && <p role="alert" className="rounded-xl border border-amber-200/20 p-4 text-sm text-amber-200">{error}</p>}
       {feed && !feed.queueEnabled && <p className="rounded-xl border border-white/15 p-4 text-sm text-white/60">Automatisk udgivelse er ikke aktiveret. Dine valg udgiver ikke noget med det samme.</p>}
       {loading && !feed && <p role="status" className="p-5 text-sm text-white/60">Henter Livs historier…</p>}
-      {feed && !feed.stories.length && <div className="rounded-2xl border border-dashed border-white/20 px-6 py-12 text-center">
+      {feed && !feed.stories.length && !feed.week?.length && <div className="rounded-2xl border border-dashed border-white/20 px-6 py-12 text-center">
         <h3 className="text-lg">Den næste historie er ikke klar endnu</h3><p className="mt-3 text-sm leading-relaxed text-white/55">
           {!feed.preparationEnabled ? 'Forberedelsen er ikke aktiveret. Gemte historier og dine valg er bevaret.' :
             preparationMessage(feed.preparation)}</p>
         {feed.preparation?.day && <p className="mt-3 text-xs text-white/45">Planlagt {dateLabel(feed.preparation.day)}</p>}
       </div>}
-      {feed?.stories.map(story => <LivApprovalCard key={`${story.itemId}:${story.revision}`} story={story} canDecide={capabilities.owner} disabled={loading || !!saving || !!error}
+      {feed?.week?.map(day => {
+        const story = feed.stories.find(s => s.itemId === day.itemId);
+        return story ? <LivApprovalCard key={`${story.itemId}:${story.revision}`} story={story} canDecide={capabilities.owner}
+          disabled={loading || !!saving || !!error} saving={saving === story.itemId} onEdited={() => void refresh()}
+          onDecide={(decision, feedback) => void decide(story, decision, feedback)} /> :
+          <article key={day.day} className="space-y-2 rounded-2xl border border-white/15 p-5">
+            <div className="flex flex-wrap justify-between gap-2 text-xs text-white/60">
+              <span>{dateLabel(day.day)}</span><span className={day.status === 'blocked' ? 'text-amber-200' :
+                ['ready', 'published'].includes(day.status) ? 'text-emerald-200' : ''}>{weekStatuses[day.status]}</span>
+            </div>
+            <h3 className="break-words text-lg font-medium">{day.title}</h3>
+            <p className="text-sm leading-relaxed text-white/60">{day.detail}</p>
+          </article>;
+      })}
+      {feed?.stories.filter(story => !feed.week?.some(day => day.itemId === story.itemId)).map(story => <LivApprovalCard key={`${story.itemId}:${story.revision}`} story={story} canDecide={capabilities.owner} disabled={loading || !!saving || !!error}
         saving={saving === story.itemId} onEdited={() => void refresh()} onDecide={(decision, feedback) => void decide(story, decision, feedback)} />)}
     </LivContentColumn>
   </div>;

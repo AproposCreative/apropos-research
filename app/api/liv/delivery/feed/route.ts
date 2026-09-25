@@ -7,6 +7,7 @@ import { cmsFieldHash } from '@/lib/liv/cms-field-hash';
 import { parseEditorialFeedback } from '@/lib/liv/editorial-feedback';
 import { readLivCostSummary } from '@/lib/liv/cost-ledger';
 import { readNextLivPreparationStatus } from '@/lib/liv/preparation-status';
+import { readWeeklyPlan } from '@/lib/liv/weekly-plan';
 
 const headers = { 'Cache-Control': 'private, no-store' };
 const reply = (body: object, status = 200) => NextResponse.json(body, { status, headers });
@@ -26,6 +27,8 @@ export async function GET(req: NextRequest) {
   try {
     const [state, cost] = await Promise.all([readDeliveryState(), access.owner ? readLivCostSummary() : undefined]);
     const preparation = access.owner ? await readNextLivPreparationStatus(state) : undefined;
+    // A plan read failure must not hide the independently verified ready queue.
+    const week = access.owner ? await readWeeklyPlan(state).catch(() => undefined) : undefined;
     const entries = approvalEntries(state, copenhagenClock().day);
     const stories = await Promise.all(entries.slice(offset).map(async entry => {
       const payload = await readDeliveryPayload(entry.itemId);
@@ -33,7 +36,7 @@ export async function GET(req: NextRequest) {
       return approvalStory(entry, payload, userId);
     }));
     return reply({ stories, total: entries.length, nextOffset: null,
-      queueEnabled, preparationEnabled, ...(access.owner ? { cost, preparation } : {}) });
+      queueEnabled, preparationEnabled, ...(access.owner ? { cost, preparation, week } : {}) });
   } catch { return reply({ error: 'Historierne kunne ikke hentes. Prøv igen; dine gemte valg er ikke ændret.' }, 503); }
 }
 export async function POST(req: NextRequest) {

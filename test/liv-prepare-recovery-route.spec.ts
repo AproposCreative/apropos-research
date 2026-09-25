@@ -29,6 +29,15 @@ it('starts just one bounded job for an empty queue', async () => {
   await GET(request()); expect(mocks.run).toHaveBeenCalledTimes(1); expect(mocks.release).toHaveBeenCalledWith('lease');
   expect(mocks.reserve).not.toHaveBeenCalled();
 });
+it('lets the single durable reserve proceed after exhausted content candidates', async () => {
+  mocks.state.slots['2026-09-12'] = { itemId: 'published', state: 'published', token: 't', leaseUntil: 0, attempts: 1, nextAttemptAt: 0 };
+  mocks.rows.set('prepare-2026-09-13', { status: 'failed', reason: 'research_dated_sources_insufficient' });
+  mocks.rows.set('prepare-alternative-2026-09-13', { status: 'failed', reason: 'source_similarity_incomplete' });
+  mocks.reserve.mockResolvedValue({ dayKey: '2026-09-12', kind: 'reserve' });
+  await GET(request());
+  expect(mocks.reserve).toHaveBeenCalledWith('lease', Date.now(), true);
+  expect(mocks.run).toHaveBeenCalledExactlyOnceWith(expect.anything(), expect.objectContaining({ kind: 'reserve' }));
+});
 it('does not let a legacy pre-generation no-topic record permanently block tomorrow', async () => {
   mocks.rows.set('prepare-2026-09-12', { status: 'skipped_no_topic', preparationAttempts: 3 });
   await GET(request()); expect(mocks.run).toHaveBeenCalledTimes(1);

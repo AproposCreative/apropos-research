@@ -58,6 +58,23 @@ it('does not abandon an unadmitted CMS item when its age changes',async()=>{
 it('rejects a wrong lease without changing the manifest',async()=>{
   await expect(claimReserveCandidate('wrong',now)).rejects.toThrow('lease_lost');expect(fixture.writes).not.toHaveBeenCalled();
 });
+it('can claim a content-failure fallback before tomorrow is ready, keeping one durable identity',async()=>{
+  const s=fixture.rows.get('livDelivery/manifest');s.entries=[];
+  expect(reserveNeeded(s,day)).toBe(false);
+  expect(reserveNeeded(s,day,true)).toBe(true);
+  expect(await claimReserveCandidate('lease',now,true)).toEqual({dayKey:day,kind:'reserve'});
+  fixture.rows.set(`livDailyArticles/reserve-${day}`,{status:'failed',reason:'saved_failure'});
+  expect(await claimReserveCandidate('lease',now,true)).toEqual({dayKey:day,kind:'reserve'});
+  expect(fixture.writes).toHaveBeenCalledTimes(1);
+});
+it('fallback still respects a held reserve, a cover revision, an uncertain publish and the off switch',()=>{
+  const s=state();s.entries=[];
+  s.coverRevision={id:'x',itemId:'x',day};expect(reserveNeeded(s,day,true)).toBe(false);
+  delete s.coverRevision;s.slots[day].state='attempted';expect(reserveNeeded(s,day,true)).toBe(false);
+  s.slots[day].state='published';s.entries=[{...entry,kind:'reserve',state:'rejected'}];
+  expect(reserveNeeded(s,day,true)).toBe(false);
+  s.entries=[];vi.stubEnv('LIV_RESERVE_ENABLED','false');expect(reserveNeeded(s,day,true)).toBe(false);
+});
 it('does not call a reserve failure a failed daily publication before its deadline',()=>{
   const s=state();s.slots={};
   expect(deliveryAlertKind(s,{},new Date(now),day,{day,scope:'reserve',status:'blocked_saved_work',runStatus:'failed',reasonCode:'operator_retry_required'})).toBeNull();
