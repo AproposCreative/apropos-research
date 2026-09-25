@@ -31,7 +31,30 @@ concurrent/active/saved jobs, immutable replay, genuine editorial audit,
 prepared cover validation, storage readback, and common-runner behavior with
 successful and failed CMS readback. Regression uses simulated AI responses.
 
-Production deployment and queue receipt will be recorded after execution.
+## Production receipt
+
+- Release `ba9d07ec130bc627c2788598b73e7da22beb808f` deployed READY as
+  `dpl_6HNL1UwrYS8aEn2eRVeGwudrmptF`, alias `ai.aproposmagazine.com` verified.
+- Owner-authenticated approval API: HTTP 200, `editorially_approved`, explicit
+  `aiFactcheck:false`. Receipt `partybus-owner-original-cover-20260925`.
+- Existing retry API: HTTP 200, `queued:true`, `saveVerified:true`,
+  `webflowStatus:draft`. Webflow item `6ab63b300dab9b2ea23d8fff`.
+- CMS readback at 2026-09-25T09:13:22Z: Danish locale
+  `67dbf17ba540975b5b21c225`, all 25 field/reference/image checks passed.
+  Proof includes separately labelled owner editorial authority.
+- Authenticated `/api/liv/delivery/feed`: HTTP 200, total 1, Partybus review
+  state `ready`, scheduled 2026-09-25, rating 5, publicationBlockers empty.
+  Cover downloaded and byte hash matched the owner-approved asset; 2 body
+  images present. Queue and preparation enabled. Live publication is NOT
+  claimed by this preparation receipt; the separate scheduler owns delivery.
+- Photographer was not supplied, so credit remains explicitly unknown:
+  `Brugerleveret billede; fotograf ikke oplyst`.
+- Other automated candidates are still unfinished. This release fixes the
+  supplied-original-review path, not every automatic research failure.
+- The legacy run `reason` retains the previous verification-complete failure
+  because history merges fields; the current status is draft, current gates
+  are passed and queue blockers empty. Previous assessment/unknown cost is
+  preserved, not relabelled or charged again by this editorial approval.
 
 The shared CMS image optimizer also enforces text removal. A byte-bound,
 owner-selected printed-book exception is therefore recorded in the same
