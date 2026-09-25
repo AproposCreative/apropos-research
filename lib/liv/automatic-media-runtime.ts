@@ -14,6 +14,7 @@ import { getLivCostPretransportError } from './cost-errors';
 import { isLivHeroDimensions } from './hero-dimensions';
 import { aproposIllustrationStyle } from '@/lib/image-gen/styles';
 import { TEXT_FREE_IMAGE_RULE } from '@/lib/images/text-free-policy';
+import { cmsFieldHash } from './cms-field-hash';
 export { aproposIllustrationStyle } from '@/lib/image-gen/styles';
 
 const hash = (bytes: Buffer | string) => createHash('sha256').update(bytes).digest('hex');
@@ -94,7 +95,7 @@ export function livMediaRuntime(deadline = Date.now() + 180_000): MediaDependenc
   const record: MediaDependencies['record'] = async (id, stage, data) => {
     if (!/^[a-z0-9-]+$/.test(stage)) throw new Error('liv_media_stage_invalid');
     if (stage === 'plan' && savedStages.plan?.plan) {
-      if (hash(JSON.stringify(savedStages.plan.plan)) !== hash(JSON.stringify(data.plan))) throw new Error('liv_media_job_requires_reconciliation');
+      if (cmsFieldHash({plan:savedStages.plan.plan}) !== cmsFieldHash({plan:data.plan})) throw new Error('liv_media_job_requires_reconciliation');
       return; // Retain the original plan's timestamp and audit data on resumption.
     }
     await db.runTransaction(async transaction => {
@@ -404,6 +405,15 @@ export function livMediaRuntime(deadline = Date.now() + 180_000): MediaDependenc
           media?.length !== 3 || images.length !== 3 || images.some((bytes, i) => hash(bytes) !== media[i].contentHash)) {
         throw new Error('liv_media_visual_check_failed');
       }
+      // A completed rejected label-only attempt cannot fix the pixels. Preserve
+      // it as failed and progress to the independent visual repair; do not replay
+      // its legacy order-sensitive input hash or buy another label correction.
+      const priorReview = savedStages['description-review'] as (SavedStage & {raw?:string;finish?:string;refusal?:unknown})|undefined;
+      if (priorReview?.status === 'complete' && priorReview.finish === 'stop' && !priorReview.refusal && typeof priorReview.raw === 'string') {
+        let verdict: {pass?:unknown} = {};
+        try { verdict = JSON.parse(priorReview.raw); } catch { /* Invalid output is not evidence. */ }
+        if (verdict.pass === false) throw new Error('liv_media_visual_check_failed');
+      }
       const imageContent = async (version: GeneratedArticle) => (await Promise.all(images.map(async (bytes, i) => [
         { type: 'text' as const, text: JSON.stringify({ role: media[i].role,
           alt: version.preparedMedia![i].alt, caption: version.preparedMedia![i].caption }) },
@@ -458,7 +468,7 @@ export function livMediaRuntime(deadline = Date.now() + 180_000): MediaDependenc
         media?.length !== 3 || images.length !== 3 || media.some((m, i) => m.kind !== 'illustration' || hash(images[i]) !== m.contentHash)) {
         throw new Error('liv_media_repair_invalid');
       }
-      const inputHash = hash(JSON.stringify([livImageArticleHash(article), media, failure.result]));
+      const inputHash = cmsFieldHash({articleHash:livImageArticleHash(article),media,failure:failure.result});
       const content: import('openai/resources/chat/completions').ChatCompletionContentPart[] = [
         { type: 'text', text: JSON.stringify({ title: article.title, failure: failure.result }) }];
       for (let i = 0; i < 3; i++) content.push({ type: 'text', text: JSON.stringify({ role: media[i].role, alt: media[i].alt, caption: media[i].caption }) },

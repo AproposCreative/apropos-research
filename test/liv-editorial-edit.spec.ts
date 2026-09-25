@@ -438,6 +438,34 @@ async function secondScheduledEdit() {
       ({ role: image.role, before: image.caption, after: image.alt })) };
   return { ...fixture, edit, approved, firstAuditPath, receiptPath };
 }
+
+function reserveMediaFixture() {
+  const f = scheduledMediaFixture(), reservePath = `livDailyArticles/reserve-${dayKey}`;
+  state.rows.set(reservePath, structuredClone(state.rows.get(f.path)));
+  state.rows.get('livDelivery/manifest').reservePreparation = {dayKey};
+  return {...f, path:reservePath, edit:{...f.edit,scope:'reserve'}};
+}
+it('copyedits only the current saved reserve with immutable audit and pending visual review',async()=>{
+ const f=reserveMediaFixture(), original=structuredClone(state.rows.get(f.path));
+ expect((await POST(request(f.edit))).status).toBe(200);
+ const revised=state.rows.get(f.path);
+ expect(revised.status).toBe(original.status);expect(revised.retryAuthorization).toBeUndefined();
+ expect(revised.articleCheckpoint.preparedMedia).toEqual(original.articleCheckpoint.preparedMedia);
+ expect(revised.articleCheckpoint.selectedImage).toMatchObject({visualReview:'pending',editorialEdit:{runId:`reserve-${dayKey}`}});
+ expect(state.rows.get(`${f.path}/editorialEdits/${f.edit.requestId}`)).toMatchObject({previousReserve:{dayKey},previousRun:original});
+ expect((await POST(request(f.edit))).status).toBe(200);
+ expect(state.writes).toHaveBeenCalledTimes(2);
+});
+it.each(['wrong-pointer','admitted','cms','hash','future'])('blocks unsafe reserve copyedit: %s',async kind=>{
+ const f=reserveMediaFixture();
+ if(kind==='wrong-pointer')state.rows.get('livDelivery/manifest').reservePreparation={dayKey:'2026-09-11'};
+ if(kind==='admitted')state.rows.get('livDelivery/manifest').entries=[{kind:'reserve',scheduledDay:dayKey}];
+ if(kind==='cms')state.rows.get(f.path).webflowItemId='cms';
+ if(kind==='hash')f.edit.expectedCheckpointHash='a'.repeat(64);
+ if(kind==='future')f.edit.dayKey='2026-09-13';
+ expect((await POST(request(f.edit))).status).toBe(kind==='future'?400:409);
+ expect(state.writes).not.toHaveBeenCalled();
+});
 it.each([1, 2])('accepts one bounded second edit with %i exact alt-as-caption replacements and immutable ancestry', async count => {
   const fixture = await secondScheduledEdit();
   fixture.edit.mediaCaptions = fixture.edit.mediaCaptions.slice(0, count);

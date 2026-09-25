@@ -27,7 +27,7 @@ export async function reviewLivEditorialEditMedia(article: GeneratedArticle, day
   ancestryDepth?: number;
 } = {}): Promise<GeneratedArticle> {
   const binding = article.selectedImage?.editorialEdit;
-  if (!binding || binding.runId !== `prepare-${dayKey}` || !/^\d{4}-\d{2}-\d{2}$/.test(dayKey) ||
+  if (!binding || ![`prepare-${dayKey}`, `reserve-${dayKey}`].includes(binding.runId) || !/^\d{4}-\d{2}-\d{2}$/.test(dayKey) ||
     !/^[a-zA-Z0-9_-]{8,100}$/.test(binding.requestId)) fail();
   if (!options.readOnly && !currentLivCostContext()) return withLivCostContext({
     runId: binding!.runId, stage: 'editorial-edit-media',
@@ -42,10 +42,11 @@ export async function reviewLivEditorialEditMedia(article: GeneratedArticle, day
   const input = editorialEditInput.safeParse(audit?.input);
   const previous = audit?.previousArticle as GeneratedArticle | undefined;
   const yielded = audit?.previousRun?.status === 'processing' && audit.previousRun.continuationReady === true;
-  if (!audit || !input.success || input.data.scope !== 'prepare' || input.data.dayKey !== dayKey || input.data.requestId !== binding.requestId ||
+  const reserve = binding.runId === `reserve-${dayKey}`;
+  if (!audit || !input.success || input.data.scope !== (reserve ? 'reserve' : 'prepare') || input.data.dayKey !== dayKey || input.data.requestId !== binding.requestId ||
     input.data.patches.some(patch => !['content', 'subtitle'].includes(patch.field)) ||
     audit.authority !== 'authorized-operator' || audit.inputHash !== cmsFieldHash(input.data) ||
-    audit.previousPlan?.dayKey !== dayKey || !(yielded ? ['pending', 'failed'] : ['failed']).includes(audit.previousPlan?.status) ||
+    (reserve ? audit.previousReserve?.dayKey !== dayKey : (audit.previousPlan?.dayKey !== dayKey || !(yielded ? ['pending', 'failed'] : ['failed']).includes(audit.previousPlan?.status))) ||
     audit.previousRun?.dayKey !== dayKey || (!yielded && !['failed', 'skipped_factcheck', 'skipped_moderation', 'skipped_tov'].includes(audit.previousRun?.status)) ||
     audit.previousRun?.webflowItemId || audit.previousRun?.preparationProof || audit.previousRun?.cmsSaveStarted ||
     audit.previousRun?.retryAuthorization || (!yielded && audit.previousRun?.continuationReady) ||

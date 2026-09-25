@@ -16,7 +16,7 @@ const captionText = z.string().trim().min(10).max(350)
   .refine(value => !/[<>\x00-\x1f]|https?:\/\//i.test(value));
 export const editorialEditInput = z.object({
   requestId: z.string().regex(/^[a-zA-Z0-9_-]{8,100}$/),
-  dayKey: z.string().refine(validDay), scope: z.enum(['reserve-editorial', 'prepare']),
+  dayKey: z.string().refine(validDay), scope: z.enum(['reserve-editorial', 'prepare', 'reserve']),
   expectedArticleHash: sha256,
   expectedCheckpointHash: sha256.optional(),
   reason: z.string().trim().min(3).max(500).refine(value => !/[<>\x00-\x1f]/.test(value)),
@@ -73,9 +73,10 @@ export async function editLivEditorialCheckpoint(value: unknown, lease: string, 
   const audit = run.collection('editorialEdits').doc(input.requestId);
   return db.runTransaction(async tx => {
     const state = (await tx.get(db.collection('livDelivery').doc('manifest'))).data();
-    const scheduled = input.scope === 'prepare';
+    const reserve = input.scope === 'reserve';
+    const scheduled = input.scope !== 'reserve-editorial';
     const saved = scheduled ? undefined : (await tx.get(db.collection('livExplicitPreparations').doc(runId))).data();
-    const plan = scheduled ? (await tx.get(db.collection('livDailyPlan').doc(`plan-${input.dayKey}`))).data() : undefined;
+    const plan = input.scope === 'prepare' ? (await tx.get(db.collection('livDailyPlan').doc(`plan-${input.dayKey}`))).data() : undefined;
     const row = (await tx.get(run)).data();
     const prior = (await tx.get(audit)).data();
     if (state?.preparation?.token !== lease || !Number.isFinite(state?.preparation?.leaseUntil) ||
@@ -94,7 +95,9 @@ export async function editLivEditorialCheckpoint(value: unknown, lease: string, 
     const postMedia = Array.isArray(article?.preparedMedia) && article.preparedMedia.length === 3 && !!article.selectedImage;
     const yielded = scheduled && row.status === 'processing' && row.continuationReady === true;
     const allowedPlanStatuses = postMedia ? (yielded ? ['failed', 'pending'] : ['failed']) : ['pending'];
-    if (scheduled && (plan?.dayKey !== input.dayKey || !allowedPlanStatuses.includes(plan.status) || state.slots?.[input.dayKey] ||
+    if (reserve && (!postMedia || state.reservePreparation?.dayKey !== input.dayKey ||
+      (state.entries || []).some((entry: { kind?: string; scheduledDay?: string }) => entry.kind === 'reserve' && entry.scheduledDay === input.dayKey))) throw new Error('liv_edit_conflict');
+    if (input.scope === 'prepare' && (plan?.dayKey !== input.dayKey || !allowedPlanStatuses.includes(plan.status) || state.slots?.[input.dayKey] ||
       (state.entries || []).some((entry: { scheduledDay?: string }) => entry.scheduledDay === input.dayKey))) {
       throw new Error('liv_edit_conflict');
     }
@@ -206,7 +209,7 @@ export async function editLivEditorialCheckpoint(value: unknown, lease: string, 
       : { ...article.selectedImage!, articleHash };
     tx.create(audit, { input, inputHash, previousArticle: article, article: revised,
       previousArticleHash: input.expectedArticleHash, articleHash,
-      ...(scheduled ? { previousRun: row, previousPlan: plan } : {}),
+      ...(scheduled ? { previousRun: row, ...(reserve ? { previousReserve: state.reservePreparation } : { previousPlan: plan }) } : {}),
       ...(previousEditorialEdit ? { previousEditorialEdit } : {}),
       ...(mediaJobId ? { mediaJobId, mediaRevisionIds, previousCheckpointHash: input.expectedCheckpointHash,
         checkpointHash: cmsFieldHash(revised as unknown as Record<string, unknown>) } : {}),

@@ -529,6 +529,21 @@ it('yields before a visual repair request when insufficient function time remain
   await expect(prepareLivAutomaticMedia(labelInput,{dayKey:'2026-09-12'},livMediaRuntime(Date.now()+120000))).rejects.toThrow('liv_media_repair_pending');
   expect(mocks.edit).not.toHaveBeenCalled();expect(mocks.stageRows['visual-repair-plan']).toBeUndefined();
 });
+it('resumes a recorded failed label review after database key reordering without another label purchase',async()=>{
+ await prepareLabelRepair();mocks.chat.mockResolvedValueOnce(responseJson(labelCorrection()));
+ mocks.chat.mockResolvedValueOnce(responseJson({pass:false,reason:'A genuine visual defect remains.'}));
+ await expect(prepareLivAutomaticMedia(labelInput,{dayKey:'2026-09-12'},livMediaRuntime(Date.now()+120000))).rejects.toThrow('liv_media_repair_pending');
+ const reorder=(value:any):any=>Array.isArray(value)?value.map(reorder):value&&typeof value==='object'?Object.fromEntries(Object.keys(value).sort().map(k=>[k,reorder(value[k])])):value;
+ mocks.stageRows=reorder(mocks.stageRows);
+ mocks.chat.mockResolvedValueOnce(responseJson({repairable:true,role:'body-1',instruction:'Remove all competing objects while preserving the single central scene subject.'}));
+ mocks.chat.mockResolvedValueOnce(responseJson({pass:true}));
+ const edited=await sharp({create:{width:1000,height:600,channels:3,background:'#11cc99'}}).png().toBuffer();
+ mocks.edit.mockResolvedValueOnce({data:[{b64_json:edited.toString('base64')}]});
+ const result=await prepareLivAutomaticMedia(labelInput,{dayKey:'2026-09-12'},livMediaRuntime());
+ expect(result.preparedMedia?.length).toBe(3);expect(mocks.chat).toHaveBeenCalledTimes(6);
+ expect(mocks.edit).toHaveBeenCalledTimes(1);expect(mocks.generate).toHaveBeenCalledTimes(3);
+ expect(JSON.parse(mocks.stageRows['description-review'].raw).pass).toBe(false);
+});
 it('repairs labels once and independently approves unchanged pixels while preserving the rejection and original metadata', async () => {
   await prepareLabelRepair();
   mocks.chat.mockResolvedValueOnce(responseJson(labelCorrection()));

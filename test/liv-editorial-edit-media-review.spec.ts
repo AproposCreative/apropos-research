@@ -74,6 +74,23 @@ beforeEach(async () => {
 });
 afterEach(() => expect(state.generate).not.toHaveBeenCalled());
 
+it('independently reviews a current reserve edit and reuses its paid receipt',async()=>{
+ const reserveId=`reserve-${day}`, reservePath=`livDailyArticles/${reserveId}/editorialEdits/${requestId}`;
+ const audit=structuredClone(state.rows.get(path));
+ audit.input.scope='reserve';audit.inputHash=cmsFieldHash(audit.input);
+ delete audit.previousPlan;audit.previousReserve={dayKey:day};
+ pending.selectedImage!.editorialEdit={runId:reserveId,requestId};
+ audit.article=pending;audit.checkpointHash=fullHash(pending);
+ state.rows.set(reservePath,audit);
+ state.chat.mockImplementation(async()=>{expect(currentLivCostContext()?.runId).toBe(reserveId);return response();});
+ const result=await reviewLivEditorialEditMedia(pending,day);
+ expect(result.selectedImage?.visualReview).toBe('automated');
+ expect(await reviewLivEditorialEditMedia(pending,day)).toEqual(result);
+ expect(state.chat).toHaveBeenCalledTimes(1);
+ audit.previousReserve.dayKey='2026-09-14';
+ await expect(reviewLivEditorialEditMedia(pending,day,{readOnly:true})).rejects.toThrow('liv_edit_media_requires_reconciliation');
+});
+
 async function photographicCheckpoint() {
   const audit = state.rows.get(path);
   const original = structuredClone(audit.previousArticle) as GeneratedArticle;

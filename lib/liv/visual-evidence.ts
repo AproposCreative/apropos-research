@@ -13,7 +13,7 @@ import { readLivStoredImage } from './stored-image-reader';
 import sharp from 'sharp';
 
 export const livVisualReferenceSchema = z.object({
-  runId: z.string().regex(/^(?:prepare|reserve-editorial)-\d{4}-\d{2}-\d{2}$/),
+  runId: z.string().regex(/^(?:prepare|reserve|reserve-editorial)-\d{4}-\d{2}-\d{2}$/),
   checkpointHash: z.string().regex(/^[a-f0-9]{64}$/),
 }).strict();
 export type LivVisualReference = z.infer<typeof livVisualReferenceSchema>;
@@ -72,7 +72,7 @@ export async function readLivVisualEvidence(value: unknown, articleText: string,
     }
   }else{
   if(article!.selectedImage!.editorialEdit!.runId!==reference.runId)fail();
-  const day = reference.runId.slice('prepare-'.length);
+  const day = reference.runId.slice(-10);
   // This reuses all existing audit/patch/hash/receipt validation, with paid work disabled.
   if (fingerprint(await reviewLivEditorialEditMedia(article!, day, { readOnly: true })) !== reference.checkpointHash) fail();
   const edit = run.collection('editorialEdits').doc(article!.selectedImage!.editorialEdit!.requestId);
