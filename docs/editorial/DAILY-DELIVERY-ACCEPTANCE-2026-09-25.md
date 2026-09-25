@@ -77,3 +77,18 @@ through this repair. This is not permission to bypass a visual gate.
   review. The regression includes a database key-order round trip.
 - Future fact correction explicitly removes peripheral unsupported claims
   instead of replacing them with unsupported research-absence caveats.
+
+## Final read-only production check
+
+- Release `36c60f8ec852527dfa92b2cba3c73517a4a50713`, deployment
+  `dpl_EqLpUAkxSQdaUy4RyJXEk2yaKLD8`, READY and production alias confirmed.
+- 301 test files / 4,163 tests passed; TypeScript passed. Tests use isolated,
+  simulated provider responses, not paid generation calls.
+- Owner-authenticated feed HTTP 200, private/no-store: seven weekly rows,
+  today's book published, `total: 0` ready stories. Preparation now accurately
+  exposes `provider_quota_exhausted`, blocked, no scheduled retry. No hidden
+  ready inventory is claimed. Failed/planned rows are not completed articles.
+- Reserve copyedit readback: exact audit/article match, caveat removed, all
+  media unchanged, independent visual review still pending.
+- Completion requires API billing recovery, remaining saved-work checks and
+  verified CMS admission, then a future unattended delivery. The goal is open.
