@@ -96,7 +96,7 @@ export async function editLivEditorialCheckpoint(value: unknown, lease: string, 
     const yielded = scheduled && row.status === 'processing' && row.continuationReady === true;
     const allowedPlanStatuses = postMedia ? (yielded ? ['failed', 'pending'] : ['failed']) : ['pending'];
     if (reserve && (!postMedia || state.reservePreparation?.dayKey !== input.dayKey ||
-      (state.entries || []).some((entry: { kind?: string; scheduledDay?: string }) => entry.kind === 'reserve' && entry.scheduledDay === input.dayKey))) throw new Error('liv_edit_conflict');
+      (state.entries || []).some((entry: { kind?: string; scheduledDay?: string; state?:string }) => entry.kind === 'reserve' && entry.scheduledDay === input.dayKey && entry.state !== 'published'))) throw new Error('liv_edit_conflict');
     if (input.scope === 'prepare' && (plan?.dayKey !== input.dayKey || !allowedPlanStatuses.includes(plan.status) || state.slots?.[input.dayKey] ||
       (state.entries || []).some((entry: { scheduledDay?: string }) => entry.scheduledDay === input.dayKey))) {
       throw new Error('liv_edit_conflict');

@@ -447,6 +447,7 @@ function reserveMediaFixture() {
 }
 it('copyedits only the current saved reserve with immutable audit and pending visual review',async()=>{
  const f=reserveMediaFixture(), original=structuredClone(state.rows.get(f.path));
+ state.rows.get('livDelivery/manifest').entries=[{kind:'reserve',scheduledDay:dayKey,state:'published',itemId:'different-editorial-book'}];
  expect((await POST(request(f.edit))).status).toBe(200);
  const revised=state.rows.get(f.path);
  expect(revised.status).toBe(original.status);expect(revised.retryAuthorization).toBeUndefined();
