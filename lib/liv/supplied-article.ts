@@ -10,8 +10,8 @@ export const suppliedArticleInput = z.object({
   title: text(200), subtitle: text(400), intro: text(2000),
   content: z.string().min(500).max(50000).refine(s => {
     const $ = load(s);
-    return !/[\x00-\x08\x0b-\x1f]/.test(s) && $('body *').toArray().every(el =>
-      'tagName' in el && 'attribs' in el && ['p', 'h2', 'em', 'strong', 'br'].includes(el.tagName) && Object.keys(el.attribs || {}).length === 0) &&
+    return !/[\x00-\x08\x0b-\x1f]/.test(s) && $('*').toArray().every(el =>
+      'tagName' in el && 'attribs' in el && ['html', 'head', 'body', 'p', 'h2', 'em', 'strong', 'br'].includes(el.tagName) && Object.keys(el.attribs || {}).length === 0) &&
       countLivBodyWords(s) >= 450 && countLivBodyWords(s) <= 3000;
   }),
   slug: z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/).max(120),

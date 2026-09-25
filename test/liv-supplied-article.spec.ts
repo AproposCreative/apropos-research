@@ -23,6 +23,7 @@ it('accepts and preserves the complete supplied review instead of shortening to 
 it.each(['<script>alert(1)</script>', '<p onclick="x">bad</p>', '<img src="x">', '<iframe src="x"></iframe>'])(
   'rejects unsafe or preapproved media markup %s', tag => expect(suppliedArticleInput.safeParse({...input,content:input.content+tag}).success).toBe(false));
 it('rejects injected approvals and invalid ratings', () => {
+  expect(suppliedArticleInput.safeParse({...input,content:'<script>alert(1)</script>'+input.content}).success).toBe(false);
   expect(suppliedArticleInput.safeParse({...input,gateResults:[{pass:true}]}).success).toBe(false);
   expect(suppliedArticleInput.safeParse({...input,rating:7}).success).toBe(false);
 });
