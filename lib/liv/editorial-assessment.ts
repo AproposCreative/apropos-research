@@ -161,7 +161,7 @@ export async function assessLivEditorialArticle(articleText: string, sourceUrls:
     // Newton's budget-aware client must reserve this single call and reconcile
     // usage. The local receipt independently prevents duplicate paid attempts.
     const response = await withLivCostStage('editorial-assessment', () =>
-      client.chat.completions.create(request, { timeout: 90_000, maxRetries: 0 })).catch(async error => {
+      client.chat.completions.create(request, { timeout: 180_000, maxRetries: 0 })).catch(async error => {
       const refusal = getLivCostPretransportError(error);
       if (refusal) await ref.set({ status: 'not_started',
         notStartedReason: ['liv_cost_monthly_budget_exceeded', 'liv_cost_call_limit_exceeded',

@@ -11,7 +11,9 @@ import { livEditorialFieldsSchema, livEditorialFieldContext, type LivEditorialFi
 import { livVisualReferenceSchema, type LivVisualReference } from '@/lib/liv/visual-evidence';
 import { observationReferenceSchema, type ObservationReference } from '@/lib/liv/observation-contract';
 
-export const maxDuration = 120;
+// Source retrieval + model call + persistence must finish before the caller's
+// deadline. Model timeout is 180s; strict Liv callers allow 240s.
+export const maxDuration = 250;
 
 const SYSTEM_PROMPT = `Du er en faktakontrollør for Apropos Magazine. Du modtager en liste af påstande (claims) fra en artikel.
 

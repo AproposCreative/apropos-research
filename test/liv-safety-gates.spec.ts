@@ -19,6 +19,17 @@ function jsonResponse(value: unknown, status = 200): Response {
 }
 
 describe('Liv safety gates', () => {
+  it('keeps fact retrieval/model/persistence inside a longer caller deadline without retries',async()=>{
+    const timeouts=vi.spyOn(AbortSignal,'timeout');
+    vi.stubGlobal('fetch',vi.fn().mockResolvedValueOnce(jsonResponse({data:{metrics:{wordCount:600,plagiarismRisk:'low'}}}))
+      .mockResolvedValueOnce(jsonResponse({error:'unavailable'},503)));
+    try{
+      await runSafetyGates({baseUrl:'http://localhost:3000',title:'Book',content:'ord '.repeat(600),
+        requireCompleteVerification:true,timeoutMs:90_000,factcheckTimeoutMs:240_000});
+      expect(timeouts.mock.calls.map(c=>c[0])).toEqual([90_000,240_000]);
+      expect(fetch).toHaveBeenCalledTimes(2);
+    }finally{timeouts.mockRestore();}
+  });
   afterEach(() => {
     vi.unstubAllGlobals();
   });

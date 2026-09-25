@@ -48,6 +48,7 @@ export interface SafetyGatesInput {
   bodyLengthPolicy?: 'liv-daily';
   /** Bound infrastructure checks so preparation jobs cannot outlive the worker. */
   timeoutMs?: number;
+  factcheckTimeoutMs?: number;
   /** Server-saved report only. Consolidated Liv retries revalidate through the assessment cache. */
   priorFactcheck?: GroundedReport;
   /** Pointer only; /api/factcheck resolves the exact saved audit and pixel proof. */
@@ -278,7 +279,7 @@ export async function runSafetyGates(input: SafetyGatesInput): Promise<SafetyGat
         ...(input.observationReference ? { observationReference: input.observationReference } : {}),
         ...(fieldContext ? { editorialFields: input.editorialFields } : {}) } : {}) }),
       cache: 'no-store',
-      signal: AbortSignal.timeout(timeoutMs),
+      signal: AbortSignal.timeout(input.factcheckTimeoutMs ?? (consolidated ? 240_000 : timeoutMs)),
     });
     fcHttpStatus = res.status;
     if (!res.ok) {

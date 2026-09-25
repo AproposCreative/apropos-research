@@ -217,7 +217,7 @@ it('checks every unit and Liv editorial criteria in ONE bounded call, retaining 
   expect(editorialVerdictPasses(result.editorialReview!)).toBe(true);
   expect(state.create).toHaveBeenCalledTimes(1);
   const [request, options] = state.create.mock.calls[0];
-  expect(options).toEqual({ timeout: 90_000, maxRetries: 0 });
+  expect(options).toEqual({ timeout: 180_000, maxRetries: 0 });
   expect(request).toMatchObject({ max_completion_tokens: 16000, store: false,
     response_format: { type: 'json_schema', json_schema: { strict: true, name: 'liv_editorial_assessment_v1' } } });
   expect(JSON.parse(request.messages[1].content).units).toEqual(articleUnits(text));
