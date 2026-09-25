@@ -5,12 +5,13 @@ import {getAdminDb} from '@/lib/firebase-admin';
 import {claimPreparation,releasePreparation} from '@/lib/liv/delivery-store';
 import {cmsFieldHash} from '@/lib/liv/cms-field-hash';
 import {livImageArticleHash} from '@/lib/liv/article-image-hash';
-import {copenhagenClock} from '@/lib/liv/delivery-policy';
+import {addDays,copenhagenClock,validDay} from '@/lib/liv/delivery-policy';
 import {retrieveSource,sourceUrl} from '@/lib/factcheck/source-reader';
 import {readingDossierInput,readingDossierFields,readingDossierKey} from '@/lib/liv/reading-dossier';
 export const runtime='nodejs';
 export const maxDuration=60;
 const schema=z.object({dayKey:z.string(),requestId:z.string().regex(/^[a-zA-Z0-9_-]{8,100}$/),expectedCheckpointHash:z.string().regex(/^[a-f0-9]{64}$/),
+ scope:z.enum(['prepare','prepare-alternative','reserve']).optional(),
  reason:z.string().trim().min(10).max(500),urls:z.array(z.string().url()).max(2),
  unavailableUrls:z.array(z.string().url()).min(1).max(2).optional(),dossier:readingDossierInput.optional()}).strict()
  .refine(input=>input.urls.length>0 || !!input.unavailableUrls?.length || !!input.dossier);
@@ -22,7 +23,9 @@ export async function POST(req:NextRequest){
  const denied=requireCronBearer(req);if(denied)return denied;
  let input:z.infer<typeof schema>;
  try{if(req.nextUrl.search)throw Error();const raw=await req.text();if(raw.length>32000)throw Error();input=schema.parse(JSON.parse(raw));
-  if(input.dayKey!==copenhagenClock().day)throw Error();[...input.urls,...input.unavailableUrls||[]].forEach(u=>sourceUrl(u));
+  const today=copenhagenClock().day;
+  if(!validDay(input.dayKey) || (input.scope ? input.dayKey<today || input.dayKey>addDays(today,7) || !!input.dossier : input.dayKey!==today))throw Error();
+  [...input.urls,...input.unavailableUrls||[]].forEach(u=>sourceUrl(u));
  }catch{return json({error:'liv_sources_invalid'},400);}
  let lease:string|null=null;
  let stage='lease';
@@ -30,7 +33,7 @@ export async function POST(req:NextRequest){
   lease=await claimPreparation();if(!lease)return json({error:'already_preparing'},409);
   stage='checkpoint';
   const db=getAdminDb();if(!db)throw Error();
-  const run=db.collection('livDailyArticles').doc(`reserve-editorial-${input.dayKey}`),audit=run.collection('sourceSupplements').doc(input.requestId);
+  const run=db.collection('livDailyArticles').doc(`${input.scope||'reserve-editorial'}-${input.dayKey}`),audit=run.collection('sourceSupplements').doc(input.requestId);
   const previous=(await audit.get()).data();
   if(previous){if(previous.inputHash!==cmsFieldHash(input))throw Error();return json({status:'already_added'});}
   const snapshot=(await run.get()).data(),article=snapshot?.articleCheckpoint;

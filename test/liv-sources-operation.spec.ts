@@ -38,6 +38,19 @@ it('appends retrieved evidence only and makes replay idempotent',async()=>{
  expect(a.content).toBe(article.content);expect(a.researchSources).toHaveLength(2);expect(s.rows.get(path).status).toBe('failed');
  expect((await POST(req())).status).toBe(200);expect(s.retrieve).toHaveBeenCalledOnce();expect(s.writes).toHaveBeenCalledTimes(2);
 });
+it('repairs tomorrow’s saved scheduled evidence with the same audit/CAS, without changing copy or granting retry',async()=>{
+ const future='livDailyArticles/prepare-2026-09-21';s.rows.set(future,structuredClone(s.rows.get(path)));
+ const body={...input,dayKey:'2026-09-21',scope:'prepare'};
+ expect((await POST(req(body))).status).toBe(200);
+ expect(s.rows.get(future).articleCheckpoint.content).toBe(article.content);
+ expect(s.rows.get(future).articleCheckpoint.researchSources).toHaveLength(2);
+ expect(s.rows.get(future).retryAuthorization).toBeUndefined();
+ expect(s.rows.get(path).articleCheckpoint.researchSources).toHaveLength(1);
+ expect((await POST(req(body))).status).toBe(200);expect(s.retrieve).toHaveBeenCalledOnce();
+});
+it.each(['2026-09-19','2026-09-28','2026-02-30'])('rejects out-of-window scheduled repair %s',async dayKey=>{
+ expect((await POST(req({...input,dayKey,scope:'prepare'}))).status).toBe(400);expect(s.writes).not.toHaveBeenCalled();
+});
 it.each([{...input,force:true},{...input,dayKey:'2026-09-21'},{...input,urls:['http://localhost/a']}])('rejects unsafe inputs',async body=>{expect((await POST(req(body))).status).toBe(400);expect(s.writes).not.toHaveBeenCalled()});
 it.each(['processing','draft','published'])('cannot modify an active or delivered %s run',async status=>{s.rows.get(path).status=status;expect((await POST(req())).status).toBe(409);expect(s.retrieve).not.toHaveBeenCalled()});
 it('preserves work on source failure or stale checkpoints',async()=>{s.retrieve.mockRejectedValue(Error('private error'));const r=await POST(req());expect(r.status).toBe(409);expect(JSON.stringify(await r.json())).not.toContain('private');expect(s.writes).not.toHaveBeenCalled();expect(s.release).toHaveBeenCalledWith('lease');});

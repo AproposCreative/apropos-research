@@ -19,7 +19,7 @@ export function weeklyStory(day: string, state: DeliveryState, plan?: Record<str
     e.kind === 'scheduled' && e.scheduledDay === day && e.expiresDay >= day && e.decision !== 'rejected' && e.state !== 'rejected');
   const row = alternative ?? primary;
   const title = text(entry?.title) || text(plan?.topicHint) || text(row?.articleCheckpoint?.title) ||
-    text(row?.topic?.title) || 'Emne vælges af Liv';
+    text(row?.topic?.title) || text(row?.topic) || 'Emne vælges af Liv';
   const base = { day, title, itemId: entry?.itemId ?? slot?.itemId ?? null };
   if (slot?.state === 'published') return { ...base, status: 'published', detail: 'Udgivelsen er bekræftet.' };
   if (slot?.state === 'attempted' || entry?.publicationBlockers?.length) {
