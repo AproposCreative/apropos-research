@@ -6,6 +6,7 @@ import { cmsFieldHash } from '@/lib/liv/cms-field-hash';
 
 export type PreparationProof = {
   expected: WebflowArticleFields; hash: string; editorialPassed: true; structurePassed: true; planHash?: string;
+  editorialBasis?: { kind: 'owner-approved-original-review'; approvalId: string; approvalHash: string };
 };
 /** Reusable admission for initial saves and recovery of a known, already-paid CMS draft. */
 export async function admitPreparedArticle(entry: Omit<ReadyEntry, 'state' | 'payloadHash' | 'preparedAt'>,

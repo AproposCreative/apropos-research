@@ -14,7 +14,7 @@ export type LivSelectedImage = {
   credit: string;
   createdAt: string;
   rightsStatus: 'unverified';
-  visualReview: 'pending' | 'automated';
+  visualReview: 'pending' | 'automated' | 'editorial';
   /** Immutable operator copyedit whose changed text requires fresh media proof. */
   editorialEdit?: { runId: string; requestId: string };
   /** One audited caption-only fallback to an already verified alt description. */

@@ -40,6 +40,8 @@ import { runLivDaily } from '@/lib/liv/run-daily';
 import { SourceSimilarityError } from '@/lib/liv/source-similarity-error';
 import { defaultEditorialPlan, editorialPlanHash } from '@/lib/liv/rolling-plan';
 import { cmsFieldHash } from '@/lib/liv/cms-field-hash';
+import { suppliedArticleCheckpoint } from '@/lib/liv/supplied-article';
+import { livImageArticleHash } from '@/lib/liv/article-image-hash';
 
 const saveResult = { articleId: 'saved-item', publicationVerified: false,
   receipt: { saveState: 'draft', saveVerified: true, cmsLocaleId: 'locale' } };
@@ -153,6 +155,32 @@ beforeEach(() => {
   mocks.live.mockResolvedValue({ publicationVerified: true, publicUrl: 'https://www.aproposmagazine.com/articles/et-museum-aabner' });
 });
 afterEach(() => vi.unstubAllEnvs());
+it.each([true,false])('uses explicit supplied-review authority without AI calls; CMS ready=%s still controls admission', async cmsReady => {
+  const input={title:'Boganmeldelse: Partybus',subtitle:'En bog om selvbedrag',intro:'Romanen handler om selvbedrag.',
+    content:`<p>${'En konkret menneskelig læseoplevelse. '.repeat(160)}</p>`,slug:'partybus',excerpt:'En bog om selvbedrag',
+    section:'Kultur',tags:['Bøger'],seoTitle:'Partybus anmeldelse',seoDescription:'En bog om selvbedrag',primaryKeyword:'Partybus',
+    rating:5,ratingReason:'Stærk fortællerstemme og for langt midterparti.',imageSuggestions:[],researchSources:[
+      {title:'Bog',source:'Forlag',url:'https://bog.dk/bog'},{title:'Bogdata',source:'Bibliotek',url:'https://bibliotek.dk/bog'}]};
+  const article:any={...suppliedArticleCheckpoint(input),preparedMedia:['hero','body-1','body-2'].map((role,i)=>({role,contentHash:String(i).repeat(64)}))};
+  article.selectedImage={articleHash:livImageArticleHash(article)};
+  const reservation={input:{suppliedArticle:input},inputHash:cmsFieldHash({suppliedArticle:input})};
+  const runId='reserve-editorial-2026-09-12',approval={id:'owner-approval',runId,checkpointHash:cmsFieldHash(article),
+    reservationHash:reservation.inputHash,ownerUid:'frederik',createdAt:'2026-09-12',authority:'owner-approved-original-review',reason:'Original review approved'};
+  const hash=cmsFieldHash(approval);
+  mocks.row={articleCheckpoint:article,explicitPreparationInputHash:reservation.inputHash,suppliedEditorialApproval:{id:approval.id,hash}};
+  let reads=0;
+  mocks.doc.mockImplementation(()=>({get:async()=>{const value=++reads===1?mocks.row:reservation;return {data:()=>value};},
+    collection:()=>({doc:()=>({get:async()=>({data:()=>({approval,approvalHash:hash})})})})}));
+  mocks.readback.mockResolvedValue({draftConfirmed:true,publicationReady:cmsReady,checks:[{id:'image-bytes',ok:cmsReady}]});
+  const result=await runLivDaily(new NextRequest('http://localhost/api/liv/operations/retry'),{
+    dayKey:'2026-09-12',kind:'reserve',scope:'reserve-editorial',defaultPlan:defaultEditorialPlan('2026-09-12',true)});
+  expect(result.status).toBe(200);
+  expect(mocks.gates).not.toHaveBeenCalled();expect(mocks.supplement).not.toHaveBeenCalled();expect(mocks.refresh).not.toHaveBeenCalled();
+  expect(plans.generate).not.toHaveBeenCalled();expect(mocks.topic).not.toHaveBeenCalled();expect(mocks.live).not.toHaveBeenCalled();
+  expect(mocks.publish).toHaveBeenCalledOnce();
+  expect(mocks.proof).toHaveBeenCalledWith('2026-09-12','reserve-editorial',expect.objectContaining({editorialBasis:{kind:approval.authority,approvalId:approval.id,approvalHash:hash}}));
+  expect(mocks.admission).toHaveBeenCalledTimes(cmsReady?1:0);
+});
 it('surfaces research failure without generating media or pretending the day had no topic', async () => {
   vi.stubEnv('VERCEL_ENV', 'production');
   mocks.topic.mockRejectedValue(new Error('liv_trending_http_401'));

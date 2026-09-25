@@ -58,6 +58,7 @@ import { editorialKindForArticle } from '@/lib/liv/editorial-kind';
 import { cmsFieldHash } from '@/lib/liv/cms-field-hash';
 import { editorialPlanHash } from '@/lib/liv/rolling-plan';
 import { suppliedArticleInput, assertSuppliedCopyPreserved } from './supplied-article';
+import { readSuppliedApproval, suppliedApprovalGates } from './supplied-approval';
 import { addDays, copenhagenClock } from '@/lib/liv/delivery-policy';
 import type { LivDailyPlan } from '@/lib/liv/daily-plan-store';
 import { currentLivCostContext, withLivCostContext, withLivCostStage } from '@/lib/liv/cost-context';
@@ -210,6 +211,7 @@ async function runLivDailyOperation(req: NextRequest, preparation?: LivPreparati
       throw new Error('liv_supplied_copy_invalid');
     }
     const suppliedWordCount = supplied ? assertSuppliedCopyPreserved(checkpoint!, supplied) : undefined;
+    const suppliedApproval = supplied ? await readSuppliedApproval(livDailyDocId(dayKey, scope), checkpoint!, suppliedReservation, prepRow?.data()) : null;
     const resumeWritingRunId = prepRow?.data()?.resumeWritingRunId as string | undefined;
     const pickedTopic = resumeWritingRunId && prepRow?.data()?.topic && !checkpoint
       ? { title: prepRow.data()!.topic as string, score: 0 }
@@ -360,13 +362,13 @@ async function runLivDailyOperation(req: NextRequest, preparation?: LivPreparati
     const countDatedHosts = () => new Set((article.researchSources || []).filter(source => source.url && source.publishedAt)
       .map(source => new URL(source.url!).hostname.replace(/^www\./, ''))).size;
     let datedHosts = countDatedHosts();
-    if (preparation && datedHosts < 2 && !article.researchSupplementedAt) {
+    if (preparation && !suppliedApproval && datedHosts < 2 && !article.researchSupplementedAt) {
       article = await (await import('@/lib/liv/supplement-research')).supplementLivResearch(article, topic.title);
       await checkpointLivDailyArticle(dayKey, article);
       await yieldLivPreparation(dayKey, scope as Exclude<LivDailyScope, 'daily'>);
       return NextResponse.json({ status: 'research_supplemented', dayKey, title: article.title });
     }
-    if (preparation && datedHosts < 2) {
+    if (preparation && !suppliedApproval && datedHosts < 2) {
       article = await (await import('@/lib/liv/supplement-research')).refreshLivResearchDates(article,
         extractResearchUrls(generationPlan?.directiveHint || ''));
       await checkpointLivDailyArticle(dayKey, article);
@@ -386,7 +388,8 @@ async function runLivDailyOperation(req: NextRequest, preparation?: LivPreparati
 
     // Check the final body including generated captions, not a text-only revision.
     const observationReference = await (await import('./observation-evidence')).readObservationReference(livDailyDocId(dayKey, scope), article);
-    const gates = await runSafetyGates({
+    if (suppliedApproval && suppliedApproval.checkpointHash !== cmsFieldHash({ ...article })) throw Error('liv_supplied_approval_mismatch');
+    const gates = suppliedApproval ? suppliedApprovalGates(suppliedApproval) : await runSafetyGates({
       ...(observationReference ? { observationReference } : {}),
       baseUrl,
       title: article.title,
@@ -560,6 +563,8 @@ async function runLivDailyOperation(req: NextRequest, preparation?: LivPreparati
         if (preparation) {
           preparationProof = { expected: payload, hash: cmsFieldHash(payload as unknown as Record<string, unknown>),
             editorialPassed: true, structurePassed: true,
+            ...(suppliedApproval ? { editorialBasis: { kind: 'owner-approved-original-review' as const, approvalId: suppliedApproval.id,
+              approvalHash: cmsFieldHash(suppliedApproval) } } : {}),
             ...(preparation.kind === 'scheduled' ? { planHash: editorialPlanHash(scope === 'prepare-alternative' ? savedPlan : plan ?? null) } : {}) };
           await checkpointPreparationProof(dayKey, scope as Exclude<LivDailyScope, 'daily'>, preparationProof);
         }
