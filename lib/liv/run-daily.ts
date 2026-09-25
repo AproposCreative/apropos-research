@@ -57,6 +57,7 @@ import { admitPreparedArticle, type PreparationProof } from '@/lib/liv/prepared-
 import { editorialKindForArticle } from '@/lib/liv/editorial-kind';
 import { cmsFieldHash } from '@/lib/liv/cms-field-hash';
 import { editorialPlanHash } from '@/lib/liv/rolling-plan';
+import { suppliedArticleInput, assertSuppliedCopyPreserved } from './supplied-article';
 import { addDays, copenhagenClock } from '@/lib/liv/delivery-policy';
 import type { LivDailyPlan } from '@/lib/liv/daily-plan-store';
 import { currentLivCostContext, withLivCostContext, withLivCostStage } from '@/lib/liv/cost-context';
@@ -200,6 +201,15 @@ async function runLivDailyOperation(req: NextRequest, preparation?: LivPreparati
     const prepRow = preparation ? await getAdminDb()?.collection('livDailyArticles')
       .doc(livDailyDocId(dayKey, scope)).get() : null;
     const checkpoint = prepRow?.data()?.articleCheckpoint as GeneratedArticle | undefined;
+    const suppliedReservation = scope === 'reserve-editorial' ? (await getAdminDb()!.collection('livExplicitPreparations')
+      .doc(livDailyDocId(dayKey, scope)).get()).data() : undefined;
+    const supplied = suppliedReservation?.input?.suppliedArticle
+      ? suppliedArticleInput.parse(suppliedReservation.input.suppliedArticle) : undefined;
+    if (supplied && (suppliedReservation!.inputHash !== cmsFieldHash(suppliedReservation!.input) ||
+      prepRow?.data()?.explicitPreparationInputHash !== suppliedReservation!.inputHash || !checkpoint)) {
+      throw new Error('liv_supplied_copy_invalid');
+    }
+    const suppliedWordCount = supplied ? assertSuppliedCopyPreserved(checkpoint!, supplied) : undefined;
     const resumeWritingRunId = prepRow?.data()?.resumeWritingRunId as string | undefined;
     const pickedTopic = resumeWritingRunId && prepRow?.data()?.topic && !checkpoint
       ? { title: prepRow.data()!.topic as string, score: 0 }
@@ -255,7 +265,7 @@ async function runLivDailyOperation(req: NextRequest, preparation?: LivPreparati
       return NextResponse.json({ status: 'text_prepared', dayKey, title: article.title });
     }
     const priorRevisionCount = article.factRevisionCount ?? (article.factRevisionId ? 1 : 0);
-    if (preparation && checkpoint && Number.isInteger(priorRevisionCount) && priorRevisionCount >= 0 && priorRevisionCount < 2 &&
+    if (!supplied && preparation && checkpoint && Number.isInteger(priorRevisionCount) && priorRevisionCount >= 0 && priorRevisionCount < 2 &&
         (priorRevisionCount === 0 || !!article.factRevisionId)) {
       const { resumeLivFactRevision } = await import('@/lib/liv/fact-revision');
       let priorResults: GateResult[] = prepRow?.data()?.gateResults || [];
@@ -338,7 +348,7 @@ async function runLivDailyOperation(req: NextRequest, preparation?: LivPreparati
     // Reject deterministic structural defects before buying source supplements,
     // media or assessment. Length remains part of the existing combined factual
     // correction so a short draft does not cause a separate rewriting purchase.
-    const earlyStructure = checkCmsDraft(article, 'liv-daily');
+    const earlyStructure = checkCmsDraft(article, suppliedWordCount ?? 'liv-daily');
     const structuralFailures = earlyStructure.checks.filter(check => !['length', 'sources'].includes(check.id) && !check.ok);
     if (structuralFailures.length) {
       gateResults = structuralFailures.map(check => ({ name: `structure-${check.id}`, pass: false, detail: check.label }));
@@ -421,7 +431,7 @@ async function runLivDailyOperation(req: NextRequest, preparation?: LivPreparati
     const correctionCount = article.factRevisionCount ?? (article.factRevisionId ? 1 : 0);
     const correctionMetadataValid = Number.isInteger(correctionCount) && correctionCount >= 0 && correctionCount < 2 &&
       (correctionCount === 0 ? !article.factRevisionId : !!article.factRevisionId);
-    if (preparation && correctionMetadataValid &&
+    if (!supplied && preparation && correctionMetadataValid &&
         (factRepairNeeded || (gates.pass && !length.pass))) {
       const { repairLivArticleFacts } = await import('@/lib/liv/fact-revision');
       article = await repairLivArticleFacts(article, factRepairNeeded ? diagnostic : undefined,
@@ -528,7 +538,8 @@ async function runLivDailyOperation(req: NextRequest, preparation?: LivPreparati
 
     // Structure is only one part of approval. CMS fields and assets are checked
     // after saving, and live publication has its own verified receipt.
-    const cmsCheck = checkCmsDraft(article, 'liv-daily');
+    if (supplied) assertSuppliedCopyPreserved(article, supplied);
+    const cmsCheck = checkCmsDraft(article, suppliedWordCount ?? 'liv-daily');
     let preparationProof: PreparationProof | undefined;
     if (preparation && !cmsCheck.structureReady) {
       gateResults.push({ name: 'structure', pass: false,

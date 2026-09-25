@@ -21,6 +21,7 @@ vi.mock('@/lib/firebase-admin', () => ({ getAdminDb: () => state.available ? {
 import { POST } from '@/app/api/liv/operations/prepare/route';
 import { reserveExplicitLivPreparation } from '@/lib/liv/explicit-preparation';
 import { livImageArticleHash } from '@/lib/liv/article-image-hash';
+import { suppliedArticleCheckpoint } from '@/lib/liv/supplied-article';
 
 const dayKey = '2026-09-12', id = `reserve-editorial-${dayKey}`;
 const runPath = `livDailyArticles/${id}`, reservationPath = `livExplicitPreparations/${id}`;
@@ -180,6 +181,23 @@ it('serializes competing reservations to one immutable request per day', async (
     reserveExplicitLivPreparation({ ...input, requestId: 'another-request' }, 'lease')]);
   expect(results.map(result => result.status)).toEqual(['fulfilled', 'rejected']);
   expect(state.rows.get(reservationPath).input.requestId).toBe(input.requestId);
+});
+
+it('imports supplied copy once, preserves failed candidates, and rejects changed copy on replay', async () => {
+  const suppliedArticle = {title:'Boganmeldelse: En bog',subtitle:'En lang boganmeldelse',intro:'Her er vores anmeldelse.',
+    content:`<p>${'Et menneske med hemmeligheder. '.repeat(200)}</p>`,slug:'en-bog',excerpt:'En lang boganmeldelse',
+    section:'Kultur',tags:['Bøger'],seoTitle:'En bog',seoDescription:'En lang boganmeldelse',primaryKeyword:'En bog',
+    rating:5,ratingReason:'Fortællerstemmen er stærk, men midten er lang.',
+    researchSources:[{title:'Forlaget',source:'Forlaget',url:'https://bog.dk/bog'},
+      {title:'Bibliotek',source:'Bibliotek',url:'https://bibliotek.dk/bog'}],imageSuggestions:[]};
+  const body = {...input,suppliedArticle};
+  expect((await POST(request(body))).status).toBe(200);
+  expect(state.rows.get(runPath)).toMatchObject({status:'processing',continuationReady:true,
+    articleCheckpoint:suppliedArticleCheckpoint(suppliedArticle)});
+  expect(state.rows.get(runPath)).not.toHaveProperty('gateResults');
+  expect((await POST(request(body))).status).toBe(200);
+  expect((await POST(request({...body,suppliedArticle:{...suppliedArticle,title:'Anden bog'}}))).status).toBe(409);
+  expect(state.rows.get(`livDailyArticles/reserve-${dayKey}`).reason).toBe('article_evidence_insufficient');
 });
 
 it('returns only a safe error for thrown workflow failures, releasing the lease without resetting the reservation', async () => {

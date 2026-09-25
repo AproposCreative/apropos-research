@@ -7,6 +7,7 @@ import { cmsFieldHash } from './cms-field-hash';
 import { livImageArticleHash } from './article-image-hash';
 import type { LivDailyPlan } from './daily-plan-store';
 import { LIV_EDITORIAL_KINDS } from './editorial-kind';
+import { suppliedArticleInput, suppliedArticleCheckpoint } from './supplied-article';
 
 const text = (max: number) => z.string().trim().min(3).max(max)
   .refine(value => !/[<>\x00-\x08\x0b-\x1f\x7f\u202a-\u202e\u2066-\u2069]/.test(value));
@@ -16,7 +17,9 @@ export const explicitPreparationInput = z.object({
   topicHint: text(200), directiveHint: text(4000),
   articleFormat: z.enum(['article', 'research-review']),
   editorialKind: z.enum(LIV_EDITORIAL_KINDS).optional(),
-}).strict().refine(input => input.editorialKind === undefined || input.articleFormat === 'article');
+  suppliedArticle: suppliedArticleInput.optional(),
+}).strict().refine(input => input.editorialKind === undefined || input.articleFormat === 'article')
+  .refine(input => !input.suppliedArticle || input.articleFormat === 'research-review');
 
 /** Called only behind cron auth and the shared preparation lease. This reserves
  * input/ownership, never a retry grant, quality approval or separate workflow. */
@@ -44,7 +47,10 @@ export async function reserveExplicitLivPreparation(value: unknown, lease: strin
       tx.create(reservation, { input, inputHash, createdAt: FieldValue.serverTimestamp() });
       // Bind this exact explicit reserve namespace before the shared runner claims
       // it. No status/counter reset, and an unrelated existing row cannot be adopted.
-      tx.create(run, { dayKey: input.dayKey, explicitPreparationInputHash: inputHash });
+      const article = input.suppliedArticle ? suppliedArticleCheckpoint(input.suppliedArticle) : undefined;
+      tx.create(run, { dayKey: input.dayKey, explicitPreparationInputHash: inputHash,
+        ...(article ? { status: 'processing', continuationReady: true,
+          articleCheckpoint: article, articleCheckpointHash: livImageArticleHash(article) } : {}) });
       return;
     }
     if (saved.inputHash !== inputHash || !saved.input || cmsFieldHash(saved.input) !== inputHash ||

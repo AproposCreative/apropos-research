@@ -19,7 +19,7 @@ export async function POST(req: NextRequest) {
     // No dry-run or scope query can change the semantics of this explicit POST.
     if (req.nextUrl.search) throw new Error('invalid');
     const raw = await req.text();
-    if (raw.length > 8000) throw new Error('invalid');
+    if (raw.length > 90000) throw new Error('invalid');
     input = explicitPreparationInput.parse(JSON.parse(raw));
     if ((input as { dayKey: string }).dayKey !== copenhagenClock().day) throw new Error('invalid');
   } catch { return json({ error: 'liv_prepare_invalid' }, 400); }

@@ -41,7 +41,7 @@ const escape = (value: string) => value.replace(/&/g, '&amp;').replace(/</g, '&l
 
 export function resolveLivMediaMode(article: GeneratedArticle, requested?: MediaMode): MediaMode {
   // Reviews and film/TV content must not acquire invented documentary imagery.
-  const realImages = article.articleFormat === 'research-review' || ['film', 'tv-series'].includes(article.subjectType || '') ||
+  const realImages = (article.articleFormat === 'research-review' && article.subjectType !== 'literature') || ['film', 'tv-series'].includes(article.subjectType || '') ||
     /\b(?:film|serie|serier|tv|biograf)\b/i.test([article.section, ...(article.tags || [])].join(' '));
   if (realImages && requested === 'illustration') throw new Error('liv_media_review_requires_photography');
   const officialStills = new Set((article.imageSuggestions || []).filter(image =>
