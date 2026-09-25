@@ -64,7 +64,9 @@ export async function supplementLivResearch(article: GeneratedArticle, topic: st
   const subject = topic.replace(/["\n\r]/g, ' ').slice(0, 300);
   const excluded = hosts.map(host => `-site:${host}`).join(' ');
   const searches = await Promise.allSettled([
-    getResearch(`"${subject}" officiel presse og uafhængig kultur omtale udgivet dato ${excluded}`,
+    // This can be an original editorial headline, not a phrase any source has
+    // published. Exact quoting needlessly suppresses the evidence search.
+    getResearch(`${subject} officiel presse og uafhængig kultur omtale udgivet dato ${excluded}`,
       { maxResults: 5, model: livModels().utility, timeoutMs: 30_000, allowFallback: false }),
   ]);
   const urls = new Map<string, string>();

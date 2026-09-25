@@ -40,7 +40,8 @@ it('starts one bounded utility search without paid fallback with the exact topic
   const pending = supplementLivResearch(article, 'Alle Guds farver');
   expect(mocks.search).toHaveBeenCalledTimes(1);
   for (const [query, options] of mocks.search.mock.calls) {
-    expect(query).toContain('"Alle Guds farver"');
+    expect(query).toContain('Alle Guds farver');
+    expect(query).not.toContain('"Alle Guds farver"');
     for (const domain of ['soundvenue.com', 'newtales.dk', 'kino.dk']) expect(query).toContain(`-site:${domain}`);
     expect(options).toEqual({ maxResults: 5, model: 'fixture-utility', timeoutMs: 30000, allowFallback: false });
   }
