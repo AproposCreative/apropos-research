@@ -1,20 +1,31 @@
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { NextRequest, NextResponse } from 'next/server';
+import {createHash} from 'node:crypto';
 const state = vi.hoisted(() => ({ rows: new Map<string, any>(), available: true, auth: vi.fn(), claim: vi.fn(), release: vi.fn(),
   plan: vi.fn(), run: vi.fn(), tx: vi.fn(), reads: vi.fn() }));
 vi.mock('@/lib/cron/cron-auth', () => ({ requireCronBearer: state.auth }));
 vi.mock('@/lib/liv/delivery-store', () => ({ claimPreparation: state.claim, releasePreparation: state.release }));
 vi.mock('@/lib/liv/daily-plan-store', () => ({ getLivDailyPlan: state.plan }));
 vi.mock('@/lib/liv/run-daily', () => ({ runLivDaily: state.run }));
-vi.mock('@/lib/firebase-admin', () => ({ getAdminDb: () => state.available ? {
-  collection: (name: string) => ({ doc: (id: string) => ({ path: `${name}/${id}` }) }),
+vi.mock('@/lib/firebase-admin', () => {const ref=(path:string):any=>({path,collection:(n:string)=>({doc:(id:string)=>ref(`${path}/${n}/${id}`)})});return { getAdminDb: () => state.available ? {
+  collection: (name: string) => ({ doc: (id: string) => ref(`${name}/${id}`) }),
   runTransaction: state.tx,
-} : null }));
+} : null }});
 import { POST } from '@/app/api/liv/operations/continue/route';
 import { livImageArticleHash } from '@/lib/liv/article-image-hash';
 
 const day = '2026-09-15', runPath = `livDailyArticles/prepare-${day}`, planPath = `livDailyPlan/plan-${day}`;
 const input = { dayKey: day, kind: 'scheduled' };
+it.each(['ok','no-audit','untrusted','paid','consumed'])('resumes only an unused audited deferred grant: %s',async mode=>{
+ const requestId='deferred-week-123',id=createHash('sha256').update(requestId).digest('hex');
+ state.rows.set(runPath,{dayKey:day,status:'failed',reason:'stale_checkpoint_retired',retryAuthorization:id});
+ if(mode!=='no-audit')state.rows.set(`${runPath}/retryRequests/${id}`,{requestId,retryInputHash:'a'.repeat(64),deferred:true,
+  authorizedBy:mode==='untrusted'?'client':'cron-authenticated-operator'});
+ if(mode==='paid')state.rows.get(runPath).articleCheckpoint={content:'Preserve'};
+ if(mode==='consumed')delete state.rows.get(runPath).retryAuthorization;
+ expect((await POST(request({...input,resumeDeferred:true}))).status).toBe(mode==='ok'?200:409);
+ expect(state.run).toHaveBeenCalledTimes(mode==='ok'?1:0);
+});
 const request = (body: unknown = input, query = '') => new NextRequest(`https://app.example/api/liv/operations/continue${query}`, {
   method: 'POST', body: JSON.stringify(body), headers: { authorization: 'Bearer test-only' },
 });

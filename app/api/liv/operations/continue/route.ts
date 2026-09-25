@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
+import {createHash} from 'node:crypto';
 import { requireCronBearer } from '@/lib/cron/cron-auth';
 import { getAdminDb } from '@/lib/firebase-admin';
 import { claimPreparation, releasePreparation } from '@/lib/liv/delivery-store';
@@ -13,7 +14,7 @@ import { runLivDaily } from '@/lib/liv/run-daily';
 
 export const runtime = 'nodejs';
 export const maxDuration = 300;
-const inputSchema = z.object({ dayKey: z.string().refine(validDay), kind: z.literal('scheduled') }).strict();
+const inputSchema = z.object({ dayKey: z.string().refine(validDay), kind: z.literal('scheduled'), resumeDeferred:z.literal(true).optional() }).strict();
 const json = (body: unknown, status = 409) => NextResponse.json(body, { status, headers: { 'Cache-Control': 'no-store' } });
 
 /** Continue one yielded stage of an existing scheduled run. Never a start,
@@ -51,6 +52,20 @@ export async function POST(req: NextRequest) {
       if (!currentPlan || currentPlan.dayKey !== input.dayKey || currentPlan.status !== plan.status ||
         editorialPlanHash(currentPlan as LivDailyPlan) !== editorialPlanHash(plan)) throw new Error('liv_continue_conflict');
       const article = row?.articleCheckpoint;
+      if(input.resumeDeferred){
+        // Consume an existing deferred grant through the normal runner. Never
+        // create a retry grant or discard paid work to fill the queue early.
+        if(!row || row.dayKey!==input.dayKey || input.dayKey<=copenhagenClock().day ||
+          !['failed','skipped_no_topic'].includes(row.status) || !/^[a-f0-9]{64}$/.test(row.retryAuthorization||'') ||
+          row.articleCheckpoint || row.articleCheckpointHash || row.continuationReady || row.rawResponse || row.resumeWritingRunId ||
+          row.webflowItemId || row.preparationProof || row.cmsSaveStarted)throw new Error('liv_continue_conflict');
+        const audit=(await tx.get(db.collection(LIV_DAILY_COLLECTION).doc(livDailyDocId(input.dayKey,'prepare'))
+          .collection('retryRequests').doc(row.retryAuthorization))).data();
+        if(!audit || audit.deferred!==true || audit.authorizedBy!=='cron-authenticated-operator' ||
+          typeof audit.requestId!=='string' || createHash('sha256').update(audit.requestId).digest('hex')!==row.retryAuthorization ||
+          !/^[a-f0-9]{64}$/.test(audit.retryInputHash||''))throw new Error('liv_continue_conflict');
+        return;
+      }
       if (!row || row.dayKey !== input.dayKey || row.status !== 'processing' || row.continuationReady !== true ||
         !canResumeLivPreparationCheckpoint(row) || row.retryAuthorization || row.webflowItemId || row.preparationProof ||
         row.cmsSaveStarted || !article || !['title', 'slug', 'intro', 'content'].every(key => typeof article[key] === 'string') ||
