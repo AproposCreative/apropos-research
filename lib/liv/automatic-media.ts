@@ -31,6 +31,8 @@ export type MediaDependencies = {
   review: (article: GeneratedArticle, mode: MediaMode, images: Array<{ bytes: Buffer; alt: string; caption: string }>, jobId: string) => Promise<boolean>;
   /** One durable label-only correction and independent review; never new pixels. */
   repairDescriptions?: (article: GeneratedArticle, images: Buffer[], jobId: string) => Promise<GeneratedArticle>;
+  /** One durable illustration-only repair, followed by independent visual review. */
+  repairVisual?: (article: GeneratedArticle, images: Buffer[], jobId: string) => Promise<GeneratedArticle>;
   complete: (jobId: string, article: GeneratedArticle) => Promise<void>;
   fail: (jobId: string) => Promise<void>;
 };
@@ -184,7 +186,12 @@ export async function prepareLivAutomaticMedia(article: GeneratedArticle, option
       alt: hero.alt, credit: hero.credit, createdAt: new Date().toISOString(), rightsStatus: 'unverified', visualReview: 'automated' };
     if (!approved) {
       if (!deps.repairDescriptions) throw new Error('liv_media_visual_check_failed');
-      result = await deps.repairDescriptions(result, prepared.map(item => item.bytes), jobId);
+      try { result = await deps.repairDescriptions(result, prepared.map(item => item.bytes), jobId); }
+      catch (error) {
+        if (mode !== 'illustration' || !deps.repairVisual || !(error instanceof Error) ||
+          error.message !== 'liv_media_visual_check_failed') throw error;
+        result = await deps.repairVisual(result, prepared.map(item => item.bytes), jobId);
+      }
     }
     await deps.complete(jobId, result);
     return result;

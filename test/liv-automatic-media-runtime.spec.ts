@@ -4,7 +4,7 @@ vi.mock('@/lib/images/text-free', () => ({ ensureTextFreeImage: async (bytes: Bu
 import { createHash } from 'node:crypto';
 const mocks = vi.hoisted(() => ({ row: undefined as any, writes: vi.fn(), stages: vi.fn(), save: vi.fn(), download: vi.fn(),
   stageRows: {} as Record<string, any>, files: new Map<string, Buffer>(), getMetadata: vi.fn(),
-  chat: vi.fn(), generate: vi.fn(), read: vi.fn(), dbAvailable: true, keyAvailable: true, tail: Promise.resolve() as Promise<unknown> }));
+  chat: vi.fn(), generate: vi.fn(), edit: vi.fn(), read: vi.fn(), dbAvailable: true, keyAvailable: true, tail: Promise.resolve() as Promise<unknown> }));
 vi.mock('@/lib/firebase-admin', () => ({
   getAdminDb: () => mocks.dbAvailable ? {
     collection: () => ({ doc: () => ({
@@ -37,7 +37,7 @@ vi.mock('@/lib/firebase-admin', () => ({
     download: (options: unknown) => mocks.download(path, options), getMetadata: mocks.getMetadata,
   }) }),
 }));
-vi.mock('@/lib/openai', () => ({ getOpenAIClient: () => mocks.keyAvailable ? { chat: { completions: { create: mocks.chat } }, images: { generate: mocks.generate } } : null }));
+vi.mock('@/lib/openai', () => ({ getOpenAIClient: () => mocks.keyAvailable ? { chat: { completions: { create: mocks.chat } }, images: { generate: mocks.generate, edit: mocks.edit } } : null }));
 vi.mock('@/lib/liv/model-config', () => ({ livModels: () => ({ utility: 'test-utility-model' }) }));
 vi.mock('@/lib/liv/public-media-reader', () => ({ readPublicMedia: mocks.read }));
 import { livMediaRuntime, aproposIllustrationStyle } from '@/lib/liv/automatic-media-runtime';
@@ -497,6 +497,38 @@ async function prepareLabelRepair() {
 }
 const labelCorrection = () => ({ fixable: true, corrections: [{ role: 'body-1',
   alt: 'En scene med trommer og et kabel i forgrunden.', caption: `AI-illustration: ${savedPlan.images[1].caption}` }] });
+it.each(['approved','rejected','timeout'])('edits only one defective illustration, retaining paid versions and never repurchasing after %s', async outcome => {
+  await prepareLabelRepair();
+  mocks.chat.mockResolvedValueOnce(responseJson({fixable:false}));
+  mocks.chat.mockResolvedValueOnce(responseJson({repairable:true,role:'body-1',instruction:'Remove the competing elements and preserve one simple central subject.'}));
+  const edited=await sharp({create:{width:1000,height:600,channels:3,background:'#11cc99'}}).png().toBuffer();
+  if(outcome==='timeout')mocks.edit.mockRejectedValueOnce(new Error('timeout'));
+  else mocks.edit.mockResolvedValueOnce({data:[{b64_json:edited.toString('base64')}],usage:{total_tokens:25}});
+  mocks.chat.mockResolvedValueOnce(responseJson({pass:outcome==='approved'}));
+  if(outcome==='approved'){
+    const result=await prepareLivAutomaticMedia(labelInput,{dayKey:'2026-09-12'},livMediaRuntime());
+    expect(result.preparedMedia![1].contentHash).not.toBe(mocks.stageRows['body-1'].evidence.contentHash);
+    expect(result.preparedMedia![0]).toEqual(mocks.stageRows.hero.evidence);
+    expect(result.preparedMedia![2]).toEqual(mocks.stageRows['body-2'].evidence);
+    expect(result.selectedImage!.articleHash).toBe(livImageArticleHash(result));
+    expect(result.content).toContain('<p>Først.</p>');expect(result.content).toContain(result.preparedMedia![1].url.replace(/&/g,'&amp;'));
+    expect(mocks.stageRows['visual-review'].result.pass).toBe(false);
+    expect(mocks.stageRows['visual-repair-approved'].previous).toEqual(mocks.stageRows['body-1'].evidence);
+    expect(await prepareLivAutomaticMedia(labelInput,{dayKey:'2026-09-12'},livMediaRuntime())).toEqual(result);
+  }else{
+    await expect(prepareLivAutomaticMedia(labelInput,{dayKey:'2026-09-12'},livMediaRuntime())).rejects.toThrow('liv_media_');
+    await expect(prepareLivAutomaticMedia(labelInput,{dayKey:'2026-09-12'},livMediaRuntime())).rejects.toThrow('liv_media_');
+    expect(mocks.stageRows['visual-repair-approved']).toBeUndefined();
+  }
+  expect(mocks.generate).toHaveBeenCalledTimes(3);expect(mocks.edit).toHaveBeenCalledTimes(1);
+  expect(mocks.edit.mock.calls[0][0]).toMatchObject({n:1,model:'gpt-image-1.5'});
+  expect(mocks.edit.mock.calls[0][1]).toMatchObject({maxRetries:0});
+});
+it('yields before a visual repair request when insufficient function time remains',async()=>{
+  await prepareLabelRepair();mocks.chat.mockResolvedValueOnce(responseJson({fixable:false}));
+  await expect(prepareLivAutomaticMedia(labelInput,{dayKey:'2026-09-12'},livMediaRuntime(Date.now()+120000))).rejects.toThrow('liv_media_repair_pending');
+  expect(mocks.edit).not.toHaveBeenCalled();expect(mocks.stageRows['visual-repair-plan']).toBeUndefined();
+});
 it('repairs labels once and independently approves unchanged pixels while preserving the rejection and original metadata', async () => {
   await prepareLabelRepair();
   mocks.chat.mockResolvedValueOnce(responseJson(labelCorrection()));

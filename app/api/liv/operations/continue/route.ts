@@ -75,7 +75,7 @@ export async function POST(req: NextRequest) {
     });
     const result = await runLivDaily(req, { dayKey: input.dayKey, kind: 'scheduled', defaultPlan: plan });
     const body = await result.json();
-    const stages = ['text_prepared', 'facts_revised', 'research_supplemented', 'media_prepared'];
+    const stages = ['text_prepared', 'facts_revised', 'research_supplemented', 'media_prepared', 'media_repair_pending'];
     // Do not forward provider errors, article text, source bodies or gate internals.
     const status = result.ok && body.queued === true ? 'ready' : result.ok && stages.includes(body.status)
       ? body.status : 'blocked_saved_work';

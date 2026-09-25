@@ -663,6 +663,10 @@ async function runLivDailyOperation(req: NextRequest, preparation?: LivPreparati
   } catch (e) {
     if (e instanceof ArticleSaveError && e.articleId) savedWebflowItemId = e.articleId;
     const msg = e instanceof Error ? e.message : 'Ukendt fejl';
+    if (preparation && msg === 'liv_media_repair_pending' && !savedWebflowItemId) {
+      await yieldLivPreparation(dayKey, scope as Exclude<LivDailyScope, 'daily'>);
+      return NextResponse.json({ status: 'media_repair_pending', dayKey });
+    }
     // Retain actual pre-checkpoint scores, never raw text or approval evidence.
     const similarity = e instanceof SourceSimilarityError ? e : null;
     const diagnostic = similarity ? (({ sourceHost, sourceHash, complete, failure, scores, method }) =>

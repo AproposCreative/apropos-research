@@ -455,6 +455,16 @@ it('resumes reserve text, checkpoints media, and yields before final checks', as
   expect(mocks.gates).not.toHaveBeenCalled(); expect(mocks.publish).not.toHaveBeenCalled();
 });
 
+it('yields a known pending visual repair rather than failing or starting another candidate',async()=>{
+  mocks.row={articleCheckpoint:{...structuralFields,title:'Saved text',content:'Saved text',
+    researchSources:[{url:'https://museum.dk/news',publishedAt:'2026-09-10'},{url:'https://kultur.dk/news',publishedAt:'2026-09-10'}]}};
+  mocks.media.mockRejectedValueOnce(new Error('liv_media_repair_pending'));
+  const result=await(await runLivDaily(new NextRequest('http://localhost/api/cron/liv-prepare'),{
+    dayKey:'2026-09-12',kind:'reserve',defaultPlan:defaultEditorialPlan('2026-09-12',true),
+  })).json();
+  expect(result.status).toBe('media_repair_pending');expect(mocks.yield).toHaveBeenCalledWith('2026-09-12','reserve');
+  expect(mocks.finish).not.toHaveBeenCalled();expect(mocks.publish).not.toHaveBeenCalled();expect(plans.failed).not.toHaveBeenCalled();
+});
 it('supplements dated evidence before paying for images and keeps the same article checkpoint', async () => {
   const article = { ...structuralFields, title: 'Saved text', content: 'Saved text', researchSources: [{ url: 'https://museum.dk/news' }, { url: 'https://kultur.dk/news' }] };
   mocks.row = { articleCheckpoint: article };

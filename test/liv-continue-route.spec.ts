@@ -129,7 +129,7 @@ it('cannot repeat a consumed stage or turn a failure into a retry', async () => 
   expect((await POST(request())).status).toBe(409); expect(state.run).toHaveBeenCalledOnce();
 });
 
-it.each(['text_prepared', 'facts_revised', 'research_supplemented', 'media_prepared', 'ready'])('returns bounded stage %s without internal output', async status => {
+it.each(['text_prepared', 'facts_revised', 'research_supplemented', 'media_prepared', 'media_repair_pending', 'ready'])('returns bounded stage %s without internal output', async status => {
   state.run.mockResolvedValue(NextResponse.json({ status, queued: status === 'ready', error: 'private', title: 'private' }));
   expect(await (await POST(request())).json()).toEqual({ status, dayKey: day });
 });
