@@ -15,6 +15,7 @@ import { isLivHeroDimensions } from './hero-dimensions';
 import { aproposIllustrationStyle } from '@/lib/image-gen/styles';
 import { TEXT_FREE_IMAGE_RULE } from '@/lib/images/text-free-policy';
 import { cmsFieldHash } from './cms-field-hash';
+import { isLivDfiPressPage, extractLivDfiPressPhotos } from './dfi-press-photos';
 export { aproposIllustrationStyle } from '@/lib/image-gen/styles';
 
 const hash = (bytes: Buffer | string) => createHash('sha256').update(bytes).digest('hex');
@@ -282,12 +283,13 @@ export function livMediaRuntime(deadline = Date.now() + 180_000): MediaDependenc
       // text, doing another paid search, or mutating the article checkpoint.
       if (candidates.length < 3) {
         const sources = [...new Set((article.researchSources || []).map(source => source.url))]
-          .filter(url => isLivTudumSource(url) || isLivAmazonEditorialSource(url)).slice(0, 2);
+          .filter(url => isLivTudumSource(url) || isLivAmazonEditorialSource(url) || isLivDfiPressPage(url)).slice(0, 2);
         for (const pageUrl of sources) {
           if (candidates.length >= 6) break;
           try {
             if (!pages.has(pageUrl)) pages.set(pageUrl, (await readPublicMedia(pageUrl, 'html', timeout(8000))).toString('utf8'));
             const photos = isLivTudumSource(pageUrl) ? extractLivTudumPhotos(pages.get(pageUrl)!, pageUrl)
+              : isLivDfiPressPage(pageUrl) ? extractLivDfiPressPhotos(pages.get(pageUrl)!, pageUrl)
               : extractLivAmazonPhotos(pages.get(pageUrl)!, pageUrl);
             for (const photo of photos.slice(0, 6)) {
               if (candidates.length >= 6) break;

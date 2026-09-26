@@ -142,6 +142,16 @@ it('does not discover photos from untrusted saved pages or call another page aft
   expect(await livMediaRuntime().candidates({ ...article, researchSources: [{ url: 'https://evil.netflix.com/tudum/articles/monster' }] as any })).toEqual([]);
   expect(mocks.read).not.toHaveBeenCalled();
 });
+it('recovers DFI original press downloads from saved sources without buying another research call', async () => {
+  const page='https://via.ritzau.dk/pressemeddelelse/15155265/film-award?publisherId=13560928';
+  const html='<div data-cypress="release-header"><a href="/nyhedsrum/13560928/det-danske-filminstitut">DFI</a></div>'+[1,2,3].map(i=>
+    `<figure><img src="/data/images/public/13560928/15155265/8402aa13-b36c-48fa-b01b-5e5513075830-w_240.jpg"><figcaption>Scene</figcaption><figcaption><strong>Nordisk Film</strong></figcaption><a class="GalleryItem__link" download href="/files/13560928/15155265/53573${i}/da">Download</a></figure>`).join('');
+  mocks.read.mockImplementation(async (url,kind)=>Buffer.from(kind==='html'?html:url));
+  const result=await livMediaRuntime().candidates({...article,imageSuggestions:[],researchSources:[{url:page}] as any});
+  expect(result).toHaveLength(3);
+  expect(result.every(c=>c.credit==='Pressebillede: Nordisk Film' && c.sourcePageUrl===page)).toBe(true);
+  expect(mocks.read).toHaveBeenCalledTimes(4);expect(mocks.chat).not.toHaveBeenCalled();expect(mocks.generate).not.toHaveBeenCalled();
+});
 it('does not silently create clients or credentials if the existing configuration is missing', () => {
   mocks.keyAvailable = false;
   expect(() => livMediaRuntime()).toThrow('model_unavailable');
