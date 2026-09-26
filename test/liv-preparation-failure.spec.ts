@@ -2,6 +2,15 @@ import { expect, it } from 'vitest';
 import { preparationDependencyCode, preparationDependencyFailure } from '@/lib/liv/preparation-failure';
 import { getLivCostPretransportError, LivCostPretransportError } from '@/lib/liv/cost-errors';
 import { decidePreparation } from '@/lib/liv/preparation-policy';
+import { SourceSimilarityError } from '@/lib/liv/source-similarity-error';
+
+it('does not label an incomplete editorial check with HTTP 503 as a provider outage', () => {
+  const error = new SourceSimilarityError({ pass: false, complete: false, failure: 'semantic-review-invalid',
+    scores: { embeddingSim: .86, ngramJaccard: .01, openingSim: .04 } },
+    { url: 'https://press.test/exhibition', contentHash: 'a'.repeat(64) });
+  expect(error.status).toBe(503);
+  expect(preparationDependencyFailure(error)).toBeNull();
+});
 
 it('preserves the SDK-wrapped cost cause instead of buying a different topic', () => {
   const error = new Error('Connection error', { cause: new LivCostPretransportError('liv_cost_provider_quota_exhausted') });

@@ -67,7 +67,10 @@ const pending = new Map<string, Promise<SemanticSourceReview>>();
  * Only a typed, known unpaid budget denial permits another guarded attempt. */
 export function reviewSemanticSource(article: string, source: string): Promise<SemanticSourceReview> {
   if ([article, source].some(text => text.length < 80 || text.length > 60_000)) return Promise.reject(new Error('liv_semantic_review_input_invalid'));
-  const model = livModels().utility;
+  // This is a rare full-text editorial judgment after cheap lexical/embedding
+  // screening, not a routine utility task. A capable single review is cheaper
+  // than false-positive rewrites. Keep its bounded budget and immutable cache.
+  const model = livModels().research;
   const articleHash = hash(article), sourceHash = hash(source);
   const inputHash = hash(JSON.stringify([LIV_SEMANTIC_SOURCE_POLICY, prompt, model, article, source]));
   const key = `${LIV_SEMANTIC_SOURCE_POLICY}-${inputHash}`;

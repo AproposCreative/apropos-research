@@ -1,8 +1,8 @@
 import { beforeEach, expect, it, vi } from 'vitest';
 const state = vi.hoisted(() => ({ rows: new Map<string, Record<string, any>>(), create: vi.fn(), available: true,
-  failSave: false, keyAvailable: true, model: 'gpt-5.6-luna', queue: Promise.resolve() as Promise<unknown> }));
+  failSave: false, keyAvailable: true, model: 'gpt-5.6-sol', queue: Promise.resolve() as Promise<unknown> }));
 vi.mock('@/lib/openai', () => ({ getOpenAIClient: () => state.keyAvailable ? ({ chat: { completions: { create: state.create } } }) : null }));
-vi.mock('@/lib/liv/model-config', () => ({ livModels: () => ({ utility: state.model }) }));
+vi.mock('@/lib/liv/model-config', () => ({ livModels: () => ({ utility: 'gpt-5.6-luna', research: state.model }) }));
 vi.mock('@/lib/firebase-admin', () => ({ getAdminDb: () => state.available ? {
   collection: (collection: string) => ({ doc: (id: string) => ({ id: `${collection}/${id}`,
     set: async (patch: object) => {
@@ -45,7 +45,7 @@ const response = (value: unknown = judgment(), finish_reason = 'stop') => ({ mod
   usage: { prompt_tokens: 250, completion_tokens: 300 } });
 beforeEach(() => {
   vi.resetAllMocks(); state.rows.clear(); state.available = true; state.failSave = false; state.keyAvailable = true;
-  state.model = 'gpt-5.6-luna'; state.queue = Promise.resolve(); state.create.mockResolvedValue(response());
+  state.model = 'gpt-5.6-sol'; state.queue = Promise.resolve(); state.create.mockResolvedValue(response());
 });
 
 it('persists exact anchored evidence, policy, usage and bounded paid request; concurrent/sequential hits never pay twice', async () => {
@@ -70,7 +70,7 @@ it('persists exact anchored evidence, policy, usage and bounded paid request; co
 it('keys the cache by full texts beyond the embedding prefix and by model', async () => {
   await reviewSemanticSource(article + ' '.repeat(4100), source);
   await reviewSemanticSource(article + ' '.repeat(4100) + 'Changed conclusion.', source);
-  state.model = 'gpt-5.6-sol';
+  state.model = 'gpt-5.6-luna';
   await reviewSemanticSource(article + ' '.repeat(4100), source);
   expect(state.create).toHaveBeenCalledTimes(3);
 });

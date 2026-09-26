@@ -1,5 +1,6 @@
 import { providerFailure, type ProviderFailure } from '@/lib/ai/provider-error';
 import { getLivCostPretransportError } from './cost-errors';
+import { SourceSimilarityError } from './source-similarity-error';
 
 const providerFailures: ProviderFailure[] = ['quota_exhausted', 'rate_limited',
   'authentication_failed', 'access_denied', 'provider_unavailable'];
@@ -16,6 +17,8 @@ export function preparationDependencyCode(value: unknown): string | null {
 export function preparationDependencyFailure(error: unknown): string | null {
   const denied = getLivCostPretransportError(error);
   if (denied) return preparationDependencyCode(denied.code);
+  // Editorial validation has its own HTTP 503; it is not an upstream outage.
+  if (error instanceof SourceSimilarityError) return null;
   const failure = providerFailure(error);
   return failure ? `liv_provider_${failure}` : null;
 }
