@@ -21,7 +21,9 @@ vi.mock('@/lib/openai', () => ({ getImageGenOpenAIClient: () => ({ chat: { compl
 import { ensureTextFreeImage, getTextFreeReceipt } from '@/lib/images/text-free';
 import { textFreeCanvas, textFreeVerdict } from '@/lib/images/text-free-policy';
 let original: Buffer;
-const answer = (hasText: boolean, preserved = true) => ({ choices: [{ finish_reason: 'stop', message: { content: JSON.stringify({ hasText, preserved, regions: hasText ? [{ x: 550, y: 150, width: 400, height: 430 }] : [] }) } }] });
+const answer = (hasText: boolean, preserved = true) => ({ choices: [{ finish_reason: 'stop', message: { content: JSON.stringify({ hasText, preserved,
+  reason: hasText ? 'Distinct lettering is visible in the indicated rectangular area.' : 'The visible strokes are material texture rather than letters or recognizable brand marks.',
+  regions: hasText ? [{ x: 550, y: 150, width: 400, height: 430 }] : [] }) } }] });
 beforeEach(async () => {
   vi.clearAllMocks(); f.rows.clear(); f.files.clear();
   process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET = 'test-bucket';
@@ -37,19 +39,19 @@ it('does not buy an edit for a clean image and reuses inspection on reopening', 
   expect(f.chat).toHaveBeenCalledOnce(); expect(f.edit).not.toHaveBeenCalled();
 });
 it('edits once, preserves original, removes padding, and caches the clean derivative', async () => {
-  f.chat.mockResolvedValueOnce(answer(true)).mockResolvedValueOnce(answer(false));
+  f.chat.mockResolvedValueOnce(answer(true)).mockResolvedValueOnce(answer(true)).mockResolvedValueOnce(answer(false));
   const result = await ensureTextFreeImage(original);
   expect(result.receipt.edited).toBe(true); expect(result.receipt.image).toMatchObject({ width: 1280, height: 720 });
   expect(f.files.get(result.receipt.original.storagePath).bytes.equals(original)).toBe(true);
   await ensureTextFreeImage(original); await ensureTextFreeImage(result.bytes);
-  expect(f.edit).toHaveBeenCalledOnce(); expect(f.chat).toHaveBeenCalledTimes(2);
+  expect(f.edit).toHaveBeenCalledOnce(); expect(f.chat).toHaveBeenCalledTimes(3);
   expect((await getTextFreeReceipt(result.receipt.id)).image.contentHash).toBe(result.receipt.image.contentHash);
 });
 it('fails closed on changed identity and does not regenerate on retry', async () => {
-  f.chat.mockResolvedValueOnce(answer(true)).mockResolvedValueOnce(answer(false, false));
+  f.chat.mockResolvedValueOnce(answer(true)).mockResolvedValueOnce(answer(true)).mockResolvedValueOnce(answer(false, false));
   await expect(ensureTextFreeImage(original)).rejects.toThrow('review_failed');
   await expect(ensureTextFreeImage(original)).rejects.toThrow('review_failed');
-  expect(f.edit).toHaveBeenCalledOnce(); expect(f.chat).toHaveBeenCalledTimes(2);
+  expect(f.edit).toHaveBeenCalledOnce(); expect(f.chat).toHaveBeenCalledTimes(3);
 });
 it('blocks remaining lettering with no automatic image regeneration', async () => {
   f.chat.mockResolvedValue(answer(true));
@@ -62,6 +64,36 @@ it('does not purchase again after an ambiguous provider timeout', async () => {
   await expect(ensureTextFreeImage(original)).rejects.toThrow('timeout');
   await expect(ensureTextFreeImage(original)).rejects.toThrow('outcome_unknown');
   expect(f.edit).toHaveBeenCalledOnce();
+});
+it('confirms a false positive once and preserves original pixels without purchasing an edit', async () => {
+  f.chat.mockResolvedValueOnce(answer(true)).mockResolvedValueOnce(answer(false));
+  const r=await ensureTextFreeImage(original);
+  expect(r.bytes.equals(original)).toBe(true);expect(r.receipt.edited).toBe(false);
+  expect(f.chat.mock.calls[1][0]).toMatchObject({model:'gpt-5.6-sol',max_completion_tokens:1000});
+  await ensureTextFreeImage(original);expect(f.chat).toHaveBeenCalledTimes(2);expect(f.edit).not.toHaveBeenCalled();
+});
+it('can recover a clean original while retaining a legacy rejected edit and its failed comparison', async () => {
+  f.chat.mockResolvedValueOnce(answer(true)).mockResolvedValueOnce(answer(true)).mockResolvedValueOnce(answer(false,false));
+  await expect(ensureTextFreeImage(original)).rejects.toThrow('review_failed');
+  const confirmation=[...f.rows.keys()].find(k=>k.endsWith('/confirm-lettering'))!;
+  f.rows.delete(confirmation); // legacy fixture predates expert confirmation
+  const rejected=[...f.rows.entries()].find(([k])=>k.endsWith('/verify-blended'))!;
+  const snapshot=structuredClone(rejected[1]);
+  f.chat.mockResolvedValue(answer(false));
+  const r=await ensureTextFreeImage(original);
+  expect(r.bytes.equals(original)).toBe(true);expect(r.receipt.edited).toBe(false);
+  expect(f.rows.get(rejected[0])).toEqual(snapshot);expect(f.edit).toHaveBeenCalledOnce();
+  await ensureTextFreeImage(original);expect(f.chat).toHaveBeenCalledTimes(4);
+});
+it.each(['missing-reason','regions-without-text','uncertain-timeout'])('does not approve or re-buy invalid expert confirmation: %s',async kind=>{
+  f.chat.mockResolvedValueOnce(answer(true));
+  if(kind==='uncertain-timeout')f.chat.mockRejectedValueOnce(Error('timeout'));
+  else f.chat.mockResolvedValueOnce({choices:[{finish_reason:'stop',message:{content:JSON.stringify({hasText:false,
+    reason:kind==='missing-reason'?'': 'A specific visual explanation of the inspected original image is provided.',
+    regions:kind==='regions-without-text'?[{x:0,y:0,width:1,height:1}]:[]})}}]});
+  await expect(ensureTextFreeImage(original)).rejects.toThrow();
+  await expect(ensureTextFreeImage(original)).rejects.toThrow();
+  expect(f.chat).toHaveBeenCalledTimes(2);expect(f.edit).not.toHaveBeenCalled();
 });
 it('rejects a simultaneous second worker', async () => {
   let release!: (value: any) => void;
