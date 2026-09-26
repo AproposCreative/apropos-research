@@ -95,6 +95,36 @@ it('retains archived judgments from prior policies rather than rewriting them', 
   expect(state.rows.size).toBe(2);
 });
 
+it('uses three sufficient literal pairs despite malformed/redundant extras, preserving the paid raw response', async () => {
+  const value = judgment();
+  value.evidence.splice(1, 0, { ...value.evidence[1], articleExcerpt: 'A malformed extra passage that is not present in the article at all.' });
+  value.evidence.push({ ...value.evidence[3], sourceExcerpt: sourceParts[2].slice(3) });
+  const raw = JSON.stringify(value);
+  state.create.mockResolvedValue(response(raw));
+  const first = await reviewSemanticSource(article, source);
+  expect(first.validation).toEqual({ version: 'anchored-subset-v1', acceptedEvidenceIndices: [0, 2, 3],
+    discardedEvidence: [{ index: 1, reason: 'unanchored' }, { index: 4, reason: 'overlapping' }] });
+  expect(first.evidence).toHaveLength(3);
+  expect([...state.rows.values()][0].raw).toBe(raw);
+  expect(await reviewSemanticSource(article, source)).toEqual(first);
+  expect(state.create).toHaveBeenCalledTimes(1);
+});
+
+it.each(['borrowed', 'uncertain'])('cannot hide a contradictory %s finding in an invalid extra pair', async finding => {
+  const value = judgment();
+  value.evidence.push({ ...value.evidence[0], finding, sourceExcerpt: 'Unanchored negative finding must never be silently removed.' });
+  state.create.mockResolvedValue(response(value));
+  await expect(reviewSemanticSource(article, source)).rejects.toBeInstanceOf(CompletedSemanticReviewError);
+});
+
+it('still requires two independent structural comparisons after excluding malformed extras', async () => {
+  const value = judgment();
+  value.evidence[2].aspect = 'facts_attribution';
+  value.evidence.push({ ...value.evidence[1], sourceExcerpt: 'Another fabricated structural passage, absent from the source.' });
+  state.create.mockResolvedValue(response(value));
+  await expect(reviewSemanticSource(article, source)).rejects.toBeInstanceOf(CompletedSemanticReviewError);
+});
+
 it.each(['missing-quotes', 'invented-quote', 'wrong-side', 'no-structure', 'repeated-pair', 'overlapping-pair',
   'contradictory-borrowed', 'uncertain-evidence', 'short-reason', 'extra-approval', 'null', 'malformed', 'truncated', 'oversized'])(
   'rejects invalid paid evidence without re-paying: %s', async kind => {
