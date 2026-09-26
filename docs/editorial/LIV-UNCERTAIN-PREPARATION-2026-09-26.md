@@ -68,4 +68,29 @@ connector's condensed log output does not include request user-agent evidence.
 - Do not close the goal based on this repair, enabled settings or green tests.
   The two remaining checks require their own evidence.
 
-Deployment and post-release readback will be recorded below after completion.
+## Release and production readback
+
+Commit `87f04ce8f14fa92b1b68745111ae2e027d90d1ab` was pushed to
+`codex/liv-daily-recovery`. Production deployment
+`dpl_AQ7eADLLyHb6dEwNN28RKeCdUEWE` reached READY at 20:41:51 UTC, with the exact
+commit SHA, production target and `ai.aproposmagazine.com` alias confirmed.
+
+Owner-authenticated API readback after release returned HTTP 200 with the same
+two ready items and all seven week rows. Preparation remains idle. Independent
+manifest inspection reports published=true, overdue=false, reserves=1 of 1,
+missingDays=[], blockedItems=[], needsReconciliation=false. Immutable payloads:
+
+- Amalie: `dba63064d13c1debdb2ceb5c11a8e6426009c07f7e47e8438f5f4ae7e6a4214c`.
+- Reserve: `49a68d9d19dd5a6508e1655e4faad7d2808b64c3bdd0cbaac30407f749fe7781`.
+
+Both exactly match the pre-release inventory. Shared and image-gen cost ledgers
+are unchanged; the shared monthly count is still 928 of 1,000. The configured
+call limit and money limit are distinct; neither was raised or reset.
+
+The production error/fatal scan from READY through 20:43:08 UTC returned no
+matching logs. This is a bounded early scan, not proof of future reliability.
+
+The existing 10:20 heartbeat was updated, not duplicated, with the exact two
+item IDs and the remaining completion checks. It must not manually publish to
+manufacture unattended evidence. Browser tab 428018793 is retained for ordinary
+sign-in; the mobile UI and the next day's publication are still not verified.
