@@ -93,7 +93,11 @@ export async function readLivVisualEvidence(value: unknown, articleText: string,
   for (const image of media!) {
     const bytes = await readLivStoredImage(image.url);
     if (createHash('sha256').update(bytes).digest('hex') !== image.contentHash || bytes.length !== image.bytes) fail();
-    if (image.role === 'hero' || image.kind !== 'photography') continue;
+    if (image.role === 'hero' || !['photography', 'illustration'].includes(image.kind)) continue;
+    // Edited illustrations need their actual pixels too. A webpage cannot
+    // establish what appears in our own generated artwork. This supports only
+    // literal figure descriptions, never documentary evidence of an event.
+    const includePixels = automatic || image.kind === 'illustration';
     const figure = $(`figure[data-liv-media="${image.role}"]`);
     const caption = figure.find('figcaption');
     const img = figure.find('img');
@@ -107,7 +111,7 @@ export async function readLivVisualEvidence(value: unknown, articleText: string,
     const figureStart = contentStart + fragment.index!, figureEnd = figureStart + fragment[0].length;
     for (const field of ['alt', 'caption'] as const) {
       const text = image[field];
-      if (!automatic && !isAnonymousVisibleCaption(text)) continue;
+      if (!includePixels && !isAnonymousVisibleCaption(text)) continue;
       const fieldFragment = fragment[0].match(field === 'alt' ? /<img\b[^>]*>/ : /<figcaption\b[^>]*>[\s\S]*?<\/figcaption>/);
       if (!fieldFragment) fail();
       // Identical words elsewhere in prose cannot borrow a figure's evidence.
@@ -122,7 +126,7 @@ export async function readLivVisualEvidence(value: unknown, articleText: string,
       text, contentHash: cmsFieldHash({ reference, receiptHash, imageHash: image.contentHash, field, text }),
       retrievedAt: new Date().toISOString(), publishedAt: null, evidenceKind: 'verified-image-observation',
       receiptHash, imageHash: image.contentHash, unitIds,
-      ...(automatic ? {imageDataUrl:`data:image/jpeg;base64,${(await sharp(bytes).resize({width:1000,height:1000,fit:'inside',withoutEnlargement:true}).jpeg({quality:80}).toBuffer()).toString('base64')}`} : {}) });
+      ...(includePixels ? {imageDataUrl:`data:image/jpeg;base64,${(await sharp(bytes).resize({width:1000,height:1000,fit:'inside',withoutEnlargement:true}).jpeg({quality:80}).toBuffer()).toString('base64')}`} : {}) });
     }
   }
   return sources;

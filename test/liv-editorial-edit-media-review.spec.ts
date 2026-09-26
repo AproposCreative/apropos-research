@@ -132,6 +132,18 @@ it('hands off actual reviewed ALT observations, not interpretive captions, with 
   expect(state.read).toHaveBeenCalledTimes(3); expect(state.chat).not.toHaveBeenCalled(); expect(state.writes).not.toHaveBeenCalled();
   expect([...state.rows]).toEqual(before);
 });
+it('hands edited illustration pixels to independent fact checking without buying a second visual check', async () => {
+  const approved = await reviewLivEditorialEditMedia(pending, day);
+  state.rows.set(`livDailyArticles/${runId}`, { articleCheckpoint: approved, articleCheckpointHash: livImageArticleHash(approved) });
+  const fields = { title: approved.title, subtitle: approved.subtitle, excerpt: approved.excerpt, intro: approved.intro, content: approved.content };
+  const text = Object.values(fields).filter(Boolean).join('\n\n');
+  state.chat.mockClear(); state.writes.mockClear();
+  const sources = await readLivVisualEvidence({ runId, checkpointHash: fullHash(approved) }, text, fields);
+  expect(sources).toHaveLength(4);
+  expect(sources.every(source => source.imageDataUrl?.startsWith('data:image/jpeg;base64,') && source.publishedAt === null)).toBe(true);
+  expect(sources.every(source => source.unitIds.length === 1)).toBe(true);
+  expect(state.chat).not.toHaveBeenCalled(); expect(state.writes).not.toHaveBeenCalled();
+});
 
 async function automaticCheckpoint(){
  const {approved}=await photographicCheckpoint();
