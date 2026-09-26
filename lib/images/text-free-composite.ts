@@ -4,7 +4,10 @@ import { textFreeRegions } from './text-free-policy';
 /** The model cannot redraw a face or scene outside the detected lettering masks.
  * Original is the base layer; only feathered text regions use AI reconstruction. */
 export async function compositeTextRemoval(original: Buffer, edited: Buffer, regions: unknown) {
-  const normalized = await sharp(original, { limitInputPixels: 30_000_000 }).rotate().png().toBuffer();
+  // Preserve the full source in storage, but bound patch arrays/CPU even for
+  // 45 MP press originals. 3840 px still exceeds the 1920 px CMS deliverable.
+  const normalized = await sharp(original, { limitInputPixels: 80_000_000 }).rotate()
+    .resize({ width: 3840, height: 3840, fit: 'inside', withoutEnlargement: true }).png().toBuffer();
   const { width, height } = await sharp(normalized).metadata();
   if (!width || !height) throw new Error('image_text_dimensions');
   const boxes = textFreeRegions(regions).map(r => {

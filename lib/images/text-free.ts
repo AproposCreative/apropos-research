@@ -23,7 +23,9 @@ function storage() {
 /** Content-addressed, immutable originals and results. A response is saved before review. */
 async function save(bytes: Buffer): Promise<Asset> {
   const { name, bucket } = storage(), hash = imageByteHash(bytes);
-  const meta = await sharp(bytes, { limitInputPixels: 30_000_000 }).metadata();
+  // Match the existing public-image validator/encoder. Press originals commonly
+  // exceed 30 MP; keep original bytes, but inspect only the bounded thumbnail.
+  const meta = await sharp(bytes, { limitInputPixels: 80_000_000 }).metadata();
   if (!['jpeg', 'png', 'webp'].includes(meta.format || '') || !meta.width || !meta.height || (meta.pages ?? 1) !== 1 || bytes.length > 24_000_000) throw new Error('image_text_invalid');
   const storagePath = `editorial-images/text-free/${hash}.${meta.format}`;
   const file = bucket.file(storagePath);

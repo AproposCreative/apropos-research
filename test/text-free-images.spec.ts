@@ -38,6 +38,23 @@ it('does not buy an edit for a clean image and reuses inspection on reopening', 
   await ensureTextFreeImage(original);
   expect(f.chat).toHaveBeenCalledOnce(); expect(f.edit).not.toHaveBeenCalled();
 });
+it('accepts a high-resolution press original while preserving bytes and bounding the provider thumbnail', async () => {
+  const press=await sharp({create:{width:8192,height:5464,channels:3,background:'#aa0011'}}).jpeg().toBuffer();
+  const result=await ensureTextFreeImage(press);
+  expect(result.bytes.equals(press)).toBe(true);
+  expect(result.receipt.original).toMatchObject({width:8192,height:5464});
+  const url=f.chat.mock.calls[0][0].messages[1].content[1].image_url.url;
+  const meta=await sharp(Buffer.from(url.split(',')[1],'base64')).metadata();
+  expect(meta.width).toBeLessThanOrEqual(1280);expect(meta.height).toBeLessThanOrEqual(1024);
+  await ensureTextFreeImage(press);expect(f.chat).toHaveBeenCalledOnce();expect(f.edit).not.toHaveBeenCalled();
+});
+it('still rejects oversized raster headers before storage or paid inspection',async()=>{
+  const oversized=Buffer.from(original),sof=oversized.indexOf(Buffer.from([0xff,0xc0]));
+  expect(sof).toBeGreaterThan(0);
+  oversized.writeUInt16BE(9000,sof+5);oversized.writeUInt16BE(9000,sof+7);
+  await expect(ensureTextFreeImage(oversized)).rejects.toThrow();
+  expect(f.files.size).toBe(0);expect(f.chat).not.toHaveBeenCalled();expect(f.edit).not.toHaveBeenCalled();
+});
 it('edits once, preserves original, removes padding, and caches the clean derivative', async () => {
   f.chat.mockResolvedValueOnce(answer(true)).mockResolvedValueOnce(answer(true)).mockResolvedValueOnce(answer(false));
   const result = await ensureTextFreeImage(original);
