@@ -29,6 +29,14 @@ beforeEach(() => {
   };
 });
 describe('automatic Liv media', () => {
+  it('formats Markdown ending headings before images and final checks, preserving the actual words', async () => {
+    const content = Array.from({ length: 6 }, (_, i) => `Afsnit ${i + 1}: kunsten fylder i byen.`).join('\n\n') + '\n\n## En sidste tanke\n\nOrdene er de samme.';
+    const result = await prepareLivAutomaticMedia({ ...article, content }, { dayKey: '2026-09-26' }, deps);
+    expect(result.content).toContain('<h2>En sidste tanke</h2>');
+    expect(result.content).not.toContain('<p>##');
+    expect(load(result.content)('figure')).toHaveLength(2);
+    expect(result.content).toContain('Ordene er de samme.');
+  });
   it.each(['plan','generate','review'] as const)('preserves a proven provider quota stop from %s instead of misreporting an image defect',async stage=>{
     const denial=new LivCostPretransportError('liv_cost_provider_quota_exhausted');
     vi.mocked(deps[stage]).mockRejectedValue(new Error('SDK wrapper',{cause:denial}));

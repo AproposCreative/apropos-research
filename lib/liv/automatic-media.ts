@@ -7,6 +7,7 @@ import type { GeneratedArticle } from '@/lib/liv/generate-article';
 import { isLivOfficialImageSource } from '@/lib/liv/photo-credit';
 import { chooseLivHeroDimensions, isLivHeroDimensions } from './hero-dimensions';
 import { getLivCostPretransportError } from './cost-errors';
+import { normalizeLivHeadingMarkup } from './normalize-heading-markup';
 
 export type MediaMode = 'illustration' | 'photography';
 export type MediaStyle = 'expressive' | 'minimal';
@@ -72,7 +73,7 @@ export function validateLivMediaPlan(value: unknown, mode: MediaMode, candidates
 function bodyDocument(content: string) {
   const html = /<\w+\b/.test(content) ? content : content.split(/\n\s*\n/).filter(Boolean)
     .map(paragraph => `<p>${escape(paragraph).replace(/\n/g, '<br>')}</p>`).join('\n');
-  const $ = load(html);
+  const $ = load(normalizeLivHeadingMarkup(html));
   // Never silently remove an editor's existing imagery.
   if ($('img,figure,picture').length) throw new Error('liv_media_existing_body_images');
   const paragraphs = $('p').toArray().filter(node => !$(node).parents('blockquote,table,li').length);

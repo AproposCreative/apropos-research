@@ -33,10 +33,41 @@ vi.mock('@/lib/seo-engine/opportunity-engine/locale', () => ({ cmsLocaleIdFor: (
 vi.mock('@/lib/webflow-config', () => ({ getWebflowConfig: () => ({ articlesCollectionId: 'a'.repeat(24) }) }));
 import { reviseLivPresentation, cancelUnstartedLivPresentation, presentationRevisionInput, samePresentationBody } from '@/lib/liv/presentation-revision';
 import { cmsFieldHash } from '@/lib/liv/cms-field-hash';
+import { normalizeLivHeadingMarkup } from '@/lib/liv/normalize-heading-markup';
 const id = 'c'.repeat(24);
 let cms: any, input: any;
 const manifest = () => database.rows.get('livDelivery/manifest')!;
 const revision = () => [...database.rows].find(([k]) => k.startsWith('livPresentationRevisions/'))?.[1];
+it('normalizes only plain Markdown heading paragraphs, without touching prose, images or inline HTML', () => {
+  const fixed = '<p>## A heading</p><p>Unchanged # prose.</p><figure><img src="same.webp"><figcaption>Credit</figcaption></figure>';
+  expect(normalizeLivHeadingMarkup(fixed)).toBe(fixed.replace('<p>## A heading</p>', '<h2>A heading</h2>'));
+  expect(normalizeLivHeadingMarkup('<p># not an h1</p><p>## <em>Inline</em></p><p>####### no heading</p>')).toBe('<p># not an h1</p><p>## <em>Inline</em></p><p>####### no heading</p>');
+});
+it('repairs heading markup with an immutable before-image and synchronized proofs, no new prose', async () => {
+  const body = '<p>Preserved body.</p><p>## Stoffet er ikke medlemskabet</p><p>Same final thought.</p>';
+  const payload = database.rows.get(`livDelivery/item-${id}`)!;
+  payload.expected.content = body;
+  payload.payloadHash = cmsFieldHash(payload.expected);
+  manifest().entries[0].payloadHash = payload.payloadHash;
+  const row = database.rows.get('livDailyArticles/prepare-2026-09-15')!;
+  row.articleCheckpoint.content = body;
+  row.preparationProof = { ...row.preparationProof, expected: structuredClone(payload.expected), hash: payload.payloadHash };
+  cms.fieldData.content = body;
+  input.expectedCmsHash = cmsFieldHash(cms.fieldData);
+  input.expectedPayloadHash = payload.payloadHash;
+  input.normalizeHeadingMarkup = true;
+  const result = await reviseLivPresentation(input);
+  const expected = normalizeLivHeadingMarkup(body);
+  expect(cms.fieldData.content).toBe(expected);
+  const saved = database.rows.get('livDailyArticles/prepare-2026-09-15')!;
+  expect(saved.articleCheckpoint.content).toBe(expected);
+  expect(saved.preparationProof.expected.content).toBe(expected);
+  expect(database.rows.get(`livDelivery/item-${id}`)!.expected.content).toBe(expected);
+  expect([...database.rows].find(([key]) => key.startsWith('livPresentationAudits/'))![1].cms.fieldData.content).toBe(body);
+  expect(saved.originalFactResult).toEqual({ pass: true });
+  expect(await reviseLivPresentation(input)).toEqual(result);
+  expect(io.patch).toHaveBeenCalledTimes(1);
+});
 it('cancels an unstarted revision idempotently and rejects delayed writes without CMS calls', async () => {
   const before = structuredClone(manifest());
   const receipt = await cancelUnstartedLivPresentation(input);

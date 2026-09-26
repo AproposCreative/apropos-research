@@ -5,6 +5,7 @@ import { load } from 'cheerio';
 import { getAdminDb } from '@/lib/firebase-admin';
 import { cmsFieldHash } from './cms-field-hash';
 import { restorePreparedCaptions } from './restore-prepared-captions';
+import { normalizeLivHeadingMarkup } from './normalize-heading-markup';
 import { livImageArticleHash } from './article-image-hash';
 import { readLivWebflowJson, inspectLivCmsDraft } from './cms-readback';
 import { patchArticleFieldDataForLocale } from '@/lib/webflow/locale-items';
@@ -24,6 +25,7 @@ export const presentationRevisionInput = z.object({
   reason: text(1000), patch: z.object({ title: text(160).optional(), seoTitle: text(100), seoDescription: text(320) }).strict(),
   restorePreparedIntro: z.literal(true).optional(),
   restorePreparedCaptions: z.literal(true).optional(),
+  normalizeHeadingMarkup: z.literal(true).optional(),
 }).strict();
 type Input = z.infer<typeof presentationRevisionInput>;
 type Row = Record<string, unknown> & { articleCheckpoint?: GeneratedArticle; preparationProof?: PreparationProof };
@@ -176,12 +178,19 @@ export async function reviseLivPresentation(value: unknown) {
     });
     if (baseline.completed) return baseline.completed;
     const audit = baseline.audit!;
-    const expected = { ...audit.payload.expected, ...input.patch } as WebflowArticleFields;
+    const expected = { ...audit.payload.expected, ...input.patch,
+      ...(input.normalizeHeadingMarkup ? { content: normalizeLivHeadingMarkup(audit.payload.expected.content) } : {}),
+    } as WebflowArticleFields;
+    const repairedBody = input.restorePreparedCaptions
+      ? restorePreparedCaptions(String(audit.cms.fieldData.content || ''), audit.payload.expected.content)
+      : String(audit.cms.fieldData.content || '');
     // Restore only already-reviewed canonical text, never caller-supplied prose.
     // The pinned audit retains the differing CMS intro and all original proofs.
     const expectedFields = { ...presentationFields(audit.cms.fieldData, input.patch),
       ...(input.restorePreparedIntro ? { intro: expected.intro } : {}),
-      ...(input.restorePreparedCaptions ? { content: restorePreparedCaptions(String(audit.cms.fieldData.content || ''), expected.content) } : {}) };
+      ...(input.restorePreparedCaptions || input.normalizeHeadingMarkup ? {
+        content: input.normalizeHeadingMarkup ? normalizeLivHeadingMarkup(repairedBody) : repairedBody,
+      } : {}) };
     const save = async (patch: Record<string, unknown>) => db.runTransaction(async tx => {
       const latest = (await tx.get(revisionRef)).data();
       const state = (await tx.get(manifestRef)).data() as DeliveryState;
@@ -197,7 +206,7 @@ export async function reviseLivPresentation(value: unknown) {
         ...(input.patch.title ? { name: input.patch.title } : {}),
         'seo-title': input.patch.seoTitle, 'meta-description': input.patch.seoDescription,
         ...(input.restorePreparedIntro ? { intro: expected.intro } : {}),
-        ...(input.restorePreparedCaptions ? { content: expectedFields.content } : {}),
+        ...(input.restorePreparedCaptions || input.normalizeHeadingMarkup ? { content: expectedFields.content } : {}),
       }, locale);
     }
     const after = await readLivWebflowJson(path);
@@ -219,7 +228,7 @@ export async function reviseLivPresentation(value: unknown) {
     if (!inspection.draftConfirmed || !inspection.checks.length ||
       inspection.checks.some(c => !c.ok && !priorFailures.has(c.id)) ||
       inspection.checks.some(c => ['field:seo-title', 'field:meta-description', ...(input.restorePreparedIntro ? ['field:intro'] : [])].includes(c.id) && !c.ok) ||
-      (input.restorePreparedCaptions && inspection.checks.some(c => ['field:content', 'image:body-matches', 'image:body-assets'].includes(c.id) && !c.ok)) ||
+      ((input.restorePreparedCaptions || input.normalizeHeadingMarkup) && inspection.checks.some(c => ['field:content', 'image:body-matches', 'image:body-assets'].includes(c.id) && !c.ok)) ||
       inspection.fieldDataHash !== hash(expectedFields)) return fail('inspection_failed');
     await lease.assertOwned();
     const final = await readLivWebflowJson(path);
@@ -239,7 +248,9 @@ export async function reviseLivPresentation(value: unknown) {
         !entry || hash(entry) !== hash(audit.entry) || hash(payload || {}) !== hash(audit.payload) ||
         hash({ rows }) !== hash({ rows: audit.rows }) || Object.values(state.slots).some(s => s.itemId === input.itemId)) return fail('conflict');
       for (const saved of audit.rows as Array<{ id: string; row: Row }>) {
-        const article = presentationCheckpoint(saved.row.articleCheckpoint!, input.patch);
+        const checkpoint = saved.row.articleCheckpoint!;
+        const article = presentationCheckpoint(input.normalizeHeadingMarkup
+          ? { ...checkpoint, content: normalizeLivHeadingMarkup(checkpoint.content) } : checkpoint, input.patch);
         tx.set(db.collection('livDailyArticles').doc(saved.id), { ...saved.row, articleCheckpoint: article, title: article.title,
           articleCheckpointHash: livImageArticleHash(article),
           preparationProof: { ...saved.row.preparationProof, expected, hash: hash(expected) },

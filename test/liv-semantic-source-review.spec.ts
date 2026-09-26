@@ -75,6 +75,26 @@ it('keys the cache by full texts beyond the embedding prefix and by model', asyn
   expect(state.create).toHaveBeenCalledTimes(3);
 });
 
+it('separates factual inventory/order from expressive or argumentative borrowing, without auto-approval', async () => {
+  state.create.mockImplementation(async request => {
+    const instructions = request.messages[0].content;
+    expect(instructions).toContain('Separate a factual sequence from a creative argument');
+    expect(instructions).toContain('Do not require writers to scramble facts');
+    expect(instructions).toContain('reject genuinely borrowed expression or argument');
+    return response({ ...judgment(), decision: 'borrowed', reason: 'The article uses an original opening, but the later interpretation repeats the source-specific argument instead of only reporting exhibition facts.' });
+  });
+  expect((await reviewSemanticSource(article, source)).decision).toBe('borrowed');
+  expect(state.create).toHaveBeenCalledTimes(1);
+});
+
+it('retains archived judgments from prior policies rather than rewriting them', async () => {
+  const previous = { policy: 'semantic-source-v1', status: 'complete', raw: 'previous judgment' };
+  state.rows.set('livSemanticSourceReviews/semantic-source-v1-old', previous);
+  await reviewSemanticSource(article, source);
+  expect(state.rows.get('livSemanticSourceReviews/semantic-source-v1-old')).toEqual(previous);
+  expect(state.rows.size).toBe(2);
+});
+
 it.each(['missing-quotes', 'invented-quote', 'wrong-side', 'no-structure', 'repeated-pair', 'overlapping-pair',
   'contradictory-borrowed', 'uncertain-evidence', 'short-reason', 'extra-approval', 'null', 'malformed', 'truncated', 'oversized'])(
   'rejects invalid paid evidence without re-paying: %s', async kind => {
