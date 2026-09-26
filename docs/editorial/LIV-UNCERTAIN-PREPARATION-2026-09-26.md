@@ -94,3 +94,9 @@ The existing 10:20 heartbeat was updated, not duplicated, with the exact two
 item IDs and the remaining completion checks. It must not manually publish to
 manufacture unattended evidence. Browser tab 428018793 is retained for ordinary
 sign-in; the mobile UI and the next day's publication are still not verified.
+
+First scheduled invocations observed on the exact new deployment, without an
+operator HTTP trigger: `/api/cron/liv-daily-article` at 20:45:12 UTC,
+`/api/cron/liv-delivery-check` at 20:45:20, and `/api/cron/liv-prepare` at 20:45:22,
+all HTTP 200. This confirms the deployed schedule is being reached. At this
+time the publication window is closed; this is not a new article publication.
