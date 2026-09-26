@@ -1,9 +1,13 @@
 import { expect, it } from 'vitest';
 import { canRetryUnstartedPreparation, shouldExcludeLivTopic } from '@/lib/liv/preparation-retry';
-it('retries unstarted no-topic, research and model failures', () => {
+it('retries bounded pre-writing topic/source failures, not authentication failures', () => {
   expect(canRetryUnstartedPreparation({ status: 'skipped_no_topic' })).toBe(true);
-  expect(canRetryUnstartedPreparation({ status: 'failed', reason: 'liv_trending_http_401', preparationAttempts: 1 })).toBe(true);
+  expect(canRetryUnstartedPreparation({ status: 'failed', reason: 'liv_trending_http_401', preparationAttempts: 1 })).toBe(false);
   expect(canRetryUnstartedPreparation({ status: 'failed', reason: 'research_sources_unavailable', preparationAttempts: 1 })).toBe(true);
+});
+it.each(['Connection error.', 'Request timed out.', 'liv_provider_result_unconfirmed',
+  'liv_cost_provider_quota_exhausted', 'liv_cost_monthly_budget_exceeded'])('never retries dependency failure %s', reason => {
+  expect(canRetryUnstartedPreparation({ status: 'failed', reason, preparationAttempts: 1 })).toBe(false);
 });
 it.each(['webflowItemId', 'articleCheckpoint', 'articleCheckpointHash', 'preparationProof', 'cmsSaveStarted'])('preserves existing work identified by %s', key => {
   expect(canRetryUnstartedPreparation({ status: 'skipped_no_topic', [key]: 'saved' })).toBe(false);

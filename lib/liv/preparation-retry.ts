@@ -1,8 +1,10 @@
-/** Unstarted preparation failures can be retried automatically, at most 3 claims.
- * Research/model failures are transient often enough that permanently retaining
- * them would strand the rolling queue after one bad provider response. */
+import { decidePreparation, preparationBlocksNewWork } from './preparation-policy';
+
+/** Legacy pre-writing retries remain bounded. Dependency/uncertain outcomes
+ * never grant a retry merely because no article checkpoint was returned. */
 export function canRetryUnstartedPreparation(row: Record<string, unknown> | undefined): boolean {
   if (!row || hasSavedPreparation(row)) return false;
+  if (preparationBlocksNewWork(decidePreparation(row))) return false;
   const attempts = row.preparationAttempts ?? 0;
   if (typeof attempts !== 'number' || !Number.isInteger(attempts) || attempts < 0 || attempts >= 3) return false;
   return row.status === 'skipped_no_topic' || row.status === 'failed';

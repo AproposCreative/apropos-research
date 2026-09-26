@@ -11,6 +11,7 @@ const providerFailures: ProviderFailure[] = ['quota_exhausted', 'rate_limited',
 export function preparationDependencyCode(value: unknown): string | null {
   if (typeof value !== 'string') return null;
   if (/^liv_cost_[a-z_]{1,80}$/.test(value)) return value;
+  if (value === 'liv_provider_result_unconfirmed') return value;
   return providerFailures.some(failure => value === `liv_provider_${failure}`) ? value : null;
 }
 
@@ -20,5 +21,10 @@ export function preparationDependencyFailure(error: unknown): string | null {
   // Editorial validation has its own HTTP 503; it is not an upstream outage.
   if (error instanceof SourceSimilarityError) return null;
   const failure = providerFailure(error);
-  return failure ? `liv_provider_${failure}` : null;
+  if (failure) return `liv_provider_${failure}`;
+  // A lost response/abort is not evidence that the provider did no work. Keep a
+  // closed code in history instead of treating the SDK's message as bad content.
+  if (error instanceof Error && ['APIConnectionError', 'APIConnectionTimeoutError',
+    'AbortError', 'TimeoutError'].includes(error.name)) return 'liv_provider_result_unconfirmed';
+  return null;
 }

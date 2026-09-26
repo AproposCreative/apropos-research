@@ -6,6 +6,12 @@ export type PreparationDecision = {
   reasonCode: string;
   nextAttemptAt: number | null;
 };
+/** A dependency failure cannot be worked around by buying a different topic,
+ * reserve or day. This is shared with the legacy reserve eligibility path. */
+export function preparationBlocksNewWork(d: PreparationDecision): boolean {
+  return d.action === 'blocked' && ['budget_limit', 'provider_quota_exhausted',
+    'authentication_required', 'provider_unavailable', 'provider_result_unconfirmed'].includes(d.reasonCode);
+}
 export function timestampMillis(value: any): number {
   try { return typeof value === 'number' ? value : value?.toMillis?.() ?? Date.parse(value); }
   catch { return NaN; }
@@ -28,9 +34,14 @@ export function decidePreparation(row?: Record<string, any>, now = Date.now()): 
       return decision('wait', 'preparation_in_progress', started + 25 * 60_000);
     }
     // An interrupted call has an unknown outcome. Never buy that operation again.
-    return decision('alternative', 'provider_result_unconfirmed');
+    return decision('blocked', 'provider_result_unconfirmed');
   }
   const reason = typeof row.reason === 'string' ? row.reason.split(':', 1)[0].trim() : '';
+  if (['liv_provider_result_unconfirmed', 'provider_result_unconfirmed', 'research_timeout',
+    'liv_fact_revision_requires_reconciliation'].includes(reason) ||
+    /^(?:Connection error|Request timed out|fetch failed|The operation was aborted)\.?$/i.test(reason)) {
+    return decision('blocked', 'provider_result_unconfirmed');
+  }
   if (['research_provider_quota_exhausted', 'liv_provider_quota_exhausted', 'liv_cost_provider_quota_exhausted'].includes(reason)) return decision('blocked', 'provider_quota_exhausted');
   if (['research_provider_authentication_failed', 'research_provider_access_denied',
     'liv_provider_authentication_failed', 'liv_provider_access_denied'].includes(reason)) return decision('blocked', 'authentication_required');

@@ -3,7 +3,7 @@ import { LIV_DAILY_COLLECTION, livDailyDocId } from '@/lib/liv/daily-history-sto
 import { copenhagenClock, scheduledPreparationDays, type DeliveryState } from '@/lib/liv/delivery-policy';
 import { canRetryUnstartedPreparation } from '@/lib/liv/preparation-retry';
 import { reserveNeeded } from './reserve-preparation';
-import { decidePreparation, type PreparationDecision } from './preparation-policy';
+import { decidePreparation, preparationBlocksNewWork, type PreparationDecision } from './preparation-policy';
 import { nextScheduledPreparation } from './next-preparation';
 import { canPrepareReserveFallback } from './reserve-fallback-policy';
 
@@ -28,6 +28,8 @@ export type LivNextPreparationStatus = {
 
 /** The existing cron eligibility expression, not a new retry authorization. */
 export function canResumeLivPreparationCheckpoint(row: Record<string, any> | undefined): boolean {
+  const decision = decidePreparation(row);
+  if (preparationBlocksNewWork(decision) || decision.action === 'wait') return false;
   return !!row && (row.continuationReady === true && !!row.articleCheckpoint ||
     typeof row.retryAuthorization === 'string' || Number(row.preparationAttempts ?? 0) <= 4 &&
     Array.isArray(row.articleCheckpoint?.preparedMedia) && row.articleCheckpoint.preparedMedia.length >= 3 &&
@@ -52,6 +54,10 @@ export function livPreparationStatusForRow(day: string, scope: PreparationScope,
   if (row.webflowItemId || row.preparationProof || row.cmsSaveStarted) {
     return { ...base, status: 'blocked_saved_work', reasonCode: 'cms_reconciliation_required' };
   }
+  const decision = decidePreparation(row, now);
+  if (preparationBlocksNewWork(decision)) return { ...base, status: 'blocked_saved_work',
+    nextAction: 'blocked', stage: decision.stage, nextAttemptAt: null,
+    reasonCode: decision.reasonCode as LivNextPreparationStatus['reasonCode'] };
   if (canResumeLivPreparationCheckpoint(row) || canRetryUnstartedPreparation(row)) {
     return { ...base, status: 'queued', reasonCode: 'saved_stage_ready' };
   }

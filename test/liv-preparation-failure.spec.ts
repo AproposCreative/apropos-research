@@ -32,3 +32,11 @@ it('does not revive pretransport evidence from strings or JSON', () => {
   expect(preparationDependencyCode('liv_provider_approve')).toBeNull();
   expect(preparationDependencyCode('liv_cost_bad: secret')).toBeNull();
 });
+
+it.each(['APIConnectionError', 'APIConnectionTimeoutError', 'AbortError', 'TimeoutError'])
+  ('records %s as uncertain, never as an unpaid/retryable request', name => {
+    const error = new Error('private transport details'); error.name = name;
+    expect(preparationDependencyFailure(error)).toBe('liv_provider_result_unconfirmed');
+    expect(preparationDependencyCode('liv_provider_result_unconfirmed')).toBe('liv_provider_result_unconfirmed');
+    expect(getLivCostPretransportError(error)).toBeNull();
+  });

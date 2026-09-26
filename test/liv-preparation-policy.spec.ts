@@ -21,8 +21,26 @@ it('never retries ambiguous writes or provider results', () => {
   for (const key of ['cmsSaveStarted', 'webflowItemId', 'preparationProof']) {
     expect(decidePreparation({ status: 'failed', [key]: true }).action).toBe('reconcile');
   }
-  expect(decidePreparation({ status: 'failed', reason: 'liv_fact_revision_requires_reconciliation' }).action).toBe('alternative');
-  expect(decidePreparation({ status: 'processing', processingStartedAt: 1 }, +now).action).toBe('alternative');
+  expect(decidePreparation({ status: 'failed', reason: 'liv_fact_revision_requires_reconciliation' }).action).toBe('blocked');
+  expect(decidePreparation({ status: 'processing', processingStartedAt: 1 }, +now).action).toBe('blocked');
+});
+it.each([
+  { status: 'processing', processingStartedAt: 1 },
+  { status: 'processing' },
+  { status: 'failed', reason: 'Connection error.' },
+  { status: 'failed', reason: 'Request timed out.' },
+  { status: 'failed', reason: 'research_timeout' },
+  { status: 'failed', reason: 'liv_provider_result_unconfirmed' },
+  { status: 'failed', reason: 'liv_fact_revision_requires_reconciliation' },
+])('blocks other topics and days while a provider result is unresolved: %j', async row => {
+  const before = structuredClone(row);
+  const read = vi.fn(async (_day: string, scope: string) => scope === 'prepare' ? row : undefined);
+  expect(await nextScheduledPreparation(emptyDeliveryState(), read, now)).toMatchObject({
+    dayKey: '2026-09-20', scope: 'prepare',
+    decision: { action: 'blocked', reasonCode: 'provider_result_unconfirmed' },
+  });
+  expect(read).toHaveBeenCalledTimes(1);
+  expect(row).toEqual(before);
 });
 it('bounds transient source retries with 5/15 minute backoff, not poll count', () => {
   const row = { status: 'failed', reason: 'liv_trending_http_503', completedAt: +now };
@@ -35,6 +53,16 @@ it('bounds transient source retries with 5/15 minute backoff, not poll count', (
 it('never uses an alternative to bypass a cost stop', async () => {
   const read = vi.fn(async () => ({ status: 'failed', reason: 'liv_cost_monthly_budget_exceeded' }));
   expect((await nextScheduledPreparation(emptyDeliveryState(), read, now))?.decision).toMatchObject({ action: 'blocked', reasonCode: 'budget_limit' });
+  expect(read).toHaveBeenCalledTimes(1);
+});
+it('does not let an old rejected entry override an uncertain current operation', async () => {
+  const state = emptyDeliveryState();
+  state.entries.push({ itemId: 'old', kind: 'scheduled', state: 'rejected', decision: 'rejected',
+    scheduledDay: '2026-09-20', expiresDay: '2026-09-20', title: 'Old', slug: 'old',
+    preparedAt: now.toISOString(), payloadHash: 'a'.repeat(64) });
+  const read = vi.fn(async () => ({ status: 'failed', reason: 'Connection error.' }));
+  expect(await nextScheduledPreparation(state, read, now)).toMatchObject({ scope: 'prepare',
+    decision: { action: 'blocked', reasonCode: 'provider_result_unconfirmed' } });
   expect(read).toHaveBeenCalledTimes(1);
 });
 it('uses one separate alternative for saved-work/evidence failures and preserves rows', async () => {

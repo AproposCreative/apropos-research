@@ -61,6 +61,20 @@ it('keeps authentication before preparation and storage', async () => {
   expect(mocks.run).not.toHaveBeenCalled(); expect(mocks.release).not.toHaveBeenCalled();
 });
 
+it.each(['prepare', 'prepare-alternative'] as const)('never buys a replacement for an uncertain %s call', async scope => {
+  if (scope === 'prepare-alternative') mocks.rows.set('prepare-2026-09-12', {
+    status: 'failed', reason: 'article_evidence_insufficient',
+  });
+  const row = { status: 'processing', processingStartedAt: 1, articleCheckpoint: { content: 'Saved paid text' } };
+  mocks.rows.set(`${scope}-2026-09-12`, row);
+  const before = structuredClone([...mocks.rows]);
+  expect(await (await GET(request())).json()).toMatchObject({
+    status: 'blocked_saved_work', scope, reasonCode: 'provider_result_unconfirmed',
+  });
+  expect(mocks.run).not.toHaveBeenCalled(); expect(mocks.reserve).not.toHaveBeenCalled();
+  expect([...mocks.rows]).toEqual(before);
+});
+
 it.each([1, 4, 9])('dispatches a saved continuation without altering its existing counter %s', async preparationAttempts => {
   mocks.row = { status: 'processing', continuationReady: true, preparationAttempts,
     articleCheckpoint: { content: 'Paid text' } };
@@ -102,6 +116,17 @@ function coverTodayAndTomorrow() {
     attempts: 1, nextAttemptAt: 0 };
   mocks.state.entries.push({ ...reserveItem(9), kind: 'scheduled', scheduledDay: '2026-09-13', expiresDay: '2026-09-13' });
 }
+
+it.each([false, true])('never retries an uncertain reserve, including saved media=%s', async savedMedia => {
+  coverTodayAndTomorrow(); mocks.reserve.mockResolvedValue({ dayKey: today, kind: 'reserve' });
+  const row = { status: 'failed', reason: 'Connection error.', preparationAttempts: 1,
+    ...(savedMedia ? { articleCheckpoint: { content: 'Paid text', preparedMedia: [{}, {}, {}] } } : {}) };
+  mocks.rows.set(`reserve-${today}`, row);
+  const before = structuredClone([...mocks.rows]);
+  expect(await (await GET(request())).json()).toMatchObject({ status: 'blocked_saved_work', scope: 'reserve',
+    reasonCode: 'provider_result_unconfirmed' });
+  expect(mocks.run).not.toHaveBeenCalled(); expect([...mocks.rows]).toEqual(before);
+});
 
 it('uses the reserve scope and timeless directive for an existing reserved job', async () => {
   coverTodayAndTomorrow(); mocks.reserve.mockResolvedValue({dayKey:'2026-09-11',kind:'reserve'});

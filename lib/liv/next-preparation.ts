@@ -1,5 +1,5 @@
 import { copenhagenClock, eligibleEntries, scheduledPreparationDays, type DeliveryState } from './delivery-policy';
-import { decidePreparation, type PreparationDecision } from './preparation-policy';
+import { decidePreparation, preparationBlocksNewWork, type PreparationDecision } from './preparation-policy';
 
 export type ScheduledPreparationScope = 'prepare' | 'prepare-alternative';
 export type ScheduledPreparation = { dayKey: string; kind: 'scheduled'; scope: ScheduledPreparationScope;
@@ -28,6 +28,7 @@ export async function nextScheduledPreparation(state: DeliveryState,
     let scope: ScheduledPreparationScope = 'prepare';
     let row = primary;
     let decision = decidePreparation(primary, now.getTime());
+    if (preparationBlocksNewWork(decision)) return { dayKey, kind: 'scheduled' as const, scope, row, decision };
     if (rejected.length || decision.action === 'alternative') {
       scope = 'prepare-alternative';
       row = await read(dayKey, scope);
@@ -40,8 +41,7 @@ export async function nextScheduledPreparation(state: DeliveryState,
     if (decision.action === 'done') continue;
     // Account/provider failures apply to every topic. Trying the rest of the
     // week cannot fix them and only creates more calls/reservations.
-    if (decision.action === 'blocked' && !['budget_limit', 'provider_quota_exhausted',
-      'authentication_required', 'provider_unavailable'].includes(decision.reasonCode)) {
+    if (decision.action === 'blocked' && !preparationBlocksNewWork(decision)) {
       blocked ??= candidate;
       continue;
     }
