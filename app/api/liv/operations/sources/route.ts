@@ -13,7 +13,8 @@ export const maxDuration=60;
 const schema=z.object({dayKey:z.string(),requestId:z.string().regex(/^[a-zA-Z0-9_-]{8,100}$/),expectedCheckpointHash:z.string().regex(/^[a-f0-9]{64}$/),
  scope:z.enum(['prepare','prepare-alternative','reserve']).optional(),
  reason:z.string().trim().min(10).max(500),urls:z.array(z.string().url()).max(2),
- unavailableUrls:z.array(z.string().url()).min(1).max(2).optional(),dossier:readingDossierInput.optional()}).strict()
+ unavailableUrls:z.array(z.string().url()).min(1).max(2).optional(),
+ replaceUndatedUrls:z.array(z.string().url()).min(1).max(2).optional(),dossier:readingDossierInput.optional()}).strict()
  .refine(input=>input.urls.length>0 || !!input.unavailableUrls?.length || !!input.dossier);
 const json=(body:unknown,status=200)=>NextResponse.json(body,{status,headers:{'Cache-Control':'no-store'}});
 /** Audited evidence repair. Unavailable sources may be retired only after a
@@ -25,7 +26,7 @@ export async function POST(req:NextRequest){
  try{if(req.nextUrl.search)throw Error();const raw=await req.text();if(raw.length>32000)throw Error();input=schema.parse(JSON.parse(raw));
   const today=copenhagenClock().day;
   if(!validDay(input.dayKey) || (input.scope ? input.dayKey<today || input.dayKey>addDays(today,7) || !!input.dossier : input.dayKey!==today))throw Error();
-  [...input.urls,...input.unavailableUrls||[]].forEach(u=>sourceUrl(u));
+  [...input.urls,...input.unavailableUrls||[],...input.replaceUndatedUrls||[]].forEach(u=>sourceUrl(u));
  }catch{return json({error:'liv_sources_invalid'},400);}
  let lease:string|null=null;
  let stage='lease';
@@ -41,18 +42,25 @@ export async function POST(req:NextRequest){
     !['failed','skipped_factcheck','skipped_moderation','skipped_tov'].includes(snapshot.status) || snapshot.continuationReady || snapshot.retryAuthorization ||
     snapshot.webflowItemId || snapshot.preparationProof || snapshot.cmsSaveStarted)throw Error();
   const existing=article.researchSources || [],urls=[...new Set(input.urls.map(u=>sourceUrl(u).href))];
-  if(existing.length+urls.length>8 || urls.some(u=>existing.some((s:{url:string})=>s.url===u)))throw Error();
+  const unavailable=[...new Set(input.unavailableUrls?.map(u=>sourceUrl(u).href)||[])];
+  const replaced=[...new Set(input.replaceUndatedUrls?.map(u=>sourceUrl(u).href)||[])];
+  // An operator may replace bounded undated leads with freshly retrieved dated
+  // evidence, not remove dated/conflicting evidence or silently grow the list.
+  if(replaced.length>urls.length || replaced.some(url=>unavailable.includes(url) ||
+    !existing.some((s:{url:string;publishedAt?:unknown})=>s.url===url && s.publishedAt==null)) ||
+    unavailable.some(url=>!existing.some((s:{url:string})=>s.url===url)) ||
+    existing.length-unavailable.length-replaced.length+urls.length>8 ||
+    urls.some(u=>existing.some((s:{url:string})=>s.url===u)))throw Error();
   stage='source_retrieval';
   const sources=await Promise.all(urls.map((u,i)=>retrieveSource(u,`operator-${i+1}`)));
-  const unavailable=[...new Set(input.unavailableUrls?.map(u=>sourceUrl(u).href)||[])];
-  if(unavailable.some(url=>!existing.some((s:{url:string})=>s.url===url)))throw Error();
+  if(replaced.length && sources.some(s=>!s.publishedAt))throw Error();
   for(const url of unavailable){
    let available=false;
    try{await retrieveSource(url,'availability-check');available=true;}catch{/* A failed read is not factual evidence. */}
    if(available)throw Error();
   }
-  let retained=existing.filter((s:{url:string})=>!unavailable.includes(s.url));
-  if(unavailable.length){
+  let retained=existing.filter((s:{url:string})=>!unavailable.includes(s.url) && !replaced.includes(s.url));
+  if(unavailable.length || replaced.length){
    const refreshed=await Promise.all(retained.map((s:{url:string},i:number)=>retrieveSource(s.url,`retained-${i+1}`)));
    if(new Set([...refreshed,...sources].filter(s=>s.publishedAt).map(s=>new URL(s.url).hostname.replace(/^www\./,''))).size<2)throw Error();
    retained=retained.map((s:object,i:number)=>({...s,publishedAt:refreshed[i].publishedAt,
@@ -69,7 +77,8 @@ export async function POST(req:NextRequest){
    const previousDossier=dossierRef?(await tx.get(dossierRef)).data():undefined;
    if(previousDossier && previousDossier.dossierHash!==cmsFieldHash(input.dossier!))throw Error();
    if(prior.exists || !current || cmsFieldHash(current)!==cmsFieldHash(snapshot!) || state?.preparation?.token!==lease || state.preparation.leaseUntil<=Date.now())throw Error();
-   tx.create(audit,{inputHash:cmsFieldHash(input),input,previousRun:snapshot,sources,retiredUnavailableUrls:unavailable,checkpointHash:cmsFieldHash(revised),createdAt:new Date().toISOString(),authority:'cron-authenticated-operator'});
+   tx.create(audit,{inputHash:cmsFieldHash(input),input,previousRun:snapshot,sources,retiredUnavailableUrls:unavailable,
+    replacedUndatedUrls:replaced,checkpointHash:cmsFieldHash(revised),createdAt:new Date().toISOString(),authority:'cron-authenticated-operator'});
    if(dossierRef && !previousDossier)tx.create(dossierRef,{runId:run.id,fieldHash:cmsFieldHash(fields),dossier:input.dossier,
     dossierHash:cmsFieldHash(input.dossier!),createdAt:new Date().toISOString(),authority:'cron-authenticated-operator'});
    tx.update(run,{articleCheckpoint:revised,articleCheckpointHash:livImageArticleHash(revised)});

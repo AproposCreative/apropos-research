@@ -72,3 +72,25 @@ it.each(['ok','available','one-host'])('audits unavailable-source retirement wit
   expect((await POST(req(body))).status).toBe(200);
  }else expect(s.writes).not.toHaveBeenCalled();
 });
+
+it.each(['ok','dated-old','undated-new','missing-old','too-many','stale'])('replaces an undated lead in a full list with dated evidence: %s',async mode=>{
+ const sources=Array.from({length:8},(_,i)=>({url:`https://source${i}.example/a`,publishedAt:i===0 || mode==='dated-old'?'2026-09-01T10:00:00Z':null}));
+ const a={...article,researchSources:sources};
+ s.rows.set(path,{status:'failed',articleCheckpoint:a,articleCheckpointHash:livImageArticleHash(a)});
+ s.retrieve.mockImplementation(async(url:string)=>{
+  if(mode==='stale')s.rows.get(path).reason='concurrent change';
+  return {url,title:'Dated source',text:'Fetched evidence, not a quality approval',contentHash:'a'.repeat(64),retrievedAt:new Date().toISOString(),
+   publishedAt:mode==='undated-new'?null:'2026-09-19T10:00:00Z'};
+ });
+ const body={...input,expectedCheckpointHash:cmsFieldHash(a),replaceUndatedUrls:mode==='missing-old'?['https://missing.example/a']:
+  mode==='too-many'?[sources[6].url,sources[7].url]:[sources[7].url]};
+ const result=await POST(req(body));expect(result.status).toBe(mode==='ok'?200:409);
+ if(mode==='ok'){
+  const row=s.rows.get(path);expect(row.status).toBe('failed');expect(row.retryAuthorization).toBeUndefined();
+  expect(row.articleCheckpoint.content).toBe(a.content);expect(row.articleCheckpoint.researchSources).toHaveLength(8);
+  expect(row.articleCheckpoint.researchSources.at(-1).url).toBe(input.urls[0]);
+  const audit=s.rows.get(`${path}/sourceSupplements/${input.requestId}`);
+  expect(audit.previousRun.articleCheckpoint).toEqual(a);expect(audit.replacedUndatedUrls).toEqual([sources[7].url]);
+  const calls=s.retrieve.mock.calls.length;expect((await POST(req(body))).status).toBe(200);expect(s.retrieve).toHaveBeenCalledTimes(calls);
+ }else expect(s.writes).not.toHaveBeenCalled();
+});
