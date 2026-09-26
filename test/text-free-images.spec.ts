@@ -85,6 +85,34 @@ it('can recover a clean original while retaining a legacy rejected edit and its 
   expect(f.rows.get(rejected[0])).toEqual(snapshot);expect(f.edit).toHaveBeenCalledOnce();
   await ensureTextFreeImage(original);expect(f.chat).toHaveBeenCalledTimes(4);
 });
+it('reviews changed composite pixels once without replacing the rejected legacy verdict or rebuying the edit', async () => {
+  f.chat.mockResolvedValueOnce(answer(true)).mockResolvedValueOnce(answer(true)).mockResolvedValueOnce(answer(false,false));
+  await expect(ensureTextFreeImage(original)).rejects.toThrow('review_failed');
+  const confirmation=[...f.rows.keys()].find(k=>k.endsWith('/confirm-lettering'))!;
+  f.rows.delete(confirmation);
+  const rejected=[...f.rows.entries()].find(([k])=>k.endsWith('/verify-blended'))!;
+  const snapshot=structuredClone(rejected[1]);
+  const expert=answer(true);
+  const value=JSON.parse(expert.choices[0].message.content);
+  value.regions=[{x:700,y:750,width:35,height:25}];
+  expert.choices[0].message.content=JSON.stringify(value);
+  f.chat.mockResolvedValueOnce(expert).mockResolvedValueOnce(answer(false));
+  const result=await ensureTextFreeImage(original);
+  expect(result.receipt.edited).toBe(true);
+  const bound=[...f.rows.entries()].find(([k])=>k.endsWith('/verify-confirmed-blend'))![1];
+  expect(bound.inputHash).toBe(result.receipt.image.contentHash);
+  expect(f.rows.get(rejected[0])).toEqual(snapshot);
+  await ensureTextFreeImage(original);
+  expect(f.edit).toHaveBeenCalledOnce();expect(f.chat).toHaveBeenCalledTimes(5);
+});
+it('never repeats an ambiguous corrected-composite review', async () => {
+  const expert=answer(true), value=JSON.parse(expert.choices[0].message.content);
+  value.regions=[{x:700,y:750,width:35,height:25}];expert.choices[0].message.content=JSON.stringify(value);
+  f.chat.mockResolvedValueOnce(answer(true)).mockResolvedValueOnce(expert).mockRejectedValueOnce(Error('timeout'));
+  await expect(ensureTextFreeImage(original)).rejects.toThrow('timeout');
+  await expect(ensureTextFreeImage(original)).rejects.toThrow('outcome_unknown');
+  expect(f.edit).toHaveBeenCalledOnce();expect(f.chat).toHaveBeenCalledTimes(3);
+});
 it.each(['missing-reason','regions-without-text','uncertain-timeout'])('does not approve or re-buy invalid expert confirmation: %s',async kind=>{
   f.chat.mockResolvedValueOnce(answer(true));
   if(kind==='uncertain-timeout')f.chat.mockRejectedValueOnce(Error('timeout'));

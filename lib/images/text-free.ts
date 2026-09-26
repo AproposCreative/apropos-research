@@ -98,14 +98,15 @@ export async function ensureTextFreeImage(originalBytes: Buffer): Promise<{ byte
     const client = getImageGenOpenAIClient(); if (!client) throw new Error('image_text_provider_unavailable');
     const original = await save(originalBytes);
     await ref.set({ original }, { merge: true });
-    async function step<T>(name: string, call: () => Promise<T>): Promise<T> {
+    async function step<T>(name: string, call: () => Promise<T>, inputHash?: string): Promise<T> {
       const stage = ref.collection('stages').doc(name), saved = (await stage.get()).data();
+      if (saved && inputHash && saved.inputHash !== inputHash) throw new Error('image_text_input_conflict');
       if (saved?.status === 'complete') return saved.result as T;
       if (saved && saved.status !== 'not-started') throw new Error('image_text_provider_outcome_unknown');
-      await stage.set({ status: 'started', at: new Date().toISOString() });
+      await stage.set({ status: 'started', at: new Date().toISOString(), ...(inputHash ? { inputHash } : {}) });
       try {
         const result = await withLivCostContext({ scope: 'image-gen', runId: id, stage: `text-free-${name}` }, call);
-        await stage.set({ status: 'complete', result, at: new Date().toISOString() });
+        await stage.set({ status: 'complete', result, at: new Date().toISOString(), ...(inputHash ? { inputHash } : {}) });
         return result;
       } catch (error) {
         if (getLivCostPretransportError(error)) await stage.set({ status: 'not-started' }, { merge: true });
@@ -126,6 +127,7 @@ export async function ensureTextFreeImage(originalBytes: Buffer): Promise<{ byte
       return JSON.parse(response.choices[0].message.content || '{}') as { hasText: boolean; preserved?: boolean; regions?: unknown; reason?: string };
     }
     let inspection = await step('inspect', () => inspect(originalBytes, false));
+    const preliminaryRegions = inspection.regions;
     let clean = textFreeVerdict(inspection, false);
     if (!clean) {
       // One durable expert confirmation costs less than an unnecessary edit.
@@ -162,7 +164,14 @@ export async function ensureTextFreeImage(originalBytes: Buffer): Promise<{ byte
       const localized = await compositeTextRemoval(originalBytes, unpadded, regions);
       const encoded = await encodeWebp(localized, { maxSizeKB: 450, maxLongEdge: 1920, qualityStart: 90, qualityMin: 65 });
       image = await save(encoded.data);
-      if (!textFreeVerdict(await step('verify-blended', () => inspect(encoded.data, true)), true)) throw new Error('image_text_still_present');
+      // The expert may localize different lettering than the preliminary screen.
+      // A legacy verdict about different composite pixels cannot decide this
+      // image. One fixed, hash-bound stage reviews the corrected composite;
+      // keep the earlier verdict and paid edit intact. Never retry same pixels.
+      const changedRegions = JSON.stringify(preliminaryRegions) !== JSON.stringify(regions);
+      const reviewStage = changedRegions ? 'verify-confirmed-blend' : 'verify-blended';
+      if (!textFreeVerdict(await step(reviewStage, () => inspect(encoded.data, true),
+        changedRegions ? imageByteHash(encoded.data) : undefined), true)) throw new Error('image_text_still_present');
     }
     const receipt: TextFreeReceipt = { id, policy: TEXT_FREE_IMAGE_POLICY, original, image, edited: !clean, localized: !clean, blendVersion: 2 };
     await ref.set({ status: 'complete', receipt, completedAt: new Date().toISOString() }, { merge: true });
