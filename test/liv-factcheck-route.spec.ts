@@ -8,11 +8,23 @@ vi.mock('@/lib/openai', () => ({ getOpenAIClient: mocks.client, models: { defaul
 import { POST } from '@/app/api/factcheck/route';
 import { currentLivCostContext, livCostHeaders, withLivCostContext } from '@/lib/liv/cost-context';
 import { internalApiHeaders } from '@/lib/api/internal-auth';
+import { LivCostPretransportError } from '@/lib/liv/cost-errors';
 
 const input = { articleText: 'En kulturartikel med faktuelle påstande.', sourceUrls: ['https://museum.dk/nyhed'] };
 const request = (body: unknown) => new NextRequest('http://localhost/api/factcheck', { method: 'POST', body: JSON.stringify(body) });
 describe('factcheck route', () => {
   beforeEach(() => { vi.resetAllMocks(); mocks.auth.mockResolvedValue(true); });
+  it.each([
+    [new Error('Connection error', { cause: new LivCostPretransportError('liv_cost_provider_quota_exhausted') }), 'liv_cost_provider_quota_exhausted'],
+    [Object.assign(new Error('private billing information'), { status: 429, code: 'insufficient_quota' }), 'liv_provider_quota_exhausted'],
+  ])('returns a bounded dependency classification, not an editorial failure', async (error, code) => {
+    mocks.verify.mockRejectedValue(error);
+    const response = await POST(request(input));
+    expect(response.status).toBe(503);
+    expect(await response.json()).toMatchObject({ code, complete: false });
+    expect(mocks.client).not.toHaveBeenCalled();
+    expect(response.headers.get('cache-control')).toBe('no-store');
+  });
   it('rejects unauthenticated calls before any source or model access', async () => {
     mocks.auth.mockResolvedValue(false);
     expect((await POST(request(input))).status).toBe(401);

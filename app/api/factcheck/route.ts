@@ -10,6 +10,7 @@ import { getLivCostPretransportError } from '@/lib/liv/cost-errors';
 import { livEditorialFieldsSchema, livEditorialFieldContext, type LivEditorialFields } from '@/lib/liv/editorial-assessment-contract';
 import { livVisualReferenceSchema, type LivVisualReference } from '@/lib/liv/visual-evidence';
 import { observationReferenceSchema, type ObservationReference } from '@/lib/liv/observation-contract';
+import { preparationDependencyFailure } from '@/lib/liv/preparation-failure';
 
 // Source retrieval + model call + persistence must finish before the caller's
 // deadline. Model timeout is 180s; strict Liv callers allow 240s.
@@ -38,7 +39,8 @@ export async function POST(request: NextRequest) {
   try { return await withLivCostRequest(request, 'factcheck', () =>
     withSharedCostContext({ scope: 'writer', stage: 'factcheck' }, () => handlePost(request))); }
   catch (error) {
-    if (getLivCostPretransportError(error)) return NextResponse.json({ error: 'AI-budgettet tillader ikke dette kald.', complete: false }, { status: 503, headers: { 'Cache-Control': 'no-store' } });
+    const code = preparationDependencyFailure(error);
+    if (code) return NextResponse.json({ error: 'AI-kaldet er blokeret hos udbyderen eller af budgettet.', code, complete: false }, { status: 503, headers: { 'Cache-Control': 'no-store' } });
     return NextResponse.json({ error: 'Ugyldig intern budgetkontekst.', complete: false }, { status: 401 });
   }
 }
@@ -106,7 +108,7 @@ async function handlePost(request: NextRequest) {
         : await verifyArticleSources(parsed.data.articleText, parsed.data.sourceUrls);
       return NextResponse.json(report, { headers: { 'Cache-Control': 'no-store' } });
     } catch (error) {
-      if (getLivCostPretransportError(error)) throw error;
+      if (preparationDependencyFailure(error)) throw error;
       const failure = error as { name?: unknown; status?: unknown; code?: unknown } | null;
       // Log only bounded error classification, never provider bodies or credentials.
       logger.warn('[factcheck] grounded verification failed', {

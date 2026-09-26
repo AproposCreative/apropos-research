@@ -31,9 +31,11 @@ export function decidePreparation(row?: Record<string, any>, now = Date.now()): 
     return decision('alternative', 'provider_result_unconfirmed');
   }
   const reason = typeof row.reason === 'string' ? row.reason.split(':', 1)[0].trim() : '';
-  if (['research_provider_quota_exhausted', 'liv_cost_provider_quota_exhausted'].includes(reason)) return decision('blocked', 'provider_quota_exhausted');
-  if (['research_provider_authentication_failed', 'research_provider_access_denied'].includes(reason)) return decision('blocked', 'authentication_required');
-  if (['research_provider_rate_limited', 'research_provider_provider_unavailable'].includes(reason)) return decision('blocked', 'provider_unavailable');
+  if (['research_provider_quota_exhausted', 'liv_provider_quota_exhausted', 'liv_cost_provider_quota_exhausted'].includes(reason)) return decision('blocked', 'provider_quota_exhausted');
+  if (['research_provider_authentication_failed', 'research_provider_access_denied',
+    'liv_provider_authentication_failed', 'liv_provider_access_denied'].includes(reason)) return decision('blocked', 'authentication_required');
+  if (['research_provider_rate_limited', 'research_provider_provider_unavailable',
+    'liv_provider_rate_limited', 'liv_provider_provider_unavailable'].includes(reason)) return decision('blocked', 'provider_unavailable');
   if (/^liv_cost_/.test(reason)) return decision('blocked', 'budget_limit');
   if (/http_(401|403)$|authentication|configuration_missing/.test(reason)) return decision('blocked', 'authentication_required');
   // An empty, deterministic topic lookup has bought no article. Keep the same

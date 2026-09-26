@@ -19,6 +19,14 @@ function jsonResponse(value: unknown, status = 200): Response {
 }
 
 describe('Liv safety gates', () => {
+  it.each(['liv_cost_provider_quota_exhausted', 'liv_provider_quota_exhausted'])
+    ('preserves %s across factcheck HTTP without another paid evaluation', async code => {
+      vi.stubGlobal('fetch', vi.fn().mockResolvedValueOnce(jsonResponse({ data: { metrics: { wordCount: 600, plagiarismRisk: 'low' } } }))
+        .mockResolvedValueOnce(jsonResponse({ code, complete: false }, 503)));
+      await expect(runSafetyGates({ baseUrl: 'http://localhost:3000', title: 'Kulturhistorie', content: 'ord '.repeat(600),
+        requireCompleteVerification: true })).rejects.toThrow(code);
+      expect(fetch).toHaveBeenCalledTimes(2);
+    });
   it('keeps fact retrieval/model/persistence inside a longer caller deadline without retries',async()=>{
     const timeouts=vi.spyOn(AbortSignal,'timeout');
     vi.stubGlobal('fetch',vi.fn().mockResolvedValueOnce(jsonResponse({data:{metrics:{wordCount:600,plagiarismRisk:'low'}}}))

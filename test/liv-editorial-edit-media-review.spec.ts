@@ -8,7 +8,11 @@ vi.mock('@/lib/liv/stored-image-reader', () => ({ readLivStoredImage: state.read
 vi.mock('@/lib/firebase-admin', () => {
   const ref = (path: string): any => ({ path, get: async () => ({ data: () => structuredClone(state.rows.get(path)) }),
     collection: (name: string) => ({ doc: (id: string) => ref(`${path}/${name}/${id}`) }) });
-  return { getAdminDb: () => state.available ? { collection: (name: string) => ({ doc: (id: string) => ref(`${name}/${id}`) }),
+  return { getAdminDb: () => state.available ? { collection: (name: string) => ({ doc: (id: string) => ref(`${name}/${id}`),
+    where: (field: string, _op: string, value: string) => ({ get: async () => ({ docs: [...state.rows]
+      .filter(([path, row]) => path.startsWith(`${name}/`) && row[field] === value)
+      .map(([path, row]) => ({ id: path.split('/').at(-1), data: () => structuredClone(row) })) }) }),
+  }),
     runTransaction: (fn: any) => {
       const task = state.tail.catch(() => {}).then(async () => {
         const writes: Array<() => void> = [];
@@ -339,6 +343,45 @@ it('can reclaim only branded exact pretransport denial and archives it', async (
   expect((await reviewLivEditorialEditMedia(pending, day)).selectedImage!.visualReview).toBe('automated');
   expect(state.rows.get(`${path}/checks/unpaid-${denied.attemptId}`)).toEqual(denied);
 });
+async function quotaRejectedAttempt() {
+  state.chat.mockRejectedValueOnce(Object.assign(new Error('quota'), { status: 429, code: 'insufficient_quota' }));
+  await expect(reviewLivEditorialEditMedia(pending, day)).rejects.toThrow('quota');
+  const receipt = structuredClone(state.rows.get(checkPath));
+  const body = state.chat.mock.calls[0][0];
+  const callId = '12345678-1234-1234-1234-123456789abc';
+  const callPath = `livCostLedger/call-${callId}`, resultPath = `livCostLedger/result-${callId}`;
+  state.rows.set(callPath, { callId, runId, requestHash: createHash('sha256')
+    .update(`/chat/completions\n${JSON.stringify({ ...body, service_tier: 'default' })}`).digest('hex'),
+    model: body.model, quote: { endpoint: '/chat/completions' }, createdAt: receipt.startedAt });
+  state.rows.set(resultPath, { recordedAt: receipt.startedAt, reservationRetained: true,
+    outcome: { httpStatus: 429, providerFailure: 'quota_exhausted', usage: null, providerRequestId: 'req_exact_rejection' } });
+  return { receipt, callPath, resultPath, callId };
+}
+it('resumes an exact ledger-proven quota rejection, retaining original attempt and full cost evidence', async () => {
+  const { receipt, callPath, resultPath, callId } = await quotaRejectedAttempt();
+  const call = structuredClone(state.rows.get(callPath)), result = structuredClone(state.rows.get(resultPath));
+  const approved = await reviewLivEditorialEditMedia(pending, day);
+  expect(approved.selectedImage?.visualReview).toBe('automated');
+  expect(await reviewLivEditorialEditMedia(pending, day)).toEqual(approved);
+  expect(state.chat).toHaveBeenCalledTimes(2);
+  expect(state.rows.get(`${path}/checks/rejected-${receipt.attemptId}`)).toMatchObject({ ...receipt, rejection: { callId } });
+  expect(state.rows.get(callPath)).toEqual(call); expect(state.rows.get(resultPath)).toEqual(result);
+});
+it.each(['hash', 'model', 'too-old', 'success', 'rate-limit', 'missing-receipt', 'missing-request-id', 'usage'])
+  ('never resumes uncertain or mismatched rejection evidence: %s', async change => {
+    const { callPath, resultPath } = await quotaRejectedAttempt();
+    const call = state.rows.get(callPath), result = state.rows.get(resultPath);
+    if (change === 'hash') call.requestHash = 'f'.repeat(64);
+    if (change === 'model') call.model = 'another-model';
+    if (change === 'too-old') call.createdAt = '2020-01-01T00:00:00Z';
+    if (change === 'success') result.outcome.httpStatus = 200;
+    if (change === 'rate-limit') result.outcome.providerFailure = 'rate_limited';
+    if (change === 'missing-receipt') state.rows.delete(resultPath);
+    if (change === 'missing-request-id') result.outcome.providerRequestId = null;
+    if (change === 'usage') result.outcome.usage = { input: 100 };
+    await expect(reviewLivEditorialEditMedia(pending, day)).rejects.toThrow('requires_reconciliation');
+    expect(state.chat).toHaveBeenCalledTimes(1);
+  });
 it('fences two simultaneous visual checks to a single paid request', async () => {
   const results = await Promise.allSettled([reviewLivEditorialEditMedia(pending, day), reviewLivEditorialEditMedia(pending, day)]);
   expect(results.filter(result => result.status === 'fulfilled')).toHaveLength(1); expect(state.chat).toHaveBeenCalledOnce();

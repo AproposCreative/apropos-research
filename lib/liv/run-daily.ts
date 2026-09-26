@@ -62,6 +62,7 @@ import { readSuppliedApproval, suppliedApprovalGates } from './supplied-approval
 import { addDays, copenhagenClock } from '@/lib/liv/delivery-policy';
 import type { LivDailyPlan } from '@/lib/liv/daily-plan-store';
 import { currentLivCostContext, withLivCostContext, withLivCostStage } from '@/lib/liv/cost-context';
+import { preparationDependencyFailure } from './preparation-failure';
 
 export const maxDuration = 300;
 const MIN_VERIFIED_RESEARCH_SOURCES = 2;
@@ -662,7 +663,9 @@ async function runLivDailyOperation(req: NextRequest, preparation?: LivPreparati
     });
   } catch (e) {
     if (e instanceof ArticleSaveError && e.articleId) savedWebflowItemId = e.articleId;
-    const msg = e instanceof Error ? e.message : 'Ukendt fejl';
+    // The SDK wraps pre-transport budget/credit denials in "Connection error".
+    // Retain the actual dependency failure so selection cannot buy a new topic.
+    const msg = preparationDependencyFailure(e) ?? (e instanceof Error ? e.message : 'Ukendt fejl');
     if (preparation && msg === 'liv_media_repair_pending' && !savedWebflowItemId) {
       await yieldLivPreparation(dayKey, scope as Exclude<LivDailyScope, 'daily'>);
       return NextResponse.json({ status: 'media_repair_pending', dayKey });

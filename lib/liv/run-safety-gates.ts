@@ -23,6 +23,7 @@ import { livCostHeaders } from '@/lib/liv/cost-context';
 import type { LivVisualReference } from './visual-evidence';
 import { cmsFieldHash } from './cms-field-hash';
 import type { ObservationReference } from './observation-contract';
+import { preparationDependencyCode } from './preparation-failure';
 
 export interface SafetyGatesInput {
   baseUrl: string;
@@ -270,6 +271,7 @@ export async function runSafetyGates(input: SafetyGatesInput): Promise<SafetyGat
       ? input.priorFactcheck! : reusableFailedReport(input.priorFactcheck, factcheckText, sourceUrls) || null
     : null;
   let fcHttpStatus: number | null = null;
+  let dependencyCode: string | null = null;
   if (!fc) try {
     const res = await fetch(fcUrl, {
       method: 'POST',
@@ -283,6 +285,13 @@ export async function runSafetyGates(input: SafetyGatesInput): Promise<SafetyGat
     });
     fcHttpStatus = res.status;
     if (!res.ok) {
+      // Preserve a closed dependency classification across our authenticated
+      // HTTP boundary. Never reinterpret it as an editorial rejection or proof
+      // of an unpaid provider call.
+      if (res.status === 503) {
+        const body = await res.json().catch(() => null);
+        dependencyCode = preparationDependencyCode(body?.code);
+      }
       logger.warn('[liv/safety-gates] factcheck HTTP ikke-OK', {
         status: res.status,
         fcUrl,
@@ -298,6 +307,7 @@ export async function runSafetyGates(input: SafetyGatesInput): Promise<SafetyGat
     });
     fc = null;
   }
+  if (dependencyCode) throw new Error(dependencyCode);
 
   // A contextual request cannot consume an old-method response, even on the
   // same text. This invalidates reuse, never edits or clears a failed verdict.
