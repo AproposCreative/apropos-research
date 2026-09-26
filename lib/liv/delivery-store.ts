@@ -147,7 +147,11 @@ export function selectDelivery(state: DeliveryState, day: string, now: number, t
   const uncertain = Object.entries(state.slots).find(([, s]) => s.state === 'attempted');
   if (uncertain && uncertain[0] !== day) return null;
   const slot = state.slots[day];
-  if (slot?.state === 'published' || (slot && (slot.leaseUntil > now || slot.nextAttemptAt > now))) return null;
+  // An exact operator replay can verify an already-attempted write immediately.
+  // It cannot republish, bypass an active lease or change the pinned request.
+  // Automatic polling and not-yet-attempted writes retain their normal backoff.
+  const explicitReadback = !!explicit && slot?.state === 'attempted';
+  if (slot?.state === 'published' || (slot && (slot.leaseUntil > now || (slot.nextAttemptAt > now && !explicitReadback)))) return null;
   if (slot) {
     slot.token = token;
     slot.leaseUntil = now + LIV_DELIVERY_LEASE_MS;

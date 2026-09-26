@@ -26,6 +26,24 @@ const day = '2026-09-11', itemId = 'a'.repeat(24);
 const entry = { itemId, slug: 'kultur', title: 'Kultur', scheduledDay: day, expiresDay: day, kind: 'scheduled' as const };
 const expected = { title: 'Kultur', slug: 'kultur', content: 'Tekst' } as WebflowArticleFields;
 beforeEach(() => { database.rows.clear(); database.available = true; });
+it('lets only an exact explicit replay reconcile an attempted write before the automatic readback delay', async () => {
+  await enqueueReadyArticle(entry, expected);
+  const request = { requestId: 'publication-test', itemId, expectedPayloadHash: (await readDeliveryState()).entries[0].payloadHash, reason: 'Verified exact article' };
+  const first = await claimDelivery(day, 100, request);
+  await updateDelivery(day, first!.token, slot => { slot.state = 'attempted'; slot.leaseUntil = 0; slot.nextAttemptAt = 999999; });
+  expect(await claimDelivery(day, 101)).toBeNull();
+  await expect(claimDelivery(day, 101, { ...request, requestId: 'different-request' })).rejects.toThrow('explicit_conflict');
+  const resumed = await claimDelivery(day, 101, request);
+  expect(resumed).toMatchObject({ state: 'attempted', itemId, attempts: 2 });
+  expect(await claimDelivery(day, 102, request)).toBeNull(); // live lease
+});
+it('does not skip publication backoff for an explicit request with no attempted write', async () => {
+  await enqueueReadyArticle(entry, expected);
+  const request = { requestId: 'publication-test', itemId, expectedPayloadHash: (await readDeliveryState()).entries[0].payloadHash, reason: 'Verified exact article' };
+  const first = await claimDelivery(day, 100, request);
+  await updateDelivery(day, first!.token, slot => { slot.leaseUntil = 0; slot.nextAttemptAt = 999999; });
+  expect(await claimDelivery(day, 101, request)).toBeNull();
+});
 it.each(['feature', 'culture-story'] as const)('admits %s metadata without inserting it into the immutable payload', async editorialKind => {
   const payload = { ...expected, articleFormat: 'article' as const };
   await enqueueReadyArticle({ ...entry, editorialKind }, payload);

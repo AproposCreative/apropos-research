@@ -109,9 +109,23 @@ export async function verifyLiveLivArticle(input: { itemId: string; expected: We
     try {
       const live = await read(`${path}/live?cmsLocaleId=${localeId}`);
       if (live.id !== input.itemId || live.cmsLocaleId !== localeId || live.isDraft !== false || live.isArchived === true ||
-          typeof live.lastPublished !== 'string' || !Number.isFinite(Date.parse(live.lastPublished)) ||
-          cmsFieldHash(object(live.fieldData)) !== input.fieldDataHash) throw new Error('liv_publication_live_mismatch');
+          typeof live.lastPublished !== 'string' || !Number.isFinite(Date.parse(live.lastPublished))) throw new Error('liv_publication_live_mismatch');
       const fields = object(live.fieldData);
+      if (cmsFieldHash(fields) !== input.fieldDataHash) {
+        // Webflow's live projection omits unset optional fields (e.g. book-title
+        // on a music article). Only reconstruct absent nulls from an EXACTLY
+        // pinned staged snapshot. Never ignore missing text, false, 0, images,
+        // nested metadata, changed values or an intervening editorial edit.
+        const staged = await read(`${path}?cmsLocaleId=${localeId}`);
+        const stagedFields = object(staged.fieldData);
+        if (staged.id !== input.itemId || staged.cmsLocaleId !== localeId || staged.isArchived === true ||
+            cmsFieldHash(stagedFields) !== input.fieldDataHash) throw new Error('liv_publication_live_mismatch');
+        const restored = { ...fields };
+        for (const [key, value] of Object.entries(stagedFields)) {
+          if (value === null && !Object.hasOwn(restored, key)) restored[key] = null;
+        }
+        if (cmsFieldHash(restored) !== input.fieldDataHash) throw new Error('liv_publication_live_mismatch');
+      }
 
       const html = (await (dependencies?.readPage ?? (url => readPublicMedia(url, 'html')))(url)).toString('utf8');
       const page = load(html);

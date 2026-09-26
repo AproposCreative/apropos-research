@@ -100,6 +100,38 @@ it('reconciles a successful but unacknowledged write using reads only', async ()
   expect(f.publish).not.toHaveBeenCalled(); expect(f.inspect).not.toHaveBeenCalled();
   expect(f.read.mock.calls.every(([path]) => path.includes('/live?'))).toBe(true);
 });
+
+it('reconciles Webflow omitting only null optional fields using the exact pinned staged snapshot', async () => {
+  const f = fixture();
+  f.live.fieldData = { ...f.staged.fieldData };
+  Object.assign(f.staged.fieldData, { 'book-title': null, 'book-author': null });
+  await expect(verifyLiveLivArticle({ itemId, expected: f.expected,
+    fieldDataHash: cmsFieldHash(f.staged.fieldData) }, f.deps)).resolves.toMatchObject({ publicationVerified: true });
+  expect(f.publish).not.toHaveBeenCalled();
+  expect(f.read).toHaveBeenCalledWith(`collections/${collectionId}/items/${itemId}?cmsLocaleId=${localeId}`);
+  expect(f.readPage).toHaveBeenCalledTimes(1);
+});
+
+it.each(['text', 'false', 'zero', 'empty-string', 'changed-stage', 'changed-live', 'extra-field', 'wrong-stage-identity', 'nested-null'])(
+  'null projection handling still rejects %s and never writes', async failure => {
+    const f = fixture();
+    Object.assign(f.staged.fieldData, { 'book-title': null });
+    f.live.fieldData = structuredClone(f.staged.fieldData);
+    delete (f.live.fieldData as any)['book-title'];
+    const before = structuredClone(f.staged.fieldData);
+    if (failure === 'text') delete (f.live.fieldData as any).content;
+    if (failure === 'false' || failure === 'zero' || failure === 'empty-string') {
+      const optional = failure === 'false' ? false : failure === 'zero' ? 0 : '';
+      Object.assign(before, { optional }); Object.assign(f.staged.fieldData, { optional });
+    }
+    if (failure === 'changed-stage') f.staged.fieldData.name = 'Changed by another editor';
+    if (failure === 'changed-live') f.live.fieldData.name = 'Different live title';
+    if (failure === 'extra-field') Object.assign(f.live.fieldData, { extra: null });
+    if (failure === 'wrong-stage-identity') f.staged.id = 'd'.repeat(24);
+    if (failure === 'nested-null') { Object.assign(before.thumb, { alt: null }); Object.assign(f.staged.fieldData.thumb, { alt: null }); }
+    await expect(verifyLiveLivArticle({ itemId, expected: f.expected, fieldDataHash: cmsFieldHash(before) }, f.deps)).rejects.toThrow('live_mismatch');
+    expect(f.publish).not.toHaveBeenCalled(); expect(f.readPage).not.toHaveBeenCalled();
+  });
 it('sets the selected publication date before final CMS proof, including for reserves', async () => {
   const f = fixture(); const date = '2026-09-11T08:00:00.000Z'; const assertLease = vi.fn().mockResolvedValue(undefined);
   const patchDate = vi.fn(async (_id: string, data: Record<string, unknown>) => {
