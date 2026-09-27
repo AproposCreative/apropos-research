@@ -9,6 +9,14 @@ it.each(['Connection error.', 'Request timed out.', 'liv_provider_result_unconfi
   'liv_cost_provider_quota_exhausted', 'liv_cost_monthly_budget_exceeded'])('never retries dependency failure %s', reason => {
   expect(canRetryUnstartedPreparation({ status: 'failed', reason, preparationAttempts: 1 })).toBe(false);
 });
+it.each(['source_similarity_unapproved: Kilde: eilish.dk.', 'source_similarity_incomplete',
+  'source_copy_detected', 'article_generation_refused', 'article_style_invalid',
+  'article_originality_rewrite_incomplete', 'unknown', undefined])('never repurchases archived or uncertain writing after %s', reason => {
+  expect(canRetryUnstartedPreparation({ status: 'failed', reason, preparationAttempts: 1 })).toBe(false);
+});
+it.each(['resumeWritingRunId', 'rawResponse', 'researchRunId'])('keeps saved pre-checkpoint work %s', key => {
+  expect(canRetryUnstartedPreparation({ status: 'skipped_no_topic', [key]: 'saved' })).toBe(false);
+});
 it.each(['webflowItemId', 'articleCheckpoint', 'articleCheckpointHash', 'preparationProof', 'cmsSaveStarted'])('preserves existing work identified by %s', key => {
   expect(canRetryUnstartedPreparation({ status: 'skipped_no_topic', [key]: 'saved' })).toBe(false);
 });

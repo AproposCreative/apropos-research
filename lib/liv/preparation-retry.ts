@@ -7,7 +7,14 @@ export function canRetryUnstartedPreparation(row: Record<string, unknown> | unde
   if (preparationBlocksNewWork(decidePreparation(row))) return false;
   const attempts = row.preparationAttempts ?? 0;
   if (typeof attempts !== 'number' || !Number.isInteger(attempts) || attempts < 0 || attempts >= 3) return false;
-  return row.status === 'skipped_no_topic' || row.status === 'failed';
+  if (row.resumeWritingRunId || row.rawResponse || row.researchRunId) return false;
+  if (row.status === 'skipped_no_topic') return true;
+  const reason = typeof row.reason === 'string' ? row.reason.split(':', 1)[0].trim() : '';
+  // A rejected writer response can exist in the immutable source archive before
+  // articleCheckpoint is created. Absence of that checkpoint is NOT evidence
+  // that no paid work occurred. Only known pre-writing failures may retry here.
+  return row.status === 'failed' && (reason === 'research_sources_unavailable' ||
+    /^liv_trending_(?:http_(?:429|5\d\d)|invalid_response|unavailable)$/.test(reason));
 }
 
 function hasSavedPreparation(row: Record<string, unknown>): boolean {
