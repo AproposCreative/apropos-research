@@ -1,9 +1,12 @@
 # Apropos editorial calibration
 
-Initial scope: ten published reference candidates from the existing archive and
-five retained AI drafts stopped by automated controls. Publication is not a human
+Scope: 25 published reference candidates from the existing archive and
+ten retained AI drafts stopped by automated controls. Publication is not a human
 quality score; a control failure is not a human rejection. This is a calibration
 set, not a held-out test, since the references are already available to style sampling.
+The first 15-case export was expanded without changing its texts or hashes. Some
+stops concern missing checks or media, not prose. The ten drafts are candidates
+for editorial review, not ten confirmed human rejections.
 No live provider requests are used to build or report this set.
 
 Run `npm run quality:report` for word counts, diagnostic flags, exact text hashes
@@ -22,7 +25,7 @@ Scores file: a JSON array of `humanScoreSchema` records with `caseId`, `textHash
 `reviewer`, `reviewedAt`, `source: "human"`, `scores`, `publishDecision`, `notes`.
 Edited texts invalidate old scores. None of these records grants CMS approval.
 
-Current human ratings: **0/15**. No measured quality gain, blind model winner,
+Current human ratings: **0/35**. No measured quality gain, blind model winner,
 finetuning result or percentage cost saving is claimed. Before model selection,
 reserve a new set unseen by style sampling and compare anonymous outputs under
 the same rubric. Avoid new paid comparisons until the human baseline is scored.
