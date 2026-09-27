@@ -14,6 +14,7 @@ import { claimReserveCandidate } from '@/lib/liv/reserve-preparation';
 import { nextScheduledPreparation } from '@/lib/liv/next-preparation';
 import { executablePreparation } from '@/lib/liv/preparation-policy';
 import { canPrepareReserveFallback } from '@/lib/liv/reserve-fallback-policy';
+import { scheduleReadyReserve } from '@/lib/liv/schedule-ready-reserve';
 
 export const maxDuration = 300;
 export async function GET(req: NextRequest) {
@@ -38,6 +39,10 @@ export async function GET(req: NextRequest) {
     const scheduled = await nextScheduledPreparation(state, async (day, scope) =>
       (await db.collection(LIV_DAILY_COLLECTION).doc(livDailyDocId(day, scope)).get()).data());
     const contentFallback = canPrepareReserveFallback(scheduled);
+    if (contentFallback) {
+      const assigned = await scheduleReadyReserve(lease);
+      if (assigned) return NextResponse.json(assigned);
+    }
     const reserveFallback = contentFallback ? await claimReserveCandidate(lease, Date.now(), true) : null;
     if (scheduled && !reserveFallback && !executablePreparation(scheduled.decision) && scheduled.decision.action !== 'reconcile') {
       return NextResponse.json({ ...livPreparationStatusForRow(scheduled.dayKey, scheduled.scope, scheduled.row),

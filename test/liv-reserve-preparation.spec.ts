@@ -55,6 +55,13 @@ it('does not abandon an unadmitted CMS item when its age changes',async()=>{
   expect(await claimReserveCandidate('lease',now)).toEqual({dayKey:'2026-09-01',kind:'reserve'});
   expect(fixture.writes).not.toHaveBeenCalled();
 });
+it('replenishes an older reserve assigned to a scheduled day, never its existing identity', async () => {
+  const s = fixture.rows.get('livDelivery/manifest');
+  s.reservePreparation = { dayKey: '2026-09-12' };
+  fixture.rows.set('livDailyArticles/reserve-2026-09-12', { status: 'draft', webflowItemId: entry.itemId });
+  expect(await claimReserveCandidate('lease', now)).toEqual({ dayKey: day, kind: 'reserve' });
+  expect(fixture.rows.get('livDailyArticles/reserve-2026-09-12').webflowItemId).toBe(entry.itemId);
+});
 it('rejects a wrong lease without changing the manifest',async()=>{
   await expect(claimReserveCandidate('wrong',now)).rejects.toThrow('lease_lost');expect(fixture.writes).not.toHaveBeenCalled();
 });

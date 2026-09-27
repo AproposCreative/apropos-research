@@ -17,6 +17,7 @@ export function canOpenEditorialApp(app: string, capabilities: EditorialCapabili
 /** Applies only after authentication. Public feeds and signed service calls retain
  * their separate middleware handling. Segment boundaries avoid prefix collisions. */
 export function requiresEditorialOwner(path: string, method: string): boolean {
+  if (path === '/api/webflow/article-translation/status') return !['GET', 'HEAD'].includes(method);
   const trees = ['/api/seo', '/api/seo-engine', '/api/podcast', '/api/newsletter', '/api/image-gen',
     '/api/liv-inbox', '/api/push', '/api/push-desk', '/api/admin', '/api/editorial/operations',
     '/api/ai-cost', '/api/editorial/desk', '/api/editorial/tips/select', '/api/webflow/config', '/api/instagram/config',

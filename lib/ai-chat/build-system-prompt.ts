@@ -12,6 +12,7 @@ import path from 'path';
 import { isLivAuthor, loadLivVoice } from '@/lib/liv/voice';
 import { writerLengthPolicy } from '@/lib/ai-chat/article-length';
 import { loadAproposArticleStructure } from '@/lib/editorial/article-structure';
+import { createHash } from 'node:crypto';
 
 export type { PromptSegment, PromptSegmentKind, PromptSegmentId } from '@/lib/ai-chat/prompt-segment-types';
 export { PROMPT_SEGMENT_IDS, LOCKED_SEGMENT_IDS } from '@/lib/ai-chat/prompt-segment-types';
@@ -66,7 +67,7 @@ function cleanEditorialDossierText(input: string): string {
 }
 
 export type BuildPromptSegmentsOptions = {
-  /** Fixed opening line for deterministic preview (otherwise random) */
+  /** Explicit preview override; the normal choice is stable for the article. */
   openingStrategyOverride?: string;
 };
 
@@ -82,7 +83,10 @@ export function buildPromptSegments(
 ): PromptSegment[] {
   const openingStrategy =
     options?.openingStrategyOverride ??
-    OPENING_STRATEGIES[Math.floor(Math.random() * OPENING_STRATEGIES.length)];
+    OPENING_STRATEGIES[createHash('sha256').update(JSON.stringify([
+      authorName, articleContext?.id || articleContext?.title || articleContext?.previewTitle || '',
+      articleContext?.category || articleContext?.section || '',
+    ])).digest().readUInt32BE(0) % OPENING_STRATEGIES.length];
 
   const livVoice = isLivAuthor(authorName) ? loadLivVoice() : null;
   const baseContent = [
@@ -91,7 +95,6 @@ export function buildPromptSegments(
     `Alt skal føles menneskeligt, reflekteret og sanseligt — aldrig maskinelt.`,
     `Svar på dansk i en rytmisk, levende og menneskelig tone. Vær konkret og følg brugerens ønsker.`,
     `\n**GLOBAL TOV-REGLER:** Personlig, selvironisk, reflekteret, humoristisk. Brug dokumenterede detaljer, rytme og variation i sætningslængder. Forklar præmissen konkret før analyse; klarhed er vigtigere end en smart åbning. Skriv selvstændigt ud fra kildefakta; ingen copy/paste.`,
-    `\n**ÅBNINGSSTRATEGI FOR DENNE ARTIKEL:** ${openingStrategy}`,
     `\n**ANTI-GENTAGELSES-REGLER:** Undgå følgende AI-klichéer og floskler fuldstændigt: "${ANTI_PATTERNS.slice(0, 8).join('", "')}".\nSkriv i stedet med specifikke, konkrete detaljer fra det værk du anmelder. Nævn navne, steder, scener, dialoger. Vær præcis.`,
     `\n**RESEARCH-KRAV:** Når du skriver om et specifikt værk (film, serie, album, spil osv.), SKAL du inkludere konkrete fakta: navne på instruktører/skabere, skuespillere, udgivelsesår, antal episoder/sæsoner, platform. Hvis du ikke kender fakta, så skriv KUN om det du ved — opfind ALDRIG fakta, navne eller detaljer.`,
   ].join('\n');
@@ -189,7 +192,7 @@ export function buildPromptSegments(
   const antiPlagRules = loadAntiPlagiarismPrompt();
   const antiPlagContent = antiPlagRules ? `\n${antiPlagRules}` : '';
 
-  const styleRef = buildStyleReferenceBlock(category as string | undefined);
+  const styleRef = buildStyleReferenceBlock(category as string | undefined, 3, true);
 
   const outputFormatContent = `\n**OUTPUT-FORMAT (felter til CMS — følg præcist):**
 - Linje 1: Arbejdstitel: [kun titeltekst]
@@ -241,8 +244,8 @@ export function buildPromptSegments(
       id: PROMPT_SEGMENT_IDS.articleMeta,
       labelDa: 'Artikel-meta (titel, sektion, platform …)',
       kind: 'system',
-      content: articleMetaContent,
-      included: articleMetaContent.length > 0,
+      content: `${articleMetaContent}\n**ÅBNINGSSTRATEGI FOR DENNE ARTIKEL:** ${openingStrategy}`,
+      included: true,
     },
     {
       id: PROMPT_SEGMENT_IDS.articleTypeLength,
@@ -344,7 +347,7 @@ export function buildWebSearchSegment(contextText: string | undefined | null): P
   };
 }
 
-/** Backwards-compatible single string builder (random opening, no toggles, no web). */
+/** Backwards-compatible single string builder (stable selection, no toggles, no web). */
 export function buildSystemPromptString(
   authorTOV: string,
   authorName: string,

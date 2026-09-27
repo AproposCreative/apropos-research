@@ -88,6 +88,12 @@ function lower(value: unknown): string {
   return typeof value === 'string' ? value.toLowerCase() : '';
 }
 
+/** Quotes and punctuation do not make a second story about the same news. */
+export function topicIdentity(value: string): string {
+  return value.normalize('NFKC').toLocaleLowerCase('da')
+    .replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
+}
+
 function tokenize(text: string): string[] {
   return text
     .toLowerCase()
@@ -228,8 +234,9 @@ export async function pickLivTopic(options: PickTopicOptions): Promise<PickedTop
     getRecentLivDailyTopics(dedupeDays, options.currentRunId),
   ]);
 
+  const excludedIdentities = new Set([...recentTopics, ...excludedSet].map(topicIdentity));
   const isExcluded = (title: string) => titleMatchesBlocklist(title) || recentSlugs.has(slugify(title)) ||
-    recentTopics.has(title.toLowerCase()) || excludedSet.has(title.toLowerCase());
+    excludedIdentities.has(topicIdentity(title));
   const syntheticTopic = (): PickedTopic | null => topicHint && !mustUseTrending && !isExcluded(topicHint)
     ? { title: topicHint, score: 0, synthetic: true } : null;
 

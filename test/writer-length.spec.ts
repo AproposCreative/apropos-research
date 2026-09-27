@@ -31,12 +31,12 @@ it('does not expand a valid short news item to the old film minimum', async () =
   expect(mock.create).toHaveBeenCalledTimes(1);
   expect(data.articleUpdate.lengthCheck).toMatchObject({ actual: 400, pass: true });
 });
-it.each([200, 1100])('repairs out-of-range draft %s once', async n => {
+it.each([200, 1100])('preserves out-of-range draft %s without buying a rewrite', async n => {
   mock.create.mockResolvedValueOnce(completion(n)).mockResolvedValueOnce(completion(400));
   const data = await (await POST(request())).json();
-  expect(mock.create).toHaveBeenCalledTimes(2);
-  expect(data.articleUpdate.lengthCheck.pass).toBe(true);
-  expect(mock.create.mock.calls[1][0].messages[1].content).toContain('300-500');
+  expect(mock.create).toHaveBeenCalledTimes(1);
+  expect(data.articleUpdate.lengthCheck).toMatchObject({ pass: false, actual: n });
+  expect(data.warnings[0]).toContain('Længde kræver rettelse');
 });
 it('retains the draft but reports a failed repair instead of claiming length compliance', async () => {
   mock.create.mockResolvedValueOnce(completion(200)).mockResolvedValueOnce(completion(100));
@@ -85,10 +85,12 @@ it('does not treat a long chat answer as a replacement article', async () => {
   expect(data).not.toHaveProperty('articleUpdate');
   expect(mock.create).toHaveBeenCalledTimes(1);
 });
-it('checks the complete body and warns when the quick editorial check is unavailable', async () => {
+it('uses only free length diagnostics and never implies editorial approval', async () => {
   mock.create.mockResolvedValueOnce(completion(1400)).mockRejectedValueOnce(new Error('fixture outage'));
   const req = new NextRequest('https://studio.example/api/ai-chat', { method: 'POST', body: JSON.stringify({ message: 'Skriv en artikel', clientRequestId: 'writer-quality-fixture', articleData: { articleType: 'longread' } }) });
   const data = await (await POST(req)).json();
-  expect(mock.create.mock.calls[1][0].messages[1].content).toBe(words(1400));
-  expect(data.warnings).toContain('Den hurtige redaktionelle kontrol kunne ikke gennemføres. Udkastet er ikke kvalitetsgodkendt.');
+  expect(mock.create).toHaveBeenCalledTimes(1);
+  expect(data.articleUpdate.content).toBe(words(1400));
+  expect(data.articleUpdate.generationProvenance.editorialApproval).toBe(false);
+  expect(data.warnings.join(' ')).toContain('uden ekstra AI-kvalitetstjek');
 });

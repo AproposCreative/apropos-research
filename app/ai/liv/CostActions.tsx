@@ -4,7 +4,7 @@ import { useAuth } from '@/lib/auth-context';
 import { readJsonResponse } from '@/lib/api/read-json-response';
 import type { readCostActions } from '@/lib/ai/cost-actions';
 import { providerFailureLabel } from '@/lib/ai/provider-error';
-import { costOverview } from '@/lib/ai/cost-overview';
+import { costOverview, costStories, costStageLabel } from '@/lib/ai/cost-overview';
 type Snapshot = Awaited<ReturnType<typeof readCostActions>>;
 const amount = (value: number) => `${value.toLocaleString('da-DK', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} kr.`;
 export default function CostActions() {
@@ -69,13 +69,23 @@ export default function CostActions() {
       </div>}
       {!!snapshot?.stories?.length && <details className="py-3"><summary className="min-h-11 cursor-pointer">Samlet pr. historie eller forløb</summary>
         <p>Ældre kald vises pr. forløb, hvor en fælles historieidentitet mangler.</p>
-        <ul>{snapshot.stories.map(s => <li key={`${s.bucket}:${s.id}`} className="break-all py-2">
-          {s.id}: {amount(s.estimatedDkk)} · {amount(s.reservedDkk)} reserveret
+        <ul>{costStories(snapshot.actions).map(s => <li key={`${s.bucket}:${s.id}`} className="py-2">
+          <details>
+            <summary className="min-h-11 cursor-pointer break-words">
+              {s.id}: {amount(s.estimatedDkk)}
+            </summary>
+            <p>{s.bucket === 'image-gen' ? 'Image-gen' : 'Fælles budget'} · {s.calls} kald · {amount(s.reservedDkk)} reserveret</p>
+            <p>Inklusive registreret arbejde fra mislykkede forsøg. {s.unknownCalls} kald har uafklaret forbrug.</p>
+            <ul className="divide-y divide-white/10">{s.stages.map(stage => <li key={stage.stage} className="py-2">
+              <p>{costStageLabel(stage.stage)}: {amount(stage.estimatedDkk)}</p>
+              <p>{stage.calls} kald · {amount(stage.reservedDkk)} reserveret</p>
+            </li>)}</ul>
+          </details>
         </li>)}</ul>
       </details>}
       {snapshot && <ul className="divide-y divide-white/10">
         {snapshot.actions.slice(0, limit).map(a => <li key={`${a.bucket}:${a.scope}:${a.runId}:${a.stage}:${a.purpose}:${a.contentVersion}`} className="space-y-1 py-3">
-          <p className="break-words text-white/85">{a.scope} · {a.stage}</p>
+          <p className="break-words text-white/85">{a.scope} · {costStageLabel(a.stage)}</p>
           {a.purpose && <p>{a.purpose === 'development-pilot' ? 'Udviklingstest' : a.purpose === 'editorial-change' ? 'Redaktionel ændring' : 'Drift'}</p>}
           <p>{amount(a.estimatedDkk)} registreret · {a.calls} kald{a.unknownCalls ? ` · ${a.unknownCalls} uafklarede (${amount(a.reservedDkk)} reserveret)` : ''}</p>
           {a.failure && <p className="text-amber-200">{providerFailureLabel[a.failure]}</p>}

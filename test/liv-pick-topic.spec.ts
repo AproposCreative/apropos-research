@@ -76,3 +76,10 @@ it('does not manufacture a synthetic topic from whitespace', async () => {
   feed([]);
   expect(await pickLivTopic({ ...options, topicHint: '   ', mustUseTrending: false })).toBeNull();
 });
+it('does not buy a duplicate because a source puts the work title in quotes', async () => {
+  mocks.topics.mockResolvedValue(new Set(['Kvinde ukendt er Danmarks Oscar-bud']));
+  feed([{ ...article, title: '‘Kvinde ukendt’ er Danmarks Oscar-bud' }, article]);
+  expect(await pickLivTopic(options)).toMatchObject({ title: article.title });
+  expect(await pickLivTopic({ ...options, topicHint: '“Kvinde ukendt” er Danmarks Oscar-bud',
+    mustUseTrending: false })).toBeNull();
+});

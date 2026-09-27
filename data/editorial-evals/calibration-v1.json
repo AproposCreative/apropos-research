@@ -1,0 +1,11 @@
+{
+  "version": "apropos-calibration-v1",
+  "purpose": "Calibration, not a held-out benchmark: published references already occur in the style archive.",
+  "referenceIds": [
+    "69c7cec52b76e468b35d16fd", "69b325a39bec57d4d70f1af0",
+    "6976782581fe246e33348995", "690b344f45c86d6e3acc8bbc",
+    "69048365f9c27c1f9f04e144", "68c7eac8f0d0e86eb90e981c",
+    "69c4e9b19b0adb964567e719", "698893d0c5bf2f7515524361",
+    "6940853df1a0aab09969cc04", "681b21687199d8c9c06b8ee9"
+  ]
+}

@@ -15,12 +15,13 @@ import { generateSeoMetaSmart } from '@/lib/seo/generate-seo-meta';
 import { SEO_TITLE_MAX } from '@/lib/seo/constants';
 import { isLivAuthor, loadLivVoice } from '@/lib/liv/voice';
 import { livModels } from '@/lib/liv/model-config';
-import { writerLengthCheck, writerLengthPolicy } from '@/lib/ai-chat/article-length';
+import { writerLengthCheck } from '@/lib/ai-chat/article-length';
+import { writerGenerationProvenance } from '@/lib/ai-chat/generation-provenance';
 import { boundedWriterConversation } from '@/lib/ai-chat/bounded-history';
 import { getWriterResearch, writerResearchScope } from '@/lib/ai-chat/research-cache';
 import { personalSourcePolicy } from '@/lib/ai-chat/personal-source-policy';
 import { researchPromptContext } from '@/lib/research/source-policy';
-import { withSharedCostContext } from '@/lib/liv/cost-context';
+import { withSharedCostContext, withLivCostStage } from '@/lib/liv/cost-context';
 import { getLivCostPretransportError } from '@/lib/liv/cost-errors';
 
 const openai = getOpenAIClient();
@@ -69,38 +70,11 @@ function buildProgressSteps(hasResearch: boolean) {
     steps.push({ id: 'web-search', label: 'Søger efter fakta og kilder' });
   }
   steps.push({ id: 'generation', label: 'Genererer artikeludkast' });
-  steps.push({ id: 'quality', label: 'Kører kvalitetskontrol' });
+  steps.push({ id: 'quality', label: 'Kontrollerer længde uden AI-kald' });
   steps.push({ id: 'format', label: 'Formatterer svar til UI' });
   return steps;
 }
 
-
-async function runQuickQualityCheck(openaiClient: ReturnType<typeof getOpenAIClient>, articleText: string, liv = false): Promise<string[]> {
-  if (!openaiClient || !articleText || articleText.length < 200) return [];
-  try {
-    const response = await openaiClient.chat.completions.create({
-      model: liv ? livModels().utility : models.default,
-      ...(liv ? {} : { temperature: 0.2 }),
-      max_completion_tokens: 512,
-      messages: [
-        {
-          role: 'system',
-          content: 'Du er kvalitetskontrollør. Gennemgå artiklen for: 1) Faktuelle udsagn der bør tjekkes, 2) Gentagelser, 3) Tone-problemer. Returnér KUN en JSON-array af korte advarsler på dansk (maks 5). Returnér [] hvis artiklen er god.',
-        },
-        { role: 'user', content: articleText },
-      ],
-    });
-    if (response.choices[0]?.finish_reason !== 'stop') throw new Error('Incomplete quality check');
-    const raw = response.choices[0]?.message?.content?.trim() || '';
-    const match = raw.match(/\[[\s\S]*\]/);
-    const warnings: unknown = match ? JSON.parse(match[0]) : null;
-    if (!Array.isArray(warnings) || !warnings.every(w => typeof w === 'string')) throw new Error('Invalid quality check');
-    return warnings;
-  } catch (error) {
-    if (getLivCostPretransportError(error)) return [formatAiChatError(error)];
-    return ['Den hurtige redaktionelle kontrol kunne ikke gennemføres. Udkastet er ikke kvalitetsgodkendt.'];
-  }
-}
 
 /** Parse title/subtitle labels from the top of response with tolerant markdown and separators. */
 function extractTopLabeledLine(
@@ -506,7 +480,7 @@ async function handleWriterRequest(request: NextRequest) {
       if (searchPlatform) queryParts.push(String(searchPlatform));
       if (searchCategory && typeof searchCategory === 'string' && !/generel/i.test(searchCategory)) queryParts.push(searchCategory);
       const searchQuery = queryParts.join(' ');
-      researchResult = await getWriterResearch(writerResearchScope(request.headers), searchQuery, { maxResults: 3, ...(sourcePolicy ? { sourcePolicy } : {}), ...(liv ? { model: livModels().research } : {}) });
+      researchResult = await withLivCostStage('research', () => getWriterResearch(writerResearchScope(request.headers), searchQuery, { maxResults: 3, ...(sourcePolicy ? { sourcePolicy } : {}), ...(liv ? { model: livModels().research } : {}) }));
       webSegment = buildWebSearchSegment(researchResult.contextText);
       if (clientRequestId) {
         updateProgressStep(clientRequestId, 'web-search', 'completed');
@@ -515,7 +489,7 @@ async function handleWriterRequest(request: NextRequest) {
       updateProgressStep(clientRequestId, 'prepare', 'completed');
     }
 
-    let systemPrompt = composeSystemPrompt(promptSegments, toggles, webSegment);
+    const systemPrompt = composeSystemPrompt(promptSegments, toggles, webSegment);
 
     // --- Step: Generation ---
     if (clientRequestId) {
@@ -527,12 +501,12 @@ async function handleWriterRequest(request: NextRequest) {
       ...boundedWriterConversation(chatHistory, message.trim()),
     ];
 
-    const completion = await openai.chat.completions.create({
+    const completion = await withLivCostStage('writing', () => openai.chat.completions.create({
       model: generationModel,
       messages,
       ...(liv ? {} : { temperature: 0.7 }),
       max_completion_tokens: 10000,
-    });
+    }));
 
     if (completion.choices[0]?.finish_reason !== 'stop') {
       if (clientRequestId) completeProgress(clientRequestId);
@@ -556,63 +530,24 @@ async function handleWriterRequest(request: NextRequest) {
     }
 
     const userRating = typeof articleData?.rating === 'number' ? articleData.rating : undefined;
-    let finalResponseText = responseText;
-    let articleUpdate = extractArticleUpdate(finalResponseText, userRating) ?? undefined;
-
-    // One bounded repair, for both too-short and too-long drafts. Never silently
-    // label a failed repair as meeting the user's selected template.
-    let lengthWarning: string | undefined;
-    let repairBudgetWarning: string | undefined;
+    const articleUpdate = extractArticleUpdate(responseText, userRating) ?? undefined;
+    const warnings: string[] = [];
+    // A draft is not publication approval. Preserve paid work and report cheap
+    // deterministic diagnostics; never buy an unsolicited rewrite/second critic.
     if (articleUpdate?.content) {
-      const policy = writerLengthPolicy(articleData);
-      if (!writerLengthCheck(articleUpdate.content, articleData).pass) {
-        try {
-          const expansion = await openai.chat.completions.create({
-            model: generationModel,
-            ...(liv ? {} : { temperature: 0.5 }),
-            max_completion_tokens: 10000,
-            messages: [
-              {
-                role: 'system',
-                content:
-                  `${systemPrompt}\n\nDu er redaktør. Tilpas artiklen til korrekt længde uden at ændre hovedvinkel, TOV eller redaktionel retning. Returnér Arbejdstitel:, Undertitel:, Intro: og Brødtekst: med hele brødteksten. Ingen nye udokumenterede fakta, citater eller fyld.`,
-              },
-              {
-                role: 'user',
-                content:
-                  `Brødteksten skal være ${policy.min}-${policy.max} ord, sigt efter ${policy.target}. Titel, undertitel og intro tæller ikke med.\n` +
-                  'Forkort hvis for lang, uddyb eksisterende belæg hvis for kort. Bevar fakta og kildehenvisninger.\n\n' +
-                  finalResponseText,
-              },
-            ],
-          });
-          const expanded = expansion.choices[0]?.message?.content?.trim();
-          const repaired = expanded && expansion.choices[0]?.finish_reason === 'stop'
-            ? extractArticleUpdate(expanded, userRating) : null;
-          if (repaired?.content && writerLengthCheck(repaired.content, articleData).pass) {
-            finalResponseText = expanded;
-            articleUpdate = repaired;
-          }
-        } catch (expErr) {
-          if (getLivCostPretransportError(expErr)) repairBudgetWarning = formatAiChatError(expErr);
-          console.warn('[ai-chat] length repair failed; original draft retained');
-        }
-      }
       const lengthCheck = writerLengthCheck(articleUpdate.content, articleData);
       articleUpdate.lengthCheck = lengthCheck;
-      if (!lengthCheck.pass) lengthWarning = `Længde kræver rettelse: Brødteksten er ${lengthCheck.actual} ord; valgt skabelon kræver ${lengthCheck.label}. Udkastet er bevaret, men længden er ikke godkendt.`;
+      articleUpdate.aiModel = completion.model || generationModel;
+      articleUpdate.generationProvenance = writerGenerationProvenance({
+        modelRequested: generationModel, modelReturned: completion.model,
+        temperature: liv ? null : 0.7, systemPrompt, requestMessages: messages,
+        segments: [...promptSegments, ...(webSegment ? [webSegment] : [])]
+          .filter(s => s.locked || toggles?.[s.id] !== false), response: responseText,
+      });
+      if (!lengthCheck.pass) warnings.push(`Længde kræver rettelse: Brødteksten er ${lengthCheck.actual} ord; valgt skabelon kræver ${lengthCheck.label}. Udkastet er bevaret. Bed om en målrettet rettelse, hvis du vil ændre længden.`);
+      warnings.push('Udkast uden ekstra AI-kvalitetstjek. Faktatjek og redaktionel godkendelse er stadig påkrævet før udgivelse.');
     }
-
-    // --- Step: Quality Check ---
-    let warnings: string[] = lengthWarning ? [lengthWarning] : [];
-    if (repairBudgetWarning) warnings.push(repairBudgetWarning);
-    if (articleUpdate?.content && clientRequestId) {
-      updateProgressStep(clientRequestId, 'quality', 'active');
-      warnings.push(...await runQuickQualityCheck(openai, articleUpdate.content, liv));
-      updateProgressStep(clientRequestId, 'quality', 'completed');
-    } else if (clientRequestId) {
-      updateProgressStep(clientRequestId, 'quality', 'completed');
-    }
+    if (clientRequestId) updateProgressStep(clientRequestId, 'quality', 'completed');
 
     if (clientRequestId) {
       updateProgressStep(clientRequestId, 'format', 'completed');
@@ -620,7 +555,7 @@ async function handleWriterRequest(request: NextRequest) {
     }
 
     return NextResponse.json({
-      response: finalResponseText,
+      response: responseText,
       ...(liv ? { aiModel: completion.model || generationModel, voiceVersion: loadLivVoice().version } : {}),
       ...(articleUpdate && Object.keys(articleUpdate).length > 0 ? { articleUpdate } : {}),
       ...(warnings.length > 0 ? { warnings } : {}),

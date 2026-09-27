@@ -3,7 +3,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import type { DeliveryState, ReadyEntry } from '@/lib/liv/delivery-policy';
 const mocks = vi.hoisted(() => ({ row: undefined as Record<string, unknown> | undefined,
   rows: new Map<string, Record<string, unknown>>(), state: { entries: [], slots: {} } as DeliveryState,
-  run: vi.fn(), release: vi.fn(), admit: vi.fn(), auth: vi.fn(), reserve: vi.fn() }));
+  run: vi.fn(), release: vi.fn(), admit: vi.fn(), auth: vi.fn(), reserve: vi.fn(), scheduleReserve: vi.fn() }));
+vi.mock('@/lib/liv/schedule-ready-reserve', () => ({ scheduleReadyReserve: mocks.scheduleReserve }));
 vi.mock('@/lib/liv/reserve-preparation', () => ({ claimReserveCandidate: mocks.reserve, reserveNeeded: () => false }));
 vi.mock('@/lib/cron/cron-auth', () => ({ requireCronBearer: mocks.auth }));
 vi.mock('@/lib/firebase-admin', () => ({ getAdminDb: () => ({ collection: () => ({ doc: (id: string) => ({
@@ -37,6 +38,14 @@ it('lets the single durable reserve proceed after exhausted content candidates',
   await GET(request());
   expect(mocks.reserve).toHaveBeenCalledWith('lease', Date.now(), true);
   expect(mocks.run).toHaveBeenCalledExactlyOnceWith(expect.anything(), expect.objectContaining({ kind: 'reserve' }));
+});
+it('assigns a ready reserve first without buying a replacement in the same request', async () => {
+  mocks.state.slots['2026-09-12'] = { itemId: 'published', state: 'published', token: 't', leaseUntil: 0, attempts: 1, nextAttemptAt: 0 };
+  mocks.rows.set('prepare-2026-09-13', { status: 'failed', reason: 'article_evidence_insufficient' });
+  mocks.rows.set('prepare-alternative-2026-09-13', { status: 'failed', reason: 'source_similarity_incomplete' });
+  mocks.scheduleReserve.mockResolvedValue({ status: 'reserve_scheduled', day: '2026-09-13' });
+  expect(await (await GET(request())).json()).toMatchObject({ status: 'reserve_scheduled' });
+  expect(mocks.run).not.toHaveBeenCalled(); expect(mocks.reserve).not.toHaveBeenCalled();
 });
 it('does not let a legacy pre-generation no-topic record permanently block tomorrow', async () => {
   mocks.rows.set('prepare-2026-09-12', { status: 'skipped_no_topic', preparationAttempts: 3 });

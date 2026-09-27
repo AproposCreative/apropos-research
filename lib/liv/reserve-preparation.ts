@@ -34,7 +34,9 @@ export async function claimReserveCandidate(lease: string, now = Date.now(), con
     if (row?.webflowItemId) {
       const entry = state.entries.find(e => e.itemId === row.webflowItemId);
       const published = Object.values(state.slots).some(s => s.itemId === row.webflowItemId && s.state === 'published');
-      const retired = published || entry?.state === 'published' || entry && entry.expiresDay < today;
+      // A reserve assigned to a scheduled day no longer covers a second article.
+      // Replenish once in today's namespace, preserving all original evidence.
+      const retired = published || entry?.state === 'published' || entry?.kind === 'scheduled' || entry && entry.expiresDay < today;
       if (retired) {
         if (dayKey === today) return null; // never generate twice in one reserve namespace/day
         dayKey = today;

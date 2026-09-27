@@ -11,8 +11,13 @@ it('shows a brief without pretending it is ready or starting generation', () => 
 it('keeps a failed article visible, without leaking provider messages', () => {
   const result = weeklyStory(day, emptyDeliveryState(), { topicHint: 'Tokyo Game Show' },
     { status: 'failed', reason: 'research_dated_sources_insufficient', articleCheckpoint: { title: 'Saved' } });
-  expect(result.status).toBe('blocked'); expect(result.title).toBe('Tokyo Game Show');
+  expect(result.status).toBe('blocked'); expect(result.title).toBe('Saved');
   expect(JSON.stringify(result)).not.toContain('research_dated');
+});
+it('names the actual alternate work instead of the displaced editorial plan', () => {
+  expect(weeklyStory(day, emptyDeliveryState(), { topicHint: 'Original plan' },
+    { topic: 'First attempt', status: 'failed' }, { topic: 'Actual alternative', status: 'failed' }))
+    .toMatchObject({ title: 'Actual alternative', status: 'blocked' });
 });
 it('does not label unverified CMS work ready', () => {
   expect(weeklyStory(day, emptyDeliveryState(), undefined, { status: 'draft', webflowItemId: '123' }).status).toBe('blocked');

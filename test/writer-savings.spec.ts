@@ -171,7 +171,7 @@ it('returns a readable budget error when the shared wrapper configuration reject
   expect(mocks.research).not.toHaveBeenCalled();
 });
 
-it('preserves generated work and explains budget blocks during repair and quality checks', async () => {
+it('preserves generated work without attempting automatic repair or quality purchases', async () => {
   mocks.create.mockResolvedValueOnce({ choices: [{ finish_reason: 'stop', message: { content:
     `Arbejdstitel: En præcis kulturtitel\nUndertitel: En konkret undertitel\nIntro: En separat intro.\n\nBrødtekst:\n${Array(100).fill('ord').join(' ')}`,
   } }] }).mockRejectedValue(new Error('Connection error.', { cause: new LivCostPretransportError('liv_cost_monthly_budget_exceeded') }));
@@ -181,9 +181,9 @@ it('preserves generated work and explains budget blocks during repair and qualit
   expect(response.status).toBe(200);
   const data = await response.json();
   expect(data.articleUpdate.lengthCheck).toMatchObject({ actual: 100, pass: false });
-  expect(data.warnings.filter((warning: string) => warning.includes('Appens AI-budgetgrænse'))).toHaveLength(2);
+  expect(data.warnings.join(' ')).toContain('Længde kræver rettelse');
   expect(JSON.stringify(data.warnings)).not.toMatch(/billing|Connection error/);
-  expect(mocks.create).toHaveBeenCalledTimes(3);
+  expect(mocks.create).toHaveBeenCalledTimes(1);
 });
 it('does not cache failed quality, exceptions or anonymous research', async () => {
   const cached = createWriterResearchCache(mocks.research);
@@ -229,13 +229,11 @@ it('route edits reuse exact research while keeping the latest request and source
   expect(mocks.research).toHaveBeenCalledTimes(4);
 });
 
-it('still runs editorial quality checks on each article when research is reused', async () => {
+it('never buys an extra advisory check when research is reused', async () => {
   const article = { choices: [{ finish_reason: 'stop', message: { content:
     `Arbejdstitel: En præcis kulturtitel\nUndertitel: En konkret undertitel\nIntro: En separat intro.\n\nBrødtekst:\n${Array(400).fill('ord').join(' ')}`,
   } }] };
-  const quality = { choices: [{ finish_reason: 'stop', message: { content: '["Tjek fakta"]' } }] };
-  mocks.create.mockResolvedValueOnce(article).mockResolvedValueOnce(quality)
-    .mockResolvedValueOnce(article).mockResolvedValueOnce(quality);
+  mocks.create.mockResolvedValue(article);
   for (const message of ['Skriv artiklen', 'Ret kommaerne']) {
     const response = await POST(new NextRequest('https://studio.example/api/ai-chat', {
       method: 'POST', headers: { authorization: 'Bearer quality-route-user' },
@@ -243,15 +241,14 @@ it('still runs editorial quality checks on each article when research is reused'
     }));
     expect(response.status).toBe(200);
     const data = await response.json();
-    expect(data.warnings).toContain('Tjek fakta');
+    expect(data.warnings.join(' ')).toContain('uden ekstra AI-kvalitetstjek');
     expect(data.articleUpdate.lengthCheck.pass).toBe(true);
   }
   expect(mocks.research).toHaveBeenCalledTimes(1);
-  expect(mocks.create).toHaveBeenCalledTimes(4);
-  expect(mocks.create.mock.calls[3][0].messages[0].content).toContain('kvalitetskontrollør');
+  expect(mocks.create).toHaveBeenCalledTimes(2);
 });
 
-it('keeps research, generation, length repair and quality inside one server-owned cost context', async () => {
+it('keeps research and writing in one cost owner with separate stage attribution', async () => {
   vi.stubEnv('AI_SHARED_COST_ENABLED', 'true');
   const contexts: Array<ReturnType<typeof currentLivCostContext>> = [];
   mocks.research.mockImplementation(async query => {
@@ -271,8 +268,9 @@ it('keeps research, generation, length repair and quality inside one server-owne
     body: JSON.stringify({ message: 'Skriv artiklen', clientRequestId: 'untrusted-id', runId: 'untrusted-run', articleData: { title: 'Context film', articleType: 'short-news' } }),
   }));
   expect(response.status).toBe(200);
-  expect(contexts).toHaveLength(4);
-  for (const context of contexts) expect(context).toMatchObject({ scope: 'writer', stage: 'ai-chat', runId: expect.stringMatching(/^writer-/) });
+  expect(contexts).toHaveLength(2);
+  expect(contexts.map(c => c?.stage)).toEqual(['research', 'writing']);
+  for (const context of contexts) expect(context).toMatchObject({ scope: 'writer', runId: expect.stringMatching(/^writer-/) });
   expect(new Set(contexts.map(context => context?.runId)).size).toBe(1);
   expect(currentLivCostContext()).toBeUndefined();
 });
@@ -287,6 +285,6 @@ it('preserves existing run ownership and leaves accounting opt-in', async () => 
   await POST(request('Ret teksten', 'Opt-in film'));
   await withLivCostContext({ runId: 'liv-existing', stage: 'parent' }, () => POST(request('Ret teksten', 'Opt-in film')));
   expect(contexts[0]).toBeUndefined();
-  expect(contexts[1]).toMatchObject({ runId: 'liv-existing', stage: 'ai-chat' });
+  expect(contexts[1]).toMatchObject({ runId: 'liv-existing', stage: 'writing' });
   expect(contexts[1]?.scope).toBeUndefined();
 });
