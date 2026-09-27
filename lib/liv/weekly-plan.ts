@@ -33,7 +33,8 @@ export function weeklyStory(day: string, state: DeliveryState, plan?: Record<str
       return { ...base, status: 'blocked', detail: source ? 'Mangler tilstrækkeligt kildegrundlag. Gemt arbejde er bevaret.' :
         'Forberedelsen er stoppet. Gemt arbejde er bevaret; historien er ikke udgivelsesklar.' };
     }
-    return { ...base, status: 'preparing', detail: decision.action === 'wait' ? 'Liv arbejder på historien.' : 'Afventer næste forberedelseskørsel.' };
+    return { ...base, status: decision.action === 'wait' ? 'preparing' : 'planned',
+      detail: decision.action === 'wait' ? 'Liv arbejder på historien.' : 'Afventer næste forberedelseskørsel.' };
   }
   return { ...base, status: plan ? 'planned' : 'unplanned', detail: plan ?
     'Brief gemt. Tekst og billeder er ikke færdige.' : 'Ingen historie planlagt endnu.' };

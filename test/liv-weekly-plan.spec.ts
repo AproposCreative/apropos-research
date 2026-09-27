@@ -3,6 +3,15 @@ vi.mock('@/lib/firebase-admin', () => ({ getAdminDb: () => null }));
 import { weeklyStory } from '@/lib/liv/weekly-plan';
 import { emptyDeliveryState } from '@/lib/liv/delivery-policy';
 const day = '2026-09-26';
+it('does not call queued work active preparation', () => {
+  expect(weeklyStory(day, emptyDeliveryState(), { topicHint: 'Gemt brief' }, {}))
+    .toMatchObject({ status: 'planned', detail: 'Afventer næste forberedelseskørsel.' });
+});
+it('labels genuinely running work as preparing', () => {
+  expect(weeklyStory(day, emptyDeliveryState(), { topicHint: 'Gemt brief' },
+    { status: 'processing', processingStartedAt: new Date() }))
+    .toMatchObject({ status: 'preparing', detail: 'Liv arbejder på historien.' });
+});
 it('shows a brief without pretending it is ready or starting generation', () => {
   expect(weeklyStory(day, emptyDeliveryState(), { topicHint: 'Tokyo Game Show' })).toMatchObject({
     title: 'Tokyo Game Show', status: 'planned', itemId: null,
