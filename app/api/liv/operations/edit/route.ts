@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireCronBearer } from '@/lib/cron/cron-auth';
 import { claimPreparation, releasePreparation } from '@/lib/liv/delivery-store';
 import { editorialEditDayAllowed, editorialEditInput, editLivEditorialCheckpoint } from '@/lib/liv/editorial-edit';
+import { savedWritingEditInput, editSavedLivWriting } from '@/lib/liv/edit-saved-writing';
 
 export const runtime = 'nodejs';
 export const maxDuration = 60;
@@ -17,15 +18,17 @@ export async function POST(req: NextRequest) {
     if (req.nextUrl.search) throw new Error('invalid');
     const raw = await req.text();
     if (raw.length > 45000) throw new Error('invalid');
-    const parsed = editorialEditInput.parse(JSON.parse(raw));
-    if (!editorialEditDayAllowed(parsed)) throw new Error('invalid');
+    const body = JSON.parse(raw);
+    const parsed = body?.target === 'saved-writing' ? savedWritingEditInput.parse(body) : editorialEditInput.parse(body);
+    if (!('target' in parsed) && !editorialEditDayAllowed(parsed)) throw new Error('invalid');
     input = parsed;
   } catch { return json({ error: 'liv_edit_invalid' }, 400); }
   let lease: string | null = null;
   try {
     lease = await claimPreparation();
     if (!lease) return json({ status: 'already_preparing' });
-    return json(await editLivEditorialCheckpoint(input, lease), 200);
+    return json((input as { target?: string }).target === 'saved-writing'
+      ? await editSavedLivWriting(input, lease) : await editLivEditorialCheckpoint(input, lease), 200);
   } catch (error) {
     const code = error instanceof Error && /^liv_edit_(invalid|invalid_patch|store_unavailable|lease_lost|delivery_hold|conflict|blocked_saved_work)$/.test(error.message)
       ? error.message : 'liv_edit_failed';

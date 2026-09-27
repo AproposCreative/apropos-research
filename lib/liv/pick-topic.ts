@@ -9,7 +9,8 @@
 
 import { logger } from '@/lib/logger';
 import { internalApiHeaders } from '@/lib/api/internal-auth';
-import { getRecentLivDailySlugs, getRecentLivDailyTopics } from '@/lib/liv/daily-history-store';
+import { getRecentLivDailySlugs, getRecentLivDailyTopics, getRecentLivDailySourceUrls } from '@/lib/liv/daily-history-store';
+import { canonicalSourceUrl } from '@/lib/editorial/audience-signals';
 import { currentSourceDate } from '@/lib/liv/source-date';
 import { sourceUrl } from '@/lib/factcheck/source-reader';
 
@@ -229,9 +230,10 @@ export async function pickLivTopic(options: PickTopicOptions): Promise<PickedTop
 
   if (articles.length === 0 && (!topicHint || mustUseTrending)) return null;
 
-  const [recentSlugs, recentTopics] = await Promise.all([
+  const [recentSlugs, recentTopics, recentSources] = await Promise.all([
     getRecentLivDailySlugs(dedupeDays),
     getRecentLivDailyTopics(dedupeDays, options.currentRunId),
+    getRecentLivDailySourceUrls(dedupeDays, options.currentRunId),
   ]);
 
   const excludedIdentities = new Set([...recentTopics, ...excludedSet].map(topicIdentity));
@@ -244,6 +246,7 @@ export async function pickLivTopic(options: PickTopicOptions): Promise<PickedTop
     // A seed that the source reader necessarily rejects cannot ground research.
     // This checks URL syntax only; retrieval and multi-host evidence checks remain downstream.
     .filter(hasResearchUrl)
+    .filter(article => !recentSources.has(canonicalSourceUrl(article.url) || ''))
     .map(article => ({ ...article, date: currentSourceDate(article.date) }))
     .filter(article => article.date !== null)
     .map((a) => {

@@ -482,6 +482,10 @@ it.each([true, false])('stops with diagnosable source failure after one original
 it('accepts an originality rewrite only after checking it against every research source', async () => {
   mocks.create.mockResolvedValueOnce(response(rawArticle(true, rewrittenBody)));
   mocks.similarity.mockResolvedValueOnce({ pass: false, complete: true,
+    semanticReview: { reason: 'Den samme kreative tese videreføres gennem åbning og afslutning.', evidence: [
+      { aspect: 'structure', finding: 'borrowed', explanation: 'Begge slutter med præcis den samme fortolkning af værkets hovedkonflikt.',
+        articleExcerpt: 'private excerpt', sourceExcerpt: 'private source excerpt' },
+    ] },
     scores: { embeddingSim: 0.9, ngramJaccard: 0.1, openingSim: 0.1 } });
   const article = await generateLivArticle({ topic: { title: 'The Invite', score: 0 }, articleFormat: 'research-review' });
   expect(article.content).toBe(rewrittenBody);
@@ -489,6 +493,12 @@ it('accepts an originality rewrite only after checking it against every research
   expect(mocks.create).toHaveBeenCalledTimes(2);
   const rewriteRequest = JSON.parse(mocks.create.mock.calls[1][0].messages[1].content);
   expect(rewriteRequest).toMatchObject({ draftToRewrite: { content: body }, blockedSourceHost: 'a24films.com' });
+  expect(rewriteRequest.sourceDependenceFeedback).toEqual({
+    reason: 'Den samme kreative tese videreføres gennem åbning og afslutning.', findings: [
+      { aspect: 'structure', finding: 'borrowed', explanation: 'Begge slutter med præcis den samme fortolkning af værkets hovedkonflikt.' },
+    ],
+  });
+  expect(JSON.stringify(rewriteRequest)).not.toContain('private source excerpt');
   expect(mocks.similarity).toHaveBeenCalledTimes(3);
   expect(mocks.similarity.mock.calls.slice(1).every(call => call[0].generated.includes(rewrittenBody))).toBe(true);
 });

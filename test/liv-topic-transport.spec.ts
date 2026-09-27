@@ -2,7 +2,7 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 const mocks = vi.hoisted(() => ({ fetch: vi.fn(), history: vi.fn() }));
 vi.mock('@/lib/api/internal-auth', () => ({ internalApiHeaders: () => ({ 'x-internal-api-secret': 'fixture-only' }) }));
 vi.mock('@/lib/logger', () => ({ logger: { warn: vi.fn(), error: vi.fn() } }));
-vi.mock('@/lib/liv/daily-history-store', () => ({ getRecentLivDailySlugs: mocks.history, getRecentLivDailyTopics: mocks.history }));
+vi.mock('@/lib/liv/daily-history-store', () => ({ getRecentLivDailySlugs: mocks.history, getRecentLivDailyTopics: mocks.history, getRecentLivDailySourceUrls: mocks.history }));
 import { pickLivTopic } from '@/lib/liv/pick-topic';
 const options = { baseUrl: 'https://app.example', topicHint: 'Kultur i København', mustUseTrending: false };
 beforeEach(() => { vi.resetAllMocks(); vi.stubGlobal('fetch', mocks.fetch); mocks.history.mockResolvedValue(new Set()); });

@@ -152,7 +152,16 @@ export function parseSourceHtml(url: string, html: string, id: string, now = Dat
   const tudum = isLivTudumSource(url);
   const tudumContent = $('[data-uia="article-content"][data-sel="article-content"]');
   if (tudum && tudumContent.length !== 1) throw new Error('Ingen entydig Tudum-artikeltekst i kilden.');
-  const root = tudum ? tudumContent : $('article').first().length ? $('article').first() : $('main').first();
+  // United Stage uses <article> for related news cards, while the actual press
+  // release is a separate section. Never use a card as evidence for this URL.
+  const unitedStageNews = /^(www\.)?unitedstage\.dk$/.test(page.hostname) && page.pathname !== '/';
+  const pressRelease = $('main > section.single-news');
+  const normalizeHeading = (value: string) => value.replace(/\s+/gu, ' ').trim().toLocaleLowerCase('da');
+  if (unitedStageNews && (pressRelease.length !== 1 || pressRelease.find('h1').length !== 1 ||
+      normalizeHeading(pressRelease.find('h1').text()) !== normalizeHeading(title))) {
+    throw new Error('Ingen entydig United Stage-pressemeddelelse i kilden.');
+  }
+  const root = tudum ? tudumContent : unitedStageNews ? pressRelease : $('article').first().length ? $('article').first() : $('main').first();
   if (tudum) root.find('article').remove(); // Related-story cards are not this article's evidence.
   // An archive/navigation page is not silently treated as article evidence.
   if (!root.length) throw new Error('Ingen afgrænset artikeltekst i kilden.');

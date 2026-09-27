@@ -8,6 +8,8 @@
  */
 
 import { FieldValue, Timestamp } from 'firebase-admin/firestore';
+import { createHash } from 'node:crypto';
+import { canonicalSourceUrl } from '@/lib/editorial/audience-signals';
 import { getAdminDb } from '@/lib/firebase-admin';
 import type { GroundedReport } from '@/lib/factcheck/grounded';
 import type { GeneratedArticle } from '@/lib/liv/generate-article';
@@ -345,7 +347,6 @@ export async function getRecentLivDailySlugs(days = 14): Promise<Set<string>> {
       if (data?.status !== 'published') continue;
       const slug = data?.slug;
       if (typeof slug === 'string' && slug.trim()) out.add(slug.trim().toLowerCase());
-      if (out.size >= days) break;
     }
   } catch (e) {
     console.warn('[liv/daily] getRecentLivDailySlugs:', e);
@@ -373,10 +374,40 @@ export async function getRecentLivDailyTopics(days = 14, currentRunId?: string):
       if (!shouldExcludeLivTopic(data)) continue;
       const topic = data?.topic;
       if (typeof topic === 'string' && topic.trim()) out.add(topic.trim().toLowerCase());
-      if (out.size >= days) break;
     }
   } catch (e) {
     console.warn('[liv/daily] getRecentLivDailyTopics:', e);
   }
   return out;
+}
+
+/** A headline change must not buy the same source story again. Use the bounded
+ * private archive for legacy failures that predate checkpoint creation. Exact
+ * URL identity only, never a whole-domain ban or fuzzy artist-name exclusion. */
+export async function getRecentLivDailySourceUrls(days = 14, currentRunId?: string): Promise<Set<string>> {
+  const db = getAdminDb();
+  if (!db) throw new Error('liv_topic_history_unavailable');
+  try {
+    const snap = await db.collection(LIV_DAILY_COLLECTION).orderBy('completedAt', 'desc')
+      .limit(Math.min(Math.max(days * 4, days), 120)).get();
+    const rows = snap.docs.filter(doc => doc.id !== currentRunId).map(doc => doc.data())
+      .filter(row => shouldExcludeLivTopic(row));
+    const urls = new Set<string>();
+    const add = (url: unknown) => { const canonical = typeof url === 'string' ? canonicalSourceUrl(url) : null;
+      if (canonical) urls.add(canonical); };
+    for (const row of rows) {
+      add(row.sourceUrl);
+      for (const source of (row.articleCheckpoint?.researchSources || []).slice(0, 8)) add(source.url);
+    }
+    const hash = (text: string) => createHash('sha256').update(text).digest('hex');
+    const topics = [...new Set(rows.flatMap(row => typeof row.topic === 'string' && row.topic.trim()
+      ? [row.topic.toLocaleLowerCase('da').replace(/[^\p{L}\p{N}]+/gu, ' ').trim()] : []))];
+    const desk = db.collection('livSourceArchives').doc(hash('liv-daily'));
+    const pointers = await Promise.all(topics.map(topic => desk.collection('topics').doc(hash(topic)).get()));
+    for (const pointer of pointers) {
+      const sources = pointer.data()?.latestBrief?.sources;
+      if (Array.isArray(sources)) for (const source of sources.slice(0, 8)) add(source?.url);
+    }
+    return urls;
+  } catch { throw new Error('liv_topic_history_unavailable'); }
 }

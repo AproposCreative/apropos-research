@@ -1,9 +1,9 @@
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 
-const mocks = vi.hoisted(() => ({ fetch: vi.fn(), slugs: vi.fn(), topics: vi.fn() }));
+const mocks = vi.hoisted(() => ({ fetch: vi.fn(), slugs: vi.fn(), topics: vi.fn(), sources: vi.fn() }));
 vi.mock('@/lib/api/internal-auth', () => ({ internalApiHeaders: () => ({}) }));
 vi.mock('@/lib/logger', () => ({ logger: { warn: vi.fn(), error: vi.fn() } }));
-vi.mock('@/lib/liv/daily-history-store', () => ({ getRecentLivDailySlugs: mocks.slugs, getRecentLivDailyTopics: mocks.topics }));
+vi.mock('@/lib/liv/daily-history-store', () => ({ getRecentLivDailySlugs: mocks.slugs, getRecentLivDailyTopics: mocks.topics, getRecentLivDailySourceUrls: mocks.sources }));
 import { pickLivTopic } from '@/lib/liv/pick-topic';
 
 const options = { baseUrl: 'https://app.example' };
@@ -21,6 +21,7 @@ beforeEach(() => {
   vi.stubEnv('LIV_TOPIC_TITLE_BLOCKLIST', '');
   mocks.slugs.mockResolvedValue(new Set());
   mocks.topics.mockResolvedValue(new Set());
+  mocks.sources.mockResolvedValue(new Set());
 });
 afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); vi.unstubAllEnvs(); });
 
@@ -82,4 +83,13 @@ it('does not buy a duplicate because a source puts the work title in quotes', as
   expect(await pickLivTopic(options)).toMatchObject({ title: article.title });
   expect(await pickLivTopic({ ...options, topicHint: '“Kvinde ukendt” er Danmarks Oscar-bud',
     mustUseTrending: false })).toBeNull();
+});
+it('does not buy a renamed headline from an already used source URL', async () => {
+  mocks.sources.mockResolvedValue(new Set(['https://publisher.example/already-used']));
+  feed([{ ...article, title: 'En helt ny overskrift om musik og kvinder', url: 'https://www.publisher.example/already-used/?utm_source=feed#story' }, article]);
+  expect(await pickLivTopic(options)).toMatchObject({ title: article.title });
+});
+it('does not treat unavailable history as permission to purchase', async () => {
+  feed([article]); mocks.sources.mockRejectedValue(Error('liv_topic_history_unavailable'));
+  await expect(pickLivTopic(options)).rejects.toThrow('liv_topic_history_unavailable');
 });
