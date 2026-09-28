@@ -38,6 +38,8 @@ export function decidePreparation(row?: Record<string, any>, now = Date.now()): 
   }
   const reason = typeof row.reason === 'string' ? row.reason.split(':', 1)[0].trim() : '';
   if (['liv_provider_result_unconfirmed', 'provider_result_unconfirmed', 'research_timeout',
+    'research_brief_requires_reconciliation', 'research_brief_cache_invalid', 'research_brief_cache_mismatch',
+    'research_brief_store_unavailable',
     'liv_fact_revision_requires_reconciliation'].includes(reason) ||
     /^(?:Connection error|Request timed out|fetch failed|The operation was aborted)\.?$/i.test(reason)) {
     return decision('blocked', 'provider_result_unconfirmed');

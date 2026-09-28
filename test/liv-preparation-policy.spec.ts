@@ -32,6 +32,10 @@ it.each([
   { status: 'failed', reason: 'research_timeout' },
   { status: 'failed', reason: 'liv_provider_result_unconfirmed' },
   { status: 'failed', reason: 'liv_fact_revision_requires_reconciliation' },
+  { status: 'failed', reason: 'research_brief_requires_reconciliation' },
+  { status: 'failed', reason: 'research_brief_cache_invalid' },
+  { status: 'failed', reason: 'research_brief_cache_mismatch' },
+  { status: 'failed', reason: 'research_brief_store_unavailable' },
 ])('blocks other topics and days while a provider result is unresolved: %j', async row => {
   const before = structuredClone(row);
   const read = vi.fn(async (_day: string, scope: string) => scope === 'prepare' ? row : undefined);

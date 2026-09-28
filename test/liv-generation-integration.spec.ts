@@ -271,16 +271,16 @@ it('preparation retains the initial draft without rewriting an incomplete simila
   expect(mocks.rememberBrief).toHaveBeenLastCalledWith('liv-daily', 'The Invite', expect.objectContaining({ rawResponse: rawArticle() }));
 });
 
-it('new preparation repairs complete-but-invalid review evidence once, retaining the original and checking the new text', async () => {
+it('new preparation preserves the draft instead of buying a rewrite for invalid reviewer evidence', async () => {
   mocks.similarity.mockResolvedValueOnce({ pass: false, complete: false, failure: 'semantic-review-invalid' });
   mocks.create.mockResolvedValueOnce(response(rawArticle(true, rewrittenBody)));
-  const result = await generateLivArticle({ topic: { title: 'The Invite', score: 0 }, articleFormat: 'research-review', preparation: true });
-  expect(result.rawResponse).toBe(rawArticle(true, rewrittenBody));
-  expect(mocks.create).toHaveBeenCalledTimes(2);
+  await expect(generateLivArticle({ topic: { title: 'The Invite', score: 0 }, articleFormat: 'research-review', preparation: true }))
+    .rejects.toMatchObject({ code: 'source_similarity_incomplete', blockedReview: { text: expect.stringContaining(body) } });
+  expect(mocks.create).toHaveBeenCalledTimes(1);
   expect(mocks.search).toHaveBeenCalledTimes(1);
   expect([...mocks.rows.values()].some(row => row.rawResponse === rawArticle())).toBe(true);
-  expect([...mocks.rows.values()].some(row => row.parentRunId && row.rawResponse === result.rawResponse)).toBe(true);
-  expect(mocks.similarity.mock.calls.some(([input]) => input.generated.includes(rewrittenBody))).toBe(true);
+  expect([...mocks.rows.values()].some(row => row.parentRunId)).toBe(false);
+  expect(mocks.similarity.mock.calls.some(([input]) => input.generated.includes(rewrittenBody))).toBe(false);
 });
 
 it('new preparation automatically buys only one durable revision for copied prose and retains both paid outputs', async () => {
@@ -310,25 +310,18 @@ async function seedOriginal() {
 }
 const authorizedOptions = { topic: { title: 'The Invite', score: 0 }, preparation: true, resumeWritingRunId: originalRunId, allowOriginalityRevision: true };
 
-it('uses explicit authorization to revise the original paid draft once on invalid semantic review, not research or brief again', async () => {
+it('explicit authorization does not turn invalid reviewer evidence into a reason to buy a new draft', async () => {
   await seedOriginal();
   mocks.similarity.mockResolvedValueOnce({ pass: false, complete: false, failure: 'semantic-review-invalid' });
-  mocks.create.mockImplementationOnce(async request => {
-    expect([...mocks.rows.values()].some(row => row.status === 'processing' && row.parentRunId === originalRunId)).toBe(true);
-    expect(request.model).toBe('gpt-5.6-sol');
-    expect(request.messages[0].content).toContain('450-650');
-    expect(request.messages[0].content).toContain('ubetroet');
-    return response(rawArticle(true, rewrittenBody));
-  });
-  const result = await generateLivArticle(authorizedOptions);
-  expect(result.rawResponse).toBe(rawArticle(true, rewrittenBody));
-  expect(mocks.create).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ max_completion_tokens: 8000 }), { timeout: 90000, maxRetries: 0 });
+  await expect(generateLivArticle(authorizedOptions)).rejects.toMatchObject({ code: 'source_similarity_incomplete' });
+  expect(mocks.create).not.toHaveBeenCalled();
   expect(mocks.search).not.toHaveBeenCalled();
   expect(mocks.feedback).not.toHaveBeenCalled();
-  expect(mocks.rememberBrief).toHaveBeenCalledTimes(1);
+  expect(mocks.rememberBrief).not.toHaveBeenCalled();
   expect(mocks.rows.get(runPath('liv-daily', originalRunId)).rawResponse).toBe(rawArticle());
-  expect((await generateLivArticle(authorizedOptions)).rawResponse).toBe(result.rawResponse);
-  expect(mocks.create).toHaveBeenCalledTimes(1);
+  // A later valid check may continue the exact saved original; no rewrite is needed.
+  expect((await generateLivArticle(authorizedOptions)).rawResponse).toBe(rawArticle());
+  expect(mocks.create).not.toHaveBeenCalled();
 });
 
 it.each(['embedding-unavailable', 'embedding-invalid', 'input-too-short', 'semantic-review-unavailable'])('does not spend on an explicitly authorized rewrite after %s', async failure => {
@@ -463,8 +456,7 @@ it.each(['article_generation_refused', 'article_evidence_insufficient'])('does n
   expect(mocks.similarity).not.toHaveBeenCalled();
 });
 
-it.each([true, false])('stops with diagnosable source failure after one originality rewrite, complete=%s', async complete => {
-  // The generator permits one rewrite, then requires a fresh passing comparison.
+it.each([true, false])('rewrites only a completed negative judgment and retains diagnosable evidence, complete=%s', async complete => {
   mocks.create.mockResolvedValueOnce(response(rawArticle(true, rewrittenBody)));
   mocks.similarity.mockResolvedValue({ pass: false, complete,
     scores: { embeddingSim: 0.9, ngramJaccard: 0.1, openingSim: 0.1 } });
@@ -472,10 +464,10 @@ it.each([true, false])('stops with diagnosable source failure after one original
     .rejects.toMatchObject({ name: 'SourceSimilarityError', status: complete ? 422 : 503,
       code: complete ? 'source_similarity_unapproved' : 'source_similarity_incomplete',
       detail: expect.objectContaining({ complete, sourceHash: 'hash' }),
-      blockedReview: { status: 'blocked', text: expect.stringContaining(rewrittenBody) } });
-  expect(mocks.create).toHaveBeenCalledTimes(2);
-  expect(mocks.similarity).toHaveBeenCalledTimes(2);
-  expect(mocks.similarity.mock.calls[1][0].generated).toContain(rewrittenBody);
+      blockedReview: { status: 'blocked', text: expect.stringContaining(complete ? rewrittenBody : body) } });
+  expect(mocks.create).toHaveBeenCalledTimes(complete ? 2 : 1);
+  expect(mocks.similarity).toHaveBeenCalledTimes(complete ? 2 : 1);
+  if (complete) expect(mocks.similarity.mock.calls[1][0].generated).toContain(rewrittenBody);
   expect(mocks.images).not.toHaveBeenCalled();
 });
 

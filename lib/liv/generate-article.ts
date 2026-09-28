@@ -272,7 +272,7 @@ export async function generateLivArticle(options: GenerateArticleOptions): Promi
   // Give the analytical brief room for high-reasoning models; the old 30s cap
   // aborted valid research before the writer could begin.
   const brief = resumed ? { writerText: resumed.writerText }
-    : await buildLivWritingBrief(sources, topic.title, { timeoutMs: preparation ? 90_000 : 45_000 });
+    : await buildLivWritingBrief(sources, topic.title, { sourceScope, timeoutMs: preparation ? 90_000 : 45_000 });
   const researchRunId = resumeRunId || randomUUID();
   if (!resumed) await rememberWritingBrief(sourceScope, topic.title, { runId: researchRunId, writerText: brief.writerText,
     model: generationModel, voiceVersion: voice.version, articleFormat,
@@ -424,8 +424,11 @@ export async function generateLivArticle(options: GenerateArticleOptions): Promi
     }
     const similarity = await checkSourceSimilarity({ generated: finalText, source: source.text });
     if (!similarity.complete || !similarity.pass) {
+      // Invalid reviewer evidence is a failure of the check, not proof that the
+      // draft needs rewriting. Preserve both paid outputs for reconciliation.
+      // Only a completed negative judgment may buy the bounded originality pass.
       if ((preparation && !durableOriginality) || resumed?.parentRunId ||
-          (preparation && !similarity.complete && similarity.failure !== 'semantic-review-invalid')) throw new SourceSimilarityError(similarity, source, {
+          !similarity.complete) throw new SourceSimilarityError(similarity, source, {
         text: finalText, model: writerModel, voiceVersion: voice.version,
       });
       similarityBlocked = { sourceUrl: source.url, detail: new SourceSimilarityError(similarity, source, {

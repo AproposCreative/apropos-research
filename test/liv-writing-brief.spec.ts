@@ -3,6 +3,14 @@ import { buildLivWritingBrief, validateWritingBrief, writingBriefPassages, resol
 import { livResearchQueries } from '@/lib/liv/research-query';
 const m = vi.hoisted(() => ({ create: vi.fn() }));
 vi.mock('@/lib/openai', () => ({ getOpenAIClient: () => ({ chat: { completions: { create: m.create } } }) }));
+vi.mock('@/lib/liv/writing-brief-attempt', () => ({
+  writingBriefAttempt: async (_scope: string, request: unknown, timeout: number) => {
+    const response = await m.create(request, { timeout, maxRetries: 0 });
+    return { id: 'test', raw: response.choices[0].message.content,
+      finishReason: response.choices[0].finish_reason, refusal: null };
+  },
+  recordWritingBriefValidation: vi.fn(),
+}));
 const sources = [
   { id: 'S1', url: 'https://primary.example/film', title: 'Film', text: 'Instruktøren hedder Ada Holm. Filmen foregår i et sommerhus. De fire roller spilles af fire skuespillere.', contentHash: 'hash1', retrievedAt: '2026-09-09T12:00:00Z', publishedAt: null },
   { id: 'S2', url: 'https://critic.example/review', title: 'Kritik', text: 'Anmeldelsen kritiserer filmens langsomme afslutning.', contentHash: 'hash2', retrievedAt: '2026-09-09T12:00:00Z', publishedAt: null },
@@ -56,6 +64,8 @@ it('uses a bounded structured extraction and rejects incomplete output', async (
   expect((await buildLivWritingBrief(sources, 'Film')).notes).toHaveLength(4);
   expect(m.create.mock.calls[0][1]).toEqual({ timeout: 45000, maxRetries: 0 });
   const input = JSON.parse(m.create.mock.calls[0][0].messages[1].content);
+  expect(m.create.mock.calls[0][0].messages[0].content).toContain('mindst to selvstændige fact-noter');
+  expect(m.create.mock.calls[0][0].messages[0].content).toContain('Gentag aldrig den samme summary');
   expect(input.sources[0].passages[0]).toEqual({ id: 'S1P1', text: sources[0].text });
   m.create.mockResolvedValueOnce({ choices: [{ finish_reason: 'length', message: { content: JSON.stringify({ notes }) } }] });
   await expect(buildLivWritingBrief(sources, 'Film')).rejects.toThrow('research_brief_incomplete');
