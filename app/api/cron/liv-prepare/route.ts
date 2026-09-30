@@ -15,6 +15,7 @@ import { nextScheduledPreparation } from '@/lib/liv/next-preparation';
 import { executablePreparation } from '@/lib/liv/preparation-policy';
 import { canPrepareReserveFallback } from '@/lib/liv/reserve-fallback-policy';
 import { scheduleReadyReserve } from '@/lib/liv/schedule-ready-reserve';
+import { readLivCostSummary } from '@/lib/liv/cost-ledger';
 
 export const maxDuration = 300;
 export async function GET(req: NextRequest) {
@@ -112,6 +113,18 @@ export async function GET(req: NextRequest) {
           : !resumableCheckpoint && !canRetryUnstartedPreparation(row)) {
           return NextResponse.json(livPreparationStatusForRow(candidate.dayKey, scope, row));
         }
+      }
+      // Do not consume a saved retry grant or turn an unpaid future plan into a
+      // terminal failed job while the shared allowance is already exhausted.
+      // This is only a read-only early stop: each actual provider request still
+      // needs its own atomic reservation. CMS reconciliation above remains free
+      // to proceed. The next cron reads the real current-month ledger again;
+      // no previous month's totals, reservations or failed jobs are reset.
+      const budget = await readLivCostSummary();
+      if (budget.status !== 'ready_partial' || budget.availableAllowanceDkk === 0) {
+        return NextResponse.json({ status: 'blocked_saved_work', day: candidate.dayKey, scope,
+          nextAction: 'blocked', reasonCode: 'budget_limit', budgetMonth: budget.month },
+        { headers: { 'Cache-Control': 'no-store' } });
       }
       return await runLivDaily(req, { ...candidate, defaultPlan: defaultEditorialPlan(candidate.dayKey, candidate.kind === 'reserve') });
     }

@@ -3,7 +3,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import type { DeliveryState, ReadyEntry } from '@/lib/liv/delivery-policy';
 const mocks = vi.hoisted(() => ({ row: undefined as Record<string, unknown> | undefined,
   rows: new Map<string, Record<string, unknown>>(), state: { entries: [], slots: {} } as DeliveryState,
-  run: vi.fn(), release: vi.fn(), admit: vi.fn(), auth: vi.fn(), reserve: vi.fn(), scheduleReserve: vi.fn() }));
+  run: vi.fn(), release: vi.fn(), admit: vi.fn(), auth: vi.fn(), reserve: vi.fn(), scheduleReserve: vi.fn(), budget: vi.fn() }));
+vi.mock('@/lib/liv/cost-ledger', () => ({ readLivCostSummary: mocks.budget }));
 vi.mock('@/lib/liv/schedule-ready-reserve', () => ({ scheduleReadyReserve: mocks.scheduleReserve }));
 vi.mock('@/lib/liv/reserve-preparation', () => ({ claimReserveCandidate: mocks.reserve, reserveNeeded: () => false }));
 vi.mock('@/lib/cron/cron-auth', () => ({ requireCronBearer: mocks.auth }));
@@ -21,6 +22,7 @@ beforeEach(() => {
   vi.resetAllMocks(); mocks.row = undefined; mocks.rows.clear(); mocks.state = { entries: [], slots: {} };
   vi.useFakeTimers(); vi.setSystemTime(new Date('2026-09-12T08:00:00Z'));
   mocks.release.mockResolvedValue(undefined);
+  mocks.budget.mockResolvedValue({ status: 'ready_partial', month: '2026-09', availableAllowanceDkk: 100 });
   vi.stubEnv('LIV_DELIVERY_PREPARE_ENABLED', 'true'); vi.stubEnv('LIV_DAILY_PAUSED', 'false');
   mocks.run.mockResolvedValue(NextResponse.json({ status: 'fixture' }));
 });
@@ -29,6 +31,44 @@ const request = () => new NextRequest('https://app.example/api/cron/liv-prepare'
 it('starts just one bounded job for an empty queue', async () => {
   await GET(request()); expect(mocks.run).toHaveBeenCalledTimes(1); expect(mocks.release).toHaveBeenCalledWith('lease');
   expect(mocks.reserve).not.toHaveBeenCalled();
+});
+it.each(['blocked', 'unavailable', 'unconfigured'])('does not dispatch or consume a grant when the budget is %s', async status => {
+  mocks.row = { status: 'skipped_no_topic', retryAuthorization: 'saved-audit' };
+  const before = structuredClone(mocks.row);
+  mocks.budget.mockResolvedValue({ status, month: '2026-09', availableAllowanceDkk: null });
+  const result = await GET(request());
+  expect(await result.json()).toMatchObject({ status: 'blocked_saved_work', reasonCode: 'budget_limit', budgetMonth: '2026-09' });
+  expect(result.headers.get('cache-control')).toBe('no-store');
+  expect(mocks.run).not.toHaveBeenCalled(); expect(mocks.row).toEqual(before);
+  expect(mocks.release).toHaveBeenCalledWith('lease');
+});
+it('does not turn a never-started candidate into failed work when money is exhausted', async () => {
+  mocks.budget.mockResolvedValue({ status: 'ready_partial', month: '2026-09', availableAllowanceDkk: 0 });
+  expect(await (await GET(request())).json()).toMatchObject({ reasonCode: 'budget_limit' });
+  expect(mocks.run).not.toHaveBeenCalled(); expect(mocks.rows.size).toBe(0);
+});
+it('re-reads the allowance after Copenhagen midnight without resetting the waiting job', async () => {
+  vi.setSystemTime(new Date('2026-09-30T21:55:00Z'));
+  mocks.rows.set('prepare-2026-10-01', { status: 'skipped_no_topic', retryAuthorization: 'existing-audit' });
+  const before = structuredClone([...mocks.rows]);
+  mocks.budget.mockResolvedValueOnce({ status: 'blocked', month: '2026-09', availableAllowanceDkk: null })
+    // An untouched new month can have no totals row yet; null is not zero.
+    .mockResolvedValueOnce({ status: 'ready_partial', month: '2026-10', availableAllowanceDkk: null });
+  expect(await (await GET(request())).json()).toMatchObject({ reasonCode: 'budget_limit' });
+  expect(mocks.run).not.toHaveBeenCalled();
+  vi.setSystemTime(new Date('2026-09-30T22:00:00Z'));
+  await GET(request());
+  expect(mocks.run).toHaveBeenCalledExactlyOnceWith(expect.anything(), expect.objectContaining({ dayKey: '2026-10-01' }));
+  expect([...mocks.rows]).toEqual(before);
+});
+it('still reconciles a known paid CMS draft under a blocked allowance', async () => {
+  coverTodayAndTomorrow(); mocks.state.entries = [];
+  mocks.rows.set('prepare-2026-09-13', savedReserve(0));
+  mocks.budget.mockResolvedValue({ status: 'blocked', month: '2026-09' });
+  mocks.admit.mockImplementationOnce(async () => { mocks.state.entries.push({ ...reserveItem(0), kind: 'scheduled',
+    scheduledDay: '2026-09-13', expiresDay: '2026-09-13' }); });
+  expect(await (await GET(request())).json()).toMatchObject({ status: 'recovered_ready_draft' });
+  expect(mocks.budget).not.toHaveBeenCalled(); expect(mocks.run).not.toHaveBeenCalled();
 });
 it('lets the single durable reserve proceed after exhausted content candidates', async () => {
   mocks.state.slots['2026-09-12'] = { itemId: 'published', state: 'published', token: 't', leaseUntil: 0, attempts: 1, nextAttemptAt: 0 };
