@@ -1,7 +1,7 @@
 import { getAdminDb } from '@/lib/firebase-admin';
 import { inspectLivCmsDraft } from './cms-readback';
 import { cmsFieldHash } from './cms-field-hash';
-import { addDays, copenhagenClock, type DeliveryState } from './delivery-policy';
+import { nextPublicationDay, copenhagenClock, type DeliveryState } from './delivery-policy';
 import { nextScheduledPreparation } from './next-preparation';
 import { canPrepareReserveFallback } from './reserve-fallback-policy';
 import { editorialPlanHash } from './rolling-plan';
@@ -16,7 +16,7 @@ export async function scheduleReadyReserve(lease: string, now = Date.now()) {
   const manifest = db.collection('livDelivery').doc('manifest');
   const initial = (await manifest.get()).data() as DeliveryState | undefined;
   if (!initial) return null;
-  const tomorrow = addDays(copenhagenClock(new Date(now)).day, 1);
+  const tomorrow = nextPublicationDay(copenhagenClock(new Date(now)).day);
   const candidate = initial.entries.filter(e => e.kind === 'reserve' && e.state === 'ready' &&
     e.scheduledDay <= tomorrow && e.expiresDay >= tomorrow && !e.publicationBlockers?.length &&
     e.decision !== 'rejected' && !Object.values(initial.slots).some(s => s.itemId === e.itemId))

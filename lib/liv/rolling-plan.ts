@@ -1,5 +1,5 @@
 import type { LivDailyPlan } from '@/lib/liv/daily-plan-store';
-import { addDays, eligibleEntries, type DeliveryState } from '@/lib/liv/delivery-policy';
+import { isPublicationDay, nextPublicationDay, eligibleEntries, type DeliveryState } from '@/lib/liv/delivery-policy';
 import { cmsFieldHash } from '@/lib/liv/cms-field-hash';
 
 export function editorialPlanHash(plan: LivDailyPlan | null) {
@@ -65,7 +65,7 @@ export function defaultEditorialPlan(day: string, reserve = false): LivDailyPlan
  * a reset of the rejected article or an unbounded stream of replacements. */
 export function preparationCandidates(state: DeliveryState, today: string) {
   if (state.coverRevision || Object.values(state.slots).some(slot => slot.state === 'attempted')) return [];
-  const dayKey = !state.slots[today] && eligibleEntries(state, today).length === 0 ? today : addDays(today, 1);
+  const dayKey = isPublicationDay(today) && !state.slots[today] && eligibleEntries(state, today).length === 0 ? today : nextPublicationDay(today);
   if (state.slots[dayKey] || state.entries.some(e => e.kind === 'scheduled' && e.scheduledDay === dayKey &&
       e.expiresDay >= dayKey && e.decision !== 'rejected' && ['ready', 'selected', 'published'].includes(e.state))) return [];
   const rejected = state.entries.filter(e => e.kind === 'scheduled' && e.scheduledDay === dayKey &&

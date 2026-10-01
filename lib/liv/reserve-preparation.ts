@@ -1,14 +1,14 @@
 import { getAdminDb } from '@/lib/firebase-admin';
 import { LIV_DAILY_COLLECTION, livDailyDocId } from './daily-history-store';
-import { addDays, copenhagenClock, eligibleEntries, reserveTarget, validDay, type DeliveryState } from './delivery-policy';
+import { isPublicationDay, nextPublicationDay, copenhagenClock, eligibleEntries, reserveTarget, validDay, type DeliveryState } from './delivery-policy';
 import { preparationCandidates } from './rolling-plan';
 
 /** A reserve is lower priority than both today's delivery and tomorrow's story. */
 export function reserveNeeded(state: DeliveryState, today: string, contentFallback = false) {
   if (!reserveTarget() || state.coverRevision || Object.values(state.slots).some(s => s.state === 'attempted')) return false;
   if (!contentFallback && preparationCandidates(state, today).length) return false;
-  if (!contentFallback && !state.slots[today] && !eligibleEntries(state,today).length) return false;
-  const tomorrow = addDays(today,1);
+  if (!contentFallback && isPublicationDay(today) && !state.slots[today] && !eligibleEntries(state,today).length) return false;
+  const tomorrow = nextPublicationDay(today);
   if (!contentFallback && !state.slots[tomorrow] && !state.entries.some(e => e.kind === 'scheduled' && e.scheduledDay === tomorrow &&
       e.expiresDay >= tomorrow && !e.publicationBlockers?.length && e.decision !== 'rejected' && ['ready','selected','published'].includes(e.state))) return false;
   // Even a blocked/rejected reserve is retained for explicit resolution, not replaced for money.

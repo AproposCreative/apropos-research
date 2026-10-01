@@ -3,7 +3,7 @@ import { requireCronBearer } from '@/lib/cron/cron-auth';
 import { getAdminDb } from '@/lib/firebase-admin';
 import { ensureLivDailyPlan } from '@/lib/liv/daily-plan-store';
 import { LIV_DAILY_COLLECTION, livDailyDocId } from '@/lib/liv/daily-history-store';
-import { copenhagenClock, addDays, LIV_PLAN_DAYS } from '@/lib/liv/delivery-policy';
+import { copenhagenClock, addDays, scheduledPreparationDays } from '@/lib/liv/delivery-policy';
 import { readDeliveryState, claimPreparation, releasePreparation } from '@/lib/liv/delivery-store';
 import { defaultEditorialPlan } from '@/lib/liv/rolling-plan';
 import { runLivDaily } from '@/lib/liv/run-daily';
@@ -34,8 +34,8 @@ export async function GET(req: NextRequest) {
     if (!db) throw new Error('liv_delivery_store_unavailable');
     const today = copenhagenClock().day;
     const state = await readDeliveryState();
-    for (let offset = 0; offset <= LIV_PLAN_DAYS; offset++) {
-      await ensureLivDailyPlan(defaultEditorialPlan(addDays(today, offset)));
+    for (const day of scheduledPreparationDays(state, today)) {
+      await ensureLivDailyPlan(defaultEditorialPlan(day));
     }
     const scheduled = await nextScheduledPreparation(state, async (day, scope) =>
       (await db.collection(LIV_DAILY_COLLECTION).doc(livDailyDocId(day, scope)).get()).data());

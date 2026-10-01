@@ -1,12 +1,12 @@
 import { getAdminDb } from '@/lib/firebase-admin';
 import { LIV_DAILY_PLAN_COLLECTION } from './daily-plan-store';
 import { LIV_DAILY_COLLECTION, livDailyDocId } from './daily-history-store';
-import { addDays, copenhagenClock, type DeliveryState } from './delivery-policy';
+import { addDays, isPublicationDay, copenhagenClock, type DeliveryState } from './delivery-policy';
 import { decidePreparation } from './preparation-policy';
 
 export type WeeklyStory = {
   day: string; title: string; itemId: string | null;
-  status: 'unplanned' | 'planned' | 'preparing' | 'blocked' | 'ready' | 'published';
+  status: 'off_day' | 'unplanned' | 'planned' | 'preparing' | 'blocked' | 'ready' | 'published';
   detail: string;
 };
 const text = (value: unknown) => typeof value === 'string' ? value.trim().slice(0, 240) : '';
@@ -25,6 +25,8 @@ export function weeklyStory(day: string, state: DeliveryState, plan?: Record<str
   if (slot?.state === 'attempted' || entry?.publicationBlockers?.length) {
     return { ...base, status: 'blocked', detail: 'Gemte CMS-data skal afstemmes før udgivelse.' };
   }
+  if (!isPublicationDay(day)) return { day, title: 'Ingen automatisk udgivelse', itemId: null,
+    status: 'off_day', detail: 'Liv udkommer hver anden dag. Eventuelt gemt arbejde er bevaret.' };
   if (entry && ['ready', 'selected'].includes(entry.state)) return { ...base, status: 'ready', detail: 'Tekst, billeder og CMS-kladden er klar.' };
   if (row) {
     const decision = decidePreparation(row, now);

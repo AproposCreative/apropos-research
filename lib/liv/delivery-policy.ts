@@ -1,6 +1,6 @@
 import type { LivEditorialKind } from './editorial-kind';
 /** Pure policy shared by preparation, delivery and status. All days are Danish calendar days. */
-// Produce one next-day article, not a speculative week of paid inventory.
+// Produce one next-publication article, not a speculative week of paid inventory.
 // One durable reserve, replenished only after use/expiry. Explicit false is an operational off switch.
 export const LIV_RESERVE_TARGET = 1;
 export function reserveTarget() { return process.env.LIV_RESERVE_ENABLED === 'false' ? 0 : LIV_RESERVE_TARGET; }
@@ -22,6 +22,23 @@ export function validDay(day: string) {
 export function addDays(day: string, amount: number) {
   if (!validDay(day)) throw new Error('liv_delivery_invalid_day');
   return new Date(Date.parse(`${day}T12:00:00Z`) + amount * 86_400_000).toISOString().slice(0, 10);
+}
+
+// Owner changed cadence on 1 October. Preserve historical daily receipts and
+// use calendar days (not elapsed 48h or day-of-month parity) across DST/months.
+export const LIV_CADENCE_EFFECTIVE_DAY = '2026-10-01';
+export const LIV_CADENCE_ANCHOR_DAY = '2026-10-02';
+export const LIV_PUBLICATION_INTERVAL_DAYS = 2;
+export function isPublicationDay(day: string) {
+  if (!validDay(day)) throw new Error('liv_delivery_invalid_day');
+  if (day < LIV_CADENCE_EFFECTIVE_DAY) return true;
+  const days = (Date.parse(`${day}T12:00:00Z`) - Date.parse(`${LIV_CADENCE_ANCHOR_DAY}T12:00:00Z`)) / 86_400_000;
+  return days >= 0 && days % LIV_PUBLICATION_INTERVAL_DAYS === 0;
+}
+export function nextPublicationDay(day: string, inclusive = false) {
+  let next = inclusive ? day : addDays(day, 1);
+  while (!isPublicationDay(next)) next = addDays(next, 1);
+  return next;
 }
 
 export function publicationTime(day: string) {
@@ -63,7 +80,7 @@ export const emptyDeliveryState = (): DeliveryState => ({ entries: [], slots: {}
 export function scheduledPreparationDays(_state: DeliveryState, today: string) {
   // Future briefs remain saved and visible, but do not buy a speculative week.
   // Existing ready inventory is untouched; its normal delivery dates still apply.
-  return [today, addDays(today, 1)];
+  return isPublicationDay(today) ? [today, nextPublicationDay(today)] : [nextPublicationDay(today)];
 }
 
 /** A future scheduled story can never be pulled forward as a fallback. */
@@ -80,11 +97,13 @@ export function deliveryHealth(state: DeliveryState, now = new Date()) {
   const slot = state.slots[day];
   const reserves = state.entries.filter(e => e.kind === 'reserve' && e.state === 'ready' && !e.publicationBlockers?.length && e.decision !== 'rejected' &&
     e.scheduledDay <= day && e.expiresDay >= day).length;
-  const missingDays = Array.from({ length: LIV_PLAN_DAYS }, (_, i) => addDays(day, i + 1))
+  const missingDays = [nextPublicationDay(day)]
     .filter(d => !state.entries.some(e => e.state === 'ready' && !e.publicationBlockers?.length && e.decision !== 'rejected' && e.kind === 'scheduled' &&
       e.scheduledDay === d && e.expiresDay >= d));
   const blockedItems = state.entries.filter(e => e.state === 'ready' && e.publicationBlockers?.length).map(e => e.itemId);
-  return { blockedItems, day, published: slot?.state === 'published', publicUrl: slot?.publicUrl ?? null,
-    overdue: hour >= 10 && slot?.state !== 'published', reserves, reserveTarget: reserveTarget(),
+  return { blockedItems, day, publicationDay: isPublicationDay(day),
+    publicationIntervalDays: day < LIV_CADENCE_EFFECTIVE_DAY ? 1 : LIV_PUBLICATION_INTERVAL_DAYS,
+    published: slot?.state === 'published', publicUrl: slot?.publicUrl ?? null,
+    overdue: isPublicationDay(day) && hour >= 10 && slot?.state !== 'published', reserves, reserveTarget: reserveTarget(),
     missingDays, needsReconciliation: Object.values(state.slots).some(s => s.state === 'attempted') };
 }

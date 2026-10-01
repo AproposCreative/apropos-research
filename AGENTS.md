@@ -1,5 +1,18 @@
 # Apropos project working instructions
 
+## Liv cadence change (2026-10-01)
+
+The owner replaced daily publication with **every other calendar day at 10:00
+Europe/Copenhagen**, anchored on **2026-10-02**. This supersedes older daily
+targets prospectively; historical missed days and receipts remain unchanged.
+Preparation, delivery, status, weekly overview and alerts share this cadence.
+Keep one ready next-publication article and one durable reserve, not daily
+inventory or a speculative paid week. Require three consecutive scheduled
+publications without operator-assisted preparation before claiming unattended
+operation. Off days are not failed or missing publications. Do not raise budgets,
+clear provider holds or retry paid failures just because the cadence changed.
+See `docs/editorial/LIV-PUBLICATION-CADENCE-2026-10-01.md` for this release.
+
 ## Current release authorization (2026-09-10, after consolidation)
 
 The user explicitly lifted the previous per-commit approval block and authorized

@@ -137,6 +137,8 @@ it.each([true, false])('persists actual failed similarity diagnostics before che
 
 beforeEach(() => {
   vi.resetAllMocks();
+  vi.useFakeTimers({ toFake: ['Date'] });
+  vi.setSystemTime(new Date('2026-09-09T08:00:00Z'));
   mocks.row = undefined;
   plans.saved = null;
   mocks.doc.mockImplementation(() => ({ get: async () => ({ data: () => mocks.row }) }));
@@ -154,7 +156,15 @@ beforeEach(() => {
   mocks.readback.mockResolvedValue({ draftConfirmed: true, publicationReady: false, checks: [{ id: 'image:rights', ok: false }] });
   mocks.live.mockResolvedValue({ publicationVerified: true, publicUrl: 'https://www.aproposmagazine.com/articles/et-museum-aabner' });
 });
-afterEach(() => vi.unstubAllEnvs());
+afterEach(() => { vi.useRealTimers(); vi.unstubAllEnvs(); });
+it('blocks legacy generation on Danish off days, including the UTC midnight boundary', async () => {
+  // Still 30 September in UTC, but already the first (off) day of the new policy in Denmark.
+  vi.setSystemTime(new Date('2026-09-30T22:20:00Z'));
+  const result = await runLivDaily(new NextRequest('http://localhost/api/cron/liv-daily-article'));
+  expect(await result.json()).toEqual({ status: 'off_day', day: '2026-10-01', nextDay: '2026-10-02' });
+  expect(mocks.claim).not.toHaveBeenCalled(); expect(mocks.topic).not.toHaveBeenCalled();
+  expect(plans.generate).not.toHaveBeenCalled(); expect(mocks.publish).not.toHaveBeenCalled();
+});
 it.each([true,false])('uses explicit supplied-review authority without AI calls; CMS ready=%s still controls admission', async cmsReady => {
   const input={title:'Boganmeldelse: Partybus',subtitle:'En bog om selvbedrag',intro:'Romanen handler om selvbedrag.',
     content:`<p>${'En konkret menneskelig læseoplevelse. '.repeat(160)}</p>`,slug:'partybus',excerpt:'En bog om selvbedrag',

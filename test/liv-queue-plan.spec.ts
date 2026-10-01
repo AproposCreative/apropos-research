@@ -60,7 +60,7 @@ it('replays a committed batch without rewrites or a fresh generation, even after
   await POST(request()); state.writes.mockClear(); vi.setSystemTime(new Date('2026-10-01T19:00:00Z'));
   expect(await (await POST(request())).json()).toMatchObject({ status: 'already_scheduled' });
   expect(state.writes).not.toHaveBeenCalled();
-  expect(scheduledPreparationDays(state.rows.get('livDelivery/manifest'), '2026-10-01')).toEqual(['2026-10-01', '2026-10-02']);
+  expect(scheduledPreparationDays(state.rows.get('livDelivery/manifest'), '2026-10-01')).toEqual(['2026-10-02']);
 });
 
 it('accepts an explicitly requested five-story week, without increasing automatic inventory', async () => {

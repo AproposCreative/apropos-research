@@ -1,6 +1,6 @@
 import { Resend } from 'resend';
 import { getAdminDb } from '@/lib/firebase-admin';
-import { publicationTime, copenhagenClock, validDay, type DeliveryState } from './delivery-policy';
+import { publicationTime, isPublicationDay, copenhagenClock, validDay, type DeliveryState } from './delivery-policy';
 import type { LivNextPreparationStatus } from './preparation-status';
 
 type Notice = { startedAt: number; leaseUntil: number; accepted?: boolean; providerId?: string;
@@ -19,6 +19,7 @@ export function deliveryAlertKind(state: DeliveryState, old: DeliveryAlertRecord
   if (state.slots[day]?.state === 'published') {
     return (old.failure?.accepted || old.finalFailure?.accepted) && !old.resolved?.accepted ? 'resolved' : null;
   }
+  if (!isPublicationDay(day)) return null;
   if (day === copenhagenClock(now).day && copenhagenClock(now).hour >= 20 && !old.finalFailure?.accepted) return 'finalFailure';
   if (old.finalFailure?.accepted) return null;
   if (!old.failure?.accepted && now.getTime() >= Date.parse(publicationTime(day)) + 15 * 60000) return 'failure';

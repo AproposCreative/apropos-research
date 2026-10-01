@@ -15,7 +15,7 @@ import LivObservations from './LivObservations';
 
 const decisions = { pending: 'Afventer dit valg', approved: 'Godkendt', rejected: 'Afvist' };
 const weekStatuses = { unplanned: 'Mangler emne', planned: 'Planlagt', preparing: 'Under forberedelse',
-  blocked: 'Kræver rettelse', ready: 'Klar', published: 'Udgivet' };
+  blocked: 'Kræver rettelse', ready: 'Klar', published: 'Udgivet', off_day: 'Udgivelsesfri' };
 function dateLabel(day: string) {
   return new Intl.DateTimeFormat('da-DK', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'Europe/Copenhagen' })
     .format(new Date(`${day}T12:00:00Z`));
@@ -146,7 +146,7 @@ export default function LivApprovalFeed() {
       <header className="space-y-3">
         <div className="flex items-center justify-between gap-3"><h2 className="text-xl font-medium">Ugens historier</h2>
           <button className="min-h-11 px-2 text-sm text-white/70 underline underline-offset-4 disabled:opacity-40" disabled={loading || !!saving} onClick={() => void refresh()}>Opdater</button></div>
-        <p className="text-sm leading-relaxed text-white/65">I dag og de næste seks dage. Planlagte historier vises også, før tekst og billeder er klar.</p>
+        <p className="text-sm leading-relaxed text-white/65">Liv udkommer hver anden dag kl. 10. Her ser du de næste syv dage. Planlagte historier er ikke nødvendigvis færdige.</p>
         <p className="text-xs leading-relaxed text-white/45">{capabilities.owner ? 'Godkend eller afvis. Uden et valg fortsætter Liv automatisk. Dit valg kan ændres, indtil historien er valgt til udgivelse.' : 'Her kan du læse kommende historier. Frederik styrer godkendelse og udgivelse.'}</p>
       </header>
       <LivTips />

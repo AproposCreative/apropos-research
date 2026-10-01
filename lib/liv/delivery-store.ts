@@ -5,7 +5,7 @@ import type { WebflowArticleFields } from '@/lib/webflow/types';
 import { cmsFieldHash } from '@/lib/liv/cms-field-hash';
 import { EDITORIAL_FEEDBACK_COLLECTION, parseEditorialFeedback, updateEditorialFeedbackRecords,
   type EditorialFeedback } from '@/lib/liv/editorial-feedback';
-import { eligibleEntries, emptyDeliveryState, LIV_DELIVERY_LEASE_MS, validDay, copenhagenClock, addDays,
+import { eligibleEntries, emptyDeliveryState, LIV_DELIVERY_LEASE_MS, validDay, isPublicationDay, copenhagenClock, addDays,
   type DeliveryState, type ReadyEntry, type DeliverySlot, type ExplicitLivPublication } from '@/lib/liv/delivery-policy';
 
 const COLLECTION = 'livDelivery';
@@ -124,6 +124,9 @@ export async function decideDelivery(input: { itemId: string; payloadHash: strin
 
 export function selectDelivery(state: DeliveryState, day: string, now: number, token: string, explicit?: ExplicitLivPublication): DeliverySlot | null {
   if (!validDay(day)) throw new Error('liv_delivery_invalid_day');
+  // Enforce in the transaction as well as the worker; keep uncertain readback
+  // and explicitly requested publication available, never auto-publish a day off.
+  if (!explicit && !isPublicationDay(day) && state.slots[day]?.state !== 'attempted') return null;
   if (explicit) {
     const entry = state.entries.find(e => e.itemId === explicit.itemId), slot = state.slots[day];
     if (!entry || entry.payloadHash !== explicit.expectedPayloadHash || entry.decision === 'rejected' || entry.publicationBlockers?.length ||

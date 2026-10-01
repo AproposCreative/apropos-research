@@ -24,7 +24,6 @@ import {
   checkpointLivDailyArticle as checkpointArticle,
   type LivDailyScope,
   checkpointPreparationProof,
-  todayDayKeyUTC,
   type GateResult,
   livDailyDocId,
   yieldLivPreparation,
@@ -59,7 +58,7 @@ import { cmsFieldHash } from '@/lib/liv/cms-field-hash';
 import { editorialPlanHash } from '@/lib/liv/rolling-plan';
 import { suppliedArticleInput, assertSuppliedCopyPreserved } from './supplied-article';
 import { readSuppliedApproval, suppliedApprovalGates } from './supplied-approval';
-import { addDays, copenhagenClock } from '@/lib/liv/delivery-policy';
+import { addDays, copenhagenClock, isPublicationDay, nextPublicationDay } from '@/lib/liv/delivery-policy';
 import type { LivDailyPlan } from '@/lib/liv/daily-plan-store';
 import { currentLivCostContext, withLivCostContext, withLivCostStage } from '@/lib/liv/cost-context';
 import { preparationDependencyFailure } from './preparation-failure';
@@ -99,16 +98,19 @@ type LivPreparation = {
 export async function runLivDaily(req: NextRequest, preparation?: LivPreparation) {
   const denied = requireCronBearer(req);
   if (denied) return denied;
-  const day = preparation?.dayKey ?? todayDayKeyUTC();
+  const day = preparation?.dayKey ?? copenhagenClock().day;
+  if (preparation?.kind !== 'reserve' && !isPublicationDay(day)) {
+    return NextResponse.json({ status: 'off_day', day, nextDay: nextPublicationDay(day) });
+  }
   const scope = preparation ? preparation.scope ?? (preparation.kind === 'reserve' ? 'reserve' : 'prepare') : 'daily';
   const inherited = currentLivCostContext();
   return withLivCostContext({ runId: livDailyDocId(day, scope), stage: 'daily-workflow',
     purpose: inherited?.purpose ?? (scope === 'reserve-editorial' ? 'editorial-change' : 'production'),
     storyId: livDailyDocId(day, scope) },
-    () => runLivDailyOperation(req, preparation));
+    () => runLivDailyOperation(req, day, preparation));
 }
 
-async function runLivDailyOperation(req: NextRequest, preparation?: LivPreparation) {
+async function runLivDailyOperation(req: NextRequest, dayKey: string, preparation?: LivPreparation) {
   const scope: LivDailyScope = preparation ? preparation.scope ?? (preparation.kind === 'reserve' ? 'reserve' : 'prepare') : 'daily';
   const claimLivDaily = (day: string) => preparation ? claimDaily(day, scope) : claimDaily(day);
   const finishLivDaily: typeof finishDaily = (day, input) => preparation ? finishDaily(day, input, scope) : finishDaily(day, input);
@@ -124,7 +126,6 @@ async function runLivDailyOperation(req: NextRequest, preparation?: LivPreparati
 
   const sp = req.nextUrl.searchParams;
   const dryRun = sp.get('dryRun') === '1' || sp.get('dryRun')?.toLowerCase() === 'true';
-  const dayKey = preparation?.dayKey ?? todayDayKeyUTC();
   const baseUrl = livInternalOrigin(req.nextUrl.origin);
   const publicationMode = resolveLivPublicationMode();
   // The shared CMS writer saves staged drafts, not live items. Requested mode

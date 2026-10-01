@@ -49,7 +49,7 @@ it('does not turn a never-started candidate into failed work when money is exhau
 });
 it('re-reads the allowance after Copenhagen midnight without resetting the waiting job', async () => {
   vi.setSystemTime(new Date('2026-09-30T21:55:00Z'));
-  mocks.rows.set('prepare-2026-10-01', { status: 'skipped_no_topic', retryAuthorization: 'existing-audit' });
+  mocks.rows.set('prepare-2026-10-02', { status: 'skipped_no_topic', retryAuthorization: 'existing-audit' });
   const before = structuredClone([...mocks.rows]);
   mocks.budget.mockResolvedValueOnce({ status: 'blocked', month: '2026-09', availableAllowanceDkk: null })
     // An untouched new month can have no totals row yet; null is not zero.
@@ -58,7 +58,15 @@ it('re-reads the allowance after Copenhagen midnight without resetting the waiti
   expect(mocks.run).not.toHaveBeenCalled();
   vi.setSystemTime(new Date('2026-09-30T22:00:00Z'));
   await GET(request());
-  expect(mocks.run).toHaveBeenCalledExactlyOnceWith(expect.anything(), expect.objectContaining({ dayKey: '2026-10-01' }));
+  expect(mocks.run).toHaveBeenCalledExactlyOnceWith(expect.anything(), expect.objectContaining({ dayKey: '2026-10-02' }));
+  expect([...mocks.rows]).toEqual(before);
+});
+it('prepares only the next publication on a day off, preserving skipped paid work', async () => {
+  vi.setSystemTime(new Date('2026-10-03T08:30:00Z'));
+  mocks.rows.set('prepare-2026-10-03', { status: 'failed', articleCheckpoint: { content: 'Preserved text' } });
+  const before = structuredClone([...mocks.rows]);
+  await GET(request());
+  expect(mocks.run).toHaveBeenCalledExactlyOnceWith(expect.anything(), expect.objectContaining({ dayKey: '2026-10-04' }));
   expect([...mocks.rows]).toEqual(before);
 });
 it('still reconciles a known paid CMS draft under a blocked allowance', async () => {

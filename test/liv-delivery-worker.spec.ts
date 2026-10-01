@@ -69,6 +69,20 @@ it('does not publish before 10 Copenhagen', async () => {
   expect(await deliverReadyArticle(new Date('2026-09-11T07:59:00Z'), f.deps)).toMatchObject({ status: 'before_deadline' });
   expect(f.publish).not.toHaveBeenCalled();
 });
+it('publishes nothing automatically on a day off, including a saved selected slot', async () => {
+  const f = fixture(), off = new Date('2026-10-03T08:30:00Z');
+  f.state.slots['2026-10-03'] = { itemId: 'a'.repeat(24), state: 'selected', token: 'old', leaseUntil: 0, attempts: 1, nextAttemptAt: 0 };
+  const before = structuredClone(f.state);
+  expect(await deliverReadyArticle(off, f.deps)).toMatchObject({ status: 'off_day', nextDay: '2026-10-04' });
+  expect(f.publish).not.toHaveBeenCalled(); expect(f.state).toEqual(before);
+});
+it('does readback, not another publish, for an uncertain operation on a day off', async () => {
+  const f = fixture(), off = new Date('2026-10-03T08:30:00Z'); vi.setSystemTime(off);
+  const saved = f.state.entries[0]; saved.scheduledDay = '2026-10-01'; saved.expiresDay = '2026-10-01'; saved.state = 'selected';
+  f.state.slots['2026-10-01'] = { itemId: saved.itemId, state: 'attempted', fieldDataHash: 'c'.repeat(64), token: 'old', leaseUntil: 0, attempts: 1, nextAttemptAt: 0 };
+  expect(await deliverReadyArticle(off, f.deps)).toMatchObject({ status: 'published', day: '2026-10-01' });
+  expect(f.publish).not.toHaveBeenCalled(); expect(f.verify).toHaveBeenCalledTimes(1);
+});
 it.each(['2026-09-11T18:00:00Z', '2026-12-11T19:00:00Z'])('starts no publication after 20 local: %s', async time => {
   const f = fixture();
   expect(await deliverReadyArticle(new Date(time), f.deps)).toMatchObject({ status: 'after_deadline' });

@@ -1,6 +1,6 @@
 import { load } from 'cheerio';
 import type { WebflowArticleFields } from '@/lib/webflow/types';
-import { addDays, eligibleEntries, type DeliveryState, type ReadyEntry } from './delivery-policy';
+import { isPublicationDay, nextPublicationDay, eligibleEntries, type DeliveryState, type ReadyEntry } from './delivery-policy';
 import type { ApprovalStory } from './approval-types';
 import { isLivArticleFormat, parseResearchRating, type LivArticleFormat } from './review-format';
 import { LIV_SUBJECT_LABELS, LIV_SUBJECT_TYPES } from './article-output';
@@ -8,7 +8,7 @@ import { livExcerpt } from './excerpt';
 import { editorialKindForArticle, LIV_EDITORIAL_KIND_LABELS } from './editorial-kind';
 
 export function approvalEntries(state: DeliveryState, day: string) {
-  const tomorrow = addDays(day, 1);
+  const tomorrow = nextPublicationDay(day);
   // Preserve access to the pending revision's retry/cancel controls after reload.
   // This is a read-only projection, not a new publication blocker in storage.
   if (state.coverRevision) return state.entries
@@ -32,7 +32,7 @@ export function approvalEntries(state: DeliveryState, day: string) {
     .sort((a, b) => a.scheduledDay.localeCompare(b.scheduledDay) ||
       Number(b.state === 'selected') - Number(a.state === 'selected') || decisionOrder(a) - decisionOrder(b) ||
       a.preparedAt.localeCompare(b.preparedAt) || a.itemId.localeCompare(b.itemId));
-  const nextDay = state.slots[day]?.state === 'published' ? tomorrow : day;
+  const nextDay = state.slots[day]?.state === 'published' || !isPublicationDay(day) ? tomorrow : day;
   const readyScheduled = scheduled.filter(entry => entry.decision !== 'rejected');
   const nextEntries = state.slots[nextDay] ? [] : eligibleEntries(state, nextDay).filter(entry =>
     entry.kind === 'scheduled' ? readyScheduled.includes(entry) :

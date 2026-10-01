@@ -1,4 +1,4 @@
-import { copenhagenClock, publicationTime, type ExplicitLivPublication } from '@/lib/liv/delivery-policy';
+import { copenhagenClock, isPublicationDay, nextPublicationDay, publicationTime, type ExplicitLivPublication } from '@/lib/liv/delivery-policy';
 import * as store from '@/lib/liv/delivery-store';
 import { publishVerifiedLivArticle, verifyLiveLivArticle } from '@/lib/liv/publish-verified';
 import { getLivDailyPlan } from '@/lib/liv/daily-plan-store';
@@ -32,6 +32,9 @@ export async function deliverReadyArticle(now = new Date(), dependencies = {
   const clock = copenhagenClock(now);
   const state = await dependencies.readDeliveryState();
   const ambiguousDay = Object.entries(state.slots).find(([, s]) => s.state === 'attempted')?.[0];
+  if (!explicit && !ambiguousDay && !isPublicationDay(clock.day)) {
+    return { status: 'off_day', day: clock.day, nextDay: nextPublicationDay(clock.day) };
+  }
   // Readback of an uncertain publication continues outside the publication window.
   if (!explicit && !ambiguousDay && clock.hour < 10) return { status: 'before_deadline' };
   if (!explicit && !ambiguousDay && clock.hour >= 20) return { status: 'after_deadline', day: clock.day };

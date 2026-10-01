@@ -197,8 +197,8 @@ it('excludes a published slot owner even if a stale ready entry has a different 
 });
 it('renders all returned stories without a client-side cap or promising extra generation', () => {
   const source = readFileSync('app/ai/liv/LivApprovalFeed.tsx', 'utf8');
-  expect(source).toContain('I dag og de næste seks dage.');
-  expect(source).toContain('Planlagte historier vises også');
+  expect(source).toContain('Liv udkommer hver anden dag kl. 10.');
+  expect(source).toContain('Planlagte historier er ikke nødvendigvis færdige.');
   expect(source).not.toContain('data.stories.slice');
   expect(source).not.toContain('Én historie til i morgen.');
 });

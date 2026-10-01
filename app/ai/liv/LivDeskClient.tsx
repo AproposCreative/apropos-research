@@ -66,7 +66,7 @@ export default function LivDeskClient({ onClose, onOpenWriter }: { onClose: () =
     </LivStoryNavigation> : <div className="shrink-0 border-b border-white/10"><LivContentColumn className="py-2"><button className={`${button} border-transparent`} onClick={() => setView(view === 'settings' ? 'upcoming' : 'settings')}>← {view === 'settings' ? 'Til historierne' : 'Til indstillinger'}</button></LivContentColumn></div>}
     {view === 'settings' && <div className="min-h-0 flex-1 overflow-y-auto"><LivContentColumn className="space-y-5 py-6">
       <h2 className="text-xl font-medium">Indstillinger og værktøjer</h2>
-      <p className="text-sm leading-relaxed text-white/60">Til det redaktionelle arbejde bag historierne. Dine daglige valg ligger under Kommende.</p>
+      <p className="text-sm leading-relaxed text-white/60">Til det redaktionelle arbejde bag historierne. Dine valg ligger under Kommende. Liv udkommer hver anden dag.</p>
       <div className="divide-y divide-white/10 rounded-xl border border-white/15">
         <button onClick={() => setView('research')} className="block w-full space-y-2 p-5 text-left hover:bg-white/5 focus-visible:outline focus-visible:outline-white"><span className="block font-medium">Research og kilder →</span><span className="block text-sm text-white/55">Idéer, kildegrundlag og udkast. Åbn en historie i Writer.</span></button>
         <button onClick={() => setView('manual')} className="block w-full space-y-2 p-5 text-left hover:bg-white/5 focus-visible:outline focus-visible:outline-white"><span className="block font-medium">Avanceret drift →</span><span className="block text-sm text-white/55">Udgivelsesstatus, fejllog og manuel planlægning.</span></button>
