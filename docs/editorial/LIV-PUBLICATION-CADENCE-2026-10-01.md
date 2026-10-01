@@ -37,8 +37,31 @@ midnight, DST, due/off-day preparation, reserve reuse, transaction enforcement,
 ambiguous CMS readback, honest weekly states and due-day alarms. AI responses
 were simulated; no paid test generation was requested.
 
-Production verification is appended after exact-SHA deployment and authenticated
-readback. Passing tests or a READY deployment are not proof of publication.
+### Production readback — 1 October, 10:28 Copenhagen
+
+- Release `fbd1c26463b80fa0eeb9dd76b2280bff2a55a7ae`, deployment
+  `dpl_EQQq5y7jVFKjkXWVanfc9EUV6nn6`: READY and assigned to
+  `ai.aproposmagazine.com`. Vercel runtime ties all five checks below to this SHA.
+- Authenticated operations and feed returned 200/private/no-store on the real
+  production origin. Interval is 2, today is `off_day`, `overdue=false`, next
+  date is `2026-10-02`. Week has due dates 2/4/6 and off days 1/3/5/7 October.
+- An operator-started request to the production delivery route at `08:28:26Z`
+  returned `{status:"off_day",day:"2026-10-01",nextDay:"2026-10-02"}`. It did
+  not publish. This check is not an unattended-publication acceptance result.
+- Registered cost totals were identical before and after: one October call,
+  0 DKK usage-based estimate, 1.214400 DKK reserved, one unknown. No preparation
+  or paid test request was made. Provider remains blocked at revision 5.
+- Ready stock is still zero and reserve 0/1. The next plan is an old Thirst Trap
+  brief with `skipped_no_topic` history; later visible briefs are likewise not
+  finished or newly verified. Current-source/duplicate checks remain necessary
+  before any future paid recovery. No existing brief or paid work was erased.
+- The existing follow-up automation was updated in place to the new cadence,
+  next-publication readiness and three consecutive scheduled deliveries. It
+  still checks preparation/status, quietly when unchanged; it must not buy daily
+  inventory or report off days as publication failures.
+
+Passing tests, this off-day response and a READY deployment are not proof that
+the next scheduled article will publish while provider credits remain blocked.
 
 ## Remaining delivery dependency (not resolved by this change)
 
