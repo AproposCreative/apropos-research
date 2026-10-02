@@ -49,6 +49,27 @@ cost-saving policies remain present; this repair is not a savings measurement.
 October remains one shared call, 0 DKK usage-based estimate, 1.214400 DKK reserved
 and one unknown; image-gen has zero calls. No invoice balance was read.
 
+## Deployed and verified production readback
+
+Code `452f45b46948e340ddf665221199459fc43c331b` was pushed and deployed as
+`dpl_FSQ7tvZAixSEvwbFJAd9P3QTPbva`. READY with the actual
+`ai.aproposmagazine.com` production alias, no alias error. Build duration was
+approximately 77 seconds. No environment or provider configuration was changed.
+
+At `2026-10-02T22:35:39Z` (3 October 00:35 Copenhagen), authenticated operations
+and delivery feed both report 4 October `blocked_saved_work`,
+`provider_quota_exhausted`, no next attempt, and the week correctly marks it
+`blocked`. Days 3/5/7/9 remain off; 6 is planned and 8 unplanned. Zero ready
+stories/reserves. Savings policy `2026-10-02-v1` remains present. Budget data
+before and after the readback are identical (one call, zero usage estimate,
+1.214400 DKK reserved), provider hold still revision 5. No billed balance inferred.
+
+The narrowly scoped new-deployment error/fatal scan, 22:35:00–22:35:37 UTC, found
+no matching logs. This short observation is not a long-term reliability proof.
+The affected API flow is verified; no browser session, paid test, manual CMS
+write or operator-triggered cron was used. Existing recurring checks remain
+active; the automation's stale deployment and deadline evidence are refreshed.
+
 ## Remaining delivery dependency
 
 The broader goal is not complete. Genuine billing recovery for the production
