@@ -60,4 +60,36 @@ normal subsequent production run are needed to measure output-token and image
 cost effects. A successful deployment is not evidence that Liv's unattended
 delivery objective or editorial human calibration is complete.
 
-Deployment and authenticated production readback: pending at commit time.
+## Deployment and production readback
+
+- Production code commit: `0f5c2d43828b50266001fa5ee966712710628b67`.
+- Deployment: `dpl_CPTdUXEAbrMGYaUxpC9fyCQaDKPT`, READY, with
+  `ai.aproposmagazine.com` as the verified production alias.
+- Authenticated owner API readback completed 2 October at 13:16 Copenhagen.
+  `/api/ai-cost/actions` for September and October returns savings policy
+  `2026-10-02-v1`. The new projection found 14 distinct published articles with
+  durable receipts. This does not certify unassisted preparation or add new
+  publications. No fresh CMS article publication was attempted.
+- Stage/run totals exactly match projected story totals to the stored micro-DKK:
+  September shared 1,000 calls / 194.300336 DKK estimated / 29.357368 reserved;
+  image-gen 105 calls / 18.821936 estimated / 0.026432 reserved. No invoice value
+  was manufactured. Example: Partybus has 5.241448 estimated and 12.088160
+  unresolved reservation, shown separately rather than pretending the latter is
+  spent or refunded.
+- October remains one shared call, 0 DKK usage-estimate and 1.214400 reserved.
+  Budget readback is identical before/after verification. Provider hold remains
+  blocked, revision 5. No holds, limits, paid jobs or reservation history changed.
+- Production operations still reports interval 2. The seven-day feed has
+  3/5/7 October as `off_day`; 2 October is blocked, 4/6 planned, 8 unplanned.
+  The delivery goal remains unmet. This release is not a repaired credit balance.
+- Unauthenticated production requests are rejected with HTTP 401 by middleware;
+  unit route tests also verify owner-only HTTP 403. The first readback script
+  expected 403 rather than middleware's 401; only that test expectation changed.
+  Authorized calls returned HTTP 200 throughout. No authentication was weakened.
+- Scoped runtime error/fatal query returned no entries after rollout. Cost-API
+  runtime logs show successful authenticated calls and expected 401 denials.
+  This is a short rollout check, not proof of long-term unattended operation.
+
+UI response contracts are type/regression tested; production verification here
+is API-only, not a new visual browser test. AI-provider effects are simulated,
+not demonstrated by a paid test or a claimed measured saving.
