@@ -1,8 +1,29 @@
 import { expect, it, vi } from 'vitest';
 vi.mock('@/lib/firebase-admin', () => ({ getAdminDb: () => null }));
-import { weeklyStory } from '@/lib/liv/weekly-plan';
+import { weeklyStory, applyPreparationStatusToWeek, type WeeklyStory } from '@/lib/liv/weekly-plan';
 import { emptyDeliveryState } from '@/lib/liv/delivery-policy';
 const day = '2026-09-26';
+it('does not label a scheduled source-bank lookup as active writing', () => {
+  const now = Date.now();
+  expect(weeklyStory(day, emptyDeliveryState(), undefined,
+    { status: 'skipped_no_topic', completedAt: now }, undefined, now))
+    .toMatchObject({ status: 'planned', detail: 'Afventer næste forberedelseskørsel.' });
+});
+it('projects the effective provider block only onto the affected unfinished date', () => {
+  const week: WeeklyStory[] = ['preparing', 'ready', 'published', 'off_day', 'planned', 'unplanned'].map((status, i) => ({
+    day: i === 4 ? '2026-10-06' : '2026-10-04', title: 'Saved title', itemId: null,
+    status: status as WeeklyStory['status'], detail: 'Saved detail' }));
+  const before = structuredClone(week);
+  const prep = { day: '2026-10-04', scope: 'prepare', status: 'blocked_saved_work', runStatus: 'skipped_no_topic',
+    reasonCode: 'provider_quota_exhausted' } as const;
+  const result = applyPreparationStatusToWeek(week, prep);
+  expect(result.map(x => x.status)).toEqual(['blocked', 'ready', 'published', 'off_day', 'planned', 'blocked']);
+  expect(result[0].detail).toContain('betalingsstatus'); expect(result[0].title).toBe('Saved title');
+  expect(week).toEqual(before);
+  expect(applyPreparationStatusToWeek(week, { ...prep, scope: 'reserve' })).toBe(week);
+  expect(applyPreparationStatusToWeek(week, { ...prep, status: 'unavailable', reasonCode: 'status_unavailable' })[0].detail)
+    .toContain('kunne ikke bekræftes');
+});
 it('does not call queued work active preparation', () => {
   expect(weeklyStory(day, emptyDeliveryState(), { topicHint: 'Gemt brief' }, {}))
     .toMatchObject({ status: 'planned', detail: 'Afventer næste forberedelseskørsel.' });

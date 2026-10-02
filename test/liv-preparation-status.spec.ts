@@ -1,5 +1,7 @@
 import { beforeEach, expect, it, vi } from 'vitest';
 const state = vi.hoisted(() => ({ rows: new Map<string, Record<string, any>>(), reads: vi.fn(), available: true, fail: false }));
+const providerHold = vi.hoisted(() => vi.fn());
+vi.mock('@/lib/ai/provider-hold', () => ({ readProviderHold: providerHold }));
 vi.mock('@/lib/firebase-admin', () => ({ getAdminDb: () => state.available ? {
   collection: () => ({ doc: (id: string) => ({ get: async () => {
     state.reads(id); if (state.fail) throw new Error('private upstream message');
@@ -13,7 +15,43 @@ const now = new Date('2026-09-12T10:00:00Z');
 const day = '2026-09-12';
 const entry = (overrides: Partial<ReadyEntry> = {}): ReadyEntry => ({ itemId: 'a'.repeat(24), slug: 'story', title: 'Private title',
   kind: 'scheduled', scheduledDay: day, expiresDay: day, state: 'ready', preparedAt: now.toISOString(), payloadHash: 'b'.repeat(64), ...overrides });
-beforeEach(() => { state.rows.clear(); state.reads.mockClear(); state.available = true; state.fail = false; });
+beforeEach(() => { state.rows.clear(); state.reads.mockClear(); state.available = true; state.fail = false;
+  providerHold.mockReset().mockResolvedValue({ blocked: false }); });
+
+it('reports an empty-source retry as waiting work, not active writing', () => {
+  expect(livPreparationStatusForRow(day, 'prepare', { status: 'skipped_no_topic', completedAt: now }, now.getTime()))
+    .toMatchObject({ status: 'queued', nextAction: 'wait', reasonCode: 'source_retry_scheduled' });
+});
+
+it('shares the provider hold with every status reader without consuming source retry or paid work', async () => {
+  providerHold.mockResolvedValue({ blocked: true, revision: 5 });
+  const row = { status: 'skipped_no_topic', completedAt: now, recovery: { sourceChecks: 2 } };
+  state.rows.set(`prepare-${day}`, row);
+  const before = structuredClone(row);
+  expect(await readNextLivPreparationStatus(emptyDeliveryState(), now)).toMatchObject({ day,
+    status: 'blocked_saved_work', runStatus: 'skipped_no_topic', reasonCode: 'provider_quota_exhausted',
+    nextAction: 'blocked', nextAttemptAt: null });
+  expect(row).toEqual(before); expect(providerHold).toHaveBeenCalledTimes(1);
+});
+
+it('reports unavailable when the hold cannot be read, without leaking the error', async () => {
+  providerHold.mockRejectedValue(new Error('private provider detail'));
+  const status = await readNextLivPreparationStatus(emptyDeliveryState(), now);
+  expect(status).toMatchObject({ status: 'unavailable', reasonCode: 'status_unavailable', nextAttemptAt: null });
+  expect(JSON.stringify(status)).not.toContain('private');
+});
+
+it('does not replace CMS reconciliation or idle inventory with a provider hold', async () => {
+  providerHold.mockResolvedValue({ blocked: true });
+  const manifest = emptyDeliveryState();
+  manifest.coverRevision = { id: 'saved', itemId: 'cms', day };
+  expect((await readNextLivPreparationStatus(manifest, now)).status).toBe('reconciliation_required');
+  delete manifest.coverRevision;
+  manifest.entries.push(entry(), entry({ scheduledDay: '2026-09-13', expiresDay: '2026-09-13' }),
+    entry({ kind: 'reserve', expiresDay: '2026-09-17' }));
+  expect((await readNextLivPreparationStatus(manifest, now)).status).toBe('idle');
+  expect(providerHold).not.toHaveBeenCalled();
+});
 
 it('projects exactly today’s next candidate with no mutations or generation', async () => {
   const manifest = emptyDeliveryState(), before = structuredClone(manifest);

@@ -6,6 +6,7 @@ import { reserveNeeded } from './reserve-preparation';
 import { decidePreparation, preparationBlocksNewWork, type PreparationDecision } from './preparation-policy';
 import { nextScheduledPreparation } from './next-preparation';
 import { canPrepareReserveFallback } from './reserve-fallback-policy';
+import { readProviderHold } from '@/lib/ai/provider-hold';
 
 const runStatuses = ['processing', 'published', 'draft', 'skipped_no_topic', 'skipped_factcheck',
   'skipped_moderation', 'skipped_tov', 'skipped_duplicate', 'failed'] as const;
@@ -46,7 +47,7 @@ export function livPreparationStatusForRow(day: string, scope: PreparationScope,
     const d = decidePreparation(row, now);
     return { ...base, stage: d.stage, nextAction: d.action,
       nextAttemptAt: d.nextAttemptAt ? new Date(d.nextAttemptAt).toISOString() : null,
-      status: d.action === 'wait' ? 'preparing' : ['blocked', 'alternative', 'reconcile'].includes(d.action)
+      status: d.action === 'wait' ? (d.reasonCode === 'preparation_in_progress' ? 'preparing' : 'queued') : ['blocked', 'alternative', 'reconcile'].includes(d.action)
         ? 'blocked_saved_work' : d.action === 'done' ? 'idle' : 'queued',
       reasonCode: d.reasonCode as LivNextPreparationStatus['reasonCode'] };
   }
@@ -83,6 +84,21 @@ export function livPreparationStatusForRow(day: string, scope: PreparationScope,
  * content is projected away. No CMS/source retrieval or cost-history lookup.
  * This helper never claims, retries or generates work. */
 export async function readNextLivPreparationStatus(state: DeliveryState, now = new Date()): Promise<LivNextPreparationStatus> {
+  const status = await readSavedPreparationStatus(state, now);
+  // A source-bank retry is not active writing. All status consumers must see
+  // the same credential hold before advertising new paid preparation. Reading
+  // this DTO never changes the hold or the worker's recovery authorization.
+  if (!['queued', 'preparing'].includes(status.status) || status.stage === 'cms') return status;
+  try {
+    const hold = await readProviderHold();
+    return hold.blocked ? { ...status, status: 'blocked_saved_work', nextAction: 'blocked',
+      nextAttemptAt: null, reasonCode: 'provider_quota_exhausted' } : status;
+  } catch {
+    return { ...status, status: 'unavailable', nextAction: 'blocked', nextAttemptAt: null, reasonCode: 'status_unavailable' };
+  }
+}
+
+async function readSavedPreparationStatus(state: DeliveryState, now: Date): Promise<LivNextPreparationStatus> {
   const today = copenhagenClock(now).day;
   const days = scheduledPreparationDays(state, today);
   const empty = { day: null, scope: null, runStatus: null };
