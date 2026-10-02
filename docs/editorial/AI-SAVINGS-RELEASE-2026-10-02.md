@@ -86,9 +86,13 @@ delivery objective or editorial human calibration is complete.
   unit route tests also verify owner-only HTTP 403. The first readback script
   expected 403 rather than middleware's 401; only that test expectation changed.
   Authorized calls returned HTTP 200 throughout. No authentication was weakened.
-- Scoped runtime error/fatal query returned no entries after rollout. Cost-API
-  runtime logs show successful authenticated calls and expected 401 denials.
-  This is a short rollout check, not proof of long-term unattended operation.
+- Cost-API runtime logs show successful authenticated calls and expected 401
+  denials. A later 5xx query identified one server-scheduled delivery-health HTTP
+  503 at 13:15:20 Copenhagen. Its actual error is `liv_daily_overdue`: no
+  publication, zero reserves and the next scheduled date (4 October) missing.
+  The route deliberately reports 503 for overdue delivery. This confirms the
+  known unmet delivery objective under provider hold, not a new cost-API failure.
+  It is preserved and reported, not suppressed to call the rollout healthy.
 
 UI response contracts are type/regression tested; production verification here
 is API-only, not a new visual browser test. AI-provider effects are simulated,
