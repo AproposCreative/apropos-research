@@ -29,6 +29,19 @@ beforeEach(() => {
   };
 });
 describe('automatic Liv media', () => {
+  it('finds press candidates before buying illustrations even without writer image suggestions', async () => {
+    const candidates = originals.map((bytes, i) => ({ id: String(i), bytes, url: `https://press.test/${i}.jpg`, sourcePageUrl: 'https://press.test/article', credit: 'Foto: Fotograf' }));
+    vi.mocked(deps.candidates).mockResolvedValue(candidates);
+    vi.mocked(deps.plan).mockResolvedValue({ images: plan.images.map((image, i) => ({ ...image, candidateId: String(i) })) });
+    const result = await prepareLivAutomaticMedia(article, { dayKey: '2026-10-02' }, deps);
+    expect(deps.candidates).toHaveBeenCalledOnce(); expect(deps.generate).not.toHaveBeenCalled();
+    expect(result.preparedMedia).toHaveLength(3);
+    expect(result.preparedMedia!.every(image => image.kind === 'photography')).toBe(true);
+  });
+  it('honors an explicitly selected illustration without triggering press retrieval', async () => {
+    await prepareLivAutomaticMedia(article, { dayKey: '2026-10-02', mode: 'illustration' }, deps);
+    expect(deps.candidates).not.toHaveBeenCalled(); expect(deps.generate).toHaveBeenCalledTimes(3);
+  });
   it('formats Markdown ending headings before images and final checks, preserving the actual words', async () => {
     const content = Array.from({ length: 6 }, (_, i) => `Afsnit ${i + 1}: kunsten fylder i byen.`).join('\n\n') + '\n\n## En sidste tanke\n\nOrdene er de samme.';
     const result = await prepareLivAutomaticMedia({ ...article, content }, { dayKey: '2026-09-26' }, deps);

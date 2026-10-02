@@ -7,6 +7,7 @@ import { stripHtmlToText } from '@/lib/seo-engine/html-text';
 import { listPublishedArticlePage } from './cms';
 import { publishedSnapshot, type CmsSnapshot } from './snapshot';
 import { enqueueQualityJob } from './jobs';
+import { recentPublication } from './archive-policy';
 
 export type DiscoveryCursor = { locale: 'da' | 'en'; offset: number };
 export function nextDiscoveryCursor(current: DiscoveryCursor, count: number, total: number): DiscoveryCursor {
@@ -15,12 +16,13 @@ export function nextDiscoveryCursor(current: DiscoveryCursor, count: number, tot
 }
 
 export async function queueDiscoveredArticle(item: CmsSnapshot, locale: 'da' | 'en') {
+  if (!recentPublication(item.lastPublished)) return { enqueued: false, reason: 'archive_manual_only' };
   // Discovery does not write CMS. The worker MUST fetch actual live AND staged
   // state before any model call and again under the CMS lease before writing.
   const snapshot = publishedSnapshot({ itemId: item.id, cmsLocaleId: cmsLocaleIdFor(locale), locale,
     live: item, staged: item, slugs: getCmsSeoSlugs() });
   const fd = item.fieldData;
-  return enqueueQualityJob({ source: 'recovery', mode: 'publication_quality', snapshot, article: {
+  return enqueueQualityJob({ source: 'recovery', mode: 'publication_quality', discoveredPublishedAt: item.lastPublished, snapshot, article: {
     editorialTitle: String(fd.name || ''), locale, metadata: snapshot.metadata,
     body: stripHtmlToText([fd.subtitle, fd.intro, fd.content].filter(Boolean).join('\n\n')),
     ...(typeof fd['article-type'] === 'string' ? { articleType: fd['article-type'] } : {}),
@@ -28,7 +30,7 @@ export async function queueDiscoveredArticle(item: CmsSnapshot, locale: 'da' | '
   } });
 }
 
-/** One durable page per cron. Repeated full sweeps cover missed publish events. */
+/** One read-only page per cron; only the last 72h can enter automatic review. */
 export async function discoverPublishedQualityJobs() {
   if (!(await resolveAutoOpportunityOptimizationEnabled())) return { skipped: true, reason: 'auto_disabled' };
   const db = getAdminDb();

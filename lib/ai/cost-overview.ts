@@ -1,4 +1,5 @@
 import type { CostAction } from './cost-actions';
+import type { CostPublication } from './cost-publications';
 
 export function costStageLabel(stage: string): string {
   const labels: Record<string, string> = { research: 'Research', writing: 'Skrivning',
@@ -12,15 +13,19 @@ export function costStageLabel(stage: string): string {
 
 /** Read-only regrouping of the same receipts. Failed work remains in the total;
  * absent common story IDs stay separate instead of inventing attribution. */
-export function costStories(actions: CostAction[]) {
+export function costStories(actions: CostAction[], publications: CostPublication[] = []) {
   const groups = new Map<string, { id: string; bucket: CostAction['bucket']; estimatedDkk: number;
+    title?: string; publicationState?: CostPublication['state']; checkedAt?: string | null;
     reservedDkk: number; calls: number; unknownCalls: number; stages: Map<string, {
       stage: string; estimatedDkk: number; reservedDkk: number; calls: number; unknownCalls: number;
     }> }>();
   for (const action of actions) {
-    const id = action.storyId || action.runId, key = `${action.bucket}:${id}`;
+    const publication = action.bucket === 'shared' && action.scope === 'liv'
+      ? publications.find(p => p.runId === action.runId) : undefined;
+    const id = publication?.itemId || action.storyId || action.runId, key = `${action.bucket}:${id}`;
     const group = groups.get(key) || { id, bucket: action.bucket, estimatedDkk: 0, reservedDkk: 0,
       calls: 0, unknownCalls: 0, stages: new Map() };
+    if (publication) Object.assign(group, { title: publication.title, publicationState: publication.state, checkedAt: publication.checkedAt });
     const stage = group.stages.get(action.stage) || { stage: action.stage, estimatedDkk: 0,
       reservedDkk: 0, calls: 0, unknownCalls: 0 };
     for (const metric of ['estimatedDkk', 'reservedDkk', 'calls', 'unknownCalls'] as const) {

@@ -12,6 +12,8 @@ export type QualityJob = {
   article: ReviewArticle;
   mode: 'publication_quality' | 'performance';
   evidence?: PerformanceEvidence;
+  discoveredPublishedAt?: string;
+  manualRequested?: boolean;
   status: 'queued' | 'waiting_budget' | 'running' | 'verify_pending' | 'kept' | 'applied' | 'needs_editor' | 'stale' | 'failed';
   createdAt: string;
   updatedAt: string;
@@ -46,13 +48,22 @@ function db() {
   return result;
 }
 
-export async function enqueueQualityJob(input: Pick<QualityJob, 'source' | 'snapshot' | 'article' | 'mode' | 'evidence'>) {
+export async function enqueueQualityJob(input: Pick<QualityJob, 'source' | 'snapshot' | 'article' | 'mode' | 'evidence' | 'discoveredPublishedAt' | 'manualRequested'>) {
   if (!input.snapshot.published || input.snapshot.hasUnpublishedChanges) return { enqueued: false, reason: 'not_cleanly_published' };
   const id = createHash('sha256').update(JSON.stringify([reviewKey(input.snapshot), input.mode,
     input.mode === 'performance' ? input.evidence : null])).digest('hex');
   const ref = db().collection(JOBS).doc(id);
   await db().runTransaction(async tx => {
-    if ((await tx.get(ref)).exists) return;
+    const existing = (await tx.get(ref)).data() as QualityJob | undefined;
+    if (existing) {
+      // A real publish event or an explicit manual request may adopt the SAME
+      // unpaid queue identity. Never reset paid stages, attempts or receipts.
+      if (!TERMINAL_QUALITY_STATES.includes(existing.status) && !existing.writeStartedAt &&
+          (input.manualRequested || ['publish_app', 'webhook'].includes(input.source))) {
+        tx.set(ref, { source: input.source, ...(input.manualRequested ? { manualRequested: true } : {}) }, { merge: true });
+      }
+      return;
+    }
     const now = new Date().toISOString();
     const record: QualityJob = { ...input, id, status: 'queued', createdAt: now, updatedAt: now, attempt: 0, readyAt: Date.now() };
     const priority = qualityPriorityReadyAt(record);

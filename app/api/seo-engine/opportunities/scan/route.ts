@@ -34,14 +34,14 @@ export async function POST(req: NextRequest) {
       null;
     const shouldApply = body.autoApply === true && mode === 'optimize';
     if (shouldApply) {
-      autoApply = { applied: [], ...await enqueuePerformanceReviews(report) };
+      autoApply = { applied: [], ...await enqueuePerformanceReviews(report, true) };
     }
 
     return NextResponse.json({
       ok: true,
       report,
       autoApply,
-      note: 'Manuel scan er valgfri — daglig collect + ugentlig optimize kører via cron.',
+      note: 'Statistik indsamles automatisk. Optimering af arkivet kræver en eksplicit manuel start.',
     });
   } catch (e) {
     return mapPipelineError(e);

@@ -15,6 +15,8 @@ import { editorialRequestKey } from './editorial-request-key';
 import { readObservationEvidence, constrainObservationCitations } from './observation-evidence';
 import type { ObservationReference } from './observation-contract';
 import { readReadingDossier } from './reading-dossier';
+import { compactEditorialPrompt, compactEditorialResponseFormat, EDITORIAL_ECONOMY_POLICY,
+  expandCompactEditorial, mergeEditorialUnits, reusableCaptionUnits, type EditorialBaseline } from './editorial-economy';
 
 const json = (value: unknown) => JSON.parse(JSON.stringify(value));
 export type LivEditorialReport = GroundedReport & { editorialReview?: LivEditorialEvidence; fieldContextHash?: string; visualContextHash?: string; observationContextHash?: string };
@@ -112,14 +114,47 @@ export async function assessLivEditorialArticle(articleText: string, sourceUrls:
       ])] : userText },
     ],
   };
+  // Retain old paid/uncertain request identities before switching the wire format.
+  const legacyKeys = editorialRequestKey(request, editorialFields);
+  request.response_format = compactEditorialResponseFormat;
+  request.messages[0].content += `\n\n${compactEditorialPrompt}`;
   const keys = editorialRequestKey(request, editorialFields);
   let inputHash = keys.reusable;
   const db = getAdminDb();
   if (!db) throw new Error('liv_editorial_store_unavailable');
+  const sourceHashes = Object.fromEntries(sources.map(s => [s.id, cmsFieldHash({ id: s.id, url: s.url,
+    text: s.text, publishedAt: s.publishedAt, ...('imageHash' in s ? { imageHash: s.imageHash } : {}) })]));
+  const deltaContextHash = cmsFieldHash({ policy: EDITORIAL_ECONOMY_POLICY, model: request.model,
+    system: request.messages[0].content, day: new Date().toISOString().slice(0, 10),
+    sources: sources.filter(s => !visualSources.includes(s as typeof visualSources[number])).map(s => sourceHashes[s.id]),
+    images: visualSources.map(s => ({ id: s.id, imageHash: s.imageHash })) });
+  const baselineRef = db.collection('livEditorialBaselines').doc(cmsFieldHash({
+    runId: visualReference?.runId || currentLivCostContext()!.runId, context: deltaContextHash }));
+  const baseline = (await baselineRef.get()).data() as EditorialBaseline | undefined;
+  // Read the immutable assessment, not a standalone approval in the pointer.
+  let prior: EditorialBaseline | undefined;
+  if (baseline && /^[a-f0-9]{64}$/.test(baseline.assessmentId)) {
+    const parent = (await db.collection('livEditorialAssessments').doc(baseline.assessmentId).get()).data();
+    if (parent?.status === 'complete' && parent.validatedBaseline &&
+        cmsFieldHash(parent.validatedBaseline) === cmsFieldHash(baseline)) prior = baseline;
+  }
+  const reusable = reusableCaptionUnits(prior, editorialFields, deltaContextHash, input.articleText, sourceHashes);
+  const recheck = units.filter(u => !reusable.some(r => r.id === u.id)).map(u => u.id);
+  const reusedUnits = recheck.length ? reusable : [];
   let ref = db.collection('livEditorialAssessments').doc(inputHash);
   const saved = await db.runTransaction(async tx => {
     inputHash = keys.reusable;
     ref = db.collection('livEditorialAssessments').doc(inputHash);
+    for (const oldKey of [...new Set([legacyKeys.reusable, legacyKeys.exact])]) {
+      const old = (await tx.get(db.collection('livEditorialAssessments').doc(oldKey))).data();
+      if (!old) continue;
+      if (old.status === 'not_started' && old.notStartedReason === 'cost_denied' &&
+          !['rawResponse', 'finishReason', 'refusal', 'usage', 'completedAt'].some(field => field in old)) continue;
+      if (old.inputHash !== oldKey || old.status !== 'complete' || typeof old.rawResponse !== 'string') {
+        throw new Error('liv_editorial_requires_reconciliation');
+      }
+      return old;
+    }
     // Preserve paid legacy exact requests, including unfinished/failed ones.
     const legacy = inputHash === keys.exact ? undefined
       : (await tx.get(db.collection('livEditorialAssessments').doc(keys.exact))).data();
@@ -150,6 +185,7 @@ export async function assessLivEditorialArticle(articleText: string, sourceUrls:
       return existing;
     }
     tx.create(ref, { inputHash, exactRequestHash: keys.exact, status: 'processing', articleHash: articleFingerprint(input.articleText),
+      economyPolicy: EDITORIAL_ECONOMY_POLICY, reusedUnits, baselineId: reusedUnits.length ? prior!.assessmentId : null,
       ...contextProof,
       voiceHash: voice.hash, model: request.model, createdAt: new Date().toISOString(),
       sources: sources.map(({ id, url, contentHash, publishedAt }) => ({ id, url, contentHash, publishedAt })) });
@@ -159,10 +195,18 @@ export async function assessLivEditorialArticle(articleText: string, sourceUrls:
   if (!output) {
     const client = getOpenAIClient();
     if (!client) throw new Error('liv_editorial_model_unavailable');
+    // Replays use the lineage saved with this request, never a newer baseline.
+    const lineage = (await ref.get()).data();
+    const savedReuse = lineage?.reusedUnits || [];
+    const paidRequest = structuredClone(request);
+    if (savedReuse.length) {
+      const instruction = `\n\nDELTA-KONTROL: Hele artiklen og alle kilder er vedlagt som kontekst. Returnér kun faktakontrol for disse unit-id'er: ${JSON.stringify(units.filter(u => !savedReuse.some((r: {id: string}) => r.id === u.id)).map(u => u.id))}. Serveren genvaliderer tidligere belæg for de øvrige, ordret uændrede units. Vurdér stadig HELE artiklens redaktionelle sammenhæng, tilskrivning og billedbeskrivelser kritisk i editorial. Meld nye globale problemer i blockingIssues; tidligere godkendelse er ikke en ordre.`;
+      paidRequest.messages[0].content += instruction;
+    }
     // Newton's budget-aware client must reserve this single call and reconcile
     // usage. The local receipt independently prevents duplicate paid attempts.
     const response = await withLivCostStage('editorial-assessment', () =>
-      client.chat.completions.create(request, { timeout: 180_000, maxRetries: 0 })).catch(async error => {
+      client.chat.completions.create(paidRequest, { timeout: 180_000, maxRetries: 0 })).catch(async error => {
       const refusal = getLivCostPretransportError(error);
       if (refusal) await ref.set({ status: 'not_started',
         notStartedReason: ['liv_cost_monthly_budget_exceeded', 'liv_cost_call_limit_exceeded',
@@ -172,6 +216,7 @@ export async function assessLivEditorialArticle(articleText: string, sourceUrls:
       throw error; // Unknown transport or persistence failures remain blocked.
     });
     output = { inputHash, status: 'complete', rawResponse: response.choices[0]?.message?.content || '',
+      reusedUnits: savedReuse, economyPolicy: EDITORIAL_ECONOMY_POLICY, paidRequestHash: cmsFieldHash(paidRequest),
       finishReason: response.choices[0]?.finish_reason || null, refusal: response.choices[0]?.message?.refusal || null,
       usage: response.usage || null, model: response.model || request.model, completedAt: new Date().toISOString() };
     // Invalid, refused and incomplete paid outputs are also preserved.
@@ -181,13 +226,20 @@ export async function assessLivEditorialArticle(articleText: string, sourceUrls:
     code: 'model_response_incomplete', message: 'Den samlede vurdering blev ikke afsluttet. Ingen godkendelse.',
   }), ...contextProof };
   let raw: unknown;
-  try { raw = JSON.parse(output.rawResponse); } catch {
+  try { raw = mergeEditorialUnits(expandCompactEditorial(JSON.parse(output.rawResponse)), output.reusedUnits || [], input.articleText); } catch {
     return { ...assessGroundedReport(input.articleText, sources, null, Date.now(), {
       code: 'model_response_invalid_json', message: 'Den samlede vurdering var ikke gyldig JSON. Ingen godkendelse.',
     }), ...contextProof };
   }
   const report = assessGroundedReport(input.articleText, sources, constrainObservationCitations(constrainLivVisualCitations(raw, visualSources), observations));
   const editorial = editorialVerdictSchema.safeParse((raw as { editorial?: unknown } | null)?.editorial);
+  if (editorialFields && report.complete && editorial.success && !editorial.data.blockingIssues.length &&
+      output.inputHash === inputHash && output.economyPolicy === EDITORIAL_ECONOMY_POLICY) {
+    const validatedBaseline: EditorialBaseline = { assessmentId: inputHash, contextHash: deltaContextHash,
+      fields: editorialFields, units: articleUnits(input.articleText), raw, sourceHashes };
+    await ref.set(json({ validatedBaseline }), { merge: true });
+    await baselineRef.set(json(validatedBaseline));
+  }
   return { ...report, ...contextProof, ...(editorial.success ? { editorialReview: { ...editorial.data, ...contextProof,
     version: 'liv-editorial-v1' as const, articleHash: report.articleHash, voiceHash: voice.hash,
     checkedAt: report.checkedAt, assessmentId: output.inputHash,

@@ -19,3 +19,13 @@ it('combines explicit article identity but never merges separate budgets or unkn
   expect(costStageLabel('future-stage')).toBe('future-stage');
   expect(costStories([])).toEqual([]);
 });
+it('joins only exact saved run identities and retains failed attempts and separate budgets', () => {
+  const publications = [{ runId: 'prepare-day', itemId: 'cms', title: 'En artikel', state: 'published' as const, checkedAt: '2026-10-02T08:00:00Z' },
+    { runId: 'repair', itemId: 'cms', title: 'En artikel', state: 'published' as const, checkedAt: '2026-10-02T08:00:00Z' }];
+  const rows = costStories([action(), action({ runId: 'repair', estimatedDkk: 2, failure: 'provider_unavailable' }),
+    action({ runId: 'unmapped', estimatedDkk: 4 }), action({ bucket: 'image-gen', estimatedDkk: 5 })], publications);
+  expect(rows).toHaveLength(3);
+  expect(rows.find(row => row.id === 'cms')).toMatchObject({ title: 'En artikel', publicationState: 'published', estimatedDkk: 3, calls: 2 });
+  expect(rows.find(row => row.id === 'unmapped')?.publicationState).toBeUndefined();
+  expect(rows.find(row => row.bucket === 'image-gen')?.publicationState).toBeUndefined();
+});

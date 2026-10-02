@@ -34,9 +34,9 @@ describe('publication quality worker', () => {
   it('defers archive work before models and duplicate lookup without burning attempts', async () => {
     const { deps, job } = fixture(); job.source = 'recovery';
     deps.admitArchive = vi.fn(async () => false);
-    expect((await runQualityJob('job', deps)).reason).toBe('archive_daily_allowance');
+    expect((await runQualityJob('job', deps)).reason).toBe('archive_not_admitted');
     expect(deps.model).not.toHaveBeenCalled(); expect(deps.duplicates).not.toHaveBeenCalled();
-    expect(deps.checkpoint).toHaveBeenCalledWith(job, expect.objectContaining({ attempt: 0, reason: 'archive_daily_allowance' }), true);
+    expect(deps.checkpoint).toHaveBeenCalledWith(job, expect.objectContaining({ attempt: 0, reason: 'archive_not_admitted' }), true);
   });
   it('waits six hours without burning attempts on a proven pre-transport denial', async () => {
     const { job, deps, call } = fixture();

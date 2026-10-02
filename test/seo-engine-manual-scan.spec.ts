@@ -20,4 +20,5 @@ it('optimize alone is still read-only for CMS', async () => {
 it('requires explicit apply opt-in', async () => {
   await scan({ mode: 'optimize', autoApply: true });
   expect(enqueuePerformanceReviews).toHaveBeenCalledOnce();
+  expect(enqueuePerformanceReviews).toHaveBeenCalledWith(expect.anything(), true);
 });

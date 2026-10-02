@@ -4,7 +4,7 @@ import type { QualityJob } from '../../../lib/seo-engine/post-publish/jobs';
 const m = vi.hoisted(() => ({ rows: new Map<string, any>(), db: vi.fn(), tail: Promise.resolve() as Promise<any> }));
 vi.mock('@/lib/firebase-admin', () => ({ getAdminDb: m.db }));
 import { admitArchiveReview } from '../../../lib/seo-engine/post-publish/archive-admission';
-const job = (id = 'a'.repeat(64), patch = {}) => ({ id, source: 'recovery', ...patch }) as QualityJob;
+const job = (id = 'a'.repeat(64), patch = {}) => ({ id, source: 'recovery', discoveredPublishedAt: '2026-09-14T10:00:00Z', ...patch }) as QualityJob;
 const now = new Date('2026-09-14T12:00:00Z');
 beforeEach(() => {
   m.rows.clear(); m.tail = Promise.resolve(); vi.clearAllMocks();
@@ -37,6 +37,21 @@ it('does not treat a pre-transport denial as paid work', async () => {
   const next = job('b'.repeat(64));
   m.rows.set('seoPostPublishModelStages/' + createHash('sha256').update(`${next.id}:review`).digest('hex'), { status: 'not_started' });
   expect(await admitArchiveReview(next, now)).toBe(false);
+});
+it.each([undefined, '2026-01-01', 'invalid', '2026-09-16'])('blocks old/missing/future publication timestamps even with an old admission: %s', async discoveredPublishedAt => {
+  const stale = job(undefined, { discoveredPublishedAt });
+  m.rows.set(`seoArchiveAdmissions/job-${stale.id}`, { policy: 'one-new-recovery-review-per-day-v1' });
+  expect(await admitArchiveReview(stale, now)).toBe(false);
+});
+it('blocks legacy automatic performance work but allows an explicit manual start', async () => {
+  expect(await admitArchiveReview(job(undefined, { source: 'performance' }), now)).toBe(false);
+  expect(await admitArchiveReview(job(undefined, { source: 'performance', manualRequested: true }), now)).toBe(true);
+});
+it('keeps an uncertain old paid stage recoverable without granting a new identity', async () => {
+  const stale = job(undefined, { discoveredPublishedAt: undefined });
+  m.rows.set('seoPostPublishModelStages/' + createHash('sha256').update(`${stale.id}:review`).digest('hex'), { status: 'uncertain' });
+  expect(await admitArchiveReview(stale, now)).toBe(true);
+  expect(m.rows.size).toBe(1);
 });
 it.each([{ source: 'webhook' }, { source: 'publish_app' }, { writeStartedAt: now.toISOString() }])('does not throttle new publication or CMS reconciliation %j', async patch => {
   expect(await admitArchiveReview(job(undefined, patch), now)).toBe(true);

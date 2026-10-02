@@ -1,6 +1,8 @@
 import { getAdminDb } from '@/lib/firebase-admin';
 import { copenhagenClock } from '@/lib/liv/delivery-policy';
 import { providerFailure, type ProviderFailure } from './provider-error';
+import { readCostPublications } from './cost-publications';
+import { costStories } from './cost-overview';
 
 type Row = Record<string, any>;
 type Bucket = 'shared' | 'image-gen';
@@ -68,13 +70,9 @@ export async function readCostActions(month = copenhagenClock().day.slice(0, 7))
     return projectCostActions(rows, bucket);
   }));
   const actions = buckets.flat().sort((a, b) => b.lastAt.localeCompare(a.lastAt));
-  const stories = new Map<string, { id: string; bucket: Bucket; estimatedDkk: number; reservedDkk: number; calls: number }>();
-  for (const a of actions) {
-    const id = a.storyId ?? a.runId, key = `${a.bucket}:${id}`;
-    const row = stories.get(key) ?? { id, bucket: a.bucket, estimatedDkk: 0, reservedDkk: 0, calls: 0 };
-    row.estimatedDkk += a.estimatedDkk; row.reservedDkk += a.reservedDkk; row.calls += a.calls;
-    stories.set(key, row);
-  }
+  const publications = await readCostPublications(actions, month);
   return { month, checkedAt: new Date().toISOString(), billedDkk: null,
-    coverage: 'tracked_calls_only' as const, actions, stories: [...stories.values()].sort((a,b) => b.estimatedDkk - a.estimatedDkk) };
+    savingsPolicy: { version: '2026-10-02-v1', editorial: 'compact-caption-delta-v1',
+      media: 'saved-work-then-press-first', seoArchive: 'manual-only-recent-recovery-72h', costs: 'receipt-linked-v1' },
+    coverage: 'tracked_calls_only' as const, actions, stories: costStories(actions, publications) };
 }

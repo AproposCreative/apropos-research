@@ -35,9 +35,10 @@ export function performanceReviewInput(report: OpportunityScanReport, opportunit
 }
 
 /** Existing GSC/GA4 collection feeds the SAME review/write queue as publication. */
-export async function enqueuePerformanceReviews(report: OpportunityScanReport) {
+export async function enqueuePerformanceReviews(report: OpportunityScanReport, manualRequested = false) {
   const queued: string[] = [];
   const skipped: Array<{ id: string; reason: string }> = [];
+  if (!manualRequested) return { queued, skipped: report.opportunities.map(o => ({ id: o.id, reason: 'archive_manual_only' })) };
   for (const opportunity of report.opportunities.slice(0, 10)) {
     if (['applied', 'rejected', 'dismissed'].includes(opportunity.status)) {
       skipped.push({ id: opportunity.id, reason: `status_${opportunity.status}` }); continue;
@@ -51,7 +52,7 @@ export async function enqueuePerformanceReviews(report: OpportunityScanReport) {
       skipped.push({ id: opportunity.id, reason: 'metadata_changed_since_scan' }); continue;
     }
     const fd = current.live.fieldData;
-    const result = await enqueueQualityJob({ source: 'performance', mode: 'performance', snapshot: current.snapshot,
+    const result = await enqueueQualityJob({ source: 'performance', mode: 'performance', manualRequested: true, snapshot: current.snapshot,
       evidence: input.evidence, article: { editorialTitle: String(fd.name || ''), locale: opportunity.locale,
         metadata: current.snapshot.metadata, performanceContext: input.context,
         body: stripHtmlToText([fd.subtitle, fd.intro, fd.content].filter(Boolean).join('\n\n')),

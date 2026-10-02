@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 const m = vi.hoisted(() => ({ state: {} as Record<string, unknown>, page: vi.fn(), enqueue: vi.fn(), enabled: true }));
 vi.mock('@/lib/firebase-admin', () => ({ getAdminDb: () => ({ collection: () => ({ doc: () => 'cursor' }),
   runTransaction: async (fn: (tx: unknown) => unknown) => fn({
@@ -18,7 +18,13 @@ const item = { id: 'item', cmsLocaleId: 'da-id', lastPublished: '2026-09-12', fi
   name: 'Mayday', content: '<p>Article</p>', 'seo-title': 'Filled title', 'meta-description': 'Filled description',
 } };
 describe('published article discovery', () => {
-  beforeEach(() => { m.state = {}; m.page.mockReset(); m.enqueue.mockReset(); m.enabled = true; m.enqueue.mockResolvedValue({ enqueued: true, jobId: 'job' }); });
+  beforeEach(() => { vi.useFakeTimers(); vi.setSystemTime(new Date('2026-09-12T12:00:00Z')); m.state = {}; m.page.mockReset(); m.enqueue.mockReset(); m.enabled = true; m.enqueue.mockResolvedValue({ enqueued: true, jobId: 'job' }); });
+  afterEach(() => vi.useRealTimers());
+  it('does not queue unchanged archive items but still advances its read-only cursor', async () => {
+    m.page.mockResolvedValue({ items: [{ ...item, lastPublished: '2026-08-01' }], total: 1 });
+    expect(await discoverPublishedQualityJobs()).toMatchObject({ inspected: 1, next: { locale: 'en', offset: 0 } });
+    expect(m.enqueue).not.toHaveBeenCalled();
+  });
   it('cycles over complete DA and EN pages rather than only GSC candidates', () => {
     expect(nextDiscoveryCursor({ locale: 'da', offset: 0 }, 50, 125)).toEqual({ locale: 'da', offset: 50 });
     expect(nextDiscoveryCursor({ locale: 'da', offset: 100 }, 25, 125)).toEqual({ locale: 'en', offset: 0 });

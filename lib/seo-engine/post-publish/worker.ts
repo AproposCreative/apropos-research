@@ -54,9 +54,9 @@ export async function runQualityJob(id: string, deps: QualityWorkerDependencies)
       return await finish('kept', 'cooldown');
     }
     if (!(await deps.admitArchive(job))) {
-      await deps.checkpoint(job, { status: 'queued', reason: 'archive_daily_allowance',
-        attempt: Math.max(0, job.attempt - 1), readyAt: (deps.now?.() ?? Date.now()) + 6 * 60 * 60_000 }, true);
-      return { ok: true, status: 'queued', reason: 'archive_daily_allowance' };
+      await deps.checkpoint(job, { status: 'queued', reason: 'archive_not_admitted',
+        attempt: Math.max(0, job.attempt - 1), readyAt: (deps.now?.() ?? Date.now()) + 24 * 60 * 60_000 }, true);
+      return { ok: true, status: 'queued', reason: 'archive_not_admitted' };
     }
     // Persist the model's exact duplicate evidence once, so retries replay the
     // same paid request even if another article's metadata changes later.

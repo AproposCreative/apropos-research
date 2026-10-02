@@ -75,6 +75,37 @@ beforeEach(() => {
 });
 afterEach(() => { vi.useRealTimers(); vi.unstubAllEnvs(); vi.unstubAllGlobals(); });
 
+it('accepts compact success prose only with the same literal citations and complete coverage', async () => {
+  const raw = rawFor(claim); raw.units[0].claims[0].explanation = '';
+  state.create.mockResolvedValue(response(raw));
+  expect((await assessLivEditorialArticle(claim, urls)).complete).toBe(true);
+  state.rows.clear(); raw.units[0].claims[0].citations[0].quote = 'Dette står ikke i nogen kilde.';
+  state.create.mockResolvedValue(response(raw));
+  expect((await assessLivEditorialArticle(claim, urls)).complete).toBe(false);
+});
+
+it('checks caption delta and global judgment, revalidates every reused citation, and replays saved lineage', async () => {
+  const fields = { title: 'Koncert', content: `<p>${claim} ${'Min egen vurdering af kulturen. '.repeat(52)}</p>\n<p>${'En anden tanke om kunsten. '.repeat(48)}</p>\n<figure><img src="https://images.test/a.jpg" alt="En person"><figcaption>En gammel beskrivelse</figcaption></figure>` };
+  const text = (f: typeof fields) => `${f.title}\n\n${f.content}`;
+  const next = { ...fields, content: fields.content.replace('En gammel beskrivelse', 'En ændret beskrivelse') };
+  await withLivCostContext({ runId: 'prepare-2026-09-12', stage: 'editorial-assessment' }, async () => {
+    expect((await assessLivEditorialArticle(text(fields), urls, fields)).complete).toBe(true);
+    state.create.mockImplementationOnce(async request => {
+      expect(request.messages[0].content).toContain('DELTA-KONTROL');
+      const ids = JSON.parse(request.messages[0].content.match(/disse unit-id'er: (\[[^\]]+\])/)[1]);
+      expect(ids.length).toBeLessThan(articleUnits(text(next)).length);
+      const raw = rawFor(text(next)); raw.units = raw.units.filter(unit => ids.includes(unit.id));
+      return response(raw);
+    });
+    expect((await assessLivEditorialArticle(text(next), urls, next)).complete).toBe(true);
+    expect((await assessLivEditorialArticle(text(next), urls, next)).complete).toBe(true);
+    expect(state.create).toHaveBeenCalledTimes(2);
+    expect(state.retrieve).toHaveBeenCalledTimes(6);
+    const saved = [...state.rows.values()].filter(row => row.rawResponse && row.reusedUnits?.length);
+    expect(saved).toHaveLength(1); expect(saved[0].paidRequestHash).toMatch(/^[a-f0-9]{64}$/);
+  });
+});
+
 it.each(Array.from({length:12}, (_,i) => ({title:`${['Anmeldelse','Feature','Kulturhistorie'][i%3]} ${i+1}`, gap:'\n'.repeat(i+2)})))
  ('reuses block layout only, while validating fresh evidence: $title', async ({title,gap}) => {
   const fields = {title,content:`<p>${claim}</p>\n<p>Det er min vurdering, at oplevelsen har kulturel betydning.</p>`};
@@ -219,7 +250,7 @@ it('checks every unit and Liv editorial criteria in ONE bounded call, retaining 
   const [request, options] = state.create.mock.calls[0];
   expect(options).toEqual({ timeout: 180_000, maxRetries: 0 });
   expect(request).toMatchObject({ max_completion_tokens: 16000, store: false,
-    response_format: { type: 'json_schema', json_schema: { strict: true, name: 'liv_editorial_assessment_v1' } } });
+    response_format: { type: 'json_schema', json_schema: { strict: true, name: 'liv_editorial_compact_v1' } } });
   expect(JSON.parse(request.messages[1].content).units).toEqual(articleUnits(text));
   expect(request.messages[0].content).toContain(loadLivVoice().text);
   expect(request.messages[0].content).toContain('Ved konflikt: disputed');

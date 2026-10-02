@@ -4,12 +4,13 @@ import { useAuth } from '@/lib/auth-context';
 import { readJsonResponse } from '@/lib/api/read-json-response';
 import type { readCostActions } from '@/lib/ai/cost-actions';
 import { providerFailureLabel } from '@/lib/ai/provider-error';
-import { costOverview, costStories, costStageLabel } from '@/lib/ai/cost-overview';
+import { costOverview, costStageLabel } from '@/lib/ai/cost-overview';
 type Snapshot = Awaited<ReturnType<typeof readCostActions>>;
 const amount = (value: number) => `${value.toLocaleString('da-DK', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} kr.`;
 export default function CostActions() {
   const { user } = useAuth();
   const [opened, setOpened] = useState(false), [revision, setRevision] = useState(0);
+  const [month, setMonth] = useState(() => new Date().toLocaleDateString('sv-SE', { timeZone: 'Europe/Copenhagen' }).slice(0, 7));
   const [snapshot, setSnapshot] = useState<Snapshot | null>(null), [error, setError] = useState('');
   const [loading, setLoading] = useState(false), [limit, setLimit] = useState(20);
   const [hold, setHold] = useState<{ blocked: boolean; revision: number } | null>(null);
@@ -22,7 +23,7 @@ export default function CostActions() {
         if (!user) throw Error('Log ind for at se forbruget.');
         const token = await user.getIdToken();
         if (controller.signal.aborted) return;
-        const response = await fetch('/api/ai-cost/actions', { cache: 'no-store', signal: controller.signal,
+        const response = await fetch(`/api/ai-cost/actions?month=${encodeURIComponent(month)}`, { cache: 'no-store', signal: controller.signal,
           headers: { Authorization: `Bearer ${token}` } });
         const data = await readJsonResponse(response);
         if (!response.ok || !Array.isArray(data.actions)) throw Error('Forbruget kunne ikke hentes.');
@@ -35,7 +36,7 @@ export default function CostActions() {
       finally { if (!controller.signal.aborted) setLoading(false); }
     })();
     return () => controller.abort();
-  }, [opened, revision, user]);
+  }, [opened, revision, user, month]);
   async function resume() {
     if (!user || !hold?.blocked || loading) return;
     setLoading(true); setError('');
@@ -52,6 +53,10 @@ export default function CostActions() {
     {!opened ? <button className="min-h-11 text-sm underline" onClick={() => setOpened(true)}>Vis forbrug pr. handling</button> : <>
       <div className="flex items-center justify-between gap-2"><h4 className="text-sm">Forbrug pr. handling</h4><button disabled={loading} className="min-h-11 px-2 underline disabled:opacity-40" onClick={() => setRevision(n => n + 1)}>Opdater</button></div>
       <p>Kun registrerede kald. Estimater, ikke faktura. Image-gen beholder sit separate budget.</p>
+      <label className="flex flex-wrap items-center gap-2 py-2">Måned
+        <input type="month" value={month} min="2026-09" className="min-h-11 rounded-lg border border-white/15 bg-transparent px-3"
+          onChange={e => { if (/^20\d{2}-(0[1-9]|1[0-2])$/.test(e.target.value)) { setMonth(e.target.value); setLimit(20); } }} />
+      </label>
       {loading && <p role="status">Henter registrerede handlinger…</p>}
       {error && <p role="alert" className="text-amber-200">{error}</p>}
       {snapshot && snapshot.actions.length > 0 && <section aria-label="Forbrug fordelt på formål" className="py-3">
@@ -68,12 +73,14 @@ export default function CostActions() {
         <p>Ingen testkøb. Allerede stoppede forløb beholder deres gemte status.</p>
       </div>}
       {!!snapshot?.stories?.length && <details className="py-3"><summary className="min-h-11 cursor-pointer">Samlet pr. historie eller forløb</summary>
-        <p>Ældre kald vises pr. forløb, hvor en fælles historieidentitet mangler.</p>
-        <ul>{costStories(snapshot.actions).map(s => <li key={`${s.bucket}:${s.id}`} className="py-2">
+        <p>Udgivet betyder gemt CMS- og offentlig læsekvittering, ikke en ny livekontrol. Omkostninger er månedens registrerede arbejde, ikke nødvendigvis hele artiklens livstid. Uden sikker artikelidentitet vises forløbet separat.</p>
+        <ul>{snapshot.stories.map(s => <li key={`${s.bucket}:${s.id}`} className="py-2">
           <details>
             <summary className="min-h-11 cursor-pointer break-words">
-              {s.id}: {amount(s.estimatedDkk)}
+              {s.title || s.id}: {amount(s.estimatedDkk)}
             </summary>
+            <p>{s.publicationState === 'published' ? 'Udgivet · verificeret kvittering' : s.publicationState === 'ready' ? 'Klar til udgivelse' : s.publicationState === 'unfinished' ? 'Ikke færdig / afventer' : 'Forløb uden dokumenteret færdig artikel'}</p>
+            {s.checkedAt && <p>Verificeret {new Date(s.checkedAt).toLocaleString('da-DK')}</p>}
             <p>{s.bucket === 'image-gen' ? 'Image-gen' : 'Fælles budget'} · {s.calls} kald · {amount(s.reservedDkk)} reserveret</p>
             <p>Inklusive registreret arbejde fra mislykkede forsøg. {s.unknownCalls} kald har uafklaret forbrug.</p>
             <ul className="divide-y divide-white/10">{s.stages.map(stage => <li key={stage.stage} className="py-2">

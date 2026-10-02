@@ -111,12 +111,21 @@ export async function prepareLivAutomaticMedia(article: GeneratedArticle, option
   const deps = dependencies ?? (await import('@/lib/liv/automatic-media-runtime')).livMediaRuntime(options.deadline);
   const jobIds = Object.fromEntries((['illustration', 'photography'] as const).map(value =>
     [value, digest(JSON.stringify(['liv-media-v1', options.dayKey, livImageArticleHash(article), value, style]))])) as Record<MediaMode, string>;
+  let existingMode: MediaMode | null = null;
+  let discovered: MediaCandidate[] | undefined;
   if (!options.mode && deps.existingMode) {
     const existing = await deps.existingMode(jobIds);
+    existingMode = existing;
     if (existing) {
       // Saved work wins over changing defaults, except a forbidden review image.
       mode = resolveLivMediaMode(article, existing);
     }
+  }
+  if (!options.mode && !existingMode && mode === 'illustration') {
+    // Inspect already-researched press pages BEFORE buying illustrations. This
+    // is bounded public retrieval, not another research/model request.
+    discovered = await deps.candidates(article);
+    if (new Set(discovered.map(c => c.id)).size >= 3) mode = 'photography';
   }
   const jobId = jobIds[mode];
   const cached = await deps.claim(jobId, article, mode, style);
@@ -126,7 +135,7 @@ export async function prepareLivAutomaticMedia(article: GeneratedArticle, option
     const candidates = mode === 'photography' ? [
       ...saved.map(({ evidence, bytes }) => ({ id: evidence.selectedSourceHash || evidence.sourceHash, url: evidence.sourceUrl!,
         sourcePageUrl: evidence.sourcePageUrl!, credit: evidence.credit, bytes })),
-      ...(saved.length < 3 ? await deps.candidates(article) : []),
+      ...(saved.length < 3 ? discovered ?? await deps.candidates(article) : []),
     ].filter((candidate, index, all) => all.findIndex(item => item.id === candidate.id) === index) : [];
     if (mode === 'photography' && candidates.length < 3) throw new Error('liv_media_credited_photos_missing');
     const plan = validateLivMediaPlan(await deps.plan(article, mode, style, candidates, jobId), mode, candidates);
