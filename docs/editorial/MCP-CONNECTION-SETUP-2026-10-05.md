@@ -55,6 +55,43 @@ user actions.
   failure signal, so that observation is not counted as a pass. Fetch rejection
   and timeout behavior were separately exercised in the isolated test page.
 
+## Production verification, 5 October 00:08 Copenhagen
+
+- Exact release commit: `e7b884e4c4191a0afc49b5c269520ad2089c3199`, pushed
+  to `codex/liv-daily-recovery`.
+- Deployment: `dpl_13npHZdDaQ9eamygL1EoJwCF2eqo`, **READY**, target production;
+  immutable URL
+  `https://apropos-research-gv1nsbjmo-frederik-kraghs-projects.vercel.app`.
+  The production target and `ai.aproposmagazine.com` alias resolve to this SHA.
+  Vercel build events report build completion and deployment completion; the
+  connector's build-log tool was unavailable, so its documented REST events
+  endpoint provided that evidence instead.
+- The actual production host, not only the immutable deployment, passed the
+  service-authenticated check from **22:08:01–22:08:29 UTC on 4 October**.
+  Owner status is private/no-store; anonymous, Casper, Milo and MCP-bearer access
+  are denied with 403. A caller-supplied UID cannot select a different owner.
+- One temporary **read-only** OAuth grant exercised registration, S256 exchange,
+  initialization and one existing `get_workflow` call. The endpoint distinguished
+  authorization before that call from an observed successful tool call afterwards.
+  The server still advertises MCP version `2026-10-04-v4` and 23 tools; the tool
+  contract did not change in this release.
+- Only the temporary test grant was revoked, and its token then received 401.
+  History was retained. The read-only status returned to the original baseline:
+  zero authorizations observed, no successful call on an active grant, complete
+  inventory, `clientAcceptanceVerified: false`. This is **not** an actual user
+  ChatGPT connection or an editorial acceptance test.
+- Before/after hashes matched for budget, provider hold, owner workspace, queue
+  entries/slots, shared ledger and image ledger. No paid AI, CMS save or publication
+  was requested; no existing user connection was revoked.
+- The production setup page was visually checked in an isolated service-issued
+  owner session at 390×844 and 1280×900. Instructions, copy success and a fresh
+  manual status read worked; neither viewport overflowed or showed a framework
+  overlay. The browser reported no uncaught page errors. The session was closed.
+- Configured Vercel drains: **0**. Existing runtime logs remain available, but
+  no external telemetry service was installed. A deployment-scoped error/fatal
+  scan from 22:07:00 to 22:09:30 UTC returned no matching logs. This bounded
+  release observation is not a claim about long-term uptime.
+
 ## Remaining acceptance
 
 The owner's actual ChatGPT connection and selected edit/save/publication task
