@@ -1,6 +1,6 @@
 import { beforeEach, expect, it, vi } from 'vitest';
 import { z } from 'zod';
-const mock = vi.hoisted(() => ({ identity: null as any, rate: vi.fn(), audit: vi.fn(), workspace: vi.fn(), context: vi.fn(), publish: vi.fn(), publicationStatus: vi.fn() }));
+const mock = vi.hoisted(() => ({ identity: null as any, rate: vi.fn(), audit: vi.fn(), workspace: vi.fn(), context: vi.fn(), publish: vi.fn(), publicationStatus: vi.fn(), shortening: vi.fn(), shorteningContext: vi.fn(), shorteningPreview: vi.fn(), shorteningApply: vi.fn() }));
 vi.mock('@/lib/firebase-admin', () => ({ getAdminDb: () => ({ collection: () => ({ doc: () => ({ create: mock.audit }) }) }) }));
 vi.mock('@/lib/mcp/oauth', async original => ({ ...await original<any>(), authenticateMcp: async () => mock.identity, oauthRateLimit: mock.rate }));
 vi.mock('@/lib/image-gen/webflow', () => ({ listImageGenArticles: async () => ({ articles: [], nextCursor: null }) }));
@@ -17,6 +17,8 @@ vi.mock('@/lib/mcp/editorial', () => ({ getCmsArticle: vi.fn(), openCmsArticle: 
   cmsSaveInput: z.object({ draftId: z.string(), expectedRevision: z.number() }), runIdSchema: z.string() }));
 vi.mock('@/lib/mcp/workspace', () => ({ draftInput: z.object({ expectedRevision: z.number(), draftId: z.string(), article: z.object({ title: z.string(), content: z.string() }).strict() }).strict(), saveMcpDraft: vi.fn() }));
 vi.mock('@/lib/mcp/publication', () => ({ previewPublication: vi.fn(), executePublication: mock.publish, getPublicationStatus: mock.publicationStatus }));
+vi.mock('@/lib/mcp/shortening', async original => ({ ...await original<any>(), getShorteningContext: mock.shorteningContext,
+  previewExternalShortening: mock.shorteningPreview, getExternalShortening: mock.shortening, applyExternalShortening: mock.shorteningApply }));
 vi.mock('@/lib/editorial/work-catalog', async original => ({ ...await original<any>(), listEditorialWork: async () => ({ items: [], paidAiCalls: 0 }) }));
 vi.mock('@/lib/editorial/workspace-copyedit', async original => ({ ...await original<any>(), previewWorkspaceCopyedit: vi.fn(), applyWorkspaceCopyedit: vi.fn() }));
 vi.mock('@/lib/editorial/review-workspace', async original => ({ ...await original<any>(), reviewWorkspace: vi.fn() }));
@@ -37,11 +39,30 @@ it('negotiates the real SDK protocol and lists strict schemas on independent sta
   const initialized = await POST(message('initialize', { protocolVersion: '2025-03-26', capabilities: {}, clientInfo: { name: 'fixture', version: '1' } }));
   expect(initialized.status).toBe(200); expect((await initialized.json()).result.serverInfo.name).toBe('apropos-editorial');
   const response = await POST(message('tools/list')); const tools = (await response.json()).result.tools;
-  expect(tools.length).toBe(24); expect(tools.find((t: any) => t.name === 'publish_article').annotations.destructiveHint).toBe(true);
+  expect(tools.length).toBe(28); expect(tools.find((t: any) => t.name === 'publish_article').annotations.destructiveHint).toBe(true);
   expect(tools.find((t: any) => t.name === 'get_publication_status').annotations).toMatchObject({ readOnlyHint: true, destructiveHint: false, idempotentHint: true });
   expect(tools.find((t: any) => t.name === 'save_draft').inputSchema.additionalProperties).toBe(false);
   expect(tools.find((t: any) => t.name === 'publish_article')._meta.securitySchemes).toEqual([{ type: 'oauth2', scopes: ['apropos:publish'] }]);
   expect(response.headers.get('Cache-Control')).toContain('no-store');
+});
+it('exposes shortening without a human-approval tool and enforces owner, scopes, strict identity and no-paid boundary', async () => {
+  const proposalId = 'a'.repeat(64), candidateHash = 'b'.repeat(64), apply = { proposalId, candidateHash };
+  const tools = (await (await POST(message('tools/list'))).json()).result.tools;
+  expect(tools.find((t: any) => t.name === 'get_shortening_status').annotations.readOnlyHint).toBe(true);
+  expect(tools.find((t: any) => t.name === 'apply_shortening').annotations.destructiveHint).toBe(true);
+  expect(tools.map((t: any) => t.name).join(' ')).not.toMatch(/confirm_shortening|approve_shortening/);
+  mock.shortening.mockResolvedValue({ reviewed: false });
+  expect((await (await call('get_shortening_status', { proposalId })).json()).result.isError).not.toBe(true);
+  expect(mock.shortening).toHaveBeenCalledExactlyOnceWith('frederik', proposalId);
+  expect((await (await call('get_shortening_status', { proposalId, uid: 'milo' })).json()).result.isError).toBe(true);
+  mock.identity.scopes = ['apropos:read'];
+  expect((await (await call('apply_shortening', apply)).json()).result.isError).toBe(true); expect(mock.shorteningApply).not.toHaveBeenCalled();
+  mock.identity.scopes = ['apropos:draft']; mock.shorteningApply.mockImplementation(async () => { assertPaidAiAllowed(); });
+  const denied = (await (await call('apply_shortening', apply)).json()).result;
+  expect(denied.isError).toBe(true); expect(denied.content[0].text).toContain('mcp_paid_call_requires_separate_approval');
+  expect(mock.shorteningApply).toHaveBeenCalledExactlyOnceWith('frederik', apply);
+  mock.identity.owner = false;
+  expect((await (await call('apply_shortening', apply)).json()).result.isError).toBe(true); expect(mock.shorteningApply).toHaveBeenCalledTimes(1);
 });
 it('returns bounded workflow guidance and discovery through the actual MCP protocol', async () => {
   const result = (await (await call('get_workflow', { workflow: 'edit' })).json()).result;

@@ -23,6 +23,8 @@ import { previewWorkspaceCopyedit, applyWorkspaceCopyedit, workspaceCopyeditInpu
 import { reviewWorkspace, reviewWorkspaceInput } from '@/lib/editorial/review-workspace';
 import { editorialWorkflow, workflowInput } from '@/lib/editorial/workflows';
 import { getMetadataTestCases, metadataTestInput, metadataCandidate, reviewMetadataCandidate } from '@/lib/editorial/metadata-evaluation';
+import { getShorteningContext, previewExternalShortening, getExternalShortening, applyExternalShortening,
+  externalShorteningInput, shorteningIdInput, shorteningApplyInput } from './shortening';
 
 const id = z.string().regex(/^[a-f0-9]{24}$/);
 export function createEditorialMcp(identity: McpIdentity) {
@@ -46,7 +48,7 @@ export function createEditorialMcp(identity: McpIdentity) {
       } catch (error) {
         status = 'error';
         const message = error instanceof Error ? error.message : '';
-        const code = /^(?:mcp_|liv_edit_)[a-z_]{1,100}$/.test(message) ? message : 'mcp_operation_unconfirmed';
+        const code = /^(?:mcp_|liv_edit_|liv_shortening_)[a-z_]{1,100}$/.test(message) ? message : 'mcp_operation_unconfirmed';
         return { isError: true, content: [{ type: 'text', text: JSON.stringify({ error: code,
           action: 'Læs den aktuelle status før et nyt forsøg. Intet er kvalitetsgodkendt af denne fejl.', paidAiAllowed: false }) }] };
       } finally {
@@ -82,6 +84,14 @@ export function createEditorialMcp(identity: McpIdentity) {
     applyWorkspaceCopyeditInput, 'apropos:draft', false, input => applyWorkspaceCopyedit(identity.uid, input));
   tool('review_draft', 'Vis konkrete deterministiske tekst-/mediefund, redaktionelle spørgsmål og manglende kontroller for en bestemt privat revision. IKKE et faktatjek eller en publiceringsgodkendelse.',
     reviewWorkspaceInput, 'apropos:read', true, input => reviewWorkspace(identity.uid, input));
+  tool('get_shortening_context', 'Hent redigerbare afsnit og aktuelle versionshashes for en allerede kontrolleret, aldrig publiceret Liv-kladde. Kun forkortelse; ingen nye fakta, billeder eller metadata. Ingen AI-kald.',
+    z.object({ articleId: id }).strict(), 'apropos:read', true, input => getShorteningContext(input.articleId));
+  tool('preview_shortening', 'Gem dit eget præcise forkortelsesforslag fra ChatGPT. Bevarer billeder/links/metadata og giver personligt godkendelseslink. Ikke API-genereret eller kvalitetsgodkendt. Genbrug requestId ved timeout.',
+    externalShorteningInput, 'apropos:draft', false, input => previewExternalShortening(identity.uid, input));
+  tool('get_shortening_status', 'Hent dit gemte forkortelsesforslag, reel personlig godkendelse og CMS-gemmekvittering. Ingen ny bestilling eller ændring; samme proposalId efter timeout.',
+    shorteningIdInput, 'apropos:read', true, input => getExternalShortening(identity.uid, input.proposalId));
+  tool('apply_shortening', 'Gem præcis det forkortelsesforslag Frederik personligt har kontrolleret på Apropos. Ingen automatisk godkendelse: eksisterende versionskontrol, audit, CMS-readback og genoptagelse bevares. Udgiver ikke artiklen.',
+    shorteningApplyInput, 'apropos:draft', false, input => applyExternalShortening(identity.uid, input), true);
   tool('get_metadata_test_cases', 'Hent oversigt over 20 gemte Apropos-testartikler til SEO/prompt-regression. Vælg caseId for én hel kildetekst og versionshash. Ikke et holdout eller nye verificerede fakta. Ingen AI-kald.',
     metadataTestInput, 'apropos:read', true, async input => getMetadataTestCases(input));
   tool('review_metadata_candidate', 'Sammenlign din SEO-titel/meta med den præcise gemte testartikel. Vis mistede navne, nye tal, længde og eksisterende sprogkrav. Ikke semantisk faktatjek, kvalitetsgaranti, CMS-gemning eller godkendelse. Ingen AI-kald.',

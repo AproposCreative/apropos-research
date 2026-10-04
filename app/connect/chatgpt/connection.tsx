@@ -5,9 +5,10 @@ import Link from 'next/link';
 import { X } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
 import ConnectionSetup from './setup';
+import ShorteningConfirmation from './shortening';
 
 const button = 'min-h-12 rounded-xl border border-white/20 px-5 py-3 text-white hover:bg-white/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white disabled:opacity-40';
-export default function ChatGPTConnection({ requestId, publicationId }: { requestId: string; publicationId: string }) {
+export default function ChatGPTConnection({ requestId, publicationId, shorteningId = '' }: { requestId: string; publicationId: string; shorteningId?: string }) {
   const { user, loading, capabilities, signIn, signInWithGoogle } = useAuth();
   const [email, setEmail] = useState('frederik@aproposmagazine.com'), [password, setPassword] = useState('');
   const [error, setError] = useState(''), [busy, setBusy] = useState(false), [done, setDone] = useState('');
@@ -45,7 +46,7 @@ export default function ChatGPTConnection({ requestId, publicationId }: { reques
   return <main className="min-h-dvh bg-[#000] px-4 py-5 text-white sm:p-8">
     <section className="mx-auto max-w-2xl overflow-hidden rounded-2xl border border-white/15 bg-[#080808]">
       <header className="flex items-center justify-between border-b border-white/15 px-5 py-4">
-        <h1 className="text-xl font-medium">{publicationId ? 'Bekræft udgivelse' : 'Apropos i ChatGPT'}</h1>
+        <h1 className="text-xl font-medium">{publicationId ? 'Bekræft udgivelse' : shorteningId ? 'Godkend forkortelse' : 'Apropos i ChatGPT'}</h1>
         <Link href="/ai" className={`${button} !p-3`} aria-label="Tilbage til Apropos"><X size={22} /></Link>
       </header>
       <div className="space-y-6 p-5 sm:p-7">
@@ -89,7 +90,7 @@ export default function ChatGPTConnection({ requestId, publicationId }: { reques
             <button className={`${button} w-full bg-white/10`} disabled={busy} onClick={() => action('allow')}>Forbind ChatGPT</button>
             <button className={button} disabled={busy} onClick={() => action('deny')}>Afvis</button>
           </> : <p>Kontrollerer forbindelsen …</p>}
-        </> : <>
+        </> : shorteningId ? <ShorteningConfirmation proposalId={shorteningId} /> : <>
           <ConnectionSetup key={user.uid} />
           <details className="border-t border-white/15 pt-4"><summary>Forbindelsesindstillinger</summary><button className={`${button} mt-4`} disabled={busy} onClick={() => action('revoke')}>Afbryd mine ChatGPT-forbindelser</button></details>
         </>}

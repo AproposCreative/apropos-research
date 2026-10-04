@@ -2,7 +2,8 @@ import { randomUUID } from 'node:crypto';
 import { getAdminDb } from '@/lib/firebase-admin';
 import { cmsFieldHash } from './cms-field-hash';
 import { shorteningReviewInput } from './shortening-review';
-import { shorteningProposalInput } from './shortening-proposal';
+import { shorteningProposalInput } from './shortening-contract';
+import { readLivShorteningRecord } from './shortening-record';
 import { buildLivShorteningCmsPatch } from './shortening-cms-patch';
 import { livImageArticleHash } from './article-image-hash';
 import { readLivWebflowJson, inspectLivCmsDraft } from './cms-readback';
@@ -74,7 +75,7 @@ export async function acceptLivShortening(value: unknown, actorUid: string) {
       let pinned = audit;
       if (!latest) {
         if (hash(cms.fieldData as object) !== input.expectedCmsHash || !proposal?.article ||
-          proposal.status !== 'preview' || proposal.finishReason !== 'stop' || proposal.refusal !== false ||
+          proposal.status !== 'preview' ||
           proposal.inputHash !== hash({ input: proposalInput, article: proposal.article }) ||
           hash(proposal.input || {}) !== hash(proposalInput) || review.originalInputHash !== proposal.inputHash ||
           proposal.proposal?.candidateHash !== input.candidateHash ||
@@ -83,8 +84,7 @@ export async function acceptLivShortening(value: unknown, actorUid: string) {
             row.preparationProof?.hash !== input.expectedPayloadHash ||
             hash(row.preparationProof.expected) !== input.expectedPayloadHash ||
             row.preparationProof.editorialPassed !== true || row.preparationProof.structurePassed !== true)) return fail('checkpoint_changed');
-        let edits: unknown;
-        try { edits = JSON.parse(proposal.rawResponse); } catch { return fail('candidate_invalid'); }
+        const { edits } = readLivShorteningRecord(proposal, actorUid);
         const change = buildLivShorteningCmsPatch({ article: proposal.article, expected: payload.expected,
           cmsFields: cms.fieldData as Record<string, unknown>, targetWords: input.targetWords, edits,
           reviewedCandidateHash: input.candidateHash, schemaSlugs });

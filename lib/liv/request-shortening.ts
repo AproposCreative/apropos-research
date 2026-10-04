@@ -1,10 +1,8 @@
 import { getAdminDb } from '@/lib/firebase-admin';
 import { cmsFieldHash } from './cms-field-hash';
 import { readLivShorteningBaseline } from './shortening-baseline';
-import { readDeliveryPayload } from './delivery-store';
-import { samePresentationBody } from './presentation-revision';
 import { prepareLivShorteningProposal, shorteningProposalInput } from './shortening-proposal';
-import type { GeneratedArticle } from './generate-article';
+import { readLivShorteningCheckpoint } from './shortening-checkpoint';
 
 /** Authenticated owner route only. Preview generation is not CMS acceptance. */
 export async function requestLivShortening(value: unknown) {
@@ -26,19 +24,7 @@ export async function requestLivShortening(value: unknown) {
     throw new Error('liv_shortening_version_changed');
   if (input.targetWords < baseline.minTargetWords || input.targetWords > baseline.maxTargetWords)
     throw new Error('liv_shortening_target_invalid');
-  const expected = await readDeliveryPayload(input.itemId);
-  if (cmsFieldHash({ ...expected }) !== input.expectedPayloadHash) throw new Error('liv_shortening_payload_changed');
-  const docs = await db.collection('livDailyArticles').where('webflowItemId', '==', input.itemId).limit(10).get();
-  const rows = docs.docs.map(doc => doc.data());
-  if (!rows.length || rows.length >= 10 || rows.some(row => row.status !== 'draft' || !row.articleCheckpoint ||
-    row.articleCheckpoint.title !== expected.title ||
-    !row.preparationProof || row.preparationProof.editorialPassed !== true || row.preparationProof.structurePassed !== true ||
-    row.preparationProof.hash !== input.expectedPayloadHash || !row.preparationProof.expected ||
-    cmsFieldHash(row.preparationProof.expected) !== input.expectedPayloadHash ||
-    !samePresentationBody(row.articleCheckpoint.content, expected.content))) throw new Error('liv_shortening_checkpoint_changed');
-  const article = rows[0].articleCheckpoint as GeneratedArticle;
-  if (rows.some(row => cmsFieldHash(row.articleCheckpoint) !== cmsFieldHash(article as unknown as Record<string, unknown>)))
-    throw new Error('liv_shortening_checkpoint_conflict');
+  const article = await readLivShorteningCheckpoint(input.itemId, input.expectedPayloadHash);
   if (saved && cmsFieldHash(saved.article) !== cmsFieldHash(article as unknown as Record<string, unknown>))
     throw new Error('liv_shortening_checkpoint_changed');
   return prepareLivShorteningProposal(input, article);

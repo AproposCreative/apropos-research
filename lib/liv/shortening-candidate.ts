@@ -1,11 +1,7 @@
-import { z } from 'zod';
 import { checkLivArticleLength, countLivBodyWords, LIV_DAILY_BODY_LENGTH } from './article-length';
 import { applyLivParagraphEdits } from './paragraph-edits';
 import type { GeneratedArticle } from './generate-article';
-
-const candidate = z.object({ bodyEdits: z.array(z.object({
-  index: z.number().int().nonnegative(), before: z.string().max(6000), after: z.string().max(6000),
-}).strict()).min(1).max(60) }).strict();
+import { shorteningEdits } from './shortening-contract';
 
 /** Validates a proposed shortening only. No CMS write, proof rebinding, AI call,
  * research or publication. Existing editorial evidence must not approve new prose. */
@@ -13,7 +9,7 @@ export function buildLivShorteningCandidate(article: GeneratedArticle, targetWor
   const beforeWords = countLivBodyWords(article.content);
   if (!Number.isInteger(targetWords) || targetWords < LIV_DAILY_BODY_LENGTH.min ||
     targetWords > LIV_DAILY_BODY_LENGTH.max || targetWords >= beforeWords) throw new Error('liv_shortening_target_invalid');
-  const parsed = candidate.safeParse(value);
+  const parsed = shorteningEdits.safeParse(value);
   if (!parsed.success) throw new Error('liv_shortening_candidate_invalid');
   // A shortening request cannot expand another paragraph or edit metadata.
   if (parsed.data.bodyEdits.some(edit => countLivBodyWords(edit.after) >= countLivBodyWords(edit.before)))

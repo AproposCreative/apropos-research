@@ -20,7 +20,7 @@ export function memoryFirestore() {
   }
   function writer() {
     const writes: (() => void)[] = [];
-    return { writes, get: async (ref: any) => { if (writes.length) throw Error('read_after_write'); return snapshot(ref.path); },
+    return { writes, get: async (ref: any) => { if (writes.length) throw Error('read_after_write'); return ref.path ? snapshot(ref.path) : ref.get(); },
       set: (ref: any, data: any) => writes.push(() => rows.set(ref.path, structuredClone(data))),
       update: (ref: any, data: any) => { if (!rows.has(ref.path)) throw Error('missing'); writes.push(() => rows.set(ref.path, { ...rows.get(ref.path), ...structuredClone(data) })); },
       create: (ref: any, data: any) => { if (rows.has(ref.path)) throw Error('exists'); writes.push(() => rows.set(ref.path, structuredClone(data))); },

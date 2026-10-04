@@ -1,8 +1,8 @@
 import { z } from 'zod';
 import { getAdminDb } from '@/lib/firebase-admin';
 import { cmsFieldHash } from './cms-field-hash';
-import { shorteningProposalInput } from './shortening-proposal';
-import { buildLivShorteningCandidate } from './shortening-candidate';
+import { shorteningProposalInput } from './shortening-contract';
+import { readLivShorteningRecord } from './shortening-record';
 import { readLivShorteningBaseline } from './shortening-baseline';
 
 export const shorteningReviewInput = shorteningProposalInput.extend({
@@ -41,12 +41,9 @@ export async function recordLivShorteningReview(value: unknown, actorUid: string
     }
     if (!saved?.article || !saved.proposal || saved.status !== 'preview' ||
       cmsFieldHash(saved.input || {}) !== cmsFieldHash(proposalInput) ||
-      saved.inputHash !== cmsFieldHash({ input: proposalInput, article: saved.article }) ||
-      saved.finishReason !== 'stop' || saved.refusal !== false || typeof saved.rawResponse !== 'string')
+      saved.inputHash !== cmsFieldHash({ input: proposalInput, article: saved.article }))
       throw new Error('liv_shortening_review_not_ready');
-    let patches: unknown;
-    try { patches = JSON.parse(saved.rawResponse); } catch { throw new Error('liv_shortening_candidate_invalid'); }
-    const rebuilt = buildLivShorteningCandidate(saved.article, input.targetWords, patches);
+    const { candidate: rebuilt } = readLivShorteningRecord(saved, actorUid);
     if (rebuilt.content !== saved.proposal.content || input.candidateHash !== cmsFieldHash({ content: rebuilt.content }) ||
       saved.proposal.candidateHash !== input.candidateHash) throw new Error('liv_shortening_candidate_changed');
     const reviewedAt = new Date().toISOString();

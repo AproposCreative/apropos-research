@@ -1,5 +1,4 @@
 import { randomUUID } from 'node:crypto';
-import { z } from 'zod';
 import { getAdminDb } from '@/lib/firebase-admin';
 import { getOpenAIClient } from '@/lib/openai';
 import { cmsFieldHash } from './cms-field-hash';
@@ -11,12 +10,8 @@ import { livEditableParagraphs } from './paragraph-edits';
 import { countLivBodyWords } from './article-length';
 import { buildLivShorteningCandidate } from './shortening-candidate';
 import type { GeneratedArticle } from './generate-article';
-
-export const shorteningProposalInput = z.object({
-  itemId: z.string().regex(/^[a-f0-9]{24}$/), requestId: z.string().regex(/^[a-zA-Z0-9_-]{8,100}$/),
-  expectedPayloadHash: z.string().regex(/^[a-f0-9]{64}$/), expectedCmsHash: z.string().regex(/^[a-f0-9]{64}$/),
-  targetWords: z.number().int().min(450).max(650),
-}).strict();
+import { shorteningProposalInput } from './shortening-contract';
+export { shorteningProposalInput } from './shortening-contract';
 const fail = (code: string): never => { throw new Error(`liv_shortening_${code}`); };
 
 /** Server-only generation stage, not a public authorization boundary. Caller must

@@ -5,6 +5,17 @@ description: Ret eller forkort bestemte dele af en Apropos-artikel med før/efte
 
 # Ret teksten
 
+Ved forkortelse af en allerede kontrolleret, aldrig udgivet Liv-kladde: hent
+`get_shortening_context` før en almindelig CMS-redigering. Skriv forkortelsen
+i samtalen; send præcise afsnit i `preview_shortening` med ét stabilt requestId.
+Bevar fakta, mening, billeder og metadata. Ingen ny Apropos-model bestilles.
+Vis det personlige bekræftelseslink. Først når Frederik har læst og godkendt
+versionen på Apropos, bruges `apply_shortening` med samme proposalId/candidateHash.
+Efter timeout: `get_shortening_status`, dernæst samme apply ved uafklaret gemning.
+Eksisterende kontroller, versionskonflikter og CMS-readback gælder stadig.
+Ingen egengodkendelse gennem chatten. Dette er ikke adgang til at forkorte
+vilkårlige importerede kladder som ready; brug det almindelige draft-flow nedenfor.
+
 Hent `get_workspace`. For en CMS-artikel bruges `open_article` med den aktuelle
 workspace-revision; eksisterende privat arbejde arkiveres, CMS ændres ikke.
 For kontrolstoppet Liv-tekst bruges `get_liv_work` eller `get_saved_writing` og
