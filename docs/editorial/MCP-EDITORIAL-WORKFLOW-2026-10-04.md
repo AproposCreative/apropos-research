@@ -1,5 +1,11 @@
 # Apropos MCP: editorial workflow acceptance
 
+Latest increment: [v3 metadata regression](MCP-METADATA-REGRESSION-2026-10-04.md),
+production `0e31dd0`, verified 4 October 23:31 Copenhagen. The v2 evidence below
+remains historical. V3 strengthens the originally narrow integrity test with
+20 real metadata cases and shared MCP checks; it does not close the remaining
+client/admission/delivery/quality-evaluation conditions below.
+
 Owner request: continue the reviewed recommendations, make them a goal, finish
 testing and deploy. This release builds on the private owner pilot, not a second
 production system. The every-other-day delivery objective remains separate and

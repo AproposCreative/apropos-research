@@ -54,4 +54,43 @@ unattended publishing. The original boundaries in
 Human quality comparisons and conditional document-extraction experiments remain
 unproved. The full goal is not complete merely because this increment deploys.
 
-Production evidence follows after deploy.
+## Production evidence
+
+- Code **`0e31dd00612932377b2fd0b3a8cd71c8479c7a2a`**.
+- Deployment **`dpl_BhQ2xjNVPzDCMJoufnGxvkHuDiWb`**, production, **READY**.
+- Alias https://ai.aproposmagazine.com, exact SHA verified through Vercel.
+- Immutable URL: https://apropos-research-b4h49l1g7-frederik-kraghs-projects.vercel.app
+- Next.js 16.3.8; remote build-to-ready approximately 73 seconds. The deployed
+  Git snapshot excludes unrelated dirty local work.
+
+Owner service-authenticated acceptance **21:30:30–21:31:25 UTC** / **23:30–23:31
+Copenhagen** returned MCP version `2026-10-04-v3` and all 23 tools.
+
+The live server returned all 20 case summaries, retrieved one full saved source,
+accepted an unchanged metadata baseline, detected the deliberately removed name
+and invented numeric token, and rejected a stale source hash. These were read-only
+proposals, not real replacements. Existing workspace/Liv/CMS reads, shared copyedit
+preview, owner-only denials, OAuth PKCE/rotation/revocation and publication denial
+remained correct. The temporary verification grant was revoked.
+
+Before/after hashes for budget, provider, private workspace, delivery entries and
+slots, shared ledger and image ledger were identical. No paid AI call, CMS write,
+publication, budget increase or hold reset was performed.
+
+Runtime window **21:30:30–21:31:30 UTC** contained 49 requests and no error/fatal
+records. A wider error/fatal scan **21:29:45–21:31:30 UTC** contained **one** known
+unresolved delivery alert: `/api/cron/liv-delivery-check` returned **503
+liv_daily_overdue** at 21:30:26 UTC, with 4 October unpublished, reserve 0/1 and
+6 October missing. This is not an MCP test failure, but it is also not repaired
+or waived by this deployment. The delivery goal remains incomplete. The team's
+Drains API returned zero configured drains; this short scan is not a long-term
+monitoring/uptime claim.
+
+A separate read-only owner connection inventory at **21:28:07 UTC** found two
+historical grants, both inactive, **zero active connections**, no truncation and
+an enabled owner account. No existing user connection was revoked by that check.
+The remaining client acceptance therefore needs the owner to connect the private
+app at https://ai.aproposmagazine.com/connect/chatgpt and identify a real draft/task.
+An active grant by itself will still not count as a successful edit/publication
+test. Resume at the actual ChatGPT call, preserving the selected article's version
+and normal editorial/publication controls; do not publish arbitrary content.
