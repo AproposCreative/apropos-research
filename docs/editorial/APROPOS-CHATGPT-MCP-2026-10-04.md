@@ -154,3 +154,73 @@ References used for protocol/account compatibility:
 - https://developers.openai.com/plugins/build/auth
 - https://developers.openai.com/plugins/build/mcp-server
 - https://developers.openai.com/plugins/deploy/connect-chatgpt
+
+## Production release and acceptance, 4 October 2026
+
+- URL: https://ai.aproposmagazine.com/connect/chatgpt
+- Target: production. Status: READY.
+- Code commit: `57166ac3feab8e450631693b84d08c8abae2a52a`.
+- Deployment: `dpl_8JXzKUiAsGFQpe4DLXDiuS8cGTRN`.
+- Immutable URL: https://apropos-research-qfgr8wm1v-frederik-kraghs-projects.vercel.app
+- Framework: Next.js 16.3.8. Vercel build-to-ready interval: 101 seconds.
+- Production target and `ai.aproposmagazine.com` alias independently matched the
+  code SHA. Remote production build succeeded; no dirty local files were uploaded.
+
+Service-authenticated acceptance ran **19:48:06–19:48:47 UTC** (21:48 Copenhagen).
+The isolated temporary OAuth connection completed discovery, public-client
+registration, browser-bound owner consent, S256 exchange, stateless MCP
+initialization, all 16 tool schemas and refresh rotation. Anonymous MCP requests
+returned 401. Real service-authenticated Casper and Milo sessions returned 403
+at the private pilot's consent boundary. MCP tokens could not approve first-party
+consent/publication. The temporary grant was revoked and a subsequent MCP request
+returned 401. This did not disconnect any user-created connection.
+
+All eight read tools succeeded against actual production data: articles,
+individual CMS article, private workspace, editorial context, Liv status,
+retained Liv work, archived paid writing and costs. CMS readback included
+`6ab8eafeba2f51d17fc87b36`, **Artigeardit i Royal Arena: Vi køber også noget at
+glæde os til**. The archived writing read used
+`eb99845e-7d07-4974-ad32-275240f9be23`; it remains retained, unapproved work.
+An ineligible historical article returned `ready: false` from publication preview.
+No real article was saved, changed, queued or published to demonstrate the tools.
+
+Before/after hashes matched for the shared budget, provider hold, owner's
+workspace, delivery entries/slots and both October cost ledger documents.
+There were **zero new paid AI calls**. OAuth/test audit records are deliberately
+retained. These checks do not resolve the existing provider quota blocker or prove
+unattended Liv delivery.
+
+The production login page was visually inspected at desktop width 1280 and mobile
+390×844. Black/minimal styling, login controls, no horizontal overflow, no Next
+error overlay, no uncaught browser errors, and the close link to the normal login
+route were verified. The browser was isolated and closed afterwards. Owner
+consent was verified through the real API, not claimed as a completed human
+ChatGPT-client login. Local screenshots: `tmp/mcp-production-desktop.png` and
+`tmp/mcp-production-mobile.png`.
+
+### Post-deploy observability
+
+MCP request logs during **19:48:00–19:49:00 UTC** contained 14 requests: twelve
+HTTP 200 and the two expected HTTP 401 denials (anonymous and revoked). No failed
+MCP request was observed in that window. The wider early-release error scan
+found the known PassThrough listener warning on an HTTP 200 public podcast
+request, not a MCP failure. The same warning was independently present on the
+previous deployment (`c3ae87a`) immediately before release and is documented in
+`docs/audits/STREAM-WARNING-2026-09-13.md`; this release does not claim to fix it.
+The fatal-level query returned no matches. These are bounded observations, not
+a claim that the application has no errors.
+
+Configured drains: **0**. Existing Vercel request logs, application operation
+audit, delivery alerts and analytics remain; no external log forwarding was
+installed. No warning was hidden by increasing listener limits.
+
+### Remaining human acceptance
+
+Frederik must add the private connection in his actual ChatGPT account using
+the setup page above, then choose an article for the first real edit/save.
+Availability depends on the account's app/developer-mode policy. The app is
+implemented, deployed and service-tested, **not yet proven connected to his
+ChatGPT conversation**. The first real approved publication must be checked
+through its existing CMS/public receipt; mock tests do not replace that proof.
+Casper/Milo rollout, Claude compatibility and API-free autonomous background
+generation are not included in this private pilot.
