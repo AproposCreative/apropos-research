@@ -53,8 +53,17 @@ const nextConfig = {
   serverExternalPackages: ['ffmpeg-static'],
   // Inkluder linux ffmpeg-binær i serverless bundle (Vercel file tracing)
   outputFileTracingIncludes: {
+    '/mcp': ['./prompts/structure.apropos.md', './data/author-prompts/liv-brandt.txt'],
     '/api/image-gen/run': ['./data/image-gen/references/*'],
     '/api/podcast/process': ['./node_modules/ffmpeg-static/**/*'],
+  },
+  async headers() {
+    return [{ source: '/connect/chatgpt', headers: [
+      { key: 'X-Frame-Options', value: 'DENY' },
+      { key: 'Content-Security-Policy', value: "frame-ancestors 'none'" },
+      { key: 'Referrer-Policy', value: 'no-referrer' },
+      { key: 'Cache-Control', value: 'private, no-store' },
+    ] }];
   },
   // Recovery copies and temporary test data must never enter server bundles.
   outputFileTracingExcludes: {

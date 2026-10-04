@@ -13,7 +13,8 @@ type Attempt = { hash: string; token: string; leaseUntil: number; phase: 'prepar
   input: ArticlePayload; expected?: ArticlePayload; beforeIds?: string[]; articleId?: string };
 
 /** One durable operation per private draft. No repeated create after uncertainty. */
-export async function saveWriterCmsDraft(db: Firestore, uid: string, draftId: string, raw: ArticlePayload) {
+export async function saveWriterCmsDraft(db: Firestore, uid: string, draftId: string, raw: ArticlePayload,
+  options: { beforeSave?: () => Promise<void> } = {}) {
   const input = normalizeArticlePayload({ ...raw, status: 'draft', workflowState: 'webflow_draft' });
   // Timestamps and a returned CMS ID are not new editorial content.
   const { publishDate: _date, webflowId: _id, id: _localId, ...stable } = input;
@@ -57,6 +58,7 @@ export async function saveWriterCmsDraft(db: Firestore, uid: string, draftId: st
   try {
     const result = await publishArticleDraftToWebflow({ ...input, webflowId: attempt.articleId || '' }, {
       onBeforeSave: async expected => {
+        await options.beforeSave?.();
         const canonical = expected as ArticlePayload;
         const beforeIds = attempt.articleId ? [] : await stagedSaveCandidates(canonical, undefined, true);
         await checkpoint({ phase: 'attempted', expected: canonical, beforeIds });

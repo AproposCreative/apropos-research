@@ -1,4 +1,5 @@
 import OpenAI from 'openai';
+import { assertPaidAiAllowed } from '@/lib/ai/no-paid-calls';
 import { providerFailure } from '@/lib/ai/provider-error';
 import { providerDiagnostic } from '@/lib/ai/provider-diagnostic';
 import type { ClientOptions } from 'openai';
@@ -16,6 +17,7 @@ const guardedTransports = new WeakSet<typeof fetch>();
 export function livBudgetFetch(transport: typeof fetch, ledger: LivCostLedger = createLivCostLedger()): typeof fetch {
   if (guardedTransports.has(transport)) return transport;
   const guarded: typeof fetch = async (input, init) => {
+    assertPaidAiAllowed();
     const context = currentLivCostContext();
     if (!context) {
       if (sharedCostEnabled()) throw new LivCostPretransportError('liv_cost_context_required');

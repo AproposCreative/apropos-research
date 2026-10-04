@@ -1,4 +1,5 @@
 import { getAdminDb } from '@/lib/firebase-admin';
+import { assertPaidAiAllowed } from '@/lib/ai/no-paid-calls';
 import { costTotals } from '@/lib/ai/cost-totals';
 import type { ProviderFailure } from '@/lib/ai/provider-error';
 import type { ProviderDiagnostic } from '@/lib/ai/provider-diagnostic';
@@ -67,6 +68,7 @@ export function createLivCostLedger(now: () => Date = () => new Date(), bucket: 
   const collectionName = bucket === 'image-gen' ? 'imageGenCostLedger' : LIV_COST_COLLECTION;
   return {
     async reserve({ callId, context, quote, requestHash }) {
+      assertPaidAiAllowed();
       if (!/^[a-f0-9-]{36}$/i.test(callId) || !/^[a-f0-9]{64}$/.test(requestHash) ||
         !/^[a-zA-Z0-9_-]{1,100}$/.test(context.runId) || !/^[a-zA-Z0-9_-]{1,100}$/.test(context.stage) ||
         (context.purpose !== undefined && !['production', 'editorial-change', 'development-pilot'].includes(context.purpose)) ||

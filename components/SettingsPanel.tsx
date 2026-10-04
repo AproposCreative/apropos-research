@@ -224,6 +224,10 @@ function IntegrationsTab() {
 
   return (
     <div className="space-y-3">
+      {user && capabilities.owner && <a href="/connect/chatgpt" className="block rounded-xl border border-white/15 bg-[#000] p-3 text-sm text-white/80 hover:bg-white/5">
+        <span className="block font-medium">Apropos i ChatGPT</span>
+        <span className="mt-1 block text-xs text-white/50">Forbindelse og adgang · privat pilot for Frederik</span>
+      </a>}
       {user && capabilities.owner && <ImageGenSettings user={user} />}
       {/* Webflow */}
       <div className="bg-black rounded-xl p-3 space-y-3">
