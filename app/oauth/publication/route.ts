@@ -6,8 +6,8 @@ export const runtime = 'nodejs';
 export const maxDuration = 60;
 export async function GET(request: Request) {
   const access = await editorialRequestAccess(request); if (!access?.owner) return json({ error: 'owner_required' }, 403);
+  const params = new URL(request.url).searchParams, id = params.get('id') || '';
   try {
-    const params = new URL(request.url).searchParams, id = params.get('id') || '';
     if (params.get('view') === 'status') return json(await withoutPaidAi(() => getPublicationStatus(access.uid, id)));
     const row = await readPublication(access.uid, id);
     const current = await withoutPaidAi(() => publicationState(row.itemId));
@@ -15,7 +15,9 @@ export async function GET(request: Request) {
       row.payloadHash === current.entry.payloadHash && row.cmsHash === current.check.fieldDataHash;
     return json({ title: row.title, approved: row.approved, expiresAt: row.expiresAt,
       current: pinned ? current : { ready: false, blockers: ['Preview er ændret eller udløbet. Hent et nyt i ChatGPT.'] } });
-  } catch { return json({ error: 'Preview kunne ikke hentes. Hent et nyt i ChatGPT.' }, 409); }
+  } catch { return json({ error: params.get('view') === 'status'
+    ? 'Publiceringsstatus kunne ikke hentes. Bevar previewId og kontrollér status igen; start ikke en ny publicering.'
+    : 'Preview kunne ikke hentes. Hent et nyt i ChatGPT.' }, 409); }
 }
 export async function POST(request: Request) {
   try {

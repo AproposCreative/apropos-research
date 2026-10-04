@@ -26,5 +26,6 @@ it('never performs paid work or leaks raw read failures through the first-party 
   expect((await GET(request())).status).toBe(409);
   mock.status.mockRejectedValue(Error('private-token private-article'));
   const response = await GET(request()); expect(response.status).toBe(409);
-  expect(await response.text()).not.toContain('private-');
+  const text = await response.text(); expect(text).not.toContain('private-');
+  expect(text).toContain('Bevar previewId'); expect(text).not.toContain('Hent et nyt');
 });
