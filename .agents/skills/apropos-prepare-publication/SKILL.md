@@ -20,7 +20,11 @@ og bevar identiteten; kald ikke publish. Ved ready: vis titel, version, billeder
 og Frederiks personlige bekræftelseslink. Efter hans bekræftelse bruges samme
 previewId i `publish_article`. Ændringer efter preview kræver nyt preview.
 
-Efter timeout genbrug samme request-identitet og læs kvitteringen, aldrig en ny
-identitet. Kald kun artiklen publiceret når publicationVerified, itemId,
-publicUrl og checkedAt matcher. En operatørudgivelse er ikke automatisk Liv-drift.
+Efter timeout læs `get_publication_status` med samme previewId, også efter midnat
+eller hvis udgivelse er sat på pause. Det er læsning, ikke et nyt publish-forsøg.
+Skeln recordedPublication (historisk kvittering) fra frisk publicationVerified.
+Er deliveryFinalized false, kan artiklen være verificeret live, mens serverens
+leveringsafslutning stadig mangler; publicér ikke igen for at ordne historikken.
+Kald kun artiklen publiceret når publicationVerified, itemId, publicUrl og
+checkedAt matcher. En operatørudgivelse er ikke automatisk Liv-drift.
 Ingen site-publicering, Instagram, budgetændring eller teamudvidelse indgår.

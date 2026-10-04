@@ -1,6 +1,6 @@
 import { beforeEach, expect, it, vi } from 'vitest';
 import { z } from 'zod';
-const mock = vi.hoisted(() => ({ identity: null as any, rate: vi.fn(), audit: vi.fn(), workspace: vi.fn(), context: vi.fn(), publish: vi.fn() }));
+const mock = vi.hoisted(() => ({ identity: null as any, rate: vi.fn(), audit: vi.fn(), workspace: vi.fn(), context: vi.fn(), publish: vi.fn(), publicationStatus: vi.fn() }));
 vi.mock('@/lib/firebase-admin', () => ({ getAdminDb: () => ({ collection: () => ({ doc: () => ({ create: mock.audit }) }) }) }));
 vi.mock('@/lib/mcp/oauth', async original => ({ ...await original<any>(), authenticateMcp: async () => mock.identity, oauthRateLimit: mock.rate }));
 vi.mock('@/lib/image-gen/webflow', () => ({ listImageGenArticles: async () => ({ articles: [], nextCursor: null }) }));
@@ -16,7 +16,7 @@ vi.mock('@/lib/mcp/editorial', () => ({ getCmsArticle: vi.fn(), openCmsArticle: 
   getLivWork: vi.fn(), getWritingBrief: vi.fn(), getWorkspace: mock.workspace, saveCms: vi.fn(), getSaveStatus: vi.fn(),
   cmsSaveInput: z.object({ draftId: z.string(), expectedRevision: z.number() }), runIdSchema: z.string() }));
 vi.mock('@/lib/mcp/workspace', () => ({ draftInput: z.object({ expectedRevision: z.number(), draftId: z.string(), article: z.object({ title: z.string(), content: z.string() }).strict() }).strict(), saveMcpDraft: vi.fn() }));
-vi.mock('@/lib/mcp/publication', () => ({ previewPublication: vi.fn(), executePublication: mock.publish }));
+vi.mock('@/lib/mcp/publication', () => ({ previewPublication: vi.fn(), executePublication: mock.publish, getPublicationStatus: mock.publicationStatus }));
 vi.mock('@/lib/editorial/work-catalog', async original => ({ ...await original<any>(), listEditorialWork: async () => ({ items: [], paidAiCalls: 0 }) }));
 vi.mock('@/lib/editorial/workspace-copyedit', async original => ({ ...await original<any>(), previewWorkspaceCopyedit: vi.fn(), applyWorkspaceCopyedit: vi.fn() }));
 vi.mock('@/lib/editorial/review-workspace', async original => ({ ...await original<any>(), reviewWorkspace: vi.fn() }));
@@ -37,7 +37,8 @@ it('negotiates the real SDK protocol and lists strict schemas on independent sta
   const initialized = await POST(message('initialize', { protocolVersion: '2025-03-26', capabilities: {}, clientInfo: { name: 'fixture', version: '1' } }));
   expect(initialized.status).toBe(200); expect((await initialized.json()).result.serverInfo.name).toBe('apropos-editorial');
   const response = await POST(message('tools/list')); const tools = (await response.json()).result.tools;
-  expect(tools.length).toBe(23); expect(tools.find((t: any) => t.name === 'publish_article').annotations.destructiveHint).toBe(true);
+  expect(tools.length).toBe(24); expect(tools.find((t: any) => t.name === 'publish_article').annotations.destructiveHint).toBe(true);
+  expect(tools.find((t: any) => t.name === 'get_publication_status').annotations).toMatchObject({ readOnlyHint: true, destructiveHint: false, idempotentHint: true });
   expect(tools.find((t: any) => t.name === 'save_draft').inputSchema.additionalProperties).toBe(false);
   expect(tools.find((t: any) => t.name === 'publish_article')._meta.securitySchemes).toEqual([{ type: 'oauth2', scopes: ['apropos:publish'] }]);
   expect(response.headers.get('Cache-Control')).toContain('no-store');
@@ -94,6 +95,20 @@ it('denies a nested paid call, sanitizes errors and records only operation metad
 it('has no raw database, code execution, budget or paid research tool', async () => {
   const result = await (await POST(message('tools/list'))).json();
   expect(result.result.tools.map((t: any) => t.name).join(' ')).not.toMatch(/exec|sql|fetch_url|set_budget|generate_image|paid_research|retry_run/);
+});
+it('scopes read-only publication status to the authenticated user and prohibits paid work', async () => {
+  const previewId = '00000000-0000-4000-8000-000000000000';
+  mock.publicationStatus.mockResolvedValue({ publicationVerified: false, readOnly: true });
+  expect(JSON.parse((await (await call('get_publication_status', { previewId })).json()).result.content[0].text)).toMatchObject({ readOnly: true });
+  expect(mock.publicationStatus).toHaveBeenCalledExactlyOnceWith('frederik', previewId);
+  expect((await (await call('get_publication_status', { previewId, uid: 'casper' })).json()).result.isError).toBe(true);
+  mock.identity.scopes = ['apropos:read'];
+  expect((await (await call('get_publication_status', { previewId })).json()).result.isError).toBe(true);
+  expect(mock.publicationStatus).toHaveBeenCalledTimes(1);
+  mock.identity.scopes = ['apropos:publish'];
+  mock.publicationStatus.mockImplementation(async () => { assertPaidAiAllowed(); });
+  const denied = (await (await call('get_publication_status', { previewId })).json()).result;
+  expect(denied.isError).toBe(true); expect(denied.content[0].text).toContain('mcp_paid_call_requires_separate_approval');
 });
 it('preserves rate-limit HTTP errors and refuses cross-origin browser posts', async () => {
   mock.rate.mockRejectedValue(new OAuthError('rate_limited', 429)); expect((await POST(message('tools/list'))).status).toBe(429);

@@ -5,6 +5,7 @@ import { copenhagenClock, eligibleEntries } from '@/lib/liv/delivery-policy';
 import { inspectLivCmsDraft } from '@/lib/liv/cms-readback';
 import { cmsFieldHash } from '@/lib/liv/cms-field-hash';
 import { deliverReadyArticle } from '@/lib/liv/deliver-ready';
+import { verifyLiveLivArticle } from '@/lib/liv/publish-verified';
 import { MCP_ORIGIN } from './config';
 import { articleImages } from './markup';
 const store = () => { const db = getAdminDb(); if (!db) throw Error('mcp_unavailable'); return db.collection('mcpPublications'); };
@@ -43,6 +44,56 @@ export async function readPublication(uid: string, id: string) {
   if (!row || row.uid !== uid) throw Error('mcp_preview_not_found');
   return row;
 }
+
+/** Read an existing owner operation without re-publishing, even after midnight,
+ * preview expiry or a publication pause. Historical receipts stay historical;
+ * only the normal exact CMS + public-page readback certifies current visibility.
+ * No queue/preview mutation: server recovery still owns delivery finalization.
+ */
+export async function getPublicationStatus(uid: string, id: string) {
+  const row = await readPublication(uid, id);
+  const base = { previewId: id, itemId: row.itemId as string, title: row.title as string, day: row.day as string,
+    approved: row.approved === true, publishRequested: row.attempted === true,
+    previewExpired: row.expiresAt < Date.now() || row.day !== copenhagenClock().day,
+    readOnly: true as const, paidAiCalls: 0, publicationVerified: false, deliveryFinalized: false };
+  if (!base.approved || !base.publishRequested) return { ...base,
+    status: base.previewExpired ? 'preview_expired' : base.approved ? 'confirmed_not_started' : 'awaiting_confirmation',
+    action: base.previewExpired ? 'Hent et nyt preview før en eventuel udgivelse. Ingen publikation er startet af denne læsning.'
+      : 'Ingen publicering er bekræftet. Bevar previewId og brug den normale personlige bekræftelse før publish_article.' };
+
+  const slot = (await readDeliveryState()).slots[row.day];
+  const binding = slot?.explicitPublication;
+  const matches = slot?.itemId === row.itemId && binding?.itemId === row.itemId &&
+    binding.requestId === `mcp-${id}` && binding.expectedPayloadHash === row.payloadHash;
+  if (!matches || (slot.state !== 'attempted' && slot.state !== 'published') ||
+      !/^[a-f0-9]{64}$/.test(slot.fieldDataHash || '')) return { ...base,
+    status: 'reconciliation_required', reason: 'matching_publication_intent_missing',
+    action: 'Ingen entydig publiceringskvittering for denne version. Bevar identiteten og undersøg leveringsstatus; opret ikke et nyt publiceringsforsøg.' };
+
+  const recordedPublication = slot.state === 'published' && slot.publicUrl && slot.checkedAt
+    ? { publicUrl: slot.publicUrl, checkedAt: slot.checkedAt, source: 'delivery_receipt' as const } : null;
+  const known = { ...base, deliveryFinalized: slot.state === 'published', recordedPublication };
+  try {
+    const expected = await readDeliveryPayload(row.itemId);
+    if (cmsFieldHash({ ...expected }) !== row.payloadHash) return { ...known,
+      status: 'reconciliation_required', reason: 'payload_version_changed',
+      action: 'Den gemte artikelversion matcher ikke publiceringsforsøget. Undersøg versionshistorikken; ingen felter er overskrevet.' };
+    // fieldDataHash is the durable pre-publish snapshot, including any canonical
+    // publication-date patch. The earlier preview CMS hash is not that snapshot.
+    const receipt = await verifyLiveLivArticle({ itemId: row.itemId, expected, fieldDataHash: slot.fieldDataHash! });
+    if (!receipt.publicationVerified || receipt.itemId !== row.itemId ||
+        receipt.publicUrl !== `https://www.aproposmagazine.com/articles/${expected.slug}` ||
+        !Number.isFinite(Date.parse(receipt.checkedAt))) throw Error('liv_publication_readback_mismatch');
+    return { ...known, ...receipt, status: 'published', publicationOrigin: 'operator',
+      action: slot.state === 'published' ? 'Denne artikelversion er verificeret i CMS og på den offentlige side. Publicér den ikke igen.'
+        : 'Denne artikelversion er verificeret live. Serverens leveringskvittering mangler stadig afslutning; ingen ny publicering er nødvendig.' };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : '';
+    return { ...known, status: 'reconciliation_required', reason: 'live_readback_unconfirmed',
+      detail: /^liv_[a-z0-9_]{1,100}$/.test(message) ? message : 'readback_failed',
+      action: 'Den offentlige artikelversion kunne ikke bekræftes nu. En gemt kvittering er historik, ikke frisk readback. Bevar identiteten og kontrollér status igen; ingen ny publicering.' };
+  }
+}
 async function assertUnchanged(row: Record<string, any>) {
   if (row.expiresAt < Date.now() || row.day !== copenhagenClock().day) throw Error('mcp_preview_expired');
   const fresh = await publicationState(row.itemId);
@@ -58,8 +109,12 @@ export async function approvePublication(uid: string, id: string) {
   return { approved: true, publicationStarted: false };
 }
 export async function executePublication(uid: string, id: string) {
-  const row = await readPublication(uid, id); assertPublicationEnabled();
+  const row = await readPublication(uid, id);
   if (!row.approved) throw Error('mcp_human_confirmation_required');
+  // An attempted old-day operation can only be observed, never dispatched on a
+  // new day. Read-only reconciliation remains available while publication is off.
+  if (row.attempted && row.day !== copenhagenClock().day) return getPublicationStatus(uid, id);
+  assertPublicationEnabled();
   if (row.result?.status === 'published' && row.result.publicationVerified) return row.result;
   // Retries of an attempted request use the SAME durable delivery receipt. No new identity.
   if (!row.attempted) { await assertUnchanged(row); await store().doc(id).update({ attempted: true }); }

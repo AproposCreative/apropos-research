@@ -1,5 +1,5 @@
 import { editorialRequestAccess } from '@/lib/editorial-access';
-import { readPublication, approvePublication, publicationState } from '@/lib/mcp/publication';
+import { readPublication, approvePublication, publicationState, getPublicationStatus } from '@/lib/mcp/publication';
 import { json, smallBody, sameOrigin } from '@/lib/mcp/http';
 import { withoutPaidAi } from '@/lib/ai/no-paid-calls';
 export const runtime = 'nodejs';
@@ -7,7 +7,9 @@ export const maxDuration = 60;
 export async function GET(request: Request) {
   const access = await editorialRequestAccess(request); if (!access?.owner) return json({ error: 'owner_required' }, 403);
   try {
-    const row = await readPublication(access.uid, new URL(request.url).searchParams.get('id') || '');
+    const params = new URL(request.url).searchParams, id = params.get('id') || '';
+    if (params.get('view') === 'status') return json(await withoutPaidAi(() => getPublicationStatus(access.uid, id)));
+    const row = await readPublication(access.uid, id);
     const current = await withoutPaidAi(() => publicationState(row.itemId));
     const pinned = row.expiresAt >= Date.now() && row.day === current.day && 'entry' in current &&
       row.payloadHash === current.entry.payloadHash && row.cmsHash === current.check.fieldDataHash;
