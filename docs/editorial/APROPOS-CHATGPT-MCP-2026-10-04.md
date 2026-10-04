@@ -1,11 +1,13 @@
 # Apropos i ChatGPT: private owner pilot
 
-Latest release: **v4**, code `f6701d8`, deployed and service-verified on 4 October
-at 23:46 Copenhagen. It includes
-the [sequential-save repair](MCP-SEQUENTIAL-SAVE-2026-10-04.md), retained-work discovery, shared exact-copyedit
-preview/apply, concrete editorial diagnostics, short on-demand workflows and
-20-article metadata regression: **23 tools total**.
-See [v4 evidence](MCP-SEQUENTIAL-SAVE-2026-10-04.md),
+Latest release: **2026-10-05-v1**, code `9cd621a`, deployed and service-verified
+on 5 October at 00:23 Copenhagen. It includes read-only publication status after
+midnight, the [sequential-save repair](MCP-SEQUENTIAL-SAVE-2026-10-04.md),
+retained-work discovery, shared exact-copyedit preview/apply, concrete editorial
+diagnostics, short on-demand workflows and 20-article metadata regression:
+**24 tools total**. The setup page also shows connection evidence.
+See [publication-status evidence](MCP-PUBLICATION-STATUS-2026-10-05.md),
+[v4 evidence](MCP-SEQUENTIAL-SAVE-2026-10-04.md),
 [v3 metadata evidence](MCP-METADATA-REGRESSION-2026-10-04.md) and
 [v2 acceptance and remaining boundaries](MCP-EDITORIAL-WORKFLOW-2026-10-04.md).
 The v1 evidence below is historical, not the latest deployed SHA. Actual owner
@@ -75,6 +77,7 @@ immediately to every grant and outstanding code; reconnect to grant access again
 | Draft | `edit_liv_checkpoint`, `edit_saved_writing` | Existing restricted audited copyedit operations; not new approvals/retry grants |
 | Draft | `save_webflow_draft`, `get_save_status` | Canonical new-draft save or targeted staged copyedit and receipt reconciliation |
 | Publish | `preview_publication`, `publish_article` | Existing ready Liv path, exact-version first-party human confirmation, delivery receipt and public readback |
+| Publish | `get_publication_status` | Read-only same-preview recovery, including after midnight/pause; historical receipt is distinct from fresh CMS/public readback |
 
 Host-native ChatGPT browsing is not an Apropos API research call. Supplied
 research is stored with URLs and dates and marked unverified. Imported prose is
@@ -120,6 +123,12 @@ ledger boundary throughout every MCP operation, including nested helpers.
    item/locale delivery operation. The operation is recorded as operator-started,
    not an unattended cron success. Hash changes/expiry require a new preview;
    uncertain delivery reuses the same durable identity.
+8. After a timeout use `get_publication_status` with the original preview ID,
+   including after midnight or when publication is paused. It does not publish
+   or change the queue. `recordedPublication` is history; current
+   `publicationVerified` requires the existing exact CMS/public-page verifier.
+   `deliveryFinalized=false` must not trigger another publication to repair
+   history. Server reconciliation owns that finalization.
 
 There is no paid retry/generation tool or arbitrary publication bypass in this
 pilot. Republish of a historical article outside the ready Liv flow remains in

@@ -1,9 +1,14 @@
 # Apropos MCP: editorial workflow acceptance
 
-Latest increment: [v4 sequential-save repair](MCP-SEQUENTIAL-SAVE-2026-10-04.md),
-production `f6701d8`, service-verified 4 October 23:46 Copenhagen. V3's [metadata regression evidence](MCP-METADATA-REGRESSION-2026-10-04.md)
-and the v2 evidence below remain historical. Sequential edits now retain a
-verified baseline and recover lost save responses without a repeated write.
+Latest increment: [publication status after an uncertain response](MCP-PUBLICATION-STATUS-2026-10-05.md),
+production `9cd621a`, service-verified 5 October 00:23 Copenhagen. MCP version
+`2026-10-05-v1` has 24 tools. [Connection setup](MCP-CONNECTION-SETUP-2026-10-05.md),
+[sequential-save recovery](MCP-SEQUENTIAL-SAVE-2026-10-04.md),
+[metadata regression evidence](MCP-METADATA-REGRESSION-2026-10-04.md) and the
+v2 evidence below remain historical. Chats can now read publication status after
+midnight without a new publish attempt; historical receipts and current public
+visibility are distinct. Positive publication recovery remains mock-tested,
+because there are no real owner publication previews yet.
 These fixes do not close the remaining client/admission/delivery/quality-evaluation conditions below.
 
 Owner request: continue the reviewed recommendations, make them a goal, finish
@@ -23,6 +28,9 @@ is not completed by this release.
   New copy edits do not confer admission. An arbitrary edited CMS draft cannot
   automatically become ready; see the remaining acceptance below.
 - [x] Provide focused review/edit/publication workflows and compact context.
+- [x] Expose owner-bound read-only publication status after expiry/midnight;
+  preserve approval, queue, receipts and paid-work boundaries. Actual owner
+  publication recovery is not yet a verified production success.
 - [x] Reuse the existing 35-case corpus for deterministic offline regression;
   preserve text hashes and the absence of human scores. No paid model comparison.
 - [ ] Reproduce an extraction gap before introducing a document dependency;

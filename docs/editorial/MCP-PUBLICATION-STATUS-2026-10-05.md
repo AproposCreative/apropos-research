@@ -52,12 +52,41 @@ published to reproduce the bug.
   owner isolation, unrelated/incomplete receipts, changed payloads, wrong item,
   wrong canonical URL, invalid timestamp, failed readback and no state mutation.
 
-## Production verification
+## Production verification, 5 October 00:23 Copenhagen
 
-Pending the scoped deployment and authenticated read-only verification. Positive
-recovery of a real owner publication must not be inferred from mock tests or a
-READY deployment. No synthetic production publication/preview will be inserted
-to manufacture acceptance.
+- Exact pushed code: `9cd621ae5c50f2210d14c8c7fb7f2a3fd59d6298`, including
+  implementation `63a39e1` and the final same-ID error-message safeguard.
+- Deployment `dpl_2CXAK1V3SxGNAsM2tQc2SfwYRuPM` is **READY**, target production,
+  with the actual `ai.aproposmagazine.com` alias and exact code SHA independently
+  confirmed through Vercel. Immutable URL:
+  https://apropos-research-r5z985qt0-frederik-kraghs-projects.vercel.app .
+  Remote build/deployment completion is present in Vercel's build events.
+  The earlier `63a39e1` deployment is superseded, not the final release.
+- Service-authenticated checks against the actual production host ran
+  **22:23:05–22:23:39 UTC on 4 October**. The endpoint advertised
+  `2026-10-05-v1`, all **24 tools**, the strict read-only publication-status
+  schema and the updated publication workflow from the deployed bundle.
+- Anonymous, Casper and Milo requests to the first-party status route returned
+  403. An MCP bearer could not impersonate first-party owner authentication.
+  Owner access to a missing preview returned a private/no-store 409 with guidance
+  to keep the same identity; MCP returned `mcp_preview_not_found`. Additional
+  caller-supplied UID input was rejected by the strict tool schema.
+- A temporary service OAuth grant exercised S256 owner authorization and only
+  read operations. Only that test grant was revoked; its token then returned
+  401. Audit history and pre-existing authorizations were preserved.
+- The complete bounded read contained **0 real owner publication previews**.
+  Therefore no positive real-publication recovery was available to test. That
+  scenario is covered by isolated regressions, not claimed as live acceptance.
+  No synthetic preview or publication record was inserted to manufacture it.
+- Before/after hashes were identical for budget, provider hold, private
+  workspace, queue entries/slots, shared ledger, image ledger and preview rows.
+  No paid AI, CMS write or article publication occurred.
+- The final real connection inventory showed zero active authorizations,
+  complete inventory and `clientAcceptanceVerified=false`. The temporary
+  service check is not the owner's actual ChatGPT connection.
+- Configured Vercel drains: **0**. No telemetry service was installed. A
+  deployment-scoped error/fatal scan for **22:23:00–22:23:39 UTC** returned no
+  matching logs. This short release check is not a long-term uptime guarantee.
 
 ## Remaining acceptance
 
