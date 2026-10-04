@@ -30,7 +30,8 @@ Owner settings → Integrations → **Apropos i ChatGPT**, or
 https://ai.aproposmagazine.com/connect/chatgpt .
 
 In the owner's ChatGPT web account, enable developer mode where available in
-Settings → Apps, create a private app named Apropos, and use:
+Settings → Security and login → Developer mode. Open Plugins → +, create a
+private connection named Apropos, and use:
 
 ```
 https://ai.aproposmagazine.com/mcp
@@ -40,6 +41,12 @@ Select OAuth and let ChatGPT register the public client automatically. Sign into
 Apropos with Frederik's verified account and approve the requested scopes.
 Availability and organization admin policy remain the ChatGPT account's rules.
 No API key or shared team password belongs in the conversation.
+
+The setup page now includes a copy button and an explicit read-only connection
+check. It distinguishes retained authorization from an observed successful tool
+call and never presents either as a completed edit/publication or real-client
+acceptance. See [connection setup verification](MCP-CONNECTION-SETUP-2026-10-05.md).
+Current ChatGPT menu reference: https://developers.openai.com/plugins/deploy/connect-chatgpt .
 
 Suggested first request:
 

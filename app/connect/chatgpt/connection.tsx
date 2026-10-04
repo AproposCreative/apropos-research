@@ -4,7 +4,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { X } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
-import { MCP_RESOURCE } from '@/lib/mcp/config';
+import ConnectionSetup from './setup';
 
 const button = 'min-h-12 rounded-xl border border-white/20 px-5 py-3 text-white hover:bg-white/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white disabled:opacity-40';
 export default function ChatGPTConnection({ requestId, publicationId }: { requestId: string; publicationId: string }) {
@@ -90,14 +90,7 @@ export default function ChatGPTConnection({ requestId, publicationId }: { reques
             <button className={button} disabled={busy} onClick={() => action('deny')}>Afvis</button>
           </> : <p>Kontrollerer forbindelsen …</p>}
         </> : <>
-          <p>Brug din ChatGPT-samtale til research og tekst. Apropos gemmer arbejdet og bevarer publiceringskontrollerne.</p>
-          <ol className="list-decimal space-y-3 pl-5 text-white/75">
-            <li>Åbn ChatGPTs indstillinger for apps/forbindelser, og aktivér developer mode.</li>
-            <li>Opret en privat forbindelse med navnet Apropos og adressen nedenfor. Vælg OAuth; klientregistreringen sker automatisk.</li>
-            <li>Log ind med din Apropos-konto, og godkend adgangen.</li>
-          </ol>
-          <label className="block text-sm text-white/65">MCP-adresse<input readOnly value={MCP_RESOURCE} className="mt-2 w-full rounded-xl border border-white/20 bg-transparent p-3 text-white" onFocus={e => e.target.select()} /></label>
-          <p className="text-sm text-white/55">Start fx med: “Vis Livs status, og hent mit seneste udkast.” Abonnementets grænser gælder stadig. Denne forbindelse bestiller ikke betalt AI.</p>
+          <ConnectionSetup key={user.uid} />
           <details className="border-t border-white/15 pt-4"><summary>Forbindelsesindstillinger</summary><button className={`${button} mt-4`} disabled={busy} onClick={() => action('revoke')}>Afbryd mine ChatGPT-forbindelser</button></details>
         </>}
         {error && <p role="alert" className="rounded-xl border border-red-400/40 p-4 text-red-200">{error}</p>}
