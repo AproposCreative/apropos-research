@@ -1,5 +1,12 @@
 # Apropos i ChatGPT: private owner pilot
 
+Latest release: **v2**, code `73d2479`, deployed and service-verified on 4 October
+at 23:12 Copenhagen. It adds retained-work discovery, shared exact-copyedit
+preview/apply, concrete editorial diagnostics and short on-demand workflows:
+**21 tools total**. See [v2 acceptance and remaining boundaries](MCP-EDITORIAL-WORKFLOW-2026-10-04.md).
+The v1 evidence below is historical, not the latest deployed SHA. Actual owner
+ChatGPT-client acceptance remains pending; no live article was published as a test.
+
 ## Product boundary
 
 This adds a thin, authenticated MCP interface over the existing platform, not
@@ -46,6 +53,9 @@ immediately to every grant and outstanding code; reconnect to grant access again
 | --- | --- | --- |
 | Read | `list_articles`, `get_article` | Danish staged CMS records, bounded pagination, current field hash |
 | Read | `get_workspace` | Authenticated user's Writer workspace and version history only |
+| Read | `list_editorial_work`, `get_workflow` | Bounded saved-work discovery and focused review/edit/publication guidance |
+| Read | `preview_copyedit`, `review_draft` | Exact revision-bound proposals and concrete findings; no new factual approval |
+| Draft | `apply_copyedit` | Apply the exact preview to the private workspace; atomic replay receipt and unchanged media |
 | Read | `get_editorial_context` | Canonical Apropos rules, Liv/selected author voice and hashes |
 | Read | `get_liv_status`, `get_liv_work`, `get_saved_writing` | Real blockers, seven days, saved checks/checkpoints/paid text; not new generation or human scores |
 | Read | `get_costs` | Existing ledgers/receipts, estimates and unknowns; not a provider bill |

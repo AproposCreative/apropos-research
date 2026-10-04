@@ -22,7 +22,7 @@ is not completed by this release.
 - [ ] Reproduce an extraction gap before introducing a document dependency;
   preserve source/page provenance and distinguish extracted text from evidence.
 - [x] Isolated focused/full tests, TypeScript, lint, safe build and diff checks.
-- [ ] Push a scoped commit, verify the exact production SHA/alias, exercise
+- [x] Push a scoped commit, verify the exact production SHA/alias, exercise
   authenticated production reads and confirm no new paid calls or hold changes.
 - [ ] Real owner-selected edit/approval/publication acceptance, or explicitly
   identify the external dependency. Never publish an arbitrary article as a test.
@@ -112,5 +112,51 @@ version checks and first-party owner confirmation. A site-wide publish is not ad
    independent. Deploying these tools does not fix a provider balance, create a
    finished reserve or prove unattended publication.
 
-Production SHA, alias and read-only acceptance evidence will be appended after
-deployment. Unchecked items are incomplete, not implicitly successful.
+## Production evidence, 4 October 2026
+
+- Code: `73d24797b3dac4c145d97595a06803e989d5ffcd`.
+- Deployment: `dpl_9D6hVHBpVNbjpZD5a1AN27Ej5Pac`, **READY**, production target.
+- Immutable URL:
+  https://apropos-research-dri4oklk8-frederik-kraghs-projects.vercel.app
+- Actual alias: **https://ai.aproposmagazine.com**. Vercel independently returned
+  this alias and the exact code SHA. The remote build completed successfully.
+  Only the scoped pushed Git snapshot was deployed, not the dirty local checkout.
+- Live MCP initialization reported `apropos-editorial` / `2026-10-04-v2`, with
+  all **21 tools** present.
+
+Service-authenticated acceptance ran **21:11:15–21:12:10 UTC**, or
+**23:11–23:12 Europe/Copenhagen**. The temporary OAuth grant was revoked afterward.
+No browser/session extraction or manual CMS work was used.
+
+Verified against the production alias:
+
+- Discovery, S256 PKCE, owner consent, refresh rotation and immediate revocation.
+  Anonymous access returned 401; Casper and Milo returned 403 for both consent
+  and the new first-party copyedit API. MCP bearer tokens could not approve their
+  own consent or publication (403).
+- Existing workspace, saved writing, Liv run/status, costs and current CMS article
+  reads succeeded. Artigeardit's CMS record was read, not changed or republished.
+- All three new workflow definitions were available from the deployed bundle.
+  Structure-only and voice-only context excluded the other large section.
+- The catalog returned five latest rows from a window of **63 Liv records and
+  76 retained writing records**. These counts are not unique-article totals.
+- `review_draft` read the actual owner's private revision and returned three
+  concrete findings with `admission=not_granted`, not fabricated quality approval.
+- `preview_copyedit` returned an unsaved, media-preserving proposal. The same
+  first-party API request returned the **identical preview hash**. No proposed
+  title was applied. Actual save/readback mutation remains covered by isolated
+  tests, not by silently altering a production article.
+- A non-ready historical article could not obtain a ready publication preview.
+- Before/after hashes matched for **budget, provider hold, private workspace,
+  queue entries/slots, shared ledger and image ledger**. Zero new paid AI calls;
+  no reservation, budget or hold reset and no article publication.
+
+Runtime readback for 21:11:15–21:12:15 UTC found **43 requests**, including 20
+successful MCP requests, the first-party preview and the intended 401/403
+denials. A separate error/fatal scan covering 21:10:00–21:12:15 UTC found **zero**.
+This short release check is not a long-term uptime guarantee. The team's Drains
+API returned zero configured drains; no new paid telemetry service was installed.
+
+Unchecked acceptance items above remain incomplete. In particular, protocol
+acceptance does not substitute for the owner's real ChatGPT connection and a
+chosen article's editorial/publication approval.
