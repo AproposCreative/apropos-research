@@ -1,10 +1,12 @@
 # Apropos i ChatGPT: private owner pilot
 
-Latest release: **v3**, code `0e31dd0`, deployed and service-verified on 4 October
-at 23:31 Copenhagen. It includes retained-work discovery, shared exact-copyedit
+Latest release: **v4**, code `f6701d8`, deployed and service-verified on 4 October
+at 23:46 Copenhagen. It includes
+the [sequential-save repair](MCP-SEQUENTIAL-SAVE-2026-10-04.md), retained-work discovery, shared exact-copyedit
 preview/apply, concrete editorial diagnostics, short on-demand workflows and
 20-article metadata regression: **23 tools total**.
-See [v3 evidence](MCP-METADATA-REGRESSION-2026-10-04.md) and
+See [v4 evidence](MCP-SEQUENTIAL-SAVE-2026-10-04.md),
+[v3 metadata evidence](MCP-METADATA-REGRESSION-2026-10-04.md) and
 [v2 acceptance and remaining boundaries](MCP-EDITORIAL-WORKFLOW-2026-10-04.md).
 The v1 evidence below is historical, not the latest deployed SHA. Actual owner
 ChatGPT-client acceptance remains pending; no live article was published as a test.
@@ -96,6 +98,10 @@ ledger boundary throughout every MCP operation, including nested helpers.
 5. Repeated saves reuse receipts. Unknown writes keep their marker and are read
    back, never blindly repeated or assigned a new identity. `get_save_status`
    can reconcile a staged save even after the personal workspace has moved on.
+   Verified saves advance the bound CMS baseline, so another precise edit can be
+   saved without reopening. A newer unsaved workspace or concurrently reopened
+   binding is preserved. Use the returned `cmsHash` for the next save. Older
+   receipts lacking the captured baseline explicitly require reopening.
    If CMS changed after an ambiguous save, preserve both and investigate; no
    automatic force-write/lock deletion.
 6. Publication is separate. A personal/CMS draft is **not** automatically admitted
