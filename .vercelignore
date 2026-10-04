@@ -6,5 +6,6 @@ coverage
 docs
 test
 tools/editorial-eval
+tools/document-eval
 *.log
 .DS_Store

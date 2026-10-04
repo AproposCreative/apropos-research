@@ -1,0 +1,225 @@
+{
+  "schemaVersion": 1,
+  "observedAt": "2026-10-04T23:13:58.313929+00:00",
+  "scope": "two_historical_born_digital_pdfs_not_current_news",
+  "humanQualityScores": null,
+  "paidCalls": 0,
+  "results": [
+    {
+      "fixture": "charlottenborg-2017",
+      "engine": "pypdf",
+      "sourceUrl": "https://kunsthalcharlottenborg.dk/wp-content/uploads/2016/11/For%C3%A5rsudstilling-2017.pdf",
+      "sourceDate": "2017-01-27",
+      "pdfSha256": "3aa8b6cf74525b4df91808afbde4389f944b712d913bbeb1500f7b08a6b130d9",
+      "evidenceStatus": "extracted_unverified",
+      "versions": {
+        "pypdf": "6.10.0"
+      },
+      "durationMs": 29,
+      "workerWallMs": 98,
+      "findings": [],
+      "checkStatus": "pass",
+      "pages": [
+        {
+          "page": 1,
+          "characters": 2297,
+          "textSha256": "10bc47de0e81986c99342d622d3dbcda0e71f7ab8439a1ff20db8d3c98397b2a",
+          "sourceUrl": "https://kunsthalcharlottenborg.dk/wp-content/uploads/2016/11/For%C3%A5rsudstilling-2017.pdf#page=1",
+          "nativeTextPresent": true,
+          "ocrPerformed": false
+        },
+        {
+          "page": 2,
+          "characters": 3234,
+          "textSha256": "e44f31890df177be782000330c4e981f92338d904ec782c8e813bec6b7d58d7c",
+          "sourceUrl": "https://kunsthalcharlottenborg.dk/wp-content/uploads/2016/11/For%C3%A5rsudstilling-2017.pdf#page=2",
+          "nativeTextPresent": true,
+          "ocrPerformed": false
+        }
+      ],
+      "itemProvenanceCount": 0
+    },
+    {
+      "fixture": "charlottenborg-2017",
+      "engine": "pdfplumber",
+      "sourceUrl": "https://kunsthalcharlottenborg.dk/wp-content/uploads/2016/11/For%C3%A5rsudstilling-2017.pdf",
+      "sourceDate": "2017-01-27",
+      "pdfSha256": "3aa8b6cf74525b4df91808afbde4389f944b712d913bbeb1500f7b08a6b130d9",
+      "evidenceStatus": "extracted_unverified",
+      "versions": {
+        "pdfplumber": "0.11.9"
+      },
+      "durationMs": 107,
+      "workerWallMs": 180,
+      "findings": [],
+      "checkStatus": "pass",
+      "pages": [
+        {
+          "page": 1,
+          "characters": 2261,
+          "textSha256": "2d4e2ccef8bbe2a918ae3db633bdb5cc018a57488d55fcbc76cb5af491ee80bd",
+          "sourceUrl": "https://kunsthalcharlottenborg.dk/wp-content/uploads/2016/11/For%C3%A5rsudstilling-2017.pdf#page=1",
+          "nativeTextPresent": true,
+          "ocrPerformed": false
+        },
+        {
+          "page": 2,
+          "characters": 3212,
+          "textSha256": "11c86c5425410485f9e2acee792f537aecccf6fad6e6083ae379bfa99b3a06b8",
+          "sourceUrl": "https://kunsthalcharlottenborg.dk/wp-content/uploads/2016/11/For%C3%A5rsudstilling-2017.pdf#page=2",
+          "nativeTextPresent": true,
+          "ocrPerformed": false
+        }
+      ],
+      "itemProvenanceCount": 0
+    },
+    {
+      "fixture": "charlottenborg-2017",
+      "engine": "docling-native",
+      "sourceUrl": "https://kunsthalcharlottenborg.dk/wp-content/uploads/2016/11/For%C3%A5rsudstilling-2017.pdf",
+      "sourceDate": "2017-01-27",
+      "pdfSha256": "3aa8b6cf74525b4df91808afbde4389f944b712d913bbeb1500f7b08a6b130d9",
+      "evidenceStatus": "extracted_unverified",
+      "versions": {
+        "docling-slim": "2.133.0",
+        "docling-core": "2.99.0",
+        "docling-parse": "7.22.1"
+      },
+      "durationMs": 694,
+      "workerWallMs": 860,
+      "findings": [],
+      "checkStatus": "pass",
+      "pages": [
+        {
+          "page": 1,
+          "characters": 2261,
+          "textSha256": "fd417ed3f60b47d9d5c6ca842c7b0ec6e44726de99ce3496b32f249b5632f1cb",
+          "sourceUrl": "https://kunsthalcharlottenborg.dk/wp-content/uploads/2016/11/For%C3%A5rsudstilling-2017.pdf#page=1",
+          "nativeTextPresent": true,
+          "ocrPerformed": false
+        },
+        {
+          "page": 2,
+          "characters": 3212,
+          "textSha256": "11c86c5425410485f9e2acee792f537aecccf6fad6e6083ae379bfa99b3a06b8",
+          "sourceUrl": "https://kunsthalcharlottenborg.dk/wp-content/uploads/2016/11/For%C3%A5rsudstilling-2017.pdf#page=2",
+          "nativeTextPresent": true,
+          "ocrPerformed": false
+        }
+      ],
+      "itemProvenanceCount": 81
+    },
+    {
+      "fixture": "clay-theory-2019",
+      "engine": "pypdf",
+      "sourceUrl": "https://cdn.contemporaryartlibrary.org/store/doc/14487/docfile/original-2fe6e1666dab238bfddcdff73721e33c.pdf",
+      "sourceDate": "2019-10-04",
+      "pdfSha256": "53ae8b5949580a9a383c967d3c69b6c2d6a2ef6a9fc041d2d33ae0de2085942f",
+      "evidenceStatus": "extracted_unverified",
+      "versions": {
+        "pypdf": "6.10.0"
+      },
+      "durationMs": 171,
+      "workerWallMs": 238,
+      "findings": [],
+      "checkStatus": "pass",
+      "pages": [
+        {
+          "page": 1,
+          "characters": 0,
+          "textSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "sourceUrl": "https://cdn.contemporaryartlibrary.org/store/doc/14487/docfile/original-2fe6e1666dab238bfddcdff73721e33c.pdf#page=1",
+          "nativeTextPresent": false,
+          "ocrPerformed": false
+        },
+        {
+          "page": 2,
+          "characters": 8651,
+          "textSha256": "16de0e77e35e0bd97749420a81749f5efdba49ac2c14760723464cdbcdae678a",
+          "sourceUrl": "https://cdn.contemporaryartlibrary.org/store/doc/14487/docfile/original-2fe6e1666dab238bfddcdff73721e33c.pdf#page=2",
+          "nativeTextPresent": true,
+          "ocrPerformed": false
+        }
+      ],
+      "itemProvenanceCount": 0
+    },
+    {
+      "fixture": "clay-theory-2019",
+      "engine": "pdfplumber",
+      "sourceUrl": "https://cdn.contemporaryartlibrary.org/store/doc/14487/docfile/original-2fe6e1666dab238bfddcdff73721e33c.pdf",
+      "sourceDate": "2019-10-04",
+      "pdfSha256": "53ae8b5949580a9a383c967d3c69b6c2d6a2ef6a9fc041d2d33ae0de2085942f",
+      "evidenceStatus": "extracted_unverified",
+      "versions": {
+        "pdfplumber": "0.11.9"
+      },
+      "durationMs": 526,
+      "workerWallMs": 601,
+      "findings": [
+        "page_2_missing_anchor:04.10.2019",
+        "page_2_missing_anchor:19.01.2020",
+        "page_2_column_order_not_preserved"
+      ],
+      "checkStatus": "fail",
+      "pages": [
+        {
+          "page": 1,
+          "characters": 0,
+          "textSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "sourceUrl": "https://cdn.contemporaryartlibrary.org/store/doc/14487/docfile/original-2fe6e1666dab238bfddcdff73721e33c.pdf#page=1",
+          "nativeTextPresent": false,
+          "ocrPerformed": false
+        },
+        {
+          "page": 2,
+          "characters": 8505,
+          "textSha256": "29064c556b34ef2b98003bd9949bcc6439174a48a1e6e2eecc0fbdd55f680e61",
+          "sourceUrl": "https://cdn.contemporaryartlibrary.org/store/doc/14487/docfile/original-2fe6e1666dab238bfddcdff73721e33c.pdf#page=2",
+          "nativeTextPresent": true,
+          "ocrPerformed": false
+        }
+      ],
+      "itemProvenanceCount": 0
+    },
+    {
+      "fixture": "clay-theory-2019",
+      "engine": "docling-native",
+      "sourceUrl": "https://cdn.contemporaryartlibrary.org/store/doc/14487/docfile/original-2fe6e1666dab238bfddcdff73721e33c.pdf",
+      "sourceDate": "2019-10-04",
+      "pdfSha256": "53ae8b5949580a9a383c967d3c69b6c2d6a2ef6a9fc041d2d33ae0de2085942f",
+      "evidenceStatus": "extracted_unverified",
+      "versions": {
+        "docling-slim": "2.133.0",
+        "docling-core": "2.99.0",
+        "docling-parse": "7.22.1"
+      },
+      "durationMs": 675,
+      "workerWallMs": 823,
+      "findings": [],
+      "checkStatus": "pass",
+      "pages": [
+        {
+          "page": 1,
+          "characters": 0,
+          "textSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "sourceUrl": "https://cdn.contemporaryartlibrary.org/store/doc/14487/docfile/original-2fe6e1666dab238bfddcdff73721e33c.pdf#page=1",
+          "nativeTextPresent": false,
+          "ocrPerformed": false
+        },
+        {
+          "page": 2,
+          "characters": 8522,
+          "textSha256": "fb8b5f2b2988bb595236f3ce365ce2349a398a8d4f30875c19e60c49d9a66484",
+          "sourceUrl": "https://cdn.contemporaryartlibrary.org/store/doc/14487/docfile/original-2fe6e1666dab238bfddcdff73721e33c.pdf#page=2",
+          "nativeTextPresent": true,
+          "ocrPerformed": false
+        }
+      ],
+      "itemProvenanceCount": 160
+    }
+  ],
+  "repeatability": {
+    "runs": 2,
+    "identicalPageHashesAndFindings": true
+  }
+}

@@ -1,0 +1,39 @@
+{
+  "schemaVersion": 1,
+  "purpose": "historical-format-fixtures-not-current-editorial-evidence",
+  "fixtures": [
+    {
+      "id": "charlottenborg-2017",
+      "file": "charlottenborg-2017.pdf",
+      "sourceUrl": "https://kunsthalcharlottenborg.dk/wp-content/uploads/2016/11/For%C3%A5rsudstilling-2017.pdf",
+      "sourceDate": "2017-01-27",
+      "sha256": "3aa8b6cf74525b4df91808afbde4389f944b712d913bbeb1500f7b08a6b130d9",
+      "bytes": 695032,
+      "pages": 2,
+      "checks": [
+        { "page": 1, "anchors": ["27. januar 2017", "61", "781"] },
+        { "page": 2, "anchors": ["Solopris 2017", "Pressemateriale"] }
+      ],
+      "visualLayout": "Two portrait pages, single main text column; names continue across the page break."
+    },
+    {
+      "id": "clay-theory-2019",
+      "file": "clay-theory-2019.pdf",
+      "sourceUrl": "https://cdn.contemporaryartlibrary.org/store/doc/14487/docfile/original-2fe6e1666dab238bfddcdff73721e33c.pdf",
+      "sourcePage": "https://www.contemporaryartlibrary.org/project/amalie-smith-at-kunsthal-aarhus-16216",
+      "sourceDate": "2019-10-04",
+      "sha256": "53ae8b5949580a9a383c967d3c69b6c2d6a2ef6a9fc041d2d33ae0de2085942f",
+      "bytes": 855720,
+      "pages": 2,
+      "checks": [
+        { "page": 1, "expectNoNativeText": true },
+        {
+          "page": 2,
+          "anchors": ["Graham", "Cairns", "Jeanette Varberg", "Simon Brinck", "04.10.2019", "19.01.2020"],
+          "orderedAnchors": ["Amalie Smiths", "Antwerpen (BE)", "Amalie Smith’s", "Antwerp (BE)"]
+        }
+      ],
+      "visualLayout": "First page is a photograph. Second page: Danish left column, English middle column, exhibition poster right. The complete Danish body should precede the complete English body, not alternate lines."
+    }
+  ]
+}

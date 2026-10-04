@@ -68,7 +68,7 @@ const nextConfig = {
   },
   // Recovery copies and temporary test data must never enter server bundles.
   outputFileTracingExcludes: {
-    '/*': ['./tmp/**/*', './tools/editorial-eval/**/*', './.git/**/*', './.env*'],
+    '/*': ['./tmp/**/*', './tools/editorial-eval/**/*', './tools/document-eval/**/*', './.git/**/*', './.env*'],
   },
   env: {
     NEXT_PUBLIC_APP_VERSION: version,

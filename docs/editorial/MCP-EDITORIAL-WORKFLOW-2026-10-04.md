@@ -38,8 +38,11 @@ is not completed by this release.
   publication recovery is not yet a verified production success.
 - [x] Reuse the existing 35-case corpus for deterministic offline regression;
   preserve text hashes and the absence of human scores. No paid model comparison.
-- [ ] Reproduce an extraction gap before introducing a document dependency;
+- [x] Reproduce an extraction gap before introducing a document dependency;
   preserve source/page provenance and distinguish extracted text from evidence.
+  [Two-PDF comparison](MCP-DOCUMENT-EXTRACTION-2026-10-05.md) reproduced the
+  HTML-only rejection and compared three offline parsers. No production PDF
+  ingestion or Docling quality advantage over the pypdf baseline is claimed.
 - [x] Isolated focused/full tests, TypeScript, lint, safe build and diff checks.
 - [x] Push a scoped commit, verify the exact production SHA/alias, exercise
   authenticated production reads and confirm no new paid calls or hold changes.
@@ -119,11 +122,13 @@ version checks and first-party owner confirmation. A site-wide publish is not ad
    the user's actual ChatGPT account. Client connection and a chosen editorial
    task still need that end-to-end acceptance; no arbitrary article is published
    as a test.
-3. The current source reader deliberately accepts HTML, not PDFs. The earlier
-   attached book ZIP is no longer present at its supplied temporary path. No
-   representative failing PDF/extraction fixture was available to compare.
-   Firecrawl/Docling remain conditional experiments; neither was installed or
-   activated without evidence of a specific extraction improvement.
+3. The source reader still deliberately accepts HTML, not PDFs. On 5 October,
+   two archived exhibition PDFs reproduced that rejection. A pinned offline
+   Docling-native trial and pypdf both passed the small text/order checks;
+   pdfplumber exposed a real bilingual column/date defect. The trial preserves
+   source/page hashes and is excluded from production. This does not establish
+   a need for Docling's heavier model pipeline or a paid crawler, and it does not
+   enable arbitrary PDF/inbox ingestion. The earlier book ZIP remains unavailable.
 4. Langfuse, Marketing Skills, Impeccable, new models and video/browser agents are
    not installed merely because they appeared in a recommendation list. They are
    not prerequisites for this scoped MCP/offline-regression release.
