@@ -1,6 +1,12 @@
 # Apropos MCP: editorial workflow acceptance
 
-Latest increment: [ChatGPT-supplied shortening](MCP-EXTERNAL-SHORTENING-2026-10-05.md),
+Latest configuration release: [offline PDF comparison and deployment isolation](MCP-DOCUMENT-EXTRACTION-2026-10-05.md),
+production `8f6e87a`, exact SHA/alias and read-only production checks verified
+5 October 01:23 Copenhagen. The experiment adds no production PDF reader or paid
+provider. All 4,749 isolated application tests and 12 Python harness tests passed;
+one parser's demonstrated extraction defect is intentionally retained as a finding.
+
+Latest functional increment: [ChatGPT-supplied shortening](MCP-EXTERNAL-SHORTENING-2026-10-05.md),
 production `f1fc0b8`, service-verified 5 October 00:57 Copenhagen. MCP version
 `2026-10-05-v2` has 28 tools. [Publication status after an uncertain response](MCP-PUBLICATION-STATUS-2026-10-05.md),
 [Connection setup](MCP-CONNECTION-SETUP-2026-10-05.md),

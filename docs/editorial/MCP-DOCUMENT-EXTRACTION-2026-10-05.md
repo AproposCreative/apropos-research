@@ -60,7 +60,40 @@ scanned/long/private-document tests. No Mac process becomes a Liv dependency.
 
 The only production configuration change explicitly excludes this developer
 directory from Vercel upload and server tracing. It adds no user-facing PDF feature.
-Exact release/deployment/readback evidence is recorded below after verification.
+
+## Production verification, 5 October 01:23 Copenhagen
+
+- Code: `8f6e87ae084cf0b40ef471592aad3e7a4a53b52a`, pushed to
+  `codex/liv-daily-recovery`.
+- Deployment: `dpl_6VZSagm2eWgfq2Vx45Uf2jQ4gD7p`, **READY**, target production.
+  Immutable URL:
+  https://apropos-research-efnfqrtw8-frederik-kraghs-projects.vercel.app
+- Both the authenticated deployment API and the independent Vercel connector
+  returned the exact code SHA and `ai.aproposmagazine.com` alias. The project's
+  production target also points to this deployment. Only the pushed Git snapshot
+  was deployed, not unrelated local changes.
+- Read-only service-authenticated checks against the actual production alias ran
+  **4 October 23:22:53–23:23:02 UTC** (5 October 01:22–01:23 Copenhagen).
+  `/connect/chatgpt` and OAuth protected-resource discovery returned HTTP 200;
+  the page retains frame denial and discovery names the correct `/mcp` resource.
+  Owner connection inventory, editorial operations and provider status succeeded.
+- Compared with the pre-deployment **23:17:44–23:17:49 UTC** baseline, the shared
+  and image ledger hashes were identical. October shared remains one tracked,
+  unresolved call, 0 DKK usage estimate and 1.2144 DKK reserved. Reservations and
+  app estimates are not the provider's bill. No paid AI call was made.
+- The stored provider hold remains blocked at revision 5. This is not a fresh
+  numerical provider-balance check. No hold, budget, queue, article or reservation
+  was changed by verification.
+- 5 October is correctly an off day; next publication is 6 October, with no ready
+  next story and zero of one reserves. The API reports blocked saved preparation
+  with `provider_quota_exhausted`, not an active writer or a finished article.
+- The complete owner connection inventory still reports no active authorization,
+  no successful tool call on an active grant and `clientAcceptanceVerified=false`.
+  This release check did not create a temporary grant or repeat editorial writes.
+- A deployment-scoped error/fatal log scan for **23:22:50–23:23:05 UTC** returned
+  no matching logs. This is a bounded release observation, not an uptime guarantee.
+  The prior MCP functional acceptance remains separate; this config-only release
+  does not change its version or tool contract.
 
 ## Remaining goal gates
 
