@@ -65,8 +65,45 @@ hash/source retention and unchanged storage. No provider test call is required.
 
 ## Production verification
 
-Pending exact pushed-SHA deployment and authenticated affected-tool readback.
-Local tests are not deployment evidence or a real user ChatGPT connection.
+- Code: `cdd1dfce08dbabe491b50c90abe84ec9f2e0d4c5`, pushed to
+  `codex/liv-daily-recovery`.
+- Deployment: `dpl_5fbdjuUzMv6cxvFzCYuwniMECQK9`, **READY**, production target.
+  Immutable URL:
+  https://apropos-research-qsspdcwm9-frederik-kraghs-projects.vercel.app
+- The exact SHA, production target and `ai.aproposmagazine.com` alias were
+  independently returned by the deployment API and Vercel connector. Remote
+  build-to-ready was 67.2 seconds. The deployment used the scoped Git commit,
+  not the dirty checkout. A preceding abbreviated-SHA command was rejected by
+  the local helper before any deployment request; the full-SHA request above
+  created the single deployment that was then polled to completion.
+- Authenticated MCP checks against the **actual production alias** ran
+  **4 October 23:38:19–23:38:46 UTC**, or 5 October **01:38 Copenhagen**.
+  Initialization reports `2026-10-05-v3`, still 28 tools. Both affected tools
+  retain their read-only annotation, strict inputs and read scope.
+- The returned 50-row catalog reads a bounded window of 63 Liv records and
+  76 writing records, not a unique-article total. The known primary now reports
+  `evidence_blocked`, `hasText=false`, three missing-evidence notes and no
+  publication approval. List and detail statuses match. None of the visible
+  insufficient-evidence responses is marked `written_unverified`.
+- The alternative remains `written_unverified`, `hasText=true`, still without
+  publication approval. Both original raw hashes above and exact source arrays
+  match their independently read archive records. A caller-supplied UID is rejected.
+- An isolated **read-only service-test** OAuth grant completed S256 exchange.
+  Only that test grant was revoked; the same token then returned HTTP 401.
+  This was not the owner's real ChatGPT connection or a human editorial review.
+- Before/after hashes match for budget, provider hold, owner workspace, delivery
+  entries/slots, shared/image ledgers and the entire bounded writing archive.
+  **No paid AI call, article edit, CMS write, publication or hold reset.** Only
+  test OAuth lifecycle records and ordinary MCP read audits were added.
+- Owner connection inventory returned to its original complete baseline:
+  zero active authorizations, no observed successful call on an active grant,
+  `clientAcceptanceVerified=false`. The owner has been asked which actual article
+  should be used for the first real edit once connected; no choice is invented.
+- Runtime aggregation for **23:38:15–23:38:50 UTC** reports seven `/mcp`
+  requests plus the expected OAuth/status requests. The deployment-scoped
+  error/fatal scan found no matching logs. Vercel Drains count is zero; existing
+  runtime logs and MCP audit remain, without a new telemetry dependency. These
+  bounded checks are not a long-term availability guarantee.
 
 ## Remaining full-goal gates
 
@@ -75,3 +112,13 @@ article or silently admit a generic draft. The owner's real ChatGPT connection,
 owner-selected editorial review/publication, genuine quality scores and Liv's
 provider/next-story/reserve/unattended-cadence gates remain separate. The full
 objective is not complete.
+
+The next client acceptance step is a real owner connection at
+`https://ai.aproposmagazine.com/connect/chatgpt` and the owner's article title/ID.
+Read fresh connection/workspace/article state, perform the selected exact edit
+through the existing preview/save/readback flow, and retain the resulting
+receipt. Publication still needs an eligible ready article and the real
+version-bound owner confirmation. Do not substitute another service test grant,
+an arbitrary article or synthetic review for those missing inputs. Provider
+recovery and human quality scores keep their existing separate resume conditions;
+this release provides no fresh billing evidence or editor rating.

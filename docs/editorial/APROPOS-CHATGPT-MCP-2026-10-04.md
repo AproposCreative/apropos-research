@@ -1,8 +1,11 @@
 # Apropos i ChatGPT: private owner pilot
 
-Latest release: **2026-10-05-v2**, code `f1fc0b8`, deployed and service-verified
-on 5 October at 00:57 Copenhagen. It adds ChatGPT-supplied shortening with a
-personal review and the existing Liv CMS service, without paid AI. It retains read-only publication status after
+Latest release: **2026-10-05-v3**, code `cdd1dfc`, deployed and service-verified
+on 5 October at 01:38 Copenhagen. [Accurate retained-writing status](MCP-RETAINED-WRITING-STATUS-2026-10-05.md)
+now distinguishes research briefs, insufficient-evidence/partial responses and
+actual stored prose, preserving exact outputs and sources. It retains
+ChatGPT-supplied shortening with personal review and the existing Liv CMS
+service, without paid AI, plus read-only publication status after
 midnight, the [sequential-save repair](MCP-SEQUENTIAL-SAVE-2026-10-04.md),
 retained-work discovery, shared exact-copyedit preview/apply, concrete editorial
 diagnostics, short on-demand workflows and 20-article metadata regression:

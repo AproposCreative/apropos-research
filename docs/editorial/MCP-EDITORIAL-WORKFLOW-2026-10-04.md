@@ -6,9 +6,13 @@ production `8f6e87a`, exact SHA/alias and read-only production checks verified
 provider. All 4,749 isolated application tests and 12 Python harness tests passed;
 one parser's demonstrated extraction defect is intentionally retained as a finding.
 
-Latest functional increment: [ChatGPT-supplied shortening](MCP-EXTERNAL-SHORTENING-2026-10-05.md),
-production `f1fc0b8`, service-verified 5 October 00:57 Copenhagen. MCP version
-`2026-10-05-v2` has 28 tools. [Publication status after an uncertain response](MCP-PUBLICATION-STATUS-2026-10-05.md),
+Latest functional increment: [accurate retained-writing status](MCP-RETAINED-WRITING-STATUS-2026-10-05.md),
+production `cdd1dfc`, MCP `2026-10-05-v3`, service-verified 5 October 01:38
+Copenhagen. Still 28 tools; 337 test files / 4,777 isolated tests passed. An
+empty insufficient-evidence response is no longer reported as written prose.
+Raw outputs, source links and budgets are unchanged. Earlier
+[ChatGPT-supplied shortening](MCP-EXTERNAL-SHORTENING-2026-10-05.md),
+[publication status after an uncertain response](MCP-PUBLICATION-STATUS-2026-10-05.md),
 [Connection setup](MCP-CONNECTION-SETUP-2026-10-05.md),
 [sequential-save recovery](MCP-SEQUENTIAL-SAVE-2026-10-04.md),
 [metadata regression evidence](MCP-METADATA-REGRESSION-2026-10-04.md) and the
