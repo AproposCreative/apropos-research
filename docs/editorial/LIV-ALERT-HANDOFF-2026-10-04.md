@@ -45,3 +45,32 @@ not exported. Snapshot/read failure falls back to explicit unknown status.
 
 Production verification is recorded below after deployment. This release does
 not resolve the existing provider block or satisfy unattended delivery acceptance.
+
+## Production release and readback
+
+- URL: https://ai.aproposmagazine.com
+- Target: production; framework: Next.js; status: READY with the actual alias.
+- Code: `c3ae87a130ced87b47c5d09c97a7b9a366097480`.
+- Deployment: `dpl_88FPXZTwnXKvuSCjD2ZihNQwzEGA`; build 92.736 seconds.
+- Owner-authenticated preview verified at `2026-10-04T18:51:24Z`, HTTP 200,
+  private/no-store, version `2026-10-04-v1`. Anonymous request rejected HTTP 401;
+  route regression separately verifies non-owner 403 before data access.
+- Real preview names **Dizzy Mizz Lizzy i Tivoli**, explicitly **only a planned
+  topic**, not a completed article. It reports no article checkpoint, no CMS ID,
+  missing registered cover/two body images/quality proof, and both the empty
+  source-bank result and retained provider quota hold. It identifies
+  `prepare-2026-10-04` and `reserve-2026-09-28` separately. Next due date is
+  6 October, without a ready story; reserve 0/1.
+- Provider revision 5 remains blocked; shared October still one call, zero
+  usage-based estimated DKK, 1.214400 reserved and one unknown. The production
+  verification asserted identical before/after budget and identical persisted
+  4 October alert record. No paid calls, mail send/resend, publication or hold
+  acknowledgement were performed by this verification.
+- Error/fatal runtime scan restricted to this deployment, 18:50:45–18:51:40 UTC,
+  returned no matching logs. This short scan is not a long-term reliability
+  guarantee. Existing delivery checks/alerts remain scheduled; no new drain or
+  monitoring service was installed.
+
+The already received 20:00 mail cannot be changed. New alerts use this template;
+previously accepted/uncertain mail payloads are deliberately retained. Production
+content rendering is verified, not delivery of a new test email to the inbox.
