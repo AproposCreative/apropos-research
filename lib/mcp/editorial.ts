@@ -141,12 +141,8 @@ export async function getSaveStatus(uid: string, draftId: string) {
     if (row.phase === 'attempted') {
       const cms = await getCmsArticle(row.itemId);
       if (cms.cmsHash === row.expectedHash && cms.isDraft === row.isDraft && cms.lastPublished === row.lastPublished) {
-        const lock = db.collection('mcpCmsLocks').doc(row.itemId);
-        await db.runTransaction(async tx => {
-          const held = (await tx.get(lock)).data();
-          tx.update(doc.ref, { phase: 'saved' });
-          if (held?.uid === uid && held.operationId === doc.id) tx.delete(lock);
-        });
+        const { confirmStagedCopyedit } = await import('./staged-copyedit');
+        row.receipt = await confirmStagedCopyedit(uid, doc.id, cms);
         row.phase = 'saved';
       }
     }

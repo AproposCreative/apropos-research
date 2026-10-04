@@ -18,6 +18,7 @@ beforeEach(() => {
   const changed = { ...fields, content: '<p>Rettet tekst.</p>' };
   after = { ...before, fields: changed, cmsHash: cmsFieldHash(changed) };
   binding = { itemId, cmsHash: before.cmsHash, fields, article };
+  memory.rows.set(`writerWorkspaces/${uid}/mcpBindings/${draftId}`, structuredClone(binding));
   saved = { revision: 2, data: { currentDraftId: draftId, articleData: { ...article, content: changed.content } } };
   memory.rows.set(`writerWorkspaces/${uid}`, saved);
   input = { draftId, expectedRevision: 2, expectedCmsHash: before.cmsHash };
@@ -47,10 +48,11 @@ it('retains an uncertain write and rejects a fresh identity to bypass it', async
   await expect(saveStagedCopyedit(uid, input, saved, binding)).rejects.toThrow('reconciliation_required');
   await expect(saveStagedCopyedit(uid, { ...input, expectedRevision: 3 }, saved, binding)).rejects.toThrow('reconciliation_required'); expect(mock.fetch).toHaveBeenCalledTimes(1);
 });
-it.each(['initial', 'prewrite', 'workspace', 'readback', 'publication'])('detects the %s conflict without claiming success', async stage => {
+it.each(['initial', 'prewrite', 'workspace', 'binding', 'readback', 'publication'])('detects the %s conflict without claiming success', async stage => {
   if (stage === 'initial') input.expectedCmsHash = 'f'.repeat(64);
   if (stage === 'prewrite') mock.read.mockReset().mockResolvedValueOnce(before).mockResolvedValue({ ...before, cmsHash: 'd'.repeat(64) });
   if (stage === 'workspace') memory.rows.get(`writerWorkspaces/${uid}`).revision = 3;
+  if (stage === 'binding') memory.rows.get(`writerWorkspaces/${uid}/mcpBindings/${draftId}`).openedAt = 'newer-open';
   if (stage === 'readback') mock.read.mockReset().mockResolvedValue(before);
   if (stage === 'publication') mock.read.mockReset().mockResolvedValueOnce(before).mockResolvedValueOnce(before).mockResolvedValue({ ...after, isDraft: true });
   await expect(saveStagedCopyedit(uid, input, saved, binding)).rejects.toThrow();
