@@ -1,5 +1,10 @@
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 const m=vi.hoisted(()=>({row:null as any,send:vi.fn(),tail:Promise.resolve()}));
+vi.mock('@/lib/liv/delivery-alert-context', async importOriginal => {
+ const actual = await importOriginal<typeof import('@/lib/liv/delivery-alert-context')>();
+ return { ...actual, readDeliveryAlertContext: vi.fn(async (state, day, now) =>
+   actual.projectDeliveryAlertContext({ state, day, now, plan: { topicHint: 'Testartikel' }, provider: null, cost: null })) };
+});
 vi.mock('resend',()=>({Resend:class {emails={send:m.send};}}));
 vi.mock('@/lib/firebase-admin',()=>({getAdminDb:()=>({collection:()=>({doc:()=>({update:async(p:any)=>{
  for(const [key,value] of Object.entries(p)){const [kind,field]=key.split('.');m.row[kind][field]=value;}
@@ -9,6 +14,7 @@ vi.mock('@/lib/firebase-admin',()=>({getAdminDb:()=>({collection:()=>({doc:()=>(
 }})}));
 import { notifyDeliveryHealth } from '@/lib/liv/delivery-alerts';
 import { emptyDeliveryState } from '@/lib/liv/delivery-policy';
+import { readDeliveryAlertContext } from '@/lib/liv/delivery-alert-context';
 beforeEach(()=>{vi.resetAllMocks();m.row=null;m.tail=Promise.resolve();vi.stubEnv('RESEND_API_KEY','fixture');vi.stubEnv('RESEND_FROM_EMAIL','fixture@example.com');m.send.mockResolvedValue({data:{id:'fixture'}});});
 afterEach(()=>vi.unstubAllEnvs());
 it('only one of simultaneous checks sends under serialized storage transactions',async()=>{
@@ -31,6 +37,7 @@ it('retains the same provider identity and payload after uncertain failure',asyn
  await notifyDeliveryHealth(state,new Date('2026-09-13T08:16:00Z'));expect(m.send).toHaveBeenCalledTimes(1);
  await notifyDeliveryHealth(state,new Date('2026-09-13T08:30:00Z'));
  expect(m.send.mock.calls[1]).toEqual(m.send.mock.calls[0]);
+ expect(readDeliveryAlertContext).toHaveBeenCalledTimes(1);
  await notifyDeliveryHealth(state,new Date('2026-09-13T08:45:00Z'));expect(m.send).toHaveBeenCalledTimes(2);
 });
 it('does not send on a healthy day and sends only one resolution after an alarm',async()=>{
@@ -40,4 +47,21 @@ it('does not send on a healthy day and sends only one resolution after an alarm'
  await notifyDeliveryHealth(state,now);await notifyDeliveryHealth(state,now);
  expect(m.send).toHaveBeenCalledTimes(2);expect(m.row.resolved.accepted).toBe(true);
  m.row=null;m.send.mockClear();await notifyDeliveryHealth(state,now);expect(m.send).not.toHaveBeenCalled();
+});
+it('does not read handoff context on ordinary polls and includes it on the first alert',async()=>{
+ const state=emptyDeliveryState();
+ await notifyDeliveryHealth(state,new Date('2026-10-04T08:10:00Z'));
+ expect(readDeliveryAlertContext).not.toHaveBeenCalled();
+ await notifyDeliveryHealth(state,new Date('2026-10-04T08:15:00Z'));
+ expect(m.send.mock.calls[0][0].text).toContain('KOPIÉR TIL EN NY CHATGPT-CHAT');
+ await notifyDeliveryHealth(state,new Date('2026-10-04T08:30:00Z'));
+ expect(readDeliveryAlertContext).toHaveBeenCalledTimes(1);
+});
+it('retains legacy ambiguous payloads exactly instead of changing their idempotent request',async()=>{
+ const start=Date.parse('2026-10-04T08:15:00Z');
+ const payload={from:'old',to:'frederik@aproposmagazine.com',subject:'old subject',text:'old body'};
+ m.row={day:'2026-10-04',failure:{startedAt:start,leaseUntil:0,payload}};
+ await notifyDeliveryHealth(emptyDeliveryState(),new Date('2026-10-04T08:30:00Z'));
+ expect(m.send.mock.calls[0][0]).toEqual(payload);
+ expect(readDeliveryAlertContext).not.toHaveBeenCalled();
 });

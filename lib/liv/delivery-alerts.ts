@@ -2,6 +2,7 @@ import { Resend } from 'resend';
 import { getAdminDb } from '@/lib/firebase-admin';
 import { publicationTime, isPublicationDay, copenhagenClock, validDay, type DeliveryState } from './delivery-policy';
 import type { LivNextPreparationStatus } from './preparation-status';
+import { readDeliveryAlertContext, renderDeliveryAlert } from './delivery-alert-context';
 
 type Notice = { startedAt: number; leaseUntil: number; accepted?: boolean; providerId?: string;
   payload: {from:string;to:string;subject:string;text:string} };
@@ -32,6 +33,9 @@ async function notifyDeliveryDay(state: DeliveryState, now: Date, day: string, p
   const ref = db.collection('livDeliveryAlerts').doc(day);
   const key = process.env.RESEND_API_KEY; const from = process.env.RESEND_FROM_EMAIL;
   if (!key || !from) throw new Error('liv_alert_mail_configuration_missing');
+  // Lazy: ordinary cron polls and ambiguous sends do not read/rebuild the
+  // handoff. Transaction retries reuse the same snapshot; paid calls never run.
+  let context: ReturnType<typeof readDeliveryAlertContext> | undefined;
   const claim = await db.runTransaction(async tx => {
     const old = ((await tx.get(ref)).data() || {}) as DeliveryAlertRecord;
     const kind = deliveryAlertKind(state, old, now, day, preparation); if (!kind) return null;
@@ -39,11 +43,11 @@ async function notifyDeliveryDay(state: DeliveryState, now: Date, day: string, p
     if (notice?.leaseUntil && notice.leaseUntil > now.getTime()) return null;
     // Do not resend an ambiguous operation outside the provider's idempotency window.
     if (notice && now.getTime() - notice.startedAt >= 23 * 3600000) throw new Error('liv_alert_reconciliation_required');
-    notice ??= { startedAt:now.getTime(), leaseUntil:0, payload:{from,to:'frederik@aproposmagazine.com',
-      subject:kind === 'resolved' ? `Liv er udgivet · ${day}` : kind === 'finalFailure' ? `Liv blev ikke udgivet i dag · ${day}` : `Liv er forsinket · ${day}`,
-      text:kind === 'resolved' ? `Dagens Liv-udgivelse (${day}) er nu bekræftet i udgivelsesflowet.\n\nSe artiklen og status på https://ai.aproposmagazine.com/ai?view=liv` :
-        `Dagens Liv-udgivelse (${day}) er ikke bekræftet udgivet. ${kind === 'finalFailure' ? 'Udgivelsesvinduet er lukket.' : 'Automatisk behandling fortsætter inden for budgettet frem til kl. 20.'} Gemt arbejde er bevaret. Status: ${preparation?.reasonCode ?? 'waiting_for_ready_article'}.\n\nSe status på https://ai.aproposmagazine.com/ai?view=liv`,
-    }};
+    if (!notice) {
+      context ??= readDeliveryAlertContext(state, day, now);
+      notice = { startedAt:now.getTime(), leaseUntil:0, payload:{ from, to:'frederik@aproposmagazine.com',
+        ...renderDeliveryAlert(kind, await context) } };
+    }
     notice.leaseUntil = now.getTime() + 2 * 60000;
     tx.set(ref,{...old,day,[kind]:notice});
     return {kind,notice};
