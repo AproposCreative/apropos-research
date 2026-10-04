@@ -17,6 +17,9 @@ vi.mock('@/lib/mcp/editorial', () => ({ getCmsArticle: vi.fn(), openCmsArticle: 
   cmsSaveInput: z.object({ draftId: z.string(), expectedRevision: z.number() }), runIdSchema: z.string() }));
 vi.mock('@/lib/mcp/workspace', () => ({ draftInput: z.object({ expectedRevision: z.number(), draftId: z.string(), article: z.object({ title: z.string(), content: z.string() }).strict() }).strict(), saveMcpDraft: vi.fn() }));
 vi.mock('@/lib/mcp/publication', () => ({ previewPublication: vi.fn(), executePublication: mock.publish }));
+vi.mock('@/lib/editorial/work-catalog', async original => ({ ...await original<any>(), listEditorialWork: async () => ({ items: [], paidAiCalls: 0 }) }));
+vi.mock('@/lib/editorial/workspace-copyedit', async original => ({ ...await original<any>(), previewWorkspaceCopyedit: vi.fn(), applyWorkspaceCopyedit: vi.fn() }));
+vi.mock('@/lib/editorial/review-workspace', async original => ({ ...await original<any>(), reviewWorkspace: vi.fn() }));
 import { POST, GET } from '@/app/mcp/route';
 import { assertPaidAiAllowed } from '@/lib/ai/no-paid-calls';
 import { OAuthError } from '@/lib/mcp/oauth';
@@ -34,10 +37,24 @@ it('negotiates the real SDK protocol and lists strict schemas on independent sta
   const initialized = await POST(message('initialize', { protocolVersion: '2025-03-26', capabilities: {}, clientInfo: { name: 'fixture', version: '1' } }));
   expect(initialized.status).toBe(200); expect((await initialized.json()).result.serverInfo.name).toBe('apropos-editorial');
   const response = await POST(message('tools/list')); const tools = (await response.json()).result.tools;
-  expect(tools.length).toBe(16); expect(tools.find((t: any) => t.name === 'publish_article').annotations.destructiveHint).toBe(true);
+  expect(tools.length).toBe(21); expect(tools.find((t: any) => t.name === 'publish_article').annotations.destructiveHint).toBe(true);
   expect(tools.find((t: any) => t.name === 'save_draft').inputSchema.additionalProperties).toBe(false);
   expect(tools.find((t: any) => t.name === 'publish_article')._meta.securitySchemes).toEqual([{ type: 'oauth2', scopes: ['apropos:publish'] }]);
   expect(response.headers.get('Cache-Control')).toContain('no-store');
+});
+it('returns bounded workflow guidance and discovery through the actual MCP protocol', async () => {
+  const result = (await (await call('get_workflow', { workflow: 'edit' })).json()).result;
+  const data = JSON.parse(result.content[0].text);
+  expect(data.instructions).toContain('preview_copyedit'); expect(data.instructions.length).toBeLessThan(3000);
+  expect(data.versionHash).toMatch(/^[a-f0-9]{64}$/); expect(data.publicationApproval).toBe(false);
+  expect((await (await call('get_workflow', { workflow: '../../.env' })).json()).result.isError).toBe(true);
+  expect((await (await call('list_editorial_work')).json()).result.isError).not.toBe(true);
+});
+it('requires draft scope for the new precise mutation, not just read scope', async () => {
+  mock.identity.scopes = ['apropos:read'];
+  const result = (await (await call('apply_copyedit', { draftId: 'draft-1234', expectedRevision: 1,
+    previewHash: 'a'.repeat(64), patches: [{ field: 'intro', before: 'Old', after: 'New' }] })).json()).result;
+  expect(result.isError).toBe(true); expect(result._meta['mcp/www_authenticate'][0]).toContain('apropos:draft');
 });
 it('passes only the authenticated UID, never a caller-supplied workspace owner', async () => {
   const response = await call('get_workspace'); expect((await response.json()).result.isError).not.toBe(true);

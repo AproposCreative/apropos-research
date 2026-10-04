@@ -5,5 +5,6 @@ tmp
 coverage
 docs
 test
+tools/editorial-eval
 *.log
 .DS_Store

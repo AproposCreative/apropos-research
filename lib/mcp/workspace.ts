@@ -33,7 +33,8 @@ export const workspaceRef = (uid: string) => { const db = getAdminDb(); if (!db)
 
 /** Same workspace/revision/history as Writer. Never accepts an owner UID or AI approval. */
 export async function saveMcpDraft(uid: string, value: unknown,
-  binding?: { itemId: string; cmsHash: string; fields: Record<string, unknown>; article: Record<string, unknown> }) {
+  binding?: { itemId: string; cmsHash: string; fields: Record<string, unknown>; article: Record<string, unknown> },
+  copyedit?: { id: string; inputHash: string; metadata: Record<string, unknown> }) {
   const input = draftInput.parse(value), db = getAdminDb(); if (!db) throw Error('mcp_unavailable');
   assertArticleMarkupSafe(input.article.content);
   for (const key of ['intro', 'subtitle', 'excerpt'] as const) if (input.article[key]) assertArticleMarkupSafe(input.article[key]!);
@@ -41,6 +42,12 @@ export async function saveMcpDraft(uid: string, value: unknown,
     receipt = ref.collection('mcpSaves').doc(inputHash);
   return db.runTransaction(async tx => {
     const previous = (await tx.get(ref)).data(), old = (await tx.get(receipt)).data();
+    const editReceipt = copyedit ? ref.collection('copyedits').doc(copyedit.id) : null;
+    const previousEdit = editReceipt ? (await tx.get(editReceipt)).data() : null;
+    if (previousEdit) {
+      if (previousEdit.inputHash !== copyedit!.inputHash) throw Error('mcp_revision_conflict');
+      return { ...previousEdit.result, replay: true, currentRevision: previous?.revision ?? 0 };
+    }
     if (old) return { revision: old.revision, replay: true, currentRevision: previous?.revision ?? 0 };
     const sameDraft = previous?.data.currentDraftId === input.draftId;
     const data = workspacePayloadSchema.parse({
@@ -61,6 +68,8 @@ export async function saveMcpDraft(uid: string, value: unknown,
     tx.set(ref, { revision, data, updatedAt });
     if (binding) tx.set(ref.collection('mcpBindings').doc(input.draftId), { ...binding, openedAt: updatedAt });
     tx.create(receipt, { revision, inputHash, draftId: input.draftId, source: 'chatgpt', updatedAt, publicationApproval: false });
-    return { revision, replay: false, publicationApproval: false, savedTo: 'private_writer_workspace' };
+    const result = { revision, replay: false, publicationApproval: false, savedTo: 'private_writer_workspace', ...copyedit?.metadata };
+    if (editReceipt) tx.create(editReceipt, { inputHash: copyedit!.inputHash, result, createdAt: updatedAt });
+    return result;
   });
 }

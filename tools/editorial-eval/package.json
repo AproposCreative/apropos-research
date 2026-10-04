@@ -1,0 +1,8 @@
+{
+  "name": "apropos-offline-editorial-eval",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Isolated local evaluation of saved outputs; never deployed or connected to a model",
+  "devDependencies": { "promptfoo": "0.123.1" },
+  "overrides": { "basic-ftp": "6.2.2" }
+}

@@ -21,6 +21,7 @@
     "seo-engine:backfill-overwrite": "npx tsx scripts/seo-engine-overwrite-backfill.ts",
     "test": "vitest run",
     "quality:report": "node --import tsx scripts/editorial-quality-report.ts",
+    "quality:offline": "node --import tsx scripts/editorial-promptfoo.ts",
     "test:watch": "vitest",
     "test:ui": "vitest --ui",
     "test:ai-chat": "node scripts/test-ai-chat-e2e.mjs --full",

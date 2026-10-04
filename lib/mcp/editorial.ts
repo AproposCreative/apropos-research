@@ -12,6 +12,8 @@ import { workspaceRef, editableArticle } from './workspace';
 import { saveMcpDraft } from './workspace';
 import { readMapping } from '@/lib/webflow-mapping';
 import { readWritingBrief } from '@/lib/liv/source-archive';
+import { savedFactualChecks } from '@/lib/editorial/saved-checks';
+import { draftDiagnostics } from '@/lib/editorial/draft-diagnostics';
 const objectId = z.string().regex(/^[a-f0-9]{24}$/);
 export const runIdSchema = z.string().regex(/^(?:prepare|prepare-alternative|reserve|reserve-editorial)-20\d{2}-\d{2}-\d{2}$/);
 
@@ -44,14 +46,16 @@ export async function openCmsArticle(uid: string, itemId: string, expectedRevisi
     { itemId, cmsHash: cms.cmsHash, fields: cms.fields, article: parsed });
   return { ...result, draftId, article: parsed, cmsHash: cms.cmsHash, livePublicationChanged: false };
 }
-export async function editorialContext(authorId?: string) {
+export async function editorialContext(authorId?: string, section: 'structure' | 'voice' | 'all' = 'all') {
   const rules = loadAproposArticleStructure();
+  if (section === 'structure') return { rules, rulesHash: cmsFieldHash({ rules }), section,
+    note: 'Artikelstruktur, ikke forfatterstemme. Én konkret rettelse ændrer ikke de generelle regler.' };
   const authors = await getWebflowAuthors();
   const author = authorId ? authors.find(a => a.id === authorId) : undefined;
   if (authorId && !author) throw Error('mcp_author_not_found');
   const voice = !author || /liv brandt/i.test(author.name) ? loadLivVoice() :
     { text: author.tov || '', version: 'webflow-current', hash: cmsFieldHash({ tov: author.tov || '' }) };
-  return { rules, rulesHash: cmsFieldHash({ rules }), author: author?.name || 'Liv Brandt', voice,
+  return { ...(section === 'all' ? { rules } : {}), rulesHash: cmsFieldHash({ rules }), section, author: author?.name || 'Liv Brandt', voice,
     authors: authors.map(a => ({ id: a.id, name: a.name })),
     evidencePolicy: 'Research og tekster er råmateriale. Opfind ikke kilder, citater, menneskescores eller egne oplevelser. Ingen MCP-gemning er kvalitetsgodkendelse.' };
 }
@@ -69,6 +73,8 @@ export async function getLivWork(runId: string) {
     detail: String(g.detail || '').replace(/\b(?:sk-|re_|ghp_|gho_)[a-z\d_-]+/gi, '[skjult]').replace(/\bBearer\s+\S+/gi, '[skjult]').slice(0, 2000),
   })) : [];
   return { found: true, runId, ...saved, reason, gateResults: gates,
+    factualEvidence: savedFactualChecks(row.gateResults),
+    editorialDiagnostics: row.articleCheckpoint ? draftDiagnostics(row.articleCheckpoint) : null,
     ...(row.articleCheckpoint ? { checkpointHash: cmsFieldHash(row.articleCheckpoint) } : {}),
     untrustedContent: true, publicationApproval: false };
 }

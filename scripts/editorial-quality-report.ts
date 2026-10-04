@@ -1,30 +1,23 @@
 import { readFileSync } from 'node:fs';
 import { evaluateQualitySet } from '../lib/editorial/quality-evaluation';
+import { readCalibrationCases } from '../lib/editorial/calibration-cases';
 
-const manifest = JSON.parse(readFileSync('data/editorial-evals/calibration-v1.json', 'utf8'));
-const archive = readFileSync('data/apropos-style-samples.jsonl', 'utf8').trim().split('\n').map(line => JSON.parse(line));
-const references = manifest.referenceIds.map((id: string) => {
-  const source = archive.find(row => row.id === id);
-  if (!source) throw Error(`quality_reference_missing:${id}`);
-  return { ...source, kind: 'published-reference', intro: source.intro || '' };
-});
-const drafts = JSON.parse(readFileSync('data/editorial-evals/problematic-drafts-v1.json', 'utf8'));
-if (references.length !== 25 || drafts.length !== 10) throw Error('quality_calibration_incomplete');
 const args = process.argv.slice(2);
 const scoreIndex = args.indexOf('--scores');
 const scores = scoreIndex >= 0 ? JSON.parse(readFileSync(args[scoreIndex + 1], 'utf8')) : [];
-const cases = [...references, ...drafts];
+const cases = readCalibrationCases();
 const report = evaluateQualitySet(cases, scores);
 if (args.includes('--review-pack')) {
   console.log('# Apropos: redaktionelt kalibreringssæt\n\nIngen betalte kald. Ikke et blindt holdout: referencerne ligger allerede i stilarkivet.');
   console.log('\nBedøm stemme, fakta, struktur og publicerbarhed fra 1 til 5. 1 kræver ny tekst; 3 kræver mærkbare rettelser; 5 er klar. Publication er ikke i sig selv en kvalitetsscore.');
   for (const article of cases) {
     const row = report.rows.find(r => r.id === article.id)!;
-    const urls: string[] = article.origin?.sourceUrls || [];
+    const origin = article.origin as { sourceUrls?: string[]; observedFailure?: string } | undefined;
+    const urls: string[] = origin?.sourceUrls || [];
     const sourceNote = urls.length ? `Gemte researchkilder (ikke nyverificeret):\n${urls.map(url => `- ${url}`).join('\n')}`
       : 'Ingen kildepakke i dette eksportudsnit. Faktascoren kræver separat kildekontrol; gæt ikke.';
     const context = article.kind === 'problematic-draft'
-      ? `Kontrolstop: ${article.origin?.observedFailure || 'Ukendt'}. Dette er ikke en menneskelig afvisning eller en konstatering af dårlig skrivekvalitet.`
+      ? `Kontrolstop: ${origin?.observedFailure || 'Ukendt'}. Dette er ikke en menneskelig afvisning eller en konstatering af dårlig skrivekvalitet.`
       : `Udgivet reference fra stilarkivet: ${article.author || 'Ukendt forfatter'}. Udgivelse er ikke en kvalitetsscore.`;
     console.log(`\n## ${article.title}\n\nID: ${article.id}\n\nTekstversion: ${row.textHash}\n\n${context}\n\n${sourceNote}\n\n${article.intro}\n\n${article.bodyText}\n\nBedømmelse: stemme __/5 · fakta __/5 · struktur __/5 · publicerbarhed __/5.\n\nBeslutning og begrundelse: __\n`);
   }

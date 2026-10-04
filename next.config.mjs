@@ -53,7 +53,7 @@ const nextConfig = {
   serverExternalPackages: ['ffmpeg-static'],
   // Inkluder linux ffmpeg-binær i serverless bundle (Vercel file tracing)
   outputFileTracingIncludes: {
-    '/mcp': ['./prompts/structure.apropos.md', './data/author-prompts/liv-brandt.txt'],
+    '/mcp': ['./prompts/structure.apropos.md', './data/author-prompts/liv-brandt.txt', './.agents/skills/apropos-*/SKILL.md'],
     '/api/image-gen/run': ['./data/image-gen/references/*'],
     '/api/podcast/process': ['./node_modules/ffmpeg-static/**/*'],
   },
@@ -67,7 +67,7 @@ const nextConfig = {
   },
   // Recovery copies and temporary test data must never enter server bundles.
   outputFileTracingExcludes: {
-    '/*': ['./tmp/**/*', './.git/**/*', './.env*'],
+    '/*': ['./tmp/**/*', './tools/editorial-eval/**/*', './.git/**/*', './.env*'],
   },
   env: {
     NEXT_PUBLIC_APP_VERSION: version,
