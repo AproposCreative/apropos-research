@@ -4,6 +4,7 @@ import { getAdminDb } from '@/lib/firebase-admin';
 import { readDeliveryState } from '@/lib/liv/delivery-store';
 import { type DeliveryState, copenhagenClock } from '@/lib/liv/delivery-policy';
 import { workspaceRef } from '@/lib/mcp/workspace';
+import { hasArticleText, savedWritingSummary, SAVED_WRITING_NOTE } from './saved-writing-status';
 
 export const workCatalogInput = z.object({ limit: z.number().int().min(1).max(50).default(10),
   query: z.string().max(150).optional() }).strict();
@@ -21,12 +22,14 @@ export function runSummary(id: string, row: Record<string, any>, state: Delivery
   const publication = Object.entries(state.slots).find(([, s]) => s.itemId === row.webflowItemId &&
     s.state === 'published' && s.publicUrl && s.checkedAt);
   const ready = entry?.state === 'ready' && !entry.publicationBlockers?.length && entry.decision !== 'rejected' && entry.expiresDay >= today;
-  const stage = publication ? 'publication_receipt' : ready ? 'ready_manifest' : row.articleCheckpoint ? 'written_draft' : 'plan_or_research';
+  const hasText = hasArticleText(row.articleCheckpoint?.content);
+  const stage = publication ? 'publication_receipt' : ready ? 'ready_manifest' : hasText ? 'written_draft' :
+    row.articleCheckpoint ? 'checkpoint_incomplete' : 'plan_or_research';
   return { id, kind: 'liv-run', title: text(row.articleCheckpoint?.title) || text(row.title) || text(row.topic) || 'Emne ikke valgt',
     articleType: text(row.articleCheckpoint?.editorialKind || row.articleCheckpoint?.articleFormat, 80),
     createdAt: timestamp(row.createdAt), updatedAt: timestamp(row.updatedAt), scheduledDay: entry?.scheduledDay || text(row.dayKey, 10),
     stage, runStatus: code(row.status), blockers: [...(!publication && !ready && code(row.reason) ? [code(row.reason)!] : []), ...(entry?.publicationBlockers || [])],
-    itemId: text(row.webflowItemId, 24), hasText: !!row.articleCheckpoint,
+    itemId: text(row.webflowItemId, 24), hasText,
     publication: publication ? { day: publication[0], publicUrl: publication[1].publicUrl, checkedAt: publication[1].checkedAt } : null,
     requiresFreshReadback: !!entry, publicationApproval: false,
     nextTool: 'get_liv_work', nextArguments: { runId: id } };
@@ -45,13 +48,10 @@ export async function listEditorialWork(uid: string, value: unknown) {
     .map(d => runSummary(d.id, d.data(), state, today));
   for (const doc of writing.docs) {
     const row = doc.data();
-    let title: string | null = null;
-    try { const output = JSON.parse(row.rawResponse || '{}'); title = text(output.title); } catch { /* Never expose the writer prompt as a title. */ }
     // Metadata projection only; raw provider output belongs to get_saved_writing.
-    items.push({ id: doc.id, kind: 'saved-writing', title: title || 'Gemt skrivetekst · titel ikke udtrukket',
+    items.push({ id: doc.id, kind: 'saved-writing', ...savedWritingSummary(row),
       articleType: text(row.articleFormat, 80), createdAt: timestamp(row.createdAt), updatedAt: timestamp(row.recordedAt || row.createdAt),
-      stage: 'written_unverified', runStatus: code(row.status), blockers: Array.isArray(row.missingEvidence) ? row.missingEvidence.slice(0, 6).map(v => text(v, 500)) : [],
-      hasText: typeof row.rawResponse === 'string', publicationApproval: false,
+      runStatus: code(row.status),
       nextTool: 'get_saved_writing', nextArguments: { writingRunId: doc.id } });
   }
   const current = workspace.data();
@@ -65,5 +65,6 @@ export async function listEditorialWork(uid: string, value: unknown) {
   return { items: matching.slice(0, input.limit), matchingInWindow: matching.length,
     coverage: { runRows: runs.size, writingRows: writing.size, perSourceLimit: 100, truncated: runs.size === 100 || writing.size === 100,
       note: 'Seneste daterede arkivrækker, ikke hele CMS. Historiske rækker uden sorteringsdato kan mangle. Skriveforsøg og Liv-forløb er separate poster; ikke en optælling af unikke artikler.' },
-    cmsDiscoveryTool: 'list_articles', checkedAt: new Date().toISOString(), untrustedContent: true, paidAiCalls: 0 };
+    cmsDiscoveryTool: 'list_articles', savedWritingNote: SAVED_WRITING_NOTE,
+    checkedAt: new Date().toISOString(), untrustedContent: true, paidAiCalls: 0 };
 }

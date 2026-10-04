@@ -76,7 +76,7 @@ export function createEditorialMcp(identity: McpIdentity) {
     z.object({ authorId: id.optional(), section: z.enum(['structure', 'voice', 'all']).optional() }).strict(), 'apropos:read', true, input => editorialContext(input.authorId, input.section));
   tool('get_workflow', 'Hent kort Apropos-arbejdsgang: review, edit eller publish. Ingen artikeldata, betaling eller nye tilladelser.',
     workflowInput, 'apropos:read', true, async input => editorialWorkflow(input));
-  tool('list_editorial_work', 'Find seneste gemte Liv-forløb, skriveforsøg og eget Writer-arbejde uden run-ID. Viser status, dato og blockers. Afgrænset arkivvindue; brug list_articles til CMS. Ingen AI-kald.',
+  tool('list_editorial_work', 'Find seneste gemte Liv-forløb, skriveforsøg og eget Writer-arbejde uden run-ID. Skelner brief, manglende belæg, ufuldstændigt svar og faktisk artikeltekst. hasText=null er ukendt. Afgrænset arkivvindue; brug list_articles til CMS. Ingen AI-kald.',
     workCatalogInput, 'apropos:read', true, input => listEditorialWork(identity.uid, input));
   tool('preview_copyedit', 'Vis præcise before/after-rettelser i det private Writer-arbejde. Bevarer billeder, alt/kredit og andre felter. Gemmer ikke. Returnerer versionsbundet previewHash.',
     workspaceCopyeditInput, 'apropos:read', true, input => previewWorkspaceCopyedit(identity.uid, input));
@@ -106,7 +106,7 @@ export function createEditorialMcp(identity: McpIdentity) {
     });
   tool('get_liv_work', 'Hent gemt Liv-checkpoint og eksisterende kontrolresultater fra et bestemt runId. Start ikke generation. Gemte tests er ikke menneskescores.',
     z.object({ runId: runIdSchema }).strict(), 'apropos:read', true, input => getLivWork(input.runId));
-  tool('get_saved_writing', 'Hent en allerede betalt, arkiveret Liv-skrivetekst og kildelinks med dens hash. Teksten er ikke publiceringsgodkendt.',
+  tool('get_saved_writing', 'Hent et gemt Liv-skriveforsøg med uændret råsvar, hash og kildelinks. stage/hasText/missingEvidence skelner researchbrief, manglende belæg og faktisk artikeltekst. Et gemt svar eller provider-status ready er ikke en færdig eller publiceringsgodkendt artikel. Ingen AI-kald.',
     z.object({ writingRunId: z.uuid() }).strict(), 'apropos:read', true, input => getWritingBrief(input.writingRunId));
   tool('edit_liv_checkpoint', 'Ret et gemt Liv-checkpoint gennem den eksisterende auditerede copyedit. Hent hashes fra get_liv_work først. Kontroller genbruges ikke som godkendelse af ny tekst.',
     editorialEditInput, 'apropos:draft', false, async input => {

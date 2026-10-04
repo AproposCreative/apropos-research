@@ -14,6 +14,7 @@ import { readMapping } from '@/lib/webflow-mapping';
 import { readWritingBrief } from '@/lib/liv/source-archive';
 import { savedFactualChecks } from '@/lib/editorial/saved-checks';
 import { draftDiagnostics } from '@/lib/editorial/draft-diagnostics';
+import { savedWritingSummary, SAVED_WRITING_NOTE } from '@/lib/editorial/saved-writing-status';
 const objectId = z.string().regex(/^[a-f0-9]{24}$/);
 export const runIdSchema = z.string().regex(/^(?:prepare|prepare-alternative|reserve|reserve-editorial)-20\d{2}-\d{2}-\d{2}$/);
 
@@ -82,9 +83,9 @@ export async function getWritingBrief(id: string) {
   z.uuid().parse(id);
   const row = await readWritingBrief('liv-daily', id);
   if (!row) return { found: false };
-  return { found: true, runId: id, rawResponse: row.rawResponse, rawHash: typeof row.rawResponse === 'string' ?
+  return { found: true, runId: id, ...savedWritingSummary(row), note: SAVED_WRITING_NOTE, rawResponse: row.rawResponse, rawHash: typeof row.rawResponse === 'string' ?
     (await import('./oauth')).digest(row.rawResponse) : null,
-    sources: row.sources, model: row.model, voiceVersion: row.voiceVersion, finishReason: row.finishReason,
+    sources: row.sources, model: row.model, voiceVersion: row.voiceVersion,
     publicationApproval: false, untrustedContent: true };
 }
 export async function getWorkspace(uid: string, version?: { kind: 'history' | 'conflicts'; id: string }) {
