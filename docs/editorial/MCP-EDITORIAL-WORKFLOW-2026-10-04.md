@@ -1,8 +1,9 @@
 # Apropos MCP: editorial workflow acceptance
 
-Latest increment: [publication status after an uncertain response](MCP-PUBLICATION-STATUS-2026-10-05.md),
-production `9cd621a`, service-verified 5 October 00:23 Copenhagen. MCP version
-`2026-10-05-v1` has 24 tools. [Connection setup](MCP-CONNECTION-SETUP-2026-10-05.md),
+Latest increment: [ChatGPT-supplied shortening](MCP-EXTERNAL-SHORTENING-2026-10-05.md),
+production `f1fc0b8`, service-verified 5 October 00:57 Copenhagen. MCP version
+`2026-10-05-v2` has 28 tools. [Publication status after an uncertain response](MCP-PUBLICATION-STATUS-2026-10-05.md),
+[Connection setup](MCP-CONNECTION-SETUP-2026-10-05.md),
 [sequential-save recovery](MCP-SEQUENTIAL-SAVE-2026-10-04.md),
 [metadata regression evidence](MCP-METADATA-REGRESSION-2026-10-04.md) and the
 v2 evidence below remain historical. Chats can now read publication status after
@@ -27,6 +28,10 @@ is not completed by this release.
 - [x] Preserve the existing checkpoint-edit and ready-publication operations.
   New copy edits do not confer admission. An arbitrary edited CMS draft cannot
   automatically become ready; see the remaining acceptance below.
+- [x] Let ChatGPT supply exact shortening edits to an already checked, ready,
+  never-published Liv draft without another model call. Share existing personal
+  review, version checks, audited CMS patch and readback. Real owner review and
+  selected-article acceptance remain outstanding; no arbitrary draft admission.
 - [x] Provide focused review/edit/publication workflows and compact context.
 - [x] Expose owner-bound read-only publication status after expiry/midnight;
   preserve approval, queue, receipts and paid-work boundaries. Actual owner

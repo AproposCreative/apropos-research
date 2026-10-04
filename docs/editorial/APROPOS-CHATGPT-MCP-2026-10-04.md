@@ -1,12 +1,14 @@
 # Apropos i ChatGPT: private owner pilot
 
-Latest release: **2026-10-05-v1**, code `9cd621a`, deployed and service-verified
-on 5 October at 00:23 Copenhagen. It includes read-only publication status after
+Latest release: **2026-10-05-v2**, code `f1fc0b8`, deployed and service-verified
+on 5 October at 00:57 Copenhagen. It adds ChatGPT-supplied shortening with a
+personal review and the existing Liv CMS service, without paid AI. It retains read-only publication status after
 midnight, the [sequential-save repair](MCP-SEQUENTIAL-SAVE-2026-10-04.md),
 retained-work discovery, shared exact-copyedit preview/apply, concrete editorial
 diagnostics, short on-demand workflows and 20-article metadata regression:
-**24 tools total**. The setup page also shows connection evidence.
-See [publication-status evidence](MCP-PUBLICATION-STATUS-2026-10-05.md),
+**28 tools total**. The setup page also shows connection evidence.
+See [external-shortening evidence](MCP-EXTERNAL-SHORTENING-2026-10-05.md),
+[publication-status evidence](MCP-PUBLICATION-STATUS-2026-10-05.md),
 [v4 evidence](MCP-SEQUENTIAL-SAVE-2026-10-04.md),
 [v3 metadata evidence](MCP-METADATA-REGRESSION-2026-10-04.md) and
 [v2 acceptance and remaining boundaries](MCP-EDITORIAL-WORKFLOW-2026-10-04.md).
@@ -70,6 +72,8 @@ immediately to every grant and outstanding code; reconnect to grant access again
 | Read | `preview_copyedit`, `review_draft` | Exact revision-bound proposals and concrete findings; no new factual approval |
 | Read | `get_metadata_test_cases`, `review_metadata_candidate` | Twenty saved archive cases and exact-version SEO regression checks; no model call, quality score or CMS write |
 | Draft | `apply_copyedit` | Apply the exact preview to the private workspace; atomic replay receipt and unchanged media |
+| Read | `get_shortening_context`, `get_shortening_status` | Existing checked, ready, never-published Liv draft; exact baseline and saved proposal/review/receipt status |
+| Draft | `preview_shortening`, `apply_shortening` | ChatGPT-supplied paragraph shortening, personal first-party review and shared audited CMS save; no paid generation or implicit publication |
 | Read | `get_editorial_context` | Canonical Apropos rules, Liv/selected author voice and hashes |
 | Read | `get_liv_status`, `get_liv_work`, `get_saved_writing` | Real blockers, seven days, saved checks/checkpoints/paid text; not new generation or human scores |
 | Read | `get_costs` | Existing ledgers/receipts, estimates and unknowns; not a provider bill |
@@ -118,6 +122,11 @@ ledger boundary throughout every MCP operation, including nested helpers.
    to Liv's ready manifest. Missing checks are reported; the connector cannot
    override them or silently buy checks. A currently eligible ready Liv article
    receives a ten-minute pinned preview with cover/body images and text.
+   For shortening an already checked, ready, never-published Liv draft, first use
+   `get_shortening_context` and `preview_shortening`, then have Frederik review
+   the exact candidate at its personal link. `apply_shortening` uses the shared
+   safe CMS operation. `get_shortening_status` reads back uncertainty. This does
+   not give generic imported drafts a bypass into the ready manifest.
 7. Frederik opens the first-party confirmation page and approves that version.
    MCP tokens cannot approve it. `publish_article` then invokes the normal exact
    item/locale delivery operation. The operation is recorded as operator-started,

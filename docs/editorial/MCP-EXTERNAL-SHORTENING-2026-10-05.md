@@ -69,10 +69,42 @@ save receipts. Publication remains a separate fresh preview/confirmation flow.
 - The edit workflow skill passed the existing skill validator. No runtime
   dependencies, paid model calls, CMS test writes or fabricated human scores.
 
-## Production verification
+## Production verification, 5 October 00:57 Copenhagen
 
-Pending exact pushed SHA/deployment and authenticated read-only production
-acceptance. Local success is not yet production success.
+- Exact pushed code: `f1fc0b8d33466a784023dfbc219fdccca5ee73c3`.
+- Deployment: `dpl_5rg1pFPLuhwwRcM9AnQEkDmv4xsB`, **READY**, production target;
+  actual `ai.aproposmagazine.com` alias and exact code SHA independently verified
+  through Vercel. Immutable URL:
+  https://apropos-research-3wjmjakhz-frederik-kraghs-projects.vercel.app .
+  Remote build-to-ready was approximately 80 seconds. Only the pushed Git
+  snapshot was deployed; unrelated local changes were preserved and excluded.
+- Authenticated checks against the actual production host ran
+  **22:56:35–22:57:10 UTC on 4 October**. MCP returned `2026-10-05-v2`, all
+  **28 tools**, strict schemas, expected read/draft scopes, no approval tool and
+  the updated edit workflow from the deployed skill bundle.
+- Anonymous, Casper and Milo GET/POST requests to `/oauth/shortening` returned
+  403. An MCP bearer could not impersonate the first-party review session.
+  Missing owner proposal and extra query parameters returned private/no-store
+  409 responses. MCP returned a sanitized missing-proposal error and rejected a
+  caller-supplied UID. The historical published Artigeardit article was correctly
+  refused as not eligible for this shortening flow.
+- A temporary service grant exercised actual S256 owner OAuth. Only that grant
+  was revoked after verification, and its token then returned 401. Existing
+  authorizations/audit history were preserved.
+- Before/after hashes matched for budget, provider hold, private workspace,
+  delivery entries/slots, shared ledger, image ledger, shortening proposals,
+  reviews and acceptances. **Zero new paid AI calls, CMS writes or publications.**
+- Complete bounded proposal/review/acceptance inventories each contained zero
+  records. No live proposal or human review was invented to manufacture positive
+  acceptance. Positive save/readback is tested with the real shared service and
+  simulated storage/CMS, not claimed as a real editorial task.
+- The owner's real connection inventory still had zero active authorizations,
+  no successful tool call and `clientAcceptanceVerified=false`. The temporary
+  service grant is not a personal ChatGPT-client connection.
+- Deployment-scoped runtime scan **22:56:30–22:57:15 UTC** contained no error/fatal
+  matches. Request aggregation included successful requests and the intended
+  401/403/409 denials. Vercel Drains API returned zero configured drains; no paid
+  telemetry was installed. This bounded scan is not an uptime guarantee.
 
 ## Remaining acceptance
 
