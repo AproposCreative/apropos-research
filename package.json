@@ -22,6 +22,7 @@
     "test": "vitest run",
     "quality:report": "node --import tsx scripts/editorial-quality-report.ts",
     "quality:offline": "node --import tsx scripts/editorial-promptfoo.ts",
+    "quality:metadata": "node --import tsx scripts/editorial-metadata-eval.ts",
     "test:watch": "vitest",
     "test:ui": "vitest --ui",
     "test:ai-chat": "node scripts/test-ai-chat-e2e.mjs --full",

@@ -37,7 +37,7 @@ it('negotiates the real SDK protocol and lists strict schemas on independent sta
   const initialized = await POST(message('initialize', { protocolVersion: '2025-03-26', capabilities: {}, clientInfo: { name: 'fixture', version: '1' } }));
   expect(initialized.status).toBe(200); expect((await initialized.json()).result.serverInfo.name).toBe('apropos-editorial');
   const response = await POST(message('tools/list')); const tools = (await response.json()).result.tools;
-  expect(tools.length).toBe(21); expect(tools.find((t: any) => t.name === 'publish_article').annotations.destructiveHint).toBe(true);
+  expect(tools.length).toBe(23); expect(tools.find((t: any) => t.name === 'publish_article').annotations.destructiveHint).toBe(true);
   expect(tools.find((t: any) => t.name === 'save_draft').inputSchema.additionalProperties).toBe(false);
   expect(tools.find((t: any) => t.name === 'publish_article')._meta.securitySchemes).toEqual([{ type: 'oauth2', scopes: ['apropos:publish'] }]);
   expect(response.headers.get('Cache-Control')).toContain('no-store');
@@ -55,6 +55,24 @@ it('requires draft scope for the new precise mutation, not just read scope', asy
   const result = (await (await call('apply_copyedit', { draftId: 'draft-1234', expectedRevision: 1,
     previewHash: 'a'.repeat(64), patches: [{ field: 'intro', before: 'Old', after: 'New' }] })).json()).result;
   expect(result.isError).toBe(true); expect(result._meta['mcp/www_authenticate'][0]).toContain('apropos:draft');
+});
+it('runs real saved-metadata checks via MCP, with source binding and no paid model', async () => {
+  mock.identity.scopes = ['apropos:read'];
+  const index = JSON.parse((await (await call('get_metadata_test_cases')).json()).result.content[0].text);
+  expect(index.totalCases).toBe(20); expect(index.cases[0].source).toBeUndefined();
+  const selected = JSON.parse((await (await call('get_metadata_test_cases', { caseId: index.cases[0].caseId })).json()).result.content[0].text);
+  expect(selected.source.bodyText.length).toBeGreaterThan(100);
+  const input = { caseId: selected.caseId, sourceHash: selected.sourceHash, proposed: {
+    ...selected.original, seoTitle: selected.original.seoTitle.replace(selected.primaryTerm, 'Forkert navn'),
+  } };
+  const result = JSON.parse((await (await call('review_metadata_candidate', input)).json()).result.content[0].text);
+  expect(result.regressions).toContainEqual(expect.objectContaining({ code: 'primary_name_missing' }));
+  expect(result).toMatchObject({ paidAiCalls: 0, cmsChanged: false, publicationApproval: false, humanQualityScore: null });
+  const conflict = (await (await call('review_metadata_candidate', { ...input, sourceHash: '0'.repeat(64) })).json()).result;
+  expect(conflict.isError).toBe(true); expect(conflict.content[0].text).toContain('mcp_metadata_source_version_conflict');
+  expect((await (await call('get_metadata_test_cases', { caseId: '../../.env' })).json()).result.isError).toBe(true);
+  mock.identity.owner = false;
+  expect((await (await call('get_metadata_test_cases')).json()).result.isError).toBe(true);
 });
 it('passes only the authenticated UID, never a caller-supplied workspace owner', async () => {
   const response = await call('get_workspace'); expect((await response.json()).result.isError).not.toBe(true);

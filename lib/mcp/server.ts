@@ -22,6 +22,7 @@ import { listEditorialWork, workCatalogInput } from '@/lib/editorial/work-catalo
 import { previewWorkspaceCopyedit, applyWorkspaceCopyedit, workspaceCopyeditInput, applyWorkspaceCopyeditInput } from '@/lib/editorial/workspace-copyedit';
 import { reviewWorkspace, reviewWorkspaceInput } from '@/lib/editorial/review-workspace';
 import { editorialWorkflow, workflowInput } from '@/lib/editorial/workflows';
+import { getMetadataTestCases, metadataTestInput, metadataCandidate, reviewMetadataCandidate } from '@/lib/editorial/metadata-evaluation';
 
 const id = z.string().regex(/^[a-f0-9]{24}$/);
 export function createEditorialMcp(identity: McpIdentity) {
@@ -81,6 +82,10 @@ export function createEditorialMcp(identity: McpIdentity) {
     applyWorkspaceCopyeditInput, 'apropos:draft', false, input => applyWorkspaceCopyedit(identity.uid, input));
   tool('review_draft', 'Vis konkrete deterministiske tekst-/mediefund, redaktionelle spørgsmål og manglende kontroller for en bestemt privat revision. IKKE et faktatjek eller en publiceringsgodkendelse.',
     reviewWorkspaceInput, 'apropos:read', true, input => reviewWorkspace(identity.uid, input));
+  tool('get_metadata_test_cases', 'Hent oversigt over 20 gemte Apropos-testartikler til SEO/prompt-regression. Vælg caseId for én hel kildetekst og versionshash. Ikke et holdout eller nye verificerede fakta. Ingen AI-kald.',
+    metadataTestInput, 'apropos:read', true, async input => getMetadataTestCases(input));
+  tool('review_metadata_candidate', 'Sammenlign din SEO-titel/meta med den præcise gemte testartikel. Vis mistede navne, nye tal, længde og eksisterende sprogkrav. Ikke semantisk faktatjek, kvalitetsgaranti, CMS-gemning eller godkendelse. Ingen AI-kald.',
+    metadataCandidate, 'apropos:read', true, async input => reviewMetadataCandidate(input));
   tool('get_liv_status', 'Vis syvdagesplan, reelt færdige historier, gemt arbejde, blockers og konkrete næste skridt. Planer er ikke artikler.',
     z.object({ day: z.string().refine(validDay).optional() }).strict(), 'apropos:read', true, async input => {
       const state = await readDeliveryState(), now = new Date();

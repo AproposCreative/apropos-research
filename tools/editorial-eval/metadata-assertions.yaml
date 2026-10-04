@@ -1,0 +1,3 @@
+# Local TypeScript assertion only. Never add a model-graded assertion here.
+- type: javascript
+  value: file://../../tools/editorial-eval/assert-metadata-output.cjs

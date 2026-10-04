@@ -1,0 +1,26 @@
+{
+  "version": "apropos-metadata-regression-v1",
+  "kind": "archive-regression-not-holdout",
+  "cases": [
+    { "id": "69c7cec52b76e468b35d16fd", "primaryTerm": "Sammy Virji" },
+    { "id": "69b325a39bec57d4d70f1af0", "primaryTerm": "Carl Knast" },
+    { "id": "6976782581fe246e33348995", "primaryTerm": "Holdo" },
+    { "id": "690b344f45c86d6e3acc8bbc", "primaryTerm": "Highest 2 Lowest" },
+    { "id": "69048365f9c27c1f9f04e144", "primaryTerm": "Astro Bot" },
+    { "id": "68c7eac8f0d0e86eb90e981c", "primaryTerm": "TechBBQ" },
+    { "id": "69c4e9b19b0adb964567e719", "primaryTerm": "Monarch" },
+    { "id": "698893d0c5bf2f7515524361", "primaryTerm": "Danish Coffee Festival" },
+    { "id": "6940853df1a0aab09969cc04", "primaryTerm": "Metroid Prime 4" },
+    { "id": "681b21687199d8c9c06b8ee9", "primaryTerm": "Jacob Bellens" },
+    { "id": "69b2c7c8d1630296914becbe", "primaryTerm": "Hans Zimmer" },
+    { "id": "69b18d5892b23fbf40e193ed", "primaryTerm": "War Machine" },
+    { "id": "69aabd31df9c6e8837dfbe78", "primaryTerm": "Eros Ramazzotti" },
+    { "id": "699dba5fec5bf55623104c80", "primaryTerm": "Simon Talbot" },
+    { "id": "698f48c10c34d4973bcb1fd2", "primaryTerm": "Jason Derulo" },
+    { "id": "698ca5b46c84372eee40a82f", "primaryTerm": "Mario Tennis" },
+    { "id": "6978ee9b8e00e18deca28761", "primaryTerm": "Alter Bridge" },
+    { "id": "695d1665f717ab6a2e54e904", "primaryTerm": "Stranger Things" },
+    { "id": "694f7c66161d8e55efab5731", "primaryTerm": "Den Gode Stemning" },
+    { "id": "6939dbcd9f66e5e02b5238c7", "primaryTerm": "Lorde" }
+  ]
+}

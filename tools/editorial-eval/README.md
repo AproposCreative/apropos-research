@@ -25,3 +25,32 @@ No model-graded assertions, remote generation or `share`/upload command belongs
 in this offline workflow. Do not point Promptfoo at production secrets.
 Primary format reference:
 https://www.promptfoo.dev/docs/configuration/expected-outputs/#running-assertions-directly-on-outputs
+
+## Twenty-article metadata regression
+
+`npm run quality:metadata` checks the unchanged SEO/meta baseline for 20 explicit
+archive articles. It also writes `candidate-template.json`, `review-context.json`
+and reports to ignored `tmp/editorial-metadata-eval`. The full source context is
+local, not uploaded to an evaluator service. Six baseline articles currently have
+existing rule findings; a passing unchanged baseline does not certify them.
+
+To compare saved proposals produced in the owner's own ChatGPT conversation:
+
+1. Copy the generated candidate template to a separate JSON file. Edit only
+   `proposed.seoTitle` / `proposed.metaDescription`; keep all 20 IDs/source hashes.
+2. Run `npm run quality:metadata -- --candidates path/to/saved-candidates.json`.
+3. Read `comparison.json`: before/after findings, newly introduced or worsened
+   findings and exact field diffs requiring semantic review. Promptfoo exits
+   nonzero if a proposal introduces a detected regression. Unknown fields, stale
+   source versions, duplicate IDs and incomplete sets are rejected.
+
+Checks cover primary-name preservation, new numeric tokens needing evidence,
+existing forbidden SEO phrases, em dashes, character corruption, HTML and
+increased length beyond the app's existing SEO caps. They do not prove all names,
+new claims, grammatical Danish, humor or reader value correct. Every changed field
+still carries explicit human/semantic review questions, not a made-up score.
+
+The same pure evaluator is exposed in the owner MCP as `get_metadata_test_cases`
+(list or one full source) and `review_metadata_candidate` (one exact-version
+proposal). No CMS writes, paid AI, new editorial permission or provider probe.
+Promptfoo itself remains local and excluded from Vercel; it is not the live server.
