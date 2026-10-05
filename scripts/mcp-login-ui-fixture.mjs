@@ -3,6 +3,7 @@ import { build } from 'esbuild';
 import { createServer } from 'node:http';
 import postcss from 'postcss';
 import tailwindcss from 'tailwindcss';
+import tailwindConfig from '../tailwind.config.cjs';
 
 const mocks = {
   navigation: `export const usePathname = () => '/connect/chatgpt';`,
@@ -43,7 +44,7 @@ const result = await build({stdin: {contents: `import React from 'react'; import
     b.onResolve({filter:/.*/},args=>mappings.has(args.path)?{path:mappings.get(args.path),namespace:'fixture'}:undefined);
     b.onLoad({filter:/.*/,namespace:'fixture'},args=>({contents:mocks[args.path],resolveDir:process.cwd()}));
   }}]});
-const css = (await postcss([tailwindcss({content:['./app/connect/chatgpt/connection.tsx','./app/connect/chatgpt/login.tsx']})]).process('@tailwind base; @tailwind components; @tailwind utilities;', {from:undefined})).css;
+const css = (await postcss([tailwindcss({...tailwindConfig,content:['./app/connect/chatgpt/connection.tsx','./app/connect/chatgpt/login.tsx']})]).process('@tailwind base; @tailwind components; @tailwind utilities;', {from:undefined})).css;
 let accessChecks=0;
 const server=createServer(async(req,res)=>{
   if(req.url==='/bundle.js'){res.setHeader('Content-Type','text/javascript');return res.end(result.outputFiles[0].text);}

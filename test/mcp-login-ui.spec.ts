@@ -13,6 +13,9 @@ const render = (accessError = '') => load(renderToStaticMarkup(createElement(Con
 it('puts Google first and keeps password login available but collapsed', () => {
   const $ = render();
   expect($('button').first().text()).toBe('Fortsæt med Google');
+  // Our theme defines black as a numbered palette, without a DEFAULT entry.
+  // Bare text-black emits no CSS and would inherit white on the white button.
+  expect($('button').first().attr('class')).toContain('text-[#000]');
   expect($('details').attr('open')).toBeUndefined();
   expect($('summary').text()).toBe('Brug e-mail og adgangskode');
   expect($('details button').text()).toBe('Log ind med adgangskode');
