@@ -19,14 +19,7 @@ import { requestAuthMail } from './auth-mail-client';
 import { registerEditorialAccount } from './editorial-signup';
 import { NO_CAPABILITIES, isOwnerPage, type EditorialCapabilities } from './editorial-capabilities';
 import { autoSaveService } from './auto-save-service';
-
-const ACCESS_MESSAGE = 'Adgang er kun for redaktionens tre godkendte og verificerede konti.';
-async function requireAllowedUser(user: User): Promise<EditorialCapabilities> {
-  const response = await fetch('/api/auth/access', { headers: { Authorization: `Bearer ${await user.getIdToken()}` }, cache: 'no-store' });
-  if (!response.ok) throw new Error(ACCESS_MESSAGE);
-  const body = await response.json();
-  return { owner: body.capabilities?.owner === true };
-}
+import { ACCESS_UNAVAILABLE_MESSAGE, requireAllowedUser } from './auth-access-client';
 
 interface AuthContextType {
   capabilities: EditorialCapabilities;
@@ -122,7 +115,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     let generation = 0;
     let acceptedUid: string | null = null;
-    const check = async (candidate: User | null) => {
+    const check = async (candidate: User | null, background = false) => {
       const current = ++generation;
       const sameAccount = Boolean(candidate && candidate.uid === acceptedUid);
       // Rechecking a token/focused tab must not unmount the editor and lose work.
@@ -135,7 +128,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
       setVerificationEmail(candidate && !candidate.emailVerified ? candidate.email : null);
       if (!candidate) { setLoading(false); return; }
-      if (!sameAccount) setLoading(true);
+      // Password managers and focusing an input can refocus the window. A saved,
+      // rejected session must not unmount the login form during that recheck.
+      // We still clear stale identity/capabilities above and revalidate access.
+      if (!sameAccount && !background) setLoading(true);
       try {
         const rights = await requireAllowedUser(candidate);
         if (current !== generation) return;
@@ -144,17 +140,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         autoSaveService.setOwner(candidate.uid);
         setCapabilities(rights);
         setUser(candidate);
-      } catch {
+      } catch (error) {
         if (current !== generation) return;
         acceptedUid = null;
         autoSaveService.setOwner(null);
         setUser(null);
         setCapabilities(NO_CAPABILITIES);
-        setAccessError(ACCESS_MESSAGE);
+        setAccessError(error instanceof Error ? error.message : ACCESS_UNAVAILABLE_MESSAGE);
       } finally { if (current === generation) setLoading(false); }
     };
     const unsubscribe = onIdTokenChanged(firebaseAuth, check);
-    const recheck = () => { void check(firebaseAuth.currentUser); };
+    const recheck = () => { void check(firebaseAuth.currentUser, true); };
     window.addEventListener('focus', recheck);
     return () => { generation++; unsubscribe(); window.removeEventListener('focus', recheck); };
   }, []);
@@ -176,9 +172,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
 
       try {
-        const token = await currentUser.getIdToken();
         const headers = requestHeaders(input, init);
         if (!headers.has('Authorization')) {
+          const token = await currentUser.getIdToken();
           headers.set('Authorization', `Bearer ${token}`);
         }
         return originalFetch(input, { ...init, headers });
@@ -243,7 +239,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const showAiBootLayer = isAiRoute && loaderMounted;
-  const showChildren = !loading && (!isAiRoute || !aiBootOpen);
+  // The public connection page owns its loading/login/error UI. Keep its dark
+  // shell mounted during access checks instead of rendering an empty document.
+  const showChildren = pathname === '/connect/chatgpt' || (!loading && (!isAiRoute || !aiBootOpen));
 
   return (
     <AuthContext.Provider value={value}>
