@@ -86,3 +86,46 @@ ChatGPT attachment URLs are not treated as server-accessible uploads. Missing
 assets, source evidence or metadata remain blockers, not fabricated completions.
 
 This release does not settle the separate every-other-day Liv delivery objective.
+
+## Verified production release
+
+- Commit `71b383693a3a5fc6e90aa4fd988c014db64a92e2`, pushed to the existing
+  `codex/liv-daily-recovery` branch; unrelated worktree changes excluded.
+- Deployment `dpl_ANKsCy7f47eFmbECEU4tcBuXqfgp`, **READY**, exact SHA and actual
+  `ai.aproposmagazine.com` production alias confirmed through Vercel's API.
+  Immutable URL: https://apropos-research-nhpu23lp8-frederik-kraghs-projects.vercel.app
+- The exact committed source passed the full suite: **343 files / 4,803 tests**.
+  TypeScript, scoped ESLint and safe build configuration passed. Vercel built
+  the exact committed source successfully; no dirty-checkout deployment.
+- Authenticated production MCP checks at **5 October 13:38–13:39 Copenhagen**
+  reported version `2026-10-05-v4` and **36 tools**, including all eight new tools.
+  Actual CMS options returned 8 authors, 3 categories and 7 topics, not fallbacks.
+- A clearly named, synthetic, never-approved private intake returned the same ID
+  on repeat, revision 1, unchanged original text, exactly three questions and
+  `publicationReady=false`. It never entered preparation, CMS or publication.
+  Only that untouched synthetic fixture was removed afterwards; MCP audits remain.
+- The scoped service-test OAuth grant was revoked; its token then returned 401.
+  Existing user grants were not revoked. This was **not** a real owner ChatGPT
+  client acceptance or a personal editorial/payment approval.
+- Unauthenticated intake access returned 401. The authenticated worker endpoint
+  returned HTTP 200, `idle`, `paidAiCalls=0`. The connection page returned HTTP 200.
+- Before/after shared and image monthly-ledger snapshots match. No paid call,
+  article CMS write, publication, budget increase or provider-hold reset occurred.
+  The first local hold snapshot had no configured provider key and is **not**
+  evidence about production billing. A separate correct production-key-scoped
+  read at **13:39:56** confirmed hold `blocked=true`, revision 5, originating
+  1 October 00:00:31 Copenhagen. Shared October remains 1 call, 0 recorded usage
+  estimate, 1.214400 DKK reserved and one unresolved call; image calls remain 0.
+  This is a saved hold, not a fresh numerical provider-credit balance.
+- Deployment-scoped error/fatal log scan for 11:38–11:40 UTC returned no matches.
+  This bounded observation is not a long-term availability guarantee.
+
+### Exact remaining next step
+
+Refresh/connect the owner's real ChatGPT client, then use `get_workflow` with
+`workflow=submit` and one actual owner-selected article. Resolve only its missing
+inputs and preserve the body. The owner must personally accept any paid package;
+the existing quota hold needs genuine billing-recovery evidence before a paid
+attempt. Complete checks, inspect the actual version, obtain personal publication
+approval and verify item/public readback. Do not substitute the synthetic fixture
+or service OAuth grant for either real pilot. No full end-to-end success claim yet.
