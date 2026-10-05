@@ -4,7 +4,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { X } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
-import { ACCESS_TIMEOUT_MESSAGE, ACCESS_UNAVAILABLE_MESSAGE, ACCESS_MESSAGE } from '@/lib/auth-access-client';
+import ConnectionLogin from './login';
 import ConnectionSetup from './setup';
 import ShorteningConfirmation from './shortening';
 import SubmissionConfirmation from './submission';
@@ -12,7 +12,6 @@ import SubmissionConfirmation from './submission';
 const button = 'min-h-12 rounded-xl border border-white/20 px-5 py-3 text-white hover:bg-white/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white disabled:opacity-40';
 export default function ChatGPTConnection({ requestId, publicationId, shorteningId = '', submissionId = '' }: { requestId: string; publicationId: string; shorteningId?: string; submissionId?: string }) {
   const { user, loading, capabilities, accessError, signIn, signInWithGoogle } = useAuth();
-  const [email, setEmail] = useState('frederik@aproposmagazine.com'), [password, setPassword] = useState('');
   const [error, setError] = useState(''), [busy, setBusy] = useState(false), [done, setDone] = useState('');
   const [context, setContext] = useState<Record<string, any> | null>(null);
   useEffect(() => {
@@ -52,19 +51,8 @@ export default function ChatGPTConnection({ requestId, publicationId, shortening
         <Link href="/ai" className={`${button} !p-3`} aria-label="Tilbage til Apropos"><X size={22} /></Link>
       </header>
       <div className="space-y-6 p-5 sm:p-7">
-        {loading ? <p role="status">Kontrollerer din adgang …</p> : !user ? <>
-          <p className="text-white/65">Log ind med din Apropos-konto. Piloten er kun til Frederik.</p>
-          <form className="space-y-4" onSubmit={async e => { e.preventDefault(); setBusy(true); setError('');
-            try { await signIn(email, password); } catch (cause) {
-              const message = cause instanceof Error ? cause.message : '';
-              setError([ACCESS_MESSAGE, ACCESS_TIMEOUT_MESSAGE, ACCESS_UNAVAILABLE_MESSAGE].includes(message) ? message : 'Login kunne ikke bekræftes. Kontrollér din Apropos-mail og adgangskode.');
-            } finally { setBusy(false); } }}>
-            <label className="block">E-mail<input autoComplete="username" type="email" required value={email} onChange={e => setEmail(e.target.value)} className="mt-2 min-h-12 w-full rounded-xl border border-white/25 bg-transparent p-3" /></label>
-            <label className="block">Adgangskode<input autoComplete="current-password" type="password" required value={password} onChange={e => setPassword(e.target.value)} className="mt-2 min-h-12 w-full rounded-xl border border-white/25 bg-transparent p-3" /></label>
-            <button className={`${button} w-full bg-white/10`} disabled={busy}>Log ind</button>
-          </form>
-          <button className={`${button} w-full`} disabled={busy} onClick={async () => { setBusy(true); try { await signInWithGoogle(); } catch { setError('Google-login kunne ikke bekræftes.'); } finally { setBusy(false); } }}>Log ind med Google</button>
-        </> : !capabilities.owner ? <p>Forbindelsen er indtil videre kun til Frederik. Dit arbejdsrum er uændret.</p> : done ? <p role="status">{done}</p> : publicationId ? <>
+        {loading ? <p role="status">Kontrollerer din adgang …</p> : !user ? <ConnectionLogin signIn={signIn} signInWithGoogle={signInWithGoogle} accessError={accessError} />
+        : !capabilities.owner ? <p>Forbindelsen er indtil videre kun til Frederik. Dit arbejdsrum er uændret.</p> : done ? <p role="status">{done}</p> : publicationId ? <>
           {!context ? <p>Henter preview …</p> : <>
             <h2 className="text-2xl">{context.title}</h2>
             {current?.expected?.subtitle && <p className="text-white/80">{current.expected.subtitle}</p>}
@@ -99,7 +87,7 @@ export default function ChatGPTConnection({ requestId, publicationId, shortening
           <ConnectionSetup key={user.uid} />
           <details className="border-t border-white/15 pt-4"><summary>Forbindelsesindstillinger</summary><button className={`${button} mt-4`} disabled={busy} onClick={() => action('revoke')}>Afbryd mine ChatGPT-forbindelser</button></details>
         </>}
-        {(error || (!loading && !user && accessError)) && <p role="alert" className="rounded-xl border border-red-400/40 p-4 text-red-200">{error || accessError}</p>}
+        {error && <p role="alert" className="rounded-xl border border-red-400/40 p-4 text-red-200">{error}</p>}
       </div>
     </section>
   </main>;

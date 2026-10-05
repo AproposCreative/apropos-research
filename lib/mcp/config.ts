@@ -2,7 +2,8 @@
 export const MCP_ORIGIN = 'https://ai.aproposmagazine.com';
 export const MCP_RESOURCE = `${MCP_ORIGIN}/mcp`;
 export const MCP_SCOPES = ['apropos:read', 'apropos:draft', 'apropos:publish'] as const;
-export const MCP_VERSION = '2026-10-05-v4';
+export const MCP_VERSION = '2026-10-05-v5';
+export const MCP_ICON = `${MCP_ORIGIN}/images/apropos-ai-icon.png`;
 export const PRIVATE_HEADERS = { 'Cache-Control': 'private, no-store', 'Referrer-Policy': 'no-referrer' };
 export const OAUTH_COOKIE = '__Host-apropos-mcp';
 export function allowedRedirect(value: string) {
@@ -20,5 +21,5 @@ export const authorizationMetadata = {
 };
 export const protectedMetadata = {
   resource: MCP_RESOURCE, authorization_servers: [MCP_ORIGIN], scopes_supported: [...MCP_SCOPES],
-  bearer_methods_supported: ['header'], resource_name: 'Apropos Redaktion · privat pilot',
+  bearer_methods_supported: ['header'], resource_name: 'Apropos AI',
 };

@@ -1,13 +1,22 @@
 /** Local-only regression harness. No production credentials, Firebase, AI or CMS calls. */
 import { build } from 'esbuild';
 import { createServer } from 'node:http';
+import postcss from 'postcss';
+import tailwindcss from 'tailwindcss';
 
 const mocks = {
   navigation: `export const usePathname = () => '/connect/chatgpt';`,
   firebase: `export const getFirebaseAuth = () => window.fixtureAuth;`,
   auth: `export function onIdTokenChanged(auth, fn) { window.fixtureListener = fn; queueMicrotask(() => fn(auth.currentUser)); return () => {}; }
     export async function signInWithEmailAndPassword(auth) { window.fixtureMode = 'accepted'; await window.fixtureListener(auth.currentUser); return {user:auth.currentUser}; }
-    export const signInWithPopup = signInWithEmailAndPassword;
+    export async function signInWithPopup(auth) {
+      const mode = new URLSearchParams(location.search).get('google');
+      const calls = document.getElementById('google-calls'); calls.textContent = String(Number(calls.textContent) + 1);
+      await new Promise(done => setTimeout(done, 300));
+      if (mode === 'blocked' || mode === 'closed') throw Object.assign(new Error('Simulated popup error'), {code: mode === 'blocked' ? 'auth/popup-blocked' : 'auth/popup-closed-by-user'});
+      if (mode === 'denied') return {user:auth.currentUser};
+      return signInWithEmailAndPassword(auth);
+    }
     export const createUserWithEmailAndPassword = signInWithEmailAndPassword;
     export async function signOut() {} export class GoogleAuthProvider {}`,
   autosave: `export const autoSaveService = {setOwner() {}};`,
@@ -34,9 +43,11 @@ const result = await build({stdin: {contents: `import React from 'react'; import
     b.onResolve({filter:/.*/},args=>mappings.has(args.path)?{path:mappings.get(args.path),namespace:'fixture'}:undefined);
     b.onLoad({filter:/.*/,namespace:'fixture'},args=>({contents:mocks[args.path],resolveDir:process.cwd()}));
   }}]});
+const css = (await postcss([tailwindcss({content:['./app/connect/chatgpt/connection.tsx','./app/connect/chatgpt/login.tsx']})]).process('@tailwind base; @tailwind components; @tailwind utilities;', {from:undefined})).css;
 let accessChecks=0;
 const server=createServer(async(req,res)=>{
   if(req.url==='/bundle.js'){res.setHeader('Content-Type','text/javascript');return res.end(result.outputFiles[0].text);}
+  if(req.url==='/fixture.css'){res.setHeader('Content-Type','text/css');return res.end(css);}
   if(req.url==='/api/auth/access'){
     accessChecks++; await new Promise(done=>setTimeout(done,600));
     const allowed=req.headers.authorization==='Bearer fixture-accepted';
@@ -46,8 +57,8 @@ const server=createServer(async(req,res)=>{
   if(req.url.startsWith('/oauth/consent')){res.setHeader('Content-Type','application/json');return res.end(JSON.stringify({scopes:['apropos:read']}));}
   if(req.url==='/checks'){res.setHeader('Content-Type','application/json');return res.end(JSON.stringify({accessChecks}));}
   res.setHeader('Content-Type','text/html; charset=utf-8');
-  res.end(`<!doctype html><html lang="da"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><style>body{margin:0;font-family:Arial;background:white}main{background:#000;color:white;min-height:90vh;padding:24px}section{max-width:600px;margin:auto}header{display:flex;justify-content:space-between}input{display:block;padding:12px;margin:12px 0;width:90%;background:#111;color:white;border:1px solid #555}button{padding:12px;margin:12px;background:#222;color:white}p{line-height:1.5}</style>
-    <aside>Isoleret login-test. Ingen rigtige konti eller betalinger.
+  res.end(`<!doctype html><html lang="da"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><link rel="stylesheet" href="/fixture.css"><style>body{font-family:Arial}aside{background:#ddd;color:black;padding:10px;font-size:12px}aside button{border:1px solid;padding:5px;margin:5px}</style>
+    <aside>Isoleret login-test. Ingen rigtige konti eller betalinger. Google-kald: <span id="google-calls">0</span>
     <button id="focus-check" onclick="const field=document.querySelector('input[type=password]');const previous=field?.value;window.dispatchEvent(new Event('focus'));setTimeout(()=>{const current=document.querySelector('input[type=password]');document.getElementById('result').textContent=previous&&current===field&&current.value===previous?'PASS: Samme felt og indtastning bevaret':'FAIL: Felt eller indtastning blev nulstillet'},900)">Genkontrollér gemt session</button><p id="result" role="status"></p></aside>
     <div id="root"></div><script src="/bundle.js"></script></html>`);
 });

@@ -25,7 +25,7 @@ vi.mock('@/lib/editorial/review-workspace', async original => ({ ...await origin
 import { POST, GET } from '@/app/mcp/route';
 import { assertPaidAiAllowed } from '@/lib/ai/no-paid-calls';
 import { OAuthError } from '@/lib/mcp/oauth';
-import { MCP_ORIGIN } from '@/lib/mcp/config';
+import { MCP_ICON, MCP_ORIGIN, MCP_VERSION } from '@/lib/mcp/config';
 beforeEach(() => { vi.clearAllMocks(); mock.identity = { uid: 'frederik', owner: true, grantId: 'grant', role: 'admin', scopes: ['apropos:read', 'apropos:draft', 'apropos:publish'] };
   mock.rate.mockResolvedValue(undefined); mock.audit.mockResolvedValue(undefined); mock.workspace.mockResolvedValue({ revision: 1 }); mock.context.mockResolvedValue({ author: 'Liv' }); });
 const message = (method: string, params?: unknown) => new Request(`${MCP_ORIGIN}/mcp`, { method: 'POST',
@@ -37,7 +37,11 @@ it('authenticates before initialization or exposing tool schemas', async () => {
 });
 it('negotiates the real SDK protocol and lists strict schemas on independent stateless requests', async () => {
   const initialized = await POST(message('initialize', { protocolVersion: '2025-03-26', capabilities: {}, clientInfo: { name: 'fixture', version: '1' } }));
-  expect(initialized.status).toBe(200); expect((await initialized.json()).result.serverInfo.name).toBe('apropos-editorial');
+  expect(initialized.status).toBe(200);
+  expect((await initialized.json()).result.serverInfo).toEqual({
+    name: 'apropos-editorial', title: 'Apropos AI', version: MCP_VERSION, websiteUrl: MCP_ORIGIN,
+    icons: [{ src: MCP_ICON, mimeType: 'image/png', sizes: ['256x256'] }],
+  });
   const response = await POST(message('tools/list')); const tools = (await response.json()).result.tools;
   expect(tools.length).toBe(36); expect(tools.find((t: any) => t.name === 'publish_article').annotations.destructiveHint).toBe(true);
   expect(tools.find((t: any) => t.name === 'get_publication_status').annotations).toMatchObject({ readOnlyHint: true, destructiveHint: false, idempotentHint: true });
