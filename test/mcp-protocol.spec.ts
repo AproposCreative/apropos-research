@@ -1,6 +1,6 @@
 import { beforeEach, expect, it, vi } from 'vitest';
 import { z } from 'zod';
-const mock = vi.hoisted(() => ({ identity: null as any, rate: vi.fn(), audit: vi.fn(), workspace: vi.fn(), context: vi.fn(), publish: vi.fn(), publicationStatus: vi.fn(), shortening: vi.fn(), shorteningContext: vi.fn(), shorteningPreview: vi.fn(), shorteningApply: vi.fn() }));
+const mock = vi.hoisted(() => ({ identity: null as any, rate: vi.fn(), audit: vi.fn(), drafts: vi.fn(), workspace: vi.fn(), context: vi.fn(), publish: vi.fn(), publicationStatus: vi.fn(), shortening: vi.fn(), shorteningContext: vi.fn(), shorteningPreview: vi.fn(), shorteningApply: vi.fn() }));
 vi.mock('@/lib/firebase-admin', () => ({ getAdminDb: () => ({ collection: () => ({ doc: () => ({ create: mock.audit }) }) }) }));
 vi.mock('@/lib/mcp/oauth', async original => ({ ...await original<any>(), authenticateMcp: async () => mock.identity, oauthRateLimit: mock.rate }));
 vi.mock('@/lib/image-gen/webflow', () => ({ listImageGenArticles: async () => ({ articles: [], nextCursor: null }) }));
@@ -20,6 +20,7 @@ vi.mock('@/lib/mcp/publication', () => ({ previewPublication: vi.fn(), executePu
 vi.mock('@/lib/mcp/shortening', async original => ({ ...await original<any>(), getShorteningContext: mock.shorteningContext,
   previewExternalShortening: mock.shorteningPreview, getExternalShortening: mock.shortening, applyExternalShortening: mock.shorteningApply }));
 vi.mock('@/lib/editorial/work-catalog', async original => ({ ...await original<any>(), listEditorialWork: async () => ({ items: [], paidAiCalls: 0 }) }));
+vi.mock('@/lib/editorial/draft-overview', async original => ({ ...await original<any>(), listDrafts: mock.drafts }));
 vi.mock('@/lib/editorial/workspace-copyedit', async original => ({ ...await original<any>(), previewWorkspaceCopyedit: vi.fn(), applyWorkspaceCopyedit: vi.fn() }));
 vi.mock('@/lib/editorial/review-workspace', async original => ({ ...await original<any>(), reviewWorkspace: vi.fn() }));
 import { POST, GET } from '@/app/mcp/route';
@@ -43,11 +44,31 @@ it('negotiates the real SDK protocol and lists strict schemas on independent sta
     icons: [{ src: MCP_ICON, mimeType: 'image/png', sizes: ['256x256'] }],
   });
   const response = await POST(message('tools/list')); const tools = (await response.json()).result.tools;
-  expect(tools.length).toBe(36); expect(tools.find((t: any) => t.name === 'publish_article').annotations.destructiveHint).toBe(true);
+  expect(tools.length).toBe(37); expect(tools.find((t: any) => t.name === 'publish_article').annotations.destructiveHint).toBe(true);
   expect(tools.find((t: any) => t.name === 'get_publication_status').annotations).toMatchObject({ readOnlyHint: true, destructiveHint: false, idempotentHint: true });
   expect(tools.find((t: any) => t.name === 'save_draft').inputSchema.additionalProperties).toBe(false);
   expect(tools.find((t: any) => t.name === 'publish_article')._meta.securitySchemes).toEqual([{ type: 'oauth2', scopes: ['apropos:publish'] }]);
   expect(response.headers.get('Cache-Control')).toContain('no-store');
+});
+it('returns the compact overview in one read-only call, enforcing strict user scope and no-paid guard', async () => {
+  mock.drafts.mockResolvedValue({ items: [{ title: 'Gemte kladder', blockers: [] }], paidAiCalls: 0 });
+  const result = (await (await call('list_drafts')).json()).result;
+  expect(JSON.parse(result.content[0].text).items).toHaveLength(1);
+  expect(mock.drafts).toHaveBeenCalledExactlyOnceWith('frederik', { limit: 5 });
+  expect(mock.workspace).not.toHaveBeenCalled();
+  expect(mock.audit).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ tool: 'list_drafts', status: 'ok', paidAiAllowed: false }));
+  const tools = (await (await POST(message('tools/list'))).json()).result.tools;
+  expect(tools.find((t: any) => t.name === 'list_drafts').annotations).toMatchObject({ readOnlyHint: true, destructiveHint: false });
+  for (const args of [{ uid: 'casper' }, { limit: 11 }, { query: 'x'.repeat(151) }]) {
+    expect((await (await call('list_drafts', args)).json()).result.isError).toBe(true);
+  }
+  expect(mock.drafts).toHaveBeenCalledTimes(1);
+  mock.identity.scopes = ['apropos:draft'];
+  expect((await (await call('list_drafts')).json()).result.isError).toBe(true);
+  mock.identity.scopes = ['apropos:read']; mock.identity.owner = false;
+  expect((await (await call('list_drafts')).json()).result.isError).toBe(true);
+  mock.identity.owner = true; mock.drafts.mockImplementation(async () => { assertPaidAiAllowed(); });
+  expect((await (await call('list_drafts')).json()).result.content[0].text).toContain('mcp_paid_call_requires_separate_approval');
 });
 it('exposes shortening without a human-approval tool and enforces owner, scopes, strict identity and no-paid boundary', async () => {
   const proposalId = 'a'.repeat(64), candidateHash = 'b'.repeat(64), apply = { proposalId, candidateHash };

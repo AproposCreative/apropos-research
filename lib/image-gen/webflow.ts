@@ -2,9 +2,10 @@ import { env } from '@/lib/config/env';
 import { getWebflowConfig } from '@/lib/webflow-config';
 import { imageGenArticle } from './article';
 import { load } from 'cheerio';
+import { hasArticleText } from '@/lib/editorial/saved-writing-status';
 
 type CmsItem = { id: string; isDraft?: boolean; isArchived?: boolean; lastPublished?: string | null;
-  cmsLocaleId?: string; fieldData: Record<string, unknown> };
+  lastUpdated?: string; createdOn?: string; cmsLocaleId?: string; fieldData: Record<string, unknown> };
 const idPattern = /^[a-f0-9]{24}$/;
 export function imageGenCmsConfiguration() {
   const file = getWebflowConfig();
@@ -98,4 +99,29 @@ export async function listImageGenArticles(input: { cursor?: number; query?: str
     if (found.length) break;
   }
   return { articles: found, nextCursor };
+}
+
+/** Server-only draft scan, sorted upstream. Raw fields must not be returned by the overview tool. */
+export async function readEditorialCmsCandidates(limit: number, query = '') {
+  if (!Number.isInteger(limit) || limit < 1 || limit > 10 || query.length > 150) throw Error('mcp_draft_list_invalid');
+  const { locale } = configuration(), items: CmsItem[] = [];
+  let rowsRead = 0, complete = false, matches = 0;
+  const needle = query.trim().toLocaleLowerCase('da');
+  for (let page = 0; page < 3; page++) {
+    const data = await getCms('', new URLSearchParams({ cmsLocaleId: locale, limit: '100', offset: String(page * 100),
+      sortBy: 'lastUpdated', sortOrder: 'desc' }));
+    if (!Array.isArray(data.items) || data.items.length > 100) throw Error('mcp_cms_list_invalid');
+    for (const value of data.items) {
+      const row = validateItem(value, locale);
+      if (row.cmsLocaleId !== locale) throw Error('mcp_cms_locale_mismatch');
+      items.push(row);
+      if (!row.isArchived && (row.isDraft === true || row.lastPublished === null) &&
+          hasArticleText(row.fieldData.content) === true &&
+          String(row.fieldData.name || '').toLocaleLowerCase('da').includes(needle)) matches++;
+    }
+    rowsRead += data.items.length;
+    complete = data.items.length < 100 || Number.isSafeInteger(data.pagination?.total) && rowsRead >= data.pagination.total;
+    if (complete || matches >= limit) break;
+  }
+  return { items, rowsRead, complete, maxRows: 300, sortedBy: 'lastUpdated_desc' as const };
 }
