@@ -119,6 +119,8 @@ This release does not settle the separate every-other-day Liv delivery objective
   This is a saved hold, not a fresh numerical provider-credit balance.
 - Deployment-scoped error/fatal log scan for 11:38–11:40 UTC returned no matches.
   This bounded observation is not a long-term availability guarantee.
+  The separate Drains inventory request returned 404, so its current inventory
+  was not verified; no new telemetry dependency was installed.
 
 ### Exact remaining next step
 
