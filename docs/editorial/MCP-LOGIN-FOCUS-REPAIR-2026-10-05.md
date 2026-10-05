@@ -59,6 +59,29 @@ That check does not prove the user's browser session or actual ChatGPT connectio
   `Genkontrollér gemt session`. The fixture never contacts production, Firebase,
   AI or CMS services.
 
-Production verification is recorded below after the exact release is ready.
+## Production verification, 5 October 2026
+
+- Released code: `8a9796dbc9f7049eea9637939c7a41eeb77b46b1`.
+- Deployment: `dpl_CdW1RmMqednHLW3gNjWLqAE7mcW6`, verified **READY** with the
+  `ai.aproposmagazine.com` production alias at approximately 17:36 Copenhagen.
+- Production `/connect/chatgpt` returns HTTP 200 and includes the dark loading
+  shell. Private/no-store caching and `X-Frame-Options: DENY` remain intact.
+- The actual Chrome connection window now retains its login form and disposable
+  password-field input across focus changes. The disposable input was cleared
+  without submitting it. No browser errors were captured in this check.
+- The existing browser session receives a visible access-denied message instead
+  of silently replacing the page. This is distinct from the separately verified
+  owner account, which is enabled and has production access.
+- A bounded Vercel error/fatal scan for this deployment from 15:33:18 to 15:36:18Z
+  returned no matches. This is not a general uptime or complete-login guarantee.
+- No real password, API token or OAuth request identifier was saved in this
+  record. No paid generation, CMS change, billing change or permission grant was
+  performed to verify the repair.
+- A fresh connection request was opened from the existing ChatGPT app at 17:40
+  Copenhagen and left at the visible password form for the owner. Screenshot:
+  `/tmp/apropos-login-fixed-2026-10-05.png`. Final consent was not submitted.
+
 The owner's actual password login and final ChatGPT consent remain theirs to
-perform and must not be inferred from simulated/service checks.
+perform and must not be inferred from simulated/service checks. Start a fresh
+connection through the existing Apropos AI app rather than reusing an expired
+OAuth request.
