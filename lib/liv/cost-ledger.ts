@@ -21,7 +21,7 @@ export type LivBudgetPolicy = {
   conversionBasis: string; priceVersion: string;
 };
 export type LivCostReservation = {
-  purpose?: import('./cost-context').CostPurpose; storyId?: string; contentVersion?: string;
+  purpose?: import('./cost-context').CostPurpose; storyId?: string; contentVersion?: string; submissionId?: string;
   scope?: 'liv' | 'writer' | 'seo' | 'accreditation' | 'image-gen';
   callId: string; month: string; runId: string; stage: string; requestHash: string;
   model: string; quote: LivPriceQuote; reservedDkkMicros: number; policy: LivBudgetPolicy; createdAt: string;
@@ -74,6 +74,7 @@ export function createLivCostLedger(now: () => Date = () => new Date(), bucket: 
         (context.purpose !== undefined && !['production', 'editorial-change', 'development-pilot'].includes(context.purpose)) ||
         (context.storyId !== undefined && !/^[a-zA-Z0-9_-]{1,100}$/.test(context.storyId)) ||
         (context.contentVersion !== undefined && !/^[a-f0-9]{64}$/.test(context.contentVersion)) ||
+        (context.submissionId !== undefined && !/^[a-f0-9]{64}$/.test(context.submissionId)) ||
         !Number.isSafeInteger(quote.reservedUsdMicros) || quote.reservedUsdMicros <= 0 || quote.version !== LIV_PRICE_VERSION) {
         throw new LivCostPretransportError('liv_cost_reservation_invalid');
       }
@@ -106,6 +107,17 @@ export function createLivCostLedger(now: () => Date = () => new Date(), bucket: 
           throw new LivCostPretransportError('liv_cost_call_limit_exceeded');
         }
         const amount = Math.ceil(quote.reservedUsdMicros * policy.usdToDkkCeiling);
+        // Additional owner-accepted package ceiling, across BOTH ledgers. A
+        // nested image/cleanup/internal HTTP call cannot escape this binding.
+        const submissionRef = context.submissionId ? database.collection('editorialSubmissions').doc(context.submissionId) : null;
+        const submission = submissionRef ? (await tx.get(submissionRef)).data() : null;
+        if (submissionRef && (!submission || submission.status !== 'processing' ||
+            submission.contentHash !== context.contentVersion || submission.approval?.contentHash !== context.contentVersion ||
+            submission.approval?.uid !== submission.uid || !safeCount(submission.approval?.ceilingDkkMicros) ||
+            !safeCount(submission.packageReservedDkkMicros) ||
+            submission.packageReservedDkkMicros + amount > submission.approval.ceilingDkkMicros)) {
+          throw new LivCostPretransportError('liv_cost_submission_approval_required');
+        }
         if (pilot && (![pilot.committedDkkMicros, pilot.reservedDkkMicros].every(safeCount) ||
             amount + pilot.committedDkkMicros + pilot.reservedDkkMicros > 20_000_000)) {
           throw new LivCostPretransportError('liv_cost_pilot_budget_exceeded');
@@ -116,9 +128,11 @@ export function createLivCostLedger(now: () => Date = () => new Date(), bucket: 
         const reservation: LivCostReservation = { callId, month, runId: context.runId, stage: context.stage, requestHash,
           purpose: context.purpose ?? 'production', storyId: context.storyId ?? context.runId,
           ...(context.contentVersion ? { contentVersion: context.contentVersion } : {}),
+          ...(context.submissionId ? { submissionId: context.submissionId } : {}),
           ...(context.scope ? { scope: context.scope } : {}),
           model: quote.model, quote, reservedDkkMicros: amount, policy, createdAt: date.toISOString() };
         tx.create(callRef, { ...reservation, scope: context.scope ?? 'liv', status: 'reserved', usage: null, billedCostDkkMicros: null });
+        if (submissionRef) tx.update(submissionRef, { packageReservedDkkMicros: submission!.packageReservedDkkMicros + amount });
         if (pilot) tx.set(pilotRef, { ...pilot, reservedDkkMicros: pilot.reservedDkkMicros + amount });
         tx.set(runRef, { calls: run.calls + 1, updatedAt: date.toISOString() });
         tx.set(monthRef, { ...totals, reservedDkkMicros: totals.reservedDkkMicros + amount, calls: totals.calls + 1,

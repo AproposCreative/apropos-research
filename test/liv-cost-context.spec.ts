@@ -5,6 +5,17 @@ const now = Date.parse('2026-09-12T10:00:00Z');
 beforeEach(() => { vi.stubEnv('INTERNAL_API_SECRET', secret); vi.stubEnv('CRON_SECRET', 'fixture-cron-secret-not-real-123456789'); });
 afterEach(() => vi.unstubAllEnvs());
 const context = { runId: 'prepare-2026-09-13', stage: 'writing' };
+it('cannot escape a submission ceiling via nested image or signed HTTP context', () => {
+  const binding = { submissionId: 'c'.repeat(64), contentVersion: 'd'.repeat(64), storyId: 'story', purpose: 'editorial-change' as const };
+  withLivCostContext({ ...context, ...binding }, () => {
+    withLivCostContext({ runId: 'image', stage: 'cleanup', scope: 'image-gen' }, () => {
+      expect(currentLivCostContext()).toMatchObject(binding);
+      const headers = new Headers({ ...livCostHeaders('/api/factcheck', now), 'x-internal-api-secret': secret });
+      withLivCostRequest({ url: 'https://example.test/api/factcheck', headers }, 'check', () => expect(currentLivCostContext()).toMatchObject(binding), now);
+    });
+    expect(() => withLivCostContext({ ...context, submissionId: 'e'.repeat(64) }, () => 1)).toThrow('invalid');
+  });
+});
 it('carries server-owned pilot, story and version through nested stages and signed internal requests', () => {
   const attribution = { purpose: 'development-pilot' as const, storyId: 'story-one', contentVersion: 'a'.repeat(64) };
   withLivCostContext({ ...context, ...attribution }, () => {

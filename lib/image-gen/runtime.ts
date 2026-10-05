@@ -5,7 +5,7 @@ import { withLivCostContext } from '@/lib/liv/cost-context';
 import { getLivCostPretransportError } from '@/lib/liv/cost-errors';
 import { encodeWebp } from '@/lib/images/encode-webp';
 import { imageGenHash, validateImageGenMotifs, validateImageGenVisualResearch, type ImageGenVisualResearch } from './article';
-import { readImageGenArticle } from './webflow';
+import { readImageGenSnapshot } from './snapshot';
 import { finishImageGenJob, readImageGenJob, type ImageGenJob } from './jobs';
 import { type AproposImageStyle } from './styles';
 import { readImageGenStyleConfig, imageGenStylePrompt, imageGenStyleReference } from './style-config';
@@ -51,7 +51,7 @@ export async function runImageGenJob(job: ImageGenJob) {
       await finishImageGenJob(job.uid, job.id, { status: 'succeeded', result: await recoverStoredImage(job) });
       return;
     }
-    const { article } = await readImageGenArticle(job.articleId);
+    const { article } = await readImageGenSnapshot(job.uid, job.articleId);
     if (article.version !== job.articleVersion) throw new Error('image_gen_article_changed');
     if (job.operation === 'press-import') {
       const result = await importImageGenPress(job, article.textVersion);

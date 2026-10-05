@@ -14,6 +14,7 @@ vi.mock('@/lib/firebase-admin', () => ({ getAdminDb: () => memory.available ? {
         },
         set: (ref: any, data: any, options?: { merge?: boolean }) => writes.push(() => memory.rows.set(ref.key,
           structuredClone(options?.merge ? { ...memory.rows.get(ref.key), ...data } : data))),
+        update: (ref: any, data: any) => writes.push(() => memory.rows.set(ref.key, { ...memory.rows.get(ref.key), ...structuredClone(data) })),
       });
       writes.forEach(write => write()); return value;
     });
@@ -37,6 +38,25 @@ const call = (n = 1) => ({ callId: `00000000-0000-4000-8000-${String(n).padStart
 beforeEach(() => { memory.rows.clear(); memory.available = true; memory.tail = Promise.resolve(); memory.rows.set('livCostLedger/policy', structuredClone(policy));
   vi.stubEnv('LIV_GENERATION_MODEL', 'gpt-5.6-sol'); vi.stubEnv('LIV_RESEARCH_MODEL', 'gpt-5.6-sol'); vi.stubEnv('LIV_UTILITY_MODEL', 'gpt-5.6-luna'); vi.stubEnv('LIV_IMAGE_MODEL', 'gpt-image-1.5'); });
 afterEach(() => vi.unstubAllEnvs());
+it('binds concurrent shared and image calls to one versioned personal submission ceiling', async () => {
+  const id = 'c'.repeat(64), version = 'd'.repeat(64);
+  memory.rows.set('imageGenCostLedger/policy', { ...policy, monthlyLimitDkkMicros: 150_000_000 });
+  memory.rows.set(`editorialSubmissions/${id}`, { uid: 'owner', status: 'processing', contentHash: version,
+    approval: { uid: 'owner', contentHash: version, ceilingDkkMicros: 10_000_000 }, packageReservedDkkMicros: 0 });
+  const a = { ...call(), context: { ...call().context, submissionId: id, contentVersion: version }, quote: { ...quote, reservedUsdMicros: 1_000_000 } };
+  const b = { ...a, callId: call(2).callId, context: { ...a.context, scope: 'image-gen' as const } };
+  const outcomes = await Promise.allSettled([createLivCostLedger(() => now).reserve(a), createLivCostLedger(() => now, 'image-gen').reserve(b)]);
+  expect(outcomes.filter(x => x.status === 'fulfilled')).toHaveLength(1);
+  expect(memory.rows.get(`editorialSubmissions/${id}`).packageReservedDkkMicros).toBe(8_000_000);
+  expect(memory.rows.get(`livCostLedger/call-${a.callId}`).submissionId).toBe(id);
+  await expect(createLivCostLedger(() => now).reserve({ ...a, callId: call(3).callId,
+    context: { ...a.context, contentVersion: 'e'.repeat(64) } })).rejects.toThrow('submission_approval_required');
+});
+it('refuses caller-bound submission calls with no saved approval before transport', async () => {
+  await expect(createLivCostLedger(() => now).reserve({ ...call(), context: { ...call().context,
+    submissionId: 'c'.repeat(64), contentVersion: 'd'.repeat(64) } })).rejects.toThrow('submission_approval_required');
+  expect(memory.rows.has('livCostLedger/month-2026-09')).toBe(false);
+});
 it('stops all buckets before reservation after provider credit exhaustion without deleting holds',async()=>{
  const ledger=createLivCostLedger(()=>now),first=await ledger.reserve(call());
  await ledger.complete(first,{...outcome,status:'ambiguous',usage:null,httpStatus:429,providerFailure:'quota_exhausted'});

@@ -2,7 +2,7 @@
 export const MCP_ORIGIN = 'https://ai.aproposmagazine.com';
 export const MCP_RESOURCE = `${MCP_ORIGIN}/mcp`;
 export const MCP_SCOPES = ['apropos:read', 'apropos:draft', 'apropos:publish'] as const;
-export const MCP_VERSION = '2026-10-05-v3';
+export const MCP_VERSION = '2026-10-05-v4';
 export const PRIVATE_HEADERS = { 'Cache-Control': 'private, no-store', 'Referrer-Policy': 'no-referrer' };
 export const OAUTH_COOKIE = '__Host-apropos-mcp';
 export function allowedRedirect(value: string) {

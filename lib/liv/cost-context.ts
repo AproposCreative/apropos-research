@@ -5,7 +5,7 @@ import { LivCostPretransportError } from './cost-errors';
 export type SharedCostScope = 'writer' | 'seo' | 'accreditation' | 'image-gen';
 export type CostPurpose = 'production' | 'editorial-change' | 'development-pilot';
 export type LivCostContext = { runId: string; stage: string; scope?: SharedCostScope; blocked?: boolean;
-  purpose?: CostPurpose; storyId?: string; contentVersion?: string };
+  purpose?: CostPurpose; storyId?: string; contentVersion?: string; submissionId?: string };
 const storage = new AsyncLocalStorage<LivCostContext>();
 export const LIV_COST_HEADER = 'x-liv-cost-context';
 const valid = (value: string) => /^[a-zA-Z0-9_-]{1,100}$/.test(value);
@@ -13,10 +13,18 @@ export const currentLivCostContext = () => storage.getStore();
 
 /** Establish only at an authenticated, server-owned Liv boundary, never from a request body. */
 export function withLivCostContext<T>(context: Omit<LivCostContext, 'blocked'>, run: () => T): T {
+  const parent = storage.getStore();
+  if (parent?.submissionId) {
+    if (context.submissionId && context.submissionId !== parent.submissionId) throw new Error('liv_cost_context_invalid');
+    if (parent.blocked) throw new Error('liv_cost_context_blocked');
+    context = { ...context, submissionId: parent.submissionId, contentVersion: parent.contentVersion,
+      storyId: parent.storyId, purpose: parent.purpose };
+  }
   if (!valid(context.runId) || !valid(context.stage) ||
     (context.scope !== undefined && !['writer', 'seo', 'accreditation', 'image-gen'].includes(context.scope)) ||
     (context.purpose !== undefined && !['production', 'editorial-change', 'development-pilot'].includes(context.purpose)) ||
     (context.storyId !== undefined && !valid(context.storyId)) ||
+    (context.submissionId !== undefined && !/^[a-f0-9]{64}$/.test(context.submissionId)) ||
     (context.contentVersion !== undefined && !/^[a-f0-9]{64}$/.test(context.contentVersion))) throw new Error('liv_cost_context_invalid');
   return storage.run({ ...context }, run);
 }
@@ -65,7 +73,8 @@ export function livCostHeaders(path: string, now = Date.now()): Record<string, s
   if (context.blocked || !/^\/api\/[a-z0-9/-]+$/i.test(path)) throw new Error('liv_cost_context_blocked');
   const payload = Buffer.from(JSON.stringify({ v: 1, runId: context.runId, ...(context.scope ? { scope: context.scope } : {}),
     ...(context.purpose ? { purpose: context.purpose } : {}), ...(context.storyId ? { storyId: context.storyId } : {}),
-    ...(context.contentVersion ? { contentVersion: context.contentVersion } : {}), path, issuedAt: now, expiresAt: now + 300_000 })).toString('base64url');
+    ...(context.contentVersion ? { contentVersion: context.contentVersion } : {}),
+    ...(context.submissionId ? { submissionId: context.submissionId } : {}), path, issuedAt: now, expiresAt: now + 300_000 })).toString('base64url');
   return { [LIV_COST_HEADER]: `${payload}.${createHmac('sha256', signingKey()).update(payload).digest('base64url')}` };
 }
 /** Missing header preserves unrelated manual requests. A present invalid header never downgrades to manual. */
@@ -81,7 +90,7 @@ export function withLivCostRequest<T>(request: { url: string; headers: Headers }
   const expected = createHmac('sha256', signingKey()).update(payload || '').digest('base64url');
   if (extra || !signature || !equal(signature, expected)) throw new Error('liv_cost_context_unauthorized');
   let data: { v?: unknown; runId?: unknown; scope?: SharedCostScope; purpose?: CostPurpose; storyId?: string;
-    contentVersion?: string; path?: unknown; issuedAt?: unknown; expiresAt?: unknown };
+    contentVersion?: string; submissionId?: string; path?: unknown; issuedAt?: unknown; expiresAt?: unknown };
   try { data = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8')); }
   catch { throw new Error('liv_cost_context_invalid'); }
   if (!data || data.v !== 1 || typeof data.runId !== 'string' || data.path !== new URL(request.url).pathname ||
@@ -90,5 +99,6 @@ export function withLivCostRequest<T>(request: { url: string; headers: Headers }
     data.expiresAt - data.issuedAt !== 300_000) throw new Error('liv_cost_context_invalid');
   return withLivCostContext({ runId: data.runId, stage, ...(data.scope !== undefined ? { scope: data.scope } : {}),
     ...(data.purpose !== undefined ? { purpose: data.purpose } : {}), ...(data.storyId !== undefined ? { storyId: data.storyId } : {}),
-    ...(data.contentVersion !== undefined ? { contentVersion: data.contentVersion } : {}) }, run);
+    ...(data.contentVersion !== undefined ? { contentVersion: data.contentVersion } : {}),
+    ...(data.submissionId !== undefined ? { submissionId: data.submissionId } : {}) }, run);
 }

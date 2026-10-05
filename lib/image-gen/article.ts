@@ -10,7 +10,7 @@ export type ImageGenArticle = {
 
 /** Snapshot exactly the fields involved in image placement, not AI-derived text. */
 export function imageGenArticle(id: string, title: string, content: string, cover: unknown): ImageGenArticle {
-  if (!/^[a-f0-9]{24}$/.test(id) || !title.trim() || title.length > 500 ||
+  if (!/^(?:[a-f0-9]{24}|submission-[a-f0-9]{64})$/.test(id) || !title.trim() || title.length > 500 ||
       typeof content !== 'string' || Buffer.byteLength(content) > 500_000) throw new Error('image_gen_article_invalid');
   const $ = load(content);
   const sections: ArticleSection[] = [];

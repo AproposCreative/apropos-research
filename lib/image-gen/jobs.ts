@@ -20,7 +20,7 @@ function jobId(id: string) { if (!/^[a-f0-9]{64}$/.test(id)) throw new Error('im
 export async function claimImageGenJob(uid: string, input: {
   requestId: string; articleId: string; articleVersion: string; operation: ImageGenOperation; parameters: unknown;
 }, now = Date.now()) {
-  if (!Number.isSafeInteger(now) || now < 0 || !/^[a-zA-Z0-9_-]{16,100}$/.test(input.requestId) || !/^[a-f0-9]{24}$/.test(input.articleId) ||
+  if (!Number.isSafeInteger(now) || now < 0 || !/^[a-zA-Z0-9_-]{16,100}$/.test(input.requestId) || !/^(?:[a-f0-9]{24}|submission-[a-f0-9]{64})$/.test(input.articleId) ||
       !/^[a-f0-9]{64}$/.test(input.articleVersion) || !operations.includes(input.operation)) throw new Error('image_gen_job_invalid');
   const serialized = JSON.stringify([input.articleId, input.articleVersion, input.operation, input.parameters]);
   if (Buffer.byteLength(serialized) > 100_000) throw new Error('image_gen_job_invalid');

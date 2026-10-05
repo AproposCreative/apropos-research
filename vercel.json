@@ -5,6 +5,10 @@
   "installCommand": "npm ci --ignore-scripts",
   "crons": [
     {
+      "path": "/api/cron/editorial-submissions",
+      "schedule": "* * * * *"
+    },
+    {
       "path": "/api/cron/liv-source-refresh",
       "schedule": "0 */6 * * *"
     },
