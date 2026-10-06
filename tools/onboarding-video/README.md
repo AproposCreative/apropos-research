@@ -1,4 +1,9 @@
-# Rebuild the MCP welcome video
+# Archived MCP welcome video source
+
+Withdrawn at the owner's request on 6 October 2026. The video, poster and captions
+are no longer served in production or included in welcome emails. The following
+recipe is retained for provenance only; do not restore or regenerate it without
+a new request. The previously rendered assets remain recoverable from Git.
 
 Public, fictional examples only. The application serves the already-rendered
 MP4; neither viewing it nor connecting a new colleague runs a model or renderer.

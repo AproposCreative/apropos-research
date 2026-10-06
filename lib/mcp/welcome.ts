@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 import { Resend } from 'resend';
 import { getAdminAuth, getAdminDb } from '@/lib/firebase-admin';
 import { activeMember } from './oauth';
-import { mcpWelcomeContent } from './welcome-content';
+import { MCP_WELCOME_VERSION, mcpWelcomeContent } from './welcome-content';
 
 const collection = () => {
   const db = getAdminDb(); if (!db) throw Error('mcp_welcome_store_unavailable');
@@ -40,11 +40,16 @@ export async function deliverMcpWelcome(uid: string, now = Date.now()) {
     if (!grant || grant.uid !== uid || grant.revoked || grant.expiresAt < now || (old.payload && old.payload.to !== email)) {
       tx.update(ref, { pending: false, status: 'cancelled', lastError: 'connection_or_recipient_changed' }); return null;
     }
+    // A retired message may already have reached the provider. Keep its evidence,
+    // but neither resend it nor replace its frozen content under the same key.
+    if (old.version !== MCP_WELCOME_VERSION && old.attempts > 0) {
+      tx.update(ref, { pending: false, status: 'needs_reconciliation', lastError: 'welcome_content_retired' }); return null;
+    }
     if (old.attempts >= MAX_ATTEMPTS || (old.firstAttemptAt != null && now - old.firstAttemptAt >= WINDOW)) {
       tx.update(ref, { pending: false, status: 'needs_reconciliation', lastError: 'send_outcome_unconfirmed' }); return null;
     }
-    const payload = old.payload || { from, to: email, ...mcpWelcomeContent() };
-    const job: McpWelcomeJob = { ...old, payload, status: 'sending', attempts: old.attempts + 1,
+    const payload = old.attempts > 0 && old.payload ? old.payload : { from, to: email, ...mcpWelcomeContent() };
+    const job: McpWelcomeJob = { ...old, version: MCP_WELCOME_VERSION, payload, status: 'sending', attempts: old.attempts + 1,
       firstAttemptAt: old.firstAttemptAt ?? now, leaseUntil: now + 120000, nextAt: now + 120000 };
     tx.set(ref, job); return job;
   });

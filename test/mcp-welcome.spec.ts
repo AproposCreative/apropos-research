@@ -9,6 +9,7 @@ import { deliverMcpWelcome, dispatchMcpWelcomes } from '@/lib/mcp/welcome';
 import { MCP_WELCOME_VERSION, mcpWelcomeContent } from '@/lib/mcp/welcome-content';
 import { GET } from '@/app/api/cron/mcp-welcome/route';
 import { NextRequest } from 'next/server';
+import { existsSync, readFileSync } from 'node:fs';
 const memory = memoryFirestore(), now = Date.parse('2026-10-06T12:00:00Z');
 function queue(uid = 'editor') {
   memory.rows.set(`mcpWelcomeMail/${uid}`, { uid, grantId: `grant-${uid}`, authenticatedAt: now, version: MCP_WELCOME_VERSION,
@@ -95,9 +96,40 @@ it('requires cron authentication before accessing pending mail', async () => {
   const response = await GET(new NextRequest('https://example.test/api/cron/mcp-welcome', { headers: { authorization: 'Bearer test-cron-only' } }));
   expect(await response.json()).toEqual({ processed: 1, results: ['accepted'] });
 });
-it('contains a watch link, usable plain text and no personal draft, attachment or paid-generation promise', () => {
+it('contains text guidance, no video, poster or paid-generation promise', () => {
   const content = mcpWelcomeContent();
   expect(content.text).toContain('/connect/chatgpt/welcome'); expect(content.html).toContain('Apropos AI');
   expect(content.text).toContain('prisaccept'); expect(content.html).not.toContain('<video');
   expect(content.text).not.toContain('Liv');
+  expect(JSON.stringify(content)).not.toMatch(/video|onboarding\/|\.mp4|\.vtt/i);
+});
+it('keeps the guide but removes the player and publicly served video assets', () => {
+  const page = readFileSync('app/connect/chatgpt/welcome/page.tsx', 'utf8');
+  expect(page).toContain('MCP_STARTER_PROMPTS');
+  expect(page).not.toMatch(/video|<source|<track|poster/i);
+  for (const ext of ['mp4', 'jpg', 'vtt']) {
+    expect(existsSync(`public/onboarding/apropos-ai-2026-10-06.${ext}`)).toBe(false);
+  }
+});
+it('upgrades an unsent old welcome to text without changing delivery identity', async () => {
+  queue(); Object.assign(memory.rows.get('mcpWelcomeMail/editor'), { version: '2026-10-06-v1' });
+  await deliverMcpWelcome('editor');
+  expect(fake.send).toHaveBeenCalledTimes(1);
+  expect(fake.send.mock.calls[0][0].html).not.toMatch(/video|onboarding\//i);
+  expect(memory.rows.get('mcpWelcomeMail/editor').version).toBe(MCP_WELCOME_VERSION);
+});
+it('does not resend or rewrite a retired video message with an uncertain send outcome', async () => {
+  queue();
+  const payload = { from: 'sender', to: 'editor@aproposmagazine.com', subject: 'old', text: 'Se video', html: '<p>Se video</p>' };
+  Object.assign(memory.rows.get('mcpWelcomeMail/editor'), { version: '2026-10-06-v1', attempts: 1, payload, firstAttemptAt: now - 300000 });
+  await deliverMcpWelcome('editor');
+  expect(fake.send).not.toHaveBeenCalled();
+  expect(memory.rows.get('mcpWelcomeMail/editor')).toMatchObject({ pending: false, status: 'needs_reconciliation', lastError: 'welcome_content_retired', payload, attempts: 1 });
+});
+it('preserves an accepted old welcome without sending a replacement', async () => {
+  queue(); Object.assign(memory.rows.get('mcpWelcomeMail/editor'), { version: '2026-10-06-v1', pending: false, status: 'accepted', providerId: 'old-mail', attempts: 1 });
+  const saved = structuredClone(memory.rows.get('mcpWelcomeMail/editor'));
+  await deliverMcpWelcome('editor');
+  expect(fake.send).not.toHaveBeenCalled();
+  expect(memory.rows.get('mcpWelcomeMail/editor')).toEqual(saved);
 });
