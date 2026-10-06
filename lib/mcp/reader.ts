@@ -35,7 +35,8 @@ const access = z.enum(['available', 'login_required', 'captcha_required', 'loan_
 export const saveReaderInput = z.object({ sourceId, requestId, expectedRevision: z.number().int().min(0).max(4999),
   access, observedAt: z.iso.datetime(), layout: layout.optional(), checkpoint: locator.optional(),
   readRanges: z.array(readRange).max(10).default([]),
-  beginningObserved: z.boolean().default(false), endObserved: z.boolean().default(false),
+  beginningObserved: z.boolean().default(false).describe('THIS batch only: true only when its readRanges include position 1 actually read. False for later batches; previously saved beginning evidence is retained automatically.'),
+  endObserved: z.boolean().default(false).describe('THIS batch only: true only when its readRanges include the actually read book end at layout.totalPositions. Not a chapter or batch end. False for middle batches; previous evidence is retained.'),
   notes: z.string().trim().max(2000).default('').describe('Own concise reading notes / blocker details. Never full book text, credentials or cookies.'),
 }).strict();
 type Interval = { start: number; end: number };

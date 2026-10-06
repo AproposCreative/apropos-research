@@ -127,6 +127,25 @@ it('exposes private cloud-reading tools to team members with exact scopes, no-pa
   expect(tools.find((t: any) => t.name === 'save_reader_progress')._meta.securitySchemes).toEqual([{ type: 'oauth2', scopes: ['apropos:draft'] }]);
   expect(tools.find((t: any) => t.name === 'find_reader_notes').annotations.readOnlyHint).toBe(true);
 });
+it('explains rejected reader boundary flags without suggesting fabricated ranges or a blind retry', async () => {
+  reader.save.mockRejectedValue(new Error('mcp_reader_boundary_unobserved'));
+  const args = { sourceId: 'a'.repeat(64), requestId: 'middle-reading-batch', expectedRevision: 2,
+    access: 'available', observedAt: '2026-10-06T18:00:00.000Z',
+    layout: { key: 'fixture-layout', totalPositions: 154 }, checkpoint: { position: 10, chapter: '2', anchor: 'Fixture' },
+    readRanges: [{ start: 7, end: 10, chapter: '2' }], beginningObserved: true };
+  const result = (await (await call('save_reader_progress', args)).json()).result;
+  expect(result.isError).toBe(true);
+  const error = JSON.parse(result.content[0].text);
+  expect(error).toMatchObject({ error: 'mcp_reader_boundary_unobserved', paidAiAllowed: false });
+  expect(error.action).toContain('beginningObserved=false'); expect(error.action).toContain('endObserved=false');
+  expect(error.action).toContain('layout.totalPositions'); expect(error.action).toContain('gentag ikke uændret input');
+  expect(mock.audit).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ tool: 'save_reader_progress', status: 'error',
+    errorCode: 'mcp_reader_boundary_unobserved', paidAiAllowed: false }));
+  const tools = (await (await POST(message('tools/list'))).json()).result.tools;
+  const props = tools.find((t: any) => t.name === 'save_reader_progress').inputSchema.properties;
+  expect(props.beginningObserved.description).toContain('THIS batch only');
+  expect(props.endObserved.description).toContain('Not a chapter or batch end');
+});
 it('requires draft scope for the new precise mutation, not just read scope', async () => {
   mock.identity.scopes = ['apropos:read'];
   const result = (await (await call('apply_copyedit', { draftId: 'draft-1234', expectedRevision: 1,

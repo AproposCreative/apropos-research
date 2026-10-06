@@ -57,6 +57,21 @@ it('persists exact checkpoints, notes and gaps across independent requests witho
   expect(final.coverage[0]).toMatchObject({ status: 'reported_complete', percent: 100, nextPosition: null });
   expect(final).toMatchObject({ independentlyVerified: false, publicationApproval: false });
 });
+it('preserves prior boundary evidence across middle batches without accepting cumulative flags as new observations', async () => {
+  const id = await start(); await saveReaderProgress(uid, batch(id));
+  const middle = batch(id, { requestId: 'reading-batch-middle', expectedRevision: 1,
+    checkpoint: { ...checkpoint, position: 4 }, readRanges: [{ start: 3, end: 4, chapter: '2' }], beginningObserved: false });
+  for (const flags of [{ beginningObserved: true }, { endObserved: true }]) {
+    await expect(saveReaderProgress(uid, { ...middle, ...flags })).rejects.toThrow('mcp_reader_boundary_unobserved');
+    expect((await getReaderProgress(uid, { sourceId: id })).revision).toBe(1);
+  }
+  const saved = await saveReaderProgress(uid, middle);
+  expect(saved.coverage[0]).toMatchObject({ beginningObserved: true, endObserved: false, readPositions: 4,
+    status: 'partial', nextPosition: 5 });
+  const readback = await getReaderProgress(uid, { sourceId: id });
+  expect(readback.batches[1]).toMatchObject({ beginningObserved: false, endObserved: false,
+    readRanges: [{ start: 3, end: 4, chapter: '2' }] });
+});
 it('replays the same receipt after timeout and after a later revision without overwriting', async () => {
   const id = await start(), input = batch(id); await saveReaderProgress(uid, input);
   await saveReaderProgress(uid, batch(id, { requestId: 'reading-batch-002', expectedRevision: 1, notes: 'Senere noter' }));

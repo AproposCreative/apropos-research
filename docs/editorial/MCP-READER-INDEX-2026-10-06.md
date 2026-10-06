@@ -112,3 +112,27 @@ agent, or claim fully unattended future browser execution from a server deploy.
 Reference: [Vercel function limits](https://vercel.com/docs/functions/limitations),
 checked 6 October 2026. All new handlers are small stateless calls in the existing
 Node MCP route, not a long-running browser process inside a function.
+
+## v10 boundary-guidance correction
+
+The owner-authorized real cloud continuation exposed an instruction ambiguity:
+after saving positions 1–6 successfully, the client repeatedly sent a boundary
+flag on a later batch and received `mcp_reader_boundary_unobserved`. The existing
+handler correctly rejected it without writing. The generic recovery instruction
+did not explain that boundary flags are **per batch**, so the client incorrectly
+suspected revision or chapter boundaries.
+
+The v10 patch adds precise schema descriptions, an actionable error response and
+a focused addition to the existing read workflow. Middle batches send both flags
+false; the server already retains earlier start/end evidence. Position 1 and the
+actual `layout.totalPositions` remain mandatory for true flags. No validation,
+coverage calculation, scopes, storage, receipt or publication rules are relaxed.
+The coordinator supplied the actual code diagnosis to the same cloud task so it
+could preserve and correct its existing batch without starting over.
+
+Local verification: 353 files / 4,927 isolated tests passed on 6 October at
+22:00 Copenhagen, plus TypeScript, focused ESLint, skill-frontmatter validation,
+safe build configuration and whitespace checks. New tests exercise rejected
+cumulative boundary flags, unchanged revision after rejection, preservation of
+old boundary evidence on successful middle batches, and protocol-level recovery
+guidance. Production verification of v10 remains pending at this entry.

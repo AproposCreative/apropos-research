@@ -157,6 +157,41 @@ passes **server checkpoint persistence**, not cross-task browser navigation.
 Zero complete read intervals were recorded, and full-book acceptance stays open.
 No backend AI call, library credential, public article or paid retry was added.
 
+### Authorized continuation and client tool discovery
+
+The owner's subsequent “Du har tilladelse kør” authorized continuation in the
+existing cloud test, not creation of a duplicate. Its first follow-up retained
+the remote browser and could retrieve the deployed `get_workflow(read)` with the
+correct workflow hash, but normal ChatGPT tool discovery did not expose the new
+reader tool names. It therefore made no reading-index writes. A separate
+read-only server check at `2026-10-06T19:43:42.421Z` confirmed revision 1 and zero
+read intervals. This was a client metadata failure, not missing library login or
+evidence that the deployed MCP handlers were absent.
+
+Used the existing Apropos AI connection's normal **Refresh tools** control in
+ChatGPT Plugins settings. After refresh, the app details visibly advertised
+47 tools (18 Write / 29 Read), including all five reader tools. Existing OAuth
+account and “Allow low-risk tools” permission remained unchanged. Local Chrome
+was used only for this connection-setting repair, never as a reader fallback.
+A follow-up was sent to the same authorized cloud task to retry discovery once
+against this new evidence, then verify actual batch save/readback/resume. UI tool
+discovery is not yet proof that the existing conversation can invoke them.
+
+This follows the official [ChatGPT connection update procedure](https://developers.openai.com/plugins/deploy/connect-chatgpt),
+read 6 October 2026. That procedure also recommends a new conversation after
+refresh; if the existing task retains its old tool definitions, report that
+remaining boundary rather than bypassing authentication or silently creating a
+duplicate task.
+
+The same conversation subsequently discovered and invoked the new read tools.
+Independent `mcpAudit` readback confirmed `list_reader_sources` at
+`2026-10-06T19:50:18.161Z` (159 ms) and `get_reader_progress` at
+`2026-10-06T19:50:26.010Z` (202 ms), both `ok`. Thus a duplicate chat was not
+needed for this particular refresh. At `19:53:52.238Z`, coverage still correctly
+remained zero and revision 1 while the cloud task verified the browser layout;
+do not translate successful tool discovery into a successful save/resume or
+full-book test. No production code or deployment changed during this repair.
+
 ## Official product evidence
 
 [ChatGPT Work browser](https://learn.chatgpt.com/docs/browser), read 6 October
