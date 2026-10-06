@@ -128,3 +128,25 @@ isolated suite: 355 test files / 4,963 tests, TypeScript and focused ESLint. Thi
 includes lease contention/release, preservation audit replay, retaining prior SEO
 locks/history, pending-write refusal, no paid publication-quality review for the
 preserved version, and continuing eligible independent performance reviews.
+
+## Final deployment and readback, 6 October 23:54 Copenhagen
+
+- Production commit `4b8f7cc54e9f3939dd8b41d8bea9d90428cbce2e`, deployment
+  `dpl_7ctBcApVDsoXwe1qZSWgY3dUsMRc`: READY, exact production alias confirmed.
+  Next production build completed; Vercel build duration approximately 72 seconds.
+- Fresh authenticated MCP readback at `2026-10-06T21:54:04.913Z` reconfirmed all
+  checks above: 48 tools/native object contract, same reader source, submission
+  revision 5 / exact CMS binding, cover required and body images recommended,
+  0-DKK human-review quote under the unchanged provider hold.
+- CMS hash remains the exact value above. No article edit/publication, duplicate,
+  new preparation, approval, AI call, or ledger/hold change. Temporary grant revoked.
+- Public page returned HTTP 200, correct title/canonical, and still contains the
+  reported fallback cover. The original selected mockup is not in this task or the
+  submission; correcting it and testing actual uploaded/generated/edited ChatGPT
+  files, real personal approval, publication and later body additions remain open.
+- Bounded error/fatal runtime scan after READY found no matches; this is not a
+  long-running health guarantee. Drains inventory returned Vercel 404 and was not
+  verified or changed. No new monitoring service or paid probe was installed.
+
+Implemented/deployed is therefore verified; the native-file-to-live regression is
+not complete. Resume with the original file and the same submission/item above.
