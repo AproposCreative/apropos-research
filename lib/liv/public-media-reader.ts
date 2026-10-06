@@ -3,6 +3,7 @@ import type { LookupAddress } from 'node:dns';
 import { request } from 'node:https';
 import { sourceUrl, isPublicSourceAddress } from '@/lib/factcheck/source-reader';
 import { isLivTudumSource, LIV_TUDUM_HTML_MAX_BYTES } from './photo-credit';
+import { ChatFileError } from '@/lib/editorial/chat-file-error';
 
 /** No credentials, redirects or second DNS lookup. HTML and raster bytes only. */
 export async function readPublicMedia(value: string, kind: 'html' | 'image', timeoutMs = 12_000): Promise<Buffer> {
@@ -12,10 +13,17 @@ export async function readPublicMedia(value: string, kind: 'html' | 'image', tim
 /** Explicit ChatGPT file input only. Never persist/log this temporary signed URL.
  * Same DNS pinning, no redirects, content-type/byte bounds as public media. */
 export async function readChatGptImage(value: string): Promise<Buffer> {
-  const url = sourceUrl(value);
-  if (!(url.hostname === 'files.oaiusercontent.com' || url.hostname.endsWith('.files.oaiusercontent.com') ||
-    url.hostname === 'fileopenai.blob.core.windows.net')) throw Error('mcp_submission_file_host_invalid');
-  return downloadMedia(value, 'image', 15_000, true);
+  let url: URL;
+  try { url = sourceUrl(value); } catch { throw new ChatFileError('mcp_submission_file_reference_invalid'); }
+  // ChatGPT-generated files need not use the upload-only files.* host. OpenAI
+  // documents *.oaiusercontent.com as its content domain. Match the DNS label
+  // boundary, not a substring, and never allow all Azure Blob storage accounts.
+  // https://help.openai.com/en/articles/9247338
+  if (!(url.hostname.endsWith('.oaiusercontent.com') || url.hostname === 'fileopenai.blob.core.windows.net')) {
+    throw new ChatFileError('mcp_submission_file_host_invalid', url.hostname);
+  }
+  try { return await downloadMedia(value, 'image', 15_000, true); }
+  catch { throw new ChatFileError('mcp_submission_file_download_failed'); }
 }
 
 async function downloadMedia(value: string, kind: 'html' | 'image', timeoutMs: number, signedFile: boolean): Promise<Buffer> {

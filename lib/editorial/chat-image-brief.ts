@@ -33,7 +33,7 @@ export async function getChatImageBrief(uid: string, raw: unknown) {
   const brief = { ...input, uid, contentHash: row.contentHash, styleVersion: config.version, referenceHash, prompt,
     parentUrl: parent?.url || null, output: { format: 'landscape', minimumWidth: 1200, minimumHeight: 800, text: 'none' },
     visualEvidence: { status: 'not_server_verified', suppliedSources: row.research },
-    instruction: 'Brug denne prompt og den vedlagte stilreference i Chattens billedværktøj. Hent dokumenterede personreferencer før portrætlighed. Ingen API-generation. Importér den valgte fil med import_submission_image. Film/TV bruger rigtige stills. Illustrationen er ikke et dokumentarisk foto.' };
+    instruction: 'Brug denne prompt og den vedlagte stilreference i Chattens billedværktøj. Hent dokumenterede personreferencer før portrætlighed. Vis billedværktøjets billedoutput direkte i chatten, ikke kun et file-ID eller en filsti. Importér den valgte eksisterende fil med import_submission_image og vis derefter preview_submission. Ved filoverleveringsfejl: bevar billedet og brug samme fil, aldrig en ny generation eller en opdigtet downloadadresse. Ingen API-generation. Film/TV bruger rigtige stills. Illustrationen er ikke et dokumentarisk foto.' };
   const briefId = cmsFieldHash(brief), ref = submissionStore().collection.doc(row.id).collection('chatBriefs').doc(briefId);
   if (!(await ref.get()).exists) { try { await ref.create({ ...brief, briefId, createdAt: new Date().toISOString() }); } catch (error) {
     if (!(await ref.get()).exists) throw error;

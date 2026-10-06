@@ -30,6 +30,7 @@ import { POST, GET } from '@/app/mcp/route';
 import { assertPaidAiAllowed } from '@/lib/ai/no-paid-calls';
 import { OAuthError } from '@/lib/mcp/oauth';
 import { MCP_ICON, MCP_ORIGIN, MCP_VERSION } from '@/lib/mcp/config';
+import { ChatFileError } from '@/lib/editorial/chat-file-error';
 beforeEach(() => { vi.clearAllMocks(); mock.identity = { uid: 'frederik', owner: true, grantId: 'grant', role: 'admin', scopes: ['apropos:read', 'apropos:draft', 'apropos:publish'] };
   mock.rate.mockResolvedValue(undefined); mock.audit.mockResolvedValue(undefined); mock.workspace.mockResolvedValue({ revision: 1 }); mock.context.mockResolvedValue({ author: 'Liv' }); });
 const message = (method: string, params?: unknown) => new Request(`${MCP_ORIGIN}/mcp`, { method: 'POST',
@@ -155,6 +156,13 @@ it('denies a nested paid call, sanitizes errors and records only operation metad
   expect(mock.audit.mock.calls[0][0]).toMatchObject({ tool: 'get_editorial_context', paidAiAllowed: false, status: 'error' });
   mock.context.mockRejectedValue(Error('sk-private-secret https://example.com/?token=bad'));
   const error = await (await call('get_editorial_context')).json(); expect(JSON.stringify(error)).not.toContain('sk-private');
+});
+it('records safe file-error diagnostics and actionable recovery without leaking signed URLs', async () => {
+  mock.context.mockRejectedValue(new ChatFileError('mcp_submission_file_host_invalid', 'unsupported.example.com'));
+  const result = (await (await call('get_editorial_context')).json()).result;
+  expect(result.isError).toBe(true);
+  expect(JSON.parse(result.content[0].text)).toMatchObject({ rejectedHost: 'unsupported.example.com', regenerateImage: false, paidAiAllowed: false });
+  expect(mock.audit.mock.calls[0][0]).toMatchObject({ errorCode: 'mcp_submission_file_host_invalid', rejectedHost: 'unsupported.example.com' });
 });
 it('has no raw database, code execution, budget or paid research tool', async () => {
   const result = await (await POST(message('tools/list'))).json();

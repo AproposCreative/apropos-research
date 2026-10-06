@@ -6,6 +6,8 @@ import { articleWidgetHtml } from './article-widget';
 import { CHAT_PREVIEW_URI, chatPreviewInput, chatConfirmInput, chatSubmissionPreview, confirmChatSubmission, submissionCosts } from '@/lib/editorial/chat-preview';
 import { chatImageBriefInput, getChatImageBrief } from '@/lib/editorial/chat-image-brief';
 import { chatImageImportInput, importChatImage } from '@/lib/editorial/chat-image-import';
+import { chatFileRecovery } from '@/lib/editorial/chat-file-error';
+import { importedImageResult } from './import-image-result';
 import { getAdminDb } from '@/lib/firebase-admin';
 import { withoutPaidAi } from '@/lib/ai/no-paid-calls';
 import { listImageGenArticles } from '@/lib/image-gen/webflow';
@@ -50,7 +52,7 @@ export function createEditorialMcp(identity: McpIdentity) {
   });
   function tool<S extends z.ZodRawShape>(name: string, description: string, schema: z.ZodObject<S>,
     scope: string, readOnly: boolean, run: (input: z.infer<z.ZodObject<S>>) => Promise<unknown>, publicWrite = false,
-    options: { meta?: Record<string, unknown>; result?: (data: unknown) => CallToolResult; structured?: boolean } = {}) {
+    options: { meta?: Record<string, unknown>; result?: (data: unknown) => CallToolResult | Promise<CallToolResult>; structured?: boolean } = {}) {
     const securitySchemes = [{ type: 'oauth2', scopes: [scope] }];
     server.registerTool(name, { title: name.replaceAll('_', ' '), description, inputSchema: schema,
       annotations: { readOnlyHint: readOnly, destructiveHint: publicWrite, idempotentHint: name !== 'preview_publication', openWorldHint: true },
@@ -61,20 +63,24 @@ export function createEditorialMcp(identity: McpIdentity) {
         _meta: { 'mcp/www_authenticate': [`Bearer error="insufficient_scope", scope="apropos:read ${scope}", resource_metadata="${MCP_ORIGIN}/.well-known/oauth-protected-resource"`] },
         content: [{ type: 'text', text: 'Adgang mangler. Forbind igen med den nødvendige rettighed.' }] };
       const startedAt = Date.now(); let status = 'ok';
+      let diagnostic: { errorCode?: string; rejectedHost?: string } = {};
       try {
         const data = await withoutPaidAi(() => run(input as z.infer<z.ZodObject<S>>));
-        return options.result ? options.result(data) : { content: [{ type: 'text', text: JSON.stringify(data) }] };
+        return options.result ? await options.result(data) : { content: [{ type: 'text', text: JSON.stringify(data) }] };
       } catch (error) {
         status = 'error';
         const message = error instanceof Error ? error.message : '';
         const code = /^(?:mcp_|liv_edit_|liv_shortening_)[a-z_]{1,100}$/.test(message) ? message : 'mcp_operation_unconfirmed';
+        const recovery = chatFileRecovery(error);
+        diagnostic = { errorCode: code, ...(recovery?.rejectedHost ? { rejectedHost: recovery.rejectedHost } : {}) };
+        if (recovery) return { isError: true, content: [{ type: 'text', text: JSON.stringify(recovery) }] };
         return { isError: true, content: [{ type: 'text', text: JSON.stringify({ error: code,
           action: 'Læs den aktuelle status før et nyt forsøg. Intet er kvalitetsgodkendt af denne fejl.', paidAiAllowed: false }) }] };
       } finally {
         // No text, credentials, prompts, or source URLs in the operation journal.
         await getAdminDb()?.collection('mcpAudit').doc(randomUUID()).create({ uid: identity.uid, grantId: identity.grantId,
           tool: name, status, startedAt: new Date(startedAt).toISOString(), durationMs: Date.now() - startedAt,
-          paidAiAllowed: false, version: MCP_VERSION }).catch(() => undefined);
+          paidAiAllowed: false, version: MCP_VERSION, ...diagnostic }).catch(() => undefined);
       }
     });
   }
@@ -97,9 +103,9 @@ export function createEditorialMcp(identity: McpIdentity) {
       result: raw => { const { brief, reference } = raw as Awaited<ReturnType<typeof getChatImageBrief>>;
         return { content: [{ type: 'text', text: JSON.stringify(brief) }, { type: 'image', ...reference }] }; },
     });
-  tool('import_submission_image', 'Gem den valgte billedfil fra ChatGPT i samme private artikel, uden API-generation. Bevarer original/versioner og øvrige billeder. Brug den præcise briefId og sectionId for illustrationer. Filreferencen skal leveres af ChatGPT, ikke en opdigtet URL. Ingen publiceringsgodkendelse.',
+  tool('import_submission_image', 'Gem og vis den valgte eksisterende billedfil fra ChatGPT, uden API-generation. file er et native ChatGPT-filinput: brug den eksisterende filreference, som ChatGPT omsætter til et filobjekt; opfind ikke download_url og lav ikke en ny generation. Bevarer original/versioner og øvrige billeder. Brug præcis briefId/sectionId. Genbrug requestId efter timeout, læs status og vis preview_submission efter import. Ingen publiceringsgodkendelse.',
     chatImageImportInput, 'apropos:draft', false, input => importChatImage(identity.uid, input), false,
-    { meta: { 'openai/fileParams': ['file'] } });
+    { meta: { 'openai/fileParams': ['file'] }, result: importedImageResult });
   tool('get_submission_costs', 'Vis kun denne artikels registrerede API-trin, fejl og reservationer. Ingen globale eller andre brugeres forbrugsdata. Estimater er ikke fakturaer; abonnementets forbrug er ikke synligt.',
     chatPreviewInput, 'apropos:read', true, input => submissionCosts(identity.uid, input.submissionId));
   tool('list_drafts', 'Vis seneste kladder og hvad de mangler før udgivelse i ét kompakt kald. Standard fem, nyeste ændring først i det læste vindue. Samler CMS, gemte checkpoints og dit private arbejde med kendte blockers, manglende felter/billeder og næste skridt. Planer og skriveforsøg tælles separat. Besvar direkte uden at hente hver artikel eller get_workflow. Ingen fuldtekst, AI-kald, ændring eller ny godkendelse.',
