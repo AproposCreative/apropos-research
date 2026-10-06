@@ -1,5 +1,9 @@
 # Apropos AI: welcome video after MCP activation
 
+**Withdrawn later on 6 October at the owner's request.** The video is no longer
+served or included in new welcome emails. The historical evidence below is
+retained; see `MCP-WELCOME-VIDEO-REMOVAL-2026-10-06.md` for the replacement.
+
 ## Scope
 
 Requested: use latent-spaces/brag after the chat-first MCP update, create a short
