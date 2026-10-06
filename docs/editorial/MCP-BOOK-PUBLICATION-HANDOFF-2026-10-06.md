@@ -55,6 +55,13 @@ checks. This does not weaken unattended Liv's existing checks or imply an AI pas
   Host tool discovery and Cloud Browser availability are not server guarantees.
 - Book title/author are distinct CMS fields, preserved through canonical payload
   and checked when supplied. Missing schema must not silently drop book identity.
+- Media staging and publication share the existing per-item CMS write lease with
+  SEO writers. A media-only or human-final-review publication records an audited
+  preservation marker for that exact content/metadata version before publishing.
+  The automatic publication-quality worker verifies fresh live/staged state and
+  keeps that version without a paid review. This is not a fabricated AI pass or a
+  permanent SEO lock; later content versions and independently justified Google
+  performance reviews retain the existing policies. Pending writes still reconcile.
 
 Official native file contract consulted:
 https://developers.openai.com/plugins/reference
@@ -92,3 +99,32 @@ retain deferred body decision, preview the exact version, obtain real personal
 approval and publish/read back that same item. Then add the selected body images
 with stable section/asset identities, approve the new version, and compare all
 non-media CMS fields. Never infer approval from this technical checklist.
+
+## First production readback, 6 October 23:45 Copenhagen
+
+- Implementation `43dac9d596597676a361c8218df126b9df8515d3`, deployment
+  `dpl_6L2H5tyawnpqZY5SLuCbBvsh1poJ`, READY on `ai.aproposmagazine.com`.
+- Authenticated MCP reported `2026-10-06-v11`, 48 tools, and the native object
+  schema / `openai/fileParams` on `import_submission_image`.
+- Source lookup by reader URL returned the same revision-24 source with 154/154
+  reported positions. No reader data or full book text was created/changed.
+- The real API bound the existing submission to item `6ac561f59604a82185235285`
+  (revision 3→4) and saved the proposed deferred-body/human-review choices (4→5).
+  These are not personal approval or CMS/publication writes.
+- Preview: required missing `cover`; recommended `body-1`, `body-2`; estimate and
+  ceiling 0 DKK, provider hold still true. Publication not ready without the cover.
+- Before/after CMS hash stayed
+  `5cdbf001ae0c32b263aeab5722790b6e60412f1dff3fb56817245da49f481f5e`.
+  Article text, lastPublished, workspace, welcome-mail state, ledger and provider
+  hold unchanged. No duplicate, paid AI call, or article publication.
+- Temporary service OAuth read/draft grant revoked afterwards; ordinary ChatGPT
+  connections untouched. This is a production MCP service-client check, not a
+  native ChatGPT-file or user-approval E2E test.
+
+## Follow-up regression
+
+The shared CMS lease and exact-version SEO preservation guard passed the full
+isolated suite: 355 test files / 4,963 tests, TypeScript and focused ESLint. This
+includes lease contention/release, preservation audit replay, retaining prior SEO
+locks/history, pending-write refusal, no paid publication-quality review for the
+preserved version, and continuing eligible independent performance reviews.

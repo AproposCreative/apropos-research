@@ -9,6 +9,7 @@ import { readPublicMedia } from '@/lib/liv/public-media-reader';
 import { createHash } from 'node:crypto';
 import sharp from 'sharp';
 import type { WebflowArticleFields } from '@/lib/webflow/types';
+import { acquireCmsWriteLease } from '@/lib/seo-engine/cms-write-lease';
 import { readSubmission, submissionStore } from './submissions';
 import { submissionId, submissionVersion, type SubmissionArticle } from './submission-contract';
 
@@ -75,6 +76,15 @@ export async function linkPublishedSubmission(uid: string, raw: unknown) {
 /** Narrow staged patch of the SAME item. Every unrelated CMS field is retained.
  * Callers persist an attempted stage first and reconcile timeouts by readback. */
 export async function stageSubmissionMedia(target: PublishedTarget, expected: WebflowArticleFields,
+  policy: LivCmsInspectionPolicy, checkpoint: (data: Record<string, unknown>) => Promise<void>, assertLease: () => Promise<unknown>) {
+  const cmsLease = await acquireCmsWriteLease(target.itemId, 'da');
+  try {
+    return await stageMediaUnderLease(target, expected, policy, checkpoint, async () => {
+      await assertLease(); await cmsLease.assertOwned();
+    });
+  } finally { await cmsLease.release(); }
+}
+async function stageMediaUnderLease(target: PublishedTarget, expected: WebflowArticleFields,
   policy: LivCmsInspectionPolicy, checkpoint: (data: Record<string, unknown>) => Promise<void>, assertLease: () => Promise<unknown>) {
   const current = await readSubmissionCms(target.itemId);
   if (cmsFieldHash(current.fieldData as Record<string, unknown>) !== target.fieldDataHash) throw Error('mcp_submission_cms_conflict');

@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { runQualityJob, type QualityWorkerDependencies } from '../../../lib/seo-engine/post-publish/worker';
 import type { QualityJob } from '../../../lib/seo-engine/post-publish/jobs';
 import { LivCostPretransportError } from '../../../lib/liv/cost-errors';
+import { reviewKey } from '../../../lib/seo-engine/post-publish/policy';
 
 function fixture() {
   const snapshot = { itemId: 'item', locale: 'da' as const, published: true, hasUnpublishedChanges: false,
@@ -31,6 +32,22 @@ function fixture() {
 }
 
 describe('publication quality worker', () => {
+  it('does not pay or rewrite metadata for the exact approved media-only version', async () => {
+    const { deps, snapshot } = fixture();
+    deps.state = vi.fn(async () => ({ lockedFields: [], publicationPreservedKey: reviewKey(snapshot) }));
+    expect((await runQualityJob('job', deps)).reason).toBe('editor_approved_version_preserved');
+    expect(deps.read).toHaveBeenCalled(); expect(deps.model).not.toHaveBeenCalled(); expect(deps.apply).not.toHaveBeenCalled();
+  });
+  it('does not exempt a changed article or bypass an uncertain write', async () => {
+    const { deps, snapshot, job } = fixture();
+    deps.state = vi.fn(async () => ({ lockedFields: [], publicationPreservedKey: reviewKey({ ...snapshot, contentVersion: 'old' }) }));
+    expect((await runQualityJob('job', deps)).status).toBe('applied');
+    expect(deps.model).toHaveBeenCalled();
+    job.writeStartedAt = '2026-10-06T20:00:00Z';
+    deps.state = vi.fn(async () => ({ lockedFields: [], publicationPreservedKey: reviewKey(snapshot) }));
+    expect((await runQualityJob('job', deps)).reason).toBe('reconciled_public_metadata');
+    expect(deps.reconcile).toHaveBeenCalledOnce();
+  });
   it('defers archive work before models and duplicate lookup without burning attempts', async () => {
     const { deps, job } = fixture(); job.source = 'recovery';
     deps.admitArchive = vi.fn(async () => false);
@@ -91,6 +108,7 @@ describe('publication quality worker', () => {
 
 it('runs an eligible Google performance review through verified public completion', async () => {
   const { job, deps } = fixture(); job.source = 'performance'; job.mode = 'performance';
+  deps.state = vi.fn(async () => ({ lockedFields: [], publicationPreservedKey: reviewKey(job.snapshot) }));
   job.evidence = { currentImpressions: 500, previousImpressions: 400, currentDays: 28, previousDays: 28,
     comparable: true, fetchedAt: '2026-09-12T11:00:00Z' };
   expect((await runQualityJob('job', deps)).status).toBe('applied');

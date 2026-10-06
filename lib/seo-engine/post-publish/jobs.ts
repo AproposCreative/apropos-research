@@ -33,6 +33,7 @@ export type QualityJob = {
 };
 export type ArticleQualityState = {
   lockedFields: MetadataField[];
+  publicationPreservedKey?: string;
   lastAppliedAt?: string;
   performanceJobId?: string;
   lastPerformanceReviewedAt?: string;

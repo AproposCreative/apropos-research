@@ -3,6 +3,34 @@ import { acquireCmsWriteLease } from '@/lib/seo-engine/cms-write-lease';
 import { createHash } from 'node:crypto';
 import { getArticleQualityState, type QualityJob } from './jobs';
 import type { MetadataField } from './policy';
+import { reviewKey } from './policy';
+import { publishedSnapshot, type CmsSnapshot } from './snapshot';
+import { getCmsSeoSlugs } from '@/lib/seo-engine/webflow-adapter';
+
+/** Preserve metadata for ONE personally approved publication version. This is
+ * not an AI review, a permanent SEO lock, or evidence of a successful publish.
+ * Caller holds the shared item CMS lease through the publish/readback. */
+export async function preservePublicationMetadata(input: {
+  staged: CmsSnapshot; locale: 'da' | 'en'; actor: string; submissionId: string;
+  approvedVersion: string; reason: 'media_only' | 'human_final_review';
+}, assertLease: () => Promise<unknown>) {
+  const db = getAdminDb();
+  if (!db) throw Error('seo_firestore_unavailable');
+  const { staged, locale } = input;
+  const key = reviewKey(publishedSnapshot({ itemId: staged.id, cmsLocaleId: staged.cmsLocaleId,
+    locale, live: staged, staged, slugs: getCmsSeoSlugs() }));
+  const ref = db.collection('seoPostPublishArticles').doc(createHash('sha256').update(`${staged.id}:${locale}`).digest('hex'));
+  await assertLease();
+  await db.runTransaction(async tx => {
+    const state = (await tx.get(ref)).data();
+    if (state?.pendingJobId) throw Error('seo_article_write_pending');
+    const audit = ref.collection('publicationPreservations').doc(key);
+    if (!(await tx.get(audit)).exists) tx.create(audit, { key, actor: input.actor,
+      submissionId: input.submissionId, approvedVersion: input.approvedVersion,
+      reason: input.reason, createdAt: new Date().toISOString(), aiReviewed: false });
+    tx.set(ref, { ...state, publicationPreservedKey: key });
+  });
+}
 
 export async function setMetadataLocks(itemId: string, locale: 'da' | 'en', lockedFields: MetadataField[], actor: string) {
   const db = getAdminDb();

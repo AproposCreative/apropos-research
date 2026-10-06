@@ -9,6 +9,9 @@ import { submissionPreviewBlocks } from './submission-preview';
 import { activeMember } from '@/lib/mcp/oauth';
 import { approvedSubmissionPolicy } from './submission-policy';
 import { readSubmissionCms } from './submission-published-target';
+import { acquireCmsWriteLease } from '@/lib/seo-engine/cms-write-lease';
+import { preservePublicationMetadata } from '@/lib/seo-engine/post-publish/editorial';
+import type { CmsSnapshot } from '@/lib/seo-engine/post-publish/snapshot';
 
 type Prepared = { itemId: string; expected: WebflowArticleFields; proof: { fieldDataHash: string } };
 type Publication = { uid: string; preparedHash: string; contentHash: string; cmsHash: string; publishAt: string;
@@ -71,9 +74,11 @@ export async function publishSubmission(uid: string, id: string, now = new Date(
   });
   if (!row) return { status: 'not_dispatched', publicationVerified: false };
   const prepared = row.prepared as Prepared, publication = row.publication as Publication;
+  let cmsLease: Awaited<ReturnType<typeof acquireCmsWriteLease>> | undefined;
   const assertLease = async () => {
     const latest = (await ref.get()).data();
     if (latest?.publishToken !== token || latest.preparedHash !== publication.preparedHash || latest.contentHash !== publication.contentHash || latest.publishLeaseUntil <= Date.now()) throw Error('mcp_submission_preview_changed');
+    await cmsLease?.assertOwned();
   };
   try {
     let receipt;
@@ -82,6 +87,7 @@ export async function publishSubmission(uid: string, id: string, now = new Date(
       receipt = await verifyLiveLivArticle({ itemId: prepared.itemId, expected: prepared.expected, fieldDataHash: publication.fieldDataHash });
     } else {
       if (!await activeMember(uid, Date.parse(publication.acceptedAt))) throw Error('mcp_submission_owner_access_changed');
+      cmsLease = await acquireCmsWriteLease(prepared.itemId, 'da');
       assertPublicationEnabled(); await assertLease();
       const inspectionPolicy = approvedSubmissionPolicy(row as unknown as Awaited<ReturnType<typeof readSubmission>>);
       const fresh = await inspectLivCmsDraft({ itemId: prepared.itemId, expected: prepared.expected, inspectionPolicy });
@@ -89,6 +95,13 @@ export async function publishSubmission(uid: string, id: string, now = new Date(
       receipt = await publishVerifiedLivArticle({ itemId: prepared.itemId, expected: prepared.expected,
         ...(row.publishedTarget ? {} : { publicationDate: publication.publishAt }), assertLease, inspectionPolicy,
         beforePublish: async fieldDataHash => {
+          if (row.publishedTarget || row.choices?.aiFinalChecks === 'human') {
+            const staged = await readSubmissionCms(prepared.itemId);
+            if (cmsFieldHash(staged.fieldData as Record<string, unknown>) !== fieldDataHash) throw Error('mcp_submission_cms_conflict');
+            await preservePublicationMetadata({ staged: staged as CmsSnapshot, locale: 'da', actor: uid,
+              submissionId: id, approvedVersion: publication.preparedHash,
+              reason: row.publishedTarget ? 'media_only' : 'human_final_review' }, assertLease);
+          }
           await db.runTransaction(async tx => {
             const current = (await tx.get(ref)).data();
             if (current?.publishToken !== token || current.publication?.attempted || current.preparedHash !== publication.preparedHash) throw Error('mcp_submission_publication_unconfirmed');
@@ -114,6 +127,7 @@ export async function publishSubmission(uid: string, id: string, now = new Date(
       blocker, reconcileAfter: Date.now() + 15 * 60_000 });
     return { status: 'reconciliation_required', publicationVerified: false, blocker };
   } finally {
+    await cmsLease?.release();
     await db.runTransaction(async tx => {
       const current = (await tx.get(ref)).data();
       if (current?.publishToken === token) tx.update(ref, { publishLeaseUntil: 0 });

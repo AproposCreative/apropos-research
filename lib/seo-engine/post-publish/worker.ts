@@ -49,6 +49,9 @@ export async function runQualityJob(id: string, deps: QualityWorkerDependencies)
     if (!fresh.snapshot.published || fresh.snapshot.hasUnpublishedChanges || reviewKey(fresh.snapshot) !== reviewKey(job.snapshot)) {
       return await finish('stale', 'article_changed');
     }
+    if (job.mode === 'publication_quality' && state.publicationPreservedKey === reviewKey(fresh.snapshot)) {
+      return await finish('kept', 'editor_approved_version_preserved');
+    }
     if (state.lockedFields.includes('seoTitle') && state.lockedFields.includes('metaDescription')) return await finish('kept', 'editorial_locks');
     if (state.lastAppliedAt && (deps.now?.() ?? Date.now()) - Date.parse(state.lastAppliedAt) < POST_PUBLISH_POLICY.cooldownMs) {
       return await finish('kept', 'cooldown');

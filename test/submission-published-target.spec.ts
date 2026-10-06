@@ -12,6 +12,7 @@ vi.mock('@/lib/webflow/locale-items', () => ({ patchArticleFieldDataForLocale: (
 vi.mock('@/lib/editorial/submission-options', () => ({ getSubmissionOptions: async () => ({ authors: [], categories: [], topics: [], requiredFields: [] }) }));
 import { linkPublishedSubmission, stageSubmissionMedia, verifyStagedMedia, assertMediaOnlyUpdate, assertSubmissionNotAlreadySaved } from '@/lib/editorial/submission-published-target';
 import { cmsFieldHash } from '@/lib/liv/cms-field-hash';
+import { acquireCmsWriteLease } from '@/lib/seo-engine/cms-write-lease';
 const id = 'a'.repeat(64), itemId = 'b'.repeat(24), path = `editorialSubmissions/${id}`;
 const article = { title: 'I mellemtiden er vi ingen', content: '<p>Den præcise anmeldelse.</p>', author: 'author', category: 'culture', rating: 5,
   seoTitle: 'Min SEO titel', seoDescription: 'Min beskrivelse', slug: 'samme-slug' };
@@ -61,6 +62,15 @@ it('updates only media on the same item, then adds body images without changing 
 it('refuses a race before patch and preserves the other editor’s work', async () => {
   await expect(stageSubmissionMedia(target(), expected(), {}, async () => {}, async () => { state.fields['seo-title'] = 'Anden redaktør'; })).rejects.toThrow('cms_conflict');
   expect(state.patch).not.toHaveBeenCalled();
+});
+it('shares the CMS item lease with SEO writers and releases it after a failed patch', async () => {
+  const lease = await acquireCmsWriteLease(itemId, 'da');
+  await expect(stageSubmissionMedia(target(), expected(), {}, async () => {}, async () => {})).rejects.toMatchObject({ code: 'write_busy' });
+  expect(state.patch).not.toHaveBeenCalled();
+  await lease.release();
+  state.patch.mockRejectedValueOnce(Error('timeout'));
+  await expect(stageSubmissionMedia(target(), expected(), {}, async () => {}, async () => {})).rejects.toThrow('timeout');
+  const next = await acquireCmsWriteLease(itemId, 'da'); await next.release();
 });
 it('reads back after timeout without another patch and detects a changed asset', async () => {
   const baseline = target(), image = expected();
