@@ -144,9 +144,12 @@ preserved version, and continuing eligible independent performance reviews.
   reported fallback cover. The original selected mockup is not in this task or the
   submission; correcting it and testing actual uploaded/generated/edited ChatGPT
   files, real personal approval, publication and later body additions remain open.
-- Bounded error/fatal runtime scan after READY found no matches; this is not a
-  long-running health guarantee. Drains inventory returned Vercel 404 and was not
-  verified or changed. No new monitoring service or paid probe was installed.
+- First error/fatal scan (21:53:30–21:53:42Z) found no matches. Follow-up through
+  21:54:37Z returned two `MaxListenersExceededWarning` messages on the separate
+  `/api/podcast/public/episode` route at 21:54:18Z, not MCP errors. No platform-wide
+  clean-health claim is made; podcast code was not changed in this release.
+  Drains inventory returned Vercel 404 and was not verified or changed. No new
+  monitoring service or paid probe was installed.
 
 Implemented/deployed is therefore verified; the native-file-to-live regression is
 not complete. Resume with the original file and the same submission/item above.
