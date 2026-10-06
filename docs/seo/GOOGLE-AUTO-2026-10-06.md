@@ -19,3 +19,11 @@ Requested outcome: scheduled GSC/GA4 opportunities can lead to verified metadata
 Production verification is recorded separately after deployment. At implementation time the existing OpenAI quota hold was active (revision 5, since 2026-09-30). Do not clear it or make a paid probe without evidence that billing has been resolved. A successful deployment/queue receipt is not proof of a completed live AI review or improved search performance.
 
 Acceptance still dependent on provider availability: actual automatic review → independent verification → metadata-only CMS update → public readback. Once billing is resolved and the existing provider hold is explicitly resumed, the scheduled recovery worker processes fresh eligible jobs; stale analytics are discarded and a later scan supplies fresh evidence. Do not reset saved paid stages, budgets or audit history.
+
+## Production readback, 2026-10-06 21:21 UTC
+
+Release `9721210d302288288920a5b2c52e52cf24e7190a`, deployment `dpl_E1h4jYyHovZvAXVrLeuoiUjcF1ky`: READY, production alias verified. Anonymous cron request returned 401.
+
+Authenticated daily cron collected 37 opportunities and automatically queued one review for “Now You See Me 3: Now You Don’t” (214 vs 286 impressions over comparable 28-day periods). Of 36 skips, 34 lacked comparable evidence, one was within cooldown, one was already applied. Recovery selected the new job; it reached `waiting_budget / liv_cost_provider_quota_exhausted` with `manualRequested=false` and a valid automatic admission receipt. CMS snapshot remained identical; public URL returned 200. Provider hold revision 5 unchanged.
+
+This verifies deployed collection → automatic admission → worker → provider-stop behavior. No live AI rewrite was performed or claimed. Preserve the queued job and receipt. Resume only after billing resolution through the existing revision-bound provider-resume operation; scheduled recovery and subsequent scans handle pending/fresh evidence. See the adjacent production JSON receipt.

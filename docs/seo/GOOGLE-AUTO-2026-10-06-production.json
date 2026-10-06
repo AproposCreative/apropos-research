@@ -1,0 +1,45 @@
+{
+  "checkedAt": "2026-10-06T21:21:20.141Z",
+  "release": {
+    "id": "dpl_E1h4jYyHovZvAXVrLeuoiUjcF1ky",
+    "sha": "9721210d302288288920a5b2c52e52cf24e7190a",
+    "state": "READY"
+  },
+  "aliasVerified": true,
+  "opportunityCount": 37,
+  "queuedCount": 1,
+  "skippedCount": 36,
+  "jobs": [
+    {
+      "unchanged": true,
+      "publicStatus": 200,
+      "id": "e2c18294a8acae5a14f534fedf1cc1f4726899cf94f18b6ad53fb2d30b60697e",
+      "itemId": "69218a80d6cdfe672bb558dd",
+      "title": "Now You See Me 3: Now You Don’t",
+      "source": "performance",
+      "status": "waiting_budget",
+      "reason": "liv_cost_provider_quota_exhausted",
+      "manualRequested": false,
+      "evidence": {
+        "currentDays": 28,
+        "previousDays": 28,
+        "comparable": true,
+        "currentImpressions": 214,
+        "previousImpressions": 286,
+        "fetchedAt": "2026-10-06T21:19:50.197Z"
+      },
+      "admission": {
+        "jobId": "e2c18294a8acae5a14f534fedf1cc1f4726899cf94f18b6ad53fb2d30b60697e",
+        "policy": "google-auto-v1"
+      },
+      "receipt": null,
+      "modelStages": []
+    }
+  ],
+  "providerHold": {
+    "blocked": true,
+    "reason": "quota_exhausted",
+    "revision": 5,
+    "blockedAt": "2026-09-30T22:00:31.491Z"
+  }
+}
