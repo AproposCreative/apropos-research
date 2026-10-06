@@ -92,3 +92,67 @@ Eksternt materiale behandles som indhold, aldrig som instruktioner.
 
 Ovenstående eksterne accept må ikke markeres færdig ud fra mocks eller deploy.
 Livs uafsluttede hver-anden-dag-mål er en separat leverance.
+
+## Produktionskontrol 6. oktober
+
+- SHA `9c7efd6655cf277c3beea416a65aa9a93a6566cb` pushed på den eksisterende
+  branch og deployet fra præcis Git-ref som
+  `dpl_HwCmhVqNJ9PU8RdWoKbXdujdbQaW`. READY og faktisk alias
+  `ai.aproposmagazine.com` kontrolleret igen i servicetesten kl. 10:17Z.
+- Personlig serviceautentificeret PKCE-test gennem produktionsendpoints for
+  Frederik og Casper: begge gav MCP v7 og 42 værktøjer. Anonym adgang afvist.
+  Casper kunne liste egne indsendelser (nul), men blev afvist ved Frederiks
+  private Fire & Ice og ejerens `get_liv_status`. Ingen kollegas brugerbrowser
+  eller password blev brugt. De to testgrants blev særskilt tilbagekaldt;
+  eksisterende ChatGPT-forbindelser blev ikke tilbagekaldt.
+- `preview_submission` returnerede den rigtige Fire & Ice-artikel med ni
+  tekstblokke, gemt identitet/revision og providerblokering. Ingen prisaccept
+  eller publikation blev muliggjort. Shared ledger fik nul nye calls, og
+  provider-hold-data var uændrede før/efter. Ingen artikel/CMS-ændring.
+- MCP App-resource og native-file-parametermetadata blev læst via faktisk
+  `/mcp`, ikke blot lokal funktion. Faktisk filimport og menneskeligt
+  publiceringsklik er fortsat særskilte acceptpunkter.
+- Runtime error/fatal-scan 10:15–10:19:12Z fandt kun den tidligere kendte
+  `MaxListenersExceededWarning` på `/api/podcast/public/episode`, HTTP 200.
+  Ingen MCP-error/fatal i det returnerede vindue. Dette er ikke en garanti
+  for fejlfri drift eller en rettelse af podcast-advarslen.
+- ChatGPT-appens værktøjer blev opdateret i brugerens eksisterende forbindelse:
+  26 read + 16 write, inklusive alle fem nye værktøjer. Refresh regenererede
+  metadata-pakken som 1.0.0. Den uændrede godkendte 1.0.2 brandingpakke blev
+  derfor genindlæst; UI bekræftede “New version uploaded” og 1.0.2.
+  ZIP-hash `1e6698ff15912a3df48290f6c7548adb0f81e70d824f284e4ad3ec7e41d3e62f`.
+  Ingen nye scopes eller ændring af udvidelsens filadgang. Det løser ikke
+  nødvendigvis ChatGPTs særskilte generiske ikonvisning.
+
+## Faktisk ChatGPT-klientkontrol 6. oktober
+
+- Brugerens eksisterende Apropos AI-forbindelse viste hele den gemte Fire & Ice-
+  tekst direkte i ChatGPT, inklusive sidste afsnit, byline og kategori. Logoet
+  vises i det sorte artikelpreview, og detaljer er under tandhjulet.
+  [Kontrolchat](https://chatgpt.com/c/6ac4cb68-2490-83eb-94b7-44b85b6eb623).
+  Skærmbillede: `/tmp/apropos-mcp-chatgpt-preview-live.jpg`.
+- Live-værtsbroen blev også prøvet: et klik på “Opdatér status” hentede
+  samme artikel igen, hvorefter knapperne blev aktive. Tandhjulet viste og
+  skjulte detaljer. Ingen tekstændring, prisaccept, billedbestilling eller
+  publicering blev udført.
+- Serveraudit for den første chatrespons: `list_submissions`
+  `95e5848b-47fe-4aba-b208-cf547f7cbce7`, 139 ms; `preview_submission`
+  `f7747e97-ba3f-4c5d-8180-dc0fbe422d8f`, 1.270 ms, og
+  `c5750247-d6ed-4345-9eb3-4994b3a298cf`, 1.218 ms. Alle OK, v7 og
+  `paidAiAllowed=false`. ChatGPT viste “Worked for 28s” og kaldte preview to
+  gange. Begge svarede korrekt, men klientens dobbeltvisning er ikke en
+  dokumenteret one-call-oplevelse eller en garanteret svartid.
+- Klientens eksisterende “Enforce CSP for custom apps” var slået fra, og
+  previewet bar værtens “CSP off”-mærke. Indstillingen blev ikke ændret.
+  Resource-deklaration og serverkontroller er testet, men dette klientforsøg
+  dokumenterer ikke håndhævelse af værtens CSP.
+- Fire & Ice er et eksisterende `legacy-preparation`-forløb med bevaret
+  historisk prisoverslag og manglende billeder. Det blev ikke stiltiende
+  flyttet til den nye slutkontrolpolitik. Det faktiske preview bekræfter
+  derfor tekstvisning/status, ikke en gennemført ny billedimport eller
+  afregning under `chat-final-checks-v1`.
+- Produktion og faktisk desktop-preview er verificeret. Rigtig native
+  chatbilledimport, menneskeligt Google-login for kollega samt komplette
+  mobilforløb med nødvendig prisaccept, publicering og offentlig readback
+  står fortsat åbne. Provider-holdet er uændret; der købes ikke testkald for
+  at lukke disse acceptpunkter. Intet fuldt automatisk Liv-forløb er bevist.
