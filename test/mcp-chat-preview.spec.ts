@@ -71,6 +71,13 @@ it('fails closed when blocked or when CMS is unavailable, never calling a paid p
   expect(preview.confirmation).toBeNull(); expect(preview.data.dependencyError).toBeTruthy();
   expect(state.accept).not.toHaveBeenCalled(); expect(state.approve).not.toHaveBeenCalled();
 });
+it('offers an explicit personal zero-AI confirmation under provider hold only for human-review quotes', async () => {
+  state.quote.mockResolvedValue({ canAccept: true, humanReview: true, provider: { blocked: true }, quoteId: 'human', estimateDkk: 0, ceilingDkkMicros: 0 });
+  const result = await chatSubmissionPreview(identity, id);
+  expect(result.confirmation?.action).toBe('checks');
+  expect(result.data.quote).toMatchObject({ humanReview: true, estimateDkk: 0 });
+  expect(state.accept).not.toHaveBeenCalled();
+});
 it('does not conflate historical published state with fresh readback or expose another user costs', async () => {
   memory.rows.get(path).status = 'published';
   expect((await chatSubmissionPreview(identity, id)).data).toMatchObject({ recordedPublished: true, publicationVerified: false });

@@ -478,6 +478,8 @@ export async function getArticlesCollectionFieldsDetailed(): Promise<WebflowFiel
 
 // Publish article to Webflow
 export async function publishArticleToWebflow(articleData: WebflowArticleFields, options: {
+  /** Server-owned submission policy. Never accept from a CMS field. */
+  preserveProvidedImages?: boolean;
   /** Trusted server caller only; awaited after normalization, before the CMS write. */
   onBeforeSave?: (expected: WebflowArticleFields) => Promise<void>;
 } = {}): Promise<string> {
@@ -583,7 +585,9 @@ export async function publishArticleToWebflow(articleData: WebflowArticleFields,
     // Build fieldData via mapping
     const mapping = readMapping();
     const fieldData = await buildFieldDataFromMapping(articleData, mapping);
+    if (options.preserveProvidedImages && fieldData.thumb) fieldData['mobile-image'] = structuredClone(fieldData.thumb);
     const imageOptimize = await autoOptimizeArticleFieldData({
+      preserveProvidedImages: options.preserveProvidedImages,
       fieldData,
       articleTitle: articleData.title,
       articleSlug: articleData.slug,
@@ -720,10 +724,15 @@ export async function publishArticleToWebflow(articleData: WebflowArticleFields,
 
     // Filter fieldData to only include slugs that exist in the collection schema (fetched in parallel above)
     let requiredSlugs: string[] = [];
+    if ((articleData.bookTitle || articleData.bookAuthor) && !schemaRes.ok) throw Error('webflow_book_schema_unavailable');
     try {
       if (schemaRes.ok) {
         const schema: any = await schemaRes.json();
         const allowed = new Set<string>((schema.fields || []).map((f: any) => f.slug));
+        for (const [key, value] of [['book-title', articleData.bookTitle], ['book-author', articleData.bookAuthor]] as const) {
+          if (value && !allowed.has(key)) throw Error('webflow_book_schema_missing');
+          if (value) fieldData[key] = value;
+        }
         requiredSlugs = (schema.fields || [])
           .filter((f:any)=>!!(f.required || f.isRequired))
           .map((f:any)=>f.slug);
@@ -878,7 +887,10 @@ export async function publishArticleToWebflow(articleData: WebflowArticleFields,
           fieldData['post-body'] = `<p>${String(fieldData['post-body']).replace(/\n+/g,'</p><p>')}</p>`;
         }
       }
-    } catch {}
+    } catch (error) {
+      // A supplied book identity must never be silently dropped.
+      if (articleData.bookTitle || articleData.bookAuthor) throw error;
+    }
 
     // Pre-validate required fields locally to surface actionable message
     if (requiredSlugs.length > 0) {

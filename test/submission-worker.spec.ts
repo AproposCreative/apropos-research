@@ -17,6 +17,7 @@ vi.mock('@/lib/factcheck/source-reader', () => ({ retrieveSource: async () => ({
 vi.mock('@/lib/openai', () => ({ getImageGenOpenAIClient: () => ({ chat: { completions: { create: (...args: unknown[]) => state.visual(...args) } } }) }));
 vi.mock('@/lib/articles/writer-cms-save', () => ({ saveWriterCmsDraft: (...args: unknown[]) => state.save(...args) }));
 vi.mock('@/lib/liv/cms-readback', () => ({ inspectLivCmsDraft: async () => ({ publicationReady: true, draftConfirmed: true, checks: [{ ok: true }], fieldDataHash: 'cms-proof' }) }));
+vi.mock('@/lib/editorial/submission-published-target', () => ({ assertSubmissionNotAlreadySaved: async () => {}, stageSubmissionMedia: vi.fn() }));
 import { runSubmissionStep } from '@/lib/editorial/submission-worker';
 import { currentLivCostContext } from '@/lib/liv/cost-context';
 const id = 'a'.repeat(64), hash = 'b'.repeat(64), path = `editorialSubmissions/${id}`;
@@ -81,4 +82,25 @@ it('chat-final-checks mode keeps free saved-media work available under a provide
   expect(memory.rows.get(path)).toMatchObject({ status: 'blocked', blocker: 'mcp_submission_provider_blocked' });
   expect(memory.rows.get(`${path}/stages/${hash}-body-2`).status).toBe('done');
   expect(state.visual).not.toHaveBeenCalled(); expect(state.checks).not.toHaveBeenCalled(); expect(state.claim).not.toHaveBeenCalled();
+});
+it('honors personally approved cover-only and human review under hold without ANY model call', async () => {
+  const row = memory.rows.get(path); row.executionPolicy = 'chat-final-checks-v1'; state.hold = true;
+  row.article.content = '<p>Min originale tekst.</p>'; row.choices.bodyImages = 'deferred'; row.choices.aiFinalChecks = 'human';
+  row.approval.editorialDecision = { bodyImages: 'deferred', aiFinalChecks: 'human' };
+  for (let i = 0; i < 3; i++) await runSubmissionStep('owner', id);
+  expect(memory.rows.get(path).status).toBe('prepared');
+  expect(memory.rows.get(path).assets).toHaveLength(1);
+  expect(memory.rows.get(`${path}/stages/${hash}-checks`).result).toMatchObject({ status: 'not_run', aiVerified: false });
+  expect(state.visual).not.toHaveBeenCalled(); expect(state.checks).not.toHaveBeenCalled(); expect(state.claim).not.toHaveBeenCalled(); expect(state.upload).not.toHaveBeenCalled();
+  expect(state.save).toHaveBeenCalledTimes(1);
+});
+it('cannot turn a model choice into human approval or hide a missing cover', async () => {
+  const row = memory.rows.get(path); row.executionPolicy = 'chat-final-checks-v1';
+  row.choices.bodyImages = 'deferred'; row.choices.aiFinalChecks = 'human';
+  expect(await runSubmissionStep('owner', id)).toMatchObject({ blocker: 'mcp_submission_editorial_decision_required' });
+  const current = memory.rows.get(path);
+  current.status = 'processing'; current.approval.editorialDecision = { bodyImages: 'deferred', aiFinalChecks: 'human' };
+  current.article.featuredImage = '';
+  expect(await runSubmissionStep('owner', id)).toMatchObject({ blocker: 'mcp_submission_images_required' });
+  expect(state.save).not.toHaveBeenCalled(); expect(state.visual).not.toHaveBeenCalled();
 });

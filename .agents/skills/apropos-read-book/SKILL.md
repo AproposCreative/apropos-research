@@ -1,9 +1,22 @@
 ---
 name: apropos-read-book
-description: Læs en lovligt lånt KK Reader-bog systematisk i ChatGPT Work Cloud Browser med private Apropos MCP-checkpoints. Brug ved reader-links, fuldlæsning og genoptagelse før boganmeldelse. Ingen ny AI-pipeline eller lokal Mac-afhængighed.
+description: Anmeld denne bog fra et bibliotek.kk.dk/reader-link. Find tidligere læsning eller læs i ChatGPT Work Cloud Browser med private Apropos MCP-checkpoints, og fortsæt til eksisterende submission. Brug ved boganmeldelse, KK-links og genoptagelse. Ingen ny AI-pipeline eller lokal Mac-afhængighed.
 ---
 
 # Læs en bog, bevar fremdriften
+
+Et KK-link eller “anmeld denne bog” er nok til at vælge dette workflow; kræv
+ingen bestemt formulering. Find først eksisterende læsning med
+list_reader_sources (sourceUrl kan filtrere præcist). Er dækningen komplet,
+hent de gemte note-batches før du beder om browser/login igen. Kun manglende
+læsning eller belæg kræver genbesøg. ChatGPT styrer selv tool discovery;
+MCP kan ikke tvinge hosten til at åbne en browser eller indlæse værktøjer.
+
+Ved prepare_submission angives readerSourceId, så titel/forfatter og
+positionsdækning følger med uden genindtastning eller arkivering af bogtekst.
+Genbrug altid en eksisterende submission. Ved en allerede live artikel bruges
+link_published_submission frem for endnu en create. Følg brugerens valg om
+cover-only og menneskelig slutkontrol i get_workflow(submit).
 
 1. Brug en tilgængelig **remote Cloud Browser** i denne chat, ikke brugerens lokale Chrome. MCP åbner/styrer ikke browseren. Hvis chatten mangler cloudbrowser, sig det konkret og bed om at fortsætte i en Work-chat med browseradgang. Et almindeligt ChatGPT-abonnement eller MCP alene garanterer ikke browseradgang. Start ikke en lokal extension, en ny betalt browser eller API-model som fallback.
 2. Ved genoptagelse: `list_reader_sources`, derefter `get_reader_progress` for den valgte bog. Ved nyt lån: åbn brugerens KK-link i cloudbrowserens normale UI, aflæs titel/forfatter/evt. udgave og brug `register_reader_source`. En registrering åbner ikke readeren. Hold lånelinket privat.

@@ -80,6 +80,8 @@ export function normalizeArticlePayload(
     ...(input.articleFormat ? { articleFormat: input.articleFormat } : {}),
     ...(input.subjectType ? { subjectType: input.subjectType } : {}),
     ...(input.ratingReason ? { ratingReason: input.ratingReason } : {}),
+    ...(input.bookTitle ? { bookTitle: input.bookTitle } : {}),
+    ...(input.bookAuthor ? { bookAuthor: input.bookAuthor } : {}),
     featuredImage: input.featuredImage,
     featuredImageAlt: input.featuredImageAlt,
     featuredImageHash: input.featuredImageHash,

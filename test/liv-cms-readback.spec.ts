@@ -44,6 +44,17 @@ it('compares block-separated prose independently of CMS serialization whitespace
   const changed = await inspectLivCmsDraft({ itemId, expected: payload }, f.dependencies);
   expect(changed.checks).toContainEqual({ id: 'field:content', ok: false });
 });
+it('allows an exact provided PNG cover and deferred body images only with the submission policy; Liv remains strict', async () => {
+  const f = fixture(), bytes = await sharp({ create: { width: 1280, height: 800, channels: 3, background: '#abc' } }).png().toBuffer();
+  Object.assign(f.item.fieldData.thumb, { alt: 'Valgt bogmockup' });
+  const payload = { ...expected, featuredImage: f.item.fieldData.thumb.url, featuredImageAlt: 'Valgt bogmockup',
+    fotoCredit: 'AI-illustration', featuredImageHash: createHash('sha256').update(bytes).digest('hex') };
+  const deps = { ...f.dependencies, readImage: async () => bytes };
+  expect((await inspectLivCmsDraft({ itemId, expected: payload }, deps)).publicationReady).toBe(false);
+  const inspectionPolicy = { minimumBodyImages: 0 as const, preserveProvidedImages: true };
+  expect((await inspectLivCmsDraft({ itemId, expected: payload, inspectionPolicy }, deps)).publicationReady).toBe(true);
+  expect((await inspectLivCmsDraft({ itemId, expected: { ...payload, featuredImageHash: 'f'.repeat(64) }, inspectionPolicy }, deps)).publicationReady).toBe(false);
+});
 it('does not ignore removed captions or inserted inline word boundaries', async () => {
   const f = fixture();
   for (const [before, after] of [

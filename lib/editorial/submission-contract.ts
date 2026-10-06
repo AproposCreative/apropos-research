@@ -3,14 +3,18 @@ import { load } from 'cheerio';
 import { editableArticle, researchSchema } from '@/lib/mcp/workspace';
 import { assertArticleMarkupSafe, articleImages } from '@/lib/mcp/markup';
 import { cmsFieldHash } from '@/lib/liv/cms-field-hash';
+import type { PublishedTarget } from './submission-published-target';
 
 export const submissionId = z.string().regex(/^[a-f0-9]{64}$/);
 export const submissionChoices = z.object({
   kind: z.enum(['review', 'news', 'feature', 'commentary']).optional(),
   media: z.enum(['press', 'illustration', 'provided']).optional(),
   style: z.enum(['expressive', 'minimal']).default('expressive'),
+  bodyImages: z.enum(['required', 'deferred']).optional().describe('Use deferred only when the user explicitly chooses cover-only; save this choice for later previews.'),
+  aiFinalChecks: z.enum(['required', 'human']).optional().describe('human requests explicit personal confirmation to prepare without paid AI checks; it is not approval by itself.'),
 }).strict();
 export const submissionInput = z.object({
+  readerSourceId: submissionId.optional().describe('Existing private reader source: reuses book metadata and coverage, never copies the book text.'),
   requestId: z.string().regex(/^[a-zA-Z0-9_-]{16,100}$/),
   article: editableArticle,
   research: researchSchema.default([]),
@@ -34,7 +38,9 @@ export type SubmissionOptions = {
 };
 export type SubmissionQuestion = { field: string; question: string; options?: Array<{ value: string; label: string }> };
 export type SubmissionRecord = SubmissionInput & {
+  publishedTarget?: PublishedTarget;
   executionPolicy?: 'chat-final-checks-v1';
+  approval?: { uid?: string; contentHash: string; acceptedAt?: string; editorialDecision?: { bodyImages: 'required' | 'deferred'; aiFinalChecks: 'required' | 'human' } };
   id: string; uid: string; revision: number; originalArticle: SubmissionArticle;
   contentHash: string; createdAt: string; updatedAt: string;
   status: 'draft' | 'awaiting_answers' | 'awaiting_preparation' | 'processing' | 'blocked' | 'prepared' | 'scheduled' | 'published';
@@ -77,15 +83,16 @@ export function inspectSubmission(input: Pick<SubmissionInput, 'article' | 'choi
   const missingMetadata = (['subtitle', 'intro', 'slug', 'seoTitle', 'seoDescription'] as const).filter(key => !article[key]?.trim());
   const images = articleImages(article.content);
   const distinctBodyImages = new Set(images.map(i => i.url).filter(url => url !== article.featuredImage)).size;
-  const missingMedia = [...(!article.featuredImage ? ['cover'] : []),
-    ...Array.from({ length: Math.max(0, 2 - distinctBodyImages) }, (_, i) => `body-${distinctBodyImages + i + 1}`)];
+  const recommendedMedia = Array.from({ length: Math.max(0, 2 - distinctBodyImages) }, (_, i) => `body-${distinctBodyImages + i + 1}`);
+  const missingMedia = [...(!article.featuredImage ? ['cover'] : []), ...(choices.bodyImages === 'deferred' ? [] : recommendedMedia)];
   return { questions: questions.slice(0, 3), remainingQuestionCount: Math.max(0, questions.length - 3),
-    missingMetadata, missingMedia, blockers, suggestedMedia: film ? 'press' : choices.media || 'press',
+    missingMetadata, missingMedia, recommendedMedia, blockers, suggestedMedia: film ? 'press' : choices.media || 'press',
     readyForPreparation: !questions.length && !blockers.length && !missingMetadata.length,
     publicationReady: false as const, textPreserved: true, paidAiCalls: 0,
     instruction: 'Vis foreslåede valg og stil kun de returnerede spørgsmål. Bevar brødteksten. Udfyld manglende metadata i chatten uden nye fakta. En kladde er ikke publiceringsklar.' };
 }
 
-export function submissionVersion(input: Pick<SubmissionInput, 'article' | 'choices' | 'research'>) {
-  return cmsFieldHash({ article: input.article, choices: input.choices, research: input.research });
+export function submissionVersion(input: Pick<SubmissionInput, 'article' | 'choices' | 'research'>, target?: PublishedTarget) {
+  return cmsFieldHash({ article: input.article, choices: input.choices, research: input.research,
+    ...(target ? { publicationTarget: { itemId: target.itemId, fieldDataHash: target.fieldDataHash } } : {}) });
 }

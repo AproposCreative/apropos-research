@@ -1,7 +1,7 @@
 import { load } from 'cheerio';
 import { env } from '@/lib/config/env';
 import { getWebflowConfig } from '@/lib/webflow-config';
-import { inspectLivCmsDraft, readLivWebflowJson } from '@/lib/liv/cms-readback';
+import { inspectLivCmsDraft, readLivWebflowJson, type LivCmsInspectionPolicy } from '@/lib/liv/cms-readback';
 import { publishArticleItemForLocale, patchArticleFieldDataForLocale } from '@/lib/webflow/locale-items';
 import { readPublicMedia } from '@/lib/liv/public-media-reader';
 import type { WebflowArticleFields } from '@/lib/webflow/types';
@@ -18,6 +18,7 @@ const normalized = (html: string) => {
 
 /** Server-owned final step. One targeted publish, no write retries, no Instagram. */
 export async function publishVerifiedLivArticle(input: { itemId: string; expected: WebflowArticleFields;
+  inspectionPolicy?: LivCmsInspectionPolicy;
   beforePublish?: (fieldDataHash: string) => Promise<void>; publicationDate?: string; assertLease?: () => Promise<void> },
   dependencies?: {
     collectionId: string; localeId: string;
@@ -70,7 +71,8 @@ export async function publishVerifiedLivArticle(input: { itemId: string; expecte
   }
   const staged = await read(`${path}?cmsLocaleId=${localeId}`);
   const fields = object(staged.fieldData);
-  if (staged.id !== input.itemId || staged.cmsLocaleId !== localeId || staged.isDraft !== true || staged.isArchived === true ||
+  if (staged.id !== input.itemId || staged.cmsLocaleId !== localeId ||
+      (staged.isDraft !== true && !(input.inspectionPolicy?.allowPublishedUpdate && staged.isDraft === false)) || staged.isArchived === true ||
       fields.name !== input.expected.title || fields.slug !== input.expected.slug ||
       (verifyPublicationDate && fields['publish-date'] !== input.publicationDate) ||
       cmsFieldHash(fields) !== proof.fieldDataHash ||

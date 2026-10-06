@@ -10,7 +10,7 @@ type State = {
   row: { revision: number; status: string; article: Article; questions: Array<{ field: string; question: string }>;
     displayNames?: { author?: string; category?: string };
     missingMetadata: string[]; blocker?: string; publication?: { receipt?: { publicUrl?: string }; publishAt?: string } };
-  quote: null | { quoteId: string; canAccept: boolean; estimateDkk: number; ceilingDkkMicros: number;
+  quote: null | { quoteId: string; canAccept: boolean; estimateDkk: number; ceilingDkkMicros: number; humanReview?: boolean;
     lines: Array<{ step: string; estimateDkk: number }>; provider: { blocked: boolean } };
   preview: null | { ready: boolean; preparedHash: string; article: Article;
     blocks: Array<{ kind: 'text' | 'image'; text?: string; url?: string; alt?: string; caption?: string }>;
@@ -83,9 +83,10 @@ export default function SubmissionConfirmation({ id }: { id: string }) {
           <p>Estimeret klargøring: {quote.estimateDkk.toFixed(2)} kr.</p>
           <p className="text-sm text-white/65">Samlet reservationsloft: {(quote.ceilingDkkMicros / 1e6).toFixed(2)} kr. Det er et sikkerhedsloft, ikke en faktura. Ingen automatisk genbestilling.</p>
           <details><summary>Se hvad beløbet dækker</summary><ul className="mt-3 space-y-2">{quote.lines.map(line => <li key={line.step}>{line.step}: {line.estimateDkk.toFixed(2)} kr. estimeret</li>)}</ul></details>
-          {quote.provider.blocked ? <p role="alert">Betalte trin er stoppet af den gemte providerblokering. Tekst og svar er bevaret; der bestilles intet.</p> : <>
+          {quote.provider.blocked && !quote.humanReview ? <p role="alert">Betalte trin er stoppet af den gemte providerblokering. Tekst og svar er bevaret; der bestilles intet. Du kan bede chatten om klargøring med menneskelig slutkontrol uden AI-kald.</p> : <>
             <label className="flex items-start gap-3 leading-6"><input className="mt-1 h-5 w-5 shrink-0" type="checkbox" checked={checked} onChange={e => setChecked(e.target.checked)} />Klargør denne version inden for det viste loft. Dette publicerer ikke artiklen.</label>
-            <button className={`${button} w-full bg-white/10`} disabled={busy || !checked || !quote.canAccept} onClick={() => void act()}>Acceptér og klargør</button>
+            {quote.humanReview && <p>AI-slutkontrol køres ikke. Du overtager den redaktionelle og visuelle kontrol; tekniske CMS- og filkontroller bevares.</p>}
+            <button className={`${button} w-full bg-white/10`} disabled={busy || !checked || !quote.canAccept} onClick={() => void act()}>{quote.humanReview ? 'Klargør uden AI-slutkontrol' : 'Acceptér og klargør'}</button>
           </>}
         </>}
       </>}

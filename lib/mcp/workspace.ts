@@ -14,6 +14,7 @@ export const editableArticle = z.object({
   rating: z.number().int().min(1).max(6).optional(), ratingReason: z.string().max(1000).optional(),
   articleFormat: z.enum(['article', 'research-review']).optional(),
   subjectType: z.enum(['film','tv-series','music','art','literature','culture']).optional(),
+  bookTitle: z.string().trim().min(1).max(300).optional(), bookAuthor: z.string().trim().min(1).max(300).optional(),
   featuredImage: z.string().url().max(2000).optional(), featuredImageAlt: z.string().max(500).optional(),
   fotoCredit: z.string().max(500).optional(), imageSourceUrls: z.array(z.string().url().max(2000)).max(20).optional(),
   seoTitle: z.string().max(200).optional(), seoDescription: z.string().max(500).optional(),

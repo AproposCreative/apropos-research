@@ -13,6 +13,7 @@ import { maybeOptimizeMobileImageForFieldData } from '@/lib/webflow/mobile-image
 import { resolveSeoTitleFromFieldData } from '@/lib/images/seo-image-name';
 import { maybeOptimizeThumbImageForFieldData } from '@/lib/webflow/thumb-image-optimizer';
 import { enforceTextFreeArticleImages } from '@/lib/webflow/text-free-images';
+import { containsLockedProvidedAsset } from '@/lib/editorial/provided-assets';
 
 export type ArticleImageAutoOptimizeResult = {
   itemId: string;
@@ -65,12 +66,16 @@ export async function autoOptimizeArticleFieldData(args: {
   articleSlug?: string;
   articleSeoTitle?: string;
   force?: boolean;
+  preserveProvidedImages?: boolean;
 }): Promise<
   Pick<
     ArticleImageAutoOptimizeResult,
     'thumbOptimized' | 'mobileOptimized' | 'contentImagesOptimized' | 'contentImagesFailed'
   >
 > {
+  if (args.preserveProvidedImages || await containsLockedProvidedAsset(args.fieldData)) {
+    return { thumbOptimized: false, mobileOptimized: false, contentImagesOptimized: 0, contentImagesFailed: 0 };
+  }
   // Editorial rule is independent of compression settings; failures stop this save.
   await enforceTextFreeArticleImages(args.fieldData);
   if (!isArticleImageAutoOptimizeEnabled()) {

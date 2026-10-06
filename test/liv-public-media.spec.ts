@@ -24,34 +24,35 @@ describe('Liv public media transport', () => {
     expect(await readChatGptImage('https://files.oaiusercontent.com/asset?signature=temporary')).toEqual(Buffer.from('fixture'));
     const options = mocks.request.mock.calls[0][1];
     expect(options.headers.Authorization).toBeUndefined(); expect(options.headers.Cookie).toBeUndefined();
-    for (const url of ['https://example.com/x?signature=secret', 'https://files.oaiusercontent.com.evil.test/a', 'https://openai.com/a']) {
+    for (const url of ['https://internal.local/x?signature=secret', 'https://files.oaiusercontent.com.evil.test/a']) {
       await expect(readChatGptImage(url)).rejects.toThrow();
     }
     mocks.lookup.mockResolvedValue([{ address: '127.0.0.1', family: 4 }]);
     await expect(readChatGptImage('https://files.oaiusercontent.com/a')).rejects.toThrow('file_download_failed');
     expect(mocks.request).toHaveBeenCalledTimes(1);
   });
-  it.each(['files.oaiusercontent.com', 'generated.oaiusercontent.com', 'region.files.oaiusercontent.com', 'fileopenai.blob.core.windows.net'])('accepts resolved files on %s without relaxing transport', async hostname => {
+  it.each(['files.oaiusercontent.com', 'generated.oaiusercontent.com', 'region.files.oaiusercontent.com', 'fileopenai.blob.core.windows.net', 'oaisdmntprdenmarkeast.blob.core.windows.net', 'future-file-cdn.example.com'])('accepts resolved files on %s without relaxing transport', async hostname => {
     reply(200, { 'content-type': 'image/png' }, [Buffer.from('image')]);
     expect(await readChatGptImage(`https://${hostname}/private-image?sig=secret`)).toEqual(Buffer.from('image'));
     expect(mocks.request.mock.calls[0][1].agent).toBe(false);
     const callback = vi.fn(); mocks.request.mock.calls[0][1].lookup(hostname, {}, callback);
     expect(callback).toHaveBeenCalledWith(null, '93.184.216.34', 4);
   });
-  it.each(['https://eviloaiusercontent.com/a', 'https://oaiusercontent.com.evil.com/a', 'https://other.blob.core.windows.net/a',
-    'https://oaiusercontent.com/a'])('rejects untrusted signed-file hosts before DNS: %s', async url => {
-    await expect(readChatGptImage(`${url}?signature=DO-NOT-ECHO`)).rejects.toThrow('file_host_invalid');
-    expect(mocks.lookup).not.toHaveBeenCalled(); expect(mocks.request).not.toHaveBeenCalled();
+  it.each(['https://eviloaiusercontent.com/a', 'https://oaiusercontent.com.evil.com/a', 'https://other.blob.core.windows.net/a'])('does not trust file-host branding instead of validating actual DNS: %s', async url => {
+    mocks.lookup.mockResolvedValue([{ address: '169.254.169.254', family: 4 }]);
+    await expect(readChatGptImage(`${url}?signature=DO-NOT-ECHO`)).rejects.toThrow('file_download_failed');
+    expect(mocks.request).not.toHaveBeenCalled();
   });
   it.each(['file_000000008a2c8210bf00df617fedf022', 'sandbox:/mnt/data/image.png', '/mnt/data/image.png',
     'https://files.oaiusercontent.com@evil.com/a', 'https://user:password@files.oaiusercontent.com/a', 'https://files.oaiusercontent.com:8443/a'])('requires host-resolved HTTPS rather than fabricated/local references: %s', async url => {
     await expect(readChatGptImage(url)).rejects.toThrow('file_reference_invalid');
     expect(mocks.lookup).not.toHaveBeenCalled();
   });
-  it('returns only the rejected hostname, never the signed URL or file path', async () => {
+  it('never exposes the signed URL or file path on download failure', async () => {
+    reply(403, { 'content-type': 'text/html' });
     const error = await readChatGptImage('https://unsupported.example.com/private-user/file?sig=DO-NOT-ECHO').catch(e => e);
     const recovery = chatFileRecovery(error);
-    expect(recovery).toMatchObject({ rejectedHost: 'unsupported.example.com', articleChanged: false, regenerateImage: false });
+    expect(recovery).toMatchObject({ articleChanged: false, regenerateImage: false });
     expect(JSON.stringify(recovery)).not.toMatch(/DO-NOT-ECHO|private-user|https:/);
   });
   it('retains mixed-DNS and redirect protection for generated-file hosts', async () => {

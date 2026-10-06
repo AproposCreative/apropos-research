@@ -89,9 +89,11 @@ export async function readLivWebflowJson(path: string): Promise<JsonObject> {
  * Inspect a saved DK draft, including actual schema and resolved reference items.
  * This is deliberately not a publishing function or an image-rights certificate.
  */
+export type LivCmsInspectionPolicy = { minimumBodyImages?: 0 | 2; preserveProvidedImages?: boolean; allowPublishedUpdate?: boolean };
 export async function inspectLivCmsDraft(input: {
   itemId: string;
   expected: WebflowArticleFields;
+  inspectionPolicy?: LivCmsInspectionPolicy;
 }, dependencies?: {
   collectionId: string;
   localeId: string;
@@ -113,7 +115,7 @@ export async function inspectLivCmsDraft(input: {
   const fields = object(item.fieldData);
   const schemaFields = Array.isArray(schema.fields) ? schema.fields.map(object) : [];
   // Identity and draft state are hard requirements, even when content still needs editing.
-  if (item.id !== input.itemId || item.cmsLocaleId !== localeId || item.isDraft !== true || item.isArchived === true ||
+  if (item.id !== input.itemId || item.cmsLocaleId !== localeId || (item.isDraft !== true && !(input.inspectionPolicy?.allowPublishedUpdate && item.isDraft === false)) || item.isArchived === true ||
       fields.name !== input.expected.title || fields.slug !== input.expected.slug) {
     throw new Error('liv_cms_readback_draft_mismatch');
   }
@@ -132,6 +134,9 @@ export async function inspectLivCmsDraft(input: {
     checks.push({ id: `field:${slug}`, ok: !!text(expected) && text(fields[slug]) === text(expected) });
   }
   checks.push({ id: 'field:content', ok: !!visibleText(input.expected.content) && visibleText(fields.content) === visibleText(input.expected.content) });
+  for (const [slug, value] of [['book-title', input.expected.bookTitle], ['book-author', input.expected.bookAuthor]] as const) {
+    if (value) checks.push({ id: `field:${slug}`, ok: fields[slug] === value });
+  }
   checks.push({ id: 'field:intro', ok: !!visibleText(input.expected.intro) && visibleText(fields.intro) === visibleText(input.expected.intro) });
   // Verify the saved editorial choice, including false. Legacy proofs predate
   // the explicit toggle and used true; do not silently reinterpret old work.
@@ -162,8 +167,10 @@ export async function inspectLivCmsDraft(input: {
       try {
         const bytes = await (dependencies?.readImage || readLivStoredImage)(text(object(fields.thumb).url));
         const meta = await sharp(bytes, { limitInputPixels: 80_000_000 }).metadata();
-        matches = bytes.length <= 450 * 1024 && meta.format === 'webp' && (meta.pages ?? 1) === 1 &&
-          isLivHeroDimensions(meta) && createHash('sha256').update(bytes).digest('hex') === input.expected.featuredImageHash;
+        const formatValid = input.inspectionPolicy?.preserveProvidedImages
+          ? bytes.length <= 24 * 1024 * 1024 && ['jpeg', 'png', 'webp'].includes(meta.format || '') && (meta.width || 0) >= 800 && (meta.height || 0) >= 500
+          : bytes.length <= 450 * 1024 && meta.format === 'webp' && isLivHeroDimensions(meta);
+        matches = formatValid && (meta.pages ?? 1) === 1 && createHash('sha256').update(bytes).digest('hex') === input.expected.featuredImageHash;
       } catch { /* No byte proof means no approval, including URL rewrites and unavailable images. */ }
     }
     checks.push({ id: 'image:stored-bytes-match', ok: matches });
@@ -177,7 +184,7 @@ export async function inspectLivCmsDraft(input: {
     if (field?.type === 'Reference' && OBJECT_ID.test(referenceCollection) && OBJECT_ID.test(referenceId)) {
       const referenced = await read(`collections/${referenceCollection}/items/${referenceId}?cmsLocaleId=${localeId}`);
       ok = referenced.id === referenceId && referenced.cmsLocaleId === localeId && referenced.isArchived !== true &&
-        text(object(referenced.fieldData).name) === expectedName;
+        (referenceId === expectedName || text(object(referenced.fieldData).name) === expectedName);
     }
     checks.push({ id: `reference:${slug}`, ok });
   }
@@ -211,7 +218,8 @@ export async function inspectLivCmsDraft(input: {
   const bodyImages = body('img').toArray();
   const expectedUrls = expectedBody('img').toArray().map(image => expectedBody(image).attr('src'));
   const urls = bodyImages.map(image => body(image).attr('src') || '');
-  checks.push({ id: 'image:body-count', ok: bodyImages.length >= 2 && bodyImages.length <= 12 &&
+  const minimumBodyImages = input.inspectionPolicy?.minimumBodyImages ?? 2;
+  checks.push({ id: 'image:body-count', ok: bodyImages.length >= minimumBodyImages && bodyImages.length <= 12 &&
     new Set(urls).size === bodyImages.length && !urls.includes(text(object(fields.thumb).url)) &&
     !urls.includes(input.expected.featuredImage || '') });
   const bodyMatches = { id: 'image:body-matches', ok: bodyImages.length === expectedUrls.length &&
@@ -221,7 +229,7 @@ export async function inspectLivCmsDraft(input: {
         body(image).closest('figure').find('figcaption').text().trim() === expectedImage.closest('figure').find('figcaption').text().trim();
     }) };
   checks.push(bodyMatches);
-  let bodyAssetsOk = bodyImages.length >= 2 && bodyImages.length <= 12;
+  let bodyAssetsOk = bodyImages.length >= minimumBodyImages && bodyImages.length <= 12;
   if (bodyAssetsOk) {
     const hashes = new Set<string>();
     for (const [index, image] of bodyImages.entries()) {
@@ -246,7 +254,8 @@ export async function inspectLivCmsDraft(input: {
         if (!originalUrl) bodyMatches.ok = false;
         else {
           const original = src === originalUrl ? bytes : await (dependencies?.readImage || readLivStoredImage)(originalUrl);
-          if (!original.equals(bytes)) {
+          if (!original.equals(bytes) && input.inspectionPolicy?.preserveProvidedImages) bodyMatches.ok = false;
+          else if (!original.equals(bytes)) {
             // The normal CMS save path optimizes inline assets. Prove the exact
             // deterministic derivative, never infer identity from a filename.
             const encoded = await encodeWebp(original, {
@@ -258,7 +267,7 @@ export async function inspectLivCmsDraft(input: {
           }
         }
         if (!['jpeg', 'png', 'webp'].includes(meta.format || '') || (meta.pages ?? 1) !== 1 ||
-            !meta.width || meta.width < 800 || !meta.height || bytes.length > 5 * 1024 * 1024 ||
+            !meta.width || meta.width < 800 || !meta.height || bytes.length > (input.inspectionPolicy?.preserveProvidedImages ? 24 : 5) * 1024 * 1024 ||
             hashes.has(digest) || digest === input.expected.featuredImageHash) bodyAssetsOk = false;
         hashes.add(digest);
       } catch { bodyAssetsOk = false; bodyMatches.ok = false; }

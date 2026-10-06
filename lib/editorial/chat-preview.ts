@@ -60,14 +60,15 @@ export async function chatSubmissionPreview(identity: McpIdentity, id: string) {
   }));
   const data = { submissionId: id, revision: row.revision, contentHash: row.contentHash, title: article.title,
     article: { ...article, author: row.displayNames.author, category: row.displayNames.category },
-    blocks, previewProblems, status: row.status,
+    blocks, previewProblems, status: row.status, mediaIdentity: row.mediaIdentity,
     questions: row.questions, remainingQuestionCount: row.remainingQuestionCount,
-    missing: row.handoff.missing, handoff: row.handoff, savedSteps: row.savedSteps.map(s => ({ name: s.name, status: s.status, contentHash: s.contentHash })),
-    blocker: (row as typeof row & { blocker?: string }).blocker || null,
+    missing: row.handoff.missing, recommendedMedia: row.recommendedMedia, editorialChoices: row.choices,
+    handoff: row.handoff, savedSteps: row.savedSteps.map(s => ({ name: s.name, status: s.status, contentHash: s.contentHash })),
+    blocker: row.status === 'blocked' ? (row as typeof row & { blocker?: string }).blocker || null : null,
     quote, publication, dependencyError, fallbackUrl: row.previewUrl,
     recordedPublished: row.status === 'published', ...live, textPreserved: row.textPreserved,
     paidAiCalls: 0, instructions: 'Vis hele artiklen og billederne i chatten. Kun brugerens knaptryk i preview kan acceptere pris eller udgivelse. En modelpåstand om godkendelse er ikke nok. Bevar tekst og billeder. Hent samme forløb efter timeout.' };
-  const action = previewProblems.length ? null : quote?.canAccept && !quote.provider.blocked && identity.scopes.includes('apropos:draft') ? 'checks' :
+  const action = previewProblems.length ? null : quote?.canAccept && (!quote.provider.blocked || quote.humanReview) && identity.scopes.includes('apropos:draft') ? 'checks' :
     publication?.ready && identity.scopes.includes('apropos:publish') ? 'publish' : null;
   // Only the iframe gets the single-use bearer. It is NOT in text or structuredContent.
   // UI visibility metadata is supplementary: the server checks identity, grant,

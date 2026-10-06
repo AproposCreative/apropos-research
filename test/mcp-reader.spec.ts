@@ -139,6 +139,12 @@ it('paginates private sources and never leaks another colleague’s title', asyn
   expect(new Set([...first.items, ...second.items].map(s => s.sourceId)).size).toBe(3);
   expect(JSON.stringify([first, second])).not.toContain('Privat kollegabog');
 });
+it('discovers the exact existing private book by KK URL without another registration', async () => {
+  const id = await start(); await saveReaderProgress(uid, batch(id));
+  expect((await listReaderSources(uid, { sourceUrl: registration.sourceUrl })).items[0]).toMatchObject({ sourceId: id, revision: 1 });
+  expect((await listReaderSources('other', { sourceUrl: registration.sourceUrl })).items).toEqual([]);
+  expect((await getReaderProgress(uid, { sourceId: id })).revision).toBe(1);
+});
 it('ships a versioned focused cloud workflow with honest capability and publication boundaries', () => {
   const result = editorialWorkflow({ workflow: 'read' });
   expect(result.versionHash).toMatch(/^[a-f0-9]{64}$/); expect(result.instructions).toContain('save_reader_progress');

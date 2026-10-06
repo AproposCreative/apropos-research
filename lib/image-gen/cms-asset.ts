@@ -1,10 +1,18 @@
 import { createHash } from 'node:crypto';
+import sharp from 'sharp';
 import { readPublicMedia } from '@/lib/liv/public-media-reader';
 import { imageGenCmsConfiguration } from './webflow';
 
 export type ImageGenCmsAsset = { id: string; url: string };
-export async function uploadImageGenCmsAsset(bytes: Buffer, name: string, checkpoint: (asset: ImageGenCmsAsset) => Promise<void>) {
-  if (!/^apropos-[a-f0-9]{64}\.webp$/.test(name) || !bytes.length || bytes.length > 500_000) throw new Error('image_gen_upload_invalid');
+export async function uploadImageGenCmsAsset(bytes: Buffer, name: string, checkpoint: (asset: ImageGenCmsAsset) => Promise<void>, options?: { preserveOriginal: true }) {
+  let contentType = 'image/webp';
+  if (options?.preserveOriginal) {
+    const meta = await sharp(bytes, { limitInputPixels: 80_000_000 }).metadata();
+    const extension = meta.format === 'jpeg' ? 'jpg' : meta.format;
+    if (!['jpg', 'png', 'webp'].includes(extension || '') || (meta.pages || 1) !== 1 ||
+        name !== `apropos-${createHash('sha256').update(bytes).digest('hex')}.${extension}` || !bytes.length || bytes.length > 24 * 1024 * 1024) throw new Error('image_gen_upload_invalid');
+    contentType = `image/${meta.format}`;
+  } else if (!/^apropos-[a-f0-9]{64}\.webp$/.test(name) || !bytes.length || bytes.length > 500_000) throw new Error('image_gen_upload_invalid');
   const { token, site } = imageGenCmsConfiguration();
   if (!/^[a-f0-9]{24}$/.test(site || '')) throw new Error('image_gen_cms_unconfigured');
   const allocated = await fetch(`https://api.webflow.com/v2/sites/${site}/assets`, {
@@ -32,7 +40,7 @@ export async function uploadImageGenCmsAsset(bytes: Buffer, name: string, checkp
     if (typeof value !== 'string') throw new Error('image_gen_upload_details_invalid');
     form.append(fields[key] || key, value);
   }
-  form.append('file', new Blob([new Uint8Array(bytes)], { type: 'image/webp' }), name);
+  form.append('file', new Blob([new Uint8Array(bytes)], { type: contentType }), name);
   const response = await fetch(upload, { method: 'POST', body: form, redirect: 'error', signal: AbortSignal.timeout(20000) });
   if (response.status !== 201 && response.status !== 204) throw new Error('image_gen_upload_uncertain');
   const readback = await readPublicMedia(hosted.href, 'image');

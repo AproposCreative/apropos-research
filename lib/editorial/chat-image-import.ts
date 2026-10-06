@@ -5,18 +5,19 @@ import { z } from 'zod';
 import { getAdminStorageBucket } from '@/lib/firebase-admin';
 import { readChatGptImage, readPublicMedia } from '@/lib/liv/public-media-reader';
 import { encodeWebp } from '@/lib/images/encode-webp';
-import { chooseLivHeroDimensions } from '@/lib/liv/hero-dimensions';
 import { uploadImageGenCmsAsset } from '@/lib/image-gen/cms-asset';
 import { readImageGenSnapshot } from '@/lib/image-gen/snapshot';
 import { cmsFieldHash } from '@/lib/liv/cms-field-hash';
 import { readSubmission, submissionStore, updateSubmission } from './submissions';
 import { submissionId, submissionInput } from './submission-contract';
+import { lockProvidedAsset } from './provided-assets';
 
 export const chatImageImportInput = z.object({ submissionId, expectedRevision: z.number().int().positive(),
   requestId: submissionInput.shape.requestId,
   file: z.object({ download_url: z.string().url().max(16000), file_id: z.string().min(1).max(300),
     mime_type: z.string().max(100).optional(), file_name: z.string().max(300).optional() }).strict(),
   kind: z.enum(['illustration', 'photo']), role: z.enum(['cover', 'body']),
+  origin: z.enum(['user-upload', 'chatgpt-generated', 'chatgpt-edited']).default('chatgpt-generated'),
   briefId: submissionId.optional(), sectionId: submissionId.optional(), replaceAssetId: submissionId.optional(),
   alt: z.string().min(3).max(500), caption: z.string().max(500), credit: z.string().min(3).max(500),
   sourceUrl: z.string().url().max(2000).optional(), originalUrl: z.string().url().max(2000).optional(),
@@ -46,9 +47,10 @@ export async function importChatImage(uid: string, raw: unknown) {
     return { assetId, url: previous!.url, revision: attachment.revision, replay: true, paidAiCalls: 0 };
   }
   if (row.revision !== input.expectedRevision && previous?.status !== 'uploaded') throw Error('mcp_submission_revision_conflict');
-  if (!['draft', 'blocked', 'prepared'].includes(row.status)) throw Error('mcp_submission_operation_pending');
+  if (!['draft', 'blocked', 'prepared', 'published'].includes(row.status) ||
+      (row.status === 'published' && !row.publishedTarget)) throw Error('mcp_submission_operation_pending');
   if (input.kind === 'illustration' && ['film', 'tv-series'].includes(row.article.subjectType || '')) throw Error('mcp_submission_film_requires_real_stills');
-  if (input.kind === 'illustration' && !input.briefId) throw Error('mcp_submission_brief_required');
+  if (input.kind === 'illustration' && input.origin !== 'user-upload' && !input.briefId) throw Error('mcp_submission_brief_required');
   if (input.briefId) {
     const brief = (await collection.doc(row.id).collection('chatBriefs').doc(input.briefId).get()).data();
     if (!brief || brief.uid !== uid || brief.contentHash !== row.contentHash || brief.role !== input.role ||
@@ -69,8 +71,8 @@ export async function importChatImage(uid: string, raw: unknown) {
     const meta = await sharp(bytes, { limitInputPixels: 80_000_000 }).metadata();
     if (!['jpeg', 'png', 'webp'].includes(meta.format || '') || (meta.pages || 1) !== 1 ||
       (meta.width || 0) < 800 || (meta.height || 0) < 500) throw Error('mcp_submission_image_invalid');
-    const dimensions = input.role === 'cover' ? chooseLivHeroDimensions(meta.width!, meta.height!, meta.orientation) : null;
-    if (input.role === 'cover' && !dimensions) throw Error('mcp_submission_cover_too_small');
+    if (file.mime_type && file.mime_type !== `image/${meta.format}`) throw Error('mcp_submission_image_mime_mismatch');
+    const dimensions = null;
     const originalHash = hash(bytes), path = `editorial-chat-images/${cmsFieldHash({ uid })}/${originalHash}`;
     const target = storage.file(path);
     try { await target.save(bytes, { resumable: false, validation: 'crc32c', preconditionOpts: { ifGenerationMatch: 0 }, metadata: { contentType: `image/${meta.format}` } }); }
@@ -78,7 +80,9 @@ export async function importChatImage(uid: string, raw: unknown) {
     const [check] = await target.download({ validation: 'crc32c' });
     if (!check.equals(bytes)) throw Error('mcp_submission_storage_mismatch');
     const record = { ...metadata, uid, assetId, requestHash, originalHash, storagePath: path,
-      dimensions: dimensions || null, status: 'stored', fileId: file.file_id, credit: input.kind === 'illustration' ? 'Illustration: Apropos Magazine / AI' : input.credit,
+      dimensions, width: meta.width, height: meta.height, preserveOriginal: true, extension: meta.format === 'jpeg' ? 'jpg' : meta.format,
+      selection: 'provided', locked: true, fallbackUsed: false,
+      status: 'stored', fileId: file.file_id, credit: input.kind === 'illustration' && input.origin !== 'user-upload' ? 'Illustration: Apropos Magazine / AI' : input.credit,
       provenance: 'chatgpt-supplied-unverified', rightsStatus: 'unknown', createdAt: new Date().toISOString(), exactPromptExecutionVerified: false };
     await db.runTransaction(async tx => {
       const old = (await tx.get(ref)).data();
@@ -90,7 +94,9 @@ export async function importChatImage(uid: string, raw: unknown) {
   if (current.status !== 'uploaded') {
     const [original] = await storage.file(current.storagePath).download({ validation: 'crc32c' });
     if (hash(original) !== current.originalHash) throw Error('mcp_submission_storage_mismatch');
-    const encoded = await encodeWebp(original, { maxSizeKB: 450, maxLongEdge: 1920, qualityStart: 85, qualityMin: 55, effort: 4,
+    // Old in-flight receipts keep their exact encoded expectation. New imports
+    // preserve the selected bytes, dimensions and crop, including book lettering.
+    const encoded = current.preserveOriginal ? { data: original } : await encodeWebp(original, { maxSizeKB: 450, maxLongEdge: 1920, qualityStart: 85, qualityMin: 55, effort: 4,
       ...(current.dimensions ? { targetDimensions: current.dimensions } : {}) });
     const encodedHash = hash(encoded.data);
     if (current.status === 'upload_attempted') {
@@ -104,18 +110,23 @@ export async function importChatImage(uid: string, raw: unknown) {
         tx.update(ref, { status: 'upload_attempted', hash: encodedHash }); return true;
       });
       if (!claimed) throw Error('mcp_submission_upload_unconfirmed');
-      await uploadImageGenCmsAsset(encoded.data, `apropos-${encodedHash}.webp`, asset => ref.update({ cmsAsset: asset }).then(() => undefined));
+      await uploadImageGenCmsAsset(encoded.data, `apropos-${encodedHash}.${current.preserveOriginal ? current.extension : 'webp'}`, asset => ref.update({ cmsAsset: asset }).then(() => undefined),
+        current.preserveOriginal ? { preserveOriginal: true } : undefined);
     }
     current = (await ref.get()).data()!;
-    await ref.update({ status: 'uploaded', url: current.cmsAsset.url, hash: encodedHash });
+    await ref.update({ status: 'uploaded', url: current.cmsAsset.url, hash: encodedHash,
+      requestedAsset: { fileId: current.fileId, hash: current.originalHash },
+      actualStoredAsset: { url: current.cmsAsset.url, hash: encodedHash }, fallbackUsed: false });
     current = (await ref.get()).data()!;
   }
   const article: Record<string, string> = {};
+  if (current.preserveOriginal) await lockProvidedAsset(uid, row.id, current.url, current.hash);
   if (input.role === 'cover') Object.assign(article, { featuredImage: current.url, featuredImageAlt: input.alt, fotoCredit: current.credit });
   else {
     const $ = load(snapshot.article.content);
     const figure = $('<figure></figure>').attr('data-apropos-asset', assetId)
-      .append($('<img>').attr({ src: current.url, alt: input.alt }))
+      .append($('<img>').attr({ src: current.url, alt: input.alt,
+        ...(current.width && current.height ? { width: String(current.width), height: String(current.height) } : {}) }))
       .append($('<figcaption></figcaption>').text([input.caption, current.credit].filter(Boolean).join(' ')));
     if (replaced) {
       const old = $('img').filter((_, node) => $(node).attr('src') === replaced.url);
@@ -129,7 +140,7 @@ export async function importChatImage(uid: string, raw: unknown) {
     article.content = $('body').html() || '';
   }
   const updated = await updateSubmission(uid, { submissionId: row.id, expectedRevision: input.expectedRevision,
-    requestId: `import-${assetId}`, article });
+    requestId: `import-${assetId}`, article }, { replaceUrls: input.role === 'cover' ? [row.article.featuredImage || ''] : replaced ? [replaced.url] : [] });
   await ref.update({ status: 'attached', revision: updated.revision });
   return { assetId, url: current.url, revision: updated.revision, paidAiCalls: 0, provenance: current.provenance,
     publicationApproval: false, instruction: 'Billedet er gemt. Ingen ny generation eller kvalitetsgodkendelse. Hent preview.' };

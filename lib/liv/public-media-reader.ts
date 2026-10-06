@@ -13,15 +13,13 @@ export async function readPublicMedia(value: string, kind: 'html' | 'image', tim
 /** Explicit ChatGPT file input only. Never persist/log this temporary signed URL.
  * Same DNS pinning, no redirects, content-type/byte bounds as public media. */
 export async function readChatGptImage(value: string): Promise<Buffer> {
-  let url: URL;
-  try { url = sourceUrl(value); } catch { throw new ChatFileError('mcp_submission_file_reference_invalid'); }
-  // ChatGPT-generated files need not use the upload-only files.* host. OpenAI
-  // documents *.oaiusercontent.com as its content domain. Match the DNS label
-  // boundary, not a substring, and never allow all Azure Blob storage accounts.
-  // https://help.openai.com/en/articles/9247338
-  if (!(url.hostname.endsWith('.oaiusercontent.com') || url.hostname === 'fileopenai.blob.core.windows.net')) {
-    throw new ChatFileError('mcp_submission_file_host_invalid', url.hostname);
-  }
+  try { sourceUrl(value); } catch { throw new ChatFileError('mcp_submission_file_reference_invalid'); }
+  // Native openai/fileParams supplies a temporary download_url, not a stable
+  // vendor hostname. It is untrusted input, not proof of OpenAI provenance.
+  // Validate the destination itself (public DNS pinned to one IP, HTTPS only,
+  // no redirects/cookies/auth headers), then bound and decode raster bytes.
+  // Do not maintain a region list or trust every account on a cloud suffix.
+  // https://developers.openai.com/plugins/reference#file-inputs
   try { return await downloadMedia(value, 'image', 15_000, true); }
   catch { throw new ChatFileError('mcp_submission_file_download_failed'); }
 }
@@ -53,7 +51,11 @@ async function downloadMedia(value: string, kind: 'html' | 'image', timeoutMs: n
         Accept: kind === 'html' ? 'text/html' : 'image/jpeg,image/png,image/webp' },
     }, response => {
       const contentType = response.headers['content-type'] || '';
-      const supported = kind === 'html' ? /^text\/html(?:;|$)/i.test(contentType) : /^image\/(?:jpeg|png|webp)(?:;|$)/i.test(contentType);
+      const supported = kind === 'html' ? /^text\/html(?:;|$)/i.test(contentType) :
+        /^image\/(?:jpeg|png|webp)(?:;|$)/i.test(contentType) ||
+        // Native file stores may serve generic binary. Import still requires
+        // successful bounded raster decoding before storage/CMS attachment.
+        (signedFile && /^application\/octet-stream(?:;|$)/i.test(contentType));
       if (response.statusCode !== 200 || !supported ||
           (response.headers['content-encoding'] && response.headers['content-encoding'] !== 'identity') ||
           Number(response.headers['content-length'] || 0) > limit) {

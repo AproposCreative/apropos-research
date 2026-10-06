@@ -33,6 +33,14 @@ it('does not count duplicates or the hero as two distinct body images', () => {
   value.article.content += '<img src="https://example.com/hero.webp"><img src="https://example.com/body.webp"><img src="https://example.com/body.webp">';
   expect(inspectSubmission(value, options).missingMedia).toEqual(['body-2']);
 });
+it('cover-only is a saved proposal with two recommendations, never a missing cover exemption', async () => {
+  const value = input(); value.choices.bodyImages = 'deferred';
+  expect(inspectSubmission(value, options)).toMatchObject({ missingMedia: ['cover'], recommendedMedia: ['body-1', 'body-2'] });
+  value.article.featuredImage = 'https://example.com/hero.png';
+  const saved = await prepareSubmission('owner', value);
+  expect(saved.missingMedia).toEqual([]); expect(saved.recommendedMedia).toHaveLength(2);
+  expect(saved.choices.bodyImages).toBe('deferred'); expect(saved.publicationReady).toBe(false);
+});
 it('retains exact copy and returns same identity for a duplicate submission', async () => {
   const first = await prepareSubmission('owner', input()), second = await prepareSubmission('owner', input());
   expect(second.id).toBe(first.id); expect(second.revision).toBe(1);

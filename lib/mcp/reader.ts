@@ -21,7 +21,7 @@ export const registerReaderInput = z.object({
   sourceUrl: z.string().max(500).refine(value => { try { canonicalReaderUrl(value); return true; } catch { return false; } }),
   title: label, author: label, edition: z.string().trim().max(300).optional(),
 }).strict();
-export const listReadersInput = z.object({ cursor: sourceId.optional(), limit: z.number().int().min(1).max(10).default(5) }).strict();
+export const listReadersInput = z.object({ sourceUrl: registerReaderInput.shape.sourceUrl.optional(), cursor: sourceId.optional(), limit: z.number().int().min(1).max(10).default(5) }).strict();
 export const readerProgressInput = z.object({ sourceId, afterRevision: z.number().int().min(0).max(5000).default(0),
   limit: z.number().int().min(1).max(10).default(5), query: z.string().trim().min(1).max(100).optional() }).strict();
 export const readerSearchInput = readerProgressInput.extend({ query: z.string().trim().min(1).max(100) });
@@ -92,6 +92,10 @@ export async function registerReaderSource(uid: string, value: unknown) {
 }
 export async function listReaderSources(uid: string, value: unknown) {
   const input = listReadersInput.parse(value);
+  if (input.sourceUrl) {
+    const source = (await collection(uid).doc(cmsFieldHash({ sourceUrl: canonicalReaderUrl(input.sourceUrl) })).get()).data() as ReaderSource | undefined;
+    return { items: source ? [describe(source)] : [], nextCursor: null, ...safety };
+  }
   let query = collection(uid).orderBy('sourceId');
   if (input.cursor) query = query.startAfter(input.cursor);
   const docs = (await query.limit(input.limit + 1).get()).docs, selected = docs.slice(0, input.limit);

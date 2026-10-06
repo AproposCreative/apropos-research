@@ -18,6 +18,7 @@ export type PublishCanonicalArticleResult = {
 };
 
 type SaveOptions = NormalizeArticlePayloadOptions & {
+  preserveProvidedImages?: boolean;
   /** Exact locally normalized save expectation, before any CMS create/update. */
   onBeforeSave?: (expected: WebflowArticleFields) => Promise<void>;
   /** Server-owned checkpoint, awaited before readback or optional follow-up work. */
@@ -37,6 +38,7 @@ export async function publishCanonicalArticleToWebflow(
   let receipt: PublishCanonicalArticleResult['receipt'];
   try {
     const savedId = await publishArticleToWebflow(toWebflowArticleFields(payload), {
+      preserveProvidedImages: options.preserveProvidedImages,
       onBeforeSave: async expected => {
         Object.assign(payload, expected);
         await options.onBeforeSave?.(structuredClone(expected));

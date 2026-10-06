@@ -8,6 +8,7 @@ vi.mock('@/lib/liv/public-media-reader', () => ({ readChatGptImage: (...args: un
 vi.mock('@/lib/image-gen/cms-asset', () => ({ uploadImageGenCmsAsset: (...args: unknown[]) => state.upload(...args) }));
 vi.mock('@/lib/editorial/submission-options', () => ({ getSubmissionOptions: async () => ({ authors: [], categories: [], topics: [], requiredFields: [], checkedAt: '' }) }));
 import { importChatImage } from '@/lib/editorial/chat-image-import';
+import { updateSubmission } from '@/lib/editorial/submissions';
 import { readImageGenSnapshot } from '@/lib/image-gen/snapshot';
 import { cmsFieldHash } from '@/lib/liv/cms-field-hash';
 const id = 'a'.repeat(64), version = 'b'.repeat(64), path = `editorialSubmissions/${id}`, briefId = 'c'.repeat(64);
@@ -37,6 +38,9 @@ it('retains the private original and attaches a durable CMS asset once, without 
   expect(await importChatImage('team', { ...input(), file: { ...input().file, download_url: 'https://files.oaiusercontent.com/new?signature=changed' } })).toMatchObject({ replay: true, revision: 2 });
   expect(state.upload).toHaveBeenCalledTimes(1); expect(state.download).toHaveBeenCalledTimes(1);
   expect([...state.stored.values()][0]).toEqual(state.bytes);
+  expect(state.upload.mock.calls[0][0]).toEqual(state.bytes);
+  expect(state.upload.mock.calls[0][1]).toMatch(/\.png$/);
+  expect(state.upload.mock.calls[0][3]).toEqual({ preserveOriginal: true });
   const saved = JSON.stringify([...memory.rows]);
   expect(saved).not.toContain('PRIVATE'); expect(saved).not.toContain('download_url');
   expect(saved).toContain('chatgpt-supplied-unverified');
@@ -86,4 +90,11 @@ it('rejects small image bytes before storage or upload', async () => {
   state.download.mockResolvedValue(await sharp({ create: { width: 100, height: 100, channels: 3, background: 'red' } }).png().toBuffer());
   await expect(importChatImage('team', input())).rejects.toThrow('image_invalid');
   expect(state.upload).not.toHaveBeenCalled();
+});
+it('accepts an existing user-upload without inventing a generation brief or credit', async () => {
+  const result = await importChatImage('team', { ...input(), briefId: undefined, origin: 'user-upload', credit: 'Foto: Frederik' });
+  expect(result.revision).toBe(2); expect(memory.rows.get(path).article.fotoCredit).toBe('Foto: Frederik');
+  await expect(updateSubmission('team', { submissionId: id, expectedRevision: 2, requestId: 'silent-replacement-0001',
+    article: { featuredImage: 'https://cdn.test/fallback.jpg' } })).rejects.toThrow('selected_asset_locked');
+  expect(memory.rows.get(path).article.featuredImage).toBe(result.url);
 });

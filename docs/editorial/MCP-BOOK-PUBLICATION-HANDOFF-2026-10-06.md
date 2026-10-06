@@ -1,0 +1,94 @@
+# Book publication handoff: implementation and acceptance
+
+## Scope
+
+Regression case: *I mellemtiden er vi ingen*, Frederik Drescher Kluth.
+Existing submission `396904fb485abe48df3663e0b3d8c955a83ecc3670c323aa1c1c2838040785a2`.
+Existing DK CMS item `6ac561f59604a82185235285`.
+Do not create another article. The selected mockup has not yet been supplied to
+this development task; the existing CMS hero is the explicitly reported fallback.
+
+The owner's 6 October instruction makes two body images recommendations for
+**personally reviewed submissions** when deferred explicitly. Cover remains
+required. A personally confirmed human final review may replace optional paid AI
+checks. This does not weaken unattended Liv's existing checks or imply an AI pass.
+
+## Implementation
+
+- Native `openai/fileParams` remains the transport contract (`download_url`,
+  `file_id`, optional `mime_type`/`file_name`). Removed the regional host allowlist
+  that rejected `oaisdmntprdenmarkeast.blob.core.windows.net`. Destinations remain
+  untrusted: HTTPS, no credentials/ports/IP hosts, public DNS pinned for the
+  request, no redirects, bounded raster bytes and image decoding before storage.
+  Generic binary MIME is allowed only for native file input, with raster decoding.
+  Signed URLs are not persisted or echoed. No backend ChatGPT-file API was invented.
+- New imports retain exact original JPEG/PNG/WebP bytes, dimensions and crop.
+  Private content-addressed originals and CMS upload receipts survive timeout.
+  User-uploaded art needs no invented generation brief; generated/edited
+  illustrations retain the existing brief/section checks. Provenance is declared,
+  not independently verified. Stored/requested hashes and selected identities are
+  exposed; no silent fallback. The generated-image renderer belongs to ChatGPT;
+  MCP returns an image preview after successful import.
+- Selected media are locked against silent URL removal/replacement, automatic
+  text removal/cropping and later image-optimizer webhooks. Explicit imports can
+  replace cover or a specified body asset. Hash changes at a locked URL fail.
+- `bodyImages=deferred` and `aiFinalChecks=human` are saved proposals, not model
+  approvals. Personal UI confirmation binds the choices to the exact content
+  hash. Free preparation runs under a no-paid-AI context, even with provider hold.
+  AI stages are recorded `not_run`, not passed. All supplied media can be checked
+  within the same free worker invocation; no paid retry or hold reset.
+- Preview distinguishes recommended body media from blockers; final approval
+  remains a personal version-bound “Publicér denne version”. Deterministic CMS,
+  locale, required-field, reference, raster, exact-byte and public checks remain.
+- `link_published_submission` checks matching staged/live item and exact prose,
+  title, slug, SEO, references and rating, then binds that private submission to
+  the existing item. Binding advances the version and invalidates old UI tokens.
+  No CMS write occurs at binding. Later staging patches only hero/mobile/credit
+  and image placements. Other fields and the original publication date stay
+  untouched; concurrency conflicts stop the operation. Uncertain writes reconcile
+  by readback without another create/patch. New submissions stop at duplicate slug
+  or title rather than creating a second item.
+- Reader capture is unchanged. Discovery descriptions and the focused skill
+  recognise a KK link / “Anmeld denne bog”. A direct private source lookup avoids
+  recreation; complete saved notes can be reused. `readerSourceId` transfers book
+  metadata and client-reported coverage into a new submission, not full book text.
+  Host tool discovery and Cloud Browser availability are not server guarantees.
+- Book title/author are distinct CMS fields, preserved through canonical payload
+  and checked when supplied. Missing schema must not silently drop book identity.
+
+Official native file contract consulted:
+https://developers.openai.com/plugins/reference
+
+## Verification before deployment
+
+- Isolated suite: 355 files / 4,958 tests passed; subsequent focused version-binding
+  tests also passed. TypeScript, focused ESLint, safe build config and isolated
+  Next production build passed. Final release receipt records the final run.
+- Simulated cases include regional/future file hosts, private DNS/redirect rejection,
+  original-byte upload, MIME/dimensions, timeout reconciliation, asset locks,
+  cover-only under quota hold, genuine confirmation versus model proposal,
+  same-item media patch, later body insertion, stale CMS/version conflicts,
+  preserving SEO/rating/date/slug, and unchanged strict Liv defaults.
+- The current SEO release `9721210d302288288920a5b2c52e52cf24e7190a` and its
+  documentation were fast-forward integrated before this release. Do not roll back
+  the concurrent SEO work.
+
+## Real acceptance still required
+
+Reader state was independently retrieved from production: revision 24,
+154/154 positions, 24 batches, `reported_complete`, no full book text stored.
+This is saved client-reported reading, not independent proof of every page read.
+
+The original selected mockup has not reached this task or submission storage.
+No substitute was generated/imported, no duplicate was created and no fabricated
+ChatGPT download URL was used. Real uploaded/generated/edited native file inputs
+and this existing article's hero correction / subsequent body additions are NOT
+declared passed by mock tests or a READY deployment.
+
+Resume with the original selected file in a ChatGPT session containing Apropos AI:
+refresh tool discovery if needed, read the existing submission, bind the exact CMS
+item if not already bound, import the native existing file with stable requestId,
+retain deferred body decision, preview the exact version, obtain real personal
+approval and publish/read back that same item. Then add the selected body images
+with stable section/asset identities, approve the new version, and compare all
+non-media CMS fields. Never infer approval from this technical checklist.

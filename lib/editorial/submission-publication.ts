@@ -7,6 +7,8 @@ import { assertPublicationEnabled } from '@/lib/mcp/publication';
 import type { WebflowArticleFields } from '@/lib/webflow/types';
 import { submissionPreviewBlocks } from './submission-preview';
 import { activeMember } from '@/lib/mcp/oauth';
+import { approvedSubmissionPolicy } from './submission-policy';
+import { readSubmissionCms } from './submission-published-target';
 
 type Prepared = { itemId: string; expected: WebflowArticleFields; proof: { fieldDataHash: string } };
 type Publication = { uid: string; preparedHash: string; contentHash: string; cmsHash: string; publishAt: string;
@@ -31,7 +33,7 @@ export async function submissionPublicationPreview(uid: string, id: string) {
   if (row.status !== 'prepared' || !row.prepared || !row.preparedHash) return { ready: false, status: row.status };
   const { itemId, expected } = row.prepared;
   if (row.preparedHash !== cmsFieldHash({ expected, assets: row.assets })) throw Error('mcp_submission_prepared_version_changed');
-  const proof = await inspectLivCmsDraft({ itemId, expected });
+  const proof = await inspectLivCmsDraft({ itemId, expected, inspectionPolicy: approvedSubmissionPolicy(row) });
   if (!proof.draftConfirmed || !proof.publicationReady || !proof.checks.length || proof.checks.some(c => !c.ok) || proof.fieldDataHash !== row.prepared.proof.fieldDataHash) {
     return { ready: false, status: 'cms_changed', blockers: proof.checks.filter(c => !c.ok).map(c => c.id) };
   }
@@ -81,10 +83,11 @@ export async function publishSubmission(uid: string, id: string, now = new Date(
     } else {
       if (!await activeMember(uid, Date.parse(publication.acceptedAt))) throw Error('mcp_submission_owner_access_changed');
       assertPublicationEnabled(); await assertLease();
-      const fresh = await inspectLivCmsDraft({ itemId: prepared.itemId, expected: prepared.expected });
+      const inspectionPolicy = approvedSubmissionPolicy(row as unknown as Awaited<ReturnType<typeof readSubmission>>);
+      const fresh = await inspectLivCmsDraft({ itemId: prepared.itemId, expected: prepared.expected, inspectionPolicy });
       if (fresh.fieldDataHash !== publication.cmsHash) throw Error('mcp_submission_preview_changed');
       receipt = await publishVerifiedLivArticle({ itemId: prepared.itemId, expected: prepared.expected,
-        publicationDate: publication.publishAt, assertLease,
+        ...(row.publishedTarget ? {} : { publicationDate: publication.publishAt }), assertLease, inspectionPolicy,
         beforePublish: async fieldDataHash => {
           await db.runTransaction(async tx => {
             const current = (await tx.get(ref)).data();
@@ -94,7 +97,13 @@ export async function publishSubmission(uid: string, id: string, now = new Date(
         } });
     }
     await assertLease();
-    await ref.update({ status: 'published', publication: { ...(await ref.get()).data()!.publication, receipt }, updatedAt: new Date().toISOString() });
+    const savedPublication = (await ref.get()).data()!.publication;
+    const cms = await readSubmissionCms(prepared.itemId);
+    const fields = cms.fieldData as Record<string, unknown>;
+    if (cmsFieldHash(fields) !== savedPublication.fieldDataHash) throw Error('mcp_submission_cms_conflict');
+    await ref.update({ status: 'published', publication: { ...savedPublication, receipt },
+      publishedTarget: { itemId: prepared.itemId, fields, fieldDataHash: cmsFieldHash(fields), linkedAt: new Date().toISOString() },
+      updatedAt: new Date().toISOString() });
     return { ...receipt, status: 'published', publicationOrigin: 'editor-approved-submission', countsAsUnattendedLiv: false };
   } catch (error) {
     const blocker = error instanceof Error && error.message.startsWith('mcp_submission_') ? error.message : 'mcp_submission_publication_unconfirmed';

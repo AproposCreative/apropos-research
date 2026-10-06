@@ -2,6 +2,9 @@ import { getAdminDb } from '@/lib/firebase-admin';
 import { cmsFieldHash } from '@/lib/liv/cms-field-hash';
 import { MCP_ORIGIN } from '@/lib/mcp/config';
 import { getSubmissionOptions } from './submission-options';
+import { assertMediaOnlyUpdate } from './submission-published-target';
+import { getReaderProgress } from '@/lib/mcp/reader';
+import { articleImages } from '@/lib/mcp/markup';
 import { inspectSubmission, submissionId, submissionInput, submissionUpdate, submissionVersion,
   validateSubmissionArticle, type SubmissionRecord } from './submission-contract';
 
@@ -27,18 +30,27 @@ export async function getSubmissionStatus(uid: string, id: string) {
       result: step.status === 'done' ? step.result : null, checks: step.checks ?? null,
       cmsAsset: step.cmsAsset ?? null };
   });
+  const assetReceipts = await submissionStore().collection.doc(id).collection('chatAssets').limit(100).get();
+  const selectedUrls = new Set([row.article.featuredImage, ...articleImages(row.article.content).map(image => image.url)]);
+  const mediaIdentity = assetReceipts.docs.map(doc => doc.data()).filter(asset => asset.status === 'attached' && selectedUrls.has(asset.url))
+    .map(asset => ({ assetId: asset.assetId, role: asset.role, sectionId: asset.sectionId ?? null, locked: asset.locked === true,
+      requestedAsset: { fileId: asset.fileId, hash: asset.originalHash }, actualStoredAsset: { url: asset.url, hash: asset.hash },
+      actualPublishedAsset: row.status === 'published' ? { url: asset.role === 'cover'
+        ? (row.publishedTarget?.fields.thumb as { url?: string })?.url ?? null : asset.url, hash: asset.hash } : null,
+      publicationVerified: row.status === 'published', fallbackUsed: asset.fallbackUsed === true }));
   return { ...row, ...inspection, status: row.status === 'draft' ?
     (inspection.questions.length ? 'awaiting_answers' : 'awaiting_preparation') : row.status,
     previewUrl: `${MCP_ORIGIN}/connect/chatgpt?submission=${id}`,
     preparationStarted: row.status === 'processing',
     textPreserved: row.article.content === row.originalArticle.content,
-    savedSteps,
+    savedSteps, mediaIdentity,
     displayNames: { author: options.authors.find(a => a.id === row.article.author || a.name === row.article.author)?.name ?? row.article.author,
       category: options.categories.find(c => c.id === row.article.category || c.name === row.article.category)?.name ?? row.article.category },
-    availableActions: ['draft', 'blocked'].includes(row.status) ? ['update_submission', 'get_submission_status', 'find_submission_images'] : ['get_submission_status'],
+    availableActions: ['draft', 'blocked', 'prepared', 'published'].includes(row.status) ? ['update_submission', 'import_submission_image', 'preview_submission', 'get_submission_status'] : ['get_submission_status'],
     handoff: { submissionId: id, revision: row.revision, contentHash: row.contentHash,
       saved: ['article', 'research', 'choices', 'originalArticle'],
       missing: [...inspection.questions.map(q => q.field), ...inspection.missingMetadata, ...inspection.missingMedia, ...inspection.blockers],
+      recommendedMedia: inspection.recommendedMedia,
       publicationReady: false,
       nextAction: row.status === 'prepared' ? 'open_personal_preview_for_fresh_checks_and_approval' :
         row.status === 'blocked' ? 'inspect_saved_step_before_any_retry' :
@@ -59,7 +71,15 @@ export async function listSubmissions(uid: string) {
 }
 
 export async function prepareSubmission(uid: string, raw: unknown) {
-  const input = submissionInput.parse(raw); validateSubmissionArticle(input.article);
+  const input = submissionInput.parse(raw);
+  const reader = input.readerSourceId ? await getReaderProgress(uid, { sourceId: input.readerSourceId, limit: 1 }) : null;
+  if (reader) {
+    if (!reader.coverage.some(c => c.status === 'reported_complete')) throw Error('mcp_submission_reader_incomplete');
+    if ((input.article.bookTitle && input.article.bookTitle !== reader.title) ||
+        (input.article.bookAuthor && input.article.bookAuthor !== reader.author)) throw Error('mcp_submission_reader_identity_conflict');
+    input.article.bookTitle = reader.title; input.article.bookAuthor = reader.author;
+  }
+  validateSubmissionArticle(input.article);
   const id = cmsFieldHash({ uid, requestId: input.requestId }), contentHash = submissionVersion(input);
   const { db, collection } = submissionStore(), ref = collection.doc(id);
   await db.runTransaction(async tx => {
@@ -71,12 +91,14 @@ export async function prepareSubmission(uid: string, raw: unknown) {
     const now = new Date().toISOString();
     tx.create(ref, { ...input, id, uid, revision: 1, contentHash, initialHash: contentHash,
       executionPolicy: 'chat-final-checks-v1',
+      ...(reader ? { readerEvidence: { sourceId: reader.sourceId, revision: reader.revision, coverage: reader.coverage,
+        independentlyVerified: false, basis: 'saved_position_bound_notes', publicationApproval: false } } : {}),
       originalArticle: input.article, status: 'draft', createdAt: now, updatedAt: now });
   });
   return getSubmissionStatus(uid, id);
 }
 
-export async function updateSubmission(uid: string, raw: unknown) {
+export async function updateSubmission(uid: string, raw: unknown, internal?: { replaceUrls: string[] }) {
   const input = submissionUpdate.parse(raw), { db, collection } = submissionStore();
   const ref = collection.doc(input.submissionId), receipt = ref.collection('updates').doc(cmsFieldHash({ requestId: input.requestId }));
   const requestHash = cmsFieldHash(input);
@@ -89,23 +111,31 @@ export async function updateSubmission(uid: string, raw: unknown) {
       return;
     }
     if (row.revision !== input.expectedRevision) throw Error('mcp_submission_revision_conflict');
-    if (!['draft', 'awaiting_answers', 'awaiting_preparation', 'blocked', 'prepared'].includes(row.status)) throw Error('mcp_submission_operation_pending');
+    if (!['draft', 'awaiting_answers', 'awaiting_preparation', 'blocked', 'prepared', 'published'].includes(row.status) ||
+        (row.status === 'published' && !row.publishedTarget)) throw Error('mcp_submission_operation_pending');
     // A title/metadata correction must not discard completed images. Keep the
     // prepared body/cover, while preserving the original author text separately.
     const prepared = (row as SubmissionRecord & { prepared?: { expected?: SubmissionRecord['article'] } }).prepared?.expected;
-    const base = row.status === 'prepared' && prepared ? { ...row.article, content: prepared.content,
+    const base = ['prepared', 'published'].includes(row.status) && prepared ? { ...row.article, content: prepared.content,
       featuredImage: prepared.featuredImage, featuredImageAlt: prepared.featuredImageAlt, fotoCredit: prepared.fotoCredit } : row.article;
     const article = { ...base, ...input.article };
     for (const field of input.clearFields || []) {
       if (input.article?.[field] !== undefined) throw Error('mcp_submission_conflicting_update');
       delete article[field];
     }
-    const next = submissionInput.parse({ requestId: row.requestId, article,
+    const next = submissionInput.parse({ requestId: row.requestId, readerSourceId: row.readerSourceId, article,
       research: input.research ?? row.research, choices: { ...row.choices, ...input.choices } });
     validateSubmissionArticle(next.article);
+    const beforeUrls = [base.featuredImage, ...articleImages(base.content).map(image => image.url)].filter((url): url is string => !!url);
+    const afterUrls = new Set([next.article.featuredImage, ...articleImages(next.article.content).map(image => image.url)]);
+    for (const url of beforeUrls.filter(url => !afterUrls.has(url) && !internal?.replaceUrls.includes(url))) {
+      const lock = (await tx.get(db.collection('editorialProvidedAssets').doc(cmsFieldHash({ url })))).data();
+      if (lock?.preserveOriginal && lock.url === url) throw Error('mcp_submission_selected_asset_locked');
+    }
+    if (row.publishedTarget) assertMediaOnlyUpdate(row.article, next.article);
     const revision = row.revision + 1, now = new Date().toISOString();
     tx.create(ref.collection('versions').doc(String(row.revision)), row);
-    tx.update(ref, { ...next, revision, contentHash: submissionVersion(next), status: 'draft', updatedAt: now });
+    tx.update(ref, { ...next, revision, contentHash: submissionVersion(next, row.publishedTarget), status: 'draft', updatedAt: now });
     tx.create(receipt, { requestHash, revision, createdAt: now });
   });
   return getSubmissionStatus(uid, input.submissionId);

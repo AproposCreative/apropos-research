@@ -1,4 +1,6 @@
 import { beforeEach, expect, it, vi } from 'vitest';
+import sharp from 'sharp';
+import { createHash } from 'node:crypto';
 const f = vi.hoisted(() => ({ fetch: vi.fn(), media: vi.fn() }));
 vi.mock('@/lib/image-gen/webflow', () => ({ imageGenCmsConfiguration: () => ({ token: 'test-secret', site: 'a'.repeat(24) }) }));
 vi.mock('@/lib/liv/public-media-reader', () => ({ readPublicMedia: f.media }));
@@ -37,4 +39,16 @@ it('rejects a CDN response that differs from the stored image', async () => {
   f.media.mockResolvedValue(Buffer.from('wrong'));
   await expect(uploadImageGenCmsAsset(bytes, name, vi.fn())).rejects.toThrow('readback_failed');
   expect(f.fetch).toHaveBeenCalledTimes(2);
+});
+it('uploads a selected PNG byte-for-byte with its real MIME and digest name', async () => {
+  const original = await sharp({ create: { width: 1000, height: 700, channels: 3, background: 'blue' } }).png().toBuffer();
+  const filename = `apropos-${createHash('sha256').update(original).digest('hex')}.png`;
+  f.fetch.mockReset().mockResolvedValueOnce(Response.json({ ...allocation, uploadDetails: { ...allocation.uploadDetails, contentType: 'image/png' } }))
+    .mockResolvedValueOnce(new Response(null, { status: 201 }));
+  f.media.mockResolvedValue(original);
+  await uploadImageGenCmsAsset(original, filename, vi.fn(), { preserveOriginal: true });
+  const body = f.fetch.mock.calls[1][1].body;
+  expect(body.get('Content-Type')).toBe('image/png');
+  expect(Buffer.from(await body.get('file').arrayBuffer())).toEqual(original);
+  await expect(uploadImageGenCmsAsset(original, name, vi.fn(), { preserveOriginal: true })).rejects.toThrow();
 });

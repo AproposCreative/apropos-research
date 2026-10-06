@@ -9,14 +9,24 @@ description: Klargør en valgt Apropos-artikel til versionsbundet godkendelse og
 
 For egne klargøringsforløb bruges get_workflow med workflow=submit.
 Vis hele teksten og billederne via preview_submission. Brugeren accepterer
-først prisen på nødvendige slutkontroller og senere den præcise færdige
-publiceringsversion med hver sin knap i previewet. Modellen må aldrig
+først klargøringsvalget og senere den præcise færdige publiceringsversion
+med hver sin knap i previewet. Cover er obligatorisk. Når brugeren vælger
+brødtekstbilleder senere, gem choices.bodyImages=deferred. Når brugeren vælger
+egen slutkontrol, gem choices.aiFinalChecks=human. Previewets personlige knap
+bekræfter fravalget af AI-kontrol, også under provider-hold. Deterministiske
+fil-, metadata-, schema- og CMS-kontroller består stadig. Modellen må aldrig
 fremstille godkendelse eller et bekræftelsestoken. Klienter uden interaktivt
 preview bruger det personlige previewUrl som fallback.
 Research, skrivning, SEO-forslag og illustrationer laves i chatten. Billedprompt
 og stilreference hentes med get_image_brief; valgte filer gemmes med
 import_submission_image. Ingen automatisk betalt generationsfallback.
 Kollegers egne forløb bruger personlig adgang, ikke ejerens nøgle.
+
+Er artiklen allerede publiceret udenom submissionen, brug
+link_published_submission med det eksisterende CMS-item. Opret ikke en kopi.
+Importér valgte cover/body-filer; preview og godkend den præcise opdatering.
+Tekst, SEO, rating, slug og andre CMS-felter bevares ved billedopdateringen.
+Valgte filer må ikke regenereres, beskæres eller erstattes med et fallback.
 
 ## Eksisterende Liv-udgivelse (ejer)
 

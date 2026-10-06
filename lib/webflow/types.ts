@@ -42,6 +42,8 @@ export interface WebflowArticleFields {
   /** Editorial metadata retained in Liv's payload; not an invented Webflow field. */
   articleFormat?: 'article' | 'research-review';
   ratingReason?: string;
+  bookTitle?: string;
+  bookAuthor?: string;
   featuredImage?: string;
   featuredImageAlt?: string;
   /** SHA-256 of the selected stored image; readback evidence, never a CMS field. */
