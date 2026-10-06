@@ -57,6 +57,30 @@ which hostname was used by the two historical failing imports.
 - Transport/provider fixtures are simulated; do not present these as a successful
   real ChatGPT file import. Full-suite and deployment/readback results follow below.
 
+## Production release and readback
+
+- SHA `c347197ea5a86150b53c52ff33ba79de15307904`, deployment
+  `dpl_CMPwRD2A28Swa6g838HTTA54XoxE`, READY with `ai.aproposmagazine.com`.
+  Vercel's Next.js production build completed in approximately one minute.
+- Authenticated OAuth/PKCE readback on the actual production hostname at
+  `2026-10-06T17:40:45.812Z` returned MCP `2026-10-06-v8`, 42 tools and the complete
+  native file-input contract. Anonymous access still returns 401.
+- Deliberately non-importable, unsupported-host fixture through the production
+  import tool returned the new safe recovery and hostname, without echoing its
+  synthetic signed query. No DNS fetch, file, original storage record or CMS asset
+  was created. This was a negative transport test, not the real cover handoff.
+- Readback confirmed the same Fire & Ice revision 3, unchanged article/content
+  hash, 0 chat assets and an available article preview with no image previews.
+  No paid calls, hold changes, article writes or public publishing were started.
+- Temporary verification grants were revoked; existing team connections and the
+  accepted welcome-email receipt were unchanged.
+- Exact-deployment error/fatal scan `17:35:28.874Z–17:40:28.874Z` found no matches.
+  This short window is not proof of long-term reliability. No monitoring settings
+  or drains were changed.
+- Browser export of the already visible generated image was attempted but timed
+  out; no recovered local file is confirmed and it was not used for an import.
+  The later ChatGPT security rejection is not bypassed by service credentials.
+
 ## Remaining acceptance
 
 The existing cover must be handed over by ChatGPT through its authorized native
