@@ -5,6 +5,10 @@
   "installCommand": "npm ci --ignore-scripts",
   "crons": [
     {
+      "path": "/api/cron/mcp-welcome",
+      "schedule": "*/10 * * * *"
+    },
+    {
       "path": "/api/cron/editorial-submissions",
       "schedule": "* * * * *"
     },

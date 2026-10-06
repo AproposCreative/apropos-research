@@ -139,7 +139,7 @@ export default function ConditionalLayout({ children }: { children: React.ReactN
 
   if (isMinimalLayout) {
     // Allow access to the public login page without auth guard
-    if (isLogin || isPublicNewsletterUnsub || pathname === '/connect/chatgpt') return <>{children}</>;
+    if (isLogin || isPublicNewsletterUnsub || pathname === '/connect/chatgpt' || pathname === '/connect/chatgpt/welcome') return <>{children}</>;
     return <ProtectedRoute>{children}</ProtectedRoute>;
   }
   

@@ -4,6 +4,7 @@ import { getAdminDb, getAdminAuth } from '@/lib/firebase-admin';
 import { editorialRole, normalizeAccessEmail, type AccessEntry } from '@/lib/auth-policy';
 import { OWNER_EMAIL } from '@/lib/editorial-capabilities';
 import { allowedRedirect, MCP_ORIGIN, MCP_RESOURCE, MCP_SCOPES } from './config';
+import { MCP_WELCOME_VERSION } from './welcome-content';
 
 export const digest = (value: string) => createHash('sha256').update(value).digest('hex');
 export const opaque = () => randomBytes(32).toString('base64url');
@@ -116,7 +117,7 @@ export async function consent(id: string, browserSecret: string, uid: string, al
   return url.href;
 }
 
-export async function exchangeToken(input: Record<string, string>) {
+export async function exchangeToken(input: Record<string, string>, onActivated?: (uid: string) => void) {
   key.parse(input.client_id);
   if (input.resource !== MCP_RESOURCE) throw new OAuthError('invalid_target');
   const refresh = input.grant_type === 'refresh_token';
@@ -130,6 +131,8 @@ export async function exchangeToken(input: Record<string, string>) {
   const ok = await db().runTransaction(async tx => {
     const row = (await tx.get(ref)).data();
     const grant = refresh ? (await tx.get(grantRef)).data() : undefined;
+    const welcomeRef = collection('WelcomeMail').doc(initial.uid);
+    const welcome = !refresh ? await tx.get(welcomeRef) : undefined;
     if (!row || row.client_id !== input.client_id || row.resource !== MCP_RESOURCE || row.expiresAt < now ||
         (refresh && (!grant || grant.revoked || grant.expiresAt < now))) throw invalid();
     if (!refresh) {
@@ -146,11 +149,19 @@ export async function exchangeToken(input: Record<string, string>) {
     const binding = { uid: row.uid, authenticatedAt: row.authenticatedAt, client_id: row.client_id,
       resource: MCP_RESOURCE, scope: scopes, grantId, issuedAt: now };
     if (!refresh) tx.create(grantRef, { uid: row.uid, clientId: row.client_id, scopes, createdAt: now, expiresAt: now + 30 * 86400000, revoked: false });
+    // A permanent per-user outbox: reconnect and token refresh never re-mail.
+    if (!refresh && !welcome?.exists) tx.create(welcomeRef, { uid: row.uid, grantId,
+      authenticatedAt: row.authenticatedAt, version: MCP_WELCOME_VERSION, createdAt: now,
+      pending: true, status: 'queued', attempts: 0, nextAt: now, leaseUntil: 0 });
     tx.create(collection('AccessTokens').doc(digest(access)), { ...binding, expiresAt: now + 900000 });
     tx.create(collection('RefreshTokens').doc(digest(nextRefresh)), { ...binding, consumed: false, expiresAt: Math.min(grant?.expiresAt || now + 30 * 86400000, now + 7 * 86400000) });
     return true;
   });
   if (!ok) throw invalid();
+  if (!refresh && onActivated) {
+    // Notification scheduling must never fail a successful OAuth exchange.
+    try { onActivated(initial.uid); } catch { /* Durable cron outbox resumes. */ }
+  }
   return { access_token: access, token_type: 'Bearer', expires_in: 900, refresh_token: nextRefresh,
     scope: input.scope || initial.scope.join(' ') };
 }

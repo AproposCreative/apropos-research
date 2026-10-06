@@ -69,6 +69,26 @@ it('allows one of two concurrent code exchanges, stores only token hashes', asyn
   const stored = JSON.stringify([...memory.rows]); expect(stored).not.toContain(success.value.access_token); expect(stored).not.toContain(success.value.refresh_token);
   expect(memory.rows.has(`mcpAccessTokens/${digest(success.value.access_token)}`)).toBe(true);
 });
+it('queues one welcome atomically only after successful activation, never on refresh or reconnect', async () => {
+  const { input } = await code(); const notified = vi.fn();
+  expect(memory.rows.has('mcpWelcomeMail/frederik')).toBe(false);
+  await expect(exchangeToken({ ...input, code_verifier: opaque() }, notified)).rejects.toThrow();
+  expect(memory.rows.has('mcpWelcomeMail/frederik')).toBe(false);
+  const tokens = await exchangeToken(input, notified);
+  const welcome = structuredClone(memory.rows.get('mcpWelcomeMail/frederik'));
+  expect(welcome).toMatchObject({ uid: 'frederik', status: 'queued', pending: true, attempts: 0 });
+  expect(memory.rows.get(`mcpGrants/${welcome.grantId}`)).toMatchObject({ uid: 'frederik', revoked: false });
+  expect(notified).toHaveBeenCalledTimes(1);
+  await exchangeToken({ client_id: input.client_id, resource: MCP_RESOURCE, grant_type: 'refresh_token', refresh_token: tokens.refresh_token }, notified);
+  expect(notified).toHaveBeenCalledTimes(1);
+  const reconnect = await code(); await exchangeToken(reconnect.input, notified);
+  expect(memory.rows.get('mcpWelcomeMail/frederik')).toEqual(welcome);
+});
+it('keeps OAuth successful when immediate notification scheduling fails', async () => {
+  const { input } = await code();
+  await expect(exchangeToken(input, () => { throw Error('after_unavailable'); })).resolves.toHaveProperty('access_token');
+  expect(memory.rows.get('mcpWelcomeMail/frederik')).toMatchObject({ pending: true, status: 'queued' });
+});
 it('rotates refresh tokens, rejects replay and revokes the token family', async () => {
   const { input } = await code(); const tokens = await exchangeToken(input);
   const refresh = { client_id: input.client_id, resource: MCP_RESOURCE, grant_type: 'refresh_token', refresh_token: tokens.refresh_token };
