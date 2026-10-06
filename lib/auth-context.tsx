@@ -58,6 +58,7 @@ const MIN_AI_BOOT_MS = 2000;
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const pathname = usePathname();
+  const connectionOnly = pathname === '/connect/chatgpt';
   const [user, setUser] = useState<User | null>(null);
   const [capabilities, setCapabilities] = useState<EditorialCapabilities>(NO_CAPABILITIES);
   const [loading, setLoading] = useState(true);
@@ -133,7 +134,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // We still clear stale identity/capabilities above and revalidate access.
       if (!sameAccount && !background) setLoading(true);
       try {
-        const rights = await requireAllowedUser(candidate);
+        const rights = await requireAllowedUser(candidate, connectionOnly);
         if (current !== generation) return;
         setAccessError('');
         acceptedUid = candidate.uid;
@@ -153,7 +154,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const recheck = () => { void check(firebaseAuth.currentUser, true); };
     window.addEventListener('focus', recheck);
     return () => { generation++; unsubscribe(); window.removeEventListener('focus', recheck); };
-  }, []);
+  }, [connectionOnly]);
 
   // Attach Firebase ID token to all same-origin /api/* fetches (middleware auth gate).
   useEffect(() => {
@@ -192,7 +193,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const firebaseAuth = getFirebaseAuth();
     if (!firebaseAuth) throw new Error('Firebase not initialized');
     const result = await signInWithEmailAndPassword(firebaseAuth, email, password);
-    await requireAllowedUser(result.user);
+    await requireAllowedUser(result.user, connectionOnly);
   };
 
   const signUp = async (email: string, password: string) => {
@@ -210,7 +211,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (!firebaseAuth) throw new Error('Firebase not initialized');
     const provider = new GoogleAuthProvider();
     const result = await signInWithPopup(firebaseAuth, provider);
-    await requireAllowedUser(result.user);
+    await requireAllowedUser(result.user, connectionOnly);
   };
 
   const resetPassword = async (email: string) => {

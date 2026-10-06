@@ -1,10 +1,18 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { ACCESS_MESSAGE, ACCESS_TIMEOUT_MESSAGE, ACCESS_UNAVAILABLE_MESSAGE, AUTH_ACCESS_TIMEOUT_MS, requireAllowedUser } from '../lib/auth-access-client';
+import { ACCESS_MESSAGE, MCP_ACCESS_MESSAGE, ACCESS_TIMEOUT_MESSAGE, ACCESS_UNAVAILABLE_MESSAGE, AUTH_ACCESS_TIMEOUT_MS, requireAllowedUser } from '../lib/auth-access-client';
 
 afterEach(() => { vi.unstubAllGlobals(); vi.useRealTimers(); });
 const user = { getIdToken: async () => 'isolated-test-token' };
 
 describe('bounded editorial access checks', () => {
+  it('uses the scoped MCP membership endpoint without changing ordinary app access', async () => {
+    const fetcher = vi.fn().mockResolvedValue(Response.json({ allowed: true, capabilities: { owner: false } }));
+    vi.stubGlobal('fetch', fetcher);
+    expect(await requireAllowedUser(user, true)).toEqual({ owner: false });
+    expect(fetcher).toHaveBeenCalledWith('/oauth/access', expect.objectContaining({ cache: 'no-store' }));
+    fetcher.mockResolvedValue(Response.json({ allowed: false }, { status: 403 }));
+    await expect(requireAllowedUser(user, true)).rejects.toThrow(MCP_ACCESS_MESSAGE);
+  });
   it('accepts only the server-confirmed identity and strict owner capability', async () => {
     const fetcher = vi.fn().mockResolvedValue(Response.json({ allowed: true, capabilities: { owner: true } }));
     vi.stubGlobal('fetch', fetcher);

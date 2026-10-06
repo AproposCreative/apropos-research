@@ -6,8 +6,21 @@ import { isLivTudumSource, LIV_TUDUM_HTML_MAX_BYTES } from './photo-credit';
 
 /** No credentials, redirects or second DNS lookup. HTML and raster bytes only. */
 export async function readPublicMedia(value: string, kind: 'html' | 'image', timeoutMs = 12_000): Promise<Buffer> {
+  return downloadMedia(value, kind, timeoutMs, false);
+}
+
+/** Explicit ChatGPT file input only. Never persist/log this temporary signed URL.
+ * Same DNS pinning, no redirects, content-type/byte bounds as public media. */
+export async function readChatGptImage(value: string): Promise<Buffer> {
   const url = sourceUrl(value);
-  if ([...url.searchParams.keys()].some(key => /token|secret|password|signature|credential|api.?key/i.test(key))) {
+  if (!(url.hostname === 'files.oaiusercontent.com' || url.hostname.endsWith('.files.oaiusercontent.com') ||
+    url.hostname === 'fileopenai.blob.core.windows.net')) throw Error('mcp_submission_file_host_invalid');
+  return downloadMedia(value, 'image', 15_000, true);
+}
+
+async function downloadMedia(value: string, kind: 'html' | 'image', timeoutMs: number, signedFile: boolean): Promise<Buffer> {
+  const url = sourceUrl(value);
+  if (!signedFile && [...url.searchParams.keys()].some(key => /token|secret|password|signature|credential|api.?key/i.test(key))) {
     throw new Error('media_url_contains_credentials');
   }
   const signal = AbortSignal.timeout(Math.min(15_000, Math.max(1000, timeoutMs)));

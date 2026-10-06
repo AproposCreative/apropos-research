@@ -3,7 +3,7 @@ import { memoryFirestore } from './helpers/mcp-firestore';
 import { cmsFieldHash } from '@/lib/liv/cms-field-hash';
 const state = vi.hoisted(() => ({ db: null as any, inspect: vi.fn(), publish: vi.fn(), verify: vi.fn(), enabled: vi.fn() }));
 vi.mock('@/lib/firebase-admin', () => ({ getAdminDb: () => state.db }));
-vi.mock('@/lib/mcp/oauth', () => ({ activeOwner: async () => ({ owner: true }) }));
+vi.mock('@/lib/mcp/oauth', () => ({ activeMember: async () => ({ owner: true }) }));
 vi.mock('@/lib/editorial/submission-options', () => ({ getSubmissionOptions: vi.fn() }));
 vi.mock('@/lib/liv/cms-readback', () => ({ inspectLivCmsDraft: (...args: unknown[]) => state.inspect(...args) }));
 vi.mock('@/lib/liv/publish-verified', () => ({ publishVerifiedLivArticle: (...args: unknown[]) => state.publish(...args), verifyLiveLivArticle: (...args: unknown[]) => state.verify(...args) }));

@@ -1,6 +1,9 @@
 import { beforeEach, expect, it, vi } from 'vitest';
 import { z } from 'zod';
 const mock = vi.hoisted(() => ({ identity: null as any, rate: vi.fn(), audit: vi.fn(), drafts: vi.fn(), workspace: vi.fn(), context: vi.fn(), publish: vi.fn(), publicationStatus: vi.fn(), shortening: vi.fn(), shorteningContext: vi.fn(), shorteningPreview: vi.fn(), shorteningApply: vi.fn() }));
+vi.mock('@/lib/editorial/chat-preview', async original => ({ ...await original<any>(), chatSubmissionPreview: async () => ({
+  data: { submissionId: 'a'.repeat(64), article: { title: 'Private preview' }, paidAiCalls: 0 },
+  confirmation: { token: 'UI-ONLY-SECRET', action: 'checks' }, imagePreviews: {} }) }));
 vi.mock('@/lib/firebase-admin', () => ({ getAdminDb: () => ({ collection: () => ({ doc: () => ({ create: mock.audit }) }) }) }));
 vi.mock('@/lib/mcp/oauth', async original => ({ ...await original<any>(), authenticateMcp: async () => mock.identity, oauthRateLimit: mock.rate }));
 vi.mock('@/lib/image-gen/webflow', () => ({ listImageGenArticles: async () => ({ articles: [], nextCursor: null }) }));
@@ -44,7 +47,7 @@ it('negotiates the real SDK protocol and lists strict schemas on independent sta
     icons: [{ src: MCP_ICON, mimeType: 'image/png', sizes: ['256x256'] }],
   });
   const response = await POST(message('tools/list')); const tools = (await response.json()).result.tools;
-  expect(tools.length).toBe(37); expect(tools.find((t: any) => t.name === 'publish_article').annotations.destructiveHint).toBe(true);
+  expect(tools.length).toBe(42); expect(tools.find((t: any) => t.name === 'publish_article').annotations.destructiveHint).toBe(true);
   expect(tools.find((t: any) => t.name === 'get_publication_status').annotations).toMatchObject({ readOnlyHint: true, destructiveHint: false, idempotentHint: true });
   expect(tools.find((t: any) => t.name === 'save_draft').inputSchema.additionalProperties).toBe(false);
   expect(tools.find((t: any) => t.name === 'publish_article')._meta.securitySchemes).toEqual([{ type: 'oauth2', scopes: ['apropos:publish'] }]);
@@ -66,7 +69,7 @@ it('returns the compact overview in one read-only call, enforcing strict user sc
   mock.identity.scopes = ['apropos:draft'];
   expect((await (await call('list_drafts')).json()).result.isError).toBe(true);
   mock.identity.scopes = ['apropos:read']; mock.identity.owner = false;
-  expect((await (await call('list_drafts')).json()).result.isError).toBe(true);
+  expect((await (await call('list_drafts')).json()).result.isError).not.toBe(true);
   mock.identity.owner = true; mock.drafts.mockImplementation(async () => { assertPaidAiAllowed(); });
   expect((await (await call('list_drafts')).json()).result.content[0].text).toContain('mcp_paid_call_requires_separate_approval');
 });
@@ -102,6 +105,21 @@ it('requires draft scope for the new precise mutation, not just read scope', asy
   const result = (await (await call('apply_copyedit', { draftId: 'draft-1234', expectedRevision: 1,
     previewHash: 'a'.repeat(64), patches: [{ field: 'intro', before: 'Old', after: 'New' }] })).json()).result;
   expect(result.isError).toBe(true); expect(result._meta['mcp/www_authenticate'][0]).toContain('apropos:draft');
+});
+it('registers an actual MCP App, sends secrets only through UI metadata and declares host-supplied file inputs', async () => {
+  const tools = (await (await POST(message('tools/list'))).json()).result.tools;
+  const preview = tools.find((t: any) => t.name === 'preview_submission');
+  expect(preview._meta.ui.resourceUri).toBe('ui://apropos/article-preview-v1.html'); expect(preview.outputSchema).toBeTruthy();
+  expect(tools.find((t: any) => t.name === 'confirm_submission_action')._meta.ui.visibility).toEqual(['app']);
+  const file = tools.find((t: any) => t.name === 'import_submission_image');
+  expect(file._meta['openai/fileParams']).toEqual(['file']);
+  expect(Object.keys(file.inputSchema.properties.file.properties)).toEqual(['download_url', 'file_id', 'mime_type', 'file_name']);
+  const result = (await (await call('preview_submission', { submissionId: 'a'.repeat(64) })).json()).result;
+  expect(result._meta.confirmation.token).toBe('UI-ONLY-SECRET');
+  expect(JSON.stringify([result.structuredContent, result.content])).not.toContain('UI-ONLY-SECRET');
+  const resource = (await (await POST(message('resources/read', { uri: preview._meta.ui.resourceUri }))).json()).result.contents[0];
+  expect(resource.mimeType).toBe('text/html;profile=mcp-app'); expect(resource.text).toContain('ui/initialize');
+  expect(resource._meta.ui.csp.connectDomains).toEqual([]);
 });
 it('runs real saved-metadata checks via MCP, with source binding and no paid model', async () => {
   mock.identity.scopes = ['apropos:read'];

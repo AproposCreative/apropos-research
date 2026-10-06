@@ -2,7 +2,7 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { memoryFirestore } from './helpers/mcp-firestore';
 const mock = vi.hoisted(() => ({ db: null as any, access: vi.fn() }));
 vi.mock('@/lib/firebase-admin', () => ({ getAdminDb: () => mock.db }));
-vi.mock('@/lib/editorial-access', () => ({ editorialRequestAccess: mock.access }));
+vi.mock('@/lib/mcp/oauth', async original => ({ ...await original<any>(), mcpRequestAccess: mock.access }));
 import { readConnectionStatus } from '@/lib/mcp/connections';
 import { GET } from '@/app/oauth/connections/route';
 
@@ -53,10 +53,15 @@ it('does not expose tokens, client IDs, article content or audit metadata', asyn
   const body = JSON.stringify(await readConnectionStatus(uid));
   expect(body).not.toMatch(/SECRET|PRIVATE|live|get_workspace/);
 });
-it.each([null, { uid: 'casper', owner: false }, { uid: 'milo', owner: false }])('denies missing/non-owner first-party sessions', async access => {
+it.each([null])('denies missing first-party sessions', async access => {
   mock.access.mockResolvedValue(access); mock.db = null;
   const response = await GET(new Request('https://ai.aproposmagazine.com/oauth/connections'));
   expect(response.status).toBe(403); expect(await response.json()).toEqual({ error: 'access_denied' });
+});
+it('reads only the signed-in colleague connection status', async () => {
+  grant(); audit(); mock.access.mockResolvedValue({ uid: 'casper', owner: false });
+  const response = await GET(new Request('https://ai.aproposmagazine.com/oauth/connections?uid=frederik'));
+  expect(await response.json()).toMatchObject({ authorization: 'none', successfulToolCallObserved: false });
 });
 it('uses the server-side owner identity, private/no-store response and no caller-selected UID', async () => {
   grant(); audit();

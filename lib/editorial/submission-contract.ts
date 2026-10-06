@@ -34,6 +34,7 @@ export type SubmissionOptions = {
 };
 export type SubmissionQuestion = { field: string; question: string; options?: Array<{ value: string; label: string }> };
 export type SubmissionRecord = SubmissionInput & {
+  executionPolicy?: 'chat-final-checks-v1';
   id: string; uid: string; revision: number; originalArticle: SubmissionArticle;
   contentHash: string; createdAt: string; updatedAt: string;
   status: 'draft' | 'awaiting_answers' | 'awaiting_preparation' | 'processing' | 'blocked' | 'prepared' | 'scheduled' | 'published';

@@ -57,6 +57,20 @@ it('refuses caller-bound submission calls with no saved approval before transpor
     submissionId: 'c'.repeat(64), contentVersion: 'd'.repeat(64) } })).rejects.toThrow('submission_approval_required');
   expect(memory.rows.has('livCostLedger/month-2026-09')).toBe(false);
 });
+it('enforces final-check-only approval at the ledger, not merely in MCP descriptions', async () => {
+  const id = 'c'.repeat(64), version = 'd'.repeat(64);
+  memory.rows.set(`editorialSubmissions/${id}`, { uid: 'team', status: 'processing', contentHash: version,
+    executionPolicy: 'chat-final-checks-v1', approval: { uid: 'team', contentHash: version,
+      executionPolicy: 'chat-final-checks-v1', ceilingDkkMicros: 10_000_000 }, packageReservedDkkMicros: 0 });
+  for (const stage of ['writing', 'generate', 'ideas', 'cover', 'tts']) {
+    await expect(createLivCostLedger(() => now).reserve({ ...call(), context: {
+      ...call().context, submissionId: id, contentVersion: version, stage } })).rejects.toThrow('final_checks_only');
+  }
+  expect(memory.rows.has('livCostLedger/month-2026-09')).toBe(false);
+  await createLivCostLedger(() => now).reserve({ ...call(), context: {
+    ...call().context, submissionId: id, contentVersion: version, stage: 'factcheck' } });
+  expect(memory.rows.get('livCostLedger/month-2026-09').calls).toBe(1);
+});
 it('stops all buckets before reservation after provider credit exhaustion without deleting holds',async()=>{
  const ledger=createLivCostLedger(()=>now),first=await ledger.reserve(call());
  await ledger.complete(first,{...outcome,status:'ambiguous',usage:null,httpStatus:429,providerFailure:'quota_exhausted'});

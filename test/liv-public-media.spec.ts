@@ -3,7 +3,7 @@ import { beforeEach, describe, it, expect, vi } from 'vitest';
 const mocks = vi.hoisted(() => ({ lookup: vi.fn(), request: vi.fn() }));
 vi.mock('node:dns/promises', () => ({ lookup: mocks.lookup }));
 vi.mock('node:https', () => ({ request: mocks.request }));
-import { readPublicMedia } from '@/lib/liv/public-media-reader';
+import { readPublicMedia, readChatGptImage } from '@/lib/liv/public-media-reader';
 import { extractCandidateImagesFromHtml, fetchOfficialImagesFromPage } from '@/lib/liv/fetch-official-images';
 
 function reply(status: number, headers: Record<string, string>, chunks: Buffer[] = []) {
@@ -18,6 +18,18 @@ function reply(status: number, headers: Record<string, string>, chunks: Buffer[]
 }
 beforeEach(() => { vi.resetAllMocks(); mocks.lookup.mockResolvedValue([{ address: '93.184.216.34', family: 4 }]); });
 describe('Liv public media transport', () => {
+  it('allows signed ChatGPT image input only on exact file hosts, still DNS-pinned and credential-free', async () => {
+    reply(200, { 'content-type': 'image/png' }, [Buffer.from('fixture')]);
+    expect(await readChatGptImage('https://files.oaiusercontent.com/asset?signature=temporary')).toEqual(Buffer.from('fixture'));
+    const options = mocks.request.mock.calls[0][1];
+    expect(options.headers.Authorization).toBeUndefined(); expect(options.headers.Cookie).toBeUndefined();
+    for (const url of ['https://example.com/x?signature=secret', 'https://files.oaiusercontent.com.evil.test/a', 'https://openai.com/a']) {
+      await expect(readChatGptImage(url)).rejects.toThrow();
+    }
+    mocks.lookup.mockResolvedValue([{ address: '127.0.0.1', family: 4 }]);
+    await expect(readChatGptImage('https://files.oaiusercontent.com/a')).rejects.toThrow('address_blocked');
+    expect(mocks.request).toHaveBeenCalledTimes(1);
+  });
   it.each(['http://example.com/a', 'https://127.0.0.1/a', 'https://internal.local/a', 'https://user:pass@example.com/a', 'https://example.com/a?api_key=test'])('blocks unsafe URL %s before network', async url => {
     await expect(readPublicMedia(url, 'image')).rejects.toThrow(); expect(mocks.lookup).not.toHaveBeenCalled(); expect(mocks.request).not.toHaveBeenCalled();
   });

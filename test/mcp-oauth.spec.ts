@@ -3,7 +3,7 @@ import { createHash } from 'node:crypto';
 import { memoryFirestore } from './helpers/mcp-firestore';
 const fake = vi.hoisted(() => ({ db: null as any, getUser: vi.fn() }));
 vi.mock('@/lib/firebase-admin', () => ({ getAdminDb: () => fake.db, getAdminAuth: () => ({ getUser: fake.getUser }) }));
-import { activeOwner, registerClient, startAuthorization, readAuthorization, consent, exchangeToken, authenticateMcp, revokeToken, revokeConnections, opaque, digest, oauthRateLimit } from '@/lib/mcp/oauth';
+import { activeMember, activeOwner, registerClient, startAuthorization, readAuthorization, consent, exchangeToken, authenticateMcp, revokeToken, revokeConnections, opaque, digest, oauthRateLimit } from '@/lib/mcp/oauth';
 import { MCP_RESOURCE, MCP_ORIGIN, allowedRedirect } from '@/lib/mcp/config';
 import { sameOrigin, smallBody } from '@/lib/mcp/http';
 const memory = memoryFirestore(); const email = 'frederik@aproposmagazine.com';
@@ -34,9 +34,21 @@ it('requires owner verification and allowlist on each token use', async () => {
   expect(await authenticateMcp(request(token.access_token))).toMatchObject({ uid: 'frederik', owner: true });
   memory.rows.set(`editorialAccess/${email}`, { active: false }); expect(await authenticateMcp(request(token.access_token))).toBeNull();
 });
-it.each([{ email: 'casper@aproposmagazine.com' }, { email: 'milo@aproposmagazine.com' }, { email: 'other@example.com' }, { emailVerified: false }, { disabled: true }])('denies non-owner or unavailable account %j', async change => {
+it.each([{ email: 'other@example.com' }, { email: 'x@aproposmagazine.com.evil.test' }, { emailVerified: false }, { disabled: true }])('denies external or unavailable account %j', async change => {
   const data = await setup(); fake.getUser.mockResolvedValue({ email, emailVerified: true, disabled: false, ...change });
   expect(await activeOwner('uid', Date.now())).toBeNull(); await expect(consent(data.request, data.cookie, 'uid', true)).rejects.toThrow('access_denied');
+});
+it.each(['casper@aproposmagazine.com', 'milo@aproposmagazine.com', 'newcolleague@aproposmagazine.com'])('allows verified personal team OAuth without granting owner rights: %s', async teamEmail => {
+  fake.getUser.mockResolvedValue({ email: teamEmail, emailVerified: true });
+  expect(await activeMember('team', Date.now())).toMatchObject({ uid: 'team', owner: false, role: 'editor' });
+  expect(await activeOwner('team', Date.now())).toBeNull();
+  const data = await setup();
+  const url = new URL(await consent(data.request, data.cookie, 'team', true));
+  const token = await exchangeToken({ client_id: data.client.client_id, grant_type: 'authorization_code', redirect_uri: redirect,
+    resource: MCP_RESOURCE, code_verifier: data.verifier, code: url.searchParams.get('code')! });
+  expect(await authenticateMcp(request(token.access_token))).toMatchObject({ uid: 'team', owner: false });
+  memory.rows.set(`editorialAccess/${teamEmail}`, { active: false });
+  expect(await authenticateMcp(request(token.access_token))).toBeNull();
 });
 it('requires the browser-bound cookie and a live single-use request', async () => {
   const data = await setup(); await expect(readAuthorization(data.request, opaque())).rejects.toThrow();

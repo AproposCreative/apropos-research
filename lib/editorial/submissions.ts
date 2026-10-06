@@ -70,6 +70,7 @@ export async function prepareSubmission(uid: string, raw: unknown) {
     }
     const now = new Date().toISOString();
     tx.create(ref, { ...input, id, uid, revision: 1, contentHash, initialHash: contentHash,
+      executionPolicy: 'chat-final-checks-v1',
       originalArticle: input.article, status: 'draft', createdAt: now, updatedAt: now });
   });
   return getSubmissionStatus(uid, id);

@@ -3,7 +3,7 @@ import sharp from 'sharp';
 import { memoryFirestore } from './helpers/mcp-firestore';
 const state = vi.hoisted(() => ({ db: null as any, hold: false, images: new Map<string, Buffer>(), checks: vi.fn(), visual: vi.fn(), save: vi.fn(), upload: vi.fn(), claim: vi.fn() }));
 vi.mock('@/lib/firebase-admin', () => ({ getAdminDb: () => state.db }));
-vi.mock('@/lib/mcp/oauth', () => ({ activeOwner: async () => ({ owner: true }) }));
+vi.mock('@/lib/mcp/oauth', () => ({ activeMember: async () => ({ owner: true }) }));
 vi.mock('@/lib/editorial/submission-options', () => ({ getSubmissionOptions: async () => ({ authors: [{ id: 'author', name: 'Frederik' }], categories: [{ id: 'category', name: 'Kultur' }], topics: [], requiredFields: [], checkedAt: '' }) }));
 vi.mock('@/lib/ai/provider-hold', () => ({ readProviderHold: async () => ({ blocked: state.hold }) }));
 vi.mock('@/lib/liv/public-media-reader', () => ({ readPublicMedia: async (url: string) => state.images.get(url) }));
@@ -68,4 +68,17 @@ it('refuses another user or a version not personally accepted', async () => {
   memory.rows.get(path).approval.contentHash = 'different';
   await expect(runSubmissionStep('owner', id)).rejects.toThrow('approval_required');
   expect(state.visual).not.toHaveBeenCalled();
+});
+it('chat-final-checks mode refuses missing images before any paid idea or generation', async () => {
+  Object.assign(memory.rows.get(path), { executionPolicy: 'chat-final-checks-v1' });
+  memory.rows.get(path).article.featuredImage = '';
+  expect(await runSubmissionStep('owner', id)).toMatchObject({ blocker: 'mcp_submission_images_required' });
+  expect(state.claim).not.toHaveBeenCalled(); expect(state.visual).not.toHaveBeenCalled();
+});
+it('chat-final-checks mode keeps free saved-media work available under a provider hold', async () => {
+  memory.rows.get(path).executionPolicy = 'chat-final-checks-v1'; state.hold = true;
+  for (let i = 0; i < 4; i++) await runSubmissionStep('owner', id);
+  expect(memory.rows.get(path)).toMatchObject({ status: 'blocked', blocker: 'mcp_submission_provider_blocked' });
+  expect(memory.rows.get(`${path}/stages/${hash}-body-2`).status).toBe('done');
+  expect(state.visual).not.toHaveBeenCalled(); expect(state.checks).not.toHaveBeenCalled(); expect(state.claim).not.toHaveBeenCalled();
 });

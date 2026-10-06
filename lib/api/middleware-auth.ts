@@ -1,6 +1,7 @@
 import type { NextRequest } from 'next/server';
 import { verifyEditorialToken } from '@/lib/editorial-access';
 import { requiresEditorialOwner } from '@/lib/editorial-capabilities';
+import { mcpRequestAccess } from '@/lib/mcp/oauth';
 
 /** Routes that carry their own auth (webhooks, public unsubscribe links, health). */
 const PUBLIC_API_PREFIXES = [
@@ -57,6 +58,9 @@ export async function isApiRequestAuthorized(request: NextRequest): Promise<bool
   // Bootstrap mail handler verifies unverified users itself; reset must work logged out.
   if (pathname === '/api/auth/mail' && request.method === 'POST') return true;
   if (isPublicApiPath(pathname)) return true;
+  // Only the personal submission endpoint accepts MCP-domain membership.
+  // The handler still binds every record to the authenticated uid.
+  if (pathname === '/api/editorial/submissions' && ['GET', 'POST'].includes(request.method)) return !!await mcpRequestAccess(request);
 
   if (hasInternalSecret(request) || hasCronSecret(request)) return true;
 

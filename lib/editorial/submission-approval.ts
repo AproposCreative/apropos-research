@@ -14,11 +14,15 @@ export async function quoteSubmission(uid: string, id: string) {
   const shared = validateLivCostPolicy((await db.collection('livCostLedger').doc('policy').get()).data());
   const images = validateLivCostPolicy((await db.collection('imageGenCostLedger').doc('policy').get()).data());
   const quotes = await imageGenQuotes();
+  const finalOnly = row.executionPolicy === 'chat-final-checks-v1';
   const count = inspection.missingMedia.length;
   const generation = row.choices.media === 'illustration' ? count : 0;
   // Operational package bounds, not invoices. Every underlying provider call
   // must also reserve against this accepted ceiling, including nested cleanup.
-  const lines = [
+  const lines = finalOnly ? [
+    { step: 'Visuel slutkontrol af dine billeder (ingen generation eller tekstrensning)', estimateDkk: Math.ceil(images.usdToDkkCeiling * 0.05 * 100) / 100 },
+    { step: 'Redaktionelle og faktuelle slutkontroller', estimateDkk: Math.ceil(shared.usdToDkkCeiling * 0.25 * 100) / 100 },
+  ] : [
     { step: 'Billedidéer og afgrænset pressesøgning', estimateDkk: count ? quotes.ideas.estimateUpToDkk : 0 },
     { step: 'Nye illustrationer', estimateDkk: generation * quotes.generate.estimateUpToDkk },
     { step: 'Billedkontrol og eventuel tekstrensning', estimateDkk: Math.ceil(images.usdToDkkCeiling * 0.30 * 100) / 100 },
@@ -27,14 +31,15 @@ export async function quoteSubmission(uid: string, id: string) {
   const estimateDkk = Math.ceil(lines.reduce((sum, line) => sum + line.estimateDkk, 0) * 100) / 100;
   // Reservations use conservative token/reference bounds rather than the image
   // price alone. Stop, never purchase beyond the displayed accepted ceiling.
-  const ceilingDkkMicros = Math.ceil((generation * 0.7 * images.usdToDkkCeiling +
-    0.9 * images.usdToDkkCeiling + 0.5 * shared.usdToDkkCeiling) * 1e6);
+  const ceilingDkkMicros = Math.ceil((finalOnly ? 0.15 * images.usdToDkkCeiling + 0.5 * shared.usdToDkkCeiling :
+    generation * 0.7 * images.usdToDkkCeiling + 0.9 * images.usdToDkkCeiling + 0.5 * shared.usdToDkkCeiling) * 1e6);
   const body = { contentHash: row.contentHash, revision: row.revision, lines, estimateDkk,
     ceilingDkkMicros, policyHash: cmsFieldHash({ shared, images, quotes }),
+    executionPolicy: row.executionPolicy || 'legacy-preparation',
     kind: 'estimate-not-provider-invoice', autoRetry: false };
-  return { ...body, quoteId: cmsFieldHash(body), canAccept: inspection.readyForPreparation,
-    blockers: inspection.blockers, provider: await readProviderHold(),
-    instruction: 'Betaling kræver Frederiks personlige accept. Dette er ikke publiceringsgodkendelse. Stop ved loftet; genkøb ikke automatisk.' };
+  return { ...body, quoteId: cmsFieldHash(body), canAccept: inspection.readyForPreparation && (!finalOnly || count === 0),
+    blockers: [...inspection.blockers, ...(finalOnly && count ? ['chat_images_required'] : [])], provider: await readProviderHold(),
+    instruction: 'Kræver din personlige prisaccept. Ikke publiceringsgodkendelse. Ingen automatisk genbestilling. Chatforløb køber kun slutkontroller.' };
 }
 
 export async function acceptSubmissionQuote(uid: string, id: string, expectedRevision: number, quoteId: string) {
@@ -47,7 +52,7 @@ export async function acceptSubmissionQuote(uid: string, id: string, expectedRev
     if (!row || row.uid !== uid || row.revision !== expectedRevision || row.contentHash !== quote.contentHash) throw Error('mcp_submission_revision_conflict');
     if (row.approval?.quoteId === quoteId) return { accepted: true, replay: true };
     if (row.status !== 'draft') throw Error('mcp_submission_operation_pending');
-    const approval = { uid, quoteId, contentHash: row.contentHash, ceilingDkkMicros: quote.ceilingDkkMicros, acceptedAt: new Date().toISOString() };
+    const approval = { uid, quoteId, contentHash: row.contentHash, executionPolicy: row.executionPolicy || 'legacy-preparation', ceilingDkkMicros: quote.ceilingDkkMicros, acceptedAt: new Date().toISOString() };
     tx.create(ref.collection('approvals').doc(quoteId), { ...approval, quote });
     tx.update(ref, { approval, packageReservedDkkMicros: 0, status: 'processing', nextStep: 'media', updatedAt: approval.acceptedAt });
     return { accepted: true, replay: false };

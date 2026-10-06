@@ -58,6 +58,6 @@ export default function ConnectionLogin({ signIn, signInWithGoogle, accessError 
       </form>
     </details>
     {(error || accessError) && <p role="alert" className="rounded-xl border border-red-400/40 p-4 text-sm text-red-200">{error || accessError}</p>}
-    <p className="text-xs text-white/50">ChatGPT-forbindelsen er foreløbig kun åben for Frederik. Google-login ændrer ikke, hvem der har adgang.</p>
+    <p className="text-xs text-white/50">Brug din verificerede Apropos-mail. Du får personlig adgang til dine kladder og udgivelser, ikke kollegernes private arbejde.</p>
   </div>;
 }

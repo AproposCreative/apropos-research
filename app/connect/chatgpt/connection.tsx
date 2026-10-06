@@ -15,7 +15,7 @@ export default function ChatGPTConnection({ requestId, publicationId, shortening
   const [error, setError] = useState(''), [busy, setBusy] = useState(false), [done, setDone] = useState('');
   const [context, setContext] = useState<Record<string, any> | null>(null);
   useEffect(() => {
-    if (!user || !capabilities.owner || (!requestId && !publicationId)) return;
+    if (!user || (!requestId && !publicationId)) return;
     let active = true;
     const path = publicationId ? `/oauth/publication?id=${encodeURIComponent(publicationId)}` : `/oauth/consent?request=${encodeURIComponent(requestId)}`;
     (async () => {
@@ -52,7 +52,7 @@ export default function ChatGPTConnection({ requestId, publicationId, shortening
       </header>
       <div className="space-y-6 p-5 sm:p-7">
         {loading ? <p role="status">Kontrollerer din adgang …</p> : !user ? <ConnectionLogin signIn={signIn} signInWithGoogle={signInWithGoogle} accessError={accessError} />
-        : !capabilities.owner ? <p>Forbindelsen er indtil videre kun til Frederik. Dit arbejdsrum er uændret.</p> : done ? <p role="status">{done}</p> : publicationId ? <>
+        : !capabilities.owner && (publicationId || shorteningId) ? <p>Denne ældre redaktionelle handling kræver ejeradgang. Du kan klargøre og udgive dine egne artikler fra chatten.</p> : done ? <p role="status">{done}</p> : publicationId ? <>
           {!context ? <p>Henter preview …</p> : <>
             <h2 className="text-2xl">{context.title}</h2>
             {current?.expected?.subtitle && <p className="text-white/80">{current.expected.subtitle}</p>}
@@ -72,11 +72,11 @@ export default function ChatGPTConnection({ requestId, publicationId, shortening
             <button className={`${button} w-full bg-white/10`} disabled={busy || !current?.ready} onClick={() => action('publish')}>Bekræft denne version til publicering</button>
           </>}
         </> : requestId ? <>
-          <p>ChatGPT får adgang på vegne af dig, Frederik. Dine kollegers private kladder deles ikke.</p>
+          <p>ChatGPT får personlig adgang på vegne af dig. Dine kollegers private kladder deles ikke.</p>
           {context ? <>
             <ul className="list-disc space-y-2 pl-5 text-white/75">
-              <li>Læs artikler, egne kladder, kilder, Liv-status og registreret forbrug.</li>
-              {context.scopes?.includes('apropos:draft') && <li>Gem og redigér kladder. Bevar versioner og gem til Webflow.</li>}
+              <li>Læs fælles artikler, egne kladder, kilder og gemt status.</li>
+              {context.scopes?.includes('apropos:draft') && <li>Gem og redigér dit eget arbejde. Andres byline giver ikke adgang til deres kladder.</li>}
               {context.scopes?.includes('apropos:publish') && <li>Forbered publicering. Hver udgivelse kræver din separate bekræftelse.</li>}
             </ul>
             <p className="text-sm text-white/55">Ingen skjulte AI-køb, ændrede budgetter eller adgang til hele databasen.</p>

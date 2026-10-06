@@ -25,7 +25,7 @@ import { articleImages } from '@/lib/mcp/markup';
 import { getImageGenOpenAIClient } from '@/lib/openai';
 import { readProviderHold } from '@/lib/ai/provider-hold';
 import { MCP_ORIGIN } from '@/lib/mcp/config';
-import { activeOwner } from '@/lib/mcp/oauth';
+import { activeMember } from '@/lib/mcp/oauth';
 
 type Asset = { role: string; url: string; hash: string; alt: string; caption: string; credit: string;
   sourceUrl: string | null; originalUrl: string | null; rightsStatus: 'unknown'; sectionId: string | null };
@@ -43,6 +43,7 @@ export async function runSubmissionStep(uid: string, id: string) {
     tx.update(ref, { workerToken: token, workerUntil: Date.now() + 330_000 }); return row;
   });
   if (!row) return { status: 'not_dispatched' };
+  const finalOnly = row.executionPolicy === 'chat-final-checks-v1';
   const stages = ref.collection('stages');
   let activeStep = 'inputs';
   const current = async () => {
@@ -69,8 +70,8 @@ export async function runSubmissionStep(uid: string, id: string) {
   };
   try {
     const authenticatedAt = Date.parse(row.approval?.acceptedAt || '');
-    if (!Number.isFinite(authenticatedAt) || !await activeOwner(uid, authenticatedAt)) throw Error('mcp_submission_owner_access_changed');
-    if ((await readProviderHold()).blocked && !(await saved('visual') && await saved('checks'))) throw Error('mcp_submission_provider_blocked');
+    if (!Number.isFinite(authenticatedAt) || !await activeMember(uid, authenticatedAt)) throw Error('mcp_submission_owner_access_changed');
+    if (!finalOnly && (await readProviderHold()).blocked && !(await saved('visual') && await saved('checks'))) throw Error('mcp_submission_provider_blocked');
     const options = await getSubmissionOptions(), inspection = inspectSubmission(row, options);
     if (!inspection.readyForPreparation) throw Error('mcp_submission_inputs_changed');
     const { article: snapshot } = await readImageGenSnapshot(uid, `submission-${id}`);
@@ -79,6 +80,7 @@ export async function runSubmissionStep(uid: string, id: string) {
     const existing = [row.article.featuredImage ? { url: row.article.featuredImage, alt: row.article.featuredImageAlt || '', caption: '', credit: row.article.fotoCredit || '' } : null,
       ...images.slice(0, 2).map(image => ({ ...image, credit: image.caption }))];
     const missing = roles.filter((_, i) => !existing[i]);
+    if (finalOnly && missing.length) throw Error('mcp_submission_images_required');
     await withLivCostContext({ runId: `submission-${id}`, stage: 'prepare', scope: 'writer', submissionId: id,
       storyId: id, contentVersion: row.contentHash, purpose: 'editorial-change' }, async () => {
       const ideas: Ideas | undefined = await saved('ideas');
@@ -152,7 +154,9 @@ export async function runSubmissionStep(uid: string, id: string) {
           }
           const meta = await sharp(raw, { limitInputPixels: 80_000_000 }).metadata();
           if (!['jpeg', 'png', 'webp'].includes(meta.format || '') || (meta.pages || 1) !== 1 || (meta.width || 0) < 800 || (meta.height || 0) < 500) throw Error('mcp_submission_image_invalid');
-          const cleaned = i === 0 ? await ensureTextFreeImage(raw) : { bytes: raw };
+          // Chat-supplied mode may validate, never silently purchase cleanup.
+          // Visible cover text is rejected by the visual final check below.
+          const cleaned = i === 0 && !finalOnly ? await ensureTextFreeImage(raw) : { bytes: raw };
           const dimensions = chooseLivHeroDimensions(meta.width || 0, meta.height || 0, meta.orientation);
           if (i === 0 && !dimensions) throw Error('mcp_submission_cover_too_small');
           // Existing approved placement is not a request to replace the asset.
@@ -172,6 +176,7 @@ export async function runSubmissionStep(uid: string, id: string) {
       }
       if (new Set(assets.map(a => a.hash)).size !== 3 || new Set(assets.map(a => a.originalUrl || a.url)).size !== 3) throw Error('mcp_submission_duplicate_images');
       if (!await saved('visual')) {
+        if ((await readProviderHold()).blocked) throw Error('mcp_submission_provider_blocked');
         await run('visual', () => withLivCostContext({ runId: `submission-${id}`, stage: 'visual', scope: 'image-gen' }, async () => {
           const urls = [...new Set([...assets.flatMap(a => a.sourceUrl ? [a.sourceUrl] : []), ...row.research.map(s => s.url)])].slice(0, 4);
           const sources = await Promise.allSettled(urls.map((url, index) => retrieveSource(url, `image-source-${index}`)));
@@ -206,6 +211,7 @@ export async function runSubmissionStep(uid: string, id: string) {
         featuredImage: assets[0].url, featuredImageHash: assets[0].hash, featuredImageAlt: assets[0].alt, fotoCredit: assets[0].credit,
         aiModel: 'chatgpt-supplied-unverified', aiGenerated: false, source: 'manual', status: 'draft' });
       if (!await saved('checks')) {
+        if ((await readProviderHold()).blocked) throw Error('mcp_submission_provider_blocked');
         await run('checks', async () => {
           const result = await runSafetyGates({ baseUrl: MCP_ORIGIN, title: payload.title, content: payload.content,
             intro: payload.intro, authorName: options.authors.find(a => a.id === payload.author || a.name === payload.author)?.name,

@@ -1,6 +1,6 @@
 import { after } from 'next/server';
 import { z } from 'zod';
-import { editorialRequestAccess } from '@/lib/editorial-access';
+import { mcpRequestAccess } from '@/lib/mcp/oauth';
 import { getSubmissionStatus } from '@/lib/editorial/submissions';
 import { quoteSubmission, acceptSubmissionQuote } from '@/lib/editorial/submission-approval';
 import { submissionPublicationPreview, approveSubmissionPublication, publishSubmission } from '@/lib/editorial/submission-publication';
@@ -12,8 +12,8 @@ export const maxDuration = 300;
 const response = (body: unknown, status = 200) => Response.json(body, { status, headers: PRIVATE_HEADERS });
 const safeError = (error: unknown) => error instanceof Error && /^mcp_submission_[a-z_]+$/.test(error.message) ? error.message : 'mcp_submission_unavailable';
 export async function GET(req: Request) {
-  const access = await editorialRequestAccess(req);
-  if (!access?.owner) return response({ error: 'unauthorized' }, 401);
+  const access = await mcpRequestAccess(req);
+  if (!access) return response({ error: 'unauthorized' }, 401);
   try {
     const id = submissionId.parse(new URL(req.url).searchParams.get('id'));
     const row = await getSubmissionStatus(access.uid, id);
@@ -30,8 +30,8 @@ const inputSchema = z.discriminatedUnion('action', [
   z.object({ action: z.literal('publish'), id: submissionId, preparedHash: submissionId, localTime: z.string().max(20) }).strict(),
 ]);
 export async function POST(req: Request) {
-  const access = await editorialRequestAccess(req);
-  if (!access?.owner) return response({ error: 'unauthorized' }, 401);
+  const access = await mcpRequestAccess(req);
+  if (!access) return response({ error: 'unauthorized' }, 401);
   if (req.headers.get('origin') !== MCP_ORIGIN && !(process.env.NODE_ENV === 'development' && req.headers.get('origin') === new URL(req.url).origin)) return response({ error: 'invalid_origin' }, 403);
   try {
     const raw = await req.text(); if (raw.length > 2000) throw Error('mcp_submission_invalid_request');

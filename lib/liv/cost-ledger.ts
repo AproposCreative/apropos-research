@@ -111,6 +111,12 @@ export function createLivCostLedger(now: () => Date = () => new Date(), bucket: 
         // nested image/cleanup/internal HTTP call cannot escape this binding.
         const submissionRef = context.submissionId ? database.collection('editorialSubmissions').doc(context.submissionId) : null;
         const submission = submissionRef ? (await tx.get(submissionRef)).data() : null;
+        if (submission?.executionPolicy === 'chat-final-checks-v1' && (
+          submission.approval?.executionPolicy !== 'chat-final-checks-v1' ||
+          !['visual', 'factcheck', 'editorial-assessment', 'source-similarity', 'embedding', 'moderation', 'tov'].includes(context.stage) ||
+          /image|tts|audio|video/i.test(quote.model))) {
+          throw new LivCostPretransportError('liv_cost_submission_final_checks_only');
+        }
         if (submissionRef && (!submission || submission.status !== 'processing' ||
             submission.contentHash !== context.contentVersion || submission.approval?.contentHash !== context.contentVersion ||
             submission.approval?.uid !== submission.uid || !safeCount(submission.approval?.ceilingDkkMicros) ||

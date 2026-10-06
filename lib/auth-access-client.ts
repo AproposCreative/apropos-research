@@ -1,12 +1,13 @@
 import type { EditorialCapabilities } from './editorial-capabilities';
 
 export const ACCESS_MESSAGE = 'Adgang er kun for redaktionens tre godkendte og verificerede konti.';
+export const MCP_ACCESS_MESSAGE = 'Forbindelsen kræver en aktiv, verificeret @aproposmagazine.com-konto.';
 export const ACCESS_UNAVAILABLE_MESSAGE = 'Adgangen kunne ikke kontrolleres lige nu. Prøv at logge ind igen.';
 export const ACCESS_TIMEOUT_MESSAGE = 'Adgangskontrollen tog for lang tid. Prøv at logge ind igen.';
 export const AUTH_ACCESS_TIMEOUT_MS = 20_000;
 
 /** Bound both token refresh and the access request. Never log credentials. */
-export async function requireAllowedUser(user: { getIdToken: () => Promise<string> }): Promise<EditorialCapabilities> {
+export async function requireAllowedUser(user: { getIdToken: () => Promise<string> }, connectionOnly = false): Promise<EditorialCapabilities> {
   const controller = new AbortController();
   let timer: ReturnType<typeof setTimeout> | undefined;
   const timeout = new Promise<never>((_, reject) => {
@@ -20,18 +21,18 @@ export async function requireAllowedUser(user: { getIdToken: () => Promise<strin
       const token = await user.getIdToken();
       // A late token must not start a request after the UI has timed out.
       if (controller.signal.aborted) throw new Error(ACCESS_TIMEOUT_MESSAGE);
-      const response = await fetch('/api/auth/access', {
+      const response = await fetch(connectionOnly ? '/oauth/access' : '/api/auth/access', {
         headers: { Authorization: `Bearer ${token}` }, cache: 'no-store', signal: controller.signal,
       });
-      if (response.status === 401 || response.status === 403) throw new Error(ACCESS_MESSAGE);
+      if (response.status === 401 || response.status === 403) throw new Error(connectionOnly ? MCP_ACCESS_MESSAGE : ACCESS_MESSAGE);
       if (!response.ok) throw new Error(ACCESS_UNAVAILABLE_MESSAGE);
       const body = await response.json();
-      if (body.allowed !== true) throw new Error(ACCESS_MESSAGE);
+      if (body.allowed !== true) throw new Error(connectionOnly ? MCP_ACCESS_MESSAGE : ACCESS_MESSAGE);
       return { owner: body.capabilities?.owner === true };
     })()]);
   } catch (error) {
     const message = error instanceof Error ? error.message : '';
-    if ([ACCESS_MESSAGE, ACCESS_UNAVAILABLE_MESSAGE, ACCESS_TIMEOUT_MESSAGE].includes(message)) throw error;
+    if ([ACCESS_MESSAGE, MCP_ACCESS_MESSAGE, ACCESS_UNAVAILABLE_MESSAGE, ACCESS_TIMEOUT_MESSAGE].includes(message)) throw error;
     throw new Error(ACCESS_UNAVAILABLE_MESSAGE);
   } finally {
     clearTimeout(timer);

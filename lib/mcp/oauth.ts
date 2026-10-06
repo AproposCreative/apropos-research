@@ -12,21 +12,42 @@ const scope = z.string().max(200).transform(s => [...new Set(s.split(' ').filter
   .refine(s => s.length > 0 && s.includes('apropos:read') && s.every(x => (MCP_SCOPES as readonly string[]).includes(x)));
 const db = () => { const db = getAdminDb(); if (!db) throw Error('mcp_unavailable'); return db; };
 const collection = (name: string) => db().collection(`mcp${name}`);
-export type McpIdentity = { uid: string; role: 'admin' | 'editor'; owner: true; scopes: string[]; grantId: string };
+export type McpIdentity = { uid: string; role: 'admin' | 'editor'; owner: boolean; scopes: string[]; grantId: string };
 export class OAuthError extends Error { constructor(readonly code: string, readonly status = 400) { super(code); } }
 const invalid = () => new OAuthError('invalid_grant');
 
 /** Every token use checks the real Firebase account and current allowlist. No positive cache. */
-export async function activeOwner(uid: string, authenticatedAt: number) {
+export async function activeMember(uid: string, authenticatedAt: number) {
   const auth = getAdminAuth(); if (!auth) return null;
   try {
     const user = await auth.getUser(uid), email = normalizeAccessEmail(user.email);
-    if (email !== OWNER_EMAIL || Date.parse(user.tokensValidAfterTime || '') > authenticatedAt) return null;
+    if (!email || !email.endsWith('@aproposmagazine.com') || !user.emailVerified || user.disabled ||
+      !Number.isFinite(authenticatedAt) || Date.parse(user.tokensValidAfterTime || '') > authenticatedAt) return null;
     const [entryDoc, revocation] = await Promise.all([db().collection('editorialAccess').doc(email).get(), collection('Revocations').doc(uid).get()]);
     if ((revocation.data()?.revokedAt ?? -1) >= authenticatedAt) return null;
     const entry = entryDoc.data() as AccessEntry | undefined;
-    const role = editorialRole({ email, emailVerified: user.emailVerified, disabled: user.disabled, entry });
-    return role ? { uid, role, owner: true as const } : null;
+    if (entry?.active === false) return null;
+    // Domain membership is MCP-only. It does not expand the web app's allowlist
+    // or grant owner capabilities to a colleague with an admin-looking claim.
+    const owner = email === OWNER_EMAIL;
+    const role = owner ? editorialRole({ email, emailVerified: user.emailVerified, disabled: user.disabled, entry }) : 'editor';
+    return role ? { uid, role, owner } : null;
+  } catch { return null; }
+}
+
+export async function activeOwner(uid: string, authenticatedAt: number) {
+  const member = await activeMember(uid, authenticatedAt);
+  return member?.owner ? { ...member, owner: true as const } : null;
+}
+
+/** First-party connection pages use Firebase, not a model-supplied identity. */
+export async function mcpRequestAccess(request: Request) {
+  const token = request.headers.get('authorization')?.match(/^Bearer (.+)$/)?.[1];
+  const auth = getAdminAuth();
+  if (!token || !auth) return null;
+  try {
+    const claims = await auth.verifyIdToken(token, true);
+    return activeMember(claims.uid, claims.auth_time * 1000);
   } catch { return null; }
 }
 
@@ -80,7 +101,7 @@ export async function readAuthorization(id: string, browserSecret: string) {
 }
 export async function consent(id: string, browserSecret: string, uid: string, allow: boolean) {
   const row = await readAuthorization(id, browserSecret);
-  const now = Date.now(); if (!await activeOwner(uid, now)) throw new OAuthError('access_denied', 403);
+  const now = Date.now(); if (!await activeMember(uid, now)) throw new OAuthError('access_denied', 403);
   const code = opaque(), authRef = collection('Authorizations').doc(digest(id));
   await db().runTransaction(async tx => {
     const current = (await tx.get(authRef)).data();
@@ -103,7 +124,7 @@ export async function exchangeToken(input: Record<string, string>) {
   const secret = key.parse(refresh ? input.refresh_token : input.code);
   const ref = collection(refresh ? 'RefreshTokens' : 'Codes').doc(digest(secret));
   const initial = (await ref.get()).data();
-  if (!initial || !await activeOwner(initial.uid, initial.authenticatedAt)) throw invalid();
+  if (!initial || !await activeMember(initial.uid, initial.authenticatedAt)) throw invalid();
   const access = opaque(), nextRefresh = opaque(), grantId = refresh ? initial.grantId : opaque(), now = Date.now();
   const grantRef = collection('Grants').doc(grantId);
   const ok = await db().runTransaction(async tx => {
@@ -140,7 +161,7 @@ export async function authenticateMcp(request: Request): Promise<McpIdentity | n
   if (!row || row.expiresAt < Date.now() || row.resource !== MCP_RESOURCE) return null;
   const grant = (await collection('Grants').doc(row.grantId).get()).data();
   if (!grant || grant.revoked || grant.uid !== row.uid || grant.clientId !== row.client_id || grant.expiresAt < Date.now()) return null;
-  const identity = await activeOwner(row.uid, row.authenticatedAt);
+  const identity = await activeMember(row.uid, row.authenticatedAt);
   return identity ? { ...identity, scopes: row.scope, grantId: row.grantId } : null;
 }
 export async function revokeToken(token: string, clientId: string) {

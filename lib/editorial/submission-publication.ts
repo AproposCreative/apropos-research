@@ -6,11 +6,16 @@ import { readSubmission, submissionStore } from './submissions';
 import { assertPublicationEnabled } from '@/lib/mcp/publication';
 import type { WebflowArticleFields } from '@/lib/webflow/types';
 import { submissionPreviewBlocks } from './submission-preview';
-import { activeOwner } from '@/lib/mcp/oauth';
+import { activeMember } from '@/lib/mcp/oauth';
 
 type Prepared = { itemId: string; expected: WebflowArticleFields; proof: { fieldDataHash: string } };
 type Publication = { uid: string; preparedHash: string; contentHash: string; cmsHash: string; publishAt: string;
   acceptedAt: string; attempted?: boolean; fieldDataHash?: string; receipt?: unknown };
+export async function readSubmissionPublication(uid: string, id: string) {
+  const row = await readSubmission(uid, id) as Awaited<ReturnType<typeof readSubmission>> & { prepared?: Prepared; publication?: Publication };
+  if (row.status !== 'published' || !row.prepared || !row.publication?.fieldDataHash) return { publicationVerified: false as const };
+  return verifyLiveLivArticle({ itemId: row.prepared.itemId, expected: row.prepared.expected, fieldDataHash: row.publication.fieldDataHash });
+}
 export function copenhagenPublicationInstant(value: string, now = Date.now()) {
   if (value === 'now') return new Date(now).toISOString();
   if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(value)) throw Error('mcp_submission_invalid_schedule');
@@ -35,7 +40,7 @@ export async function submissionPublicationPreview(uid: string, id: string) {
     blocks: submissionPreviewBlocks(expected.content), checkedAt: proof.checkedAt };
 }
 
-/** Only authenticated first-party owner UI calls this function, never an MCP input. */
+/** Authenticated personal UI only: first-party or a version-bound MCP App click. */
 export async function approveSubmissionPublication(uid: string, id: string, preparedHash: string, localTime: string) {
   assertPublicationEnabled();
   const preview = await submissionPublicationPreview(uid, id);
@@ -74,7 +79,7 @@ export async function publishSubmission(uid: string, id: string, now = new Date(
       if (!publication.fieldDataHash) throw Error('mcp_submission_publication_unconfirmed');
       receipt = await verifyLiveLivArticle({ itemId: prepared.itemId, expected: prepared.expected, fieldDataHash: publication.fieldDataHash });
     } else {
-      if (!await activeOwner(uid, Date.parse(publication.acceptedAt))) throw Error('mcp_submission_owner_access_changed');
+      if (!await activeMember(uid, Date.parse(publication.acceptedAt))) throw Error('mcp_submission_owner_access_changed');
       assertPublicationEnabled(); await assertLease();
       const fresh = await inspectLivCmsDraft({ itemId: prepared.itemId, expected: prepared.expected });
       if (fresh.fieldDataHash !== publication.cmsHash) throw Error('mcp_submission_preview_changed');
@@ -90,7 +95,7 @@ export async function publishSubmission(uid: string, id: string, now = new Date(
     }
     await assertLease();
     await ref.update({ status: 'published', publication: { ...(await ref.get()).data()!.publication, receipt }, updatedAt: new Date().toISOString() });
-    return { ...receipt, status: 'published', publicationOrigin: 'owner-approved-submission', countsAsUnattendedLiv: false };
+    return { ...receipt, status: 'published', publicationOrigin: 'editor-approved-submission', countsAsUnattendedLiv: false };
   } catch (error) {
     const blocker = error instanceof Error && error.message.startsWith('mcp_submission_') ? error.message : 'mcp_submission_publication_unconfirmed';
     // An ambiguous write remains scheduled for read-only reconciliation. A
