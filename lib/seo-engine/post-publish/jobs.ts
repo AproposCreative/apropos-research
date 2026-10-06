@@ -1,8 +1,9 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { getAdminDb } from '@/lib/firebase-admin';
 import { FieldValue } from 'firebase-admin/firestore';
+import { copenhagenClock } from '@/lib/liv/delivery-policy';
 import { qualityPriorityReadyAt } from './priority';
-import { reviewKey, type PublishedArticle, type MetadataField, type PolicyDecision, type PerformanceEvidence, type FieldAssessment } from './policy';
+import { hasFreshPerformanceEvidence, POST_PUBLISH_POLICY, reviewKey, type PublishedArticle, type MetadataField, type PolicyDecision, type PerformanceEvidence, type FieldAssessment } from './policy';
 import type { ReviewArticle } from './review';
 
 export type QualityJob = {
@@ -33,6 +34,8 @@ export type QualityJob = {
 export type ArticleQualityState = {
   lockedFields: MetadataField[];
   lastAppliedAt?: string;
+  performanceJobId?: string;
+  lastPerformanceReviewedAt?: string;
   lastReviewedKey?: string;
   lastJobId?: string;
   pendingJobId?: string | null;
@@ -48,12 +51,12 @@ function db() {
   return result;
 }
 
-export async function enqueueQualityJob(input: Pick<QualityJob, 'source' | 'snapshot' | 'article' | 'mode' | 'evidence' | 'discoveredPublishedAt' | 'manualRequested'>) {
+export async function enqueueQualityJob(input: Pick<QualityJob, 'source' | 'snapshot' | 'article' | 'mode' | 'evidence' | 'discoveredPublishedAt' | 'manualRequested'>): Promise<{ enqueued: boolean; jobId?: string; reason?: string }> {
   if (!input.snapshot.published || input.snapshot.hasUnpublishedChanges) return { enqueued: false, reason: 'not_cleanly_published' };
   const id = createHash('sha256').update(JSON.stringify([reviewKey(input.snapshot), input.mode,
     input.mode === 'performance' ? input.evidence : null])).digest('hex');
   const ref = db().collection(JOBS).doc(id);
-  await db().runTransaction(async tx => {
+  return db().runTransaction(async tx => {
     const existing = (await tx.get(ref)).data() as QualityJob | undefined;
     if (existing) {
       // A real publish event or an explicit manual request may adopt the SAME
@@ -62,7 +65,28 @@ export async function enqueueQualityJob(input: Pick<QualityJob, 'source' | 'snap
           (input.manualRequested || ['publish_app', 'webhook'].includes(input.source))) {
         tx.set(ref, { source: input.source, ...(input.manualRequested ? { manualRequested: true } : {}) }, { merge: true });
       }
-      return;
+      return input.source === 'performance' && !input.manualRequested
+        ? { enqueued: false, reason: 'already_queued_or_reviewed' } : { enqueued: true, jobId: id };
+    }
+    // Automatic queue admission is atomic across daily/weekly cron and locales.
+    // No extra budget: at most two new reviews/day, one active job/article.
+    if (input.source === 'performance' && !input.manualRequested) {
+      if (!hasFreshPerformanceEvidence(input.evidence, Date.now())) return { enqueued: false, reason: 'insufficient_performance_evidence' };
+      const stateRef = db().collection(STATES).doc(stateId(input.snapshot.itemId, input.snapshot.locale));
+      const dayRef = db().collection('seoPerformanceAdmissions').doc(`day-${copenhagenClock(new Date()).day}`);
+      const [stateSnap, daily] = await Promise.all([tx.get(stateRef), tx.get(dayRef)]);
+      const state = stateSnap.data() as ArticleQualityState | undefined;
+      const prior = state?.performanceJobId ? (await tx.get(db().collection(JOBS).doc(state.performanceJobId))).data() as QualityJob | undefined : undefined;
+      if (prior && !TERMINAL_QUALITY_STATES.includes(prior.status)) return { enqueued: false, reason: 'performance_review_pending' };
+      if (state?.pendingJobId) return { enqueued: false, reason: 'article_write_pending' };
+      if (state?.lockedFields?.includes('seoTitle') && state.lockedFields.includes('metaDescription')) return { enqueued: false, reason: 'editorial_locks' };
+      if ([state?.lastAppliedAt, state?.lastPerformanceReviewedAt].some(at => at &&
+        (!Number.isFinite(Date.parse(at)) || Date.now() - Date.parse(at) < POST_PUBLISH_POLICY.cooldownMs))) return { enqueued: false, reason: 'cooldown' };
+      const count = Number(daily.data()?.count || 0);
+      if (!Number.isInteger(count) || count < 0 || count >= 2) return { enqueued: false, reason: 'daily_performance_limit' };
+      tx.set(dayRef, { count: count + 1, policy: 'google-auto-v1' }, { merge: true });
+      tx.create(db().collection('seoPerformanceAdmissions').doc(`job-${id}`), { jobId: id, policy: 'google-auto-v1' });
+      tx.set(stateRef, { performanceJobId: id }, { merge: true });
     }
     const now = new Date().toISOString();
     const record: QualityJob = { ...input, id, status: 'queued', createdAt: now, updatedAt: now, attempt: 0, readyAt: Date.now() };
@@ -70,8 +94,8 @@ export async function enqueueQualityJob(input: Pick<QualityJob, 'source' | 'snap
     if (priority !== null) record.priorityReadyAt = priority;
     // Firestore rejects undefined, including optional analytics evidence.
     tx.create(ref, JSON.parse(JSON.stringify(record)));
+    return { enqueued: true, jobId: id };
   });
-  return { enqueued: true, jobId: id };
 }
 
 export async function claimQualityJob(id: string): Promise<QualityJob | null> {
@@ -150,7 +174,9 @@ export async function finishQualityJob(job: QualityJob, patch: Partial<QualityJo
     tx.update(jobRef, { ...JSON.parse(JSON.stringify(patch)), updatedAt: now, leaseUntil: 0, readyAt: FieldValue.delete(), priorityReadyAt: FieldValue.delete() });
     tx.set(articleRef, { lastJobId: job.id, lastReviewedKey: reviewKey(job.snapshot),
       ...(patch.status === 'applied' && state?.pendingJobId === job.id ? { pendingJobId: null } : {}),
-      ...(patch.status === 'applied' ? { lastAppliedAt: job.writeStartedAt || now } : {}) }, { merge: true });
+      ...(patch.status === 'applied' ? { lastAppliedAt: job.writeStartedAt || now } : {}),
+      ...(job.mode === 'performance' && ['kept', 'applied', 'needs_editor'].includes(patch.status || '')
+        ? { lastPerformanceReviewedAt: now } : {}) }, { merge: true });
   });
 }
 

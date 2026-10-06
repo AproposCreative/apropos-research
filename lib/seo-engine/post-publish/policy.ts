@@ -50,6 +50,15 @@ export function reviewKey(article: PublishedArticle): string {
   ])).digest('hex');
 }
 
+/** Reject stale analytics before paying for a review as well as before writing. */
+export function hasFreshPerformanceEvidence(e: PerformanceEvidence | undefined, nowMs: number): boolean {
+  const age = e ? nowMs - Date.parse(e.fetchedAt) : NaN;
+  return !!e && e.comparable && Number.isFinite(age) && age >= 0 && age <= POST_PUBLISH_POLICY.evidenceMaxAgeMs &&
+    [e.currentImpressions, e.previousImpressions, e.currentDays, e.previousDays].every(Number.isFinite) &&
+    e.currentImpressions >= POST_PUBLISH_POLICY.minimumImpressions && e.previousImpressions >= POST_PUBLISH_POLICY.minimumImpressions &&
+    e.currentDays === e.previousDays && e.currentDays >= POST_PUBLISH_POLICY.minimumWindowDays;
+}
+
 /** A pure final gate shared by immediate review and later performance review. */
 export function decideMetadataUpdate(args: {
   analyzed: PublishedArticle;
@@ -73,16 +82,9 @@ export function decideMetadataUpdate(args: {
     }
   }
   if (args.mode === 'performance') {
-    const e = args.evidence;
-    const age = e ? args.nowMs - Date.parse(e.fetchedAt) : NaN;
-    if (!e || !e.comparable || !Number.isFinite(age) || age < 0 || age > POST_PUBLISH_POLICY.evidenceMaxAgeMs ||
-      ![e.currentImpressions, e.previousImpressions, e.currentDays, e.previousDays].every(Number.isFinite) ||
-      e.currentImpressions < POST_PUBLISH_POLICY.minimumImpressions ||
-      e.previousImpressions < POST_PUBLISH_POLICY.minimumImpressions ||
-      e.currentDays !== e.previousDays || e.currentDays < POST_PUBLISH_POLICY.minimumWindowDays) {
-      return stop('defer', 'insufficient_performance_evidence');
-    }
+    if (!hasFreshPerformanceEvidence(args.evidence, args.nowMs)) return stop('defer', 'insufficient_performance_evidence');
   }
+
   const patch: Partial<Metadata> = {};
   const seen = new Set<MetadataField>();
   for (const assessment of args.assessments) {

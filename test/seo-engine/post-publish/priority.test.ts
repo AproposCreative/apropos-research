@@ -1,6 +1,7 @@
+import { createHash } from 'node:crypto';
 import { beforeEach, expect, it, vi } from 'vitest';
 import { qualityPriorityReadyAt } from '../../../lib/seo-engine/post-publish/priority';
-const m = vi.hoisted(() => ({ rows: new Map<string, any>(), queries: [] as string[] }));
+const m = vi.hoisted(() => ({ rows: new Map<string, any>(), queries: [] as string[], tail: Promise.resolve() as Promise<any> }));
 vi.mock('firebase-admin/firestore', () => ({ FieldValue: { delete: () => '__DELETE__' } }));
 vi.mock('@/lib/firebase-admin', () => {
   const ref = (collection: string, id: string) => ({ key: `${collection}/${id}` });
@@ -17,15 +18,15 @@ vi.mock('@/lib/firebase-admin', () => {
       return { docs: [...m.rows].filter(([key, v]) => key.startsWith(collection + '/') && typeof v[field] === 'number' && v[field] <= now)
         .sort((a, b) => a[1][field] - b[1][field]).slice(0, count).map(([key, v]) => ({ id: key.split('/')[1], data: () => v })) };
     } }) }) }),
-  }), runTransaction: (fn: any) => fn({ get: async (r: any) => snapshot(r),
+  }), runTransaction: (fn: any) => { const result = m.tail.then(() => fn({ get: async (r: any) => snapshot(r),
     create: (r: any, v: any) => write(r, v, false), set: (r: any, v: any, options: any) => write(r, v, options?.merge ?? false),
-    update: (r: any, v: any) => write(r, v) }) }) };
+    update: (r: any, v: any) => write(r, v) })); m.tail = result.catch(() => {}); return result; } }) };
 });
-import { claimQualityJob, checkpointQualityJob, listRecoverableQualityJobs, finishQualityJob } from '../../../lib/seo-engine/post-publish/jobs';
+import { enqueueQualityJob, claimQualityJob, checkpointQualityJob, listRecoverableQualityJobs, finishQualityJob } from '../../../lib/seo-engine/post-publish/jobs';
 import type { QualityJob } from '../../../lib/seo-engine/post-publish/jobs';
 const id = 'a'.repeat(64);
 const key = `seoPostPublishJobs/${id}`;
-beforeEach(() => { m.rows.clear(); m.queries.length = 0; });
+beforeEach(() => { m.rows.clear(); m.queries.length = 0; m.tail = Promise.resolve(); });
 it('selects a new publication ahead of hundreds of older archive jobs with bounded queries', async () => {
   for (let i = 0; i < 224; i++) m.rows.set(`seoPostPublishJobs/old-${i}`, { source: 'recovery', status: 'queued', readyAt: i });
   m.rows.set(key, { source: 'webhook', status: 'queued', readyAt: 500, priorityReadyAt: 500 });
@@ -62,4 +63,42 @@ it('removes both lane fields on successful completion', async () => {
   m.rows.set(key, job);
   await finishQualityJob(job, { status: 'kept' });
   expect(m.rows.get(key).priorityReadyAt).toBeUndefined(); expect(m.rows.get(key).readyAt).toBeUndefined();
+});
+
+function performanceInput(itemId: string) {
+  const snapshot = { itemId, locale: 'da' as const, published: true, hasUnpublishedChanges: false,
+    contentVersion: 'v1', metadata: { seoTitle: 'Title', metaDescription: 'Description' } };
+  return { source: 'performance' as const, mode: 'performance' as const, snapshot,
+    article: { editorialTitle: 'Title', body: 'Body', locale: 'da' as const, metadata: snapshot.metadata },
+    evidence: { currentImpressions: 500, previousImpressions: 400, currentDays: 28, previousDays: 28,
+      comparable: true, fetchedAt: new Date().toISOString() } };
+}
+const articleStateKey = (item: string) => 'seoPostPublishArticles/' + createHash('sha256').update(`${item}:da`).digest('hex');
+it('atomically caps automatic performance work at two across competing scans', async () => {
+  const results = await Promise.all(['one', 'two', 'three'].map(item => enqueueQualityJob(performanceInput(item))));
+  expect(results.map(r => r.enqueued)).toEqual([true, true, false]);
+  expect(results[2].reason).toBe('daily_performance_limit');
+  expect([...m.rows].filter(([key]) => key.startsWith('seoPostPublishJobs/'))).toHaveLength(2);
+});
+it('deduplicates daily evidence refreshes while the article has pending work', async () => {
+  const first = performanceInput('one'); await enqueueQualityJob(first);
+  const next = { ...first, evidence: { ...first.evidence, currentImpressions: 501 } };
+  expect(await enqueueQualityJob(next)).toMatchObject({ enqueued: false, reason: 'performance_review_pending' });
+});
+it.each([
+  [{ lockedFields: ['seoTitle', 'metaDescription'] }, 'editorial_locks'],
+  [{ lastPerformanceReviewedAt: new Date().toISOString() }, 'cooldown'],
+  [{ lastAppliedAt: new Date().toISOString() }, 'cooldown'],
+  [{ pendingJobId: 'another-job' }, 'article_write_pending'],
+])('avoids queueing protected or recently reviewed articles: %j', async (state, reason) => {
+  m.rows.set(articleStateKey('one'), state);
+  expect(await enqueueQualityJob(performanceInput('one'))).toMatchObject({ enqueued: false, reason });
+  expect([...m.rows.keys()].filter(k => k.startsWith('seoPerformanceAdmissions/'))).toHaveLength(0);
+});
+it('a kept performance review starts a cooldown without pretending metadata was applied', async () => {
+  const result = await enqueueQualityJob(performanceInput('one'));
+  const job = (await claimQualityJob(result.jobId!))!;
+  await finishQualityJob(job, { status: 'kept' });
+  const state = m.rows.get(articleStateKey('one'));
+  expect(state.lastPerformanceReviewedAt).toBeDefined(); expect(state.lastAppliedAt).toBeUndefined();
 });

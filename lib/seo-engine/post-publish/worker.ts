@@ -1,4 +1,4 @@
-import { decideMetadataUpdate, POST_PUBLISH_POLICY, reviewKey, type PublishedArticle, type PolicyDecision } from './policy';
+import { decideMetadataUpdate, hasFreshPerformanceEvidence, POST_PUBLISH_POLICY, reviewKey, type PublishedArticle, type PolicyDecision } from './policy';
 import { reviewPublishedMetadata, type ReviewModelCall } from './review';
 import type { QualityJob, ArticleQualityState } from './jobs';
 import { getLivCostPretransportError } from '@/lib/liv/cost-errors';
@@ -52,6 +52,9 @@ export async function runQualityJob(id: string, deps: QualityWorkerDependencies)
     if (state.lockedFields.includes('seoTitle') && state.lockedFields.includes('metaDescription')) return await finish('kept', 'editorial_locks');
     if (state.lastAppliedAt && (deps.now?.() ?? Date.now()) - Date.parse(state.lastAppliedAt) < POST_PUBLISH_POLICY.cooldownMs) {
       return await finish('kept', 'cooldown');
+    }
+    if (job.mode === 'performance' && !hasFreshPerformanceEvidence(job.evidence, deps.now?.() ?? Date.now())) {
+      return await finish('stale', 'insufficient_performance_evidence');
     }
     if (!(await deps.admitArchive(job))) {
       await deps.checkpoint(job, { status: 'queued', reason: 'archive_not_admitted',

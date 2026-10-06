@@ -2,9 +2,10 @@ import { createHash } from 'node:crypto';
 import { getAdminDb } from '@/lib/firebase-admin';
 import { copenhagenClock } from '@/lib/liv/delivery-policy';
 import type { QualityJob } from './jobs';
+import { hasFreshPerformanceEvidence } from './policy';
 import { recentPublication } from './archive-policy';
 
-/** Manual archive optimization; at most one recent recovery review per day.
+/** Archive recovery retains its daily limit; Google jobs require atomic queue admission.
  * Paid/uncertain stages and pending CMS writes always retain reconciliation. */
 export async function admitArchiveReview(job: QualityJob, now = new Date()): Promise<boolean> {
   if (!['recovery', 'performance'].includes(job.source) || job.writeStartedAt || job.manualRequested) return true;
@@ -16,9 +17,12 @@ export async function admitArchiveReview(job: QualityJob, now = new Date()): Pro
   const stages = ['review', 'verify'].map(stage => db.collection('seoPostPublishModelStages')
     .doc(createHash('sha256').update(`${job.id}:${stage}`).digest('hex')));
   return db.runTransaction(async tx => {
-    const [prior, daily, ...saved] = await tx.getAll(jobRef, dayRef, ...stages);
-    if (saved.some(row => ['started', 'responded', 'uncertain'].includes(row.data()?.status))) return true;
-    if (job.source === 'performance' || !recentPublication(job.discoveredPublishedAt, now)) return false;
+    const [prior, daily, review, verify, performance] = await tx.getAll(jobRef, dayRef, ...stages, db.collection('seoPerformanceAdmissions').doc(`job-${job.id}`));
+    if ([review, verify].some(row => ['started', 'responded', 'uncertain'].includes(row.data()?.status))) return true;
+    if (job.source === 'performance') return job.mode === 'performance' &&
+      performance.data()?.policy === 'google-auto-v1' && performance.data()?.jobId === job.id &&
+      hasFreshPerformanceEvidence(job.evidence, now.getTime());
+    if (!recentPublication(job.discoveredPublishedAt, now)) return false;
     if (prior.exists) return true;
     if (daily.exists) return daily.data()?.jobId === job.id;
     const receipt = { jobId: job.id, day, admittedAt: now.toISOString(), policy: 'recent-recovery-manual-archive-v2' };

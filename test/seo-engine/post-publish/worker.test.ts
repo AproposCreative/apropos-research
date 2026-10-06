@@ -88,3 +88,18 @@ describe('publication quality worker', () => {
     expect(deps.model).not.toHaveBeenCalled();
   });
 });
+
+it('runs an eligible Google performance review through verified public completion', async () => {
+  const { job, deps } = fixture(); job.source = 'performance'; job.mode = 'performance';
+  job.evidence = { currentImpressions: 500, previousImpressions: 400, currentDays: 28, previousDays: 28,
+    comparable: true, fetchedAt: '2026-09-12T11:00:00Z' };
+  expect((await runQualityJob('job', deps)).status).toBe('applied');
+  expect(deps.finish).toHaveBeenCalledWith(job, expect.objectContaining({ status: 'applied', publicReceipt: expect.anything() }));
+});
+it('expires stale Google evidence before any paid call', async () => {
+  const { job, deps } = fixture(); job.source = 'performance'; job.mode = 'performance';
+  job.evidence = { currentImpressions: 500, previousImpressions: 400, currentDays: 28, previousDays: 28,
+    comparable: true, fetchedAt: '2026-09-01T11:00:00Z' };
+  expect((await runQualityJob('job', deps)).reason).toBe('insufficient_performance_evidence');
+  expect(deps.model).not.toHaveBeenCalled(); expect(deps.apply).not.toHaveBeenCalled();
+});

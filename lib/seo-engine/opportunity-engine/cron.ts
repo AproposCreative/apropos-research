@@ -6,14 +6,11 @@ import {
   completeOpportunityCronSlot,
   releaseOpportunityCronSlot,
 } from '@/lib/seo-engine/opportunity-engine/store';
+import { enqueuePerformanceReviews } from '@/lib/seo-engine/post-publish/performance';
 import { logger } from '@/lib/logger';
 
-/**
- * Idempotent daily collect / weekly optimize.
- * Daily: gather GSC/GA4 opportunities (no writes).
- * Weekly: collection only too. Archive optimization requires an explicit manual request.
- * Failed runs release the lease so the next tick can retry.
- */
+/** Scheduled collection feeds bounded, independently verified metadata reviews.
+ * Queue receipts are not claims of applied CMS changes. */
 export async function handleOpportunityCron(
   req: NextRequest,
   cadence: 'daily' | 'weekly'
@@ -25,7 +22,7 @@ export async function handleOpportunityCron(
   const now = new Date();
   const dayKey = now.toISOString().slice(0, 10);
   const weekKey = `${now.getUTCFullYear()}-W${String(getUtcWeek(now)).padStart(2, '0')}`;
-  const slotKey = cadence === 'weekly' ? `weekly:${weekKey}` : `daily:${dayKey}`;
+  const slotKey = cadence === 'weekly' ? `weekly:${weekKey}:auto-v1` : `daily:${dayKey}:auto-v1`;
 
   const claimed = await claimOpportunityCronSlot({
     slotKey,
@@ -49,13 +46,12 @@ export async function handleOpportunityCron(
       limit: cadence === 'weekly' ? 10 : 40,
     });
 
-    const autoApply: { applied: string[]; queued?: string[]; skipped: Array<{ id: string; reason: string }> } | null =
-      null;
+    const autoApply = { applied: [] as string[], ...await enqueuePerformanceReviews(report) };
 
     await completeOpportunityCronSlot({
       slotKey,
       status: 'succeeded',
-      detail: `status=${report.status} count=${report.opportunityCount}`,
+      detail: `status=${report.status} count=${report.opportunityCount} queued=${autoApply.queued.join(',')} skipped=${autoApply.skipped.length}`,
     });
 
     return NextResponse.json({

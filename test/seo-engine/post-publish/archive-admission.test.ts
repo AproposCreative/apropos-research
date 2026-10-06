@@ -57,3 +57,13 @@ it.each([{ source: 'webhook' }, { source: 'publish_app' }, { writeStartedAt: now
   expect(await admitArchiveReview(job(undefined, patch), now)).toBe(true);
   expect(m.db).not.toHaveBeenCalled();
 });
+
+it('admits only automatically reserved performance reviews with fresh evidence', async () => {
+  const next = job(undefined, { source: 'performance', mode: 'performance', evidence: {
+    currentImpressions: 500, previousImpressions: 400, currentDays: 28, previousDays: 28,
+    comparable: true, fetchedAt: now.toISOString() } });
+  expect(await admitArchiveReview(next, now)).toBe(false);
+  m.rows.set(`seoPerformanceAdmissions/job-${next.id}`, { jobId: next.id, policy: 'google-auto-v1' });
+  expect(await admitArchiveReview(next, now)).toBe(true);
+  expect(await admitArchiveReview(next, new Date('2026-09-20'))).toBe(false);
+});

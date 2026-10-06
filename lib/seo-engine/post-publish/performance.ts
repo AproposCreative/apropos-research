@@ -3,7 +3,7 @@ import { inclusiveDaySpan } from '@/lib/seo-engine/opportunity-engine/gsc-window
 import { stripHtmlToText } from '@/lib/seo-engine/html-text';
 import { readPublishedArticle } from './cms';
 import { enqueueQualityJob } from './jobs';
-import { POST_PUBLISH_POLICY, type PerformanceEvidence } from './policy';
+import { hasFreshPerformanceEvidence, POST_PUBLISH_POLICY, type PerformanceEvidence } from './policy';
 import type { ReviewArticle } from './review';
 
 const metric = (value: number | null | undefined): number | null => typeof value === 'number' && Number.isFinite(value) ? value : null;
@@ -38,13 +38,17 @@ export function performanceReviewInput(report: OpportunityScanReport, opportunit
 export async function enqueuePerformanceReviews(report: OpportunityScanReport, manualRequested = false) {
   const queued: string[] = [];
   const skipped: Array<{ id: string; reason: string }> = [];
-  if (!manualRequested) return { queued, skipped: report.opportunities.map(o => ({ id: o.id, reason: 'archive_manual_only' })) };
-  for (const opportunity of report.opportunities.slice(0, 10)) {
+  const seen = new Set<string>();
+  for (const opportunity of report.opportunities) {
+    if (queued.length >= (manualRequested ? 10 : 2)) break;
+    const articleKey = `${opportunity.itemId}:${opportunity.locale}`;
+    if (seen.has(articleKey)) continue;
+    seen.add(articleKey);
     if (['applied', 'rejected', 'dismissed'].includes(opportunity.status)) {
       skipped.push({ id: opportunity.id, reason: `status_${opportunity.status}` }); continue;
     }
     const input = performanceReviewInput(report, opportunity);
-    if (!input) { skipped.push({ id: opportunity.id, reason: 'insufficient_comparable_evidence' }); continue; }
+    if (!input || !hasFreshPerformanceEvidence(input.evidence, Date.now())) { skipped.push({ id: opportunity.id, reason: 'insufficient_comparable_evidence' }); continue; }
     const current = await readPublishedArticle(opportunity.itemId, opportunity.locale);
     // A scan cannot justify changing metadata that an editor has since replaced.
     if (current.snapshot.metadata.seoTitle !== (opportunity.scannedSeoTitle || '') ||
@@ -52,7 +56,7 @@ export async function enqueuePerformanceReviews(report: OpportunityScanReport, m
       skipped.push({ id: opportunity.id, reason: 'metadata_changed_since_scan' }); continue;
     }
     const fd = current.live.fieldData;
-    const result = await enqueueQualityJob({ source: 'performance', mode: 'performance', manualRequested: true, snapshot: current.snapshot,
+    const result = await enqueueQualityJob({ source: 'performance', mode: 'performance', manualRequested, snapshot: current.snapshot,
       evidence: input.evidence, article: { editorialTitle: String(fd.name || ''), locale: opportunity.locale,
         metadata: current.snapshot.metadata, performanceContext: input.context,
         body: stripHtmlToText([fd.subtitle, fd.intro, fd.content].filter(Boolean).join('\n\n')),
@@ -61,6 +65,7 @@ export async function enqueuePerformanceReviews(report: OpportunityScanReport, m
       } });
     if (result.jobId) queued.push(result.jobId);
     else skipped.push({ id: opportunity.id, reason: result.reason || 'not_enqueued' });
+    if (result.reason === 'daily_performance_limit') break;
   }
   return { queued, skipped };
 }

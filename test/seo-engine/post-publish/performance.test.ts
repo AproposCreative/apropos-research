@@ -1,7 +1,9 @@
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 vi.mock('@/lib/seo-engine/post-publish/cms', () => ({ readPublishedArticle: vi.fn() }));
 vi.mock('@/lib/seo-engine/post-publish/jobs', () => ({ enqueueQualityJob: vi.fn() }));
-import { performanceReviewInput } from '../../../lib/seo-engine/post-publish/performance';
+import { readPublishedArticle } from '../../../lib/seo-engine/post-publish/cms';
+import { enqueueQualityJob } from '../../../lib/seo-engine/post-publish/jobs';
+import { enqueuePerformanceReviews, performanceReviewInput } from '../../../lib/seo-engine/post-publish/performance';
 import type { OpportunityScanReport, SeoOpportunity } from '../../../lib/seo-engine/opportunity-engine/types';
 
 const report = { autoEnabled: true, gscConfigured: true, ga4Configured: true, status: 'ok',
@@ -30,4 +32,25 @@ describe('performance review evidence', () => {
     expect(performanceReviewInput({ ...report, status: 'error' }, opportunity)).toBeNull();
     expect(performanceReviewInput({ ...report, autoEnabled: false }, opportunity)).toBeNull();
   });
+});
+
+beforeEach(() => vi.clearAllMocks());
+it('queues fresh Google opportunities automatically, deduplicating multiple queries per article', async () => {
+  vi.mocked(readPublishedArticle).mockResolvedValue({ snapshot: { metadata: { seoTitle: '', metaDescription: '' } },
+    live: { fieldData: { name: 'Title', content: '<p>Actual article</p>' } } } as any);
+  vi.mocked(enqueueQualityJob).mockResolvedValue({ enqueued: true, jobId: 'queued-job' });
+  const scan = { ...report, createdAt: new Date().toISOString(), opportunities: [
+    { ...opportunity, id: 'query1', itemId: 'item', locale: 'da', status: 'open' },
+    { ...opportunity, id: 'query2', itemId: 'item', locale: 'da', status: 'open' },
+  ] } as OpportunityScanReport;
+  expect((await enqueuePerformanceReviews(scan)).queued).toEqual(['queued-job']);
+  expect(enqueueQualityJob).toHaveBeenCalledOnce();
+  expect(enqueueQualityJob).toHaveBeenCalledWith(expect.objectContaining({ source: 'performance', manualRequested: false,
+    article: expect.objectContaining({ body: 'Actual article', performanceContext: expect.objectContaining({ previousImpressions: 400 }) }) }));
+});
+it('does not read CMS or queue paid work when analytics are disabled or stale', async () => {
+  const scan = { ...report, opportunities: [opportunity] };
+  expect((await enqueuePerformanceReviews(scan)).queued).toEqual([]);
+  expect((await enqueuePerformanceReviews({ ...scan, autoEnabled: false })).queued).toEqual([]);
+  expect(readPublishedArticle).not.toHaveBeenCalled(); expect(enqueueQualityJob).not.toHaveBeenCalled();
 });
