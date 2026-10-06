@@ -146,6 +146,17 @@ local regression evidence are in `MCP-READER-INDEX-2026-10-06.md`. Cross-task br
 continuation and full-book coverage remain separate acceptance items; they are
 not inferred from the existence of storage or a successful deployment.
 
+Production verification on 6 October at 19:30 UTC confirmed MCP v9 and the new
+reader workflow on deployment `dpl_AjWf9kQPFW2w5D2AHZxiD5U8iJhA`, commit
+`3da4345f7eb0c041517bdea5af704e621bd7bf3a`. The real earlier cloud checkpoint is
+now preserved privately at source
+`5987a89e1425ef21c2e8eb7d5dda65a4c971020991490620572b14d0592d751b`, revision 1.
+An independent second OAuth session retrieved the same checkpoint; receipt
+replay, stale-revision rejection and bounded notes search were verified. This
+passes **server checkpoint persistence**, not cross-task browser navigation.
+Zero complete read intervals were recorded, and full-book acceptance stays open.
+No backend AI call, library credential, public article or paid retry was added.
+
 ## Official product evidence
 
 [ChatGPT Work browser](https://learn.chatgpt.com/docs/browser), read 6 October

@@ -1,4 +1,4 @@
-# Private cloud-reader index — release candidate
+# Private cloud-reader index — deployed and server-verified
 
 ## Scope
 
@@ -69,14 +69,41 @@ The skill-creator validator's Python runtime lacked PyYAML; equivalent frontmatt
 name, allowed keys, description and unfinished-placeholder checks passed with the
 repository's already-installed YAML parser. No package was installed for this.
 
-## Release verification still required
+## Production verification
 
-- Exact commit deployment READY with production aliases and MCP version v9.
-- Authenticated production tools/list + workflow, registration, saved checkpoint,
-  receipt replay, readback through a new OAuth session, bounded notes/search.
-- No changes to Writer article, library credentials or paid-AI ledger.
-- Remote browser continuation across a later task/session remains separate from
-  server persistence. A full-book run has not been performed or claimed.
+- Commit `3da4345f7eb0c041517bdea5af704e621bd7bf3a`, deployment
+  `dpl_AjWf9kQPFW2w5D2AHZxiD5U8iJhA`, READY with `ai.aproposmagazine.com`
+  and the existing production aliases. Vercel build completed in 52 seconds;
+  approximately 72 seconds from buildingAt to READY. No build gates disabled.
+- Authenticated production OAuth/PKCE verification at
+  `2026-10-06T19:30:48.693Z` returned MCP `2026-10-06-v9`, 47 tools and the
+  deployed read workflow. Workflow hash:
+  `7bf91dc7f3d7c29e985f1c64aeae8e9e69241c3c2fb4b142dd64af238a1c6c11`.
+- Registered the actual book from the earlier authorized cloud test, private
+  source `5987a89e1425ef21c2e8eb7d5dda65a4c971020991490620572b14d0592d751b`.
+  Saved only its observed chapter-1 bookmark at position 4 and a brief technical
+  note at revision 1. **Zero read positions** were recorded; navigation is not
+  evidence of complete interval reading. No fake test book or full text was stored.
+- Repeated the exact request: immutable receipt replay succeeded. A different
+  stale revision was rejected without changing the source. Revoked the first
+  temporary OAuth grant, created an independent second session, and confirmed
+  the same checkpoint and revision through `/mcp`. Bounded note search succeeded.
+- Anonymous access remained 401. Writer workspace, accepted welcome receipt,
+  shared cost ledger and provider-hold data were unchanged. Zero backend AI calls
+  started. Both temporary verification grants were revoked; existing connections
+  were not changed. No library login or password was collected or stored.
+- Error/fatal scan of the exact deployment from `19:26:33.782Z` to
+  `19:31:33.782Z` found the pre-existing Liv delivery overdue error, no MCP error
+  entries. This small window is not a long-term reliability guarantee, and the
+  reader release does not fix Liv's separate provider/delivery problem.
+
+## Remaining end-to-end acceptance
+
+Production persistence across independent MCP clients is verified. Remote
+browser continuation across a later task/session is **not** the same test and
+remains unverified. A full-book run has not been performed or claimed. The reader
+workflow can coordinate a browser available to the chat; it cannot provide a
+missing Cloud Browser capability or autonomously schedule ChatGPT execution.
 
 The owner was asked once for authorization to send a follow-up to the already
 created cloud test. Do not create duplicate tests, infer permission from another
