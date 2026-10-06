@@ -135,4 +135,25 @@ Local verification: 353 files / 4,927 isolated tests passed on 6 October at
 safe build configuration and whitespace checks. New tests exercise rejected
 cumulative boundary flags, unchanged revision after rejection, preservation of
 old boundary evidence on successful middle batches, and protocol-level recovery
-guidance. Production verification of v10 remains pending at this entry.
+guidance.
+
+v10 production is verified: commit `06678fbbe331ea821ff8bdbfd908cc887ec0ab75`,
+deployment `dpl_8s45BM1o6tf4J2ZNSgVNizNp7FAd`, READY with the real production
+alias. Approximately 108 seconds from buildingAt to READY; build log reports
+completion in one minute. At `2026-10-06T20:03:54.085Z`, authenticated `/mcp`
+returned v10, 47 tools, both new field descriptions and workflow hash
+`6dacb06e007ae596d052b3d8eeb3b4b608630bc93f080fe414dd95a5c416ebd4`.
+An intentionally invalid, no-text request using a nonexistent source identity
+returned the precise boundary guidance before any source/receipt write. No
+actual reading observation was fabricated for the test. Anonymous access stayed
+401; workspace, welcome receipt, ledger and provider holds were unchanged.
+The temporary verification grant was revoked; existing connections preserved.
+Error/fatal runtime scan `19:58:34.928Z–20:03:34.928Z` for this deployment found
+no matching entries, not a long-term guarantee. No new drains were configured.
+
+At that same check the real cloud reader had independently reached revision 6,
+with positions 1–36 recorded, gap 37–154, on the newly observed fixed layout.
+That is partial client-reported reading, not a full-read result or an
+unassisted-success claim: this first acceptance run required operator tool-list
+refresh and boundary-field diagnosis. See the acceptance journal for the final
+continuation result.
