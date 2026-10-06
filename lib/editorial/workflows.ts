@@ -2,8 +2,8 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { z } from 'zod';
 import { cmsFieldHash } from '@/lib/liv/cms-field-hash';
-export const workflowInput = z.object({ workflow: z.enum(['review', 'edit', 'publish', 'submit']) }).strict();
-const folders = { review: 'apropos-review-drafts', edit: 'apropos-edit-copy', publish: 'apropos-prepare-publication' };
+export const workflowInput = z.object({ workflow: z.enum(['review', 'edit', 'publish', 'submit', 'read']) }).strict();
+const folders = { review: 'apropos-review-drafts', edit: 'apropos-edit-copy', publish: 'apropos-prepare-publication', read: 'apropos-read-book' };
 export function editorialWorkflow(input: unknown) {
   const { workflow } = workflowInput.parse(input);
   if (workflow === 'submit') {

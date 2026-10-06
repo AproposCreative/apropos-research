@@ -1,6 +1,9 @@
 import { beforeEach, expect, it, vi } from 'vitest';
 import { z } from 'zod';
 const mock = vi.hoisted(() => ({ identity: null as any, rate: vi.fn(), audit: vi.fn(), drafts: vi.fn(), workspace: vi.fn(), context: vi.fn(), publish: vi.fn(), publicationStatus: vi.fn(), shortening: vi.fn(), shorteningContext: vi.fn(), shorteningPreview: vi.fn(), shorteningApply: vi.fn() }));
+const reader = vi.hoisted(() => ({ register: vi.fn(), list: vi.fn(), get: vi.fn(), save: vi.fn() }));
+vi.mock('@/lib/mcp/reader', async original => ({ ...await original<any>(), registerReaderSource: reader.register,
+  listReaderSources: reader.list, getReaderProgress: reader.get, saveReaderProgress: reader.save }));
 vi.mock('@/lib/editorial/chat-preview', async original => ({ ...await original<any>(), chatSubmissionPreview: async () => ({
   data: { submissionId: 'a'.repeat(64), article: { title: 'Private preview' }, paidAiCalls: 0 },
   confirmation: { token: 'UI-ONLY-SECRET', action: 'checks' }, imagePreviews: {} }) }));
@@ -48,7 +51,7 @@ it('negotiates the real SDK protocol and lists strict schemas on independent sta
     icons: [{ src: MCP_ICON, mimeType: 'image/png', sizes: ['256x256'] }],
   });
   const response = await POST(message('tools/list')); const tools = (await response.json()).result.tools;
-  expect(tools.length).toBe(42); expect(tools.find((t: any) => t.name === 'publish_article').annotations.destructiveHint).toBe(true);
+  expect(tools.length).toBe(47); expect(tools.find((t: any) => t.name === 'publish_article').annotations.destructiveHint).toBe(true);
   expect(tools.find((t: any) => t.name === 'get_publication_status').annotations).toMatchObject({ readOnlyHint: true, destructiveHint: false, idempotentHint: true });
   expect(tools.find((t: any) => t.name === 'save_draft').inputSchema.additionalProperties).toBe(false);
   expect(tools.find((t: any) => t.name === 'publish_article')._meta.securitySchemes).toEqual([{ type: 'oauth2', scopes: ['apropos:publish'] }]);
@@ -100,6 +103,29 @@ it('returns bounded workflow guidance and discovery through the actual MCP proto
   expect(data.versionHash).toMatch(/^[a-f0-9]{64}$/); expect(data.publicationApproval).toBe(false);
   expect((await (await call('get_workflow', { workflow: '../../.env' })).json()).result.isError).toBe(true);
   expect((await (await call('list_editorial_work')).json()).result.isError).not.toBe(true);
+});
+it('exposes private cloud-reading tools to team members with exact scopes, no-paid guard and metadata-only audit', async () => {
+  mock.identity.owner = false; mock.identity.uid = 'casper'; mock.identity.scopes = ['apropos:read'];
+  reader.list.mockResolvedValue({ items: [], paidAiCalls: 0 });
+  expect((await (await call('list_reader_sources')).json()).result.isError).not.toBe(true);
+  expect(reader.list).toHaveBeenCalledExactlyOnceWith('casper', { limit: 5 });
+  const args = { sourceUrl: 'https://bibliotek.kk.dk/reader?orderid=00000000-0000-4000-8000-000000000001', title: 'Privat bog', author: 'Test' };
+  expect((await (await call('register_reader_source', args)).json()).result.isError).toBe(true);
+  expect(reader.register).not.toHaveBeenCalled();
+  mock.identity.scopes = ['apropos:read', 'apropos:draft'];
+  reader.register.mockImplementation(async () => { assertPaidAiAllowed(); });
+  const guarded = (await (await call('register_reader_source', args)).json()).result;
+  expect(guarded.isError).toBe(true); expect(guarded.content[0].text).toContain('mcp_paid_call_requires_separate_approval');
+  expect(reader.register).toHaveBeenCalledExactlyOnceWith('casper', args);
+  expect(JSON.stringify(mock.audit.mock.calls)).not.toContain('orderid=');
+  expect(JSON.stringify(mock.audit.mock.calls)).not.toContain('Privat bog');
+  expect((await (await call('register_reader_source', { ...args, uid: 'frederik' })).json()).result.isError).toBe(true);
+  expect(reader.register).toHaveBeenCalledTimes(1);
+  const read = JSON.parse((await (await call('get_workflow', { workflow: 'read' })).json()).result.content[0].text);
+  expect(read.instructions).toContain('save_reader_progress'); expect(read.publicationApproval).toBe(false);
+  const tools = (await (await POST(message('tools/list'))).json()).result.tools;
+  expect(tools.find((t: any) => t.name === 'save_reader_progress')._meta.securitySchemes).toEqual([{ type: 'oauth2', scopes: ['apropos:draft'] }]);
+  expect(tools.find((t: any) => t.name === 'find_reader_notes').annotations.readOnlyHint).toBe(true);
 });
 it('requires draft scope for the new precise mutation, not just read scope', async () => {
   mock.identity.scopes = ['apropos:read'];

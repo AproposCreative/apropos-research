@@ -38,13 +38,16 @@ import { editorialWorkflow, workflowInput } from '@/lib/editorial/workflows';
 import { getMetadataTestCases, metadataTestInput, metadataCandidate, reviewMetadataCandidate } from '@/lib/editorial/metadata-evaluation';
 import { getShorteningContext, previewExternalShortening, getExternalShortening, applyExternalShortening,
   externalShorteningInput, shorteningIdInput, shorteningApplyInput } from './shortening';
+import { registerReaderInput, listReadersInput, readerProgressInput, readerSearchInput, saveReaderInput,
+  registerReaderSource, listReaderSources, getReaderProgress, saveReaderProgress } from './reader';
 
 const id = z.string().regex(/^[a-f0-9]{24}$/);
 const memberTools = new Set(['list_drafts', 'list_articles', 'get_article', 'get_submission_options', 'list_submissions',
   'prepare_submission', 'update_submission', 'get_submission_status', 'reconcile_submission', 'find_submission_images',
   'get_submission_media_context', 'get_workspace', 'save_draft', 'get_editorial_context', 'get_workflow',
   'preview_copyedit', 'apply_copyedit', 'review_draft', 'preview_submission', 'confirm_submission_action',
-  'get_image_brief', 'import_submission_image', 'get_submission_costs']);
+  'get_image_brief', 'import_submission_image', 'get_submission_costs', 'register_reader_source',
+  'list_reader_sources', 'get_reader_progress', 'save_reader_progress', 'find_reader_notes']);
 export function createEditorialMcp(identity: McpIdentity) {
   const server = new McpServer({ name: 'apropos-editorial', title: 'Apropos AI', version: MCP_VERSION,
     websiteUrl: MCP_ORIGIN, icons: [{ src: MCP_ICON, mimeType: 'image/png', sizes: ['256x256'] }] }, {
@@ -141,8 +144,18 @@ export function createEditorialMcp(identity: McpIdentity) {
     draftInput, 'apropos:draft', false, input => saveMcpDraft(identity.uid, input));
   tool('get_editorial_context', 'Hent Apropos-struktur, aktuelle forfatterstemmer og versionshashes. Vælg section for kun nødvendig kontekst. Standard er Liv. Ingen AI-kald.',
     z.object({ authorId: id.optional(), section: z.enum(['structure', 'voice', 'all']).optional() }).strict(), 'apropos:read', true, input => editorialContext(input.authorId, input.section));
-  tool('get_workflow', 'Hent kort arbejdsgang til dyb review, edit, publish eller submit. Ikke nødvendigt for kladdeoverblik: brug list_drafts direkte. Genbrug allerede læst vejledning. Ingen artikeldata, betaling eller nye tilladelser.',
+  tool('get_workflow', 'Hent kort arbejdsgang til review, edit, publish, submit eller read (KK-bog via Work Cloud Browser). Ikke nødvendigt for kladdeoverblik: brug list_drafts direkte. Genbrug allerede læst vejledning. Ingen artikeldata, betaling eller nye tilladelser.',
     workflowInput, 'apropos:read', true, async input => editorialWorkflow(input));
+  tool('register_reader_source', 'Registrér en lovligt tilgængelig KK Reader-bog og observeret titel/forfatter privat. Genbruger samme lånelink. Hent først get_workflow(read). Åbner IKKE en browser, downloader ikke bogen, intet AI-kald. ChatGPT Work Cloud Browser læser med normale kontroller; ingen tændt Mac nødvendig.',
+    registerReaderInput, 'apropos:draft', false, input => registerReaderSource(identity.uid, input));
+  tool('list_reader_sources', 'Find dine private bøger/læseindeks til genoptagelse i en ny chat. Pagineret oversigt med klientrapporteret dækning, ikke fuldtekst eller uafhængigt læsebevis.',
+    listReadersInput, 'apropos:read', true, input => listReaderSources(identity.uid, input));
+  tool('get_reader_progress', 'Hent privat læsecheckpoint, lånelink, layoutbundne huller og en begrænset side noter. nextCursor bruges som afterRevision. Læser IKKE nye bogsider; de læses i remote Cloud Browser. Bekræft tekstanker før genoptagelse. Ingen AI/CMS-kald.',
+    readerProgressInput, 'apropos:read', true, input => getReaderProgress(identity.uid, input));
+  tool('save_reader_progress', 'Gem kun faktisk læste synlige intervaller og korte egne noter fra Cloud Browser, eller en konkret adgangsblokering. Stabilt requestId/expectedRevision; læs status efter timeout. Ingen bogtekstarkivering, credentials, automatisk browserstart, AI eller publicering. Navigering alene tæller ikke som læsning; nye layouts tælles separat.',
+    saveReaderInput, 'apropos:draft', false, input => saveReaderProgress(identity.uid, input));
+  tool('find_reader_notes', 'Søg deterministisk i dine gemte læsenoter/ankre, IKKE i hele bogen. Højst ti note-batches scannes pr. kald. Følg nextCursor som afterRevision, også ved nul fund. Genbesøg Cloud Browser for ikke-gemte passager.',
+    readerSearchInput, 'apropos:read', true, input => getReaderProgress(identity.uid, input));
   tool('list_editorial_work', 'Fejlsøg gemte Liv-forløb og skriveforsøg uden run-ID. Ikke en kladdeliste: brug list_drafts til seneste kladder og mangler. Skelner brief, manglende belæg og artikeltekst. hasText=null er ukendt. Afgrænset arkivvindue. Ingen AI-kald.',
     workCatalogInput, 'apropos:read', true, input => listEditorialWork(identity.uid, input));
   tool('preview_copyedit', 'Vis præcise before/after-rettelser i det private Writer-arbejde. Bevarer billeder, alt/kredit og andre felter. Gemmer ikke. Returnerer versionsbundet previewHash.',
