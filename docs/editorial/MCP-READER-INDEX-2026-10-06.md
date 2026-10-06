@@ -97,7 +97,7 @@ repository's already-installed YAML parser. No package was installed for this.
   entries. This small window is not a long-term reliability guarantee, and the
   reader release does not fix Liv's separate provider/delivery problem.
 
-## Remaining end-to-end acceptance
+## End-to-end acceptance at the initial v9 release
 
 Production persistence across independent MCP clients is verified. Remote
 browser continuation across a later task/session is **not** the same test and
@@ -157,3 +157,31 @@ That is partial client-reported reading, not a full-read result or an
 unassisted-success claim: this first acceptance run required operator tool-list
 refresh and boundary-field diagnosis. See the acceptance journal for the final
 continuation result.
+
+## Final cloud acceptance and independent readback
+
+The authorized existing Work Cloud Browser task has now completed the full
+reading/index test. At `2026-10-06T20:17:15.007Z`, a separate authenticated MCP
+client retrieved source revision 24 with 154/154 positions, no gaps and both
+boundaries observed on the precise reading layout. All 24 historical batches
+(one old technical bookmark and 23 reading batches) were retrieved across three
+bounded pages with no missing or duplicate revisions. Paginated notes search
+also succeeded. The old feasibility layout remains at zero coverage.
+
+The cloud report and observed progression document sequential visible reading
+and same-profile reload/resume at position 36 → first gap 37. Full details and
+scope limits are in `KK-READER-CLOUD-ACCEPTANCE-2026-10-06.md`. The initial run
+needed tool-list refresh and boundary diagnosis; it is not an unassisted-run
+claim. No fresh-profile/expired-loan test was performed. Client-reported reading
+remains distinct from independent persistence verification and comprehension.
+
+Exact production remains `06678fbbe331ea821ff8bdbfd908cc887ec0ab75` /
+`dpl_8s45BM1o6tf4J2ZNSgVNizNp7FAd`, MCP v10. No further code deployment was
+needed for the acceptance journal. Final readback started zero paid backend AI
+calls, preserved workspace/welcome/ledger/holds, and revoked its temporary OAuth
+grant without changing the user's connection. Publication approval stayed false.
+
+Use the deployed `get_workflow(read)` in a Work chat with real Cloud Browser and
+Apropos AI. The Mac is not needed for cloud reading; MCP still does not provide
+the browser or autonomously start future Work tasks. Do not store library login
+in Vercel or infer a completed review/publication from completed reader coverage.

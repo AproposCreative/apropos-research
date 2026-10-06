@@ -24,23 +24,29 @@ permanent book archive before verifying actual cloud access.
 - [x] One same-task reload recovers a previously recorded position, confirmed against a
       short text anchor or hash. Record the tested scope; same-task reload does
       not prove survival across a new task, an expired session or an expired loan.
-- [ ] The repeatable workflow records a small private checkpoint and coverage
+- [x] The repeatable workflow records a small private checkpoint and coverage
       index after bounded reading batches. Missing intervals and uncertainty stay
       visible. Merely visiting a position, an offscreen preload or the last page
       does not establish that its text was read.
-- [ ] A subsequent continuation can retrieve that checkpoint and resume without
+- [x] A subsequent continuation can retrieve that checkpoint and resume without
       manually copying text or starting from the beginning. Verify this before
-      describing future reading as automatic.
-- [ ] Full-book completion requires evidence of all relevant chapters/intervals
+      describing future reading as automatic. Verified in the same remote
+      browser profile, plus independent MCP-client readback; not a fresh browser
+      profile or an expired loan.
+- [x] Full-book completion requires evidence of all relevant chapters/intervals
       being read in sequence, with gaps resolved. A sample test is not completion.
-- [ ] Login, CAPTCHA, loan expiry and unavailable browser capabilities become
+      The real cloud task reports complete visible reading, with 23 ordered
+      reading batches and separate server readback. This remains client-reported
+      reading, not independent proof of comprehension.
+- [x] Login, CAPTCHA, loan expiry and unavailable browser capabilities become
       explicit actionable states, not silent success or a bypass. Use the
       supported secure sign-in/takeover UI when needed; never ask for credentials
-      in chat or store credentials in Apropos.
-- [ ] No backend LLM calls, embeddings, AI summaries, new paid providers or bulk
+      in chat or store credentials in Apropos. Covered by isolated regression
+      tests and workflow; real loan expiry/CAPTCHA was not induced in this run.
+- [x] No backend LLM calls, embeddings, AI summaries, new paid providers or bulk
       book export during reader collection. ChatGPT usage still counts against
       the user's plan; zero backend AI calls is not unlimited free execution.
-- [ ] Existing Apropos auth, private workspaces, revision/audit and publication
+- [x] Existing Apropos auth, private workspaces, revision/audit and publication
       controls are reused. No automatic publication or new editorial permission
       is inferred from reading completion.
 
@@ -198,3 +204,65 @@ full-book test. No production code or deployment changed during this repair.
 2026: remote execution does not inherit local browser sessions, supported plans
 can use a secure website sign-in flow, and availability/site restrictions apply.
 This describes product capability, not successful access to this specific loan.
+
+## Completed authorized reading acceptance — 6 October, 22:17 Copenhagen
+
+The same cloud task finished at approximately `2026-10-06T20:16:45Z` and its
+completed report was retrieved with `read_thread`. It reports actual sequential
+visible reading in remote CUA/CDP, through chapters 1–32 and the final
+“Om I mellemtiden er vi ingen” position. No local reader, library credentials,
+book export, backend AI generation or article publication was used.
+
+The first run needed operator assistance: a normal ChatGPT tool-list refresh,
+then diagnosis of the per-batch boundary flag ambiguity. The v10 fix and
+production evidence are in `MCP-READER-INDEX-2026-10-06.md`. Do not describe this
+as a wholly unassisted first run. After the corrected save, the same task
+continued to the end without further coordinator messages.
+
+Independent authenticated MCP readback at `2026-10-06T20:17:15.007Z` confirmed:
+
+- Source `5987a89e1425ef21c2e8eb7d5dda65a4c971020991490620572b14d0592d751b`,
+  revision **24**, access `available`. The book identity is
+  *I mellemtiden er vi ingen*, Frederik Drescher Kluth; edition was not supplied.
+- Reading layout `4387f465f316f10aa11af4c3f84e021ee171c1f85be1d2bf6241da2372cf99b1`:
+  viewport 1363×932, two-column Auto, text 100%, line 120%, margins 5%, standard
+  theme, page animation, EPUB3, font family not exposed. **154/154 positions**,
+  zero gaps, both boundaries observed, `reported_complete`, next position null.
+- All 24 immutable historical batches were retrieved in **three bounded pages**,
+  with contiguous unique revisions 1–24. Revision 1 is the earlier zero-reading
+  technical bookmark; revisions 2–24 are 23 real reading batches. The old layout
+  still has zero coverage and was not merged into the complete layout.
+- Ordered batch ends: 6, 13, 21, 28, 36, 42, 49, 57, 62, 68, 73, 78, 82, 87, 93,
+  101, 108, 118, 126, 134, 142, 150, 154. Each next interval starts at the prior
+  end plus one. The last batch explicitly includes position 154 after chapter 32.
+- The cloud task reloaded after revision 6: the same profile reopened at position
+  36, then resumed at first gap 37. This is later-continuation/same-profile
+  recovery, not a new-profile authentication or expired-loan test.
+- Actual notes searches succeeded: the cloud task retrieved “Dratko” notes near
+  positions 68/73; a separate MCP client paginated a “Hols” search across three
+  pages and found revisions 7, 8 and 11. Search is of notes/anchors, not full text.
+- `publicationApproval=false`. Workspace, welcome receipt, shared AI ledger and
+  provider-hold data were unchanged by the final readback. Zero paid backend AI
+  calls were started. The temporary verification grant was revoked; existing
+  ChatGPT connections remained intact. The local read-only observer exited once
+  completion was recorded; it was never a reader runtime dependency.
+
+This completes the scoped real-book reading/index/save/resume/search test. The
+server independently verifies persisted data and gap calculation, **not** that
+the model comprehended every page: `independentlyVerified` remains false.
+The cloud execution report is the reading evidence; a coverage percentage alone
+must never be used as that evidence. No review has been produced or published.
+
+### Repeatable use and explicit operating boundary
+
+In a Work chat that actually has Cloud Browser and Apropos AI connected, ask it
+to use `get_workflow(read)` for the loan and resume its private source if present.
+It can read bounded batches, save notes and recover from the first gap. Use the
+existing editorial/submission workflow only afterwards, with the usual approval.
+
+The Mac can be off for this cloud reading. MCP itself does not create or schedule
+Work tasks, provide a missing browser capability, or keep an ended chat running.
+Future use still needs an active authorized cloud task, a valid loan/session and
+layout validation. A genuinely fresh browser profile, forced loan expiry or
+CAPTCHA was not tested; no promise of perpetual login or all-future unattended
+execution is made. No library login was stored in Vercel.
