@@ -21,13 +21,15 @@ export async function reconcileSubmission(uid: string, id: string) {
     if (cms?.status !== 'attempted' || !cms.inputPayload || visual?.status !== 'done' || checks?.status !== 'done' ||
         assets.some(a => a?.status !== 'done')) throw Error('mcp_submission_reconciliation_evidence_missing');
     if (cms.mediaUpdate && row.publishedTarget) {
-      const prepared = await verifyStagedMedia(cms.mediaUpdate.target, cms.mediaUpdate.expected, inspectionPolicy);
+      const prepared = await verifyStagedMedia(cms.mediaUpdate.target, cms.mediaUpdate.expected, inspectionPolicy,
+        proof => stages.doc(`${row.contentHash}-cms`).update({ checks: proof }).then(() => undefined));
       const savedAssets = assets.map(a => a!.result);
       await db.runTransaction(async tx => {
         const current = (await tx.get(ref)).data();
         if (current?.uid !== uid || current.status !== 'blocked' || current.contentHash !== row.contentHash || current.revision !== row.revision) throw Error('mcp_submission_revision_conflict');
-        tx.update(stages.doc(`${row.contentHash}-cms`), { status: 'done', result: prepared, reconciled: true, completedAt: new Date().toISOString() });
-        tx.update(ref, { status: 'prepared', prepared, assets: savedAssets, preparedHash: cmsFieldHash({ expected: prepared.expected, assets: savedAssets }), updatedAt: new Date().toISOString() });
+        tx.update(stages.doc(`${row.contentHash}-cms`), { status: 'done', result: prepared, reconciled: true, completedAt: new Date().toISOString(),
+          priorBlocker: current.blocker ?? null, priorBlockedStep: current.blockedStep ?? null });
+        tx.update(ref, { status: 'prepared', blocker: null, blockedStep: null, prepared, assets: savedAssets, preparedHash: cmsFieldHash({ expected: prepared.expected, assets: savedAssets }), updatedAt: new Date().toISOString() });
       });
       return getSubmissionStatus(uid, id);
     }
@@ -46,6 +48,7 @@ export async function reconcileSubmission(uid: string, id: string) {
       itemId = candidates[0];
     }
     const proof = await inspectLivCmsDraft({ itemId, expected, inspectionPolicy });
+    await stages.doc(`${row.contentHash}-cms`).update({ checks: proof });
     if (!proof.draftConfirmed || !proof.publicationReady || !proof.checks.length || proof.checks.some(c => !c.ok)) throw Error('mcp_submission_cms_checks_failed');
     const prepared = { itemId, expected, proof }, savedAssets = assets.map(a => a!.result);
     await db.runTransaction(async tx => {
@@ -54,8 +57,9 @@ export async function reconcileSubmission(uid: string, id: string) {
       if (!current || current.uid !== uid || current.status !== 'blocked' || current.contentHash !== row.contentHash || current.revision !== row.revision) throw Error('mcp_submission_revision_conflict');
       if (currentSave?.hash !== old.hash || currentSave.token !== old.token) throw Error('mcp_submission_revision_conflict');
       tx.update(saveRef, { phase: 'saved', articleId: itemId, leaseUntil: 0 });
-      tx.update(stages.doc(`${row.contentHash}-cms`), { status: 'done', result: prepared, completedAt: new Date().toISOString(), reconciled: true });
-      tx.update(ref, { status: 'prepared', prepared, assets: savedAssets, preparedHash: cmsFieldHash({ expected, assets: savedAssets }), updatedAt: new Date().toISOString() });
+      tx.update(stages.doc(`${row.contentHash}-cms`), { status: 'done', result: prepared, completedAt: new Date().toISOString(), reconciled: true,
+        priorBlocker: current.blocker ?? null, priorBlockedStep: current.blockedStep ?? null });
+      tx.update(ref, { status: 'prepared', blocker: null, blockedStep: null, prepared, assets: savedAssets, preparedHash: cmsFieldHash({ expected, assets: savedAssets }), updatedAt: new Date().toISOString() });
     });
     return getSubmissionStatus(uid, id);
   });

@@ -236,7 +236,10 @@ export async function inspectLivCmsDraft(input: {
       const element = body(image);
       const src = element.attr('src') || '';
       const caption = element.closest('figure').find('figcaption').text().trim();
-      if (!text(element.attr('alt')) || !/(?:foto|illustration|kilde|credit)\s*:|©/i.test(caption) || !/^https:\/\//.test(src)) {
+      // A publisher-credited book jacket is a valid editorial credit too.
+      // This recognizes the existing label; it does not certify reuse rights.
+      const credited = /(?:foto|illustration|kilde|credit)\s*:|©|(?:^|\s)bogcover\s*:\s*\S/i.test(caption);
+      if (!text(element.attr('alt')) || !credited || !/^https:\/\//.test(src)) {
         bodyAssetsOk = false; break;
       }
       try {

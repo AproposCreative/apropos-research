@@ -66,6 +66,27 @@ it('does not ignore removed captions or inserted inline word boundaries', async 
     expect(result.checks).toContainEqual({ id: 'field:content', ok: false });
   }
 });
+it.each([
+  ['Frederik Drescher Kluths debutroman. Bogcover: Lindhardt og Ringhof / BOGDK', true],
+  ['bogcover: Lindhardt og Ringhof / BOGDK', true],
+  ['Bogcover:   ', false],
+  ['Et bogcover uden kildekreditering', false],
+])('checks an unchanged provided body cover credit: %s', async (caption, valid) => {
+  const f = fixture();
+  const [hero, body] = await Promise.all(['#abc', '#def'].map(background =>
+    sharp({ create: { width: 1280, height: 720, channels: 3, background } }).jpeg().toBuffer()));
+  const content = `<p>Indhold</p><figure><img src="https://example.com/book.jpg" alt="Bogcover" style="max-width:100%;height:auto"><figcaption>${caption}</figcaption></figure>`;
+  f.item.fieldData.content = content; f.item.isDraft = false;
+  Object.assign(f.item.fieldData.thumb, { alt: 'Valgt mockup' });
+  const payload = { ...expected, content, featuredImage: f.item.fieldData.thumb.url, featuredImageAlt: 'Valgt mockup',
+    fotoCredit: 'AI-illustration', featuredImageHash: createHash('sha256').update(hero).digest('hex') };
+  const result = await inspectLivCmsDraft({ itemId, expected: payload,
+    inspectionPolicy: { minimumBodyImages: 0, preserveProvidedImages: true, allowPublishedUpdate: true } },
+  { ...f.dependencies, readImage: async url => url.endsWith('/book.jpg') ? body : hero });
+  expect(result.checks).toContainEqual({ id: 'image:body-assets', ok: valid });
+  expect(result.publicationReady).toBe(valid);
+  expect(f.item.fieldData.content).toBe(content);
+});
 it('preserves the caption-to-paragraph boundary when Webflow removes a newline', async () => {
   const f = fixture();
   const figure = '<figure><figcaption>Illustration: Apropos Magazine / AI</figcaption></figure>';

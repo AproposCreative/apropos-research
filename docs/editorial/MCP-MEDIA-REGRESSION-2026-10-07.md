@@ -181,3 +181,31 @@ https://ai.aproposmagazine.com/connect/chatgpt?submission=396904fb485abe48df3663
 
 Live article:
 https://www.aproposmagazine.com/articles/boganmeldelse-i-mellemtiden-er-vi-ingen
+
+## CMS-credit follow-up after personal approval, 10:00–10:06 Copenhagen
+
+The owner personally accepted revision 7's zero-cost human-review preparation at
+`2026-10-07T07:59:58.217Z`. Server stages retained both actual image hashes and
+explicit `not_run/explicit_human_review` AI-check receipts. The CMS stage stopped
+with `mcp_submission_cms_checks_failed`; its saved media-only intent identifies
+the SAME item, with patch keys `thumb`, `mobile-image`, `foto-credit` only.
+Fresh readback `2026-10-07T08:01:38.150Z` passed 25/26 checks. Only
+`image:body-assets` failed. The actual, preserved official body credit is
+`Bogcover: Lindhardt og Ringhof / BOGDK`, which the checker failed to recognize.
+No missing user approval, missing second image, changed text or quota caused this
+failure. CMS fields/hash are still exactly the baseline above.
+
+v15 recognizes a nonempty `Bogcover:` attribution alongside the existing credit
+labels; it does not assert rights, remove byte checks, alter captions or change
+the Liv image-count policy. A regression reproduced the rejection before the
+fix; named publisher credit now passes, but empty/missing credit still fails.
+CMS readback proofs (including failed check IDs) are retained before generic
+errors, accessible in saved stage status. Successful reconciliation preserves the
+prior blocker on the stage and clears the current blocker only after fresh
+passing readback. Personal approval/version and publication safeguards remain.
+
+Local patched GET-only probe at `2026-10-07T08:06:01.274Z` passed **26/26** against
+the real saved intent/current CMS. This was not a production deployment or state
+mutation. 356 files / 4,991 isolated tests, TypeScript, focused ESLint and build
+configuration security checks pass. Deploy and real MCP reconciliation follow;
+do not claim the submitted revision is prepared until server readback confirms.

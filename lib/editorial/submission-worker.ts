@@ -246,7 +246,7 @@ export async function runSubmissionStep(uid: string, id: string) {
       const cms = await run('cms', async () => {
         await stages.doc(`${row.contentHash}-cms`).update({ inputPayload: clean(payload) });
         if (row.publishedTarget) return stageSubmissionMedia(row.publishedTarget, payload, inspectionPolicy,
-          data => stages.doc(`${row.contentHash}-cms`).update({ mediaUpdate: clean(data) }).then(() => undefined), current);
+          data => stages.doc(`${row.contentHash}-cms`).update({ mediaUpdate: clean(data), ...(data.proof ? { checks: clean(data.proof) } : {}) }).then(() => undefined), current);
         const savedIdentity = (await db.collection('writerWorkspaces').doc(uid).collection('cmsSaves').doc(`submission-${id}`).get()).data();
         if (!savedIdentity) await assertSubmissionNotAlreadySaved(payload);
         const result = await saveWriterCmsDraft(db, uid, `submission-${id}`, payload as ArticlePayload, { preserveProvidedImages: finalOnly, beforeSave: async () => {
@@ -259,6 +259,7 @@ export async function runSubmissionStep(uid: string, id: string) {
         const canonical = (await db.collection('writerWorkspaces').doc(uid).collection('cmsSaves').doc(`submission-${id}`).get()).data()?.expected as ArticlePayload | undefined;
         if (!canonical) throw Error('mcp_submission_cms_checks_failed');
         const proof = await inspectLivCmsDraft({ itemId: result.articleId, expected: canonical, inspectionPolicy });
+        await stages.doc(`${row.contentHash}-cms`).update({ checks: clean(proof) });
         if (!proof.publicationReady || !proof.draftConfirmed || !proof.checks.length || proof.checks.some(c => !c.ok)) throw Error('mcp_submission_cms_checks_failed');
         return { itemId: result.articleId, expected: canonical, proof };
       });

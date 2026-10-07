@@ -80,6 +80,14 @@ it('reads back after timeout without another patch and detects a changed asset',
   expect(state.patch).toHaveBeenCalledTimes(1);
   await expect(verifyStagedMedia(baseline, { ...image, featuredImageHash: 'wrong' }, {})).rejects.toThrow('media_identity_changed');
 });
+it('retains the exact failed CMS checks before reporting a generic preparation failure', async () => {
+  const proof = { publicationReady: false, draftConfirmed: true, fieldDataHash: 'proof', checks: [{ id: 'image:body-assets', ok: false }] };
+  state.proof.mockResolvedValue(proof);
+  const checkpoint = vi.fn();
+  await expect(stageSubmissionMedia(target(), expected(), {}, checkpoint, async () => {})).rejects.toThrow('cms_checks_failed');
+  expect(checkpoint.mock.calls.at(-1)![0]).toMatchObject({ target: { itemId }, proof });
+  expect(state.patch).toHaveBeenCalledTimes(1);
+});
 it('cannot use a media update to change SEO, prose, slug or rating', () => {
   for (const edit of [{ rating: 6 }, { seoTitle: 'Ny SEO' }, { slug: 'ny' }, { content: '<p>Ny tekst</p>' }]) {
     expect(() => assertMediaOnlyUpdate(article, { ...article, ...edit })).toThrow('media_only_update');

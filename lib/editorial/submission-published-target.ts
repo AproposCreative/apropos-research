@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { load } from 'cheerio';
 import { env } from '@/lib/config/env';
 import { getWebflowConfig } from '@/lib/webflow-config';
-import { readLivWebflowJson, inspectLivCmsDraft, type LivCmsInspectionPolicy } from '@/lib/liv/cms-readback';
+import { readLivWebflowJson, inspectLivCmsDraft, type LivCmsInspectionPolicy, type LivCmsReadback } from '@/lib/liv/cms-readback';
 import { patchArticleFieldDataForLocale } from '@/lib/webflow/locale-items';
 import { cmsFieldHash } from '@/lib/liv/cms-field-hash';
 import { readPublicMedia } from '@/lib/liv/public-media-reader';
@@ -192,10 +192,11 @@ async function stageMediaUnderLease(target: PublishedTarget, expected: WebflowAr
   const latest = await readSubmissionCms(target.itemId);
   if (cmsFieldHash(latest.fieldData as Record<string, unknown>) !== target.fieldDataHash) throw Error('mcp_submission_cms_conflict');
   await patchArticleFieldDataForLocale(target.itemId, patch, env.WEBFLOW_CMS_LOCALE_DK);
-  return verifyStagedMedia(target, canonical, policy);
+  return verifyStagedMedia(target, canonical, policy, proof => checkpoint({ target, expected: canonical, patch, proof }));
 }
 
-export async function verifyStagedMedia(target: PublishedTarget, expected: WebflowArticleFields, policy: LivCmsInspectionPolicy) {
+export async function verifyStagedMedia(target: PublishedTarget, expected: WebflowArticleFields, policy: LivCmsInspectionPolicy,
+  recordProof?: (proof: LivCmsReadback) => Promise<void>) {
   const current = await readSubmissionCms(target.itemId), fields = current.fieldData as Record<string, unknown>;
   const preserved = (value: Record<string, unknown>) => Object.fromEntries(Object.entries(value).filter(([key]) => !['thumb', 'mobile-image', 'foto-credit', 'content'].includes(key)));
   if (cmsFieldHash(preserved(fields)) !== cmsFieldHash(preserved(target.fields)) ||
@@ -204,6 +205,7 @@ export async function verifyStagedMedia(target: PublishedTarget, expected: Webfl
   const mobile = fields['mobile-image'] as { url?: string } | undefined;
   if (!mobile?.url || createHash('sha256').update(await readPublicMedia(mobile.url, 'image')).digest('hex') !== expected.featuredImageHash) throw Error('mcp_submission_media_identity_changed');
   const proof = await inspectLivCmsDraft({ itemId: target.itemId, expected, inspectionPolicy: { ...policy, allowPublishedUpdate: true } });
+  await recordProof?.(proof);
   if (!proof.publicationReady) throw Error('mcp_submission_cms_checks_failed');
   return { itemId: target.itemId, expected, proof, cmsFields: fields, mediaOnly: true };
 }
