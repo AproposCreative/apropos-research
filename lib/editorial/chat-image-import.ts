@@ -37,10 +37,26 @@ export async function importChatImage(uid: string, raw: unknown) {
   const input = chatImageImportInput.parse(raw), row = await readSubmission(uid, input.submissionId);
   const assetId = cmsFieldHash({ uid, id: row.id, requestId: input.requestId });
   const { file, ...metadata } = input;
-  const requestHash = cmsFieldHash({ ...metadata, fileId: file.file_id });
+  let requestHash = cmsFieldHash({ ...metadata, fileId: file.file_id });
   const { db, collection } = submissionStore(), ref = collection.doc(row.id).collection('chatAssets').doc(assetId);
   const previous = (await ref.get()).data();
-  if (previous && previous.requestHash !== requestHash) throw Error('mcp_submission_idempotency_conflict');
+  if (previous && previous.requestHash !== requestHash) {
+    // The native adapter can re-upload the same attachment under a new file ID.
+    // Keep the original operation identity; admit a rotated reference only when
+    // ALL instructions are unchanged and its actual bytes match the saved file.
+    if (typeof previous.fileId !== 'string' ||
+        previous.requestHash !== cmsFieldHash({ ...metadata, fileId: previous.fileId })) throw Error('mcp_submission_idempotency_conflict');
+    const bytes = await readChatGptImage(file.download_url);
+    if (hash(bytes) !== previous.originalHash) throw Error('mcp_submission_idempotency_conflict');
+    await db.runTransaction(async tx => {
+      const old = (await tx.get(ref)).data();
+      if (old?.requestHash !== previous.requestHash || old.originalHash !== previous.originalHash) throw Error('mcp_submission_idempotency_conflict');
+      tx.set(ref.collection('fileReferences').doc(cmsFieldHash({ fileId: file.file_id })), {
+        fileId: file.file_id, originalHash: previous.originalHash, verifiedAt: new Date().toISOString(), source: 'native_reference_exact_bytes',
+      });
+    });
+    requestHash = previous.requestHash;
+  }
   if (previous?.status === 'attached') return { assetId, url: previous.url, revision: previous.revision, replay: true, paidAiCalls: 0 };
   const attachment = previous && (await collection.doc(row.id).collection('updates').doc(cmsFieldHash({ requestId: `import-${assetId}` })).get()).data();
   if (attachment) {

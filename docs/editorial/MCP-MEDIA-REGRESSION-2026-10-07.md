@@ -101,3 +101,20 @@ reuse an already-bound cover ONLY after fresh CMS hash and exact byte equality;
 record the recovery and former failure without allocating, substituting or
 publishing. This does not grant missing server asset scopes or prove the full new
 upload path works. Complete publication still requires the real personal preview.
+
+## Native retry finding, 09:20 Copenhagen
+
+v13 `531a79a54f88cfed3f920f4a005d8bfc3375ae2a`, deployment
+`dpl_NNkG9z8x5zsEV9bDC73HAym3qsnB`, READY/production alias, build 71.539 s.
+356 test files / 4,981 tests passed. Authenticated tools/list confirmed v13.
+Same native JPEG/request/revision replay returned `mcp_submission_idempotency_conflict`:
+the host adapter supplied a different file ID for the same attached local file.
+No allocation, CMS write or paid work resulted.
+
+v14 keeps the original operation/file identity and accepts a rotated native
+reference only after unchanged request metadata AND exact downloaded original
+SHA-256. Record the new file ID/hash check in a receipt subcollection, never its
+signed URL. Changed instructions fail before download; changed bytes fail before
+any storage/asset/attachment mutation. No new request ID or receipt reset.
+Tests cover attached replay and interrupted-import continuation with rotated IDs,
+rejection of different bytes/metadata, and signed-URL non-persistence.

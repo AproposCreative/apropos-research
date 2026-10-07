@@ -56,6 +56,28 @@ it('uses exact paragraph identity and preserves all other text and assets', asyn
   expect(content).toContain('Første   afsnit'); expect(content.indexOf('<figure')).toBeLessThan(content.indexOf('Det næste'));
   expect(content).toContain('Illustration: Apropos Magazine / AI');
 });
+it('replays an attached native file under a rotated file ID only after exact byte verification', async () => {
+  await brief(); const first = await importChatImage('team', input());
+  const next = { ...input(), file: { ...input().file, file_id: 'file-rotated', download_url: 'https://files.oaiusercontent.com/new?secret=ROTATED' } };
+  expect(await importChatImage('team', next)).toMatchObject({ replay: true, assetId: first.assetId, revision: 2 });
+  expect(state.upload).toHaveBeenCalledTimes(1); expect(state.download).toHaveBeenCalledTimes(2);
+  expect([...memory.rows.values()].some(row => row.source === 'native_reference_exact_bytes')).toBe(true);
+  expect(JSON.stringify([...memory.rows])).not.toContain('ROTATED');
+  expect(memory.rows.get(`${path}/chatAssets/${first.assetId}`).fileId).toBe(input().file.file_id);
+});
+it('rejects changed bytes under a rotated native reference without changing the saved operation', async () => {
+  await brief(); const first = await importChatImage('team', input());
+  state.download.mockResolvedValue(Buffer.from('a different file'));
+  await expect(importChatImage('team', { ...input(), file: { ...input().file, file_id: 'file-different' } })).rejects.toThrow('idempotency_conflict');
+  expect(state.upload).toHaveBeenCalledTimes(1); expect(memory.rows.get(path).revision).toBe(2);
+  expect(memory.rows.get(`${path}/chatAssets/${first.assetId}`).fileId).toBe(input().file.file_id);
+  expect([...memory.rows.values()].some(row => row.source === 'native_reference_exact_bytes')).toBe(false);
+});
+it('rejects changed instructions before downloading a rotated native reference', async () => {
+  await brief(); await importChatImage('team', input());
+  await expect(importChatImage('team', { ...input(), credit: 'Different credit', file: { ...input().file, file_id: 'file-rotated' } })).rejects.toThrow('idempotency_conflict');
+  expect(state.download).toHaveBeenCalledTimes(1); expect(state.upload).toHaveBeenCalledTimes(1);
+});
 it('refuses changed version, foreign owner, missing brief, film illustration and an edited request identity before downloading', async () => {
   await brief();
   await expect(importChatImage('other', input())).rejects.toThrow('not_found');
@@ -130,8 +152,8 @@ it('resumes the same ambiguous import with identical bytes already on the bound 
   await expect(importChatImage('team', input())).rejects.toThrow('asset_upload_unconfirmed');
   state.boundCover.mockResolvedValue({ id: 'e'.repeat(24), url: 'https://cdn.test/already-published.png' });
   state.readback.mockResolvedValue(state.bytes);
-  const result = await importChatImage('team', input());
+  const result = await importChatImage('team', { ...input(), file: { ...input().file, file_id: 'file-rotated-on-retry' } });
   expect(result.url).toBe('https://cdn.test/already-published.png');
-  expect(state.upload).toHaveBeenCalledTimes(1); expect(state.download).toHaveBeenCalledTimes(1);
+  expect(state.upload).toHaveBeenCalledTimes(1); expect(state.download).toHaveBeenCalledTimes(2);
   expect([...memory.rows.values()].some(row => row.previousFailure?.code === 'mcp_submission_asset_upload_unconfirmed')).toBe(true);
 });
