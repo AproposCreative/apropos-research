@@ -19,6 +19,7 @@ vi.mock('@/lib/articles/writer-cms-save', () => ({ saveWriterCmsDraft: (...args:
 vi.mock('@/lib/liv/cms-readback', () => ({ inspectLivCmsDraft: async () => ({ publicationReady: true, draftConfirmed: true, checks: [{ ok: true }], fieldDataHash: 'cms-proof' }) }));
 vi.mock('@/lib/editorial/submission-published-target', () => ({ assertSubmissionNotAlreadySaved: async () => {}, stageSubmissionMedia: vi.fn() }));
 import { runSubmissionStep } from '@/lib/editorial/submission-worker';
+import { stageSubmissionMedia } from '@/lib/editorial/submission-published-target';
 import { currentLivCostContext } from '@/lib/liv/cost-context';
 const id = 'a'.repeat(64), hash = 'b'.repeat(64), path = `editorialSubmissions/${id}`;
 let memory: ReturnType<typeof memoryFirestore>;
@@ -103,4 +104,16 @@ it('cannot turn a model choice into human approval or hide a missing cover', asy
   current.article.featuredImage = '';
   expect(await runSubmissionStep('owner', id)).toMatchObject({ blocker: 'mcp_submission_images_required' });
   expect(state.save).not.toHaveBeenCalled(); expect(state.visual).not.toHaveBeenCalled();
+});
+it('passes the exact original HTML to same-item staging for cover-only revisions', async () => {
+  const row = memory.rows.get(path); row.executionPolicy = 'chat-final-checks-v1'; state.hold = true;
+  const content = '<p>William &amp; vennerne.</p>\n<figure class="book"><img src="https://images.test/1.webp" alt="Bogcover" /><figcaption>Forlaget</figcaption></figure>';
+  row.article.content = content; row.choices.bodyImages = 'deferred'; row.choices.aiFinalChecks = 'human';
+  row.approval.editorialDecision = { bodyImages: 'deferred', aiFinalChecks: 'human' };
+  row.publishedTarget = { itemId: 'c'.repeat(24), fields: { content } };
+  vi.mocked(stageSubmissionMedia).mockImplementation(async (_target, expected) => ({ itemId: 'c'.repeat(24), expected, proof: { publicationReady: true } as any, cmsFields: {}, mediaOnly: true }));
+  await runSubmissionStep('owner', id);
+  expect(memory.rows.get(path).status).toBe('prepared');
+  expect(vi.mocked(stageSubmissionMedia).mock.calls[0][1].content).toBe(content);
+  expect(state.save).not.toHaveBeenCalled(); expect(state.checks).not.toHaveBeenCalled();
 });

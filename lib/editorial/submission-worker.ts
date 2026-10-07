@@ -221,7 +221,11 @@ export async function runSubmissionStep(uid: string, id: string) {
           target.after(figure);
         }
       }
-      const payload = normalizeArticlePayload({ ...row.article, id: `submission-${id}`, content: $('body').html() || '',
+      const originalBody = load(row.article.content);
+      const currentBodyUrls = originalBody('img').toArray().map(node => originalBody(node).attr('src'));
+      const coverOnlyUpdate = row.publishedTarget && row.article.content === row.publishedTarget.fields.content &&
+        assets.slice(1).length === currentBodyUrls.length && assets.slice(1).every((asset, index) => asset.url === currentBodyUrls[index]);
+      const payload = normalizeArticlePayload({ ...row.article, id: `submission-${id}`, content: coverOnlyUpdate ? row.article.content : $('body').html() || '',
         category: row.article.category!, author: row.article.author!, tags: row.article.tags || [],
         articleFormat: row.choices.kind === 'review' ? 'research-review' : row.article.articleFormat || 'article',
         featuredImage: assets[0].url, featuredImageHash: assets[0].hash, featuredImageAlt: assets[0].alt, fotoCredit: assets[0].credit,

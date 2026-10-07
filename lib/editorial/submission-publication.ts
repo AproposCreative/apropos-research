@@ -12,6 +12,7 @@ import { readSubmissionCms } from './submission-published-target';
 import { acquireCmsWriteLease } from '@/lib/seo-engine/cms-write-lease';
 import { preservePublicationMetadata } from '@/lib/seo-engine/post-publish/editorial';
 import type { CmsSnapshot } from '@/lib/seo-engine/post-publish/snapshot';
+import { verifySubmissionMedia } from './submission-media-identity';
 
 type Prepared = { itemId: string; expected: WebflowArticleFields; proof: { fieldDataHash: string } };
 type Publication = { uid: string; preparedHash: string; contentHash: string; cmsHash: string; publishAt: string;
@@ -19,7 +20,9 @@ type Publication = { uid: string; preparedHash: string; contentHash: string; cms
 export async function readSubmissionPublication(uid: string, id: string) {
   const row = await readSubmission(uid, id) as Awaited<ReturnType<typeof readSubmission>> & { prepared?: Prepared; publication?: Publication };
   if (row.status !== 'published' || !row.prepared || !row.publication?.fieldDataHash) return { publicationVerified: false as const };
-  return verifyLiveLivArticle({ itemId: row.prepared.itemId, expected: row.prepared.expected, fieldDataHash: row.publication.fieldDataHash });
+  const receipt = await verifyLiveLivArticle({ itemId: row.prepared.itemId, expected: row.prepared.expected, fieldDataHash: row.publication.fieldDataHash });
+  const cms = await readSubmissionCms(row.prepared.itemId, true);
+  return { ...receipt, mediaIdentity: await verifySubmissionMedia(uid, id, cms.fieldData as Record<string, unknown>) };
 }
 export function copenhagenPublicationInstant(value: string, now = Date.now()) {
   if (value === 'now') return new Date(now).toISOString();
@@ -114,7 +117,9 @@ export async function publishSubmission(uid: string, id: string, now = new Date(
     const cms = await readSubmissionCms(prepared.itemId);
     const fields = cms.fieldData as Record<string, unknown>;
     if (cmsFieldHash(fields) !== savedPublication.fieldDataHash) throw Error('mcp_submission_cms_conflict');
-    await ref.update({ status: 'published', publication: { ...savedPublication, receipt },
+    const mediaIdentity = await verifySubmissionMedia(uid, id, fields);
+    await assertLease();
+    await ref.update({ status: 'published', publication: { ...savedPublication, receipt: { ...receipt, mediaIdentity } },
       publishedTarget: { itemId: prepared.itemId, fields, fieldDataHash: cmsFieldHash(fields), linkedAt: new Date().toISOString() },
       updatedAt: new Date().toISOString() });
     return { ...receipt, status: 'published', publicationOrigin: 'editor-approved-submission', countsAsUnattendedLiv: false };

@@ -8,7 +8,7 @@ import { uploadImageGenCmsAsset } from '@/lib/image-gen/cms-asset';
 const bytes = Buffer.from('fixture-image');
 const name = `apropos-${'b'.repeat(64)}.webp`;
 const allocation = { id: 'c'.repeat(24), hostedUrl: 'https://cdn.prod.website-files.com/site/image.webp',
-  uploadUrl: 'https://webflow-prod-assets.s3.amazonaws.com/', uploadDetails: { key: 'site/image.webp', xAmzAlgorithm: 'AWS4-HMAC-SHA256', contentType: 'image/webp' } };
+  uploadUrl: 'https://webflow-prod-assets.s3.amazonaws.com/', uploadDetails: { key: 'site/image.webp', policy: 'signed-policy', xAmzAlgorithm: 'AWS4-HMAC-SHA256', contentType: 'image/webp' } };
 beforeEach(() => {
   vi.resetAllMocks(); vi.stubGlobal('fetch', f.fetch);
   f.fetch.mockResolvedValueOnce(Response.json(allocation)).mockResolvedValueOnce(new Response(null, { status: 201 }));
@@ -21,6 +21,7 @@ it('checkpoints identity before upload, sends no CMS token to storage and verifi
   expect(request.headers).toBeUndefined(); expect(request.redirect).toBe('error');
   expect(request.body.get('X-Amz-Algorithm')).toBe('AWS4-HMAC-SHA256');
   expect(request.body.get('Content-Type')).toBe('image/webp');
+  expect(request.body.get('Policy')).toBe('signed-policy');
   expect(f.media).toHaveBeenCalledWith(allocation.hostedUrl, 'image');
 });
 it('rejects unexpected upload destinations before checkpoint or binary transmission', async () => {

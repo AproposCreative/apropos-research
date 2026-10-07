@@ -50,7 +50,7 @@ it('updates only media on the same item, then adds body images without changing 
   const checkpoint = vi.fn(), lease = vi.fn();
   const first = await stageSubmissionMedia(original, expected(), { minimumBodyImages: 0, preserveProvidedImages: true }, checkpoint, lease);
   expect(first.itemId).toBe(itemId); expect(state.fields.stjerne).toBe(5);
-  expect(Object.keys(state.patch.mock.calls[0][1]).sort()).toEqual(['content', 'foto-credit', 'mobile-image', 'thumb']);
+  expect(Object.keys(state.patch.mock.calls[0][1]).sort()).toEqual(['foto-credit', 'mobile-image', 'thumb']);
   expect(checkpoint).toHaveBeenCalledBefore(state.patch);
   const next = target();
   await stageSubmissionMedia(next, { ...expected(), content: article.content + '<figure><img src="https://cdn.test/body.png" alt="Motiv"><figcaption>Kredit</figcaption></figure>' },
@@ -93,5 +93,42 @@ it('prevents a duplicate creation by title/slug and fails closed on an incomplet
   await expect(assertSubmissionNotAlreadySaved(article)).rejects.toThrow('listing_unconfirmed');
   state.read.mockResolvedValueOnce({ items: [] });
   await expect(assertSubmissionNotAlreadySaved(article)).resolves.toBeUndefined();
+  expect(state.patch).not.toHaveBeenCalled();
+});
+it('inspects and adopts newer live copy/body figure on the existing binding, preserving history and replaying once', async () => {
+  await linkPublishedSubmission('owner', { submissionId: id, expectedRevision: 3, itemId });
+  const content = article.content + '\n<p>William og forfatterens baggrund.</p>\n<figure><img src="https://cdn.test/official.jpg" alt="Bogen"></figure>';
+  state.fields.content = content; state.fields['book-title'] = 'I mellemtiden er vi ingen'; state.live = structuredClone(state.fields);
+  const inspect = await linkPublishedSubmission('owner', { submissionId: id, expectedRevision: 4, itemId, mode: 'inspect' });
+  expect(inspect).toMatchObject({ divergence: true, conflicts: [], proposedArticle: { content, bookTitle: 'I mellemtiden er vi ingen' } });
+  expect(memory.rows.get(path).article.content).toBe(article.content);
+  const refresh = { submissionId: id, expectedRevision: 4, itemId, mode: 'refresh', requestId: 'cms-refresh-regression-01', expectedCmsHash: cmsFieldHash(state.fields) };
+  expect(await linkPublishedSubmission('owner', refresh)).toMatchObject({ revision: 5, cmsWrites: 0, publicationApproval: false });
+  expect(memory.rows.get(path).article.content).toBe(content);
+  expect(memory.rows.get(path).article.rating).toBe(5);
+  expect(memory.rows.get(`${path}/versions/4`).article.content).toBe(article.content);
+  expect(await linkPublishedSubmission('owner', refresh)).toMatchObject({ revision: 5, replay: true });
+  expect(state.patch).not.toHaveBeenCalled();
+});
+it('rejects stale CMS hash, a different item, conflicting local edits and a reused request', async () => {
+  await linkPublishedSubmission('owner', { submissionId: id, expectedRevision: 3, itemId });
+  const refresh = { submissionId: id, expectedRevision: 4, itemId, mode: 'refresh', requestId: 'cms-refresh-regression-02', expectedCmsHash: '0'.repeat(64) };
+  await expect(linkPublishedSubmission('owner', refresh)).rejects.toThrow('cms_conflict');
+  await expect(linkPublishedSubmission('owner', { ...refresh, itemId: 'c'.repeat(24) })).rejects.toThrow('identity_invalid');
+  memory.rows.get(path).article = { ...article, content: '<p>Lokal redigering.</p>' };
+  state.fields.content = '<p>Anden redaktørs redigering.</p>'; state.live = structuredClone(state.fields);
+  expect(await linkPublishedSubmission('owner', { ...refresh, mode: 'inspect' })).toMatchObject({ conflicts: ['content'] });
+  await expect(linkPublishedSubmission('owner', { ...refresh, expectedCmsHash: cmsFieldHash(state.fields) })).rejects.toThrow('cms_conflict');
+  expect(state.patch).not.toHaveBeenCalled();
+});
+it('does not serialize or alter any existing body HTML for a cover-only change', async () => {
+  const content = '<p>William &amp; vennerne.</p>\n<figure class="existing"><img src="https://cdn.test/official.jpg" alt="Bogen" /></figure>';
+  state.fields.content = content; const original = target();
+  await stageSubmissionMedia(original, { ...expected(), content }, {}, async () => {}, async () => {});
+  expect(state.patch.mock.calls[0][1]).not.toHaveProperty('content');
+  expect(state.fields.content).toBe(content);
+});
+it('rejects changed prose before, not after, the CMS mutation', async () => {
+  await expect(stageSubmissionMedia(target(), { ...expected(), content: '<p>Uønsket omskrivning.</p>' }, {}, async () => {}, async () => {})).rejects.toThrow('media_only_update');
   expect(state.patch).not.toHaveBeenCalled();
 });

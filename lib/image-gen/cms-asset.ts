@@ -34,7 +34,7 @@ export async function uploadImageGenCmsAsset(bytes: Buffer, name: string, checkp
   await checkpoint(result);
   const fields: Record<string, string> = { xAmzAlgorithm: 'X-Amz-Algorithm', xAmzCredential: 'X-Amz-Credential',
     xAmzDate: 'X-Amz-Date', xAmzSignature: 'X-Amz-Signature', successActionStatus: 'success_action_status',
-    contentType: 'Content-Type', cacheControl: 'Cache-Control' };
+    contentType: 'Content-Type', cacheControl: 'Cache-Control', policy: 'Policy' };
   const form = new FormData();
   for (const [key, value] of Object.entries(data.uploadDetails)) {
     if (typeof value !== 'string') throw new Error('image_gen_upload_details_invalid');

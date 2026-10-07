@@ -28,7 +28,7 @@ beforeEach(async () => {
 afterEach(() => vi.unstubAllEnvs());
 const input = () => ({ submissionId: id, expectedRevision: 1, requestId: 'import-chat-image-0001',
   file: { download_url: 'https://files.oaiusercontent.com/image?signature=PRIVATE', file_id: 'file-personal-image', mime_type: 'image/png' },
-  kind: 'illustration', role: 'cover', briefId, alt: 'En illustration af koncerten', caption: 'Koncerten', credit: 'User supplied' });
+  kind: 'illustration', role: 'cover', origin: 'chatgpt-generated', briefId, alt: 'En illustration af koncerten', caption: 'Koncerten', credit: 'User supplied' });
 async function brief(role = 'cover', sectionId?: string) {
   memory.rows.set(`${path}/chatBriefs/${briefId}`, { uid: 'team', contentHash: version, role, sectionId: sectionId || null });
 }
@@ -67,7 +67,7 @@ it('recovers uploaded bytes after transport timeout without another CMS allocati
   await brief();
   const normal = state.upload.getMockImplementation()!;
   state.upload.mockImplementation(async (...args: any[]) => { await normal(...args); throw Error('timeout'); });
-  await expect(importChatImage('team', input())).rejects.toThrow('timeout');
+  await expect(importChatImage('team', input())).rejects.toThrow('asset_upload_unconfirmed');
   const result = await importChatImage('team', input());
   expect(result.revision).toBe(2); expect(state.upload).toHaveBeenCalledTimes(1); expect(state.readback).toHaveBeenCalledTimes(1);
 });
@@ -81,7 +81,7 @@ it('recovers a committed attachment receipt even if acknowledgement was lost', a
 });
 it('does not allocate twice when CMS allocation itself is ambiguous', async () => {
   await brief(); state.upload.mockRejectedValue(Error('timeout'));
-  await expect(importChatImage('team', input())).rejects.toThrow('timeout');
+  await expect(importChatImage('team', input())).rejects.toThrow('asset_upload_unconfirmed');
   await expect(importChatImage('team', input())).rejects.toThrow('upload_unconfirmed');
   expect(state.upload).toHaveBeenCalledTimes(1);
 });
@@ -97,4 +97,28 @@ it('accepts an existing user-upload without inventing a generation brief or cred
   await expect(updateSubmission('team', { submissionId: id, expectedRevision: 2, requestId: 'silent-replacement-0001',
     article: { featuredImage: 'https://cdn.test/fallback.jpg' } })).rejects.toThrow('selected_asset_locked');
   expect(memory.rows.get(path).article.featuredImage).toBe(result.url);
+});
+it('keeps legacy client origin unknown rather than fabricating a generation brief', async () => {
+  const result = await importChatImage('team', { ...input(), origin: undefined, briefId: undefined });
+  const saved = memory.rows.get(`${path}/chatAssets/${result.assetId}`);
+  expect(saved).toMatchObject({ origin: 'unspecified', exactPromptExecutionVerified: false, credit: 'User supplied', preserveOriginal: true });
+});
+it.each(['jpeg', 'png', 'webp'] as const)('sniffs %s bytes when the adapter labels them binary', async format => {
+  state.bytes = await sharp({ create: { width: 1280, height: 720, channels: 3, background: 'beige' } }).toFormat(format).toBuffer();
+  state.download.mockResolvedValue(state.bytes);
+  const result = await importChatImage('team', { ...input(), origin: 'user-upload', briefId: undefined, file: { ...input().file, mime_type: 'application/octet-stream' } });
+  expect(state.upload.mock.calls[0][0]).toEqual(state.bytes); expect(result.revision).toBe(2);
+});
+it('marks ghost uploads unconfirmed and never silently reallocates or changes the article', async () => {
+  await brief();
+  state.upload.mockImplementation(async (_bytes, _name, checkpoint) => {
+    await checkpoint({ id: 'ghost', url: 'https://cdn.test/zero.png' }); throw Error('S3 secret response');
+  });
+  await expect(importChatImage('team', input())).rejects.toThrow('asset_upload_unconfirmed');
+  const saved = [...memory.rows.entries()].find(([key]) => key.includes('/chatAssets/'))![1];
+  expect(saved.failure).toMatchObject({ assetReady: false, originalPreserved: true, stage: 'cms_asset_upload' });
+  expect(JSON.stringify(saved)).not.toContain('secret response');
+  state.readback.mockResolvedValue(Buffer.alloc(0));
+  await expect(importChatImage('team', input())).rejects.toThrow('upload_unconfirmed');
+  expect(state.upload).toHaveBeenCalledTimes(1); expect(memory.rows.get(path).revision).toBe(1);
 });

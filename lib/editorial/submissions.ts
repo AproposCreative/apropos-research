@@ -31,19 +31,28 @@ export async function getSubmissionStatus(uid: string, id: string) {
       cmsAsset: step.cmsAsset ?? null };
   });
   const assetReceipts = await submissionStore().collection.doc(id).collection('chatAssets').limit(100).get();
+  const publication = (row as typeof row & { publication?: { receipt?: { mediaIdentity?: {
+    cmsHash: string; checkedAt: string; assets: Array<{ assetId: string; published: Array<{ url: string; hash: string }> }> } } } }).publication;
+  const verified = publication?.receipt?.mediaIdentity;
+  const receiptMatches = row.status === 'published' && verified?.cmsHash === row.publishedTarget?.fieldDataHash;
   const selectedUrls = new Set([row.article.featuredImage, ...articleImages(row.article.content).map(image => image.url)]);
   const mediaIdentity = assetReceipts.docs.map(doc => doc.data()).filter(asset => asset.status === 'attached' && selectedUrls.has(asset.url))
-    .map(asset => ({ assetId: asset.assetId, role: asset.role, sectionId: asset.sectionId ?? null, locked: asset.locked === true,
+    .map(asset => {
+      const published = receiptMatches ? verified?.assets.find(item => item.assetId === asset.assetId) : undefined;
+      return { assetId: asset.assetId, role: asset.role, sectionId: asset.sectionId ?? null, locked: asset.locked === true,
       requestedAsset: { fileId: asset.fileId, hash: asset.originalHash }, actualStoredAsset: { url: asset.url, hash: asset.hash },
-      actualPublishedAsset: row.status === 'published' ? { url: asset.role === 'cover'
-        ? (row.publishedTarget?.fields.thumb as { url?: string })?.url ?? null : asset.url, hash: asset.hash } : null,
-      publicationVerified: row.status === 'published', fallbackUsed: asset.fallbackUsed === true }));
+      actualPublishedAsset: published?.published[0] ?? null,
+      publicationVerified: !!published, verifiedAt: published ? verified!.checkedAt : null,
+      verification: published ? 'saved_publication_readback' : 'not_verified', fallbackUsed: asset.fallbackUsed === true }; });
   return { ...row, ...inspection, status: row.status === 'draft' ?
     (inspection.questions.length ? 'awaiting_answers' : 'awaiting_preparation') : row.status,
     previewUrl: `${MCP_ORIGIN}/connect/chatgpt?submission=${id}`,
     preparationStarted: row.status === 'processing',
     textPreserved: row.article.content === row.originalArticle.content,
     savedSteps, mediaIdentity,
+    mediaImports: assetReceipts.docs.map(doc => { const asset = doc.data(); return { assetId: doc.id, status: asset.status,
+      ready: ['uploaded', 'attached'].includes(asset.status), role: asset.role, failure: asset.failure ?? null,
+      originalPreserved: !!asset.storagePath, cmsAssetId: asset.cmsAsset?.id ?? null }; }),
     displayNames: { author: options.authors.find(a => a.id === row.article.author || a.name === row.article.author)?.name ?? row.article.author,
       category: options.categories.find(c => c.id === row.article.category || c.name === row.article.category)?.name ?? row.article.category },
     availableActions: ['draft', 'blocked', 'prepared', 'published'].includes(row.status) ? ['update_submission', 'import_submission_image', 'preview_submission', 'get_submission_status'] : ['get_submission_status'],
