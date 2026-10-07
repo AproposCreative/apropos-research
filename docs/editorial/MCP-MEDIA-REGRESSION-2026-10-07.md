@@ -209,3 +209,32 @@ the real saved intent/current CMS. This was not a production deployment or state
 mutation. 356 files / 4,991 isolated tests, TypeScript, focused ESLint and build
 configuration security checks pass. Deploy and real MCP reconciliation follow;
 do not claim the submitted revision is prepared until server readback confirms.
+
+### Production recovery verified, 10:09 Copenhagen
+
+- SHA `d259d66cc3c19c33eb51d16e4f1d7ed7e2569601`, deployment
+  `dpl_2Fnmouhk5RMqzeqcJxaXfuaC5UZS`, READY with production alias
+  `ai.aproposmagazine.com`; Next build passed, build duration 69.524 s.
+- A real connected `reconcile_submission` call read the retained intent/current
+  CMS and advanced the SAME revision **7** from blocked to **prepared**.
+  Original personal preparation approval at `07:59:58.217Z` is unchanged.
+  No new preparation, asset allocation, CMS patch/create, publication or paid
+  AI call was started. CMS stage now retains the passed proof and prior blocker;
+  current blocker/blockedStep are null.
+- Production proof `2026-10-07T08:09:03.660Z`: **26/26 checks pass**.
+  Fresh native `preview_submission` at `08:09:22.448Z` independently returned
+  `publication.ready:true`, no blocker/dependency error/missing required fields.
+  Prepared hash `8de7fd017f45e23ab36698b80e6c17b09a6b9b25f0fe54bfd4c352290b66669a`.
+  Deferred `body-2` is still a recommendation, not a blocker.
+- Fresh connected `get_article` confirms **all CMS fields exactly unchanged**,
+  baseline CMS hash above and lastPublished still `2026-10-07T06:22:40.600Z`.
+  This is not a new publication. Per-submission tracked API-cost actions are [];
+  no claim about unobserved subscription usage/provider invoices.
+- Deployment-scoped `/mcp` error/fatal scan `08:04:25.051Z`–`08:09:25.051Z`
+  found no matching logs; bounded observation only. No new log drain/monitoring
+  configuration was introduced.
+- Resume: owner refreshes the SAME preview and performs the final exact-version
+  publication click. No need to repeat preparation acceptance. Do not fabricate
+  this second click or clear unrelated provider holds. New Webflow asset scopes
+  and the remaining real-file matrix are separate outstanding work, not blockers
+  for this existing-asset prepared revision.
