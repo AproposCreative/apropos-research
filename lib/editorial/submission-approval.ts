@@ -6,11 +6,14 @@ import { readSubmission, submissionStore } from './submissions';
 import { getSubmissionOptions } from './submission-options';
 import { inspectSubmission } from './submission-contract';
 import { requestedEditorialDecision } from './submission-policy';
+import { readImageSelection, assertImageSelection } from './submission-image-selection';
+import type { SubmissionRecord } from './submission-contract';
 
 /** Price acceptance is separate from publication approval. Both are first-party only. */
 export async function quoteSubmission(uid: string, id: string) {
   const row = await readSubmission(uid, id), options = await getSubmissionOptions();
   const inspection = inspectSubmission(row, options);
+  const imageSelection = await readImageSelection(row);
   const finalOnly = row.executionPolicy === 'chat-final-checks-v1';
   const editorialDecision = requestedEditorialDecision(row);
   const humanReview = finalOnly && editorialDecision.aiFinalChecks === 'human';
@@ -41,8 +44,8 @@ export async function quoteSubmission(uid: string, id: string) {
     ceilingDkkMicros, policyHash: cmsFieldHash({ shared, images, quotes }),
     executionPolicy: row.executionPolicy || 'legacy-preparation', editorialDecision, humanReview,
     kind: 'estimate-not-provider-invoice', autoRetry: false };
-  return { ...body, quoteId: cmsFieldHash(body), canAccept: inspection.readyForPreparation && (!finalOnly || count === 0),
-    blockers: [...inspection.blockers, ...(finalOnly && count ? ['chat_images_required'] : [])], provider: await readProviderHold(),
+  return { ...body, quoteId: cmsFieldHash(body), canAccept: !imageSelection.required && inspection.readyForPreparation && (!finalOnly || count === 0),
+    blockers: [...inspection.blockers, ...(imageSelection.required ? ['image_selection_required'] : []), ...(finalOnly && count ? ['chat_images_required'] : [])], provider: await readProviderHold(),
     instruction: 'Kræver din personlige prisaccept. Ikke publiceringsgodkendelse. Ingen automatisk genbestilling. Chatforløb køber kun slutkontroller.' };
 }
 
@@ -56,6 +59,7 @@ export async function acceptSubmissionQuote(uid: string, id: string, expectedRev
     if (!row || row.uid !== uid || row.revision !== expectedRevision || row.contentHash !== quote.contentHash) throw Error('mcp_submission_revision_conflict');
     if (row.approval?.quoteId === quoteId) return { accepted: true, replay: true };
     if (row.status !== 'draft') throw Error('mcp_submission_operation_pending');
+    await assertImageSelection(row as SubmissionRecord, tx);
     const approval = { uid, quoteId, contentHash: row.contentHash, editorialDecision: quote.editorialDecision,
       executionPolicy: row.executionPolicy || 'legacy-preparation', ceilingDkkMicros: quote.ceilingDkkMicros, acceptedAt: new Date().toISOString() };
     tx.create(ref.collection('approvals').doc(quoteId), { ...approval, quote });

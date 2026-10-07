@@ -3,6 +3,7 @@ import { memoryFirestore } from './helpers/mcp-firestore';
 import { cmsFieldHash } from '@/lib/liv/cms-field-hash';
 import { createHash } from 'node:crypto';
 import { preservePublicationMetadata } from '@/lib/seo-engine/post-publish/editorial';
+import { imageGenerationEvidence } from '@/lib/editorial/image-generation-evidence';
 const cmsFields = { name: 'Min artikel', content: '<p>Uændret tekst</p>' };
 const state = vi.hoisted(() => ({ db: null as any, inspect: vi.fn(), publish: vi.fn(), verify: vi.fn(), enabled: vi.fn() }));
 vi.mock('@/lib/firebase-admin', () => ({ getAdminDb: () => state.db }));
@@ -19,7 +20,7 @@ let memory: ReturnType<typeof memoryFirestore>;
 beforeEach(() => {
   vi.clearAllMocks(); memory = memoryFirestore(); state.db = memory.db;
   memory.rows.set(path, { id, uid: 'owner', revision: 1, status: 'prepared', contentHash: 'b'.repeat(64), preparedHash: hash, assets,
-    choices: {},
+    choices: {}, article: expected,
     prepared: { itemId: 'c'.repeat(24), expected, proof: { fieldDataHash: 'cms-v1' } } });
   state.inspect.mockResolvedValue({ draftConfirmed: true, publicationReady: true, checks: [{ id: 'body', ok: true }], fieldDataHash: 'cms-v1' });
   state.verify.mockResolvedValue({ publicationVerified: true, publicUrl: 'https://example.com/article' });
@@ -35,6 +36,15 @@ it('requires exact personal preview and rejects another owner or edited CMS', as
   await expect(approveSubmissionPublication('other', id, hash, 'now')).rejects.toThrow('not_found');
   state.inspect.mockResolvedValueOnce({ draftConfirmed: true, publicationReady: true, checks: [{ ok: true }], fieldDataHash: 'changed' });
   await expect(approveSubmissionPublication('owner', id, hash, 'now')).rejects.toThrow('preview_changed');
+  expect(state.publish).not.toHaveBeenCalled();
+});
+it('blocks approval and worker publication for unselected uncertain images', async () => {
+  memory.rows.get(path).article = { ...expected, featuredImage: 'https://images.test/cover.png' };
+  memory.rows.set(`${path}/chatAssets/${'d'.repeat(64)}`, { uid: 'owner', assetId: 'd'.repeat(64), status: 'attached', url: 'https://images.test/cover.png', role: 'cover', originalHash: 'e'.repeat(64),
+    generationEvidence: imageGenerationEvidence({ kind: 'illustration', origin: 'chatgpt-generated' }, {}) });
+  await expect(approveSubmissionPublication('owner', id, hash, 'now')).rejects.toThrow('preview_changed');
+  Object.assign(memory.rows.get(path), { status: 'scheduled', publication: { uid: 'owner', preparedHash: hash, contentHash: 'b'.repeat(64), publishAt: new Date(0).toISOString() } });
+  expect(await publishSubmission('owner', id)).toMatchObject({ blocker: 'mcp_submission_image_selection_required', publicationVerified: false });
   expect(state.publish).not.toHaveBeenCalled();
 });
 it('publishes only the approved item once, outside the Liv delivery queue', async () => {

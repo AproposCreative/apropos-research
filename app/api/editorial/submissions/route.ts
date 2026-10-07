@@ -7,6 +7,7 @@ import { submissionPublicationPreview, approveSubmissionPublication, publishSubm
 import { runSubmissionStep } from '@/lib/editorial/submission-worker';
 import { submissionId } from '@/lib/editorial/submission-contract';
 import { MCP_ORIGIN, PRIVATE_HEADERS } from '@/lib/mcp/config';
+import { acceptImageSelection } from '@/lib/editorial/submission-image-selection';
 export const runtime = 'nodejs';
 export const maxDuration = 300;
 const response = (body: unknown, status = 200) => Response.json(body, { status, headers: PRIVATE_HEADERS });
@@ -26,6 +27,7 @@ export async function GET(req: Request) {
   } catch (error) { return response({ error: safeError(error) }, 409); }
 }
 const inputSchema = z.discriminatedUnion('action', [
+  z.object({ action: z.literal('accept_media'), id: submissionId, revision: z.number().int().positive(), selectionHash: submissionId }).strict(),
   z.object({ action: z.literal('accept_quote'), id: submissionId, revision: z.number().int().positive(), quoteId: submissionId }).strict(),
   z.object({ action: z.literal('publish'), id: submissionId, preparedHash: submissionId, localTime: z.string().max(20) }).strict(),
 ]);
@@ -36,6 +38,7 @@ export async function POST(req: Request) {
   try {
     const raw = await req.text(); if (raw.length > 2000) throw Error('mcp_submission_invalid_request');
     const input = inputSchema.parse(JSON.parse(raw));
+    if (input.action === 'accept_media') return response(await acceptImageSelection(access.uid, input.id, input.revision, input.selectionHash));
     if (input.action === 'accept_quote') {
       const result = await acceptSubmissionQuote(access.uid, input.id, input.revision, input.quoteId);
       after(async () => { await runSubmissionStep(access.uid, input.id); });

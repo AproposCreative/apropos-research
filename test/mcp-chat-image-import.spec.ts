@@ -9,7 +9,7 @@ vi.mock('@/lib/liv/public-media-reader', () => ({ readChatGptImage: (...args: un
 vi.mock('@/lib/image-gen/cms-asset', async importOriginal => ({ ...await importOriginal<typeof import('@/lib/image-gen/cms-asset')>(), uploadImageGenCmsAsset: (...args: unknown[]) => state.upload(...args) }));
 vi.mock('@/lib/editorial/submission-options', () => ({ getSubmissionOptions: async () => ({ authors: [], categories: [], topics: [], requiredFields: [], checkedAt: '' }) }));
 import { importChatImage } from '@/lib/editorial/chat-image-import';
-import { updateSubmission } from '@/lib/editorial/submissions';
+import { updateSubmission, getSubmissionStatus } from '@/lib/editorial/submissions';
 import { readImageGenSnapshot } from '@/lib/image-gen/snapshot';
 import { cmsFieldHash } from '@/lib/liv/cms-field-hash';
 const id = 'a'.repeat(64), version = 'b'.repeat(64), path = `editorialSubmissions/${id}`, briefId = 'c'.repeat(64);
@@ -47,6 +47,15 @@ it('retains the private original and attaches a durable CMS asset once, without 
   expect(saved).not.toContain('PRIVATE'); expect(saved).not.toContain('download_url');
   expect(saved).toContain('chatgpt-supplied-unverified');
   expect(memory.rows.get(path).article.content).toBe(memory.rows.get(path).originalArticle.content);
+  expect(first.generationEvidence).toMatchObject({ status: 'not_supplied', requiresPersonalSelection: true, exactPromptExecutionVerified: false });
+  expect((await getSubmissionStatus('team', id)).imageSelection.required).toBe(true);
+});
+it('persists a mismatched report and preserves the original, requiring personal selection instead of regenerating', async () => {
+  await brief(); Object.assign(memory.rows.get(`${path}/chatBriefs/${briefId}`), { prompt: 'Flat colours, no 3D.', referenceHash: 'd'.repeat(64) });
+  const result = await importChatImage('team', { ...input(), generationReport: { effectivePrompt: 'Cinematic watercolor.', referenceHashes: ['d'.repeat(64)] } });
+  expect(result.generationEvidence).toMatchObject({ status: 'mismatch', exactPromptExecutionVerified: false, requiresPersonalSelection: true });
+  expect([...state.stored.values()][0]).toEqual(state.bytes);
+  expect(result.regenerateImage).toBe(false); expect((await getSubmissionStatus('team', id)).imageSelection.required).toBe(true);
 });
 it('uses exact paragraph identity and preserves all other text and assets', async () => {
   const { article } = await readImageGenSnapshot('team', `submission-${id}`), sectionId = article.sections[0].id;

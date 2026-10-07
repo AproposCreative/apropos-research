@@ -6,6 +6,7 @@ import { readImageGenSnapshot } from '@/lib/image-gen/snapshot';
 import { readImageGenStyleConfig, imageGenStyleReference } from '@/lib/image-gen/style-config';
 import { buildAproposImagePrompt } from '@/lib/image-gen/prompt';
 import { cmsFieldHash } from '@/lib/liv/cms-field-hash';
+import { IMAGE_HANDOFF_VERSION, IMAGE_HANDOFF_INSTRUCTION, promptHash } from './image-generation-evidence';
 
 export const chatImageBriefInput = z.object({ submissionId, expectedRevision: z.number().int().positive(),
   sectionId: submissionId, excerpt: z.string().min(10).max(3500), description: z.string().min(10).max(2500),
@@ -31,6 +32,10 @@ export async function getChatImageBrief(uid: string, raw: unknown) {
     passage: section.text, description: input.description,
     editInstruction: input.editInstruction ? `The second reference is the image to edit. Preserve it except for this requested change: ${input.editInstruction}` : '' });
   const brief = { ...input, uid, contentHash: row.contentHash, styleVersion: config.version, referenceHash, prompt,
+    canonicalPromptHash: promptHash(prompt), handoffVersion: IMAGE_HANDOFF_VERSION,
+    generationContract: { instruction: IMAGE_HANDOFF_INSTRUCTION, promptField: 'prompt', referenceHash,
+      reportField: 'generationReport', exactPromptExecutionVerified: false,
+      evidenceLimit: 'Hashes verify the client report, not the hidden native image-generation input.' },
     parentUrl: parent?.url || null, output: { format: 'landscape', minimumWidth: 1200, minimumHeight: 800, text: 'none' },
     visualEvidence: { status: 'not_server_verified', suppliedSources: row.research },
     instruction: 'Brug denne prompt og den vedlagte stilreference i Chattens billedværktøj. Hent dokumenterede personreferencer før portrætlighed. Vis billedværktøjets billedoutput direkte i chatten, ikke kun et file-ID eller en filsti. Importér den valgte eksisterende fil med import_submission_image og vis derefter preview_submission. Ved filoverleveringsfejl: bevar billedet og brug samme fil, aldrig en ny generation eller en opdigtet downloadadresse. Ingen API-generation. Film/TV bruger rigtige stills. Illustrationen er ikke et dokumentarisk foto.' };

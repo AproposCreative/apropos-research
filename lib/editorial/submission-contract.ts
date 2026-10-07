@@ -38,6 +38,7 @@ export type SubmissionOptions = {
 };
 export type SubmissionQuestion = { field: string; question: string; options?: Array<{ value: string; label: string }> };
 export type SubmissionRecord = SubmissionInput & {
+  mediaSelection?: { uid: string; revision: number; contentHash: string; selectionHash: string; acceptedAt: string };
   publishedTarget?: PublishedTarget;
   executionPolicy?: 'chat-final-checks-v1';
   approval?: { uid?: string; contentHash: string; acceptedAt?: string; editorialDecision?: { bodyImages: 'required' | 'deferred'; aiFinalChecks: 'required' | 'human' } };

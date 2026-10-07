@@ -13,6 +13,8 @@ import { acquireCmsWriteLease } from '@/lib/seo-engine/cms-write-lease';
 import { preservePublicationMetadata } from '@/lib/seo-engine/post-publish/editorial';
 import type { CmsSnapshot } from '@/lib/seo-engine/post-publish/snapshot';
 import { verifySubmissionMedia } from './submission-media-identity';
+import { assertImageSelection, readImageSelection } from './submission-image-selection';
+import type { SubmissionRecord } from './submission-contract';
 
 type Prepared = { itemId: string; expected: WebflowArticleFields; proof: { fieldDataHash: string } };
 type Publication = { uid: string; preparedHash: string; contentHash: string; cmsHash: string; publishAt: string;
@@ -37,6 +39,7 @@ export function copenhagenPublicationInstant(value: string, now = Date.now()) {
 export async function submissionPublicationPreview(uid: string, id: string) {
   const row = await readSubmission(uid, id) as Awaited<ReturnType<typeof readSubmission>> & { prepared?: Prepared; preparedHash?: string; assets?: unknown };
   if (row.status !== 'prepared' || !row.prepared || !row.preparedHash) return { ready: false, status: row.status };
+  if ((await readImageSelection(row)).required) return { ready: false, status: 'image_selection_required', blockers: ['image_selection_required'] };
   const { itemId, expected } = row.prepared;
   if (row.preparedHash !== cmsFieldHash({ expected, assets: row.assets })) throw Error('mcp_submission_prepared_version_changed');
   const proof = await inspectLivCmsDraft({ itemId, expected, inspectionPolicy: approvedSubmissionPolicy(row) });
@@ -58,6 +61,7 @@ export async function approveSubmissionPublication(uid: string, id: string, prep
   return db.runTransaction(async tx => {
     const row = (await tx.get(ref)).data();
     if (!row || row.uid !== uid || row.status !== 'prepared' || row.preparedHash !== preparedHash || row.contentHash !== preview.contentHash) throw Error('mcp_submission_preview_changed');
+    await assertImageSelection(row as SubmissionRecord, tx);
     const publication: Publication = { uid, preparedHash, contentHash: row.contentHash, cmsHash: preview.cmsHash!, publishAt, acceptedAt: new Date().toISOString() };
     tx.create(ref.collection('publicationApprovals').doc(preparedHash), publication);
     tx.update(ref, { status: 'scheduled', publication, updatedAt: publication.acceptedAt });
@@ -89,6 +93,7 @@ export async function publishSubmission(uid: string, id: string, now = new Date(
       if (!publication.fieldDataHash) throw Error('mcp_submission_publication_unconfirmed');
       receipt = await verifyLiveLivArticle({ itemId: prepared.itemId, expected: prepared.expected, fieldDataHash: publication.fieldDataHash });
     } else {
+      await assertImageSelection(row as SubmissionRecord);
       if (!await activeMember(uid, Date.parse(publication.acceptedAt))) throw Error('mcp_submission_owner_access_changed');
       cmsLease = await acquireCmsWriteLease(prepared.itemId, 'da');
       assertPublicationEnabled(); await assertLease();

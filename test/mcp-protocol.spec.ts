@@ -158,6 +158,9 @@ it('registers an actual MCP App, sends secrets only through UI metadata and decl
   expect(preview._meta.ui.resourceUri).toBe('ui://apropos/article-preview-v1.html'); expect(preview.outputSchema).toBeTruthy();
   expect(tools.find((t: any) => t.name === 'confirm_submission_action')._meta.ui.visibility).toEqual(['app']);
   const file = tools.find((t: any) => t.name === 'import_submission_image');
+  expect(file.inputSchema.properties.generationReport.properties.effectivePrompt).toBeTruthy();
+  expect(file.inputSchema.required).not.toContain('generationReport');
+  expect(tools.find((t: any) => t.name === 'get_image_brief').description).toContain('Do not summarize, rewrite, embellish');
   expect(file._meta['openai/fileParams']).toEqual(['file']);
   expect(Object.keys(file.inputSchema.properties.file.properties)).toEqual(['download_url', 'file_id', 'mime_type', 'file_name']);
   const result = (await (await call('preview_submission', { submissionId: 'a'.repeat(64) })).json()).result;

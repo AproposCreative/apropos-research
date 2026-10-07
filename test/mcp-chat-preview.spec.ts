@@ -8,6 +8,7 @@ vi.mock('@/lib/editorial/submission-approval', () => ({ quoteSubmission: state.q
 vi.mock('@/lib/editorial/submission-publication', () => ({ submissionPublicationPreview: state.publication, approveSubmissionPublication: state.approve, readSubmissionPublication: async () => ({ publicationVerified: false }) }));
 import { chatSubmissionPreview, confirmChatSubmission, submissionCosts } from '@/lib/editorial/chat-preview';
 import { digest, type McpIdentity } from '@/lib/mcp/oauth';
+import { imageGenerationEvidence } from '@/lib/editorial/image-generation-evidence';
 const id = 'a'.repeat(64), path = `editorialSubmissions/${id}`;
 const identity: McpIdentity = { uid: 'milo', owner: false, role: 'editor', scopes: ['apropos:read', 'apropos:draft', 'apropos:publish'], grantId: 'personal-grant' };
 let memory: ReturnType<typeof memoryFirestore>;
@@ -27,6 +28,32 @@ it('returns full article, named CMS choices and a UI-only confirmation separate 
   expect(JSON.stringify(preview.data)).not.toContain(preview.confirmation!.token);
   expect(memory.rows.get(`mcpUiConfirmations/${digest(preview.confirmation!.token)}`).grantId).toBe(identity.grantId);
   expect(state.accept).not.toHaveBeenCalled();
+});
+function uncertainImage() {
+  const url = 'https://cdn.prod.website-files.com/test/retained.png';
+  memory.rows.get(path).article.featuredImage = url;
+  memory.rows.set(`${path}/chatAssets/${'c'.repeat(64)}`, { uid: identity.uid, assetId: 'c'.repeat(64), status: 'attached', url, role: 'cover', originalHash: 'd'.repeat(64),
+    generationEvidence: imageGenerationEvidence({ kind: 'illustration', origin: 'chatgpt-generated' }, { prompt: 'Flat colours', referenceHash: 'e'.repeat(64) }) });
+}
+it('requires a separate version-bound personal image selection, even under provider hold, without dispatching paid work or publishing', async () => {
+  uncertainImage(); state.quote.mockResolvedValue({ canAccept: false, provider: { blocked: true } });
+  const preview = await chatSubmissionPreview(identity, id);
+  expect(preview.confirmation?.action).toBe('media'); expect(preview.data.imageSelection.required).toBe(true);
+  const result = await confirmChatSubmission(identity, { token: preview.confirmation!.token });
+  expect(result).toMatchObject({ mediaSelected: true, queuedOnServer: false, publicationApproval: false });
+  expect((await chatSubmissionPreview(identity, id)).data.imageSelection).toMatchObject({ required: false, accepted: true, exactPromptExecutionVerified: false });
+  expect(state.accept).not.toHaveBeenCalled(); expect(state.approve).not.toHaveBeenCalled();
+  expect(await confirmChatSubmission(identity, { token: preview.confirmation!.token })).toEqual(result);
+  memory.rows.get(path).revision++;
+  expect((await chatSubmissionPreview(identity, id)).data.imageSelection.required).toBe(true);
+});
+it('never lets a publish-ready quote bypass pending media choice and rejects a changed selection', async () => {
+  uncertainImage(); memory.rows.get(path).status = 'prepared';
+  state.publication.mockResolvedValue({ ready: true, preparedHash: 'prepared', article: memory.rows.get(path).article });
+  const preview = await chatSubmissionPreview(identity, id); expect(preview.confirmation?.action).toBe('media');
+  memory.rows.get(`${path}/chatAssets/${'c'.repeat(64)}`).originalHash = 'f'.repeat(64);
+  await expect(confirmChatSubmission(identity, { token: preview.confirmation!.token })).rejects.toThrow('preview_changed');
+  expect(state.approve).not.toHaveBeenCalled();
 });
 it('replays a completed deliberate click without accepting twice', async () => {
   const { confirmation } = await chatSubmissionPreview(identity, id);

@@ -12,6 +12,7 @@ import { readSubmission, submissionStore, updateSubmission } from './submissions
 import { submissionId, submissionInput } from './submission-contract';
 import { lockProvidedAsset } from './provided-assets';
 import { findBoundCoverByHash } from './submission-published-target';
+import { generationReportInput, imageGenerationEvidence } from './image-generation-evidence';
 
 export const chatImageImportInput = z.object({ submissionId, expectedRevision: z.number().int().positive(),
   requestId: submissionInput.shape.requestId,
@@ -19,6 +20,7 @@ export const chatImageImportInput = z.object({ submissionId, expectedRevision: z
     mime_type: z.string().max(100).optional(), file_name: z.string().max(300).optional() }).strict(),
   kind: z.enum(['illustration', 'photo']), role: z.enum(['cover', 'body']),
   origin: z.enum(['user-upload', 'chatgpt-generated', 'chatgpt-edited', 'unspecified']).default('unspecified'),
+  generationReport: generationReportInput.optional(),
   briefId: submissionId.optional(), sectionId: submissionId.optional(), replaceAssetId: submissionId.optional(),
   alt: z.string().min(3).max(500), caption: z.string().max(500), credit: z.string().min(3).max(500),
   sourceUrl: z.string().url().max(2000).optional(), originalUrl: z.string().url().max(2000).optional(),
@@ -57,11 +59,13 @@ export async function importChatImage(uid: string, raw: unknown) {
     });
     requestHash = previous.requestHash;
   }
-  if (previous?.status === 'attached') return { assetId, url: previous.url, revision: previous.revision, replay: true, paidAiCalls: 0 };
+  if (previous?.status === 'attached') return { assetId, url: previous.url, revision: previous.revision, replay: true, paidAiCalls: 0,
+    generationEvidence: previous.generationEvidence ?? null, regenerateImage: false };
   const attachment = previous && (await collection.doc(row.id).collection('updates').doc(cmsFieldHash({ requestId: `import-${assetId}` })).get()).data();
   if (attachment) {
     await ref.update({ status: 'attached', revision: attachment.revision });
-    return { assetId, url: previous!.url, revision: attachment.revision, replay: true, paidAiCalls: 0 };
+    return { assetId, url: previous!.url, revision: attachment.revision, replay: true, paidAiCalls: 0,
+      generationEvidence: previous!.generationEvidence ?? null, regenerateImage: false };
   }
   if (row.revision !== input.expectedRevision && previous?.status !== 'uploaded') throw Error('mcp_submission_revision_conflict');
   if (!['draft', 'blocked', 'prepared', 'published'].includes(row.status) ||
@@ -71,8 +75,8 @@ export async function importChatImage(uid: string, raw: unknown) {
   // Older scanned clients cannot send origin. A supplied existing file is not
   // evidence of a new generation or of having followed an Apropos brief.
   if (input.kind === 'illustration' && generatedInChat && !input.briefId) throw Error('mcp_submission_brief_required');
+  const brief = input.briefId ? (await collection.doc(row.id).collection('chatBriefs').doc(input.briefId).get()).data() : null;
   if (input.briefId) {
-    const brief = (await collection.doc(row.id).collection('chatBriefs').doc(input.briefId).get()).data();
     if (!brief || brief.uid !== uid || brief.contentHash !== row.contentHash || brief.role !== input.role ||
       (input.role === 'body' && brief.sectionId !== input.sectionId)) throw Error('mcp_submission_brief_changed');
   }
@@ -106,6 +110,7 @@ export async function importChatImage(uid: string, raw: unknown) {
       selection: 'provided', locked: true, fallbackUsed: false,
       status: 'stored', fileId: file.file_id, credit: input.kind === 'illustration' && generatedInChat ? 'Illustration: Apropos Magazine / AI' : input.credit,
       provenance: 'chatgpt-supplied-unverified', rightsStatus: 'unknown', createdAt: new Date().toISOString(), exactPromptExecutionVerified: false };
+    Object.assign(record, { generationEvidence: imageGenerationEvidence(input, brief) });
     await db.runTransaction(async tx => {
       const old = (await tx.get(ref)).data();
       if (old && old.requestHash !== requestHash) throw Error('mcp_submission_idempotency_conflict');
@@ -199,5 +204,6 @@ export async function importChatImage(uid: string, raw: unknown) {
     requestId: `import-${assetId}`, article }, { replaceUrls: input.role === 'cover' ? [row.article.featuredImage || ''] : replaced ? [replaced.url] : [] });
   await ref.update({ status: 'attached', revision: updated.revision });
   return { assetId, url: current.url, revision: updated.revision, paidAiCalls: 0, provenance: current.provenance,
+    generationEvidence: current.generationEvidence ?? null, regenerateImage: false,
     publicationApproval: false, instruction: 'Billedet er gemt. Ingen ny generation eller kvalitetsgodkendelse. Hent preview.' };
 }

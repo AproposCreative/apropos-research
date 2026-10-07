@@ -21,6 +21,7 @@ vi.mock('@/lib/editorial/submission-published-target', () => ({ assertSubmission
 import { runSubmissionStep } from '@/lib/editorial/submission-worker';
 import { stageSubmissionMedia } from '@/lib/editorial/submission-published-target';
 import { currentLivCostContext } from '@/lib/liv/cost-context';
+import { imageGenerationEvidence } from '@/lib/editorial/image-generation-evidence';
 const id = 'a'.repeat(64), hash = 'b'.repeat(64), path = `editorialSubmissions/${id}`;
 let memory: ReturnType<typeof memoryFirestore>;
 beforeEach(async () => {
@@ -58,6 +59,12 @@ it('stops on provider hold before any paid step or CMS write', async () => {
   state.hold = true;
   expect(await runSubmissionStep('owner', id)).toMatchObject({ status: 'blocked', blocker: 'mcp_submission_provider_blocked' });
   expect(state.visual).not.toHaveBeenCalled(); expect(state.save).not.toHaveBeenCalled();
+});
+it('rechecks personal image choice before paid steps or CMS writes, including a delayed attachment receipt', async () => {
+  memory.rows.set(`${path}/chatAssets/${'c'.repeat(64)}`, { uid: 'owner', assetId: 'c'.repeat(64), status: 'uploaded', url: 'https://images.test/0.webp', role: 'cover', originalHash: 'd'.repeat(64),
+    generationEvidence: imageGenerationEvidence({ kind: 'illustration', origin: 'chatgpt-generated' }, {}) });
+  expect(await runSubmissionStep('owner', id)).toMatchObject({ status: 'blocked', blocker: 'mcp_submission_image_selection_required' });
+  expect(state.visual).not.toHaveBeenCalled(); expect(state.checks).not.toHaveBeenCalled(); expect(state.save).not.toHaveBeenCalled();
 });
 it('does not rebuy an ambiguous stage and retains its response marker', async () => {
   memory.rows.set(`${path}/stages/${hash}-cover`, { status: 'attempted', name: 'cover', contentHash: hash, cmsAsset: { id: 'allocated' } });

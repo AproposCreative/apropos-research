@@ -30,6 +30,7 @@ import { approvedSubmissionPolicy } from './submission-policy';
 import { stageSubmissionMedia, assertSubmissionNotAlreadySaved } from './submission-published-target';
 import { lockProvidedAsset } from './provided-assets';
 import { withoutPaidAi } from '@/lib/ai/no-paid-calls';
+import { assertImageSelection } from './submission-image-selection';
 
 type Asset = { role: string; url: string; hash: string; alt: string; caption: string; credit: string; width?: number; height?: number;
   sourceUrl: string | null; originalUrl: string | null; rightsStatus: 'unknown'; sectionId: string | null };
@@ -73,6 +74,7 @@ export async function runSubmissionStep(uid: string, id: string) {
     return stage?.result;
   };
   try {
+    await assertImageSelection(row);
     const authenticatedAt = Date.parse(row.approval?.acceptedAt || '');
     if (!Number.isFinite(authenticatedAt) || !await activeMember(uid, authenticatedAt)) throw Error('mcp_submission_owner_access_changed');
     const inspectionPolicy = approvedSubmissionPolicy(row);

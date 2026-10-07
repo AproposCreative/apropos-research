@@ -6,6 +6,7 @@ import { getChatImageBrief } from '@/lib/editorial/chat-image-brief';
 import { readImageGenSnapshot } from '@/lib/image-gen/snapshot';
 import { buildAproposImagePrompt } from '@/lib/image-gen/prompt';
 import { readImageGenStyleConfig } from '@/lib/image-gen/style-config';
+import { promptHash } from '@/lib/editorial/image-generation-evidence';
 const id = 'a'.repeat(64), path = `editorialSubmissions/${id}`;
 let memory: ReturnType<typeof memoryFirestore>;
 beforeEach(() => {
@@ -26,6 +27,10 @@ it('exports the same canonical prompt as server generation, actual reference byt
   expect(Buffer.from(first.reference.data, 'base64').length).toBeGreaterThan(1000);
   expect(first.reference.mimeType).toBe('image/jpeg');
   expect(first.brief.visualEvidence.status).toBe('not_server_verified');
+  expect(first.brief.canonicalPromptHash).toBe(promptHash(first.brief.prompt));
+  expect(first.brief.referenceHash).toBe((await import('node:crypto')).createHash('sha256').update(Buffer.from(first.reference.data, 'base64')).digest('hex'));
+  expect(first.brief.generationContract.instruction).toContain('Do not summarize, rewrite, embellish');
+  expect(first.brief.generationContract.exactPromptExecutionVerified).toBe(false);
 });
 it('rejects invented scenes, another user, changed text, film stills and nonexistent edit references', async () => {
   const value = await input();

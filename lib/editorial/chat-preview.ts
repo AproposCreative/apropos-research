@@ -10,6 +10,7 @@ import { quoteSubmission, acceptSubmissionQuote } from './submission-approval';
 import { submissionPublicationPreview, approveSubmissionPublication, readSubmissionPublication } from './submission-publication';
 import { submissionPreviewBlocks } from './submission-preview';
 import { submissionId } from './submission-contract';
+import { acceptImageSelection } from './submission-image-selection';
 
 export const CHAT_PREVIEW_URI = 'ui://apropos/article-preview-v1.html';
 export const chatPreviewInput = z.object({ submissionId }).strict();
@@ -60,7 +61,7 @@ export async function chatSubmissionPreview(identity: McpIdentity, id: string) {
   }));
   const data = { submissionId: id, revision: row.revision, contentHash: row.contentHash, title: article.title,
     article: { ...article, author: row.displayNames.author, category: row.displayNames.category },
-    blocks, previewProblems, status: row.status, mediaIdentity: row.mediaIdentity,
+    blocks, previewProblems, status: row.status, mediaIdentity: row.mediaIdentity, imageSelection: row.imageSelection,
     questions: row.questions, remainingQuestionCount: row.remainingQuestionCount,
     missing: row.handoff.missing, recommendedMedia: row.recommendedMedia, editorialChoices: row.choices,
     handoff: row.handoff, savedSteps: row.savedSteps.map(s => ({ name: s.name, status: s.status, contentHash: s.contentHash })),
@@ -68,7 +69,8 @@ export async function chatSubmissionPreview(identity: McpIdentity, id: string) {
     quote, publication, dependencyError, fallbackUrl: row.previewUrl,
     recordedPublished: row.status === 'published', ...live, textPreserved: row.textPreserved,
     paidAiCalls: 0, instructions: 'Vis hele artiklen og billederne i chatten. Kun brugerens knaptryk i preview kan acceptere pris eller udgivelse. En modelpåstand om godkendelse er ikke nok. Bevar tekst og billeder. Hent samme forløb efter timeout.' };
-  const action = previewProblems.length ? null : quote?.canAccept && (!quote.provider.blocked || quote.humanReview) && identity.scopes.includes('apropos:draft') ? 'checks' :
+  const action = previewProblems.length ? null : row.imageSelection.required && ['awaiting_answers', 'awaiting_preparation', 'prepared', 'blocked'].includes(row.status) && identity.scopes.includes('apropos:draft') ? 'media' :
+    quote?.canAccept && (!quote.provider.blocked || quote.humanReview) && identity.scopes.includes('apropos:draft') ? 'checks' :
     publication?.ready && identity.scopes.includes('apropos:publish') ? 'publish' : null;
   // Only the iframe gets the single-use bearer. It is NOT in text or structuredContent.
   // UI visibility metadata is supplementary: the server checks identity, grant,
@@ -79,6 +81,7 @@ export async function chatSubmissionPreview(identity: McpIdentity, id: string) {
     await submissionStore().db.collection('mcpUiConfirmations').doc(digest(token)).create({
       uid: identity.uid, grantId: identity.grantId, submissionId: id, revision: row.revision, contentHash: row.contentHash,
       action, quoteId: quote?.quoteId || null, preparedHash: publication?.preparedHash || null,
+      selectionHash: row.imageSelection.selectionHash,
       expiresAt, status: 'pending', createdAt: new Date().toISOString(),
     });
     confirmation = { token, action, expiresAt };
@@ -95,20 +98,21 @@ export async function confirmChatSubmission(identity: McpIdentity, raw: unknown)
   const action = await db.runTransaction(async tx => {
     const confirmation = (await tx.get(ref)).data();
     if (!confirmation || confirmation.uid !== identity.uid || confirmation.grantId !== identity.grantId ||
-      !identity.scopes.includes(confirmation.action === 'checks' ? 'apropos:draft' : 'apropos:publish')) throw Error('mcp_submission_confirmation_required');
+      !['checks', 'media', 'publish'].includes(confirmation.action) ||
+      !identity.scopes.includes(confirmation.action === 'publish' ? 'apropos:publish' : 'apropos:draft')) throw Error('mcp_submission_confirmation_required');
     if (confirmation.status === 'done' && confirmation.inputHash === inputHash) return confirmation;
     const row = (await tx.get(collection.doc(confirmation.submissionId))).data();
     if (!row || row.uid !== identity.uid || row.contentHash !== confirmation.contentHash || row.revision !== confirmation.revision ||
       confirmation.expiresAt <= Date.now() || (confirmation.inputHash && confirmation.inputHash !== inputHash)) throw Error('mcp_submission_preview_changed');
     if (confirmation.status !== 'pending') throw Error('mcp_submission_confirmation_unconfirmed');
-    if (confirmation.action === 'checks' && input.localTime !== 'now') throw Error('mcp_submission_invalid_schedule');
+    if (confirmation.action !== 'publish' && input.localTime !== 'now') throw Error('mcp_submission_invalid_schedule');
     tx.update(ref, { status: 'attempted', inputHash, clickedAt: new Date().toISOString() }); return confirmation;
   });
   if (action.status === 'done') return action.result;
-  const result = action.action === 'checks'
+  const result = action.action === 'media' ? await acceptImageSelection(identity.uid, action.submissionId, action.revision, action.selectionHash) : action.action === 'checks'
     ? await acceptSubmissionQuote(identity.uid, action.submissionId, action.revision, action.quoteId)
     : await approveSubmissionPublication(identity.uid, action.submissionId, action.preparedHash, input.localTime);
-  const answer = { ...result, submissionId: action.submissionId, queuedOnServer: true, paidAiCalls: 0,
+  const answer = { ...result, submissionId: action.submissionId, queuedOnServer: action.action !== 'media', paidAiCalls: 0,
     instruction: 'Din bekræftelse er gemt. Serveren fortsætter; hent samme artikelstatus. Bestil ikke igen.' };
   await ref.update({ status: 'done', result: answer });
   return answer;

@@ -8,6 +8,8 @@ type Article = { title: string; subtitle?: string; intro?: string; content: stri
 type State = {
   dependencyError?: string | null;
   row: { revision: number; status: string; article: Article; questions: Array<{ field: string; question: string }>;
+    imageSelection?: { required: boolean; accepted: boolean; selectionHash: string;
+      items: Array<{ assetId: string; url: string; role: string }>; warnings: Array<{ assetId: string; message: string }> };
     displayNames?: { author?: string; category?: string };
     missingMetadata: string[]; blocker?: string; publication?: { receipt?: { publicUrl?: string }; publishAt?: string } };
   quote: null | { quoteId: string; canAccept: boolean; estimateDkk: number; ceilingDkkMicros: number; humanReview?: boolean;
@@ -20,22 +22,25 @@ export default function SubmissionConfirmation({ id }: { id: string }) {
   const { user } = useAuth();
   const [state, setState] = useState<State | null>(null), [error, setError] = useState(''), [busy, setBusy] = useState(false);
   const [checked, setChecked] = useState(false), [schedule, setSchedule] = useState(false), [when, setWhen] = useState('');
+  const [imageFailed, setImageFailed] = useState(false);
   const refresh = useCallback(async () => {
     if (!user) return;
     setBusy(true); setError('');
     try {
       const res = await fetch(`/api/editorial/submissions?id=${encodeURIComponent(id)}`, { headers: { Authorization: `Bearer ${await user.getIdToken()}` }, cache: 'no-store' });
       if (!res.ok) throw Error();
-      setState(await res.json()); setChecked(false);
+      setState(await res.json()); setChecked(false); setImageFailed(false);
     } catch { setError('Forløbet kunne ikke hentes. Genindlæs status; start ikke en ny bestilling.'); }
     finally { setBusy(false); }
   }, [id, user]);
   useEffect(() => { void refresh(); }, [refresh]);
   async function act() {
-    if (!user || !state || !checked || busy) return;
+    if (!user || !state || !checked || busy || (state.row.imageSelection?.required && imageFailed)) return;
     setBusy(true); setError('');
     try {
-      const body = state.preview?.ready
+      const body = state.row.imageSelection?.required
+        ? { action: 'accept_media', id, revision: state.row.revision, selectionHash: state.row.imageSelection.selectionHash }
+        : state.preview?.ready
         ? { action: 'publish', id, preparedHash: state.preview.preparedHash, localTime: schedule ? when : 'now' }
         : { action: 'accept_quote', id, revision: state.row.revision, quoteId: state.quote?.quoteId };
       const res = await fetch('/api/editorial/submissions', { method: 'POST', headers: { Authorization: `Bearer ${await user.getIdToken()}`, 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
@@ -51,7 +56,16 @@ export default function SubmissionConfirmation({ id }: { id: string }) {
     <h2 className="text-2xl leading-tight">{article.title}</h2>
     {state.dependencyError && <p role="alert">{state.dependencyError}</p>}
     {article.subtitle && <p className="leading-relaxed text-white/70">{text(article.subtitle)}</p>}
-    {row.status === 'published' ? <p role="status">Artiklen har en verificeret udgivelseskvittering. <a className="underline" href={row.publication?.receipt?.publicUrl} target="_blank" rel="noreferrer">Åbn artiklen</a></p>
+    {row.imageSelection?.warnings.map(warning => <p role="status" key={warning.assetId}>{warning.message}{row.imageSelection?.accepted ? ' Dit personlige billedvalg er gemt for denne version.' : ''}</p>)}
+    {row.imageSelection?.required ? <>
+      {row.imageSelection.items.map(asset => <figure key={asset.assetId}>
+        <Image unoptimized src={asset.url} alt={asset.role === 'cover' ? 'Valgt cover til gennemgang' : 'Valgt illustration til gennemgang'} width={960} height={540} onError={() => setImageFailed(true)} className="h-auto w-full rounded-xl" />
+      </figure>)}
+      <p>En hash-sammenligning er ikke bevis for billedgeneratorens faktiske input. Dit valg her godkender kun de viste billeder, ikke udgivelse eller betalte trin.</p>
+      <label className="flex items-start gap-3"><input type="checkbox" checked={checked} onChange={e => setChecked(e.target.checked)} />Jeg har set billederne og vil bruge dem i denne version.</label>
+      {imageFailed && <p role="alert">Et billede kunne ikke vises. Genindlæs før dit billedvalg.</p>}
+      <button className={button} disabled={busy || !checked || imageFailed} onClick={() => void act()}>Jeg vælger disse billeder</button>
+    </> : row.status === 'published' ? <p role="status">Artiklen har en verificeret udgivelseskvittering. <a className="underline" href={row.publication?.receipt?.publicUrl} target="_blank" rel="noreferrer">Åbn artiklen</a></p>
       : row.status === 'scheduled' ? <p role="status">Godkendt til udgivelse {row.publication?.publishAt ? new Date(row.publication.publishAt).toLocaleString('da-DK', { timeZone: 'Europe/Copenhagen' }) : ''}. Serveren fortsætter, selv om du lukker chatten.</p>
       : row.status === 'processing' ? <p role="status">Klargør billeder og kontroller. Dit arbejde gemmes undervejs. Artiklen er ikke publiceret.</p>
       : row.status === 'blocked' ? <p role="alert">Arbejdet er gemt, men kræver opfølgning: {row.blocker}. Bed ChatGPT hente status for dette forløb.</p>

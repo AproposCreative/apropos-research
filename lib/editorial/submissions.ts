@@ -5,6 +5,7 @@ import { getSubmissionOptions } from './submission-options';
 import { assertMediaOnlyUpdate } from './submission-published-target';
 import { getReaderProgress } from '@/lib/mcp/reader';
 import { articleImages } from '@/lib/mcp/markup';
+import { projectImageSelection } from './submission-image-selection';
 import { inspectSubmission, submissionId, submissionInput, submissionUpdate, submissionVersion,
   validateSubmissionArticle, type SubmissionRecord } from './submission-contract';
 
@@ -30,7 +31,9 @@ export async function getSubmissionStatus(uid: string, id: string) {
       result: step.status === 'done' ? step.result : null, checks: step.checks ?? null,
       cmsAsset: step.cmsAsset ?? null };
   });
-  const assetReceipts = await submissionStore().collection.doc(id).collection('chatAssets').limit(100).get();
+  const assetReceipts = await submissionStore().collection.doc(id).collection('chatAssets').limit(101).get();
+  if (assetReceipts.size > 100) throw Error('mcp_submission_media_window_exceeded');
+  const imageSelection = projectImageSelection(row, assetReceipts.docs.map(doc => doc.data()));
   const publication = (row as typeof row & { publication?: { receipt?: { mediaIdentity?: {
     cmsHash: string; checkedAt: string; assets: Array<{ assetId: string; published: Array<{ url: string; hash: string }> }> } } } }).publication;
   const verified = publication?.receipt?.mediaIdentity;
@@ -49,10 +52,11 @@ export async function getSubmissionStatus(uid: string, id: string) {
     previewUrl: `${MCP_ORIGIN}/connect/chatgpt?submission=${id}`,
     preparationStarted: row.status === 'processing',
     textPreserved: row.article.content === row.originalArticle.content,
-    savedSteps, mediaIdentity,
+    savedSteps, mediaIdentity, imageSelection,
     mediaImports: assetReceipts.docs.map(doc => { const asset = doc.data(); return { assetId: doc.id, status: asset.status,
       ready: ['uploaded', 'attached'].includes(asset.status), role: asset.role, failure: asset.failure ?? null,
-      originalPreserved: !!asset.storagePath, cmsAssetId: asset.cmsAsset?.id ?? null }; }),
+      originalPreserved: !!asset.storagePath, cmsAssetId: asset.cmsAsset?.id ?? null,
+      generationEvidence: asset.generationEvidence ?? null, regenerateImage: false }; }),
     displayNames: { author: options.authors.find(a => a.id === row.article.author || a.name === row.article.author)?.name ?? row.article.author,
       category: options.categories.find(c => c.id === row.article.category || c.name === row.article.category)?.name ?? row.article.category },
     availableActions: ['draft', 'blocked', 'prepared', 'published'].includes(row.status) ? ['update_submission', 'import_submission_image', 'preview_submission', 'get_submission_status'] : ['get_submission_status'],
