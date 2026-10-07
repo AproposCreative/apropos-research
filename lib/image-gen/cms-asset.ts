@@ -4,6 +4,19 @@ import { readPublicMedia } from '@/lib/liv/public-media-reader';
 import { imageGenCmsConfiguration } from './webflow';
 
 export type ImageGenCmsAsset = { id: string; url: string };
+export class CmsAssetAccessError extends Error {
+  constructor(readonly httpStatus: number) { super('mcp_submission_webflow_asset_access_required'); }
+}
+/** Read-only evidence before retrying an explicitly rejected allocation. */
+export async function assertCmsAssetWriteAccess() {
+  const { token } = imageGenCmsConfiguration();
+  const response = await fetch('https://api.webflow.com/v2/token/introspect', {
+    headers: { Authorization: `Bearer ${token}` }, redirect: 'error', signal: AbortSignal.timeout(15000),
+  });
+  if (!response.ok) throw new CmsAssetAccessError(response.status);
+  const scopes = String((await response.json()).authorization?.scope || '').split(/[ ,]+/);
+  if (!scopes.includes('assets:write') || !scopes.includes('assets:read')) throw new CmsAssetAccessError(403);
+}
 export async function uploadImageGenCmsAsset(bytes: Buffer, name: string, checkpoint: (asset: ImageGenCmsAsset) => Promise<void>, options?: { preserveOriginal: true }) {
   let contentType = 'image/webp';
   if (options?.preserveOriginal) {
@@ -20,6 +33,7 @@ export async function uploadImageGenCmsAsset(bytes: Buffer, name: string, checkp
     body: JSON.stringify({ fileName: name, fileHash: createHash('md5').update(bytes).digest('hex') }),
     redirect: 'error', signal: AbortSignal.timeout(15000),
   });
+  if (allocated.status === 401 || allocated.status === 403) throw new CmsAssetAccessError(allocated.status);
   if (!allocated.ok) throw new Error('image_gen_asset_allocate_failed');
   const data = await allocated.json();
   const upload = new URL(data.uploadUrl), hosted = new URL(data.hostedUrl);

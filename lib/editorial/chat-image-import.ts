@@ -5,12 +5,13 @@ import { z } from 'zod';
 import { getAdminStorageBucket } from '@/lib/firebase-admin';
 import { readChatGptImage, readPublicMedia } from '@/lib/liv/public-media-reader';
 import { encodeWebp } from '@/lib/images/encode-webp';
-import { uploadImageGenCmsAsset } from '@/lib/image-gen/cms-asset';
+import { uploadImageGenCmsAsset, CmsAssetAccessError, assertCmsAssetWriteAccess } from '@/lib/image-gen/cms-asset';
 import { readImageGenSnapshot } from '@/lib/image-gen/snapshot';
 import { cmsFieldHash } from '@/lib/liv/cms-field-hash';
 import { readSubmission, submissionStore, updateSubmission } from './submissions';
 import { submissionId, submissionInput } from './submission-contract';
 import { lockProvidedAsset } from './provided-assets';
+import { findBoundCoverByHash } from './submission-published-target';
 
 export const chatImageImportInput = z.object({ submissionId, expectedRevision: z.number().int().positive(),
   requestId: submissionInput.shape.requestId,
@@ -104,6 +105,31 @@ export async function importChatImage(uid: string, raw: unknown) {
     const encoded = current.preserveOriginal ? { data: original } : await encodeWebp(original, { maxSizeKB: 450, maxLongEdge: 1920, qualityStart: 85, qualityMin: 55, effort: 4,
       ...(current.dimensions ? { targetDimensions: current.dimensions } : {}) });
     const encodedHash = hash(encoded.data);
+    // The user may already have applied this exact file outside Apropos. Reuse
+    // its verified identity instead of creating another asset just for a test.
+    if (row.publishedTarget && input.role === 'cover' && !current.cmsAsset) {
+      const existing = await findBoundCoverByHash(row.publishedTarget, encodedHash);
+      if (existing) {
+        await db.runTransaction(async tx => {
+          const old = (await tx.get(ref)).data();
+          if (old?.requestHash !== requestHash || !['stored', 'upload_attempted', 'allocation_blocked'].includes(old.status)) throw Error('mcp_submission_upload_unconfirmed');
+          const recovery = { source: 'bound_cover_exact_bytes', checkedAt: new Date().toISOString(), cmsHash: row.publishedTarget!.fieldDataHash };
+          tx.set(ref.collection('recoveries').doc(existing.id), { ...recovery, previousStatus: old.status, previousFailure: old.failure ?? null });
+          tx.update(ref, { cmsAsset: existing, status: 'upload_attempted', hash: encodedHash, recovery });
+        });
+        current = (await ref.get()).data()!;
+      }
+    }
+    if (current.status === 'allocation_blocked') {
+      await assertCmsAssetWriteAccess();
+      await db.runTransaction(async tx => {
+        const old = (await tx.get(ref)).data();
+        if (old?.status !== 'allocation_blocked' || old.requestHash !== requestHash) throw Error('mcp_submission_upload_unconfirmed');
+        tx.create(ref.collection('failures').doc(String(Date.now())), old.failure);
+        tx.update(ref, { status: 'stored' });
+      });
+      current = (await ref.get()).data()!;
+    }
     if (current.status === 'upload_attempted') {
       if (!current.cmsAsset?.url) throw Error('mcp_submission_upload_unconfirmed');
       const readback = await readPublicMedia(current.cmsAsset.url, 'image');
@@ -118,10 +144,13 @@ export async function importChatImage(uid: string, raw: unknown) {
       try {
         await uploadImageGenCmsAsset(encoded.data, `apropos-${encodedHash}.${current.preserveOriginal ? current.extension : 'webp'}`, asset => ref.update({ cmsAsset: asset }).then(() => undefined),
           current.preserveOriginal ? { preserveOriginal: true } : undefined);
-      } catch {
-        await ref.update({ failure: { code: 'mcp_submission_asset_upload_unconfirmed', stage: 'cms_asset_upload',
+      } catch (error) {
+        const access = error instanceof CmsAssetAccessError;
+        await ref.update({ ...(access ? { status: 'allocation_blocked' } : {}), failure: {
+          code: access ? error.message : 'mcp_submission_asset_upload_unconfirmed', stage: access ? 'cms_asset_access' : 'cms_asset_upload',
+          ...(access ? { httpStatus: error.httpStatus, requiredScopes: ['assets:read', 'assets:write'] } : {}),
           checkedAt: new Date().toISOString(), originalPreserved: true, assetReady: false, regenerateImage: false } });
-        throw Error('mcp_submission_asset_upload_unconfirmed');
+        throw Error(access ? error.message : 'mcp_submission_asset_upload_unconfirmed');
       }
     }
     current = (await ref.get()).data()!;

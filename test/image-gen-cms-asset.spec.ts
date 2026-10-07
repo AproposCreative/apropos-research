@@ -4,7 +4,7 @@ import { createHash } from 'node:crypto';
 const f = vi.hoisted(() => ({ fetch: vi.fn(), media: vi.fn() }));
 vi.mock('@/lib/image-gen/webflow', () => ({ imageGenCmsConfiguration: () => ({ token: 'test-secret', site: 'a'.repeat(24) }) }));
 vi.mock('@/lib/liv/public-media-reader', () => ({ readPublicMedia: f.media }));
-import { uploadImageGenCmsAsset } from '@/lib/image-gen/cms-asset';
+import { uploadImageGenCmsAsset, assertCmsAssetWriteAccess } from '@/lib/image-gen/cms-asset';
 const bytes = Buffer.from('fixture-image');
 const name = `apropos-${'b'.repeat(64)}.webp`;
 const allocation = { id: 'c'.repeat(24), hostedUrl: 'https://cdn.prod.website-files.com/site/image.webp',
@@ -52,4 +52,17 @@ it('uploads a selected PNG byte-for-byte with its real MIME and digest name', as
   expect(body.get('Content-Type')).toBe('image/png');
   expect(Buffer.from(await body.get('file').arrayBuffer())).toEqual(original);
   await expect(uploadImageGenCmsAsset(original, name, vi.fn(), { preserveOriginal: true })).rejects.toThrow();
+});
+it('identifies missing server asset permission without accepting allocation or sending bytes', async () => {
+  f.fetch.mockReset().mockResolvedValueOnce(new Response(null, { status: 403 }));
+  const checkpoint = vi.fn();
+  await expect(uploadImageGenCmsAsset(bytes, name, checkpoint)).rejects.toMatchObject({ message: 'mcp_submission_webflow_asset_access_required', httpStatus: 403 });
+  expect(checkpoint).not.toHaveBeenCalled(); expect(f.fetch).toHaveBeenCalledTimes(1);
+});
+it('requires read-only evidence of restored asset scopes before a permission retry', async () => {
+  f.fetch.mockReset().mockResolvedValueOnce(Response.json({ authorization: { scope: 'cms:read,cms:write' } }))
+    .mockResolvedValueOnce(Response.json({ authorization: { scope: 'cms:read,assets:read,assets:write' } }));
+  await expect(assertCmsAssetWriteAccess()).rejects.toThrow('asset_access_required');
+  await expect(assertCmsAssetWriteAccess()).resolves.toBeUndefined();
+  expect(f.fetch.mock.calls.every(call => call[0].endsWith('/token/introspect'))).toBe(true);
 });

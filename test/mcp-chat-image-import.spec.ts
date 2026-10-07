@@ -1,11 +1,12 @@
 import { beforeEach, afterEach, expect, it, vi } from 'vitest';
 import sharp from 'sharp';
 import { memoryFirestore } from './helpers/mcp-firestore';
-const state = vi.hoisted(() => ({ db: null as any, bytes: Buffer.alloc(0), stored: new Map<string, Buffer>(), upload: vi.fn(), download: vi.fn(), readback: vi.fn(), breakAttachment: false }));
+const state = vi.hoisted(() => ({ db: null as any, bytes: Buffer.alloc(0), stored: new Map<string, Buffer>(), upload: vi.fn(), download: vi.fn(), readback: vi.fn(), boundCover: vi.fn(), breakAttachment: false }));
+vi.mock('@/lib/editorial/submission-published-target', async importOriginal => ({ ...await importOriginal<typeof import('@/lib/editorial/submission-published-target')>(), findBoundCoverByHash: (...args: unknown[]) => state.boundCover(...args) }));
 vi.mock('@/lib/firebase-admin', () => ({ getAdminDb: () => state.db, getAdminStorageBucket: () => ({ file: (path: string) => ({
   save: async (bytes: Buffer) => { state.stored.set(path, Buffer.from(bytes)); }, download: async () => [state.stored.get(path)] }) }) }));
 vi.mock('@/lib/liv/public-media-reader', () => ({ readChatGptImage: (...args: unknown[]) => state.download(...args), readPublicMedia: (...args: unknown[]) => state.readback(...args) }));
-vi.mock('@/lib/image-gen/cms-asset', () => ({ uploadImageGenCmsAsset: (...args: unknown[]) => state.upload(...args) }));
+vi.mock('@/lib/image-gen/cms-asset', async importOriginal => ({ ...await importOriginal<typeof import('@/lib/image-gen/cms-asset')>(), uploadImageGenCmsAsset: (...args: unknown[]) => state.upload(...args) }));
 vi.mock('@/lib/editorial/submission-options', () => ({ getSubmissionOptions: async () => ({ authors: [], categories: [], topics: [], requiredFields: [], checkedAt: '' }) }));
 import { importChatImage } from '@/lib/editorial/chat-image-import';
 import { updateSubmission } from '@/lib/editorial/submissions';
@@ -17,6 +18,7 @@ beforeEach(async () => {
   vi.clearAllMocks(); vi.stubEnv('FIREBASE_STORAGE_BUCKET', 'test-bucket'); memory = memoryFirestore(); state.db = memory.db; state.stored.clear();
   state.bytes = await sharp({ create: { width: 1200, height: 800, channels: 3, background: '#005a82' } }).png().toBuffer();
   state.download.mockResolvedValue(state.bytes);
+  state.boundCover.mockResolvedValue(null);
   state.upload.mockImplementation(async (bytes: Buffer, name: string, saved: (asset: any) => Promise<void>) => {
     const asset = { id: 'cms-asset', url: `https://cdn.prod.website-files.com/test/${name}` };
     state.readback.mockResolvedValue(bytes); await saved(asset); return asset;
@@ -121,4 +123,15 @@ it('marks ghost uploads unconfirmed and never silently reallocates or changes th
   state.readback.mockResolvedValue(Buffer.alloc(0));
   await expect(importChatImage('team', input())).rejects.toThrow('upload_unconfirmed');
   expect(state.upload).toHaveBeenCalledTimes(1); expect(memory.rows.get(path).revision).toBe(1);
+});
+it('resumes the same ambiguous import with identical bytes already on the bound article, without another allocation', async () => {
+  memory.rows.get(path).publishedTarget = { itemId: 'c'.repeat(24), fields: {}, fieldDataHash: 'd'.repeat(64) };
+  await brief(); state.upload.mockRejectedValueOnce(Error('timeout'));
+  await expect(importChatImage('team', input())).rejects.toThrow('asset_upload_unconfirmed');
+  state.boundCover.mockResolvedValue({ id: 'e'.repeat(24), url: 'https://cdn.test/already-published.png' });
+  state.readback.mockResolvedValue(state.bytes);
+  const result = await importChatImage('team', input());
+  expect(result.url).toBe('https://cdn.test/already-published.png');
+  expect(state.upload).toHaveBeenCalledTimes(1); expect(state.download).toHaveBeenCalledTimes(1);
+  expect([...memory.rows.values()].some(row => row.previousFailure?.code === 'mcp_submission_asset_upload_unconfirmed')).toBe(true);
 });

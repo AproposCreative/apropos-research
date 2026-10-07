@@ -68,6 +68,17 @@ export async function readSubmissionCms(itemId: string, live = false) {
   if (row.id !== itemId || row.cmsLocaleId !== env.WEBFLOW_CMS_LOCALE_DK || row.isArchived === true || typeof row.isDraft !== 'boolean' || !row.fieldData) throw Error('mcp_submission_cms_identity_invalid');
   return row;
 }
+/** An ambiguous import may reuse the SAME bound cover only after byte readback.
+ * No new asset allocation, CMS patch, substitute, or deletion of old receipts. */
+export async function findBoundCoverByHash(target: PublishedTarget, hash: string) {
+  const current = await readSubmissionCms(target.itemId);
+  if (cmsFieldHash(current.fieldData as Record<string, unknown>) !== target.fieldDataHash) throw Error('mcp_submission_cms_conflict');
+  const image = (current.fieldData as Record<string, unknown>).thumb as { url?: string; fileId?: string } | undefined;
+  if (!image?.url || !/^[a-f0-9]{24}$/.test(image.fileId || '')) return null;
+  const bytes = await readPublicMedia(image.url, 'image');
+  if (createHash('sha256').update(bytes).digest('hex') !== hash) return null;
+  return { id: image.fileId!, url: image.url };
+}
 /** Before a new create, never turn an existing title/slug into a second article.
  * Returned identities are candidates, not permission to edit somebody else's item. */
 export async function assertSubmissionNotAlreadySaved(article: Pick<SubmissionArticle, 'title' | 'slug'>) {

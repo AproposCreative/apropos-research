@@ -10,7 +10,7 @@ vi.mock('@/lib/liv/cms-readback', () => ({ readLivWebflowJson: (...args: unknown
 vi.mock('@/lib/liv/public-media-reader', () => ({ readPublicMedia: async () => state.bytes }));
 vi.mock('@/lib/webflow/locale-items', () => ({ patchArticleFieldDataForLocale: (...args: unknown[]) => state.patch(...args) }));
 vi.mock('@/lib/editorial/submission-options', () => ({ getSubmissionOptions: async () => ({ authors: [], categories: [], topics: [], requiredFields: [] }) }));
-import { linkPublishedSubmission, stageSubmissionMedia, verifyStagedMedia, assertMediaOnlyUpdate, assertSubmissionNotAlreadySaved } from '@/lib/editorial/submission-published-target';
+import { linkPublishedSubmission, stageSubmissionMedia, verifyStagedMedia, assertMediaOnlyUpdate, assertSubmissionNotAlreadySaved, findBoundCoverByHash } from '@/lib/editorial/submission-published-target';
 import { cmsFieldHash } from '@/lib/liv/cms-field-hash';
 import { acquireCmsWriteLease } from '@/lib/seo-engine/cms-write-lease';
 const id = 'a'.repeat(64), itemId = 'b'.repeat(24), path = `editorialSubmissions/${id}`;
@@ -130,5 +130,13 @@ it('does not serialize or alter any existing body HTML for a cover-only change',
 });
 it('rejects changed prose before, not after, the CMS mutation', async () => {
   await expect(stageSubmissionMedia(target(), { ...expected(), content: '<p>Uønsket omskrivning.</p>' }, {}, async () => {}, async () => {})).rejects.toThrow('media_only_update');
+  expect(state.patch).not.toHaveBeenCalled();
+});
+it('reuses the exact existing bound cover bytes only; different files are never silently substituted', async () => {
+  state.fields.thumb.fileId = 'f'.repeat(24);
+  expect(await findBoundCoverByHash(target(), expected().featuredImageHash)).toEqual({ id: 'f'.repeat(24), url: state.fields.thumb.url });
+  expect(await findBoundCoverByHash(target(), '0'.repeat(64))).toBeNull();
+  const old = target(); state.fields.content = 'New copy';
+  await expect(findBoundCoverByHash(old, expected().featuredImageHash)).rejects.toThrow('cms_conflict');
   expect(state.patch).not.toHaveBeenCalled();
 });

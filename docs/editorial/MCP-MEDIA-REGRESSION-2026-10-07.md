@@ -66,3 +66,38 @@ items are recorded below after execution. Real PNG/WebP/generated/edited files
 and separately selected body images have not been supplied for production tests;
 do not generate or invent them to claim completion. The personal preview click
 is not replaced by a model-authored confirmation.
+
+## Production evidence, 09:07–09:14 Copenhagen
+
+- Release `ea71fb996f5574c5cba6a49df7c9bfcc51f0f1e5`, deployment
+  `dpl_72dZdKdBwE89T4R7LuUApNLYYngK`, READY with production alias; build 90.551 s.
+  356 test files / 4,977 isolated tests, TypeScript, focused ESLint and Next build
+  passed. Authenticated MCP: v12, 48 tools, correct native file schema.
+- Real MCP inspect/refresh advanced existing submission 5→6, bringing back the
+  newer author paragraph, official body figure and current book/hero metadata.
+  No CMS write. CMS hash remained
+  `26f6c55b7ecb6a2c97e9ab05e5e38ae5cbf67c2ec8c2a417fc432a80fd92d9a9`.
+  No merge conflicts. Ledger, provider holds and welcome state unchanged.
+- A **real native tool call** used the attached JPEG, not a fabricated URL.
+  File adapter delivered `file_00000000a0a881f4aa2ffc3a0a3d69c2` and the original
+  1280×720 bytes/hash above reached private storage. Receipt
+  `cf0d8d74b4eb1729c984c046e96da8cb84bd214f23bdacd2eb5dc305983994c1`,
+  request `approved-native-jpeg-2b27242d-20261007`.
+- Import stopped at Webflow asset allocation, no asset ID returned. Read-only
+  introspection of the **production** service key returned HTTP 200 and no
+  `assets:read` or `assets:write`. Listing this site's assets returned HTTP 403
+  `missing_scopes`. The known local service key has the same missing rights.
+  ChatGPT's independent Webflow connector grant does not change Vercel's key.
+  The owner was asked once to update server asset access; no secret was requested
+  in chat, token replaced, scope bypassed or new allocation retried.
+- An older retained receipt `8f53ab658d3bf6c8429c2fd6d64e108d36147f07fbddacc1b7f44d4273f86dd6`
+  holds a DIFFERENT 1536×864 JPEG, SHA `ae5326f52e00f8ffbd41b1813975dd2a1c23d1c2f77b0c17ffb5109b89e5f63a`.
+  It remains preserved/unconfirmed; it was not reset or relabeled as the attached
+  1280×720 file. No ghost asset was deleted on metadata alone.
+
+Follow-up v13: explicit permission-rejection error/receipt and read-only scope
+evidence before retrying such an allocation. Existing unconfirmed imports can
+reuse an already-bound cover ONLY after fresh CMS hash and exact byte equality;
+record the recovery and former failure without allocating, substituting or
+publishing. This does not grant missing server asset scopes or prove the full new
+upload path works. Complete publication still requires the real personal preview.

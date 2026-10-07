@@ -79,7 +79,9 @@ export function createEditorialMcp(identity: McpIdentity) {
         diagnostic = { errorCode: code, ...(recovery?.rejectedHost ? { rejectedHost: recovery.rejectedHost } : {}) };
         if (recovery) return { isError: true, content: [{ type: 'text', text: JSON.stringify(recovery) }] };
         return { isError: true, content: [{ type: 'text', text: JSON.stringify({ error: code,
-          action: code === 'mcp_reader_boundary_unobserved'
+          action: code === 'mcp_submission_webflow_asset_access_required'
+            ? 'Serverens Webflow-nøgle mangler gyldig billedadgang. Kontrollér assets:read og assets:write på WEBFLOW_API_TOKEN i Vercel; ChatGPTs separate Webflow-forbindelse ændrer ikke servernøglen. Originalen er bevaret. Ingen ny billedgeneration eller blind retry. Efter rettet adgang: læs status og genbrug samme requestId og fil.'
+            : code === 'mcp_reader_boundary_unobserved'
             ? 'Intet blev gemt. beginningObserved/endObserved gælder kun DETTE batch, ikke samlet dækning. beginningObserved=true kræver faktisk læst position 1 i readRanges; endObserved=true kræver faktisk læst layout.totalPositions, ikke kapitel-/batchslut. Ved mellembatches: beginningObserved=false og endObserved=false; tidligere grænsebevis bevares automatisk. Hent status/revision, behold de faktisk læste intervaller og ret kun de fejlagtige felter. Opfind ikke læsning, og gentag ikke uændret input.'
             : 'Læs den aktuelle status før et nyt forsøg. Intet er kvalitetsgodkendt af denne fejl.', paidAiAllowed: false }) }] };
       } finally {
