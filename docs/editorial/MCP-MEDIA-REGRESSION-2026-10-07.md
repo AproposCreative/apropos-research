@@ -118,3 +118,66 @@ signed URL. Changed instructions fail before download; changed bytes fail before
 any storage/asset/attachment mutation. No new request ID or receipt reset.
 Tests cover attached replay and interrupted-import continuation with rotated IDs,
 rejection of different bytes/metadata, and signed-URL non-persistence.
+
+## Verified release and real JPEG result, 09:26–09:28 Copenhagen
+
+- Production SHA `9fce9836079d95df16c9f82885f8662d7451e0fd`, deployment
+  `dpl_4md6ncyPcpAZGcY7gUvirm1o4HN5`: READY, `ai.aproposmagazine.com` alias,
+  build 73.435 s. Authenticated MCP reports `2026-10-07-v14`, 48 tools and the
+  native file-object metadata/schema. 356 files / 4,984 isolated tests pass;
+  TypeScript and focused ESLint pass. Production build passes. The preceding
+  release also passed the isolated local Next build.
+- The **same real native JPEG import**, same request ID and expected revision 6,
+  resumed successfully through the connected Apropos MCP. Receipt `cf0d8d…994c1`
+  is now attached, submission revision **7**. It retained the original bytes,
+  crop, dimensions and original file identity. A new native file reference was
+  accepted only after byte equality, with an audit receipt. Returned image pixels
+  were actually displayed in this conversation, not only a URL.
+- Existing bound CMS asset `6ac5e51e67662d3bd06a7f1e` was independently verified
+  and reused, with prior failed allocation preserved in a recovery receipt.
+  This is **not** a successful new Webflow allocation/upload or a new publication.
+  A second real native replay returned `replay:true`, same asset and revision 7.
+- Fresh connected MCP `get_article` before/after has EXACTLY identical fields and
+  CMS hash `26f6c55b7ecb6a2c97e9ab05e5e38ae5cbf67c2ec8c2a417fc432a80fd92d9a9`.
+  The same item remains bound. No create, CMS patch, publication, site publish,
+  paid AI call or duplicate article was performed in this regression.
+- Fresh live-CMS/media verification at `2026-10-07T07:27:32.911Z` checked both
+  thumb and mobile-image; their shared URL decoded as JPEG, 124979 bytes,
+  1280×720, exact approved SHA-256 `2b27242d…920dea71`, no fallback. Public HTTP
+  200/canonical/hero hash, author-background paragraph and existing official body
+  figure were also verified. This observation does not forge an Apropos
+  publication approval/receipt for the earlier direct Webflow publication.
+- Real `preview_submission` revision 7 returns full article/hero/body figure,
+  no required missing fields, `bodyImages:deferred`, recommended `body-2`,
+  `aiFinalChecks:human`, 0 DKK quote and `canAccept:true` even while the saved
+  provider hold is true. The personally confirmed human-review choice has not
+  been clicked; no prepared/published Apropos revision is claimed.
+- Deployment-scoped `/mcp` error/fatal scan
+  `2026-10-07T07:22:11.642Z`–`07:27:11.642Z` found no matching logs. This is a
+  bounded observation, not a platform-wide or long-term guarantee.
+
+## Remaining exact dependencies and resume
+
+1. **New Webflow assets:** production `WEBFLOW_API_TOKEN` must have
+   `assets:read` and `assets:write` for this site. Owner was asked once. Full access
+   on a separately connected Webflow tool is not evidence of those Vercel service
+   scopes. After an actual update, introspect securely again; use one retained
+   permission-blocked receipt where applicable, not a raw reset/new identity.
+2. **Personal final review/approval:** open the version-7 preview below and confirm
+   the human check there. Deterministic preparation then enables a separate
+   exact-version publication approval. Do not fabricate either click. Read status
+   after each action/timeout. If CMS changes externally, inspect/refresh again;
+   never blindly overwrite it. This unchanged live article is not republished just
+   to claim test activity.
+3. **Outstanding real-file matrix:** actual PNG/WebP/generated/edited native files
+   and separately approved new body media have not been supplied/tested in this
+   production session. Their unit tests are not real-client E2E evidence. After
+   server asset access and selected files are available, import onto this SAME
+   submission, approve the precise update and verify preserved text/SEO/rating,
+   item identity and public byte identities. Never create a regression duplicate.
+
+Personal preview:
+https://ai.aproposmagazine.com/connect/chatgpt?submission=396904fb485abe48df3663e0b3d8c955a83ecc3670c323aa1c1c2838040785a2
+
+Live article:
+https://www.aproposmagazine.com/articles/boganmeldelse-i-mellemtiden-er-vi-ingen
