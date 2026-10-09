@@ -7,8 +7,8 @@ article artwork with its white logo band, and measure listens per article in GA4
 No audio/AI generation, CMS edits, provider/budget changes or Webflow site publish.
 The owner's instruction to defer a full Webflow publish remains in force.
 
-Player code and isolated tests are implemented. Production release/readback is
-recorded below when verified. **New analytics events are disabled by default.**
+Player code and isolated tests are implemented, deployed and verified on the live
+website as recorded below. **New analytics events are disabled by default.**
 GA4 access and a verified consent integration are still needed before activation;
 local event tests are not proof of events received by Google.
 
@@ -141,5 +141,34 @@ References: [GA4 events](https://developers.google.com/analytics/devguides/colle
 
 ## Release evidence
 
-Pending final release and live readback; do not infer active GA tracking from a
-ready player deployment.
+### Deploy result
+
+- URL: https://ai.aproposmagazine.com/podcast-player.js
+- Target: production, project `prj_sUVIsBr9l8DbjEFDrz6WUAQZcxGE`,
+  team `team_Tvz3Od7ikoA3oBfwtC87wQ7U`.
+- Commit: `26a01addbc55a329ed4efbe5e25f46db15f4cb40`.
+- Deployment: `dpl_AXak6N7cbsur15NpjSSNhybPtWBq`, READY, verified actual
+  `ai.aproposmagazine.com` alias. Next.js 16.3.8 application, remote build 59s.
+- Version `2026-10-09-v1`. Public HTTP 200 at 08:49:11.636Z; bytes exactly match
+  the committed local JS. SHA256
+  `4cc8e5edf613862eb7156d1d4ed9c30bd52bf2669b1e3e560571ba06db5b86e7`.
+- Previous production `e083fb33dbd0b416a6a6af7637656d00cacf68a9` /
+  `dpl_GSpqzYsKvij5Xnb4NQFy1LPXG1Zy`. This release changes the player only;
+  no Webflow site publish, CMS write or audio regeneration.
+
+### Production browser readback
+
+- Both articles played real existing audio with a readable 600px branded cover.
+  Desktop and mobile viewport (390 × 844) inspected. Sød Tøs proof saved at
+  `output/article-audio-player-2026-10-09.jpg` (local artifact, not committed).
+- While Sød Tøs kept playing, navigation to I mellemtiden preserved its playing
+  title/artwork and audio. The floating button survived. After closing the player,
+  scrolling and using that button, the book audio and its correct branded cover
+  opened. Exactly one audio element and one player. No browser error logs in this
+  focused production test. Test playback stopped afterward.
+- Narrow error/fatal runtime scan for this deployment from
+  08:48:38Z–08:49:22.670Z returned no matches. This is not a long-term monitoring
+  guarantee or proof of client-side GA delivery. Drains/monitoring configuration
+  was not changed or audited in this scoped player task.
+- GA activation/Google-side reporting is **not completed**. No verified account
+  access or consent bridge yet. No production test consent was fabricated.
