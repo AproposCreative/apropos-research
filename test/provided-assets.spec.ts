@@ -7,7 +7,7 @@ vi.mock('@/lib/webflow/thumb-image-optimizer', () => ({ maybeOptimizeThumbImageF
 vi.mock('@/lib/webflow/mobile-image-optimizer', () => ({ maybeOptimizeMobileImageForFieldData: state.optimize }));
 vi.mock('@/lib/webflow/content-image-optimizer', () => ({ maybeOptimizeContentImagesForFieldData: state.optimize }));
 import { lockProvidedAsset, containsLockedProvidedAsset } from '@/lib/editorial/provided-assets';
-import { autoOptimizeArticleFieldData } from '@/lib/webflow/article-image-auto-optimize';
+import { autoOptimizeArticleFieldData, compressArticleFieldData } from '@/lib/webflow/article-image-auto-optimize';
 const url = 'https://cdn.test/my-selected-cover.png';
 beforeEach(() => { vi.clearAllMocks(); state.db = memoryFirestore().db; });
 it('protects exactly selected media from cropping/cleanup, including later forced webhooks', async () => {
@@ -23,4 +23,14 @@ it('internal exact-image saves do not depend on paid cleanup or a registry read'
   state.db = null;
   await autoOptimizeArticleFieldData({ fieldData: { thumb: { url } }, preserveProvidedImages: true });
   expect(state.clean).not.toHaveBeenCalled(); expect(state.optimize).not.toHaveBeenCalled();
+});
+it('published compression never calls the paid editorial image check', async () => {
+  state.optimize.mockResolvedValue({imagesOptimized:1,imagesFailed:0});
+  await compressArticleFieldData({fieldData:{thumb:{url}}});
+  expect(state.clean).not.toHaveBeenCalled();expect(state.optimize).toHaveBeenCalled();
+});
+it('app preparation retains its editorial check',async()=>{
+  state.optimize.mockResolvedValue({imagesOptimized:0,imagesFailed:0});
+  await autoOptimizeArticleFieldData({fieldData:{thumb:{url}}});
+  expect(state.clean).toHaveBeenCalledOnce();
 });

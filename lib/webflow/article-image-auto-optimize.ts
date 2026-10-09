@@ -78,6 +78,23 @@ export async function autoOptimizeArticleFieldData(args: {
   }
   // Editorial rule is independent of compression settings; failures stop this save.
   await enforceTextFreeArticleImages(args.fieldData);
+  return compressArticleFieldData(args);
+}
+
+/** Encoding only. Publication webhooks must never buy a visual review or edit.
+ * App/Liv preparation still calls autoOptimizeArticleFieldData above and keeps
+ * its editorial admission. This function creates no new quality evidence. */
+export async function compressArticleFieldData(args: {
+  fieldData: Record<string, unknown>;
+  articleTitle?: string;
+  articleSlug?: string;
+  articleSeoTitle?: string;
+  force?: boolean;
+}): Promise<Pick<ArticleImageAutoOptimizeResult,
+  'thumbOptimized' | 'mobileOptimized' | 'contentImagesOptimized' | 'contentImagesFailed'>> {
+  if (await containsLockedProvidedAsset(args.fieldData)) {
+    return { thumbOptimized: false, mobileOptimized: false, contentImagesOptimized: 0, contentImagesFailed: 0 };
+  }
   if (!isArticleImageAutoOptimizeEnabled()) {
     return {
       thumbOptimized: false,

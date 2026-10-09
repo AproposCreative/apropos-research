@@ -11,7 +11,8 @@ export type WebhookFeatureFlags = {
 };
 
 export function shouldRunImageOptimize(flags: WebhookFeatureFlags): boolean {
-  return flags.imageOptOn;
+  // A create notification is not publication approval.
+  return flags.imageOptOn && flags.triggerType === 'collection_item_published';
 }
 
 export function shouldEnqueueTranslation(flags: WebhookFeatureFlags): boolean {

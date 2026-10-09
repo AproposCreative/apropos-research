@@ -2,11 +2,11 @@ import { NextRequest, NextResponse } from 'next/server';
 import { env } from '@/lib/config/env';
 import { logger } from '@/lib/logger';
 import {
-  autoOptimizeArticleByItemId,
   isArticleCollectionWebhookEvent,
   isArticleImageAutoOptimizeEnabled,
   isArticleWebhookOptimizeEnabled,
 } from '@/lib/webflow/article-image-auto-optimize';
+import { optimizePublishedArticleImages } from '@/lib/webflow/published-image-optimization';
 import { enqueueArticleTranslation } from '@/lib/webflow/enqueue-article-translation';
 import { resolveAutoSeoEngineEnabled } from '@/lib/seo-engine/settings';
 import { maybeEnqueueSeoEngineAfterPublish } from '@/lib/seo-engine/after-publish';
@@ -145,6 +145,7 @@ export async function POST(req: NextRequest) {
   const translationQueued: string[] = [];
   const seoEngineQueued: string[] = [];
   const seoEngineErrors: Array<{ itemId: string; error: string }> = [];
+  const imageErrors: Array<{ itemId: string; error: string }> = [];
 
   for (const it of items) {
     const itemId = it.id as string;
@@ -158,14 +159,13 @@ export async function POST(req: NextRequest) {
 
     if (shouldRunImageOptimize(flags)) {
       try {
-        const result = await autoOptimizeArticleByItemId(itemId, {
-          source: `webhook:${triggerType}`,
-          publishToLive: true,
-        });
+        const result = await optimizePublishedArticleImages(itemId, it.cmsLocaleId);
         results.push(result);
       } catch (e) {
         logger.error('[webhooks/webflow] optimize failed', e instanceof Error ? e : new Error(String(e)));
-        results.push({ itemId, error: e instanceof Error ? e.message : 'Optimering fejlede' });
+        const failure = { itemId, error: e instanceof Error ? e.message : 'Optimering fejlede' };
+        results.push(failure);
+        imageErrors.push(failure);
       }
     } else {
       results.push({ itemId, skipped: true, reason: 'image_opt_off' });
@@ -209,15 +209,16 @@ export async function POST(req: NextRequest) {
   });
   return NextResponse.json(
     {
-      ok: http.ok,
+      ok: http.ok && imageErrors.length === 0,
       triggerType,
       count: results.length,
       results,
       translationQueued,
       seoEngineQueued,
       seoEngineErrors: seoEngineErrors.length ? seoEngineErrors : undefined,
-      needsRetry: http.needsRetry || undefined,
+      imageErrors: imageErrors.length ? imageErrors : undefined,
+      needsRetry: http.needsRetry || imageErrors.length > 0 || undefined,
     },
-    { status: http.status }
+    { status: imageErrors.length ? 503 : http.status }
   );
 }
