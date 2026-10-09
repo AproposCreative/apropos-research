@@ -60,4 +60,28 @@ unchanged. Direct Webflow writes outside the app are not newly guarded by MCP.
 - Complete isolated suite: 362 files / 5,052 tests passed.
 - TypeScript, changed-file ESLint, safe build configuration and diff whitespace
   validation passed.
-- No added dependencies or paid calls. Production rollout/readback pending below.
+- No added dependencies or paid calls.
+- Production code: `b40c5d21733f1f3076d52578d184494ba896a1bf`.
+- Deployment `dpl_3TpREx4gKGAyn2a4HmBZpmbvAr1k`, READY at
+  `2026-10-09T09:04:02.727Z` with actual `ai.aproposmagazine.com` alias;
+  Next.js remote build took approximately 89 seconds.
+- Authenticated connected MCP `get_editorial_context(section=structure)` and
+  `get_workflow(workflow=submit)` both returned the new rule after deployment.
+  Both reported policy hash
+  `67e5af2aa48e24a0f08cb4841c34fef6222bae6aaacb952ee72db77242bc3bc7`.
+  Submit workflow hash:
+  `59b1110a8161ce5299b00282531adc59dcd50c0ff6799732e653fb1d4a32bccb`.
+  `publicationApproval=false`, `visualInspectionPerformed=false`, and the
+  workflow reports `paidAiCalls=0`, correctly distinguishing guidance from checks.
+- No CMS write or article publication occurred; the proposed cover is still
+  awaiting the user's choice. No separate Webflow site publication occurred.
+
+### Deploy result
+
+- URL: <https://ai.aproposmagazine.com>
+- Target: production; status: READY; commit: `b40c5d21`.
+- Framework: Next.js; remote build duration: approximately 89 seconds.
+- Post-deploy observability: deployment-scoped error/fatal scan
+  `09:04:02–09:04:20Z` returned no matching logs. This short window is not a
+  longer-term health guarantee. Existing drains/monitoring were not changed or
+  independently audited in this cover-selection task.
