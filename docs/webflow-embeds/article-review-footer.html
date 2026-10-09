@@ -1,0 +1,184 @@
+<template data-apropos-book-metadata>
+  <span data-book-title>{{wf {&quot;path&quot;:&quot;book-title&quot;,&quot;type&quot;:&quot;PlainText&quot;\} }}</span>
+  <span data-book-author>{{wf {&quot;path&quot;:&quot;book-author&quot;,&quot;type&quot;:&quot;PlainText&quot;\} }}</span>
+</template>
+<script>
+// Strip only explicit review-title wrappers. Do not invent a work title from
+// prose, or use this fallback in place of the dedicated book metadata below.
+function aproposReviewedWorkName(headline) {
+  var original = String(headline || '').trim();
+  var name = original
+    .replace(/^(?:anmeldelse|filmanmeldelse|serieanmeldelse|spilanmeldelse|albumanmeldelse|review|film review|game review|album review)\s*[:\u2013\u2014-]\s*/i, '')
+    .replace(/\s+(?:[\u2013\u2014-]\s*)?(?:anmeldelse|review)\s*$/i, '').trim();
+  return name || original;
+}
+
+// Book metadata is distinct from Article.author (the reviewer).
+// Read plain text from inert HTML, never interpolate book titles into JavaScript strings.
+function aproposReviewedBook(article) {
+  var metadata = document.querySelector('template[data-apropos-book-metadata]');
+  function field(selector) {
+    var element = metadata && metadata.content && metadata.content.querySelector(selector);
+    var value = element ? element.textContent.trim() : '';
+    return /\{\{\s*wf\b/i.test(value) ? '' : value;
+  }
+  var title = field('[data-book-title]');
+  var headline = String(article.headline || '').trim();
+  var prefix = /^(?:boganmeldelse|book[ -]review)\s*[:\u2013\u2014-]\s*/i;
+  if (!title && !prefix.test(headline)) return null;
+  var name = title || headline.replace(prefix, '').trim();
+  if (!name) return null;
+  var book = { '@type': 'Book', name: name };
+  if (article.image) book.image = article.image;
+  var authors = field('[data-book-author]').split(';').map(function (name) {
+    return name.trim();
+  }).filter(Boolean).map(function (name) {
+    return { '@type': 'Person', name: name };
+  });
+  if (authors.length) book.author = authors.length === 1 ? authors[0] : authors;
+  return book;
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  const rating = Number('{{wf {&quot;path&quot;:&quot;stjerne&quot;,&quot;type&quot;:&quot;Number&quot;\} }}');
+  if (!Number.isFinite(rating) || rating < 1 || rating > 6) return;
+  if (document.querySelector('script[data-apropos-review-schema]')) return;
+
+  const schemas = [...document.querySelectorAll('script[type="application/ld+json"]')]
+    .map((node) => { try { return JSON.parse(node.textContent || ''); } catch { return null; } })
+    .filter(Boolean);
+  const article = schemas.find((schema) => schema['@type'] === 'Article') ||
+    schemas.flatMap((schema) => schema['@graph'] || []).find((schema) => schema['@type'] === 'Article');
+  if (!article) return;
+
+  const book = aproposReviewedBook(article);
+  const subject = `${article.articleSection || ''} ${article.keywords || ''}`.toLowerCase();
+  const label = document.querySelector('.apropos-review-label');
+  if (label) {
+    label.textContent = book ? 'Boganmeldelse' : subject.includes('film') ? 'Filmanmeldelse' :
+      subject.includes('serie') || subject.includes('tv') ? 'Serieanmeldelse' :
+      subject.includes('koncert') ? 'Koncertanmeldelse' :
+      subject.includes('festival') ? 'Festivalanmeldelse' :
+      subject.includes('album') || subject.includes('musik') ? 'Musikanmeldelse' :
+      subject.includes('gaming') || subject.includes('spil') ? 'Spilanmeldelse' :
+      subject.includes('teater') ? 'Teateranmeldelse' : 'Anmeldelse';
+    label.classList.add('is-visible');
+  }
+
+  const reviewedType = book ? 'Book' : subject.includes('film') ? 'Movie' :
+    subject.includes('serie') || subject.includes('tv') ? 'TVSeries' :
+    subject.includes('gaming') || subject.includes('spil') ? 'VideoGame' :
+    subject.includes('album') || subject.includes('musik') ? 'MusicAlbum' : 'CreativeWork';
+  const canonical = document.querySelector('link[rel="canonical"]')?.href || article.url || location.href;
+  const review = {
+    '@context': 'https://schema.org',
+    '@type': 'Review',
+    '@id': `${canonical}#review`,
+    url: canonical,
+    name: article.headline,
+    reviewBody: article.description,
+    inLanguage: article.inLanguage || 'da',
+    datePublished: article.datePublished,
+    dateModified: article.dateModified,
+    author: article.author ? {
+      '@type': article.author['@type'] || 'Person',
+      name: article.author.name,
+      url: article.author.url
+    } : undefined,
+    publisher: article.publisher,
+    reviewRating: {
+      '@type': 'Rating',
+      ratingValue: rating,
+      bestRating: 6,
+      worstRating: 1
+    },
+    itemReviewed: book || {
+      '@type': reviewedType,
+      name: aproposReviewedWorkName(article.headline),
+      image: article.image
+    }
+  };
+  const node = document.createElement('script');
+  node.type = 'application/ld+json';
+  node.dataset.aproposReviewSchema = '';
+  node.textContent = JSON.stringify(review);
+  document.head.appendChild(node);
+});
+
+document.addEventListener('DOMContentLoaded', function () {
+  setTimeout(function () {
+    var lang = (document.documentElement.lang || 'da').split('-')[0];
+    var url = 'https://www.aproposmagazine.com' + location.pathname.replace(/\/+$/, '');
+    var canonical = document.querySelector('link[rel="canonical"]');
+    if (canonical) canonical.href = url;
+    var articleEntry = null;
+    var reviewEntry = null;
+    document.querySelectorAll('script[type="application/ld+json"]').forEach(function (node) {
+      try {
+        var root = JSON.parse(node.textContent || '');
+        var items = root['@graph'] || [root];
+        var article = items.find(function (item) { return item['@type'] === 'Article'; });
+        var review = items.find(function (item) { return item['@type'] === 'Review'; });
+        if (article) articleEntry = { node: node, root: root, data: article };
+        if (review) reviewEntry = { node: node, root: root, data: review };
+      } catch (error) {}
+    });
+    if (articleEntry) {
+      articleEntry.data.url = url;
+      articleEntry.data.inLanguage = lang;
+      articleEntry.node.textContent = JSON.stringify(articleEntry.root);
+    }
+    var label = document.querySelector('.apropos-review-label');
+    if (!reviewEntry || !articleEntry) {
+      if (label) label.style.display = 'none';
+      return;
+    }
+    var article = articleEntry.data;
+    var review = reviewEntry.data;
+    var book = aproposReviewedBook(article);
+    var headline = String(article.headline || '').toLowerCase();
+    var description = String(article.description || '').toLowerCase();
+    var keywords = String(article.keywords || '').toLowerCase();
+    var section = String(article.articleSection || '').toLowerCase();
+    var coreText = [headline, description, keywords, section].join(' ');
+    var count = function (text, expression) { return (text.match(expression) || []).length; };
+    var seriesPattern = /\b(tv[- ]?serie(?:n|r|rne)?|serie(?:n|r|rne)?|series|sæson(?:en|er|erne)?|season(?:s)?|episode(?:n|r|rne|s)?)\b/g;
+    var moviePattern = /\b(film(?:en|er|ene|s)?|movie(?:s)?|biograf(?:en|er|erne)?|cinema)\b/g;
+    var seriesScore = count(headline, seriesPattern) * 6 + count(description, seriesPattern) * 3 + count(keywords, seriesPattern) * 10;
+    var movieScore = count(headline, moviePattern) * 6 + count(description, moviePattern) * 3 + count(keywords, moviePattern) * 10;
+    var sectionSeries = count(section, seriesPattern) > 0;
+    var sectionMovie = count(section, moviePattern) > 0;
+    if (sectionSeries && !sectionMovie) seriesScore += 4;
+    if (sectionMovie && !sectionSeries) movieScore += 4;
+    var eventKind = /festival/.test(coreText) ? 'festival' : /koncert|concert|\blive\b/.test(coreText) ? 'concert' : /teater|theatre|theater/.test(coreText) ? 'theatre' : 'event';
+    var isGame = /\b(gaming|videospil|spilanmeldelse|game review|video game|playstation|ps[45]|xbox|nintendo|switch)\b/.test(coreText);
+    var isAlbum = /\b(album(?:met|mer)?|ep(?:'en)?|single(?:n|s)?|plade(?:n|r)?|record)\b/.test(coreText);
+    var isEventReview = !book && eventKind !== 'event' && !isGame && seriesScore === 0 && movieScore === 0 && !isAlbum;
+    var type = review.itemReviewed && review.itemReviewed['@type'];
+    if (book) type = 'Book';
+    else if (isEventReview) type = 'CreativeWork';
+    else if (isGame) type = 'VideoGame';
+    else if (seriesScore > movieScore) type = 'TVSeries';
+    else if (movieScore > seriesScore) type = 'Movie';
+    else if (isAlbum) type = 'MusicAlbum';
+    if (book) review.itemReviewed = book;
+    else if (review.itemReviewed) review.itemReviewed.name = aproposReviewedWorkName(article.headline);
+    if (review.itemReviewed && type) review.itemReviewed['@type'] = type;
+    review.url = url;
+    review['@id'] = url + '#review';
+    review.inLanguage = lang;
+    review.name = article.headline;
+    reviewEntry.node.textContent = JSON.stringify(reviewEntry.root);
+    var labelsDa = { Book: 'Boganmeldelse', Movie: 'Filmanmeldelse', TVSeries: 'Serieanmeldelse', VideoGame: 'Spilanmeldelse', MusicAlbum: 'Musikanmeldelse', CreativeWork: 'Anmeldelse' };
+    var labelsEn = { Book: 'Book review', Movie: 'Film review', TVSeries: 'Series review', VideoGame: 'Game review', MusicAlbum: 'Music review', CreativeWork: 'Review' };
+    var eventLabelsDa = { festival: 'Festivalanmeldelse', concert: 'Koncertanmeldelse', theatre: 'Teateranmeldelse', event: 'Eventanmeldelse' };
+    var eventLabelsEn = { festival: 'Festival review', concert: 'Concert review', theatre: 'Theatre review', event: 'Event review' };
+    var labelText = isEventReview ? (lang === 'en' ? eventLabelsEn : eventLabelsDa)[eventKind] : (lang === 'en' ? labelsEn : labelsDa)[type];
+    if (isEventReview) reviewEntry.node.remove();
+    if (label) {
+      label.style.display = '';
+      label.textContent = labelText || (lang === 'en' ? 'Review' : 'Anmeldelse');
+    }
+  }, 0);
+});
+</script>
