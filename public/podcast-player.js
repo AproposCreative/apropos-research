@@ -8,6 +8,10 @@
 (function () {
   'use strict';
 
+  // A Webflow embed can accidentally be installed twice. Never create two players.
+  if (window.AproposPodcast) return;
+  var VERSION = '2026-10-09-v1';
+
   var ATTR = {
     listen: 'data-apropos-podcast-listen',
     slug: 'data-apropos-podcast-slug',
@@ -51,6 +55,85 @@
   /** Don't resume when the listener is essentially at the start or the very end. */
   var RESUME_MIN_SECONDS = 10;
   var RESUME_TAIL_SECONDS = 15;
+
+  // Fail closed. An existing, verified CMP must explicitly connect consent and
+  // the GA4 destination. Loading this player NEVER grants analytics consent.
+  var analyticsConfig = { measurementId: '', consent: false };
+  var listening = null;
+
+  function resetListening(entryPoint) {
+    listening = { started: false, qualified: false, completed: false, milestones: [],
+      seconds: 0, ranges: [], sample: null, entryPoint: entryPoint || 'player' };
+  }
+
+  function sendAudioEvent(name, extra, episode) {
+    var ep = episode || state.episode;
+    if (!analyticsConfig.consent || !analyticsConfig.measurementId || !ep ||
+      typeof window.gtag !== 'function') return false;
+    // No signed media URL, email, user ID or arbitrary page-query data is sent.
+    try { window.gtag('event', name, Object.assign({
+      send_to: analyticsConfig.measurementId,
+      article_slug: ep.articleSlug,
+      article_title: String(ep.title || '').slice(0, 100),
+      audio_id: String(ep.id || '').slice(0, 100),
+      entry_point: listening ? listening.entryPoint : 'player',
+      listened_seconds: Math.floor(listening ? listening.seconds : 0),
+    }, extra || {})); } catch (error) { return false; }
+    return true;
+  }
+
+  function coveredSeconds(ranges) {
+    var merged = [];
+    ranges.sort(function (a, b) { return a[0] - b[0]; }).forEach(function (range) {
+      var tail = merged[merged.length - 1];
+      if (tail && range[0] <= tail[1] + 0.05) tail[1] = Math.max(tail[1], range[1]);
+      else merged.push(range.slice());
+    });
+    ranges.splice.apply(ranges, [0, ranges.length].concat(merged));
+    return merged.reduce(function (total, range) { return total + range[1] - range[0]; }, 0);
+  }
+
+  function sampleListening() {
+    if (!analyticsConfig.consent || !listening || !state.audio) return;
+    var a = state.audio;
+    var now = performance.now();
+    var previous = listening.sample;
+    var current = { at: now, time: a.currentTime, rate: a.playbackRate,
+      audible: !a.paused && !a.ended && !a.seeking && !a.muted && a.volume > 0 };
+    listening.sample = current;
+    if (!previous || !previous.audible || a.seeking) return;
+    var elapsed = (now - previous.at) / 1000;
+    var advance = a.currentTime - previous.time;
+    // Seeking is not listening. Duplicate timeupdates and buffered/stalled time
+    // do not count either. Rate changes establish a new sample below.
+    if (elapsed <= 0 || advance <= 0 || advance > elapsed * previous.rate + 0.75) return;
+    if (!listening.started) listening.started = sendAudioEvent('audio_start');
+    listening.seconds += Math.min(elapsed, advance / previous.rate);
+    listening.ranges.push([previous.time, a.currentTime]);
+    var covered = coveredSeconds(listening.ranges);
+    var duration = a.duration;
+    if (!listening.qualified && listening.seconds >= 30) {
+      listening.qualified = sendAudioEvent('audio_listen');
+    }
+    if (!isFinite(duration) || duration <= 0) return;
+    [25, 50, 75, 90].forEach(function (percent) {
+      if (covered / duration * 100 >= percent && listening.milestones.indexOf(percent) === -1 &&
+        sendAudioEvent('audio_progress', { percent: percent })) listening.milestones.push(percent);
+    });
+  }
+
+  window.AproposPodcast = {
+    version: VERSION,
+    configureAnalytics: function (config) {
+      config = config || {};
+      var wasConsented = analyticsConfig.consent;
+      analyticsConfig.measurementId = /^G-[A-Z0-9]+$/.test(config.measurementId || '') ? config.measurementId : '';
+      analyticsConfig.consent = config.consent === true && !!analyticsConfig.measurementId;
+      if (!analyticsConfig.consent || !wasConsented) resetListening('player');
+      // Never backfill listening that happened before permission was granted.
+      if (analyticsConfig.consent && state.audio && !state.audio.paused) sampleListening();
+    },
+  };
 
   /**
    * Fallback shell when the Webflow component is missing (Home, topics, …).
@@ -107,19 +190,22 @@
     return document.currentScript || qs('script[data-api-base][src*="podcast-player"]') || qs('script[src*="podcast-player"]');
   }
 
+  var resolvedApiBase = '';
   function apiBase() {
+    // Soft navigation deliberately does not replay embeds; retain their config.
+    if (resolvedApiBase) return resolvedApiBase;
     var el = scriptEl();
     var fromAttr = el && el.getAttribute('data-api-base');
-    if (fromAttr) return fromAttr.replace(/\/$/, '');
+    if (fromAttr) return (resolvedApiBase = fromAttr.replace(/\/$/, ''));
     try {
       if (el && el.src) {
         var u = new URL(el.src);
-        return u.origin;
+        return (resolvedApiBase = u.origin);
       }
     } catch (e) {
       /* ignore */
     }
-    return 'https://ai.aproposmagazine.com';
+    return (resolvedApiBase = 'https://ai.aproposmagazine.com');
   }
 
   function slugFromPath() {
@@ -346,6 +432,7 @@
     state.audio = a;
 
     a.addEventListener('timeupdate', function () {
+      sampleListening();
       onTimeUpdate();
       // Throttle session writes while playing across navigations.
       if (Date.now() - state.lastSessionWrite > 2000) {
@@ -360,12 +447,36 @@
       syncPlayUi();
       saveSession();
     });
+    a.addEventListener('playing', function () {
+      setPlaybackStatus('');
+      if (analyticsConfig.consent && listening && !listening.started) {
+        listening.started = sendAudioEvent('audio_start');
+      }
+      sampleListening();
+    });
+    a.addEventListener('seeking', function () { if (listening) listening.sample = null; });
+    a.addEventListener('seeked', sampleListening);
+    a.addEventListener('ratechange', function () { if (listening) listening.sample = null; });
+    a.addEventListener('volumechange', function () { if (listening) listening.sample = null; });
+    a.addEventListener('waiting', function () { setPlaybackStatus('Henter lyd…'); });
+    a.addEventListener('error', function () {
+      state.wantPlay = false;
+      setPlaybackStatus('Lyden kunne ikke hentes. Tryk afspil for at prøve igen.');
+      sendAudioEvent('audio_error', { error_code: a.error ? a.error.code : 0 });
+      syncPlayUi();
+    });
     a.addEventListener('pause', function () {
+      sampleListening();
       savePosition();
       syncPlayUi();
       saveSession();
     });
     a.addEventListener('ended', function () {
+      sampleListening();
+      if (listening && !listening.completed && a.duration > 0 &&
+        coveredSeconds(listening.ranges) / a.duration >= 0.9) {
+        listening.completed = sendAudioEvent('audio_complete');
+      }
       state.wantPlay = false;
       savePosition();
       syncPlayUi();
@@ -453,6 +564,9 @@
   }
 
   function pageArtwork() {
+    // Read the actual article hero, not a related card or stale head metadata.
+    var hero = qs('.paralax-image-mobile') || qs('.paralax-image-2');
+    if (hero && hero.getAttribute('src')) return hero.getAttribute('src');
     var meta = qs('meta[property="og:image"]') || qs('meta[name="twitter:image"]');
     return (meta && meta.getAttribute('content')) || '';
   }
@@ -462,22 +576,72 @@
    * episode's article — never borrow the next article's hero on navigation.
    */
   function resolveArtwork(episode) {
-    if (episode && episode.artworkURL) return episode.artworkURL;
     var slug = episode && episode.articleSlug;
     if (slug && slugFromPath() === slug) {
       var fromPage = pageArtwork();
       if (fromPage) return fromPage;
     }
-    return SHOW_COVER_FALLBACK;
+    return (episode && (episode.articleArtworkURL || episode.artworkURL)) || SHOW_COVER_FALLBACK;
   }
 
   function attachArtwork(episode) {
     if (!episode) return episode;
-    if (!episode.artworkURL) {
-      var resolved = resolveArtwork(episode);
-      if (resolved) episode.artworkURL = resolved;
-    }
+    var resolved = resolveArtwork(episode);
+    if (resolved) episode.articleArtworkURL = resolved;
     return episode;
+  }
+
+  var artworkCache = {};
+  function brandedArtwork(src) {
+    if (artworkCache[src]) return artworkCache[src];
+    // Bound memory during long sessions; this cache never stores article originals.
+    if (Object.keys(artworkCache).length >= 12) delete artworkCache[Object.keys(artworkCache)[0]];
+    function loadImage(url) {
+      return new Promise(function (resolve, reject) {
+        var img = new Image();
+        img.crossOrigin = 'anonymous';
+        img.onload = function () { resolve(img); };
+        img.onerror = reject;
+        img.src = url;
+      });
+    }
+    artworkCache[src] = Promise.all([loadImage(src), loadImage(apiBase() + '/images/AproposMagazineLogoInstagram.svg')])
+      .then(function (images) {
+        var canvas = document.createElement('canvas');
+        canvas.width = canvas.height = 600;
+        var ctx = canvas.getContext('2d');
+        var photo = images[0], logo = images[1];
+        var scale = Math.max(600 / photo.naturalWidth, 600 / photo.naturalHeight);
+        var width = photo.naturalWidth * scale, height = photo.naturalHeight * scale;
+        ctx.drawImage(photo, (600 - width) / 2, (600 - height) / 2, width, height);
+        // Same proportions as the iOS now-playing artwork. The source is unchanged.
+        ctx.fillStyle = '#fff';
+        ctx.fillRect(0, 486, 600, 114);
+        var logoHeight = 57, logoWidth = logoHeight * logo.naturalWidth / logo.naturalHeight;
+        ctx.drawImage(logo, (600 - logoWidth) / 2, 486 + (114 - logoHeight) / 2, logoWidth, logoHeight);
+        return canvas.toDataURL('image/jpeg', 0.88);
+      }).catch(function () {
+        // CORS/image failure must never prevent playback or borrow another cover.
+        delete artworkCache[src];
+        return src;
+      });
+    return artworkCache[src];
+  }
+
+  function setPlaybackStatus(message) {
+    var root = playerRoot();
+    if (!root) return;
+    var status = qs('[data-apropos-podcast-status]', root);
+    if (!status) {
+      status = document.createElement('p');
+      status.setAttribute('data-apropos-podcast-status', '');
+      status.setAttribute('role', 'status');
+      status.setAttribute('aria-live', 'polite');
+      status.style.cssText = 'font-size:12px;margin:0;white-space:normal;';
+      (qs('.audio-player__meta-text', root) || root).appendChild(status);
+    }
+    status.textContent = message;
+    status.hidden = !message;
   }
 
   function syncTitleMarquee(root) {
@@ -543,6 +707,12 @@
         art.setAttribute('src', src);
         art.setAttribute('alt', episode.title ? 'Cover for ' + episode.title : '');
         art.style.display = '';
+        // Ignore late image loads after switching episodes.
+        brandedArtwork(src).then(function (branded) {
+          if (!state.episode || state.episode.id !== episode.id || resolveArtwork(state.episode) !== src) return;
+          art.setAttribute('src', branded);
+          updateMediaSession(episode, branded);
+        });
       } else {
         art.removeAttribute('src');
         art.style.display = 'none';
@@ -550,9 +720,9 @@
     }
   }
 
-  function updateMediaSession(episode) {
+  function updateMediaSession(episode, branded) {
     if (!('mediaSession' in navigator) || typeof window.MediaMetadata !== 'function') return;
-    var artwork = resolveArtwork(episode);
+    var artwork = branded || resolveArtwork(episode);
     try {
       navigator.mediaSession.metadata = new window.MediaMetadata({
         title: episode.title || 'Apropos Magazine',
@@ -587,9 +757,15 @@
     state.sessionClosed = false;
     attachArtwork(episode);
     var isNewEpisode = !state.episode || state.episode.id !== episode.id;
+    if (isNewEpisode) {
+      sampleListening();
+      if (state.audio) state.audio.pause();
+      resetListening(opts.entryPoint);
+    } else if (!listening) resetListening(opts.entryPoint);
     state.episode = episode;
     fillPlayer(episode);
     var a = ensureAudio();
+    setPlaybackStatus(autoplay !== false && (isNewEpisode || a.paused) ? 'Henter lyd…' : '');
     if (opts.volume != null && isFinite(opts.volume)) a.volume = Math.min(1, Math.max(0, opts.volume));
     if (opts.muted != null) a.muted = !!opts.muted;
     if (isNewEpisode || !a.src || a.src.indexOf(episode.audioURL.split('?')[0]) === -1) {
@@ -625,6 +801,7 @@
         p.catch(function () {
           // Browser autoplay policy after MPA navigation — keep wantPlay so next hop retries.
           syncPlayUi();
+          setPlaybackStatus('Tryk afspil for at starte lyden.');
           saveSession();
         });
       }
@@ -641,6 +818,7 @@
       state.audio.pause();
     }
     state.sessionClosed = true;
+    resetListening('player');
     clearSession();
     show(playerRoot(), false);
     syncPlayUi();
@@ -828,7 +1006,12 @@
         if (savedPosition(ep) > 0) setControlLabel(btn, 'Forts\u00e6t lytning');
         btn.addEventListener('click', function (e) {
           e.preventDefault();
-          openEpisode(ep, true);
+          var entryPoint = pendingEntryPoint || 'byline';
+          pendingEntryPoint = null;
+          if (!listening || !state.episode || state.episode.id !== ep.id) resetListening(entryPoint);
+          // Attribute the one real click: the floating CTA forwards to this button.
+          sendAudioEvent('audio_click', { entry_point: entryPoint }, ep);
+          openEpisode(ep, true, { entryPoint: entryPoint });
         });
       })
       .catch(function () {
@@ -956,6 +1139,10 @@
     scheduleTitleMarquee(playerRoot());
     return Promise.all([hydrateListen(), hydrateList()]).then(function () {
       reinitWebflow();
+      // Notify dependent controls only after the new article's audio lookup is ready.
+      try {
+        document.dispatchEvent(new CustomEvent('apropos:softnav', { detail: { url: location.href }, bubbles: true }));
+      } catch (e) {}
       // If something paused during swap, resume.
       if (state.wantPlay && state.audio && state.audio.paused) {
         var p = state.audio.play();
@@ -988,8 +1175,19 @@
           player.setAttribute('data-apropos-persist', '1');
           persist.push(player);
         }
+        // Its existing handler resolves the current byline button dynamically.
+        var floatingListen = qs('#apropos-listen-fab');
+        if (floatingListen) persist.push(floatingListen);
 
         document.title = doc.title || document.title;
+        // Keep page identity current without copying executable scripts/styles.
+        ['meta[property="og:image"]', 'meta[name="twitter:image"]', 'link[rel="canonical"]'].forEach(function (selector) {
+          var next = doc.querySelector(selector), old = qs(selector);
+          if (next && old) old.parentNode.replaceChild(document.importNode(next, true), old);
+          else if (next) document.head.appendChild(document.importNode(next, true));
+          else if (old) old.remove();
+        });
+        document.documentElement.lang = doc.documentElement.lang || document.documentElement.lang;
 
         // Drop old body nodes except the live audio + player.
         Array.prototype.slice.call(document.body.childNodes).forEach(function (node) {
@@ -1017,9 +1215,6 @@
         } else {
           history.replaceState({ aproposPodcastSoft: 1 }, '', url);
         }
-        try {
-          document.dispatchEvent(new CustomEvent('apropos:softnav', { detail: { url: url } }));
-        } catch (e) {}
         if (window.AproposTheme && typeof window.AproposTheme.apply === 'function') {
           window.AproposTheme.apply();
         }
@@ -1099,6 +1294,14 @@
     });
     return Promise.all([hydrateListen(), hydrateList()]);
   }
+
+  var pendingEntryPoint = null;
+  document.addEventListener('click', function (event) {
+    if (event.target && event.target.closest && event.target.closest('#apropos-listen-fab')) {
+      pendingEntryPoint = 'floating';
+      window.setTimeout(function () { pendingEntryPoint = null; }, 0);
+    }
+  }, true);
 
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', boot);
