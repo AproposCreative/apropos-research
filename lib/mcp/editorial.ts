@@ -15,6 +15,7 @@ import { readWritingBrief } from '@/lib/liv/source-archive';
 import { savedFactualChecks } from '@/lib/editorial/saved-checks';
 import { draftDiagnostics } from '@/lib/editorial/draft-diagnostics';
 import { savedWritingSummary, SAVED_WRITING_NOTE } from '@/lib/editorial/saved-writing-status';
+import { coverSelectionPolicy } from '@/lib/editorial/cover-selection-policy';
 const objectId = z.string().regex(/^[a-f0-9]{24}$/);
 export const runIdSchema = z.string().regex(/^(?:prepare|prepare-alternative|reserve|reserve-editorial)-20\d{2}-\d{2}-\d{2}$/);
 
@@ -50,13 +51,14 @@ export async function openCmsArticle(uid: string, itemId: string, expectedRevisi
 export async function editorialContext(authorId?: string, section: 'structure' | 'voice' | 'all' = 'all') {
   const rules = loadAproposArticleStructure();
   if (section === 'structure') return { rules, rulesHash: cmsFieldHash({ rules }), section,
+    coverSelectionPolicy: coverSelectionPolicy(),
     note: 'Artikelstruktur, ikke forfatterstemme. Én konkret rettelse ændrer ikke de generelle regler.' };
   const authors = await getWebflowAuthors();
   const author = authorId ? authors.find(a => a.id === authorId) : undefined;
   if (authorId && !author) throw Error('mcp_author_not_found');
   const voice = !author || /liv brandt/i.test(author.name) ? loadLivVoice() :
     { text: author.tov || '', version: 'webflow-current', hash: cmsFieldHash({ tov: author.tov || '' }) };
-  return { ...(section === 'all' ? { rules } : {}), rulesHash: cmsFieldHash({ rules }), section, author: author?.name || 'Liv Brandt', voice,
+  return { ...(section === 'all' ? { rules, coverSelectionPolicy: coverSelectionPolicy() } : {}), rulesHash: cmsFieldHash({ rules }), section, author: author?.name || 'Liv Brandt', voice,
     authors: authors.map(a => ({ id: a.id, name: a.name })),
     evidencePolicy: 'Research og tekster er råmateriale. Opfind ikke kilder, citater, menneskescores eller egne oplevelser. Ingen MCP-gemning er kvalitetsgodkendelse.' };
 }
