@@ -1,5 +1,11 @@
 # Wolverine: text-free cover selection
 
+Latest continuation: the owner subsequently authorized full-site publication.
+The shown text-free candidate is now live in both locales, verified 9 October
+at 11:13 Copenhagen. See `SITE-PUBLICATION-2026-10-09.md` for exact publication,
+byte identity and preservation evidence. The selection-only checkpoints below
+retain the earlier scope and state; they are not the current publication status.
+
 ## Scope
 
 Frederik requested a better text-free Wolverine cover and a permanent cover

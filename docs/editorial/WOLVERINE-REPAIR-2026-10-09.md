@@ -1,5 +1,12 @@
 # Wolverine: article repair live, shared template pending
 
+**Later update, 9 October 11:13 Copenhagen:** the owner expressly authorized
+the full-site release. The shared Review footer is now installed and live;
+both Wolverine URLs are verified in the refreshed sitemap. A new text-free
+cover is also live in both locales. Raw `og:type=website` remains unresolved.
+See `SITE-PUBLICATION-2026-10-09.md`. The earlier checklist/hold below is a
+historical checkpoint, not a current prohibition or current template status.
+
 Verified 9 October 2026, 10:19–10:21 Europe/Copenhagen.
 
 ## Scope and acceptance
