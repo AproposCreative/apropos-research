@@ -47,3 +47,36 @@ it('keeps a separate durable reserve, off-days and month/DST cadence', async () 
   expect(future.automaticDelivery.overdue).toBe(false);
   await expect(getLivProductionContext('owner', { day: '2026-10-11' })).rejects.toThrow('off_day');
 });
+it('prepares the next publication on an off day, using Danish calendar dates over month and DST boundaries', async () => {
+  for (const [at, day, scheduledFor] of [
+    ['2026-10-11T06:00:00Z', '2026-10-12', '2026-10-12T08:00:00.000Z'],
+    ['2026-10-25T07:00:00Z', '2026-10-26', '2026-10-26T09:00:00.000Z'],
+    ['2026-10-31T07:00:00Z', '2026-11-01', '2026-11-01T09:00:00.000Z'],
+  ]) {
+    const result = await getLivProductionContext('owner', {}, new Date(at));
+    expect(result).toMatchObject({ phase: 'preparation_day', targetDate: day, scheduledFor,
+      schedulePolicy: { prepareAtLocal: '08:00', publishAtLocal: '10:00', personalApprovalRequired: true } });
+    expect(result.automaticDelivery).toMatchObject({ publicationDay: false, overdue: false });
+    expect(result.nextActions).toContain('research_in_chat');
+  }
+  expect(memory.rows.size).toBe(0);
+});
+it('resumes today and never directs silent rewrites of a scheduled or published version', async () => {
+  const id = livProductionSubmissionId('owner', { day: '2026-10-10', kind: 'scheduled' });
+  memory.rows.set(`editorialSubmissions/${id}`, { uid: 'owner' });
+  state.status.mockResolvedValue({ status: 'scheduled', revision: 5 });
+  const result = await getLivProductionContext('owner', {}, new Date('2026-10-10T06:00:00Z'));
+  expect(result.phase).toBe('publication_day');
+  expect(result.nextActions).toEqual(['verify_sources_without_rewriting_approved_version', 'await_server_publication']);
+  state.status.mockResolvedValue({ status: 'published', revision: 5 });
+  expect((await getLivProductionContext('owner', {}, new Date('2026-10-10T09:00:00Z'))).nextActions).toEqual(['verify_public_readback']);
+});
+it('does not buy speculative inventory for a future date or relabel a historical recovery as on-time publication', async () => {
+  const now = new Date('2026-10-10T06:00:00Z');
+  const future = await getLivProductionContext('owner', { day: '2026-10-14' }, now);
+  expect(future.phase).toBe('future_day'); expect(future.nextActions).toEqual(['wait_until_preparation_day']);
+  const past = await getLivProductionContext('owner', { day: '2026-10-08' }, now);
+  expect(past).toMatchObject({ phase: 'recovery', targetDate: '2026-10-08', countsAsUnattendedLiv: false });
+  state.work.mockResolvedValue({ found: true, webflowItemId: 'existing' });
+  expect((await getLivProductionContext('owner', {}, now)).nextActions).toEqual(['inspect_existing_cms_article_before_any_create']);
+});

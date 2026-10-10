@@ -32,11 +32,27 @@ export async function getLivProductionContext(uid: string, raw: unknown, now = n
       Promise.all(Array.from({ length: 7 }, (_, i) => getLivDailyPlan(addDays(today, i)))),
     ]);
     const prior = retained as typeof retained & { title?: string; topic?: unknown; status?: string; checkpointHash?: string; webflowItemId?: string; reason?: string };
+    const existingSubmission = saved.exists ? await getSubmissionStatus(uid, submissionId) : null;
+    const phase = input.kind === 'reserve' ? 'reserve' : day < today ? 'recovery' : day === today ? 'publication_day' :
+      day === addDays(today, 1) ? 'preparation_day' : 'future_day';
+    const nextActions = existingSubmission?.status === 'published' ? ['verify_public_readback'] :
+      existingSubmission?.status === 'scheduled' ? ['verify_sources_without_rewriting_approved_version', 'await_server_publication'] :
+      existingSubmission?.status === 'prepared' ? ['verify_sources', 'show_version_bound_publication_preview'] :
+      existingSubmission?.status === 'processing' ? ['read_status_before_retry'] :
+      existingSubmission ? ['resume_saved_article_and_sources', 'complete_missing_media', 'show_personal_preparation_preview'] :
+      prior.webflowItemId ? ['inspect_existing_cms_article_before_any_create'] :
+      phase === 'future_day' ? ['wait_until_preparation_day'] : ['research_in_chat', 'save_article_sources_and_media', 'show_personal_preparation_preview'];
     return {
       mode: 'chatgpt-first', checkedAt: now.toISOString(), production, submissionId,
+      phase, targetDate: day,
+      preparationDate: input.kind === 'scheduled' ? addDays(day, -1) : null,
+      nextActions,
+      schedulePolicy: { version: 'chatgpt-day-before-v1', timezone: 'Europe/Copenhagen',
+        prepareAtLocal: '08:00', publishAtLocal: '10:00', personalApprovalRequired: true,
+        instruction: 'Forbered på preparation_day, også selv om i dag er off day. På publication_day genbruges artiklen med frisk kildekontrol, ikke en ny fuld produktion. Godkendte versioner må ikke omskrives lydløst; materielle ændringer kræver nyt preview og personlig godkendelse. Historiske missede datoer bevares.' },
       requestId: `liv-${input.kind}-${day}`, scheduledFor: input.kind === 'scheduled' ? publicationTime(day) : null,
       workflow: editorialWorkflow({ workflow: 'liv' }), editorial, options,
-      existingSubmission: saved.exists ? await getSubmissionStatus(uid, submissionId) : null,
+      existingSubmission,
       plan, planIsResearchApproval: false,
       retainedWork: { runId, found: prior.found, title: prior.title ?? null, topic: prior.topic ?? null,
         status: prior.status ?? null, reason: prior.reason ?? null, checkpointHash: prior.checkpointHash ?? null,

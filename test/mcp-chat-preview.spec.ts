@@ -22,7 +22,10 @@ beforeEach(() => {
   state.accept.mockResolvedValue({ accepted: true }); state.approve.mockResolvedValue({ status: 'scheduled' });
 });
 it('returns full article, named CMS choices and a UI-only confirmation separate from model data', async () => {
+  const startedAt = Date.now();
   const preview = await chatSubmissionPreview(identity, id);
+  expect(Date.parse(preview.data.previewReadAt)).toBeGreaterThanOrEqual(startedAt);
+  expect(Date.parse(preview.data.previewReadAt)).toBeLessThanOrEqual(Date.now());
   expect(preview.data.article.author).toBe('Milo'); expect(preview.data.blocks[0].text).toBe('Vores egen tekst.');
   expect(preview.confirmation?.action).toBe('checks');
   expect(JSON.stringify(preview.data)).not.toContain(preview.confirmation!.token);

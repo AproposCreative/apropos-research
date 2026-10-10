@@ -34,6 +34,9 @@ export async function submissionCosts(uid: string, id: string) {
 }
 
 export async function chatSubmissionPreview(identity: McpIdentity, id: string) {
+  // Timestamp the read, not its completion: a slower old response must not
+  // overwrite a newer status for the same article revision in the host widget.
+  const previewReadAt = new Date().toISOString();
   const row = await getSubmissionStatus(identity.uid, id);
   let quote: Awaited<ReturnType<typeof quoteSubmission>> | null = null;
   let publication: Awaited<ReturnType<typeof submissionPublicationPreview>> | null = null;
@@ -59,7 +62,7 @@ export async function chatSubmissionPreview(identity: McpIdentity, id: string) {
       imagePreviews[url] = 'data:image/webp;base64,' + thumbnail.toString('base64');
     } catch { previewProblems.push('Et billede kunne ikke hentes til preview. Genbrug eller importér billedfilen før godkendelse.'); }
   }));
-  const data = { submissionId: id, revision: row.revision, contentHash: row.contentHash, title: article.title,
+  const data = { submissionId: id, revision: row.revision, contentHash: row.contentHash, title: article.title, previewReadAt,
     article: { ...article, author: row.displayNames.author, category: row.displayNames.category },
     blocks, previewProblems, status: row.status, mediaIdentity: row.mediaIdentity, imageSelection: row.imageSelection,
     questions: row.questions, remainingQuestionCount: row.remainingQuestionCount,
