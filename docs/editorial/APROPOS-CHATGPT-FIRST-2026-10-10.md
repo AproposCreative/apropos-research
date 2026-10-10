@@ -191,4 +191,49 @@ show exact preview and await personal media/publication choices; verify public
 bytes/fields. Only then review unused paid endpoints/cron dependencies for retirement.
 Never delete old code/data/holds simply because the new code has deployed.
 
-Release verification is recorded below when completed.
+## Release and production verification
+
+Code commit `f13168842c9394e8d99a9a8f622a9deee946209e` is pushed to
+`codex/liv-daily-recovery`. Exact-Git production deployment
+`dpl_6c38ATotZZhKEk2C9CT8zCuAWvWW` is **READY**, with actual aliases including
+`ai.aproposmagazine.com`. This was built remotely from that commit, not the dirty
+local checkout; unrelated files/journals were not staged. No cron/env/hold changes.
+
+Verification performed for this release:
+
+- Full isolated suite: **364 files / 5066 tests passed**, 10 October 11:34 Copenhagen,
+  with `RAGE_STORAGE_DIR=./tmp/vitest-rage`; tracked research datasets untouched.
+- Type checking, focused ESLint, `security:config`, diff whitespace checks passed.
+- Mobile 390px / desktop 1200px image-handoff widget verification passed in an
+  **isolated simulated host**. This does not represent a real person's approval.
+- Authenticated production OAuth/MCP check **09:40:19.103–09:40:40.573Z** confirmed
+  server `2026-10-10-v17`, 49 tools, read-only scoped production-context discovery,
+  `get_workflow(liv)`, current CMS options (8 authors/3 categories), native file
+  schema and rejection of model-supplied `uid`. Test-only read grant was revoked;
+  subsequent MCP access returned HTTP 401. No editorial approval was minted.
+- The new scheduled context call took **1571 ms** (one measurement, not a latency
+  guarantee). Canonical voice hash matched the repository:
+  `1dec5b80d3b4b17b46dd5ad2adc68d40144746db0f3bde4c29a016495000183b`.
+  Liv workflow hash:
+  `a7991a1f197ec243ea33a1a82190b95afa4627604c50f4d1391caa1b64fbbdf2`.
+- Connected Apropos MCP in this conversation independently returned the new
+  `get_workflow(submit)` instructions; hash
+  `6e00c2a7b55d5eadc1947beee01a20b14ba6452933f44f0accb45ed75626b6b1`.
+  A client with cached tool schemas may need its connection/tool list refreshed
+  before it exposes the newly added `liv` workflow/context tool.
+- Before/after hashes of provider state, delivery entries/slots, October shared
+  and image ledgers, the existing book submission and Writer were identical.
+  No article/CMS writes, new asset allocation, image generation or paid AI call.
+
+At this check, **10 October remains delayed**, not a final missed day before 20:00
+Copenhagen. There is no automatic delivery slot or ready reserve. The retained
+`prepare-2026-10-10` provider failure is shown honestly as failed, not ready work.
+Week: 10 blocked; 11/13/15 off; 12 planned; 14/16 unplanned. The context gives the
+durable reserve its separate identity for 28 September and preserves its saved
+failure. A new private scheduled submission has not been created by this check.
+
+The complete migration is still **not accepted end-to-end**: backend Webflow asset
+scopes, real new-file import/publication and account-specific cloud schedule remain
+unverified/blocked as described above. No ordinary ChatGPT session is controlled
+through browser replay, no personal subscription token is installed on Vercel,
+and no replacement cloud schedule or unattended delivery is falsely claimed.
