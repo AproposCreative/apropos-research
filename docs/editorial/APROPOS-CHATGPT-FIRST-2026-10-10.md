@@ -95,13 +95,14 @@ Phase 5 retirement is deliberately deferred until the replacement works in produ
   [Official overview](https://developers.openai.com/siwc/token-sharing-open-source).
 
 Selected operational model: **C**, manual start with continuous saved workflow and
-personal approvals. **B** has a cloud-ready prompt below but is not activated or
-verified on this account. **A**, unattended end-to-end production/publication, is
+personal approvals. **B** was initially a handoff; the account-specific cloud setup
+and connection tests are now recorded below. They do not establish complete
+automated article production. **A**, unattended end-to-end production/publication, is
 not claimed: current publication policy still requires a real version-bound click.
 Server-side publication of an already personally approved scheduled version remains
 supported and independent of the Mac. No undocumented endpoints or browser replay.
 
-### Cloud schedule handoff (not an activated schedule)
+### Initial cloud schedule handoff (superseded by account verification below)
 
 Use an official web scheduled task with Apropos connected. Run a daily check at
 08:00 Europe/Copenhagen; let the existing anchored calendar policy decide the
@@ -232,8 +233,141 @@ Week: 10 blocked; 11/13/15 off; 12 planned; 14/16 unplanned. The context gives t
 durable reserve its separate identity for 28 September and preserves its saved
 failure. A new private scheduled submission has not been created by this check.
 
-The complete migration is still **not accepted end-to-end**: backend Webflow asset
-scopes, real new-file import/publication and account-specific cloud schedule remain
-unverified/blocked as described above. No ordinary ChatGPT session is controlled
-through browser replay, no personal subscription token is installed on Vercel,
-and no replacement cloud schedule or unattended delivery is falsely claimed.
+The complete migration was still **not accepted end-to-end** at the release check:
+backend Webflow asset scopes, real new-file import/publication and account-specific
+cloud scheduling were unverified/blocked. See the subsequent account verification
+below; it does not establish unattended delivery.
+
+## Account verification and cloud setup, 10 October 13:14–13:34 Copenhagen
+
+Read-only production token introspection at **11:14:47.612Z** again returned HTTP
+200 and the correct Apropos site `67dbf17ba540975b5b21c180`, but no `assets:read`
+or `assets:write`. Webflow's actual site settings independently show the existing
+**AI Writer 5.0** token, created 7 April 2026, with CMS/sites/pages/forms/custom
+code/site-config read/write and site-activity read. No token or secret is recorded
+here. The replacement form is prepared with exactly those scopes plus Assets
+read/write. AI, user accounts, site access and workspace access remain off.
+Creation/installation is awaiting the action-time permission confirmation; the
+old token is not revoked and no environment credential has changed.
+
+The owner's actual ChatGPT web account exposes **Scheduled / Planlagt**. A search
+for Liv found no existing matching cloud task. The official task form created
+cloud automation `6aca1ef7152c8190a8e9f2ce3d0b2ff3`, subsequently named
+**Liv – ChatGPT-first forberedelse**. It is active at **08:00 Europe/Copenhagen**
+daily. The selected timezone's actual UI value is `Europe/Copenhagen`, not fixed
+CET; the confirmed next run was 11 October at 08:00 CEST. Daily invocation is only
+a calendar gate: the prompt explicitly reads `automaticDelivery.publicationDay`
+for *today*, skips production on off days, and preserves the every-other-calendar-
+day anchor. The context's default next publication date must not be mistaken for
+evidence that today is a publication day.
+
+This is a hosted ChatGPT task, not a local Codex heartbeat, external API key,
+browser-replayed chat backend or new Workspace Agent integration. Configuration
+and verification used the official Scheduled UI and its **Run now** action.
+The schedule existing does not prove that a timer-fired production run succeeded.
+
+### Actual connection regression and repair
+
+1. Initial read-only cloud-task test:
+   `https://chatgpt.com/c/6aca1f06-e798-83ed-a0e3-b80e0fc10244`.
+   ChatGPT could call `get_liv_status` but its cached schema did not expose
+   `get_liv_production_context` or accept `get_workflow(workflow=liv)`.
+   The backend audit confirms `get_liv_status` at **11:18:43.014Z**, v17,
+   status `ok`, `paidAiAllowed=false`. This was a client discovery problem,
+   not a provider-billing requirement for ChatGPT-first text.
+2. Used **Update tools / Opdater værktøjer** in the existing Apropos plugin's
+   official settings. No uninstall, new app, OAuth-scope expansion or permission-
+   mode change. Plugin: `plugin_asdk_app_6ac38ead40f881918d8a00144eb848bc`.
+3. Repeated only the same read-only test after that material change:
+   `https://chatgpt.com/c/6aca1fa1-d014-83ed-bd37-b0236b190ace`.
+   Both requested tools worked. Independent production `mcpAudit` entries confirm
+   `get_liv_production_context` at **11:21:16.113Z**, **11:21:23.002Z** and
+   **11:21:26.113Z** (517/346/332 ms), plus `get_workflow` at **11:21:16.860Z**;
+   all v17, `ok`, `paidAiAllowed=false`. These timings are individual samples.
+
+The task was then updated in place to use the existing Liv workflow for research,
+writing, metadata, existing media/native images where available, saving through
+MCP and exact preview. It may not synthesize personal approvals or publish. It
+must preserve durable identities, sources and assets and stop at an actual
+personal choice or documented capability/access blocker. Backend paid generation,
+provider retries, hold/budget changes and direct Webflow fallbacks are forbidden.
+
+First production-prompt test:
+`https://chatgpt.com/c/6aca2032-aad4-83eb-9fbc-0c7f85ea9aca`.
+The task fetched context, retained work, existing articles and workflow, then
+prematurely ended with a status and no specific research access blocker. It did
+**not** write or save an article. This is a failed completion test, not a ready
+article. The prompt was strengthened to require actual research and a saved
+private draft/preview, or an exact missing tool/access/source condition; a media
+blocker alone must not stop saving valid text/research/metadata. One further
+bounded test was started after this concrete prompt correction. Its result must
+be checked, not inferred from task activation.
+
+### Real ChatGPT writing and private MCP save
+
+The corrected run **did** write and save a private article:
+`https://chatgpt.com/c/6aca20be-5f88-83eb-84ff-c8ceb2141851`.
+Independent server audit records v17, status `ok`, `paidAiAllowed=false`:
+
+| UTC | Operation | Duration |
+| --- | --- | --- |
+| 11:25:58.913 | `get_liv_production_context` | 382 ms |
+| 11:26:02.620 | `get_liv_work` | 97 ms |
+| 11:26:10.840 | `get_submission_options` | 304 ms |
+| 11:26:11.210 | `list_articles` | 424 ms |
+| 11:26:29.508 | `prepare_submission` | 781 ms |
+| 11:26:32.799 | `preview_submission` | 864 ms |
+
+- Title: **Hvorfor er venskab blevet tv-seriernes store kærlighedshistorie?**
+- Submission: `9cb959c7798307f33d43f81ce05a55b1748fec8d3f44d9c811c00eee08a2d011`.
+- Request: `liv-scheduled-2026-10-10`; production identity:
+  `{kind: scheduled, day: 2026-10-10}`.
+- Liv Brandt / Kultur, commentary without a star rating; SEO title, description,
+  subtitle, introduction and body saved. Four source records from HBO/Prime
+  were saved by ChatGPT. This is not a separate independent fact-check receipt.
+- Initial revision 1 was `awaiting_preparation`, with `unknown_topic` because
+  ChatGPT supplied topic **names**, not IDs, despite fetching current options.
+  A precise revision-bound MCP update mapped only those two topics to the actual
+  `Kultur & Mening` and `TV-serier` IDs. No other article field changed in revision 2.
+- The initial preview displayed literal Markdown as one text block. A second
+  deterministic revision-bound MCP update converted the existing body to 12
+  escaped HTML paragraphs plus one heading and retained the existing emphasis.
+  Normalized rendered prose was compared before/after and was identical; no new
+  writing or AI request. The original submission text remains preserved.
+- Fresh MCP preview of **revision 3** returned 13 distinct text blocks,
+  `previewProblems=[]`, no `unknown_topic`, and hash
+  `4523291c19c073197d56c883aa81544bc861a8e7b0451f1869d14c91886b563d`.
+  `textPreserved=false` is the system's exact-content comparison after HTML
+  formatting, not evidence that the prose was regenerated. A historical tool
+  card in the original cloud chat still displayed revision-1 content after its
+  refresh action; do not use that cached card as a current-version receipt.
+- Still missing: **cover, body-1, body-2**. Quote is 0 DKK backend AI,
+  `canAccept=false`, `chat_images_required`, `publicationReady=false`,
+  `publicationVerified=false`. No personal approval, CMS item, media import,
+  publication or reserve was created. This is saved private text, **not a ready
+  article or unattended scheduled delivery**.
+
+The same cloud task was updated again at 13:32 Copenhagen to use exact CMS IDs,
+safe HTML rather than Markdown, and fix objective metadata blockers itself before
+handoff. It must reuse the saved submission, not regenerate the test article.
+The UI confirms it remains active, next invocation **11 October, 08:00 CEST**;
+that is an off day and must not produce another article. No further writing test
+was started. The first timer-fired production-date run remains unverified.
+
+The existing local delivery observer was updated in place with these receipts and
+the pending permission boundary. It is not the cloud producer. No duplicate
+monitor or article was created. The pending Webflow permission question was not
+repeated and its prepared token form remains unsubmitted.
+
+Ledger readback **11:23:13.843Z**: October shared 1 call, 0 DKK estimate,
+1.2144 DKK reserved and 1 unresolved; no October image ledger. No paid backend AI
+call was recorded by the connection tests. ChatGPT subscription usage and ordinary
+infrastructure charges are separate and are not measured by those ledgers.
+
+Post-writing/post-update ledger readback **11:32:24.088Z** is identical: 1 shared
+call, 0 DKK estimate, 1.2144 DKK reserved, 1 unresolved; no October image ledger.
+No code deployment or repeated full test suite was needed for account configuration
+and private MCP data operations. The earlier v17 release/test evidence remains
+historical. Overall migration acceptance, real new-asset upload and public
+end-to-end readback remain open; backend asset permission and actual personal
+approval are not simulated to close them.
