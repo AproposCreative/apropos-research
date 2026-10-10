@@ -91,4 +91,27 @@ Cost readback `2026-10-10T18:21:52.190Z`: shared October unchanged at one histor
 call, 0 DKK estimated usage, 1.2144 DKK reserved, one unknown. No new backend AI
 call. Subscription usage and infrastructure costs are not measured by this ledger.
 
-Deployment and saved cloud-schedule verification follow separately after release.
+## Deployment and cloud schedule verified
+
+Production commit `aab2332f54fa6f419e0fb67e2b4f0b5f3e234a92`, deployment
+`dpl_9xHY2oPx7tYdL95xxoTiYaiUxcpy`, READY with actual
+`ai.aproposmagazine.com` alias. The expired local CLI session was refreshed by
+normal project inspection; no credential or authorization rule changed.
+Connected MCP readback at `2026-10-10T18:24:49.626Z` returns the new phase/date/
+nextActions policy, the same revision 5, unchanged provider hold and no AI allowed.
+Preview at `18:24:52.079Z` returns the new `previewReadAt`, revision 5, zero paid
+calls and the honest missing cover/body-1/body-2. No personal action is enabled.
+Automatic daily health still says unpublished/overdue after the 20:00 deadline;
+today's old scheduled delivery is therefore missed, not rescued by a saved draft.
+
+Existing official cloud task `6aca1ef7152c8190a8e9f2ce3d0b2ff3`, **Liv –
+ChatGPT-first forberedelse**, was updated in place through its official schedule
+editor, preserving daily 08:00 Europe/Copenhagen and existing app access.
+Saved readback at 20:24 Copenhagen shows **11 October, 08:00 CEST** as next run.
+It now prepares 12 October on 11 October rather than skipping the off day.
+The prompt preserves personal approval, press/native media requirements,
+zero backend AI, retained work and exact revisions. It removes the old conflicting
+instruction to always strip the intro prefix and follows current canonical rules.
+Screenshot: `output/liv-2026-10-10-cloud-schedule.png`.
+No Run now was started here; future timer execution and publication are unverified.
+The separate local observer is not this cloud producer.

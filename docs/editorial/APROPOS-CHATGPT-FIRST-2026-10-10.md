@@ -1,5 +1,18 @@
 # Apropos 2.0: ChatGPT-first migration
 
+## Latest continuation: 10 October 20:25 Copenhagen
+
+See [article and v18 receipts](LIV-CHATGPT-ARTICLE-2026-10-10.md). Existing October
+10 submission is now revision 5 with a 608-word sourced commentary and updated
+metadata. Native cover bytes are preserved, but actual new Webflow asset allocation
+still fails for missing service-token Assets scopes; no approval or publication.
+V18 is live, adding day-before context and stale-preview replay protection.
+The existing cloud task now prepares on the preceding off day at 08:00; its next
+saved timer is 11 October 08:00 CEST for the 12 October article. This supersedes
+the old same-day/off-day-skip prompt below. No future timer success is claimed.
+365 files/5072 isolated tests, types/lint/build safety and production readback pass.
+Full migration acceptance remains unmet; no historic miss or paid ledger was reset.
+
 ## Outcome and boundaries
 
 This is an incremental migration of the existing MCP/submission services, not a
