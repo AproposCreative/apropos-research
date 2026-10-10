@@ -7,6 +7,9 @@ const options = { authors: [{ id: 'a'.repeat(24), name: 'Frederik Kragh' }], cat
   topics: [{ id: 'c'.repeat(24), name: 'Film' }], requiredFields: ['name'], checkedAt: '2026-10-05T00:00:00Z' };
 vi.mock('@/lib/editorial/submission-options', () => ({ getSubmissionOptions: async () => options }));
 import { prepareSubmission, updateSubmission, getSubmissionStatus } from '@/lib/editorial/submissions';
+import { submissionVersion } from '@/lib/editorial/submission-contract';
+import { cmsFieldHash } from '@/lib/liv/cms-field-hash';
+import { approvedSubmissionPolicy } from '@/lib/editorial/submission-policy';
 let memory: ReturnType<typeof memoryFirestore>;
 beforeEach(() => { memory = memoryFirestore(); state.db = memory.db; });
 const input = () => submissionInput.parse({ requestId: 'article-from-chat-0001', article: { title: 'En anmeldelse', content: '<p>Min egen tekst.</p>' } });
@@ -46,6 +49,35 @@ it('retains exact copy and returns same identity for a duplicate submission', as
   expect(second.id).toBe(first.id); expect(second.revision).toBe(1);
   expect(second.originalArticle).toEqual(input().article); expect(second.paidAiCalls).toBe(0);
   await expect(prepareSubmission('owner', { ...input(), article: { ...input().article, title: 'Changed' } })).rejects.toThrow('idempotency_conflict');
+});
+it('new submissions are zero-paid-AI but still need personal approval and body images by default', async () => {
+  const row = await prepareSubmission('owner', input());
+  expect(row.executionPolicy).toBe('chatgpt-first-v1'); expect(row.choices.aiFinalChecks).toBe('human');
+  expect(row.choices.bodyImages).toBeUndefined(); expect(row.missingMedia).toEqual(['cover', 'body-1', 'body-2']);
+  expect(() => approvedSubmissionPolicy({ ...row, status: 'draft' })).toThrow('editorial_decision_required');
+  await expect(updateSubmission('owner', { submissionId: row.id, expectedRevision: 1, requestId: 'attempt-paid-check-01', choices: { aiFinalChecks: 'required' } })).rejects.toThrow('paid_ai_disabled');
+  await expect(prepareSubmission('owner', { ...input(), requestId: 'another-paid-request', choices: { aiFinalChecks: 'required' } })).rejects.toThrow('paid_ai_disabled');
+});
+it('replays legacy requests without changing their policy, hash, choices or approval', async () => {
+  const value = input(), id = cmsFieldHash({ uid: 'owner', requestId: value.requestId }), hash = submissionVersion(value);
+  const old = { ...value, id, uid: 'owner', revision: 3, originalArticle: value.article, initialHash: hash, contentHash: hash,
+    executionPolicy: 'chat-final-checks-v1', status: 'draft', approval: { contentHash: hash } };
+  memory.rows.set(`editorialSubmissions/${id}`, old);
+  const result = await prepareSubmission('owner', value);
+  expect(result.executionPolicy).toBe('chat-final-checks-v1'); expect(result.choices.aiFinalChecks).toBeUndefined();
+  expect(memory.rows.get(`editorialSubmissions/${id}`)).toEqual(old);
+});
+it('one private Liv identity survives a new conversation and separates reserve from scheduled work', async () => {
+  const value = { ...input(), livProduction: { kind: 'scheduled', day: '2026-10-10' } };
+  const first = await prepareSubmission('owner', value);
+  expect((await prepareSubmission('owner', { ...value, requestId: 'new-conversation-01' })).id).toBe(first.id);
+  await expect(prepareSubmission('owner', { ...value, article: { ...value.article, title: 'Duplicate' } })).rejects.toThrow('production_exists');
+  expect((await prepareSubmission('owner', { ...value, livProduction: { kind: 'reserve', day: '2026-10-10' } })).id).not.toBe(first.id);
+  expect((await prepareSubmission('colleague', value)).id).not.toBe(first.id);
+  const next = await updateSubmission('owner', { submissionId: first.id, requestId: 'update-production-01', expectedRevision: 1, article: { subtitle: 'Gemte valg' } });
+  expect(next.livProduction).toEqual(value.livProduction);
+  await expect(prepareSubmission('owner', { ...value, livProduction: { kind: 'scheduled', day: '2026-10-11' } })).rejects.toThrow();
+  expect([...memory.rows.keys()].some(k => k.startsWith('livDelivery/'))).toBe(false);
 });
 it('isolates different owners and does not mutate Writer or Liv', async () => {
   const first = await prepareSubmission('owner', input());

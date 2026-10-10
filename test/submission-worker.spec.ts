@@ -22,6 +22,7 @@ import { runSubmissionStep } from '@/lib/editorial/submission-worker';
 import { stageSubmissionMedia } from '@/lib/editorial/submission-published-target';
 import { currentLivCostContext } from '@/lib/liv/cost-context';
 import { imageGenerationEvidence } from '@/lib/editorial/image-generation-evidence';
+import { assertPaidAiAllowed } from '@/lib/ai/no-paid-calls';
 const id = 'a'.repeat(64), hash = 'b'.repeat(64), path = `editorialSubmissions/${id}`;
 let memory: ReturnType<typeof memoryFirestore>;
 beforeEach(async () => {
@@ -59,6 +60,20 @@ it('stops on provider hold before any paid step or CMS write', async () => {
   state.hold = true;
   expect(await runSubmissionStep('owner', id)).toMatchObject({ status: 'blocked', blocker: 'mcp_submission_provider_blocked' });
   expect(state.visual).not.toHaveBeenCalled(); expect(state.save).not.toHaveBeenCalled();
+});
+it('ChatGPT-first queue resumes all deterministic stages under hold and forbids nested paid calls', async () => {
+  const row = memory.rows.get(path); row.executionPolicy = 'chatgpt-first-v1'; state.hold = true;
+  row.choices.aiFinalChecks = 'human'; row.approval.editorialDecision = { bodyImages: 'required', aiFinalChecks: 'human' };
+  state.save.mockImplementation(async (_db, uid, draftId, payload, options) => {
+    expect(() => assertPaidAiAllowed()).toThrow('mcp_paid_call_requires_separate_approval');
+    await options.beforeSave();
+    memory.rows.set(`writerWorkspaces/${uid}/cmsSaves/${draftId}`, { expected: payload, phase: 'saved' });
+    return { articleId: 'c'.repeat(24) };
+  });
+  for (let i = 0; i < 6; i++) await runSubmissionStep('owner', id);
+  expect(memory.rows.get(path).status).toBe('prepared');
+  expect(state.visual).not.toHaveBeenCalled(); expect(state.checks).not.toHaveBeenCalled(); expect(state.claim).not.toHaveBeenCalled();
+  expect(state.save).toHaveBeenCalledTimes(1); expect(() => assertPaidAiAllowed()).not.toThrow();
 });
 it('rechecks personal image choice before paid steps or CMS writes, including a delayed attachment receipt', async () => {
   memory.rows.set(`${path}/chatAssets/${'c'.repeat(64)}`, { uid: 'owner', assetId: 'c'.repeat(64), status: 'uploaded', url: 'https://images.test/0.webp', role: 'cover', originalHash: 'd'.repeat(64),

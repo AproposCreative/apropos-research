@@ -4,6 +4,7 @@ import { cmsFieldHash } from '@/lib/liv/cms-field-hash';
 import { createHash } from 'node:crypto';
 import { preservePublicationMetadata } from '@/lib/seo-engine/post-publish/editorial';
 import { imageGenerationEvidence } from '@/lib/editorial/image-generation-evidence';
+import { assertPaidAiAllowed } from '@/lib/ai/no-paid-calls';
 const cmsFields = { name: 'Min artikel', content: '<p>Uændret tekst</p>' };
 const state = vi.hoisted(() => ({ db: null as any, inspect: vi.fn(), publish: vi.fn(), verify: vi.fn(), enabled: vi.fn() }));
 vi.mock('@/lib/firebase-admin', () => ({ getAdminDb: () => state.db }));
@@ -54,6 +55,18 @@ it('publishes only the approved item once, outside the Liv delivery queue', asyn
   await publishSubmission('owner', id);
   expect(state.publish).toHaveBeenCalledTimes(1);
   expect([...memory.rows.keys()].every(k => k.startsWith('editorialSubmissions/'))).toBe(true);
+});
+it('re-establishes no-paid guard in cron publication and preserves reviewed metadata', async () => {
+  const row = memory.rows.get(path); row.executionPolicy = 'chatgpt-first-v1'; row.choices.aiFinalChecks = 'human';
+  row.approval = { uid: row.uid, contentHash: row.contentHash, acceptedAt: new Date().toISOString(), editorialDecision: { bodyImages: 'required', aiFinalChecks: 'human' } };
+  await approveSubmissionPublication('owner', id, hash, 'now');
+  state.publish.mockImplementation(async (input: any) => {
+    expect(() => assertPaidAiAllowed()).toThrow('mcp_paid_call_requires_separate_approval');
+    await input.beforePublish(cmsFieldHash(cmsFields)); return { publicationVerified: true };
+  });
+  expect(await publishSubmission('owner', id, new Date(Date.now() + 100))).toMatchObject({ status: 'published' });
+  expect([...memory.rows.keys()].some(key => key.startsWith('seoPostPublishArticles/'))).toBe(true);
+  expect(() => assertPaidAiAllowed()).not.toThrow();
 });
 it('after an ambiguous write reconciles read-only and never republishes', async () => {
   await approveSubmissionPublication('owner', id, hash, 'now');

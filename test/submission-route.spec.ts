@@ -5,7 +5,7 @@ vi.mock('@/lib/mcp/oauth', () => ({ mcpRequestAccess: async () => state.access }
 vi.mock('@/lib/editorial/submissions', () => ({ getSubmissionStatus: vi.fn() }));
 vi.mock('@/lib/editorial/submission-approval', () => ({ quoteSubmission: vi.fn(), acceptSubmissionQuote: (...args: unknown[]) => state.accept(...args) }));
 vi.mock('@/lib/editorial/submission-publication', () => ({ submissionPublicationPreview: vi.fn(), approveSubmissionPublication: (...args: unknown[]) => state.approve(...args), publishSubmission: vi.fn() }));
-vi.mock('@/lib/editorial/submission-worker', () => ({ runSubmissionStep: (...args: unknown[]) => state.worker(...args) }));
+vi.mock('@/lib/editorial/submission-continuation', () => ({ continueSubmissionPreparation: (...args: unknown[]) => state.worker(...args) }));
 import { POST } from '@/app/api/editorial/submissions/route';
 import { MCP_ORIGIN } from '@/lib/mcp/config';
 const body = { action: 'accept_quote', id: 'a'.repeat(64), revision: 1, quoteId: 'b'.repeat(64) };

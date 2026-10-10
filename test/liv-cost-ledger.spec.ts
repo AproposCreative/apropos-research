@@ -71,6 +71,14 @@ it('enforces final-check-only approval at the ledger, not merely in MCP descript
     ...call().context, submissionId: id, contentVersion: version, stage: 'factcheck' } });
   expect(memory.rows.get('livCostLedger/month-2026-09').calls).toBe(1);
 });
+it('denies ChatGPT-first even if a queue lost ALS and a stored ceiling would otherwise allow spending', async () => {
+  const id = 'c'.repeat(64), version = 'd'.repeat(64);
+  memory.rows.set(`editorialSubmissions/${id}`, { uid: 'team', status: 'processing', contentHash: version,
+    executionPolicy: 'chatgpt-first-v1', approval: { uid: 'team', contentHash: version, ceilingDkkMicros: 10_000_000 }, packageReservedDkkMicros: 0 });
+  await expect(createLivCostLedger(() => now).reserve({ ...call(), context: {
+    ...call().context, submissionId: id, contentVersion: version, stage: 'factcheck' } })).rejects.toThrow('liv_cost_submission_paid_ai_disabled');
+  expect(memory.rows.has('livCostLedger/month-2026-09')).toBe(false);
+});
 it('stops all buckets before reservation after provider credit exhaustion without deleting holds',async()=>{
  const ledger=createLivCostLedger(()=>now),first=await ledger.reserve(call());
  await ledger.complete(first,{...outcome,status:'ambiguous',usage:null,httpStatus:429,providerFailure:'quota_exhausted'});

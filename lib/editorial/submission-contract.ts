@@ -4,6 +4,7 @@ import { editableArticle, researchSchema } from '@/lib/mcp/workspace';
 import { assertArticleMarkupSafe, articleImages } from '@/lib/mcp/markup';
 import { cmsFieldHash } from '@/lib/liv/cms-field-hash';
 import type { PublishedTarget } from './submission-published-target';
+import { livProductionIdentity } from './liv-production-identity';
 
 export const submissionId = z.string().regex(/^[a-f0-9]{64}$/);
 export const submissionChoices = z.object({
@@ -14,6 +15,7 @@ export const submissionChoices = z.object({
   aiFinalChecks: z.enum(['required', 'human']).optional().describe('human requests explicit personal confirmation to prepare without paid AI checks; it is not approval by itself.'),
 }).strict();
 export const submissionInput = z.object({
+  livProduction: livProductionIdentity.optional().describe('Use the identity returned by get_liv_production_context. Resumes the same private submission, never marks automatic delivery.'),
   readerSourceId: submissionId.optional().describe('Existing private reader source: reuses book metadata and coverage, never copies the book text.'),
   requestId: z.string().regex(/^[a-zA-Z0-9_-]{16,100}$/),
   article: editableArticle,
@@ -40,7 +42,7 @@ export type SubmissionQuestion = { field: string; question: string; options?: Ar
 export type SubmissionRecord = SubmissionInput & {
   mediaSelection?: { uid: string; revision: number; contentHash: string; selectionHash: string; acceptedAt: string };
   publishedTarget?: PublishedTarget;
-  executionPolicy?: 'chat-final-checks-v1';
+  executionPolicy?: 'chat-final-checks-v1' | 'chatgpt-first-v1';
   approval?: { uid?: string; contentHash: string; acceptedAt?: string; editorialDecision?: { bodyImages: 'required' | 'deferred'; aiFinalChecks: 'required' | 'human' } };
   id: string; uid: string; revision: number; originalArticle: SubmissionArticle;
   contentHash: string; createdAt: string; updatedAt: string;

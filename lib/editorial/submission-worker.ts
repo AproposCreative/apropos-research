@@ -26,7 +26,7 @@ import { getImageGenOpenAIClient } from '@/lib/openai';
 import { readProviderHold } from '@/lib/ai/provider-hold';
 import { MCP_ORIGIN } from '@/lib/mcp/config';
 import { activeMember } from '@/lib/mcp/oauth';
-import { approvedSubmissionPolicy } from './submission-policy';
+import { approvedSubmissionPolicy, isChatSubmission } from './submission-policy';
 import { stageSubmissionMedia, assertSubmissionNotAlreadySaved } from './submission-published-target';
 import { lockProvidedAsset } from './provided-assets';
 import { withoutPaidAi } from '@/lib/ai/no-paid-calls';
@@ -48,7 +48,7 @@ export async function runSubmissionStep(uid: string, id: string) {
     tx.update(ref, { workerToken: token, workerUntil: Date.now() + 330_000 }); return row;
   });
   if (!row) return { status: 'not_dispatched' };
-  const finalOnly = row.executionPolicy === 'chat-final-checks-v1';
+  const finalOnly = isChatSubmission(row);
   const stages = ref.collection('stages');
   let activeStep = 'inputs';
   const current = async () => {

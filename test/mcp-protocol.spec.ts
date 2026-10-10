@@ -51,7 +51,8 @@ it('negotiates the real SDK protocol and lists strict schemas on independent sta
     icons: [{ src: MCP_ICON, mimeType: 'image/png', sizes: ['256x256'] }],
   });
   const response = await POST(message('tools/list')); const tools = (await response.json()).result.tools;
-  expect(tools.length).toBe(48); expect(tools.find((t: any) => t.name === 'publish_article').annotations.destructiveHint).toBe(true);
+  expect(tools.length).toBe(49); expect(tools.find((t: any) => t.name === 'publish_article').annotations.destructiveHint).toBe(true);
+  expect(tools.find((t: any) => t.name === 'get_liv_production_context').annotations.readOnlyHint).toBe(true);
   expect(tools.find((t: any) => t.name === 'get_publication_status').annotations).toMatchObject({ readOnlyHint: true, destructiveHint: false, idempotentHint: true });
   expect(tools.find((t: any) => t.name === 'save_draft').inputSchema.additionalProperties).toBe(false);
   expect(tools.find((t: any) => t.name === 'publish_article')._meta.securitySchemes).toEqual([{ type: 'oauth2', scopes: ['apropos:publish'] }]);
@@ -103,6 +104,10 @@ it('returns bounded workflow guidance and discovery through the actual MCP proto
   expect(data.versionHash).toMatch(/^[a-f0-9]{64}$/); expect(data.publicationApproval).toBe(false);
   expect((await (await call('get_workflow', { workflow: '../../.env' })).json()).result.isError).toBe(true);
   expect((await (await call('list_editorial_work')).json()).result.isError).not.toBe(true);
+  const liv = JSON.parse((await (await call('get_workflow', { workflow: 'liv' })).json()).result.content[0].text);
+  expect(liv.instructions).toContain('get_liv_production_context'); expect(liv.paidAiCalls).toBe(0);
+  mock.identity.owner = false;
+  expect((await (await call('get_liv_production_context')).json()).result.isError).toBe(true);
 });
 it('exposes private cloud-reading tools to team members with exact scopes, no-paid guard and metadata-only audit', async () => {
   mock.identity.owner = false; mock.identity.uid = 'casper'; mock.identity.scopes = ['apropos:read'];

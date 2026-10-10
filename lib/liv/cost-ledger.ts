@@ -111,6 +111,10 @@ export function createLivCostLedger(now: () => Date = () => new Date(), bucket: 
         // nested image/cleanup/internal HTTP call cannot escape this binding.
         const submissionRef = context.submissionId ? database.collection('editorialSubmissions').doc(context.submissionId) : null;
         const submission = submissionRef ? (await tx.get(submissionRef)).data() : null;
+        // Persisted defense across queues/HTTP, even if the caller lost its ALS guard.
+        if (submission?.executionPolicy === 'chatgpt-first-v1') {
+          throw new LivCostPretransportError('liv_cost_submission_paid_ai_disabled');
+        }
         if (submission?.executionPolicy === 'chat-final-checks-v1' && (
           submission.approval?.executionPolicy !== 'chat-final-checks-v1' ||
           !['visual', 'factcheck', 'editorial-assessment', 'source-similarity', 'embedding', 'moderation', 'tov'].includes(context.stage) ||

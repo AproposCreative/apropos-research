@@ -6,6 +6,8 @@ import { assertMediaOnlyUpdate } from './submission-published-target';
 import { getReaderProgress } from '@/lib/mcp/reader';
 import { articleImages } from '@/lib/mcp/markup';
 import { projectImageSelection } from './submission-image-selection';
+import { livProductionSubmissionId } from './liv-production-identity';
+import { assertChatGptFirstPolicy } from './submission-policy';
 import { inspectSubmission, submissionId, submissionInput, submissionUpdate, submissionVersion,
   validateSubmissionArticle, type SubmissionRecord } from './submission-contract';
 
@@ -93,17 +95,24 @@ export async function prepareSubmission(uid: string, raw: unknown) {
     input.article.bookTitle = reader.title; input.article.bookAuthor = reader.author;
   }
   validateSubmissionArticle(input.article);
-  const id = cmsFieldHash({ uid, requestId: input.requestId }), contentHash = submissionVersion(input);
+  const id = input.livProduction ? livProductionSubmissionId(uid, input.livProduction) : cmsFieldHash({ uid, requestId: input.requestId });
   const { db, collection } = submissionStore(), ref = collection.doc(id);
   await db.runTransaction(async tx => {
     const old = (await tx.get(ref)).data();
     if (old) {
-      if (old.uid !== uid || old.initialHash !== contentHash) throw Error('mcp_submission_idempotency_conflict');
+      // Keep pre-migration retries byte/version compatible; never migrate an approval implicitly.
+      const retry = old.executionPolicy === 'chatgpt-first-v1' ? { ...input, choices: { ...input.choices, aiFinalChecks: input.choices.aiFinalChecks || 'human' as const } } : input;
+      if (old.uid !== uid || old.initialHash !== submissionVersion(retry)) {
+        throw Error(input.livProduction ? 'mcp_submission_production_exists' : 'mcp_submission_idempotency_conflict');
+      }
       return;
     }
+    input.choices.aiFinalChecks ||= 'human';
+    assertChatGptFirstPolicy({ executionPolicy: 'chatgpt-first-v1', choices: input.choices });
+    const contentHash = submissionVersion(input);
     const now = new Date().toISOString();
     tx.create(ref, { ...input, id, uid, revision: 1, contentHash, initialHash: contentHash,
-      executionPolicy: 'chat-final-checks-v1',
+      executionPolicy: 'chatgpt-first-v1',
       ...(reader ? { readerEvidence: { sourceId: reader.sourceId, revision: reader.revision, coverage: reader.coverage,
         independentlyVerified: false, basis: 'saved_position_bound_notes', publicationApproval: false } } : {}),
       originalArticle: input.article, status: 'draft', createdAt: now, updatedAt: now });
@@ -136,8 +145,9 @@ export async function updateSubmission(uid: string, raw: unknown, internal?: { r
       if (input.article?.[field] !== undefined) throw Error('mcp_submission_conflicting_update');
       delete article[field];
     }
-    const next = submissionInput.parse({ requestId: row.requestId, readerSourceId: row.readerSourceId, article,
+    const next = submissionInput.parse({ requestId: row.requestId, readerSourceId: row.readerSourceId, livProduction: row.livProduction, article,
       research: input.research ?? row.research, choices: { ...row.choices, ...input.choices } });
+    assertChatGptFirstPolicy({ executionPolicy: row.executionPolicy, choices: next.choices });
     validateSubmissionArticle(next.article);
     const beforeUrls = [base.featuredImage, ...articleImages(base.content).map(image => image.url)].filter((url): url is string => !!url);
     const afterUrls = new Set([next.article.featuredImage, ...articleImages(next.article.content).map(image => image.url)]);

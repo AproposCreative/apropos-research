@@ -94,11 +94,11 @@ export default function SubmissionConfirmation({ id }: { id: string }) {
         {row.questions.length > 0 && <div><p>Afklar i chatten:</p><ul className="mt-2 list-disc space-y-2 pl-5 text-white/70">{row.questions.map(q => <li key={q.field}>{q.question}</li>)}</ul></div>}
         {row.missingMetadata.length > 0 && <p className="text-white/65">Chatten skal udfylde: {row.missingMetadata.join(', ')}.</p>}
         {quote && <>
-          <p>Estimeret klargøring: {quote.estimateDkk.toFixed(2)} kr.</p>
-          <p className="text-sm text-white/65">Samlet reservationsloft: {(quote.ceilingDkkMicros / 1e6).toFixed(2)} kr. Det er et sikkerhedsloft, ikke en faktura. Ingen automatisk genbestilling.</p>
+          <p>{quote.humanReview ? 'ChatGPT-produktion: 0 kr. i backend-AI-kald.' : `Estimeret klargøring: ${quote.estimateDkk.toFixed(2)} kr.`}</p>
+          <p className="text-sm text-white/65">{quote.humanReview ? 'Tekst, research og billeder laves i ChatGPT. Abonnementets forbrug og almindelig hosting er ikke medregnet. Ingen betalt AI-fallback.' : `Samlet reservationsloft: ${(quote.ceilingDkkMicros / 1e6).toFixed(2)} kr. Det er et sikkerhedsloft, ikke en faktura. Ingen automatisk genbestilling.`}</p>
           <details><summary>Se hvad beløbet dækker</summary><ul className="mt-3 space-y-2">{quote.lines.map(line => <li key={line.step}>{line.step}: {line.estimateDkk.toFixed(2)} kr. estimeret</li>)}</ul></details>
           {quote.provider.blocked && !quote.humanReview ? <p role="alert">Betalte trin er stoppet af den gemte providerblokering. Tekst og svar er bevaret; der bestilles intet. Du kan bede chatten om klargøring med menneskelig slutkontrol uden AI-kald.</p> : <>
-            <label className="flex items-start gap-3 leading-6"><input className="mt-1 h-5 w-5 shrink-0" type="checkbox" checked={checked} onChange={e => setChecked(e.target.checked)} />Klargør denne version inden for det viste loft. Dette publicerer ikke artiklen.</label>
+            <label className="flex items-start gap-3 leading-6"><input className="mt-1 h-5 w-5 shrink-0" type="checkbox" checked={checked} onChange={e => setChecked(e.target.checked)} />{quote.humanReview ? 'Jeg bekræfter den redaktionelle kontrol og vil klargøre denne version uden betalte AI-kald. Dette publicerer ikke artiklen.' : 'Klargør denne version inden for det viste loft. Dette publicerer ikke artiklen.'}</label>
             {quote.humanReview && <p>AI-slutkontrol køres ikke. Du overtager den redaktionelle og visuelle kontrol; tekniske CMS- og filkontroller bevares.</p>}
             <button className={`${button} w-full bg-white/10`} disabled={busy || !checked || !quote.canAccept} onClick={() => void act()}>{quote.humanReview ? 'Klargør uden AI-slutkontrol' : 'Acceptér og klargør'}</button>
           </>}

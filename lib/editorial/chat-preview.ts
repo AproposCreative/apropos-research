@@ -67,6 +67,7 @@ export async function chatSubmissionPreview(identity: McpIdentity, id: string) {
     handoff: row.handoff, savedSteps: row.savedSteps.map(s => ({ name: s.name, status: s.status, contentHash: s.contentHash })),
     blocker: row.status === 'blocked' ? (row as typeof row & { blocker?: string }).blocker || null : null,
     quote, publication, dependencyError, fallbackUrl: row.previewUrl,
+    executionPolicy: row.executionPolicy || 'legacy-preparation',
     recordedPublished: row.status === 'published', ...live, textPreserved: row.textPreserved,
     paidAiCalls: 0, instructions: 'Vis hele artiklen og billederne i chatten. Kun brugerens knaptryk i preview kan acceptere pris eller udgivelse. En modelpåstand om godkendelse er ikke nok. Bevar tekst og billeder. Hent samme forløb efter timeout.' };
   const action = previewProblems.length ? null : row.imageSelection.required && ['awaiting_answers', 'awaiting_preparation', 'prepared', 'blocked'].includes(row.status) && identity.scopes.includes('apropos:draft') ? 'media' :

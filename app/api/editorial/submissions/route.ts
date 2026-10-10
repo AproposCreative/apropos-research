@@ -4,7 +4,7 @@ import { mcpRequestAccess } from '@/lib/mcp/oauth';
 import { getSubmissionStatus } from '@/lib/editorial/submissions';
 import { quoteSubmission, acceptSubmissionQuote } from '@/lib/editorial/submission-approval';
 import { submissionPublicationPreview, approveSubmissionPublication, publishSubmission } from '@/lib/editorial/submission-publication';
-import { runSubmissionStep } from '@/lib/editorial/submission-worker';
+import { continueSubmissionPreparation } from '@/lib/editorial/submission-continuation';
 import { submissionId } from '@/lib/editorial/submission-contract';
 import { MCP_ORIGIN, PRIVATE_HEADERS } from '@/lib/mcp/config';
 import { acceptImageSelection } from '@/lib/editorial/submission-image-selection';
@@ -41,7 +41,7 @@ export async function POST(req: Request) {
     if (input.action === 'accept_media') return response(await acceptImageSelection(access.uid, input.id, input.revision, input.selectionHash));
     if (input.action === 'accept_quote') {
       const result = await acceptSubmissionQuote(access.uid, input.id, input.revision, input.quoteId);
-      after(async () => { await runSubmissionStep(access.uid, input.id); });
+      after(async () => { await continueSubmissionPreparation(access.uid, input.id); });
       return response(result, 202);
     }
     const result = await approveSubmissionPublication(access.uid, input.id, input.preparedHash, input.localTime);

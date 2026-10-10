@@ -15,6 +15,7 @@ import type { CmsSnapshot } from '@/lib/seo-engine/post-publish/snapshot';
 import { verifySubmissionMedia } from './submission-media-identity';
 import { assertImageSelection, readImageSelection } from './submission-image-selection';
 import type { SubmissionRecord } from './submission-contract';
+import { withoutPaidAi } from '@/lib/ai/no-paid-calls';
 
 type Prepared = { itemId: string; expected: WebflowArticleFields; proof: { fieldDataHash: string } };
 type Publication = { uid: string; preparedHash: string; contentHash: string; cmsHash: string; publishAt: string;
@@ -71,6 +72,12 @@ export async function approveSubmissionPublication(uid: string, id: string, prep
 
 /** Independent item operation. Never consumes or fabricates a Liv daily slot. */
 export async function publishSubmission(uid: string, id: string, now = new Date()) {
+  const row = await readSubmission(uid, id);
+  // Cron execution has no MCP ALS context. Re-establish the guard after the queue boundary.
+  return row.executionPolicy === 'chatgpt-first-v1' || row.choices?.aiFinalChecks === 'human'
+    ? withoutPaidAi(() => publishSubmissionOperation(uid, id, now)) : publishSubmissionOperation(uid, id, now);
+}
+async function publishSubmissionOperation(uid: string, id: string, now: Date) {
   const { db, collection } = submissionStore(), ref = collection.doc(id), token = randomUUID();
   const row = await db.runTransaction(async tx => {
     const row = (await tx.get(ref)).data();
