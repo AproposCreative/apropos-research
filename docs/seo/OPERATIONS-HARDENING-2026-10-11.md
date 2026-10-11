@@ -67,3 +67,38 @@ Queue ranking is bounded and does not claim a global scan of an unlimited queue.
 Server-observed daily identity alone does not independently prove timer origin.
 No compact-payload, inventory-cache or 28-day-effect-report rollout in this scope.
 Liv publication acceptance is separate and remains open.
+
+## Production release and readback
+
+Source `269f7181c3ef083e13e3fe837c25ed57c2bee79c` deployed as
+`dpl_6NWVevgtJRifv3xFH5pGGHvT8yCS`, READY on `ai.aproposmagazine.com`.
+Remote build completed successfully; exact alias/SHA verified at 14:19Z.
+The exact final source passed the full isolated suite again: 370 files / 5119
+tests. No CMS or whole-site publication was performed for this release.
+
+One bounded **manually invoked cron smoke test** at 14:19:33Z exercised the
+existing authenticated recovery route after checking ChatGPT-first mode,
+zero queued legacy jobs and no pending CMS-write recovery in its selected work.
+Response: HTTP200, kicked=0. The one selected legacy quality job was refused by
+the processor guard; no job state changed. The new monitor persisted current
+and dated health successfully at `2026-10-11T14:19:33.028Z`.
+This is real deployed-path evidence, NOT a new unattended timer observation.
+The next natural 15-minute invocation has not been claimed as observed here.
+
+Authenticated production history API at `2026-10-11T14:19:50.901Z` returned
+HTTP200/private-no-store, today's two completed public results, no issues,
+and the four earlier applied/kept ChatGPT rows with their actual receipts.
+Unauthenticated GET returned HTTP401. Complete SEO jobs, shared/image ledgers
+and provider holds retained exactly the pre-release hashes above, including
+after the manual cron smoke test. No claim/save/apply, paid model, provider
+probe, CMS update, reservation reset or new cloud task was used.
+
+Bounded Vercel console search 14:18:50–14:20:02Z returned no SEO console output;
+normal healthy monitoring is intentionally quiet. The persisted server receipt
+and authenticated HTTP readback are the positive evidence, not absence of logs.
+
+Status: implemented, deployed and production API/monitor path verified. Actual
+component visually verified with production data in a labelled local fixture;
+the full production browser session still requires the owner's existing login.
+The original cloud task/two-per-day policy and every editorial/write guard are
+unchanged. Actual unattended metadata PATCH remains separately unobserved.
