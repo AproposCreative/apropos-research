@@ -19,6 +19,7 @@ export type FieldAssessment = {
   proposedValue?: string;
   /** Independent candidate review against the article, not the generator's score. */
   verifiedAgainstArticle: boolean;
+  verificationSource?: 'chatgpt_reported_recheck';
 };
 export type PerformanceEvidence = {
   currentImpressions: number;

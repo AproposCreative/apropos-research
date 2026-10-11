@@ -3,6 +3,7 @@ import { withSharedCostContext } from '@/lib/liv/cost-context';
 import { durableReviewModel } from './durable-model';
 import { firestoreModelStageStore } from './model-store';
 import type { ReviewModelCall } from './review';
+import { assertLegacySeoProcessor, seoDb } from './processor';
 
 /** Uses the application's existing authenticated server client, never browser credentials. */
 export function productionReviewModel(jobId: string): ReviewModelCall {
@@ -12,6 +13,9 @@ export function productionReviewModel(jobId: string): ReviewModelCall {
   return durableReviewModel({
     jobId, model, store: firestoreModelStageStore(), reuseAcrossJobs: true,
     call: async request => {
+      const job = (await seoDb().collection('seoPostPublishJobs').doc(jobId).get()).data();
+      if (job?.processor === 'chatgpt-first') throw Error('seo_chatgpt_processor_required');
+      await assertLegacySeoProcessor(job?.snapshot?.itemId, job?.snapshot?.locale);
       const response = await withSharedCostContext({ scope: 'seo', stage: `seo-post-publish-${request.stage}` }, () => client.chat.completions.create({
         model,
         messages: [{ role: 'system', content: request.system }, { role: 'user', content: request.input }],

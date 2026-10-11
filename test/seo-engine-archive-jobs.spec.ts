@@ -1,4 +1,5 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
+vi.mock('@/lib/seo-engine/post-publish/processor', () => ({ assertLegacySeoProcessor: vi.fn() }));
 import {
   applyVerifyToJob,
   buildArchiveJobFromRow,

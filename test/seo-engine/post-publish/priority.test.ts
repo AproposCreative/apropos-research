@@ -38,7 +38,7 @@ it('deduplicates jobs appearing in both lanes', async () => {
   expect(await listRecoverableQualityJobs(2)).toEqual([id]);
 });
 it('keeps priority in sync when claiming and deferring a publication', async () => {
-  m.rows.set(key, { id, source: 'webhook', status: 'queued', readyAt: 1, priorityReadyAt: 1, attempt: 0 });
+  m.rows.set(key, { id, source: 'webhook', status: 'queued', readyAt: 1, priorityReadyAt: 1, attempt: 0, snapshot: { itemId: 'item', locale: 'da' } });
   const job = (await claimQualityJob(id))!;
   expect(m.rows.get(key).priorityReadyAt).toBe(job.readyAt);
   await checkpointQualityJob(job, { status: 'waiting_budget', readyAt: Date.now() + 10000 }, true);

@@ -55,6 +55,7 @@ export async function setMetadataLocks(itemId: string, locale: 'da' | 'en', lock
 export async function assertEditorialMetadataWritable(itemId: string, locale: string, fields: MetadataField[]) {
   if (!fields.length) return;
   const state = await getArticleQualityState(itemId, locale);
+  if (state.chatJobId) throw Object.assign(new Error('SEO-artiklen er reserveret til ChatGPT'), { code: 'write_busy' });
   if (state.pendingJobId) throw Object.assign(new Error('SEO-opdatering afventer verificering'), { code: 'write_busy' });
   if (fields.some(field => state.lockedFields.includes(field))) throw Object.assign(new Error('SEO-feltet er låst af redaktionen'), { code: 'conflict' });
 }

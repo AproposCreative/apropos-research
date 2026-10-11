@@ -1,0 +1,148 @@
+import { beforeEach, expect, it, vi } from 'vitest';
+import { memoryFirestore } from '../../helpers/mcp-firestore';
+const m = vi.hoisted(() => ({ db: null as any, read: vi.fn(), apply: vi.fn(), reconcile: vi.fn(), duplicates: vi.fn(), paid: vi.fn(),
+  current: null as any, lostResponse: false }));
+vi.mock('@/lib/firebase-admin', () => ({ getAdminDb: () => m.db }));
+vi.mock('firebase-admin/firestore', () => ({ FieldValue: { delete: () => '__DELETE__' } }));
+vi.mock('@/lib/openai', () => ({ getOpenAIClient: m.paid }));
+vi.mock('@/lib/seo-engine/post-publish/cms', () => ({ readPublishedArticle: m.read, applyPublishedMetadata: m.apply, reconcilePublishedMetadata: m.reconcile }));
+vi.mock('@/lib/seo-engine/post-publish/uniqueness', () => ({ checkLiveMetadataDuplicates: m.duplicates }));
+vi.mock('@/lib/seo-engine/cms-write-lease', () => ({ acquireCmsWriteLease: async () => ({ assertOwned: async () => {}, release: async () => {} }) }));
+import { claimSeoTasks, getSeoTask, saveSeoReview, applySeoReview, activateChatSeo } from '../../../lib/seo-engine/post-publish/chat';
+import { enqueueQualityJob, claimQualityJob } from '../../../lib/seo-engine/post-publish/jobs';
+import { assertLegacySeoProcessor, seoStateId } from '../../../lib/seo-engine/post-publish/processor';
+import { assertPaidAiAllowed } from '../../../lib/ai/no-paid-calls';
+import { reviewKey } from '../../../lib/seo-engine/post-publish/policy';
+const store = memoryFirestore(), itemId = 'a'.repeat(24), uid = 'owner';
+const body = 'Filmen følger en familie i København og skildrer deres hverdag med varme og humor. Anmeldelsen fremhæver især skuespillernes præcise samspil og kritiserer en forudsigelig slutning.';
+const quote = 'Filmen følger en familie i København';
+const stateKey = `seoPostPublishArticles/${seoStateId(itemId, 'da')}`;
+beforeEach(() => {
+  vi.clearAllMocks(); store.clear(); m.db = store.db; m.lostResponse = false;
+  m.current = { snapshot: { itemId, locale: 'da', published: true, hasUnpublishedChanges: false, contentVersion: 'body-images-rating-hash',
+    metadata: { seoTitle: 'Familien: Anmeldelse', metaDescription: 'Læs vores anmeldelse af filmen her på siden og se hvad vi synes.' } },
+    live: { fieldData: { name: 'Familien: Anmeldelse', content: `<p>${body}</p>`, stjerne: 4 } }, publicUrl: 'https://www.aproposmagazine.com/articles/familien' };
+  m.read.mockImplementation(async () => structuredClone(m.current));
+  m.duplicates.mockResolvedValue({ seoTitle: [], metaDescription: [] });
+  m.apply.mockImplementation(async args => {
+    await args.beforeWrite(m.current.snapshot);
+    m.current.snapshot.metadata = { ...m.current.snapshot.metadata, ...args.patch };
+    if (m.lostResponse) { m.lostResponse = false; throw Error('timeout'); }
+    return m.reconcile(args.analyzed, args.patch);
+  });
+  m.reconcile.mockImplementation(async (before, patch) => {
+    if (m.current.snapshot.contentVersion !== before.contentVersion || JSON.stringify(m.current.snapshot.metadata) !== JSON.stringify({ ...before.metadata, ...patch })) throw Error('seo_cms_reconciliation_required');
+    return { after: structuredClone(m.current.snapshot), publicReceipt: { url: m.current.publicUrl, checkedAt: new Date().toISOString() } };
+  });
+});
+async function claim() {
+  return (await claimSeoTasks(uid, { requestId: 'manual-review-1', articleId: itemId, limit: 1 })).tasks[0];
+}
+function proposal(task: Awaited<ReturnType<typeof getSeoTask>>, improve = true) {
+  return { taskId: task.taskId, expectedContextHash: task.contextHash, requestId: 'proposal-stable-1', readFullArticle: true,
+    assessments: [ { field: 'seoTitle', verdict: 'keep', reason: 'Den nævner værket og anmeldelsesintentionen præcist.', articleQuotes: [quote] },
+      { field: 'metaDescription', verdict: improve ? 'improve' : 'keep', reason: improve ? 'Den generiske beskrivelse erstattes af konkrete pointer fra anmeldelsen.' : 'Beskrivelsen er præcis og har ingen dokumenteret fejl.',
+        ...(improve ? { proposedValue: 'Familien skildrer hverdagen i København med varme og humor. Læs anmeldelsen af samspillet og den forudsigelige slutning.' } : {}), articleQuotes: [quote] } ] };
+}
+const applyInput = (task: Awaited<ReturnType<typeof getSeoTask>>) => ({ taskId: task.taskId, proposalHash: task.proposal!.hash,
+  recheck: { readFullArticle: true, supported: true, betterOrKept: true, reason: 'Genlæst mod hele anmeldelsen: sted, tema og kritik er dækket, uden nye fakta.' } });
+it('reserves the SAME queue item durably and replays a lost claim response without API work', async () => {
+  const [a, b] = await Promise.all([claim(), claim()]);
+  expect(a.taskId).toBe(b.taskId); expect(a.contextHash).toBe(b.contextHash);
+  expect(a.context.article.body).toBe(body); expect(a.context.google).toEqual({ evidence: null, context: null });
+  expect(await claimQualityJob(a.taskId)).toBeNull();
+  await expect(assertLegacySeoProcessor(itemId, 'da')).rejects.toThrow('seo_chatgpt_article_reserved');
+  expect(m.paid).not.toHaveBeenCalled();
+});
+it('applies only the saved metadata patch, preserves content identity, verifies public result and is idempotent', async () => {
+  const task = await claim(), p = proposal(task);
+  const saved = await saveSeoReview(uid, p);
+  expect(saved.proposal!.technicalDecision.reason).toBe('eligible_pending_chatgpt_recheck');
+  expect(saved.serverFactCheckPerformed).toBe(false); expect(m.apply).not.toHaveBeenCalled();
+  expect((await saveSeoReview(uid, p)).proposal!.hash).toBe(saved.proposal!.hash);
+  const result = await applySeoReview(uid, applyInput(saved));
+  expect(result.status).toBe('applied'); expect(result.publicReceipt).toBeTruthy();
+  expect(m.apply).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ patch: { metaDescription: p.assessments[1].proposedValue } }));
+  expect(result.after!.contentVersion).toBe('body-images-rating-hash'); expect(result.after!.metadata.seoTitle).toBe(task.context.snapshot.metadata.seoTitle);
+  expect(await applySeoReview(uid, applyInput(saved))).toEqual(result); expect(m.apply).toHaveBeenCalledOnce();
+  expect(store.rows.get(stateKey).chatJobId).toBeNull(); expect(m.paid).not.toHaveBeenCalled();
+});
+it('keeps both fields with public readback and no CMS write', async () => {
+  const task = await claim(), saved = await saveSeoReview(uid, proposal(task, false));
+  const result = await applySeoReview(uid, applyInput(saved));
+  expect(result.status).toBe('kept'); expect(result.publicReceipt).toBeTruthy();
+  expect(m.apply).not.toHaveBeenCalled(); expect(m.paid).not.toHaveBeenCalled();
+});
+it('after a transport timeout only reconciles the saved intent, never repeats PATCH', async () => {
+  const saved = await saveSeoReview(uid, proposal(await claim())); m.lostResponse = true;
+  const first = await applySeoReview(uid, applyInput(saved)); expect(first.status).toBe('verify_pending');
+  expect(store.rows.get(stateKey).pendingJobId).toBe(first.taskId);
+  const next = await applySeoReview(uid, applyInput(saved)); expect(next.status).toBe('applied');
+  expect(m.apply).toHaveBeenCalledOnce(); expect(store.rows.get(stateKey).pendingJobId).toBeNull();
+});
+it.each(['content', 'metadata', 'staged'])('rejects a concurrent %s change and does not overwrite it', async change => {
+  const saved = await saveSeoReview(uid, proposal(await claim()));
+  if (change === 'content') m.current.snapshot.contentVersion = 'edited-body';
+  if (change === 'metadata') m.current.snapshot.metadata.seoTitle = 'Redaktionens nye titel';
+  if (change === 'staged') m.current.snapshot.hasUnpublishedChanges = true;
+  expect((await applySeoReview(uid, applyInput(saved))).status).toBe('stale'); expect(m.apply).not.toHaveBeenCalled();
+});
+it('rejects locked fields both before proposal and just before applying', async () => {
+  const task = await claim(); store.rows.set(stateKey, { ...store.rows.get(stateKey), lockedFields: ['metaDescription'] });
+  await expect(saveSeoReview(uid, proposal(task))).rejects.toThrow('seo_chat_field_locked');
+  store.rows.get(stateKey).lockedFields = [];
+  const saved = await saveSeoReview(uid, proposal(task)); store.rows.get(stateKey).lockedFields = ['metaDescription'];
+  const result = await applySeoReview(uid, applyInput(saved)); expect(result.reason).toBe('editorial_lock_changed'); expect(m.apply).not.toHaveBeenCalled();
+});
+it('refuses forged context, quotes, another owner, changed request and changed proposal', async () => {
+  const task = await claim();
+  await expect(getSeoTask('someone-else', task.taskId)).rejects.toThrow('seo_chat_task_not_found');
+  await expect(claimSeoTasks(uid, { requestId: 'manual-review-1', articleId: itemId, limit: 2 })).rejects.toThrow('seo_chat_request_changed');
+  await expect(saveSeoReview(uid, { ...proposal(task), expectedContextHash: 'f'.repeat(64) })).rejects.toThrow('seo_chat_context_changed');
+  const forged = proposal(task); forged.assessments[0].articleQuotes = ['En opdigtet kilde som ikke findes i artiklen.'];
+  await expect(saveSeoReview(uid, forged)).rejects.toThrow('seo_chat_quote_not_in_article');
+  await saveSeoReview(uid, proposal(task));
+  await expect(saveSeoReview(uid, proposal(task, false))).rejects.toThrow('seo_chat_proposal_already_saved');
+});
+it('preserves personally approved publication metadata and refuses premature processor cutover', async () => {
+  store.rows.set(stateKey, { publicationPreservedKey: reviewKey(m.current.snapshot) });
+  expect((await claimSeoTasks(uid, { requestId: 'preserved-1', articleId: itemId })).tasks).toHaveLength(0);
+  await expect(activateChatSeo(uid, { appliedTaskId: 'f'.repeat(64), keptTaskId: 'e'.repeat(64) })).rejects.toThrow('seo_chat_task_not_found');
+});
+it('closes a stale performance job without inventing missing data or acquiring a model', async () => {
+  const job = await enqueueQualityJob({ source: 'performance', manualRequested: true, mode: 'performance', snapshot: m.current.snapshot,
+    article: { editorialTitle: 'Familien', body, locale: 'da', metadata: m.current.snapshot.metadata } });
+  const result = await claimSeoTasks(uid, { requestId: 'missing-google-1' });
+  expect(result.tasks).toHaveLength(0); expect(result.skipped[0].reason).toBe('insufficient_performance_evidence');
+  expect(store.rows.get(`seoPostPublishJobs/${job.jobId}`).status).toBe('stale'); expect(m.paid).not.toHaveBeenCalled();
+});
+it('the no-paid boundary is effective inside nested operations, not just an output label', async () => {
+  m.read.mockImplementationOnce(async () => { assertPaidAiAllowed(); return m.current; });
+  await expect(claim()).rejects.toThrow('mcp_paid_call_requires_separate_approval');
+  expect(m.apply).not.toHaveBeenCalled();
+});
+it('global processor switch prevents new API claims without erasing queued jobs', async () => {
+  const result = await enqueueQualityJob({ source: 'webhook', mode: 'publication_quality', snapshot: m.current.snapshot,
+    article: { editorialTitle: 'Familien', body, locale: 'da', metadata: m.current.snapshot.metadata } });
+  store.rows.set('seoPostPublishControl/processor', { mode: 'chatgpt-first' });
+  expect(await claimQualityJob(result.jobId!)).toBeNull();
+  await expect(assertLegacySeoProcessor()).rejects.toThrow('seo_chatgpt_processor_required');
+  expect(store.rows.get(`seoPostPublishJobs/${result.jobId}`).attempt).toBe(0);
+});
+it('enforces a separate maximum of two new performance claims even across different batches', async () => {
+  m.read.mockImplementation(async (id: string) => ({ ...structuredClone(m.current), snapshot: { ...structuredClone(m.current.snapshot), itemId: id } }));
+  for (const id of ['a', 'b', 'c'].map(c => c.repeat(24))) {
+    await enqueueQualityJob({ source: 'performance', manualRequested: true, mode: 'performance', snapshot: { ...m.current.snapshot, itemId: id },
+      article: { editorialTitle: 'Familien', body, locale: 'da', metadata: m.current.snapshot.metadata },
+      evidence: { fetchedAt: new Date().toISOString(), comparable: true, currentDays: 28, previousDays: 28, currentImpressions: 500, previousImpressions: 400 } });
+  }
+  const first = await claimSeoTasks(uid, { requestId: 'performance-limit-1' }); expect(first.tasks).toHaveLength(2);
+  for (const task of first.tasks) store.rows.get(`seoPostPublishJobs/${task.taskId}`).status = 'kept';
+  const next = await claimSeoTasks(uid, { requestId: 'performance-limit-2' });
+  expect(next.tasks).toHaveLength(0); expect(next.skipped).toContainEqual(expect.objectContaining({ reason: 'daily_performance_limit' }));
+});
+it('does not call a rejected ChatGPT recheck a successful server verification', async () => {
+  const saved = await saveSeoReview(uid, proposal(await claim())); const input = applyInput(saved); input.recheck.supported = false;
+  const result = await applySeoReview(uid, input); expect(result.status).toBe('needs_editor');
+  expect(result.publicReceipt).toBeNull(); expect(result.serverFactCheckPerformed).toBe(false); expect(m.apply).not.toHaveBeenCalled();
+});

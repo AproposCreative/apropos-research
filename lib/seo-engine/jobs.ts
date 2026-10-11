@@ -2,6 +2,7 @@ import { FieldValue } from 'firebase-admin/firestore';
 import { getAdminDb } from '@/lib/firebase-admin';
 import { logger } from '@/lib/logger';
 import { COL } from '@/lib/seo-engine/store';
+import { seoStateId } from './post-publish/processor';
 
 export type SeoEngineJobStatus =
   | 'queued'
@@ -98,6 +99,11 @@ export async function claimSeoEngineJob(jobId: string): Promise<SeoEngineJob | n
     const snap = await tx.get(ref);
     if (!snap.exists) return null;
     const data = snap.data() as SeoEngineJob;
+    const [control, article] = await Promise.all([
+      tx.get(db.collection('seoPostPublishControl').doc('processor')),
+      tx.get(db.collection('seoPostPublishArticles').doc(seoStateId(data.itemId, data.locale || 'da'))),
+    ]);
+    if (control.data()?.mode === 'chatgpt-first' || article.data()?.chatJobId) return null;
     if (data.status === 'succeeded' || data.status === 'skipped' || data.status === 'stale') {
       return null;
     }

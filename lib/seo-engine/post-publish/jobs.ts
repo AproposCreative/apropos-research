@@ -5,6 +5,7 @@ import { copenhagenClock } from '@/lib/liv/delivery-policy';
 import { qualityPriorityReadyAt } from './priority';
 import { hasFreshPerformanceEvidence, POST_PUBLISH_POLICY, reviewKey, type PublishedArticle, type MetadataField, type PolicyDecision, type PerformanceEvidence, type FieldAssessment } from './policy';
 import type { ReviewArticle } from './review';
+import type { ChatReview } from './chat-contract';
 
 export type QualityJob = {
   id: string;
@@ -30,6 +31,9 @@ export type QualityJob = {
   after?: PublishedArticle;
   publicReceipt?: { url: string; checkedAt: string };
   reason?: string;
+  /** Durable processor ownership, independent of a short transport lease. */
+  processor?: 'chatgpt-first';
+  chatReview?: ChatReview;
 };
 export type ArticleQualityState = {
   lockedFields: MetadataField[];
@@ -40,6 +44,7 @@ export type ArticleQualityState = {
   lastReviewedKey?: string;
   lastJobId?: string;
   pendingJobId?: string | null;
+  chatJobId?: string | null;
 };
 const JOBS = 'seoPostPublishJobs';
 const STATES = 'seoPostPublishArticles';
@@ -99,22 +104,30 @@ export async function enqueueQualityJob(input: Pick<QualityJob, 'source' | 'snap
   });
 }
 
-export async function claimQualityJob(id: string): Promise<QualityJob | null> {
+export async function claimQualityJob(id: string, chatUid?: string): Promise<QualityJob | null> {
   if (!/^[a-f0-9]{64}$/.test(id)) throw new Error('seo_invalid_job_id');
   const ref = db().collection(JOBS).doc(id);
   return db().runTransaction(async tx => {
     const snap = await tx.get(ref);
     if (!snap.exists) return null;
     const job = snap.data() as QualityJob;
+    const [control, article] = await Promise.all([
+      tx.get(db().collection('seoPostPublishControl').doc('processor')),
+      tx.get(db().collection(STATES).doc(stateId(job.snapshot.itemId, job.snapshot.locale))),
+    ]);
+    if (chatUid) {
+      if (job.processor !== 'chatgpt-first' || job.chatReview?.uid !== chatUid) return null;
+    } else if (job.processor === 'chatgpt-first' || (!job.writeStartedAt &&
+      (control.data()?.mode === 'chatgpt-first' || article.data()?.chatJobId))) return null;
     if (TERMINAL_QUALITY_STATES.includes(job.status) || (job.leaseUntil ?? 0) > Date.now()) return null;
-    if ((job.readyAt ?? 0) > Date.now()) return null;
-    if (job.attempt >= 5 && !job.writeStartedAt) {
+    if (!chatUid && (job.readyAt ?? 0) > Date.now()) return null;
+    if (!chatUid && job.attempt >= 5 && !job.writeStartedAt) {
       tx.update(ref, { status: 'failed', reason: 'retry_budget_exhausted', readyAt: FieldValue.delete(), priorityReadyAt: FieldValue.delete(), updatedAt: new Date().toISOString() });
       return null;
     }
     const next: QualityJob = { ...job, status: job.writeStartedAt ? 'verify_pending' : 'running',
       owner: randomUUID(), leaseUntil: Date.now() + LEASE_MS, readyAt: Date.now() + LEASE_MS,
-      attempt: job.attempt + 1, updatedAt: new Date().toISOString() };
+      attempt: job.attempt + (chatUid ? 0 : 1), updatedAt: new Date().toISOString() };
     const priority = qualityPriorityReadyAt(next);
     if (priority === null) delete next.priorityReadyAt; else next.priorityReadyAt = priority;
     tx.set(ref, next);
@@ -153,6 +166,8 @@ export async function reserveQualityWrite(job: QualityJob, decision: PolicyDecis
     const state = articleSnap.data() as ArticleQualityState | undefined;
     if (!current || current.owner !== job.owner || (current.leaseUntil ?? 0) <= Date.now()) throw new Error('seo_job_lease_lost');
     if (state?.pendingJobId && state.pendingJobId !== job.id) throw new Error('seo_article_write_pending');
+    if (state?.chatJobId && state.chatJobId !== job.id) throw new Error('seo_chatgpt_article_reserved');
+    if (state?.publicationPreservedKey === reviewKey(job.snapshot)) throw new Error('seo_editor_approved_version_preserved');
     if ((state?.lockedFields || []).some(field => field in decision.patch)) throw new Error('seo_editorial_lock_changed');
     if (state?.lastAppliedAt && Date.now() - Date.parse(state.lastAppliedAt) < 28 * 86400_000) throw new Error('seo_cooldown_changed');
     tx.update(jobRef, { decision, writeStartedAt: startedAt, status: 'verify_pending', updatedAt: startedAt,
@@ -174,6 +189,7 @@ export async function finishQualityJob(job: QualityJob, patch: Partial<QualityJo
     const now = new Date().toISOString();
     tx.update(jobRef, { ...JSON.parse(JSON.stringify(patch)), updatedAt: now, leaseUntil: 0, readyAt: FieldValue.delete(), priorityReadyAt: FieldValue.delete() });
     tx.set(articleRef, { lastJobId: job.id, lastReviewedKey: reviewKey(job.snapshot),
+      ...(state?.chatJobId === job.id && (!current.writeStartedAt || patch.status === 'applied') ? { chatJobId: null } : {}),
       ...(patch.status === 'applied' && state?.pendingJobId === job.id ? { pendingJobId: null } : {}),
       ...(patch.status === 'applied' ? { lastAppliedAt: job.writeStartedAt || now } : {}),
       ...(job.mode === 'performance' && ['kept', 'applied', 'needs_editor'].includes(patch.status || '')
@@ -189,5 +205,6 @@ export async function listRecoverableQualityJobs(limit = 10): Promise<string[]> 
     collection.where(field, '<=', now).orderBy(field).limit(count).get()));
   return [...new Set([...priority.docs, ...ordinary.docs]
     .filter(doc => Number(doc.data().leaseUntil || 0) <= now &&
+      doc.data().processor !== 'chatgpt-first' &&
       !TERMINAL_QUALITY_STATES.includes(doc.data().status)).map(doc => doc.id))].slice(0, count);
 }

@@ -43,6 +43,8 @@ import { getShorteningContext, previewExternalShortening, getExternalShortening,
 import { registerReaderInput, listReadersInput, readerProgressInput, readerSearchInput, saveReaderInput,
   registerReaderSource, listReaderSources, getReaderProgress, saveReaderProgress } from './reader';
 import { getLivProductionContext, livProductionContextInput } from '@/lib/editorial/liv-production-context';
+import { claimSeoTasks, getSeoTask, saveSeoReview, applySeoReview } from '@/lib/seo-engine/post-publish/chat';
+import { seoClaimInput, seoStatusInput, seoProposalInput, seoApplyInput } from '@/lib/seo-engine/post-publish/chat-contract';
 
 const id = z.string().regex(/^[a-f0-9]{24}$/);
 const memberTools = new Set(['list_drafts', 'list_articles', 'get_article', 'get_submission_options', 'list_submissions',
@@ -76,7 +78,7 @@ export function createEditorialMcp(identity: McpIdentity) {
       } catch (error) {
         status = 'error';
         const message = error instanceof Error ? error.message : '';
-        const code = /^(?:mcp_|liv_edit_|liv_shortening_)[a-z_]{1,100}$/.test(message) ? message : 'mcp_operation_unconfirmed';
+        const code = /^(?:mcp_|liv_edit_|liv_shortening_|seo_)[a-z_0-9]{1,100}$/.test(message) ? message : 'mcp_operation_unconfirmed';
         const recovery = chatFileRecovery(error);
         diagnostic = { errorCode: code, ...(recovery?.rejectedHost ? { rejectedHost: recovery.rejectedHost } : {}) };
         if (recovery) return { isError: true, content: [{ type: 'text', text: JSON.stringify(recovery) }] };
@@ -163,7 +165,15 @@ export function createEditorialMcp(identity: McpIdentity) {
     draftInput, 'apropos:draft', false, input => saveMcpDraft(identity.uid, input));
   tool('get_editorial_context', 'Hent Apropos-struktur, aktuelle forfatterstemmer og versionshashes. Vælg section for kun nødvendig kontekst. Standard er Liv. Ingen AI-kald.',
     z.object({ authorId: id.optional(), section: z.enum(['structure', 'voice', 'all']).optional() }).strict(), 'apropos:read', true, input => editorialContext(input.authorId, input.section));
-  tool('get_workflow', 'Anmeld denne bog eller et bibliotek.kk.dk/reader-link: brug workflow=read til at finde/genoptage læsning og fortsætte til anmeldelse. Ingen magisk formulering kræves. Også review/edit/publish/submit/liv. Skriv dagens Liv-artikel bruger workflow=liv og get_liv_production_context. Ikke nødvendigt for kladdeoverblik. Ingen betaling, browserstart eller nye tilladelser.',
+  tool('claim_seo_tasks', 'Gennemgå nye artiklers SEO og Google-forbedringer uden backend-AI. Kun ejer: reservér højst to opgaver fra den eksisterende kø, hent fuld artikel/metadata/version/låse/daterede Google-data. Start med get_workflow(seo). Samme requestId genoptager samme batch; ingen dobbeltbehandling med API-modellen. articleId bruges kun ved eksplicit valgt artikel. Ingen CMS-write.',
+    seoClaimInput, 'apropos:draft', false, input => claimSeoTasks(identity.uid, input));
+  tool('get_seo_task', 'Genoptag et gemt privat ChatGPT-SEO-review: fuld artikel, præcis version, feltlåse, Google-grundlag, før/efter-forslag og faktisk offentlig kvittering. Brug efter timeout før ny handling. Ingen AI eller CMS-write.',
+    seoStatusInput, 'apropos:read', true, input => getSeoTask(identity.uid, input.taskId));
+  tool('save_seo_review', 'Gem ChatGPTs præcise SEO-forslag/bevar-beslutning og begrundelse for begge felter mod expectedContextHash. Kræver læst fuld artikel og ordrette belæg. Ingen skjult model eller faktatjek. Returnerer før/efter og proposal.hash; publicerer intet. Forslaget er uforanderligt og idempotent.',
+    seoProposalInput, 'apropos:draft', false, input => saveSeoReview(identity.uid, input));
+  tool('apply_seo_review', 'Anvend kun et præcist gemt SEO-forslag, når ejeren har bestilt rettelse. Kræver proposalHash og særskilt sandfærdig ChatGPT-genkontrol. Serveren kontrollerer version/låse/cooldown/dubletter, skriver kun SEO-title/meta-description og verificerer CMS/offentlig HTML. Keep giver readback uden CMS-write. Efter timeout gentages SAMME input kun til afklaring af eksisterende write. Ingen modelkøb, sitepublish eller ændring af artikeltekst/billeder.',
+    seoApplyInput, 'apropos:publish', false, input => applySeoReview(identity.uid, input), true);
+  tool('get_workflow', 'Anmeld denne bog eller et bibliotek.kk.dk/reader-link: brug workflow=read. SEO/Google-forbedringer: workflow=seo og claim_seo_tasks, uden betalt backend-AI. Også review/edit/publish/submit/liv. Skriv dagens Liv-artikel bruger workflow=liv og get_liv_production_context. Ikke nødvendigt for kladdeoverblik. Ingen betaling, browserstart eller nye tilladelser.',
     workflowInput, 'apropos:read', true, async input => editorialWorkflow(input));
   tool('register_reader_source', 'Registrér en lovligt tilgængelig KK Reader-bog og observeret titel/forfatter privat. Genbruger samme lånelink. Hent først get_workflow(read). Åbner IKKE en browser, downloader ikke bogen, intet AI-kald. ChatGPT Work Cloud Browser læser med normale kontroller; ingen tændt Mac nødvendig.',
     registerReaderInput, 'apropos:draft', false, input => registerReaderSource(identity.uid, input));

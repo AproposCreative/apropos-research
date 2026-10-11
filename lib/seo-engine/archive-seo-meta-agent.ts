@@ -5,6 +5,7 @@
 
 import { getOpenAIClient, models } from '@/lib/openai';
 import { withSharedCostContext } from '@/lib/liv/cost-context';
+import { assertLegacySeoProcessor } from './post-publish/processor';
 import { checkReviewSeoTitle } from '@/lib/seo-engine/review-title-rule';
 import { findForbiddenPhrases } from '@/lib/seo-engine/forbidden-phrases';
 import { stripHtmlToText } from '@/lib/seo-engine/html-text';
@@ -173,6 +174,8 @@ export async function proposeArchiveSeoMeta(args: {
     return h;
   }
 
+  // Do not convert a processor stop into the legacy heuristic fallback.
+  await assertLegacySeoProcessor();
   const system = [
     'Du skriver én SEO-title og én meta-description til Apropos Magazine.',
     'Svar KUN med JSON: {"seoTitle":"...","metaDescription":"..."}',

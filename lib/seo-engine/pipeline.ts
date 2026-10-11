@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { getOpenAIClient, models } from '@/lib/openai';
 import { withSharedCostContext } from '@/lib/liv/cost-context';
+import { assertLegacySeoProcessor } from './post-publish/processor';
 import {
   EditorialAnalysisV1Schema,
   SeoEngineInputContractSchema,
@@ -204,6 +205,7 @@ export async function analyzeArticle(
     webflowItemId?: string | null;
   }
 ): Promise<AnalyzeResult> {
+  await assertLegacySeoProcessor(opts.webflowItemId || opts.articleKey?.replace(/^wf:/, ''));
   const parsed = SeoEngineInputContractSchema.safeParse(rawInput);
   if (!parsed.success) {
     throw Object.assign(new Error('Ugyldigt input'), {
@@ -297,6 +299,7 @@ export async function analyzeArticle(
       model = models.default;
       provider = 'openai';
       const schema = loadEditorialAnalysisJsonSchema();
+      await assertLegacySeoProcessor(articleKey.replace(/^wf:/, ''), input.language);
       const completion = await withTimeout(
         withSharedCostContext({ scope: 'seo', stage: 'seo-analyze' }, () => client.chat.completions.create({
           model,
@@ -461,6 +464,7 @@ export async function strategizeFromRun(
     forceDemo?: boolean;
   }
 ): Promise<StrategizeResult> {
+  await assertLegacySeoProcessor();
   const run = await getAnalysisRun(analysisRunId);
   if (!run) {
     throw Object.assign(new Error('analysisRun findes ikke'), { code: 'not_found' });
@@ -508,6 +512,7 @@ export async function strategizeFromRun(
     } else {
       const client = getOpenAIClient()!;
       const schema = loadSeoStrategyPackJsonSchema();
+      await assertLegacySeoProcessor(run.articleKey.replace(/^wf:/, ''), current.language);
       const completion = await withTimeout(
         withSharedCostContext({ scope: 'seo', stage: 'seo-strategize' }, () => client.chat.completions.create({
           model: models.default,
@@ -725,6 +730,7 @@ export async function regenerateField(args: {
   revision: number;
 }> {
   const pathParse = AllowlistedFieldPathSchema.safeParse(args.fieldPath);
+  await assertLegacySeoProcessor();
   if (!pathParse.success) {
     throw Object.assign(new Error(`fieldPath ikke allowlistet: ${args.fieldPath}`), {
       code: 'invalid_field_path',
@@ -810,6 +816,7 @@ export async function regenerateField(args: {
         locked: (v as SeoField<unknown>).locked,
       };
     }
+    await assertLegacySeoProcessor(version.articleKey.replace(/^wf:/, ''), current.language);
     const completion = await withTimeout(
       withSharedCostContext({ scope: 'seo', stage: 'seo-regenerate' }, () => client.chat.completions.create({
         model: models.default,

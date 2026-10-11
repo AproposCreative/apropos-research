@@ -5,6 +5,7 @@
  */
 
 import { acquireCmsWriteLease } from '@/lib/seo-engine/cms-write-lease';
+import { assertLegacySeoProcessor } from '@/lib/seo-engine/post-publish/processor';
 import {
   getMetaVersion,
   getOpportunity,
@@ -157,6 +158,7 @@ export async function applyOpportunityProposals(args: {
       conflict('CMS-indhold ændret siden den afbrudte skrivning');
     }
     if (Object.keys(patch).length) {
+      await assertLegacySeoProcessor(opp.itemId, opp.locale || 'da');
       // Recheck after saving the backup/operation; those network roundtrips can take time.
       const fresh = await fetchArticleItemByLocale(opp.itemId, cmsLocaleId);
       if (fresh.isDraft === true || !fresh.lastPublished || fresh.lastUpdated !== live.lastUpdated ||

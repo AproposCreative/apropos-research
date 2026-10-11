@@ -2,6 +2,8 @@ import { beforeEach, expect, it, vi } from 'vitest';
 import { z } from 'zod';
 const mock = vi.hoisted(() => ({ identity: null as any, rate: vi.fn(), audit: vi.fn(), drafts: vi.fn(), workspace: vi.fn(), context: vi.fn(), publish: vi.fn(), publicationStatus: vi.fn(), shortening: vi.fn(), shorteningContext: vi.fn(), shorteningPreview: vi.fn(), shorteningApply: vi.fn() }));
 const reader = vi.hoisted(() => ({ register: vi.fn(), list: vi.fn(), get: vi.fn(), save: vi.fn() }));
+const seo = vi.hoisted(() => ({ claim: vi.fn(), status: vi.fn(), save: vi.fn(), apply: vi.fn() }));
+vi.mock('@/lib/seo-engine/post-publish/chat', () => ({ claimSeoTasks: seo.claim, getSeoTask: seo.status, saveSeoReview: seo.save, applySeoReview: seo.apply }));
 vi.mock('@/lib/mcp/reader', async original => ({ ...await original<any>(), registerReaderSource: reader.register,
   listReaderSources: reader.list, getReaderProgress: reader.get, saveReaderProgress: reader.save }));
 vi.mock('@/lib/editorial/chat-preview', async original => ({ ...await original<any>(), chatSubmissionPreview: async () => ({
@@ -51,7 +53,7 @@ it('negotiates the real SDK protocol and lists strict schemas on independent sta
     icons: [{ src: MCP_ICON, mimeType: 'image/png', sizes: ['256x256'] }],
   });
   const response = await POST(message('tools/list')); const tools = (await response.json()).result.tools;
-  expect(tools.length).toBe(49); expect(tools.find((t: any) => t.name === 'publish_article').annotations.destructiveHint).toBe(true);
+  expect(tools.length).toBe(53); expect(tools.find((t: any) => t.name === 'publish_article').annotations.destructiveHint).toBe(true);
   expect(tools.find((t: any) => t.name === 'get_liv_production_context').annotations.readOnlyHint).toBe(true);
   expect(tools.find((t: any) => t.name === 'get_publication_status').annotations).toMatchObject({ readOnlyHint: true, destructiveHint: false, idempotentHint: true });
   expect(tools.find((t: any) => t.name === 'save_draft').inputSchema.additionalProperties).toBe(false);
@@ -108,6 +110,26 @@ it('returns bounded workflow guidance and discovery through the actual MCP proto
   expect(liv.instructions).toContain('get_liv_production_context'); expect(liv.paidAiCalls).toBe(0);
   mock.identity.owner = false;
   expect((await (await call('get_liv_production_context')).json()).result.isError).toBe(true);
+});
+it('discovers owner-only SEO tools with exact write scope, durable identity and no-paid enforcement', async () => {
+  const taskId = 'a'.repeat(64), args = { taskId, proposalHash: 'b'.repeat(64), recheck: {
+    readFullArticle: true, supported: true, betterOrKept: true, reason: 'Læsningen er kontrolleret mod hele artiklen.' } };
+  const workflow = JSON.parse((await (await call('get_workflow', { workflow: 'seo' })).json()).result.content[0].text);
+  expect(workflow.instructions).toContain('claim_seo_tasks'); expect(workflow.serverFactCheckPerformed).toBe(false);
+  expect(workflow.instructions).toContain('Preserve good metadata');
+  const listed = (await (await POST(message('tools/list'))).json()).result.tools;
+  expect(listed.find((t: any) => t.name === 'apply_seo_review')._meta.securitySchemes).toEqual([{ type: 'oauth2', scopes: ['apropos:publish'] }]);
+  expect(listed.find((t: any) => t.name === 'get_seo_task').annotations.readOnlyHint).toBe(true);
+  mock.identity.scopes = ['apropos:read', 'apropos:draft'];
+  expect((await (await call('apply_seo_review', args)).json()).result.isError).toBe(true); expect(seo.apply).not.toHaveBeenCalled();
+  mock.identity.scopes.push('apropos:publish'); mock.identity.owner = false;
+  expect((await (await call('apply_seo_review', args)).json()).result.isError).toBe(true); expect(seo.apply).not.toHaveBeenCalled();
+  mock.identity.owner = true; seo.apply.mockImplementation(async () => assertPaidAiAllowed());
+  expect((await (await call('apply_seo_review', args)).json()).result.content[0].text).toContain('mcp_paid_call_requires_separate_approval');
+  expect(seo.apply).toHaveBeenCalledExactlyOnceWith('frederik', args);
+  expect((await (await call('get_seo_task', { taskId, uid: 'different-owner' })).json()).result.isError).toBe(true);
+  seo.status.mockRejectedValue(Error('seo_chat_context_changed'));
+  expect((await (await call('get_seo_task', { taskId })).json()).result.content[0].text).toContain('seo_chat_context_changed');
 });
 it('exposes private cloud-reading tools to team members with exact scopes, no-paid guard and metadata-only audit', async () => {
   mock.identity.owner = false; mock.identity.uid = 'casper'; mock.identity.scopes = ['apropos:read'];

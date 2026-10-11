@@ -5,7 +5,7 @@ export function memoryFirestore() {
   function doc(path: string): any {
     return { path, id: path.split('/').at(-1), collection: (name: string) => query(`${path}/${name}`), get: async () => snapshot(path),
       create: async (data: unknown) => { if (rows.has(path)) throw Error('exists'); rows.set(path, structuredClone(data)); },
-      set: async (data: unknown) => { rows.set(path, structuredClone(data)); },
+      set: async (data: object, options?: { merge?: boolean }) => { rows.set(path, { ...(options?.merge ? rows.get(path) : {}), ...structuredClone(data) }); },
       update: async (data: object) => { if (!rows.has(path)) throw Error('missing'); rows.set(path, { ...rows.get(path), ...structuredClone(data) }); },
       delete: async () => { rows.delete(path); } };
   }
@@ -26,7 +26,8 @@ export function memoryFirestore() {
   function writer() {
     const writes: (() => void)[] = [];
     return { writes, get: async (ref: any) => { if (writes.length) throw Error('read_after_write'); return ref.path ? snapshot(ref.path) : ref.get(); },
-      set: (ref: any, data: any) => writes.push(() => rows.set(ref.path, structuredClone(data))),
+      getAll: async (...refs: any[]) => { if (writes.length) throw Error('read_after_write'); return refs.map(ref => snapshot(ref.path)); },
+      set: (ref: any, data: any, options?: { merge?: boolean }) => writes.push(() => rows.set(ref.path, { ...(options?.merge ? rows.get(ref.path) : {}), ...structuredClone(data) })),
       update: (ref: any, data: any) => { if (!rows.has(ref.path)) throw Error('missing'); writes.push(() => rows.set(ref.path, { ...rows.get(ref.path), ...structuredClone(data) })); },
       create: (ref: any, data: any) => { if (rows.has(ref.path)) throw Error('exists'); writes.push(() => rows.set(ref.path, structuredClone(data))); },
       delete: (ref: any) => writes.push(() => rows.delete(ref.path)),
