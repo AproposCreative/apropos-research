@@ -12,6 +12,7 @@ import { claimQualityJob, checkpointQualityJob, enqueueQualityJob, finishQuality
 import { decideMetadataUpdate, hasFreshPerformanceEvidence, POST_PUBLISH_POLICY, reviewKey } from './policy';
 import { admitArchiveReview } from './archive-admission';
 import { checkLiveMetadataDuplicates } from './uniqueness';
+import { selectChatCandidates } from './chat-queue';
 import { seoApplyInput, seoClaimInput, seoProposalInput, seoTaskId, validateChatProposal, latestSeoCooldown, type ChatReview } from './chat-contract';
 
 const jobs = () => seoDb().collection('seoPostPublishJobs');
@@ -40,24 +41,25 @@ export function claimSeoTasks(uid: string, raw: unknown) {
     let batch = (await batchRef.get()).data();
     if (batch && batch.inputHash !== inputHash) throw Error('seo_chat_request_changed');
     if (!batch) {
-      let candidateIds: string[];
+      let candidateIds: string[] = [];
       if (input.articleId) {
         const current = await readPublishedArticle(input.articleId, input.locale);
         const queued = await enqueueQualityJob({ source: 'recovery', manualRequested: true,
           snapshot: current.snapshot, article: articleFrom(current), mode: 'publication_quality' });
         if (!queued.jobId) throw Error(`seo_chat_${queued.reason || 'not_queued'}`);
         candidateIds = [queued.jobId];
-      } else {
-        // Bounded current window; no speculative scan/review of the archive.
-        const rows = await jobs().orderBy('createdAt', 'desc').limit(100).get();
-        candidateIds = rows.docs.filter(d => !TERMINAL_QUALITY_STATES.includes(d.data().status) &&
-          (!d.data().processor || d.data().chatReview?.uid === uid)).map(d => d.id);
       }
       await seoDb().runTransaction(async tx => {
         const old = (await tx.get(batchRef)).data();
         if (old && old.inputHash !== inputHash) throw Error('seo_chat_request_changed');
-        if (!old) tx.create(batchRef, { uid, inputHash, candidateIds, taskIds: [], checked: [],
-          limit: input.limit, createdAt: new Date().toISOString(), version: SEO_PROCESSOR_VERSION });
+        if (!old) {
+          const selected = input.articleId ? null : await selectChatCandidates(tx, uid);
+          if (selected) tx.set(selected.cursorRef, selected.cursorState);
+          tx.create(batchRef, { uid, requestId: input.requestId, inputHash,
+            candidateIds: selected?.candidateIds || candidateIds, taskIds: [], checked: [],
+            ...(selected ? { selection: selected.selection } : {}),
+            limit: input.limit, createdAt: new Date().toISOString(), version: SEO_PROCESSOR_VERSION });
+        }
       });
       batch = (await batchRef.get()).data()!;
     }
@@ -65,14 +67,14 @@ export function claimSeoTasks(uid: string, raw: unknown) {
     // Maximum four fresh CMS inspections per call; repeating this request resumes
     // the saved candidate cursor instead of purchasing or reconstructing work.
     let inspected = 0;
-    for (const id of batch.candidateIds as string[]) {
+    try { for (const id of batch.candidateIds as string[]) {
       const latest = (await batchRef.get()).data()!;
       if (latest.taskIds.length >= input.limit) break;
       if (latest.checked.includes(id)) continue;
       if (++inspected > 4) break;
       let outcome = 'unavailable';
       const job = (await jobs().doc(id).get()).data() as QualityJob | undefined;
-      if (job?.chatReview?.uid === uid) {
+      if (job?.chatReview?.uid === uid && !TERMINAL_QUALITY_STATES.includes(job.status)) {
         outcome = 'existing';
         await seoDb().runTransaction(async tx => {
           const current = (await tx.get(batchRef)).data()!;
@@ -134,11 +136,16 @@ export function claimSeoTasks(uid: string, raw: unknown) {
       });
       if (!['claimed', 'existing'].includes(outcome)) skipped.push({ taskId: id, reason: outcome });
     }
+    await batchRef.update({ lastError: FieldValue.delete(), updatedAt: new Date().toISOString() });
+    } catch (error) {
+      await batchRef.update({ lastError: code(error), updatedAt: new Date().toISOString() });
+      throw error;
+    }
     const saved = (await batchRef.get()).data()!;
     return { batchId, tasks: await Promise.all((saved.taskIds as string[]).map(id => getSeoTask(uid, id))), skipped,
       hasMore: saved.taskIds.length < input.limit && saved.checked.length < saved.candidateIds.length,
       resume: 'Repeat claim_seo_tasks with exactly the same requestId and arguments; get_seo_task after timeout.',
-      paidModelCalls: 0, processorMode: await seoProcessorMode() };
+      selection: saved.selection || null, paidModelCalls: 0, processorMode: await seoProcessorMode() };
   });
 }
 

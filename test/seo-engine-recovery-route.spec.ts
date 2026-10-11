@@ -6,6 +6,7 @@ vi.mock('next/server', async () => ({ ...await vi.importActual<typeof import('ne
 vi.mock('@/lib/seo-engine/post-publish/jobs', () => ({ listRecoverableQualityJobs: vi.fn(async () => ['quality-job']) }));
 vi.mock('@/lib/seo-engine/post-publish/runtime', () => ({ runProductionQualityJob: vi.fn(async () => ({ ok: true })) }));
 vi.mock('@/lib/seo-engine/post-publish/discovery', () => ({ discoverPublishedQualityJobs: vi.fn(async () => ({ skipped: false })) }));
+vi.mock('@/lib/seo-engine/post-publish/chat-health', () => ({ observeSeoChatHealth: vi.fn(async () => ({ status: 'waiting' })) }));
 vi.mock('@/lib/seo-engine/settings', () => ({ resolveAutoSeoEngineEnabled: vi.fn(async () => false) }));
 vi.mock('@/lib/seo-engine/opportunity-engine/settings', () => ({ resolveAutomaticOpportunityRuntime: vi.fn(async () => ({ killSwitchEnabled: true, shouldAutoFillOnPublish: true })) }));
 vi.mock('@/lib/seo-engine/jobs', () => ({ listQueuedSeoEngineJobs: vi.fn(async () => [
@@ -18,6 +19,7 @@ import { GET } from '../app/api/cron/seo-engine-recovery/route';
 import { kickSeoEngineJob } from '../lib/seo-engine/enqueue';
 import { resolveAutoSeoEngineEnabled } from '../lib/seo-engine/settings';
 import { resolveAutomaticOpportunityRuntime } from '../lib/seo-engine/opportunity-engine/settings';
+import { observeSeoChatHealth } from '../lib/seo-engine/post-publish/chat-health';
 beforeEach(() => { vi.clearAllMocks(); background.tasks = []; });
 it('recovers exact EN and DA ids when only opportunity mode is enabled', async () => {
   const result = await GET(new NextRequest('http://localhost/api/cron/seo-engine-recovery'));
@@ -32,4 +34,5 @@ it('does not start legacy writes while stopped, retaining quality readback recov
   expect(kickSeoEngineJob).not.toHaveBeenCalled();
   expect(background.tasks).toHaveLength(1);
   await background.tasks[0]();
+  expect(observeSeoChatHealth).toHaveBeenCalledOnce();
 });

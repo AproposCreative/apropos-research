@@ -78,7 +78,8 @@ export async function listMetadataHistory(cursor?: string) {
       title: job.article.editorialTitle, status: job.status, source: job.source, mode: job.mode,
       createdAt: job.createdAt, updatedAt: job.updatedAt, reason: job.reason || null,
       assessments: job.assessments || [],
-      before: job.snapshot.metadata, proposed: job.decision?.patch || null, after: job.after?.metadata || null,
+      processor: job.processor || 'api', editorialRecheck: !!job.chatReview?.recheck,
+      before: job.snapshot.metadata, proposed: job.decision?.patch || job.chatReview?.proposal?.technicalDecision.patch || null, after: job.after?.metadata || null,
       publicReceipt: job.publicReceipt || null, evidence: job.article.performanceContext || null,
       lockedFields: state.lockedFields, pendingVerification: Boolean(state.pendingJobId) };
   }));

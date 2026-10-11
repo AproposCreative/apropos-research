@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { requireSeoEngineUser } from '@/lib/seo-engine/require-auth';
 import { listMetadataHistory, setMetadataLocks } from '@/lib/seo-engine/post-publish/editorial';
+import { readSeoChatHealth } from '@/lib/seo-engine/post-publish/chat-health';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -13,7 +14,10 @@ export async function GET(req: NextRequest) {
   if (!auth.ok) return auth.response;
   const cursor = req.nextUrl.searchParams.get('cursor') || undefined;
   if (cursor && !/^[a-f0-9]{64}$/.test(cursor)) return NextResponse.json({ error: 'Ugyldig side' }, { status: 400 });
-  try { return NextResponse.json(await listMetadataHistory(cursor)); }
+  try {
+    const [history, health] = await Promise.all([listMetadataHistory(cursor), readSeoChatHealth().catch(() => null)]);
+    return NextResponse.json({ ...history, health }, { headers: { 'Cache-Control': 'private, no-store' } });
+  }
   catch { return NextResponse.json({ error: 'SEO-historikken kunne ikke hentes.' }, { status: 503 }); }
 }
 

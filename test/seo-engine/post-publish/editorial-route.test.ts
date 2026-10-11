@@ -1,9 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { NextRequest, NextResponse } from 'next/server';
-const m = vi.hoisted(() => ({ authenticated: true, locks: vi.fn(), history: vi.fn() }));
+const m = vi.hoisted(() => ({ authenticated: true, locks: vi.fn(), history: vi.fn(), health: vi.fn() }));
 vi.mock('@/lib/seo-engine/require-auth', () => ({ requireSeoEngineUser: async () => m.authenticated
   ? { ok: true, userId: 'editor' } : { ok: false, response: new NextResponse(null, { status: 401 }) } }));
 vi.mock('@/lib/seo-engine/post-publish/editorial', () => ({ setMetadataLocks: m.locks, listMetadataHistory: m.history }));
+vi.mock('@/lib/seo-engine/post-publish/chat-health', () => ({ readSeoChatHealth: m.health }));
 import { GET, POST } from '../../../app/api/seo-engine/quality/route';
 const request = (body: unknown) => new NextRequest('http://localhost/api/seo-engine/quality', { method: 'POST', body: JSON.stringify(body) });
 describe('editorial metadata control', () => {
@@ -18,6 +19,12 @@ describe('editorial metadata control', () => {
     expect((await POST(request({ itemId: 'a'.repeat(24), locale: 'da', lockedFields: ['content'] }))).status).toBe(400);
     expect((await POST(request({ itemId: 'a'.repeat(24), locale: 'fr', lockedFields: [] }))).status).toBe(400);
     expect(m.locks).not.toHaveBeenCalled();
+  });
+  it('returns private health with history and preserves unknown when monitoring is unavailable', async () => {
+    m.history.mockResolvedValue({ rows: [], nextCursor: null }); m.health.mockRejectedValue(Error('offline'));
+    const response = await GET(new NextRequest('http://localhost/api/seo-engine/quality'));
+    expect(response.headers.get('cache-control')).toBe('private, no-store');
+    expect(await response.json()).toEqual({ rows: [], nextCursor: null, health: null });
   });
   it('records an authenticated per-field lock without accepting an impersonated actor', async () => {
     m.locks.mockResolvedValue({ lockedFields: ['seoTitle'] });

@@ -8,6 +8,7 @@ import { kickSeoEngineJob } from '@/lib/seo-engine/enqueue';
 import { resolveAutomaticOpportunityRuntime } from '@/lib/seo-engine/opportunity-engine/settings';
 import { logger } from '@/lib/logger';
 import { requireCronSecret } from '@/lib/seo-engine/secret-guards';
+import { observeSeoChatHealth } from '@/lib/seo-engine/post-publish/chat-health';
 
 export const runtime = 'nodejs';
 export const maxDuration = 300;
@@ -27,10 +28,10 @@ export async function GET(req: NextRequest) {
     // handles its own gate, including read-only reconciliation while stopped.
     after(async () => {
       const outcomes = await Promise.allSettled([
-        ...qualityJobs.map(runProductionQualityJob), discoverPublishedQualityJobs(),
+        ...qualityJobs.map(runProductionQualityJob), discoverPublishedQualityJobs(), observeSeoChatHealth(),
       ]);
       outcomes.forEach((outcome, index) => {
-        if (outcome.status === 'rejected') logger.warn('[seo-quality] recovery worker failed', { jobId: qualityJobs[index] || 'discovery' });
+        if (outcome.status === 'rejected') logger.warn('[seo-quality] recovery worker failed', { jobId: qualityJobs[index] || (index === qualityJobs.length ? 'discovery' : 'chat-health') });
       });
     });
     const runtime = await resolveAutomaticOpportunityRuntime();
