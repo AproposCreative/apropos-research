@@ -13,7 +13,8 @@ export async function GET(request: NextRequest) {
   if (!access?.owner) return NextResponse.json({ error: 'Forbidden' }, { status: 403, headers });
   try {
     const taskId = request.nextUrl.searchParams.get('taskId');
-    return NextResponse.json(taskId ? await getSeoTask(access.uid, taskId) : { processor: await seoProcessorMode() }, { headers });
+    const knownContextHash = request.nextUrl.searchParams.get('knownContextHash') ?? undefined;
+    return NextResponse.json(taskId ? await getSeoTask(access.uid, taskId, knownContextHash) : { processor: await seoProcessorMode() }, { headers });
   } catch (e) { return failure(e); }
 }
 const command = z.object({ action: z.enum(['claim', 'save', 'apply', 'activate']), input: z.unknown() }).strict();

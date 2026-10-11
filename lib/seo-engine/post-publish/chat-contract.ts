@@ -8,7 +8,8 @@ const reason = z.string().trim().min(15).max(1500);
 export const seoClaimInput = z.object({ requestId: z.string().regex(/^[a-zA-Z0-9_-]{8,100}$/),
   limit: z.number().int().min(1).max(2).default(2),
   articleId: z.string().regex(/^[a-f0-9]{24}$/).optional(), locale: z.enum(['da', 'en']).default('da') }).strict();
-export const seoStatusInput = z.object({ taskId: seoTaskId }).strict();
+export const seoStatusInput = z.object({ taskId: seoTaskId,
+  knownContextHash: seoTaskId.optional().describe('Only send the hash of full context actually available in this chat. A match returns compact status; a mismatch or omission returns the entire saved context.') }).strict();
 const assessment = z.object({ field: z.enum(['seoTitle','metaDescription']), verdict: z.enum(['keep','improve','needs_editor']),
   reason, proposedValue: z.string().trim().min(10).max(320).optional(),
   articleQuotes: z.array(z.string().trim().min(15).max(700)).min(1).max(4),

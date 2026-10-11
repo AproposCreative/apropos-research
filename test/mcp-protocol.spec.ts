@@ -131,6 +131,18 @@ it('discovers owner-only SEO tools with exact write scope, durable identity and 
   seo.status.mockRejectedValue(Error('seo_chat_context_changed'));
   expect((await (await call('get_seo_task', { taskId })).json()).result.content[0].text).toContain('seo_chat_context_changed');
 });
+it('advertises optional compact SEO transport and forwards a known hash without changing ownership', async () => {
+  const taskId = 'a'.repeat(64), knownContextHash = 'b'.repeat(64);
+  const listed = (await (await POST(message('tools/list'))).json()).result.tools;
+  const schema = listed.find((t: any) => t.name === 'get_seo_task').inputSchema;
+  expect(schema.required).toEqual(['taskId']); expect(schema.properties.knownContextHash).toBeTruthy();
+  seo.status.mockResolvedValue({ context: null, contextIncluded: false, contextHash: knownContextHash });
+  const result = JSON.parse((await (await call('get_seo_task', { taskId, knownContextHash })).json()).result.content[0].text);
+  expect(result.contextIncluded).toBe(false); expect(seo.status).toHaveBeenCalledExactlyOnceWith('frederik', taskId, knownContextHash);
+  expect((await (await call('get_seo_task', { taskId, knownContextHash: 'invalid' })).json()).result.isError).toBe(true);
+  const workflow = JSON.parse((await (await call('get_workflow', { workflow: 'seo' })).json()).result.content[0].text);
+  expect(workflow.instructions).toContain('mistet grundlag'); expect(workflow.instructions).toContain('frisk dubletkontrol');
+});
 it('exposes private cloud-reading tools to team members with exact scopes, no-paid guard and metadata-only audit', async () => {
   mock.identity.owner = false; mock.identity.uid = 'casper'; mock.identity.scopes = ['apropos:read'];
   reader.list.mockResolvedValue({ items: [], paidAiCalls: 0 });

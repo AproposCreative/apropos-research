@@ -1,12 +1,12 @@
 import { beforeEach, expect, it, vi } from 'vitest';
 import { memoryFirestore } from '../../helpers/mcp-firestore';
-const m = vi.hoisted(() => ({ db: null as any, read: vi.fn(), apply: vi.fn(), reconcile: vi.fn(), duplicates: vi.fn(), paid: vi.fn(),
+const m = vi.hoisted(() => ({ db: null as any, read: vi.fn(), apply: vi.fn(), reconcile: vi.fn(), duplicates: vi.fn(), reviewDuplicates: vi.fn(), paid: vi.fn(),
   current: null as any, lostResponse: false }));
 vi.mock('@/lib/firebase-admin', () => ({ getAdminDb: () => m.db }));
 vi.mock('firebase-admin/firestore', () => ({ FieldValue: { delete: () => '__DELETE__' } }));
 vi.mock('@/lib/openai', () => ({ getOpenAIClient: m.paid }));
 vi.mock('@/lib/seo-engine/post-publish/cms', () => ({ readPublishedArticle: m.read, applyPublishedMetadata: m.apply, reconcilePublishedMetadata: m.reconcile }));
-vi.mock('@/lib/seo-engine/post-publish/uniqueness', () => ({ checkLiveMetadataDuplicates: m.duplicates }));
+vi.mock('@/lib/seo-engine/post-publish/uniqueness', () => ({ checkLiveMetadataDuplicates: m.duplicates, createMetadataReviewInventory: () => m.reviewDuplicates }));
 vi.mock('@/lib/seo-engine/cms-write-lease', () => ({ acquireCmsWriteLease: async () => ({ assertOwned: async () => {}, release: async () => {} }) }));
 import { claimSeoTasks, getSeoTask, saveSeoReview, applySeoReview, activateChatSeo } from '../../../lib/seo-engine/post-publish/chat';
 import { enqueueQualityJob, claimQualityJob } from '../../../lib/seo-engine/post-publish/jobs';
@@ -24,6 +24,7 @@ beforeEach(() => {
     live: { fieldData: { name: 'Familien: Anmeldelse', content: `<p>${body}</p>`, stjerne: 4 } }, publicUrl: 'https://www.aproposmagazine.com/articles/familien' };
   m.read.mockImplementation(async () => structuredClone(m.current));
   m.duplicates.mockResolvedValue({ seoTitle: [], metaDescription: [] });
+  m.reviewDuplicates.mockResolvedValue({ seoTitle: [], metaDescription: [] });
   m.apply.mockImplementation(async args => {
     await args.beforeWrite(m.current.snapshot);
     m.current.snapshot.metadata = { ...m.current.snapshot.metadata, ...args.patch };
@@ -49,7 +50,7 @@ const applyInput = (task: Awaited<ReturnType<typeof getSeoTask>>) => ({ taskId: 
 it('reserves the SAME queue item durably and replays a lost claim response without API work', async () => {
   const [a, b] = await Promise.all([claim(), claim()]);
   expect(a.taskId).toBe(b.taskId); expect(a.contextHash).toBe(b.contextHash);
-  expect(a.context.article.body).toBe(body); expect(a.context.google).toEqual({ evidence: null, context: null });
+  expect(a.context!.article.body).toBe(body); expect(a.context!.google).toEqual({ evidence: null, context: null });
   expect(await claimQualityJob(a.taskId)).toBeNull();
   await expect(assertLegacySeoProcessor(itemId, 'da')).rejects.toThrow('seo_chatgpt_article_reserved');
   expect(m.paid).not.toHaveBeenCalled();
@@ -63,7 +64,7 @@ it('applies only the saved metadata patch, preserves content identity, verifies 
   const result = await applySeoReview(uid, applyInput(saved));
   expect(result.status).toBe('applied'); expect(result.publicReceipt).toBeTruthy();
   expect(m.apply).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ patch: { metaDescription: p.assessments[1].proposedValue } }));
-  expect(result.after!.contentVersion).toBe('body-images-rating-hash'); expect(result.after!.metadata.seoTitle).toBe(task.context.snapshot.metadata.seoTitle);
+  expect(result.after!.contentVersion).toBe('body-images-rating-hash'); expect(result.after!.metadata.seoTitle).toBe(task.context!.snapshot.metadata.seoTitle);
   expect(await applySeoReview(uid, applyInput(saved))).toEqual(result); expect(m.apply).toHaveBeenCalledOnce();
   expect(store.rows.get(stateKey).chatJobId).toBeNull(); expect(m.paid).not.toHaveBeenCalled();
 });
@@ -145,4 +146,37 @@ it('does not call a rejected ChatGPT recheck a successful server verification', 
   const saved = await saveSeoReview(uid, proposal(await claim())); const input = applyInput(saved); input.recheck.supported = false;
   const result = await applySeoReview(uid, input); expect(result.status).toBe('needs_editor');
   expect(result.publicReceipt).toBeNull(); expect(result.serverFactCheckPerformed).toBe(false); expect(m.apply).not.toHaveBeenCalled();
+});
+it('returns compact save/apply/status receipts while preserving recoverable full context and ownership', async () => {
+  const task = await claim();
+  expect(task.contextIncluded).toBe(true);
+  const saved = await saveSeoReview(uid, proposal(task));
+  expect(saved.contextIncluded).toBe(false); expect(saved.context).toBeNull();
+  expect(saved.article.itemId).toBe(itemId); expect(saved.proposal!.before).toEqual(task.context!.snapshot.metadata);
+  const status = await getSeoTask(uid, task.taskId, task.contextHash);
+  expect(status).toEqual(saved);
+  expect((await getSeoTask(uid, task.taskId)).context).toEqual(task.context);
+  const changedHash = await getSeoTask(uid, task.taskId, 'f'.repeat(64));
+  expect(changedHash.contextIncluded).toBe(true); expect(changedHash.context).toEqual(task.context);
+  await expect(getSeoTask('other', task.taskId, task.contextHash)).rejects.toThrow('seo_chat_task_not_found');
+  await expect(getSeoTask(uid, task.taskId, 'invalid')).rejects.toThrow();
+  const result = await applySeoReview(uid, applyInput(saved));
+  expect(result.context).toBeNull(); expect(result.publicReceipt).toBeTruthy();
+  expect(result.recheck).toEqual(applyInput(saved).recheck);
+  expect((await getSeoTask(uid, task.taskId)).context).toEqual(task.context);
+});
+it('never uses the shared review inventory for the final write check', async () => {
+  const saved = await saveSeoReview(uid, proposal(await claim()));
+  expect(m.reviewDuplicates).toHaveBeenCalledOnce(); expect(m.duplicates).not.toHaveBeenCalled();
+  m.duplicates.mockResolvedValueOnce({ seoTitle: [], metaDescription: ['new-concurrent-article'] });
+  const result = await applySeoReview(uid, applyInput(saved));
+  expect(m.duplicates).toHaveBeenCalledOnce(); expect(m.reviewDuplicates).toHaveBeenCalledOnce();
+  expect(result.reason).toBe('seo_metadata_duplicate'); expect(m.apply).not.toHaveBeenCalled();
+});
+it('compact status returns current locks without changing the saved article context', async () => {
+  const task = await claim();
+  store.rows.get(stateKey).lockedFields = ['seoTitle'];
+  const result = await getSeoTask(uid, task.taskId, task.contextHash);
+  expect(result.context).toBeNull(); expect(result.lockedFields).toEqual(['seoTitle']);
+  expect(result.contextHash).toBe(task.contextHash);
 });

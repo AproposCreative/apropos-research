@@ -24,3 +24,10 @@ it('sanitizes unknown failures without exposing signed URLs or credentials', asy
   const response = await GET(new NextRequest('https://ai.aproposmagazine.com/api/seo-engine/chat?taskId=task'));
   expect(response.status).toBe(409); expect(JSON.stringify(await response.json())).not.toContain('secret remote');
 });
+it('forwards conditional context hash only for the authenticated owner and keeps responses private', async () => {
+  m.get.mockResolvedValue({ context: null, contextIncluded: false, contextHash: 'a'.repeat(64) });
+  const response = await GET(new NextRequest('https://ai.aproposmagazine.com/api/seo-engine/chat?taskId=task&knownContextHash=' + 'a'.repeat(64)));
+  expect(response.status).toBe(200); expect(response.headers.get('cache-control')).toBe('private, no-store');
+  expect(m.get).toHaveBeenCalledExactlyOnceWith('owner', 'task', 'a'.repeat(64));
+  expect((await response.json()).contextIncluded).toBe(false);
+});
