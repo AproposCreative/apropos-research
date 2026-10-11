@@ -54,6 +54,9 @@ Rewrite duplicate metadata using this article's distinctive factual content; do 
 When performanceContext is supplied, use actual queries and metrics to understand search intent.
 GA4 is complementary engagement evidence, not proof that a title caused clicks or engagement.
 Interpret CTR alongside position, query and observation periods. Missing metrics are unknown, never zero.
+Equal-length periods do not prove equal demand: consider seasonality and the event's date.
+A fall in impressions alone is not a metadata defect and does not prove causation.
+Describe dated events faithfully; do not imply a new premiere, future event or current availability without support.
 Keep the work's authoritative spelling from the article. Never turn an unrelated query into a factual claim.`;
 
 const VERIFY_PROMPT = `Independently check proposed SEO metadata against the complete supplied article.

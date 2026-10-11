@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { reviewPublishedMetadata } from '../../../lib/seo-engine/post-publish/review';
+import { reviewPublishedMetadata, METADATA_REVIEW_PROMPT } from '../../../lib/seo-engine/post-publish/review';
 
 const article = { editorialTitle: 'Mayday', locale: 'da' as const, body: 'En konkret anmeldelse af filmen Mayday. '.repeat(8),
   metadata: { seoTitle: 'Mayday', metaDescription: 'En konkret anmeldelse af filmen.' } };
@@ -7,6 +7,11 @@ const keep = { verdict: 'keep', reason: 'Præcis.', proposedValue: null };
 const improve = { verdict: 'improve', reason: 'Gør søgeintention tydelig.', proposedValue: 'Mayday: Anmeldelse' };
 
 describe('AI metadata review', () => {
+  it('does not treat equal-length Google periods or falling impressions as causal proof', () => {
+    expect(METADATA_REVIEW_PROMPT).toContain('consider seasonality');
+    expect(METADATA_REVIEW_PROMPT).toContain('does not prove causation');
+    expect(METADATA_REVIEW_PROMPT).toContain('Missing metrics are unknown, never zero');
+  });
   it('keeps good metadata without paying for a second generation', async () => {
     const call = vi.fn().mockResolvedValue(JSON.stringify({ seoTitle: keep, metaDescription: keep }));
     const result = await reviewPublishedMetadata(article, call);
