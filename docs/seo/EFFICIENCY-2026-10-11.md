@@ -95,5 +95,40 @@ and Fluid compute references checked before release:
 https://vercel.com/docs/functions/limitations
 https://vercel.com/docs/fluid-compute
 
-Production release and authenticated compact/full/replay evidence follow below
-only after exact deployment and readback.
+## Deployed and verified live
+
+- Source commit: `945429da7b1c26d9362d13219b78a85ba71d76f2`.
+- Production deployment: `dpl_D6w6PTu751LByzAwc6Ca7DQvJp7y`, READY at
+  16:19:15.234Z, exact source SHA and `ai.aproposmagazine.com` alias verified.
+  No Webflow site publish or article publication was part of this release.
+- Authenticated production API verification completed at 16:21:45.876Z.
+  All four real terminal tasks in the table returned the same full/compact byte
+  counts as the local proof. Exact-hash status was compact; omitted/mismatched
+  hashes recovered the full context. HTTP 200/private-no-store was required.
+- Replaying each ORIGINAL stored save and apply operation retained its proposal,
+  status and public receipt. This was terminal idempotency verification, not new
+  editorial review, approval or publication. Complete job/ledger/hold hashes
+  before and after were identical to the protected hashes above.
+- The existing connected Apropos MCP returned full `seo-task-v2` context for the
+  book and the canonical SEO workflow, hash
+  `4443c1ea14f67eb5cbf021ae1736b2e6b5d24a183cce62b07d44a9520e23a89b`.
+  At 16:22:11.033Z an exact native MCP save replay returned compact context with
+  the original proposal/receipt unchanged and paidModelCalls=0. No new decision
+  or assessment was authored for this check.
+- The current connected client's cached get_seo_task schema still exposes only
+  taskId. That supported call returns full context; save/apply compact results
+  already work through the connection. Refreshing tool discovery is necessary
+  only to use the optional knownContextHash status optimization. No connection,
+  access rights or cloud schedule was changed for this verification.
+- Bounded deployment error/fatal console scan 16:06:48–16:21:48Z had no matching
+  output. This is not evidence of all requests or all future error-free runs;
+  the successful authenticated API/MCP responses are the path-level evidence.
+- The final source change after the full 5134-test run was workflow prose only;
+  the actual MCP protocol suite (19 tests) passed again at 16:17Z before commit.
+
+Result: implemented, deployed, and verified through the authenticated production
+API and existing native MCP connection. No paid model call, new article review,
+CMS mutation, provider-hold change or budget/reservation change was made. The
+review-inventory call reduction remains integration-test evidence, not a new
+production-batch measurement. Natural unattended metadata PATCH and the separate
+28-day effect report remain explicitly outside this release's completed evidence.
