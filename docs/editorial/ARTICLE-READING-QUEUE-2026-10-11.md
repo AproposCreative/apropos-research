@@ -50,3 +50,49 @@ must not be relabelled as completed drafts. Historical missed dates stay missed.
   reset, ledger reconciliation or Webflow site publication is part of this release.
 
 Production deployment and real readback are recorded below only after success.
+
+## Production verification — 11 October, 14:40 Copenhagen
+
+- Source commit `a3de3971c71b2da6dc2e85d25fb17ab45794694a` pushed on
+  `codex/liv-daily-recovery`; Vercel deployment
+  `dpl_GmYQEpPEXWp3F1Lu1vcueEFVB3af` is READY with the exact commit and
+  `ai.aproposmagazine.com` production alias. No Webflow site publication.
+- Authenticated production GETs completed at `2026-10-11T12:40:25.449Z`.
+  All 15 returned draft/version groups have readable full text, including six
+  CMS drafts, five saved Liv checkpoints, three private submissions and the
+  existing Wolverine Writer revision. All 234 CMS rows in the bounded scan
+  were read; 66 Liv runs, 76 writing attempts and four private submissions
+  were available. No source was unavailable or truncated in this scan.
+- October 4/6/8/10 automatic runs still have no article checkpoint. October 12
+  also has a failed legacy run without text, separate from its real private
+  ChatGPT-first draft. No historical missed delivery was changed.
+- The Somebody Somewhere preview is the same revision 8 with its real cover
+  and two body images. Its human-review preparation can be accepted by the
+  owner; no approval was supplied by this verification. The Klubkultur draft
+  is revision 2 and still lacks images. The legacy Fire & Ice preparation
+  quote is not a new publication-ready grant or a conversion to ChatGPT-first;
+  its pre-existing policy and cost controls are preserved.
+- A clean isolated Chrome session used existing Firebase service authentication
+  to load the actual production review queue and article. All 15 cards were
+  visible. Three actual CDN images loaded with nonzero natural width. Mobile
+  390px had no horizontal overflow; mobile and 1280px desktop screenshots were
+  visually inspected. The personal checkbox stayed unchecked, the preparation
+  button stayed disabled, and no application API write occurred. Anonymous
+  queue access returned 401. This is not a personal approval or published CMS
+  readback.
+- At `2026-10-11T12:40:36.616Z`, before/after hashes matched for all owner's
+  submissions, delivery manifest, October shared/image ledgers and provider
+  hold. No paid AI request, article generation, import, approval or publication.
+  The existing provider hold and unresolved reservation remain unchanged.
+- Screenshots retained locally in `output/article-reading-2026-10-11/`:
+  `queue-mobile.png`, `article-mobile.png`, `article-desktop.png`.
+
+Owner entry point: https://ai.aproposmagazine.com/connect/chatgpt?review=1
+
+### Remaining editorial work, not hidden by the new preview
+
+Older CMS/checkpoint/Writer previews are read-only and refer to their existing
+identity. Missing media and current source/date checks must be completed through
+the existing workflow before personal publication approval. This release does
+not turn 15 saved versions into 15 ready, unique or automatically delivered
+articles. It does not fulfil unattended Liv delivery acceptance.
