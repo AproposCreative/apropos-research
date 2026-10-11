@@ -6,7 +6,10 @@ vi.mock('@/lib/editorial/submissions', () => ({ getSubmissionStatus: vi.fn() }))
 vi.mock('@/lib/editorial/submission-approval', () => ({ quoteSubmission: vi.fn(), acceptSubmissionQuote: (...args: unknown[]) => state.accept(...args) }));
 vi.mock('@/lib/editorial/submission-publication', () => ({ submissionPublicationPreview: vi.fn(), approveSubmissionPublication: (...args: unknown[]) => state.approve(...args), publishSubmission: vi.fn() }));
 vi.mock('@/lib/editorial/submission-continuation', () => ({ continueSubmissionPreparation: (...args: unknown[]) => state.worker(...args) }));
-import { POST } from '@/app/api/editorial/submissions/route';
+import { GET, POST } from '@/app/api/editorial/submissions/route';
+import { getSubmissionStatus } from '@/lib/editorial/submissions';
+import { quoteSubmission } from '@/lib/editorial/submission-approval';
+import { submissionPublicationPreview } from '@/lib/editorial/submission-publication';
 import { MCP_ORIGIN } from '@/lib/mcp/config';
 const body = { action: 'accept_quote', id: 'a'.repeat(64), revision: 1, quoteId: 'b'.repeat(64) };
 const request = (input = body, origin = MCP_ORIGIN) => new Request(`${MCP_ORIGIN}/api/editorial/submissions`, {
@@ -32,4 +35,28 @@ it('persists personal price acceptance before dispatch and does not publish', as
   expect((await POST(request())).status).toBe(202);
   expect(state.accept).toHaveBeenCalledWith('owner', body.id, 1, body.quoteId);
   expect(state.after).toHaveBeenCalledTimes(1); expect(state.approve).not.toHaveBeenCalled();
+});
+it('lets the owner read the full saved article and anchored images before any approval', async () => {
+  vi.mocked(getSubmissionStatus).mockResolvedValue({ status: 'awaiting_preparation', revision: 8, contentHash: 'hash',
+    displayNames: { author: 'Liv Brandt', category: 'Kultur' },
+    article: { title: 'Somebody Somewhere', intro: 'Intro', content: '<p>Før</p><figure><img src="https://example.com/body.jpg" alt="Foto"><figcaption>HBO</figcaption></figure><p>Efter</p>', featuredImage: 'https://example.com/cover.jpg' } } as any);
+  vi.mocked(quoteSubmission).mockResolvedValue({ revision: 8, contentHash: 'hash', canAccept: true, humanReview: true } as any);
+  const res = await GET(new Request(`${MCP_ORIGIN}/api/editorial/submissions?id=${body.id}`));
+  expect(res.status).toBe(200); expect(res.headers.get('cache-control')).toBe('private, no-store');
+  const data = await res.json();
+  expect(data.reading).toMatchObject({ title: 'Somebody Somewhere', author: 'Liv Brandt', featuredImage: 'https://example.com/cover.jpg' });
+  expect(data.reading.blocks.map((b: any) => b.kind)).toEqual(['text', 'image', 'text']);
+  expect(data.preview).toBeNull(); expect(state.accept).not.toHaveBeenCalled(); expect(state.after).not.toHaveBeenCalled();
+  expect(submissionPublicationPreview).not.toHaveBeenCalled();
+});
+it('keeps saved text readable during dependency failure but disables stale approval', async () => {
+  vi.mocked(getSubmissionStatus).mockResolvedValue({ status: 'awaiting_preparation', revision: 2, contentHash: 'two',
+    displayNames: {}, article: { title: 'Bevaret', content: '<p>Tekst</p>' } } as any);
+  vi.mocked(quoteSubmission).mockRejectedValueOnce(Error('upstream'));
+  const req = () => new Request(`${MCP_ORIGIN}/api/editorial/submissions?id=${body.id}`);
+  const failed = await (await GET(req())).json();
+  expect(failed.reading.title).toBe('Bevaret'); expect(failed.quote).toBeNull(); expect(failed.dependencyError).toBeTruthy();
+  vi.mocked(quoteSubmission).mockResolvedValue({ revision: 3, contentHash: 'three', canAccept: true } as any);
+  const changed = await (await GET(req())).json(); expect(changed.quote).toBeNull(); expect(changed.dependencyError).toContain('ændret');
+  expect(state.accept).not.toHaveBeenCalled(); expect(state.after).not.toHaveBeenCalled();
 });

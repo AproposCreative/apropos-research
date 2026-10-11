@@ -103,7 +103,7 @@ export async function listImageGenArticles(input: { cursor?: number; query?: str
 
 /** Server-only draft scan, sorted upstream. Raw fields must not be returned by the overview tool. */
 export async function readEditorialCmsCandidates(limit: number, query = '') {
-  if (!Number.isInteger(limit) || limit < 1 || limit > 10 || query.length > 150) throw Error('mcp_draft_list_invalid');
+  if (!Number.isInteger(limit) || limit < 1 || limit > 100 || query.length > 150) throw Error('mcp_draft_list_invalid');
   const { locale } = configuration(), items: CmsItem[] = [];
   let rowsRead = 0, complete = false, matches = 0;
   const needle = query.trim().toLocaleLowerCase('da');

@@ -52,12 +52,12 @@ const sorted = <T extends { updatedAt: string | null; id: string }>(rows: T[]) =
   String(b.updatedAt || '').localeCompare(String(a.updatedAt || '')) || a.id.localeCompare(b.id));
 
 /** One read-only tool for the overview, not an N+1 round-trip through each full-text MCP tool. */
-export async function listDrafts(uid: string, value: unknown) {
+export async function listDrafts(uid: string, value: unknown, webWindow = false) {
   const input = draftOverviewInput.parse(value), db = getAdminDb(); if (!db) throw Error('mcp_unavailable');
   const now = new Date(), today = copenhagenClock(now).day;
   // Sources fail independently: a CMS outage must not hide preserved private text.
   const [cmsResult, savedResult, submissionsResult] = await Promise.allSettled([
-    readEditorialCmsCandidates(input.limit, input.query), readEditorialWorkSnapshot(uid),
+    readEditorialCmsCandidates(webWindow ? 100 : input.limit, input.query), readEditorialWorkSnapshot(uid),
     db.collection('editorialSubmissions').where('uid', '==', uid).limit(100).get(),
   ]);
   const unavailable = [cmsResult.status === 'rejected' ? 'cms' : null, savedResult.status === 'rejected' ? 'saved_work' : null,
@@ -122,7 +122,8 @@ export async function listDrafts(uid: string, value: unknown) {
     const itemId = objectId(row.prepared?.itemId) ? row.prepared.itemId : null;
     candidates.push({ itemId, version: version('private-submission', doc.id, record(row.article), row.updatedAt,
       'submission', { tool: 'get_submission_status', arguments: { submissionId: doc.id } },
-      { version: row.revision ?? null, stage: safeCode(row.status) || 'submission', blockers: codes([row.blocker, row.blockedStep]) }) });
+      { version: row.revision ?? null, stage: safeCode(row.status) || 'submission', scheduledDay: row.livProduction?.day || null,
+        blockers: codes([row.blocker, row.blockedStep]) }) });
   }
   const groups = new Map<string, Candidate[]>();
   for (const candidate of candidates) {
@@ -143,7 +144,7 @@ export async function listDrafts(uid: string, value: unknown) {
       checks: 'not_revalidated', publicationApproval: false }];
   });
   sorted(items);
-  return { items: items.slice(0, input.limit), matchingDraftsInWindow: items.length,
+  return { items: items.slice(0, webWindow ? 100 : input.limit), matchingDraftsInWindow: items.length,
     checkedAt: now.toISOString(), coverage: { cmsRows: cms?.rowsRead ?? 0, cmsComplete: cms?.complete ?? false,
       cmsMaxRows: 300, cmsOrder: cms?.sortedBy ?? null, runRows: saved?.runs.size ?? 0, writingRows: saved?.writing.size ?? 0,
       submissionRows: submissions?.size ?? 0, savedWindowTruncated: saved ? saved.runs.size === 100 || saved.writing.size === 100 : null,

@@ -8,6 +8,7 @@ import { continueSubmissionPreparation } from '@/lib/editorial/submission-contin
 import { submissionId } from '@/lib/editorial/submission-contract';
 import { MCP_ORIGIN, PRIVATE_HEADERS } from '@/lib/mcp/config';
 import { acceptImageSelection } from '@/lib/editorial/submission-image-selection';
+import { articleReadingPreview } from '@/lib/editorial/submission-preview';
 export const runtime = 'nodejs';
 export const maxDuration = 300;
 const response = (body: unknown, status = 200) => Response.json(body, { status, headers: PRIVATE_HEADERS });
@@ -23,7 +24,15 @@ export async function GET(req: Request) {
       quote = ['awaiting_answers', 'awaiting_preparation'].includes(row.status) ? await quoteSubmission(access.uid, id) : null;
       preview = row.status === 'prepared' ? await submissionPublicationPreview(access.uid, id) : null;
     } catch { dependencyError = 'Aktuel pris eller CMS-kontrol er utilgængelig. Dit gemte arbejde er bevaret. Godkendelse er stoppet indtil en frisk kontrol lykkes.'; }
-    return response({ row, quote, preview, dependencyError });
+    // Reading is always available, even when a dependency or approval is missing.
+    // A readable draft must never be confused with permission to publish it.
+    if (quote && (quote.revision !== row.revision || quote.contentHash !== row.contentHash) ||
+        preview?.ready && (preview.revision !== row.revision || preview.contentHash !== row.contentHash)) {
+      quote = null; preview = null; dependencyError = 'Artiklen blev ændret under indlæsning. Genindlæs før godkendelse.';
+    }
+    const article = preview?.ready ? preview.article! : row.article;
+    const reading = articleReadingPreview({ ...article, author: row.displayNames.author, category: row.displayNames.category });
+    return response({ row, quote, preview, reading, dependencyError });
   } catch (error) { return response({ error: safeError(error) }, 409); }
 }
 const inputSchema = z.discriminatedUnion('action', [

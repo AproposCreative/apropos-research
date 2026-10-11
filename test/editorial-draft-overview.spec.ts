@@ -102,3 +102,9 @@ it('sorts before limiting, records bounded coverage and leaves all source record
   expect(result.items[0].itemId).toBe('b'.repeat(24)); expect(result.coverage.cmsComplete).toBe(false);
   expect([...memory.rows]).toEqual(before);
 });
+it('shows the whole bounded queue on web without expanding the compact MCP tool or making copies', async () => {
+  mock.cms.mockResolvedValue(cmsWindow(Array.from({ length: 15 }, (_, i) => cmsItem(i.toString(16).padStart(24, '0')))));
+  const result = await listDrafts('owner', { limit: 10 }, true);
+  expect(result.items).toHaveLength(15); expect(mock.cms).toHaveBeenCalledWith(100, undefined);
+  expect(memory.rows.size).toBe(0);
+});
