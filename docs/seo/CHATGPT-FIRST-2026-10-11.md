@@ -17,7 +17,10 @@ No server model request. No Liv, provider hold, budget or Instagram changes.
   no paid model, unknown analytics, authentication, metadata-only preservation.
 - [x] Exact deployment + real manual MCP/public readback (change and keep).
 - [x] Switch processor only after verification; legacy uncertain writes retained.
-- [ ] Account-verified scheduled cloud task or exact platform blocker.
+- [x] Account-verified cloud timer, MCP claim/proposal/apply and public readback
+  without intervention; first timer chose keep for both articles.
+- [ ] Observe an actual necessary CMS PATCH from a timer-started run. No
+  platform approval block was encountered, but keep is not write evidence.
 
 ## Reuse and gaps found
 
@@ -139,7 +142,7 @@ No separate paid backend-model call, provider reset, budget change, whole-site
 publication or Instagram action. ChatGPT subscription usage is not zero-cost or
 unlimited; ordinary Google/Webflow/storage/hosting costs are unchanged.
 
-## Official cloud schedule (timer verification pending)
+## Official cloud schedule (created, then timer verified)
 
 Created through ChatGPT's official web scheduled-task UI, not a local heartbeat:
 `6acb8f8eaaa88190b605cf30ca98e982`, **Apropos SEO – ChatGPT-first**.
@@ -149,3 +152,69 @@ Fresh chat per run, existing account model, high reasoning, durable daily
 request identity, limit two tasks and at most three bounded claim calls.
 No connected credential or permission was changed. Writes must still obey the
 platform's permissions. Creation is NOT proof of unattended execution.
+
+## Production replay, version and transport checks
+
+At 13:35:11.817Z authenticated production checks confirmed:
+
+- Identical apply retries for both completed tasks returned their existing
+  results with unchanged complete job/receipt hashes and no new CMS write.
+- Wrong proposal hash and stale save-context hash were rejected with HTTP409;
+  reusing the manual batch identity with a different limit was also rejected.
+- An unauthenticated request was rejected with HTTP401. The legacy processor
+  guard rejected model work with `seo_chatgpt_processor_required`.
+- Independent fresh public HTML still matched Wolverine at 13:35:06.784Z and
+  Syd for Solen at 13:35:10.719Z. Protected ledger/hold hashes stayed identical.
+
+Follow-up source `446ed7be459fac51a4bca6aa8acac4531edbcf87` is READY as
+`dpl_GdmgsTyThaEf38DzAxu58wZhqtcT` with `ai.aproposmagazine.com`, verified
+13:38:57Z. It adds the seasonal-demand caveat to the shared editorial prompt.
+The full suite evidence remains 5098 tests; three additional focused assertions
+passed afterwards (latest focused run: 20 tests across two files). Type-check,
+lint and diff checks passed again. No claim that the entire expanded suite was
+rerun, and no backend model call was needed.
+
+## First genuine scheduled cloud run and final daily schedule
+
+The October 11 15:45 Copenhagen timer was left to start itself. No Run now and
+no message was sent to start/resume that run. The official task displayed
+Starting run; the first server MCP call arrived at 13:47:04.260Z. This is a
+roughly two-minute start delay, not an exact-on-the-second scheduling claim.
+The resulting official cloud chat is:
+https://chatgpt.com/c/cddb0fd5-19dc-8333-8bd4-53bc7e0c2606
+
+Server audit recorded successful `get_workflow`, `claim_seo_tasks`, full-context
+reads, two `save_seo_review`, fresh proposal reads and two `apply_seo_review`.
+All report v19 and `paidAiAllowed=false`. No manual confirmation or intervention
+was required. The cloud batch `apropos-seo-2026-10-11` completed two real jobs:
+
+- English **Marvel's Wolverine**, task
+  `b996021e125bae2d883181bbe707575a0a618e47c294c0d7a1ed2f309db8aba2`:
+  claimed 13:47:12.278Z, kept and publicly verified 13:48:23.295Z.
+  https://www.aproposmagazine.com/en/articles/marvels-wolverine-anmeldelse
+- **I mellemtiden er vi ingen**, task
+  `a32721c7cf76ca31b8b82b79b6e0b3606735012b79a29ed63de293586e98c74d`:
+  claimed 13:47:13.713Z, kept and publicly verified 13:48:40.179Z.
+  https://www.aproposmagazine.com/articles/boganmeldelse-i-mellemtiden-er-vi-ingen
+
+Authenticated independent inspection at 13:49:55.212Z confirmed both complete
+receipts, unchanged non-SEO content hashes, no write intent/CMS PATCH and the
+same protected ledger/hold hashes recorded above. Unknown Google data stayed
+unknown; these were content-based reviews, not performance conclusions.
+The real user subsequently asked a status question in the result chat after
+the receipts; that message did not initiate or assist the completed reviews.
+
+The SAME cloud task was then changed to daily **09:00 Europe/Copenhagen**.
+The official UI confirmed next run October 12 09:00 GMT+2 and Daily at 9:00 AM.
+Model/reasoning, fresh-chat-per-run, existing permissions and bounded batch
+prompt were preserved. No duplicate local automation or server ChatGPT-session
+emulation was created. Screenshot evidence is saved locally at
+`/tmp/apropos-seo-cloud-schedule-2026-10-11.jpg`.
+
+Status distinction: implemented and deployed; manual real metadata change and
+keep verified; genuine unattended claim/save/apply/readback verified. An actual
+unattended metadata PATCH is still unobserved because both timer decisions
+correctly kept existing metadata. Do not change good metadata to manufacture
+that proof. The scheduled workflow can attempt future justified changes, but
+do not claim the write-specific unattended criterion complete until a real
+receipt exists. This SEO acceptance does not close Liv publication acceptance.
