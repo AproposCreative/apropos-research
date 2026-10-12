@@ -81,7 +81,7 @@ export async function runSubmissionStep(uid: string, id: string) {
     const humanReview = finalOnly && row.approval?.editorialDecision?.aiFinalChecks === 'human';
     if (!finalOnly && (await readProviderHold()).blocked && !(await saved('visual') && await saved('checks'))) throw Error('mcp_submission_provider_blocked');
     const options = await getSubmissionOptions(), inspection = inspectSubmission(row, options);
-    if (!inspection.readyForPreparation) throw Error('mcp_submission_inputs_changed');
+    if (!inspection.textReadyForPreparation) throw Error('mcp_submission_inputs_changed');
     const { article: snapshot } = await readImageGenSnapshot(uid, `submission-${id}`);
     const images = articleImages(row.article.content);
     const bodyCount = Math.max(inspectionPolicy.minimumBodyImages ?? 2, images.length);

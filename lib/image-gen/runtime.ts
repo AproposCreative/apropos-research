@@ -95,7 +95,7 @@ export async function runImageGenJob(job: ImageGenJob) {
             : { brief: 'Der blev ikke fundet en sikker, kildebaseret visuel beskrivelse.', sources, status: 'unavailable' };
           press = { ...await inspectImageGenPressSources(sources), status: 'searched' };
           return { motifs, press, visualResearch, articleVersion: article.version, textVersion: article.textVersion };
-        } catch { press = { candidates: [], pagesAttempted: 0, pagesRead: 0, status: 'unavailable_no_automatic_retry' }; }
+        } catch { press = { ...await inspectImageGenPressSources([]), status: 'unavailable_no_automatic_retry' }; }
         return { motifs, press, articleVersion: article.version, textVersion: article.textVersion };
       }
       if (!['generate', 'edit'].includes(job.operation)) throw new Error('image_gen_operation_unavailable');

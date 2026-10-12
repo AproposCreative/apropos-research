@@ -71,7 +71,9 @@ it('negotiates the real SDK protocol and lists strict schemas on independent sta
     icons: [{ src: MCP_ICON, mimeType: 'image/png', sizes: ['256x256'] }],
   });
   const response = await POST(message('tools/list')); const tools = (await response.json()).result.tools;
-  expect(tools.length).toBe(57); expect(tools.find((t: any) => t.name === 'publish_article').annotations.destructiveHint).toBe(true);
+  expect(tools.length).toBe(59); expect(tools.find((t: any) => t.name === 'publish_article').annotations.destructiveHint).toBe(true);
+  expect(tools.find((t: any) => t.name === 'import_submission_press_image').inputSchema.required).toContain('candidateId');
+  expect(tools.find((t: any) => t.name === 'preview_submission_press_image').annotations.readOnlyHint).toBe(true);
   expect(tools.find((t: any) => t.name === 'get_liv_production_context').annotations.readOnlyHint).toBe(true);
   expect(tools.find((t: any) => t.name === 'get_publication_status').annotations).toMatchObject({ readOnlyHint: true, destructiveHint: false, idempotentHint: true });
   expect(tools.find((t: any) => t.name === 'save_draft').inputSchema.additionalProperties).toBe(false);

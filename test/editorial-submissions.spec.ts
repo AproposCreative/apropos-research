@@ -27,6 +27,13 @@ it('film uses real stills and rejects illustration even when requested', () => {
   expect(inspectSubmission(value, options).blockers).toContain('film_requires_real_stills');
   expect(inspectSubmission(value, options).suggestedMedia).toBe('press');
 });
+it('does not send a human-check press draft to price acceptance while images are missing', async () => {
+  const article = { ...input().article, author: options.authors[0].id, category: options.categories[0].id, subjectType: 'culture',
+    subtitle: 'En undertitel', intro: 'En intro', slug: 'en-artikel', seoTitle: 'En titel', seoDescription: 'En beskrivelse' };
+  const result = await prepareSubmission('owner', { ...input(), article, choices: { kind: 'feature', media: 'press', aiFinalChecks: 'human' } });
+  expect(result).toMatchObject({ textReadyForPreparation: true, readyForPreparation: false, missingMedia: ['cover', 'body-1', 'body-2'],
+    handoff: { nextAction: 'find_and_import_missing_press_images' } });
+});
 it('rejects rating on a news article and unknown topic identities', () => {
   const value = input(); value.choices.kind = 'news'; value.article.rating = 5; value.article.topicsSelected = ['wrong'];
   expect(inspectSubmission(value, options).blockers).toEqual(['non_review_has_review_fields', 'unknown_topic']);

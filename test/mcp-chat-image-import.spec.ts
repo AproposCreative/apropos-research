@@ -1,17 +1,20 @@
 import { beforeEach, afterEach, expect, it, vi } from 'vitest';
 import sharp from 'sharp';
+import { createHash } from 'node:crypto';
 import { memoryFirestore } from './helpers/mcp-firestore';
 const state = vi.hoisted(() => ({ db: null as any, bytes: Buffer.alloc(0), stored: new Map<string, Buffer>(), upload: vi.fn(), download: vi.fn(), readback: vi.fn(), boundCover: vi.fn(), breakAttachment: false }));
 vi.mock('@/lib/editorial/submission-published-target', async importOriginal => ({ ...await importOriginal<typeof import('@/lib/editorial/submission-published-target')>(), findBoundCoverByHash: (...args: unknown[]) => state.boundCover(...args) }));
 vi.mock('@/lib/firebase-admin', () => ({ getAdminDb: () => state.db, getAdminStorageBucket: () => ({ file: (path: string) => ({
   save: async (bytes: Buffer) => { state.stored.set(path, Buffer.from(bytes)); }, download: async () => [state.stored.get(path)] }) }) }));
-vi.mock('@/lib/liv/public-media-reader', () => ({ readChatGptImage: (...args: unknown[]) => state.download(...args), readPublicMedia: (...args: unknown[]) => state.readback(...args) }));
+vi.mock('@/lib/liv/public-media-reader', () => ({ readChatGptImage: (...args: unknown[]) => state.download(...args), readPublicMedia: (...args: unknown[]) => state.readback(...args),
+  readPressMedia: async (url: string) => ({ bytes: await state.download(url), finalUrl: url, contentType: 'image/png', status: 200 }) }));
 vi.mock('@/lib/image-gen/cms-asset', async importOriginal => ({ ...await importOriginal<typeof import('@/lib/image-gen/cms-asset')>(), uploadImageGenCmsAsset: (...args: unknown[]) => state.upload(...args) }));
 vi.mock('@/lib/editorial/submission-options', () => ({ getSubmissionOptions: async () => ({ authors: [], categories: [], topics: [], requiredFields: [], checkedAt: '' }) }));
 import { importChatImage } from '@/lib/editorial/chat-image-import';
 import { updateSubmission, getSubmissionStatus } from '@/lib/editorial/submissions';
 import { readImageGenSnapshot } from '@/lib/image-gen/snapshot';
 import { cmsFieldHash } from '@/lib/liv/cms-field-hash';
+import { importSubmissionPressImage, previewSubmissionPressImage } from '@/lib/editorial/press-image-import';
 const id = 'a'.repeat(64), version = 'b'.repeat(64), path = `editorialSubmissions/${id}`, briefId = 'c'.repeat(64);
 let memory: ReturnType<typeof memoryFirestore>;
 beforeEach(async () => {
@@ -34,6 +37,69 @@ const input = () => ({ submissionId: id, expectedRevision: 1, requestId: 'import
 async function brief(role = 'cover', sectionId?: string) {
   memory.rows.set(`${path}/chatBriefs/${briefId}`, { uid: 'team', contentHash: version, role, sectionId: sectionId || null });
 }
+function pressInput() {
+  const sha256 = createHash('sha256').update(state.bytes).digest('hex');
+  memory.rows.set(`${path}/pressSearches/${version}`, { policyVersion: 'press-raster-v2', candidates: [{ id: briefId, originalUrl: 'https://museum.dk/photo.png',
+    sourceUrl: 'https://museum.dk/press', downloadUrl: 'https://museum.dk/photo.png', credit: 'Daniel Rasmussen', caption: 'Udstillingen. Foto: Daniel Rasmussen',
+    validation: 'decoded', mimeType: 'image/png', sha256, byteCount: state.bytes.length, width:1200, height:800, rightsStatus:'unknown', usageTerms:[] }] });
+  return { submissionId: id, searchId: version, candidateId: briefId, expectedRevision: 1, requestId: 'press-image-test-0001',
+    role: 'cover', alt: 'Udstillingsrummet på museet', caption: 'Udstillingen', visualCheck: { relevant: true, coverTextFree: true } };
+}
+it('imports verified press bytes through the same durable operation; replay preserves originals, metadata and credit', async () => {
+  const input = pressInput(), article = structuredClone(memory.rows.get(path).article);
+  const preview = await previewSubmissionPressImage('team', { submissionId:id,searchId:version,candidateId:briefId });
+  expect(preview.image.data.length).toBeGreaterThan(0); expect(state.upload).not.toHaveBeenCalled();
+  const first = await importSubmissionPressImage('team', input);
+  expect(first).toMatchObject({ revision:2, paidAiCalls:0, provenance:'verified-public-press-bytes', publicationApproval:false });
+  expect(await importSubmissionPressImage('team', input)).toMatchObject({ replay:true,revision:2 });
+  expect(state.upload).toHaveBeenCalledTimes(1); expect(memory.rows.get(path).article.content).toBe(article.content);
+  const saved = memory.rows.get(`${path}/chatAssets/${first.assetId}`);
+  expect(saved).toMatchObject({ origin:'press-source', originalHash:preview.candidate.sha256, byteCount:state.bytes.length, rightsStatus:'unknown', credit:'Foto: Daniel Rasmussen' });
+  expect(saved.sourceEvidence.visualCheckSource).toBe('agent_reported_not_personal_approval');
+  expect(memory.rows.get(path).approval).toBeUndefined();
+  await expect(importSubmissionPressImage('team', { ...input, requestId:'press-another-request',expectedRevision:2 })).rejects.toThrow('press_import_exists');
+  expect(state.upload).toHaveBeenCalledTimes(1);
+});
+it('press timeout resumes retained bytes and CDN receipt, never allocates another asset', async () => {
+  const input = pressInput();
+  state.upload.mockImplementationOnce(async (bytes, _name, checkpoint) => {
+    await checkpoint({ id:'real',url:'https://cdn.prod.website-files.com/test/real.png' }); state.readback.mockResolvedValue(bytes); throw Error('lost response');
+  });
+  await expect(importSubmissionPressImage('team', input)).rejects.toThrow('asset_upload_unconfirmed');
+  expect(await importSubmissionPressImage('team', input)).toMatchObject({ revision:2 });
+  expect(state.upload).toHaveBeenCalledTimes(1); expect(state.download).toHaveBeenCalledTimes(1);
+});
+it('press recovery can rebase an unchanged intent after a concurrent edit without uploading twice', async () => {
+  const input = pressInput();
+  state.upload.mockImplementationOnce(async (bytes, _name, checkpoint) => {
+    await checkpoint({ id:'real',url:'https://cdn.prod.website-files.com/test/real.png' }); state.readback.mockResolvedValue(bytes); throw Error('lost response');
+  });
+  await expect(importSubmissionPressImage('team', input)).rejects.toThrow('asset_upload_unconfirmed');
+  memory.rows.get(path).revision = 2; memory.rows.get(path).article.subtitle = 'Concurrent edit';
+  const result = await importSubmissionPressImage('team', { ...input, expectedRevision:2 });
+  expect(result.revision).toBe(3); expect(state.upload).toHaveBeenCalledTimes(1); expect(state.download).toHaveBeenCalledTimes(1);
+  expect(memory.rows.get(path).article.subtitle).toBe('Concurrent edit');
+});
+it('blocks stale versions, unverified old search results, changed bytes and non-text-free covers before CMS', async () => {
+  const input = pressInput();
+  await expect(importSubmissionPressImage('team', { ...input,expectedRevision:2 })).rejects.toThrow('revision_conflict');
+  await expect(importSubmissionPressImage('team', { ...input,visualCheck:{ relevant:true,coverTextFree:false } })).rejects.toThrow('cover_visible_text');
+  memory.rows.get(`${path}/pressSearches/${version}`).policyVersion = 'legacy';
+  await expect(importSubmissionPressImage('team', input)).rejects.toThrow('candidate_unverified');
+  pressInput(); state.download.mockResolvedValue(await sharp({ create:{width:1200,height:800,channels:3,background:'red'} }).png().toBuffer());
+  await expect(importSubmissionPressImage('team', input)).rejects.toThrow('press_source_changed');
+  expect(state.upload).not.toHaveBeenCalled(); expect(memory.rows.get(path).revision).toBe(1);
+});
+it('binds a press body image to the exact current section and refuses another owner', async () => {
+  const input = pressInput();
+  await expect(importSubmissionPressImage('other', input)).rejects.toThrow('not_found');
+  const snapshot = await readImageGenSnapshot('team', `submission-${id}`);
+  const result = await importSubmissionPressImage('team', { ...input,role:'body',sectionId:snapshot.article.sections[0].id,visualCheck:{relevant:true,coverTextFree:false} });
+  expect(result.revision).toBe(2);
+  const content = memory.rows.get(path).article.content;
+  expect(content).toContain('Første   afsnit'); expect(content).toContain('Foto: Daniel Rasmussen');
+  expect(content.indexOf('<figure')).toBeLessThan(content.indexOf('Det næste'));
+});
 it('retains the private original and attaches a durable CMS asset once, without persisting signed URLs or claiming prompt verification', async () => {
   await brief(); const first = await importChatImage('team', input());
   expect(first).toMatchObject({ revision: 2, paidAiCalls: 0, publicationApproval: false });

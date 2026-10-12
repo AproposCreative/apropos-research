@@ -3,7 +3,7 @@ import { beforeEach, describe, it, expect, vi } from 'vitest';
 const mocks = vi.hoisted(() => ({ lookup: vi.fn(), request: vi.fn() }));
 vi.mock('node:dns/promises', () => ({ lookup: mocks.lookup }));
 vi.mock('node:https', () => ({ request: mocks.request }));
-import { readPublicMedia, readChatGptImage } from '@/lib/liv/public-media-reader';
+import { readPublicMedia, readChatGptImage, readPressMedia } from '@/lib/liv/public-media-reader';
 import { chatFileRecovery } from '@/lib/editorial/chat-file-error';
 import { extractCandidateImagesFromHtml, fetchOfficialImagesFromPage } from '@/lib/liv/fetch-official-images';
 
@@ -19,6 +19,21 @@ function reply(status: number, headers: Record<string, string>, chunks: Buffer[]
 }
 beforeEach(() => { vi.resetAllMocks(); mocks.lookup.mockResolvedValue([{ address: '93.184.216.34', family: 4 }]); });
 describe('Liv public media transport', () => {
+  it('validates every press redirect before connecting and stops loops after two redirects', async () => {
+    reply(302, { location: 'https://internal.local/private' });
+    await expect(readPressMedia('https://museum.dk/photo', 'image')).rejects.toThrow();
+    expect(mocks.request).toHaveBeenCalledTimes(1);
+    mocks.request.mockClear(); reply(302, { location: 'https://museum.dk/loop' });
+    await expect(readPressMedia('https://museum.dk/photo', 'image')).rejects.toThrow('response_rejected');
+    expect(mocks.request).toHaveBeenCalledTimes(3);
+  });
+  it('returns actual HTTP metadata and rejects a redirect resolving to a private network', async () => {
+    reply(200, { 'content-type': 'image/jpeg; charset=binary' }, [Buffer.from('bytes')]);
+    expect(await readPressMedia('https://museum.dk/photo', 'image')).toMatchObject({ finalUrl: 'https://museum.dk/photo', contentType: 'image/jpeg', status: 200 });
+    reply(302, { location: 'https://cdn.museum.dk/private' });
+    mocks.lookup.mockResolvedValueOnce([{ address: '93.184.216.34', family: 4 }]).mockResolvedValueOnce([{ address: '10.0.0.1', family: 4 }]);
+    await expect(readPressMedia('https://museum.dk/photo', 'image')).rejects.toThrow('address_blocked');
+  });
   it('allows signed ChatGPT file input, still DNS-pinned and credential-free', async () => {
     reply(200, { 'content-type': 'image/png' }, [Buffer.from('fixture')]);
     expect(await readChatGptImage('https://files.oaiusercontent.com/asset?signature=temporary')).toEqual(Buffer.from('fixture'));

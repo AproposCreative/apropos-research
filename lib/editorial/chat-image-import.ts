@@ -36,10 +36,22 @@ function bucket() {
 /** Paid work is impossible here. Original bytes and each import receipt survive
  * timeout. The temporary download URL is never persisted, echoed or logged. */
 export async function importChatImage(uid: string, raw: unknown) {
-  const input = chatImageImportInput.parse(raw), row = await readSubmission(uid, input.submissionId);
+  const { file, ...input } = chatImageImportInput.parse(raw);
+  return importSuppliedImage(uid, input, { identity: file.file_id, mimeType: file.mime_type,
+    read: () => readChatGptImage(file.download_url), provenance: 'chatgpt-supplied-unverified' });
+}
+
+/** Shared durable storage/CMS/attachment operation. Only trusted server callers
+ * provide bytes; a press URL is never disguised as a native ChatGPT fileParam. */
+export async function importSuppliedImage(uid: string, input: Omit<z.infer<typeof chatImageImportInput>, 'file' | 'origin'> & { origin: z.infer<typeof chatImageImportInput>['origin'] | 'press-source' },
+  source: { identity: string; mimeType?: string; read: () => Promise<Buffer>; provenance: string; evidence?: Record<string, unknown> }) {
+  const row = await readSubmission(uid, input.submissionId);
   const assetId = cmsFieldHash({ uid, id: row.id, requestId: input.requestId });
-  const { file, ...metadata } = input;
-  let requestHash = cmsFieldHash({ ...metadata, fileId: file.file_id });
+  const metadata = input, file = { file_id: source.identity, mime_type: source.mimeType };
+  const { expectedRevision: _expectedRevision, ...pressIntent } = metadata;
+  // Press retries may explicitly rebase the unchanged attachment intent after
+  // reading a newer revision. Native receipts retain their historical hash.
+  let requestHash = cmsFieldHash({ ...(input.origin === 'press-source' ? pressIntent : metadata), fileId: file.file_id });
   const { db, collection } = submissionStore(), ref = collection.doc(row.id).collection('chatAssets').doc(assetId);
   const previous = (await ref.get()).data();
   if (previous && previous.requestHash !== requestHash) {
@@ -48,7 +60,7 @@ export async function importChatImage(uid: string, raw: unknown) {
     // ALL instructions are unchanged and its actual bytes match the saved file.
     if (typeof previous.fileId !== 'string' ||
         previous.requestHash !== cmsFieldHash({ ...metadata, fileId: previous.fileId })) throw Error('mcp_submission_idempotency_conflict');
-    const bytes = await readChatGptImage(file.download_url);
+    const bytes = await source.read();
     if (hash(bytes) !== previous.originalHash) throw Error('mcp_submission_idempotency_conflict');
     await db.runTransaction(async tx => {
       const old = (await tx.get(ref)).data();
@@ -91,7 +103,7 @@ export async function importChatImage(uid: string, raw: unknown) {
   const storage = bucket();
   let current = previous;
   if (!current) {
-    const bytes = await readChatGptImage(file.download_url);
+    const bytes = await source.read();
     const meta = await sharp(bytes, { limitInputPixels: 80_000_000 }).metadata();
     if (!['jpeg', 'png', 'webp'].includes(meta.format || '') || (meta.pages || 1) !== 1 ||
       (meta.width || 0) < 800 || (meta.height || 0) < 500) throw Error('mcp_submission_image_invalid');
@@ -109,7 +121,9 @@ export async function importChatImage(uid: string, raw: unknown) {
       dimensions, width: meta.width, height: meta.height, preserveOriginal: true, extension: meta.format === 'jpeg' ? 'jpg' : meta.format,
       selection: 'provided', locked: true, fallbackUsed: false,
       status: 'stored', fileId: file.file_id, credit: input.kind === 'illustration' && generatedInChat ? 'Illustration: Apropos Magazine / AI' : input.credit,
-      provenance: 'chatgpt-supplied-unverified', rightsStatus: 'unknown', createdAt: new Date().toISOString(), exactPromptExecutionVerified: false };
+      provenance: source.provenance, ...(source.evidence ? { sourceEvidence: source.evidence } : {}),
+      byteCount: bytes.length, mimeType: `image/${meta.format}`,
+      rightsStatus: 'unknown', createdAt: new Date().toISOString(), exactPromptExecutionVerified: false };
     Object.assign(record, { generationEvidence: imageGenerationEvidence(input, brief) });
     await db.runTransaction(async tx => {
       const old = (await tx.get(ref)).data();

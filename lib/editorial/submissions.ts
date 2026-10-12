@@ -72,7 +72,9 @@ export async function getSubmissionStatus(uid: string, id: string) {
         row.status === 'blocked' ? 'inspect_saved_step_before_any_retry' :
         ['processing', 'scheduled'].includes(row.status) ? 'read_saved_status_do_not_resubmit' :
         row.status === 'published' ? 'inspect_publication_receipt' :
-        inspection.readyForPreparation ? 'open_personal_price_acceptance' : 'complete_missing_inputs' } };
+        inspection.missingMedia.length ? (row.choices.media === 'press' ? 'find_and_import_missing_press_images' : 'complete_missing_media') :
+        imageSelection.required ? 'open_personal_image_selection' :
+        inspection.readyForPreparation ? (row.choices.aiFinalChecks === 'human' ? 'open_personal_editorial_confirmation' : 'open_personal_price_acceptance') : 'complete_missing_inputs' } };
 }
 
 export async function listSubmissions(uid: string) {

@@ -1,11 +1,11 @@
-import { extractCandidateImagesFromHtml } from '@/lib/liv/fetch-official-images';
-import { readPublicMedia } from '@/lib/liv/public-media-reader';
-import { extractLivPhotoCredit } from '@/lib/liv/photo-credit';
+import { readPressMedia } from '@/lib/liv/public-media-reader';
+import { bytesHash, extractPressCandidates, validatePressRaster, PRESS_POLICY } from './press-candidates';
 import { sourceUrl } from '@/lib/factcheck/source-reader';
 import { imageGenHash } from './article';
 
-export type ImageGenPressCandidate = { id: string; sourceUrl: string; originalUrl: string;
-  credit: string | null; rightsStatus: 'unknown'; checkedAt: string };
+export type ImageGenPressCandidate = { id: string; sourceUrl: string; sourceFinalUrl: string; originalUrl: string; downloadUrl: string;
+  credit: string | null; caption: string; creditEvidence: string; sourceHash: string; usageTerms: string[];
+  rightsStatus: 'unknown'; checkedAt: string; validation: 'decoded'; mimeType: string; byteCount: number; width: number; height: number; sha256: string };
 
 /** Extract only the assistant's cited search text. Search prose remains
  * untrusted source material and is never treated as an application command. */
@@ -44,18 +44,48 @@ export function imageGenSearchSources(response: unknown): string[] {
 
 export async function inspectImageGenPressSources(urls: string[]) {
   const candidates: ImageGenPressCandidate[] = [];
-  const inspected = await Promise.allSettled(urls.slice(0, 4).map(async source => {
-    const sourcePage = sourceUrl(source).href;
-    const html = (await readPublicMedia(sourcePage, 'html', 8000)).toString('utf8');
-    return extractCandidateImagesFromHtml(html, sourcePage).slice(0, 3).map(originalUrl => ({
-      id: imageGenHash(`${sourcePage}\n${originalUrl}`), sourceUrl: sourcePage, originalUrl,
-      credit: extractLivPhotoCredit(html, originalUrl, sourcePage), rightsStatus: 'unknown' as const,
-      checkedAt: new Date().toISOString(),
-    }));
-  }));
-  for (const result of inspected) if (result.status === 'fulfilled') for (const row of result.value) {
-    if (!candidates.some(c => c.originalUrl === row.originalUrl)) candidates.push(row);
+  const diagnostics: { sourceUrl: string; finalUrl?: string; pageRead: boolean; sourceHash?: string; status?: number; contentType?: string; byteCount?: number; extracted?: number; truncated?: boolean; error?: string; images: { url: string; accepted: boolean; reason: string; status?: number | null; finalUrl?: string; contentType?: string }[] }[] = [];
+  // At most four page reads and 24 unique image reads, three at a time. Do not
+  // download a whole press archive just to discover that it contains no cover.
+  const downloaded = new Map<string, Promise<{ finalUrl: string; validation: Awaited<ReturnType<typeof validatePressRaster>> }>>();
+  for (const source of urls.slice(0, 4)) {
+    const diagnostic: typeof diagnostics[number] = { sourceUrl: source, pageRead: false, images: [] };
+    diagnostics.push(diagnostic);
+    try {
+      const page = await readPressMedia(sourceUrl(source).href, 'html', 8000);
+      const html = page.bytes.toString('utf8'), sourceHash = bytesHash(page.bytes);
+      Object.assign(diagnostic, { pageRead: true, finalUrl: page.finalUrl, sourceHash, status: page.status, contentType: page.contentType, byteCount: page.bytes.length });
+      const extracted = extractPressCandidates(html, page.finalUrl);
+      diagnostic.extracted = extracted.candidates.length;
+      diagnostic.images.push(...extracted.skipped.map(item => ({ ...item, accepted: false })));
+      const bounded = extracted.candidates.slice(0, 24);
+      diagnostic.truncated = extracted.candidates.length > bounded.length;
+      for (let offset = 0; offset < bounded.length; offset += 3) {
+        await Promise.all(bounded.slice(offset, offset + 3).map(async item => {
+          if (!downloaded.has(item.url) && downloaded.size >= 24) { diagnostic.truncated = true; diagnostic.images.push({ url: item.url, accepted: false, reason: 'read_limit' }); return; }
+          try {
+            if (!downloaded.has(item.url)) downloaded.set(item.url, (async () => {
+              const response = await readPressMedia(item.url, 'image', 5000);
+              return { finalUrl: response.finalUrl, validation: await validatePressRaster(response) };
+            })());
+            const { finalUrl, validation } = await downloaded.get(item.url)!;
+            diagnostic.images.push({ url: item.url, accepted: true, reason: 'decoded_raster', status: 200, finalUrl, contentType: validation.mimeType });
+            if (candidates.some(c => c.sha256 === validation.sha256)) return;
+            candidates.push({ id: imageGenHash(`${source}\n${item.url}\n${validation.sha256}`), sourceUrl: source, sourceFinalUrl: page.finalUrl,
+              originalUrl: item.url, downloadUrl: finalUrl, credit: item.credit, caption: item.caption, creditEvidence: item.evidence,
+              sourceHash, usageTerms: extracted.usageTerms, rightsStatus: 'unknown', checkedAt: new Date().toISOString(), validation: 'decoded', ...validation });
+          } catch (error) {
+            const code = error instanceof Error && /^(?:press_image_|media_)[a-z_]+$/.test(error.message) ? error.message : 'press_image_fetch_failed';
+            const detail = error as { status?: number; finalUrl?: string; contentType?: string };
+            diagnostic.images.push({ url: item.url, accepted: false, reason: code,
+              ...(detail.status !== undefined ? { status: detail.status, finalUrl: detail.finalUrl, contentType: detail.contentType } : {}) });
+          }
+        }));
+      }
+    } catch { diagnostic.error = 'press_page_fetch_rejected'; }
   }
-  return { candidates: candidates.slice(0, 8), pagesAttempted: urls.slice(0, 4).length,
-    pagesRead: inspected.filter(result => result.status === 'fulfilled').length };
+  return { policyVersion: PRESS_POLICY, candidates, diagnostics, pagesAttempted: urls.slice(0, 4).length,
+    pagesRead: diagnostics.filter(d => d.pageRead).length, usableImagesFound: candidates.length,
+    outcome: candidates.length ? 'verified_candidates_require_visual_selection' : 'no_usable_images',
+    rightsInstruction: 'Kredit er kildebelæg, ikke licens. usageTerms er kun eksplicit fundne vilkår; tom liste betyder ukendt.' };
 }

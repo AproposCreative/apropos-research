@@ -58,7 +58,7 @@ export function validateSubmissionArticle(article: SubmissionArticle) {
 }
 
 /** Suggestions and missing input only. No guessed authorship, rating, approval or new prose. */
-export function inspectSubmission(input: Pick<SubmissionInput, 'article' | 'choices' | 'research'>, options: SubmissionOptions) {
+export function inspectSubmission(input: Pick<SubmissionInput, 'article' | 'choices' | 'research'> & { executionPolicy?: string }, options: SubmissionOptions) {
   const { article, choices } = input;
   validateSubmissionArticle(article);
   const questions: SubmissionQuestion[] = [];
@@ -89,9 +89,12 @@ export function inspectSubmission(input: Pick<SubmissionInput, 'article' | 'choi
   const distinctBodyImages = new Set(images.map(i => i.url).filter(url => url !== article.featuredImage)).size;
   const recommendedMedia = Array.from({ length: Math.max(0, 2 - distinctBodyImages) }, (_, i) => `body-${distinctBodyImages + i + 1}`);
   const missingMedia = [...(!article.featuredImage ? ['cover'] : []), ...(choices.bodyImages === 'deferred' ? [] : recommendedMedia)];
+  const textReadyForPreparation = !questions.length && !blockers.length && !missingMetadata.length;
+  const mediaBeforePreparation = choices.aiFinalChecks === 'human' || ['chatgpt-first-v1', 'chat-final-checks-v1'].includes(input.executionPolicy || '');
   return { questions: questions.slice(0, 3), remainingQuestionCount: Math.max(0, questions.length - 3),
     missingMetadata, missingMedia, recommendedMedia, blockers, suggestedMedia: film ? 'press' : choices.media || 'press',
-    readyForPreparation: !questions.length && !blockers.length && !missingMetadata.length,
+    textReadyForPreparation,
+    readyForPreparation: textReadyForPreparation && (!mediaBeforePreparation || !missingMedia.length),
     publicationReady: false as const, textPreserved: true, paidAiCalls: 0,
     instruction: 'Vis foreslåede valg og stil kun de returnerede spørgsmål. Bevar brødteksten. Udfyld manglende metadata i chatten uden nye fakta. En kladde er ikke publiceringsklar.' };
 }
