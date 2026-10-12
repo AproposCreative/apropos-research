@@ -82,7 +82,26 @@ endpoint, model purchase or manual CMS fallback was introduced.
 
 ## Release and fresh readback
 
-Pending deployment and read-only verification. Do not describe this section as
-production-ready evidence until the exact SHA, alias and new preview response
-have been recorded. No real approval or publication is performed by the agent
-as part of this verification.
+- Source SHA: `a10678e6be7df79ed65f8a1bdb2830b24549bfad`.
+- Deployment: `dpl_Dgs2X78EoBamZ157tCA4x7i4AjPk`, remote build succeeded,
+  READY at `2026-10-12T11:12:50.413Z` with actual `ai.aproposmagazine.com` alias.
+- Fresh connected Apropos MCP preview on the existing Somebody Somewhere
+  submission returned the one-click offer `Godkend og udgiv`, revision8,
+  zero missing fields, zero preview problems and no dependency error. The host
+  does not expose its private confirmation bearer in model-facing tool output.
+- Final authenticated status at `2026-10-12T11:14:22.897Z` confirms unchanged
+  article, research, choices, media imports and content hash; still unapproved,
+  `awaiting_preparation`, with no CMS item or publication consent.
+- Article cost actions were empty before and after. No model call, article
+  creation, media import, approval, CMS write or publication was performed for
+  production verification. MCP error/fatal log query in the bounded release
+  window returned no records; this alone is not full runtime proof.
+- Read-only browser inspection of the primary editorial thread confirmed its
+  older messages/cards still exist. No follow-up message was sent, no idea was
+  started and no personal approval button was clicked. Request a fresh preview
+  for the updated workflow; historical chat text is not rewritten by deployment.
+
+See `SINGLE-APPROVAL-2026-10-12-production.json` for the sanitized receipt.
+The implementation, deployment and real connected preview are verified. A real
+person's next one-click publication has NOT been performed by the agent and is
+not claimed as production end-to-end publishing evidence.

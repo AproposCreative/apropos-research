@@ -1,0 +1,59 @@
+{
+  "checkedAt": "2026-10-12T11:14:22.897Z",
+  "release": {
+    "sha": "a10678e6be7df79ed65f8a1bdb2830b24549bfad",
+    "deployment": "dpl_Dgs2X78EoBamZ157tCA4x7i4AjPk",
+    "version": "2026-10-12-v23",
+    "ready": true,
+    "alias": "ai.aproposmagazine.com",
+    "readyAt": "2026-10-12T11:12:50.413Z"
+  },
+  "submission": {
+    "id": "9cb959c7798307f33d43f81ce05a55b1748fec8d3f44d9c811c00eee08a2d011",
+    "revision": 8,
+    "contentHash": "b8ce88481ad01a6a04d5e9a10d56d75455615a1354a6edfd9f07bce9bcc9f967",
+    "status": "awaiting_preparation",
+    "previewReadAt": "2026-10-12T11:13:10.950Z",
+    "label": "Godkend og udgiv",
+    "missing": [],
+    "previewProblems": [],
+    "dependencyError": null,
+    "singleApproval": false,
+    "consentPending": false,
+    "articleUnchanged": true,
+    "researchUnchanged": true,
+    "choicesUnchanged": true,
+    "mediaUnchanged": true,
+    "approvalPresent": false,
+    "publicationConsentPresent": false,
+    "cmsItemPresent": false
+  },
+  "checks": {
+    "isolatedFullSuite": {
+      "files": 373,
+      "tests": 5173
+    },
+    "finalAffectedSuite": {
+      "files": 5,
+      "tests": 42
+    },
+    "typecheck": true,
+    "lint": true,
+    "securityConfig": true,
+    "remoteBuild": true,
+    "mobileAndDesktop": "simulated host, visually inspected",
+    "realConnectedMcpReadback": true,
+    "realPersonalClick": false,
+    "newFlowRealPublication": false,
+    "cmsWrites": 0,
+    "articleCostActionsBefore": 0,
+    "articleCostActionsAfter": 0,
+    "paidAiCalls": 0
+  },
+  "limitations": [
+    "No actual personal approval or publishing was performed to test this change.",
+    "Existing historic chat cards do not rewrite themselves; request a fresh preview.",
+    "ChatGPT may still show its own platform confirmation; no host safeguard was bypassed.",
+    "Shared external preview requires existing access."
+  ]
+}
