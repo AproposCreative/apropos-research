@@ -1,7 +1,9 @@
 import { beforeEach, expect, it, vi } from 'vitest';
 import sharp from 'sharp';
 import { memoryFirestore } from './helpers/mcp-firestore';
-const state = vi.hoisted(() => ({ db: null as any, hold: false, images: new Map<string, Buffer>(), checks: vi.fn(), visual: vi.fn(), save: vi.fn(), upload: vi.fn(), claim: vi.fn() }));
+const state = vi.hoisted(() => ({ db: null as any, hold: false, images: new Map<string, Buffer>(), checks: vi.fn(), visual: vi.fn(), save: vi.fn(), upload: vi.fn(), claim: vi.fn(), publish: vi.fn() }));
+vi.mock('@/lib/mcp/publication', () => ({ assertPublicationEnabled: vi.fn() }));
+vi.mock('@/lib/liv/publish-verified', () => ({ publishVerifiedLivArticle: (...args: unknown[]) => state.publish(...args), verifyLiveLivArticle: vi.fn() }));
 vi.mock('@/lib/firebase-admin', () => ({ getAdminDb: () => state.db }));
 vi.mock('@/lib/mcp/oauth', () => ({ activeMember: async () => ({ owner: true }) }));
 vi.mock('@/lib/editorial/submission-options', () => ({ getSubmissionOptions: async () => ({ authors: [{ id: 'author', name: 'Frederik' }], categories: [{ id: 'category', name: 'Kultur' }], topics: [], requiredFields: [], checkedAt: '' }) }));
@@ -17,12 +19,15 @@ vi.mock('@/lib/factcheck/source-reader', () => ({ retrieveSource: async () => ({
 vi.mock('@/lib/openai', () => ({ getImageGenOpenAIClient: () => ({ chat: { completions: { create: (...args: unknown[]) => state.visual(...args) } } }) }));
 vi.mock('@/lib/articles/writer-cms-save', () => ({ saveWriterCmsDraft: (...args: unknown[]) => state.save(...args) }));
 vi.mock('@/lib/liv/cms-readback', () => ({ inspectLivCmsDraft: async () => ({ publicationReady: true, draftConfirmed: true, checks: [{ ok: true }], fieldDataHash: 'cms-proof' }) }));
-vi.mock('@/lib/editorial/submission-published-target', () => ({ assertSubmissionNotAlreadySaved: async () => {}, stageSubmissionMedia: vi.fn() }));
+vi.mock('@/lib/editorial/submission-published-target', () => ({ assertSubmissionNotAlreadySaved: async () => {}, stageSubmissionMedia: vi.fn(), readSubmissionCms: async () => ({ id: 'c'.repeat(24), fieldData: { name: 'En koncert' } }) }));
 import { runSubmissionStep } from '@/lib/editorial/submission-worker';
 import { stageSubmissionMedia } from '@/lib/editorial/submission-published-target';
 import { currentLivCostContext } from '@/lib/liv/cost-context';
 import { imageGenerationEvidence } from '@/lib/editorial/image-generation-evidence';
 import { assertPaidAiAllowed } from '@/lib/ai/no-paid-calls';
+import { acceptSubmissionConsent, submissionConsentOffer } from '@/lib/editorial/submission-consent';
+import { continueSubmissionPreparation, continueSubmissionWorkflow } from '@/lib/editorial/submission-continuation';
+import { cmsFieldHash } from '@/lib/liv/cms-field-hash';
 const id = 'a'.repeat(64), hash = 'b'.repeat(64), path = `editorialSubmissions/${id}`;
 let memory: ReturnType<typeof memoryFirestore>;
 beforeEach(async () => {
@@ -44,6 +49,55 @@ beforeEach(async () => {
     memory.rows.set(`writerWorkspaces/${uid}/cmsSaves/${draftId}`, { expected: payload, phase: 'saved' });
     return { articleId: 'c'.repeat(24) };
   });
+});
+it('runs one personal consent through the real preparation and publication orchestration, no second click or paid call', async () => {
+  const row = memory.rows.get(path); row.status = 'draft'; delete row.approval;
+  row.executionPolicy = 'chatgpt-first-v1'; row.choices.aiFinalChecks = 'human'; state.hold = true;
+  const original = structuredClone(row.article);
+  const offer = (await submissionConsentOffer('owner', id))!;
+  await acceptSubmissionConsent('owner', id, row.revision, offer.id, 'chat-preview');
+  state.publish.mockImplementation(async (input: any) => {
+    expect(() => assertPaidAiAllowed()).toThrow(); await input.beforePublish(cmsFieldHash({ name: 'En koncert' }));
+    return { publicationVerified: true, publicUrl: 'https://example.com/en-koncert' };
+  });
+  expect(await continueSubmissionWorkflow('owner', id)).toMatchObject({ status: 'published', countsAsUnattendedLiv: false });
+  expect(memory.rows.get(path).article).toEqual(original);
+  expect(memory.rows.get(path).publication).toMatchObject({ consentId: offer.id, approvalSource: 'single-personal-consent' });
+  await continueSubmissionWorkflow('owner', id);
+  await acceptSubmissionConsent('owner', id, row.revision, offer.id, 'external-preview');
+  expect(state.save).toHaveBeenCalledTimes(1); expect(state.publish).toHaveBeenCalledTimes(1);
+  expect(state.visual).not.toHaveBeenCalled(); expect(state.checks).not.toHaveBeenCalled(); expect(state.upload).not.toHaveBeenCalled();
+});
+it('resumes a crash after preparation from the same consent, with no new CMS save or click', async () => {
+  const row = memory.rows.get(path); row.status = 'draft'; delete row.approval;
+  row.executionPolicy = 'chatgpt-first-v1'; row.choices.aiFinalChecks = 'human';
+  const offer = (await submissionConsentOffer('owner', id))!;
+  await acceptSubmissionConsent('owner', id, row.revision, offer.id, 'chat-preview');
+  await continueSubmissionPreparation('owner', id);
+  expect(memory.rows.get(path)).toMatchObject({ status: 'prepared', publicationConsentPending: true });
+  state.publish.mockImplementation(async (input: any) => {
+    await input.beforePublish(cmsFieldHash({ name: 'En koncert' }));
+    return { publicationVerified: true, publicUrl: 'https://example.com/en-koncert' };
+  });
+  expect(await continueSubmissionWorkflow('owner', id)).toMatchObject({ status: 'published' });
+  expect(state.save).toHaveBeenCalledTimes(1); expect(state.publish).toHaveBeenCalledTimes(1);
+});
+it('never upgrades an old preparation-only approval into publication permission', async () => {
+  const row = memory.rows.get(path); row.executionPolicy = 'chatgpt-first-v1'; row.choices.aiFinalChecks = 'human';
+  row.approval.editorialDecision = { bodyImages: 'required', aiFinalChecks: 'human' };
+  expect(await continueSubmissionWorkflow('owner', id)).toMatchObject({ status: 'prepared' });
+  expect(memory.rows.get(path).publicationConsent).toBeUndefined();
+  expect(state.save).toHaveBeenCalledTimes(1); expect(state.publish).not.toHaveBeenCalled();
+});
+it('retains the prepared CMS item but blocks silent preparation changes instead of publishing', async () => {
+  const row = memory.rows.get(path); row.status = 'draft'; delete row.approval;
+  row.executionPolicy = 'chatgpt-first-v1'; row.choices.aiFinalChecks = 'human';
+  const offer = (await submissionConsentOffer('owner', id))!;
+  await acceptSubmissionConsent('owner', id, row.revision, offer.id, 'chat-preview');
+  const save = state.save.getMockImplementation()!;
+  state.save.mockImplementation(async (...args: any[]) => { args[3].seoTitle = 'Unexpected rewrite'; return save(...args); });
+  expect(await continueSubmissionWorkflow('owner', id)).toMatchObject({ status: 'blocked', blocker: 'mcp_submission_preview_changed' });
+  expect(memory.rows.get(path).prepared.itemId).toBe('c'.repeat(24)); expect(state.publish).not.toHaveBeenCalled();
 });
 it('resumes one durable step at a time and preserves supplied prose/assets without regeneration', async () => {
   const original = memory.rows.get(path).article.content;

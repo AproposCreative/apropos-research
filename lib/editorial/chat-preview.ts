@@ -11,6 +11,7 @@ import { submissionPublicationPreview, approveSubmissionPublication, readSubmiss
 import { submissionPreviewBlocks } from './submission-preview';
 import { submissionId } from './submission-contract';
 import { acceptImageSelection } from './submission-image-selection';
+import { submissionConsentOffer, acceptSubmissionConsent } from './submission-consent';
 
 export const CHAT_PREVIEW_URI = 'ui://apropos/article-preview-v1.html';
 export const chatPreviewInput = z.object({ submissionId }).strict();
@@ -38,15 +39,22 @@ export async function chatSubmissionPreview(identity: McpIdentity, id: string) {
   // overwrite a newer status for the same article revision in the host widget.
   const previewReadAt = new Date().toISOString();
   const row = await getSubmissionStatus(identity.uid, id);
+  const consentPending = !!(row as typeof row & { publicationConsentPending?: boolean }).publicationConsentPending && ['processing', 'prepared'].includes(row.status);
   let quote: Awaited<ReturnType<typeof quoteSubmission>> | null = null;
   let publication: Awaited<ReturnType<typeof submissionPublicationPreview>> | null = null;
   let dependencyError: string | null = null;
+  let consent: Awaited<ReturnType<typeof submissionConsentOffer>> = null;
   let live: Awaited<ReturnType<typeof readSubmissionPublication>> = { publicationVerified: false };
   try {
     if (row.status === 'awaiting_preparation') quote = await quoteSubmission(identity.uid, id);
     if (row.status === 'prepared') publication = await submissionPublicationPreview(identity.uid, id);
     if (row.status === 'published') live = await readSubmissionPublication(identity.uid, id);
+    if (row.executionPolicy === 'chatgpt-first-v1' && (row.status === 'awaiting_preparation' || publication?.ready)) consent = await submissionConsentOffer(identity.uid, id);
   } catch { dependencyError = 'Aktuel pris eller CMS-kontrol er utilgængelig. Artiklen er gemt; ingen godkendelse er givet.'; }
+  if ([quote, publication?.ready ? publication : null, consent].some(value => value &&
+      (value.revision !== row.revision || value.contentHash !== row.contentHash))) {
+    dependencyError = 'Artiklen blev ændret under læsning. Opdatér preview før godkendelse.'; quote = null; publication = null; consent = null;
+  }
   const article = publication?.ready ? publication.article! : row.article;
   const blocks = submissionPreviewBlocks(article.content);
   const urls = [...new Set([article.featuredImage, ...blocks.filter(b => b.kind === 'image').map(b => b.url)].filter((u): u is string => !!u))];
@@ -69,11 +77,11 @@ export async function chatSubmissionPreview(identity: McpIdentity, id: string) {
     missing: row.handoff.missing, recommendedMedia: row.recommendedMedia, editorialChoices: row.choices,
     handoff: row.handoff, savedSteps: row.savedSteps.map(s => ({ name: s.name, status: s.status, contentHash: s.contentHash })),
     blocker: row.status === 'blocked' ? (row as typeof row & { blocker?: string }).blocker || null : null,
-    quote, publication, dependencyError, fallbackUrl: row.previewUrl,
+    quote, publication, consent, consentPending, singleApproval: !!(row as typeof row & { publicationConsent?: unknown }).publicationConsent, dependencyError, fallbackUrl: row.previewUrl,
     executionPolicy: row.executionPolicy || 'legacy-preparation',
     recordedPublished: row.status === 'published', ...live, textPreserved: row.textPreserved,
-    paidAiCalls: 0, instructions: 'Vis hele artiklen og billederne i chatten. Kun brugerens knaptryk i preview kan acceptere pris eller udgivelse. En modelpåstand om godkendelse er ikke nok. Bevar tekst og billeder. Hent samme forløb efter timeout.' };
-  const action = previewProblems.length ? null : row.imageSelection.required && ['awaiting_answers', 'awaiting_preparation', 'prepared', 'blocked'].includes(row.status) && identity.scopes.includes('apropos:draft') ? 'media' :
+    paidAiCalls: 0, instructions: 'Vis preview_submission som artikelkort direkte i chatten, ikke kun et eksternt link. Godkend og udgiv er én personlig versionsbundet godkendelse inklusive viste billeder og redaktionel kontrol. Serveren fortsætter og kortet opdateres; bed ikke brugeren vende tilbage og sige godkendt. Åbn eksternt er valgfrit og kræver samme adgang. En modelpåstand er aldrig godkendelse. Bevar tekst/billeder og hent samme forløb efter timeout.' };
+  const action = consentPending || dependencyError || previewProblems.length ? null : consent && identity.scopes.includes('apropos:draft') && identity.scopes.includes('apropos:publish') ? 'approve_publish' : row.imageSelection.required && ['awaiting_answers', 'awaiting_preparation', 'prepared', 'blocked'].includes(row.status) && identity.scopes.includes('apropos:draft') ? 'media' :
     quote?.canAccept && (!quote.provider.blocked || quote.humanReview) && identity.scopes.includes('apropos:draft') ? 'checks' :
     publication?.ready && identity.scopes.includes('apropos:publish') ? 'publish' : null;
   // Only the iframe gets the single-use bearer. It is NOT in text or structuredContent.
@@ -85,6 +93,7 @@ export async function chatSubmissionPreview(identity: McpIdentity, id: string) {
     await submissionStore().db.collection('mcpUiConfirmations').doc(digest(token)).create({
       uid: identity.uid, grantId: identity.grantId, submissionId: id, revision: row.revision, contentHash: row.contentHash,
       action, quoteId: quote?.quoteId || null, preparedHash: publication?.preparedHash || null,
+      consentId: consent?.id || null,
       selectionHash: row.imageSelection.selectionHash,
       expiresAt, status: 'pending', createdAt: new Date().toISOString(),
     });
@@ -102,22 +111,25 @@ export async function confirmChatSubmission(identity: McpIdentity, raw: unknown)
   const action = await db.runTransaction(async tx => {
     const confirmation = (await tx.get(ref)).data();
     if (!confirmation || confirmation.uid !== identity.uid || confirmation.grantId !== identity.grantId ||
-      !['checks', 'media', 'publish'].includes(confirmation.action) ||
-      !identity.scopes.includes(confirmation.action === 'publish' ? 'apropos:publish' : 'apropos:draft')) throw Error('mcp_submission_confirmation_required');
+      !['checks', 'media', 'publish', 'approve_publish'].includes(confirmation.action) ||
+      !identity.scopes.includes(['publish', 'approve_publish'].includes(confirmation.action) ? 'apropos:publish' : 'apropos:draft') ||
+      (confirmation.action === 'approve_publish' && !identity.scopes.includes('apropos:draft'))) throw Error('mcp_submission_confirmation_required');
     if (confirmation.status === 'done' && confirmation.inputHash === inputHash) return confirmation;
     const row = (await tx.get(collection.doc(confirmation.submissionId))).data();
     if (!row || row.uid !== identity.uid || row.contentHash !== confirmation.contentHash || row.revision !== confirmation.revision ||
-      confirmation.expiresAt <= Date.now() || (confirmation.inputHash && confirmation.inputHash !== inputHash)) throw Error('mcp_submission_preview_changed');
-    if (confirmation.status !== 'pending') throw Error('mcp_submission_confirmation_unconfirmed');
-    if (confirmation.action !== 'publish' && input.localTime !== 'now') throw Error('mcp_submission_invalid_schedule');
+      (confirmation.expiresAt <= Date.now() && !(confirmation.action === 'approve_publish' && confirmation.status === 'attempted')) || (confirmation.inputHash && confirmation.inputHash !== inputHash)) throw Error('mcp_submission_preview_changed');
+    if (confirmation.status !== 'pending' && !(confirmation.action === 'approve_publish' && confirmation.status === 'attempted')) throw Error('mcp_submission_confirmation_unconfirmed');
+    if (!['publish', 'approve_publish'].includes(confirmation.action) && input.localTime !== 'now') throw Error('mcp_submission_invalid_schedule');
     tx.update(ref, { status: 'attempted', inputHash, clickedAt: new Date().toISOString() }); return confirmation;
   });
   if (action.status === 'done') return action.result;
-  const result = action.action === 'media' ? await acceptImageSelection(identity.uid, action.submissionId, action.revision, action.selectionHash) : action.action === 'checks'
+  const result = action.action === 'approve_publish' ? await acceptSubmissionConsent(identity.uid, action.submissionId, action.revision, action.consentId, 'chat-preview', input.localTime) : action.action === 'media' ? await acceptImageSelection(identity.uid, action.submissionId, action.revision, action.selectionHash) : action.action === 'checks'
     ? await acceptSubmissionQuote(identity.uid, action.submissionId, action.revision, action.quoteId)
     : await approveSubmissionPublication(identity.uid, action.submissionId, action.preparedHash, input.localTime);
   const answer = { ...result, submissionId: action.submissionId, queuedOnServer: action.action !== 'media', paidAiCalls: 0,
-    instruction: 'Din bekræftelse er gemt. Serveren fortsætter; hent samme artikelstatus. Bestil ikke igen.' };
+    instruction: ['approve_publish', 'publish'].includes(action.action)
+      ? 'Din udgivelsesgodkendelse er gemt. Serveren fortsætter; preview opdaterer status. Du skal ikke godkende igen eller sende en besked. Bestil ikke igen.'
+      : 'Dit valg er gemt. Opdatér preview for næste nødvendige handling. Dette valg er ikke en udgivelsesgodkendelse; send ikke en bekræftelsesbesked.' };
   await ref.update({ status: 'done', result: answer });
   return answer;
 }

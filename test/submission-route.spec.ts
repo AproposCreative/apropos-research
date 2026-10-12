@@ -1,11 +1,12 @@
 import { beforeEach, expect, it, vi } from 'vitest';
-const state = vi.hoisted(() => ({ access: null as any, accept: vi.fn(), approve: vi.fn(), after: vi.fn(), worker: vi.fn() }));
+const state = vi.hoisted(() => ({ access: null as any, accept: vi.fn(), approve: vi.fn(), after: vi.fn(), worker: vi.fn(), consent: vi.fn(), workflow: vi.fn() }));
+vi.mock('@/lib/editorial/submission-consent', () => ({ submissionConsentOffer: vi.fn(), acceptSubmissionConsent: (...args: unknown[]) => state.consent(...args) }));
 vi.mock('next/server', () => ({ after: (fn: unknown) => state.after(fn) }));
 vi.mock('@/lib/mcp/oauth', () => ({ mcpRequestAccess: async () => state.access }));
 vi.mock('@/lib/editorial/submissions', () => ({ getSubmissionStatus: vi.fn() }));
 vi.mock('@/lib/editorial/submission-approval', () => ({ quoteSubmission: vi.fn(), acceptSubmissionQuote: (...args: unknown[]) => state.accept(...args) }));
 vi.mock('@/lib/editorial/submission-publication', () => ({ submissionPublicationPreview: vi.fn(), approveSubmissionPublication: (...args: unknown[]) => state.approve(...args), publishSubmission: vi.fn() }));
-vi.mock('@/lib/editorial/submission-continuation', () => ({ continueSubmissionPreparation: (...args: unknown[]) => state.worker(...args) }));
+vi.mock('@/lib/editorial/submission-continuation', () => ({ continueSubmissionPreparation: (...args: unknown[]) => state.worker(...args), continueSubmissionWorkflow: (...args: unknown[]) => state.workflow(...args) }));
 import { GET, POST } from '@/app/api/editorial/submissions/route';
 import { getSubmissionStatus } from '@/lib/editorial/submissions';
 import { quoteSubmission } from '@/lib/editorial/submission-approval';
@@ -35,6 +36,14 @@ it('persists personal price acceptance before dispatch and does not publish', as
   expect((await POST(request())).status).toBe(202);
   expect(state.accept).toHaveBeenCalledWith('owner', body.id, 1, body.quoteId);
   expect(state.after).toHaveBeenCalledTimes(1); expect(state.approve).not.toHaveBeenCalled();
+});
+it('uses the same single consent externally and continues on the server without a chat message', async () => {
+  state.consent.mockResolvedValue({ accepted: true }); state.workflow.mockResolvedValue({ status: 'published' });
+  const req = request({ action: 'approve_publish', id: body.id, revision: 3, consentId: body.quoteId } as any);
+  expect((await POST(req)).status).toBe(202);
+  expect(state.consent).toHaveBeenCalledWith('owner', body.id, 3, body.quoteId, 'external-preview', 'now');
+  await state.after.mock.calls[0][0](); expect(state.workflow).toHaveBeenCalledWith('owner', body.id);
+  expect(state.accept).not.toHaveBeenCalled(); expect(state.approve).not.toHaveBeenCalled();
 });
 it('lets the owner read the full saved article and anchored images before any approval', async () => {
   vi.mocked(getSubmissionStatus).mockResolvedValue({ status: 'awaiting_preparation', revision: 8, contentHash: 'hash',

@@ -9,9 +9,10 @@ const button = 'min-h-12 rounded-xl border border-white/20 px-5 py-3 hover:bg-wh
 type Article = { title: string; subtitle?: string; intro?: string; content: string; seoTitle?: string; seoDescription?: string;
   category?: string; author?: string; rating?: number; ratingReason?: string; articleFormat?: string; slug?: string };
 type State = {
+  consent?: { id: string; includesPersonalImageSelection: boolean } | null;
   reading: ArticleReadingPreview;
   dependencyError?: string | null;
-  row: { revision: number; status: string; article: Article; questions: Array<{ field: string; question: string }>;
+  row: { revision: number; status: string; publicationConsent?: { id: string }; publicationConsentPending?: boolean; article: Article; questions: Array<{ field: string; question: string }>;
     imageSelection?: { required: boolean; accepted: boolean; selectionHash: string;
       items: Array<{ assetId: string; url: string; role: string }>; warnings: Array<{ assetId: string; message: string }> };
     displayNames?: { author?: string; category?: string };
@@ -41,11 +42,20 @@ export default function SubmissionConfirmation({ id }: { id: string }) {
     finally { if (sequence === requestSequence.current) setBusy(false); }
   }, [id, user]);
   useEffect(() => { setState(null); void refresh(); return () => { requestSequence.current++; }; }, [refresh]);
+  const status = state?.row.status;
+  const consentPending = !!state?.row.publicationConsentPending && ['processing', 'prepared'].includes(status || '');
+  useEffect(() => {
+    if (!status || (!['processing', 'scheduled'].includes(status) && !consentPending)) return;
+    const started = Date.now();
+    const timer = setInterval(() => { if (Date.now() - started < 120_000) void refresh(); else clearInterval(timer); }, 5000);
+    return () => clearInterval(timer);
+  }, [status, consentPending, refresh]);
   async function act() {
-    if (!user || !state || !checked || busy || imageFailed || state.dependencyError) return;
+    if (!user || !state || (!state.consent && !checked) || busy || imageFailed || state.dependencyError) return;
     setBusy(true); setError('');
     try {
-      const body = state.row.imageSelection?.required
+      const body = state.consent ? { action: 'approve_publish', id, revision: state.row.revision, consentId: state.consent.id, localTime: schedule ? when : 'now' }
+        : state.row.imageSelection?.required
         ? { action: 'accept_media', id, revision: state.row.revision, selectionHash: state.row.imageSelection.selectionHash }
         : state.preview?.ready
         ? { action: 'publish', id, preparedHash: state.preview.preparedHash, localTime: schedule ? when : 'now' }
@@ -66,7 +76,13 @@ export default function SubmissionConfirmation({ id }: { id: string }) {
     {state.dependencyError && <p role="alert">{state.dependencyError}</p>}
     {imageFailed && <p role="alert">Et billede kunne ikke vises. Genindlæs før godkendelse.</p>}
     {row.imageSelection?.warnings.map(warning => <p role="status" key={warning.assetId}>{warning.message}{row.imageSelection?.accepted ? ' Dit personlige billedvalg er gemt for denne version.' : ''}</p>)}
-    {row.imageSelection?.required ? <>
+    {state.consent && !state.dependencyError ? <>
+      <p className="leading-7 text-white/75">Med ét klik godkender du tekst, kilder, de viste billeder og metadata i version {row.revision}. Serveren klargør og udgiver denne version efter tekniske kontroller. Ingen betalte AI-kald og ingen ekstra godkendelse i chatten.</p>
+      {state.consent.includesPersonalImageSelection && <p className="text-white/75">Dit klik vælger også de viste billeder trods ovenstående forbehold om prompt og stilreference.</p>}
+      <label className="flex gap-3"><input type="checkbox" checked={schedule} onChange={e => setSchedule(e.target.checked)} />Planlæg udgivelse</label>
+      {schedule && <label className="block">Tidspunkt i København<input className="mt-2 block min-h-12 w-full rounded-xl border border-white/25 bg-transparent p-3" type="datetime-local" value={when} onChange={e => setWhen(e.target.value)} /></label>}
+      <button className={`${button} w-full bg-white text-black hover:bg-white/90`} disabled={busy || imageFailed || (schedule && !when)} onClick={() => void act()}>{schedule ? 'Godkend og planlæg' : 'Godkend og udgiv'}</button>
+    </> : consentPending ? <p role="status">Din udgivelsesgodkendelse er gemt. Serveren færdiggør de tekniske kontroller og udgivelsen. Du skal ikke godkende igen eller sende en besked; status opdateres automatisk.</p> : row.imageSelection?.required ? <>
       {row.imageSelection.items.map(asset => <figure key={asset.assetId}>
         <Image unoptimized src={asset.url} alt={asset.role === 'cover' ? 'Valgt cover til gennemgang' : 'Valgt illustration til gennemgang'} width={960} height={540} onError={() => setImageFailed(true)} className="h-auto w-full rounded-xl" />
       </figure>)}
@@ -76,7 +92,7 @@ export default function SubmissionConfirmation({ id }: { id: string }) {
       <button className={button} disabled={busy || !checked || imageFailed || !!state.dependencyError} onClick={() => void act()}>Jeg vælger disse billeder</button>
     </> : row.status === 'published' ? <p role="status">Artiklen har en verificeret udgivelseskvittering. <a className="underline" href={row.publication?.receipt?.publicUrl} target="_blank" rel="noreferrer">Åbn artiklen</a></p>
       : row.status === 'scheduled' ? <p role="status">Godkendt til udgivelse {row.publication?.publishAt ? new Date(row.publication.publishAt).toLocaleString('da-DK', { timeZone: 'Europe/Copenhagen' }) : ''}. Serveren fortsætter, selv om du lukker chatten.</p>
-      : row.status === 'processing' ? <p role="status">Klargør billeder og kontroller. Dit arbejde gemmes undervejs. Artiklen er ikke publiceret.</p>
+      : row.status === 'processing' ? <p role="status">Godkendelsen er gemt. Serveren kontrollerer og klargør artiklen; status opdateres automatisk. {row.publicationConsent ? 'Du skal ikke vende tilbage til chatten og godkende igen.' : 'Dit tidligere valg omfattede kun klargøring, ikke udgivelse.'} Artiklen er ikke publiceret endnu.</p>
       : row.status === 'blocked' ? <p role="alert">Arbejdet er gemt, men kræver opfølgning: {row.blocker}. Bed ChatGPT hente status for dette forløb.</p>
       : row.status === 'prepared' && !preview?.ready ? <p role="alert">Den gemte artikel vises ovenfor, men de aktuelle CMS-kontroller tillader endnu ikke udgivelse. Bed ChatGPT kontrollere denne version; der oprettes ikke en ny artikel.</p>
       : preview?.ready ? <>

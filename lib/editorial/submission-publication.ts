@@ -16,6 +16,7 @@ import { verifySubmissionMedia } from './submission-media-identity';
 import { assertImageSelection, readImageSelection } from './submission-image-selection';
 import type { SubmissionRecord } from './submission-contract';
 import { withoutPaidAi } from '@/lib/ai/no-paid-calls';
+import { assertPublicationConsent } from './submission-consent';
 
 type Prepared = { itemId: string; expected: WebflowArticleFields; proof: { fieldDataHash: string } };
 type Publication = { uid: string; preparedHash: string; contentHash: string; cmsHash: string; publishAt: string;
@@ -53,7 +54,7 @@ export async function submissionPublicationPreview(uid: string, id: string) {
 }
 
 /** Authenticated personal UI only: first-party or a version-bound MCP App click. */
-export async function approveSubmissionPublication(uid: string, id: string, preparedHash: string, localTime: string) {
+export async function approveSubmissionPublication(uid: string, id: string, preparedHash: string, localTime: string, consentId?: string) {
   assertPublicationEnabled();
   const preview = await submissionPublicationPreview(uid, id);
   if (!preview.ready || preview.preparedHash !== preparedHash) throw Error('mcp_submission_preview_changed');
@@ -63,10 +64,15 @@ export async function approveSubmissionPublication(uid: string, id: string, prep
     const row = (await tx.get(ref)).data();
     if (!row || row.uid !== uid || row.status !== 'prepared' || row.preparedHash !== preparedHash || row.contentHash !== preview.contentHash) throw Error('mcp_submission_preview_changed');
     await assertImageSelection(row as SubmissionRecord, tx);
-    const publication: Publication = { uid, preparedHash, contentHash: row.contentHash, cmsHash: preview.cmsHash!, publishAt, acceptedAt: new Date().toISOString() };
+    const consent = consentId ? assertPublicationConsent(row as SubmissionRecord, consentId) : null;
+    if (consent && (await readImageSelection(row as SubmissionRecord, tx)).selectionHash !== consent.selectionHash) throw Error('mcp_submission_preview_changed');
+    const publication: Publication = { uid, preparedHash, contentHash: row.contentHash, cmsHash: preview.cmsHash!, publishAt: consent?.publishAt || publishAt,
+      acceptedAt: consent?.acceptedAt || new Date().toISOString(),
+      ...(consent ? { consentId: consent.id, approvalSource: 'single-personal-consent' } : {}) };
     tx.create(ref.collection('publicationApprovals').doc(preparedHash), publication);
-    tx.update(ref, { status: 'scheduled', publication, updatedAt: publication.acceptedAt });
-    return { status: 'scheduled', publishAt, publicationVerified: false };
+    tx.update(ref, { status: 'scheduled', publication, updatedAt: new Date().toISOString(),
+      ...(consent ? { publicationConsent: { ...consent, status: 'scheduled' }, publicationConsentPending: false } : {}) });
+    return { status: 'scheduled', publishAt: publication.publishAt, publicationVerified: false };
   });
 }
 

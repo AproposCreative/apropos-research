@@ -48,7 +48,7 @@ export async function quoteSubmission(uid: string, id: string) {
   const provider = humanReview ? await readProviderHold().catch(() => ({ blocked: true, reason: 'status_unavailable', statusUnavailable: true })) : await readProviderHold();
   return { ...body, quoteId: cmsFieldHash(body), canAccept: !imageSelection.required && inspection.readyForPreparation && (!finalOnly || count === 0),
     blockers: [...inspection.blockers, ...(imageSelection.required ? ['image_selection_required'] : []), ...(finalOnly && count ? ['chat_images_required'] : [])], provider,
-    instruction: humanReview ? 'ChatGPT-first: ingen betalte AI-kald. Bekræft personligt den redaktionelle kontrol før teknisk klargøring. Separat versionsbundet publiceringsgodkendelse følger.' : 'Historisk API-forløb: kræver personlig prisaccept, ikke publiceringsgodkendelse. Ingen automatisk genbestilling.' };
+    instruction: humanReview ? 'ChatGPT-first: vis artikelkortet. Godkend og udgiv er én personlig versionsbundet handling for redaktionel kontrol, viste billeder, teknisk klargøring og udgivelse. Ingen betalte AI-kald. Ældre prisaccept er ikke i sig selv en publiceringsgodkendelse.' : 'Historisk API-forløb: kræver personlig prisaccept, ikke publiceringsgodkendelse. Ingen automatisk genbestilling.' };
 }
 
 export async function acceptSubmissionQuote(uid: string, id: string, expectedRevision: number, quoteId: string) {

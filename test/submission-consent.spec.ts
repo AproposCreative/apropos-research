@@ -1,0 +1,85 @@
+import { beforeEach, expect, it, vi } from 'vitest';
+import { memoryFirestore } from './helpers/mcp-firestore';
+import { cmsFieldHash } from '@/lib/liv/cms-field-hash';
+const state = vi.hoisted(() => ({ db: null as any, member: true }));
+vi.mock('@/lib/firebase-admin', () => ({ getAdminDb: () => state.db }));
+vi.mock('@/lib/mcp/oauth', () => ({ activeMember: async () => state.member }));
+vi.mock('@/lib/mcp/publication', () => ({ assertPublicationEnabled: vi.fn() }));
+vi.mock('@/lib/editorial/submission-options', () => ({ getSubmissionOptions: async () => ({
+  authors: [{ id: 'author', name: 'Liv' }], categories: [{ id: 'category', name: 'Kultur' }], topics: [], requiredFields: [] }) }));
+import { acceptSubmissionConsent, submissionConsentOffer, assertPublicationConsent, consentArticleHash } from '@/lib/editorial/submission-consent';
+import { imageGenerationEvidence } from '@/lib/editorial/image-generation-evidence';
+const id = 'a'.repeat(64), path = `editorialSubmissions/${id}`;
+let memory: ReturnType<typeof memoryFirestore>;
+beforeEach(() => {
+  memory = memoryFirestore(); state.db = memory.db; state.member = true;
+  const article = { title: 'Titel', subtitle: 'Underrubrik', intro: 'Intro', slug: 'titel', seoTitle: 'SEO', seoDescription: 'Beskrivelse',
+    author: 'author', category: 'category', subjectType: 'culture', featuredImage: 'https://images.test/cover.png',
+    featuredImageAlt: 'Cover', fotoCredit: 'Kilde', content: '<p>Tekst <a href="https://source.test">kilde</a></p><figure><img src="https://images.test/body1.png" alt="Et"><figcaption>Kilde</figcaption></figure><figure><img src="https://images.test/body2.png" alt="To"><figcaption>Kilde</figcaption></figure>' };
+  memory.rows.set(path, { id, uid: 'owner', revision: 3, contentHash: 'b'.repeat(64), status: 'draft',
+    executionPolicy: 'chatgpt-first-v1', article, originalArticle: article, research: [], choices: { kind: 'feature', media: 'provided', aiFinalChecks: 'human' } });
+});
+it('offers one consent without approving anything; a double click queues once with a durable replay', async () => {
+  const offer = (await submissionConsentOffer('owner', id))!;
+  expect(offer.label).toBe('Godkend og udgiv'); expect(memory.rows.get(path)).not.toHaveProperty('approval');
+  const results = await Promise.all([acceptSubmissionConsent('owner', id, 3, offer.id, 'chat-preview'), acceptSubmissionConsent('owner', id, 3, offer.id, 'external-preview')]);
+  expect(results.map(r => r.replay).sort()).toEqual([false, true]);
+  expect(memory.rows.get(path)).toMatchObject({ status: 'processing', publicationConsentPending: true,
+    approval: { ceilingDkkMicros: 0, contentHash: 'b'.repeat(64) }, publicationConsent: { id: offer.id, revision: 3, status: 'pending' } });
+  expect([...memory.rows.keys()].filter(p => p.includes('/publicationConsents/'))).toHaveLength(1);
+  expect(await acceptSubmissionConsent('owner', id, 3, offer.id, 'chat-preview')).toMatchObject({ replay: true });
+});
+it('binds the exact media selection in the same deliberate click, without pretending generator verification', async () => {
+  const assetPath = `${path}/chatAssets/${'c'.repeat(64)}`;
+  memory.rows.set(assetPath, { uid: 'owner', assetId: 'c'.repeat(64), status: 'attached', url: memory.rows.get(path).article.featuredImage,
+    role: 'cover', originalHash: 'd'.repeat(64), generationEvidence: imageGenerationEvidence({ origin: 'chatgpt-generated', kind: 'illustration' }, {}) });
+  const offer = (await submissionConsentOffer('owner', id))!;
+  expect(offer.includesPersonalImageSelection).toBe(true);
+  await acceptSubmissionConsent('owner', id, 3, offer.id, 'chat-preview');
+  expect(memory.rows.get(path).mediaSelection.selectionHash).toBe(offer.selectionHash);
+  expect(memory.rows.get(`${path}/mediaSelections/${offer.selectionHash}`)).toMatchObject({ exactPromptExecutionVerified: false, consentId: offer.id });
+});
+it('refuses missing media, paid/legacy flow, wrong owner, stale version and changed media evidence', async () => {
+  const offer = (await submissionConsentOffer('owner', id))!;
+  await expect(acceptSubmissionConsent('other', id, 3, offer.id, 'chat-preview')).rejects.toThrow('not_found');
+  await expect(acceptSubmissionConsent('owner', id, 2, offer.id, 'chat-preview')).rejects.toThrow('preview_changed');
+  memory.rows.get(path).article.featuredImage = '';
+  expect(await submissionConsentOffer('owner', id)).toBeNull();
+  await expect(acceptSubmissionConsent('owner', id, 3, offer.id, 'chat-preview')).rejects.toThrow('preview_changed');
+  memory.rows.get(path).executionPolicy = 'chat-final-checks-v1';
+  expect(await submissionConsentOffer('owner', id)).toBeNull();
+  expect(memory.rows.get(path).status).toBe('draft');
+});
+it('binds all editorial fields and link/image identity, while allowing measured dimensions only', async () => {
+  const offer = (await submissionConsentOffer('owner', id))!;
+  await acceptSubmissionConsent('owner', id, 3, offer.id, 'chat-preview');
+  const row = memory.rows.get(path); row.prepared = { expected: structuredClone(row.article) };
+  row.prepared.expected.content = row.article.content.replace('<img ', '<img width="960" height="540" ');
+  expect(assertPublicationConsent(row, offer.id)).toMatchObject({ id: offer.id });
+  for (const field of ['title', 'seoTitle', 'slug', 'author', 'fotoCredit', 'featuredImage', 'rating']) {
+    const changed = structuredClone(row); changed.prepared.expected[field] = field === 'rating' ? 6 : 'Changed';
+    expect(() => assertPublicationConsent(changed, offer.id)).toThrow('preview_changed');
+  }
+  for (const change of [row.article.content.replace('source.test', 'evil.test'), row.article.content.replace('body1.png', 'other.png'), '<p>Omskrevet tekst</p>']) {
+    const changed = structuredClone(row); changed.prepared.expected.content = change;
+    expect(() => assertPublicationConsent(changed, offer.id)).toThrow('preview_changed');
+  }
+  row.revision++; expect(() => assertPublicationConsent(row, offer.id)).toThrow('preview_changed');
+  expect(consentArticleHash(row.article)).toMatch(/^[a-f0-9]{64}$/);
+});
+it('does not inherit a previous revision’s consent or a revoked member’s click', async () => {
+  const offer = (await submissionConsentOffer('owner', id))!;
+  state.member = false;
+  await expect(acceptSubmissionConsent('owner', id, 3, offer.id, 'external-preview')).rejects.toThrow('owner_access_changed');
+  state.member = true; await acceptSubmissionConsent('owner', id, 3, offer.id, 'external-preview');
+  Object.assign(memory.rows.get(path), { revision: 4, contentHash: cmsFieldHash({ new: 'version' }), status: 'draft' });
+  await expect(acceptSubmissionConsent('owner', id, 3, offer.id, 'external-preview')).rejects.toThrow('preview_changed');
+});
+it('stores the chosen Copenhagen schedule and never repurposes a replay as publish-now', async () => {
+  const date = new Date(Date.now() + 86_400_000).toISOString().slice(0, 10) + 'T10:00';
+  const offer = (await submissionConsentOffer('owner', id))!;
+  await acceptSubmissionConsent('owner', id, 3, offer.id, 'chat-preview', date);
+  const consent = memory.rows.get(path).publicationConsent;
+  expect(consent.localTime).toBe(date); expect(Date.parse(consent.publishAt)).toBeGreaterThan(Date.now());
+  await expect(acceptSubmissionConsent('owner', id, 3, offer.id, 'chat-preview', 'now')).rejects.toThrow('preview_changed');
+});

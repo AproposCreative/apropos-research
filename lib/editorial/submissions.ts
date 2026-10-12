@@ -73,6 +73,7 @@ export async function getSubmissionStatus(uid: string, id: string) {
         ['processing', 'scheduled'].includes(row.status) ? 'read_saved_status_do_not_resubmit' :
         row.status === 'published' ? 'inspect_publication_receipt' :
         inspection.missingMedia.length ? (row.choices.media === 'press' ? 'find_and_import_missing_press_images' : 'complete_missing_media') :
+        row.executionPolicy === 'chatgpt-first-v1' && row.choices.aiFinalChecks === 'human' && inspection.readyForPreparation ? 'show_inline_preview_for_single_approval' :
         imageSelection.required ? 'open_personal_image_selection' :
         inspection.readyForPreparation ? (row.choices.aiFinalChecks === 'human' ? 'open_personal_editorial_confirmation' : 'open_personal_price_acceptance') : 'complete_missing_inputs' } };
 }

@@ -18,15 +18,22 @@ Ved nul brugbare kandidater rapporteres kildediagnostikken uden opdigtet
 filreference, genereret fallback eller direkte Webflow-omvej. Ingen generel
 prisaccept i menneskekontrolleret ChatGPT-first; næste personlige trin er
 redaktionel bekræftelse, når de krævede medier og øvrige felter er komplette.
-Vis hele teksten og billederne via preview_submission. Brugeren accepterer
-først klargøringsvalget og senere den præcise færdige publiceringsversion
-med hver sin knap i previewet. Cover er obligatorisk. Når brugeren vælger
+Vis hele teksten og billederne som artikelkort via preview_submission, ikke
+kun et link. ChatGPT-first har én personlig **Godkend og udgiv**-knap: klikket
+godkender den viste revision, redaktionel kontrol og de viste billeder samt
+teknisk klargøring og udgivelse. Serveren fortsætter gennem de eksisterende
+kontroller og læser resultatet tilbage. Bed ikke brugeren vende tilbage til
+chatten og sige godkendt, og indhent ikke en ekstra godkendelse af samme version.
+Ved ændret indhold eller fejlet kontrol stoppes udgivelsen; vis frisk status.
+Ældre klargørings-/prisaccept må ikke opgraderes til publiceringstilladelse.
+Cover er obligatorisk. Når brugeren vælger
 brødtekstbilleder senere, gem choices.bodyImages=deferred. Når brugeren vælger
 egen slutkontrol, gem choices.aiFinalChecks=human. Previewets personlige knap
 bekræfter fravalget af AI-kontrol, også under provider-hold. Deterministiske
 fil-, metadata-, schema- og CMS-kontroller består stadig. Modellen må aldrig
 fremstille godkendelse eller et bekræftelsestoken. Klienter uden interaktivt
-preview bruger det personlige previewUrl som fallback.
+preview bruger det personlige previewUrl som fallback. “Åbn eksternt” er også
+en valgfri mulighed; linkdeling giver ikke modtageren nye læse-/skriverettigheder.
 Research, skrivning, SEO-forslag og illustrationer laves i chatten. Billedprompt
 og stilreference hentes med get_image_brief; valgte filer gemmes med
 import_submission_image. Ingen automatisk betalt generationsfallback.
