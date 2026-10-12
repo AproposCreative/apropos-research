@@ -53,3 +53,50 @@ These tests do not prove a future cloud task will supply the optional variants.
 Cached ChatGPT clients must refresh MCP discovery before using the new field.
 No new article or unattended publication was generated to demonstrate this change.
 Native ChatGPT writing uses subscription limits; storage/hosting remain separate.
+
+## Production evidence, 12 October 2026
+
+- Code `0513eec190aeb6bea20f48bf61509fb0b452da22`, deployment
+  `dpl_6m5rGe3Q6Sk6TrwVWT2iBrpkaN3h`: READY, exact Git SHA and real
+  `ai.aproposmagazine.com` production alias confirmed. The first deployment
+  `dpl_6itfDsccr88BzW3N7Enx5AC9Ppy3` failed before build with `git_info_fail`;
+  remote Git SHA was checked and one retry of the same commit succeeded. No
+  source workaround or rollback of unrelated work.
+- Authenticated runtime check at `2026-10-12T12:59:13.694Z`: existing Kontrapunkt
+  `6accb9d4a4cfa06c22daba31` remained byte-for-byte equal in the article API
+  before/after. JSON SHA-256
+  `d8349a4b057ff60eab7654d8e53c74a70ffb8016e58319a5ca4e43db65f968e1`.
+- Anonymous old shortening endpoint returned 401; two authenticated old-client
+  requests returned 410/no-store with `paidAiCalls=0` and reload guidance;
+  invalid format returned 400. Shared cost summary and provider hold unchanged:
+  one historical call, 0 DKK usage estimate, 1.2144 DKK reserved, one unresolved.
+  Provider response hash
+  `87926057aa6f38f9bc1157d20575743abd5c5d8eacb0a34da14b8b185814a380`.
+  No CMS write, publication, hold/budget change or paid model request.
+- Actual production editor at 390×844, existing authenticated session and real
+  production font/image: opening Kontrapunkt automatically selects
+  “Kontrapunkt har formet DSB og TV 2.” for 1:1, without a shortening click.
+  9:16 retains the full original subtitle because it fits. Switching back
+  restores automatic square fitting. No browser console errors. Temporary
+  viewport override reset afterwards. This is not a mocked article/render.
+- Screenshots and machine receipt retained in
+  `output/social-subtitle/live-automatic-mobile.jpg`,
+  `output/social-subtitle/live-automatic-story.jpg` and
+  `output/social-subtitle/production-automatic.json`. Local fixture evidence
+  above remains separate from this production readback.
+- Connected MCP `get_workflow(submit)` returns the live 90/130-character
+  ChatGPT-writing instruction, `paidAiCalls=0`, versionHash
+  `8886e7bc5d26f20f040a58f6bf405f540813d7d29ef3f63f9890dbd69b77ca54`.
+  No new submission, approval or scheduled generation was run to demonstrate it.
+- Invoked the existing Apropos plugin's official Refresh tools UI; it returned
+  from loading to enabled without a displayed error or permission change. The
+  UI did not expose the refreshed per-field schema, so this is not an actual
+  cloud-write proof. Restored the original editorial chat without sending a
+  message, starting a task, creating another plugin or changing permissions.
+- Bounded Vercel error/fatal log query for this deployment from 12:56 to
+  13:00:04Z returned no entries; that is not a claim about all runtime traffic.
+
+Automatic local fitting is verified live. Saved ChatGPT-copy creation and
+hash-bound projection are implemented and regression-tested; a future real
+cloud-generated/publicized article with these new optional fields is not yet
+observed. Legacy excerpt selection is not represented as a semantic AI rewrite.
