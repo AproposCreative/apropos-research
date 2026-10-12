@@ -8,6 +8,7 @@ import { articleImages } from '@/lib/mcp/markup';
 import { projectImageSelection } from './submission-image-selection';
 import { livProductionSubmissionId } from './liv-production-identity';
 import { assertChatGptFirstPolicy } from './submission-policy';
+import { ideaRef, ideaSubmissionRequest, ideaSubmissionId } from './ideas';
 import { inspectSubmission, submissionId, submissionInput, submissionUpdate, submissionVersion,
   validateSubmissionArticle, type SubmissionRecord } from './submission-contract';
 
@@ -87,6 +88,8 @@ export async function listSubmissions(uid: string) {
 
 export async function prepareSubmission(uid: string, raw: unknown) {
   const input = submissionInput.parse(raw);
+  if (input.requestId.startsWith('editorial-idea-') && !input.editorialIdeaId) throw Error('mcp_idea_identity_conflict');
+  if (input.editorialIdeaId && (input.livProduction || input.requestId !== ideaSubmissionRequest(input.editorialIdeaId))) throw Error('mcp_idea_identity_conflict');
   const reader = input.readerSourceId ? await getReaderProgress(uid, { sourceId: input.readerSourceId, limit: 1 }) : null;
   if (reader) {
     if (!reader.coverage.some(c => c.status === 'reported_complete')) throw Error('mcp_submission_reader_incomplete');
@@ -95,10 +98,14 @@ export async function prepareSubmission(uid: string, raw: unknown) {
     input.article.bookTitle = reader.title; input.article.bookAuthor = reader.author;
   }
   validateSubmissionArticle(input.article);
-  const id = input.livProduction ? livProductionSubmissionId(uid, input.livProduction) : cmsFieldHash({ uid, requestId: input.requestId });
+  const id = input.editorialIdeaId ? ideaSubmissionId(uid, input.editorialIdeaId) : input.livProduction ? livProductionSubmissionId(uid, input.livProduction) : cmsFieldHash({ uid, requestId: input.requestId });
   const { db, collection } = submissionStore(), ref = collection.doc(id);
   await db.runTransaction(async tx => {
     const old = (await tx.get(ref)).data();
+    if (input.editorialIdeaId) {
+      const idea = (await tx.get(ideaRef(uid, input.editorialIdeaId))).data();
+      if (!idea || idea.uid !== uid || idea.status !== 'selected') throw Error('mcp_idea_selection_required');
+    }
     if (old) {
       // Keep pre-migration retries byte/version compatible; never migrate an approval implicitly.
       const retry = old.executionPolicy === 'chatgpt-first-v1' ? { ...input, choices: { ...input.choices, aiFinalChecks: input.choices.aiFinalChecks || 'human' as const } } : input;
@@ -145,7 +152,7 @@ export async function updateSubmission(uid: string, raw: unknown, internal?: { r
       if (input.article?.[field] !== undefined) throw Error('mcp_submission_conflicting_update');
       delete article[field];
     }
-    const next = submissionInput.parse({ requestId: row.requestId, readerSourceId: row.readerSourceId, livProduction: row.livProduction, article,
+    const next = submissionInput.parse({ requestId: row.requestId, readerSourceId: row.readerSourceId, livProduction: row.livProduction, editorialIdeaId: row.editorialIdeaId, article,
       research: input.research ?? row.research, choices: { ...row.choices, ...input.choices } });
     assertChatGptFirstPolicy({ executionPolicy: row.executionPolicy, choices: next.choices });
     validateSubmissionArticle(next.article);

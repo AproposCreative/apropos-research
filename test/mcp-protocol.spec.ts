@@ -3,6 +3,9 @@ import { z } from 'zod';
 const mock = vi.hoisted(() => ({ identity: null as any, rate: vi.fn(), audit: vi.fn(), drafts: vi.fn(), workspace: vi.fn(), context: vi.fn(), publish: vi.fn(), publicationStatus: vi.fn(), shortening: vi.fn(), shorteningContext: vi.fn(), shorteningPreview: vi.fn(), shorteningApply: vi.fn() }));
 const reader = vi.hoisted(() => ({ register: vi.fn(), list: vi.fn(), get: vi.fn(), save: vi.fn() }));
 const seo = vi.hoisted(() => ({ claim: vi.fn(), status: vi.fn(), save: vi.fn(), apply: vi.fn() }));
+const ideas = vi.hoisted(() => ({ desk: vi.fn(), save: vi.fn(), get: vi.fn(), start: vi.fn() }));
+vi.mock('@/lib/editorial/ideas', async original => ({ ...await original<any>(), getEditorialDesk: ideas.desk,
+  saveEditorialIdeas: ideas.save, getEditorialIdea: ideas.get, startEditorialIdea: ideas.start }));
 vi.mock('@/lib/seo-engine/post-publish/chat', () => ({ claimSeoTasks: seo.claim, getSeoTask: seo.status, saveSeoReview: seo.save, applySeoReview: seo.apply }));
 vi.mock('@/lib/mcp/reader', async original => ({ ...await original<any>(), registerReaderSource: reader.register,
   listReaderSources: reader.list, getReaderProgress: reader.get, saveReaderProgress: reader.save }));
@@ -41,6 +44,21 @@ beforeEach(() => { vi.clearAllMocks(); mock.identity = { uid: 'frederik', owner:
 const message = (method: string, params?: unknown) => new Request(`${MCP_ORIGIN}/mcp`, { method: 'POST',
   headers: { 'Content-Type': 'application/json', Accept: 'application/json, text/event-stream' }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, ...(params ? { params } : {}) }) });
 const call = (name: string, args = {}) => POST(message('tools/call', { name, arguments: args }));
+it('discovers the editorial desk widget, keeps selection private and denies paid models or caller UID', async () => {
+  const listed = (await (await POST(message('tools/list'))).json()).result.tools;
+  const desk = listed.find((t: any) => t.name === 'get_editorial_desk');
+  expect(desk._meta.ui.resourceUri).toBe('ui://apropos/editorial-desk-v1.html');
+  mock.identity.owner = false;
+  ideas.desk.mockResolvedValue({ ideas: [], drafts: [], paidAiCalls: 0 });
+  const response = (await (await call('get_editorial_desk')).json()).result;
+  expect(response.structuredContent.ideas).toEqual([]); expect(ideas.desk).toHaveBeenCalledExactlyOnceWith('frederik', { limit: 10 });
+  const args = { ideaId: 'a'.repeat(64), expectedRevision: 1 };
+  mock.identity.scopes = ['apropos:read'];
+  expect((await (await call('start_editorial_idea', args)).json()).result.isError).toBe(true); expect(ideas.start).not.toHaveBeenCalled();
+  mock.identity.scopes.push('apropos:draft'); ideas.start.mockImplementation(() => assertPaidAiAllowed());
+  expect((await (await call('start_editorial_idea', args)).json()).result.content[0].text).toContain('mcp_paid_call_requires_separate_approval');
+  expect((await (await call('get_editorial_idea', { ideaId: args.ideaId, uid: 'other' })).json()).result.isError).toBe(true);
+});
 it('authenticates before initialization or exposing tool schemas', async () => {
   mock.identity = null; const response = await POST(message('tools/list'));
   expect(response.status).toBe(401); expect(response.headers.get('WWW-Authenticate')).toContain('/.well-known/oauth-protected-resource'); expect(mock.audit).not.toHaveBeenCalled();
@@ -53,7 +71,7 @@ it('negotiates the real SDK protocol and lists strict schemas on independent sta
     icons: [{ src: MCP_ICON, mimeType: 'image/png', sizes: ['256x256'] }],
   });
   const response = await POST(message('tools/list')); const tools = (await response.json()).result.tools;
-  expect(tools.length).toBe(53); expect(tools.find((t: any) => t.name === 'publish_article').annotations.destructiveHint).toBe(true);
+  expect(tools.length).toBe(57); expect(tools.find((t: any) => t.name === 'publish_article').annotations.destructiveHint).toBe(true);
   expect(tools.find((t: any) => t.name === 'get_liv_production_context').annotations.readOnlyHint).toBe(true);
   expect(tools.find((t: any) => t.name === 'get_publication_status').annotations).toMatchObject({ readOnlyHint: true, destructiveHint: false, idempotentHint: true });
   expect(tools.find((t: any) => t.name === 'save_draft').inputSchema.additionalProperties).toBe(false);

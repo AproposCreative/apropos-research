@@ -15,6 +15,7 @@ export const submissionChoices = z.object({
   aiFinalChecks: z.enum(['required', 'human']).optional().describe('human requests explicit personal confirmation to prepare without paid AI checks; it is not approval by itself.'),
 }).strict();
 export const submissionInput = z.object({
+  editorialIdeaId: submissionId.optional().describe('Selected saved editorial idea. Reuses its single submission identity; not a Liv delivery slot or approval.'),
   livProduction: livProductionIdentity.optional().describe('Use the identity returned by get_liv_production_context. Resumes the same private submission, never marks automatic delivery.'),
   readerSourceId: submissionId.optional().describe('Existing private reader source: reuses book metadata and coverage, never copies the book text.'),
   requestId: z.string().regex(/^[a-zA-Z0-9_-]{16,100}$/),
