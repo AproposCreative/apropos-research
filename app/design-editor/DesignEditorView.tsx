@@ -6,6 +6,7 @@ import { EmbeddedAppHeader } from '@/components/embedded-app';
 import SocialCardCanvas, { type SocialCardData, type SocialCardSize, DIMENSIONS } from './SocialCardCanvas';
 import { exportCardToPng, exportCardToJpegBlob } from './exportCardToPng';
 import { useCardSubtitle } from './useCardSubtitle';
+import SubtitleControls from './SubtitleControls';
 import { storage } from '@/lib/firebase';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 
@@ -780,19 +781,7 @@ export default function DesignEditorView({ onBack, embedMode }: DesignEditorView
         >
           <div className="w-full flex min-h-min flex-col items-center gap-3 md:gap-5 pt-3 md:pt-10 pb-8">
             {selected?.excerpt && (
-              <details className="w-full max-w-xl rounded-xl border border-white/20 p-3 text-sm text-white">
-                <summary className="cursor-pointer">Undertekst på billedet{subtitle.status === 'loading' ? ' · AI forkorter…' : subtitle.status === 'ai' ? ' · AI-forkortet' : !subtitle.ready ? ' · Skal forkortes' : ''}</summary>
-                <label className="mt-3 block">Redigér undertekst
-                  <textarea aria-label="Undertekst på billedet" value={subtitle.text} onChange={event => subtitle.edit(event.target.value)} rows={3} className="apropos-input-dark mt-1 w-full rounded-lg border p-2" />
-                </label>
-                <div className="mt-2 flex gap-3">
-                  <button type="button" disabled={subtitle.status === 'loading' || !subtitle.text.trim()} onClick={() => void subtitle.shorten()} className="rounded-lg border border-white/30 px-3 py-2 disabled:opacity-40">Forkort med AI</button>
-                  <button type="button" onClick={subtitle.restore} className="rounded-lg border border-white/30 px-3 py-2">Gendan original</button>
-                </div>
-                <p className="mt-2 text-white/60">Kun billedets undertekst ændres. Kontrollér AI-forslaget før brug.</p>
-                {subtitle.error && <p role="alert" className="mt-2 text-amber-300">{subtitle.error}</p>}
-                {!subtitle.ready && subtitle.status !== 'loading' && <p className="mt-2 text-amber-300">Forkort underteksten for at bevare en læsbar skriftstørrelse ved download og posting.</p>}
-              </details>
+              <SubtitleControls key={subtitle.key} subtitle={subtitle} title={selected.title} size={size} />
             )}
             {eyebrowChips.length > 0 && size !== 'story' && (
               <div className="inline-flex max-w-full overflow-x-auto no-scrollbar justify-start items-center gap-1.5 md:gap-2 rounded-2xl border border-white/15 bg-black/65 p-1.5 md:p-2 mb-2 md:mb-5 backdrop-blur-md shadow-[0_8px_24px_rgba(0,0,0,0.35)]">
@@ -1240,17 +1229,6 @@ export default function DesignEditorView({ onBack, embedMode }: DesignEditorView
         </div>
       </div>
 
-      {/* Højre menu kun når ikke embedMode (standalone side) */}
-      {!embedMode && (
-        <div className="hidden md:flex absolute top-[1%] right-[1%] z-20 border border-white/20 rounded-2xl overflow-hidden bg-black/90" style={{ height: 50, padding: 4 }}>
-          <button onClick={() => setArticlesOpen((v) => !v)} className="w-10 h-full flex items-center justify-center hover:bg-white/10 rounded-xl transition-colors" title="Artikler">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-white"><path d="M4 6h16M4 12h16M4 18h16" /></svg>
-          </button>
-          <a href="/ai" className="w-10 h-full flex items-center justify-center hover:bg-white/10 rounded-xl transition-colors text-white/80 hover:text-white" title="AI Writer">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" /></svg>
-          </a>
-        </div>
-      )}
       </>
       )}
       {confirmInstagramPostOpen && (

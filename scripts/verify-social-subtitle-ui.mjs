@@ -1,0 +1,102 @@
+// Real SoMe view/hook/canvas/export; isolated CMS, font and Firebase fixtures.
+// No credentials, remote services, CMS writes, model calls or social publishing.
+import assert from 'node:assert/strict';
+import { build } from 'esbuild';
+import { createServer } from 'node:http';
+import { readFile, mkdir } from 'node:fs/promises';
+import postcss from 'postcss';
+import tailwind from 'tailwindcss';
+import { chromium } from 'playwright';
+
+const title = 'Kontrapunkt har tegnet Danmark. Men er kundearbejde kunst?';
+const subtitle = 'Kontrapunkt har formet DSB og TV 2. Nu undersøger Designmuseum Danmark bureauets arbejde og grænsen mellem designhistorie og reklame.';
+const first = 'Kontrapunkt har formet DSB og TV 2.';
+const raw = await Promise.all(['DesignEditorView.tsx', 'SubtitleControls.tsx'].map(file => readFile('app/design-editor/' + file, 'utf8')));
+const css = (await postcss([tailwind({ content: raw.map(raw => ({ raw, extension: 'tsx' })) })]).process('@tailwind base; @tailwind utilities;', { from: undefined })).css;
+const bundle = await build({ stdin: { resolveDir: process.cwd(), loader: 'tsx', contents: `
+import React,{StrictMode} from 'react';import {createRoot} from 'react-dom/client';
+import View from './app/design-editor/DesignEditorView';
+window.fixture={calls:[],errors:[],clipboard:[],denyClipboard:false};
+window.addEventListener('error',e=>fixture.errors.push(e.message));
+window.addEventListener('unhandledrejection',e=>fixture.errors.push(String(e.reason)));
+Object.defineProperty(navigator,'clipboard',{value:{writeText:async text=>{if(fixture.denyClipboard)throw Error('denied');fixture.clipboard.push(text);}}});
+window.fetch=async(url,options={})=>{
+ fixture.calls.push({url:String(url),method:options.method||'GET'});
+ if(options.method&&options.method!=='GET')throw Error('Unexpected mutation');
+ if(url==='/api/webflow/sample-articles')return Response.json({items:[
+  {id:'kontrapunkt',fieldData:{name:${JSON.stringify(title)},subtitle:${JSON.stringify(subtitle)},slug:'kontrapunkt',section:'Kultur',topic:'Kultur & Mening','post-body':'<p>Uændret artikel.</p>','mobile-image':'/fixture.svg'}},
+  {id:'other',fieldData:{name:'Anden artikel',subtitle:'En helt anden artikel.',section:'Kultur','mobile-image':'/fixture.svg'}}]});
+ if(['/api/webflow/authors','/api/webflow/sections','/api/webflow/topics'].includes(url))return Response.json({items:[]});
+ if(url==='/api/instagram/publish')return Response.json({configured:false});
+ throw Error('Unexpected request '+url);
+};
+createRoot(document.getElementById('root')).render(<StrictMode><View/></StrictMode>);
+` }, bundle: true, write: false, jsx: 'automatic', format: 'iife', define: { 'process.env.NODE_ENV': '"development"' }, plugins: [{ name: 'fixtures', setup(b) {
+  b.onResolve({ filter: /^next\/font\/google$|^@\/lib\/firebase$|^firebase\/storage$|^@\/components\/embedded-app$/ }, args => ({ path: args.path, namespace: 'fixture' }));
+  b.onLoad({ filter: /.*/, namespace: 'fixture' }, args => ({ resolveDir: process.cwd(), contents:
+    args.path === 'next/font/google' ? `export const Amiri=()=>({style:{fontFamily:'Georgia'},variable:'fixture-font'});` :
+    args.path.endsWith('embedded-app') ? `export const EmbeddedAppHeader=()=>null;` :
+    args.path === 'firebase/storage' ? `export const ref=()=>{throw Error('Forbidden storage')};export const uploadBytes=ref;export const getDownloadURL=ref;` : `export const storage=null;` }));
+} }] });
+const server = createServer(async (req,res) => {
+  if(req.url==='/bundle.js'){res.setHeader('Content-Type','text/javascript');res.end(bundle.outputFiles[0].text);return;}
+  if(req.url==='/fixture.svg'){res.setHeader('Content-Type','image/svg+xml');res.end('<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="800"><rect width="1000" height="800" fill="#bbb"/></svg>');return;}
+  if(['/images/AproposMagazineLogoInstagram.svg','/images/star-filled.svg','/images/star-outline.svg'].includes(req.url)){
+    res.setHeader('Content-Type','image/svg+xml');res.end(await readFile('public'+req.url));return;
+  }
+  res.setHeader('Content-Type','text/html; charset=utf-8');
+  res.end('<!doctype html><html lang="da"><meta name="viewport" content="width=device-width,initial-scale=1"><title>SoMe fixture</title><style>'+css+'textarea{color:white;background:#141414}</style><body style="background:black;color:white;margin:0"><div id="root"></div><script src="/bundle.js"></script></body></html>');
+});
+await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
+const origin='http://127.0.0.1:'+server.address().port;
+const browser=await chromium.launch({headless:true,channel:'chrome'});
+const reports=[];
+await mkdir('output/social-subtitle',{recursive:true});
+try {
+  for(const viewport of [{width:390,height:844},{width:1440,height:1000}]){
+    const page=await browser.newPage({viewport,acceptDownloads:true});
+    await page.route('**/*',route=>new URL(route.request().url()).origin===origin?route.continue():route.abort());
+    await page.goto(origin);
+    if(viewport.width<768)await page.getByRole('button',{name:'Luk',exact:true}).click();
+    const field=page.getByRole('textbox',{name:'Undertekst på billedet',exact:true});
+    await page.locator('summary').click();
+    await page.getByRole('button',{name:'Brug første sætning',exact:true}).waitFor();
+    assert.equal(await field.inputValue(),subtitle); // No automatic rewrite.
+    assert.equal(await page.getByRole('button',{name:'Forkort med AI',exact:true}).count(),0);
+    await page.getByRole('button',{name:'Brug første sætning',exact:true}).click();
+    await page.waitForFunction(()=>document.querySelector('summary')?.textContent.endsWith(' · Klar'));
+    assert.equal(await field.inputValue(),first);
+    await page.screenshot({path:'output/social-subtitle/'+viewport.width+'-local.png'});
+    const download=page.waitForEvent('download');
+    await page.getByRole('button',{name:'Eksporter PNG',exact:true}).click();
+    const file=await download;
+    await file.saveAs('output/social-subtitle/'+viewport.width+'-card.png');
+    assert.match(file.suggestedFilename(),/apropos-social-square-.*\.png$/);
+    await page.getByRole('button',{name:'Gendan original',exact:true}).click();
+    assert.equal(await field.inputValue(),subtitle);
+    await page.getByRole('button',{name:'Kopiér til ChatGPT',exact:true}).click();
+    await page.getByRole('status').filter({hasText:'Kopieret.'}).waitFor();
+    assert.match((await page.evaluate(()=>fixture.clipboard))[0],/højst 90 tegn/);
+    await field.fill('Kontrapunkt på Designmuseum: Mellem designhistorie og reklame.');
+    await page.waitForFunction(()=>document.querySelector('summary')?.textContent.endsWith(' · Klar'));
+    assert.equal(await page.getByRole('textbox',{name:'Instruktion til ChatGPT',exact:true}).count(),0);
+    await page.evaluate(()=>fixture.denyClipboard=true);
+    await page.getByRole('button',{name:'Kopiér til ChatGPT',exact:true}).click();
+    await page.getByRole('status').filter({hasText:'Automatisk kopiering er ikke tilladt'}).waitFor();
+    assert.match(await page.getByRole('textbox',{name:'Instruktion til ChatGPT',exact:true}).inputValue(),/Kontrapunkt på Designmuseum/);
+    await page.screenshot({path:'output/social-subtitle/'+viewport.width+'-handoff.png'});
+    await page.getByRole('button',{name:'9:16',exact:true}).click();
+    await page.locator('summary').click();
+    assert.equal(await field.inputValue(),subtitle); // Per-format isolation.
+    await page.getByRole('button',{name:'1:1',exact:true}).click();
+    await page.locator('summary').click();
+    assert.equal(await field.inputValue(),'Kontrapunkt på Designmuseum: Mellem designhistorie og reklame.');
+    const state=await page.evaluate(()=>({calls:fixture.calls,errors:fixture.errors,overflow:document.documentElement.scrollWidth>innerWidth}));
+    assert.deepEqual(state.errors,[]);
+    assert(!state.overflow);
+    assert(state.calls.every(call=>call.method==='GET'&&!call.url.includes('design-editor')));
+    reports.push({viewport,requests:state.calls.length,modelRequests:0,localFit:true,manualEdit:true,restore:true,clipboardFallback:true,formatIsolation:true,export:true});
+    await page.close();
+  }
+  console.log(JSON.stringify({fixture:true,font:'Georgia (not production Amiri)',reports},null,2));
+} finally { await browser.close(); await new Promise(resolve=>server.close(resolve)); }
