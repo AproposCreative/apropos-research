@@ -21,6 +21,14 @@ Skeln mellem idé/research, gemt tekst, CMS-kladde, ready-manifest og faktisk
 publiceringskvittering. En historisk kvittering er ikke frisk offentlig readback.
 Rapportér titel, version, konkret mangel og næste sikre handling.
 
+For en valgt submission skelnes `textReadyForPreparation` fra
+`readyForPreparation`: færdig tekst er ikke færdige artikelmedier. Følg frisk
+`missingMedia` og `handoff.nextAction`; send ikke brugeren til godkendelse,
+mens krævede billeder mangler. Har brugeren bestilt færdiggørelse af medier,
+hent `get_workflow` med `submit` og følg det kanoniske pressebilledflow dér.
+Genbrug tilknyttede billeder og kvitteringer. Et gemt søgesvar med `reused:true`
+er historisk, ikke en ny kildehentning. Overblikket starter ikke billedarbejde.
+
 `get_liv_work` viser historiske checks og kildebelæg separat fra redaktionel
 diagnostik. `review_draft` gennemgår det aktuelle private Writer-arbejdsrum.
 Ingen af dem er en ny faktagodkendelse. Manglende eller gamle checks skal kaldes

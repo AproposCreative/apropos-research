@@ -8,6 +8,16 @@ description: Klargør en valgt Apropos-artikel til versionsbundet godkendelse og
 ## Artikel fra chatten
 
 For egne klargøringsforløb bruges get_workflow med workflow=submit.
+Følg det aktuelle kanoniske pressebilledflow dér, også ved genoptagelse af en
+gammel kladde. Læs frisk `get_submission_status`: `textReadyForPreparation`
+beskriver tekst/metadata, ikke om billeder er færdige. Ved `missingMedia` følges
+`handoff.nextAction` og de manglende krævede billeder færdiggøres før godkendelse.
+Genbrug tilknyttede assets; en kildeside eller søgeresultat-URL er ikke et
+importeret billede. `reused:true` er gemt søgehistorik, ikke frisk verifikation.
+Ved nul brugbare kandidater rapporteres kildediagnostikken uden opdigtet
+filreference, genereret fallback eller direkte Webflow-omvej. Ingen generel
+prisaccept i menneskekontrolleret ChatGPT-first; næste personlige trin er
+redaktionel bekræftelse, når de krævede medier og øvrige felter er komplette.
 Vis hele teksten og billederne via preview_submission. Brugeren accepterer
 først klargøringsvalget og senere den præcise færdige publiceringsversion
 med hver sin knap i previewet. Cover er obligatorisk. Når brugeren vælger

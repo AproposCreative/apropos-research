@@ -131,6 +131,32 @@ it('returns bounded workflow guidance and discovery through the actual MCP proto
   mock.identity.owner = false;
   expect((await (await call('get_liv_production_context')).json()).result.isError).toBe(true);
 });
+it.each(['submit', 'liv', 'editorial'])('keeps the verified press workflow available in %s without personal approval or paid AI', async workflow => {
+  mock.identity.scopes = ['apropos:read'];
+  const response = (await (await call('get_workflow', { workflow })).json()).result;
+  expect(response.isError).not.toBe(true);
+  const data = JSON.parse(response.content[0].text);
+  expect(data).toMatchObject({ workflow, paidAiCalls: 0, publicationApproval: false });
+  expect(data.versionHash).toMatch(/^[a-f0-9]{64}$/);
+  for (const step of ['find_submission_images', 'preview_submission_press_image', 'import_submission_press_image',
+    'searchId/candidateId', 'revision/sectionId', 'stabilt requestId', 'ukendt licens forbliver ukendt']) {
+    expect(data.instructions).toContain(step);
+  }
+  expect(data.instructions).toContain('Manglende billeder færdiggøres før personlig redaktionel bekræftelse');
+  expect(data.instructions).toContain('Ved timeout læs status');
+  expect(mock.publish).not.toHaveBeenCalled();
+});
+it.each(['review', 'publish'])('routes %s back to canonical submission media completion before personal confirmation', async workflow => {
+  mock.identity.scopes = ['apropos:read'];
+  const response = (await (await call('get_workflow', { workflow })).json()).result;
+  expect(response.isError).not.toBe(true);
+  const data = JSON.parse(response.content[0].text);
+  expect(data).toMatchObject({ workflow, paidAiCalls: 0, publicationApproval: false });
+  for (const step of ['textReadyForPreparation', 'missingMedia', 'handoff.nextAction', 'submit', 'reused:true']) {
+    expect(data.instructions).toContain(step);
+  }
+  expect(mock.publish).not.toHaveBeenCalled();
+});
 it('discovers owner-only SEO tools with exact write scope, durable identity and no-paid enforcement', async () => {
   const taskId = 'a'.repeat(64), args = { taskId, proposalHash: 'b'.repeat(64), recheck: {
     readFullArticle: true, supported: true, betterOrKept: true, reason: 'Læsningen er kontrolleret mod hele artiklen.' } };
