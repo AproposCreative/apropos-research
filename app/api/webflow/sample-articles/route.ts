@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getWebflowConfig } from '@/lib/webflow-config';
+import { publishedSocialSubtitles } from '@/lib/editorial/published-social-subtitles';
 
 export const dynamic = 'force-dynamic';
 
@@ -34,10 +35,12 @@ export async function GET() {
 
     // Return trimmed fieldData only
     const trimmed = items.map((it) => ({ id: it.id, fieldData: it.fieldData }));
-    return NextResponse.json({ items: trimmed });
+    const social = await publishedSocialSubtitles(trimmed).catch(() => new Map());
+    return NextResponse.json({ items: trimmed.map(item => ({ ...item,
+      ...(social.has(item.id) ? { socialSubtitles: social.get(item.id) } : {}),
+    })) });
   } catch (e: any) {
     return NextResponse.json({ error: e?.message || 'Failed to fetch samples' }, { status: 500 });
   }
 }
-
 

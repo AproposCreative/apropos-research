@@ -9,6 +9,7 @@ import { projectImageSelection } from './submission-image-selection';
 import { livProductionSubmissionId } from './liv-production-identity';
 import { assertChatGptFirstPolicy } from './submission-policy';
 import { ideaRef, ideaSubmissionRequest, ideaSubmissionId } from './ideas';
+import { mergeSocialSubtitles } from './social-subtitles';
 import { inspectSubmission, submissionId, submissionInput, submissionUpdate, submissionVersion,
   validateSubmissionArticle, type SubmissionRecord } from './submission-contract';
 
@@ -150,7 +151,7 @@ export async function updateSubmission(uid: string, raw: unknown, internal?: { r
     const prepared = (row as SubmissionRecord & { prepared?: { expected?: SubmissionRecord['article'] } }).prepared?.expected;
     const base = ['prepared', 'published'].includes(row.status) && prepared ? { ...row.article, content: prepared.content,
       featuredImage: prepared.featuredImage, featuredImageAlt: prepared.featuredImageAlt, fotoCredit: prepared.fotoCredit } : row.article;
-    const article = { ...base, ...input.article };
+    const article = mergeSocialSubtitles(base, input.article || {});
     for (const field of input.clearFields || []) {
       if (input.article?.[field] !== undefined) throw Error('mcp_submission_conflicting_update');
       delete article[field];

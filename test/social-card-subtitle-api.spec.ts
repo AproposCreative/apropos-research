@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { NextRequest } from 'next/server';
-import { firstSubtitleSentence, subtitleChatPrompt } from '../app/design-editor/subtitleCopy';
+import { fitSubtitleAutomatically } from '../app/design-editor/subtitleCopy';
 const mocks = vi.hoisted(() => ({ auth: vi.fn(), client: vi.fn(), create: vi.fn() }));
 vi.mock('@/lib/newsletter/auth-request', () => ({ getNewsletterUserIdFromRequest: mocks.auth }));
 vi.mock('@/lib/openai', () => ({ getOpenAIClient: mocks.client, models: { default: 'must-not-run' } }));
@@ -38,28 +38,40 @@ describe('SoMe subtitles without paid backend AI', () => {
     const invalid = new NextRequest('http://localhost/api/design-editor/shorten-subtitle', { method: 'POST', body: '{' });
     expect((await POST(invalid)).status).toBe(400);
   });
-  it('offers only the exact first full sentence of Kontrapunkt', () => {
-    expect(firstSubtitleSentence(source)).toBe('Kontrapunkt har formet DSB og TV 2.');
-    expect(source.startsWith(firstSubtitleSentence(source)!)).toBe(true);
+  it('automatically fits Kontrapunkt without a click or a rewrite', () => {
+    expect(fitSubtitleAutomatically(source, undefined, text => text.length <= 90)).toEqual({
+      text: 'Kontrapunkt har formet DSB og TV 2.', source: 'excerpt', readable: true, truncated: false,
+    });
   });
-  it.each(['En kort tekst.', 'En meget lang tekst uden punktum', '', 'Det begyndte… Og sluttede.'])('never truncates or invents copy: %s', text => {
-    expect(firstSubtitleSentence(text)).toBeNull();
+  it.each(['En kort tekst.', '', 'Det begyndte… Og sluttede.'])('preserves a fitting original: %s', text => {
+    expect(fitSubtitleAutomatically(text, undefined, () => true)).toMatchObject({ text, source: 'original', readable: true });
   });
-  it('does not use a later, unrelated sentence to fit', () => {
-    const first = 'Første sætning '.repeat(30) + '.';
-    expect(firstSubtitleSentence(first + ' Kort.')).toBe(first);
+  it('prefers a complete leading passage, never a later unrelated sentence', () => {
+    const original = 'Hun lytter. Han svarer. En længere afslutning følger herefter.';
+    expect(fitSubtitleAutomatically(original, undefined, t => t.length <= 25).text).toBe('Hun lytter. Han svarer.');
+    const long = 'Første sætning '.repeat(30) + '. Kort.';
+    const result = fitSubtitleAutomatically(long, undefined, t => t.length <= 35);
+    expect(result.text).toBe('Første sætning Første sætning…');
+    expect(result.truncated).toBe(true);
   });
-  it('fails closed when native segmentation is unavailable', () => {
+  it('uses marked word-boundary excerpts when native segmentation is unavailable', () => {
     const original = Intl.Segmenter;
-    try { Object.defineProperty(Intl, 'Segmenter', { value: undefined, configurable: true }); expect(firstSubtitleSentence(source)).toBeNull(); }
+    try { Object.defineProperty(Intl, 'Segmenter', { value: undefined, configurable: true });
+      expect(fitSubtitleAutomatically(source, undefined, t => t.length <= 40)).toMatchObject({ source: 'excerpt', truncated: true, readable: true }); }
     finally { Object.defineProperty(Intl, 'Segmenter', { value: original, configurable: true }); }
   });
-  it.each([['square', 90, '1:1'], ['story', 130, '9:16']] as const)('builds a source-preserving ChatGPT handoff for %s', (size, limit, ratio) => {
-    const prompt = subtitleChatPrompt(input.title, source, size);
-    expect(prompt).toContain(`højst ${limit} tegn`);
-    expect(prompt).toContain(ratio);
-    expect(prompt).toContain('Foretag ingen værktøjskald');
-    expect(JSON.parse(prompt.split('\n\n')[1])).toEqual({ overskrift: input.title, undertekst: source });
+  it('uses prewritten ChatGPT copy only when it actually fits, otherwise fits the original', () => {
+    expect(fitSubtitleAutomatically(source, 'Designhistorie møder reklame.', t => t.length <= 50)).toMatchObject({ text: 'Designhistorie møder reklame.', source: 'chatgpt' });
+    expect(fitSubtitleAutomatically(source, 'Alt for lang '.repeat(30), t => t.length <= 50).source).toBe('excerpt');
+  });
+  it('does not hide an unbreakable word or a measurement failure', () => {
+    expect(fitSubtitleAutomatically('x'.repeat(300), undefined, () => false)).toMatchObject({ readable: false, source: 'original' });
+    expect(fitSubtitleAutomatically(source, undefined, () => false).text).toBe(source);
+  });
+  it('keeps a single long sentence readable with an explicit ellipsis', () => {
+    const text = 'Museet undersøger bureauets arbejde og grænsen mellem designhistorie og reklame';
+    const result = fitSubtitleAutomatically(text, undefined, t => t.length <= 35);
+    expect(result).toMatchObject({ text: 'Museet undersøger bureauets…', readable: true, truncated: true });
   });
   it('contains no model imports or network generation in route, hook or controls', () => {
     for (const file of ['app/api/design-editor/shorten-subtitle/route.ts', 'app/design-editor/useCardSubtitle.ts', 'app/design-editor/SubtitleControls.tsx', 'app/design-editor/subtitleCopy.ts']) {
@@ -70,5 +82,6 @@ describe('SoMe subtitles without paid backend AI', () => {
     expect(view).not.toContain('Forkort med AI');
     expect(view).toContain('if (!subtitle.ready)');
     expect(view).toContain('excerpt: subtitle.text || undefined');
+    expect(readFileSync('app/design-editor/SubtitleControls.tsx', 'utf8')).not.toContain('clipboard');
   });
 });

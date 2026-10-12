@@ -13,6 +13,6 @@ export async function POST(req: NextRequest) {
   }
   return NextResponse.json({
     code: 'subtitle_chatgpt_first', paidAiCalls: 0,
-    error: 'AI-forkortelse er flyttet til ChatGPT. Genindlæs SoMe-editoren for at forkorte lokalt eller kopiere teksten til ChatGPT. Din tekst er bevaret.',
+    error: 'Genindlæs SoMe-editoren. Den tilpasser nu underteksten automatisk uden betalte AI-kald. Din artikeltekst er bevaret.',
   }, { status: 410, headers });
 }

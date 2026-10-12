@@ -129,7 +129,7 @@ function rotateLabels(labels: string[], seed: number): string[] {
   return [...labels.slice(offset), ...labels.slice(0, offset)];
 }
 
-function normalizeArticle(item: { id: string; fieldData?: Record<string, unknown> }) {
+function normalizeArticle(item: { id: string; fieldData?: Record<string, unknown>; socialSubtitles?: { square: string; story: string } }) {
   const fd = item.fieldData || {};
   const title = (fd.name as string) || (fd['article-title'] as string) || (fd.title as string) || '';
   const slug = (fd.slug as string) || (fd['article-slug'] as string) || item.id;
@@ -175,6 +175,7 @@ function normalizeArticle(item: { id: string; fieldData?: Record<string, unknown
     ? topicsRaw.map((t: unknown) => (typeof t === 'string' ? t : (t as { id?: string })?.id ?? '').trim()).filter(Boolean)
     : [];
   return {
+    socialSubtitles: item.socialSubtitles,
     id: item.id,
     title: String(title).trim() || 'Uden titel',
     slug,
@@ -216,7 +217,7 @@ export default function DesignEditorView({ onBack, embedMode }: DesignEditorView
   const [selected, setSelected] = useState<NormalizedArticle | null>(null);
   const [theme, setTheme] = useState<'light' | 'dark'>('light');
   const [size, setSize] = useState<SocialCardSize>('square');
-  const subtitle = useCardSubtitle(selected?.id ?? '', selected?.title ?? '', selected?.excerpt ?? '', size, amiri.style.fontFamily);
+  const subtitle = useCardSubtitle(selected?.id ?? '', selected?.title ?? '', selected?.excerpt ?? '', size, amiri.style.fontFamily, selected?.socialSubtitles?.[size]);
   const [exporting, setExporting] = useState(false);
   /** I AI Writer (embed) start med kanvas: undgå overlap med header. Desktop viser artikelpanel. */
   const [articlesOpen, setArticlesOpen] = useState(!embedMode);
@@ -781,7 +782,7 @@ export default function DesignEditorView({ onBack, embedMode }: DesignEditorView
         >
           <div className="w-full flex min-h-min flex-col items-center gap-3 md:gap-5 pt-3 md:pt-10 pb-8">
             {selected?.excerpt && (
-              <SubtitleControls key={subtitle.key} subtitle={subtitle} title={selected.title} size={size} />
+              <SubtitleControls key={subtitle.key} subtitle={subtitle} />
             )}
             {eyebrowChips.length > 0 && size !== 'story' && (
               <div className="inline-flex max-w-full overflow-x-auto no-scrollbar justify-start items-center gap-1.5 md:gap-2 rounded-2xl border border-white/15 bg-black/65 p-1.5 md:p-2 mb-2 md:mb-5 backdrop-blur-md shadow-[0_8px_24px_rgba(0,0,0,0.35)]">

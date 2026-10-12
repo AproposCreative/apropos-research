@@ -16,16 +16,15 @@ const css = (await postcss([tailwind({ content: raw.map(raw => ({ raw, extension
 const bundle = await build({ stdin: { resolveDir: process.cwd(), loader: 'tsx', contents: `
 import React,{StrictMode} from 'react';import {createRoot} from 'react-dom/client';
 import View from './app/design-editor/DesignEditorView';
-window.fixture={calls:[],errors:[],clipboard:[],denyClipboard:false};
+window.fixture={calls:[],errors:[]};
 window.addEventListener('error',e=>fixture.errors.push(e.message));
 window.addEventListener('unhandledrejection',e=>fixture.errors.push(String(e.reason)));
-Object.defineProperty(navigator,'clipboard',{value:{writeText:async text=>{if(fixture.denyClipboard)throw Error('denied');fixture.clipboard.push(text);}}});
 window.fetch=async(url,options={})=>{
  fixture.calls.push({url:String(url),method:options.method||'GET'});
  if(options.method&&options.method!=='GET')throw Error('Unexpected mutation');
  if(url==='/api/webflow/sample-articles')return Response.json({items:[
   {id:'kontrapunkt',fieldData:{name:${JSON.stringify(title)},subtitle:${JSON.stringify(subtitle)},slug:'kontrapunkt',section:'Kultur',topic:'Kultur & Mening','post-body':'<p>Uændret artikel.</p>','mobile-image':'/fixture.svg'}},
-  {id:'other',fieldData:{name:'Anden artikel',subtitle:'En helt anden artikel.',section:'Kultur','mobile-image':'/fixture.svg'}}]});
+  {id:'other',fieldData:{name:'Anden artikel',subtitle:'En helt anden artikel.',section:'Kultur','mobile-image':'/fixture.svg'},socialSubtitles:{square:'En gemt kort SoMe-tekst.',story:'En gemt længere SoMe-tekst til story.'}}]});
  if(['/api/webflow/authors','/api/webflow/sections','/api/webflow/topics'].includes(url))return Response.json({items:[]});
  if(url==='/api/instagram/publish')return Response.json({configured:false});
  throw Error('Unexpected request '+url);
@@ -60,13 +59,11 @@ try {
     if(viewport.width<768)await page.getByRole('button',{name:'Luk',exact:true}).click();
     const field=page.getByRole('textbox',{name:'Undertekst på billedet',exact:true});
     await page.locator('summary').click();
-    await page.getByRole('button',{name:'Brug første sætning',exact:true}).waitFor();
-    assert.equal(await field.inputValue(),subtitle); // No automatic rewrite.
+    await page.waitForFunction(()=>document.querySelector('summary')?.textContent.endsWith(' · Automatisk tilpasset'));
+    assert.equal(await field.inputValue(),first); // Automatic, zero shortening clicks.
     assert.equal(await page.getByRole('button',{name:'Forkort med AI',exact:true}).count(),0);
-    await page.getByRole('button',{name:'Brug første sætning',exact:true}).click();
-    await page.waitForFunction(()=>document.querySelector('summary')?.textContent.endsWith(' · Klar'));
-    assert.equal(await field.inputValue(),first);
-    await page.screenshot({path:'output/social-subtitle/'+viewport.width+'-local.png'});
+    assert.equal(await page.getByRole('button',{name:'Kopiér til ChatGPT',exact:true}).count(),0);
+    await page.screenshot({path:'output/social-subtitle/'+viewport.width+'-automatic.png'});
     const download=page.waitForEvent('download');
     await page.getByRole('button',{name:'Eksporter PNG',exact:true}).click();
     const file=await download;
@@ -74,28 +71,36 @@ try {
     assert.match(file.suggestedFilename(),/apropos-social-square-.*\.png$/);
     await page.getByRole('button',{name:'Gendan original',exact:true}).click();
     assert.equal(await field.inputValue(),subtitle);
-    await page.getByRole('button',{name:'Kopiér til ChatGPT',exact:true}).click();
-    await page.getByRole('status').filter({hasText:'Kopieret.'}).waitFor();
-    assert.match((await page.evaluate(()=>fixture.clipboard))[0],/højst 90 tegn/);
+    await page.waitForFunction(()=>document.querySelector('summary')?.textContent.endsWith(' · Kontrollér teksten'));
+    await page.getByRole('button',{name:'Tilpas automatisk',exact:true}).click();
+    await page.waitForFunction(()=>document.querySelector('summary')?.textContent.endsWith(' · Automatisk tilpasset'));
+    assert.equal(await field.inputValue(),first);
     await field.fill('Kontrapunkt på Designmuseum: Mellem designhistorie og reklame.');
     await page.waitForFunction(()=>document.querySelector('summary')?.textContent.endsWith(' · Klar'));
-    assert.equal(await page.getByRole('textbox',{name:'Instruktion til ChatGPT',exact:true}).count(),0);
-    await page.evaluate(()=>fixture.denyClipboard=true);
-    await page.getByRole('button',{name:'Kopiér til ChatGPT',exact:true}).click();
-    await page.getByRole('status').filter({hasText:'Automatisk kopiering er ikke tilladt'}).waitFor();
-    assert.match(await page.getByRole('textbox',{name:'Instruktion til ChatGPT',exact:true}).inputValue(),/Kontrapunkt på Designmuseum/);
-    await page.screenshot({path:'output/social-subtitle/'+viewport.width+'-handoff.png'});
     await page.getByRole('button',{name:'9:16',exact:true}).click();
     await page.locator('summary').click();
-    assert.equal(await field.inputValue(),subtitle); // Per-format isolation.
+    await page.waitForFunction(()=>!document.querySelector('summary')?.textContent.includes('Tilpasser automatisk'));
+    const storyText=await field.inputValue();
+    assert.notEqual(storyText,'Kontrapunkt på Designmuseum: Mellem designhistorie og reklame.'); // Per-format isolation.
+    assert(subtitle.startsWith(storyText));
     await page.getByRole('button',{name:'1:1',exact:true}).click();
     await page.locator('summary').click();
     assert.equal(await field.inputValue(),'Kontrapunkt på Designmuseum: Mellem designhistorie og reklame.');
+    if(viewport.width<768)await page.getByRole('button',{name:'Artikler',exact:true}).click();
+    await page.getByRole('button',{name:'Anden artikel',exact:true}).filter({visible:true}).click();
+    await page.locator('summary').click();
+    await page.waitForFunction(()=>document.querySelector('summary')?.textContent.endsWith(' · Automatisk tilpasset'));
+    assert.equal(await field.inputValue(),'En gemt kort SoMe-tekst.');
+    await page.getByRole('button',{name:'9:16',exact:true}).click();
+    await page.locator('summary').click();
+    await page.waitForFunction(()=>document.querySelector('summary')?.textContent.endsWith(' · Automatisk tilpasset'));
+    assert.equal(await field.inputValue(),'En gemt længere SoMe-tekst til story.');
+    await page.screenshot({path:'output/social-subtitle/'+viewport.width+'-prepared-story.png'});
     const state=await page.evaluate(()=>({calls:fixture.calls,errors:fixture.errors,overflow:document.documentElement.scrollWidth>innerWidth}));
     assert.deepEqual(state.errors,[]);
     assert(!state.overflow);
     assert(state.calls.every(call=>call.method==='GET'&&!call.url.includes('design-editor')));
-    reports.push({viewport,requests:state.calls.length,modelRequests:0,localFit:true,manualEdit:true,restore:true,clipboardFallback:true,formatIsolation:true,export:true});
+    reports.push({viewport,requests:state.calls.length,modelRequests:0,automaticFit:true,preparedCopy:true,shorteningClicks:0,manualEdit:true,restore:true,formatIsolation:true,export:true});
     await page.close();
   }
   console.log(JSON.stringify({fixture:true,font:'Georgia (not production Amiri)',reports},null,2));

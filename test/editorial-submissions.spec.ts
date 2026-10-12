@@ -107,3 +107,22 @@ it('rejects executable markup and caller-supplied approval/status', async () => 
   await expect(prepareSubmission('owner', { ...input(), article: { ...input().article, content: '<script>alert(1)</script>' } })).rejects.toThrow('unsafe_article_markup');
   expect(memory.rows.size).toBe(0);
 });
+
+it('saves ChatGPT SoMe variants in the existing submission with replay, revision and immutable history', async () => {
+  const copy = { square: 'En kort vurdering.', story: 'En lidt længere vurdering.' };
+  const value = { ...input(), article: { ...input().article, subtitle: 'En vurdering af kultur.', socialSubtitles: copy } };
+  const first = await prepareSubmission('owner', value);
+  expect(first.article.socialSubtitles).toEqual(copy);
+  expect((await prepareSubmission('owner', value)).revision).toBe(1);
+  const update = { submissionId: first.id, expectedRevision: 1, requestId: 'some-metadata-0001', article: { seoTitle: 'Ny SEO-titel' } };
+  const second = await updateSubmission('owner', update);
+  expect(second.article.socialSubtitles).toEqual(copy);
+  expect((await updateSubmission('owner', update)).revision).toBe(2);
+  await expect(updateSubmission('owner', { ...update, requestId: 'some-metadata-0002' })).rejects.toThrow('revision_conflict');
+  const third = await updateSubmission('owner', { ...update, expectedRevision: 2, requestId: 'some-title-change-01', article: { title: 'Ændret vinkel' } });
+  expect(third.article.socialSubtitles).toBeUndefined();
+  expect(third.originalArticle.socialSubtitles).toEqual(copy);
+  expect(third.article.content).toBe(first.article.content);
+  expect(third.paidAiCalls).toBe(0); expect(third.publicationReady).toBe(false);
+  expect(memory.rows.get(`editorialSubmissions/${first.id}/versions/2`).article.socialSubtitles).toEqual(copy);
+});

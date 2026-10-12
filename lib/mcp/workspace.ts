@@ -4,10 +4,12 @@ import { workspacePayloadSchema, WORKSPACE_MAX_BYTES } from '@/lib/writer-worksp
 import { cmsFieldHash } from '@/lib/liv/cms-field-hash';
 import { sourceUrl } from '@/lib/factcheck/source-reader';
 import { assertArticleMarkupSafe } from './markup';
+import { socialSubtitlesSchema } from '@/lib/editorial/social-subtitles';
 
 export const editableArticle = z.object({
   title: z.string().max(200), content: z.string().max(200000),
   subtitle: z.string().max(500).optional(), intro: z.string().max(5000).optional(),
+  socialSubtitles: socialSubtitlesSchema.optional().describe('Write short SoMe copy in ChatGPT with the article: square <=90 characters, story <=130. Preserve the title/subtitle meaning, no new facts. Card-only; no paid generation or social posting.'),
   excerpt: z.string().max(2000).optional(), author: z.string().max(200).optional(),
   category: z.string().max(200).optional(), topicsSelected: z.array(z.string().max(100)).max(20).optional(),
   tags: z.array(z.string().max(100)).max(30).optional(),

@@ -71,6 +71,10 @@ it('negotiates the real SDK protocol and lists strict schemas on independent sta
     icons: [{ src: MCP_ICON, mimeType: 'image/png', sizes: ['256x256'] }],
   });
   const response = await POST(message('tools/list')); const tools = (await response.json()).result.tools;
+  const social = tools.find((t: any) => t.name === 'prepare_submission').inputSchema.properties.article.properties.socialSubtitles;
+  expect(social.properties.square.maxLength).toBe(90);
+  expect(social.properties.story.maxLength).toBe(130);
+  expect(tools.find((t: any) => t.name === 'update_submission').inputSchema.properties.article.properties.socialSubtitles).toBeDefined();
   expect(tools.length).toBe(59); expect(tools.find((t: any) => t.name === 'publish_article').annotations.destructiveHint).toBe(true);
   expect(tools.find((t: any) => t.name === 'import_submission_press_image').inputSchema.required).toContain('candidateId');
   expect(tools.find((t: any) => t.name === 'preview_submission_press_image').annotations.readOnlyHint).toBe(true);

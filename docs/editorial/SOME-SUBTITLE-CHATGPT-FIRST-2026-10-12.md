@@ -1,5 +1,8 @@
 # SoMe subtitle: no paid backend model, 12 October 2026
 
+Historical first release. The owner's subsequent requirement for zero-click
+automation supersedes its manual UX; see `SOME-AUTOMATIC-SUBTITLE-2026-10-12.md`.
+
 ## Cause and scope
 
 The old `useCardSubtitle` effect called `/api/design-editor/shorten-subtitle`
