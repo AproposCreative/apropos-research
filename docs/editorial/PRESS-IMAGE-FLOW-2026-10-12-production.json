@@ -1,0 +1,894 @@
+{
+  "release": {
+    "sha": "10a1bf074ced918fc1c85b6769f86a60b10e19c9",
+    "deploymentId": "dpl_3zVLEG6VUi8ijHvReqhfebMtqeSm",
+    "alias": "ai.aproposmagazine.com",
+    "state": "READY",
+    "mcp": "2026-10-12-v22",
+    "tools": 59
+  },
+  "submissionId": "cb5da79d939579d3b8b89777f497148c707bbdaac855c564be64eb1487a9f7cd",
+  "verifiedAt": "2026-10-12T10:06:45.586Z",
+  "sourceSearches": [
+    {
+      "searchId": "d2863b303b2b2857cc7f2d164e8f78bf3ee25430795758b115c374c8719bf71a",
+      "checkedAt": "2026-10-12T10:03:07.946Z",
+      "reused": false,
+      "pagesAttempted": 3,
+      "pagesRead": 3,
+      "usableImagesFound": 23,
+      "diagnostics": [
+        {
+          "sourceUrl": "https://designmuseum.dk/presserum-laboratorium-kontrapunkt/",
+          "pageRead": true,
+          "images": [
+            {
+              "url": "https://designmuseum.dk/wp-content/uploads/2026/06/LABORATORIUM-Kontrapunkt_Foto-Daniel-Rasmussen_1.jpg.zip",
+              "reason": "archive_or_document_not_raster",
+              "accepted": false
+            },
+            {
+              "url": "https://designmuseum.dk/wp-content/uploads/2026/06/LABORATORIUM-Kontrapunkt_Foto-Andrea-Sonne_10.jpg.zip",
+              "reason": "archive_or_document_not_raster",
+              "accepted": false
+            },
+            {
+              "url": "https://designmuseum.dk/wp-content/uploads/2026/06/LABORATORIUM-Kontrapunkt_Foto-Designmuseum-Danmark_8.jpg.zip",
+              "reason": "archive_or_document_not_raster",
+              "accepted": false
+            },
+            {
+              "url": "https://designmuseum.dk/wp-content/uploads/2026/06/LABORATORIUM-Kontrapunkt_Foto-Designmuseum-Danmark_4.jpg.zip",
+              "reason": "archive_or_document_not_raster",
+              "accepted": false
+            },
+            {
+              "url": "https://designmuseum.dk/wp-content/uploads/2026/06/LABORATORIUM-Kontrapunkt_Foto-Andrea-Sonne_1.jpg.zip",
+              "reason": "archive_or_document_not_raster",
+              "accepted": false
+            },
+            {
+              "url": "https://designmuseum.dk/wp-content/uploads/2026/06/LABORATORIUM-Kontrapunkt_Foto-Andrea-Sonne_7.jpg.zip",
+              "reason": "archive_or_document_not_raster",
+              "accepted": false
+            },
+            {
+              "url": "https://designmuseum.dk/wp-content/uploads/2026/06/LABORATORIUM-Kontrapunkt_Foto-Andrea-Sonne_8.jpg.zip",
+              "reason": "archive_or_document_not_raster",
+              "accepted": false
+            },
+            {
+              "url": "https://designmuseum.dk/wp-content/uploads/2026/06/LABORATORIUM-Kontrapunkt_Foto-Andrea-Sonne_6.jpg.zip",
+              "reason": "archive_or_document_not_raster",
+              "accepted": false
+            },
+            {
+              "url": "https://designmuseum.dk/wp-content/uploads/2026/06/LABORATORIUM-Kontrapunkt_Foto-Designmuseum-Danmark_1.jpg.zip",
+              "reason": "archive_or_document_not_raster",
+              "accepted": false
+            },
+            {
+              "url": "https://designmuseum.dk/wp-content/uploads/2026/06/LABORATORIUM-Kontrapunkt_Foto-Andrea-Sonne_5.jpg.zip",
+              "reason": "archive_or_document_not_raster",
+              "accepted": false
+            },
+            {
+              "url": "https://designmuseum.dk/wp-content/uploads/2026/06/LABORATORIUM-Kontrapunkt_Foto-Daniel-Rasmussen_3.jpg.zip",
+              "reason": "archive_or_document_not_raster",
+              "accepted": false
+            },
+            {
+              "url": "https://designmuseum.dk/wp-content/uploads/2026/06/LABORATORIUM-Kontrapunkt_Foto-Andrea-Sonne_4.jpg.zip",
+              "reason": "archive_or_document_not_raster",
+              "accepted": false
+            },
+            {
+              "url": "https://designmuseum.dk/wp-content/uploads/2026/06/LABORATORIUM-Kontrapunkt_Foto-Andrea-Sonne_9.jpg.zip",
+              "reason": "archive_or_document_not_raster",
+              "accepted": false
+            },
+            {
+              "url": "https://designmuseum.dk/wp-content/uploads/2026/06/Laboratorium-Kontrapunkt.-Foto_Kontrapunkt_3-1.zip",
+              "reason": "archive_or_document_not_raster",
+              "accepted": false
+            },
+            {
+              "url": "https://designmuseum.dk/wp-content/uploads/2026/06/Laboratorium-Kontrapunkt.-Foto_Kontrapunkt_4.zip",
+              "reason": "archive_or_document_not_raster",
+              "accepted": false
+            },
+            {
+              "url": "https://designmuseum.dk/wp-content/uploads/2026/06/Laboratorium-Kontrapunkt.-Foto_Kontrapunkt_5.zip",
+              "reason": "archive_or_document_not_raster",
+              "accepted": false
+            },
+            {
+              "url": "https://designmuseum.dk/wp-content/uploads/2026/06/Laboratorium-Kontrapunkt.-Foto_Kontrapunkt_6.zip",
+              "reason": "archive_or_document_not_raster",
+              "accepted": false
+            },
+            {
+              "url": "https://designmuseum.dk/wp-content/uploads/2026/06/Laboratorium-Kontrapunkt.-Foto_Kontrapunkt_2.zip",
+              "reason": "archive_or_document_not_raster",
+              "accepted": false
+            },
+            {
+              "url": "https://designmuseum.dk/wp-content/uploads/2026/06/LABORATORIUM-Kontrapunkt_Foto-Daniel-Rasmussen_1.jpg",
+              "accepted": true,
+              "reason": "decoded_raster",
+              "status": 200,
+              "finalUrl": "https://designmuseum.dk/wp-content/uploads/2026/06/LABORATORIUM-Kontrapunkt_Foto-Daniel-Rasmussen_1.jpg",
+              "contentType": "image/webp"
+            },
+            {
+              "url": "https://designmuseum.dk/wp-content/uploads/2026/06/LABORATORIUM-Kontrapunkt_Foto-Andrea-Sonne_10.jpg",
+              "accepted": true,
+              "reason": "decoded_raster",
+              "status": 200,
+              "finalUrl": "https://designmuseum.dk/wp-content/uploads/2026/06/LABORATORIUM-Kontrapunkt_Foto-Andrea-Sonne_10.jpg",
+              "contentType": "image/webp"
+            },
+            {
+              "url": "https://designmuseum.dk/wp-content/uploads/2026/06/LABORATORIUM-Kontrapunkt_Foto-Designmuseum-Danmark_8.jpg",
+              "accepted": true,
+              "reason": "decoded_raster",
+              "status": 200,
+              "finalUrl": "https://designmuseum.dk/wp-content/uploads/2026/06/LABORATORIUM-Kontrapunkt_Foto-Designmuseum-Danmark_8.jpg",
+              "contentType": "image/webp"
+            },
+            {
+              "url": "https://designmuseum.dk/wp-content/uploads/2026/06/LABORATORIUM-Kontrapunkt_Foto-Designmuseum-Danmark_4.jpg",
+              "accepted": true,
+              "reason": "decoded_raster",
+              "status": 200,
+              "finalUrl": "https://designmuseum.dk/wp-content/uploads/2026/06/LABORATORIUM-Kontrapunkt_Foto-Designmuseum-Danmark_4.jpg",
+              "contentType": "image/webp"
+            },
+            {
+              "url": "https://designmuseum.dk/wp-content/uploads/2026/06/LABORATORIUM-Kontrapunkt_Foto-Andrea-Sonne_7.jpg",
+              "accepted": true,
+              "reason": "decoded_raster",
+              "status": 200,
+              "finalUrl": "https://designmuseum.dk/wp-content/uploads/2026/06/LABORATORIUM-Kontrapunkt_Foto-Andrea-Sonne_7.jpg",
+              "contentType": "image/webp"
+            },
+            {
+              "url": "https://designmuseum.dk/wp-content/uploads/2026/06/LABORATORIUM-Kontrapunkt_Foto-Andrea-Sonne_1.jpg",
+              "accepted": true,
+              "reason": "decoded_raster",
+              "status": 200,
+              "finalUrl": "https://designmuseum.dk/wp-content/uploads/2026/06/LABORATORIUM-Kontrapunkt_Foto-Andrea-Sonne_1.jpg",
+              "contentType": "image/webp"
+            },
+            {
+              "url": "https://designmuseum.dk/wp-content/uploads/2026/06/LABORATORIUM-Kontrapunkt_Foto-Andrea-Sonne_6.jpg",
+              "accepted": true,
+              "reason": "decoded_raster",
+              "status": 200,
+              "finalUrl": "https://designmuseum.dk/wp-content/uploads/2026/06/LABORATORIUM-Kontrapunkt_Foto-Andrea-Sonne_6.jpg",
+              "contentType": "image/webp"
+            },
+            {
+              "url": "https://designmuseum.dk/wp-content/uploads/2026/06/LABORATORIUM-Kontrapunkt_Foto-Andrea-Sonne_8.jpg",
+              "accepted": true,
+              "reason": "decoded_raster",
+              "status": 200,
+              "finalUrl": "https://designmuseum.dk/wp-content/uploads/2026/06/LABORATORIUM-Kontrapunkt_Foto-Andrea-Sonne_8.jpg",
+              "contentType": "image/webp"
+            },
+            {
+              "url": "https://designmuseum.dk/wp-content/uploads/2026/06/LABORATORIUM-Kontrapunkt_Foto-Designmuseum-Danmark_1.jpg",
+              "accepted": true,
+              "reason": "decoded_raster",
+              "status": 200,
+              "finalUrl": "https://designmuseum.dk/wp-content/uploads/2026/06/LABORATORIUM-Kontrapunkt_Foto-Designmuseum-Danmark_1.jpg",
+              "contentType": "image/webp"
+            },
+            {
+              "url": "https://designmuseum.dk/wp-content/uploads/2026/06/LABORATORIUM-Kontrapunkt_Foto-Andrea-Sonne_5.jpg",
+              "accepted": true,
+              "reason": "decoded_raster",
+              "status": 200,
+              "finalUrl": "https://designmuseum.dk/wp-content/uploads/2026/06/LABORATORIUM-Kontrapunkt_Foto-Andrea-Sonne_5.jpg",
+              "contentType": "image/webp"
+            },
+            {
+              "url": "https://designmuseum.dk/wp-content/uploads/2026/06/LABORATORIUM-Kontrapunkt_Foto-Andrea-Sonne_4.jpg",
+              "accepted": true,
+              "reason": "decoded_raster",
+              "status": 200,
+              "finalUrl": "https://designmuseum.dk/wp-content/uploads/2026/06/LABORATORIUM-Kontrapunkt_Foto-Andrea-Sonne_4.jpg",
+              "contentType": "image/webp"
+            },
+            {
+              "url": "https://designmuseum.dk/wp-content/uploads/2026/06/LABORATORIUM-Kontrapunkt_Foto-Daniel-Rasmussen_3.jpg",
+              "accepted": true,
+              "reason": "decoded_raster",
+              "status": 200,
+              "finalUrl": "https://designmuseum.dk/wp-content/uploads/2026/06/LABORATORIUM-Kontrapunkt_Foto-Daniel-Rasmussen_3.jpg",
+              "contentType": "image/webp"
+            },
+            {
+              "url": "https://designmuseum.dk/wp-content/uploads/2026/05/Laboratorium-Kontrapunkt.-Foto_Kontrapunkt_4.png",
+              "accepted": true,
+              "reason": "decoded_raster",
+              "status": 200,
+              "finalUrl": "https://designmuseum.dk/wp-content/uploads/2026/05/Laboratorium-Kontrapunkt.-Foto_Kontrapunkt_4.png",
+              "contentType": "image/webp"
+            },
+            {
+              "url": "https://designmuseum.dk/wp-content/uploads/2026/05/Laboratorium-Kontrapunkt.-Foto_Kontrapunkt_3-2048x1536.jpeg",
+              "accepted": true,
+              "reason": "decoded_raster",
+              "status": 200,
+              "finalUrl": "https://designmuseum.dk/wp-content/uploads/2026/05/Laboratorium-Kontrapunkt.-Foto_Kontrapunkt_3-2048x1536.jpeg",
+              "contentType": "image/webp"
+            },
+            {
+              "url": "https://designmuseum.dk/wp-content/uploads/2026/06/LABORATORIUM-Kontrapunkt_Foto-Andrea-Sonne_9.jpg",
+              "accepted": true,
+              "reason": "decoded_raster",
+              "status": 200,
+              "finalUrl": "https://designmuseum.dk/wp-content/uploads/2026/06/LABORATORIUM-Kontrapunkt_Foto-Andrea-Sonne_9.jpg",
+              "contentType": "image/webp"
+            },
+            {
+              "url": "https://designmuseum.dk/wp-content/uploads/2026/05/Laboratorium-Kontrapunkt.-Foto_Kontrapunkt_6-2048x1151.jpeg",
+              "accepted": true,
+              "reason": "decoded_raster",
+              "status": 200,
+              "finalUrl": "https://designmuseum.dk/wp-content/uploads/2026/05/Laboratorium-Kontrapunkt.-Foto_Kontrapunkt_6-2048x1151.jpeg",
+              "contentType": "image/webp"
+            },
+            {
+              "url": "https://designmuseum.dk/wp-content/uploads/2026/05/Laboratorium-Kontrapunkt.-Foto_Kontrapunkt_5-2048x1152.jpeg",
+              "accepted": true,
+              "reason": "decoded_raster",
+              "status": 200,
+              "finalUrl": "https://designmuseum.dk/wp-content/uploads/2026/05/Laboratorium-Kontrapunkt.-Foto_Kontrapunkt_5-2048x1152.jpeg",
+              "contentType": "image/webp"
+            },
+            {
+              "url": "https://designmuseum.dk/wp-content/uploads/2026/05/Laboratorium-Kontrapunkt.-Foto_Kontrapunkt_2-scaled.jpeg",
+              "accepted": true,
+              "reason": "decoded_raster",
+              "status": 200,
+              "finalUrl": "https://designmuseum.dk/wp-content/uploads/2026/05/Laboratorium-Kontrapunkt.-Foto_Kontrapunkt_2-scaled.jpeg",
+              "contentType": "image/webp"
+            },
+            {
+              "url": "https://designmuseum.dk/",
+              "accepted": false,
+              "reason": "media_response_rejected",
+              "status": 200,
+              "finalUrl": "https://designmuseum.dk/",
+              "contentType": "text/html; charset=UTF-8"
+            }
+          ],
+          "finalUrl": "https://designmuseum.dk/presserum-laboratorium-kontrapunkt/",
+          "sourceHash": "4d20adc157ecf6d27ef8b702c1d87def7246036ea3ebfea73f44221ddd9bb3cf",
+          "status": 200,
+          "contentType": "text/html",
+          "byteCount": 83233,
+          "extracted": 19,
+          "truncated": false
+        },
+        {
+          "sourceUrl": "https://designmuseum.dk/udstilling/kontrapunkt/",
+          "pageRead": true,
+          "images": [
+            {
+              "url": "https://designmuseum.dk/wp-content/uploads/2026/02/KP_Lab02-2048x2048.png",
+              "accepted": true,
+              "reason": "decoded_raster",
+              "status": 200,
+              "finalUrl": "https://designmuseum.dk/wp-content/uploads/2026/02/KP_Lab02-2048x2048.png",
+              "contentType": "image/webp"
+            },
+            {
+              "url": "https://designmuseum.dk/wp-content/uploads/2026/02/DMD_3DD_DanielRasmussen-02236-2048x1365.jpg",
+              "accepted": true,
+              "reason": "decoded_raster",
+              "status": 200,
+              "finalUrl": "https://designmuseum.dk/wp-content/uploads/2026/02/DMD_3DD_DanielRasmussen-02236-2048x1365.jpg",
+              "contentType": "image/webp"
+            },
+            {
+              "url": "https://designmuseum.dk/wp-content/uploads/2026/02/DSC01466-2048x2048.jpg",
+              "accepted": true,
+              "reason": "decoded_raster",
+              "status": 200,
+              "finalUrl": "https://designmuseum.dk/wp-content/uploads/2026/02/DSC01466-2048x2048.jpg",
+              "contentType": "image/webp"
+            },
+            {
+              "url": "https://designmuseum.dk/wp-content/uploads/2026/02/DMD_3DD_DanielRasmussen-02185-scaled-e1783593262624-1.jpg",
+              "accepted": false,
+              "reason": "read_limit"
+            },
+            {
+              "url": "https://designmuseum.dk/wp-content/uploads/2026/02/DMD_3DD_DanielRasmussen-02211-scaled-e1783593175726-1.jpg",
+              "accepted": true,
+              "reason": "decoded_raster",
+              "status": 200,
+              "finalUrl": "https://designmuseum.dk/wp-content/uploads/2026/02/DMD_3DD_DanielRasmussen-02211-scaled-e1783593175726-1.jpg",
+              "contentType": "image/webp"
+            },
+            {
+              "url": "https://designmuseum.dk/wp-content/uploads/2026/02/DMD_3DD_DanielRasmussen-02220-scaled-e1783593011393-1.jpg",
+              "accepted": true,
+              "reason": "decoded_raster",
+              "status": 200,
+              "finalUrl": "https://designmuseum.dk/wp-content/uploads/2026/02/DMD_3DD_DanielRasmussen-02220-scaled-e1783593011393-1.jpg",
+              "contentType": "image/webp"
+            },
+            {
+              "url": "https://designmuseum.dk/",
+              "accepted": false,
+              "reason": "media_response_rejected",
+              "status": 200,
+              "finalUrl": "https://designmuseum.dk/",
+              "contentType": "text/html; charset=UTF-8"
+            }
+          ],
+          "finalUrl": "https://designmuseum.dk/udstilling/kontrapunkt/",
+          "sourceHash": "fabb39a597da0de9502aa1160b5b7c41d30a6ad6dc57d7bef8d3a472bd4a7c7a",
+          "status": 200,
+          "contentType": "text/html",
+          "byteCount": 65100,
+          "extracted": 7,
+          "truncated": true
+        },
+        {
+          "sourceUrl": "https://kontrapunkt.com/about",
+          "pageRead": true,
+          "images": [
+            {
+              "url": "https://kontrapunkt.com/icons/close.svg",
+              "accepted": false,
+              "reason": "read_limit"
+            },
+            {
+              "url": "https://cdn.sanity.io/images/zmr0zdju/production/bcfde4ad3a220c0dbc0e74d9e332800a13addaaf-2500x2813.jpg?w=3840&q=85&fit=crop&auto=format",
+              "accepted": false,
+              "reason": "read_limit"
+            },
+            {
+              "url": "https://cdn.sanity.io/images/zmr0zdju/production/9bd299f4a2b6ae280d4f2ff600cdc591ca6a454f-2500x2813.jpg?w=3840&q=85&fit=crop&auto=format",
+              "accepted": false,
+              "reason": "read_limit"
+            },
+            {
+              "url": "https://cdn.sanity.io/images/zmr0zdju/production/2661da505977e9b60aed36d70de5e208e4e086d5-2500x2813.jpg?w=3840&q=85&fit=crop&auto=format",
+              "accepted": false,
+              "reason": "read_limit"
+            },
+            {
+              "url": "https://cdn.sanity.io/images/zmr0zdju/production/7e95cef2dd04d5c3026baa58979d3dc7835d6f27-2500x2813.jpg?w=3840&q=85&fit=crop&auto=format",
+              "accepted": false,
+              "reason": "read_limit"
+            },
+            {
+              "url": "https://cdn.sanity.io/images/zmr0zdju/production/6c66d65ef58418fa47b12032cbbd0fdb3c1dc4dd-2500x2813.jpg?w=3840&q=85&fit=crop&auto=format",
+              "accepted": false,
+              "reason": "read_limit"
+            },
+            {
+              "url": "https://cdn.sanity.io/images/zmr0zdju/production/55ba4c715397509a1d96d957232896b0f2874131-2500x2813.jpg?w=3840&q=85&fit=crop&auto=format",
+              "accepted": false,
+              "reason": "read_limit"
+            },
+            {
+              "url": "https://cdn.sanity.io/images/zmr0zdju/production/2a692d51653623b88d542d3558e70985b5e56114-2500x2813.jpg?w=3840&q=85&fit=crop&auto=format",
+              "accepted": false,
+              "reason": "read_limit"
+            },
+            {
+              "url": "https://cdn.sanity.io/images/zmr0zdju/production/6e796fcd22e6ca935d37029ad58d121627930a4d-2500x2813.jpg?w=3840&q=85&fit=crop&auto=format",
+              "accepted": false,
+              "reason": "read_limit"
+            },
+            {
+              "url": "https://cdn.sanity.io/images/zmr0zdju/production/d127c322c0cb6b546387ed2b0e24d9b57b7a51f3-2500x2813.jpg?w=3840&q=85&fit=crop&auto=format",
+              "accepted": false,
+              "reason": "read_limit"
+            },
+            {
+              "url": "https://kontrapunkt.com/icons/arrow--left.svg",
+              "accepted": false,
+              "reason": "read_limit"
+            },
+            {
+              "url": "https://kontrapunkt.com/icons/arrow--right.svg",
+              "accepted": false,
+              "reason": "read_limit"
+            },
+            {
+              "url": "https://cdn.sanity.io/images/zmr0zdju/production/0208e109b30946c65584cee377e6a4cafbf9d1cb-5334x6001.jpg?w=3840&q=85&fit=crop&auto=format",
+              "accepted": false,
+              "reason": "read_limit"
+            },
+            {
+              "url": "https://cdn.sanity.io/images/zmr0zdju/production/a151fed96ed9e1dd75ac1aa63396870dcac24db9-5335x6001.jpg?w=3840&q=85&fit=crop&auto=format",
+              "accepted": false,
+              "reason": "read_limit"
+            },
+            {
+              "url": "https://cdn.sanity.io/images/zmr0zdju/production/cafcb9f37d81ebab8f0c65044fb0ec3a15b27e4c-5334x6001.jpg?w=3840&q=85&fit=crop&auto=format",
+              "accepted": false,
+              "reason": "read_limit"
+            },
+            {
+              "url": "https://cdn.sanity.io/images/zmr0zdju/production/8c831ad0395d6f2af3080ae950fe4b390cedc12c-5335x6001.jpg?w=3840&q=85&fit=crop&auto=format",
+              "accepted": false,
+              "reason": "read_limit"
+            },
+            {
+              "url": "https://cdn.sanity.io/images/zmr0zdju/production/e5dd87651e4695dc44e2a68156510ede3844ba77-5335x6000.jpg?w=3840&q=85&fit=crop&auto=format",
+              "accepted": false,
+              "reason": "read_limit"
+            },
+            {
+              "url": "https://cdn.sanity.io/images/zmr0zdju/production/ab16ecede976602234b72abddd12c019ea8e1ee5-1000x1000.svg?w=3840&q=85&fit=crop&auto=format",
+              "accepted": false,
+              "reason": "read_limit"
+            },
+            {
+              "url": "https://cdn.sanity.io/images/zmr0zdju/production/ab2fc5d7ba12c134efc0b69c5eccb9f0396f4449-877x240.png?w=3840&q=85&fit=crop&auto=format",
+              "accepted": false,
+              "reason": "read_limit"
+            },
+            {
+              "url": "https://cdn.sanity.io/images/zmr0zdju/production/14b1bcd7f698616a0516780229f85e96874b2c1c-405x317.png?w=3840&q=85&fit=crop&auto=format",
+              "accepted": false,
+              "reason": "read_limit"
+            },
+            {
+              "url": "https://cdn.sanity.io/images/zmr0zdju/production/9ae55fcbd42ba7902a89e58ceae154dab604b882-590x124.png?w=3840&q=85&fit=crop&auto=format",
+              "accepted": false,
+              "reason": "read_limit"
+            },
+            {
+              "url": "https://cdn.sanity.io/images/zmr0zdju/production/8a8a9cec68691f393d5299d1013c0ffac98a4332-150x58.svg?w=3840&q=85&fit=crop&auto=format",
+              "accepted": false,
+              "reason": "read_limit"
+            },
+            {
+              "url": "https://cdn.sanity.io/images/zmr0zdju/production/9f0c3be6c19246df28f5a986b70642499204be77-400x282.svg?w=3840&q=85&fit=crop&auto=format",
+              "accepted": false,
+              "reason": "read_limit"
+            },
+            {
+              "url": "https://cdn.sanity.io/images/zmr0zdju/production/86ffd0d825cac9cf8b26ad57032b206fb38b8ab0-844x303.png?w=3840&q=85&fit=crop&auto=format",
+              "accepted": false,
+              "reason": "read_limit"
+            }
+          ],
+          "finalUrl": "https://kontrapunkt.com/about",
+          "sourceHash": "302cb16ce331f651086b015396d936b28a26d13b21e336a06151d8d860ea1b33",
+          "status": 200,
+          "contentType": "text/html",
+          "byteCount": 148043,
+          "extracted": 42,
+          "truncated": true
+        }
+      ]
+    },
+    {
+      "searchId": "edf83c862835d62fd74131f121d73dd5039caacf747a82fe4aa66435b87b3c48",
+      "checkedAt": "2026-10-12T10:03:33.044Z",
+      "reused": false,
+      "pagesAttempted": 1,
+      "pagesRead": 1,
+      "usableImagesFound": 18,
+      "diagnostics": [
+        {
+          "sourceUrl": "https://kontrapunkt.com/about",
+          "pageRead": true,
+          "images": [
+            {
+              "url": "https://kontrapunkt.com/icons/close.svg",
+              "accepted": false,
+              "reason": "media_response_rejected",
+              "status": 200,
+              "finalUrl": "https://kontrapunkt.com/icons/close.svg",
+              "contentType": "image/svg+xml"
+            },
+            {
+              "url": "https://cdn.sanity.io/images/zmr0zdju/production/9bd299f4a2b6ae280d4f2ff600cdc591ca6a454f-2500x2813.jpg?w=3840&q=85&fit=crop&auto=format",
+              "accepted": true,
+              "reason": "decoded_raster",
+              "status": 200,
+              "finalUrl": "https://cdn.sanity.io/images/zmr0zdju/production/9bd299f4a2b6ae280d4f2ff600cdc591ca6a454f-2500x2813.jpg?w=3840&q=85&fit=crop&auto=format",
+              "contentType": "image/webp"
+            },
+            {
+              "url": "https://cdn.sanity.io/images/zmr0zdju/production/bcfde4ad3a220c0dbc0e74d9e332800a13addaaf-2500x2813.jpg?w=3840&q=85&fit=crop&auto=format",
+              "accepted": true,
+              "reason": "decoded_raster",
+              "status": 200,
+              "finalUrl": "https://cdn.sanity.io/images/zmr0zdju/production/bcfde4ad3a220c0dbc0e74d9e332800a13addaaf-2500x2813.jpg?w=3840&q=85&fit=crop&auto=format",
+              "contentType": "image/webp"
+            },
+            {
+              "url": "https://cdn.sanity.io/images/zmr0zdju/production/7e95cef2dd04d5c3026baa58979d3dc7835d6f27-2500x2813.jpg?w=3840&q=85&fit=crop&auto=format",
+              "accepted": true,
+              "reason": "decoded_raster",
+              "status": 200,
+              "finalUrl": "https://cdn.sanity.io/images/zmr0zdju/production/7e95cef2dd04d5c3026baa58979d3dc7835d6f27-2500x2813.jpg?w=3840&q=85&fit=crop&auto=format",
+              "contentType": "image/webp"
+            },
+            {
+              "url": "https://cdn.sanity.io/images/zmr0zdju/production/6c66d65ef58418fa47b12032cbbd0fdb3c1dc4dd-2500x2813.jpg?w=3840&q=85&fit=crop&auto=format",
+              "accepted": true,
+              "reason": "decoded_raster",
+              "status": 200,
+              "finalUrl": "https://cdn.sanity.io/images/zmr0zdju/production/6c66d65ef58418fa47b12032cbbd0fdb3c1dc4dd-2500x2813.jpg?w=3840&q=85&fit=crop&auto=format",
+              "contentType": "image/webp"
+            },
+            {
+              "url": "https://cdn.sanity.io/images/zmr0zdju/production/2661da505977e9b60aed36d70de5e208e4e086d5-2500x2813.jpg?w=3840&q=85&fit=crop&auto=format",
+              "accepted": true,
+              "reason": "decoded_raster",
+              "status": 200,
+              "finalUrl": "https://cdn.sanity.io/images/zmr0zdju/production/2661da505977e9b60aed36d70de5e208e4e086d5-2500x2813.jpg?w=3840&q=85&fit=crop&auto=format",
+              "contentType": "image/webp"
+            },
+            {
+              "url": "https://cdn.sanity.io/images/zmr0zdju/production/2a692d51653623b88d542d3558e70985b5e56114-2500x2813.jpg?w=3840&q=85&fit=crop&auto=format",
+              "accepted": true,
+              "reason": "decoded_raster",
+              "status": 200,
+              "finalUrl": "https://cdn.sanity.io/images/zmr0zdju/production/2a692d51653623b88d542d3558e70985b5e56114-2500x2813.jpg?w=3840&q=85&fit=crop&auto=format",
+              "contentType": "image/webp"
+            },
+            {
+              "url": "https://cdn.sanity.io/images/zmr0zdju/production/6e796fcd22e6ca935d37029ad58d121627930a4d-2500x2813.jpg?w=3840&q=85&fit=crop&auto=format",
+              "accepted": true,
+              "reason": "decoded_raster",
+              "status": 200,
+              "finalUrl": "https://cdn.sanity.io/images/zmr0zdju/production/6e796fcd22e6ca935d37029ad58d121627930a4d-2500x2813.jpg?w=3840&q=85&fit=crop&auto=format",
+              "contentType": "image/webp"
+            },
+            {
+              "url": "https://cdn.sanity.io/images/zmr0zdju/production/55ba4c715397509a1d96d957232896b0f2874131-2500x2813.jpg?w=3840&q=85&fit=crop&auto=format",
+              "accepted": true,
+              "reason": "decoded_raster",
+              "status": 200,
+              "finalUrl": "https://cdn.sanity.io/images/zmr0zdju/production/55ba4c715397509a1d96d957232896b0f2874131-2500x2813.jpg?w=3840&q=85&fit=crop&auto=format",
+              "contentType": "image/webp"
+            },
+            {
+              "url": "https://kontrapunkt.com/icons/arrow--left.svg",
+              "accepted": false,
+              "reason": "media_response_rejected",
+              "status": 200,
+              "finalUrl": "https://kontrapunkt.com/icons/arrow--left.svg",
+              "contentType": "image/svg+xml"
+            },
+            {
+              "url": "https://kontrapunkt.com/icons/arrow--right.svg",
+              "accepted": false,
+              "reason": "media_response_rejected",
+              "status": 200,
+              "finalUrl": "https://kontrapunkt.com/icons/arrow--right.svg",
+              "contentType": "image/svg+xml"
+            },
+            {
+              "url": "https://cdn.sanity.io/images/zmr0zdju/production/d127c322c0cb6b546387ed2b0e24d9b57b7a51f3-2500x2813.jpg?w=3840&q=85&fit=crop&auto=format",
+              "accepted": true,
+              "reason": "decoded_raster",
+              "status": 200,
+              "finalUrl": "https://cdn.sanity.io/images/zmr0zdju/production/d127c322c0cb6b546387ed2b0e24d9b57b7a51f3-2500x2813.jpg?w=3840&q=85&fit=crop&auto=format",
+              "contentType": "image/webp"
+            },
+            {
+              "url": "https://cdn.sanity.io/images/zmr0zdju/production/cafcb9f37d81ebab8f0c65044fb0ec3a15b27e4c-5334x6001.jpg?w=3840&q=85&fit=crop&auto=format",
+              "accepted": true,
+              "reason": "decoded_raster",
+              "status": 200,
+              "finalUrl": "https://cdn.sanity.io/images/zmr0zdju/production/cafcb9f37d81ebab8f0c65044fb0ec3a15b27e4c-5334x6001.jpg?w=3840&q=85&fit=crop&auto=format",
+              "contentType": "image/webp"
+            },
+            {
+              "url": "https://cdn.sanity.io/images/zmr0zdju/production/a151fed96ed9e1dd75ac1aa63396870dcac24db9-5335x6001.jpg?w=3840&q=85&fit=crop&auto=format",
+              "accepted": true,
+              "reason": "decoded_raster",
+              "status": 200,
+              "finalUrl": "https://cdn.sanity.io/images/zmr0zdju/production/a151fed96ed9e1dd75ac1aa63396870dcac24db9-5335x6001.jpg?w=3840&q=85&fit=crop&auto=format",
+              "contentType": "image/webp"
+            },
+            {
+              "url": "https://cdn.sanity.io/images/zmr0zdju/production/0208e109b30946c65584cee377e6a4cafbf9d1cb-5334x6001.jpg?w=3840&q=85&fit=crop&auto=format",
+              "accepted": true,
+              "reason": "decoded_raster",
+              "status": 200,
+              "finalUrl": "https://cdn.sanity.io/images/zmr0zdju/production/0208e109b30946c65584cee377e6a4cafbf9d1cb-5334x6001.jpg?w=3840&q=85&fit=crop&auto=format",
+              "contentType": "image/webp"
+            },
+            {
+              "url": "https://cdn.sanity.io/images/zmr0zdju/production/ab16ecede976602234b72abddd12c019ea8e1ee5-1000x1000.svg?w=3840&q=85&fit=crop&auto=format",
+              "accepted": false,
+              "reason": "media_response_rejected",
+              "status": 200,
+              "finalUrl": "https://cdn.sanity.io/images/zmr0zdju/production/ab16ecede976602234b72abddd12c019ea8e1ee5-1000x1000.svg?w=3840&q=85&fit=crop&auto=format",
+              "contentType": "image/svg+xml"
+            },
+            {
+              "url": "https://cdn.sanity.io/images/zmr0zdju/production/e5dd87651e4695dc44e2a68156510ede3844ba77-5335x6000.jpg?w=3840&q=85&fit=crop&auto=format",
+              "accepted": true,
+              "reason": "decoded_raster",
+              "status": 200,
+              "finalUrl": "https://cdn.sanity.io/images/zmr0zdju/production/e5dd87651e4695dc44e2a68156510ede3844ba77-5335x6000.jpg?w=3840&q=85&fit=crop&auto=format",
+              "contentType": "image/webp"
+            },
+            {
+              "url": "https://cdn.sanity.io/images/zmr0zdju/production/8c831ad0395d6f2af3080ae950fe4b390cedc12c-5335x6001.jpg?w=3840&q=85&fit=crop&auto=format",
+              "accepted": true,
+              "reason": "decoded_raster",
+              "status": 200,
+              "finalUrl": "https://cdn.sanity.io/images/zmr0zdju/production/8c831ad0395d6f2af3080ae950fe4b390cedc12c-5335x6001.jpg?w=3840&q=85&fit=crop&auto=format",
+              "contentType": "image/webp"
+            },
+            {
+              "url": "https://cdn.sanity.io/images/zmr0zdju/production/9ae55fcbd42ba7902a89e58ceae154dab604b882-590x124.png?w=3840&q=85&fit=crop&auto=format",
+              "accepted": true,
+              "reason": "decoded_raster",
+              "status": 200,
+              "finalUrl": "https://cdn.sanity.io/images/zmr0zdju/production/9ae55fcbd42ba7902a89e58ceae154dab604b882-590x124.png?w=3840&q=85&fit=crop&auto=format",
+              "contentType": "image/webp"
+            },
+            {
+              "url": "https://cdn.sanity.io/images/zmr0zdju/production/ab2fc5d7ba12c134efc0b69c5eccb9f0396f4449-877x240.png?w=3840&q=85&fit=crop&auto=format",
+              "accepted": true,
+              "reason": "decoded_raster",
+              "status": 200,
+              "finalUrl": "https://cdn.sanity.io/images/zmr0zdju/production/ab2fc5d7ba12c134efc0b69c5eccb9f0396f4449-877x240.png?w=3840&q=85&fit=crop&auto=format",
+              "contentType": "image/webp"
+            },
+            {
+              "url": "https://cdn.sanity.io/images/zmr0zdju/production/14b1bcd7f698616a0516780229f85e96874b2c1c-405x317.png?w=3840&q=85&fit=crop&auto=format",
+              "accepted": true,
+              "reason": "decoded_raster",
+              "status": 200,
+              "finalUrl": "https://cdn.sanity.io/images/zmr0zdju/production/14b1bcd7f698616a0516780229f85e96874b2c1c-405x317.png?w=3840&q=85&fit=crop&auto=format",
+              "contentType": "image/webp"
+            },
+            {
+              "url": "https://cdn.sanity.io/images/zmr0zdju/production/9f0c3be6c19246df28f5a986b70642499204be77-400x282.svg?w=3840&q=85&fit=crop&auto=format",
+              "accepted": false,
+              "reason": "media_response_rejected",
+              "status": 200,
+              "finalUrl": "https://cdn.sanity.io/images/zmr0zdju/production/9f0c3be6c19246df28f5a986b70642499204be77-400x282.svg?w=3840&q=85&fit=crop&auto=format",
+              "contentType": "image/svg+xml"
+            },
+            {
+              "url": "https://cdn.sanity.io/images/zmr0zdju/production/8a8a9cec68691f393d5299d1013c0ffac98a4332-150x58.svg?w=3840&q=85&fit=crop&auto=format",
+              "accepted": false,
+              "reason": "media_response_rejected",
+              "status": 200,
+              "finalUrl": "https://cdn.sanity.io/images/zmr0zdju/production/8a8a9cec68691f393d5299d1013c0ffac98a4332-150x58.svg?w=3840&q=85&fit=crop&auto=format",
+              "contentType": "image/svg+xml"
+            },
+            {
+              "url": "https://cdn.sanity.io/images/zmr0zdju/production/86ffd0d825cac9cf8b26ad57032b206fb38b8ab0-844x303.png?w=3840&q=85&fit=crop&auto=format",
+              "accepted": true,
+              "reason": "decoded_raster",
+              "status": 200,
+              "finalUrl": "https://cdn.sanity.io/images/zmr0zdju/production/86ffd0d825cac9cf8b26ad57032b206fb38b8ab0-844x303.png?w=3840&q=85&fit=crop&auto=format",
+              "contentType": "image/webp"
+            }
+          ],
+          "finalUrl": "https://kontrapunkt.com/about",
+          "sourceHash": "302cb16ce331f651086b015396d936b28a26d13b21e336a06151d8d860ea1b33",
+          "status": 200,
+          "contentType": "text/html",
+          "byteCount": 148043,
+          "extracted": 42,
+          "truncated": true
+        }
+      ]
+    }
+  ],
+  "assets": [
+    {
+      "name": "cover",
+      "assetId": "392e2f49fa9ae569075f3b90371e3956051fcb951c7365ea0860774e9edf1d88",
+      "cmsAssetId": "6accb0ad0c0e115ac9b4872e",
+      "url": "https://cdn.prod.website-files.com/67dbf17ba540975b5b21c180/6accb0ad0c0e115ac9b4872e_apropos-b689d07e775ca2208bbb17ee0e02f7405b6d3fb757d9a74e34cd1c76dea5306d.webp",
+      "status": "attached",
+      "originalPreserved": true,
+      "byteCount": 702336,
+      "width": 3840,
+      "height": 4321,
+      "mimeType": "image/webp",
+      "sha256": "b689d07e775ca2208bbb17ee0e02f7405b6d3fb757d9a74e34cd1c76dea5306d",
+      "sourceEvidence": {
+        "id": "012bbaee44c5aa96cf58138509d6cecd8c15dc7c535af37a01cd8534ddb6ad2e",
+        "sourceUrl": "https://kontrapunkt.com/about",
+        "sourceFinalUrl": "https://kontrapunkt.com/about",
+        "originalUrl": "https://cdn.sanity.io/images/zmr0zdju/production/2661da505977e9b60aed36d70de5e208e4e086d5-2500x2813.jpg?w=3840&q=85&fit=crop&auto=format",
+        "downloadUrl": "https://cdn.sanity.io/images/zmr0zdju/production/2661da505977e9b60aed36d70de5e208e4e086d5-2500x2813.jpg?w=3840&q=85&fit=crop&auto=format",
+        "credit": null,
+        "caption": "",
+        "creditEvidence": "image_block_or_alt",
+        "sourceHash": "302cb16ce331f651086b015396d936b28a26d13b21e336a06151d8d860ea1b33",
+        "usageTerms": [],
+        "rightsStatus": "unknown",
+        "checkedAt": "2026-10-12T10:03:18.224Z",
+        "validation": "decoded",
+        "mimeType": "image/webp",
+        "byteCount": 702336,
+        "width": 3840,
+        "height": 4321,
+        "sha256": "b689d07e775ca2208bbb17ee0e02f7405b6d3fb757d9a74e34cd1c76dea5306d",
+        "searchId": "edf83c862835d62fd74131f121d73dd5039caacf747a82fe4aa66435b87b3c48",
+        "visualCheck": {
+          "relevant": true,
+          "coverTextFree": true
+        },
+        "visualCheckSource": "agent_reported_not_personal_approval"
+      },
+      "credit": "Kilde: kontrapunkt.com (fotograf ikke oplyst)",
+      "rightsStatus": "unknown",
+      "readAt": "2026-10-12T10:06:40.929Z",
+      "fallbackUsed": false,
+      "sectionId": null,
+      "requestId": "kontrapunkt-press-cover-20261012-v1"
+    },
+    {
+      "name": "body2",
+      "assetId": "9e17a2196a97e3fc820a80d438f77711b8509adae64dca925f4e1d988a98040c",
+      "cmsAssetId": "6accb0f7ae8d575025b46139",
+      "url": "https://cdn.prod.website-files.com/67dbf17ba540975b5b21c180/6accb0f7ae8d575025b46139_apropos-72beed7b4a6bf1a7fc779a745603ae99269c9107041f010f3cea14776d9d6165.webp",
+      "status": "attached",
+      "originalPreserved": true,
+      "byteCount": 130156,
+      "width": 1200,
+      "height": 800,
+      "mimeType": "image/webp",
+      "sha256": "72beed7b4a6bf1a7fc779a745603ae99269c9107041f010f3cea14776d9d6165",
+      "sourceEvidence": {
+        "id": "64e18a0c121e2eadac1914f89caec54f5e86e15e7f49e9f11ed9b37b0c7df641",
+        "sourceUrl": "https://designmuseum.dk/presserum-laboratorium-kontrapunkt/",
+        "sourceFinalUrl": "https://designmuseum.dk/presserum-laboratorium-kontrapunkt/",
+        "originalUrl": "https://designmuseum.dk/wp-content/uploads/2026/06/LABORATORIUM-Kontrapunkt_Foto-Daniel-Rasmussen_1.jpg",
+        "downloadUrl": "https://designmuseum.dk/wp-content/uploads/2026/06/LABORATORIUM-Kontrapunkt_Foto-Daniel-Rasmussen_1.jpg",
+        "credit": "Daniel Rasmussen",
+        "caption": "LABORATORIUM Kontrapunkt. Foto: Daniel Rasmussen",
+        "creditEvidence": "image_caption",
+        "sourceHash": "4d20adc157ecf6d27ef8b702c1d87def7246036ea3ebfea73f44221ddd9bb3cf",
+        "usageTerms": [],
+        "rightsStatus": "unknown",
+        "checkedAt": "2026-10-12T10:02:56.264Z",
+        "validation": "decoded",
+        "mimeType": "image/webp",
+        "byteCount": 130156,
+        "width": 1200,
+        "height": 800,
+        "sha256": "72beed7b4a6bf1a7fc779a745603ae99269c9107041f010f3cea14776d9d6165",
+        "searchId": "d2863b303b2b2857cc7f2d164e8f78bf3ee25430795758b115c374c8719bf71a",
+        "visualCheck": {
+          "relevant": true,
+          "coverTextFree": false
+        },
+        "visualCheckSource": "agent_reported_not_personal_approval"
+      },
+      "credit": "Foto: Daniel Rasmussen",
+      "rightsStatus": "unknown",
+      "readAt": "2026-10-12T10:06:41.097Z",
+      "fallbackUsed": false,
+      "sectionId": "47803fcf95a3ad96b9d01c365a24727b0c3eaa99d3ed4572d4474fb14be41b87",
+      "requestId": "kontrapunkt-press-body2-20261012-v1"
+    },
+    {
+      "name": "body1",
+      "assetId": "dc2613d956b52b1a1af04b2d80311a1eee54d3fd91a34e624dd554aa806b16e1",
+      "cmsAssetId": "6accb0db3e4b54fe78937886",
+      "url": "https://cdn.prod.website-files.com/67dbf17ba540975b5b21c180/6accb0db3e4b54fe78937886_apropos-0b62a1f34549bf745aca7d43b7fef18f3847c024a7a5af7f5fba8c625ff4e12d.webp",
+      "status": "attached",
+      "originalPreserved": true,
+      "byteCount": 120280,
+      "width": 1200,
+      "height": 800,
+      "mimeType": "image/webp",
+      "sha256": "0b62a1f34549bf745aca7d43b7fef18f3847c024a7a5af7f5fba8c625ff4e12d",
+      "sourceEvidence": {
+        "id": "1f87cb7a657724a9e4afabf325a4c63eb5e7e7400004f315665e5ea5286f787c",
+        "sourceUrl": "https://designmuseum.dk/presserum-laboratorium-kontrapunkt/",
+        "sourceFinalUrl": "https://designmuseum.dk/presserum-laboratorium-kontrapunkt/",
+        "originalUrl": "https://designmuseum.dk/wp-content/uploads/2026/06/LABORATORIUM-Kontrapunkt_Foto-Andrea-Sonne_5.jpg",
+        "downloadUrl": "https://designmuseum.dk/wp-content/uploads/2026/06/LABORATORIUM-Kontrapunkt_Foto-Andrea-Sonne_5.jpg",
+        "credit": "Andrea Sonne",
+        "caption": "LABORATORIUM Kontrapunkt. Foto: Andrea Sonne",
+        "creditEvidence": "image_caption",
+        "sourceHash": "4d20adc157ecf6d27ef8b702c1d87def7246036ea3ebfea73f44221ddd9bb3cf",
+        "usageTerms": [],
+        "rightsStatus": "unknown",
+        "checkedAt": "2026-10-12T10:02:59.640Z",
+        "validation": "decoded",
+        "mimeType": "image/webp",
+        "byteCount": 120280,
+        "width": 1200,
+        "height": 800,
+        "sha256": "0b62a1f34549bf745aca7d43b7fef18f3847c024a7a5af7f5fba8c625ff4e12d",
+        "searchId": "d2863b303b2b2857cc7f2d164e8f78bf3ee25430795758b115c374c8719bf71a",
+        "visualCheck": {
+          "relevant": true,
+          "coverTextFree": false
+        },
+        "visualCheckSource": "agent_reported_not_personal_approval"
+      },
+      "credit": "Foto: Andrea Sonne",
+      "rightsStatus": "unknown",
+      "readAt": "2026-10-12T10:06:41.273Z",
+      "fallbackUsed": false,
+      "sectionId": "74fff23f453632038dceb9c66a6c593d533e71ee4a309086412fd2e87a27a114",
+      "requestId": "kontrapunkt-press-body1-20261012-v1"
+    }
+  ],
+  "preview": {
+    "revision": 6,
+    "contentHash": "0206cd5adc08e56c924589fcb3b274c471d29458c097d3319fc24bbb4c7ee0f8",
+    "readAt": "2026-10-12T10:06:30.397Z",
+    "missing": [],
+    "previewProblems": [],
+    "bodyImageCount": 2,
+    "coverPresent": true,
+    "quoteCanAccept": true,
+    "publication": null,
+    "publicationApproval": false,
+    "personalApproval": false,
+    "nextAction": "open_personal_editorial_confirmation",
+    "paidAiCalls": 0
+  },
+  "preservation": {
+    "proseHash": "abbcc4cf89b15de7a05ea29f1da130edcc0c351e858249b0e74a7d2483fa45a9",
+    "metadataHash": "d40745a44d00705d86a5d60e8af65bb8040df2bdbccb46446d3f8295fb0833a9",
+    "researchHash": "f92424a5697fc3a77caec4117cdb0d77fdffdc690945298960cf4fa4147b90f3",
+    "choicesHash": "2fa1c29a0cd64ca29c50fd3f1656a0595c93dc40d326fa43692b3474f3305763",
+    "allEqualToRevision3": true
+  },
+  "replays": [
+    {
+      "name": "cover",
+      "assetId": "392e2f49fa9ae569075f3b90371e3956051fcb951c7365ea0860774e9edf1d88",
+      "replay": true
+    },
+    {
+      "name": "body1",
+      "assetId": "dc2613d956b52b1a1af04b2d80311a1eee54d3fd91a34e624dd554aa806b16e1",
+      "replay": true
+    },
+    {
+      "name": "body2",
+      "assetId": "9e17a2196a97e3fc820a80d438f77711b8509adae64dca925f4e1d988a98040c",
+      "replay": true
+    }
+  ],
+  "replayPreservedReceiptsAndRevision": true,
+  "before": {
+    "provider": "87926057aa6f38f9bc1157d20575743abd5c5d8eacb0a34da14b8b185814a380",
+    "livCostLedger/month-2026-10": "a94a613eef3f7d2bb029dde9d5f0935ecfe01581d4d13d0b001784a1230e76ea",
+    "imageGenCostLedger/month-2026-10": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b"
+  },
+  "after": {
+    "provider": "87926057aa6f38f9bc1157d20575743abd5c5d8eacb0a34da14b8b185814a380",
+    "livCostLedger/month-2026-10": "a94a613eef3f7d2bb029dde9d5f0935ecfe01581d4d13d0b001784a1230e76ea",
+    "imageGenCostLedger/month-2026-10": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b"
+  },
+  "costs": {
+    "actions": [],
+    "subscriptionUsage": "not_observable_here",
+    "billedDkk": null,
+    "coverage": "tracked_calls_only"
+  },
+  "limitations": [
+    "No publication or personal approval performed",
+    "Production replays verified; network timeout fault injection was isolated-test-only",
+    "Unknown licences remain unknown; cover photographer not provided",
+    "Actual source-served WebP bytes preserved, not ZIP masters",
+    "MCP preview data verified; standalone browser preview required owner login; no alternate account or browser-extracted token used",
+    "New tools may require client discovery refresh"
+  ]
+}
