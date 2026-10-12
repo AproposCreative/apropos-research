@@ -1,0 +1,80 @@
+{
+  "checkedAt": "2026-10-12T12:36:54.065Z",
+  "deploymentId": "dpl_Ev42yKcC4mykvVPpQtYdZHyya1tM",
+  "sha": "632f15b18cf3951b47b0542fc15383062feab11f",
+  "alias": "ai.aproposmagazine.com",
+  "anonymous": 401,
+  "oldClientStatuses": [
+    410,
+    410
+  ],
+  "invalid": 400,
+  "replies": [
+    {
+      "code": "subtitle_chatgpt_first",
+      "paidAiCalls": 0,
+      "error": "AI-forkortelse er flyttet til ChatGPT. Genindlæs SoMe-editoren for at forkorte lokalt eller kopiere teksten til ChatGPT. Din tekst er bevaret."
+    },
+    {
+      "code": "subtitle_chatgpt_first",
+      "paidAiCalls": 0,
+      "error": "AI-forkortelse er flyttet til ChatGPT. Genindlæs SoMe-editoren for at forkorte lokalt eller kopiere teksten til ChatGPT. Din tekst er bevaret."
+    }
+  ],
+  "articleId": "6accb9d4a4cfa06c22daba31",
+  "articleHash": "d8349a4b057ff60eab7654d8e53c74a70ffb8016e58319a5ca4e43db65f968e1",
+  "articleUnchanged": true,
+  "cost": {
+    "month": "2026-10",
+    "currency": "DKK",
+    "monthlyLimitDkk": 300,
+    "trackedCalls": 1,
+    "unknownCalls": 1,
+    "usageBasedUpperDkk": 0,
+    "reservedUpperDkk": 1.2144,
+    "availableAllowanceDkk": 298.7856,
+    "billedDkk": null,
+    "trackingStartedAt": "2026-09-30T22:00:27.412Z",
+    "status": "ready_partial",
+    "pricingStatus": "review_due",
+    "priceVersion": "openai-standard-2026-09-12",
+    "priceValidUntil": "2026-10-12T00:00:00.000Z",
+    "coverage": "shared_server_cost_contexts",
+    "historicalCostsIncluded": false,
+    "fullMonthlyCapVerified": false,
+    "maxCallsPerRun": 40,
+    "maxCallsPerMonth": 1000,
+    "sharedActivation": "enabled",
+    "sharedTrackingStartedAt": "2026-09-13T10:14:00.070Z",
+    "includedScopes": [
+      "liv",
+      "writer",
+      "seo",
+      "accreditation"
+    ],
+    "excludedScopes": [
+      "other_providers",
+      "historical_untracked_calls"
+    ],
+    "unscopedOpenAIBehavior": "deny_before_transport",
+    "unpricedBehavior": "deny_before_transport",
+    "unknownUsageBehavior": "retain_full_reservation",
+    "existingLivCostsIncluded": true
+  },
+  "providerHoldUnchanged": true,
+  "providerHoldHash": "87926057aa6f38f9bc1157d20575743abd5c5d8eacb0a34da14b8b185814a380",
+  "backendModelCallsByThisCheck": 0,
+  "cmsWrites": 0,
+  "publications": 0,
+  "runtimeErrorScan": {
+    "from": "2026-10-12T12:36:27Z",
+    "through": "2026-10-12T12:38:05.759Z",
+    "query": "/api/design-editor/shorten-subtitle",
+    "levels": [
+      "error",
+      "fatal"
+    ],
+    "matchingLogs": 0,
+    "scope": "bounded scan, not proof of no errors elsewhere"
+  }
+}

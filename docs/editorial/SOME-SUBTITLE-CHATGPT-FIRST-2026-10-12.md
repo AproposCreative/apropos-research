@@ -52,4 +52,29 @@ paid endpoints in the application have been removed.
   labels and touch targets. Vercel deployments-cicd guidance governs exact-SHA
   production release and runtime readback. No dependency changes.
 
-Production release/readback will be recorded below after verification.
+## Production verified
+
+- Source: `632f15b18cf3951b47b0542fc15383062feab11f`.
+- Deployment: `dpl_Ev42yKcC4mykvVPpQtYdZHyya1tM`, READY with actual
+  `ai.aproposmagazine.com` alias. Remote build completed in 55 seconds, ready
+  2026-10-12T12:36:27.933Z. Initial Git-source creation hit a temporary GitHub
+  secondary rate limit and created no deployment; one later attempt succeeded.
+- Authenticated runtime check 12:36:54.065Z: unauthenticated POST401; two valid
+  old-client requests HTTP410/no-store/paidAiCalls0; invalid input400. No model
+  client, retry or budget change. See `SOME-SUBTITLE-CHATGPT-FIRST-2026-10-12-production.json`.
+- Before/after cost and provider state identical: one historical tracked call,
+  0 DKK usage estimate, 1.2144 DKK reserved, one unresolved; not a billing balance.
+- Kontrapunkt item `6accb9d4a4cfa06c22daba31` unchanged in authenticated app CMS
+  readback, item hash `d8349a4b057ff60eab7654d8e53c74a70ffb8016e58319a5ca4e43db65f968e1`.
+- Actual production mobile browser at 390×844, production Amiri and real image:
+  original shown; new first-sentence option; explicit selection changed only the
+  local card and rendered “Klar”; no budget error. Restored original afterward.
+  Screenshot: local `output/social-subtitle/production-mobile.jpg`.
+- No article/CMS write or publication, no personal approval, no social post.
+- Main checkout fast-forwarded while preserving the pre-existing unstaged diff
+  SHA256 `1b319945b1841615679c2252e927796024b2493e2da861fba2aff6c9235b0cf0`.
+
+The local excerpt is not a semantic rewrite and can omit a later qualification;
+the UI explicitly asks the editor to check the point. ChatGPT handoff still needs
+the user to paste the prompt/response; this release does not pretend to call their
+subscription from the server. Broader Liv/migration acceptance remains separate.
