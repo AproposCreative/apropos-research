@@ -80,4 +80,40 @@ kontrol; der er ikke tilføjet en ny durable publiceringskø eller Meta-reconcil
 - Skærmbilleder gemt i `output/tool-list/` og `output/social-feedback/`.
 
 Ingen AI-kald, testopslag, testmail, CMS-ændring, godkendelse, hold-/budgetændring
-eller genaktivering af automatik. Production-release/readback tilføjes nedenfor.
+eller genaktivering af automatik.
+
+## Produktion og frisk readback
+
+- Kode `a9fa0997e3609008160fbef8ffdffe465617fc3e`, pushed på
+  `codex/tools-overview-2026-10-13`. Deployment
+  `dpl_7pAuWNb8a1Axkg2pcpqkg6xQBAag` er READY med præcis source-SHA og
+  `ai.aproposmagazine.com` som faktisk produktionsalias. Remote build bestået.
+  MCP v24 og alle eksisterende pipeline-/godkendelsesregler er uændrede.
+- Ejerautentificeret `GET /api/editorial/tools` 09:37:18Z gav 200, alle 12
+  eksisterende/nye indgange, præcis fire hidden=true og otte synlige.
+  “Mine artikler” er desuden bevaret som lokal workspace-handling.
+- Dashboard-API 09:37:14Z gav 200 med faktiske GA4-/Webflow-data:
+  28-dagesvisningen havde 1.758 aktive brugere, 2.289 sidevisninger og 1.931
+  sessioner. Search Console-linked=true. Dette er et snapshot, ikke en prognose.
+- Nyhedsbrev integration-status 09:37:16Z gav connected=true, 16 modtagere fra
+  forms-api, error=null og konfigureret Resend/webhook/GA4-pipeline. Det er
+  konfigurations-/læseevidens, ikke en testmail eller dokumenteret fremtidig send.
+- Instagram-konfiguration 200 og Facebook reachable=true/error=null genbekræftet
+  09:37:21–09:37:22Z. Ingen POST/publicering udført i produktion.
+- Hold fortsat true/rev5 og kostsummary 09:37:24Z fortsat ét historisk kald,
+  0 DKK usage-estimat, 1,2144 DKK reserveret og én uafklaret. Ingen nye AI-kald;
+  pricing review_due er bevaret, ikke ændret eller sidestillet med providersaldo.
+- Den faktiske autentificerede app viser build a9fa099. Kontrolleret ved
+  390×844 og 1440×1000 med produktionsfont: sort/hvid liste, nul listeikoner,
+  intet vandret overflow, korrekt ejerlink og fire indgange i lukket disclosure.
+  Åbning af disclosure viser de præcise statusforklaringer. Sidepanelet bruger
+  samme liste. Menu → SoMe → luk → menu fungerer. Mobil-SoMe viser automatisk
+  tilpasset Kontrapunkt-undertekst og ingen røde fejl/console-errors ved åbning.
+- Skærmbilleder: `output/tool-list/live-mobile.jpg`, `live-desktop.jpg` og
+  `live-social-mobile.jpg`. Den aktuelle side blev ikke brugt til at sende,
+  godkende, købe AI eller ændre automatikkens indstillinger.
+
+Resultat: menu, autentificeret flaglæsning og SoMe-visning er verificeret live.
+De 14 publiceringsfejlscenarier er verificeret med den faktiske komponent og
+isolerede transportsvar, ikke ved at sende rigtige sociale opslag. Tidligere
+ukendt brugerhændelse og fremtidig automatisk Liv-levering er ikke erklæret løst.
