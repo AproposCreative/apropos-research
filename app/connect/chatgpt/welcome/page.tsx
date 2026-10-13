@@ -1,5 +1,5 @@
 import type { Metadata } from 'next';
-import { MCP_STARTER_PROMPTS } from '@/lib/mcp/welcome-content';
+import { MCP_STARTER_PROMPTS, MCP_WELCOME_GUIDANCE } from '@/lib/mcp/welcome-content';
 import styles from './welcome.module.css';
 
 export const metadata: Metadata = { title: 'Kom i gang med Apropos AI', robots: { index: false, follow: false } };
@@ -17,9 +17,7 @@ export default function McpWelcomePage() {
       {MCP_STARTER_PROMPTS.map(prompt => <blockquote key={prompt}>{prompt}</blockquote>)}
     </section>
     <section className={styles.notes}><h2>Du har sidste ord</h2>
-      <p>Chatten hjælper med teksten, kilderne, billederne og SEO. Systemet viser mangler og spørger til felter, der ikke er indlysende. Du godkender den konkrete version før udgivelse.</p>
-      <p>Til film og TV bruger vi officielle stills. Illustrationer laves i chatten med Apropos-prompten. Gemte billeder kan genbruges.</p>
-      <p>Nye chatforløb køber ikke automatisk research, omskrivninger eller billeder via API. Nødvendige slutkontroller kræver særskilt prisaccept. Dit ChatGPT-abonnements muligheder og grænser gælder stadig.</p>
+      {MCP_WELCOME_GUIDANCE.map(paragraph => <p key={paragraph}>{paragraph}</p>)}
     </section>
     <footer className={styles.footer}><a href="/connect/chatgpt">Administrér din forbindelse</a></footer>
   </main></div>;

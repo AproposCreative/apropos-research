@@ -5,6 +5,7 @@ import { z } from 'zod';
 import { randomUUID } from 'node:crypto';
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import { articleWidgetHtml } from './article-widget';
+import { ARTICLE_WIDGET_CSP } from './widget-policy';
 import { EDITORIAL_DESK_URI, editorialDeskWidgetHtml } from './editorial-desk-widget';
 import { saveEditorialIdeas, getEditorialDesk, getEditorialIdea, startEditorialIdea, saveIdeasInput, deskInput, getIdeaInput, startIdeaInput } from '@/lib/editorial/ideas';
 import { CHAT_PREVIEW_URI, chatPreviewInput, chatConfirmInput, chatSubmissionPreview, confirmChatSubmission, submissionCosts } from '@/lib/editorial/chat-preview';
@@ -127,7 +128,7 @@ export function createEditorialMcp(identity: McpIdentity) {
     startIdeaInput, 'apropos:draft', false, input => startEditorialIdea(identity.uid, input));
   server.registerResource('apropos-article-preview', CHAT_PREVIEW_URI, { mimeType: 'text/html;profile=mcp-app' }, async () => ({ contents: [{
     uri: CHAT_PREVIEW_URI, mimeType: 'text/html;profile=mcp-app', text: articleWidgetHtml,
-    _meta: { ui: { csp: { connectDomains: [], resourceDomains: [MCP_ORIGIN, 'https://cdn.prod.website-files.com', 'https://uploads-ssl.webflow.com', 'https://assets-global.website-files.com'] } },
+    _meta: { ui: { csp: ARTICLE_WIDGET_CSP },
       'openai/widgetDescription': 'Hele Apropos-artiklen med billeder og én personlig Godkend og udgiv-knap. Valgfrit Åbn eksternt-link; automatisk status og livekvittering.' },
   }] }));
   tool('preview_submission', 'Vis artikelkortet med hele artiklen og billeder direkte i chatten, ikke kun et link. ChatGPT-first har én personlig Godkend og udgiv-knap, som starter teknisk klargøring og udgivelse af samme version. Kortet opdaterer status automatisk. Åbn eksternt er valgfrit. Bed ikke om en ekstra chatbekræftelse. Konkrete mangler stopper godkendelsen. Ingen AI-køb; samme submissionId efter timeout.',

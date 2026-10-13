@@ -11,6 +11,7 @@ concurrency:
 jobs:
   checks:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     env:
       RAGE_STORAGE_DIR: ./tmp/vitest-rage
     steps:
@@ -20,6 +21,9 @@ jobs:
           node-version: '22'
           cache: npm
       - run: npm ci --ignore-scripts
+      - run: npm run security:dependencies
       - run: npm run security:config
       - run: npm run type-check
       - run: npm test
+      - run: npx --no-install playwright install --with-deps chromium
+      - run: npm run test:mcp-widget

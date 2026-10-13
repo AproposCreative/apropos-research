@@ -6,7 +6,7 @@ vi.mock('@/lib/mcp/oauth', () => ({ activeMember: fake.member }));
 vi.mock('resend', () => ({ Resend: class { emails = { send: fake.send }; } }));
 vi.mock('@/lib/config/env', () => ({ env: { CRON_SECRET: 'test-cron-only' } }));
 import { deliverMcpWelcome, dispatchMcpWelcomes } from '@/lib/mcp/welcome';
-import { MCP_WELCOME_VERSION, mcpWelcomeContent } from '@/lib/mcp/welcome-content';
+import { MCP_WELCOME_VERSION, MCP_WELCOME_GUIDANCE, mcpWelcomeContent } from '@/lib/mcp/welcome-content';
 import { GET } from '@/app/api/cron/mcp-welcome/route';
 import { NextRequest } from 'next/server';
 import { existsSync, readFileSync } from 'node:fs';
@@ -99,37 +99,50 @@ it('requires cron authentication before accessing pending mail', async () => {
 it('contains text guidance, no video, poster or paid-generation promise', () => {
   const content = mcpWelcomeContent();
   expect(content.text).toContain('/connect/chatgpt/welcome'); expect(content.html).toContain('Apropos AI');
-  expect(content.text).toContain('prisaccept'); expect(content.html).not.toContain('<video');
+  expect(content.text).toContain('ingen særskilt prisaccept'); expect(content.html).not.toContain('<video');
   expect(content.text).not.toContain('Liv');
   expect(JSON.stringify(content)).not.toMatch(/video|onboarding\/|\.mp4|\.vtt/i);
 });
 it('keeps the guide but removes the player and publicly served video assets', () => {
   const page = readFileSync('app/connect/chatgpt/welcome/page.tsx', 'utf8');
   expect(page).toContain('MCP_STARTER_PROMPTS');
+  expect(page).toContain('MCP_WELCOME_GUIDANCE.map');
   expect(page).not.toMatch(/video|<source|<track|poster/i);
   for (const ext of ['mp4', 'jpg', 'vtt']) {
     expect(existsSync(`public/onboarding/apropos-ai-2026-10-06.${ext}`)).toBe(false);
   }
 });
-it('upgrades an unsent old welcome to text without changing delivery identity', async () => {
-  queue(); Object.assign(memory.rows.get('mcpWelcomeMail/editor'), { version: '2026-10-06-v1' });
+it.each(['2026-10-06-v1', '2026-10-06-v2'])('upgrades unsent %s without changing delivery identity', async version => {
+  queue(); Object.assign(memory.rows.get('mcpWelcomeMail/editor'), { version });
   await deliverMcpWelcome('editor');
   expect(fake.send).toHaveBeenCalledTimes(1);
   expect(fake.send.mock.calls[0][0].html).not.toMatch(/video|onboarding\//i);
   expect(memory.rows.get('mcpWelcomeMail/editor').version).toBe(MCP_WELCOME_VERSION);
 });
-it('does not resend or rewrite a retired video message with an uncertain send outcome', async () => {
+it.each(['2026-10-06-v1', '2026-10-06-v2'])('does not resend or rewrite uncertain retired %s', async version => {
   queue();
   const payload = { from: 'sender', to: 'editor@aproposmagazine.com', subject: 'old', text: 'Se video', html: '<p>Se video</p>' };
-  Object.assign(memory.rows.get('mcpWelcomeMail/editor'), { version: '2026-10-06-v1', attempts: 1, payload, firstAttemptAt: now - 300000 });
+  Object.assign(memory.rows.get('mcpWelcomeMail/editor'), { version, attempts: 1, payload, firstAttemptAt: now - 300000 });
   await deliverMcpWelcome('editor');
   expect(fake.send).not.toHaveBeenCalled();
   expect(memory.rows.get('mcpWelcomeMail/editor')).toMatchObject({ pending: false, status: 'needs_reconciliation', lastError: 'welcome_content_retired', payload, attempts: 1 });
 });
-it('preserves an accepted old welcome without sending a replacement', async () => {
-  queue(); Object.assign(memory.rows.get('mcpWelcomeMail/editor'), { version: '2026-10-06-v1', pending: false, status: 'accepted', providerId: 'old-mail', attempts: 1 });
+it.each(['2026-10-06-v1', '2026-10-06-v2'])('preserves accepted %s without replacement', async version => {
+  queue(); Object.assign(memory.rows.get('mcpWelcomeMail/editor'), { version, pending: false, status: 'accepted', providerId: 'old-mail', attempts: 1 });
   const saved = structuredClone(memory.rows.get('mcpWelcomeMail/editor'));
   await deliverMcpWelcome('editor');
   expect(fake.send).not.toHaveBeenCalled();
   expect(memory.rows.get('mcpWelcomeMail/editor')).toEqual(saved);
+});
+it('gives email and page the same one-consent, private, no-paid-AI guidance', () => {
+  const content = mcpWelcomeContent();
+  for (const paragraph of MCP_WELCOME_GUIDANCE) {
+    expect(content.text).toContain(paragraph); expect(content.html).toContain(paragraph);
+  }
+  expect(content.text).toContain('Tryk én gang');
+  expect(content.text).toContain('ikke bagefter bekræfte igen');
+  expect(content.text).toContain('Et link giver ikke andre adgang');
+  expect(content.text).toContain('ingen betalte backend-AI-kald');
+  expect(content.text).toContain('den aktuelle status og kvittering');
+  expect(content.text).not.toContain('API-slutkontroller kræver');
 });
