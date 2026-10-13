@@ -776,11 +776,11 @@ export default function DesignEditorView({ onBack, embedMode }: DesignEditorView
               </div>
             )}
             {size === 'story' && (
-              <div className="inline-flex max-w-full justify-start items-center gap-1.5 md:gap-2 rounded-2xl border border-white/15 bg-black/65 p-1.5 md:p-2 mb-2 md:mb-5 backdrop-blur-md shadow-[0_8px_24px_rgba(0,0,0,0.35)]">
+              <div className="inline-flex max-w-full items-center gap-2 rounded-xl border border-white/15 bg-black/30 p-1.5">
                 <button
                   type="button"
                   onClick={() => setStoryMetaShuffleSeed((prev) => prev + 1)}
-                  className="shrink-0 px-4 md:px-5 py-2 rounded-xl text-white text-sm md:text-[15px] font-medium bg-white/15 border border-white/25 transition-all duration-200 hover:bg-white/25 hover:border-white/50 focus:outline-none focus:ring-2 focus:ring-white/40"
+                  className="min-h-11 shrink-0 px-4 py-2 rounded-lg text-white text-[13px] font-medium bg-white/10 border border-white/15 transition-colors hover:bg-white/15 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white"
                   title="Byt rundt på story-felter"
                 >
                   Byt felter
@@ -789,26 +789,18 @@ export default function DesignEditorView({ onBack, embedMode }: DesignEditorView
                   type="button"
                   onClick={() => setStoryMetaShuffleSeed(0)}
                   disabled={storyMetaShuffleSeed === 0}
-                  className="shrink-0 w-9 h-9 rounded-xl text-white text-sm font-semibold bg-white/8 border border-white/30 shadow-[0_0_14px_rgba(255,255,255,0.12)] transition-all duration-200 hover:bg-white/14 hover:border-white/50 focus:outline-none focus:ring-2 focus:ring-white/35 disabled:opacity-45 disabled:pointer-events-none"
-                  title="Nulstil til første step"
+                  className="min-h-11 shrink-0 px-4 py-2 rounded-lg text-white text-[13px] border border-white/15 transition-colors hover:bg-white/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white disabled:opacity-45 disabled:pointer-events-none"
+                  title="Gendan de oprindelige felter"
                 >
-                  X
+                  Nulstil
                 </button>
               </div>
             )}
-            {size === 'story' && (
-              <div className="w-full max-w-[480px] -mt-1 md:-mt-2 mb-1 md:mb-2 px-2 md:px-0">
-                <button
-                  type="button"
-                  onClick={requestPostToInstagram}
-                  disabled={postingToInstagram || instagramConfigured === false}
-                  className="w-full py-2.5 px-4 rounded-xl border border-white/12 bg-white/[0.04] hover:bg-white/[0.08] hover:border-white/20 disabled:opacity-50 disabled:pointer-events-none text-white font-medium text-sm transition-colors flex items-center justify-center gap-2"
-                  title="Post det viste story-design direkte til Instagram Story"
-                >
-                  {postingToInstagram ? <span className="animate-pulse">{publishStep || 'Publicerer Story…'}</span> : 'Post til Instagram Story'}
-                </button>
+            {size === 'story' && (postingToInstagram || instagramConfigured === false || publishSuccess || publishWarning || instagramError) && (
+              <div className="w-full max-w-[480px] px-2 md:px-0">
+                {postingToInstagram && <p role="status" className="text-sm text-white/70">{publishStep || 'Udgiver story…'}</p>}
                 {instagramConfigured === false && (
-                  <p className="text-amber-400/90 text-xs mt-2">Instagram-publish er ikke konfigureret. Sæt INSTAGRAM_ACCOUNT_ID og INSTAGRAM_ACCESS_TOKEN (se docs/INSTAGRAM_PUBLISH.md).</p>
+                  <p className="text-amber-400/90 text-[13px] leading-relaxed">Udgivelse til Instagram er ikke tilgængelig. Du kan stadig downloade billedet.</p>
                 )}
                 <div className="mt-2">
                   <PublishFeedback success={publishSuccess} warning={publishWarning} error={instagramError} />
@@ -874,7 +866,7 @@ export default function DesignEditorView({ onBack, embedMode }: DesignEditorView
     ? `flex flex-col h-full min-h-0 text-white bg-[#0a0a0a] lg:bg-transparent font-poppins overflow-hidden ${amiri.variable}`
     : `min-h-[100dvh] h-[100dvh] bg-[#0a0a0a] md:bg-[#0a0a0a] md:p-[1%] p-0 flex flex-col md:flex-row relative overflow-hidden ${amiri.variable}`;
 
-  /** Compact controls share the title/close row at every viewport size. */
+  /** Shared controls wrap onto a separate row on narrow screens. */
   const embedToolbarControlsInner = (
     <>
       <div

@@ -57,7 +57,9 @@ same renderer. No subtitle is added or shortened by this spacing change.
 
 Standalone and embedded SoMe now reuse the same responsive header. Narrow
 screens place format/theme/export actions on a second row, not squeezed beside
-the title. Posting, receipt classification and consent handlers are unchanged.
+the title. Live inspection caught a second story-posting button: retain one
+action in the header, keep progress/receipts visible, and label reset “Nulstil”
+instead of “X”. Posting, receipt classification and consent handlers are unchanged.
 
 ## Verification (local / isolated)
 

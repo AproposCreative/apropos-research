@@ -68,6 +68,7 @@ try {
    await page.goto(origin+'/?mode='+mode);
    await page.getByRole('button',{name:'Luk',exact:true}).click();
    if(size==='story')await page.getByRole('button',{name:'9:16',exact:true}).click();
+   assert.equal(await page.getByRole('button',{name:size==='story'?'Post til Instagram Story':'Post til Instagram',exact:true}).filter({visible:true}).count(),1);
    await page.waitForFunction(()=>!document.querySelector('summary')?.textContent.includes('Tilpasser automatisk'));
    await page.getByRole('button',{name:size==='story'?'Post til Instagram Story':'Post til Instagram',exact:true}).filter({visible:true}).first().click();
    await page.getByRole('button',{name:'Post nu',exact:true}).click();
