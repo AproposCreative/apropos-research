@@ -3,9 +3,22 @@ import { describeTools } from '@/lib/tool-availability';
 
 it('hides only explicitly paused/blocked tools and keeps their data routes', () => {
   const tools = describeTools({ paidAiBlocked: true, accreditationPaused: true, inboxAutoRespond: false }, { owner: true });
-  expect(tools.filter(x => x.hidden).map(x => x.id)).toEqual(['ai-writer', 'image-gen', 'akkreditering', 'liv-inbox']);
+  expect(tools.filter(x => x.hidden).map(x => x.id)).toEqual(['ai-writer', 'image-gen', 'akkreditering']);
   expect(tools.filter(x => !x.hidden).map(x => x.id)).toContain('push-desk');
   expect(tools.every(x => x.description && x.path)).toBe(true);
+});
+it.each([false, true, null])('keeps the manual inbox visible near the top when autosvar is %s', (inboxAutoRespond) => {
+  const signals = { paidAiBlocked: true, accreditationPaused: true, inboxAutoRespond };
+  const tools = describeTools(signals, { owner: true });
+  expect(tools.filter(x => !x.hidden).slice(0, 4).map(x => x.id)).toEqual([
+    'chatgpt-editorial', 'liv-desk', 'liv-inbox', 'design-editor',
+  ]);
+  expect(tools.find(x => x.id === 'liv-inbox')).toMatchObject({
+    name: 'Livs indbakke', hidden: false, path: '/ai?view=liv-inbox',
+    status: inboxAutoRespond === false ? 'Autosvar slået fra. Manuel gennemgang er tilgængelig.' :
+      inboxAutoRespond === null ? 'Autosvarstatus kunne ikke bekræftes.' : null,
+  });
+  expect(signals.inboxAutoRespond).toBe(inboxAutoRespond);
 });
 it('does not call unknown status paused, or hide based on inactivity', () => {
   const tools = describeTools({ paidAiBlocked: null, accreditationPaused: null, inboxAutoRespond: null }, { owner: true });

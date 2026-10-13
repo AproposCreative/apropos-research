@@ -17,7 +17,10 @@ it('returns private read-only owner catalogue with actual paused flags', async (
   const r = await route.GET(request('owner'));
   expect(r.headers.get('cache-control')).toBe('private, no-store');
   const data = await r.json();
-  expect(data.tools.filter((x: { hidden: boolean }) => x.hidden)).toHaveLength(4);
+  expect(data.tools.filter((x: { hidden: boolean }) => x.hidden)).toHaveLength(3);
+  expect(data.tools.find((x: { id: string }) => x.id === 'liv-inbox')).toMatchObject({
+    hidden: false, status: 'Autosvar slået fra. Manuel gennemgang er tilgængelig.',
+  });
   expect(Object.keys(route).sort()).toEqual(['GET', 'dynamic', 'runtime']);
 });
 it('does not read private inbox settings or expose private chat to colleagues', async () => {

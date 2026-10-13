@@ -18,8 +18,8 @@ export function describeTools(signals: ToolSignals, capabilities: EditorialCapab
       status = hidden ? 'Automatik pauset. Historik og kladder er bevaret.' :
         signals.accreditationPaused === null ? 'Automatikstatus kunne ikke bekræftes.' : null;
     } else if (app.id === 'liv-inbox') {
-      hidden = signals.inboxAutoRespond === false;
-      status = hidden ? 'Autosvar slået fra. Indbakken kan stadig åbnes manuelt.' :
+      // The manual review desk remains useful independently of automatic replies.
+      status = signals.inboxAutoRespond === false ? 'Autosvar slået fra. Manuel gennemgang er tilgængelig.' :
         signals.inboxAutoRespond === null ? 'Autosvarstatus kunne ikke bekræftes.' : null;
     }
     return { ...app, hidden, status };

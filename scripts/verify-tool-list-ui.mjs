@@ -46,6 +46,14 @@ try{
    await page.waitForFunction(()=>fixture.calls.length===1);
    if(mode!=='unavailable') await page.locator('summary').waitFor();
    assert.equal(await page.locator('nav img,nav svg').count(),0);
+   const inbox=page.getByRole('button',{name:/^Livs indbakke/});
+   if(mode==='staff')assert.equal(await inbox.count(),0);
+   else{
+    assert(await inbox.isVisible());
+    assert.equal(await page.locator('nav > ul > li').nth(2).innerText(),await inbox.innerText());
+    await inbox.click();
+    assert((await page.evaluate(()=>fixture.selected)).includes('liv-inbox'));
+   }
    if(mode==='unavailable')assert(await page.getByText('Aktuel status kunne ikke hentes.',{exact:false}).isVisible());
    else{
     assert.equal(await page.getByRole('button',{name:/^AI Writer/}).isVisible(),false);
