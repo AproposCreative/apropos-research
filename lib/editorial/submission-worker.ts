@@ -19,6 +19,7 @@ import { uploadImageGenCmsAsset } from '@/lib/image-gen/cms-asset';
 import { cmsFieldHash } from '@/lib/liv/cms-field-hash';
 import { runSafetyGates } from '@/lib/liv/run-safety-gates';
 import { saveWriterCmsDraft } from '@/lib/articles/writer-cms-save';
+import { inspectPreparedDraftBoundary, verifyPreservedDraftFields } from './submission-draft-guard';
 import { normalizeArticlePayload, type ArticlePayload } from '@/lib/articles/article-payload';
 import { inspectLivCmsDraft } from '@/lib/liv/cms-readback';
 import { articleImages } from '@/lib/mcp/markup';
@@ -28,6 +29,7 @@ import { MCP_ORIGIN } from '@/lib/mcp/config';
 import { activeMember } from '@/lib/mcp/oauth';
 import { approvedSubmissionPolicy, isChatSubmission } from './submission-policy';
 import { stageSubmissionMedia, assertSubmissionNotAlreadySaved } from './submission-published-target';
+import { acquireCmsWriteLease } from '@/lib/seo-engine/cms-write-lease';
 import { lockProvidedAsset } from './provided-assets';
 import { withoutPaidAi } from '@/lib/ai/no-paid-calls';
 import { assertImageSelection } from './submission-image-selection';
@@ -51,6 +53,7 @@ export async function runSubmissionStep(uid: string, id: string) {
   const finalOnly = isChatSubmission(row);
   const stages = ref.collection('stages');
   let activeStep = 'inputs';
+  let cmsLease: Awaited<ReturnType<typeof acquireCmsWriteLease>> | undefined;
   const current = async () => {
     const live = (await ref.get()).data();
     if (!live || live.workerToken !== token || live.workerUntil <= Date.now() || live.contentHash !== row.contentHash || live.status !== 'processing') throw Error('mcp_submission_revision_conflict');
@@ -61,9 +64,10 @@ export async function runSubmissionStep(uid: string, id: string) {
     const stage = stages.doc(`${row.contentHash}-${name}`);
     const old = (await stage.get()).data();
     if (old?.status === 'done') return old.result;
-    if (old) throw Error('mcp_submission_step_unconfirmed');
+    if (old && (name !== 'cms' || old.status !== 'retryable_before_write')) throw Error('mcp_submission_step_unconfirmed');
     await current();
-    await stage.create({ status: 'attempted', name, contentHash: row.contentHash, startedAt: new Date().toISOString() });
+    if (old) await stage.update({ status: 'attempted', resumedAt: new Date().toISOString() });
+    else await stage.create({ status: 'attempted', name, contentHash: row.contentHash, startedAt: new Date().toISOString() });
     const result = clean(await action());
     await stage.update({ status: 'done', result, completedAt: new Date().toISOString() });
     return result;
@@ -250,17 +254,21 @@ export async function runSubmissionStep(uid: string, id: string) {
         if (row.publishedTarget) return stageSubmissionMedia(row.publishedTarget, payload, inspectionPolicy,
           data => stages.doc(`${row.contentHash}-cms`).update({ mediaUpdate: clean(data), ...(data.proof ? { checks: clean(data.proof) } : {}) }).then(() => undefined), current);
         const savedIdentity = (await db.collection('writerWorkspaces').doc(uid).collection('cmsSaves').doc(`submission-${id}`).get()).data();
+        if (savedIdentity?.articleId) cmsLease = await acquireCmsWriteLease(savedIdentity.articleId, 'da');
         if (!savedIdentity) await assertSubmissionNotAlreadySaved(payload);
         const result = await saveWriterCmsDraft(db, uid, `submission-${id}`, payload as ArticlePayload, { preserveProvidedImages: finalOnly, beforeSave: async () => {
           const latest = await current();
+          await cmsLease?.assertOwned();
           if (latest.prepared) {
-            const prior = await inspectLivCmsDraft({ itemId: latest.prepared.itemId, expected: latest.prepared.expected, inspectionPolicy });
-            if (!prior.draftConfirmed || prior.fieldDataHash !== latest.prepared.proof.fieldDataHash) throw Error('mcp_submission_cms_conflict');
+            const boundary = await inspectPreparedDraftBoundary(latest.prepared);
+            await stages.doc(`${row.contentHash}-cms`).update({ beforeWrite: boundary });
           }
         } });
         const canonical = (await db.collection('writerWorkspaces').doc(uid).collection('cmsSaves').doc(`submission-${id}`).get()).data()?.expected as ArticlePayload | undefined;
         if (!canonical) throw Error('mcp_submission_cms_checks_failed');
         const proof = await inspectLivCmsDraft({ itemId: result.articleId, expected: canonical, inspectionPolicy });
+        const boundary = (await stages.doc(`${row.contentHash}-cms`).get()).data()?.beforeWrite;
+        await verifyPreservedDraftFields(result.articleId, boundary);
         await stages.doc(`${row.contentHash}-cms`).update({ checks: clean(proof) });
         if (!proof.publicationReady || !proof.draftConfirmed || !proof.checks.length || proof.checks.some(c => !c.ok)) throw Error('mcp_submission_cms_checks_failed');
         return { itemId: result.articleId, expected: canonical, proof };
@@ -271,7 +279,10 @@ export async function runSubmissionStep(uid: string, id: string) {
     await (humanReview ? withoutPaidAi(execute) : execute());
     return { status: (await ref.get()).data()?.status };
   } catch (error) {
-    const code = error instanceof Error && /^mcp_submission_[a-z_]+$/.test(error.message) ? error.message : 'mcp_submission_step_unconfirmed';
+    let reason = error, code = 'mcp_submission_step_unconfirmed';
+    for (let depth = 0; depth < 4 && reason instanceof Error; depth++, reason = reason.cause) {
+      if (/^mcp_submission_[a-z_]+$/.test(reason.message)) { code = reason.message; break; }
+    }
     await db.runTransaction(async tx => {
       const latest = (await tx.get(ref)).data();
       if (latest?.workerToken === token && latest.contentHash === row.contentHash) tx.update(ref,
@@ -279,6 +290,7 @@ export async function runSubmissionStep(uid: string, id: string) {
     });
     return { status: 'blocked', blocker: code };
   } finally {
+    await cmsLease?.release().catch(() => undefined);
     await db.runTransaction(async tx => {
       const row = (await tx.get(ref)).data();
       if (row?.workerToken === token) tx.update(ref, { workerUntil: 0 });

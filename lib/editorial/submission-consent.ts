@@ -11,6 +11,7 @@ import { requestedEditorialDecision } from './submission-policy';
 import { copenhagenPublicationInstant } from './submission-publication';
 import { articleImages } from '@/lib/mcp/markup';
 import type { Transaction } from 'firebase-admin/firestore';
+import { hasCurrentPublicationConsent } from './submission-consent-state';
 
 export type PublicationConsent = {
   id: string; uid: string; revision: number; contentHash: string; articleHash: string;
@@ -44,7 +45,7 @@ export function consentArticleHash(article: Record<string, unknown>, kind?: stri
 
 export async function submissionConsentOffer(uid: string, id: string) {
   const row = await readSubmission(uid, id);
-  if ((row as SubmissionRecord & { publicationConsentPending?: boolean }).publicationConsentPending) return null;
+  if (hasCurrentPublicationConsent(row) && (row as SubmissionRecord & { publicationConsentPending?: boolean }).publicationConsentPending) return null;
   if (row.executionPolicy !== 'chatgpt-first-v1' || row.choices.aiFinalChecks !== 'human' ||
     !['draft', 'prepared'].includes(row.status)) return null;
   const inspection = inspectSubmission(row, await getSubmissionOptions());

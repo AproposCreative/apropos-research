@@ -74,6 +74,12 @@ it('does not inherit a previous revision’s consent or a revoked member’s cli
   state.member = true; await acceptSubmissionConsent('owner', id, 3, offer.id, 'external-preview');
   Object.assign(memory.rows.get(path), { revision: 4, contentHash: cmsFieldHash({ new: 'version' }), status: 'draft' });
   await expect(acceptSubmissionConsent('owner', id, 3, offer.id, 'external-preview')).rejects.toThrow('preview_changed');
+  const next = (await submissionConsentOffer('owner', id))!;
+  expect(next).toMatchObject({ revision: 4, label: 'Godkend og udgiv' });
+  expect(next.id).not.toBe(offer.id);
+  await acceptSubmissionConsent('owner', id, 4, next.id, 'chat-preview');
+  expect([...memory.rows.keys()].filter(p => p.includes('/publicationConsents/'))).toHaveLength(2);
+  expect(memory.rows.get(path).publicationConsent.revision).toBe(4);
 });
 it('stores the chosen Copenhagen schedule and never repurposes a replay as publish-now', async () => {
   const date = new Date(Date.now() + 86_400_000).toISOString().slice(0, 10) + 'T10:00';

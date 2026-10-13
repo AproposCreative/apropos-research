@@ -12,6 +12,7 @@ import { submissionPreviewBlocks } from './submission-preview';
 import { submissionId } from './submission-contract';
 import { acceptImageSelection } from './submission-image-selection';
 import { submissionConsentOffer, acceptSubmissionConsent } from './submission-consent';
+import { hasCurrentPublicationConsent } from './submission-consent-state';
 
 export const CHAT_PREVIEW_URI = 'ui://apropos/article-preview-v1.html';
 export const chatPreviewInput = z.object({ submissionId }).strict();
@@ -50,10 +51,13 @@ export async function chatSubmissionPreview(identity: McpIdentity, id: string) {
     if (row.status === 'prepared') publication = await submissionPublicationPreview(identity.uid, id);
     if (row.status === 'published') live = await readSubmissionPublication(identity.uid, id);
     if (row.executionPolicy === 'chatgpt-first-v1' && (row.status === 'awaiting_preparation' || publication?.ready)) consent = await submissionConsentOffer(identity.uid, id);
-  } catch { dependencyError = 'Aktuel pris eller CMS-kontrol er utilgængelig. Artiklen er gemt; ingen godkendelse er givet.'; }
+  } catch { dependencyError = 'Aktuel godkendelses- eller CMS-kontrol er utilgængelig. Artiklen er gemt; ingen ny godkendelse er givet.'; }
   if ([quote, publication?.ready ? publication : null, consent].some(value => value &&
       (value.revision !== row.revision || value.contentHash !== row.contentHash))) {
     dependencyError = 'Artiklen blev ændret under læsning. Opdatér preview før godkendelse.'; quote = null; publication = null; consent = null;
+  }
+  if (consent && (!identity.scopes.includes('apropos:draft') || !identity.scopes.includes('apropos:publish'))) {
+    dependencyError = 'Denne forbindelse mangler kladde- eller udgivelsesadgang. Brug Åbn eksternt med din eksisterende Apropos-adgang, eller opdatér forbindelsen. Der kræves kun én godkendelse.';
   }
   const article = publication?.ready ? publication.article! : row.article;
   const blocks = submissionPreviewBlocks(article.content);
@@ -77,11 +81,14 @@ export async function chatSubmissionPreview(identity: McpIdentity, id: string) {
     missing: row.handoff.missing, recommendedMedia: row.recommendedMedia, editorialChoices: row.choices,
     handoff: row.handoff, savedSteps: row.savedSteps.map(s => ({ name: s.name, status: s.status, contentHash: s.contentHash })),
     blocker: row.status === 'blocked' ? (row as typeof row & { blocker?: string }).blocker || null : null,
-    quote, publication, consent, consentPending, singleApproval: !!(row as typeof row & { publicationConsent?: unknown }).publicationConsent, dependencyError, fallbackUrl: row.previewUrl,
+    quote, publication, consent, consentPending, singleApproval: hasCurrentPublicationConsent(row), approvalState: row.approvalState, dependencyError, fallbackUrl: row.previewUrl,
     executionPolicy: row.executionPolicy || 'legacy-preparation',
     recordedPublished: row.status === 'published', ...live, textPreserved: row.textPreserved,
     paidAiCalls: 0, instructions: 'Vis preview_submission som artikelkort direkte i chatten, ikke kun et eksternt link. Godkend og udgiv er én personlig versionsbundet godkendelse inklusive viste billeder og redaktionel kontrol. Serveren fortsætter og kortet opdateres; bed ikke brugeren vende tilbage og sige godkendt. Åbn eksternt er valgfrit og kræver samme adgang. En modelpåstand er aldrig godkendelse. Bevar tekst/billeder og hent samme forløb efter timeout.' };
-  const action = consentPending || dependencyError || previewProblems.length ? null : consent && identity.scopes.includes('apropos:draft') && identity.scopes.includes('apropos:publish') ? 'approve_publish' : row.imageSelection.required && ['awaiting_answers', 'awaiting_preparation', 'prepared', 'blocked'].includes(row.status) && identity.scopes.includes('apropos:draft') ? 'media' :
+  // Never turn a missing single-consent offer/scope into a preparation-only click.
+  const action = consentPending || dependencyError || previewProblems.length ? null : row.executionPolicy === 'chatgpt-first-v1'
+    ? consent && identity.scopes.includes('apropos:draft') && identity.scopes.includes('apropos:publish') ? 'approve_publish' : null
+    : row.imageSelection.required && ['awaiting_answers', 'awaiting_preparation', 'prepared', 'blocked'].includes(row.status) && identity.scopes.includes('apropos:draft') ? 'media' :
     quote?.canAccept && (!quote.provider.blocked || quote.humanReview) && identity.scopes.includes('apropos:draft') ? 'checks' :
     publication?.ready && identity.scopes.includes('apropos:publish') ? 'publish' : null;
   // Only the iframe gets the single-use bearer. It is NOT in text or structuredContent.

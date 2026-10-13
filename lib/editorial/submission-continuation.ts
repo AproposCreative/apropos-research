@@ -4,6 +4,7 @@ import { withoutPaidAi } from '@/lib/ai/no-paid-calls';
 import { submissionStore } from './submissions';
 import { approveSubmissionPublication, publishSubmission } from './submission-publication';
 import { assertPublicationConsent, type PublicationConsent } from './submission-consent';
+import { hasCurrentPublicationConsent } from './submission-consent-state';
 
 /** Drain only new zero-AI work. Each step retains its existing lease, receipt and checks.
  * A timeout never buys/replays a stage: the next cron reads the same durable state. */
@@ -31,7 +32,7 @@ export async function continueSubmissionWorkflow(uid: string, id: string) {
       await continueSubmissionPreparation(uid, id);
       row = await readSubmission(uid, id) as typeof row;
     }
-    if (row.status === 'prepared' && row.publicationConsent?.status === 'pending') {
+    if (row.status === 'prepared' && hasCurrentPublicationConsent(row) && row.publicationConsent?.status === 'pending') {
       try {
         const consent = assertPublicationConsent(row, row.publicationConsent.id);
         await approveSubmissionPublication(uid, id, row.preparedHash!, 'now', consent.id);

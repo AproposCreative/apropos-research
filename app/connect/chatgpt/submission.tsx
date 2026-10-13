@@ -12,7 +12,7 @@ type State = {
   consent?: { id: string; includesPersonalImageSelection: boolean } | null;
   reading: ArticleReadingPreview;
   dependencyError?: string | null;
-  row: { revision: number; status: string; publicationConsent?: { id: string }; publicationConsentPending?: boolean; article: Article; questions: Array<{ field: string; question: string }>;
+  row: { revision: number; status: string; executionPolicy?: string; approvalState?: string; publicationConsent?: { id: string }; publicationConsentPending?: boolean; article: Article; questions: Array<{ field: string; question: string }>;
     imageSelection?: { required: boolean; accepted: boolean; selectionHash: string;
       items: Array<{ assetId: string; url: string; role: string }>; warnings: Array<{ assetId: string; message: string }> };
     displayNames?: { author?: string; category?: string };
@@ -82,7 +82,7 @@ export default function SubmissionConfirmation({ id }: { id: string }) {
       <label className="flex gap-3"><input type="checkbox" checked={schedule} onChange={e => setSchedule(e.target.checked)} />Planlæg udgivelse</label>
       {schedule && <label className="block">Tidspunkt i København<input className="mt-2 block min-h-12 w-full rounded-xl border border-white/25 bg-transparent p-3" type="datetime-local" value={when} onChange={e => setWhen(e.target.value)} /></label>}
       <button className={`${button} w-full bg-white text-black hover:bg-white/90`} disabled={busy || imageFailed || (schedule && !when)} onClick={() => void act()}>{schedule ? 'Godkend og planlæg' : 'Godkend og udgiv'}</button>
-    </> : consentPending ? <p role="status">Din udgivelsesgodkendelse er gemt. Serveren færdiggør de tekniske kontroller og udgivelsen. Du skal ikke godkende igen eller sende en besked; status opdateres automatisk.</p> : row.imageSelection?.required ? <>
+    </> : consentPending ? <p role="status">Din udgivelsesgodkendelse er gemt. Serveren færdiggør de tekniske kontroller og udgivelsen. Du skal ikke godkende igen eller sende en besked; status opdateres automatisk.</p> : row.imageSelection?.required && row.executionPolicy !== 'chatgpt-first-v1' ? <>
       {row.imageSelection.items.map(asset => <figure key={asset.assetId}>
         <Image unoptimized src={asset.url} alt={asset.role === 'cover' ? 'Valgt cover til gennemgang' : 'Valgt illustration til gennemgang'} width={960} height={540} onError={() => setImageFailed(true)} className="h-auto w-full rounded-xl" />
       </figure>)}
@@ -92,9 +92,10 @@ export default function SubmissionConfirmation({ id }: { id: string }) {
       <button className={button} disabled={busy || !checked || imageFailed || !!state.dependencyError} onClick={() => void act()}>Jeg vælger disse billeder</button>
     </> : row.status === 'published' ? <p role="status">Artiklen har en verificeret udgivelseskvittering. <a className="underline" href={row.publication?.receipt?.publicUrl} target="_blank" rel="noreferrer">Åbn artiklen</a></p>
       : row.status === 'scheduled' ? <p role="status">Godkendt til udgivelse {row.publication?.publishAt ? new Date(row.publication.publishAt).toLocaleString('da-DK', { timeZone: 'Europe/Copenhagen' }) : ''}. Serveren fortsætter, selv om du lukker chatten.</p>
-      : row.status === 'processing' ? <p role="status">Godkendelsen er gemt. Serveren kontrollerer og klargør artiklen; status opdateres automatisk. {row.publicationConsent ? 'Du skal ikke vende tilbage til chatten og godkende igen.' : 'Dit tidligere valg omfattede kun klargøring, ikke udgivelse.'} Artiklen er ikke publiceret endnu.</p>
+      : row.status === 'processing' ? <p role="status">Godkendelsen er gemt. Serveren kontrollerer og klargør artiklen; status opdateres automatisk. {row.approvalState === 'publication_approved' ? 'Du skal ikke vende tilbage til chatten og godkende igen.' : 'Dit tidligere valg omfattede kun klargøring, ikke udgivelse.'} Artiklen er ikke publiceret endnu.</p>
       : row.status === 'blocked' ? <p role="alert">Arbejdet er gemt, men kræver opfølgning: {row.blocker}. Bed ChatGPT hente status for dette forløb.</p>
       : row.status === 'prepared' && !preview?.ready ? <p role="alert">Den gemte artikel vises ovenfor, men de aktuelle CMS-kontroller tillader endnu ikke udgivelse. Bed ChatGPT kontrollere denne version; der oprettes ikke en ny artikel.</p>
+      : row.executionPolicy === 'chatgpt-first-v1' && ['awaiting_preparation', 'prepared'].includes(row.status) ? <p role="status">Læs artiklen ovenfor. Den fælles knap “Godkend og udgiv” vises, når billeder, adgang og den aktuelle version er kontrolleret. Du skal ikke godkende klargøring separat eller skrive en bekræftelse i chatten.</p>
       : preview?.ready ? <>
         <label className="flex gap-3"><input type="checkbox" checked={schedule} onChange={e => setSchedule(e.target.checked)} />Planlæg udgivelse</label>
         {schedule && <label className="block">Dato og klokkeslæt i København<input className="mt-2 block min-h-12 w-full rounded-xl border border-white/25 bg-transparent p-3" type="datetime-local" value={when} onChange={e => setWhen(e.target.value)} /></label>}

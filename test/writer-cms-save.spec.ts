@@ -123,3 +123,10 @@ it('retains previous operation history when a newer revision is saved', async ()
   expect(history).toHaveLength(1);
   expect(history[0][1]).toMatchObject({ articleId: id, phase: 'saved', expected: { content: article.content } });
 });
+it('retains sanitized pre-write cause without inventing a sent-write checkpoint', async () => {
+  const { db, rows } = database();
+  const cause = Error('mcp_submission_cms_conflict');
+  await expect(saveWriterCmsDraft(db, 'alice', 'draft', article, { beforeSave: async () => { throw cause; } })).rejects.toMatchObject({ cause });
+  expect(rows.get('writerWorkspaces/alice/cmsSaves/draft')).toMatchObject({ phase: 'preparing', leaseUntil: 0, failure: { phase: 'preparing', code: 'mcp_submission_cms_conflict' } });
+  expect(rows.get('writerWorkspaces/alice/cmsSaves/draft').expected).toBeUndefined();
+});

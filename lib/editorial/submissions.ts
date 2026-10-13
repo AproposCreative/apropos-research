@@ -10,6 +10,7 @@ import { livProductionSubmissionId } from './liv-production-identity';
 import { assertChatGptFirstPolicy } from './submission-policy';
 import { ideaRef, ideaSubmissionRequest, ideaSubmissionId } from './ideas';
 import { mergeSocialSubtitles } from './social-subtitles';
+import { hasCurrentPublicationConsent } from './submission-consent-state';
 import { inspectSubmission, submissionId, submissionInput, submissionUpdate, submissionVersion,
   validateSubmissionArticle, type SubmissionRecord } from './submission-contract';
 
@@ -51,7 +52,11 @@ export async function getSubmissionStatus(uid: string, id: string) {
       actualPublishedAsset: published?.published[0] ?? null,
       publicationVerified: !!published, verifiedAt: published ? verified!.checkedAt : null,
       verification: published ? 'saved_publication_readback' : 'not_verified', fallbackUsed: asset.fallbackUsed === true }; });
-  return { ...row, ...inspection, status: row.status === 'draft' ?
+  const currentConsent = hasCurrentPublicationConsent(row);
+  return { ...row, ...inspection,
+    publicationConsentPending: currentConsent && !!(row as typeof row & { publicationConsentPending?: boolean }).publicationConsentPending,
+    approvalState: currentConsent ? 'publication_approved' : row.approval?.contentHash === row.contentHash ? 'preparation_only' : 'approval_required',
+    status: row.status === 'draft' ?
     (inspection.questions.length ? 'awaiting_answers' : 'awaiting_preparation') : row.status,
     previewUrl: `${MCP_ORIGIN}/connect/chatgpt?submission=${id}`,
     preparationStarted: row.status === 'processing',
@@ -69,7 +74,7 @@ export async function getSubmissionStatus(uid: string, id: string) {
       missing: [...inspection.questions.map(q => q.field), ...inspection.missingMetadata, ...inspection.missingMedia, ...inspection.blockers],
       recommendedMedia: inspection.recommendedMedia,
       publicationReady: false,
-      nextAction: row.status === 'prepared' ? 'open_personal_preview_for_fresh_checks_and_approval' :
+      nextAction: row.status === 'prepared' ? (currentConsent ? 'read_saved_status_do_not_resubmit' : 'show_inline_preview_for_single_approval') :
         row.status === 'blocked' ? 'inspect_saved_step_before_any_retry' :
         ['processing', 'scheduled'].includes(row.status) ? 'read_saved_status_do_not_resubmit' :
         row.status === 'published' ? 'inspect_publication_receipt' :
@@ -169,7 +174,8 @@ export async function updateSubmission(uid: string, raw: unknown, internal?: { r
     if (row.publishedTarget) assertMediaOnlyUpdate(row.article, next.article);
     const revision = row.revision + 1, now = new Date().toISOString();
     tx.create(ref.collection('versions').doc(String(row.revision)), row);
-    tx.update(ref, { ...next, revision, contentHash: submissionVersion(next, row.publishedTarget), status: 'draft', updatedAt: now });
+    tx.update(ref, { ...next, revision, contentHash: submissionVersion(next, row.publishedTarget), status: 'draft',
+      publicationConsentPending: false, updatedAt: now });
     tx.create(receipt, { requestHash, revision, createdAt: now });
   });
   return getSubmissionStatus(uid, input.submissionId);

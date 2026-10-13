@@ -51,11 +51,11 @@ export async function publishCanonicalArticleToWebflow(
     articleId = savedId;
     await options.onSaved?.(articleId);
     receipt = await inspectArticleSave({ articleId, expected: payload });
-  } catch {
+  } catch (cause) {
     // No automatic retries: a failed response may still have created an item.
     const existingId = typeof input.webflowId === 'string' && /^[a-f0-9]{24}$/i.test(input.webflowId)
       ? input.webflowId : undefined;
-    throw new ArticleSaveError(articleId || existingId);
+    throw new ArticleSaveError(articleId || existingId, cause);
   }
   // Staging is not a publication event. Leave post-publication SEO to the
   // authenticated Webflow publication webhook: saving (or updating) a draft

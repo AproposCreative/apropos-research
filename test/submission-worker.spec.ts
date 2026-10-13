@@ -99,6 +99,16 @@ it('retains the prepared CMS item but blocks silent preparation changes instead 
   expect(await continueSubmissionWorkflow('owner', id)).toMatchObject({ status: 'blocked', blocker: 'mcp_submission_preview_changed' });
   expect(memory.rows.get(path).prepared.itemId).toBe('c'.repeat(24)); expect(state.publish).not.toHaveBeenCalled();
 });
+it('ignores stale pending publication consent when completing a newer preparation-only approval', async () => {
+  const row = memory.rows.get(path); row.executionPolicy = 'chatgpt-first-v1'; row.choices.aiFinalChecks = 'human';
+  row.approval.editorialDecision = { bodyImages: 'required', aiFinalChecks: 'human' };
+  row.publicationConsentPending = true;
+  row.publicationConsent = { uid: 'owner', revision: 0, contentHash: 'old', id: 'old-consent', status: 'pending' };
+  expect(await continueSubmissionWorkflow('owner', id)).toMatchObject({ status: 'prepared' });
+  expect(state.publish).not.toHaveBeenCalled();
+  expect(memory.rows.get(path).publicationConsent.id).toBe('old-consent');
+  expect(await submissionConsentOffer('owner', id)).toMatchObject({ revision: 1, label: 'Godkend og udgiv' });
+});
 it('resumes one durable step at a time and preserves supplied prose/assets without regeneration', async () => {
   const original = memory.rows.get(path).article.content;
   for (let index = 0; index < 6; index++) await runSubmissionStep('owner', id);

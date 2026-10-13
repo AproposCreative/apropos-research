@@ -6,8 +6,8 @@ import { sameCmsBody } from './cms-body-equivalence';
 
 /** Safe shared error; do not expose upstream response bodies or credentials. */
 export class ArticleSaveError extends Error {
-  constructor(readonly articleId?: string) {
-    super('webflow_save_unverified');
+  constructor(readonly articleId?: string, cause?: unknown) {
+    super('webflow_save_unverified', { cause });
     this.name = 'ArticleSaveError';
   }
 }

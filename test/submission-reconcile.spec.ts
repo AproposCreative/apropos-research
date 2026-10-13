@@ -38,6 +38,12 @@ it('rejects ambiguous candidates, changed save inputs and another user', async (
   await expect(reconcileSubmission('other', id)).rejects.toThrow('not_found');
   expect(memory.rows.get(path).status).toBe('blocked');
 });
+it('identifies a confirmed pre-write stop rather than claiming a lost completed write', async () => {
+  const old = memory.rows.get(save); old.phase = 'preparing'; old.articleId = 'c'.repeat(24); delete old.expected;
+  await expect(reconcileSubmission('owner', id)).rejects.toThrow('mcp_submission_cms_not_written_use_resume');
+  expect(state.inspect).not.toHaveBeenCalled(); expect(state.find).not.toHaveBeenCalled();
+  expect(memory.rows.get(path).status).toBe('blocked');
+});
 it('reconciles the already-approved cover-only update without creating, patching or reapproving it', async () => {
   const row = memory.rows.get(path);
   row.executionPolicy = 'chat-final-checks-v1'; row.choices = { bodyImages: 'deferred', aiFinalChecks: 'human' };

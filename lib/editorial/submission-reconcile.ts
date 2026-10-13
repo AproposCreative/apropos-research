@@ -7,6 +7,7 @@ import { readSubmission, submissionStore, getSubmissionStatus } from './submissi
 import { approvedSubmissionPolicy } from './submission-policy';
 import { verifyStagedMedia } from './submission-published-target';
 import { articleImages } from '@/lib/mcp/markup';
+import { verifyPreservedDraftFields } from './submission-draft-guard';
 
 /** Reconcile saved CMS intent only. No new CMS create, no AI, no publication. */
 export async function reconcileSubmission(uid: string, id: string) {
@@ -35,6 +36,7 @@ export async function reconcileSubmission(uid: string, id: string) {
     }
     const saveRef = db.collection('writerWorkspaces').doc(uid).collection('cmsSaves').doc(`submission-${id}`);
     const old = (await saveRef.get()).data();
+    if (old?.phase === 'preparing' && !old.expected && old.articleId && old.leaseUntil <= Date.now()) throw Error('mcp_submission_cms_not_written_use_resume');
     if (!old || !['attempted', 'saved'].includes(old.phase) || !old.expected || old.leaseUntil > Date.now()) throw Error('mcp_submission_reconciliation_evidence_missing');
     const normalized = normalizeArticlePayload({ ...cms.inputPayload, status: 'draft', workflowState: 'webflow_draft' });
     const { publishDate: _date, webflowId: _webflowId, id: _localId, ...stable } = normalized;
@@ -48,6 +50,7 @@ export async function reconcileSubmission(uid: string, id: string) {
       itemId = candidates[0];
     }
     const proof = await inspectLivCmsDraft({ itemId, expected, inspectionPolicy });
+    await verifyPreservedDraftFields(itemId, cms.beforeWrite);
     await stages.doc(`${row.contentHash}-cms`).update({ checks: proof });
     if (!proof.draftConfirmed || !proof.publicationReady || !proof.checks.length || proof.checks.some(c => !c.ok)) throw Error('mcp_submission_cms_checks_failed');
     const prepared = { itemId, expected, proof }, savedAssets = assets.map(a => a!.result);

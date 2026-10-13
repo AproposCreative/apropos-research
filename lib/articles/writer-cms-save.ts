@@ -7,10 +7,11 @@ import { inspectArticleSave } from './save-receipt';
 import { stagedSaveCandidates } from './find-staged-save';
 
 export class WriterCmsPending extends Error {
-  constructor(readonly articleId?: string) { super('CMS-gemningen afventer kontrol. Genprøv samme kladde; der oprettes ikke en ny kopi.'); }
+  constructor(readonly articleId?: string, cause?: unknown) { super('CMS-gemningen afventer kontrol. Genprøv samme kladde; der oprettes ikke en ny kopi.', { cause }); }
 }
 type Attempt = { hash: string; token: string; leaseUntil: number; phase: 'preparing' | 'attempted' | 'saved';
-  input: ArticlePayload; expected?: ArticlePayload; beforeIds?: string[]; articleId?: string };
+  input: ArticlePayload; expected?: ArticlePayload; beforeIds?: string[]; articleId?: string;
+  failure?: { phase: string; code: string; at: string } };
 
 /** One durable operation per private draft. No repeated create after uncertainty. */
 export async function saveWriterCmsDraft(db: Firestore, uid: string, draftId: string, raw: ArticlePayload,
@@ -68,11 +69,16 @@ export async function saveWriterCmsDraft(db: Firestore, uid: string, draftId: st
     });
     await checkpoint({ phase: 'saved', articleId: result.articleId, leaseUntil: 0 });
     return { articleId: result.articleId, ...result.receipt, publicationVerified: false };
-  } catch {
+  } catch (cause) {
     // Keep the attempted marker even when fetch never returned. A later request
     // may only read/reconcile it. No TTL or retry counter makes create safe again.
     await checkpoint({ leaseUntil: 0 }).catch(() => {});
     const current = (await ref.get()).data() as Attempt | undefined;
-    throw new WriterCmsPending(current?.articleId);
+    let error = cause, code = 'webflow_save_unconfirmed';
+    for (let depth = 0; depth < 4 && error instanceof Error; depth++, error = error.cause) {
+      if (/^mcp_submission_[a-z_]+$/.test(error.message)) { code = error.message; break; }
+    }
+    await checkpoint({ failure: { phase: current?.phase || 'unknown', code, at: new Date().toISOString() } }).catch(() => {});
+    throw new WriterCmsPending(current?.articleId, cause);
   }
 }

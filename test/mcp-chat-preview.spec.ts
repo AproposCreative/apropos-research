@@ -122,6 +122,8 @@ it('issues a hidden single-approval bearer for a complete ChatGPT-first version,
   row.article.content += '<figure><img src="https://cdn.prod.website-files.com/test/one.jpg" alt="Et"><figcaption>Foto</figcaption></figure><figure><img src="https://cdn.prod.website-files.com/test/two.jpg" alt="To"><figcaption>Foto</figcaption></figure>';
   const { confirmation, data } = await chatSubmissionPreview(identity, id);
   expect(confirmation?.action).toBe('approve_publish'); expect(JSON.stringify(data)).not.toContain(confirmation!.token);
+  const withoutPublish = await chatSubmissionPreview({ ...identity, scopes: ['apropos:read', 'apropos:draft'] }, id);
+  expect(withoutPublish.confirmation).toBeNull(); // no preparation-only fallback
   await expect(confirmChatSubmission({ ...identity, scopes: ['apropos:read', 'apropos:draft'] }, { token: confirmation!.token })).rejects.toThrow('confirmation_required');
   const first = await confirmChatSubmission(identity, { token: confirmation!.token });
   expect(first).toMatchObject({ accepted: true, queuedOnServer: true, paidAiCalls: 0 });
@@ -138,4 +140,15 @@ it('issues a hidden single-approval bearer for a complete ChatGPT-first version,
   expect(continuing.data).toMatchObject({ consentPending: true, singleApproval: true, consent: null });
   expect(continuing.confirmation).toBeNull();
   expect(state.accept).not.toHaveBeenCalled(); expect(state.approve).not.toHaveBeenCalled();
+});
+it('offers the current version after stale consent instead of a duplicate preparation-only approval', async () => {
+  const row = memory.rows.get(path); row.executionPolicy = 'chatgpt-first-v1'; row.choices.aiFinalChecks = 'human';
+  row.article.featuredImage = 'https://cdn.prod.website-files.com/test/cover.jpg';
+  row.article.content += '<figure><img src="https://cdn.prod.website-files.com/test/one.jpg" alt="Et"><figcaption>Foto</figcaption></figure><figure><img src="https://cdn.prod.website-files.com/test/two.jpg" alt="To"><figcaption>Foto</figcaption></figure>';
+  row.publicationConsentPending = true; row.publicationConsent = { uid: 'milo', revision: 0, contentHash: 'old' };
+  row.approval = { contentHash: row.contentHash };
+  const preview = await chatSubmissionPreview(identity, id);
+  expect(preview.data).toMatchObject({ consentPending: false, singleApproval: false, approvalState: 'preparation_only' });
+  expect(preview.confirmation?.action).toBe('approve_publish');
+  expect(state.accept).not.toHaveBeenCalled();
 });

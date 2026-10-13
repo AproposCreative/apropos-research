@@ -1,5 +1,6 @@
 import { beforeEach, expect, it, vi } from 'vitest';
-const state = vi.hoisted(() => ({ access: null as any, accept: vi.fn(), approve: vi.fn(), after: vi.fn(), worker: vi.fn(), consent: vi.fn(), workflow: vi.fn() }));
+const state = vi.hoisted(() => ({ access: null as any, accept: vi.fn(), approve: vi.fn(), after: vi.fn(), worker: vi.fn(), consent: vi.fn(), workflow: vi.fn(), resume: vi.fn() }));
+vi.mock('@/lib/editorial/submission-cms-resume', () => ({ resumeSubmissionCms: (...args: unknown[]) => state.resume(...args) }));
 vi.mock('@/lib/editorial/submission-consent', () => ({ submissionConsentOffer: vi.fn(), acceptSubmissionConsent: (...args: unknown[]) => state.consent(...args) }));
 vi.mock('next/server', () => ({ after: (fn: unknown) => state.after(fn) }));
 vi.mock('@/lib/mcp/oauth', () => ({ mcpRequestAccess: async () => state.access }));
@@ -44,6 +45,17 @@ it('uses the same single consent externally and continues on the server without 
   expect(state.consent).toHaveBeenCalledWith('owner', body.id, 3, body.quoteId, 'external-preview', 'now');
   await state.after.mock.calls[0][0](); expect(state.workflow).toHaveBeenCalledWith('owner', body.id);
   expect(state.accept).not.toHaveBeenCalled(); expect(state.approve).not.toHaveBeenCalled();
+});
+it('resumes a guarded pre-write failure without creating an approval and rejects forged inputs', async () => {
+  const input = { action: 'resume_cms', id: body.id, expectedRevision: 10, expectedCmsHash: body.quoteId } as any;
+  state.resume.mockResolvedValue({ status: 'processing' }); state.workflow.mockResolvedValue({ status: 'prepared' });
+  expect((await POST(request(input, 'https://other.test'))).status).toBe(403);
+  expect((await POST(request({ ...input, approved: true }))).status).toBe(409);
+  state.access = null; expect((await POST(request(input))).status).toBe(401);
+  state.access = { uid: 'owner' }; expect((await POST(request(input))).status).toBe(202);
+  expect(state.resume).toHaveBeenCalledWith('owner', { submissionId: body.id, expectedRevision: 10, expectedCmsHash: body.quoteId });
+  await state.after.mock.calls[0][0](); expect(state.workflow).toHaveBeenCalledWith('owner', body.id);
+  expect(state.accept).not.toHaveBeenCalled(); expect(state.consent).not.toHaveBeenCalled(); expect(state.approve).not.toHaveBeenCalled();
 });
 it('lets the owner read the full saved article and anchored images before any approval', async () => {
   vi.mocked(getSubmissionStatus).mockResolvedValue({ status: 'awaiting_preparation', revision: 8, contentHash: 'hash',

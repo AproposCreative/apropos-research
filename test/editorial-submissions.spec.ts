@@ -107,6 +107,15 @@ it('rejects executable markup and caller-supplied approval/status', async () => 
   await expect(prepareSubmission('owner', { ...input(), article: { ...input().article, content: '<script>alert(1)</script>' } })).rejects.toThrow('unsafe_article_markup');
   expect(memory.rows.size).toBe(0);
 });
+it('new edits preserve historical consent but clear its pending marker for the new version', async () => {
+  const first = await prepareSubmission('owner', input()), path = `editorialSubmissions/${first.id}`;
+  const consent = { uid: 'owner', revision: 1, contentHash: first.contentHash, id: 'old' };
+  Object.assign(memory.rows.get(path), { publicationConsent: consent, publicationConsentPending: true });
+  const next = await updateSubmission('owner', { submissionId: first.id, expectedRevision: 1, requestId: 'edit-consented-title', article: { title: 'Ny titel' } });
+  expect(next).toMatchObject({ revision: 2, publicationConsentPending: false, approvalState: 'approval_required' });
+  expect(memory.rows.get(path).publicationConsent).toEqual(consent);
+  expect(memory.rows.get(`${path}/versions/1`)).toMatchObject({ publicationConsent: consent, publicationConsentPending: true });
+});
 
 it('saves ChatGPT SoMe variants in the existing submission with replay, revision and immutable history', async () => {
   const copy = { square: 'En kort vurdering.', story: 'En lidt længere vurdering.' };
