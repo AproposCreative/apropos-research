@@ -157,7 +157,7 @@ export default function PushDeskClient({ embedded = false, onClose }: PushDeskCl
           : 'min-h-[100dvh] flex flex-col font-poppins bg-[#0a0a0a] text-white'
       }
     >
-      <EmbeddedAppHeader embedded={embedded} title="Push" onClose={onClose} showBackLink={!embedded} />
+      <EmbeddedAppHeader embedded={embedded} title="Pushbeskeder" onClose={onClose} showBackLink={!embedded} />
 
       <main className="flex-1 min-h-0 overflow-y-auto nice-scrollbar p-4 lg:p-5 space-y-4">
         <section className="space-y-3">

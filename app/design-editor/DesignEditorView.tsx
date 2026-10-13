@@ -40,7 +40,7 @@ function describePublishError(error: unknown, stage: 'export' | 'upload'): strin
 
   if (stage === 'upload') {
     if (code === 'storage/unauthorized' || /unauthorized|permission/i.test(message)) {
-      return 'Du har ikke adgang til at uploade billedet (Firebase Storage afviste det). Log ud og ind igen — eller bed en admin om at deploye storage-reglerne (npm run deploy:storage).';
+      return 'Din konto har ikke adgang til at gemme billedet. Log ind igen, eller kontakt den ansvarlige for Apropos.';
     }
     if (code === 'storage/unauthenticated' || /unauthenticated/i.test(message)) {
       return 'Din session er udløbet. Log ud og ind igen, og prøv så at poste på ny.';
@@ -49,7 +49,7 @@ function describePublishError(error: unknown, stage: 'export' | 'upload'): strin
       return 'Upload af billedet blev afbrudt (netværk). Tjek forbindelsen og prøv igen.';
     }
     if (/cors|network|failed to fetch/i.test(message)) {
-      return 'Billedet kunne ikke uploades (netværk eller CORS på Firebase Storage). Prøv igen — kontakt admin hvis det fortsætter.';
+      return 'Forbindelsen blev afbrudt under billedoverførslen. Prøv igen. Kontakt den ansvarlige for Apropos, hvis fejlen fortsætter.';
     }
     return `Billedet kunne ikke uploades (${code || message || 'ukendt fejl'}). Prøv igen.`;
   }
@@ -59,19 +59,19 @@ function describePublishError(error: unknown, stage: 'export' | 'upload'): strin
 
 /** Samme segment-knapper som Liv / Nyhedsbrev (apropos-design-system). */
 const segBtn = (active: boolean) =>
-  `rounded-md px-1.5 py-1 text-[11px] font-medium tracking-wide transition-all duration-200 active:scale-[0.97] ${
+  `min-h-11 min-w-11 rounded-lg px-2.5 py-2 text-[13px] font-medium transition-colors duration-200 ${
     active ? 'bg-white/12 text-white shadow-sm border border-white/10' : 'text-white/45 hover:text-white/75 border border-transparent'
   }`;
 
 const embedHeaderIconBtn = (active?: boolean) =>
-  `flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border transition-all duration-200 active:scale-[0.97] ${
+  `flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border transition-colors duration-200 ${
     active
       ? 'border-white/25 bg-white/10 text-white'
       : 'border-white/12 bg-white/[0.06] text-white/75 hover:bg-white/[0.12] hover:border-white/18 hover:text-white'
   } disabled:opacity-40 disabled:pointer-events-none`;
 
 const embedHeaderPostBtn =
-  'flex h-8 shrink-0 items-center justify-center rounded-lg border border-white/12 bg-white/[0.06] px-2 text-[11px] font-medium text-white/85 transition-all duration-200 hover:bg-white/[0.12] hover:border-white/18 hover:text-white active:scale-[0.97] disabled:opacity-40 disabled:pointer-events-none';
+  'flex h-11 shrink-0 items-center justify-center rounded-lg border border-white/15 bg-white/[0.06] px-3 text-[13px] font-medium text-white/85 transition-colors duration-200 hover:bg-white/[0.12] hover:text-white disabled:opacity-40 disabled:pointer-events-none';
 
 function PublishFeedback({
   success,
@@ -754,9 +754,9 @@ export default function DesignEditorView({ onBack, embedMode }: DesignEditorView
       ) : (
         <div
           ref={previewRef}
-          className="flex-1 min-h-0 w-full flex flex-col items-center overflow-y-auto overflow-x-hidden touch-pan-y [overscroll-behavior:contain] md:justify-start justify-start bg-black/25 p-2 md:p-4 app-safe-bottom"
+          className="flex-1 min-h-0 w-full flex flex-col items-center overflow-y-auto overflow-x-hidden touch-pan-y [overscroll-behavior:contain] justify-start bg-black/25 p-3 md:p-6 app-safe-bottom"
         >
-          <div className="w-full flex min-h-min flex-col items-center gap-3 md:gap-5 pt-3 md:pt-10 pb-8">
+          <div className="w-full flex min-h-min flex-col items-center gap-5 md:gap-6 pt-3 md:pt-6 pb-8">
             {selected?.excerpt && (
               <SubtitleControls key={subtitle.key} subtitle={subtitle} />
             )}
@@ -878,7 +878,7 @@ export default function DesignEditorView({ onBack, embedMode }: DesignEditorView
   const embedToolbarControlsInner = (
     <>
       <div
-        className="flex h-8 shrink-0 items-center rounded-lg border border-white/12 bg-black/30 p-0.5 gap-0.5 backdrop-blur-sm"
+        className="flex shrink-0 items-center rounded-xl border border-white/15 bg-black/30 p-0.5 gap-0.5"
         role="group"
         aria-label="Kortformat"
       >
@@ -902,8 +902,8 @@ export default function DesignEditorView({ onBack, embedMode }: DesignEditorView
         </button>
       </div>
       <button type="button" onClick={() => setTheme(value => value === 'light' ? 'dark' : 'light')}
-        className={embedHeaderIconBtn(theme === 'dark')} aria-label={theme === 'light' ? 'Skift til Dark mode' : 'Skift til Light mode'}
-        aria-pressed={theme === 'dark'} title={theme === 'light' ? 'Dark mode' : 'Light mode'}>
+        className={embedHeaderIconBtn(theme === 'dark')} aria-label={theme === 'light' ? 'Skift til mørkt design' : 'Skift til lyst design'}
+        aria-pressed={theme === 'dark'} title={theme === 'light' ? 'Mørkt design' : 'Lyst design'}>
         <span aria-hidden="true" className="text-lg">{theme === 'light' ? '◐' : '☀'}</span>
       </button>
       <button
@@ -914,7 +914,7 @@ export default function DesignEditorView({ onBack, embedMode }: DesignEditorView
         title={size === 'story' ? 'Post det viste story-design direkte til Instagram Story' : 'Post det viste opslag direkte til Instagram'}
         aria-label={size === 'story' ? 'Post til Instagram Story' : 'Post til Instagram'}
       >
-        {postingToInstagram ? 'Poster…' : 'Post'}
+        {postingToInstagram ? 'Udgiver…' : 'Udgiv'}
       </button>
       <button
         type="button"
@@ -928,7 +928,7 @@ export default function DesignEditorView({ onBack, embedMode }: DesignEditorView
       </button>
     </>
   );
-  const embedToolbarForDesktopHeader = <div className="flex flex-nowrap items-center justify-end gap-1">{embedToolbarControlsInner}</div>;
+  const embedToolbarForDesktopHeader = <div className="flex flex-wrap items-center justify-start md:justify-end gap-2">{embedToolbarControlsInner}</div>;
 
   return (
     <div ref={rootRef} className={rootClass}>
@@ -936,14 +936,14 @@ export default function DesignEditorView({ onBack, embedMode }: DesignEditorView
         <>
           <EmbeddedAppHeader
             embedded
-            title="SoMe"
+            title="Sociale medier"
             inlineControls
             onClose={onBack}
             leading={
               <button
                 type="button"
                 onClick={() => setArticlesOpen((o) => !o)}
-                className="lg:hidden w-8 h-8 shrink-0 flex items-center justify-center rounded-lg border border-white/12 bg-white/[0.06] text-white hover:bg-white/[0.1] transition-colors"
+                className="lg:hidden w-11 h-11 shrink-0 flex items-center justify-center rounded-lg border border-white/15 bg-white/[0.06] text-white hover:bg-white/[0.1] transition-colors"
                 title={articlesOpen ? 'Luk artikelliste' : 'Mine artikler'}
                 aria-label={articlesOpen ? 'Luk artikelliste' : 'Mine artikler'}
                 aria-pressed={articlesOpen}
@@ -1169,39 +1169,19 @@ export default function DesignEditorView({ onBack, embedMode }: DesignEditorView
       >
         <div className="h-full flex flex-col rounded-xl border border-white/15 overflow-hidden bg-black/55 md:bg-[#070707]/90 backdrop-blur-2xl md:backdrop-blur-xl shadow-[0_20px_70px_rgba(0,0,0,0.55)]">
           {/* Top bar */}
-          <div className="sticky top-0 z-20 flex-shrink-0 flex items-center justify-between gap-2 px-3 py-2 md:p-4 app-safe-top border-b border-white/10 bg-[#0a0a0a]/90 backdrop-blur-3xl">
-            <div className="flex items-center gap-2 min-w-0 shrink-0">
+          <EmbeddedAppHeader
+            embedded={false}
+            title="Sociale medier"
+            inlineControls
+            onClose={onBack}
+            showBackLink={!onBack}
+            leading={
               <button onClick={() => setArticlesOpen(value => !value)} className={embedHeaderIconBtn(articlesOpen)} aria-label="Artikler" aria-pressed={articlesOpen}>
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-white"><path d="M4 6h16M4 12h16M4 18h16" /></svg>
               </button>
-              <h1 className="text-white/90 text-[15px] font-medium tracking-tight leading-tight">
-                SoMe
-              </h1>
-            </div>
-            <div className="flex flex-nowrap items-center justify-end gap-1">
-              {embedToolbarControlsInner}
-              {onBack ? (
-                <button
-                  type="button"
-                  onClick={onBack}
-                  className="flex size-8 shrink-0 items-center justify-center rounded-lg border border-white/12 bg-white/[0.06] text-white transition-all duration-200 hover:bg-white/[0.12] active:scale-[0.97]"
-                  aria-label="Luk SoMe Posting"
-                  title="Luk"
-                >
-                  <svg className="size-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
-                </button>
-              ) : (
-                <a
-                  href="/ai"
-                  className="flex size-8 shrink-0 items-center justify-center rounded-lg border border-white/12 bg-white/[0.06] text-white transition-all duration-200 hover:bg-white/[0.12] active:scale-[0.97]"
-                  aria-label="Tilbage til AI Writer"
-                  title="Tilbage til AI Writer"
-                >
-                  <svg className="size-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
-                </a>
-              )}
-            </div>
-          </div>
+            }
+            trailing={embedToolbarForDesktopHeader}
+          />
           {editorCanvas}
         </div>
       </div>

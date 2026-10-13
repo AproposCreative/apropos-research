@@ -2,12 +2,7 @@
 
 import Link from 'next/link';
 import type { ReactNode } from 'react';
-
-const closeBtn =
-  'flex size-8 shrink-0 items-center justify-center rounded-lg border border-white/12 bg-white/[0.06] text-white transition-all duration-200 hover:bg-white/[0.12] active:scale-[0.97]';
-
-const pillLink =
-  'px-3 py-1.5 rounded-lg border border-white/12 text-sm text-white/65 hover:bg-white/[0.06] hover:text-white/90 transition-all duration-200 active:scale-[0.98]';
+import styles from './tool-chrome.module.css';
 
 export type EmbeddedAppHeaderProps = {
   embedded: boolean;
@@ -43,41 +38,37 @@ export function EmbeddedAppHeader({
 }: EmbeddedAppHeaderProps) {
   return (
     <header
-      className={
-        embedded
-          ? 'border-b border-white/10 px-3 lg:px-4 py-2.5 lg:py-3 shrink-0 bg-black/25 backdrop-blur-md'
-          : 'border-b border-white/10 px-4 lg:px-5 py-3 lg:py-4 shrink-0 bg-[#0c0c0c]'
-      }
+      className={`${styles.header} ${embedded ? styles.compact : ''}`}
     >
-      <div className="flex flex-col gap-2 min-w-0">
+      <div className={styles.rows}>
         {/* Row 1: title (left) + close/back (top-right) — always. */}
-        <div className={`flex justify-between ${inlineControls ? 'items-center gap-1' : 'items-start gap-3'}`}>
-          <div className="flex items-center gap-2 min-w-0 flex-1">
+        <div className={`${styles.row} ${inlineControls ? styles.inline : ''}`}>
+          <div className={styles.heading}>
             {leading ? <div className="shrink-0">{leading}</div> : null}
-            <div className="min-w-0 flex-1">
+            <div className={styles.headingCopy}>
               <h1
-                className={`font-medium tracking-tight text-white ${embedded ? 'text-[15px]' : 'text-[17px]'}`}
+                className={styles.title}
               >
                 {title}
               </h1>
               {subtitle ? (
-                <p className="text-[11px] text-white/45 leading-relaxed mt-1 max-w-[52ch]">{subtitle}</p>
+                <p className={styles.subtitle}>{subtitle}</p>
               ) : null}
             </div>
           </div>
-          {inlineControls ? trailing : null}
+          {inlineControls && trailing ? <div className={styles.inlineTrailing}>{trailing}</div> : null}
           {onClose || (!embedded && showBackLink !== false) ? (
-            <div className="flex items-center gap-1.5 shrink-0">
+            <div className={styles.actions}>
               {onClose ? (
-                <button type="button" onClick={onClose} className={closeBtn} aria-label="Luk">
+                <button type="button" onClick={onClose} className={styles.close} aria-label="Luk">
                   <svg className="size-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-hidden>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
                   </svg>
                 </button>
               ) : null}
               {!embedded && showBackLink !== false ? (
-                <Link href={backHref} className={pillLink}>
-                  ← Tilbage
+                <Link href={backHref} className={styles.back}>
+                  Til værktøjer
                 </Link>
               ) : null}
             </div>
@@ -87,7 +78,7 @@ export function EmbeddedAppHeader({
         {/* Row 2: controls (segmented tabs, toggles). Full width, wraps on
             mobile so it never squeezes the title; right-aligned on desktop. */}
         {trailing && !inlineControls ? (
-          <div className="flex flex-wrap items-center gap-1.5 md:gap-2 md:justify-end">
+          <div className={styles.controls}>
             {trailing}
           </div>
         ) : null}

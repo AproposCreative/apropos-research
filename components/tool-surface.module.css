@@ -1,0 +1,16 @@
+/* Scoped tool chrome. Never applied to the AI chat or exported artwork.
+   Dark Tech reference adapted to existing Apropos neutrals and Poppins. */
+.surface {
+  --tool-canvas: #000;
+  --tool-panel: #0a0a0a;
+  --tool-field: #141414;
+  --tool-raised: #171717;
+  --tool-ink: #fff;
+  --tool-muted: #b3b3b3;
+  --tool-line: rgba(255, 255, 255, .15);
+  --tool-gutter: clamp(20px, 3vw, 32px);
+  --tool-radius: 12px;
+  font-family: var(--font-poppins), sans-serif;
+  color: var(--tool-ink);
+  color-scheme: dark;
+}

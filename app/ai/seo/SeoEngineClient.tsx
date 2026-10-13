@@ -710,7 +710,7 @@ export default function SeoEngineClient({
 
   return (
     <div className="flex flex-col h-full min-h-0 text-white bg-transparent font-poppins">
-      <EmbeddedAppHeader embedded={embedded} title="SEO Engine" onClose={onClose} />
+      <EmbeddedAppHeader embedded={embedded} title="SEO & Google" onClose={onClose} />
       <div className="flex-1 min-h-0 overflow-y-auto nice-scrollbar p-3 lg:p-4 space-y-4">
         <div className="flex flex-wrap items-center gap-1.5">
           <button type="button" className={segBtn(mainTab === 'arkiv')} onClick={() => setMainTab('arkiv')}>

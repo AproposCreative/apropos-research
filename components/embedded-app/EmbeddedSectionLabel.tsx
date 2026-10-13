@@ -1,6 +1,7 @@
 'use client';
 
 import type { ReactNode } from 'react';
+import styles from './tool-chrome.module.css';
 
 /** Nummereret sektionstitler i AI-posting el.l. */
 export function EmbeddedSectionLabel({
@@ -11,11 +12,11 @@ export function EmbeddedSectionLabel({
   children: ReactNode;
 }) {
   return (
-    <div className="flex items-center gap-2 px-0.5 pt-1 pb-2">
-      <span className="flex size-6 shrink-0 items-center justify-center rounded-md border border-white/15 bg-white/[0.06] text-[11px] font-medium tabular-nums text-white/80">
+    <div className={styles.step}>
+      <span className={styles.stepNumber}>
         {step}
       </span>
-      <p className="text-[11px] font-medium uppercase tracking-wider text-white/55">{children}</p>
+      <p className={styles.stepDescription}>{children}</p>
     </div>
   );
 }

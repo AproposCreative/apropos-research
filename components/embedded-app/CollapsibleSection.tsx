@@ -1,6 +1,7 @@
 'use client';
 
 import type { ReactNode } from 'react';
+import styles from './tool-chrome.module.css';
 
 type CollapsibleSectionProps = {
   open: boolean;
@@ -24,13 +25,11 @@ export function CollapsibleSection({
   children,
 }: CollapsibleSectionProps) {
   return (
-    <div className="rounded-xl border border-white/[0.08] bg-white/[0.02] overflow-hidden">
+    <div className={styles.disclosure}>
       <button
         type="button"
         onClick={() => onOpenChange(!open)}
-        className={`flex items-center gap-3 w-full px-3.5 py-2.5 border-b transition-all duration-200 active:scale-[0.98] text-left ${
-          open ? 'border-white/[0.08] bg-white/[0.03]' : 'border-transparent hover:bg-white/[0.03]'
-        }`}
+        className={styles.disclosureToggle}
         aria-expanded={open}
       >
         <div className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-white/[0.06] text-white/50">
@@ -41,8 +40,8 @@ export function CollapsibleSection({
           )}
         </div>
         <div className="flex-1 min-w-0">
-          <p className="text-[12px] font-medium text-white/80">{title}</p>
-          {subtitle ? <p className="text-[10px] text-white/30 truncate">{subtitle}</p> : null}
+          <p className={styles.disclosureTitle}>{title}</p>
+          {subtitle ? <p className={styles.subtitle}>{subtitle}</p> : null}
         </div>
         <svg
           className={`size-3.5 shrink-0 text-white/25 transition-transform ${open ? 'rotate-180' : ''}`}
@@ -55,7 +54,7 @@ export function CollapsibleSection({
           <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
         </svg>
       </button>
-      {open ? <div className="px-4 py-4 space-y-3 border-t border-white/[0.06]">{children}</div> : null}
+      {open ? <div className={styles.disclosureBody}>{children}</div> : null}
     </div>
   );
 }

@@ -3,6 +3,8 @@
 import { createContext, useContext, useEffect, useLayoutEffect, useRef, useState, ReactNode } from 'react';
 import { usePathname } from 'next/navigation';
 import AproposAILoadingScreen from '@/components/AproposAILoadingScreen';
+import { useQueryClient } from '@tanstack/react-query';
+import { toolCatalogueQuery } from './tool-catalogue-client';
 import { 
   User,
   signInWithEmailAndPassword,
@@ -53,11 +55,11 @@ const AuthContext = createContext<AuthContextType>({
 
 export const useAuth = () => useContext(AuthContext);
 
-/** Mindst så længe vises AI-boot (logo + sort), så SVG og baggrund når at føles færdige. */
-const MIN_AI_BOOT_MS = 2000;
-
 export function AuthProvider({ children }: { children: ReactNode }) {
   const pathname = usePathname();
+  const queryClient = useQueryClient();
+  const pathnameRef = useRef(pathname);
+  pathnameRef.current = pathname;
   const connectionOnly = pathname === '/connect/chatgpt';
   const [user, setUser] = useState<User | null>(null);
   const [capabilities, setCapabilities] = useState<EditorialCapabilities>(NO_CAPABILITIES);
@@ -66,12 +68,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [verificationEmail, setVerificationEmail] = useState<string | null>(null);
   const [{ sendVerification, checkVerification }] = useState(() =>
     createEmailVerificationActions(() => getFirebaseAuth()?.currentUser ?? null, async user => { await requireAllowedUser(user); }));
-  const [aiBootOpen, setAiBootOpen] = useState(false);
-  const aiBootStartRef = useRef<number | null>(null);
-  const wasOnAiRef = useRef(false);
   const [loaderMounted, setLoaderMounted] = useState(false);
   const isAiRoute = pathname?.startsWith('/ai') ?? false;
-  const bootActive = loading || aiBootOpen;
+  const bootActive = loading;
 
   useLayoutEffect(() => {
     if (!isAiRoute) {
@@ -80,32 +79,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
     if (bootActive) setLoaderMounted(true);
   }, [isAiRoute, bootActive]);
-
-  useEffect(() => {
-    if (!isAiRoute) {
-      wasOnAiRef.current = false;
-      setAiBootOpen(false);
-      aiBootStartRef.current = null;
-      return;
-    }
-    if (!wasOnAiRef.current) {
-      wasOnAiRef.current = true;
-      aiBootStartRef.current = Date.now();
-      setAiBootOpen(true);
-    }
-  }, [isAiRoute]);
-
-  useEffect(() => {
-    if (!isAiRoute || loading) return;
-    const started = aiBootStartRef.current ?? Date.now();
-    const elapsed = Date.now() - started;
-    const remaining = Math.max(0, MIN_AI_BOOT_MS - elapsed);
-    const id = window.setTimeout(() => {
-      setAiBootOpen(false);
-      aiBootStartRef.current = null;
-    }, remaining);
-    return () => clearTimeout(id);
-  }, [isAiRoute, loading]);
 
   useEffect(() => {
     const firebaseAuth = getFirebaseAuth();
@@ -136,6 +109,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       try {
         const rights = await requireAllowedUser(candidate, connectionOnly);
         if (current !== generation) return;
+        // Resolve the shared menu while the existing auth loader is visible.
+        // Focus/token refresh never blocks or unmounts a working editor.
+        if (!sameAccount && pathnameRef.current === '/ai') {
+          await queryClient.fetchQuery(toolCatalogueQuery(candidate, rights.owner)).catch(() => undefined);
+          if (current !== generation) return;
+        }
         setAccessError('');
         acceptedUid = candidate.uid;
         autoSaveService.setOwner(candidate.uid);
@@ -154,7 +133,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const recheck = () => { void check(firebaseAuth.currentUser, true); };
     window.addEventListener('focus', recheck);
     return () => { generation++; unsubscribe(); window.removeEventListener('focus', recheck); };
-  }, [connectionOnly]);
+  }, [connectionOnly, queryClient]);
 
   // Attach Firebase ID token to all same-origin /api/* fetches (middleware auth gate).
   useEffect(() => {
@@ -242,7 +221,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const showAiBootLayer = isAiRoute && loaderMounted;
   // The public connection page owns its loading/login/error UI. Keep its dark
   // shell mounted during access checks instead of rendering an empty document.
-  const showChildren = pathname === '/connect/chatgpt' || pathname === '/connect/chatgpt/welcome' || (!loading && (!isAiRoute || !aiBootOpen));
+  const showChildren = pathname === '/connect/chatgpt' || pathname === '/connect/chatgpt/welcome' || !loading;
 
   return (
     <AuthContext.Provider value={value}>

@@ -12,6 +12,9 @@ const CTA_PADDING_Y_STORY = 19.2;
 const CTA_PADDING_X_STORY = 50.4;
 const CTA_FONT_SIZE_STORY = 52.8;
 const STORY_META_TO_CTA_GAP = 40;
+// Additional whitespace below the subtitle, not added line-height. Preview,
+// download and publishing all share this renderer (1080px export coordinates).
+const SUBTITLE_BOTTOM_SPACE = 32;
 
 const SQUARE_LOGO_TOP = 60;
 const SQUARE_LOGO_W = 150;
@@ -183,9 +186,6 @@ async function renderCardToContext(
   const textBlockTopGap = isSquare ? 0 : isStory ? 6 : 4;
   const headerToTextGap = isSquare ? 26 : isStory ? 26 : 22;
   const textBottomGap = isSquare ? 20 : isStory ? STORY_META_TO_CTA_GAP + ctaH / 2 - CTA_OFFSET : 14;
-  // Keep Story vertical spacing stable by allowing image area to shrink.
-  const minImageH = isSquare ? 380 : isStory ? 0 : 220;
-
   const dark = data.theme === 'dark';
   const foreground = dark ? '#ffffff' : '#000000';
   const background = dark ? '#000000' : '#ffffff';
@@ -332,6 +332,7 @@ async function renderCardToContext(
       ctx.fillText(line, width / 2, y);
       y += bylineLineHeight;
     }
+    y += SUBTITLE_BOTTOM_SPACE;
   }
   if (isStory && rating > 0) {
     const { filled, outline } = await loadStarImages();
@@ -382,7 +383,9 @@ async function renderCardToContext(
   y += textBottomGap;
 
   // Box 3 starts after text and grows/shrinks naturally
-  const imageTop = Math.min(Math.round(y), height - minImageH);
+  // Do not let the old minimum image clamp pull the CTA up into longer copy.
+  // Text fitting still limits the headline/subtitle to their existing budgets.
+  const imageTop = Math.round(y);
   const imageH = height - imageTop;
 
   // ---- Box 3: image ----

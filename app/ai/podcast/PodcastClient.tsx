@@ -312,7 +312,7 @@ export default function PodcastClient({ embedded = false, onClose }: PodcastClie
           : 'min-h-[100dvh] bg-[#0a0a0a] font-poppins text-white'
       }
     >
-      <EmbeddedAppHeader embedded={embedded} title="Podcast Upload" onClose={onClose} />
+      <EmbeddedAppHeader embedded={embedded} title="Podcast" onClose={onClose} />
 
       <main
         className={

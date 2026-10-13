@@ -29,7 +29,7 @@ createRoot(document.getElementById('root')).render(<QueryClientProvider client={
 const server=createServer(async(req,res)=>{
   if(req.url==='/bundle.js'){res.setHeader('Content-Type','text/javascript');res.end(bundle.outputFiles.find(f=>f.path.endsWith('.js')).text);return;}
   if(req.url==='/bundle.css'){res.setHeader('Content-Type','text/css');res.end(bundle.outputFiles.find(f=>f.path.endsWith('.css')).text);return;}
-  if(req.url.startsWith('/images/')){res.setHeader('Content-Type','image/png');res.end(await readFile('public'+decodeURI(req.url)));return;}
+  if(req.url.startsWith('/images/')){res.setHeader('Content-Type',req.url.endsWith('.svg')?'image/svg+xml':'image/png');res.end(await readFile('public'+decodeURI(req.url)));return;}
   res.setHeader('Content-Type','text/html;charset=utf-8');res.end('<!doctype html><html lang="da"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Tools fixture</title><link rel="stylesheet" href="/bundle.css"><style>*{box-sizing:border-box}body{margin:0;background:black;color:white;font-family:Arial}button{font-family:inherit}#root{height:100vh}</style><body><div id="root"></div><script src="/bundle.js"></script></body></html>');
 });
 await new Promise(r=>server.listen(0,'127.0.0.1',r));
@@ -42,7 +42,9 @@ try{
    const page=await browser.newPage({viewport:{width,height:1000}});
    await page.route('**/*',route=>new URL(route.request().url()).origin===origin?route.continue():route.abort());
    await page.goto(origin+'/?'+mode);
-   await page.getByRole('button',{name:/^SoMe Posting/}).waitFor();
+   await page.getByRole('button',{name:/^Sociale medier/}).waitFor();
+   await page.waitForFunction(()=>fixture.calls.length===1);
+   if(mode!=='unavailable') await page.locator('summary').waitFor();
    assert.equal(await page.locator('nav img,nav svg').count(),0);
    if(mode==='unavailable')assert(await page.getByText('Aktuel status kunne ikke hentes.',{exact:false}).isVisible());
    else{
@@ -53,7 +55,7 @@ try{
     await page.locator('summary').click();
     assert(await page.getByRole('button',{name:/^AI Writer/}).isVisible());
    }
-   await page.getByRole('button',{name:/^SoMe Posting/}).click();
+   await page.getByRole('button',{name:/^Sociale medier/}).click();
    await page.getByRole('button',{name:/^Mine artikler/}).click();
    const result=await page.evaluate(()=>({...fixture,overflow:document.documentElement.scrollWidth>innerWidth}));
    assert(result.selected.includes('design-editor')&&result.selected.includes('shelf'));

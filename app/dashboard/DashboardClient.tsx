@@ -155,7 +155,7 @@ export default function DashboardClient({ embedded = false, onClose }: Dashboard
     >
       <EmbeddedAppHeader
         embedded={embedded}
-        title="Dashboard"
+        title="Trafik & overblik"
         subtitle={`Apropos Magazine · ${periodLabel}`}
         onClose={onClose}
         trailing={periodControls}

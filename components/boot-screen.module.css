@@ -1,0 +1,11 @@
+.screen { position: fixed; inset: 0; z-index: 100000; display: grid; place-items: center; background: #000; padding: 24px; opacity: 1; transition: opacity 320ms ease; }
+.exiting { opacity: 0; pointer-events: none; }
+.mark { width: min(300px, 80vw); }
+.logo { display: block; width: 100%; height: auto; user-select: none; }
+.rail { margin-top: 28px; height: 1px; overflow: hidden; background: rgba(255,255,255,.15); }
+.line { display: block; width: 35%; height: 100%; background: #fff; transform: translateX(-100%); }
+.status { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+@media (prefers-reduced-motion: reduce) {
+  .screen { transition-duration: 100ms; }
+  .line { width: 100%; transform: none; opacity: .5; }
+}
