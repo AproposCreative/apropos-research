@@ -1,12 +1,12 @@
 import type { ArticlePayload } from './article-payload';
-import { sameCmsBody } from './cms-body-equivalence';
+import { sameCmsBody, sameCmsBodyWithStoredImages } from './cms-body-equivalence';
 import { readLivWebflowJson } from '@/lib/liv/cms-readback';
 import { env } from '@/lib/config/env';
 import { getWebflowConfig } from '@/lib/webflow-config';
 
 /** Bounded GET-only reconciliation. Never infer absence from a partial listing. */
 export async function stagedSaveCandidates(expected: ArticlePayload, dependencies?: {
-  collectionId: string; localeId: string; read: typeof readLivWebflowJson;
+  collectionId: string; localeId: string; read: typeof readLivWebflowJson; readImage?: (url: string) => Promise<Buffer>;
 }, baseline = false) {
   const config = dependencies ? undefined : getWebflowConfig();
   const collectionId = dependencies?.collectionId ?? config?.articlesCollectionId ?? env.WEBFLOW_ARTICLES_COLLECTION_ID;
@@ -14,6 +14,7 @@ export async function stagedSaveCandidates(expected: ArticlePayload, dependencie
   if (![collectionId, localeId].every(value => typeof value === 'string' && /^[a-f0-9]{24}$/i.test(value))) throw new Error('cms_configuration');
   const read = dependencies?.read ?? readLivWebflowJson;
   const matches = new Set<string>();
+  let candidateChecks = 0;
   for (let offset = 0; offset < 5000; offset += 100) {
     const page = await read(`collections/${collectionId}/items?cmsLocaleId=${localeId}&offset=${offset}&limit=100`);
     if (!Array.isArray(page.items)) throw new Error('cms_listing_invalid');
@@ -26,8 +27,11 @@ export async function stagedSaveCandidates(expected: ArticlePayload, dependencie
       }
       if (item?.cmsLocaleId === localeId && item?.isDraft === true && item?.isArchived !== true &&
           typeof item?.id === 'string' && /^[a-f0-9]{24}$/i.test(item.id) &&
-          f?.name === expected.title && f?.slug === expected.slug && typeof f?.content === 'string' &&
-          sameCmsBody(expected.content, f.content)) matches.add(item.id);
+          f?.name === expected.title && f?.slug === expected.slug && typeof f?.content === 'string') {
+        if (sameCmsBody(expected.content, f.content)) { matches.add(item.id); continue; }
+        if (++candidateChecks > 5) throw Error('cms_candidate_window_exceeded');
+        if (await sameCmsBodyWithStoredImages(expected.content, f.content, dependencies?.readImage)) matches.add(item.id);
+      }
     }
     if (page.items.length < 100) return [...matches];
   }

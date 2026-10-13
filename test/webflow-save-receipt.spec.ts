@@ -1,4 +1,5 @@
 import { expect, it, vi } from 'vitest';
+import sharp from 'sharp';
 import { normalizeArticlePayload } from '@/lib/articles/article-payload';
 vi.mock('@/lib/config/env', () => ({ env: {} }));
 vi.mock('@/lib/webflow-config', () => ({ getWebflowConfig: () => ({}) }));
@@ -42,4 +43,12 @@ it('rejects unsafe identifiers before reading', async () => {
   await expect(inspectArticleSave({ articleId: '../invalid', expected }, { collectionId, localeId, read }))
     .rejects.toThrow('webflow_save_invalid_identity');
   expect(read).not.toHaveBeenCalled();
+});
+it('verifies a real raster rehost instead of forcing an already saved draft through another write', async () => {
+  const content = '<p>Fortolkning.</p><img src="https://cdn.prod.website-files.com/site/one.png" alt="A">';
+  const bytes = await sharp({ create: { width: 10, height: 10, channels: 3, background: 'red' } }).png().toBuffer();
+  const read = vi.fn().mockResolvedValue({ ...stored, fieldData: { ...stored.fieldData, content: content.replace('site/one.png','collection/copy.png') } });
+  const readImage = vi.fn().mockResolvedValue(bytes);
+  expect(await inspectArticleSave({ articleId: id, expected: { ...expected, content } }, { collectionId, localeId, read, readImage })).toMatchObject({ saveVerified: true });
+  expect(readImage).toHaveBeenCalledTimes(2);
 });

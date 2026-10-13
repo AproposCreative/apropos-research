@@ -2,7 +2,7 @@ import type { ArticlePayload } from './article-payload';
 import { env } from '@/lib/config/env';
 import { getWebflowConfig } from '@/lib/webflow-config';
 import { readLivWebflowJson } from '@/lib/liv/cms-readback';
-import { sameCmsBody } from './cms-body-equivalence';
+import { sameCmsBodyWithStoredImages } from './cms-body-equivalence';
 
 /** Safe shared error; do not expose upstream response bodies or credentials. */
 export class ArticleSaveError extends Error {
@@ -15,7 +15,7 @@ export class ArticleSaveError extends Error {
 /** Saving staged fields is not evidence that the same revision is live. */
 export async function inspectArticleSave(
   input: { articleId: string; expected: ArticlePayload },
-  dependencies?: { collectionId: string; localeId: string; read: typeof readLivWebflowJson },
+  dependencies?: { collectionId: string; localeId: string; read: typeof readLivWebflowJson; readImage?: (url: string) => Promise<Buffer> },
 ): Promise<{ saveState: 'draft' | 'staged'; saveVerified: true; cmsLocaleId: string }> {
   const config = dependencies ? undefined : getWebflowConfig();
   const collectionId = dependencies?.collectionId ??
@@ -32,7 +32,7 @@ export async function inspectArticleSave(
       typeof item.isDraft !== 'boolean' || !fields ||
       fields.name !== input.expected.title || fields.slug !== input.expected.slug ||
       typeof fields.content !== 'string' || typeof input.expected.content !== 'string' ||
-      !sameCmsBody(input.expected.content, fields.content)) {
+      !await sameCmsBodyWithStoredImages(input.expected.content, fields.content, dependencies?.readImage)) {
     throw new Error('webflow_save_readback_mismatch');
   }
   // Full field equivalence, source checks, image proof and live readback belong

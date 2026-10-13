@@ -29,4 +29,18 @@ Local tests cover stale consent, one-click continuation, double clicks, lost ack
 
 The real external React preview was exercised with isolated fixtures at 390px and 1440px: exactly one `approve_publish` request, no second approval, automatic processing status, no horizontal overflow or browser exceptions. This is **not** personal production approval.
 
-Production recovery/publication remains unverified until recorded below. No user approval is simulated. No provider hold, budget, reservation, Instagram state or unrelated article is changed by this repair.
+No user approval is simulated. No provider hold, budget, reservation, Instagram state or unrelated article is changed by this repair.
+
+## Production recovery and additional rehosting defect
+
+First release `210233e43a47d9c1ab34770a6479a8c663d0b7de` / `dpl_GCc2UDq9tYZvESan4DTpQoWEj98E` (MCP v25), READY with production alias at 11:08Z. Remote build passed. Authenticated owner endpoint queued precisely one recovery at **11:08:58.180Z**, HTTP202. Runtime confirms same-item PATCH, not create or publish.
+
+The actual save then uncovered a second receipt defect: `inspectArticleSave` required identical embedded URLs. Webflow rehosted three JPEGs to its collection CDN. Visible prose, captions, alt text and order were unchanged, but the strict string comparison treated the successful PATCH as unconfirmed. The journal correctly retained `attempted` with canonical expected data; **no repeat PATCH was performed**.
+
+Existing MCP `reconcile_submission` verified all 25 schema/content/reference/image checks, including identical actual image bytes, at **11:10:24.112Z**, and recovered revision 10 to **prepared**. CMS hash is `4086f2ce876b0de78f8040962833150bc2534da2207378fc3930c223722dcf92`. Same item, short title, corrected ending, cover plus three body images; Netflix title/link/trailer preserved exactly. No personal rev10 publication consent exists yet.
+
+The follow-up patch prevents this rehosting false failure in ordinary saving AND lost-response candidate lookup. Only a changed `img src` on an allowed Webflow CDN can pass after identical nonempty JPEG/PNG/WebP bytes are fetched through the existing bounded secure reader. No prose/alt/caption/link/srcset change is ignored; no filename-based equivalence, re-encoding or fallback. Candidate checks are bounded; missing/different/invalid bytes fail closed.
+
+Real CDN comparison with the saved production intent returned **true at 11:14:14.589Z**, GET-only, no CMS write. Final isolated suite **379 files / 5,246 tests**, TypeScript and changed-file ESLint passed. Both real React external preview and MCP widget passed simulated mobile/desktop one-click/status tests; these are not claims of a human production click.
+
+Financial snapshot before deploy/recovery and after recovery stayed identical: hash `2c77ab6264c4b91394ad6de7741cad384c4ce280c53b200e22464ba326aac1a8`; October shared 1 historical call, 0 DKK committed estimate, 1.214400 DKK reserved, 1 unknown, no image month row, provider hold true/revision5. This is not a provider balance or an estimate of subscription usage.
