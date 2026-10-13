@@ -43,17 +43,28 @@ async function rpc(access: string, method: string, params: unknown = {}) {
 }
 const anonymous = await rpc('', 'tools/list'); assert.equal(anonymous.http, 401);
 console.log(JSON.stringify({ at: new Date().toISOString(), anonymous: 401, financialBefore: financeBefore }));
-for (const email of ['frederik@aproposmagazine.com', 'casper@aproposmagazine.com']) {
+for (const email of ['frederik@aproposmagazine.com', 'casper@aproposmagazine.com'].filter(email => !process.argv.includes('--editor-only') || email.startsWith('casper'))) {
   const user = await admin.getUserByEmail(email); assert(user.emailVerified && !user.disabled, 'verified_existing_member_required');
   const welcomeRef = db.collection('mcpWelcomeMail').doc(user.uid), welcome = (await welcomeRef.get()).data();
-  // First-time activation could send a welcome; this diagnostic does not authorize that.
-  assert(welcome && !welcome.pending, 'existing_completed_welcome_required_no_test_email');
-  const welcomeBefore = cmsFieldHash(welcome);
+  // First-time OAuth activation could send a welcome; use only an ordinary
+  // authenticated app read in that case. Do not fabricate or backfill an outbox.
+  const welcomeBefore = cmsFieldHash(welcome ?? null);
   const app = initializeApp({ apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY }, `mcp-release-${randomUUID()}`);
   const auth = getAuth(app); let access = '', clientId = '';
   try {
     const signed = await signInWithCustomToken(auth, await admin.createCustomToken(user.uid));
     const idToken = await signed.user.getIdToken();
+    if (!welcome || welcome.pending) {
+      assert(email.startsWith('casper'), 'owner_requires_existing_completed_welcome');
+      const denied = await fetch(`${origin}/api/editorial/submissions?id=${submissionId}`, { redirect: 'error', signal: AbortSignal.timeout(30_000), headers: { Authorization: `Bearer ${idToken}` } });
+      assert.equal(denied.headers.get('cache-control'), 'private, no-store');
+      assert.equal(denied.status, 409);
+      assert.deepEqual(await denied.json(), { error: 'mcp_submission_not_found' });
+      assert.equal(cmsFieldHash((await welcomeRef.get()).data() ?? null), welcomeBefore);
+      console.log(JSON.stringify({ at: new Date().toISOString(), role: 'editor', privateAppReadDenied: true,
+        freshMcpOAuth: 'not_run_first_activation_requires_personal_pilot', welcomeUnchanged: true, humanLoginOrApprovalTest: false }));
+      continue;
+    }
     const redirect = 'https://chatgpt.com/connector_platform_oauth_redirect';
     const client = await json('/oauth/register', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ redirect_uris: [redirect], client_name: 'Apropos release read-only verification' }) });
     clientId = client.client_id;
