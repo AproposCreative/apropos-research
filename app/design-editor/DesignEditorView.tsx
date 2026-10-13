@@ -9,6 +9,7 @@ import { useCardSubtitle } from './useCardSubtitle';
 import SubtitleControls from './SubtitleControls';
 import { storage } from '@/lib/firebase';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { socialConfigured, socialPublishFeedback, uncertainSocialPublish } from '@/lib/social-publish-feedback';
 
 const amiri = Amiri({
   weight: ['400', '700'],
@@ -26,7 +27,7 @@ const CAPTION_FOOTER_TEXT = 'Læs gratis med – uden reklamer, pop-ups eller an
 const ARTICLE_BASE_URL = 'https://www.aproposmagazine.com/articles';
 
 /** Oversæt klient-fejl (eksport / Storage-upload / netværk) til forståelig dansk besked. */
-function describePublishError(error: unknown, stage: 'export' | 'upload' | 'publish'): string {
+function describePublishError(error: unknown, stage: 'export' | 'upload'): string {
   const code =
     error && typeof error === 'object' && 'code' in error
       ? String((error as { code?: unknown }).code || '')
@@ -53,9 +54,6 @@ function describePublishError(error: unknown, stage: 'export' | 'upload' | 'publ
     return `Billedet kunne ikke uploades (${code || message || 'ukendt fejl'}). Prøv igen.`;
   }
 
-  if (/failed to fetch|networkerror|load failed/i.test(message)) {
-    return 'Kunne ikke nå Instagram-tjenesten (netværk). Tjek forbindelsen og prøv igen.';
-  }
   return `Der opstod en fejl (${message || 'ukendt'}). Prøv igen.`;
 }
 
@@ -86,7 +84,7 @@ function PublishFeedback({
 }) {
   if (!success && !warning && !error) return null;
   return (
-    <div className="space-y-1.5">
+    <div className="space-y-1.5" role="status" aria-live="polite" data-publish-feedback>
       {success ? (
         <p className="inline-flex items-center gap-1.5 text-sm text-white/85">
           <span className="size-1.5 rounded-full bg-emerald-400 shrink-0" />
@@ -331,12 +329,12 @@ export default function DesignEditorView({ onBack, embedMode }: DesignEditorView
   useEffect(() => {
     let cancelled = false;
     fetch('/api/instagram/publish')
-      .then((r) => r.json())
-      .then((data: { configured?: boolean }) => {
-        if (!cancelled) setInstagramConfigured(!!data.configured);
+      .then(async r => socialConfigured(r.status, await r.json().catch(() => null)))
+      .then(configured => {
+        if (!cancelled) setInstagramConfigured(configured);
       })
       .catch(() => {
-        if (!cancelled) setInstagramConfigured(false);
+        if (!cancelled) setInstagramConfigured(null);
       });
     return () => {
       cancelled = true;
@@ -653,39 +651,17 @@ export default function DesignEditorView({ onBack, embedMode }: DesignEditorView
           articleUrl: isStory ? undefined : selectedArticleUrl,
         }),
       });
-      const data = await apiRes.json().catch(() => ({}));
-      if (!apiRes.ok) {
-        setInstagramError(data.error ?? 'Kunne ikke poste til Instagram.');
-        return;
-      }
-      setInstagramError(null);
-      if (size === 'story') {
-        setPublishSuccess('Story er publiceret på Instagram.');
-      } else if (data.facebookPublished === true) {
-        setPublishSuccess('Publiceret på Instagram og Facebook.');
-        if (data.facebookCommentPublished !== true && selectedArticleUrl) {
-          setPublishWarning(
-            'Artikellinket blev ikke lagt som første kommentar på Facebook — tilføj linket manuelt i opslaget.'
-          );
-        }
-      } else if (data.facebookPublished === false) {
-        setPublishSuccess('Publiceret på Instagram.');
-        setPublishWarning(
-          typeof data.facebookError === 'string' && data.facebookError.trim()
-            ? `Facebook: ${data.facebookError.trim()}`
-            : 'Facebook-opslaget blev ikke oprettet.'
-        );
-      } else {
-        setPublishSuccess('Publiceret på Instagram.');
-      }
+      const feedback = socialPublishFeedback(apiRes.status, await apiRes.json().catch(() => null), isStory, Boolean(selectedArticleUrl));
+      setInstagramError(feedback.error);
+      setPublishSuccess(feedback.success);
+      setPublishWarning(feedback.warning);
     } catch (e) {
       console.error('Instagram publish failed', e);
-      // Story-kaldet kan være nået frem selvom forbindelsen faldt — vis blødt svar.
-      if (size === 'story' && instagramPublishStarted) {
-        setPublishSuccess('Story-kaldet er sendt — tjek Instagram om et øjeblik.');
+      if (instagramPublishStarted) {
+        setPublishWarning(uncertainSocialPublish().warning);
         return;
       }
-      setInstagramError(describePublishError(e, stage));
+      setInstagramError(describePublishError(e, stage === 'export' ? 'export' : 'upload'));
     } finally {
       setPostingToInstagram(false);
       setPublishStep('');

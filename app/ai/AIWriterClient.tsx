@@ -1335,7 +1335,7 @@ export default function AIWriterClient() {
         {/* Transparent overlay during resize to prevent iframe from stealing mouse events */}
         {isResizing && <div className="absolute inset-0 z-[5]" />}
 
-        {/* Clean landing: full web-app grid on mobile (drives from web-apps-config) */}
+        {/* Shared full-width tool list on mobile and desktop. */}
         {user && activeView === null && !leftPanelOpen && !reviewOpen && !sourcesOpen && !settingsOpen && (
           <MobileAppLauncher
             onSelectApp={handleSelectWebApp}
@@ -1365,6 +1365,7 @@ export default function AIWriterClient() {
                   isOpen={webAppsOpen}
                   onClose={() => setWebAppsOpen(false)}
                   onSelectApp={handleSelectWebApp}
+                  onOpenShelf={() => setShelfOpen(true)}
                 />
                 )}
                 {shelfOpen && (
@@ -1398,6 +1399,7 @@ export default function AIWriterClient() {
                   isOpen={webAppsOpen}
                   onClose={() => setWebAppsOpen(false)}
                   onSelectApp={handleSelectWebApp}
+                  onOpenShelf={() => setShelfOpen(true)}
                 />
               </div>
             </div>

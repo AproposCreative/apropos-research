@@ -1,6 +1,6 @@
 /** Shared UI policy; the server derives owner status from the verified account. */
 export const OWNER_EMAIL = 'frederik@aproposmagazine.com';
-export const OWNER_APPS = ['seo-engine', 'podcast', 'newsletter', 'liv-inbox', 'push-desk', 'image-gen'] as const;
+export const OWNER_APPS = ['seo-engine', 'podcast', 'newsletter', 'liv-inbox', 'push-desk', 'image-gen', 'chatgpt-editorial'] as const;
 export type EditorialCapabilities = { owner: boolean };
 export const NO_CAPABILITIES: EditorialCapabilities = { owner: false };
 export function isOwnerView(view: string | null): boolean {
