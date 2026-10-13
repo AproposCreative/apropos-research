@@ -127,3 +127,22 @@ No article, social post or personal approval was submitted. Live posting is not
 claimed verified by the export. AI chat code and global styles remain untouched;
 authentication permissions and publication controls were not changed. Unrelated
 local editorial journals and AGENTS changes remain outside this release.
+
+## Owner follow-up: Livs indbakke in the main list
+
+The owner requested the inbox alongside the other visible tools. Autosvar being
+off no longer hides the manual review desk. “Livs indbakke” is now third, directly
+below “Redaktion & godkendelse”, with an honest autosvar-off note. The same
+catalogue serves the launcher and side menu; owner-only permissions are retained.
+No inbox setting, provider hold, sending policy or AI chat code was changed.
+
+- Source: `ded8381343e919b7545632b349fec8ef402d771c`.
+- Deployment: `dpl_2BtcgKfWFUxq8BK4EN7t8WtkeaLE`, READY, production alias
+  `ai.aproposmagazine.com`, verified 13 October 2026 around 16:23 Copenhagen.
+- 38 focused tests passed across availability, API, cache and access checks;
+  TypeScript, changed-file lint and build security check passed.
+- Eight isolated mobile/desktop, launcher/panel, owner/staff/error UI cases
+  passed, including visible inbox selection without expanding hidden tools.
+- Actual authenticated production browser confirms build `1.0.0.ded8381`, the
+  inbox in third position, autosvar still off, and only three hidden tools.
+  No email, approval or publication was sent during verification.
