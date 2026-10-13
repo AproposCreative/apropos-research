@@ -67,7 +67,7 @@ instead of “X”. Posting, receipt classification and consent handlers are unc
   `RAGE_STORAGE_DIR=./tmp/vitest-rage`; 7 new catalogue/cache/timeout tests.
 - TypeScript and changed-file ESLint passed. Local production build passed
   security config, TypeScript and 237 pages before the final shared-header reuse;
-  the final source must also pass the remote release build.
+  the final source also passed the remote release build, including TypeScript.
 - Production dependency audit: zero vulnerabilities. Existing development-only
   audit backlog is not claimed fixed by this release.
 - `verify-platform-startup.mjs`: 8 browser fixtures: desktop/mobile, slow API,
@@ -96,7 +96,34 @@ personal ChatGPT approval. They neither approve nor publish an article.
 
 ## Release and live verification
 
-Pending exact commit/deployment and authenticated production UI readback.
-Previous live alias was `cc8e3425b06fbe81b621678ce2125364361a48d3`,
-`dpl_6AoXePhebA3KbeoL23DLGjBSkCu2`, READY; unrelated local editorial journals
-and AGENTS changes are preserved outside this release.
+- Main implementation: `4fd75a4b26eee3d41ddc00c98a9b2d921a668a0a`.
+- Final source, including the single story action:
+  `4eab3147c94f432fb2350e8843135a3f2964151b`.
+- Production deployment: `dpl_AWJ8FidRm1icVHvb8gPxM2arzfiz`, READY with the
+  actual `ai.aproposmagazine.com` alias; remote build and type checks passed.
+  The intermediate `dpl_HUxxvyZMQ7aqnsQ5TnTe5HpCvs9V` is superseded.
+- Authenticated, read-only runtime check at **2026-10-13T13:59:14.448Z**:
+  `/api/editorial/tools` returned HTTP 200 and private/no-store, the updated
+  labels, eight visible catalogue entries and four unchanged hidden entries.
+  “Mine artikler” is added by the UI. No legacy tools or Instagram were enabled.
+  Receipt: `output/platform-polish/production-tools-readback.json`.
+- Actual owner browser checked the live launcher at desktop and 390×844,
+  and The Whisper Man's square/story design with its real CMS image and Amiri
+  typography. Final UI reports build `1.0.0.4eab314`. The final story view has
+  exactly one “Post til Instagram Story” button and a visible “Nulstil” control.
+  The temporary viewport override was reset and the tab returned to the launcher.
+- A real live PNG download completed at **2026-10-13T13:59:20.596Z**:
+  1080×1080, image/png, **1,145,315 bytes**, SHA-256
+  `6f7d35b8175ba1b90ebf0306c1164108bb68583f72f4f8beb31f20d75562f49a`.
+  Visually verified: real cover, title, rating, italic subtitle, increased
+  whitespace below it, and CTA on the white/photo boundary. Original retained
+  in Downloads as `apropos-social-square-1791899960569.png`; byte-identical
+  evidence copy: `output/platform-polish/live-whisper-square.png`.
+  The browser automation's download waiter timed out despite the completed
+  download; filesystem and image readback confirmed success before any retry.
+  No second download or remote posting was needed.
+
+No article, social post or personal approval was submitted. Live posting is not
+claimed verified by the export. AI chat code and global styles remain untouched;
+authentication permissions and publication controls were not changed. Unrelated
+local editorial journals and AGENTS changes remain outside this release.
