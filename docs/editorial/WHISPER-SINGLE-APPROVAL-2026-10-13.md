@@ -44,3 +44,13 @@ The follow-up patch prevents this rehosting false failure in ordinary saving AND
 Real CDN comparison with the saved production intent returned **true at 11:14:14.589Z**, GET-only, no CMS write. Final isolated suite **379 files / 5,246 tests**, TypeScript and changed-file ESLint passed. Both real React external preview and MCP widget passed simulated mobile/desktop one-click/status tests; these are not claims of a human production click.
 
 Financial snapshot before deploy/recovery and after recovery stayed identical: hash `2c77ab6264c4b91394ad6de7741cad384c4ce280c53b200e22464ba326aac1a8`; October shared 1 historical call, 0 DKK committed estimate, 1.214400 DKK reserved, 1 unknown, no image month row, provider hold true/revision5. This is not a provider balance or an estimate of subscription usage.
+
+## Final deployed verification, 2026-10-13 11:20Z
+
+Follow-up release **`72f5b38a4e2de01b064b5482aa09d5cd39a21a4c`**, MCP **v26**, deployment **`dpl_79y7i3HXH1VkzzhCAn5LrooyNBAh`** is READY with the actual `ai.aproposmagazine.com` alias. Remote security configuration, TypeScript and production build passed; deployment completed 11:18:54Z. No environment or credential changes.
+
+Authenticated owner API at **11:19:31.518Z** and native MCP inline preview at **11:19:31.838Z** agree: same revision 10/hash/item, `prepared`, no blocker or missing inputs, four retained media, publication preview ready and no preview/dependency problems. The offered personal action is **Godkend og udgiv**, bound to revision 10; approval remains **preparation_only**, not publication consent. The external preview is optional, not a second approval. The agent did not consume any personal confirmation token.
+
+Independent native CMS read at **11:20:07.858Z** confirms the same item is still a never-published draft, `lastPublished=null`, with unchanged post-recovery hash `4086f2ce876b0de78f8040962833150bc2534da2207378fc3930c223722dcf92`. Thus the repaired exact version is ready for the necessary personal click, **not yet published**. A real new single-click publication/public readback cannot be claimed before that human action.
+
+Final financial snapshots **11:19:24.251Z–11:19:31.614Z** remain identical to the baseline above. No additional write/retry/import/generation/approval/publication was performed during final verification. Existing unrelated working-tree edits and historical failures remain preserved.
