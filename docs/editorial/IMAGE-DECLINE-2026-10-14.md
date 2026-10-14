@@ -91,6 +91,11 @@ explicit retry decision and fresh preflight before any image call.
 - Read-only preflight19:34:28Z preserves the consumed V32 grant and returns
   `canGenerate=false`, `image_dispatch_already_claimed` and
   `image_selection_required`; it neither clears history nor invents new authority.
+- Bounded post-release error-log scan returned3HTTP200requests (MCP and external
+  submission read) with the previously observed PassThrough listener warning.
+  This is not a clean error log and not proof of a memory leak or failed image
+  operation. Responses above completed successfully. No listener limits were
+  increased and no unrelated runtime repair was bundled into this release.
 
 Implemented, deployed and verified live **through the personal decision UI**.
 Actual negative choice and a new authorized generation remain unperformed.
