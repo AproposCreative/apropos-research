@@ -49,4 +49,25 @@ fixtures do not claim a real AI generation, CMS publication or user approval.
 
 ## Release
 
-Pending staged production build and authenticated live UI readback.
+- Source: `98e4eefb741fb7477297ca50ea089562e3fe16cc`.
+- Deployment: `dpl_DkcvftpruvhXiU2qCtKWbQoiMtE1`, production build READY.
+  The clean-archive deployment passed the remote security gate, compilation,
+  TypeScript and generation of 237 static pages. Existing dependency audit
+  findings were unchanged (3 moderate, 7 high); this layout patch does not fix them.
+- Before promotion, authenticated Vercel curl verified the staged `/ai` page
+  and its 17 script chunks: new build ID present, notes label absent, compact
+  `pt-2 pb-1` wrapper present. Deployment protection was not disabled.
+- Promoted on 14 October 2026 around 18:31Z. Independent alias lookup for
+  `ai.aproposmagazine.com` returned the exact deployment and source SHA above.
+- Authenticated live browser readback at 390x740 and 1440x900 confirmed the
+  notes card is absent, setup and composer remain usable, and the production
+  build label is `1.0.0.98e4eef`. Mobile press and last author choice both have
+  11.5px measured bottom clearance; desktop press has 17.5px including the
+  production border/rounding. All choices remain visible and unclipped.
+- Only setup tabs were opened; no author/press choice, article generation,
+  workspace reset, approval or CMS action was submitted. The temporary browser
+  viewport was reset and the verification tab closed.
+
+Implemented, deployed and verified live. Saved-conversation continuation and
+note preservation are covered by the isolated browser/regression tests above;
+no paid production generation was used as a layout test.
