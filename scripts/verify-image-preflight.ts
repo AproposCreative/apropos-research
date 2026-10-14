@@ -90,6 +90,7 @@ try {
     assert.equal(result.canGenerate, false); assert.equal(result.canImportGeneratedImage, false);
     assert(result.blockers.includes('mcp_submission_native_input_unverifiable'));
     assert(result.blockers.includes('mcp_submission_subject_reference_required'));
+    assert(!result.blockers.includes('mcp_submission_image_content_changed'), 'missing_old_baseline_is_not_article_mutation');
     results.push({ name, ...result });
   }
   assert.equal(await protectedState(), before, 'article_briefs_assets_or_approvals_changed');

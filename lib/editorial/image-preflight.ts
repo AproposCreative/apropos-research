@@ -32,7 +32,8 @@ export async function preflightSubmissionImage(uid: string, raw: unknown) {
       brief.contentHash !== row.contentHash || brief.role !== input.role || brief.sectionId !== input.sectionId ||
       brief.handoffVersion !== IMAGE_HANDOFF_VERSION || typeof brief.prompt !== 'string' || !brief.prompt ||
       promptHash(brief.prompt) !== brief.canonicalPromptHash) add('mcp_submission_generation_brief_invalid');
-  if (brief && brief.protectedContentHash !== imageProtectedContentHash(row.article)) add('mcp_submission_image_content_changed');
+  if (brief && !brief.protectedContentHash) add('mcp_submission_generation_brief_invalid');
+  else if (brief && brief.protectedContentHash !== imageProtectedContentHash(row.article)) add('mcp_submission_image_content_changed');
 
   const actualReferences: Array<{ purpose: string; sha256: string; byteCount: number; width: number; height: number }> = [];
   const refs = Array.isArray(brief?.retainedReferences) ? brief.retainedReferences : [];

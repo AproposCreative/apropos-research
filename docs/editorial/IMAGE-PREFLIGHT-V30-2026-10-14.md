@@ -83,8 +83,8 @@ choices to bypass these rules. No universal pixel-level quality guarantee is mad
 
 ## Tests
 
-Final isolated suite after raw-URL protection: **386 files / 5,386 tests passed**
-(`RAGE_STORAGE_DIR=./tmp/vitest-rage`, 15:55 Copenhagen). New preflight suite has
+Isolated suite after raw-URL protection: **386 files / 5,386 tests passed**
+(`RAGE_STORAGE_DIR=./tmp/vitest-rage`, 15:55 Copenhagen). New preflight suite then had
 **47 tests**. TypeScript, changed-application-file lint, safe-build configuration
 and diff checks passed. No AI calls or paid image fixtures were used.
 
@@ -127,3 +127,34 @@ four read-only preflights. It creates/revokes a temporary read-only service OAut
 grant (not editorial consent), compares article/brief/assets/history/approval and
 financial snapshots, and never calls get_image_brief, image import or generation.
 Exact release and live readback evidence will be recorded after deployment.
+
+## Initial v30 live verification and diagnostic correction
+
+Source `b8e4b4f214398ce4f9a92530be88e6cf638effd6`, deployment
+`dpl_CzNCDy9nXoPSHy79YCumMNbyWNqU`, reached READY with the actual production alias.
+At `2026-10-14T13:58:58.283Z`–`13:59:03.272Z`, authenticated discovery returned
+v30/63 tools, and all four existing-article preflights returned `canGenerate=false`
+and `canImportGeneratedImage=false`. The connected Apropos plugin independently
+returned the updated preflight and STOP workflow. No generated/image import was
+attempted. The temporary read-only service grant was revoked.
+
+Before/after full article, briefs, references, media, versions, updates, stages and
+approvals hash: `6db07e7ade7d2eb3bfcb54351b71a55f1f863f7e4d241ef127e7d5bdb41fbee6`.
+Before/after financial snapshot:
+`e3b2d498e807ab1cba45f4ca156ce81e5eb15d5b71ea496457fc31da07b69101`.
+No paid AI, CMS writes, personal consent, publication or original-image changes.
+
+That real readback exposed an imprecise diagnostic: the old cover brief has no
+protected-content baseline, so it incorrectly also reported
+`mcp_submission_image_content_changed`. The article was demonstrably unchanged.
+A follow-up correction classifies absent baseline as `generation_brief_invalid`;
+only an existing unequal baseline means content changed. A regression test and
+live verifier assertion cover this distinction. No evidence or old brief is rewritten.
+
+Final corrected suite at 15:59 Copenhagen: **386 files / 5,387 tests passed**,
+including **48 new preflight tests**. TypeScript and changed-file lint also passed.
+
+The remote install reported 10 dependency audit findings (3 moderate, 7 high).
+This change does not modify the lockfile/dependencies or claim those findings
+resolved. Passing `security:config` checks build configuration, not a clean
+dependency vulnerability audit.

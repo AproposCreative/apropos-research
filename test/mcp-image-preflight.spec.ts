@@ -81,6 +81,14 @@ it('does not expose another person’s private article/references', async () => 
   await expect(importChatImage('other', generated)).rejects.toThrow('not_found');
   expect(state.download).not.toHaveBeenCalled(); expect(state.upload).not.toHaveBeenCalled();
 });
+it('reports an old brief without a protected-content baseline as invalid, not as an actual article mutation', async () => {
+  delete brief.protectedContentHash;
+  const before = cmsFieldHash(memory.rows.get(path));
+  const result = await preflightSubmissionImage('owner', input);
+  expect(result.blockers).toContain('mcp_submission_generation_brief_invalid');
+  expect(result.blockers).not.toContain('mcp_submission_image_content_changed');
+  expect(result.canGenerate).toBe(false); expect(cmsFieldHash(memory.rows.get(path))).toBe(before);
+});
 it.each(['missing', 'hash-only', 'wrong-bytes', 'wrong-purpose'])('requires actual STYLE_REFERENCE bytes: %s', async mode => {
   if (mode === 'missing') state.files.delete('private/style');
   if (mode === 'hash-only') brief.retainedReferences[0] = { sha256: brief.referenceHash, purpose: 'style' };
