@@ -18,7 +18,7 @@ import { imageCandidatePreviews, selectGeneratedImage } from './generated-image-
 export const CHAT_PREVIEW_URI = 'ui://apropos/article-preview-v1.html';
 export const chatPreviewInput = z.object({ submissionId }).strict();
 export const chatConfirmInput = z.object({ token: z.string().regex(/^[a-zA-Z0-9_-]{43}$/),
-  localTime: z.string().max(20).default('now') }).strict();
+  localTime: z.string().max(20).default('now'), displayedImageHash: submissionId.optional() }).strict();
 
 /** Per-article receipts only. Never return a colleague's or global ledger. */
 export async function submissionCosts(uid: string, id: string) {
@@ -121,13 +121,17 @@ export async function chatSubmissionPreview(identity: McpIdentity, id: string) {
 export async function confirmChatSubmission(identity: McpIdentity, raw: unknown) {
   const input = chatConfirmInput.parse(raw), { db, collection } = submissionStore();
   const ref = db.collection('mcpUiConfirmations').doc(digest(input.token));
-  const inputHash = cmsFieldHash({ localTime: input.localTime });
+  const inputHash = cmsFieldHash({ localTime: input.localTime, ...(input.displayedImageHash ? { displayedImageHash: input.displayedImageHash } : {}) });
   const action = await db.runTransaction(async tx => {
     const confirmation = (await tx.get(ref)).data();
     if (!confirmation || confirmation.uid !== identity.uid || confirmation.grantId !== identity.grantId ||
       !['checks', 'media', 'image_candidate', 'publish', 'approve_publish'].includes(confirmation.action) ||
       !identity.scopes.includes(['publish', 'approve_publish'].includes(confirmation.action) ? 'apropos:publish' : 'apropos:draft') ||
       (confirmation.action === 'approve_publish' && !identity.scopes.includes('apropos:draft'))) throw Error('mcp_submission_confirmation_required');
+    // Older cached cards do not render private candidates. Their generic button
+    // must NEVER select unseen pixels. Only the updated candidate UI supplies this.
+    if (confirmation.action === 'image_candidate' && input.displayedImageHash !== confirmation.candidateHash)
+      throw Error('mcp_submission_image_preview_required');
     if (confirmation.status === 'done' && confirmation.inputHash === inputHash) return confirmation;
     // A lost attachment response can have advanced the article version. The
     // retained operation below checks/replays its own exact personal receipt.

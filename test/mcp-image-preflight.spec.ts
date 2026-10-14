@@ -288,12 +288,15 @@ it('a UI-only exact-file choice attaches once, preserves prose and does not requ
   expect(JSON.stringify(preview.data)).not.toContain(preview.confirmation!.token);
   await expect(confirmChatSubmission({ ...identity, uid: 'other' }, { token: preview.confirmation!.token })).rejects.toThrow('confirmation_required');
   await expect(confirmChatSubmission({ ...identity, scopes: ['apropos:read'] }, { token: preview.confirmation!.token })).rejects.toThrow('confirmation_required');
-  const result = await confirmChatSubmission(identity, { token: preview.confirmation!.token });
+  await expect(confirmChatSubmission(identity, { token: preview.confirmation!.token })).rejects.toThrow('image_preview_required');
+  await expect(confirmChatSubmission(identity, { token: preview.confirmation!.token, displayedImageHash: 'f'.repeat(64) })).rejects.toThrow('image_preview_required');
+  const displayedImageHash = generated.generationReport.outputCheck.sha256;
+  const result = await confirmChatSubmission(identity, { token: preview.confirmation!.token, displayedImageHash });
   expect(result).toMatchObject({ revision: 3, queuedOnServer: false, publicationApproval: false });
   // Simulate a lost reply after committed attachment but before token receipt.
   const token = memory.rows.get('mcpUiConfirmations/' + digest(preview.confirmation!.token));
   token.status = 'attempted'; delete token.result;
-  expect(await confirmChatSubmission(identity, { token: preview.confirmation!.token })).toMatchObject({ revision: 3, replay: true });
+  expect(await confirmChatSubmission(identity, { token: preview.confirmation!.token, displayedImageHash })).toMatchObject({ revision: 3, replay: true });
   expect(state.upload).toHaveBeenCalledTimes(1); expect(state.download).toHaveBeenCalledTimes(1);
   const status = await getSubmissionStatus('owner', id);
   expect(status.imageCandidates).toHaveLength(0); expect(status.imageSelection.required).toBe(false);

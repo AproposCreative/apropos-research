@@ -44,6 +44,7 @@ try {
       await frame.getByRole('button', { name: 'Brug dette billede' }).evaluate((el: HTMLButtonElement) => { el.click(); el.click(); });
       await frame.getByText('Version 3 · Klar til gennemlæsning').waitFor();
       assert.deepEqual(await page.evaluate(() => (window as any).calls.map((c: any) => c.name)), ['confirm_submission_action', 'preview_submission']);
+      assert.equal(await page.evaluate(() => (window as any).calls[0].arguments.displayedImageHash), 'c'.repeat(64));
       assert.equal(await frame.locator('#confirm').isHidden(), true);
     }
     assert.deepEqual(errors, []); await page.close();

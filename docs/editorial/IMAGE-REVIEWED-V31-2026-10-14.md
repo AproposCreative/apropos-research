@@ -29,6 +29,9 @@ selection. No new backend model provider, paid image API or parallel image engin
   and stable IDs. A second image click is unnecessary after completed selection.
   Changed prose, ownership, bytes, versions, missing preview and forged approval
   fields fail closed. No automatic generation/retry or approved-image replacement.
+- A cached older chat card cannot select an unseen candidate: the UI-only action
+  additionally requires the rendered candidate hash. Older clients must refresh
+  tools/cards or use the existing authenticated external preview, not click blind.
 - Genuine user-upload/press photos and historical attached replays remain intact.
   No article prose, research, byline, SEO, provider allowance or hold is changed.
 
