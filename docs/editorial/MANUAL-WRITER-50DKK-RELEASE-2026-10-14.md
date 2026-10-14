@@ -1,5 +1,35 @@
 # Manual Writer: fixed 50 DKK allowance
 
+## Funded and resumed — 14 October, 14:30 Copenhagen
+
+The owner explicitly accepted the displayed credit terms at action time.
+One payment of **22USD total** completed, invoice`ECF8A545-0012` marked **Paid**
+at14:28 in the official billing UI. API credit balance is **8.13USD** after the
+13.87USD deficit settlement. Automatic reload remains **OFF**. No second purchase,
+new key, Dobby change or recurring payment. The bank's final DKK conversion/fees
+were not exposed in this UI; do not state a precise DKK card debit.
+
+After rechecking release and the active fixed50DKK policy, the existing audited
+owner API resumed providerhold revision5→6. GET at12:29:47.657Z confirms
+manual-writer-only-v1, limit50/remaining50/usage0/reserved0/calls0,
+resetsAutomatically=false, providerBlocked=false, **available=true**. The live
+tool catalogue exposes Writer and keeps paid image generation hidden. Liv's
+inbox remains visible/autosvaroff. Anonymous Writer POST still returns401.
+
+Evidence:`output/manual-writer-resumption-2026-10-14T12-29-50-042Z.json` in the
+main checkout. Shared/image ledger snapshots and Casper's revision14 workspace
+hash are identical before/after. Old hold reason/time and audited resumption are
+preserved; no failed-run reset, historical reservation clearance or paid retry.
+No model generation was performed: **funding, activation and guards are verified
+live; Casper's next actual generation is not yet observed**. He can refresh the
+existing Writer and continue his saved draft. Do not send/replay his stored prompt
+on his behalf merely for verification.
+
+The paid legacy automations stay centrally denied by the manual-only policy,
+including future months. ChatGPT-first Liv/SEO, schedules, article approvals,
+translation status and delivery acceptance are unchanged. Earlier pending-payment
+sections below are chronological evidence, not current status.
+
 ## Live verification — 14 October, 14:26 Copenhagen
 
 Code release `df966aa7c489f3aff8e89168f0f0404d08c3797d`, deployment
