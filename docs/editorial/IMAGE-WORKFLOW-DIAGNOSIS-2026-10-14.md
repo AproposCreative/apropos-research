@@ -1,5 +1,65 @@
 # Native image workflow comparison — 14 October 2026
 
+## Owner-authorized single-cover trial: blocked before generation, 17:02 Copenhagen
+
+The owner subsequently accepted the recommendation to test **one selfie cover
+in the actual Work editorial thread**, relaxing independent hidden-input
+verification for that single trial. This does not authorize a context-inferred
+replacement prompt, missing references, body generation, retries, automatic
+import, approval or publication. The previous diagnosis's statement that it
+authorized no trial remains historical. **The authorized trial has not run.**
+
+Two explicitly read-only messages were sent through the supported task tool to
+“⭐ Apropos – Redaktion · START HER”,
+`6acb2584-2f20-83eb-a335-031a584b8d3b`. Their completed turns are
+`a4fcc8e3-d953-4960-afc2-103807b70d0b` and
+`707c643f-89bd-4335-8344-317d98c2c4b2`. No run-now, scheduled-task modification,
+new article, connection change or native image call was requested.
+
+The Work assistant reports:
+
+- Current article revision2 and the original `IMG_3617.jpeg` remain available.
+- Its current tool catalog, including one targeted discovery search, lacks
+  `store_submission_image_reference` and `preflight_submission_image`.
+- Its native `image_gen.text2im` schema marks `prompt` and
+  `referenced_image_ids` deprecated; prompt must be null, and instructions and
+  image selection are inferred from conversation context. Other reported fields
+  are size, n, transparent_background and is_style_transfer.
+
+This is **a host assistant's reported schema**, not an independently captured
+native invocation. It establishes a concrete reported integration constraint,
+not that context-based generation can never work or the cause of the old bad
+output. Official documentation describes multiple style/subject references, but
+does not verify this session's explicit argument support. The supported read
+exposes the assistant's report, not raw native tool arguments.
+
+The independent authenticated production verifier completed at
+**2026-10-14T15:02:17.425Z**: v30/63 tools; the server-side preflight is present
+and callable. All four read-only placement checks stopped, as expected. Thus
+the missing tools in Work are a discovery/exposure discrepancy, not proof that
+the server lacks preflight. The temporary read-only service grant was revoked.
+
+Article revision2/content hash
+`a26827edd659ebe4b6c85c99115fa0a567346b6374b89d4bf4da49069cc1f846`, four historical
+briefs and zero stored subject references are unchanged. Before/after complete
+protected-state hash is
+`6db07e7ade7d2eb3bfcb54351b71a55f1f863f7e4d241ef127e7d5bdb41fbee6`;
+financial hash is
+`e3b2d498e807ab1cba45f4ca156ce81e5eb15d5b71ea496457fc31da07b69101`.
+No image generation, import, CMS write, personal approval or paid backend AI.
+No application code, new control system, global exception or deployment was
+introduced. No unit/full suite was rerun for this diagnostic follow-up.
+
+Resume with official Work tool refresh if staying in Work, then recheck actual
+native handoff capability. Refresh alone does not resolve the reported
+context-inferred input limitation. The current accepted trial still requires a
+fresh portrait-specific brief and the actual ordered style/selfie files.
+Moving the trial to this Codex client's explicit prompt/reference interface
+would require the owner's location choice; it must not be presented as a
+successful Work test. Never change the global import stop merely to turn a
+preflight result green. No image attempt has been consumed or scheduled in the
+background.
+
 ## Conclusion
 
 The documented successful case is **Klubkultur, interactive v20 on 11 October**,
