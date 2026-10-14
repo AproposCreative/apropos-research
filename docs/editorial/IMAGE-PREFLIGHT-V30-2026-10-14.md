@@ -1,5 +1,17 @@
 # Native image preflight v30 — 14 October 2026
 
+## Later diagnosis-first follow-up
+
+See [IMAGE-WORKFLOW-DIAGNOSIS-2026-10-14.md](IMAGE-WORKFLOW-DIAGNOSIS-2026-10-14.md)
+for the comparison requested after this release. The demonstrated success was
+v20, while the stored barsel briefs are v28. The old rev2 cover brief requests the
+child/playhouse, **not** the user's later portrait request. “Selfie cover” below
+names the desired placement, not the subject of that old brief. Four original
+photos are available in Work attachments, but none is registered as an MCP subject
+reference. A missing legacy retained bundle is not proof that inline reference
+bytes were absent from the original MCP response. The follow-up adds tests and
+evidence only; it does not remove the stop or claim restored native production.
+
 ## Final production verification — 16:02 Copenhagen
 
 Source **`ebd062ba9edbea0f55e031ea100a55e8ad170d03`**, deployment

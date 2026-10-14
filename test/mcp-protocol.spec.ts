@@ -4,6 +4,8 @@ const mock = vi.hoisted(() => ({ identity: null as any, rate: vi.fn(), audit: vi
 const reader = vi.hoisted(() => ({ register: vi.fn(), list: vi.fn(), get: vi.fn(), save: vi.fn() }));
 const seo = vi.hoisted(() => ({ claim: vi.fn(), status: vi.fn(), save: vi.fn(), apply: vi.fn() }));
 const ideas = vi.hoisted(() => ({ desk: vi.fn(), save: vi.fn(), get: vi.fn(), start: vi.fn() }));
+const imageBrief = vi.hoisted(() => vi.fn());
+vi.mock('@/lib/editorial/chat-image-brief', async original => ({ ...await original<any>(), getChatImageBrief: imageBrief }));
 vi.mock('@/lib/editorial/ideas', async original => ({ ...await original<any>(), getEditorialDesk: ideas.desk,
   saveEditorialIdeas: ideas.save, getEditorialIdea: ideas.get, startEditorialIdea: ideas.start }));
 vi.mock('@/lib/seo-engine/post-publish/chat', () => ({ claimSeoTasks: seo.claim, getSeoTask: seo.status, saveSeoReview: seo.save, applySeoReview: seo.apply }));
@@ -44,6 +46,23 @@ beforeEach(() => { vi.clearAllMocks(); mock.identity = { uid: 'frederik', owner:
 const message = (method: string, params?: unknown) => new Request(`${MCP_ORIGIN}/mcp`, { method: 'POST',
   headers: { 'Content-Type': 'application/json', Accept: 'application/json, text/event-stream' }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, ...(params ? { params } : {}) }) });
 const call = (name: string, args = {}) => POST(message('tools/call', { name, arguments: args }));
+it('transports the exact canonical prompt and separate ordered image blocks, not a reconstructed image-generation instruction', async () => {
+  // Protocol-only fixture: proves what MCP returns, not what the native host consumes.
+  const brief = { briefId: 'b'.repeat(64), prompt: 'Exact canonical prompt.\nFirst reference is STYLE ONLY.\nOne standalone illustration.',
+    generationContract: { canGenerate: false, exactPromptExecutionVerified: false } };
+  const style = { data: Buffer.from('style-byte-fixture').toString('base64'), mimeType: 'image/jpeg' };
+  const subject = { data: Buffer.from('subject-byte-fixture').toString('base64'), mimeType: 'image/png' };
+  imageBrief.mockResolvedValue({ brief, reference: style, additionalReferences: [subject] });
+  const args = { submissionId: 'a'.repeat(64), expectedRevision: 2, role: 'cover', sectionId: 'c'.repeat(64),
+    excerpt: 'An unchanged article passage.', description: 'The requested portrait, not the earlier child cover.',
+    subjectReferenceIds: ['d'.repeat(64)], subjectReferencesRequired: true };
+  const result = (await (await call('get_image_brief', args)).json()).result;
+  expect(result.isError).not.toBe(true);
+  expect(result.content).toEqual([{ type: 'text', text: JSON.stringify(brief) },
+    { type: 'image', ...style }, { type: 'image', ...subject }]);
+  expect(imageBrief).toHaveBeenCalledExactlyOnceWith('frederik', { ...args, style: 'expressive' });
+  expect(JSON.parse(result.content[0].text).generationContract.canGenerate).toBe(false);
+});
 it('discovers the editorial desk widget, keeps selection private and denies paid models or caller UID', async () => {
   const listed = (await (await POST(message('tools/list'))).json()).result.tools;
   const desk = listed.find((t: any) => t.name === 'get_editorial_desk');

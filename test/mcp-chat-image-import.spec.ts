@@ -323,6 +323,43 @@ it('uses a real canonical brief and actual style bytes through native import and
   expect(state.stored.get(saved.storagePath)).toEqual(state.bytes); expect(state.upload).toHaveBeenCalledTimes(1);
   expect(memory.rows.get(path).approval).toBeUndefined();
 });
+it('keeps the verified historic style bytes and creates distinct briefs when the requested cover subject changes', async () => {
+  // Regression from the barsel incident: an article revision alone does not identify
+  // the user's latest visual intent. Do not relabel the earlier child brief as a portrait.
+  const { article } = await readImageGenSnapshot('team', `submission-${id}`), section = article.sections[0];
+  const before = cmsFieldHash(memory.rows.get(path));
+  const args = { submissionId: id, expectedRevision: 1, role: 'cover', sectionId: section.id, excerpt: section.text };
+  const child = await getChatImageBrief('team', { ...args, description: 'A child beside a wooden playhouse, one scene.' });
+  const portrait = await getChatImageBrief('team', { ...args, description: 'A portrait with sunglasses and a black jacket, one scene.' });
+  expect(child.brief.briefId).not.toBe(portrait.brief.briefId);
+  expect(child.brief.canonicalPromptHash).not.toBe(portrait.brief.canonicalPromptHash);
+  expect(child.brief.referenceHash).toBe('0ef077580da7c9ed5b4c64a6973acc3dde536af0bb7a40776f45bf59c5bcff01');
+  expect(portrait.reference).toEqual(child.reference);
+  const actualStyle = Buffer.from(child.reference.data, 'base64');
+  expect(actualStyle.length).toBe(415373);
+  expect(createHash('sha256').update(actualStyle).digest('hex')).toBe(child.brief.referenceHash);
+  expect(await sharp(actualStyle).metadata()).toMatchObject({ format: 'jpeg', width: 1080, height: 1350 });
+  expect(portrait.brief.prompt).not.toContain('A child beside a wooden playhouse');
+  expect(portrait.brief.prompt).toContain('Output exactly ONE standalone editorial illustration');
+  expect(portrait.brief.generationContract).toMatchObject({ canGenerate: false, exactPromptExecutionVerified: false });
+  expect(cmsFieldHash(memory.rows.get(path))).toBe(before);
+  expect(state.upload).not.toHaveBeenCalled(); expect(state.download).not.toHaveBeenCalled();
+});
+it('does not upgrade old body briefs when a new cover brief is obtained after an article revision', async () => {
+  const { article } = await readImageGenSnapshot('team', `submission-${id}`), section = article.sections[0];
+  const args = { submissionId: id, expectedRevision: 1, role: 'body', sectionId: section.id, excerpt: section.text,
+    description: 'One cafe table, a single standalone illustration.' };
+  const oldBody = await getChatImageBrief('team', args);
+  const savedBefore = cmsFieldHash(memory.rows.get(`${path}/chatBriefs/${oldBody.brief.briefId}`));
+  const row = memory.rows.get(path); row.revision = 2; row.contentHash = 'e'.repeat(64);
+  await expect(getChatImageBrief('team', args)).rejects.toThrow('revision_conflict');
+  await getChatImageBrief('team', { ...args, expectedRevision: 2, role: 'cover', description: 'The later portrait request, one subject.' });
+  expect(cmsFieldHash(memory.rows.get(`${path}/chatBriefs/${oldBody.brief.briefId}`))).toBe(savedBefore);
+  await expect(importChatImage('team', { ...input(), expectedRevision: 2, role: 'body', briefId: oldBody.brief.briefId,
+    generationReport: { ...input().generationReport, effectivePrompt: oldBody.brief.prompt, referenceHashes: oldBody.brief.requiredReferenceHashes } }))
+    .rejects.toThrow('mcp_submission_brief_changed');
+  expect(state.upload).not.toHaveBeenCalled(); expect(state.download).not.toHaveBeenCalled();
+});
 it('keeps completed pre-contract imports replayable without retroactive evidence or another upload', async () => {
   const value = { ...input(), origin: 'unspecified', briefId: undefined, sectionId: undefined, generationReport: undefined };
   const { file, ...metadata } = value, assetId = cmsFieldHash({ uid: 'team', id, requestId: value.requestId });
