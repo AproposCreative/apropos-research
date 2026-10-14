@@ -11,6 +11,7 @@ import { assertChatGptFirstPolicy } from './submission-policy';
 import { ideaRef, ideaSubmissionRequest, ideaSubmissionId } from './ideas';
 import { mergeSocialSubtitles } from './social-subtitles';
 import { hasCurrentPublicationConsent } from './submission-consent-state';
+import { assertNoApprovedImageReplacement } from './approved-image-guard';
 import { inspectSubmission, submissionId, submissionInput, submissionUpdate, submissionVersion,
   validateSubmissionArticle, type SubmissionRecord } from './submission-contract';
 
@@ -167,6 +168,7 @@ export async function updateSubmission(uid: string, raw: unknown, internal?: { r
     validateSubmissionArticle(next.article);
     const beforeUrls = [base.featuredImage, ...articleImages(base.content).map(image => image.url)].filter((url): url is string => !!url);
     const afterUrls = new Set([next.article.featuredImage, ...articleImages(next.article.content).map(image => image.url)]);
+    await assertNoApprovedImageReplacement(row, beforeUrls.filter(url => !afterUrls.has(url)), tx);
     for (const url of beforeUrls.filter(url => !afterUrls.has(url) && !internal?.replaceUrls.includes(url))) {
       const lock = (await tx.get(db.collection('editorialProvidedAssets').doc(cmsFieldHash({ url })))).data();
       if (lock?.preserveOriginal && lock.url === url) throw Error('mcp_submission_selected_asset_locked');

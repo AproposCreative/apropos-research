@@ -2,7 +2,7 @@ import { beforeEach, afterEach, expect, it, vi } from 'vitest';
 import sharp from 'sharp';
 import { createHash } from 'node:crypto';
 import { memoryFirestore } from './helpers/mcp-firestore';
-const state = vi.hoisted(() => ({ db: null as any, bytes: Buffer.alloc(0), stored: new Map<string, Buffer>(), upload: vi.fn(), download: vi.fn(), readback: vi.fn(), boundCover: vi.fn(), breakAttachment: false }));
+const state = vi.hoisted(() => ({ db: null as any, sectionId: '', bytes: Buffer.alloc(0), stored: new Map<string, Buffer>(), upload: vi.fn(), download: vi.fn(), readback: vi.fn(), boundCover: vi.fn(), breakAttachment: false }));
 vi.mock('@/lib/editorial/submission-published-target', async importOriginal => ({ ...await importOriginal<typeof import('@/lib/editorial/submission-published-target')>(), findBoundCoverByHash: (...args: unknown[]) => state.boundCover(...args) }));
 vi.mock('@/lib/firebase-admin', () => ({ getAdminDb: () => state.db, getAdminStorageBucket: () => ({ file: (path: string) => ({
   save: async (bytes: Buffer) => { state.stored.set(path, Buffer.from(bytes)); }, download: async () => [state.stored.get(path)] }) }) }));
@@ -15,6 +15,8 @@ import { updateSubmission, getSubmissionStatus } from '@/lib/editorial/submissio
 import { readImageGenSnapshot } from '@/lib/image-gen/snapshot';
 import { cmsFieldHash } from '@/lib/liv/cms-field-hash';
 import { importSubmissionPressImage, previewSubmissionPressImage } from '@/lib/editorial/press-image-import';
+import { IMAGE_HANDOFF_VERSION, promptHash } from '@/lib/editorial/image-generation-evidence';
+import { getChatImageBrief } from '@/lib/editorial/chat-image-brief';
 const id = 'a'.repeat(64), version = 'b'.repeat(64), path = `editorialSubmissions/${id}`, briefId = 'c'.repeat(64);
 let memory: ReturnType<typeof memoryFirestore>;
 beforeEach(async () => {
@@ -29,13 +31,22 @@ beforeEach(async () => {
   const article = { title: 'En koncert', content: '<p>Første   afsnit med en konkret scene.</p><p>Det næste afsnit.</p>', subjectType: 'music' };
   memory.rows.set(path, { id, uid: 'team', revision: 1, status: 'draft', contentHash: version, requestId: 'original-article-0001',
     article, originalArticle: article, research: [], choices: { kind: 'feature', media: 'illustration', style: 'expressive' } });
+  state.sectionId = (await readImageGenSnapshot('team', `submission-${id}`)).article.sections[0].id;
 });
 afterEach(() => vi.unstubAllEnvs());
 const input = () => ({ submissionId: id, expectedRevision: 1, requestId: 'import-chat-image-0001',
   file: { download_url: 'https://files.oaiusercontent.com/image?signature=PRIVATE', file_id: 'file-personal-image', mime_type: 'image/png' },
-  kind: 'illustration', role: 'cover', origin: 'chatgpt-generated', briefId, alt: 'En illustration af koncerten', caption: 'Koncerten', credit: 'User supplied' });
+  kind: 'illustration', role: 'cover', origin: 'chatgpt-generated', briefId, sectionId: state.sectionId,
+  generationReport: { effectivePrompt: 'Flat colours, no 3D.', referenceHashes: [createHash('sha256').update(state.bytes).digest('hex')],
+    outputCheck: { sha256: createHash('sha256').update(state.bytes).digest('hex'), inspected: true, imageType: 'standalone-illustration', singleImage: true,
+      textVisible: false, logosVisible: false, watermarkVisible: false } },
+  alt: 'En illustration af koncerten', caption: 'Koncerten', credit: 'User supplied' });
 async function brief(role = 'cover', sectionId?: string) {
-  memory.rows.set(`${path}/chatBriefs/${briefId}`, { uid: 'team', contentHash: version, role, sectionId: sectionId || null });
+  const referenceHash = createHash('sha256').update(state.bytes).digest('hex');
+  state.stored.set('reference/original', state.bytes);
+  memory.rows.set(`${path}/chatBriefs/${briefId}`, { uid: 'team', submissionId: id, expectedRevision: 1, contentHash: version, role, sectionId: sectionId || state.sectionId,
+    handoffVersion: IMAGE_HANDOFF_VERSION, prompt: input().generationReport.effectivePrompt, canonicalPromptHash: promptHash(input().generationReport.effectivePrompt), referenceHash,
+    requiredReferenceHashes: [referenceHash], retainedReferences: [{ sha256: referenceHash, storagePath: 'reference/original', mimeType: 'image/png' }] });
 }
 function pressInput() {
   const sha256 = createHash('sha256').update(state.bytes).digest('hex');
@@ -113,15 +124,14 @@ it('retains the private original and attaches a durable CMS asset once, without 
   expect(saved).not.toContain('PRIVATE'); expect(saved).not.toContain('download_url');
   expect(saved).toContain('chatgpt-supplied-unverified');
   expect(memory.rows.get(path).article.content).toBe(memory.rows.get(path).originalArticle.content);
-  expect(first.generationEvidence).toMatchObject({ status: 'not_supplied', requiresPersonalSelection: true, exactPromptExecutionVerified: false });
-  expect((await getSubmissionStatus('team', id)).imageSelection.required).toBe(true);
+  expect(first.generationEvidence).toMatchObject({ status: 'client_reported_match', requiresPersonalSelection: false, exactPromptExecutionVerified: false });
+  expect((await getSubmissionStatus('team', id)).imageSelection.required).toBe(false);
 });
-it('persists a mismatched report and preserves the original, requiring personal selection instead of regenerating', async () => {
-  await brief(); Object.assign(memory.rows.get(`${path}/chatBriefs/${briefId}`), { prompt: 'Flat colours, no 3D.', referenceHash: 'd'.repeat(64) });
-  const result = await importChatImage('team', { ...input(), generationReport: { effectivePrompt: 'Cinematic watercolor.', referenceHashes: ['d'.repeat(64)] } });
-  expect(result.generationEvidence).toMatchObject({ status: 'mismatch', exactPromptExecutionVerified: false, requiresPersonalSelection: true });
-  expect([...state.stored.values()][0]).toEqual(state.bytes);
-  expect(result.regenerateImage).toBe(false); expect((await getSubmissionStatus('team', id)).imageSelection.required).toBe(true);
+it('rejects a mismatched new report before any download or CMS upload, preserving existing records', async () => {
+  await brief(); const before = JSON.stringify([...memory.rows]);
+  await expect(importChatImage('team', { ...input(), generationReport: { ...input().generationReport, effectivePrompt: 'Cinematic watercolor.' } })).rejects.toThrow('canonical_prompt_mismatch');
+  expect(state.download).not.toHaveBeenCalled(); expect(state.upload).not.toHaveBeenCalled();
+  expect(JSON.stringify([...memory.rows])).toBe(before);
 });
 it('uses exact paragraph identity and preserves all other text and assets', async () => {
   const { article } = await readImageGenSnapshot('team', `submission-${id}`), sectionId = article.sections[0].id;
@@ -191,21 +201,20 @@ it('rejects small image bytes before storage or upload', async () => {
   expect(state.upload).not.toHaveBeenCalled();
 });
 it('accepts an existing user-upload without inventing a generation brief or credit', async () => {
-  const result = await importChatImage('team', { ...input(), briefId: undefined, origin: 'user-upload', credit: 'Foto: Frederik' });
+  const result = await importChatImage('team', { ...input(), kind: 'photo', generationReport: undefined, briefId: undefined, origin: 'user-upload', credit: 'Foto: Frederik' });
   expect(result.revision).toBe(2); expect(memory.rows.get(path).article.fotoCredit).toBe('Foto: Frederik');
   await expect(updateSubmission('team', { submissionId: id, expectedRevision: 2, requestId: 'silent-replacement-0001',
     article: { featuredImage: 'https://cdn.test/fallback.jpg' } })).rejects.toThrow('selected_asset_locked');
   expect(memory.rows.get(path).article.featuredImage).toBe(result.url);
 });
-it('keeps legacy client origin unknown rather than fabricating a generation brief', async () => {
-  const result = await importChatImage('team', { ...input(), origin: undefined, briefId: undefined });
-  const saved = memory.rows.get(`${path}/chatAssets/${result.assetId}`);
-  expect(saved).toMatchObject({ origin: 'unspecified', exactPromptExecutionVerified: false, credit: 'User supplied', preserveOriginal: true });
+it('rejects new unspecified origins without guessing whether a file was generated', async () => {
+  await expect(importChatImage('team', { ...input(), origin: undefined, briefId: undefined })).rejects.toThrow('image_origin_required');
+  expect(state.download).not.toHaveBeenCalled(); expect(state.upload).not.toHaveBeenCalled();
 });
 it.each(['jpeg', 'png', 'webp'] as const)('sniffs %s bytes when the adapter labels them binary', async format => {
   state.bytes = await sharp({ create: { width: 1280, height: 720, channels: 3, background: 'beige' } }).toFormat(format).toBuffer();
   state.download.mockResolvedValue(state.bytes);
-  const result = await importChatImage('team', { ...input(), origin: 'user-upload', briefId: undefined, file: { ...input().file, mime_type: 'application/octet-stream' } });
+  const result = await importChatImage('team', { ...input(), kind: 'photo', generationReport: undefined, origin: 'user-upload', briefId: undefined, file: { ...input().file, mime_type: 'application/octet-stream' } });
   expect(state.upload.mock.calls[0][0]).toEqual(state.bytes); expect(result.revision).toBe(2);
 });
 it('marks ghost uploads unconfirmed and never silently reallocates or changes the article', async () => {
@@ -231,4 +240,93 @@ it('resumes the same ambiguous import with identical bytes already on the bound 
   expect(result.url).toBe('https://cdn.test/already-published.png');
   expect(state.upload).toHaveBeenCalledTimes(1); expect(state.download).toHaveBeenCalledTimes(2);
   expect([...memory.rows.values()].some(row => row.previousFailure?.code === 'mcp_submission_asset_upload_unconfirmed')).toBe(true);
+});
+
+it.each([
+  ['missing report', (v: any) => ({ ...v, generationReport: undefined }), 'generation_report_required'],
+  ['generated photo', (v: any) => ({ ...v, kind: 'photo' }), 'generated_image_type_invalid'],
+  ['cover section mismatch', (v: any) => ({ ...v, sectionId: 'd'.repeat(64) }), 'generation_brief_invalid'],
+  ['missing actual style', (v: any) => ({ ...v, generationReport: { ...v.generationReport, referenceHashes: [] } }), 'references_mismatch'],
+  ['extra reference', (v: any) => ({ ...v, generationReport: { ...v.generationReport, referenceHashes: [...v.generationReport.referenceHashes, 'd'.repeat(64)] } }), 'references_mismatch'],
+  ['wrapper', (v: any) => ({ ...v, generationReport: { ...v.generationReport, technicalWrapper: 'landscape' } }), 'canonical_prompt_mismatch'],
+  ['no inspection', (v: any) => ({ ...v, generationReport: { ...v.generationReport, outputCheck: undefined } }), 'output_inspection_required'],
+  ['edit without original', (v: any) => ({ ...v, origin: 'chatgpt-edited' }), 'parent_required'],
+] as const)('rejects %s before download/upload', async (_name, change, error) => {
+  await brief(); await expect(importChatImage('team', change(input()))).rejects.toThrow(error);
+  expect(state.download).not.toHaveBeenCalled(); expect(state.upload).not.toHaveBeenCalled(); expect(memory.rows.get(path).revision).toBe(1);
+});
+it.each([
+  { imageType: 'collage' }, { imageType: 'article-mockup' }, { imageType: 'photo' },
+  { textVisible: true }, { logosVisible: true }, { watermarkVisible: true }, { singleImage: false },
+])('rejects disallowed inspected output %j before upload', async patch => {
+  await brief(); const value = input();
+  await expect(importChatImage('team', { ...value, generationReport: { ...value.generationReport, outputCheck: { ...value.generationReport.outputCheck, ...patch } } })).rejects.toThrow('generated_image_type_invalid');
+  expect(state.upload).not.toHaveBeenCalled(); expect(state.download).not.toHaveBeenCalled();
+});
+it('binds the inspection to the original bytes rather than a different approved-looking image', async () => {
+  await brief(); const value = input();
+  await expect(importChatImage('team', { ...value, generationReport: { ...value.generationReport, outputCheck: { ...value.generationReport.outputCheck, sha256: '0'.repeat(64) } } })).rejects.toThrow('inspected_image_mismatch');
+  expect(state.upload).not.toHaveBeenCalled(); expect(memory.rows.get(path).revision).toBe(1);
+});
+it('fails closed on a legacy brief or a lost/changed actual style reference, without upgrading history', async () => {
+  await brief(); const stored = memory.rows.get(`${path}/chatBriefs/${briefId}`);
+  stored.handoffVersion = 'canonical-native-image-v1';
+  await expect(importChatImage('team', input())).rejects.toThrow('generation_brief_invalid');
+  stored.handoffVersion = IMAGE_HANDOFF_VERSION; state.stored.set('reference/original', Buffer.from('HTML, not the style image'));
+  await expect(importChatImage('team', input())).rejects.toThrow('reference_changed');
+  expect(state.upload).not.toHaveBeenCalled();
+});
+it.each(['current', 'selection', 'consent', 'historical'])('never replaces an image protected by %s personal approval', async mode => {
+  const url = 'https://cdn.test/approved.png', row = memory.rows.get(path); row.article.featuredImage = url;
+  const approval = { uid: 'team', contentHash: version, acceptedAt: '2026-10-13T10:00:00Z' };
+  if (mode === 'current') row.approval = approval;
+  if (mode === 'selection') memory.rows.set(`${path}/mediaSelections/selected`, { uid: 'team', acceptedAt: approval.acceptedAt, items: [{ url }] });
+  if (mode === 'consent') memory.rows.set(`${path}/publicationConsents/approved`, { uid: 'team', acceptedAt: approval.acceptedAt, media: [{ url }] });
+  if (mode === 'historical') memory.rows.set(`${path}/versions/old`, { ...structuredClone(row), approval });
+  await expect(importChatImage('team', { ...input(), origin: 'user-upload', kind: 'photo', briefId: undefined, generationReport: undefined })).rejects.toThrow('approved_image_locked');
+  expect(state.upload).not.toHaveBeenCalled(); expect(state.download).not.toHaveBeenCalled(); expect(row.article.featuredImage).toBe(url);
+});
+it('rechecks approval inside the attachment transaction when it arrives during upload', async () => {
+  await brief(); const url = 'https://cdn.test/approved.png'; memory.rows.get(path).article.featuredImage = url;
+  const normal = state.upload.getMockImplementation()!;
+  state.upload.mockImplementation(async (...args: any[]) => {
+    const uploaded = await normal(...args);
+    memory.rows.get(path).approval = { uid: 'team', contentHash: version, acceptedAt: '2026-10-13T10:00:00Z' };
+    return uploaded;
+  });
+  await expect(importChatImage('team', input())).rejects.toThrow('approved_image_locked');
+  const asset = [...memory.rows.values()].find(r => r.assetId);
+  expect(asset.status).toBe('uploaded'); expect(state.stored.get(asset.storagePath)).toEqual(state.bytes);
+  expect(memory.rows.get(path).article.featuredImage).toBe(url); expect(memory.rows.get(path).revision).toBe(1);
+  await expect(importChatImage('team', input())).rejects.toThrow('approved_image_locked'); expect(state.upload).toHaveBeenCalledTimes(1);
+});
+it('uses a real canonical brief and actual style bytes through native import and replay, without an AI call or approval', async () => {
+  const { article } = await readImageGenSnapshot('team', `submission-${id}`), section = article.sections[0];
+  const result = await getChatImageBrief('team', { submissionId: id, expectedRevision: 1, role: 'cover', sectionId: section.id,
+    excerpt: section.text, description: 'En stiliseret scene med publikum i forgrunden.' });
+  const value = { ...input(), briefId: result.brief.briefId, generationReport: { ...input().generationReport,
+    effectivePrompt: result.brief.prompt, referenceHashes: result.brief.requiredReferenceHashes } };
+  const imported = await importChatImage('team', value);
+  expect(imported).toMatchObject({ revision: 2, publicationApproval: false, paidAiCalls: 0 });
+  expect(imported.generationEvidence).toMatchObject({ status: 'client_reported_match', exactPromptExecutionVerified: false });
+  expect(await importChatImage('team', value)).toMatchObject({ replay: true, assetId: imported.assetId });
+  const saved = memory.rows.get(`${path}/chatAssets/${imported.assetId}`);
+  expect(saved.generationReport).toEqual(value.generationReport); expect(saved.briefId).toBe(result.brief.briefId);
+  expect(state.stored.get(saved.storagePath)).toEqual(state.bytes); expect(state.upload).toHaveBeenCalledTimes(1);
+  expect(memory.rows.get(path).approval).toBeUndefined();
+});
+it('keeps completed pre-contract imports replayable without retroactive evidence or another upload', async () => {
+  const value = { ...input(), origin: 'unspecified', briefId: undefined, sectionId: undefined, generationReport: undefined };
+  const { file, ...metadata } = value, assetId = cmsFieldHash({ uid: 'team', id, requestId: value.requestId });
+  const previous = { uid: 'team', assetId, status: 'attached', revision: 2, fileId: file.file_id,
+    requestHash: cmsFieldHash({ ...metadata, fileId: file.file_id }), url: 'https://cdn.test/legacy.png', originalHash: 'a'.repeat(64) };
+  memory.rows.set(`${path}/chatAssets/${assetId}`, previous);
+  expect(await importChatImage('team', value)).toMatchObject({ replay: true, revision: 2, generationEvidence: null });
+  expect(memory.rows.get(`${path}/chatAssets/${assetId}`)).toEqual(previous);
+  expect(state.download).not.toHaveBeenCalled(); expect(state.upload).not.toHaveBeenCalled();
+});
+it('rejects HTML disguised as an image with a concrete error', async () => {
+  state.download.mockResolvedValue(Buffer.from('<html>Login required</html>'));
+  await expect(importChatImage('team', { ...input(), kind: 'photo', origin: 'user-upload', briefId: undefined, generationReport: undefined })).rejects.toThrow('image_invalid');
+  expect(state.upload).not.toHaveBeenCalled(); expect(state.stored.size).toBe(0);
 });

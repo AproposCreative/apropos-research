@@ -12,12 +12,13 @@ import { readSubmission, submissionStore, updateSubmission } from './submissions
 import { submissionId, submissionInput } from './submission-contract';
 import { lockProvidedAsset } from './provided-assets';
 import { findBoundCoverByHash } from './submission-published-target';
-import { generationReportInput, imageGenerationEvidence } from './image-generation-evidence';
+import { generationReportInput, imageGenerationEvidence, assertGenerationContract } from './image-generation-evidence';
+import { nativeImageFileInput, readRetainedReference } from './image-reference';
+import { assertNoApprovedImageReplacement } from './approved-image-guard';
 
 export const chatImageImportInput = z.object({ submissionId, expectedRevision: z.number().int().positive(),
   requestId: submissionInput.shape.requestId,
-  file: z.object({ download_url: z.string().url().max(16000), file_id: z.string().min(1).max(300),
-    mime_type: z.string().max(100).optional(), file_name: z.string().max(300).optional() }).strict(),
+  file: nativeImageFileInput,
   kind: z.enum(['illustration', 'photo']), role: z.enum(['cover', 'body']),
   origin: z.enum(['user-upload', 'chatgpt-generated', 'chatgpt-edited', 'unspecified']).default('unspecified'),
   generationReport: generationReportInput.optional(),
@@ -84,29 +85,42 @@ export async function importSuppliedImage(uid: string, input: Omit<z.infer<typeo
       (row.status === 'published' && !row.publishedTarget)) throw Error('mcp_submission_operation_pending');
   if (input.kind === 'illustration' && ['film', 'tv-series'].includes(row.article.subjectType || '')) throw Error('mcp_submission_film_requires_real_stills');
   const generatedInChat = ['chatgpt-generated', 'chatgpt-edited'].includes(input.origin);
-  // Older scanned clients cannot send origin. A supplied existing file is not
-  // evidence of a new generation or of having followed an Apropos brief.
-  if (input.kind === 'illustration' && generatedInChat && !input.briefId) throw Error('mcp_submission_brief_required');
   const brief = input.briefId ? (await collection.doc(row.id).collection('chatBriefs').doc(input.briefId).get()).data() : null;
   if (input.briefId) {
     if (!brief || brief.uid !== uid || brief.contentHash !== row.contentHash || brief.role !== input.role ||
       (input.role === 'body' && brief.sectionId !== input.sectionId)) throw Error('mcp_submission_brief_changed');
   }
+  assertGenerationContract(input, brief);
+  if (generatedInChat) {
+    if (!Array.isArray(brief?.retainedReferences) || brief.retainedReferences.length !== brief.requiredReferenceHashes.length)
+      throw Error('mcp_submission_style_reference_required');
+    for (const [index, reference] of brief.retainedReferences.entries()) {
+      if (reference.sha256 !== brief.requiredReferenceHashes[index]) throw Error('mcp_submission_reference_changed');
+      await readRetainedReference(reference);
+    }
+  }
   if (input.role === 'body' && !input.sectionId) throw Error('mcp_submission_anchor_changed');
   const snapshot = await readImageGenSnapshot(uid, `submission-${row.id}`);
   const section = input.sectionId ? snapshot.article.sections.find(s => s.id === input.sectionId) : null;
-  if (input.role === 'body' && !section) throw Error('mcp_submission_anchor_changed');
+  if ((input.role === 'body' || generatedInChat) && !section) throw Error('mcp_submission_anchor_changed');
   const replaced = input.replaceAssetId ? (await collection.doc(row.id).collection('chatAssets').doc(input.replaceAssetId).get()).data() : null;
   if (input.replaceAssetId && (!replaced || replaced.uid !== uid || replaced.role !== input.role || replaced.status !== 'attached')) throw Error('mcp_submission_asset_not_found');
+  await assertNoApprovedImageReplacement(row, [input.role === 'cover' ? row.article.featuredImage : replaced?.url].filter((url): url is string => !!url));
   // Cover replacement is an explicit role=cover operation; body replacement
   // must identify its retained asset. Existing unselected figures stay intact.
   const storage = bucket();
   let current = previous;
+  if (current && generatedInChat && current.originalHash !== input.generationReport!.outputCheck!.sha256)
+    throw Error('mcp_submission_inspected_image_mismatch');
   if (!current) {
     const bytes = await source.read();
-    const meta = await sharp(bytes, { limitInputPixels: 80_000_000 }).metadata();
+    const decoder = sharp(bytes, { limitInputPixels: 80_000_000, failOn: 'warning' });
+    const meta = await decoder.metadata().catch(() => { throw Error('mcp_submission_image_invalid'); });
     if (!['jpeg', 'png', 'webp'].includes(meta.format || '') || (meta.pages || 1) !== 1 ||
       (meta.width || 0) < 800 || (meta.height || 0) < 500) throw Error('mcp_submission_image_invalid');
+    await decoder.stats().catch(() => { throw Error('mcp_submission_image_invalid'); });
+    if (generatedInChat && ((meta.width || 0) < 1200 || (meta.height || 0) < 800 || meta.width! <= meta.height!)) throw Error('mcp_submission_image_invalid');
+    if (generatedInChat && input.generationReport!.outputCheck!.sha256 !== hash(bytes)) throw Error('mcp_submission_inspected_image_mismatch');
     // The file adapter may label a download as binary; decoded bytes, not the
     // host or optional filename, determine the actual raster format.
     if (file.mime_type && file.mime_type !== 'application/octet-stream' && file.mime_type !== `image/${meta.format}`) throw Error('mcp_submission_image_mime_mismatch');

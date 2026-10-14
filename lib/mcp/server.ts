@@ -11,6 +11,7 @@ import { saveEditorialIdeas, getEditorialDesk, getEditorialIdea, startEditorialI
 import { CHAT_PREVIEW_URI, chatPreviewInput, chatConfirmInput, chatSubmissionPreview, confirmChatSubmission, submissionCosts } from '@/lib/editorial/chat-preview';
 import { chatImageBriefInput, getChatImageBrief } from '@/lib/editorial/chat-image-brief';
 import { chatImageImportInput, importChatImage } from '@/lib/editorial/chat-image-import';
+import { imageReferenceInput, storeSubmissionImageReference } from '@/lib/editorial/image-reference';
 import { chatFileRecovery } from '@/lib/editorial/chat-file-error';
 import { importedImageResult } from './import-image-result';
 import { pressImageImportInput, pressImagePreviewInput, importSubmissionPressImage, previewSubmissionPressImage } from '@/lib/editorial/press-image-import';
@@ -58,7 +59,7 @@ const memberTools = new Set(['get_editorial_desk', 'save_editorial_ideas', 'get_
   'prepare_submission', 'update_submission', 'get_submission_status', 'reconcile_submission', 'resume_submission_cms', 'find_submission_images', 'preview_submission_press_image', 'import_submission_press_image',
   'get_submission_media_context', 'get_workspace', 'save_draft', 'get_editorial_context', 'get_workflow',
   'preview_copyedit', 'apply_copyedit', 'review_draft', 'preview_submission', 'confirm_submission_action',
-  'get_image_brief', 'import_submission_image', 'get_submission_costs', 'register_reader_source',
+  'get_image_brief', 'store_submission_image_reference', 'import_submission_image', 'get_submission_costs', 'register_reader_source',
   'list_reader_sources', 'get_reader_progress', 'save_reader_progress', 'find_reader_notes', 'link_published_submission']);
 export function createEditorialMcp(identity: McpIdentity) {
   const server = new McpServer({ name: 'apropos-editorial', title: 'Apropos AI', version: MCP_VERSION,
@@ -100,6 +101,10 @@ export function createEditorialMcp(identity: McpIdentity) {
             ? 'Billedbriefets artikelversion eller afsnitsanker er ændret. Bevar den eksisterende billedfil. Hent get_submission_status og get_submission_media_context, og afklar det aktuelle afsnit før import. Genbrug et gemt import-receipt efter timeout. Et nyt brief beviser ikke, at et allerede genereret billede fulgte det; opfind ikke generationReport. Ingen automatisk regenerering.'
             : code === 'mcp_submission_image_selection_required'
             ? 'Billedet er bevaret. Hent preview_submission, så brugeren kan se og personligt vælge billedet trods manglende eller afvigende promptoverlevering. Dette er ikke publiceringsgodkendelse; ingen ny generation er nødvendig.'
+            : code === 'mcp_submission_approved_image_locked'
+            ? 'Et tidligere personligt godkendt billede er låst. Ingen automatisk erstatning. Bevar original, artikelversion og kvittering; en ændring kræver et særskilt personligt billedskift.'
+            : /mcp_submission_(?:generation_|generated_image_|canonical_prompt_|style_reference_|subject_reference_|reference_|output_inspection_|inspected_image_|image_origin_|brief_required)/.test(code)
+            ? 'Billedkontrakten er ikke opfyldt; ingen tilknytning eller publicering er godkendt. Før generation kræves get_image_brief for den aktuelle artikel, placering og version med faktiske referencer. Send prompt og referencer uændret til det native værktøj. Kontrollér én tekstfri illustration og indberet kun faktisk kendt dokumentation bundet til originalfilens SHA-256. Bevar eksisterende filer og receipts; opfind ikke dokumentation, få ikke et nyt brief som efterfølgende bevis, og regenerér ikke automatisk. Eksisterende brugeruploadede pressefotos bruger kind=photo, origin=user-upload uden genereringsbrief.'
             : code === 'mcp_reader_boundary_unobserved'
             ? 'Intet blev gemt. beginningObserved/endObserved gælder kun DETTE batch, ikke samlet dækning. beginningObserved=true kræver faktisk læst position 1 i readRanges; endObserved=true kræver faktisk læst layout.totalPositions, ikke kapitel-/batchslut. Ved mellembatches: beginningObserved=false og endObserved=false; tidligere grænsebevis bevares automatisk. Hent status/revision, behold de faktisk læste intervaller og ret kun de fejlagtige felter. Opfind ikke læsning, og gentag ikke uændret input.'
             : 'Læs den aktuelle status før et nyt forsøg. Intet er kvalitetsgodkendt af denne fejl.', paidAiAllowed: false }) }] };
@@ -146,10 +151,14 @@ export function createEditorialMcp(identity: McpIdentity) {
     { meta: { ui: { visibility: ['app'] }, 'openai/visibility': 'private' } });
   tool('get_image_brief', 'Hent den gældende Apropos-billedprompt og faktiske stilreference til ét konkret artikelafsnit. ' + IMAGE_HANDOFF_INSTRUCTION + ' Research personens udseende før portrætlighed. Film/TV må ikke få AI-stills.',
     chatImageBriefInput, 'apropos:read', true, input => getChatImageBrief(identity.uid, input), false, {
-      result: raw => { const { brief, reference } = raw as Awaited<ReturnType<typeof getChatImageBrief>>;
-        return { content: [{ type: 'text', text: JSON.stringify(brief) }, { type: 'image', ...reference }] }; },
+      result: raw => { const { brief, reference, additionalReferences } = raw as Awaited<ReturnType<typeof getChatImageBrief>>;
+        return { content: [{ type: 'text', text: JSON.stringify(brief) }, { type: 'image', ...reference },
+          ...additionalReferences.map(image => ({ type: 'image' as const, ...image }))] }; },
     });
-  tool('import_submission_image', 'Gem og vis den valgte eksisterende billedfil fra ChatGPT, uden API-generation. file er et native ChatGPT-filinput: brug den eksisterende filreference, som ChatGPT omsætter til et filobjekt; opfind ikke download_url og lav ikke en ny generation. Bevarer originalfil, crop, versioner og øvrige billeder. origin=user-upload kræver ikke et generationsbrief; ved ChatGPT-generation/redigering brug præcis briefId, ved body altid sectionId. generationReport er valgfri: indberet kun det faktisk kendte, ordrette effektive prompt og referenceHashes; aldrig rekonstruktion eller opdigtet bevis. Manglende/afvigende rapport bevarer filen og kræver et personligt billedvalg i preview. Hash-match er klientrapporteret, ikke verificeret generatorinput. En cover-import er et eksplicit valg af nyt cover; eksisterende body erstattes kun med replaceAssetId. Genbrug requestId efter timeout, læs status og vis preview_submission efter import. Ingen publiceringsgodkendelse.',
+  tool('store_submission_image_reference', 'Gem et eksisterende brugeruploadet motivfoto privat som uændret reference før get_image_brief. Ingen artikelbillede, CMS-upload, AI-kald eller godkendelse. Brug det returnerede referenceId i subjectReferenceIds og subjectReferencesRequired=true, når brugeren har bestilt motivreferencen. Native fileParams, ingen opdigtede URLs. Samme requestId/fil efter timeout.',
+    imageReferenceInput, 'apropos:draft', false, input => storeSubmissionImageReference(identity.uid, input), false,
+    { meta: { 'openai/fileParams': ['file'] } });
+  tool('import_submission_image', 'Importér samme originale native fil, aldrig en opdigtet URL eller ny generation. Nye AI-illustrationer kræver origin=chatgpt-generated/chatgpt-edited, gyldigt get_image_brief og præcis submissionId/briefId/sectionId/rolle/version. generationReport med uændret effectivePrompt, alle referenceHashes i rækkefølge og outputCheck bundet til faktisk SHA-256 er obligatorisk. Manglende/afvigende dokumentation, collage, mockup, tekst eller logo afvises før CMS-upload. Rapporten er klientrapporteret, ikke skjult generatorbevis. Eksisterende brugeruploadede pressefotos: kind=photo/origin=user-upload uden genereringsbrief. Tidligere godkendte billeder erstattes ikke. Genbrug requestId efter timeout, læs status og vis preview_submission efter import. Ingen personlig godkendelse eller publicering.',
     chatImageImportInput, 'apropos:draft', false, input => importChatImage(identity.uid, input), false,
     { meta: { 'openai/fileParams': ['file'] }, result: importedImageResult });
   tool('get_submission_costs', 'Vis kun denne artikels registrerede API-trin, fejl og reservationer. Ingen globale eller andre brugeres forbrugsdata. Estimater er ikke fakturaer; abonnementets forbrug er ikke synligt.',
