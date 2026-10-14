@@ -10,6 +10,7 @@ import { cmsFieldHash } from '../lib/liv/cms-field-hash';
 import type { SubmissionRecord } from '../lib/editorial/submission-contract';
 
 assert.equal(process.env.APROPOS_IMAGE_TRIAL_VERIFY, 'read-only-no-generation');
+const explicitTrial = process.env.APROPOS_IMAGE_TRIAL_VERSION === '32';
 const db = getAdminDb()!;
 const bucketName = process.env.FIREBASE_ADMIN_STORAGE_BUCKET;
 assert(bucketName, 'verification_storage_bucket_missing');
@@ -32,12 +33,12 @@ assert.equal(imageProtectedContentHash(row.article), 'add89a2f74943a7de40a4c0019
 assert.equal(row.status, 'draft');
 const assets = (await ref.collection('chatAssets').get()).docs.map(d => ({ ...d.data(), assetId: d.id }));
 assert(assets.length <= 1, 'unexpected_extra_candidate');
-const directory = 'output/image-reviewed-v31-trial';
+const directory = explicitTrial ? 'output/image-explicit-v32-trial' : 'output/image-reviewed-v31-trial';
 await mkdir(directory, { recursive: true });
 const candidates = [];
 for (const asset of assets as Array<Record<string, any>>) {
   assert.equal(asset.status, 'awaiting_personal_selection');
-  assert.equal(asset.requestId, 'barsel-2026-10-14-selfie-cover-trial-v1');
+  assert.equal(asset.requestId, explicitTrial ? 'barsel-2026-10-14-selfie-cover-explicit-v2' : 'barsel-2026-10-14-selfie-cover-trial-v1');
   assert.equal(asset.role, 'cover');
   assert(!asset.personalSelection && !asset.cmsAsset && !asset.url);
   const bytes = await readOriginal({ storagePath: asset.storagePath, sha256: asset.originalHash,
@@ -90,6 +91,7 @@ const result = { checkedAt: new Date().toISOString(), revision: row.revision, co
   protectedContentHash: imageProtectedContentHash(row.article), candidates, audit, financialHash,
   financialUnchanged: financialHash === 'e3b2d498e807ab1cba45f4ca156ce81e5eb15d5b71ea496457fc31da07b69101',
   failures,
+  attemptResumes: (await ref.collection('imageAttemptResumes').get()).docs.map(d => d.data()),
   actualNativeArgumentsIndependentlyObserved: false, verificationCmsWrites: 0, verificationApprovals: 0 };
 await writeFile(`${directory}/readback.json`, JSON.stringify(result, null, 2) + '\n', { mode: 0o600 });
 console.log(JSON.stringify(result));

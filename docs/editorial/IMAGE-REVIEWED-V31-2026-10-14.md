@@ -1,5 +1,9 @@
 # V31: controlled native image attempt, private candidate, personal choice
 
+Subsequent owner-authorized explicit-argument trial: see
+[V32 evidence](IMAGE-EXPLICIT-TRIAL-2026-10-14.md). The V31 failure below remains
+preserved history; the later one-attempt grant did not reset it.
+
 ## Owner-approved policy change
 
 The owner explicitly approved completing the proposed repair and one selfie-cover
