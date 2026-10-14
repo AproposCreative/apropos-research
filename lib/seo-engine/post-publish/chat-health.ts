@@ -25,7 +25,7 @@ export function assessSeoChatHealth(input: { now: Date; mode: string; day: strin
   const batchTasks = tasks.filter(job => batch?.taskIds.includes(job.id));
   const complete = !!batch && !safeError && batchTasks.length === batch.taskIds.length &&
     (batch.taskIds.length >= batch.limit || batch.checked.length >= batch.candidateIds.length) &&
-    batchTasks.every(job => ['kept', 'applied'].includes(job.status) && !!job.publicReceipt);
+    batchTasks.every(job => job.status === 'needs_editor' || (['kept', 'applied'].includes(job.status) && !!job.publicReceipt));
   if (due && batch && !complete && now.getTime() - Date.parse(batch.createdAt) > 2 * 3600_000) {
     issues.push({ code: 'scheduled_run_incomplete' });
   }
@@ -44,6 +44,7 @@ export function assessSeoChatHealth(input: { now: Date; mode: string; day: strin
   return { day, checkedAt: now.toISOString(), processor: input.mode, schedule: SEO_CLOUD_SCHEDULE,
     status: issues.length ? 'attention' : complete ? 'completed' : batch ? 'in_progress' : expected ? 'waiting' : 'not_due',
     runObserved: !!batch, completedTasks: batchTasks.filter(job => ['kept', 'applied'].includes(job.status) && job.publicReceipt).length,
+    editorialAttentionTasks: batchTasks.filter(job => job.status === 'needs_editor').length,
     issues, scanPartial: input.partial || Boolean(batch?.selection?.partial),
     // An authenticated request identity is not proof of the cloud timer's origin.
     timerOriginVerified: false, paidModelCalls: 0, automaticRepairAttempted: false };

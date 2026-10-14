@@ -1,10 +1,12 @@
 import { beforeEach, expect, it, vi } from 'vitest';
 import { memoryFirestore } from '../../helpers/mcp-firestore';
 const m = vi.hoisted(() => ({ db: null as any, read: vi.fn(), apply: vi.fn(), reconcile: vi.fn(), duplicates: vi.fn(), reviewDuplicates: vi.fn(), paid: vi.fn(),
+  google: vi.fn(),
   current: null as any, lostResponse: false }));
 vi.mock('@/lib/firebase-admin', () => ({ getAdminDb: () => m.db }));
 vi.mock('firebase-admin/firestore', () => ({ FieldValue: { delete: () => '__DELETE__' } }));
 vi.mock('@/lib/openai', () => ({ getOpenAIClient: m.paid }));
+vi.mock('@/lib/seo-engine/post-publish/google-context', () => ({ readArticleGoogleContext: m.google }));
 vi.mock('@/lib/seo-engine/post-publish/cms', () => ({ readPublishedArticle: m.read, applyPublishedMetadata: m.apply, reconcilePublishedMetadata: m.reconcile }));
 vi.mock('@/lib/seo-engine/post-publish/uniqueness', () => ({ checkLiveMetadataDuplicates: m.duplicates, createMetadataReviewInventory: () => m.reviewDuplicates }));
 vi.mock('@/lib/seo-engine/cms-write-lease', () => ({ acquireCmsWriteLease: async () => ({ assertOwned: async () => {}, release: async () => {} }) }));
@@ -19,6 +21,7 @@ const quote = 'Filmen følger en familie i København';
 const stateKey = `seoPostPublishArticles/${seoStateId(itemId, 'da')}`;
 beforeEach(() => {
   vi.clearAllMocks(); store.clear(); m.db = store.db; m.lostResponse = false;
+  m.google.mockResolvedValue({ checkedAt: '2026-10-14T07:00:00Z', gsc: { status: 'no_rows', metrics: null }, ga4: { status: 'available', metrics: { screenPageViews: 12 } } });
   m.current = { snapshot: { itemId, locale: 'da', published: true, hasUnpublishedChanges: false, contentVersion: 'body-images-rating-hash',
     metadata: { seoTitle: 'Familien: Anmeldelse', metaDescription: 'Læs vores anmeldelse af filmen her på siden og se hvad vi synes.' } },
     live: { fieldData: { name: 'Familien: Anmeldelse', content: `<p>${body}</p>`, stjerne: 4 } }, publicUrl: 'https://www.aproposmagazine.com/articles/familien' };
@@ -50,7 +53,7 @@ const applyInput = (task: Awaited<ReturnType<typeof getSeoTask>>) => ({ taskId: 
 it('reserves the SAME queue item durably and replays a lost claim response without API work', async () => {
   const [a, b] = await Promise.all([claim(), claim()]);
   expect(a.taskId).toBe(b.taskId); expect(a.contextHash).toBe(b.contextHash);
-  expect(a.context!.article.body).toBe(body); expect(a.context!.google).toEqual({ evidence: null, context: null });
+  expect(a.context!.article.body).toBe(body); expect(a.context!.google).toEqual({ evidence: null, context: null, articleData: expect.objectContaining({ gsc: { status: 'no_rows', metrics: null } }) });
   expect(await claimQualityJob(a.taskId)).toBeNull();
   await expect(assertLegacySeoProcessor(itemId, 'da')).rejects.toThrow('seo_chatgpt_article_reserved');
   expect(m.paid).not.toHaveBeenCalled();
@@ -179,4 +182,38 @@ it('compact status returns current locks without changing the saved article cont
   const result = await getSeoTask(uid, task.taskId, task.contextHash);
   expect(result.context).toBeNull(); expect(result.lockedFields).toEqual(['seoTitle']);
   expect(result.contextHash).toBe(task.contextHash);
+});
+it('replays a completed claim and polls status without collecting Google data again', async () => {
+  const task = await claim();
+  expect(m.google).toHaveBeenCalledOnce();
+  await claim(); await getSeoTask(uid, task.taskId);
+  expect(m.google).toHaveBeenCalledOnce();
+});
+it('explicit Google refresh is owner-scoped and never changes an approved context, proposal or receipt', async () => {
+  const saved = await saveSeoReview(uid, proposal(await claim(), false));
+  await applySeoReview(uid, applyInput(saved));
+  const before = structuredClone([...store.rows]);
+  m.google.mockClear();
+  await expect(getSeoTask('other', saved.taskId, undefined, true)).rejects.toThrow('seo_chat_task_not_found');
+  expect(m.google).not.toHaveBeenCalled();
+  const result = await getSeoTask(uid, saved.taskId, saved.contextHash, true);
+  expect(result.freshGoogle?.ga4.status).toBe('available');
+  expect(result.contextHash).toBe(saved.contextHash);
+  expect(result.proposal?.hash).toBe(saved.proposal?.hash);
+  expect(result.publicReceipt).toBeTruthy();
+  expect([...store.rows]).toEqual(before); expect(m.google).toHaveBeenCalledOnce();
+  expect(m.apply).not.toHaveBeenCalled(); expect(m.paid).not.toHaveBeenCalled();
+});
+it('stops a Danish body on EN even if a model approves its metadata proposal', async () => {
+  const danish = `${body} ` + 'Hun var på scenen og havde meget at sige men der blev ikke noget efter det som hun skulle med flere fra sig hvor lidt kunne være. '.repeat(6);
+  m.current.snapshot.locale = 'en';
+  m.current.live.fieldData.content = `<p>${danish}</p>`;
+  m.current.publicUrl = 'https://www.aproposmagazine.com/en/articles/familien';
+  const task = (await claimSeoTasks(uid, { requestId: 'locale-test-1', articleId: itemId, locale: 'en', limit: 1 })).tasks[0];
+  expect(task.languageCheck.status).toBe('locale_mismatch');
+  const saved = await saveSeoReview(uid, proposal(task));
+  const result = await applySeoReview(uid, applyInput(saved));
+  expect(result.status).toBe('needs_editor'); expect(result.reason).toBe('locale_content_mismatch');
+  expect(result.publicReceipt).toBeNull(); expect(m.apply).not.toHaveBeenCalled();
+  expect(m.current.live.fieldData.content).toBe(`<p>${danish}</p>`);
 });

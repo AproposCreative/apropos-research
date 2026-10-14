@@ -189,10 +189,15 @@ it('advertises optional compact SEO transport and forwards a known hash without 
   expect(schema.required).toEqual(['taskId']); expect(schema.properties.knownContextHash).toBeTruthy();
   seo.status.mockResolvedValue({ context: null, contextIncluded: false, contextHash: knownContextHash });
   const result = JSON.parse((await (await call('get_seo_task', { taskId, knownContextHash })).json()).result.content[0].text);
-  expect(result.contextIncluded).toBe(false); expect(seo.status).toHaveBeenCalledExactlyOnceWith('frederik', taskId, knownContextHash);
+  expect(result.contextIncluded).toBe(false); expect(seo.status).toHaveBeenCalledExactlyOnceWith('frederik', taskId, knownContextHash, undefined);
+  expect(schema.properties.refreshGoogle.type).toBe('boolean');
+  seo.status.mockClear();
+  await call('get_seo_task', { taskId, knownContextHash, refreshGoogle: true });
+  expect(seo.status).toHaveBeenCalledExactlyOnceWith('frederik', taskId, knownContextHash, true);
   expect((await (await call('get_seo_task', { taskId, knownContextHash: 'invalid' })).json()).result.isError).toBe(true);
   const workflow = JSON.parse((await (await call('get_workflow', { workflow: 'seo' })).json()).result.content[0].text);
   expect(workflow.instructions).toContain('mistet grundlag'); expect(workflow.instructions).toContain('frisk dubletkontrol');
+  expect(workflow.instructions).toContain('no_rows'); expect(workflow.instructions).toContain('locale_mismatch');
 });
 it('exposes private cloud-reading tools to team members with exact scopes, no-paid guard and metadata-only audit', async () => {
   mock.identity.owner = false; mock.identity.uid = 'casper'; mock.identity.scopes = ['apropos:read'];

@@ -480,6 +480,8 @@ export async function defaultGscFetch(args: {
     `https://www.googleapis.com/webmasters/v3/sites/${encoded}/searchAnalytics/query`,
     {
       method: 'POST',
+      redirect: 'error',
+      signal: AbortSignal.timeout(20_000),
       headers: {
         Authorization: `Bearer ${args.token}`,
         'Content-Type': 'application/json',
@@ -487,13 +489,18 @@ export async function defaultGscFetch(args: {
       body: JSON.stringify(args.body),
     }
   );
-  const json = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+  const json = (await res.json().catch(() => null)) as Record<string, unknown> | null;
   if (!res.ok) {
     const msg =
-      (json.error as { message?: string } | undefined)?.message || `GSC Search Analytics ${res.status}`;
+      (json?.error as { message?: string } | undefined)?.message || `GSC Search Analytics ${res.status}`;
     return { ok: false, status: res.status, message: msg };
   }
+  if (!json || (json.rows !== undefined && !Array.isArray(json.rows))) return { ok: false, status: 502, message: 'gsc_invalid_response' };
   const raw = (json.rows as Array<Record<string, unknown>>) || [];
+  if (raw.some(r => !r || (r.keys !== undefined && (!Array.isArray(r.keys) || r.keys.some(k => typeof k !== 'string'))) ||
+    ['clicks', 'impressions', 'ctr', 'position'].some(key => typeof r[key] !== 'number' || !Number.isFinite(r[key]) || Number(r[key]) < 0))) {
+    return { ok: false, status: 502, message: 'gsc_invalid_metrics' };
+  }
   return {
     ok: true,
     rows: raw.map((r) => ({

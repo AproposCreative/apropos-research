@@ -1,4 +1,6 @@
 import { z } from 'zod';
+import { readArticleGoogleContext } from './google-context';
+import { seoLanguageCheck } from './language-check';
 import { FieldValue } from 'firebase-admin/firestore';
 import { withoutPaidAi } from '@/lib/ai/no-paid-calls';
 import { stripHtmlToText } from '@/lib/seo-engine/html-text';
@@ -93,7 +95,8 @@ export function claimSeoTasks(uid: string, raw: unknown) {
           const article = articleFrom(fresh, job.article);
           article.duplicateMetadata = await reviewDuplicates(fresh.snapshot);
           const context: ChatReview['context'] = { snapshot: fresh.snapshot, article, publicUrl: fresh.publicUrl,
-            fetchedAt: new Date().toISOString(), google: { evidence: job.evidence || null, context: article.performanceContext || null } };
+            fetchedAt: new Date().toISOString(), google: { evidence: job.evidence || null, context: article.performanceContext || null,
+              ...(job.mode === 'publication_quality' ? { articleData: await readArticleGoogleContext(fresh.publicUrl) } : {}) } };
           const stateRef = seoDb().collection('seoPostPublishArticles').doc(seoStateId(job.snapshot.itemId, job.snapshot.locale));
           const dayRef = controls().doc(`chat-performance-${copenhagenClock(new Date()).day}`);
           outcome = await seoDb().runTransaction(async tx => {
@@ -157,13 +160,19 @@ async function ownedJob(uid: string, id: string) {
   return job as QualityJob & { chatReview: ChatReview };
 }
 
-export async function getSeoTask(uid: string, id: string, knownContextHash?: string) {
+export async function getSeoTask(uid: string, id: string, knownContextHash?: string, refreshGoogle = false) {
   if (knownContextHash !== undefined) seoTaskId.parse(knownContextHash);
   const job = await ownedJob(uid, id);
   const state = await getArticleQualityState(job.snapshot.itemId, job.snapshot.locale);
   const contextIncluded = knownContextHash !== job.chatReview.contextHash;
   const context = job.chatReview.context;
+  const languageCheck = seoLanguageCheck(context.article.body, context.snapshot.locale);
   return { taskId: id, status: job.status, reason: job.reason || null, mode: job.mode, source: job.source,
+    languageCheck,
+    nextAction: languageCheck.nextAction || (job.status === 'needs_editor' ? 'review_saved_editorial_issue' : null),
+    googleStatus: context.google.articleData || { status: context.google.evidence ? 'saved_performance_evidence' : 'not_collected_for_this_review',
+      note: 'Gemt reviewgrundlag; null betyder ikke defekt Google-forbindelse. Brug refreshGoogle kun ved konkret diagnose, ikke rutinemæssigt.' },
+    ...(refreshGoogle ? { freshGoogle: await readArticleGoogleContext(context.publicUrl) } : {}),
     responseVersion: 'seo-task-v2', contextIncluded,
     contextHash: job.chatReview.contextHash, context: contextIncluded ? context : null,
     article: { itemId: job.snapshot.itemId, locale: job.snapshot.locale, title: context.article.editorialTitle,
@@ -229,6 +238,9 @@ export function applySeoReview(uid: string, raw: unknown) {
           lockedFields: state.lockedFields, lastAppliedAt: latestSeoCooldown(job, state), mode: job.mode, evidence: job.evidence, nowMs: Date.now() });
         if (!input.recheck.supported || !input.recheck.betterOrKept) {
           decision.action = 'needs_editor'; decision.reason = 'chatgpt_recheck_rejected'; decision.patch = {};
+        }
+        if (seoLanguageCheck(articleFrom(fresh).body, fresh.snapshot.locale).status === 'locale_mismatch') {
+          decision.action = 'needs_editor'; decision.reason = 'locale_content_mismatch'; decision.patch = {};
         }
         if (state.publicationPreservedKey === reviewKey(job.snapshot)) {
           decision.action = 'defer'; decision.reason = 'editor_approved_version_preserved'; decision.patch = {};

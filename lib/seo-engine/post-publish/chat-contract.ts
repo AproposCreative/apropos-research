@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { snapshotHash } from './snapshot';
 import { decideMetadataUpdate, reviewKey, type FieldAssessment } from './policy';
 import type { QualityJob, ArticleQualityState } from './jobs';
+import type { ArticleGoogleContext } from './google-context';
 
 export const seoTaskId = z.string().regex(/^[a-f0-9]{64}$/);
 const reason = z.string().trim().min(15).max(1500);
@@ -9,6 +10,7 @@ export const seoClaimInput = z.object({ requestId: z.string().regex(/^[a-zA-Z0-9
   limit: z.number().int().min(1).max(2).default(2),
   articleId: z.string().regex(/^[a-f0-9]{24}$/).optional(), locale: z.enum(['da', 'en']).default('da') }).strict();
 export const seoStatusInput = z.object({ taskId: seoTaskId,
+  refreshGoogle: z.boolean().optional().describe('Only for an explicit Google diagnostic: return fresh read-only GSC/GA4 article data separately, without changing saved context, proposal or receipt. Do not poll or request for routine status.'),
   knownContextHash: seoTaskId.optional().describe('Only send the hash of full context actually available in this chat. A match returns compact status; a mismatch or omission returns the entire saved context.') }).strict();
 const assessment = z.object({ field: z.enum(['seoTitle','metaDescription']), verdict: z.enum(['keep','improve','needs_editor']),
   reason, proposedValue: z.string().trim().min(10).max(320).optional(),
@@ -22,7 +24,7 @@ export const seoApplyInput = z.object({ taskId: seoTaskId, proposalHash: seoTask
 export type ChatProposal = z.infer<typeof seoProposalInput> & { hash: string; savedAt: string; before: QualityJob['snapshot']['metadata'];
   after: QualityJob['snapshot']['metadata']; technicalDecision: ReturnType<typeof decideMetadataUpdate> };
 export type ChatReview = { uid: string; claimedAt: string; contextHash: string; context: { snapshot: QualityJob['snapshot']; article: QualityJob['article'];
-  publicUrl: string; fetchedAt: string; google: { evidence: QualityJob['evidence'] | null; context: QualityJob['article']['performanceContext'] | null } };
+  publicUrl: string; fetchedAt: string; google: { evidence: QualityJob['evidence'] | null; context: QualityJob['article']['performanceContext'] | null; articleData?: ArticleGoogleContext } };
   batchId: string; previousStatus: string; proposal?: ChatProposal; recheck?: z.infer<typeof seoApplyInput>['recheck']; lastError?: string;
   completedAt?: string; provenance: 'chatgpt_editorial_review_not_independent_server_fact_check'; };
 

@@ -2,6 +2,7 @@ import { beforeEach, expect, it, vi } from 'vitest';
 import { memoryFirestore } from '../../helpers/mcp-firestore';
 const m = vi.hoisted(() => ({ db: null as any, read: vi.fn(), page: vi.fn() }));
 vi.mock('@/lib/firebase-admin', () => ({ getAdminDb: () => m.db }));
+vi.mock('@/lib/seo-engine/post-publish/google-context', () => ({ readArticleGoogleContext: async () => ({ gsc: { status: 'no_rows' }, ga4: { status: 'no_rows' } }) }));
 vi.mock('firebase-admin/firestore', () => ({ FieldValue: { delete: () => '__DELETE__' } }));
 vi.mock('@/lib/seo-engine/post-publish/cms', () => ({ readPublishedArticle: m.read, listPublishedArticlePage: m.page }));
 vi.mock('@/lib/seo-engine/webflow-adapter', () => ({ getCmsSeoSlugs: () => ({ seoTitle: 'seo-title', metaDescription: 'meta-description' }) }));

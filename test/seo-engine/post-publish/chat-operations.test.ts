@@ -50,6 +50,15 @@ it('detects stalled reviews, uncertain writes and exact saved access errors with
   expect(result.issues.map(x => x.code)).toContain('service_access_failed');
   expect(result.automaticRepairAttempted).toBe(false); expect(result.paidModelCalls).toBe(0);
 });
+it('reports a settled editorial conflict as attention, not an unfinished timer run or verified publication', () => {
+  const batch = { taskIds: ['a','b'], checked: ['a','b'], candidateIds: ['a','b'], limit: 2, createdAt: '2026-10-12T07:00:00Z' };
+  const result = assessSeoChatHealth({ ...base(), batch, tasks: [
+    job('a', { status: 'kept', publicReceipt: { url: 'https://example.com' } as any }),
+    job('b', { status: 'needs_editor', reason: 'locale_content_mismatch' }),
+  ] });
+  expect(result.status).toBe('attention'); expect(result.completedTasks).toBe(1); expect(result.editorialAttentionTasks).toBe(1);
+  expect(result.issues).toEqual([{ code: 'editorial_attention' }]);
+});
 it('reads actual batch identity, preserves jobs/holds and records only changed warning signatures', async () => {
   store.rows.set('seoPostPublishControl/processor', { uid: 'owner', mode: 'chatgpt-first' });
   store.rows.set('aiProviderHolds/hold', { active: true });

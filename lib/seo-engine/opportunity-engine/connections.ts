@@ -3,9 +3,11 @@
  * Fail closed when GSC/Webflow are unhealthy — never invent mock data.
  */
 
-import { getGa4AccessToken } from '@/lib/ga4/google-auth';
+import { probeGa4DataAccess } from '@/lib/ga4/data-client';
 import { getGa4PropertyResourceName } from '@/lib/ga4/property';
 import { getConfiguredGscSiteUrl, getGscAccessToken } from '@/lib/gsc/google-auth';
+import { defaultGscFetch } from '@/lib/seo-engine/search-signals';
+import { buildGscCompareWindows } from './gsc-windows';
 import { env } from '@/lib/config/env';
 
 export type OpportunityConnectionHealth = {
@@ -31,10 +33,13 @@ async function defaultProbeGsc(): Promise<{ ok: boolean; message: string }> {
     return { ok: false, message: 'GSC_SITE_URL mangler' };
   }
   try {
-    await getGscAccessToken();
-    return { ok: true, message: 'GSC auth OK' };
-  } catch (e) {
-    return { ok: false, message: e instanceof Error ? e.message : 'GSC auth failed' };
+    const token = await getGscAccessToken(), period = buildGscCompareWindows();
+    const result = await defaultGscFetch({ siteUrl: getConfiguredGscSiteUrl()!, token,
+      body: { startDate: period.currentStart, endDate: period.currentEnd, rowLimit: 1 } });
+    return result.ok === false ? { ok: false, message: `Search Console-dataadgang kunne ikke verificeres (HTTP ${result.status})` }
+      : { ok: true, message: 'Search Console-dataadgang verificeret' };
+  } catch {
+    return { ok: false, message: 'Search Console-dataadgang kunne ikke verificeres' };
   }
 }
 
@@ -43,10 +48,10 @@ async function defaultProbeGa4(): Promise<{ ok: boolean; message: string }> {
     return { ok: false, message: 'GA4_PROPERTY_ID mangler' };
   }
   try {
-    await getGa4AccessToken();
-    return { ok: true, message: 'GA4 auth OK' };
-  } catch (e) {
-    return { ok: false, message: e instanceof Error ? e.message : 'GA4 auth failed' };
+    const result = await probeGa4DataAccess();
+    return { ok: result.ok, message: result.ok ? 'Analytics-dataadgang verificeret' : 'Analytics-dataadgang kunne ikke verificeres' };
+  } catch {
+    return { ok: false, message: 'Analytics-dataadgang kunne ikke verificeres' };
   }
 }
 
@@ -80,7 +85,7 @@ export async function assessOpportunityConnections(
 
   let summary: string;
   if (healthy) {
-    summary = 'GSC, GA4 og Webflow er sunde — automatisk drift aktiv (medmindre nød-stop).';
+    summary = 'Google-dataadgang verificeret; Webflow-konfiguration findes. Kø, redaktionelle kontroller og processorvalg afgør, hvad der udføres.';
   } else if (canAutoOptimize) {
     summary = `GSC+Webflow OK — auto-optimize mulig. GA4: ${ga4.message}`;
   } else if (canAutoFillOnPublish && !gsc.ok) {

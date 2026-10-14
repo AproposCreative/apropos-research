@@ -14,7 +14,8 @@ export async function GET(request: NextRequest) {
   try {
     const taskId = request.nextUrl.searchParams.get('taskId');
     const knownContextHash = request.nextUrl.searchParams.get('knownContextHash') ?? undefined;
-    return NextResponse.json(taskId ? await getSeoTask(access.uid, taskId, knownContextHash) : { processor: await seoProcessorMode() }, { headers });
+    const refreshGoogle = request.nextUrl.searchParams.get('refreshGoogle') === 'true';
+    return NextResponse.json(taskId ? await getSeoTask(access.uid, taskId, knownContextHash, refreshGoogle) : { processor: await seoProcessorMode() }, { headers });
   } catch (e) { return failure(e); }
 }
 const command = z.object({ action: z.enum(['claim', 'save', 'apply', 'activate']), input: z.unknown() }).strict();

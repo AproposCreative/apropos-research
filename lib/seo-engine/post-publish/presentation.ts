@@ -12,6 +12,8 @@ export const seoReasonLabels: Record<string, string> = {
   article_changed: 'Artiklen er ændret siden vurderingen.',
   insufficient_performance_evidence: 'Der er endnu ikke tilstrækkelige sammenlignelige søgedata.',
   editorial_uncertainty: 'Vurderingen kræver en redaktør.',
+  locale_content_mismatch: 'Den engelske side har dansk brødtekst. Afklar oversættelsen; SEO-kontrollen må ikke ændre artikelteksten.',
+  chatgpt_recheck_rejected: 'Den redaktionelle genkontrol har stoppet forslaget. Se den konkrete begrundelse; det er ikke i sig selv en forbindelsesfejl.',
   unverified_proposal: 'Forslaget kunne ikke verificeres mod artiklen.',
   auto_disabled: 'Automatikken er sat på pause.',
   article_write_pending: 'En tidligere opdatering af artiklen afventer kontrol.',
