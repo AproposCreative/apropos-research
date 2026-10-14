@@ -54,5 +54,137 @@ Visual/semantic judgments remain agent-reported, not independent image recogniti
 The server cannot intercept arbitrary native calls outside its workflow or inspect
 hidden generator rewriting. Do not describe V31 as eliminating those limitations.
 
-Deployment, fresh production readback and the bounded real Work trial are pending
-and must be recorded separately before claiming verification.
+## Release and read-only production verification
+
+Source `a5c36c767da1fb90f205274fd97d86bac0cd7a35`, including the cached-card
+guard, was deployed from a clean Git archive and promoted as
+`dpl_4FDCDpr5aLD9SkU6aWmwVLzPsDpc`. The actual production hostname resolved to
+that READY deployment and exact source after promotion on14October2026.
+The protected deployment's OAuth resource was checked through official Vercel
+CLI access; deployment protection and credentials were not weakened.
+Remote build and TypeScript passed. The unchanged dependency audit reported
+10 vulnerabilities (3 moderate,7 high); this release does not claim to resolve
+those separate dependency findings.
+
+Authenticated production verification completed `2026-10-14T16:31:52.527Z`:
+MCP `2026-10-14-v31`,63 tools. Same barsel submission remained revision2,
+content hash `a26827edd659ebe4b6c85c99115fa0a567346b6374b89d4bf4da49069cc1f846`.
+Cover preflight returned `inputsComplete=true`, `canGenerate=true`, no blockers,
+and the actual ordered style/selfie reference hashes. All three body checks
+correctly refused generation without their own briefs and subject references.
+`canImportGeneratedImage=false` and `exactPromptExecutionVerified=false` remained
+explicit. Native connected MCP independently returned V31 reviewed mode and the
+unchanged article, with no candidate yet.
+
+Whole submission/brief/reference/asset/approval state hash was unchanged:
+`fa0925e623af6dc9d3303a39a4cc9322289e73a7150e77475a411ebfad5ac342`.
+Financial state before/after was identical:
+`e3b2d498e807ab1cba45f4ca156ce81e5eb15d5b71ea496457fc31da07b69101`.
+No generated image, CMS write, image import, personal approval or paid AI call
+was made by this verification. Its temporary read-only service grant was revoked;
+existing connections were untouched. Evidence:
+`output/image-reviewed-v31-production.jsonl`.
+
+## Bounded Work trial
+
+After that verification, the owner-authorized single-cover instruction was sent
+through the supported task messaging tool to the existing
+“⭐ Apropos – Redaktion · START HER” conversation
+`6acb2584-2f20-83eb-a335-031a584b8d3b`. It requires a fresh canonical brief and
+preflight, actual style/selfie pixels, at most one native call, honest input-mode
+reporting, visual review and no automatic retry. Any valid output may only become
+a private candidate; personal image choice, attachment and publication are not
+performed by the agent.
+
+### Actual result: native attempt completed, output rejected
+
+Work fetched a fresh brief `d5ccaf998d6676ccf0b6b53b39d1488d5dcbc5f87bd519b04ddfcab6004dfe58`
+at16:33:06.931Z. Its canonical prompt hash is unchanged from the previously
+prepared portrait brief:
+`866aa99a398b0c25a5ea42f42010a30bd3067fe1e95e2a233b491a8506da3e52`.
+V31 server audit confirms status/media/brief/preflight calls, all with
+`paidAiAllowed=false`. Work initially stopped because its native schema used
+conversation context rather than explicit prompt arguments. After clarification
+of the already-approved context mode, it reported **one native generation**,
+which is also visibly present in the original conversation. No second generation
+was requested or performed by this implementation.
+
+The result is a textured, painterly portrait with natural skin tones, not the
+canonical flat, saturated illustration with strong black contours. The main agent
+independently viewed the downloaded result, the actual style reference and selfie.
+The output is also **1024x1536 portrait**, not the required landscape cover.
+These are observed output deviations. Which references/prompt the native engine
+internally selected is still unknown; do not assert a proven hidden-input cause.
+Work reported `inputMode=conversation_context`, `exactPromptExecutionVerified=false`.
+No private selectable candidate or attached cover was created.
+
+The host then offered **Continue in Work** for file inspection/archive. Selecting
+that official continuation opened a separate continuation
+`https://chatgpt.com/local/01a13b48-9733-7693-a931-e88168f2705c`; it reported no
+access to the generated file bytes or complete earlier prompt and made no import.
+This observed Chat-to-Work file/context discontinuity is separate from the visual
+style failure. It is not a Webflow permission or provider-quota error. The task
+did not change host permissions or use private ChatGPT endpoints.
+
+### Operator-assisted rejection archive, not successful Work handoff
+
+The native image visible in the original chat was downloaded through the official
+browser media operation. That operation timed out, but the browser's completed
+download and the actual local file confirmed success; it was not downloaded again.
+Local copy: `output/image-reviewed-v31-trial/cover-rejected-browser-original.png`.
+The earlier Work `/mnt/data/...` path was only reported by that chat; its bytes
+were not independently readable in the continuation. No fabricated native file ID.
+
+The same downloaded image was submitted through the connected **Apropos MCP**
+with the original stable requestId, current brief/section/revision and an honest
+`styleMatch=mismatch` output inspection. This was intentionally the existing
+reject-and-retain path, not a CMS upload or alternative article-import pipeline.
+It returned `mcp_submission_generated_image_type_invalid` and retained the file
+privately before any CMS allocation at16:44:21.471Z:
+
+- FailureId: `075da4aa1a7d310cb369557a145ec5de55c1b9cf3c912e96a44f8de82576d199`.
+- Status `rejected`, `originalPreserved=true`, `retentionError=null`.
+- PNG,3,561,066bytes,1024x1536.
+- SHA256 `70f4dc5968ad74f169e8a44cf2ac2d7cfca568ea242ec4688f6025cc951d9a07`.
+- No `chatAssets`, personal selection, CMS item/image, article attachment or
+  publication. Reported reference hashes are retained, not hidden-input proof.
+- The connected client's cached V30 import schema omitted the optional V31
+  `inputMode`. It was not invented or bypassed; server evidence correctly says
+  `not_reported`, with the Work context-mode report recorded here separately.
+
+Independent readback16:44:39.209Z downloaded the private quarantine bytes and
+verified exact hash/size/decoding. Revision2, article hash and protected prose hash
+are unchanged; financial hash still matches the preflight snapshot. Evidence:
+`output/image-reviewed-v31-trial/readback.json`, produced by the read-only
+`scripts/verify-image-reviewed-trial.ts` (TypeScript checked).
+One local verifier initialization initially hit an ESM import-cycle error; the
+standalone reader was corrected to read/validate storage bytes directly. It made
+no production write. Its successful reads emitted existing PassThrough listener
+warnings; these were not misreported as workflow failures.
+
+Fresh native preflight16:45:04.554Z now returns `canGenerate=false` and only
+`mcp_submission_image_attempt_stopped`; original references remain intact.
+This verifies real rejection, preservation and no automatic retry. It does **not**
+verify Work-native file handoff, successful styling, private-candidate selection
+on a real passing image, or publication. The user must explicitly decide on any
+new image attempt; keep this failed attempt and its receipt unchanged.
+
+### Remaining acceptance
+
+The existing connection's official **Opdater værktøjer** was run once, without
+changing its account or permissions. A subsequent read-only reply in the original
+editorial chat confirmed discovery of private staging/personal selection and the
+new `generationReport.inputMode` enum (`explicit_arguments`, `conversation_context`).
+That reply also freshly confirmed the archived rejection. The visible original
+chat was inspected independently. This verifies refreshed discovery in that chat,
+not a corrected generation or file handoff. Another routine refresh request to the
+owner is unnecessary for this release.
+
+The V31 code and its production stop mechanisms are deployed/verified. Stable
+Work illustration production is **not achieved** by this trial. A supported host
+path still needs to carry the exact canonical text and actual style/subject files
+into generation, and carry the resulting original back into the same MCP session.
+Context-only dispatch has not demonstrated that result here. Another generation,
+client/host change or retry grant is not authorized by the exhausted one-cover
+trial. No paid backend model, article rewrite or public release can substitute for
+that missing acceptance.
