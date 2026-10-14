@@ -68,5 +68,33 @@ explicit retry decision and fresh preflight before any image call.
 
 ## Release and live readback
 
-Pending exact release/build and read-only production verification. Do not treat
-passing tests as deployment or a completed personal image choice.
+- Source `aa0044955b78a97b69e9ef370b38667faf41ff13`, MCP `2026-10-14-v33`.
+- Deployment `dpl_Ac8x2pwc4gG5gPNjECP6bi2SqtPB`, READY. Clean Git archive,
+  remote compilation/TypeScript/security gate and237static pages passed.
+  Existing dependency audit remains10findings (3moderate/7high), not fixed here.
+- Staged protected readback used official Vercel authentication, without weakening
+  protection. OAuth resource audience is unchanged.15compiled script chunks
+  verified the new decline action, label and status readback before promotion.
+- After promotion, independent lookup of `ai.aproposmagazine.com` resolved to the
+  exact deployment and source SHA above; no newer concurrent release replaced.
+- Connected native MCP preview returned revision2, same content/candidate hashes,
+  no preview problems or dependency error and no decline receipt. The host hides
+  UI-only confirmation metadata from model output, as intended.
+- Authenticated live external preview displays both **Brug dette billede** and
+  **Fravælg billedforslag**, enabled with the actual private portrait loaded.
+  At390px, both controls fit without horizontal overflow. No choice was clicked.
+  Temporary browser tab closed and viewport restored.
+- Connected MCP status at19:34:22Z matched the before snapshot for article,
+  revision/hash, status, candidates, failure receipts, imports, image selection,
+  published target and publication. `imageDeclines=[]`: the agent did not decline
+  the owner’s picture. The original historical failure remains visible.
+- Read-only preflight19:34:28Z preserves the consumed V32 grant and returns
+  `canGenerate=false`, `image_dispatch_already_claimed` and
+  `image_selection_required`; it neither clears history nor invents new authority.
+
+Implemented, deployed and verified live **through the personal decision UI**.
+Actual negative choice and a new authorized generation remain unperformed.
+Update the Apropos tool connection in Work if it retains the old private action
+schema, then request a fresh preview. The owner can decline the old portrait.
+Only afterwards may an explicit one-attempt decision for the chosen new brief
+be recorded and revalidated. This release is not proof of Work-native generation.
