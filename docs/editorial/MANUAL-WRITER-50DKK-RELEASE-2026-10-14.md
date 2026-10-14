@@ -1,5 +1,35 @@
 # Manual Writer: fixed 50 DKK allowance
 
+## Live verification — 14 October, 14:26 Copenhagen
+
+Code release `df966aa7c489f3aff8e89168f0f0404d08c3797d`, deployment
+`dpl_2XHzqZDeBktCvZcXcos2P93yK4wR`, is READY with the actual production alias
+`ai.aproposmagazine.com`. Remote build succeeded; MCP schema remains v28.
+
+Owner API activation and identical-request replay returned HTTP200/private-no-store.
+Fresh GET at12:26:06.833Z verifies configured manual-writer-only-v1, limit50,
+remaining50, usage0/reserved0/calls0, resetsAutomatically=false. Provider hold is
+still true/revision5, so **available=false**. The catalogue correctly shows Writer
+awaiting account recovery and keeps paid image generation hidden; Liv's inbox
+remains visible with automatic replies off. Anonymous Writer POST returns401.
+
+Before/after12:25:58.233Z–12:26:10.323Z snapshots are identical for the historical
+shared/image ledgers, complete provider hold and Casper workspace. Casper has
+since edited his workspace: fresh revision14, updated11:19:02.081Z,2,265 note
+characters, same draft identity. That newer work was preserved exactly, not
+replaced by the earlier revision7 diagnosis. Workspace SHA256:
+`0698f7869f814c1f35ec5b45fd8129c85a623f288b3379c2b2bda4c2ed7b0bc4`.
+Shared October remains1 historical call/0DKK usage/1.214400DKK reserved/1unknown;
+image month absent. No model call, article/CMS write, provider resumption or
+payment was performed. Evidence in the main checkout:
+`output/manual-writer-activation-2026-10-14T12-26-10-323Z.json`.
+
+**Remaining:** owner's pending action-time credit-terms answer, then verified
+payment within the authorized cap and audited provider resumption. A real paid
+Writer generation has not been tested or claimed successful. Do not retry the
+stored article prompt merely to test billing. New funding must not restart paid
+legacy Liv/SEO/translation/image jobs; the manual-only policy remains mandatory.
+
 ## Objective and authorization
 
 Restore the authenticated team's manual web Writer, including Casper's preserved
