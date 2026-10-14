@@ -57,18 +57,23 @@ export async function preflightSubmissionImage(uid: string, raw: unknown) {
   }
   const failures = await readImageFailures(uid, row.id);
   if (failures.some(f => f.role === input.role && f.sectionId === input.sectionId)) add('mcp_submission_image_attempt_stopped');
+  const candidates = await ref.collection('chatAssets').limit(101).get();
+  if (candidates.size > 100) add('mcp_submission_media_window_exceeded');
+  if (candidates.docs.some(doc => doc.data().importInput && doc.data().status !== 'attached')) add('mcp_submission_image_selection_required');
   // Second read closes an observable race; dispatch must still revalidate in the
   // future host adapter. No preflight result can be reused as a bearer permit.
   const current = await readSubmission(uid, row.id);
   if (current.revision !== row.revision || current.contentHash !== row.contentHash ||
       imageProtectedContentHash(current.article) !== imageProtectedContentHash(row.article)) add('mcp_submission_image_content_changed');
   const inputsComplete = blockers.length === 0;
-  add(NATIVE_IMAGE_INTEGRATION.code);
   return { submissionId: row.id, revision: row.revision, contentHash: row.contentHash,
     protectedContentHash: imageProtectedContentHash(row.article), role: input.role, sectionId: input.sectionId, briefId: input.briefId ?? null,
-    checkedAt: new Date().toISOString(), inputsComplete, canGenerate: false, canImportGeneratedImage: false,
+    checkedAt: new Date().toISOString(), inputsComplete, canGenerate: inputsComplete, canImportGeneratedImage: false,
+    canStageForPersonalSelection: inputsComplete, hostDeliveryRequired: true,
     blockers, references: actualReferences, integration: NATIVE_IMAGE_INTEGRATION, failures,
     visualChecks: { status: 'not_performed', independentSemanticVerification: false, personalReviewRequired: true },
     automaticRetryAllowed: false, regenerateImage: false, paidAiCalls: 0, publicationApproval: false,
-    instruction: 'STOP. Ingen billedkald eller import af AI-billeder. Ret manglende input, og få den konkrete native integrationsafhængighed løst før et nyt forsøg. Et nyt brief, request-ID eller en klientrapporteret hash ophæver ikke stoppet. Pressefotos har fortsat deres særskilte import uden genereringsbrief.' };
+    instruction: inputsComplete
+      ? 'Ét kontrolleret billedforsøg er muligt, hvis den aktuelle host faktisk modtager hele den kanoniske prompt og alle originale referencebilleder uændret. Skjult generatorbehandling er ikke verificeret. Kan hosten ikke modtage inputtene, STOP. Kontrollér resultatet; import_submission_image gemmer kun en privat kandidat indtil brugerens personlige valg. Ingen automatisk retry eller publicering.'
+      : 'STOP før billedkald. Løs de konkrete blockers, bevar originaler og request-ID. Hent preview ved afventende personligt billedvalg. Et nyt brief eller en klienthash ophæver ikke stoppet.' };
 }

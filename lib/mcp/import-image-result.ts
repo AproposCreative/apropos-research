@@ -5,7 +5,10 @@ import { readPublicMedia } from '@/lib/liv/public-media-reader';
 /** Render the saved image, not the expiring ChatGPT input. A thumbnail failure
  * must never turn a committed import into an error/repeated CMS allocation. */
 export async function importedImageResult(raw: unknown): Promise<CallToolResult> {
-  const receipt = raw as { assetId: string; url: string; revision: number; replay: boolean; paidAiCalls: number };
+  const receipt = raw as { assetId: string; url: string; revision: number; replay: boolean; paidAiCalls: number; importStatus?: string };
+  if (receipt.importStatus === 'awaiting_personal_selection') return { content: [{ type: 'text', text: JSON.stringify({
+    ...receipt, imagePreview: 'preview_submission', nextAction: 'Vis preview_submission. Kun en privat kandidat er gemt; intet er uploadet til CMS eller tilknyttet artiklen. Brugeren skal selv vælge filen. Ingen gentaget import eller generation.',
+  }) }] };
   let thumbnail: Buffer | undefined;
   try {
     thumbnail = await sharp(await readPublicMedia(receipt.url, 'image', 5000), { limitInputPixels: 80_000_000 })

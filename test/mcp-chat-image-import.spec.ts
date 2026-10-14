@@ -2,10 +2,8 @@ import { beforeEach, afterEach, expect, it, vi } from 'vitest';
 import sharp from 'sharp';
 import { createHash } from 'node:crypto';
 import { memoryFirestore } from './helpers/mcp-firestore';
-// These are transport/attachment regression fixtures, NOT proof of native host
-// integration. Real fail-closed gates and quarantine are tested unmocked in
-// mcp-image-preflight.spec.ts. No production switch bypasses the integration.
-vi.mock('@/lib/editorial/native-image-integration', async original => ({ ...await original<any>(), assertNativeImageIntegration: () => undefined }));
+// Transport fixtures explicitly simulate the personal preview click after
+// staging. The public import alone is tested to remain private in preflight tests.
 vi.mock('@/lib/editorial/image-failure', async original => ({ ...await original<any>(), retainRejectedImage: async () => ({}) }));
 const state = vi.hoisted(() => ({ db: null as any, sectionId: '', bytes: Buffer.alloc(0), stored: new Map<string, Buffer>(), upload: vi.fn(), download: vi.fn(), readback: vi.fn(), boundCover: vi.fn(), breakAttachment: false }));
 vi.mock('@/lib/editorial/submission-published-target', async importOriginal => ({ ...await importOriginal<typeof import('@/lib/editorial/submission-published-target')>(), findBoundCoverByHash: (...args: unknown[]) => state.boundCover(...args) }));
@@ -15,7 +13,8 @@ vi.mock('@/lib/liv/public-media-reader', () => ({ readChatGptImage: (...args: un
   readPressMedia: async (url: string) => ({ bytes: await state.download(url), finalUrl: url, contentType: 'image/png', status: 200 }) }));
 vi.mock('@/lib/image-gen/cms-asset', async importOriginal => ({ ...await importOriginal<typeof import('@/lib/image-gen/cms-asset')>(), uploadImageGenCmsAsset: (...args: unknown[]) => state.upload(...args) }));
 vi.mock('@/lib/editorial/submission-options', () => ({ getSubmissionOptions: async () => ({ authors: [], categories: [], topics: [], requiredFields: [], checkedAt: '' }) }));
-import { importChatImage } from '@/lib/editorial/chat-image-import';
+import { importChatImage as stageImage } from '@/lib/editorial/chat-image-import';
+import { selectGeneratedImage } from '@/lib/editorial/generated-image-candidate';
 import { updateSubmission, getSubmissionStatus } from '@/lib/editorial/submissions';
 import { readImageGenSnapshot } from '@/lib/image-gen/snapshot';
 import { cmsFieldHash } from '@/lib/liv/cms-field-hash';
@@ -25,6 +24,12 @@ import { getChatImageBrief } from '@/lib/editorial/chat-image-brief';
 import { imageProtectedContentHash } from '@/lib/editorial/image-content-invariant';
 const id = 'a'.repeat(64), version = 'b'.repeat(64), path = `editorialSubmissions/${id}`, briefId = 'c'.repeat(64);
 let memory: ReturnType<typeof memoryFirestore>;
+async function importChatImage(uid: string, raw: any) {
+  const result = await stageImage(uid, raw);
+  if ('importStatus' in result && result.importStatus === 'awaiting_personal_selection')
+    return selectGeneratedImage(uid, raw.submissionId, raw.expectedRevision, result.assetId, result.originalHash);
+  return result;
+}
 beforeEach(async () => {
   vi.clearAllMocks(); vi.stubEnv('FIREBASE_STORAGE_BUCKET', 'test-bucket'); memory = memoryFirestore(); state.db = memory.db; state.stored.clear();
   state.bytes = await sharp({ create: { width: 1200, height: 800, channels: 3, background: '#005a82' } }).png().toBuffer();
@@ -54,7 +59,8 @@ async function brief(role = 'cover', sectionId?: string) {
   memory.rows.set(`${path}/chatBriefs/${briefId}`, { uid: 'team', submissionId: id, expectedRevision: 1, contentHash: version, role, sectionId: sectionId || state.sectionId,
     protectedContentHash: imageProtectedContentHash(memory.rows.get(path).article),
     handoffVersion: IMAGE_HANDOFF_VERSION, prompt: input().generationReport.effectivePrompt, canonicalPromptHash: promptHash(input().generationReport.effectivePrompt), referenceHash,
-    requiredReferenceHashes: [referenceHash], retainedReferences: [{ sha256: referenceHash, storagePath: 'reference/original', mimeType: 'image/png' }] });
+    requiredReferenceHashes: [referenceHash], retainedReferences: [{ sha256: referenceHash, storagePath: 'reference/original', mimeType: 'image/png',
+      purpose: 'style', byteCount: state.bytes.length, width: 1200, height: 800 }] });
 }
 function pressInput() {
   const sha256 = createHash('sha256').update(state.bytes).digest('hex');
@@ -133,7 +139,7 @@ it('retains the private original and attaches a durable CMS asset once, without 
   expect(saved).toContain('chatgpt-supplied-unverified');
   expect(memory.rows.get(path).article.content).toBe(memory.rows.get(path).originalArticle.content);
   expect(first.generationEvidence).toMatchObject({ status: 'client_reported_match', requiresPersonalSelection: true, exactPromptExecutionVerified: false });
-  expect((await getSubmissionStatus('team', id)).imageSelection.required).toBe(true);
+  expect((await getSubmissionStatus('team', id)).imageSelection.required).toBe(false); // the fixture already clicked the exact candidate
 });
 it('rejects a mismatched new report before any download or CMS upload, preserving existing records', async () => {
   await brief(); const before = JSON.stringify([...memory.rows]);
@@ -281,7 +287,7 @@ it('fails closed on a legacy brief or a lost/changed actual style reference, wit
   stored.handoffVersion = 'canonical-native-image-v1';
   await expect(importChatImage('team', input())).rejects.toThrow('generation_brief_invalid');
   stored.handoffVersion = IMAGE_HANDOFF_VERSION; state.stored.set('reference/original', Buffer.from('HTML, not the style image'));
-  await expect(importChatImage('team', input())).rejects.toThrow('reference_changed');
+  await expect(importChatImage('team', input())).rejects.toThrow('style_reference_required');
   expect(state.upload).not.toHaveBeenCalled();
 });
 it.each(['current', 'selection', 'consent', 'historical'])('never replaces an image protected by %s personal approval', async mode => {

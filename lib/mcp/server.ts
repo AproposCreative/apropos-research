@@ -146,8 +146,8 @@ export function createEditorialMcp(identity: McpIdentity) {
   tool('preview_submission', 'Vis artikelkortet med hele artiklen og billeder direkte i chatten, ikke kun et link. ChatGPT-first har én personlig Godkend og udgiv-knap, som starter teknisk klargøring og udgivelse af samme version. Kortet opdaterer status automatisk. Åbn eksternt er valgfrit. Bed ikke om en ekstra chatbekræftelse. Konkrete mangler stopper godkendelsen. Ingen AI-køb; samme submissionId efter timeout.',
     chatPreviewInput, 'apropos:read', true, input => chatSubmissionPreview(identity, input.submissionId), false, {
       structured: true, meta: { ui: { resourceUri: CHAT_PREVIEW_URI }, 'openai/outputTemplate': CHAT_PREVIEW_URI },
-      result: raw => { const { data, confirmation, imagePreviews } = raw as Awaited<ReturnType<typeof chatSubmissionPreview>>;
-        return { structuredContent: data, _meta: { confirmation, imagePreviews }, content: [{ type: 'text', text: JSON.stringify(data) }] }; },
+      result: raw => { const { data, confirmation, imagePreviews, candidatePreviews } = raw as Awaited<ReturnType<typeof chatSubmissionPreview>>;
+        return { structuredContent: data, _meta: { confirmation, imagePreviews, candidatePreviews }, content: [{ type: 'text', text: JSON.stringify(data) }] }; },
     });
   tool('confirm_submission_action', 'Kun previewets personlige knap. Kræver kortlivet engangstoken, uændret version og samme bruger/forbindelse. Kølægger godkendte servertrin; aldrig en modelbaseret godkendelse.',
     chatConfirmInput, 'apropos:read', false, async input => {
@@ -172,7 +172,7 @@ export function createEditorialMcp(identity: McpIdentity) {
       result: raw => { const { image, ...data } = raw as Awaited<ReturnType<typeof previewImageFailure>>;
         return { content: [{ type: 'text', text: JSON.stringify(data) }, { type: 'image', ...image }] }; },
     });
-  tool('import_submission_image', 'Importér samme originale fil. Nye native AI-billeder er fail-closed: uden en verificerbar native inputbro stopper serveren, også ved klientrapporteret match. Kald preflight_submission_image FØR generation. En afvist original bevares privat med imageFailure, ikke i CMS; intet nyt requestId eller automatisk retry. Eksisterende brugeruploadede pressefotos: kind=photo/origin=user-upload uden genereringsbrief. Historiske attached receipts kan genlæses uden upload. Ingen personlig godkendelse, publicering eller erstatning af godkendte billeder.',
+  tool('import_submission_image', 'Gem samme originale fil. AI-illustrationer med gyldigt brief og resultatkontrol gemmes først som PRIVAT kandidat, ikke i CMS eller artiklen. Vis preview_submission, hvor brugeren selv vælger netop filen før tilknytning. Kald preflight_submission_image FØR generation; faktiske input kræves, men skjult generatorbehandling er fortsat ikke verificeret. Afviste originaler bevares privat med imageFailure, ingen automatisk retry. Ægte brugeruploadede pressefotos: kind=photo/origin=user-upload uden genereringsbrief. Genbrug requestId/receipts. Ingen modelbaseret godkendelse, publicering eller erstatning af godkendte billeder.',
     chatImageImportInput, 'apropos:draft', false, input => importChatImage(identity.uid, input), false,
     { meta: { 'openai/fileParams': ['file'] }, result: importedImageResult });
   tool('get_submission_costs', 'Vis kun denne artikels registrerede API-trin, fejl og reservationer. Ingen globale eller andre brugeres forbrugsdata. Estimater er ikke fakturaer; abonnementets forbrug er ikke synligt.',

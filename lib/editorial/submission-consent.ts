@@ -51,6 +51,7 @@ export async function submissionConsentOffer(uid: string, id: string) {
   const inspection = inspectSubmission(row, await getSubmissionOptions());
   if (!inspection.readyForPreparation || inspection.missingMedia.length) return null;
   const selection = await readImageSelection(row);
+  if (selection.pendingCandidates) return null;
   const prepared = (row as SubmissionRecord & { prepared?: { expected: Record<string, unknown> }; preparedHash?: string });
   const articleHash = consentArticleHash(prepared.prepared?.expected && row.status === 'prepared' ? prepared.prepared.expected : row.article, row.choices.kind);
   const body = { uid, revision: row.revision, contentHash: row.contentHash, articleHash, media: await consentMedia(row),

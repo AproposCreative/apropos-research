@@ -11,13 +11,17 @@ vi.mock('@/lib/image-gen/cms-asset', async original => ({ ...await original<any>
 vi.mock('@/lib/editorial/submission-options', () => ({ getSubmissionOptions: async () => ({ authors: [], categories: [], topics: [] }) }));
 import { preflightSubmissionImage, imagePreflightInput } from '@/lib/editorial/image-preflight';
 import { assertGenerationContract, IMAGE_HANDOFF_VERSION, promptHash } from '@/lib/editorial/image-generation-evidence';
-import { assertNativeImageIntegration } from '@/lib/editorial/native-image-integration';
+import { NATIVE_IMAGE_INTEGRATION } from '@/lib/editorial/native-image-integration';
 import { importChatImage } from '@/lib/editorial/chat-image-import';
+import { selectGeneratedImage, imageCandidatePreviews } from '@/lib/editorial/generated-image-candidate';
+import { getSubmissionStatus } from '@/lib/editorial/submissions';
 import { imageProtectedContentHash, assertImageContentInvariant } from '@/lib/editorial/image-content-invariant';
 import { readImageFailures, previewImageFailure, retainRejectedImage } from '@/lib/editorial/image-failure';
 import { readImageGenSnapshot } from '@/lib/image-gen/snapshot';
 import { prepareSubmission, updateSubmission } from '@/lib/editorial/submissions';
 import { validateReference } from '@/lib/editorial/image-reference';
+import { chatSubmissionPreview, confirmChatSubmission } from '@/lib/editorial/chat-preview';
+import { digest } from '@/lib/mcp/oauth';
 import { cmsFieldHash } from '@/lib/liv/cms-field-hash';
 const id = 'a'.repeat(64), briefId = 'b'.repeat(64), subjectId = 'c'.repeat(64), path = `editorialSubmissions/${id}`;
 let memory: ReturnType<typeof memoryFirestore>, input: any, brief: any, generated: any, bytes: Buffer;
@@ -54,11 +58,11 @@ beforeEach(async () => {
 });
 afterEach(() => vi.unstubAllEnvs());
 
-it('a complete read-only preflight STILL blocks the unobservable native host; no paid work, article or reference writes', async () => {
+it('a complete read-only preflight permits one reviewed attempt without claiming hidden native proof', async () => {
   const before = cmsFieldHash([...memory.rows]); const result = await preflightSubmissionImage('owner', input);
-  expect(result).toMatchObject({ inputsComplete: true, canGenerate: false, canImportGeneratedImage: false, paidAiCalls: 0,
+  expect(result).toMatchObject({ inputsComplete: true, canGenerate: true, canImportGeneratedImage: false, paidAiCalls: 0,
     publicationApproval: false, integration: { exactPromptExecutionVerified: false, inputObservation: 'unavailable' } });
-  expect(result.blockers).toEqual(['mcp_submission_native_input_unverifiable']);
+  expect(result.blockers).toEqual([]);
   expect(result.references.map(r => r.purpose)).toEqual(['style', 'subject']);
   expect(cmsFieldHash([...memory.rows])).toBe(before); expect(state.download).not.toHaveBeenCalled(); expect(state.upload).not.toHaveBeenCalled();
 });
@@ -118,12 +122,13 @@ it('unknown semantic review cannot be declared passed', () => {
   const value = { ...generated, generationReport: { ...generated.generationReport, outputCheck: { ...generated.generationReport.outputCheck, styleMatch: 'not_reviewed' } } };
   expect(() => assertGenerationContract(value, brief)).toThrow('output_inspection_required');
 });
-it('rejects honest-looking client attestations; preserves the rejected original and receipt, never CMS', async () => {
+it('rejects visually wrong output; preserves the rejected original and receipt, never CMS', async () => {
+  generated.generationReport.outputCheck.imageType = 'collage';
   const articleBefore = cmsFieldHash(memory.rows.get(path));
-  await expect(importChatImage('owner', generated)).rejects.toThrow('native_input_unverifiable');
+  await expect(importChatImage('owner', generated)).rejects.toThrow('generated_image_type_invalid');
   const failures = await readImageFailures('owner', id);
   expect(failures).toHaveLength(1); expect(failures[0]).toMatchObject({ originalPreserved: true, originalHash: generated.generationReport.outputCheck.sha256,
-    code: 'mcp_submission_native_input_unverifiable', automaticRetryAllowed: false });
+    code: 'mcp_submission_generated_image_type_invalid', automaticRetryAllowed: false });
   const preview = await previewImageFailure('owner', { submissionId: id, failureId: failures[0].failureId });
   expect(Buffer.from(preview.image.data, 'base64')).toEqual(bytes);
   expect(state.upload).not.toHaveBeenCalled(); expect(cmsFieldHash(memory.rows.get(path))).toBe(articleBefore);
@@ -136,7 +141,8 @@ it('retains a visually rejected original rather than dropping it before validati
   expect((await readImageFailures('owner', id))[0]).toMatchObject({ originalPreserved: true, code: 'mcp_submission_generated_image_type_invalid' });
 });
 it('same request and a NEW request cannot regenerate/reupload after failure; preflight retains the stop', async () => {
-  await expect(importChatImage('owner', generated)).rejects.toThrow('native_input_unverifiable');
+  generated.generationReport.outputCheck.imageType = 'collage';
+  await expect(importChatImage('owner', generated)).rejects.toThrow('generated_image_type_invalid');
   await expect(importChatImage('owner', generated)).rejects.toThrow('image_attempt_stopped');
   await expect(importChatImage('owner', { ...generated, requestId: 'secret-new-attempt' })).rejects.toThrow('image_attempt_stopped');
   expect(state.download).toHaveBeenCalledTimes(1); expect(state.upload).not.toHaveBeenCalled();
@@ -144,32 +150,37 @@ it('same request and a NEW request cannot regenerate/reupload after failure; pre
   expect((await preflightSubmissionImage('owner', input)).blockers).toContain('mcp_submission_image_attempt_stopped');
 });
 it('cannot change an existing failed intent under the same request ID', async () => {
-  await expect(importChatImage('owner', generated)).rejects.toThrow('native_input_unverifiable');
+  generated.generationReport.outputCheck.imageType = 'collage';
+  await expect(importChatImage('owner', generated)).rejects.toThrow('generated_image_type_invalid');
   await expect(importChatImage('owner', { ...generated, caption: 'different' })).rejects.toThrow('idempotency_conflict');
   expect(state.download).toHaveBeenCalledTimes(1);
 });
 it('recovers the preserved original after a lost storage reply with no new download/upload', async () => {
+  generated.generationReport.outputCheck.imageType = 'collage';
   state.loseSaveReply = true;
-  await expect(importChatImage('owner', generated)).rejects.toThrow('native_input_unverifiable');
+  await expect(importChatImage('owner', generated)).rejects.toThrow('generated_image_type_invalid');
   expect((await readImageFailures('owner', id))[0].originalPreserved).toBe(false);
   await expect(importChatImage('owner', generated)).rejects.toThrow('image_attempt_stopped');
   expect((await readImageFailures('owner', id))[0].originalPreserved).toBe(true);
   expect(state.download).toHaveBeenCalledTimes(1); expect(state.upload).not.toHaveBeenCalled();
 });
 it('concurrent repeated failed imports preserve one receipt and download once', async () => {
+  generated.generationReport.outputCheck.imageType = 'collage';
   await Promise.allSettled([importChatImage('owner', generated), importChatImage('owner', generated)]);
   expect(await readImageFailures('owner', id)).toHaveLength(1);
   expect(state.download).toHaveBeenCalledTimes(1); expect(state.upload).not.toHaveBeenCalled();
 });
 it('records an expired native URL honestly without inventing original preservation or retrying', async () => {
+  generated.generationReport.outputCheck.imageType = 'collage';
   state.download.mockRejectedValue(Error('expired'));
-  await expect(importChatImage('owner', generated)).rejects.toThrow('native_input_unverifiable');
+  await expect(importChatImage('owner', generated)).rejects.toThrow('generated_image_type_invalid');
   expect((await readImageFailures('owner', id))[0]).toMatchObject({ originalPreserved: false, status: 'retention_unconfirmed' });
   await expect(importChatImage('owner', generated)).rejects.toThrow('image_attempt_stopped');
   expect(state.download).toHaveBeenCalledTimes(1);
 });
 it('cannot relabel a known rejected generated file as a user photo to attach it', async () => {
-  await expect(importChatImage('owner', generated)).rejects.toThrow('native_input_unverifiable');
+  generated.generationReport.outputCheck.imageType = 'collage';
+  await expect(importChatImage('owner', generated)).rejects.toThrow('generated_image_type_invalid');
   await expect(importChatImage('owner', { ...generated, kind: 'photo', origin: 'user-upload', briefId: undefined,
     generationReport: undefined, requestId: 'relabel-attempt-0001' })).rejects.toThrow('rejected_image_relabelled');
   expect(state.upload).not.toHaveBeenCalled();
@@ -213,7 +224,8 @@ it('does not block a text correction that preserves existing historical illustra
 });
 it('clients cannot supply a capability override or claim verified hidden inputs', () => {
   expect(() => imagePreflightInput.parse({ ...input, exactPromptExecutionVerified: true })).toThrow();
-  expect(() => assertNativeImageIntegration()).toThrow('native_input_unverifiable');
+  expect(NATIVE_IMAGE_INTEGRATION.exactPromptExecutionVerified).toBe(false);
+  expect(Object.isFrozen(NATIVE_IMAGE_INTEGRATION)).toBe(true);
 });
 it('returns no execution permit after the article changes during reference-byte validation', async () => {
   const original = state.files.get.bind(state.files);
@@ -229,4 +241,67 @@ it('retains undecodable rejected data privately but never renders HTML as an ima
   const receipt = await retainRejectedImage('owner', data, { identity: 'bad-file', read: async () => Buffer.from('<html>Not an image</html>') }, 'mcp_submission_image_invalid');
   expect(receipt.originalPreserved).toBe(true);
   await expect(previewImageFailure('owner', { submissionId: id, failureId: receipt.failureId })).rejects.toThrow('rejected_image_unavailable');
+});
+
+it('stages a valid illustration privately, replays it without download, and blocks another attempt until the user chooses', async () => {
+  const before = cmsFieldHash(memory.rows.get(path));
+  const staged = await importChatImage('owner', generated);
+  expect(staged).toMatchObject({ importStatus: 'awaiting_personal_selection', revision: 2, originalPreserved: true, publicationApproval: false });
+  expect(cmsFieldHash(memory.rows.get(path))).toBe(before); expect(state.upload).not.toHaveBeenCalled();
+  await importChatImage('owner', generated); expect(state.download).toHaveBeenCalledTimes(1);
+  const status = await getSubmissionStatus('owner', id);
+  expect(status.readyForPreparation).toBe(false);
+  expect(status.handoff.nextAction).toBe('show_inline_preview_for_personal_image_selection');
+  expect(status.imageCandidates).toHaveLength(1);
+  expect((await imageCandidatePreviews('owner', id, status.imageCandidates))[staged.assetId]).toMatch(/^data:image\/webp;base64,/);
+  expect((await preflightSubmissionImage('owner', input)).blockers).toContain('mcp_submission_image_selection_required');
+  await expect(importChatImage('owner', { ...generated, requestId: 'second-attempt-0001' })).rejects.toThrow('image_selection_required');
+  await expect(importChatImage('owner', { ...generated, requestId: 'fake-photo-attempt-0001', kind: 'photo', origin: 'user-upload',
+    briefId: undefined, generationReport: undefined })).rejects.toThrow('generated_image_relabelled');
+  expect(state.upload).not.toHaveBeenCalled(); expect(JSON.stringify([...memory.rows])).not.toContain('PRIVATE');
+});
+it('rejects model-supplied personal approval and wrong owner, file, revision or concurrently changed prose', async () => {
+  await expect(importChatImage('owner', { ...generated, personalSelection: { uid: 'owner' } })).rejects.toThrow();
+  const staged = await importChatImage('owner', generated), sha = generated.generationReport.outputCheck.sha256;
+  await expect(selectGeneratedImage('other', id, 2, staged.assetId, sha)).rejects.toThrow('not_found');
+  await expect(selectGeneratedImage('owner', id, 1, staged.assetId, sha)).rejects.toThrow('preview_changed');
+  await expect(selectGeneratedImage('owner', id, 2, staged.assetId, 'f'.repeat(64))).rejects.toThrow('preview_changed');
+  memory.rows.get(path).article.title = 'Concurrent editorial change';
+  await expect(selectGeneratedImage('owner', id, 2, staged.assetId, sha)).rejects.toThrow('preview_changed');
+  expect(state.upload).not.toHaveBeenCalled();
+});
+it('recovers a lost private save reply from identical retained bytes without another generation or CMS upload', async () => {
+  state.loseSaveReply = true;
+  const first = await importChatImage('owner', generated);
+  await importChatImage('owner', generated);
+  expect(first).toMatchObject({ originalPreserved: true, importStatus: 'awaiting_personal_selection' });
+  expect(state.download).toHaveBeenCalledTimes(1); expect(state.upload).not.toHaveBeenCalled();
+});
+it('a UI-only exact-file choice attaches once, preserves prose and does not require a second image selection or publish', async () => {
+  const old = structuredClone(memory.rows.get(path));
+  state.upload.mockImplementation(async (_bytes, _name, save) => { const asset = { id: 'real', url: 'https://cdn.prod.website-files.com/test/real.png' }; await save(asset); return asset; });
+  const staged = await importChatImage('owner', generated);
+  const identity = { uid: 'owner', owner: true, role: 'owner', scopes: ['apropos:read', 'apropos:draft'], grantId: 'grant' };
+  const preview = await chatSubmissionPreview(identity, id);
+  expect(preview.confirmation?.action).toBe('image_candidate');
+  expect(preview.candidatePreviews[staged.assetId]).toMatch(/^data:image\/webp;base64,/);
+  expect(JSON.stringify(preview.data)).not.toContain(preview.confirmation!.token);
+  await expect(confirmChatSubmission({ ...identity, uid: 'other' }, { token: preview.confirmation!.token })).rejects.toThrow('confirmation_required');
+  await expect(confirmChatSubmission({ ...identity, scopes: ['apropos:read'] }, { token: preview.confirmation!.token })).rejects.toThrow('confirmation_required');
+  const result = await confirmChatSubmission(identity, { token: preview.confirmation!.token });
+  expect(result).toMatchObject({ revision: 3, queuedOnServer: false, publicationApproval: false });
+  // Simulate a lost reply after committed attachment but before token receipt.
+  const token = memory.rows.get('mcpUiConfirmations/' + digest(preview.confirmation!.token));
+  token.status = 'attempted'; delete token.result;
+  expect(await confirmChatSubmission(identity, { token: preview.confirmation!.token })).toMatchObject({ revision: 3, replay: true });
+  expect(state.upload).toHaveBeenCalledTimes(1); expect(state.download).toHaveBeenCalledTimes(1);
+  const status = await getSubmissionStatus('owner', id);
+  expect(status.imageCandidates).toHaveLength(0); expect(status.imageSelection.required).toBe(false);
+  expect(imageProtectedContentHash(memory.rows.get(path).article)).toBe(imageProtectedContentHash(old.article));
+  expect(memory.rows.get(path).approval).toBeUndefined(); expect(memory.rows.get(path).status).toBe('draft');
+});
+it('records context delivery honestly without upgrading it into hidden-argument verification', async () => {
+  generated.generationReport.inputMode = 'conversation_context';
+  const staged = await importChatImage('owner', generated);
+  expect(staged.generationEvidence).toMatchObject({ inputMode: 'conversation_context', exactPromptExecutionVerified: false });
 });

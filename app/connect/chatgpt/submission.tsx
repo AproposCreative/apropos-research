@@ -9,10 +9,12 @@ const button = 'min-h-12 rounded-xl border border-white/20 px-5 py-3 hover:bg-wh
 type Article = { title: string; subtitle?: string; intro?: string; content: string; seoTitle?: string; seoDescription?: string;
   category?: string; author?: string; rating?: number; ratingReason?: string; articleFormat?: string; slug?: string };
 type State = {
+  candidatePreviews?: Record<string, string>;
   consent?: { id: string; includesPersonalImageSelection: boolean } | null;
   reading: ArticleReadingPreview;
   dependencyError?: string | null;
   row: { revision: number; status: string; executionPolicy?: string; approvalState?: string; publicationConsent?: { id: string }; publicationConsentPending?: boolean; article: Article; questions: Array<{ field: string; question: string }>;
+    imageCandidates?: Array<{ assetId: string; originalHash: string; alt: string; role: string; revision: number; current: boolean; selected: boolean }>;
     imageSelection?: { required: boolean; accepted: boolean; selectionHash: string;
       items: Array<{ assetId: string; url: string; role: string }>; warnings: Array<{ assetId: string; message: string }> };
     displayNames?: { author?: string; category?: string };
@@ -51,10 +53,12 @@ export default function SubmissionConfirmation({ id }: { id: string }) {
     return () => clearInterval(timer);
   }, [status, consentPending, refresh]);
   async function act() {
-    if (!user || !state || (!state.consent && !checked) || busy || imageFailed || state.dependencyError) return;
+    if (!user || !state || (!state.consent && !state.row.imageCandidates?.length && !checked) || busy || imageFailed || state.dependencyError) return;
     setBusy(true); setError('');
     try {
-      const body = state.consent ? { action: 'approve_publish', id, revision: state.row.revision, consentId: state.consent.id, localTime: schedule ? when : 'now' }
+      const candidate = state.row.imageCandidates?.[0];
+      const body = candidate ? { action: 'select_image_candidate', id, revision: candidate.revision, assetId: candidate.assetId, originalHash: candidate.originalHash }
+        : state.consent ? { action: 'approve_publish', id, revision: state.row.revision, consentId: state.consent.id, localTime: schedule ? when : 'now' }
         : state.row.imageSelection?.required
         ? { action: 'accept_media', id, revision: state.row.revision, selectionHash: state.row.imageSelection.selectionHash }
         : state.preview?.ready
@@ -76,7 +80,14 @@ export default function SubmissionConfirmation({ id }: { id: string }) {
     {state.dependencyError && <p role="alert">{state.dependencyError}</p>}
     {imageFailed && <p role="alert">Et billede kunne ikke vises. Genindlæs før godkendelse.</p>}
     {row.imageSelection?.warnings.map(warning => <p role="status" key={warning.assetId}>{warning.message}{row.imageSelection?.accepted ? ' Dit personlige billedvalg er gemt for denne version.' : ''}</p>)}
-    {state.consent && !state.dependencyError ? <>
+    {!!row.imageCandidates?.length ? <>
+      {row.imageCandidates.map(candidate => <figure key={candidate.assetId}>
+        {state.candidatePreviews?.[candidate.assetId] && <Image unoptimized src={state.candidatePreviews[candidate.assetId]} alt={candidate.alt} width={1000} height={800} className="h-auto w-full rounded-xl" onError={() => setImageFailed(true)} />}
+        <figcaption>Privat billedforslag. Ikke tilknyttet artiklen.{!candidate.current && ' Artikelversionen er ændret; billedvalget er stoppet.'}</figcaption>
+      </figure>)}
+      <p>Kontrollér motiv og Apropos-stil. Generatorens skjulte behandling er ikke verificeret. Dette valg tilknytter kun den viste original og godkender ikke udgivelse.</p>
+      <button className={button} disabled={busy || imageFailed || !!state.dependencyError || !row.imageCandidates[0].current || !state.candidatePreviews?.[row.imageCandidates[0].assetId]} onClick={() => void act()}>{row.imageCandidates[0].selected ? 'Fortsæt med det valgte billede' : 'Brug dette billede'}</button>
+    </> : state.consent && !state.dependencyError ? <>
       <p className="leading-7 text-white/75">Med ét klik godkender du tekst, kilder, de viste billeder og metadata i version {row.revision}. Serveren klargør og udgiver denne version efter tekniske kontroller. Ingen betalte AI-kald og ingen ekstra godkendelse i chatten.</p>
       {state.consent.includesPersonalImageSelection && <p className="text-white/75">Dit klik vælger også de viste billeder trods ovenstående forbehold om prompt og stilreference.</p>}
       <label className="flex gap-3"><input type="checkbox" checked={schedule} onChange={e => setSchedule(e.target.checked)} />Planlæg udgivelse</label>

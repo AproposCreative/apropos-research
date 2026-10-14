@@ -70,11 +70,15 @@ try {
   assert(preflight.annotations.readOnlyHint && !preflight.inputSchema.properties.exactPromptExecutionVerified);
   const workflow = await call('get_workflow', { workflow: 'submit' }); assert(workflow.instructions.includes('canGenerate=false'));
   const status = await call('get_submission_status', { submissionId: id });
-  assert.equal(status.revision, row.revision); assert.equal(status.imageGeneration.canGenerate, false);
+  assert.equal(status.revision, row.revision); assert.equal(status.imageGeneration.canGenerate, null);
+  assert.equal(status.imageGeneration.preflightRequired, true);
+  assert.equal(status.imageGeneration.exactPromptExecutionVerified, false);
   const context = await call('get_submission_media_context', { submissionId: id });
   const sections = context.article.sections;
   const briefs: Array<Record<string, any>> = (await ref.collection('chatBriefs').get()).docs.map(d => ({ ...d.data(), briefId: d.id }));
-  const currentCover = briefs.find((b: any) => b.expectedRevision === row.revision && b.role === 'cover'); assert(currentCover);
+  const subjectId = 'c13fe1fe30ddbc062db6a053e93927c25947e429818f0425a3160e6e09a6cb81';
+  const currentCover = briefs.find((b: any) => b.expectedRevision === row.revision && b.role === 'cover' &&
+    b.subjectReferenceIds?.includes(subjectId)); assert(currentCover);
   const find = (text: string) => { const section = sections.find((s: any) => s.text.includes(text)); assert(section, 'regression_anchor_missing'); return section.id; };
   // Provisional read-only placement checks, not a newly saved/approved image plan.
   const placements = [
@@ -86,10 +90,14 @@ try {
   const results = [];
   for (const { name, ...placement } of placements) {
     const result = await call('preflight_submission_image', { submissionId: id, expectedRevision: row.revision,
-      ...placement, subjectReferencesRequired: true, subjectReferenceIds: [] });
-    assert.equal(result.canGenerate, false); assert.equal(result.canImportGeneratedImage, false);
-    assert(result.blockers.includes('mcp_submission_native_input_unverifiable'));
-    assert(result.blockers.includes('mcp_submission_subject_reference_required'));
+      ...placement, subjectReferencesRequired: true, subjectReferenceIds: name === 'cover-selfie' ? [subjectId] : [] });
+    assert.equal(result.canGenerate, name === 'cover-selfie'); assert.equal(result.canImportGeneratedImage, false);
+    assert.equal(result.integration.exactPromptExecutionVerified, false);
+    if (name === 'cover-selfie') {
+      assert.deepEqual(result.blockers, []); assert.equal(result.inputsComplete, true);
+      assert.deepEqual(result.references.map((r: any) => r.purpose), ['style', 'subject']);
+      assert.equal(result.references[1].sha256, '690d2f3b6f288210f4b69ed1381c6ef86132f10cc0c9b3b15f6737936733fe6f');
+    } else assert(result.blockers.includes('mcp_submission_subject_reference_required'));
     assert(!result.blockers.includes('mcp_submission_image_content_changed'), 'missing_old_baseline_is_not_article_mutation');
     results.push({ name, ...result });
   }

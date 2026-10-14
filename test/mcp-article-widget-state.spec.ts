@@ -7,7 +7,7 @@ import { articleWidgetHtml } from '@/lib/mcp/article-widget';
 function widget() {
   const receive = articleWidgetHtml.slice(articleWidgetHtml.indexOf('function receive('), articleWidgetHtml.indexOf('function render('));
   const context = createContext({ render: vi.fn(), setTimeout: vi.fn(), clearTimeout: vi.fn() });
-  runInContext('let data=null, confirmation=null, imagePreviews={}, pollTimer=null, pollCount=0;\n' + receive, context);
+  runInContext('let data=null, confirmation=null, imagePreviews={}, candidatePreviews={}, pollTimer=null, pollCount=0;\n' + receive, context);
   return {
     receive: (revision: number, at?: string, status = 'awaiting_preparation', id = 'one') => {
       context.result = { structuredContent: { submissionId: id, revision, status, previewReadAt: at }, _meta: { confirmation: { token: `rev-${revision}` } } };

@@ -15,9 +15,9 @@ import { findBoundCoverByHash } from './submission-published-target';
 import { generationReportInput, imageGenerationEvidence, assertGenerationContract } from './image-generation-evidence';
 import { nativeImageFileInput, readRetainedReference } from './image-reference';
 import { assertNoApprovedImageReplacement } from './approved-image-guard';
-import { assertNativeImageIntegration } from './native-image-integration';
 import { ImagePipelineFailure, readImageFailures, retainRejectedImage } from './image-failure';
 import { imageProtectedContentHash } from './image-content-invariant';
+import { preflightSubmissionImage } from './image-preflight';
 
 export const chatImageImportInput = z.object({ submissionId, expectedRevision: z.number().int().positive(),
   requestId: submissionInput.shape.requestId,
@@ -116,6 +116,12 @@ export async function importSuppliedImage(uid: string, input: Omit<z.infer<typeo
   }
   assertGenerationContract(input, brief);
   if (generatedInChat) {
+    if (!previous) {
+      const preflight = await preflightSubmissionImage(uid, { submissionId: row.id, expectedRevision: input.expectedRevision,
+        role: input.role, sectionId: input.sectionId, briefId: input.briefId,
+        subjectReferencesRequired: brief?.subjectReferencesRequired === true, subjectReferenceIds: brief?.subjectReferenceIds || [] });
+      if (!preflight.canGenerate) throw Error(preflight.blockers[0]);
+    }
     if (brief?.protectedContentHash !== imageProtectedContentHash(row.article)) throw Error('mcp_submission_image_content_changed');
     if (!Array.isArray(brief?.retainedReferences) || brief.retainedReferences.length !== brief.requiredReferenceHashes.length)
       throw Error('mcp_submission_style_reference_required');
@@ -128,10 +134,6 @@ export async function importSuppliedImage(uid: string, input: Omit<z.infer<typeo
   const snapshot = await readImageGenSnapshot(uid, `submission-${row.id}`);
   const section = input.sectionId ? snapshot.article.sections.find(s => s.id === input.sectionId) : null;
   if ((input.role === 'body' || generatedInChat) && !section) throw Error('mcp_submission_anchor_changed');
-  // No client report, brief hash, model flag or new requestId can turn this into
-  // a trusted observation of the native call. Legacy ATTACHED replay above and
-  // genuine press/user photos remain available, not fresh generated attachment.
-  if (generatedInChat) assertNativeImageIntegration();
   const protectedContentHash = imageProtectedContentHash(row.article);
   const replaced = input.replaceAssetId ? (await collection.doc(row.id).collection('chatAssets').doc(input.replaceAssetId).get()).data() : null;
   if (input.replaceAssetId && (!replaced || replaced.uid !== uid || replaced.role !== input.role || replaced.status !== 'attached')) throw Error('mcp_submission_asset_not_found');
@@ -146,6 +148,12 @@ export async function importSuppliedImage(uid: string, input: Omit<z.infer<typeo
     const bytes = await source.read();
     if ((await readImageFailures(uid, row.id)).some(f => f.originalHash === hash(bytes)))
       throw Error('mcp_submission_rejected_image_relabelled');
+    if (!generatedInChat) {
+      const known = await collection.doc(row.id).collection('chatAssets').limit(101).get();
+      if (known.size > 100) throw Error('mcp_submission_media_window_exceeded');
+      if (known.docs.some(doc => doc.data().originalHash === hash(bytes) && ['chatgpt-generated', 'chatgpt-edited'].includes(doc.data().origin)))
+        throw Error('mcp_submission_generated_image_relabelled');
+    }
     const decoder = sharp(bytes, { limitInputPixels: 80_000_000, failOn: 'warning' });
     const meta = await decoder.metadata().catch(() => { throw Error('mcp_submission_image_invalid'); });
     if (!['jpeg', 'png', 'webp'].includes(meta.format || '') || (meta.pages || 1) !== 1 ||
@@ -160,13 +168,21 @@ export async function importSuppliedImage(uid: string, input: Omit<z.infer<typeo
     const originalHash = hash(bytes), path = `editorial-chat-images/${cmsFieldHash({ uid })}/${originalHash}`;
     const target = storage.file(path);
     try { await target.save(bytes, { resumable: false, validation: 'crc32c', preconditionOpts: { ifGenerationMatch: 0 }, metadata: { contentType: `image/${meta.format}` } }); }
-    catch (error) { if (Number((error as { code?: number }).code) !== 412) throw error; }
+    catch (error) {
+      if (Number((error as { code?: number }).code) !== 412) {
+        // A lost save reply is not a failed save. Recover only identical bytes.
+        const saved = await target.download({ validation: 'crc32c' }).catch(() => null);
+        if (!saved?.[0].equals(bytes)) throw error;
+      }
+    }
     const [check] = await target.download({ validation: 'crc32c' });
     if (!check.equals(bytes)) throw Error('mcp_submission_storage_mismatch');
     const record = { ...metadata, uid, assetId, requestHash, originalHash, storagePath: path,
       dimensions, width: meta.width, height: meta.height, preserveOriginal: true, extension: meta.format === 'jpeg' ? 'jpg' : meta.format,
       selection: 'provided', locked: true, fallbackUsed: false,
-      status: 'stored', fileId: file.file_id, credit: input.kind === 'illustration' && generatedInChat ? 'Illustration: Apropos Magazine / AI' : input.credit,
+      status: generatedInChat ? 'awaiting_personal_selection' : 'stored',
+      ...(generatedInChat ? { importInput: metadata, contentHash: row.contentHash, protectedContentHash } : {}),
+      fileId: file.file_id, credit: input.kind === 'illustration' && generatedInChat ? 'Illustration: Apropos Magazine / AI' : input.credit,
       provenance: source.provenance, ...(source.evidence ? { sourceEvidence: source.evidence } : {}),
       byteCount: bytes.length, mimeType: `image/${meta.format}`,
       rightsStatus: 'unknown', createdAt: new Date().toISOString(), exactPromptExecutionVerified: false };
@@ -177,6 +193,13 @@ export async function importSuppliedImage(uid: string, input: Omit<z.infer<typeo
       if (!old) tx.create(ref, record);
     });
     current = (await ref.get()).data()!;
+  }
+  if (generatedInChat && (!current.personalSelection || current.personalSelection.uid !== uid ||
+      current.personalSelection.originalHash !== current.originalHash || current.personalSelection.revision !== input.expectedRevision ||
+      current.personalSelection.contentHash !== row.contentHash)) {
+    return { assetId, revision: row.revision, importStatus: 'awaiting_personal_selection', originalHash: current.originalHash,
+      originalPreserved: true, paidAiCalls: 0, publicationApproval: false, regenerateImage: false,
+      generationEvidence: current.generationEvidence, instruction: 'Originalen er gemt privat, ikke i CMS eller artiklen. Vis preview_submission. Brugeren skal selv vælge denne fil før tilknytning. Ingen ny generation eller upload.' };
   }
   if (current.status !== 'uploaded') {
     const [original] = await storage.file(current.storagePath).download({ validation: 'crc32c' });

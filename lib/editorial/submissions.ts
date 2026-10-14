@@ -15,6 +15,7 @@ import { assertNoApprovedImageReplacement } from './approved-image-guard';
 import { assertImageContentInvariant } from './image-content-invariant';
 import { readImageFailures } from './image-failure';
 import { NATIVE_IMAGE_INTEGRATION } from './native-image-integration';
+import { projectImageCandidates } from './generated-image-candidate';
 import { inspectSubmission, submissionId, submissionInput, submissionUpdate, submissionVersion,
   validateSubmissionArticle, type SubmissionRecord } from './submission-contract';
 
@@ -43,6 +44,7 @@ export async function getSubmissionStatus(uid: string, id: string) {
   const assetReceipts = await submissionStore().collection.doc(id).collection('chatAssets').limit(101).get();
   if (assetReceipts.size > 100) throw Error('mcp_submission_media_window_exceeded');
   const imageSelection = projectImageSelection(row, assetReceipts.docs.map(doc => doc.data()));
+  const imageCandidates = projectImageCandidates(row, assetReceipts.docs.map(doc => doc.data()));
   const publication = (row as typeof row & { publication?: { receipt?: { mediaIdentity?: {
     cmsHash: string; checkedAt: string; assets: Array<{ assetId: string; published: Array<{ url: string; hash: string }> }> } } } }).publication;
   const verified = publication?.receipt?.mediaIdentity;
@@ -65,9 +67,10 @@ export async function getSubmissionStatus(uid: string, id: string) {
     previewUrl: `${MCP_ORIGIN}/connect/chatgpt?submission=${id}`,
     preparationStarted: row.status === 'processing',
     textPreserved: row.article.content === row.originalArticle.content,
-    savedSteps, mediaIdentity, imageSelection,
+    savedSteps, mediaIdentity, imageSelection, imageCandidates,
+    readyForPreparation: inspection.readyForPreparation && !imageCandidates.length,
     imageFailures: await readImageFailures(uid, id),
-    imageGeneration: { ...NATIVE_IMAGE_INTEGRATION, canGenerate: false, nextAction: 'preflight_submission_image',
+    imageGeneration: { ...NATIVE_IMAGE_INTEGRATION, canGenerate: null, preflightRequired: true, nextAction: 'preflight_submission_image',
       pressPhotoImportUnaffected: true, automaticRetryAllowed: false },
     mediaImports: assetReceipts.docs.map(doc => { const asset = doc.data(); return { assetId: doc.id, status: asset.status,
       ready: ['uploaded', 'attached'].includes(asset.status), role: asset.role, failure: asset.failure ?? null,
@@ -81,7 +84,7 @@ export async function getSubmissionStatus(uid: string, id: string) {
       missing: [...inspection.questions.map(q => q.field), ...inspection.missingMetadata, ...inspection.missingMedia, ...inspection.blockers],
       recommendedMedia: inspection.recommendedMedia,
       publicationReady: false,
-      nextAction: row.status === 'prepared' ? (currentConsent ? 'read_saved_status_do_not_resubmit' : 'show_inline_preview_for_single_approval') :
+      nextAction: imageCandidates.length ? 'show_inline_preview_for_personal_image_selection' : row.status === 'prepared' ? (currentConsent ? 'read_saved_status_do_not_resubmit' : 'show_inline_preview_for_single_approval') :
         row.status === 'blocked' ? 'inspect_saved_step_before_any_retry' :
         ['processing', 'scheduled'].includes(row.status) ? 'read_saved_status_do_not_resubmit' :
         row.status === 'published' ? 'inspect_publication_receipt' :

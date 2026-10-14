@@ -64,12 +64,12 @@ export async function getChatImageBrief(uid: string, raw: unknown) {
     canonicalPromptHash: promptHash(prompt), handoffVersion: IMAGE_HANDOFF_VERSION, requiredReferenceHashes,
     generationContract: { instruction: IMAGE_HANDOFF_INSTRUCTION, promptField: 'prompt', referenceHash,
       reportField: 'generationReport', exactPromptExecutionVerified: false,
-      canGenerate: false, preflightTool: 'preflight_submission_image', integration: NATIVE_IMAGE_INTEGRATION,
+      canGenerate: false, preflightRequired: true, preflightTool: 'preflight_submission_image', integration: NATIVE_IMAGE_INTEGRATION,
       evidenceLimit: 'Hashes verify the client report, not the hidden native image-generation input. This brief is NOT permission to call the generator.' },
     references: references.map(({ storagePath: _path, ...ref }) => ref),
     parentUrl: parent?.url || null, output: { kind: 'standalone-illustration', count: 1, format: 'landscape', minimumWidth: 1200, minimumHeight: 800, text: 'none' },
     visualEvidence: { status: 'not_server_verified', suppliedSources: row.research },
-    instruction: 'STOP før billedgenerering: kald preflight_submission_image med dette brief og de samme motivreferencer. canGenerate=false er et integrationsstop, ikke tilladelse til et prøvebillede. Ingen omskrivning, fallback eller automatisk retry. Bevar originale filer. Film/TV bruger rigtige stills. Ingen personlig godkendelse eller publicering.' };
+    instruction: 'Kald preflight_submission_image med dette brief og de samme motivreferencer før billedgenerering. Kun canGenerate=true og faktisk tilgængelig kanonisk tekst + referencefiler åbner ét kontrolleret forsøg. Ukendt skjult generatorbehandling forbliver ukendt. Resultatet skal gennemgås og vælges personligt før tilknytning. Ingen omskrivning, fallback, automatisk retry eller publicering.' };
   const current = await readSubmission(uid, row.id);
   if (current.revision !== row.revision || current.contentHash !== row.contentHash || imageProtectedContentHash(current.article) !== brief.protectedContentHash)
     throw Error('mcp_submission_image_content_changed');

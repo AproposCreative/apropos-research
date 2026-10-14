@@ -13,6 +13,7 @@ import { submissionId } from './submission-contract';
 import { acceptImageSelection } from './submission-image-selection';
 import { submissionConsentOffer, acceptSubmissionConsent } from './submission-consent';
 import { hasCurrentPublicationConsent } from './submission-consent-state';
+import { imageCandidatePreviews, selectGeneratedImage } from './generated-image-candidate';
 
 export const CHAT_PREVIEW_URI = 'ui://apropos/article-preview-v1.html';
 export const chatPreviewInput = z.object({ submissionId }).strict();
@@ -40,6 +41,7 @@ export async function chatSubmissionPreview(identity: McpIdentity, id: string) {
   // overwrite a newer status for the same article revision in the host widget.
   const previewReadAt = new Date().toISOString();
   const row = await getSubmissionStatus(identity.uid, id);
+  const candidate = row.imageCandidates[0] || null;
   const consentPending = !!(row as typeof row & { publicationConsentPending?: boolean }).publicationConsentPending && ['processing', 'prepared'].includes(row.status);
   let quote: Awaited<ReturnType<typeof quoteSubmission>> | null = null;
   let publication: Awaited<ReturnType<typeof submissionPublicationPreview>> | null = null;
@@ -63,6 +65,9 @@ export async function chatSubmissionPreview(identity: McpIdentity, id: string) {
   const blocks = submissionPreviewBlocks(article.content);
   const urls = [...new Set([article.featuredImage, ...blocks.filter(b => b.kind === 'image').map(b => b.url)].filter((u): u is string => !!u))];
   const imagePreviews: Record<string, string> = {}, previewProblems: string[] = [];
+  let candidatePreviews: Record<string, string> = {};
+  try { candidatePreviews = await imageCandidatePreviews(identity.uid, id, row.imageCandidates); }
+  catch { previewProblems.push('Det private billedforslag kunne ikke vises. Genindlæs før billedvalg.'); }
   // External press hosts need no broad iframe CSP exception. Fetch through the
   // existing DNS-pinned reader and send bounded thumbnails only to the UI.
   if (urls.length > 8) previewProblems.push('Preview understøtter højst otte billeder. Gennemgå resten på Apropos.');
@@ -76,7 +81,7 @@ export async function chatSubmissionPreview(identity: McpIdentity, id: string) {
   }));
   const data = { submissionId: id, revision: row.revision, contentHash: row.contentHash, title: article.title, previewReadAt,
     article: { ...article, author: row.displayNames.author, category: row.displayNames.category },
-    blocks, previewProblems, status: row.status, mediaIdentity: row.mediaIdentity, imageSelection: row.imageSelection,
+    blocks, previewProblems, status: row.status, mediaIdentity: row.mediaIdentity, imageSelection: row.imageSelection, imageCandidates: row.imageCandidates,
     questions: row.questions, remainingQuestionCount: row.remainingQuestionCount,
     missing: row.handoff.missing, recommendedMedia: row.recommendedMedia, editorialChoices: row.choices,
     handoff: row.handoff, savedSteps: row.savedSteps.map(s => ({ name: s.name, status: s.status, contentHash: s.contentHash })),
@@ -86,7 +91,8 @@ export async function chatSubmissionPreview(identity: McpIdentity, id: string) {
     recordedPublished: row.status === 'published', ...live, textPreserved: row.textPreserved,
     paidAiCalls: 0, instructions: 'Vis preview_submission som artikelkort direkte i chatten, ikke kun et eksternt link. Godkend og udgiv er én personlig versionsbundet godkendelse inklusive viste billeder og redaktionel kontrol. Serveren fortsætter og kortet opdateres; bed ikke brugeren vende tilbage og sige godkendt. Åbn eksternt er valgfrit og kræver samme adgang. En modelpåstand er aldrig godkendelse. Bevar tekst/billeder og hent samme forløb efter timeout.' };
   // Never turn a missing single-consent offer/scope into a preparation-only click.
-  const action = consentPending || dependencyError || previewProblems.length ? null : row.executionPolicy === 'chatgpt-first-v1'
+  const action = candidate ? candidate.current && candidatePreviews[candidate.assetId] && identity.scopes.includes('apropos:draft') ? 'image_candidate' : null
+    : consentPending || dependencyError || previewProblems.length ? null : row.executionPolicy === 'chatgpt-first-v1'
     ? consent && identity.scopes.includes('apropos:draft') && identity.scopes.includes('apropos:publish') ? 'approve_publish' : null
     : row.imageSelection.required && ['awaiting_answers', 'awaiting_preparation', 'prepared', 'blocked'].includes(row.status) && identity.scopes.includes('apropos:draft') ? 'media' :
     quote?.canAccept && (!quote.provider.blocked || quote.humanReview) && identity.scopes.includes('apropos:draft') ? 'checks' :
@@ -101,12 +107,13 @@ export async function chatSubmissionPreview(identity: McpIdentity, id: string) {
       uid: identity.uid, grantId: identity.grantId, submissionId: id, revision: row.revision, contentHash: row.contentHash,
       action, quoteId: quote?.quoteId || null, preparedHash: publication?.preparedHash || null,
       consentId: consent?.id || null,
+      candidateId: candidate?.assetId || null, candidateHash: candidate?.originalHash || null,
       selectionHash: row.imageSelection.selectionHash,
       expiresAt, status: 'pending', createdAt: new Date().toISOString(),
     });
     confirmation = { token, action, expiresAt };
   }
-  return { data, confirmation, imagePreviews };
+  return { data, confirmation, imagePreviews, candidatePreviews };
 }
 
 /** Called only by the UI, after a deliberate human click. Queues existing server
@@ -118,10 +125,13 @@ export async function confirmChatSubmission(identity: McpIdentity, raw: unknown)
   const action = await db.runTransaction(async tx => {
     const confirmation = (await tx.get(ref)).data();
     if (!confirmation || confirmation.uid !== identity.uid || confirmation.grantId !== identity.grantId ||
-      !['checks', 'media', 'publish', 'approve_publish'].includes(confirmation.action) ||
+      !['checks', 'media', 'image_candidate', 'publish', 'approve_publish'].includes(confirmation.action) ||
       !identity.scopes.includes(['publish', 'approve_publish'].includes(confirmation.action) ? 'apropos:publish' : 'apropos:draft') ||
       (confirmation.action === 'approve_publish' && !identity.scopes.includes('apropos:draft'))) throw Error('mcp_submission_confirmation_required');
     if (confirmation.status === 'done' && confirmation.inputHash === inputHash) return confirmation;
+    // A lost attachment response can have advanced the article version. The
+    // retained operation below checks/replays its own exact personal receipt.
+    if (confirmation.action === 'image_candidate' && confirmation.status === 'attempted' && confirmation.inputHash === inputHash) return confirmation;
     const row = (await tx.get(collection.doc(confirmation.submissionId))).data();
     if (!row || row.uid !== identity.uid || row.contentHash !== confirmation.contentHash || row.revision !== confirmation.revision ||
       (confirmation.expiresAt <= Date.now() && !(confirmation.action === 'approve_publish' && confirmation.status === 'attempted')) || (confirmation.inputHash && confirmation.inputHash !== inputHash)) throw Error('mcp_submission_preview_changed');
@@ -130,10 +140,11 @@ export async function confirmChatSubmission(identity: McpIdentity, raw: unknown)
     tx.update(ref, { status: 'attempted', inputHash, clickedAt: new Date().toISOString() }); return confirmation;
   });
   if (action.status === 'done') return action.result;
-  const result = action.action === 'approve_publish' ? await acceptSubmissionConsent(identity.uid, action.submissionId, action.revision, action.consentId, 'chat-preview', input.localTime) : action.action === 'media' ? await acceptImageSelection(identity.uid, action.submissionId, action.revision, action.selectionHash) : action.action === 'checks'
+  const result = action.action === 'image_candidate' ? await selectGeneratedImage(identity.uid, action.submissionId, action.revision, action.candidateId, action.candidateHash)
+    : action.action === 'approve_publish' ? await acceptSubmissionConsent(identity.uid, action.submissionId, action.revision, action.consentId, 'chat-preview', input.localTime) : action.action === 'media' ? await acceptImageSelection(identity.uid, action.submissionId, action.revision, action.selectionHash) : action.action === 'checks'
     ? await acceptSubmissionQuote(identity.uid, action.submissionId, action.revision, action.quoteId)
     : await approveSubmissionPublication(identity.uid, action.submissionId, action.preparedHash, input.localTime);
-  const answer = { ...result, submissionId: action.submissionId, queuedOnServer: action.action !== 'media', paidAiCalls: 0,
+  const answer = { ...result, submissionId: action.submissionId, queuedOnServer: !['media', 'image_candidate'].includes(action.action), paidAiCalls: 0,
     instruction: ['approve_publish', 'publish'].includes(action.action)
       ? 'Din udgivelsesgodkendelse er gemt. Serveren fortsætter; preview opdaterer status. Du skal ikke godkende igen eller sende en besked. Bestil ikke igen.'
       : 'Dit valg er gemt. Opdatér preview for næste nødvendige handling. Dette valg er ikke en udgivelsesgodkendelse; send ikke en bekræftelsesbesked.' };

@@ -5,6 +5,12 @@ vi.mock('@/lib/liv/public-media-reader', () => ({ readPublicMedia: mock.read }))
 import { importedImageResult } from '@/lib/mcp/import-image-result';
 const receipt = { assetId: 'a'.repeat(64), url: 'https://cdn.prod.website-files.com/asset.webp', revision: 4, replay: false, paidAiCalls: 0 };
 beforeEach(() => vi.resetAllMocks());
+it('does not describe a private candidate as attached or attempt a public image fetch', async () => {
+  const result = await importedImageResult({ assetId: receipt.assetId, revision: 2, importStatus: 'awaiting_personal_selection', paidAiCalls: 0 });
+  const data = JSON.parse((result.content[0] as { text: string }).text);
+  expect(data.importStatus).toBe('awaiting_personal_selection'); expect(data.nextAction).toContain('preview_submission');
+  expect(mock.read).not.toHaveBeenCalled();
+});
 it('returns actual saved-image pixels in the MCP result, not only a file ID or link', async () => {
   mock.read.mockResolvedValue(await sharp({ create: { width: 1200, height: 800, channels: 3, background: 'blue' } }).png().toBuffer());
   const result = await importedImageResult(receipt);

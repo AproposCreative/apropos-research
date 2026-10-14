@@ -1,5 +1,11 @@
 # Mandatory native image contract — 14 October 2026
 
+Latest owner-approved revision:
+[IMAGE-REVIEWED-V31-2026-10-14.md](IMAGE-REVIEWED-V31-2026-10-14.md).
+V31 allows a controlled attempt with complete actual inputs while explicitly
+leaving hidden native execution unknown; private candidate selection is required
+before CMS attachment. The older blanket V30 stop below is historical.
+
 Later strict fail-closed work is documented in
 [IMAGE-PREFLIGHT-V30-2026-10-14.md](IMAGE-PREFLIGHT-V30-2026-10-14.md).
 The v29 release/verification below remains dated evidence, not proof of native
