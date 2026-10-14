@@ -84,6 +84,45 @@ No new platform, paid model, job reset, translation job or publication.
 
 ## Release/live acceptance
 
-Pending exact deployment and authenticated production readback. Passing tests
-and pre-deploy Google reads do not establish the deployed MCP result or a future
-unattended cloud run. Danielle's whole-language editorial decision remains open.
+- Source: `c2e0361a111e3b05486c50e0335e6922c513cebf`, pushed on the existing
+  `codex/seo-chatgpt-first` branch, based on all current production UI/MCP changes.
+- Deployment: `dpl_BFm7QehphWpiiwDN4S7v3XveAg1V`, READY with the real
+  `ai.aproposmagazine.com` production alias. Remote build passed; exact alias/SHA
+  verified again after release. No environment/credential/schedule changes.
+- Authenticated production readback **07:50:06–07:50:12Z** (09:50 Copenhagen):
+  both original task GETs with `refreshGoogle=true` returned HTTP 200,
+  private/no-store and real Google results. Kontrapunkt GA4 2/1/1, GSC no_rows;
+  Danielle EN GA4/GSC no_rows, not fabricated zero and not an access error.
+- Both original public URLs returned HTTP 200 with their existing H1,
+  canonical and metadata. Kontrapunkt remains kept/publicly verified;
+  Danielle remains needs_editor and explicitly `review_translation`.
+- `/api/seo-engine/opportunities` confirmed actual GSC+GA4 access. The quality
+  endpoint reports one completed task and one editorial-attention task, **only
+  editorial_attention**, not scheduled_run_incomplete. Yesterday's two completed
+  tasks remain completed. Anonymous diagnostic access was rejected by middleware
+  with HTTP 401; member rejection is covered by route/MCP regression tests.
+- Connected native MCP confirmed the new SEO instructions and Danielle's precise
+  locale diagnosis; workflow hash
+  `118b265516f253f6e9ce42faf49738d44d6c66308342e6976864ed4d3deeefe1`.
+  The current client's cached schema does not yet expose the optional diagnostic
+  parameter; it was tested through the authenticated production owner route and
+  MCP protocol integration tests. Normal claims receive Google context without
+  this parameter or a client refresh.
+- Full job records, not just proposal hashes, were identical before/after live
+  verification. Kontrapunkt job hash
+  `98221c99cce4b8006465ee995cabbb5f58aa9139da764c3ee295167d22556d11`;
+  Danielle job hash
+  `3e1a916108c5962daa296a13a7118bacea4e6874441c78fc5bc43e8d7ab3cef5`.
+  Financial hash above was also identical. No paid AI call, CMS mutation,
+  personal approval, article publication, held-provider retry or ledger reset.
+- Receipt: `output/seo-google-production-readback.json` in the SEO worktree.
+  The initial verification helper expected anonymous HTTP 403; production
+  middleware correctly returned 401 before the route. The helper was corrected
+  to accept either proper auth rejection; no authentication control was changed.
+
+**Remaining boundary:** the new-context claim path passed isolated integration
+tests and the same collector passed real Google/runtime checks, but no additional
+live review was claimed merely to demonstrate it. The next natural cloud run
+with the new release is not yet observed. The existing cloud schedule stays
+unchanged. Danielle's full-language editorial choice remains open; this release
+does not claim to have translated or unpublished that English URL.
