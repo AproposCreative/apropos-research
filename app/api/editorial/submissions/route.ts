@@ -11,7 +11,7 @@ import { MCP_ORIGIN, PRIVATE_HEADERS } from '@/lib/mcp/config';
 import { acceptImageSelection } from '@/lib/editorial/submission-image-selection';
 import { articleReadingPreview } from '@/lib/editorial/submission-preview';
 import { resumeSubmissionCms } from '@/lib/editorial/submission-cms-resume';
-import { imageCandidatePreviews, selectGeneratedImage } from '@/lib/editorial/generated-image-candidate';
+import { declineGeneratedImage, imageCandidatePreviews, selectGeneratedImage } from '@/lib/editorial/generated-image-candidate';
 export const runtime = 'nodejs';
 export const maxDuration = 300;
 const response = (body: unknown, status = 200) => Response.json(body, { status, headers: PRIVATE_HEADERS });
@@ -44,6 +44,7 @@ export async function GET(req: Request) {
   } catch (error) { return response({ error: safeError(error) }, 409); }
 }
 const inputSchema = z.discriminatedUnion('action', [
+  z.object({ action: z.literal('decline_image_candidate'), id: submissionId, revision: z.number().int().positive(), assetId: submissionId, originalHash: submissionId }).strict(),
   z.object({ action: z.literal('select_image_candidate'), id: submissionId, revision: z.number().int().positive(), assetId: submissionId, originalHash: submissionId }).strict(),
   z.object({ action: z.literal('resume_cms'), id: submissionId, expectedRevision: z.number().int().positive(), expectedCmsHash: submissionId }).strict(),
   z.object({ action: z.literal('accept_media'), id: submissionId, revision: z.number().int().positive(), selectionHash: submissionId }).strict(),
@@ -58,6 +59,7 @@ export async function POST(req: Request) {
   try {
     const raw = await req.text(); if (raw.length > 2000) throw Error('mcp_submission_invalid_request');
     const input = inputSchema.parse(JSON.parse(raw));
+    if (input.action === 'decline_image_candidate') return response(await declineGeneratedImage(access.uid, input.id, input.revision, input.assetId, input.originalHash));
     if (input.action === 'select_image_candidate') return response(await selectGeneratedImage(access.uid, input.id, input.revision, input.assetId, input.originalHash));
     if (input.action === 'resume_cms') {
       const result = await resumeSubmissionCms(access.uid, { submissionId: input.id, expectedRevision: input.expectedRevision, expectedCmsHash: input.expectedCmsHash });

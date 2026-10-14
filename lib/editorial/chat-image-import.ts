@@ -19,6 +19,7 @@ import { ImagePipelineFailure, readImageFailures, retainRejectedImage } from './
 import { imageProtectedContentHash } from './image-content-invariant';
 import { preflightSubmissionImage } from './image-preflight';
 import { readImageAttemptResume } from './image-attempt-resume';
+import { isDeclinedImageCandidate } from './image-candidate-state';
 
 export const chatImageImportInput = z.object({ submissionId, expectedRevision: z.number().int().positive(),
   requestId: submissionInput.shape.requestId,
@@ -71,6 +72,7 @@ export async function importSuppliedImage(uid: string, input: Omit<z.infer<typeo
   let requestHash = cmsFieldHash({ ...(input.origin === 'press-source' ? pressIntent : metadata), fileId: file.file_id });
   const { db, collection } = submissionStore(), ref = collection.doc(row.id).collection('chatAssets').doc(assetId);
   const previous = (await ref.get()).data();
+  if (previous?.personalDecline || previous?.status === 'declined') throw Error('mcp_submission_image_candidate_declined');
   if (previous && previous.requestHash !== requestHash) {
     // The native adapter can re-upload the same attachment under a new file ID.
     // Keep the original operation identity; admit a rotated reference only when
@@ -152,9 +154,11 @@ export async function importSuppliedImage(uid: string, input: Omit<z.infer<typeo
     const bytes = await source.read();
     if ((await readImageFailures(uid, row.id)).some(f => f.originalHash === hash(bytes)))
       throw Error('mcp_submission_rejected_image_relabelled');
+    const known = await collection.doc(row.id).collection('chatAssets').limit(101).get();
+    if (known.size > 100) throw Error('mcp_submission_media_window_exceeded');
+    if (known.docs.some(doc => doc.data().originalHash === hash(bytes) && isDeclinedImageCandidate(doc.data())))
+      throw Error('mcp_submission_image_candidate_declined');
     if (!generatedInChat) {
-      const known = await collection.doc(row.id).collection('chatAssets').limit(101).get();
-      if (known.size > 100) throw Error('mcp_submission_media_window_exceeded');
       if (known.docs.some(doc => doc.data().originalHash === hash(bytes) && ['chatgpt-generated', 'chatgpt-edited'].includes(doc.data().origin)))
         throw Error('mcp_submission_generated_image_relabelled');
     }

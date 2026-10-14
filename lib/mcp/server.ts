@@ -103,7 +103,9 @@ export function createEditorialMcp(identity: McpIdentity) {
             : ['mcp_submission_brief_changed', 'mcp_submission_anchor_changed'].includes(code)
             ? 'Billedbriefets artikelversion eller afsnitsanker er ændret. Bevar den eksisterende billedfil. Hent get_submission_status og get_submission_media_context, og afklar det aktuelle afsnit før import. Genbrug et gemt import-receipt efter timeout. Et nyt brief beviser ikke, at et allerede genereret billede fulgte det; opfind ikke generationReport. Ingen automatisk regenerering.'
             : code === 'mcp_submission_image_selection_required'
-            ? 'Billedet er bevaret. Hent preview_submission, så brugeren kan se og personligt vælge billedet trods manglende eller afvigende promptoverlevering. Dette er ikke publiceringsgodkendelse; ingen ny generation er nødvendig.'
+            ? 'Billedet er gemt privat. Hent preview_submission: brugeren kan vælge Brug dette billede eller Fravælg billedforslag. Agenten må ikke trykke på brugerens vegne. Fravalg bevarer originalen og giver hverken tilladelse til nyt billedkald eller publicering.'
+            : code === 'mcp_submission_image_candidate_declined'
+            ? 'Brugeren har fravalgt denne fil. Original og kvittering er bevaret, men filen må ikke genvælges eller genimporteres med et nyt requestId. Hent status og preflight. Et nyt forsøg kræver en særskilt eksplicit menneskelig beslutning, bundet til det nye brief; fravalg alene giver ingen retry-tilladelse.'
             : code === 'mcp_submission_approved_image_locked'
             ? 'Et tidligere personligt godkendt billede er låst. Ingen automatisk erstatning. Bevar original, artikelversion og kvittering; en ændring kræver et særskilt personligt billedskift.'
             : code === 'mcp_submission_image_import_required'
@@ -149,7 +151,7 @@ export function createEditorialMcp(identity: McpIdentity) {
       result: raw => { const { data, confirmation, imagePreviews, candidatePreviews } = raw as Awaited<ReturnType<typeof chatSubmissionPreview>>;
         return { structuredContent: data, _meta: { confirmation, imagePreviews, candidatePreviews }, content: [{ type: 'text', text: JSON.stringify(data) }] }; },
     });
-  tool('confirm_submission_action', 'Kun previewets personlige knap. Kræver kortlivet engangstoken, uændret version og samme bruger/forbindelse. Kølægger godkendte servertrin; aldrig en modelbaseret godkendelse.',
+  tool('confirm_submission_action', 'Kun previewets personlige knap. Kræver kortlivet engangstoken, uændret version og samme bruger/forbindelse. imageDecision=decline fravælger præcis det viste private billedforslag og bevarer original/historik; det autoriserer ikke et nyt forsøg, CMS-upload eller udgivelse. Ingen modelbaseret godkendelse eller fravalg.',
     chatConfirmInput, 'apropos:read', false, async input => {
       const result = await confirmChatSubmission(identity, input);
       if (result.queuedOnServer) after(() => continueSubmissionWorkflow(identity.uid, result.submissionId).then(() => undefined));

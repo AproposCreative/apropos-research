@@ -1,6 +1,6 @@
 import { beforeEach, expect, it, vi } from 'vitest';
-const candidate = vi.hoisted(() => ({ select: vi.fn() }));
-vi.mock('@/lib/editorial/generated-image-candidate', () => ({ imageCandidatePreviews: async () => ({}), selectGeneratedImage: (...args: unknown[]) => candidate.select(...args) }));
+const candidate = vi.hoisted(() => ({ select: vi.fn(), decline: vi.fn() }));
+vi.mock('@/lib/editorial/generated-image-candidate', () => ({ imageCandidatePreviews: async () => ({}), selectGeneratedImage: (...args: unknown[]) => candidate.select(...args), declineGeneratedImage: (...args: unknown[]) => candidate.decline(...args) }));
 const state = vi.hoisted(() => ({ access: null as any, accept: vi.fn(), approve: vi.fn(), after: vi.fn(), worker: vi.fn(), consent: vi.fn(), workflow: vi.fn(), resume: vi.fn() }));
 vi.mock('@/lib/editorial/submission-cms-resume', () => ({ resumeSubmissionCms: (...args: unknown[]) => state.resume(...args) }));
 vi.mock('@/lib/editorial/submission-consent', () => ({ submissionConsentOffer: vi.fn(), acceptSubmissionConsent: (...args: unknown[]) => state.consent(...args) }));
@@ -39,6 +39,18 @@ it('passes the authenticated team UID to the ownership-checked submission servic
   state.access = { uid: 'colleague', owner: false };
   expect((await POST(request())).status).toBe(202);
   expect(state.accept).toHaveBeenCalledWith('colleague', body.id, 1, body.quoteId);
+});
+it('binds personal decline to origin, session, revision and bytes without approval or dispatch', async () => {
+  const input = { action: 'decline_image_candidate', id: body.id, revision: 2, assetId: 'c'.repeat(64), originalHash: 'd'.repeat(64) } as any;
+  expect((await POST(request(input, 'https://untrusted.test'))).status).toBe(403);
+  expect((await POST(request({ ...input, approved: true }))).status).toBe(409);
+  expect((await POST(request({ ...input, originalHash: undefined }))).status).toBe(409);
+  state.access = null; expect((await POST(request(input))).status).toBe(401);
+  state.access = { uid: 'colleague' }; candidate.decline.mockResolvedValue({ revision: 2, imageDeclined: true, publicationApproval: false });
+  expect((await POST(request(input))).status).toBe(200);
+  expect(candidate.decline).toHaveBeenCalledExactlyOnceWith('colleague', body.id, 2, input.assetId, input.originalHash);
+  expect(candidate.select).not.toHaveBeenCalled(); expect(state.consent).not.toHaveBeenCalled();
+  expect(state.approve).not.toHaveBeenCalled(); expect(state.after).not.toHaveBeenCalled();
 });
 it('requires first-party origin and rejects caller-supplied approval fields', async () => {
   expect((await POST(request(body, 'https://chatgpt.com'))).status).toBe(403);

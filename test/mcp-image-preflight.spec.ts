@@ -14,7 +14,7 @@ import { preflightSubmissionImage, imagePreflightInput } from '@/lib/editorial/i
 import { assertGenerationContract, IMAGE_HANDOFF_VERSION, promptHash } from '@/lib/editorial/image-generation-evidence';
 import { NATIVE_IMAGE_INTEGRATION } from '@/lib/editorial/native-image-integration';
 import { importChatImage } from '@/lib/editorial/chat-image-import';
-import { selectGeneratedImage, imageCandidatePreviews } from '@/lib/editorial/generated-image-candidate';
+import { declineGeneratedImage, selectGeneratedImage, imageCandidatePreviews } from '@/lib/editorial/generated-image-candidate';
 import { getSubmissionStatus } from '@/lib/editorial/submissions';
 import { imageProtectedContentHash, assertImageContentInvariant } from '@/lib/editorial/image-content-invariant';
 import { readImageFailures, previewImageFailure, retainRejectedImage } from '@/lib/editorial/image-failure';
@@ -387,4 +387,105 @@ it('a new rejected output closes the old grant, retaining BOTH originals and ref
   expect((await preflightSubmissionImage('owner', input)).canGenerate).toBe(false);
   await expect(importChatImage('owner', { ...generated, requestId: 'third-auto-attempt' })).rejects.toThrow('image_attempt_stopped');
   expect(state.upload).not.toHaveBeenCalled();
+});
+
+it('personal decline preserves original, article, version and audit; repeated/lost replies do not create another action', async () => {
+  const staged = await importChatImage('owner', generated), sha = generated.generationReport.outputCheck.sha256;
+  const before = cmsFieldHash(memory.rows.get(path)), files = cmsFieldHash([...state.files].map(([k, v]) => [k, v.toString('base64')]));
+  const identity = { uid: 'owner', owner: true, role: 'owner', scopes: ['apropos:read', 'apropos:draft'], grantId: 'grant' };
+  const preview = await chatSubmissionPreview(identity, id);
+  expect(preview.confirmation?.canDecline).toBe(true);
+  const choice = { token: preview.confirmation!.token, displayedImageHash: sha, imageDecision: 'decline' };
+  expect(await confirmChatSubmission(identity, choice)).toMatchObject({ imageDeclined: true, revision: 2, canGenerate: false, queuedOnServer: false });
+  const token = memory.rows.get('mcpUiConfirmations/' + digest(choice.token)); token.status = 'attempted'; delete token.result;
+  expect(await confirmChatSubmission(identity, choice)).toMatchObject({ imageDeclined: true, replay: true });
+  await expect(confirmChatSubmission(identity, { ...choice, imageDecision: 'select' })).rejects.toThrow('preview_changed');
+  await expect(selectGeneratedImage('owner', id, 2, staged.assetId, sha)).rejects.toThrow('image_candidate_declined');
+  await expect(importChatImage('owner', generated)).rejects.toThrow('image_candidate_declined');
+  const status = await getSubmissionStatus('owner', id);
+  expect(status.imageCandidates).toEqual([]); expect(status.imageSelection.required).toBe(false);
+  expect(status.imageDeclines).toMatchObject([{ assetId: staged.assetId, originalPreserved: true, automaticRetryAllowed: false }]);
+  expect((await preflightSubmissionImage('owner', input)).blockers).toEqual(['mcp_submission_image_attempt_stopped']);
+  expect(cmsFieldHash(memory.rows.get(path))).toBe(before);
+  expect(cmsFieldHash([...state.files].map(([k, v]) => [k, v.toString('base64')]))).toBe(files);
+  expect([...memory.rows.keys()].filter(k => k.includes('/declines/'))).toHaveLength(1);
+  expect(state.upload).not.toHaveBeenCalled(); expect(state.download).toHaveBeenCalledTimes(1);
+});
+it.each(['missing-pixels', 'wrong-pixels', 'scope', 'grant', 'expiry', 'legacy-token'])('personal decline rejects invalid UI authority: %s', async mode => {
+  const staged = await importChatImage('owner', generated);
+  const identity = { uid: 'owner', owner: true, role: 'owner', scopes: ['apropos:read', 'apropos:draft'], grantId: 'grant' };
+  const preview = await chatSubmissionPreview(identity, id), token = preview.confirmation!.token;
+  const record = memory.rows.get('mcpUiConfirmations/' + digest(token));
+  if (mode === 'expiry') record.expiresAt = 0;
+  if (mode === 'legacy-token') delete record.canDecline;
+  if (mode === 'scope') identity.scopes = ['apropos:read'];
+  if (mode === 'grant') identity.grantId = 'other';
+  const displayedImageHash = mode === 'missing-pixels' ? undefined : mode === 'wrong-pixels' ? 'f'.repeat(64) : generated.generationReport.outputCheck.sha256;
+  await expect(confirmChatSubmission(identity, { token, displayedImageHash, imageDecision: 'decline' })).rejects.toThrow();
+  expect(memory.rows.get(`${path}/chatAssets/${staged.assetId}`).status).toBe('awaiting_personal_selection');
+  expect(state.upload).not.toHaveBeenCalled();
+});
+it.each(['owner', 'revision', 'hash', 'prose'])('decline rejects changed %s and retains the pending candidate', async mode => {
+  const staged = await importChatImage('owner', generated), sha = generated.generationReport.outputCheck.sha256;
+  if (mode === 'prose') memory.rows.get(path).article.title += ' changed';
+  await expect(declineGeneratedImage(mode === 'owner' ? 'other' : 'owner', id, mode === 'revision' ? 1 : 2,
+    staged.assetId, mode === 'hash' ? 'f'.repeat(64) : sha)).rejects.toThrow();
+  expect(memory.rows.get(`${path}/chatAssets/${staged.assetId}`).status).toBe('awaiting_personal_selection');
+  expect(state.upload).not.toHaveBeenCalled();
+});
+it('a bare declined flag without exact personal receipt cannot release pending-selection guards', async () => {
+  const staged = await importChatImage('owner', generated);
+  memory.rows.get(`${path}/chatAssets/${staged.assetId}`).status = 'declined';
+  expect((await getSubmissionStatus('owner', id)).imageCandidates).toHaveLength(1);
+  expect((await preflightSubmissionImage('owner', input)).blockers).toContain('mcp_submission_image_selection_required');
+});
+it('decline wins atomically over a concurrent stale select and never uploads', async () => {
+  const staged = await importChatImage('owner', generated), sha = generated.generationReport.outputCheck.sha256;
+  const outcomes = await Promise.allSettled([declineGeneratedImage('owner', id, 2, staged.assetId, sha), selectGeneratedImage('owner', id, 2, staged.assetId, sha)]);
+  expect(outcomes.map(r => r.status)).toEqual(['fulfilled', 'rejected']); expect(state.upload).not.toHaveBeenCalled();
+});
+it('cannot decline an already personally selected file, including interrupted CMS attachment', async () => {
+  const staged = await importChatImage('owner', generated), sha = generated.generationReport.outputCheck.sha256;
+  Object.assign(memory.rows.get(`${path}/chatAssets/${staged.assetId}`), { personalSelection: { uid: 'owner', originalHash: sha }, status: 'stored' });
+  await expect(declineGeneratedImage('owner', id, 2, staged.assetId, sha)).rejects.toThrow('operation_pending');
+});
+it('new direction gets one new immutable authorization after decline, not by overwriting the consumed grant', async () => {
+  await rejectedAttempt(); const first = resumeInput();
+  const grant = await authorizeImageAttemptResume('owner', first); await claimImageAttemptResume('owner', first);
+  const staged = await importChatImage('owner', { ...generated, requestId: first.requestId });
+  const oldGrant = cmsFieldHash(memory.rows.get(`${path}/imageAttemptResumes/${grant!.grantId}`));
+  const failures = cmsFieldHash(await readImageFailures('owner', id)), row = cmsFieldHash(memory.rows.get(path));
+  const nextBriefId = 'e'.repeat(64), nextBrief = { ...brief, briefId: nextBriefId, prompt: 'Exact baby cafe meets nightclub direction.',
+    canonicalPromptHash: promptHash('Exact baby cafe meets nightclub direction.'), retainedReferences: [brief.retainedReferences[0]],
+    requiredReferenceHashes: [brief.referenceHash], subjectReferencesRequired: false, subjectReferenceIds: [] };
+  memory.rows.set(`${path}/chatBriefs/${nextBriefId}`, nextBrief);
+  const next = { ...first, requestId: 'explicit-new-direction-0002', briefId: nextBriefId,
+    decision: 'Owner explicitly approved one new baby cafe and nightclub direction, without portrait.' };
+  await expect(authorizeImageAttemptResume('owner', next)).rejects.toThrow('image_selection_required');
+  await declineGeneratedImage('owner', id, 2, staged.assetId, generated.generationReport.outputCheck.sha256);
+  const check = { ...input, briefId: nextBriefId, subjectReferencesRequired: false, subjectReferenceIds: [] };
+  expect((await preflightSubmissionImage('owner', check)).canGenerate).toBe(false);
+  const second = await authorizeImageAttemptResume('owner', next); expect(second!.grantId).not.toBe(grant!.grantId);
+  expect((await preflightSubmissionImage('owner', check)).canGenerate).toBe(true);
+  const claims = await Promise.all([claimImageAttemptResume('owner', next), claimImageAttemptResume('owner', next)]);
+  expect(claims.filter(c => c.dispatchAllowed)).toHaveLength(1);
+  await expect(authorizeImageAttemptResume('owner', { ...next, requestId: 'silent-third-attempt-0003' })).rejects.toThrow('idempotency_conflict');
+  expect(cmsFieldHash(memory.rows.get(`${path}/imageAttemptResumes/${grant!.grantId}`))).toBe(oldGrant);
+  expect(cmsFieldHash(await readImageFailures('owner', id))).toBe(failures);
+  expect(cmsFieldHash(memory.rows.get(path))).toBe(row); expect(state.upload).not.toHaveBeenCalled();
+});
+it('a personal decline without earlier technical failure still needs explicit retry authority', async () => {
+  const staged = await importChatImage('owner', generated);
+  await declineGeneratedImage('owner', id, 2, staged.assetId, generated.generationReport.outputCheck.sha256);
+  await expect(importChatImage('owner', { ...generated, requestId: 'silent-retry-after-decline' })).rejects.toThrow('image_attempt_stopped');
+  expect(await authorizeImageAttemptResume('owner', resumeInput())).toMatchObject({ canDispatch: true });
+  expect((await claimImageAttemptResume('owner', resumeInput())).dispatchAllowed).toBe(true);
+  await expect(importChatImage('owner', { ...generated, requestId: resumeInput().requestId })).rejects.toThrow('image_candidate_declined');
+  expect(state.upload).not.toHaveBeenCalled(); expect(state.download).toHaveBeenCalledTimes(2);
+});
+it('retains compatibility with legacy v32 grant identities when no decline exists', async () => {
+  await rejectedAttempt(); const grant = await authorizeImageAttemptResume('owner', resumeInput());
+  const ids = (await readImageFailures('owner', id)).map(f => f.failureId).sort();
+  expect(grant!.grantId).toBe(cmsFieldHash({ uid: 'owner', submissionId: id, failureIds: ids }));
+  expect(memory.rows.get(`${path}/imageAttemptResumes/${grant!.grantId}`).declinedImages).toBeUndefined();
 });

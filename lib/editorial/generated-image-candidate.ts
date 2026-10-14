@@ -6,12 +6,13 @@ import { imageProtectedContentHash } from './image-content-invariant';
 import { importSuppliedImage } from './chat-image-import';
 import { cmsFieldHash } from '@/lib/liv/cms-field-hash';
 import type { SubmissionRecord } from './submission-contract';
+import { isDeclinedImageCandidate, isPendingImageCandidate } from './image-candidate-state';
 
 /** Private originals are candidates, never decorative stand-ins for an attached
  * cover. No URL, storage path, consent bearer or download credential is exposed. */
 export function projectImageCandidates(row: SubmissionRecord, assets: DocumentData[]) {
   return assets.filter(a => a.uid === row.uid && a.submissionId === row.id && a.importInput &&
-    ['chatgpt-generated', 'chatgpt-edited'].includes(a.origin) && a.status !== 'attached')
+    ['chatgpt-generated', 'chatgpt-edited'].includes(a.origin) && isPendingImageCandidate(a))
     .map(a => ({ assetId: String(a.assetId), originalHash: String(a.originalHash), role: String(a.role),
       sectionId: String(a.sectionId), alt: String(a.alt), revision: Number(a.expectedRevision),
       current: a.expectedRevision === row.revision && a.contentHash === row.contentHash &&
@@ -47,6 +48,7 @@ export async function selectGeneratedImage(uid: string, id: string, revision: nu
     if (!saved || saved.uid !== uid || saved.submissionId !== id || saved.originalHash !== originalHash ||
       saved.expectedRevision !== revision || !saved.importInput ||
       saved.requestHash !== cmsFieldHash({ ...saved.importInput, fileId: saved.fileId })) throw Error('mcp_submission_preview_changed');
+    if (saved.personalDecline || saved.status === 'declined') throw Error('mcp_submission_image_candidate_declined');
     if (saved.status === 'attached' && saved.personalSelection) return saved;
     if (!row || row.uid !== uid || row.revision !== revision || row.contentHash !== saved.contentHash ||
       imageProtectedContentHash(row.article) !== saved.protectedContentHash) throw Error('mcp_submission_preview_changed');
@@ -65,4 +67,32 @@ export async function selectGeneratedImage(uid: string, id: string, revision: nu
         mimeType: asset.mimeType, byteCount: asset.byteCount, width: asset.width, height: asset.height });
       return Buffer.from(file.data, 'base64');
     } });
+}
+
+/** A deliberate UI-only negative choice, not retry authority. Never deletes the
+ * original, changes article content, uploads to CMS or starts generation. */
+export async function declineGeneratedImage(uid: string, id: string, revision: number, assetId: string, originalHash: string) {
+  await readSubmission(uid, id);
+  const { db, collection } = submissionStore(), rowRef = collection.doc(id), assetRef = rowRef.collection('chatAssets').doc(assetId);
+  return db.runTransaction(async tx => {
+    const row = (await tx.get(rowRef)).data() as SubmissionRecord, saved = (await tx.get(assetRef)).data();
+    if (!saved || saved.uid !== uid || saved.submissionId !== id || saved.originalHash !== originalHash ||
+        saved.expectedRevision !== revision || !saved.importInput ||
+        !['chatgpt-generated', 'chatgpt-edited'].includes(saved.origin) ||
+        saved.requestHash !== cmsFieldHash({ ...saved.importInput, fileId: saved.fileId })) throw Error('mcp_submission_preview_changed');
+    const result = { assetId, originalHash, imageDeclined: true, originalPreserved: true, revision,
+      canGenerate: false, automaticRetryAllowed: false, publicationApproval: false, paidAiCalls: 0,
+      nextAction: 'explicit_new_attempt_decision_required' };
+    if (isDeclinedImageCandidate(saved)) return { ...result, replay: true };
+    if (!row || row.uid !== uid || row.revision !== revision || row.contentHash !== saved.contentHash ||
+        imageProtectedContentHash(row.article) !== saved.protectedContentHash) throw Error('mcp_submission_preview_changed');
+    if (saved.personalSelection || saved.status !== 'awaiting_personal_selection' ||
+        !['draft', 'blocked', 'prepared'].includes(row.status)) throw Error('mcp_submission_operation_pending');
+    const receipt = { uid, submissionId: id, revision, contentHash: saved.contentHash,
+      protectedContentHash: saved.protectedContentHash, assetId, originalHash, declinedAt: new Date().toISOString(),
+      source: 'personal-preview', reason: 'user_declined_candidate', publicationApproval: false, automaticRetryAllowed: false };
+    tx.create(assetRef.collection('declines').doc(originalHash), receipt);
+    tx.update(assetRef, { personalDecline: receipt, status: 'declined' });
+    return { ...result, replay: false };
+  });
 }

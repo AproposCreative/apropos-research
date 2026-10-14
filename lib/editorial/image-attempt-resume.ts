@@ -6,28 +6,38 @@ import { readSubmission, submissionStore } from './submissions';
 import { submissionId, submissionInput, type SubmissionRecord } from './submission-contract';
 import { imageProtectedContentHash } from './image-content-invariant';
 import { readImageFailures } from './image-failure';
+import { declinedPlacementImages, isPendingImageCandidate } from './image-candidate-state';
 
 type Placement = { role: string; sectionId?: string; briefId?: string; expectedRevision: number };
 type Failures = Awaited<ReturnType<typeof readImageFailures>>;
 function failureIds(failures: Failures, input: Placement) {
   return failures.filter(f => f.role === input.role && f.sectionId === input.sectionId).map(f => f.failureId).sort();
 }
-function binding(uid: string, row: SubmissionRecord, input: Placement, brief: any, failures: Failures) {
+type Declines = ReturnType<typeof declinedPlacementImages>;
+function binding(uid: string, row: SubmissionRecord, input: Placement, brief: any, failures: Failures, declines: Declines = []) {
   return { uid, submissionId: row.id, expectedRevision: input.expectedRevision, contentHash: row.contentHash,
     protectedContentHash: imageProtectedContentHash(row.article), role: input.role, sectionId: input.sectionId ?? null,
     briefId: input.briefId ?? null, canonicalPromptHash: brief?.canonicalPromptHash ?? null,
-    referenceHashes: brief?.requiredReferenceHashes ?? [], failureIds: failureIds(failures, input) };
+    referenceHashes: brief?.requiredReferenceHashes ?? [], failureIds: failureIds(failures, input),
+    ...(declines.length ? { declinedImages: declines } : {}) };
 }
-function grantId(uid: string, id: string, ids: string[]) { return cmsFieldHash({ uid, submissionId: id, failureIds: ids }); }
+function grantId(uid: string, id: string, ids: string[], declines: Declines = []) {
+  // Keep legacy IDs valid. A later personal decline creates a NEW immutable
+  // decision scope, not an overwrite or refresh of the consumed historical grant.
+  return cmsFieldHash({ uid, submissionId: id, failureIds: ids, ...(declines.length ? { declinedImages: declines } : {}) });
+}
 
 /** Read-only. A different request, brief, article or newly rejected output cannot
  * reuse the grant. Dispatch is consumed before the external native call; import
  * recovery keeps the original request, never authorizes another generation. */
 export async function readImageAttemptResume(uid: string, row: SubmissionRecord, input: Placement, brief: any, failures: Failures) {
-  const expected = binding(uid, row, input, brief, failures);
-  if (!expected.failureIds.length) return null;
+  const assets = await submissionStore().collection.doc(row.id).collection('chatAssets').limit(101).get();
+  if (assets.size > 100) throw Error('mcp_submission_media_window_exceeded');
+  const declines = declinedPlacementImages(assets.docs.map(d => d.data()), uid, row.id, input.role, input.sectionId);
+  const expected = binding(uid, row, input, brief, failures, declines);
+  if (!expected.failureIds.length && !declines.length) return null;
   const saved = (await submissionStore().collection.doc(row.id).collection('imageAttemptResumes')
-    .doc(grantId(uid, row.id, expected.failureIds)).get()).data();
+    .doc(grantId(uid, row.id, expected.failureIds, declines)).get()).data();
   if (!saved || saved.bindingHash !== cmsFieldHash(expected) || saved.uid !== uid ||
       row.revision !== input.expectedRevision || !['authorized', 'dispatch_claimed'].includes(saved.status)) return null;
   if (saved.status === 'authorized' && Date.parse(saved.expiresAt) <= Date.now()) return null;
@@ -55,7 +65,10 @@ export async function authorizeImageAttemptResume(uid: string, raw: unknown) {
   const ref = collection.doc(row.id), brief = (await ref.collection('chatBriefs').doc(input.briefId).get()).data();
   const failures = await readImageFailures(uid, row.id);
   const ids = failureIds(failures, input);
-  if (!ids.length || failures.some(f => ids.includes(f.failureId) && !f.originalPreserved))
+  const assets = await ref.collection('chatAssets').limit(101).get();
+  if (assets.size > 100) throw Error('mcp_submission_media_window_exceeded');
+  const declines = declinedPlacementImages(assets.docs.map(d => d.data()), uid, row.id, input.role, input.sectionId);
+  if ((!ids.length && !declines.length) || failures.some(f => ids.includes(f.failureId) && !f.originalPreserved))
     throw Error('mcp_submission_retry_evidence_missing');
   if (ids.includes(cmsFieldHash({ uid, submissionId: row.id, requestId: input.requestId })))
     throw Error('mcp_submission_idempotency_conflict');
@@ -65,14 +78,17 @@ export async function authorizeImageAttemptResume(uid: string, raw: unknown) {
     subjectReferencesRequired: brief?.subjectReferencesRequired === true, subjectReferenceIds: brief?.subjectReferenceIds || [] });
   const other = check.blockers.filter(code => !['mcp_submission_image_attempt_stopped', 'mcp_submission_image_dispatch_already_claimed'].includes(code));
   if (other.length) throw Error(other[0]);
-  const expected = binding(uid, row, input, brief, failures), id = grantId(uid, row.id, ids);
+  const expected = binding(uid, row, input, brief, failures, declines), id = grantId(uid, row.id, ids, declines);
   const target = ref.collection('imageAttemptResumes').doc(id), intentHash = cmsFieldHash({ ...input, binding: expected });
   await db.runTransaction(async tx => {
     const current = (await tx.get(ref)).data(), old = (await tx.get(target)).data();
     const currentBrief = (await tx.get(ref.collection('chatBriefs').doc(input.briefId))).data();
     const currentFailures = await tx.get(ref.collection('imageFailures').limit(101));
+    const currentAssets = await tx.get(ref.collection('chatAssets').limit(101));
     if (cmsFieldHash(current) !== cmsFieldHash(row) || cmsFieldHash(currentBrief) !== cmsFieldHash(brief) ||
-        JSON.stringify(currentFailures.docs.filter(d => d.data().role === input.role && d.data().sectionId === input.sectionId).map(d => d.id).sort()) !== JSON.stringify(ids))
+        JSON.stringify(currentFailures.docs.filter(d => d.data().role === input.role && d.data().sectionId === input.sectionId).map(d => d.id).sort()) !== JSON.stringify(ids) ||
+        currentAssets.size > 100 || currentAssets.docs.some(d => isPendingImageCandidate(d.data())) ||
+        cmsFieldHash({ declines: declinedPlacementImages(currentAssets.docs.map(d => d.data()), uid, row.id, input.role, input.sectionId) }) !== cmsFieldHash({ declines }))
       throw Error('mcp_submission_image_content_changed');
     if (old && old.intentHash !== intentHash) throw Error('mcp_submission_idempotency_conflict');
     if (!old) tx.create(target, { ...expected, grantId: id, bindingHash: cmsFieldHash(expected), intentHash,
@@ -109,7 +125,9 @@ export async function claimImageAttemptResume(uid: string, raw: unknown) {
     const assets = await tx.get(ref.collection('chatAssets').limit(101));
     if (cmsFieldHash(current) !== cmsFieldHash(row) || cmsFieldHash(currentBrief) !== cmsFieldHash(brief) ||
         JSON.stringify(currentFailures.docs.filter(d => d.data().role === input.role && d.data().sectionId === input.sectionId).map(d => d.id).sort()) !== JSON.stringify(failureIds(failures, input)) ||
-        assets.size > 100 || assets.docs.some(d => d.data().importInput && d.data().status !== 'attached')) throw Error('mcp_submission_image_content_changed');
+        assets.size > 100 || assets.docs.some(d => isPendingImageCandidate(d.data())) ||
+        saved?.bindingHash !== cmsFieldHash(binding(uid, row, input, brief, failures,
+          declinedPlacementImages(assets.docs.map(d => d.data()), uid, row.id, input.role, input.sectionId)))) throw Error('mcp_submission_image_content_changed');
     if (saved?.status !== 'authorized' || Date.parse(saved.expiresAt) <= Date.now()) return false;
     tx.update(target, { status: 'dispatch_claimed', dispatchClaimedAt: new Date().toISOString() }); return true;
   });

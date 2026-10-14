@@ -14,6 +14,7 @@ type State = {
   reading: ArticleReadingPreview;
   dependencyError?: string | null;
   row: { revision: number; status: string; executionPolicy?: string; approvalState?: string; publicationConsent?: { id: string }; publicationConsentPending?: boolean; article: Article; questions: Array<{ field: string; question: string }>;
+    imageDeclines?: Array<{ assetId: string; originalHash: string }>;
     imageCandidates?: Array<{ assetId: string; originalHash: string; alt: string; role: string; revision: number; current: boolean; selected: boolean }>;
     imageSelection?: { required: boolean; accepted: boolean; selectionHash: string;
       items: Array<{ assetId: string; url: string; role: string }>; warnings: Array<{ assetId: string; message: string }> };
@@ -31,6 +32,7 @@ export default function SubmissionConfirmation({ id }: { id: string }) {
   const [checked, setChecked] = useState(false), [schedule, setSchedule] = useState(false), [when, setWhen] = useState('');
   const [imageFailed, setImageFailed] = useState(false);
   const requestSequence = useRef(0);
+  const actionPending = useRef(false);
   const refresh = useCallback(async () => {
     if (!user) return;
     const sequence = ++requestSequence.current;
@@ -39,7 +41,7 @@ export default function SubmissionConfirmation({ id }: { id: string }) {
       const res = await fetch(`/api/editorial/submissions?id=${encodeURIComponent(id)}`, { headers: { Authorization: `Bearer ${await user.getIdToken()}` }, cache: 'no-store' });
       if (!res.ok) throw Error();
       const next = await res.json();
-      if (sequence === requestSequence.current) { setState(next); setImageFailed(false); }
+      if (sequence === requestSequence.current) { setState(next); setImageFailed(false); return next as State; }
     } catch { if (sequence === requestSequence.current) { setState(null); setError('Forløbet kunne ikke hentes. Genindlæs status; start ikke en ny bestilling.'); } }
     finally { if (sequence === requestSequence.current) setBusy(false); }
   }, [id, user]);
@@ -52,12 +54,13 @@ export default function SubmissionConfirmation({ id }: { id: string }) {
     const timer = setInterval(() => { if (Date.now() - started < 120_000) void refresh(); else clearInterval(timer); }, 5000);
     return () => clearInterval(timer);
   }, [status, consentPending, refresh]);
-  async function act() {
-    if (!user || !state || (!state.consent && !state.row.imageCandidates?.length && !checked) || busy || imageFailed || state.dependencyError) return;
+  async function act(imageDecision: 'select' | 'decline' = 'select') {
+    if (!user || !state || (!state.consent && !state.row.imageCandidates?.length && !checked) || busy || actionPending.current || imageFailed || state.dependencyError) return;
+    actionPending.current = true;
     setBusy(true); setError('');
+    const candidate = state.row.imageCandidates?.[0];
     try {
-      const candidate = state.row.imageCandidates?.[0];
-      const body = candidate ? { action: 'select_image_candidate', id, revision: candidate.revision, assetId: candidate.assetId, originalHash: candidate.originalHash }
+      const body = candidate ? { action: imageDecision === 'decline' ? 'decline_image_candidate' : 'select_image_candidate', id, revision: candidate.revision, assetId: candidate.assetId, originalHash: candidate.originalHash }
         : state.consent ? { action: 'approve_publish', id, revision: state.row.revision, consentId: state.consent.id, localTime: schedule ? when : 'now' }
         : state.row.imageSelection?.required
         ? { action: 'accept_media', id, revision: state.row.revision, selectionHash: state.row.imageSelection.selectionHash }
@@ -67,8 +70,11 @@ export default function SubmissionConfirmation({ id }: { id: string }) {
       const res = await fetch('/api/editorial/submissions', { method: 'POST', headers: { Authorization: `Bearer ${await user.getIdToken()}`, 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
       if (!res.ok) throw Error();
       await refresh();
-    } catch { setError('Handlingen er ikke bekræftet. Kontrollér status før du prøver igen. Ved ændret artikel skal du se et nyt preview.'); }
-    finally { setBusy(false); }
+    } catch {
+      const current = await refresh();
+      if (!(imageDecision === 'decline' && candidate && current?.row.imageDeclines?.some(d => d.assetId === candidate.assetId && d.originalHash === candidate.originalHash)))
+        setError('Handlingen er ikke bekræftet. Kontrollér status før du prøver igen. Ved ændret artikel skal du se et nyt preview.');
+    } finally { actionPending.current = false; setBusy(false); }
   }
   if (!state) return <section aria-live="polite"><p>{error || 'Henter din artikel …'}</p><button className={`${button} mt-4`} disabled={busy} onClick={() => void refresh()}>Genindlæs</button></section>;
   const { row, quote, preview } = state;
@@ -77,6 +83,7 @@ export default function SubmissionConfirmation({ id }: { id: string }) {
     <ArticleReading article={state.reading} onImageError={() => setImageFailed(true)} />
     <div className="mx-auto max-w-[42rem] space-y-5 border-t border-white/20 pt-7">
     <h3 className="text-xl font-medium">Næste skridt</h3>
+    {!!row.imageDeclines?.length && !row.imageCandidates?.length && !!row.missingMedia?.length && <p role="status">Det fravalgte billedforslag er bevaret i historikken. Intet nyt billede er startet. Fortæl i chatten, hvilken ny retning du ønsker; et nyt forsøg kræver en udtrykkelig beslutning og teknisk kontrol.</p>}
     {state.dependencyError && <p role="alert">{state.dependencyError}</p>}
     {imageFailed && <p role="alert">Et billede kunne ikke vises. Genindlæs før godkendelse.</p>}
     {row.imageSelection?.warnings.map(warning => <p role="status" key={warning.assetId}>{warning.message}{row.imageSelection?.accepted ? ' Dit personlige billedvalg er gemt for denne version.' : ''}</p>)}
@@ -86,7 +93,13 @@ export default function SubmissionConfirmation({ id }: { id: string }) {
         <figcaption>Privat billedforslag. Ikke tilknyttet artiklen.{!candidate.current && ' Artikelversionen er ændret; billedvalget er stoppet.'}</figcaption>
       </figure>)}
       <p>Kontrollér motiv og Apropos-stil. Generatorens skjulte behandling er ikke verificeret. Dette valg tilknytter kun den viste original og godkender ikke udgivelse.</p>
+      <div className="flex flex-wrap gap-3">
       <button className={button} disabled={busy || imageFailed || !!state.dependencyError || !row.imageCandidates[0].current || !state.candidatePreviews?.[row.imageCandidates[0].assetId]} onClick={() => void act()}>{row.imageCandidates[0].selected ? 'Fortsæt med det valgte billede' : 'Brug dette billede'}</button>
+      {!row.imageCandidates[0].selected && <button className={button} disabled={busy || imageFailed || !!state.dependencyError || !row.imageCandidates[0].current || !state.candidatePreviews?.[row.imageCandidates[0].assetId]} onClick={() => void act('decline')}>Fravælg billedforslag</button>}
+      </div>
+      {!row.imageCandidates[0].selected && <>
+        <p className="text-sm text-white/65">Fravalg bevarer originalen og historikken. Det starter ikke et nyt billedforsøg.</p>
+      </>}
     </> : state.consent && !state.dependencyError ? <>
       <p className="leading-7 text-white/75">Med ét klik godkender du tekst, kilder, de viste billeder og metadata i version {row.revision}. Serveren klargør og udgiver denne version efter tekniske kontroller. Ingen betalte AI-kald og ingen ekstra godkendelse i chatten.</p>
       {state.consent.includesPersonalImageSelection && <p className="text-white/75">Dit klik vælger også de viste billeder trods ovenstående forbehold om prompt og stilreference.</p>}

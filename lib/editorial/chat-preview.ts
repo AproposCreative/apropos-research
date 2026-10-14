@@ -13,12 +13,13 @@ import { submissionId } from './submission-contract';
 import { acceptImageSelection } from './submission-image-selection';
 import { submissionConsentOffer, acceptSubmissionConsent } from './submission-consent';
 import { hasCurrentPublicationConsent } from './submission-consent-state';
-import { imageCandidatePreviews, selectGeneratedImage } from './generated-image-candidate';
+import { declineGeneratedImage, imageCandidatePreviews, selectGeneratedImage } from './generated-image-candidate';
 
 export const CHAT_PREVIEW_URI = 'ui://apropos/article-preview-v1.html';
 export const chatPreviewInput = z.object({ submissionId }).strict();
 export const chatConfirmInput = z.object({ token: z.string().regex(/^[a-zA-Z0-9_-]{43}$/),
-  localTime: z.string().max(20).default('now'), displayedImageHash: submissionId.optional() }).strict();
+  localTime: z.string().max(20).default('now'), displayedImageHash: submissionId.optional(),
+  imageDecision: z.enum(['select', 'decline']).optional() }).strict();
 
 /** Per-article receipts only. Never return a colleague's or global ledger. */
 export async function submissionCosts(uid: string, id: string) {
@@ -81,7 +82,7 @@ export async function chatSubmissionPreview(identity: McpIdentity, id: string) {
   }));
   const data = { submissionId: id, revision: row.revision, contentHash: row.contentHash, title: article.title, previewReadAt,
     article: { ...article, author: row.displayNames.author, category: row.displayNames.category },
-    blocks, previewProblems, status: row.status, mediaIdentity: row.mediaIdentity, imageSelection: row.imageSelection, imageCandidates: row.imageCandidates,
+    blocks, previewProblems, status: row.status, mediaIdentity: row.mediaIdentity, imageSelection: row.imageSelection, imageCandidates: row.imageCandidates, imageDeclines: row.imageDeclines,
     questions: row.questions, remainingQuestionCount: row.remainingQuestionCount,
     missing: row.handoff.missing, recommendedMedia: row.recommendedMedia, editorialChoices: row.choices,
     handoff: row.handoff, savedSteps: row.savedSteps.map(s => ({ name: s.name, status: s.status, contentHash: s.contentHash })),
@@ -100,7 +101,7 @@ export async function chatSubmissionPreview(identity: McpIdentity, id: string) {
   // Only the iframe gets the single-use bearer. It is NOT in text or structuredContent.
   // UI visibility metadata is supplementary: the server checks identity, grant,
   // purpose, expiry, version and consumption independently of the host.
-  let confirmation: { token: string; action: string; expiresAt: number } | null = null;
+  let confirmation: { token: string; action: string; expiresAt: number; canDecline?: boolean } | null = null;
   if (action) {
     const token = opaque(), expiresAt = Date.now() + 600_000;
     await submissionStore().db.collection('mcpUiConfirmations').doc(digest(token)).create({
@@ -108,10 +109,11 @@ export async function chatSubmissionPreview(identity: McpIdentity, id: string) {
       action, quoteId: quote?.quoteId || null, preparedHash: publication?.preparedHash || null,
       consentId: consent?.id || null,
       candidateId: candidate?.assetId || null, candidateHash: candidate?.originalHash || null,
+      canDecline: action === 'image_candidate' && !candidate?.selected,
       selectionHash: row.imageSelection.selectionHash,
       expiresAt, status: 'pending', createdAt: new Date().toISOString(),
     });
-    confirmation = { token, action, expiresAt };
+    confirmation = { token, action, expiresAt, canDecline: action === 'image_candidate' && !candidate?.selected };
   }
   return { data, confirmation, imagePreviews, candidatePreviews };
 }
@@ -121,13 +123,16 @@ export async function chatSubmissionPreview(identity: McpIdentity, id: string) {
 export async function confirmChatSubmission(identity: McpIdentity, raw: unknown) {
   const input = chatConfirmInput.parse(raw), { db, collection } = submissionStore();
   const ref = db.collection('mcpUiConfirmations').doc(digest(input.token));
-  const inputHash = cmsFieldHash({ localTime: input.localTime, ...(input.displayedImageHash ? { displayedImageHash: input.displayedImageHash } : {}) });
+  const inputHash = cmsFieldHash({ localTime: input.localTime, ...(input.displayedImageHash ? { displayedImageHash: input.displayedImageHash } : {}),
+    ...(input.imageDecision === 'decline' ? { imageDecision: 'decline' } : {}) });
   const action = await db.runTransaction(async tx => {
     const confirmation = (await tx.get(ref)).data();
     if (!confirmation || confirmation.uid !== identity.uid || confirmation.grantId !== identity.grantId ||
       !['checks', 'media', 'image_candidate', 'publish', 'approve_publish'].includes(confirmation.action) ||
       !identity.scopes.includes(['publish', 'approve_publish'].includes(confirmation.action) ? 'apropos:publish' : 'apropos:draft') ||
       (confirmation.action === 'approve_publish' && !identity.scopes.includes('apropos:draft'))) throw Error('mcp_submission_confirmation_required');
+    if (input.imageDecision && confirmation.action !== 'image_candidate' || input.imageDecision === 'decline' && !confirmation.canDecline)
+      throw Error('mcp_submission_confirmation_required');
     // Older cached cards do not render private candidates. Their generic button
     // must NEVER select unseen pixels. Only the updated candidate UI supplies this.
     if (confirmation.action === 'image_candidate' && input.displayedImageHash !== confirmation.candidateHash)
@@ -144,12 +149,14 @@ export async function confirmChatSubmission(identity: McpIdentity, raw: unknown)
     tx.update(ref, { status: 'attempted', inputHash, clickedAt: new Date().toISOString() }); return confirmation;
   });
   if (action.status === 'done') return action.result;
-  const result = action.action === 'image_candidate' ? await selectGeneratedImage(identity.uid, action.submissionId, action.revision, action.candidateId, action.candidateHash)
+  const result = action.action === 'image_candidate' ? await (input.imageDecision === 'decline' ? declineGeneratedImage : selectGeneratedImage)(identity.uid, action.submissionId, action.revision, action.candidateId, action.candidateHash)
     : action.action === 'approve_publish' ? await acceptSubmissionConsent(identity.uid, action.submissionId, action.revision, action.consentId, 'chat-preview', input.localTime) : action.action === 'media' ? await acceptImageSelection(identity.uid, action.submissionId, action.revision, action.selectionHash) : action.action === 'checks'
     ? await acceptSubmissionQuote(identity.uid, action.submissionId, action.revision, action.quoteId)
     : await approveSubmissionPublication(identity.uid, action.submissionId, action.preparedHash, input.localTime);
   const answer = { ...result, submissionId: action.submissionId, queuedOnServer: !['media', 'image_candidate'].includes(action.action), paidAiCalls: 0,
-    instruction: ['approve_publish', 'publish'].includes(action.action)
+    instruction: input.imageDecision === 'decline'
+      ? 'Billedforslaget er fravalgt. Original og historik er bevaret. Ingen generation er startet. Et nyt forsøg kræver en udtrykkelig beslutning, nyt gyldigt brief og godkendt preflight; fravalget er ikke forsøgstilladelse.'
+      : ['approve_publish', 'publish'].includes(action.action)
       ? 'Din udgivelsesgodkendelse er gemt. Serveren fortsætter; preview opdaterer status. Du skal ikke godkende igen eller sende en besked. Bestil ikke igen.'
       : 'Dit valg er gemt. Opdatér preview for næste nødvendige handling. Dette valg er ikke en udgivelsesgodkendelse; send ikke en bekræftelsesbesked.' };
   await ref.update({ status: 'done', result: answer });

@@ -16,6 +16,7 @@ import { assertImageContentInvariant } from './image-content-invariant';
 import { readImageFailures } from './image-failure';
 import { NATIVE_IMAGE_INTEGRATION } from './native-image-integration';
 import { projectImageCandidates } from './generated-image-candidate';
+import { isDeclinedImageCandidate } from './image-candidate-state';
 import { inspectSubmission, submissionId, submissionInput, submissionUpdate, submissionVersion,
   validateSubmissionArticle, type SubmissionRecord } from './submission-contract';
 
@@ -45,6 +46,10 @@ export async function getSubmissionStatus(uid: string, id: string) {
   if (assetReceipts.size > 100) throw Error('mcp_submission_media_window_exceeded');
   const imageSelection = projectImageSelection(row, assetReceipts.docs.map(doc => doc.data()));
   const imageCandidates = projectImageCandidates(row, assetReceipts.docs.map(doc => doc.data()));
+  const imageDeclines = assetReceipts.docs.map(doc => doc.data()).filter(a => a.uid === uid && a.submissionId === id && isDeclinedImageCandidate(a))
+    .map(a => ({ assetId: a.assetId, originalHash: a.originalHash, role: a.role, sectionId: a.sectionId,
+      declinedAt: a.personalDecline.declinedAt, originalPreserved: true, automaticRetryAllowed: false,
+      nextAction: 'explicit_new_attempt_decision_required' }));
   const publication = (row as typeof row & { publication?: { receipt?: { mediaIdentity?: {
     cmsHash: string; checkedAt: string; assets: Array<{ assetId: string; published: Array<{ url: string; hash: string }> }> } } } }).publication;
   const verified = publication?.receipt?.mediaIdentity;
@@ -67,7 +72,7 @@ export async function getSubmissionStatus(uid: string, id: string) {
     previewUrl: `${MCP_ORIGIN}/connect/chatgpt?submission=${id}`,
     preparationStarted: row.status === 'processing',
     textPreserved: row.article.content === row.originalArticle.content,
-    savedSteps, mediaIdentity, imageSelection, imageCandidates,
+    savedSteps, mediaIdentity, imageSelection, imageCandidates, imageDeclines,
     readyForPreparation: inspection.readyForPreparation && !imageCandidates.length,
     imageFailures: await readImageFailures(uid, id),
     imageGeneration: { ...NATIVE_IMAGE_INTEGRATION, canGenerate: null, preflightRequired: true, nextAction: 'preflight_submission_image',
