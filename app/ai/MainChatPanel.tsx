@@ -17,7 +17,6 @@ import type { ThinkingStep, ThinkingStatus } from '@/types/thinking';
 import { THINKING_TEXTS } from '@/components/main-chat/constants';
 import type { ChatMessage, LocalArticleData } from '@/components/main-chat/types';
 import { runWriterFactcheck } from '@/lib/ai-chat/writer-factcheck';
-import ColleagueNotes from './ColleagueNotes';
 
 interface MainChatPanelProps {
   workspaceStatus?: string;
@@ -1188,7 +1187,7 @@ const fallbackThinkingSteps: ThinkingStep[] = [
           <div
             ref={messageListRef}
             className="h-full overflow-y-auto space-y-4 nice-scrollbar"
-            style={{ paddingBottom: Math.max(inputSpacerHeight, 0) + 40 }}
+            style={{ paddingBottom: Math.max(inputSpacerHeight, 0) + 8 }}
           >
           {messages.map((message, index) => {
             const isUser = message.role === 'user';
@@ -1497,7 +1496,6 @@ const fallbackThinkingSteps: ThinkingStep[] = [
               </div>
             </div>
           )}
-          <ColleagueNotes notes={notes} onChange={setNotes} />
           <div ref={messagesEndRef} />
         </div>
           <div className={`pointer-events-none absolute inset-x-0 top-0 h-10 z-10 bg-[linear-gradient(180deg,_#050505,_rgba(5,5,5,0.7),_rgba(5,5,5,0))] transition-opacity duration-300 ${messageScrollFade ? 'opacity-100' : 'opacity-0'}`} />
@@ -1743,7 +1741,7 @@ const fallbackThinkingSteps: ThinkingStep[] = [
         >
           {/* Mobile: Wizard card above writer card inside same sticky container */}
           {wizardNode && messages.length === 0 && (
-            <div className="md:hidden mb-2">
+            <div className="md:hidden">
               <WizardAutoHeight collapsed={false}>
                 {wizardNode}
               </WizardAutoHeight>

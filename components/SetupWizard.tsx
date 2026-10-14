@@ -805,7 +805,7 @@ export default function SetupWizard({
       </div>
 
       {/* Step content (auto-height, allows scrolling for specific steps) */}
-      <div className="pb-[12px]">
+      <div>
       {step==='template' && (
         <div className="space-y-3 md:space-y-[14px]">
           <div className="text-white/80 text-sm">Vælg template</div>

@@ -41,12 +41,12 @@ export default function WizardAutoHeight({ children, collapsed }: { children: Re
         className="rounded-xl bg-black/40 md:bg-black backdrop-blur-xl md:backdrop-blur-0 px-0 border border-white/15 transition-[height] duration-300 ease-out overflow-hidden md:mx-[10px] md:mb-[12px]"
         style={{ height: clamped ? `${clamped}px` : undefined, clipPath: collapsed ? 'inset(0 0 0 0)' : undefined }}
       >
-        <div ref={contentRef} className="pt-2 pb-5 md:pb-6">
+        {/* SetupWizard owns its content padding; do not add a second bottom inset. */}
+        <div ref={contentRef} className="pt-2 pb-1">
           {children}
         </div>
       </div>
     </div>
   );
 }
-
 
