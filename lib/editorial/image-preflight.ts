@@ -1,0 +1,73 @@
+import { z } from 'zod';
+import { submissionId } from './submission-contract';
+import { readSubmission, submissionStore } from './submissions';
+import { readImageGenSnapshot } from '@/lib/image-gen/snapshot';
+import { IMAGE_HANDOFF_VERSION, promptHash } from './image-generation-evidence';
+import { readRetainedReference, validateReference } from './image-reference';
+import { NATIVE_IMAGE_INTEGRATION } from './native-image-integration';
+import { imageProtectedContentHash } from './image-content-invariant';
+import { readImageFailures } from './image-failure';
+
+export const imagePreflightInput = z.object({ submissionId, expectedRevision: z.number().int().positive(),
+  role: z.enum(['cover', 'body']), sectionId: submissionId, briefId: submissionId.optional(),
+  subjectReferencesRequired: z.boolean(), subjectReferenceIds: z.array(submissionId).max(4),
+}).strict();
+
+/** Read-only: no new brief, reference upload, attempt, generation, consent or CMS
+ * write. A readiness snapshot is not an execution permit. */
+export async function preflightSubmissionImage(uid: string, raw: unknown) {
+  const input = imagePreflightInput.parse(raw), row = await readSubmission(uid, input.submissionId);
+  const ref = submissionStore().collection.doc(row.id), blockers: string[] = [];
+  const add = (code: string) => { if (!blockers.includes(code)) blockers.push(code); };
+  if (row.revision !== input.expectedRevision) add('mcp_submission_revision_conflict');
+  if (['film', 'tv-series'].includes(row.article.subjectType || '')) add('mcp_submission_film_requires_real_stills');
+  const snapshot = await readImageGenSnapshot(uid, `submission-${row.id}`);
+  if (!snapshot.article.sections.some(s => s.id === input.sectionId)) add('mcp_submission_anchor_changed');
+  const saved = input.briefId ? (await ref.collection('chatBriefs').doc(input.briefId).get()).data() : null;
+  // Never read private reference bytes from a foreign/corrupt record.
+  const brief = saved?.uid === uid && saved?.submissionId === row.id ? saved : null;
+  if (saved && !brief) add('mcp_submission_generation_brief_invalid');
+  if (!brief) add('mcp_submission_brief_required');
+  else if (brief.uid !== uid || brief.submissionId !== row.id || brief.expectedRevision !== row.revision ||
+      brief.contentHash !== row.contentHash || brief.role !== input.role || brief.sectionId !== input.sectionId ||
+      brief.handoffVersion !== IMAGE_HANDOFF_VERSION || typeof brief.prompt !== 'string' || !brief.prompt ||
+      promptHash(brief.prompt) !== brief.canonicalPromptHash) add('mcp_submission_generation_brief_invalid');
+  if (brief && brief.protectedContentHash !== imageProtectedContentHash(row.article)) add('mcp_submission_image_content_changed');
+
+  const actualReferences: Array<{ purpose: string; sha256: string; byteCount: number; width: number; height: number }> = [];
+  const refs = Array.isArray(brief?.retainedReferences) ? brief.retainedReferences : [];
+  if (!refs.length || refs[0]?.purpose !== 'style' || refs[0]?.sha256 !== brief?.referenceHash) add('mcp_submission_style_reference_required');
+  if (JSON.stringify(refs.map((r: any) => r.sha256)) !== JSON.stringify(brief?.requiredReferenceHashes)) add('mcp_submission_generation_references_mismatch');
+  if (refs.length > 6) add('mcp_submission_reference_bundle_too_large');
+  else for (const reference of refs) {
+    try {
+      const image = await readRetainedReference(reference), meta = await validateReference(Buffer.from(image.data, 'base64'));
+      actualReferences.push({ purpose: reference.purpose, ...meta });
+    } catch { add(reference.purpose === 'style' ? 'mcp_submission_style_reference_required' : 'mcp_submission_reference_missing'); }
+  }
+  if (actualReferences.reduce((sum, r) => sum + r.byteCount, 0) > 3 * 1024 * 1024) add('mcp_submission_reference_bundle_too_large');
+  const requiredSubjects = input.subjectReferencesRequired || brief?.subjectReferencesRequired === true;
+  if (requiredSubjects && (!input.subjectReferenceIds.length || !refs.some((r: any) => r.purpose === 'subject'))) add('mcp_submission_subject_reference_required');
+  if (brief && JSON.stringify(input.subjectReferenceIds) !== JSON.stringify(brief.subjectReferenceIds || [])) add('mcp_submission_generation_references_mismatch');
+  for (const [index, referenceId] of input.subjectReferenceIds.entries()) {
+    const subject = (await ref.collection('imageReferences').doc(referenceId).get()).data();
+    if (!subject || subject.uid !== uid || subject.submissionId !== row.id || subject.purpose !== 'user-uploaded-subject-photo' ||
+        subject.reference?.sha256 !== refs.filter((r: any) => r.purpose === 'subject')[index]?.sha256) add('mcp_submission_subject_reference_required');
+  }
+  const failures = await readImageFailures(uid, row.id);
+  if (failures.some(f => f.role === input.role && f.sectionId === input.sectionId)) add('mcp_submission_image_attempt_stopped');
+  // Second read closes an observable race; dispatch must still revalidate in the
+  // future host adapter. No preflight result can be reused as a bearer permit.
+  const current = await readSubmission(uid, row.id);
+  if (current.revision !== row.revision || current.contentHash !== row.contentHash ||
+      imageProtectedContentHash(current.article) !== imageProtectedContentHash(row.article)) add('mcp_submission_image_content_changed');
+  const inputsComplete = blockers.length === 0;
+  add(NATIVE_IMAGE_INTEGRATION.code);
+  return { submissionId: row.id, revision: row.revision, contentHash: row.contentHash,
+    protectedContentHash: imageProtectedContentHash(row.article), role: input.role, sectionId: input.sectionId, briefId: input.briefId ?? null,
+    checkedAt: new Date().toISOString(), inputsComplete, canGenerate: false, canImportGeneratedImage: false,
+    blockers, references: actualReferences, integration: NATIVE_IMAGE_INTEGRATION, failures,
+    visualChecks: { status: 'not_performed', independentSemanticVerification: false, personalReviewRequired: true },
+    automaticRetryAllowed: false, regenerateImage: false, paidAiCalls: 0, publicationApproval: false,
+    instruction: 'STOP. Ingen billedkald eller import af AI-billeder. Ret manglende input, og få den konkrete native integrationsafhængighed løst før et nyt forsøg. Et nyt brief, request-ID eller en klientrapporteret hash ophæver ikke stoppet. Pressefotos har fortsat deres særskilte import uden genereringsbrief.' };
+}

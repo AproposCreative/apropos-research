@@ -2,6 +2,11 @@ import { beforeEach, afterEach, expect, it, vi } from 'vitest';
 import sharp from 'sharp';
 import { createHash } from 'node:crypto';
 import { memoryFirestore } from './helpers/mcp-firestore';
+// These are transport/attachment regression fixtures, NOT proof of native host
+// integration. Real fail-closed gates and quarantine are tested unmocked in
+// mcp-image-preflight.spec.ts. No production switch bypasses the integration.
+vi.mock('@/lib/editorial/native-image-integration', async original => ({ ...await original<any>(), assertNativeImageIntegration: () => undefined }));
+vi.mock('@/lib/editorial/image-failure', async original => ({ ...await original<any>(), retainRejectedImage: async () => ({}) }));
 const state = vi.hoisted(() => ({ db: null as any, sectionId: '', bytes: Buffer.alloc(0), stored: new Map<string, Buffer>(), upload: vi.fn(), download: vi.fn(), readback: vi.fn(), boundCover: vi.fn(), breakAttachment: false }));
 vi.mock('@/lib/editorial/submission-published-target', async importOriginal => ({ ...await importOriginal<typeof import('@/lib/editorial/submission-published-target')>(), findBoundCoverByHash: (...args: unknown[]) => state.boundCover(...args) }));
 vi.mock('@/lib/firebase-admin', () => ({ getAdminDb: () => state.db, getAdminStorageBucket: () => ({ file: (path: string) => ({
@@ -17,6 +22,7 @@ import { cmsFieldHash } from '@/lib/liv/cms-field-hash';
 import { importSubmissionPressImage, previewSubmissionPressImage } from '@/lib/editorial/press-image-import';
 import { IMAGE_HANDOFF_VERSION, promptHash } from '@/lib/editorial/image-generation-evidence';
 import { getChatImageBrief } from '@/lib/editorial/chat-image-brief';
+import { imageProtectedContentHash } from '@/lib/editorial/image-content-invariant';
 const id = 'a'.repeat(64), version = 'b'.repeat(64), path = `editorialSubmissions/${id}`, briefId = 'c'.repeat(64);
 let memory: ReturnType<typeof memoryFirestore>;
 beforeEach(async () => {
@@ -39,12 +45,14 @@ const input = () => ({ submissionId: id, expectedRevision: 1, requestId: 'import
   kind: 'illustration', role: 'cover', origin: 'chatgpt-generated', briefId, sectionId: state.sectionId,
   generationReport: { effectivePrompt: 'Flat colours, no 3D.', referenceHashes: [createHash('sha256').update(state.bytes).digest('hex')],
     outputCheck: { sha256: createHash('sha256').update(state.bytes).digest('hex'), inspected: true, imageType: 'standalone-illustration', singleImage: true,
-      textVisible: false, logosVisible: false, watermarkVisible: false } },
+      textVisible: false, logosVisible: false, watermarkVisible: false, photorealistic: false, photographicFragments: false, rendered3d: false,
+      coherentScene: true, panelCount: 1, styleMatch: 'match', subjectMatch: 'not_applicable' } },
   alt: 'En illustration af koncerten', caption: 'Koncerten', credit: 'User supplied' });
 async function brief(role = 'cover', sectionId?: string) {
   const referenceHash = createHash('sha256').update(state.bytes).digest('hex');
   state.stored.set('reference/original', state.bytes);
   memory.rows.set(`${path}/chatBriefs/${briefId}`, { uid: 'team', submissionId: id, expectedRevision: 1, contentHash: version, role, sectionId: sectionId || state.sectionId,
+    protectedContentHash: imageProtectedContentHash(memory.rows.get(path).article),
     handoffVersion: IMAGE_HANDOFF_VERSION, prompt: input().generationReport.effectivePrompt, canonicalPromptHash: promptHash(input().generationReport.effectivePrompt), referenceHash,
     requiredReferenceHashes: [referenceHash], retainedReferences: [{ sha256: referenceHash, storagePath: 'reference/original', mimeType: 'image/png' }] });
 }
@@ -124,8 +132,8 @@ it('retains the private original and attaches a durable CMS asset once, without 
   expect(saved).not.toContain('PRIVATE'); expect(saved).not.toContain('download_url');
   expect(saved).toContain('chatgpt-supplied-unverified');
   expect(memory.rows.get(path).article.content).toBe(memory.rows.get(path).originalArticle.content);
-  expect(first.generationEvidence).toMatchObject({ status: 'client_reported_match', requiresPersonalSelection: false, exactPromptExecutionVerified: false });
-  expect((await getSubmissionStatus('team', id)).imageSelection.required).toBe(false);
+  expect(first.generationEvidence).toMatchObject({ status: 'client_reported_match', requiresPersonalSelection: true, exactPromptExecutionVerified: false });
+  expect((await getSubmissionStatus('team', id)).imageSelection.required).toBe(true);
 });
 it('rejects a mismatched new report before any download or CMS upload, preserving existing records', async () => {
   await brief(); const before = JSON.stringify([...memory.rows]);

@@ -15,6 +15,9 @@ import { findBoundCoverByHash } from './submission-published-target';
 import { generationReportInput, imageGenerationEvidence, assertGenerationContract } from './image-generation-evidence';
 import { nativeImageFileInput, readRetainedReference } from './image-reference';
 import { assertNoApprovedImageReplacement } from './approved-image-guard';
+import { assertNativeImageIntegration } from './native-image-integration';
+import { ImagePipelineFailure, readImageFailures, retainRejectedImage } from './image-failure';
+import { imageProtectedContentHash } from './image-content-invariant';
 
 export const chatImageImportInput = z.object({ submissionId, expectedRevision: z.number().int().positive(),
   requestId: submissionInput.shape.requestId,
@@ -38,8 +41,20 @@ function bucket() {
  * timeout. The temporary download URL is never persisted, echoed or logged. */
 export async function importChatImage(uid: string, raw: unknown) {
   const { file, ...input } = chatImageImportInput.parse(raw);
-  return importSuppliedImage(uid, input, { identity: file.file_id, mimeType: file.mime_type,
-    read: () => readChatGptImage(file.download_url), provenance: 'chatgpt-supplied-unverified' });
+  let downloaded: Promise<Buffer> | undefined;
+  const source = { identity: file.file_id, mimeType: file.mime_type,
+    read: () => downloaded ??= readChatGptImage(file.download_url), provenance: 'chatgpt-supplied-unverified' };
+  try { return await importSuppliedImage(uid, input, source); }
+  catch (error) {
+    if (error instanceof ImagePipelineFailure) throw error;
+    const code = error instanceof Error ? error.message : '';
+    // Ownership/version/idempotency errors remain read-only. A rejected generated
+    // file with an eligible contract error is quarantined, never silently lost.
+    if (!['chatgpt-generated', 'chatgpt-edited'].includes(input.origin) ||
+        !/^mcp_submission_(?:native_input_|generation_|generated_image_|canonical_prompt_|style_reference_|subject_reference_|reference_|output_inspection_|inspected_image_|brief_required|image_invalid|image_mime_mismatch|image_content_changed)/.test(code)) throw error;
+    const receipt = await retainRejectedImage(uid, input, source, code);
+    throw new ImagePipelineFailure(code, receipt);
+  }
 }
 
 /** Shared durable storage/CMS/attachment operation. Only trusted server callers
@@ -80,11 +95,20 @@ export async function importSuppliedImage(uid: string, input: Omit<z.infer<typeo
     return { assetId, url: previous!.url, revision: attachment.revision, replay: true, paidAiCalls: 0,
       generationEvidence: previous!.generationEvidence ?? null, regenerateImage: false };
   }
+  const generatedInChat = ['chatgpt-generated', 'chatgpt-edited'].includes(input.origin);
+  if (generatedInChat) {
+    const failures = await readImageFailures(uid, row.id);
+    const failureId = cmsFieldHash({ uid, submissionId: row.id, requestId: input.requestId });
+    const stopped = failures.find(f => f.failureId === failureId || (f.role === input.role && f.sectionId === (input.sectionId ?? null)));
+    if (stopped) {
+      const receipt = stopped.failureId === failureId ? await retainRejectedImage(uid, input, source, stopped.code) : stopped;
+      throw new ImagePipelineFailure('mcp_submission_image_attempt_stopped', receipt);
+    }
+  }
   if (row.revision !== input.expectedRevision && previous?.status !== 'uploaded') throw Error('mcp_submission_revision_conflict');
   if (!['draft', 'blocked', 'prepared', 'published'].includes(row.status) ||
       (row.status === 'published' && !row.publishedTarget)) throw Error('mcp_submission_operation_pending');
   if (input.kind === 'illustration' && ['film', 'tv-series'].includes(row.article.subjectType || '')) throw Error('mcp_submission_film_requires_real_stills');
-  const generatedInChat = ['chatgpt-generated', 'chatgpt-edited'].includes(input.origin);
   const brief = input.briefId ? (await collection.doc(row.id).collection('chatBriefs').doc(input.briefId).get()).data() : null;
   if (input.briefId) {
     if (!brief || brief.uid !== uid || brief.contentHash !== row.contentHash || brief.role !== input.role ||
@@ -92,6 +116,7 @@ export async function importSuppliedImage(uid: string, input: Omit<z.infer<typeo
   }
   assertGenerationContract(input, brief);
   if (generatedInChat) {
+    if (brief?.protectedContentHash !== imageProtectedContentHash(row.article)) throw Error('mcp_submission_image_content_changed');
     if (!Array.isArray(brief?.retainedReferences) || brief.retainedReferences.length !== brief.requiredReferenceHashes.length)
       throw Error('mcp_submission_style_reference_required');
     for (const [index, reference] of brief.retainedReferences.entries()) {
@@ -103,6 +128,11 @@ export async function importSuppliedImage(uid: string, input: Omit<z.infer<typeo
   const snapshot = await readImageGenSnapshot(uid, `submission-${row.id}`);
   const section = input.sectionId ? snapshot.article.sections.find(s => s.id === input.sectionId) : null;
   if ((input.role === 'body' || generatedInChat) && !section) throw Error('mcp_submission_anchor_changed');
+  // No client report, brief hash, model flag or new requestId can turn this into
+  // a trusted observation of the native call. Legacy ATTACHED replay above and
+  // genuine press/user photos remain available, not fresh generated attachment.
+  if (generatedInChat) assertNativeImageIntegration();
+  const protectedContentHash = imageProtectedContentHash(row.article);
   const replaced = input.replaceAssetId ? (await collection.doc(row.id).collection('chatAssets').doc(input.replaceAssetId).get()).data() : null;
   if (input.replaceAssetId && (!replaced || replaced.uid !== uid || replaced.role !== input.role || replaced.status !== 'attached')) throw Error('mcp_submission_asset_not_found');
   await assertNoApprovedImageReplacement(row, [input.role === 'cover' ? row.article.featuredImage : replaced?.url].filter((url): url is string => !!url));
@@ -114,6 +144,8 @@ export async function importSuppliedImage(uid: string, input: Omit<z.infer<typeo
     throw Error('mcp_submission_inspected_image_mismatch');
   if (!current) {
     const bytes = await source.read();
+    if ((await readImageFailures(uid, row.id)).some(f => f.originalHash === hash(bytes)))
+      throw Error('mcp_submission_rejected_image_relabelled');
     const decoder = sharp(bytes, { limitInputPixels: 80_000_000, failOn: 'warning' });
     const meta = await decoder.metadata().catch(() => { throw Error('mcp_submission_image_invalid'); });
     if (!['jpeg', 'png', 'webp'].includes(meta.format || '') || (meta.pages || 1) !== 1 ||
@@ -229,7 +261,7 @@ export async function importSuppliedImage(uid: string, input: Omit<z.infer<typeo
     article.content = $('body').html() || '';
   }
   const updated = await updateSubmission(uid, { submissionId: row.id, expectedRevision: input.expectedRevision,
-    requestId: `import-${assetId}`, article }, { replaceUrls: input.role === 'cover' ? [row.article.featuredImage || ''] : replaced ? [replaced.url] : [] });
+    requestId: `import-${assetId}`, article }, { replaceUrls: input.role === 'cover' ? [row.article.featuredImage || ''] : replaced ? [replaced.url] : [], protectedContentHash });
   await ref.update({ status: 'attached', revision: updated.revision });
   return { assetId, url: current.url, revision: updated.revision, paidAiCalls: 0, provenance: current.provenance,
     generationEvidence: current.generationEvidence ?? null, regenerateImage: false,

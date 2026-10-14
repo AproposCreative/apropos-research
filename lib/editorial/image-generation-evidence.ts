@@ -1,8 +1,8 @@
 import { createHash } from 'node:crypto';
 import { z } from 'zod';
 
-export const IMAGE_HANDOFF_VERSION = 'canonical-native-image-v2';
-export const IMAGE_HANDOFF_INSTRUCTION = 'MANDATORY: Before each generation or edit, call get_image_brief for this exact submission, revision, role and section. If the brief or any actual reference image is missing, STOP and report the missing dependency. Pass the returned canonical prompt and ALL attached reference images unchanged to the native image-generation tool, in the given order. Do not summarize, rewrite, embellish or reinterpret the visual style, or append a prompt wrapper. When the user requests uploaded subject photos, retain them with store_submission_image_reference and include their referenceIds in get_image_brief; never substitute a description for the actual photo. Generate the cover and each body illustration in separate calls: one standalone illustration per brief, no collage, layout, article mockup, text, headings, logos or watermark. Inspect the actual output before import and report that inspection bound to its SHA-256, exact prompt and reference hashes. Report only observed facts; never reconstruct missing generation evidence. Show the image in chat and import that same original file with the exact submissionId, briefId and sectionId. Preserve files and receipts after timeout; never regenerate to repair transfer. No backend image API, automatic approval, publication or replacement of approved images. A client report does not independently verify the native tool’s hidden input.';
+export const IMAGE_HANDOFF_VERSION = 'canonical-native-image-v3';
+export const IMAGE_HANDOFF_INSTRUCTION = 'MANDATORY: Before each generation or edit, read get_submission_status and get_submission_media_context, call get_image_brief for this exact submission, revision, role and section, then preflight_submission_image. A brief is NOT an execution permit. If canGenerate=false, input observation is unavailable, or any actual reference is missing, STOP BEFORE calling the native generator. The current native host bridge is not verified: no test generation, no workaround via another client/API, no invented input evidence. When a supported observed handoff becomes available, pass the full canonical prompt and ALL actual reference images unchanged and in order. Do not summarize, rewrite, embellish, translate or append wrappers. STYLE_REFERENCE determines style; SUBJECT_REFERENCE is the original user photo, not a textual description. Retain requested subject photos using store_submission_image_reference and bind their IDs with subjectReferencesRequired=true. Cover and each body image need their own brief and separate call: one coherent standalone illustration, no collage, montage, panels, mockup, typography, text, logos, watermark, photorealism, photo fragments or 3D. Inspect actual output; label semantic judgments as agent-reported, not deterministic proof or personal approval. Unknown output checks require personal review, not invented true/false values. Rejected originals/receipts stay private and can be read with preview_submission_image_failure. No automatic regeneration, changed prompt or new requestId to bypass a stop. A new attempt requires an explicit human decision AND resolved integration/validation blockers. Preserve text/metadata/history and previously approved images. User-uploaded and verified press PHOTOS remain importable without generation briefs. No paid backend AI, automatic approval or publication. A client-reported hash never proves hidden generator input.';
 export const promptHash = (prompt: string) => createHash('sha256').update(prompt, 'utf8').digest('hex');
 export const generationReportInput = z.object({
   effectivePrompt: z.string().min(1).max(20000).describe('Exact canonical full prompt actually sent to the native image tool, unchanged. Never reconstruct it afterwards.'),
@@ -11,8 +11,12 @@ export const generationReportInput = z.object({
   outputCheck: z.object({
     sha256: z.string().regex(/^[a-f0-9]{64}$/),
     inspected: z.boolean(),
-    imageType: z.enum(['standalone-illustration', 'photo', 'collage', 'article-mockup', 'other']),
+    imageType: z.enum(['standalone-illustration', 'photo', 'collage', 'article-mockup', 'magazine-cover', 'split-panels', 'ui-design', '3d-render', 'other']),
     singleImage: z.boolean(), textVisible: z.boolean(), logosVisible: z.boolean(), watermarkVisible: z.boolean(),
+    photorealistic: z.boolean().optional(), photographicFragments: z.boolean().optional(), rendered3d: z.boolean().optional(),
+    coherentScene: z.boolean().optional(), panelCount: z.number().int().min(0).max(100).optional(),
+    styleMatch: z.enum(['match', 'mismatch', 'not_reviewed']).optional(),
+    subjectMatch: z.enum(['match', 'mismatch', 'not_reviewed', 'not_applicable']).optional(),
   }).strict().optional().describe('Required for new generated/edited images. Inspect the real output first; this is an agent report, not a personal approval or server visual verification.'),
 }).strict();
 
@@ -43,6 +47,13 @@ export function assertGenerationContract(input: { kind: string; origin: string; 
   if (!check?.inspected) throw Error('mcp_submission_output_inspection_required');
   if (check.imageType !== 'standalone-illustration' || !check.singleImage || check.textVisible || check.logosVisible || check.watermarkVisible)
     throw Error('mcp_submission_generated_image_type_invalid');
+  if (check.photorealistic === true || check.photographicFragments === true || check.rendered3d === true || check.coherentScene === false ||
+      (check.panelCount !== undefined && check.panelCount !== 1) || check.styleMatch === 'mismatch' || check.subjectMatch === 'mismatch')
+    throw Error('mcp_submission_generated_image_type_invalid');
+  if (check.photorealistic !== false || check.photographicFragments !== false || check.rendered3d !== false || check.coherentScene !== true ||
+      check.panelCount !== 1 || check.styleMatch !== 'match' ||
+      (brief.subjectReferencesRequired || brief.subjectReferenceIds?.length ? check.subjectMatch !== 'match' : !['match', 'not_applicable'].includes(check.subjectMatch || '')))
+    throw Error('mcp_submission_output_inspection_required');
 }
 export type GenerationEvidence = {
   version: typeof IMAGE_HANDOFF_VERSION;
@@ -57,7 +68,7 @@ export type GenerationEvidence = {
  * quoted article text legitimately contain words like “photorealism” or “3D”.
  * A client report is not independent observation of the native generator. */
 export function imageGenerationEvidence(input: { kind: string; origin: string; briefId?: string;
-  generationReport?: z.infer<typeof generationReportInput> }, brief?: { prompt?: string; referenceHash?: string } | null): GenerationEvidence {
+  generationReport?: z.infer<typeof generationReportInput> }, brief?: { prompt?: string; referenceHash?: string; handoffVersion?: string } | null): GenerationEvidence {
   const relevant = input.kind === 'illustration' && (!!input.briefId || ['chatgpt-generated', 'chatgpt-edited'].includes(input.origin));
   const report = input.generationReport;
   const canonical = brief?.prompt ? promptHash(brief.prompt) : null;
@@ -74,5 +85,5 @@ export function imageGenerationEvidence(input: { kind: string; origin: string; b
   return { version: IMAGE_HANDOFF_VERSION, status, canonicalPromptHash: canonical, effectivePromptHash: effective,
     referenceHash: brief?.referenceHash || null, reportedReferenceHashes: report?.referenceHashes || [],
     technicalWrapperHash: report?.technicalWrapper ? promptHash(report.technicalWrapper) : null,
-    requiresPersonalSelection: relevant && status !== 'client_reported_match', exactPromptExecutionVerified: false, reasons };
+    requiresPersonalSelection: relevant && (brief?.handoffVersion === IMAGE_HANDOFF_VERSION || status !== 'client_reported_match'), exactPromptExecutionVerified: false, reasons };
 }

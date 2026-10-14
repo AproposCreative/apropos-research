@@ -8,6 +8,8 @@ import { buildAproposImagePrompt } from '@/lib/image-gen/prompt';
 import { cmsFieldHash } from '@/lib/liv/cms-field-hash';
 import { IMAGE_HANDOFF_VERSION, IMAGE_HANDOFF_INSTRUCTION, promptHash } from './image-generation-evidence';
 import { retainReference, readRetainedReference, type RetainedReference } from './image-reference';
+import { NATIVE_IMAGE_INTEGRATION } from './native-image-integration';
+import { imageProtectedContentHash } from './image-content-invariant';
 
 export const chatImageBriefInput = z.object({ submissionId, expectedRevision: z.number().int().positive(),
   sectionId: submissionId, excerpt: z.string().min(10).max(3500), description: z.string().min(10).max(2500),
@@ -58,15 +60,19 @@ export async function getChatImageBrief(uid: string, raw: unknown) {
     editInstruction: [input.editInstruction ? `The second reference is the image to edit. Preserve it except for this requested change: ${input.editInstruction}` : '',
       input.subjectReferenceIds.length ? `References ${parent ? '3' : '2'} onwards are the user-uploaded subject photos. Use their subjects, not their photographic style; do not substitute invented likenesses.` : '',
     ].filter(Boolean).join('\n') });
-  const brief = { ...input, uid, contentHash: row.contentHash, styleVersion: config.version, referenceHash, prompt,
+  const brief = { ...input, uid, contentHash: row.contentHash, protectedContentHash: imageProtectedContentHash(row.article), styleVersion: config.version, referenceHash, prompt,
     canonicalPromptHash: promptHash(prompt), handoffVersion: IMAGE_HANDOFF_VERSION, requiredReferenceHashes,
     generationContract: { instruction: IMAGE_HANDOFF_INSTRUCTION, promptField: 'prompt', referenceHash,
       reportField: 'generationReport', exactPromptExecutionVerified: false,
-      evidenceLimit: 'Hashes verify the client report, not the hidden native image-generation input.' },
+      canGenerate: false, preflightTool: 'preflight_submission_image', integration: NATIVE_IMAGE_INTEGRATION,
+      evidenceLimit: 'Hashes verify the client report, not the hidden native image-generation input. This brief is NOT permission to call the generator.' },
     references: references.map(({ storagePath: _path, ...ref }) => ref),
     parentUrl: parent?.url || null, output: { kind: 'standalone-illustration', count: 1, format: 'landscape', minimumWidth: 1200, minimumHeight: 800, text: 'none' },
     visualEvidence: { status: 'not_server_verified', suppliedSources: row.research },
-    instruction: 'Brug denne prompt og den vedlagte stilreference i Chattens billedværktøj. Hent dokumenterede personreferencer før portrætlighed. Vis billedværktøjets billedoutput direkte i chatten, ikke kun et file-ID eller en filsti. Importér den valgte eksisterende fil med import_submission_image og vis derefter preview_submission. Ved filoverleveringsfejl: bevar billedet og brug samme fil, aldrig en ny generation eller en opdigtet downloadadresse. Ingen API-generation. Film/TV bruger rigtige stills. Illustrationen er ikke et dokumentarisk foto.' };
+    instruction: 'STOP før billedgenerering: kald preflight_submission_image med dette brief og de samme motivreferencer. canGenerate=false er et integrationsstop, ikke tilladelse til et prøvebillede. Ingen omskrivning, fallback eller automatisk retry. Bevar originale filer. Film/TV bruger rigtige stills. Ingen personlig godkendelse eller publicering.' };
+  const current = await readSubmission(uid, row.id);
+  if (current.revision !== row.revision || current.contentHash !== row.contentHash || imageProtectedContentHash(current.article) !== brief.protectedContentHash)
+    throw Error('mcp_submission_image_content_changed');
   const briefId = cmsFieldHash(brief), ref = submissionStore().collection.doc(row.id).collection('chatBriefs').doc(briefId);
   if (!(await ref.get()).exists) { try { await ref.create({ ...brief, retainedReferences: references, briefId, createdAt: new Date().toISOString() }); } catch (error) {
     if (!(await ref.get()).exists) throw error;

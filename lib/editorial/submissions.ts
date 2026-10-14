@@ -12,6 +12,9 @@ import { ideaRef, ideaSubmissionRequest, ideaSubmissionId } from './ideas';
 import { mergeSocialSubtitles } from './social-subtitles';
 import { hasCurrentPublicationConsent } from './submission-consent-state';
 import { assertNoApprovedImageReplacement } from './approved-image-guard';
+import { assertImageContentInvariant } from './image-content-invariant';
+import { readImageFailures } from './image-failure';
+import { NATIVE_IMAGE_INTEGRATION } from './native-image-integration';
 import { inspectSubmission, submissionId, submissionInput, submissionUpdate, submissionVersion,
   validateSubmissionArticle, type SubmissionRecord } from './submission-contract';
 
@@ -63,6 +66,9 @@ export async function getSubmissionStatus(uid: string, id: string) {
     preparationStarted: row.status === 'processing',
     textPreserved: row.article.content === row.originalArticle.content,
     savedSteps, mediaIdentity, imageSelection,
+    imageFailures: await readImageFailures(uid, id),
+    imageGeneration: { ...NATIVE_IMAGE_INTEGRATION, canGenerate: false, nextAction: 'preflight_submission_image',
+      pressPhotoImportUnaffected: true, automaticRetryAllowed: false },
     mediaImports: assetReceipts.docs.map(doc => { const asset = doc.data(); return { assetId: doc.id, status: asset.status,
       ready: ['uploaded', 'attached'].includes(asset.status), role: asset.role, failure: asset.failure ?? null,
       originalPreserved: !!asset.storagePath, cmsAssetId: asset.cmsAsset?.id ?? null,
@@ -79,7 +85,7 @@ export async function getSubmissionStatus(uid: string, id: string) {
         row.status === 'blocked' ? 'inspect_saved_step_before_any_retry' :
         ['processing', 'scheduled'].includes(row.status) ? 'read_saved_status_do_not_resubmit' :
         row.status === 'published' ? 'inspect_publication_receipt' :
-        inspection.missingMedia.length ? (row.choices.media === 'press' ? 'find_and_import_missing_press_images' : 'complete_missing_media') :
+        inspection.missingMedia.length ? (row.choices.media === 'press' ? 'find_and_import_missing_press_images' : row.choices.media === 'illustration' ? 'preflight_submission_image' : 'complete_missing_media') :
         row.executionPolicy === 'chatgpt-first-v1' && row.choices.aiFinalChecks === 'human' && inspection.readyForPreparation ? 'show_inline_preview_for_single_approval' :
         imageSelection.required ? 'open_personal_image_selection' :
         inspection.readyForPreparation ? (row.choices.aiFinalChecks === 'human' ? 'open_personal_editorial_confirmation' : 'open_personal_price_acceptance') : 'complete_missing_inputs' } };
@@ -126,6 +132,11 @@ export async function prepareSubmission(uid: string, raw: unknown) {
     }
     input.choices.aiFinalChecks ||= 'human';
     assertChatGptFirstPolicy({ executionPolicy: 'chatgpt-first-v1', choices: input.choices });
+    // Illustrations must enter through the provenance-bound import path, never
+    // by pasting a remote URL into an otherwise ordinary article write. Keep
+    // historical idempotent replays above intact.
+    if (input.choices.media === 'illustration' && (input.article.featuredImage || articleImages(input.article.content).length))
+      throw Error('mcp_submission_image_import_required');
     const contentHash = submissionVersion(input);
     const now = new Date().toISOString();
     tx.create(ref, { ...input, id, uid, revision: 1, contentHash, initialHash: contentHash,
@@ -137,7 +148,7 @@ export async function prepareSubmission(uid: string, raw: unknown) {
   return getSubmissionStatus(uid, id);
 }
 
-export async function updateSubmission(uid: string, raw: unknown, internal?: { replaceUrls: string[] }) {
+export async function updateSubmission(uid: string, raw: unknown, internal?: { replaceUrls: string[]; protectedContentHash?: string }) {
   const input = submissionUpdate.parse(raw), { db, collection } = submissionStore();
   const ref = collection.doc(input.submissionId), receipt = ref.collection('updates').doc(cmsFieldHash({ requestId: input.requestId }));
   const requestHash = cmsFieldHash(input);
@@ -164,6 +175,11 @@ export async function updateSubmission(uid: string, raw: unknown, internal?: { r
     }
     const next = submissionInput.parse({ requestId: row.requestId, readerSourceId: row.readerSourceId, livProduction: row.livProduction, editorialIdeaId: row.editorialIdeaId, article,
       research: input.research ?? row.research, choices: { ...row.choices, ...input.choices } });
+    if (internal?.protectedContentHash) {
+      assertImageContentInvariant(row.article, next.article, internal.protectedContentHash);
+      if (input.research || input.choices || input.clearFields?.length)
+        throw Error('mcp_submission_image_content_changed');
+    }
     assertChatGptFirstPolicy({ executionPolicy: row.executionPolicy, choices: next.choices });
     validateSubmissionArticle(next.article);
     const beforeUrls = [base.featuredImage, ...articleImages(base.content).map(image => image.url)].filter((url): url is string => !!url);
@@ -173,6 +189,8 @@ export async function updateSubmission(uid: string, raw: unknown, internal?: { r
       const lock = (await tx.get(db.collection('editorialProvidedAssets').doc(cmsFieldHash({ url })))).data();
       if (lock?.preserveOriginal && lock.url === url) throw Error('mcp_submission_selected_asset_locked');
     }
+    if (!internal?.protectedContentHash && (row.choices.media === 'illustration' || next.choices.media === 'illustration') &&
+        [...afterUrls].some(url => url && !beforeUrls.includes(url))) throw Error('mcp_submission_image_import_required');
     if (row.publishedTarget) assertMediaOnlyUpdate(row.article, next.article);
     const revision = row.revision + 1, now = new Date().toISOString();
     tx.create(ref.collection('versions').doc(String(row.revision)), row);

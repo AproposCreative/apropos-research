@@ -75,7 +75,7 @@ it('negotiates the real SDK protocol and lists strict schemas on independent sta
   expect(social.properties.square.maxLength).toBe(90);
   expect(social.properties.story.maxLength).toBe(130);
   expect(tools.find((t: any) => t.name === 'update_submission').inputSchema.properties.article.properties.socialSubtitles).toBeDefined();
-  expect(tools.length).toBe(61); expect(tools.find((t: any) => t.name === 'publish_article').annotations.destructiveHint).toBe(true);
+  expect(tools.length).toBe(63); expect(tools.find((t: any) => t.name === 'publish_article').annotations.destructiveHint).toBe(true);
   expect(tools.find((t: any) => t.name === 'resume_submission_cms').inputSchema.required).toContain('expectedCmsHash');
   expect(tools.find((t: any) => t.name === 'import_submission_press_image').inputSchema.required).toContain('candidateId');
   expect(tools.find((t: any) => t.name === 'preview_submission_press_image').annotations.readOnlyHint).toBe(true);
@@ -259,6 +259,11 @@ it('registers an actual MCP App, sends secrets only through UI metadata and decl
   expect(tools.find((t: any) => t.name === 'store_submission_image_reference')._meta['openai/fileParams']).toEqual(['file']);
   expect(tools.find((t: any) => t.name === 'store_submission_image_reference')._meta.securitySchemes).toEqual([{ type: 'oauth2', scopes: ['apropos:draft'] }]);
   expect(tools.find((t: any) => t.name === 'get_image_brief').description).toContain('Do not summarize, rewrite, embellish');
+  const preflight = tools.find((t: any) => t.name === 'preflight_submission_image');
+  expect(preflight.annotations.readOnlyHint).toBe(true);
+  expect(preflight.inputSchema.required).toEqual(expect.arrayContaining(['submissionId', 'expectedRevision', 'role', 'sectionId', 'subjectReferencesRequired', 'subjectReferenceIds']));
+  expect(preflight.inputSchema.properties).not.toHaveProperty('exactPromptExecutionVerified');
+  expect(tools.find((t: any) => t.name === 'preview_submission_image_failure').annotations.readOnlyHint).toBe(true);
   expect(file._meta['openai/fileParams']).toEqual(['file']);
   expect(Object.keys(file.inputSchema.properties.file.properties)).toEqual(['download_url', 'file_id', 'mime_type', 'file_name']);
   const result = (await (await call('preview_submission', { submissionId: 'a'.repeat(64) })).json()).result;

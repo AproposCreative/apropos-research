@@ -1,5 +1,10 @@
 # Mandatory native image contract — 14 October 2026
 
+Later strict fail-closed work is documented in
+[IMAGE-PREFLIGHT-V30-2026-10-14.md](IMAGE-PREFLIGHT-V30-2026-10-14.md).
+The v29 release/verification below remains dated evidence, not proof of native
+input observation or the current v30 gate.
+
 ## Released and verified live at 14:53 Copenhagen
 
 Source `4319804138994f98cdf60dffd063c8b0cd93d43f`, deployment
