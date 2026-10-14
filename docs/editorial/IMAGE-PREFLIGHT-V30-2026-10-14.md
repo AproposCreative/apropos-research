@@ -1,5 +1,36 @@
 # Native image preflight v30 — 14 October 2026
 
+## Final production verification — 16:02 Copenhagen
+
+Source **`ebd062ba9edbea0f55e031ea100a55e8ad170d03`**, deployment
+**`dpl_D8wTmy1zu8y17GnCdpwHQLWkonN7`**, is READY with the actual
+`ai.aproposmagazine.com` production alias. Fresh authenticated MCP discovery
+returns **2026-10-14-v30 / 63 tools**. The corrected production build passed.
+
+The four read-only article preflights completed
+`2026-10-14T14:02:22.868Z`–`14:02:28.223Z`:
+
+| Placement | Current section | Result |
+| --- | --- | --- |
+| Selfie cover | `914f1bb5458ceebecd73f3b65c4327ba836ae964a0ba4b513cae45062f175910` | Old/incomplete brief, no actual references, native input unobservable: STOP |
+| Wooden block | `7092cb0add05e7d8252cab6bca04f360d812026d15712553b6ba3d58aae59891` | No supplied current brief/actual references, native input unobservable: STOP |
+| Cafe table | `7a0a83eaa312d32fab492c323dca29fbf2427ae78b454cd6d368bc62c7576ae4` | No supplied current brief/actual references, native input unobservable: STOP |
+| Child/playhouse | `a0483739179740862e338d9df1f1e0cc104ffa4989fa09c819a6f665baf6ac0e` | No supplied current brief/actual references, native input unobservable: STOP |
+
+All report `canGenerate=false`, `canImportGeneratedImage=false`, zero actual
+reference files, zero failure/import attempts, no personal approval. None now
+incorrectly reports a content mutation. The article is still v2 with the exact
+content hash below, four untouched historical briefs and zero stored subject
+reference records. Full protected-state and financial hashes match both their
+before/after snapshots and the earlier initial verification recorded below.
+The temporary read-only grant was revoked; existing connections remain unchanged.
+
+**No generation or import was performed. The safety gate is verified live; native
+image production and semantic quality are NOT verified or enabled.**
+To discover the two new tools in an already connected Work client, use its
+official tool refresh/reconnect if they are absent. Updating discovery does not
+resolve the native-input integration blocker or authorize a test generation.
+
 ## Outcome and scope
 
 This is a **fail-closed safety release, not a repaired native image generator**.
@@ -126,7 +157,7 @@ native integration. **The article is not ready for safe generation.**
 four read-only preflights. It creates/revokes a temporary read-only service OAuth
 grant (not editorial consent), compares article/brief/assets/history/approval and
 financial snapshots, and never calls get_image_brief, image import or generation.
-Exact release and live readback evidence will be recorded after deployment.
+Exact final release and live readback evidence are recorded at the top.
 
 ## Initial v30 live verification and diagnostic correction
 
