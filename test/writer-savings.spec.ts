@@ -6,6 +6,7 @@ import { boundedWriterConversation, WRITER_HISTORY_MAX_CHARS } from '@/lib/ai-ch
 const mocks = vi.hoisted(() => ({ create: vi.fn(), research: vi.fn() }));
 vi.mock('@/lib/openai', () => ({ getOpenAIClient: () => ({ chat: { completions: { create: mocks.create } } }), models: { default: 'fixture' } }));
 vi.mock('@/lib/research/service', () => ({ getResearch: mocks.research }));
+vi.mock('@/lib/editorial-access', () => ({ editorialRequestAccess: async () => ({ uid: 'fixture-editor' }) }));
 import { createWriterResearchCache, writerResearchScope, WRITER_RESEARCH_TTL_MS, WRITER_RESEARCH_MAX_IN_FLIGHT } from '@/lib/ai-chat/research-cache';
 import { POST } from '@/app/api/ai-chat/route';
 import { currentLivCostContext, withLivCostContext } from '@/lib/liv/cost-context';
@@ -20,6 +21,7 @@ function evidence(query = 'Film A'): ResearchResult {
 }
 beforeEach(() => {
   vi.resetAllMocks();
+  vi.stubEnv('AI_SHARED_COST_ENABLED', 'true');
   vi.stubGlobal('fetch', vi.fn(() => { throw new Error('Live network prohibited'); }));
   mocks.research.mockImplementation(async query => evidence(query));
   mocks.create.mockResolvedValue({ choices: [{ finish_reason: 'stop', message: { content: 'En kort redaktionel besked.' } }] });
@@ -158,7 +160,8 @@ it.each(['liv_cost_monthly_budget_exceeded', 'liv_cost_shared_policy_unconfigure
   expect(response.status).toBe(503);
   const data = await response.json();
   expect(data.errorCode).toBe('AI_BUDGET_BLOCKED');
-  expect(data.error).toContain('Appens AI-budget');
+  expect(data.error).toContain('budgetkontrollen');
+  expect(data.retryable).toBe(false);
   expect(data.error).not.toMatch(/billing|Connection error|OpenAI rate limit/);
 });
 
@@ -275,16 +278,17 @@ it('keeps research and writing in one cost owner with separate stage attribution
   expect(currentLivCostContext()).toBeUndefined();
 });
 
-it('preserves existing run ownership and leaves accounting opt-in', async () => {
+it('fails closed when Writer accounting is disabled and preserves existing ownership when enabled', async () => {
   vi.stubEnv('AI_SHARED_COST_ENABLED', 'false');
   const contexts: Array<ReturnType<typeof currentLivCostContext>> = [];
   mocks.create.mockImplementation(async () => {
     contexts.push(currentLivCostContext());
     return { choices: [{ finish_reason: 'stop', message: { content: 'Kort svar.' } }] };
   });
-  await POST(request('Ret teksten', 'Opt-in film'));
+  expect((await POST(request('Ret teksten', 'Opt-in film'))).status).toBe(503);
+  expect(contexts).toHaveLength(0);
+  vi.stubEnv('AI_SHARED_COST_ENABLED', 'true');
   await withLivCostContext({ runId: 'liv-existing', stage: 'parent' }, () => POST(request('Ret teksten', 'Opt-in film')));
-  expect(contexts[0]).toBeUndefined();
-  expect(contexts[1]).toMatchObject({ runId: 'liv-existing', stage: 'writing' });
-  expect(contexts[1]?.scope).toBeUndefined();
+  expect(contexts[0]).toMatchObject({ runId: 'liv-existing', stage: 'writing' });
+  expect(contexts[0]?.scope).toBeUndefined();
 });

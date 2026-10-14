@@ -26,6 +26,7 @@ import { LIV_PRICE_VERSION, quoteLivOpenAIRequest, quoteLivImageRequest } from '
 import { getLivCostPretransportError } from '@/lib/liv/cost-errors';
 import { activateSharedCostPolicy, inspectSharedCostActivation } from '@/lib/liv/cost-activation';
 import { providerHoldId } from '@/lib/ai/provider-hold';
+import { activateManualWriterBudget, readManualWriterBudget, withManualWriterIdentity, MANUAL_WRITER_BUDGET_ID } from '@/lib/ai/manual-writer-budget';
 const now = new Date('2026-09-12T10:00:00Z');
 const policy = { monthlyLimitDkkMicros: 300_000_000, usdToDkkCeiling: 8, validUntil: '2026-10-01T00:00:00.000Z',
   conversionBasis: 'TEST fixture ceiling; not a market exchange-rate claim', priceVersion: LIV_PRICE_VERSION };
@@ -38,6 +39,74 @@ const call = (n = 1) => ({ callId: `00000000-0000-4000-8000-${String(n).padStart
 beforeEach(() => { memory.rows.clear(); memory.available = true; memory.tail = Promise.resolve(); memory.rows.set('livCostLedger/policy', structuredClone(policy));
   vi.stubEnv('LIV_GENERATION_MODEL', 'gpt-5.6-sol'); vi.stubEnv('LIV_RESEARCH_MODEL', 'gpt-5.6-sol'); vi.stubEnv('LIV_UTILITY_MODEL', 'gpt-5.6-luna'); vi.stubEnv('LIV_IMAGE_MODEL', 'gpt-image-1.5'); });
 afterEach(() => vi.unstubAllEnvs());
+
+async function manualPolicy() {
+  memory.rows.set('livCostLedger/policy', { ...policy, sharedScopesEnabled: true, sharedTrackingStartedAt: now.toISOString() });
+  return activateManualWriterBudget('owner', now);
+}
+const manualCall = (n = 1) => ({ ...call(n), context: { runId: 'manual-request', stage: 'writing', scope: 'writer' as const } });
+it('activates exactly once, retaining costs, reservations and author across replays/months', async () => {
+  const row = await manualPolicy();
+  expect(row).toMatchObject({ limitDkkMicros: 50_000_000, id: MANUAL_WRITER_BUDGET_ID });
+  await withManualWriterIdentity('editor', () => createLivCostLedger(() => now).reserve(manualCall()));
+  const before = structuredClone(memory.rows.get('aiExecutionPolicies/paid'));
+  expect(await activateManualWriterBudget('different-owner', new Date('2027-01-01'))).toEqual(before);
+  expect(await readManualWriterBudget()).toEqual(before);
+  expect(before.activatedBy).toBe('owner');
+});
+it('blocks legacy Liv, SEO, accreditation, images and spoofed Writer after the provider hold is lifted', async () => {
+  await manualPolicy();
+  memory.rows.set('imageGenCostLedger/policy', { ...policy, monthlyLimitDkkMicros: 150_000_000 });
+  for (const scope of [undefined, 'writer', 'seo', 'accreditation', 'image-gen'] as const) {
+    const ledger = createLivCostLedger(() => now, scope === 'image-gen' ? 'image-gen' : 'liv');
+    const input = { ...call(), context: { ...call().context, ...(scope ? { scope } : {}) } };
+    await expect(ledger.reserve(input)).rejects.toThrow('manual_writer_only');
+    if (scope !== 'writer') await expect(withManualWriterIdentity('editor', () => ledger.reserve(input))).rejects.toThrow('manual_writer_only');
+  }
+  expect(memory.rows.has('livCostLedger/month-2026-09')).toBe(false);
+  expect((await readManualWriterBudget())?.calls).toBe(0);
+});
+it('enforces the one-time cap atomically across concurrent users and Copenhagen months', async () => {
+  await manualPolicy();
+  const input = { ...manualCall(), quote: { ...quote, reservedUsdMicros: 4_000_000 } }; // 32 DKK
+  const results = await Promise.allSettled([
+    withManualWriterIdentity('casper', () => createLivCostLedger(() => now).reserve(input)),
+    withManualWriterIdentity('other-editor', () => createLivCostLedger(() => new Date('2026-10-01')).reserve({ ...input, callId: call(2).callId })),
+  ]);
+  expect(results.filter(r => r.status === 'fulfilled')).toHaveLength(1);
+  expect((await readManualWriterBudget())?.reservedDkkMicros).toBe(32_000_000);
+  await expect(withManualWriterIdentity('editor', () => createLivCostLedger(() => new Date('2026-11-01')).reserve({ ...input, callId: call(3).callId })))
+    .rejects.toThrow('manual_writer_budget_exceeded');
+});
+it('settles manual usage once and retains an ambiguous reservation without resetting historical shared totals', async () => {
+  await manualPolicy();
+  const ledger = createLivCostLedger(() => now);
+  const a = await withManualWriterIdentity('casper', () => ledger.reserve(manualCall()));
+  const b = await withManualWriterIdentity('milo', () => ledger.reserve(manualCall(2)));
+  await ledger.complete(a, outcome); await ledger.complete(a, outcome);
+  await ledger.complete(b, { ...outcome, status: 'ambiguous', usage: null, httpStatus: null });
+  expect(await readManualWriterBudget()).toMatchObject({ calls: 2, unknownCalls: 1, committedDkkMicros: 1120, reservedDkkMicros: b.reservedDkkMicros });
+  expect(memory.rows.get(`livCostLedger/call-${a.callId}`)).toMatchObject({ manualWriterUid: 'casper', manualWriterBudgetId: MANUAL_WRITER_BUDGET_ID });
+  await expect(ledger.reserve(manualCall(3))).rejects.toThrow('manual_writer_only'); // ALS cannot leak
+});
+it.each(['wrong-model', 'over-bound'])('blocks future manual months after %s, retaining reservations honestly', async kind => {
+  await manualPolicy();
+  const ledger = createLivCostLedger(() => now);
+  const a = await withManualWriterIdentity('editor', () => ledger.reserve(manualCall()));
+  await ledger.complete(a, kind === 'wrong-model' ? { ...outcome, responseModel: 'unpriced' } : { ...outcome, usage: { ...outcome.usage, inputTokens: 1_000_000 } });
+  expect((await readManualWriterBudget())?.blocked).toBe(true);
+  await expect(withManualWriterIdentity('editor', () => createLivCostLedger(() => new Date('2026-12-01')).reserve(manualCall(2))))
+    .rejects.toThrow('manual_writer_budget_exceeded');
+});
+it('does not clear the provider hold or permit model/image/submission scope escalation', async () => {
+  await manualPolicy();
+  const ledger = createLivCostLedger(() => now);
+  await expect(withManualWriterIdentity('editor', () => ledger.reserve({ ...manualCall(), quote: { ...quote, model: 'gpt-image-1.5' } }))).rejects.toThrow('manual_writer_only');
+  await expect(withManualWriterIdentity('editor', () => ledger.reserve({ ...manualCall(), context: { ...manualCall().context, submissionId: 'a'.repeat(64) } }))).rejects.toThrow('manual_writer_only');
+  memory.rows.set(`aiProviderHolds/${providerHoldId()}`, { blocked: true, revision: 5 });
+  await expect(withManualWriterIdentity('editor', () => ledger.reserve(manualCall()))).rejects.toThrow('provider_quota_exhausted');
+  expect((await readManualWriterBudget())?.calls).toBe(0);
+});
 it('binds concurrent shared and image calls to one versioned personal submission ceiling', async () => {
   const id = 'c'.repeat(64), version = 'd'.repeat(64);
   memory.rows.set('imageGenCostLedger/policy', { ...policy, monthlyLimitDkkMicros: 150_000_000 });

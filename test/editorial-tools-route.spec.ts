@@ -4,6 +4,7 @@ vi.mock('@/lib/editorial-access', () => ({ verifyEditorialToken: m.auth }));
 vi.mock('@/lib/ai/provider-hold', () => ({ readProviderHold: m.hold }));
 vi.mock('@/lib/accreditation/agent-control', () => ({ getAgentControl: m.control }));
 vi.mock('@/lib/liv-inbox/settings-store', () => ({ getLivInboxSettings: m.inbox }));
+vi.mock('@/lib/ai/manual-writer-budget', () => ({ readManualWriterBudget: async () => null }));
 import * as route from '@/app/api/editorial/tools/route';
 const request = (token = '') => new Request('https://test/api/editorial/tools', { headers: token ? { authorization: `Bearer ${token}` } : {} });
 beforeEach(() => { vi.resetAllMocks(); m.hold.mockResolvedValue({ blocked: true }); m.control.mockResolvedValue({ paused: true }); m.inbox.mockResolvedValue({ autoRespond: false }); });

@@ -21,8 +21,11 @@ import { boundedWriterConversation } from '@/lib/ai-chat/bounded-history';
 import { getWriterResearch, writerResearchScope } from '@/lib/ai-chat/research-cache';
 import { personalSourcePolicy } from '@/lib/ai-chat/personal-source-policy';
 import { researchPromptContext } from '@/lib/research/source-policy';
-import { withSharedCostContext, withLivCostStage } from '@/lib/liv/cost-context';
-import { getLivCostPretransportError } from '@/lib/liv/cost-errors';
+import { withSharedCostContext, withLivCostStage, sharedCostEnabled } from '@/lib/liv/cost-context';
+import { getLivCostPretransportError, LivCostPretransportError } from '@/lib/liv/cost-errors';
+import { editorialRequestAccess } from '@/lib/editorial-access';
+import { withManualWriterIdentity } from '@/lib/ai/manual-writer-budget';
+import { writerBudgetMessage } from '@/lib/ai-chat/budget-message';
 
 const openai = getOpenAIClient();
 
@@ -404,11 +407,15 @@ function extractArticleUpdate(responseText: string, userRating?: number): Record
 export const maxDuration = 300;
 
 export async function POST(request: NextRequest) {
+  const access = await editorialRequestAccess(request);
+  if (!access) return NextResponse.json({ error: 'Log ind igen for at bruge AI Writer.', errorCode: 'WRITER_AUTH_REQUIRED', retryable: false }, { status: 401 });
   try {
-    return await withSharedCostContext({ scope: 'writer', stage: 'ai-chat' }, () => handleWriterRequest(request));
+    if (!sharedCostEnabled()) throw new LivCostPretransportError('liv_cost_shared_policy_unconfigured');
+    return await withManualWriterIdentity(access.uid, () => withSharedCostContext({ scope: 'writer', stage: 'ai-chat' }, () => handleWriterRequest(request)));
   } catch (error) {
-    if (!getLivCostPretransportError(error)) throw error;
-    return NextResponse.json({ error: formatAiChatError(error), errorCode: 'AI_BUDGET_BLOCKED' }, { status: 503 });
+    const blocked = getLivCostPretransportError(error);
+    if (!blocked) throw error;
+    return NextResponse.json({ error: writerBudgetMessage(blocked.code), errorCode: 'AI_BUDGET_BLOCKED', reason: blocked.code, retryable: false }, { status: 503 });
   }
 }
 

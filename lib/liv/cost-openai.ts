@@ -10,6 +10,7 @@ import { createLivCostLedger, type LivCostLedger, type LivCostOutcome } from './
 import { quoteLivImageRequest, quoteLivOpenAIRequest, readLivProviderUsage } from './cost-pricing';
 import { LivCostPretransportError } from './cost-errors';
 import { quoteImageGenEdit } from '@/lib/image-gen/edit-pricing';
+import { readManualWriterBudget } from '@/lib/ai/manual-writer-budget';
 type FinalRequestOptions = Awaited<Parameters<OpenAI['request']>[0]>;
 const guardedTransports = new WeakSet<typeof fetch>();
 
@@ -21,6 +22,8 @@ export function livBudgetFetch(transport: typeof fetch, ledger: LivCostLedger = 
     const context = currentLivCostContext();
     if (!context) {
       if (sharedCostEnabled()) throw new LivCostPretransportError('liv_cost_context_required');
+      // A later env typo/disable must not bypass an already activated durable policy.
+      if (await readManualWriterBudget()) throw new LivCostPretransportError('liv_cost_manual_writer_only');
       return transport(input, init);
     }
     if (context.blocked) throw new Error('liv_cost_context_blocked');

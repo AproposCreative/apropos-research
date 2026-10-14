@@ -704,6 +704,7 @@ export default function AIWriterClient() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          ...(user ? { Authorization: `Bearer ${await user.getIdToken()}` } : {}),
         },
           signal: controller.signal,
         body: JSON.stringify({
@@ -921,11 +922,13 @@ export default function AIWriterClient() {
         }
         // Stringify so DevTools does not show a collapsed "{}" for objects with a key named "error"
         console.error(`❌ API Error: ${response.status}`, JSON.stringify(errorData));
-        setLastFailedMessage(trimmedMessage);
+        setLastFailedMessage(errorData.retryable === false ? null : trimmedMessage);
 
         let userLine: string;
         let tip: string | undefined;
-        if (response.status === 429) {
+        if (errorData.errorCode === 'AI_BUDGET_BLOCKED' || errorData.errorCode === 'WRITER_AUTH_REQUIRED') {
+          userLine = errMsg;
+        } else if (response.status === 429) {
           userLine =
             'Jeg kan ikke skrive lige nu — det ligner, at AI-kontoen er løbet tør (lidt som når mobilen har brugt datapakken).';
           tip = 'Gå ind på openai.com, tjek betaling og forbrugsgrænser, og prøv igen bagefter.';

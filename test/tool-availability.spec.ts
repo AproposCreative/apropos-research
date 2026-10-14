@@ -1,6 +1,16 @@
 import { expect, it } from 'vitest';
 import { describeTools } from '@/lib/tool-availability';
 
+it('opens manual Writer but not image generation when funding resumes under the 50 DKK policy', () => {
+  const signals = { paidAiBlocked: false, accreditationPaused: true, inboxAutoRespond: false,
+    manualWriterOnly: true, manualWriterBudgetAvailable: true };
+  const tools = describeTools(signals, { owner: true });
+  expect(tools.find(x => x.id === 'ai-writer')).toMatchObject({ hidden: false, status: expect.stringContaining('50 kr.') });
+  expect(tools.find(x => x.id === 'image-gen')?.hidden).toBe(true);
+  expect(describeTools({ ...signals, manualWriterBudgetAvailable: false }, { owner: true }).find(x => x.id === 'ai-writer')?.hidden).toBe(true);
+  expect(describeTools({ ...signals, paidAiBlocked: true }, { owner: true }).find(x => x.id === 'ai-writer')?.hidden).toBe(true);
+});
+
 it('hides only explicitly paused/blocked tools and keeps their data routes', () => {
   const tools = describeTools({ paidAiBlocked: true, accreditationPaused: true, inboxAutoRespond: false }, { owner: true });
   expect(tools.filter(x => x.hidden).map(x => x.id)).toEqual(['ai-writer', 'image-gen', 'akkreditering']);

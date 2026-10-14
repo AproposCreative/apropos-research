@@ -6,6 +6,7 @@ import { checkLivArticleLength, countLivBodyWords } from '@/lib/liv/article-leng
 const mock = vi.hoisted(() => ({ create: vi.fn() }));
 vi.mock('@/lib/openai', () => ({ getOpenAIClient: () => ({ chat: { completions: { create: mock.create } } }), models: { default: 'fixture' } }));
 vi.mock('@/lib/research/service', () => ({ getResearch: async () => ({ sources: [], contextText: '', debug: {} }) }));
+vi.mock('@/lib/editorial-access', () => ({ editorialRequestAccess: async () => ({ uid: 'fixture-editor' }) }));
 import { POST } from '@/app/api/ai-chat/route';
 
 const words = (n: number) => Array(n).fill('ord').join(' ');
@@ -15,7 +16,7 @@ const completion = (n: number, finish = 'stop') => ({ choices: [{ finish_reason:
 const request = (articleType = 'short-news') => new NextRequest('https://studio.example/api/ai-chat', { method: 'POST', body: JSON.stringify({
   message: 'Skriv en artikel', articleData: { articleType, section: 'Serier & Film', targetLengthLabel: '99999 ord', targetWordCount: 99999 },
 }) });
-beforeEach(() => vi.resetAllMocks());
+beforeEach(() => { vi.resetAllMocks(); vi.stubEnv('AI_SHARED_COST_ENABLED', 'true'); });
 
 it.each(EDITORIAL_ARTICLE_TYPE_OPTIONS)('honours $id template boundaries independently of category', option => {
   const policy = writerLengthPolicy({ articleType: option.id, section: 'Kultur', targetWordCount: 50000 });

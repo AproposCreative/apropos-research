@@ -1,5 +1,7 @@
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 vi.mock('@/lib/firebase-admin', () => ({ getAdminDb: () => null }));
+const manual = vi.hoisted(() => ({ read: vi.fn() }));
+vi.mock('@/lib/ai/manual-writer-budget', async original => ({ ...await original<typeof import('@/lib/ai/manual-writer-budget')>(), readManualWriterBudget: manual.read }));
 import { LivBudgetOpenAI, livBudgetFetch } from '@/lib/liv/cost-openai';
 import { currentLivCostContext, withLivCostContext, withLivCostStage, withSharedCostContext } from '@/lib/liv/cost-context';
 import type { LivCostLedger } from '@/lib/liv/cost-ledger';
@@ -14,11 +16,19 @@ const completion = () => new Response(JSON.stringify({ id: 'chatcmpl_fixture', m
   headers: { 'content-type': 'application/json', 'x-request-id': 'req_fixture' } });
 beforeEach(() => {
   vi.resetAllMocks(); mock.transport.mockImplementation(async () => completion()); mock.complete.mockResolvedValue();
+  manual.read.mockResolvedValue(null);
   mock.reserve.mockImplementation(async input => ({ ...input, month: '2026-09', runId: input.context.runId, stage: input.context.stage,
     model: input.quote.model, reservedDkkMicros: 100000, createdAt: '2026-09-12T10:00:00Z',
     policy: { monthlyLimitDkkMicros: 300000000, usdToDkkCeiling: 8, conversionBasis: 'Fixture only', priceVersion: input.quote.version, validUntil: '2026-10-01' } }));
 });
 const client = () => new LivBudgetOpenAI({ apiKey: 'fixture-only-not-a-real-key', fetch: mock.transport }, ledger);
+it.each(['active', 'unavailable'])('cannot escape the durable policy through unscoped/disabled accounting: %s', async state => {
+  vi.stubEnv('AI_SHARED_COST_ENABLED', 'false');
+  if (state === 'active') manual.read.mockResolvedValue({ mode: 'manual-writer-only-v1' });
+  else manual.read.mockRejectedValue(new Error('store unavailable'));
+  await expect(client().chat.completions.create(request, { maxRetries: 0 })).rejects.toThrow();
+  expect(mock.transport).not.toHaveBeenCalled();
+});
 it('records safe quota classification without leaking response text or clearing the reservation', async () => {
   mock.transport.mockResolvedValueOnce(new Response(JSON.stringify({ error: { code: 'insufficient_quota', message: 'secret provider body' } }),
     { status: 429, headers: { 'content-type': 'application/json' } }));

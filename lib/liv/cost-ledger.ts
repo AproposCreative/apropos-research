@@ -9,6 +9,7 @@ import { sharedCostEnabled, type LivCostContext } from './cost-context';
 import { livModels } from './model-config';
 import { LivCostPretransportError } from './cost-errors';
 import { providerHoldRef } from '@/lib/ai/provider-hold';
+import { manualWriterBudgetRef, validateManualWriterBudget, assertManualWriterReservation, manualWriterUid } from '@/lib/ai/manual-writer-budget';
 
 export const LIV_COST_COLLECTION = 'livCostLedger';
 export const LIV_COST_MAX_CALLS_PER_RUN = 40;
@@ -21,6 +22,7 @@ export type LivBudgetPolicy = {
   conversionBasis: string; priceVersion: string;
 };
 export type LivCostReservation = {
+  manualWriterBudgetId?: string; manualWriterUid?: string;
   purpose?: import('./cost-context').CostPurpose; storyId?: string; contentVersion?: string; submissionId?: string;
   scope?: 'liv' | 'writer' | 'seo' | 'accreditation' | 'image-gen';
   callId: string; month: string; runId: string; stage: string; requestHash: string;
@@ -84,6 +86,9 @@ export function createLivCostLedger(now: () => Date = () => new Date(), bucket: 
       const runRef = collection.doc(`run-${month}-${context.runId}`);
       const pilotRef = database.collection('aiCostCampaigns').doc('savings-2026-09');
       return database.runTransaction(async tx => {
+        const writerRef = manualWriterBudgetRef(database);
+        const writerData = (await tx.get(writerRef)).data();
+        const writer = writerData === undefined ? null : validateManualWriterBudget(writerData);
         const hold = (await tx.get(providerHoldRef(database))).data();
         if (hold?.blocked === true) throw new LivCostPretransportError('liv_cost_provider_quota_exhausted');
         const policyRow = (await tx.get(collection.doc('policy'))).data();
@@ -107,6 +112,7 @@ export function createLivCostLedger(now: () => Date = () => new Date(), bucket: 
           throw new LivCostPretransportError('liv_cost_call_limit_exceeded');
         }
         const amount = Math.ceil(quote.reservedUsdMicros * policy.usdToDkkCeiling);
+        if (writer) assertManualWriterReservation(writer, context, bucket, quote.model, amount);
         // Additional owner-accepted package ceiling, across BOTH ledgers. A
         // nested image/cleanup/internal HTTP call cannot escape this binding.
         const submissionRef = context.submissionId ? database.collection('editorialSubmissions').doc(context.submissionId) : null;
@@ -136,12 +142,15 @@ export function createLivCostLedger(now: () => Date = () => new Date(), bucket: 
           throw new LivCostPretransportError('liv_cost_monthly_budget_exceeded');
         }
         const reservation: LivCostReservation = { callId, month, runId: context.runId, stage: context.stage, requestHash,
+          ...(writer ? { manualWriterBudgetId: writer.id, manualWriterUid: manualWriterUid()! } : {}),
           purpose: context.purpose ?? 'production', storyId: context.storyId ?? context.runId,
           ...(context.contentVersion ? { contentVersion: context.contentVersion } : {}),
           ...(context.submissionId ? { submissionId: context.submissionId } : {}),
           ...(context.scope ? { scope: context.scope } : {}),
           model: quote.model, quote, reservedDkkMicros: amount, policy, createdAt: date.toISOString() };
         tx.create(callRef, { ...reservation, scope: context.scope ?? 'liv', status: 'reserved', usage: null, billedCostDkkMicros: null });
+        if (writer) tx.set(writerRef, { ...writer, reservedDkkMicros: writer.reservedDkkMicros + amount,
+          calls: writer.calls + 1, unknownCalls: writer.unknownCalls + 1, updatedAt: date.toISOString() });
         if (submissionRef) tx.update(submissionRef, { packageReservedDkkMicros: submission!.packageReservedDkkMicros + amount });
         if (pilot) tx.set(pilotRef, { ...pilot, reservedDkkMicros: pilot.reservedDkkMicros + amount });
         tx.set(runRef, { calls: run.calls + 1, updatedAt: date.toISOString() });
@@ -163,6 +172,12 @@ export function createLivCostLedger(now: () => Date = () => new Date(), bucket: 
         const hold = outcome.providerFailure === 'quota_exhausted' ? (await tx.get(holdRef)).data() : undefined;
         const pilotRef = database.collection('aiCostCampaigns').doc('savings-2026-09');
         const pilot = reservation.purpose === 'development-pilot' ? (await tx.get(pilotRef)).data() : null;
+        const writerRef = manualWriterBudgetRef(database);
+        const writer = call?.manualWriterBudgetId ? validateManualWriterBudget((await tx.get(writerRef)).data()) : null;
+        if (call?.manualWriterBudgetId !== reservation.manualWriterBudgetId || call?.manualWriterUid !== reservation.manualWriterUid ||
+          (writer && (writer.id !== call.manualWriterBudgetId || writer.reservedDkkMicros < reservation.reservedDkkMicros || writer.unknownCalls < 1) && !oldReceipt)) {
+          throw new Error('manual_writer_ledger_requires_reconciliation');
+        }
         if (!call || call.requestHash !== reservation.requestHash || call.reservedDkkMicros !== reservation.reservedDkkMicros || !totals ||
           ![totals.committedDkkMicros, totals.reservedDkkMicros, totals.unknownCalls].every(safeCount)) throw new Error('liv_cost_ledger_requires_reconciliation');
         if (oldReceipt) {
@@ -180,6 +195,10 @@ export function createLivCostLedger(now: () => Date = () => new Date(), bucket: 
           ? usageUsdUpperBound(reservation.quote, outcome.usage) : null;
         const estimate = usd === null ? null : Math.ceil(usd * reservation.policy.usdToDkkCeiling);
         const breached = estimate !== null && estimate > reservation.reservedDkkMicros;
+        if (writer) tx.set(writerRef, { ...writer,
+          ...(estimate !== null ? { committedDkkMicros: writer.committedDkkMicros + estimate,
+            reservedDkkMicros: writer.reservedDkkMicros - reservation.reservedDkkMicros, unknownCalls: writer.unknownCalls - 1 } : {}),
+          blocked: writer.blocked || breached || !modelMatches, updatedAt: now().toISOString() });
         // An ambiguous/missing usage result is NOT free. Its full reservation remains.
         tx.create(receiptRef, { outcome, usageBasedUpperDkkMicros: estimate, billedCostDkkMicros: null,
           reservationRetained: estimate === null, recordedAt: now().toISOString() });

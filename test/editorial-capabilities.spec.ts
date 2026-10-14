@@ -11,6 +11,10 @@ it.each(['/api/seo-engine/jobs', '/api/podcast/upload', '/api/newsletter/draft',
   expect(requiresEditorialOwner(path, 'GET')).toBe(true);
 });
 it('allows viewing the Liv queue, not modifying it', () => {
+  expect(requiresEditorialOwner('/api/ai-cost/writer', 'GET')).toBe(false);
+  expect(requiresEditorialOwner('/api/ai-cost/writer', 'POST')).toBe(true);
+  expect(requiresEditorialOwner('/api/ai-cost/provider', 'GET')).toBe(true);
+  expect(requiresEditorialOwner('/api/ai-cost/writer/other', 'GET')).toBe(true);
   expect(requiresEditorialOwner('/api/webflow/article-translation/status', 'GET')).toBe(false);
   expect(requiresEditorialOwner('/api/webflow/article-translation/status', 'PATCH')).toBe(true);
   expect(requiresEditorialOwner('/api/liv/delivery/feed', 'GET')).toBe(false);
