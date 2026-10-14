@@ -1,5 +1,69 @@
 # Native image workflow comparison — 14 October 2026
 
+## Refresh verified; portrait inputs complete — 17:26 Copenhagen
+
+The owner reported using **Opdater værktøjer** at about17:19 and provided a
+screenshot. The existing Work thread now reports both new tools and the
+`subjectReferenceIds`/`subjectReferencesRequired` brief fields. A new conversation
+was **not needed in this observed case**. The earlier missing-tool status below
+is superseded, not a remaining user action.
+
+Read-only Work turn `8bf2a860-b32f-4d92-80da-8e6a0415a7af` called the new
+preflight. Independent server audit confirms `preflight_submission_image` at
+**15:21:01.523Z**, successful onv30/`paidAiAllowed=false`. The article and full
+protected state still matched the prior baseline at15:22:34.084Z.
+
+Within the already authorized one-cover trial's input preparation, Work turn
+`952e8ada-155b-4994-9ee1-e6b44735fff4` then stored the actual original selfie
+through native MCP file parameters and requested one new portrait-specific
+canonical brief. No generation or article-asset import was authorized in this
+step. The owner still wants all four final article images to be illustrations;
+the selfie here is a private **subject reference**, not a photo added to the
+article. No body illustrations were started.
+
+- Stable reference request: `barsel-2026-10-14-selfie-reference-v1`.
+- Reference: `c13fe1fe30ddbc062db6a053e93927c25947e429818f0425a3160e6e09a6cb81`,
+  created15:24:19.583Z; original614,572bytes/SHA
+  `690d2f3b6f288210f4b69ed1381c6ef86132f10cc0c9b3b15f6737936733fe6f`.
+- Fresh cover brief:
+  `8806e9d685df2953fa7790f198d2ee0f2c13795ee16150400071b49e7e501587`,
+  created15:24:34.639Z, revision2/current cover section.
+- Canonical prompt SHA:
+  `866aa99a398b0c25a5ea42f42010a30bd3067fe1e95e2a233b491a8506da3e52`.
+- Actual ordered references: existing canonical expressive style JPEG first,
+  original selfie JPEG second. Work reports both separate image-content blocks.
+- Work preflight15:24:44.922Z: `inputsComplete=true`, with **only**
+  `mcp_submission_native_input_unverifiable` remaining;
+  `canGenerate=false` and `canImportGeneratedImage=false`.
+
+Independent service readback at15:25:55.807Z confirms one stored subject
+reference, five briefs (four historical plus the new one) and seven successful
+v30 MCP operations in the15:23+ bounded audit, all `paidAiAllowed=false`.
+A separate **local read-only call of the same preflight implementation against
+production storage** completed15:26:48.528Z. It downloaded and decoded both
+retained originals, verified415,373bytes/1080×1350 for the style and
+614,572bytes/1536×1152 for the selfie, and independently reproduced the same
+single remaining blocker. This is not a native generator call or an independent
+capture of what the Work generator would receive. Local storage reads emitted
+PassThrough listener warnings but completed; no cause or leak is asserted.
+
+The article row hash remains
+`148d89bd63ddbe80c3ea8d814e76fc9f6ae217a5c26b82cacad09f6958e32d9f`, revision2 and
+content hash unchanged. Financial hash remains
+`e3b2d498e807ab1cba45f4ca156ce81e5eb15d5b71ea496457fc31da07b69101`.
+Only the new private reference/brief records were added; old briefs/originals,
+article text/metadata, approvals, CMS and financial controls were preserved.
+No source-code change, deployment or unit/full-suite rerun. No image generation,
+image import, public upload, personal approval or publication.
+
+**Next resume:** reuse the saved reference and new portrait brief above after a
+fresh status read. Do not request another connection refresh, register the selfie
+again, reuse the old child-cover brief, or generate a fresh brief merely to get
+past the native stop. The one approved generation attempt remains unused. The
+accepted limited exception has not been turned into a global production bypass;
+the direct Work generator handoff still needs a supported implementation or an
+explicitly revised test contract. Input completeness is not a repaired generator.
+
 ## Owner-authorized single-cover trial: blocked before generation, 17:02 Copenhagen
 
 The owner subsequently accepted the recommendation to test **one selfie cover
