@@ -1,8 +1,9 @@
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import sharp from 'sharp';
 import { memoryFirestore } from './helpers/mcp-firestore';
-const state = vi.hoisted(() => ({ db: null as any, files: new Map<string, Buffer>(), download: vi.fn(), upload: vi.fn(), loseSaveReply: false }));
-vi.mock('@/lib/firebase-admin', () => ({ getAdminDb: () => state.db, getAdminStorageBucket: () => ({ file: (path: string) => ({
+const state = vi.hoisted(() => ({ db: null as any, files: new Map<string, Buffer>(), download: vi.fn(), upload: vi.fn(), loseSaveReply: false,
+  account: { email: 'frederik@aproposmagazine.com', emailVerified: true, disabled: false } }));
+vi.mock('@/lib/firebase-admin', () => ({ getAdminDb: () => state.db, getAdminAuth: () => ({ getUser: async () => state.account }), getAdminStorageBucket: () => ({ file: (path: string) => ({
   save: async (bytes: Buffer) => { state.files.set(path, bytes); if (state.loseSaveReply) throw Error('timeout'); },
   download: async () => { if (!state.files.has(path)) throw Error('missing'); return [state.files.get(path)]; },
 }) }) }));
@@ -23,10 +24,12 @@ import { validateReference } from '@/lib/editorial/image-reference';
 import { chatSubmissionPreview, confirmChatSubmission } from '@/lib/editorial/chat-preview';
 import { digest } from '@/lib/mcp/oauth';
 import { cmsFieldHash } from '@/lib/liv/cms-field-hash';
+import { authorizeImageAttemptResume, claimImageAttemptResume } from '@/lib/editorial/image-attempt-resume';
 const id = 'a'.repeat(64), briefId = 'b'.repeat(64), subjectId = 'c'.repeat(64), path = `editorialSubmissions/${id}`;
 let memory: ReturnType<typeof memoryFirestore>, input: any, brief: any, generated: any, bytes: Buffer;
 beforeEach(async () => {
   vi.clearAllMocks(); vi.stubEnv('FIREBASE_STORAGE_BUCKET', 'test-only'); state.files.clear(); state.loseSaveReply = false;
+  state.account = { email: 'frederik@aproposmagazine.com', emailVerified: true, disabled: false };
   memory = memoryFirestore(); state.db = memory.db;
   const article = { title: 'Brugerens uændrede artikel', subtitle: 'Undertitel', intro: 'Intro',
     content: '<p>Det første afsnit med brugerens egne ord.</p><h2>Næste afsnit</h2><p>Også uændret.</p>',
@@ -307,4 +310,81 @@ it('records context delivery honestly without upgrading it into hidden-argument 
   generated.generationReport.inputMode = 'conversation_context';
   const staged = await importChatImage('owner', generated);
   expect(staged.generationEvidence).toMatchObject({ inputMode: 'conversation_context', exactPromptExecutionVerified: false });
+});
+
+function resumeInput() {
+  const { subjectReferenceIds: _refs, subjectReferencesRequired: _required, ...placement } = input;
+  return { ...placement, requestId: 'explicit-owner-resume-0001', inputMode: 'explicit_arguments',
+    decision: 'Owner approved exactly one new cover trial in the current chat.',
+    resolution: 'Native tool exposes exact prompt and two actual local reference file arguments.' };
+}
+async function rejectedAttempt() {
+  await expect(importChatImage('owner', { ...generated, generationReport: { ...generated.generationReport,
+    outputCheck: { ...generated.generationReport.outputCheck, styleMatch: 'mismatch' } } })).rejects.toThrow('generated_image_type_invalid');
+  // A genuinely different new output, never relabel the rejected bytes.
+  bytes = await sharp({ create: { width: 1200, height: 800, channels: 3, background: 'yellow' } }).png().toBuffer();
+  state.download.mockResolvedValue(bytes);
+  generated.generationReport.outputCheck.sha256 = (await validateReference(bytes)).sha256;
+}
+it('explicit operator-recorded decision allows one dispatch, private staging and idempotent recovery, never personal selection', async () => {
+  await rejectedAttempt();
+  const failureBefore = cmsFieldHash(await readImageFailures('owner', id)), articleBefore = cmsFieldHash(memory.rows.get(path));
+  const grant = await authorizeImageAttemptResume('owner', resumeInput());
+  expect(grant).toMatchObject({ canDispatch: true, publicationApproval: false });
+  expect(await authorizeImageAttemptResume('owner', resumeInput())).toEqual(grant);
+  expect((await preflightSubmissionImage('owner', input)).canGenerate).toBe(true);
+  await expect(importChatImage('owner', { ...generated, requestId: resumeInput().requestId })).rejects.toThrow('image_attempt_stopped');
+  const claim = await claimImageAttemptResume('owner', resumeInput());
+  expect(claim.dispatchAllowed).toBe(true);
+  expect((await claimImageAttemptResume('owner', resumeInput())).dispatchAllowed).toBe(false);
+  expect((await preflightSubmissionImage('owner', input)).canGenerate).toBe(false);
+  await expect(importChatImage('owner', { ...generated, requestId: 'unapproved-second-attempt' })).rejects.toThrow('image_attempt_stopped');
+  const result = await importChatImage('owner', { ...generated, requestId: resumeInput().requestId });
+  expect(result).toMatchObject({ importStatus: 'awaiting_personal_selection', publicationApproval: false, originalPreserved: true });
+  expect(await importChatImage('owner', { ...generated, requestId: resumeInput().requestId })).toMatchObject({ assetId: result.assetId });
+  expect(state.download).toHaveBeenCalledTimes(2); expect(state.upload).not.toHaveBeenCalled();
+  expect(cmsFieldHash(await readImageFailures('owner', id))).toBe(failureBefore);
+  expect(cmsFieldHash(memory.rows.get(path))).toBe(articleBefore);
+});
+it('parallel claims consume the single dispatch once', async () => {
+  await rejectedAttempt(); await authorizeImageAttemptResume('owner', resumeInput());
+  const claims = await Promise.all([claimImageAttemptResume('owner', resumeInput()), claimImageAttemptResume('owner', resumeInput())]);
+  expect(claims.filter(c => c.dispatchAllowed)).toHaveLength(1);
+});
+it.each(['disabled', 'unverified', 'other-owner'])('rejects unauthorized service actor %s', async mode => {
+  await rejectedAttempt();
+  if (mode === 'disabled') state.account.disabled = true;
+  if (mode === 'unverified') state.account.emailVerified = false;
+  if (mode === 'other-owner') state.account.email = 'another@example.com';
+  await expect(authorizeImageAttemptResume('owner', resumeInput())).rejects.toThrow('owner_required');
+});
+it('requires preserved failure evidence, real references and a fresh version', async () => {
+  await expect(authorizeImageAttemptResume('owner', resumeInput())).rejects.toThrow('retry_evidence_missing');
+  await rejectedAttempt();
+  await expect(authorizeImageAttemptResume('owner', { ...resumeInput(), expectedRevision: 1 })).rejects.toThrow('revision_conflict');
+  state.files.delete('private/style');
+  await expect(authorizeImageAttemptResume('owner', resumeInput())).rejects.toThrow('style_reference_required');
+});
+it('cannot refresh an exhausted grant by changing the request ID or overwrite the failed request', async () => {
+  await rejectedAttempt(); await authorizeImageAttemptResume('owner', resumeInput());
+  await expect(authorizeImageAttemptResume('owner', { ...resumeInput(), requestId: generated.requestId })).rejects.toThrow('idempotency_conflict');
+  await expect(authorizeImageAttemptResume('owner', { ...resumeInput(), requestId: 'silent-new-attempt-0002' })).rejects.toThrow('idempotency_conflict');
+});
+it.each(['revision', 'text', 'brief', 'expiry'])('invalidates a stale resume binding: %s', async mode => {
+  await rejectedAttempt(); await authorizeImageAttemptResume('owner', resumeInput());
+  if (mode === 'revision') memory.rows.get(path).revision++;
+  if (mode === 'text') memory.rows.get(path).article.title = 'changed without revision';
+  if (mode === 'brief') { brief.prompt += ' changed'; brief.canonicalPromptHash = promptHash(brief.prompt); }
+  if (mode === 'expiry') for (const [key, value] of memory.rows) if (key.includes('/imageAttemptResumes/')) value.expiresAt = '2000-01-01T00:00:00.000Z';
+  expect((await preflightSubmissionImage('owner', input)).canGenerate).toBe(false);
+  await expect(claimImageAttemptResume('owner', resumeInput())).rejects.toThrow('image_attempt_stopped');
+});
+it('a new rejected output closes the old grant, retaining BOTH originals and refusing hidden retry', async () => {
+  await rejectedAttempt(); await authorizeImageAttemptResume('owner', resumeInput()); await claimImageAttemptResume('owner', resumeInput());
+  await expect(importChatImage('owner', { ...generated, requestId: resumeInput().requestId,
+    generationReport: { ...generated.generationReport, outputCheck: { ...generated.generationReport.outputCheck, textVisible: true } } })).rejects.toThrow('generated_image_type_invalid');
+  expect(await readImageFailures('owner', id)).toHaveLength(2);
+  expect((await preflightSubmissionImage('owner', input)).canGenerate).toBe(false);
+  await expect(importChatImage('owner', { ...generated, requestId: 'third-auto-attempt' })).rejects.toThrow('image_attempt_stopped');
+  expect(state.upload).not.toHaveBeenCalled();
 });

@@ -7,6 +7,7 @@ import { readRetainedReference, validateReference } from './image-reference';
 import { NATIVE_IMAGE_INTEGRATION } from './native-image-integration';
 import { imageProtectedContentHash } from './image-content-invariant';
 import { readImageFailures } from './image-failure';
+import { readImageAttemptResume } from './image-attempt-resume';
 
 export const imagePreflightInput = z.object({ submissionId, expectedRevision: z.number().int().positive(),
   role: z.enum(['cover', 'body']), sectionId: submissionId, briefId: submissionId.optional(),
@@ -15,7 +16,7 @@ export const imagePreflightInput = z.object({ submissionId, expectedRevision: z.
 
 /** Read-only: no new brief, reference upload, attempt, generation, consent or CMS
  * write. A readiness snapshot is not an execution permit. */
-export async function preflightSubmissionImage(uid: string, raw: unknown) {
+export async function preflightSubmissionImage(uid: string, raw: unknown, importRequestId?: string) {
   const input = imagePreflightInput.parse(raw), row = await readSubmission(uid, input.submissionId);
   const ref = submissionStore().collection.doc(row.id), blockers: string[] = [];
   const add = (code: string) => { if (!blockers.includes(code)) blockers.push(code); };
@@ -56,7 +57,12 @@ export async function preflightSubmissionImage(uid: string, raw: unknown) {
         subject.reference?.sha256 !== refs.filter((r: any) => r.purpose === 'subject')[index]?.sha256) add('mcp_submission_subject_reference_required');
   }
   const failures = await readImageFailures(uid, row.id);
-  if (failures.some(f => f.role === input.role && f.sectionId === input.sectionId)) add('mcp_submission_image_attempt_stopped');
+  const resume = await readImageAttemptResume(uid, row, input, brief, failures);
+  if (failures.some(f => f.role === input.role && f.sectionId === input.sectionId)) {
+    if (!resume || (importRequestId && (resume.requestId !== importRequestId || resume.status !== 'dispatch_claimed')))
+      add('mcp_submission_image_attempt_stopped');
+    else if (!importRequestId && !resume.canDispatch) add('mcp_submission_image_dispatch_already_claimed');
+  }
   const candidates = await ref.collection('chatAssets').limit(101).get();
   if (candidates.size > 100) add('mcp_submission_media_window_exceeded');
   if (candidates.docs.some(doc => doc.data().importInput && doc.data().status !== 'attached')) add('mcp_submission_image_selection_required');
@@ -70,7 +76,7 @@ export async function preflightSubmissionImage(uid: string, raw: unknown) {
     protectedContentHash: imageProtectedContentHash(row.article), role: input.role, sectionId: input.sectionId, briefId: input.briefId ?? null,
     checkedAt: new Date().toISOString(), inputsComplete, canGenerate: inputsComplete, canImportGeneratedImage: false,
     canStageForPersonalSelection: inputsComplete, hostDeliveryRequired: true,
-    blockers, references: actualReferences, integration: NATIVE_IMAGE_INTEGRATION, failures,
+    blockers, references: actualReferences, integration: NATIVE_IMAGE_INTEGRATION, failures, authorizedResume: resume,
     visualChecks: { status: 'not_performed', independentSemanticVerification: false, personalReviewRequired: true },
     automaticRetryAllowed: false, regenerateImage: false, paidAiCalls: 0, publicationApproval: false,
     instruction: inputsComplete

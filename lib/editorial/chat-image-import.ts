@@ -18,6 +18,7 @@ import { assertNoApprovedImageReplacement } from './approved-image-guard';
 import { ImagePipelineFailure, readImageFailures, retainRejectedImage } from './image-failure';
 import { imageProtectedContentHash } from './image-content-invariant';
 import { preflightSubmissionImage } from './image-preflight';
+import { readImageAttemptResume } from './image-attempt-resume';
 
 export const chatImageImportInput = z.object({ submissionId, expectedRevision: z.number().int().positive(),
   requestId: submissionInput.shape.requestId,
@@ -99,7 +100,10 @@ export async function importSuppliedImage(uid: string, input: Omit<z.infer<typeo
   if (generatedInChat) {
     const failures = await readImageFailures(uid, row.id);
     const failureId = cmsFieldHash({ uid, submissionId: row.id, requestId: input.requestId });
-    const stopped = failures.find(f => f.failureId === failureId || (f.role === input.role && f.sectionId === (input.sectionId ?? null)));
+    const resumeBrief = input.briefId ? (await collection.doc(row.id).collection('chatBriefs').doc(input.briefId).get()).data() : null;
+    const resume = await readImageAttemptResume(uid, row, input, resumeBrief, failures);
+    const allowedResume = resume?.status === 'dispatch_claimed' && resume.requestId === input.requestId;
+    const stopped = failures.find(f => f.failureId === failureId || (!allowedResume && f.role === input.role && f.sectionId === (input.sectionId ?? null)));
     if (stopped) {
       const receipt = stopped.failureId === failureId ? await retainRejectedImage(uid, input, source, stopped.code) : stopped;
       throw new ImagePipelineFailure('mcp_submission_image_attempt_stopped', receipt);
@@ -119,7 +123,7 @@ export async function importSuppliedImage(uid: string, input: Omit<z.infer<typeo
     if (!previous) {
       const preflight = await preflightSubmissionImage(uid, { submissionId: row.id, expectedRevision: input.expectedRevision,
         role: input.role, sectionId: input.sectionId, briefId: input.briefId,
-        subjectReferencesRequired: brief?.subjectReferencesRequired === true, subjectReferenceIds: brief?.subjectReferenceIds || [] });
+        subjectReferencesRequired: brief?.subjectReferencesRequired === true, subjectReferenceIds: brief?.subjectReferenceIds || [] }, input.requestId);
       if (!preflight.canGenerate) throw Error(preflight.blockers[0]);
     }
     if (brief?.protectedContentHash !== imageProtectedContentHash(row.article)) throw Error('mcp_submission_image_content_changed');
