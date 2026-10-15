@@ -84,6 +84,50 @@ it('authenticates before initialization or exposing tool schemas', async () => {
   mock.identity = null; const response = await POST(message('tools/list'));
   expect(response.status).toBe(401); expect(response.headers.get('WWW-Authenticate')).toContain('/.well-known/oauth-protected-resource'); expect(mock.audit).not.toHaveBeenCalled();
 });
+it('diagnoses unsupported transport versions without accepting them or leaking request data', async () => {
+  const warning = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+  try {
+    const request = message('tools/list');
+    request.headers.set('mcp-protocol-version', '2099-01-01');
+    request.headers.set('authorization', 'Bearer PRIVATE-TOKEN');
+    const response = await POST(request);
+    expect(response.status).toBe(400);
+    expect((await response.json()).error.message).toContain('Unsupported protocol version');
+    expect(warning).toHaveBeenCalledExactlyOnceWith('mcp_transport_rejected', {
+      version: MCP_VERSION, status: 400, category: 'unsupported_protocol_version', protocolVersion: '2099-01-01',
+    });
+    expect(JSON.stringify(warning.mock.calls)).not.toContain('PRIVATE-TOKEN');
+    expect(mock.audit).not.toHaveBeenCalled();
+  } finally { warning.mockRestore(); }
+});
+it('redacts malformed protocol headers and preserves successful discovery after a rejected probe', async () => {
+  const warning = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+  try {
+    const request = message('tools/list');
+    request.headers.set('mcp-protocol-version', 'PRIVATE-INPUT');
+    expect((await POST(request)).status).toBe(400);
+    expect(warning).toHaveBeenCalledWith('mcp_transport_rejected', expect.objectContaining({ protocolVersion: 'invalid' }));
+    expect(JSON.stringify(warning.mock.calls)).not.toContain('PRIVATE-INPUT');
+    const listed = await POST(message('tools/list'));
+    expect(listed.status).toBe(200);
+    expect((await listed.json()).result.tools.some((t: any) => t.name === 'claim_submission_image_attempt')).toBe(true);
+    expect(warning).toHaveBeenCalledTimes(1);
+  } finally { warning.mockRestore(); }
+});
+it('logs invalid JSON-RPC without the submitted article content', async () => {
+  const warning = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+  try {
+    const request = new Request(`${MCP_ORIGIN}/mcp`, { method: 'POST',
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json, text/event-stream' },
+      body: JSON.stringify({ article: 'PRIVATE-ARTICLE', authorization: 'PRIVATE-CREDENTIAL' }) });
+    expect((await POST(request)).status).toBe(400);
+    expect(warning).toHaveBeenCalledExactlyOnceWith('mcp_transport_rejected', {
+      version: MCP_VERSION, status: 400, category: 'invalid_json_rpc', protocolVersion: 'absent',
+    });
+    expect(JSON.stringify(warning.mock.calls)).not.toMatch(/PRIVATE/);
+    expect(mock.audit).not.toHaveBeenCalled();
+  } finally { warning.mockRestore(); }
+});
 it('negotiates the real SDK protocol and lists strict schemas on independent stateless requests', async () => {
   const initialized = await POST(message('initialize', { protocolVersion: '2025-03-26', capabilities: {}, clientInfo: { name: 'fixture', version: '1' } }));
   expect(initialized.status).toBe(200);

@@ -2,6 +2,7 @@ import { WebStandardStreamableHTTPServerTransport } from '@modelcontextprotocol/
 import { authenticateMcp, oauthRateLimit, OAuthError } from '@/lib/mcp/oauth';
 import { createEditorialMcp } from '@/lib/mcp/server';
 import { MCP_ORIGIN, PRIVATE_HEADERS } from '@/lib/mcp/config';
+import { logTransportRejection, transportErrorCategory } from '@/lib/mcp/transport-diagnostics';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 export const maxDuration = 300;
@@ -14,10 +15,13 @@ export async function POST(request: Request) {
       'WWW-Authenticate': `Bearer resource_metadata="${MCP_ORIGIN}/.well-known/oauth-protected-resource"` } });
     await oauthRateLimit(`tools-${identity.uid}`, 240);
     const server = createEditorialMcp(identity);
+    let rejectionCategory = 'transport_rejected';
+    server.server.onerror = error => { rejectionCategory = transportErrorCategory(error); };
     const transport = new WebStandardStreamableHTTPServerTransport({ sessionIdGenerator: undefined, enableJsonResponse: true, maxRequestBodySize: 510000 });
     await server.connect(transport);
     try {
       const response = await transport.handleRequest(request);
+      if (response.status >= 400) logTransportRejection(request, response.status, rejectionCategory);
       Object.entries(PRIVATE_HEADERS).forEach(([k, v]) => response.headers.set(k, v));
       return response;
     } finally { await server.close(); }
