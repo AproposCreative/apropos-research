@@ -125,6 +125,7 @@ export async function importSuppliedImage(uid: string, input: Omit<z.infer<typeo
     if (!previous) {
       const preflight = await preflightSubmissionImage(uid, { submissionId: row.id, expectedRevision: input.expectedRevision,
         role: input.role, sectionId: input.sectionId, briefId: input.briefId,
+        inputMode: input.generationReport?.inputMode,
         subjectReferencesRequired: brief?.subjectReferencesRequired === true, subjectReferenceIds: brief?.subjectReferenceIds || [] }, input.requestId);
       if (!preflight.canGenerate) throw Error(preflight.blockers[0]);
     }

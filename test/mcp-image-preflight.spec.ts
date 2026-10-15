@@ -24,7 +24,7 @@ import { validateReference } from '@/lib/editorial/image-reference';
 import { chatSubmissionPreview, confirmChatSubmission } from '@/lib/editorial/chat-preview';
 import { digest } from '@/lib/mcp/oauth';
 import { cmsFieldHash } from '@/lib/liv/cms-field-hash';
-import { authorizeImageAttemptResume, renewExpiredImageAttemptResume, claimImageAttemptResume, claimSubmissionImageAttempt, imageAttemptClaimInput } from '@/lib/editorial/image-attempt-resume';
+import { authorizeImageAttemptResume, renewExpiredImageAttemptResume, adaptUnusedImageAttemptInputMode, claimImageAttemptResume, claimSubmissionImageAttempt, imageAttemptClaimInput } from '@/lib/editorial/image-attempt-resume';
 const id = 'a'.repeat(64), briefId = 'b'.repeat(64), subjectId = 'c'.repeat(64), path = `editorialSubmissions/${id}`;
 let memory: ReturnType<typeof memoryFirestore>, input: any, brief: any, generated: any, bytes: Buffer;
 beforeEach(async () => {
@@ -604,14 +604,15 @@ it.each(['not-expired', 'claimed', 'claimed-timestamp', 'missing', 'same-request
 });
 it('concurrent different renewals create only one successor; old grant claims and replay cannot select newer authority', async () => {
   const renewal = await expiredRenewal();
-  const results = await Promise.allSettled([renewExpiredImageAttemptResume('owner', renewal),
-    renewExpiredImageAttemptResume('owner', { ...renewal, requestId: 'competing-owner-renewal-0002' })]);
-  expect(results.map(r => r.status)).toEqual(['fulfilled', 'rejected']);
+  const intents = [renewal, { ...renewal, requestId: 'competing-owner-renewal-0002' }];
+  const results = await Promise.allSettled(intents.map(intent => renewExpiredImageAttemptResume('owner', intent)));
+  expect(results.filter(r => r.status === 'fulfilled')).toHaveLength(1);
+  const acceptedIntent = intents[results.findIndex(r => r.status === 'fulfilled')];
   expect([...memory.rows.keys()].filter(k => k.includes('/imageAttemptResumes/'))).toHaveLength(2);
   const { decision: _decision, resolution: _resolution, ...old } = resumeInput();
   await expect(claimSubmissionImageAttempt('owner', { ...old, grantId: renewal.previousGrantId })).rejects.toThrow('image_attempt_stopped');
   await expect(authorizeImageAttemptResume('owner', resumeInput())).rejects.toThrow('idempotency_conflict');
-  await expect(renewExpiredImageAttemptResume('owner', { ...renewal, decision: 'Changed decision with same request identity.' })).rejects.toThrow('idempotency_conflict');
+  await expect(renewExpiredImageAttemptResume('owner', { ...acceptedIntent, decision: 'Changed decision with same request identity.' })).rejects.toThrow('idempotency_conflict');
 });
 it('a second explicit expiry renewal keeps both prior decisions and cannot be extended by replaying the first renewal', async () => {
   const first = await expiredRenewal(), next = await renewExpiredImageAttemptResume('owner', first);
@@ -627,4 +628,104 @@ it('claim schema cannot manufacture renewal authority or expiry', () => {
   const { decision: _decision, resolution: _resolution, ...placement } = resumeInput();
   for (const extra of [{ previousGrantId: 'f'.repeat(64) }, { expiresAt: '2099-01-01' }])
     expect(() => imageAttemptClaimInput.parse({ ...placement, grantId: 'f'.repeat(64), ...extra })).toThrow();
+});
+
+async function contextAdaptation() {
+  const claim = await registeredClaim();
+  return { ...resumeInput(), previousGrantId: claim.grantId, inputMode: 'conversation_context',
+    decision: 'Owner requests context delivery for the same unused cover attempt, no new generation or expiry.',
+    resolution: 'Work reports context-only native inputs; exact canonical prompt and actual references remain mandatory and hidden execution unverified.' };
+}
+it('diagnoses the reported host/grant mismatch without changing or consuming the grant', async () => {
+  const claim = await registeredClaim(), before = cmsFieldHash([...memory.rows]);
+  const check = await preflightSubmissionImage('owner', { ...input, inputMode: 'conversation_context' });
+  expect(check.canGenerate).toBe(false);
+  expect(check.blockers).toEqual(['mcp_submission_generation_input_mode_mismatch']);
+  expect(check.inputDelivery).toMatchObject({ requestedMode: 'conversation_context', requiredMode: 'explicit_arguments', hostCapabilityVerified: false });
+  await expect(claimImageAttemptResume('owner', { ...resumeInput(), inputMode: 'conversation_context' }, claim.grantId)).rejects.toThrow('image_attempt_stopped');
+  expect(cmsFieldHash([...memory.rows])).toBe(before);
+});
+it('adapts only delivery mode, retaining request/expiry and immutable history, then one context claim and private import', async () => {
+  const adaptation = await contextAdaptation(), old = structuredClone([...memory.rows]);
+  const previous = memory.rows.get(`${path}/imageAttemptResumes/${adaptation.previousGrantId}`);
+  const grant = await adaptUnusedImageAttemptInputMode('owner', adaptation);
+  expect(grant).toMatchObject({ inputMode: 'conversation_context', requestId: previous.requestId, expiresAt: previous.expiresAt });
+  expect(grant!.grantId).not.toBe(adaptation.previousGrantId);
+  for (const [key, value] of old) expect(memory.rows.get(key)).toEqual(value);
+  const after = cmsFieldHash([...memory.rows]);
+  expect(await adaptUnusedImageAttemptInputMode('owner', adaptation)).toEqual(grant);
+  expect(cmsFieldHash([...memory.rows])).toBe(after);
+  const preflight = await preflightSubmissionImage('owner', { ...input, inputMode: 'conversation_context' });
+  expect(preflight).toMatchObject({ canGenerate: true, blockers: [], dispatch: { inputMode: 'conversation_context' },
+    integration: { exactPromptExecutionVerified: false }, inputDelivery: { nativeInputVerified: false } });
+  const { previousGrantId: _previous, decision: _decision, resolution: _resolution, ...placement } = adaptation;
+  const claimInput = { ...placement, grantId: grant!.grantId };
+  const claims = await Promise.all([claimSubmissionImageAttempt('owner', claimInput), claimSubmissionImageAttempt('owner', claimInput)]);
+  expect(claims.filter(r => r.dispatchAllowed)).toHaveLength(1);
+  expect(claims.find(r => r.dispatchAllowed)!.instruction).toContain('conversation_context');
+  const report = { ...generated.generationReport, inputMode: 'conversation_context' };
+  const imported = await importChatImage('owner', { ...generated, requestId: grant!.requestId, generationReport: report });
+  expect(imported).toMatchObject({ importStatus: 'awaiting_personal_selection', publicationApproval: false,
+    generationEvidence: { inputMode: 'conversation_context', exactPromptExecutionVerified: false } });
+  expect((await importChatImage('owner', { ...generated, requestId: grant!.requestId, generationReport: report })).assetId).toBe(imported.assetId);
+  for (const [key, value] of old) expect(memory.rows.get(key)).toEqual(value);
+  expect(state.upload).not.toHaveBeenCalled();
+});
+it.each(['expired', 'claimed', 'claimed-timestamp', 'missing', 'changed-request', 'same-mode', 'binding', 'source', 'invalid-expiry',
+  'owner', 'revision', 'brief', 'section', 'text', 'missing-style', 'missing-subject', 'hash-only', 'pending-selection', 'not-draft'])('context adaptation refuses %s without writes', async mode => {
+  const adaptation = await contextAdaptation(), previous = memory.rows.get(`${path}/imageAttemptResumes/${adaptation.previousGrantId}`);
+  if (mode === 'expired') previous.expiresAt = '2000-01-01T00:00:00Z';
+  if (mode === 'claimed') previous.status = 'dispatch_claimed';
+  if (mode === 'claimed-timestamp') previous.dispatchClaimedAt = '2026-10-15T00:00:00Z';
+  if (mode === 'missing') adaptation.previousGrantId = 'f'.repeat(64);
+  if (mode === 'changed-request') adaptation.requestId = 'not-the-same-attempt';
+  if (mode === 'same-mode') adaptation.inputMode = 'explicit_arguments';
+  if (mode === 'binding') previous.bindingHash = 'f'.repeat(64);
+  if (mode === 'source') previous.authorizationSource = 'client-report';
+  if (mode === 'invalid-expiry') previous.expiresAt = 'invalid';
+  if (mode === 'owner') state.account.email = 'other@example.com';
+  if (mode === 'revision') adaptation.expectedRevision = 1;
+  if (mode === 'brief') adaptation.briefId = 'f'.repeat(64);
+  if (mode === 'section') adaptation.sectionId = 'f'.repeat(64);
+  if (mode === 'text') memory.rows.get(path).article.title = 'Concurrent mutation';
+  if (mode === 'missing-style') state.files.delete('private/style');
+  if (mode === 'missing-subject') state.files.delete('private/subject');
+  if (mode === 'hash-only') brief.retainedReferences[0] = { sha256: brief.referenceHash, purpose: 'style' };
+  if (mode === 'pending-selection') memory.rows.set(`${path}/chatAssets/pending`, { status: 'awaiting_personal_selection', importInput: generated });
+  if (mode === 'not-draft') memory.rows.get(path).status = 'prepared';
+  const before = cmsFieldHash([...memory.rows]);
+  await expect(adaptUnusedImageAttemptInputMode('owner', adaptation)).rejects.toThrow();
+  expect(cmsFieldHash([...memory.rows])).toBe(before);
+});
+it('cannot claim the predecessor, race different adaptations or change mode through ordinary renewal', async () => {
+  const adaptation = await contextAdaptation();
+  const results = await Promise.allSettled([adaptUnusedImageAttemptInputMode('owner', adaptation),
+    adaptUnusedImageAttemptInputMode('owner', { ...adaptation, decision: 'A different concurrent recorded decision.' })]);
+  expect(results.filter(r => r.status === 'fulfilled')).toHaveLength(1);
+  const { decision: _d, resolution: _r, ...old } = resumeInput();
+  await expect(claimSubmissionImageAttempt('owner', { ...old, grantId: adaptation.previousGrantId })).rejects.toThrow('image_attempt_stopped');
+  const successful = results.find(r => r.status === 'fulfilled')!;
+  const current = successful.status === 'fulfilled' ? successful.value! : null;
+  memory.rows.get(`${path}/imageAttemptResumes/${current!.grantId}`).expiresAt = '2000-01-01T00:00:00Z';
+  const before = cmsFieldHash([...memory.rows]);
+  await expect(renewExpiredImageAttemptResume('owner', { ...resumeInput(), previousGrantId: current!.grantId, requestId: 'renew-wrong-mode' })).rejects.toThrow('generation_input_mode_mismatch');
+  expect(cmsFieldHash([...memory.rows])).toBe(before);
+});
+it.each(['not_reported', 'explicit_arguments'])('context import rejects %s mode evidence and preserves the rejected original', async mode => {
+  const adaptation = await contextAdaptation(), grant = await adaptUnusedImageAttemptInputMode('owner', adaptation);
+  const { previousGrantId: _p, ...claim } = adaptation;
+  await claimImageAttemptResume('owner', claim, grant!.grantId);
+  const report = { ...generated.generationReport, ...(mode === 'not_reported' ? {} : { inputMode: mode }) };
+  await expect(importChatImage('owner', { ...generated, requestId: grant!.requestId, generationReport: report }))
+    .rejects.toThrow(mode === 'not_reported' ? 'generation_input_mode_required' : 'generation_input_mode_mismatch');
+  expect((await readImageFailures('owner', id)).find(f => f.requestId === grant!.requestId || f.originalHash === report.outputCheck.sha256))
+    .toMatchObject({ originalPreserved: true });
+  expect(state.upload).not.toHaveBeenCalled();
+});
+it('unknown saved delivery modes fail closed and model input cannot manufacture a mode adaptation', async () => {
+  const claim = await registeredClaim();
+  memory.rows.get(`${path}/imageAttemptResumes/${claim.grantId}`).inputMode = 'magic';
+  expect((await preflightSubmissionImage('owner', input)).canGenerate).toBe(false);
+  expect(() => imageAttemptClaimInput.parse({ ...claim, inputMode: 'magic' })).toThrow();
+  expect(() => imageAttemptClaimInput.parse({ ...claim, transition: 'input_mode_adaptation' })).toThrow();
 });

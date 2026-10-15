@@ -157,6 +157,9 @@ it('exposes only consumption of an existing image grant with owner/draft scope, 
   expect(claim._meta.securitySchemes).toEqual([{ type: 'oauth2', scopes: ['apropos:draft'] }]);
   expect(claim.inputSchema.additionalProperties).toBe(false);
   expect(claim.inputSchema.properties.decision).toBeUndefined();
+  expect(claim.inputSchema.properties.inputMode.enum).toEqual(['explicit_arguments', 'conversation_context']);
+  expect(listed.find((t: any) => t.name === 'preflight_submission_image').inputSchema.properties.inputMode.enum)
+    .toEqual(['explicit_arguments', 'conversation_context']);
   expect(listed.some((t: any) => /authorize.*image|approve.*image/.test(t.name))).toBe(false);
   const args = { submissionId: 'a'.repeat(64), expectedRevision: 2, role: 'cover', sectionId: 'b'.repeat(64),
     briefId: 'c'.repeat(64), grantId: 'd'.repeat(64), requestId: 'existing-owner-decision', inputMode: 'explicit_arguments' };
@@ -171,6 +174,8 @@ it('exposes only consumption of an existing image grant with owner/draft scope, 
   const result = (await (await call('claim_submission_image_attempt', args)).json()).result;
   expect(JSON.parse(result.content[0].text).dispatchAllowed).toBe(false);
   expect(imageClaim).toHaveBeenCalledExactlyOnceWith('frederik', args);
+  expect((await (await call('claim_submission_image_attempt', { ...args, inputMode: 'conversation_context' })).json()).result.isError).not.toBe(true);
+  expect(imageClaim).toHaveBeenLastCalledWith('frederik', { ...args, inputMode: 'conversation_context' });
   imageClaim.mockImplementation(() => assertPaidAiAllowed());
   expect((await (await call('claim_submission_image_attempt', args)).json()).result.content[0].text).toContain('mcp_paid_call_requires_separate_approval');
 });

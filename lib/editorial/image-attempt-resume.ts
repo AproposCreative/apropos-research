@@ -7,6 +7,7 @@ import { submissionId, submissionInput, type SubmissionRecord } from './submissi
 import { imageProtectedContentHash } from './image-content-invariant';
 import { readImageFailures } from './image-failure';
 import { declinedPlacementImages, isPendingImageCandidate } from './image-candidate-state';
+import { nativeImageInputMode } from './image-generation-evidence';
 
 type Placement = { role: string; sectionId?: string; briefId?: string; expectedRevision: number };
 type Failures = Awaited<ReturnType<typeof readImageFailures>>;
@@ -40,11 +41,11 @@ export async function readImageAttemptResume(uid: string, row: SubmissionRecord,
   const head = (await ref.collection('imageAttemptResumeHeads').doc(rootId).get()).data();
   if (head && (head.uid !== uid || head.bindingHash !== cmsFieldHash(expected) || !submissionId.safeParse(head.grantId).success)) return null;
   const saved = (await ref.collection('imageAttemptResumes').doc(head?.grantId ?? rootId).get()).data();
-  if (!saved || saved.bindingHash !== cmsFieldHash(expected) || saved.uid !== uid ||
+  if (!saved || !nativeImageInputMode.safeParse(saved.inputMode).success || saved.bindingHash !== cmsFieldHash(expected) || saved.uid !== uid ||
       row.revision !== input.expectedRevision || !['authorized', 'dispatch_claimed'].includes(saved.status)) return null;
   if (saved.status === 'authorized' && !(Date.parse(saved.expiresAt) > Date.now())) return null;
   return { grantId: saved.grantId as string, requestId: saved.requestId as string,
-    status: saved.status as 'authorized' | 'dispatch_claimed', inputMode: 'explicit_arguments' as const,
+    status: saved.status as 'authorized' | 'dispatch_claimed', inputMode: nativeImageInputMode.parse(saved.inputMode),
     canDispatch: saved.status === 'authorized', expiresAt: saved.expiresAt as string,
     publicationApproval: false, automaticRetryAllowed: false };
 }
@@ -52,7 +53,7 @@ export async function readImageAttemptResume(uid: string, row: SubmissionRecord,
 export const imageAttemptResumeInput = z.object({ submissionId, expectedRevision: z.number().int().positive(),
   role: z.enum(['cover', 'body']), sectionId: submissionId, briefId: submissionId,
   requestId: submissionInput.shape.requestId, decision: z.string().min(12).max(2000),
-  resolution: z.string().min(12).max(2000), inputMode: z.literal('explicit_arguments'),
+  resolution: z.string().min(12).max(2000), inputMode: nativeImageInputMode,
 }).strict();
 
 // Model callers can consume an EXISTING owner decision, never create or amend it.
@@ -72,7 +73,7 @@ export async function claimSubmissionImageAttempt(uid: string, raw: unknown) {
     sectionId: input.sectionId, briefId: input.briefId, generationStarted: false, paidAiCalls: 0,
     exactPromptExecutionVerified: false,
     instruction: claim.dispatchAllowed
-      ? 'Kun dette første succesfulde claim åbner ét native billedkald NU med hele den kanoniske prompt og alle faktiske referencefiler, uændret via explicit_arguments. Brug det returnerede requestId ved import af samme original. Claim starter ikke generering og beviser ikke skjulte generatorinput. Efter claim vil preflight vise dispatch_already_claimed; det forbyder et ekstra kald, ikke import af det allerede bestilte resultat. Kontrollér resultatet, gem kun privat kandidat, og vis personligt billedvalg. Ingen automatisk retry eller publicering.'
+      ? `Kun dette første succesfulde claim åbner ét native billedkald NU med hele den kanoniske prompt og alle faktiske referencefiler, uændret via ${claim.inputMode}. Ved conversation_context skal det præcise brief og de faktiske ordnede referencebilleder være i den aktuelle generators samtalekontekst, ikke kun hashes, links eller en opsummering. Kan hosten ikke modtage dette, STOP. Rapportér den faktiske inputMode ved import af samme original med samme requestId. Claim starter ikke generering og beviser ikke skjulte generatorinput. Efter claim vil preflight vise dispatch_already_claimed; det forbyder et ekstra kald, ikke import af det allerede bestilte resultat. Kontrollér resultatet, gem kun privat kandidat, og vis personligt billedvalg. Ingen automatisk retry eller publicering.`
       : 'STOP: tilladelsen er allerede taget i brug. Ingen ny generering, heller ikke efter tabt svar. Læs status/kvitteringer og genoptag kun import af et allerede eksisterende resultat med samme requestId.' };
 }
 
@@ -92,7 +93,15 @@ export async function renewExpiredImageAttemptResume(uid: string, raw: unknown) 
   return authorizeAttempt(uid, input, previousGrantId);
 }
 
-async function authorizeAttempt(uid: string, input: z.infer<typeof imageAttemptResumeInput>, previousGrantId?: string) {
+/** Operator-only correction of delivery mode for the SAME unused attempt. Keeps
+ * request ID and original expiry; immutable predecessor is never rewritten.
+ * Requires a direct owner decision, not a model-reported capability flag. */
+export async function adaptUnusedImageAttemptInputMode(uid: string, raw: unknown) {
+  const { previousGrantId, ...input } = imageAttemptRenewalInput.parse(raw);
+  return authorizeAttempt(uid, input, previousGrantId, true);
+}
+
+async function authorizeAttempt(uid: string, input: z.infer<typeof imageAttemptResumeInput>, previousGrantId?: string, adaptMode = false) {
   const account = await getAdminAuth()!.getUser(uid);
   if (!account.emailVerified || account.disabled || account.email?.toLowerCase() !== OWNER_EMAIL)
     throw Error('mcp_submission_owner_required');
@@ -115,9 +124,10 @@ async function authorizeAttempt(uid: string, input: z.infer<typeof imageAttemptR
   const other = check.blockers.filter(code => !['mcp_submission_image_attempt_stopped', 'mcp_submission_image_dispatch_already_claimed'].includes(code));
   if (other.length) throw Error(other[0]);
   const expected = binding(uid, row, input, brief, failures, declines), rootId = grantId(uid, row.id, ids, declines);
-  const id = previousGrantId ? cmsFieldHash({ rootId, previousGrantId, requestId: input.requestId }) : rootId;
+  const transition = adaptMode ? { transition: 'input_mode_adaptation', inputMode: input.inputMode } : {};
+  const id = previousGrantId ? cmsFieldHash({ rootId, previousGrantId, requestId: input.requestId, ...transition }) : rootId;
   const target = ref.collection('imageAttemptResumes').doc(id), headRef = ref.collection('imageAttemptResumeHeads').doc(rootId);
-  const intentHash = cmsFieldHash({ ...input, binding: expected, ...(previousGrantId ? { previousGrantId } : {}) });
+  const intentHash = cmsFieldHash({ ...input, binding: expected, ...(previousGrantId ? { previousGrantId } : {}), ...transition });
   await db.runTransaction(async tx => {
     const current = (await tx.get(ref)).data(), old = (await tx.get(target)).data();
     const head = (await tx.get(headRef)).data();
@@ -142,14 +152,19 @@ async function authorizeAttempt(uid: string, input: z.infer<typeof imageAttemptR
       if ((head?.grantId ?? rootId) !== previousGrantId || !previous || previous.uid !== uid ||
           previous.grantId !== previousGrantId || previous.bindingHash !== cmsFieldHash(expected) ||
           previous.authorizationSource !== 'operator_recorded_direct_owner_decision' ||
-          previous.status !== 'authorized' || previous.dispatchClaimedAt ||
-          !(Date.parse(previous.expiresAt) <= Date.now()) || previous.requestId === input.requestId)
+          previous.status !== 'authorized' || previous.dispatchClaimedAt)
         throw Error('mcp_submission_image_attempt_renewal_requires_expired_unused');
+      if (adaptMode ? !(Date.parse(previous.expiresAt) > Date.now()) || previous.requestId !== input.requestId ||
+          !nativeImageInputMode.safeParse(previous.inputMode).success || previous.inputMode === input.inputMode
+        : !(Date.parse(previous.expiresAt) <= Date.now()) || previous.requestId === input.requestId)
+        throw Error(adaptMode ? 'mcp_submission_image_mode_adaptation_requires_active_unused' : 'mcp_submission_image_attempt_renewal_requires_expired_unused');
+      if (!adaptMode && previous.inputMode !== input.inputMode)
+        throw Error('mcp_submission_generation_input_mode_mismatch');
     } else if (head) throw Error('mcp_submission_idempotency_conflict');
     if (!old) tx.create(target, { ...expected, grantId: id, bindingHash: cmsFieldHash(expected), intentHash,
-      ...(previousGrantId ? { previousGrantId } : {}),
+      ...(previousGrantId ? { previousGrantId } : {}), ...transition,
       requestId: input.requestId, decision: input.decision, resolution: input.resolution, inputMode: input.inputMode,
-      status: 'authorized', createdAt: new Date().toISOString(), expiresAt: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
+      status: 'authorized', createdAt: new Date().toISOString(), expiresAt: adaptMode ? previous!.expiresAt : new Date(Date.now() + 60 * 60 * 1000).toISOString(),
       authorizationSource: 'operator_recorded_direct_owner_decision', publicationApproval: false, automaticRetryAllowed: false });
     if (previousGrantId) tx.set(headRef, { uid, grantId: id, bindingHash: cmsFieldHash(expected) });
   });
@@ -164,7 +179,7 @@ export async function claimImageAttemptResume(uid: string, raw: unknown, expecte
   if (row.status !== 'draft') throw Error('mcp_submission_operation_pending');
   const brief = (await ref.collection('chatBriefs').doc(input.briefId).get()).data(), failures = await readImageFailures(uid, row.id);
   const grant = await readImageAttemptResume(uid, row, input, brief, failures);
-  if (!grant || grant.requestId !== input.requestId || (expectedGrantId && grant.grantId !== expectedGrantId))
+  if (!grant || grant.inputMode !== input.inputMode || grant.requestId !== input.requestId || (expectedGrantId && grant.grantId !== expectedGrantId))
     throw Error('mcp_submission_image_attempt_stopped');
   if (!grant.canDispatch) return { ...grant, dispatchAllowed: false };
   const { preflightSubmissionImage } = await import('./image-preflight');
@@ -187,7 +202,7 @@ export async function claimImageAttemptResume(uid: string, raw: unknown, expecte
     if (cmsFieldHash(current) !== cmsFieldHash(row) || cmsFieldHash(currentBrief) !== cmsFieldHash(brief) ||
         JSON.stringify(currentFailures.docs.filter(d => d.data().role === input.role && d.data().sectionId === input.sectionId).map(d => d.id).sort()) !== JSON.stringify(failureIds(failures, input)) ||
         assets.size > 100 || assets.docs.some(d => isPendingImageCandidate(d.data())) ||
-        saved?.bindingHash !== cmsFieldHash(binding(uid, row, input, brief, failures,
+        saved?.inputMode !== input.inputMode || saved?.bindingHash !== cmsFieldHash(binding(uid, row, input, brief, failures,
           declinedPlacementImages(assets.docs.map(d => d.data()), uid, row.id, input.role, input.sectionId)))) throw Error('mcp_submission_image_content_changed');
     if (head && (head.grantId !== grant.grantId || head.uid !== uid || head.bindingHash !== saved?.bindingHash)) return false;
     if (saved?.status !== 'authorized' || !(Date.parse(saved.expiresAt) > Date.now())) return false;

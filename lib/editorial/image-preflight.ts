@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { submissionId } from './submission-contract';
 import { readSubmission, submissionStore } from './submissions';
 import { readImageGenSnapshot } from '@/lib/image-gen/snapshot';
-import { IMAGE_HANDOFF_VERSION, promptHash } from './image-generation-evidence';
+import { IMAGE_HANDOFF_VERSION, nativeImageInputMode, promptHash } from './image-generation-evidence';
 import { readRetainedReference, validateReference } from './image-reference';
 import { NATIVE_IMAGE_INTEGRATION } from './native-image-integration';
 import { imageProtectedContentHash } from './image-content-invariant';
@@ -13,6 +13,7 @@ import { declinedPlacementImages, isPendingImageCandidate } from './image-candid
 export const imagePreflightInput = z.object({ submissionId, expectedRevision: z.number().int().positive(),
   role: z.enum(['cover', 'body']), sectionId: submissionId, briefId: submissionId.optional(),
   subjectReferencesRequired: z.boolean(), subjectReferenceIds: z.array(submissionId).max(4),
+  inputMode: nativeImageInputMode.optional().describe('Actual delivery mechanism supported by this host. Must match the existing grant; does not change it or prove native input delivery.'),
 }).strict();
 
 /** Read-only: no new brief, reference upload, attempt, generation, consent or CMS
@@ -62,6 +63,10 @@ export async function preflightSubmissionImage(uid: string, raw: unknown, import
   if (candidates.size > 100) add('mcp_submission_media_window_exceeded');
   const declines = declinedPlacementImages(candidates.docs.map(d => d.data()), uid, row.id, input.role, input.sectionId);
   const resume = await readImageAttemptResume(uid, row, input, brief, failures);
+  if (resume && input.inputMode && input.inputMode !== resume.inputMode)
+    add('mcp_submission_generation_input_mode_mismatch');
+  if (importRequestId && resume?.inputMode === 'conversation_context' && !input.inputMode)
+    add('mcp_submission_generation_input_mode_required');
   if (declines.length || failures.some(f => f.role === input.role && f.sectionId === input.sectionId)) {
     if (!resume || (importRequestId && (resume.requestId !== importRequestId || resume.status !== 'dispatch_claimed')))
       add('mcp_submission_image_attempt_stopped');
@@ -78,6 +83,9 @@ export async function preflightSubmissionImage(uid: string, raw: unknown, import
     protectedContentHash: imageProtectedContentHash(row.article), role: input.role, sectionId: input.sectionId, briefId: input.briefId ?? null,
     checkedAt: new Date().toISOString(), inputsComplete, canGenerate: inputsComplete, canImportGeneratedImage: false,
     canStageForPersonalSelection: inputsComplete, hostDeliveryRequired: true,
+    inputDelivery: { supportedModes: nativeImageInputMode.options, requestedMode: input.inputMode ?? null,
+      requiredMode: resume?.inputMode ?? null, hostCapabilityVerified: false, nativeInputVerified: false,
+      contextRequirement: 'The complete unchanged canonical prompt and actual ordered style/subject images must be present in the current native generator context. Hashes, URLs, summaries and old conversational references are not substitutes. STOP if unavailable.' },
     blockers, references: actualReferences, integration: NATIVE_IMAGE_INTEGRATION, failures, declinedImages: declines, authorizedResume: resume,
     visualChecks: { status: 'not_performed', independentSemanticVerification: false, personalReviewRequired: true },
     dispatch: resume ? { claimRequired: resume.status === 'authorized', tool: 'claim_submission_image_attempt',
