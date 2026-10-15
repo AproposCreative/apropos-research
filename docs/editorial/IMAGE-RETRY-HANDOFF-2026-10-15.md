@@ -91,6 +91,9 @@ that client reports independently prove hidden native processing.
 - Local verification emitted the previously observed PassThrough listener warning
   while all reads/writes completed. No listener limits were increased. This is
   not proof of a new image failure or a diagnosed memory leak.
+- Bounded production error scan07:39–07:42Z returned one `/mcp` HTTP200 request
+  with the same error/close listener warning. Therefore the error log is not
+  described as clean. No new metrics/drains were configured by this scoped task.
 
 Evidence: `output/image-retry-v34/authorize.json` and the narrowly scoped operator
 script beside it. Authorization was made through the existing central service,
