@@ -58,3 +58,35 @@ failure. If the client still fails after successful server discovery, the missin
 evidence is the ChatGPT-side refresh error/trace. Do not bypass the host catalog,
 claim a grant directly, fabricate native input proof, or generate an image to test.
 The task is not solved by this diagnostic deployment alone.
+
+## Diagnostic release verified live, 12:36 Copenhagen
+
+Source `4dd94c21bee6ea7667b9b3845ea0da24e239ba8b` was committed and pushed on
+`codex/image-preflight-v30`. Deployment `dpl_FJizrJ134VPWKwSngbiQh3GqkwPD`
+is READY; a fresh direct `ai.aproposmagazine.com` lookup resolves to it. Vercel
+metadata carries the unambiguous source prefix `4dd94c21`; the full local/pushed
+source SHA is above. MCP tool schema stays v35; no new metadata-refresh requirement
+was introduced by the logging-only release.
+
+Remote build/typecheck and 237 static pages succeeded. The install used existing
+locked dependencies with lifecycle scripts disabled. It reported the existing
+10 dependency findings (3 moderate, 7 high); no dependency upgrade was attempted.
+Deployment dry-run verified the diagnostic module is included and local
+`output/image-retry*` evidence is not uploaded.
+
+At 10:36:06.191Z a supported service-auth check verified all 64 server tools and
+the public claim descriptor again. One deliberate **synthetic** `2099-01-01`
+protocol-version probe returned HTTP 400, followed by a successful supported
+`tools/list`. Production request log
+`ggczj-1792060554449-1f37b2a826e4` independently records
+`mcp_transport_rejected / unsupported_protocol_version / 2099-01-01`.
+This proves the new diagnostic logging works, **not** that the user's original
+HTTP 400 had this cause. The temporary diagnostic OAuth grant was revoked.
+
+Evidence: `output/image-retry-v35/inspect-transport-2026-10-15T10-36-06-191Z.json`.
+Protected original/article history, revision 2, previous grants and financial
+hashes remain identical. Zero dispatch claims, paid AI calls, imports, approvals,
+CMS writes or publications. Image preflight remains stopped after the last
+authorization expired; it was not renewed. The Work catalog in this session
+still lacks the claim tool. One new user refresh/time/result was requested after
+verification; the exact refresh root cause remains open pending that observation.
