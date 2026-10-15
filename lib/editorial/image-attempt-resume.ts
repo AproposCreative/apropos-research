@@ -36,14 +36,17 @@ export async function readImageAttemptResume(uid: string, row: SubmissionRecord,
   const declines = declinedPlacementImages(assets.docs.map(d => d.data()), uid, row.id, input.role, input.sectionId);
   const expected = binding(uid, row, input, brief, failures, declines);
   if (!expected.failureIds.length && !declines.length) return null;
-  const saved = (await submissionStore().collection.doc(row.id).collection('imageAttemptResumes')
-    .doc(grantId(uid, row.id, expected.failureIds, declines)).get()).data();
+  const ref = submissionStore().collection.doc(row.id), rootId = grantId(uid, row.id, expected.failureIds, declines);
+  const head = (await ref.collection('imageAttemptResumeHeads').doc(rootId).get()).data();
+  if (head && (head.uid !== uid || head.bindingHash !== cmsFieldHash(expected) || !submissionId.safeParse(head.grantId).success)) return null;
+  const saved = (await ref.collection('imageAttemptResumes').doc(head?.grantId ?? rootId).get()).data();
   if (!saved || saved.bindingHash !== cmsFieldHash(expected) || saved.uid !== uid ||
       row.revision !== input.expectedRevision || !['authorized', 'dispatch_claimed'].includes(saved.status)) return null;
-  if (saved.status === 'authorized' && Date.parse(saved.expiresAt) <= Date.now()) return null;
+  if (saved.status === 'authorized' && !(Date.parse(saved.expiresAt) > Date.now())) return null;
   return { grantId: saved.grantId as string, requestId: saved.requestId as string,
     status: saved.status as 'authorized' | 'dispatch_claimed', inputMode: 'explicit_arguments' as const,
-    canDispatch: saved.status === 'authorized', publicationApproval: false, automaticRetryAllowed: false };
+    canDispatch: saved.status === 'authorized', expiresAt: saved.expiresAt as string,
+    publicationApproval: false, automaticRetryAllowed: false };
 }
 
 export const imageAttemptResumeInput = z.object({ submissionId, expectedRevision: z.number().int().positive(),
@@ -77,7 +80,19 @@ export async function claimSubmissionImageAttempt(uid: string, raw: unknown) {
  * The operator must have a direct human decision. The immutable decision record
  * is retry authority, NOT personal image selection or editorial approval. */
 export async function authorizeImageAttemptResume(uid: string, raw: unknown) {
-  const input = imageAttemptResumeInput.parse(raw);
+  return authorizeAttempt(uid, imageAttemptResumeInput.parse(raw));
+}
+
+// Separate operator-only action, NEVER a model tool. Requires a new direct owner
+// decision and an exact expired, UNUSED predecessor. History is never extended,
+// reset or overwritten; a routing head selects the one new immutable decision.
+const imageAttemptRenewalInput = imageAttemptResumeInput.extend({ previousGrantId: submissionId }).strict();
+export async function renewExpiredImageAttemptResume(uid: string, raw: unknown) {
+  const { previousGrantId, ...input } = imageAttemptRenewalInput.parse(raw);
+  return authorizeAttempt(uid, input, previousGrantId);
+}
+
+async function authorizeAttempt(uid: string, input: z.infer<typeof imageAttemptResumeInput>, previousGrantId?: string) {
   const account = await getAdminAuth()!.getUser(uid);
   if (!account.emailVerified || account.disabled || account.email?.toLowerCase() !== OWNER_EMAIL)
     throw Error('mcp_submission_owner_required');
@@ -99,10 +114,14 @@ export async function authorizeImageAttemptResume(uid: string, raw: unknown) {
     subjectReferencesRequired: brief?.subjectReferencesRequired === true, subjectReferenceIds: brief?.subjectReferenceIds || [] });
   const other = check.blockers.filter(code => !['mcp_submission_image_attempt_stopped', 'mcp_submission_image_dispatch_already_claimed'].includes(code));
   if (other.length) throw Error(other[0]);
-  const expected = binding(uid, row, input, brief, failures, declines), id = grantId(uid, row.id, ids, declines);
-  const target = ref.collection('imageAttemptResumes').doc(id), intentHash = cmsFieldHash({ ...input, binding: expected });
+  const expected = binding(uid, row, input, brief, failures, declines), rootId = grantId(uid, row.id, ids, declines);
+  const id = previousGrantId ? cmsFieldHash({ rootId, previousGrantId, requestId: input.requestId }) : rootId;
+  const target = ref.collection('imageAttemptResumes').doc(id), headRef = ref.collection('imageAttemptResumeHeads').doc(rootId);
+  const intentHash = cmsFieldHash({ ...input, binding: expected, ...(previousGrantId ? { previousGrantId } : {}) });
   await db.runTransaction(async tx => {
     const current = (await tx.get(ref)).data(), old = (await tx.get(target)).data();
+    const head = (await tx.get(headRef)).data();
+    const previous = previousGrantId ? (await tx.get(ref.collection('imageAttemptResumes').doc(previousGrantId))).data() : null;
     const currentBrief = (await tx.get(ref.collection('chatBriefs').doc(input.briefId))).data();
     const currentFailures = await tx.get(ref.collection('imageFailures').limit(101));
     const currentAssets = await tx.get(ref.collection('chatAssets').limit(101));
@@ -112,10 +131,27 @@ export async function authorizeImageAttemptResume(uid: string, raw: unknown) {
         cmsFieldHash({ declines: declinedPlacementImages(currentAssets.docs.map(d => d.data()), uid, row.id, input.role, input.sectionId) }) !== cmsFieldHash({ declines }))
       throw Error('mcp_submission_image_content_changed');
     if (old && old.intentHash !== intentHash) throw Error('mcp_submission_idempotency_conflict');
+    if (head && (head.uid !== uid || head.bindingHash !== cmsFieldHash(expected))) throw Error('mcp_submission_image_attempt_stopped');
+    if (previousGrantId) {
+      // Exact retries recover this receipt, but never extend its expiry or follow
+      // a later decision. Concurrent different renewals cannot both become active.
+      if (old) {
+        if (head?.grantId !== id) throw Error('mcp_submission_idempotency_conflict');
+        return;
+      }
+      if ((head?.grantId ?? rootId) !== previousGrantId || !previous || previous.uid !== uid ||
+          previous.grantId !== previousGrantId || previous.bindingHash !== cmsFieldHash(expected) ||
+          previous.authorizationSource !== 'operator_recorded_direct_owner_decision' ||
+          previous.status !== 'authorized' || previous.dispatchClaimedAt ||
+          !(Date.parse(previous.expiresAt) <= Date.now()) || previous.requestId === input.requestId)
+        throw Error('mcp_submission_image_attempt_renewal_requires_expired_unused');
+    } else if (head) throw Error('mcp_submission_idempotency_conflict');
     if (!old) tx.create(target, { ...expected, grantId: id, bindingHash: cmsFieldHash(expected), intentHash,
+      ...(previousGrantId ? { previousGrantId } : {}),
       requestId: input.requestId, decision: input.decision, resolution: input.resolution, inputMode: input.inputMode,
       status: 'authorized', createdAt: new Date().toISOString(), expiresAt: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
       authorizationSource: 'operator_recorded_direct_owner_decision', publicationApproval: false, automaticRetryAllowed: false });
+    if (previousGrantId) tx.set(headRef, { uid, grantId: id, bindingHash: cmsFieldHash(expected) });
   });
   return readImageAttemptResume(uid, row, input, brief, failures);
 }
@@ -146,12 +182,15 @@ export async function claimImageAttemptResume(uid: string, raw: unknown, expecte
     const currentBrief = (await tx.get(ref.collection('chatBriefs').doc(input.briefId))).data();
     const currentFailures = await tx.get(ref.collection('imageFailures').limit(101));
     const assets = await tx.get(ref.collection('chatAssets').limit(101));
+    const declines = declinedPlacementImages(assets.docs.map(d => d.data()), uid, row.id, input.role, input.sectionId);
+    const head = (await tx.get(ref.collection('imageAttemptResumeHeads').doc(grantId(uid, row.id, failureIds(failures, input), declines)))).data();
     if (cmsFieldHash(current) !== cmsFieldHash(row) || cmsFieldHash(currentBrief) !== cmsFieldHash(brief) ||
         JSON.stringify(currentFailures.docs.filter(d => d.data().role === input.role && d.data().sectionId === input.sectionId).map(d => d.id).sort()) !== JSON.stringify(failureIds(failures, input)) ||
         assets.size > 100 || assets.docs.some(d => isPendingImageCandidate(d.data())) ||
         saved?.bindingHash !== cmsFieldHash(binding(uid, row, input, brief, failures,
           declinedPlacementImages(assets.docs.map(d => d.data()), uid, row.id, input.role, input.sectionId)))) throw Error('mcp_submission_image_content_changed');
-    if (saved?.status !== 'authorized' || Date.parse(saved.expiresAt) <= Date.now()) return false;
+    if (head && (head.grantId !== grant.grantId || head.uid !== uid || head.bindingHash !== saved?.bindingHash)) return false;
+    if (saved?.status !== 'authorized' || !(Date.parse(saved.expiresAt) > Date.now())) return false;
     tx.update(target, { status: 'dispatch_claimed', dispatchClaimedAt: new Date().toISOString() }); return true;
   });
   return { ...grant, canDispatch: false, status: 'dispatch_claimed', dispatchAllowed };

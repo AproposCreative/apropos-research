@@ -24,7 +24,7 @@ import { validateReference } from '@/lib/editorial/image-reference';
 import { chatSubmissionPreview, confirmChatSubmission } from '@/lib/editorial/chat-preview';
 import { digest } from '@/lib/mcp/oauth';
 import { cmsFieldHash } from '@/lib/liv/cms-field-hash';
-import { authorizeImageAttemptResume, claimImageAttemptResume, claimSubmissionImageAttempt, imageAttemptClaimInput } from '@/lib/editorial/image-attempt-resume';
+import { authorizeImageAttemptResume, renewExpiredImageAttemptResume, claimImageAttemptResume, claimSubmissionImageAttempt, imageAttemptClaimInput } from '@/lib/editorial/image-attempt-resume';
 const id = 'a'.repeat(64), briefId = 'b'.repeat(64), subjectId = 'c'.repeat(64), path = `editorialSubmissions/${id}`;
 let memory: ReturnType<typeof memoryFirestore>, input: any, brief: any, generated: any, bytes: Buffer;
 beforeEach(async () => {
@@ -550,4 +550,81 @@ it('parallel model claims and a lost first response cannot authorize a second na
   const recovered = await claimSubmissionImageAttempt('owner', input);
   expect(recovered.dispatchAllowed).toBe(false); expect(recovered.instruction).toContain('tabt svar');
   expect(state.upload).not.toHaveBeenCalled();
+});
+
+async function expiredRenewal() {
+  const claim = await registeredClaim();
+  memory.rows.get(`${path}/imageAttemptResumes/${claim.grantId}`).expiresAt = '2000-01-01T00:00:00.000Z';
+  return { ...resumeInput(), previousGrantId: claim.grantId, requestId: 'explicit-owner-renewal-0002',
+    decision: 'Owner explicitly requests one replacement for the expired unused cover authorization.' };
+}
+it('renews only the expired unused grant, preserves originals and old receipts, then allows one same-request private import', async () => {
+  const renewal = await expiredRenewal(), before = cmsFieldHash([...memory.rows]), old = structuredClone([...memory.rows]);
+  expect((await preflightSubmissionImage('owner', input)).canGenerate).toBe(false);
+  const next = await renewExpiredImageAttemptResume('owner', renewal);
+  expect(next).toMatchObject({ canDispatch: true, requestId: renewal.requestId, publicationApproval: false });
+  expect(next!.grantId).not.toBe(renewal.previousGrantId);
+  expect(Date.parse(next!.expiresAt) - Date.now()).toBeGreaterThan(3590000);
+  for (const [key, value] of old) expect(memory.rows.get(key)).toEqual(value);
+  expect(cmsFieldHash([...memory.rows])).not.toBe(before);
+  const after = cmsFieldHash([...memory.rows]);
+  expect(await renewExpiredImageAttemptResume('owner', renewal)).toEqual(next);
+  expect(cmsFieldHash([...memory.rows])).toBe(after); // Lost reply does not extend TTL.
+  expect((await preflightSubmissionImage('owner', input)).dispatch).toMatchObject({ grantId: next!.grantId, requestId: renewal.requestId });
+  const { previousGrantId: _previous, decision: _decision, resolution: _resolution, ...placement } = renewal;
+  const claims = await Promise.all([claimSubmissionImageAttempt('owner', { ...placement, grantId: next!.grantId }),
+    claimSubmissionImageAttempt('owner', { ...placement, grantId: next!.grantId })]);
+  expect(claims.filter(r => r.dispatchAllowed)).toHaveLength(1);
+  expect((await importChatImage('owner', { ...generated, requestId: renewal.requestId })).importStatus).toBe('awaiting_personal_selection');
+  for (const [key, value] of old) expect(memory.rows.get(key)).toEqual(value);
+  expect(state.upload).not.toHaveBeenCalled();
+});
+it.each(['not-expired', 'claimed', 'claimed-timestamp', 'missing', 'same-request', 'binding', 'source', 'invalid-expiry',
+  'owner', 'revision', 'brief', 'section', 'text', 'missing-reference', 'pending-selection', 'not-draft'])('renewal refuses %s without writes', async mode => {
+  const renewal = await expiredRenewal(), previous = memory.rows.get(`${path}/imageAttemptResumes/${renewal.previousGrantId}`);
+  if (mode === 'not-expired') previous.expiresAt = new Date(Date.now() + 60000).toISOString();
+  if (mode === 'claimed') previous.status = 'dispatch_claimed';
+  if (mode === 'claimed-timestamp') previous.dispatchClaimedAt = '1999-01-01T00:00:00Z';
+  if (mode === 'missing') renewal.previousGrantId = 'f'.repeat(64);
+  if (mode === 'same-request') renewal.requestId = previous.requestId;
+  if (mode === 'binding') previous.bindingHash = 'f'.repeat(64);
+  if (mode === 'source') previous.authorizationSource = 'client-report';
+  if (mode === 'invalid-expiry') previous.expiresAt = 'invalid';
+  if (mode === 'owner') state.account.email = 'other@example.com';
+  if (mode === 'revision') renewal.expectedRevision = 1;
+  if (mode === 'brief') renewal.briefId = 'f'.repeat(64);
+  if (mode === 'section') renewal.sectionId = 'f'.repeat(64);
+  if (mode === 'text') memory.rows.get(path).article.title = 'Concurrent mutation';
+  if (mode === 'missing-reference') state.files.delete('private/style');
+  if (mode === 'pending-selection') memory.rows.set(`${path}/chatAssets/pending`, { status: 'awaiting_personal_selection', importInput: generated });
+  if (mode === 'not-draft') memory.rows.get(path).status = 'prepared';
+  const before = cmsFieldHash([...memory.rows]);
+  await expect(renewExpiredImageAttemptResume('owner', renewal)).rejects.toThrow();
+  expect(cmsFieldHash([...memory.rows])).toBe(before);
+});
+it('concurrent different renewals create only one successor; old grant claims and replay cannot select newer authority', async () => {
+  const renewal = await expiredRenewal();
+  const results = await Promise.allSettled([renewExpiredImageAttemptResume('owner', renewal),
+    renewExpiredImageAttemptResume('owner', { ...renewal, requestId: 'competing-owner-renewal-0002' })]);
+  expect(results.map(r => r.status)).toEqual(['fulfilled', 'rejected']);
+  expect([...memory.rows.keys()].filter(k => k.includes('/imageAttemptResumes/'))).toHaveLength(2);
+  const { decision: _decision, resolution: _resolution, ...old } = resumeInput();
+  await expect(claimSubmissionImageAttempt('owner', { ...old, grantId: renewal.previousGrantId })).rejects.toThrow('image_attempt_stopped');
+  await expect(authorizeImageAttemptResume('owner', resumeInput())).rejects.toThrow('idempotency_conflict');
+  await expect(renewExpiredImageAttemptResume('owner', { ...renewal, decision: 'Changed decision with same request identity.' })).rejects.toThrow('idempotency_conflict');
+});
+it('a second explicit expiry renewal keeps both prior decisions and cannot be extended by replaying the first renewal', async () => {
+  const first = await expiredRenewal(), next = await renewExpiredImageAttemptResume('owner', first);
+  memory.rows.get(`${path}/imageAttemptResumes/${next!.grantId}`).expiresAt = '2000-01-01T00:00:00Z';
+  const history = structuredClone([...memory.rows].filter(([k]) => k.includes('/imageAttemptResumes/')));
+  const second = { ...first, previousGrantId: next!.grantId, requestId: 'explicit-owner-renewal-0003' };
+  const last = await renewExpiredImageAttemptResume('owner', second);
+  expect(last!.grantId).not.toBe(next!.grantId);
+  for (const [k, v] of history) expect(memory.rows.get(k)).toEqual(v);
+  await expect(renewExpiredImageAttemptResume('owner', first)).rejects.toThrow('idempotency_conflict');
+});
+it('claim schema cannot manufacture renewal authority or expiry', () => {
+  const { decision: _decision, resolution: _resolution, ...placement } = resumeInput();
+  for (const extra of [{ previousGrantId: 'f'.repeat(64) }, { expiresAt: '2099-01-01' }])
+    expect(() => imageAttemptClaimInput.parse({ ...placement, grantId: 'f'.repeat(64), ...extra })).toThrow();
 });
