@@ -90,3 +90,10 @@ CMS writes or publications. Image preflight remains stopped after the last
 authorization expired; it was not renewed. The Work catalog in this session
 still lacks the claim tool. One new user refresh/time/result was requested after
 verification; the exact refresh root cause remains open pending that observation.
+
+Post-deploy runtime scan is not clean: the pre-existing `MaxListenersExceededWarning`
+for 11 `close` and `error` listeners on `PassThrough` recurred during the successful
+read-only check at 10:36:02Z, request `7lrvv-1792060560762-ba0edf1a3bc5`.
+These warnings were also present on v35 before this diagnostic change. Their
+relationship to the owner's refresh failure is unproven; no listener limit was
+raised and no transport checks were relaxed to hide them.
