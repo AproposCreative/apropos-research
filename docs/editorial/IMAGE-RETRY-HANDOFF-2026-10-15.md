@@ -58,4 +58,46 @@ canonical text and reference files available via the recorded explicit-arguments
 mode. If the host cannot do that, stop without consuming the grant. No claims
 that client reports independently prove hidden native processing.
 
-Grant registration and live release evidence are recorded below after execution.
+## Release and actual authorization
+
+- Source `333266fa4a6ab792216e92a55a8d5ce07b613eb6`, MCP `2026-10-15-v34`.
+- Deployment `dpl_DzmQnaivPPVDanZNktzhQ9aZRuqN`, READY; exact clean Git archive.
+  Remote compilation, TypeScript, build-security gate and237static pages passed.
+  Existing dependency audit10findings (3moderate/7high) was not changed here.
+- Protected staged readback through authenticated `vercel curl` preserved the
+  canonical OAuth resource. Promotion completed and independent custom-domain
+  lookup resolved `ai.aproposmagazine.com` to this exact deployment/source.
+- Live authenticated MCP initialized asv34 and discovered64tools, including the
+  strict owner/draft claim operation. The temporary read-only verification OAuth
+  grant was revoked; existing ChatGPT connections were not changed.
+- New owner-decision grant:
+  `39da48268590eb576e075cfd16ef0e88a3bb4a770211074856ff062ab136db39`.
+  Request `barsel-2026-10-15-babycafe-nightclub-cover-v1`, authorized07:40:09.697Z,
+  expires08:40:09.697Z (**15October10:40:09 Copenhagen**), status`authorized`.
+  No dispatch claim, generation, image import, personal choice or publication.
+- Live service MCP preflight07:40:14.384Z and independent connected MCP
+  preflight07:40:54.795Z: `canGenerate=true`, `blockers=[]`, same brief/revision2,
+  actual decoded style JPEG415373bytes1080x1350, SHA256
+  `0ef077580da7c9ed5b4c64a6973acc3dde536af0bb7a40776f45bf59c5bcff01`.
+  `dispatch.claimRequired=true`; it names the new claim tool and exact request.
+- Native status: no pending candidates; exact personal decline preserved; article
+  still draft/awaiting_preparation, same revision/content hash. Protected article,
+  briefs, original files/receipts, versions and consents hash unchanged:
+  `fa928c7ab33d4577b5fbebe31f289523ec86220497dbc39977f0bf4dca27df3e`.
+  Consumed old grant remained hash-identical; one new grant was added.
+- Financial state before/after identical:
+  `e3b2d498e807ab1cba45f4ca156ce81e5eb15d5b71ea496457fc31da07b69101`.
+  No paid model call, provider/budget/reservation change. Hosting not measured.
+- Local verification emitted the previously observed PassThrough listener warning
+  while all reads/writes completed. No listener limits were increased. This is
+  not proof of a new image failure or a diagnosed memory leak.
+
+Evidence: `output/image-retry-v34/authorize.json` and the narrowly scoped operator
+script beside it. Authorization was made through the existing central service,
+not by manually resetting failures or database grant fields.
+
+**Verified live through grant + preflight + tool discovery, not native dispatch.**
+The grant intentionally remains unused for Work. Refresh its tool catalog if
+`claim_submission_image_attempt` is missing. Only the intended Work execution,
+with all actual inputs present, may claim it immediately before its one cover
+call. Body images need their own briefs/authority; no automatic retry or publish.
