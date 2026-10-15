@@ -52,6 +52,27 @@ export const imageAttemptResumeInput = z.object({ submissionId, expectedRevision
   resolution: z.string().min(12).max(2000), inputMode: z.literal('explicit_arguments'),
 }).strict();
 
+// Model callers can consume an EXISTING owner decision, never create or amend it.
+export const imageAttemptClaimInput = imageAttemptResumeInput.omit({ decision: true, resolution: true })
+  .extend({ grantId: submissionId }).strict();
+
+export async function claimSubmissionImageAttempt(uid: string, raw: unknown) {
+  const input = imageAttemptClaimInput.parse(raw);
+  const row = await readSubmission(uid, input.submissionId);
+  const saved = (await submissionStore().collection.doc(row.id).collection('imageAttemptResumes').doc(input.grantId).get()).data();
+  if (!saved || saved.uid !== uid || saved.grantId !== input.grantId || saved.requestId !== input.requestId ||
+      saved.inputMode !== input.inputMode || saved.authorizationSource !== 'operator_recorded_direct_owner_decision')
+    throw Error('mcp_submission_image_attempt_stopped');
+  const { grantId: expectedGrantId, ...placement } = input;
+  const claim = await claimImageAttemptResume(uid, { ...placement, decision: saved.decision, resolution: saved.resolution }, expectedGrantId);
+  return { ...claim, submissionId: row.id, expectedRevision: input.expectedRevision, role: input.role,
+    sectionId: input.sectionId, briefId: input.briefId, generationStarted: false, paidAiCalls: 0,
+    exactPromptExecutionVerified: false,
+    instruction: claim.dispatchAllowed
+      ? 'Kun dette første succesfulde claim åbner ét native billedkald NU med hele den kanoniske prompt og alle faktiske referencefiler, uændret via explicit_arguments. Brug det returnerede requestId ved import af samme original. Claim starter ikke generering og beviser ikke skjulte generatorinput. Efter claim vil preflight vise dispatch_already_claimed; det forbyder et ekstra kald, ikke import af det allerede bestilte resultat. Kontrollér resultatet, gem kun privat kandidat, og vis personligt billedvalg. Ingen automatisk retry eller publicering.'
+      : 'STOP: tilladelsen er allerede taget i brug. Ingen ny generering, heller ikke efter tabt svar. Læs status/kvitteringer og genoptag kun import af et allerede eksisterende resultat med samme requestId.' };
+}
+
 /** Service-operator operation only, deliberately NOT exposed as a model tool.
  * The operator must have a direct human decision. The immutable decision record
  * is retry authority, NOT personal image selection or editorial approval. */
@@ -101,12 +122,14 @@ export async function authorizeImageAttemptResume(uid: string, raw: unknown) {
 
 /** Invoke immediately before the ONE external dispatch. A lost reply must be
  * read back, never re-dispatched. Concurrent/repeated claims return false. */
-export async function claimImageAttemptResume(uid: string, raw: unknown) {
+export async function claimImageAttemptResume(uid: string, raw: unknown, expectedGrantId?: string) {
   const input = imageAttemptResumeInput.parse(raw);
   const row = await readSubmission(uid, input.submissionId), { db, collection } = submissionStore(), ref = collection.doc(row.id);
+  if (row.status !== 'draft') throw Error('mcp_submission_operation_pending');
   const brief = (await ref.collection('chatBriefs').doc(input.briefId).get()).data(), failures = await readImageFailures(uid, row.id);
   const grant = await readImageAttemptResume(uid, row, input, brief, failures);
-  if (!grant || grant.requestId !== input.requestId) throw Error('mcp_submission_image_attempt_stopped');
+  if (!grant || grant.requestId !== input.requestId || (expectedGrantId && grant.grantId !== expectedGrantId))
+    throw Error('mcp_submission_image_attempt_stopped');
   if (!grant.canDispatch) return { ...grant, dispatchAllowed: false };
   const { preflightSubmissionImage } = await import('./image-preflight');
   const check = await preflightSubmissionImage(uid, { submissionId: row.id, expectedRevision: input.expectedRevision,

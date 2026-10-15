@@ -5,6 +5,8 @@ const reader = vi.hoisted(() => ({ register: vi.fn(), list: vi.fn(), get: vi.fn(
 const seo = vi.hoisted(() => ({ claim: vi.fn(), status: vi.fn(), save: vi.fn(), apply: vi.fn() }));
 const ideas = vi.hoisted(() => ({ desk: vi.fn(), save: vi.fn(), get: vi.fn(), start: vi.fn() }));
 const imageBrief = vi.hoisted(() => vi.fn());
+const imageClaim = vi.hoisted(() => vi.fn());
+vi.mock('@/lib/editorial/image-attempt-resume', async original => ({ ...await original<any>(), claimSubmissionImageAttempt: imageClaim }));
 vi.mock('@/lib/editorial/chat-image-brief', async original => ({ ...await original<any>(), getChatImageBrief: imageBrief }));
 vi.mock('@/lib/editorial/ideas', async original => ({ ...await original<any>(), getEditorialDesk: ideas.desk,
   saveEditorialIdeas: ideas.save, getEditorialIdea: ideas.get, startEditorialIdea: ideas.start }));
@@ -94,7 +96,7 @@ it('negotiates the real SDK protocol and lists strict schemas on independent sta
   expect(social.properties.square.maxLength).toBe(90);
   expect(social.properties.story.maxLength).toBe(130);
   expect(tools.find((t: any) => t.name === 'update_submission').inputSchema.properties.article.properties.socialSubtitles).toBeDefined();
-  expect(tools.length).toBe(63); expect(tools.find((t: any) => t.name === 'publish_article').annotations.destructiveHint).toBe(true);
+  expect(tools.length).toBe(64); expect(tools.find((t: any) => t.name === 'publish_article').annotations.destructiveHint).toBe(true);
   expect(tools.find((t: any) => t.name === 'resume_submission_cms').inputSchema.required).toContain('expectedCmsHash');
   expect(tools.find((t: any) => t.name === 'import_submission_press_image').inputSchema.required).toContain('candidateId');
   expect(tools.find((t: any) => t.name === 'preview_submission_press_image').annotations.readOnlyHint).toBe(true);
@@ -103,6 +105,30 @@ it('negotiates the real SDK protocol and lists strict schemas on independent sta
   expect(tools.find((t: any) => t.name === 'save_draft').inputSchema.additionalProperties).toBe(false);
   expect(tools.find((t: any) => t.name === 'publish_article')._meta.securitySchemes).toEqual([{ type: 'oauth2', scopes: ['apropos:publish'] }]);
   expect(response.headers.get('Cache-Control')).toContain('no-store');
+});
+it('exposes only consumption of an existing image grant with owner/draft scope, strict schema and paid-call guard', async () => {
+  const listed = (await (await POST(message('tools/list'))).json()).result.tools;
+  const claim = listed.find((t: any) => t.name === 'claim_submission_image_attempt');
+  expect(claim.annotations).toMatchObject({ readOnlyHint: false, destructiveHint: false, idempotentHint: true });
+  expect(claim._meta.securitySchemes).toEqual([{ type: 'oauth2', scopes: ['apropos:draft'] }]);
+  expect(claim.inputSchema.additionalProperties).toBe(false);
+  expect(claim.inputSchema.properties.decision).toBeUndefined();
+  expect(listed.some((t: any) => /authorize.*image|approve.*image/.test(t.name))).toBe(false);
+  const args = { submissionId: 'a'.repeat(64), expectedRevision: 2, role: 'cover', sectionId: 'b'.repeat(64),
+    briefId: 'c'.repeat(64), grantId: 'd'.repeat(64), requestId: 'existing-owner-decision', inputMode: 'explicit_arguments' };
+  mock.identity.scopes = ['apropos:read'];
+  expect((await (await call('claim_submission_image_attempt', args)).json()).result.isError).toBe(true);
+  mock.identity.scopes.push('apropos:draft'); mock.identity.owner = false;
+  expect((await (await call('claim_submission_image_attempt', args)).json()).result.isError).toBe(true);
+  expect(imageClaim).not.toHaveBeenCalled(); mock.identity.owner = true;
+  expect((await (await call('claim_submission_image_attempt', { ...args, decision: 'Invented approval' })).json()).result.isError).toBe(true);
+  expect(imageClaim).not.toHaveBeenCalled();
+  imageClaim.mockResolvedValue({ dispatchAllowed: false, generationStarted: false });
+  const result = (await (await call('claim_submission_image_attempt', args)).json()).result;
+  expect(JSON.parse(result.content[0].text).dispatchAllowed).toBe(false);
+  expect(imageClaim).toHaveBeenCalledExactlyOnceWith('frederik', args);
+  imageClaim.mockImplementation(() => assertPaidAiAllowed());
+  expect((await (await call('claim_submission_image_attempt', args)).json()).result.content[0].text).toContain('mcp_paid_call_requires_separate_approval');
 });
 it('returns the compact overview in one read-only call, enforcing strict user scope and no-paid guard', async () => {
   mock.drafts.mockResolvedValue({ items: [{ title: 'Gemte kladder', blockers: [] }], paidAiCalls: 0 });

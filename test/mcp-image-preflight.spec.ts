@@ -24,7 +24,7 @@ import { validateReference } from '@/lib/editorial/image-reference';
 import { chatSubmissionPreview, confirmChatSubmission } from '@/lib/editorial/chat-preview';
 import { digest } from '@/lib/mcp/oauth';
 import { cmsFieldHash } from '@/lib/liv/cms-field-hash';
-import { authorizeImageAttemptResume, claimImageAttemptResume } from '@/lib/editorial/image-attempt-resume';
+import { authorizeImageAttemptResume, claimImageAttemptResume, claimSubmissionImageAttempt, imageAttemptClaimInput } from '@/lib/editorial/image-attempt-resume';
 const id = 'a'.repeat(64), briefId = 'b'.repeat(64), subjectId = 'c'.repeat(64), path = `editorialSubmissions/${id}`;
 let memory: ReturnType<typeof memoryFirestore>, input: any, brief: any, generated: any, bytes: Buffer;
 beforeEach(async () => {
@@ -488,4 +488,66 @@ it('retains compatibility with legacy v32 grant identities when no decline exist
   const ids = (await readImageFailures('owner', id)).map(f => f.failureId).sort();
   expect(grant!.grantId).toBe(cmsFieldHash({ uid: 'owner', submissionId: id, failureIds: ids }));
   expect(memory.rows.get(`${path}/imageAttemptResumes/${grant!.grantId}`).declinedImages).toBeUndefined();
+});
+
+async function registeredClaim() {
+  await rejectedAttempt();
+  const grant = await authorizeImageAttemptResume('owner', resumeInput());
+  const { decision: _decision, resolution: _resolution, ...placement } = resumeInput();
+  return { ...placement, grantId: grant!.grantId };
+}
+it('exposes the missing preflight → claim → same-request import handoff without granting authority', async () => {
+  const claimInput = await registeredClaim(), before = cmsFieldHash(memory.rows.get(path));
+  const preflight = await preflightSubmissionImage('owner', input);
+  expect(preflight.dispatch).toMatchObject({ claimRequired: true, tool: 'claim_submission_image_attempt',
+    grantId: claimInput.grantId, requestId: claimInput.requestId });
+  expect(preflight.instruction).toContain('FØR dette nye forsøg');
+  const claim = await claimSubmissionImageAttempt('owner', claimInput);
+  expect(claim).toMatchObject({ dispatchAllowed: true, generationStarted: false, paidAiCalls: 0,
+    publicationApproval: false, exactPromptExecutionVerified: false, briefId });
+  expect((await claimSubmissionImageAttempt('owner', claimInput)).dispatchAllowed).toBe(false);
+  const consumed = await preflightSubmissionImage('owner', input);
+  expect(consumed.blockers).toContain('mcp_submission_image_dispatch_already_claimed');
+  expect(consumed.dispatch?.claimRequired).toBe(false);
+  const imported = await importChatImage('owner', { ...generated, requestId: claimInput.requestId });
+  expect(imported.importStatus).toBe('awaiting_personal_selection');
+  expect((await importChatImage('owner', { ...generated, requestId: claimInput.requestId })).assetId).toBe(imported.assetId);
+  expect([...memory.rows.keys()].filter(k => k.includes('/imageAttemptResumes/'))).toHaveLength(1);
+  expect(cmsFieldHash(memory.rows.get(path))).toBe(before); expect(state.upload).not.toHaveBeenCalled();
+});
+it('model-facing claim never creates a missing owner decision', async () => {
+  const { decision: _decision, resolution: _resolution, ...placement } = resumeInput();
+  const before = cmsFieldHash([...memory.rows]);
+  await expect(claimSubmissionImageAttempt('owner', { ...placement, grantId: 'f'.repeat(64) })).rejects.toThrow('image_attempt_stopped');
+  expect(cmsFieldHash([...memory.rows])).toBe(before);
+});
+it.each(['owner', 'grant', 'request', 'brief', 'section', 'revision', 'mode', 'expiry', 'text', 'missing-reference', 'pending-selection', 'status'])('new claim fails closed for %s', async mode => {
+  const claim = await registeredClaim();
+  if (mode === 'grant') claim.grantId = 'f'.repeat(64);
+  if (mode === 'request') claim.requestId = 'different-request-id';
+  if (mode === 'brief') claim.briefId = 'f'.repeat(64);
+  if (mode === 'section') claim.sectionId = 'f'.repeat(64);
+  if (mode === 'revision') claim.expectedRevision = 1;
+  if (mode === 'mode') claim.inputMode = 'conversation_context';
+  if (mode === 'expiry') memory.rows.get(`${path}/imageAttemptResumes/${claim.grantId}`).expiresAt = '2000-01-01T00:00:00Z';
+  if (mode === 'text') memory.rows.get(path).article.title = 'Concurrent mutation';
+  if (mode === 'missing-reference') state.files.delete('private/style');
+  if (mode === 'pending-selection') memory.rows.set(`${path}/chatAssets/pending`, { status: 'awaiting_personal_selection', importInput: generated });
+  if (mode === 'status') memory.rows.get(path).status = 'prepared';
+  const before = cmsFieldHash([...memory.rows]);
+  await expect(claimSubmissionImageAttempt(mode === 'owner' ? 'other' : 'owner', claim)).rejects.toThrow();
+  expect(cmsFieldHash([...memory.rows])).toBe(before); expect(state.upload).not.toHaveBeenCalled();
+});
+it('a model cannot submit decision text, fabricated proof or change authorization through claim schema', () => {
+  const { decision: _decision, resolution: _resolution, ...placement } = resumeInput();
+  for (const extra of [{ decision: 'I authorize myself' }, { resolution: 'Everything resolved' }, { uid: 'owner' }, { exactPromptExecutionVerified: true }])
+    expect(() => imageAttemptClaimInput.parse({ ...placement, grantId: 'f'.repeat(64), ...extra })).toThrow();
+});
+it('parallel model claims and a lost first response cannot authorize a second native dispatch', async () => {
+  const input = await registeredClaim();
+  const responses = await Promise.all([claimSubmissionImageAttempt('owner', input), claimSubmissionImageAttempt('owner', input)]);
+  expect(responses.filter(r => r.dispatchAllowed)).toHaveLength(1);
+  const recovered = await claimSubmissionImageAttempt('owner', input);
+  expect(recovered.dispatchAllowed).toBe(false); expect(recovered.instruction).toContain('tabt svar');
+  expect(state.upload).not.toHaveBeenCalled();
 });

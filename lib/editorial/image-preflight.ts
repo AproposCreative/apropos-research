@@ -80,8 +80,11 @@ export async function preflightSubmissionImage(uid: string, raw: unknown, import
     canStageForPersonalSelection: inputsComplete, hostDeliveryRequired: true,
     blockers, references: actualReferences, integration: NATIVE_IMAGE_INTEGRATION, failures, declinedImages: declines, authorizedResume: resume,
     visualChecks: { status: 'not_performed', independentSemanticVerification: false, personalReviewRequired: true },
+    dispatch: resume ? { claimRequired: resume.status === 'authorized', tool: 'claim_submission_image_attempt',
+      grantId: resume.grantId, requestId: resume.requestId, inputMode: resume.inputMode,
+      state: resume.status, nativeGenerationObserved: false } : null,
     automaticRetryAllowed: false, regenerateImage: false, paidAiCalls: 0, publicationApproval: false,
     instruction: inputsComplete
-      ? 'Ét kontrolleret billedforsøg er muligt, hvis den aktuelle host faktisk modtager hele den kanoniske prompt og alle originale referencebilleder uændret. Skjult generatorbehandling er ikke verificeret. Kan hosten ikke modtage inputtene, STOP. Kontrollér resultatet; import_submission_image gemmer kun en privat kandidat indtil brugerens personlige valg. Ingen automatisk retry eller publicering.'
+      ? (resume ? 'FØR dette nye forsøg: kald claim_submission_image_attempt med præcis dispatch.grantId/requestId, samme revision/brief/placering og inputMode. Kun første svar med dispatchAllowed=true åbner ét native kald; timeout eller gentaget claim giver ikke et nyt kald. ' : '') + 'Ét kontrolleret billedforsøg er muligt, hvis den aktuelle host faktisk modtager hele den kanoniske prompt og alle originale referencebilleder uændret. Skjult generatorbehandling er ikke verificeret. Kan hosten ikke modtage inputtene, STOP. Kontrollér resultatet; import_submission_image gemmer kun en privat kandidat indtil brugerens personlige valg. Ingen automatisk retry eller publicering.'
       : 'STOP før billedkald. Løs de konkrete blockers, bevar originaler og request-ID. Hent preview ved afventende personligt billedvalg. Et nyt brief eller en klienthash ophæver ikke stoppet.' };
 }

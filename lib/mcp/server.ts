@@ -13,6 +13,7 @@ import { chatImageBriefInput, getChatImageBrief } from '@/lib/editorial/chat-ima
 import { chatImageImportInput, importChatImage } from '@/lib/editorial/chat-image-import';
 import { imageReferenceInput, storeSubmissionImageReference } from '@/lib/editorial/image-reference';
 import { imagePreflightInput, preflightSubmissionImage } from '@/lib/editorial/image-preflight';
+import { imageAttemptClaimInput, claimSubmissionImageAttempt } from '@/lib/editorial/image-attempt-resume';
 import { ImagePipelineFailure, imageFailurePreviewInput, previewImageFailure } from '@/lib/editorial/image-failure';
 import { chatFileRecovery } from '@/lib/editorial/chat-file-error';
 import { importedImageResult } from './import-image-result';
@@ -169,6 +170,8 @@ export function createEditorialMcp(identity: McpIdentity) {
     { meta: { 'openai/fileParams': ['file'] } });
   tool('preflight_submission_image', 'OBLIGATORISK før ethvert native billedkald, efter status, mediekontekst og get_image_brief. Read-only kontrol af gemt versions-/afsnitsbrief, faktiske referencebytes, motivreferencebindinger og serverens integrationskapabilitet. canGenerate=false betyder STOP, ikke prøvegeneration. Klienthash/rapport kan aldrig ophæve stoppet. Ingen filimport, generation, godkendelse eller artikelændring.',
     imagePreflightInput, 'apropos:read', true, input => preflightSubmissionImage(identity.uid, input));
+  tool('claim_submission_image_attempt', 'Tag en ALLEREDE registreret personlig engangstilladelse i brug umiddelbart før ét native billedkald. Kun ejer. Hent frisk status, mediekontekst, præcis brief og preflight først; alle faktiske input skal være tilgængelige. Brug dispatch.grantId/requestId uændret. Opretter eller udvider aldrig tilladelser, foretager ingen billedgenerering eller personlig godkendelse. Kun første svar dispatchAllowed=true tillader ét kald; gentagelse eller timeout må aldrig udløse endnu et. Importér samme original med samme requestId. Hvis værktøjet mangler eller inputMode ikke kan opfyldes, STOP.',
+    imageAttemptClaimInput, 'apropos:draft', false, input => claimSubmissionImageAttempt(identity.uid, input));
   tool('preview_submission_image_failure', 'Læs og vis en eksisterende AFVIST original fra privat karantæne med dens fejlkvittering. Ikke artikelmedie, billedvalg eller godkendelse. Ingen retry, genberegning, import eller publicering.',
     imageFailurePreviewInput, 'apropos:read', true, input => previewImageFailure(identity.uid, input), false, {
       result: raw => { const { image, ...data } = raw as Awaited<ReturnType<typeof previewImageFailure>>;
