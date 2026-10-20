@@ -82,3 +82,30 @@ The isolated fixture had used default Tailwind, missing this existing integratio
 hazard. Preview controls now use explicit #080808 ink; the browser fixture loads
 the actual project configuration and asserts computed contrast for both the
 active view button and each approval action. No article data changed.
+
+## Released and checked live, 20 October 2026 15:30 Copenhagen
+
+Final source `3656311bfc7a512198ea969b75d21ebed518c5a9` includes the individual
+review implementation `fbc2020d2495ec7aa97db86b85830fe095677eb5`. Both are pushed
+to `codex/image-preflight-v30`. The final clean-archive production build
+`dpl_GdURtNLbvRkJ7jXX119XoRXmLQzf` passed TypeScript and 237-page generation,
+reached READY, passed protected OAuth-resource readback and was promoted.
+Independent Vercel MCP lookup resolves the actual `ai.aproposmagazine.com` alias
+to this exact source/deployment. Deployment protection is unchanged.
+The existing dependency audit still reports 3 moderate / 7 high findings; no
+dependencies changed and this is not a clean security-audit claim.
+
+All 14 external browser cases passed again using the real Tailwind configuration,
+including computed dark text on white controls. Production browser readback
+confirms three independent enabled approval buttons with `rgb(8, 8, 8)` text,
+individual decline controls, cover/body grouping and readable view navigation.
+Switching to **Læs artikel** shows the attached cover and preserved prose, not
+the three private alternatives. The browser was returned to **Vælg billeder**.
+No approval/decline/publication button was clicked in production.
+
+Fresh native MCP preview/status confirms revision 3 and the same content hash,
+three current unselected originals and one previously attached cover. No body
+images, new editorial consent or publication were invented by this UI release.
+The owner must make the actual individual image decisions; the new flow was
+tested with isolated personal-click fixtures, not by impersonating those choices.
+The existing article URL and MCP resource URI are retained.
