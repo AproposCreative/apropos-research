@@ -89,6 +89,14 @@ strings in `credit` in the metadata file, then regenerate and inspect both
 contact pages. The photographer is not inferred from `providedBy`; supplying
 a photograph is distinct from taking it.
 
+### Press contact
+
+The owner designated `Liv@aproposmagazine.com` as the address for all press
+enquiries. Both language sources use this exact spelling. The generator reads
+that address from the reviewed copy, requires the locales to agree, and uses it
+for the visible contact and every `mailto:` link. The editor's role and portrait
+remain unchanged.
+
 ### Fonts
 
 The existing reviewed font bytes were compared to the official
@@ -160,9 +168,15 @@ All six pages were rendered after that update; pages 1 and 2 in each language
 were pixel-identical to the previous version. Both updated contact pages were
 visually checked, including the complete photograph and the confirmed credit.
 
-Latest reviewed PDF hashes, including the portrait:
+The later press-address correction changes the visible contact to
+`Liv@aproposmagazine.com` and all four mail links per PDF to
+`mailto:Liv@aproposmagazine.com`. All six rendered pages were confirmed
+pixel-identical outside the changed email text. The portrait, photographer
+credit and three-page layouts are unchanged.
+
+Latest reviewed PDF hashes, including the portrait and current press contact:
 
 | Final PDF | SHA-256 |
 | --- | --- |
-| `apropos-pressekit-da.pdf` | `b34b499aa0a84674486540ab9bc4e9b678770ae0b5ea90317d0b1435b5f0f3fb` |
-| `apropos-press-kit-en.pdf` | `344f1d5e975b744d1d5c3518da60fa7ef539e15b1da480933e62f61d5eaef2d0` |
+| `apropos-pressekit-da.pdf` | `f924519a2fe4128bd13cb5f0aff0d6c8b1451468caee5c24bad68963a8cd7965` |
+| `apropos-press-kit-en.pdf` | `ec86910d5616c2625f8184bb4d36e606eb723efa3098b8f7c4ad884fece9a741` |

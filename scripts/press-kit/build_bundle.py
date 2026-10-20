@@ -22,7 +22,7 @@ Pakken indeholder pressekit på dansk og engelsk, tekster og fakta samt original
 Brug sort logo på lys baggrund og hvidt logo på mørk baggrund. Bevar proportioner, farver og fri luft omkring logoet. Undgå at beskære eller ændre det.
 Pressefoto af Frederik Emil Kragh: Foto: Christine Olsgaard, Azide. Bevar fotokreditten ved brug. Originalfilen ligger i portraits/.
 Logoerne er leveret af Apropos til omtale af mediet. Fotografier fra eller billedrettigheder til de nævnte artikler følger ikke med pakken.
-Kontakt: hej@aproposmagazine.com
+Kontakt: Liv@aproposmagazine.com
 Hjemmeside: https://www.aproposmagazine.com
 
 English
@@ -30,7 +30,7 @@ This package contains Danish and English press kits, descriptions and facts, and
 Use the black logo on light backgrounds and the white logo on dark backgrounds. Preserve proportions, colours and clear space. Do not crop or alter the logo.
 Press photo of Frederik Emil Kragh: Photo: Christine Olsgaard, Azide. Retain the photo credit when using the portrait. The original file is in portraits/.
 Apropos supplied the logos for coverage of the publication. Photographs and image rights for the featured articles are not included.
-Contact: hej@aproposmagazine.com
+Contact: Liv@aproposmagazine.com
 Website: https://www.aproposmagazine.com
 '''
 (out/'README.txt').write_text(readme)

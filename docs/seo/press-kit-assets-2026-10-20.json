@@ -56,28 +56,28 @@
   {
     "name": "apropos-pressekit-da.pdf",
     "path": "output/pdf/apropos-pressekit-da.pdf",
-    "assetId": "6ad7b626716a3178e7426d4b",
-    "url": "https://cdn.prod.website-files.com/67dbf17ba540975b5b21c180/6ad7b626716a3178e7426d4b_apropos-pressekit-da.pdf",
-    "sha256": "b34b499aa0a84674486540ab9bc4e9b678770ae0b5ea90317d0b1435b5f0f3fb",
+    "assetId": "6ad7b87da0a2c35879e6dc34",
+    "url": "https://cdn.prod.website-files.com/67dbf17ba540975b5b21c180/6ad7b87da0a2c35879e6dc34_apropos-pressekit-da.pdf",
+    "sha256": "f924519a2fe4128bd13cb5f0aff0d6c8b1451468caee5c24bad68963a8cd7965",
     "bytes": 2599671,
     "status": 201
   },
   {
     "name": "apropos-press-kit-en.pdf",
     "path": "output/pdf/apropos-press-kit-en.pdf",
-    "assetId": "6ad7b6268d7cad0dc48b2182",
-    "url": "https://cdn.prod.website-files.com/67dbf17ba540975b5b21c180/6ad7b6268d7cad0dc48b2182_apropos-press-kit-en.pdf",
-    "sha256": "344f1d5e975b744d1d5c3518da60fa7ef539e15b1da480933e62f61d5eaef2d0",
+    "assetId": "6ad7b87f52d042e49c87b2fc",
+    "url": "https://cdn.prod.website-files.com/67dbf17ba540975b5b21c180/6ad7b87f52d042e49c87b2fc_apropos-press-kit-en.pdf",
+    "sha256": "ec86910d5616c2625f8184bb4d36e606eb723efa3098b8f7c4ad884fece9a741",
     "bytes": 2598828,
     "status": 201
   },
   {
     "name": "apropos-pressepakke.zip",
     "path": "output/press-kit/apropos-pressepakke.zip",
-    "assetId": "6ad7b6278d7cad0dc48b21f3",
-    "url": "https://cdn.prod.website-files.com/67dbf17ba540975b5b21c180/6ad7b6278d7cad0dc48b21f3_apropos-pressepakke.zip",
-    "sha256": "81c8ead6d8921ec610f35eaf77aa59d4331061456b945d34301a0ea7d54dbdb1",
-    "bytes": 4513904,
+    "assetId": "6ad7b8808ceb14332986aa41",
+    "url": "https://cdn.prod.website-files.com/67dbf17ba540975b5b21c180/6ad7b8808ceb14332986aa41_apropos-pressepakke.zip",
+    "sha256": "dbb05caa224f3481136f6423d0a6bcddc168bae05f802240cd85ddcf781999d9",
+    "bytes": 4513912,
     "status": 201
   },
   {

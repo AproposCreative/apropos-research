@@ -113,8 +113,8 @@
         },
         {
           "label": "Pressekontakt",
-          "value": "hej@aproposmagazine.com",
-          "url": "mailto:hej@aproposmagazine.com"
+          "value": "Liv@aproposmagazine.com",
+          "url": "mailto:Liv@aproposmagazine.com"
         }
       ]
     },
@@ -131,7 +131,7 @@
     "contact": {
       "heading": "Pressehenvendelser",
       "text": "Har du brug for oplysninger om mediet, en kommentar eller materiale til en omtale? Skriv med medie, emne og deadline, så henvendelsen har den nødvendige kontekst.",
-      "email": "hej@aproposmagazine.com",
+      "email": "Liv@aproposmagazine.com",
       "emailSubject": "Pressehenvendelse",
       "editorName": "Frederik Emil Kragh",
       "editorRole": "Ansvarshavende redaktør"
@@ -248,8 +248,8 @@
         },
         {
           "label": "Press contact",
-          "value": "hej@aproposmagazine.com",
-          "url": "mailto:hej@aproposmagazine.com"
+          "value": "Liv@aproposmagazine.com",
+          "url": "mailto:Liv@aproposmagazine.com"
         }
       ]
     },
@@ -266,7 +266,7 @@
     "contact": {
       "heading": "Press enquiries",
       "text": "Need information about the publication, a comment or material for a story? Email us with your publication, topic and deadline to give your enquiry the context it needs.",
-      "email": "hej@aproposmagazine.com",
+      "email": "Liv@aproposmagazine.com",
       "emailSubject": "Press enquiry",
       "editorName": "Frederik Emil Kragh",
       "editorRole": "Editor-in-chief"

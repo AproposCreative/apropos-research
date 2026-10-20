@@ -47,7 +47,10 @@ BLUE = colors.HexColor("#0089bd")
 PALE = colors.HexColor("#eff8fc")
 LINE = colors.HexColor("#dce0e5")
 HOME = "https://www.aproposmagazine.com"
-MAIL = "mailto:hej@aproposmagazine.com"
+PRESS_EMAIL = COPY["da"]["contact"]["email"]
+if PRESS_EMAIL != "Liv@aproposmagazine.com" or COPY["en"]["contact"]["email"] != PRESS_EMAIL:
+    raise ValueError("Both press-kit locales must use the approved press contact")
+MAIL = f"mailto:{PRESS_EMAIL}"
 
 
 def verify_assets() -> dict:
@@ -448,7 +451,7 @@ class PressPDF:
             size=10.5, leading=16, font="Poppins-SemiBold", name="contact-heading",
         )
         top = y - 7
-        y = self.text("hej@aproposmagazine.com", M, top, contact_width,
+        y = self.text(PRESS_EMAIL, M, top, contact_width,
                       size=18.5, leading=26, color=BLUE, name="contact-email")
         self.link(MAIL, M, y, contact_width, top - y + 2)
         contact = (
@@ -493,6 +496,10 @@ class PressPDF:
         assert all(url in actual_urls for url in expected)
         assert HOME in actual_urls and MAIL in actual_urls
         assert all("/presse" not in url for url in actual_urls)
+        assert all(url == MAIL for url in actual_urls if url.lower().startswith("mailto:"))
+        public_text = "\n".join(page.extract_text() for page in reader.pages)
+        assert PRESS_EMAIL in public_text
+        assert "hej@aproposmagazine.com" not in public_text
         LAYOUT.append({
             "locale": self.locale, "output": str(self.path.relative_to(ROOT)),
             "pages": 3, "pageFormat": "A4",
@@ -505,6 +512,8 @@ class PressPDF:
             "links": self.links,
             "figures": self.figures,
             "portraitCredit": PORTRAIT_METADATA.get("credit", {}).get(self.locale),
+            "pressEmail": PRESS_EMAIL,
+            "pressMailtoVerified": True,
         })
         print(f"{self.path}: 3 A4 pages, {len(actual_urls)} links, text bounds passed")
 

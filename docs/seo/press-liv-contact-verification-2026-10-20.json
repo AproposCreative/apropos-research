@@ -1,0 +1,86 @@
+{
+  "checkedAt": "2026-10-20T18:54:24.830Z",
+  "receipts": [
+    {
+      "locale": "da",
+      "url": "https://apropos-magazine.webflow.io/presse",
+      "status": 200,
+      "mailLinks": [
+        {
+          "text": "Liv@aproposmagazine.com",
+          "href": "mailto:Liv@aproposmagazine.com"
+        },
+        {
+          "text": "Liv@aproposmagazine.com",
+          "href": "mailto:Liv@aproposmagazine.com?subject=Pressehenvendelse"
+        }
+      ],
+      "newDownloadLinks": [
+        {
+          "text": "Dansk PDF",
+          "href": "https://cdn.prod.website-files.com/67dbf17ba540975b5b21c180/6ad7b87da0a2c35879e6dc34_apropos-pressekit-da.pdf"
+        },
+        {
+          "text": "English PDF",
+          "href": "https://cdn.prod.website-files.com/67dbf17ba540975b5b21c180/6ad7b87f52d042e49c87b2fc_apropos-press-kit-en.pdf"
+        },
+        {
+          "text": "Pressekit på dansk (PDF)",
+          "href": "https://cdn.prod.website-files.com/67dbf17ba540975b5b21c180/6ad7b87da0a2c35879e6dc34_apropos-pressekit-da.pdf"
+        },
+        {
+          "text": "Pressekit på engelsk (PDF)",
+          "href": "https://cdn.prod.website-files.com/67dbf17ba540975b5b21c180/6ad7b87f52d042e49c87b2fc_apropos-press-kit-en.pdf"
+        },
+        {
+          "text": "Hele pressepakken (ZIP)",
+          "href": "https://cdn.prod.website-files.com/67dbf17ba540975b5b21c180/6ad7b8808ceb14332986aa41_apropos-pressepakke.zip"
+        }
+      ],
+      "onlyTextChange": "hej@aproposmagazine.com -> Liv@aproposmagazine.com"
+    },
+    {
+      "locale": "en",
+      "url": "https://apropos-magazine.webflow.io/en/presse",
+      "status": 200,
+      "mailLinks": [
+        {
+          "text": "Liv@aproposmagazine.com",
+          "href": "mailto:Liv@aproposmagazine.com"
+        },
+        {
+          "text": "Liv@aproposmagazine.com",
+          "href": "mailto:Liv@aproposmagazine.com?subject=Pressehenvendelse"
+        }
+      ],
+      "newDownloadLinks": [
+        {
+          "text": "Dansk PDF",
+          "href": "https://cdn.prod.website-files.com/67dbf17ba540975b5b21c180/6ad7b87da0a2c35879e6dc34_apropos-pressekit-da.pdf"
+        },
+        {
+          "text": "English PDF",
+          "href": "https://cdn.prod.website-files.com/67dbf17ba540975b5b21c180/6ad7b87f52d042e49c87b2fc_apropos-press-kit-en.pdf"
+        },
+        {
+          "text": "Press kit in Danish (PDF)",
+          "href": "https://cdn.prod.website-files.com/67dbf17ba540975b5b21c180/6ad7b87da0a2c35879e6dc34_apropos-pressekit-da.pdf"
+        },
+        {
+          "text": "Press kit in English (PDF)",
+          "href": "https://cdn.prod.website-files.com/67dbf17ba540975b5b21c180/6ad7b87f52d042e49c87b2fc_apropos-press-kit-en.pdf"
+        },
+        {
+          "text": "Complete press package (ZIP)",
+          "href": "https://cdn.prod.website-files.com/67dbf17ba540975b5b21c180/6ad7b8808ceb14332986aa41_apropos-pressepakke.zip"
+        }
+      ],
+      "onlyTextChange": "hej@aproposmagazine.com -> Liv@aproposmagazine.com"
+    }
+  ],
+  "production": {
+    "url": "https://www.aproposmagazine.com/presse",
+    "status": 404
+  },
+  "stagingPublishTaskId": "15121a94-baa0-4cff-8110-3ccb05ae47a0"
+}
