@@ -6,8 +6,9 @@ import { readFile, mkdir } from 'node:fs/promises';
 import { chromium } from 'playwright';
 import postcss from 'postcss';
 import tailwind from 'tailwindcss';
+import tailwindConfig from '../tailwind.config.cjs';
 const raw = await readFile('app/connect/chatgpt/submission.tsx', 'utf8');
-const css = (await postcss([tailwind({ content: [{ raw, extension: 'tsx' }] })]).process('@tailwind base; @tailwind utilities;', { from: undefined })).css;
+const css = (await postcss([tailwind({ ...tailwindConfig, content: [{ raw, extension: 'tsx' }] })]).process('@tailwind base; @tailwind utilities;', { from: undefined })).css;
 const bundle = await build({ stdin: { resolveDir: process.cwd(), loader: 'tsx', contents: `
 import React,{StrictMode} from 'react';import {createRoot} from 'react-dom/client';
 import Submission from './app/connect/chatgpt/submission';
@@ -65,6 +66,8 @@ try {
     const firstCard=page.getByRole('figure',{name:'Sokken',exact:true});
     const decline=firstCard.getByRole('button',{name:'Fravælg billede'});
     await page.getByRole('heading',{name:'Vælg billeder til artiklen'}).waitFor();
+    assert.equal(await page.getByRole('button',{name:'Vælg billeder (3)',exact:true}).evaluate(el=>getComputedStyle(el).color),'rgb(8, 8, 8)');
+    assert.equal(await firstCard.getByRole('button',{name:mode==='selected'?'Færdiggør billedvalg':'Godkend billede',exact:true}).evaluate(el=>getComputedStyle(el).color),'rgb(8, 8, 8)');
     assert.equal(await page.getByRole('article',{name:'Artikelpreview'}).count(),0);
     assert.equal(await page.evaluate(()=>fixture.calls.length),0);
     if(mode==='selected')assert.equal(await decline.count(),0);

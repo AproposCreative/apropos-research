@@ -73,3 +73,12 @@ older café body). All three remain unselected; no publishing consent is added.
 
 Deployment/live evidence is recorded separately after release. Isolated tests
 are not evidence of a real person's production image selection.
+
+## Production visual correction
+
+The first production UI inspection caught white-on-white primary controls: the
+project replaces Tailwind's `black` token with a shade map without a default.
+The isolated fixture had used default Tailwind, missing this existing integration
+hazard. Preview controls now use explicit #080808 ink; the browser fixture loads
+the actual project configuration and asserts computed contrast for both the
+active view button and each approval action. No article data changed.

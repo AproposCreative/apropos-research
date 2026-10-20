@@ -98,8 +98,8 @@ export default function SubmissionConfirmation({ id }: { id: string }) {
   return <section className="space-y-5" aria-label="Læs og godkend artikel">
     <nav className="flex flex-wrap justify-between gap-3 text-sm text-white/65"><Link className="underline underline-offset-4" href="/connect/chatgpt?review=1">Alle kladder</Link><span>Version {row.revision} · {row.status === 'published' ? 'Udgivelseskvittering gemt' : 'Privat preview'}</span></nav>
     <nav aria-label="Artikel og billedvalg" className="flex flex-wrap gap-3">
-      <button className={`${button} ${showingImages ? 'bg-white text-black hover:bg-white/90' : ''}`} aria-pressed={showingImages} onClick={() => setView('images')}>Vælg billeder{candidates.length ? ` (${candidates.length})` : ''}</button>
-      <button className={`${button} ${!showingImages ? 'bg-white text-black hover:bg-white/90' : ''}`} aria-pressed={!showingImages} onClick={() => setView('article')}>Læs artikel</button>
+      <button className={`${button} ${showingImages ? 'bg-white text-[#080808] hover:bg-white/90' : ''}`} aria-pressed={showingImages} onClick={() => setView('images')}>Vælg billeder{candidates.length ? ` (${candidates.length})` : ''}</button>
+      <button className={`${button} ${!showingImages ? 'bg-white text-[#080808] hover:bg-white/90' : ''}`} aria-pressed={!showingImages} onClick={() => setView('article')}>Læs artikel</button>
     </nav>
     {notice && <p role="status" className="border-l-2 border-white pl-4 leading-7">{notice}</p>}
     {showingImages ? <div className="mx-auto max-w-[42rem] space-y-6">
@@ -128,7 +128,7 @@ export default function SubmissionConfirmation({ id }: { id: string }) {
                 {(!state.candidatePreviews?.[candidate.assetId] || imageStates[key] === 'failed') && <p role="status">Billedet kunne ikke vises. Genindlæs før du vælger det.</p>}
               </figcaption>
               <div className="flex flex-wrap gap-3">
-                <button className={`${button} flex-1 bg-white text-black hover:bg-white/90`} disabled={busy || !usable || !!state.dependencyError} onClick={() => void act(candidate)}>
+                <button className={`${button} flex-1 bg-white text-[#080808] hover:bg-white/90`} disabled={busy || !usable || !!state.dependencyError} onClick={() => void act(candidate)}>
                   {activeAsset === candidate.assetId ? 'Gemmer …' : candidate.selected ? 'Færdiggør billedvalg' : 'Godkend billede'}
                 </button>
                 {!candidate.selected && <button className={`${button} flex-1`} disabled={busy || !usable || !!state.dependencyError} onClick={() => void act(candidate, 'decline')}>Fravælg billede</button>}
@@ -166,7 +166,7 @@ export default function SubmissionConfirmation({ id }: { id: string }) {
       {state.consent.includesPersonalImageSelection && <p className="text-white/75">Dit klik vælger også de viste billeder trods ovenstående forbehold om prompt og stilreference.</p>}
       <label className="flex gap-3"><input type="checkbox" checked={schedule} onChange={e => setSchedule(e.target.checked)} />Planlæg udgivelse</label>
       {schedule && <label className="block">Tidspunkt i København<input className="mt-2 block min-h-12 w-full rounded-xl border border-white/25 bg-transparent p-3" type="datetime-local" value={when} onChange={e => setWhen(e.target.value)} /></label>}
-      <button className={`${button} w-full bg-white text-black hover:bg-white/90`} disabled={busy || imageFailed || (schedule && !when)} onClick={() => void act()}>{schedule ? 'Godkend og planlæg' : 'Godkend og udgiv'}</button>
+      <button className={`${button} w-full bg-white text-[#080808] hover:bg-white/90`} disabled={busy || imageFailed || (schedule && !when)} onClick={() => void act()}>{schedule ? 'Godkend og planlæg' : 'Godkend og udgiv'}</button>
     </> : consentPending ? <p role="status">Din udgivelsesgodkendelse er gemt. Serveren færdiggør de tekniske kontroller og udgivelsen. Du skal ikke godkende igen eller sende en besked; status opdateres automatisk.</p> : row.imageSelection?.required && row.executionPolicy !== 'chatgpt-first-v1' ? <>
       {row.imageSelection.items.map(asset => <figure key={asset.assetId}>
         <Image unoptimized src={asset.url} alt={asset.role === 'cover' ? 'Valgt cover til gennemgang' : 'Valgt illustration til gennemgang'} width={960} height={540} onError={() => setImageFailed(true)} className="h-auto w-full rounded-xl" />
