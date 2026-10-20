@@ -6,7 +6,7 @@ import { readSubmission, submissionStore } from './submissions';
 import { submissionId, submissionInput, type SubmissionRecord } from './submission-contract';
 import { imageProtectedContentHash } from './image-content-invariant';
 import { readImageFailures } from './image-failure';
-import { declinedPlacementImages, isPendingImageCandidate } from './image-candidate-state';
+import { declinedPlacementImages } from './image-candidate-state';
 import { nativeImageInputMode } from './image-generation-evidence';
 
 type Placement = { role: string; sectionId?: string; briefId?: string; expectedRevision: number };
@@ -137,7 +137,7 @@ async function authorizeAttempt(uid: string, input: z.infer<typeof imageAttemptR
     const currentAssets = await tx.get(ref.collection('chatAssets').limit(101));
     if (cmsFieldHash(current) !== cmsFieldHash(row) || cmsFieldHash(currentBrief) !== cmsFieldHash(brief) ||
         JSON.stringify(currentFailures.docs.filter(d => d.data().role === input.role && d.data().sectionId === input.sectionId).map(d => d.id).sort()) !== JSON.stringify(ids) ||
-        currentAssets.size > 100 || currentAssets.docs.some(d => isPendingImageCandidate(d.data())) ||
+        currentAssets.size > 100 ||
         cmsFieldHash({ declines: declinedPlacementImages(currentAssets.docs.map(d => d.data()), uid, row.id, input.role, input.sectionId) }) !== cmsFieldHash({ declines }))
       throw Error('mcp_submission_image_content_changed');
     if (old && old.intentHash !== intentHash) throw Error('mcp_submission_idempotency_conflict');
@@ -201,7 +201,7 @@ export async function claimImageAttemptResume(uid: string, raw: unknown, expecte
     const head = (await tx.get(ref.collection('imageAttemptResumeHeads').doc(grantId(uid, row.id, failureIds(failures, input), declines)))).data();
     if (cmsFieldHash(current) !== cmsFieldHash(row) || cmsFieldHash(currentBrief) !== cmsFieldHash(brief) ||
         JSON.stringify(currentFailures.docs.filter(d => d.data().role === input.role && d.data().sectionId === input.sectionId).map(d => d.id).sort()) !== JSON.stringify(failureIds(failures, input)) ||
-        assets.size > 100 || assets.docs.some(d => isPendingImageCandidate(d.data())) ||
+        assets.size > 100 ||
         saved?.inputMode !== input.inputMode || saved?.bindingHash !== cmsFieldHash(binding(uid, row, input, brief, failures,
           declinedPlacementImages(assets.docs.map(d => d.data()), uid, row.id, input.role, input.sectionId)))) throw Error('mcp_submission_image_content_changed');
     if (head && (head.grantId !== grant.grantId || head.uid !== uid || head.bindingHash !== saved?.bindingHash)) return false;

@@ -24,6 +24,8 @@ import { validateReference } from '@/lib/editorial/image-reference';
 import { chatSubmissionPreview, confirmChatSubmission } from '@/lib/editorial/chat-preview';
 import { digest } from '@/lib/mcp/oauth';
 import { cmsFieldHash } from '@/lib/liv/cms-field-hash';
+import { assertImageSelection } from '@/lib/editorial/submission-image-selection';
+import { readSubmission } from '@/lib/editorial/submissions';
 import { authorizeImageAttemptResume, renewExpiredImageAttemptResume, adaptUnusedImageAttemptInputMode, claimImageAttemptResume, claimSubmissionImageAttempt, imageAttemptClaimInput } from '@/lib/editorial/image-attempt-resume';
 const id = 'a'.repeat(64), briefId = 'b'.repeat(64), subjectId = 'c'.repeat(64), path = `editorialSubmissions/${id}`;
 let memory: ReturnType<typeof memoryFirestore>, input: any, brief: any, generated: any, bytes: Buffer;
@@ -246,7 +248,8 @@ it('retains undecodable rejected data privately but never renders HTML as an ima
   await expect(previewImageFailure('owner', { submissionId: id, failureId: receipt.failureId })).rejects.toThrow('rejected_image_unavailable');
 });
 
-it('stages a valid illustration privately, replays it without download, and blocks another attempt until the user chooses', async () => {
+it('stages five private alternatives without selecting, attaching, replacing the cover or permitting publication', async () => {
+  memory.rows.get(path).article.featuredImage = 'https://cdn.test/existing-cover.png';
   const before = cmsFieldHash(memory.rows.get(path));
   const staged = await importChatImage('owner', generated);
   expect(staged).toMatchObject({ importStatus: 'awaiting_personal_selection', revision: 2, originalPreserved: true, publicationApproval: false });
@@ -257,8 +260,19 @@ it('stages a valid illustration privately, replays it without download, and bloc
   expect(status.handoff.nextAction).toBe('show_inline_preview_for_personal_image_selection');
   expect(status.imageCandidates).toHaveLength(1);
   expect((await imageCandidatePreviews('owner', id, status.imageCandidates))[staged.assetId]).toMatch(/^data:image\/webp;base64,/);
-  expect((await preflightSubmissionImage('owner', input)).blockers).toContain('mcp_submission_image_selection_required');
-  await expect(importChatImage('owner', { ...generated, requestId: 'second-attempt-0001' })).rejects.toThrow('image_selection_required');
+  for (let i = 1; i < 5; i++) {
+    expect(await preflightSubmissionImage('owner', input)).toMatchObject({ canGenerate: true, blockers: [],
+      personalSelection: { pendingCandidates: i, requiredBeforeAttachment: true } });
+    const nextBytes = await sharp({ create: { width: 1200, height: 800, channels: 3, background: { r: i * 40, g: 80, b: 20 } } }).png().toBuffer();
+    state.download.mockResolvedValue(nextBytes);
+    await expect(importChatImage('owner', { ...generated, requestId: `requested-alternative-${i}`,
+      generationReport: { ...generated.generationReport, outputCheck: { ...generated.generationReport.outputCheck,
+        sha256: (await validateReference(nextBytes)).sha256 } } })).resolves.toMatchObject({ importStatus: 'awaiting_personal_selection', revision: 2 });
+  }
+  expect((await getSubmissionStatus('owner', id)).imageCandidates).toHaveLength(5);
+  await expect(assertImageSelection(await readSubmission('owner', id))).rejects.toThrow('image_selection_required');
+  expect(cmsFieldHash(memory.rows.get(path))).toBe(before);
+  state.download.mockResolvedValue(bytes);
   await expect(importChatImage('owner', { ...generated, requestId: 'fake-photo-attempt-0001', kind: 'photo', origin: 'user-upload',
     briefId: undefined, generationReport: undefined })).rejects.toThrow('generated_image_relabelled');
   expect(state.upload).not.toHaveBeenCalled(); expect(JSON.stringify([...memory.rows])).not.toContain('PRIVATE');
@@ -351,6 +365,29 @@ it('parallel claims consume the single dispatch once', async () => {
   const claims = await Promise.all([claimImageAttemptResume('owner', resumeInput()), claimImageAttemptResume('owner', resumeInput())]);
   expect(claims.filter(c => c.dispatchAllowed)).toHaveLength(1);
 });
+it('pending alternatives neither clear a failed placement nor prevent an explicitly authorized one-shot claim', async () => {
+  await rejectedAttempt();
+  memory.rows.set(`${path}/chatAssets/pending-alternative`, { ...generated, uid: 'owner', assetId: 'pending-alternative',
+    status: 'awaiting_personal_selection', importInput: generated });
+  const original = cmsFieldHash(memory.rows.get(path));
+  expect((await preflightSubmissionImage('owner', input)).blockers).toContain('mcp_submission_image_attempt_stopped');
+  const grant = await authorizeImageAttemptResume('owner', resumeInput());
+  expect(grant?.canDispatch).toBe(true);
+  const claims = await Promise.all([claimImageAttemptResume('owner', resumeInput()), claimImageAttemptResume('owner', resumeInput())]);
+  expect(claims.filter(c => c.dispatchAllowed)).toHaveLength(1);
+  await expect(assertImageSelection(await readSubmission('owner', id))).rejects.toThrow('image_selection_required');
+  expect(cmsFieldHash(memory.rows.get(path))).toBe(original);
+  expect(memory.rows.get(`${path}/chatAssets/pending-alternative`).status).toBe('awaiting_personal_selection');
+  expect(state.upload).not.toHaveBeenCalled();
+});
+it('pending alternatives never relax actual-reference or revision checks', async () => {
+  memory.rows.set(`${path}/chatAssets/pending-alternative`, { status: 'awaiting_personal_selection', importInput: generated });
+  state.files.delete('private/style');
+  const check = await preflightSubmissionImage('owner', { ...input, expectedRevision: 1 });
+  expect(check.canGenerate).toBe(false);
+  expect(check.blockers).toContain('mcp_submission_style_reference_required');
+  expect(check.blockers).toContain('mcp_submission_revision_conflict');
+});
 it.each(['disabled', 'unverified', 'other-owner'])('rejects unauthorized service actor %s', async mode => {
   await rejectedAttempt();
   if (mode === 'disabled') state.account.disabled = true;
@@ -437,7 +474,8 @@ it('a bare declined flag without exact personal receipt cannot release pending-s
   const staged = await importChatImage('owner', generated);
   memory.rows.get(`${path}/chatAssets/${staged.assetId}`).status = 'declined';
   expect((await getSubmissionStatus('owner', id)).imageCandidates).toHaveLength(1);
-  expect((await preflightSubmissionImage('owner', input)).blockers).toContain('mcp_submission_image_selection_required');
+  expect((await preflightSubmissionImage('owner', input)).personalSelection.pendingCandidates).toBe(1);
+  await expect(assertImageSelection(await readSubmission('owner', id))).rejects.toThrow('image_selection_required');
 });
 it('decline wins atomically over a concurrent stale select and never uploads', async () => {
   const staged = await importChatImage('owner', generated), sha = generated.generationReport.outputCheck.sha256;
@@ -461,7 +499,7 @@ it('new direction gets one new immutable authorization after decline, not by ove
   memory.rows.set(`${path}/chatBriefs/${nextBriefId}`, nextBrief);
   const next = { ...first, requestId: 'explicit-new-direction-0002', briefId: nextBriefId,
     decision: 'Owner explicitly approved one new baby cafe and nightclub direction, without portrait.' };
-  await expect(authorizeImageAttemptResume('owner', next)).rejects.toThrow('image_selection_required');
+  await expect(authorizeImageAttemptResume('owner', next)).rejects.toThrow('idempotency_conflict');
   await declineGeneratedImage('owner', id, 2, staged.assetId, generated.generationReport.outputCheck.sha256);
   const check = { ...input, briefId: nextBriefId, subjectReferencesRequired: false, subjectReferenceIds: [] };
   expect((await preflightSubmissionImage('owner', check)).canGenerate).toBe(false);
@@ -521,7 +559,7 @@ it('model-facing claim never creates a missing owner decision', async () => {
   await expect(claimSubmissionImageAttempt('owner', { ...placement, grantId: 'f'.repeat(64) })).rejects.toThrow('image_attempt_stopped');
   expect(cmsFieldHash([...memory.rows])).toBe(before);
 });
-it.each(['owner', 'grant', 'request', 'brief', 'section', 'revision', 'mode', 'expiry', 'text', 'missing-reference', 'pending-selection', 'status'])('new claim fails closed for %s', async mode => {
+it.each(['owner', 'grant', 'request', 'brief', 'section', 'revision', 'mode', 'expiry', 'text', 'missing-reference', 'media-window', 'status'])('new claim fails closed for %s', async mode => {
   const claim = await registeredClaim();
   if (mode === 'grant') claim.grantId = 'f'.repeat(64);
   if (mode === 'request') claim.requestId = 'different-request-id';
@@ -532,7 +570,7 @@ it.each(['owner', 'grant', 'request', 'brief', 'section', 'revision', 'mode', 'e
   if (mode === 'expiry') memory.rows.get(`${path}/imageAttemptResumes/${claim.grantId}`).expiresAt = '2000-01-01T00:00:00Z';
   if (mode === 'text') memory.rows.get(path).article.title = 'Concurrent mutation';
   if (mode === 'missing-reference') state.files.delete('private/style');
-  if (mode === 'pending-selection') memory.rows.set(`${path}/chatAssets/pending`, { status: 'awaiting_personal_selection', importInput: generated });
+  if (mode === 'media-window') for (let i = 0; i < 101; i++) memory.rows.set(`${path}/chatAssets/pending-${i}`, { status: 'awaiting_personal_selection', importInput: generated });
   if (mode === 'status') memory.rows.get(path).status = 'prepared';
   const before = cmsFieldHash([...memory.rows]);
   await expect(claimSubmissionImageAttempt(mode === 'owner' ? 'other' : 'owner', claim)).rejects.toThrow();
@@ -580,7 +618,7 @@ it('renews only the expired unused grant, preserves originals and old receipts, 
   expect(state.upload).not.toHaveBeenCalled();
 });
 it.each(['not-expired', 'claimed', 'claimed-timestamp', 'missing', 'same-request', 'binding', 'source', 'invalid-expiry',
-  'owner', 'revision', 'brief', 'section', 'text', 'missing-reference', 'pending-selection', 'not-draft'])('renewal refuses %s without writes', async mode => {
+  'owner', 'revision', 'brief', 'section', 'text', 'missing-reference', 'media-window', 'not-draft'])('renewal refuses %s without writes', async mode => {
   const renewal = await expiredRenewal(), previous = memory.rows.get(`${path}/imageAttemptResumes/${renewal.previousGrantId}`);
   if (mode === 'not-expired') previous.expiresAt = new Date(Date.now() + 60000).toISOString();
   if (mode === 'claimed') previous.status = 'dispatch_claimed';
@@ -596,7 +634,7 @@ it.each(['not-expired', 'claimed', 'claimed-timestamp', 'missing', 'same-request
   if (mode === 'section') renewal.sectionId = 'f'.repeat(64);
   if (mode === 'text') memory.rows.get(path).article.title = 'Concurrent mutation';
   if (mode === 'missing-reference') state.files.delete('private/style');
-  if (mode === 'pending-selection') memory.rows.set(`${path}/chatAssets/pending`, { status: 'awaiting_personal_selection', importInput: generated });
+  if (mode === 'media-window') for (let i = 0; i < 101; i++) memory.rows.set(`${path}/chatAssets/pending-${i}`, { status: 'awaiting_personal_selection', importInput: generated });
   if (mode === 'not-draft') memory.rows.get(path).status = 'prepared';
   const before = cmsFieldHash([...memory.rows]);
   await expect(renewExpiredImageAttemptResume('owner', renewal)).rejects.toThrow();
@@ -672,7 +710,7 @@ it('adapts only delivery mode, retaining request/expiry and immutable history, t
   expect(state.upload).not.toHaveBeenCalled();
 });
 it.each(['expired', 'claimed', 'claimed-timestamp', 'missing', 'changed-request', 'same-mode', 'binding', 'source', 'invalid-expiry',
-  'owner', 'revision', 'brief', 'section', 'text', 'missing-style', 'missing-subject', 'hash-only', 'pending-selection', 'not-draft'])('context adaptation refuses %s without writes', async mode => {
+  'owner', 'revision', 'brief', 'section', 'text', 'missing-style', 'missing-subject', 'hash-only', 'media-window', 'not-draft'])('context adaptation refuses %s without writes', async mode => {
   const adaptation = await contextAdaptation(), previous = memory.rows.get(`${path}/imageAttemptResumes/${adaptation.previousGrantId}`);
   if (mode === 'expired') previous.expiresAt = '2000-01-01T00:00:00Z';
   if (mode === 'claimed') previous.status = 'dispatch_claimed';
@@ -691,7 +729,7 @@ it.each(['expired', 'claimed', 'claimed-timestamp', 'missing', 'changed-request'
   if (mode === 'missing-style') state.files.delete('private/style');
   if (mode === 'missing-subject') state.files.delete('private/subject');
   if (mode === 'hash-only') brief.retainedReferences[0] = { sha256: brief.referenceHash, purpose: 'style' };
-  if (mode === 'pending-selection') memory.rows.set(`${path}/chatAssets/pending`, { status: 'awaiting_personal_selection', importInput: generated });
+  if (mode === 'media-window') for (let i = 0; i < 101; i++) memory.rows.set(`${path}/chatAssets/pending-${i}`, { status: 'awaiting_personal_selection', importInput: generated });
   if (mode === 'not-draft') memory.rows.get(path).status = 'prepared';
   const before = cmsFieldHash([...memory.rows]);
   await expect(adaptUnusedImageAttemptInputMode('owner', adaptation)).rejects.toThrow();

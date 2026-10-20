@@ -72,7 +72,10 @@ export async function preflightSubmissionImage(uid: string, raw: unknown, import
       add('mcp_submission_image_attempt_stopped');
     else if (!importRequestId && !resume.canDispatch) add('mcp_submission_image_dispatch_already_claimed');
   }
-  if (candidates.docs.some(doc => isPendingImageCandidate(doc.data()))) add('mcp_submission_image_selection_required');
+  // Private alternatives are not attachment/publication consent. An unresolved
+  // choice must not prevent a user from requesting other proposals to compare.
+  // Failure/decline retry stops above remain bound to the exact placement.
+  const pendingCandidates = candidates.docs.filter(doc => isPendingImageCandidate(doc.data())).length;
   // Second read closes an observable race; dispatch must still revalidate in the
   // future host adapter. No preflight result can be reused as a bearer permit.
   const current = await readSubmission(uid, row.id);
@@ -83,6 +86,7 @@ export async function preflightSubmissionImage(uid: string, raw: unknown, import
     protectedContentHash: imageProtectedContentHash(row.article), role: input.role, sectionId: input.sectionId, briefId: input.briefId ?? null,
     checkedAt: new Date().toISOString(), inputsComplete, canGenerate: inputsComplete, canImportGeneratedImage: false,
     canStageForPersonalSelection: inputsComplete, hostDeliveryRequired: true,
+    personalSelection: { pendingCandidates, requiredBeforeAttachment: true, publicationApproval: false },
     inputDelivery: { supportedModes: nativeImageInputMode.options, requestedMode: input.inputMode ?? null,
       requiredMode: resume?.inputMode ?? null, hostCapabilityVerified: false, nativeInputVerified: false,
       contextRequirement: 'The complete unchanged canonical prompt and actual ordered style/subject images must be present in the current native generator context. Hashes, URLs, summaries and old conversational references are not substitutes. STOP if unavailable.' },
@@ -93,6 +97,6 @@ export async function preflightSubmissionImage(uid: string, raw: unknown, import
       state: resume.status, nativeGenerationObserved: false } : null,
     automaticRetryAllowed: false, regenerateImage: false, paidAiCalls: 0, publicationApproval: false,
     instruction: inputsComplete
-      ? (resume ? 'FØR dette nye forsøg: kald claim_submission_image_attempt med præcis dispatch.grantId/requestId, samme revision/brief/placering og inputMode. Kun første svar med dispatchAllowed=true åbner ét native kald; timeout eller gentaget claim giver ikke et nyt kald. ' : '') + 'Ét kontrolleret billedforsøg er muligt, hvis den aktuelle host faktisk modtager hele den kanoniske prompt og alle originale referencebilleder uændret. Skjult generatorbehandling er ikke verificeret. Kan hosten ikke modtage inputtene, STOP. Kontrollér resultatet; import_submission_image gemmer kun en privat kandidat indtil brugerens personlige valg. Ingen automatisk retry eller publicering.'
+      ? (resume ? 'FØR dette nye forsøg: kald claim_submission_image_attempt med præcis dispatch.grantId/requestId, samme revision/brief/placering og inputMode. Kun første svar med dispatchAllowed=true åbner ét native kald; timeout eller gentaget claim giver ikke et nyt kald. ' : '') + 'Ét kontrolleret billedforsøg er muligt, hvis den aktuelle host faktisk modtager hele den kanoniske prompt og alle originale referencebilleder uændret. Skjult generatorbehandling er ikke verificeret. Kan hosten ikke modtage inputtene, STOP. Kontrollér resultatet; import_submission_image gemmer kun en privat kandidat indtil brugerens personlige valg. Andre private forslag kan bevares til sammenligning, når brugeren har bestilt flere; dette er ikke tilladelse til autonome ekstra forsøg. Ingen automatisk retry eller publicering.'
       : 'STOP før billedkald. Løs de konkrete blockers, bevar originaler og request-ID. Hent preview ved afventende personligt billedvalg. Et nyt brief eller en klienthash ophæver ikke stoppet.' };
 }

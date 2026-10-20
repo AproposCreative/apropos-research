@@ -208,7 +208,7 @@ export async function importSuppliedImage(uid: string, input: Omit<z.infer<typeo
       current.personalSelection.contentHash !== row.contentHash)) {
     return { assetId, revision: row.revision, importStatus: 'awaiting_personal_selection', originalHash: current.originalHash,
       originalPreserved: true, paidAiCalls: 0, publicationApproval: false, regenerateImage: false,
-      generationEvidence: current.generationEvidence, instruction: 'Originalen er gemt privat, ikke i CMS eller artiklen. Vis preview_submission. Brugeren skal selv vælge denne fil før tilknytning. Ingen ny generation eller upload.' };
+      generationEvidence: current.generationEvidence, instruction: 'Originalen er gemt privat, ikke i CMS eller artiklen. Vis billedet til personligt valg. Brugeren skal selv vælge denne fil før tilknytning. Andre udtrykkeligt bestilte forslag kræver hvert sit brief og frisk preflight. Ingen automatisk retry, CMS-upload eller publicering.' };
   }
   if (current.status !== 'uploaded') {
     const [original] = await storage.file(current.storagePath).download({ validation: 'crc32c' });
