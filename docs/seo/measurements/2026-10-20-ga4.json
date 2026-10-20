@@ -1,0 +1,63 @@
+{
+  "checkedAt": "2026-10-20T13:39:54.505Z",
+  "property": "484743571",
+  "definition": "GA4 sessions attributed to known AI service hostnames; 28 completed days versus preceding 28 days. Dates use property reporting timezone.",
+  "limitations": [
+    "AI referrals are a lower bound: stripped referrers and unknown sources are not classified.",
+    "Google AI Overviews/AI Mode are not separable from ordinary Google Search here.",
+    "Visits do not measure citations, impressions, recommendations or causal impact.",
+    "GA4 thresholding/sampling/data-loss flags are retained in each period metadata."
+  ],
+  "periods": [
+    {
+      "startDate": "2026-09-20",
+      "endDate": "2026-10-17",
+      "rowCount": 22,
+      "metadata": {
+        "currencyCode": "DKK",
+        "timeZone": "Europe/Copenhagen"
+      },
+      "allSessions": 1948,
+      "aiSessions": 27,
+      "aiEngagedSessions": 12,
+      "aiSessionShare": 0.013860369609856264,
+      "aiEngagementRate": 0.4444444444444444,
+      "providers": {
+        "ChatGPT": {
+          "sessions": 24,
+          "engagedSessions": 11
+        },
+        "Gemini": {
+          "sessions": 2,
+          "engagedSessions": 1
+        },
+        "Perplexity": {
+          "sessions": 1,
+          "engagedSessions": 0
+        }
+      },
+      "unmatchedAiTaggedSources": []
+    },
+    {
+      "startDate": "2026-08-23",
+      "endDate": "2026-09-19",
+      "rowCount": 17,
+      "metadata": {
+        "currencyCode": "DKK",
+        "timeZone": "Europe/Copenhagen"
+      },
+      "allSessions": 2047,
+      "aiSessions": 20,
+      "aiEngagedSessions": 11,
+      "aiSessionShare": 0.009770395701025891,
+      "aiEngagementRate": 0.55,
+      "providers": {
+        "ChatGPT": {
+          "sessions": 20,
+          "engagedSessions": 11
+        }
+      },
+      "unmatchedAiTaggedSources": []
+    }
+  ]
+}
