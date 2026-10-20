@@ -101,8 +101,10 @@ export async function chatSubmissionPreview(identity: McpIdentity, id: string) {
   // Only the iframe gets the single-use bearer. It is NOT in text or structuredContent.
   // UI visibility metadata is supplementary: the server checks identity, grant,
   // purpose, expiry, version and consumption independently of the host.
-  let confirmation: { token: string; action: string; expiresAt: number; canDecline?: boolean } | null = null;
-  if (action) {
+  type Confirmation = { token: string; action: string; expiresAt: number; canDecline?: boolean };
+  let confirmation: Confirmation | null = null;
+  const candidateConfirmations: Record<string, Confirmation> = {};
+  async function issueConfirmation(action: string, candidate: typeof row.imageCandidates[number] | null) {
     const token = opaque(), expiresAt = Date.now() + 600_000;
     await submissionStore().db.collection('mcpUiConfirmations').doc(digest(token)).create({
       uid: identity.uid, grantId: identity.grantId, submissionId: id, revision: row.revision, contentHash: row.contentHash,
@@ -113,9 +115,18 @@ export async function chatSubmissionPreview(identity: McpIdentity, id: string) {
       selectionHash: row.imageSelection.selectionHash,
       expiresAt, status: 'pending', createdAt: new Date().toISOString(),
     });
-    confirmation = { token, action, expiresAt, canDecline: action === 'image_candidate' && !candidate?.selected };
+    return { token, action, expiresAt, canDecline: action === 'image_candidate' && !candidate?.selected };
   }
-  return { data, confirmation, imagePreviews, candidatePreviews };
+  if (identity.scopes.includes('apropos:draft')) {
+    for (const item of row.imageCandidates) {
+      if (item.current && candidatePreviews[item.assetId])
+        candidateConfirmations[item.assetId] = await issueConfirmation('image_candidate', item);
+    }
+  }
+  // Legacy hosts still bind their single control to the first displayed file.
+  // New cards use the per-file bearer map, never a generic approval for a list.
+  if (action) confirmation = action === 'image_candidate' ? candidateConfirmations[candidate!.assetId] || null : await issueConfirmation(action, null);
+  return { data, confirmation, candidateConfirmations, imagePreviews, candidatePreviews };
 }
 
 /** Called only by the UI, after a deliberate human click. Queues existing server

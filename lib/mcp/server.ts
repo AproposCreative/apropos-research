@@ -149,8 +149,8 @@ export function createEditorialMcp(identity: McpIdentity) {
   tool('preview_submission', 'Vis artikelkortet med hele artiklen og billeder direkte i chatten, ikke kun et link. ChatGPT-first har én personlig Godkend og udgiv-knap, som starter teknisk klargøring og udgivelse af samme version. Kortet opdaterer status automatisk. Åbn eksternt er valgfrit. Bed ikke om en ekstra chatbekræftelse. Konkrete mangler stopper godkendelsen. Ingen AI-køb; samme submissionId efter timeout.',
     chatPreviewInput, 'apropos:read', true, input => chatSubmissionPreview(identity, input.submissionId), false, {
       structured: true, meta: { ui: { resourceUri: CHAT_PREVIEW_URI }, 'openai/outputTemplate': CHAT_PREVIEW_URI },
-      result: raw => { const { data, confirmation, imagePreviews, candidatePreviews } = raw as Awaited<ReturnType<typeof chatSubmissionPreview>>;
-        return { structuredContent: data, _meta: { confirmation, imagePreviews, candidatePreviews }, content: [{ type: 'text', text: JSON.stringify(data) }] }; },
+      result: raw => { const { data, confirmation, candidateConfirmations, imagePreviews, candidatePreviews } = raw as Awaited<ReturnType<typeof chatSubmissionPreview>>;
+        return { structuredContent: data, _meta: { confirmation, candidateConfirmations, imagePreviews, candidatePreviews }, content: [{ type: 'text', text: JSON.stringify(data) }] }; },
     });
   tool('confirm_submission_action', 'Kun previewets personlige knap. Kræver kortlivet engangstoken, uændret version og samme bruger/forbindelse. imageDecision=decline fravælger præcis det viste private billedforslag og bevarer original/historik; det autoriserer ikke et nyt forsøg, CMS-upload eller udgivelse. Ingen modelbaseret godkendelse eller fravalg.',
     chatConfirmInput, 'apropos:read', false, async input => {

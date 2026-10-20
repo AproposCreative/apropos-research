@@ -8,6 +8,7 @@ import type { ArticleReadingPreview } from '@/lib/editorial/submission-preview';
 const button = 'min-h-12 rounded-xl border border-white/20 px-5 py-3 hover:bg-white/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white disabled:opacity-40';
 type Article = { title: string; subtitle?: string; intro?: string; content: string; seoTitle?: string; seoDescription?: string;
   category?: string; author?: string; rating?: number; ratingReason?: string; articleFormat?: string; slug?: string };
+type Candidate = { assetId: string; originalHash: string; alt: string; role: string; revision: number; current: boolean; selected: boolean };
 type State = {
   candidatePreviews?: Record<string, string>;
   consent?: { id: string; includesPersonalImageSelection: boolean } | null;
@@ -15,9 +16,9 @@ type State = {
   dependencyError?: string | null;
   row: { revision: number; status: string; executionPolicy?: string; approvalState?: string; publicationConsent?: { id: string }; publicationConsentPending?: boolean; article: Article; questions: Array<{ field: string; question: string }>;
     imageDeclines?: Array<{ assetId: string; originalHash: string }>;
-    imageCandidates?: Array<{ assetId: string; originalHash: string; alt: string; role: string; revision: number; current: boolean; selected: boolean }>;
+    imageCandidates?: Candidate[];
     imageSelection?: { required: boolean; accepted: boolean; selectionHash: string;
-      items: Array<{ assetId: string; url: string; role: string }>; warnings: Array<{ assetId: string; message: string }> };
+      items: Array<{ assetId: string; hash: string; url: string; role: string }>; warnings: Array<{ assetId: string; message: string }> };
     displayNames?: { author?: string; category?: string };
     missingMetadata: string[]; missingMedia?: string[]; blocker?: string; publication?: { receipt?: { publicUrl?: string }; publishAt?: string } };
   quote: null | { quoteId: string; canAccept: boolean; estimateDkk: number; ceilingDkkMicros: number; humanReview?: boolean;
@@ -31,6 +32,10 @@ export default function SubmissionConfirmation({ id }: { id: string }) {
   const [state, setState] = useState<State | null>(null), [error, setError] = useState(''), [busy, setBusy] = useState(false);
   const [checked, setChecked] = useState(false), [schedule, setSchedule] = useState(false), [when, setWhen] = useState('');
   const [imageFailed, setImageFailed] = useState(false);
+  const [view, setView] = useState<'images' | 'article' | null>(null);
+  const [imageStates, setImageStates] = useState<Record<string, 'loaded' | 'failed'>>({});
+  const [notice, setNotice] = useState('');
+  const [activeAsset, setActiveAsset] = useState<string | null>(null);
   const requestSequence = useRef(0);
   const actionPending = useRef(false);
   const refresh = useCallback(async () => {
@@ -54,11 +59,16 @@ export default function SubmissionConfirmation({ id }: { id: string }) {
     const timer = setInterval(() => { if (Date.now() - started < 120_000) void refresh(); else clearInterval(timer); }, 5000);
     return () => clearInterval(timer);
   }, [status, consentPending, refresh]);
-  async function act(imageDecision: 'select' | 'decline' = 'select') {
-    if (!user || !state || (!state.consent && !state.row.imageCandidates?.length && !checked) || busy || actionPending.current || imageFailed || state.dependencyError) return;
+  async function act(candidate?: Candidate, imageDecision: 'select' | 'decline' = 'select') {
+    if (!user || !state || busy || actionPending.current || state.dependencyError) return;
+    if (candidate ? !candidate.current || imageStates[candidate.assetId + candidate.originalHash] !== 'loaded'
+      : imageFailed || !!state.row.imageCandidates?.length || (!state.consent && !checked)) return;
     actionPending.current = true;
-    setBusy(true); setError('');
-    const candidate = state.row.imageCandidates?.[0];
+    if (candidate) setView('images');
+    setBusy(true); setError(''); setNotice(''); setActiveAsset(candidate?.assetId || null);
+    const confirmedChoice = (current?: State) => candidate && (imageDecision === 'decline'
+      ? current?.row.imageDeclines?.some(d => d.assetId === candidate.assetId && d.originalHash === candidate.originalHash)
+      : current?.row.imageSelection?.items.some(a => a.assetId === candidate.assetId && a.hash === candidate.originalHash));
     try {
       const body = candidate ? { action: imageDecision === 'decline' ? 'decline_image_candidate' : 'select_image_candidate', id, revision: candidate.revision, assetId: candidate.assetId, originalHash: candidate.originalHash }
         : state.consent ? { action: 'approve_publish', id, revision: state.row.revision, consentId: state.consent.id, localTime: schedule ? when : 'now' }
@@ -69,17 +79,78 @@ export default function SubmissionConfirmation({ id }: { id: string }) {
         : { action: 'accept_quote', id, revision: state.row.revision, quoteId: state.quote?.quoteId };
       const res = await fetch('/api/editorial/submissions', { method: 'POST', headers: { Authorization: `Bearer ${await user.getIdToken()}`, 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
       if (!res.ok) throw Error();
-      await refresh();
+      const current = await refresh();
+      if (candidate && !confirmedChoice(current)) throw Error('Unconfirmed image choice');
+      if (candidate) setNotice(imageDecision === 'decline' ? 'Billedet er fravalgt. Originalen er bevaret i historikken.' : 'Billedet er godkendt og sat ind i artiklen. Artiklen er ikke udgivet.');
     } catch {
       const current = await refresh();
-      if (!(imageDecision === 'decline' && candidate && current?.row.imageDeclines?.some(d => d.assetId === candidate.assetId && d.originalHash === candidate.originalHash)))
+      const confirmed = confirmedChoice(current);
+      if (confirmed) setNotice(imageDecision === 'decline' ? 'Billedet er fravalgt. Originalen er bevaret i historikken.' : 'Billedet er godkendt og sat ind i artiklen. Artiklen er ikke udgivet.');
+      else
         setError('Handlingen er ikke bekræftet. Kontrollér status før du prøver igen. Ved ændret artikel skal du se et nyt preview.');
-    } finally { actionPending.current = false; setBusy(false); }
+    } finally { actionPending.current = false; setBusy(false); setActiveAsset(null); }
   }
   if (!state) return <section aria-live="polite"><p>{error || 'Henter din artikel …'}</p><button className={`${button} mt-4`} disabled={busy} onClick={() => void refresh()}>Genindlæs</button></section>;
   const { row, quote, preview } = state;
+  const candidates = row.imageCandidates || [];
+  const showingImages = (view || (candidates.length ? 'images' : 'article')) === 'images';
+  const bodyCount = state.reading.blocks.filter(block => block.kind === 'image').length;
   return <section className="space-y-5" aria-label="Læs og godkend artikel">
     <nav className="flex flex-wrap justify-between gap-3 text-sm text-white/65"><Link className="underline underline-offset-4" href="/connect/chatgpt?review=1">Alle kladder</Link><span>Version {row.revision} · {row.status === 'published' ? 'Udgivelseskvittering gemt' : 'Privat preview'}</span></nav>
+    <nav aria-label="Artikel og billedvalg" className="flex flex-wrap gap-3">
+      <button className={`${button} ${showingImages ? 'bg-white text-black hover:bg-white/90' : ''}`} aria-pressed={showingImages} onClick={() => setView('images')}>Vælg billeder{candidates.length ? ` (${candidates.length})` : ''}</button>
+      <button className={`${button} ${!showingImages ? 'bg-white text-black hover:bg-white/90' : ''}`} aria-pressed={!showingImages} onClick={() => setView('article')}>Læs artikel</button>
+    </nav>
+    {notice && <p role="status" className="border-l-2 border-white pl-4 leading-7">{notice}</p>}
+    {showingImages ? <div className="mx-auto max-w-[42rem] space-y-6">
+      <header className="space-y-3">
+        <h2 className="text-2xl font-medium">Vælg billeder til artiklen</h2>
+        <p className="text-white/75">{row.article.title}</p>
+        <p className="leading-7">Godkend eller fravælg hvert forslag nedenfor. Kun det billede, du trykker på, bliver valgt. Det udgiver ikke artiklen.</p>
+        <p className="text-sm text-white/65">I artiklen nu: {state.reading.featuredImage ? 'cover' : 'intet cover'} og {bodyCount} billeder i teksten.</p>
+      </header>
+      {(['cover', 'body'] as const).map(role => {
+        const group = candidates.filter(candidate => candidate.role === role);
+        if (!group.length) return null;
+        return <section key={role} aria-label={role === 'cover' ? 'Coverforslag' : 'Forslag til teksten'} className="space-y-5">
+          <h3 className="border-b border-white/20 pb-3 text-lg font-medium">{role === 'cover' ? 'Coverforslag' : 'Billeder til teksten'}</h3>
+          {group.map(candidate => {
+            const key = candidate.assetId + candidate.originalHash;
+            const usable = candidate.current && imageStates[key] === 'loaded' && !!state.candidatePreviews?.[candidate.assetId];
+            return <figure key={key} aria-label={candidate.alt} className="space-y-3 border-b border-white/15 pb-6">
+              {state.candidatePreviews?.[candidate.assetId] && <Image unoptimized src={state.candidatePreviews[candidate.assetId]} alt={candidate.alt} width={1000} height={800} className="h-auto w-full rounded-lg"
+                onLoad={() => setImageStates(previous => ({ ...previous, [key]: 'loaded' }))}
+                onError={() => setImageStates(previous => ({ ...previous, [key]: 'failed' }))} />}
+              <figcaption className="space-y-2 text-sm leading-6 text-white/70">
+                <p>{candidate.alt}</p>
+                <p>{candidate.selected ? 'Godkendt. Tilknytningen skal færdiggøres.' : 'Forslag. Ikke i artiklen endnu.'}</p>
+                {!candidate.current && <p role="status">Teksten eller placeringen er ændret. Billedet skal kontrolleres igen før valg.</p>}
+                {(!state.candidatePreviews?.[candidate.assetId] || imageStates[key] === 'failed') && <p role="status">Billedet kunne ikke vises. Genindlæs før du vælger det.</p>}
+              </figcaption>
+              <div className="flex flex-wrap gap-3">
+                <button className={`${button} flex-1 bg-white text-black hover:bg-white/90`} disabled={busy || !usable || !!state.dependencyError} onClick={() => void act(candidate)}>
+                  {activeAsset === candidate.assetId ? 'Gemmer …' : candidate.selected ? 'Færdiggør billedvalg' : 'Godkend billede'}
+                </button>
+                {!candidate.selected && <button className={`${button} flex-1`} disabled={busy || !usable || !!state.dependencyError} onClick={() => void act(candidate, 'decline')}>Fravælg billede</button>}
+              </div>
+            </figure>;
+          })}
+        </section>;
+      })}
+      {!candidates.length && <p>Ingen forslag afventer dit valg. Du kan nu læse artiklen med de billeder, der er sat ind.</p>}
+      {!!row.imageSelection?.items.length && <details>
+        <summary className="cursor-pointer py-3">Billeder i artiklen ({row.imageSelection.items.length})</summary>
+        <div className="grid grid-cols-2 gap-4 py-3">{row.imageSelection.items.map(asset => <figure key={asset.assetId}>
+          <Image unoptimized src={asset.url} alt={asset.role === 'cover' ? 'Nuværende cover' : 'Billede i teksten'} width={480} height={320} className="h-auto w-full rounded-lg" />
+          <figcaption className="mt-2 text-sm text-white/65">{asset.role === 'cover' ? 'Cover' : 'I teksten'} · tilknyttet</figcaption>
+        </figure>)}</div>
+      </details>}
+      <details className="text-sm leading-6 text-white/60"><summary className="cursor-pointer py-3">Om billedvalg og historik</summary>
+        <p>Fravalg bevarer originalen og starter ikke en ny generation. {row.imageDeclines?.length || 0} forslag er fravalgt.</p>
+        <p>Kontrollér motiv og Apropos-stil. Generatorens skjulte behandling kan ikke verificeres. Godkendelse vælger præcis den viste original.</p>
+      </details>
+      <button className={button} onClick={() => setView('article')}>Læs artiklen med valgte billeder</button>
+    </div> : <>
     <ArticleReading article={state.reading} onImageError={() => setImageFailed(true)} />
     <div className="mx-auto max-w-[42rem] space-y-5 border-t border-white/20 pt-7">
     <h3 className="text-xl font-medium">Næste skridt</h3>
@@ -87,19 +158,9 @@ export default function SubmissionConfirmation({ id }: { id: string }) {
     {state.dependencyError && <p role="alert">{state.dependencyError}</p>}
     {imageFailed && <p role="alert">Et billede kunne ikke vises. Genindlæs før godkendelse.</p>}
     {row.imageSelection?.warnings.map(warning => <p role="status" key={warning.assetId}>{warning.message}{row.imageSelection?.accepted ? ' Dit personlige billedvalg er gemt for denne version.' : ''}</p>)}
-    {!!row.imageCandidates?.length ? <>
-      {row.imageCandidates.map(candidate => <figure key={candidate.assetId}>
-        {state.candidatePreviews?.[candidate.assetId] && <Image unoptimized src={state.candidatePreviews[candidate.assetId]} alt={candidate.alt} width={1000} height={800} className="h-auto w-full rounded-xl" onError={() => setImageFailed(true)} />}
-        <figcaption>Privat billedforslag. Ikke tilknyttet artiklen.{!candidate.current && ' Artikelversionen er ændret; billedvalget er stoppet.'}</figcaption>
-      </figure>)}
-      <p>Kontrollér motiv og Apropos-stil. Generatorens skjulte behandling er ikke verificeret. Dette valg tilknytter kun den viste original og godkender ikke udgivelse.</p>
-      <div className="flex flex-wrap gap-3">
-      <button className={button} disabled={busy || imageFailed || !!state.dependencyError || !row.imageCandidates[0].current || !state.candidatePreviews?.[row.imageCandidates[0].assetId]} onClick={() => void act()}>{row.imageCandidates[0].selected ? 'Fortsæt med det valgte billede' : 'Brug dette billede'}</button>
-      {!row.imageCandidates[0].selected && <button className={button} disabled={busy || imageFailed || !!state.dependencyError || !row.imageCandidates[0].current || !state.candidatePreviews?.[row.imageCandidates[0].assetId]} onClick={() => void act('decline')}>Fravælg billedforslag</button>}
-      </div>
-      {!row.imageCandidates[0].selected && <>
-        <p className="text-sm text-white/65">Fravalg bevarer originalen og historikken. Det starter ikke et nyt billedforsøg.</p>
-      </>}
+    {!!candidates.length ? <>
+      <p>{candidates.length} billedforslag afventer dit valg. De er ikke vist som en del af artiklen.</p>
+      <button className={button} onClick={() => setView('images')}>Godkend eller fravælg billeder enkeltvis</button>
     </> : state.consent && !state.dependencyError ? <>
       <p className="leading-7 text-white/75">Med ét klik godkender du tekst, kilder, de viste billeder og metadata i version {row.revision}. Serveren klargør og udgiver denne version efter tekniske kontroller. Ingen betalte AI-kald og ingen ekstra godkendelse i chatten.</p>
       {state.consent.includesPersonalImageSelection && <p className="text-white/75">Dit klik vælger også de viste billeder trods ovenstående forbehold om prompt og stilreference.</p>}
@@ -138,8 +199,10 @@ export default function SubmissionConfirmation({ id }: { id: string }) {
           </>}
         </>}
       </>}
+    </div>
+    </>}
+    {state.dependencyError && showingImages && <p role="alert">{state.dependencyError}</p>}
     {error && <p role="alert" className="text-red-200">{error}</p>}
     <button className={button} disabled={busy} onClick={() => void refresh()}>Kontrollér status</button>
-    </div>
   </section>;
 }

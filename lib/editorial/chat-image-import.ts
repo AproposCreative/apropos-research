@@ -62,7 +62,8 @@ export async function importChatImage(uid: string, raw: unknown) {
 /** Shared durable storage/CMS/attachment operation. Only trusted server callers
  * provide bytes; a press URL is never disguised as a native ChatGPT fileParam. */
 export async function importSuppliedImage(uid: string, input: Omit<z.infer<typeof chatImageImportInput>, 'file' | 'origin'> & { origin: z.infer<typeof chatImageImportInput>['origin'] | 'press-source' },
-  source: { identity: string; mimeType?: string; read: () => Promise<Buffer>; provenance: string; evidence?: Record<string, unknown> }) {
+  source: { identity: string; mimeType?: string; read: () => Promise<Buffer>; provenance: string; evidence?: Record<string, unknown> },
+  personalReview?: { revision: number; contentHash: string }) {
   const row = await readSubmission(uid, input.submissionId);
   const assetId = cmsFieldHash({ uid, id: row.id, requestId: input.requestId });
   const metadata = input, file = { file_id: source.identity, mime_type: source.mimeType };
@@ -99,6 +100,15 @@ export async function importSuppliedImage(uid: string, input: Omit<z.infer<typeo
       generationEvidence: previous!.generationEvidence ?? null, regenerateImage: false };
   }
   const generatedInChat = ['chatgpt-generated', 'chatgpt-edited'].includes(input.origin);
+  // Only the personal UI service supplies this context. Verify its durable,
+  // exact-file receipt again; the public import schema cannot request a rebase.
+  if (personalReview && (!generatedInChat || !previous || previous.personalSelection?.source !== 'personal-preview' ||
+      previous.personalSelection.uid !== uid || previous.personalSelection.assetId !== assetId ||
+      previous.personalSelection.originalHash !== previous.originalHash ||
+      previous.personalSelection.revision !== personalReview.revision || previous.personalSelection.contentHash !== personalReview.contentHash ||
+      row.revision !== personalReview.revision || row.contentHash !== personalReview.contentHash ||
+      previous.protectedContentHash !== imageProtectedContentHash(row.article))) throw Error('mcp_submission_preview_changed');
+  const attachmentRevision = personalReview?.revision ?? input.expectedRevision;
   if (generatedInChat) {
     const failures = await readImageFailures(uid, row.id);
     const failureId = cmsFieldHash({ uid, submissionId: row.id, requestId: input.requestId });
@@ -111,13 +121,13 @@ export async function importSuppliedImage(uid: string, input: Omit<z.infer<typeo
       throw new ImagePipelineFailure('mcp_submission_image_attempt_stopped', receipt);
     }
   }
-  if (row.revision !== input.expectedRevision && previous?.status !== 'uploaded') throw Error('mcp_submission_revision_conflict');
+  if (row.revision !== attachmentRevision && previous?.status !== 'uploaded') throw Error('mcp_submission_revision_conflict');
   if (!['draft', 'blocked', 'prepared', 'published'].includes(row.status) ||
       (row.status === 'published' && !row.publishedTarget)) throw Error('mcp_submission_operation_pending');
   if (input.kind === 'illustration' && ['film', 'tv-series'].includes(row.article.subjectType || '')) throw Error('mcp_submission_film_requires_real_stills');
   const brief = input.briefId ? (await collection.doc(row.id).collection('chatBriefs').doc(input.briefId).get()).data() : null;
   if (input.briefId) {
-    if (!brief || brief.uid !== uid || brief.contentHash !== row.contentHash || brief.role !== input.role ||
+    if (!brief || brief.uid !== uid || brief.contentHash !== (personalReview ? previous!.contentHash : row.contentHash) || brief.role !== input.role ||
       (input.role === 'body' && brief.sectionId !== input.sectionId)) throw Error('mcp_submission_brief_changed');
   }
   assertGenerationContract(input, brief);
@@ -204,7 +214,7 @@ export async function importSuppliedImage(uid: string, input: Omit<z.infer<typeo
     current = (await ref.get()).data()!;
   }
   if (generatedInChat && (!current.personalSelection || current.personalSelection.uid !== uid ||
-      current.personalSelection.originalHash !== current.originalHash || current.personalSelection.revision !== input.expectedRevision ||
+      current.personalSelection.originalHash !== current.originalHash || current.personalSelection.revision !== attachmentRevision ||
       current.personalSelection.contentHash !== row.contentHash)) {
     return { assetId, revision: row.revision, importStatus: 'awaiting_personal_selection', originalHash: current.originalHash,
       originalPreserved: true, paidAiCalls: 0, publicationApproval: false, regenerateImage: false,
@@ -292,7 +302,7 @@ export async function importSuppliedImage(uid: string, input: Omit<z.infer<typeo
     }
     article.content = $('body').html() || '';
   }
-  const updated = await updateSubmission(uid, { submissionId: row.id, expectedRevision: input.expectedRevision,
+  const updated = await updateSubmission(uid, { submissionId: row.id, expectedRevision: attachmentRevision,
     requestId: `import-${assetId}`, article }, { replaceUrls: input.role === 'cover' ? [row.article.featuredImage || ''] : replaced ? [replaced.url] : [], protectedContentHash });
   await ref.update({ status: 'attached', revision: updated.revision });
   return { assetId, url: current.url, revision: updated.revision, paidAiCalls: 0, provenance: current.provenance,

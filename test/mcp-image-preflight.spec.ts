@@ -326,6 +326,81 @@ it('records context delivery honestly without upgrading it into hidden-argument 
   expect(staged.generationEvidence).toMatchObject({ inputMode: 'conversation_context', exactPromptExecutionVerified: false });
 });
 
+it('reviews three exact files individually in any order across media-only revisions, keeping old briefs and requests', async () => {
+  const before = imageProtectedContentHash(memory.rows.get(path).article);
+  const sections = (await readImageGenSnapshot('owner', `submission-${id}`)).article.sections;
+  const staged: Array<{ assetId: string; originalHash: string }> = [];
+  for (let i = 0; i < 3; i++) {
+    const role = i === 0 ? 'cover' : 'body', sectionId = sections[i].id, nextBriefId = String(i + 1).repeat(64);
+    memory.rows.set(`${path}/chatBriefs/${nextBriefId}`, { ...brief, role, sectionId });
+    const nextBytes = await sharp({ create: { width: 1200, height: 800, channels: 3, background: { r: i * 80, g: 90, b: 40 } } }).png().toBuffer();
+    state.download.mockResolvedValue(nextBytes);
+    const result = await importChatImage('owner', { ...generated, role, sectionId, briefId: nextBriefId, requestId: `individual-choice-${i}`,
+      generationReport: { ...generated.generationReport, outputCheck: { ...generated.generationReport.outputCheck, sha256: (await validateReference(nextBytes)).sha256 } } });
+    staged.push(result as typeof staged[number]);
+  }
+  const identity = { uid: 'owner', owner: true, role: 'owner', scopes: ['apropos:read', 'apropos:draft'], grantId: 'grant' };
+  const first = await chatSubmissionPreview(identity, id);
+  expect(Object.keys(first.candidateConfirmations)).toHaveLength(3);
+  for (const auth of Object.values(first.candidateConfirmations)) expect(JSON.stringify(first.data)).not.toContain(auth.token);
+  const requests = staged.map(item => structuredClone(memory.rows.get(`${path}/chatAssets/${item.assetId}`).importInput));
+  state.upload.mockImplementation(async (_bytes, name, save) => {
+    const asset = { id: name, url: `https://cdn.prod.website-files.com/test/${name}` }; await save(asset); return asset;
+  });
+  // Explicitly choose a non-first card. Another file's hash cannot use its token.
+  const nonFirst = first.data.imageCandidates[1], other = first.data.imageCandidates[0];
+  await expect(confirmChatSubmission(identity, { token: first.candidateConfirmations[nonFirst.assetId].token, displayedImageHash: other.originalHash })).rejects.toThrow('image_preview_required');
+  await confirmChatSubmission(identity, { token: first.candidateConfirmations[nonFirst.assetId].token, displayedImageHash: nonFirst.originalHash });
+  const second = await chatSubmissionPreview(identity, id);
+  expect(second.data.revision).toBe(3);
+  expect(second.data.imageCandidates).toHaveLength(2);
+  expect(second.data.imageCandidates.every(item => item.current && item.revision === 3 && item.generatedRevision === 2)).toBe(true);
+  const oldImport = requests.find(request => request.requestId === memory.rows.get(`${path}/chatAssets/${other.assetId}`).requestId)!;
+  await expect(importChatImage('owner', { ...oldImport, file: generated.file })).rejects.toThrow('revision_conflict');
+  // Old cards never gain authority for the newer revision.
+  await expect(confirmChatSubmission(identity, { token: first.candidateConfirmations[other.assetId].token, displayedImageHash: other.originalHash })).rejects.toThrow('preview_changed');
+  for (const pending of second.data.imageCandidates) {
+    const fresh = await chatSubmissionPreview(identity, id);
+    await confirmChatSubmission(identity, { token: fresh.candidateConfirmations[pending.assetId].token, displayedImageHash: pending.originalHash });
+  }
+  const final = await getSubmissionStatus('owner', id);
+  expect(final.imageCandidates).toHaveLength(0); expect(final.revision).toBe(5);
+  expect(final.imageSelection.items).toHaveLength(3);
+  expect(state.upload).toHaveBeenCalledTimes(3);
+  expect(imageProtectedContentHash(memory.rows.get(path).article)).toBe(before);
+  expect(staged.map(item => memory.rows.get(`${path}/chatAssets/${item.assetId}`).importInput)).toEqual(requests);
+  expect(memory.rows.get(`${path}/chatBriefs/${'1'.repeat(64)}`).expectedRevision).toBe(2);
+  expect(memory.rows.get(path).publicationConsent).toBeUndefined();
+  expect(memory.rows.get(path).approval).toBeUndefined();
+});
+
+it('can decline a retained alternative after a media-only edit without reauthorizing generation', async () => {
+  const staged = await importChatImage('owner', generated);
+  const row = memory.rows.get(path);
+  row.article.featuredImage = 'https://cdn.prod.website-files.com/test/other.png'; row.revision = 3; row.contentHash = 'e'.repeat(64);
+  expect((await getSubmissionStatus('owner', id)).imageCandidates[0]).toMatchObject({ current: true, revision: 3, generatedRevision: 2 });
+  await expect(declineGeneratedImage('owner', id, 2, staged.assetId, staged.originalHash!)).rejects.toThrow('preview_changed');
+  expect(await declineGeneratedImage('owner', id, 3, staged.assetId, staged.originalHash!)).toMatchObject({ imageDeclined: true, canGenerate: false });
+  expect((await getSubmissionStatus('owner', id)).imageCandidates).toHaveLength(0);
+  const saved = memory.rows.get(`${path}/chatAssets/${staged.assetId}`);
+  expect(saved).toMatchObject({ expectedRevision: 2, personalDecline: { revision: 2, reviewedRevision: 3 } });
+  expect(state.upload).not.toHaveBeenCalled();
+});
+
+it('does not review an old candidate after prose changes, even with a fresh version and preview', async () => {
+  const staged = await importChatImage('owner', generated);
+  const row = memory.rows.get(path);
+  row.article.content += '<p>Ny tekst efter generering.</p>'; row.revision = 3; row.contentHash = 'e'.repeat(64);
+  const identity = { uid: 'owner', owner: true, role: 'owner', scopes: ['apropos:read', 'apropos:draft'], grantId: 'grant' };
+  const fresh = await chatSubmissionPreview(identity, id);
+  expect(fresh.data.imageCandidates[0]).toMatchObject({ current: false, revision: 3, generatedRevision: 2 });
+  expect(fresh.candidateConfirmations).toEqual({});
+  await expect(selectGeneratedImage('owner', id, 3, staged.assetId, staged.originalHash!)).rejects.toThrow('preview_changed');
+  await expect(declineGeneratedImage('owner', id, 3, staged.assetId, staged.originalHash!)).rejects.toThrow('preview_changed');
+  expect(state.upload).not.toHaveBeenCalled();
+  expect(memory.rows.get(`${path}/chatAssets/${staged.assetId}`).personalSelection).toBeUndefined();
+});
+
 function resumeInput() {
   const { subjectReferenceIds: _refs, subjectReferencesRequired: _required, ...placement } = input;
   return { ...placement, requestId: 'explicit-owner-resume-0001', inputMode: 'explicit_arguments',
