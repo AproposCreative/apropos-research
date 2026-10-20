@@ -15,12 +15,12 @@
       "text": "<p class=\"press-lead-1\">Descriptions, editorial profile and materials for anyone covering Apropos Magazine.</p>"
     },
     {
-      "nodeId": "93cff143-c674-9c0b-d261-d04567d008e6",
-      "text": "<a class=\"press-button-1\" href=\"https://cdn.prod.website-files.com/67dbf17ba540975b5b21c180/6ad7b11bf218582018041c11_apropos-pressekit-da.pdf\">Dansk PDF</a>"
+      "nodeId": "5a70c002-a79b-7605-3fc2-0de592656e38",
+      "text": "<a class=\"press-button-1\" href=\"https://cdn.prod.website-files.com/67dbf17ba540975b5b21c180/6ad7b626716a3178e7426d4b_apropos-pressekit-da.pdf\">Dansk PDF</a>"
     },
     {
-      "nodeId": "93cff143-c674-9c0b-d261-d04567d008e8",
-      "text": "<a class=\"press-secondary-button\" href=\"https://cdn.prod.website-files.com/67dbf17ba540975b5b21c180/6ad7b11cf218582018041cec_apropos-press-kit-en.pdf\">English PDF</a>"
+      "nodeId": "f3387af5-6709-7fe9-df8e-bc96e5ba975c",
+      "text": "<a class=\"press-secondary-button\" href=\"https://cdn.prod.website-files.com/67dbf17ba540975b5b21c180/6ad7b6268d7cad0dc48b2182_apropos-press-kit-en.pdf\">English PDF</a>"
     },
     {
       "nodeId": "93cff143-c674-9c0b-d261-d04567d008ea",
@@ -351,16 +351,16 @@
       "text": "<h3 class=\"press-subtitle\">Press kits and complete package</h3>"
     },
     {
-      "nodeId": "93cff143-c674-9c0b-d261-d04567d009f7",
-      "text": "<a class=\"press-download-link\" href=\"https://cdn.prod.website-files.com/67dbf17ba540975b5b21c180/6ad7b11bf218582018041c11_apropos-pressekit-da.pdf\">Press kit in Danish (PDF)</a>"
+      "nodeId": "8fc6666b-4726-c587-088c-5652daf4bd5c",
+      "text": "<a class=\"press-download-link\" href=\"https://cdn.prod.website-files.com/67dbf17ba540975b5b21c180/6ad7b626716a3178e7426d4b_apropos-pressekit-da.pdf\">Press kit in Danish (PDF)</a>"
     },
     {
-      "nodeId": "93cff143-c674-9c0b-d261-d04567d009f9",
-      "text": "<a class=\"press-download-link\" href=\"https://cdn.prod.website-files.com/67dbf17ba540975b5b21c180/6ad7b11cf218582018041cec_apropos-press-kit-en.pdf\">Press kit in English (PDF)</a>"
+      "nodeId": "f29a0a26-8673-9c8d-1edc-00bff6e95caf",
+      "text": "<a class=\"press-download-link\" href=\"https://cdn.prod.website-files.com/67dbf17ba540975b5b21c180/6ad7b6268d7cad0dc48b2182_apropos-press-kit-en.pdf\">Press kit in English (PDF)</a>"
     },
     {
-      "nodeId": "93cff143-c674-9c0b-d261-d04567d009fb",
-      "text": "<a class=\"press-download-link\" href=\"https://cdn.prod.website-files.com/67dbf17ba540975b5b21c180/6ad7b11cd80a23961a1ce8eb_apropos-pressepakke.zip\">Complete press package (ZIP)</a>"
+      "nodeId": "4071cf9d-1643-314b-d3c2-5b02809f3b3b",
+      "text": "<a class=\"press-download-link\" href=\"https://cdn.prod.website-files.com/67dbf17ba540975b5b21c180/6ad7b6278d7cad0dc48b21f3_apropos-pressepakke.zip\">Complete press package (ZIP)</a>"
     },
     {
       "nodeId": "93cff143-c674-9c0b-d261-d04567d009fe",
@@ -379,8 +379,20 @@
       "text": "<a class=\"press-contact-link-1\" href=\"mailto:hej@aproposmagazine.com?subject=Pressehenvendelse\">hej@aproposmagazine.com</a>"
     },
     {
-      "nodeId": "93cff143-c674-9c0b-d261-d04567d00a0b",
-      "text": "<p class=\"press-small-1\">Frederik Emil Kragh<br>Editor-in-chief</p>"
+      "nodeId": "095850d4-37bc-48a4-5168-9ba2f1877712",
+      "text": "<p class=\"press-portrait-credit\">Photo: Christine Olsgaard, Azide</p>"
+    },
+    {
+      "nodeId": "095850d4-37bc-48a4-5168-9ba2f1877717",
+      "text": "<h3 class=\"press-contact-name\">Frederik Emil Kragh</h3>"
+    },
+    {
+      "nodeId": "095850d4-37bc-48a4-5168-9ba2f1877719",
+      "text": "<p class=\"press-contact-role\">Editor-in-chief</p>"
+    },
+    {
+      "nodeId": "095850d4-37bc-48a4-5168-9ba2f187771b",
+      "text": "<a class=\"press-portrait-download\" href=\"https://cdn.prod.website-files.com/67dbf17ba540975b5b21c180/6ad7b4c83f5bc4d9929a60be_frederik-kragh.jpg\">Download press photo (JPG)</a>"
     }
   ]
 }

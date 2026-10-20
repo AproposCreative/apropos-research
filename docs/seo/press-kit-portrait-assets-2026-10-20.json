@@ -1,0 +1,38 @@
+[
+  {
+    "name": "frederik-kragh.jpg",
+    "path": "output/press-kit/portraits/frederik-kragh.jpg",
+    "assetId": "6ad7b4c83f5bc4d9929a60be",
+    "url": "https://cdn.prod.website-files.com/67dbf17ba540975b5b21c180/6ad7b4c83f5bc4d9929a60be_frederik-kragh.jpg",
+    "sha256": "fcbeac413578bd657b68bb91860016d3b3e30e8928bde479965488477a8c3bef",
+    "bytes": 190909,
+    "status": 201
+  },
+  {
+    "name": "apropos-pressekit-da.pdf",
+    "path": "output/pdf/apropos-pressekit-da.pdf",
+    "assetId": "6ad7b626716a3178e7426d4b",
+    "url": "https://cdn.prod.website-files.com/67dbf17ba540975b5b21c180/6ad7b626716a3178e7426d4b_apropos-pressekit-da.pdf",
+    "sha256": "b34b499aa0a84674486540ab9bc4e9b678770ae0b5ea90317d0b1435b5f0f3fb",
+    "bytes": 2599671,
+    "status": 201
+  },
+  {
+    "name": "apropos-press-kit-en.pdf",
+    "path": "output/pdf/apropos-press-kit-en.pdf",
+    "assetId": "6ad7b6268d7cad0dc48b2182",
+    "url": "https://cdn.prod.website-files.com/67dbf17ba540975b5b21c180/6ad7b6268d7cad0dc48b2182_apropos-press-kit-en.pdf",
+    "sha256": "344f1d5e975b744d1d5c3518da60fa7ef539e15b1da480933e62f61d5eaef2d0",
+    "bytes": 2598828,
+    "status": 201
+  },
+  {
+    "name": "apropos-pressepakke.zip",
+    "path": "output/press-kit/apropos-pressepakke.zip",
+    "assetId": "6ad7b6278d7cad0dc48b21f3",
+    "url": "https://cdn.prod.website-files.com/67dbf17ba540975b5b21c180/6ad7b6278d7cad0dc48b21f3_apropos-pressepakke.zip",
+    "sha256": "81c8ead6d8921ec610f35eaf77aa59d4331061456b945d34301a0ea7d54dbdb1",
+    "bytes": 4513904,
+    "status": 201
+  }
+]

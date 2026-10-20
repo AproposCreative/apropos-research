@@ -16,14 +16,18 @@ These are source material, not disposable build files:
   logos used in the PDF layout.
 - `assets/provenance.json`: upstream URLs, fixed Google Fonts revision and SHA-256
   digests for all of the above.
+- `../../output/press-kit/portraits/frederik-kragh.jpg` and `portrait.json`:
+  the original owner-supplied portrait and confirmed credit metadata. These
+  distribution files are also preserved source inputs for the contact page.
 - `../../docs/seo/press-kit-copy-2026-10-20.json`: reviewed Danish/English copy,
   including the 50-word and 150-word descriptions.
 - `../../docs/seo/press-kit-evidence-2026-10-20.json`: the five verified article
   examples. The generator uses only `articleExamples`, not the internal audience
   diagnostics or unverified traffic figures.
 
-The generator verifies the source-asset hashes before it loads the fonts or
-images. It has no input dependency on `tmp/`, Dropbox, a user attachment path,
+The generator verifies the source-asset hashes and the original portrait's
+metadata hash before it loads the fonts or images. It has no input dependency on
+`tmp/`, Dropbox, a user attachment path,
 or a live website.
 
 ## Provenance and licensing
@@ -64,6 +68,27 @@ here. Public CDN locations, file sizes and hashes are recorded separately in
 `docs/seo/press-kit-assets-2026-10-20.json`. Apropos retains its brand rights;
 the fonts' open license does not apply to the logos or texture.
 
+### Contact portrait
+
+The owner supplied the original portrait of Frederik Emil Kragh and confirmed
+the photographer credit as **Christine Olsgaard, Azide**.
+
+- Original JPEG: `output/press-kit/portraits/frederik-kragh.jpg`
+- Size: 984 × 1280 pixels; 190,909 bytes.
+- SHA-256:
+  `fcbeac413578bd657b68bb91860016d3b3e30e8928bde479965488477a8c3bef`
+- Metadata: `output/press-kit/portraits/portrait.json`.
+
+The contact page scales the complete photograph proportionally. It does not
+crop, retouch or alter the face. The Danish PDF displays
+`Foto: Christine Olsgaard, Azide`; the English PDF displays
+`Photo: Christine Olsgaard, Azide`.
+
+For a confirmed credit correction, update `photographer` and both localized
+strings in `credit` in the metadata file, then regenerate and inspect both
+contact pages. The photographer is not inferred from `providedBy`; supplying
+a photograph is distinct from taking it.
+
 ### Fonts
 
 The existing reviewed font bytes were compared to the official
@@ -99,7 +124,8 @@ Run from the repository root:
 python3 scripts/press-kit/build_press_kit.py --verify-inputs
 ```
 
-This checks all source assets and loads the font/image inputs without writing or
+This checks all source assets, verifies the portrait hash and dimensions, and
+loads the font/image inputs without writing or
 rebuilding the PDFs.
 
 To deliberately regenerate both PDFs:
@@ -121,16 +147,22 @@ before distributing a new version.
   `output/pdf/apropos-pressekit-da.pdf` and
   `output/pdf/apropos-press-kit-en.pdf`.
 - Original downloadable logos: `output/press-kit/brand/`.
-- Distribution ZIP and publication receipt: managed by the coordinating task.
+- Distribution ZIP: `python3 scripts/press-kit/build_bundle.py` packages the reviewed PDFs, original logos and portrait with credit. This does not rebuild the PDFs.
+- Publication receipt: managed by the coordinating task.
 - Disposable renderings and diagnostics:
   `tmp/pdfs/press-kit/rendered/`,
   `tmp/pdfs/press-kit/layout-verification.json` and
   `tmp/pdfs/press-kit/pdf-verification.json`.
 
-The reviewed 2026-10-20 PDFs were preserved while the source inputs were moved
-out of `tmp/`:
+The source-input relocation preserved the original reviewed PDF bytes. The
+later owner-approved portrait update changes only the contact area on page 3.
+All six pages were rendered after that update; pages 1 and 2 in each language
+were pixel-identical to the previous version. Both updated contact pages were
+visually checked, including the complete photograph and the confirmed credit.
+
+Latest reviewed PDF hashes, including the portrait:
 
 | Final PDF | SHA-256 |
 | --- | --- |
-| `apropos-pressekit-da.pdf` | `327928204157112bfa3fd6e3077a01225f36dde94c86ce04eeab3eb7080405f0` |
-| `apropos-press-kit-en.pdf` | `d3248ec6bf76eadc3e68225ccfe8046095916505babf00ade2c14aaf7fbff043` |
+| `apropos-pressekit-da.pdf` | `b34b499aa0a84674486540ab9bc4e9b678770ae0b5ea90317d0b1435b5f0f3fb` |
+| `apropos-press-kit-en.pdf` | `344f1d5e975b744d1d5c3518da60fa7ef539e15b1da480933e62f61d5eaef2d0` |

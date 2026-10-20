@@ -1,0 +1,10 @@
+.press-contact-profile { display: grid; grid-template-columns: 200px minmax(0, 1fr); gap: 28px; align-items: start; margin-top: 16px; }
+.press-portrait-figure { width: 200px; min-width: 0; max-width: 100%; margin: 0; }
+.press-portrait-image { display: block; width: 100%; height: auto; }
+.press-portrait-credit { margin: 10px 0 0; font-size: 13px; line-height: 1.5; }
+.press-contact-person { min-width: 0; padding-top: 8px; }
+.press-contact-name { margin: 0 0 8px; font-family: Satoshi, Arial, sans-serif; font-size: 23px; font-weight: 500; line-height: 1.3; }
+.press-contact-role { margin: 0 0 20px; font-size: 16px; line-height: 1.5; }
+.press-portrait-download { display: inline-block; color: var(--dark); font-size: 16px; line-height: 1.5; text-decoration: underline; text-underline-offset: 4px; padding: 10px 0; }
+@media screen and (max-width: 767px) { .press-contact-profile { grid-template-columns: 160px minmax(0, 1fr); gap: 24px; } .press-portrait-figure { width: 160px; } }
+@media screen and (max-width: 479px) { .press-contact-profile { grid-template-columns: minmax(0, 1fr); gap: 16px; } .press-portrait-figure { width: 200px; } .press-contact-person { padding-top: 0; } }

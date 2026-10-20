@@ -31,6 +31,9 @@ WORK = ROOT / "tmp/pdfs/press-kit"
 OUT = ROOT / "output/pdf"
 ASSETS = ROOT / "scripts/press-kit/assets"
 BRAND = ASSETS / "logos"
+PORTRAIT_DIR = ROOT / "output/press-kit/portraits"
+PORTRAIT_PATH = PORTRAIT_DIR / "frederik-kragh.jpg"
+PORTRAIT_METADATA = json.loads((PORTRAIT_DIR / "portrait.json").read_text())
 COPY = json.loads((ROOT / "docs/seo/press-kit-copy-2026-10-20.json").read_text())
 EVIDENCE = json.loads(
     (ROOT / "docs/seo/press-kit-evidence-2026-10-20.json").read_text()
@@ -57,11 +60,23 @@ def verify_assets() -> dict:
         if digest != item["sha256"]:
             raise ValueError(f"Source asset changed: {item['path']}")
         checked.append(item["path"])
+    portrait_sha = hashlib.sha256(PORTRAIT_PATH.read_bytes()).hexdigest()
+    if portrait_sha != PORTRAIT_METADATA["sha256"]:
+        raise ValueError("Original portrait changed from its verified metadata")
+    with Image.open(PORTRAIT_PATH) as portrait:
+        expected_size = (PORTRAIT_METADATA["width"], PORTRAIT_METADATA["height"])
+        if portrait.size != expected_size:
+            raise ValueError("Portrait dimensions differ from the original")
     return {
         "checkedAssets": len(checked),
         "paths": checked,
         "googleFontsCommit": manifest["googleFontsCommit"],
         "allHashesMatch": True,
+        "portrait": {
+            "path": str(PORTRAIT_PATH.relative_to(ROOT)),
+            "sha256": portrait_sha,
+            "unchangedOriginal": True,
+        },
     }
 
 
@@ -81,6 +96,8 @@ pdfmetrics.registerFontFamily(
 TEXTURE = ImageReader(str(ASSETS / "reference-texture.png"))
 WHITE_LOGO = ImageReader(str(BRAND / "AM_logo_white.png"))
 BLACK_LOGO = ImageReader(str(BRAND / "AM_logo_black.png"))
+PORTRAIT = ImageReader(str(PORTRAIT_PATH))
+PORTRAIT_RATIO = PORTRAIT_METADATA["width"] / PORTRAIT_METADATA["height"]
 LOGO_RATIO = 1200 / 481
 TEXTURE_RATIO = Image.open(ASSETS / "reference-texture.png").width / Image.open(
     ASSETS / "reference-texture.png"
@@ -107,6 +124,7 @@ class PressPDF:
         self.page = 0
         self.boxes: list[dict] = []
         self.links: list[dict] = []
+        self.figures: list[dict] = []
 
     def text(
         self, text: str, x: float, top: float, width: float,
@@ -395,24 +413,54 @@ class PressPDF:
         self.c.setStrokeColor(LINE)
         self.c.setLineWidth(.6)
         self.c.line(M, y, W - M, y)
+        portrait_top = y - 3
+        portrait_height = 126
+        portrait_width = portrait_height * PORTRAIT_RATIO
+        portrait_x = W - M - portrait_width
+        portrait_bottom = portrait_top - portrait_height
+        if portrait_bottom < 58:
+            raise ValueError("Portrait does not fit within the contact area")
+        self.c.drawImage(
+            PORTRAIT, portrait_x, portrait_bottom,
+            width=portrait_width, height=portrait_height,
+            preserveAspectRatio=True, mask="auto",
+        )
+        self.figures.append({
+            "page": self.page, "name": "editor-portrait",
+            "x": portrait_x, "top": portrait_top,
+            "width": portrait_width, "height": portrait_height,
+            "bottom": portrait_bottom, "aspectRatioPreserved": True,
+            "cropped": False, "sourceSha256": PORTRAIT_METADATA["sha256"],
+        })
+        photographer = PORTRAIT_METADATA.get("photographer")
+        if photographer:
+            credit = PORTRAIT_METADATA.get("credit", {}).get(self.locale)
+            if not credit:
+                credit = ("Foto: " if da else "Photo: ") + photographer
+            credit_width = 124
+            self.text(
+                credit, W - M - credit_width, portrait_bottom - 4, credit_width,
+                size=7.5, leading=10.5, color=MUTED, name="portrait-credit",
+            )
+        contact_width = CW - portrait_width - 28
         y = self.text(
-            "Pressekontakt" if da else "Press contact", M, y - 14, CW,
+            "Pressekontakt" if da else "Press contact", M, y - 14, contact_width,
             size=10.5, leading=16, font="Poppins-SemiBold", name="contact-heading",
         )
         top = y - 7
-        y = self.text("hej@aproposmagazine.com", M, top, CW,
+        y = self.text("hej@aproposmagazine.com", M, top, contact_width,
                       size=18.5, leading=26, color=BLUE, name="contact-email")
-        self.link(MAIL, M, y, CW, top - y + 2)
+        self.link(MAIL, M, y, contact_width, top - y + 2)
         contact = (
             "Skriv med medie, emne og deadline."
             if da else "Please include your publication, topic and deadline."
         )
-        y = self.text(contact, M, y - 8, CW, size=9.3, leading=14.0,
+        y = self.text(contact, M, y - 8, contact_width, size=9.3, leading=14.0,
                       name="contact-guidance")
         self.text(
             "Frederik Emil Kragh · Ansvarshavende redaktør"
             if da else "Frederik Emil Kragh · Editor-in-chief",
-            M, y - 8, CW, size=8.8, leading=13.3, color=MUTED,
+            M, y - 8, contact_width, size=8.8, leading=13.3, color=MUTED,
             name="contact-editor",
         )
         self.footer()
@@ -455,6 +503,8 @@ class PressPDF:
             "editorOnlyOnFactsContactPage": True,
             "textBoxes": self.boxes,
             "links": self.links,
+            "figures": self.figures,
+            "portraitCredit": PORTRAIT_METADATA.get("credit", {}).get(self.locale),
         })
         print(f"{self.path}: 3 A4 pages, {len(actual_urls)} links, text bounds passed")
 

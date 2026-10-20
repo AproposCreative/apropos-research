@@ -1,0 +1,19 @@
+{
+  "subject": "Frederik Emil Kragh",
+  "providedBy": "Frederik Kragh",
+  "photographer": "Christine Olsgaard, Azide",
+  "creditStatus": "confirmed-by-owner",
+  "file": "frederik-kragh.jpg",
+  "width": 984,
+  "height": 1280,
+  "sha256": "fcbeac413578bd657b68bb91860016d3b3e30e8928bde479965488477a8c3bef",
+  "bytes": 190909,
+  "description": {
+    "da": "Portræt af Frederik Emil Kragh",
+    "en": "Portrait of Frederik Emil Kragh"
+  },
+  "credit": {
+    "da": "Foto: Christine Olsgaard, Azide",
+    "en": "Photo: Christine Olsgaard, Azide"
+  }
+}

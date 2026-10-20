@@ -1,0 +1,87 @@
+{
+  "checkedAt": "2026-10-20T18:48:30.256Z",
+  "receipts": [
+    {
+      "locale": "da",
+      "url": "https://apropos-magazine.webflow.io/presse",
+      "status": 200,
+      "downloadLinks": [
+        {
+          "text": "Dansk PDF",
+          "href": "https://cdn.prod.website-files.com/67dbf17ba540975b5b21c180/6ad7b626716a3178e7426d4b_apropos-pressekit-da.pdf"
+        },
+        {
+          "text": "English PDF",
+          "href": "https://cdn.prod.website-files.com/67dbf17ba540975b5b21c180/6ad7b6268d7cad0dc48b2182_apropos-press-kit-en.pdf"
+        },
+        {
+          "text": "Pressekit på dansk (PDF)",
+          "href": "https://cdn.prod.website-files.com/67dbf17ba540975b5b21c180/6ad7b626716a3178e7426d4b_apropos-pressekit-da.pdf"
+        },
+        {
+          "text": "Pressekit på engelsk (PDF)",
+          "href": "https://cdn.prod.website-files.com/67dbf17ba540975b5b21c180/6ad7b6268d7cad0dc48b2182_apropos-press-kit-en.pdf"
+        },
+        {
+          "text": "Hele pressepakken (ZIP)",
+          "href": "https://cdn.prod.website-files.com/67dbf17ba540975b5b21c180/6ad7b6278d7cad0dc48b21f3_apropos-pressepakke.zip"
+        },
+        {
+          "text": "Hent pressefoto (JPG)",
+          "href": "https://cdn.prod.website-files.com/67dbf17ba540975b5b21c180/6ad7b4c83f5bc4d9929a60be_frederik-kragh.jpg"
+        }
+      ],
+      "outsideContactTextUnchangedAgainstCommit": "a0784f1c2a4c4b07eee00934bcdd24925029d3d3",
+      "photoCredit": "Foto: Christine Olsgaard, Azide"
+    },
+    {
+      "locale": "en",
+      "url": "https://apropos-magazine.webflow.io/en/presse",
+      "status": 200,
+      "downloadLinks": [
+        {
+          "text": "Dansk PDF",
+          "href": "https://cdn.prod.website-files.com/67dbf17ba540975b5b21c180/6ad7b626716a3178e7426d4b_apropos-pressekit-da.pdf"
+        },
+        {
+          "text": "English PDF",
+          "href": "https://cdn.prod.website-files.com/67dbf17ba540975b5b21c180/6ad7b6268d7cad0dc48b2182_apropos-press-kit-en.pdf"
+        },
+        {
+          "text": "Press kit in Danish (PDF)",
+          "href": "https://cdn.prod.website-files.com/67dbf17ba540975b5b21c180/6ad7b626716a3178e7426d4b_apropos-pressekit-da.pdf"
+        },
+        {
+          "text": "Press kit in English (PDF)",
+          "href": "https://cdn.prod.website-files.com/67dbf17ba540975b5b21c180/6ad7b6268d7cad0dc48b2182_apropos-press-kit-en.pdf"
+        },
+        {
+          "text": "Complete press package (ZIP)",
+          "href": "https://cdn.prod.website-files.com/67dbf17ba540975b5b21c180/6ad7b6278d7cad0dc48b21f3_apropos-pressepakke.zip"
+        },
+        {
+          "text": "Download press photo (JPG)",
+          "href": "https://cdn.prod.website-files.com/67dbf17ba540975b5b21c180/6ad7b4c83f5bc4d9929a60be_frederik-kragh.jpg"
+        }
+      ],
+      "outsideContactTextUnchangedAgainstCommit": "a0784f1c2a4c4b07eee00934bcdd24925029d3d3",
+      "photoCredit": "Photo: Christine Olsgaard, Azide"
+    },
+    {
+      "production": "https://www.aproposmagazine.com/presse",
+      "status": 404
+    }
+  ],
+  "mobile": {
+    "viewport": 390,
+    "scrollWidth": 390,
+    "imageWidth": 200,
+    "imageHeight": 260.15625
+  },
+  "desktop": {
+    "viewport": 1200,
+    "scrollWidth": 1200,
+    "imageWidth": 200,
+    "imageHeight": 260.15625
+  }
+}
