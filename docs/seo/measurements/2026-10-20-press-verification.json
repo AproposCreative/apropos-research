@@ -1,0 +1,79 @@
+{
+  "checkedAt": "2026-10-20T14:42:43.684Z",
+  "staging": {
+    "url": "https://apropos-magazine.webflow.io/presse",
+    "status": 200,
+    "title": "Presse: fakta, kontakt og logo | Apropos Magazine",
+    "description": "Find pressekontakt, fakta og logo til omtale af Apropos Magazine. Et uafhængigt dansk kulturmedie med musik, film, kunst, bøger og gaming. Uden reklamer.",
+    "canonical": "https://www.aproposmagazine.com/presse",
+    "h1": [
+      "Presse"
+    ],
+    "mainCount": 1,
+    "logoCount": 2,
+    "pressLinkFromAbout": "Presse og fakta om Apropos ↗",
+    "inSitemap": true
+  },
+  "links": [
+    {
+      "href": "/om",
+      "url": "https://apropos-magazine.webflow.io/om",
+      "status": 200,
+      "type": "text/html; charset=utf-8"
+    },
+    {
+      "href": "https://www.aproposmagazine.com",
+      "url": "https://www.aproposmagazine.com/",
+      "status": 200,
+      "type": "text/html; charset=utf-8"
+    },
+    {
+      "href": "/sections/musik",
+      "url": "https://apropos-magazine.webflow.io/sections/musik",
+      "status": 200,
+      "type": "text/html; charset=utf-8"
+    },
+    {
+      "href": "/sections/serierogfilm",
+      "url": "https://apropos-magazine.webflow.io/sections/serierogfilm",
+      "status": 200,
+      "type": "text/html; charset=utf-8"
+    },
+    {
+      "href": "/sections/kultur",
+      "url": "https://apropos-magazine.webflow.io/sections/kultur",
+      "status": 200,
+      "type": "text/html; charset=utf-8"
+    },
+    {
+      "href": "https://cdn.prod.website-files.com/67dbf17ba540975b5b21c180/67f7966d9192c68997f60640_aproposlogo.svg",
+      "url": "https://cdn.prod.website-files.com/67dbf17ba540975b5b21c180/67f7966d9192c68997f60640_aproposlogo.svg",
+      "status": 200,
+      "type": "image/svg+xml"
+    },
+    {
+      "href": "https://cdn.prod.website-files.com/67dbf17ba540975b5b21c180/6821b5bfbc78ea7107f64809_AproposHorizontal.svg",
+      "url": "https://cdn.prod.website-files.com/67dbf17ba540975b5b21c180/6821b5bfbc78ea7107f64809_AproposHorizontal.svg",
+      "status": 200,
+      "type": "image/svg+xml"
+    }
+  ],
+  "production": {
+    "url": "https://www.aproposmagazine.com/presse",
+    "status": 404
+  },
+  "browserChecks": {
+    "desktopWidth": 1200,
+    "desktopScrollWidth": 1200,
+    "mobileWidth": 390,
+    "mobileScrollWidth": 390,
+    "copyStatus": "Præsentationen er kopieret.",
+    "darkThemeText": "rgb(252, 252, 252)",
+    "darkThemeBackground": "rgb(18, 18, 18)",
+    "bothLogosLoaded": true,
+    "logoPreviewBackground": "rgb(255, 255, 255)",
+    "logoImageFilter": "none",
+    "viewportReset": true
+  },
+  "stagingPublishTaskId": "6a0b7c8a-5920-4253-9109-159ee35b0775"
+}

@@ -1,0 +1,62 @@
+{
+  "locale": "en",
+  "sourceFile": "docs/seo/press-page-2026-10-20.html",
+  "metadata": {
+    "title": "Press: facts and contact | Apropos Magazine",
+    "description": "Facts and press contact for Apropos Magazine, an independent, ad-free Danish culture publication. Find our publisher, responsible editor and areas of coverage."
+  },
+  "text": {
+    "Apropos Magazine": "Apropos Magazine",
+    "Presse": "Press",
+    "Fakta, kontakt og logo til dig, der vil omtale Apropos Magazine.": "Facts, contact details and logos for anyone covering Apropos Magazine.",
+    "Kontakt os om presse ↗": "Contact us about press enquiries ↗",
+    "Kort om Apropos": "About Apropos",
+    "Apropos Magazine er et uafhængigt dansk kulturmedie, der dækker musik, film, tv-serier, bøger, kunst, gaming og kulturliv. Mediet er gratis at læse og udkommer uden annoncer, native advertising eller sponsoreret redaktionelt indhold. Apropos Magazine udgives af Apropos Creative ApS med Frederik Emil Kragh som ansvarshavende redaktør.": "Apropos Magazine is an independent Danish culture publication covering music, film, TV series, books, art, gaming and cultural life. It is free to read and carries no advertisements, native advertising or sponsored editorial content. Apropos Magazine is published by Apropos Creative ApS, with Frederik Emil Kragh as responsible editor.",
+    "Kopiér præsentation": "Copy description",
+    "Læs mere om Apropos og redaktionen ↗": "Read more about Apropos and the editorial team ↗",
+    "Fakta": "Facts",
+    "Medie": "Publication",
+    "Profil": "Profile",
+    "Uafhængigt dansk kulturmedie": "Independent Danish culture publication",
+    "Adgang": "Access",
+    "Gratis at læse": "Free to read",
+    "Annoncer": "Advertising",
+    "Ingen annoncer, native advertising eller sponsoreret redaktionelt indhold": "No advertisements, native advertising or sponsored editorial content",
+    "Udgiver": "Publisher",
+    "Apropos Creative ApS": "Apropos Creative ApS",
+    "CVR": "CVR",
+    "38175661": "38175661",
+    "Ansvarshavende redaktør": "Responsible editor",
+    "Frederik Emil Kragh": "Frederik Emil Kragh",
+    "Hjemmeside": "Website",
+    "aproposmagazine.com ↗": "aproposmagazine.com ↗",
+    "Det skriver vi om": "What we cover",
+    "Musik og koncerter. Film og tv-serier. Bøger, kunst og gaming. Apropos beskæftiger sig med kulturen og det kulturliv, der omgiver den.": "Music and concerts. Film and TV series. Books, art and gaming. Apropos explores culture and the cultural life around it.",
+    "Musik ↗": "Music ↗",
+    "Serier & Film ↗": "TV & Film ↗",
+    "Kultur ↗": "Culture ↗",
+    "Logo": "Logo",
+    "Her finder du Apropos’ logoer som SVG. Åbn den ønskede variant, og gem filen fra din browser. Bevar logoets proportioner.": "Apropos logos are available here as SVG files. Open your preferred version and save the file from your browser. Keep the logo's proportions unchanged.",
+    "Åbn bredt logo (SVG) ↗": "Open wide logo (SVG) ↗",
+    "Åbn logo i to linjer (SVG) ↗": "Open two-line logo (SVG) ↗",
+    "Pressekontakt": "Press contact",
+    "Har du spørgsmål om Apropos, ønsker du en kommentar, eller mangler du materiale til en omtale? Skriv til os med medie, emne og deadline.": "Have a question about Apropos, need a comment or looking for material for a story? Email us with your publication, topic and deadline.",
+    "hej@aproposmagazine.com ↗": "hej@aproposmagazine.com ↗"
+  },
+  "attributes": {
+    "aria-label": {
+      "Apropos’ stofområder": "Apropos coverage areas"
+    },
+    "alt": {
+      "Apropos’ brede logo": "Apropos wide logo",
+      "Apropos Magazine-logo i to linjer": "Apropos Magazine two-line logo"
+    }
+  },
+  "copyFeedback": {
+    "Præsentationen er kopieret.": "Description copied.",
+    "Teksten er markeret. Vælg Kopiér i din browser.": "Text selected. Choose Copy in your browser."
+  },
+  "emailSubject": {
+    "Pressehenvendelse": "Press enquiry"
+  }
+}
