@@ -36,3 +36,28 @@ at the existing coffee/prices section
 `409aeb30ba2cf3ba9912f664f178deafe2a2b2b44c1310935dc22e75810be08f`.
 It still requires the user's personal image selection and version-bound
 publication approval. Import success and tests are not a live article update.
+
+## Live reconciliation and preview follow-up
+
+Release `89e39e5b1ebb104b2aeb085efcb01c8dcf784659` was deployed as
+`dpl_8qcs4hJ43Cb1TtZ5jPxnoYXV6ng3`, READY and explicitly aliased to
+`ai.aproposmagazine.com`. The CLI deployment had no Git metadata; all eight
+changed runtime source files were verified against the deployed source-file
+SHA1s instead. The protected health endpoint returned `ok: true`.
+
+Native MCP inspection then returned no conflicts and verified the exact receipt.
+Refresh `barsel-cake-compressed-refresh-20261020-v1` advanced only the private
+submission from revision 7 to 8 at approximately 18:47 UTC. Content hash:
+`20ebf67a237f45d3de6203e00772e759535b74137c6c465586652816c59d5282`.
+The four earlier image selections remain valid. No CMS write, paid AI call or
+personal publication approval occurred.
+
+The subsequent real preview exposed a separate thumbnail-reader mismatch for
+the three Firebase-hosted compressed body images. Preview now uses the same
+restricted immutable stored-image reader, while non-storage hosts still use
+the DNS-pinned public reader. It does not reimport assets or relax URL checks.
+57 tests across the preview and stored-image reader suites, TypeScript and
+targeted ESLint pass. Live verification of this follow-up is still required.
+
+The release build reported 10 existing dependency vulnerabilities (3 moderate,
+7 high). No dependencies or lockfile were changed in this scoped repair.

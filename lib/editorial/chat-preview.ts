@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import sharp from 'sharp';
-import { readPublicMedia } from '@/lib/liv/public-media-reader';
+import { readLivStoredImage } from '@/lib/liv/stored-image-reader';
 import { getAdminDb } from '@/lib/firebase-admin';
 import { digest, opaque, type McpIdentity } from '@/lib/mcp/oauth';
 import { cmsFieldHash } from '@/lib/liv/cms-field-hash';
@@ -69,13 +69,14 @@ export async function chatSubmissionPreview(identity: McpIdentity, id: string) {
   let candidatePreviews: Record<string, string> = {};
   try { candidatePreviews = await imageCandidatePreviews(identity.uid, id, row.imageCandidates); }
   catch { previewProblems.push('Det private billedforslag kunne ikke vises. Genindlæs før billedvalg.'); }
-  // External press hosts need no broad iframe CSP exception. Fetch through the
-  // existing DNS-pinned reader and send bounded thumbnails only to the UI.
+  // External press hosts need no broad iframe CSP exception. The restricted
+  // stored-image reader validates our immutable compressed assets; all other
+  // hosts retain DNS-pinned public reads. Send bounded thumbnails only to the UI.
   if (urls.length > 8) previewProblems.push('Preview understøtter højst otte billeder. Gennemgå resten på Apropos.');
   await Promise.all(urls.slice(0, 8).map(async url => {
     try {
       if (['cdn.prod.website-files.com', 'uploads-ssl.webflow.com', 'assets-global.website-files.com'].includes(new URL(url).hostname)) return;
-      const bytes = await readPublicMedia(url, 'image');
+      const bytes = await readLivStoredImage(url);
       const thumbnail = await sharp(bytes, { limitInputPixels: 80_000_000 }).rotate().resize({ width: 1000, withoutEnlargement: true }).webp({ quality: 75 }).toBuffer();
       imagePreviews[url] = 'data:image/webp;base64,' + thumbnail.toString('base64');
     } catch { previewProblems.push('Et billede kunne ikke hentes til preview. Genbrug eller importér billedfilen før godkendelse.'); }

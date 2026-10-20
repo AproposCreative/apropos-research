@@ -1,7 +1,9 @@
 import { beforeEach, expect, it, vi } from 'vitest';
+import sharp from 'sharp';
 import { memoryFirestore } from './helpers/mcp-firestore';
-const state = vi.hoisted(() => ({ db: null as any, accept: vi.fn(), approve: vi.fn(), quote: vi.fn(), publication: vi.fn() }));
+const state = vi.hoisted(() => ({ db: null as any, accept: vi.fn(), approve: vi.fn(), quote: vi.fn(), publication: vi.fn(), readImage: vi.fn() }));
 vi.mock('@/lib/firebase-admin', () => ({ getAdminDb: () => state.db }));
+vi.mock('@/lib/liv/stored-image-reader', () => ({ readLivStoredImage: state.readImage }));
 vi.mock('@/lib/mcp/oauth', async importOriginal => ({ ...await importOriginal<any>(), activeMember: async () => ({ owner: true }) }));
 vi.mock('@/lib/mcp/publication', () => ({ assertPublicationEnabled: vi.fn() }));
 vi.mock('@/lib/editorial/submission-options', () => ({ getSubmissionOptions: async () => ({
@@ -22,6 +24,7 @@ beforeEach(() => {
     article, originalArticle: article, choices: { kind: 'feature', media: 'provided' }, research: [] });
   state.quote.mockResolvedValue({ revision: 1, contentHash: 'b'.repeat(64), canAccept: true, provider: { blocked: false }, quoteId: 'q', estimateDkk: 2, ceilingDkkMicros: 5_000_000 });
   state.accept.mockResolvedValue({ accepted: true }); state.approve.mockResolvedValue({ status: 'scheduled' });
+  state.readImage.mockReset();
 });
 it('returns full article, named CMS choices and a UI-only confirmation separate from model data', async () => {
   const startedAt = Date.now();
@@ -33,6 +36,29 @@ it('returns full article, named CMS choices and a UI-only confirmation separate 
   expect(JSON.stringify(preview.data)).not.toContain(preview.confirmation!.token);
   expect(memory.rows.get(`mcpUiConfirmations/${digest(preview.confirmation!.token)}`).grantId).toBe(identity.grantId);
   expect(state.accept).not.toHaveBeenCalled();
+});
+it('shows a compressed body asset through the restricted stored-image reader without reimporting it', async () => {
+  const url = 'https://firebasestorage.googleapis.com/v0/b/own-bucket/o/webflow%2Fcontent-images%2Fcompressed.webp?alt=media&token=fixture';
+  const row = memory.rows.get(path);
+  row.article.content += `<figure><img src="${url.replaceAll('&', '&amp;')}" alt="Kage"><figcaption>Illustration</figcaption></figure>`;
+  state.readImage.mockResolvedValue(await sharp({ create: { width: 2, height: 2, channels: 3, background: '#fff' } }).webp().toBuffer());
+  const preview = await chatSubmissionPreview(identity, id);
+  expect(state.readImage).toHaveBeenCalledExactlyOnceWith(url);
+  expect(preview.imagePreviews[url]).toMatch(/^data:image\/webp;base64,/);
+  expect(preview.data.previewProblems).toEqual([]);
+  expect(row.article.content).toContain('compressed.webp');
+  expect(state.accept).not.toHaveBeenCalled(); expect(state.approve).not.toHaveBeenCalled();
+});
+it('does not bypass a rejected image read or offer publication on an incomplete preview', async () => {
+  const url = 'https://untrusted.example/image.webp';
+  memory.rows.get(path).article.content += `<figure><img src="${url}" alt="Kage"></figure>`;
+  state.readImage.mockRejectedValue(Error('liv_stored_image_mismatch'));
+  const preview = await chatSubmissionPreview(identity, id);
+  expect(state.readImage).toHaveBeenCalledExactlyOnceWith(url);
+  expect(preview.imagePreviews).toEqual({});
+  expect(preview.data.previewProblems).toHaveLength(1);
+  expect(preview.confirmation).toBeNull();
+  expect(state.accept).not.toHaveBeenCalled(); expect(state.approve).not.toHaveBeenCalled();
 });
 function uncertainImage() {
   const url = 'https://cdn.prod.website-files.com/test/retained.png';
