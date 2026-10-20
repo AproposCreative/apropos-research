@@ -61,3 +61,18 @@ targeted ESLint pass. Live verification of this follow-up is still required.
 
 The release build reported 10 existing dependency vulnerabilities (3 moderate,
 7 high). No dependencies or lockfile were changed in this scoped repair.
+
+### Follow-up verified live
+
+Commit `d25cd39cc558e461a548fe8c112cf11cf1e20bd4` is deployed as
+`dpl_Ft9oH19DjfTH451oq31WR8tT4VDH`, READY. The actual production alias was
+verified after assignment; deployment metadata identifies short SHA `d25cd39c`.
+The deployed preview source SHA1 `d3d4e63a73266a7e524be8e401663453b9306d8d`
+matches the committed file. Protected `/api/health` returned `ok: true`.
+
+Native `preview_submission` at 18:54:18.905 UTC returned revision 8,
+`previewProblems: []`, `dependencyError: null`, and `missing: []`.
+The one cake candidate is current and not yet personally selected. No public
+update has occurred. The personal preview was queued in the calling Codex panel;
+queued is not evidence that the user has opened or approved it.
+Evidence: `output/barsel-photo-style-tests-2026-10-20/cake-preview-verified-2026-10-20.json`.
