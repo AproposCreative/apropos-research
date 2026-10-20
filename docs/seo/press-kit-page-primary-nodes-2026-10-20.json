@@ -1,0 +1,969 @@
+{
+  "pageId": "6ad77b51dc274141752159c0",
+  "nodes": [
+    {
+      "type": "component-instance",
+      "id": "58d4bf05-968d-b789-c707-8bc2192f2a4b",
+      "componentId": "f1b89f48-8cf3-9a5f-0782-e1c551752785",
+      "propertyOverrides": []
+    },
+    {
+      "type": "component-instance",
+      "id": "58dd9e7d-e7f5-a6dd-2437-e75cdc8f2d7f",
+      "componentId": "5058766e-c21a-0c63-9518-de7a5178f69f",
+      "propertyOverrides": []
+    },
+    {
+      "type": "text",
+      "id": "93cff143-c674-9c0b-d261-d04567d008e0",
+      "text": {
+        "html": "<p class=\"press-eyebrow\">Apropos Magazine</p>",
+        "text": "Apropos Magazine"
+      },
+      "attributes": {}
+    },
+    {
+      "type": "text",
+      "id": "93cff143-c674-9c0b-d261-d04567d008e2",
+      "text": {
+        "html": "<h1 class=\"press-title-1\">Presse</h1>",
+        "text": "Presse"
+      },
+      "attributes": {}
+    },
+    {
+      "type": "text",
+      "id": "93cff143-c674-9c0b-d261-d04567d008e4",
+      "text": {
+        "html": "<p class=\"press-lead-1\">Præsentation, redaktionel profil og materiale til dig, der vil omtale Apropos Magazine.</p>",
+        "text": "Præsentation, redaktionel profil og materiale til dig, der vil omtale Apropos Magazine."
+      },
+      "attributes": {}
+    },
+    {
+      "type": "text",
+      "id": "93cff143-c674-9c0b-d261-d04567d008e6",
+      "text": {
+        "html": "<a class=\"press-button-1\" href=\"https://cdn.prod.website-files.com/67dbf17ba540975b5b21c180/6ad7b11bf218582018041c11_apropos-pressekit-da.pdf\">Dansk PDF</a>",
+        "text": "Dansk PDF"
+      },
+      "attributes": {
+        "rel": "noopener",
+        "href": "https://cdn.prod.website-files.com/67dbf17ba540975b5b21c180/6ad7b11bf218582018041c11_apropos-pressekit-da.pdf"
+      }
+    },
+    {
+      "type": "text",
+      "id": "93cff143-c674-9c0b-d261-d04567d008e8",
+      "text": {
+        "html": "<a class=\"press-secondary-button\" href=\"https://cdn.prod.website-files.com/67dbf17ba540975b5b21c180/6ad7b11cf218582018041cec_apropos-press-kit-en.pdf\">English PDF</a>",
+        "text": "English PDF"
+      },
+      "attributes": {
+        "rel": "noopener",
+        "href": "https://cdn.prod.website-files.com/67dbf17ba540975b5b21c180/6ad7b11cf218582018041cec_apropos-press-kit-en.pdf"
+      }
+    },
+    {
+      "type": "text",
+      "id": "93cff143-c674-9c0b-d261-d04567d008ea",
+      "text": {
+        "html": "<a class=\"press-text-link-1\" href=\"#press-contact-heading\">Kontakt os om presse</a>",
+        "text": "Kontakt os om presse"
+      },
+      "attributes": {
+        "href": "#press-contact-heading"
+      }
+    },
+    {
+      "type": "text",
+      "id": "93cff143-c674-9c0b-d261-d04567d008ee",
+      "text": {
+        "html": "<h2 id=\"press-presentation-heading\" class=\"press-section-title-1\">Præsentation til omtale</h2>",
+        "text": "Præsentation til omtale"
+      },
+      "attributes": {}
+    },
+    {
+      "type": "text",
+      "id": "93cff143-c674-9c0b-d261-d04567d008f0",
+      "text": {
+        "html": "<p class=\"press-paragraph-1\">Vælg den korte eller den udfoldede præsentation af mediet.</p>",
+        "text": "Vælg den korte eller den udfoldede præsentation af mediet."
+      },
+      "attributes": {}
+    },
+    {
+      "type": "text",
+      "id": "93cff143-c674-9c0b-d261-d04567d008f2",
+      "text": {
+        "html": "<h3 class=\"press-subtitle\">Kort præsentation · 50 ord</h3>",
+        "text": "Kort præsentation · 50 ord"
+      },
+      "attributes": {}
+    },
+    {
+      "type": "text",
+      "id": "93cff143-c674-9c0b-d261-d04567d008f4",
+      "text": {
+        "html": "<p class=\"press-copy-text\">Apropos Magazine skriver om kulturen, vi lytter til, ser, læser og spiller. Det uafhængige danske digitale kulturmedie dækker musik, film, tv-serier, bøger, kunst, gaming og kulturliv gennem anmeldelser, essays og perspektiver. Apropos er gratis at læse, uden annoncer, native advertising eller sponsoreret redaktionelt indhold, og udgives af Apropos Creative ApS.</p>",
+        "text": "Apropos Magazine skriver om kulturen, vi lytter til, ser, læser og spiller. Det uafhængige danske digitale kulturmedie dækker musik, film, tv-serier, bøger, kunst, gaming og kulturliv gennem anmeldelser, essays og perspektiver. Apropos er gratis at læse, uden annoncer, native advertising eller sponsoreret redaktionelt indhold, og udgives af Apropos Creative ApS."
+      },
+      "attributes": {}
+    },
+    {
+      "type": "text",
+      "id": "93cff143-c674-9c0b-d261-d04567d008f7",
+      "text": {
+        "html": "<a id=\"press-copy-short\" class=\"press-copy-button-1\" href=\"#press-short-text\">Kopiér kort præsentation</a>",
+        "text": "Kopiér kort præsentation"
+      },
+      "attributes": {
+        "aria-describedby": "press-copy-short-status",
+        "data-press-copy-target": "press-short-text",
+        "href": "#press-short-text"
+      }
+    },
+    {
+      "type": "text",
+      "id": "93cff143-c674-9c0b-d261-d04567d008f8",
+      "text": {
+        "html": "<p id=\"press-copy-short-status\" class=\"press-copy-status-1\"></p>",
+        "text": ""
+      },
+      "attributes": {
+        "aria-atomic": "true",
+        "aria-live": "polite",
+        "role": "status"
+      }
+    },
+    {
+      "type": "text",
+      "id": "93cff143-c674-9c0b-d261-d04567d008fc",
+      "text": {
+        "html": "<h3 class=\"press-subtitle\">Udfoldet præsentation · 150 ord</h3>",
+        "text": "Udfoldet præsentation · 150 ord"
+      },
+      "attributes": {}
+    },
+    {
+      "type": "text",
+      "id": "93cff143-c674-9c0b-d261-d04567d008fe",
+      "text": {
+        "html": "<p class=\"press-copy-text\">Apropos Magazine beskæftiger sig med kulturen, der fylder på scener, skærme, sider og i samtaler. Det uafhængige danske kulturmedie samler anmeldelser, essays og perspektiver på musik, film, tv-serier, bøger, kunst, gaming og kulturliv.</p>",
+        "text": "Apropos Magazine beskæftiger sig med kulturen, der fylder på scener, skærme, sider og i samtaler. Det uafhængige danske kulturmedie samler anmeldelser, essays og perspektiver på musik, film, tv-serier, bøger, kunst, gaming og kulturliv."
+      },
+      "attributes": {}
+    },
+    {
+      "type": "text",
+      "id": "93cff143-c674-9c0b-d261-d04567d00900",
+      "text": {
+        "html": "<p class=\"press-copy-text\">Musikdækningen omfatter koncerter, festivaler og udgivelser. Film og serier undersøges som fortællinger, mens bøger, kunst og spil indgår i en bredere samtale om æstetik, identitet og samfund. Der er plads til både det enkelte værk og den sammenhæng, det bliver en del af. Stilen er personlig, nysgerrig og åben for humor med ambitionen om at gøre kulturen vedkommende og give nye vinkler plads.</p>",
+        "text": "Musikdækningen omfatter koncerter, festivaler og udgivelser. Film og serier undersøges som fortællinger, mens bøger, kunst og spil indgår i en bredere samtale om æstetik, identitet og samfund. Der er plads til både det enkelte værk og den sammenhæng, det bliver en del af. Stilen er personlig, nysgerrig og åben for humor med ambitionen om at gøre kulturen vedkommende og give nye vinkler plads."
+      },
+      "attributes": {}
+    },
+    {
+      "type": "text",
+      "id": "93cff143-c674-9c0b-d261-d04567d00902",
+      "text": {
+        "html": "<p class=\"press-copy-text\">Apropos er gratis at læse og bringer ingen annoncer, native advertising eller sponsoreret redaktionelt indhold. Reklamefriheden er dermed en konkret del af mediets profil, både i læseoplevelsen og i det redaktionelle indhold.</p>",
+        "text": "Apropos er gratis at læse og bringer ingen annoncer, native advertising eller sponsoreret redaktionelt indhold. Reklamefriheden er dermed en konkret del af mediets profil, både i læseoplevelsen og i det redaktionelle indhold."
+      },
+      "attributes": {}
+    },
+    {
+      "type": "text",
+      "id": "93cff143-c674-9c0b-d261-d04567d00904",
+      "text": {
+        "html": "<p class=\"press-copy-text\">Apropos Magazine udgives af Apropos Creative ApS og er for læsere, der ønsker vurderinger og perspektiver på tværs af kulturens mange udtryk.</p>",
+        "text": "Apropos Magazine udgives af Apropos Creative ApS og er for læsere, der ønsker vurderinger og perspektiver på tværs af kulturens mange udtryk."
+      },
+      "attributes": {}
+    },
+    {
+      "type": "text",
+      "id": "93cff143-c674-9c0b-d261-d04567d00907",
+      "text": {
+        "html": "<a id=\"press-copy-long\" class=\"press-copy-button-1\" href=\"#press-long-text\">Kopiér udfoldet præsentation</a>",
+        "text": "Kopiér udfoldet præsentation"
+      },
+      "attributes": {
+        "aria-describedby": "press-copy-long-status",
+        "data-press-copy-target": "press-long-text",
+        "href": "#press-long-text"
+      }
+    },
+    {
+      "type": "text",
+      "id": "93cff143-c674-9c0b-d261-d04567d00908",
+      "text": {
+        "html": "<p id=\"press-copy-long-status\" class=\"press-copy-status-1\"></p>",
+        "text": ""
+      },
+      "attributes": {
+        "aria-atomic": "true",
+        "aria-live": "polite",
+        "role": "status"
+      }
+    },
+    {
+      "type": "text",
+      "id": "93cff143-c674-9c0b-d261-d04567d0090c",
+      "text": {
+        "html": "<a class=\"press-text-link-1\" href=\"/om\">Læs om Apropos og redaktionen</a>",
+        "text": "Læs om Apropos og redaktionen"
+      },
+      "attributes": {
+        "href": "/om"
+      }
+    },
+    {
+      "type": "text",
+      "id": "93cff143-c674-9c0b-d261-d04567d00910",
+      "text": {
+        "html": "<h2 id=\"press-coverage-heading\" class=\"press-section-title-1\">Værkerne. Oplevelserne. Samtalen omkring dem.</h2>",
+        "text": "Værkerne. Oplevelserne. Samtalen omkring dem."
+      },
+      "attributes": {}
+    },
+    {
+      "type": "text",
+      "id": "93cff143-c674-9c0b-d261-d04567d00912",
+      "text": {
+        "html": "<p class=\"press-paragraph-1\">Apropos dækker kultur gennem anmeldelser, essays, guides og kommentarer. Interessen samler sig om værkerne, deres udtryk og de spørgsmål, de åbner: fra en koncerts form og energi til en romans blik på samfundet eller et spils måde at fortælle på.</p>",
+        "text": "Apropos dækker kultur gennem anmeldelser, essays, guides og kommentarer. Interessen samler sig om værkerne, deres udtryk og de spørgsmål, de åbner: fra en koncerts form og energi til en romans blik på samfundet eller et spils måde at fortælle på."
+      },
+      "attributes": {}
+    },
+    {
+      "type": "text",
+      "id": "93cff143-c674-9c0b-d261-d04567d00915",
+      "text": {
+        "html": "<h3 class=\"press-subtitle\"><a class=\"press-title-link\" href=\"https://www.aproposmagazine.com/sections/musik\" data-w-id=\"93cff143-c674-9c0b-d261-d04567d00914\">Musik</a></h3>",
+        "text": "Musik"
+      },
+      "attributes": {}
+    },
+    {
+      "type": "text",
+      "id": "93cff143-c674-9c0b-d261-d04567d00917",
+      "text": {
+        "html": "<p class=\"press-area-text\">Koncertanmeldelser, festivaldækning, albumanmeldelser og guides til navne på programmet. Med plads til både musikken og kulturen omkring scenerne.</p>",
+        "text": "Koncertanmeldelser, festivaldækning, albumanmeldelser og guides til navne på programmet. Med plads til både musikken og kulturen omkring scenerne."
+      },
+      "attributes": {}
+    },
+    {
+      "type": "text",
+      "id": "93cff143-c674-9c0b-d261-d04567d0091b",
+      "text": {
+        "html": "<h3 class=\"press-subtitle\"><a class=\"press-title-link\" href=\"https://www.aproposmagazine.com/sections/serierogfilm\" data-w-id=\"93cff143-c674-9c0b-d261-d04567d0091a\">Film og tv-serier</a></h3>",
+        "text": "Film og tv-serier"
+      },
+      "attributes": {}
+    },
+    {
+      "type": "text",
+      "id": "93cff143-c674-9c0b-d261-d04567d0091d",
+      "text": {
+        "html": "<p class=\"press-area-text\">Anmeldelser af film og serier samt perspektiver på deres fortællinger, karakterer og temaer. Fra den konkrete udgivelse til den kultur, den indgår i.</p>",
+        "text": "Anmeldelser af film og serier samt perspektiver på deres fortællinger, karakterer og temaer. Fra den konkrete udgivelse til den kultur, den indgår i."
+      },
+      "attributes": {}
+    },
+    {
+      "type": "text",
+      "id": "93cff143-c674-9c0b-d261-d04567d00921",
+      "text": {
+        "html": "<h3 class=\"press-subtitle\"><a class=\"press-title-link\" href=\"https://www.aproposmagazine.com/sections/kultur\" data-w-id=\"93cff143-c674-9c0b-d261-d04567d00920\">Kunst og design</a></h3>",
+        "text": "Kunst og design"
+      },
+      "attributes": {}
+    },
+    {
+      "type": "text",
+      "id": "93cff143-c674-9c0b-d261-d04567d00923",
+      "text": {
+        "html": "<p class=\"press-area-text\">Udstillinger, kunstnere og visuelle udtryk. Artikler om blandt andet portrætkunst, installationer og design, hvor værkets form møder spørgsmål om krop, identitet og offentlighed.</p>",
+        "text": "Udstillinger, kunstnere og visuelle udtryk. Artikler om blandt andet portrætkunst, installationer og design, hvor værkets form møder spørgsmål om krop, identitet og offentlighed."
+      },
+      "attributes": {}
+    },
+    {
+      "type": "text",
+      "id": "93cff143-c674-9c0b-d261-d04567d00927",
+      "text": {
+        "html": "<h3 class=\"press-subtitle\"><a class=\"press-title-link\" href=\"https://www.aproposmagazine.com/sections/kultur\" data-w-id=\"93cff143-c674-9c0b-d261-d04567d00926\">Bøger</a></h3>",
+        "text": "Bøger"
+      },
+      "attributes": {}
+    },
+    {
+      "type": "text",
+      "id": "93cff143-c674-9c0b-d261-d04567d00929",
+      "text": {
+        "html": "<p class=\"press-area-text\">Boganmeldelser og litterære perspektiver med blik for sprog, fortælling og de menneskelige og samfundsmæssige spørgsmål, litteraturen rejser.</p>",
+        "text": "Boganmeldelser og litterære perspektiver med blik for sprog, fortælling og de menneskelige og samfundsmæssige spørgsmål, litteraturen rejser."
+      },
+      "attributes": {}
+    },
+    {
+      "type": "text",
+      "id": "93cff143-c674-9c0b-d261-d04567d0092d",
+      "text": {
+        "html": "<h3 class=\"press-subtitle\"><a class=\"press-title-link\" href=\"https://www.aproposmagazine.com/topics/gaming\" data-w-id=\"93cff143-c674-9c0b-d261-d04567d0092c\">Gaming</a></h3>",
+        "text": "Gaming"
+      },
+      "attributes": {}
+    },
+    {
+      "type": "text",
+      "id": "93cff143-c674-9c0b-d261-d04567d0092f",
+      "text": {
+        "html": "<p class=\"press-area-text\">Spilanmeldelser og perspektiver på spil som kultur. Fortælling, æstetik og spiloplevelse indgår i vurderingen af de verdener, spillene inviterer ind i.</p>",
+        "text": "Spilanmeldelser og perspektiver på spil som kultur. Fortælling, æstetik og spiloplevelse indgår i vurderingen af de verdener, spillene inviterer ind i."
+      },
+      "attributes": {}
+    },
+    {
+      "type": "text",
+      "id": "93cff143-c674-9c0b-d261-d04567d00933",
+      "text": {
+        "html": "<h3 class=\"press-subtitle\"><a class=\"press-title-link\" href=\"https://www.aproposmagazine.com/topics/kultur-mening\" data-w-id=\"93cff143-c674-9c0b-d261-d04567d00932\">Kultur og samfund</a></h3>",
+        "text": "Kultur og samfund"
+      },
+      "attributes": {}
+    },
+    {
+      "type": "text",
+      "id": "93cff143-c674-9c0b-d261-d04567d00935",
+      "text": {
+        "html": "<p class=\"press-area-text\">Essays og kommentarer om blandt andet identitet, repræsentation, klubkultur og digitale platforme. Her sættes kulturelle fænomener ind i en større samtale.</p>",
+        "text": "Essays og kommentarer om blandt andet identitet, repræsentation, klubkultur og digitale platforme. Her sættes kulturelle fænomener ind i en større samtale."
+      },
+      "attributes": {}
+    },
+    {
+      "type": "text",
+      "id": "93cff143-c674-9c0b-d261-d04567d0093b",
+      "text": {
+        "html": "<h2 id=\"press-articles-heading\" class=\"press-section-title-1\">Et udvalg af vores artikler</h2>",
+        "text": "Et udvalg af vores artikler"
+      },
+      "attributes": {}
+    },
+    {
+      "type": "text",
+      "id": "93cff143-c674-9c0b-d261-d04567d0093d",
+      "text": {
+        "html": "<p class=\"press-paragraph-1\">Fem eksempler på Apropos’ anmeldelser og kulturjournalistik.</p>",
+        "text": "Fem eksempler på Apropos’ anmeldelser og kulturjournalistik."
+      },
+      "attributes": {}
+    },
+    {
+      "type": "text",
+      "id": "93cff143-c674-9c0b-d261-d04567d0093f",
+      "text": {
+        "html": "<p class=\"press-case-label\">Musik · Koncertanmeldelse</p>",
+        "text": "Musik · Koncertanmeldelse"
+      },
+      "attributes": {}
+    },
+    {
+      "type": "text",
+      "id": "93cff143-c674-9c0b-d261-d04567d00942",
+      "text": {
+        "html": "<h3 class=\"press-case-title\"><a class=\"press-title-link\" href=\"https://www.aproposmagazine.com/articles/farveblind-lille-vega-anmeldelse-2026\" data-w-id=\"93cff143-c674-9c0b-d261-d04567d00941\">Farveblind i Lille VEGA</a></h3>",
+        "text": "Farveblind i Lille VEGA"
+      },
+      "attributes": {}
+    },
+    {
+      "type": "text",
+      "id": "93cff143-c674-9c0b-d261-d04567d00944",
+      "text": {
+        "html": "<p class=\"press-case-text\">Bas, ravepunk og en brat afslutning. En anmeldelse af Farveblinds koncert i Lille VEGA.</p>",
+        "text": "Bas, ravepunk og en brat afslutning. En anmeldelse af Farveblinds koncert i Lille VEGA."
+      },
+      "attributes": {}
+    },
+    {
+      "type": "text",
+      "id": "93cff143-c674-9c0b-d261-d04567d00947",
+      "text": {
+        "html": "<p class=\"press-case-label\">Film og tv-serier · Serieanmeldelse</p>",
+        "text": "Film og tv-serier · Serieanmeldelse"
+      },
+      "attributes": {}
+    },
+    {
+      "type": "text",
+      "id": "93cff143-c674-9c0b-d261-d04567d0094a",
+      "text": {
+        "html": "<h3 class=\"press-case-title\"><a class=\"press-title-link\" href=\"https://www.aproposmagazine.com/articles/untamed-netflix\" data-w-id=\"93cff143-c674-9c0b-d261-d04567d00949\">Untamed på Netflix</a></h3>",
+        "text": "Untamed på Netflix"
+      },
+      "attributes": {}
+    },
+    {
+      "type": "text",
+      "id": "93cff143-c674-9c0b-d261-d04567d0094c",
+      "text": {
+        "html": "<p class=\"press-case-text\">En serieanmeldelse om Eric Bana, Yosemite og balancen mellem krimi og familiedrama.</p>",
+        "text": "En serieanmeldelse om Eric Bana, Yosemite og balancen mellem krimi og familiedrama."
+      },
+      "attributes": {}
+    },
+    {
+      "type": "text",
+      "id": "93cff143-c674-9c0b-d261-d04567d0094f",
+      "text": {
+        "html": "<p class=\"press-case-label\">Kunst og design · Kulturfeature</p>",
+        "text": "Kunst og design · Kulturfeature"
+      },
+      "attributes": {}
+    },
+    {
+      "type": "text",
+      "id": "93cff143-c674-9c0b-d261-d04567d00952",
+      "text": {
+        "html": "<h3 class=\"press-case-title\"><a class=\"press-title-link\" href=\"https://www.aproposmagazine.com/articles/kontrapunkt-kundearbejde-eller-kunst\" data-w-id=\"93cff143-c674-9c0b-d261-d04567d00951\">Kontrapunkt: Kunst eller kundearbejde?</a></h3>",
+        "text": "Kontrapunkt: Kunst eller kundearbejde?"
+      },
+      "attributes": {}
+    },
+    {
+      "type": "text",
+      "id": "93cff143-c674-9c0b-d261-d04567d00954",
+      "text": {
+        "html": "<p class=\"press-case-text\">En researchbaseret artikel om designbureauets arbejde og grænsen mellem kommerciel identitet og kunst.</p>",
+        "text": "En researchbaseret artikel om designbureauets arbejde og grænsen mellem kommerciel identitet og kunst."
+      },
+      "attributes": {}
+    },
+    {
+      "type": "text",
+      "id": "93cff143-c674-9c0b-d261-d04567d00957",
+      "text": {
+        "html": "<p class=\"press-case-label\">Bøger · Boganmeldelse</p>",
+        "text": "Bøger · Boganmeldelse"
+      },
+      "attributes": {}
+    },
+    {
+      "type": "text",
+      "id": "93cff143-c674-9c0b-d261-d04567d0095a",
+      "text": {
+        "html": "<h3 class=\"press-case-title\"><a class=\"press-title-link\" href=\"https://www.aproposmagazine.com/articles/boganmeldelse-soed-toes\" data-w-id=\"93cff143-c674-9c0b-d261-d04567d00959\">Sød Tøs af Anna Juul</a></h3>",
+        "text": "Sød Tøs af Anna Juul"
+      },
+      "attributes": {}
+    },
+    {
+      "type": "text",
+      "id": "93cff143-c674-9c0b-d261-d04567d0095c",
+      "text": {
+        "html": "<p class=\"press-case-text\">Litteraturkritik med blik for romanens venskaber, terapi og selvbedrag.</p>",
+        "text": "Litteraturkritik med blik for romanens venskaber, terapi og selvbedrag."
+      },
+      "attributes": {}
+    },
+    {
+      "type": "text",
+      "id": "93cff143-c674-9c0b-d261-d04567d0095f",
+      "text": {
+        "html": "<p class=\"press-case-label\">Gaming · Spilanmeldelse</p>",
+        "text": "Gaming · Spilanmeldelse"
+      },
+      "attributes": {}
+    },
+    {
+      "type": "text",
+      "id": "93cff143-c674-9c0b-d261-d04567d00962",
+      "text": {
+        "html": "<h3 class=\"press-case-title\"><a class=\"press-title-link\" href=\"https://www.aproposmagazine.com/articles/anmeldelse-astro-bot-ps5\" data-w-id=\"93cff143-c674-9c0b-d261-d04567d00961\">Astro Bot</a></h3>",
+        "text": "Astro Bot"
+      },
+      "attributes": {}
+    },
+    {
+      "type": "text",
+      "id": "93cff143-c674-9c0b-d261-d04567d00964",
+      "text": {
+        "html": "<p class=\"press-case-text\">En anmeldelse af Team Asobis PlayStation 5-spil med fokus på leg, controller og fælles spiloplevelser.</p>",
+        "text": "En anmeldelse af Team Asobis PlayStation 5-spil med fokus på leg, controller og fælles spiloplevelser."
+      },
+      "attributes": {}
+    },
+    {
+      "type": "text",
+      "id": "93cff143-c674-9c0b-d261-d04567d0096a",
+      "text": {
+        "html": "<h2 id=\"press-independence-heading\" class=\"press-section-title-1\">Gratis at læse. Uden reklamer.</h2>",
+        "text": "Gratis at læse. Uden reklamer."
+      },
+      "attributes": {}
+    },
+    {
+      "type": "text",
+      "id": "93cff143-c674-9c0b-d261-d04567d0096c",
+      "text": {
+        "html": "<p class=\"press-paragraph-1\">Apropos Magazine bringer ingen annoncer. Artiklerne er gratis at læse, og mediet udgiver hverken native advertising eller sponsoreret redaktionelt indhold.</p>",
+        "text": "Apropos Magazine bringer ingen annoncer. Artiklerne er gratis at læse, og mediet udgiver hverken native advertising eller sponsoreret redaktionelt indhold."
+      },
+      "attributes": {}
+    },
+    {
+      "type": "text",
+      "id": "93cff143-c674-9c0b-d261-d04567d0096e",
+      "text": {
+        "html": "<p class=\"press-paragraph-1\">For læseren betyder det adgang til kulturstof uden annoncer eller artikler, som en annoncør har betalt for at få udgivet.</p>",
+        "text": "For læseren betyder det adgang til kulturstof uden annoncer eller artikler, som en annoncør har betalt for at få udgivet."
+      },
+      "attributes": {}
+    },
+    {
+      "type": "text",
+      "id": "93cff143-c674-9c0b-d261-d04567d00972",
+      "text": {
+        "html": "<h2 id=\"press-facts-heading\" class=\"press-section-title-1\">Fakta om mediet</h2>",
+        "text": "Fakta om mediet"
+      },
+      "attributes": {}
+    },
+    {
+      "type": "text",
+      "id": "93cff143-c674-9c0b-d261-d04567d00974",
+      "text": {
+        "html": "<p class=\"press-fact-text\">Navn</p>",
+        "text": "Navn"
+      },
+      "attributes": {}
+    },
+    {
+      "type": "text",
+      "id": "93cff143-c674-9c0b-d261-d04567d00978",
+      "text": {
+        "html": "<p class=\"press-fact-text\">Apropos Magazine</p>",
+        "text": "Apropos Magazine"
+      },
+      "attributes": {}
+    },
+    {
+      "type": "text",
+      "id": "93cff143-c674-9c0b-d261-d04567d0097d",
+      "text": {
+        "html": "<p class=\"press-fact-text\">Profil</p>",
+        "text": "Profil"
+      },
+      "attributes": {}
+    },
+    {
+      "type": "text",
+      "id": "93cff143-c674-9c0b-d261-d04567d00981",
+      "text": {
+        "html": "<p class=\"press-fact-text\">Uafhængigt dansk digitalt kulturmedie</p>",
+        "text": "Uafhængigt dansk digitalt kulturmedie"
+      },
+      "attributes": {}
+    },
+    {
+      "type": "text",
+      "id": "93cff143-c674-9c0b-d261-d04567d00986",
+      "text": {
+        "html": "<p class=\"press-fact-text\">Formater</p>",
+        "text": "Formater"
+      },
+      "attributes": {}
+    },
+    {
+      "type": "text",
+      "id": "93cff143-c674-9c0b-d261-d04567d0098a",
+      "text": {
+        "html": "<p class=\"press-fact-text\">Anmeldelser, essays, guides og kommentarer</p>",
+        "text": "Anmeldelser, essays, guides og kommentarer"
+      },
+      "attributes": {}
+    },
+    {
+      "type": "text",
+      "id": "93cff143-c674-9c0b-d261-d04567d0098f",
+      "text": {
+        "html": "<p class=\"press-fact-text\">Adgang</p>",
+        "text": "Adgang"
+      },
+      "attributes": {}
+    },
+    {
+      "type": "text",
+      "id": "93cff143-c674-9c0b-d261-d04567d00993",
+      "text": {
+        "html": "<p class=\"press-fact-text\">Gratis at læse</p>",
+        "text": "Gratis at læse"
+      },
+      "attributes": {}
+    },
+    {
+      "type": "text",
+      "id": "93cff143-c674-9c0b-d261-d04567d00998",
+      "text": {
+        "html": "<p class=\"press-fact-text\">Annoncer</p>",
+        "text": "Annoncer"
+      },
+      "attributes": {}
+    },
+    {
+      "type": "text",
+      "id": "93cff143-c674-9c0b-d261-d04567d0099c",
+      "text": {
+        "html": "<p class=\"press-fact-text\">Ingen annoncer, native advertising eller sponsoreret redaktionelt indhold</p>",
+        "text": "Ingen annoncer, native advertising eller sponsoreret redaktionelt indhold"
+      },
+      "attributes": {}
+    },
+    {
+      "type": "text",
+      "id": "93cff143-c674-9c0b-d261-d04567d009a1",
+      "text": {
+        "html": "<p class=\"press-fact-text\">Udgiver</p>",
+        "text": "Udgiver"
+      },
+      "attributes": {}
+    },
+    {
+      "type": "text",
+      "id": "93cff143-c674-9c0b-d261-d04567d009a5",
+      "text": {
+        "html": "<p class=\"press-fact-text\">Apropos Creative ApS</p>",
+        "text": "Apropos Creative ApS"
+      },
+      "attributes": {}
+    },
+    {
+      "type": "text",
+      "id": "93cff143-c674-9c0b-d261-d04567d009aa",
+      "text": {
+        "html": "<p class=\"press-fact-text\">CVR</p>",
+        "text": "CVR"
+      },
+      "attributes": {}
+    },
+    {
+      "type": "text",
+      "id": "93cff143-c674-9c0b-d261-d04567d009ae",
+      "text": {
+        "html": "<p class=\"press-fact-text\">38175661</p>",
+        "text": "38175661"
+      },
+      "attributes": {}
+    },
+    {
+      "type": "text",
+      "id": "93cff143-c674-9c0b-d261-d04567d009b3",
+      "text": {
+        "html": "<p class=\"press-fact-text\">Ansvarshavende redaktør</p>",
+        "text": "Ansvarshavende redaktør"
+      },
+      "attributes": {}
+    },
+    {
+      "type": "text",
+      "id": "93cff143-c674-9c0b-d261-d04567d009b7",
+      "text": {
+        "html": "<p class=\"press-fact-text\">Frederik Emil Kragh</p>",
+        "text": "Frederik Emil Kragh"
+      },
+      "attributes": {}
+    },
+    {
+      "type": "text",
+      "id": "93cff143-c674-9c0b-d261-d04567d009bc",
+      "text": {
+        "html": "<p class=\"press-fact-text\">Hjemmeside</p>",
+        "text": "Hjemmeside"
+      },
+      "attributes": {}
+    },
+    {
+      "type": "text",
+      "id": "93cff143-c674-9c0b-d261-d04567d009c1",
+      "text": {
+        "html": "<p class=\"press-fact-text\"><a class=\"press-text-link-1\" href=\"https://www.aproposmagazine.com\" data-w-id=\"93cff143-c674-9c0b-d261-d04567d009c0\">aproposmagazine.com</a></p>",
+        "text": "aproposmagazine.com"
+      },
+      "attributes": {}
+    },
+    {
+      "type": "text",
+      "id": "93cff143-c674-9c0b-d261-d04567d009c6",
+      "text": {
+        "html": "<p class=\"press-fact-text\">Pressekontakt</p>",
+        "text": "Pressekontakt"
+      },
+      "attributes": {}
+    },
+    {
+      "type": "text",
+      "id": "93cff143-c674-9c0b-d261-d04567d009cb",
+      "text": {
+        "html": "<p class=\"press-fact-text\"><a class=\"press-text-link-1\" href=\"mailto:hej@aproposmagazine.com\" data-w-id=\"93cff143-c674-9c0b-d261-d04567d009ca\">hej@aproposmagazine.com</a></p>",
+        "text": "hej@aproposmagazine.com"
+      },
+      "attributes": {}
+    },
+    {
+      "type": "text",
+      "id": "93cff143-c674-9c0b-d261-d04567d009d4",
+      "text": {
+        "html": "<h2 id=\"press-materials-heading\" class=\"press-section-title-1\">Logo og pressekit</h2>",
+        "text": "Logo og pressekit"
+      },
+      "attributes": {}
+    },
+    {
+      "type": "text",
+      "id": "93cff143-c674-9c0b-d261-d04567d009d6",
+      "text": {
+        "html": "<p class=\"press-paragraph-1\">Hent præsentation og fakta samlet som PDF, eller vælg et logo til din omtale.</p>",
+        "text": "Hent præsentation og fakta samlet som PDF, eller vælg et logo til din omtale."
+      },
+      "attributes": {}
+    },
+    {
+      "type": "image",
+      "id": "a925f543-b8c9-af94-ca0b-13b9163164ea",
+      "image": {
+        "alt": "Apropos Magazine",
+        "assetId": "68b8369a1082b00dd562aac5"
+      },
+      "attributes": {}
+    },
+    {
+      "type": "text",
+      "id": "93cff143-c674-9c0b-d261-d04567d009db",
+      "text": {
+        "html": "<h3 id=\"press-logo-black-heading\" class=\"press-subtitle\">Sort logo</h3>",
+        "text": "Sort logo"
+      },
+      "attributes": {}
+    },
+    {
+      "type": "text",
+      "id": "93cff143-c674-9c0b-d261-d04567d009dd",
+      "text": {
+        "html": "<a id=\"press-logo-black-svg\" class=\"press-text-link-1\" href=\"https://cdn.prod.website-files.com/67dbf17ba540975b5b21c180/68b8369a1082b00dd562aac5_AM_logo_black.svg\">SVG</a>",
+        "text": "SVG"
+      },
+      "attributes": {
+        "aria-labelledby": "press-logo-black-heading press-logo-black-svg",
+        "rel": "noopener",
+        "href": "https://cdn.prod.website-files.com/67dbf17ba540975b5b21c180/68b8369a1082b00dd562aac5_AM_logo_black.svg"
+      }
+    },
+    {
+      "type": "text",
+      "id": "93cff143-c674-9c0b-d261-d04567d009df",
+      "text": {
+        "html": "<a id=\"press-logo-black-png\" class=\"press-text-link-1\" href=\"https://cdn.prod.website-files.com/67dbf17ba540975b5b21c180/6ad7affdb68d2569618bc46c_apropos-logo-black.png\">PNG</a>",
+        "text": "PNG"
+      },
+      "attributes": {
+        "aria-labelledby": "press-logo-black-heading press-logo-black-png",
+        "rel": "noopener",
+        "href": "https://cdn.prod.website-files.com/67dbf17ba540975b5b21c180/6ad7affdb68d2569618bc46c_apropos-logo-black.png"
+      }
+    },
+    {
+      "type": "text",
+      "id": "93cff143-c674-9c0b-d261-d04567d009e1",
+      "text": {
+        "html": "<a id=\"press-logo-black-pdf\" class=\"press-text-link-1\" href=\"https://cdn.prod.website-files.com/67dbf17ba540975b5b21c180/6ad7afe3744c30cd81766181_apropos-logo-black.pdf\">PDF</a>",
+        "text": "PDF"
+      },
+      "attributes": {
+        "aria-labelledby": "press-logo-black-heading press-logo-black-pdf",
+        "rel": "noopener",
+        "href": "https://cdn.prod.website-files.com/67dbf17ba540975b5b21c180/6ad7afe3744c30cd81766181_apropos-logo-black.pdf"
+      }
+    },
+    {
+      "type": "image",
+      "id": "c4d26d85-fe46-24e9-adc5-438a61a534fd",
+      "image": {
+        "alt": "Apropos Magazine",
+        "assetId": "688df50d0d7d3716eccf2b4e"
+      },
+      "attributes": {}
+    },
+    {
+      "type": "text",
+      "id": "93cff143-c674-9c0b-d261-d04567d009e8",
+      "text": {
+        "html": "<h3 id=\"press-logo-white-heading\" class=\"press-subtitle\">Hvidt logo</h3>",
+        "text": "Hvidt logo"
+      },
+      "attributes": {}
+    },
+    {
+      "type": "text",
+      "id": "93cff143-c674-9c0b-d261-d04567d009ea",
+      "text": {
+        "html": "<a id=\"press-logo-white-svg\" class=\"press-text-link-1\" href=\"https://cdn.prod.website-files.com/67dbf17ba540975b5b21c180/688df50d0d7d3716eccf2b4e_AM_logo_white.svg\">SVG</a>",
+        "text": "SVG"
+      },
+      "attributes": {
+        "aria-labelledby": "press-logo-white-heading press-logo-white-svg",
+        "rel": "noopener",
+        "href": "https://cdn.prod.website-files.com/67dbf17ba540975b5b21c180/688df50d0d7d3716eccf2b4e_AM_logo_white.svg"
+      }
+    },
+    {
+      "type": "text",
+      "id": "93cff143-c674-9c0b-d261-d04567d009ec",
+      "text": {
+        "html": "<a id=\"press-logo-white-png\" class=\"press-text-link-1\" href=\"https://cdn.prod.website-files.com/67dbf17ba540975b5b21c180/6ad7affef218582018036f15_apropos-logo-white.png\">PNG</a>",
+        "text": "PNG"
+      },
+      "attributes": {
+        "aria-labelledby": "press-logo-white-heading press-logo-white-png",
+        "rel": "noopener",
+        "href": "https://cdn.prod.website-files.com/67dbf17ba540975b5b21c180/6ad7affef218582018036f15_apropos-logo-white.png"
+      }
+    },
+    {
+      "type": "text",
+      "id": "93cff143-c674-9c0b-d261-d04567d009ee",
+      "text": {
+        "html": "<a id=\"press-logo-white-pdf\" class=\"press-text-link-1\" href=\"https://cdn.prod.website-files.com/67dbf17ba540975b5b21c180/6ad7affe6f67705cc257d886_apropos-logo-white.pdf\">PDF</a>",
+        "text": "PDF"
+      },
+      "attributes": {
+        "aria-labelledby": "press-logo-white-heading press-logo-white-pdf",
+        "rel": "noopener",
+        "href": "https://cdn.prod.website-files.com/67dbf17ba540975b5b21c180/6ad7affe6f67705cc257d886_apropos-logo-white.pdf"
+      }
+    },
+    {
+      "type": "text",
+      "id": "93cff143-c674-9c0b-d261-d04567d009f3",
+      "text": {
+        "html": "<p class=\"press-small-1\">Bevar logoets proportioner og sørg for tydelig kontrast til baggrunden. Kontakt os, hvis du har brug for et andet format.</p>",
+        "text": "Bevar logoets proportioner og sørg for tydelig kontrast til baggrunden. Kontakt os, hvis du har brug for et andet format."
+      },
+      "attributes": {}
+    },
+    {
+      "type": "text",
+      "id": "93cff143-c674-9c0b-d261-d04567d009f5",
+      "text": {
+        "html": "<h3 class=\"press-subtitle\">Pressekit og samlet pakke</h3>",
+        "text": "Pressekit og samlet pakke"
+      },
+      "attributes": {}
+    },
+    {
+      "type": "text",
+      "id": "93cff143-c674-9c0b-d261-d04567d009f7",
+      "text": {
+        "html": "<a class=\"press-download-link\" href=\"https://cdn.prod.website-files.com/67dbf17ba540975b5b21c180/6ad7b11bf218582018041c11_apropos-pressekit-da.pdf\">Pressekit på dansk (PDF)</a>",
+        "text": "Pressekit på dansk (PDF)"
+      },
+      "attributes": {
+        "rel": "noopener",
+        "href": "https://cdn.prod.website-files.com/67dbf17ba540975b5b21c180/6ad7b11bf218582018041c11_apropos-pressekit-da.pdf"
+      }
+    },
+    {
+      "type": "text",
+      "id": "93cff143-c674-9c0b-d261-d04567d009f9",
+      "text": {
+        "html": "<a class=\"press-download-link\" href=\"https://cdn.prod.website-files.com/67dbf17ba540975b5b21c180/6ad7b11cf218582018041cec_apropos-press-kit-en.pdf\">Pressekit på engelsk (PDF)</a>",
+        "text": "Pressekit på engelsk (PDF)"
+      },
+      "attributes": {
+        "rel": "noopener",
+        "href": "https://cdn.prod.website-files.com/67dbf17ba540975b5b21c180/6ad7b11cf218582018041cec_apropos-press-kit-en.pdf"
+      }
+    },
+    {
+      "type": "text",
+      "id": "93cff143-c674-9c0b-d261-d04567d009fb",
+      "text": {
+        "html": "<a class=\"press-download-link\" href=\"https://cdn.prod.website-files.com/67dbf17ba540975b5b21c180/6ad7b11cd80a23961a1ce8eb_apropos-pressepakke.zip\">Hele pressepakken (ZIP)</a>",
+        "text": "Hele pressepakken (ZIP)"
+      },
+      "attributes": {
+        "rel": "noopener",
+        "href": "https://cdn.prod.website-files.com/67dbf17ba540975b5b21c180/6ad7b11cd80a23961a1ce8eb_apropos-pressepakke.zip"
+      }
+    },
+    {
+      "type": "text",
+      "id": "93cff143-c674-9c0b-d261-d04567d009fe",
+      "text": {
+        "html": "<p class=\"press-small-1\">Begge pressekit og logoer i SVG, PNG og PDF.</p>",
+        "text": "Begge pressekit og logoer i SVG, PNG og PDF."
+      },
+      "attributes": {}
+    },
+    {
+      "type": "text",
+      "id": "93cff143-c674-9c0b-d261-d04567d00a03",
+      "text": {
+        "html": "<h2 id=\"press-contact-heading\" class=\"press-section-title-1\">Pressehenvendelser</h2>",
+        "text": "Pressehenvendelser"
+      },
+      "attributes": {}
+    },
+    {
+      "type": "text",
+      "id": "93cff143-c674-9c0b-d261-d04567d00a05",
+      "text": {
+        "html": "<p class=\"press-paragraph-1\">Har du brug for oplysninger om mediet, en kommentar eller materiale til en omtale? Skriv med medie, emne og deadline, så henvendelsen har den nødvendige kontekst.</p>",
+        "text": "Har du brug for oplysninger om mediet, en kommentar eller materiale til en omtale? Skriv med medie, emne og deadline, så henvendelsen har den nødvendige kontekst."
+      },
+      "attributes": {}
+    },
+    {
+      "type": "text",
+      "id": "93cff143-c674-9c0b-d261-d04567d00a07",
+      "text": {
+        "html": "<a class=\"press-contact-link-1\" href=\"mailto:hej@aproposmagazine.com?subject=Pressehenvendelse\">hej@aproposmagazine.com</a>",
+        "text": "hej@aproposmagazine.com"
+      },
+      "attributes": {
+        "href": "mailto:hej@aproposmagazine.com?subject=Pressehenvendelse"
+      }
+    },
+    {
+      "type": "text",
+      "id": "93cff143-c674-9c0b-d261-d04567d00a0b",
+      "text": {
+        "html": "<p class=\"press-small-1\">Frederik Emil Kragh<br data-w-id=\"93cff143-c674-9c0b-d261-d04567d00a09\">Ansvarshavende redaktør</p>",
+        "text": "Frederik Emil Kragh\nAnsvarshavende redaktør"
+      },
+      "attributes": {}
+    },
+    {
+      "type": "component-instance",
+      "id": "375d674d-24a1-bf5b-b549-a0d527efbc3f",
+      "componentId": "370161b6-42aa-8c66-6564-7011973528ce",
+      "propertyOverrides": []
+    },
+    {
+      "type": "component-instance",
+      "id": "d5c65c97-7784-6683-c14c-8c9c0f072696",
+      "componentId": "4aceddd7-f4c3-10d1-677b-744da0624d03",
+      "propertyOverrides": []
+    }
+  ],
+  "pagination": {
+    "limit": 100,
+    "offset": 0,
+    "total": 101
+  },
+  "lastUpdated": "2026-10-20T18:26:11.466Z"
+}

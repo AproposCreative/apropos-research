@@ -1,0 +1,43 @@
+{
+  "checkedAt": "2026-10-20T18:33:41.004Z",
+  "scope": {
+    "pressShellUnchanged": true,
+    "aboutOnlyRequestedSentence": true
+  },
+  "desktop": {
+    "width": 1200,
+    "scrollWidth": 1200,
+    "font": "Satoshi, Arial, sans-serif"
+  },
+  "mobile": {
+    "width": 390,
+    "height": 844,
+    "scrollWidth": 390,
+    "h1FontSize": "60px"
+  },
+  "copy": {
+    "da": [
+      "Præsentationen er kopieret.",
+      "Præsentationen er kopieret."
+    ],
+    "en": [
+      "Description copied.",
+      "Description copied."
+    ],
+    "browserClipboardReadback": "Not used as exact-text evidence; platform clipboard returned no text. Exact text and fallback tested in isolated local check."
+  },
+  "dark": {
+    "bodyBackground": "rgb(18, 18, 18)",
+    "text": "rgb(252, 252, 252)",
+    "logoBackgrounds": [
+      "rgb(255, 255, 255)",
+      "rgb(0, 0, 0)"
+    ],
+    "originalImageNaturalWidths": [
+      1200,
+      1200
+    ]
+  },
+  "contactHeadingTop": 139.8125,
+  "publishTask": "598ce0d3-6609-422c-8003-72d3e950002e"
+}

@@ -1,0 +1,83 @@
+[
+  {
+    "name": "apropos-logo-black.pdf",
+    "path": "output/press-kit/brand/AM_logo_black.pdf",
+    "assetId": "6ad7afe3744c30cd81766181",
+    "url": "https://cdn.prod.website-files.com/67dbf17ba540975b5b21c180/6ad7afe3744c30cd81766181_apropos-logo-black.pdf",
+    "sha256": "3858249bb9b44c913ad6ede1874a09bae2c65e4a7cd2b3fb278415fac141a2a7",
+    "bytes": 10535,
+    "status": "uploaded_201"
+  },
+  {
+    "name": "apropos-logo-black.png",
+    "path": "output/press-kit/brand/AM_logo_black.png",
+    "assetId": "6ad7affdb68d2569618bc46c",
+    "url": "https://cdn.prod.website-files.com/67dbf17ba540975b5b21c180/6ad7affdb68d2569618bc46c_apropos-logo-black.png",
+    "sha256": "03b6bc890ade083d209147e3fb44b70232e713061bf3cbbb1197a9332f683af8",
+    "bytes": 30877,
+    "status": "uploaded_201"
+  },
+  {
+    "name": "apropos-logo-black.svg",
+    "path": "output/press-kit/brand/AM_logo_black.svg",
+    "assetId": "68b8369a1082b00dd562aac5",
+    "url": "https://cdn.prod.website-files.com/67dbf17ba540975b5b21c180/68b8369a1082b00dd562aac5_AM_logo_black.svg",
+    "sha256": "dcd5358bf1285963464be479c748c051cee99dde27f27ba338a928d603bf1210",
+    "bytes": 10903,
+    "status": "existing_verified"
+  },
+  {
+    "name": "apropos-logo-white.pdf",
+    "path": "output/press-kit/brand/AM_logo_white.pdf",
+    "assetId": "6ad7affe6f67705cc257d886",
+    "url": "https://cdn.prod.website-files.com/67dbf17ba540975b5b21c180/6ad7affe6f67705cc257d886_apropos-logo-white.pdf",
+    "sha256": "4b859e9602815190179711cb9d347e96a4642c101ea6737ccbfce7683716003e",
+    "bytes": 10539,
+    "status": "uploaded_201"
+  },
+  {
+    "name": "apropos-logo-white.png",
+    "path": "output/press-kit/brand/AM_logo_white.png",
+    "assetId": "6ad7affef218582018036f15",
+    "url": "https://cdn.prod.website-files.com/67dbf17ba540975b5b21c180/6ad7affef218582018036f15_apropos-logo-white.png",
+    "sha256": "67ec3ab1ee9f65004d9a1b55b64731d2bf0300e6877417c6794a9b7a9829cac7",
+    "bytes": 33697,
+    "status": "uploaded_201"
+  },
+  {
+    "name": "apropos-logo-white.svg",
+    "path": "output/press-kit/brand/AM_logo_white.svg",
+    "assetId": "688df50d0d7d3716eccf2b4e",
+    "url": "https://cdn.prod.website-files.com/67dbf17ba540975b5b21c180/688df50d0d7d3716eccf2b4e_AM_logo_white.svg",
+    "sha256": "d7add68b2682413ce71566f9951abbb92496b3ac27c3eb8720b50f5c88d5dfa1",
+    "bytes": 10903,
+    "status": "existing_verified"
+  },
+  {
+    "name": "apropos-pressekit-da.pdf",
+    "path": "output/pdf/apropos-pressekit-da.pdf",
+    "assetId": "6ad7b11bf218582018041c11",
+    "url": "https://cdn.prod.website-files.com/67dbf17ba540975b5b21c180/6ad7b11bf218582018041c11_apropos-pressekit-da.pdf",
+    "sha256": "327928204157112bfa3fd6e3077a01225f36dde94c86ce04eeab3eb7080405f0",
+    "bytes": 2360673,
+    "status": "uploaded_201"
+  },
+  {
+    "name": "apropos-press-kit-en.pdf",
+    "path": "output/pdf/apropos-press-kit-en.pdf",
+    "assetId": "6ad7b11cf218582018041cec",
+    "url": "https://cdn.prod.website-files.com/67dbf17ba540975b5b21c180/6ad7b11cf218582018041cec_apropos-press-kit-en.pdf",
+    "sha256": "d3248ec6bf76eadc3e68225ccfe8046095916505babf00ade2c14aaf7fbff043",
+    "bytes": 2359829,
+    "status": "uploaded_201"
+  },
+  {
+    "name": "apropos-pressepakke.zip",
+    "path": "output/press-kit/apropos-pressepakke.zip",
+    "assetId": "6ad7b11cd80a23961a1ce8eb",
+    "url": "https://cdn.prod.website-files.com/67dbf17ba540975b5b21c180/6ad7b11cd80a23961a1ce8eb_apropos-pressepakke.zip",
+    "sha256": "43d84f98068f2a047e99f71ca8039b2c9560fd0dea347558939625e8e195582b",
+    "bytes": 3933690,
+    "status": "uploaded_201"
+  }
+]

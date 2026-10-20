@@ -1,0 +1,275 @@
+{
+  "version": 1,
+  "date": "2026-10-20",
+  "wordCountMethod": "Whitespace-separated words; hyphenated terms count as one word.",
+  "da": {
+    "metadata": {
+      "title": "Pressekit, fakta og kontakt | Apropos Magazine",
+      "description": "Find Apropos Magazines pressekit, logoer og kontakt. Præsentation og fakta om det uafhængige, reklamefri danske kulturmedie og vores redaktionelle dækning."
+    },
+    "hero": {
+      "eyebrow": "Apropos Magazine",
+      "title": "Presse",
+      "lead": "Præsentation, redaktionel profil og materiale til dig, der vil omtale Apropos Magazine.",
+      "downloadLabel": "Hent pressekit (PDF)",
+      "contactLabel": "Kontakt os om presse ↗"
+    },
+    "boilerplate": {
+      "heading": "Præsentation til omtale",
+      "introduction": "Vælg den korte eller den udfoldede præsentation af mediet.",
+      "shortLabel": "Kort præsentation · 50 ord",
+      "shortWordCount": 50,
+      "short": "Apropos Magazine skriver om kulturen, vi lytter til, ser, læser og spiller. Det uafhængige danske digitale kulturmedie dækker musik, film, tv-serier, bøger, kunst, gaming og kulturliv gennem anmeldelser, essays og perspektiver. Apropos er gratis at læse, uden annoncer, native advertising eller sponsoreret redaktionelt indhold, og udgives af Apropos Creative ApS.",
+      "longLabel": "Udfoldet præsentation · 150 ord",
+      "longWordCount": 150,
+      "long": "Apropos Magazine beskæftiger sig med kulturen, der fylder på scener, skærme, sider og i samtaler. Det uafhængige danske kulturmedie samler anmeldelser, essays og perspektiver på musik, film, tv-serier, bøger, kunst, gaming og kulturliv.\n\nMusikdækningen omfatter koncerter, festivaler og udgivelser. Film og serier undersøges som fortællinger, mens bøger, kunst og spil indgår i en bredere samtale om æstetik, identitet og samfund. Der er plads til både det enkelte værk og den sammenhæng, det bliver en del af. Stilen er personlig, nysgerrig og åben for humor med ambitionen om at gøre kulturen vedkommende og give nye vinkler plads.\n\nApropos er gratis at læse og bringer ingen annoncer, native advertising eller sponsoreret redaktionelt indhold. Reklamefriheden er dermed en konkret del af mediets profil, både i læseoplevelsen og i det redaktionelle indhold.\n\nApropos Magazine udgives af Apropos Creative ApS og er for læsere, der ønsker vurderinger og perspektiver på tværs af kulturens mange udtryk.",
+      "copyShortLabel": "Kopiér kort præsentation",
+      "copyLongLabel": "Kopiér udfoldet præsentation",
+      "copySuccess": "Præsentationen er kopieret.",
+      "copyFallback": "Teksten er markeret. Vælg Kopiér i din browser."
+    },
+    "editorialProfile": {
+      "heading": "Værkerne. Oplevelserne. Samtalen omkring dem.",
+      "introduction": "Apropos dækker kultur gennem anmeldelser, essays, guides og kommentarer. Interessen samler sig om værkerne, deres udtryk og de spørgsmål, de åbner: fra en koncerts form og energi til en romans blik på samfundet eller et spils måde at fortælle på.",
+      "areas": [
+        {
+          "title": "Musik",
+          "text": "Koncertanmeldelser, festivaldækning, albumanmeldelser og guides til navne på programmet. Med plads til både musikken og kulturen omkring scenerne.",
+          "url": "https://www.aproposmagazine.com/sections/musik"
+        },
+        {
+          "title": "Film og tv-serier",
+          "text": "Anmeldelser af film og serier samt perspektiver på deres fortællinger, karakterer og temaer. Fra den konkrete udgivelse til den kultur, den indgår i.",
+          "url": "https://www.aproposmagazine.com/sections/serierogfilm"
+        },
+        {
+          "title": "Kunst og design",
+          "text": "Udstillinger, kunstnere og visuelle udtryk. Artikler om blandt andet portrætkunst, installationer og design, hvor værkets form møder spørgsmål om krop, identitet og offentlighed.",
+          "url": "https://www.aproposmagazine.com/sections/kultur"
+        },
+        {
+          "title": "Bøger",
+          "text": "Boganmeldelser og litterære perspektiver med blik for sprog, fortælling og de menneskelige og samfundsmæssige spørgsmål, litteraturen rejser.",
+          "url": "https://www.aproposmagazine.com/sections/kultur"
+        },
+        {
+          "title": "Gaming",
+          "text": "Spilanmeldelser og perspektiver på spil som kultur. Fortælling, æstetik og spiloplevelse indgår i vurderingen af de verdener, spillene inviterer ind i.",
+          "url": "https://www.aproposmagazine.com/topics/gaming"
+        },
+        {
+          "title": "Kultur og samfund",
+          "text": "Essays og kommentarer om blandt andet identitet, repræsentation, klubkultur og digitale platforme. Her sættes kulturelle fænomener ind i en større samtale.",
+          "url": "https://www.aproposmagazine.com/topics/kultur-mening"
+        }
+      ]
+    },
+    "advertisementFree": {
+      "heading": "Gratis at læse. Uden reklamer.",
+      "paragraphs": [
+        "Apropos Magazine bringer ingen annoncer. Artiklerne er gratis at læse, og mediet udgiver hverken native advertising eller sponsoreret redaktionelt indhold.",
+        "For læseren betyder det adgang til kulturstof uden annoncer eller artikler, som en annoncør har betalt for at få udgivet."
+      ]
+    },
+    "facts": {
+      "heading": "Fakta om mediet",
+      "rows": [
+        {
+          "label": "Navn",
+          "value": "Apropos Magazine"
+        },
+        {
+          "label": "Profil",
+          "value": "Uafhængigt dansk digitalt kulturmedie"
+        },
+        {
+          "label": "Formater",
+          "value": "Anmeldelser, essays, guides og kommentarer"
+        },
+        {
+          "label": "Adgang",
+          "value": "Gratis at læse"
+        },
+        {
+          "label": "Annoncer",
+          "value": "Ingen annoncer, native advertising eller sponsoreret redaktionelt indhold"
+        },
+        {
+          "label": "Udgiver",
+          "value": "Apropos Creative ApS"
+        },
+        {
+          "label": "CVR",
+          "value": "38175661"
+        },
+        {
+          "label": "Ansvarshavende redaktør",
+          "value": "Frederik Emil Kragh"
+        },
+        {
+          "label": "Hjemmeside",
+          "value": "aproposmagazine.com",
+          "url": "https://www.aproposmagazine.com"
+        },
+        {
+          "label": "Pressekontakt",
+          "value": "hej@aproposmagazine.com",
+          "url": "mailto:hej@aproposmagazine.com"
+        }
+      ]
+    },
+    "pressMaterials": {
+      "heading": "Logo og pressekit",
+      "introduction": "Hent præsentation og fakta samlet som PDF, eller vælg et logo til din omtale.",
+      "logoGuidance": "Bevar logoets proportioner og sørg for tydelig kontrast til baggrunden. Kontakt os, hvis du har brug for et andet format.",
+      "pdfLabel": "Pressekit (PDF)",
+      "svgLabel": "Vektor (SVG)",
+      "pngLabel": "Billede (PNG)",
+      "blackLogoLabel": "Sort logo",
+      "whiteLogoLabel": "Hvidt logo"
+    },
+    "contact": {
+      "heading": "Pressehenvendelser",
+      "text": "Har du brug for oplysninger om mediet, en kommentar eller materiale til en omtale? Skriv med medie, emne og deadline, så henvendelsen har den nødvendige kontekst.",
+      "email": "hej@aproposmagazine.com",
+      "emailSubject": "Pressehenvendelse",
+      "editorName": "Frederik Emil Kragh",
+      "editorRole": "Ansvarshavende redaktør"
+    }
+  },
+  "en": {
+    "metadata": {
+      "title": "Press kit, facts and contact | Apropos Magazine",
+      "description": "Find the Apropos Magazine press kit, logos and contact details. Facts and editorial coverage from an independent, ad-free Danish culture publication."
+    },
+    "hero": {
+      "eyebrow": "Apropos Magazine",
+      "title": "Press",
+      "lead": "Descriptions, editorial profile and materials for anyone covering Apropos Magazine.",
+      "downloadLabel": "Download press kit (PDF)",
+      "contactLabel": "Contact us about press enquiries ↗"
+    },
+    "boilerplate": {
+      "heading": "Descriptions for coverage",
+      "introduction": "Choose a short or extended description of the publication.",
+      "shortLabel": "Short description · 50 words",
+      "shortWordCount": 50,
+      "short": "Apropos Magazine explores the culture we listen to, watch, read and play. The independent Danish digital culture publication covers music, film, television, books, art, gaming and cultural life through reviews, essays and commentary. Free to read, it carries no advertisements, native advertising or sponsored editorial content. Publisher: Apropos Creative ApS.",
+      "longLabel": "Extended description · 150 words",
+      "longWordCount": 150,
+      "long": "Apropos Magazine explores the culture that fills stages, screens, pages and conversations. The independent Danish publication brings together reviews, essays and commentary on music, film, television, books, art, gaming and cultural life.\n\nIts music coverage includes concerts, festivals and releases. Film and television are considered as storytelling, while books, art and games form part of a wider conversation about aesthetics, identity and society. There is room for both an individual work and the context around it. The editorial voice is personal, curious and open to humour, aiming to make culture matter and welcome fresh perspectives.\n\nApropos is free to read and carries no advertisements, native advertising or sponsored editorial content. Being free of advertising is a tangible part of its identity, both in the reading experience and in its editorial content.\n\nPublished by Apropos Creative ApS, Apropos Magazine is for readers seeking judgments and perspectives across many forms of culture.",
+      "copyShortLabel": "Copy short description",
+      "copyLongLabel": "Copy extended description",
+      "copySuccess": "Description copied.",
+      "copyFallback": "Text selected. Choose Copy in your browser."
+    },
+    "editorialProfile": {
+      "heading": "The works. The experiences. The conversations around them.",
+      "introduction": "Apropos covers culture through reviews, essays, guides and commentary. Its focus is on the works, their expression and the questions they open up: from the form and energy of a concert to a novel's view of society or the way a game tells a story.",
+      "areas": [
+        {
+          "title": "Music",
+          "text": "Concert reviews, festival coverage, album reviews and guides to acts on the programme. With room for both the music and the culture around the stages.",
+          "url": "https://www.aproposmagazine.com/sections/musik"
+        },
+        {
+          "title": "Film and television",
+          "text": "Reviews of films and TV series alongside perspectives on their stories, characters and themes. From an individual release to its place in the wider culture.",
+          "url": "https://www.aproposmagazine.com/sections/serierogfilm"
+        },
+        {
+          "title": "Art and design",
+          "text": "Exhibitions, artists and visual expression. Coverage includes portraiture, installations and design, where a work's form meets questions about the body, identity and public life.",
+          "url": "https://www.aproposmagazine.com/sections/kultur"
+        },
+        {
+          "title": "Books",
+          "text": "Book reviews and literary perspectives that consider language, storytelling and the human and social questions raised by literature.",
+          "url": "https://www.aproposmagazine.com/sections/kultur"
+        },
+        {
+          "title": "Gaming",
+          "text": "Game reviews and perspectives on games as culture. Storytelling, aesthetics and gameplay inform assessments of the worlds that games invite players to explore.",
+          "url": "https://www.aproposmagazine.com/topics/gaming"
+        },
+        {
+          "title": "Culture and society",
+          "text": "Essays and commentary on subjects including identity, representation, club culture and digital platforms. Cultural phenomena become part of a wider conversation.",
+          "url": "https://www.aproposmagazine.com/topics/kultur-mening"
+        }
+      ]
+    },
+    "advertisementFree": {
+      "heading": "Free to read. Free of advertising.",
+      "paragraphs": [
+        "Apropos Magazine carries no advertisements. Its articles are free to read, and the publication carries neither native advertising nor sponsored editorial content.",
+        "Readers can access the culture coverage without advertisements or articles paid for by an advertiser."
+      ]
+    },
+    "facts": {
+      "heading": "Publication facts",
+      "rows": [
+        {
+          "label": "Name",
+          "value": "Apropos Magazine"
+        },
+        {
+          "label": "Profile",
+          "value": "Independent Danish digital culture publication"
+        },
+        {
+          "label": "Formats",
+          "value": "Reviews, essays, guides and commentary"
+        },
+        {
+          "label": "Access",
+          "value": "Free to read"
+        },
+        {
+          "label": "Advertising",
+          "value": "No advertisements, native advertising or sponsored editorial content"
+        },
+        {
+          "label": "Publisher",
+          "value": "Apropos Creative ApS"
+        },
+        {
+          "label": "CVR",
+          "value": "38175661"
+        },
+        {
+          "label": "Editor-in-chief",
+          "value": "Frederik Emil Kragh"
+        },
+        {
+          "label": "Website",
+          "value": "aproposmagazine.com",
+          "url": "https://www.aproposmagazine.com"
+        },
+        {
+          "label": "Press contact",
+          "value": "hej@aproposmagazine.com",
+          "url": "mailto:hej@aproposmagazine.com"
+        }
+      ]
+    },
+    "pressMaterials": {
+      "heading": "Logos and press kit",
+      "introduction": "Download the descriptions and facts as a PDF, or choose a logo for your coverage.",
+      "logoGuidance": "Keep the logo's proportions unchanged and ensure clear contrast against the background. Contact us if you need another format.",
+      "pdfLabel": "Press kit (PDF)",
+      "svgLabel": "Vector (SVG)",
+      "pngLabel": "Image (PNG)",
+      "blackLogoLabel": "Black logo",
+      "whiteLogoLabel": "White logo"
+    },
+    "contact": {
+      "heading": "Press enquiries",
+      "text": "Need information about the publication, a comment or material for a story? Email us with your publication, topic and deadline to give your enquiry the context it needs.",
+      "email": "hej@aproposmagazine.com",
+      "emailSubject": "Press enquiry",
+      "editorName": "Frederik Emil Kragh",
+      "editorRole": "Editor-in-chief"
+    }
+  }
+}

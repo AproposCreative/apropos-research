@@ -1,0 +1,217 @@
+{
+  "checkedAt": "2026-10-20T18:30:52.166Z",
+  "pages": [
+    {
+      "locale": "da",
+      "url": "https://apropos-magazine.webflow.io/presse",
+      "status": 200,
+      "lang": "da",
+      "title": "Pressekit, fakta og kontakt | Apropos Magazine",
+      "canonical": "https://www.aproposmagazine.com/presse",
+      "oneMain": true,
+      "oneH1": true,
+      "shortMatches": true,
+      "longMatches": true,
+      "nativeFactParagraphs": 20,
+      "caseCount": 5,
+      "images": [
+        {
+          "src": "https://cdn.prod.website-files.com/67dbf17ba540975b5b21c180/68b8369a1082b00dd562aac5_AM_logo_black.svg",
+          "alt": "Apropos Magazine"
+        },
+        {
+          "src": "https://cdn.prod.website-files.com/67dbf17ba540975b5b21c180/688df50d0d7d3716eccf2b4e_AM_logo_white.svg",
+          "alt": "Apropos Magazine"
+        }
+      ],
+      "hasEditorOnlyInFactsAndContact": true,
+      "titleMatches": true,
+      "descriptionMatches": true
+    },
+    {
+      "locale": "en",
+      "url": "https://apropos-magazine.webflow.io/en/presse",
+      "status": 200,
+      "lang": "en",
+      "title": "Press kit, facts and contact | Apropos Magazine",
+      "canonical": "https://www.aproposmagazine.com/en/presse",
+      "oneMain": true,
+      "oneH1": true,
+      "shortMatches": true,
+      "longMatches": true,
+      "nativeFactParagraphs": 20,
+      "caseCount": 5,
+      "images": [
+        {
+          "src": "https://cdn.prod.website-files.com/67dbf17ba540975b5b21c180/68b8369a1082b00dd562aac5_AM_logo_black.svg",
+          "alt": "Apropos Magazine"
+        },
+        {
+          "src": "https://cdn.prod.website-files.com/67dbf17ba540975b5b21c180/688df50d0d7d3716eccf2b4e_AM_logo_white.svg",
+          "alt": "Apropos Magazine"
+        }
+      ],
+      "hasEditorOnlyInFactsAndContact": true,
+      "titleMatches": true,
+      "descriptionMatches": true,
+      "roleLocalized": true
+    }
+  ],
+  "links": [
+    {
+      "url": "https://cdn.prod.website-files.com/67dbf17ba540975b5b21c180/6ad7b11bf218582018041c11_apropos-pressekit-da.pdf",
+      "status": 200
+    },
+    {
+      "url": "https://cdn.prod.website-files.com/67dbf17ba540975b5b21c180/6ad7b11cf218582018041cec_apropos-press-kit-en.pdf",
+      "status": 200
+    },
+    {
+      "url": "https://apropos-magazine.webflow.io/om",
+      "status": 200
+    },
+    {
+      "url": "https://www.aproposmagazine.com/sections/musik",
+      "status": 200
+    },
+    {
+      "url": "https://www.aproposmagazine.com/sections/serierogfilm",
+      "status": 200
+    },
+    {
+      "url": "https://www.aproposmagazine.com/sections/kultur",
+      "status": 200
+    },
+    {
+      "url": "https://www.aproposmagazine.com/topics/gaming",
+      "status": 200
+    },
+    {
+      "url": "https://www.aproposmagazine.com/topics/kultur-mening",
+      "status": 200
+    },
+    {
+      "url": "https://www.aproposmagazine.com/articles/farveblind-lille-vega-anmeldelse-2026",
+      "status": 200
+    },
+    {
+      "url": "https://www.aproposmagazine.com/articles/untamed-netflix",
+      "status": 200
+    },
+    {
+      "url": "https://www.aproposmagazine.com/articles/kontrapunkt-kundearbejde-eller-kunst",
+      "status": 200
+    },
+    {
+      "url": "https://www.aproposmagazine.com/articles/boganmeldelse-soed-toes",
+      "status": 200
+    },
+    {
+      "url": "https://www.aproposmagazine.com/articles/anmeldelse-astro-bot-ps5",
+      "status": 200
+    },
+    {
+      "url": "https://www.aproposmagazine.com/",
+      "status": 200
+    },
+    {
+      "url": "https://cdn.prod.website-files.com/67dbf17ba540975b5b21c180/68b8369a1082b00dd562aac5_AM_logo_black.svg",
+      "status": 200
+    },
+    {
+      "url": "https://cdn.prod.website-files.com/67dbf17ba540975b5b21c180/6ad7affdb68d2569618bc46c_apropos-logo-black.png",
+      "status": 200
+    },
+    {
+      "url": "https://cdn.prod.website-files.com/67dbf17ba540975b5b21c180/6ad7afe3744c30cd81766181_apropos-logo-black.pdf",
+      "status": 200
+    },
+    {
+      "url": "https://cdn.prod.website-files.com/67dbf17ba540975b5b21c180/688df50d0d7d3716eccf2b4e_AM_logo_white.svg",
+      "status": 200
+    },
+    {
+      "url": "https://cdn.prod.website-files.com/67dbf17ba540975b5b21c180/6ad7affef218582018036f15_apropos-logo-white.png",
+      "status": 200
+    },
+    {
+      "url": "https://cdn.prod.website-files.com/67dbf17ba540975b5b21c180/6ad7affe6f67705cc257d886_apropos-logo-white.pdf",
+      "status": 200
+    },
+    {
+      "url": "https://cdn.prod.website-files.com/67dbf17ba540975b5b21c180/6ad7b11cd80a23961a1ce8eb_apropos-pressepakke.zip",
+      "status": 200
+    }
+  ],
+  "assets": [
+    {
+      "name": "apropos-logo-black.pdf",
+      "status": 200,
+      "bytes": 10535,
+      "sha256": "3858249bb9b44c913ad6ede1874a09bae2c65e4a7cd2b3fb278415fac141a2a7",
+      "exactOriginalMatch": true
+    },
+    {
+      "name": "apropos-logo-black.png",
+      "status": 200,
+      "bytes": 30877,
+      "sha256": "03b6bc890ade083d209147e3fb44b70232e713061bf3cbbb1197a9332f683af8",
+      "exactOriginalMatch": true
+    },
+    {
+      "name": "apropos-logo-black.svg",
+      "status": 200,
+      "bytes": 10903,
+      "sha256": "dcd5358bf1285963464be479c748c051cee99dde27f27ba338a928d603bf1210",
+      "exactOriginalMatch": true
+    },
+    {
+      "name": "apropos-logo-white.pdf",
+      "status": 200,
+      "bytes": 10539,
+      "sha256": "4b859e9602815190179711cb9d347e96a4642c101ea6737ccbfce7683716003e",
+      "exactOriginalMatch": true
+    },
+    {
+      "name": "apropos-logo-white.png",
+      "status": 200,
+      "bytes": 33697,
+      "sha256": "67ec3ab1ee9f65004d9a1b55b64731d2bf0300e6877417c6794a9b7a9829cac7",
+      "exactOriginalMatch": true
+    },
+    {
+      "name": "apropos-logo-white.svg",
+      "status": 200,
+      "bytes": 10903,
+      "sha256": "d7add68b2682413ce71566f9951abbb92496b3ac27c3eb8720b50f5c88d5dfa1",
+      "exactOriginalMatch": true
+    },
+    {
+      "name": "apropos-pressekit-da.pdf",
+      "status": 200,
+      "bytes": 2360673,
+      "sha256": "327928204157112bfa3fd6e3077a01225f36dde94c86ce04eeab3eb7080405f0",
+      "exactOriginalMatch": true
+    },
+    {
+      "name": "apropos-press-kit-en.pdf",
+      "status": 200,
+      "bytes": 2359829,
+      "sha256": "d3248ec6bf76eadc3e68225ccfe8046095916505babf00ade2c14aaf7fbff043",
+      "exactOriginalMatch": true
+    },
+    {
+      "name": "apropos-pressepakke.zip",
+      "status": 200,
+      "bytes": 3933690,
+      "sha256": "43d84f98068f2a047e99f71ca8039b2c9560fd0dea347558939625e8e195582b",
+      "exactOriginalMatch": true
+    }
+  ],
+  "about": {
+    "status": 200,
+    "removedSentence": true,
+    "pressLink": true
+  },
+  "productionPressStatus": 404
+}

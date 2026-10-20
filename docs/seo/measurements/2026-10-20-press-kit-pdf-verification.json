@@ -1,0 +1,22 @@
+[
+  {
+    "file": "output/pdf/apropos-pressekit-da.pdf",
+    "bytes": 2360673,
+    "sha256": "327928204157112bfa3fd6e3077a01225f36dde94c86ce04eeab3eb7080405f0",
+    "pages": 3,
+    "allGlyphsInsidePage": true,
+    "annotationsInsidePage": true,
+    "textCharacters": 4016,
+    "visualReview": "All three rendered pages inspected; no clipping, overlap or missing glyphs."
+  },
+  {
+    "file": "output/pdf/apropos-press-kit-en.pdf",
+    "bytes": 2359829,
+    "sha256": "d3248ec6bf76eadc3e68225ccfe8046095916505babf00ade2c14aaf7fbff043",
+    "pages": 3,
+    "allGlyphsInsidePage": true,
+    "annotationsInsidePage": true,
+    "textCharacters": 4042,
+    "visualReview": "All three rendered pages inspected; no clipping, overlap or missing glyphs."
+  }
+]

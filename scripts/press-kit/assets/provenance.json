@@ -1,0 +1,65 @@
+{
+  "googleFontsCommit": "47d54ca1ebb14fd864695f1d39dc734f39017c33",
+  "files": [
+    {
+      "path": "scripts/press-kit/assets/fonts/POPPINS-OFL.txt",
+      "sourceUrl": "https://raw.githubusercontent.com/google/fonts/47d54ca1ebb14fd864695f1d39dc734f39017c33/ofl/poppins/OFL.txt",
+      "sha256": "6be04893d770899a015649c7aa3b582f871b272f8747a92b78b17c3e5c8b2573",
+      "verification": "Downloaded from official Google Fonts repository at the pinned commit"
+    },
+    {
+      "path": "scripts/press-kit/assets/fonts/AMIRI-OFL.txt",
+      "sourceUrl": "https://raw.githubusercontent.com/google/fonts/47d54ca1ebb14fd864695f1d39dc734f39017c33/ofl/amiri/OFL.txt",
+      "sha256": "72de68e5954f4fdd24702292ef5a32f003ca960ec9330dc86e5eefb5dffb9b22",
+      "verification": "Downloaded from official Google Fonts repository at the pinned commit"
+    },
+    {
+      "path": "scripts/press-kit/assets/fonts/Poppins-Regular.ttf",
+      "sourceUrl": "https://raw.githubusercontent.com/google/fonts/47d54ca1ebb14fd864695f1d39dc734f39017c33/ofl/poppins/Poppins-Regular.ttf",
+      "sha256": "7e65201e9b79159e2300267cc885e16c8dcef2424cdfa09a29bfb0980a94a7ba",
+      "sameAsReviewedInput": true
+    },
+    {
+      "path": "scripts/press-kit/assets/fonts/Poppins-SemiBold.ttf",
+      "sourceUrl": "https://raw.githubusercontent.com/google/fonts/47d54ca1ebb14fd864695f1d39dc734f39017c33/ofl/poppins/Poppins-SemiBold.ttf",
+      "sha256": "d3bf1bdaf0550e83da9ac0b1d1d9fe6db086835a83aa28578e609a394b9a0286",
+      "sameAsReviewedInput": true
+    },
+    {
+      "path": "scripts/press-kit/assets/fonts/Amiri-Regular.ttf",
+      "sourceUrl": "https://raw.githubusercontent.com/google/fonts/47d54ca1ebb14fd864695f1d39dc734f39017c33/ofl/amiri/Amiri-Regular.ttf",
+      "sha256": "ab391c4147d054c48976e98322ad0eefe1427aa0e0502a12a4c75d80a70cfcd7",
+      "sameAsReviewedInput": true
+    },
+    {
+      "path": "scripts/press-kit/assets/reference-texture.png",
+      "source": "Texture extracted from user-supplied press-access reference PDF",
+      "sha256": "31c6b1e422f404f55bcbf7413be431dcaad68dbf8a4bf4b4e77977fa022b094a",
+      "sameAsReviewedInput": true
+    },
+    {
+      "path": "scripts/press-kit/assets/logos/AM_logo_black.png",
+      "source": "output/press-kit/brand/AM_logo_black.png",
+      "sha256": "03b6bc890ade083d209147e3fb44b70232e713061bf3cbbb1197a9332f683af8",
+      "sameAsReviewedInput": true
+    },
+    {
+      "path": "scripts/press-kit/assets/logos/AM_logo_white.png",
+      "source": "output/press-kit/brand/AM_logo_white.png",
+      "sha256": "67ec3ab1ee9f65004d9a1b55b64731d2bf0300e6877417c6794a9b7a9829cac7",
+      "sameAsReviewedInput": true
+    }
+  ],
+  "referencePdf": {
+    "name": "1-Ansøgning-om-presseadgang-AproposMagazine.pdf",
+    "providedBy": "Project owner in this conversation",
+    "sha256": "f666f2310e37c8e88338f5af281b2e05f24b9e31d1bada0b1381e3c0de28ee74",
+    "use": "Visual reference and source of the blue texture; runtime does not need the original PDF"
+  },
+  "brandSource": {
+    "provider": "Dropbox shared folder supplied by owner",
+    "path": "/aproposmagazine.com/00. brandmateriale/apropos magazine logo",
+    "publicAssetManifest": "docs/seo/press-kit-assets-2026-10-20.json",
+    "scope": "Original files supplied by the owner; PNG inputs copied byte-for-byte, distribution originals retained under output/press-kit/brand"
+  }
+}

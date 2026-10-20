@@ -1,0 +1,177 @@
+{
+  "checkedAt": "2026-10-20T18:15:15.387Z",
+  "scope": "Read-only press-kit evidence: existing GA4 aggregate availability and five public article examples. No application/Webflow edits, credential copies, private LinkedIn access, paid calls or tracked research-dataset writes.",
+  "audience": {
+    "freshAggregateQuery": {
+      "status": "blocked-before-GA4-query",
+      "attemptedAuthPath": "/Users/frederikkragh/Developer/apropos-research/scripts/liv-production-access.ts",
+      "actualError": "vercel_login_expired",
+      "missingDependency": "A valid existing authenticated production-access session, or an authorized GA4 aggregate report. Existing intended helper refused expired Vercel CLI session before loading credentials.",
+      "users": null,
+      "pageViews": null,
+      "reason": "No verified aggregate user or page-view counts were available in the saved baseline; do not infer them from sessions."
+    },
+    "existingReporting": {
+      "codePaths": [
+        "lib/dashboard/ga4-reports.ts",
+        "lib/ga4/google-auth.ts",
+        "lib/ga4/property.ts",
+        "app/api/dashboard/route.ts"
+      ],
+      "availableMetricsInCode": [
+        "activeUsers",
+        "screenPageViews",
+        "sessions"
+      ],
+      "connectedAproposMcpAggregateToolFound": false
+    },
+    "savedBaseline": {
+      "source": "/Users/frederikkragh/Developer/apropos-research-geo-measurement/docs/seo/measurements/2026-10-20-ga4.json",
+      "sourceCheckedAt": "2026-10-20T13:39:54.505Z",
+      "property": "484743571",
+      "period": {
+        "startDate": "2026-09-20",
+        "endDate": "2026-10-17",
+        "inclusiveDays": 28,
+        "timeZone": "Europe/Copenhagen"
+      },
+      "metric": "sessions",
+      "value": 1948,
+      "metadata": {
+        "currencyCode": "DKK",
+        "timeZone": "Europe/Copenhagen"
+      },
+      "definition": "GA4-property sessions summed across all sessionSource/sessionMedium rows in the existing report; this is not unique users, people or page views.",
+      "querySource": "/Users/frederikkragh/Developer/apropos-research-geo-measurement/scripts/geo/ga4-baseline.mjs",
+      "queryDimensions": [
+        "sessionSource",
+        "sessionMedium"
+      ],
+      "hostnameFilterApplied": false,
+      "coverageCaveat": "The saved query does not establish a hostname-restricted magazine audience. Confirm property/stream coverage before presenting it as magazine-only traffic.",
+      "exactSupportedStatement": "Den gemte GA4-rapport registrerer 1.948 sessioner i property 484743571 i perioden 20. september–17. oktober 2026.",
+      "publicAudienceClaimReady": false
+    },
+    "recommendedPressHandling": "Do not publish fabricated users, page views or reader counts. Keep the documented session figure dated and explicitly property-scoped internally until magazine-only property/hostname scope is confirmed."
+  },
+  "articleExamples": [
+    {
+      "path": "/articles/farveblind-lille-vega-anmeldelse-2026",
+      "displayTitle": "Farveblind i Lille VEGA",
+      "area": "Musik",
+      "format": "Koncertanmeldelse",
+      "subject": "Farveblinds koncert i Lille VEGA den 10. oktober 2026.",
+      "reason": "Personlig koncertkritik med konkrete iagttagelser, billedcredit og tydelig vurdering af koncertens styrker og afslutning.",
+      "url": "https://www.aproposmagazine.com/articles/farveblind-lille-vega-anmeldelse-2026",
+      "status": 200,
+      "canonical": "https://www.aproposmagazine.com/articles/farveblind-lille-vega-anmeldelse-2026",
+      "headline": "Anmeldelse: Farveblind var for store til Lille VEGA",
+      "seoTitle": "Farveblind i Lille VEGA: Anmeldelse (5/6 stjerner)",
+      "metaDescription": "Farveblind fik Lille VEGA til at koge med bas, ravepunk og en alt for brat afslutning. Frederik Kragh anmelder koncerten til 5/6 stjerner.",
+      "author": "Frederik Kragh",
+      "datePublished": "2026-10-12T10:39:35.536Z",
+      "bodyCharacterCount": 5182,
+      "bodySha256": "b418f58a6a4ad3f57994d870c6c7ba15bce3586665d07af1f75f51d0d71b02e5",
+      "checkedAt": "2026-10-20T18:15:15.236Z",
+      "verification": "HTTP200, concrete subject, visible article text and author checked; editorial shortlist, not a complete factual audit."
+    },
+    {
+      "path": "/articles/untamed-netflix",
+      "displayTitle": "Untamed på Netflix",
+      "area": "Film & serier",
+      "format": "Serieanmeldelse",
+      "subject": "Netflix-krimien Untamed med Eric Bana som Kyle Turner i Yosemite.",
+      "reason": "Selvstændig serieanmeldelse, der diskuterer skuespil, tempo, visuel stil og familiedrama.",
+      "subjectCorroboration": "https://www.netflix.com/tudum/articles/eric-bana-untamed-netflix-series",
+      "url": "https://www.aproposmagazine.com/articles/untamed-netflix",
+      "status": 200,
+      "canonical": "https://www.aproposmagazine.com/articles/untamed-netflix",
+      "headline": "Untamed (Netflix)",
+      "seoTitle": "Untamed (Netflix): Anmeldelse",
+      "metaDescription": "I denne anmeldelse af Netflix’ Untamed er Yosemite smuk som altid, mens Eric Bana spiller en træt ISB-agent i en afdæmpet, melankolsk krimi om sorg, skyld og familietraumer.",
+      "author": "Casper Fiil",
+      "datePublished": "2025-07-31T08:23:44.912Z",
+      "bodyCharacterCount": 5646,
+      "bodySha256": "9f1132846f5b5cfdae6e31e8250a58634c67b4e86c8c000836134a08eba5999d",
+      "checkedAt": "2026-10-20T18:15:15.272Z",
+      "verification": "HTTP200, concrete subject, visible article text and author checked; editorial shortlist, not a complete factual audit."
+    },
+    {
+      "path": "/articles/kontrapunkt-kundearbejde-eller-kunst",
+      "displayTitle": "Kontrapunkt: Kunst eller kundearbejde?",
+      "area": "Kunst & design",
+      "format": "Researchbaseret kulturfeature",
+      "subject": "Kontrapunkts designarbejde og grænsen mellem kommerciel identitet, designhistorie og kunst.",
+      "reason": "Viser kritisk kulturjournalistik ud over anmeldelser og oplyser udtrykkeligt, at artiklen er researchbaseret, ikke baseret på udstillingsbesøg.",
+      "presentationCaveat": "Artiklen omtaler en udstilling med slutdato 18. oktober 2026. Præsenter som artikelcase, ikke som aktuelt besøgstip.",
+      "url": "https://www.aproposmagazine.com/articles/kontrapunkt-kundearbejde-eller-kunst",
+      "status": 200,
+      "canonical": "https://www.aproposmagazine.com/articles/kontrapunkt-kundearbejde-eller-kunst",
+      "headline": "Kontrapunkt har tegnet Danmark. Men er kundearbejde kunst?",
+      "seoTitle": "Kontrapunkt på Designmuseum: Kunst eller kundearbejde?",
+      "metaDescription": "Kontrapunkt har formet DSB og TV 2. Læs om bureauets historie og den kritiske grænse mellem designhistorie, kunst og kommerciel branding.",
+      "author": "Liv Brandt",
+      "datePublished": "2026-10-12T10:43:32.261Z",
+      "bodyCharacterCount": 5488,
+      "bodySha256": "2f5438fd1a0ddd3a92562de1fb8c47a4b424cffeb0bd410271f31e1cce70ae09",
+      "checkedAt": "2026-10-20T18:15:15.310Z",
+      "verification": "HTTP200, concrete subject, visible article text and author checked; editorial shortlist, not a complete factual audit."
+    },
+    {
+      "path": "/articles/boganmeldelse-soed-toes",
+      "displayTitle": "Sød Tøs af Anna Juul",
+      "area": "Bøger",
+      "format": "Boganmeldelse",
+      "subject": "Anna Juuls roman Sød Tøs med fokus på venskaber, terapi og selvbedrag.",
+      "reason": "Giver et konkret eksempel på litteraturkritik med tekstnære eksempler og begrundet vurdering.",
+      "url": "https://www.aproposmagazine.com/articles/boganmeldelse-soed-toes",
+      "status": 200,
+      "canonical": "https://www.aproposmagazine.com/articles/boganmeldelse-soed-toes",
+      "headline": "Boganmeldelse: Sød Tøs",
+      "seoTitle": "Sød Tøs af Anna Juul – boganmeldelse: 6/6 stjerner",
+      "metaDescription": "Læs vores anmeldelse af Anna Juuls Sød Tøs. En morsom og urovækkende roman om veninder, terapi og selvbedrag. 6/6 stjerner.",
+      "author": "Liv Brandt",
+      "datePublished": "2026-09-25T11:43:01.218Z",
+      "bodyCharacterCount": 4919,
+      "bodySha256": "6aeaaec83755121c50ad993aece89a36bfe5e162323919f09bc9041eb75aec99",
+      "checkedAt": "2026-10-20T18:15:15.346Z",
+      "verification": "HTTP200, concrete subject, visible article text and author checked; editorial shortlist, not a complete factual audit."
+    },
+    {
+      "path": "/articles/anmeldelse-astro-bot-ps5",
+      "displayTitle": "Astro Bot",
+      "area": "Gaming",
+      "format": "Spilanmeldelse",
+      "subject": "Team Asobis Astro Bot til PlayStation 5 med fokus på controller, leg og fælles spiloplevelser.",
+      "reason": "Viser mediets personlige formidling af gaming og kobler spilmekanik med en konkret læseroplevelse.",
+      "url": "https://www.aproposmagazine.com/articles/anmeldelse-astro-bot-ps5",
+      "status": 200,
+      "canonical": "https://www.aproposmagazine.com/articles/anmeldelse-astro-bot-ps5",
+      "headline": "Anmeldelse: Astro Bot",
+      "seoTitle": "Astro Bot anmeldelse: PS5-eventyr med hjerte",
+      "metaDescription": "Et PlayStation-eventyr så rørende og sjovt, at det føles som terapi. Astro Bot er gaming, barndom og familieglæde samlet i ét – med tårer, latter og gyroskop-magiske øjeblikke.",
+      "author": "Frederik Kragh",
+      "datePublished": "2025-10-31T09:37:41.064Z",
+      "bodyCharacterCount": 6329,
+      "bodySha256": "9030fe23bbe16e25144850d2e8b2ef875a6d10159424cdb21e9e1d6f3296bb58",
+      "checkedAt": "2026-10-20T18:15:15.387Z",
+      "verification": "HTTP200, concrete subject, visible article text and author checked; editorial shortlist, not a complete factual audit."
+    }
+  ],
+  "excludedCandidates": [
+    {
+      "url": "https://www.aproposmagazine.com/articles/mayday-apple-tv-russisk-charme-og-streamingtrthed",
+      "status": 200,
+      "decision": "Exclude from press showcase pending fact correction.",
+      "observedProblem": "Published article names Sam Hargrave as director and M.S. Dhoni, Aaron Rabin and Jim Hecht as writers.",
+      "primarySource": "https://www.apple.com/tv-pr/originals/mayday/cast-crew/",
+      "verifiedCorrection": "Apple lists John Francis Daley and Jonathan Goldstein as both directors and writers.",
+      "noCorrectionApplied": true
+    }
+  ],
+  "limits": [
+    "Article shortlist demonstrates breadth and identifiable editorial subjects, not a claim that every sentence has been fact checked.",
+    "No audience demographic, geographic, subscriber, award or leading-market-position claim established.",
+    "Prior full-site production blocker for topic dates and Featured ordering remains outside this read-only task."
+  ]
+}
