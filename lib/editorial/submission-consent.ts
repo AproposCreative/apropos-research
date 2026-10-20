@@ -12,6 +12,7 @@ import { copenhagenPublicationInstant } from './submission-publication';
 import { articleImages } from '@/lib/mcp/markup';
 import type { Transaction } from 'firebase-admin/firestore';
 import { hasCurrentPublicationConsent } from './submission-consent-state';
+import { selectedAssetUrls } from './submission-compressed-media';
 
 export type PublicationConsent = {
   id: string; uid: string; revision: number; contentHash: string; articleHash: string;
@@ -25,8 +26,11 @@ async function consentMedia(row: SubmissionRecord, tx?: Transaction) {
   const result = await (tx ? tx.get(query) : query.get());
   if (result.size > 100) throw Error('mcp_submission_media_window_exceeded');
   const urls = new Set([row.article.featuredImage, ...articleImages(row.article.content).map(image => image.url)]);
-  return result.docs.map(doc => doc.data()).filter(asset => asset.uid === row.uid && ['uploaded', 'attached'].includes(asset.status) && urls.has(asset.url))
-    .map(asset => ({ url: String(asset.url), hash: String(asset.hash || asset.originalHash) })).sort((a, b) => a.url.localeCompare(b.url));
+  return result.docs.map(doc => doc.data()).filter(asset => asset.uid === row.uid && ['uploaded', 'attached'].includes(asset.status))
+    .flatMap(asset => [...new Set(selectedAssetUrls(row, asset))].filter(url => urls.has(url)).map(url => ({
+      url, hash: row.publishedTarget?.mediaDerivatives?.find(d => d.assetId === asset.assetId &&
+        d.originalHash === asset.originalHash && d.url === url)?.hash || String(asset.hash || asset.originalHash),
+    }))).sort((a, b) => a.url.localeCompare(b.url));
 }
 
 /** Compare everything editorial, allowing only non-editorial serialization and

@@ -5,7 +5,7 @@ import { getWebflowConfig } from '@/lib/webflow-config';
 import { readLivWebflowJson, inspectLivCmsDraft, type LivCmsInspectionPolicy, type LivCmsReadback } from '@/lib/liv/cms-readback';
 import { patchArticleFieldDataForLocale } from '@/lib/webflow/locale-items';
 import { cmsFieldHash } from '@/lib/liv/cms-field-hash';
-import { readPublicMedia } from '@/lib/liv/public-media-reader';
+import { readLivStoredImage } from '@/lib/liv/stored-image-reader';
 import { createHash } from 'node:crypto';
 import sharp from 'sharp';
 import type { WebflowArticleFields } from '@/lib/webflow/types';
@@ -13,8 +13,9 @@ import { acquireCmsWriteLease } from '@/lib/seo-engine/cms-write-lease';
 import { readSubmission, submissionStore } from './submissions';
 import { submissionId, submissionInput, submissionVersion, validateSubmissionArticle, type SubmissionArticle } from './submission-contract';
 import { editableArticle } from '@/lib/mcp/workspace';
+import { inspectPublishedCompression, type PublishedMediaDerivative } from './submission-compressed-media';
 
-export type PublishedTarget = { itemId: string; fields: Record<string, unknown>; fieldDataHash: string; linkedAt: string };
+export type PublishedTarget = { itemId: string; fields: Record<string, unknown>; fieldDataHash: string; linkedAt: string; mediaDerivatives?: PublishedMediaDerivative[] };
 export const linkPublishedSubmissionInput = z.object({ submissionId, expectedRevision: z.number().int().positive(), itemId: z.string().regex(/^[a-f0-9]{24}$/),
   mode: z.enum(['link', 'inspect', 'refresh']).default('link'), expectedCmsHash: submissionId.optional(),
   requestId: submissionInput.shape.requestId.optional(),
@@ -75,7 +76,7 @@ export async function findBoundCoverByHash(target: PublishedTarget, hash: string
   if (cmsFieldHash(current.fieldData as Record<string, unknown>) !== target.fieldDataHash) throw Error('mcp_submission_cms_conflict');
   const image = (current.fieldData as Record<string, unknown>).thumb as { url?: string; fileId?: string } | undefined;
   if (!image?.url || !/^[a-f0-9]{24}$/.test(image.fileId || '')) return null;
-  const bytes = await readPublicMedia(image.url, 'image');
+  const bytes = await readLivStoredImage(image.url);
   if (createHash('sha256').update(bytes).digest('hex') !== hash) return null;
   return { id: image.fileId!, url: image.url };
 }
@@ -108,15 +109,20 @@ export async function linkPublishedSubmission(uid: string, raw: unknown) {
   // Webflow omits optional nulls in its live projection. Nothing else is ignored.
   for (const [key, value] of Object.entries(fields)) if (value === null && !Object.hasOwn(liveFields, key)) liveFields[key] = null;
   if (live.isDraft !== false || !live.lastPublished || cmsFieldHash(fields) !== cmsFieldHash(liveFields)) throw Error('mcp_submission_existing_article_mismatch');
-  const target: PublishedTarget = { itemId: input.itemId, fields, fieldDataHash: cmsFieldHash(fields), linkedAt: new Date().toISOString() };
+  const target: PublishedTarget = { itemId: input.itemId, fields, fieldDataHash: cmsFieldHash(fields), linkedAt: new Date().toISOString(),
+    ...(row.publishedTarget?.mediaDerivatives ? { mediaDerivatives: row.publishedTarget.mediaDerivatives } : {}) };
   if (input.mode !== 'link') {
     if (!row.publishedTarget) throw Error('mcp_submission_existing_binding_required');
     const baseline = cmsArticle(row.publishedTarget.fields, row.article), remote = cmsArticle(fields, row.article);
-    const merged = mergeCmsArticle(row.article, baseline, remote);
+    const compression = target.fieldDataHash !== row.publishedTarget.fieldDataHash
+      ? await inspectPublishedCompression(row, fields, remote) : null;
+    const merged = compression ? { article: remote, conflicts: [] as string[] } : mergeCmsArticle(row.article, baseline, remote);
+    if (compression) target.mediaDerivatives = compression.derivatives;
     const changedFields = Object.keys(remote).filter(key => cmsFieldHash({ value: remote[key as keyof SubmissionArticle] ?? null }) !== cmsFieldHash({ value: row.article[key as keyof SubmissionArticle] ?? null }));
     if (input.mode === 'inspect') return { submissionId: row.id, revision: row.revision, itemId: input.itemId,
       cmsHash: target.fieldDataHash, divergence: target.fieldDataHash !== row.publishedTarget.fieldDataHash,
-      changedFields, conflicts: merged.conflicts, proposedArticle: merged.article, paidAiCalls: 0, cmsWrites: 0 };
+      changedFields, conflicts: merged.conflicts, proposedArticle: merged.article,
+      ...(compression ? { verifiedCompressionReceipt: compression.receiptId } : {}), paidAiCalls: 0, cmsWrites: 0 };
     if (!receipt || !input.expectedCmsHash) throw Error('mcp_submission_reconcile_confirmation_required');
     if (input.expectedCmsHash !== target.fieldDataHash || merged.conflicts.length) throw Error('mcp_submission_cms_conflict');
     validateSubmissionArticle(merged.article);
@@ -129,7 +135,21 @@ export async function linkPublishedSubmission(uid: string, raw: unknown) {
       if (current?.uid !== uid || current.revision !== row.revision || current.contentHash !== row.contentHash) throw Error('mcp_submission_revision_conflict');
       const result = { submissionId: row.id, itemId: input.itemId, revision: row.revision + 1, mediaOnly: true,
         reconciled: true, paidAiCalls: 0, cmsWrites: 0, publicationApproval: false };
+      const locks = compression ? await Promise.all(compression.derivatives.map(d =>
+        tx.get(db.collection('editorialProvidedAssets').doc(cmsFieldHash({ url: d.url }))))) : [];
+      for (const [index, lock] of locks.entries()) {
+        const derivative = compression!.derivatives[index], previous = lock.data();
+        if (previous && (previous.url !== derivative.url || previous.hash !== derivative.hash))
+          throw Error('mcp_submission_media_identity_changed');
+      }
       tx.create(ref.collection('versions').doc(String(row.revision)), row);
+      for (const [index, lock] of locks.entries()) if (!lock.exists) {
+        const d = compression!.derivatives[index];
+        tx.set(db.collection('editorialProvidedAssets').doc(cmsFieldHash({ url: d.url })), {
+          url: d.url, hash: d.hash, uid, submissionId: row.id, preserveOriginal: true,
+          originalHash: d.originalHash, derivativeReceipt: d.receiptId, lockedAt: target.linkedAt,
+        });
+      }
       tx.set(ref.collection('cmsBindings').doc(target.fieldDataHash), target);
       tx.create(receipt, { requestHash, result, changedFields, previousCmsHash: row.publishedTarget!.fieldDataHash, cmsHash: target.fieldDataHash, createdAt: target.linkedAt });
       tx.update(ref, { article: merged.article, publishedTarget: target, revision: result.revision,
@@ -179,14 +199,18 @@ async function stageMediaUnderLease(target: PublishedTarget, expected: WebflowAr
   if (bodyChanged) {
     const $ = load(content);
     for (const node of $('img').toArray()) {
-      const image = $(node), meta = await sharp(await readPublicMedia(image.attr('src') || '', 'image'), { limitInputPixels: 80_000_000 }).metadata();
+      const image = $(node), meta = await sharp(await readLivStoredImage(image.attr('src') || ''), { limitInputPixels: 80_000_000 }).metadata();
       image.attr({ width: String(meta.width), height: String(meta.height) });
     }
     content = $('body').html() || '';
   }
   const canonical = { ...expected, content, readTime: target.fields['minutes-to-read'] as number };
   const thumb = { url: canonical.featuredImage, alt: canonical.featuredImageAlt };
-  const patch = { thumb, 'mobile-image': thumb, 'foto-credit': canonical.fotoCredit, ...(bodyChanged ? { content: canonical.content } : {}) };
+  const currentThumb = target.fields.thumb as { url?: string; alt?: string };
+  const keepCover = currentThumb?.url === thumb.url && (currentThumb.alt || '') === (thumb.alt || '');
+  const patch = { ...(!keepCover ? { thumb, 'mobile-image': thumb } : {}),
+    ...(canonical.fotoCredit !== target.fields['foto-credit'] ? { 'foto-credit': canonical.fotoCredit } : {}),
+    ...(bodyChanged ? { content: canonical.content } : {}) };
   await checkpoint({ target, expected: canonical, patch });
   await assertLease();
   const latest = await readSubmissionCms(target.itemId);
@@ -203,7 +227,14 @@ export async function verifyStagedMedia(target: PublishedTarget, expected: Webfl
       (expected.content === target.fields.content && fields.content !== target.fields.content) ||
       bodyWithoutImages(String(fields.content)) !== bodyWithoutImages(String(target.fields.content))) throw Error('mcp_submission_cms_conflict');
   const mobile = fields['mobile-image'] as { url?: string } | undefined;
-  if (!mobile?.url || createHash('sha256').update(await readPublicMedia(mobile.url, 'image')).digest('hex') !== expected.featuredImageHash) throw Error('mcp_submission_media_identity_changed');
+  const retainedCover = expected.featuredImage === (target.fields.thumb as { url?: string })?.url &&
+    (expected.featuredImageAlt || '') === ((target.fields.thumb as { alt?: string })?.alt || '');
+  const derivative = retainedCover && target.mediaDerivatives?.find(d => d.field === 'mobile-image' && d.url === mobile?.url);
+  if (retainedCover && (cmsFieldHash({ value: fields.thumb }) !== cmsFieldHash({ value: target.fields.thumb }) ||
+      cmsFieldHash({ value: fields['mobile-image'] }) !== cmsFieldHash({ value: target.fields['mobile-image'] })))
+    throw Error('mcp_submission_media_identity_changed');
+  if (!mobile?.url || createHash('sha256').update(await readLivStoredImage(mobile.url)).digest('hex') !==
+      (derivative ? derivative.hash : expected.featuredImageHash)) throw Error('mcp_submission_media_identity_changed');
   const proof = await inspectLivCmsDraft({ itemId: target.itemId, expected, inspectionPolicy: { ...policy, allowPublishedUpdate: true } });
   await recordProof?.(proof);
   if (!proof.publicationReady) throw Error('mcp_submission_cms_checks_failed');

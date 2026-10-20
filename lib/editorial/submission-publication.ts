@@ -138,7 +138,7 @@ async function publishSubmissionOperation(uid: string, id: string, now: Date) {
     const mediaIdentity = await verifySubmissionMedia(uid, id, fields);
     await assertLease();
     await ref.update({ status: 'published', publication: { ...savedPublication, receipt: { ...receipt, mediaIdentity } },
-      publishedTarget: { itemId: prepared.itemId, fields, fieldDataHash: cmsFieldHash(fields), linkedAt: new Date().toISOString() },
+      publishedTarget: { ...row.publishedTarget, itemId: prepared.itemId, fields, fieldDataHash: cmsFieldHash(fields), linkedAt: new Date().toISOString() },
       updatedAt: new Date().toISOString() });
     return { ...receipt, status: 'published', publicationOrigin: 'editor-approved-submission', countsAsUnattendedLiv: false };
   } catch (error) {

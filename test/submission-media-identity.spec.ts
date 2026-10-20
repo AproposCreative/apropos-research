@@ -51,3 +51,24 @@ it('ignores replaced assets and verifies body identity at its stable figure', as
   expect((await verifySubmissionMedia('owner', id, live)).assets[0].published[0].url).toBe('https://cdn.test/cms-copy.jpg');
   await expect(verifySubmissionMedia('owner', id, fields())).rejects.toThrow('media_identity_changed');
 });
+it('verifies audited derivatives against their own pinned bytes while retaining the original hash', async () => {
+  const row = memory.rows.get(path), asset = memory.rows.get(`${path}/chatAssets/${assetId}`);
+  const desktop = 'https://cdn.test/desktop.webp', mobile = 'https://cdn.test/mobile.webp';
+  const bytes = await sharp(state.bytes).resize(1000).webp().toBuffer();
+  const hash = createHash('sha256').update(bytes).digest('hex');
+  row.article.featuredImage = desktop;
+  row.publishedTarget.mediaDerivatives = [desktop, mobile].map((url, index) => ({
+    assetId, originalUrl: asset.url, originalHash: asset.originalHash, url, hash, role: 'cover',
+    field: index ? 'mobile-image' : 'thumb', receiptId: 'compression-proof',
+  }));
+  const current = { ...fields(), thumb: { url: desktop }, 'mobile-image': { url: mobile } };
+  state.media.mockResolvedValue(bytes);
+  const proof = await verifySubmissionMedia('owner', id, current);
+  expect(proof.assets).toHaveLength(1);
+  expect(proof.assets[0]).toMatchObject({ approvedHash: asset.originalHash, published: [
+    { hash, originalHash: asset.originalHash, derivativeReceipt: 'compression-proof' },
+    { hash, originalHash: asset.originalHash, derivativeReceipt: 'compression-proof' },
+  ] });
+  state.media.mockResolvedValue(state.bytes);
+  await expect(verifySubmissionMedia('owner', id, current)).rejects.toThrow('media_identity_changed');
+});

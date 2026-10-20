@@ -17,6 +17,7 @@ import { readImageFailures } from './image-failure';
 import { NATIVE_IMAGE_INTEGRATION } from './native-image-integration';
 import { projectImageCandidates } from './generated-image-candidate';
 import { isDeclinedImageCandidate } from './image-candidate-state';
+import { selectedAssetUrls } from './submission-compressed-media';
 import { inspectSubmission, submissionId, submissionInput, submissionUpdate, submissionVersion,
   validateSubmissionArticle, type SubmissionRecord } from './submission-contract';
 
@@ -55,7 +56,7 @@ export async function getSubmissionStatus(uid: string, id: string) {
   const verified = publication?.receipt?.mediaIdentity;
   const receiptMatches = row.status === 'published' && verified?.cmsHash === row.publishedTarget?.fieldDataHash;
   const selectedUrls = new Set([row.article.featuredImage, ...articleImages(row.article.content).map(image => image.url)]);
-  const mediaIdentity = assetReceipts.docs.map(doc => doc.data()).filter(asset => asset.status === 'attached' && selectedUrls.has(asset.url))
+  const mediaIdentity = assetReceipts.docs.map(doc => doc.data()).filter(asset => asset.status === 'attached' && selectedAssetUrls(row, asset).some(url => selectedUrls.has(url)))
     .map(asset => {
       const published = receiptMatches ? verified?.assets.find(item => item.assetId === asset.assetId) : undefined;
       return { assetId: asset.assetId, role: asset.role, sectionId: asset.sectionId ?? null, locked: asset.locked === true,

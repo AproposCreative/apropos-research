@@ -2,7 +2,7 @@ import { beforeEach, expect, it, vi } from 'vitest';
 import sharp from 'sharp';
 import { createHash } from 'node:crypto';
 import { memoryFirestore } from './helpers/mcp-firestore';
-const state = vi.hoisted(() => ({ db: null as any, fields: {} as any, live: {} as any, patch: vi.fn(), read: vi.fn(), proof: vi.fn(), bytes: Buffer.alloc(0) }));
+const state = vi.hoisted(() => ({ db: null as any, fields: {} as any, live: {} as any, patch: vi.fn(), read: vi.fn(), proof: vi.fn(), bytes: Buffer.alloc(0), compression: vi.fn() }));
 vi.mock('@/lib/firebase-admin', () => ({ getAdminDb: () => state.db }));
 vi.mock('@/lib/config/env', () => ({ env: { WEBFLOW_CMS_LOCALE_DK: 'd'.repeat(24), WEBFLOW_ARTICLES_COLLECTION_ID: 'e'.repeat(24) } }));
 vi.mock('@/lib/webflow-config', () => ({ getWebflowConfig: () => ({ articlesCollectionId: 'e'.repeat(24) }) }));
@@ -10,9 +10,11 @@ vi.mock('@/lib/liv/cms-readback', () => ({ readLivWebflowJson: (...args: unknown
 vi.mock('@/lib/liv/public-media-reader', () => ({ readPublicMedia: async () => state.bytes }));
 vi.mock('@/lib/webflow/locale-items', () => ({ patchArticleFieldDataForLocale: (...args: unknown[]) => state.patch(...args) }));
 vi.mock('@/lib/editorial/submission-options', () => ({ getSubmissionOptions: async () => ({ authors: [], categories: [], topics: [], requiredFields: [] }) }));
+vi.mock('@/lib/webflow/published-image-optimization', () => ({ verifyCompressedFields: (...args: unknown[]) => state.compression(...args) }));
 import { linkPublishedSubmission, stageSubmissionMedia, verifyStagedMedia, assertMediaOnlyUpdate, assertSubmissionNotAlreadySaved, findBoundCoverByHash } from '@/lib/editorial/submission-published-target';
 import { cmsFieldHash } from '@/lib/liv/cms-field-hash';
 import { acquireCmsWriteLease } from '@/lib/seo-engine/cms-write-lease';
+import { projectImageSelection } from '@/lib/editorial/submission-image-selection';
 const id = 'a'.repeat(64), itemId = 'b'.repeat(24), path = `editorialSubmissions/${id}`;
 const article = { title: 'I mellemtiden er vi ingen', content: '<p>Den præcise anmeldelse.</p>', author: 'author', category: 'culture', rating: 5,
   seoTitle: 'Min SEO titel', seoDescription: 'Min beskrivelse', slug: 'samme-slug' };
@@ -29,6 +31,7 @@ beforeEach(async () => {
     isArchived: false, lastPublished: '2026-10-06T21:03:17Z', fieldData: structuredClone(url.includes('/live?') ? state.live : state.fields) }));
   state.patch.mockImplementation(async (id: string, patch: any) => { expect(id).toBe(itemId); Object.assign(state.fields, patch); });
   state.proof.mockResolvedValue({ publicationReady: true, draftConfirmed: true, fieldDataHash: 'proof' });
+  state.compression.mockImplementation(async (expected, actual) => { expect(actual).toEqual(expected); });
 });
 const target = () => ({ itemId, fields: structuredClone(state.fields), fieldDataHash: cmsFieldHash(state.fields), linkedAt: 'now' });
 const expected = () => ({ ...article, tags: [], featuredImage: 'https://cdn.test/selected.png', featuredImageAlt: 'Det valgte mockup', fotoCredit: 'Brugerens billede',
@@ -147,4 +150,78 @@ it('reuses the exact existing bound cover bytes only; different files are never 
   const old = target(); state.fields.content = 'New copy';
   await expect(findBoundCoverByHash(old, expected().featuredImageHash)).rejects.toThrow('cms_conflict');
   expect(state.patch).not.toHaveBeenCalled();
+});
+
+function compressedPublication() {
+  const cover = '1'.repeat(64), body = '2'.repeat(64), hash = '3'.repeat(64);
+  const figure = (src: string) => `<figure data-apropos-asset="${body}"><img src="${src}" alt="Barnet"><figcaption>Illustration: Apropos</figcaption></figure>`;
+  const local = { ...article, bookAuthor: 'Frederik Drescher Kluth', content: article.content + figure('https://cdn.test/original-body.png'),
+    featuredImage: 'https://cdn.test/original.png', featuredImageAlt: 'Cover' };
+  state.fields.content = article.content + figure('https://cdn.test/rehosted-body.png');
+  state.fields.thumb = { url: 'https://cdn.test/rehosted.png', alt: 'Cover' };
+  state.fields['mobile-image'] = state.fields.thumb;
+  const bound = target(), row = memory.rows.get(path);
+  Object.assign(row, { status: 'published', article: local, publishedTarget: bound, publication: {
+    contentHash: row.contentHash, fieldDataHash: bound.fieldDataHash,
+    receipt: { mediaIdentity: { cmsHash: bound.fieldDataHash, assets: [
+      { assetId: cover, approvedHash: hash, published: [{ url: state.fields.thumb.url, hash }] },
+      { assetId: body, approvedHash: hash, published: [{ url: 'https://cdn.test/rehosted-body.png', hash }] },
+    ] } },
+  } });
+  for (const [assetId, url, role] of [[cover, local.featuredImage, 'cover'], [body, 'https://cdn.test/original-body.png', 'body']]) {
+    memory.rows.set(`${path}/chatAssets/${assetId}`, { assetId, uid: 'owner', url, role, hash, originalHash: hash, status: 'attached',
+      generationEvidence: { requiresPersonalSelection: true }, personalSelection: { uid: 'owner', originalHash: hash } });
+  }
+  state.fields.content = article.content + figure('https://cdn.test/optimized-body.webp');
+  state.fields.thumb = { url: 'https://cdn.test/optimized.webp', alt: 'Cover' };
+  state.fields['mobile-image'] = { url: 'https://cdn.test/optimized-mobile.webp', alt: 'Cover' };
+  state.live = structuredClone(state.fields);
+  const policy = 'published-compression-2026-10-09-v1', cmsLocaleId = 'd'.repeat(24);
+  const receiptId = cmsFieldHash({ policy, itemId, cmsLocaleId, beforeHash: bound.fieldDataHash });
+  memory.rows.set(`webflowArticleImageAutoOptimize/${receiptId}`, {
+    policy, itemId, cmsLocaleId, status: 'complete', beforeHash: bound.fieldDataHash, before: bound.fields,
+    afterHash: cmsFieldHash(state.fields), patch: { content: state.fields.content, thumb: state.fields.thumb, 'mobile-image': state.fields['mobile-image'] },
+  });
+  return { row, receiptId, cover, body, hash, bound };
+}
+it('adopts a fully receipted compression, retains original choices and locks derivatives without CMS writes', async () => {
+  const fixture = compressedPublication(), args = { submissionId: id, expectedRevision: 3, itemId, mode: 'inspect' };
+  const inspect = await linkPublishedSubmission('owner', args);
+  expect(inspect).toMatchObject({ conflicts: [], verifiedCompressionReceipt: fixture.receiptId,
+    proposedArticle: { content: state.fields.content, featuredImage: state.fields.thumb.url } });
+  expect(memory.rows.get(path).revision).toBe(3);
+  expect(await linkPublishedSubmission('owner', { ...args, mode: 'refresh', expectedCmsHash: cmsFieldHash(state.fields),
+    requestId: 'compression-refresh-regression' })).toMatchObject({ revision: 4, cmsWrites: 0, publicationApproval: false });
+  const row = memory.rows.get(path);
+  expect(row.publishedTarget.mediaDerivatives).toHaveLength(3);
+  expect(row.status).toBe('draft');
+  const assets = [fixture.cover, fixture.body].map(assetId => memory.rows.get(`${path}/chatAssets/${assetId}`));
+  expect(assets.every(a => a.originalHash === fixture.hash)).toBe(true);
+  expect(projectImageSelection(row, assets)).toMatchObject({ required: false, items: [{ hash: fixture.hash }, { hash: fixture.hash }] });
+  expect(memory.rows.get(`editorialProvidedAssets/${cmsFieldHash({ url: state.fields.thumb.url })}`)).toMatchObject({ derivativeReceipt: fixture.receiptId, preserveOriginal: true });
+  expect(state.patch).not.toHaveBeenCalled();
+});
+it.each(['missing', 'write_started', 'wrong_hash', 'local_edit', 'bad_bytes', 'wrong_original'])('does not adopt unproven or conflicting compression: %s', async reason => {
+  const f = compressedPublication(), receipt = memory.rows.get(`webflowArticleImageAutoOptimize/${f.receiptId}`);
+  if (reason === 'missing') memory.rows.delete(`webflowArticleImageAutoOptimize/${f.receiptId}`);
+  if (reason === 'write_started') receipt.status = 'write_started';
+  if (reason === 'wrong_hash') receipt.afterHash = 'f'.repeat(64);
+  if (reason === 'local_edit') f.row.article.content = '<p>Ændret lokalt</p>';
+  if (reason === 'bad_bytes') state.compression.mockRejectedValueOnce(Error('image_optimization_asset_mismatch'));
+  if (reason === 'wrong_original') f.row.publication.receipt.mediaIdentity.assets[0].approvedHash = 'f'.repeat(64);
+  await expect(linkPublishedSubmission('owner', { submissionId: id, expectedRevision: 3, itemId, mode: 'refresh',
+    expectedCmsHash: cmsFieldHash(state.fields), requestId: 'compression-invalid-regression' })).rejects.toThrow();
+  expect(memory.rows.get(path).revision).toBe(3);
+  expect(state.patch).not.toHaveBeenCalled();
+});
+it('preserves distinct desktop/mobile derivatives when only adding a body image', async () => {
+  const f = compressedPublication();
+  await linkPublishedSubmission('owner', { submissionId: id, expectedRevision: 3, itemId, mode: 'refresh',
+    expectedCmsHash: cmsFieldHash(state.fields), requestId: 'compression-body-add-regression' });
+  const bound = memory.rows.get(path).publishedTarget, cover = structuredClone(state.fields.thumb), mobile = structuredClone(state.fields['mobile-image']);
+  await stageSubmissionMedia(bound, { ...expected(), content: state.fields.content + '<figure><img src="https://cdn.test/cake.png" alt="Kage"></figure>',
+    featuredImage: cover.url, featuredImageAlt: cover.alt }, {}, async () => {}, async () => {});
+  expect(state.patch.mock.calls[0][1]).not.toHaveProperty('thumb');
+  expect(state.patch.mock.calls[0][1]).not.toHaveProperty('mobile-image');
+  expect(state.fields.thumb).toEqual(cover); expect(state.fields['mobile-image']).toEqual(mobile);
 });

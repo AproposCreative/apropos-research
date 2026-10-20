@@ -5,12 +5,13 @@ import { readSubmission, submissionStore } from './submissions';
 import type { SubmissionRecord } from './submission-contract';
 import type { GenerationEvidence } from './image-generation-evidence';
 import { projectImageCandidates } from './generated-image-candidate';
+import { selectedAssetUrls } from './submission-compressed-media';
 
 export function projectImageSelection(row: SubmissionRecord, assets: DocumentData[]) {
   const urls = new Set([row.article.featuredImage, ...articleImages(row.article.content).map(image => image.url)]);
   // Include uploaded assets already referenced by the article: attachment
   // acknowledgement may lag the committed article update after a timeout.
-  const items = assets.filter(a => a.uid === row.uid && ['uploaded', 'attached'].includes(a.status) && urls.has(a.url) && a.generationEvidence)
+  const items = assets.filter(a => a.uid === row.uid && ['uploaded', 'attached'].includes(a.status) && selectedAssetUrls(row, a).some(url => urls.has(url)) && a.generationEvidence)
     .map(a => ({ assetId: a.assetId as string, url: a.url as string, role: a.role as string, sectionId: a.sectionId ?? null,
       hash: a.originalHash as string, evidence: a.generationEvidence as GenerationEvidence })).sort((a, b) => a.assetId.localeCompare(b.assetId));
   const candidates = projectImageCandidates(row, assets);

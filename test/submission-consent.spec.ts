@@ -89,3 +89,23 @@ it('stores the chosen Copenhagen schedule and never repurposes a replay as publi
   expect(consent.localTime).toBe(date); expect(Date.parse(consent.publishAt)).toBeGreaterThan(Date.now());
   await expect(acceptSubmissionConsent('owner', id, 3, offer.id, 'chat-preview', 'now')).rejects.toThrow('preview_changed');
 });
+it('binds the displayed compressed bytes in new consent without rewriting the original selection', async () => {
+  const row = memory.rows.get(path), assetId = 'c'.repeat(64), originalHash = 'd'.repeat(64), hash = 'e'.repeat(64);
+  const originalUrl = row.article.featuredImage, url = 'https://images.test/cover.webp';
+  memory.rows.set(`${path}/chatAssets/${assetId}`, { uid: 'owner', assetId, status: 'attached',
+    url: originalUrl, hash: originalHash, originalHash, role: 'cover' });
+  row.article.featuredImage = url;
+  row.publishedTarget = { itemId: 'f'.repeat(24), mediaDerivatives: [
+    { assetId, originalHash, originalUrl, url, hash, field: 'thumb', role: 'cover', receiptId: 'compression-proof' },
+  ] };
+  const offer = (await submissionConsentOffer('owner', id))!;
+  expect(offer.media).toEqual([{ url, hash }]);
+  await acceptSubmissionConsent('owner', id, 3, offer.id, 'chat-preview');
+  const current = memory.rows.get(path);
+  current.prepared = { expected: structuredClone(current.article) };
+  current.assets = [{ url, hash }];
+  expect(assertPublicationConsent(current, offer.id)).toMatchObject({ media: [{ url, hash }] });
+  current.assets[0].hash = originalHash;
+  expect(() => assertPublicationConsent(current, offer.id)).toThrow('preview_changed');
+  expect(memory.rows.get(`${path}/chatAssets/${assetId}`).originalHash).toBe(originalHash);
+});

@@ -13,6 +13,7 @@ import { readImageGenAsset, runImageGenJob } from '@/lib/image-gen/runtime';
 import { imageGenQuotes } from '@/lib/image-gen/quotes';
 import { inspectImageGenPressSources, type ImageGenPressCandidate } from '@/lib/image-gen/press';
 import { readPublicMedia } from '@/lib/liv/public-media-reader';
+import { readLivStoredImage } from '@/lib/liv/stored-image-reader';
 import { ensureTextFreeImage } from '@/lib/images/text-free';
 import { encodeWebp } from '@/lib/images/encode-webp';
 import { uploadImageGenCmsAsset } from '@/lib/image-gen/cms-asset';
@@ -128,7 +129,7 @@ export async function runSubmissionStep(uid: string, id: string) {
           const provided = existing[i];
           if (provided) {
             if (!provided.alt || !provided.credit) throw Error('mcp_submission_image_metadata_required');
-            raw = await readPublicMedia(provided.url, 'image'); credit = provided.credit;
+            raw = await readLivStoredImage(provided.url); credit = provided.credit;
             alt = provided.alt; caption = provided.caption; originalUrl = provided.url;
           } else {
             const candidateIndex = missing.indexOf(role);
