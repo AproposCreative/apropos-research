@@ -137,3 +137,17 @@ This identifies a supported patch surface, not a safe replacement sort value. No
 7. Recheck concurrent changes since the saved 521-path comparison. Then use the supported full-site publication to the existing custom domains and read back the affected production paths.
 
 This is a coordinated date-data repair, not an isolated press-page setting. Until those conditions are met, describe the press page and press kit as staged and verified where applicable, not as released to the production domain.
+
+## Follow-up, 21 October 2026
+
+The press introduction is now live on the custom domain and has been verified
+against the reviewed source and download bytes. Webflow reports a custom-domain
+compile at `2026-10-21T15:49:14.316Z`; that publication was not initiated by this
+verification turn. The eight checked topic paths and Featured in both languages
+now match staging. See `press-intro-production-2026-10-21.json` and
+`PRESS-INTRO-2026-10-21.md` for the completed press-release outcome.
+
+This closes the press introduction delivery, not the separate durable-date
+engineering concern. No binding repair or historical-date migration was verified;
+future full-site releases must still assess actual staged changes and their date
+and ordering effects.

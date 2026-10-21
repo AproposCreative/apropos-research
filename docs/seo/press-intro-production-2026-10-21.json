@@ -1,0 +1,64 @@
+{
+  "verifiedAt": "2026-10-21T15:51:13.167Z",
+  "sourceCommit": "02d574fd14fc9eeed3cbbf0aa476274b9ba15cd7",
+  "productionCompiledAt": "2026-10-21T15:49:14.316Z",
+  "publicationAlreadyCompletedBeforeThisTurn": true,
+  "publishedByThisTurn": false,
+  "locales": [
+    {
+      "locale": "da",
+      "url": "https://www.aproposmagazine.com/presse",
+      "httpStatus": 200,
+      "introductionMatchesSource": true,
+      "longPresentationUnchanged": true,
+      "updatedDownloadLinks": 5,
+      "pressEmail": "Liv@aproposmagazine.com",
+      "portraitCreditVerified": true
+    },
+    {
+      "locale": "en",
+      "url": "https://www.aproposmagazine.com/en/presse",
+      "httpStatus": 200,
+      "introductionMatchesSource": true,
+      "longPresentationUnchanged": true,
+      "updatedDownloadLinks": 5,
+      "pressEmail": "Liv@aproposmagazine.com",
+      "portraitCreditVerified": true
+    }
+  ],
+  "assets": [
+    {
+      "name": "apropos-pressekit-da.pdf",
+      "url": "https://cdn.prod.website-files.com/67dbf17ba540975b5b21c180/6ad8dd675cef1c934bedae75_apropos-pressekit-da.pdf",
+      "status": 200,
+      "sha256": "a1aedca2a7ef5e664e8fdda7ed7e2d7c8003021f998426368f7c61dc51815e2e",
+      "bytes": 2599753,
+      "matchesReviewedLocalFile": true
+    },
+    {
+      "name": "apropos-press-kit-en.pdf",
+      "url": "https://cdn.prod.website-files.com/67dbf17ba540975b5b21c180/6ad8dd689d9f4987f8609dc0_apropos-press-kit-en.pdf",
+      "status": 200,
+      "sha256": "a8e6932678cf3f269535a1d20d47185871053159b5b9a4a047a3f5fff117c181",
+      "bytes": 2598890,
+      "matchesReviewedLocalFile": true
+    },
+    {
+      "name": "apropos-pressepakke.zip",
+      "url": "https://cdn.prod.website-files.com/67dbf17ba540975b5b21c180/6ad8dd69a0ab621645f2f9e1_apropos-pressepakke.zip",
+      "status": 200,
+      "sha256": "a867903196cb92deed46173067fe1c8e2df5754a2b0cc0f8de975c5c51b3b50a",
+      "bytes": 4514177,
+      "matchesReviewedLocalFile": true
+    }
+  ],
+  "screenshot": "output/press-kit/intro-production-2026-10-21.png",
+  "relatedPageVerification": {
+    "checkedAt": "2026-10-21T15:51:35Z",
+    "topicPathsCompared": 8,
+    "featuredLocalesCompared": 2,
+    "productionAndStagingMatch": true,
+    "featuredOrderIdentical": true,
+    "durableDateBindingRepairVerified": false
+  }
+}
