@@ -147,3 +147,38 @@ kører den faktiske SMTP-kode med en fake transport og verificerer både personl
 exact-recipient-send og uændret legacy-testredirect i samme test. Ingen SMTP-
 forbindelse eller rigtig mail i disse tests. Policy mangler/forkert uid/revokeret
 og eksplicit globalt sendstop er også dækket.
+
+### Endelig release og livekontrol, 21. oktober kl.18:51 Copenhagen
+
+- Produktionssource `0d117672f9a7b8c1c9089e8cbf825e66ff14a709`, deployment
+  `dpl_5vk78uoakBgQ2T6tMaRPn7sQSD54`, MCP `2026-10-21-v44`.
+  Staget build/TypeScript/security bestået; health200 og privat API401 uden
+  brugeradgang. Tidligere produktionssource 695261e7 genbekræftet før promote,
+  derefter direkte ai.aproposmagazine.com-lookup READY med den præcise nye source.
+- Ejerens separate policy aktiveret16:50:57.598Z via idempotent transaction og
+  audit `accreditationMcpPolicyAudit/owner-enable-2026-10-21-v1`. Ingen samtykke-
+  token, kladde eller mail oprettet af aktiveringen. Hashes før/efter for legacy-
+  kontrol, sager, approvals, tråde, pakker, inbox-settings, betaltpolicy, providerhold
+  og ledgers er identiske. Credentials og miljøvariabler er ikke ændret.
+- Ejerautoriserede læsninger16:51:22–26Z: context/contacts/list alle200 med
+  `private, no-store`. Alle8kilder available=true; 344grupperede poster fordelt
+  på291kontaktposter og53historiske muligheder, plus3eksisterende sager. Ikke en
+  påstand om291unikke personer eller53aktuelle koncerter. Ingen mailbody læst.
+- Live personalSend.enabled=true/globalSendStopped=false,
+  requiresPersonalConfirmation=true/automaticSendAllowed=false. Eksisterende
+  SMTP-konfiguration tilLiv er klar; dette er ikke en ny SMTP-login/sendtest.
+  Legacy automationEnabled=false/paused=true/dryRun=true, testredirect/allowlist
+  uændret. Livekontrollens før/efter-state er identisk; ingen send/approval/paidAI.
+- Native get_workflow(editorial) lykkedes16:51:08.946Z; serveraudit v44,
+  statusok/paidAiAllowedfalse. Klientens tilgængelige værktøjskatalog var stadig
+  cachet uden de nye akkrediteringsværktøjer. Genindlæs Apropos-værktøjerne én gang
+  i samme⭐-tråd. Det native første nye preview/knaptryk er derfor IKKE verificeret
+  gennem en virkelig ansøgning; ingen opdigtet personlig godkendelse eller send.
+- Afgrænset runtime error/fatal-query16:41:22–16:51:22Z gav ingen records. Det er
+  ikke bevis for nul fejl uden for dette vindue/filter. npm audit --omit=dev=0;
+  buildens11dev-auditadvarsler er ikke ændret eller skjult.
+
+Evidens ligger i `output/accreditation-personal-activation-*.json` og den nyeste
+`output/accreditation-live-*.json` (lokale0600-filer med hashes/status, ingen
+credentialværdier). Vercel-/verification-kontrollen omfattede både widgetfixture,
+serverguards, faktiske kilder og live-readback; ikke kun et READY-build.
