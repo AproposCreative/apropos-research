@@ -88,3 +88,14 @@ eller manglende token. Det er simuleret afsendelse, ikke kontakt til arrangører
 
 Live release- og læsende kildeverifikation tilføjes efter deployment. Et READY
 deployment er ikke en sendt ansøgning eller bevis på den første native Work-knap.
+
+Lokalt: 393 testfiler / 5602 tests bestået, type-check og security:config bestået;
+ændrede produktionsfiler har ingen lintfejl. Widget-fixturen bestod normal send,
+tabt kvittering, ukendt resultat, afvisning og udløbet/manglende bekræftelse.
+Desktop/mobil er visuelt gennemgået. Ingen rigtig mailtransport blev kaldt.
+
+Releasekontrollen fandt også den eksisterende transitive follow-redirects 1.16.0.
+Kun denne lockfile-afhængighed opdateres til 1.16.1 for GHSA-q3jh-wrc6-jgq8 og
+GHSA-8r9p-f939-6h3c; ingen nye direkte pakker. npm audit --omit=dev rapporterer
+herefter 0 kendte sårbarheder. Dette er ikke en påstand om nul dev-afhængigheds-
+advarsler eller en garanti mod ukendte sikkerhedsfejl.
