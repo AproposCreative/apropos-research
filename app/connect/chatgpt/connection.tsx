@@ -79,6 +79,7 @@ export default function ChatGPTConnection({ requestId, publicationId, shortening
               <li>Læs fælles artikler, egne kladder, kilder og gemt status.</li>
               {context.scopes?.includes('apropos:draft') && <li>Gem og redigér dit eget arbejde. Andres byline giver ikke adgang til deres kladder.</li>}
               {context.scopes?.includes('apropos:publish') && <li>Forbered publicering. Hver udgivelse kræver din separate bekræftelse.</li>}
+              {capabilities.owner && <li>Læs Frederik og Livs mails og gem svarudkast. Hvert mailsvar sendes først efter dit personlige “Godkend og send” på den viste tekst og modtager. Ingen autosvar.</li>}
             </ul>
             <p className="text-sm text-white/55">Ingen skjulte AI-køb, ændrede budgetter eller adgang til hele databasen.</p>
             <button className={`${button} w-full bg-white/10`} disabled={busy} onClick={() => action('allow')}>Forbind ChatGPT</button>
