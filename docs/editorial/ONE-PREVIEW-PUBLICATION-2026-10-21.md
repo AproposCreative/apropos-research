@@ -68,3 +68,31 @@ access, the Rockstar draft, budgets and Instagram are not changed.
 
 Deployment verification follows below. A fixture pass is not a claim of a real
 user completing the newly deployed UI.
+
+## Verified production, 09:50 Copenhagen
+
+- Source `d83f4019de8cb22995d6020b0ed0122d6fa002e1`, MCP v41,
+  deployment `dpl_2ydaah5LBCyXZt3WLpdTP3xE2XtQ` READY. Direct production-alias
+  lookup matches the exact source and deployment, not just the CLI upload result.
+- Served client bundle `/_next/static/immutable/chunks/3ttn9g0w997y0.js`, SHA256
+  `9881cefc27093b40623942ce7585ef49812a53a74f591bc5e01e059e3277a2c1`,
+  contains the integrated flow and no old image-approval/tab wording.
+- Native MCP `get_workflow(submit)` returns the new one-preview instructions;
+  version hash `3c83a51475e344948352a9feda23fe8d13dd1b438f4d9b0141aac83cd32abddd`.
+- Authenticated preview GET returned 200/private-no-store; Barsel remains
+  published revision 10 with the same hash, four body images, zero pending
+  candidates and **no additional consent offered**.
+- Public readback 07:49:48.381Z returned 200 with the correct title, long-light-
+  hair/beard cover alt and cake caption. This release did not publish again.
+- Evidence: `output/one-preview-live-1792568988382.json`. The check used no
+  selection/publication POST, image generation, mail read/send or paid AI.
+- Deployment-specific error-log query (last five minutes, limit 20) returned no
+  records. This is a bounded observation, not proof that no runtime error can
+  occur. No monitoring configuration changed.
+- Additional preflight/protocol run: 181 passing tests, including 148 preflight
+  regressions. With the earlier 72, the union is 220 tests across six files
+  (33 protocol tests overlap). Typecheck and targeted lint also passed again.
+
+Code is deployed and read-only live checks passed. The complete new human-click
+sequence was verified in isolated real-component/iframe fixtures, not simulated
+against the already-published article or represented as a new owner acceptance.
