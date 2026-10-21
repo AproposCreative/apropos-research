@@ -3,7 +3,7 @@ import { memoryFirestore } from './helpers/mcp-firestore';
 const mock = vi.hoisted(() => ({ db: null as any, read: vi.fn(), search: vi.fn(), smtp: vi.fn(), send: vi.fn() }));
 vi.mock('@/lib/firebase-admin', () => ({ getAdminDb: () => mock.db }));
 vi.mock('@/lib/editorial-mail/mailbox', async original => ({ ...await original<any>(), readMailboxMessage: mock.read, searchMailbox: mock.search }));
-vi.mock('@/lib/editorial-mail/transport', () => ({ smtpConfig: mock.smtp, sendApprovedReply: mock.send }));
+vi.mock('@/lib/editorial-mail/transport', () => ({ smtpConfig: mock.smtp, sendApprovedReply: mock.send, assertReplyRecipient: vi.fn() }));
 vi.mock('@/lib/liv-inbox/settings-store', () => ({ getLivInboxSettings: async () => ({ guidelines: 'Skriv konkret.', signature: 'Liv Brandt' }) }));
 import { readEditorialMail, searchEditorialMail, saveEditorialReply, getEditorialReply, previewEditorialReply, confirmEditorialReply } from '@/lib/editorial-mail/service';
 import { type McpIdentity, digest } from '@/lib/mcp/oauth';

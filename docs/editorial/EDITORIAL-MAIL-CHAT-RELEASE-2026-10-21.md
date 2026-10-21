@@ -56,3 +56,37 @@ Never mark a generated draft sent or claim recipient delivery from SMTP acceptan
 
 The Barsel and Liv-observer flows, publication state, budget, provider holds,
 credentials, mail autopoll and auto-response settings are outside this change.
+
+## First live readback and routing correction
+
+`157ed93db2cc6fc993e56f6b29bac9e3bfc6bf1b` deployed as
+`dpl_ECrDg96HzQUWSjCzkKrnWXmGpoLD`, READY with the actual production alias.
+Native `get_editorial_desk` returned `mailEnabled:true` at 06:59:26 UTC.
+The session's model tool catalogue still contains the old names; no native
+mail-preview call or real-host approval has yet been observed.
+
+Owner API search/read works, HTTP 200/private-no-store. Initial service probe
+omitted the required Origin header and was rejected before a mailbox operation;
+the probe was corrected, not the origin check.
+Header search for Rockstar found no matches. Bounded recent metadata located
+the inquiry from Tobias/digitalPR about GTA VI codes; it was read successfully
+at 07:01:46 UTC. No prior Rockstar/digitalPR correspondence was found in the
+searched Frederik Sent folder. This does not prove absence from every mail folder.
+No message body, personal contact details or credentials are committed here.
+
+SMTP verification initially stopped on `mcp_mail_test_redirect_active` before
+connecting. Read-only `/api/liv-inbox/settings` confirms the actual existing
+policy: sending enabled, effective testRedirectTo=null, allowAllRecipients=true,
+SMTP, autoRespond=false. The new checker had incorrectly treated the separate
+accreditation sink as global. Corrected to use Liv's existing effective recipient
+resolver at preview, durable claim and transport; accreditation code/env is unchanged.
+Frederik's new personal-only sender is separate and never uses a Liv/accreditation
+sink or sender. Its explicit mail emergency-stop/test flag still fails closed.
+No allowlist, redirect, automation, account credential or sending env changed.
+
+Regression: 70 focused tests plus typecheck/lint pass after this correction.
+Financial/provider-policy and inbox-settings before/after hashes remain equal:
+`cabe0e498f22ea9b74545f399aecd0eecf6005681948d9c90db35655c2602593`.
+Local metadata-only evidence: `output/editorial-mail-live-*.json`.
+SMTP authentication and user-visible exact draft remain to be verified on the
+corrected deployment. Nothing sent and no personal approval simulated.

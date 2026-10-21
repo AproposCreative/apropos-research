@@ -4,7 +4,7 @@ import { cmsFieldHash as hash } from '@/lib/liv/cms-field-hash';
 import { digest, opaque, type McpIdentity } from '@/lib/mcp/oauth';
 import { getLivInboxSettings } from '@/lib/liv-inbox/settings-store';
 import { searchMailbox, readMailboxMessage, mailboxAddress, mailboxName, mailboxId, type MailMessage } from './mailbox';
-import { smtpConfig, sendApprovedReply, verifyReplyTransport } from './transport';
+import { smtpConfig, sendApprovedReply, verifyReplyTransport, assertReplyRecipient } from './transport';
 
 const id = z.string().regex(/^[a-f0-9]{64}$/);
 export const replyInput = z.object({ messageId: id, expectedSourceHash: id, expectedRevision: z.number().int().min(0),
@@ -94,7 +94,7 @@ export async function previewEditorialReply(identity: McpIdentity, raw: unknown)
   let confirmation: { token: string; expiresAt: number } | null = null, blocker: string | null = null;
   if (data.status === 'draft') {
     if (!identity.scopes.includes('apropos:draft') || !identity.scopes.includes('apropos:publish')) blocker = 'mcp_mail_send_scope_required';
-    try { smtpConfig(data.mailbox); } catch (e) { blocker = e instanceof Error ? e.message : 'mcp_mail_smtp_unavailable'; }
+    try { smtpConfig(data.mailbox); assertReplyRecipient(data.mailbox, data.to); } catch (e) { blocker = e instanceof Error ? e.message : 'mcp_mail_smtp_unavailable'; }
     if (!blocker) {
       const token = opaque(), expiresAt = Date.now() + 600000;
       await db().collection('editorialMailConfirmations').doc(digest(token)).create({ uid: identity.uid, grantId: identity.grantId,
@@ -119,6 +119,7 @@ export async function confirmEditorialReply(identity: McpIdentity, raw: unknown)
     if (reply.status !== 'draft') return { send: false, reply };
     if (consent.status !== 'pending' || consent.expiresAt <= Date.now()) throw Error('mcp_mail_confirmation_expired');
     smtpConfig(reply.source.mailbox); // deterministic precheck before marking attempted
+    assertReplyRecipient(reply.source.mailbox, reply.to);
     const source = (await tx.get(sourceRef(identity.uid, reply.source.id))).data();
     if (source?.message.sourceHash !== reply.source.sourceHash) throw Error('mcp_mail_source_changed');
     const now = new Date().toISOString(), outboundMessageId = `<apropos-reply-${reply.id}-${reply.revision}@aproposmagazine.com>`;

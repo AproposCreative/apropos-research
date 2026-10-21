@@ -4,6 +4,7 @@ import { ImapFlow } from 'imapflow';
 import { getMailboxSecrets, type MailboxId } from '@/lib/accreditation/imap/config';
 import { findSentMailboxPath } from '@/lib/accreditation/imap/sent-copy';
 import { mailboxAddress, mailboxName } from './mailbox';
+import { resolveLivInboxRecipient, livInboxTestRedirectTo } from '@/lib/liv-inbox/send';
 
 export type OutgoingReply = { mailbox: MailboxId; to: string; subject: string; body: string; messageId: string; inReplyTo: string; references: string[] };
 /** Authentication/connection check only. Does not submit a message or test delivery. */
@@ -22,14 +23,25 @@ export function smtpConfig(mailbox: MailboxId) {
   if (process.env.EDITORIAL_MAIL_SENDING_ENABLED === 'false') throw Error('mcp_mail_sending_disabled');
   // Never silently redirect a personal reply, or remove an existing emergency stop.
   if (mailbox === 'liv' && process.env.LIV_INBOX_SENDING_ENABLED !== 'true') throw Error('mcp_mail_sending_disabled');
-  if ((process.env.LIV_INBOX_TEST_REDIRECT_TO || process.env.ACCREDITATION_TEST_REDIRECT_TO || '').trim()) throw Error('mcp_mail_test_redirect_active');
+  // Accreditation's sink belongs to that separate system. Liv already has an
+  // explicit opt-in that decouples it; reuse its effective policy, not raw env.
+  // Frederik's new personal-only path never uses either legacy sender or sink.
+  if (mailbox === 'liv' && livInboxTestRedirectTo()) throw Error('mcp_mail_test_redirect_active');
+  if ((process.env.EDITORIAL_MAIL_TEST_REDIRECT_TO || '').trim()) throw Error('mcp_mail_test_redirect_active');
   return { host: process.env.ONECOM_SMTP_HOST?.trim() || 'send.one.com', port: Number(process.env.ONECOM_SMTP_PORT || 465),
     secure: true, auth: { user, pass }, connectionTimeout: 12000, greetingTimeout: 12000, socketTimeout: 25000,
     logger: false, debug: false, disableFileAccess: true, disableUrlAccess: true };
 }
+export function assertReplyRecipient(mailbox: MailboxId, to: string) {
+  if (mailbox === 'liv') {
+    const resolved = resolveLivInboxRecipient(to);
+    if (resolved.blocked || resolved.redirected || resolved.to !== to) throw Error('mcp_mail_recipient_blocked');
+  }
+}
 
 /** Called once only after a durable personal approval claim. No retries or provider fallback. */
 export async function sendApprovedReply(reply: OutgoingReply) {
+  assertReplyRecipient(reply.mailbox, reply.to);
   const transport = nodemailer.createTransport(smtpConfig(reply.mailbox));
   const options = { from: { name: mailboxName(reply.mailbox), address: mailboxAddress(reply.mailbox) },
     to: reply.to, replyTo: mailboxAddress(reply.mailbox), subject: reply.subject, text: reply.body,
