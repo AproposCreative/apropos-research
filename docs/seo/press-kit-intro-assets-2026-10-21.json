@@ -1,0 +1,29 @@
+[
+  {
+    "name": "apropos-pressekit-da.pdf",
+    "path": "output/pdf/apropos-pressekit-da.pdf",
+    "assetId": "6ad8dd675cef1c934bedae75",
+    "url": "https://cdn.prod.website-files.com/67dbf17ba540975b5b21c180/6ad8dd675cef1c934bedae75_apropos-pressekit-da.pdf",
+    "sha256": "a1aedca2a7ef5e664e8fdda7ed7e2d7c8003021f998426368f7c61dc51815e2e",
+    "bytes": 2599753,
+    "status": 201
+  },
+  {
+    "name": "apropos-press-kit-en.pdf",
+    "path": "output/pdf/apropos-press-kit-en.pdf",
+    "assetId": "6ad8dd689d9f4987f8609dc0",
+    "url": "https://cdn.prod.website-files.com/67dbf17ba540975b5b21c180/6ad8dd689d9f4987f8609dc0_apropos-press-kit-en.pdf",
+    "sha256": "a8e6932678cf3f269535a1d20d47185871053159b5b9a4a047a3f5fff117c181",
+    "bytes": 2598890,
+    "status": 201
+  },
+  {
+    "name": "apropos-pressepakke.zip",
+    "path": "output/press-kit/apropos-pressepakke.zip",
+    "assetId": "6ad8dd69a0ab621645f2f9e1",
+    "url": "https://cdn.prod.website-files.com/67dbf17ba540975b5b21c180/6ad8dd69a0ab621645f2f9e1_apropos-pressepakke.zip",
+    "sha256": "a867903196cb92deed46173067fe1c8e2df5754a2b0cc0f8de975c5c51b3b50a",
+    "bytes": 4514177,
+    "status": 201
+  }
+]

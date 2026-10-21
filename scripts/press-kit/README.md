@@ -174,9 +174,18 @@ The later press-address correction changes the visible contact to
 pixel-identical outside the changed email text. The portrait, photographer
 credit and three-page layouts are unchanged.
 
-Latest reviewed PDF hashes, including the portrait and current press contact:
+The 2026-10-21 introduction update uses the approved 50-word Danish and English
+texts. The longer descriptions remain 150 words. All six pages were rendered
+and visually inspected; pages 2 and 3 in each language are pixel-identical to
+the preceding version, and page 1 fits without overflow. Each PDF retains 13
+links, including four exact `mailto:Liv@aproposmagazine.com` links, and the
+confirmed portrait credit. No partnership section was added. Comparison evidence
+is in `tmp/pdfs/press-kit/intro-change-verification.json`; before/after previews
+are in `tmp/pdfs/press-kit/intro-before/` and `intro-after/`.
+
+Latest reviewed PDF hashes, including the approved introduction:
 
 | Final PDF | SHA-256 |
 | --- | --- |
-| `apropos-pressekit-da.pdf` | `f924519a2fe4128bd13cb5f0aff0d6c8b1451468caee5c24bad68963a8cd7965` |
-| `apropos-press-kit-en.pdf` | `ec86910d5616c2625f8184bb4d36e606eb723efa3098b8f7c4ad884fece9a741` |
+| `apropos-pressekit-da.pdf` | `a1aedca2a7ef5e664e8fdda7ed7e2d7c8003021f998426368f7c61dc51815e2e` |
+| `apropos-press-kit-en.pdf` | `a8e6932678cf3f269535a1d20d47185871053159b5b9a4a047a3f5fff117c181` |

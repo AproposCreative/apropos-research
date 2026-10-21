@@ -1,0 +1,42 @@
+[
+  {
+    "oldId": "6cdf0614-2235-7cbb-a8d0-ae34f1442079",
+    "className": "press-button-1",
+    "da": "Dansk PDF",
+    "en": "Dansk PDF",
+    "url": "https://cdn.prod.website-files.com/67dbf17ba540975b5b21c180/6ad8dd675cef1c934bedae75_apropos-pressekit-da.pdf",
+    "newId": "df9a18a2-27d7-dbdb-6e7c-f4bf5ce9721e"
+  },
+  {
+    "oldId": "ce44ad1f-eec7-0f23-b00f-06af9736ed05",
+    "className": "press-secondary-button",
+    "da": "English PDF",
+    "en": "English PDF",
+    "url": "https://cdn.prod.website-files.com/67dbf17ba540975b5b21c180/6ad8dd689d9f4987f8609dc0_apropos-press-kit-en.pdf",
+    "newId": "ff0eba9b-5b74-983a-4b04-5895be697812"
+  },
+  {
+    "oldId": "5044a89d-00f0-15e5-5649-715ece68aff9",
+    "className": "press-download-link",
+    "da": "Pressekit på dansk (PDF)",
+    "en": "Press kit in Danish (PDF)",
+    "url": "https://cdn.prod.website-files.com/67dbf17ba540975b5b21c180/6ad8dd675cef1c934bedae75_apropos-pressekit-da.pdf",
+    "newId": "732e48e6-a35e-5804-f84f-5ec0f1907805"
+  },
+  {
+    "oldId": "abded6ac-b5d9-d4ff-1838-29da661c7fb2",
+    "className": "press-download-link",
+    "da": "Pressekit på engelsk (PDF)",
+    "en": "Press kit in English (PDF)",
+    "url": "https://cdn.prod.website-files.com/67dbf17ba540975b5b21c180/6ad8dd689d9f4987f8609dc0_apropos-press-kit-en.pdf",
+    "newId": "76682320-17e0-a85b-8a1a-be26cd9335d5"
+  },
+  {
+    "oldId": "f966ebd9-8fd4-ae26-a944-131e0d79a422",
+    "className": "press-download-link",
+    "da": "Hele pressepakken (ZIP)",
+    "en": "Complete press package (ZIP)",
+    "url": "https://cdn.prod.website-files.com/67dbf17ba540975b5b21c180/6ad8dd69a0ab621645f2f9e1_apropos-pressepakke.zip",
+    "newId": "2879a8ec-0258-2164-f13a-513dbe2de986"
+  }
+]

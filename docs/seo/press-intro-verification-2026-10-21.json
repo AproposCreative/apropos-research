@@ -1,0 +1,70 @@
+{
+  "date": "2026-10-21",
+  "pageId": "6ad77b51dc274141752159c0",
+  "publishTaskId": "d4827106-2d5c-465f-955e-15493acc4ff8",
+  "customDomains": [],
+  "locales": [
+    {
+      "locale": "da",
+      "url": "https://apropos-magazine.webflow.io/presse",
+      "shortWordCount": 50,
+      "longUnchanged": true,
+      "onlyIntroAndDownloadDestinationsChangedByThisTurn": true,
+      "otherPreviouslyStagedChanges": [
+        "Vælg den korte eller den lange præsentation af mediet. → Vælg den korte eller den lange præsentation."
+      ],
+      "inlineStylesIdentical": true,
+      "updatedDownloadLinks": 5,
+      "pressMailtoLinks": [
+        "mailto:Liv@aproposmagazine.com",
+        "mailto:Liv@aproposmagazine.com?subject=Pressehenvendelse"
+      ],
+      "portraitCreditPreserved": true
+    },
+    {
+      "locale": "en",
+      "url": "https://apropos-magazine.webflow.io/en/presse",
+      "shortWordCount": 50,
+      "longUnchanged": true,
+      "onlyIntroAndDownloadDestinationsChangedByThisTurn": true,
+      "otherPreviouslyStagedChanges": [],
+      "inlineStylesIdentical": true,
+      "updatedDownloadLinks": 5,
+      "pressMailtoLinks": [
+        "mailto:Liv@aproposmagazine.com",
+        "mailto:Liv@aproposmagazine.com?subject=Pressehenvendelse"
+      ],
+      "portraitCreditPreserved": true
+    }
+  ],
+  "production": {
+    "status": 200,
+    "containsPreviousIntroduction": true,
+    "updatedIntroPublished": false,
+    "dependency": "PRESS-PRODUCTION-DEPENDENCY-2026-10-20.md"
+  },
+  "pdfVerification": {
+    "pagesPerLocale": 3,
+    "linksPerLocale": 13,
+    "mailtoPerLocale": 4,
+    "pages2And3PixelIdentical": true,
+    "allSixPagesVisuallyInspected": true
+  },
+  "assetsByteVerified": true,
+  "webflowGeneratedDifferences": [
+    "English portrait now includes Webflow-generated sizes and srcset attributes; original image URL and credit unchanged."
+  ],
+  "bundle": {
+    "entries": 13,
+    "integrityValid": true,
+    "pdfBytesMatchReviewedOutputs": true,
+    "bothLocalizedIntroductionsPresent": true
+  },
+  "browserVerification": {
+    "danishIntroductionVisuallyChecked": true,
+    "copyButtonSuccessFeedback": true,
+    "clipboardContentVerified": false,
+    "clipboardNote": "Browser-session clipboard returned empty despite success feedback; no claim of clipboard-byte verification.",
+    "screenshot": "output/press-kit/intro-staging-2026-10-21.png"
+  }
+}
