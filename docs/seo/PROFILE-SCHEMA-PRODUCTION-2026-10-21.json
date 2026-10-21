@@ -1,0 +1,853 @@
+{
+  "checkedAt": "2026-10-21T16:14:04.902Z",
+  "productionPublishTaskId": "a0b2c347-a5ae-4942-aec3-86243cfc3a8a",
+  "preflightPublishTaskId": "4dfc69e5-5a9c-46c3-93a8-eaa25ac7c125",
+  "preflightCompletedAt": "2026-10-21T16:12:07.634Z",
+  "origin": "https://www.aproposmagazine.com",
+  "concurrency": 8,
+  "results": [
+    {
+      "path": "/",
+      "status": 200,
+      "finalUrl": "https://www.aproposmagazine.com/",
+      "baseline": "pre-release-production",
+      "baselineHashes": {
+        "visibleText": "46f752edae933488c201b5b7f8f4c51cf1823d9589fd9e7e0fad4a342dbde10f",
+        "metadata": "76d475b0b784bb41e24daf0e17f7f71498d81bf7697e9cee5f378114eba9b958",
+        "jsonld": "67fb340fa069ffe4760b230f5408b4b5fbc61789b9cefac0dbba5cc0a9fbad09",
+        "articleLinks": "29a75c0bf2bfe24517eb3a3343e672e10ecd71ad2f8f203c8adfb7a6d4385b38",
+        "images": "451f8a80c73c7a4ed48c5ccc04907e7b43cbd643c96dd812f73a67309cc27729",
+        "inlineJs": "c949fa69867a3162a0d34a7e64155cee2844e864600b7fb84516a752823ee66e"
+      },
+      "liveHashes": {
+        "visibleText": "46f752edae933488c201b5b7f8f4c51cf1823d9589fd9e7e0fad4a342dbde10f",
+        "metadata": "76d475b0b784bb41e24daf0e17f7f71498d81bf7697e9cee5f378114eba9b958",
+        "jsonld": "67fb340fa069ffe4760b230f5408b4b5fbc61789b9cefac0dbba5cc0a9fbad09",
+        "articleLinks": "29a75c0bf2bfe24517eb3a3343e672e10ecd71ad2f8f203c8adfb7a6d4385b38",
+        "images": "451f8a80c73c7a4ed48c5ccc04907e7b43cbd643c96dd812f73a67309cc27729",
+        "inlineJs": "c949fa69867a3162a0d34a7e64155cee2844e864600b7fb84516a752823ee66e"
+      },
+      "mismatchedFields": []
+    },
+    {
+      "path": "/en",
+      "status": 200,
+      "finalUrl": "https://www.aproposmagazine.com/en",
+      "baseline": "pre-release-production",
+      "baselineHashes": {
+        "visibleText": "01477bef00de269cbbe750a1fcbfcb662b473e34f960299569225f169de90e9b",
+        "metadata": "287de1955c7fc6a8df311b005104507879e68ffd28d96ccc55270b9b72c10084",
+        "jsonld": "a2c06a099e57de5d4723224ffce8d51566599808900cc0e5f76fc4a486e7193b",
+        "articleLinks": "e5ec843678dabdb61825ef2ad5749765e6a9b8c8a21045b20fec8733f1e2a4e5",
+        "images": "f51b325f84da6104df98761fcacf14718db5a379e5c2a7dda135403442a60ee4",
+        "inlineJs": "c949fa69867a3162a0d34a7e64155cee2844e864600b7fb84516a752823ee66e"
+      },
+      "liveHashes": {
+        "visibleText": "01477bef00de269cbbe750a1fcbfcb662b473e34f960299569225f169de90e9b",
+        "metadata": "287de1955c7fc6a8df311b005104507879e68ffd28d96ccc55270b9b72c10084",
+        "jsonld": "a2c06a099e57de5d4723224ffce8d51566599808900cc0e5f76fc4a486e7193b",
+        "articleLinks": "e5ec843678dabdb61825ef2ad5749765e6a9b8c8a21045b20fec8733f1e2a4e5",
+        "images": "f51b325f84da6104df98761fcacf14718db5a379e5c2a7dda135403442a60ee4",
+        "inlineJs": "c949fa69867a3162a0d34a7e64155cee2844e864600b7fb84516a752823ee66e"
+      },
+      "mismatchedFields": []
+    },
+    {
+      "path": "/en/featured-articles",
+      "status": 200,
+      "finalUrl": "https://www.aproposmagazine.com/en/featured-articles",
+      "baseline": "pre-release-production",
+      "baselineHashes": {
+        "visibleText": "e28d95b4cba96d9ee16934aa38224660be356e80822d3ea55af85cea71872736",
+        "metadata": "c229d171447cd66d3b10fd302e200b94321c3bd77d5f0ff939be2d57e9adc550",
+        "jsonld": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "articleLinks": "9683a126827c707d5f947ae2f6f1b9f5f84a2fe4b8fabedff9e51f4cdac5e350",
+        "images": "b5f5d93b5fd86645cc7ed94c4b38cb67fc878218b7852a9dbcc8dd4ac9dc853f",
+        "inlineJs": "c949fa69867a3162a0d34a7e64155cee2844e864600b7fb84516a752823ee66e"
+      },
+      "liveHashes": {
+        "visibleText": "e28d95b4cba96d9ee16934aa38224660be356e80822d3ea55af85cea71872736",
+        "metadata": "c229d171447cd66d3b10fd302e200b94321c3bd77d5f0ff939be2d57e9adc550",
+        "jsonld": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "articleLinks": "9683a126827c707d5f947ae2f6f1b9f5f84a2fe4b8fabedff9e51f4cdac5e350",
+        "images": "b5f5d93b5fd86645cc7ed94c4b38cb67fc878218b7852a9dbcc8dd4ac9dc853f",
+        "inlineJs": "c949fa69867a3162a0d34a7e64155cee2844e864600b7fb84516a752823ee66e"
+      },
+      "mismatchedFields": []
+    },
+    {
+      "path": "/en/om",
+      "status": 200,
+      "finalUrl": "https://www.aproposmagazine.com/en/om",
+      "baseline": "approved-staging",
+      "baselineHashes": {
+        "visibleText": "902d452b08d1d1d68d6e7f08663be4f3eebb708cc5b1990301495da1cb36b101",
+        "metadata": "e9ecd5ee20ad24fc5e55393d4ae8930b66e21313a0c4bba572d7de88eb840527",
+        "jsonld": "3f1924a5d5ef7d341716faed943fdd36b006d3f4c2d59dda1c3574141d32214a",
+        "articleLinks": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "images": "b2cec36a60513c270a18f1f869b736501f179f7c00e98a675fa2a2a21f45af96",
+        "inlineJs": "c949fa69867a3162a0d34a7e64155cee2844e864600b7fb84516a752823ee66e"
+      },
+      "liveHashes": {
+        "visibleText": "902d452b08d1d1d68d6e7f08663be4f3eebb708cc5b1990301495da1cb36b101",
+        "metadata": "e9ecd5ee20ad24fc5e55393d4ae8930b66e21313a0c4bba572d7de88eb840527",
+        "jsonld": "3f1924a5d5ef7d341716faed943fdd36b006d3f4c2d59dda1c3574141d32214a",
+        "articleLinks": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "images": "b2cec36a60513c270a18f1f869b736501f179f7c00e98a675fa2a2a21f45af96",
+        "inlineJs": "c949fa69867a3162a0d34a7e64155cee2844e864600b7fb84516a752823ee66e"
+      },
+      "mismatchedFields": [],
+      "expectedSchemaExact": true,
+      "liveJsonLd": [
+        {
+          "@context": "https://schema.org",
+          "@graph": [
+            {
+              "@type": "Organization",
+              "@id": "https://www.aproposmagazine.com/#organization",
+              "name": "Apropos Magazine",
+              "url": "https://www.aproposmagazine.com/",
+              "logo": {
+                "@type": "ImageObject",
+                "@id": "https://www.aproposmagazine.com/#logo",
+                "url": "https://cdn.prod.website-files.com/67dbf17ba540975b5b21c180/67f7966d9192c68997f60640_aproposlogo.svg"
+              },
+              "parentOrganization": {
+                "@type": "Organization",
+                "name": "Apropos Creative ApS",
+                "identifier": {
+                  "@type": "PropertyValue",
+                  "propertyID": "CVR",
+                  "value": "38175661"
+                }
+              }
+            },
+            {
+              "@type": "AboutPage",
+              "@id": "https://www.aproposmagazine.com/en/om#webpage",
+              "url": "https://www.aproposmagazine.com/en/om",
+              "name": "About Apropos Magazine | Culture with opinions, without ads",
+              "description": "Apropos Magazine is an independent Danish culture publication covering music, film, TV, books, art and gaming. Free to read and free of advertising.",
+              "inLanguage": "en",
+              "isPartOf": {
+                "@id": "https://www.aproposmagazine.com/#website"
+              },
+              "mainEntity": {
+                "@id": "https://www.aproposmagazine.com/#organization"
+              }
+            }
+          ]
+        }
+      ],
+      "liveMetadata": {
+        "title": "About Apropos Magazine | Culture with opinions, without ads",
+        "meta": [
+          {
+            "key": "description",
+            "content": "Apropos Magazine is an independent Danish culture publication covering music, film, TV, books, art and gaming. Free to read and free of advertising."
+          },
+          {
+            "key": "og:title",
+            "content": "About Apropos Magazine | Culture with opinions, without ads"
+          },
+          {
+            "key": "og:description",
+            "content": "Apropos Magazine is an independent Danish culture publication covering music, film, TV, books, art and gaming. Free to read and free of advertising."
+          },
+          {
+            "key": "og:image",
+            "content": "https://cdn.prod.website-files.com/67dbf17ba540975b5b21c180/67ed19b047d73997242e9f86_05AproposMagazine_Random.webp"
+          },
+          {
+            "key": "twitter:title",
+            "content": "About Apropos Magazine | Culture with opinions, without ads"
+          },
+          {
+            "key": "twitter:description",
+            "content": "Apropos Magazine is an independent Danish culture publication covering music, film, TV, books, art and gaming. Free to read and free of advertising."
+          },
+          {
+            "key": "twitter:image",
+            "content": "https://cdn.prod.website-files.com/67dbf17ba540975b5b21c180/67ed19b047d73997242e9f86_05AproposMagazine_Random.webp"
+          },
+          {
+            "key": "og:type",
+            "content": "website"
+          },
+          {
+            "key": "twitter:card",
+            "content": "summary_large_image"
+          }
+        ],
+        "canonical": [
+          "https://www.aproposmagazine.com/en/om"
+        ],
+        "hreflang": [
+          {
+            "lang": "x-default",
+            "href": "https://www.aproposmagazine.com/om"
+          },
+          {
+            "lang": "da",
+            "href": "https://www.aproposmagazine.com/om"
+          },
+          {
+            "lang": "en",
+            "href": "https://www.aproposmagazine.com/en/om"
+          }
+        ]
+      },
+      "englishNodes": [
+        {
+          "nodeId": "7a2d998f-d331-f8d3-7160-c154d3e28b07",
+          "present": true
+        },
+        {
+          "nodeId": "105f703e-0c0c-258d-686b-cea2ce44a591",
+          "present": true
+        },
+        {
+          "nodeId": "d757511e-40a7-7bc7-979b-2e8f985db11d",
+          "present": true
+        },
+        {
+          "nodeId": "15570819-83a8-eb02-d51a-1451ad0a1a2f",
+          "present": true
+        }
+      ]
+    },
+    {
+      "path": "/en/presse",
+      "status": 200,
+      "finalUrl": "https://www.aproposmagazine.com/en/presse",
+      "baseline": "approved-staging",
+      "baselineHashes": {
+        "visibleText": "a56507da89a73b967287942af6552e4c82c4b1f62eb7a85ff245ba0c37d1ae9f",
+        "metadata": "3a1a1b597713df0878d8630b771e91009c7bf57d1efa38f697ed364c4cc98fc1",
+        "jsonld": "cb93d7304f46d0b6cc8709eb36b8f64dbdc3aa06b3504c2a0101ddd372025827",
+        "articleLinks": "758288aa3a11dbc92583a8bdf88e954ce1ea1c8008163172f6bf4a8d8a01e6d9",
+        "images": "9bf1c002cf1b04ca339d1a688f71b35ebce20d0fde4c16af88c69ad27b4bacdd",
+        "inlineJs": "e46b1aa24682856f7d54c0150831fbf2f161159630ba7c0bc206d5c3d7fab4eb"
+      },
+      "liveHashes": {
+        "visibleText": "a56507da89a73b967287942af6552e4c82c4b1f62eb7a85ff245ba0c37d1ae9f",
+        "metadata": "3a1a1b597713df0878d8630b771e91009c7bf57d1efa38f697ed364c4cc98fc1",
+        "jsonld": "cb93d7304f46d0b6cc8709eb36b8f64dbdc3aa06b3504c2a0101ddd372025827",
+        "articleLinks": "758288aa3a11dbc92583a8bdf88e954ce1ea1c8008163172f6bf4a8d8a01e6d9",
+        "images": "9bf1c002cf1b04ca339d1a688f71b35ebce20d0fde4c16af88c69ad27b4bacdd",
+        "inlineJs": "e46b1aa24682856f7d54c0150831fbf2f161159630ba7c0bc206d5c3d7fab4eb"
+      },
+      "mismatchedFields": [],
+      "expectedSchemaExact": true,
+      "liveJsonLd": [
+        {
+          "@context": "https://schema.org",
+          "@graph": [
+            {
+              "@type": "Organization",
+              "@id": "https://www.aproposmagazine.com/#organization",
+              "name": "Apropos Magazine",
+              "url": "https://www.aproposmagazine.com/",
+              "logo": {
+                "@type": "ImageObject",
+                "@id": "https://www.aproposmagazine.com/#logo",
+                "url": "https://cdn.prod.website-files.com/67dbf17ba540975b5b21c180/67f7966d9192c68997f60640_aproposlogo.svg"
+              },
+              "parentOrganization": {
+                "@type": "Organization",
+                "name": "Apropos Creative ApS",
+                "identifier": {
+                  "@type": "PropertyValue",
+                  "propertyID": "CVR",
+                  "value": "38175661"
+                }
+              },
+              "contactPoint": {
+                "@type": "ContactPoint",
+                "contactType": "press",
+                "email": "Liv@aproposmagazine.com",
+                "availableLanguage": [
+                  "da",
+                  "en"
+                ]
+              }
+            },
+            {
+              "@type": "AboutPage",
+              "@id": "https://www.aproposmagazine.com/en/presse#webpage",
+              "url": "https://www.aproposmagazine.com/en/presse",
+              "name": "Press kit, facts and contact | Apropos Magazine",
+              "description": "Find the Apropos Magazine press kit, logos and contact details. Facts and editorial coverage from an independent, ad-free Danish culture publication.",
+              "inLanguage": "en",
+              "isPartOf": {
+                "@id": "https://www.aproposmagazine.com/#website"
+              },
+              "mainEntity": {
+                "@id": "https://www.aproposmagazine.com/#organization"
+              },
+              "hasPart": {
+                "@id": "https://cdn.prod.website-files.com/67dbf17ba540975b5b21c180/6ad8dd689d9f4987f8609dc0_apropos-press-kit-en.pdf#document"
+              }
+            },
+            {
+              "@type": "DigitalDocument",
+              "@id": "https://cdn.prod.website-files.com/67dbf17ba540975b5b21c180/6ad8dd689d9f4987f8609dc0_apropos-press-kit-en.pdf#document",
+              "url": "https://cdn.prod.website-files.com/67dbf17ba540975b5b21c180/6ad8dd689d9f4987f8609dc0_apropos-press-kit-en.pdf",
+              "name": "Apropos Magazine press kit",
+              "inLanguage": "en",
+              "encodingFormat": "application/pdf",
+              "publisher": {
+                "@id": "https://www.aproposmagazine.com/#organization"
+              }
+            }
+          ]
+        }
+      ],
+      "liveMetadata": {
+        "title": "Press kit, facts and contact | Apropos Magazine",
+        "meta": [
+          {
+            "key": "description",
+            "content": "Find the Apropos Magazine press kit, logos and contact details. Facts and editorial coverage from an independent, ad-free Danish culture publication."
+          },
+          {
+            "key": "og:title",
+            "content": "Press kit, facts and contact | Apropos Magazine"
+          },
+          {
+            "key": "og:description",
+            "content": "Find the Apropos Magazine press kit, logos and contact details. Facts and editorial coverage from an independent, ad-free Danish culture publication."
+          },
+          {
+            "key": "og:image",
+            "content": "https://cdn.prod.website-files.com/67dbf17ba540975b5b21c180/67ed19b047d73997242e9f86_05AproposMagazine_Random.webp"
+          },
+          {
+            "key": "twitter:title",
+            "content": "Press kit, facts and contact | Apropos Magazine"
+          },
+          {
+            "key": "twitter:description",
+            "content": "Find the Apropos Magazine press kit, logos and contact details. Facts and editorial coverage from an independent, ad-free Danish culture publication."
+          },
+          {
+            "key": "twitter:image",
+            "content": "https://cdn.prod.website-files.com/67dbf17ba540975b5b21c180/67ed19b047d73997242e9f86_05AproposMagazine_Random.webp"
+          },
+          {
+            "key": "og:type",
+            "content": "website"
+          },
+          {
+            "key": "twitter:card",
+            "content": "summary_large_image"
+          }
+        ],
+        "canonical": [
+          "https://www.aproposmagazine.com/en/presse"
+        ],
+        "hreflang": [
+          {
+            "lang": "x-default",
+            "href": "https://www.aproposmagazine.com/presse"
+          },
+          {
+            "lang": "da",
+            "href": "https://www.aproposmagazine.com/presse"
+          },
+          {
+            "lang": "en",
+            "href": "https://www.aproposmagazine.com/en/presse"
+          }
+        ]
+      }
+    },
+    {
+      "path": "/en/topics/Concerts",
+      "status": 200,
+      "finalUrl": "https://www.aproposmagazine.com/en/topics/Concerts",
+      "baseline": "pre-release-production",
+      "baselineHashes": {
+        "visibleText": "07bcd4ea3998c9c9eafb8da20505dddd8ce60285bde2196c4932fa2a187d6517",
+        "metadata": "83e5023ccf78fe0aef528d7718448de31fa27d0ab86fbf258733ddca3f9bd12f",
+        "jsonld": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "articleLinks": "b98b7399b422c4811ab3e870dc3472904193b28f74e94f610031321459fccd2a",
+        "images": "431aa7cdb4a646f8fa959eb95d35c6220b1432a53373094a3415128cf23800ed",
+        "inlineJs": "c949fa69867a3162a0d34a7e64155cee2844e864600b7fb84516a752823ee66e"
+      },
+      "liveHashes": {
+        "visibleText": "07bcd4ea3998c9c9eafb8da20505dddd8ce60285bde2196c4932fa2a187d6517",
+        "metadata": "83e5023ccf78fe0aef528d7718448de31fa27d0ab86fbf258733ddca3f9bd12f",
+        "jsonld": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "articleLinks": "b98b7399b422c4811ab3e870dc3472904193b28f74e94f610031321459fccd2a",
+        "images": "431aa7cdb4a646f8fa959eb95d35c6220b1432a53373094a3415128cf23800ed",
+        "inlineJs": "c949fa69867a3162a0d34a7e64155cee2844e864600b7fb84516a752823ee66e"
+      },
+      "mismatchedFields": []
+    },
+    {
+      "path": "/en/topics/culture-opinion",
+      "status": 200,
+      "finalUrl": "https://www.aproposmagazine.com/en/topics/culture-opinion",
+      "baseline": "pre-release-production",
+      "baselineHashes": {
+        "visibleText": "9d10e904ec9bd51e3af8555299ad276eb0cfdcab8da1046c2597e42f768c135b",
+        "metadata": "2fdeee0d1d436df043ec5b53b25f93824943b50a4b2062b4c962eb5892fd6e6a",
+        "jsonld": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "articleLinks": "fe8cc97f6397373efe5399b960d9644a63d3c25e2fb73f73f97f74c331371755",
+        "images": "96b67c3b0fbd37f4fc9e1cd1410f12504a245a0f44b86ed3672af99e7e922b74",
+        "inlineJs": "c949fa69867a3162a0d34a7e64155cee2844e864600b7fb84516a752823ee66e"
+      },
+      "liveHashes": {
+        "visibleText": "9d10e904ec9bd51e3af8555299ad276eb0cfdcab8da1046c2597e42f768c135b",
+        "metadata": "2fdeee0d1d436df043ec5b53b25f93824943b50a4b2062b4c962eb5892fd6e6a",
+        "jsonld": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "articleLinks": "fe8cc97f6397373efe5399b960d9644a63d3c25e2fb73f73f97f74c331371755",
+        "images": "96b67c3b0fbd37f4fc9e1cd1410f12504a245a0f44b86ed3672af99e7e922b74",
+        "inlineJs": "c949fa69867a3162a0d34a7e64155cee2844e864600b7fb84516a752823ee66e"
+      },
+      "mismatchedFields": []
+    },
+    {
+      "path": "/en/topics/movies",
+      "status": 200,
+      "finalUrl": "https://www.aproposmagazine.com/en/topics/movies",
+      "baseline": "pre-release-production",
+      "baselineHashes": {
+        "visibleText": "7342d44ba5c698d98d154ce9e8e1268e83ea8f1f232f94764a0980f1fea6a38c",
+        "metadata": "9a1ebea08b27e2dfec9fd9ae7170e7653f21e1d4a0b68afa193f6bec10e53674",
+        "jsonld": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "articleLinks": "b8479dbe36cfbc2b512eaea63331738f88dd640be3708bf14938f3424b0cb881",
+        "images": "2cf90ffbfab96a3fb0ed1c3da517c6f9a20b99a7c67c351aee61296c3b9b86c8",
+        "inlineJs": "c949fa69867a3162a0d34a7e64155cee2844e864600b7fb84516a752823ee66e"
+      },
+      "liveHashes": {
+        "visibleText": "7342d44ba5c698d98d154ce9e8e1268e83ea8f1f232f94764a0980f1fea6a38c",
+        "metadata": "9a1ebea08b27e2dfec9fd9ae7170e7653f21e1d4a0b68afa193f6bec10e53674",
+        "jsonld": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "articleLinks": "b8479dbe36cfbc2b512eaea63331738f88dd640be3708bf14938f3424b0cb881",
+        "images": "2cf90ffbfab96a3fb0ed1c3da517c6f9a20b99a7c67c351aee61296c3b9b86c8",
+        "inlineJs": "c949fa69867a3162a0d34a7e64155cee2844e864600b7fb84516a752823ee66e"
+      },
+      "mismatchedFields": []
+    },
+    {
+      "path": "/en/topics/reviews",
+      "status": 200,
+      "finalUrl": "https://www.aproposmagazine.com/en/topics/reviews",
+      "baseline": "pre-release-production",
+      "baselineHashes": {
+        "visibleText": "b0efad7aa3fba8a1d526f48f50cad797d5681bda31101db33088201c17b7c03f",
+        "metadata": "bccf282987130fe92f1e17bad7db62edeb0e6fdb0338c75e0215057c1f0d9bfe",
+        "jsonld": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "articleLinks": "580ebe0f2d585c509271f90af2f621877b8972d806944709937515d33e85e6cc",
+        "images": "74a966b38be05fe3710f0089d60eabf97238fc885e31b8604b2c5d65d113864f",
+        "inlineJs": "c949fa69867a3162a0d34a7e64155cee2844e864600b7fb84516a752823ee66e"
+      },
+      "liveHashes": {
+        "visibleText": "b0efad7aa3fba8a1d526f48f50cad797d5681bda31101db33088201c17b7c03f",
+        "metadata": "bccf282987130fe92f1e17bad7db62edeb0e6fdb0338c75e0215057c1f0d9bfe",
+        "jsonld": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "articleLinks": "580ebe0f2d585c509271f90af2f621877b8972d806944709937515d33e85e6cc",
+        "images": "74a966b38be05fe3710f0089d60eabf97238fc885e31b8604b2c5d65d113864f",
+        "inlineJs": "c949fa69867a3162a0d34a7e64155cee2844e864600b7fb84516a752823ee66e"
+      },
+      "mismatchedFields": []
+    },
+    {
+      "path": "/featured-articles",
+      "status": 200,
+      "finalUrl": "https://www.aproposmagazine.com/featured-articles",
+      "baseline": "pre-release-production",
+      "baselineHashes": {
+        "visibleText": "a02a087671c9a90e576cbea1ae1b114139062b88d22e034232d63ddaa86daeca",
+        "metadata": "c626c956c3227d33f312bc8b14c3d03086f81dc5cff322c97df9cb7d962659aa",
+        "jsonld": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "articleLinks": "d1ed8888c2bffac8cec1f839ec13a2272123f7ec2d3130a776cd2c20137278be",
+        "images": "03c138e28527de6d7f6cb1ea41cca7f7a47f0863a76a5ce9d4274ca53fee0e6d",
+        "inlineJs": "c949fa69867a3162a0d34a7e64155cee2844e864600b7fb84516a752823ee66e"
+      },
+      "liveHashes": {
+        "visibleText": "a02a087671c9a90e576cbea1ae1b114139062b88d22e034232d63ddaa86daeca",
+        "metadata": "c626c956c3227d33f312bc8b14c3d03086f81dc5cff322c97df9cb7d962659aa",
+        "jsonld": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "articleLinks": "d1ed8888c2bffac8cec1f839ec13a2272123f7ec2d3130a776cd2c20137278be",
+        "images": "03c138e28527de6d7f6cb1ea41cca7f7a47f0863a76a5ce9d4274ca53fee0e6d",
+        "inlineJs": "c949fa69867a3162a0d34a7e64155cee2844e864600b7fb84516a752823ee66e"
+      },
+      "mismatchedFields": []
+    },
+    {
+      "path": "/om",
+      "status": 200,
+      "finalUrl": "https://www.aproposmagazine.com/om",
+      "baseline": "approved-staging",
+      "baselineHashes": {
+        "visibleText": "7f2f7031f01339c2254ff5a976938612fc75088fd0cfa01770458288846a3812",
+        "metadata": "43a4826d377484faa51ebd9c29de6bc5c0dbca2880924b958f3523939aa37140",
+        "jsonld": "cda74a9076fe60b157aca579e3ebe0a8c815cee51ff32c33661c5c6c68cef334",
+        "articleLinks": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "images": "b2cec36a60513c270a18f1f869b736501f179f7c00e98a675fa2a2a21f45af96",
+        "inlineJs": "c949fa69867a3162a0d34a7e64155cee2844e864600b7fb84516a752823ee66e"
+      },
+      "liveHashes": {
+        "visibleText": "7f2f7031f01339c2254ff5a976938612fc75088fd0cfa01770458288846a3812",
+        "metadata": "43a4826d377484faa51ebd9c29de6bc5c0dbca2880924b958f3523939aa37140",
+        "jsonld": "cda74a9076fe60b157aca579e3ebe0a8c815cee51ff32c33661c5c6c68cef334",
+        "articleLinks": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "images": "b2cec36a60513c270a18f1f869b736501f179f7c00e98a675fa2a2a21f45af96",
+        "inlineJs": "c949fa69867a3162a0d34a7e64155cee2844e864600b7fb84516a752823ee66e"
+      },
+      "mismatchedFields": [],
+      "expectedSchemaExact": true,
+      "liveJsonLd": [
+        {
+          "@context": "https://schema.org",
+          "@graph": [
+            {
+              "@type": "Organization",
+              "@id": "https://www.aproposmagazine.com/#organization",
+              "name": "Apropos Magazine",
+              "url": "https://www.aproposmagazine.com/",
+              "logo": {
+                "@type": "ImageObject",
+                "@id": "https://www.aproposmagazine.com/#logo",
+                "url": "https://cdn.prod.website-files.com/67dbf17ba540975b5b21c180/67f7966d9192c68997f60640_aproposlogo.svg"
+              },
+              "parentOrganization": {
+                "@type": "Organization",
+                "name": "Apropos Creative ApS",
+                "identifier": {
+                  "@type": "PropertyValue",
+                  "propertyID": "CVR",
+                  "value": "38175661"
+                }
+              }
+            },
+            {
+              "@type": "AboutPage",
+              "@id": "https://www.aproposmagazine.com/om#webpage",
+              "url": "https://www.aproposmagazine.com/om",
+              "name": "Om Apropos Magazine | Kultur med holdning, uden reklamer",
+              "description": "Apropos Magazine er et uafhængigt dansk kulturmedie. Læs om vores dækning af musik, film, serier, kunst, bøger og gaming. Gratis og uden reklamer.",
+              "inLanguage": "da",
+              "isPartOf": {
+                "@id": "https://www.aproposmagazine.com/#website"
+              },
+              "mainEntity": {
+                "@id": "https://www.aproposmagazine.com/#organization"
+              }
+            }
+          ]
+        }
+      ],
+      "liveMetadata": {
+        "title": "Om Apropos Magazine | Kultur med holdning, uden reklamer",
+        "meta": [
+          {
+            "key": "description",
+            "content": "Apropos Magazine er et uafhængigt dansk kulturmedie. Læs om vores dækning af musik, film, serier, kunst, bøger og gaming. Gratis og uden reklamer."
+          },
+          {
+            "key": "og:title",
+            "content": "Om Apropos Magazine | Kultur med holdning, uden reklamer"
+          },
+          {
+            "key": "og:description",
+            "content": "Apropos Magazine er et uafhængigt dansk kulturmedie. Læs om vores dækning af musik, film, serier, kunst, bøger og gaming. Gratis og uden reklamer."
+          },
+          {
+            "key": "og:image",
+            "content": "https://cdn.prod.website-files.com/67dbf17ba540975b5b21c180/67ed19b047d73997242e9f86_05AproposMagazine_Random.webp"
+          },
+          {
+            "key": "twitter:title",
+            "content": "Om Apropos Magazine | Kultur med holdning, uden reklamer"
+          },
+          {
+            "key": "twitter:description",
+            "content": "Apropos Magazine er et uafhængigt dansk kulturmedie. Læs om vores dækning af musik, film, serier, kunst, bøger og gaming. Gratis og uden reklamer."
+          },
+          {
+            "key": "twitter:image",
+            "content": "https://cdn.prod.website-files.com/67dbf17ba540975b5b21c180/67ed19b047d73997242e9f86_05AproposMagazine_Random.webp"
+          },
+          {
+            "key": "og:type",
+            "content": "website"
+          },
+          {
+            "key": "twitter:card",
+            "content": "summary_large_image"
+          }
+        ],
+        "canonical": [
+          "https://www.aproposmagazine.com/om"
+        ],
+        "hreflang": [
+          {
+            "lang": "x-default",
+            "href": "https://www.aproposmagazine.com/om"
+          },
+          {
+            "lang": "da",
+            "href": "https://www.aproposmagazine.com/om"
+          },
+          {
+            "lang": "en",
+            "href": "https://www.aproposmagazine.com/en/om"
+          }
+        ]
+      }
+    },
+    {
+      "path": "/presse",
+      "status": 200,
+      "finalUrl": "https://www.aproposmagazine.com/presse",
+      "baseline": "approved-staging",
+      "baselineHashes": {
+        "visibleText": "0f6b5c1393e05be64888f30c219201ebdd9f268ff2f4ef85cf2116b55c2d6c0e",
+        "metadata": "f8de57c90d6824e7f70f38079d0c94d037eba71dbbf65001a8166e04e41a36b2",
+        "jsonld": "e1e305a4b1245ea7b6ce158831ebdf5e489eeac8bf36bfe45572c26f28885f4d",
+        "articleLinks": "5bb8652f78f87882e0dc47f5ca569b40345b5badb03a48d7e62651a01654aa64",
+        "images": "7eabcf95c6e3decc181e92b9caba9ee7b10bea7f4fb0424a8c06cdcf32a894a5",
+        "inlineJs": "e46b1aa24682856f7d54c0150831fbf2f161159630ba7c0bc206d5c3d7fab4eb"
+      },
+      "liveHashes": {
+        "visibleText": "0f6b5c1393e05be64888f30c219201ebdd9f268ff2f4ef85cf2116b55c2d6c0e",
+        "metadata": "f8de57c90d6824e7f70f38079d0c94d037eba71dbbf65001a8166e04e41a36b2",
+        "jsonld": "e1e305a4b1245ea7b6ce158831ebdf5e489eeac8bf36bfe45572c26f28885f4d",
+        "articleLinks": "5bb8652f78f87882e0dc47f5ca569b40345b5badb03a48d7e62651a01654aa64",
+        "images": "7eabcf95c6e3decc181e92b9caba9ee7b10bea7f4fb0424a8c06cdcf32a894a5",
+        "inlineJs": "e46b1aa24682856f7d54c0150831fbf2f161159630ba7c0bc206d5c3d7fab4eb"
+      },
+      "mismatchedFields": [],
+      "expectedSchemaExact": true,
+      "liveJsonLd": [
+        {
+          "@context": "https://schema.org",
+          "@graph": [
+            {
+              "@type": "Organization",
+              "@id": "https://www.aproposmagazine.com/#organization",
+              "name": "Apropos Magazine",
+              "url": "https://www.aproposmagazine.com/",
+              "logo": {
+                "@type": "ImageObject",
+                "@id": "https://www.aproposmagazine.com/#logo",
+                "url": "https://cdn.prod.website-files.com/67dbf17ba540975b5b21c180/67f7966d9192c68997f60640_aproposlogo.svg"
+              },
+              "parentOrganization": {
+                "@type": "Organization",
+                "name": "Apropos Creative ApS",
+                "identifier": {
+                  "@type": "PropertyValue",
+                  "propertyID": "CVR",
+                  "value": "38175661"
+                }
+              },
+              "contactPoint": {
+                "@type": "ContactPoint",
+                "contactType": "press",
+                "email": "Liv@aproposmagazine.com",
+                "availableLanguage": [
+                  "da",
+                  "en"
+                ]
+              }
+            },
+            {
+              "@type": "AboutPage",
+              "@id": "https://www.aproposmagazine.com/presse#webpage",
+              "url": "https://www.aproposmagazine.com/presse",
+              "name": "Pressekit, fakta og kontakt | Apropos Magazine",
+              "description": "Find Apropos Magazines pressekit, logoer og kontakt. Præsentation og fakta om det uafhængige, reklamefri danske kulturmedie og vores redaktionelle dækning.",
+              "inLanguage": "da",
+              "isPartOf": {
+                "@id": "https://www.aproposmagazine.com/#website"
+              },
+              "mainEntity": {
+                "@id": "https://www.aproposmagazine.com/#organization"
+              },
+              "hasPart": {
+                "@id": "https://cdn.prod.website-files.com/67dbf17ba540975b5b21c180/6ad8dd675cef1c934bedae75_apropos-pressekit-da.pdf#document"
+              }
+            },
+            {
+              "@type": "DigitalDocument",
+              "@id": "https://cdn.prod.website-files.com/67dbf17ba540975b5b21c180/6ad8dd675cef1c934bedae75_apropos-pressekit-da.pdf#document",
+              "url": "https://cdn.prod.website-files.com/67dbf17ba540975b5b21c180/6ad8dd675cef1c934bedae75_apropos-pressekit-da.pdf",
+              "name": "Apropos Magazine pressekit",
+              "inLanguage": "da",
+              "encodingFormat": "application/pdf",
+              "publisher": {
+                "@id": "https://www.aproposmagazine.com/#organization"
+              }
+            }
+          ]
+        }
+      ],
+      "liveMetadata": {
+        "title": "Pressekit, fakta og kontakt | Apropos Magazine",
+        "meta": [
+          {
+            "key": "description",
+            "content": "Find Apropos Magazines pressekit, logoer og kontakt. Præsentation og fakta om det uafhængige, reklamefri danske kulturmedie og vores redaktionelle dækning."
+          },
+          {
+            "key": "og:title",
+            "content": "Pressekit, fakta og kontakt | Apropos Magazine"
+          },
+          {
+            "key": "og:description",
+            "content": "Find Apropos Magazines pressekit, logoer og kontakt. Præsentation og fakta om det uafhængige, reklamefri danske kulturmedie og vores redaktionelle dækning."
+          },
+          {
+            "key": "og:image",
+            "content": "https://cdn.prod.website-files.com/67dbf17ba540975b5b21c180/67ed19b047d73997242e9f86_05AproposMagazine_Random.webp"
+          },
+          {
+            "key": "twitter:title",
+            "content": "Pressekit, fakta og kontakt | Apropos Magazine"
+          },
+          {
+            "key": "twitter:description",
+            "content": "Find Apropos Magazines pressekit, logoer og kontakt. Præsentation og fakta om det uafhængige, reklamefri danske kulturmedie og vores redaktionelle dækning."
+          },
+          {
+            "key": "twitter:image",
+            "content": "https://cdn.prod.website-files.com/67dbf17ba540975b5b21c180/67ed19b047d73997242e9f86_05AproposMagazine_Random.webp"
+          },
+          {
+            "key": "og:type",
+            "content": "website"
+          },
+          {
+            "key": "twitter:card",
+            "content": "summary_large_image"
+          }
+        ],
+        "canonical": [
+          "https://www.aproposmagazine.com/presse"
+        ],
+        "hreflang": [
+          {
+            "lang": "x-default",
+            "href": "https://www.aproposmagazine.com/presse"
+          },
+          {
+            "lang": "da",
+            "href": "https://www.aproposmagazine.com/presse"
+          },
+          {
+            "lang": "en",
+            "href": "https://www.aproposmagazine.com/en/presse"
+          }
+        ]
+      }
+    },
+    {
+      "path": "/topics/anmeldelser",
+      "status": 200,
+      "finalUrl": "https://www.aproposmagazine.com/topics/anmeldelser",
+      "baseline": "pre-release-production",
+      "baselineHashes": {
+        "visibleText": "aab58285f588a4e3b74c4c332a4730b33553aa08b9cc85ccd169db26d7ae883c",
+        "metadata": "e260033a2fc050d3fe4862a647761a98544a4fee7d08635f1cbf3e0c57633233",
+        "jsonld": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "articleLinks": "09952e4496a701b822c04ad7d4fefb8f6afb44095bc83e08af3d7f62459d0d11",
+        "images": "0d343cdfee144ea54863008a294d49ff5c573d08d3c218e8947abb1d25912841",
+        "inlineJs": "c949fa69867a3162a0d34a7e64155cee2844e864600b7fb84516a752823ee66e"
+      },
+      "liveHashes": {
+        "visibleText": "aab58285f588a4e3b74c4c332a4730b33553aa08b9cc85ccd169db26d7ae883c",
+        "metadata": "e260033a2fc050d3fe4862a647761a98544a4fee7d08635f1cbf3e0c57633233",
+        "jsonld": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "articleLinks": "09952e4496a701b822c04ad7d4fefb8f6afb44095bc83e08af3d7f62459d0d11",
+        "images": "0d343cdfee144ea54863008a294d49ff5c573d08d3c218e8947abb1d25912841",
+        "inlineJs": "c949fa69867a3162a0d34a7e64155cee2844e864600b7fb84516a752823ee66e"
+      },
+      "mismatchedFields": []
+    },
+    {
+      "path": "/topics/film",
+      "status": 200,
+      "finalUrl": "https://www.aproposmagazine.com/topics/film",
+      "baseline": "pre-release-production",
+      "baselineHashes": {
+        "visibleText": "79cf7a8054d3c25be2e9749bb927564f1760da01a8990f5b27e462d935974163",
+        "metadata": "2201c71aa0eb41c747f06e62a1ece116d5bdc991c2f7f07855c4d5cba599afaa",
+        "jsonld": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "articleLinks": "1644f90e928c39746f937c5ab931366f32d6612f2fd45a166eff58a65de43272",
+        "images": "66e1226e963f5b0bb64c83ad6a9d5be643e7f2ae61101fd3b1e71826811b398d",
+        "inlineJs": "c949fa69867a3162a0d34a7e64155cee2844e864600b7fb84516a752823ee66e"
+      },
+      "liveHashes": {
+        "visibleText": "79cf7a8054d3c25be2e9749bb927564f1760da01a8990f5b27e462d935974163",
+        "metadata": "2201c71aa0eb41c747f06e62a1ece116d5bdc991c2f7f07855c4d5cba599afaa",
+        "jsonld": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "articleLinks": "1644f90e928c39746f937c5ab931366f32d6612f2fd45a166eff58a65de43272",
+        "images": "66e1226e963f5b0bb64c83ad6a9d5be643e7f2ae61101fd3b1e71826811b398d",
+        "inlineJs": "c949fa69867a3162a0d34a7e64155cee2844e864600b7fb84516a752823ee66e"
+      },
+      "mismatchedFields": []
+    },
+    {
+      "path": "/topics/koncerter",
+      "status": 200,
+      "finalUrl": "https://www.aproposmagazine.com/topics/koncerter",
+      "baseline": "pre-release-production",
+      "baselineHashes": {
+        "visibleText": "eb2697a3beec5db70b4497d0849b460fda14e53e26be8e9d7c534bc22966d2b5",
+        "metadata": "d1e8db2a379f6d2471674b24e37edb5ebd471285517c8e22060773c85c9662c9",
+        "jsonld": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "articleLinks": "7143c8b2774a6c604d27465eaaceeed39d8be9a634b4738603b990fb2ad28ab9",
+        "images": "00c8fc3814e715a155f8e4be8116e780902abf8c3dd118eadf9c14bf4d3b8f49",
+        "inlineJs": "c949fa69867a3162a0d34a7e64155cee2844e864600b7fb84516a752823ee66e"
+      },
+      "liveHashes": {
+        "visibleText": "eb2697a3beec5db70b4497d0849b460fda14e53e26be8e9d7c534bc22966d2b5",
+        "metadata": "d1e8db2a379f6d2471674b24e37edb5ebd471285517c8e22060773c85c9662c9",
+        "jsonld": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "articleLinks": "7143c8b2774a6c604d27465eaaceeed39d8be9a634b4738603b990fb2ad28ab9",
+        "images": "00c8fc3814e715a155f8e4be8116e780902abf8c3dd118eadf9c14bf4d3b8f49",
+        "inlineJs": "c949fa69867a3162a0d34a7e64155cee2844e864600b7fb84516a752823ee66e"
+      },
+      "mismatchedFields": []
+    },
+    {
+      "path": "/topics/kultur-mening",
+      "status": 200,
+      "finalUrl": "https://www.aproposmagazine.com/topics/kultur-mening",
+      "baseline": "pre-release-production",
+      "baselineHashes": {
+        "visibleText": "d9287f37e186f1458d943514aa2958dcdc02007e5b2289a440f32f4beba1259b",
+        "metadata": "f84c3dd987c2fee6d6dc4e4d751542bb9e969c1734834e3aa94570f2f83c09db",
+        "jsonld": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "articleLinks": "8d26f71e24bc8a12db45b8786736409b8465fd2c852edaee7d401086d28cae2b",
+        "images": "53561923d16c86a94b4727ea46ab4cd0fe0edd8918dfcd6931244b06fdb3edc3",
+        "inlineJs": "c949fa69867a3162a0d34a7e64155cee2844e864600b7fb84516a752823ee66e"
+      },
+      "liveHashes": {
+        "visibleText": "d9287f37e186f1458d943514aa2958dcdc02007e5b2289a440f32f4beba1259b",
+        "metadata": "f84c3dd987c2fee6d6dc4e4d751542bb9e969c1734834e3aa94570f2f83c09db",
+        "jsonld": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "articleLinks": "8d26f71e24bc8a12db45b8786736409b8465fd2c852edaee7d401086d28cae2b",
+        "images": "53561923d16c86a94b4727ea46ab4cd0fe0edd8918dfcd6931244b06fdb3edc3",
+        "inlineJs": "c949fa69867a3162a0d34a7e64155cee2844e864600b7fb84516a752823ee66e"
+      },
+      "mismatchedFields": []
+    }
+  ],
+  "summary": {
+    "pages": 16,
+    "targetPages": 4,
+    "controlPages": 12,
+    "allHttp200": true,
+    "allTargetSchemaExact": true,
+    "allEnglishTextPresent": true,
+    "allContentHashesMatch": true,
+    "unexpected": []
+  },
+  "liveVerified": true
+}

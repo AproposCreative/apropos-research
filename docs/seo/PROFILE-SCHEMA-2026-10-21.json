@@ -1,0 +1,221 @@
+{
+  "siteId": "67dbf17ba540975b5b21c180",
+  "pages": [
+    {
+      "id": "67dbf17ba540975b5b21c217",
+      "jsonLdSchema": {
+        "@context": "https://schema.org",
+        "@graph": [
+          {
+            "@type": "Organization",
+            "@id": "https://www.aproposmagazine.com/#organization",
+            "name": "Apropos Magazine",
+            "url": "https://www.aproposmagazine.com/",
+            "logo": {
+              "@type": "ImageObject",
+              "@id": "https://www.aproposmagazine.com/#logo",
+              "url": "https://cdn.prod.website-files.com/67dbf17ba540975b5b21c180/67f7966d9192c68997f60640_aproposlogo.svg"
+            },
+            "parentOrganization": {
+              "@type": "Organization",
+              "name": "Apropos Creative ApS",
+              "identifier": {
+                "@type": "PropertyValue",
+                "propertyID": "CVR",
+                "value": "38175661"
+              }
+            }
+          },
+          {
+            "@type": "AboutPage",
+            "@id": "https://www.aproposmagazine.com/om#webpage",
+            "url": "https://www.aproposmagazine.com/om",
+            "name": "Om Apropos Magazine | Kultur med holdning, uden reklamer",
+            "description": "Apropos Magazine er et uafhængigt dansk kulturmedie. Læs om vores dækning af musik, film, serier, kunst, bøger og gaming. Gratis og uden reklamer.",
+            "inLanguage": "da",
+            "isPartOf": {
+              "@id": "https://www.aproposmagazine.com/#website"
+            },
+            "mainEntity": {
+              "@id": "https://www.aproposmagazine.com/#organization"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "67dbf17ba540975b5b21c217",
+      "localeId": "690ca0f6b0d13d8788354153",
+      "jsonLdSchema": {
+        "@context": "https://schema.org",
+        "@graph": [
+          {
+            "@type": "Organization",
+            "@id": "https://www.aproposmagazine.com/#organization",
+            "name": "Apropos Magazine",
+            "url": "https://www.aproposmagazine.com/",
+            "logo": {
+              "@type": "ImageObject",
+              "@id": "https://www.aproposmagazine.com/#logo",
+              "url": "https://cdn.prod.website-files.com/67dbf17ba540975b5b21c180/67f7966d9192c68997f60640_aproposlogo.svg"
+            },
+            "parentOrganization": {
+              "@type": "Organization",
+              "name": "Apropos Creative ApS",
+              "identifier": {
+                "@type": "PropertyValue",
+                "propertyID": "CVR",
+                "value": "38175661"
+              }
+            }
+          },
+          {
+            "@type": "AboutPage",
+            "@id": "https://www.aproposmagazine.com/en/om#webpage",
+            "url": "https://www.aproposmagazine.com/en/om",
+            "name": "About Apropos Magazine | Culture with opinions, without ads",
+            "description": "Apropos Magazine is an independent Danish culture publication covering music, film, TV, books, art and gaming. Free to read and free of advertising.",
+            "inLanguage": "en",
+            "isPartOf": {
+              "@id": "https://www.aproposmagazine.com/#website"
+            },
+            "mainEntity": {
+              "@id": "https://www.aproposmagazine.com/#organization"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "6ad77b51dc274141752159c0",
+      "jsonLdSchema": {
+        "@context": "https://schema.org",
+        "@graph": [
+          {
+            "@type": "Organization",
+            "@id": "https://www.aproposmagazine.com/#organization",
+            "name": "Apropos Magazine",
+            "url": "https://www.aproposmagazine.com/",
+            "logo": {
+              "@type": "ImageObject",
+              "@id": "https://www.aproposmagazine.com/#logo",
+              "url": "https://cdn.prod.website-files.com/67dbf17ba540975b5b21c180/67f7966d9192c68997f60640_aproposlogo.svg"
+            },
+            "parentOrganization": {
+              "@type": "Organization",
+              "name": "Apropos Creative ApS",
+              "identifier": {
+                "@type": "PropertyValue",
+                "propertyID": "CVR",
+                "value": "38175661"
+              }
+            },
+            "contactPoint": {
+              "@type": "ContactPoint",
+              "contactType": "press",
+              "email": "Liv@aproposmagazine.com",
+              "availableLanguage": [
+                "da",
+                "en"
+              ]
+            }
+          },
+          {
+            "@type": "AboutPage",
+            "@id": "https://www.aproposmagazine.com/presse#webpage",
+            "url": "https://www.aproposmagazine.com/presse",
+            "name": "Pressekit, fakta og kontakt | Apropos Magazine",
+            "description": "Find Apropos Magazines pressekit, logoer og kontakt. Præsentation og fakta om det uafhængige, reklamefri danske kulturmedie og vores redaktionelle dækning.",
+            "inLanguage": "da",
+            "isPartOf": {
+              "@id": "https://www.aproposmagazine.com/#website"
+            },
+            "mainEntity": {
+              "@id": "https://www.aproposmagazine.com/#organization"
+            },
+            "hasPart": {
+              "@id": "https://cdn.prod.website-files.com/67dbf17ba540975b5b21c180/6ad8dd675cef1c934bedae75_apropos-pressekit-da.pdf#document"
+            }
+          },
+          {
+            "@type": "DigitalDocument",
+            "@id": "https://cdn.prod.website-files.com/67dbf17ba540975b5b21c180/6ad8dd675cef1c934bedae75_apropos-pressekit-da.pdf#document",
+            "url": "https://cdn.prod.website-files.com/67dbf17ba540975b5b21c180/6ad8dd675cef1c934bedae75_apropos-pressekit-da.pdf",
+            "name": "Apropos Magazine pressekit",
+            "inLanguage": "da",
+            "encodingFormat": "application/pdf",
+            "publisher": {
+              "@id": "https://www.aproposmagazine.com/#organization"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "6ad77b51dc274141752159c0",
+      "localeId": "690ca0f6b0d13d8788354153",
+      "jsonLdSchema": {
+        "@context": "https://schema.org",
+        "@graph": [
+          {
+            "@type": "Organization",
+            "@id": "https://www.aproposmagazine.com/#organization",
+            "name": "Apropos Magazine",
+            "url": "https://www.aproposmagazine.com/",
+            "logo": {
+              "@type": "ImageObject",
+              "@id": "https://www.aproposmagazine.com/#logo",
+              "url": "https://cdn.prod.website-files.com/67dbf17ba540975b5b21c180/67f7966d9192c68997f60640_aproposlogo.svg"
+            },
+            "parentOrganization": {
+              "@type": "Organization",
+              "name": "Apropos Creative ApS",
+              "identifier": {
+                "@type": "PropertyValue",
+                "propertyID": "CVR",
+                "value": "38175661"
+              }
+            },
+            "contactPoint": {
+              "@type": "ContactPoint",
+              "contactType": "press",
+              "email": "Liv@aproposmagazine.com",
+              "availableLanguage": [
+                "da",
+                "en"
+              ]
+            }
+          },
+          {
+            "@type": "AboutPage",
+            "@id": "https://www.aproposmagazine.com/en/presse#webpage",
+            "url": "https://www.aproposmagazine.com/en/presse",
+            "name": "Press kit, facts and contact | Apropos Magazine",
+            "description": "Find the Apropos Magazine press kit, logos and contact details. Facts and editorial coverage from an independent, ad-free Danish culture publication.",
+            "inLanguage": "en",
+            "isPartOf": {
+              "@id": "https://www.aproposmagazine.com/#website"
+            },
+            "mainEntity": {
+              "@id": "https://www.aproposmagazine.com/#organization"
+            },
+            "hasPart": {
+              "@id": "https://cdn.prod.website-files.com/67dbf17ba540975b5b21c180/6ad8dd689d9f4987f8609dc0_apropos-press-kit-en.pdf#document"
+            }
+          },
+          {
+            "@type": "DigitalDocument",
+            "@id": "https://cdn.prod.website-files.com/67dbf17ba540975b5b21c180/6ad8dd689d9f4987f8609dc0_apropos-press-kit-en.pdf#document",
+            "url": "https://cdn.prod.website-files.com/67dbf17ba540975b5b21c180/6ad8dd689d9f4987f8609dc0_apropos-press-kit-en.pdf",
+            "name": "Apropos Magazine press kit",
+            "inLanguage": "en",
+            "encodingFormat": "application/pdf",
+            "publisher": {
+              "@id": "https://www.aproposmagazine.com/#organization"
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

@@ -1,0 +1,168 @@
+{
+  "schemaVersion": 1,
+  "items": [
+    {
+      "id": "technical-audit",
+      "title": "524 sider gennemgået; konkrete indholds- og schemafejl fundet",
+      "queries": [
+        {
+          "id": "public-crawl",
+          "source": {
+            "label": "Apropos teknisk audit 21. oktober",
+            "files": [
+              {
+                "label": "2026-10-21-technical.json"
+              },
+              {
+                "label": "TECHNICAL-AUDIT-2026-10-21.md"
+              }
+            ],
+            "links": [
+              {
+                "label": "Apropos sitemap",
+                "url": "https://www.aproposmagazine.com/sitemap.xml"
+              }
+            ],
+            "filters": [
+              "Alle 524 URL'er i det offentlige sitemap"
+            ],
+            "caveats": [
+              "HTTP 200 og parsebart schema beviser ikke Google-indeksering, redaktionel korrekthed eller AI-citater."
+            ],
+            "evidenceFlow": [
+              {
+                "kind": "validation",
+                "title": "Observeret offentlig kontrol",
+                "detail": "Alle 524 URL'er returnerede HTTP 200. Alle 438 artikel-URL'er havde parsebart Article-markup. Tre engelske artikelruter indeholdt dansk tekst, og Street Fighter fik forkert værktype på engelsk."
+              }
+            ]
+          },
+          "reportingPeriod": "21. oktober 2026"
+        }
+      ]
+    },
+    {
+      "id": "seo-automation",
+      "title": "SEO-tidsplanen er rettet; næste naturlige kørsel mangler",
+      "queries": [
+        {
+          "id": "saved-prompt",
+          "source": {
+            "label": "Gemte instruktioner og faktisk SEO-kørsel",
+            "files": [
+              {
+                "label": "SEO-SCHEDULE-RECEIPT-2026-10-21.json"
+              },
+              {
+                "label": "AUTOMATION-AUDIT-2026-10-21.md"
+              }
+            ],
+            "caveats": [
+              "Genåbnet readback bekræfter den gemte konfiguration, ikke en fremtidig fuldført kørsel."
+            ],
+            "evidenceFlow": [
+              {
+                "kind": "validation",
+                "title": "Gemning og kontrol",
+                "detail": "Den eksisterende tidsplan blev gemt og genåbnet. Alle 3.109 tegn matchede rettelsen. Tidspunkt og grænser er bevaret."
+              }
+            ]
+          },
+          "reportingPeriod": "21. oktober 2026"
+        }
+      ]
+    },
+    {
+      "id": "ai-referrals",
+      "title": "AI-trafikken har en baseline; uafhængige AI-citater er endnu ikke målt",
+      "queries": [
+        {
+          "id": "ga4-baseline",
+          "source": {
+            "label": "GA4 samlet kildebaseline",
+            "files": [
+              {
+                "label": "2026-10-20-ga4.json"
+              },
+              {
+                "label": "2026-10-20-status.md"
+              }
+            ],
+            "metricDefinitions": [
+              {
+                "label": "Genkendelige AI-sessioner",
+                "definition": "Sessioner tilskrevet eksplicit genkendte AI-tjenesters værtsnavne i GA4."
+              }
+            ],
+            "filters": [
+              "Rapporteringstidszone: Europe/Copenhagen",
+              "Afsluttede 28-dages perioder med tre dages behandlingsafstand"
+            ],
+            "caveats": [
+              "Målingen er et minimum: ukendte referrers og Google AI-funktioner kan ikke isoleres her. Små tal dokumenterer ikke effekten af SEO-ændringer."
+            ]
+          },
+          "reportingPeriod": "20. september–17. oktober 2026 mod 23. august–19. september 2026",
+          "columns": [
+            {
+              "field": "period",
+              "label": "Periode"
+            },
+            {
+              "field": "sessions",
+              "label": "AI-sessioner"
+            },
+            {
+              "field": "engaged",
+              "label": "Engagerede AI-sessioner"
+            }
+          ],
+          "rows": [
+            {
+              "period": "Seneste",
+              "sessions": 27,
+              "engaged": 12
+            },
+            {
+              "period": "Foregående",
+              "sessions": 20,
+              "engaged": 11
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "wikipedia",
+      "title": "Wikipedia-kladden mangler et tilstrækkeligt uafhængigt kildegrundlag",
+      "queries": [
+        {
+          "id": "wiki-source-review",
+          "source": {
+            "label": "Wikipedia-kildevurdering",
+            "files": [
+              {
+                "label": "WIKIPEDIA-RESEARCH-2026-10-21.md"
+              }
+            ],
+            "links": [
+              {
+                "label": "Wikipedia: Verificerbarhed",
+                "url": "https://da.wikipedia.org/wiki/Wikipedia:Verificerbarhed"
+              },
+              {
+                "label": "Wikipedia: Selvbiografier",
+                "url": "https://da.wikipedia.org/wiki/Wikipedia:Selvbiografier"
+              }
+            ],
+            "caveats": [
+              "Forbindelsen mellem 2011-mediet og den nuværende udgivelse er ikke dokumenteret. Vurderingen er ikke en afgørelse fra Wikipedias fællesskab."
+            ]
+          },
+          "summary": "Der er lavet en neutral lokal kladde og en kildematrix. Der er ikke oprettet en offentlig Wikipedia-artikel.",
+          "reportingPeriod": "Kilder kontrolleret 21. oktober 2026"
+        }
+      ]
+    }
+  ]
+}

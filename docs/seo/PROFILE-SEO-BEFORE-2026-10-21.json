@@ -1,0 +1,164 @@
+{
+  "schema": {
+    "pages": [
+      {
+        "id": "67dbf17ba540975b5b21c217",
+        "siteId": "67dbf17ba540975b5b21c180",
+        "localeId": "67dbf17ba540975b5b21c224",
+        "effectiveLocaleId": "67dbf17ba540975b5b21c224",
+        "publishedPath": "/om",
+        "lastUpdated": "2026-10-21T15:43:40.337Z",
+        "jsonLdSchema": {
+          "@context": "https://schema.org",
+          "@graph": [
+            {
+              "@type": "Organization",
+              "@id": "https://www.aproposmagazine.com/#organization",
+              "name": "Apropos Magazine",
+              "url": "https://www.aproposmagazine.com/"
+            },
+            {
+              "@type": "AboutPage",
+              "@id": "https://www.aproposmagazine.com/om#webpage",
+              "url": "https://www.aproposmagazine.com/om",
+              "name": "Om Apropos Magazine | Uafhængigt kulturmedie",
+              "inLanguage": "da",
+              "mainEntity": {
+                "@id": "https://www.aproposmagazine.com/#organization"
+              }
+            }
+          ]
+        },
+        "rawJsonLdSchema": null,
+        "isInherited": false
+      },
+      {
+        "id": "67dbf17ba540975b5b21c217",
+        "siteId": "67dbf17ba540975b5b21c180",
+        "localeId": "690ca0f6b0d13d8788354153",
+        "effectiveLocaleId": "690ca0f6b0d13d8788354153",
+        "publishedPath": "/en/om",
+        "lastUpdated": "2026-10-21T15:43:40.337Z",
+        "jsonLdSchema": {
+          "@context": "https://schema.org",
+          "@graph": [
+            {
+              "@type": "Organization",
+              "@id": "https://www.aproposmagazine.com/#organization",
+              "name": "Apropos Magazine",
+              "url": "https://www.aproposmagazine.com/"
+            },
+            {
+              "@type": "AboutPage",
+              "@id": "https://www.aproposmagazine.com/en/om#webpage",
+              "url": "https://www.aproposmagazine.com/en/om",
+              "name": "About Apropos Magazine | Independent culture magazine",
+              "inLanguage": "en",
+              "mainEntity": {
+                "@id": "https://www.aproposmagazine.com/#organization"
+              }
+            }
+          ]
+        },
+        "rawJsonLdSchema": null,
+        "isInherited": false
+      },
+      {
+        "id": "6ad77b51dc274141752159c0",
+        "siteId": "67dbf17ba540975b5b21c180",
+        "localeId": "67dbf17ba540975b5b21c224",
+        "effectiveLocaleId": null,
+        "publishedPath": "/presse",
+        "lastUpdated": "2026-10-21T15:51:33.075Z",
+        "jsonLdSchema": null,
+        "rawJsonLdSchema": null,
+        "isInherited": false
+      },
+      {
+        "id": "6ad77b51dc274141752159c0",
+        "siteId": "67dbf17ba540975b5b21c180",
+        "localeId": "690ca0f6b0d13d8788354153",
+        "effectiveLocaleId": null,
+        "publishedPath": "/en/presse",
+        "lastUpdated": "2026-10-21T15:51:33.075Z",
+        "jsonLdSchema": null,
+        "rawJsonLdSchema": null,
+        "isInherited": false
+      }
+    ]
+  },
+  "englishAbout": {
+    "pageId": "67dbf17ba540975b5b21c217",
+    "nodes": [
+      {
+        "type": "text",
+        "id": "7a2d998f-d331-f8d3-7160-c154d3e28b07",
+        "text": {
+          "html": "<h1 class=\"blog-title\"><em class=\"italic-text\" data-w-id=\"49cdf852-a18f-c177-63b0-00b63d5118b8\">Apropos Magazine</em>. An independent culture magazine dedicated to cultural journalism that dares to have an opinion. We write with personality, precision, and perspective — about everything from TV series and music to people, concerts, and food experiences.</h1>",
+          "text": "Apropos Magazine. An independent culture magazine dedicated to cultural journalism that dares to have an opinion. We write with personality, precision, and perspective — about everything from TV series and music to people, concerts, and food experiences."
+        },
+        "attributes": {}
+      },
+      {
+        "type": "text",
+        "id": "105f703e-0c0c-258d-686b-cea2ce44a591",
+        "text": {
+          "html": "<h2 class=\"h3\"><em class=\"h3\" data-w-id=\"105f703e-0c0c-258d-686b-cea2ce44a592\">Everything we see, hear, and feel - without ads, please.</em></h2>",
+          "text": "Everything we see, hear, and feel - without ads, please."
+        },
+        "attributes": {}
+      },
+      {
+        "type": "text",
+        "id": "d757511e-40a7-7bc7-979b-2e8f985db11d",
+        "text": {
+          "html": "<h5 class=\"subhead\">We believe cultural journalism should be both engaging and well-written, and we insist on taking the reader seriously - without taking ourselves too seriously. Apropos is for those who expect a little more from what they read. We cover culture with cult - and write as subjectively and objectively as possible. It may sound contradictory, but it makes perfect sense in practice.</h5>",
+          "text": "We believe cultural journalism should be both engaging and well-written, and we insist on taking the reader seriously - without taking ourselves too seriously. Apropos is for those who expect a little more from what they read. We cover culture with cult - and write as subjectively and objectively as possible. It may sound contradictory, but it makes perfect sense in practice."
+        },
+        "attributes": {}
+      },
+      {
+        "type": "text",
+        "id": "15570819-83a8-eb02-d51a-1451ad0a1a28",
+        "text": {
+          "html": "<div class=\"category-absolute-2 relative simple color-line\">Why?</div>",
+          "text": "Why?"
+        },
+        "attributes": {}
+      },
+      {
+        "type": "text",
+        "id": "15570819-83a8-eb02-d51a-1451ad0a1a2a",
+        "text": {
+          "html": "<h2 class=\"second-title add-top\"><strong data-w-id=\"a0eb5a4d-010b-617e-d827-8c57ae9af6ef\">The paradox of modern media</strong></h2>",
+          "text": "The paradox of modern media"
+        },
+        "attributes": {}
+      },
+      {
+        "type": "text",
+        "id": "15570819-83a8-eb02-d51a-1451ad0a1a2f",
+        "text": {
+          "html": "<p class=\"subhead\">Everyone’s shouting for edge and originality — but without traffic, there’s no funding. And without funding, there are no journalists. We’re trying anyway. No ads. No sponsors. Just critical disruption from inside the echo chamber, where media chase trends or government favour.</p>",
+          "text": "Everyone’s shouting for edge and originality — but without traffic, there’s no funding. And without funding, there are no journalists. We’re trying anyway. No ads. No sponsors. Just critical disruption from inside the echo chamber, where media chase trends or government favour."
+        },
+        "attributes": {}
+      },
+      {
+        "type": "text",
+        "id": "ef846b43-d705-364e-be42-87fc615643d6",
+        "text": {
+          "html": "<h2 class=\"second-title\">Meet The <span class=\"light-text\" data-w-id=\"ef846b43-d705-364e-be42-87fc615643d8\">editorial team</span></h2>",
+          "text": "Meet The editorial team"
+        },
+        "attributes": {}
+      }
+    ],
+    "pagination": {
+      "limit": 100,
+      "offset": 0,
+      "total": 7
+    },
+    "lastUpdated": "2026-10-20T14:03:53.982Z"
+  }
+}

@@ -1,0 +1,9 @@
+{
+  "content": [
+    {
+      "type": "text",
+      "text": "{\"label\":\"Compile scoped profile corrections on staging for release verification\",\"action\":\"publish_site\",\"result\":{\"customDomains\":[],\"publishToWebflowSubdomain\":true,\"publishTaskId\":\"4dfc69e5-5a9c-46c3-93a8-eaa25ac7c125\",\"publishScope\":\"site\"}}"
+    }
+  ],
+  "isError": false
+}

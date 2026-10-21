@@ -1,0 +1,9 @@
+{
+  "content": [
+    {
+      "type": "text",
+      "text": "{\"label\":\"Publish verified profile and press SEO release\",\"action\":\"publish_site\",\"result\":{\"customDomains\":[{\"id\":\"69ba9549f0d43160390aea96\",\"url\":\"www.aproposmagazine.com\"},{\"id\":\"69ba9548f0d43160390aea67\",\"url\":\"aproposmagazine.com\"},{\"id\":\"68a5d29d57af0ed31343b7be\",\"url\":\"www.aproposmagazine.dk\"},{\"id\":\"68a5d29c57af0ed31343b79e\",\"url\":\"aproposmagazine.dk\"}],\"publishToWebflowSubdomain\":true,\"publishTaskId\":\"a0b2c347-a5ae-4942-aec3-86243cfc3a8a\",\"publishScope\":\"site\"}}"
+    }
+  ],
+  "isError": false
+}
