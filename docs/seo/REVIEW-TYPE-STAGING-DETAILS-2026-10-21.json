@@ -1,0 +1,207 @@
+{
+  "checkedAt": "2026-10-21T16:57:06.126Z",
+  "environment": "staging",
+  "baseline": "docs/seo/REVIEW-TYPE-PRODUCTION-BEFORE-2026-10-21.json",
+  "imageChanges": [
+    {
+      "key": "sizes",
+      "before": "(max-width: 3840px) 100vw, 3840px",
+      "after": "100vw",
+      "src": "https://cdn.prod.website-files.com/67dbf17ba540975b5b21c180/67ed19b047d73997242e9f86_05AproposMagazine_Random.webp",
+      "class": "subrcribe-image",
+      "count": 502
+    },
+    {
+      "key": "sizes",
+      "before": "(max-width: 800px) 100vw, 800px",
+      "after": "100vw",
+      "src": "https://cdn.prod.website-files.com/67dbf17ba540975b5b21c180/6890aa5c43aa555bfd9f031a_01.webp",
+      "class": "paralax-image-4",
+      "count": 522
+    },
+    {
+      "key": "sizes",
+      "before": "(max-width: 800px) 100vw, 800px",
+      "after": "100vw",
+      "src": "https://cdn.prod.website-files.com/67dbf17ba540975b5b21c180/6890aa5cb9efd80f80d9fc34_06.webp",
+      "class": "paralax-image-4",
+      "count": 522
+    },
+    {
+      "key": "sizes",
+      "before": "(max-width: 800px) 100vw, 800px",
+      "after": "100vw",
+      "src": "https://cdn.prod.website-files.com/67dbf17ba540975b5b21c180/6890aa5cbbae8c87d3aadb0c_04.webp",
+      "class": "paralax-image-4",
+      "count": 522
+    },
+    {
+      "key": "sizes",
+      "before": "(max-width: 800px) 100vw, 800px",
+      "after": "100vw",
+      "src": "https://cdn.prod.website-files.com/67dbf17ba540975b5b21c180/6890aa5ca2c26923a13d7931_05.webp",
+      "class": "paralax-image-4",
+      "count": 522
+    },
+    {
+      "key": "sizes",
+      "before": "(max-width: 800px) 100vw, 800px",
+      "after": "100vw",
+      "src": "https://cdn.prod.website-files.com/67dbf17ba540975b5b21c180/6890aa5c3db8ab82ac14fdb1_02.webp",
+      "class": "paralax-image-4",
+      "count": 522
+    }
+  ],
+  "responsiveCandidates": [
+    {
+      "src": "https://cdn.prod.website-files.com/67dbf17ba540975b5b21c180/67ed19b047d73997242e9f86_05AproposMagazine_Random.webp",
+      "widths": [
+        500,
+        800,
+        1080,
+        1600,
+        2000,
+        2600,
+        3200,
+        3840
+      ],
+      "oldCap": 3840,
+      "maxSourceEqualsOldCap": true,
+      "cases": 4812,
+      "mismatches": []
+    },
+    {
+      "src": "https://cdn.prod.website-files.com/67dbf17ba540975b5b21c180/6890aa5c43aa555bfd9f031a_01.webp",
+      "widths": [
+        500,
+        800
+      ],
+      "oldCap": 800,
+      "maxSourceEqualsOldCap": true,
+      "cases": 4812,
+      "mismatches": []
+    },
+    {
+      "src": "https://cdn.prod.website-files.com/67dbf17ba540975b5b21c180/6890aa5cb9efd80f80d9fc34_06.webp",
+      "widths": [
+        500,
+        800
+      ],
+      "oldCap": 800,
+      "maxSourceEqualsOldCap": true,
+      "cases": 4812,
+      "mismatches": []
+    },
+    {
+      "src": "https://cdn.prod.website-files.com/67dbf17ba540975b5b21c180/6890aa5cbbae8c87d3aadb0c_04.webp",
+      "widths": [
+        500,
+        800
+      ],
+      "oldCap": 800,
+      "maxSourceEqualsOldCap": true,
+      "cases": 4812,
+      "mismatches": []
+    },
+    {
+      "src": "https://cdn.prod.website-files.com/67dbf17ba540975b5b21c180/6890aa5ca2c26923a13d7931_05.webp",
+      "widths": [
+        500,
+        800
+      ],
+      "oldCap": 800,
+      "maxSourceEqualsOldCap": true,
+      "cases": 4812,
+      "mismatches": []
+    },
+    {
+      "src": "https://cdn.prod.website-files.com/67dbf17ba540975b5b21c180/6890aa5c3db8ab82ac14fdb1_02.webp",
+      "widths": [
+        500,
+        800
+      ],
+      "oldCap": 800,
+      "maxSourceEqualsOldCap": true,
+      "cases": 4812,
+      "mismatches": []
+    }
+  ],
+  "otherImageChanges": [],
+  "textChanges": [
+    {
+      "path": "/presse",
+      "beforeCount": 155,
+      "afterCount": 155,
+      "changes": [
+        {
+          "index": 33,
+          "before": "Kopiér kort præsentation",
+          "after": "Kopiér den korte præsentation"
+        },
+        {
+          "index": 39,
+          "before": "Kopiér udfoldet præsentation",
+          "after": "Kopiér den lange præsentation"
+        }
+      ]
+    }
+  ],
+  "bookMetadataChanges": [],
+  "articleScopeErrors": [],
+  "articleCount": 438,
+  "streetFighter": [
+    {
+      "path": "/articles/street-fighter-2026",
+      "scope": {
+        "count": 1,
+        "topics": [
+          "anmeldelser",
+          "film"
+        ],
+        "attributes": [
+          {
+            "id": "apropos-review-metadata",
+            "data-apropos-review-metadata": "",
+            "hidden": "",
+            "class": "w-dyn-list"
+          }
+        ],
+        "primaryTopic": "anmeldelser"
+      },
+      "ownReview": [
+        {
+          "sha256": "e7a399444d7e9e24835c926e5fa7de4cf78b0fad2a7f96a3f05a97c2be0c6c99",
+          "exact": true,
+          "rating": "4"
+        }
+      ]
+    },
+    {
+      "path": "/en/articles/street-fighter-2026",
+      "scope": {
+        "count": 1,
+        "topics": [
+          "reviews",
+          "movies"
+        ],
+        "attributes": [
+          {
+            "id": "apropos-review-metadata",
+            "data-apropos-review-metadata": "",
+            "hidden": "",
+            "class": "w-dyn-list"
+          }
+        ],
+        "primaryTopic": "reviews"
+      },
+      "ownReview": [
+        {
+          "sha256": "e7a399444d7e9e24835c926e5fa7de4cf78b0fad2a7f96a3f05a97c2be0c6c99",
+          "exact": true,
+          "rating": "4"
+        }
+      ]
+    }
+  ],
+  "responsiveCandidateModel": "Width-descriptor target: first source >= slot-width * DPR, otherwise largest available. Viewports every integer 320–1920 plus 3840/5120/7680; DPR 1/2/3. With max-source equal to old cap, targets saturate at the same source above the cap for DPR >= 1. This does not model cache/network heuristics or DPR < 1."
+}

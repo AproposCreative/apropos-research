@@ -52,6 +52,34 @@ Tidsvinduerne er en anbefalet rækkefølge, ikke et løfte om baggrundsarbejde e
 
 ## Det automatiske setup
 
+### Faktisk status efter P0-rettelserne 21. oktober
+
+- Dagens afgrænsede SEO-batch er afsluttet med operatørhjælp: 11 kandidater
+  kontrolleret, én eksisterende artikel bevaret og ingen ekstra CMS-skrivning.
+  Den rettede tidsplan mangler stadig sin næste naturlige kørsel; tre vellykkede
+  naturlige kørsler er fortsat acceptkravet.
+- Den deterministiske anmeldelsestype er publiceret på Webflows fire
+  produktionsdomæner, task `b72ce984-ccdd-4cbd-87e2-4bd5bbeabf72`.
+  Den nye Collection List indeholder kun den aktuelle artikels Topics og er
+  skjult. Browser-readback viser korrekt Movie, TVSeries, VideoGame og Book;
+  ukendt medie får en konservativ type, og koncert-emnet opfinder ikke Event-data.
+  De godkendte korte/lange kopiknaptekster på pressesiden er også live.
+- App-release `290545ec5a7ce4967d670453a8353de4e0e55dea` er verificeret på
+  `ai.aproposmagazine.com`. Den bevarer Webflows observerede publiceringstid i
+  varige kvitteringer. Eksisterende autentificerede læseflows og gemte data er
+  kontrolleret efter deploy. Den nye skrivesti afventer en faktisk autoriseret
+  publicering; der er ikke lavet en kunstig artikel til dette formål.
+- **Dato-/sorteringspunktet er ikke fuldt løst.** Historiske kvitteringer gemte
+  ikke en sikker original udgivelsesdato, og Webflows Created On/Published On kan
+  ikke bruges som erstatning. De offentlige datobindinger og artikelrækkefølgen er
+  derfor bevaret. Kvitteringsrettelsen giver bedre fremtidigt bevis, men er ikke
+  en originaldato eller en færdig ændring af Topics/Featured.
+
+Detaljer og næste accepttrin står i `SEO-OPERATIONS-REPAIR-2026-10-21.md`,
+`REVIEW-TYPE-RELEASE-CHECK-2026-10-21.md`,
+`PUBLICATION-RECEIPT-EVIDENCE-2026-10-21.md` og
+`PUBLICATION-DATE-REPAIR-2026-10-21.md`.
+
 Det eksisterende forløb bevares:
 
 **Publicering → webhook/discovery → versionsbundet SEO-kø → ChatGPT-vurdering → gemt forslag → kontrolleret anvendelse → offentlig verifikation → eftermåling.**
@@ -87,9 +115,9 @@ Anbefalet arbejdsvane: ugentlig kort prioritering af de få vigtigste fejl og ar
 
 En neutral kladde og kildematrix er gemt. Det undersøgte materiale giver endnu ikke tilstrækkeligt grundlag til at anbefale en selvstændig offentlig artikel om den aktuelle udgivelse.
 
-Der findes omtale af et Apropos, som Oliver Enné og Danni Riddertoft grundlagde i 2011, men det er ikke dokumenteret, at den historie tilhører det nuværende medie. Selskabets start i 2016 er ikke magasinets grundlæggelsesdato. Brugerens svar på kontinuitetsspørgsmålet kan pege på dokumentation; svaret alene erstatter ikke publicerede kilder.
+Ejeren har nu afklaret, at det nuværende Apropos Magazine er et selvstændigt medie startet i 2025. Det er ikke en videreførelse af det Apropos, som Oliver Enné og Danni Riddertoft grundlagde i 2011. Omtalen af det tidligere medie må derfor ikke bruges som dokumentation for det nuværende. Startåret 2025, tilknytningen til Apropos Live og ejerskabet af EU-varemærket Apropos Live er her brugeroplyste fakta, som endnu kræver relevante offentlige kilder til en Wikipedia-artikel. Selskabets start i 2016 er ikke magasinets grundlæggelsesdato.
 
-Næste trin er derfor konkret: afklar kontinuiteten, vurder de tilhørende uafhængige omtaler, udvid kun med kildebelagte fakta, og søg en uafhængig vurdering med åben oplysning om tilknytningen til Apropos. Dansk Wikipedia fraråder at skrive om egen virksomhed og nævner Efterspurgte artikler som en mulig vej til uafhængige skribenter. Det er ikke en garanti for optagelse. En Wikipedia-side må ikke fungere som reklame eller bygges på konstrueret notabilitet. [Wikipedia: Selvbiografier](https://da.wikipedia.org/wiki/Wikipedia:Selvbiografier), [Verificerbarhed](https://da.wikipedia.org/wiki/Wikipedia:Verificerbarhed).
+Næste trin er derfor konkret: find substantiel uafhængig omtale af det aktuelle medie fra 2025, udvid kun med kildebelagte fakta, og søg en uafhængig vurdering med åben oplysning om tilknytningen til Apropos. Apropos Live behandles som en særskilt identitet; et varemærke beviser ikke i sig selv magasinets notabilitet. Dansk Wikipedia fraråder at skrive om egen virksomhed og nævner Efterspurgte artikler som en mulig vej til uafhængige skribenter. Det er ikke en garanti for optagelse. En Wikipedia-side må ikke fungere som reklame eller bygges på konstrueret notabilitet. [Wikipedia: Selvbiografier](https://da.wikipedia.org/wiki/Wikipedia:Selvbiografier), [Verificerbarhed](https://da.wikipedia.org/wiki/Wikipedia:Verificerbarhed).
 
 ## Evidens og accept
 

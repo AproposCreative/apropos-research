@@ -1,0 +1,67 @@
+{
+  "checkedAt": "2026-10-21T17:08:15.895Z",
+  "environment": "production-after",
+  "baseline": "docs/seo/REVIEW-TYPE-STAGING-2026-10-21.json",
+  "imageChanges": [],
+  "responsiveCandidates": [],
+  "otherImageChanges": [],
+  "textChanges": [],
+  "bookMetadataChanges": [],
+  "articleScopeErrors": [],
+  "articleCount": 438,
+  "streetFighter": [
+    {
+      "path": "/articles/street-fighter-2026",
+      "scope": {
+        "count": 1,
+        "topics": [
+          "anmeldelser",
+          "film"
+        ],
+        "attributes": [
+          {
+            "id": "apropos-review-metadata",
+            "data-apropos-review-metadata": "",
+            "hidden": "",
+            "class": "w-dyn-list"
+          }
+        ],
+        "primaryTopic": "anmeldelser"
+      },
+      "ownReview": [
+        {
+          "sha256": "e7a399444d7e9e24835c926e5fa7de4cf78b0fad2a7f96a3f05a97c2be0c6c99",
+          "exact": true,
+          "rating": "4"
+        }
+      ]
+    },
+    {
+      "path": "/en/articles/street-fighter-2026",
+      "scope": {
+        "count": 1,
+        "topics": [
+          "reviews",
+          "movies"
+        ],
+        "attributes": [
+          {
+            "id": "apropos-review-metadata",
+            "data-apropos-review-metadata": "",
+            "hidden": "",
+            "class": "w-dyn-list"
+          }
+        ],
+        "primaryTopic": "reviews"
+      },
+      "ownReview": [
+        {
+          "sha256": "e7a399444d7e9e24835c926e5fa7de4cf78b0fad2a7f96a3f05a97c2be0c6c99",
+          "exact": true,
+          "rating": "4"
+        }
+      ]
+    }
+  ],
+  "responsiveCandidateModel": "Width-descriptor target: first source >= slot-width * DPR, otherwise largest available. Viewports every integer 320–1920 plus 3840/5120/7680; DPR 1/2/3. With max-source equal to old cap, targets saturate at the same source above the cap for DPR >= 1. This does not model cache/network heuristics or DPR < 1."
+}

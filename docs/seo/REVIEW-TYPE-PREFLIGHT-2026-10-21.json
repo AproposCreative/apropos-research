@@ -1,0 +1,99 @@
+{
+  "checkedAt": "2026-10-21T17:04:50.472Z",
+  "pageId": "67dbf17ba540975b5b21c208",
+  "location": "footer",
+  "exactCandidateMatch": true,
+  "remoteLength": 9935,
+  "localLength": 9935,
+  "siteId": "67dbf17ba540975b5b21c180",
+  "lastUpdated": "2026-10-21T16:51:30.269Z",
+  "lastPublished": "2026-10-21T16:51:18.012Z",
+  "fullSiteCompiledAt": "2026-10-21T16:51:18.012Z",
+  "customDomains": [
+    {
+      "url": "www.aproposmagazine.com",
+      "lastPublished": "2026-10-21T16:13:00.454Z",
+      "fullSiteCompiledAt": "2026-10-21T16:13:00.454Z"
+    },
+    {
+      "url": "aproposmagazine.com",
+      "lastPublished": "2026-10-21T16:13:00.454Z",
+      "fullSiteCompiledAt": "2026-10-21T16:13:00.454Z"
+    },
+    {
+      "url": "www.aproposmagazine.dk",
+      "lastPublished": "2026-10-21T16:13:00.454Z",
+      "fullSiteCompiledAt": "2026-10-21T16:13:00.454Z"
+    },
+    {
+      "url": "aproposmagazine.dk",
+      "lastPublished": "2026-10-21T16:13:00.454Z",
+      "fullSiteCompiledAt": "2026-10-21T16:13:00.454Z"
+    }
+  ],
+  "comparisonToRootPreflight": "Same lastUpdated and fullSiteCompiledAt as root's prior fresh read; no later site-update timestamp exposed.",
+  "pendingChangeScope": "Already compared staging release: Review footer + hidden current-article Topics; two press copy-button labels now approved by user. Existing sizes serialization accounted for in staging details.",
+  "limitation": "No dedicated pending-change diff API is available. Site timestamps and exact saved-footer integrity supplement, rather than replace, the complete 524-path staging comparison.",
+  "stagingSpotCheck": {
+    "checkedAt": "2026-10-21T17:05:09.206Z",
+    "concurrency": 8,
+    "results": [
+      {
+        "path": "/articles/street-fighter-2026",
+        "status": 200,
+        "exactRawHtmlMatch": true,
+        "beforeSha256": "a57243b12bb824ec7391eaf1edfda88d5e444e5ad37924f3a1154eff2e3c1dd0",
+        "currentSha256": "a57243b12bb824ec7391eaf1edfda88d5e444e5ad37924f3a1154eff2e3c1dd0"
+      },
+      {
+        "path": "/en/articles/street-fighter-2026",
+        "status": 200,
+        "exactRawHtmlMatch": true,
+        "beforeSha256": "ae4327cdb96012f1df42e33942c19db295bc5f086714c5562d455413966b6ca2",
+        "currentSha256": "ae4327cdb96012f1df42e33942c19db295bc5f086714c5562d455413966b6ca2"
+      },
+      {
+        "path": "/presse",
+        "status": 200,
+        "exactRawHtmlMatch": true,
+        "beforeSha256": "60ada73da143fb2fdff95cce5d7fa1c0560faa2a956e10f8fc301174c1aa47d2",
+        "currentSha256": "60ada73da143fb2fdff95cce5d7fa1c0560faa2a956e10f8fc301174c1aa47d2"
+      },
+      {
+        "path": "/en/presse",
+        "status": 200,
+        "exactRawHtmlMatch": true,
+        "beforeSha256": "1660ca415a6fec4ccaf19026b5e4d539e9402e7282a43eb2e3954ec043e39c18",
+        "currentSha256": "1660ca415a6fec4ccaf19026b5e4d539e9402e7282a43eb2e3954ec043e39c18"
+      },
+      {
+        "path": "/topics/film",
+        "status": 200,
+        "exactRawHtmlMatch": true,
+        "beforeSha256": "67bd7f871bf5678e8582550f61806f02d2be9758b9bfa7cd3bccdcd6740ad116",
+        "currentSha256": "67bd7f871bf5678e8582550f61806f02d2be9758b9bfa7cd3bccdcd6740ad116"
+      },
+      {
+        "path": "/en/topics/movies",
+        "status": 200,
+        "exactRawHtmlMatch": true,
+        "beforeSha256": "92aaa7fb6c3caff32ace51956380758b78ab5029905127213b298671f4c36be8",
+        "currentSha256": "92aaa7fb6c3caff32ace51956380758b78ab5029905127213b298671f4c36be8"
+      },
+      {
+        "path": "/featured-articles",
+        "status": 200,
+        "exactRawHtmlMatch": true,
+        "beforeSha256": "8705f71df437681242cce6722932cff8bad4ef1645ab0c3ed71d61dc82db0354",
+        "currentSha256": "8705f71df437681242cce6722932cff8bad4ef1645ab0c3ed71d61dc82db0354"
+      },
+      {
+        "path": "/en/featured-articles",
+        "status": 200,
+        "exactRawHtmlMatch": true,
+        "beforeSha256": "3172beefb227401079868fd32e761e759a2f61c2fb0abb9d6e7a960b90ca2bb0",
+        "currentSha256": "3172beefb227401079868fd32e761e759a2f61c2fb0abb9d6e7a960b90ca2bb0"
+      }
+    ]
+  }
+}

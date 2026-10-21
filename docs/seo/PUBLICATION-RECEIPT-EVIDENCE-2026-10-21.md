@@ -89,9 +89,80 @@ Targeted isolated run: **5 files / 136 tests passed**:
 false` passed, and `git diff --check` passed. Existing dependencies were reused.
 No real publication, CMS write or model call was made by this patch's tests.
 
-At handoff this is **implemented and locally verified, not deployed or verified
-on a new production publication**. The coordinating task owns integration on the
+At implementation handoff this was **implemented and locally verified, not yet
+deployed or verified on a new production publication**. The coordinating task owns integration on the
 current Liv release. Accept live evidence only when an actual authorized future
 publication or its existing recovery path stores the new provider field and
 the matching immutable record. Do not publish an extra article to manufacture
 proof, and do not relabel older `checkedAt` receipts as original dates.
+
+## Production rollout and authenticated read checks
+
+The coordinator integrated the additive patch on the current Liv release in the
+separate `seo-publication-evidence` worktree and promoted it. A fresh Vercel
+canonical alias/deployment read at `2026-10-21T17:06:22.660Z` independently confirmed:
+
+- Canonical application: `https://ai.aproposmagazine.com`.
+- Deployment: `dpl_65R9f3KxEgBXmj8TT3cRHeiDqk8x`, `READY`.
+- Source: `290545ec5a7ce4967d670453a8353de4e0e55dea`.
+
+The release branch is `codex/seo-publication-evidence-2026-10-21`, based on
+the latest coordinated Liv commit `afcc25dc` and its production code
+`0d117672f9a7b8c1c9089e8cbf825e66ff14a709`. The integration retained the
+newer `publishedTarget` spread. Its isolated integration run passed 126 tests
+across publication verification, delivery, submission targets and accreditation,
+as well as TypeScript, scoped lint, the build-configuration security check and
+Vercel's production build. Dependencies and deployment configuration were not
+changed. Existing dependency audit warnings remain a separate maintenance item.
+
+The deployment was built with production settings without initially assigning
+the custom domain. Before promotion, the canonical alias still matched the
+coordinated `0d117672` release; after promotion it matched `290545ec` above.
+Both the staged deployment and canonical production returned `200` from
+`/api/health` and `401` from an unauthenticated `/api/editorial/submissions`.
+The checks did not bypass application authentication or expose credentials.
+
+After the coordinator's promotion signal, three supported authenticated native
+MCP reads succeeded against the canonical application:
+
+1. `get_workflow(seo)`: unchanged workflow hash
+   `118b265516f253f6e9ce42faf49738d44d6c66308342e6976864ed4d3deeefe1`,
+   zero paid AI calls, `unattendedVerified=false`.
+2. `get_seo_task` for the existing Barsel keep: still `kept`, same context hash
+   and `07:02:15.057Z` public receipt, `writeStartedAt=null`. No Google refresh.
+3. `get_submission_status` for the existing published Barsel submission:
+   revision 10, still published, same `07:36:00.371Z` saved receipt,
+   `preparationStarted=false`. Its old receipt correctly lacks the new optional
+   provider field; this read did not manufacture or backfill evidence.
+
+Independent read-only Firestore comparison against the pre-promotion baseline
+at `17:04:37.647Z` confirmed that all four business-record hashes were unchanged:
+
+| Record | SHA-256 of canonical saved record, before = after |
+| --- | --- |
+| Existing daily SEO batch | `cc6eb4894616fc5b61293abc93a7502a3677be280d2a07277b2bdfcd3c424e1d` |
+| Existing kept SEO task | `b68c16276bd22bef81e5ba461e655f4830881aa8c7427cca42a75006c3769d9c` |
+| Published Barsel submission | `d8303ee5b2ecb4f09963dd0cc714cc987103250c3b6738e0a1afeed9c961d3c5` |
+| Its saved publication receipt | `5cae8ccf252d8726e9e52148003921d005c90e114306c6420b8c1a8ac1731c04` |
+
+The legacy submission's new journal remains empty, as expected: reading an old
+receipt must not create a new verified publication record. Today's claim count
+remained exactly three, all from the already documented natural/assisted batch;
+no additional claim or review occurred during rollout checks. The local read-only
+health evaluator against production Firestore returned `completed`, one completed
+task and no current-day issues at `17:06:21.521Z`; previous-day attention was
+preserved. This evaluator result is distinct from an authenticated deployed HTTP
+quality endpoint check, which was not performed without an existing owner session.
+
+The native connector's ordinary read-operation audit is expected. No CMS write,
+publish, proposal save/apply, reconciliation mutation, new application session,
+paid model call or manufactured article was used. Existing approved credentials
+were loaded in process only for the bounded database/alias reads. A local missing
+`tsx` dependency in the isolated release checkout was handled by reusing the
+existing audit-checkout runtime; nothing was installed or changed in the release.
+
+**Current acceptance:** deployed and authenticated existing-flow compatibility
+verified. The new provider field and immutable journal on a newly authorized
+production publication remain unverified until that publication naturally occurs.
+This release and the operator-assisted SEO completion do not establish unattended
+SEO operation, first-ever publication dates or repaired historical date bindings.

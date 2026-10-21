@@ -1,0 +1,32 @@
+{
+  "publishTaskId": "b72ce984-ccdd-4cbd-87e2-4bd5bbeabf72",
+  "publicationExecutedBy": "root",
+  "publishToWebflowSubdomain": false,
+  "readAt": "2026-10-21T17:06:54.837Z",
+  "siteId": "67dbf17ba540975b5b21c180",
+  "lastUpdated": "2026-10-21T17:05:58.934Z",
+  "lastPublished": "2026-10-21T16:51:18.012Z",
+  "fullSiteCompiledAt": "2026-10-21T16:51:18.012Z",
+  "customDomains": [
+    {
+      "url": "www.aproposmagazine.com",
+      "lastPublished": "2026-10-21T17:05:44.979Z",
+      "fullSiteCompiledAt": "2026-10-21T17:05:44.979Z"
+    },
+    {
+      "url": "aproposmagazine.com",
+      "lastPublished": "2026-10-21T17:05:44.979Z",
+      "fullSiteCompiledAt": "2026-10-21T17:05:44.979Z"
+    },
+    {
+      "url": "www.aproposmagazine.dk",
+      "lastPublished": "2026-10-21T17:05:44.979Z",
+      "fullSiteCompiledAt": "2026-10-21T17:05:44.979Z"
+    },
+    {
+      "url": "aproposmagazine.dk",
+      "lastPublished": "2026-10-21T17:05:44.979Z",
+      "fullSiteCompiledAt": "2026-10-21T17:05:44.979Z"
+    }
+  ]
+}

@@ -1,0 +1,68 @@
+{
+  "observedAtDate": "2026-10-21",
+  "surface": "Webflow Designer through CUA",
+  "siteId": "67dbf17ba540975b5b21c180",
+  "pageId": "67dbf17ba540975b5b21c208",
+  "locale": "da",
+  "previewItemId": "6a44e3e1bcf100263dd1d386",
+  "newWrapper": {
+    "elementId": "79397afe-0eb3-2b60-2dd7-ba18941238a5",
+    "parent": "Body 2",
+    "domId": "apropos-review-metadata",
+    "attributes": {
+      "data-apropos-review-metadata": "",
+      "hidden": "hidden"
+    },
+    "sourceMenuObserved": {
+      "Articles Fields": [
+        "Topics (Multi-reference)",
+        "Steaming Service + all (Multi-reference)",
+        "Temaer (Multi-reference)"
+      ],
+      "CMS Collections": [
+        "Articles",
+        "Services",
+        "Festivals",
+        "Topics",
+        "Sections",
+        "Authors",
+        "Temaer"
+      ]
+    },
+    "selectedSource": "Articles Fields > Topics (Multi-reference)",
+    "globalTopicsSourceSelected": false,
+    "limitItems": false,
+    "excludedFromSiteSearch": true
+  },
+  "newTextBlock": {
+    "elementId": "f7858c78-d9e2-a1ab-b655-c922bfb78b06",
+    "parent": "New wrapper > Collection List > Collection Item",
+    "textBinding": "Topics > Slug",
+    "attributes": {
+      "data-review-topic-slug": ""
+    }
+  },
+  "existingUnknownGlobalTopicsWrapperModified": false,
+  "stylesModified": false,
+  "publicationPerformedByThisAgent": false,
+  "verification": {
+    "settingsReadback": true,
+    "headlessElementIdsConfirmedByRoot": true,
+    "screenshotInCuaToolOutput": true,
+    "stagingHtmlRequired": "Confirm Street Fighter renders only its assigned topic slugs, not all seven Topics. Confirm wrapper is hidden and article layout unchanged in DA and EN.",
+    "rootStagingReadback": {
+      "locale": "en",
+      "article": "/en/articles/street-fighter-2026",
+      "topicSlugs": [
+        "reviews",
+        "movies"
+      ],
+      "hidden": true,
+      "computedDisplay": "none",
+      "clientRectCount": 0,
+      "reviewType": "Movie",
+      "reviewRating": "4/6",
+      "source": "root reported actual staging browser readback"
+    }
+  }
+}

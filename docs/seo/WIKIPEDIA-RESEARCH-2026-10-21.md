@@ -6,7 +6,9 @@
 
 Der er grundlag for en kort faktakladde om det aktuelle Apropos Magazine, men det fundne materiale er **ikke tilstrækkeligt til at anbefale oprettelse som selvstændig Wikipedia-artikel**. Det er vores kildevurdering, ikke en afgørelse fra Wikipedias fællesskab. Den lokale wikitext ligger i `output/wikipedia/apropos-magazine.da.wikitext` og er ikke en færdig indsendelse.
 
-Den vigtigste mangel er substantiel, uafhængig omtale af det aktuelle medie. Historiske omtaler af navnet er fundet, men forbindelsen mellem Oliver Enné/Danni Riddertofts medie fra 2011 og den nuværende udgivelse er fortsat udokumenteret. Brugeren er spurgt separat; en forklaring kan vise, hvor dokumentationen findes, men erstatter ikke publicerede kilder.
+Den vigtigste mangel er substantiel, uafhængig omtale af det aktuelle medie. Brugeren har den 21. oktober afklaret, at det aktuelle Apropos Magazine er et selvstændigt medie startet i 2025. Historiske omtaler af Oliver Enné/Danni Riddertofts medie fra 2011 vedrører derfor et andet medie og må ikke kobles til den aktuelle udgivelse eller bruges som dens notabilitetsgrundlag.
+
+Brugeren oplyser desuden at eje/tidligere have været medejer af aproposlive.dk og eje EU-varemærket Apropos Live. Det er brugeroplysninger, indtil en offentlig kilde er verificeret; de dokumenterer ikke redaktionel kontinuitet mellem de to magasiner. Oplysningerne er ikke indsat som kildebelagte fakta i Wikipedia-kladden. Den historiske matrix nedenfor bevares som researchspor, men dens tidligere åbne kontinuitetsspørgsmål er afklaret med denne adskillelse.
 
 ## Kildematrix
 
@@ -47,9 +49,9 @@ Manglende dokumentation er anført her, ikke forklædt som kilder i wikitexten. 
 
 ## Konkret vej til en legitim vurdering
 
-1. Afklar identiteten: Er den aktuelle udgivelse en videreførelse, overtagelse, relancering eller en ny udgivelse med samme navn? Find derefter den publicerede dokumentation for svaret. Domæneejerskab og genbrug af navn er ikke i sig selv kontinuitet.
+1. Find en offentlig kilde til det selvstændige medies start i 2025. Hold det adskilt fra 2011-mediet. Domæne-/varemærkeejerskab og genbrug af navn er ikke redaktionel kontinuitet.
 2. Find substantiel, redaktionelt uafhængig omtale af det relevante medie. Vurder original artikeltekst, forfatter, udgiver, dato og eventuel PR-/sponsoroprindelse. Samme pressemeddelelse i flere kopier er ikke flere uafhængige vurderinger.
-3. Opdatér denne matrix og udvid kun kladden med dokumenterede, encyklopædisk relevante oplysninger. En mulig historik skal også repræsentere relevante sponsorsamarbejder neutralt, hvis det dokumenteres, at det er samme medie.
+3. Opdatér denne matrix og udvid kun kladden med dokumenterede, encyklopædisk relevante oplysninger om det aktuelle medie. Omtaler og sponsorsamarbejder fra det andet medie må ikke overføres til dets historie.
 4. Lad et uafhængigt medlem af fællesskabet vurdere relevansen. En eventuel anmodning skal åbent oplyse forbindelsen til Apropos og lade fællesskabet bestemme, om og hvordan emnet behandles. Ingen konto/persona må udgive sig for at være en uafhængig læser.
 
 **Status:** lokal faktakladde og kildepakke færdige; ikke klar til anbefalet artikeloprettelse. Ingen effekt på Wikipedia, søgemaskiner eller AI-citater er opnået eller påstået gennem dette dokument.

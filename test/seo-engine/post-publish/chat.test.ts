@@ -189,6 +189,76 @@ it('replays a completed claim and polls status without collecting Google data ag
   await claim(); await getSeoTask(uid, task.taskId);
   expect(m.google).toHaveBeenCalledOnce();
 });
+function seedBatchCandidates(kinds: Array<'eligible' | 'changed' | 'archive'>) {
+  const fresh = new Map<string, any>();
+  const ids = kinds.map((kind, index) => {
+    const id = (index + 1).toString(16).padStart(64, '0');
+    const articleId = (index + 1).toString(16).padStart(24, '0');
+    const current = structuredClone(m.current);
+    current.snapshot.itemId = articleId;
+    fresh.set(articleId, current);
+    store.rows.set(`seoPostPublishJobs/${id}`, { id, status: 'queued',
+      source: kind === 'archive' ? 'recovery' : 'webhook', mode: 'publication_quality',
+      createdAt: new Date(index * 1000).toISOString(), updatedAt: new Date().toISOString(),
+      ...(kind === 'archive' ? { discoveredPublishedAt: '2000-01-01T00:00:00Z' } : {}),
+      snapshot: { ...current.snapshot, ...(kind === 'changed' ? { contentVersion: 'outdated-version' } : {}) },
+      article: { editorialTitle: 'Familien', body, locale: 'da', metadata: current.snapshot.metadata },
+    });
+    return id;
+  });
+  m.read.mockImplementation(async (articleId: string) => structuredClone(fresh.get(articleId)));
+  return { ids, fresh };
+}
+it('finishes eleven candidates in the same three-call batch without reviewing a kept task twice', async () => {
+  const seeded = seedBatchCandidates(['eligible', ...Array<'archive'>(10).fill('archive')]);
+  const input = { requestId: 'bounded-existing-batch', limit: 2 };
+  const first = await claimSeoTasks(uid, input);
+  expect(first.tasks).toHaveLength(1); expect(first.skipped).toHaveLength(3); expect(first.hasMore).toBe(true);
+  m.current = structuredClone(seeded.fresh.values().next().value);
+  const kept = await applySeoReview(uid, applyInput(await saveSeoReview(uid, proposal(first.tasks[0], false))));
+  const second = await claimSeoTasks(uid, input), third = await claimSeoTasks(uid, input);
+  expect([first.batchId, second.batchId, third.batchId]).toEqual(Array(3).fill(first.batchId));
+  expect(second.skipped).toHaveLength(4); expect(second.hasMore).toBe(true);
+  expect(third.skipped).toHaveLength(3); expect(third.hasMore).toBe(false);
+  expect(third.tasks).toHaveLength(1); expect(third.tasks[0].status).toBe('kept');
+  expect(third.tasks[0].publicReceipt).toEqual(kept.publicReceipt);
+  const batch = store.rows.get(`seoPostPublishControl/${first.batchId}`);
+  expect(batch.checked).toHaveLength(11); expect(new Set(batch.checked).size).toBe(11);
+  expect(batch.taskIds).toEqual([seeded.ids[0]]);
+  expect(m.google).toHaveBeenCalledOnce(); expect(m.reconcile).toHaveBeenCalledOnce();
+  expect(m.apply).not.toHaveBeenCalled(); expect(m.paid).not.toHaveBeenCalled();
+});
+it('continues past two empty skipped pages to a later eligible task using the identical request', async () => {
+  const seeded = seedBatchCandidates([...Array<'changed'>(8).fill('changed'), 'eligible']);
+  const input = { requestId: 'bounded-skip-continuation', limit: 2 };
+  const first = await claimSeoTasks(uid, input), second = await claimSeoTasks(uid, input);
+  for (const result of [first, second]) {
+    expect(result.tasks).toHaveLength(0); expect(result.skipped).toHaveLength(4); expect(result.hasMore).toBe(true);
+    expect(result.skipped.every(skip => skip.reason === 'article_changed')).toBe(true);
+  }
+  await expect(getSeoTask(uid, first.skipped[0].taskId)).rejects.toThrow('seo_chat_task_not_found');
+  const third = await claimSeoTasks(uid, input);
+  expect(second.batchId).toBe(first.batchId); expect(third.batchId).toBe(first.batchId);
+  expect(third.tasks.map(task => task.taskId)).toEqual([seeded.ids[8]]); expect(third.hasMore).toBe(false);
+  expect(store.rows.get(`seoPostPublishControl/${first.batchId}`).checked).toHaveLength(9);
+  expect(m.google).toHaveBeenCalledOnce(); expect(m.apply).not.toHaveBeenCalled(); expect(m.paid).not.toHaveBeenCalled();
+});
+it('leaves thirteen skipped candidates bounded and incomplete after the schedule cap of three calls', async () => {
+  const seeded = seedBatchCandidates(Array<'changed'>(13).fill('changed'));
+  const input = { requestId: 'bounded-cap-not-completed', limit: 2 };
+  const results = [];
+  // The caller owns the three-call cap; the server owns four inspections per call.
+  for (let call = 0; call < 3; call++) results.push(await claimSeoTasks(uid, input));
+  expect(new Set(results.map(result => result.batchId)).size).toBe(1);
+  for (const result of results) {
+    expect(result.tasks).toHaveLength(0); expect(result.skipped).toHaveLength(4); expect(result.hasMore).toBe(true);
+  }
+  const batch = store.rows.get(`seoPostPublishControl/${results[0].batchId}`);
+  expect(batch.checked).toHaveLength(12); expect(new Set(batch.checked).size).toBe(12);
+  expect(batch.candidateIds).toHaveLength(13); expect(batch.taskIds).toEqual([]);
+  expect(store.rows.get(`seoPostPublishJobs/${seeded.ids[12]}`).status).toBe('queued');
+  expect(m.google).not.toHaveBeenCalled(); expect(m.apply).not.toHaveBeenCalled(); expect(m.paid).not.toHaveBeenCalled();
+});
 it('explicit Google refresh is owner-scoped and never changes an approved context, proposal or receipt', async () => {
   const saved = await saveSeoReview(uid, proposal(await claim(), false));
   await applySeoReview(uid, applyInput(saved));
