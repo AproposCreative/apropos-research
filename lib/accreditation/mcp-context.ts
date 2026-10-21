@@ -2,7 +2,7 @@ import { cmsFieldHash as hash } from '@/lib/liv/cms-field-hash';
 import type { McpIdentity } from '@/lib/mcp/oauth';
 import { assertMailOwner } from '@/lib/editorial-mail/service';
 import { readRequests, getRequestById } from './request-store';
-import { pullContacts, pullMailboxContactArchive, pullWorkflowRows } from './sheet-client';
+import { pullContacts, pullMailboxContactArchive, pullWorkflowRows, ADDITIONAL_ACCREDITATION_SOURCES, pullAdditionalAccreditationSource } from './sheet-client';
 import { listContactProfiles, getConversationSummary } from './memory-store';
 import { readContactOverview } from './imap/contact-overview-store';
 import { getThreadsByRequestId } from './email-thread-store';
@@ -39,11 +39,12 @@ export async function listAccreditationRequests(identity: McpIdentity, raw: unkn
     checkedAt: new Date().toISOString(), paidAiCalls: 0, instruction: ACCREDITATION_WORKFLOW };
 }
 
-type ContactSource = { source: string; contact: SheetContact; checkedAt: string; notes?: string; reviewStatus?: string; facts?: Record<string, string> };
+type ContactSource = { source: string; contact: SheetContact; checkedAt: string; notes?: string; reviewStatus?: string; facts?: Record<string, string>; kind?: 'contact' | 'event_opportunity' };
 /** Preserve conflicting source claims; never turn a mail scan into a verified press relationship. */
 export async function accreditationContacts() {
   const checkedAt = new Date().toISOString();
   const results = await Promise.allSettled([pullContacts({ allRows: true }), pullMailboxContactArchive({ allRows: true }), listContactProfiles(), readContactOverview(), pullWorkflowRows({ allRows: true })]);
+  const additional = await Promise.allSettled(ADDITIONAL_ACCREDITATION_SOURCES.map(pullAdditionalAccreditationSource));
   const sources = ['contacts_sheet', 'mailbox_archive_sheet', 'relationship_memory', 'imap_contact_overview', 'workflow_sheet'];
   const availability = results.map((r, i) => ({ source: sources[i], available: r.status === 'fulfilled',
     ...(i === 0 || i === 1 || i === 4 ? { coverage: 'All populated rows in the configured sheet columns. Existing archive, not a fresh mailbox scan.' } : {}) }));
@@ -59,6 +60,12 @@ export async function accreditationContacts() {
     sourceMailbox: c.mailboxes.join(', '), messageCount: c.messageCount, raw: {} }, { reviewStatus: c.reviewStatus, checkedAt: c.lastSeenAt || scanned.value.lastScanAt || checkedAt });
   if (workflow.status === 'fulfilled') for (const c of workflow.value) add(sources[4], { name: c.contactName, email: c.contactEmail, company: c.promoter, raw: {} },
     { notes: `Historical case ${c.requestId}: ${c.artist}; ${c.venue}; ${c.eventDate}; ${c.status}. ${c.notes}` });
+  additional.forEach((r,i)=>{
+    const source=ADDITIONAL_ACCREDITATION_SOURCES[i];
+    availability.push({source:source.source,available:r.status==='fulfilled',coverage:'All populated rows A:AZ; read-only saved source, not fresh verification.'});
+    if(r.status==='fulfilled') for(const c of r.value) add(source.source,c,{facts:c.raw,kind:source.kind,
+      notes:source.kind==='event_opportunity'?'Historical opportunity row; two parallel event lists. Not a verified contact or a current concert.':undefined});
+  });
   const grouped = new Map<string, ContactSource[]>();
   for (const e of entries) {
     const key = e.contact.email?.trim().toLowerCase() || `no-email:${normalizeAccreditationText(e.contact.name + ' ' + (e.contact.company || ''))}`;
@@ -67,11 +74,12 @@ export async function accreditationContacts() {
   const rows = [...grouped].map(([key, evidence]) => {
     const c = evidence.find(e => e.source === 'relationship_memory')?.contact || evidence[0].contact;
     const blockers = [...new Set(evidence.flatMap(e => [
-      ...(e.contact.relationshipStatus === 'do_not_contact' || Object.entries(e.contact.raw || {}).some(([k, v]) => /relationship|relation|status|contact.?allowed/i.test(k) && /do.not.contact|fravalgt|rejected|afvist|kontakt.ikke/i.test(v)) ? ['do_not_contact'] : []),
+      ...(e.contact.relationshipStatus === 'do_not_contact' || Object.entries(e.contact.raw || {}).some(([k, v]) => /relationship|relation|status|contact.?allowed|må kontaktes|maa kontaktes|sikkerhedsregel/i.test(k) && /do.not.contact|fravalgt|rejected|afvist|kontakt.ikke|må ikke kontaktes|send ikke/i.test(v)) ? ['do_not_contact'] : []),
       ...(e.reviewStatus === 'rejected' ? ['rejected_contact'] : []),
       ...(e.contact.isAutomated || e.contact.category === 'automated' || isAutomatedSenderHeuristic({ email: e.contact.email, name: e.contact.name }) ? ['automated_contact'] : []),
     ]))];
     return { key, email: key.startsWith('no-email:') ? null : key, name: c.name, company: c.company || null, role: c.role || null,
+      recordType: evidence.every(e=>e.kind==='event_opportunity')?'event_opportunity':'contact',
       relationship: c.relationshipStatus || 'unknown', blockers, evidence, sourceHash: hash({ evidence: evidence.map(({ checkedAt: _time, ...e }) => e) }) };
   });
   return { rows, availability, checkedAt };
@@ -87,7 +95,8 @@ export async function searchAccreditationContacts(identity: McpIdentity, raw: un
     .sort((a, b) => b.contextMatches.length - a.contextMatches.length || a.key.localeCompare(b.key));
   const next = input.offset + input.limit;
   return { contacts: rows.slice(input.offset, next), total: rows.length, nextOffset: next < rows.length ? next : null,
-    availability: result.availability, checkedAt: result.checkedAt, untrustedContent: true, paidAiCalls: 0,
+    availability: result.availability, contactRecords:rows.filter(r=>r.recordType==='contact').length,
+    opportunityRecords:rows.filter(r=>r.recordType==='event_opportunity').length,checkedAt: result.checkedAt, untrustedContent: true, paidAiCalls: 0,
     note: 'Read-only lookup. Existing source limits are explicit; failures are not zero contacts. No source is a new verification of event responsibility. No mail bodies, IMAP scan, contact import or sheet write.' };
 }
 export async function assertAccreditationContactAllowed(email: string) {
@@ -101,7 +110,7 @@ export async function getAccreditationContext(identity: McpIdentity) {
   const [cases, control] = await Promise.all([listAccreditationRequests(identity, { limit: 20 }), getAgentControl()]);
   return { ...cases, control, transport: getMailTransportPublicStatus(), mailIdentity: getAccreditationMailIdentityPublic(),
     safety: getAccreditationOutboundSafetyPublic(), voice: voiceModeInstructions('external_mail'), promptVersion: LIV_PROMPT_VERSION,
-    contactSources: ['Contacts etc.', 'Mailbox contact archive', 'relationship memory', 'IMAP contact overview', 'Accreditation workflow'],
+    contactSources: ['Contacts etc.', 'Mailbox contact archive', 'relationship memory', 'IMAP contact overview', 'Accreditation workflow',...ADDITIONAL_ACCREDITATION_SOURCES.map(s=>s.tab)],
     automaticSettingsChanged: false, instructions: ACCREDITATION_WORKFLOW };
 }
 export async function getAccreditationRequest(identity: McpIdentity, raw: unknown) {

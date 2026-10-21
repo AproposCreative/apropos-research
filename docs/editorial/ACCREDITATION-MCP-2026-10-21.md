@@ -11,8 +11,10 @@ koncertansøgning er bestilt eller sendt under implementeringen.
 
 | Eksisterende del | MCP-forløb |
 | --- | --- |
-| Contacts etc. | Søg alle udfyldte rækker i A:Z, behold original kilde/kolonner |
+| Contacts etc. | Søg alle udfyldte rækker i A:AZ, behold danske originalfelter, mails, kontaktfravalg og kildekolonner |
 | Mailbox contact archive | Søg eksisterende arkiv, ikke en ny fuld mail-scanning |
+| Vigtige billetkontakter og Dansk kontaktbank | Prioritet, organisation, billetrolle, relation, officiel kilde, sikkerhedsregel og noter; read-only |
+| Milo, Muligheder | Historiske muligheder fra begge parallelle lister; alle originale felter, ikke aktuelle eventløfter eller kontaktbevis |
 | Kontaktmemory og IMAP-kontaktoversigt | Relation, fravalg, reviewstatus, senest observeret kontakt; ingen opdigtet aktuel eventansvarlig |
 | Accreditation workflow | Historiske koncert-/kontaktforbindelser; eksplicit sync af én valgt sag, aldrig skrivning til kontaktfaner |
 | accreditationRequests og LIV-ID-tæller | Samme sag, dato, spillested, antal, navne, adgangstype, kildebelæg, delivery recipient |
@@ -80,7 +82,7 @@ Gamle markedsføringstal i legacy-templates er ikke aktuelle verificerede tal.
 
 ## Verifikation
 
-Isolerede regressions-/protokoltests dækker owner/uid/grant/scope, alle fem kilder,
+Isolerede regressions-/protokoltests dækker owner/uid/grant/scope, alle otte kilder,
 dubletter, exact preview, gamle versioner, timeout, ændret sag/mail, fravalg,
 opfølgning, pause/resume, adgangspakker og Sheet-sync. Browserfixture dækker
 mobil/desktop, CSP, ubetroet HTML, dobbeltklik, tabt kvittering, afvist/udløbet
@@ -99,3 +101,28 @@ Kun denne lockfile-afhængighed opdateres til 1.16.1 for GHSA-q3jh-wrc6-jgq8 og
 GHSA-8r9p-f939-6h3c; ingen nye direkte pakker. npm audit --omit=dev rapporterer
 herefter 0 kendte sårbarheder. Dette er ikke en påstand om nul dev-afhængigheds-
 advarsler eller en garanti mod ukendte sikkerhedsfejl.
+
+### Livefund og kildekorrektion
+
+Første læsende livekontrol på 695261e7 fandt 3 eksisterende sager og 247 samlede
+kontaktposter gennem de først tilsluttede kilder. Metadata-/headerkontrol fandt
+tre yderligere relevante faner og en eksisterende parserfejl: arket bruger
+`Artist / event`, koden forventede `Artist/event`. Læsningen normaliserer nu kun
+headerformatering og afviser tvetydige headers; arket ændres ikke.
+Danske `Kontaktperson`, `Kontaktinformation`, `Rolle` og `Må kontaktes` fortolkes
+nu eksplicit; fravalg bliver en sendblokering. Telefon/formular-URL bliver aldrig
+opfundet til email. Dublerede/blanke headers og kolonne AA bevares. En foregående
+festivaloverskrift bevares som ubekræftet rækkekontekst, ikke verificeret relation.
+Lokal læsning mod de faktiske ark verificerede 2 workflow-rækker, 44 oprindelige
+kontaktposter (20 med email), 38 billetkontaktposter, 46 danske kontaktbankposter
+og 53 historiske mulighedsrækker. Tal er kildeposter, ikke unikke personer.
+Ingen kildedata blev skrevet. Sync nægter at skrive ved ændret kolonnerækkefølge
+eller dubleret sags-ID, og antal følger ticketQuantity frem for antal ansøgernavne.
+Efter disse rettelser: 394 testfiler / 5607 tests, type-check og ændret-fil-lint
+bestået. Den samlede testkørsel brugte isoleret RAGE_STORAGE_DIR.
+
+Det eksisterende agentstop er stadig automationEnabled=false/paused=true/dryRun=true
+og testredirect er stadig ejerens Gmail-testadresse. Ingen rigtige ansøgninger er
+sendt, ingen tilladelser er simuleret, og ingen settings/credentials er ændret.
+Åbning for personligt godkendt live-send er et særskilt ejervalg; det gamle stop
+efter historisk IMAP-replay må ikke fjernes som en bivirkning.

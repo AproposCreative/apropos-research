@@ -1,9 +1,9 @@
 import { beforeEach, expect, it, vi } from 'vitest';
 import { createHash } from 'node:crypto';
 import { memoryFirestore } from './helpers/mcp-firestore';
-const mock = vi.hoisted(() => ({ db: null as any, send: vi.fn(), contacts: vi.fn(), archive: vi.fn(), workflow: vi.fn(), overview: vi.fn(), sync: vi.fn(), bytes: vi.fn() }));
+const mock = vi.hoisted(() => ({ db: null as any, send: vi.fn(), contacts: vi.fn(), archive: vi.fn(), workflow: vi.fn(), additional: vi.fn(), overview: vi.fn(), sync: vi.fn(), bytes: vi.fn() }));
 vi.mock('@/lib/firebase-admin', () => ({ getAdminDb: () => mock.db }));
-vi.mock('@/lib/accreditation/sheet-client', () => ({ pullContacts: mock.contacts, pullMailboxContactArchive: mock.archive, pullWorkflowRows: mock.workflow, syncRequestToSheet: mock.sync }));
+vi.mock('@/lib/accreditation/sheet-client', async original => ({...await original<any>(), pullContacts: mock.contacts, pullMailboxContactArchive: mock.archive, pullWorkflowRows: mock.workflow, pullAdditionalAccreditationSource:mock.additional,syncRequestToSheet: mock.sync }));
 vi.mock('@/lib/accreditation/imap/contact-overview-store', () => ({ readContactOverview: mock.overview }));
 vi.mock('@/lib/accreditation/send-email', async original => ({ ...await original<any>(), sendAccreditationEmail: mock.send }));
 vi.mock('@/lib/accreditation/attachments', async original => ({ ...await original<any>(), readStoredAttachment: mock.bytes }));
@@ -30,6 +30,7 @@ beforeEach(() => { vi.clearAllMocks(); vi.unstubAllEnvs(); memory = memoryFirest
   vi.stubEnv('ACCREDITATION_MAIL_TRANSPORT', 'smtp'); vi.stubEnv('LIV_SMTP_USER', 'liv@aproposmagazine.com'); vi.stubEnv('LIV_SMTP_PASSWORD', 'FAKE-TEST-ONLY');
   memory.rows.set('accreditationAgentControl/default', { dryRun: false, automationEnabled: false, paused: true });
   mock.contacts.mockResolvedValue([]); mock.archive.mockResolvedValue([]); mock.workflow.mockResolvedValue([]); mock.overview.mockResolvedValue({ contacts: [] });
+  mock.additional.mockResolvedValue([]);
   mock.send.mockImplementation(async params => { await assertPersonalAccreditationSend(params); return { ok: true, messageId: '<fixture-sent@example.test>', sentCopyArchived: true }; });
 });
 async function savedCase() { return (await saveAccreditationRequest(owner, input)).request; }
@@ -60,8 +61,10 @@ it('combines all contact sources, retains conflicting evidence, rejection, pagin
   mock.overview.mockResolvedValue({ contacts: [{ name: 'Alex', email: 'press@example.test', mailboxes: ['liv'], reviewStatus: 'rejected', messageCount: 3 }] });
   mock.workflow.mockResolvedValue([{ requestId: 'LIV-old', contactEmail: 'press@example.test', contactName: 'Alex', artist: 'Fixture Band', venue: 'Hall', eventDate: '2025-01-01', status: 'granted', notes: '' }]);
   await upsertContactProfile({ email: 'press@example.test', name: 'Alex', category: 'press', relationshipStatus: 'warm' } as any);
-  const result = await searchAccreditationContacts(owner, {}); expect(result.contacts).toHaveLength(1); expect(result.contacts[0].evidence).toHaveLength(5);
-  expect(result.contacts[0].blockers).toContain('rejected_contact'); await expect(draft()).rejects.toThrow('contact_blocked');
+  mock.additional.mockImplementation(async source=>source.kind==='contact'?[{name:'Alex',email:'press@example.test',raw:{Noter:'Original source context'}}]:[{name:'Historic event',raw:{Date:'2018-01-01'}}]);
+  const result = await searchAccreditationContacts(owner, {}); expect(result.contacts).toHaveLength(2);
+  const contact=result.contacts.find(c=>c.email==='press@example.test')!;expect(contact.evidence).toHaveLength(7);expect(result.opportunityRecords).toBe(1);expect(result.availability).toHaveLength(8);
+  expect(contact.blockers).toContain('rejected_contact'); await expect(draft()).rejects.toThrow('contact_blocked');
   mock.archive.mockRejectedValue(Error('private provider error')); const partial = await searchAccreditationContacts(owner, {});
   expect(partial.availability.find(s => s.source === 'mailbox_archive_sheet')?.available).toBe(false); expect(JSON.stringify(partial)).not.toContain('private provider error');
 });

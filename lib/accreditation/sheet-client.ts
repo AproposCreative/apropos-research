@@ -48,7 +48,7 @@ export function mailboxArchiveTab(): string {
 }
 
 function encodeRange(tab: string, range: string): string {
-  return encodeURIComponent(`${tab}!${range}`);
+  return encodeURIComponent(`'${tab.replace(/'/g, "''")}'!${range}`);
 }
 
 async function sheetsFetch(path: string, init?: RequestInit): Promise<Response> {
@@ -68,10 +68,12 @@ function cell(row: string[], index: number): string {
   return (row[index] || '').trim();
 }
 
+const normalizedWorkflowHeader = (h: string) => h.trim().toLowerCase().replace(/\s*\/\s*/g, '/');
 export function parseWorkflowRows(values: string[][]): WorkflowSheetRow[] {
   if (!values.length) return [];
-  const header = values[0].map((h) => h.trim());
-  const indexOf = (name: string) => header.findIndex((h) => h === name);
+  const header = values[0].map(normalizedWorkflowHeader);
+  const indexOf = (name: string) => header.findIndex((h) => h === normalizedWorkflowHeader(name));
+  if (new Set(header.filter(Boolean)).size !== header.filter(Boolean).length) throw new Error('Accreditation workflow har tvetydige kolonneoverskrifter');
 
   const idxs = WORKFLOW_SHEET_HEADERS.map((h) => indexOf(h));
   // Require at least Request ID + Artist
@@ -108,13 +110,15 @@ export function parseWorkflowRows(values: string[][]): WorkflowSheetRow[] {
   return rows;
 }
 
-export async function pullWorkflowRows(options: { allRows?: boolean } = {}): Promise<WorkflowSheetRow[]> {
+export async function pullWorkflowRows(options: { allRows?: boolean; requireColumnOrder?: boolean } = {}): Promise<WorkflowSheetRow[]> {
   const res = await sheetsFetch(`/values/${encodeRange(workflowTab(), options.allRows ? 'A:Q' : 'A1:Q500')}`);
   if (!res.ok) {
     const body = await res.text();
     throw new Error(`Sheets workflow read failed: ${res.status} ${body.slice(0, 200)}`);
   }
   const data = (await res.json()) as { values?: string[][] };
+  if(options.requireColumnOrder && WORKFLOW_SHEET_HEADERS.some((h,i)=>normalizedWorkflowHeader(data.values?.[0]?.[i]||'')!==normalizedWorkflowHeader(h)))
+    throw Error('Sheets workflow column order changed; no write performed');
   return parseWorkflowRows(data.values || []);
 }
 
@@ -123,40 +127,68 @@ export async function pullWorkflowRows(options: { allRows?: boolean } = {}): Pro
  */
 export async function pullContacts(options: { allRows?: boolean } = {}): Promise<SheetContact[]> {
   const tab = contactsTab();
-  const res = await sheetsFetch(`/values/${encodeRange(tab, options.allRows ? 'A:Z' : 'A1:Z500')}`);
+  const res = await sheetsFetch(`/values/${encodeRange(tab, options.allRows ? 'A:AZ' : 'A1:AZ500')}`);
   if (!res.ok) {
     const body = await res.text();
     throw new Error(`Sheets contacts read failed: ${res.status} ${body.slice(0, 200)}`);
   }
   const data = (await res.json()) as { values?: string[][] };
-  const values = data.values || [];
+  return parseContactSheetRows(data.values || []);
+}
+
+/** Danish and English source headers; no guessed email or permission. Preserve every cell. */
+export function parseContactSheetRows(values: string[][]): SheetContact[] {
   if (values.length < 2) return [];
-
-  const headers = values[0].map((h) => h.trim().toLowerCase());
-  const nameIdx = headers.findIndex((h) => /name|navn|contact/.test(h));
-  const companyIdx = headers.findIndex((h) => /company|firma|promoter|media|venue|org/.test(h));
-  const roleIdx = headers.findIndex((h) => /role|titel|funktion/.test(h));
-  const emailIdx = headers.findIndex((h) => /email|mail|e-mail/.test(h));
-
+  const headers = values[0].map(h => h.trim().toLowerCase());
+  const nameIdx = headers.findIndex(h => /^(name|navn|contact|contact name|kontakt|kontaktperson)$/.test(h));
+  const companyIdx = headers.findIndex(h => /company|firma|promoter|media|venue|org|festival/.test(h));
+  const roleIdx = headers.findIndex(h => /role|rolle|titel|funktion/.test(h));
+  const emailIdx = headers.findIndex(h => /email|mail|e-mail|kontaktinformation/.test(h));
+  const relationIdx = headers.findIndex(h => /relation/.test(h));
+  const permissionIdx = headers.findIndex(h => /må kontaktes|maa kontaktes|contact.?allowed/.test(h));
   const contacts: SheetContact[] = [];
+  let precedingFestival='';
   for (let i = 1; i < values.length; i++) {
     const row = values[i];
-    const raw: Record<string, string> = {};
-    headers.forEach((h, idx) => {
-      if (h) raw[h] = (row[idx] || '').trim();
-    });
-    const name = (nameIdx >= 0 ? row[nameIdx] : row[0] || '').trim();
-    const email = (emailIdx >= 0 ? row[emailIdx] : '').trim();
-    if (!name && !email) continue;
-    contacts.push({
-      name: name || email,
-      company: companyIdx >= 0 ? (row[companyIdx] || '').trim() : undefined,
-      role: roleIdx >= 0 ? (row[roleIdx] || '').trim() : undefined,
-      email: email || undefined,
-      raw,
-    });
+    const raw = sheetRowFacts(values[0], row, i + 1);
+    if(headers[companyIdx]==='festival') {
+      if(cell(row,companyIdx)) precedingFestival=cell(row,companyIdx);
+      else if(precedingFestival) raw['Preceding festival heading (unverified context)']=precedingFestival;
+    }
+    const name = cell(row, nameIdx), company = cell(row, companyIdx), permission = cell(row, permissionIdx).toLowerCase();
+    const emails = [...new Set((cell(row, emailIdx).match(/[A-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[A-Z0-9](?:[A-Z0-9.-]*[A-Z0-9])?\.[A-Z]{2,}/gi) || []).map(s=>s.toLowerCase()))];
+    if (!row.some(v => v.trim())) continue;
+    const relation = /^(nej|no|false|0)(\b|$)|kontakt ikke|do.?not.?contact|fravalgt/.test(permission) ? 'do_not_contact' : cell(row, relationIdx) || undefined;
+    for (const email of emails.length ? emails : [undefined]) contacts.push({ name: name || company || email || `Kilderække ${i+1}`, company: company || undefined,
+      role: cell(row, roleIdx) || undefined, email, relationshipStatus: relation, raw });
   }
   return contacts;
+}
+
+function sheetRowFacts(headers: string[], row: string[], rowNumber: number): Record<string,string> {
+  const facts: Record<string,string> = { sourceRow: String(rowNumber) };
+  for(let i=0;i<Math.max(headers.length,row.length);i++) {
+    const base=headers[i]?.trim() || `Column ${i+1}`;
+    const label=Object.hasOwn(facts,base)?`${base} [column ${i+1}]`:base;
+    facts[label]=(row[i]||'').trim();
+  }
+  return facts;
+}
+
+export const ADDITIONAL_ACCREDITATION_SOURCES = [
+  {source:'priority_ticket_contacts',tab:'Vigtige billetkontakter',kind:'contact'},
+  {source:'danish_contact_bank',tab:'Dansk kontaktbank',kind:'contact'},
+  {source:'milo_opportunities',tab:'Milo, Muligheder',kind:'event_opportunity'},
+] as const;
+export async function pullAdditionalAccreditationSource(source: typeof ADDITIONAL_ACCREDITATION_SOURCES[number]) {
+  const res=await sheetsFetch(`/values/${encodeRange(source.tab,'A:AZ')}`);
+  if(!res.ok) throw Error(`Sheets additional source read failed: ${res.status}`);
+  const {values=[]}=await res.json() as {values?:string[][]};
+  if(source.kind==='contact') return parseContactSheetRows(values);
+  // This tab has two side-by-side event lists. Preserve duplicate headers and all cells,
+  // never manufacture a contact or treat an old event/date as current research.
+  return values.slice(1).flatMap((row,i)=>row.some(v=>v.trim())?[{name:[row[1],row[6]].filter(Boolean).join(' / ')||`Mulighed ${i+2}`,
+    company:[row[3],row[8]].filter(Boolean).join(' / '),raw:sheetRowFacts(values[0]||[],row,i+2)}]:[]) as SheetContact[];
 }
 
 /**
@@ -264,7 +296,7 @@ export function requestToWorkflowValues(
     request.venue || '',
     request.eventDate || '',
     request.applicants.map((a) => a.name).join(', '),
-    String(request.applicants.length || ''),
+    String(request.ticketQuantity ?? request.applicants.length ?? ''),
     request.accessRequested || '',
     request.promoter || '',
     request.contactName || '',
@@ -289,10 +321,12 @@ export async function syncRequestToSheet(
   }
 ): Promise<{ rowNumber: number }> {
   const values = requestToWorkflowValues(request, extras);
-  const existing = await pullWorkflowRows({ allRows: true });
+  const existing = await pullWorkflowRows({ allRows: true, requireColumnOrder:true });
   // MCP text is untrusted prose, never an executable spreadsheet formula.
   const valueInputOption = request.mcp ? 'RAW' : 'USER_ENTERED';
-  const match = existing.find((r) => r.requestId === request.id);
+  const matches=existing.filter(r=>r.requestId===request.id);
+  if(matches.length>1) throw Error('Sheets workflow duplicate request ID; no write performed');
+  const match = matches[0];
 
   if (match) {
     const range = encodeRange(workflowTab(), `A${match.rowNumber}:Q${match.rowNumber}`);
