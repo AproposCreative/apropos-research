@@ -83,6 +83,7 @@ export async function dispatchOutbound(params: {
   queuedOnly?: boolean;
   alreadySent?: boolean;
 }> {
+  if (params.request.mcp) throw Error('mcp_accreditation_personal_flow_required');
   // Per-request pause: queue draft, never auto-send
   if (params.request.paused && !params.forceManual) {
     const flags = buildPolicyFlags({ kind: params.kind, ambiguous: true });
@@ -465,6 +466,7 @@ export async function runAutonomousPipeline(
 ): Promise<{ ok: boolean; detail: string }> {
   const item = await getRequestById(requestId);
   if (!item) return { ok: false, detail: 'not found' };
+  if (item.mcp) return { ok: false, detail: 'owner MCP case: personal workflow required' };
   if (item.paused) {
     await updateRequest(requestId, { status: 'paused' });
     return { ok: false, detail: 'request paused' };
@@ -547,6 +549,7 @@ export async function autoReplyToExternal(params: {
   inboundText: string;
   attachments?: Array<{ filename: string; contentType?: string; contentBase64?: string; buffer?: Buffer }>;
 }): Promise<void> {
+  if (params.request.mcp) return;
   const extra = detectEscalationHeuristics(params.inboundText);
   const outcomeGranted = /godkend|bekræft|velkommen|accredited|you.?re in|adgang/i.test(
     params.inboundText
@@ -663,6 +666,7 @@ export async function sendDueFollowUps(): Promise<{ sent: number; skipped: numbe
   let sent = 0;
   let skipped = 0;
   for (const req of await readRequests()) {
+    if (req.mcp) { skipped++; continue; }
     if (req.paused || req.status === 'paused') {
       skipped++;
       continue;

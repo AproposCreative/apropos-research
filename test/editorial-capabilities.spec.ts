@@ -7,6 +7,7 @@ it.each(OWNER_APPS)('limits %s to the owner', app => {
 });
 it.each(['/api/seo-engine/jobs', '/api/podcast/upload', '/api/newsletter/draft', '/api/liv-inbox/threads',
   '/api/push/send', '/api/admin/access', '/api/editorial/operations', '/api/cron/liv-prepare',
+  '/api/accreditation/requests', '/api/accreditation/contacts', '/api/accreditation/imap', '/api/editorial/accreditation', '/api/editorial/mail',
   '/api/editorial/desk', '/api/webflow/config', '/api/instagram/config', '/api/instagram/exchange-token'])('guards %s', path => {
   expect(requiresEditorialOwner(path, 'GET')).toBe(true);
 });

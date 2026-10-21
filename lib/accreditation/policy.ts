@@ -16,6 +16,7 @@ const ESCALATION_FLAGS: ApprovalPolicyFlag[] = [
  * and applicant notices. Escalate only for explicit risk flags.
  */
 export function canAutoSend(item: ApprovalItem): boolean {
+  if (item.mcp) return false;
   if (!item.autoEligible) return false;
   if (item.policyFlags.some((f) => ESCALATION_FLAGS.includes(f))) return false;
   // novelQuestion alone does not block if it's ordinary press Q&A — only with ambiguous
@@ -52,6 +53,7 @@ export function buildPolicyFlags(params: {
 }
 
 export function assertSendAllowed(item: ApprovalItem): void {
+  if (item.mcp) throw Error('mcp_accreditation_personal_approval_required');
   if (canAutoSend(item)) return;
   if (item.status === 'approved') return;
   throw new Error(

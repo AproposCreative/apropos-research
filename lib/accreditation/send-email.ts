@@ -3,6 +3,7 @@ import nodemailer from 'nodemailer';
 import MailComposer from 'nodemailer/lib/mail-composer';
 import { Resend } from 'resend';
 import { env } from '@/lib/config/env';
+import { assertPersonalAccreditationSend } from './mcp-send-guard';
 import { LIV_MAILBOX } from '@/lib/accreditation/types';
 import { ensureRequestIdInSubject, sanitizeLivOutput } from '@/lib/accreditation/sanitize';
 import {
@@ -114,6 +115,8 @@ export function getAccreditationMailIdentityPublic(): {
 }
 
 export type SendAccreditationEmailParams = {
+  /** Internal only: created by a consumed, owner/grant/version-bound MCP UI consent. */
+  personalApproval?: { approvalId: string; attemptId: string };
   to: string;
   subject: string;
   html: string;
@@ -172,6 +175,8 @@ async function sendViaSmtp(
       user: auth.user,
       pass: auth.pass,
     },
+    connectionTimeout: 12000, greetingTimeout: 12000, socketTimeout: 25000,
+    logger: false, debug: false, disableFileAccess: true, disableUrlAccess: true,
   });
 
   try {
@@ -197,6 +202,9 @@ async function sendViaSmtp(
         : {}),
     };
     const info = await transporter.sendMail(mailOptions);
+    if (params.personalApproval && (!info.accepted?.some((a: unknown) => String(a).toLowerCase() === params.to.toLowerCase()) || info.rejected?.length)) {
+      return { ok: false, transport: 'smtp', error: 'mcp_accreditation_transport_unconfirmed' };
+    }
 
     const messageId = typeof info.messageId === 'string' ? info.messageId : undefined;
     let sentCopyArchived = false;
@@ -335,6 +343,8 @@ async function sendViaResend(
 export async function sendAccreditationEmail(
   params: SendAccreditationEmailParams
 ): Promise<SendAccreditationEmailResult> {
+  const personal = await assertPersonalAccreditationSend(params);
+  if (personal && getAccreditationMailTransport() !== 'smtp') throw Error('mcp_accreditation_transport_changed');
   const resolved = resolveAccreditationOutboundRecipient(params.to);
   if (resolved.blocked) {
     return { ok: false, error: resolved.blockReason || 'Outbound blocked by allowlist' };

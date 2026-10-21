@@ -69,6 +69,8 @@ export type AccessPackage = {
 };
 
 export type AccreditationRequest = {
+  /** Owner-adopted MCP cases are NEVER handled by legacy automatic send paths. */
+  mcp?: { ownerUid: string; revision: number; evidence: Array<{ source: 'user' | 'web' | 'mail'; reference: string; note: string }> };
   id: string;
   artist: string;
   venue?: string;
@@ -164,6 +166,15 @@ export type ApprovalPolicyFlag =
 export type ApprovalStatus = 'queued' | 'approved' | 'rejected' | 'sent' | 'superseded' | 'auto_sent';
 
 export type ApprovalItem = {
+  /** Personal approval state in the existing approval record, not a parallel mailbox. */
+  mcp?: {
+    ownerUid: string; revision: number; caseHash: string; contentHash: string;
+    kind: ApprovalKind | 'package'; status: 'draft' | 'sending' | 'accepted' | 'unconfirmed';
+    from: string; replyTo: string; contextHash: string; sourceMessageId?: string;
+    assets: AccessPackageAsset[]; attemptedAt?: string; attemptId?: string;
+    receipt?: { acceptedByMailServer: boolean; recipientDeliveryVerified: false; messageId?: string; resendEmailId?: string;
+      sentCopyArchived: boolean; acceptedAt: string }; syncWarning?: string;
+  };
   id: string;
   requestId: string;
   threadId?: string;

@@ -19,6 +19,7 @@ import {
 import { updateMemoryAfterEvent } from '@/lib/accreditation/memory-store';
 import { getRequestById, updateRequest } from '@/lib/accreditation/request-store';
 import { summarizeAccreditationInbound } from '@/lib/accreditation/summarize-inbound';
+import { retainPersonalAccreditationInbound } from '@/lib/accreditation/mcp-inbound';
 import type { EmailDeliveryStatus } from '@/lib/accreditation/types';
 
 function extractTags(data: Record<string, unknown>): Record<string, string> {
@@ -89,6 +90,8 @@ export async function handleAccreditationResendEvent(
     }
 
     if (thread) {
+      if (await retainPersonalAccreditationInbound(thread, { from: fromEmail, to: toList[0] || '', subject, text,
+        receivedAt: new Date().toISOString(), resendEmailId })) return { handled: true, detail: 'Personal case: inbound retained; no AI or outbound.' };
       const { aiSummary, suggestedReply, novelQuestion } = await summarizeAccreditationInbound({
         subject,
         from: fromEmail,

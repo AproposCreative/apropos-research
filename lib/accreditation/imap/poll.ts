@@ -27,6 +27,7 @@ import {
 import { updateMemoryAfterEvent } from '@/lib/accreditation/memory-store';
 import { getRequestById, updateRequest } from '@/lib/accreditation/request-store';
 import { summarizeAccreditationInbound } from '@/lib/accreditation/summarize-inbound';
+import { retainPersonalAccreditationInbound } from '@/lib/accreditation/mcp-inbound';
 
 export type PollResult = {
   mailboxId: MailboxId;
@@ -81,6 +82,9 @@ async function processParsedMail(
   const thread = await correlateInboundToThread(mail);
 
   if (thread) {
+    if (await retainPersonalAccreditationInbound(thread, { from: mail.fromEmail, to: mail.toAddresses[0] || '', subject: mail.subject,
+      text: mail.text, receivedAt: mail.date || new Date().toISOString(), messageId: mail.messageId, resendEmailId: mail.messageId },
+      mail.attachments?.map(a => ({ filename: a.filename, contentType: a.contentType, buffer: a.content })))) return 'processed';
     const { aiSummary, suggestedReply, novelQuestion } = await summarizeAccreditationInbound({
       subject: mail.subject,
       from: mail.fromEmail,

@@ -40,5 +40,5 @@ it('restores entries when stored flags change without editing the registry', () 
 });
 it('does not expose private owner tools or the owner chat to colleagues', () => {
   const ids = describeTools({ paidAiBlocked: true, accreditationPaused: true, inboxAutoRespond: null }, { owner: false }).map(x => x.id);
-  expect(ids).toEqual(['liv-desk', 'design-editor', 'dashboard', 'ai-writer', 'akkreditering']);
+  expect(ids).toEqual(['liv-desk', 'design-editor', 'dashboard', 'ai-writer']);
 });

@@ -108,8 +108,8 @@ export function parseWorkflowRows(values: string[][]): WorkflowSheetRow[] {
   return rows;
 }
 
-export async function pullWorkflowRows(): Promise<WorkflowSheetRow[]> {
-  const res = await sheetsFetch(`/values/${encodeRange(workflowTab(), 'A1:Q500')}`);
+export async function pullWorkflowRows(options: { allRows?: boolean } = {}): Promise<WorkflowSheetRow[]> {
+  const res = await sheetsFetch(`/values/${encodeRange(workflowTab(), options.allRows ? 'A:Q' : 'A1:Q500')}`);
   if (!res.ok) {
     const body = await res.text();
     throw new Error(`Sheets workflow read failed: ${res.status} ${body.slice(0, 200)}`);
@@ -121,9 +121,9 @@ export async function pullWorkflowRows(): Promise<WorkflowSheetRow[]> {
 /**
  * Read-only: Contacts etc. Never write to this tab.
  */
-export async function pullContacts(): Promise<SheetContact[]> {
+export async function pullContacts(options: { allRows?: boolean } = {}): Promise<SheetContact[]> {
   const tab = contactsTab();
-  const res = await sheetsFetch(`/values/${encodeRange(tab, 'A1:Z500')}`);
+  const res = await sheetsFetch(`/values/${encodeRange(tab, options.allRows ? 'A:Z' : 'A1:Z500')}`);
   if (!res.ok) {
     const body = await res.text();
     throw new Error(`Sheets contacts read failed: ${res.status} ${body.slice(0, 200)}`);
@@ -239,9 +239,9 @@ export function parseMailboxArchiveRows(values: string[][]): MailboxArchiveConta
 /**
  * Read-only: Mailbox contact archive. Never write to this tab.
  */
-export async function pullMailboxContactArchive(): Promise<MailboxArchiveContact[]> {
+export async function pullMailboxContactArchive(options: { allRows?: boolean } = {}): Promise<MailboxArchiveContact[]> {
   const tab = mailboxArchiveTab();
-  const res = await sheetsFetch(`/values/${encodeRange(tab, 'A1:Z500')}`);
+  const res = await sheetsFetch(`/values/${encodeRange(tab, options.allRows ? 'A:Z' : 'A1:Z500')}`);
   if (!res.ok) {
     const body = await res.text();
     throw new Error(`Sheets mailbox archive read failed: ${res.status} ${body.slice(0, 200)}`);
@@ -289,12 +289,14 @@ export async function syncRequestToSheet(
   }
 ): Promise<{ rowNumber: number }> {
   const values = requestToWorkflowValues(request, extras);
-  const existing = await pullWorkflowRows();
+  const existing = await pullWorkflowRows({ allRows: true });
+  // MCP text is untrusted prose, never an executable spreadsheet formula.
+  const valueInputOption = request.mcp ? 'RAW' : 'USER_ENTERED';
   const match = existing.find((r) => r.requestId === request.id);
 
   if (match) {
     const range = encodeRange(workflowTab(), `A${match.rowNumber}:Q${match.rowNumber}`);
-    const res = await sheetsFetch(`/values/${range}?valueInputOption=USER_ENTERED`, {
+    const res = await sheetsFetch(`/values/${range}?valueInputOption=${valueInputOption}`, {
       method: 'PUT',
       body: JSON.stringify({ values: [values] }),
     });
@@ -306,7 +308,7 @@ export async function syncRequestToSheet(
   }
 
   const res = await sheetsFetch(
-    `/values/${encodeRange(workflowTab(), 'A:Q')}:append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS`,
+    `/values/${encodeRange(workflowTab(), 'A:Q')}:append?valueInputOption=${valueInputOption}&insertDataOption=INSERT_ROWS`,
     {
       method: 'POST',
       body: JSON.stringify({ values: [values] }),

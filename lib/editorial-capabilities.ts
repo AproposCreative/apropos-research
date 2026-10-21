@@ -1,13 +1,13 @@
 /** Shared UI policy; the server derives owner status from the verified account. */
 export const OWNER_EMAIL = 'frederik@aproposmagazine.com';
-export const OWNER_APPS = ['seo-engine', 'podcast', 'newsletter', 'liv-inbox', 'push-desk', 'image-gen', 'chatgpt-editorial'] as const;
+export const OWNER_APPS = ['seo-engine', 'podcast', 'newsletter', 'liv-inbox', 'push-desk', 'image-gen', 'chatgpt-editorial', 'akkreditering'] as const;
 export type EditorialCapabilities = { owner: boolean };
 export const NO_CAPABILITIES: EditorialCapabilities = { owner: false };
 export function isOwnerView(view: string | null): boolean {
-  return ['seo', 'podcast', 'newsletter', 'liv-inbox', 'push', 'image-gen'].includes(view || '');
+  return ['seo', 'podcast', 'newsletter', 'liv-inbox', 'push', 'image-gen', 'akkreditering'].includes(view || '');
 }
 export function isOwnerPage(path: string): boolean {
-  return ['/ai/seo', '/ai/podcast', '/ai/newsletter', '/ai/liv-inbox', '/ai/push', '/ai/image-gen', '/push', '/liv-inbox', '/settings', '/admin'].some(prefix => path === prefix || path.startsWith(`${prefix}/`));
+  return ['/ai/seo', '/ai/podcast', '/ai/newsletter', '/ai/liv-inbox', '/ai/push', '/ai/image-gen', '/ai/akkreditering', '/push', '/liv-inbox', '/settings', '/admin'].some(prefix => path === prefix || path.startsWith(`${prefix}/`));
 }
 
 export function canOpenEditorialApp(app: string, capabilities: EditorialCapabilities): boolean {
@@ -20,7 +20,7 @@ export function requiresEditorialOwner(path: string, method: string): boolean {
   if (path === '/api/ai-cost/writer') return !['GET', 'HEAD'].includes(method);
   if (path === '/api/webflow/article-translation/status') return !['GET', 'HEAD'].includes(method);
   const trees = ['/api/seo', '/api/seo-engine', '/api/podcast', '/api/newsletter', '/api/image-gen',
-    '/api/liv-inbox', '/api/push', '/api/push-desk', '/api/admin', '/api/editorial/operations',
+    '/api/liv-inbox', '/api/accreditation', '/api/editorial/mail', '/api/editorial/accreditation', '/api/push', '/api/push-desk', '/api/admin', '/api/editorial/operations',
     '/api/ai-cost', '/api/editorial/desk', '/api/editorial/tips/select', '/api/webflow/config', '/api/instagram/config',
     '/api/instagram/meta-config', '/api/instagram/exchange-token', '/api/instagram/renew-token',
     '/api/instagram/token-status'];

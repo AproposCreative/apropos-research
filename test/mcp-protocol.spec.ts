@@ -5,6 +5,8 @@ const reader = vi.hoisted(() => ({ register: vi.fn(), list: vi.fn(), get: vi.fn(
 const seo = vi.hoisted(() => ({ claim: vi.fn(), status: vi.fn(), save: vi.fn(), apply: vi.fn() }));
 const ideas = vi.hoisted(() => ({ desk: vi.fn(), save: vi.fn(), get: vi.fn(), start: vi.fn() }));
 const mail = vi.hoisted(() => ({ search: vi.fn(), read: vi.fn(), save: vi.fn(), status: vi.fn(), preview: vi.fn(), confirm: vi.fn() }));
+const accreditation = vi.hoisted(() => ({ preview: vi.fn(), confirm: vi.fn() }));
+vi.mock('@/lib/accreditation/mcp-drafts', async original => ({ ...await original<any>(), previewAccreditationDraft: accreditation.preview, confirmAccreditationDraft: accreditation.confirm }));
 vi.mock('@/lib/editorial-mail/service', async original => ({ ...await original<any>(), searchEditorialMail: mail.search, readEditorialMail: mail.read,
   saveEditorialReply: mail.save, getEditorialReply: mail.status, previewEditorialReply: mail.preview, confirmEditorialReply: mail.confirm }));
 const imageBrief = vi.hoisted(() => vi.fn());
@@ -51,6 +53,19 @@ beforeEach(() => { vi.clearAllMocks(); mock.identity = { uid: 'frederik', owner:
 const message = (method: string, params?: unknown) => new Request(`${MCP_ORIGIN}/mcp`, { method: 'POST',
   headers: { 'Content-Type': 'application/json', Accept: 'application/json, text/event-stream' }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, ...(params ? { params } : {}) }) });
 const call = (name: string, args = {}) => POST(message('tools/call', { name, arguments: args }));
+it('exposes accreditation workflow with private UI-only send and owner-only tools', async () => {
+  const tools = (await (await POST(message('tools/list'))).json()).result.tools;
+  const names = tools.filter((t: any) => /^(get|search|list|save|link|set|sync|preview|confirm)_accreditation_/.test(t.name));
+  expect(names).toHaveLength(12);
+  expect(names.find((t: any) => t.name === 'confirm_accreditation_draft')._meta.ui.visibility).toEqual(['app']);
+  expect(names.find((t: any) => t.name === 'confirm_accreditation_draft')._meta['openai/visibility']).toBe('private');
+  accreditation.preview.mockResolvedValue({ data: { approvalId: 'fixture', body: 'Exact application' }, confirmation: { token: 'PRIVATE-UI-ONLY' } });
+  const result = (await (await call('preview_accreditation_draft', { approvalId: 'fixture' })).json()).result;
+  expect(result._meta.confirmation.token).toBe('PRIVATE-UI-ONLY'); expect(JSON.stringify(result.content)).not.toContain('PRIVATE-UI-ONLY');
+  mock.identity.owner = false;
+  for (const t of names) expect((await (await call(t.name, {})).json()).result.isError).toBe(true);
+  expect(accreditation.confirm).not.toHaveBeenCalled(); expect(accreditation.preview).toHaveBeenCalledTimes(1);
+});
 it('exposes owner mail reads/drafts, keeps send app-only and approval secrets out of model content', async () => {
   const tools = (await (await POST(message('tools/list'))).json()).result.tools;
   const hidden = tools.find((t: any) => t.name === 'confirm_editorial_reply');
@@ -176,7 +191,7 @@ it('negotiates the real SDK protocol and lists strict schemas on independent sta
   expect(social.properties.square.maxLength).toBe(90);
   expect(social.properties.story.maxLength).toBe(130);
   expect(tools.find((t: any) => t.name === 'update_submission').inputSchema.properties.article.properties.socialSubtitles).toBeDefined();
-  expect(tools.length).toBe(70); expect(tools.find((t: any) => t.name === 'publish_article').annotations.destructiveHint).toBe(true);
+  expect(tools.length).toBe(82); expect(tools.find((t: any) => t.name === 'publish_article').annotations.destructiveHint).toBe(true);
   expect(tools.find((t: any) => t.name === 'resume_submission_cms').inputSchema.required).toContain('expectedCmsHash');
   expect(tools.find((t: any) => t.name === 'import_submission_press_image').inputSchema.required).toContain('candidateId');
   expect(tools.find((t: any) => t.name === 'preview_submission_press_image').annotations.readOnlyHint).toBe(true);
