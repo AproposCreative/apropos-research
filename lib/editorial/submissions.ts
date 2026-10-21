@@ -157,7 +157,7 @@ export async function prepareSubmission(uid: string, raw: unknown) {
   return getSubmissionStatus(uid, id);
 }
 
-export async function updateSubmission(uid: string, raw: unknown, internal?: { replaceUrls: string[]; protectedContentHash?: string }) {
+export async function updateSubmission(uid: string, raw: unknown, internal?: { replaceUrls: string[]; protectedContentHash?: string; existingCoverAssetId?: string }) {
   const input = submissionUpdate.parse(raw), { db, collection } = submissionStore();
   const ref = collection.doc(input.submissionId), receipt = ref.collection('updates').doc(cmsFieldHash({ requestId: input.requestId }));
   const requestHash = cmsFieldHash(input);
@@ -193,7 +193,8 @@ export async function updateSubmission(uid: string, raw: unknown, internal?: { r
     validateSubmissionArticle(next.article);
     const beforeUrls = [base.featuredImage, ...articleImages(base.content).map(image => image.url)].filter((url): url is string => !!url);
     const afterUrls = new Set([next.article.featuredImage, ...articleImages(next.article.content).map(image => image.url)]);
-    await assertNoApprovedImageReplacement(row, beforeUrls.filter(url => !afterUrls.has(url)), tx);
+    await assertNoApprovedImageReplacement(row, beforeUrls.filter(url => !afterUrls.has(url)), tx,
+      internal?.existingCoverAssetId ? { assetId: internal.existingCoverAssetId, url: next.article.featuredImage || '' } : undefined);
     for (const url of beforeUrls.filter(url => !afterUrls.has(url) && !internal?.replaceUrls.includes(url))) {
       const lock = (await tx.get(db.collection('editorialProvidedAssets').doc(cmsFieldHash({ url })))).data();
       if (lock?.preserveOriginal && lock.url === url) throw Error('mcp_submission_selected_asset_locked');
@@ -205,7 +206,8 @@ export async function updateSubmission(uid: string, raw: unknown, internal?: { r
     tx.create(ref.collection('versions').doc(String(row.revision)), row);
     tx.update(ref, { ...next, revision, contentHash: submissionVersion(next, row.publishedTarget), status: 'draft',
       publicationConsentPending: false, updatedAt: now });
-    tx.create(receipt, { requestHash, revision, createdAt: now });
+    tx.create(receipt, { requestHash, revision, createdAt: now,
+      ...(internal?.existingCoverAssetId ? { existingCoverAssetId: internal.existingCoverAssetId, canonicalGenerationComplianceVerified: false } : {}) });
   });
   return getSubmissionStatus(uid, input.submissionId);
 }

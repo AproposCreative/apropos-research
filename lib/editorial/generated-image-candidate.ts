@@ -7,6 +7,7 @@ import { importSuppliedImage } from './chat-image-import';
 import { cmsFieldHash } from '@/lib/liv/cms-field-hash';
 import type { SubmissionRecord } from './submission-contract';
 import { isDeclinedImageCandidate, isPendingImageCandidate } from './image-candidate-state';
+import { assertExistingCoverIntent, existingCoverDisclosure } from './existing-cover-exception';
 
 /** A fresh personal preview may review an existing original after media-only
  * edits. Never rewrite its generation brief, original request or old receipts. */
@@ -23,7 +24,8 @@ export function projectImageCandidates(row: SubmissionRecord, assets: DocumentDa
     .map(a => ({ assetId: String(a.assetId), originalHash: String(a.originalHash), role: String(a.role),
       sectionId: String(a.sectionId), alt: String(a.alt), revision: row.revision,
       generatedRevision: Number(a.expectedRevision), current: reviewable(row, a),
-      selected: !!a.personalSelection, exactPromptExecutionVerified: false as const }))
+      selected: !!a.personalSelection, exactPromptExecutionVerified: false as const,
+      ...(existingCoverDisclosure(a) ? { historyWarning: existingCoverDisclosure(a)! } : {}) }))
     .sort((a, b) => a.assetId.localeCompare(b.assetId));
 }
 
@@ -58,10 +60,16 @@ export async function selectGeneratedImage(uid: string, id: string, revision: nu
     if (saved.status === 'attached' && saved.personalSelection) return saved;
     if (!row || row.uid !== uid || row.revision !== revision || !reviewable(row, saved)) throw Error('mcp_submission_preview_changed');
     if (!['draft', 'blocked', 'prepared'].includes(row.status)) throw Error('mcp_submission_operation_pending');
+    if (saved.existingCoverAuthorization) {
+      if (!existingCoverDisclosure(saved)) throw Error('mcp_submission_existing_cover_not_authorized');
+      await assertExistingCoverIntent(row, saved.importInput, tx);
+    }
     if (!saved.personalSelection || saved.personalSelection.revision !== revision || saved.personalSelection.contentHash !== row.contentHash) {
       const receipt = { uid, revision, contentHash: row.contentHash, assetId, originalHash,
         generatedRevision: saved.expectedRevision, generatedContentHash: saved.contentHash,
-        acceptedAt: new Date().toISOString(), source: 'personal-preview', publicationApproval: false, exactPromptExecutionVerified: false };
+        acceptedAt: new Date().toISOString(), source: 'personal-preview', publicationApproval: false, exactPromptExecutionVerified: false,
+        ...(saved.existingCoverAuthorization ? { existingCoverAuthorizationId: saved.existingCoverAuthorization.id,
+          preflightPassed: false, canonicalGenerationComplianceVerified: false } : {}) };
       tx.create(assetRef.collection('selections').doc(saved.personalSelection ? `${originalHash}-${revision}` : originalHash), receipt);
       tx.update(assetRef, { personalSelection: receipt, ...(!saved.personalSelection ? { status: 'stored' } : {}) });
     }
@@ -72,7 +80,7 @@ export async function selectGeneratedImage(uid: string, id: string, revision: nu
       const file = await readRetainedReference({ storagePath: asset.storagePath, sha256: asset.originalHash,
         mimeType: asset.mimeType, byteCount: asset.byteCount, width: asset.width, height: asset.height });
       return Buffer.from(file.data, 'base64');
-    } }, { revision: asset.reviewedRevision, contentHash: asset.reviewedContentHash });
+    } }, { revision: asset.reviewedRevision, contentHash: asset.reviewedContentHash }, asset.existingCoverAuthorization?.id);
 }
 
 /** A deliberate UI-only negative choice, not retry authority. Never deletes the

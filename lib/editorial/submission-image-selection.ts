@@ -6,6 +6,7 @@ import type { SubmissionRecord } from './submission-contract';
 import type { GenerationEvidence } from './image-generation-evidence';
 import { projectImageCandidates } from './generated-image-candidate';
 import { selectedAssetUrls } from './submission-compressed-media';
+import { existingCoverDisclosure } from './existing-cover-exception';
 
 export function projectImageSelection(row: SubmissionRecord, assets: DocumentData[]) {
   const urls = new Set([row.article.featuredImage, ...articleImages(row.article.content).map(image => image.url)]);
@@ -21,10 +22,13 @@ export function projectImageSelection(row: SubmissionRecord, assets: DocumentDat
   const accepted = row.mediaSelection?.uid === row.uid && row.mediaSelection.revision === row.revision &&
     row.mediaSelection.contentHash === row.contentHash && row.mediaSelection.selectionHash === selectionHash;
   return { items, selectionHash, pendingCandidates: candidates.length, required: !!candidates.length || uncertain.length > 0 && !accepted, accepted,
-    warnings: uncertain.map(a => ({ assetId: a.assetId, role: a.role,
+    warnings: [...items.filter(a => assets.some(asset => asset.assetId === a.assetId && existingCoverDisclosure(asset)))
+      .map(a => ({ assetId: a.assetId, role: a.role, message: existingCoverDisclosure(assets.find(asset => asset.assetId === a.assetId)!)!,
+        reasons: ['owner_authorized_exact_file_exception', 'preflight_missing', 'canonical_generation_not_verified'] })),
+      ...uncertain.filter(a => !assets.some(asset => asset.assetId === a.assetId && existingCoverDisclosure(asset))).map(a => ({ assetId: a.assetId, role: a.role,
       message: a.evidence.status === 'not_supplied' ? 'Billedet er gemt, men den præcise prompt-/referenceoverlevering er ikke indberettet. Se billedet og vælg det personligt.' :
         a.evidence.status === 'client_reported_match' ? 'Den indberettede prompt og reference matcher briefet. Generatorens skjulte behandling er ikke verificeret. Se billedet og vælg det personligt.' :
-        'Billedet er gemt, men prompt eller reference matcher ikke fuldt ud briefet. Se billedet og vælg det personligt.', reasons: a.evidence.reasons })),
+        'Billedet er gemt, men prompt eller reference matcher ikke fuldt ud briefet. Se billedet og vælg det personligt.', reasons: a.evidence.reasons }))],
     exactPromptExecutionVerified: false as const, publicationApproval: false as const };
 }
 

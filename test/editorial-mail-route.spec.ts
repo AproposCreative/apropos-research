@@ -16,6 +16,19 @@ it('denies anonymous/colleague and cross-origin requests', async () => {
   mock.access = { uid: 'colleague', owner: false, role: 'admin' }; expect((await POST(request('search'))).status).toBe(403);
   mock.access.owner = true; expect((await POST(request('search', 'https://evil.example'))).status).toBe(400); expect(mock.search).not.toHaveBeenCalled();
 });
+it.each(['frederik', 'liv'])('denies every first-party mail action for a non-owner admin: %s', async mailbox => {
+  mock.access = { uid: 'colleague', owner: false, role: 'admin' };
+  for (const action of ['search', 'read', 'draft', 'status', 'connection']) {
+    const req = new Request('https://ai.aproposmagazine.com/api/editorial/mail', {
+      method: 'POST', headers: { 'Content-Type': 'application/json', Origin: 'https://ai.aproposmagazine.com' },
+      body: JSON.stringify({ action, input: { mailbox, uid: 'owner', owner: true } }),
+    });
+    const res = await POST(req);
+    expect(res.status).toBe(403);
+    expect(await res.json()).toEqual({ error: 'unauthorized' });
+  }
+  for (const handler of [mock.search, mock.read, mock.draft, mock.status, mock.connection]) expect(handler).not.toHaveBeenCalled();
+});
 it('guards paid work and never leaks provider errors', async () => {
   mock.search.mockImplementation(() => assertPaidAiAllowed()); expect((await POST(request('search'))).status).toBe(400);
   mock.search.mockRejectedValue(Error('provider password SECRET')); expect(await (await POST(request('search'))).json()).toEqual({ error: 'mcp_mail_invalid_request' });

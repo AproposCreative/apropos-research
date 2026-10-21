@@ -2,11 +2,17 @@ import type { Transaction, DocumentData } from 'firebase-admin/firestore';
 import { articleImages } from '@/lib/mcp/markup';
 import { submissionStore } from './submissions';
 import type { SubmissionRecord } from './submission-contract';
+import { assertExistingCoverReplacement } from './existing-cover-exception';
 
 /** Approval is durable, not a transient current-revision flag. Also cover old
  * preparation-only approvals and personal image selections after text edits.
  * Called before upload AND inside the final article transaction. */
-export async function assertNoApprovedImageReplacement(row: SubmissionRecord, removedUrls: string[], tx?: Transaction) {
+export async function assertNoApprovedImageReplacement(row: SubmissionRecord, removedUrls: string[], tx?: Transaction,
+  existingCover?: { assetId: string; url: string }) {
+  if (existingCover) {
+    await assertExistingCoverReplacement(row, removedUrls, existingCover, tx);
+    return;
+  }
   if (!removedUrls.length) return;
   const ref = submissionStore().collection.doc(row.id), protectedUrls = new Set<string>();
   const protectVersion = (version: DocumentData) => {

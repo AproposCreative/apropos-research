@@ -38,8 +38,8 @@ it.each([{ email: 'other@example.com' }, { email: 'x@aproposmagazine.com.evil.te
   const data = await setup(); fake.getUser.mockResolvedValue({ email, emailVerified: true, disabled: false, ...change });
   expect(await activeOwner('uid', Date.now())).toBeNull(); await expect(consent(data.request, data.cookie, 'uid', true)).rejects.toThrow('access_denied');
 });
-it.each(['casper@aproposmagazine.com', 'milo@aproposmagazine.com', 'newcolleague@aproposmagazine.com'])('allows verified personal team OAuth without granting owner rights: %s', async teamEmail => {
-  fake.getUser.mockResolvedValue({ email: teamEmail, emailVerified: true });
+it.each(['casper@aproposmagazine.com', 'milo@aproposmagazine.com', 'liv@aproposmagazine.com', 'newcolleague@aproposmagazine.com'])('allows verified personal team OAuth without granting owner rights: %s', async teamEmail => {
+  fake.getUser.mockResolvedValue({ email: teamEmail, emailVerified: true, customClaims: { owner: true, admin: true, role: 'admin' } });
   expect(await activeMember('team', Date.now())).toMatchObject({ uid: 'team', owner: false, role: 'editor' });
   expect(await activeOwner('team', Date.now())).toBeNull();
   const data = await setup();

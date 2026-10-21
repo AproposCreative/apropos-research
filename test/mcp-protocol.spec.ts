@@ -66,6 +66,24 @@ it('exposes owner mail reads/drafts, keeps send app-only and approval secrets ou
   expect((await (await call('search_editorial_mail', { mailbox: 'frederik' })).json()).result.content[0].text).toContain('mcp_paid_call_requires_separate_approval');
   expect(JSON.stringify(mock.audit.mock.calls)).not.toContain('Exact reply'); expect(mail.confirm).not.toHaveBeenCalled();
 });
+it.each(['frederik', 'liv'])('rejects every mail tool for a non-owner admin, including known private draft IDs: %s', async mailbox => {
+  mock.identity = { uid: 'colleague', owner: false, grantId: 'other-grant', role: 'admin', scopes: ['apropos:read', 'apropos:draft', 'apropos:publish'] };
+  const calls: [string, Record<string, unknown>][] = [
+    ['search_editorial_mail', { mailbox }],
+    ['read_editorial_mail', { mailbox, folder: 'inbox', uid: 15, uidValidity: '122' }],
+    ['save_editorial_reply', { messageId: 'a'.repeat(64), expectedSourceHash: 'b'.repeat(64), expectedRevision: 0, body: 'Private reply', requestId: 'access-denial-test' }],
+    ['get_editorial_reply', { draftId: 'a'.repeat(64) }],
+    ['preview_editorial_reply', { draftId: 'a'.repeat(64) }],
+    ['confirm_editorial_reply', { token: 'a'.repeat(43), displayedHash: 'b'.repeat(64) }],
+  ];
+  for (const [name, args] of calls) {
+    const result = (await (await call(name, args)).json()).result;
+    expect(result.isError).toBe(true);
+    expect(result.structuredContent).toBeUndefined();
+    expect(result._meta?.confirmation).toBeUndefined();
+  }
+  for (const handler of Object.values(mail)) expect(handler).not.toHaveBeenCalled();
+});
 it('transports the exact canonical prompt and separate ordered image blocks, not a reconstructed image-generation instruction', async () => {
   // Protocol-only fixture: proves what MCP returns, not what the native host consumes.
   const brief = { briefId: 'b'.repeat(64), prompt: 'Exact canonical prompt.\nFirst reference is STYLE ONLY.\nOne standalone illustration.',

@@ -8,7 +8,7 @@ import type { ArticleReadingPreview } from '@/lib/editorial/submission-preview';
 const button = 'min-h-12 rounded-xl border border-white/20 px-5 py-3 hover:bg-white/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white disabled:opacity-40';
 type Article = { title: string; subtitle?: string; intro?: string; content: string; seoTitle?: string; seoDescription?: string;
   category?: string; author?: string; rating?: number; ratingReason?: string; articleFormat?: string; slug?: string };
-type Candidate = { assetId: string; originalHash: string; alt: string; role: string; revision: number; current: boolean; selected: boolean };
+type Candidate = { assetId: string; originalHash: string; alt: string; role: string; revision: number; current: boolean; selected: boolean; historyWarning?: string };
 type State = {
   candidatePreviews?: Record<string, string>;
   consent?: { id: string; includesPersonalImageSelection: boolean } | null;
@@ -124,6 +124,7 @@ export default function SubmissionConfirmation({ id }: { id: string }) {
               <figcaption className="space-y-2 text-sm leading-6 text-white/70">
                 <p>{candidate.alt}</p>
                 <p>{candidate.selected ? 'Godkendt. Tilknytningen skal færdiggøres.' : 'Forslag. Ikke i artiklen endnu.'}</p>
+                {candidate.historyWarning && <p role="status">{candidate.historyWarning}</p>}
                 {!candidate.current && <p role="status">Teksten eller placeringen er ændret. Billedet skal kontrolleres igen før valg.</p>}
                 {(!state.candidatePreviews?.[candidate.assetId] || imageStates[key] === 'failed') && <p role="status">Billedet kunne ikke vises. Genindlæs før du vælger det.</p>}
               </figcaption>

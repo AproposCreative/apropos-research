@@ -20,6 +20,8 @@ import { imageProtectedContentHash } from './image-content-invariant';
 import { preflightSubmissionImage } from './image-preflight';
 import { readImageAttemptResume } from './image-attempt-resume';
 import { isDeclinedImageCandidate } from './image-candidate-state';
+import { EXISTING_COVER_AUTHORIZATION } from './existing-cover-authorization';
+import { assertExistingCoverBytes, assertExistingCoverIntent, existingCoverDisclosure } from './existing-cover-exception';
 
 export const chatImageImportInput = z.object({ submissionId, expectedRevision: z.number().int().positive(),
   requestId: submissionInput.shape.requestId,
@@ -63,7 +65,7 @@ export async function importChatImage(uid: string, raw: unknown) {
  * provide bytes; a press URL is never disguised as a native ChatGPT fileParam. */
 export async function importSuppliedImage(uid: string, input: Omit<z.infer<typeof chatImageImportInput>, 'file' | 'origin'> & { origin: z.infer<typeof chatImageImportInput>['origin'] | 'press-source' },
   source: { identity: string; mimeType?: string; read: () => Promise<Buffer>; provenance: string; evidence?: Record<string, unknown> },
-  personalReview?: { revision: number; contentHash: string }) {
+  personalReview?: { revision: number; contentHash: string }, existingCoverAuthorizationId?: string) {
   const row = await readSubmission(uid, input.submissionId);
   const assetId = cmsFieldHash({ uid, id: row.id, requestId: input.requestId });
   const metadata = input, file = { file_id: source.identity, mime_type: source.mimeType };
@@ -74,6 +76,16 @@ export async function importSuppliedImage(uid: string, input: Omit<z.infer<typeo
   const { db, collection } = submissionStore(), ref = collection.doc(row.id).collection('chatAssets').doc(assetId);
   const previous = (await ref.get()).data();
   if (previous?.personalDecline || previous?.status === 'declined') throw Error('mcp_submission_image_candidate_declined');
+  // Server-only exact-file exception. The normal MCP import schema has no such
+  // field; even this trusted path must verify the actual bytes on every resume.
+  const existingCover = existingCoverAuthorizationId === EXISTING_COVER_AUTHORIZATION.id;
+  if (existingCoverAuthorizationId && !existingCover) throw Error('mcp_submission_existing_cover_not_authorized');
+  if (existingCover) {
+    if (uid !== EXISTING_COVER_AUTHORIZATION.uid || file.file_id !== EXISTING_COVER_AUTHORIZATION.fileId ||
+        (previous && !existingCoverDisclosure(previous))) throw Error('mcp_submission_existing_cover_not_authorized');
+    assertExistingCoverBytes(await source.read());
+    if (previous?.status !== 'attached') await assertExistingCoverIntent(row, input);
+  }
   if (previous && previous.requestHash !== requestHash) {
     // The native adapter can re-upload the same attachment under a new file ID.
     // Keep the original operation identity; admit a rotated reference only when
@@ -109,7 +121,7 @@ export async function importSuppliedImage(uid: string, input: Omit<z.infer<typeo
       row.revision !== personalReview.revision || row.contentHash !== personalReview.contentHash ||
       previous.protectedContentHash !== imageProtectedContentHash(row.article))) throw Error('mcp_submission_preview_changed');
   const attachmentRevision = personalReview?.revision ?? input.expectedRevision;
-  if (generatedInChat) {
+  if (generatedInChat && !existingCover) {
     const failures = await readImageFailures(uid, row.id);
     const failureId = cmsFieldHash({ uid, submissionId: row.id, requestId: input.requestId });
     const resumeBrief = input.briefId ? (await collection.doc(row.id).collection('chatBriefs').doc(input.briefId).get()).data() : null;
@@ -130,8 +142,8 @@ export async function importSuppliedImage(uid: string, input: Omit<z.infer<typeo
     if (!brief || brief.uid !== uid || brief.contentHash !== (personalReview ? previous!.contentHash : row.contentHash) || brief.role !== input.role ||
       (input.role === 'body' && brief.sectionId !== input.sectionId)) throw Error('mcp_submission_brief_changed');
   }
-  assertGenerationContract(input, brief);
-  if (generatedInChat) {
+  if (!existingCover) assertGenerationContract(input, brief);
+  if (generatedInChat && !existingCover) {
     if (!previous) {
       const preflight = await preflightSubmissionImage(uid, { submissionId: row.id, expectedRevision: input.expectedRevision,
         role: input.role, sectionId: input.sectionId, briefId: input.briefId,
@@ -154,16 +166,18 @@ export async function importSuppliedImage(uid: string, input: Omit<z.infer<typeo
   const protectedContentHash = imageProtectedContentHash(row.article);
   const replaced = input.replaceAssetId ? (await collection.doc(row.id).collection('chatAssets').doc(input.replaceAssetId).get()).data() : null;
   if (input.replaceAssetId && (!replaced || replaced.uid !== uid || replaced.role !== input.role || replaced.status !== 'attached')) throw Error('mcp_submission_asset_not_found');
-  await assertNoApprovedImageReplacement(row, [input.role === 'cover' ? row.article.featuredImage : replaced?.url].filter((url): url is string => !!url));
+  // The exception stages privately without replacing anything. Attachment is
+  // still gated by the personal receipt and the final transactional guard.
+  if (!existingCover) await assertNoApprovedImageReplacement(row, [input.role === 'cover' ? row.article.featuredImage : replaced?.url].filter((url): url is string => !!url));
   // Cover replacement is an explicit role=cover operation; body replacement
   // must identify its retained asset. Existing unselected figures stay intact.
   const storage = bucket();
   let current = previous;
-  if (current && generatedInChat && current.originalHash !== input.generationReport!.outputCheck!.sha256)
+  if (current && generatedInChat && !existingCover && current.originalHash !== input.generationReport!.outputCheck!.sha256)
     throw Error('mcp_submission_inspected_image_mismatch');
   if (!current) {
     const bytes = await source.read();
-    if ((await readImageFailures(uid, row.id)).some(f => f.originalHash === hash(bytes)))
+    if (!existingCover && (await readImageFailures(uid, row.id)).some(f => f.originalHash === hash(bytes)))
       throw Error('mcp_submission_rejected_image_relabelled');
     const known = await collection.doc(row.id).collection('chatAssets').limit(101).get();
     if (known.size > 100) throw Error('mcp_submission_media_window_exceeded');
@@ -179,7 +193,9 @@ export async function importSuppliedImage(uid: string, input: Omit<z.infer<typeo
       (meta.width || 0) < 800 || (meta.height || 0) < 500) throw Error('mcp_submission_image_invalid');
     await decoder.stats().catch(() => { throw Error('mcp_submission_image_invalid'); });
     if (generatedInChat && ((meta.width || 0) < 1200 || (meta.height || 0) < 800 || meta.width! <= meta.height!)) throw Error('mcp_submission_image_invalid');
-    if (generatedInChat && input.generationReport!.outputCheck!.sha256 !== hash(bytes)) throw Error('mcp_submission_inspected_image_mismatch');
+    if (generatedInChat && !existingCover && input.generationReport!.outputCheck!.sha256 !== hash(bytes)) throw Error('mcp_submission_inspected_image_mismatch');
+    if (existingCover && (meta.width !== EXISTING_COVER_AUTHORIZATION.width || meta.height !== EXISTING_COVER_AUTHORIZATION.height || meta.format !== 'png'))
+      throw Error('mcp_submission_image_invalid');
     // The file adapter may label a download as binary; decoded bytes, not the
     // host or optional filename, determine the actual raster format.
     if (file.mime_type && file.mime_type !== 'application/octet-stream' && file.mime_type !== `image/${meta.format}`) throw Error('mcp_submission_image_mime_mismatch');
@@ -205,6 +221,7 @@ export async function importSuppliedImage(uid: string, input: Omit<z.infer<typeo
       provenance: source.provenance, ...(source.evidence ? { sourceEvidence: source.evidence } : {}),
       byteCount: bytes.length, mimeType: `image/${meta.format}`,
       rightsStatus: 'unknown', createdAt: new Date().toISOString(), exactPromptExecutionVerified: false };
+    if (existingCover) Object.assign(record, { existingCoverAuthorization: { ...EXISTING_COVER_AUTHORIZATION } });
     Object.assign(record, { generationEvidence: imageGenerationEvidence(input, brief) });
     await db.runTransaction(async tx => {
       const old = (await tx.get(ref)).data();
@@ -220,6 +237,8 @@ export async function importSuppliedImage(uid: string, input: Omit<z.infer<typeo
       originalPreserved: true, paidAiCalls: 0, publicationApproval: false, regenerateImage: false,
       generationEvidence: current.generationEvidence, instruction: 'Originalen er gemt privat, ikke i CMS eller artiklen. Vis billedet til personligt valg. Brugeren skal selv vælge denne fil før tilknytning. Andre udtrykkeligt bestilte forslag kræver hvert sit brief og frisk preflight. Ingen automatisk retry, CMS-upload eller publicering.' };
   }
+  if (existingCover && current.personalSelection?.existingCoverAuthorizationId !== EXISTING_COVER_AUTHORIZATION.id)
+    throw Error('mcp_submission_existing_cover_not_authorized');
   if (current.status !== 'uploaded') {
     const [original] = await storage.file(current.storagePath).download({ validation: 'crc32c' });
     if (hash(original) !== current.originalHash) throw Error('mcp_submission_storage_mismatch');
@@ -303,7 +322,8 @@ export async function importSuppliedImage(uid: string, input: Omit<z.infer<typeo
     article.content = $('body').html() || '';
   }
   const updated = await updateSubmission(uid, { submissionId: row.id, expectedRevision: attachmentRevision,
-    requestId: `import-${assetId}`, article }, { replaceUrls: input.role === 'cover' ? [row.article.featuredImage || ''] : replaced ? [replaced.url] : [], protectedContentHash });
+    requestId: `import-${assetId}`, article }, { replaceUrls: input.role === 'cover' ? [row.article.featuredImage || ''] : replaced ? [replaced.url] : [], protectedContentHash,
+      ...(existingCover ? { existingCoverAssetId: assetId } : {}) });
   await ref.update({ status: 'attached', revision: updated.revision });
   return { assetId, url: current.url, revision: updated.revision, paidAiCalls: 0, provenance: current.provenance,
     generationEvidence: current.generationEvidence ?? null, regenerateImage: false,
