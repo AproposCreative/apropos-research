@@ -18,7 +18,8 @@ function fixture() {
     kind: i ? 'reserve' : 'scheduled', state: 'ready', scheduledDay: day, expiresDay: '2026-09-18',
     payloadHash: cmsFieldHash({ title: 'Artikel', slug: 'artikel-a' }), preparedAt: now.toISOString() }));
   const receipt = { publicationVerified: true as const, publicUrl: 'https://www.aproposmagazine.com/articles/artikel-a',
-    itemId: 'a'.repeat(24), localeId: 'd'.repeat(24), checkedAt: now.toISOString() };
+    itemId: 'a'.repeat(24), localeId: 'd'.repeat(24), checkedAt: now.toISOString(),
+    webflowLastPublishedAt: '2026-09-11T08:00:02.123Z' };
   const publish = vi.fn(async (input: { beforePublish?: (hash: string) => Promise<void> }) => {
     await input.beforePublish?.('c'.repeat(64)); return receipt;
   });
@@ -129,6 +130,15 @@ it('publishes one item and treats duplicate ticks as completed', async () => {
   expect(f.state.entries[0].state).toBe('published');
   expect(f.state.entries[1].state).toBe('ready');
 });
+it('preserves observed Webflow publication evidence on its delivery receipt without using the scheduled time', async () => {
+  const f = fixture();
+  await deliverReadyArticle(now, f.deps);
+  expect(f.state.slots[day]).toMatchObject({ state: 'published',
+    checkedAt: now.toISOString(), webflowLastPublishedAt: '2026-09-11T08:00:02.123Z' });
+  const saved = structuredClone(f.state.slots[day]);
+  await deliverReadyArticle(new Date(now.getTime() + 60_000), f.deps);
+  expect(f.state.slots[day]).toEqual(saved); expect(f.publish).toHaveBeenCalledOnce();
+});
 it('falls back to the reserve after definitive pre-write rejection', async () => {
   const f = fixture(); f.publish.mockRejectedValueOnce(new Error('liv_publication_checks_failed'));
   expect(await deliverReadyArticle(now, f.deps)).toMatchObject({ status: 'retry_required' });
@@ -171,8 +181,13 @@ it('rejects a scheduled story after the editor changes the plan', async () => {
 it('reconciles rather than republishing after the history database fails', async () => {
   const f = fixture(); f.deps.record.mockRejectedValueOnce(new Error('database down'));
   await deliverReadyArticle(now, f.deps);
+  expect(f.state.slots[day].webflowLastPublishedAt).toBe('2026-09-11T08:00:02.123Z');
+  f.verify.mockResolvedValueOnce({ publicationVerified: true,
+    publicUrl: 'https://www.aproposmagazine.com/articles/artikel-a', itemId: 'a'.repeat(24), localeId: 'd'.repeat(24),
+    checkedAt: '2026-09-11T08:16:00.000Z', webflowLastPublishedAt: '2026-09-11T08:15:00.000Z' });
   const later = new Date(now.getTime() + 16 * 60_000); vi.setSystemTime(later);
   expect(await deliverReadyArticle(later, f.deps)).toMatchObject({ status: 'published' });
+  expect(f.state.slots[day].webflowLastPublishedAt).toBe('2026-09-11T08:00:02.123Z');
   expect(f.publish).toHaveBeenCalledTimes(1); expect(f.verify).toHaveBeenCalledTimes(1);
 });
 

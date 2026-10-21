@@ -137,6 +137,23 @@ async function publishSubmissionOperation(uid: string, id: string, now: Date) {
     if (cmsFieldHash(fields) !== savedPublication.fieldDataHash) throw Error('mcp_submission_cms_conflict');
     const mediaIdentity = await verifySubmissionMedia(uid, id, fields);
     await assertLease();
+    // Keep the first verified receipt for this exact approved publication even
+    // when the main row later moves to another revision or a readback repeats.
+    // lastPublished remains an observed latest-publication timestamp, not an
+    // original publication date. Never backfill it from acceptedAt/publishAt.
+    const receiptRef = ref.collection('publicationApprovals').doc(publication.preparedHash)
+      .collection('receipts').doc(savedPublication.fieldDataHash);
+    await db.runTransaction(async tx => {
+      const [currentRow, existingReceipt] = await tx.getAll(ref, receiptRef);
+      const current = currentRow.data();
+      if (current?.publishToken !== token || current.preparedHash !== publication.preparedHash ||
+          current.publication?.fieldDataHash !== savedPublication.fieldDataHash) throw Error('mcp_submission_preview_changed');
+      if (!existingReceipt.exists) tx.create(receiptRef, {
+        itemId: prepared.itemId, preparedHash: publication.preparedHash,
+        fieldDataHash: savedPublication.fieldDataHash, receipt: { ...receipt, mediaIdentity },
+        recordedAt: new Date().toISOString(), version: 'publication-evidence-v1',
+      });
+    });
     await ref.update({ status: 'published', publication: { ...savedPublication, receipt: { ...receipt, mediaIdentity } },
       publishedTarget: { itemId: prepared.itemId, fields, fieldDataHash: cmsFieldHash(fields), linkedAt: new Date().toISOString() },
       updatedAt: new Date().toISOString() });

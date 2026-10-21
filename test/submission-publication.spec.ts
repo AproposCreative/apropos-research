@@ -56,6 +56,28 @@ it('publishes only the approved item once, outside the Liv delivery queue', asyn
   expect(state.publish).toHaveBeenCalledTimes(1);
   expect([...memory.rows.keys()].every(k => k.startsWith('editorialSubmissions/'))).toBe(true);
 });
+it('journals actual publication evidence once per approved version without overwriting an earlier readback', async () => {
+  const observed = '2026-10-21T07:36:00.000Z';
+  state.publish.mockImplementationOnce(async (input: any) => {
+    await input.beforePublish(cmsFieldHash(cmsFields));
+    return { publicationVerified: true, webflowLastPublishedAt: observed, checkedAt: '2026-10-21T07:36:02.000Z' };
+  });
+  await approveSubmissionPublication('owner', id, hash, 'now');
+  expect(await publishSubmission('owner', id, new Date(Date.now() + 100))).toMatchObject({ status: 'published' });
+  const receiptPath = `${path}/publicationApprovals/${hash}/receipts/${cmsFieldHash(cmsFields)}`;
+  const original = structuredClone(memory.rows.get(receiptPath));
+  expect(original.receipt.webflowLastPublishedAt).toBe(observed);
+  expect(memory.rows.get(path).publication.receipt.webflowLastPublishedAt).toBe(observed);
+  // A lost final response/reconciliation may observe a later republish. Its
+  // current receipt does not rewrite the immutable earlier observation.
+  Object.assign(memory.rows.get(path), { status: 'scheduled', publishLeaseUntil: 0, reconcileAfter: 0 });
+  state.verify.mockResolvedValueOnce({ publicationVerified: true,
+    webflowLastPublishedAt: '2026-10-22T08:00:00.000Z', checkedAt: '2026-10-22T08:00:01.000Z' });
+  expect(await publishSubmission('owner', id, new Date(Date.now() + 100))).toMatchObject({ status: 'published' });
+  expect(memory.rows.get(receiptPath)).toEqual(original);
+  expect(memory.rows.get(path).publication.receipt.webflowLastPublishedAt).toBe('2026-10-22T08:00:00.000Z');
+  expect(state.publish).toHaveBeenCalledOnce(); expect(state.verify).toHaveBeenCalledOnce();
+});
 it('re-establishes no-paid guard in cron publication and preserves reviewed metadata', async () => {
   const row = memory.rows.get(path); row.executionPolicy = 'chatgpt-first-v1'; row.choices.aiFinalChecks = 'human';
   row.approval = { uid: row.uid, contentHash: row.contentHash, acceptedAt: new Date().toISOString(), editorialDecision: { bodyImages: 'required', aiFinalChecks: 'human' } };
