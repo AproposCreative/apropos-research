@@ -64,6 +64,8 @@ export type DeliverySlot = {
   itemId: string; token: string; state: 'selected' | 'attempted' | 'published';
   leaseUntil: number; attempts: number; nextAttemptAt: number; fieldDataHash?: string;
   publicUrl?: string; checkedAt?: string;
+  /** First saved observation of Webflow lastPublished for this delivery, not an original date. */
+  webflowLastPublishedAt?: string;
   explicitPublication?: { requestId: string; itemId: string; expectedPayloadHash: string; reason: string; requestedAt: string };
 };
 export type ExplicitLivPublication = { requestId: string; itemId: string; expectedPayloadHash: string; reason: string };

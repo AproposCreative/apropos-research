@@ -26,6 +26,7 @@ it('publishes exactly the checked item and locale, then verifies live data and p
   const f = fixture();
   const result = await publishVerifiedLivArticle({ itemId, expected: f.expected }, f.deps);
   expect(result).toMatchObject({ publicationVerified: true, itemId, localeId,
+    webflowLastPublishedAt: f.live.lastPublished,
     publicUrl: 'https://www.aproposmagazine.com/articles/en-artikel' });
   expect(f.publish).toHaveBeenCalledExactlyOnceWith(itemId, localeId);
   expect(f.inspect.mock.invocationCallOrder[0]).toBeLessThan(f.publish.mock.invocationCallOrder[0]);
@@ -95,10 +96,24 @@ it('does not publish if the intent checkpoint cannot be saved', async () => {
 });
 it('reconciles a successful but unacknowledged write using reads only', async () => {
   const f = fixture();
+  f.live.lastPublished = '2026-09-11T08:00:05.123Z';
   await expect(verifyLiveLivArticle({ itemId, expected: f.expected,
-    fieldDataHash: cmsFieldHash(f.live.fieldData) }, f.deps)).resolves.toMatchObject({ publicationVerified: true });
+    fieldDataHash: cmsFieldHash(f.live.fieldData) }, f.deps)).resolves.toMatchObject({
+      publicationVerified: true, webflowLastPublishedAt: '2026-09-11T08:00:05.123Z' });
   expect(f.publish).not.toHaveBeenCalled(); expect(f.inspect).not.toHaveBeenCalled();
   expect(f.read.mock.calls.every(([path]) => path.includes('/live?'))).toBe(true);
+});
+it('keeps current Webflow publication evidence distinct from creation and requested publication dates', async () => {
+  const f = fixture();
+  Object.assign(f.staged, { lastPublished: null, createdOn: '2020-01-01T00:00:00Z' });
+  f.live.lastPublished = '2026-10-21T07:36:00.000Z';
+  f.schema.fields = [{ slug: 'start-dato', type: 'DateTime' }];
+  const result = await publishVerifiedLivArticle({ itemId, expected: f.expected,
+    publicationDate: '2026-10-20T08:00:00Z', assertLease: async () => {} }, f.deps);
+  expect(result.webflowLastPublishedAt).toBe('2026-10-21T07:36:00.000Z');
+  expect(result).not.toHaveProperty('firstPublishedAt');
+  expect(result).not.toHaveProperty('originalPublicationAt');
+  expect(f.publish).toHaveBeenCalledOnce();
 });
 
 it('reconciles Webflow omitting only null optional fields using the exact pinned staged snapshot', async () => {

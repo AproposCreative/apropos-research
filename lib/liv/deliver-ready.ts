@@ -70,6 +70,15 @@ export async function deliverReadyArticle(now = new Date(), dependencies = {
         attempted = true;
         stage = 'publish_or_readback';
       } });
+    // Preserve the observed value before later history/finalization can fail.
+    // Reconciliation may observe a subsequent republish; it must not replace
+    // evidence already saved for this delivery attempt.
+    if (receipt.webflowLastPublishedAt) {
+      stage = 'record_publication_evidence';
+      await dependencies.updateDelivery(day, slot.token, current => {
+        current.webflowLastPublishedAt ??= receipt.webflowLastPublishedAt;
+      });
+    }
     stage = 'record_history';
     await dependencies.record(day, slot.itemId, expected, entry.kind === 'scheduled');
     stage = 'finalize_delivery';

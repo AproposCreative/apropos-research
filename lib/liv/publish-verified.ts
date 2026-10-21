@@ -141,6 +141,9 @@ export async function verifyLiveLivArticle(input: { itemId: string; expected: We
       const images = [String(object(fields.thumb).url || ''), ...body('img').toArray().map(node => body(node).attr('src') || '')];
       if (images.some(url => !url || !pageImages.has(url))) throw new Error('liv_publication_public_images_missing');
       return { publicationVerified: true as const, publicUrl: url, itemId: input.itemId, localeId,
+        // Observed latest Webflow publication, not a claim about the first-ever
+        // publication. Republish changes it; unpublish can reset it to null.
+        webflowLastPublishedAt: live.lastPublished,
         checkedAt: new Date().toISOString() };
     } catch (error) {
       if (delay === 3000 || (error instanceof Error && /http_(401|403)$/.test(error.message))) throw error;
