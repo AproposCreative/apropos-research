@@ -5,12 +5,14 @@ import { mkdir } from 'node:fs/promises';
 import { chromium } from 'playwright';
 import sharp from 'sharp';
 import { articleWidgetHtml } from '../lib/mcp/article-widget';
+import { EXISTING_COVER_AUTHORIZATION } from '../lib/editorial/existing-cover-authorization';
 const thumb = 'data:image/webp;base64,' + (await sharp({ create: { width: 1200, height: 800, channels: 3, background: '#334477' } }).webp().toBuffer()).toString('base64');
 const id = 'a'.repeat(64), assetId = 'b'.repeat(64);
 const payload = { structuredContent: { submissionId: id, revision: 2, previewReadAt: '2026-10-14T16:00:00Z', title: 'Privat billedtest',
   article: { title: 'Privat billedtest', content: '<p>Uændret tekst</p>' }, blocks: [{ kind: 'text', text: 'Uændret tekst' }],
   status: 'awaiting_preparation', questions: [], missing: ['cover', 'body-1', 'body-2'], savedSteps: [], handoff: {},
-  imageCandidates: [{ assetId, originalHash: 'c'.repeat(64), role: 'cover', alt: 'Isoleret fixture', current: true, selected: false }],
+  imageCandidates: [{ assetId, originalHash: 'c'.repeat(64), role: 'cover', alt: 'Isoleret fixture', current: true, selected: false,
+    historyWarning: EXISTING_COVER_AUTHORIZATION.warning }],
   fallbackUrl: 'https://ai.aproposmagazine.com/connect/chatgpt' },
   _meta: { candidatePreviews: { [assetId]: thumb }, confirmation: { token: 'x'.repeat(43), action: 'image_candidate', canDecline: true, expiresAt: Date.now() + 600000 } } };
 const host = `<!doctype html><meta name="viewport" content="width=device-width,initial-scale=1"><style>body{margin:0}iframe{width:100%;height:1800px;border:0}</style><iframe src="/widget"></iframe><script>
@@ -49,6 +51,7 @@ try {
     await page.goto(`http://127.0.0.1:${(server.address() as { port: number }).port}?${mode}`);
     const frame = page.frameLocator('iframe');
     await frame.getByRole('heading',{name:'Vælg billeder til artiklen'}).waitFor();
+    await frame.getByText(EXISTING_COVER_AUTHORIZATION.warning, { exact: true }).waitFor();
     assert.equal(await page.evaluate(() => (window as any).calls.length), 0);
     assert.equal(await frame.locator('#cover img').count(), 0);
     assert.equal(await frame.locator('#scheduleLabel').isHidden(), true);
@@ -86,6 +89,6 @@ try {
     assert.deepEqual(errors, []); await page.close();
   }
   console.log(JSON.stringify({ mobile: 'passed', desktop: 'passed', missingPixelsBlocked: true, doubleClickWrites: 1,
-    decline: 'passed', lostReplyReadback: 'passed', legacyTokenCannotDecline: true,
+    decline: 'passed', lostReplyReadback: 'passed', legacyTokenCannotDecline: true, exactFileExceptionWarningVisible: true,
     actualApprovals: 0, actualCmsWrites: 0, actualGenerations: 0, host: 'isolated simulation' }));
 } finally { await browser.close(); server.closeAllConnections(); await new Promise<void>(resolve => server.close(() => resolve())); }

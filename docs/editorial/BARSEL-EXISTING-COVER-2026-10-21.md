@@ -59,3 +59,39 @@ Anonymous live searches for both mailboxes returned 401. This is not a live
 impersonation test of another staff account. No message was sent or approved.
 
 Deployment and exact-file live staging evidence are recorded below after release.
+
+## Verified live, 21 October 2026 09:30 Copenhagen
+
+- Production source `d1716433857968326b6c7696901eff539aee209d`, MCP v40,
+  deployment `dpl_Adh65qVJQtUj8VgU4wKtsP7i27fB` is READY; direct lookup of
+  `ai.aproposmagazine.com` matches this deployment and source.
+- Exactly one owner-authenticated staging POST returned 200/private-no-store.
+  Retained asset `a0a9743f6ca4522fc12d9d9ebcd23c81324dfbada60515ac37221241a473a0d3`
+  has the exact PNG hash above, status `awaiting_personal_selection`, false
+  preflight/compliance flags, `not_supplied` generation evidence, no personal
+  selection, no CMS asset and no public URL.
+- Authenticated first-party preview and native MCP preview both succeeded.
+  One current cover candidate, explicit historical warning, four preserved body
+  images including cake, no preview problem/dependency error. Actual retained
+  pixels were available to preview. Private submission remains revision 9 with
+  unchanged full-record hash. No regeneration, personal selection or publication.
+- Fresh CMS readback still matches `e9fb14634554bed63fadb01a2061b3a7be057d57b702534b4cabccf0cc3229eb`
+  and lastPublished `2026-10-20T18:27:14.463Z`. The public cover is **not changed
+  yet**. The user must select this file in preview and approve the resulting
+  media-only revision for publication. The server then handles technical checks
+  and readback; do not simulate these personal actions.
+- Financial/policy/inbox before-and-after hash is unchanged:
+  `cabe0e498f22ea9b74545f399aecd0eecf6005681948d9c90db35655c2602593`.
+  No mail content was read, no message sent and no paid AI called in this check.
+- Anonymous requests to both mailboxes and the new staging endpoint return 401
+  on the new release. Non-owner admin denial is regression-tested, not claimed
+  as production impersonation.
+- Evidence: private `output/barsel-existing-cover-live-1792567783653.json`.
+  No credentials or personal confirmation tokens are in this evidence file.
+- Additional isolated candidate-widget checks passed seven cases, including
+  visible exception warning on mobile/desktop, separate candidate choices,
+  missing pixels, decline, and lost replies. Actual approvals/CMS writes/
+  generations: zero. These are fixture tests, not real user selections.
+
+This release does not change Liv's scheduled producer, cadence, acceptance,
+holds, budgets, mail auto-response setting or existing Rockstar draft.

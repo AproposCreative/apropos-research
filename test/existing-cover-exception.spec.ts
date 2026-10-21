@@ -86,6 +86,19 @@ it('rejects altered bytes, wrong owner and stale version without writes', async 
   await expect(stageExistingCover(permit.uid, 9, altered)).rejects.toThrow('not_authorized');
   expect(cmsFieldHash([...memory.rows])).toBe(before); expect(state.files.size).toBe(0); expect(state.upload).not.toHaveBeenCalled();
 });
+it('replaces only the verified compressed derivative of the same parent', async () => {
+  const row = memory.rows.get(path), compressed = 'https://cdn.prod.website-files.com/test/verified-cover.webp';
+  row.article.featuredImage = compressed;
+  row.publishedTarget.mediaDerivatives = [{ assetId: permit.parentAssetId, originalUrl: oldUrl, originalHash: permit.parentHash,
+    url: compressed, hash: 'a'.repeat(64), field: 'thumb', role: 'cover', receiptId: 'verified-compression' }];
+  const body = row.article.content;
+  await stageExistingCover(permit.uid, 9, state.bytes);
+  await selectGeneratedImage(permit.uid, permit.submissionId, 9, existingCoverAssetId(), permit.sha256);
+  expect(memory.rows.get(path).article.featuredImage).toBe('https://cdn.prod.website-files.com/test/new-cover.png');
+  expect(memory.rows.get(path).article.content).toBe(body);
+  expect(memory.rows.get(path).publishedTarget.mediaDerivatives[0].url).toBe(compressed);
+  expect(memory.rows.get(`${path}/chatAssets/${permit.parentAssetId}`).url).toBe(oldUrl);
+});
 it.each(['uid', 'id', 'cms', 'parent', 'body', 'origin', 'brief', 'report', 'request'])('cannot generalize authority: %s', async change => {
   await stageExistingCover(permit.uid, 9, state.bytes);
   const row = structuredClone(memory.rows.get(path)), input = structuredClone(memory.rows.get(assetPath()).importInput);
