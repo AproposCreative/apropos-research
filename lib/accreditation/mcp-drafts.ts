@@ -7,8 +7,7 @@ import { getRequestById } from './request-store';
 import { getApprovalById } from './approval-store';
 import { getThreadsByRequestId } from './email-thread-store';
 import { getAccessPackage, readStoredAttachment, validateAttachmentSafety } from './attachments';
-import { isDryRun } from './agent-control';
-import { resolveAccreditationOutboundRecipient } from './outbound-safety';
+import { assertPersonalAccreditationPolicy } from './mcp-personal-policy';
 import { getAccreditationFromEmail, getAccreditationReplyTo, sendAccreditationEmail } from './send-email';
 import { getSmtpPublicConfig, getAccreditationMailTransport } from './mail-transport';
 import { ensureRequestIdInSubject, sanitizeLivOutput } from './sanitize';
@@ -47,13 +46,10 @@ export async function getAccreditationDraft(identity: McpIdentity, raw: unknown)
   const request = await getRequestById(a.requestId); assertCaseOwner(identity, request);
   return project(a, request);
 }
-/** Policy/config precheck only, never changes the sink, allowlist, automation toggle or transport. */
-export async function accreditationSendPrecheck(to: string) {
+/** Personal channel only; legacy sink/dry-run/allowlist remain unchanged. */
+export async function accreditationSendPrecheck(to: string, ownerUid:string) {
   accredEmail.parse(to); await contactCheck(to);
-  const routing = resolveAccreditationOutboundRecipient(to);
-  if (routing.blocked || routing.redirected || routing.to !== to) throw Error('mcp_accreditation_recipient_blocked');
-  if (await isDryRun()) throw Error('mcp_accreditation_dry_run_active');
-  if (process.env.EDITORIAL_MAIL_SENDING_ENABLED === 'false') throw Error('mcp_accreditation_sending_disabled');
+  await assertPersonalAccreditationPolicy(ownerUid);
   // Existing SMTP only. Never introduce a different provider as a repair.
   const smtp = getSmtpPublicConfig();
   if (getAccreditationMailTransport() !== 'smtp' || !smtp.passwordConfigured || smtp.user.toLowerCase() !== 'liv@aproposmagazine.com')
@@ -134,7 +130,7 @@ export async function previewAccreditationDraft(identity: McpIdentity, raw: unkn
       if (a.status !== 'queued' || data.caseHash !== a.mcp.caseHash) throw Error('mcp_accreditation_case_changed');
       const [threads, pkg] = await Promise.all([getThreadsByRequestId(a.requestId), getAccessPackage(a.requestId)]);
       if (contextHash(threads.find(t => t.id === a.threadId), pkg) !== a.mcp.contextHash) throw Error('mcp_accreditation_context_changed');
-      await accreditationSendPrecheck(a.to);
+      await accreditationSendPrecheck(a.to,a.mcp.ownerUid);
       if (getAccreditationFromEmail() !== a.mcp.from || getAccreditationReplyTo(a.threadId!) !== a.mcp.replyTo) throw Error('mcp_accreditation_sender_changed');
       const token = opaque(), expiresAt = Date.now() + 600000;
       await requireFirestore().collection('accreditationMcpConfirmations').doc(digest(token)).create({ uid: identity.uid, grantId: identity.grantId,
@@ -165,7 +161,7 @@ export async function confirmAccreditationDraft(identity: McpIdentity, raw: unkn
   if (!c || c.uid !== identity.uid || c.grantId !== identity.grantId || c.contentHash !== input.displayedHash) throw Error('mcp_accreditation_confirmation_required');
   const before = validateDraft(identity, await getApprovalById(c.approvalId));
   if (before.mcp.status !== 'draft') return getAccreditationDraft(identity, { approvalId: before.id });
-  await accreditationSendPrecheck(before.to);
+  await accreditationSendPrecheck(before.to,before.mcp.ownerUid);
   const attachments = await attachmentBytes(before.mcp.assets);
   const claim = await db.runTransaction(async tx => {
     const consent = (await tx.get(cRef)).data();

@@ -1,7 +1,9 @@
 import { beforeEach, expect, it, vi } from 'vitest';
 import { createHash } from 'node:crypto';
 import { memoryFirestore } from './helpers/mcp-firestore';
-const mock = vi.hoisted(() => ({ db: null as any, send: vi.fn(), contacts: vi.fn(), archive: vi.fn(), workflow: vi.fn(), additional: vi.fn(), overview: vi.fn(), sync: vi.fn(), bytes: vi.fn() }));
+const mock = vi.hoisted(() => ({ db: null as any, send: vi.fn(), smtp:vi.fn(), contacts: vi.fn(), archive: vi.fn(), workflow: vi.fn(), additional: vi.fn(), overview: vi.fn(), sync: vi.fn(), bytes: vi.fn() }));
+vi.mock('nodemailer',()=>({default:{createTransport:()=>({sendMail:mock.smtp,close:()=>{}})}}));
+vi.mock('@/lib/accreditation/imap/sent-copy',()=>({appendLivSentCopy:async()=>({ok:true,mailboxPath:'Sent'})}));
 vi.mock('@/lib/firebase-admin', () => ({ getAdminDb: () => mock.db }));
 vi.mock('@/lib/accreditation/sheet-client', async original => ({...await original<any>(), pullContacts: mock.contacts, pullMailboxContactArchive: mock.archive, pullWorkflowRows: mock.workflow, pullAdditionalAccreditationSource:mock.additional,syncRequestToSheet: mock.sync }));
 vi.mock('@/lib/accreditation/imap/contact-overview-store', () => ({ readContactOverview: mock.overview }));
@@ -29,6 +31,9 @@ beforeEach(() => { vi.clearAllMocks(); vi.unstubAllEnvs(); memory = memoryFirest
   for (const name of ['ACCREDITATION_OUTBOUND_ALLOWLIST', 'ACCREDITATION_OUTBOUND_TEST_RECIPIENT', 'ACCREDITATION_TEST_REDIRECT_TO', 'ACCREDITATION_INBOUND_DOMAIN']) vi.stubEnv(name, '');
   vi.stubEnv('ACCREDITATION_MAIL_TRANSPORT', 'smtp'); vi.stubEnv('LIV_SMTP_USER', 'liv@aproposmagazine.com'); vi.stubEnv('LIV_SMTP_PASSWORD', 'FAKE-TEST-ONLY');
   memory.rows.set('accreditationAgentControl/default', { dryRun: false, automationEnabled: false, paused: true });
+  memory.rows.set('accreditationMcpPolicy/personal',{mode:'personal-owner-approval-v1',enabled:true,ownerUid:owner.uid});
+  vi.stubEnv('EDITORIAL_MAIL_SENDING_ENABLED','true');
+  mock.smtp.mockImplementation(async params=>({accepted:[params.to],rejected:[],messageId:'<fake-smtp@example.test>'}));
   mock.contacts.mockResolvedValue([]); mock.archive.mockResolvedValue([]); mock.workflow.mockResolvedValue([]); mock.overview.mockResolvedValue({ contacts: [] });
   mock.additional.mockResolvedValue([]);
   mock.send.mockImplementation(async params => { await assertPersonalAccreditationSend(params); return { ok: true, messageId: '<fixture-sent@example.test>', sentCopyArchived: true }; });
@@ -90,13 +95,13 @@ it('edited text invalidates prior consent, retains exact prior draft, rejects an
     await expect(confirmAccreditationDraft(identity, { token: next.confirmation!.token, displayedHash: next.data.contentHash })).rejects.toThrow();
   await approve(next); expect(mock.send.mock.calls[0][0].text).toBe('Kun den nye tekst');
 });
-it('case or inbound changes invalidate old consent; dry-run, contact refusal and expiry stop before transport', async () => {
+it('case or inbound changes invalidate old consent; explicit global stop and expiry stop before transport', async () => {
   const p = await preview(); const c = memory.rows.get(`accreditationMcpConfirmations/${digest(p.confirmation!.token)}`); c.expiresAt = Date.now() - 1;
   await expect(approve(p)).rejects.toThrow('confirmation_expired');
   const p2 = await previewAccreditationDraft(owner, { approvalId: p.data.approvalId }); memory.rows.get('accreditationRequests/LIV-001').notes = 'New information';
   await expect(approve(p2)).rejects.toThrow('case_changed');
-  memory.rows.get('accreditationAgentControl/default').dryRun = true;
-  await expect(approve(p2)).rejects.toThrow('dry_run_active'); expect(mock.send).not.toHaveBeenCalled();
+  vi.stubEnv('ACCREDITATION_DRY_RUN','true');
+  await expect(approve(p2)).rejects.toThrow('sending_disabled'); expect(mock.send).not.toHaveBeenCalled();
 });
 it('uncertain SMTP attempt never retries, even via a new operation/case edit', async () => {
   const p = await preview(); mock.send.mockRejectedValue(Error('SMTP timeout secret'));
@@ -137,11 +142,29 @@ it('new inbound invalidates the old preview, is not an automatic grant, and cann
   await retainPersonalAccreditationInbound(updated, { from: 'press@example.test', to: 'liv@aproposmagazine.com', text: 'same', messageId: '<new@example.test>' });
   expect(memory.rows.get('accreditationEmailThreads/mcp-thread-LIV-001').messages).toHaveLength(1);
 });
-it('rejects contact opt-out after preview and does not silently change a redirected recipient', async () => {
+it('rejects contact opt-out after preview and policy revocation before transport', async () => {
   const p = await preview(); await upsertContactProfile({ email: 'press@example.test', relationshipStatus: 'do_not_contact' });
   await expect(approve(p)).rejects.toThrow('contact_blocked'); __setMemoryBackendForTests('memory');
-  vi.stubEnv('ACCREDITATION_TEST_REDIRECT_TO', 'sink@example.test'); await expect(approve(p)).rejects.toThrow('recipient_blocked');
+  memory.rows.get('accreditationMcpPolicy/personal').enabled=false;await expect(approve(p)).rejects.toThrow('personal_send_disabled');
   expect(mock.send).not.toHaveBeenCalled();
+});
+it('requires an explicit owner-bound personal policy; no global settings are silently opened',async()=>{
+  memory.rows.delete('accreditationMcpPolicy/personal');const p=await preview();expect(p.confirmation).toBeNull();expect(p.data.blocker).toBe('mcp_accreditation_personal_send_disabled');
+  memory.rows.set('accreditationMcpPolicy/personal',{mode:'personal-owner-approval-v1',enabled:true,ownerUid:'other'});
+  expect((await previewAccreditationDraft(owner,{approvalId:p.data.approvalId})).confirmation).toBeNull();expect(mock.smtp).not.toHaveBeenCalled();
+});
+it('personal exact-recipient SMTP works while the legacy sink, allowlist, dry-run and automation remain unchanged',async()=>{
+  vi.stubEnv('ACCREDITATION_TEST_REDIRECT_TO','sink@example.test');vi.stubEnv('ACCREDITATION_OUTBOUND_ALLOWLIST','sink@example.test');
+  memory.rows.get('accreditationAgentControl/default').dryRun=true;
+  const original=await vi.importActual<typeof import('@/lib/accreditation/send-email')>('@/lib/accreditation/send-email');
+  mock.send.mockImplementation(original.sendAccreditationEmail);
+  const p=await preview();expect(p.confirmation).not.toBeNull();expect(mock.smtp).not.toHaveBeenCalled();await approve(p);
+  expect(mock.smtp.mock.calls[0][0]).toMatchObject({to:'press@example.test',text:p.data.body,subject:p.data.subject});
+  expect(mock.smtp.mock.calls[0][0].subject).not.toContain('[TEST');
+  expect(memory.rows.get('accreditationAgentControl/default')).toEqual({dryRun:true,automationEnabled:false,paused:true});
+  await original.sendAccreditationEmail({requestId:'LEGACY-fixture',threadId:'fixture',to:'press@example.test',subject:'Legacy',html:'Legacy',text:'Legacy'});
+  expect(mock.smtp.mock.calls[1][0].to).toBe('sink@example.test');expect(mock.smtp.mock.calls[1][0].subject).toContain('[TEST');
+  expect(process.env.ACCREDITATION_TEST_REDIRECT_TO).toBe('sink@example.test');
 });
 it('follow-up is personal, only when due, reuses thread and retains the existing maximum', async () => {
   const p = await preview(); await approve(p); let r = await fresh();

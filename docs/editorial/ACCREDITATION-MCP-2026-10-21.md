@@ -55,8 +55,13 @@ og ejerknappen Koncertakkreditering i redaktionskortet guider samme chat.
 - Et permanent afsendelsesforsøg gemmes før SMTP. Dobbeltklik, timeouts og ukendt
   resultat må aldrig give et nyt forsøg, heller ikke via ny operation/kladde.
   SMTP-accept er ikke dokumenteret levering i modtagerens indbakke.
-- Rerouting, allowlist, dry-run, kontaktfravalg, manglende credentials eller
-  transportændring stopper afsendelsen. Ingen af disse indstillinger ændres.
+- Legacy-testredirect, allowlist og agentens dry-run forbliver uændrede. Ejeren
+  har særskilt godkendt en ny personlig kanal, bundet til hans verificerede uid
+  i `accreditationMcpPolicy/personal`. Kun et konsumeret, præcist UI-samtykke kan
+  vælge den kanal; et flag fra en caller er ikke nok. Den sender til modtageren
+  i previewet uden testredirect. Ingen MCP-/REST-operation kan aktivere kanalen.
+- Kontaktfravalg, manglende credentials, transportændring, deaktiveret personlig
+  policy og eksplicit globalt env-sendstop stopper fortsat personlig afsendelse.
 - HTML indeholder præcis den viste tekst, ikke en skjult standardsignatur,
   gamle rækkeviddetal eller automatisk løfte om Instagram-dækning.
 - Billetfiler skal have kendt sikkerhed, type, størrelse og identiske SHA256-bytes.
@@ -74,7 +79,7 @@ og ejerknappen Koncertakkreditering i redaktionskortet guider samme chat.
 ## Bevidste grænser
 
 Der tilføjes ikke en automatisk bred mailbox-scan, masseredigering/import af
-kontakter eller en knap til at omgå eksisterende teststop. Gemte arkiver og
+kontakter eller en knap til at ændre eksisterende teststop. Gemte arkiver og
 relationsmemory kan være daterede. Kontaktsammenfald beviser ikke eventansvar.
 Manuelt linket ejer-mail henter ikke nye vedhæftninger: eksisterende sikker
 indgående ingestion skal have gemt filerne, før en billetpakke kan sendes.
@@ -121,8 +126,24 @@ eller dubleret sags-ID, og antal følger ticketQuantity frem for antal ansøgern
 Efter disse rettelser: 394 testfiler / 5607 tests, type-check og ændret-fil-lint
 bestået. Den samlede testkørsel brugte isoleret RAGE_STORAGE_DIR.
 
-Det eksisterende agentstop er stadig automationEnabled=false/paused=true/dryRun=true
-og testredirect er stadig ejerens Gmail-testadresse. Ingen rigtige ansøgninger er
-sendt, ingen tilladelser er simuleret, og ingen settings/credentials er ændret.
-Åbning for personligt godkendt live-send er et særskilt ejervalg; det gamle stop
-efter historisk IMAP-replay må ikke fjernes som en bivirkning.
+Ved første livekontrol var det eksisterende agentstop stadig
+automationEnabled=false/paused=true/dryRun=true og testredirect ejerens
+Gmail-testadresse. Ingen rigtige ansøgninger blev sendt eller tilladelser simuleret.
+
+### Ejerens særskilte personlige kanal
+
+Ejeren svarede: “Ja, kun med min personlige godkendelse” på det konkrete spørgsmål
+om rigtige akkrediteringsmails efter personligt Godkend og send, med automatiske
+ansøgninger og opfølgninger fortsat slået fra. v44 implementerer derfor en separat
+owner-bundet policy. Aktivering kræver en auditeret serviceoperation; den må ikke
+skrive legacy-control, sink, allowlist, credentials, kladder eller samtykker.
+Globalt env-sendstop bevares. Den første rigtige mail kræver stadig personens
+konkrete valg og tryk på den private MCP-knap, og er ikke testet med en arrangør.
+
+v44: 394 testfiler / 5609 tests bestået. Type-check, security:config og lint på
+ændrede produktionsfiler bestået. Lokal widget-fixture bestået igen for normal,
+tabt kvittering, ukendt udfald, afvisning, udløbet og manglende token. En test
+kører den faktiske SMTP-kode med en fake transport og verificerer både personligt
+exact-recipient-send og uændret legacy-testredirect i samme test. Ingen SMTP-
+forbindelse eller rigtig mail i disse tests. Policy mangler/forkert uid/revokeret
+og eksplicit globalt sendstop er også dækket.

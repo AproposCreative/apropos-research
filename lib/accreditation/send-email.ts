@@ -345,7 +345,9 @@ export async function sendAccreditationEmail(
 ): Promise<SendAccreditationEmailResult> {
   const personal = await assertPersonalAccreditationSend(params);
   if (personal && getAccreditationMailTransport() !== 'smtp') throw Error('mcp_accreditation_transport_changed');
-  const resolved = resolveAccreditationOutboundRecipient(params.to);
+  // Only the fully verified, consumed private approval above selects the personal channel.
+  // A caller-supplied flag alone can never disable the old test sink / allowlist.
+  const resolved = personal ? {to:params.to,intendedTo:params.to,redirected:false,blocked:false,blockReason:undefined} : resolveAccreditationOutboundRecipient(params.to);
   if (resolved.blocked) {
     return { ok: false, error: resolved.blockReason || 'Outbound blocked by allowlist' };
   }

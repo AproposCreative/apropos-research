@@ -4,8 +4,8 @@ import { getApprovalById } from './approval-store';
 import { cmsFieldHash as hash } from '@/lib/liv/cms-field-hash';
 import { accreditationMailHtml } from './mcp-mail-content';
 import { assertAccreditationContactAllowed } from './mcp-context';
-import { resolveAccreditationOutboundRecipient } from './outbound-safety';
-import { isDryRun } from './agent-control';
+import { assertPersonalAccreditationPolicy } from './mcp-personal-policy';
+import { accredEmail } from './mcp-contract';
 import type { SendAccreditationEmailParams } from './send-email';
 
 /** Central transport boundary: legacy manual/automatic paths cannot send an owner MCP case. */
@@ -28,8 +28,7 @@ export async function assertPersonalAccreditationSend(params: SendAccreditationE
   if (actual.length !== expected.length || actual.some((f, i) => f.filename !== expected[i].filename ||
       createHash('sha256').update(Buffer.from(f.content, 'base64')).digest('hex') !== expected[i].sha256)) throw Error('mcp_accreditation_asset_changed');
   await assertAccreditationContactAllowed(params.to);
-  const routing = resolveAccreditationOutboundRecipient(params.to);
-  if (routing.blocked || routing.redirected || routing.to !== params.to || await isDryRun() || process.env.EDITORIAL_MAIL_SENDING_ENABLED === 'false')
-    throw Error('mcp_accreditation_send_policy_changed');
+  if(accredEmail.parse(params.to)!==params.to) throw Error('mcp_accreditation_recipient_blocked');
+  await assertPersonalAccreditationPolicy(request.mcp.ownerUid);
   return true;
 }

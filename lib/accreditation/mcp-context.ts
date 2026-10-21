@@ -15,6 +15,7 @@ import { getAccreditationOutboundSafetyPublic } from './outbound-safety';
 import { voiceModeInstructions, LIV_PROMPT_VERSION } from './liv-system-prompt';
 import { STATUS_LABELS_DA } from './state-machine';
 import { isAutomatedSenderHeuristic } from './memory-types';
+import { getPersonalAccreditationPolicy } from './mcp-personal-policy';
 import { ACCREDITATION_WORKFLOW, accredContactInput, accredListInput, accredCaseInput } from './mcp-contract';
 import type { AccreditationRequest, SheetContact } from './types';
 
@@ -107,9 +108,9 @@ export async function assertAccreditationContactAllowed(email: string) {
 }
 export async function getAccreditationContext(identity: McpIdentity) {
   assertMailOwner(identity);
-  const [cases, control] = await Promise.all([listAccreditationRequests(identity, { limit: 20 }), getAgentControl()]);
-  return { ...cases, control, transport: getMailTransportPublicStatus(), mailIdentity: getAccreditationMailIdentityPublic(),
-    safety: getAccreditationOutboundSafetyPublic(), voice: voiceModeInstructions('external_mail'), promptVersion: LIV_PROMPT_VERSION,
+  const [cases, control,personalSend] = await Promise.all([listAccreditationRequests(identity, { limit: 20 }), getAgentControl(),getPersonalAccreditationPolicy(identity.uid)]);
+  return { ...cases, control,personalSend, transport: getMailTransportPublicStatus(), mailIdentity: getAccreditationMailIdentityPublic(),
+    safety: {...getAccreditationOutboundSafetyPublic(),scope:'legacy_only_personal_channel_has_separate_owner_policy'}, voice: voiceModeInstructions('external_mail'), promptVersion: LIV_PROMPT_VERSION,
     contactSources: ['Contacts etc.', 'Mailbox contact archive', 'relationship memory', 'IMAP contact overview', 'Accreditation workflow',...ADDITIONAL_ACCREDITATION_SOURCES.map(s=>s.tab)],
     automaticSettingsChanged: false, instructions: ACCREDITATION_WORKFLOW };
 }
