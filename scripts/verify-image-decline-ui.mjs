@@ -8,7 +8,8 @@ import postcss from 'postcss';
 import tailwind from 'tailwindcss';
 import tailwindConfig from '../tailwind.config.cjs';
 const raw = await readFile('app/connect/chatgpt/submission.tsx', 'utf8');
-const css = (await postcss([tailwind({ ...tailwindConfig, content: [{ raw, extension: 'tsx' }] })]).process('@tailwind base; @tailwind utilities;', { from: undefined })).css;
+const readingSource = await readFile('app/connect/chatgpt/article-reading.tsx', 'utf8');
+const css = (await postcss([tailwind({ ...tailwindConfig, content: [{ raw: raw + readingSource, extension: 'tsx' }] })]).process('@tailwind base; @tailwind utilities;', { from: undefined })).css;
 const bundle = await build({ stdin: { resolveDir: process.cwd(), loader: 'tsx', contents: `
 import React,{StrictMode} from 'react';import {createRoot} from 'react-dom/client';
 import Submission from './app/connect/chatgpt/submission';
@@ -25,6 +26,12 @@ window.fetch=async(url,options={})=>{
  if(!String(url).startsWith('/api/editorial/submissions'))throw Error('Unexpected network');
  if(options.method==='POST'){
   const input=JSON.parse(options.body);fixture.calls.push(input);
+  if(input.action==='approve_publish'){
+    if(input.revision!==fixture.state.row.revision||input.consentId!==fixture.state.consent?.id||fixture.state.row.imageCandidates.length)throw Error('Wrong publication version');
+    fixture.state.row.status='processing';fixture.state.row.publicationConsentPending=true;fixture.state.row.publicationConsent={id:input.consentId};fixture.state.consent=null;
+    if(mode.includes('publish-lost'))throw Error('Lost publication acknowledgement');
+    return Response.json({accepted:true});
+  }
   const chosen=fixture.state.row.imageCandidates.find(c=>c.assetId===input.assetId);
   if(!chosen||input.originalHash!==chosen.originalHash||input.revision!==fixture.state.row.revision)throw Error('Wrong image identity');
   fixture.state.row.imageCandidates=fixture.state.row.imageCandidates.filter(c=>c.assetId!==input.assetId);
@@ -36,6 +43,7 @@ window.fetch=async(url,options={})=>{
     else fixture.state.reading.blocks.push({kind:'image',url:'/image.svg',alt:chosen.alt});
     fixture.state.row.imageCandidates.forEach(c=>c.revision=fixture.state.row.revision);
   }
+  if(!fixture.state.row.imageCandidates.length){fixture.state.row.missingMedia=[];fixture.state.consent={id:'p'.repeat(64),includesPersonalImageSelection:true};}
   if(mode.includes('lost'))throw Error('Fixture lost acknowledgement');
   return Response.json({imageDeclined:true});
  }
@@ -58,7 +66,7 @@ await new Promise(r=>server.listen(0,'127.0.0.1',r));
 const browser=await chromium.launch({channel:'chrome',headless:true});
 try {
   await mkdir('output/individual-image-review',{recursive:true});
-  for(const width of [390,1200])for(const mode of ['decline','lost','stale','missing','selected','sequence','select-lost']){
+  for(const width of [390,1200])for(const mode of ['decline','lost','stale','missing','selected','sequence','select-lost','sequence-publish-lost']){
     console.log('Checking external preview:',width,mode);
     const page=await browser.newPage({viewport:{width,height:900}}), errors=[];
     page.on('pageerror',e=>errors.push(e.message));
@@ -66,30 +74,35 @@ try {
     const firstCard=page.getByRole('figure',{name:'Sokken',exact:true});
     const decline=firstCard.getByRole('button',{name:'Fravælg billede'});
     await page.getByRole('heading',{name:'Vælg billeder til artiklen'}).waitFor();
-    assert.equal(await page.getByRole('button',{name:'Vælg billeder (3)',exact:true}).evaluate(el=>getComputedStyle(el).color),'rgb(8, 8, 8)');
-    assert.equal(await firstCard.getByRole('button',{name:mode==='selected'?'Færdiggør billedvalg':'Godkend billede',exact:true}).evaluate(el=>getComputedStyle(el).color),'rgb(8, 8, 8)');
-    assert.equal(await page.getByRole('article',{name:'Artikelpreview'}).count(),0);
+    assert.equal(await page.getByRole('button',{name:'Læs artikel',exact:true}).count(),0);
+    assert.equal(await firstCard.getByRole('button',{name:mode==='selected'?'Færdiggør billedvalg':'Brug dette billede',exact:true}).evaluate(el=>getComputedStyle(el).color),'rgb(8, 8, 8)');
+    assert.equal(await page.getByRole('article',{name:'Artikelpreview'}).isVisible(),true);
     assert.equal(await page.evaluate(()=>fixture.calls.length),0);
     if(mode==='selected')assert.equal(await decline.count(),0);
     else if(['stale','missing'].includes(mode))assert.equal(await decline.isDisabled(),true);
-    else if(mode==='sequence'||mode==='select-lost'){
+    else if(mode.startsWith('sequence')||mode==='select-lost'){
       // Pick the middle card first, not the first candidate in the response.
-      const middle=page.getByRole('figure',{name:'Middagsluren',exact:true}).getByRole('button',{name:'Godkend billede'});
+      const middle=page.getByRole('figure',{name:'Middagsluren',exact:true}).getByRole('button',{name:'Brug dette billede'});
       await middle.click();
-      await page.getByText('Billedet er godkendt og sat ind i artiklen. Artiklen er ikke udgivet.',{exact:true}).waitFor();
+      await page.getByText('Billedet er sat ind i previewet nedenfor.',{exact:false}).waitFor();
       assert.equal(await page.evaluate(()=>fixture.calls[0].assetId),'d'.repeat(64));
       assert.equal(await page.getByRole('alert').count(),0);
-      if(mode==='sequence'){
-        await firstCard.getByRole('button',{name:'Godkend billede'}).click();
+      if(mode.startsWith('sequence')){
+        await firstCard.getByRole('button',{name:'Brug dette billede'}).click();
         await page.getByRole('figure',{name:'Gammelt caféforslag',exact:true}).getByRole('button',{name:'Fravælg billede'}).click();
-        await page.getByText('Ingen forslag afventer dit valg.',{exact:false}).waitFor();
+        await page.getByRole('button',{name:'Godkend og udgiv',exact:true}).waitFor();
         const result=await page.evaluate(()=>fixture);
         assert.deepEqual(result.calls.map(c=>c.assetId),['d'.repeat(64),'b'.repeat(64),'f'.repeat(64)]);
         assert.deepEqual(result.calls.map(c=>c.revision),[2,3,4]);
-        await page.getByRole('button',{name:'Læs artiklen med valgte billeder'}).click();
         await page.getByRole('article',{name:'Artikelpreview'}).waitFor();
         assert.equal(await page.getByRole('article',{name:'Artikelpreview'}).locator('img').count(),2);
         assert.equal(result.calls.some(c=>/publish|quote/.test(c.action)),false);
+        await page.screenshot({path:'output/individual-image-review/one-flow-'+width+'.png',fullPage:true});
+        await page.getByRole('button',{name:'Godkend og udgiv',exact:true}).evaluate(el=>{el.click();el.click();});
+        await page.getByText('Din udgivelsesgodkendelse er gemt.',{exact:false}).waitFor();
+        assert.equal(await page.evaluate(()=>fixture.calls.filter(c=>c.action==='approve_publish').length),1);
+        assert.equal(await page.getByRole('button',{name:'Godkend og udgiv',exact:true}).count(),0);
+        assert.equal(await page.getByRole('alert').count(),0,'lost acknowledgement must read back accepted state');
       }
     } else {
       await decline.scrollIntoViewIfNeeded();
@@ -104,5 +117,5 @@ try {
     assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
     assert.deepEqual(errors,[]);await page.close();
   }
-  console.log(JSON.stringify({cases:14,result:'passed',realComponent:true,nonFirstSelection:true,sequentialChoice:true,network:'isolated',generation:0,cms:0,personalProductionChoices:0}));
+  console.log(JSON.stringify({cases:16,result:'passed',realComponent:true,nonFirstSelection:true,sequentialChoice:true,onePreviewOneFinalApproval:true,network:'isolated',generation:0,cms:0,personalProductionChoices:0}));
 } finally {await browser.close();server.closeAllConnections();await new Promise(r=>server.close(r));}

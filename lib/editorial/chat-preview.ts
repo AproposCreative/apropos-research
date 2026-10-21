@@ -170,7 +170,7 @@ export async function confirmChatSubmission(identity: McpIdentity, raw: unknown)
       ? 'Billedforslaget er fravalgt. Original og historik er bevaret. Ingen generation er startet. Et nyt forsøg kræver en udtrykkelig beslutning, nyt gyldigt brief og godkendt preflight; fravalget er ikke forsøgstilladelse.'
       : ['approve_publish', 'publish'].includes(action.action)
       ? 'Din udgivelsesgodkendelse er gemt. Serveren fortsætter; preview opdaterer status. Du skal ikke godkende igen eller sende en besked. Bestil ikke igen.'
-      : 'Dit valg er gemt. Opdatér preview for næste nødvendige handling. Dette valg er ikke en udgivelsesgodkendelse; send ikke en bekræftelsesbesked.' };
+      : 'Dit billedvalg er gemt i den private artikel. Det samme preview opdateres og viser Godkend og udgiv, når alle valg og kontroller er klar. Bliv i previewet; åbn ikke et nyt link og send ikke en bekræftelsesbesked. Billedvalg alene er ikke udgivelsesgodkendelse.' };
   await ref.update({ status: 'done', result: answer });
   return answer;
 }

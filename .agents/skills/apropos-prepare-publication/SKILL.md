@@ -19,7 +19,10 @@ filreference, genereret fallback eller direkte Webflow-omvej. Ingen generel
 prisaccept i menneskekontrolleret ChatGPT-first; næste personlige trin er
 redaktionel bekræftelse, når de krævede medier og øvrige felter er komplette.
 Vis hele teksten og billederne som artikelkort via preview_submission, ikke
-kun et link. ChatGPT-first har én personlig **Godkend og udgiv**-knap: klikket
+kun et link. Billedforslag vælges med **Brug dette billede** i samme preview;
+det opdaterer den private artikel uden at udgive. Når valgene er færdige,
+vises den endelige godkendelse i samme visning. Bed ikke brugeren åbne preview
+igen efter billedvalg. ChatGPT-first har én personlig **Godkend og udgiv**-knap: klikket
 godkender den viste revision, redaktionel kontrol og de viste billeder samt
 teknisk klargøring og udgivelse. Serveren fortsætter gennem de eksisterende
 kontroller og læser resultatet tilbage. Bed ikke brugeren vende tilbage til
