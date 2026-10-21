@@ -90,3 +90,41 @@ Financial/provider-policy and inbox-settings before/after hashes remain equal:
 Local metadata-only evidence: `output/editorial-mail-live-*.json`.
 SMTP authentication and user-visible exact draft remain to be verified on the
 corrected deployment. Nothing sent and no personal approval simulated.
+
+## Corrected production verification, 21 October 09:10 Copenhagen
+
+This section supersedes the pending live checks above. Production alias
+`ai.aproposmagazine.com` independently resolves to READY deployment
+`dpl_35qdLjRGSz75GL7QCSVPxCvBaYch`, source
+`bf43e562305066358e29f435d7d2a9f86d8336a1`. No credential, env, legacy recipient
+policy, auto-response or paid-AI setting was changed for the correction.
+
+- SMTP login-only verification succeeded for Frederik at 07:09:52 UTC and Liv at
+  07:09:54 UTC: HTTP 200, authenticated=true, sent=false.
+- The owner API saved the Rockstar reply privately at 07:10:07 UTC; fresh readback
+  at 07:10:26 UTC returned the same revision 1, content hash
+  `4882ba9b48fdf8b0662b13228d292e261318bbe0fd92774625c4f963f6cf38b7`,
+  status=draft, receipt=null, with Frederik as sender and the source Reply-To as
+  sole recipient. No CC or attachments. The draft makes no coverage commitment,
+  chooses no platform and does not submit the sender's separate code-request form.
+- Resume draft ID:
+  `e6a07cc4c9f4c0ff0a5f0b8aa81377899bf658c7c68636bbb6064cb45b74c2d9`.
+  Do not create a duplicate or infer approval from this saved draft.
+- Each live operation returned private/no-store and unchanged financial/inbox
+  settings hash `cabe0e498f22ea9b74545f399aecd0eecf6005681948d9c90db35655c2602593`.
+  autoRespond=false, sendCalled=false, approvalCalled=false, paidAiCalled=false.
+- Local widget fixtures passed again after the routing correction. The 88 legacy
+  inbox/transport regression tests passed in addition to the 70 focused tests.
+
+Metadata-only local evidence:
+`output/editorial-mail-live-connection-1792566594635.json`,
+`output/editorial-mail-live-draft-1792566608448.json`,
+`output/editorial-mail-live-status-1792566627244.json`.
+
+Remaining host acceptance: this conversation still exposes the old Apropos tool
+catalogue, without the new mail tools. The installed connector must refresh before
+`preview_editorial_reply` can display the actual draft and personal approval button
+in the existing starred chat. No native mail preview or real send is claimed.
+Use the saved draft ID above after refresh; never call the private confirmation
+tool on behalf of the owner or bypass it with direct SMTP. The user's platform
+choice is still unanswered; the saved neutral draft does not require one.
