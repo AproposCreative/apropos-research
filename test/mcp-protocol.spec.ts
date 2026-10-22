@@ -66,6 +66,7 @@ it('exposes accreditation workflow with private UI-only send and owner-only tool
   expect(research.inputSchema.required).toContain('sourceEventUrl');
   expect(names.find((t: any) => t.name === 'confirm_accreditation_draft')._meta.ui.visibility).toEqual(['app']);
   expect(names.find((t: any) => t.name === 'confirm_accreditation_draft')._meta['openai/visibility']).toBe('private');
+  expect(names.find((t: any) => t.name === 'preview_accreditation_draft').description).toContain('et link eller previewkort alene er ikke nok');
   accreditation.preview.mockResolvedValue({ data: { approvalId: 'fixture', body: 'Exact application' }, confirmation: { token: 'PRIVATE-UI-ONLY' } });
   const result = (await (await call('preview_accreditation_draft', { approvalId: 'fixture' })).json()).result;
   expect(result._meta.confirmation.token).toBe('PRIVATE-UI-ONLY'); expect(JSON.stringify(result.content)).not.toContain('PRIVATE-UI-ONLY');
@@ -78,6 +79,7 @@ it('exposes owner mail reads/drafts, keeps send app-only and approval secrets ou
   const hidden = tools.find((t: any) => t.name === 'confirm_editorial_reply');
   expect(hidden._meta.ui.visibility).toEqual(['app']); expect(hidden._meta['openai/visibility']).toBe('private'); expect(hidden.annotations.destructiveHint).toBe(true);
   expect(tools.find((t: any) => t.name === 'preview_editorial_reply')._meta.ui.resourceUri).toBe('ui://apropos/mail-reply-v3.html');
+  expect(tools.find((t: any) => t.name === 'preview_editorial_reply').description).toContain('et link eller previewkort alene er ikke nok');
   const d = { draftId: 'a'.repeat(64), contentHash: 'b'.repeat(64), body: 'Exact reply', from: 'frederik@aproposmagazine.com', to: 'press@example.test' };
   mail.preview.mockResolvedValue({ data: d, confirmation: { token: 'MAIL-UI-ONLY-SECRET' } });
   const r = (await (await call('preview_editorial_reply', { draftId: d.draftId })).json()).result;

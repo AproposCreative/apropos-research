@@ -59,6 +59,13 @@ DTD's officielt angivne fælles presseadresse, mens usikkerheden bevares i sagen
 En test til ejerens Gmail er en særskilt mail, ikke første afsendelse i den
 rigtige koncertsag. Den kræver fortsat personligt Godkend og send.
 
+Efter hvert nyt eller rettet akkrediterings-/testudkast skal assistenten gengive
+den **aktuelle fulde mail i sit eget chatsvar**: faktisk Fra, Til, valgt CC/BCC,
+emne, brødtekst og signatur. Skeln mellem testens Gmail-modtager og arrangøren.
+MCP-preview og reviewlink er kun ekstra visning og personlig sendegodkendelse;
+de erstatter aldrig teksten i chatten. Vis aldrig en forældet revision eller
+antyd afsendelse uden en faktisk kvittering.
+
 ## Sikkerhed og bevaring
 
 - Verificeret owner-identitet, ikke blot adminrolle, gælder alle nye MCP-tools.

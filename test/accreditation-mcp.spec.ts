@@ -52,6 +52,8 @@ it('requires owner-specific ticket and relationship context before an accreditat
   expect(ACCREDITATION_WORKFLOW).toContain('vores redaktør');
   expect(ACCREDITATION_WORKFLOW).toContain('Påstå aldrig tidligere dialog om den aktuelle koncert');
   expect(ACCREDITATION_WORKFLOW).toContain('en test må ikke gøre den rigtige sags første ansøgning til "sendt"');
+  expect(ACCREDITATION_WORKFLOW).toContain('gengive den aktuelle fulde mail direkte i sit chatsvar');
+  expect(ACCREDITATION_WORKFLOW).toContain('Et MCP-preview eller eksternt reviewlink erstatter aldrig visning af teksten i chatten');
 });
 
 it('uses existing case IDs/stores, deduplicates replay/event, preserves evidence and rejects counter collision', async () => {
