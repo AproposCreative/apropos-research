@@ -1,7 +1,7 @@
 import { beforeEach, expect, it, vi } from 'vitest';
 const mock = vi.hoisted(() => ({ access: null as any, rate: vi.fn(), search: vi.fn(), read: vi.fn(), draft: vi.fn(), status: vi.fn(), connection: vi.fn() }));
 vi.mock('@/lib/mcp/oauth', async original => ({ ...await original<any>(), mcpRequestAccess: async () => mock.access, oauthRateLimit: mock.rate }));
-vi.mock('@/lib/editorial-mail/service', () => ({ searchEditorialMail: mock.search, readEditorialMail: mock.read, saveEditorialReply: mock.draft, getEditorialReply: mock.status, checkEditorialMailConnection: mock.connection, inspectEditorialSent: mock.status, repairEditorialSent: mock.draft }));
+vi.mock('@/lib/editorial-mail/service', () => ({ searchEditorialMail: mock.search, readEditorialMail: mock.read, saveEditorialReply: mock.draft, getEditorialReply: mock.status, checkEditorialMailConnection: mock.connection, inspectEditorialSent: mock.status, repairEditorialSent: mock.draft,composeEditorialMail:mock.draft,syncEditorialDraft:mock.draft,getEditorialMailThread:mock.read }));
 import { POST } from '@/app/api/editorial/mail/route';
 import { assertPaidAiAllowed } from '@/lib/ai/no-paid-calls';
 const request = (action: string, origin = 'https://ai.aproposmagazine.com') => new Request('https://ai.aproposmagazine.com/api/editorial/mail', { method: 'POST', headers: { 'Content-Type': 'application/json', Origin: origin }, body: JSON.stringify({ action, input: { mailbox: 'frederik' } }) });
@@ -18,7 +18,7 @@ it('denies anonymous/colleague and cross-origin requests', async () => {
 });
 it.each(['frederik', 'liv'])('denies every first-party mail action for a non-owner admin: %s', async mailbox => {
   mock.access = { uid: 'colleague', owner: false, role: 'admin' };
-  for (const action of ['search', 'read', 'draft', 'status', 'connection', 'inspect_sent', 'repair_sent']) {
+  for (const action of ['search', 'read', 'draft', 'status', 'connection', 'inspect_sent', 'repair_sent','compose','sync_draft','thread']) {
     const req = new Request('https://ai.aproposmagazine.com/api/editorial/mail', {
       method: 'POST', headers: { 'Content-Type': 'application/json', Origin: 'https://ai.aproposmagazine.com' },
       body: JSON.stringify({ action, input: { mailbox, uid: 'owner', owner: true } }),

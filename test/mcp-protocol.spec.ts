@@ -70,12 +70,13 @@ it('exposes owner mail reads/drafts, keeps send app-only and approval secrets ou
   const tools = (await (await POST(message('tools/list'))).json()).result.tools;
   const hidden = tools.find((t: any) => t.name === 'confirm_editorial_reply');
   expect(hidden._meta.ui.visibility).toEqual(['app']); expect(hidden._meta['openai/visibility']).toBe('private'); expect(hidden.annotations.destructiveHint).toBe(true);
-  expect(tools.find((t: any) => t.name === 'preview_editorial_reply')._meta.ui.resourceUri).toBe('ui://apropos/mail-reply-v1.html');
+  expect(tools.find((t: any) => t.name === 'preview_editorial_reply')._meta.ui.resourceUri).toBe('ui://apropos/mail-reply-v2.html');
   const d = { draftId: 'a'.repeat(64), contentHash: 'b'.repeat(64), body: 'Exact reply', from: 'frederik@aproposmagazine.com', to: 'press@example.test' };
   mail.preview.mockResolvedValue({ data: d, confirmation: { token: 'MAIL-UI-ONLY-SECRET' } });
   const r = (await (await call('preview_editorial_reply', { draftId: d.draftId })).json()).result;
   expect(r.structuredContent).toEqual(d); expect(r._meta.confirmation.token).toBe('MAIL-UI-ONLY-SECRET'); expect(JSON.stringify(r.content)).not.toContain('MAIL-UI-ONLY-SECRET');
   mock.identity.owner = false;
+  for(const name of ['compose_editorial_mail','sync_editorial_draft','get_editorial_mail_thread','repair_editorial_sent'])expect((await(await call(name,{})).json()).result.isError).toBe(true);
   expect((await (await call('search_editorial_mail', { mailbox: 'frederik' })).json()).result.isError).toBe(true); expect(mail.search).not.toHaveBeenCalled();
   mock.identity.owner = true; mail.search.mockImplementation(() => assertPaidAiAllowed());
   expect((await (await call('search_editorial_mail', { mailbox: 'frederik' })).json()).result.content[0].text).toContain('mcp_paid_call_requires_separate_approval');
@@ -191,7 +192,7 @@ it('negotiates the real SDK protocol and lists strict schemas on independent sta
   expect(social.properties.square.maxLength).toBe(90);
   expect(social.properties.story.maxLength).toBe(130);
   expect(tools.find((t: any) => t.name === 'update_submission').inputSchema.properties.article.properties.socialSubtitles).toBeDefined();
-  expect(tools.length).toBe(82); expect(tools.find((t: any) => t.name === 'publish_article').annotations.destructiveHint).toBe(true);
+  expect(tools.length).toBe(86); expect(tools.find((t: any) => t.name === 'publish_article').annotations.destructiveHint).toBe(true);
   expect(tools.find((t: any) => t.name === 'resume_submission_cms').inputSchema.required).toContain('expectedCmsHash');
   expect(tools.find((t: any) => t.name === 'import_submission_press_image').inputSchema.required).toContain('candidateId');
   expect(tools.find((t: any) => t.name === 'preview_submission_press_image').annotations.readOnlyHint).toBe(true);

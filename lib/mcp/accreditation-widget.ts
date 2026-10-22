@@ -1,4 +1,4 @@
-import { mailWidgetHtml } from './mail-widget';
+import { mailWidgetHtml } from './legacy-mail-widget';
 export const ACCREDITATION_PREVIEW_URI = 'ui://apropos/accreditation-mail-v1.html';
 /** Reuse the verified mail card/host protocol; every inserted value uses textContent. */
 export const accreditationWidgetHtml = mailWidgetHtml

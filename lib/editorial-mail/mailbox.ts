@@ -15,6 +15,7 @@ export const mailReadInput = z.object({ mailbox: mailboxId, folder: folderId.def
   uid: z.number().int().positive(), uidValidity: z.string().regex(/^\d{1,24}$/) }).strict();
 export type MailLocator = z.infer<typeof mailReadInput>;
 export type MailMessage = MailLocator & { id: string; sourceHash: string; from: string; fromName: string;
+  kind?: 'compose';
   replyTo: string; replyToDiffers: boolean; to: string[]; cc: string[]; subject: string; body: string;
   messageId: string; references: string[]; receivedAt: string; attachments: { name: string; type: string; bytes: number }[];
   replyBlocked: boolean; bodyTruncated: boolean };
@@ -96,4 +97,20 @@ export async function readMailboxMessage(raw: unknown): Promise<MailMessage> {
         parsed.headers.get('auto-submitted') !== undefined && parsed.headers.get('auto-submitted') !== 'no', bodyTruncated: text.length > 40000 };
     return { ...source, id: cmsFieldHash(input), sourceHash: cmsFieldHash(source) };
   });
+}
+/** Bounded RFC-thread lookup, not a subject match and never an inbox-wide body scan. */
+export async function readMailboxThread(source:MailMessage) {
+  if(source.kind==='compose'||!source.messageId)return {messages:[],truncated:false};
+  const ids=[...new Set([source.messageId,...source.references])].filter(s=>/^<[^\r\n<>]{1,490}>$/.test(s)).slice(-12);
+  if(!ids.length)return {messages:[],truncated:false};
+  const locators:MailLocator[]=[];let truncated=false;
+  for(const folder of ['inbox','sent'] as const)await withMailFolder(source.mailbox,folder,async client=>{
+    const found=await client.search({deleted:false,or:ids.flatMap(id=>[{header:{'message-id':id}},{header:{references:id}},{header:{'in-reply-to':id}}])},{uid:true});
+    const uids=(found||[]).sort((a,b)=>b-a);if(uids.length>6)truncated=true;
+    for(const uid of uids.slice(0,6))locators.push({mailbox:source.mailbox,folder,uid,uidValidity:String(client.mailbox&&client.mailbox.uidValidity)});
+  });
+  const messages:MailMessage[]=[];
+  for(const locator of locators){const row=await readMailboxMessage(locator);if(!messages.some(m=>m.messageId===row.messageId&&m.sourceHash===row.sourceHash))messages.push(row);}
+  messages.sort((a,b)=>a.receivedAt.localeCompare(b.receivedAt));
+  return {messages,truncated,folders:['INBOX','configured Sent'],bccIncluded:false,externalContentUntrusted:true};
 }

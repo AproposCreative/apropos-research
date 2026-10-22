@@ -41,7 +41,7 @@ export function assertReplyRecipient(mailbox: MailboxId, to: string) {
 }
 
 /** Called once only after a durable personal approval claim. No retries or provider fallback. */
-export async function sendApprovedReply(reply: OutgoingReply, onAccepted?: (receipt: MailReceipt) => Promise<void>) {
+export async function sendApprovedReply(reply: OutgoingReply, onAccepted?: (receipt: MailReceipt) => Promise<void>, onPrepared?: (raw:Buffer) => Promise<void>) {
   const recipients = [...new Set([reply.to, ...(reply.cc || []), ...(reply.bcc || [])])];
   for (const recipient of recipients) assertReplyRecipient(reply.mailbox, recipient);
   const transport = nodemailer.createTransport(smtpConfig(reply.mailbox));
@@ -53,6 +53,7 @@ export async function sendApprovedReply(reply: OutgoingReply, onAccepted?: (rece
   try {
     // Build ONCE: SMTP and IMAP receive identical bytes. BCC is envelope-only.
     const raw = await new MailComposer(options).compile().build();
+    await onPrepared?.(raw); // Private recovery bytes, no credentials or approval token.
     const info = await transport.sendMail({ raw, envelope: { from: mailboxAddress(reply.mailbox), to: recipients }, disableFileAccess: true, disableUrlAccess: true });
     if (!recipients.every(recipient => info.accepted?.some((a: unknown) => String(a).toLowerCase() === recipient.toLowerCase())) || info.rejected?.length) throw Error('mcp_mail_smtp_result_unconfirmed');
     const receipt: MailReceipt = { status: 'accepted', messageId: reply.messageId, acceptedBySmtp: true, recipientDeliveryVerified: false,
