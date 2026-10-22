@@ -6,7 +6,7 @@ import { readMailboxMessage, searchMailbox } from '@/lib/editorial-mail/mailbox'
 beforeEach(() => {
   vi.clearAllMocks(); mock.config.mockReturnValue({ user: 'frederik@aproposmagazine.com', password: 'FAKE-TEST-NOT-SECRET', host: 'imap.example.test', port: 993 });
   mock.client = { on: vi.fn(), connect: vi.fn(), logout: vi.fn(), close: vi.fn(), mailbox: { uidValidity: BigInt(99) },
-    getMailboxLock: vi.fn().mockResolvedValue({ release: vi.fn() }), list: vi.fn().mockResolvedValue([{ path: 'Sendt', specialUse: '\\Sent' }]),
+    getMailboxLock: vi.fn().mockResolvedValue({ release: vi.fn() }), list: vi.fn().mockResolvedValue([{ path: 'Sendt', name: 'Sendt', specialUse: '\\Sent' }, {path:'Sent Messages',name:'Sent Messages'}]),
     search: vi.fn().mockResolvedValue([5, 8, 12]), fetch: vi.fn().mockImplementation(async function* () { yield { uid: 12, envelope: { from: [{ address: 'press@example.test' }], subject: 'Rockstar' }, flags: new Set(), size: 200 }; }),
     fetchOne: vi.fn().mockResolvedValueOnce({ size: 500 }).mockResolvedValueOnce({ source: Buffer.from('From: Press <press@example.test>\r\nTo: frederik@aproposmagazine.com\r\nReply-To: reply@example.test\r\nSubject: Hello\r\nMessage-ID: <123@example.test>\r\nContent-Type: text/html; charset=utf-8\r\n\r\n<p>Hello</p><script>steal()</script><img src="https://example.test/track"><p>World</p>') }) };
 });
@@ -17,7 +17,7 @@ it('searches bounded metadata on EXAMINE/readOnly with TLS and no provider logs'
   expect(result.nextBeforeUid).toBe(12); expect(result.messages[0].uidValidity).toBe('99'); expect(result.markedRead).toBe(false); expect(mock.client.logout).toHaveBeenCalledTimes(1);
 });
 it('searches actual Sent folder without reusing a Liv ingestion cursor', async () => {
-  await searchMailbox({ mailbox: 'frederik', folder: 'sent' }); expect(mock.client.getMailboxLock).toHaveBeenCalledWith('Sendt', { readOnly: true });
+  await searchMailbox({ mailbox: 'frederik', folder: 'sent' }); expect(mock.client.getMailboxLock).toHaveBeenCalledWith('Sent Messages', { readOnly: true });
 });
 it('does not produce an invalid UID range at pagination boundary', async () => {
   expect((await searchMailbox({ mailbox: 'frederik', beforeUid: 1 })).messages).toEqual([]); expect(mock.client.search).not.toHaveBeenCalled(); expect(mock.client.fetch).not.toHaveBeenCalled();

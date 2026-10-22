@@ -1,12 +1,13 @@
 import nodemailer from 'nodemailer';
 import MailComposer from 'nodemailer/lib/mail-composer';
-import { ImapFlow } from 'imapflow';
-import { getMailboxSecrets, type MailboxId } from '@/lib/accreditation/imap/config';
-import { findSentMailboxPath } from '@/lib/accreditation/imap/sent-copy';
+import { type MailboxId } from '@/lib/accreditation/imap/config';
+import { archiveExactMessage, mimeHash, type SentFolderSync } from './imap';
 import { mailboxAddress, mailboxName } from './mailbox';
 import { resolveLivInboxRecipient, livInboxTestRedirectTo } from '@/lib/liv-inbox/send';
 
-export type OutgoingReply = { mailbox: MailboxId; to: string; subject: string; body: string; messageId: string; inReplyTo: string; references: string[] };
+export type OutgoingReply = { mailbox: MailboxId; to: string; cc?: string[]; bcc?: string[]; html?: string; subject: string; body: string; messageId: string; inReplyTo: string; references: string[] };
+export type MailReceipt = { status: 'accepted'; messageId: string; acceptedBySmtp: true; recipientDeliveryVerified: false;
+  sentCopyArchived: boolean; acceptedAt: string; mimeSha256: string; bcc: string[]; sentFolderSync?: SentFolderSync };
 /** Authentication/connection check only. Does not submit a message or test delivery. */
 export async function verifyReplyTransport(mailbox: MailboxId) {
   const transport = nodemailer.createTransport(smtpConfig(mailbox));
@@ -40,29 +41,25 @@ export function assertReplyRecipient(mailbox: MailboxId, to: string) {
 }
 
 /** Called once only after a durable personal approval claim. No retries or provider fallback. */
-export async function sendApprovedReply(reply: OutgoingReply) {
-  assertReplyRecipient(reply.mailbox, reply.to);
+export async function sendApprovedReply(reply: OutgoingReply, onAccepted?: (receipt: MailReceipt) => Promise<void>) {
+  const recipients = [...new Set([reply.to, ...(reply.cc || []), ...(reply.bcc || [])])];
+  for (const recipient of recipients) assertReplyRecipient(reply.mailbox, recipient);
   const transport = nodemailer.createTransport(smtpConfig(reply.mailbox));
   const options = { from: { name: mailboxName(reply.mailbox), address: mailboxAddress(reply.mailbox) },
-    to: reply.to, replyTo: mailboxAddress(reply.mailbox), subject: reply.subject, text: reply.body,
+    to: reply.to, cc: reply.cc, replyTo: mailboxAddress(reply.mailbox), subject: reply.subject, text: reply.body, html: reply.html,
+    date: new Date(),
     messageId: reply.messageId, ...(reply.inReplyTo ? { inReplyTo: reply.inReplyTo } : {}), references: reply.references,
     disableFileAccess: true, disableUrlAccess: true };
   try {
-    const info = await transport.sendMail(options);
-    if (!info.accepted?.some((a: unknown) => String(a).toLowerCase() === reply.to.toLowerCase()) || info.rejected?.length) throw Error('mcp_mail_smtp_result_unconfirmed');
-    // SMTP acceptance is not proof of recipient delivery. Archive failures never cause resend.
-    let sentCopyArchived = false;
-    try {
-      const raw = await new MailComposer(options).compile().build();
-      const config = getMailboxSecrets(reply.mailbox);
-      const client = new ImapFlow({ host: config.host, port: config.port, secure: true, auth: { user: config.user, pass: config.password },
-        logger: false, emitLogs: false, connectionTimeout: 12000, greetingTimeout: 12000, socketTimeout: 20000 });
-      client.on('error', () => { /* Archive failure must never trigger another SMTP send. */ });
-      try { await client.connect(); const path = findSentMailboxPath(await client.list());
-        if (path) sentCopyArchived = !!await client.append(path, raw, ['\\Seen'], new Date());
-      } finally { try { await client.logout(); } catch { client.close(); } }
-    } catch { /* Keep accepted evidence even if the copy could not be archived. */ }
-    return { status: 'accepted' as const, messageId: reply.messageId, acceptedBySmtp: true, recipientDeliveryVerified: false,
-      sentCopyArchived, acceptedAt: new Date().toISOString() };
+    // Build ONCE: SMTP and IMAP receive identical bytes. BCC is envelope-only.
+    const raw = await new MailComposer(options).compile().build();
+    const info = await transport.sendMail({ raw, envelope: { from: mailboxAddress(reply.mailbox), to: recipients }, disableFileAccess: true, disableUrlAccess: true });
+    if (!recipients.every(recipient => info.accepted?.some((a: unknown) => String(a).toLowerCase() === recipient.toLowerCase())) || info.rejected?.length) throw Error('mcp_mail_smtp_result_unconfirmed');
+    const receipt: MailReceipt = { status: 'accepted', messageId: reply.messageId, acceptedBySmtp: true, recipientDeliveryVerified: false,
+      sentCopyArchived: false, acceptedAt: new Date().toISOString(), mimeSha256: mimeHash(raw), bcc: reply.bcc || [] };
+    // Persist SMTP evidence before attempting IMAP, so an IMAP timeout cannot erase it.
+    await onAccepted?.(receipt);
+    const sentFolderSync = await archiveExactMessage(reply.mailbox, raw, reply.messageId);
+    return { ...receipt, sentFolderSync, sentCopyArchived: sentFolderSync.status === 'verified' };
   } finally { transport.close(); }
 }

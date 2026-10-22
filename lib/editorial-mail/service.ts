@@ -5,6 +5,7 @@ import { digest, opaque, type McpIdentity } from '@/lib/mcp/oauth';
 import { getLivInboxSettings } from '@/lib/liv-inbox/settings-store';
 import { searchMailbox, readMailboxMessage, mailboxAddress, mailboxName, mailboxId, type MailMessage } from './mailbox';
 import { smtpConfig, sendApprovedReply, verifyReplyTransport, assertReplyRecipient } from './transport';
+import { inspectSentMessage, copyExistingSentMessage } from './imap';
 
 const id = z.string().regex(/^[a-f0-9]{64}$/);
 export const replyInput = z.object({ messageId: id, expectedSourceHash: id, expectedRevision: z.number().int().min(0),
@@ -61,6 +62,36 @@ function projectReply(row: Reply) {
 export async function getEditorialReply(identity: McpIdentity, raw: unknown) {
   assertMailOwner(identity); const { draftId } = replyIdInput.parse(raw);
   return projectReply(validateReply((await draftRef(draftId).get()).data() as Reply | undefined, identity.uid));
+}
+export async function inspectEditorialSent(identity: McpIdentity, raw: unknown) {
+  assertMailOwner(identity); const { draftId } = replyIdInput.parse(raw);
+  const row = validateReply((await draftRef(draftId).get()).data() as Reply | undefined, identity.uid);
+  if (!row.outboundMessageId || row.status !== 'accepted') throw Error('mcp_mail_accepted_receipt_required');
+  return inspectSentMessage({ mailbox: row.source.mailbox, messageId: row.outboundMessageId, from: row.from, to: row.to, subject: row.subject, body: row.body });
+}
+/** Owner-authorized correction of an already accepted mail, never approval to send. */
+export async function repairEditorialSent(identity: McpIdentity, raw: unknown) {
+  assertMailOwner(identity, 'apropos:draft'); const { draftId } = replyIdInput.parse(raw);
+  const ref = draftRef(draftId), row = validateReply((await ref.get()).data() as Reply | undefined, identity.uid);
+  const inspection = await inspectEditorialSent(identity, raw);
+  const valid = inspection.matches.filter(m => m.identityMatches && !m.headers.bccHeaderPresent);
+  if (!valid.length || new Set(valid.map(m => m.sha256)).size !== 1) throw Error('mcp_mail_archive_source_ambiguous');
+  const target = valid.filter(m => m.folder === inspection.targetFolder);
+  if (target.length > 1) throw Error('mcp_mail_duplicate_message_id');
+  let result: { folder: string; uid: number; uidValidity: string; sha256: string; copied: boolean; appendReceipt?: unknown };
+  if (target.length) result = { folder: target[0].folder, uid: target[0].uid, uidValidity: target[0].uidValidity, sha256: target[0].sha256, copied: false };
+  else {
+    const op = ref.collection('archiveRepairs').doc('apple-mail-v2');
+    await db().runTransaction(async tx => {
+      const existing = (await tx.get(op)).data();
+      if (existing) throw Error('mcp_mail_archive_attempt_unconfirmed');
+      tx.create(op, { uid: identity.uid, messageId: row.outboundMessageId, source: valid[0], target: inspection.targetFolder, attemptedAt: new Date().toISOString() });
+    });
+    result = await copyExistingSentMessage({ mailbox: row.source.mailbox, messageId: row.outboundMessageId!, from: row.from, to: row.to, subject: row.subject, body: row.body }, valid[0]);
+  }
+  const sentFolderSync = { ...result, status: 'verified', checkedAt: new Date().toISOString(), appleMailMapping: row.source.mailbox === 'frederik' ? 'owner_confirmed' : 'server_discovered', deviceVisibilityVerified: false };
+  await ref.update({ receipt: { ...row.receipt, sentCopyArchived: true, sentFolderSync }, updatedAt: new Date().toISOString() });
+  return { draftId, sentFolderSync, smtpCalled: false, recipientDeliveryVerified: false, originalPreserved: true };
 }
 export async function saveEditorialReply(identity: McpIdentity, raw: unknown) {
   assertMailOwner(identity, 'apropos:draft'); const input = replyInput.parse(raw);
@@ -131,11 +162,13 @@ export async function confirmEditorialReply(identity: McpIdentity, raw: unknown)
   const reply = claim.reply;
   try {
     const receipt = await sendApprovedReply({ mailbox: reply.source.mailbox, to: reply.to, subject: reply.subject, body: reply.body,
-      messageId: reply.outboundMessageId!, inReplyTo: reply.source.messageId, references: [...reply.source.references, reply.source.messageId].filter(Boolean) });
+      messageId: reply.outboundMessageId!, inReplyTo: reply.source.messageId, references: [...reply.source.references, reply.source.messageId].filter(Boolean) },
+      async receipt => { await draftRef(reply.id).update({ status: 'accepted', receipt, updatedAt: new Date().toISOString() }); });
     await draftRef(reply.id).update({ status: 'accepted', receipt, updatedAt: new Date().toISOString() });
   } catch {
     // Includes timeout or lost durable receipt. SMTP may have accepted it: NEVER retry automatically.
-    await draftRef(reply.id).update({ status: 'unconfirmed', updatedAt: new Date().toISOString() }).catch(() => undefined);
+    await db().runTransaction(async tx => { const ref = draftRef(reply.id), current = (await tx.get(ref)).data();
+      if (current?.status !== 'accepted') tx.update(ref, { status: 'unconfirmed', updatedAt: new Date().toISOString() }); }).catch(() => undefined);
   }
   return getEditorialReply(identity, { draftId: reply.id });
 }

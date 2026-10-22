@@ -3,7 +3,7 @@ import { simpleParser } from 'mailparser';
 import { load } from 'cheerio';
 import { ImapFlow, type SearchObject } from 'imapflow';
 import { getMailboxSecrets, type MailboxId } from '@/lib/accreditation/imap/config';
-import { findSentMailboxPath } from '@/lib/accreditation/imap/sent-copy';
+import { resolveMailFolder } from './imap';
 import { cmsFieldHash } from '@/lib/liv/cms-field-hash';
 
 export const mailboxId = z.enum(['frederik', 'liv']);
@@ -33,7 +33,7 @@ export async function withMailFolder<T>(mailbox: MailboxId, folder: 'inbox' | 's
   client.on('error', () => { /* Pending operations fail safely; never log provider/auth data. */ });
   try {
     await client.connect();
-    const path = folder === 'inbox' ? 'INBOX' : findSentMailboxPath(await client.list());
+    const path = folder === 'inbox' ? 'INBOX' : resolveMailFolder(mailbox, 'sent', await client.list());
     if (!path) throw Error('mcp_mail_folder_missing');
     const lock = await client.getMailboxLock(path, { readOnly: true });
     try { return await run(client); } finally { lock.release(); }

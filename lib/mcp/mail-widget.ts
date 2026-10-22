@@ -25,7 +25,7 @@ el('sourceFrom').textContent=(data.source?.fromName||'')+' <'+(data.source?.from
 el('warning').textContent=data.source?.replyToDiffers?'Bemærk: Mailens Reply-To er '+data.to+', som er forskellig fra afsenderadressen.':'';
 const status={draft:'Ikke sendt. Læs hele svaret, før du godkender.',sending:'Afsendelsen er registreret og afventer kvittering. Opdatér status; send ikke igen.',unconfirmed:'Afsendelsen kunne ikke bekræftes. Mailserveren kan have modtaget svaret. Send ikke igen; kontrollér Sendt og kvitteringen.',accepted:'Mailserveren har accepteret svaret. Modtagerens levering er ikke bekræftet.'};
 el('status').textContent=status[data.status]||'Ukendt status. Send ikke igen.';
-if(data.status==='accepted'&&data.receipt)el('status').textContent+=' '+(data.receipt.sentCopyArchived?'Kopi gemt i Sendt.':'Kopien i Sendt kunne ikke bekræftes.');
+if(data.status==='accepted'&&data.receipt)el('status').textContent+=' '+(data.receipt.sentFolderSync?.status==='verified'?'Kopi genfundet i servermappen '+data.receipt.sentFolderSync.folder+'.':'Kopien i den valgte Sendt-mappe er ikke verificeret.');
 if(data.blocker)el('status').textContent+=' Afsendelse er ikke klar på denne forbindelse. Udkastet er bevaret.';
 if(data.status==='draft'&&!confirmation)el('status').textContent+=' Opdatér status for at få en ny godkendelsesknap.';
 el('title').textContent=data.status==='accepted'?'Dit svar er afsendt':'Dit svar, klar til gennemlæsning';buttons();}

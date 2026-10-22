@@ -2,7 +2,7 @@ import { mcpRequestAccess, oauthRateLimit, type McpIdentity } from '@/lib/mcp/oa
 import { withoutPaidAi } from '@/lib/ai/no-paid-calls';
 import { PRIVATE_HEADERS } from '@/lib/mcp/config';
 import { smallBody, sameOrigin } from '@/lib/mcp/http';
-import { searchEditorialMail, readEditorialMail, saveEditorialReply, getEditorialReply, checkEditorialMailConnection } from '@/lib/editorial-mail/service';
+import { searchEditorialMail, readEditorialMail, saveEditorialReply, getEditorialReply, checkEditorialMailConnection, inspectEditorialSent, repairEditorialSent } from '@/lib/editorial-mail/service';
 export const maxDuration = 120;
 const json = (data: unknown, status = 200) => Response.json(data, { status, headers: PRIVATE_HEADERS });
 /** Owner service surface for diagnostics and first-party drafts. No send/approval endpoint. */
@@ -14,7 +14,8 @@ export async function POST(req: Request) {
     await oauthRateLimit(`editorial-mail-${access.uid}`, 120);
     const { action, input } = JSON.parse(await smallBody(req, 30000));
     const identity: McpIdentity = { ...access, scopes: ['apropos:read', 'apropos:draft'], grantId: 'first-party-mail' };
-    const handlers = { search: searchEditorialMail, read: readEditorialMail, draft: saveEditorialReply, status: getEditorialReply, connection: checkEditorialMailConnection };
+    const handlers = { search: searchEditorialMail, read: readEditorialMail, draft: saveEditorialReply, status: getEditorialReply, connection: checkEditorialMailConnection,
+      inspect_sent: inspectEditorialSent, repair_sent: repairEditorialSent };
     if (typeof action !== 'string' || !Object.hasOwn(handlers, action)) return json({ error: 'mcp_mail_action_invalid' }, 400);
     return json(await withoutPaidAi(() => handlers[action as keyof typeof handlers](identity, input)));
   } catch (e) {
