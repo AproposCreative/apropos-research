@@ -3,7 +3,7 @@ import {simpleParser} from 'mailparser';
 const mock=vi.hoisted(()=>({client:null as any}));
 vi.mock('imapflow',()=>({ImapFlow:class {constructor(){return mock.client;}}}));
 vi.mock('@/lib/accreditation/imap/config',()=>({getMailboxSecrets:(id:string)=>({user:`${id}@aproposmagazine.com`,password:'test',host:'fixture',port:993})}));
-import {composeDraft,writeDraftCopy,checkDraftCopy,cleanupSentDraft} from '@/lib/editorial-mail/draft-copy';
+import {composeDraft,writeDraftCopy,checkDraftCopy,cleanupSentDraft,inspectDraftCopy} from '@/lib/editorial-mail/draft-copy';
 import {mimeHash} from '@/lib/editorial-mail/imap';
 const mid='<draft@aproposmagazine.com>',raw=Buffer.from('Draft one'),raw2=Buffer.from('Draft two');
 let rows:Map<number,Buffer>,lastUid:number;
@@ -34,4 +34,12 @@ it('handles lost APPEND ack and lost durable receipt without duplicate',async()=
 });
 it('does not perform unscoped EXPUNGE when UIDPLUS is absent',async()=>{
  const a=await writeDraftCopy('frederik',raw,mid,1,null,true);mock.client.capabilities.clear();await expect(writeDraftCopy('frederik',raw2,mid,2,a,true)).rejects.toThrow('uidplus_required');await expect(cleanupSentDraft('frederik',a)).rejects.toThrow('uidplus_required');expect(mock.client.messageDelete).not.toHaveBeenCalled();expect(rows.size).toBe(1);
+});
+it('diagnoses changed MIME without exposing content or writing a draft',async()=>{
+ const expected=Buffer.from('Message-ID: '+mid+'\r\nSubject: private title\r\n\r\nPrivate body\r\n');
+ rows.set(1,Buffer.concat([Buffer.from('X-Test: changed\r\n'),expected]));
+ const report=await inspectDraftCopy('frederik',mid,expected);
+ expect(report.matches[0]).toMatchObject({exactBytes:false,textMatches:true,changedHeaders:['x-test']});
+ expect(JSON.stringify(report)).not.toContain('Private body');expect(JSON.stringify(report)).not.toContain('private title');
+ expect(mock.client.append).not.toHaveBeenCalled();expect(mock.client.messageDelete).not.toHaveBeenCalled();
 });

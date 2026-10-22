@@ -7,7 +7,7 @@ import { searchMailbox, readMailboxMessage, readMailboxThread, mailboxAddress, m
 import { smtpConfig, sendApprovedReply, verifyReplyTransport, assertReplyRecipient } from './transport';
 import { inspectSentMessage, copyExistingSentMessage,archiveExactMessage,mimeHash } from './imap';
 import { currentSignature, applySignature, type Signature } from './signature';
-import {composeDraft,writeDraftCopy,checkDraftCopy,cleanupSentDraft,type DraftCopy} from './draft-copy';
+import {composeDraft,writeDraftCopy,checkDraftCopy,cleanupSentDraft,inspectDraftCopy,type DraftCopy} from './draft-copy';
 
 const id = z.string().regex(/^[a-f0-9]{64}$/);
 export const replyInput = z.object({ messageId: id, expectedSourceHash: id, expectedRevision: z.number().int().min(0),
@@ -217,6 +217,13 @@ export async function confirmEditorialReply(identity: McpIdentity, raw: unknown)
 }
 
 export const draftSyncInput=z.object({draftId:id,expectedRevision:z.number().int().positive(),expectedHash:id}).strict();
+export async function inspectEditorialDraft(identity:McpIdentity,raw:unknown){
+  assertMailOwner(identity);const {draftId}=replyIdInput.parse(raw),ref=draftRef(draftId);
+  const row=validateReply((await ref.get()).data() as Reply|undefined,identity.uid);
+  const op=(await ref.collection('draftExports').doc(String(row.revision)).get()).data();
+  if(!op||op.contentHash!==row.contentHash||mimeHash(Buffer.from(op.raw,'base64'))!==op.sha256)throw Error('mcp_mail_draft_conflict');
+  return {draftId,...await inspectDraftCopy(row.source.mailbox,op.messageId,Buffer.from(op.raw,'base64'))};
+}
 /** Explicit one-way sync; no background ingestion, no external overwrite, no send. */
 export async function syncEditorialDraft(identity:McpIdentity,raw:unknown){
   assertMailOwner(identity,'apropos:draft');const input=draftSyncInput.parse(raw),ref=draftRef(input.draftId);

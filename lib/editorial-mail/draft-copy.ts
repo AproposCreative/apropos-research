@@ -1,9 +1,29 @@
 import MailComposer from 'nodemailer/lib/mail-composer';
 import {type ImapFlow} from 'imapflow';
+import {simpleParser} from 'mailparser';
 import {type MailboxId} from '@/lib/accreditation/imap/config';
 import {findExactMessage,mimeHash,resolveMailFolder,withImap} from './imap';
 import {mailboxAddress,mailboxName} from './mailbox';
 export type DraftCopy = {folder:string;uid:number;uidValidity:string;sha256:string;messageId:string;revision:number;checkedAt:string};
+/** Bounded owner diagnostics, no raw MIME/body/addresses or write operations. */
+export async function inspectDraftCopy(mailbox:MailboxId,messageId:string,expected:Buffer){
+  return withImap(mailbox,async client=>{
+    const folder=resolveMailFolder(mailbox,'drafts',await client.list());
+    const parsedExpected=await simpleParser(expected,{skipHtmlToText:true,skipTextToHtml:true});
+    const shape=(raw:Buffer)=>({bytes:raw.length,crlf:(raw.toString().match(/\r\n/g)||[]).length,bareLf:(raw.toString().match(/(?<!\r)\n/g)||[]).length,endingHex:raw.subarray(-8).toString('hex')});
+    const matches=[];
+    for(const item of await findExactMessage(client,folder,messageId)){
+      const parsed=await simpleParser(item.raw,{skipHtmlToText:true,skipTextToHtml:true});
+      let firstDifference=0;while(firstDifference<expected.length&&firstDifference<item.raw.length&&expected[firstDifference]===item.raw[firstDifference])firstDifference++;
+      const keys=new Set([...parsedExpected.headers.keys(),...parsed.headers.keys()]);
+      matches.push({uid:item.uid,uidValidity:item.uidValidity,sha256:item.sha256,shape:shape(item.raw),firstDifference,
+        textMatches:parsed.text===parsedExpected.text,htmlMatches:parsed.html===parsedExpected.html,
+        changedHeaders:[...keys].filter(key=>JSON.stringify(parsed.headers.get(key))!==JSON.stringify(parsedExpected.headers.get(key))),
+        exactBytes:item.raw.equals(expected)});
+    }
+    return {folder,expectedSha256:mimeHash(expected),expectedShape:shape(expected),matches,uidPlus:client.capabilities.has('UIDPLUS'),checkedAt:new Date().toISOString(),writes:false};
+  });
+}
 export async function composeDraft(input:{id:string;revision:number;mailbox:MailboxId;to:string;cc:string[];bcc:string[];subject:string;body:string;html?:string;date:string;inReplyTo:string;references:string[]}) {
   const messageId=`<apropos-draft-${input.id}@aproposmagazine.com>`;
   // A private Drafts copy carries BCC so a human can continue in Apple Mail.
