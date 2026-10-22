@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { getAdminDb } from '@/lib/firebase-admin';
 import { cmsFieldHash as hash } from '@/lib/liv/cms-field-hash';
 import { digest, opaque, type McpIdentity } from '@/lib/mcp/oauth';
+import { MCP_ORIGIN } from '@/lib/mcp/config';
 import { getLivInboxSettings } from '@/lib/liv-inbox/settings-store';
 import { searchMailbox, readMailboxMessage, readMailboxThread, mailboxAddress, mailboxName, mailboxId, type MailMessage } from './mailbox';
 import { smtpConfig, sendApprovedReply, verifyReplyTransport, assertReplyRecipient } from './transport';
@@ -64,10 +65,11 @@ function validateReply(row: Reply | undefined, uid: string): Reply {
 }
 function projectReply(row: Reply) {
   return { draftId: row.id, revision: row.revision, contentHash: row.contentHash, status: row.status,
+    reviewUrl: `${MCP_ORIGIN}/connect/chatgpt?mail=${row.id}`,
     mailbox: row.source.mailbox, from: row.from, fromName: mailboxName(row.source.mailbox), to: row.to, cc: row.cc || [], bcc: row.bcc || [], attachments: [],
     subject: row.subject, body: row.body, bodyText: row.bodyText || row.body, html: row.html || null, signature: row.signature || null,
     approvedAt: row.approvedAt || null, source: row.source, receipt: row.receipt || null, draftCopy:row.draftCopy||null,draftSync:row.draftSync||null,draftCleanup:row.draftCleanup||null,
-    updatedAt: row.updatedAt, paidAiCalls: 0, automaticRetryAllowed: false, instruction: rules };
+    updatedAt: row.updatedAt, paidAiCalls: 0, automaticRetryAllowed: false, instruction: rules + ' Hvis det indlejrede preview ikke vises, giv brugeren reviewUrl som klikbart privat reviewlink. Linket kræver ejerlogin og sender aldrig ved åbning. Agenten må ikke betjene Godkend og send.' };
 }
 export async function getEditorialReply(identity: McpIdentity, raw: unknown) {
   assertMailOwner(identity); const { draftId } = replyIdInput.parse(raw);

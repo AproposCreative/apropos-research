@@ -9,9 +9,10 @@ import ConnectionSetup from './setup';
 import ShorteningConfirmation from './shortening';
 import SubmissionConfirmation from './submission';
 import ReviewQueue from './review-queue';
+import MailReview from './mail';
 
 const button = 'min-h-12 rounded-xl border border-white/20 px-5 py-3 text-white hover:bg-white/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white disabled:opacity-40';
-export default function ChatGPTConnection({ requestId, publicationId, shorteningId = '', submissionId = '', review = false, reviewSource = '', reviewId = '' }: { requestId: string; publicationId: string; shorteningId?: string; submissionId?: string; review?: boolean; reviewSource?: string; reviewId?: string }) {
+export default function ChatGPTConnection({ requestId, publicationId, shorteningId = '', submissionId = '', review = false, reviewSource = '', reviewId = '', mailId = '' }: { requestId: string; publicationId: string; shorteningId?: string; submissionId?: string; review?: boolean; reviewSource?: string; reviewId?: string; mailId?: string }) {
   const { user, loading, capabilities, accessError, signIn, signInWithGoogle } = useAuth();
   const [error, setError] = useState(''), [busy, setBusy] = useState(false), [done, setDone] = useState('');
   const [context, setContext] = useState<Record<string, any> | null>(null);
@@ -48,12 +49,12 @@ export default function ChatGPTConnection({ requestId, publicationId, shortening
   return <main className="min-h-dvh bg-[#000] px-4 py-5 text-white sm:p-8">
     <section className={`mx-auto overflow-hidden ${submissionId || review ? 'max-w-4xl bg-black' : 'max-w-2xl rounded-2xl border border-white/15 bg-[#080808]'}`}>
       <header className="flex items-center justify-between border-b border-white/15 px-5 py-4">
-        <h1 className="text-xl font-medium">{submissionId || review ? 'Apropos · Redaktionelt preview' : publicationId ? 'Bekræft udgivelse' : shorteningId ? 'Godkend forkortelse' : 'Apropos i ChatGPT'}</h1>
+        <h1 className="text-xl font-medium">{mailId ? 'Apropos · Privat mailpreview' : submissionId || review ? 'Apropos · Redaktionelt preview' : publicationId ? 'Bekræft udgivelse' : shorteningId ? 'Godkend forkortelse' : 'Apropos i ChatGPT'}</h1>
         <Link href="/ai" className={`${button} !p-3`} aria-label="Tilbage til Apropos"><X size={22} /></Link>
       </header>
       <div className={`space-y-6 ${submissionId || review ? 'px-1 py-6 sm:px-5' : 'p-5 sm:p-7'}`}>
         {loading ? <p role="status">Kontrollerer din adgang …</p> : !user ? <ConnectionLogin signIn={signIn} signInWithGoogle={signInWithGoogle} accessError={accessError} />
-        : !capabilities.owner && (publicationId || shorteningId) ? <p>Denne ældre redaktionelle handling kræver ejeradgang. Du kan klargøre og udgive dine egne artikler fra chatten.</p> : done ? <p role="status">{done}</p> : publicationId ? <>
+        : mailId ? <MailReview key={mailId} draftId={mailId} /> : !capabilities.owner && (publicationId || shorteningId) ? <p>Denne ældre redaktionelle handling kræver ejeradgang. Du kan klargøre og udgive dine egne artikler fra chatten.</p> : done ? <p role="status">{done}</p> : publicationId ? <>
           {!context ? <p>Henter preview …</p> : <>
             <h2 className="text-2xl">{context.title}</h2>
             {current?.expected?.subtitle && <p className="text-white/80">{current.expected.subtitle}</p>}

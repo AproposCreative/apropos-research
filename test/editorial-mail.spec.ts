@@ -28,6 +28,8 @@ it('search/read and previews never send; source identity fixes sender and recipi
   expect(p.data.from).toBe('frederik@aproposmagazine.com'); expect(p.data.to).toBe(source.replyTo); expect(p.data.subject).toBe('Re: Pressehenvendelse');
   expect(p.data.bodyText).toBe(input.body); expect(p.data.body).toContain('Frederik Emil Kragh'); expect(p.data.cc).toEqual([]); expect(p.data.attachments).toEqual([]);
   expect(p.confirmation!.token).toHaveLength(43); expect(JSON.stringify(p.data)).not.toContain(p.confirmation!.token); expect(mock.send).not.toHaveBeenCalled();
+  expect(p.data.reviewUrl).toBe(`https://ai.aproposmagazine.com/connect/chatgpt?mail=${p.data.draftId}`);
+  expect(p.data.reviewUrl).not.toContain(p.confirmation!.token);
 });
 it('owner-only even if a colleague is admin and has all scopes', async () => {
   const colleague = { ...owner, uid: 'colleague', owner: false };
