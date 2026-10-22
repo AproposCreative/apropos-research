@@ -47,7 +47,7 @@ async function preview() { const d = await draft(); return previewAccreditationD
 const approve = (p: Awaited<ReturnType<typeof preview>>) => confirmAccreditationDraft(owner, { token: p.confirmation!.token, displayedHash: p.data.contentHash });
 
 it('requires owner-specific ticket and relationship context before an accreditation draft', () => {
-  expect(ACCREDITATION_WORKFLOW).toContain('afklar med ejeren det samlede billetantal');
+  expect(ACCREDITATION_WORKFLOW).toContain('Før save_accreditation_request og før første udkast: afklar med ejeren det samlede billetantal');
   expect(ACCREDITATION_WORKFLOW).toContain('Antag aldrig én billet');
   expect(ACCREDITATION_WORKFLOW).toContain('vores redaktør');
   expect(ACCREDITATION_WORKFLOW).toContain('Påstå aldrig tidligere dialog om den aktuelle koncert');

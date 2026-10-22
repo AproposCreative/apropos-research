@@ -44,7 +44,7 @@ og ejerknappen Koncertakkreditering i redaktionskortet guider samme chat.
 
 ### Rettelse efter ejerens Kneecap-gennemgang, 22. oktober
 
-Før første udkast skal chatten afklare antal billetter og formålet med hver billet;
+Før sagslagring og første udkast skal chatten afklare antal billetter og formålet med hver billet;
 den må ikke vælge én pressebillet som standard. I den aktuelle sag er ønsket to
 billetter: én til redaktøren, der vil anmelde, og én til en ledsager uden endnu
 oplyst navn. Ekstern omtale skal være »vores redaktør«, ikke ejerens fulde navn,
