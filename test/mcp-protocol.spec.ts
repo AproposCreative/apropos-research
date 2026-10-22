@@ -57,6 +57,10 @@ it('exposes accreditation workflow with private UI-only send and owner-only tool
   const tools = (await (await POST(message('tools/list'))).json()).result.tools;
   const names = tools.filter((t: any) => /^(get|search|list|save|link|set|sync|preview|confirm)_accreditation_/.test(t.name));
   expect(names).toHaveLength(12);
+  const research = tools.find((t: any) => t.name === 'research_accreditation_event');
+  expect(research.annotations.readOnlyHint).toBe(true);
+  expect(research._meta.securitySchemes).toEqual([{ type: 'oauth2', scopes: ['apropos:read'] }]);
+  expect(research.inputSchema.required).toContain('sourceEventUrl');
   expect(names.find((t: any) => t.name === 'confirm_accreditation_draft')._meta.ui.visibility).toEqual(['app']);
   expect(names.find((t: any) => t.name === 'confirm_accreditation_draft')._meta['openai/visibility']).toBe('private');
   accreditation.preview.mockResolvedValue({ data: { approvalId: 'fixture', body: 'Exact application' }, confirmation: { token: 'PRIVATE-UI-ONLY' } });
@@ -203,7 +207,7 @@ it('negotiates the real SDK protocol and lists strict schemas on independent sta
   expect(social.properties.square.maxLength).toBe(90);
   expect(social.properties.story.maxLength).toBe(130);
   expect(tools.find((t: any) => t.name === 'update_submission').inputSchema.properties.article.properties.socialSubtitles).toBeDefined();
-  expect(tools.length).toBe(86); expect(tools.find((t: any) => t.name === 'publish_article').annotations.destructiveHint).toBe(true);
+  expect(tools.length).toBe(87); expect(tools.find((t: any) => t.name === 'publish_article').annotations.destructiveHint).toBe(true);
   expect(tools.find((t: any) => t.name === 'resume_submission_cms').inputSchema.required).toContain('expectedCmsHash');
   expect(tools.find((t: any) => t.name === 'import_submission_press_image').inputSchema.required).toContain('candidateId');
   expect(tools.find((t: any) => t.name === 'preview_submission_press_image').annotations.readOnlyHint).toBe(true);
