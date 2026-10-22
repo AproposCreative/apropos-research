@@ -42,6 +42,23 @@ og ejerknappen Koncertakkreditering i redaktionskortet guider samme chat.
 5. Svaret kan knyttes til samme sag; opfølgning, svar og videresendelse har hver
    sit konkrete personlige preview. Ingen automatisk udfaldsafgørelse fra mailtekst.
 
+### Rettelse efter ejerens Kneecap-gennemgang, 22. oktober
+
+Før første udkast skal chatten afklare antal billetter og formålet med hver billet;
+den må ikke vælge én pressebillet som standard. I den aktuelle sag er ønsket to
+billetter: én til redaktøren, der vil anmelde, og én til en ledsager uden endnu
+oplyst navn. Ekstern omtale skal være »vores redaktør«, ikke ejerens fulde navn,
+medmindre han særskilt vælger navnebrug eller arrangøren kræver et navn til
+udstedelse. Spørg før sådan navnebrug.
+
+En tidligere kontakt må kun beskrives med den korrekte begivenhed og dato.
+Michelle hos DTD svarede om The Brian Jonestown Massacre i 2025 og inviterede
+til kontakt om kommende shows; det var ikke en dialog om Kneecap, et tilsagn
+eller bevis for hendes nuværende rolle. Ejeren har valgt »Hej Michelle« til
+DTD's officielt angivne fælles presseadresse, mens usikkerheden bevares i sagen.
+En test til ejerens Gmail er en særskilt mail, ikke første afsendelse i den
+rigtige koncertsag. Den kræver fortsat personligt Godkend og send.
+
 ## Sikkerhed og bevaring
 
 - Verificeret owner-identitet, ikke blot adminrolle, gælder alle nye MCP-tools.

@@ -54,6 +54,9 @@ const message = (method: string, params?: unknown) => new Request(`${MCP_ORIGIN}
   headers: { 'Content-Type': 'application/json', Accept: 'application/json, text/event-stream' }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, ...(params ? { params } : {}) }) });
 const call = (name: string, args = {}) => POST(message('tools/call', { name, arguments: args }));
 it('exposes accreditation workflow with private UI-only send and owner-only tools', async () => {
+  const workflow = JSON.parse((await (await call('get_workflow', { workflow: 'accreditation' })).json()).result.content[0].text);
+  expect(workflow.instructions).toContain('afklar med ejeren det samlede billetantal');
+  expect(workflow.instructions).toContain('Påstå aldrig tidligere dialog om den aktuelle koncert');
   const tools = (await (await POST(message('tools/list'))).json()).result.tools;
   const names = tools.filter((t: any) => /^(get|search|list|save|link|set|sync|preview|confirm)_accreditation_/.test(t.name));
   expect(names).toHaveLength(12);

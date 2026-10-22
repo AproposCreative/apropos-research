@@ -18,6 +18,7 @@ import { saveAccreditationDraft, getAccreditationDraft, previewAccreditationDraf
 import { assertPersonalAccreditationSend } from '@/lib/accreditation/mcp-send-guard';
 import { canAutoSend, assertSendAllowed } from '@/lib/accreditation/policy';
 import { accreditationMailHtml } from '@/lib/accreditation/mcp-mail-content';
+import { ACCREDITATION_WORKFLOW } from '@/lib/accreditation/mcp-contract';
 import { cmsFieldHash as hash } from '@/lib/liv/cms-field-hash';
 import { digest, type McpIdentity } from '@/lib/mcp/oauth';
 const owner: McpIdentity = { uid: 'owner', owner: true, role: 'admin', grantId: 'grant', scopes: ['apropos:read', 'apropos:draft', 'apropos:publish'] };
@@ -44,6 +45,14 @@ async function draft() { const r = await savedCase(); return saveAccreditationDr
   operationId: 'draft-fixture-001', kind: 'first_outbound', subject: 'Presseakkreditering', text: 'Hej. Kan vi få én presseadgang?\n\nLiv Brandt' }); }
 async function preview() { const d = await draft(); return previewAccreditationDraft(owner, { approvalId: d.approvalId }); }
 const approve = (p: Awaited<ReturnType<typeof preview>>) => confirmAccreditationDraft(owner, { token: p.confirmation!.token, displayedHash: p.data.contentHash });
+
+it('requires owner-specific ticket and relationship context before an accreditation draft', () => {
+  expect(ACCREDITATION_WORKFLOW).toContain('afklar med ejeren det samlede billetantal');
+  expect(ACCREDITATION_WORKFLOW).toContain('Antag aldrig én billet');
+  expect(ACCREDITATION_WORKFLOW).toContain('vores redaktør');
+  expect(ACCREDITATION_WORKFLOW).toContain('Påstå aldrig tidligere dialog om den aktuelle koncert');
+  expect(ACCREDITATION_WORKFLOW).toContain('en test må ikke gøre den rigtige sags første ansøgning til "sendt"');
+});
 
 it('uses existing case IDs/stores, deduplicates replay/event, preserves evidence and rejects counter collision', async () => {
   const r = await savedCase(); expect(r.id).toBe('LIV-001'); expect(r.mcp?.evidence).toEqual([evidence]);
