@@ -9,6 +9,7 @@ vi.mock('@/lib/liv-inbox/settings-store', () => ({ getLivInboxSettings: async ()
 import { readEditorialMail, searchEditorialMail, saveEditorialReply, getEditorialReply, previewEditorialReply, confirmEditorialReply,composeEditorialMail,syncEditorialDraft } from '@/lib/editorial-mail/service';
 import { type McpIdentity, digest } from '@/lib/mcp/oauth';
 import type { MailMessage } from '@/lib/editorial-mail/mailbox';
+import {mimeHash,canonicalMailMime} from '@/lib/editorial-mail/imap';
 const owner: McpIdentity = { uid: 'owner', owner: true, role: 'admin', grantId: 'grant', scopes: ['apropos:read', 'apropos:draft', 'apropos:publish'] };
 const source: MailMessage = { id: 'a'.repeat(64), sourceHash: 'b'.repeat(64), mailbox: 'frederik', folder: 'inbox', uid: 15, uidValidity: '122',
   from: 'press@example.test', fromName: 'Press', replyTo: 'press@example.test', replyToDiffers: false, to: ['frederik@aproposmagazine.com'], cc: [],
@@ -115,4 +116,14 @@ it('external draft conflict blocks personal send without consuming it; uncertain
  await expect(syncEditorialDraft(owner,args)).rejects.toThrow('sync_unconfirmed');expect((await previewEditorialReply(owner,{draftId:d.draftId})).confirmation).toBeNull();
  await syncEditorialDraft(owner,args);expect(mock.writeDraft.mock.calls[1][5]).toBe(false);
  const p=await previewEditorialReply(owner,{draftId:d.draftId});mock.checkDraft.mockRejectedValue(Error('mcp_mail_draft_conflict'));await expect(approve(p)).rejects.toThrow('draft_conflict');expect(mock.send).not.toHaveBeenCalled();
+});
+it('recovers historical LF draft by exact canonical bytes without APPEND or rewriting original evidence',async()=>{
+ const d=await draft(),path=`editorialMailReplies/${d.draftId}/draftExports/1`;
+ const original=Buffer.from('Message-ID: <old@example.test>\r\n\r\nOriginal\nText\r\n');
+ const operation={raw:original.toString('base64'),messageId:'<old@example.test>',sha256:mimeHash(original),previous:null,createdAt:new Date().toISOString(),contentHash:d.contentHash};
+ memory.rows.set(path,operation);
+ mock.writeDraft.mockImplementation(async(_:string,raw:Buffer,messageId:string,revision:number)=>({folder:'Drafts',uid:348,uidValidity:'44',sha256:mimeHash(raw),messageId,revision,checkedAt:new Date().toISOString()}));
+ await syncEditorialDraft(owner,{draftId:d.draftId,expectedRevision:1,expectedHash:d.contentHash});
+ expect(mock.writeDraft.mock.calls[0][1]).toEqual(canonicalMailMime(original));expect(mock.writeDraft.mock.calls[0][5]).toBe(false);
+ expect(memory.rows.get(path)).toMatchObject({...operation,readback:{sourceSha256:mimeHash(original),storedSha256:mimeHash(canonicalMailMime(original)),lineEndingsNormalized:true,uid:348}});expect(mock.send).not.toHaveBeenCalled();
 });

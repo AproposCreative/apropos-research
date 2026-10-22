@@ -5,6 +5,12 @@ import { getMailboxSecrets, type MailboxId } from '@/lib/accreditation/imap/conf
 import { findSentMailboxPath } from '@/lib/accreditation/imap/sent-copy';
 
 export const mimeHash = (raw: Buffer) => createHash('sha256').update(raw).digest('hex');
+/** RFC mail CRLF framing. Byte-preserving except inserting CR before bare LF. */
+export function canonicalMailMime(raw:Buffer){
+  const bytes:number[]=[];
+  for(let i=0;i<raw.length;i++){if(raw[i]===10&&(i===0||raw[i-1]!==13))bytes.push(13);bytes.push(raw[i]);}
+  return Buffer.from(bytes);
+}
 export type FolderKind = 'sent' | 'drafts';
 type Folder = Pick<ListResponse, 'path' | 'name' | 'specialUse'>;
 // Frederik supplied his Apple Mail mapping on 22 October. Never apply it to Liv.
@@ -41,11 +47,14 @@ export async function findExactMessage(client: ImapFlow, folder: string, message
   const lock = await client.getMailboxLock(folder, { readOnly: true });
   try {
     const uids = await client.search({ header: { 'message-id': messageId }, deleted: false }, { uid: true });
+    // ImapFlow returns false on command failure. It MUST NOT mean an empty folder.
+    if(uids===false)throw Error('mcp_mail_search_unconfirmed');
     if ((uids || []).length > 10) throw Error('mcp_mail_duplicate_message_id');
     const result: StoredMessage[] = [];
     for (const uid of uids || []) {
       const head = await client.fetchOne(uid, { envelope: true, size: true }, { uid: true });
-      if (!head || head.envelope?.messageId !== messageId) continue;
+      if (!head) throw Error('mcp_mail_readback_failed');
+      if (head.envelope?.messageId !== messageId) continue;
       if (!head.size || head.size > 250000) throw Error('mcp_mail_message_too_large');
       const fetched = await client.fetchOne(uid, { source: { maxLength: 250001 } }, { uid: true });
       if (!fetched || !fetched.source || fetched.source.length > 250000) throw Error('mcp_mail_readback_failed');

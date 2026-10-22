@@ -5,7 +5,7 @@ import { digest, opaque, type McpIdentity } from '@/lib/mcp/oauth';
 import { getLivInboxSettings } from '@/lib/liv-inbox/settings-store';
 import { searchMailbox, readMailboxMessage, readMailboxThread, mailboxAddress, mailboxName, mailboxId, type MailMessage } from './mailbox';
 import { smtpConfig, sendApprovedReply, verifyReplyTransport, assertReplyRecipient } from './transport';
-import { inspectSentMessage, copyExistingSentMessage,archiveExactMessage,mimeHash } from './imap';
+import { inspectSentMessage, copyExistingSentMessage,archiveExactMessage,mimeHash,canonicalMailMime } from './imap';
 import { currentSignature, applySignature, type Signature } from './signature';
 import {composeDraft,writeDraftCopy,checkDraftCopy,cleanupSentDraft,inspectDraftCopy,type DraftCopy} from './draft-copy';
 
@@ -241,7 +241,13 @@ export async function syncEditorialDraft(identity:McpIdentity,raw:unknown){
   });
   try{
     if(claim.operation.contentHash!==initial.contentHash||mimeHash(Buffer.from(claim.operation.raw,'base64'))!==claim.operation.sha256)throw Error('mcp_mail_draft_conflict');
-    const copy=await writeDraftCopy(initial.source.mailbox,Buffer.from(claim.operation.raw,'base64'),claim.operation.messageId,initial.revision,claim.operation.previous,claim.allowAppend);
+    // Old V45 operations may contain bare LF. Preserve original operation bytes;
+    // compare only against their exact CRLF-framed counterpart, not semantic text.
+    // Recovery still has APPEND disabled and must find the one existing copy.
+    const canonical=canonicalMailMime(Buffer.from(claim.operation.raw,'base64'));
+    const copy=await writeDraftCopy(initial.source.mailbox,canonical,claim.operation.messageId,initial.revision,claim.operation.previous,claim.allowAppend);
+    await op.set({readback:{uid:copy.uid,uidValidity:copy.uidValidity,folder:copy.folder,sourceSha256:claim.operation.sha256,storedSha256:copy.sha256,
+      lineEndingsNormalized:copy.sha256!==claim.operation.sha256,checkedAt:copy.checkedAt}},{merge:true});
     await ref.update({draftCopy:copy,draftSync:{status:'verified',revision:initial.revision,operationId:op.id},updatedAt:new Date().toISOString()});
   }catch(e){await ref.update({draftSync:{status:'unconfirmed',revision:initial.revision,operationId:op.id}});throw e;}
   return getEditorialReply(identity,{draftId:input.draftId});

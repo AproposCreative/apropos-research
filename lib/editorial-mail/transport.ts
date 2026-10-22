@@ -47,7 +47,7 @@ export async function sendApprovedReply(reply: OutgoingReply, onAccepted?: (rece
   const transport = nodemailer.createTransport(smtpConfig(reply.mailbox));
   const options = { from: { name: mailboxName(reply.mailbox), address: mailboxAddress(reply.mailbox) },
     to: reply.to, cc: reply.cc, replyTo: mailboxAddress(reply.mailbox), subject: reply.subject, text: reply.body, html: reply.html,
-    date: new Date(),
+    date: new Date(), newline: 'windows' as const,
     messageId: reply.messageId, ...(reply.inReplyTo ? { inReplyTo: reply.inReplyTo } : {}), references: reply.references,
     disableFileAccess: true, disableUrlAccess: true };
   try {

@@ -29,7 +29,7 @@ export async function composeDraft(input:{id:string;revision:number;mailbox:Mail
   // A private Drafts copy carries BCC so a human can continue in Apple Mail.
   // Outbound SMTP composition is separate and NEVER includes BCC headers.
   const compiled=new MailComposer({from:{name:mailboxName(input.mailbox),address:mailboxAddress(input.mailbox)},replyTo:mailboxAddress(input.mailbox),to:input.to,cc:input.cc,bcc:input.bcc,
-    subject:input.subject,text:input.body,html:input.html,date:new Date(input.date),messageId,inReplyTo:input.inReplyTo||undefined,references:input.references,
+    subject:input.subject,text:input.body,html:input.html,date:new Date(input.date),newline:'windows',messageId,inReplyTo:input.inReplyTo||undefined,references:input.references,
     disableFileAccess:true,disableUrlAccess:true}).compile();
   compiled.keepBcc=true;
   const raw=await compiled.build();

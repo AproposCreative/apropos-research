@@ -12,8 +12,8 @@ beforeEach(()=>{rows=new Map();lastUid=0;mock.client={on:vi.fn(),connect:vi.fn()
  fetchOne:vi.fn(async(uid:number,q:any)=>!rows.has(uid)?false:q.envelope?{size:rows.get(uid)!.length,envelope:{messageId:mid}}:{source:rows.get(uid)}),
  append:vi.fn(async(_:string,b:Buffer)=>{rows.set(++lastUid,b);return {uid:lastUid,uidValidity:44n};}),messageDelete:vi.fn(async(uid:number)=>rows.delete(uid))};});
 it('keeps private BCC in a draft and includes correct signature/header structure',async()=>{
- const d=await composeDraft({id:'a'.repeat(64),revision:1,mailbox:'frederik',to:'own@example.test',cc:[],bcc:['private@example.test'],subject:'Draft',body:'Text',html:'<p>Text</p>',date:'2026-10-22T07:00:00Z',inReplyTo:'<source@example.test>',references:[]});
- const p=await simpleParser(d.raw);expect(p.bcc&&!Array.isArray(p.bcc)&&p.bcc.value[0].address).toBe('private@example.test');expect(p.messageId).toBe(d.messageId);expect(p.text?.trim()).toBe('Text');
+ const d=await composeDraft({id:'a'.repeat(64),revision:1,mailbox:'frederik',to:'own@example.test',cc:[],bcc:['private@example.test'],subject:'Draft',body:'Text\nSecond line',html:'<p>Text</p>\n<p>Second line</p>',date:'2026-10-22T07:00:00Z',inReplyTo:'<source@example.test>',references:[]});
+ const p=await simpleParser(d.raw);expect(p.bcc&&!Array.isArray(p.bcc)&&p.bcc.value[0].address).toBe('private@example.test');expect(p.messageId).toBe(d.messageId);expect(p.text?.trim()).toBe('Text\nSecond line');expect(d.raw.toString()).not.toMatch(/(?<!\r)\n/);
 });
 it('writes a single version, updates only its verified predecessor and removes sent draft',async()=>{
  const a=await writeDraftCopy('frederik',raw,mid,1,null,true);expect(a).toMatchObject({folder:'INBOX.Drafts',uid:1,uidValidity:'44',sha256:mimeHash(raw),revision:1});

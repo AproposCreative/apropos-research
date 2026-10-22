@@ -13,6 +13,7 @@ it('escapes body, strips only exact trailing signatures, and keeps one signature
 });
 it('actual MIME has both bodies and correct headers without BCC leakage',async()=>{
  const content=applySignature('Hej,\n\nTak for din mail.',await currentSignature('frederik'));
- const raw=await new MailComposer({from:'frederik@aproposmagazine.com',replyTo:'frederik@aproposmagazine.com',to:'press@example.test',cc:['copy@example.test'],subject:'Re: Kontakt',messageId:'<final@aproposmagazine.com>',inReplyTo:'<source@example.test>',references:['<source@example.test>'],text:content.body,html:content.html,date:new Date('2026-10-22T07:00:00Z'),disableFileAccess:true,disableUrlAccess:true}).compile().build();
+ const raw=await new MailComposer({from:'frederik@aproposmagazine.com',replyTo:'frederik@aproposmagazine.com',to:'press@example.test',cc:['copy@example.test'],subject:'Re: Kontakt',messageId:'<final@aproposmagazine.com>',inReplyTo:'<source@example.test>',references:['<source@example.test>'],text:content.body,html:content.html,date:new Date('2026-10-22T07:00:00Z'),newline:'windows',disableFileAccess:true,disableUrlAccess:true}).compile().build();
+ expect(raw.toString()).not.toMatch(/(?<!\r)\n/);
  const parsed=await simpleParser(raw);expect(parsed.text?.trim()).toBe(content.body);expect(parsed.html).toContain(SIGNATURE_LOGO);expect(parsed.headers.has('bcc')).toBe(false);expect(parsed.replyTo?.value[0].address).toBe('frederik@aproposmagazine.com');expect(parsed.inReplyTo).toBe('<source@example.test>');expect(parsed.messageId).toBe('<final@aproposmagazine.com>');expect(parsed.date?.toISOString()).toBe('2026-10-22T07:00:00.000Z');
 });
