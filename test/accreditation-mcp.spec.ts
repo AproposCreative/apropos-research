@@ -31,6 +31,7 @@ const input = { expectedHash: null, operationId: 'case-fixture-001', fields: { a
   ticketType: 'presse', ticketQuantity: 1, accessRequested: 'Koncertadgang', contactEmail: 'press@example.test', deliveryRecipientEmail: 'frederik@aproposmagazine.com' }, evidence: [evidence] };
 let memory: ReturnType<typeof memoryFirestore>;
 beforeEach(() => { vi.clearAllMocks(); vi.unstubAllEnvs(); memory = memoryFirestore(); mock.db = memory.db;
+  mock.archiveExact.mockReset();mock.inspect.mockReset();mock.copy.mockReset();mock.readMime.mockReset();mock.smtp.mockReset();
   __setAccreditationPersistenceKindForTests('firestore'); __setMemoryBackendForTests('memory');
   for (const name of ['ACCREDITATION_TEST_REDIRECT_ENABLED', 'ACCREDITATION_DRY_RUN']) vi.stubEnv(name, 'false');
   for (const name of ['ACCREDITATION_OUTBOUND_ALLOWLIST', 'ACCREDITATION_OUTBOUND_TEST_RECIPIENT', 'ACCREDITATION_TEST_REDIRECT_TO', 'ACCREDITATION_INBOUND_DOMAIN']) vi.stubEnv(name, '');
@@ -141,11 +142,41 @@ it('reports missing original MIME for an old accepted mail and never invokes SMT
   const p=await preview();await approve(p);
   const row=memory.rows.get(`accreditationApprovals/${p.data.approvalId}`);
   row.mcp.receipt.sentCopyArchived=false;
+  row.mcp.receipt.acceptedAt=undefined;
   mock.inspect.mockResolvedValue({targetFolder:'Sent Messages',matches:[],checkedAt:new Date().toISOString()});
   await expect(repairAccreditationSent(owner,{approvalId:p.data.approvalId,expectedHash:p.data.contentHash}))
     .rejects.toThrow('mcp_accreditation_original_mime_missing');
   expect(mock.copy).not.toHaveBeenCalled();expect(mock.archiveExact).not.toHaveBeenCalled();
   expect(mock.smtp).not.toHaveBeenCalled();
+});
+it('reconstructs only the Sent copy of a legacy mail with complete approved fields',async()=>{
+  const p=await preview();await approve(p);
+  const row=memory.rows.get(`accreditationApprovals/${p.data.approvalId}`);
+  row.mcp.receipt.sentCopyArchived=false;
+  mock.inspect.mockResolvedValue({targetFolder:'INBOX.Sent Messages',matches:[],checkedAt:new Date().toISOString()});
+  mock.archiveExact.mockResolvedValueOnce({status:'verified',folder:'INBOX.Sent Messages',uid:7});
+  const result=await repairAccreditationSent(owner,{approvalId:p.data.approvalId,expectedHash:p.data.contentHash});
+  expect(result).toMatchObject({status:'verified',smtpCalled:false,archiveSource:'approved_draft_reconstruction',exactOriginalMime:false});
+  const archived=mock.archiveExact.mock.calls[0][1] as Buffer;
+  const parsed=await simpleParser(archived);
+  expect(parsed.messageId).toBe(row.mcp.receipt.messageId);
+  expect(parsed.subject).toBe(row.subject);
+  expect(parsed.text?.trim()).toBe(row.text.trim());
+  expect(Math.abs((parsed.date?.getTime() || 0)-Date.parse(row.mcp.receipt.acceptedAt))).toBeLessThan(1000);
+  expect(mock.smtp).not.toHaveBeenCalled();
+});
+it('retries archive only after a proven pre-APPEND failure and readback, never SMTP',async()=>{
+  const p=await preview();await approve(p);
+  const row=memory.rows.get(`accreditationApprovals/${p.data.approvalId}`);
+  row.mcp.receipt.sentCopyArchived=false;
+  mock.inspect.mockResolvedValue({targetFolder:'INBOX.Sent Messages',matches:[],checkedAt:new Date().toISOString()});
+  mock.archiveExact.mockResolvedValueOnce({status:'unconfirmed',error:'mcp_mail_folder_mapping_missing'})
+    .mockResolvedValueOnce({status:'verified',folder:'INBOX.Sent Messages',uid:8});
+  const first=await repairAccreditationSent(owner,{approvalId:p.data.approvalId,expectedHash:p.data.contentHash});
+  expect(first).toMatchObject({status:'unconfirmed',retryAllowed:true,smtpCalled:false});
+  const second=await repairAccreditationSent(owner,{approvalId:p.data.approvalId,expectedHash:p.data.contentHash});
+  expect(second).toMatchObject({status:'verified',smtpCalled:false});
+  expect(mock.archiveExact).toHaveBeenCalledTimes(2);expect(mock.smtp).not.toHaveBeenCalled();
 });
 it('keeps SMTP acceptance separate from failed archiving and repairs only from preserved bytes',async()=>{
   const original=await vi.importActual<typeof import('@/lib/accreditation/send-email')>('@/lib/accreditation/send-email');

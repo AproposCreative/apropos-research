@@ -175,7 +175,8 @@ export type ApprovalItem = {
     assets: AccessPackageAsset[]; attemptedAt?: string; attemptId?: string;
     receipt?: { acceptedByMailServer: boolean; recipientDeliveryVerified: false; messageId?: string; resendEmailId?: string;
       sentCopyArchived: boolean; acceptedAt: string; mimeSha256?: string; sentCopyError?: string | null;
-      sentFolderSync?: import('@/lib/editorial-mail/imap').SentFolderSync }; syncWarning?: string;
+      sentFolderSync?: import('@/lib/editorial-mail/imap').SentFolderSync;
+      archiveSource?: 'approved_draft_reconstruction' | 'existing_imap_copy' | 'preserved_exact_mime' }; syncWarning?: string;
   };
   id: string;
   requestId: string;
