@@ -15,7 +15,7 @@ import { getSmtpPublicConfig, getAccreditationMailTransport } from './mail-trans
 import { ensureRequestIdInSubject, sanitizeLivOutput } from './sanitize';
 import { draftHash } from './draft-template';
 import { accreditationMailHtml } from './mcp-mail-content';
-import { inspectSentMessage, copyExistingSentMessage, archiveExactMessage, mimeHash } from '@/lib/editorial-mail/imap';
+import { inspectSentMessage, copyExistingSentMessage, archiveExactMessage, canonicalMailMime, mimeHash } from '@/lib/editorial-mail/imap';
 import { preserveAccreditationMime, readAccreditationMime } from './sent-mime';
 import { applySignature, currentSignature } from '@/lib/editorial-mail/signature';
 import { detectEscalationHeuristics } from './policy';
@@ -92,8 +92,23 @@ export async function repairAccreditationSent(identity: McpIdentity, raw: unknow
   const before = await inspectSentMessage(expected);
   const target = before.matches.filter(m => m.folder === before.targetFolder);
   if (target.length === 1 && target[0].identityMatches) {
-    await markVerified(target[0], 'existing_imap_copy');
-    return { status: 'verified', copied: false, folder: before.targetFolder, smtpCalled: false };
+    const prior = (await requireFirestore().collection('accreditationMcpSentRepairs').doc(approvalId).get()).data();
+    const provenance = prior?.contentHash === expectedHash && prior?.messageId === expected.messageId &&
+      ['approved_draft_reconstruction', 'existing_imap_copy', 'preserved_exact_mime'].includes(prior?.archiveSource)
+      ? prior.archiveSource as 'approved_draft_reconstruction'|'existing_imap_copy'|'preserved_exact_mime'
+      : 'existing_imap_copy';
+    if (prior?.sourceSha256 && provenance !== 'existing_imap_copy') {
+      const recovery = (await approvalRef(approvalId).collection('reconstructedSentMime').doc(String(draft.revision)).get()).data();
+      const raw = recovery?.raw ? Buffer.from(recovery.raw, 'base64') : null;
+      if (provenance === 'approved_draft_reconstruction' && (!raw || mimeHash(raw) !== prior.sourceSha256 ||
+        mimeHash(canonicalMailMime(raw)) !== target[0].sha256)) throw Error('mcp_mail_sent_readback_mismatch');
+    }
+    await markVerified(target[0], provenance);
+    if (prior?.status === 'unconfirmed') await requireFirestore().collection('accreditationMcpSentRepairs').doc(approvalId)
+      .update({ status: 'verified', targetFolder: target[0].folder, targetUid: target[0].uid,
+        verifiedAt: new Date().toISOString(), error: null });
+    return { status: 'verified', copied: false, folder: before.targetFolder, smtpCalled: false,
+      archiveSource: provenance, exactOriginalMime: provenance !== 'approved_draft_reconstruction' };
   }
   if (target.length || before.matches.length > 1 || before.matches.some(m => !m.identityMatches))
     throw Error('mcp_accreditation_sent_source_ambiguous');
@@ -161,7 +176,8 @@ export async function repairAccreditationSent(identity: McpIdentity, raw: unknow
       throw Error('mcp_accreditation_sent_repair_conflict');
     // Another attempt may have completed despite a lost response. Only read back; never append again.
     const current = await inspectSentMessage(expected);
-    const matches = current.matches.filter(m => m.folder === current.targetFolder && m.identityMatches && m.sha256 === recoverySha256);
+    const canonicalRecoverySha256 = preserved ? mimeHash(canonicalMailMime(preserved)) : recoverySha256;
+    const matches = current.matches.filter(m => m.folder === current.targetFolder && m.identityMatches && m.sha256 === canonicalRecoverySha256);
     if (matches.length === 1) await markVerified(matches[0], prior.archiveSource || 'existing_imap_copy');
     if (!matches.length && prior.status === 'preappend_failed') {
       await db.runTransaction(async tx => {
@@ -188,7 +204,8 @@ export async function repairAccreditationSent(identity: McpIdentity, raw: unknow
       archiveSource: reconstructed ? 'approved_draft_reconstruction' : source ? 'existing_imap_copy' : 'preserved_exact_mime', exactOriginalMime: !reconstructed };
   } catch (error) {
     const current = await inspectSentMessage(expected).catch(() => null);
-    const matches = current?.matches.filter(m => m.folder === current.targetFolder && m.identityMatches && m.sha256 === recoverySha256) || [];
+    const canonicalRecoverySha256 = preserved ? mimeHash(canonicalMailMime(preserved)) : recoverySha256;
+    const matches = current?.matches.filter(m => m.folder === current.targetFolder && m.identityMatches && m.sha256 === canonicalRecoverySha256) || [];
     if (matches.length === 1) {
       await claimRef.update({ status: 'verified', targetFolder: current!.targetFolder, verifiedAt: new Date().toISOString() });
       await markVerified(matches[0], reconstructed ? 'approved_draft_reconstruction' : source ? 'existing_imap_copy' : 'preserved_exact_mime');

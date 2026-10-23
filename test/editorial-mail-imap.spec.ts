@@ -24,6 +24,15 @@ it('archives exact bytes, requires readback and records APPEND receipt',async()=
  await archiveExactMessage('frederik',raw,mid);expect(mock.client.append).toHaveBeenCalledTimes(1);
  expect(mock.client.getMailboxLock).toHaveBeenCalledWith('Sent Messages',{readOnly:true});
 });
+it('accepts One.com CRLF normalization and never appends the same Message-ID twice',async()=>{
+ const withBareLf=Buffer.from(raw.toString('utf8').replace(/\r\n/g,'\n'));
+ mock.client.append.mockImplementation(async(path:string,bytes:Buffer)=>{items[path].push(canonicalMailMime(bytes));return {uid:items[path].length,uidValidity:42n};});
+ const first=await archiveExactMessage('frederik',withBareLf,mid);
+ expect(first).toMatchObject({status:'verified',folder:'Sent Messages',sha256:mimeHash(raw)});
+ const second=await archiveExactMessage('frederik',withBareLf,mid);
+ expect(second.status).toBe('verified');expect(items['Sent Messages']).toHaveLength(1);
+ expect(mock.client.append).toHaveBeenCalledOnce();
+});
 it('lost APPEND acknowledgment is reconciled without second append',async()=>{
  mock.client.append.mockImplementation(async(path:string,bytes:Buffer)=>{items[path].push(bytes);throw Error('timeout');});
  expect((await archiveExactMessage('frederik',raw,mid)).status).toBe('verified');expect(mock.client.append).toHaveBeenCalledOnce();

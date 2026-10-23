@@ -77,7 +77,9 @@ export async function archiveExactMessage(mailbox: MailboxId, raw: Buffer, messa
   const base = { checkedAt: new Date().toISOString(), folder: null, appleMailMapping: 'owner_confirmed' as const, deviceVisibilityVerified: false as const };
   try {
     return await withImap(mailbox, async client => {
-      const folder = resolveMailFolder(mailbox, 'sent', await client.list()), expected = mimeHash(raw);
+      // One.com normalizes bare LF to CRLF during APPEND. Compare the canonical
+      // RFC mail bytes, while keeping the original SMTP MIME unchanged.
+      const folder = resolveMailFolder(mailbox, 'sent', await client.list()), expected = mimeHash(canonicalMailMime(raw));
       let found = await findExactMessage(client, folder, messageId);
       let appendReceipt: SentFolderSync['appendReceipt'];
       let appendError: string | undefined;
@@ -141,7 +143,7 @@ export async function copyExistingSentMessage(expected: ExpectedSent, source: { 
       ack = await client.append(folder, original.raw, ['\\Seen'], originalDate || new Date());
     } catch { /* readback */ }
     const found = await findExactMessage(client, folder, expected.messageId);
-    if (found.length !== 1 || found[0].sha256 !== original.sha256) throw Error('mcp_mail_sent_readback_mismatch');
+    if (found.length !== 1 || found[0].sha256 !== mimeHash(canonicalMailMime(original.raw))) throw Error('mcp_mail_sent_readback_mismatch');
     return { folder, uid: found[0].uid, uidValidity: found[0].uidValidity, sha256: found[0].sha256, copied: true,
       appendReceipt: ack ? { uid: ack.uid || null, uidValidity: ack.uidValidity ? String(ack.uidValidity) : null } : null };
   });

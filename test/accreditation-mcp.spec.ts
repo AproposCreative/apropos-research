@@ -1,6 +1,7 @@
 import { beforeEach, expect, it, vi } from 'vitest';
 import { createHash } from 'node:crypto';
 import { simpleParser } from 'mailparser';
+import { canonicalMailMime, mimeHash } from '@/lib/editorial-mail/imap';
 import { memoryFirestore } from './helpers/mcp-firestore';
 const mock = vi.hoisted(() => ({ db: null as any, send: vi.fn(), smtp:vi.fn(), contacts: vi.fn(), archive: vi.fn(), workflow: vi.fn(), additional: vi.fn(), overview: vi.fn(), sync: vi.fn(), bytes: vi.fn(), inspect:vi.fn(), copy:vi.fn(), archiveExact:vi.fn(), readMime:vi.fn() }));
 vi.mock('nodemailer',()=>({default:{createTransport:()=>({sendMail:mock.smtp,close:()=>{}})}}));
@@ -164,6 +165,25 @@ it('reconstructs only the Sent copy of a legacy mail with complete approved fiel
   expect(parsed.text?.trim()).toBe(row.text.trim());
   expect(Math.abs((parsed.date?.getTime() || 0)-Date.parse(row.mcp.receipt.acceptedAt))).toBeLessThan(1000);
   expect(mock.smtp).not.toHaveBeenCalled();
+});
+it('reconciles a normalized legacy copy after uncertain APPEND without resending or duplicating it',async()=>{
+  const p=await preview();await approve(p);
+  const row=memory.rows.get(`accreditationApprovals/${p.data.approvalId}`);
+  row.mcp.receipt.sentCopyArchived=false;
+  mock.inspect.mockResolvedValue({targetFolder:'INBOX.Sent Messages',matches:[],checkedAt:new Date().toISOString()});
+  mock.archiveExact.mockResolvedValueOnce({status:'unconfirmed',folder:'INBOX.Sent Messages',error:'mcp_mail_sent_readback_mismatch'});
+  const first=await repairAccreditationSent(owner,{approvalId:p.data.approvalId,expectedHash:p.data.contentHash});
+  expect(first).toMatchObject({status:'unconfirmed',smtpCalled:false,retryAllowed:false});
+  const reconstructed=memory.rows.get(`accreditationApprovals/${p.data.approvalId}/reconstructedSentMime/1`);
+  const canonicalHash=mimeHash(canonicalMailMime(Buffer.from(reconstructed.raw,'base64')));
+  mock.inspect.mockResolvedValue({targetFolder:'INBOX.Sent Messages',matches:[{folder:'INBOX.Sent Messages',uid:5,
+    uidValidity:'42',sha256:canonicalHash,identityMatches:true}],checkedAt:new Date().toISOString()});
+  const second=await repairAccreditationSent(owner,{approvalId:p.data.approvalId,expectedHash:p.data.contentHash});
+  expect(second).toMatchObject({status:'verified',copied:false,smtpCalled:false,
+    archiveSource:'approved_draft_reconstruction',exactOriginalMime:false});
+  expect(mock.archiveExact).toHaveBeenCalledOnce();expect(mock.smtp).not.toHaveBeenCalled();
+  expect(memory.rows.get(`accreditationApprovals/${p.data.approvalId}`))
+    .toMatchObject({'mcp.receipt.sentCopyArchived':true,'mcp.receipt.archiveSource':'approved_draft_reconstruction'});
 });
 it('retries archive only after a proven pre-APPEND failure and readback, never SMTP',async()=>{
   const p=await preview();await approve(p);
