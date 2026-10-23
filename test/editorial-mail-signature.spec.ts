@@ -1,11 +1,17 @@
 import {expect,it,vi} from 'vitest';
 import MailComposer from 'nodemailer/lib/mail-composer';
 import {simpleParser} from 'mailparser';
-vi.mock('@/lib/liv-inbox/settings-store',()=>({getLivInboxSettings:async()=>({signature:'Liv Brandt\nApropos Magazine'})}));
-import {currentSignature,applySignature,FREDERIK_SIGNATURE,SIGNATURE_LOGO} from '@/lib/editorial-mail/signature';
+vi.mock('@/lib/liv-inbox/settings-store',async importOriginal=>{
+ const actual=await importOriginal<typeof import('@/lib/liv-inbox/settings-store')>();
+ return {...actual,getLivInboxSettings:async()=>({signature:actual.LIV_HOUSE_SIGNATURE})};
+});
+import {currentSignature,applySignature,FREDERIK_SIGNATURE,SIGNATURE_LOGO,LIV_SIGNATURE_LOGO} from '@/lib/editorial-mail/signature';
+import {LIV_HOUSE_SIGNATURE,LEGACY_SHORT_LIV_SIGNATURE,LEGACY_LONG_LIV_SIGNATURE} from '@/lib/liv-inbox/settings-store';
 it('uses the original logo, official details and accessible links; account-specific signatures',async()=>{
  const s=await currentSignature('frederik');expect(s.text).toBe(FREDERIK_SIGNATURE);expect(s.html).toContain(SIGNATURE_LOGO);expect(s.html).toContain('tel:+4531103117');expect(s.html).toContain('https://aproposmagazine.com');expect(s.html).toContain('max-width:100%');
- expect((await currentSignature('liv')).text).toBe('Liv Brandt\nApropos Magazine');
+ expect(s.text).toContain('Frederik Kragh');expect(s.html).not.toContain('Frederik Emil Kragh');
+ const liv=await currentSignature('liv');expect(liv.text).toBe(LIV_HOUSE_SIGNATURE);expect(liv.html).toContain(LIV_SIGNATURE_LOGO);expect(liv.html).toContain('Skribent og kulturjournalist');
+ expect(liv.html).toContain('font-family:Arial,Helvetica,sans-serif');expect(liv.html).not.toContain('Georgia');
 });
 it('keeps body and both signatures on the mail client canvas in light and dark mode',async()=>{
  for(const mailbox of ['frederik','liv'] as const){
@@ -13,12 +19,23 @@ it('keeps body and both signatures on the mail client canvas in light and dark m
   expect(content.html).not.toMatch(/(?:background(?:-color)?|color):\s*#[0-9a-f]{3,8}/i);
   expect(content.html).toContain('white-space:pre-wrap');
   expect(content.html).toContain('Tak for din mail.');
-  expect(content.html).toContain(mailbox==='frederik'?'Frederik Emil Kragh':'Liv Brandt');
+  expect(content.html).toContain(mailbox==='frederik'?'Frederik Kragh':'Liv Brandt');
  }
 });
 it('escapes body, strips only exact trailing signatures, and keeps one signature',async()=>{
  const s=await currentSignature('frederik'),a=applySignature('<script>alert(1)</script>\nHej',s),b=applySignature(a.body,s);
- expect(b.body).toBe(a.body);expect(b.html).not.toContain('<script>');expect(b.html).toContain('&lt;script&gt;');expect(b.body.match(/Frederik Emil Kragh/g)).toHaveLength(1);
+ expect(b.body).toBe(a.body);expect(b.html).not.toContain('<script>');expect(b.html).toContain('&lt;script&gt;');expect(b.body.match(/Frederik Kragh/g)).toHaveLength(1);
+ const former=applySignature(`Hej\n\n${FREDERIK_SIGNATURE.replace('Frederik Kragh','Frederik Emil Kragh')}`,s);
+ expect(former.body.match(/Frederik Kragh/g)).toHaveLength(1);
+ expect(former.body).not.toContain('Frederik Emil Kragh');
+});
+it('replaces old Liv defaults without doubling the signature in a revised draft',async()=>{
+ const liv=await currentSignature('liv');
+ for(const old of [LEGACY_SHORT_LIV_SIGNATURE,LEGACY_LONG_LIV_SIGNATURE]){
+  const mail=applySignature(`Hej Michelle\n\n${old}`,liv);
+  expect(mail.body.match(/Liv Brandt/g)).toHaveLength(1);
+  expect(mail.body).toContain(LIV_HOUSE_SIGNATURE);
+ }
 });
 it('actual MIME has both bodies and correct headers without BCC leakage',async()=>{
  const content=applySignature('Hej,\n\nTak for din mail.',await currentSignature('frederik'));

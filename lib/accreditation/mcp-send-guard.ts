@@ -22,7 +22,7 @@ export async function assertPersonalAccreditationSend(params: SendAccreditationE
   if (!approval || !a || a.ownerUid !== request.mcp.ownerUid || approval.requestId !== request.id || request.pendingApprovalId !== approval.id ||
       a.status !== 'sending' || !a.attemptId || a.attemptId !== proof.attemptId || hash(request) !== a.caseHash || request.paused ||
       params.to !== approval.to || params.subject !== approval.subject || params.text !== approval.text ||
-      params.threadId !== approval.threadId || params.html !== accreditationMailHtml(approval.text)) throw Error('mcp_accreditation_personal_approval_required');
+      params.threadId !== approval.threadId || params.html !== (approval.html || accreditationMailHtml(approval.text))) throw Error('mcp_accreditation_personal_approval_required');
   const expected = a.assets.filter(x => x.kind === 'attachment');
   const actual = params.attachments || [];
   if (actual.length !== expected.length || actual.some((f, i) => f.filename !== expected[i].filename ||

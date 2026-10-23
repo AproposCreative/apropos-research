@@ -19,6 +19,7 @@ import { saveAccreditationDraft, getAccreditationDraft, previewAccreditationDraf
 import { assertPersonalAccreditationSend } from '@/lib/accreditation/mcp-send-guard';
 import { canAutoSend, assertSendAllowed } from '@/lib/accreditation/policy';
 import { accreditationMailHtml } from '@/lib/accreditation/mcp-mail-content';
+import { updateLivInboxSettings } from '@/lib/liv-inbox/settings-store';
 import { ACCREDITATION_WORKFLOW } from '@/lib/accreditation/mcp-contract';
 import { cmsFieldHash as hash } from '@/lib/liv/cms-field-hash';
 import { digest, type McpIdentity } from '@/lib/mcp/oauth';
@@ -43,7 +44,7 @@ beforeEach(() => { vi.clearAllMocks(); vi.unstubAllEnvs(); memory = memoryFirest
 async function savedCase() { return (await saveAccreditationRequest(owner, input)).request; }
 const fresh = async (id = 'LIV-001') => (await getAccreditationRequest(owner, { requestId: id })).request;
 async function draft() { const r = await savedCase(); return saveAccreditationDraft(owner, { requestId: r.id, expectedHash: r.caseHash, expectedRevision: 0,
-  operationId: 'draft-fixture-001', kind: 'first_outbound', subject: 'Presseakkreditering', text: 'Hej. Kan vi få én presseadgang?\n\nLiv Brandt' }); }
+  operationId: 'draft-fixture-001', kind: 'first_outbound', subject: 'Presseakkreditering', text: 'Hej. Kan vi få én presseadgang?\n\nBedste hilsner\nLiv Brandt\nApropos Magazine' }); }
 async function preview() { const d = await draft(); return previewAccreditationDraft(owner, { approvalId: d.approvalId }); }
 const approve = (p: Awaited<ReturnType<typeof preview>>) => confirmAccreditationDraft(owner, { token: p.confirmation!.token, displayedHash: p.data.contentHash });
 
@@ -89,13 +90,36 @@ it('preview is exact, has no hidden signature/promises, no send and UI-only cons
   const p = await preview(); expect(p.data.from).toContain('liv@aproposmagazine.com'); expect(p.data.to).toBe(input.fields.contactEmail);
   expect(p.data.subject).toContain('[LIV-001]'); expect(p.confirmation?.token).toHaveLength(43); expect(JSON.stringify(p.data)).not.toContain(p.confirmation!.token);
   expect(accreditationMailHtml('<script>x</script>')).toContain('&lt;script&gt;'); expect(accreditationMailHtml(p.data.body)).not.toContain('Instagram');
+  expect(accreditationMailHtml(p.data.body)).toContain('font-family:Arial,Helvetica,sans-serif');
+  expect(accreditationMailHtml(p.data.body)).not.toContain('Georgia');
   expect(mock.send).not.toHaveBeenCalled();
 });
 it('single personal send across concurrent previews, with honest receipt and existing thread bookkeeping', async () => {
   const p = await preview(), second = await previewAccreditationDraft(owner, { approvalId: p.data.approvalId });
+  const savedHtml = memory.rows.get(`accreditationApprovals/${p.data.approvalId}`)?.html;
+  expect(savedHtml).toContain('font-family:Arial,Helvetica,sans-serif');
   await Promise.all([approve(p), approve(second), approve(p)]); expect(mock.send).toHaveBeenCalledTimes(1);
+  expect(mock.send.mock.calls[0][0].html).toBe(savedHtml);
   const d = await getAccreditationDraft(owner, { approvalId: p.data.approvalId }); expect(d.status).toBe('accepted'); expect(d.receipt?.recipientDeliveryVerified).toBe(false);
   expect((await fresh()).status).toBe('sent_awaiting_reply'); expect((await getAccreditationRequest(owner, { requestId: d.requestId })).messages).toHaveLength(1);
+});
+it('binds the approved HTML and managed signature to the saved mail version', async () => {
+  const p = await preview();
+  const row = memory.rows.get(`accreditationApprovals/${p.data.approvalId}`);
+  expect(row.mcp.presentationVersion).toBe(2);
+  expect(p.data.body.match(/Liv Brandt/g)).toHaveLength(1);
+  row.html = '<div>changed after preview</div>';
+  await expect(previewAccreditationDraft(owner, { approvalId: p.data.approvalId })).rejects.toThrow('draft_changed');
+  expect(mock.send).not.toHaveBeenCalled();
+});
+it('requires a fresh draft and owner preview when Liv’s house signature changes', async () => {
+  const p = await preview();
+  await updateLivInboxSettings({ signature: 'Venlig hilsen\nLiv Brandt' });
+  const revised = await previewAccreditationDraft(owner, { approvalId: p.data.approvalId });
+  expect(revised.confirmation).toBeNull();
+  expect(revised.data.blocker).toBe('mcp_accreditation_signature_update_required');
+  await expect(approve(p)).rejects.toThrow('mcp_accreditation_signature_update_required');
+  expect(mock.send).not.toHaveBeenCalled();
 });
 it('inspects and copies the already accepted Liv mail to Apple Mail Sent Messages only once, without SMTP',async()=>{
   const p=await preview();await approve(p);const sent=await getAccreditationDraft(owner,{approvalId:p.data.approvalId});
@@ -118,7 +142,8 @@ it('edited text invalidates prior consent, retains exact prior draft, rejects an
   const next = await previewAccreditationDraft(owner, { approvalId: d.approvalId });
   for (const identity of [{ ...owner, uid: 'other' }, { ...owner, grantId: 'other' }, { ...owner, scopes: ['apropos:read', 'apropos:draft'] }])
     await expect(confirmAccreditationDraft(identity, { token: next.confirmation!.token, displayedHash: next.data.contentHash })).rejects.toThrow();
-  await approve(next); expect(mock.send.mock.calls[0][0].text).toBe('Kun den nye tekst');
+  await approve(next); expect(mock.send.mock.calls[0][0].text).toBe(next.data.body);
+  expect(next.data.body).toContain('Kun den nye tekst\n\nVenlig hilsen / Best regards\n\nLiv Brandt');
 });
 it('case or inbound changes invalidate old consent; explicit global stop and expiry stop before transport', async () => {
   const p = await preview(); const c = memory.rows.get(`accreditationMcpConfirmations/${digest(p.confirmation!.token)}`); c.expiresAt = Date.now() - 1;

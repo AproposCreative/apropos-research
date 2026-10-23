@@ -77,7 +77,7 @@ export function livSignatureHtml(): string {
     ? `<img src="${imgSrc}" alt="Apropos Magazine" width="220" style="display:block;margin-top:12px;border:0;max-width:220px;height:auto;" />`
     : '';
   return [
-    '<div style="margin-top:20px;padding-top:12px;border-top:1px solid #ddd;font-family:Georgia,serif;font-size:14px;line-height:1.45;color:#111">',
+    '<div style="margin-top:20px;padding-top:12px;font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:1.5">',
     '<p style="margin:0 0 12px">Venlig hilsen / Best regards</p>',
     `<p style="margin:0"><strong>${LIV_DISPLAY_NAME}</strong><br/>`,
     `${LIV_TITLE}</p>`,
@@ -244,10 +244,10 @@ export function textToEmailHtml(text: string): string {
     )
     .replace(
       /(https:\/\/(?:www\.)?(?:aproposmagazine\.com|instagram\.com)\/[^\s<]*)/g,
-      '<a href="$1" style="color:#111;text-decoration:underline">$1</a>'
+      '<a href="$1" style="text-decoration:underline">$1</a>'
     );
   return sanitizeLivOutput(
-    `<div style="font-family:Georgia,serif;font-size:15px;line-height:1.55;color:#111">${escaped.replace(/\n/g, '<br/>')}${livSignatureHtml()}</div>`
+    `<div style="font-family:Arial,Helvetica,sans-serif;font-size:16px;line-height:1.6">${escaped.replace(/\n/g, '<br/>')}${livSignatureHtml()}</div>`
   );
 }
 

@@ -171,6 +171,7 @@ export type ApprovalItem = {
     ownerUid: string; revision: number; caseHash: string; contentHash: string;
     kind: ApprovalKind | 'package'; status: 'draft' | 'sending' | 'accepted' | 'unconfirmed';
     from: string; replyTo: string; contextHash: string; sourceMessageId?: string;
+    presentationVersion?: 2; signatureHash?: string;
     assets: AccessPackageAsset[]; attemptedAt?: string; attemptId?: string;
     receipt?: { acceptedByMailServer: boolean; recipientDeliveryVerified: false; messageId?: string; resendEmailId?: string;
       sentCopyArchived: boolean; acceptedAt: string }; syncWarning?: string;

@@ -5,7 +5,10 @@ vi.mock('@/lib/editorial-mail/draft-copy',async original=>({...await original<an
 vi.mock('@/lib/firebase-admin', () => ({ getAdminDb: () => mock.db }));
 vi.mock('@/lib/editorial-mail/mailbox', async original => ({ ...await original<any>(), readMailboxMessage: mock.read, searchMailbox: mock.search }));
 vi.mock('@/lib/editorial-mail/transport', () => ({ smtpConfig: mock.smtp, sendApprovedReply: mock.send, assertReplyRecipient: vi.fn() }));
-vi.mock('@/lib/liv-inbox/settings-store', () => ({ getLivInboxSettings: async () => ({ guidelines: 'Skriv konkret.', signature: 'Liv Brandt' }) }));
+vi.mock('@/lib/liv-inbox/settings-store', async importOriginal => ({
+  ...await importOriginal<typeof import('@/lib/liv-inbox/settings-store')>(),
+  getLivInboxSettings: async () => ({ guidelines: 'Skriv konkret.', signature: 'Liv Brandt' }),
+}));
 import { readEditorialMail, searchEditorialMail, saveEditorialReply, getEditorialReply, previewEditorialReply, confirmEditorialReply,composeEditorialMail,syncEditorialDraft } from '@/lib/editorial-mail/service';
 import { type McpIdentity, digest } from '@/lib/mcp/oauth';
 import type { MailMessage } from '@/lib/editorial-mail/mailbox';
@@ -26,7 +29,7 @@ const approve = (p: Awaited<ReturnType<typeof preview>>) => confirmEditorialRepl
 it('search/read and previews never send; source identity fixes sender and recipient', async () => {
   await searchEditorialMail(owner, {}); const p = await preview();
   expect(p.data.from).toBe('frederik@aproposmagazine.com'); expect(p.data.to).toBe(source.replyTo); expect(p.data.subject).toBe('Re: Pressehenvendelse');
-  expect(p.data.bodyText).toBe(input.body); expect(p.data.body).toContain('Frederik Emil Kragh'); expect(p.data.cc).toEqual([]); expect(p.data.attachments).toEqual([]);
+  expect(p.data.bodyText).toBe(input.body); expect(p.data.body).toContain('Frederik Kragh'); expect(p.data.cc).toEqual([]); expect(p.data.attachments).toEqual([]);
   expect(p.confirmation!.token).toHaveLength(43); expect(JSON.stringify(p.data)).not.toContain(p.confirmation!.token); expect(mock.send).not.toHaveBeenCalled();
   expect(p.data.reviewUrl).toBe(`https://ai.aproposmagazine.com/connect/chatgpt?mail=${p.data.draftId}`);
   expect(p.data.reviewUrl).not.toContain(p.confirmation!.token);
@@ -68,7 +71,7 @@ it('a changed draft invalidates the old token and requires new exact approval', 
 it('CC/BCC and recipient changes invalidate approval, preserve selection on edit, and never change sender',async()=>{
  const p=await preview();const next=await saveEditorialReply(owner,{...input,expectedRevision:1,requestId:'bcc-revision-002',to:'chosen@example.test',cc:['copy@example.test'],bcc:['private@example.test']});
  expect(next.from).toBe('frederik@aproposmagazine.com');expect(next.bcc).toEqual(['private@example.test']);await expect(approve(p)).rejects.toThrow('mcp_mail_reply_changed');
- const edited=await saveEditorialReply(owner,{...input,body:next.body,expectedRevision:2,requestId:'bcc-revision-003'});expect(edited.bcc).toEqual(next.bcc);expect(edited.to).toBe('chosen@example.test');expect(edited.body.match(/Frederik Emil Kragh/g)).toHaveLength(1);
+ const edited=await saveEditorialReply(owner,{...input,body:next.body,expectedRevision:2,requestId:'bcc-revision-003'});expect(edited.bcc).toEqual(next.bcc);expect(edited.to).toBe('chosen@example.test');expect(edited.body.match(/Frederik Kragh/g)).toHaveLength(1);
  const fresh=await previewEditorialReply(owner,{draftId:next.draftId});await approve(fresh);expect(mock.send.mock.calls[0][0]).toMatchObject({to:'chosen@example.test',bcc:['private@example.test'],html:fresh.data.html});
 });
 it('keeps persisted SMTP acceptance when later archive/save fails',async()=>{
@@ -105,7 +108,7 @@ it('keeps Frederik and Liv identities separate even for the same RFC message-id'
 });
 it('composes a new owner-only draft without fabricating a received mail or sending',async()=>{
  const args={mailbox:'frederik',compositionId:'93f8bd10-cc88-4002-a928-9d4476e4f4a1',to:'frederik@aproposmagazine.com',subject:'Test to own address',body:'Test',expectedRevision:0,requestId:'compose-fixture-001'};
- const d=await composeEditorialMail(owner,args);expect(d.source.kind).toBe('compose');expect(d.source.messageId).toBe('');expect(d.subject).toBe(args.subject);expect(d.body).toContain('Frederik Emil Kragh');expect((await composeEditorialMail(owner,args)).draftId).toBe(d.draftId);expect(mock.send).not.toHaveBeenCalled();await expect(composeEditorialMail({...owner,owner:false},args)).rejects.toThrow('owner_required');
+ const d=await composeEditorialMail(owner,args);expect(d.source.kind).toBe('compose');expect(d.source.messageId).toBe('');expect(d.subject).toBe(args.subject);expect(d.body).toContain('Frederik Kragh');expect((await composeEditorialMail(owner,args)).draftId).toBe(d.draftId);expect(mock.send).not.toHaveBeenCalled();await expect(composeEditorialMail({...owner,owner:false},args)).rejects.toThrow('owner_required');
 });
 it('draft sync preserves versions, invalidates stale approval after editing and cleans only after accepted send',async()=>{
  const d=await draft();await syncEditorialDraft(owner,{draftId:d.draftId,expectedRevision:d.revision,expectedHash:d.contentHash});

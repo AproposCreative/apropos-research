@@ -90,6 +90,15 @@ describe('liv-inbox settings store', () => {
     expect(s.guidelines).toBe('Svar altid venligt.');
   });
 
+  it('upgrades only the old short default Liv signature', async () => {
+    const upgraded = await updateLivInboxSettings({ signature: 'Bedste hilsner\nLiv Brandt\nApropos Magazine' });
+    expect(upgraded.signature).toBe(DEFAULT_SETTINGS.signature);
+    const historical = await updateLivInboxSettings({ signature: '--\nVenlig hilsen / Best regards\n\nLiv Brandt\nSkribent og kulturjournalist Aproposmagazine.com\n\nApropos Magazine\nFlæsketorvet 26-28,\n1711 København V' });
+    expect(historical.signature).toBe(DEFAULT_SETTINGS.signature);
+    const custom = await updateLivInboxSettings({ signature: 'Venlig hilsen\nLiv Brandt' });
+    expect(custom.signature).toBe('Venlig hilsen\nLiv Brandt');
+  });
+
   it('clamps the confidence threshold to 0-100', async () => {
     const s = await updateLivInboxSettings({ confidenceThreshold: 250 });
     expect(s.confidenceThreshold).toBe(100);

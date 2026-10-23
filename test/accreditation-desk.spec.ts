@@ -152,6 +152,8 @@ describe('accreditation draft template', () => {
     expect(html).toContain('Liv Brandt');
     expect(html).toContain('Flæsketorvet');
     expect(html).toMatch(/AM-Signatur|data:image\/png;base64/);
+    expect(html).toContain('font-family:Arial,Helvetica,sans-serif');
+    expect(html).not.toContain('Georgia');
   });
 });
 

@@ -14,6 +14,7 @@ import { ensureRequestIdInSubject, sanitizeLivOutput } from './sanitize';
 import { draftHash } from './draft-template';
 import { accreditationMailHtml } from './mcp-mail-content';
 import { inspectSentMessage, copyExistingSentMessage } from '@/lib/editorial-mail/imap';
+import { applySignature, currentSignature } from '@/lib/editorial-mail/signature';
 import { detectEscalationHeuristics } from './policy';
 import { accredDraftInput, accredApprovalInput, accredConfirmInput, accredSentRepairInput, accredEmail, ACCREDITATION_WORKFLOW } from './mcp-contract';
 import { checkCase, caseRef, operationRef, recordCaseAudit } from './mcp-cases';
@@ -23,7 +24,8 @@ import type { AccessPackage, AccessPackageAsset, AccreditationRequest, Accredita
 const approvalRef = (id: string) => requireFirestore().collection(COLLECTIONS.approvals).doc(id);
 const contentHash = (a: ApprovalItem) => hash({ requestId: a.requestId, kind: a.mcp!.kind, to: a.to, subject: a.subject, text: a.text,
   from: a.mcp!.from, replyTo: a.mcp!.replyTo, assets: a.mcp!.assets, caseHash: a.mcp!.caseHash,
-  contextHash: a.mcp!.contextHash, revision: a.mcp!.revision });
+  contextHash: a.mcp!.contextHash, revision: a.mcp!.revision,
+  ...(a.mcp!.presentationVersion === 2 ? { presentationVersion: 2, signatureHash: a.mcp!.signatureHash, html: a.html } : {}) });
 const contextHash = (thread: AccreditationEmailThread | undefined, pkg: AccessPackage | undefined) => hash({ thread: thread || null, package: pkg || null });
 function validateDraft(identity: McpIdentity, row: ApprovalItem | undefined): ApprovalItem & { mcp: NonNullable<ApprovalItem['mcp']> } {
   assertMailOwner(identity);
@@ -117,6 +119,8 @@ export async function saveAccreditationDraft(identity: McpIdentity, raw: unknown
   // Early idempotent read permits recovery even though saving changed the case hash.
   const replay = (await op.get()).data();
   if (replay) { if (replay.inputHash !== hash(input) || !replay.approvalId) throw Error('mcp_accreditation_operation_conflict'); return getAccreditationDraft(identity, { approvalId: replay.approvalId }); }
+  const signature = await currentSignature('liv');
+  const prepared = applySignature(sanitizeLivOutput(input.text), signature);
   const request = checkCase(identity, await getRequestById(input.requestId), input.expectedHash);
   if (!request.mcp) throw Error('mcp_accreditation_adopt_case_first');
   const to = accredEmail.parse(input.kind === 'applicant_notice' || input.kind === 'package' ? request.deliveryRecipientEmail : request.contactEmail);
@@ -153,7 +157,7 @@ export async function saveAccreditationDraft(identity: McpIdentity, raw: unknown
       (pkg?.guestListInstructions && !input.text.includes(pkg.guestListInstructions)))) throw Error('mcp_accreditation_package_incomplete');
     const selected = assets as AccessPackageAsset[];
     if (selected.some(a => a.kind !== 'attachment' && !(input.text.includes(a.url || a.text || '\u0000')))) throw Error('mcp_accreditation_package_text_required');
-    const now = new Date().toISOString(), subject = ensureRequestIdInSubject(sanitizeLivOutput(input.subject), row.id), text = sanitizeLivOutput(input.text);
+    const now = new Date().toISOString(), subject = ensureRequestIdInSubject(sanitizeLivOutput(input.subject), row.id), text = prepared.body;
     if (approvals.some(a => a.id !== id && a.mcp?.status === 'accepted' && a.to === to &&
       (a.text === text && a.subject === subject || input.kind === 'reply' && a.mcp.sourceMessageId === input.sourceMessageId)))
       throw Error('mcp_accreditation_already_attempted');
@@ -161,10 +165,11 @@ export async function saveAccreditationDraft(identity: McpIdentity, raw: unknown
       subject, status: 'draft', messages: [], createdAt: now, updatedAt: now };
     const nextCase = { ...row, ...(input.kind === 'first_outbound' ? { status: 'draft_ready' as const } : {}), threadId, pendingApprovalId: id, updatedAt: now, mcp: { ...row.mcp!, revision: row.mcp!.revision + 1 } };
     const draft: ApprovalItem = { id, requestId: row.id, threadId, kind: input.kind === 'package' ? 'applicant_notice' : input.kind,
-      to, subject, text, html: accreditationMailHtml(text), draftHash: draftHash(subject, text), policyFlags: detectEscalationHeuristics(text),
+      to, subject, text, html: prepared.html, draftHash: draftHash(subject, text), policyFlags: detectEscalationHeuristics(text),
       status: 'queued', autoEligible: false, createdAt: existing?.createdAt || now, updatedAt: now,
       mcp: { ownerUid: identity.uid, revision: input.expectedRevision + 1, kind: input.kind, caseHash: accreditationCaseHash(nextCase), contentHash: '',
         contextHash: contextHash(thread, pkg), status: 'draft', from: getAccreditationFromEmail(), replyTo: getAccreditationReplyTo(threadId),
+        presentationVersion: 2, signatureHash: signature.hash,
         assets: selected, ...(input.sourceMessageId ? { sourceMessageId: input.sourceMessageId } : {}) } };
     draft.mcp!.contentHash = contentHash(draft);
     for (const a of approvals) if (a.id !== id && ['queued', 'approved'].includes(a.status)) tx.update(approvalRef(a.id), { status: 'superseded', updatedAt: now });
@@ -183,6 +188,8 @@ export async function previewAccreditationDraft(identity: McpIdentity, raw: unkn
   if (a.mcp.status === 'draft') {
     try {
       if (!identity.scopes.includes('apropos:publish') || !identity.scopes.includes('apropos:draft')) throw Error('mcp_accreditation_send_scope_required');
+      if (a.mcp.presentationVersion !== 2 || a.mcp.signatureHash !== (await currentSignature('liv')).hash)
+        throw Error('mcp_accreditation_signature_update_required');
       if (a.status !== 'queued' || data.caseHash !== a.mcp.caseHash) throw Error('mcp_accreditation_case_changed');
       const [threads, pkg] = await Promise.all([getThreadsByRequestId(a.requestId), getAccessPackage(a.requestId)]);
       if (contextHash(threads.find(t => t.id === a.threadId), pkg) !== a.mcp.contextHash) throw Error('mcp_accreditation_context_changed');
@@ -217,6 +224,8 @@ export async function confirmAccreditationDraft(identity: McpIdentity, raw: unkn
   if (!c || c.uid !== identity.uid || c.grantId !== identity.grantId || c.contentHash !== input.displayedHash) throw Error('mcp_accreditation_confirmation_required');
   const before = validateDraft(identity, await getApprovalById(c.approvalId));
   if (before.mcp.status !== 'draft') return getAccreditationDraft(identity, { approvalId: before.id });
+  if (before.mcp.presentationVersion !== 2 || before.mcp.signatureHash !== (await currentSignature('liv')).hash)
+    throw Error('mcp_accreditation_signature_update_required');
   await accreditationSendPrecheck(before.to,before.mcp.ownerUid);
   const attachments = await attachmentBytes(before.mcp.assets);
   const claim = await db.runTransaction(async tx => {
@@ -239,7 +248,8 @@ export async function confirmAccreditationDraft(identity: McpIdentity, raw: unkn
   if (!claim.send) return getAccreditationDraft(identity, { approvalId: claim.approval.id });
   const a = claim.approval;
   try {
-    const receipt = await sendAccreditationEmail({ to: a.to, subject: a.subject, text: a.text, html: accreditationMailHtml(a.text),
+    const receipt = await sendAccreditationEmail({ to: a.to, subject: a.subject, text: a.text,
+      html: a.html || accreditationMailHtml(a.text),
       threadId: a.threadId!, requestId: a.requestId, draftHash: a.draftHash, attachments,
       personalApproval: { approvalId: a.id, attemptId: a.mcp.attemptId! } });
     if (!receipt.ok) throw Error('mcp_accreditation_transport_unconfirmed');
