@@ -38,7 +38,13 @@ export async function withImap<T>(mailbox: MailboxId, run: (client: ImapFlow) =>
     connectionTimeout: 12000, greetingTimeout: 12000, socketTimeout: 20000 });
   client.on('error', () => { /* Never log credentials, MIME or provider response bodies. */ });
   try { await client.connect(); return await run(client); }
-  catch (e) { if (e instanceof Error && /^mcp_mail_[a-z_]+$/.test(e.message)) throw e; throw Error('mcp_mail_imap_unavailable'); }
+  catch (e) {
+    if (e instanceof Error && /^mcp_mail_[a-z_]+$/.test(e.message)) throw e;
+    const message = e instanceof Error ? e.message : '';
+    if (/auth|login|password|credential/i.test(message)) throw Error('mcp_mail_imap_auth_failed');
+    if (/timeout|timed out|connection closed/i.test(message)) throw Error('mcp_mail_imap_timeout');
+    throw Error('mcp_mail_imap_unavailable');
+  }
   finally { try { await client.logout(); } catch { client.close(); } }
 }
 export type StoredMessage = { folder: string; uid: number; uidValidity: string; sha256: string; raw: Buffer };
@@ -55,9 +61,10 @@ export async function findExactMessage(client: ImapFlow, folder: string, message
       const head = await client.fetchOne(uid, { envelope: true, size: true }, { uid: true });
       if (!head) throw Error('mcp_mail_readback_failed');
       if (head.envelope?.messageId !== messageId) continue;
-      if (!head.size || head.size > 250000) throw Error('mcp_mail_message_too_large');
-      const fetched = await client.fetchOne(uid, { source: { maxLength: 250001 } }, { uid: true });
-      if (!fetched || !fetched.source || fetched.source.length > 250000) throw Error('mcp_mail_readback_failed');
+      // Accreditation access packages may include the approved 12 MiB attachment.
+      if (!head.size || head.size > 20 * 1024 * 1024) throw Error('mcp_mail_message_too_large');
+      const fetched = await client.fetchOne(uid, { source: { maxLength: 20 * 1024 * 1024 + 1 } }, { uid: true });
+      if (!fetched || !fetched.source || fetched.source.length > 20 * 1024 * 1024) throw Error('mcp_mail_readback_failed');
       result.push({ folder, uid, uidValidity: String(client.mailbox && client.mailbox.uidValidity), raw: fetched.source, sha256: mimeHash(fetched.source) });
     }
     return result;
@@ -66,21 +73,27 @@ export async function findExactMessage(client: ImapFlow, folder: string, message
 export type SentFolderSync = { status: 'verified' | 'missing' | 'unconfirmed'; folder: string | null; uid?: number; uidValidity?: string;
   sha256?: string; checkedAt: string; appendReceipt?: { uid: number | null; uidValidity: string | null };
   error?: string; appleMailMapping: 'owner_confirmed' | 'server_discovered'; deviceVisibilityVerified: false };
-export async function archiveExactMessage(mailbox: MailboxId, raw: Buffer, messageId: string): Promise<SentFolderSync> {
-  const base = { checkedAt: new Date().toISOString(), folder: null, appleMailMapping: mailbox === 'frederik' ? 'owner_confirmed' as const : 'server_discovered' as const, deviceVisibilityVerified: false as const };
+export async function archiveExactMessage(mailbox: MailboxId, raw: Buffer, messageId: string, sentAt?: string): Promise<SentFolderSync> {
+  const base = { checkedAt: new Date().toISOString(), folder: null, appleMailMapping: 'owner_confirmed' as const, deviceVisibilityVerified: false as const };
   try {
     return await withImap(mailbox, async client => {
       const folder = resolveMailFolder(mailbox, 'sent', await client.list()), expected = mimeHash(raw);
       let found = await findExactMessage(client, folder, messageId);
       let appendReceipt: SentFolderSync['appendReceipt'];
+      let appendError: string | undefined;
       if (!found.length) {
         try {
-          const ack = await client.append(folder, raw, ['\\Seen'], new Date());
+          const internalDate = sentAt && !Number.isNaN(Date.parse(sentAt)) ? new Date(sentAt) : (await simpleParser(raw, { skipHtmlToText: true, skipTextToHtml: true })).date || new Date();
+          const ack = await client.append(folder, raw, ['\\Seen'], internalDate);
           if (ack) appendReceipt = { uid: ack.uid || null, uidValidity: ack.uidValidity ? String(ack.uidValidity) : null };
-        } catch { /* Still read back after a lost APPEND acknowledgment. Never blindly append twice. */ }
+          else appendError = 'mcp_mail_append_unconfirmed';
+        } catch (error) {
+          // Still read back after a lost APPEND acknowledgment. Never blindly append twice.
+          appendError = error instanceof Error && /timeout|timed out/i.test(error.message) ? 'mcp_mail_append_timeout' : 'mcp_mail_append_failed';
+        }
         found = await findExactMessage(client, folder, messageId);
       }
-      if (found.length !== 1 || found[0].sha256 !== expected) return { ...base, folder, status: 'unconfirmed', error: 'mcp_mail_sent_readback_mismatch', ...(appendReceipt ? { appendReceipt } : {}) };
+      if (found.length !== 1 || found[0].sha256 !== expected) return { ...base, folder, status: 'unconfirmed', error: appendError || 'mcp_mail_sent_readback_mismatch', ...(appendReceipt ? { appendReceipt } : {}) };
       const { uid, uidValidity, sha256 } = found[0];
       return { ...base, folder, uid, uidValidity, sha256, status: 'verified', ...(appendReceipt ? { appendReceipt } : {}) };
     });
@@ -123,7 +136,10 @@ export async function copyExistingSentMessage(expected: ExpectedSent, source: { 
     if (!original) throw Error('mcp_mail_archive_source_changed');
     // One APPEND attempt; caller stores a durable claim, so timeout/replay only reads back.
     let ack;
-    try { ack = await client.append(folder, original.raw, ['\\Seen'], new Date()); } catch { /* readback */ }
+    try {
+      const originalDate = (await simpleParser(original.raw, { skipHtmlToText: true, skipTextToHtml: true })).date;
+      ack = await client.append(folder, original.raw, ['\\Seen'], originalDate || new Date());
+    } catch { /* readback */ }
     const found = await findExactMessage(client, folder, expected.messageId);
     if (found.length !== 1 || found[0].sha256 !== original.sha256) throw Error('mcp_mail_sent_readback_mismatch');
     return { folder, uid: found[0].uid, uidValidity: found[0].uidValidity, sha256: found[0].sha256, copied: true,

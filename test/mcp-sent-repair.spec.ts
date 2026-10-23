@@ -21,12 +21,17 @@ it('routes a version-bound accreditation sent repair without an editorial write'
   expect(mock.editorial).not.toHaveBeenCalled();
 });
 
-it('keeps ordinary editorial repairs and rejects missing accreditation hashes', async () => {
+it('keeps ordinary editorial repairs and accepts the accreditation approval ID directly', async () => {
   const draftId = 'c'.repeat(64);
   mock.editorial.mockResolvedValueOnce({ status: 'verified' });
   await repairOwnerSent(owner, { draftId });
   expect(mock.editorial).toHaveBeenCalledWith(owner, { draftId });
-  expect(() => ownerSentRepairInput.parse({ draftId: `mcp-${'a'.repeat(40)}` })).toThrow();
+  const approvalId = `mcp-${'a'.repeat(40)}`;
+  mock.getAccreditation.mockResolvedValueOnce({contentHash:'b'.repeat(64)});
+  mock.accreditation.mockResolvedValueOnce({status:'verified',smtpCalled:false});
+  await repairOwnerSent(owner,{draftId:approvalId});
+  expect(mock.accreditation).toHaveBeenCalledWith(owner,{approvalId,expectedHash:'b'.repeat(64)});
+  expect(() => ownerSentRepairInput.parse({draftId:'mcp-unsafe'})).toThrow();
 });
 
 it('refuses an obsolete approval version before touching IMAP', async () => {

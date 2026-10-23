@@ -12,9 +12,8 @@
  *  4. Per-run cap for auto-sends (enforced by the caller).
  *  5. Idempotency key (per item) so the same reply is never sent twice.
  */
-import { createHash } from 'crypto';
+import { createHash, randomUUID } from 'crypto';
 import nodemailer from 'nodemailer';
-import MailComposer from 'nodemailer/lib/mail-composer';
 import { Resend } from 'resend';
 import { env } from '@/lib/config/env';
 import {
@@ -28,7 +27,7 @@ import {
   resolveSmtpFrom,
 } from '@/lib/accreditation/mail-transport';
 import { getAccreditationReplyToFallbackEmail } from '@/lib/accreditation/send-email';
-import { appendLivSentCopy } from '@/lib/accreditation/imap/sent-copy';
+import { submitAndArchiveOneCom } from '@/lib/editorial-mail/outbound';
 import { normalizeMsgId } from '@/lib/liv-inbox/correlate';
 import { getLivInboxSettings } from '@/lib/liv-inbox/settings-store';
 
@@ -187,6 +186,7 @@ export interface LivSendResult {
   transport?: 'smtp' | 'resend';
   /** True when the sent copy was archived to Liv's Sent folder (SMTP only). */
   sentCopyArchived?: boolean;
+  sentCopyError?: string;
   /** RFC Message-ID of the sent reply (for threading future replies). */
   outboundMessageId?: string;
 }
@@ -252,18 +252,11 @@ async function sendViaLivInboxSmtp(p: TransportSendParams): Promise<LivSendResul
         ...threadHeaders(p.inReplyToMessageId),
       },
     };
-    const info = await transporter.sendMail(mailOptions);
-    const messageId = typeof info.messageId === 'string' ? info.messageId : undefined;
-    let sentCopyArchived = false;
-    try {
-      const raw = await new MailComposer({ ...mailOptions, ...(messageId ? { messageId } : {}) })
-        .compile()
-        .build();
-      const archived = await appendLivSentCopy(raw);
-      sentCopyArchived = archived.ok;
-    } catch {
-      /* Sent-folder archiving is best-effort */
-    }
+    const messageId = `<${randomUUID()}@aproposmagazine.com>`;
+    const archived = await submitAndArchiveOneCom({ mailbox: 'liv', messageId,
+      message: { ...mailOptions, date: new Date() },
+      envelope: { from: 'liv@aproposmagazine.com', to: [p.to] },
+      submit: (raw, envelope) => transporter.sendMail({ raw, envelope, disableFileAccess: true, disableUrlAccess: true }) });
     return {
       sent: true,
       id: messageId,
@@ -272,7 +265,8 @@ async function sendViaLivInboxSmtp(p: TransportSendParams): Promise<LivSendResul
       redirected: p.redirected,
       to: p.to,
       intendedTo: p.intendedTo,
-      sentCopyArchived,
+      sentCopyArchived: archived.sentCopyArchived,
+      sentCopyError: archived.sentFolderSync.error,
     };
   } catch (e) {
     return { sent: false, transport: 'smtp', reason: e instanceof Error ? e.message : String(e), intendedTo: p.intendedTo };

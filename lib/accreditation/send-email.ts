@@ -1,6 +1,5 @@
-import { createHash } from 'crypto';
+import { createHash, randomUUID } from 'crypto';
 import nodemailer from 'nodemailer';
-import MailComposer from 'nodemailer/lib/mail-composer';
 import { Resend } from 'resend';
 import { env } from '@/lib/config/env';
 import { assertPersonalAccreditationSend } from './mcp-send-guard';
@@ -19,7 +18,8 @@ import {
   resolveSmtpFrom,
   type AccreditationMailTransport,
 } from '@/lib/accreditation/mail-transport';
-import { appendLivSentCopy } from '@/lib/accreditation/imap/sent-copy';
+import { submitAndArchiveOneCom } from '@/lib/editorial-mail/outbound';
+import type { SentFolderSync } from '@/lib/editorial-mail/imap';
 import {
   applyTestRedirectToMailContent,
   resolveAccreditationOutboundRecipient,
@@ -126,6 +126,9 @@ export type SendAccreditationEmailParams = {
   draftHash?: string;
   /** Base64 content attachments (both SMTP and Resend). */
   attachments?: Array<{ filename: string; content: string; contentType?: string }>;
+  /** Internal durable recovery callbacks; run before SMTP and immediately after acceptance. */
+  onPrepared?: (raw: Buffer, sha256: string, messageId: string) => Promise<void>;
+  onAccepted?: (receipt: { messageId: string; acceptedAt: string; mimeSha256: string }) => Promise<void>;
 };
 
 export type SendAccreditationEmailResult = {
@@ -140,6 +143,9 @@ export type SendAccreditationEmailResult = {
   sentCopyArchived?: boolean;
   sentCopyMailbox?: string;
   sentCopyError?: string;
+  sentFolderSync?: SentFolderSync;
+  acceptedAt?: string;
+  mimeSha256?: string;
 };
 
 async function sendViaSmtp(
@@ -180,6 +186,7 @@ async function sendViaSmtp(
   });
 
   try {
+    const messageId = `<${randomUUID()}@aproposmagazine.com>`;
     const mailOptions = {
       from: params.from,
       to: params.to,
@@ -187,6 +194,7 @@ async function sendViaSmtp(
       html: params.html,
       text: params.text,
       replyTo: params.replyTo,
+      date: new Date(),
       headers: {
         'X-Apropos-Thread-Id': params.threadId.slice(0, 200),
         'X-Apropos-Request-Id': params.requestId.slice(0, 200),
@@ -201,30 +209,11 @@ async function sendViaSmtp(
           }
         : {}),
     };
-    const info = await transporter.sendMail(mailOptions);
-    if (params.personalApproval && (!info.accepted?.some((a: unknown) => String(a).toLowerCase() === params.to.toLowerCase()) || info.rejected?.length)) {
-      return { ok: false, transport: 'smtp', error: 'mcp_accreditation_transport_unconfirmed' };
-    }
-
-    const messageId = typeof info.messageId === 'string' ? info.messageId : undefined;
-    let sentCopyArchived = false;
-    let sentCopyMailbox: string | undefined;
-    let sentCopyError: string | undefined;
-    try {
-      const raw = await new MailComposer({
-        ...mailOptions,
-        ...(messageId ? { messageId } : {}),
-      })
-        .compile()
-        .build();
-      const archived = await appendLivSentCopy(raw);
-      sentCopyArchived = archived.ok;
-      sentCopyMailbox = archived.mailboxPath;
-      sentCopyError = archived.error;
-    } catch (archiveError) {
-      sentCopyError =
-        archiveError instanceof Error ? archiveError.message : String(archiveError);
-    }
+    const result = await submitAndArchiveOneCom({ mailbox: 'liv', messageId, message: mailOptions,
+      envelope: { from: extractEmailAddress(params.from), to: [params.to] },
+      submit: (raw, envelope) => transporter.sendMail({ raw, envelope, disableFileAccess: true, disableUrlAccess: true }),
+      onPrepared: params.onPrepared ? (raw, sha256) => params.onPrepared!(raw, sha256, messageId) : undefined,
+      onAccepted: params.onAccepted });
 
     return {
       ok: true,
@@ -233,9 +222,12 @@ async function sendViaSmtp(
       subject: params.subject,
       replyTo: params.replyTo,
       from: params.from,
-      sentCopyArchived,
-      sentCopyMailbox,
-      sentCopyError,
+      sentCopyArchived: result.sentCopyArchived,
+      sentCopyMailbox: result.sentFolderSync.folder || undefined,
+      sentCopyError: result.sentFolderSync.error,
+      sentFolderSync: result.sentFolderSync,
+      acceptedAt: result.acceptedAt,
+      mimeSha256: result.mimeSha256,
     };
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);

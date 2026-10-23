@@ -40,7 +40,7 @@ it('inspects headers and repairs by copy only, preserving original and avoiding 
 it('refuses source changes and sanitizes connection errors',async()=>{
  const e={mailbox:'frederik' as const,messageId:mid,from:'frederik@aproposmagazine.com',to:'press@example.test',subject:'Re: Fixture',body:'Exact body'};
  await expect(copyExistingSentMessage(e,{folder:'Sent',uid:1,uidValidity:'wrong',sha256:mimeHash(raw)})).rejects.toThrow('archive_source_changed');expect(mock.client.append).not.toHaveBeenCalled();
- mock.client.connect.mockRejectedValue(Error('credential sensitive'));const r=await archiveExactMessage('frederik',raw,mid);expect(r.error).toBe('mcp_mail_imap_unavailable');expect(JSON.stringify(r)).not.toContain('sensitive');
+ mock.client.connect.mockRejectedValue(Error('credential sensitive'));const r=await archiveExactMessage('frederik',raw,mid);expect(r.error).toBe('mcp_mail_imap_auth_failed');expect(JSON.stringify(r)).not.toContain('sensitive');
 });
 it('failed search is not empty and cannot cause another APPEND',async()=>{
  mock.client.search.mockResolvedValue(false);expect(await archiveExactMessage('frederik',raw,mid)).toMatchObject({status:'unconfirmed',error:'mcp_mail_search_unconfirmed'});expect(mock.client.append).not.toHaveBeenCalled();

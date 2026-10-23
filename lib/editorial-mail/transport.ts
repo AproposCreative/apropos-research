@@ -1,7 +1,7 @@
 import nodemailer from 'nodemailer';
-import MailComposer from 'nodemailer/lib/mail-composer';
 import { type MailboxId } from '@/lib/accreditation/imap/config';
-import { archiveExactMessage, mimeHash, type SentFolderSync } from './imap';
+import { type SentFolderSync } from './imap';
+import { submitAndArchiveOneCom } from './outbound';
 import { mailboxAddress, mailboxName } from './mailbox';
 import { resolveLivInboxRecipient, livInboxTestRedirectTo } from '@/lib/liv-inbox/send';
 
@@ -51,16 +51,13 @@ export async function sendApprovedReply(reply: OutgoingReply, onAccepted?: (rece
     messageId: reply.messageId, ...(reply.inReplyTo ? { inReplyTo: reply.inReplyTo } : {}), references: reply.references,
     disableFileAccess: true, disableUrlAccess: true };
   try {
-    // Build ONCE: SMTP and IMAP receive identical bytes. BCC is envelope-only.
-    const raw = await new MailComposer(options).compile().build();
-    await onPrepared?.(raw); // Private recovery bytes, no credentials or approval token.
-    const info = await transport.sendMail({ raw, envelope: { from: mailboxAddress(reply.mailbox), to: recipients }, disableFileAccess: true, disableUrlAccess: true });
-    if (!recipients.every(recipient => info.accepted?.some((a: unknown) => String(a).toLowerCase() === recipient.toLowerCase())) || info.rejected?.length) throw Error('mcp_mail_smtp_result_unconfirmed');
-    const receipt: MailReceipt = { status: 'accepted', messageId: reply.messageId, acceptedBySmtp: true, recipientDeliveryVerified: false,
-      sentCopyArchived: false, acceptedAt: new Date().toISOString(), mimeSha256: mimeHash(raw), bcc: reply.bcc || [] };
-    // Persist SMTP evidence before attempting IMAP, so an IMAP timeout cannot erase it.
-    await onAccepted?.(receipt);
-    const sentFolderSync = await archiveExactMessage(reply.mailbox, raw, reply.messageId);
-    return { ...receipt, sentFolderSync, sentCopyArchived: sentFolderSync.status === 'verified' };
+    const result = await submitAndArchiveOneCom({ mailbox: reply.mailbox, messageId: reply.messageId,
+      message: options, envelope: { from: mailboxAddress(reply.mailbox), to: recipients },
+      submit: (raw, envelope) => transport.sendMail({ raw, envelope, disableFileAccess: true, disableUrlAccess: true }),
+      onPrepared: raw => onPrepared?.(raw) || Promise.resolve(),
+      onAccepted: async accepted => { await onAccepted?.({ status: 'accepted', acceptedBySmtp: true,
+        recipientDeliveryVerified: false, sentCopyArchived: false, bcc: reply.bcc || [], ...accepted }); } });
+    return { status: 'accepted' as const, acceptedBySmtp: true as const, recipientDeliveryVerified: false as const,
+      bcc: reply.bcc || [], ...result };
   } finally { transport.close(); }
 }

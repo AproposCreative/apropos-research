@@ -9,7 +9,7 @@ import { getAccreditationDraft, repairAccreditationSent } from '@/lib/accreditat
 // The server resolves the full immutable version before any IMAP operation.
 const accreditationMarker = 'accd17';
 export const ownerSentRepairInput = z.object({
-  draftId: z.string().regex(/^[a-f0-9]{64}$/),
+  draftId: z.string().regex(/^(?:[a-f0-9]{64}|mcp-[a-f0-9]{40})$/),
 }).strict();
 
 export function accreditationSentRepairKey(approvalId: string, expectedHash: string) {
@@ -20,6 +20,10 @@ export function accreditationSentRepairKey(approvalId: string, expectedHash: str
 
 export async function repairOwnerSent(identity: McpIdentity, raw: unknown) {
   const { draftId } = ownerSentRepairInput.parse(raw);
+  if (draftId.startsWith('mcp-')) {
+    const current = await getAccreditationDraft(identity, { approvalId: draftId });
+    return repairAccreditationSent(identity, { approvalId: draftId, expectedHash: current.contentHash });
+  }
   if (draftId.startsWith(accreditationMarker)) {
     const approvalId = `mcp-${draftId.slice(6, 46)}`;
     const hashPrefix = draftId.slice(46);

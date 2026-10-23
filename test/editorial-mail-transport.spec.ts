@@ -17,7 +17,7 @@ it('uses selected account, TLS and fixed reply threading, no HTML/files/URL load
   const receipt = await sendApprovedReply(reply); expect(mock.create.mock.calls[0][0]).toMatchObject({ secure: true, logger: false, debug: false, auth: { user: 'frederik@aproposmagazine.com', pass: 'TEST-ONLY-PASSWORD' } });
   expect(mock.compose).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ from: { name: 'Frederik Kragh', address: 'frederik@aproposmagazine.com' }, to: reply.to, text: reply.body, messageId: reply.messageId, inReplyTo: reply.inReplyTo, newline:'windows',disableFileAccess: true, disableUrlAccess: true }));
   expect(mock.send).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({raw: Buffer.from('fake MIME'), envelope: { from: 'frederik@aproposmagazine.com', to: [reply.to] }}));
-  expect(mock.archive).toHaveBeenCalledWith('frederik', mock.send.mock.calls[0][0].raw, reply.messageId); expect(receipt.sentCopyArchived).toBe(true); expect(receipt.recipientDeliveryVerified).toBe(false);
+  expect(mock.archive).toHaveBeenCalledWith('frederik', mock.send.mock.calls[0][0].raw, reply.messageId, expect.any(String)); expect(receipt.sentCopyArchived).toBe(true); expect(receipt.recipientDeliveryVerified).toBe(false);
 });
 it('archive failure never retries SMTP or discards accepted receipt', async () => {
   mock.archive.mockResolvedValue({status:'unconfirmed',error:'mcp_mail_imap_unavailable'}); const receipt = await sendApprovedReply(reply);

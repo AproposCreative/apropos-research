@@ -1,10 +1,12 @@
 import { beforeEach, expect, it, vi } from 'vitest';
 import { createHash } from 'node:crypto';
+import { simpleParser } from 'mailparser';
 import { memoryFirestore } from './helpers/mcp-firestore';
-const mock = vi.hoisted(() => ({ db: null as any, send: vi.fn(), smtp:vi.fn(), contacts: vi.fn(), archive: vi.fn(), workflow: vi.fn(), additional: vi.fn(), overview: vi.fn(), sync: vi.fn(), bytes: vi.fn(), inspect:vi.fn(), copy:vi.fn() }));
+const mock = vi.hoisted(() => ({ db: null as any, send: vi.fn(), smtp:vi.fn(), contacts: vi.fn(), archive: vi.fn(), workflow: vi.fn(), additional: vi.fn(), overview: vi.fn(), sync: vi.fn(), bytes: vi.fn(), inspect:vi.fn(), copy:vi.fn(), archiveExact:vi.fn(), readMime:vi.fn() }));
 vi.mock('nodemailer',()=>({default:{createTransport:()=>({sendMail:mock.smtp,close:()=>{}})}}));
 vi.mock('@/lib/accreditation/imap/sent-copy',()=>({appendLivSentCopy:async()=>({ok:true,mailboxPath:'Sent'})}));
-vi.mock('@/lib/editorial-mail/imap', async original => ({...await original<any>(), inspectSentMessage:mock.inspect, copyExistingSentMessage:mock.copy}));
+vi.mock('@/lib/editorial-mail/imap', async original => ({...await original<any>(), inspectSentMessage:mock.inspect, copyExistingSentMessage:mock.copy, archiveExactMessage:mock.archiveExact}));
+vi.mock('@/lib/accreditation/sent-mime',()=>({preserveAccreditationMime:async(_id:string,_revision:number,raw:Buffer,sha256:string)=>({path:'fixture/original.eml',sha256,byteLength:raw.length}),readAccreditationMime:mock.readMime}));
 vi.mock('@/lib/firebase-admin', () => ({ getAdminDb: () => mock.db }));
 vi.mock('@/lib/accreditation/sheet-client', async original => ({...await original<any>(), pullContacts: mock.contacts, pullMailboxContactArchive: mock.archive, pullWorkflowRows: mock.workflow, pullAdditionalAccreditationSource:mock.additional,syncRequestToSheet: mock.sync }));
 vi.mock('@/lib/accreditation/imap/contact-overview-store', () => ({ readContactOverview: mock.overview }));
@@ -36,7 +38,8 @@ beforeEach(() => { vi.clearAllMocks(); vi.unstubAllEnvs(); memory = memoryFirest
   memory.rows.set('accreditationAgentControl/default', { dryRun: false, automationEnabled: false, paused: true });
   memory.rows.set('accreditationMcpPolicy/personal',{mode:'personal-owner-approval-v1',enabled:true,ownerUid:owner.uid});
   vi.stubEnv('EDITORIAL_MAIL_SENDING_ENABLED','true');
-  mock.smtp.mockImplementation(async params=>({accepted:[params.to],rejected:[],messageId:'<fake-smtp@example.test>'}));
+  mock.smtp.mockImplementation(async params=>({accepted:params.envelope.to,rejected:[],messageId:'<fake-smtp@example.test>'}));
+  mock.archiveExact.mockResolvedValue({status:'verified',folder:'Sent Messages',uid:1});
   mock.contacts.mockResolvedValue([]); mock.archive.mockResolvedValue([]); mock.workflow.mockResolvedValue([]); mock.overview.mockResolvedValue({ contacts: [] });
   mock.additional.mockResolvedValue([]);
   mock.send.mockImplementation(async params => { await assertPersonalAccreditationSend(params); return { ok: true, messageId: '<fixture-sent@example.test>', sentCopyArchived: true }; });
@@ -134,6 +137,32 @@ it('inspects and copies the already accepted Liv mail to Apple Mail Sent Message
   expect(mock.copy).toHaveBeenCalledOnce();
   await expect(repairAccreditationSent(owner,{approvalId:sent.approvalId,expectedHash:'0'.repeat(64)})).rejects.toThrow('draft_changed');
 });
+it('reports missing original MIME for an old accepted mail and never invokes SMTP during repair',async()=>{
+  const p=await preview();await approve(p);
+  const row=memory.rows.get(`accreditationApprovals/${p.data.approvalId}`);
+  row.mcp.receipt.sentCopyArchived=false;
+  mock.inspect.mockResolvedValue({targetFolder:'Sent Messages',matches:[],checkedAt:new Date().toISOString()});
+  await expect(repairAccreditationSent(owner,{approvalId:p.data.approvalId,expectedHash:p.data.contentHash}))
+    .rejects.toThrow('mcp_accreditation_original_mime_missing');
+  expect(mock.copy).not.toHaveBeenCalled();expect(mock.archiveExact).not.toHaveBeenCalled();
+  expect(mock.smtp).not.toHaveBeenCalled();
+});
+it('keeps SMTP acceptance separate from failed archiving and repairs only from preserved bytes',async()=>{
+  const original=await vi.importActual<typeof import('@/lib/accreditation/send-email')>('@/lib/accreditation/send-email');
+  mock.send.mockImplementation(original.sendAccreditationEmail);
+  mock.archiveExact.mockResolvedValueOnce({status:'unconfirmed',folder:'Sent Messages',error:'mcp_mail_append_failed'});
+  mock.inspect.mockResolvedValue({targetFolder:'Sent Messages',matches:[],checkedAt:new Date().toISOString()});
+  const p=await preview(), sent=await approve(p);
+  expect(sent.status).toBe('accepted');
+  expect(sent.receipt).toMatchObject({acceptedByMailServer:true,sentCopyArchived:false,sentCopyError:'mcp_mail_append_failed'});
+  expect(mock.smtp).toHaveBeenCalledTimes(1);
+  mock.readMime.mockResolvedValue(mock.smtp.mock.calls[0][0].raw);
+  mock.archiveExact.mockResolvedValueOnce({status:'verified',folder:'Sent Messages',uid:9});
+  const repaired=await repairAccreditationSent(owner,{approvalId:sent.approvalId,expectedHash:sent.contentHash});
+  expect(repaired).toMatchObject({status:'verified',smtpCalled:false,folder:'Sent Messages'});
+  expect(mock.smtp).toHaveBeenCalledTimes(1);
+  expect(mock.archiveExact).toHaveBeenCalledTimes(2);
+});
 it('edited text invalidates prior consent, retains exact prior draft, rejects another owner/grant/scope', async () => {
   const p = await preview(), r = await fresh();
   const d = await saveAccreditationDraft(owner, { requestId: r.id, expectedHash: r.caseHash, expectedRevision: 1, approvalId: p.data.approvalId,
@@ -209,11 +238,17 @@ it('personal exact-recipient SMTP works while the legacy sink, allowlist, dry-ru
   const original=await vi.importActual<typeof import('@/lib/accreditation/send-email')>('@/lib/accreditation/send-email');
   mock.send.mockImplementation(original.sendAccreditationEmail);
   const p=await preview();expect(p.confirmation).not.toBeNull();expect(mock.smtp).not.toHaveBeenCalled();await approve(p);
-  expect(mock.smtp.mock.calls[0][0]).toMatchObject({to:'press@example.test',text:p.data.body,subject:p.data.subject});
-  expect(mock.smtp.mock.calls[0][0].subject).not.toContain('[TEST');
+  expect(mock.smtp.mock.calls[0][0].envelope.to).toEqual(['press@example.test']);
+  const approval=memory.rows.get(`accreditationApprovals/${p.data.approvalId}`);
+  expect(approval.mcp.receipt).toMatchObject({acceptedByMailServer:true,sentCopyArchived:true,mimeSha256:expect.any(String)});
+  expect(memory.rows.get(`accreditationApprovals/${p.data.approvalId}/outboundMime/1`)).toMatchObject({
+    sha256:approval.mcp.receipt.mimeSha256,messageId:approval.mcp.receipt.messageId,contentHash:p.data.contentHash});
+  const sentRaw=mock.smtp.mock.calls[0][0].raw.toString();
+  expect(sentRaw).toContain(p.data.subject);expect(sentRaw).not.toContain('[TEST');
   expect(memory.rows.get('accreditationAgentControl/default')).toEqual({dryRun:true,automationEnabled:false,paused:true});
   await original.sendAccreditationEmail({requestId:'LEGACY-fixture',threadId:'fixture',to:'press@example.test',subject:'Legacy',html:'Legacy',text:'Legacy'});
-  expect(mock.smtp.mock.calls[1][0].to).toBe('sink@example.test');expect(mock.smtp.mock.calls[1][0].subject).toContain('[TEST');
+  expect(mock.smtp.mock.calls[1][0].envelope.to).toEqual(['sink@example.test']);
+  expect((await simpleParser(mock.smtp.mock.calls[1][0].raw)).subject).toContain('[TEST');
   expect(process.env.ACCREDITATION_TEST_REDIRECT_TO).toBe('sink@example.test');
 });
 it('follow-up is personal, only when due, reuses thread and retains the existing maximum', async () => {

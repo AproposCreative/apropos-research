@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import { simpleParser } from 'mailparser';
 import { cmsFieldHash as hash } from '@/lib/liv/cms-field-hash';
 import { digest, opaque, type McpIdentity } from '@/lib/mcp/oauth';
 import { assertMailOwner } from '@/lib/editorial-mail/service';
@@ -13,7 +14,8 @@ import { getSmtpPublicConfig, getAccreditationMailTransport } from './mail-trans
 import { ensureRequestIdInSubject, sanitizeLivOutput } from './sanitize';
 import { draftHash } from './draft-template';
 import { accreditationMailHtml } from './mcp-mail-content';
-import { inspectSentMessage, copyExistingSentMessage } from '@/lib/editorial-mail/imap';
+import { inspectSentMessage, copyExistingSentMessage, archiveExactMessage, mimeHash } from '@/lib/editorial-mail/imap';
+import { preserveAccreditationMime, readAccreditationMime } from './sent-mime';
 import { applySignature, currentSignature } from '@/lib/editorial-mail/signature';
 import { detectEscalationHeuristics } from './policy';
 import { accredDraftInput, accredApprovalInput, accredConfirmInput, accredSentRepairInput, accredEmail, ACCREDITATION_WORKFLOW } from './mcp-contract';
@@ -47,7 +49,17 @@ export async function getAccreditationDraft(identity: McpIdentity, raw: unknown)
   assertMailOwner(identity); const { approvalId } = accredApprovalInput.parse(raw);
   const a = validateDraft(identity, await getApprovalById(approvalId));
   const request = await getRequestById(a.requestId); assertCaseOwner(identity, request);
-  return project(a, request);
+  const result = project(a, request);
+  if (result.status !== 'accepted' || result.receipt?.sentCopyArchived || !result.receipt?.messageId) return result;
+  try {
+    const inspection = await inspectSentMessage({ mailbox: 'liv', messageId: result.receipt.messageId,
+      from: 'liv@aproposmagazine.com', to: result.to, subject: result.subject, body: result.body });
+    return { ...result, sentInspection: { targetFolder: inspection.targetFolder,
+      matches: inspection.matches.map(m => ({ folder: m.folder, identityMatches: m.identityMatches, sha256: m.sha256 })),
+      checkedAt: inspection.checkedAt } };
+  } catch (error) {
+    return { ...result, sentInspection: { error: error instanceof Error ? error.message : 'mcp_mail_imap_unavailable' } };
+  }
 }
 /** Read only: compare the accepted mail with every plausible server Sent folder. */
 export async function inspectAccreditationSent(identity: McpIdentity, raw: unknown) {
@@ -71,31 +83,51 @@ export async function repairAccreditationSent(identity: McpIdentity, raw: unknow
   const before = await inspectSentMessage(expected);
   const target = before.matches.filter(m => m.folder === before.targetFolder);
   if (target.length === 1 && target[0].identityMatches) return { status: 'verified', copied: false, folder: before.targetFolder, smtpCalled: false };
-  if (target.length || before.matches.length !== 1 || !before.matches[0].identityMatches)
+  if (target.length || before.matches.length > 1 || before.matches.some(m => !m.identityMatches))
     throw Error('mcp_accreditation_sent_source_ambiguous');
-  const source = before.matches[0], db = requireFirestore();
+  const source = before.matches[0] || null, db = requireFirestore();
+  const stored = source ? null : (await approvalRef(approvalId).collection('outboundMime').doc(String(draft.revision)).get()).data();
+  if (!source && (!stored || stored.contentHash !== expectedHash || stored.messageId !== expected.messageId ||
+    stored.sha256 !== draft.receipt?.mimeSha256)) throw Error('mcp_accreditation_original_mime_missing');
+  // Validate the private preserved bytes before creating an APPEND claim.
+  const preserved = stored ? await readAccreditationMime(stored as {path:string;sha256:string;byteLength:number}, approvalId, draft.revision) : null;
+  if (preserved && mimeHash(preserved) !== stored.sha256) throw Error('mcp_accreditation_mime_changed');
+  if (preserved) {
+    const parsed = await simpleParser(preserved, { skipHtmlToText: true, skipTextToHtml: true });
+    const addresses = (field: typeof parsed.to) => (Array.isArray(field) ? field : field ? [field] : [])
+      .flatMap(item => item.value.map(value => (value.address || '').toLowerCase()));
+    if (parsed.messageId !== expected.messageId || addresses(parsed.from).join(',') !== expected.from ||
+      !addresses(parsed.to).includes(expected.to.toLowerCase()) || parsed.subject !== expected.subject ||
+      (parsed.text || '').replace(/\r\n/g, '\n').trim() !== expected.body.replace(/\r\n/g, '\n').trim() ||
+      parsed.headers.has('bcc') || !parsed.date) throw Error('mcp_accreditation_mime_changed');
+  }
   const claimRef = db.collection('accreditationMcpSentRepairs').doc(approvalId);
   try {
     await claimRef.create({ ownerUid: identity.uid, contentHash: expectedHash, messageId: expected.messageId,
-      sourceFolder: source.folder, sourceSha256: source.sha256, status: 'claimed', createdAt: new Date().toISOString() });
+      sourceFolder: source?.folder || null, sourceSha256: source?.sha256 || stored?.sha256,
+      status: 'claimed', createdAt: new Date().toISOString() });
   } catch {
     const prior = (await claimRef.get()).data();
     if (!prior || prior.ownerUid !== identity.uid || prior.contentHash !== expectedHash || prior.messageId !== expected.messageId)
       throw Error('mcp_accreditation_sent_repair_conflict');
     // Another attempt may have completed despite a lost response. Only read back; never append again.
     const current = await inspectSentMessage(expected);
-    const matches = current.matches.filter(m => m.folder === current.targetFolder && m.identityMatches && m.sha256 === source.sha256);
+    const matches = current.matches.filter(m => m.folder === current.targetFolder && m.identityMatches && m.sha256 === (source?.sha256 || stored?.sha256));
     return { status: matches.length === 1 ? 'verified' : 'unconfirmed', copied: prior.status === 'verified',
       folder: current.targetFolder, smtpCalled: false, retryAllowed: false };
   }
   try {
-    const result = await copyExistingSentMessage(expected, source);
+    const result = source ? await copyExistingSentMessage(expected, source) : await archiveExactMessage('liv', preserved!, expected.messageId, draft.receipt!.acceptedAt);
+    if ('status' in result && result.status !== 'verified') throw Error(result.error || 'mcp_mail_sent_readback_mismatch');
+    const copied = 'copied' in result ? result.copied : true;
     await claimRef.update({ status: 'verified', targetFolder: result.folder, targetUid: result.uid,
-      copied: result.copied, verifiedAt: new Date().toISOString() });
-    return { status: 'verified', copied: result.copied, folder: result.folder, smtpCalled: false };
+      copied, verifiedAt: new Date().toISOString() });
+    await approvalRef(approvalId).update({ 'mcp.receipt.sentCopyArchived': true,
+      'mcp.receipt.sentCopyError': null, updatedAt: new Date().toISOString() });
+    return { status: 'verified', copied, folder: result.folder, smtpCalled: false };
   } catch {
     const current = await inspectSentMessage(expected).catch(() => null);
-    const matches = current?.matches.filter(m => m.folder === current.targetFolder && m.identityMatches && m.sha256 === source.sha256) || [];
+    const matches = current?.matches.filter(m => m.folder === current.targetFolder && m.identityMatches && m.sha256 === (source?.sha256 || stored?.sha256)) || [];
     if (matches.length === 1) {
       await claimRef.update({ status: 'verified', targetFolder: current!.targetFolder, verifiedAt: new Date().toISOString() });
       return { status: 'verified', copied: true, folder: current!.targetFolder, smtpCalled: false };
@@ -251,13 +283,27 @@ export async function confirmAccreditationDraft(identity: McpIdentity, raw: unkn
     const receipt = await sendAccreditationEmail({ to: a.to, subject: a.subject, text: a.text,
       html: a.html || accreditationMailHtml(a.text),
       threadId: a.threadId!, requestId: a.requestId, draftHash: a.draftHash, attachments,
-      personalApproval: { approvalId: a.id, attemptId: a.mcp.attemptId! } });
+      personalApproval: { approvalId: a.id, attemptId: a.mcp.attemptId! },
+      onPrepared: async (raw, sha256, messageId) => {
+        const stored = await preserveAccreditationMime(a.id, a.mcp.revision, raw, sha256);
+        await approvalRef(a.id).collection('outboundMime').doc(String(a.mcp.revision)).create({
+          ...stored, messageId, contentHash: a.mcp.contentHash, createdAt: new Date().toISOString() });
+      },
+      onAccepted: async accepted => {
+        // SMTP acceptance is durable BEFORE the independent IMAP operation.
+        await approvalRef(a.id).update({ mcp: { ...a.mcp, status: 'accepted', receipt: {
+          acceptedByMailServer: true, recipientDeliveryVerified: false, sentCopyArchived: false,
+          messageId: accepted.messageId, acceptedAt: accepted.acceptedAt, mimeSha256: accepted.mimeSha256 } },
+          updatedAt: new Date().toISOString() });
+      } });
     if (!receipt.ok) throw Error('mcp_accreditation_transport_unconfirmed');
     const now = new Date().toISOString();
     // Persist transport acceptance before any derived bookkeeping.
     const nextMcp = { ...a.mcp, status: 'accepted' as const, receipt: stripUndefined({ acceptedByMailServer: true,
       recipientDeliveryVerified: false as const, messageId: receipt.messageId, resendEmailId: receipt.resendEmailId,
-      sentCopyArchived: !!receipt.sentCopyArchived, acceptedAt: now }) };
+      sentCopyArchived: !!receipt.sentCopyArchived, sentCopyError: receipt.sentCopyError,
+      sentFolderSync: receipt.sentFolderSync, mimeSha256: receipt.mimeSha256,
+      acceptedAt: receipt.acceptedAt || now }) };
     await approvalRef(a.id).update({ mcp: nextMcp, status: 'sent', sentAt: now, updatedAt: now });
     await db.runTransaction(async tx => {
       const rRef = caseRef(a.requestId), tRef = db.collection(COLLECTIONS.emailThreads).doc(a.threadId!);
