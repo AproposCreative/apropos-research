@@ -137,7 +137,10 @@ export async function inspectLivCmsDraft(input: {
   for (const [slug, value] of [['book-title', input.expected.bookTitle], ['book-author', input.expected.bookAuthor]] as const) {
     if (value) checks.push({ id: `field:${slug}`, ok: fields[slug] === value });
   }
-  checks.push({ id: 'field:intro', ok: !!visibleText(input.expected.intro) && visibleText(fields.intro) === visibleText(input.expected.intro) });
+  // The CMS mapping removes the editorial "Intro:" label before saving. Accept
+  // only that known label removal; all actual intro prose must still match.
+  const expectedIntro = text(input.expected.intro).replace(/^intro\s*:\s*/i, '');
+  checks.push({ id: 'field:intro', ok: !!visibleText(expectedIntro) && visibleText(fields.intro) === visibleText(expectedIntro) });
   // Verify the saved editorial choice, including false. Legacy proofs predate
   // the explicit toggle and used true; do not silently reinterpret old work.
   checks.push({ id: 'field:ai-generated', ok: fields['ai-generated'] === (input.expected.aiGenerated ?? true) });

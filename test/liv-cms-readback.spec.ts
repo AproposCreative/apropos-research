@@ -173,6 +173,16 @@ it('compares all visible body/intro text instead of mere presence', async () => 
   expect(result.checks).toContainEqual({ id: 'field:content', ok: false });
   expect(result.checks).toContainEqual({ id: 'field:intro', ok: false });
 });
+it('accepts only the CMS removal of an editorial Intro label, not changed prose', async () => {
+  const f = fixture();
+  const labelled = { ...expected, intro: 'Intro: En præcis åbning om serien.' };
+  f.item.fieldData.intro = 'En præcis åbning om serien.';
+  const matched = await inspectLivCmsDraft({ itemId, expected: labelled }, f.dependencies);
+  expect(matched.checks).toContainEqual({ id: 'field:intro', ok: true });
+  f.item.fieldData.intro = 'En ændret åbning om serien.';
+  const changed = await inspectLivCmsDraft({ itemId, expected: labelled }, f.dependencies);
+  expect(changed.checks).toContainEqual({ id: 'field:intro', ok: false });
+});
 it('verifies an explicitly disabled AI label rather than requiring it to be enabled', async () => {
   const f = fixture();
   f.item.fieldData['ai-generated'] = false;
