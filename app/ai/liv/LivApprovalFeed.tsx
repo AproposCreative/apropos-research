@@ -10,6 +10,8 @@ import LivPresentationEditor from './LivPresentationEditor';
 import LivShorteningEditor from './LivShorteningEditor';
 import LivCoverEditor from './LivCoverEditor';
 import type { LivWorkItem } from '@/lib/liv/work-overview';
+import type { LivIdeaItem } from '@/lib/liv/idea-overview';
+import type { WeeklyStory } from '@/lib/liv/weekly-plan';
 
 const decisions = { pending: 'Afventer dit valg', approved: 'Godkendt', rejected: 'Afvist' };
 const fieldNames: Record<string, string> = { title: 'titel', intro: 'intro', subtitle: 'underrubrik', author: 'forfatter',
@@ -111,6 +113,22 @@ function LivSavedWorkCard({ item }: { item: LivWorkItem }) {
   </article>;
 }
 
+function LivIdeaRow({ item }: { item: LivIdeaItem }) {
+  return <li className="border-b border-white/10 py-4 first:pt-0 last:border-b-0">
+    <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-white/50">
+      <span>{item.status === 'selected' ? 'Valgt til research · ingen artikeltekst' : 'Idé · ikke valgt'}</span>
+      <time dateTime={item.createdAt}>{new Intl.DateTimeFormat('da-DK', { day: 'numeric', month: 'short', timeZone: 'Europe/Copenhagen' }).format(new Date(item.createdAt))}</time>
+    </div>
+    <h3 className="mt-2 break-words text-base font-medium">{item.title}</h3>
+    <p className="mt-1 line-clamp-2 break-words text-sm leading-relaxed text-white/60">{item.angle}</p>
+  </li>;
+}
+
+const planLabels: Record<WeeklyStory['status'], string> = {
+  off_day: 'Udgivelsesfri', unplanned: 'Ingen artikel planlagt', planned: 'Kun emne planlagt',
+  preparing: 'Forberedelse i gang', blocked: 'Forberedelse stoppet', ready: 'Artikel klar', published: 'Udgivet',
+};
+
 export default function LivApprovalFeed() {
   const { user, capabilities } = useAuth();
   const [feed, setFeed] = useState<ApprovalFeed | null>(null);
@@ -161,12 +179,13 @@ export default function LivApprovalFeed() {
   }
   const readyCmsIds = new Set(feed?.stories.map(story => story.itemId) || []);
   const savedWork = feed?.work?.items.filter(item => !item.cmsItemId || !readyCmsIds.has(item.cmsItemId)) || [];
+  const publicationDays = feed?.week?.filter(day => day.status !== 'off_day') || [];
   return <div data-liv-story-scroll style={{ paddingTop: 'var(--liv-tabs-height, 0px)' }} className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
     <LivContentColumn className="space-y-5 py-6">
       <header className="space-y-3">
         <div className="flex items-center justify-between gap-3"><h2 className="text-xl font-medium">Artikler i arbejde</h2>
           <button className="min-h-11 px-2 text-sm text-white/70 underline underline-offset-4 disabled:opacity-40" disabled={loading || !!saving} onClick={() => void refresh()}>Opdater</button></div>
-        <p className="text-sm leading-relaxed text-white/65">Gemte ChatGPT-artikler og aktivt arbejde fra de seneste 14 dage. Idéer, tomme kalenderdage og research uden artikeltekst er ikke artikler.</p>
+        <p className="text-sm leading-relaxed text-white/65">Gemte ChatGPT-artikler og andet aktivt artikelarbejde. Ældre poster fra øvrige kilder gennemgås kun for de seneste 14 dage. Idéer og kalenderdage er ikke artikler.</p>
         <p className="text-xs leading-relaxed text-white/45">Kladder er ikke automatisk godkendt eller planlagt til udgivelse.</p>
         {feed?.work && <p className="text-xs text-white/55">{feed.stories.length} i udgivelseskøen · {savedWork.length} gemte kladder</p>}
       </header>
@@ -184,6 +203,28 @@ export default function LivApprovalFeed() {
         </section>}
       {feed && !feed.stories.length && feed.work?.items.length === 0 &&
         <p className="rounded-2xl border border-white/15 p-5 text-sm text-white/60">Ingen gemte Liv-artikler i de gennemgåede kilder. Planer uden artikeltekst vises ikke her.</p>}
+      {capabilities.owner && <section aria-labelledby="liv-ideas-heading" className="space-y-3 border-t border-white/15 pt-6">
+        <div className="flex flex-wrap items-baseline justify-between gap-2"><h2 id="liv-ideas-heading" className="text-lg font-medium">Idéer til senere</h2>
+          {feed?.ideas && <span className="text-xs text-white/50">{feed.ideas.items.length} gemte idéer</span>}</div>
+        <p className="text-sm leading-relaxed text-white/60">Forslag fra gemte idébriefs. De er ikke researchet færdigt, skrevet eller godkendt til udgivelse. Daglige statusmails med et emne opretter ikke en artikel.</p>
+        {feed?.ideas === null && <p role="alert" className="text-sm text-amber-200">Idéarkivet kunne ikke hentes. Overblikket er ufuldstændigt.</p>}
+        {feed?.ideas && !feed.ideas.complete && <p role="alert" className="text-sm text-amber-200">Der findes flere gemte idéer end de 30 viste. Åbn redaktionens idéarkiv for resten.</p>}
+        {feed?.ideas && (feed.ideas.items.length ? <ul className="rounded-2xl border border-white/15 px-5 py-2">
+          {feed.ideas.items.map(item => <LivIdeaRow key={item.id} item={item} />)}
+        </ul> : <p className="text-sm text-white/50">Ingen særskilte idéer gemt i de gennemgåede briefs.</p>)}
+      </section>}
+      {capabilities.owner && <section aria-labelledby="liv-plan-heading" className="space-y-3 border-t border-white/15 pt-6">
+        <h2 id="liv-plan-heading" className="text-lg font-medium">Udgivelsesplan</h2>
+        <p className="text-sm leading-relaxed text-white/60">Kun planlagte udgivelsesdage vises her. Et emne er ikke en færdig artikel.</p>
+        {feed && !feed.week && <p role="alert" className="text-sm text-amber-200">Planen kunne ikke verificeres lige nu.</p>}
+        {publicationDays.length > 0 && <ul className="divide-y divide-white/10 rounded-2xl border border-white/15 px-5">
+          {publicationDays.map(day => <li key={day.day} className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 py-3 text-sm">
+            <time dateTime={day.day} className="text-white/80">{dateLabel(day.day)}</time>
+            <span className={day.status === 'blocked' ? 'text-amber-200' : 'text-white/55'}>{planLabels[day.status]}</span>
+            {day.itemId && day.status === 'ready' && <span className="w-full break-words text-xs text-white/60">{day.title}</span>}
+          </li>)}
+        </ul>}
+      </section>}
     </LivContentColumn>
   </div>;
 }

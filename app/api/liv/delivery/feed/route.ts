@@ -9,6 +9,7 @@ import { readLivCostSummary } from '@/lib/liv/cost-ledger';
 import { readNextLivPreparationStatus } from '@/lib/liv/preparation-status';
 import { readWeeklyPlan } from '@/lib/liv/weekly-plan';
 import { readLivWorkOverview } from '@/lib/liv/work-overview';
+import { readLivIdeaOverview } from '@/lib/liv/idea-overview';
 
 const headers = { 'Cache-Control': 'private, no-store' };
 const reply = (body: object, status = 200) => NextResponse.json(body, { status, headers });
@@ -25,13 +26,14 @@ export async function GET(req: NextRequest) {
   const preparationEnabled = preparationConfigured && !paused;
   // Keep saved previews available when paused; effective flags must not imply publication is active.
   const workPromise = access.owner ? readLivWorkOverview(userId).catch(() => null) : Promise.resolve(undefined);
+  const ideasPromise = access.owner ? readLivIdeaOverview(userId).catch(() => null) : Promise.resolve(undefined);
   if (!queueConfigured && !preparationConfigured) return reply({ stories: [], total: 0, nextOffset: null, queueEnabled, preparationEnabled,
-    ...(access.owner ? { work: await workPromise } : {}) });
+    ...(access.owner ? { work: await workPromise, ideas: await ideasPromise } : {}) });
   try {
-    const [state, cost, work] = await Promise.all([readDeliveryState().catch(() => null),
-      access.owner ? readLivCostSummary().catch(() => undefined) : undefined, workPromise]);
+    const [state, cost, work, ideas] = await Promise.all([readDeliveryState().catch(() => null),
+      access.owner ? readLivCostSummary().catch(() => undefined) : undefined, workPromise, ideasPromise]);
     if (!state) return reply({ stories: [], total: 0, nextOffset: null, queueEnabled, preparationEnabled,
-      queueUnavailable: true, ...(access.owner ? { work } : {}) });
+      queueUnavailable: true, ...(access.owner ? { work, ideas } : {}) });
     const now = new Date();
     const preparation = access.owner ? await readNextLivPreparationStatus(state, now).catch(() => undefined) : undefined;
     // A plan read failure must not hide the independently verified ready queue.
@@ -43,7 +45,7 @@ export async function GET(req: NextRequest) {
       return approvalStory(entry, payload, userId);
     }));
     return reply({ stories, total: entries.length, nextOffset: null,
-      queueEnabled, preparationEnabled, ...(access.owner ? { cost, preparation, week, work } : {}) });
+      queueEnabled, preparationEnabled, ...(access.owner ? { cost, preparation, week, work, ideas } : {}) });
   } catch { return reply({ error: 'Historierne kunne ikke hentes. Prøv igen; dine gemte valg er ikke ændret.' }, 503); }
 }
 export async function POST(req: NextRequest) {

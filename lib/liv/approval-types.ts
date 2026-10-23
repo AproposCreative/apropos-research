@@ -3,6 +3,7 @@ import type { LivEditorialKind } from './editorial-kind';
 import type { LivCostSummary } from './cost-ledger';
 import type { LivNextPreparationStatus } from './preparation-status';
 import type { LivWorkItem } from './work-overview';
+import type { LivIdeaItem } from './idea-overview';
 
 export type ApprovalStory = {
   itemId: string; payloadHash: string; revision: number;
@@ -24,4 +25,5 @@ export type ApprovalFeed = { stories: ApprovalStory[]; total: number; nextOffset
   week?: import('./weekly-plan').WeeklyStory[];
   work?: { items: LivWorkItem[]; complete: boolean; checkedAt: string;
     sources: { submissions: number; livCheckpoints: number; editorialDesk: number; cmsRows: number } } | null;
+  ideas?: { items: LivIdeaItem[]; complete: boolean; checkedAt: string } | null;
   queueEnabled: boolean; preparationEnabled: boolean; cost?: LivCostSummary; preparation?: LivNextPreparationStatus };
